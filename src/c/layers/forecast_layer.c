@@ -69,6 +69,29 @@ typedef struct
     int16_t h;
 } ForecastLayout;
 
+typedef struct {
+    int num_entries;          // clamped to MAX_FORECAST_ENTRIES
+    time_t forecast_start;
+    int16_t temps[MAX_FORECAST_ENTRIES];
+    uint8_t precip_probs[MAX_FORECAST_ENTRIES];
+    uint8_t rain_tenths[MAX_FORECAST_ENTRIES];
+    int temp_lo;
+    int temp_hi;
+} ForecastDataset;
+
+static void load_dataset(ForecastDataset *ds) {
+    const int raw = persist_get_num_entries();
+    ds->num_entries = raw > MAX_FORECAST_ENTRIES ? MAX_FORECAST_ENTRIES : raw;
+    ds->forecast_start = persist_get_forecast_start();
+    persist_get_temp_trend(ds->temps, ds->num_entries);
+    persist_get_precip_trend(ds->precip_probs, ds->num_entries);
+    persist_get_rain_trend(ds->rain_tenths, ds->num_entries);
+    int lo, hi;
+    min_max(ds->temps, ds->num_entries, &lo, &hi);
+    ds->temp_lo = lo;
+    ds->temp_hi = hi;
+}
+
 static Layer *s_forecast_layer;
 static int s_axis_left_w = LEFT_AXIS_GRAPH_INSET_DEFAULT;
 static int s_label_strip_w = LEFT_AXIS_LABEL_STRIP_MIN_W;
@@ -438,36 +461,29 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     int w = layout.w;
     int h = layout.h;
 
-    // Load data from storage
-    const int raw_num_entries = persist_get_num_entries();
-    const int num_entries = raw_num_entries > MAX_FORECAST_ENTRIES ? MAX_FORECAST_ENTRIES : raw_num_entries;
+    ForecastDataset ds;
+    load_dataset(&ds);
     MemoryHeapProbe redraw_probe = MEMORY_HEAP_PROBE_START("forecast_update");
-    if (num_entries < 2)
+    if (ds.num_entries < 2)
     {
         graphics_context_set_fill_color(ctx, GColorBlack);
         graphics_fill_rect(ctx, bounds, 0, GCornerNone);
         MEMORY_LOG_HEAP("forecast_update:exit");
         return;
     }
-
-    const time_t forecast_start = persist_get_forecast_start();
+    const int num_entries = ds.num_entries;
+    const time_t forecast_start = ds.forecast_start;
     const time_t forecast_end = forecast_start + (num_entries - 1) * FORECAST_STEP_SECONDS;
+    int16_t *temps = ds.temps;
+    uint8_t *precips = ds.precip_probs;
+    uint8_t *rain_tenths = ds.rain_tenths;
+    int lo = ds.temp_lo, hi = ds.temp_hi;
     NightSegments night_segments = {0};
     struct tm *forecast_start_local = localtime(&forecast_start);
-    int16_t temps[num_entries];
-    uint8_t precips[num_entries];
-    persist_get_temp_trend(temps, num_entries);
-    persist_get_precip_trend(precips, num_entries);
-    uint8_t rain_tenths[num_entries];
-    persist_get_rain_trend(rain_tenths, num_entries);
     APP_LOG(APP_LOG_LEVEL_DEBUG, "rain_tenths[0..7]=%u,%u,%u,%u,%u,%u,%u,%u",
             rain_tenths[0], rain_tenths[1], rain_tenths[2], rain_tenths[3],
             rain_tenths[4], rain_tenths[5], rain_tenths[6], rain_tenths[7]);
 
-    // Allocate point arrays for plots
-    // Calculate the temperature range
-    int lo, hi;
-    min_max(temps, num_entries, &lo, &hi);
     int range = hi - lo;
     const int temp_plot_h = h - MARGIN_TEMP_H * 2 - BOTTOM_AXIS_H;
     const int range_safe = range > 0 ? range : 1;
