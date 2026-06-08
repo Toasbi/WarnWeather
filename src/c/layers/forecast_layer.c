@@ -4,6 +4,7 @@
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
 #include "c/appendix/rain_tier.h"
+#include "c/appendix/hatch.h"
 
 #define LEFT_AXIS_LABEL_STRIP_MIN_W 15
 #define LEFT_AXIS_LABEL_TO_GRAPH_GAP 2
@@ -220,40 +221,6 @@ static int16_t graph_x_for_time(time_t timestamp, time_t graph_start, time_t gra
     return graph_left + (int16_t)((elapsed * graph_plot_rect.size.w) / total);
 }
 
-static int16_t aligned_hatch_start_y(int16_t x, int16_t y_start, int16_t spacing)
-{
-    int16_t modulo = (x + y_start) % spacing;
-    if (modulo < 0)
-    {
-        modulo += spacing;
-    }
-
-    if (modulo == 0)
-    {
-        return y_start;
-    }
-
-    return y_start + (spacing - modulo);
-}
-
-static void draw_night_hatch_rect(GContext *ctx, GRect rect, int16_t spacing)
-{
-    if (spacing <= 0 || rect.size.w <= 0 || rect.size.h <= 0)
-    {
-        return;
-    }
-
-    const int16_t x_end = rect.origin.x + rect.size.w;
-    const int16_t y_end = rect.origin.y + rect.size.h;
-    for (int16_t x = rect.origin.x; x < x_end; ++x)
-    {
-        int16_t hatch_y = aligned_hatch_start_y(x, rect.origin.y, spacing);
-        for (int16_t y = hatch_y; y < y_end; y += spacing)
-        {
-            graphics_draw_pixel(ctx, GPoint(x, y));
-        }
-    }
-}
 
 static void draw_night_regions(GContext *ctx, GRect graph_plot_rect, time_t graph_start, time_t graph_end,
                                const NightSegments *night_segments)
@@ -268,7 +235,7 @@ static void draw_night_regions(GContext *ctx, GRect graph_plot_rect, time_t grap
 
     const int16_t hatch_spacing = NIGHT_HATCH_SPACING;
     const bool is_color = PBL_IF_COLOR_ELSE(true, false);
-    graphics_context_set_stroke_color(ctx, is_color ? NIGHT_HATCH_COLOR : GColorWhite);
+    const GColor hatch_color = is_color ? NIGHT_HATCH_COLOR : GColorWhite;
 
     for (int i = 0; i < night_segments->count; ++i)
     {
@@ -289,7 +256,7 @@ static void draw_night_regions(GContext *ctx, GRect graph_plot_rect, time_t grap
         }
 
         GRect night_rect = GRect(x0, graph_plot_rect.origin.y, x1 - x0, graph_plot_rect.size.h);
-        draw_night_hatch_rect(ctx, night_rect, hatch_spacing);
+        hatch_fill_rect(ctx, night_rect, hatch_color, hatch_spacing);
     }
 }
 
@@ -383,15 +350,11 @@ static void draw_night_hatch_over_precip(GContext *ctx, GRect graph_plot_rect, t
             }
         }
 
-        graphics_context_set_stroke_color(ctx, is_color ? NIGHT_HATCH_COLOR_PRECIP : GColorWhite);
+        const GColor hatch_color = is_color ? NIGHT_HATCH_COLOR_PRECIP : GColorWhite;
         for (int16_t x = x0; x < x1; ++x)
         {
             const int16_t precip_y = clamped_precip_top_y_for_x(graph_plot_rect, points_precip, num_entries, x);
-            int16_t hatch_y = aligned_hatch_start_y(x, precip_y, hatch_spacing);
-            for (int16_t y = hatch_y; y < y_bottom_exclusive; y += hatch_spacing)
-            {
-                graphics_draw_pixel(ctx, GPoint(x, y));
-            }
+            hatch_fill_rect(ctx, GRect(x, precip_y, 1, y_bottom_exclusive - precip_y), hatch_color, hatch_spacing);
         }
     }
 }
