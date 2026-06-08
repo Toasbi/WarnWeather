@@ -450,6 +450,29 @@ static void draw_night_boundaries_over_precip(GContext *ctx, GRect graph_plot_re
 
 static GSize temp_label_string_size(const char *text);
 
+static void draw_temp_line(GContext *ctx, GRect graph_bounds, int h,
+                           const int16_t *temps, int num_entries, int lo, int hi) {
+    const int temp_plot_h = h - MARGIN_TEMP_H * 2 - BOTTOM_AXIS_H;
+    const int range = hi - lo;
+    const int range_safe = range > 0 ? range : 1;
+    const float entry_w = (float) graph_bounds.size.w / (num_entries - 1);
+
+    for (int i = 0; i < num_entries; ++i) {
+        const int entry_x = graph_bounds.origin.x + i * entry_w;
+        int temp_h = temp_plot_h / 2;
+        if (range > 0) {
+            temp_h = (int)(((int32_t)(temps[i] - lo) * temp_plot_h) / range_safe);
+        }
+        s_points_temp[i] = GPoint(entry_x, h - temp_h - MARGIN_TEMP_H - BOTTOM_AXIS_H);
+    }
+
+    s_path_temp.num_points = num_entries;
+    s_path_temp.points = s_points_temp;
+    graphics_context_set_stroke_color(ctx, PBL_IF_COLOR_ELSE(GColorRed, GColorWhite));
+    graphics_context_set_stroke_width(ctx, 3);
+    gpath_draw_outline_open(ctx, &s_path_temp);
+}
+
 static void forecast_update_proc(Layer *layer, GContext *ctx)
 {
     MEMORY_LOG_HEAP("forecast_update:enter");
@@ -484,10 +507,6 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             rain_tenths[0], rain_tenths[1], rain_tenths[2], rain_tenths[3],
             rain_tenths[4], rain_tenths[5], rain_tenths[6], rain_tenths[7]);
 
-    int range = hi - lo;
-    const int temp_plot_h = h - MARGIN_TEMP_H * 2 - BOTTOM_AXIS_H;
-    const int range_safe = range > 0 ? range : 1;
-
     // Draw a bounding box for each data entry (the -1 is since we don't want a gap on either side)
     float entry_w = (float)graph_bounds.size.w / (num_entries - 1);
     if (render_spec.draw_night_overlay)
@@ -508,15 +527,6 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         int precip = precips[i];
         int precip_h = (float)precip / 100.0 * (h - BOTTOM_AXIS_H);
         s_points_precip[i] = GPoint(entry_x, h - BOTTOM_AXIS_H - precip_h);
-
-        // Save a point for the temperature reading
-        int temp = temps[i];
-        int temp_h = temp_plot_h / 2;
-        if (range > 0)
-        {
-            temp_h = (int)(((int32_t)(temp - lo) * temp_plot_h) / range_safe);
-        }
-        s_points_temp[i] = GPoint(entry_x, h - temp_h - MARGIN_TEMP_H - BOTTOM_AXIS_H);
 
         // emery: draw emphasized major/minor bottom-axis ticks for improved readability.
 #ifdef PBL_PLATFORM_EMERY
@@ -620,13 +630,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     MEMORY_HEAP_PROBE_SAMPLE("after_precip_top_draw", &redraw_probe);
 
     // Draw the temperature line
-    s_path_temp.num_points = num_entries;
-    s_path_temp.points = s_points_temp;
-    MEMORY_HEAP_PROBE_SAMPLE("before_temp_path_draw", &redraw_probe);
-    graphics_context_set_stroke_color(ctx, PBL_IF_COLOR_ELSE(GColorRed, GColorWhite));
-    graphics_context_set_stroke_width(ctx, 3); // Only odd stroke width values supported
-    gpath_draw_outline_open(ctx, &s_path_temp);
-    MEMORY_HEAP_PROBE_SAMPLE("after_temp_path_draw", &redraw_probe);
+    draw_temp_line(ctx, graph_bounds, h, temps, num_entries, lo, hi);
 
     // Draw a line for the bottom axis
     graphics_context_set_stroke_color(ctx, render_spec.axis_color);
