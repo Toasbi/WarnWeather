@@ -1,0 +1,109 @@
+{
+  "name": "forecaswetter",
+  "author": "Toasbi",
+  "version": "1.34.0",
+  "buildProfile": "dev",
+  "keywords": [
+    "pebble-app"
+  ],
+  "private": true,
+  "dependencies": {
+    "suncalc": "^1.9.0"
+  },
+  "pebble": {
+    "displayName": "ForecasWetter (Dev)",
+    "uuid": "5245a6ea-b3c4-45a1-b24c-30a88f330965",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "targetPlatforms": [
+      "aplite",
+      "basalt",
+      "diorite",
+      "emery",
+      "flint"
+    ],
+    "watchapp": {
+      "watchface": true
+    },
+    "resources": {
+      "media": [
+        {
+          "menuIcon": true,
+          "type": "png",
+          "name": "IMAGE_MENU_ICON",
+          "file": "icon.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "IMAGE_MUTE",
+          "file": "img/mute.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "IMAGE_BT_DISCONNECT",
+          "file": "img/bt-disconnect.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "IMAGE_BT_CONNECT",
+          "file": "img/bt.png",
+          "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "bitmap",
+          "name": "IMAGE_BATTERY_CHARGING",
+          "file": "img/battery-charging.png",
+          "memoryFormat": "1BitPalette"
+        }
+      ]
+    },
+    "capabilities": [
+      "location",
+      "configurable"
+    ],
+    "messageKeys": [
+      "TEMP_TREND_INT16",
+      "PRECIP_TREND_UINT8",
+      "RAIN_TREND_UINT8",
+      "FORECAST_START",
+      "NUM_ENTRIES",
+      "CURRENT_TEMP",
+      "CITY",
+      "SUN_EVENTS",
+      "WATCH_HAS_FORECAST_DATA",
+      "CLAY_CELSIUS",
+      "CLAY_TIME_LEAD_ZERO",
+      "CLAY_AXIS_12H",
+      "CLAY_START_MON",
+      "CLAY_COLOR_TODAY",
+      "CLAY_PREV_WEEK",
+      "CLAY_TIME_FONT",
+      "CLAY_SHOW_QT",
+      "CLAY_SHOW_BT",
+      "CLAY_SHOW_BT_DISCONNECT",
+      "CLAY_VIBE",
+      "CLAY_SHOW_AM_PM",
+      "CLAY_COLOR_SATURDAY",
+      "CLAY_COLOR_SUNDAY",
+      "CLAY_COLOR_US_FEDERAL",
+      "CLAY_COLOR_TIME",
+      "CLAY_DAY_NIGHT_SHADING"
+    ]
+  },
+  "releaseNotifications": {
+    "1.26.0": {
+      "title": "New in v1.26.0!",
+      "body": "Forecast graph now shows hatch shading between sunset and sunrise to distinguish day and night.\n\nDay/night shading is on by default and can be turned off in the Weather section of the watchface settings.\n\nPrivacy-respecting weather telemetry is now enabled, see README for details."
+    },
+    "1.33.0": {
+      "title": "New in v1.33.0!",
+      "body": "Pebble Time 2 is now natively supported.\n\nEnjoy your favorite watchface, optimized for the larger display."
+    }
+  },
+  "telemetry": {
+    "enabled": false,
+    "endpoint": ""
+  }
+}
