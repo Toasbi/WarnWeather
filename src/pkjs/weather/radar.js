@@ -2,8 +2,9 @@ var WeatherProvider = require('./provider.js');
 var request = WeatherProvider.request;
 
 var BRIGHTSKY_BASE = 'https://api.brightsky.dev';
-var DISTANCE_METERS = 1000;   // ~3x3 px tile, same point-accuracy as any larger tile
+var DISTANCE_METERS = 1000;   // ~3x3 px tile, also enough buffer for the NEARBY_RADIUS_KM scan
 var NUM_BARS = 24;             // 24 frames * 5 min = 120 min
+var NEARBY_RADIUS_KM = 1;      // disk radius for the "nearby" max signal; radar grid is ~1 km/cell
 
 /**
  * Build the URL for the Brightsky /radar request.
@@ -78,6 +79,41 @@ function sampleBilinear(grid, xy) {
          + v10 * fx       * (1 - fy)
          + v01 * (1 - fx) * fy
          + v11 * fx       * fy;
+}
+
+/**
+ * Find the maximum value among all grid cells whose centre lies within
+ * `radius` grid units of the sub-pixel position (cx, cy).
+ *
+ * Distance is computed in squared form to avoid a sqrt per cell. The
+ * helper is O(rows * cols) — fine on the small grids Brightsky returns
+ * (typically 3x3 for distance=1000).
+ *
+ * @param {number[][]} grid Rectangular 2-D array of cell values.
+ * @param {number} cx User sub-pixel column (Brightsky's latlon_position.x).
+ * @param {number} cy User sub-pixel row    (Brightsky's latlon_position.y).
+ * @param {number} radius Disk radius in grid units (1 grid unit ≈ 1 km).
+ * @returns {number} Max cell value among cells inside the disk; 0 if none qualify.
+ */
+function maxOverDisk(grid, cx, cy, radius) {
+    var rows = grid.length;
+    var cols = grid[0].length;
+    var r2 = radius * radius;
+    var best = 0;
+    var j, i, dx, dy, v;
+    for (j = 0; j < rows; j += 1) {
+        for (i = 0; i < cols; i += 1) {
+            dx = i - cx;
+            dy = j - cy;
+            if (dx * dx + dy * dy <= r2) {
+                v = grid[j][i];
+                if (v > best) {
+                    best = v;
+                }
+            }
+        }
+    }
+    return best;
 }
 
 /**
