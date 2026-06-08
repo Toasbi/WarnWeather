@@ -2,7 +2,7 @@ var WeatherProvider = require('./provider.js');
 var request = WeatherProvider.request;
 
 var BRIGHTSKY_BASE = 'https://api.brightsky.dev';
-var DISTANCE_METERS = 1000;   // ~3x3 px tile, also enough buffer for the NEARBY_RADIUS_KM scan
+var DISTANCE_METERS = 1000;   // must match NEARBY_RADIUS_KM * 1000; Brightsky returns all cells within this radius
 var NUM_BARS = 24;             // 24 frames * 5 min = 120 min
 var NEARBY_RADIUS_KM = 1;      // disk radius for the "nearby" max signal; radar grid is ~1 km/cell
 
@@ -101,7 +101,11 @@ function maxOverDisk(grid, cx, cy, radius) {
     var cols = grid[0].length;
     var r2 = radius * radius;
     var best = 0;
-    var j, i, dx, dy, v;
+    var j;
+    var i;
+    var dx;
+    var dy;
+    var v;
     for (j = 0; j < rows; j += 1) {
         for (i = 0; i < cols; i += 1) {
             dx = i - cx;
