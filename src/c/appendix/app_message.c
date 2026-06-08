@@ -40,6 +40,11 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     Tuple *clay_color_time_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_COLOR_TIME);
     Tuple *clay_day_night_shading_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_DAY_NIGHT_SHADING);
 
+    // Rain-radar payload keys
+    Tuple *rain_radar_exact_tuple = dict_find(iterator, MESSAGE_KEY_RAIN_RADAR_TREND_UINT8);
+    Tuple *rain_radar_area_tuple  = dict_find(iterator, MESSAGE_KEY_RAIN_RADAR_TREND_AREA_UINT8);
+    Tuple *rain_radar_start_tuple = dict_find(iterator, MESSAGE_KEY_RAIN_RADAR_START);
+
     if(temp_trend_tuple && temp_trend_tuple && forecast_start_tuple && num_entries_tuple && city_tuple && sun_events_tuple) {
         // Weather data received
         APP_LOG(APP_LOG_LEVEL_INFO, "All tuples received!");
@@ -75,6 +80,24 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
         weather_status_layer_refresh();
         calendar_layer_refresh();
         calendar_status_layer_refresh();
+    }
+    else if (rain_radar_exact_tuple && rain_radar_area_tuple && rain_radar_start_tuple) {
+        APP_LOG(APP_LOG_LEVEL_INFO, "Rain-radar payload received");
+        persist_set_rain_radar_trend(
+            (uint8_t*) rain_radar_exact_tuple->value->data, 24);
+        persist_set_rain_radar_trend_area(
+            (uint8_t*) rain_radar_area_tuple->value->data, 24);
+        persist_set_rain_radar_start(
+            (time_t) rain_radar_start_tuple->value->int32);
+        // The radar layer doesn't exist yet at this point in the plan — refresh
+        // is wired in Task 8.
+    } else if (rain_radar_exact_tuple || rain_radar_area_tuple) {
+        // Partial radar payload — log and skip.
+        APP_LOG(APP_LOG_LEVEL_WARNING,
+                "Rain-radar payload incomplete (exact=%d area=%d start=%d) — skipping",
+                rain_radar_exact_tuple != NULL,
+                rain_radar_area_tuple  != NULL,
+                rain_radar_start_tuple != NULL);
     }
     else if (clay_celsius_tuple && clay_time_lead_zero_tuple && clay_axis_12h_tuple && clay_start_mon_tuple && clay_prev_week_tuple
         && clay_color_today_tuple && clay_time_font_tuple && clay_vibe_tuple && clay_show_qt_tuple && clay_show_bt_tuple
