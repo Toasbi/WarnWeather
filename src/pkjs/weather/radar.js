@@ -82,8 +82,9 @@ function sampleBilinear(grid, xy) {
 }
 
 /**
- * Find the maximum value among all grid cells whose centre lies within
- * `radius` grid units of the sub-pixel position (cx, cy).
+ * Find the maximum value among all grid cells whose centre lies at or
+ * within `radius` grid units of the sub-pixel position (cx, cy)
+ * (boundary inclusive — matches the `<=` comparison below).
  *
  * Distance is computed in squared form to avoid a sqrt per cell. The
  * helper is O(rows * cols) — fine on the small grids Brightsky returns
