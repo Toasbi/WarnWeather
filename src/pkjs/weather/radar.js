@@ -98,6 +98,23 @@ function scaleToWireUnits(v) {
 }
 
 /**
+ * Default sub-pixel position when the response omits latlon_position.
+ * Falls back to the geometric centre of the supplied grid so we still
+ * return a sensible value rather than failing the whole fetch.
+ *
+ * @param {number[][]} grid Reference grid (used only for its dimensions).
+ * @returns {{x: number, y: number}} Centre sub-pixel coordinates.
+ */
+function gridCentre(grid) {
+    var rows = grid.length;
+    var cols = grid[0].length;
+    return {
+        x: (cols - 1) / 2,
+        y: (rows - 1) / 2
+    };
+}
+
+/**
  * Fetch 2 hours of 5-minute rainfall from Bright Sky's /radar endpoint at the
  * given lat/lon and pass a 24-entry uint8 array (mm/h * 10) to `onSuccess`.
  *
@@ -143,9 +160,15 @@ function withRadar2hRain(lat, lon, onSuccess, onFailure) {
             var i;
             var grid;
             var raw;
+            var hasXy = xy && isFinite(xy.x) && isFinite(xy.y);
             for (i = 0; i < NUM_BARS && i < frames.length; i += 1) {
                 grid = frames[i].precipitation_5;
-                raw = sampleBilinear(grid, xy);
+                // Per-frame defensive checks: a malformed frame contributes a
+                // zero bar rather than aborting the whole fetch.
+                if (!Array.isArray(grid) || grid.length === 0 || !Array.isArray(grid[0]) || grid[0].length === 0) {
+                    continue;
+                }
+                raw = sampleBilinear(grid, hasXy ? xy : gridCentre(grid));
                 out[i] = scaleToWireUnits(raw);
             }
             onSuccess(out);
