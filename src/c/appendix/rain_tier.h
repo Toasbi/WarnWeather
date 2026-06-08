@@ -12,7 +12,9 @@ extern const int RAIN_TIER_HEIGHT_FIFTHS[RAIN_TIER_COUNT];
 int rain_tier_of_tenths(int tenths);
 
 // Per-tier fill colour. On colour displays: tier 1 white, 2 cobalt,
-// 3 green, 4 orange, 5 red. On B&W: GColorWhite for all tiers.
+// 3 green, 4 orange, 5 red. On B&W: GColorBlack for all tiers
+// (matches the previous behaviour in forecast_layer.c; intentional
+// preservation by Task 2 extraction).
 GColor rain_tier_color(int tier);
 
 // Tier height in pixels given a bar-plot height. Returns 0 for tier 0;
