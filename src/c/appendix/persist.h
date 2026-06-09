@@ -65,3 +65,7 @@ void persist_set_sun_event_start_type(int val);
 void persist_set_sun_event_times(time_t *data, const size_t size);
 
 void persist_set_config(Config config);
+
+bool persist_get_is_sleeping();
+
+void persist_set_is_sleeping(bool sleeping);

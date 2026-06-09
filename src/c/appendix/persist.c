@@ -4,7 +4,8 @@
 enum key {
     TEMP_LO, TEMP_HI, TEMP_TREND, PRECIP_TREND, FORECAST_START, CITY, SUN_EVENT_START_TYPE, SUN_EVENT_TIMES, NUM_ENTRIES,
     CURRENT_TEMP, BATTERY_LEVEL, CONFIG, RAIN_TREND,
-    RAIN_RADAR_TREND, RAIN_RADAR_TREND_AREA, RAIN_RADAR_START
+    RAIN_RADAR_TREND, RAIN_RADAR_TREND_AREA, RAIN_RADAR_START,
+    IS_SLEEPING
 }; // Deprecated: BATTERY_LEVEL
 
 void persist_init() {
@@ -55,6 +56,9 @@ void persist_init() {
     if (!persist_exists(SUN_EVENT_TIMES)) {
         uint32_t data[] = {0, 0};
         persist_write_data(SUN_EVENT_TIMES, (void*) data, 2*sizeof(uint32_t));
+    }
+    if (!persist_exists(IS_SLEEPING)) {
+        persist_write_bool(IS_SLEEPING, false);
     }
     if (!persist_exists(CONFIG)) {
         Config config = (Config) {
@@ -200,4 +204,12 @@ void persist_set_sun_event_times(time_t *data, const size_t size) {
 void persist_set_config(Config config) {
     persist_write_data(CONFIG, &config, sizeof(Config));
     config_refresh();  // Refresh global config variable
+}
+
+bool persist_get_is_sleeping() {
+    return persist_read_bool(IS_SLEEPING);
+}
+
+void persist_set_is_sleeping(bool sleeping) {
+    persist_write_bool(IS_SLEEPING, sleeping);
 }
