@@ -2,9 +2,9 @@ var WeatherProvider = require('./provider.js');
 var request = WeatherProvider.request;
 
 var BRIGHTSKY_BASE = 'https://api.brightsky.dev';
-var DISTANCE_METERS = 1000;   // must match NEARBY_RADIUS_KM * 1000; Brightsky returns all cells within this radius
+var DISTANCE_METERS = 2000;   // must match NEARBY_RADIUS_KM * 1000; Brightsky returns all cells within this radius
 var NUM_BARS = 24;             // 24 frames * 5 min = 120 min
-var NEARBY_RADIUS_KM = 1;      // disk radius for the "nearby" max signal; radar grid is ~1 km/cell
+var NEARBY_RADIUS_KM = 2;      // disk radius for the "nearby" max signal; radar grid is ~1 km/cell
 var SLOT_SECONDS = 5 * 60;     // wire-side slot width; must match RADAR_SLOT_SECONDS on the watch
 
 /**
@@ -237,11 +237,19 @@ function withRadar2hRain(lat, lon, onSuccess, onFailure) {
             var hasXy = Boolean(xy && isFinite(xy.x) && isFinite(xy.y));
             var exactOut = zeroBars();
             var nearbyOut = zeroBars();
+            // RAIN_RADAR_START is contractually a 5-min wall-clock
+            // boundary — the watch's hour-axis tick suppression compares
+            // slot epochs (radar_start + i*300) directly against whole
+            // hours, so any sub-5-min offset would silently break the
+            // alignment. Snap to the nearest SLOT_SECONDS boundary even
+            // though Brightsky timestamps already land on the grid; the
+            // round() is defence against millisecond fields in the
+            // response or any future parser drift in JerryScript.
             var startEpoch = nextSlotBoundaryEpoch();
             if (frames.length > 0 && frames[0] && typeof frames[0].timestamp === 'string') {
                 var parsedMs = Date.parse(frames[0].timestamp);
                 if (isFinite(parsedMs)) {
-                    startEpoch = Math.floor(parsedMs / 1000);
+                    startEpoch = Math.round(parsedMs / 1000 / SLOT_SECONDS) * SLOT_SECONDS;
                 }
             }
             var i;
