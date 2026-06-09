@@ -914,10 +914,17 @@ function getFixtureRadarTuples(fixture) {
         if (scaled > 255) { return 255; }
         return scaled;
     };
+    // Align radar start with the fixture clock (weather.startEpoch) so the
+    // watch's hour-axis labels render relative to fixture time, not real
+    // wall-clock time. Falls back to Date.now() if the fixture predates
+    // startEpoch.
+    var radarStart = typeof weather.startEpoch === 'number'
+        ? weather.startEpoch
+        : Math.floor(Date.now() / 1000);
     return {
         RAIN_RADAR_TREND_UINT8: weather.rainRadarExactMm.map(toTenths),
         RAIN_RADAR_TREND_AREA_UINT8: weather.rainRadarAreaMm.map(toTenths),
-        RAIN_RADAR_START: Math.floor(Date.now() / 1000)
+        RAIN_RADAR_START: radarStart
     };
 }
 

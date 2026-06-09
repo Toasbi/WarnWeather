@@ -1,78 +1,102 @@
 // src/c/layers/rain_radar_layer.c
 #include "rain_radar_layer.h"
 #include "c/appendix/persist.h"
+#include "c/appendix/config.h"
 #include "c/appendix/rain_tier.h"
-#include "c/appendix/axis.h"
 #include "c/appendix/hatch.h"
 #include "c/appendix/memory_log.h"
 
-// Layout constants. Top axis row hosts ticks + numeric labels.
-#define RADAR_AXIS_H        12
-#define RADAR_LABEL_FONT    FONT_KEY_GOTHIC_14
-#define RADAR_TICK_BIG_LEN  5
-#define RADAR_TICK_SMALL_LEN 2
-#define RADAR_NUM_ENTRIES   24
-#define RADAR_BIG_EVERY     3   // every 15min (3 * 5min)
+// Layout constants. The axis area sits above the bar plot. Hour labels
+// share a single vertical strip with the tick row: at hour-aligned slot
+// positions the tick is suppressed and the hour digit is drawn centred
+// on that column instead.
+//
+// RADAR_LABEL_FONT_OFFSET nudges the GOTHIC_14 text box up so its
+// internal top padding doesn't push the digit pixels down past the
+// bottom of the axis area into the bar plot. The box itself spills a
+// couple of px above bounds, but only padding pixels live there.
+#define RADAR_LABEL_FONT        FONT_KEY_GOTHIC_14
+#define RADAR_LABEL_H           14
+#define RADAR_LABEL_FONT_OFFSET 3
+#define RADAR_AXIS_H            12
+#define RADAR_TICK_BIG_LEN      5
+#define RADAR_TICK_SMALL_LEN    2
+#define RADAR_NUM_ENTRIES    24
+#define RADAR_BIG_EVERY      3      // every 15min (3 * 5min)
+#define RADAR_SLOT_SECONDS   (5 * 60)
+#define RADAR_WINDOW_SECONDS (RADAR_NUM_ENTRIES * RADAR_SLOT_SECONDS)
+#define HOUR_SECONDS         3600
 
 // Hatch line spacing for the 1km background bars. Matches the night-shading
 // stride for visual consistency.
 #define RADAR_HATCH_SPACING PBL_IF_COLOR_ELSE(6, 7)
 
-// 1km area background hatch colour — matches the night-region hatch so the
-// area pass reads as "non-foreground intensity context" rather than as
-// tier-coloured fill. Tier colour still lives in the outline + exact bars.
-#define RADAR_AREA_HATCH_COLOR PBL_IF_COLOR_ELSE(GColorDarkGray, GColorWhite)
-
-// Minimum px between text labels. Drives label cadence per platform.
-#define RADAR_LABEL_MIN_SPACING_PX 24
+// Outline colour for the 1km nearby-rain shape. Matches the night-region
+// hatch colour (DarkGray on colour, White on B&W) — a single low-emphasis
+// colour reads much calmer than per-slot tier colours did.
+#define RADAR_AREA_BORDER_COLOR PBL_IF_COLOR_ELSE(GColorDarkGray, GColorWhite)
 
 static Layer *s_radar_layer;
 
-static int radar_label_stride(int16_t plot_w) {
-    const float entry_w = (float) plot_w / RADAR_NUM_ENTRIES;
-    const float big_slot_w = entry_w * RADAR_BIG_EVERY;
-    if (big_slot_w >= RADAR_LABEL_MIN_SPACING_PX) {
-        return 1;
+// True when tick index `i` (0..RADAR_NUM_ENTRIES) lands exactly on a
+// whole-hour wall-clock boundary, given `radar_start`. Returns false
+// when radar_start <= 0 (no time info available).
+static bool tick_index_is_on_hour(int i, time_t radar_start) {
+    if (radar_start <= 0) {
+        return false;
     }
-    return 2;
-}
-
-static void format_radar_label(int minutes_offset, char *buf, size_t buf_size) {
-    if (minutes_offset == 0) {
-        snprintf(buf, buf_size, "now");
-    } else {
-        snprintf(buf, buf_size, "+%d", minutes_offset);
-    }
+    const time_t tick_time = radar_start + (time_t)i * RADAR_SLOT_SECONDS;
+    return (tick_time % HOUR_SECONDS) == 0;
 }
 
 static void draw_radar_axis(GContext *ctx, GRect bounds) {
     const int16_t x_start = bounds.origin.x;
     const int16_t x_end = bounds.origin.x + bounds.size.w;
     const int16_t y_axis = bounds.origin.y + RADAR_AXIS_H - 1;
+    const int32_t span_px = (int32_t) x_end - x_start;
+    const time_t radar_start = persist_get_rain_radar_start();
 
-    axis_draw_tick_row(ctx, x_start, x_end, y_axis,
-                       RADAR_NUM_ENTRIES, RADAR_BIG_EVERY,
-                       RADAR_TICK_BIG_LEN, RADAR_TICK_SMALL_LEN,
-                       PBL_IF_COLOR_ELSE(GColorLightGray, GColorWhite),
-                       false);
-
-    graphics_context_set_text_color(ctx, GColorWhite);
-    const int stride = radar_label_stride(bounds.size.w);
-    const GFont font = fonts_get_system_font(RADAR_LABEL_FONT);
-    const int label_y = bounds.origin.y - 4;
-    const int label_h = RADAR_AXIS_H;
-
-    for (int big_i = 0; big_i * RADAR_BIG_EVERY <= RADAR_NUM_ENTRIES; ++big_i) {
-        if (big_i % stride != 0) {
+    // Tick row, but skip ticks whose column will host a hour label so
+    // the hour digit can sit in the same vertical strip without a tick
+    // collision underneath it.
+    graphics_context_set_stroke_color(ctx, PBL_IF_COLOR_ELSE(GColorLightGray, GColorWhite));
+    graphics_context_set_stroke_width(ctx, 1);
+    for (int i = 0; i <= RADAR_NUM_ENTRIES; ++i) {
+        if (tick_index_is_on_hour(i, radar_start)) {
             continue;
         }
-        const int tick_i = big_i * RADAR_BIG_EVERY;
-        const int minutes = tick_i * 5;
-        const int16_t x = x_start + (int16_t)(((int32_t)(x_end - x_start) * tick_i) / RADAR_NUM_ENTRIES);
-        char buf[8];
-        format_radar_label(minutes, buf, sizeof(buf));
+        const int16_t x = x_start + (int16_t)((span_px * i) / RADAR_NUM_ENTRIES);
+        const int16_t len = (i % RADAR_BIG_EVERY == 0) ? RADAR_TICK_BIG_LEN : RADAR_TICK_SMALL_LEN;
+        graphics_draw_line(ctx, GPoint(x, y_axis), GPoint(x, y_axis - len));
+    }
+
+    if (radar_start <= 0) {
+        return;
+    }
+
+    // Hour labels centred on the slot column where the tick was removed.
+    // Whole-hour boundaries strictly inside the 2h radar window get a
+    // label; the start hour at slot 0 is implied by reading "+1" off the
+    // first label.
+    const time_t radar_end = radar_start + RADAR_WINDOW_SECONDS;
+    const time_t first_hour = (radar_start / HOUR_SECONDS + 1) * HOUR_SECONDS;
+
+    graphics_context_set_text_color(ctx, GColorWhite);
+    const GFont font = fonts_get_system_font(RADAR_LABEL_FONT);
+    // Shift the GOTHIC_14 text box up by RADAR_LABEL_FONT_OFFSET so the
+    // font's internal top padding doesn't push the digit pixels past the
+    // axis bottom into the bar plot. The box itself spills above
+    // bounds.origin.y but only top-padding pixels live there.
+    const int label_y = bounds.origin.y - RADAR_LABEL_FONT_OFFSET;
+
+    for (time_t hr = first_hour; hr < radar_end; hr += HOUR_SECONDS) {
+        struct tm *hr_local = localtime(&hr);
+        const int hour_disp = config_axis_hour(hr_local->tm_hour);
+        const int16_t x = x_start + (int16_t)(((int64_t)(hr - radar_start) * span_px) / RADAR_WINDOW_SECONDS);
+        char buf[4];
+        snprintf(buf, sizeof(buf), "%d", hour_disp);
         graphics_draw_text(ctx, buf, font,
-                           GRect(x - 20, label_y, 40, label_h),
+                           GRect(x - 20, label_y, 40, RADAR_LABEL_H),
                            GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
     }
 }
@@ -88,10 +112,11 @@ static inline int slot_height_px(uint8_t tenths, int16_t bar_plot_h) {
 }
 
 // Pass 1: 1km background bars. Per slot with area > 0, hatch-fill a
-// full-slot-width rect in RADAR_AREA_HATCH_COLOR (matches night hatch so
-// the area pass reads as low-emphasis context). Contiguous runs of
-// nonzero slots get a 1-px outline tracing the perimeter, colour =
-// max area tier in the run — that's where tier intensity is conveyed.
+// full-slot-width rect in the slot's tier colour (same palette as the
+// forecast/radar slab bars). Contiguous runs of nonzero slots get a
+// 1-px outline tracing the perimeter in RADAR_AREA_BORDER_COLOR — a
+// single low-emphasis grey matching the night hatch, so the border
+// frames the shape without competing with the tier-coloured fill.
 static void draw_radar_area_bars(GContext *ctx, GRect bar_plot_rect,
                                   const uint8_t *area_tenths) {
     if (bar_plot_rect.size.w <= 0 || bar_plot_rect.size.h <= 0) {
@@ -108,10 +133,7 @@ static void draw_radar_area_bars(GContext *ctx, GRect bar_plot_rect,
 
         const int run_start = i;
         int run_end = i;
-        int max_tier = 0;
         while (run_end < RADAR_NUM_ENTRIES && area_tenths[run_end] != 0) {
-            const int tier = rain_tier_of_tenths(area_tenths[run_end]);
-            if (tier > max_tier) { max_tier = tier; }
             run_end++;
         }
 
@@ -120,10 +142,12 @@ static void draw_radar_area_bars(GContext *ctx, GRect bar_plot_rect,
             const int16_t x_a = slot_x(s,     plot_x, entry_w);
             const int16_t x_b = slot_x(s + 1, plot_x, entry_w);
             const GRect r = GRect(x_a, plot_bottom - slot_h, x_b - x_a, slot_h);
-            hatch_fill_rect(ctx, r, RADAR_AREA_HATCH_COLOR, RADAR_HATCH_SPACING);
+            hatch_fill_rect(ctx, r,
+                rain_tier_color(rain_tier_of_tenths(area_tenths[s])),
+                RADAR_HATCH_SPACING);
         }
 
-        graphics_context_set_stroke_color(ctx, rain_tier_color(max_tier));
+        graphics_context_set_stroke_color(ctx, RADAR_AREA_BORDER_COLOR);
         graphics_context_set_stroke_width(ctx, 1);
 
         // Left vertical edge: baseline up to slot run_start's top.
@@ -166,8 +190,12 @@ static void draw_radar_area_bars(GContext *ctx, GRect bar_plot_rect,
     }
 }
 
-// Pass 2: exact-location foreground bars. Narrow solid bars centred in
-// each slot, drawn on top of the area pass.
+// Pass 2: exact-location foreground bars. Sized one px narrower than
+// the forecast rain bars (bar_w = entry_w - 4 vs forecast's -3); the
+// radar layer fills the full layer width with 24 slots while the
+// forecast plot is narrower after the left axis, so matching the
+// forecast formula 1:1 makes the radar bars look fatter. Drawn on top
+// of the area pass — slab colours carry the tier intensity.
 static void draw_radar_exact_bars(GContext *ctx, GRect bar_plot_rect,
                                    const uint8_t *exact_tenths) {
     if (bar_plot_rect.size.w <= 0 || bar_plot_rect.size.h <= 0) {
@@ -178,13 +206,11 @@ static void draw_radar_exact_bars(GContext *ctx, GRect bar_plot_rect,
     const int16_t bar_h = bar_plot_rect.size.h;
     const float entry_w = (float) bar_plot_rect.size.w / RADAR_NUM_ENTRIES;
 
-    int fg_w = (int)(entry_w / 3.0f);
-    if (fg_w < 1) { fg_w = 1; }
+    const int fg_w = (entry_w >= 5.0f) ? (int) entry_w - 4 : 1;
 
     for (int s = 0; s < RADAR_NUM_ENTRIES; ++s) {
         if (exact_tenths[s] == 0) { continue; }
-        const int16_t x_a = slot_x(s, plot_x, entry_w);
-        const int16_t bar_x = x_a + (int16_t)((entry_w - fg_w) / 2.0f);
+        const int16_t bar_x = slot_x(s, plot_x, entry_w) + 2;
         rain_tier_bar_draw_slabs(ctx, bar_x, fg_w, plot_bottom, bar_h,
                                  exact_tenths[s]);
     }
