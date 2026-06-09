@@ -31,16 +31,19 @@
 // stride for visual consistency.
 #define RADAR_HATCH_SPACING PBL_IF_COLOR_ELSE(6, 7)
 
-// Outline colour for the 1km nearby-rain shape. Matches the night-region
-// hatch colour (DarkGray on colour, White on B&W) — a single low-emphasis
-// colour reads much calmer than per-slot tier colours did.
-#define RADAR_AREA_BORDER_COLOR PBL_IF_COLOR_ELSE(GColorDarkGray, GColorWhite)
+// Hatch fill colour for the 1km nearby-rain shape. Matches the
+// night-region hatch (DarkGray on colour, White on B&W) so the fill
+// reads as low-emphasis context; tier intensity is conveyed by the
+// outline + the exact bars on top.
+#define RADAR_AREA_HATCH_COLOR PBL_IF_COLOR_ELSE(GColorDarkGray, GColorWhite)
 
 static Layer *s_radar_layer;
 
 // True when tick index `i` (0..RADAR_NUM_ENTRIES) lands exactly on a
 // whole-hour wall-clock boundary, given `radar_start`. Returns false
-// when radar_start <= 0 (no time info available).
+// when radar_start <= 0 (no time info available) so all ticks render.
+// Only the exact-hour tick is suppressed — adjacent slot ticks stay
+// drawn so the 5-min rhythm reads uniform right next to the hour label.
 static bool tick_index_is_on_hour(int i, time_t radar_start) {
     if (radar_start <= 0) {
         return false;
@@ -111,14 +114,26 @@ static inline int slot_height_px(uint8_t tenths, int16_t bar_plot_h) {
     return rain_tier_pixel_height(tier, bar_plot_h);
 }
 
+// Per-slot outline colour: tier of the exact (foreground) bar at that
+// slot — the border at column k matches the colour of the topmost slab
+// of the exact bar in column k. Falls back to the area tier when the
+// slot has no exact bar so the border still has a colour.
+static GColor border_color_for_slot(uint8_t exact_t, uint8_t area_t) {
+    int tier = rain_tier_of_tenths(exact_t);
+    if (tier == 0) {
+        tier = rain_tier_of_tenths(area_t);
+    }
+    return rain_tier_color(tier);
+}
+
 // Pass 1: 1km background bars. Per slot with area > 0, hatch-fill a
-// full-slot-width rect in the slot's tier colour (same palette as the
-// forecast/radar slab bars). Contiguous runs of nonzero slots get a
-// 1-px outline tracing the perimeter in RADAR_AREA_BORDER_COLOR — a
-// single low-emphasis grey matching the night hatch, so the border
-// frames the shape without competing with the tier-coloured fill.
+// full-slot-width rect in the muted RADAR_AREA_HATCH_COLOR; tier
+// intensity is conveyed by the outline + the exact bars on top.
+// Contiguous runs of nonzero slots get a 1-px outline tracing the
+// perimeter, with each segment coloured by its slot's exact tier.
 static void draw_radar_area_bars(GContext *ctx, GRect bar_plot_rect,
-                                  const uint8_t *area_tenths) {
+                                  const uint8_t *area_tenths,
+                                  const uint8_t *exact_tenths) {
     if (bar_plot_rect.size.w <= 0 || bar_plot_rect.size.h <= 0) {
         return;
     }
@@ -126,6 +141,8 @@ static void draw_radar_area_bars(GContext *ctx, GRect bar_plot_rect,
     const int16_t plot_bottom = bar_plot_rect.origin.y + bar_plot_rect.size.h;
     const int16_t bar_h = bar_plot_rect.size.h;
     const float entry_w = (float) bar_plot_rect.size.w / RADAR_NUM_ENTRIES;
+
+    graphics_context_set_stroke_width(ctx, 1);
 
     int i = 0;
     while (i < RADAR_NUM_ENTRIES) {
@@ -142,45 +159,52 @@ static void draw_radar_area_bars(GContext *ctx, GRect bar_plot_rect,
             const int16_t x_a = slot_x(s,     plot_x, entry_w);
             const int16_t x_b = slot_x(s + 1, plot_x, entry_w);
             const GRect r = GRect(x_a, plot_bottom - slot_h, x_b - x_a, slot_h);
-            hatch_fill_rect(ctx, r,
-                rain_tier_color(rain_tier_of_tenths(area_tenths[s])),
-                RADAR_HATCH_SPACING);
+            hatch_fill_rect(ctx, r, RADAR_AREA_HATCH_COLOR, RADAR_HATCH_SPACING);
         }
 
-        graphics_context_set_stroke_color(ctx, RADAR_AREA_BORDER_COLOR);
-        graphics_context_set_stroke_width(ctx, 1);
-
-        // Left vertical edge: baseline up to slot run_start's top.
+        // Left vertical edge: baseline up to slot run_start's top, in
+        // that slot's exact-tier colour.
         {
             const int h0 = slot_height_px(area_tenths[run_start], bar_h);
             const int16_t lx = slot_x(run_start, plot_x, entry_w);
+            graphics_context_set_stroke_color(ctx,
+                border_color_for_slot(exact_tenths[run_start], area_tenths[run_start]));
             graphics_draw_line(ctx,
                 GPoint(lx, plot_bottom - 1),
                 GPoint(lx, plot_bottom - h0));
         }
-        // Stepped top: per-slot horizontals at each slot's own height.
+        // Stepped top: per-slot horizontals each in the slot's own colour.
         for (int s = run_start; s < run_end; ++s) {
             const int h_s = slot_height_px(area_tenths[s], bar_h);
             const int16_t x_a = slot_x(s,     plot_x, entry_w);
             const int16_t x_b = slot_x(s + 1, plot_x, entry_w);
+            graphics_context_set_stroke_color(ctx,
+                border_color_for_slot(exact_tenths[s], area_tenths[s]));
             graphics_draw_line(ctx,
                 GPoint(x_a,     plot_bottom - h_s),
                 GPoint(x_b - 1, plot_bottom - h_s));
         }
-        // Step verticals between adjacent slots inside the run.
+        // Step verticals between adjacent slots — coloured by the taller
+        // slot (the one whose top the vertical reaches up to).
         for (int s = run_start; s < run_end - 1; ++s) {
             const int h_a = slot_height_px(area_tenths[s],     bar_h);
             const int h_b = slot_height_px(area_tenths[s + 1], bar_h);
             if (h_a == h_b) { continue; }
+            const int taller = (h_a > h_b) ? s : s + 1;
             const int16_t bx = slot_x(s + 1, plot_x, entry_w);
             const int16_t y_lo = plot_bottom - (h_a < h_b ? h_a : h_b);
             const int16_t y_hi = plot_bottom - (h_a < h_b ? h_b : h_a);
+            graphics_context_set_stroke_color(ctx,
+                border_color_for_slot(exact_tenths[taller], area_tenths[taller]));
             graphics_draw_line(ctx, GPoint(bx, y_lo), GPoint(bx, y_hi));
         }
-        // Right vertical edge: top of last slot down to baseline.
+        // Right vertical edge: top of last slot down to baseline, in
+        // that slot's exact-tier colour.
         {
             const int h_last = slot_height_px(area_tenths[run_end - 1], bar_h);
             const int16_t rx = slot_x(run_end, plot_x, entry_w) - 1;
+            graphics_context_set_stroke_color(ctx,
+                border_color_for_slot(exact_tenths[run_end - 1], area_tenths[run_end - 1]));
             graphics_draw_line(ctx,
                 GPoint(rx, plot_bottom - h_last),
                 GPoint(rx, plot_bottom - 1));
@@ -233,7 +257,7 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
                                       bounds.size.h - RADAR_AXIS_H);
 
     draw_radar_axis(ctx, axis_rect);
-    draw_radar_area_bars(ctx, bar_plot_rect, area_tenths);
+    draw_radar_area_bars(ctx, bar_plot_rect, area_tenths, exact_tenths);
     draw_radar_exact_bars(ctx, bar_plot_rect, exact_tenths);
 
     MEMORY_LOG_HEAP("radar_update:exit");
