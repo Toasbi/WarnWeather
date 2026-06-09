@@ -1005,6 +1005,8 @@ function fetch(provider, force) {
     localStorage.setItem(KEY_LAST_FETCH_ATTEMPT, JSON.stringify(fetchStatus));
     try {
         withRainRadarTuples(provider, function(radarTuples) {
+            var extras = radarTuples ? Object.assign({}, radarTuples) : {};
+            extras.IS_SLEEPING = refreshLastIsSleeping();
             provider.fetch(
                 function() {
                     // Sucess, update recent fetch time
@@ -1051,7 +1053,7 @@ function fetch(provider, force) {
                     });
                 },
                 force,
-                radarTuples
+                extras
             );
         });
     }
