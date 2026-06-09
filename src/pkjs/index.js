@@ -484,6 +484,7 @@ function startTick() {
 }
 
 function sendClaySettings(onSuccess, onFailure) {
+    var sleeping = refreshLastIsSleeping();
     var payload = {
         "CLAY_CELSIUS": app.settings.temperatureUnits === 'c',
         "CLAY_TIME_LEAD_ZERO": app.settings.timeLeadingZero,
@@ -503,6 +504,7 @@ function sendClaySettings(onSuccess, onFailure) {
         "CLAY_COLOR_TIME": app.settings.hasOwnProperty('colorTime') ? app.settings.colorTime : DEFAULT_COLOR_WHITE,
         "CLAY_DAY_NIGHT_SHADING": app.settings.hasOwnProperty('dayNightShading') ? app.settings.dayNightShading : true,
         "CLAY_TOP_VIEW_DEFAULT": app.settings.topViewDefault === 'rain_radar' ? 1 : 0,
+        "IS_SLEEPING": sleeping
     }
     Pebble.sendAppMessage(payload, function() {
         console.log('Message sent successfully: ' + JSON.stringify(payload));
