@@ -115,6 +115,20 @@ void rain_tier_bar_draw_slabs(GContext *ctx,
         graphics_context_set_fill_color(ctx, rain_tier_color(k));
         graphics_fill_rect(ctx, GRect(bar_x, slab_top, bar_w, slab_h), 0, GCornerNone);
     }
+
+#ifndef PBL_COLOR
+    // B&W: every tier reduces to a single BAR_COLOR (black), so a tall bar
+    // that extends above the precip area or outside the radar hatch sits
+    // black-on-black and disappears. A 1 px white outline around the bar's
+    // silhouette keeps the shape readable on either background.
+    const int bar_h = rain_tier_proportional_height(tenths, bar_plot_h);
+    if (bar_h > 0) {
+        graphics_context_set_stroke_color(ctx, GColorWhite);
+        graphics_context_set_stroke_width(ctx, 1);
+        graphics_draw_rect(ctx,
+            GRect(bar_x, bar_plot_bottom - bar_h, bar_w, bar_h));
+    }
+#endif
 }
 
 void rain_bars_draw(GContext *ctx, GRect plot_rect, SlotGeometry slots,
