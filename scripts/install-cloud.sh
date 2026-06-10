@@ -15,8 +15,8 @@ fi
 
 if [[ "$profile" == "dev" ]]; then
   mise run build -- dev
-  pebble install "build/forecaswatch2-dev.pbw" --cloudpebble "$@"
+  pebble install "build/warnweather-dev.pbw" --cloudpebble "$@"
 else
   mise run build -- release
-  pebble install "build/forecaswatch2.pbw" --cloudpebble "$@"
+  pebble install "build/warnweather.pbw" --cloudpebble "$@"
 fi

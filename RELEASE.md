@@ -7,7 +7,7 @@ Flow:
 1. Merge conventional commits into `main`.
 2. Release Please opens or updates a release PR with version bumps.
 3. Merge the release PR.
-4. The workflow creates a GitHub release and uploads `build/forecaswatch2.pbw`.
+4. The workflow creates a GitHub release and uploads `build/warnweather.pbw`.
 
 ## Developer portals
 

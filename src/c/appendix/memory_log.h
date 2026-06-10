@@ -32,7 +32,7 @@ typedef struct
  * In release builds these probe macros compile to no-ops.
  */
 
-#ifdef FCW2_ENABLE_MEMORY_LOGGING
+#ifdef WW_ENABLE_MEMORY_LOGGING
 static inline MemoryHeapProbe memory_heap_probe_start_impl(const char *scope_tag)
 {
     MemoryHeapProbe probe = {

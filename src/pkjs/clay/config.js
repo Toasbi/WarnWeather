@@ -15,11 +15,11 @@ var HOUR_OPTIONS = (function() {
 module.exports = [
     {
         "type": "heading",
-        "defaultValue": "ForecasWatch2"
+        "defaultValue": "WarnWeather"
     },
     {
         "type": "text",
-        "defaultValue": "Contribute on <a href=\"https://github.com/mattrossman/forecaswatch2\">GitHub!</a>"
+        "defaultValue": "Contribute on <a href=\"https://github.com/Toasbi/WarnWeather\">GitHub!</a>"
     },
     {
         "type": "section",
@@ -340,7 +340,7 @@ module.exports = [
                 "label": "Share anonymous telemetry",
                 "messageKey": "telemetryEnabled",
                 "defaultValue": true,
-                "description": "<span style=\"color:#9aa0a6;font-size:0.82em;line-height:1.35;\">Share privacy-respecting weather telemetry to improve reliability and understand usage patterns. Learn more about what gets sent in the <a href=\"https://github.com/mattrossman/forecaswatch2#telemetry\">Telemetry section</a>.</span>"
+                "description": "<span style=\"color:#9aa0a6;font-size:0.82em;line-height:1.35;\">Share privacy-respecting weather telemetry to improve reliability and understand usage patterns. Learn more about what gets sent in the <a href=\"https://github.com/Toasbi/WarnWeather#telemetry\">Telemetry section</a>.</span>"
             },
         ]
     },

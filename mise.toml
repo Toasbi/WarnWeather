@@ -3,10 +3,13 @@ experimental = true
 lockfile = true
 
 [tools]
+# pebble-tool requires Python >3.9,<3.14; pin 3.13 to avoid system Python 3.14+
+python = "3.13"
+
 # https://developer.rebble.io/sdk/
 # https://github.com/coredevices/pebble-tool
 # https://mise.jdx.dev/dev-tools/backends/pipx.html
-"pipx:pebble-tool" = "5.0.35"
+"pipx:pebble-tool" = "5.0.37"
 
 # https://deno.com/
 deno = "2.1.4"
@@ -18,6 +21,7 @@ deno = "2.1.4"
 # https://github.com/linebender/resvg
 # https://mise.jdx.dev/dev-tools/backends/aqua.html
 resvg = "0.47.0"
+pipx = "latest"
 
 [env]
 _.file = ".env"
@@ -61,6 +65,10 @@ run = "pebble wipe && scripts/install-emulator.sh"
 description = "Stop running emulator and phone simulator"
 alias = "kill"
 run = "pebble kill"
+
+[tasks.capture-screenshots]
+description = "Build dev .pbw and capture screenshots for all platforms (args: version [fixture], e.g. v1.0.0 berlin)"
+run = "scripts/capture-screenshots.sh"
 
 [tasks.screenshot-phone]
 description = "Take a screenshot from phone"

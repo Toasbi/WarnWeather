@@ -14,7 +14,7 @@ permissions:
 jobs:
   build-preview:
     if: >
-      github.repository == 'mattrossman/forecaswatch2' &&
+      github.repository == 'Toasbi/WarnWeather' &&
       (
         (github.event.action == 'labeled' && github.event.label.name == 'build-preview') ||
         (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build-preview'))
@@ -48,14 +48,14 @@ jobs:
           mise build dev 2>&1 | tee build/build-preview.log
 
       - name: Verify artifact exists
-        run: test -f build/forecaswatch2-dev.pbw
+        run: test -f build/warnweather-dev.pbw
 
       - name: Upload .pbw artifact
         id: upload
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: forecaswatch2-dev-pbw-pr-${{ github.event.pull_request.number }}.zip
-          path: build/forecaswatch2-dev.pbw
+          name: warnweather-dev-pbw-pr-${{ github.event.pull_request.number }}.zip
+          path: build/warnweather-dev.pbw
           if-no-files-found: error
           retention-days: 14
 
@@ -76,7 +76,7 @@ jobs:
             }
             const runUrl = `${process.env.GITHUB_SERVER_URL}/${owner}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
             const prNumber = context.payload.pull_request.number;
-            const artifactName = `forecaswatch2-dev-pbw-pr-${prNumber}.zip`;
+            const artifactName = `warnweather-dev-pbw-pr-${prNumber}.zip`;
             const memoryLogPath = process.env.MEMORY_LOG_PATH;
             const memoryReport = memoryLogPath && fs.existsSync(memoryLogPath)
               ? renderPebbleMemoryReport(parsePebbleMemoryReport(fs.readFileSync(memoryLogPath, 'utf8')))

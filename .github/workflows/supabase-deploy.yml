@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   deploy:
-    if: github.repository == 'mattrossman/forecaswatch2'
+    if: github.repository == 'Toasbi/WarnWeather'
     runs-on: ubuntu-24.04
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

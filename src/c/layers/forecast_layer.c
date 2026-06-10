@@ -842,7 +842,7 @@ void forecast_layer_refresh()
 {
     text_labels_refresh();
     layer_mark_dirty(s_forecast_layer);
-#ifdef FCW2_ENABLE_MEMORY_LOGGING
+#ifdef WW_ENABLE_MEMORY_LOGGING
     APP_LOG(APP_LOG_LEVEL_DEBUG, "MEM|forecast_refresh|entries=%d|free=%lu|used=%lu",
             persist_get_num_entries(),
             (unsigned long)heap_bytes_free(),

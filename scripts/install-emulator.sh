@@ -29,7 +29,7 @@ while (($#)); do
       emulator="${1#*=}"
       shift
       ;;
-    aplite|basalt|chalk|diorite|emery|flint|gabbro)
+    basalt|chalk|diorite|emery|flint|gabbro)
       emulator="$1"
       shift
       ;;
@@ -42,10 +42,10 @@ done
 
 if [[ "$profile" == "dev" ]]; then
   mise run build -- dev
-  pbw_path="build/forecaswatch2-dev.pbw"
+  pbw_path="build/warnweather-dev.pbw"
 else
   mise run build -- release
-  pbw_path="build/forecaswatch2.pbw"
+  pbw_path="build/warnweather.pbw"
 fi
 
 if ((${#install_args[@]})); then

@@ -155,19 +155,19 @@ mise install-cloud release
 mise install-emulator
 
 # Choose emulator platform
-mise install-emulator aplite
+mise install-emulator basalt
 
 # Choose emulator build type
 mise install-emulator release
 
 # Choose emulator platform and build type
-mise install-emulator release aplite
+mise install-emulator release basalt
 
 # Pass through pebble install flags
 mise install-emulator --logs
 
 # Set default emulator in environment
-PEBBLE_EMULATOR=aplite mise install-emulator
+PEBBLE_EMULATOR=basalt mise install-emulator
 
 # Legacy pass-through separator (still works)
 mise install-emulator -- --logs
@@ -179,13 +179,13 @@ mise kill-emulator
 mise screenshot-emulator
 
 # Choose emulator platform
-mise screenshot-emulator aplite
+mise screenshot-emulator basalt
 
 # Legacy flag form (still works)
 mise screenshot-emulator -- --emulator chalk
 
 # Set default emulator in environment
-PEBBLE_EMULATOR=aplite mise screenshot-emulator
+PEBBLE_EMULATOR=basalt mise screenshot-emulator
 
 # Default output goes to screenshot/tmp/<timestamp>-<platform>.png
 

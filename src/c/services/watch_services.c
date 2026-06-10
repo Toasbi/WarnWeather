@@ -1,6 +1,6 @@
 #include "watch_services.h"
 
-#ifdef FCW2_FIXTURE_NOW_YEAR
+#ifdef WW_FIXTURE_NOW_YEAR
 static bool is_leap_year(int year) {
     return (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
 }
@@ -31,7 +31,7 @@ static int fixture_weekday(int year, int month, int day) {
 #endif
 
 time_t watch_services_now(void) {
-#ifdef FCW2_FIXTURE_NOW_YEAR
+#ifdef WW_FIXTURE_NOW_YEAR
     struct tm fixture_time = watch_services_localtime();
     return mktime(&fixture_time);
 #else
@@ -40,16 +40,16 @@ time_t watch_services_now(void) {
 }
 
 struct tm watch_services_localtime(void) {
-#ifdef FCW2_FIXTURE_NOW_YEAR
+#ifdef WW_FIXTURE_NOW_YEAR
     struct tm fixture_time = (struct tm) {
-        .tm_year = FCW2_FIXTURE_NOW_YEAR - 1900,
-        .tm_mon = FCW2_FIXTURE_NOW_MONTH - 1,
-        .tm_mday = FCW2_FIXTURE_NOW_DAY,
-        .tm_hour = FCW2_FIXTURE_NOW_HOUR,
-        .tm_min = FCW2_FIXTURE_NOW_MINUTE,
-        .tm_sec = FCW2_FIXTURE_NOW_SECOND,
-        .tm_wday = fixture_weekday(FCW2_FIXTURE_NOW_YEAR, FCW2_FIXTURE_NOW_MONTH, FCW2_FIXTURE_NOW_DAY),
-        .tm_yday = fixture_day_of_year(FCW2_FIXTURE_NOW_YEAR, FCW2_FIXTURE_NOW_MONTH, FCW2_FIXTURE_NOW_DAY),
+        .tm_year = WW_FIXTURE_NOW_YEAR - 1900,
+        .tm_mon = WW_FIXTURE_NOW_MONTH - 1,
+        .tm_mday = WW_FIXTURE_NOW_DAY,
+        .tm_hour = WW_FIXTURE_NOW_HOUR,
+        .tm_min = WW_FIXTURE_NOW_MINUTE,
+        .tm_sec = WW_FIXTURE_NOW_SECOND,
+        .tm_wday = fixture_weekday(WW_FIXTURE_NOW_YEAR, WW_FIXTURE_NOW_MONTH, WW_FIXTURE_NOW_DAY),
+        .tm_yday = fixture_day_of_year(WW_FIXTURE_NOW_YEAR, WW_FIXTURE_NOW_MONTH, WW_FIXTURE_NOW_DAY),
         .tm_isdst = 0
     };
     return fixture_time;
@@ -61,19 +61,19 @@ struct tm watch_services_localtime(void) {
 }
 
 bool watch_services_clock_is_24h_style(void) {
-#ifdef FCW2_FIXTURE_CLOCK_24H
-    return FCW2_FIXTURE_CLOCK_24H;
+#ifdef WW_FIXTURE_CLOCK_24H
+    return WW_FIXTURE_CLOCK_24H;
 #else
     return clock_is_24h_style();
 #endif
 }
 
 BatteryChargeState watch_services_battery_state(void) {
-#ifdef FCW2_FIXTURE_BATTERY_PERCENT
+#ifdef WW_FIXTURE_BATTERY_PERCENT
     return (BatteryChargeState) {
-        .charge_percent = FCW2_FIXTURE_BATTERY_PERCENT,
-        .is_charging = FCW2_FIXTURE_BATTERY_CHARGING,
-        .is_plugged = FCW2_FIXTURE_BATTERY_CHARGING
+        .charge_percent = WW_FIXTURE_BATTERY_PERCENT,
+        .is_charging = WW_FIXTURE_BATTERY_CHARGING,
+        .is_plugged = WW_FIXTURE_BATTERY_CHARGING
     };
 #else
     return battery_state_service_peek();
@@ -81,7 +81,7 @@ BatteryChargeState watch_services_battery_state(void) {
 }
 
 bool watch_services_battery_is_fixture(void) {
-#ifdef FCW2_FIXTURE_BATTERY_PERCENT
+#ifdef WW_FIXTURE_BATTERY_PERCENT
     return true;
 #else
     return false;

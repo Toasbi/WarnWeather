@@ -100,22 +100,22 @@ def build(ctx):
         # Pebble's single APP region is expected: https://sourceware.org/binutils/docs/ld/Options.html#index-_002d_002dwarn_002drwx_002dsegments
         ctx.env.LINKFLAGS += ['-Wl,--no-warn-rwx-segments']
         if enable_memory_logging:
-            ctx.env.CFLAGS += ['-DFCW2_ENABLE_MEMORY_LOGGING=1']
+            ctx.env.CFLAGS += ['-DWW_ENABLE_MEMORY_LOGGING=1']
         if fixture_now:
             ctx.env.CFLAGS += [
-                '-DFCW2_FIXTURE_NOW_YEAR={}'.format(fixture_now['year']),
-                '-DFCW2_FIXTURE_NOW_MONTH={}'.format(fixture_now['month']),
-                '-DFCW2_FIXTURE_NOW_DAY={}'.format(fixture_now['day']),
-                '-DFCW2_FIXTURE_NOW_HOUR={}'.format(fixture_now['hour']),
-                '-DFCW2_FIXTURE_NOW_MINUTE={}'.format(fixture_now['minute']),
-                '-DFCW2_FIXTURE_NOW_SECOND={}'.format(fixture_now['second']),
+                '-DWW_FIXTURE_NOW_YEAR={}'.format(fixture_now['year']),
+                '-DWW_FIXTURE_NOW_MONTH={}'.format(fixture_now['month']),
+                '-DWW_FIXTURE_NOW_DAY={}'.format(fixture_now['day']),
+                '-DWW_FIXTURE_NOW_HOUR={}'.format(fixture_now['hour']),
+                '-DWW_FIXTURE_NOW_MINUTE={}'.format(fixture_now['minute']),
+                '-DWW_FIXTURE_NOW_SECOND={}'.format(fixture_now['second']),
             ]
         if fixture_clock_24h is not None:
-            ctx.env.CFLAGS += ['-DFCW2_FIXTURE_CLOCK_24H={}'.format(fixture_clock_24h)]
+            ctx.env.CFLAGS += ['-DWW_FIXTURE_CLOCK_24H={}'.format(fixture_clock_24h)]
         if fixture_battery is not None:
             ctx.env.CFLAGS += [
-                '-DFCW2_FIXTURE_BATTERY_PERCENT={}'.format(fixture_battery['percent']),
-                '-DFCW2_FIXTURE_BATTERY_CHARGING={}'.format(fixture_battery['charging']),
+                '-DWW_FIXTURE_BATTERY_PERCENT={}'.format(fixture_battery['percent']),
+                '-DWW_FIXTURE_BATTERY_CHARGING={}'.format(fixture_battery['charging']),
             ]
         ctx.set_group(ctx.env.PLATFORM_NAME)
         app_elf = '{}/pebble-app.elf'.format(ctx.env.BUILD_DIR)

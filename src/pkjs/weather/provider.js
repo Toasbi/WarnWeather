@@ -286,7 +286,7 @@ WeatherProvider.prototype.withCityName = function(lat, lon, callback, onFailure)
     );
 };
 
-// https://github.com/mattrossman/forecaswatch2/issues/59#issue-1317582743
+// https://github.com/Toasbi/WarnWeather/issues/59#issue-1317582743
 var r_lat_long = /^([-+]?\d*\.?\d+)\s*,\s*([-+]?\d*\.?\d+)$/;
 
 /**
