@@ -45,10 +45,10 @@
 //   144-bucket: 1 + 2 + 2 = 5 → 24*5 + 1 = 121 px after the left axis
 //   200-bucket: 1 + 2 + 4 = 7 → 24*7 + 1 = 169 px after the left axis
 #if defined(DISPLAY_WIDTH_200)
-    #define FORECAST_BAR_W 4
-    #define FORECAST_PAD   1
+    #define FORECAST_BAR_W 3
+    #define FORECAST_PAD   2
 #elif defined(DISPLAY_WIDTH_144)
-    #define FORECAST_BAR_W 2
+    #define FORECAST_BAR_W 3
     #define FORECAST_PAD   1
 #endif
 
