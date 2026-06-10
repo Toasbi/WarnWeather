@@ -181,7 +181,7 @@ static void draw_radar_area_bars(GContext *ctx, GRect bar_plot_rect,
             const int h0 = slot_height_px(area_tenths[run_start], bar_h);
             const int16_t lx = slot_geometry_tick_x(slots, run_start, plot_x);
             graphics_context_set_stroke_color(ctx, border_color_for_slot(exact_tenths[run_start], area_tenths[run_start]));
-            graphics_draw_line(ctx, GPoint(lx, plot_bottom), GPoint(lx, plot_bottom - h0));
+            graphics_draw_line(ctx, GPoint(lx, plot_bottom - 1), GPoint(lx, plot_bottom - h0));
         }
 
         // Top edges across the run.
@@ -212,7 +212,7 @@ static void draw_radar_area_bars(GContext *ctx, GRect bar_plot_rect,
             const int h_last = slot_height_px(area_tenths[run_end - 1], bar_h);
             const int16_t rx = slot_geometry_tick_x(slots, run_end, plot_x) - 1;
             graphics_context_set_stroke_color(ctx, border_color_for_slot(exact_tenths[run_end - 1], area_tenths[run_end - 1]));
-            graphics_draw_line(ctx, GPoint(rx, plot_bottom), GPoint(rx, plot_bottom - h_last));
+            graphics_draw_line(ctx, GPoint(rx, plot_bottom - 1), GPoint(rx, plot_bottom - h_last));
         }
 
         i = run_end;
