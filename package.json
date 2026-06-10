@@ -11,12 +11,11 @@
     "suncalc": "^1.9.0"
   },
   "pebble": {
-    "displayName": "FCW2 (Dev)",
+    "displayName": "WarnWeather (Dev)",
     "uuid": "5245a6ea-b3c4-45a1-b24c-30a88f330965",
     "sdkVersion": "3",
     "enableMultiJS": true,
     "targetPlatforms": [
-      "aplite",
       "basalt",
       "diorite",
       "emery",
