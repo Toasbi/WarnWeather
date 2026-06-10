@@ -35,7 +35,7 @@ A weather watchface for Pebble inspired by ForecasWatch, with a 24-hour forecast
 * GPS or manual location entry
 * City where forecast was fetched
 
-**Radar**
+**Radar (for now only available for Deutscher Wetterdienst)**
 * Rain radar showing live precipitation near your exact location (5-minute frames)
 * Switch between calendar and radar view (flick/tap)
 
