@@ -1,6 +1,6 @@
 {
-  "name": "forecaswetter",
-  "author": "Toasbi",
+  "name": "forecaswatch2",
+  "author": "Matt Rossman",
   "version": "1.34.0",
   "buildProfile": "dev",
   "keywords": [
@@ -11,7 +11,7 @@
     "suncalc": "^1.9.0"
   },
   "pebble": {
-    "displayName": "ForecasWetter (Dev)",
+    "displayName": "FCW2 (Dev)",
     "uuid": "5245a6ea-b3c4-45a1-b24c-30a88f330965",
     "sdkVersion": "3",
     "enableMultiJS": true,
@@ -93,7 +93,8 @@
       "RAIN_RADAR_TREND_UINT8",
       "RAIN_RADAR_TREND_AREA_UINT8",
       "RAIN_RADAR_START",
-      "CLAY_TOP_VIEW_DEFAULT"
+      "CLAY_TOP_VIEW_DEFAULT",
+      "IS_SLEEPING"
     ]
   },
   "releaseNotifications": {
