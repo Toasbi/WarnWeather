@@ -42,8 +42,10 @@
 
 // Slot grid bar dimensions, bucketed by display width.
 // pitch = tick_w + 2*pad + bar_w
-//   144-bucket: 1 + 2 + 2 = 5 → 24*5 + 1 = 121 px after the left axis
-//   200-bucket: 1 + 2 + 4 = 7 → 24*7 + 1 = 169 px after the left axis
+//   144-bucket: 1 + 2 + 3 = 6 → 24*6 + 1 = 145 px after the left axis
+//                              (127 px available → overflows by 18, rightmost slots clip)
+//   200-bucket: 1 + 4 + 3 = 8 → 24*8 + 1 = 193 px after the left axis
+//                              (181 px available on emery → overflows by 12, rightmost slots clip)
 #if defined(DISPLAY_WIDTH_200)
     #define FORECAST_BAR_W 3
     #define FORECAST_PAD   2
@@ -63,9 +65,10 @@
 
 // Tick row math:
 //   entries_per_label = ceil(HOUR_LABEL_MIN_SPACING / pitch)
-//   144-bucket: ceil(20 / 5) = 4
-//   200-bucket: ceil(24 / 7) = 4
-// Both platforms land on 4 — used as big_every below. Emery draws every
+//   144-bucket: ceil(20 / 6) = 4
+//   200-bucket: ceil(24 / 8) = 3
+// FORECAST_BOTTOM_TICK_INIT's big_every is overridden per-render in
+// draw_bottom_axis with the runtime entries_per_label. Emery draws every
 // slot (small ticks between labels); non-emery only draws midpoints.
 #ifdef PBL_PLATFORM_EMERY
     #define FORECAST_TICK_SMALL_COLOR  GColorDarkGray
