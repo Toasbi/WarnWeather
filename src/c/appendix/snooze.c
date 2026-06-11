@@ -1,8 +1,8 @@
 // src/c/appendix/snooze.c
 #include "snooze.h"
 
-// Areas shorter than this get the compact 2-glyph variant. The status row is
-// ~20px tall (a bit more on emery); the radar slot is well above this.
+// Areas shorter than this get the compact 2-glyph variant. The status row
+// is 14px tall on every platform; the radar slot is well above this.
 #define SNOOZE_COMPACT_AREA_H 26
 
 // Minimum glyph side so the diagonal stays readable at status-row scale.
