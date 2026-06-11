@@ -328,6 +328,26 @@ module.exports = [
         ]
     },
     {
+        "type": "section",
+        "items": [
+            {
+                "type": "heading",
+                "defaultValue": "Stats"
+            },
+            {
+                "type": "toggle",
+                "label": "Enable connection stats",
+                "messageKey": "devStatsEnabled",
+                "defaultValue": false,
+                "description": "Record Bluetooth messages sent to the watch for 7 days and show them below. Nothing leaves the phone."
+            },
+            {
+                "type": "text",
+                "defaultValue": "<span id='devStatsBlock'></span>"
+            }
+        ]
+    },
+    {
         "type": "submit",
         "defaultValue": "Save Settings"
     },

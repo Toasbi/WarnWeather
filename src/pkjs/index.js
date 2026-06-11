@@ -9,6 +9,7 @@ var clayConfig = require('./clay/config.js');
 var customClay = require('./clay/inject.js');
 var storageKeys = require('./storage-keys.js');
 var outbox = require('./outbox.js');
+var devStats = require('./dev-stats.js');
 var pkg = require('../../package.json');
 var activeFixture = require('./active-fixture.generated.js');
 var pebbleColors = require('./pebble-colors.js');
@@ -129,6 +130,7 @@ Pebble.addEventListener('showConfiguration', function(e) {
     // Set the userData here rather than in the Clay() constructor so it's actually up to date
     clay.meta.userData.lastFetchSuccess = localStorage.getItem(KEY_LAST_FETCH_SUCCESS);
     clay.meta.userData.lastFetchAttempt = localStorage.getItem(KEY_LAST_FETCH_ATTEMPT);
+    clay.meta.userData.devStats = JSON.stringify(devStats.read());
     Pebble.openURL(clay.generateUrl());
     console.log('Showing clay: ' + JSON.stringify(getClaySettings()));
 });
@@ -140,6 +142,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
 
     clay.getSettings(e.response, false);  // This triggers the update in localStorage
     app.settings = getClaySettings();  // This reads from localStorage in sensible format
+    devStats.setEnabled(Boolean(app.settings.devStatsEnabled));
     app.telemetry = createTelemetryClient(getRuntimeTelemetryConfig());
     refreshProvider();
     sendClaySettings();
@@ -170,6 +173,7 @@ Pebble.addEventListener('ready',
         clayTryFixtureSettings(activeFixture);
         console.log('PebbleKit JS ready!');
         app.settings = getClaySettings();
+        devStats.setEnabled(Boolean(app.settings.devStatsEnabled));
         try {
             app.watchInfo = Pebble.getActiveWatchInfo();
         }
@@ -638,6 +642,7 @@ function getDefaultClaySettings() {
         provider: 'wunderground',
         owmApiKey: '',
         fetch: false,
+        devStatsEnabled: false,
         location: '',
         temperatureUnits: 'f',
         dayNightShading: true,
