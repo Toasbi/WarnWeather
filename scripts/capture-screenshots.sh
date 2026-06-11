@@ -21,6 +21,16 @@ export FIXTURE="${2:-berlin}"
 raw_dir="screenshot/$version/raw"
 platforms=(basalt diorite emery flint)
 
+# `timeout` is GNU coreutils and absent on stock macOS; fall back to gtimeout
+# (brew coreutils) or run without a timeout if neither is available.
+if command -v timeout >/dev/null 2>&1; then
+  timeout_cmd=(timeout 30)
+elif command -v gtimeout >/dev/null 2>&1; then
+  timeout_cmd=(gtimeout 30)
+else
+  timeout_cmd=()
+fi
+
 mkdir -p "$raw_dir"
 
 printf 'Building dev .pbw...\n'
@@ -45,10 +55,15 @@ for platform in "${platforms[@]}"; do
     sleep 4
   done
 
-  sleep 5
+  # emery boots slower; give it extra time before screenshotting
+  if [[ "$platform" == "emery" ]]; then
+    sleep 12
+  else
+    sleep 5
+  fi
 
   output="$raw_dir/$platform.png"
-  pebble screenshot "$output" --emulator "$platform"
+  "${timeout_cmd[@]+"${timeout_cmd[@]}"}" pebble screenshot "$output" --emulator "$platform"
   printf 'Saved %s\n' "$output"
 
   pebble kill 2>/dev/null || true

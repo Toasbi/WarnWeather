@@ -50,7 +50,7 @@
     #define FORECAST_BAR_W 5
     #define FORECAST_PAD   1
 #elif defined(DISPLAY_WIDTH_144)
-    #define FORECAST_BAR_W 3
+    #define FORECAST_BAR_W 4
     #define FORECAST_PAD   1
 #endif
 
