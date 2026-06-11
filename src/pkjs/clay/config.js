@@ -328,6 +328,26 @@ module.exports = [
         ]
     },
     {
+        "type": "section",
+        "items": [
+            {
+                "type": "heading",
+                "defaultValue": "Stats"
+            },
+            {
+                "type": "toggle",
+                "label": "Record diagnostics",
+                "messageKey": "devStatsEnabled",
+                "defaultValue": false,
+                "description": "Record AppMessage send/skip events on the phone for 7 days and show them below. Nothing leaves the phone."
+            },
+            {
+                "type": "text",
+                "defaultValue": "<span id='devStatsBlock'></span>"
+            }
+        ]
+    },
+    {
         "type": "submit",
         "defaultValue": "Save Settings"
     },
