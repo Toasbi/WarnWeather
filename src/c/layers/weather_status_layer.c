@@ -2,11 +2,14 @@
 #include "c/appendix/persist.h"
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
+#include "c/appendix/snooze.h"
 
 #define FONT_18_OFFSET 7
 #define FONT_14_OFFSET 3
 #define CITY_INIT_WIDTH 100
 #define MARGIN 2
+// Width reserved for the snooze glyphs in place of the current-temp text.
+#define SNOOZE_BOX_W 24
 
 // emery: use larger text and arrow geometry
 #ifdef PBL_PLATFORM_EMERY
@@ -80,10 +83,15 @@ static void city_layer_refresh() {
 static void current_temp_layer_refresh() {
     static char s_temp_buffer[8];
     if (persist_get_is_sleeping()) {
-        snprintf(s_temp_buffer, sizeof(s_temp_buffer), "Zz");
-    } else {
-        snprintf(s_temp_buffer, sizeof(s_temp_buffer), "• %d", config_localize_temp(persist_get_current_temp()));
+        // Snooze glyphs are drawn in the update proc; blank the text and
+        // reserve a fixed box so the city label keeps its position. Only
+        // origin.x and size.w of frame_curr_temp are ever read (by
+        // city_layer_refresh); y/h are nominal.
+        text_layer_set_text(s_current_temp_layer, "");
+        frame_curr_temp = GRect(0, -FONT_18_OFFSET, SNOOZE_BOX_W + MARGIN, 24);
+        return;
     }
+    snprintf(s_temp_buffer, sizeof(s_temp_buffer), "• %d", config_localize_temp(persist_get_current_temp()));
     text_layer_set_text(s_current_temp_layer, s_temp_buffer);
 
     // Dynamic resizing
@@ -156,6 +164,10 @@ static void weather_status_update_proc(Layer *layer, GContext *ctx) {
     MEMORY_LOG_HEAP("weather_status_update:enter");
     GRect bounds = layer_get_bounds(layer);
     int w = bounds.size.w;
+    if (persist_get_is_sleeping()) {
+        // Compact snooze glyphs in the slot the temperature text vacated.
+        snooze_draw(ctx, GRect(MARGIN, 2, SNOOZE_BOX_W, bounds.size.h - 4), GColorWhite);
+    }
     if (!s_arrow_path) {
         MEMORY_LOG_HEAP("weather_status_update:missing_arrow_path");
         return;
