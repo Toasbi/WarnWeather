@@ -176,6 +176,10 @@ void main_window_create() {
     time_layer_refresh();
 }
 
+void main_window_apply_top_view() {
+    apply_top_view((TopView) g_config->top_view_default);
+}
+
 void main_window_refresh() {
     // Pick up a freshly-arrived Clay top_view_default. Re-applying on every
     // settings refresh resets a user's accel-tap toggle, but that's the

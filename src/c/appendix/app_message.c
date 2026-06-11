@@ -108,6 +108,10 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
                 (time_t) rain_radar_start_tuple->value->int32);
         }
         rain_radar_layer_refresh();
+        // radar_has_data() now reflects this payload — re-evaluate the top
+        // view in case the Clay default arrived first (before persist had
+        // radar data) and fell back to calendar.
+        main_window_apply_top_view();
         handled = true;
     } else if (rain_radar_exact_tuple || rain_radar_area_tuple) {
         // Partial radar payload — log and discard so persist never holds half-state.
