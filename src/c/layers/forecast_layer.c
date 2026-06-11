@@ -44,8 +44,8 @@
 
 // Slot grid bar dimensions, bucketed by display width.
 // pitch = tick_w + 2*pad + bar_w
-//   144-bucket: 1 + 2 + 3 = 6 → 24*6 + 1 = 145 px after the left axis
-//                              (127 px available → overflows by 18, rightmost slots clip)
+//   144-bucket: 1 + 2 + 4 = 7 → 24*7 + 1 = 169 px after the left axis
+//                              (127 px available → overflows by 42, rightmost slots clip)
 //   200-bucket: 1 + 2 + 5 = 8 → 24*8 + 1 = 193 px after the left axis
 //                              (181 px available on emery → overflows by 12, rightmost slots clip)
 #if defined(DISPLAY_WIDTH_200)
@@ -67,7 +67,7 @@
 
 // Tick row math:
 //   entries_per_label = ceil(HOUR_LABEL_MIN_SPACING / pitch)
-//   144-bucket: ceil(20 / 6) = 4
+//   144-bucket: ceil(20 / 7) = 3
 //   200-bucket: ceil(24 / 8) = 3
 // FORECAST_BOTTOM_TICK_INIT's big_every is overridden per-render in
 // draw_bottom_axis with the runtime entries_per_label. Emery draws every
@@ -608,6 +608,7 @@ typedef struct {
     GraphFrame  frame;
     TickSide    bottom;
     int         num_slots;
+    int         pitch;
     struct tm  *forecast_start_local;
 } ForecastTickCtx;
 
@@ -648,8 +649,11 @@ static void forecast_tick_callback(GContext *ctx, int idx, int tick_x, void *use
                                  40, BOTTOM_AXIS_H),
                            GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
     } else if (n > 0 && (idx % n) == n / 2) {
+        // Odd n: slot n/2 sits pitch/2 short of the true midpoint between
+        // the surrounding labels — nudge the tick so it reads as centred.
+        const int mid_x = tick_x + ((n % 2) ? c->pitch / 2 : 0);
         tick_side_draw_at(ctx, c->outer, c->frame, GRAPH_SIDE_BOTTOM,
-                          c->bottom, idx, tick_x);
+                          c->bottom, idx, mid_x);
     }
 #endif
 }
@@ -671,6 +675,7 @@ static void draw_bottom_axis(GContext *ctx, GRect outer, ChartGeometry chart,
         .frame                = cfg->frame,
         .bottom               = bottom,
         .num_slots            = chart.slots.num_slots,
+        .pitch                = chart.slots.pitch,
         .forecast_start_local = forecast_start_local,
     };
     // Ticks/labels anchor in the left-border column — one tick_w to the
