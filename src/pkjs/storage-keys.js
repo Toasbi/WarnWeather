@@ -10,5 +10,6 @@ module.exports = {
     LAST_SENT_SUN_KEY: 'lastSentSun',
     LAST_SENT_RADAR_KEY: 'lastSentRadar',
     LAST_SENT_SLEEP_KEY: 'lastSentSleep',
-    LAST_SENT_CLAY_KEY: 'lastSentClaySettings'
+    LAST_SENT_CLAY_KEY: 'lastSentClaySettings',
+    DEV_STATS_KEY: 'devStats'
 };
