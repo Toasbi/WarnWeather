@@ -336,10 +336,10 @@ module.exports = [
             },
             {
                 "type": "toggle",
-                "label": "Record diagnostics",
+                "label": "Enable connection stats",
                 "messageKey": "devStatsEnabled",
                 "defaultValue": false,
-                "description": "Record AppMessage send/skip events on the phone for 7 days and show them below. Nothing leaves the phone."
+                "description": "Record Bluetooth messages sent to the watch for 7 days and show them below. Nothing leaves the phone."
             },
             {
                 "type": "text",

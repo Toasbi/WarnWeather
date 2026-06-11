@@ -29,10 +29,10 @@ module.exports = function (minified) {
      */
     function renderDevStats(events) {
         var CATEGORIES = ['forecast', 'status', 'sun', 'radar', 'sleep'];
-        var CATEGORY_HEADERS = ['fcst', 'stat', 'sun', 'radr', 'slp'];
         var RAW_EVENT_CAP = 100;
-        var TABLE_STYLE = 'border-collapse:collapse;font-size:0.72em;margin:6px 0;width:100%;text-align:center;';
+        var TABLE_STYLE = 'border-collapse:collapse;font-size:0.72em;margin:2px 0 6px;width:100%;text-align:center;';
         var CELL_STYLE = 'border:1px solid #555;padding:1px 3px;';
+        var TITLE_STYLE = 'font-size:0.8em;font-weight:bold;margin:8px 0 0;';
         var days = {};
         var dayOrder = [];
         var raw;
@@ -152,8 +152,9 @@ module.exports = function (minified) {
         dayOrder.reverse();  // Newest day first.
 
         // Daily rollup table.
-        html = '<table style="' + TABLE_STYLE + '">';
-        html += headerRow(['Day', 'weather'].concat(CATEGORY_HEADERS).concat(['set']));
+        html = '<div style="' + TITLE_STYLE + '">Daily summary</div>';
+        html += '<table style="' + TABLE_STYLE + '">';
+        html += headerRow(['Day', 'weather'].concat(CATEGORIES).concat(['setting']));
         dayOrder.forEach(function(day) {
             var bucket = days[day];
             html += '<tr>' + cell(day) + cell(outcomeCell(bucket.weather));
@@ -166,8 +167,9 @@ module.exports = function (minified) {
 
         // Raw event list, newest first, capped for page sanity.
         raw = events.slice(-RAW_EVENT_CAP).reverse();
+        html += '<div style="' + TITLE_STYLE + '">Events</div>';
         html += '<table style="' + TABLE_STYLE + '">';
-        html += headerRow(['Time', 'ok'].concat(CATEGORY_HEADERS).concat(['set']));
+        html += headerRow(['Time', 'ok'].concat(CATEGORIES).concat(['setting']));
         raw.forEach(function(ev) {
             var okMark = ev.ok === 1 ? '✓' : (ev.ok === 0 ? '✗' : '');
             html += '<tr>' + cell(timeOf(ev.t)) + cell(okMark);
