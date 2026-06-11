@@ -28,8 +28,7 @@ static Config config_defaults(void) {
         .color_sunday = GColorFolly,
         .color_us_federal = GColorFolly,
         .color_time = GColorWhite,
-        .day_night_shading = true,
-        .top_view_default = 0
+        .day_night_shading = true
     };
 }
 

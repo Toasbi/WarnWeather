@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "forecast_layer.h"
 #include "c/appendix/persist.h"
 #include "c/appendix/math.h"
@@ -154,16 +156,18 @@ typedef struct {
 } ForecastDataset;
 
 static void load_dataset(ForecastDataset *ds) {
+    // No demo data is seeded anymore, so missing persist keys must leave the
+    // dataset zeroed instead of reading uninitialized stack memory.
+    memset(ds, 0, sizeof(*ds));
     const int raw = persist_get_num_entries();
-    ds->num_entries = raw > MAX_FORECAST_ENTRIES ? MAX_FORECAST_ENTRIES : raw;
+    ds->num_entries = raw > MAX_FORECAST_ENTRIES ? MAX_FORECAST_ENTRIES : (raw < 0 ? 0 : raw);
     ds->forecast_start = persist_get_forecast_start();
-    persist_get_temp_trend(ds->temps, ds->num_entries);
-    persist_get_precip_trend(ds->precip_probs, ds->num_entries);
-    persist_get_rain_trend(ds->rain_tenths, ds->num_entries);
-    int lo, hi;
-    min_max(ds->temps, ds->num_entries, &lo, &hi);
-    ds->temp_lo = lo;
-    ds->temp_hi = hi;
+    if (ds->num_entries > 0) {
+        persist_get_temp_trend(ds->temps, ds->num_entries);
+        persist_get_precip_trend(ds->precip_probs, ds->num_entries);
+        persist_get_rain_trend(ds->rain_tenths, ds->num_entries);
+        min_max(ds->temps, ds->num_entries, &ds->temp_lo, &ds->temp_hi);
+    }
 }
 
 static Layer *s_forecast_layer;
@@ -797,8 +801,18 @@ static GSize temp_label_string_size(const char *text)
 
 static void text_labels_refresh()
 {
-    snprintf(s_buffer_hi, sizeof(s_buffer_hi), "%d", config_localize_temp(persist_get_temp_hi()));
-    snprintf(s_buffer_lo, sizeof(s_buffer_lo), "%d", config_localize_temp(persist_get_temp_lo()));
+    // Lo/hi are derived from the persisted trend rather than stored separately.
+    int16_t temps[MAX_FORECAST_ENTRIES] = {0};
+    const int raw = persist_get_num_entries();
+    const int num_entries = raw > MAX_FORECAST_ENTRIES ? MAX_FORECAST_ENTRIES : (raw < 0 ? 0 : raw);
+    int temp_lo = 0;
+    int temp_hi = 0;
+    if (num_entries > 0) {
+        persist_get_temp_trend(temps, num_entries);
+        min_max(temps, num_entries, &temp_lo, &temp_hi);
+    }
+    snprintf(s_buffer_hi, sizeof(s_buffer_hi), "%d", config_localize_temp(temp_hi));
+    snprintf(s_buffer_lo, sizeof(s_buffer_lo), "%d", config_localize_temp(temp_lo));
 
     int content_w = temp_label_string_width(s_buffer_hi);
     const int w_lo = temp_label_string_width(s_buffer_lo);

@@ -20,7 +20,6 @@
     "temperatureUnits": "c",
     "axisTimeFormat": "24h",
     "weekStartDay": "mon",
-    "topViewDefault": "rain_radar",
     "colorSaturday": "GColorFolly",
     "colorSunday": "GColorFolly"
   },

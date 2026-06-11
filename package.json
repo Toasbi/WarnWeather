@@ -16,6 +16,7 @@
     "sdkVersion": "3",
     "enableMultiJS": true,
     "targetPlatforms": [
+      "aplite",
       "basalt",
       "diorite",
       "emery",
@@ -92,8 +93,8 @@
       "RAIN_RADAR_TREND_UINT8",
       "RAIN_RADAR_TREND_AREA_UINT8",
       "RAIN_RADAR_START",
-      "CLAY_TOP_VIEW_DEFAULT",
-      "IS_SLEEPING"
+      "IS_SLEEPING",
+      "WATCH_HAS_CONFIG"
     ]
   },
   "telemetry": {

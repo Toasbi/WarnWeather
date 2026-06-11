@@ -9,7 +9,6 @@
 #include "c/appendix/app_message.h"
 #include "c/appendix/persist.h"
 #include "c/appendix/memory_log.h"
-#include "c/appendix/config.h"
 
 typedef enum {
     TOP_VIEW_CALENDAR = 0,
@@ -125,7 +124,9 @@ static void main_window_load(Window *window) {
 #endif
     loading_layer_refresh();
     app_message_send_startup_state(loading_layer_has_valid_data());
-    apply_top_view((TopView) g_config->top_view_default);
+    // The top view is session-only state: every launch starts on the calendar
+    // and a tap toggles to the radar whenever radar data is available.
+    apply_top_view(TOP_VIEW_CALENDAR);
     accel_tap_service_subscribe(tap_handler);
     MEMORY_LOG_HEAP("after_window_load");
 }
@@ -177,17 +178,12 @@ void main_window_create() {
 }
 
 void main_window_apply_top_view() {
-    apply_top_view((TopView) g_config->top_view_default);
+    // Re-apply the current view after radar availability changed; apply_top_view
+    // downgrades to the calendar when the radar data was cleared.
+    apply_top_view(s_top_view);
 }
 
 void main_window_refresh() {
-    // Pick up a freshly-arrived Clay top_view_default. Re-applying on every
-    // settings refresh resets a user's accel-tap toggle, but that's the
-    // expected outcome of explicitly changing the default in the watch
-    // settings (and it's the only way the fixture path can land the radar
-    // view, since the fixture's Clay payload arrives after main_window_load
-    // has already locked in the persisted default).
-    apply_top_view((TopView) g_config->top_view_default);
     time_layer_refresh();
     weather_status_layer_refresh();
     forecast_layer_refresh();

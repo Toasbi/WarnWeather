@@ -8,6 +8,7 @@ var Clay = require('./clay/_source.js');
 var clayConfig = require('./clay/config.js');
 var customClay = require('./clay/inject.js');
 var storageKeys = require('./storage-keys.js');
+var outbox = require('./outbox.js');
 var pkg = require('../../package.json');
 var activeFixture = require('./active-fixture.generated.js');
 var pebbleColors = require('./pebble-colors.js');
@@ -32,6 +33,7 @@ var clay = new Clay(clayConfig, customClay, { autoHandleEvents: false });
  * @type {{
  *     fetchInProgress: boolean,
  *     pendingStartupFetch: boolean,
+ *     pendingClaySend: boolean,
  *     settings?: Object,
  *     telemetry?: Object,
  *     provider?: Object,
@@ -53,11 +55,45 @@ var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
 
 app.fetchInProgress = false;
 app.pendingStartupFetch = false;
+app.pendingClaySend = false;
 
 (function initLastIsSleeping() {
     var raw = localStorage.getItem(KEY_LAST_IS_SLEEPING);
     app.lastIsSleeping = raw === 'true';   // default false when missing
 })();
+
+/**
+ * Run the weather fetch queued by the watch's startup state, if any.
+ *
+ * @returns {void}
+ */
+function drainPendingStartupFetch() {
+    if (app.pendingStartupFetch) {
+        app.pendingStartupFetch = false;
+        fetch(app.provider, true);
+    }
+}
+
+/**
+ * Send whatever the watch's startup state asked for: Clay settings first
+ * (the AppMessage channel is half-duplex, so the fetch is chained into the
+ * Clay callbacks instead of being sent back-to-back), then the weather fetch.
+ * No-op until the 'ready' handler has initialized settings and provider;
+ * 'ready' calls this again afterwards.
+ *
+ * @returns {void}
+ */
+function drainPendingStartupSends() {
+    if (!app.settings || !app.provider) {
+        return;
+    }
+    if (app.pendingClaySend) {
+        app.pendingClaySend = false;
+        sendClaySettings(drainPendingStartupFetch, drainPendingStartupFetch);
+        return;
+    }
+    drainPendingStartupFetch();
+}
 
 Pebble.addEventListener('appmessage', function(e) {
     var payload = e && e.payload;
@@ -66,21 +102,27 @@ Pebble.addEventListener('appmessage', function(e) {
         return;
     }
 
-    var hasForecastData = Boolean(payload.WATCH_HAS_FORECAST_DATA);
+    if (Object.prototype.hasOwnProperty.call(payload, 'WATCH_HAS_CONFIG')
+            && !Boolean(payload.WATCH_HAS_CONFIG)) {
+        // Fresh install or wiped persist: forget the last-sent Clay settings
+        // and push the user's settings without requiring a settings-page visit.
+        console.log('Watch reported no persisted config at startup.');
+        outbox.clearClayCache();
+        app.pendingClaySend = true;
+    }
 
-    if (hasForecastData) {
+    if (Boolean(payload.WATCH_HAS_FORECAST_DATA)) {
         console.log('Watch reported valid forecast data at startup.');
         app.pendingStartupFetch = false;
-        return;
+    } else {
+        // The watch renders from its own persist; if that is missing or stale,
+        // the last-sent caches no longer describe what the watch shows.
+        console.log('Watch reported no forecast data at startup.');
+        outbox.clearWeatherCaches();
+        app.pendingStartupFetch = true;
     }
 
-    console.log('Watch reported no forecast data at startup.');
-    app.pendingStartupFetch = true;
-
-    if (app.provider) {
-        app.pendingStartupFetch = false;
-        fetch(app.provider, true);
-    }
+    drainPendingStartupSends();
 });
 
 Pebble.addEventListener('showConfiguration', function(e) {
@@ -146,11 +188,15 @@ Pebble.addEventListener('ready',
             return;
         }
         if (migratedWeekendHolidayColors) {
-            sendClaySettings(markWeekendHolidayColorMigrationComplete);
-        }
-        if (app.pendingStartupFetch) {
-            app.pendingStartupFetch = false;
-            fetch(app.provider, true);
+            // The migration send covers any Clay send queued by the startup
+            // handshake; chain the startup fetch to keep the channel half-duplex.
+            app.pendingClaySend = false;
+            sendClaySettings(function() {
+                markWeekendHolidayColorMigrationComplete();
+                drainPendingStartupFetch();
+            }, drainPendingStartupFetch);
+        } else {
+            drainPendingStartupSends();
         }
         startTick();
     }
@@ -483,8 +529,17 @@ function startTick() {
     setTimeout(startTick, 60 * 1000); // 60 * 1000 milsec = 1 minute
 }
 
+/**
+ * Send the current Clay settings to the watch via the deduping outbox; the
+ * send is skipped (and onSuccess still called) when the settings match the
+ * last ACKed payload. Sleep state is not included here — it rides on the
+ * weather messages instead.
+ *
+ * @param {Function} [onSuccess] Called after ACK, or immediately when unchanged.
+ * @param {Function} [onFailure] Called on NACK.
+ * @returns {void}
+ */
 function sendClaySettings(onSuccess, onFailure) {
-    var sleeping = refreshLastIsSleeping();
     var payload = {
         "CLAY_CELSIUS": app.settings.temperatureUnits === 'c',
         "CLAY_TIME_LEAD_ZERO": app.settings.timeLeadingZero,
@@ -502,21 +557,9 @@ function sendClaySettings(onSuccess, onFailure) {
         "CLAY_COLOR_SATURDAY": app.settings.hasOwnProperty('colorSaturday') ? app.settings.colorSaturday : DEFAULT_COLOR_FOLLY,
         "CLAY_COLOR_US_FEDERAL": app.settings.hasOwnProperty('colorUSFederal') ? app.settings.colorUSFederal : DEFAULT_COLOR_FOLLY,
         "CLAY_COLOR_TIME": app.settings.hasOwnProperty('colorTime') ? app.settings.colorTime : DEFAULT_COLOR_WHITE,
-        "CLAY_DAY_NIGHT_SHADING": app.settings.hasOwnProperty('dayNightShading') ? app.settings.dayNightShading : true,
-        "CLAY_TOP_VIEW_DEFAULT": app.settings.topViewDefault === 'rain_radar' ? 1 : 0,
-        "IS_SLEEPING": sleeping
+        "CLAY_DAY_NIGHT_SHADING": app.settings.hasOwnProperty('dayNightShading') ? app.settings.dayNightShading : true
     }
-    Pebble.sendAppMessage(payload, function() {
-        console.log('Message sent successfully: ' + JSON.stringify(payload));
-        if (typeof onSuccess === 'function') {
-            onSuccess();
-        }
-    }, function(e) {
-        console.log('Message failed: ' + JSON.stringify(e));
-        if (typeof onFailure === 'function') {
-            onFailure(e);
-        }
-    });
+    outbox.sendClay(payload, onSuccess, onFailure);
 }
 
 function refreshProvider() {
@@ -1095,7 +1138,8 @@ function isSleepingNow() {
  * Compute the current sleep state, persist it for the next needRefresh()
  * call, and return it so the caller can include it in a payload.
  *
- * Call this exactly once per outbound message that carries IS_SLEEPING.
+ * Call this exactly once per fetch attempt that carries IS_SLEEPING; the
+ * outbox transmits it to the watch only when the value changed.
  *
  * @returns {boolean} Current sleep state.
  */

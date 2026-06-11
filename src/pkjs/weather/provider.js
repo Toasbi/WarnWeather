@@ -1,5 +1,6 @@
 var SunCalc = require('suncalc');
 var storageKeys = require('../storage-keys.js');
+var outbox = require('../outbox.js');
 
 var XHR_TIMEOUT_MS = 5000;
 var GPS_CACHE_KEY = 'gpsCache';
@@ -552,9 +553,12 @@ WeatherProvider.prototype.fetch = function(onSuccess, onFailure, force, extraPay
                                 }
                             }
                         }
-                        Pebble.sendAppMessage(
+                        // The outbox sends only the categories that changed
+                        // since the last ACKed message — possibly nothing,
+                        // which still counts as a successful fetch.
+                        outbox.sendWeather(
                             payload,
-                            function(e) {
+                            function() {
                                 console.log('Weather info sent to Pebble successfully!');
                                 onSuccess();
                             },

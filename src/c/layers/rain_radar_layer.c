@@ -330,8 +330,9 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
     MEMORY_LOG_HEAP("radar_update:enter");
     GRect bounds = layer_get_bounds(layer);
 
-    uint8_t exact_tenths[RADAR_NUM_SLOTS];
-    uint8_t area_tenths[RADAR_NUM_SLOTS];
+    // Zero-init: missing persist keys (fresh install) leave the buffers untouched.
+    uint8_t exact_tenths[RADAR_NUM_SLOTS] = {0};
+    uint8_t area_tenths[RADAR_NUM_SLOTS] = {0};
     persist_get_rain_radar_trend(exact_tenths, RADAR_NUM_SLOTS);
     persist_get_rain_radar_trend_area(area_tenths, RADAR_NUM_SLOTS);
 

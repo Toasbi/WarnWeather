@@ -18,8 +18,7 @@
   "claySettings": {
     "provider": "dwd",
     "temperatureUnits": "c",
-    "axisTimeFormat": "24h",
-    "topViewDefault": "rain_radar"
+    "axisTimeFormat": "24h"
   },
   "weather": {
     "city": "Rainy Day",

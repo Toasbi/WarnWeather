@@ -21,6 +21,16 @@ export FIXTURE="${2:-berlin}"
 raw_dir="screenshot/$version/raw"
 platforms=(basalt diorite emery flint)
 
+# The watch always boots on the calendar view; fixtures that showcase the
+# rain radar need an accel tap to toggle the top view before the screenshot.
+radar_fixtures=(berlin rainy)
+wants_radar=0
+for radar_fixture in "${radar_fixtures[@]}"; do
+  if [[ "$FIXTURE" == "$radar_fixture" ]]; then
+    wants_radar=1
+  fi
+done
+
 # `timeout` is GNU coreutils and absent on stock macOS; fall back to gtimeout
 # (brew coreutils) or run without a timeout if neither is available.
 if command -v timeout >/dev/null 2>&1; then
@@ -60,6 +70,11 @@ for platform in "${platforms[@]}"; do
     sleep 12
   else
     sleep 5
+  fi
+
+  if [[ $wants_radar -eq 1 ]]; then
+    pebble emu-tap --emulator "$platform"
+    sleep 1
   fi
 
   output="$raw_dir/$platform.png"

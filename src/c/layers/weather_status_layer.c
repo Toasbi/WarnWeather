@@ -54,7 +54,9 @@ static void text_layer_move_frame(TextLayer *text_layer, GRect frame) {
 static void city_layer_refresh() {
     // Set the city text layer contents from storage
     static char s_city_buffer[20];
-    persist_get_city(s_city_buffer, sizeof(s_city_buffer));
+    if (persist_get_city(s_city_buffer, sizeof(s_city_buffer)) <= 0) {
+        s_city_buffer[0] = '\0';  // No city persisted yet (fresh install)
+    }
     text_layer_set_text(s_city_layer, s_city_buffer);
 
     // Dynamic resizing
@@ -93,8 +95,8 @@ static void current_temp_layer_refresh() {
 
 static void sun_event_layer_refresh() {
     GRect bounds = layer_get_bounds(s_weather_status_layer);
-    // Get the time of the first sun event
-    time_t first_sun_event_time;
+    // Get the time of the first sun event; zero when nothing is persisted yet
+    time_t first_sun_event_time = 0;
     persist_get_sun_event_times(&first_sun_event_time, 1);
     struct tm *sun_time = localtime(&first_sun_event_time);
 

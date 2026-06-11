@@ -4,12 +4,6 @@
 
 #include "config.h"
 
-void persist_init();
-
-int persist_get_temp_lo();
-
-int persist_get_temp_hi();
-
 int persist_get_temp_trend(int16_t *buffer, const size_t buffer_size);
 
 int persist_get_precip_trend(uint8_t *buffer, const size_t buffer_size);
@@ -30,15 +24,13 @@ int persist_get_sun_event_times(time_t *buffer, const size_t buffer_size);
 
 int persist_get_config(Config *config);
 
-void persist_set_temp_lo(int val);
+bool persist_has_config();
 
-void persist_set_temp_hi(int val);
+bool persist_set_temp_trend(int16_t *data, const size_t size);
 
-void persist_set_temp_trend(int16_t *data, const size_t size);
+bool persist_set_precip_trend(uint8_t *data, const size_t size);
 
-void persist_set_precip_trend(uint8_t *data, const size_t size);
-
-void persist_set_rain_trend(uint8_t *data, const size_t size);
+bool persist_set_rain_trend(uint8_t *data, const size_t size);
 
 int persist_get_rain_radar_trend(uint8_t *buffer, const size_t buffer_size);
 
@@ -46,26 +38,26 @@ int persist_get_rain_radar_trend_area(uint8_t *buffer, const size_t buffer_size)
 
 time_t persist_get_rain_radar_start();
 
-void persist_set_rain_radar_trend(uint8_t *data, const size_t size);
+bool persist_set_rain_radar_trend(uint8_t *data, const size_t size);
 
-void persist_set_rain_radar_trend_area(uint8_t *data, const size_t size);
+bool persist_set_rain_radar_trend_area(uint8_t *data, const size_t size);
 
-void persist_set_rain_radar_start(time_t val);
+bool persist_set_rain_radar_start(time_t val);
 
-void persist_set_forecast_start(time_t val);
+bool persist_set_forecast_start(time_t val);
 
-void persist_set_num_entries(int val);
+bool persist_set_num_entries(int val);
 
-void persist_set_current_temp(int val);
+bool persist_set_current_temp(int val);
 
-void persist_set_city(char *val);
+bool persist_set_city(char *val);
 
-void persist_set_sun_event_start_type(int val);
+bool persist_set_sun_event_start_type(int val);
 
-void persist_set_sun_event_times(time_t *data, const size_t size);
+bool persist_set_sun_event_times(time_t *data, const size_t size);
 
-void persist_set_config(Config config);
+bool persist_set_config(Config config);
 
 bool persist_get_is_sleeping();
 
-void persist_set_is_sleeping(bool sleeping);
+bool persist_set_is_sleeping(bool sleeping);
