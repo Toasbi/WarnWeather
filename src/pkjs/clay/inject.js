@@ -93,7 +93,8 @@ module.exports = function (minified) {
         }
 
         /**
-         * Format event-level outcome counts like "5✓ 1✗ 4c" (zeros omitted).
+         * Format event-level outcome counts like "5✓ 1✗ 4c" (zeros omitted);
+         * 'c' counts full skips, i.e. dedupe-cache hits with no transmission.
          *
          * @param {{ack: number, nack: number, skip: number}} counts Outcome counts.
          * @returns {string} Cell text.
@@ -260,16 +261,22 @@ module.exports = function (minified) {
             }
         }
 
-        // Render dev stats when recording is enabled and events exist.
-        devStatsToggle = clayConfig.getItemByMessageKey('devStatsEnabled');
-        devStatsEvents = parseStoredJson(
-            typeof clayConfig.meta.userData.devStats === 'string'
-                ? clayConfig.meta.userData.devStats
-                : null
-        );
-        if (devStatsToggle && Boolean(devStatsToggle.get())
-                && Array.isArray(devStatsEvents) && devStatsEvents.length > 0) {
-            $('#devStatsBlock').ht(renderDevStats(devStatsEvents));
+        // Render dev stats when recording is enabled and events exist. A render
+        // failure must never break the submit override below.
+        try {
+            devStatsToggle = clayConfig.getItemByMessageKey('devStatsEnabled');
+            devStatsEvents = parseStoredJson(
+                typeof clayConfig.meta.userData.devStats === 'string'
+                    ? clayConfig.meta.userData.devStats
+                    : null
+            );
+            if (devStatsToggle && Boolean(devStatsToggle.get())
+                    && Array.isArray(devStatsEvents) && devStatsEvents.length > 0) {
+                $('#devStatsBlock').ht(renderDevStats(devStatsEvents));
+            }
+        }
+        catch (ex) {
+            console.log('devStats render failed: ' + ex);
         }
 
         // Override submit handler to force re-fetch if provider config changed
