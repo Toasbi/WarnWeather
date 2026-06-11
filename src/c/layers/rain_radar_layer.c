@@ -40,8 +40,8 @@
 //   144-bucket: 1 + 2 + 3 = 6 → 24*6 + 1 = 145 px (overflows 144 by 1 → 1 px clip)
 //   200-bucket: 1 + 4 + 4 = 9 → 24*9 + 1 = 217 px (overflows emery's 196 by 21 → rightmost slots clip)
 #if defined(DISPLAY_WIDTH_200)
-    #define RADAR_BAR_W 4
-    #define RADAR_PAD   2
+    #define RADAR_BAR_W 5
+    #define RADAR_PAD   1
 #elif defined(DISPLAY_WIDTH_144)
     #define RADAR_BAR_W 3
     #define RADAR_PAD   1
