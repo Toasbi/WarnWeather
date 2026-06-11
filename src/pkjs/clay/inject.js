@@ -159,7 +159,7 @@ module.exports = function (minified) {
             var bucket = days[day];
             html += '<tr>' + cell(day) + cell(outcomeCell(bucket.weather));
             CATEGORIES.forEach(function(name) {
-                html += cell(bucket.cats[name].sent + '/' + bucket.cats[name].cached);
+                html += cell(bucket.cats[name].sent + '●/' + bucket.cats[name].cached + '-');
             });
             html += cell(outcomeCell(bucket.setting)) + '</tr>';
         });

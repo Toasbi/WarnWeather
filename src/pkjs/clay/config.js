@@ -339,7 +339,7 @@ module.exports = [
                 "label": "Enable connection stats",
                 "messageKey": "devStatsEnabled",
                 "defaultValue": false,
-                "description": "Record Bluetooth messages sent to the watch for 7 days and show them below. Nothing leaves the phone."
+                "description": "Locally records connection events sent to the watch. Events older than 7 days are deleted."
             },
             {
                 "type": "text",
