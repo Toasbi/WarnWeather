@@ -22,6 +22,10 @@ If you need runtime logs, `mise install-emulator --logs` runs it in an emulator 
 - Prefer `Boolean(value)` over `!!value` in new/edited code for readability.
 - When branching on `#ifdef PBL_PLATFORM_EMERY`, add a brief `emery:` comment explaining the Emery-specific behavior.
 
+## Generated package.json
+
+`package.json` is generated — never edit it directly; `mise build` (via `scripts/prepare-package.sh`, mustache over `package.template.json` + `profiles/package.<profile>.json`, plus telemetry/release-notification injection) regenerates it and silently wipes manual edits. Add AppMessage keys (`messageKeys`), appinfo, capabilities, etc. to `package.template.json` (and profiles for per-profile values). A new key missing from the template surfaces as `MESSAGE_KEY_<NAME> undeclared` at C compile time even though the working-tree `package.json` looked correct before the build re-ran. Regenerate locally with `mise prepare-package` (or `scripts/prepare-package.sh dev`).
+
 ## Supabase migrations
 
 Never write `migrations/` files manually. Edit declarative `schemas/` and generate migrations as-needed before commits with `supabase db diff -f <label>`
