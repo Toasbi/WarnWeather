@@ -104,3 +104,45 @@ ChartGeometry chart_draw_frame(GContext *ctx, ChartConfig cfg, GRect outer) {
     graph_frame_draw(ctx, cfg.frame, outer);
     return chart_compute(cfg, outer, cfg.slots.num_slots);
 }
+
+// --- Engine v2 --------------------------------------------------------
+
+static ChartGeometry chart_geometry(const ChartDef *def, GRect outer) {
+    return (ChartGeometry){
+        .anchor_x = outer.origin.x,
+        .content  = GRect(outer.origin.x + def->inset_left,
+                          outer.origin.y + def->inset_top,
+                          outer.size.w - def->inset_left - def->inset_right,
+                          outer.size.h - def->inset_top  - def->inset_bottom),
+        .slots    = slot_geometry(def->num_slots, def->tick_w,
+                                  def->bar_pad, def->bar_w),
+    };
+}
+
+static inline int chart_clamp_count(const ChartRender *r, int count) {
+    if (count > r->def->num_slots) return r->def->num_slots;
+    return count;
+}
+
+void chart_draw(GContext *ctx, const ChartDef *def, GRect outer,
+                const ChartLayer *layers, int num_layers) {
+    ChartRender r = {
+        .ctx   = ctx,
+        .def   = def,
+        .outer = outer,
+        .geo   = chart_geometry(def, outer),
+    };
+    for (int i = 0; i < num_layers; ++i) {
+        const ChartLayer *l = &layers[i];
+        switch (l->type) {
+            case CHART_LAYER_FRAME:
+                graph_frame_draw(ctx, l->frame.frame, outer);
+                break;
+            case CHART_LAYER_CUSTOM:
+                l->custom.fn(&r, l->custom.user);
+                break;
+            default:
+                break;  // remaining renderers land in follow-up commits
+        }
+    }
+}
