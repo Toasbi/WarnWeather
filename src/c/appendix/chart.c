@@ -90,10 +90,10 @@ void tick_side_draw_at(GContext *ctx, GRect outer, GraphFrame frame,
     }
 }
 
-ChartGeometry chart_compute(ChartConfig cfg, GRect outer) {
+ChartGeometry chart_compute(ChartConfig cfg, GRect outer, int num_slots) {
     return (ChartGeometry){
         .content = graph_frame_content_rect(cfg.frame, outer),
-        .slots   = slot_geometry(cfg.slots.num_slots,
+        .slots   = slot_geometry(num_slots,
                                   cfg.ticks.tick_w,
                                   cfg.slots.pad,
                                   cfg.slots.bar_w),
@@ -102,5 +102,5 @@ ChartGeometry chart_compute(ChartConfig cfg, GRect outer) {
 
 ChartGeometry chart_draw_frame(GContext *ctx, ChartConfig cfg, GRect outer) {
     graph_frame_draw(ctx, cfg.frame, outer);
-    return chart_compute(cfg, outer);
+    return chart_compute(cfg, outer, cfg.slots.num_slots);
 }

@@ -88,8 +88,11 @@ typedef struct {
 } ChartGeometry;
 
 // Compute the content rect + slot geometry from a static config and the
-// caller's outer rect. Pitch math lives here exactly once.
-ChartGeometry chart_compute(ChartConfig cfg, GRect outer);
+// caller's outer rect. Pitch math lives here exactly once. num_slots is
+// passed explicitly (rather than read from cfg.slots) so callers with a
+// runtime-dynamic count get a correct, immutable geometry without
+// post-construction overrides.
+ChartGeometry chart_compute(ChartConfig cfg, GRect outer, int num_slots);
 
 // Convenience: paints the frame, then returns the derived geometry.
 ChartGeometry chart_draw_frame(GContext *ctx, ChartConfig cfg, GRect outer);

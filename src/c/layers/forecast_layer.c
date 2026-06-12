@@ -23,12 +23,10 @@
 #define MARGIN_TEMP_H 7           // Height of margins for the temperature plot
 // emery: reserve extra bottom space for larger hour labels and tick marks.
 #ifdef PBL_PLATFORM_EMERY
-#define HOUR_LABEL_MIN_SPACING 24 // Minimum horizontal spacing for hour labels
 #define FORECAST_BOTTOM_PAD 10
 #define EMERY_AXIS_LABEL_TOP 6
 #define EMERY_AXIS_LABEL_H 14
 #else
-#define HOUR_LABEL_MIN_SPACING 20 // Minimum horizontal spacing for hour labels
 #define FORECAST_BOTTOM_PAD 0
 #endif
 #define NIGHT_HATCH_SPACING PBL_IF_COLOR_ELSE(6, 7)
@@ -65,13 +63,9 @@
 #define FORECAST_AXIS_COLOR_DAY    PBL_IF_COLOR_ELSE(GColorOrange,   GColorWhite)
 #define FORECAST_AXIS_COLOR_NIGHT  PBL_IF_COLOR_ELSE(GColorDarkGray, GColorWhite)
 
-// Tick row math:
-//   entries_per_label = ceil(HOUR_LABEL_MIN_SPACING / pitch)
-//   144-bucket: ceil(20 / 7) = 3
-//   200-bucket: ceil(24 / 8) = 3
-// FORECAST_BOTTOM_TICK_INIT's big_every is overridden per-render in
-// draw_bottom_axis with the runtime entries_per_label. Emery draws every
-// slot (small ticks between labels); non-emery only draws midpoints.
+// Tick rows: a label every big_every (3) slots. Emery draws every slot
+// (small ticks between labels); non-emery only draws the midpoint tick
+// between labels.
 #ifdef PBL_PLATFORM_EMERY
     #define FORECAST_TICK_SMALL_COLOR  GColorDarkGray
 #else
@@ -81,7 +75,7 @@
 #define FORECAST_BOTTOM_TICK_INIT { \
         .length     = 4,  .color     = FORECAST_TICK_SMALL_COLOR, \
         .big_length = 6,  .big_color = GColorLightGray, \
-        .big_every  = 4, \
+        .big_every  = 3, \
     }
 
 #define FORECAST_TICKS_INIT { \
@@ -608,6 +602,7 @@ typedef struct {
     GraphFrame  frame;
     TickSide    bottom;
     int         num_slots;
+    int         visible_right;   // layer-coord x of the right screen edge
     struct tm  *forecast_start_local;
 } ForecastTickCtx;
 
@@ -638,10 +633,17 @@ static void forecast_tick_callback(GContext *ctx, int idx, int tick_x, void *use
     // Sparse ticks: a digit at label positions (no tick line — the label
     // IS the marker), a small tick at the midpoint between labels.
     if (is_label) {
-        char buf[4];
-        snprintf(buf, sizeof(buf), "%d",
-                 config_axis_hour(c->forecast_start_local->tm_hour + idx));
+        const int hour = config_axis_hour(c->forecast_start_local->tm_hour + idx);
         const int label_left_pad = 3; // nudge hour digits left to sit over their slot
+        // The rightmost slots overflow the display; a two-digit label there
+        // gets sliced by the screen edge, so drop it rather than draw half a
+        // number. Single-digit labels are narrow enough to keep.
+        const int two_digit_half_w = 8; // approx half-width of a 2-digit GOTHIC_14 label
+        if (hour >= 10 && (tick_x - label_left_pad) + two_digit_half_w > c->visible_right) {
+            return;
+        }
+        char buf[4];
+        snprintf(buf, sizeof(buf), "%d", hour);
         graphics_draw_text(ctx, buf,
                            fonts_get_system_font(FONT_KEY_GOTHIC_14),
                            GRect(tick_x - 20 - label_left_pad,
@@ -656,22 +658,16 @@ static void forecast_tick_callback(GContext *ctx, int idx, int tick_x, void *use
 }
 
 static void draw_bottom_axis(GContext *ctx, GRect outer, ChartGeometry chart,
-                             const ChartConfig *cfg,
+                             const ChartConfig *cfg, int visible_right,
                              struct tm *forecast_start_local) {
-    // Override big_every with the runtime-derived entries_per_label so
-    // label positions track pitch changes without retuning the config.
-    const int entries_per_label = (HOUR_LABEL_MIN_SPACING + chart.slots.pitch - 1)
-                                  / chart.slots.pitch;
-    TickSide bottom = cfg->ticks.bottom;
-    bottom.big_every = entries_per_label;
-
     graphics_context_set_text_color(ctx, GColorWhite);
 
     ForecastTickCtx tick_ctx = {
         .outer                = outer,
         .frame                = cfg->frame,
-        .bottom               = bottom,
+        .bottom               = cfg->ticks.bottom,
         .num_slots            = chart.slots.num_slots,
+        .visible_right        = visible_right,
         .forecast_start_local = forecast_start_local,
     };
     // Ticks/labels anchor in the left-border column — one tick_w to the
@@ -737,9 +733,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     }
 
     // Chart outer matches phase 2's frame_outer: spans the grid columns
-    // and the plot height down to axis_y. chart.slots.num_slots starts at
-    // MAX_FORECAST_ENTRIES (compile-time const) — override to the dynamic
-    // entry count so the iteration bound tracks the data.
+    // and the plot height down to axis_y. num_slots is the dynamic entry
+    // count (not the config's compile-time MAX_FORECAST_ENTRIES) so the
+    // geometry is correct on construction and stays immutable.
     const ChartConfig *cfg = render_spec.draw_night_overlay
         ? &FORECAST_CHART_NIGHT
         : &FORECAST_CHART_DAY;
@@ -749,8 +745,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     const GRect outer = GRect(graph_bounds.origin.x, 0,
                               grid_right - graph_bounds.origin.x + 1,
                               axis_y + 1);
-    ChartGeometry chart = chart_compute(*cfg, outer);
-    chart.slots.num_slots = ds.num_entries;
+    const ChartGeometry chart = chart_compute(*cfg, outer, ds.num_entries);
 
     // Night shading uses its own plot rect with the full graph_bounds
     // width so the time→x mapping matches the pre-phase-3 visual; the
@@ -777,7 +772,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // Frame on top of data so it overwrites curve/area pixels at the
     // border columns (same paint order as phase 2). Then ticks + labels.
     graph_frame_draw(ctx, cfg->frame, outer);
-    draw_bottom_axis(ctx, outer, chart, cfg, forecast_start_local);
+    draw_bottom_axis(ctx, outer, chart, cfg, bounds.size.w, forecast_start_local);
     draw_left_axis(ctx, h);
     MEMORY_HEAP_PROBE_LOG_MIN(&redraw_probe);
     MEMORY_LOG_HEAP("forecast_update:exit");
