@@ -3,6 +3,7 @@
 
 #include <pebble.h>
 #include "c/appendix/slot_geometry.h"
+#include "c/appendix/chart.h"
 
 #define RAIN_TIER_COUNT 5
 
@@ -45,3 +46,17 @@ void rain_tier_bar_draw_slabs(GContext *ctx,
 // Bars with tenths == 0 are skipped.
 void rain_bars_draw(GContext *ctx, GRect plot_rect, SlotGeometry slots,
                     const uint8_t *tenths);
+
+// Per-mille (0..1000 of plot height) for a rain value in wire tenths —
+// the chart-engine BARS contract. Same tier allocation math as
+// rain_tier_proportional_height (this is that function with h = 1000).
+int16_t rain_tier_permille(int tenths);
+
+// Fill `out` (>= count entries) with per-mille values for a tenths series.
+void rain_tier_fill_permille(const uint8_t *tenths, int16_t *out, int count);
+
+// Color stops for the chart engine, in per-mille value space. Colour
+// displays: 5 tier stops. B&W: a single black stop (callers pair it with
+// BAR_OUTLINED for the white silhouette).
+extern const ChartColorStop RAIN_TIER_STOPS[];
+extern const int RAIN_TIER_NUM_STOPS;

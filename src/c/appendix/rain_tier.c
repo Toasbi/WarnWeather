@@ -160,3 +160,29 @@ void rain_bars_draw(GContext *ctx, GRect plot_rect, SlotGeometry slots,
         rain_tier_bar_draw_slabs(ctx, bar_x, slots.bar_w, bar_plot_bottom, bar_plot_h, t, false);
     }
 }
+
+int16_t rain_tier_permille(int tenths) {
+    return (int16_t)rain_tier_proportional_height(tenths, 1000);
+}
+
+void rain_tier_fill_permille(const uint8_t *tenths, int16_t *out, int count) {
+    for (int i = 0; i < count; ++i) {
+        out[i] = rain_tier_permille(tenths[i]);
+    }
+}
+
+#ifdef PBL_COLOR
+const ChartColorStop RAIN_TIER_STOPS[] = {
+    { 0,   GColorLightGray    },   // tier 1
+    { 140, GColorElectricBlue },   // tier 2 — RAIN_TIER_TOP_PCT_ARR * 10
+    { 340, GColorGreen        },   // tier 3
+    { 560, GColorYellow       },   // tier 4
+    { 780, GColorSunsetOrange },   // tier 5
+};
+#else
+const ChartColorStop RAIN_TIER_STOPS[] = {
+    { 0, GColorBlack },            // single stop; outline carries the shape
+};
+#endif
+const int RAIN_TIER_NUM_STOPS =
+    (int)(sizeof(RAIN_TIER_STOPS) / sizeof(RAIN_TIER_STOPS[0]));
