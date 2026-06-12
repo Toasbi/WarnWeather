@@ -235,6 +235,57 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
     }
 }
 
+static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
+    const int count = chart_clamp_count(r, l->count);
+    if (count < 2) return;
+
+    GPoint        buf[CHART_MAX_SLOTS];
+    const GPoint *pts = l->points;
+    if (pts == NULL) {
+        GPoint *out = l->export_points ? l->export_points : buf;
+        const GRect c          = r->geo.content;
+        const int  inner_h     = c.size.h - 2 * l->inset_y;
+        const int  plot_bottom = c.origin.y + c.size.h;
+        const int  range       = l->hi - l->lo;
+        for (int i = 0; i < count; ++i) {
+            int h = inner_h / 2;                        // flat line on zero range
+            if (range > 0) {
+                h = (int)(((int32_t)(l->values[i] - l->lo) * inner_h) / range);
+            }
+            out[i] = GPoint(chart_slot_tick_x(&r->geo, i),
+                            plot_bottom - h - l->inset_y);
+        }
+        pts = out;
+    }
+
+    GPath path = { .num_points = (uint32_t)count, .points = (GPoint *)pts };
+    graphics_context_set_stroke_color(r->ctx, l->color);
+    graphics_context_set_stroke_width(r->ctx, l->width);
+    gpath_draw_outline_open(r->ctx, &path);
+}
+
+static void chart_render_area(const ChartRender *r, const ChartAreaLayer *a) {
+    const int count = chart_clamp_count(r, a->count);
+    if (count < 1) return;
+
+    GPoint  buf[CHART_MAX_SLOTS + 2];
+    GPoint *pts = a->export_points ? a->export_points : buf;
+    const GRect c          = r->geo.content;
+    const int  plot_bottom = c.origin.y + c.size.h;
+    const int  range       = a->hi - a->lo;
+    const int  range_safe  = range > 0 ? range : 1;
+    for (int i = 0; i < count; ++i) {
+        const int h = (int)(((int32_t)(a->values[i] - a->lo) * c.size.h) / range_safe);
+        pts[i] = GPoint(chart_slot_tick_x(&r->geo, i), plot_bottom - h);
+    }
+    pts[count]     = GPoint(chart_slot_tick_x(&r->geo, r->def->num_slots), plot_bottom);
+    pts[count + 1] = GPoint(r->geo.anchor_x, plot_bottom);
+
+    GPath path = { .num_points = (uint32_t)(count + 2), .points = pts };
+    graphics_context_set_fill_color(r->ctx, a->fill_color);
+    gpath_draw_filled(r->ctx, &path);
+}
+
 void chart_draw(GContext *ctx, const ChartDef *def, GRect outer,
                 const ChartLayer *layers, int num_layers) {
     ChartRender r = {
@@ -258,8 +309,12 @@ void chart_draw(GContext *ctx, const ChartDef *def, GRect outer,
             case CHART_LAYER_BARS:
                 chart_render_bars(&r, &l->bars);
                 break;
-            default:
-                break;  // remaining renderers land in follow-up commits
+            case CHART_LAYER_LINE:
+                chart_render_line(&r, &l->line);
+                break;
+            case CHART_LAYER_AREA:
+                chart_render_area(&r, &l->area);
+                break;
         }
     }
 }
