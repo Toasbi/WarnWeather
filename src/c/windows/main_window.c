@@ -153,6 +153,10 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     }
     status_icons_refresh();
     loading_layer_refresh();
+    if (rain_radar_layer_tick(time(NULL))) {
+        // Window advanced — re-evaluate the top view, mirroring the arrival path.
+        main_window_apply_top_view();
+    }
 }
 
 /*----------------------------
