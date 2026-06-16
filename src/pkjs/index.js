@@ -667,6 +667,7 @@ function clayTryDefaults() {
 function getDefaultClaySettings() {
     return {
         provider: 'wunderground',
+        radarProvider: 'disabled',
         owmApiKey: '',
         fetch: false,
         devStatsEnabled: false,
