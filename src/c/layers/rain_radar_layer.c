@@ -254,8 +254,8 @@ static void radar_or_snooze_update_proc(Layer *layer, GContext *ctx) {
     GRect bounds = layer_get_bounds(layer);
 
     if (persist_get_radar_snooze()) {
-        // Sleep mode: big snooze glyphs instead of the chart. Latched until
-        // fresh radar data arrives after waking (see app_message.c).
+        // Sleep mode: big snooze glyphs instead of the chart. Latched on
+        // sleep onset and released on the wake transition (see app_message.c).
         snooze_draw(ctx, grect_inset(bounds, GEdgeInsets(RADAR_SNOOZE_INSET)), RADAR_TICK_COLOR);
         MEMORY_LOG_HEAP("radar_update:exit");
         return;
