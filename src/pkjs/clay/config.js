@@ -169,55 +169,6 @@ module.exports = [
             },
             {
                 "type": "select",
-                "defaultValue": "f",
-                "messageKey": "temperatureUnits",
-                "label": "Temperature Units",
-                "options": [
-                    {
-                        "label": "°F",
-                        "value": "f"
-                    },
-                    {
-                        "label": "°C",
-                        "value": "c"
-                    }
-                ]
-            },
-            {
-                "type": "toggle",
-                "label": "Day/night shading",
-                "messageKey": "dayNightShading",
-                "defaultValue": true,
-                "description": "Show hatch shading between sunset and sunrise to distinguish day and night on the forecast graph."
-            },
-            {
-                "type": "radiogroup",
-                "label": "Provider",
-                "messageKey": "provider",
-                "defaultValue": "wunderground",
-                "options": [
-                    {
-                        "label": "Weather Underground",
-                        "value": "wunderground"
-                    },
-                    {
-                        "label": "OpenWeatherMap",
-                        "value": "openweathermap"
-                    },
-                    {
-                        "label": "Deutscher Wetterdienst (Brightsky)",
-                        "value": "dwd"
-                    }
-                ]
-            },
-            {
-                "type": "input",
-                "label": "OpenWeatherMap API key",
-                "messageKey": "owmApiKey",
-                "description": "<a href='https://openweathermap.org/'>Register an OpenWeatherMap account</a> and paste your API key here"
-            },
-            {
-                "type": "select",
                 "label": "Update interval",
                 "messageKey": "fetchIntervalMin",
                 "defaultValue": "30",
@@ -280,6 +231,93 @@ module.exports = [
                 "attributes": {
                     "placeholder": "Using GPS",
                 }
+            }
+        ]
+    },
+    {
+        "type": "section",
+        "items": [
+            {
+                "type": "heading",
+                "defaultValue": "Forecast"
+            },
+            {
+                "type": "select",
+                "defaultValue": "f",
+                "messageKey": "temperatureUnits",
+                "label": "Temperature Units",
+                "options": [
+                    {
+                        "label": "°F",
+                        "value": "f"
+                    },
+                    {
+                        "label": "°C",
+                        "value": "c"
+                    }
+                ]
+            },
+            {
+                "type": "toggle",
+                "label": "Day/night shading",
+                "messageKey": "dayNightShading",
+                "defaultValue": true,
+                "description": "Show hatch shading between sunset and sunrise to distinguish day and night on the forecast graph."
+            },
+            {
+                "type": "radiogroup",
+                "label": "Provider",
+                "messageKey": "provider",
+                "defaultValue": "wunderground",
+                "options": [
+                    {
+                        "label": "Weather Underground",
+                        "value": "wunderground"
+                    },
+                    {
+                        "label": "OpenWeatherMap",
+                        "value": "openweathermap"
+                    },
+                    {
+                        "label": "Deutscher Wetterdienst (Brightsky) (Germany only)",
+                        "value": "dwd"
+                    }
+                ]
+            },
+            {
+                "type": "input",
+                "label": "OpenWeatherMap API key",
+                "messageKey": "owmApiKey",
+                "description": "<a href='https://openweathermap.org/'>Register an OpenWeatherMap account</a> and paste your API key here"
+            }
+        ]
+    },
+    {
+        "type": "section",
+        "items": [
+            {
+                "type": "heading",
+                "defaultValue": "Rain radar"
+            },
+            {
+                "type": "text",
+                "defaultValue": "Rain radar appears as a second screen revealed with a wrist flick (tap), and only when radar data is available. More radar providers will be added in the future."
+            },
+            {
+                "type": "radiogroup",
+                "label": "Radar provider",
+                "messageKey": "radarProvider",
+                "defaultValue": "disabled",
+                "options": [
+                    {
+                        "label": "Deutscher Wetterdienst (Brightsky) (Germany only)",
+                        "value": "dwd"
+                    },
+                    {
+                        "label": "Disabled",
+                        "value": "disabled"
+                    }
+                ]
             }
         ]
     },
