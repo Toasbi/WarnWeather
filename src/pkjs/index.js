@@ -1,4 +1,6 @@
 
+var radar = require('./weather/radar.js');
+var radarDispatch = require('./weather/radar-dispatch.js');
 var WundergroundProvider = require('./weather/wunderground.js');
 var OpenWeatherMapProvider = require('./weather/openweathermap.js')
 var DwdProvider = require('./weather/dwd.js');
@@ -1021,7 +1023,13 @@ function withRainRadarTuples(provider, callback) {
     // the same time anchor.
     var RADAR_SLOT_SECONDS = 5 * 60;
     var slotZeroEpoch = Math.floor(Date.now() / 1000 / RADAR_SLOT_SECONDS) * RADAR_SLOT_SECONDS;
-    provider.withRadarTuples(slotZeroEpoch, callback);
+    // Radar source is configured independently of the forecast provider; the
+    // active provider is used only as a coordinate source for DWD radar.
+    radarDispatch.dispatchRadarTuples(
+        app.settings.radarProvider,
+        { provider: provider, slotZeroEpoch: slotZeroEpoch, fetchDwd: radar.fetchRadarTuples },
+        callback
+    );
 }
 
 /**
