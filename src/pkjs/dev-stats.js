@@ -132,8 +132,18 @@ function read() {
     return prune(readEvents(), Date.now());
 }
 
+/**
+ * Discard the entire stored event log.
+ *
+ * @returns {void}
+ */
+function clear() {
+    localStorage.removeItem(KEYS.DEV_STATS_KEY);
+}
+
 module.exports = {
     setEnabled: setEnabled,
     record: record,
-    read: read
+    read: read,
+    clear: clear
 };

@@ -78,4 +78,12 @@ assert.strictEqual(devStats.read().length, 1);
 store[KEYS.DEV_STATS_KEY] = JSON.stringify([null, 42, { k: 'weather', t: Date.now(), c: { forecast: 1 }, ok: 1 }]);
 assert.strictEqual(devStats.read().length, 1, 'null elements must be filtered, not thrown on');
 
+// clear() wipes the stored log; read() is empty afterwards and survives a
+// clear of already-empty storage.
+devStats.clear();
+assert.strictEqual(store[KEYS.DEV_STATS_KEY], undefined, 'clear() must remove the stored key');
+assert.deepStrictEqual(devStats.read(), [], 'read() must be empty after clear()');
+devStats.clear();
+assert.deepStrictEqual(devStats.read(), [], 'clear() on empty storage must be a no-op');
+
 console.log('All dev-stats assertions passed.');

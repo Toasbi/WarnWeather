@@ -350,6 +350,14 @@ module.exports = [
                 "description": "Locally records connection events sent to the watch. Events older than 7 days are deleted."
             },
             {
+                // Hidden flag set by the "Clear events" button in the stats block;
+                // hidden at runtime in inject.js. Clay-only, not an AppMessage key.
+                "type": "toggle",
+                "label": "Clear connection stats",
+                "messageKey": "devStatsClear",
+                "defaultValue": false
+            },
+            {
                 "type": "text",
                 "defaultValue": "<span id='devStatsBlock'></span>"
             }

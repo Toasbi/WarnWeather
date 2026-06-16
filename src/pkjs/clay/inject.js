@@ -33,6 +33,8 @@ module.exports = function (minified) {
         var TABLE_STYLE = 'border-collapse:collapse;font-size:0.72em;margin:2px 0 6px;width:100%;text-align:center;';
         var CELL_STYLE = 'border:1px solid #555;padding:1px 3px;';
         var TITLE_STYLE = 'font-size:0.8em;font-weight:bold;margin:8px 0 0;';
+        var LEGEND_STYLE = 'font-size:0.7em;color:#9aa0a6;line-height:1.3;margin:1px 0 3px;';
+        var BTN_STYLE = 'margin:4px 0 2px;padding:4px 10px;font-size:0.8em;';
         var days = {};
         var dayOrder = [];
         var raw;
@@ -93,11 +95,12 @@ module.exports = function (minified) {
         }
 
         /**
-         * Format event-level outcome counts like "5✓ 1✗ 4c" (zeros omitted);
-         * 'c' counts full skips, i.e. dedupe-cache hits with no transmission.
+         * Format event-level outcome counts, one per line like "5✓<br>1✗<br>4c"
+         * (zeros omitted); 'c' counts full skips, i.e. dedupe-cache hits with no
+         * transmission.
          *
          * @param {{ack: number, nack: number, skip: number}} counts Outcome counts.
-         * @returns {string} Cell text.
+         * @returns {string} Cell HTML.
          */
         function outcomeCell(counts) {
             var parts = [];
@@ -110,7 +113,7 @@ module.exports = function (minified) {
             if (counts.skip > 0) {
                 parts.push(counts.skip + 'c');
             }
-            return parts.length > 0 ? parts.join(' ') : '–';
+            return parts.length > 0 ? parts.join('<br>') : '–';
         }
 
         // Aggregate per local day. Outcome: ok=1 → ack, ok=0 → nack,
@@ -151,15 +154,19 @@ module.exports = function (minified) {
         });
         dayOrder.reverse();  // Newest day first.
 
-        // Daily rollup table.
-        html = '<div style="' + TITLE_STYLE + '">Daily summary</div>';
+        // Clear button, then the daily rollup table.
+        html = '<button type="button" id="devStatsClearBtn" style="' + BTN_STYLE + '">Clear events</button>';
+        html += '<div style="' + TITLE_STYLE + '">Daily summary</div>';
+        html += '<div style="' + LEGEND_STYLE + '">'
+            + '✓ delivered · ✗ rejected · c cache-skip (nothing sent)<br>'
+            + 'per category: count● sent · count– cached</div>';
         html += '<table style="' + TABLE_STYLE + '">';
         html += headerRow(['Day', 'weather'].concat(CATEGORIES).concat(['setting']));
         dayOrder.forEach(function(day) {
             var bucket = days[day];
             html += '<tr>' + cell(day) + cell(outcomeCell(bucket.weather));
             CATEGORIES.forEach(function(name) {
-                html += cell(bucket.cats[name].sent + '●/' + bucket.cats[name].cached + '-');
+                html += cell(bucket.cats[name].sent + '●<br>' + bucket.cats[name].cached + '–');
             });
             html += cell(outcomeCell(bucket.setting)) + '</tr>';
         });
@@ -168,6 +175,9 @@ module.exports = function (minified) {
         // Raw event list, newest first, capped for page sanity.
         raw = events.slice(-RAW_EVENT_CAP).reverse();
         html += '<div style="' + TITLE_STYLE + '">Events</div>';
+        html += '<div style="' + LEGEND_STYLE + '">'
+            + 'ok: ✓ delivered · ✗ rejected · blank nothing sent<br>'
+            + 'category/setting: ● sent · – cached · blank not in payload</div>';
         html += '<table style="' + TABLE_STYLE + '">';
         html += headerRow(['Time', 'ok'].concat(CATEGORIES).concat(['setting']));
         raw.forEach(function(ev) {
@@ -209,9 +219,17 @@ module.exports = function (minified) {
         var shouldShowLastAttempt;
         var devStatsToggle;
         var devStatsEvents;
+        var clayDevStatsClear;
 
         clayFetch = clayConfig.getItemByMessageKey('fetch');
         clayFetch.set(false);
+
+        // Hidden flag; the "Clear events" button sets it true and submits, then
+        // PKJS wipes the log. Reset to false on every build so a plain save
+        // never clears (mirrors the fetch toggle).
+        clayDevStatsClear = clayConfig.getItemByMessageKey('devStatsClear');
+        clayDevStatsClear.set(false);
+        clayDevStatsClear.hide();
 
         // Save initial states to detect changes to provider
         clayOwmApiKey = clayConfig.getItemByMessageKey('owmApiKey');
@@ -275,6 +293,17 @@ module.exports = function (minified) {
             if (devStatsToggle && Boolean(devStatsToggle.get())
                     && Array.isArray(devStatsEvents) && devStatsEvents.length > 0) {
                 $('#devStatsBlock').ht(renderDevStats(devStatsEvents));
+                $('#devStatsClearBtn').on('click', function() {
+                    var returnTo;
+                    if (!window.confirm('Clear all recorded connection events?')) {
+                        return;
+                    }
+                    clayDevStatsClear.set(true);
+                    // Serialize and close, the same way the submit override does.
+                    returnTo = window.returnTo || 'pebblejs://close#';
+                    location.href = returnTo
+                        + encodeURIComponent(JSON.stringify(clayConfig.serialize()));
+                });
             }
         }
         catch (ex) {

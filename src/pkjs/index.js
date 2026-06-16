@@ -143,6 +143,11 @@ Pebble.addEventListener('webviewclosed', function(e) {
     clay.getSettings(e.response, false);  // This triggers the update in localStorage
     app.settings = getClaySettings();  // This reads from localStorage in sensible format
     devStats.setEnabled(Boolean(app.settings.devStatsEnabled));
+    if (app.settings.devStatsClear === true) {
+        // The config page's "Clear events" button sets this flag; wipe the log
+        // here. AFTER_BUILD re-zeroes the flag on the next config open.
+        devStats.clear();
+    }
     app.telemetry = createTelemetryClient(getRuntimeTelemetryConfig());
     var providerOrLocationChanged = refreshProvider();
     sendClaySettings();
