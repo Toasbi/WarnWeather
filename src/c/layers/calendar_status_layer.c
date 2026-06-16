@@ -29,6 +29,10 @@ static GBitmap *s_bt_disconnect_bitmap;
 static GColor s_bt_palette[2];
 static GColor s_bt_disconnect_palette[2];
 static GColor s_mute_palette[2];
+// Cached Quiet-Time icon state for the per-minute tick: the mute icon is the
+// only status-strip element without an event source, so the minute handler
+// repaints the strip only when this flips. Kept in sync by status_icons_refresh.
+static bool s_last_qt_active;
 
 static GRect month_text_rect(GRect bounds, GFont font) {
 #ifdef PBL_PLATFORM_EMERY
@@ -184,10 +188,28 @@ bool show_qt_icon() {
 }
 
 void status_icons_refresh() {
+    // A full strip repaint resyncs the per-minute QT baseline so the next
+    // calendar_status_layer_tick() only fires on a genuine QT transition.
+    s_last_qt_active = show_qt_icon();
     layer_mark_dirty(s_calendar_status_layer);
 
     // Ensure bt icons are correct at start
     bluetooth_icons_refresh(connection_service_peek_pebble_app_connection());
+}
+
+void calendar_status_layer_tick() {
+    // Per-minute hook from the tick handler. Battery and Bluetooth icons
+    // repaint from their own service subscriptions (battery_state_service /
+    // connection_service), and the month text only changes on DAY_UNIT, so the
+    // Quiet-Time mute icon is the one element with no event source. Repaint the
+    // strip only when QT actually toggles instead of every minute — the time
+    // layer already drives the unavoidable once-a-minute redraw.
+    bool qt_active = show_qt_icon();
+    if (qt_active == s_last_qt_active) {
+        return;
+    }
+    s_last_qt_active = qt_active;
+    layer_mark_dirty(s_calendar_status_layer);
 }
 
 void calendar_status_layer_refresh() {

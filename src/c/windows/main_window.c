@@ -151,7 +151,7 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
         calendar_layer_refresh();
         calendar_status_layer_refresh();
     }
-    status_icons_refresh();
+    calendar_status_layer_tick();
     loading_layer_refresh();
 #ifndef WW_FIXTURE_NOW_YEAR
     // Live builds only: advance the radar window when a fetch boundary passes.
