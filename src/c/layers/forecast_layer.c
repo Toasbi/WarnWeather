@@ -633,10 +633,14 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                              bounds.size.w, forecast_start_local);
 
     NightLayerCtx night_ctx = {
+        // Width spans slot 0..(num_entries-1) so the linear time->x map lands
+        // on the same hour columns (anchor_x + i*pitch) the ticks/lines use.
+        // graph_end is the last slot's time, so the span is (num_entries-1)
+        // pitches; using MAX*pitch+tick_w over-stretches the scale and drifts
+        // mid-hour edges (e.g. a 5:30 sunrise) onto the next full-hour column.
         .plot_rect  = GRect(outer.origin.x, 0,
-                            MAX_FORECAST_ENTRIES
-                                * chart_def_pitch(&FORECAST_DEF)
-                                + FORECAST_DEF.tick_w,
+                            (ds.num_entries - 1)
+                                * chart_def_pitch(&FORECAST_DEF),
                             outer.size.h - 1),
         .start      = forecast_start,
         .end        = forecast_end,
