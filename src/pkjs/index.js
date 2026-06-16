@@ -142,6 +142,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
         return;
     }
 
+    var oldRadarProvider = app.settings ? app.settings.radarProvider : undefined;
     clay.getSettings(e.response, false);  // This triggers the update in localStorage
     app.settings = getClaySettings();  // This reads from localStorage in sensible format
     devStats.setEnabled(Boolean(app.settings.devStatsEnabled));
@@ -152,16 +153,19 @@ Pebble.addEventListener('webviewclosed', function(e) {
     }
     app.telemetry = createTelemetryClient(getRuntimeTelemetryConfig());
     var providerOrLocationChanged = refreshProvider();
+    var radarProviderChanged = oldRadarProvider !== app.settings.radarProvider;
+    var needsRefetch = providerOrLocationChanged || radarProviderChanged;
     sendClaySettings();
 
-    if (providerOrLocationChanged) {
-        // Location/provider change makes the watch's current data wrong; drop
-        // the last-sent caches so the next fetch resends every category.
+    if (needsRefetch) {
+        // Location/provider/radar-provider change makes the watch's current data
+        // wrong; drop the last-sent caches (including radar) so the next fetch
+        // resends every category.
         outbox.clearWeatherCaches();
     }
 
     // Fetching goes last, after other settings have been handled
-    if (app.settings.fetch === true || providerOrLocationChanged) {
+    if (app.settings.fetch === true || needsRefetch) {
         console.log('Force fetch!');
         fetch(app.provider, true);
     }
