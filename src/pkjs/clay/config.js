@@ -195,7 +195,6 @@ module.exports = [
                 "label": "Provider",
                 "messageKey": "provider",
                 "defaultValue": "wunderground",
-                "description": "Deutscher Wetterdienst (DWD/Brightsky) covers Germany only.",
                 "options": [
                     {
                         "label": "Weather Underground",
@@ -206,7 +205,7 @@ module.exports = [
                         "value": "openweathermap"
                     },
                     {
-                        "label": "Deutscher Wetterdienst (Brightsky)",
+                        "label": "Deutscher Wetterdienst (Brightsky) (Germany only)",
                         "value": "dwd"
                     }
                 ]
@@ -292,14 +291,17 @@ module.exports = [
                 "defaultValue": "Rain radar"
             },
             {
+                "type": "text",
+                "defaultValue": "Rain radar appears as a second screen revealed with a wrist flick (tap), and only when radar data is available. More radar providers will be added in the future."
+            },
+            {
                 "type": "radiogroup",
                 "label": "Radar provider",
                 "messageKey": "radarProvider",
                 "defaultValue": "disabled",
-                "description": "Rain radar appears as a second screen revealed with a wrist flick (tap), and only when radar data is available. DWD/Brightsky radar covers Germany only. More radar providers will be added in the future.",
                 "options": [
                     {
-                        "label": "Deutscher Wetterdienst (Brightsky)",
+                        "label": "Deutscher Wetterdienst (Brightsky) (Germany only)",
                         "value": "dwd"
                     },
                     {
