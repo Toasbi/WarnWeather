@@ -653,6 +653,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 
     // Z-order = array order, bottom first. Frame after the data bands so it
     // overwrites curve/area pixels at the border columns.
+    int rain_num_stops = 0;
+    const ChartColorStop *rain_stops = rain_tier_stops(&rain_num_stops);
+
     static ChartLayer layers[8];  // aplite: largest redraw array — must be static, not stack
     int n = 0;
     layers[n++] = (ChartLayer){ CHART_LAYER_AREA, .area = {
@@ -665,7 +668,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     }
     layers[n++] = (ChartLayer){ CHART_LAYER_BARS, .bars = {
         .values = rain_pm, .count = ds.num_entries, .lo = 0, .hi = 1000,
-        .stops = RAIN_TIER_STOPS, .num_stops = RAIN_TIER_NUM_STOPS,
+        .stops = rain_stops, .num_stops = rain_num_stops,
         .style = PBL_IF_COLOR_ELSE(BAR_SOLID, BAR_OUTLINED) } };
     if (night_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_CUSTOM,

@@ -284,6 +284,9 @@ static void radar_or_snooze_update_proc(Layer *layer, GContext *ctx) {
         .area_tenths  = area_tenths,
     };
 
+    int radar_num_stops = 0;
+    const ChartColorStop *radar_stops = rain_tier_stops(&radar_num_stops);
+
     const ChartLayer layers[] = {
         { CHART_LAYER_AXIS, .axis = {
               .side = GRAPH_SIDE_TOP, .style = RADAR_TICK_STYLE,
@@ -292,7 +295,7 @@ static void radar_or_snooze_update_proc(Layer *layer, GContext *ctx) {
         { CHART_LAYER_CUSTOM, .custom = { radar_area_bars_layer, &area_ctx } },
         { CHART_LAYER_BARS, .bars = {
               .values = exact_pm, .count = RADAR_NUM_SLOTS, .lo = 0, .hi = 1000,
-              .stops = RAIN_TIER_STOPS, .num_stops = RAIN_TIER_NUM_STOPS,
+              .stops = radar_stops, .num_stops = radar_num_stops,
               .style = PBL_IF_COLOR_ELSE(BAR_SOLID, BAR_OUTLINED) } },
     };
     chart_draw(ctx, &RADAR_DEF, outer, layers,
