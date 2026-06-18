@@ -16,6 +16,14 @@ If you need runtime logs, `mise install-emulator --logs` runs it in an emulator 
 - Prefer drawing directly in an update proc over creating extra layer objects when a simple render path is enough.
 - If a UI element only exists to paint pixels, keep it as light as possible instead of modeling it as a full layer.
 
+## Key Technical Constraints
+
+- No Floating Point — Uses sin_lookup()/cos_lookup() for trigonometry
+- MINUTE_UNIT Updates — Always uses minute-based tick updates for battery efficiency
+- Pre-allocated Memory — Creates GPaths in window_load
+- Dynamic Bounds — Uses layer_get_bounds() instead of hardcoded screen sizes
+- Resource Cleanup — Properly destroys all resources in unload handlers
+
 ## Code Conventions
 
 - For new JavaScript functions, add brief JSDoc (`@param`/`@returns`) annotations since this project does not use TypeScript.

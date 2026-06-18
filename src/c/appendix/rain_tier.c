@@ -1,7 +1,6 @@
 // src/c/appendix/rain_tier.c
 #include "rain_tier.h"
-
-#define BAR_COLOR PBL_IF_COLOR_ELSE(GColorWhite, GColorBlack)
+#include "palette.h"
 
 // Inclusive upper bounds in wire tenths for tiers 1..4. Tier 5 catches the rest.
 static const int RAIN_TIER_MAX_TENTHS[RAIN_TIER_COUNT - 1] = { 1, 5, 20, 100 };
@@ -66,19 +65,17 @@ int rain_tier_proportional_height(int tenths, int bar_plot_h) {
     return total > 0 ? total : 1;
 }
 
+const ChartColorStop *rain_tier_stops(int *num_stops) {
+    return palette_rain_stops(num_stops);
+}
+
 GColor rain_tier_color(int tier) {
-    GColor fill = BAR_COLOR;
-#ifdef PBL_COLOR
-    switch (tier) {
-        case 1: fill = GColorLightGray;    break;
-        case 2: fill = GColorElectricBlue; break;
-        case 3: fill = GColorGreen;        break;
-        case 4: fill = GColorYellow;       break;
-        case 5: fill = GColorSunsetOrange; break;
-        default: break;  // tier 0 -> BAR_COLOR
-    }
-#endif
-    return fill;
+    int n = 0;
+    const ChartColorStop *stops = palette_rain_stops(&n);
+    if (tier <= 0 || n <= 0) { return PBL_IF_COLOR_ELSE(GColorWhite, GColorBlack); }
+    int idx = tier - 1;
+    if (idx >= n) { idx = n - 1; }   // B&W: single stop catches every tier
+    return stops[idx].color;
 }
 
 int16_t rain_tier_permille(int tenths) {
@@ -90,19 +87,3 @@ void rain_tier_fill_permille(const uint8_t *tenths, int16_t *out, int count) {
         out[i] = rain_tier_permille(tenths[i]);
     }
 }
-
-#ifdef PBL_COLOR
-const ChartColorStop RAIN_TIER_STOPS[] = {
-    { 0,   GColorLightGray    },   // tier 1
-    { 140, GColorElectricBlue },   // tier 2 — RAIN_TIER_TOP_PCT_ARR * 10
-    { 340, GColorGreen        },   // tier 3
-    { 560, GColorYellow       },   // tier 4
-    { 780, GColorSunsetOrange },   // tier 5
-};
-#else
-const ChartColorStop RAIN_TIER_STOPS[] = {
-    { 0, GColorBlack },            // single stop; outline carries the shape
-};
-#endif
-const int RAIN_TIER_NUM_STOPS =
-    (int)(sizeof(RAIN_TIER_STOPS) / sizeof(RAIN_TIER_STOPS[0]));

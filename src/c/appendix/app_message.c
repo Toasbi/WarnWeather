@@ -2,6 +2,7 @@
 
 #include "app_message.h"
 #include "persist.h"
+#include "palette.h"
 #include "c/layers/forecast_layer.h"
 #include "c/layers/weather_status_layer.h"
 #include "c/layers/loading_layer.h"
@@ -15,17 +16,19 @@
 
 static bool handle_forecast(DictionaryIterator *iterator, bool *forecast_dirty) {
     Tuple *temp_trend_tuple = dict_find(iterator, MESSAGE_KEY_TEMP_TREND_INT16);
-    Tuple *precip_trend_tuple = dict_find(iterator, MESSAGE_KEY_PRECIP_TREND_UINT8);
-    Tuple *rain_trend_tuple = dict_find(iterator, MESSAGE_KEY_RAIN_TREND_UINT8);
     Tuple *forecast_start_tuple = dict_find(iterator, MESSAGE_KEY_FORECAST_START);
     Tuple *num_entries_tuple = dict_find(iterator, MESSAGE_KEY_NUM_ENTRIES);
+    // Render-ready, already-selected series + line styling (PKJS owns the choice).
+    Tuple *line_trend_tuple = dict_find(iterator, MESSAGE_KEY_SECONDARY_LINE_TREND_INT16);
+    Tuple *bar_trend_tuple  = dict_find(iterator, MESSAGE_KEY_BAR_TREND_INT16);
+    Tuple *line_color_tuple = dict_find(iterator, MESSAGE_KEY_SECONDARY_LINE_COLOR);
+    Tuple *line_fill_tuple  = dict_find(iterator, MESSAGE_KEY_SECONDARY_LINE_FILL);
 
-    if (!(temp_trend_tuple && precip_trend_tuple && forecast_start_tuple && num_entries_tuple)) {
-        if (temp_trend_tuple || precip_trend_tuple || forecast_start_tuple || num_entries_tuple) {
+    if (!(temp_trend_tuple && forecast_start_tuple && num_entries_tuple)) {
+        if (temp_trend_tuple || forecast_start_tuple || num_entries_tuple) {
             APP_LOG(APP_LOG_LEVEL_WARNING,
-                    "Forecast payload incomplete (temp=%d precip=%d start=%d entries=%d) — skipping",
+                    "Forecast payload incomplete (temp=%d start=%d entries=%d) — skipping",
                     temp_trend_tuple != NULL,
-                    precip_trend_tuple != NULL,
                     forecast_start_tuple != NULL,
                     num_entries_tuple != NULL);
         }
@@ -43,9 +46,18 @@ static bool handle_forecast(DictionaryIterator *iterator, bool *forecast_dirty) 
     changed |= persist_set_forecast_start((time_t) forecast_start_tuple->value->int32);
     changed |= persist_set_num_entries(num_entries);
     changed |= persist_set_temp_trend((int16_t*) temp_trend_tuple->value->data, num_entries);
-    changed |= persist_set_precip_trend((uint8_t*) precip_trend_tuple->value->data, num_entries);
-    if (rain_trend_tuple) {
-        changed |= persist_set_rain_trend((uint8_t*) rain_trend_tuple->value->data, num_entries);
+
+    // Line/bar series are optional: an empty/missing trend means that element is
+    // off, persisted as count 0.
+    int line_count = line_trend_tuple ? (int)(line_trend_tuple->length / sizeof(int16_t)) : 0;
+    int bar_count  = bar_trend_tuple  ? (int)(bar_trend_tuple->length  / sizeof(int16_t)) : 0;
+    changed |= persist_set_line_trend(line_count ? (int16_t*) line_trend_tuple->value->data : NULL, line_count);
+    changed |= persist_set_bar_trend(bar_count ? (int16_t*) bar_trend_tuple->value->data : NULL, bar_count);
+    if (line_color_tuple) {
+        changed |= persist_set_line_color(GColorFromHEX(line_color_tuple->value->int32));
+    }
+    if (line_fill_tuple) {
+        changed |= persist_set_line_fill((bool)(line_fill_tuple->value->int16));
     }
 
     *forecast_dirty |= changed;
@@ -140,6 +152,26 @@ static bool handle_rain_radar(DictionaryIterator *iterator, bool *radar_dirty) {
     return true;
 }
 
+static bool handle_palette(DictionaryIterator *iterator, bool *forecast_dirty,
+                           bool *radar_dirty) {
+    Tuple *from_tuple = dict_find(iterator, MESSAGE_KEY_RAIN_PALETTE_STOP_FROM_INT16);
+    Tuple *rgb_tuple  = dict_find(iterator, MESSAGE_KEY_RAIN_PALETTE_STOP_RGB_INT32);
+    if (!from_tuple || !rgb_tuple) {
+        return false;
+    }
+    const int count = (int)(from_tuple->length / sizeof(int16_t));
+    // Guard against a malformed/truncated payload: rgb must carry one int32 per
+    // stop, else palette_set_rain would read past the rgb buffer.
+    if (rgb_tuple->length != count * sizeof(int32_t)) {
+        return false;
+    }
+    bool changed = palette_set_rain((int16_t*) from_tuple->value->data,
+                                    (int32_t*) rgb_tuple->value->data, count);
+    *forecast_dirty |= changed;
+    *radar_dirty |= changed;
+    return true;
+}
+
 static bool handle_clay_config(DictionaryIterator *iterator, bool *config_dirty) {
     Tuple *clay_celsius_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_CELSIUS);
     Tuple *clay_time_lead_zero_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_TIME_LEAD_ZERO);
@@ -208,6 +240,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     handled |= handle_status(iterator, &status_dirty, &radar_dirty);
     handled |= handle_sun_events(iterator, &forecast_dirty, &status_dirty);
     handled |= handle_rain_radar(iterator, &radar_dirty);
+    handled |= handle_palette(iterator, &forecast_dirty, &radar_dirty);
     handled |= handle_clay_config(iterator, &config_dirty);
 
     // Release the radar-snooze latch whenever we're awake. Runs after every

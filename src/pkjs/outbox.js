@@ -27,7 +27,7 @@ var WEATHER_CATEGORIES = [
     {
         name: 'forecast',
         cacheKey: KEYS.LAST_SENT_FORECAST_KEY,
-        keys: ['TEMP_TREND_INT16', 'PRECIP_TREND_UINT8', 'RAIN_TREND_UINT8', 'FORECAST_START', 'NUM_ENTRIES']
+        keys: ['TEMP_TREND_INT16', 'SECONDARY_LINE_TREND_INT16', 'SECONDARY_LINE_COLOR', 'SECONDARY_LINE_FILL', 'BAR_TREND_INT16', 'FORECAST_START', 'NUM_ENTRIES']
     },
     {
         name: 'status',
@@ -49,6 +49,11 @@ var WEATHER_CATEGORIES = [
         name: 'sleep',
         cacheKey: KEYS.LAST_SENT_SLEEP_KEY,
         keys: ['IS_SLEEPING']
+    },
+    {
+        name: 'palette',
+        cacheKey: KEYS.LAST_SENT_PALETTE_KEY,
+        keys: ['RAIN_PALETTE_STOP_FROM_INT16', 'RAIN_PALETTE_STOP_RGB_INT32']
     }
 ];
 
