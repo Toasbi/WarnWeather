@@ -7,7 +7,10 @@ enum key {
     TEMP_TREND, PRECIP_TREND, FORECAST_START, CITY, SUN_EVENT_START_TYPE, SUN_EVENT_TIMES, NUM_ENTRIES,
     CURRENT_TEMP, CONFIG, RAIN_TREND,
     RAIN_RADAR_TREND, RAIN_RADAR_TREND_AREA, RAIN_RADAR_START,
-    IS_SLEEPING, RADAR_SNOOZE
+    IS_SLEEPING, RADAR_SNOOZE,
+    // Appended (never reorder — these are persisted key IDs). PRECIP_TREND /
+    // RAIN_TREND slots are now unused but kept to preserve existing IDs.
+    LINE_TREND, BAR_TREND, LINE_COUNT, BAR_COUNT, LINE_COLOR, LINE_FILL
 };
 
 // Setters report whether the stored value actually changed so callers can
@@ -56,12 +59,29 @@ int persist_get_temp_trend(int16_t *buffer, const size_t buffer_size) {
     return persist_read_data(TEMP_TREND, (void*) buffer, buffer_size * sizeof(int16_t));
 }
 
-int persist_get_precip_trend(uint8_t *buffer, const size_t buffer_size) {
-    return persist_read_data(PRECIP_TREND, (void*) buffer, buffer_size * sizeof(uint8_t));
+int persist_get_line_trend(int16_t *buffer, const size_t buffer_size) {
+    return persist_read_data(LINE_TREND, (void*) buffer, buffer_size * sizeof(int16_t));
 }
 
-int persist_get_rain_trend(uint8_t *buffer, const size_t buffer_size) {
-    return persist_read_data(RAIN_TREND, (void*) buffer, buffer_size * sizeof(uint8_t));
+int persist_get_bar_trend(int16_t *buffer, const size_t buffer_size) {
+    return persist_read_data(BAR_TREND, (void*) buffer, buffer_size * sizeof(int16_t));
+}
+
+int persist_get_line_count(void) {
+    return persist_exists(LINE_COUNT) ? persist_read_int(LINE_COUNT) : 0;
+}
+
+int persist_get_bar_count(void) {
+    return persist_exists(BAR_COUNT) ? persist_read_int(BAR_COUNT) : 0;
+}
+
+GColor persist_get_line_color(void) {
+    if (!persist_exists(LINE_COLOR)) { return GColorPictonBlue; }
+    return (GColor){ .argb = (uint8_t) persist_read_int(LINE_COLOR) };
+}
+
+bool persist_get_line_fill(void) {
+    return persist_exists(LINE_FILL) ? persist_read_bool(LINE_FILL) : false;
 }
 
 time_t persist_get_forecast_start() {
@@ -100,12 +120,30 @@ bool persist_set_temp_trend(int16_t *data, const size_t size) {
     return write_data_if_changed(TEMP_TREND, data, size * sizeof(int16_t));
 }
 
-bool persist_set_precip_trend(uint8_t *data, const size_t size) {
-    return write_data_if_changed(PRECIP_TREND, data, size * sizeof(uint8_t));
+bool persist_set_line_trend(int16_t *data, const size_t size) {
+    // Store the element count so an off/empty series reads back as count 0
+    // without depending on stale trend bytes.
+    bool changed = write_int_if_changed(LINE_COUNT, (int) size);
+    if (size > 0) {
+        changed |= write_data_if_changed(LINE_TREND, data, size * sizeof(int16_t));
+    }
+    return changed;
 }
 
-bool persist_set_rain_trend(uint8_t *data, const size_t size) {
-    return write_data_if_changed(RAIN_TREND, data, size * sizeof(uint8_t));
+bool persist_set_bar_trend(int16_t *data, const size_t size) {
+    bool changed = write_int_if_changed(BAR_COUNT, (int) size);
+    if (size > 0) {
+        changed |= write_data_if_changed(BAR_TREND, data, size * sizeof(int16_t));
+    }
+    return changed;
+}
+
+bool persist_set_line_color(GColor color) {
+    return write_int_if_changed(LINE_COLOR, color.argb);
+}
+
+bool persist_set_line_fill(bool fill) {
+    return write_bool_if_changed(LINE_FILL, fill);
 }
 
 int persist_get_rain_radar_trend(uint8_t *buffer, const size_t buffer_size) {
