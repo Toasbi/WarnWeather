@@ -16,17 +16,19 @@
 
 static bool handle_forecast(DictionaryIterator *iterator, bool *forecast_dirty) {
     Tuple *temp_trend_tuple = dict_find(iterator, MESSAGE_KEY_TEMP_TREND_INT16);
-    Tuple *precip_trend_tuple = dict_find(iterator, MESSAGE_KEY_PRECIP_TREND_UINT8);
-    Tuple *rain_trend_tuple = dict_find(iterator, MESSAGE_KEY_RAIN_TREND_UINT8);
     Tuple *forecast_start_tuple = dict_find(iterator, MESSAGE_KEY_FORECAST_START);
     Tuple *num_entries_tuple = dict_find(iterator, MESSAGE_KEY_NUM_ENTRIES);
+    // Render-ready, already-selected series + line styling (PKJS owns the choice).
+    Tuple *line_trend_tuple = dict_find(iterator, MESSAGE_KEY_SECONDARY_LINE_TREND_INT16);
+    Tuple *bar_trend_tuple  = dict_find(iterator, MESSAGE_KEY_BAR_TREND_INT16);
+    Tuple *line_color_tuple = dict_find(iterator, MESSAGE_KEY_SECONDARY_LINE_COLOR);
+    Tuple *line_fill_tuple  = dict_find(iterator, MESSAGE_KEY_SECONDARY_LINE_FILL);
 
-    if (!(temp_trend_tuple && precip_trend_tuple && forecast_start_tuple && num_entries_tuple)) {
-        if (temp_trend_tuple || precip_trend_tuple || forecast_start_tuple || num_entries_tuple) {
+    if (!(temp_trend_tuple && forecast_start_tuple && num_entries_tuple)) {
+        if (temp_trend_tuple || forecast_start_tuple || num_entries_tuple) {
             APP_LOG(APP_LOG_LEVEL_WARNING,
-                    "Forecast payload incomplete (temp=%d precip=%d start=%d entries=%d) — skipping",
+                    "Forecast payload incomplete (temp=%d start=%d entries=%d) — skipping",
                     temp_trend_tuple != NULL,
-                    precip_trend_tuple != NULL,
                     forecast_start_tuple != NULL,
                     num_entries_tuple != NULL);
         }
@@ -44,9 +46,18 @@ static bool handle_forecast(DictionaryIterator *iterator, bool *forecast_dirty) 
     changed |= persist_set_forecast_start((time_t) forecast_start_tuple->value->int32);
     changed |= persist_set_num_entries(num_entries);
     changed |= persist_set_temp_trend((int16_t*) temp_trend_tuple->value->data, num_entries);
-    changed |= persist_set_precip_trend((uint8_t*) precip_trend_tuple->value->data, num_entries);
-    if (rain_trend_tuple) {
-        changed |= persist_set_rain_trend((uint8_t*) rain_trend_tuple->value->data, num_entries);
+
+    // Line/bar series are optional: an empty/missing trend means that element is
+    // off, persisted as count 0.
+    int line_count = line_trend_tuple ? (int)(line_trend_tuple->length / sizeof(int16_t)) : 0;
+    int bar_count  = bar_trend_tuple  ? (int)(bar_trend_tuple->length  / sizeof(int16_t)) : 0;
+    changed |= persist_set_line_trend(line_count ? (int16_t*) line_trend_tuple->value->data : NULL, line_count);
+    changed |= persist_set_bar_trend(bar_count ? (int16_t*) bar_trend_tuple->value->data : NULL, bar_count);
+    if (line_color_tuple) {
+        changed |= persist_set_line_color(GColorFromHEX(line_color_tuple->value->int32));
+    }
+    if (line_fill_tuple) {
+        changed |= persist_set_line_fill((bool)(line_fill_tuple->value->int16));
     }
 
     *forecast_dirty |= changed;
