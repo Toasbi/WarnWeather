@@ -269,7 +269,6 @@ module.exports = [
                 "label": "Secondary line",
                 "messageKey": "secondaryLine",
                 "defaultValue": "precip_prob",
-                "description": "The thin line over the chart. Colors are fixed per metric.",
                 "options": [
                     { "label": "Precipitation probability", "value": "precip_prob" },
                     { "label": "Off", "value": "off" }
@@ -279,25 +278,24 @@ module.exports = [
                 "type": "toggle",
                 "label": "Fill area under line",
                 "messageKey": "secondaryLineFill",
-                "defaultValue": true,
-                "description": "Shade the area under the secondary line (gray). No effect when the line is Off."
+                "defaultValue": true
             },
             {
                 "type": "select",
                 "label": "Bars",
                 "messageKey": "barSource",
                 "defaultValue": "rain",
-                "description": "What the vertical bars show.",
                 "options": [
-                    { "label": "Rain amount", "value": "rain" }
+                    { "label": "Rain amount", "value": "rain" },
+                    { "label": "Off", "value": "off" }
                 ]
             },
             {
                 "type": "select",
-                "label": "Rain bar color",
+                "label": "Bar Color",
                 "messageKey": "rainBarColor",
                 "defaultValue": "multicolor",
-                "description": "Color displays only. Multicolor uses intensity tiers; White draws plain white bars. Black & white watches always use outlined bars and ignore this. Also recolors the rain radar.",
+                "capabilities": ["COLOR"],
                 "options": [
                     { "label": "Multicolor", "value": "multicolor" },
                     { "label": "White", "value": "white" }
