@@ -3,6 +3,9 @@ var COLORS = require('./pebble-colors');
 
 // Metric → line color (0xRRGGBB). Hardcoded per metric (not user-selectable).
 var LINE_COLORS = { precip_prob: COLORS.GColorPictonBlue };
+// Metric → area-fill color (0xRRGGBB), parallel to LINE_COLORS. Precip is the
+// pre-refactor CobaltBlue; the watch handles the B&W (dithered gray) fallback.
+var FILL_COLORS = { precip_prob: COLORS.GColorCobaltBlue };
 
 /**
  * Serialize an int16 value array to a little-endian byte array. sendAppMessage
@@ -23,17 +26,19 @@ function toInt16Bytes(arr) {
  * @param {{precips: number[], rains: number[]}} raw Raw precip % + rain tenths.
  * @param {{secondaryLine: string, secondaryLineFill: boolean, barSource: string}} s Settings.
  * @returns {Object} Wire fields: SECONDARY_LINE_TREND_INT16, SECONDARY_LINE_COLOR,
- *   SECONDARY_LINE_FILL, BAR_TREND_INT16.
+ *   SECONDARY_LINE_FILL_COLOR, SECONDARY_LINE_FILL, BAR_TREND_INT16.
  */
 function buildForecastSeries(raw, s) {
     var out = {};
     if (s.secondaryLine === 'precip_prob') {
         out.SECONDARY_LINE_TREND_INT16 = toInt16Bytes(raw.precips.map(function(p) { return p * 10; })); // %→permille
         out.SECONDARY_LINE_COLOR = LINE_COLORS.precip_prob;
+        out.SECONDARY_LINE_FILL_COLOR = FILL_COLORS.precip_prob;
         out.SECONDARY_LINE_FILL = Boolean(s.secondaryLineFill);
     } else {
         out.SECONDARY_LINE_TREND_INT16 = [];
         out.SECONDARY_LINE_COLOR = COLORS.GColorBlack;
+        out.SECONDARY_LINE_FILL_COLOR = COLORS.GColorBlack;
         out.SECONDARY_LINE_FILL = false;
     }
     if (s.barSource === 'rain') {

@@ -35,3 +35,10 @@ test('bars disabled → empty bar trend', () => {
   const out = buildForecastSeries(RAW, { secondaryLine: 'precip_prob', secondaryLineFill: false, barSource: 'off' });
   assert.deepEqual(out.BAR_TREND_INT16, []);
 });
+
+test('fill color follows the line metric: precip → CobaltBlue, off → black', () => {
+  const on = buildForecastSeries(RAW, { secondaryLine: 'precip_prob', secondaryLineFill: true, barSource: 'rain' });
+  assert.equal(on.SECONDARY_LINE_FILL_COLOR, 0x0055AA); // GColorCobaltBlue
+  const off = buildForecastSeries(RAW, { secondaryLine: 'off', secondaryLineFill: true, barSource: 'rain' });
+  assert.equal(off.SECONDARY_LINE_FILL_COLOR, 0x000000); // GColorBlack
+});
