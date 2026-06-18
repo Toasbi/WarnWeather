@@ -31,13 +31,13 @@
 #endif
 #define NIGHT_HATCH_SPACING PBL_IF_COLOR_ELSE(6, 7)
 #define NIGHT_HATCH_COLOR GColorDarkGray
-// The secondary-line fill is metric-agnostic gray (PKJS owns metric colors; the
-// fill carries none). These were precip-specific blues before the generic renderer.
-#define AREA_FILL_COLOR PBL_IF_COLOR_ELSE(GColorLightGray, GColorLightGray)
-#define NIGHT_AREA_FILL_COLOR PBL_IF_COLOR_ELSE(GColorDarkGray, GColorLightGray)
-#define NIGHT_HATCH_COLOR_AREA PBL_IF_COLOR_ELSE(GColorLightGray, GColorWhite)
+// Day area fill is the per-metric color PKJS sends (ds.fill_color); B&W keeps the
+// dithered light-gray. The night shades are hardcoded to the single supported
+// metric's blue family (a future metric adds its own hardcoded set).
+#define NIGHT_AREA_FILL_COLOR PBL_IF_COLOR_ELSE(GColorDukeBlue, GColorLightGray)
+#define NIGHT_HATCH_COLOR_AREA PBL_IF_COLOR_ELSE(GColorBlue, GColorWhite)
 #define NIGHT_BOUNDARY_COLOR PBL_IF_COLOR_ELSE(GColorDarkGray, GColorLightGray)
-#define NIGHT_BOUNDARY_COLOR_AREA PBL_IF_COLOR_ELSE(GColorWhite, GColorWhite)
+#define NIGHT_BOUNDARY_COLOR_AREA PBL_IF_COLOR_ELSE(GColorVividCerulean, GColorWhite)
 #define FORECAST_STEP_SECONDS (60 * 60)
 #define DAY_SECONDS (24 * 60 * 60)
 #define MAX_FORECAST_ENTRIES 24
@@ -126,7 +126,8 @@ typedef struct {
     int line_count;
     int bar_count;
     GColor line_color;        // stroke color, chosen per-metric by PKJS
-    bool line_fill;           // shade the area under the line (gray)
+    GColor fill_color;        // area-fill color (day), chosen per-metric by PKJS
+    bool line_fill;           // shade the area under the line (metric color; gray on B&W)
     int temp_lo;
     int temp_hi;
 } ForecastDataset;
@@ -139,6 +140,7 @@ static void load_dataset(ForecastDataset *ds) {
     ds->num_entries = raw > MAX_FORECAST_ENTRIES ? MAX_FORECAST_ENTRIES : (raw < 0 ? 0 : raw);
     ds->forecast_start = persist_get_forecast_start();
     ds->line_color = persist_get_line_color();
+    ds->fill_color = persist_get_fill_color();
     ds->line_fill = persist_get_line_fill();
     if (ds->num_entries > 0) {
         persist_get_temp_trend(ds->temps, ds->num_entries);
@@ -669,14 +671,14 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 
     // Z-order = array order, bottom first. Frame after the data bands so it
     // overwrites curve/area pixels at the border columns. Line/bars are gated on
-    // what PKJS sent; the gray fill + its night re-hatch only exist with the line.
+    // what PKJS sent; the fill + its night re-hatch only exist with the line.
     static ChartLayer layers[8];  // aplite: largest redraw array — must be static, not stack
     int n = 0;
     if (fill_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_AREA, .area = {
             .values = ds.line, .export_points = area_pts,
             .count = ds.num_entries, .lo = 0, .hi = 1000,
-            .fill_color = AREA_FILL_COLOR } };
+            .fill_color = PBL_IF_COLOR_ELSE(ds.fill_color, GColorLightGray) } };
     }
     // night_under re-shades the filled area, so it needs the AREA layer's
     // exported contour and only runs when the fill is present.

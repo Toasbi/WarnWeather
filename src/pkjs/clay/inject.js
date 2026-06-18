@@ -220,6 +220,12 @@ module.exports = function (minified) {
         var devStatsToggle;
         var devStatsEvents;
         var clayDevStatsClear;
+        var claySecondaryLine;
+        var claySecondaryLineFill;
+        var clayBarSource;
+        var clayRainBarColor;
+        var syncSecondaryLineFill;
+        var syncBarColor;
 
         clayFetch = clayConfig.getItemByMessageKey('fetch');
         clayFetch.set(false);
@@ -253,6 +259,36 @@ module.exports = function (minified) {
             }
             console.log('Provider set to ' + this.get());
         });
+
+        // Forecast display: the "Fill area under line" toggle is meaningless when
+        // the secondary line is off — keep it visible but disabled.
+        claySecondaryLine = clayConfig.getItemByMessageKey('secondaryLine');
+        claySecondaryLineFill = clayConfig.getItemByMessageKey('secondaryLineFill');
+        syncSecondaryLineFill = function() {
+            if (claySecondaryLine.get() === 'off') {
+                claySecondaryLineFill.disable();
+            } else {
+                claySecondaryLineFill.enable();
+            }
+        };
+        syncSecondaryLineFill();
+        claySecondaryLine.on('change', syncSecondaryLineFill);
+
+        // Bar Color only applies to rain bars; hide it when bars are off. The item
+        // is absent on B&W watches (config 'capabilities': ['COLOR']), so guard.
+        clayBarSource = clayConfig.getItemByMessageKey('barSource');
+        clayRainBarColor = clayConfig.getItemByMessageKey('rainBarColor');
+        if (clayRainBarColor) {
+            syncBarColor = function() {
+                if (clayBarSource.get() === 'rain') {
+                    clayRainBarColor.show();
+                } else {
+                    clayRainBarColor.hide();
+                }
+            };
+            syncBarColor();
+            clayBarSource.on('change', syncBarColor);
+        }
 
         // Show last weather fetch status
         lastFetchSuccessString = clayConfig.meta.userData.lastFetchSuccess;

@@ -16,6 +16,8 @@ int persist_get_bar_count(void);
 
 GColor persist_get_line_color(void);
 
+GColor persist_get_fill_color(void);
+
 bool persist_get_line_fill(void);
 
 time_t persist_get_forecast_start();
@@ -41,6 +43,8 @@ bool persist_set_line_trend(int16_t *data, const size_t size);
 bool persist_set_bar_trend(int16_t *data, const size_t size);
 
 bool persist_set_line_color(GColor color);
+
+bool persist_set_fill_color(GColor color);
 
 bool persist_set_line_fill(bool fill);
 

@@ -22,6 +22,7 @@ static bool handle_forecast(DictionaryIterator *iterator, bool *forecast_dirty) 
     Tuple *line_trend_tuple = dict_find(iterator, MESSAGE_KEY_SECONDARY_LINE_TREND_INT16);
     Tuple *bar_trend_tuple  = dict_find(iterator, MESSAGE_KEY_BAR_TREND_INT16);
     Tuple *line_color_tuple = dict_find(iterator, MESSAGE_KEY_SECONDARY_LINE_COLOR);
+    Tuple *fill_color_tuple = dict_find(iterator, MESSAGE_KEY_SECONDARY_LINE_FILL_COLOR);
     Tuple *line_fill_tuple  = dict_find(iterator, MESSAGE_KEY_SECONDARY_LINE_FILL);
 
     if (!(temp_trend_tuple && forecast_start_tuple && num_entries_tuple)) {
@@ -55,6 +56,9 @@ static bool handle_forecast(DictionaryIterator *iterator, bool *forecast_dirty) 
     changed |= persist_set_bar_trend(bar_count ? (int16_t*) bar_trend_tuple->value->data : NULL, bar_count);
     if (line_color_tuple) {
         changed |= persist_set_line_color(GColorFromHEX(line_color_tuple->value->int32));
+    }
+    if (fill_color_tuple) {
+        changed |= persist_set_fill_color(GColorFromHEX(fill_color_tuple->value->int32));
     }
     if (line_fill_tuple) {
         changed |= persist_set_line_fill((bool)(line_fill_tuple->value->int16));
