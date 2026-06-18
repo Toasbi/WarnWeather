@@ -142,6 +142,8 @@ static void load_dataset(ForecastDataset *ds) {
     ds->line_fill = persist_get_line_fill();
     if (ds->num_entries > 0) {
         persist_get_temp_trend(ds->temps, ds->num_entries);
+        // line_count/bar_count are used only as on/off flags; PKJS always builds
+        // each series at the full num_entries, so we read num_entries values.
         ds->line_count = persist_get_line_count();
         ds->bar_count = persist_get_bar_count();
         if (ds->line_count > 0) { persist_get_line_trend(ds->line, ds->num_entries); }

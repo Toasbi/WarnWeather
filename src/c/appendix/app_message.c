@@ -160,6 +160,11 @@ static bool handle_palette(DictionaryIterator *iterator, bool *forecast_dirty,
         return false;
     }
     const int count = (int)(from_tuple->length / sizeof(int16_t));
+    // Guard against a malformed/truncated payload: rgb must carry one int32 per
+    // stop, else palette_set_rain would read past the rgb buffer.
+    if (rgb_tuple->length != count * sizeof(int32_t)) {
+        return false;
+    }
     bool changed = palette_set_rain((int16_t*) from_tuple->value->data,
                                     (int32_t*) rgb_tuple->value->data, count);
     *forecast_dirty |= changed;
