@@ -33,3 +33,9 @@ fi
 if [[ "$profile" == "dev" ]]; then
   cp build/warnweather.pbw build/warnweather-dev.pbw
 fi
+
+# pebble build also leaves a bundle named after the project directory
+# (build/ForecasWetter.pbw, or build/<worktree-dir>.pbw in a worktree). Drop
+# any non-canonical pbw so only the warnweather bundles remain.
+find build -maxdepth 1 -name '*.pbw' \
+  ! -name 'warnweather.pbw' ! -name 'warnweather-dev.pbw' -delete
