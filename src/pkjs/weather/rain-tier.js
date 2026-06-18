@@ -89,7 +89,22 @@ function buildPalette(platform, rainBarColor) {
     };
 }
 
+/**
+ * Convert a logical palette into the little-endian byte arrays the wire expects.
+ * Pebble.sendAppMessage packs a plain JS array as uint8 (0..255), so the wide
+ * stop values must be serialized as bytes — same as TEMP_TREND_INT16 in
+ * provider.getPayload. The C side reads them back via (int16_t*)/(int32_t*).
+ * @param {{from: number[], rgb: number[]}} palette Logical palette from buildPalette.
+ * @returns {{from: number[], rgb: number[]}} Byte arrays: from = int16 LE, rgb = int32 LE.
+ */
+function paletteToWire(palette) {
+    var fromBytes = Array.prototype.slice.call(new Uint8Array(new Int16Array(palette.from).buffer));
+    var rgbBytes = Array.prototype.slice.call(new Uint8Array(new Int32Array(palette.rgb).buffer));
+    return { from: fromBytes, rgb: rgbBytes };
+}
+
 module.exports = {
     rainPermille: rainPermille,
-    buildPalette: buildPalette
+    buildPalette: buildPalette,
+    paletteToWire: paletteToWire
 };
