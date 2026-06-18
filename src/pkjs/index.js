@@ -1157,6 +1157,7 @@ function fetch(provider, force) {
                     payload.SECONDARY_LINE_TREND_INT16 = series.SECONDARY_LINE_TREND_INT16;
                     payload.SECONDARY_LINE_COLOR = series.SECONDARY_LINE_COLOR;
                     payload.SECONDARY_LINE_FILL = series.SECONDARY_LINE_FILL;
+                    payload.SECONDARY_LINE_FILL_COLOR = series.SECONDARY_LINE_FILL_COLOR;
                     payload.BAR_TREND_INT16 = series.BAR_TREND_INT16;
                     return payload;
                 }
