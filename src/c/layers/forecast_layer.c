@@ -127,7 +127,7 @@ typedef struct {
     int bar_count;
     GColor line_color;        // stroke color, chosen per-metric by PKJS
     GColor fill_color;        // area-fill color (day), chosen per-metric by PKJS
-    bool line_fill;           // shade the area under the line (gray)
+    bool line_fill;           // shade the area under the line (metric color; gray on B&W)
     int temp_lo;
     int temp_hi;
 } ForecastDataset;
@@ -671,7 +671,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 
     // Z-order = array order, bottom first. Frame after the data bands so it
     // overwrites curve/area pixels at the border columns. Line/bars are gated on
-    // what PKJS sent; the gray fill + its night re-hatch only exist with the line.
+    // what PKJS sent; the fill + its night re-hatch only exist with the line.
     static ChartLayer layers[8];  // aplite: largest redraw array — must be static, not stack
     int n = 0;
     if (fill_on) {
