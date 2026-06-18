@@ -145,6 +145,12 @@ Pebble.addEventListener('webviewclosed', function(e) {
     }
 
     var oldRadarProvider = app.settings ? app.settings.radarProvider : undefined;
+    // Capture the render-affecting settings before they're overwritten below so we can
+    // detect a change and force a resend (clearWeatherCaches also drops the palette
+    // cache, so a rainBarColor-only change is covered by the same tuple/path).
+    var prevRender = app.settings
+        ? [app.settings.secondaryLine, app.settings.secondaryLineFill, app.settings.barSource, app.settings.rainBarColor].join('|')
+        : '';
     clay.getSettings(e.response, false);  // This triggers the update in localStorage
     app.settings = getClaySettings();  // This reads from localStorage in sensible format
     devStats.setEnabled(Boolean(app.settings.devStatsEnabled));
@@ -156,13 +162,15 @@ Pebble.addEventListener('webviewclosed', function(e) {
     app.telemetry = createTelemetryClient(getRuntimeTelemetryConfig());
     var providerOrLocationChanged = refreshProvider();
     var radarProviderChanged = oldRadarProvider !== app.settings.radarProvider;
-    var needsRefetch = providerOrLocationChanged || radarProviderChanged;
+    var nextRender = [app.settings.secondaryLine, app.settings.secondaryLineFill, app.settings.barSource, app.settings.rainBarColor].join('|');
+    var renderSettingsChanged = prevRender !== nextRender;
+    var needsRefetch = providerOrLocationChanged || radarProviderChanged || renderSettingsChanged;
     sendClaySettings();
 
     if (needsRefetch) {
-        // Location/provider/radar-provider change makes the watch's current data
-        // wrong; drop the last-sent caches (including radar) so the next fetch
-        // resends every category.
+        // Location/provider/radar-provider/render-setting change makes the watch's
+        // current data (or chart) wrong; drop the last-sent caches (including radar
+        // and palette) so the next fetch resends every category.
         outbox.clearWeatherCaches();
     }
 
