@@ -10,7 +10,7 @@ enum key {
     IS_SLEEPING, RADAR_SNOOZE,
     // Appended (never reorder — these are persisted key IDs). PRECIP_TREND /
     // RAIN_TREND slots are now unused but kept to preserve existing IDs.
-    LINE_TREND, BAR_TREND, LINE_COUNT, BAR_COUNT, LINE_COLOR, LINE_FILL
+    LINE_TREND, BAR_TREND, LINE_COUNT, BAR_COUNT, LINE_COLOR, LINE_FILL, FILL_COLOR
 };
 
 // Setters report whether the stored value actually changed so callers can
@@ -80,6 +80,11 @@ GColor persist_get_line_color(void) {
     return (GColor){ .argb = (uint8_t) persist_read_int(LINE_COLOR) };
 }
 
+GColor persist_get_fill_color(void) {
+    if (!persist_exists(FILL_COLOR)) { return GColorCobaltBlue; }
+    return (GColor){ .argb = (uint8_t) persist_read_int(FILL_COLOR) };
+}
+
 bool persist_get_line_fill(void) {
     return persist_exists(LINE_FILL) ? persist_read_bool(LINE_FILL) : false;
 }
@@ -140,6 +145,10 @@ bool persist_set_bar_trend(int16_t *data, const size_t size) {
 
 bool persist_set_line_color(GColor color) {
     return write_int_if_changed(LINE_COLOR, color.argb);
+}
+
+bool persist_set_fill_color(GColor color) {
+    return write_int_if_changed(FILL_COLOR, color.argb);
 }
 
 bool persist_set_line_fill(bool fill) {
