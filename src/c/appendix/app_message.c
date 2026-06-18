@@ -2,6 +2,7 @@
 
 #include "app_message.h"
 #include "persist.h"
+#include "palette.h"
 #include "c/layers/forecast_layer.h"
 #include "c/layers/weather_status_layer.h"
 #include "c/layers/loading_layer.h"
@@ -140,6 +141,21 @@ static bool handle_rain_radar(DictionaryIterator *iterator, bool *radar_dirty) {
     return true;
 }
 
+static bool handle_palette(DictionaryIterator *iterator, bool *forecast_dirty,
+                           bool *radar_dirty) {
+    Tuple *from_tuple = dict_find(iterator, MESSAGE_KEY_RAIN_PALETTE_STOP_FROM_INT16);
+    Tuple *rgb_tuple  = dict_find(iterator, MESSAGE_KEY_RAIN_PALETTE_STOP_RGB_INT32);
+    if (!from_tuple || !rgb_tuple) {
+        return false;
+    }
+    const int count = (int)(from_tuple->length / sizeof(int16_t));
+    bool changed = palette_set_rain((int16_t*) from_tuple->value->data,
+                                    (int32_t*) rgb_tuple->value->data, count);
+    *forecast_dirty |= changed;
+    *radar_dirty |= changed;
+    return true;
+}
+
 static bool handle_clay_config(DictionaryIterator *iterator, bool *config_dirty) {
     Tuple *clay_celsius_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_CELSIUS);
     Tuple *clay_time_lead_zero_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_TIME_LEAD_ZERO);
@@ -208,6 +224,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     handled |= handle_status(iterator, &status_dirty, &radar_dirty);
     handled |= handle_sun_events(iterator, &forecast_dirty, &status_dirty);
     handled |= handle_rain_radar(iterator, &radar_dirty);
+    handled |= handle_palette(iterator, &forecast_dirty, &radar_dirty);
     handled |= handle_clay_config(iterator, &config_dirty);
 
     // Release the radar-snooze latch whenever we're awake. Runs after every
