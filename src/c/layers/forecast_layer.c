@@ -31,11 +31,13 @@
 #endif
 #define NIGHT_HATCH_SPACING PBL_IF_COLOR_ELSE(6, 7)
 #define NIGHT_HATCH_COLOR GColorDarkGray
-#define PRECIP_FILL_COLOR PBL_IF_COLOR_ELSE(GColorCobaltBlue, GColorLightGray)
-#define NIGHT_PRECIP_FILL_COLOR PBL_IF_COLOR_ELSE(GColorDukeBlue, GColorLightGray)
-#define NIGHT_HATCH_COLOR_PRECIP PBL_IF_COLOR_ELSE(GColorBlue, GColorWhite)
+// The secondary-line fill is metric-agnostic gray (PKJS owns metric colors; the
+// fill carries none). These were precip-specific blues before the generic renderer.
+#define AREA_FILL_COLOR PBL_IF_COLOR_ELSE(GColorLightGray, GColorLightGray)
+#define NIGHT_AREA_FILL_COLOR PBL_IF_COLOR_ELSE(GColorDarkGray, GColorLightGray)
+#define NIGHT_HATCH_COLOR_AREA PBL_IF_COLOR_ELSE(GColorLightGray, GColorWhite)
 #define NIGHT_BOUNDARY_COLOR PBL_IF_COLOR_ELSE(GColorDarkGray, GColorLightGray)
-#define NIGHT_BOUNDARY_COLOR_PRECIP PBL_IF_COLOR_ELSE(GColorVividCerulean, GColorWhite)
+#define NIGHT_BOUNDARY_COLOR_AREA PBL_IF_COLOR_ELSE(GColorWhite, GColorWhite)
 #define FORECAST_STEP_SECONDS (60 * 60)
 #define DAY_SECONDS (24 * 60 * 60)
 #define MAX_FORECAST_ENTRIES 24
@@ -119,8 +121,12 @@ typedef struct {
     int num_entries;          // clamped to MAX_FORECAST_ENTRIES
     time_t forecast_start;
     int16_t temps[MAX_FORECAST_ENTRIES];
-    uint8_t precip_probs[MAX_FORECAST_ENTRIES];
-    uint8_t rain_tenths[MAX_FORECAST_ENTRIES];
+    int16_t line[MAX_FORECAST_ENTRIES];   // permille; line_count==0 means off
+    int16_t bars[MAX_FORECAST_ENTRIES];   // permille; bar_count==0 means off
+    int line_count;
+    int bar_count;
+    GColor line_color;        // stroke color, chosen per-metric by PKJS
+    bool line_fill;           // shade the area under the line (gray)
     int temp_lo;
     int temp_hi;
 } ForecastDataset;
@@ -132,10 +138,14 @@ static void load_dataset(ForecastDataset *ds) {
     const int raw = persist_get_num_entries();
     ds->num_entries = raw > MAX_FORECAST_ENTRIES ? MAX_FORECAST_ENTRIES : (raw < 0 ? 0 : raw);
     ds->forecast_start = persist_get_forecast_start();
+    ds->line_color = persist_get_line_color();
+    ds->line_fill = persist_get_line_fill();
     if (ds->num_entries > 0) {
         persist_get_temp_trend(ds->temps, ds->num_entries);
-        persist_get_precip_trend(ds->precip_probs, ds->num_entries);
-        persist_get_rain_trend(ds->rain_tenths, ds->num_entries);
+        ds->line_count = persist_get_line_count();
+        ds->bar_count = persist_get_bar_count();
+        if (ds->line_count > 0) { persist_get_line_trend(ds->line, ds->num_entries); }
+        if (ds->bar_count > 0)  { persist_get_bar_trend(ds->bars, ds->num_entries); }
         min_max(ds->temps, ds->num_entries, &ds->temp_lo, &ds->temp_hi);
     }
 }
@@ -313,19 +323,19 @@ static void draw_night_regions(GContext *ctx, GRect graph_plot_rect, time_t grap
     }
 }
 
-static int16_t precip_top_y_for_x(const GPoint *points_precip, int num_entries, int16_t x)
+static int16_t area_fill_top_y_for_x(const GPoint *points_area_fill, int num_entries, int16_t x)
 {
-    if (x <= points_precip[0].x)
+    if (x <= points_area_fill[0].x)
     {
-        return points_precip[0].y;
+        return points_area_fill[0].y;
     }
 
     for (int i = 0; i < num_entries - 1; ++i)
     {
-        const int16_t x0 = points_precip[i].x;
-        const int16_t y0 = points_precip[i].y;
-        const int16_t x1 = points_precip[i + 1].x;
-        const int16_t y1 = points_precip[i + 1].y;
+        const int16_t x0 = points_area_fill[i].x;
+        const int16_t y0 = points_area_fill[i].y;
+        const int16_t x1 = points_area_fill[i + 1].x;
+        const int16_t y1 = points_area_fill[i + 1].y;
 
         if (x > x1)
         {
@@ -340,25 +350,25 @@ static int16_t precip_top_y_for_x(const GPoint *points_precip, int num_entries, 
         return y0 + (int16_t)(((int32_t)(y1 - y0) * (x - x0)) / (x1 - x0));
     }
 
-    return points_precip[num_entries - 1].y;
+    return points_area_fill[num_entries - 1].y;
 }
 
-static int16_t clamped_precip_top_y_for_x(GRect graph_plot_rect,
-                                          const GPoint *points_precip, int num_entries, int16_t x)
+static int16_t clamped_area_fill_top_y_for_x(GRect graph_plot_rect,
+                                          const GPoint *points_area_fill, int num_entries, int16_t x)
 {
     const int16_t y_top_limit = graph_plot_rect.origin.y;
-    int16_t precip_y = precip_top_y_for_x(points_precip, num_entries, x);
-    if (precip_y < y_top_limit)
+    int16_t area_fill_y = area_fill_top_y_for_x(points_area_fill, num_entries, x);
+    if (area_fill_y < y_top_limit)
     {
-        precip_y = y_top_limit;
+        area_fill_y = y_top_limit;
     }
 
-    return precip_y;
+    return area_fill_y;
 }
 
-static void draw_night_hatch_over_precip(GContext *ctx, GRect graph_plot_rect, time_t graph_start, time_t graph_end,
+static void draw_night_hatch_over_area_fill(GContext *ctx, GRect graph_plot_rect, time_t graph_start, time_t graph_end,
                                          const NightSegments *night_segments,
-                                         const GPoint *points_precip, int num_entries)
+                                         const GPoint *points_area_fill, int num_entries)
 {
     if (!night_segments || night_segments->count == 0)
     {
@@ -392,22 +402,22 @@ static void draw_night_hatch_over_precip(GContext *ctx, GRect graph_plot_rect, t
 
         if (is_color)
         {
-            graphics_context_set_stroke_color(ctx, NIGHT_PRECIP_FILL_COLOR);
+            graphics_context_set_stroke_color(ctx, NIGHT_AREA_FILL_COLOR);
             for (int16_t x = x0; x < x1; ++x)
             {
-                const int16_t precip_y = clamped_precip_top_y_for_x(graph_plot_rect, points_precip, num_entries, x);
-                if (precip_y <= y_bottom_inclusive)
+                const int16_t area_fill_y = clamped_area_fill_top_y_for_x(graph_plot_rect, points_area_fill, num_entries, x);
+                if (area_fill_y <= y_bottom_inclusive)
                 {
-                    graphics_draw_line(ctx, GPoint(x, precip_y), GPoint(x, y_bottom_inclusive));
+                    graphics_draw_line(ctx, GPoint(x, area_fill_y), GPoint(x, y_bottom_inclusive));
                 }
             }
         }
 
-        const GColor hatch_color = is_color ? NIGHT_HATCH_COLOR_PRECIP : GColorWhite;
+        const GColor hatch_color = is_color ? NIGHT_HATCH_COLOR_AREA : GColorWhite;
         for (int16_t x = x0; x < x1; ++x)
         {
-            const int16_t precip_y = clamped_precip_top_y_for_x(graph_plot_rect, points_precip, num_entries, x);
-            hatch_fill_rect(ctx, GRect(x, precip_y, 1, y_bottom_exclusive - precip_y), hatch_color, hatch_spacing);
+            const int16_t area_fill_y = clamped_area_fill_top_y_for_x(graph_plot_rect, points_area_fill, num_entries, x);
+            hatch_fill_rect(ctx, GRect(x, area_fill_y, 1, y_bottom_exclusive - area_fill_y), hatch_color, hatch_spacing);
         }
     }
 }
@@ -444,16 +454,16 @@ static void draw_night_boundaries(GContext *ctx, GRect graph_plot_rect, time_t g
     }
 }
 
-static void draw_night_boundaries_over_precip(GContext *ctx, GRect graph_plot_rect, time_t graph_start, time_t graph_end,
+static void draw_night_boundaries_over_area_fill(GContext *ctx, GRect graph_plot_rect, time_t graph_start, time_t graph_end,
                                                const NightSegments *night_segments,
-                                               const GPoint *points_precip, int num_entries)
+                                               const GPoint *points_area_fill, int num_entries)
 {
     if (!night_segments || night_segments->count == 0)
     {
         return;
     }
 
-    graphics_context_set_stroke_color(ctx, NIGHT_BOUNDARY_COLOR_PRECIP);
+    graphics_context_set_stroke_color(ctx, NIGHT_BOUNDARY_COLOR_AREA);
     graphics_context_set_stroke_width(ctx, 1);
 
     const int16_t y_bottom = graph_plot_rect.origin.y + graph_plot_rect.size.h - 1;
@@ -465,15 +475,15 @@ static void draw_night_boundaries_over_precip(GContext *ctx, GRect graph_plot_re
         if (segment_start > graph_start && segment_start < graph_end)
         {
             const int16_t start_x = graph_x_for_time(segment_start, graph_start, graph_end, graph_plot_rect);
-            const int16_t start_precip_y = clamped_precip_top_y_for_x(graph_plot_rect, points_precip, num_entries, start_x);
-            graphics_draw_line(ctx, GPoint(start_x, start_precip_y), GPoint(start_x, y_bottom));
+            const int16_t start_area_fill_y = clamped_area_fill_top_y_for_x(graph_plot_rect, points_area_fill, num_entries, start_x);
+            graphics_draw_line(ctx, GPoint(start_x, start_area_fill_y), GPoint(start_x, y_bottom));
         }
 
         if (segment_end > graph_start && segment_end < graph_end)
         {
             const int16_t end_x = graph_x_for_time(segment_end, graph_start, graph_end, graph_plot_rect);
-            const int16_t end_precip_y = clamped_precip_top_y_for_x(graph_plot_rect, points_precip, num_entries, end_x);
-            graphics_draw_line(ctx, GPoint(end_x, end_precip_y), GPoint(end_x, y_bottom));
+            const int16_t end_area_fill_y = clamped_area_fill_top_y_for_x(graph_plot_rect, points_area_fill, num_entries, end_x);
+            graphics_draw_line(ctx, GPoint(end_x, end_area_fill_y), GPoint(end_x, y_bottom));
         }
     }
 }
@@ -483,11 +493,11 @@ static GSize temp_label_string_size(const char *text);
 static void draw_night_shading_under(GContext *ctx, GRect graph_plot_rect,
                                      time_t forecast_start, time_t forecast_end,
                                      const NightSegments *night_segments,
-                                     const GPoint *points_precip, int num_entries) {
-    draw_night_hatch_over_precip(ctx, graph_plot_rect, forecast_start, forecast_end,
-                                 night_segments, points_precip, num_entries);
-    draw_night_boundaries_over_precip(ctx, graph_plot_rect, forecast_start, forecast_end,
-                                       night_segments, points_precip, num_entries);
+                                     const GPoint *points_area_fill, int num_entries) {
+    draw_night_hatch_over_area_fill(ctx, graph_plot_rect, forecast_start, forecast_end,
+                                 night_segments, points_area_fill, num_entries);
+    draw_night_boundaries_over_area_fill(ctx, graph_plot_rect, forecast_start, forecast_end,
+                                       night_segments, points_area_fill, num_entries);
 }
 
 static void draw_night_shading_over(GContext *ctx, GRect graph_plot_rect,
@@ -564,14 +574,14 @@ typedef struct {
                                       // was the pre-phase-3 compat mapping)
     time_t               start, end;
     const NightSegments *night;
-    const GPoint        *precip_pts;
+    const GPoint        *area_pts;
     int                  count;
 } NightLayerCtx;
 
 static void night_under_layer(const ChartRender *r, void *user) {
     const NightLayerCtx *c = user;
     draw_night_shading_under(r->ctx, c->plot_rect, c->start, c->end,
-                             c->night, c->precip_pts, c->count);
+                             c->night, c->area_pts, c->count);
 }
 
 static void night_over_layer(const ChartRender *r, void *user) {
@@ -620,17 +630,18 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // Per-redraw data prep + layer list. The scratch arrays are module-static
     // (not stack): aplite's small app stack overflows otherwise (PC=0/LR=0).
     // Safe — single layer instance, single-threaded, all recomputed each redraw.
-    static int16_t precip_vals[MAX_FORECAST_ENTRIES];
-    static int16_t rain_pm[MAX_FORECAST_ENTRIES];
-    static GPoint  precip_pts[MAX_FORECAST_ENTRIES + 2];
+    // ds.line / ds.bars are already contiguous int16 permille from PKJS, so the
+    // chart layers read them directly; only the contour points + axis slots need
+    // scratch.
+    static GPoint  area_pts[MAX_FORECAST_ENTRIES + 2];
     static ChartAxisSlot axis_slots[MAX_FORECAST_ENTRIES];
-    for (int i = 0; i < ds.num_entries; ++i) {
-        precip_vals[i] = ds.precip_probs[i];           // uint8 -> int16, raw %
-    }
-    rain_tier_fill_permille(ds.rain_tenths, rain_pm, ds.num_entries);
     forecast_fill_axis_slots(axis_slots, MAX_FORECAST_ENTRIES,
                              outer.origin.x, chart_def_pitch(&FORECAST_DEF),
                              bounds.size.w, forecast_start_local);
+
+    const bool line_on = ds.line_count > 0;
+    const bool fill_on = line_on && ds.line_fill;
+    const bool bars_on = ds.bar_count > 0;
 
     NightLayerCtx night_ctx = {
         // Width spans slot 0..(num_entries-1) so the linear time->x map lands
@@ -645,38 +656,53 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         .start      = forecast_start,
         .end        = forecast_end,
         .night      = &night_segments,
-        .precip_pts = precip_pts,
+        .area_pts = area_pts,   // fill/line contour; exported by the AREA (or LINE) layer
         .count      = ds.num_entries,
     };
     const GColor axis_color = night_on ? FORECAST_AXIS_COLOR_NIGHT
                                        : FORECAST_AXIS_COLOR_DAY;
 
-    // Z-order = array order, bottom first. Frame after the data bands so it
-    // overwrites curve/area pixels at the border columns.
     int rain_num_stops = 0;
     const ChartColorStop *rain_stops = rain_tier_stops(&rain_num_stops);
 
+    // Z-order = array order, bottom first. Frame after the data bands so it
+    // overwrites curve/area pixels at the border columns. Line/bars are gated on
+    // what PKJS sent; the gray fill + its night re-hatch only exist with the line.
     static ChartLayer layers[8];  // aplite: largest redraw array — must be static, not stack
     int n = 0;
-    layers[n++] = (ChartLayer){ CHART_LAYER_AREA, .area = {
-        .values = precip_vals, .export_points = precip_pts,
-        .count = ds.num_entries, .lo = 0, .hi = 100,
-        .fill_color = PRECIP_FILL_COLOR } };
-    if (night_on) {
+    if (fill_on) {
+        layers[n++] = (ChartLayer){ CHART_LAYER_AREA, .area = {
+            .values = ds.line, .export_points = area_pts,
+            .count = ds.num_entries, .lo = 0, .hi = 1000,
+            .fill_color = AREA_FILL_COLOR } };
+    }
+    // night_under re-shades the filled area, so it needs the AREA layer's
+    // exported contour and only runs when the fill is present.
+    if (night_on && fill_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_CUSTOM,
                                     .custom = { night_under_layer, &night_ctx } };
     }
-    layers[n++] = (ChartLayer){ CHART_LAYER_BARS, .bars = {
-        .values = rain_pm, .count = ds.num_entries, .lo = 0, .hi = 1000,
-        .stops = rain_stops, .num_stops = rain_num_stops,
-        .style = PBL_IF_COLOR_ELSE(BAR_SOLID, BAR_OUTLINED) } };
+    if (bars_on) {
+        layers[n++] = (ChartLayer){ CHART_LAYER_BARS, .bars = {
+            .values = ds.bars, .count = ds.num_entries, .lo = 0, .hi = 1000,
+            .stops = rain_stops, .num_stops = rain_num_stops,
+            .style = PBL_IF_COLOR_ELSE(BAR_SOLID, BAR_OUTLINED) } };
+    }
+    // night_over is the full-height day/night hatch — independent of line/bars.
     if (night_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_CUSTOM,
                                     .custom = { night_over_layer, &night_ctx } };
     }
-    layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
-        .points = precip_pts, .count = ds.num_entries,
-        .color = GColorPictonBlue, .width = 1 } };
+    if (line_on) {
+        layers[n++] = fill_on
+            ? (ChartLayer){ CHART_LAYER_LINE, .line = {
+                  .points = area_pts, .count = ds.num_entries,
+                  .color = ds.line_color, .width = 1 } }
+            : (ChartLayer){ CHART_LAYER_LINE, .line = {
+                  .values = ds.line, .count = ds.num_entries,
+                  .lo = 0, .hi = 1000, .inset_y = 0, .export_points = area_pts,
+                  .color = ds.line_color, .width = 1 } };
+    }
     layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
         .values = ds.temps, .count = ds.num_entries,
         .lo = ds.temp_lo, .hi = ds.temp_hi, .inset_y = MARGIN_TEMP_H,
