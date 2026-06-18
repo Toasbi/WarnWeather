@@ -2,6 +2,7 @@
 var radar = require('./weather/radar.js');
 var radarDispatch = require('./weather/radar-dispatch.js');
 var rainTier = require('./weather/rain-tier.js');
+var forecastSeries = require('./forecast-series.js');
 var WundergroundProvider = require('./weather/wunderground.js');
 var OpenWeatherMapProvider = require('./weather/openweathermap.js')
 var DwdProvider = require('./weather/dwd.js');
@@ -675,6 +676,10 @@ function getDefaultClaySettings() {
         location: '',
         temperatureUnits: 'f',
         dayNightShading: true,
+        secondaryLine: 'precip_prob',
+        secondaryLineFill: true,
+        barSource: 'rain',
+        rainBarColor: 'multicolor',
         timeLeadingZero: false,
         timeShowAmPm: false,
         axisTimeFormat: '24h',
@@ -1130,7 +1135,23 @@ function fetch(provider, force) {
                     });
                 },
                 force,
-                extras
+                extras,
+                function(payload) {
+                    // PKJS owns metric selection: map the provider's raw precip/rain
+                    // into the render-ready line + bar wire series the watch draws
+                    // generically. Replaces the old PRECIP_TREND/RAIN_TREND keys.
+                    var series = forecastSeries.buildForecastSeries(
+                        { precips: payload.PRECIP_TREND_UINT8, rains: payload.RAIN_TREND_UINT8 },
+                        app.settings
+                    );
+                    delete payload.PRECIP_TREND_UINT8;
+                    delete payload.RAIN_TREND_UINT8;
+                    payload.SECONDARY_LINE_TREND_INT16 = series.SECONDARY_LINE_TREND_INT16;
+                    payload.SECONDARY_LINE_COLOR = series.SECONDARY_LINE_COLOR;
+                    payload.SECONDARY_LINE_FILL = series.SECONDARY_LINE_FILL;
+                    payload.BAR_TREND_INT16 = series.BAR_TREND_INT16;
+                    return payload;
+                }
             );
         });
     }

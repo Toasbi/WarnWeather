@@ -516,7 +516,7 @@ WeatherProvider.prototype.withProviderData = function(lat, lon, force, onSuccess
     onSuccess();
 };
 
-WeatherProvider.prototype.fetch = function(onSuccess, onFailure, force, extraPayload) {
+WeatherProvider.prototype.fetch = function(onSuccess, onFailure, force, extraPayload, payloadTransform) {
     this.countryCode = null;
     this.locationMode = null;
 
@@ -541,6 +541,11 @@ WeatherProvider.prototype.fetch = function(onSuccess, onFailure, force, extraPay
                                     payload[extraKey] = extraPayload[extraKey];
                                 }
                             }
+                        }
+                        // PKJS-side render selection (metric → wire series). The
+                        // provider stays metric-agnostic; index.js supplies the map.
+                        if (payloadTransform) {
+                            payload = payloadTransform(payload);
                         }
                         // The outbox sends only the categories that changed
                         // since the last ACKed message — possibly nothing,
