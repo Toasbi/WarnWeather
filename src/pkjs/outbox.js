@@ -49,6 +49,11 @@ var WEATHER_CATEGORIES = [
         name: 'sleep',
         cacheKey: KEYS.LAST_SENT_SLEEP_KEY,
         keys: ['IS_SLEEPING']
+    },
+    {
+        name: 'palette',
+        cacheKey: KEYS.LAST_SENT_PALETTE_KEY,
+        keys: ['RAIN_PALETTE_STOP_FROM_INT16', 'RAIN_PALETTE_STOP_RGB_INT32']
     }
 ];
 

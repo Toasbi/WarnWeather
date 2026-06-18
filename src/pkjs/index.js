@@ -1,6 +1,7 @@
 
 var radar = require('./weather/radar.js');
 var radarDispatch = require('./weather/radar-dispatch.js');
+var rainTier = require('./weather/rain-tier.js');
 var WundergroundProvider = require('./weather/wunderground.js');
 var OpenWeatherMapProvider = require('./weather/openweathermap.js')
 var DwdProvider = require('./weather/dwd.js');
@@ -1072,6 +1073,14 @@ function fetch(provider, force) {
         withRainRadarTuples(provider, function(radarTuples) {
             var extras = radarTuples ? Object.assign({}, radarTuples) : {};
             extras.IS_SLEEPING = refreshLastIsSleeping();
+            // Rain-tier color palette (send-once category): per platform + the
+            // rainBarColor setting. Forecast bars + radar share it on the watch.
+            var palette = rainTier.buildPalette(
+                app.watchInfo ? app.watchInfo.platform : 'basalt',
+                app.settings ? app.settings.rainBarColor : 'multicolor'
+            );
+            extras.RAIN_PALETTE_STOP_FROM_INT16 = palette.from;
+            extras.RAIN_PALETTE_STOP_RGB_INT32 = palette.rgb;
             provider.fetch(
                 function() {
                     // Sucess, update recent fetch time
