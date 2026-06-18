@@ -65,8 +65,10 @@
     ],
     "messageKeys": [
       "TEMP_TREND_INT16",
-      "PRECIP_TREND_UINT8",
-      "RAIN_TREND_UINT8",
+      "SECONDARY_LINE_TREND_INT16",
+      "SECONDARY_LINE_COLOR",
+      "SECONDARY_LINE_FILL",
+      "BAR_TREND_INT16",
       "FORECAST_START",
       "NUM_ENTRIES",
       "CURRENT_TEMP",

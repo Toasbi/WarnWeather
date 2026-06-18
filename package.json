@@ -65,8 +65,10 @@
     ],
     "messageKeys": [
       "TEMP_TREND_INT16",
-      "PRECIP_TREND_UINT8",
-      "RAIN_TREND_UINT8",
+      "SECONDARY_LINE_TREND_INT16",
+      "SECONDARY_LINE_COLOR",
+      "SECONDARY_LINE_FILL",
+      "BAR_TREND_INT16",
       "FORECAST_START",
       "NUM_ENTRIES",
       "CURRENT_TEMP",
@@ -99,6 +101,17 @@
       "IS_SLEEPING",
       "WATCH_HAS_CONFIG"
     ]
+  },
+  "releaseNotifications": {
+    "1.0.0": {
+      "title": "Welcome to WarnWeather!",
+      "body": "Thanks for installing. Set your location and forecast options in the watchface settings."
+    }
+  },
+  "releaseNotification": {
+    "enabled": true,
+    "title": "Welcome to WarnWeather!",
+    "body": "Thanks for installing. Set your location and forecast options in the watchface settings."
   },
   "telemetry": {
     "enabled": false,
