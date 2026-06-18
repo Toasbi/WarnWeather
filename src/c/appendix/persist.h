@@ -6,9 +6,17 @@
 
 int persist_get_temp_trend(int16_t *buffer, const size_t buffer_size);
 
-int persist_get_precip_trend(uint8_t *buffer, const size_t buffer_size);
+int persist_get_line_trend(int16_t *buffer, const size_t buffer_size);
 
-int persist_get_rain_trend(uint8_t *buffer, const size_t buffer_size);
+int persist_get_bar_trend(int16_t *buffer, const size_t buffer_size);
+
+int persist_get_line_count(void);
+
+int persist_get_bar_count(void);
+
+GColor persist_get_line_color(void);
+
+bool persist_get_line_fill(void);
 
 time_t persist_get_forecast_start();
 
@@ -28,9 +36,13 @@ bool persist_has_config();
 
 bool persist_set_temp_trend(int16_t *data, const size_t size);
 
-bool persist_set_precip_trend(uint8_t *data, const size_t size);
+bool persist_set_line_trend(int16_t *data, const size_t size);
 
-bool persist_set_rain_trend(uint8_t *data, const size_t size);
+bool persist_set_bar_trend(int16_t *data, const size_t size);
+
+bool persist_set_line_color(GColor color);
+
+bool persist_set_line_fill(bool fill);
 
 int persist_get_rain_radar_trend(uint8_t *buffer, const size_t buffer_size);
 

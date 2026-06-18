@@ -1,6 +1,8 @@
 
 var radar = require('./weather/radar.js');
 var radarDispatch = require('./weather/radar-dispatch.js');
+var rainTier = require('./weather/rain-tier.js');
+var forecastSeries = require('./forecast-series.js');
 var WundergroundProvider = require('./weather/wunderground.js');
 var OpenWeatherMapProvider = require('./weather/openweathermap.js')
 var DwdProvider = require('./weather/dwd.js');
@@ -143,6 +145,12 @@ Pebble.addEventListener('webviewclosed', function(e) {
     }
 
     var oldRadarProvider = app.settings ? app.settings.radarProvider : undefined;
+    // Capture the render-affecting settings before they're overwritten below so we can
+    // detect a change and force a resend (clearWeatherCaches also drops the palette
+    // cache, so a rainBarColor-only change is covered by the same tuple/path).
+    var prevRender = app.settings
+        ? [app.settings.secondaryLine, app.settings.secondaryLineFill, app.settings.barSource, app.settings.rainBarColor].join('|')
+        : '';
     clay.getSettings(e.response, false);  // This triggers the update in localStorage
     app.settings = getClaySettings();  // This reads from localStorage in sensible format
     devStats.setEnabled(Boolean(app.settings.devStatsEnabled));
@@ -154,13 +162,15 @@ Pebble.addEventListener('webviewclosed', function(e) {
     app.telemetry = createTelemetryClient(getRuntimeTelemetryConfig());
     var providerOrLocationChanged = refreshProvider();
     var radarProviderChanged = oldRadarProvider !== app.settings.radarProvider;
-    var needsRefetch = providerOrLocationChanged || radarProviderChanged;
+    var nextRender = [app.settings.secondaryLine, app.settings.secondaryLineFill, app.settings.barSource, app.settings.rainBarColor].join('|');
+    var renderSettingsChanged = prevRender !== nextRender;
+    var needsRefetch = providerOrLocationChanged || radarProviderChanged || renderSettingsChanged;
     sendClaySettings();
 
     if (needsRefetch) {
-        // Location/provider/radar-provider change makes the watch's current data
-        // wrong; drop the last-sent caches (including radar) so the next fetch
-        // resends every category.
+        // Location/provider/radar-provider/render-setting change makes the watch's
+        // current data (or chart) wrong; drop the last-sent caches (including radar
+        // and palette) so the next fetch resends every category.
         outbox.clearWeatherCaches();
     }
 
@@ -674,6 +684,10 @@ function getDefaultClaySettings() {
         location: '',
         temperatureUnits: 'f',
         dayNightShading: true,
+        secondaryLine: 'precip_prob',
+        secondaryLineFill: true,
+        barSource: 'rain',
+        rainBarColor: 'multicolor',
         timeLeadingZero: false,
         timeShowAmPm: false,
         axisTimeFormat: '24h',
@@ -1072,6 +1086,17 @@ function fetch(provider, force) {
         withRainRadarTuples(provider, function(radarTuples) {
             var extras = radarTuples ? Object.assign({}, radarTuples) : {};
             extras.IS_SLEEPING = refreshLastIsSleeping();
+            // Rain-tier color palette (send-once category): per platform + the
+            // rainBarColor setting. Forecast bars + radar share it on the watch.
+            var palette = rainTier.buildPalette(
+                app.watchInfo ? app.watchInfo.platform : 'basalt',
+                app.settings ? app.settings.rainBarColor : 'multicolor'
+            );
+            // Serialize to little-endian byte arrays — sendAppMessage rejects
+            // raw array values > 255 (the C side reads int16/int32 from the bytes).
+            var paletteWire = rainTier.paletteToWire(palette);
+            extras.RAIN_PALETTE_STOP_FROM_INT16 = paletteWire.from;
+            extras.RAIN_PALETTE_STOP_RGB_INT32 = paletteWire.rgb;
             provider.fetch(
                 function() {
                     // Sucess, update recent fetch time
@@ -1118,7 +1143,23 @@ function fetch(provider, force) {
                     });
                 },
                 force,
-                extras
+                extras,
+                function(payload) {
+                    // PKJS owns metric selection: map the provider's raw precip/rain
+                    // into the render-ready line + bar wire series the watch draws
+                    // generically. Replaces the old PRECIP_TREND/RAIN_TREND keys.
+                    var series = forecastSeries.buildForecastSeries(
+                        { precips: payload.PRECIP_TREND_UINT8, rains: payload.RAIN_TREND_UINT8 },
+                        app.settings
+                    );
+                    delete payload.PRECIP_TREND_UINT8;
+                    delete payload.RAIN_TREND_UINT8;
+                    payload.SECONDARY_LINE_TREND_INT16 = series.SECONDARY_LINE_TREND_INT16;
+                    payload.SECONDARY_LINE_COLOR = series.SECONDARY_LINE_COLOR;
+                    payload.SECONDARY_LINE_FILL = series.SECONDARY_LINE_FILL;
+                    payload.BAR_TREND_INT16 = series.BAR_TREND_INT16;
+                    return payload;
+                }
             );
         });
     }
