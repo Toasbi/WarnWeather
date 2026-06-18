@@ -1079,8 +1079,11 @@ function fetch(provider, force) {
                 app.watchInfo ? app.watchInfo.platform : 'basalt',
                 app.settings ? app.settings.rainBarColor : 'multicolor'
             );
-            extras.RAIN_PALETTE_STOP_FROM_INT16 = palette.from;
-            extras.RAIN_PALETTE_STOP_RGB_INT32 = palette.rgb;
+            // Serialize to little-endian byte arrays — sendAppMessage rejects
+            // raw array values > 255 (the C side reads int16/int32 from the bytes).
+            var paletteWire = rainTier.paletteToWire(palette);
+            extras.RAIN_PALETTE_STOP_FROM_INT16 = paletteWire.from;
+            extras.RAIN_PALETTE_STOP_RGB_INT32 = paletteWire.rgb;
             provider.fetch(
                 function() {
                     // Sucess, update recent fetch time
