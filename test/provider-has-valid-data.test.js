@@ -33,3 +33,28 @@ test('hasValidData is strictly boolean false when trends too short', () => {
   });
   assert.equal(p.hasValidData(), false); // pre-fix this path returns undefined
 });
+
+test('getPayload emits WIND_TREND_UINT8 as rounded, clamped km/h', () => {
+  const p = makeProvider({
+    numEntries: 3,
+    tempTrend: [50, 51, 52],
+    precipTrend: [0, 0.5, 1],
+    rainTrend: [0, 0, 0],
+    windTrend: [0, 12.6, 300],   // 300 clamps to 255
+    startTime: 1000,
+    currentTemp: 60,
+    cityName: 'Testville',
+    sunEvents: [
+      { type: 'sunrise', date: new Date(1000 * 1000) },
+      { type: 'sunset', date: new Date(2000 * 1000) }
+    ]
+  });
+  const payload = p.getPayload();
+  assert.deepEqual(payload.WIND_TREND_UINT8, [0, 13, 255]);
+});
+
+test('constructor default windTrend is a zero-filled numEntries array', () => {
+  const p = new WeatherProvider();
+  assert.equal(p.windTrend.length, p.numEntries);
+  assert.ok(p.windTrend.every(function(v) { return v === 0; }));
+});

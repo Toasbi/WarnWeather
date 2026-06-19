@@ -169,6 +169,10 @@ var WeatherProvider = function() {
     for (var rainIdx = 0; rainIdx < this.numEntries; rainIdx += 1) {
         this.rainTrend[rainIdx] = 0;
     }
+    this.windTrend = new Array(this.numEntries);
+    for (var windIdx = 0; windIdx < this.numEntries; windIdx += 1) {
+        this.windTrend[windIdx] = 0;
+    }
 };
 
 WeatherProvider.prototype.gpsEnable = function() {
@@ -614,6 +618,9 @@ WeatherProvider.prototype.getPayload = function() {
     var rains = this.rainTrend.slice(0, this.numEntries).map(function(mmPerHour) {
         return clampByte((mmPerHour || 0) * 10);
     });
+    var winds = this.windTrend.slice(0, this.numEntries).map(function(kmhPerHour) {
+        return clampByte(kmhPerHour || 0); // clampByte rounds + clamps to 0..255
+    });
     var tempsIntView = new Int16Array(temps);
     var tempsByteArray = Array.prototype.slice.call(new Uint8Array(tempsIntView.buffer));
     var sunEventsIntView = new Int32Array(this.sunEvents.map(function(sunEvent) {
@@ -624,6 +631,7 @@ WeatherProvider.prototype.getPayload = function() {
         TEMP_TREND_INT16: tempsByteArray,
         PRECIP_TREND_UINT8: precips, // Holds values within [0,100]
         RAIN_TREND_UINT8: rains, // Holds values within [0,255], representing 0.0..25.5 mm/h (5 mm cap on the watch; >5 mm signals overflow)
+        WIND_TREND_UINT8: winds, // Transient PKJS-only: km/h integers; forecast-series consumes + deletes this before send
         FORECAST_START: this.startTime,
         NUM_ENTRIES: this.numEntries,
         CURRENT_TEMP: Math.round(this.currentTemp),
