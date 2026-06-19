@@ -199,6 +199,37 @@ module.exports = function (minified) {
         return html;
     }
 
+    /**
+     * Wire a target item's show/hide to a control's value, applying it immediately
+     * and on every change.
+     * @param {Object} controlItem Clay item whose value drives visibility.
+     * @param {Object} targetItem Clay item to show/hide (may be absent on B&W → guard before calling).
+     * @param {Function} shouldShow Receives the control's value, returns boolean.
+     * @returns {void}
+     */
+    function bindVisibility(controlItem, targetItem, shouldShow) {
+        var apply = function() {
+            if (shouldShow(controlItem.get())) { targetItem.show(); } else { targetItem.hide(); }
+        };
+        apply();
+        controlItem.on('change', apply);
+    }
+
+    /**
+     * Like bindVisibility but toggles enable/disable instead of show/hide.
+     * @param {Object} controlItem Clay item whose value drives enabled state.
+     * @param {Object} targetItem Clay item to enable/disable.
+     * @param {Function} shouldEnable Receives the control's value, returns boolean.
+     * @returns {void}
+     */
+    function bindEnabled(controlItem, targetItem, shouldEnable) {
+        var apply = function() {
+            if (shouldEnable(controlItem.get())) { targetItem.enable(); } else { targetItem.disable(); }
+        };
+        apply();
+        controlItem.on('change', apply);
+    }
+
     clayConfig.on(clayConfig.EVENTS.AFTER_BUILD, function() {
         var clayFetch;
         var clayOwmApiKey;
@@ -220,15 +251,10 @@ module.exports = function (minified) {
         var devStatsToggle;
         var devStatsEvents;
         var clayDevStatsClear;
-        var claySecondaryLine;
-        var claySecondaryLineFill;
         var clayBarSource;
         var clayRainBarColor;
         var clayRadarProvider;
         var clayRadarColor;
-        var syncSecondaryLineFill;
-        var syncBarColor;
-        var syncRadarColor;
 
         clayFetch = clayConfig.getItemByMessageKey('fetch');
         clayFetch.set(false);
@@ -265,32 +291,18 @@ module.exports = function (minified) {
 
         // Forecast display: the "Fill area under line" toggle is meaningless when
         // the secondary line is off — keep it visible but disabled.
-        claySecondaryLine = clayConfig.getItemByMessageKey('secondaryLine');
-        claySecondaryLineFill = clayConfig.getItemByMessageKey('secondaryLineFill');
-        syncSecondaryLineFill = function() {
-            if (claySecondaryLine.get() === 'off') {
-                claySecondaryLineFill.disable();
-            } else {
-                claySecondaryLineFill.enable();
-            }
-        };
-        syncSecondaryLineFill();
-        claySecondaryLine.on('change', syncSecondaryLineFill);
+        bindEnabled(
+            clayConfig.getItemByMessageKey('secondaryLine'),
+            clayConfig.getItemByMessageKey('secondaryLineFill'),
+            function(v) { return v !== 'off'; }
+        );
 
         // Bar Color only applies to rain bars; hide it when bars are off. The item
         // is absent on B&W watches (config 'capabilities': ['COLOR']), so guard.
         clayBarSource = clayConfig.getItemByMessageKey('barSource');
         clayRainBarColor = clayConfig.getItemByMessageKey('rainBarColor');
         if (clayRainBarColor) {
-            syncBarColor = function() {
-                if (clayBarSource.get() === 'rain') {
-                    clayRainBarColor.show();
-                } else {
-                    clayRainBarColor.hide();
-                }
-            };
-            syncBarColor();
-            clayBarSource.on('change', syncBarColor);
+            bindVisibility(clayBarSource, clayRainBarColor, function(v) { return v === 'rain'; });
         }
 
         // Radar Color only applies when a radar provider is active; hide it when
@@ -299,15 +311,7 @@ module.exports = function (minified) {
         clayRadarProvider = clayConfig.getItemByMessageKey('radarProvider');
         clayRadarColor = clayConfig.getItemByMessageKey('radarColor');
         if (clayRadarColor) {
-            syncRadarColor = function() {
-                if (clayRadarProvider.get() === 'disabled') {
-                    clayRadarColor.hide();
-                } else {
-                    clayRadarColor.show();
-                }
-            };
-            syncRadarColor();
-            clayRadarProvider.on('change', syncRadarColor);
+            bindVisibility(clayRadarProvider, clayRadarColor, function(v) { return v !== 'disabled'; });
         }
 
         // Show last weather fetch status
