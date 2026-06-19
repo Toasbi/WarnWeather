@@ -11,16 +11,14 @@
 #define MT_AM_PM_LECO 2
 
 
-static TextLayer *s_container_layer;
+static Layer *s_container_layer;
 static TextLayer *s_time_layer;
 static TextLayer *s_am_pm_layer;
 
 void time_layer_create(Layer* parent_layer, GRect frame) {
-    s_container_layer = text_layer_create(frame);
+    s_container_layer = layer_create(frame);
     s_time_layer = text_layer_create(GRect(0, 0, frame.size.w, frame.size.h));
     s_am_pm_layer = text_layer_create(GRect(0, 0, 30, frame.size.h));
-
-    text_layer_set_background_color(s_container_layer, GColorClear);
 
     // Main time formatting
     text_layer_set_background_color(s_time_layer, GColorClear);
@@ -34,9 +32,9 @@ void time_layer_create(Layer* parent_layer, GRect frame) {
     text_layer_set_text(s_am_pm_layer, "PM");
     text_layer_set_text_alignment(s_am_pm_layer, GTextAlignmentLeft);
 
-    layer_add_child(text_layer_get_layer(s_container_layer), text_layer_get_layer(s_time_layer));
+    layer_add_child(s_container_layer, text_layer_get_layer(s_time_layer));
     layer_add_child(text_layer_get_layer(s_time_layer), text_layer_get_layer(s_am_pm_layer));
-    layer_add_child(parent_layer, text_layer_get_layer(s_container_layer));
+    layer_add_child(parent_layer, s_container_layer);
     MEMORY_LOG_HEAP("after_time_layer_create");
 
 }
@@ -59,7 +57,7 @@ void time_layer_tick() {
         text_layer_set_text(s_am_pm_layer, tick_time.tm_hour < 12 ? "AM" : "PM");
     
     // Reposition everything
-    GRect bounds = layer_get_bounds(text_layer_get_layer(s_container_layer));
+    GRect bounds = layer_get_bounds(s_container_layer);
     text_layer_move_frame(s_time_layer, GRect(0, 0, bounds.size.w, bounds.size.h)); // Reset for size calculation
     GSize time_size = text_layer_get_content_size(s_time_layer);
     GSize am_pm_size = text_layer_get_content_size(s_am_pm_layer);
@@ -102,6 +100,6 @@ void time_layer_destroy() {
     MEMORY_LOG_HEAP("time_layer_destroy:before");
     text_layer_destroy(s_am_pm_layer);
     text_layer_destroy(s_time_layer);
-    text_layer_destroy(s_container_layer);
+    layer_destroy(s_container_layer);
     MEMORY_LOG_HEAP("time_layer_destroy:after");
 }
