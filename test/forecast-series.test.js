@@ -109,3 +109,81 @@ test('applyForecastSeries deletes the transient WIND_TREND_UINT8 and renders the
   assert.deepEqual(decode16(out.SECONDARY_LINE_TREND_INT16), [0, 500, 1000]);
   assert.equal(out.SECONDARY_LINE_FILL, false);
 });
+
+test('wind selected: gust third line shares the wind scale', () => {
+  const out = buildForecastSeries(
+    { precips: [0], rains: [0], winds: [0, 25, 50], gusts: [0, 50, 100] },
+    { secondaryLine: 'wind', windScale: 'mid', barSource: 'off' } // mid = 50 km/h
+  );
+  // wind: 0/25/50 km/h @50 ceiling → 0/500/1000
+  assert.deepEqual(decode16(out.SECONDARY_LINE_TREND_INT16), [0, 500, 1000]);
+  // gusts: 0/50/100 km/h @ SAME 50 ceiling → 0/1000/1000 (clamped)
+  assert.deepEqual(decode16(out.THIRD_LINE_TREND_INT16), [0, 1000, 1000]);
+  // No color is emitted — the watch reuses the wind line color.
+  assert.equal('THIRD_LINE_COLOR' in out, false);
+});
+
+test('wind high scale: gusts track the 70 km/h ceiling', () => {
+  const out = buildForecastSeries(
+    { precips: [0], rains: [0], winds: [0], gusts: [35, 70] },
+    { secondaryLine: 'wind', windScale: 'high', barSource: 'off' } // high = 70 km/h
+  );
+  assert.deepEqual(decode16(out.THIRD_LINE_TREND_INT16), [500, 1000]);
+});
+
+test('wind selected but gusts all zero/absent: gust line is off (no flat bottom line)', () => {
+  // All-zero gust series ⇒ empty (off), while the wind line is still drawn.
+  const allZero = buildForecastSeries(
+    { precips: [0], rains: [0], winds: [0, 25, 50], gusts: [0, 0, 0] },
+    { secondaryLine: 'wind', windScale: 'mid', barSource: 'off' }
+  );
+  assert.deepEqual(allZero.THIRD_LINE_TREND_INT16, []);
+  assert.deepEqual(decode16(allZero.SECONDARY_LINE_TREND_INT16), [0, 500, 1000]);
+  // Absent gust array (provider supplied none) ⇒ also off, no throw.
+  const absent = buildForecastSeries(
+    { precips: [0], rains: [0], winds: [10, 20] },
+    { secondaryLine: 'wind', windScale: 'mid', barSource: 'off' }
+  );
+  assert.deepEqual(absent.THIRD_LINE_TREND_INT16, []);
+});
+
+test('wind selected, gusts just above wind: both present and distinct', () => {
+  const out = buildForecastSeries(
+    { precips: [0], rains: [0], winds: [20, 30], gusts: [22, 33] },
+    { secondaryLine: 'wind', windScale: 'mid', barSource: 'off' } // 50 km/h
+  );
+  assert.deepEqual(decode16(out.SECONDARY_LINE_TREND_INT16), [400, 600]);
+  assert.deepEqual(decode16(out.THIRD_LINE_TREND_INT16), [440, 660]);
+});
+
+test('ragged input: shorter gust array than wind does not throw', () => {
+  const out = buildForecastSeries(
+    { precips: [0], rains: [0], winds: [10, 20, 30], gusts: [40] },
+    { secondaryLine: 'wind', windScale: 'mid', barSource: 'off' }
+  );
+  // Gust series is the length of the (shorter) gust input.
+  assert.deepEqual(decode16(out.THIRD_LINE_TREND_INT16), [800]);
+});
+
+test('non-wind secondary line clears the gust third line', () => {
+  const precip = buildForecastSeries(
+    { precips: [0, 50], rains: [0, 0], winds: [10], gusts: [20] },
+    { secondaryLine: 'precip_prob', secondaryLineFill: false, barSource: 'off' }
+  );
+  assert.deepEqual(precip.THIRD_LINE_TREND_INT16, []); // empty array clears it
+  const off = buildForecastSeries(
+    { precips: [0], rains: [0], winds: [10], gusts: [20] },
+    { secondaryLine: 'off', barSource: 'off' }
+  );
+  assert.deepEqual(off.THIRD_LINE_TREND_INT16, []);
+});
+
+test('applyForecastSeries deletes transient GUST_TREND_UINT8 and emits the gust line', () => {
+  const payload = {
+    PRECIP_TREND_UINT8: [0], RAIN_TREND_UINT8: [0],
+    WIND_TREND_UINT8: [25], GUST_TREND_UINT8: [50]
+  };
+  const out = applyForecastSeries(payload, { secondaryLine: 'wind', windScale: 'mid', barSource: 'off' });
+  assert.equal('GUST_TREND_UINT8' in out, false);
+  assert.deepEqual(decode16(out.THIRD_LINE_TREND_INT16), [1000]); // 50 @ 50 ceiling
+});
