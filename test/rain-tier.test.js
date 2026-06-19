@@ -64,3 +64,39 @@ test('paletteToWire handles the single-stop white/b&w palettes', () => {
   assert.deepEqual(Array.from(new Int32Array(new Uint8Array(white.rgb).buffer)), [0xFFFFFF]);
   assert.equal(white.from.length, 2); // one int16 stop -> C count = 2/2 = 1
 });
+
+test('rgbToGColor8 maps 0xRRGGBB to the GColorFromHEX byte', () => {
+  assert.equal(rainTier.rgbToGColor8(0xFFFFFF), 0xFF); // white: a=3 r=3 g=3 b=3
+  assert.equal(rainTier.rgbToGColor8(0x000000), 0xC0); // black: opaque alpha only
+  assert.equal(rainTier.rgbToGColor8(0xAAAAAA), 0xEA); // LightGray: 11_10_10_10
+  assert.equal(rainTier.rgbToGColor8(0x55FFFF), 0xDF); // ElectricBlue: 11_01_11_11
+});
+
+test('packPalette emits 3 bytes/stop: int16 LE from + GColor8 color', () => {
+  const packed = rainTier.packPalette(rainTier.buildPalette('basalt')); // 5 stops
+  assert.equal(packed.length, 5 * 3);
+  packed.forEach((b) => assert.ok(b >= 0 && b <= 255, 'byte out of range: ' + b));
+
+  // Decode back and compare to the logical palette.
+  const logical = rainTier.buildPalette('basalt');
+  for (let i = 0; i < logical.from.length; i += 1) {
+    const lo = packed[i * 3];
+    const hi = packed[i * 3 + 1];
+    const color = packed[i * 3 + 2];
+    assert.equal(lo | (hi << 8), logical.from[i], 'from[' + i + ']');
+    assert.equal(color, rainTier.rgbToGColor8(logical.rgb[i]), 'color[' + i + ']');
+  }
+});
+
+test('packPalette handles the single-stop white/b&w palettes', () => {
+  assert.deepEqual(rainTier.packPalette(rainTier.buildPalette('basalt', 'white')), [0, 0, 0xFF]);
+  assert.deepEqual(rainTier.packPalette(rainTier.buildPalette('aplite')), [0, 0, 0xC0]);
+});
+
+test('buildPackedPalette: bar vs radar color modes yield different blobs (independence)', () => {
+  const multi = rainTier.buildPackedPalette('basalt', 'multicolor');
+  const white = rainTier.buildPackedPalette('basalt', 'white');
+  assert.notDeepEqual(multi, white);
+  assert.equal(white.length, 3);     // single white stop
+  assert.equal(multi.length, 15);    // five tier stops
+});
