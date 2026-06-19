@@ -20,6 +20,7 @@ var pebbleColors = require('./pebble-colors.js');
 var wireUnits = require('./wire-units.js');
 var releaseNotifications = require('./release-notifications.js');
 var sleepWindow = require('./sleep-window.js');
+var claySettings = require('./clay-settings.js');
 
 /**
  * Full release-notification manifest (dev: force-show by version). Omitted from bundle if missing.
@@ -139,7 +140,7 @@ Pebble.addEventListener('showConfiguration', function(e) {
     clay.meta.userData.lastFetchAttempt = localStorage.getItem(KEY_LAST_FETCH_ATTEMPT);
     clay.meta.userData.devStats = JSON.stringify(devStats.read());
     Pebble.openURL(clay.generateUrl());
-    console.log('Showing clay: ' + JSON.stringify(getClaySettings()));
+    console.log('Showing clay: ' + JSON.stringify(claySettings.read()));
 });
 
 Pebble.addEventListener('webviewclosed', function(e) {
@@ -155,7 +156,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
         ? [app.settings.secondaryLine, app.settings.secondaryLineFill, app.settings.barSource, app.settings.rainBarColor, app.settings.radarColor].join('|')
         : '';
     clay.getSettings(e.response, false);  // This triggers the update in localStorage
-    app.settings = getClaySettings();  // This reads from localStorage in sensible format
+    app.settings = claySettings.read();  // This reads from localStorage in sensible format
     devStats.setEnabled(Boolean(app.settings.devStatsEnabled));
     if (app.settings.devStatsClear === true) {
         // The config page's "Clear events" button sets this flag; wipe the log
@@ -182,7 +183,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
         console.log('Force fetch!');
         fetch(app.provider, true);
     }
-    console.log('Closing clay: ' + JSON.stringify(getClaySettings()));
+    console.log('Closing clay: ' + JSON.stringify(claySettings.read()));
 });
 
 // Listen for when the watchface is opened
@@ -192,17 +193,21 @@ Pebble.addEventListener('ready',
 
         app.devConfig = getDevConfig();
         maybeHandleDevStorageReset(app.devConfig);
-        var hadExistingInstall = localStorage.getItem('clay-settings') !== null;
+        var hadExistingInstall = claySettings.hasStored();
         maybeShowReleaseNotification(
             hadExistingInstall,
             app.devConfig.forceShowReleaseNotificationOnBoot
         );
-        clayTryDefaults();
-        migratedWeekendHolidayColors = clayTryWeekendHolidayColorMigration();
-        clayTryDevConfig(app.devConfig);
-        clayTryFixtureSettings(activeFixture);
+        claySettings.seedDefaults({ white: DEFAULT_COLOR_WHITE, folly: DEFAULT_COLOR_FOLLY });
+        migratedWeekendHolidayColors = claySettings.migrateWeekendHolidayColors(
+            { white: DEFAULT_COLOR_WHITE, folly: DEFAULT_COLOR_FOLLY },
+            function() { return localStorage.getItem(KEY_V1_34_0_WEEKEND_HOLIDAY_COLOR_MIGRATION) !== null; },
+            markWeekendHolidayColorMigrationComplete
+        );
+        claySettings.applyDevConfig(app.devConfig);
+        claySettings.applyFixtureSettings(activeFixture, pebbleColors);
         console.log('PebbleKit JS ready!');
-        app.settings = getClaySettings();
+        app.settings = claySettings.read();
         devStats.setEnabled(Boolean(app.settings.devStatsEnabled));
         try {
             app.watchInfo = Pebble.getActiveWatchInfo();
@@ -447,129 +452,6 @@ function setProvider(providerId) {
     console.log('Set provider: ' + app.provider.name);
 }
 
-function clayTryDefaults() {
-    /* Clay only considers `defaultValue` upon first startup, but we need
-     * defaults set even if the user has not made a custom config
-     */
-    var persistClayString = localStorage.getItem('clay-settings');
-    var defaults = getDefaultClaySettings();
-    var persistClay;
-    var prop;
-    if (persistClayString === null) {
-        console.log('No clay settings found, setting defaults');
-        localStorage.setItem('clay-settings', JSON.stringify(defaults));
-        return;
-    }
-
-    try {
-        persistClay = JSON.parse(persistClayString);
-    }
-    catch (ex) {
-        console.log('Malformed clay settings found, resetting defaults');
-        localStorage.setItem('clay-settings', JSON.stringify(defaults));
-        return;
-    }
-
-    for (prop in defaults) {
-        if (
-            Object.prototype.hasOwnProperty.call(defaults, prop) &&
-            !Object.prototype.hasOwnProperty.call(persistClay, prop)
-        ) {
-            persistClay[prop] = defaults[prop];
-        }
-    }
-    localStorage.setItem('clay-settings', JSON.stringify(persistClay));
-
-}
-
-/**
- * Get the full Clay settings defaults needed to send a complete config payload.
- *
- * @returns {Object} Default Clay-compatible settings.
- */
-function getDefaultClaySettings() {
-    return {
-        provider: 'wunderground',
-        radarProvider: 'disabled',
-        owmApiKey: '',
-        fetch: false,
-        devStatsEnabled: false,
-        location: '',
-        temperatureUnits: 'f',
-        dayNightShading: true,
-        secondaryLine: 'precip_prob',
-        secondaryLineFill: true,
-        barSource: 'rain',
-        rainBarColor: 'multicolor',
-        radarColor: 'multicolor',
-        timeLeadingZero: false,
-        timeShowAmPm: false,
-        axisTimeFormat: '24h',
-        timeFont: 'roboto',
-        colorTime: DEFAULT_COLOR_WHITE,
-        weekStartDay: 'sun',
-        firstWeek: 'prev',
-        colorToday: 0,
-        colorSunday: DEFAULT_COLOR_FOLLY,
-        colorSaturday: DEFAULT_COLOR_FOLLY,
-        colorUSFederal: DEFAULT_COLOR_FOLLY,
-        showQt: true,
-        vibe: false,
-        btIcons: 'both',
-        telemetryEnabled: true
-    };
-}
-
-/**
- * Move existing installs from the old all-white weekend/holiday defaults to the
- * current highlighted default while preserving any customized color set.
- *
- * @returns {boolean} True when the migrated settings should be sent to the watch.
- */
-function clayTryWeekendHolidayColorMigration() {
-    var persistClayString = localStorage.getItem('clay-settings');
-    var persistClay;
-
-    if (
-        persistClayString === null ||
-        localStorage.getItem(KEY_V1_34_0_WEEKEND_HOLIDAY_COLOR_MIGRATION) !== null
-    ) {
-        return false;
-    }
-
-    try {
-        persistClay = JSON.parse(persistClayString);
-    }
-    catch (ex) {
-        console.log('Malformed clay settings found, skipping weekend/holiday color migration');
-        return false;
-    }
-
-    if (
-        persistClay.colorSunday === DEFAULT_COLOR_WHITE &&
-        persistClay.colorSaturday === DEFAULT_COLOR_WHITE &&
-        persistClay.colorUSFederal === DEFAULT_COLOR_WHITE
-    ) {
-        persistClay.colorSunday = DEFAULT_COLOR_FOLLY;
-        persistClay.colorSaturday = DEFAULT_COLOR_FOLLY;
-        persistClay.colorUSFederal = DEFAULT_COLOR_FOLLY;
-        localStorage.setItem('clay-settings', JSON.stringify(persistClay));
-        console.log('Migrated weekend/holiday color defaults to Folly');
-        return true;
-    }
-
-    if (
-        persistClay.colorSunday === DEFAULT_COLOR_FOLLY &&
-        persistClay.colorSaturday === DEFAULT_COLOR_FOLLY &&
-        persistClay.colorUSFederal === DEFAULT_COLOR_FOLLY
-    ) {
-        return true;
-    }
-
-    markWeekendHolidayColorMigrationComplete();
-    return false;
-}
-
 /**
  * Mark the v1.34.0 weekend/holiday color migration as complete.
  *
@@ -587,108 +469,6 @@ function getDevConfig() {
         console.log('No developer configuration file found');
         return {};
     }
-}
-
-function clayTryDevConfig(devConfig) {
-    /* Use values from a dev-config.js file to configure clay settings
-     * by iterating over the exported properties
-     */
-    var persistClay;
-    var prop;
-
-    var localOnlyDevConfigKeys = {
-        clearPkjsStorageOnBoot: true,
-        forceShowReleaseNotificationOnBoot: true,
-        maxNotifiedVersion: true,
-        resetV134WeekendHolidayColorMigration: true,
-    };
-
-    persistClay = getClaySettings();
-    for (prop in devConfig) {
-        if (Object.prototype.hasOwnProperty.call(devConfig, prop)) {
-            if (Object.prototype.hasOwnProperty.call(localOnlyDevConfigKeys, prop)) {
-                console.log('Found local-only dev setting: ' + prop);
-                continue;
-            }
-            persistClay[prop] = devConfig[prop];
-            console.log('Found dev setting: ' + prop + '=' + devConfig[prop]);
-        }
-    }
-    localStorage.setItem('clay-settings', JSON.stringify(persistClay));
-}
-
-/**
- * Apply Clay-compatible settings from the active fixture.
- *
- * @param {Object|null} fixture Active fixture, or null when fixtures are disabled.
- * @returns {void}
- */
-function clayTryFixtureSettings(fixture) {
-    var persistClay;
-    var settings;
-    var prop;
-
-    if (!fixture || !fixture.claySettings || typeof fixture.claySettings !== 'object' || Array.isArray(fixture.claySettings)) {
-        return;
-    }
-
-    settings = fixture.claySettings;
-    persistClay = getClaySettings();
-    for (prop in settings) {
-        if (Object.prototype.hasOwnProperty.call(settings, prop)) {
-            persistClay[prop] = normalizeFixtureSetting(prop, settings[prop]);
-        }
-    }
-    localStorage.setItem('clay-settings', JSON.stringify(persistClay));
-}
-
-/**
- * Normalize fixture settings into the same shape Clay stores locally.
- *
- * @param {string} key Clay setting key.
- * @param {*} value Fixture setting value.
- * @returns {*} Normalized setting value.
- */
-function normalizeFixtureSetting(key, value) {
-    if (isColorSettingKey(key)) {
-        return normalizeFixtureColor(value);
-    }
-
-    return value;
-}
-
-/**
- * Determine whether a Clay setting is a color value.
- *
- * @param {string} key Clay setting key.
- * @returns {boolean} True for color settings.
- */
-function isColorSettingKey(key) {
-    return key === 'colorTime' ||
-        key === 'colorToday' ||
-        key === 'colorSunday' ||
-        key === 'colorSaturday' ||
-        key === 'colorUSFederal';
-}
-
-/**
- * Normalize fixture colors from SDK color constant names.
- *
- * @param {*} value Fixture color value.
- * @returns {number} Clay-compatible RGB integer.
- */
-function normalizeFixtureColor(value) {
-    if (typeof value === 'string') {
-        if (Object.prototype.hasOwnProperty.call(pebbleColors, value)) {
-            return pebbleColors[value];
-        }
-    }
-
-    return value;
-}
-
-function getClaySettings() {
-    return JSON.parse(localStorage.getItem('clay-settings'));
 }
 
 /**
