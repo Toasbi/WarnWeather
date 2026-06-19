@@ -146,6 +146,10 @@ WundergroundProvider.prototype.withProviderData = function(lat, lon, force, onSu
                     var wspdMph = typeof entry.wspd === 'number' ? entry.wspd : 0;
                     return wspdMph * 1.60934; // imperial feed → mph; normalize to km/h
                 });
+                this.gustTrend = forecast.map(function(entry) {
+                    var wgustMph = typeof entry.wgust === 'number' ? entry.wgust : 0;
+                    return wgustMph * 1.60934; // imperial feed → mph; normalize to km/h
+                });
                 this.startTime = forecast[0].fcst_valid;
                 this.currentTemp = currentTemp;
                 onSuccess();

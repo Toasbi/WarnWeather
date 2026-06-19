@@ -38,3 +38,13 @@ test('fixture without windKmh still produces a valid (flat) wind line', () => {
   const out = getFixtureWeatherPayload(fixture, { secondaryLine: 'wind', windScale: 'mid', barSource: 'off' });
   assert.deepEqual(decode16(out.SECONDARY_LINE_TREND_INT16), [0, 0, 0]);
 });
+
+test('fixture gustKmh flows to a dashed gust third line when wind is selected', () => {
+  const payload = getFixtureWeatherPayload(
+    makeFixture({ windKmh: [0, 25, 50], gustKmh: [0, 50, 100] }), // helper used by existing tests
+    { secondaryLine: 'wind', windScale: 'mid', barSource: 'off' }
+  );
+  // 0/50/100 km/h gusts @ 50 ceiling → 0/1000/1000 permille (LE int16 bytes)
+  const gust = Array.from(new Int16Array(new Uint8Array(payload.THIRD_LINE_TREND_INT16).buffer));
+  assert.deepEqual(gust, [0, 1000, 1000]);
+});

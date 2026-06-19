@@ -62,6 +62,12 @@ function getFixtureWeatherPayload(fixture, settings) {
             provider.windTrend[windFillIdx] = 0;
         }
     }
+    provider.gustTrend = Array.isArray(weather.gustKmh) ? weather.gustKmh.slice(0) : new Array(provider.numEntries);
+    if (!Array.isArray(weather.gustKmh)) {
+        for (var gustFillIdx = 0; gustFillIdx < provider.numEntries; gustFillIdx += 1) {
+            provider.gustTrend[gustFillIdx] = 0;
+        }
+    }
     provider.sunEvents = sunEvents;
 
     if (provider.numEntries <= 0 || sunEvents.length < 2 || !provider.hasValidData()) {

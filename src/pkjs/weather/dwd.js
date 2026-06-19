@@ -85,6 +85,7 @@ DwdProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, on
             this.precipTrend = hourly.map(function(e) { return e.precipitation_probability / 100; });
             this.rainTrend = hourly.map(function(e) { return e.precipitation; });
             this.windTrend = hourly.map(function(e) { return e.wind_speed || 0; }); // Brightsky wind_speed is km/h
+            this.gustTrend = hourly.map(function(e) { return e.wind_gust || 0; }); // Brightsky wind_gust is km/h
             this.startTime = Math.floor(Date.parse(hourly[0].timestamp) / 1000);
             this.currentTemp = currentTempF;
             onSuccess();
