@@ -163,17 +163,18 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
     }
 }
 
-// Stroke a dash-dot 1px polyline with integer DDA stepping (no float — project
+// Stroke a dash-dot-dot 1px polyline with integer DDA stepping (no float — project
 // constraint). The pattern phase carries across segment boundaries so the dash
 // pattern is continuous over the whole polyline. Mirrors the per-pixel approach
 // in rain_radar_layer.c's nearby_border_* helpers, generalized to any slope.
 // Always draws 1px pixels regardless of ChartLineLayer.width — dashed lines are 1px by design.
 static void chart_stroke_dashed(GContext *ctx, const GPoint *pts, int count, GColor color) {
-    // Dash-dot pattern, 1 = pen down: a 6-px dash, gap, 1-px dot, gap (period
-    // 11). The dash+dot texture cannot be mimicked by the night hatch's uniform
-    // 6/7-px diagonal dots, and period 11 avoids resonating with that spacing —
-    // so the gust line stays legible over the hatch (worst on aplite, both white).
-    static const uint8_t DASH_DOT[] = { 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0 };
+    // Dash-dot-dot pattern, 1 = pen down: a 5-px dash, gap, 1-px dot, gap, 1-px
+    // dot, gap (period 13). The dash+dots texture cannot be mimicked by the night
+    // hatch's uniform 6/7-px diagonal dots, and period 13 avoids resonating with
+    // that spacing — so the gust line stays legible over the hatch (worst on
+    // aplite, both white).
+    static const uint8_t DASH_DOT[] = {1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0};
     const int PATTERN_LEN = (int) sizeof(DASH_DOT);
     graphics_context_set_stroke_color(ctx, color);
     graphics_context_set_stroke_width(ctx, 1);
