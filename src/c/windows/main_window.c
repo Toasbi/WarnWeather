@@ -123,7 +123,7 @@ static void main_window_load(Window *window) {
             GRect(0, h - FORECAST_HEIGHT - WEATHER_STATUS_HEIGHT, w, FORECAST_HEIGHT + WEATHER_STATUS_HEIGHT));
 #endif
     loading_layer_refresh();
-    app_message_send_startup_state(loading_layer_has_valid_data());
+    app_message_send_startup_state(loading_layer_data_is_fresh());
     // The top view is session-only state: every launch starts on the calendar
     // and a tap toggles to the radar whenever radar data is available.
     apply_top_view(TOP_VIEW_CALENDAR);

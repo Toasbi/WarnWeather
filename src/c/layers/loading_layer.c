@@ -3,14 +3,16 @@
 #include "c/appendix/memory_log.h"
 #include "c/services/watch_services.h"
 
+#define FORECAST_MAX_AGE_S (SECONDS_PER_HOUR * 12)  // older than this => show "No data :("
+
 static Layer *s_loading_layer;
 static TextLayer *s_loading_text_layer;
 
-bool loading_layer_has_valid_data() {
+bool loading_layer_data_is_fresh() {
     const time_t forecast_start = persist_get_forecast_start();
     const time_t now = watch_services_now();
 
-    return now - forecast_start <= 60 * 60 * 12;
+    return now - forecast_start <= FORECAST_MAX_AGE_S;
 }
 
 static void loading_update_proc(Layer *layer, GContext *ctx) {
@@ -42,7 +44,7 @@ void loading_layer_create(Layer* parent_layer, GRect frame) {
 }
 
 void loading_layer_refresh() {
-    if (loading_layer_has_valid_data())
+    if (loading_layer_data_is_fresh())
         layer_set_hidden(s_loading_layer, true);
     else
         layer_set_hidden(s_loading_layer, false); // show the no data notice
