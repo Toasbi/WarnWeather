@@ -1,4 +1,5 @@
 var WeatherProvider = require('./provider.js');
+var pickNext24hSunEvents = require('./sun-events.js').pickNext24hSunEvents;
 var request = WeatherProvider.request;
 
 var OpenWeatherMapProvider = function(apiKey) {
@@ -65,7 +66,6 @@ OpenWeatherMapProvider.prototype.withSunEvents = function(lat, lon, callback, on
         var days = owmResponse.daily;
         var sunEvents;
         var now;
-        var nextSunEvents;
         var next24HourSunEvents;
 
         if (!Array.isArray(days) || days.length < 2) {
@@ -80,10 +80,7 @@ OpenWeatherMapProvider.prototype.withSunEvents = function(lat, lon, callback, on
             { type: 'sunset', date: new Date(days[1].sunset * 1000) }
         ];
         now = new Date();
-        nextSunEvents = sunEvents.filter(function(sunEvent) {
-            return sunEvent.date > now;
-        });
-        next24HourSunEvents = nextSunEvents.slice(0, 2);
+        next24HourSunEvents = pickNext24hSunEvents(sunEvents, now);
         console.log('The next ' + sunEvents[0].type + ' is at ' + sunEvents[0].date.toTimeString());
         console.log('The next ' + sunEvents[1].type + ' is at ' + sunEvents[1].date.toTimeString());
         callback(next24HourSunEvents);

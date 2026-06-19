@@ -1,4 +1,5 @@
 var SunCalc = require('suncalc');
+var pickNext24hSunEvents = require('./sun-events.js').pickNext24hSunEvents;
 var storageKeys = require('../storage-keys.js');
 var outbox = require('../outbox.js');
 var clampByte = require('../wire-units.js').clampByte;
@@ -245,10 +246,7 @@ WeatherProvider.prototype.withSunEvents = function(lat, lon, callback, onFailure
     };
 
     var sunEvents = processResults(resultsToday).concat(processResults(resultsTomorrow));
-    var nextSunEvents = sunEvents.filter(function(sunEvent) {
-        return sunEvent.date > dateNow;
-    });
-    var next24HourSunEvents = nextSunEvents.slice(0, 2);
+    var next24HourSunEvents = pickNext24hSunEvents(sunEvents, dateNow);
     console.log('The next ' + sunEvents[0].type + ' is at ' + sunEvents[0].date.toTimeString());
     console.log('The next ' + sunEvents[1].type + ' is at ' + sunEvents[1].date.toTimeString());
     callback(next24HourSunEvents);
