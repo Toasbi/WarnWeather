@@ -271,6 +271,7 @@ module.exports = [
                 "defaultValue": "precip_prob",
                 "options": [
                     { "label": "Precipitation probability", "value": "precip_prob" },
+                    { "label": "Wind speed", "value": "wind" },
                     { "label": "Off", "value": "off" }
                 ]
             },
@@ -279,6 +280,18 @@ module.exports = [
                 "label": "Fill area under line",
                 "messageKey": "secondaryLineFill",
                 "defaultValue": true
+            },
+            {
+                "type": "select",
+                "label": "Wind graph scale",
+                "messageKey": "windScale",
+                "defaultValue": "mid",
+                "description": "Sets how high the wind graph reaches.<br><b>Low</b> (30 km/h / 19 mph) — emphasizes light, gentle winds.<br><b>Mid</b> (50 km/h / 31 mph) — general use; gusts visible, typical winds sit mid-graph.<br><b>High</b> (70 km/h / 43 mph) — keeps strong gusts from flattening against the top.",
+                "options": [
+                    { "label": "Low", "value": "low" },
+                    { "label": "Mid", "value": "mid" },
+                    { "label": "High", "value": "high" }
+                ]
             },
             {
                 "type": "select",

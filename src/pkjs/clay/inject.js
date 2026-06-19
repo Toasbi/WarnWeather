@@ -215,21 +215,6 @@ module.exports = function (minified) {
         controlItem.on('change', apply);
     }
 
-    /**
-     * Like bindVisibility but toggles enable/disable instead of show/hide.
-     * @param {Object} controlItem Clay item whose value drives enabled state.
-     * @param {Object} targetItem Clay item to enable/disable.
-     * @param {Function} shouldEnable Receives the control's value, returns boolean.
-     * @returns {void}
-     */
-    function bindEnabled(controlItem, targetItem, shouldEnable) {
-        var apply = function() {
-            if (shouldEnable(controlItem.get())) { targetItem.enable(); } else { targetItem.disable(); }
-        };
-        apply();
-        controlItem.on('change', apply);
-    }
-
     clayConfig.on(clayConfig.EVENTS.AFTER_BUILD, function() {
         var clayFetch;
         var clayOwmApiKey;
@@ -289,12 +274,19 @@ module.exports = function (minified) {
             console.log('Provider set to ' + this.get());
         });
 
-        // Forecast display: the "Fill area under line" toggle is meaningless when
-        // the secondary line is off — keep it visible but disabled.
-        bindEnabled(
+        // Forecast display: the "Fill area under line" toggle only applies to the
+        // precipitation line — hide it for wind (always line-only) and off.
+        bindVisibility(
             clayConfig.getItemByMessageKey('secondaryLine'),
             clayConfig.getItemByMessageKey('secondaryLineFill'),
-            function(v) { return v !== 'off'; }
+            function(v) { return v === 'precip_prob'; }
+        );
+
+        // Wind graph scale only applies to the wind metric; hide it otherwise.
+        bindVisibility(
+            clayConfig.getItemByMessageKey('secondaryLine'),
+            clayConfig.getItemByMessageKey('windScale'),
+            function(v) { return v === 'wind'; }
         );
 
         // Bar Color only applies to rain bars; hide it when bars are off. The item
