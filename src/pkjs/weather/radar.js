@@ -1,5 +1,6 @@
 var WeatherProvider = require('./provider.js');
 var request = WeatherProvider.request;
+var clampByte = require('../wire-units.js').clampByte;
 
 var BRIGHTSKY_BASE = 'https://api.brightsky.dev';
 var DISTANCE_METERS = 2000;   // must match NEARBY_RADIUS_KM * 1000; Brightsky returns all cells within this radius
@@ -143,10 +144,7 @@ function maxOverDisk(grid, cx, cy, radius) {
  * @returns {number} Integer in [0, 255].
  */
 function scaleToWireUnits(v) {
-    var scaled = Math.round(v * 1.2);
-    if (scaled < 0) { return 0; }
-    if (scaled > 255) { return 255; }
-    return scaled;
+    return clampByte(v * 1.2);
 }
 
 /**
