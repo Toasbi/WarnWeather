@@ -147,8 +147,11 @@ WundergroundProvider.prototype.withProviderData = function(lat, lon, force, onSu
                     return wspdMph * 1.60934; // imperial feed → mph; normalize to km/h
                 });
                 this.gustTrend = forecast.map(function(entry) {
-                    var wgustMph = typeof entry.wgust === 'number' ? entry.wgust : 0;
-                    return wgustMph * 1.60934; // imperial feed → mph; normalize to km/h
+                    // WU reports gust=null on calm hours; fall back to wind speed so the
+                    // gust line never dips below wind (gust ≥ wind physically). mph → km/h.
+                    var gustMph = typeof entry.gust === 'number' ? entry.gust : 0;
+                    var wspdMph = typeof entry.wspd === 'number' ? entry.wspd : 0;
+                    return Math.max(gustMph, wspdMph) * 1.60934;
                 });
                 this.startTime = forecast[0].fcst_valid;
                 this.currentTemp = currentTemp;
