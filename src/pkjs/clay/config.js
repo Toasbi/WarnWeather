@@ -269,6 +269,7 @@ module.exports = [
                 "label": "Secondary line",
                 "messageKey": "secondaryLine",
                 "defaultValue": "precip_prob",
+                "description": "A second curve drawn over the temperature graph.<br><b>Precipitation probability</b> — chance of rain each hour.<br><b>Wind speed</b> — adds a dotted gust line above it (see Wind graph scale below).<br><b>Off</b> — temperature only.",
                 "options": [
                     { "label": "Precipitation probability", "value": "precip_prob" },
                     { "label": "Wind speed", "value": "wind" },
@@ -279,14 +280,15 @@ module.exports = [
                 "type": "toggle",
                 "label": "Fill area under line",
                 "messageKey": "secondaryLineFill",
-                "defaultValue": true
+                "defaultValue": true,
+                "description": "Shades the area beneath the secondary line. Only applies to the precipitation-probability line — the wind line is always drawn line-only."
             },
             {
                 "type": "select",
                 "label": "Wind graph scale",
                 "messageKey": "windScale",
                 "defaultValue": "mid",
-                "description": "Sets how high the wind graph reaches.<br><b>Low</b> (30 km/h / 19 mph) — emphasizes light, gentle winds.<br><b>Mid</b> (50 km/h / 31 mph) — general use; gusts visible, typical winds sit mid-graph.<br><b>High</b> (70 km/h / 43 mph) — keeps strong gusts from flattening against the top.",
+                "description": "Sets how high the wind graph reaches.<br><b>Low</b> (30 km/h / 19 mph) — emphasizes light, gentle winds.<br><b>Mid</b> (50 km/h / 31 mph) — general use; gusts visible, typical winds sit mid-graph.<br><b>High</b> (70 km/h / 43 mph) — keeps strong gusts from flattening against the top.<br>When wind is the secondary line, a dotted line above the solid wind line shows gust speeds.",
                 "options": [
                     { "label": "Low", "value": "low" },
                     { "label": "Mid", "value": "mid" },
@@ -298,6 +300,7 @@ module.exports = [
                 "label": "Bars",
                 "messageKey": "barSource",
                 "defaultValue": "rain",
+                "description": "Vertical bars show how much rain is expected each hour.<br><b>Rain amount</b> — bar height grows with rainfall on a tiered scale (0.1 / 0.5 / 2 / 10 mm steps), so light drizzle and heavy downpours both stay visible.<br><b>Off</b> — hides the bars.<br>Use <b>Bar Color</b> below to shade bars by intensity or keep them white.",
                 "options": [
                     { "label": "Rain amount", "value": "rain" },
                     { "label": "Off", "value": "off" }
@@ -319,6 +322,7 @@ module.exports = [
                 "label": "Provider",
                 "messageKey": "provider",
                 "defaultValue": "wunderground",
+                "description": "Weather data source.<br><b>Weather Underground</b> — no API key needed.<br><b>OpenWeatherMap</b> — requires an API key subscribed to One Call API 3.0 (see below).<br><b>Deutscher Wetterdienst</b> — Germany only, no key needed.",
                 "options": [
                     {
                         "label": "Weather Underground",
@@ -338,7 +342,7 @@ module.exports = [
                 "type": "input",
                 "label": "OpenWeatherMap API key",
                 "messageKey": "owmApiKey",
-                "description": "<a href='https://openweathermap.org/'>Register an OpenWeatherMap account</a> and paste your API key here"
+                "description": "<a href='https://openweathermap.org/'>Register an OpenWeatherMap account</a> and paste your API key here. The key must be subscribed to the <a href='https://openweathermap.org/api/one-call-3'>One Call API 3.0</a> plan, or fetches fail with a 401 error."
             }
         ]
     },
@@ -351,7 +355,7 @@ module.exports = [
             },
             {
                 "type": "text",
-                "defaultValue": "Rain radar appears as a second screen revealed with a wrist flick, and only when radar data is available."
+                "defaultValue": "Rain radar appears as a second screen revealed with a wrist flick, and only when radar data is available.<br>It shows a 2-hour rain nowcast — each bar is one 5-minute frame. Solid bars are rain at your exact location, while the hatched outline behind them is the strongest rain anywhere within 2 km — an early warning that rain is nearby even when it isn't directly overhead yet."
             },
             {
                 "type": "radiogroup",
