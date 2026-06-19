@@ -287,7 +287,7 @@ WeatherProvider.prototype.withCityName = function(lat, lon, callback, onFailure)
 };
 
 // https://github.com/Toasbi/WarnWeather/issues/59#issue-1317582743
-var r_lat_long = /^([-+]?\d*\.?\d+)\s*,\s*([-+]?\d*\.?\d+)$/;
+var LAT_LON_PATTERN = /^([-+]?\d*\.?\d+)\s*,\s*([-+]?\d*\.?\d+)$/;
 
 /**
  * Parse a location override into GPS, manual coordinates, or an address.
@@ -309,7 +309,7 @@ function parseLocationOverride(location) {
         };
     }
 
-    match = trimmedLocation.match(r_lat_long);
+    match = trimmedLocation.match(LAT_LON_PATTERN);
     if (match !== null) {
         return {
             type: 'manual_coordinates',
@@ -580,30 +580,27 @@ WeatherProvider.prototype.fetch = function(onSuccess, onFailure, force, extraPay
 };
 
 WeatherProvider.prototype.hasValidData = function() {
-    // all fields are set
-    if (this.hasOwnProperty('tempTrend') && this.hasOwnProperty('precipTrend') && this.hasOwnProperty('startTime') && this.hasOwnProperty('currentTemp')) {
-        // trends are filled with enough data
-        if (this.tempTrend.length >= this.numEntries && this.precipTrend.length >= this.numEntries) {
-            console.log('Data from ' + this.name + ' is good, ready to fetch.');
-            return true;
-        }
-    }
-    else {
-        if (!this.hasOwnProperty('tempTrend')) {
-            console.log('Temperature trend array was not set properly');
-        }
-        if (!this.hasOwnProperty('precipTrend')) {
-            console.log('Precipitation trend array was not set properly');
-        }
-        if (!this.hasOwnProperty('startTime')) {
-            console.log('Start time value was not set properly');
-        }
-        if (!this.hasOwnProperty('currentTemp')) {
-            console.log('Current temperature value was not set properly');
-        }
+    var hasFields = this.hasOwnProperty('tempTrend')
+        && this.hasOwnProperty('precipTrend')
+        && this.hasOwnProperty('startTime')
+        && this.hasOwnProperty('currentTemp');
+
+    if (!hasFields) {
+        if (!this.hasOwnProperty('tempTrend')) { console.log('Temperature trend array was not set properly'); }
+        if (!this.hasOwnProperty('precipTrend')) { console.log('Precipitation trend array was not set properly'); }
+        if (!this.hasOwnProperty('startTime')) { console.log('Start time value was not set properly'); }
+        if (!this.hasOwnProperty('currentTemp')) { console.log('Current temperature value was not set properly'); }
         console.log('Data does not pass the checks.');
         return false;
     }
+
+    if (this.tempTrend.length >= this.numEntries && this.precipTrend.length >= this.numEntries) {
+        console.log('Data from ' + this.name + ' is good, ready to fetch.');
+        return true;
+    }
+
+    console.log('Data does not pass the checks.');
+    return false;
 };
 
 WeatherProvider.prototype.getPayload = function() {

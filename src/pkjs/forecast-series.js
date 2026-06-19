@@ -24,24 +24,24 @@ function toInt16Bytes(arr) {
  * feeds the line vs the bars. Trends are returned as int16 LE byte arrays ready
  * for sendAppMessage; an off/disabled element is an empty array.
  * @param {{precips: number[], rains: number[]}} raw Raw precip % + rain tenths.
- * @param {{secondaryLine: string, secondaryLineFill: boolean, barSource: string}} s Settings.
+ * @param {{secondaryLine: string, secondaryLineFill: boolean, barSource: string}} settings Settings.
  * @returns {Object} Wire fields: SECONDARY_LINE_TREND_INT16, SECONDARY_LINE_COLOR,
  *   SECONDARY_LINE_FILL_COLOR, SECONDARY_LINE_FILL, BAR_TREND_INT16.
  */
-function buildForecastSeries(raw, s) {
+function buildForecastSeries(raw, settings) {
     var out = {};
-    if (s.secondaryLine === 'precip_prob') {
+    if (settings.secondaryLine === 'precip_prob') {
         out.SECONDARY_LINE_TREND_INT16 = toInt16Bytes(raw.precips.map(function(p) { return p * 10; })); // %→permille
         out.SECONDARY_LINE_COLOR = LINE_COLORS.precip_prob;
         out.SECONDARY_LINE_FILL_COLOR = FILL_COLORS.precip_prob;
-        out.SECONDARY_LINE_FILL = Boolean(s.secondaryLineFill);
+        out.SECONDARY_LINE_FILL = Boolean(settings.secondaryLineFill);
     } else {
         out.SECONDARY_LINE_TREND_INT16 = [];
         out.SECONDARY_LINE_COLOR = COLORS.GColorBlack;
         out.SECONDARY_LINE_FILL_COLOR = COLORS.GColorBlack;
         out.SECONDARY_LINE_FILL = false;
     }
-    if (s.barSource === 'rain') {
+    if (settings.barSource === 'rain') {
         out.BAR_TREND_INT16 = toInt16Bytes(raw.rains.map(rainTier.rainPermille));
     } else {
         out.BAR_TREND_INT16 = [];
