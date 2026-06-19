@@ -169,7 +169,10 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
 // in rain_radar_layer.c's nearby_border_* helpers, generalized to any slope.
 // Always draws 1px pixels regardless of ChartLineLayer.width — dashed lines are 1px by design.
 static void chart_stroke_dashed(GContext *ctx, const GPoint *pts, int count, GColor color) {
-    const int DASH_ON = 4, DASH_OFF = 3;   // px on / off; tune in emulator
+    // px on / off. Period 10 (not 7) so the dash does not resonate with the
+    // night hatch's 6/7-px diagonal spacing; the 7-px runs read as a line, not
+    // dots that merge into the hatch (worst on aplite, where both are white).
+    const int DASH_ON = 7, DASH_OFF = 3;
     graphics_context_set_stroke_color(ctx, color);
     graphics_context_set_stroke_width(ctx, 1);
     int phase = 0;   // 0..DASH_ON-1 ⇒ pen down; DASH_ON..DASH_ON+DASH_OFF-1 ⇒ pen up
