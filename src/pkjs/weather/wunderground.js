@@ -142,6 +142,10 @@ WundergroundProvider.prototype.withProviderData = function(lat, lon, force, onSu
                     var qpfInches = typeof entry.qpf === 'number' ? entry.qpf : 0;
                     return qpfInches * 25.4;
                 });
+                this.windTrend = forecast.map(function(entry) {
+                    var wspdMph = typeof entry.wspd === 'number' ? entry.wspd : 0;
+                    return wspdMph * 1.60934; // imperial feed → mph; normalize to km/h
+                });
                 this.startTime = forecast[0].fcst_valid;
                 this.currentTemp = currentTemp;
                 onSuccess();

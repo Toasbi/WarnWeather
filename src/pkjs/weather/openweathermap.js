@@ -103,6 +103,9 @@ OpenWeatherMapProvider.prototype.withProviderData = function(lat, lon, force, on
             var snowAmount = (entry.snow && typeof entry.snow['1h'] === 'number') ? entry.snow['1h'] : 0;
             return rainAmount + snowAmount;
         });
+        this.windTrend = weatherData.hourly.map(function(entry) {
+            return (entry.wind_speed || 0) * 1.60934; // units=imperial → mph; normalize to km/h
+        });
         this.startTime = weatherData.hourly[0].dt;
         this.currentTemp = weatherData.current.temp;
         onSuccess();
