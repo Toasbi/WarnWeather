@@ -103,6 +103,7 @@ void time_layer_refresh() {
 
 void time_layer_destroy() {
     MEMORY_LOG_HEAP("time_layer_destroy:before");
+    text_layer_destroy(s_am_pm_layer);
     text_layer_destroy(s_time_layer);
     text_layer_destroy(s_container_layer);
     MEMORY_LOG_HEAP("time_layer_destroy:after");
