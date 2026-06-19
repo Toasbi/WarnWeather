@@ -48,17 +48,17 @@ function zeroBars() {
 }
 
 /**
- * Clamp `v` to the integer range [lo, hi].
+ * Clamp `value` to the integer range [min, max].
  *
- * @param {number} v Value.
- * @param {number} lo Lower bound (inclusive).
- * @param {number} hi Upper bound (inclusive).
+ * @param {number} value Value.
+ * @param {number} min Lower bound (inclusive).
+ * @param {number} max Upper bound (inclusive).
  * @returns {number} Clamped value.
  */
-function clampInt(v, lo, hi) {
-    if (v < lo) { return lo; }
-    if (v > hi) { return hi; }
-    return v;
+function clampInt(value, min, max) {
+    if (value < min) { return min; }
+    if (value > max) { return max; }
+    return value;
 }
 
 /**
