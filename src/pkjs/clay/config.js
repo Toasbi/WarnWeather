@@ -355,7 +355,7 @@ module.exports = [
             },
             {
                 "type": "text",
-                "defaultValue": "Rain radar appears as a second screen revealed with a wrist flick, and only when radar data is available.<br>It shows a 2-hour rain nowcast — each bar is one 5-minute frame. Solid bars are rain at your exact location, while the hatched outline behind them is the strongest rain anywhere within 2 km — an early warning that rain is nearby even when it isn't directly overhead yet."
+                "defaultValue": "<span style=\"color:#9aa0a6;\">Rain radar appears as a second screen revealed with a wrist flick, and only when radar data is available.<br>It shows a 2-hour rain nowcast — each bar is one 5-minute frame. Solid bars are rain at your exact location, while the hatched outline behind them is the strongest rain anywhere within 2 km — an early warning that rain is nearby even when it isn't directly overhead yet.</span>"
             },
             {
                 "type": "radiogroup",

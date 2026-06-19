@@ -76,7 +76,12 @@ Capture screenshots for all platforms (replace `v1.0.0` with version):
 mise capture-screenshots v1.0.0
 ```
 
-Composite all raw screenshots for a version into framed PNGs:
+Capture the curated store configs on every platform (4 configs × 5 platforms):
+```bash
+scripts/capture-store-shots.sh v1.0.0
+```
+
+Composite the README hero shots (from the store captures) into framed PNGs:
 ```bash
 mise composite v1.0.0
 ```
@@ -203,7 +208,27 @@ Capture screenshots for all platforms with a fixture:
 mise capture-screenshots v1.0.0 berlin
 ```
 
-Composite raw screenshots into framed PNGs (`screenshot/v1.0.0/composite/`):
+#### Store screenshots
+
+Capture all four curated store configs on every platform and file them per platform
+under `screenshot/<version>/store/<platform>/<config>.png` (the appstore wants ≥1
+screenshot per supported platform):
+```bash
+scripts/capture-store-shots.sh v1.0.0
+```
+
+Resume from a given round if a run crashed mid-way (e.g. round 4):
+```bash
+scripts/capture-store-shots.sh v1.0.0 4
+```
+
+The four configs come from fixtures — `1-calendar` (`store-calendar`),
+`2-radar-multicolor` (`berlin`), `3-wind-gust` (`windy`), `4-radar-white-wind`
+(`store-wind-radar`). Upload each platform's four raw frames to the store as-is.
+
+Composite the README hero shots from the store captures into framed PNGs
+(`screenshot/v1.0.0/composite/`) — Pebble Time←flint/calendar,
+Pebble 2 Duo←flint/wind, Pebble Time 2←emery/radar:
 ```bash
 mise composite v1.0.0
 ```
@@ -355,5 +380,6 @@ mise install
 | `release-notifications.json` | "What's new" toast copy keyed by version |
 | `supabase/schemas/` | Declarative DB schemas (source of truth) |
 | `supabase/functions/` | Edge functions |
-| `screenshot/<version>/raw/` | Raw platform screenshots |
-| `screenshot/<version>/composite/` | Composited screenshots |
+| `screenshot/<version>/raw/` | Raw platform screenshots (last capture run) |
+| `screenshot/<version>/store/` | Per-platform store screenshots (4 configs each) |
+| `screenshot/<version>/composite/` | Composited README hero screenshots |

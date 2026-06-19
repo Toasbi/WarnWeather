@@ -84,7 +84,7 @@ description = "Composite a screenshot PNG into an SVG Pebble frame"
 run = "screenshot/composite_svg.sh"
 
 [tasks.composite]
-description = "Composite all raw screenshots for a screenshot version"
+description = "Composite the README hero shots from a version's store captures"
 run = "scripts/composite-version.sh"
 
 [tasks.gif]
