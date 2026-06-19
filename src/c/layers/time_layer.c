@@ -1,6 +1,7 @@
 #include "time_layer.h"
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
+#include "c/layers/layer_util.h"
 #include "c/services/watch_services.h"
 
 // MT = Margin Top
@@ -43,10 +44,6 @@ void time_layer_create(Layer* parent_layer, GRect frame) {
 // 12:30 -> 12:30
 // 13:30 -> 1:30
 // 00:30 -> 12:30
-
-static void text_layer_move_frame(TextLayer *text_layer, GRect frame) {
-    layer_set_frame(text_layer_get_layer(text_layer), frame);
-}
 
 void time_layer_tick() {
     // Get a tm structure

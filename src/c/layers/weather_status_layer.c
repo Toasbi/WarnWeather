@@ -3,6 +3,7 @@
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
 #include "c/appendix/snooze.h"
+#include "c/layers/layer_util.h"
 
 #define FONT_18_OFFSET 7
 #define FONT_14_OFFSET 3
@@ -49,10 +50,6 @@ static const GPathInfo ARROW_PATH_INFO = {
         {0, ARROW_H/2 - ARROW_HEAD_H}
     }
 };
-
-static void text_layer_move_frame(TextLayer *text_layer, GRect frame) {
-    layer_set_frame(text_layer_get_layer(text_layer), frame);
-}
 
 static void city_layer_refresh() {
     // Set the city text layer contents from storage
