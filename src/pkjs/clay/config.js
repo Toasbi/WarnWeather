@@ -172,7 +172,7 @@ module.exports = [
                 "label": "Update interval",
                 "messageKey": "fetchIntervalMin",
                 "defaultValue": "30",
-                "description": "Updates only send what actually changed (deltas), so short intervals like 5 min stay battery- and data-friendly. Longer intervals reduce API usage further.",
+                "description": "Updates only send what actually changed (deltas), so short intervals like 5 min stay battery friendly.",
                 "options": [
                     {
                         "label": "5 minutes",
@@ -201,7 +201,7 @@ module.exports = [
                 "label": "Pause weather at night",
                 "messageKey": "sleepNightEnabled",
                 "defaultValue": false,
-                "description": "Stop fetching weather between the hours below to save battery. The current-temperature reading is replaced with 'Zz' until morning. Rain-radar data will also become stale during this window."
+                "description": "Stop fetching weather between the hours below to save battery."
             },
             {
                 "type": "select",
@@ -316,7 +316,7 @@ module.exports = [
                         "value": "openweathermap"
                     },
                     {
-                        "label": "Deutscher Wetterdienst (Brightsky) (Germany only)",
+                        "label": "Deutscher Wetterdienst (Germany only)",
                         "value": "dwd"
                     }
                 ]
@@ -338,7 +338,7 @@ module.exports = [
             },
             {
                 "type": "text",
-                "defaultValue": "Rain radar appears as a second screen revealed with a wrist flick (tap), and only when radar data is available. More radar providers will be added in the future."
+                "defaultValue": "Rain radar appears as a second screen revealed with a wrist flick, and only when radar data is available."
             },
             {
                 "type": "radiogroup",
@@ -347,7 +347,7 @@ module.exports = [
                 "defaultValue": "disabled",
                 "options": [
                     {
-                        "label": "Deutscher Wetterdienst (Brightsky) (Germany only)",
+                        "label": "Deutscher Wetterdienst (Germany only)",
                         "value": "dwd"
                     },
                     {
