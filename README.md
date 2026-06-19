@@ -41,7 +41,7 @@ forecast graph slides, and night shading kicks in.
 * 24 hour weather forecast with configurable update frequency
 * Current temperature
 * Temperature forecast line
-* Optional secondary line — precipitation probability (half-height = 50%, full-height = 100%), with an optional fill underneath
+* Optional secondary line — precipitation probability (half-height = 50%, full-height = 100%, with an optional fill underneath) or wind speed with a dotted gust line above it (selectable graph scale)
 * Optional hourly rain bars — multicolor or white on color watches
 * Optional day/night hatch shading on the graph
 * Fahrenheit and Celsius temperatures
@@ -50,7 +50,7 @@ forecast graph slides, and night shading kicks in.
 * City where forecast was fetched
 
 **Radar (for now only available for Deutscher Wetterdienst)**
-* Rain radar showing live precipitation near your exact location (5-minute frames)
+* Rain radar showing a 2-hour precipitation nowcast in 5-minute frames — rain at your exact location plus the strongest rain approaching from within 2 km
 * Switch between calendar and radar view (flick/tap)
 
 **Calendar**
@@ -62,11 +62,10 @@ forecast graph slides, and night shading kicks in.
 * Bluetooth connection indicator
 * Vibrate on disconnect
 * Quiet time indicator
-* Sleep mode
+* Sleep mode (battery-saving night pause)
 
 **Customization**
 * Customize time font and color
-* Offline configuration page
 
 ## Platforms
 
