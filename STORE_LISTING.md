@@ -62,12 +62,29 @@ PLATFORMS
 
 ## Screenshots (planned)
 
-| # | Platform | Content | Fixture | Capture |
-| - | -------- | ------- | ------- | ------- |
-| 1 | emery | Calendar view, white rain bars, precipitation line with fill off | `store-calendar` | `scripts/capture-screenshots.sh v1.0.0 store-calendar` → keep `screenshot/v1.0.0/raw/emery.png` |
-| 2 | basalt | Radar view, multicolor radar + rain bars | `berlin` | `scripts/capture-screenshots.sh v1.0.0 berlin` → keep `screenshot/v1.0.0/raw/basalt.png` |
-| 3 | aplite | Wind speed line with dotted gust line | `windy` | `scripts/capture-screenshots.sh v1.0.0 windy` → keep `screenshot/v1.0.0/raw/aplite.png` |
+The store wants at least one screenshot per supported platform, so we capture all four
+configs on **every** platform (aplite, basalt, diorite, emery, flint) — 4 shots × 5
+platforms = 20 files, grouped per platform for upload.
 
-All three fixtures exist (`store-calendar.json` added for shot #1). Each capture run shoots all
-platforms; keep only the file listed above. `store-calendar` and `windy` stay on the forecast/
-calendar view; `berlin` is wired to tap into the radar view automatically.
+Each config is a fixture bundling its own settings + weather/radar data:
+
+| Label | Config | Fixture |
+| ----- | ------ | ------- |
+| `1-calendar` | Calendar view, white rain bars, precipitation line, fill off | `store-calendar` |
+| `2-radar-multicolor` | Radar view, multicolor radar + rain bars | `berlin` |
+| `3-wind-gust` | Wind speed line with dotted gust line | `windy` |
+| `4-radar-white-wind` | Radar view (white radar) + yellow wind line with dotted gust | `store-wind-radar` |
+
+`berlin` and `store-wind-radar` auto-tap into the radar view; the others stay on the
+calendar/forecast view. On the black-and-white platforms (aplite, diorite) the multicolor/
+yellow settings render in B&W — expected.
+
+Capture everything in one go:
+
+```
+scripts/capture-store-shots.sh v1.0.0
+```
+
+Output lands in `screenshot/v1.0.0/store/<platform>/<label>.png` — e.g.
+`store/emery/1-calendar.png`. Upload each platform's four files to that platform in the
+store listing.

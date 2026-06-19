@@ -23,7 +23,7 @@ platforms=(aplite basalt diorite emery flint)
 
 # The watch always boots on the calendar view; fixtures that showcase the
 # rain radar need an accel tap to toggle the top view before the screenshot.
-radar_fixtures=(berlin rainy)
+radar_fixtures=(berlin rainy store-wind-radar)
 wants_radar=0
 for radar_fixture in "${radar_fixtures[@]}"; do
   if [[ "$FIXTURE" == "$radar_fixture" ]]; then
