@@ -24,6 +24,7 @@ static bool handle_forecast(DictionaryIterator *iterator, bool *forecast_dirty) 
     Tuple *line_color_tuple = dict_find(iterator, MESSAGE_KEY_SECONDARY_LINE_COLOR);
     Tuple *fill_color_tuple = dict_find(iterator, MESSAGE_KEY_SECONDARY_LINE_FILL_COLOR);
     Tuple *line_fill_tuple  = dict_find(iterator, MESSAGE_KEY_SECONDARY_LINE_FILL);
+    Tuple *third_trend_tuple = dict_find(iterator, MESSAGE_KEY_THIRD_LINE_TREND_INT16);
 
     if (!(temp_trend_tuple && forecast_start_tuple && num_entries_tuple)) {
         if (temp_trend_tuple || forecast_start_tuple || num_entries_tuple) {
@@ -63,6 +64,12 @@ static bool handle_forecast(DictionaryIterator *iterator, bool *forecast_dirty) 
     if (line_fill_tuple) {
         changed |= persist_set_line_fill((bool)(line_fill_tuple->value->int16));
     }
+    // Gust third line: empty/missing trend ⇒ off (persist_set deletes the key).
+    // Mirrors the existing line/bar handling above: a zero-length tuple maps to
+    // NULL/0 → persist_set_third_line_trend deletes the key. No color tuple.
+    int third_count = third_trend_tuple ? (int)(third_trend_tuple->length / sizeof(int16_t)) : 0;
+    changed |= persist_set_third_line_trend(
+        third_count ? (int16_t*) third_trend_tuple->value->data : NULL, third_count);
 
     *forecast_dirty |= changed;
     return true;
