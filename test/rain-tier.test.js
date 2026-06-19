@@ -43,6 +43,13 @@ test('buildPalette: b&w ignores white (stays a single black stop)', () => {
   assert.deepEqual(p.rgb, [0x000000]);
 });
 
+test('buildPalette: flint is b&w (black stop, not white) — must match C PBL_COLOR', () => {
+  // flint is a 1-bit display; sending a white stop made the watch's white
+  // outline render an invisible solid-white bar. It must get the black stop.
+  assert.deepEqual(rainTier.buildPalette('flint', 'white').rgb, [0x000000]);
+  assert.deepEqual(rainTier.buildPalette('flint', 'multicolor').rgb, [0x000000]);
+});
+
 test('rgbToGColor8 maps 0xRRGGBB to the GColorFromHEX byte', () => {
   assert.equal(rainTier.rgbToGColor8(0xFFFFFF), 0xFF); // white: a=3 r=3 g=3 b=3
   assert.equal(rainTier.rgbToGColor8(0x000000), 0xC0); // black: opaque alpha only

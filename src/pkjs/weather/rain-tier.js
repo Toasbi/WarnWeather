@@ -11,7 +11,7 @@ var TIER_COLORS = [
     COLORS.GColorYellow, COLORS.GColorSunsetOrange
 ];
 // B&W platforms get a single black stop; the watch adds the white outline.
-var BW_PLATFORMS = { aplite: true, diorite: true };
+var BW_PLATFORMS = { aplite: true, diorite: true, flint: true };
 
 /**
  * Tier index 1..5 for a wire-tenths rain value, or 0 for <= 0.
@@ -72,7 +72,7 @@ function rainPermille(tenths) {
  * B&W platforms always get a single black stop (the watch adds the white outline) and
  * ignore colorMode. On color displays, 'white' collapses to a single white stop;
  * anything else (default) yields the five multicolor tier stops.
- * @param {string} platform Pebble platform id (aplite/basalt/chalk/diorite/emery).
+ * @param {string} platform Pebble platform id (aplite/basalt/chalk/diorite/emery/flint).
  * @param {string} [colorMode] 'multicolor' (default) or 'white'. Color displays only.
  * @returns {{from: number[], rgb: number[]}} Stops: permille thresholds + 0xRRGGBB colors.
  */
