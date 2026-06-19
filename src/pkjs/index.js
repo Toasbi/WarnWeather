@@ -18,6 +18,7 @@ var pkg = require('../../package.json');
 var activeFixture = require('./active-fixture.generated.js');
 var pebbleColors = require('./pebble-colors.js');
 var wireUnits = require('./wire-units.js');
+var releaseNotifications = require('./release-notifications.js');
 
 /**
  * Full release-notification manifest (dev: force-show by version). Omitted from bundle if missing.
@@ -253,171 +254,6 @@ function getRuntimeTelemetryConfig() {
 }
 
 /**
- * Parse a semver-like string into numeric major/minor/patch parts.
- *
- * @param {string} v Version string such as "1.25.0" or "v1.25.0-beta+build".
- * @returns {number[]} Tuple-like array: [major, minor, patch].
- */
-function parseSemver(v) {
-    var core = String(v || '0.0.0').replace(/^v/, '').split('-')[0].split('+')[0];
-    var p = core.split('.');
-    return [
-        parseInt(p[0], 10) || 0,
-        parseInt(p[1], 10) || 0,
-        parseInt(p[2], 10) || 0
-    ];
-}
-
-/**
- * Compare two semver-like version strings.
- *
- * @param {string} a Left-hand version.
- * @param {string} b Right-hand version.
- * @returns {number} 1 when a>b, -1 when a<b, 0 when equal.
- */
-function compareSemver(a, b) {
-    var pa = parseSemver(a);
-    var pb = parseSemver(b);
-    if (pa[0] !== pb[0]) return pa[0] > pb[0] ? 1 : -1;
-    if (pa[1] !== pb[1]) return pa[1] > pb[1] ? 1 : -1;
-    if (pa[2] !== pb[2]) return pa[2] > pb[2] ? 1 : -1;
-    return 0;
-}
-
-/**
- * Normalize a release notification entry into title/body or null.
- *
- * @param {*} releaseNotification Field from package.json.
- * @returns {{title: string, body: string}|null} Payload or null when disabled/empty.
- */
-function normalizeReleaseNotificationPayload(releaseNotification) {
-    if (!releaseNotification || typeof releaseNotification !== 'object' || Array.isArray(releaseNotification)) {
-        return null;
-    }
-    var title = releaseNotification.title ? String(releaseNotification.title).trim() : '';
-    var body = releaseNotification.body ? String(releaseNotification.body).trim() : '';
-    if (title === '' || body === '') {
-        return null;
-    }
-    return { title: title, body: body };
-}
-
-/**
- * Normalize bundled pkg.releaseNotification into title/body or null.
- *
- * @param {Object|undefined} releaseNotification Field from package.json.
- * @returns {{title: string, body: string}|null} Payload or null when disabled/empty.
- */
-function getBundledReleaseNotificationPayload(releaseNotification) {
-    if (
-        !releaseNotification ||
-        releaseNotification.enabled !== true
-    ) {
-        return null;
-    }
-    return normalizeReleaseNotificationPayload(releaseNotification);
-}
-
-/**
- * Read package.json releaseNotifications, with legacy releaseNotification fallback.
- *
- * @returns {Object} Version-keyed release notification payloads.
- */
-function getBundledReleaseNotifications() {
-    var notifications = {};
-    var bundled = pkg.releaseNotifications;
-    var versionKey;
-    var payload;
-
-    if (bundled && typeof bundled === 'object' && !Array.isArray(bundled)) {
-        for (versionKey in bundled) {
-            if (Object.prototype.hasOwnProperty.call(bundled, versionKey)) {
-                payload = normalizeReleaseNotificationPayload(bundled[versionKey]);
-                if (payload !== null) {
-                    notifications[versionKey] = payload;
-                }
-            }
-        }
-    }
-
-    payload = getBundledReleaseNotificationPayload(pkg.releaseNotification);
-    if (payload !== null && typeof pkg.version === 'string') {
-        notifications[pkg.version] = payload;
-    }
-
-    return notifications;
-}
-
-/**
- * Find the newest bundled release notification that has not been shown yet.
- *
- * @param {string} maxNotified Highest notification version already shown.
- * @param {string} appVersion Running app version.
- * @returns {{version: string, title: string, body: string}|null} Latest unseen payload, or null.
- */
-function getLatestUnseenReleaseNotification(maxNotified, appVersion) {
-    var notifications = getBundledReleaseNotifications();
-    var versions = Object.keys(notifications).filter(function(versionKey) {
-        return (
-            compareSemver(versionKey, maxNotified) > 0 &&
-            compareSemver(versionKey, appVersion) <= 0
-        );
-    }).sort(compareSemver);
-    var latestVersion;
-    var payload;
-
-    if (versions.length === 0) {
-        return null;
-    }
-
-    latestVersion = versions[versions.length - 1];
-    payload = notifications[latestVersion];
-    return {
-        version: latestVersion,
-        title: payload.title,
-        body: payload.body
-    };
-}
-
-/**
- * Look up a release notification in release-notifications.json (dev force-show).
- *
- * @param {string} versionKey Exact version key, e.g. "1.26.0".
- * @returns {{title: string, body: string}|null} Payload or null when missing/invalid.
- */
-function getReleaseNotificationFromManifest(versionKey) {
-    var manifest = releaseNotificationsManifest;
-    if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
-        return null;
-    }
-    var entry = Object.prototype.hasOwnProperty.call(manifest, versionKey)
-        ? manifest[versionKey]
-        : undefined;
-    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
-        return null;
-    }
-    var title = entry.title ? String(entry.title).trim() : '';
-    var body = entry.body ? String(entry.body).trim() : '';
-    if (title === '' || body === '') {
-        return null;
-    }
-    return { title: title, body: body };
-}
-
-/**
- * Parse dev-config force-show value: non-empty string = manifest version key.
- *
- * @param {*} forceVersionSpec From dev-config.forceShowReleaseNotificationOnBoot.
- * @returns {string} Trimmed version key or '' when disabled.
- */
-function normalizeForceReleaseVersionSpec(forceVersionSpec) {
-    if (typeof forceVersionSpec !== 'string') {
-        return '';
-    }
-    return forceVersionSpec.trim();
-}
-
-/**
  * Show the release notification exactly once for eligible upgrades, or every boot when dev forces a manifest version.
  *
  * @param {boolean} hadExistingInstall True when this launch is not first install.
@@ -425,61 +261,36 @@ function normalizeForceReleaseVersionSpec(forceVersionSpec) {
  * @returns {void}
  */
 function maybeShowReleaseNotification(hadExistingInstall, forceVersionSpec) {
-    var appVersion = pkg.version;
-    var forceKey = normalizeForceReleaseVersionSpec(forceVersionSpec);
-    var forcePayload = forceKey !== '' ? getReleaseNotificationFromManifest(forceKey) : null;
-    if (forceKey !== '' && !forcePayload) {
-        console.log(
-            '[release-notification] force version ' + JSON.stringify(forceKey) +
-            ' not found or invalid in release-notifications.json'
-        );
-    }
-
     var maxNotified = localStorage.getItem(KEY_MAX_NOTIFIED_VERSION) || '0.0.0';
-    var unseenNotification = getLatestUnseenReleaseNotification(maxNotified, appVersion);
-    var isNewer = compareSemver(appVersion, maxNotified) > 0;
-    var shouldNotifyUpgrade = hadExistingInstall && isNewer && unseenNotification !== null;
-    var shouldNotifyForce = forcePayload !== null;
-    var shouldNotify = shouldNotifyUpgrade || shouldNotifyForce;
-    var title = '';
-    var body = '';
-    if (shouldNotifyForce) {
-        title = forcePayload.title;
-        body = forcePayload.body;
-    }
-    else if (shouldNotifyUpgrade) {
-        title = unseenNotification.title;
-        body = unseenNotification.body;
-    }
+    var decision = releaseNotifications.decideReleaseNotification({
+        pkg: pkg,
+        manifest: releaseNotificationsManifest,
+        hadExistingInstall: hadExistingInstall,
+        forceVersionSpec: forceVersionSpec,
+        maxNotified: maxNotified
+    });
 
-    console.log(
-        '[release-notification] appVersion=' + appVersion +
-        ' hadExistingInstall=' + hadExistingInstall +
-        ' maxNotified=' + maxNotified +
-        ' isNewer=' + isNewer +
-        ' forceVersionKey=' + (forceKey !== '' ? forceKey : '(none)') +
-        ' shouldNotify=' + shouldNotify +
-        ' shouldNotifyUpgrade=' + shouldNotifyUpgrade +
-        ' shouldNotifyForce=' + shouldNotifyForce +
-        ' unseenVersion=' + (unseenNotification ? unseenNotification.version : '(none)')
-    );
+    if (decision.forceKey !== '' && !decision.shouldNotifyForce) {
+        console.log('[release-notification] force version ' + JSON.stringify(decision.forceKey) +
+            ' not found or invalid in release-notifications.json');
+    }
+    console.log(decision.logLine);
 
-    if (!shouldNotify) {
+    if (!decision.shouldNotify) {
         console.log('[release-notification] skip');
     }
-
-    if (shouldNotify) {
+    if (decision.shouldNotify) {
         console.log('[release-notification] showing notification');
-        Pebble.showSimpleNotificationOnPebble(title, body);
+        Pebble.showSimpleNotificationOnPebble(decision.title, decision.body);
     }
 
-    if (shouldNotifyUpgrade) {
-        localStorage.setItem(KEY_MAX_NOTIFIED_VERSION, unseenNotification.version);
-        console.log('[release-notification] set max_notified_version=' + unseenNotification.version);
+    if (decision.shouldNotifyUpgrade) {
+        localStorage.setItem(KEY_MAX_NOTIFIED_VERSION, decision.unseenVersion);
+        console.log('[release-notification] set max_notified_version=' + decision.unseenVersion);
     }
-    else if (!hadExistingInstall && isNewer) {
-        localStorage.setItem(KEY_MAX_NOTIFIED_VERSION, appVersion);
-        console.log('[release-notification] first install, set max_notified_version=' + appVersion);
+    else if (!hadExistingInstall && decision.isNewer) {
+        localStorage.setItem(KEY_MAX_NOTIFIED_VERSION, pkg.version);
+        console.log('[release-notification] first install, set max_notified_version=' + pkg.version);
     }
     else {
         console.log('[release-notification] keep max_notified_version=' + maxNotified);
