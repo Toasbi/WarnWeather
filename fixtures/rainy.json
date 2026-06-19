@@ -22,7 +22,8 @@
     "secondaryLine": "precip_prob",
     "secondaryLineFill": true,
     "barSource": "rain",
-    "rainBarColor": "white"
+    "rainBarColor": "white",
+    "radarColor": "multicolor"
   },
   "weather": {
     "city": "Rainy Day",

@@ -25,7 +25,8 @@
     "secondaryLine": "precip_prob",
     "secondaryLineFill": true,
     "barSource": "rain",
-    "rainBarColor": "multicolor"
+    "rainBarColor": "multicolor",
+    "radarColor": "multicolor"
   },
   "weather": {
     "city": "Berlin",
