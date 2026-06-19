@@ -120,6 +120,8 @@ typedef struct {
     GColor line_color;        // stroke color, chosen per-metric by PKJS
     GColor fill_color;        // area-fill color (day), chosen per-metric by PKJS
     bool line_fill;           // shade the area under the line (metric color; gray on B&W)
+    int16_t third_line[MAX_FORECAST_ENTRIES]; // permille gust series; present via persist_exists
+    int     third_line_present;               // nonzero ⇒ draw the dashed gust line
     int temp_lo;
     int temp_hi;
 } ForecastDataset;
@@ -142,6 +144,8 @@ static void load_dataset(ForecastDataset *ds) {
         ds->bars_present = persist_get_bar_count();
         if (ds->line_present > 0) { persist_get_line_trend(ds->line, ds->num_entries); }
         if (ds->bars_present > 0) { persist_get_bar_trend(ds->bars, ds->num_entries); }
+        ds->third_line_present = persist_third_line_present();
+        if (ds->third_line_present) { persist_get_third_line_trend(ds->third_line, ds->num_entries); }
         min_max(ds->temps, ds->num_entries, &ds->temp_lo, &ds->temp_hi);
     }
 }
@@ -655,7 +659,11 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // Z-order = array order, bottom first. Frame after the data bands so it
     // overwrites curve/area pixels at the border columns. Line/bars are gated on
     // what PKJS sent; the fill + its night re-hatch only exist with the line.
-    static ChartLayer layers[8];  // aplite: largest redraw array — must be static, not stack
+    static ChartLayer layers[9];  // aplite: largest redraw array — must be static, not stack.
+                                  // 9 is defensive headroom: gusts and fill/night_under are
+                                  // mutually exclusive (fill only for precip, gusts only for
+                                  // wind), so the max reachable count is still 8 — the bump
+                                  // keeps the bound from depending on that PKJS-side invariant.
     int n = 0;
     if (fill_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_AREA, .area = {
@@ -679,6 +687,16 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .values = ds.bars, .count = ds.num_entries, .lo = 0, .hi = 1000,
             .stops = bar_stops, .num_stops = bar_num_stops,
             .style = PBL_IF_COLOR_ELSE(BAR_SOLID, BAR_OUTLINED) } };
+    }
+    // Gust line: dashed, same scale as the wind line, drawn first so the solid
+    // wind line strokes on top where they coincide. Colored with ds.line_color
+    // (the wind color — third_line_present is only ever set when wind is selected).
+    // Uses the chart engine's internal static point buffer (no export_points, no fill).
+    if (ds.third_line_present) {
+        layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
+            .values = ds.third_line, .count = ds.num_entries,
+            .lo = 0, .hi = 1000, .inset_y = 0,
+            .color = ds.line_color, .width = 1, .dashed = true } };
     }
     if (line_on) {
         layers[n++] = fill_on
