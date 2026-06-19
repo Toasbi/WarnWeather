@@ -49,7 +49,7 @@ void time_layer_tick() {
 
     // Format the time into a buffer
     static char s_buffer[8];
-    config_format_time(s_buffer, 8, &tick_time);
+    config_format_time(s_buffer, sizeof(s_buffer), &tick_time);
 
     // Update the time and AM/PM indicator
     text_layer_set_text(s_time_layer, s_buffer);

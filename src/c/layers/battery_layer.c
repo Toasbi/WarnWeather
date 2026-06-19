@@ -49,14 +49,13 @@ static void maybe_unload_battery_power_bitmap(bool show_power_icon) {
 
 static void draw_power_icon(GContext *ctx, int h, GBitmap *icon_bitmap) {
     GRect icon_bounds = gbitmap_get_bounds(icon_bitmap);
-    int icon_x = 0;
     int icon_y = (h - icon_bounds.size.h) / 2;
 
     graphics_context_set_compositing_mode(ctx, GCompOpSet);
     graphics_draw_bitmap_in_rect(
         ctx,
         icon_bitmap,
-        GRect(icon_x, icon_y, icon_bounds.size.w, icon_bounds.size.h));
+        GRect(0, icon_y, icon_bounds.size.w, icon_bounds.size.h));
     graphics_context_set_compositing_mode(ctx, GCompOpAssign);
 }
 
@@ -78,6 +77,7 @@ static void battery_update_proc(Layer *layer, GContext *ctx) {
     GRect color_bounds = GRect(
         battery_x + BATTERY_STROKE + FILL_PADDING, BATTERY_STROKE + FILL_PADDING,
         battery_w - (BATTERY_STROKE + FILL_PADDING) * 2, h - (BATTERY_STROKE + FILL_PADDING) * 2);
+    // +10/110: ensures a visible non-empty sliver at 0% by mapping [0,100]→[~9%,100%].
     GRect color_area = GRect(
         color_bounds.origin.x, color_bounds.origin.y,
         color_bounds.size.w * (battery_level + 10) / 110, color_bounds.size.h);
