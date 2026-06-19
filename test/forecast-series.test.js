@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildForecastSeries } = require('../src/pkjs/forecast-series');
+const { buildForecastSeries, applyForecastSeries } = require('../src/pkjs/forecast-series');
 
 const RAW = { precips: [0, 50, 100], rains: [0, 5, 20] }; // precip % and rain wire tenths
 
@@ -41,4 +41,31 @@ test('fill color follows the line metric: precip → CobaltBlue, off → black',
   assert.equal(on.SECONDARY_LINE_FILL_COLOR, 0x0055AA); // GColorCobaltBlue
   const off = buildForecastSeries(RAW, { secondaryLine: 'off', secondaryLineFill: true, barSource: 'rain' });
   assert.equal(off.SECONDARY_LINE_FILL_COLOR, 0x000000); // GColorBlack
+});
+
+test('applyForecastSeries swaps raw precip/rain keys for the render-ready series in place', () => {
+  const payload = {
+    TEMP_TREND_INT16: [1, 2, 3],
+    PRECIP_TREND_UINT8: [0, 50, 100],
+    RAIN_TREND_UINT8: [0, 5, 20],
+    NUM_ENTRIES: 3
+  };
+  const settings = { secondaryLine: 'precip_prob', secondaryLineFill: true, barSource: 'rain' };
+
+  const out = applyForecastSeries(payload, settings);
+
+  // Mutates and returns the same object the watch will ship.
+  assert.equal(out, payload);
+  // Dead keys the watch no longer reads are removed.
+  assert.ok(!('PRECIP_TREND_UINT8' in out));
+  assert.ok(!('RAIN_TREND_UINT8' in out));
+  // The five render-ready series keys replace them.
+  assert.deepEqual(decode16(out.SECONDARY_LINE_TREND_INT16), [0, 500, 1000]);
+  assert.equal(typeof out.SECONDARY_LINE_COLOR, 'number');
+  assert.equal(out.SECONDARY_LINE_FILL, true);
+  assert.equal(out.SECONDARY_LINE_FILL_COLOR, 0x0055AA);
+  assert.deepEqual(decode16(out.BAR_TREND_INT16), [0, 340, 560]);
+  // Unrelated keys are left untouched.
+  assert.deepEqual(out.TEMP_TREND_INT16, [1, 2, 3]);
+  assert.equal(out.NUM_ENTRIES, 3);
 });

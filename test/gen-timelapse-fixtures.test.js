@@ -47,8 +47,8 @@ test('startEpoch is fixed across frames, startHour removed, sunEvents+radar pres
     assert.equal(typeof fx.weather.startEpoch, 'number');
     epochs.add(fx.weather.startEpoch);
     assert.equal(fx.weather.sunEvents.length, 2);
-    assert.equal(fx.weather.rainRadarExactMm.length, 18);
-    assert.equal(fx.weather.rainRadarAreaMm.length, 18);
+    assert.equal(fx.weather.rainRadarExactMm.length, 24);
+    assert.equal(fx.weather.rainRadarAreaMm.length, 24);
   }
   assert.equal(epochs.size, 1, 'startEpoch must be identical across all frames');
 });

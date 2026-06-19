@@ -49,4 +49,32 @@ function buildForecastSeries(raw, s) {
     return out;
 }
 
-module.exports = { buildForecastSeries: buildForecastSeries };
+/**
+ * Replace a weather payload's raw precip/rain trend keys with the render-ready
+ * secondary-line + bar wire series the watch actually reads. Mutates and returns
+ * the payload. Both the live-fetch and fixture send paths call this so the two
+ * can't drift — the watch dropped PRECIP_TREND_UINT8/RAIN_TREND_UINT8, so a path
+ * that skips this ships a payload that renders temperature-only.
+ * @param {Object} payload Weather payload carrying PRECIP_TREND_UINT8 + RAIN_TREND_UINT8.
+ * @param {{secondaryLine: string, secondaryLineFill: boolean, barSource: string}} settings Clay settings.
+ * @returns {Object} The same payload, with the raw keys removed and the five series keys set.
+ */
+function applyForecastSeries(payload, settings) {
+    var series = buildForecastSeries(
+        { precips: payload.PRECIP_TREND_UINT8, rains: payload.RAIN_TREND_UINT8 },
+        settings
+    );
+    delete payload.PRECIP_TREND_UINT8;
+    delete payload.RAIN_TREND_UINT8;
+    payload.SECONDARY_LINE_TREND_INT16 = series.SECONDARY_LINE_TREND_INT16;
+    payload.SECONDARY_LINE_COLOR = series.SECONDARY_LINE_COLOR;
+    payload.SECONDARY_LINE_FILL = series.SECONDARY_LINE_FILL;
+    payload.SECONDARY_LINE_FILL_COLOR = series.SECONDARY_LINE_FILL_COLOR;
+    payload.BAR_TREND_INT16 = series.BAR_TREND_INT16;
+    return payload;
+}
+
+module.exports = {
+    buildForecastSeries: buildForecastSeries,
+    applyForecastSeries: applyForecastSeries
+};

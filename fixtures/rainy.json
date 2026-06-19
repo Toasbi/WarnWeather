@@ -18,7 +18,11 @@
   "claySettings": {
     "provider": "dwd",
     "temperatureUnits": "c",
-    "axisTimeFormat": "24h"
+    "axisTimeFormat": "24h",
+    "secondaryLine": "precip_prob",
+    "secondaryLineFill": true,
+    "barSource": "rain",
+    "rainBarColor": "white"
   },
   "weather": {
     "city": "Rainy Day",

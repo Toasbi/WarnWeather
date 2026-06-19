@@ -40,11 +40,12 @@ forecast graph slides, and night shading kicks in.
 **Forecast**
 * 24 hour weather forecast with configurable update frequency
 * Current temperature
-* Temperature forecast (red line)
-* Precipitation probability forecast (blue area — half-height = 50%, full-height = 100%)
-* Hourly rain precipitation bars
+* Temperature forecast line
+* Optional secondary line — precipitation probability (half-height = 50%, full-height = 100%), with an optional fill underneath
+* Optional hourly rain bars — multicolor or white on color watches
+* Optional day/night hatch shading on the graph
 * Fahrenheit and Celsius temperatures
-* Multiple weather providers (OpenWeatherMap, Deutscher Wetterdienst via Bright Sky, Weather Underground)
+* Multiple weather providers (Weather Underground, OpenWeatherMap, and Deutscher Wetterdienst via Bright Sky — Germany only)
 * GPS or manual location entry
 * City where forecast was fetched
 
@@ -64,7 +65,6 @@ forecast graph slides, and night shading kicks in.
 * Sleep mode
 
 **Customization**
-* Night shading
 * Customize time font and color
 * Offline configuration page
 

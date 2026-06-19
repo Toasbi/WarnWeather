@@ -88,10 +88,10 @@ for fixture in "${frame_fixtures[@]}"; do
   done
 done
 
-# Single calendar still on basalt using the readme fixture (no radar tap).
+# Single calendar still on basalt using the berlin fixture (no radar tap).
 printf '\n==> calendar still (basalt)\n'
 mkdir -p "$calendar_dir"
-FIXTURE=readme mise run build -- dev
+FIXTURE=berlin mise run build -- dev
 install_with_retries basalt
 boot_wait basalt
 "${timeout_cmd[@]+"${timeout_cmd[@]}"}" pebble screenshot "$calendar_dir/basalt.png" --emulator basalt

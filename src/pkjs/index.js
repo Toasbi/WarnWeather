@@ -944,7 +944,10 @@ function getFixtureWeatherPayload(fixture) {
         return null;
     }
 
-    return provider.getPayload();
+    // getPayload() emits the raw PRECIP_TREND/RAIN_TREND keys; the watch only
+    // reads the render-ready series, so run the same transform as the live path
+    // (app.settings already reflects this fixture's claySettings).
+    return forecastSeries.applyForecastSeries(provider.getPayload(), app.settings);
 }
 
 /**
@@ -987,6 +990,26 @@ function getFixtureRadarTuples(fixture) {
     };
 }
 
+/**
+ * Build the rain-tier palette AppMessage tuples for the current platform +
+ * rainBarColor setting. Forecast bars + radar share this palette on the watch,
+ * so both the live-fetch and fixture send paths bundle it; the fixture path has
+ * no fetch of its own to ride along with, so without this its bars ignore
+ * rainBarColor and fall back to the watch's last/default palette.
+ * @returns {{RAIN_PALETTE_STOP_FROM_INT16: number[], RAIN_PALETTE_STOP_RGB_INT32: number[]}} Palette tuples.
+ */
+function buildPaletteTuples() {
+    var palette = rainTier.buildPalette(
+        app.watchInfo ? app.watchInfo.platform : 'basalt',
+        app.settings ? app.settings.rainBarColor : 'multicolor'
+    );
+    var paletteWire = rainTier.paletteToWire(palette);
+    return {
+        RAIN_PALETTE_STOP_FROM_INT16: paletteWire.from,
+        RAIN_PALETTE_STOP_RGB_INT32: paletteWire.rgb
+    };
+}
+
 function sendFixtureWeather(fixture) {
     var payload = getFixtureWeatherPayload(fixture);
     var radarTuples;
@@ -1008,6 +1031,9 @@ function sendFixtureWeather(fixture) {
             }
         }
     }
+
+    // Bundle the rain palette too, so fixture bars honor rainBarColor.
+    Object.assign(payload, buildPaletteTuples());
 
     console.log('[fixture] Sending weather fixture: ' + (fixture.name || '(unknown)'));
     Pebble.sendAppMessage(payload, function() {
@@ -1088,15 +1114,8 @@ function fetch(provider, force) {
             extras.IS_SLEEPING = refreshLastIsSleeping();
             // Rain-tier color palette (send-once category): per platform + the
             // rainBarColor setting. Forecast bars + radar share it on the watch.
-            var palette = rainTier.buildPalette(
-                app.watchInfo ? app.watchInfo.platform : 'basalt',
-                app.settings ? app.settings.rainBarColor : 'multicolor'
-            );
-            // Serialize to little-endian byte arrays — sendAppMessage rejects
-            // raw array values > 255 (the C side reads int16/int32 from the bytes).
-            var paletteWire = rainTier.paletteToWire(palette);
-            extras.RAIN_PALETTE_STOP_FROM_INT16 = paletteWire.from;
-            extras.RAIN_PALETTE_STOP_RGB_INT32 = paletteWire.rgb;
+            // Shared with the fixture path so the two can't drift.
+            Object.assign(extras, buildPaletteTuples());
             provider.fetch(
                 function() {
                     // Sucess, update recent fetch time
@@ -1148,18 +1167,8 @@ function fetch(provider, force) {
                     // PKJS owns metric selection: map the provider's raw precip/rain
                     // into the render-ready line + bar wire series the watch draws
                     // generically. Replaces the old PRECIP_TREND/RAIN_TREND keys.
-                    var series = forecastSeries.buildForecastSeries(
-                        { precips: payload.PRECIP_TREND_UINT8, rains: payload.RAIN_TREND_UINT8 },
-                        app.settings
-                    );
-                    delete payload.PRECIP_TREND_UINT8;
-                    delete payload.RAIN_TREND_UINT8;
-                    payload.SECONDARY_LINE_TREND_INT16 = series.SECONDARY_LINE_TREND_INT16;
-                    payload.SECONDARY_LINE_COLOR = series.SECONDARY_LINE_COLOR;
-                    payload.SECONDARY_LINE_FILL = series.SECONDARY_LINE_FILL;
-                    payload.SECONDARY_LINE_FILL_COLOR = series.SECONDARY_LINE_FILL_COLOR;
-                    payload.BAR_TREND_INT16 = series.BAR_TREND_INT16;
-                    return payload;
+                    // Shared with the fixture path so the two can't drift.
+                    return forecastSeries.applyForecastSeries(payload, app.settings);
                 }
             );
         });

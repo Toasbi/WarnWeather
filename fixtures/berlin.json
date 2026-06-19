@@ -21,7 +21,11 @@
     "axisTimeFormat": "24h",
     "weekStartDay": "mon",
     "colorSaturday": "GColorFolly",
-    "colorSunday": "GColorFolly"
+    "colorSunday": "GColorFolly",
+    "secondaryLine": "precip_prob",
+    "secondaryLineFill": true,
+    "barSource": "rain",
+    "rainBarColor": "multicolor"
   },
   "weather": {
     "city": "Berlin",

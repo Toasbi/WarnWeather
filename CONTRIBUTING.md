@@ -207,7 +207,7 @@ mise screenshot-phone -- screenshot/my-capture.png
 ## Config
 Local dev config has three layers:
 
-- Use `.env` to choose the local mode or scenario, such as `FIXTURE=readme`.
+- Use `.env` to choose the local mode or scenario, such as `FIXTURE=berlin`.
 - Use `fixtures/*.json` for committed, deterministic UI state: watch facts, Clay render settings, weather payloads, and other data that should make emulator screenshots reproducible.
 - Use `src/pkjs/dev-config.js` for uncommitted behavior testing, including preloaded Clay settings when you are exercising real app flows instead of deterministic fixture UI.
 
@@ -275,7 +275,7 @@ Fixtures currently support:
 Minimal `.env`:
 
 ```bash
-FIXTURE=readme
+FIXTURE=berlin
 ```
 
 Fixture data is tracked in git inside `fixtures/`.

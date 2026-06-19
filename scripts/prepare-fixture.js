@@ -25,7 +25,7 @@ if (fixtureName === '') {
 }
 
 if (!/^[a-z0-9][a-z0-9-]*$/.test(fixtureName)) {
-  fail('FIXTURE must be a fixture slug like "readme" or "rainy-night"');
+  fail('FIXTURE must be a fixture slug like "berlin" or "rainy"');
 }
 
 const fixturePath = path.join('fixtures', fixtureName + '.json');
