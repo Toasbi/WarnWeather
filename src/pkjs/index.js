@@ -151,9 +151,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
     // Capture the render-affecting settings before they're overwritten below so we can
     // detect a change and force a resend (clearWeatherCaches also drops the palette
     // cache, so a rainBarColor-only change is covered by the same tuple/path).
-    var prevRender = app.settings
-        ? [app.settings.secondaryLine, app.settings.secondaryLineFill, app.settings.barSource, app.settings.rainBarColor, app.settings.radarColor].join('|')
-        : '';
+    var prevRender = renderSignature(app.settings);
     clay.getSettings(e.response, false);  // This triggers the update in localStorage
     app.settings = claySettings.read();  // This reads from localStorage in sensible format
     devStats.setEnabled(Boolean(app.settings.devStatsEnabled));
@@ -165,7 +163,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
     app.telemetry = createTelemetryClient(getRuntimeTelemetryConfig());
     var providerOrLocationChanged = refreshProvider();
     var radarProviderChanged = oldRadarProvider !== app.settings.radarProvider;
-    var nextRender = [app.settings.secondaryLine, app.settings.secondaryLineFill, app.settings.barSource, app.settings.rainBarColor, app.settings.radarColor].join('|');
+    var nextRender = renderSignature(app.settings);
     var renderSettingsChanged = prevRender !== nextRender;
     var needsRefetch = providerOrLocationChanged || radarProviderChanged || renderSettingsChanged;
     sendClaySettings();
@@ -565,18 +563,9 @@ function fetch(provider, force) {
                     localStorage.setItem(KEY_LAST_FETCH_SUCCESS, JSON.stringify(fetchStatus));
                     resetFetchAttemptCounter();
                     console.log('Successfully fetched weather!');
-                    maybeTrackWeatherFetch({
-                        provider: provider.id,
-                        success: true,
-                        attempt: attempt,
-                        usedGpsCache: provider.usedGpsCache,
-                        gpsErrorCode: provider.gpsErrorCode,
-                        locationMode: provider.locationMode,
-                        countryCode: provider.countryCode,
-                        settings: app.settings,
-                        watchInfo: app.watchInfo,
-                        durationMs: Date.now() - fetchStart
-                    });
+                    var successEvent = baseTelemetryEvent(provider, attempt, fetchStart);
+                    successEvent.success = true;
+                    maybeTrackWeatherFetch(successEvent);
                 },
                 function(failure) {
                     // Failure
@@ -589,19 +578,10 @@ function fetch(provider, force) {
                         error: failure
                     };
                     localStorage.setItem(KEY_LAST_FETCH_ATTEMPT, JSON.stringify(attemptStatus));
-                    maybeTrackWeatherFetch({
-                        provider: provider.id,
-                        success: false,
-                        attempt: attempt,
-                        usedGpsCache: provider.usedGpsCache,
-                        gpsErrorCode: provider.gpsErrorCode,
-                        locationMode: provider.locationMode,
-                        countryCode: provider.countryCode,
-                        error: failure,
-                        settings: app.settings,
-                        watchInfo: app.watchInfo,
-                        durationMs: Date.now() - fetchStart
-                    });
+                    var failureEvent = baseTelemetryEvent(provider, attempt, fetchStart);
+                    failureEvent.success = false;
+                    failureEvent.error = failure;
+                    maybeTrackWeatherFetch(failureEvent);
                 },
                 force,
                 extras,
@@ -619,6 +599,40 @@ function fetch(provider, force) {
         app.fetchInProgress = false;
         console.log('Weather fetch threw synchronously: ' + e.message);
     }
+}
+
+/**
+ * Join the render-affecting settings into a change-detection signature.
+ *
+ * @param {Object} settings Clay settings.
+ * @returns {string} Pipe-joined signature, or '' when settings is falsy.
+ */
+function renderSignature(settings) {
+    if (!settings) { return ''; }
+    return [settings.secondaryLine, settings.secondaryLineFill, settings.barSource,
+            settings.rainBarColor, settings.radarColor].join('|');
+}
+
+/**
+ * Shared fields for both the success and failure weather-fetch telemetry events.
+ *
+ * @param {Object} provider Active provider.
+ * @param {number} attempt Attempt counter.
+ * @param {number} fetchStart Date.now() at fetch start.
+ * @returns {Object} Base event without success/error.
+ */
+function baseTelemetryEvent(provider, attempt, fetchStart) {
+    return {
+        provider: provider.id,
+        attempt: attempt,
+        usedGpsCache: provider.usedGpsCache,
+        gpsErrorCode: provider.gpsErrorCode,
+        locationMode: provider.locationMode,
+        countryCode: provider.countryCode,
+        settings: app.settings,
+        watchInfo: app.watchInfo,
+        durationMs: Date.now() - fetchStart
+    };
 }
 
 /**
