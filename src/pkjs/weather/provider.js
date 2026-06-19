@@ -1,6 +1,7 @@
 var SunCalc = require('suncalc');
 var storageKeys = require('../storage-keys.js');
 var outbox = require('../outbox.js');
+var clampByte = require('../wire-units.js').clampByte;
 
 var XHR_TIMEOUT_MS = 5000;
 var GPS_CACHE_KEY = 'gpsCache';
@@ -616,10 +617,7 @@ WeatherProvider.prototype.getPayload = function() {
         return Math.round(probability * 100);
     });
     var rains = this.rainTrend.slice(0, this.numEntries).map(function(mmPerHour) {
-        var scaled = Math.round((mmPerHour || 0) * 10);
-        if (scaled < 0) { return 0; }
-        if (scaled > 255) { return 255; }
-        return scaled;
+        return clampByte((mmPerHour || 0) * 10);
     });
     var tempsIntView = new Int16Array(temps);
     var tempsByteArray = Array.prototype.slice.call(new Uint8Array(tempsIntView.buffer));

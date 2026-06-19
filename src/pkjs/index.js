@@ -17,6 +17,7 @@ var devStats = require('./dev-stats.js');
 var pkg = require('../../package.json');
 var activeFixture = require('./active-fixture.generated.js');
 var pebbleColors = require('./pebble-colors.js');
+var wireUnits = require('./wire-units.js');
 
 /**
  * Full release-notification manifest (dev: force-show by version). Omitted from bundle if missing.
@@ -972,10 +973,7 @@ function getFixtureRadarTuples(fixture) {
         return null;
     }
     var toTenths = function(mmPerHour) {
-        var scaled = Math.round((mmPerHour || 0) * 10);
-        if (scaled < 0) { return 0; }
-        if (scaled > 255) { return 255; }
-        return scaled;
+        return wireUnits.clampByte((mmPerHour || 0) * 10);
     };
     // Align radar start with the fixture clock (weather.startEpoch) so the
     // watch's hour-axis labels render relative to fixture time, not real
