@@ -355,6 +355,17 @@ module.exports = [
                         "value": "disabled"
                     }
                 ]
+            },
+            {
+                "type": "select",
+                "label": "Radar Color",
+                "messageKey": "radarColor",
+                "defaultValue": "multicolor",
+                "capabilities": ["COLOR"],
+                "options": [
+                    { "label": "Multicolor", "value": "multicolor" },
+                    { "label": "White", "value": "white" }
+                ]
             }
         ]
     },

@@ -224,8 +224,11 @@ module.exports = function (minified) {
         var claySecondaryLineFill;
         var clayBarSource;
         var clayRainBarColor;
+        var clayRadarProvider;
+        var clayRadarColor;
         var syncSecondaryLineFill;
         var syncBarColor;
+        var syncRadarColor;
 
         clayFetch = clayConfig.getItemByMessageKey('fetch');
         clayFetch.set(false);
@@ -288,6 +291,23 @@ module.exports = function (minified) {
             };
             syncBarColor();
             clayBarSource.on('change', syncBarColor);
+        }
+
+        // Radar Color only applies when a radar provider is active; hide it when
+        // the radar is disabled. Absent on B&W watches (config 'capabilities':
+        // ['COLOR']), so guard for its absence.
+        clayRadarProvider = clayConfig.getItemByMessageKey('radarProvider');
+        clayRadarColor = clayConfig.getItemByMessageKey('radarColor');
+        if (clayRadarColor) {
+            syncRadarColor = function() {
+                if (clayRadarProvider.get() === 'disabled') {
+                    clayRadarColor.hide();
+                } else {
+                    clayRadarColor.show();
+                }
+            };
+            syncRadarColor();
+            clayRadarProvider.on('change', syncRadarColor);
         }
 
         // Show last weather fetch status
