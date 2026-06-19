@@ -8,6 +8,9 @@ int persist_get_temp_trend(int16_t *buffer, const size_t buffer_size);
 
 int persist_get_line_trend(int16_t *buffer, const size_t buffer_size);
 
+int  persist_get_third_line_trend(int16_t *buffer, const size_t buffer_size);
+bool persist_third_line_present(void);
+
 int persist_get_bar_trend(int16_t *buffer, const size_t buffer_size);
 
 int persist_get_line_count(void);
@@ -39,6 +42,8 @@ bool persist_has_config();
 bool persist_set_temp_trend(int16_t *data, const size_t size);
 
 bool persist_set_line_trend(int16_t *data, const size_t size);
+
+bool persist_set_third_line_trend(int16_t *data, const size_t size);
 
 bool persist_set_bar_trend(int16_t *data, const size_t size);
 

@@ -10,7 +10,11 @@ enum key {
     IS_SLEEPING, RADAR_SNOOZE,
     // Appended (never reorder — these are persisted key IDs). PRECIP_TREND /
     // RAIN_TREND slots are now unused but kept to preserve existing IDs.
-    LINE_TREND, BAR_TREND, LINE_COUNT, BAR_COUNT, LINE_COLOR, LINE_FILL, FILL_COLOR
+    LINE_TREND, BAR_TREND, LINE_COUNT, BAR_COUNT, LINE_COLOR, LINE_FILL, FILL_COLOR,
+    // Gust third line: presence is "does THIRD_LINE_TREND exist?" (persist_exists/
+    // _delete) — intentionally NO THIRD_LINE_COUNT (a different presence convention
+    // than the count-based LINE_/BAR_ channels) and NO color key (reuses LINE_COLOR).
+    THIRD_LINE_TREND
 };
 
 // Setters report whether the stored value actually changed so callers can
@@ -61,6 +65,14 @@ int persist_get_temp_trend(int16_t *buffer, const size_t buffer_size) {
 
 int persist_get_line_trend(int16_t *buffer, const size_t buffer_size) {
     return persist_read_data(LINE_TREND, (void*) buffer, buffer_size * sizeof(int16_t));
+}
+
+int persist_get_third_line_trend(int16_t *buffer, const size_t buffer_size) {
+    return persist_read_data(THIRD_LINE_TREND, (void*) buffer, buffer_size * sizeof(int16_t));
+}
+
+bool persist_third_line_present(void) {
+    return persist_exists(THIRD_LINE_TREND);
 }
 
 int persist_get_bar_trend(int16_t *buffer, const size_t buffer_size) {
@@ -133,6 +145,19 @@ bool persist_set_line_trend(int16_t *data, const size_t size) {
         changed |= write_data_if_changed(LINE_TREND, data, size * sizeof(int16_t));
     }
     return changed;
+}
+
+bool persist_set_third_line_trend(int16_t *data, const size_t size) {
+    // Presence == existence of the trend key: write it when gusts are on, delete
+    // it when off, so a cold boot never redraws a stale gust line.
+    if (size > 0) {
+        return write_data_if_changed(THIRD_LINE_TREND, data, size * sizeof(int16_t));
+    }
+    if (persist_exists(THIRD_LINE_TREND)) {
+        persist_delete(THIRD_LINE_TREND);
+        return true;
+    }
+    return false;
 }
 
 bool persist_set_bar_trend(int16_t *data, const size_t size) {
