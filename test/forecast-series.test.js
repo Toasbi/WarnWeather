@@ -69,3 +69,43 @@ test('applyForecastSeries swaps raw precip/rain keys for the render-ready series
   assert.deepEqual(out.TEMP_TREND_INT16, [1, 2, 3]);
   assert.equal(out.NUM_ENTRIES, 3);
 });
+
+test('wind line: mid scale (50 km/h) maps km/h to permille, clamped, never filled', () => {
+  const raw = { precips: [], rains: [], winds: [0, 25, 50, 100] };
+  const out = buildForecastSeries(raw, { secondaryLine: 'wind', windScale: 'mid', secondaryLineFill: true, barSource: 'off' });
+  assert.deepEqual(decode16(out.SECONDARY_LINE_TREND_INT16), [0, 500, 1000, 1000]); // 100 clamps to 1000
+  assert.equal(out.SECONDARY_LINE_FILL, false);            // wind ignores the fill toggle
+  assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFF00);        // GColorYellow
+  assert.equal(out.SECONDARY_LINE_FILL_COLOR, 0xFFFF00);   // unused (fill off), set to the line color
+});
+
+test('wind line: low scale = 30 km/h ceiling', () => {
+  const out = buildForecastSeries({ precips: [], rains: [], winds: [15, 30] }, { secondaryLine: 'wind', windScale: 'low', barSource: 'off' });
+  assert.deepEqual(decode16(out.SECONDARY_LINE_TREND_INT16), [500, 1000]);
+});
+
+test('wind line: high scale = 70 km/h ceiling', () => {
+  const out = buildForecastSeries({ precips: [], rains: [], winds: [35, 70] }, { secondaryLine: 'wind', windScale: 'high', barSource: 'off' });
+  assert.deepEqual(decode16(out.SECONDARY_LINE_TREND_INT16), [500, 1000]);
+});
+
+test('wind line: missing/unknown windScale falls back to mid (no divide-by-zero)', () => {
+  const out = buildForecastSeries({ precips: [], rains: [], winds: [50] }, { secondaryLine: 'wind', barSource: 'off' });
+  assert.deepEqual(decode16(out.SECONDARY_LINE_TREND_INT16), [1000]); // 50/50*1000
+});
+
+test('applyForecastSeries deletes the transient WIND_TREND_UINT8 and renders the wind series', () => {
+  const payload = {
+    TEMP_TREND_INT16: [1, 2, 3],
+    PRECIP_TREND_UINT8: [0, 50, 100],
+    RAIN_TREND_UINT8: [0, 5, 20],
+    WIND_TREND_UINT8: [0, 25, 50],
+    NUM_ENTRIES: 3
+  };
+  const out = applyForecastSeries(payload, { secondaryLine: 'wind', windScale: 'mid', barSource: 'off' });
+  assert.ok(!('WIND_TREND_UINT8' in out));   // never reaches the wire
+  assert.ok(!('PRECIP_TREND_UINT8' in out));
+  assert.ok(!('RAIN_TREND_UINT8' in out));
+  assert.deepEqual(decode16(out.SECONDARY_LINE_TREND_INT16), [0, 500, 1000]);
+  assert.equal(out.SECONDARY_LINE_FILL, false);
+});
