@@ -163,19 +163,21 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
     }
 }
 
-// Stroke a dashed 1px polyline with integer DDA stepping (no float — project
-// constraint). The on/off phase carries across segment boundaries so the dash
+// Stroke a dash-dot 1px polyline with integer DDA stepping (no float — project
+// constraint). The pattern phase carries across segment boundaries so the dash
 // pattern is continuous over the whole polyline. Mirrors the per-pixel approach
 // in rain_radar_layer.c's nearby_border_* helpers, generalized to any slope.
 // Always draws 1px pixels regardless of ChartLineLayer.width — dashed lines are 1px by design.
 static void chart_stroke_dashed(GContext *ctx, const GPoint *pts, int count, GColor color) {
-    // px on / off. Period 10 (not 7) so the dash does not resonate with the
-    // night hatch's 6/7-px diagonal spacing; the 7-px runs read as a line, not
-    // dots that merge into the hatch (worst on aplite, where both are white).
-    const int DASH_ON = 7, DASH_OFF = 3;
+    // Dash-dot pattern, 1 = pen down: a 6-px dash, gap, 1-px dot, gap (period
+    // 11). The dash+dot texture cannot be mimicked by the night hatch's uniform
+    // 6/7-px diagonal dots, and period 11 avoids resonating with that spacing —
+    // so the gust line stays legible over the hatch (worst on aplite, both white).
+    static const uint8_t DASH_DOT[] = { 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0 };
+    const int PATTERN_LEN = (int) sizeof(DASH_DOT);
     graphics_context_set_stroke_color(ctx, color);
     graphics_context_set_stroke_width(ctx, 1);
-    int phase = 0;   // 0..DASH_ON-1 ⇒ pen down; DASH_ON..DASH_ON+DASH_OFF-1 ⇒ pen up
+    int phase = 0;   // index into DASH_DOT; carries across segments for a continuous pattern
     for (int i = 0; i + 1 < count; ++i) {
         const int x0 = pts[i].x,     y0 = pts[i].y;
         const int dx = pts[i+1].x - x0, dy = pts[i+1].y - y0;
@@ -188,8 +190,8 @@ static void chart_stroke_dashed(GContext *ctx, const GPoint *pts, int count, GCo
         for (int s = (i == 0 ? 0 : 1); s <= steps; ++s) {
             const int x = x0 + (int)(((int32_t) dx * s) / steps);
             const int y = y0 + (int)(((int32_t) dy * s) / steps);
-            if (phase < DASH_ON) { graphics_draw_pixel(ctx, GPoint(x, y)); }
-            if (++phase >= DASH_ON + DASH_OFF) { phase = 0; }
+            if (DASH_DOT[phase]) { graphics_draw_pixel(ctx, GPoint(x, y)); }
+            if (++phase >= PATTERN_LEN) { phase = 0; }
         }
     }
 }
