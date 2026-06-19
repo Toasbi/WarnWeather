@@ -1,7 +1,5 @@
 #include "math.h"
 #include <pebble.h>
-#include "config.h"
-#include "persist.h"
 
 void min_max(int16_t *array, int n, int *min, int *max) {
     // It is assumed that the array has at least one element

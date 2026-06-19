@@ -37,14 +37,6 @@ static int rain_tier_fill_q8(int tenths, int tier) {
     return ((tenths - low) * 256) / (high - low);
 }
 
-int rain_tier_pixel_height(int tier, int bar_plot_h) {
-    if (tier <= 0 || bar_plot_h <= 0) {
-        return 0;
-    }
-    int h = (bar_plot_h * RAIN_TIER_TOP_PCT_ARR[tier]) / 100;
-    return h > 0 ? h : 1;
-}
-
 int rain_tier_proportional_height(int tenths, int bar_plot_h) {
     if (tenths <= 0 || bar_plot_h <= 0) {
         return 0;

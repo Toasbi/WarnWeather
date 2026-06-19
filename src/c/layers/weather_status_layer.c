@@ -113,7 +113,6 @@ static void sun_event_layer_refresh() {
 
     // Display this time on the TextLayer
     text_layer_set_text(s_next_sun_event_layer, s_buffer);
-    // text_layer_set_text(s_next_sun_event_layer, "17:42");
 
     // Dynamic resizing
     text_layer_move_frame(s_next_sun_event_layer, GRect(0, 0, 100, 100));  // Make it big so content doesn't get clipped

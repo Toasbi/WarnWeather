@@ -16,17 +16,13 @@
 #define LEFT_AXIS_LABEL_TO_GRAPH_GAP 2
 #define LEFT_AXIS_GRAPH_INSET_DEFAULT (LEFT_AXIS_LABEL_STRIP_MIN_W + LEFT_AXIS_LABEL_TO_GRAPH_GAP)
 #define TEMP_LABEL_PAD 2
-#define TEMP_LABEL_H 20
 #define TEMP_LABEL_MEASURE_BOX_W 200
 #define TEMP_LABEL_MEASURE_BOX_H 40
-#define BOTTOM_AXIS_FONT_OFFSET 4 // Adjustment for whitespace at top of font
 #define BOTTOM_AXIS_H 10          // Height of the bottom axis (hour labels)
 #define MARGIN_TEMP_H 7           // Height of margins for the temperature plot
 // emery: reserve extra bottom space for larger hour labels and tick marks.
 #ifdef PBL_PLATFORM_EMERY
 #define FORECAST_BOTTOM_PAD 10
-#define EMERY_AXIS_LABEL_TOP 6
-#define EMERY_AXIS_LABEL_H 14
 #else
 #define FORECAST_BOTTOM_PAD 0
 #endif

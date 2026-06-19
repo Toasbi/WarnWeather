@@ -18,7 +18,6 @@
 #define RADAR_AXIS_H            12
 #define RADAR_NUM_SLOTS         24
 #define RADAR_SLOT_SECONDS      (5 * 60)
-#define RADAR_WINDOW_SECONDS    (RADAR_NUM_SLOTS * RADAR_SLOT_SECONDS)
 #define HOUR_SECONDS            3600
 // Grace after a grid fetch boundary before the watch synthesizes an advance,
 // giving PKJS time to deliver the real frame. 55s (not 60) so the gate clears

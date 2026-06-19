@@ -41,7 +41,7 @@ typedef enum {
 typedef struct {
     int          anchor_x;  // outer.origin.x — THE column anchor (engine v2)
     GRect        content;   // rect inside the frame's borders
-    SlotGeometry slots;     // num_slots, pitch, bar_dx, bar_w, tick_w
+    SlotGeometry slots;     // num_slots, pitch, bar_dx, bar_w
 } ChartGeometry;
 
 // =====================================================================
@@ -76,9 +76,6 @@ static inline int chart_slot_tick_x(const ChartGeometry *g, int i) {
 }
 static inline int chart_slot_bar_x(const ChartGeometry *g, int i) {
     return g->anchor_x + i * g->slots.pitch + g->slots.bar_dx;
-}
-static inline int chart_slot_mid_x(const ChartGeometry *g, int i) {
-    return g->anchor_x + i * g->slots.pitch + g->slots.pitch / 2;
 }
 
 typedef struct {

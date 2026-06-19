@@ -9,12 +9,6 @@
 // Returns 1..RAIN_TIER_COUNT for tenths > 0, or 0 for tenths <= 0.
 int rain_tier_of_tenths(int tenths);
 
-// Full pixel height of a bar whose top reaches `tier` (cumulative slab
-// top of `tier` as a percent of bar_plot_h). Returns 0 for tier 0;
-// clamps to >= 1 for tier >= 1. Used by callers that only need the
-// discrete tier top (e.g. the radar area hatch + outline).
-int rain_tier_pixel_height(int tier, int bar_plot_h);
-
 // Continuous pixel height for a bar of `tenths` rain: full lower-tier
 // slabs plus a fractional topmost slab. Returns 0 for tenths <= 0;
 // clamps to >= 1 otherwise.
