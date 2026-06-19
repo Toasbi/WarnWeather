@@ -269,7 +269,7 @@ module.exports = [
                 "label": "Secondary line",
                 "messageKey": "secondaryLine",
                 "defaultValue": "precip_prob",
-                "description": "A second curve drawn over the temperature graph.<br><b>Precipitation probability</b> — chance of rain each hour.<br><b>Wind speed</b> — adds a dotted gust line above it (see Wind graph scale below).<br><b>Off</b> — temperature only.",
+                "description": "A second curve drawn over the temperature graph.<br><b>Precipitation probability</b> — chance of rain each hour (half-height = 50%, full-height = 100%).<br><b>Wind speed</b> — adds a dotted gust line above it (see Wind graph scale below).<br><b>Off</b> — temperature only.",
                 "options": [
                     { "label": "Precipitation probability", "value": "precip_prob" },
                     { "label": "Wind speed", "value": "wind" },
