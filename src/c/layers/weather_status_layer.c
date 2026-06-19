@@ -106,7 +106,7 @@ static void sun_event_layer_refresh() {
     struct tm *sun_time = localtime(&first_sun_event_time);
 
     static char s_buffer[8];
-    config_format_time(s_buffer, 8, sun_time);
+    config_format_time(s_buffer, sizeof(s_buffer), sun_time);
 
     // Display this time on the TextLayer
     text_layer_set_text(s_next_sun_event_layer, s_buffer);
