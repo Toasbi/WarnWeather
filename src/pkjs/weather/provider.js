@@ -638,5 +638,6 @@ WeatherProvider.prototype.getPayload = function() {
 };
 
 WeatherProvider.request = request;
+WeatherProvider.failure = failure;
 
 module.exports = WeatherProvider;

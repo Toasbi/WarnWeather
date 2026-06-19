@@ -1,5 +1,6 @@
 var WeatherProvider = require('./provider.js');
 var request = WeatherProvider.request;
+var failure = WeatherProvider.failure;
 
 var BRIGHTSKY_BASE = 'https://api.brightsky.dev';
 var MAX_DIST_METERS = 500000;
@@ -50,11 +51,11 @@ DwdProvider.prototype.withDwdForecast = function(lat, lon, callback, onFailure) 
             callback(JSON.parse(response).weather);
         }
         catch (ex) {
-            onFailure({ stage: 'provider_data', code: 'dwd_forecast_parse_error' });
+            onFailure(failure('provider_data', 'dwd_forecast_parse_error'));
         }
     }, function(error) {
         console.log('[!] DWD forecast request failed: ' + JSON.stringify(error));
-        onFailure({ stage: 'provider_data', code: 'dwd_forecast_' + error.code });
+        onFailure(failure('provider_data', 'dwd_forecast_' + error.code));
     });
 };
 
@@ -69,11 +70,11 @@ DwdProvider.prototype.withDwdCurrent = function(lat, lon, callback, onFailure) {
             callback(celsiusToFahrenheit(JSON.parse(response).weather.temperature));
         }
         catch (ex) {
-            onFailure({ stage: 'provider_data', code: 'dwd_current_parse_error' });
+            onFailure(failure('provider_data', 'dwd_current_parse_error'));
         }
     }, function(error) {
         console.log('[!] DWD current request failed: ' + JSON.stringify(error));
-        onFailure({ stage: 'provider_data', code: 'dwd_current_' + error.code });
+        onFailure(failure('provider_data', 'dwd_current_' + error.code));
     });
 };
 

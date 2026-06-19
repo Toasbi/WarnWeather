@@ -1,5 +1,6 @@
 var WeatherProvider = require('./provider.js');
 var request = WeatherProvider.request;
+var failure = WeatherProvider.failure;
 
 var WundergroundProvider = function() {
     this._super.call(this);
@@ -26,19 +27,19 @@ WundergroundProvider.prototype.withWundergroundForecast = function(lat, lon, api
                 weatherData = JSON.parse(response);
             }
             catch (ex) {
-                onFailure({ stage: 'provider_data', code: 'wu_forecast_parse_error' });
+                onFailure(failure('provider_data', 'wu_forecast_parse_error'));
                 return;
             }
 
             if (!weatherData || !Array.isArray(weatherData.forecasts) || weatherData.forecasts.length === 0) {
-                onFailure({ stage: 'provider_data', code: 'wu_forecast_missing_fields' });
+                onFailure(failure('provider_data', 'wu_forecast_missing_fields'));
                 return;
             }
 
             callback(weatherData.forecasts);
         },
         function(error) {
-            onFailure({ stage: 'provider_data', code: 'wu_forecast_' + error.code });
+            onFailure(failure('provider_data', 'wu_forecast_' + error.code));
         }
     );
 };
@@ -60,19 +61,19 @@ WundergroundProvider.prototype.withWundergroundCurrent = function(lat, lon, apiK
                 weatherData = JSON.parse(response);
             }
             catch (ex) {
-                onFailure({ stage: 'provider_data', code: 'wu_current_parse_error' });
+                onFailure(failure('provider_data', 'wu_current_parse_error'));
                 return;
             }
 
             if (!weatherData || typeof weatherData.temperature !== 'number') {
-                onFailure({ stage: 'provider_data', code: 'wu_current_missing_fields' });
+                onFailure(failure('provider_data', 'wu_current_missing_fields'));
                 return;
             }
 
             callback(weatherData.temperature);
         }).bind(this),
         function(error) {
-            onFailure({ stage: 'provider_data', code: 'wu_current_' + error.code });
+            onFailure(failure('provider_data', 'wu_current_' + error.code));
         }
     );
 };
@@ -97,7 +98,7 @@ WundergroundProvider.prototype.withApiKey = function(callback, onFailure) {
             function(response) {
                 var match = response.match(/observations\/current\?apiKey=([a-z0-9]*)/);
                 if (!match || !match[1]) {
-                    onFailure({ stage: 'provider_data', code: 'wu_api_key_not_found' });
+                    onFailure(failure('provider_data', 'wu_api_key_not_found'));
                     return;
                 }
 
@@ -107,7 +108,7 @@ WundergroundProvider.prototype.withApiKey = function(callback, onFailure) {
                 callback(apiKey);
             },
             function(error) {
-                onFailure({ stage: 'provider_data', code: 'wu_api_key_' + error.code });
+                onFailure(failure('provider_data', 'wu_api_key_' + error.code));
             }
         );
     }

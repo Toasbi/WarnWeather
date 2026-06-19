@@ -1,6 +1,7 @@
 var WeatherProvider = require('./provider.js');
 var pickNext24hSunEvents = require('./sun-events.js').pickNext24hSunEvents;
 var request = WeatherProvider.request;
+var failure = WeatherProvider.failure;
 
 var OpenWeatherMapProvider = function(apiKey) {
     this._super.call(this);
@@ -29,11 +30,11 @@ OpenWeatherMapProvider.prototype.withOwmResponse = function(lat, lon, callback, 
                 weatherData = JSON.parse(response);
             }
             catch (ex) {
-                onFailure({ stage: 'provider_data', code: 'owm_parse_error' });
+                onFailure(failure('provider_data', 'owm_parse_error'));
                 return;
             }
             if (!weatherData || !weatherData.hourly || !weatherData.current || !weatherData.daily) {
-                onFailure({ stage: 'provider_data', code: 'owm_missing_fields' });
+                onFailure(failure('provider_data', 'owm_missing_fields'));
                 return;
             }
             console.log('Found timezone: ' + weatherData.timezone);
@@ -43,7 +44,7 @@ OpenWeatherMapProvider.prototype.withOwmResponse = function(lat, lon, callback, 
         }).bind(this),
         function(error) {
             console.log('[!] OpenWeatherMap request failed: ' + JSON.stringify(error));
-            onFailure({ stage: 'provider_data', code: 'owm_' + error.code });
+            onFailure(failure('provider_data', 'owm_' + error.code));
         }
     );
 };
@@ -69,7 +70,7 @@ OpenWeatherMapProvider.prototype.withSunEvents = function(lat, lon, callback, on
         var next24HourSunEvents;
 
         if (!Array.isArray(days) || days.length < 2) {
-            onFailure({ stage: 'sun_events', code: 'owm_missing_daily' });
+            onFailure(failure('sun_events', 'owm_missing_daily'));
             return;
         }
 
