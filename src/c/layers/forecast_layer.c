@@ -105,11 +105,6 @@ typedef struct
 
 typedef struct
 {
-    bool draw_night_overlay;
-} RenderSpec;
-
-typedef struct
-{
     GRect   graph_bounds;
     int16_t h;
 } ForecastLayout;
@@ -156,13 +151,6 @@ static int s_axis_left_w = LEFT_AXIS_GRAPH_INSET_DEFAULT;
 static int s_label_strip_w = LEFT_AXIS_LABEL_STRIP_MIN_W;
 static char s_buffer_lo[12];
 static char s_buffer_hi[12];
-
-static RenderSpec make_render_spec()
-{
-    return (RenderSpec){
-        .draw_night_overlay = g_config->day_night_shading,
-    };
-}
 
 static ForecastLayout compute_layout(GRect bounds)
 {
@@ -594,7 +582,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 {
     MEMORY_LOG_HEAP("forecast_update:enter");
     GRect bounds = layer_get_bounds(layer);
-    RenderSpec render_spec = make_render_spec();
+    const bool night_on = g_config->day_night_shading;
     ForecastLayout layout = compute_layout(bounds);
     GRect graph_bounds = layout.graph_bounds;
     int h = layout.h;
@@ -615,12 +603,10 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 
 
     NightSegments night_segments = {0};
-    if (render_spec.draw_night_overlay)
+    if (night_on)
     {
         night_segments = compute_night_segments(forecast_start, forecast_end);
     }
-
-    const bool night_on = render_spec.draw_night_overlay;
     const int16_t axis_y     = h - BOTTOM_AXIS_H;
     const int16_t grid_right = graph_bounds.origin.x
                              + ds.num_entries * chart_def_pitch(&FORECAST_DEF);
