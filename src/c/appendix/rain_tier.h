@@ -9,10 +9,6 @@
 // Returns 1..RAIN_TIER_COUNT for tenths > 0, or 0 for tenths <= 0.
 int rain_tier_of_tenths(int tenths);
 
-// Per-tier slab colour. Colour displays: 1 LightGray, 2 ElectricBlue,
-// 3 Green, 4 Yellow, 5 SunsetOrange. B&W: GColorBlack for all tiers.
-GColor rain_tier_color(int tier);
-
 // Full pixel height of a bar whose top reaches `tier` (cumulative slab
 // top of `tier` as a percent of bar_plot_h). Returns 0 for tier 0;
 // clamps to >= 1 for tier >= 1. Used by callers that only need the
@@ -31,10 +27,3 @@ int16_t rain_tier_permille(int tenths);
 
 // Fill `out` (>= count entries) with per-mille values for a tenths series.
 void rain_tier_fill_permille(const uint8_t *tenths, int16_t *out, int count);
-
-// Color stops for the chart engine, in per-mille value space. Owned by the
-// received palette (palette.c): colour displays get the 5 tier stops (or a
-// single white stop when "white" bars are selected); B&W gets a single black
-// stop (callers pair it with BAR_OUTLINED for the white silhouette). Sets
-// *num_stops; returns the stop array.
-const ChartColorStop *rain_tier_stops(int *num_stops);

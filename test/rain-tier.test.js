@@ -43,28 +43,6 @@ test('buildPalette: b&w ignores white (stays a single black stop)', () => {
   assert.deepEqual(p.rgb, [0x000000]);
 });
 
-// Pebble.sendAppMessage packs a plain JS array as uint8 (0..255), so the wide
-// palette arrays must be sent as little-endian byte arrays (like TEMP_TREND_INT16).
-test('paletteToWire emits only 0..255 bytes that decode back to the palette', () => {
-  const p = rainTier.buildPalette('basalt');   // 5 multicolor stops
-  const wire = rainTier.paletteToWire(p);
-  wire.from.concat(wire.rgb).forEach(function(b) {
-    assert.ok(b >= 0 && b <= 255, 'byte out of range: ' + b);
-  });
-  assert.equal(wire.from.length, p.from.length * 2);   // int16
-  assert.equal(wire.rgb.length, p.rgb.length * 4);     // int32
-  const fromBack = Array.from(new Int16Array(new Uint8Array(wire.from).buffer));
-  const rgbBack = Array.from(new Int32Array(new Uint8Array(wire.rgb).buffer));
-  assert.deepEqual(fromBack, p.from);
-  assert.deepEqual(rgbBack, p.rgb);
-});
-
-test('paletteToWire handles the single-stop white/b&w palettes', () => {
-  const white = rainTier.paletteToWire(rainTier.buildPalette('basalt', 'white'));
-  assert.deepEqual(Array.from(new Int32Array(new Uint8Array(white.rgb).buffer)), [0xFFFFFF]);
-  assert.equal(white.from.length, 2); // one int16 stop -> C count = 2/2 = 1
-});
-
 test('rgbToGColor8 maps 0xRRGGBB to the GColorFromHEX byte', () => {
   assert.equal(rainTier.rgbToGColor8(0xFFFFFF), 0xFF); // white: a=3 r=3 g=3 b=3
   assert.equal(rainTier.rgbToGColor8(0x000000), 0xC0); // black: opaque alpha only

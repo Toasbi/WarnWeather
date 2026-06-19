@@ -65,19 +65,6 @@ int rain_tier_proportional_height(int tenths, int bar_plot_h) {
     return total > 0 ? total : 1;
 }
 
-const ChartColorStop *rain_tier_stops(int *num_stops) {
-    return palette_rain_stops(num_stops);
-}
-
-GColor rain_tier_color(int tier) {
-    int n = 0;
-    const ChartColorStop *stops = palette_rain_stops(&n);
-    if (tier <= 0 || n <= 0) { return PBL_IF_COLOR_ELSE(GColorWhite, GColorBlack); }
-    int idx = tier - 1;
-    if (idx >= n) { idx = n - 1; }   // B&W: single stop catches every tier
-    return stops[idx].color;
-}
-
 int16_t rain_tier_permille(int tenths) {
     return (int16_t)rain_tier_proportional_height(tenths, 1000);
 }

@@ -158,21 +158,17 @@ static bool handle_rain_radar(DictionaryIterator *iterator, bool *radar_dirty) {
 
 static bool handle_palette(DictionaryIterator *iterator, bool *forecast_dirty,
                            bool *radar_dirty) {
-    Tuple *from_tuple = dict_find(iterator, MESSAGE_KEY_RAIN_PALETTE_STOP_FROM_INT16);
-    Tuple *rgb_tuple  = dict_find(iterator, MESSAGE_KEY_RAIN_PALETTE_STOP_RGB_INT32);
-    if (!from_tuple || !rgb_tuple) {
+    Tuple *bar_tuple   = dict_find(iterator, MESSAGE_KEY_BAR_PALETTE_UINT8);
+    Tuple *radar_tuple = dict_find(iterator, MESSAGE_KEY_RADAR_PALETTE_UINT8);
+    if (!bar_tuple && !radar_tuple) {
         return false;
     }
-    const int count = (int)(from_tuple->length / sizeof(int16_t));
-    // Guard against a malformed/truncated payload: rgb must carry one int32 per
-    // stop, else palette_set_rain would read past the rgb buffer.
-    if (rgb_tuple->length != count * sizeof(int32_t)) {
-        return false;
+    if (bar_tuple) {
+        *forecast_dirty |= palette_set_bar(bar_tuple->value->data, (int) bar_tuple->length);
     }
-    bool changed = palette_set_rain((int16_t*) from_tuple->value->data,
-                                    (int32_t*) rgb_tuple->value->data, count);
-    *forecast_dirty |= changed;
-    *radar_dirty |= changed;
+    if (radar_tuple) {
+        *radar_dirty |= palette_set_radar(radar_tuple->value->data, (int) radar_tuple->length);
+    }
     return true;
 }
 
