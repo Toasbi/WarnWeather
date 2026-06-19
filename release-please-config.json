@@ -5,7 +5,6 @@
     ".": {
       "release-type": "go",
       "versioning": "always-bump-minor",
-      "release-as": "1.0.0",
       "skip-changelog": true,
       "extra-files": [
         {
