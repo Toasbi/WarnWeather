@@ -149,7 +149,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
     // detect a change and force a resend (clearWeatherCaches also drops the palette
     // cache, so a rainBarColor-only change is covered by the same tuple/path).
     var prevRender = app.settings
-        ? [app.settings.secondaryLine, app.settings.secondaryLineFill, app.settings.barSource, app.settings.rainBarColor].join('|')
+        ? [app.settings.secondaryLine, app.settings.secondaryLineFill, app.settings.barSource, app.settings.rainBarColor, app.settings.radarColor].join('|')
         : '';
     clay.getSettings(e.response, false);  // This triggers the update in localStorage
     app.settings = getClaySettings();  // This reads from localStorage in sensible format
@@ -162,7 +162,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
     app.telemetry = createTelemetryClient(getRuntimeTelemetryConfig());
     var providerOrLocationChanged = refreshProvider();
     var radarProviderChanged = oldRadarProvider !== app.settings.radarProvider;
-    var nextRender = [app.settings.secondaryLine, app.settings.secondaryLineFill, app.settings.barSource, app.settings.rainBarColor].join('|');
+    var nextRender = [app.settings.secondaryLine, app.settings.secondaryLineFill, app.settings.barSource, app.settings.rainBarColor, app.settings.radarColor].join('|');
     var renderSettingsChanged = prevRender !== nextRender;
     var needsRefetch = providerOrLocationChanged || radarProviderChanged || renderSettingsChanged;
     sendClaySettings();
@@ -688,6 +688,7 @@ function getDefaultClaySettings() {
         secondaryLineFill: true,
         barSource: 'rain',
         rainBarColor: 'multicolor',
+        radarColor: 'multicolor',
         timeLeadingZero: false,
         timeShowAmPm: false,
         axisTimeFormat: '24h',
@@ -991,22 +992,19 @@ function getFixtureRadarTuples(fixture) {
 }
 
 /**
- * Build the rain-tier palette AppMessage tuples for the current platform +
- * rainBarColor setting. Forecast bars + radar share this palette on the watch,
- * so both the live-fetch and fixture send paths bundle it; the fixture path has
- * no fetch of its own to ride along with, so without this its bars ignore
- * rainBarColor and fall back to the watch's last/default palette.
- * @returns {{RAIN_PALETTE_STOP_FROM_INT16: number[], RAIN_PALETTE_STOP_RGB_INT32: number[]}} Palette tuples.
+ * Build the packed palette AppMessage tuples for both channels. Bars follow
+ * rainBarColor, the rain radar follows radarColor; each is an independent
+ * GColor8 blob (3 B/stop). Both the live-fetch and fixture send paths bundle
+ * these so the two paths can't drift; the fixture path has no fetch to ride
+ * along with, so without this its bars/radar fall back to the watch defaults.
+ * @returns {{BAR_PALETTE_UINT8: number[], RADAR_PALETTE_UINT8: number[]}} Packed tuples.
  */
 function buildPaletteTuples() {
-    var palette = rainTier.buildPalette(
-        app.watchInfo ? app.watchInfo.platform : 'basalt',
-        app.settings ? app.settings.rainBarColor : 'multicolor'
-    );
-    var paletteWire = rainTier.paletteToWire(palette);
+    var platform = app.watchInfo ? app.watchInfo.platform : 'basalt';
+    var settings = app.settings || {};
     return {
-        RAIN_PALETTE_STOP_FROM_INT16: paletteWire.from,
-        RAIN_PALETTE_STOP_RGB_INT32: paletteWire.rgb
+        BAR_PALETTE_UINT8: rainTier.buildPackedPalette(platform, settings.rainBarColor || 'multicolor'),
+        RADAR_PALETTE_UINT8: rainTier.buildPackedPalette(platform, settings.radarColor || 'multicolor')
     };
 }
 

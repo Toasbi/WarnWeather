@@ -3,6 +3,7 @@
 #include "c/appendix/persist.h"
 #include "c/appendix/config.h"
 #include "c/appendix/rain_tier.h"
+#include "c/appendix/palette.h"
 #include "c/appendix/hatch.h"
 #include "c/appendix/memory_log.h"
 #include "c/appendix/slot_geometry.h"
@@ -107,7 +108,7 @@ static GColor border_color_for_slot(uint8_t exact_t, uint8_t area_t) {
     if (tier == 0) {
         tier = rain_tier_of_tenths(area_t);
     }
-    return rain_tier_color(tier);
+    return palette_radar_color(tier);
 }
 
 // Draw a dotted horizontal/vertical line segment for the nearby border on
@@ -285,7 +286,7 @@ static void radar_or_snooze_update_proc(Layer *layer, GContext *ctx) {
     };
 
     int radar_num_stops = 0;
-    const ChartColorStop *radar_stops = rain_tier_stops(&radar_num_stops);
+    const ChartColorStop *radar_stops = palette_radar_stops(&radar_num_stops);
 
     const ChartLayer layers[] = {
         { CHART_LAYER_AXIS, .axis = {

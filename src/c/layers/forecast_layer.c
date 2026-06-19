@@ -6,6 +6,7 @@
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
 #include "c/appendix/rain_tier.h"
+#include "c/appendix/palette.h"
 #include "c/appendix/hatch.h"
 #include "c/appendix/slot_geometry.h"
 #include "c/appendix/display_width.h"
@@ -667,7 +668,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                                        : FORECAST_AXIS_COLOR_DAY;
 
     int rain_num_stops = 0;
-    const ChartColorStop *rain_stops = rain_tier_stops(&rain_num_stops);
+    const ChartColorStop *rain_stops = palette_bar_stops(&rain_num_stops);
 
     // Z-order = array order, bottom first. Frame after the data bands so it
     // overwrites curve/area pixels at the border columns. Line/bars are gated on
