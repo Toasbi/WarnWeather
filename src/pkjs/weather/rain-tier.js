@@ -68,19 +68,19 @@ function rainPermille(tenths) {
 }
 
 /**
- * Build the rain color palette for a watch platform + bar-color choice.
+ * Build the rain color palette for a watch platform + color choice.
  * B&W platforms always get a single black stop (the watch adds the white outline) and
- * ignore rainBarColor. On color displays, 'white' collapses to a single white stop;
+ * ignore colorMode. On color displays, 'white' collapses to a single white stop;
  * anything else (default) yields the five multicolor tier stops.
  * @param {string} platform Pebble platform id (aplite/basalt/chalk/diorite/emery).
- * @param {string} [rainBarColor] 'multicolor' (default) or 'white'. Color displays only.
+ * @param {string} [colorMode] 'multicolor' (default) or 'white'. Color displays only.
  * @returns {{from: number[], rgb: number[]}} Stops: permille thresholds + 0xRRGGBB colors.
  */
-function buildPalette(platform, rainBarColor) {
+function buildPalette(platform, colorMode) {
     if (BW_PLATFORMS[platform]) {
         return { from: [0], rgb: [COLORS.GColorBlack] };
     }
-    if (rainBarColor === 'white') {
+    if (colorMode === 'white') {
         return { from: [0], rgb: [COLORS.GColorWhite] };
     }
     return {
@@ -103,8 +103,53 @@ function paletteToWire(palette) {
     return { from: fromBytes, rgb: rgbBytes };
 }
 
+/**
+ * Quantize a 0xRRGGBB color to the single GColor8 byte the watch stores.
+ * Matches Pebble's GColorFromHEX exactly: opaque alpha (0b11) + top 2 bits per
+ * channel, so the rendered pixel is identical to sending the full hex.
+ * @param {number} hex 0xRRGGBB color.
+ * @returns {number} GColor8 byte (0xC0..0xFF).
+ */
+function rgbToGColor8(hex) {
+    var r = (hex >> 16) & 0xFF;
+    var g = (hex >> 8) & 0xFF;
+    var b = hex & 0xFF;
+    return 0xC0 | ((r >> 6) << 4) | ((g >> 6) << 2) | (b >> 6);
+}
+
+/**
+ * Pack a logical palette into the wire blob: 3 bytes/stop —
+ * [from_lo, from_hi (int16 LE permille), GColor8 color]. Stop count is the
+ * consumer's `len / 3`; there is no separate count field.
+ * @param {{from: number[], rgb: number[]}} palette Logical palette from buildPalette.
+ * @returns {number[]} Packed uint8 array (length === stops * 3).
+ */
+function packPalette(palette) {
+    var out = [];
+    for (var i = 0; i < palette.from.length; i += 1) {
+        var from = palette.from[i] & 0xFFFF;
+        out.push(from & 0xFF);           // from_lo
+        out.push((from >> 8) & 0xFF);    // from_hi
+        out.push(rgbToGColor8(palette.rgb[i]));
+    }
+    return out;
+}
+
+/**
+ * Build and pack one channel's palette in a single call.
+ * @param {string} platform Pebble platform id.
+ * @param {string} colorMode 'multicolor' or 'white'.
+ * @returns {number[]} Packed uint8 palette blob for the wire.
+ */
+function buildPackedPalette(platform, colorMode) {
+    return packPalette(buildPalette(platform, colorMode));
+}
+
 module.exports = {
     rainPermille: rainPermille,
     buildPalette: buildPalette,
-    paletteToWire: paletteToWire
+    paletteToWire: paletteToWire,
+    rgbToGColor8: rgbToGColor8,
+    packPalette: packPalette,
+    buildPackedPalette: buildPackedPalette
 };
