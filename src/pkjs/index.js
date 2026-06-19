@@ -19,6 +19,7 @@ var activeFixture = require('./active-fixture.generated.js');
 var pebbleColors = require('./pebble-colors.js');
 var wireUnits = require('./wire-units.js');
 var releaseNotifications = require('./release-notifications.js');
+var sleepWindow = require('./sleep-window.js');
 
 /**
  * Full release-notification manifest (dev: force-show by version). Omitted from bundle if missing.
@@ -1005,30 +1006,8 @@ function tryFetch(provider) {
     };
 }
 
-/**
- * Test whether `now` falls inside the user-configured sleep window.
- *
- * Schedule values come from Clay as strings (the select stores '0'..'23').
- * We parse and clamp at use-site rather than mutating settings, matching
- * how fetchIntervalMin is handled elsewhere in this file.
- *
- * @param {Date} now Current time to evaluate.
- * @returns {boolean} True when the toggle is on and `now` is inside the window.
- */
-function inCustomWindow(now) {
-    if (!app.settings || !app.settings.sleepNightEnabled) return false;
-    var h = now.getHours();
-    var start = parseInt(app.settings.sleepStartHour, 10);
-    var end = parseInt(app.settings.sleepEndHour, 10);
-    if (isNaN(start) || start < 0 || start > 23) start = 22;
-    if (isNaN(end)   || end   < 0 || end   > 23) end   = 7;
-    if (start === end) return false;          // zero-length window
-    if (start < end)   return h >= start && h < end;
-    return h >= start || h < end;             // wraps midnight
-}
-
 function isSleepingNow() {
-    return inCustomWindow(new Date());
+    return sleepWindow.isWithinSleepWindow(new Date(), app.settings);
 }
 
 /**
@@ -1065,9 +1044,7 @@ function needRefresh() {
         return true;
     }
     var intervalMs = app.settings.fetchIntervalMin * 60 * 1000;
-    var lastSlot = Math.floor(lastTimeMs / intervalMs);
-    var nowSlot = Math.floor(Date.now() / intervalMs);
-    if (nowSlot <= lastSlot) return false;
-    if (isSleepingNow() && app.lastIsSleeping === true) return false;
+    if (!sleepWindow.isPastRefreshSlot(lastTimeMs, Date.now(), intervalMs)) { return false; }
+    if (isSleepingNow() && app.lastIsSleeping === true) { return false; }
     return true;
 }
