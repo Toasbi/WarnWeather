@@ -33,7 +33,7 @@
 // Slot grid bar dimensions, bucketed by display width.
 // pitch = tick_w + 2*pad + bar_w
 //   144-bucket: 1 + 2 + 3 = 6 → 24*6 + 1 = 145 px (overflows 144 by 1 → 1 px clip)
-//   200-bucket: 1 + 4 + 4 = 9 → 24*9 + 1 = 217 px (overflows emery's 196 by 21 → rightmost slots clip)
+//   200-bucket: 1 + 2 + 5 = 8 → 24*8 + 1 = 193 px (fits emery's 196)
 #if defined(DISPLAY_WIDTH_200)
     #define RADAR_BAR_W 5
     #define RADAR_PAD   1
@@ -307,7 +307,7 @@ static void radar_or_snooze_update_proc(Layer *layer, GContext *ctx) {
 void rain_radar_layer_create(Layer *parent, GRect frame) {
     s_radar_layer = layer_create(frame);
     layer_set_update_proc(s_radar_layer, radar_or_snooze_update_proc);
-    layer_set_hidden(s_radar_layer, true);  // calendar wins by default until toggle wiring lands
+    layer_set_hidden(s_radar_layer, true);  // starts hidden; visibility owned by main_window apply_top_view()
     layer_add_child(parent, s_radar_layer);
     MEMORY_LOG_HEAP("after_rain_radar_layer_create");
 }

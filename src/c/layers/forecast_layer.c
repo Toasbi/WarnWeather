@@ -118,10 +118,10 @@ typedef struct {
     int num_entries;          // clamped to MAX_FORECAST_ENTRIES
     time_t forecast_start;
     int16_t temps[MAX_FORECAST_ENTRIES];
-    int16_t line[MAX_FORECAST_ENTRIES];   // permille; line_count==0 means off
-    int16_t bars[MAX_FORECAST_ENTRIES];   // permille; bar_count==0 means off
-    int line_count;
-    int bar_count;
+    int16_t line[MAX_FORECAST_ENTRIES];   // permille; line_present==0 means off
+    int16_t bars[MAX_FORECAST_ENTRIES];   // permille; bars_present==0 means off
+    int line_present;   // nonzero if the line series is enabled
+    int bars_present;   // nonzero if the bar series is enabled
     GColor line_color;        // stroke color, chosen per-metric by PKJS
     GColor fill_color;        // area-fill color (day), chosen per-metric by PKJS
     bool line_fill;           // shade the area under the line (metric color; gray on B&W)
@@ -141,12 +141,12 @@ static void load_dataset(ForecastDataset *ds) {
     ds->line_fill = persist_get_line_fill();
     if (ds->num_entries > 0) {
         persist_get_temp_trend(ds->temps, ds->num_entries);
-        // line_count/bar_count are used only as on/off flags; PKJS always builds
-        // each series at the full num_entries, so we read num_entries values.
-        ds->line_count = persist_get_line_count();
-        ds->bar_count = persist_get_bar_count();
-        if (ds->line_count > 0) { persist_get_line_trend(ds->line, ds->num_entries); }
-        if (ds->bar_count > 0)  { persist_get_bar_trend(ds->bars, ds->num_entries); }
+        // line_present/bars_present are used only as on/off flags; PKJS always
+        // builds each series at the full num_entries, so we read num_entries values.
+        ds->line_present = persist_get_line_count();
+        ds->bars_present = persist_get_bar_count();
+        if (ds->line_present > 0) { persist_get_line_trend(ds->line, ds->num_entries); }
+        if (ds->bars_present > 0) { persist_get_bar_trend(ds->bars, ds->num_entries); }
         min_max(ds->temps, ds->num_entries, &ds->temp_lo, &ds->temp_hi);
     }
 }
@@ -640,9 +640,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                              outer.origin.x, chart_def_pitch(&FORECAST_DEF),
                              bounds.size.w, forecast_start_local);
 
-    const bool line_on = ds.line_count > 0;
+    const bool line_on = ds.line_present > 0;
     const bool fill_on = line_on && ds.line_fill;
-    const bool bars_on = ds.bar_count > 0;
+    const bool bars_on = ds.bars_present > 0;
 
     NightLayerCtx night_ctx = {
         // Width spans slot 0..(num_entries-1) so the linear time->x map lands
@@ -663,8 +663,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     const GColor axis_color = night_on ? FORECAST_AXIS_COLOR_NIGHT
                                        : FORECAST_AXIS_COLOR_DAY;
 
-    int rain_num_stops = 0;
-    const ChartColorStop *rain_stops = palette_bar_stops(&rain_num_stops);
+    int bar_num_stops = 0;
+    const ChartColorStop *bar_stops = palette_bar_stops(&bar_num_stops);
 
     // Z-order = array order, bottom first. Frame after the data bands so it
     // overwrites curve/area pixels at the border columns. Line/bars are gated on
@@ -691,7 +691,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     if (bars_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_BARS, .bars = {
             .values = ds.bars, .count = ds.num_entries, .lo = 0, .hi = 1000,
-            .stops = rain_stops, .num_stops = rain_num_stops,
+            .stops = bar_stops, .num_stops = bar_num_stops,
             .style = PBL_IF_COLOR_ELSE(BAR_SOLID, BAR_OUTLINED) } };
     }
     if (line_on) {

@@ -4,7 +4,7 @@
 
 void loading_layer_create(Layer* parent_layer, GRect frame);
 
-bool loading_layer_has_valid_data();
+bool loading_layer_data_is_fresh();
 
 void loading_layer_refresh();
 
