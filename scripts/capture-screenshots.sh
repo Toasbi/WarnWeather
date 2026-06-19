@@ -39,14 +39,24 @@ elif command -v gtimeout >/dev/null 2>&1; then
   timeout_cmd=(gtimeout 30)
 else
   timeout_cmd=()
+  printf 'WARNING: no timeout/gtimeout found; screenshots run unguarded and a wedged\n' >&2
+  printf '         emulator will hang forever. brew install coreutils to bound hangs.\n' >&2
 fi
+
+# `pebble kill` sometimes leaves the heavy QEMU/pypkjs processes alive (especially
+# emery), which wedges the next install. Force-reap any stragglers too.
+kill_emulators() {
+  pebble kill >/dev/null 2>&1 || true
+  pkill -f qemu   >/dev/null 2>&1 || true
+  pkill -f pypkjs >/dev/null 2>&1 || true
+}
 
 mkdir -p "$raw_dir"
 
 printf 'Building dev .pbw...\n'
 mise run build -- dev
 
-pebble kill 2>/dev/null || true
+kill_emulators
 sleep 2
 
 for platform in "${platforms[@]}"; do
@@ -58,7 +68,7 @@ for platform in "${platforms[@]}"; do
     fi
     if [[ $attempt -eq 3 ]]; then
       printf 'ERROR: could not install on %s after 3 attempts\n' "$platform" >&2
-      pebble kill 2>/dev/null || true
+      kill_emulators
       exit 1
     fi
     printf 'Install attempt %d failed, retrying...\n' "$attempt" >&2
@@ -81,7 +91,7 @@ for platform in "${platforms[@]}"; do
   "${timeout_cmd[@]+"${timeout_cmd[@]}"}" pebble screenshot "$output" --emulator "$platform"
   printf 'Saved %s\n' "$output"
 
-  pebble kill 2>/dev/null || true
+  kill_emulators
   sleep 4
 done
 
