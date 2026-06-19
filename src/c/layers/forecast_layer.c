@@ -687,16 +687,16 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         layers[n++] = (ChartLayer){ CHART_LAYER_CUSTOM,
                                     .custom = { night_under_layer, &night_ctx } };
     }
+    // night_over is the full-height day/night hatch — independent of line/bars.
+    if (night_on) {
+        layers[n++] = (ChartLayer){ CHART_LAYER_CUSTOM,
+                                    .custom = { night_over_layer, &night_ctx } };
+    }
     if (bars_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_BARS, .bars = {
             .values = ds.bars, .count = ds.num_entries, .lo = 0, .hi = 1000,
             .stops = rain_stops, .num_stops = rain_num_stops,
             .style = PBL_IF_COLOR_ELSE(BAR_SOLID, BAR_OUTLINED) } };
-    }
-    // night_over is the full-height day/night hatch — independent of line/bars.
-    if (night_on) {
-        layers[n++] = (ChartLayer){ CHART_LAYER_CUSTOM,
-                                    .custom = { night_over_layer, &night_ctx } };
     }
     if (line_on) {
         layers[n++] = fill_on
