@@ -55,6 +55,7 @@ function getDefaults(colors) {
         secondaryLine: 'precip_prob',
         secondaryLineFill: true,
         barSource: 'rain',
+        windScale: 'mid',
         rainBarColor: 'multicolor',
         radarColor: 'multicolor',
         timeLeadingZero: false,

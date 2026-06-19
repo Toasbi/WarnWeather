@@ -43,3 +43,10 @@ test('save round-trips through read', () => {
   claySettings.save({ provider: 'openweathermap', location: 'Berlin' });
   assert.deepEqual(claySettings.read(), { provider: 'openweathermap', location: 'Berlin' });
 });
+
+test('getDefaults includes windScale defaulting to mid', () => {
+  installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  assert.equal(claySettings.getDefaults(COLORS).windScale, 'mid');
+});
