@@ -31,17 +31,27 @@ for radar_fixture in "${radar_fixtures[@]}"; do
   fi
 done
 
-# `timeout` is GNU coreutils and absent on stock macOS; fall back to gtimeout
-# (brew coreutils) or run without a timeout if neither is available.
-if command -v timeout >/dev/null 2>&1; then
-  timeout_cmd=(timeout 30)
-elif command -v gtimeout >/dev/null 2>&1; then
-  timeout_cmd=(gtimeout 30)
-else
-  timeout_cmd=()
-  printf 'WARNING: no timeout/gtimeout found; screenshots run unguarded and a wedged\n' >&2
-  printf '         emulator will hang forever. brew install coreutils to bound hangs.\n' >&2
-fi
+# Run `pebble screenshot` with a 30s bound so a wedged emulator can't hang the
+# capture forever. Uses timeout/gtimeout when present (GNU coreutils), else a
+# portable bash watchdog so no external dependency is required on stock macOS.
+screenshot_bounded() {
+  local out="$1" plat="$2"
+  if command -v timeout >/dev/null 2>&1; then
+    timeout 30 pebble screenshot "$out" --emulator "$plat"
+  elif command -v gtimeout >/dev/null 2>&1; then
+    gtimeout 30 pebble screenshot "$out" --emulator "$plat"
+  else
+    pebble screenshot "$out" --emulator "$plat" &
+    local pid=$!
+    ( sleep 30; kill "$pid" 2>/dev/null ) &
+    local watcher=$!
+    local rc=0
+    wait "$pid" 2>/dev/null || rc=$?
+    kill "$watcher" 2>/dev/null || true
+    wait "$watcher" 2>/dev/null || true
+    return "$rc"
+  fi
+}
 
 # `pebble kill` sometimes leaves the heavy QEMU/pypkjs processes alive (especially
 # emery), which wedges the next install. Force-reap any stragglers too.
@@ -88,7 +98,7 @@ for platform in "${platforms[@]}"; do
   fi
 
   output="$raw_dir/$platform.png"
-  "${timeout_cmd[@]+"${timeout_cmd[@]}"}" pebble screenshot "$output" --emulator "$platform"
+  screenshot_bounded "$output" "$platform"
   printf 'Saved %s\n' "$output"
 
   kill_emulators
