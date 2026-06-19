@@ -2,5 +2,9 @@
   "1.0.0": {
     "title": "Welcome to WarnWeather!",
     "body": "Thanks for installing. Set your location and forecast options in the watchface settings."
+  },
+  "1.1.0": {
+    "title": "Thanks for updating!",
+    "body": "WarnWeather 1.1.0 brings bug fixes and polish. Adjust your forecast, rain radar, and calendar in the watchface settings."
   }
 }
