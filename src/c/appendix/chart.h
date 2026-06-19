@@ -126,6 +126,7 @@ typedef struct {
     int            inset_y;           // vertical margins (temp line: 7)
     GColor         color;
     int            width;
+    bool           dashed;            // true ⇒ stroke a dashed 1px polyline (gust line)
 } ChartLineLayer;
 
 typedef struct {

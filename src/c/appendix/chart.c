@@ -163,6 +163,33 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
     }
 }
 
+// Stroke a dashed 1px polyline with integer DDA stepping (no float — project
+// constraint). The on/off phase carries across segment boundaries so the dash
+// pattern is continuous over the whole polyline. Mirrors the per-pixel approach
+// in rain_radar_layer.c's nearby_border_* helpers, generalized to any slope.
+static void chart_stroke_dashed(GContext *ctx, const GPoint *pts, int count, GColor color) {
+    const int DASH_ON = 4, DASH_OFF = 3;   // px on / off; tune in emulator
+    graphics_context_set_stroke_color(ctx, color);
+    graphics_context_set_stroke_width(ctx, 1);
+    int phase = 0;   // 0..DASH_ON-1 ⇒ pen down; DASH_ON..DASH_ON+DASH_OFF-1 ⇒ pen up
+    for (int i = 0; i + 1 < count; ++i) {
+        const int x0 = pts[i].x,     y0 = pts[i].y;
+        const int dx = pts[i+1].x - x0, dy = pts[i+1].y - y0;
+        const int adx = dx < 0 ? -dx : dx;
+        const int ady = dy < 0 ? -dy : dy;
+        const int steps = adx > ady ? adx : ady;   // walk the dominant axis
+        if (steps == 0) { continue; }
+        // First segment includes s=0; later segments start at 1 so the shared
+        // joint pixel (and its phase tick) is counted once, not twice.
+        for (int s = (i == 0 ? 0 : 1); s <= steps; ++s) {
+            const int x = x0 + (int)(((int32_t) dx * s) / steps);
+            const int y = y0 + (int)(((int32_t) dy * s) / steps);
+            if (phase < DASH_ON) { graphics_draw_pixel(ctx, GPoint(x, y)); }
+            if (++phase >= DASH_ON + DASH_OFF) { phase = 0; }
+        }
+    }
+}
+
 static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
     const int count = chart_clamp_count(r, l->count);
     if (count < 2) return;
@@ -186,10 +213,14 @@ static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
         pts = out;
     }
 
-    GPath path = { .num_points = (uint32_t)count, .points = (GPoint *)pts };
-    graphics_context_set_stroke_color(r->ctx, l->color);
-    graphics_context_set_stroke_width(r->ctx, l->width);
-    gpath_draw_outline_open(r->ctx, &path);
+    if (l->dashed) {
+        chart_stroke_dashed(r->ctx, pts, count, l->color);
+    } else {
+        GPath path = { .num_points = (uint32_t)count, .points = (GPoint *)pts };
+        graphics_context_set_stroke_color(r->ctx, l->color);
+        graphics_context_set_stroke_width(r->ctx, l->width);
+        gpath_draw_outline_open(r->ctx, &path);
+    }
 }
 
 static void chart_render_area(const ChartRender *r, const ChartAreaLayer *a) {
