@@ -27,7 +27,7 @@ var WEATHER_CATEGORIES = [
     {
         name: 'forecast',
         cacheKey: KEYS.LAST_SENT_FORECAST_KEY,
-        keys: ['TEMP_TREND_INT16', 'SECONDARY_LINE_TREND_INT16', 'SECONDARY_LINE_COLOR', 'SECONDARY_LINE_FILL', 'SECONDARY_LINE_FILL_COLOR', 'BAR_TREND_INT16', 'FORECAST_START', 'NUM_ENTRIES']
+        keys: ['TEMP_TREND_INT16', 'SECONDARY_LINE_TREND_INT16', 'SECONDARY_LINE_COLOR', 'SECONDARY_LINE_FILL', 'SECONDARY_LINE_FILL_COLOR', 'BAR_TREND_INT16', 'THIRD_LINE_TREND_INT16', 'FORECAST_START', 'NUM_ENTRIES']
     },
     {
         name: 'status',
@@ -185,6 +185,7 @@ function clearClayCache() {
 }
 
 module.exports = {
+    WEATHER_CATEGORIES: WEATHER_CATEGORIES,
     sendWeather: sendWeather,
     sendClay: sendClay,
     clearWeatherCaches: clearWeatherCaches,

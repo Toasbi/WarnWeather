@@ -167,6 +167,7 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
 // constraint). The on/off phase carries across segment boundaries so the dash
 // pattern is continuous over the whole polyline. Mirrors the per-pixel approach
 // in rain_radar_layer.c's nearby_border_* helpers, generalized to any slope.
+// Always draws 1px pixels regardless of ChartLineLayer.width — dashed lines are 1px by design.
 static void chart_stroke_dashed(GContext *ctx, const GPoint *pts, int count, GColor color) {
     const int DASH_ON = 4, DASH_OFF = 3;   // px on / off; tune in emulator
     graphics_context_set_stroke_color(ctx, color);
