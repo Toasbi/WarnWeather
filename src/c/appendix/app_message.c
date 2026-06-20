@@ -314,7 +314,12 @@ void app_message_init() {
     app_message_register_inbox_dropped(inbox_dropped_callback);
 
     // Open AppMessage
-    const int inbox_size = 384;
+    // All changed categories ride in one inbound message (outbox.js bundles
+    // them because the channel is half-duplex). The heaviest bundle is DWD +
+    // wind: the gust THIRD_LINE rides on top of the secondary line, plus rain
+    // radar + status + sun + (first-send) palette — ~455 B. Sized with headroom
+    // for long city names. Guarded by test/inbox-size.test.js.
+    const int inbox_size = 512;
     const int outbox_size = dict_calc_buffer_size(2, sizeof(uint8_t), sizeof(uint8_t));
     APP_LOG(APP_LOG_LEVEL_INFO, "AppMessage buffer sizes: inbox=%d outbox=%d", inbox_size, outbox_size);
     app_message_open(inbox_size, outbox_size);
