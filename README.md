@@ -61,7 +61,7 @@ Pebble Classic, Pebble Steel, Pebble Time, Pebble Time Steel, Pebble 2, and Pebb
 ### Pebble Appstore
 
 - RePebble: https://apps.repebble.com/6a35bd1472de6e0008e7d156
-- Rebble: https://apps.rebble.io/en_US/application/6a35bd1472de6e0008e7d156
+- Rebble: https://apps.rebble.io/en_US/application/6a3645239d979d000abc99db
 
 If you're using the modern Pebble app, the RePebble listing should be the simplest install path. If you prefer the Rebble flow, follow https://help.rebble.io/setup to set up your Pebble app first. The RePebble store uses Rebble's backend ([blog](https://ericmigi.com/blog/re-introducing-the-pebble-appstore)), so the they're effectively the same catalog through a different entry point.
 
