@@ -2,13 +2,15 @@
 
 set -euo pipefail
 
-# Capture the radar-view time-lapse on emery + aplite (one rebuild per frame,
-# because watch.now is compile-time), plus a single calendar still on basalt.
-# Frames land under screenshot/<version>/timelapse/frames/<platform>/ ready for
-# scripts/assemble-gif.sh. RUN ON THE MAC (needs the Pebble SDK + emulator).
+# Capture the two-phase time-lapse on all five platforms (one rebuild per frame,
+# because watch.now is compile-time). Phase A frames (timelapse-a-NN) are shot on
+# the forecast/calendar view; Phase B frames (timelapse-b-NN) are shot on the
+# radar view after a tap. To minimize emulator boots, each platform's emulator is
+# started once (on its first install) and reused across every frame; all are
+# killed at the end. RUN ON THE MAC (needs the Pebble SDK + emulator).
 #
 # Usage:   scripts/capture-timelapse.sh <version>
-# Example: scripts/capture-timelapse.sh v1.0.0
+# Example: scripts/capture-timelapse.sh v1.1.0
 
 if [[ $# -lt 1 ]]; then
   printf 'Usage: %s <version>\n' "$0" >&2
@@ -16,9 +18,8 @@ if [[ $# -lt 1 ]]; then
 fi
 
 version="$1"
-timelapse_platforms=(emery aplite)
+platforms=(emery basalt aplite diorite flint)
 frames_root="screenshot/$version/timelapse/frames"
-calendar_dir="screenshot/$version/calendar"
 
 # `timeout` is GNU coreutils, absent on stock macOS; fall back to gtimeout.
 if command -v timeout >/dev/null 2>&1; then
@@ -29,7 +30,15 @@ else
   timeout_cmd=()
 fi
 
-# install_with_retries <platform>
+# Track which platforms have already booted so the first install waits longer.
+declare -A booted=()
+
+cleanup() { pebble kill 2>/dev/null || true; }
+trap cleanup EXIT
+
+# install_with_retries <platform> — install onto the (possibly already-running)
+# emulator, retrying transient failures. Falls back to a kill+reinstall if the
+# live emulator wedges.
 install_with_retries() {
   local platform="$1"
   local attempt
@@ -37,67 +46,84 @@ install_with_retries() {
     if pebble install build/warnweather-dev.pbw --emulator "$platform"; then
       return 0
     fi
+    printf 'Install attempt %d on %s failed, retrying...\n' "$attempt" "$platform" >&2
+    if [[ $attempt -eq 2 ]]; then
+      # Second failure: drop the wedged emulator so attempt 3 boots fresh.
+      pebble kill 2>/dev/null || true
+      unset 'booted[$platform]'
+    fi
     if [[ $attempt -eq 3 ]]; then
       printf 'ERROR: could not install on %s after 3 attempts\n' "$platform" >&2
-      pebble kill 2>/dev/null || true
       exit 1
     fi
-    printf 'Install attempt %d on %s failed, retrying...\n' "$attempt" "$platform" >&2
     sleep 4
   done
 }
 
-# boot_wait <platform> — emery boots slower than the others.
-boot_wait() {
-  if [[ "$1" == "emery" ]]; then sleep 12; else sleep 5; fi
+# settle <platform> — first boot is slow (emery slowest); reinstalls settle fast.
+settle() {
+  local platform="$1"
+  if [[ -z "${booted[$platform]:-}" ]]; then
+    booted[$platform]=1
+    if [[ "$platform" == "emery" ]]; then sleep 12; else sleep 6; fi
+  else
+    sleep 2
+  fi
+}
+
+# capture_frame <platform> <fixture-slug> <out.png> <tap?>
+capture_frame() {
+  local platform="$1" slug="$2" out="$3" tap="$4"
+  install_with_retries "$platform"
+  settle "$platform"
+  if [[ "$tap" == "tap" ]]; then
+    pebble emu-tap --emulator "$platform"   # calendar -> radar
+    sleep 1
+  fi
+  "${timeout_cmd[@]+"${timeout_cmd[@]}"}" pebble screenshot "$out" --emulator "$platform"
+  printf 'Saved %s\n' "$out"
 }
 
 node scripts/gen-timelapse-fixtures.js
 
 shopt -s nullglob
-frame_fixtures=(fixtures/timelapse-*.json)
-if [[ ${#frame_fixtures[@]} -eq 0 ]]; then
-  printf 'No timelapse fixtures were generated\n' >&2
+a_fixtures=(fixtures/timelapse-a-*.json)
+b_fixtures=(fixtures/timelapse-b-*.json)
+if [[ ${#a_fixtures[@]} -eq 0 || ${#b_fixtures[@]} -eq 0 ]]; then
+  printf 'No two-phase fixtures were generated\n' >&2
   exit 1
 fi
 
-for platform in "${timelapse_platforms[@]}"; do
+for platform in "${platforms[@]}"; do
   mkdir -p "$frames_root/$platform"
 done
 
 pebble kill 2>/dev/null || true
 sleep 2
 
-for fixture in "${frame_fixtures[@]}"; do
-  base="$(basename "$fixture" .json)"   # timelapse-00
-  nn="${base#timelapse-}"               # 00
-  printf '\n==> frame %s\n' "$nn"
+# Phase A: forecast/calendar view (no tap).
+for fixture in "${a_fixtures[@]}"; do
+  base="$(basename "$fixture" .json)"   # timelapse-a-00
+  nn="${base##*-}"                      # 00
+  printf '\n==> Phase A frame %s\n' "$nn"
   FIXTURE="$base" mise run build -- dev
-
-  for platform in "${timelapse_platforms[@]}"; do
-    install_with_retries "$platform"
-    boot_wait "$platform"
-    # Boot view is the calendar; tap to toggle to the radar view.
-    pebble emu-tap --emulator "$platform"
-    sleep 1
-    output="$frames_root/$platform/frame_$nn.png"
-    "${timeout_cmd[@]+"${timeout_cmd[@]}"}" pebble screenshot "$output" --emulator "$platform"
-    printf 'Saved %s\n' "$output"
-    pebble kill 2>/dev/null || true
-    sleep 4
+  for platform in "${platforms[@]}"; do
+    capture_frame "$platform" "$base" "$frames_root/$platform/a_$nn.png" "no-tap"
   done
 done
 
-# Single calendar still on basalt using the berlin fixture (no radar tap).
-printf '\n==> calendar still (basalt)\n'
-mkdir -p "$calendar_dir"
-FIXTURE=berlin mise run build -- dev
-install_with_retries basalt
-boot_wait basalt
-"${timeout_cmd[@]+"${timeout_cmd[@]}"}" pebble screenshot "$calendar_dir/basalt.png" --emulator basalt
-printf 'Saved %s\n' "$calendar_dir/basalt.png"
-pebble kill 2>/dev/null || true
+# Phase B: radar view (tap once after each install).
+for fixture in "${b_fixtures[@]}"; do
+  base="$(basename "$fixture" .json)"   # timelapse-b-00
+  nn="${base##*-}"                      # 00
+  printf '\n==> Phase B frame %s\n' "$nn"
+  FIXTURE="$base" mise run build -- dev
+  for platform in "${platforms[@]}"; do
+    capture_frame "$platform" "$base" "$frames_root/$platform/b_$nn.png" "tap"
+  done
+done
 
-printf '\nDone. Next:\n'
-printf '  scripts/assemble-gif.sh %s emery\n' "$version"
-printf '  scripts/assemble-gif.sh %s aplite\n' "$version"
+printf '\nDone. Next, per platform:\n'
+for platform in "${platforms[@]}"; do
+  printf '  scripts/assemble-gif.sh %s %s\n' "$version" "$platform"
+done
