@@ -61,7 +61,7 @@ function writePhase(base, opts) {
 
   for (let i = 0; i < frames; i++) {
     const totalMin = start.hour * 60 + start.minute + i * stepMin;
-    if (totalMin > 24 * 60) {
+    if (totalMin >= 24 * 60) {
       throw new Error('Frame ' + i + ' of ' + prefix + ' crosses midnight; narrow the window or frame count');
     }
     const frame = JSON.parse(JSON.stringify(base));
@@ -96,7 +96,7 @@ function writePhase(base, opts) {
  * @param {number} [opts.frames=20] Frames per phase.
  * @param {number} [opts.stepMin=5] Minutes between frames.
  * @param {string} [opts.phaseAStart="20:45"] Phase A first watch.now + anchor.
- * @param {string} [opts.phaseBStart="22:25"] Phase B first watch.now + anchor.
+ * @param {string} [opts.phaseBStart="22:20"] Phase B first watch.now + anchor.
  * @returns {{a: string[], b: string[]}} Written fixture paths per phase.
  */
 function generateFrames(opts = {}) {
@@ -104,7 +104,7 @@ function generateFrames(opts = {}) {
   const frames = opts.frames ?? 20;
   const stepMin = opts.stepMin ?? 5;
   const phaseAStart = opts.phaseAStart ?? '20:45';
-  const phaseBStart = opts.phaseBStart ?? '22:25';
+  const phaseBStart = opts.phaseBStart ?? '22:20';
 
   if (!Number.isInteger(frames) || frames < 1) {
     throw new Error('frames must be a positive integer, got ' + opts.frames);

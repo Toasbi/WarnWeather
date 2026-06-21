@@ -30,7 +30,7 @@ test('generates 20 Phase A + 20 Phase B frames with correct names', () => {
   }
 });
 
-test('Phase A watch.now advances 5 min from 20:45; Phase B continues from 22:25', () => {
+test('Phase A watch.now advances 5 min from 20:45; Phase B continues from 22:20', () => {
   const { outDir } = run();
   for (let i = 0; i < 20; i++) {
     const nn = String(i).padStart(2, '0');
@@ -40,19 +40,19 @@ test('Phase A watch.now advances 5 min from 20:45; Phase B continues from 22:25'
     assert.equal(a.watch.now.minute, aMin % 60);
     assert.equal(a.watch.now.second, 0);
     const b = readFrame(outDir, `timelapse-b-${nn}.json`);
-    const bMin = 22 * 60 + 25 + i * 5;
+    const bMin = 22 * 60 + 20 + i * 5;
     assert.equal(b.watch.now.hour, Math.floor(bMin / 60));
     assert.equal(b.watch.now.minute, bMin % 60);
   }
 });
 
-test('timeline is continuous: first Phase B frame is one step after last Phase A frame', () => {
+test('timeline is continuous: Phase B begins at the same instant Phase A ended', () => {
   const { outDir } = run();
   const a19 = readFrame(outDir, 'timelapse-a-19.json');
   const b00 = readFrame(outDir, 'timelapse-b-00.json');
   const a19Min = a19.watch.now.hour * 60 + a19.watch.now.minute;
   const b00Min = b00.watch.now.hour * 60 + b00.watch.now.minute;
-  assert.equal(b00Min - a19Min, 5);
+  assert.equal(b00Min - a19Min, 0);
 });
 
 test('Phase A frames carry config A; Phase B frames carry config B', () => {
