@@ -21,7 +21,7 @@ test('seedDefaults writes defaults when none stored', () => {
   const claySettings = require('../src/pkjs/clay-settings');
   claySettings.seedDefaults(COLORS);
   const read = claySettings.read();
-  assert.equal(read.provider, 'wunderground');
+  assert.equal(read.provider, 'openmeteo');
   assert.equal(read.colorSunday, COLORS.folly);
 });
 
@@ -49,4 +49,16 @@ test('getDefaults includes windScale defaulting to mid', () => {
   delete require.cache[require.resolve('../src/pkjs/clay-settings')];
   const claySettings = require('../src/pkjs/clay-settings');
   assert.equal(claySettings.getDefaults(COLORS).windScale, 'mid');
+});
+
+test('seedDefaults enables night pause and Leco font by default', () => {
+  installFakeStorage();
+  const claySettings = require('../src/pkjs/clay-settings');
+  claySettings.seedDefaults(COLORS);
+  const read = claySettings.read();
+  assert.equal(read.provider, 'openmeteo');
+  assert.equal(read.timeFont, 'leco');
+  assert.equal(read.sleepNightEnabled, true);
+  assert.equal(read.sleepStartHour, '22');
+  assert.equal(read.sleepEndHour, '7');
 });

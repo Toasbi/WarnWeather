@@ -44,7 +44,7 @@ function hasStored() {
  */
 function getDefaults(colors) {
     return {
-        provider: 'wunderground',
+        provider: 'openmeteo',
         radarProvider: 'disabled',
         owmApiKey: '',
         fetch: false,
@@ -61,7 +61,10 @@ function getDefaults(colors) {
         timeLeadingZero: false,
         timeShowAmPm: false,
         axisTimeFormat: '24h',
-        timeFont: 'roboto',
+        timeFont: 'leco',
+        sleepNightEnabled: true,
+        sleepStartHour: '22',
+        sleepEndHour: '7',
         colorTime: colors.white,
         weekStartDay: 'sun',
         firstWeek: 'prev',

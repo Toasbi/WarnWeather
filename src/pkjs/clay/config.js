@@ -59,7 +59,7 @@ module.exports = [
                 "type": "select",
                 "label": "Main time font",
                 "messageKey": "timeFont",
-                "defaultValue": "roboto",
+                "defaultValue": "leco",
                 "options": [
                     {
                         "label": "Roboto",
@@ -200,7 +200,7 @@ module.exports = [
                 "type": "toggle",
                 "label": "Pause weather at night",
                 "messageKey": "sleepNightEnabled",
-                "defaultValue": false,
+                "defaultValue": true,
                 "description": "Stop fetching weather between the hours below to save battery."
             },
             {
@@ -325,8 +325,8 @@ module.exports = [
                 "type": "radiogroup",
                 "label": "Provider",
                 "messageKey": "provider",
-                "defaultValue": "wunderground",
-                "description": "Weather data source.<br><b>Weather Underground</b> — no API key needed.<br><b>OpenWeatherMap</b> — requires an API key subscribed to One Call API 3.0 (see below).<br><b>Deutscher Wetterdienst</b> — Germany only, no key needed.",
+                "defaultValue": "openmeteo",
+                "description": "Weather data source.<br><b>Weather Underground</b> — no API key needed.<br><b>OpenWeatherMap</b> — requires an API key subscribed to One Call API 3.0 (see below).<br><b>Deutscher Wetterdienst</b> — Germany only, no key needed.<br><b>Open-Meteo</b> — global, no key needed.",
                 "options": [
                     {
                         "label": "Weather Underground",
@@ -339,6 +339,10 @@ module.exports = [
                     {
                         "label": "Deutscher Wetterdienst (Germany only)",
                         "value": "dwd"
+                    },
+                    {
+                        "label": "Open-Meteo",
+                        "value": "openmeteo"
                     }
                 ]
             },
