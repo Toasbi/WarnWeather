@@ -82,9 +82,9 @@ settle() {
   fi
 }
 
-# capture_frame <platform> <fixture-slug> <out.png> <tap?>
+# capture_frame <platform> <out.png> <tap?>
 capture_frame() {
-  local platform="$1" slug="$2" out="$3" tap="$4"
+  local platform="$1" out="$2" tap="$3"
   install_with_retries "$platform"
   settle "$platform"
   if [[ "$tap" == "tap" ]]; then
@@ -119,7 +119,7 @@ for fixture in "${a_fixtures[@]}"; do
   printf '\n==> Phase A frame %s\n' "$nn"
   FIXTURE="$base" mise run build -- dev
   for platform in "${platforms[@]}"; do
-    capture_frame "$platform" "$base" "$frames_root/$platform/a_$nn.png" "no-tap"
+    capture_frame "$platform" "$frames_root/$platform/a_$nn.png" "no-tap"
   done
 done
 
@@ -130,7 +130,7 @@ for fixture in "${b_fixtures[@]}"; do
   printf '\n==> Phase B frame %s\n' "$nn"
   FIXTURE="$base" mise run build -- dev
   for platform in "${platforms[@]}"; do
-    capture_frame "$platform" "$base" "$frames_root/$platform/b_$nn.png" "tap"
+    capture_frame "$platform" "$frames_root/$platform/b_$nn.png" "tap"
   done
 done
 
