@@ -5,9 +5,11 @@ set -euo pipefail
 # Capture the two-phase time-lapse on all five platforms (one rebuild per frame,
 # because watch.now is compile-time). Phase A frames (timelapse-a-NN) are shot on
 # the forecast/calendar view; Phase B frames (timelapse-b-NN) are shot on the
-# radar view after a tap. To minimize emulator boots, each platform's emulator is
-# started once (on its first install) and reused across every frame; all are
-# killed at the end. RUN ON THE MAC (needs the Pebble SDK + emulator).
+# radar view after a tap. Each shot runs on a freshly-booted emulator that is
+# force-reaped afterwards: `pebble kill` alone can leave QEMU/pypkjs stragglers
+# (especially emery) that wedge the next install, and reusing live emulators
+# wedges the slow-to-boot platforms (flint), so we boot one at a time and reap
+# everything between shots. RUN ON THE MAC (needs the Pebble SDK + emulator).
 #
 # Usage:   scripts/capture-timelapse.sh <version>
 # Example: scripts/capture-timelapse.sh v1.1.0
@@ -21,35 +23,40 @@ version="$1"
 platforms=(emery basalt aplite diorite flint)
 frames_root="screenshot/$version/timelapse/frames"
 
-# `timeout` is GNU coreutils, absent on stock macOS; fall back to gtimeout.
-if command -v timeout >/dev/null 2>&1; then
-  timeout_cmd=(timeout 30)
-elif command -v gtimeout >/dev/null 2>&1; then
-  timeout_cmd=(gtimeout 30)
-else
-  timeout_cmd=()
-fi
-
-# Track which platforms have already booted so the first install waits longer.
-# Plain string membership (no associative arrays) keeps this bash 3.2 safe for
-# stock macOS /bin/bash.
-booted=""
-is_booted()   { case " $booted " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
-mark_booted() { is_booted "$1" || booted="$booted $1"; }
-mark_unbooted() {
-  local p new=""
-  for p in $booted; do
-    if [[ "$p" != "$1" ]]; then new="$new $p"; fi
-  done
-  booted="$new"
+# Run `pebble screenshot` with a 30s bound so a wedged emulator can't hang the
+# capture forever. Uses timeout/gtimeout when present (GNU coreutils), else a
+# portable bash watchdog so no external dependency is required on stock macOS.
+screenshot_bounded() {
+  local out="$1" plat="$2"
+  if command -v timeout >/dev/null 2>&1; then
+    timeout 30 pebble screenshot "$out" --emulator "$plat"
+  elif command -v gtimeout >/dev/null 2>&1; then
+    gtimeout 30 pebble screenshot "$out" --emulator "$plat"
+  else
+    pebble screenshot "$out" --emulator "$plat" &
+    local pid=$!
+    ( sleep 30; kill "$pid" 2>/dev/null ) &
+    local watcher=$!
+    local rc=0
+    wait "$pid" 2>/dev/null || rc=$?
+    kill "$watcher" 2>/dev/null || true
+    wait "$watcher" 2>/dev/null || true
+    return "$rc"
+  fi
 }
 
-cleanup() { pebble kill 2>/dev/null || true; }
-trap cleanup EXIT
+# `pebble kill` sometimes leaves the heavy QEMU/pypkjs processes alive (especially
+# emery), which wedges the next install. Force-reap any stragglers too.
+kill_emulators() {
+  pebble kill >/dev/null 2>&1 || true
+  pkill -f qemu   >/dev/null 2>&1 || true
+  pkill -f pypkjs >/dev/null 2>&1 || true
+}
 
-# install_with_retries <platform> — install onto the (possibly already-running)
-# emulator, retrying transient failures. Falls back to a kill+reinstall if the
-# live emulator wedges.
+trap kill_emulators EXIT
+
+# install_with_retries <platform> — install on a fresh emulator, reaping any
+# wedged stragglers before each retry.
 install_with_retries() {
   local platform="$1"
   local attempt
@@ -59,40 +66,33 @@ install_with_retries() {
     fi
     if [[ $attempt -eq 3 ]]; then
       printf 'ERROR: could not install on %s after 3 attempts; giving up\n' "$platform" >&2
+      kill_emulators
       exit 1
     fi
     printf 'Install attempt %d on %s failed, retrying...\n' "$attempt" "$platform" >&2
-    if [[ $attempt -eq 2 ]]; then
-      # Second failure: drop the wedged emulator so attempt 3 boots fresh.
-      pebble kill 2>/dev/null || true
-      mark_unbooted "$platform"
-    fi
+    kill_emulators
     sleep 4
   done
 }
 
-# settle <platform> — first boot is slow (emery slowest); reinstalls settle fast.
-settle() {
-  local platform="$1"
-  if is_booted "$platform"; then
-    sleep 2
-  else
-    mark_booted "$platform"
-    if [[ "$platform" == "emery" ]]; then sleep 12; else sleep 6; fi
-  fi
+# boot_wait <platform> — emery boots slower than the others.
+boot_wait() {
+  if [[ "$1" == "emery" ]]; then sleep 12; else sleep 5; fi
 }
 
 # capture_frame <platform> <out.png> <tap?>
 capture_frame() {
   local platform="$1" out="$2" tap="$3"
   install_with_retries "$platform"
-  settle "$platform"
+  boot_wait "$platform"
   if [[ "$tap" == "tap" ]]; then
     pebble emu-tap --emulator "$platform"   # calendar -> radar
     sleep 1
   fi
-  "${timeout_cmd[@]+"${timeout_cmd[@]}"}" pebble screenshot "$out" --emulator "$platform"
+  screenshot_bounded "$out" "$platform"
   printf 'Saved %s\n' "$out"
+  kill_emulators
+  sleep 4
 }
 
 node scripts/gen-timelapse-fixtures.js
@@ -109,7 +109,7 @@ for platform in "${platforms[@]}"; do
   mkdir -p "$frames_root/$platform"
 done
 
-pebble kill 2>/dev/null || true
+kill_emulators
 sleep 2
 
 # Phase A: forecast/calendar view (no tap).
