@@ -1,0 +1,10 @@
+{
+  "name": "pebble-config-ui",
+  "version": "0.1.0",
+  "description": "Declarative, extensible config-UI library for Pebble apps (a modern Clay replacement).",
+  "main": "index.js",
+  "files": ["index.js", "lib/", "scripts/", "README.md"],
+  "license": "MIT",
+  "keywords": ["pebble", "clay", "settings", "config", "watchface"],
+  "private": true
+}
