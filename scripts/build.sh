@@ -16,6 +16,8 @@ fi
 scripts/ensure-pebble-sdk.sh
 mise run prepare-package -- "$profile"
 node scripts/prepare-fixture.js
+node scripts/build-config-page.js
+node --test
 pebble build "$@"
 
 # pebble build names the pbw after the project-directory basename, so in a
