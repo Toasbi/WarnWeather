@@ -69,7 +69,7 @@ module.exports = {
         { type: 'segmented', messageKey: 'secondaryLine', label: 'Secondary line', defaultValue: 'precip_prob',
           hintByValue: {
             precip_prob: 'Chance of rain each hour<br>— half-height = 50% rain chance<br>— full-height = 100% rain chance',
-            wind: 'Wind speed + dotted gust line drawn above it.',
+            wind: 'Wind speed, with an optional dotted gust line above it.',
             off: 'Temperature only.'
           }, options: [['Precip', 'precip_prob'], ['Wind', 'wind'], ['Off', 'off']], blockBefore: 'forecastPreview'
         },
@@ -81,6 +81,9 @@ module.exports = {
             high: 'Tops out at 70 km/h (43 mph) — keeps strong gusts from flattening against the top.'
           },
           options: [['Low','low'],['Mid','mid'],['High','high']], showWhen: { key: 'secondaryLine', eq: 'wind' } },
+        { type: 'toggle', messageKey: 'gustLine', label: 'Gust line', defaultValue: true,
+          hint: 'Dotted line above the wind speed showing gust peaks.',
+          showWhen: { key: 'secondaryLine', eq: 'wind' } },
         { type: 'segmented', messageKey: 'barSource', label: 'Bars', defaultValue: 'rain', options: [['Rain','rain'],['Off','off']] },
           {
             type: 'segmented',

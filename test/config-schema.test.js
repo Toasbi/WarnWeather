@@ -11,7 +11,7 @@ const EXPECTED_KEYS = [
   'timeLeadingZero','timeShowAmPm','axisTimeFormat','timeFont','colorTime',
   'weekStartDay','firstWeek','colorToday','colorSunday','colorSaturday','colorUSFederal',
   'fetchIntervalMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','locationMode','location',
-  'temperatureUnits','dayNightShading','secondaryLine','secondaryLineFill','windScale',
+  'temperatureUnits','dayNightShading','secondaryLine','secondaryLineFill','windScale','gustLine',
   'barSource','rainBarColor','provider','owmApiKey','radarProvider','radarColor',
   'showQt','vibe','btIcons','telemetryEnabled','devStatsEnabled','devStatsClear'
 ];
@@ -65,4 +65,11 @@ test('COLOR-capability + showWhen wiring', () => {
   assert.deepEqual(byKey('secondaryLineFill').showWhen, { key: 'secondaryLine', eq: 'precip_prob' });
   assert.deepEqual(byKey('owmApiKey').showWhen, { key: 'provider', eq: 'openweathermap' });
   assert.deepEqual(byKey('devStatsClear').showWhen, { key: 'devStatsEnabled', eq: true });
+});
+
+test('gustLine is a toggle defaulting on, shown only for the wind secondary line', () => {
+  const g = byKey('gustLine');
+  assert.equal(g.type, 'toggle');
+  assert.equal(g.defaultValue, true);
+  assert.deepEqual(g.showWhen, { key: 'secondaryLine', eq: 'wind' });
 });
