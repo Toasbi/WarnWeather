@@ -115,6 +115,65 @@ function buildForecastUrl(lat, lon) {
         + '&forecast_days=2';
 }
 
+/**
+ * Build a minimal Open-Meteo request for 10m wind gusts only. The main forecast
+ * pins models=ecmwf_ifs025 for the rain bars, but ECMWF IFS doesn't output wind
+ * gusts (windgusts_10m comes back all-null), so gusts are sourced separately
+ * from Open-Meteo's default best_match model, which provides them worldwide.
+ * Mirrors the main request's unixtime/GMT/km-h conventions and forecast_days so
+ * the hourly buckets line up with the main window by timestamp.
+ *
+ * @param {number} lat Latitude in decimal degrees.
+ * @param {number} lon Longitude in decimal degrees.
+ * @returns {string} Fully-formed gust request URL.
+ */
+function buildGustUrl(lat, lon) {
+    return OPEN_METEO_BASE
+        + '?latitude=' + lat
+        + '&longitude=' + lon
+        + '&hourly=windgusts_10m'
+        + '&windspeed_unit=kmh'
+        + '&timeformat=unixtime'
+        + '&timezone=GMT'
+        + '&forecast_days=2';
+}
+
+/**
+ * Extract a FORECAST_HOURS gust window aligned to a forecast start time. Indexes
+ * the response's hourly gusts by timestamp and reads forward from startTime hour
+ * by hour, so a gust feed whose array offset differs from the main (ecmwf)
+ * forecast still lines up. Missing or non-numeric buckets become null, which
+ * getPayload coerces to 0 — i.e. rendered as no gust for that hour.
+ *
+ * @param {Object} json Parsed Open-Meteo /v1/forecast response carrying windgusts_10m.
+ * @param {number} startTime Window start in epoch seconds (the main forecast's startTime).
+ * @returns {Array.<(number|null)>|null} FORECAST_HOURS gust values in km/h (null where
+ *   absent), or null when the response is malformed.
+ */
+function mapGusts(json, startTime) {
+    var hourly = json && json.hourly;
+    var times = hourly && hourly.time;
+    var gusts = hourly && hourly.windgusts_10m;
+    if (!hourly || !Array.isArray(times) || !Array.isArray(gusts)) {
+        return null;
+    }
+
+    var byTime = {};
+    var i;
+    for (i = 0; i < times.length; i += 1) {
+        byTime[times[i]] = gusts[i];
+    }
+
+    var out = [];
+    var h;
+    var value;
+    for (h = 0; h < FORECAST_HOURS; h += 1) {
+        value = byTime[startTime + h * HOUR_SECONDS];
+        out.push(typeof value === 'number' ? value : null);
+    }
+    return out;
+}
+
 OpenMeteoProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, onFailure) {
     var url = buildForecastUrl(lat, lon);
     console.log('Requesting ' + url);
@@ -137,10 +196,31 @@ OpenMeteoProvider.prototype.withProviderData = function(lat, lon, force, onSucce
         this.precipTrend = mapped.precipTrend;
         this.rainTrend = mapped.rainTrend;
         this.windTrend = mapped.windTrend;
-        this.gustTrend = mapped.gustTrend;
+        this.gustTrend = mapped.gustTrend; // ecmwf_ifs025 omits gusts (all null); the gust call below overrides when available
         this.startTime = mapped.startTime;
         this.currentTemp = mapped.currentTemp;
-        onSuccess();
+        // ECMWF IFS (pinned for the rain bars) doesn't output 10m gusts, so fetch
+        // them from best_match and align by timestamp. Non-fatal: a failed or
+        // empty gust call just leaves the null placeholder, so the gust line
+        // stays hidden rather than failing the whole forecast.
+        var gustUrl = buildGustUrl(lat, lon);
+        console.log('Requesting ' + gustUrl);
+        request(gustUrl, 'GET', (function(gustResponse) {
+            var gusts = null;
+            try {
+                gusts = mapGusts(JSON.parse(gustResponse), this.startTime);
+            }
+            catch (gustEx) {
+                gusts = null;
+            }
+            if (gusts) {
+                this.gustTrend = gusts;
+            }
+            onSuccess();
+        }).bind(this), function(gustError) {
+            console.log('[!] Open-Meteo gust request failed: ' + JSON.stringify(gustError));
+            onSuccess();
+        });
     }).bind(this), function(error) {
         console.log('[!] Open-Meteo request failed: ' + JSON.stringify(error));
         onFailure(failure('provider_data', 'openmeteo_' + error.code));
@@ -150,5 +230,7 @@ OpenMeteoProvider.prototype.withProviderData = function(lat, lon, force, onSucce
 module.exports = {
     mapResponse: mapResponse,
     buildForecastUrl: buildForecastUrl,
+    buildGustUrl: buildGustUrl,
+    mapGusts: mapGusts,
     OpenMeteoProvider: OpenMeteoProvider
 };

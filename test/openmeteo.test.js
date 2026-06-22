@@ -85,6 +85,60 @@ test('buildForecastUrl pins the ecmwf_ifs025 model for region-robust precipitati
   assert.match(url, /&models=ecmwf_ifs025(&|$)/);
 });
 
+test('buildGustUrl requests only gusts and avoids the gust-less ECMWF pin', () => {
+  // ECMWF IFS (the main forecast's pinned model) returns windgusts_10m as
+  // all-null, so the dedicated gust call must NOT pin an ecmwf_* model.
+  const url = openmeteo.buildGustUrl(52.52, 13.41);
+  assert.match(url, /[?&]hourly=windgusts_10m(&|$)/);
+  assert.doesNotMatch(url, /models=ecmwf/);
+  assert.match(url, /&forecast_days=2(&|$)/);
+  assert.match(url, /&timeformat=unixtime(&|$)/);
+  assert.match(url, /&windspeed_unit=kmh(&|$)/);
+});
+
+test('mapGusts aligns gusts to the forecast start time by timestamp', () => {
+  const time = [];
+  const windgusts_10m = [];
+  for (let i = 0; i < 48; i += 1) {
+    time.push(BASE + i * 3600);
+    windgusts_10m.push(i + 100);
+  }
+  const startTime = BASE + 18 * 3600;
+  const out = openmeteo.mapGusts({ hourly: { time, windgusts_10m } }, startTime);
+  assert.equal(out.length, 24);
+  assert.equal(out[0], 118);  // bucket 18
+  assert.equal(out[23], 141); // bucket 41 (spans into tomorrow)
+});
+
+test('mapGusts aligns even when the gust feed array is offset from the main forecast', () => {
+  // The gust model's hourly array can start at a different bucket than the main
+  // (ecmwf) forecast; alignment is by absolute timestamp, not array index.
+  const time = [];
+  const windgusts_10m = [];
+  for (let i = 0; i < 48; i += 1) {
+    time.push(BASE + (i + 6) * 3600); // feed starts 6h after BASE
+    windgusts_10m.push(i);
+  }
+  const startTime = BASE + 18 * 3600; // sits at feed index 12
+  const out = openmeteo.mapGusts({ hourly: { time, windgusts_10m } }, startTime);
+  assert.equal(out.length, 24);
+  assert.equal(out[0], 12);
+});
+
+test('mapGusts yields null for missing or non-numeric buckets (rendered as no gust)', () => {
+  const out = openmeteo.mapGusts({ hourly: { time: [BASE, BASE + 3600], windgusts_10m: [null, 5] } }, BASE);
+  assert.equal(out.length, 24);
+  assert.equal(out[0], null); // explicit null in the feed
+  assert.equal(out[1], 5);
+  assert.equal(out[2], null); // beyond the feed -> missing
+});
+
+test('mapGusts returns null on malformed input', () => {
+  assert.equal(openmeteo.mapGusts({}, BASE), null);
+  assert.equal(openmeteo.mapGusts({ hourly: { time: [BASE] } }, BASE), null); // no windgusts_10m
+  assert.equal(openmeteo.mapGusts(null, BASE), null);
+});
+
 const WeatherProvider = require('../src/pkjs/weather/provider.js');
 const OpenMeteoProvider = openmeteo.OpenMeteoProvider;
 
