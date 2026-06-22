@@ -113,7 +113,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (big) { e += txt(tickX(h), 117, 7.5, '#7C828D', 'middle', 600, lbl[h]); }
         }
         e += txt((n0 + n1) / 2, 13, 8.5, '#E6E9EF', 'middle', 600, 'Berlin') + txt(197, 12, 8, '#C9CCD2', 'end', 600, '21:29 ↓');
-        return '<svg viewBox="0 0 200 120" style="aspect-ratio:200/120">' + e + '</svg>';
+        // This block is an item-level block, so the engine wraps it in .blockrow (padding 12px 16px 14px).
+        // Cancel that padding here (app-side, not in the framework CSS) so the preview bleeds edge-to-edge.
+        return '<svg viewBox="0 0 200 120" style="aspect-ratio:200/120;display:block;width:calc(100% + 32px);margin:-12px -16px -14px">' + e + '</svg>';
     }
 
     /* ---- radarPreview: adapted from index.html:270-286 radarSVG ----------- */
