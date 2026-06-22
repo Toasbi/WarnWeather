@@ -6,5 +6,9 @@
   "1.1.0": {
     "title": "Thanks for updating!",
     "body": "WarnWeather 1.1.0 brings bug fixes and polish. Adjust your forecast, rain radar, and calendar in the watchface settings."
+  },
+  "1.2.0": {
+    "title": "Thanks for updating!",
+    "body": "WarnWeather 1.2.0 fixes weather updates on Pebble Classic and Steel. Adjust your forecast, rain radar, and calendar in settings."
   }
 }
