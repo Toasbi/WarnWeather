@@ -8,7 +8,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const LIB = path.join(__dirname, '..', 'lib');
-const BUNDLE = fs.readFileSync(path.join(LIB, 'show-when.js'), 'utf8')
+const BUNDLE = fs.readFileSync(path.join(LIB, 'schema-walk.js'), 'utf8')
+  + '\n' + fs.readFileSync(path.join(LIB, 'color.js'), 'utf8')
+  + '\n' + fs.readFileSync(path.join(LIB, 'show-when.js'), 'utf8')
   + '\n' + fs.readFileSync(path.join(LIB, 'engine.js'), 'utf8')
   + '\nPConf.engine.boot();';
 
