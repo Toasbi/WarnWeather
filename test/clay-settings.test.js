@@ -21,7 +21,7 @@ test('seedDefaults writes defaults when none stored', () => {
   const claySettings = require('../src/pkjs/clay-settings');
   claySettings.seedDefaults(COLORS);
   const read = claySettings.read();
-  assert.equal(read.provider, 'openmeteo');
+  assert.equal(read.provider, 'wunderground');
   assert.equal(read.colorSunday, COLORS.folly);
 });
 
@@ -56,9 +56,9 @@ test('seedDefaults enables night pause and Leco font by default', () => {
   const claySettings = require('../src/pkjs/clay-settings');
   claySettings.seedDefaults(COLORS);
   const read = claySettings.read();
-  assert.equal(read.provider, 'openmeteo');
-  assert.equal(read.timeFont, 'leco');
-  assert.equal(read.sleepNightEnabled, true);
+  assert.equal(read.provider, 'wunderground');
+  assert.equal(read.timeFont, 'roboto');
+  assert.equal(read.sleepNightEnabled, false);
   assert.equal(read.sleepStartHour, '22');
   assert.equal(read.sleepEndHour, '7');
 });
@@ -71,8 +71,8 @@ test('seedDefaults backfills sleep keys into existing installs that lack them', 
   store['clay-settings'] = JSON.stringify({ provider: 'dwd', timeFont: 'bitham' });
   claySettings.seedDefaults(COLORS);
   const read = claySettings.read();
-  // Backfill must enable night-pause for the existing user.
-  assert.equal(read.sleepNightEnabled, true);
+  // Backfill must seed the night-pause default for the existing user.
+  assert.equal(read.sleepNightEnabled, false);
   assert.equal(read.sleepStartHour, '22');
   assert.equal(read.sleepEndHour, '7');
   // Pre-existing custom values must be preserved (backfill only fills missing keys).

@@ -2,6 +2,7 @@
 // Height constants mirror C rain_tier.c (RAIN_TIER_MAX_TENTHS / RAIN_TIER_TOP_PCT_ARR);
 // they are duplicated there for the radar's on-watch height math — keep in sync.
 var COLORS = require('../pebble-colors');
+var configUi = require('../config-ui');
 
 var MAX_TENTHS = [1, 5, 20, 100];                 // tier upper bounds (wire tenths)
 var TOP_PCT    = [0, 14, 34, 56, 78, 100];        // cumulative slab tops (% of plot)
@@ -11,7 +12,6 @@ var TIER_COLORS = [
     COLORS.GColorYellow, COLORS.GColorSunsetOrange
 ];
 // B&W platforms get a single black stop; the watch adds the white outline.
-var BW_PLATFORMS = { aplite: true, diorite: true, flint: true };
 
 /**
  * Tier index 1..5 for a wire-tenths rain value, or 0 for <= 0.
@@ -77,7 +77,7 @@ function rainPermille(tenths) {
  * @returns {{from: number[], rgb: number[]}} Stops: permille thresholds + 0xRRGGBB colors.
  */
 function buildPalette(platform, colorMode) {
-    if (BW_PLATFORMS[platform]) {
+    if (!configUi.isColorPlatform(platform)) {
         return { from: [0], rgb: [COLORS.GColorBlack] };
     }
     if (colorMode === 'white') {

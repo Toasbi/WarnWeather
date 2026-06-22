@@ -4,6 +4,8 @@
 // dev-config apply, fixture apply, and the weekend/holiday color migration.
 // localStorage is the ambient PKJS global; tests inject a fake before require.
 
+var settings = require('./settings');
+
 var STORAGE_KEY = 'clay-settings';
 
 /**
@@ -43,40 +45,12 @@ function hasStored() {
  * @returns {Object} Default Clay-compatible settings.
  */
 function getDefaults(colors) {
-    return {
-        provider: 'openmeteo',
-        radarProvider: 'disabled',
-        owmApiKey: '',
-        fetch: false,
-        devStatsEnabled: false,
-        location: '',
-        temperatureUnits: 'f',
-        dayNightShading: true,
-        secondaryLine: 'precip_prob',
-        secondaryLineFill: true,
-        barSource: 'rain',
-        windScale: 'mid',
-        rainBarColor: 'multicolor',
-        radarColor: 'multicolor',
-        timeLeadingZero: false,
-        timeShowAmPm: false,
-        axisTimeFormat: '24h',
-        timeFont: 'leco',
-        sleepNightEnabled: true,
-        sleepStartHour: '22',
-        sleepEndHour: '7',
-        colorTime: colors.white,
-        weekStartDay: 'sun',
-        firstWeek: 'prev',
-        colorToday: 0,
-        colorSunday: colors.folly,
-        colorSaturday: colors.folly,
-        colorUSFederal: colors.folly,
-        showQt: true,
-        vibe: false,
-        btIcons: 'both',
-        telemetryEnabled: true
-    };
+    var d = settings.getDefaults();
+    d.colorTime = colors.white;
+    d.colorSunday = colors.folly;
+    d.colorSaturday = colors.folly;
+    d.colorUSFederal = colors.folly;
+    return d;
 }
 
 /**
@@ -249,11 +223,7 @@ function normalizeFixtureSetting(key, value, colorMap) {
  * @returns {boolean} True for color settings.
  */
 function isColorSettingKey(key) {
-    return key === 'colorTime' ||
-        key === 'colorToday' ||
-        key === 'colorSunday' ||
-        key === 'colorSaturday' ||
-        key === 'colorUSFederal';
+    return settings.isColorKey(key);
 }
 
 /**

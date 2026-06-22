@@ -12,9 +12,7 @@ var DwdProvider = require('./weather/dwd.js');
 var OpenMeteoProvider = require('./weather/openmeteo.js').OpenMeteoProvider;
 var WeatherProvider = require('./weather/provider.js');
 var createTelemetryClient = require('./telemetry.js');
-var Clay = require('./clay/_source.js');
-var clayConfig = require('./clay/config.js');
-var customClay = require('./clay/inject.js');
+var settings = require('./settings');
 var storageKeys = require('./storage-keys.js');
 var outbox = require('./outbox.js');
 var devStats = require('./dev-stats.js');
@@ -41,7 +39,6 @@ function loadReleaseNotificationsManifest() {
 }
 
 var releaseNotificationsManifest = loadReleaseNotificationsManifest();
-var clay = new Clay(clayConfig, customClay, { autoHandleEvents: false });
 /**
  * @type {{
  *     fetchInProgress: boolean,
@@ -139,11 +136,19 @@ Pebble.addEventListener('appmessage', function(e) {
 });
 
 Pebble.addEventListener('showConfiguration', function(e) {
-    // Set the userData here rather than in the Clay() constructor so it's actually up to date
-    clay.meta.userData.lastFetchSuccess = localStorage.getItem(KEY_LAST_FETCH_SUCCESS);
-    clay.meta.userData.lastFetchAttempt = localStorage.getItem(KEY_LAST_FETCH_ATTEMPT);
-    clay.meta.userData.devStats = JSON.stringify(devStats.read());
-    Pebble.openURL(clay.generateUrl());
+    // Build userData fresh here so it's actually up to date; the library computes
+    // env from the raw watchInfo we pass.
+    var userData = {
+        lastFetchSuccess: localStorage.getItem(KEY_LAST_FETCH_SUCCESS),
+        lastFetchAttempt: localStorage.getItem(KEY_LAST_FETCH_ATTEMPT),
+        devStats: JSON.stringify(devStats.read())
+    };
+    Pebble.openURL(settings.generateUrl({
+        values: claySettings.read(),
+        watchInfo: app.watchInfo,
+        userData: userData,
+        returnTo: 'pebblejs://close#'
+    }));
     console.log('Showing clay: ' + JSON.stringify(claySettings.read()));
 });
 
@@ -157,7 +162,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
     // detect a change and force a resend (clearWeatherCaches also drops the palette
     // cache, so a rainBarColor-only change is covered by the same tuple/path).
     var prevRender = renderSignature(app.settings);
-    clay.getSettings(e.response, false);  // This triggers the update in localStorage
+    claySettings.save(settings.parseResponse(e.response));  // This triggers the update in localStorage
     app.settings = claySettings.read();  // This reads from localStorage in sensible format
     devStats.setEnabled(Boolean(app.settings.devStatsEnabled));
     if (app.settings.devStatsClear === true) {
@@ -451,7 +456,7 @@ function setProvider(providerId) {
             break;
         default:
             console.log('Unknown provider: "' + providerId + '", defaulting to wunderground');
-            clay.setSettings("provider", "wunderground");
+            var fixed = claySettings.read(); fixed.provider = 'wunderground'; claySettings.save(fixed);
             app.provider = new WundergroundProvider();
     }
     console.log('Set provider: ' + app.provider.name);
