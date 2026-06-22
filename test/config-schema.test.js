@@ -39,7 +39,7 @@ test('defaults match Clay/clay-settings (not the prototype drift)', () => {
   assert.equal(byKey('radarProvider').defaultValue, 'disabled');
   assert.equal(byKey('timeFont').defaultValue, 'roboto');
   assert.equal(byKey('sleepNightEnabled').defaultValue, false);
-  assert.equal(byKey('fetchIntervalMin').defaultValue, '30');
+  assert.equal(byKey('fetchIntervalMin').defaultValue, '15');
 });
 
 test('color defaults are ints', () => {

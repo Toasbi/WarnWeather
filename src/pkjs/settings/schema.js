@@ -16,12 +16,38 @@ var BW_LEGEND = 'Bar height grows with the rain rate (mm/h) — taller bars mean
 module.exports = {
   appName: 'WarnWeather',
   versionLabel: versionLabel + ' <a href="https://github.com/Toasbi/WarnWeather">GitHub source</a>',
-  tabs: [
-    { id: 'weather', label: 'Weather', sections: [
-      { title: 'Weather', items: [
-        { type: 'select', messageKey: 'fetchIntervalMin', label: 'Update interval', defaultValue: '30',
+  tabs: [{
+    id: 'general', label: 'General', sections: [{
+      title: 'General', items: [{
+        type: 'segmented',
+        messageKey: 'temperatureUnits',
+        label: 'Temperature units',
+        defaultValue: 'c',
+        options: [['°F', 'f'], ['°C', 'c']]
+      }, {
+        type: 'select', messageKey: 'fetchIntervalMin', label: 'Update interval', defaultValue: '15',
           hint: 'Updates only send what actually changed (deltas), so short intervals like 5 min stay battery friendly.',
-          options: [['5 minutes','5'],['10 minutes','10'],['15 minutes','15'],['30 minutes','30'],['1 hour','60']] },
+          options: [['5 minutes','5'],['10 minutes','10'],['15 minutes','15'],['30 minutes','30'],['1 hour','60']] }, {
+        type: 'toggle',
+        messageKey: 'sleepNightEnabled',
+        label: 'Pause weather at night',
+        defaultValue: false,
+        hint: 'Stop fetching weather between the hours below to save battery.'
+      }, {
+        type: 'select',
+        messageKey: 'sleepStartHour',
+        label: 'From',
+        defaultValue: '22',
+        options: HOURS,
+        showWhen: {key: 'sleepNightEnabled', eq: true}
+      }, {
+        type: 'select',
+        messageKey: 'sleepEndHour',
+        label: 'To',
+        defaultValue: '7',
+        options: HOURS,
+        showWhen: {key: 'sleepNightEnabled', eq: true}
+      },
         { type: 'radio', messageKey: 'provider', label: 'Provider', defaultValue: 'wunderground',
           hintByValue: { wunderground: 'No API key needed.', openweathermap: 'Requires an API key — enter it below.', dwd: 'Germany only · no API key needed.', openmeteo: 'Global · no API key needed.' },
           options: [['Weather Underground','wunderground'],['OpenWeatherMap','openweathermap'],['Deutscher Wetterdienst (Germany only)','dwd'],['Open-Meteo','openmeteo']] },
@@ -33,32 +59,23 @@ module.exports = {
           options: [['GPS','gps'],['Manual','manual']] },
         { type: 'text', messageKey: 'location', label: 'Manual location', defaultValue: '',
           attributes: { placeholder: 'e.g. Manhattan' }, hint: 'Example: "Manhattan" or "123 Oak St Plainsville KY".',
-          showWhen: { key: 'locationMode', eq: 'manual' } },
-        { type: 'toggle', messageKey: 'sleepNightEnabled', label: 'Pause weather at night', defaultValue: false,
-          hint: 'Stop fetching weather between the hours below to save battery.' },
-        { type: 'select', messageKey: 'sleepStartHour', label: 'From', defaultValue: '22', options: HOURS, showWhen: { key: 'sleepNightEnabled', eq: true } },
-        { type: 'select', messageKey: 'sleepEndHour', label: 'To', defaultValue: '7', options: HOURS, showWhen: { key: 'sleepNightEnabled', eq: true } }
+          showWhen: {key: 'locationMode', eq: 'manual'}
+        }
       ] }]
     }, {
       id: 'forecast', label: 'Forecast', sections: [{
         title: 'Forecast',
         caption: 'Temp · Precip % · Rain bars',
         intro: 'The forecast graph is the hourly prediction — looking up to 24 hours ahead, it shows temperature plus the chance of rain each hour. ' + 'It\'s a model forecast, good for "will it rain this afternoon?" For "is it about to rain on me right now?", check the Radar tab.',
-        items: [{
-          type: 'segmented',
-          messageKey: 'temperatureUnits',
-          label: 'Temperature units',
-          defaultValue: 'f',          options: [['°F', 'f'], ['°C', 'c']],
-          block: 'forecastPreview'
-        },
+      items: [
         { type: 'segmented', messageKey: 'secondaryLine', label: 'Secondary line', defaultValue: 'precip_prob',
           hintByValue: {
             precip_prob: 'Chance of rain each hour<br>— half-height = 50% rain chance<br>— full-height = 100% rain chance',
             wind: 'Wind speed + dotted gust line drawn above it.',
             off: 'Temperature only.'
-          },
-          options: [['Precip','precip_prob'],['Wind','wind'],['Off','off']] },
-        { type: 'toggle', messageKey: 'secondaryLineFill', label: 'Fill area under line', defaultValue: true, hint: 'Shade the area beneath the curve.', showWhen: { key: 'secondaryLine', eq: 'precip_prob' } },
+          }, options: [['Precip', 'precip_prob'], ['Wind', 'wind'], ['Off', 'off']], blockBefore: 'forecastPreview'
+        },
+        { type: 'toggle', messageKey: 'secondaryLineFill', label: 'Secondary line fill', defaultValue: true, hint: 'Fills the area beneath the curve.', showWhen: { key: 'secondaryLine', eq: 'precip_prob' } },
         { type: 'segmented', messageKey: 'windScale', label: 'Wind graph scale', defaultValue: 'mid',
           hintByValue: {
             low: 'Tops out at 30 km/h (19 mph) — emphasizes light, gentle winds.',
@@ -132,8 +149,10 @@ module.exports = {
       ] }
     ] },
     { id: 'more', label: 'More', sections: [
-      { title: 'Misc', items: [
-        { type: 'staticText', text: '<a href="https://github.com/Toasbi/WarnWeather/issues">Get Help</a>' },
+      { title: 'Misc', items: [{
+          type: 'staticText',
+          text: '<div style="display:flex;justify-content:space-between;align-items:center;gap:18px;">' + '<span style="font-size:14.5px;font-weight:600;">Help</span>' + '<a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a></div>'
+        },
         { type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true },
         { type: 'toggle', messageKey: 'vibe', label: 'Vibrate on bluetooth disconnect', defaultValue: false },
         { type: 'select', messageKey: 'btIcons', label: 'Show icon for bluetooth', defaultValue: 'both', options: [['Disconnected','disconnected'],['Connected','connected'],['Both','both'],['None','none']] },

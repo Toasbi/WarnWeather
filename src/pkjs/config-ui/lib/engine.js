@@ -157,6 +157,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf : {};
             // skip hidden items
             if (!PConf.showWhen.isVisible(item, ctxNow)) { continue; }
             visibleCount++;
+            // item-level blockBefore: render its data inline, directly above this control
+            if (item.blockBefore) {
+              var pbfn = PConf.blocks.get(item.blockBefore);
+              var pbHtml = pbfn ? pbfn(S, ENV, USERDATA) : '';
+              if (pbHtml) { body += '<div class="blockrow">' + pbHtml + '</div>'; }
+            }
             body += rowEl(item);
             // item-level block: render its data inline, directly under this control
             if (item.block) {

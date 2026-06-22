@@ -33,7 +33,7 @@ test('seedDefaults backfills missing keys without clobbering set ones', () => {
   claySettings.seedDefaults(COLORS);
   const read = claySettings.read();
   assert.equal(read.provider, 'dwd');          // preserved
-  assert.equal(read.temperatureUnits, 'f');     // backfilled
+  assert.equal(read.temperatureUnits, 'c');     // backfilled
 });
 
 test('save round-trips through read', () => {
