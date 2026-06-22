@@ -85,6 +85,29 @@ function drainPendingStartupFetch() {
 }
 
 /**
+ * Force-fetch weather one tick after the config webview closed.
+ *
+ * The AppMessage channel is half-duplex and is briefly unavailable while the
+ * config webview tears down, so a force-fetch issued synchronously in the
+ * webviewclosed handler can be NACKed before the watch ever sees it. Slow
+ * providers hid this by accident — their network latency spaced the weather
+ * send well past the teardown — but a fast provider (Open-Meteo: cached geocode
+ * + a single request) resolves in the same tick the view closes and loses the
+ * race. Deferring the send pushes it past the teardown. Wired into the Clay-send
+ * completion callbacks (see webviewclosed) so it also never rides the channel at
+ * the same time as the Clay send — the same discipline drainPendingStartupSends
+ * uses for the startup path.
+ *
+ * @returns {void}
+ */
+function scheduleConfigCloseFetch() {
+    setTimeout(function() {
+        console.log('Force fetch!');
+        fetch(app.provider, true);
+    }, 0);
+}
+
+/**
  * Send whatever the watch's startup state asked for: Clay settings first
  * (the AppMessage channel is half-duplex, so the fetch is chained into the
  * Clay callbacks instead of being sent back-to-back), then the weather fetch.
@@ -177,8 +200,6 @@ Pebble.addEventListener('webviewclosed', function(e) {
     var nextRender = renderSignature(app.settings);
     var renderSettingsChanged = prevRender !== nextRender;
     var needsRefetch = providerOrLocationChanged || radarProviderChanged || renderSettingsChanged;
-    sendClaySettings();
-
     if (needsRefetch) {
         // Location/provider/radar-provider/render-setting change makes the watch's
         // current data (or chart) wrong; drop the last-sent caches (including radar
@@ -186,11 +207,16 @@ Pebble.addEventListener('webviewclosed', function(e) {
         outbox.clearWeatherCaches();
     }
 
-    // Fetching goes last, after other settings have been handled
-    if (app.settings.fetch === true || needsRefetch) {
-        console.log('Force fetch!');
-        fetch(app.provider, true);
-    }
+    // Send Clay settings, then force-fetch (when requested) only after that send
+    // settles. The channel is half-duplex, so the fetch is chained into the
+    // Clay-send callbacks — never issued back-to-back — and scheduleConfigCloseFetch
+    // defers it past the webview teardown so a fast provider can't lose the race
+    // (see scheduleConfigCloseFetch / drainPendingStartupSends).
+    var shouldForceFetch = app.settings.fetch === true || needsRefetch;
+    sendClaySettings(
+        shouldForceFetch ? scheduleConfigCloseFetch : undefined,
+        shouldForceFetch ? scheduleConfigCloseFetch : undefined
+    );
     console.log('Closing clay: ' + JSON.stringify(claySettings.read()));
 });
 
