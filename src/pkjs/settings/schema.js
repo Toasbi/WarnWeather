@@ -11,8 +11,8 @@ var COLOR_LEGEND = 'Bar height grows with the rain rate; the fill steps up throu
   + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FF5555;margin-bottom:3px;"></span>10+</span>'
   + '</span><br><span style="color:#6E7787;">White mode draws one solid bar instead.</span>';
 // B/W watches hide the color picker (no colors to choose), so this stands in for COLOR_LEGEND
-// there: same mm/h scale, but the chips are ascending white bars — height is the only encoding.
-var BW_LEGEND = 'Bar height grows with the rain rate (mm/h); on this watch it draws as one solid white bar:' + '<span style="display:inline-flex;gap:7px;margin-top:6px;align-items:flex-end;">' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:2px;border-radius:2px;background:#FFFFFF;margin-bottom:3px;"></span>0</span>' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:4px;border-radius:2px;background:#FFFFFF;margin-bottom:3px;"></span>0.1</span>' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:7px;border-radius:2px;background:#FFFFFF;margin-bottom:3px;"></span>0.5</span>' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:11px;border-radius:2px;background:#FFFFFF;margin-bottom:3px;"></span>2</span>' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:15px;border-radius:2px;background:#FFFFFF;margin-bottom:3px;"></span>10+</span>' + '</span>';
+// there: text-only, since height is the only encoding (no color steps to show).
+var BW_LEGEND = 'Bar height grows with the rain rate (mm/h) — taller bars mean heavier rain. On this watch each bar draws as one solid white bar.';
 module.exports = {
   appName: 'WarnWeather',
   versionLabel: versionLabel + ' <a href="https://github.com/Toasbi/WarnWeather">GitHub source</a>',
