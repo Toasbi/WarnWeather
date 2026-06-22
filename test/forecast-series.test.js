@@ -187,3 +187,20 @@ test('applyForecastSeries deletes transient GUST_TREND_UINT8 and emits the gust 
   assert.equal('GUST_TREND_UINT8' in out, false);
   assert.deepEqual(decode16(out.THIRD_LINE_TREND_INT16), [1000]); // 50 @ 50 ceiling
 });
+
+test('wind + gustLine off: gust third line suppressed, wind line intact', () => {
+  const out = buildForecastSeries(
+    { precips: [0], rains: [0], winds: [0, 25, 50], gusts: [0, 50, 100] },
+    { secondaryLine: 'wind', windScale: 'mid', gustLine: false, barSource: 'off' }
+  );
+  assert.deepEqual(out.THIRD_LINE_TREND_INT16, []);
+  assert.deepEqual(decode16(out.SECONDARY_LINE_TREND_INT16), [0, 500, 1000]);
+});
+
+test('wind + gustLine undefined: defaults to on (gust line drawn)', () => {
+  const out = buildForecastSeries(
+    { precips: [0], rains: [0], winds: [0, 25, 50], gusts: [0, 50, 100] },
+    { secondaryLine: 'wind', windScale: 'mid', barSource: 'off' }
+  );
+  assert.deepEqual(decode16(out.THIRD_LINE_TREND_INT16), [0, 1000, 1000]);
+});

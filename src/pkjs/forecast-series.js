@@ -46,7 +46,7 @@ function scaleToPermille(arr, max) {
  * feeds the line vs the bars. Trends are returned as int16 LE byte arrays ready
  * for sendAppMessage; an off/disabled element is an empty array.
  * @param {{precips: number[], rains: number[], winds: number[], gusts: number[]}} raw Raw precip %, rain tenths, wind km/h, gust km/h.
- * @param {{secondaryLine: string, secondaryLineFill: boolean, barSource: string, windScale: string}} settings Settings.
+ * @param {{secondaryLine: string, secondaryLineFill: boolean, barSource: string, windScale: string, gustLine: boolean}} settings Settings.
  * @returns {Object} Wire fields: SECONDARY_LINE_TREND_INT16, SECONDARY_LINE_COLOR,
  *   SECONDARY_LINE_FILL_COLOR, SECONDARY_LINE_FILL, THIRD_LINE_TREND_INT16, BAR_TREND_INT16.
  */
@@ -64,16 +64,16 @@ function buildForecastSeries(raw, settings) {
         out.SECONDARY_LINE_COLOR = LINE_COLORS.wind;
         out.SECONDARY_LINE_FILL_COLOR = LINE_COLORS.wind;  // unused (fill off); set to the line color
         out.SECONDARY_LINE_FILL = false;                   // wind is always line-only
-        // Gust third line: same ceiling as wind, dashed, never filled. No color is
-        // emitted — the watch draws it with the persisted wind line color. An
-        // all-zero/absent gust series is sent as empty (off) so no flat line is
-        // pinned to the axis when a provider supplies no gust data.
-        var gustPermille = scaleToPermille(raw.gusts, max);
-        var hasGust = false;
-        for (var gi = 0; gi < gustPermille.length; gi += 1) {
-            if (gustPermille[gi] > 0) { hasGust = true; break; }
+        // Gust line is opt-out: when gustLine is off, send an empty third line.
+        out.THIRD_LINE_TREND_INT16 = [];
+        if (settings.gustLine !== false) {
+            var gustPermille = scaleToPermille(raw.gusts, max);
+            var hasGust = false;
+            for (var gi = 0; gi < gustPermille.length; gi += 1) {
+                if (gustPermille[gi] > 0) { hasGust = true; break; }
+            }
+            out.THIRD_LINE_TREND_INT16 = hasGust ? toInt16Bytes(gustPermille) : [];
         }
-        out.THIRD_LINE_TREND_INT16 = hasGust ? toInt16Bytes(gustPermille) : [];
     } else {
         out.SECONDARY_LINE_TREND_INT16 = [];
         out.SECONDARY_LINE_COLOR = COLORS.GColorBlack;
@@ -97,7 +97,7 @@ function buildForecastSeries(raw, settings) {
  * PRECIP_TREND_UINT8/RAIN_TREND_UINT8, so a path that skips this ships a payload
  * that renders temperature-only.
  * @param {Object} payload Weather payload carrying PRECIP_TREND_UINT8 + RAIN_TREND_UINT8 + WIND_TREND_UINT8 + GUST_TREND_UINT8.
- * @param {{secondaryLine: string, secondaryLineFill: boolean, barSource: string, windScale: string}} settings Clay settings.
+ * @param {{secondaryLine: string, secondaryLineFill: boolean, barSource: string, windScale: string, gustLine: boolean}} settings Clay settings.
  * @returns {Object} The same payload, with the raw keys removed and the six series keys set
  *   (SECONDARY_LINE_TREND_INT16, SECONDARY_LINE_COLOR, SECONDARY_LINE_FILL,
  *   SECONDARY_LINE_FILL_COLOR, THIRD_LINE_TREND_INT16, BAR_TREND_INT16).
