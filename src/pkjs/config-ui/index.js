@@ -9,6 +9,7 @@ function createConfig(cfg) {
   var options   = cfg.options || {};
   var storage   = options.storage || (typeof localStorage !== 'undefined' ? localStorage : null);
   var storeKey  = options.storageKey || 'clay-settings';  // Clay's key by default (drop-in)
+  var emulatorConfigUrl = options.emulatorConfigUrl || null;  // hosted helper for emulator testing
   var colorKeys = defaults.deriveColorKeys(schema);     // schema items with type 'color'
   function isColorKey(k) { return colorKeys.indexOf(k) >= 0; }
 
@@ -39,15 +40,29 @@ function createConfig(cfg) {
     return pageStr.replace('/*__PCONF_INJECT__*/', function () { return snippet; });
   }
 
+  function isEmulator() {                                 // matches Clay's pypkjs check
+    return typeof Pebble === 'undefined' || Pebble.platform === 'pypkjs';
+  }
+
   function generateUrl(opts) {                            // Clay.generateUrl analog (opts optional)
     opts = opts || {};
     var watchInfo = opts.watchInfo ||
       (typeof Pebble !== 'undefined' && Pebble.getActiveWatchInfo ? Pebble.getActiveWatchInfo() : null);
+    // In the emulator a desktop browser blocks navigating the top frame to a data: URL, so
+    // (when the app supplies a hosted helper) route through it: the page goes in the #hash and
+    // its return target is the $$RETURN_TO$$ placeholder the helper substitutes. Real devices
+    // keep the offline data: URL + pebblejs://close#.
+    var useEmulatorHelper = Boolean(emulatorConfigUrl) && isEmulator();
+    var returnTo = typeof opts.returnTo !== 'undefined' ? opts.returnTo
+      : (useEmulatorHelper ? '$$RETURN_TO$$' : 'pebblejs://close#');
     var html = injectIntoPage(cfg.page, {
       values:   typeof opts.values !== 'undefined' ? opts.values : readStore(),
       env:      opts.env || platform.computeEnv(watchInfo),
       userData: typeof opts.userData !== 'undefined' ? opts.userData : instance.meta.userData,
-      returnTo: opts.returnTo });
+      returnTo: returnTo });
+    if (useEmulatorHelper) {
+      return emulatorConfigUrl + '#' + encodeURIComponent(html);
+    }
     return 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
   }
 

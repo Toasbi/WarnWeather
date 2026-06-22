@@ -143,11 +143,12 @@ Pebble.addEventListener('showConfiguration', function(e) {
         lastFetchAttempt: localStorage.getItem(KEY_LAST_FETCH_ATTEMPT),
         devStats: JSON.stringify(devStats.read())
     };
+    // Let the library pick the return target: pebblejs://close# on device, or the
+    // $$RETURN_TO$$ helper placeholder in the emulator (see settings/index.js options).
     Pebble.openURL(settings.generateUrl({
         values: claySettings.read(),
         watchInfo: app.watchInfo,
-        userData: userData,
-        returnTo: 'pebblejs://close#'
+        userData: userData
     }));
     console.log('Showing clay: ' + JSON.stringify(claySettings.read()));
 });
