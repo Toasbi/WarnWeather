@@ -1,5 +1,6 @@
 // src/pkjs/config-ui/lib/show-when.js — ES5. Dual-use: PConf.showWhen global + module.exports.
-var PConf = (typeof PConf !== 'undefined') ? PConf : {};
+var PConf = (typeof PConf !== 'undefined') ? PConf
+  : (typeof global !== 'undefined') ? (global.PConf = global.PConf || {}) : {};
 PConf.showWhen = (function () {
   function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
   function evaluate(pred, ctx) {

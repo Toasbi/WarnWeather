@@ -1,9 +1,5 @@
 // src/pkjs/config-ui/lib/defaults.js — ES5. Schema-derived defaults + color-key set.
-function eachItem(schema, fn) {
-  schema.tabs.forEach(function (t) {
-    t.sections.forEach(function (sec) { sec.items.forEach(function (it) { fn(it); }); });
-  });
-}
+var eachItem = require('./schema-walk.js').eachItem;
 function deriveDefaults(schema) {
   var out = {};
   eachItem(schema, function (it) {

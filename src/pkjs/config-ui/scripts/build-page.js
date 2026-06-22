@@ -2,7 +2,7 @@
 var fs = require('fs');
 var path = require('path');
 var LIB = path.join(__dirname, '..', 'lib');
-var LIB_PAGE_FILES = ['show-when.js', 'engine.js'];
+var LIB_PAGE_FILES = ['schema-walk.js', 'color.js', 'show-when.js', 'engine.js'];
 
 function buildPage(opts) {
   opts = opts || {};

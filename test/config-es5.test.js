@@ -9,6 +9,7 @@ const ROOT = path.resolve(__dirname, '..');
 const FILES = [
   'src/pkjs/config-ui/index.js',
   'src/pkjs/config-ui/lib/color.js',
+  'src/pkjs/config-ui/lib/schema-walk.js',
   'src/pkjs/config-ui/lib/platform.js',
   'src/pkjs/config-ui/lib/defaults.js',
   'src/pkjs/config-ui/lib/show-when.js',
