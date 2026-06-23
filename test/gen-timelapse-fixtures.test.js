@@ -5,14 +5,20 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const {
-  generateFrames, parseHHMM, parseArgs, PHASE_A_CLAY, PHASE_B_CLAY,
+  generateFrames, parseHHMM, parseArgs, computePinnedTempBounds,
+  PHASE_A_CLAY, PHASE_B_CLAY,
 } = require('../scripts/gen-timelapse-fixtures');
 const { normalizeWeather } = require('../scripts/lib/fixture-time');
 
 const A_FRAMES = 12;
-const A_WINDOW = 13;
+const A_WINDOW = 24;
 const B_FRAMES = 20;
+// Phase A scrolls a full-width window over the long DWD fixture; Phase B reuses
+// the 24h Berlin fixture unscrolled.
+const A_BASE = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'berlin-timelapse.json'), 'utf8'));
 const BASE = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'berlin.json'), 'utf8'));
+const A_PIN = computePinnedTempBounds(A_BASE.weather.temps, A_FRAMES, A_WINDOW);
+const clampToPin = (v) => Math.max(A_PIN.lo, Math.min(A_PIN.hi, v));
 
 function run(opts = {}) {
   const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ww-tl-'));
@@ -72,9 +78,10 @@ test('Phase A frames carry config A; Phase B frames carry config B', () => {
     const nn = String(i).padStart(2, '0');
     const a = readFrame(outDir, `timelapse-a-${nn}.json`);
     assert.equal(a.claySettings.secondaryLine, 'precip_prob');
-    assert.equal(a.claySettings.secondaryLineFill, false);
+    assert.equal(a.claySettings.secondaryLineFill, true);
     assert.equal(a.claySettings.barSource, 'rain');
-    assert.equal(a.claySettings.rainBarColor, 'white');
+    assert.equal(a.claySettings.rainBarColor, 'multicolor');
+    assert.equal(a.claySettings.timeFont, 'leco');
   }
   for (let i = 0; i < B_FRAMES; i++) {
     const nn = String(i).padStart(2, '0');
@@ -83,7 +90,8 @@ test('Phase A frames carry config A; Phase B frames carry config B', () => {
     assert.equal(b.claySettings.barSource, 'off');
   }
   assert.deepEqual(PHASE_A_CLAY, {
-    secondaryLine: 'precip_prob', secondaryLineFill: false, barSource: 'rain', rainBarColor: 'white',
+    secondaryLine: 'precip_prob', secondaryLineFill: true, barSource: 'rain',
+    rainBarColor: 'multicolor', timeFont: 'leco',
   });
   assert.deepEqual(PHASE_B_CLAY, { secondaryLine: 'wind', barSource: 'off' });
 });
@@ -112,25 +120,44 @@ test('Phase A anchor advances 1h/frame (scroll); Phase B anchor stays pinned', (
     assert.equal(aEpochs[i] - aEpochs[i - 1], 3600, `Phase A anchor must step 3600s at frame ${i}`);
   }
   assert.equal(bEpochs.size, 1, 'Phase B anchor must be constant');
-  assert.ok([...bEpochs][0] > aEpochs[aEpochs.length - 1] - 1, 'Phase B anchor is at/after Phase A end');
+  // (Cross-phase epoch ordering is intentionally not asserted: the two phases
+  // anchor on different calendar dates now — Phase A on the DWD fixture's day,
+  // Phase B on the Berlin fixture's day. Clock-of-day continuity at the 22:20
+  // hand-off is covered by the watch.now continuity test.)
 });
 
-test('Phase A slides a 13h forecast window over the 24h base data', () => {
+test('Phase A slides a full-width 24h forecast window over the long DWD base', () => {
   const { outDir } = run();
-  const series = ['temps', 'precipPct', 'rainMm', 'rainRadarExactMm', 'rainRadarAreaMm'];
+  // Unclamped series slice verbatim; temps are additionally pinned (clamped),
+  // so they're checked against the clamped slice below.
+  const series = ['precipPct', 'rainMm', 'windKmh', 'gustKmh'];
   const a0 = readFrame(outDir, 'timelapse-a-00.json');
-  // Each forecast series is sliced to the window width...
   for (const k of series) {
     assert.equal(a0.weather[k].length, A_WINDOW, `${k} should be ${A_WINDOW} long in Phase A`);
-    assert.deepEqual(a0.weather[k], BASE.weather[k].slice(0, A_WINDOW), `${k} a-00 == base[0..${A_WINDOW})`);
+    assert.deepEqual(a0.weather[k], A_BASE.weather[k].slice(0, A_WINDOW), `${k} a-00 == base[0..${A_WINDOW})`);
   }
-  // ...and frame i is the base window shifted right by i (curve scrolls left).
+  assert.equal(a0.weather.temps.length, A_WINDOW, 'temps should be 24 long in Phase A');
+  // Frame i is the base window shifted right by i (curve scrolls left), with
+  // temps clamped onto the pinned axis rail.
   for (let i = 0; i < A_FRAMES; i++) {
     const a = readFrame(outDir, `timelapse-a-${String(i).padStart(2, '0')}.json`);
     assert.deepEqual(
-      a.weather.temps, BASE.weather.temps.slice(i, i + A_WINDOW),
-      `temps a-${i} == base[${i}..${i + A_WINDOW})`
+      a.weather.rainMm, A_BASE.weather.rainMm.slice(i, i + A_WINDOW),
+      `rainMm a-${i} == base[${i}..${i + A_WINDOW})`
     );
+    assert.deepEqual(
+      a.weather.temps, A_BASE.weather.temps.slice(i, i + A_WINDOW).map(clampToPin),
+      `temps a-${i} == clamped base[${i}..${i + A_WINDOW})`
+    );
+  }
+});
+
+test('Phase A pins the temp axis: every frame shares one min/max', () => {
+  const { outDir } = run();
+  for (let i = 0; i < A_FRAMES; i++) {
+    const a = readFrame(outDir, `timelapse-a-${String(i).padStart(2, '0')}.json`);
+    assert.equal(Math.min(...a.weather.temps), A_PIN.lo, `frame ${i} min == pinned lo`);
+    assert.equal(Math.max(...a.weather.temps), A_PIN.hi, `frame ${i} max == pinned hi`);
   }
 });
 
@@ -144,16 +171,22 @@ test('Phase B keeps the full 24 forecast/radar slots (no scroll, no slice)', () 
   }
 });
 
-test('every frame normalizes to identical sun-event epochs', () => {
+test('frames within a phase normalize to identical sun-event epochs', () => {
   const { outDir } = run();
-  let ref = null;
-  for (const name of ['timelapse-a-00.json', 'timelapse-a-11.json', 'timelapse-b-00.json', 'timelapse-b-19.json']) {
-    const fx = readFrame(outDir, name);
-    normalizeWeather(fx);
-    const epochs = fx.weather.sunEvents.map((e) => e.epoch);
-    if (ref === null) ref = epochs;
-    assert.deepEqual(epochs, ref);
-  }
+  // Each phase has its own base date (Phase A: 2026-06-20; Phase B: the Berlin
+  // fixture's day), so epochs are constant within a phase, not across phases.
+  const checkConstant = (names) => {
+    let ref = null;
+    for (const name of names) {
+      const fx = readFrame(outDir, name);
+      normalizeWeather(fx);
+      const epochs = fx.weather.sunEvents.map((e) => e.epoch);
+      if (ref === null) ref = epochs;
+      assert.deepEqual(epochs, ref);
+    }
+  };
+  checkConstant(['timelapse-a-00.json', 'timelapse-a-11.json']);
+  checkConstant(['timelapse-b-00.json', 'timelapse-b-19.json']);
 });
 
 test('clears stale timelapse fixtures so the on-disk set matches the run', () => {
@@ -182,8 +215,8 @@ test('generateFrames throws when a phase crosses midnight', () => {
 });
 
 test('generateFrames throws when the scroll window exceeds the base data', () => {
-  // (frames-1)+window must fit in the 24h base series.
-  assert.throws(() => run({ phaseAFrames: 12, phaseAWindow: 14 }), /window/);
+  // (frames-1)+window must fit in the Phase A base series (the 39h DWD fixture).
+  assert.throws(() => run({ phaseAFrames: 12, phaseAWindow: 30 }), /window/);
 });
 
 test('generateFrames rejects non-positive / non-integer frame counts', () => {

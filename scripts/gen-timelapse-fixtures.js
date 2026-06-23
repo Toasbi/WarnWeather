@@ -5,16 +5,24 @@ const fs = require('fs');
 const path = require('path');
 const { dateFromWatchNow } = require('./lib/fixture-time');
 
+// Phase B (radar) reuses the original 24h Berlin fixture — it keeps the full
+// 24-slot forecast/radar arrays the radar view needs and does not scroll.
 const BASE_PATH = path.join('fixtures', 'berlin.json');
+// Phase A (forecast) scrolls a full-width 24-slot window, which needs MORE than
+// 24h of base data to slide over. berlin-timelapse.json is real DWD/Brightsky
+// data from 2026-06-20 (39h) whose 2026-06-21 noon thunderstorm scrolls in from
+// the right as the clock advances.
+const PHASE_A_BASE_PATH = path.join('fixtures', 'berlin-timelapse.json');
 
-// Phase A (forecast/calendar view): rain-probability line, no area fill, no
-// multicolor bars. Phase B (radar view): wind speed with the auto-drawn dotted
-// gust line, rain bars off. These are the only claySettings that differ.
+// Phase A (forecast/calendar view): rain-probability line with a filled area,
+// multicolor rain bars, Leco main time font. Phase B (radar view): wind speed
+// with the auto-drawn dotted gust line, rain bars off.
 const PHASE_A_CLAY = {
   secondaryLine: 'precip_prob',
-  secondaryLineFill: false,
+  secondaryLineFill: true,
   barSource: 'rain',
-  rainBarColor: 'white',
+  rainBarColor: 'multicolor',
+  timeFont: 'leco',
 };
 const PHASE_B_CLAY = {
   secondaryLine: 'wind',
@@ -33,6 +41,42 @@ function parseHHMM(hhmm) {
     throw new Error('Expected HH:MM, got "' + hhmm + '"');
   }
   return { hour: Number(m[1]), minute: Number(m[2]) };
+}
+
+/**
+ * Compute fixed temperature axis bounds that every scrolling window shares.
+ *
+ * The watch derives the temp axis lo/hi with min_max() over the *visible*
+ * window, so a sliding window would rescale the curve vertically frame to
+ * frame. Pinning the axis means making min_max() return the same pair for every
+ * frame, which requires those two values to be present in every window and no
+ * value to exceed them. The tightest such pair is lo = max of the per-window
+ * minima and hi = min of the per-window maxima: clamping the series to [lo, hi]
+ * then leaves every window with min==lo and max==hi (each window's own min is
+ * <= lo and max is >= hi by construction, so clamping snaps them onto the rail).
+ *
+ * @param {number[]} temps Full base temperature series.
+ * @param {number} frames Number of scrolling frames.
+ * @param {number} windowSize Window width in entries.
+ * @returns {{lo: number, hi: number}} Pinned bounds.
+ */
+function computePinnedTempBounds(temps, frames, windowSize) {
+  let lo = -Infinity;
+  let hi = Infinity;
+  for (let i = 0; i < frames; i++) {
+    const win = temps.slice(i, i + windowSize);
+    const wMin = Math.min(...win);
+    const wMax = Math.max(...win);
+    if (wMin > lo) { lo = wMin; }
+    if (wMax < hi) { hi = wMax; }
+  }
+  if (!(lo < hi)) {
+    throw new Error(
+      'cannot pin temp axis: every window must share a lo<hi, got lo=' + lo + ' hi=' + hi
+      + ' (the data swings too much across the window — widen the window or pick steadier data)'
+    );
+  }
+  return { lo, hi };
 }
 
 /**
@@ -85,6 +129,12 @@ function writePhase(base, opts) {
       );
     }
   }
+  // Pin the temp axis so the scrolling curve keeps one vertical scale (see
+  // computePinnedTempBounds). Non-scrolling phases need no pin — their window
+  // is constant, so min_max() is already stable.
+  const pinnedTemps = scroll
+    ? computePinnedTempBounds(base.weather.temps, frames, windowSize)
+    : null;
   const written = [];
 
   for (let i = 0; i < frames; i++) {
@@ -112,6 +162,12 @@ function writePhase(base, opts) {
           frame.weather[key] = arr.slice(i, i + windowSize);
         }
       }
+      // Clamp the (already-sliced) temps onto the shared axis rail.
+      frame.weather.temps = frame.weather.temps.map(function clampToPin(value) {
+        if (value < pinnedTemps.lo) { return pinnedTemps.lo; }
+        if (value > pinnedTemps.hi) { return pinnedTemps.hi; }
+        return value;
+      });
     } else {
       frame.weather.startEpoch = startEpoch;
     }
@@ -152,7 +208,9 @@ function assertPositiveInt(label, value) {
  * @param {string} [opts.phaseAStart="11:20"] Phase A first watch.now + anchor.
  * @param {number} [opts.phaseAFrames=12] Phase A frame count.
  * @param {number} [opts.phaseAStep=60] Phase A minutes between frames (1h scroll).
- * @param {number} [opts.phaseAWindow=13] Phase A forecast hours shown per frame.
+ * @param {number} [opts.phaseAWindow=24] Phase A forecast hours shown per frame
+ *   (24 = the full chart grid, so the curve fills the width and new values
+ *   enter from the right edge instead of cutting off mid-screen).
  * @param {string} [opts.phaseBStart="22:20"] Phase B first watch.now + anchor.
  * @param {number} [opts.phaseBFrames=20] Phase B frame count.
  * @param {number} [opts.phaseBStep=5] Phase B minutes between frames.
@@ -163,7 +221,7 @@ function generateFrames(opts = {}) {
   const phaseAStart = opts.phaseAStart ?? '11:20';
   const phaseAFrames = opts.phaseAFrames ?? 12;
   const phaseAStep = opts.phaseAStep ?? 60;
-  const phaseAWindow = opts.phaseAWindow ?? 13;
+  const phaseAWindow = opts.phaseAWindow ?? 24;
   const phaseBStart = opts.phaseBStart ?? '22:20';
   const phaseBFrames = opts.phaseBFrames ?? 20;
   const phaseBStep = opts.phaseBStep ?? 5;
@@ -174,7 +232,8 @@ function generateFrames(opts = {}) {
   assertPositiveInt('phaseBFrames', phaseBFrames);
   assertPositiveInt('phaseBStep', phaseBStep);
 
-  const base = JSON.parse(fs.readFileSync(BASE_PATH, 'utf8'));
+  const phaseABase = JSON.parse(fs.readFileSync(PHASE_A_BASE_PATH, 'utf8'));
+  const phaseBBase = JSON.parse(fs.readFileSync(BASE_PATH, 'utf8'));
   fs.mkdirSync(outDir, { recursive: true });
 
   // Clear any timelapse fixtures from a prior run so the on-disk set always
@@ -187,12 +246,12 @@ function generateFrames(opts = {}) {
     }
   }
 
-  const a = writePhase(base, {
+  const a = writePhase(phaseABase, {
     outDir, prefix: 'timelapse-a', startHHMM: phaseAStart, anchorHHMM: phaseAStart,
     clay: PHASE_A_CLAY, frames: phaseAFrames, stepMin: phaseAStep,
     scroll: true, window: phaseAWindow,
   });
-  const b = writePhase(base, {
+  const b = writePhase(phaseBBase, {
     outDir, prefix: 'timelapse-b', startHHMM: phaseBStart, anchorHHMM: phaseBStart,
     clay: PHASE_B_CLAY, frames: phaseBFrames, stepMin: phaseBStep,
   });
@@ -251,4 +310,7 @@ if (require.main === module) {
   console.log('Wrote ' + a.length + ' Phase A + ' + b.length + ' Phase B fixtures to ' + path.dirname(a[0]));
 }
 
-module.exports = { generateFrames, writePhase, parseHHMM, parseArgs, PHASE_A_CLAY, PHASE_B_CLAY };
+module.exports = {
+  generateFrames, writePhase, parseHHMM, parseArgs, computePinnedTempBounds,
+  PHASE_A_CLAY, PHASE_B_CLAY, PHASE_A_BASE_PATH, BASE_PATH,
+};
