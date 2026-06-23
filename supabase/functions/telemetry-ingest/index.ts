@@ -4,7 +4,13 @@ import { z } from "zod";
 const MAX_BODY_BYTES = 4096;
 const MAX_EVENTS_PER_HOUR = 60;
 
-const providerSchema = z.enum(["wunderground", "openweathermap", "mock", "dwd"]);
+const providerSchema = z.enum([
+  "wunderground",
+  "openweathermap",
+  "mock",
+  "dwd",
+  "openmeteo",
+]);
 const locationModeSchema = z.enum(["gps", "manual_coordinates", "manual_address"]);
 
 const firmwareSchema = z.object({
@@ -38,6 +44,15 @@ const settingsSchema = z
     showQt: z.boolean().optional(),
     vibe: z.boolean().optional(),
     btIcons: z.string().optional(),
+    secondaryLine: z.string().optional(),
+    secondaryLineFill: z.boolean().optional(),
+    windScale: z.string().optional(),
+    gustLine: z.boolean().optional(),
+    barSource: z.string().optional(),
+    rainBarColor: z.string().optional(),
+    radarProvider: z.string().optional(),
+    radarColor: z.string().optional(),
+    devStatsEnabled: z.boolean().optional(),
     colorTime: z.number().optional(),
     colorToday: z.number().optional(),
     colorSunday: z.number().optional(),

@@ -33,6 +33,15 @@ function buildSettingsSnapshot(settings) {
         showQt: !!safe.showQt,
         vibe: !!safe.vibe,
         btIcons: safe.btIcons,
+        secondaryLine: safe.secondaryLine,
+        secondaryLineFill: Boolean(safe.secondaryLineFill),
+        windScale: safe.windScale,
+        gustLine: Boolean(safe.gustLine),
+        barSource: safe.barSource,
+        rainBarColor: safe.rainBarColor,
+        radarProvider: safe.radarProvider,
+        radarColor: safe.radarColor,
+        devStatsEnabled: Boolean(safe.devStatsEnabled),
         colorTime: safe.colorTime,
         colorToday: safe.colorToday,
         colorSunday: safe.colorSunday,
@@ -342,3 +351,5 @@ function createTelemetryClient(options) {
 }
 
 module.exports = createTelemetryClient;
+// Exposed for unit tests; the runtime entry point is the factory above.
+module.exports.buildSettingsSnapshot = buildSettingsSnapshot;
