@@ -18,5 +18,9 @@
   "1.3.1": {
     "title": "Thanks for updating!",
     "body": "WarnWeather 1.3.1 polishes the settings screen with a sticky forecast & radar preview and a refined accent palette. Adjust your forecast, rain radar, and calendar in settings."
+  },
+  "1.3.2": {
+    "title": "Thanks for updating!",
+    "body": "WarnWeather 1.3.2 refines the settings screen with updated descriptions and a preview. Adjust your forecast, rain radar, and calendar in settings."
   }
 }
