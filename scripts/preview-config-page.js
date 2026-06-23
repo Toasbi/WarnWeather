@@ -16,7 +16,7 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/blocks.js'),
   path.join(ROOT, 'src/pkjs/settings/onbuild.js')
 ];
-var DEFAULT_OUT = path.join(ROOT, 'docs/superpowers/plans/screenshot/config-ui-preview.html');
+var DEFAULT_OUT = path.join(ROOT, 'build/config-ui-preview.html');
 
 // color/round mirror each platform's hardware so showWhen env-gates render as they would on-watch.
 function envFor(platform) {
@@ -42,6 +42,7 @@ function run(opts) {
 if (require.main === module) {
   var out = process.argv[2] || DEFAULT_OUT;
   var platform = process.argv[3] || 'basalt';
+  fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, run({ platform: platform }));
   console.log('wrote ' + out + ' (' + platform + ')');
 }
