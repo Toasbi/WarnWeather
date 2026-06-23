@@ -9,6 +9,7 @@
 build
 src/pkjs/dev-config.js
 src/pkjs/active-fixture.generated.js
+src/pkjs/settings/page.generated.js
 screenshot/**/*
 !screenshot/**/
 !screenshot/frames/*.svg

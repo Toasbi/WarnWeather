@@ -97,4 +97,9 @@ run = "scripts/capture-timelapse.sh"
 
 [tasks.test]
 description = "Run the Node test suite"
-run = "node --test"
+# Regenerate page.generated.js first: it's a gitignored build artifact, and
+# tests require it transitively (clay-settings -> settings -> page.generated).
+run = [
+  "node scripts/build-config-page.js",
+  "node --test",
+]
