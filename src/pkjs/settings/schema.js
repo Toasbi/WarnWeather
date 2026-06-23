@@ -2,17 +2,23 @@
 var meta = require('../../../package.json');
 var versionLabel = 'v' + meta.version + (meta.buildProfile === 'dev' ? ' (dev)' : '');
 var HOURS = (function () { var o = [], h; for (h = 0; h < 24; h += 1) { o.push([(h < 10 ? '0' + h : String(h)) + ':00', String(h)]); } return o; })();
-var COLOR_LEGEND = 'Bar height grows with the rain rate; the fill steps up through colors as it climbs (mm/h):'
-  + '<span style="display:inline-flex;gap:7px;margin-top:6px;align-items:flex-end;">'
-  + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#AAAAAA;margin-bottom:3px;"></span>0</span>'
-  + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#55FFFF;margin-bottom:3px;"></span>0.1</span>'
-  + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#00FF00;margin-bottom:3px;"></span>0.5</span>'
-  + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FFFF00;margin-bottom:3px;"></span>2</span>'
-  + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FF5555;margin-bottom:3px;"></span>10+</span>'
-  + '</span><br>The scale is compressed, not linear — each color marks roughly a five-fold jump in rate (0.1, 0.5, 2, 10 mm/h) and a full bar is a 40 mm/h downpour, so light drizzle still shows while heavy rain has room to climb. White mode draws one solid bar instead.';
+// Color swatches (5 intensity bands) — shown only in the Multicolor hint.
+var SWATCHES = '<span style="display:inline-flex;gap:7px;margin-top:6px;align-items:flex-end;">'
+    + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#AAAAAA;margin-bottom:3px;"></span>0.1</span>'
+    + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#55FFFF;margin-bottom:3px;"></span>0.5</span>'
+    + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#00FF00;margin-bottom:3px;"></span>2</span>'
+    + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FFFF00;margin-bottom:3px;"></span>10</span>'
+    + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FF5555;margin-bottom:3px;"></span>40</span>'
+  + '</span>';
+// Bar color hint depends on the selected mode (hintByValue): Multicolor shows the swatches; White doesn't.
+var MULTICOLOR_HINT = 'Colors each part differently depending on intensity:' + SWATCHES;
+var WHITE_HINT = 'Shows every bar in a single color.';
+// Full-width note between the Bars and Bar color controls (its own staticText) so the prose isn't
+// cramped in a control's left column. Color watches only; B/W uses BW_LEGEND.
+var SCALE_NOTE = '<span style="color:#A9AEB8;font-size:12.5px;line-height:1.55;">The bars don\'t scale linearly. They\'re divided into 5 parts, standing for up to 0.1, 0.5, 2, 10 and 40 mm/h of downfall, so light drizzle stays visible while heavy rain still has room to grow.</span>';
 // B/W watches hide the color picker (no colors to choose), so this stands in for COLOR_LEGEND
 // there: text-only, since height is the only encoding (no color steps to show).
-var BW_LEGEND = '<span style="color:#8A92A0;">Bar height grows with the rain rate (mm/h) — taller bars mean heavier rain. The scale is compressed, not linear: each step up the bar is roughly a five-fold jump in rate (0.1, 0.5, 2, 10) and a full bar is a 40 mm/h downpour, so light drizzle stays visible while heavy rain has room to climb.</span>';
+var BW_LEGEND = '<span style="color:#A9AEB8;font-size:12.5px;line-height:1.55;">The bars don\'t scale linearly. They\'re divided into 5 parts, standing for up to 0.1, 0.5, 2, 10 and 40 mm/h of downfall.</span>';
 module.exports = {
   appName: 'WarnWeather',
   versionLabel: versionLabel + ' <a href="https://github.com/Toasbi/WarnWeather">GitHub source</a>',
@@ -38,33 +44,43 @@ module.exports = {
         messageKey: 'sleepStartHour',
         label: 'From',
         defaultValue: '22',
-        options: HOURS,
+        options: HOURS, inline: 'sleepHours', joinPrevious: true,
         showWhen: {key: 'sleepNightEnabled', eq: true}
       }, {
         type: 'select',
         messageKey: 'sleepEndHour',
         label: 'To',
         defaultValue: '7',
-        options: HOURS,
+        options: HOURS, inline: 'sleepHours',
         showWhen: {key: 'sleepNightEnabled', eq: true}
       },
         { type: 'radio', messageKey: 'provider', label: 'Provider', defaultValue: 'wunderground',
-          hintByValue: { wunderground: 'No API key needed.', openweathermap: 'Requires an API key — enter it below.', dwd: 'Germany only · no API key needed.', openmeteo: 'Global · no API key needed.' },
+          hintByValue: {
+            wunderground: 'Global · no API key needed.',
+            openweathermap: 'Global · enter API key below.',
+            dwd: 'Germany only · no API key needed.',
+            openmeteo: 'Global · no API key needed.'
+          },
           options: [['Weather Underground','wunderground'],['OpenWeatherMap','openweathermap'],['Deutscher Wetterdienst (Germany only)','dwd'],['Open-Meteo','openmeteo']] },
-        { type: 'text', messageKey: 'owmApiKey', label: 'OpenWeatherMap API key', defaultValue: '',
+        {
+          type: 'text',
+          messageKey: 'owmApiKey',
+          label: 'OpenWeatherMap API key',
+          defaultValue: '',
+          joinPrevious: true,
           hint: '<a href=\'https://openweathermap.org/\'>Register an OpenWeatherMap account</a> and paste your API key here. The key must be subscribed to the <a href=\'https://openweathermap.org/api/one-call-3\'>One Call API 3.0</a> plan, or fetches fail with a 401 error.',
           showWhen: { key: 'provider', eq: 'openweathermap' } },
         { type: 'segmented', messageKey: 'locationMode', label: 'Location', defaultValue: 'gps',
           hintByValue: { gps: 'Detect your location automatically via phone GPS.', manual: 'Enter a city or address below.' },
           options: [['GPS','gps'],['Manual','manual']] },
-        { type: 'text', messageKey: 'location', label: 'Manual location', defaultValue: '',
+        { type: 'text', messageKey: 'location', label: 'Manual location', defaultValue: '', joinPrevious: true,
           attributes: { placeholder: 'e.g. Manhattan' }, hint: 'Example: "Manhattan" or "123 Oak St Plainsville KY".',
           showWhen: {key: 'locationMode', eq: 'manual'}
         }
       ] }]
     }, {
       id: 'forecast', label: 'Forecast', sections: [{
-        intro: 'The forecast graph is the hourly prediction — looking up to 24 hours ahead, it shows temperature plus the chance of rain each hour. ' + 'It\'s a model forecast, good for "will it rain this afternoon?" For "is it about to rain on me right now?", check the Radar tab.',
+        intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always shown; on top of it you choose what to add ' + '— the chance of rain or wind speed with gusts as a second line, plus optional bars for the hourly rain amount.',
       items: [
         { type: 'segmented', messageKey: 'secondaryLine', label: 'Secondary line', defaultValue: 'precip_prob',
           hintByValue: {
@@ -72,42 +88,67 @@ module.exports = {
             wind: 'Wind speed, with an optional dotted gust line above it.',
             off: 'Temperature only.'
           }, options: [['Precip', 'precip_prob'], ['Wind', 'wind'], ['Off', 'off']], blockBefore: 'forecastPreview', blockBeforeSticky: true
-        },
-        { type: 'toggle', messageKey: 'secondaryLineFill', label: 'Secondary line fill', defaultValue: true, hint: 'Fills the area beneath the curve.', showWhen: { key: 'secondaryLine', eq: 'precip_prob' } },
-        { type: 'segmented', messageKey: 'windScale', label: 'Wind graph scale', defaultValue: 'mid',
+        }, {
+          type: 'toggle',
+          messageKey: 'secondaryLineFill',
+          label: 'Secondary line fill',
+          defaultValue: true,
+          joinPrevious: true,
+          hint: 'Fills the area beneath the curve.',
+          showWhen: {key: 'secondaryLine', eq: 'precip_prob'}
+        }, {
+          type: 'segmented',
+          messageKey: 'windScale',
+          label: 'Wind graph scale',
+          defaultValue: 'mid',
+          joinPrevious: true,
           hintByValue: {
             low: 'Tops out at 30 km/h (19 mph) — emphasizes light, gentle winds.',
             mid: 'Tops out at 50 km/h (31 mph) — general use; gusts visible, typical winds sit mid-graph.',
             high: 'Tops out at 70 km/h (43 mph) — keeps strong gusts from flattening against the top.'
           },
           options: [['Low','low'],['Mid','mid'],['High','high']], showWhen: { key: 'secondaryLine', eq: 'wind' } },
-        { type: 'toggle', messageKey: 'gustLine', label: 'Gust line', defaultValue: true,
+        {
+          type: 'toggle', messageKey: 'gustLine', label: 'Gust line', defaultValue: true, joinPrevious: true,
           hint: 'Dotted line above the wind speed showing gust peaks.',
-          showWhen: { key: 'secondaryLine', eq: 'wind' } },
-        { type: 'segmented', messageKey: 'barSource', label: 'Bars', defaultValue: 'rain', options: [['Rain','rain'],['Off','off']] },
+          showWhen: {key: 'secondaryLine', eq: 'wind'}
+        },
+        {
+          type: 'segmented',
+          messageKey: 'barSource',
+          label: 'Bars',
+          defaultValue: 'rain',
+          hintByValue: { rain: 'Adds bars that represent the rain amount in one hour.' },
+          options: [['Rain', 'rain'], ['Off', 'off']]
+        },
           {
+          type: 'staticText', joinPrevious: true,
+            text: SCALE_NOTE,
+            capabilities: ['COLOR'],
+            showWhen: {key: 'barSource', eq: 'rain'}
+          }, {
+          type: 'staticText', joinPrevious: true,
+            text: BW_LEGEND,
+            showWhen: {all: [{not: {env: 'color'}}, {key: 'barSource', eq: 'rain'}]}
+          }, {
             type: 'segmented',
             messageKey: 'rainBarColor',
             label: 'Bar color',
-            defaultValue: 'multicolor',
-            hint: COLOR_LEGEND,
+            defaultValue: 'multicolor', joinPrevious: true,
+            hintByValue: { multicolor: MULTICOLOR_HINT, white: WHITE_HINT },
             capabilities: ['COLOR'],
             options: [['Multicolor', 'multicolor'], ['White', 'white']],
             showWhen: {key: 'barSource', eq: 'rain'}
-          }, {
-            type: 'staticText',
-            text: BW_LEGEND,
-            showWhen: {all: [{not: {env: 'color'}}, {key: 'barSource', eq: 'rain'}]}
           },
         { type: 'toggle', messageKey: 'dayNightShading', label: 'Day / night shading', defaultValue: true, hint: 'Show hatch shading between sunset and sunrise to distinguish day and night on the forecast graph.' }
       ] }
     ] },
     { id: 'radar', label: 'Radar', sections: [
-      { intro: 'Rain radar appears as a second screen revealed with a wrist flick, and only when radar data is available.<br>' +
-            'Unlike the forecast graph\'s hourly prediction, the radar is short-term and based on actual radar measurements moving toward you. ' +
-            'It turns the next 2 hours into a bar graph, each bar one 5-minute frame whose height is the rain amount. ' +
-            'Solid bars are rain at your exact location; the hatched outline behind them is the strongest rain anywhere ' +
-            'within 2 km — an early warning that rain is nearby even when it isn\'t directly overhead yet.',
+      { intro: 'Rain radar appears as a second screen revealed with a wrist flick.<br>' +
+            'Unlike the model prediction in the forecast graph, this is a short-term nowcast based on actual radar measurements moving toward you, and it refreshes often as new radar scans arrive. ' +
+            'Behind the scenes the provider gives a sequence of radar images covering the next 2 hours; we read the rain intensity at your location in each image and turn every 5-minute frame into one bar whose height is the rain amount. ' +
+            'Solid bars are rain at your exact spot; the hatched outline behind them is the strongest rain anywhere within 2 km — an early warning that rain is nearby even when it isn\'t directly overhead yet.<br>' +
+            'Radar is Germany-only for now (Deutscher Wetterdienst). I\'m open to adding more providers, but so far I haven\'t found another free one that delivers 5-minute updates precise to your exact location.',
         items: [
           {
             type: 'segmented',
@@ -119,18 +160,23 @@ module.exports = {
             blockBefore: 'radarPreview',
             blockBeforeSticky: true
           }, {
+            type: 'staticText', joinPrevious: true,
+            text: SCALE_NOTE,
+            capabilities: ['COLOR'],
+            showWhen: {key: 'radarProvider', ne: 'disabled'}
+          }, {
+            type: 'staticText', joinPrevious: true,
+            text: BW_LEGEND,
+            showWhen: {all: [{not: {env: 'color'}}, {key: 'radarProvider', ne: 'disabled'}]}
+          }, {
             type: 'segmented',
             messageKey: 'radarColor',
             label: 'Radar color',
             defaultValue: 'multicolor',
-            hint: COLOR_LEGEND,
+            hintByValue: { multicolor: MULTICOLOR_HINT, white: WHITE_HINT },
             capabilities: ['COLOR'],
             options: [['Multicolor', 'multicolor'], ['White', 'white']],
             showWhen: {key: 'radarProvider', ne: 'disabled'}
-          }, {
-            type: 'staticText',
-            text: BW_LEGEND,
-            showWhen: {all: [{not: {env: 'color'}}, {key: 'radarProvider', ne: 'disabled'}]}
           }
       ] }
     ] },
@@ -154,7 +200,7 @@ module.exports = {
     { id: 'more', label: 'More', sections: [
       { title: 'Misc', items: [{
           type: 'staticText',
-          text: '<div style="display:flex;justify-content:space-between;align-items:center;gap:18px;">' + '<span style="font-size:14.5px;font-weight:600;">Help</span>' + '<a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a></div>'
+          text: '<div style="display:flex;justify-content:space-between;align-items:center;gap:18px;">' + '<span style="font-size:14.5px;font-weight:600;color:#ECEEF3;">Help</span>' + '<a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a></div>'
         },
         { type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true },
         { type: 'toggle', messageKey: 'vibe', label: 'Vibrate on bluetooth disconnect', defaultValue: false },

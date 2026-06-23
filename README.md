@@ -56,13 +56,16 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 Two things that both involve rain over time, but answer different questions:
 
-- **Forecast graph** — the hourly prediction. Looking up to 24 hours ahead, it shows the
-  chance of rain each hour. It's a model forecast, good for *"will it rain this afternoon?"*
-- **Rain radar** — short-term, based on actual radar measurements moving toward you. It's
-  basically a rain radar, but drawn as bars instead of a map: it takes your exact location
-  and turns the next 2 hours into a simple bar graph — each bar is one 5-minute frame and its
-  height is the rain amount — so you instantly see when (and how much) rain reaches your spot.
-  Good for *"is it about to rain on me right now?"*
+- **Forecast graph** — the hourly prediction, looking up to 24 hours ahead. Temperature is
+  always shown; on top of it you choose what to add — the chance of rain or wind speed with
+  gusts as a second line, plus optional bars for the hourly rain amount.
+- **Rain radar** — unlike the forecast graph's model prediction, this is a short-term nowcast
+  based on actual radar measurements moving toward you, refreshed often as new scans arrive.
+  Instead of a map it's drawn as bars: the provider's radar images for the next 2 hours are
+  sampled at your location, and each 5-minute frame becomes one bar whose height is the rain
+  amount — solid bars are rain at your exact spot, the hatched outline behind them is the
+  strongest rain within 2 km. Germany-only for now (Deutscher Wetterdienst). Good for
+  *"is it about to rain on me right now?"* More providers may be added.
 
 ## Platforms
 
