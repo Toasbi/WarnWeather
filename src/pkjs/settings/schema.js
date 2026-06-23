@@ -1,5 +1,6 @@
 // src/pkjs/settings/schema.js — ES5, PKJS-parsed. WarnWeather's settings SoT.
 var meta = require('../../../package.json');
+var BMC_BADGE = require('./bmc-badge.js');
 var versionLabel = 'v' + meta.version + (meta.buildProfile === 'dev' ? ' (dev)' : '');
 var HOURS = (function () { var o = [], h; for (h = 0; h < 24; h += 1) { o.push([(h < 10 ? '0' + h : String(h)) + ':00', String(h)]); } return o; })();
 // Color swatches (5 intensity bands) — shown only in the Multicolor hint.
@@ -198,10 +199,7 @@ module.exports = {
       ] }
     ] },
     { id: 'more', label: 'More', sections: [
-      { title: 'Misc', items: [{
-          type: 'staticText',
-          text: '<div style="display:flex;justify-content:space-between;align-items:center;gap:18px;">' + '<span style="font-size:14.5px;font-weight:600;color:#ECEEF3;">Help</span>' + '<a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a></div>'
-        },
+      { title: 'Misc', items: [
         { type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true },
         { type: 'toggle', messageKey: 'vibe', label: 'Vibrate on bluetooth disconnect', defaultValue: false },
         { type: 'select', messageKey: 'btIcons', label: 'Show icon for bluetooth', defaultValue: 'both', options: [['Disconnected','disconnected'],['Connected','connected'],['Both','both'],['None','none']] },
@@ -209,6 +207,14 @@ module.exports = {
           hint: 'Share privacy-respecting weather telemetry to improve reliability and understand usage patterns. Learn more about what gets sent in the <a href="https://github.com/Toasbi/WarnWeather#telemetry">Telemetry section</a>.'
         }
         ]
+      }, {
+        title: 'Links', items: [{
+          type: 'staticText',
+          text: '<div style="display:flex;justify-content:space-between;align-items:center;gap:18px;">' + '<span style="font-size:14.5px;font-weight:600;color:#ECEEF3;">Help</span>' + '<a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a></div>'
+        }, {
+          type: 'staticText',
+          text: '<div style="display:flex;justify-content:space-between;align-items:center;gap:18px;">' + '<span style="font-size:14.5px;font-weight:600;color:#ECEEF3;">Support</span>' + '<a href="https://buymeacoffee.com/toaster2"><img alt="Buy me a coffee" style="height:40px;width:auto;display:block;" src="' + BMC_BADGE + '"></a></div>'
+        }]
       }, {
           title: 'Advanced', collapsible: true, items: [{
             type: 'toggle',
