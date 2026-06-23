@@ -162,6 +162,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var CELL_STYLE = 'border:1px solid #555;padding:1px 3px;';
         var TITLE_STYLE = 'font-size:0.8em;font-weight:bold;margin:8px 0 0;padding:0 16px;';
         var LEGEND_STYLE = 'font-size:0.7em;color:#9aa0a6;line-height:1.3;margin:1px 0 3px;padding:0 16px;';
+        // App-owned override: this custom element ships its own CSS rather than the config-ui lib
+        // carrying dev-stats rules. .dsBleed cancels the lib .blockrow's 16px side padding (full
+        // bleed) so the tables run to the card's inner edge; dropping the grid's outer left/right
+        // edges then lets the card border be the frame. !important beats the per-cell inline border.
+        var STYLE_OVERRIDE = '<style>'
+            + '.dsBleed{margin-left:-16px;margin-right:-16px;}'
+            + '.dsTable td:first-child,.dsTable th:first-child{border-left:none !important;}'
+            + '.dsTable td:last-child,.dsTable th:last-child{border-right:none !important;}'
+            + '</style>';
         var days = {};
         var dayOrder = [];
         var raw;
@@ -237,7 +246,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         html += '<div style="' + LEGEND_STYLE + '">'
             + '✓ delivered · ✗ rejected · c cache-skip (nothing sent)<br>'
             + 'per category: count● sent · count– cached</div>';
-        html += '<table style="' + TABLE_STYLE + '">';
+        html += '<table class="dsTable" style="' + TABLE_STYLE + '">';
         html += headerRow(['Day', 'weather'].concat(CATEGORIES).concat(['setting']));
         dayOrder.forEach(function (day) {
             var bucket = days[day];
@@ -255,7 +264,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         html += '<div style="' + LEGEND_STYLE + '">'
             + 'ok: ✓ delivered · ✗ rejected · blank nothing sent<br>'
             + 'category/setting: ● sent · – cached · blank not in payload</div>';
-        html += '<table style="' + TABLE_STYLE + '">';
+        html += '<table class="dsTable" style="' + TABLE_STYLE + '">';
         html += headerRow(['Time', 'ok'].concat(CATEGORIES).concat(['setting']));
         raw.forEach(function (ev) {
             var okMark = ev.ok === 1 ? '✓' : (ev.ok === 0 ? '✗' : '');
@@ -273,7 +282,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (events.length > RAW_EVENT_CAP) {
             html += '<div style="font-size:0.72em;padding:0 16px;">Showing last ' + RAW_EVENT_CAP + ' of ' + events.length + ' events.</div>';
         }
-        return html;
+        return STYLE_OVERRIDE + '<div class="dsBleed">' + html + '</div>';
     }
 
     /* ---- lastFetch: ported from inject.js:309-334 ------------------------- */

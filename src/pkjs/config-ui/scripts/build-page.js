@@ -23,9 +23,25 @@ function writeGenerated(opts) {
   return opts.out;
 }
 
+// Build the page and fill the INJECTED_* runtime markers, yielding a standalone HTML page that
+// renders itself in a browser (no watch / Clay host needed). schema/cfg/env/userData are inlined
+// as JSON — the same contract config-ui/index.js fills at runtime. For dev preview, not shipping.
+function previewPage(opts) {
+  opts = opts || {};
+  var page = buildPage({ appFiles: opts.appFiles });
+  if (page.indexOf('/*__PCONF_INJECT__*/') === -1) { throw new Error('shell.html missing /*__PCONF_INJECT__*/'); }
+  var snippet =
+    'INJECTED_SCHEMA='   + JSON.stringify(opts.schema || null)  + ';' +
+    'INJECTED_CFG='      + JSON.stringify(opts.cfg || {})       + ';' +
+    'INJECTED_ENV='      + JSON.stringify(opts.env || null)     + ';' +
+    'INJECTED_USERDATA=' + JSON.stringify(opts.userData || {})  + ';' +
+    'INJECTED_RETURN='   + JSON.stringify(opts.returnTo || '#') + ';';
+  return page.replace('/*__PCONF_INJECT__*/', function () { return snippet; });
+}
+
 if (require.main === module) {
   // CLI: node build-page.js <out> <appFile...>
   var out = process.argv[2], appFiles = process.argv.slice(3);
   console.log('wrote ' + writeGenerated({ out: out, appFiles: appFiles }));
 }
-module.exports = { buildPage: buildPage, writeGenerated: writeGenerated };
+module.exports = { buildPage: buildPage, writeGenerated: writeGenerated, previewPage: previewPage };

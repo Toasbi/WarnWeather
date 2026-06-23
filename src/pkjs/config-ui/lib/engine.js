@@ -110,15 +110,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   // Wrap a control in a row with label/hint chrome. Stacked for text/radio/open-color.
-  function renderRow(item, view) {
+  // noDivider appends the nb modifier so the row paints no bottom divider (used by joinPrevious).
+  function renderRow(item, view, noDivider) {
     var hint = item.hintByValue ? (item.hintByValue[view.value] || item.hint) : item.hint;
     var stacked = item.type === 'text' || item.type === 'radio' || (item.type === 'color' && view.openColor === item.messageKey);
     var hintHtml = hint ? '<div class="hint">' + hint + '</div>' : '';
     var label = '<div class="lbl">' + esc(item.label) + '</div>';
+    var rowCls = 'row' + (stacked ? ' stack' : '') + (noDivider ? ' nb' : '');
     if (stacked) {
-      return '<div class="row stack">' + label + hintHtml + '<div>' + renderControl(item, view) + '</div></div>';
+      return '<div class="' + rowCls + '">' + label + hintHtml + '<div>' + renderControl(item, view) + '</div></div>';
     }
-    return '<div class="row"><div class="lft">' + label + hintHtml + '</div><div class="rgt">' + renderControl(item, view) + '</div></div>';
+    return '<div class="' + rowCls + '"><div class="lft">' + label + hintHtml + '</div><div class="rgt">' + renderControl(item, view) + '</div></div>';
   }
 
   // Render a registered block by id, wrapped in .blockrow ('.blockrow sticky' when sticky).
@@ -132,15 +134,46 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   // Render one schema item honoring showWhen. Returns { html, kind } with kind in
   // 'control' | 'static' | 'hidden' so the section can decide if the card is empty.
-  function renderItem(item, view, cx) {
+  function renderItem(item, view, cx, noDivider) {
     if (!PConf.showWhen.isVisible(item, cx.evalCtx)) { return { html: '', kind: 'hidden' }; }
     if (item.type === 'staticText') {
-      return { html: '<div class="static">' + (item.text || '') + '</div>', kind: 'static' };
+      // a joinPrevious static acts as the control's description, so the join modifier tightens its
+      // top spacing to hug the row above (like a hint) instead of standing off as a separate block.
+      var staticCls = 'static' + (item.joinPrevious ? ' join' : '') + (noDivider ? ' nb' : '');
+      return { html: '<div class="' + staticCls + '">' + (item.text || '') + '</div>', kind: 'static' };
     }
     var html = renderBlock(item.blockBefore, cx.S, cx.ENV, cx.USERDATA, item.blockBeforeSticky)
-      + renderRow(item, view)
+      + renderRow(item, view, noDivider)
       + renderBlock(item.block, cx.S, cx.ENV, cx.USERDATA);
     return { html: html, kind: 'control' };
+  }
+
+  // Render a run of consecutive items sharing the same inline group id as a single side-by-side
+  // row (one bottom divider, no internal dividers). Each visible member becomes a compact
+  // label+control cell. Inline members don't carry hints/blocks. Returns { html, controlCount };
+  // controlCount is the number of visible cells (0 -> nothing rendered, group hidden).
+  function renderInlineGroup(items, cx, noDivider) {
+    var cells = '', visible = 0, i, item, view;
+    for (i = 0; i < items.length; i++) {
+      item = items[i];
+      if (!PConf.showWhen.isVisible(item, cx.evalCtx)) { continue; }
+      view = { value: cx.S[item.messageKey], openColor: cx.openColor };
+      cells += '<div class="icell"><div class="lbl">' + esc(item.label) + '</div>' + renderControl(item, view) + '</div>';
+      visible++;
+    }
+    if (!visible) { return { html: '', controlCount: 0 }; }
+    return { html: '<div class="row inline' + (noDivider ? ' nb' : '') + '">' + cells + '</div>', controlCount: visible };
+  }
+
+  // Look-ahead from index "from": does the next *visible* item carry joinPrevious? Such an item
+  // wants no divider between it and the row above, so the preceding visible row drops its divider.
+  // Skips hidden items so the divider returns automatically when the joining group is hidden.
+  function nextVisibleJoins(items, from, cx) {
+    var j;
+    for (j = from; j < items.length; j++) {
+      if (PConf.showWhen.isVisible(items[j], cx.evalCtx)) { return Boolean(items[j].joinPrevious); }
+    }
+    return false;
   }
 
   function renderCardHeader(sec, secId, isCollapsible, isOpen) {
@@ -158,8 +191,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var controlCount = 0, staticCount = 0, i;
     for (i = 0; i < sec.items.length; i++) {
       var item = sec.items[i];
+      if (item.inline) {
+        // gather the consecutive run sharing this inline group id, render it as one row
+        var run = [item];
+        while (i + 1 < sec.items.length && sec.items[i + 1].inline === item.inline) { run.push(sec.items[i + 1]); i++; }
+        var g = renderInlineGroup(run, cx, nextVisibleJoins(sec.items, i + 1, cx));
+        controlCount += g.controlCount;
+        body += g.html;
+        continue;
+      }
       var view = { value: cx.S[item.messageKey], openColor: cx.openColor };
-      var r = renderItem(item, view, cx);
+      var r = renderItem(item, view, cx, nextVisibleJoins(sec.items, i + 1, cx));
       if (r.kind === 'control') { controlCount++; }
       else if (r.kind === 'static') { staticCount++; }
       body += r.html;
@@ -171,6 +213,19 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var isOpen = isCollapsible ? !cx.collapsed[secId] : true;
     var hdr = renderCardHeader(sec, secId, isCollapsible, isOpen);
     return '<div class="card' + (hdr ? '' : ' nohdr') + '">' + hdr + (isOpen ? '<div>' + body + '</div>' : '') + '</div>';
+  }
+
+  // Seed the collapsed-state map so collapsible sections start collapsed by default. The toggle
+  // handler flips entries (true->open->true), so seeding true means the first click expands.
+  function initialCollapsed(schema) {
+    var map = {}, ti, si, sec, tabs = schema.tabs || [];
+    for (ti = 0; ti < tabs.length; ti++) {
+      for (si = 0; si < tabs[ti].sections.length; si++) {
+        sec = tabs[ti].sections[si];
+        if (sec.collapsible) { map[sec.id || sec.title] = true; }
+      }
+    }
+    return map;
   }
 
   function renderTabBar(schema, activeTab) {
@@ -198,7 +253,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var SCHEMA = INJECTED_SCHEMA, ENV = INJECTED_ENV || { color: true, round: false, platform: '' };
     var USERDATA = INJECTED_USERDATA || {}, RETURN_TO = INJECTED_RETURN || 'pebblejs://close#';
     var S = hydrate(SCHEMA, INJECTED_CFG), INITIAL = Object.assign({}, S);
-    var activeTab = SCHEMA.tabs[0].id, openColor = null, collapsed = {};
+    var activeTab = SCHEMA.tabs[0].id, openColor = null, collapsed = initialCollapsed(SCHEMA);
     // evalCtx(): the {settings..., env} object showWhen predicates evaluate against.
     function evalCtx() { var c = Object.assign({}, S); c.env = ENV; return c; }
     var hookCtx = { get: function (k) { return S[k]; }, set: function (k, v) { S[k] = v; }, getInitial: function (k) { return INITIAL[k]; } };
@@ -245,7 +300,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   PConf.engine = {
-    serialize: serialize, hydrate: hydrate, boot: boot,
+    serialize: serialize, hydrate: hydrate, boot: boot, initialCollapsed: initialCollapsed,
     esc: esc, renderControl: renderControl, renderRow: renderRow,
     renderTabBar: renderTabBar, renderBody: renderBody
   };
@@ -253,6 +308,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     serialize: PConf.engine.serialize, hydrate: PConf.engine.hydrate, boot: PConf.engine.boot,
+    initialCollapsed: PConf.engine.initialCollapsed,
     blocks: PConf.blocks, hooks: PConf.hooks,
     esc: PConf.engine.esc, renderControl: PConf.engine.renderControl, renderRow: PConf.engine.renderRow,
     renderTabBar: PConf.engine.renderTabBar, renderBody: PConf.engine.renderBody
