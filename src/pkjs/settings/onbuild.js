@@ -38,6 +38,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ) {
             ctx.set('fetch', true);
         }
+        // GPS cache must never be shorter than the update interval: re-acquiring GPS more often
+        // than we fetch wastes battery for no benefit. Raise a stale-low (or missing) value up.
+        var cacheMin = parseInt(ctx.get('gpsCacheMin'), 10);
+        var intervalMin = parseInt(ctx.get('fetchIntervalMin'), 10);
+        if (!isNaN(intervalMin) && (isNaN(cacheMin) || cacheMin < intervalMin)) {
+            ctx.set('gpsCacheMin', String(intervalMin));
+        }
     }
 
     PConf.hooks.onLoad(onLoad);

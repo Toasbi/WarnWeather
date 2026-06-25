@@ -53,3 +53,18 @@ test('registers into PConf.hooks', function () {
     assert.equal(_L.length, 1);
     assert.equal(_S.length, 1);
 });
+
+test('onSubmit raises a GPS cache below the update interval up to the interval', function () {
+    var store = { locationMode: 'gps', location: '', provider: 'wunderground', owmApiKey: '', fetchIntervalMin: '60', gpsCacheMin: '30' };
+    var initial = { provider: 'wunderground', owmApiKey: '', location: '' };
+    var ctx = { get: function (k) { return store[k]; }, set: function (k, v) { store[k] = v; }, getInitial: function (k) { return initial[k]; } };
+    OB.onSubmit(ctx);
+    assert.equal(store.gpsCacheMin, '60');
+});
+
+test('onSubmit leaves a GPS cache at or above the interval unchanged', function () {
+    var store = { locationMode: 'gps', location: '', provider: 'wunderground', owmApiKey: '', fetchIntervalMin: '15', gpsCacheMin: '30' };
+    var ctx = { get: function (k) { return store[k]; }, set: function (k, v) { store[k] = v; }, getInitial: function () { return ''; } };
+    OB.onSubmit(ctx);
+    assert.equal(store.gpsCacheMin, '30');
+});
