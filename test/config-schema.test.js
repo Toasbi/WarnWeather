@@ -11,7 +11,7 @@ const EXPECTED_KEYS = [
   'timeLeadingZero','timeShowAmPm','axisTimeFormat','timeFont','colorTime',
   'weekStartDay','firstWeek','colorToday','colorSunday','colorSaturday','colorUSFederal',
   'holidayCountry','holidayRegionDE','holidayRegionAT','holidayRegionCH','holidayRegionES','holidayRegionGB','holidayRegionUS',
-  'fetchIntervalMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','locationMode','location',
+  'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','locationMode','location',
   'temperatureUnits','dayNightShading','secondaryLine','secondaryLineFill','windScale','gustLine',
   'barSource','rainBarColor','provider','owmApiKey','radarProvider','radarColor',
   'showQt','vibe','btIcons','telemetryEnabled','devStatsEnabled','devStatsClear'
@@ -101,4 +101,13 @@ test('holiday region selectors: gated to their country, default whole-country, I
     r.options.slice(1).forEach((o) =>
       assert.ok(o[1].indexOf(cc + '-') === 0, cc + ' region value not ISO-3166-2: ' + o[1]));
   });
+});
+
+test('gpsCacheMin: select, default 30, interval-derived options, GPS-only', () => {
+  const g = byKey('gpsCacheMin');
+  assert.equal(g.type, 'select');
+  assert.equal(g.defaultValue, '30');
+  assert.equal(g.options, undefined, 'options must be derived, not static');
+  assert.deepEqual(g.optionsFrom, { interval: 'fetchIntervalMin', ladder: [30, 60, 120, 360, 720, 1440] });
+  assert.deepEqual(g.showWhen, { key: 'locationMode', eq: 'gps' });
 });
