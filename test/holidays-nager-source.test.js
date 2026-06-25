@@ -92,3 +92,27 @@ test('failed fetch sets a backoff that suppresses the next attempt', () => {
   });
   assert.equal(attempts, 1); // within the 1-hour backoff window
 });
+
+test('non-global holiday with null/empty counties is inert (never highlighted)', () => {
+  const DE_INERT = JSON.stringify([
+    { date: '2026-05-01', global: false, counties: null }   // unattributed regional -> inert
+  ]);
+  nagerSource.ensure('DE', [2026], () => {}, { now: () => NOW, request: (u, ok) => ok(DE_INERT) });
+  const mayDay = new Date(2026, 4, 1);
+  assert.equal(nagerSource.isHoliday('DE', 'all', mayDay), false);
+  assert.equal(nagerSource.isHoliday('DE', 'DE-BY', mayDay), false);
+});
+
+test('ensure fetches each year across a year boundary and caches both', () => {
+  const requested = [];
+  function respond(url, onOk) {
+    requested.push(url);
+    const year = url.slice(-7, -3); // ".../PublicHolidays/<year>/DE"
+    onOk(JSON.stringify([{ date: year + '-01-01', global: true, counties: null }]));
+  }
+  nagerSource.ensure('DE', [2026, 2027], () => {}, { now: () => NOW, request: respond });
+  assert.ok(requested.includes('https://date.nager.at/api/v3/PublicHolidays/2026/DE'));
+  assert.ok(requested.includes('https://date.nager.at/api/v3/PublicHolidays/2027/DE'));
+  assert.equal(nagerSource.isHoliday('DE', 'all', new Date(2026, 0, 1)), true);
+  assert.equal(nagerSource.isHoliday('DE', 'all', new Date(2027, 0, 1)), true);
+});

@@ -89,7 +89,9 @@ function compact(apiList) {
     for (i = 0; i < apiList.length; i++) {
         item = apiList[i];
         if (!item || typeof item.date !== 'string' || item.date.length < 10) { continue; }
-        regions = item.global ? null : (item.counties || null);   // global wins over counties
+        // global wins over counties; a non-global entry with no counties becomes
+        // an empty array (inert: matches no region and is not nationwide).
+        regions = item.global ? null : (item.counties && item.counties.length ? item.counties : []);
         out.push([item.date.slice(5, 10), regions]);              // "YYYY-MM-DD" -> "MM-DD"
     }
     return out;
