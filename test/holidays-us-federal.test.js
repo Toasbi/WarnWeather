@@ -22,6 +22,11 @@ test('weekend-observed shift: Jul 4 2026 is Saturday → observed Friday Jul 3',
   assert.equal(usFederal.isHoliday(d(2026, 7, 3)), true);   // observed, Friday
 });
 
+test('weekend-observed shift: New Year 2023 is Sunday → observed Monday Jan 2', () => {
+  assert.equal(usFederal.isHoliday(d(2023, 1, 1)), false);  // actual date, Sunday
+  assert.equal(usFederal.isHoliday(d(2023, 1, 2)), true);   // observed, Monday
+});
+
 test('non-holiday weekday and weekends are not holidays', () => {
   assert.equal(usFederal.isHoliday(d(2026, 3, 16)), false); // ordinary Monday
   assert.equal(usFederal.isHoliday(d(2026, 6, 20)), false); // a Saturday

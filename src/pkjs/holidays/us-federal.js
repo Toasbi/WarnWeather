@@ -1,8 +1,9 @@
 // src/pkjs/holidays/us-federal.js
 //
-// US-federal holiday rules, ported verbatim from is_us_federal_holiday() in
-// src/c/layers/calendar_layer.c. The provider seam: any holiday source exposes
-// isHoliday(date) -> boolean. ES5 only (reaches the watch runtime).
+// US-federal holiday rules, ported from the former is_us_federal_holiday() C rules
+// in calendar_layer.c (now removed — the watch reads the PKJS holiday mask).
+// The provider seam: any holiday source exposes isHoliday(date) -> boolean.
+// ES5 only (reaches the watch runtime).
 
 /**
  * Whether a local civil date is an observed US-federal holiday.
