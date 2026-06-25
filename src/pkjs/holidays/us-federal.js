@@ -2,7 +2,7 @@
 //
 // US-federal holiday rules, ported from the former is_us_federal_holiday() C rules
 // in calendar_layer.c (now removed — the watch reads the PKJS holiday mask).
-// The provider seam: any holiday source exposes isHoliday(date) -> boolean.
+// The provider seam: any holiday source exposes isHoliday(date, region) -> boolean.
 // ES5 only (reaches the watch runtime).
 
 /**
