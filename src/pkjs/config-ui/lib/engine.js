@@ -70,6 +70,33 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
   function renderSegmented(item, v) { return '<div class="seg">' + optionButtons(item, v, false) + '</div>'; }
   function renderRadio(item, v) { return '<div class="radio">' + optionButtons(item, v, true) + '</div>'; }
+  // Format a minute count as a human label for interval-derived option lists.
+  // 1440 is checked first because it is also a multiple of 60.
+  function formatMinutesLabel(min) {
+    if (min === 1440) { return '1 day'; }
+    if (min < 60) { return min + ' minutes'; }
+    if (min === 60) { return '1 hour'; }
+    if (min % 60 === 0) { return (min / 60) + ' hours'; }
+    return min + ' minutes';
+  }
+
+  // Resolve a select's options from current settings S. A static item.options passes through.
+  // Otherwise item.optionsFrom = { interval, ladder } yields [interval] + ladder values strictly
+  // greater than the interval (so equal values dedupe), each as [label, String(minutes)].
+  function resolveOptionsFrom(item, S) {
+    if (item.options) { return item.options; }
+    var spec = item.optionsFrom;
+    if (!spec) { return []; }
+    var ladder = spec.ladder || [];
+    var interval = parseInt(S[spec.interval], 10);
+    if (isNaN(interval) || interval <= 0) { interval = ladder.length ? ladder[0] : 0; }
+    var values = [interval], i;
+    for (i = 0; i < ladder.length; i += 1) {
+      if (ladder[i] > interval) { values.push(ladder[i]); }
+    }
+    return values.map(function (min) { return [formatMinutesLabel(min), String(min)]; });
+  }
+
   function renderSelect(item, v) {
     var h = '<select data-k="' + item.messageKey + '">', i, o;
     for (i = 0; i < item.options.length; i++) {
@@ -142,8 +169,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var staticCls = 'static' + (item.joinPrevious ? ' join' : '') + (noDivider ? ' nb' : '');
       return { html: '<div class="' + staticCls + '">' + (item.text || '') + '</div>', kind: 'static' };
     }
+    var rowItem = (item.type === 'select' && item.optionsFrom)
+      ? Object.assign({}, item, { options: resolveOptionsFrom(item, cx.S) })
+      : item;
     var html = renderBlock(item.blockBefore, cx.S, cx.ENV, cx.USERDATA, item.blockBeforeSticky)
-      + renderRow(item, view, noDivider)
+      + renderRow(rowItem, view, noDivider)
       + renderBlock(item.block, cx.S, cx.ENV, cx.USERDATA);
     return { html: html, kind: 'control' };
   }
@@ -302,7 +332,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   PConf.engine = {
     serialize: serialize, hydrate: hydrate, boot: boot, initialCollapsed: initialCollapsed,
     esc: esc, renderControl: renderControl, renderRow: renderRow,
-    renderTabBar: renderTabBar, renderBody: renderBody
+    renderTabBar: renderTabBar, renderBody: renderBody, resolveOptionsFrom: resolveOptionsFrom
   };
 })();
 if (typeof module !== 'undefined' && module.exports) {
@@ -311,6 +341,7 @@ if (typeof module !== 'undefined' && module.exports) {
     initialCollapsed: PConf.engine.initialCollapsed,
     blocks: PConf.blocks, hooks: PConf.hooks,
     esc: PConf.engine.esc, renderControl: PConf.engine.renderControl, renderRow: PConf.engine.renderRow,
-    renderTabBar: PConf.engine.renderTabBar, renderBody: PConf.engine.renderBody
+    renderTabBar: PConf.engine.renderTabBar, renderBody: PConf.engine.renderBody,
+    resolveOptionsFrom: PConf.engine.resolveOptionsFrom
   };
 }
