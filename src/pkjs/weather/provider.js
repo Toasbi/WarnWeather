@@ -430,7 +430,7 @@ WeatherProvider.prototype.withGpsCoordinates = function(callback, onFailure) {
     var provider = this;
     var options = {
         enableHighAccuracy: true,
-        maximumAge: 10000,
+        maximumAge: provider.gpsMaxAgeMs || 10000,
         timeout: 10000
     };
 
@@ -652,5 +652,21 @@ WeatherProvider.prototype.getPayload = function() {
 
 WeatherProvider.request = request;
 WeatherProvider.failure = failure;
+
+/**
+ * Compute the geolocation maximumAge (ms) from the GPS-cache and update-interval settings.
+ * The reuse window never drops below the interval — re-acquiring GPS more often than we fetch
+ * wastes battery. Missing/garbage values parse to 0 so the caller's `|| 10000` floor applies.
+ * @param {string|number} gpsCacheMin GPS cache, minutes.
+ * @param {string|number} fetchIntervalMin Update interval, minutes.
+ * @returns {number} maximumAge in milliseconds.
+ */
+WeatherProvider.computeGpsMaxAgeMs = function(gpsCacheMin, fetchIntervalMin) {
+    var cache = parseInt(gpsCacheMin, 10);
+    var interval = parseInt(fetchIntervalMin, 10);
+    if (isNaN(cache)) { cache = 0; }
+    if (isNaN(interval)) { interval = 0; }
+    return Math.max(cache, interval) * 60 * 1000;
+};
 
 module.exports = WeatherProvider;

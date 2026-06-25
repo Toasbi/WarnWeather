@@ -514,6 +514,7 @@ function refreshProvider() {
     var oldProviderId = app.provider ? app.provider.id : null;
     setProvider(app.settings.provider);
     app.provider.location = app.settings.location === '' ? null : app.settings.location;
+    app.provider.gpsMaxAgeMs = WeatherProvider.computeGpsMaxAgeMs(app.settings.gpsCacheMin, app.settings.fetchIntervalMin);
 
     var locationChanged = oldLocation !== app.provider.location;
     var providerChanged = oldProviderId !== app.provider.id;
@@ -595,9 +596,9 @@ function isWatchConnected() {
  * Out-of-coverage (DWD returns radar: []) is NOT a failure — it
  * produces zero arrays via withRadar2hRain, which is shipped normally.
  *
- * Relies on the existing GPS cache (maximumAge: 10000 ms in
- * WeatherProvider.withGpsCoordinates) to absorb the second
- * getCurrentPosition call that provider.fetch makes shortly after.
+ * Relies on the existing GPS cache (the configurable maximumAge in
+ * WeatherProvider.withGpsCoordinates, always >= the update interval) to absorb
+ * the second getCurrentPosition call that provider.fetch makes shortly after.
  *
  * @param {Object} provider Active WeatherProvider (has .withCoordinates).
  * @param {Function} callback Receives `{tuples}` or `null`.
