@@ -1,6 +1,43 @@
 var rainTier = require('./weather/rain-tier');
 var COLORS = require('./pebble-colors');
 
+/**
+ * Quantize a permille value (0..1000) to a 0..250 byte for the wire.
+ * @param {number} pm Permille value.
+ * @returns {number} Byte 0..250.
+ */
+function permilleToByte(pm) {
+    var b = Math.round(pm / 4);
+    if (b < 0) { b = 0; }
+    if (b > 250) { b = 250; }
+    return b;
+}
+
+/**
+ * Scale a temperature series to 0..250 bytes across its own min..max, and
+ * report the real min/max (for the watch's hi/lo labels).
+ * @param {number[]} temps Whole-degree temperatures.
+ * @returns {{bytes: number[], min: number, max: number}} Scaled bytes + real range.
+ */
+function tempTrendToBytes(temps) {
+    var min = Infinity, max = -Infinity, i;
+    for (i = 0; i < temps.length; i += 1) {
+        if (temps[i] < min) { min = temps[i]; }
+        if (temps[i] > max) { max = temps[i]; }
+    }
+    if (!isFinite(min)) { return { bytes: [], min: 0, max: 0 }; }
+    var span = max - min;
+    var bytes = [];
+    for (i = 0; i < temps.length; i += 1) {
+        if (span === 0) { bytes.push(125); continue; }
+        var b = Math.round((temps[i] - min) * 250 / span);
+        if (b < 0) { b = 0; }
+        if (b > 250) { b = 250; }
+        bytes.push(b);
+    }
+    return { bytes: bytes, min: min, max: max };
+}
+
 // Metric → line color (0xRRGGBB). Hardcoded per metric (not user-selectable).
 var LINE_COLORS = { precip_prob: COLORS.GColorPictonBlue, wind: COLORS.GColorYellow };
 // Metric → area-fill color (0xRRGGBB), parallel to LINE_COLORS. Precip is the
@@ -123,5 +160,7 @@ function applyForecastSeries(payload, settings) {
 
 module.exports = {
     buildForecastSeries: buildForecastSeries,
-    applyForecastSeries: applyForecastSeries
+    applyForecastSeries: applyForecastSeries,
+    permilleToByte: permilleToByte,
+    tempTrendToBytes: tempTrendToBytes
 };

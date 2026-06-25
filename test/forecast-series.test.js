@@ -204,3 +204,37 @@ test('wind + gustLine undefined: defaults to on (gust line drawn)', () => {
   );
   assert.deepEqual(decode16(out.THIRD_LINE_TREND_INT16), [0, 1000, 1000]);
 });
+
+const { permilleToByte, tempTrendToBytes } = require('../src/pkjs/forecast-series');
+
+test('permilleToByte: 0/500/1000 permille → 0/125/250, clamped', () => {
+  assert.equal(permilleToByte(0), 0);
+  assert.equal(permilleToByte(500), 125);
+  assert.equal(permilleToByte(1000), 250);
+  assert.equal(permilleToByte(1200), 250); // clamp high
+  assert.equal(permilleToByte(-50), 0);    // clamp low
+});
+
+test('tempTrendToBytes: scales across min..max to 0..250 + reports real min/max', () => {
+  const r = tempTrendToBytes([10, 20, 30, 50]); // span 40
+  assert.deepEqual(r.bytes, [0, 63, 125, 250]); // (t-10)*250/40 rounded
+  assert.equal(r.min, 10);
+  assert.equal(r.max, 50);
+});
+
+test('tempTrendToBytes: flat series → all 125, min===max', () => {
+  const r = tempTrendToBytes([21, 21, 21]);
+  assert.deepEqual(r.bytes, [125, 125, 125]);
+  assert.equal(r.min, 21);
+  assert.equal(r.max, 21);
+});
+
+test('tempTrendToBytes: negative °F handled (no negative bytes)', () => {
+  const r = tempTrendToBytes([-10, 0, 10]); // span 20
+  assert.deepEqual(r.bytes, [0, 125, 250]);
+  assert.equal(r.min, -10);
+});
+
+test('tempTrendToBytes: empty input → empty bytes, zero min/max', () => {
+  assert.deepEqual(tempTrendToBytes([]), { bytes: [], min: 0, max: 0 });
+});
