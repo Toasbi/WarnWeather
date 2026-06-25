@@ -1,6 +1,7 @@
 #include "calendar_layer.h"
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
+#include "c/appendix/persist.h"
 #include "c/services/watch_services.h"
 #include <time.h>
 
@@ -20,6 +21,11 @@
 #endif
 
 static Layer *s_calendar_layer;
+
+// Cached once per redraw from persist so per-cell holiday checks don't re-read
+// storage. Populated at the top of calendar_update_proc.
+static uint32_t s_holiday_mask = 0;
+static int32_t s_holiday_anchor = 0;
 
 static GRect calendar_cell_rect(GRect bounds, int i) {
     const int box_w = bounds.size.w / DAYS_PER_WEEK;
@@ -76,53 +82,31 @@ static struct tm relative_tm(int days_from_today)
     return out;
 }
 
-static bool is_us_federal_holiday(struct tm *t)
-{
-    // No holidays on weekends (ensures we don't register a false positive for special cases)
-    if (t->tm_wday == 0 || t->tm_wday == 6)
-        return false;
+// Days-from-civil (Howard Hinnant) — must match src/pkjs/holidays/serial-day.js
+// exactly so the watch and PKJS agree on the anchor's day numbering. Integer
+// only (no floating point).
+static int32_t days_from_civil(int year, int month, int day) {
+    int y = year - (month <= 2 ? 1 : 0);
+    int era = (y >= 0 ? y : y - 399) / 400;
+    int yoe = y - era * 400;                                   // [0, 399]
+    int doy = (153 * (month > 2 ? month - 3 : month + 9) + 2) / 5 + day - 1; // [0, 365]
+    int doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;           // [0, 146096]
+    return (int32_t) (era * 146097 + doe - 719468);
+}
 
-    // These holidays are on a specific weekday, so no special cases
-    if ((t->tm_mon == 0  && t->tm_mday >= 15 && t->tm_mday <= 21 && t->tm_wday == 1) || // MLK Day
-        (t->tm_mon == 1  && t->tm_mday >= 15 && t->tm_mday <= 21 && t->tm_wday == 1) || // Washington's Birthday
-        (t->tm_mon == 4  && t->tm_mday >= 25 && t->tm_mday <= 31 && t->tm_wday == 1) || // Memorial Day
-        (t->tm_mon == 8  && t->tm_mday >= 1  && t->tm_mday <= 7  && t->tm_wday == 1) || // Labor Day
-        (t->tm_mon == 9  && t->tm_mday >= 8  && t->tm_mday <= 14 && t->tm_wday == 1) || // Columbus Day
-        (t->tm_mon == 10 && t->tm_mday >= 22 && t->tm_mday <= 28 && t->tm_wday == 4))   // Thanksgiving
-        return true;
-
-    // These remaining holidays are on a specific day of the month, which get
-    // moved if they fall on a weekend
-    
-    // Friday special cases
-    if (t->tm_wday == 5 && (
-        (t->tm_mon == 11 && t->tm_mday == 31) || // New Years
-        (t->tm_mon == 6  && t->tm_mday == 3)  || // Independence Day
-        (t->tm_mon == 10 && t->tm_mday == 10) || // Veterans Day
-        (t->tm_mon == 11 && t->tm_mday == 24)))  // Christmas
-        return true;
-    // Monday special cases
-    if (t->tm_wday == 1 && (
-        (t->tm_mon == 0  && t->tm_mday == 2)  || // New Years
-        (t->tm_mon == 6  && t->tm_mday == 5)  || // Independence Day
-        (t->tm_mon == 10 && t->tm_mday == 12) || // Veterans Day
-        (t->tm_mon == 11 && t->tm_mday == 26)))  // Christmas
-        return true;
-    // Non special cases
-    if ((t->tm_mon == 0  && t->tm_mday == 1)  || // New Years
-        (t->tm_mon == 6  && t->tm_mday == 4)  || // Independence Day
-        (t->tm_mon == 10 && t->tm_mday == 11) || // Veterans Day
-        (t->tm_mon == 11 && t->tm_mday == 25))   // Christmas
-        return true;
-    
-    // Default to no holiday
-    return false;
+// A cell is a holiday when its date falls inside the anchored mask window and
+// the corresponding bit is set. PKJS owns the holiday rules and the enable
+// (it sends mask 0 when highlighting is disabled).
+static bool cell_is_holiday(struct tm *t) {
+    int32_t serial = days_from_civil(t->tm_year + 1900, t->tm_mon + 1, t->tm_mday);
+    int32_t bit = serial - s_holiday_anchor;
+    return bit >= 0 && bit < 28 && ((s_holiday_mask >> bit) & 1u);
 }
 
 #ifdef PBL_COLOR
 static GColor date_color(struct tm *t) {
     // Get color for a date, considering weekends and holidays
-    if (is_us_federal_holiday(t))
+    if (cell_is_holiday(t))
         return g_config->color_us_federal;
     if (t->tm_wday == 0)
         return g_config->color_sunday;
@@ -148,6 +132,8 @@ static void calendar_update_proc(Layer *layer, GContext *ctx) {
     int h = bounds.size.h;
     const int box_w = w / DAYS_PER_WEEK;
     const int box_h = h / NUM_WEEKS;
+    s_holiday_mask = persist_get_holiday_mask();
+    s_holiday_anchor = persist_get_holiday_anchor();
 
     // Calculate which box holds today's date
     const int i_today = config_n_today();
@@ -159,7 +145,7 @@ static void calendar_update_proc(Layer *layer, GContext *ctx) {
 
     for (int i = 0; i < NUM_WEEKS * DAYS_PER_WEEK; ++i) {
         struct tm t = relative_tm(i - i_today);
-        bool highlight_holiday = (config_highlight_holidays() && is_us_federal_holiday(&t));
+        bool highlight_holiday = cell_is_holiday(&t);
         bool highlight_sunday = (config_highlight_sundays() && t.tm_wday == 0);
         bool highlight_saturday = (config_highlight_saturdays() && t.tm_wday == 6);
         bool bold = (i == i_today) || highlight_holiday || highlight_sunday || highlight_saturday;

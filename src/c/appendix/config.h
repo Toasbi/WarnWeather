@@ -47,8 +47,6 @@ int config_n_today();
 
 GFont config_time_font();
 
-bool config_highlight_holidays();
-
 bool config_highlight_sundays();
 
 bool config_highlight_saturdays();

@@ -115,10 +115,6 @@ GFont config_time_font() {
     return fonts_get_system_font(font_keys[font_index]);
 }
 
-bool config_highlight_holidays() {
-    return !gcolor_equal(g_config->color_us_federal, GColorWhite);
-}
-
 bool config_highlight_sundays() {
     return !gcolor_equal(g_config->color_sunday, GColorWhite);
 }
