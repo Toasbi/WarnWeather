@@ -461,9 +461,13 @@ function sendClaySettings(onSuccess, onFailure) {
         "CLAY_COLOR_US_FEDERAL": app.settings.hasOwnProperty('colorUSFederal') ? app.settings.colorUSFederal : DEFAULT_COLOR_FOLLY,
         "HOLIDAYS": (function() {
             var color = app.settings.hasOwnProperty('colorUSFederal') ? app.settings.colorUSFederal : DEFAULT_COLOR_FOLLY;
+            var country = app.settings.hasOwnProperty('holidayCountry') ? app.settings.holidayCountry : 'US';
+            var region = app.settings['holidayRegion' + country] || 'all';
             var built = holidayMask.build({
                 startMon: app.settings.weekStartDay === 'mon',
                 prevWeek: app.settings.firstWeek === 'prev',
+                country: country,
+                region: region,
                 enabled: color !== DEFAULT_COLOR_WHITE
             }, new Date());
             return holidayMask.pack(built.anchor, built.mask);
