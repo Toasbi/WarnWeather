@@ -7,6 +7,7 @@
 #include "c/layers/weather_status_layer.h"
 #include "c/layers/loading_layer.h"
 #include "c/layers/rain_radar_layer.h"
+#include "c/layers/calendar_layer.h"
 #include "c/windows/main_window.h"
 #include "memory_log.h"
 
@@ -234,6 +235,31 @@ static bool handle_clay_config(DictionaryIterator *iterator, bool *config_dirty)
     return true;
 }
 
+static bool handle_holidays(DictionaryIterator *iterator, bool *calendar_dirty) {
+    Tuple *holidays_tuple = dict_find(iterator, MESSAGE_KEY_HOLIDAYS);
+    if (!holidays_tuple || holidays_tuple->length < 8) {
+        return false;
+    }
+
+    // Packed little-endian: bytes 0-3 = int32 anchor (serial day of bit 0's
+    // date), bytes 4-7 = uint32 mask (bit j => date anchor+j is a holiday).
+    const uint8_t *d = holidays_tuple->value->data;
+    int32_t anchor = (int32_t) ((uint32_t) d[0]
+        | ((uint32_t) d[1] << 8)
+        | ((uint32_t) d[2] << 16)
+        | ((uint32_t) d[3] << 24));
+    uint32_t mask = (uint32_t) d[4]
+        | ((uint32_t) d[5] << 8)
+        | ((uint32_t) d[6] << 16)
+        | ((uint32_t) d[7] << 24);
+
+    bool changed = false;
+    changed |= persist_set_holiday_anchor(anchor);
+    changed |= persist_set_holiday_mask(mask);
+    *calendar_dirty |= changed;
+    return true;
+}
+
 static void inbox_received_callback(DictionaryIterator *iterator, void *context) {
     APP_LOG(APP_LOG_LEVEL_DEBUG, "Inbox received: %u bytes",
             (unsigned) dict_size(iterator));
@@ -243,12 +269,14 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     bool status_dirty = false;    // status row
     bool radar_dirty = false;     // radar chart + top-view availability
     bool config_dirty = false;    // whole window (config feeds every layer)
+    bool calendar_dirty = false;  // calendar holiday highlights only
     handled |= handle_forecast(iterator, &forecast_dirty);
     handled |= handle_status(iterator, &status_dirty, &radar_dirty);
     handled |= handle_sun_events(iterator, &forecast_dirty, &status_dirty);
     handled |= handle_rain_radar(iterator, &radar_dirty);
     handled |= handle_palette(iterator, &forecast_dirty, &radar_dirty);
     handled |= handle_clay_config(iterator, &config_dirty);
+    handled |= handle_holidays(iterator, &calendar_dirty);
 
     // Release the radar-snooze latch whenever we're awake. Runs after every
     // handler so it can't race the IS_SLEEPING tuple in the same payload.
@@ -280,6 +308,9 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
         // Radar availability may have switched — re-evaluate the top view so
         // a cleared radar falls back to the calendar.
         main_window_apply_top_view();
+    }
+    if (calendar_dirty && !config_dirty) {
+        calendar_layer_refresh();
     }
     if (!handled) {
         APP_LOG(APP_LOG_LEVEL_WARNING, "Bad payload received in app_message.c");
