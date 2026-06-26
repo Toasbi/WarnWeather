@@ -56,6 +56,24 @@
           "name": "IMAGE_BATTERY_CHARGING",
           "file": "img/battery-charging.png",
           "memoryFormat": "1BitPalette"
+        },
+        {
+          "type": "font",
+          "name": "FONT_ROBOTO_BOLD_80",
+          "file": "fonts/Roboto-Bold.ttf",
+          "characterRegex": "[0-9:]",
+          "targetPlatforms": [
+            "emery"
+          ]
+        },
+        {
+          "type": "font",
+          "name": "FONT_MONTSERRAT_MEDIUM_72",
+          "file": "fonts/Montserrat-Medium.ttf",
+          "characterRegex": "[0-9:]",
+          "targetPlatforms": [
+            "emery"
+          ]
         }
       ]
     },
