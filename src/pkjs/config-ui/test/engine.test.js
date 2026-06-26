@@ -225,3 +225,41 @@ test('renderBody: empty section card is suppressed', () => {
   const html = E.renderBody(EMPTY, 't', cx);
   assert.equal(html.indexOf('Gone'), -1, 'card with only hidden items is omitted');
 });
+
+test('renderSelectOptions: empty query lists all; current value flagged on', () => {
+  const item = { messageKey: 'c', options: [['United States','US'],['Germany','DE'],['Spain','ES']] };
+  const all = E.renderSelectOptions(item, 'DE', '');
+  assert.ok(all.indexOf('>United States<') >= 0 && all.indexOf('>Germany<') >= 0 && all.indexOf('>Spain<') >= 0, 'all options present');
+  assert.ok(all.indexOf('data-select-pick="DE"') >= 0 && all.indexOf('data-k="c"') >= 0, 'pick + key attrs');
+  assert.ok(/class="ssel-opt on"[^>]*data-select-pick="DE"/.test(all), 'current value row is .on');
+  assert.equal(/class="ssel-opt on"[^>]*data-select-pick="US"/.test(all), false, 'non-current row not .on');
+});
+
+test('renderSelectOptions: case-insensitive label match', () => {
+  const item = { messageKey: 'c', options: [['United States','US'],['Germany','DE'],['Spain','ES']] };
+  const r = E.renderSelectOptions(item, 'US', 'ger');
+  assert.ok(r.indexOf('>Germany<') >= 0, 'matches Germany');
+  assert.equal(r.indexOf('>Spain<'), -1, 'Spain filtered out');
+  assert.equal(r.indexOf('>United States<'), -1, 'US filtered out');
+});
+
+test('renderSelectOptions: matches the value code too', () => {
+  const item = { messageKey: 'c', options: [['United States','US'],['Germany','DE']] };
+  const r = E.renderSelectOptions(item, 'DE', 'us');
+  assert.ok(r.indexOf('>United States<') >= 0, 'typing the code "us" finds United States');
+  assert.equal(r.indexOf('>Germany<'), -1, 'Germany filtered out');
+});
+
+test('renderSelectOptions: no matches yields the muted row', () => {
+  const item = { messageKey: 'c', options: [['United States','US'],['Germany','DE']] };
+  const r = E.renderSelectOptions(item, 'US', 'zzz');
+  assert.ok(r.indexOf('ssel-none') >= 0 && r.indexOf('No matches') >= 0);
+  assert.equal(r.indexOf('ssel-opt'), -1, 'no option rows');
+});
+
+test('renderSelectOptions: label is HTML-escaped', () => {
+  const item = { messageKey: 'c', options: [['<b>x</b>','X']] };
+  const r = E.renderSelectOptions(item, 'X', '');
+  assert.equal(r.indexOf('<b>x</b>'), -1, 'raw markup must not survive');
+  assert.ok(r.indexOf('&lt;b&gt;x&lt;/b&gt;') >= 0);
+});

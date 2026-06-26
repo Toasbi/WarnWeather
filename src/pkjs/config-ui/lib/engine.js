@@ -78,6 +78,20 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     return h + '</select>';
   }
+  // Filtered option rows for an open searchSelect list. Case-insensitive substring match on the
+  // option label OR its value code; '' query -> all. The current value's row gets .on + a check.
+  function renderSelectOptions(item, value, query) {
+    var q = String(query || '').toLowerCase(), h = '', i, o, hay, shown = 0;
+    for (i = 0; i < item.options.length; i++) {
+      o = item.options[i];
+      hay = (o[0] + ' ' + o[1]).toLowerCase();
+      if (q && hay.indexOf(q) === -1) { continue; }
+      h += '<button class="ssel-opt' + (value === o[1] ? ' on' : '') + '" data-select-pick="' + esc(o[1]) + '" data-k="' + esc(item.messageKey) + '">'
+        + '<span>' + esc(o[0]) + '</span>' + (value === o[1] ? '<span class="ssel-chk">&#10003;</span>' : '') + '</button>';
+      shown++;
+    }
+    return shown ? h : '<div class="ssel-none">No matches</div>';
+  }
   function renderText(item, v) {
     var ph = (item.attributes && item.attributes.placeholder) ? esc(item.attributes.placeholder) : '';
     return '<input type="text" data-k="' + item.messageKey + '" value="' + esc(v || '') + '" placeholder="' + ph + '">';
@@ -301,7 +315,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   PConf.engine = {
     serialize: serialize, hydrate: hydrate, boot: boot, initialCollapsed: initialCollapsed,
-    esc: esc, renderControl: renderControl, renderRow: renderRow,
+    esc: esc, renderControl: renderControl, renderRow: renderRow, renderSelectOptions: renderSelectOptions,
     renderTabBar: renderTabBar, renderBody: renderBody
   };
 })();
@@ -311,6 +325,7 @@ if (typeof module !== 'undefined' && module.exports) {
     initialCollapsed: PConf.engine.initialCollapsed,
     blocks: PConf.blocks, hooks: PConf.hooks,
     esc: PConf.engine.esc, renderControl: PConf.engine.renderControl, renderRow: PConf.engine.renderRow,
+    renderSelectOptions: PConf.engine.renderSelectOptions,
     renderTabBar: PConf.engine.renderTabBar, renderBody: PConf.engine.renderBody
   };
 }
