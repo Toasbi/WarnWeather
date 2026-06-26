@@ -50,24 +50,9 @@ function getFixtureWeatherPayload(fixture, settings) {
     provider.precipTrend = Array.isArray(weather.precipPct) ? weather.precipPct.map(function(probabilityPercent) {
         return probabilityPercent / 100.0;
     }) : [];
-    provider.rainTrend = Array.isArray(weather.rainMm) ? weather.rainMm.slice(0) : new Array(provider.numEntries);
-    if (!Array.isArray(weather.rainMm)) {
-        for (var rainFillIdx = 0; rainFillIdx < provider.numEntries; rainFillIdx += 1) {
-            provider.rainTrend[rainFillIdx] = 0;
-        }
-    }
-    provider.windTrend = Array.isArray(weather.windKmh) ? weather.windKmh.slice(0) : new Array(provider.numEntries);
-    if (!Array.isArray(weather.windKmh)) {
-        for (var windFillIdx = 0; windFillIdx < provider.numEntries; windFillIdx += 1) {
-            provider.windTrend[windFillIdx] = 0;
-        }
-    }
-    provider.gustTrend = Array.isArray(weather.gustKmh) ? weather.gustKmh.slice(0) : new Array(provider.numEntries);
-    if (!Array.isArray(weather.gustKmh)) {
-        for (var gustFillIdx = 0; gustFillIdx < provider.numEntries; gustFillIdx += 1) {
-            provider.gustTrend[gustFillIdx] = 0;
-        }
-    }
+    provider.rainTrend = Array.isArray(weather.rainMm) ? weather.rainMm.slice(0) : wireUnits.zeroFilledArray(provider.numEntries);
+    provider.windTrend = Array.isArray(weather.windKmh) ? weather.windKmh.slice(0) : wireUnits.zeroFilledArray(provider.numEntries);
+    provider.gustTrend = Array.isArray(weather.gustKmh) ? weather.gustKmh.slice(0) : wireUnits.zeroFilledArray(provider.numEntries);
     provider.uvTrend = Array.isArray(weather.uvIndex) ? weather.uvIndex.slice(0) : [];
     provider.sunEvents = sunEvents;
 

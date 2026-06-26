@@ -6,10 +6,6 @@ require('./polyfills.js');
 var radar = require('./weather/radar.js');
 var radarDispatch = require('./weather/radar-dispatch.js');
 var forecastSeries = require('./forecast-series.js');
-var WundergroundProvider = require('./weather/wunderground.js');
-var OpenWeatherMapProvider = require('./weather/openweathermap.js')
-var DwdProvider = require('./weather/dwd.js');
-var OpenMeteoProvider = require('./weather/openmeteo.js').OpenMeteoProvider;
 var WeatherProvider = require('./weather/provider.js');
 var createTelemetryClient = require('./telemetry.js');
 var settings = require('./settings');
@@ -26,6 +22,7 @@ var fixtureWeather = require('./fixture-weather.js');
 var holidayMask = require('./holidays/holiday-mask.js');
 var registry = require('./holidays/registry.js');
 var buildClayPayload = require('./clay-payload.js').buildClayPayload;
+var providerFactory = require('./provider-factory.js');
 
 /**
  * Full release-notification manifest (dev: force-show by version). Omitted from bundle if missing.
@@ -47,6 +44,7 @@ var releaseNotificationsManifest = loadReleaseNotificationsManifest();
  *     fetchInProgress: boolean,
  *     pendingStartupFetch: boolean,
  *     pendingClaySend: boolean,
+ *     lastIsSleeping?: boolean,
  *     settings?: Object,
  *     telemetry?: Object,
  *     provider?: Object,
@@ -68,6 +66,9 @@ var KEY_LAST_IS_SLEEPING = storageKeys.LAST_IS_SLEEPING_KEY;
 var KEY_LAST_HOLIDAY_DAY = 'last_holiday_day';
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
 var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
+// Default weekend/holiday color constants, passed to seedDefaults and the two
+// color migrations; hoisted so the literal isn't rebuilt at each call site.
+var DEFAULT_HOLIDAY_COLORS = { white: DEFAULT_COLOR_WHITE, folly: DEFAULT_COLOR_FOLLY };
 
 app.fetchInProgress = false;
 app.pendingStartupFetch = false;
@@ -176,14 +177,15 @@ Pebble.addEventListener('showConfiguration', function(e) {
         lastFetchAttempt: localStorage.getItem(KEY_LAST_FETCH_ATTEMPT),
         devStats: JSON.stringify(devStats.read())
     };
+    var values = claySettings.read();
     // Let the library pick the return target: pebblejs://close# on device, or the
     // $$RETURN_TO$$ helper placeholder in the emulator (see settings/index.js options).
     Pebble.openURL(settings.generateUrl({
-        values: claySettings.read(),
+        values: values,
         watchInfo: app.watchInfo,
         userData: userData
     }));
-    console.log('Showing clay: ' + JSON.stringify(claySettings.read()));
+    console.log('Showing clay: ' + JSON.stringify(values));
 });
 
 Pebble.addEventListener('webviewclosed', function(e) {
@@ -228,7 +230,8 @@ Pebble.addEventListener('webviewclosed', function(e) {
         shouldForceFetch ? scheduleConfigCloseFetch : undefined
     );
     refreshHolidays();
-    console.log('Closing clay: ' + JSON.stringify(claySettings.read()));
+    // app.settings was just reloaded from storage above; log it rather than re-reading.
+    console.log('Closing clay: ' + JSON.stringify(app.settings));
 });
 
 // Listen for when the watchface is opened
@@ -244,14 +247,14 @@ Pebble.addEventListener('ready',
             hadExistingInstall,
             app.devConfig.forceShowReleaseNotificationOnBoot
         );
-        claySettings.seedDefaults({ white: DEFAULT_COLOR_WHITE, folly: DEFAULT_COLOR_FOLLY });
+        claySettings.seedDefaults(DEFAULT_HOLIDAY_COLORS);
         migratedWeekendHolidayColors = claySettings.migrateWeekendHolidayColors(
-            { white: DEFAULT_COLOR_WHITE, folly: DEFAULT_COLOR_FOLLY },
+            DEFAULT_HOLIDAY_COLORS,
             function() { return localStorage.getItem(KEY_V1_34_0_WEEKEND_HOLIDAY_COLOR_MIGRATION) !== null; },
             markWeekendHolidayColorMigrationComplete
         );
         migratedHolidayWhiteToToggle = claySettings.migrateHolidayWhiteToToggle(
-            { white: DEFAULT_COLOR_WHITE, folly: DEFAULT_COLOR_FOLLY },
+            DEFAULT_HOLIDAY_COLORS,
             function() { return localStorage.getItem(KEY_HOLIDAY_WHITE_TO_TOGGLE_MIGRATION) !== null; },
             markHolidayWhiteToToggleMigrationComplete
         );
@@ -437,6 +440,12 @@ function resetFetchAttemptCounter() {
     localStorage.setItem(KEY_FETCH_ATTEMPT, '0');
 }
 
+/**
+ * Per-minute scheduler: resend holidays on a day change, attempt a weather
+ * fetch when due, then re-arm itself one minute out.
+ *
+ * @returns {void}
+ */
 function startTick() {
     console.log('Tick from PKJS!');
     maybeResendHolidaysOnDayChange();
@@ -530,11 +539,30 @@ function sendClaySettings(onSuccess, onFailure) {
     outbox.sendClay(payload, onSuccess, onFailure);
 }
 
+/**
+ * Reconcile app.provider with the current settings: (re)build the provider,
+ * apply location + GPS-cache window, clear the geocode cache on a location
+ * change, and persist a provider-id correction when settings named an unknown
+ * provider.
+ *
+ * @returns {boolean} True only when an already-initialized provider's id or
+ *   location changed (a settings update), not the first setup at startup.
+ */
 function refreshProvider() {
     var hadProvider = Boolean(app.provider);
     var oldLocation = app.provider ? app.provider.location : null;
     var oldProviderId = app.provider ? app.provider.id : null;
     setProvider(app.settings.provider);
+
+    // setProvider falls back to the default for an unknown id; persist the
+    // correction here (not in setProvider) so stored settings match the
+    // provider actually running.
+    if (!providerFactory.isKnownProvider(app.settings.provider)) {
+        var fixed = claySettings.read();
+        fixed.provider = providerFactory.DEFAULT_PROVIDER_ID;
+        claySettings.save(fixed);
+    }
+
     app.provider.location = app.settings.location === '' ? null : app.settings.location;
     app.provider.gpsMaxAgeMs = WeatherProvider.computeGpsMaxAgeMs(app.settings.gpsCacheMin, app.settings.fetchIntervalMin);
 
@@ -547,30 +575,24 @@ function refreshProvider() {
         localStorage.removeItem(KEY_GEOCODE_BACKOFF);
     }
 
-    // Report a change only when reconciling an already-initialized provider
-    // (a settings update), not the first setup at startup.
     return hadProvider && (locationChanged || providerChanged);
 }
 
+/**
+ * Set app.provider from a Clay provider id via the data-driven factory,
+ * falling back to the default provider for an unknown id. Construction only —
+ * persisting the fallback correction is the caller's job (see refreshProvider).
+ *
+ * @param {string} providerId Clay provider id.
+ * @returns {void}
+ */
 function setProvider(providerId) {
-    switch (providerId) {
-        case 'openweathermap':
-            app.provider = new OpenWeatherMapProvider(app.settings.owmApiKey);
-            break;
-        case 'dwd':
-            app.provider = new DwdProvider();
-            break;
-        case 'openmeteo':
-            app.provider = new OpenMeteoProvider();
-            break;
-        case 'wunderground':
-            app.provider = new WundergroundProvider();
-            break;
-        default:
-            console.log('Unknown provider: "' + providerId + '", defaulting to wunderground');
-            var fixed = claySettings.read(); fixed.provider = 'wunderground'; claySettings.save(fixed);
-            app.provider = new WundergroundProvider();
+    var provider = providerFactory.createProvider(providerId, app.settings);
+    if (!provider) {
+        console.log('Unknown provider: "' + providerId + '", defaulting to ' + providerFactory.DEFAULT_PROVIDER_ID);
+        provider = providerFactory.createProvider(providerFactory.DEFAULT_PROVIDER_ID, app.settings);
     }
+    app.provider = provider;
     console.log('Set provider: ' + app.provider.name);
 }
 
@@ -592,6 +614,11 @@ function markHolidayWhiteToToggleMigrationComplete() {
     localStorage.setItem(KEY_HOLIDAY_WHITE_TO_TOGGLE_MIGRATION, '1');
 }
 
+/**
+ * Load the optional dev-config.js (gitignored); returns an empty object when absent.
+ *
+ * @returns {Object} Parsed dev-config exports, or {} when no file exists.
+ */
 function getDevConfig() {
     try {
         return require('./dev-config.js');
@@ -652,6 +679,20 @@ function withRainRadarTuples(provider, callback) {
 }
 
 /**
+ * Build the extra-payload object merged into provider.fetch: the optional radar
+ * tuples plus the freshly-updated IS_SLEEPING flag. Called synchronously per
+ * fetch so the sleep state is current.
+ *
+ * @param {Object|null} radarTuples Radar AppMessage tuples, or null on failure.
+ * @returns {Object} extraPayload for provider.fetch.
+ */
+function buildWeatherExtras(radarTuples) {
+    var extras = radarTuples ? Object.assign({}, radarTuples) : {};
+    extras.IS_SLEEPING = updateSleepState();
+    return extras;
+}
+
+/**
  * @typedef {import("./weather/provider")} WeatherProvider
  * @param {WeatherProvider} provider
  * @param {boolean} force
@@ -682,49 +723,47 @@ function fetch(provider, force) {
         time: new Date(),
         id: provider.id,
         name: provider.name
-    }
+    };
     localStorage.setItem(KEY_LAST_FETCH_ATTEMPT, JSON.stringify(fetchStatus));
+
+    function onFetchSuccess() {
+        // Success: record the fetch time and reset the attempt counter.
+        app.fetchInProgress = false;
+        localStorage.setItem(KEY_LAST_FETCH_SUCCESS, JSON.stringify(fetchStatus));
+        resetFetchAttemptCounter();
+        console.log('Successfully fetched weather!');
+        var successEvent = baseTelemetryEvent(provider, attempt, fetchStart);
+        successEvent.success = true;
+        maybeTrackWeatherFetch(successEvent);
+    }
+
+    function onFetchFailure(failure) {
+        app.fetchInProgress = false;
+        console.log('[!] Provider failed to update weather: ' + JSON.stringify(failure));
+        var attemptStatus = {
+            time: fetchStatus.time,
+            id: fetchStatus.id,
+            name: fetchStatus.name,
+            error: failure
+        };
+        localStorage.setItem(KEY_LAST_FETCH_ATTEMPT, JSON.stringify(attemptStatus));
+        var failureEvent = baseTelemetryEvent(provider, attempt, fetchStart);
+        failureEvent.success = false;
+        failureEvent.error = failure;
+        maybeTrackWeatherFetch(failureEvent);
+    }
+
+    // PKJS owns metric selection: map the provider's raw precip/rain into the
+    // render-ready line + bar wire series the watch draws generically (replaces
+    // the old PRECIP_TREND/RAIN_TREND keys). Shared with the fixture path so the
+    // two can't drift.
+    function toRenderPayload(payload) {
+        return forecastSeries.applyForecastSeries(payload, app.settings);
+    }
+
     try {
         withRainRadarTuples(provider, function(radarTuples) {
-            var extras = radarTuples ? Object.assign({}, radarTuples) : {};
-            extras.IS_SLEEPING = refreshLastIsSleeping();
-            provider.fetch(
-                function() {
-                    // Sucess, update recent fetch time
-                    app.fetchInProgress = false;
-                    localStorage.setItem(KEY_LAST_FETCH_SUCCESS, JSON.stringify(fetchStatus));
-                    resetFetchAttemptCounter();
-                    console.log('Successfully fetched weather!');
-                    var successEvent = baseTelemetryEvent(provider, attempt, fetchStart);
-                    successEvent.success = true;
-                    maybeTrackWeatherFetch(successEvent);
-                },
-                function(failure) {
-                    // Failure
-                    app.fetchInProgress = false;
-                    console.log('[!] Provider failed to update weather: ' + JSON.stringify(failure));
-                    var attemptStatus = {
-                        time: fetchStatus.time,
-                        id: fetchStatus.id,
-                        name: fetchStatus.name,
-                        error: failure
-                    };
-                    localStorage.setItem(KEY_LAST_FETCH_ATTEMPT, JSON.stringify(attemptStatus));
-                    var failureEvent = baseTelemetryEvent(provider, attempt, fetchStart);
-                    failureEvent.success = false;
-                    failureEvent.error = failure;
-                    maybeTrackWeatherFetch(failureEvent);
-                },
-                force,
-                extras,
-                function(payload) {
-                    // PKJS owns metric selection: map the provider's raw precip/rain
-                    // into the render-ready line + bar wire series the watch draws
-                    // generically. Replaces the old PRECIP_TREND/RAIN_TREND keys.
-                    // Shared with the fixture path so the two can't drift.
-                    return forecastSeries.applyForecastSeries(payload, app.settings);
-                }
-            );
+            provider.fetch(onFetchSuccess, onFetchFailure, force, buildWeatherExtras(radarTuples), toRenderPayload);
         });
     }
     catch (e) {
@@ -780,32 +819,51 @@ function maybeTrackWeatherFetch(event) {
     app.telemetry.trackWeatherFetch(event || {});
 }
 
+/**
+ * Fetch weather (non-forced) only when needRefresh() says a refresh is due.
+ *
+ * @param {Object} provider Active weather provider.
+ * @returns {void}
+ */
 function tryFetch(provider) {
     if (needRefresh()) {
         fetch(provider, false);
-    };
+    }
 }
 
+/**
+ * Whether the current time falls inside the configured sleep window.
+ *
+ * @returns {boolean} True when sleeping now.
+ */
 function isSleepingNow() {
     return sleepWindow.isWithinSleepWindow(new Date(), app.settings);
 }
 
 /**
- * Compute the current sleep state, persist it for the next needRefresh()
- * call, and return it so the caller can include it in a payload.
+ * Compute the current sleep state, persist it (app.lastIsSleeping + localStorage)
+ * for the next needRefresh() call, and return it so the caller can include it in
+ * a payload. The name signals the write: this is not a pure getter.
  *
  * Call this exactly once per fetch attempt that carries IS_SLEEPING; the
  * outbox transmits it to the watch only when the value changed.
  *
  * @returns {boolean} Current sleep state.
  */
-function refreshLastIsSleeping() {
+function updateSleepState() {
     var sleeping = isSleepingNow();
     app.lastIsSleeping = sleeping;
     localStorage.setItem(KEY_LAST_IS_SLEEPING, sleeping ? 'true' : 'false');
     return sleeping;
 }
 
+/**
+ * Whether a weather refresh is due: true on first run, on a missing/invalid
+ * last-success marker, or once Date.now() crosses into a later refresh slot
+ * (unless asleep and already known to be asleep).
+ *
+ * @returns {boolean} True when a fetch should run this tick.
+ */
 function needRefresh() {
     // Slot-based boundary check: a "slot" is a chunk of length intervalMs since the
     // Unix epoch. Refresh whenever Date.now() sits in a later slot than the last

@@ -384,6 +384,9 @@ var REGION_OPTIONS = {
   ]
 };
 
+// Read-only contract: these option tables are exported by reference and consumed
+// once at schema-build time. Callers must treat them as immutable. No defensive
+// copy — nothing mutates them, and a deep clone would be manual on PKJS's ES5 runtime.
 module.exports = {
   COUNTRY_OPTIONS: COUNTRY_OPTIONS,
   REGION_OPTIONS: REGION_OPTIONS

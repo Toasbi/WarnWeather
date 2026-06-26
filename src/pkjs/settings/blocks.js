@@ -58,6 +58,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return '<text x="' + x + '" y="' + y + '" font-size="' + s + '" fill="' + fill + '" font-family="sans-serif" font-weight="' + weight + '" text-anchor="' + anchor + '">' + t + '</text>';
     }
 
+    // Wrap a preview SVG body in the standard 200x120 frame. The negative margins
+    // cancel the engine .blockrow padding (12px 16px 14px) so the preview bleeds
+    // edge-to-edge.
+    function svgFrame(inner) {
+        return '<svg viewBox="0 0 200 120" style="aspect-ratio:200/120;display:block;width:calc(100% + 32px);margin:-12px -16px -14px">' + inner + '</svg>';
+    }
+
     /* ---- forecastPreview: adapted from index.html:231-267 forecastSVG ---- */
     function forecastPreview(state, env, userData) {
         var temps = [24, 21, 17, 14, 13, 13, 15, 18, 21, 23, 24, 24];
@@ -73,15 +80,37 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var ytop = PT + 3, ybot = PB - 12;
         var yT = function (t) { return ybot - (t - tmin) / (tmax - tmin || 1) * (ybot - ytop); };
         var maxBar = (PB - PT) * 0.62;
+        var n0 = tickX(6), n1 = tickX(15);
+
+        // Night-shading band + boundary lines between the 06:00 and 15:00 ticks ('' when off).
+        function drawNightShading() {
+            if (!state.dayNightShading) { return ''; }
+            return '<rect x="' + n0 + '" y="' + PT + '" width="' + (n1 - n0) + '" height="' + (PB - PT) + '" fill="url(#nh)"></rect>'
+                + '<line x1="' + n0 + '" y1="' + PT + '" x2="' + n0 + '" y2="' + PB + '" stroke="rgba(255,255,255,0.45)" stroke-width="0.7"></line>'
+                + '<line x1="' + n1 + '" y1="' + PT + '" x2="' + n1 + '" y2="' + PB + '" stroke="rgba(255,255,255,0.45)" stroke-width="0.7"></line>';
+        }
+
+        // The main temperature curve (solid Folly line).
+        function drawTempCurve() {
+            return '<path d="' + smooth(temps.map(function (t, i) { return [X(i), yT(t)]; })) + '" fill="none" stroke="#FF0055" stroke-width="2" stroke-linecap="round"></path>';
+        }
+
+        // Bottom hour axis: a tick per hour (longer every 3h) with 3-hourly labels.
+        function drawAxis() {
+            var lbl = { 0: '15', 3: '18', 6: '21', 9: '0', 12: '3', 15: '6', 18: '9', 21: '12' };
+            var out = '';
+            for (var h = 0; h <= TH; h++) {
+                var big = h % 3 === 0;
+                out += '<line x1="' + tickX(h) + '" y1="' + PB + '" x2="' + tickX(h) + '" y2="' + (PB + (big ? 4 : 2)) + '" stroke="rgba(255,255,255,0.32)" stroke-width="0.6"></line>';
+                if (big) { out += txt(tickX(h), 117, 7.5, '#7C828D', 'middle', 600, lbl[h]); }
+            }
+            return out;
+        }
+
         var e = '';
         e += rect(0, 0, 200, 120, '#000');
         e += '<defs><pattern id="nh" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="rgba(255,255,255,0.30)" stroke-width="0.7"></line></pattern></defs>';
-        var n0 = tickX(6), n1 = tickX(15);
-        if (state.dayNightShading) {
-            e += '<rect x="' + n0 + '" y="' + PT + '" width="' + (n1 - n0) + '" height="' + (PB - PT) + '" fill="url(#nh)"></rect>';
-            e += '<line x1="' + n0 + '" y1="' + PT + '" x2="' + n0 + '" y2="' + PB + '" stroke="rgba(255,255,255,0.45)" stroke-width="0.7"></line>';
-            e += '<line x1="' + n1 + '" y1="' + PT + '" x2="' + n1 + '" y2="' + PB + '" stroke="rgba(255,255,255,0.45)" stroke-width="0.7"></line>';
-        }
+        e += drawNightShading();
         e += '<line x1="' + PX0 + '" y1="' + PB + '" x2="' + PX1 + '" y2="' + PB + '" stroke="rgba(255,255,255,0.20)" stroke-width="0.7"></line>';
         if (state.barSource === 'rain') {
             // On B/W platforms the color picker is hidden, so honor the hardware: always white.
@@ -124,25 +153,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             e += lineFor(state.thirdLine, true, false);
         }
         e += lineFor(state.secondaryLine, false, true);
-        e += '<path d="' + smooth(temps.map(function (t, i) { return [X(i), yT(t)]; })) + '" fill="none" stroke="#FF0055" stroke-width="2" stroke-linecap="round"></path>';
+        e += drawTempCurve();
         e += '<circle cx="6" cy="8.5" r="2.7" fill="#E6E9EF"></circle>' + txt(11, 11.5, 9.5, '#FFFFFF', 'start', 700, '22°');
         e += txt(3, 31, 8, '#AEB4BD', 'start', 600, tmax + '°') + txt(3, PB - 1, 8, '#AEB4BD', 'start', 600, tmin + '°');
-        var lbl = { 0: '15', 3: '18', 6: '21', 9: '0', 12: '3', 15: '6', 18: '9', 21: '12' };
-        for (var h = 0; h <= TH; h++) {
-            var big = h % 3 === 0;
-            e += '<line x1="' + tickX(h) + '" y1="' + PB + '" x2="' + tickX(h) + '" y2="' + (PB + (big ? 4 : 2)) + '" stroke="rgba(255,255,255,0.32)" stroke-width="0.6"></line>';
-            if (big) { e += txt(tickX(h), 117, 7.5, '#7C828D', 'middle', 600, lbl[h]); }
-        }
+        e += drawAxis();
         e += txt((n0 + n1) / 2, 13, 8.5, '#E6E9EF', 'middle', 600, 'Berlin') + txt(197, 12, 8, '#C9CCD2', 'end', 600, '21:29 ↓');
-        // Item-level blockBefore: the engine wraps this in .blockrow (padding 12px 16px 14px); the negative
-        // margins cancel that so the preview bleeds edge-to-edge. Its blockrow is position:sticky (see CSS).
-        return '<svg viewBox="0 0 200 120" style="aspect-ratio:200/120;display:block;width:calc(100% + 32px);margin:-12px -16px -14px">' + e + '</svg>';
+        // The engine wraps this in a position:sticky .blockrow (see CSS); svgFrame's
+        // negative margins bleed the preview edge-to-edge within it.
+        return svgFrame(e);
     }
 
     /* ---- radarPreview: adapted from index.html:270-286 radarSVG ----------- */
     function radarPreview(state, env, userData) {
         if (state.radarProvider === 'disabled') {
-            return '<svg viewBox="0 0 200 120" style="aspect-ratio:200/120;display:block;width:calc(100% + 32px);margin:-12px -16px -14px">' + rect(0, 0, 200, 120, '#000') + txt(100, 63, 10, '#566072', 'middle', 700, 'Radar off — enable a provider') + '</svg>';
+            return svgFrame(rect(0, 0, 200, 120, '#000') + txt(100, 63, 10, '#566072', 'middle', 700, 'Radar off — enable a provider'));
         }
         var local = [0, 0, 0, 0.2, 0.6, 1.5, 3, 7, 14, 10, 5, 2, 0.8, 0.3, 0.1, 0, 0.3, 1, 3, 8, 12, 6, 2, 0.5];
         var add = [0.4, 0.5, 0.7, 1, 1.5, 2, 3, 4, 3, 2, 1.5, 1, 0.8, 0.5, 0.4, 0.3, 0.5, 1.5, 3, 4, 3, 2, 1, 0.5];
@@ -167,7 +191,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             }
             e += rainBars(local[i], x, bw, PB, plotH, radarWhite);
         }
-        return '<svg viewBox="0 0 200 120" style="aspect-ratio:200/120;display:block;width:calc(100% + 32px);margin:-12px -16px -14px">' + e + '</svg>';
+        return svgFrame(e);
     }
 
     /* ---- devStats: ported from inject.js:30-199 renderDevStats, minus clear button --- */

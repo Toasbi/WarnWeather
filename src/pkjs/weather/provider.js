@@ -2,7 +2,9 @@ var SunCalc = require('suncalc');
 var pickNext24hSunEvents = require('./sun-events.js').pickNext24hSunEvents;
 var storageKeys = require('../storage-keys.js');
 var outbox = require('../outbox.js');
-var clampByte = require('../wire-units.js').clampByte;
+var wireUnits = require('../wire-units.js');
+var clampByte = wireUnits.clampByte;
+var zeroFilledArray = wireUnits.zeroFilledArray;
 var forecastSeries = require('../forecast-series');
 
 var XHR_TIMEOUT_MS = 5000;
@@ -166,27 +168,29 @@ var WeatherProvider = function() {
     this.usedGpsCache = false;
     this.gpsErrorCode = null;
     this.locationMode = null;
-    this.rainTrend = new Array(this.numEntries);
-    for (var rainIdx = 0; rainIdx < this.numEntries; rainIdx += 1) {
-        this.rainTrend[rainIdx] = 0;
-    }
-    this.windTrend = new Array(this.numEntries);
-    for (var windIdx = 0; windIdx < this.numEntries; windIdx += 1) {
-        this.windTrend[windIdx] = 0;
-    }
-    this.gustTrend = new Array(this.numEntries);
-    for (var gustIdx = 0; gustIdx < this.numEntries; gustIdx += 1) {
-        this.gustTrend[gustIdx] = 0;
-    }
+    this.rainTrend = zeroFilledArray(this.numEntries);
+    this.windTrend = zeroFilledArray(this.numEntries);
+    this.gustTrend = zeroFilledArray(this.numEntries);
     // UV is opt-in and not every provider has it: leave it empty so getPayload
     // emits an empty UV series (→ the UV line stays off) unless a provider fills it.
     this.uvTrend = [];
 };
 
+/**
+ * Switch the provider back to GPS-based location (clears any override).
+ *
+ * @returns {void}
+ */
 WeatherProvider.prototype.gpsEnable = function() {
     this.location = null;
 };
 
+/**
+ * Override the provider's location with a manual query (coordinates or address).
+ *
+ * @param {string} location Location override query.
+ * @returns {void}
+ */
 WeatherProvider.prototype.gpsOverride = function(location) {
     this.location = location;
 };
@@ -221,10 +225,19 @@ WeatherProvider.prototype.isGeocodeBackoffActive = function() {
     return false;
 };
 
+/**
+ * Compute the next ~24h of sun events from local SunCalc (synchronous). The
+ * callback receives an array of up to two events, each `{ type: 'sunrise' |
+ * 'sunset', date: Date }`. Subclasses may override with a network-based source
+ * (see OpenWeatherMapProvider).
+ *
+ * @param {number} lat Latitude.
+ * @param {number} lon Longitude.
+ * @param {Function} callback Receives the next-24h sun-events array.
+ * @param {Function} onFailure Called with a failure object on error.
+ * @returns {void}
+ */
 WeatherProvider.prototype.withSunEvents = function(lat, lon, callback, onFailure) {
-    /* The callback runs with an array of the next two sun events (i.e. 24 hours worth),
-     * where each sun event contains a 'type' ('sunrise' or 'sunset') and a 'date' (of type Date)
-     */
     var dateNow = new Date();
     var dateTomorrow = new Date().setDate(dateNow.getDate() + 1);
 
@@ -264,8 +277,16 @@ WeatherProvider.prototype.withSunEvents = function(lat, lon, callback, onFailure
     callback(next24HourSunEvents);
 };
 
+/**
+ * Reverse-geocode coordinates to a display city name + country code via ArcGIS.
+ *
+ * @param {number} lat Latitude.
+ * @param {number} lon Longitude.
+ * @param {Function} callback Receives (cityName, countryCode).
+ * @param {Function} onFailure Called with a failure object on error.
+ * @returns {void}
+ */
 WeatherProvider.prototype.withCityName = function(lat, lon, callback, onFailure) {
-    // callback(cityName, countryCode)
     var url = 'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location='
         + lon + ',' + lat;
 
@@ -339,8 +360,16 @@ function parseLocationOverride(location) {
     };
 }
 
+/**
+ * Resolve coordinates from the location override: pass through manual lat/lon,
+ * else forward-geocode a manual address via LocationIQ (cached, with 429
+ * backoff). GPS mode is rejected here — withCoordinates routes that elsewhere.
+ *
+ * @param {Function} callback Receives (latitude, longitude).
+ * @param {Function} onFailure Called with a failure object on error.
+ * @returns {void}
+ */
 WeatherProvider.prototype.withGeocodeCoordinates = function(callback, onFailure) {
-    // callback(latitude, longitude)
     var locationiqKey = 'pk.5a61972cde94491774bcfaa0705d5a0d';
     var locationOverride = parseLocationOverride(this.location);
     var url;
@@ -429,8 +458,15 @@ WeatherProvider.prototype.withGeocodeCoordinates = function(callback, onFailure)
     );
 };
 
+/**
+ * Resolve coordinates from device GPS, falling back to a fresh-enough cached
+ * fix on error. Sets usedGpsCache/gpsErrorCode for telemetry.
+ *
+ * @param {Function} callback Receives (latitude, longitude).
+ * @param {Function} onFailure Called with a failure object when no fix is available.
+ * @returns {void}
+ */
 WeatherProvider.prototype.withGpsCoordinates = function(callback, onFailure) {
-    // callback(latitude, longitude)
     var provider = this;
     var options = {
         enableHighAccuracy: true,
@@ -503,6 +539,14 @@ WeatherProvider.prototype.withGpsCoordinates = function(callback, onFailure) {
     navigator.geolocation.getCurrentPosition(success, error, options);
 };
 
+/**
+ * Resolve coordinates for the active location: GPS when no override is set,
+ * otherwise geocoded coordinates. Records locationMode for telemetry.
+ *
+ * @param {Function} callback Receives (latitude, longitude).
+ * @param {Function} onFailure Called with a failure object on error.
+ * @returns {void}
+ */
 WeatherProvider.prototype.withCoordinates = function(callback, onFailure) {
     var locationOverride;
 
@@ -522,11 +566,60 @@ WeatherProvider.prototype.withCoordinates = function(callback, onFailure) {
     this.withGeocodeCoordinates(callback, onFailure);
 };
 
+/**
+ * Populate the provider's trend/current fields from its data source. Base
+ * stub: concrete providers MUST override this. Fails loud rather than silently
+ * calling onSuccess() into the downstream invalid-data path.
+ *
+ * @param {number} lat Latitude.
+ * @param {number} lon Longitude.
+ * @param {boolean} force Whether this is a forced refresh.
+ * @param {Function} onSuccess Called once provider data is populated.
+ * @param {Function} onFailure Called with a failure object on error.
+ * @returns {void}
+ */
 WeatherProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, onFailure) {
-    console.log('This is the fallback implementation of withProviderData');
-    onSuccess();
+    console.log('withProviderData not implemented on base WeatherProvider');
+    onFailure(failure('provider_data', 'not_implemented'));
 };
 
+/**
+ * Compose the final weather AppMessage payload: the provider's wire payload
+ * (getPayload), merged with any extra tuples (radar/sleep), then run through
+ * the optional PKJS render transform. Reads this.cityName/this.sunEvents, so
+ * set those before calling.
+ *
+ * @param {Object} extraPayload Extra AppMessage tuples to merge, or falsy.
+ * @param {Function} [payloadTransform] Optional payload->payload transform.
+ * @returns {Object} Composed payload ready for the outbox.
+ */
+WeatherProvider.prototype.composeWeatherPayload = function(extraPayload, payloadTransform) {
+    var payload = this.getPayload();
+    if (extraPayload) {
+        // Own-enumerable merge — equivalent to the prior hasOwnProperty for-in copy.
+        Object.assign(payload, extraPayload);
+    }
+    // PKJS-side render selection (metric -> wire series). The provider stays
+    // metric-agnostic; index.js supplies the map.
+    if (payloadTransform) {
+        payload = payloadTransform(payload);
+    }
+    return payload;
+};
+
+/**
+ * Orchestrate a full weather fetch: resolve coordinates, reverse-geocode the
+ * city, compute sun events, populate provider data, then compose and send the
+ * payload via the deduping outbox. Each stage routes its own failure to
+ * onFailure with a stage-appropriate code.
+ *
+ * @param {Function} onSuccess Called after the payload is ACKed (or no-op send).
+ * @param {Function} onFailure Called with a failure object on any stage error.
+ * @param {boolean} force Whether this is a forced refresh.
+ * @param {Object} extraPayload Extra AppMessage tuples (radar/sleep) to merge.
+ * @param {Function} [payloadTransform] Optional PKJS render transform.
+ * @returns {void}
+ */
 WeatherProvider.prototype.fetch = function(onSuccess, onFailure, force, extraPayload, payloadTransform) {
     this.countryCode = null;
     this.locationMode = null;
@@ -536,47 +629,30 @@ WeatherProvider.prototype.fetch = function(onSuccess, onFailure, force, extraPay
             this.countryCode = countryCode;
             this.withSunEvents(lat, lon, (function(sunEvents) {
                 this.withProviderData(lat, lon, force, (function() {
-                    var payload;
-                    var extraKey;
                     // if `this` (the provider) contains valid weather details,
                     // then we can safely call this.getPayload()
-                    if (this.hasValidData()) {
-                        console.log('Lets get the payload for ' + cityName);
-                        // Send to Pebble
-                        this.cityName = cityName;
-                        this.sunEvents = sunEvents;
-                        payload = this.getPayload();
-                        if (extraPayload) {
-                            for (extraKey in extraPayload) {
-                                if (Object.prototype.hasOwnProperty.call(extraPayload, extraKey)) {
-                                    payload[extraKey] = extraPayload[extraKey];
-                                }
-                            }
-                        }
-                        // PKJS-side render selection (metric → wire series). The
-                        // provider stays metric-agnostic; index.js supplies the map.
-                        if (payloadTransform) {
-                            payload = payloadTransform(payload);
-                        }
-                        // The outbox sends only the categories that changed
-                        // since the last ACKed message — possibly nothing,
-                        // which still counts as a successful fetch.
-                        outbox.sendWeather(
-                            payload,
-                            function() {
-                                console.log('Weather info sent to Pebble successfully!');
-                                onSuccess();
-                            },
-                            function(e) {
-                                console.log('Error sending weather info to Pebble!');
-                                onFailure(failure('app_message', 'nack'));
-                            }
-                        );
-                    }
-                    else {
+                    if (!this.hasValidData()) {
                         console.log('Fetch cancelled: insufficient data.');
                         onFailure(failure('provider_data', 'invalid_data'));
+                        return;
                     }
+                    console.log('Lets get the payload for ' + cityName);
+                    this.cityName = cityName;
+                    this.sunEvents = sunEvents;
+                    // The outbox sends only the categories that changed since
+                    // the last ACKed message — possibly nothing, which still
+                    // counts as a successful fetch.
+                    outbox.sendWeather(
+                        this.composeWeatherPayload(extraPayload, payloadTransform),
+                        function() {
+                            console.log('Weather info sent to Pebble successfully!');
+                            onSuccess();
+                        },
+                        function(e) {
+                            console.log('Error sending weather info to Pebble!');
+                            onFailure(failure('app_message', 'nack'));
+                        }
+                    );
                 }).bind(this), function(providerFailure) {
                     onFailure(providerFailure || failure('provider_data', 'unknown_error'));
                 });
@@ -591,6 +667,13 @@ WeatherProvider.prototype.fetch = function(onSuccess, onFailure, force, extraPay
     });
 };
 
+/**
+ * Whether the provider has enough populated data to build a payload: the four
+ * required fields are present and the temp/precip trends are at least
+ * numEntries long.
+ *
+ * @returns {boolean} True when the data passes the checks.
+ */
 WeatherProvider.prototype.hasValidData = function() {
     var hasFields = this.hasOwnProperty('tempTrend')
         && this.hasOwnProperty('precipTrend')
@@ -615,34 +698,60 @@ WeatherProvider.prototype.hasValidData = function() {
     return false;
 };
 
-WeatherProvider.prototype.getPayload = function() {
-    // Get the rounded (integer) temperatures for those hours
-    var temps = this.tempTrend.slice(0, this.numEntries).map(function(temperature) {
-        return Math.round(temperature);
+/**
+ * Scale the first `numEntries` of a trend by `scale` and clamp each to a wire
+ * byte [0, 255]. Missing entries collapse to 0.
+ *
+ * @param {number[]} trend Source trend values.
+ * @param {number} numEntries Number of leading entries to keep.
+ * @param {number} scale Multiplier applied before clamping (e.g. 10 for tenths).
+ * @returns {number[]} Clamped uint8 wire bytes.
+ */
+function scaleTrendToBytes(trend, numEntries, scale) {
+    return trend.slice(0, numEntries).map(function(value) {
+        return clampByte((value || 0) * scale);
     });
-    var precips = this.precipTrend.slice(0, this.numEntries).map(function(probability) {
-        return Math.round(probability * 100);
-    });
-    var rains = this.rainTrend.slice(0, this.numEntries).map(function(mmPerHour) {
-        return clampByte((mmPerHour || 0) * 10);
-    });
-    var winds = this.windTrend.slice(0, this.numEntries).map(function(kmhPerHour) {
-        return clampByte(kmhPerHour || 0); // clampByte rounds + clamps to 0..255
-    });
-    var gusts = this.gustTrend.slice(0, this.numEntries).map(function(kmhPerHour) {
-        return clampByte(kmhPerHour || 0); // clampByte rounds + clamps to 0..255
-    });
-    var uvs = (this.uvTrend && this.uvTrend.length)
-        ? this.uvTrend.slice(0, this.numEntries).map(function(uvIndex) {
-            return clampByte((uvIndex || 0) * 10); // UV index ×10 (tenths); forecast-series scales vs UV 11.0
-        })
-        : [];
-    var tempEnc = forecastSeries.tempTrendToBytes(temps);
-    var sunEventsIntView = new Int32Array(this.sunEvents.map(function(sunEvent) {
+}
+
+/**
+ * Encode sun events into the SUN_EVENTS wire array: a leading byte (0 when the
+ * series starts on a sunrise, else 1) followed by each event's epoch-seconds
+ * reinterpreted as little-endian Int32 bytes.
+ *
+ * @param {{type: string, date: Date}[]} sunEvents Ordered sun events.
+ * @returns {number[]} SUN_EVENTS wire bytes.
+ */
+function encodeSunEvents(sunEvents) {
+    var intView = new Int32Array(sunEvents.map(function(sunEvent) {
         return sunEvent.date.getTime() / 1000; // Seconds since epoch
     }));
-    var sunEventsByteArray = Array.prototype.slice.call(new Uint8Array(sunEventsIntView.buffer));
-    var payload = {
+    var byteArray = Array.prototype.slice.call(new Uint8Array(intView.buffer));
+    return [sunEvents[0].type === 'sunrise' ? 0 : 1].concat(byteArray);
+}
+
+/**
+ * Build the watch weather AppMessage payload from the provider's trend/current
+ * fields. Trend byte-scaling and sun-event encoding live in their own helpers
+ * so this stays a flat assembly of the wire object.
+ *
+ * @returns {Object} Weather AppMessage payload (pre render-transform).
+ */
+WeatherProvider.prototype.getPayload = function() {
+    var numEntries = this.numEntries;
+    var temps = this.tempTrend.slice(0, numEntries).map(function(temperature) {
+        return Math.round(temperature);
+    });
+    var precips = this.precipTrend.slice(0, numEntries).map(function(probability) {
+        return Math.round(probability * 100);
+    });
+    var rains = scaleTrendToBytes(this.rainTrend, numEntries, 10); // mm/h ×10 (tenths)
+    var winds = scaleTrendToBytes(this.windTrend, numEntries, 1);  // km/h integers
+    var gusts = scaleTrendToBytes(this.gustTrend, numEntries, 1);  // km/h integers
+    var uvs = (this.uvTrend && this.uvTrend.length)
+        ? scaleTrendToBytes(this.uvTrend, numEntries, 10) // UV index ×10 (tenths); forecast-series scales vs UV 11.0
+        : [];
+    var tempEnc = forecastSeries.tempTrendToBytes(temps);
+    return {
         TEMP_TREND_UINT8: tempEnc.bytes,
         TEMP_MIN: tempEnc.min,
         TEMP_MAX: tempEnc.max,
@@ -652,13 +761,12 @@ WeatherProvider.prototype.getPayload = function() {
         GUST_TREND_UINT8: gusts, // Transient PKJS-only: km/h integers; forecast-series consumes + deletes this before send
         UV_TREND_UINT8: uvs, // Transient PKJS-only: UV tenths; forecast-series consumes + deletes before send
         FORECAST_START: this.startTime,
-        NUM_ENTRIES: this.numEntries,
+        NUM_ENTRIES: numEntries,
         CURRENT_TEMP: Math.round(this.currentTemp),
         CITY: this.cityName,
-        // The first byte determines whether the list of events starts on a sunrise (0) or sunset (1)
-        SUN_EVENTS: [this.sunEvents[0].type === 'sunrise' ? 0 : 1].concat(sunEventsByteArray)
+        // First byte flags whether the event list starts on a sunrise (0) or sunset (1).
+        SUN_EVENTS: encodeSunEvents(this.sunEvents)
     };
-    return payload;
 };
 
 WeatherProvider.request = request;

@@ -2,7 +2,7 @@ var WeatherProvider = require('./provider.js');
 var request = WeatherProvider.request;
 var clampByte = require('../wire-units.js').clampByte;
 
-var BRIGHTSKY_BASE = 'https://api.brightsky.dev';
+var BRIGHTSKY_BASE = require('./brightsky.js').BASE_URL;
 var DISTANCE_METERS = 2000;   // must match NEARBY_RADIUS_KM * 1000; Brightsky returns all cells within this radius
 var NUM_BARS = 24;             // 24 frames * 5 min = 120 min
 var NEARBY_RADIUS_KM = 2;      // disk radius for the "nearby" max signal; radar grid is ~1 km/cell
@@ -165,6 +165,38 @@ function gridCentre(grid) {
 }
 
 /**
+ * Sample one radar frame's precipitation grid into an (exact, nearby) pair in
+ * wire units (uint8, mm/h * 10). Returns null for a missing/malformed frame so
+ * the caller can leave that slot at its (0, 0) default instead of aborting.
+ *
+ * @param {Object} frame One body.radar frame (carries the precipitation_5 grid).
+ * @param {{x: number, y: number}} xy Cell position from latlon_position.
+ * @param {boolean} hasXy Whether xy is usable; falls back to the grid centre.
+ * @returns {{exact: number, nearby: number}|null} Wire-unit pair, or null to skip.
+ */
+function sampleFrame(frame, xy, hasXy) {
+    if (!frame) {
+        return null;
+    }
+    var grid = frame.precipitation_5;
+    if (!Array.isArray(grid) || grid.length === 0 || !Array.isArray(grid[0]) || grid[0].length === 0) {
+        return null;
+    }
+    var samplePos = hasXy ? xy : gridCentre(grid);
+    var exactRaw = sampleBilinear(grid, samplePos);
+    var nearbyRaw = maxOverDisk(grid, samplePos.x, samplePos.y, NEARBY_RADIUS_KM);
+    // Invariant guard. A pure disk-max can fall below the bilinear sample at
+    // corner sub-pixel positions, where the bilinear's diagonal neighbour sits
+    // ~sqrt(2) km away (outside the 1 km disk) yet still carries a small weight.
+    // Folding exactRaw into nearbyRaw keeps the UI invariant `nearby >= exact`
+    // true for every frame.
+    if (exactRaw > nearbyRaw) {
+        nearbyRaw = exactRaw;
+    }
+    return { exact: scaleToWireUnits(exactRaw), nearby: scaleToWireUnits(nearbyRaw) };
+}
+
+/**
  * Fetch 2 hours of 5-minute rainfall from Bright Sky's /radar endpoint at
  * the given lat/lon. Computes two parallel signals from one response:
  *
@@ -235,37 +267,16 @@ function withRadar2hRain(lat, lon, slotZeroEpoch, onSuccess, onFailure) {
             var exactOut = zeroBars();
             var nearbyOut = zeroBars();
             var i;
-            var frame;
-            var grid;
-            var samplePos;
-            var exactRaw;
-            var nearbyRaw;
+            var sampled;
             for (i = 0; i < NUM_BARS && i < frames.length; i += 1) {
-                frame = frames[i];
-                // Per-frame defensive checks: a malformed frame contributes
-                // a (0, 0) pair rather than aborting the whole fetch.
-                if (!frame) {
+                sampled = sampleFrame(frames[i], xy, hasXy);
+                // A malformed frame contributes a (0, 0) pair (the zeroBars
+                // default) rather than aborting the whole fetch.
+                if (sampled === null) {
                     continue;
                 }
-                grid = frame.precipitation_5;
-                if (!Array.isArray(grid) || grid.length === 0 || !Array.isArray(grid[0]) || grid[0].length === 0) {
-                    continue;
-                }
-                samplePos = hasXy ? xy : gridCentre(grid);
-                exactRaw = sampleBilinear(grid, samplePos);
-                nearbyRaw = maxOverDisk(grid, samplePos.x, samplePos.y, NEARBY_RADIUS_KM);
-                // Invariant guard. A pure disk-max can fall below the
-                // bilinear sample at corner sub-pixel positions, where
-                // the bilinear's diagonal neighbour sits ~sqrt(2) km
-                // away (outside the 1 km disk) yet still carries a
-                // small weight. Folding exactRaw into nearbyRaw keeps
-                // the planned UI invariant `nearby >= exact` true for
-                // every frame.
-                if (exactRaw > nearbyRaw) {
-                    nearbyRaw = exactRaw;
-                }
-                exactOut[i] = scaleToWireUnits(exactRaw);
-                nearbyOut[i] = scaleToWireUnits(nearbyRaw);
+                exactOut[i] = sampled.exact;
+                nearbyOut[i] = sampled.nearby;
             }
             onSuccess({ exact: exactOut, nearby_1km: nearbyOut, startEpoch: slotZeroEpoch });
         },

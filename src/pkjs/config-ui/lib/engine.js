@@ -8,8 +8,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   var intToHex = PConf.color.intToHex;
   var eachItem = PConf.schemaWalk.eachItem;
 
-  // HTML-escape author/user text interpolated into innerHTML. NOT applied to fields documented as
-  // HTML (intro, hint, staticText.text, versionLabel) — those are intentional markup.
+  /**
+   * HTML-escape author/user text interpolated into innerHTML. NOT applied to fields
+   * documented as HTML (intro, hint, staticText.text, versionLabel) — intentional markup.
+   *
+   * @param {*} s Value to escape (coerced to string).
+   * @returns {string} Escaped HTML-safe string.
+   */
   function esc(s) {
     return String(s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -32,6 +37,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     runSubmit: function (ctx) { submitFns.forEach(function (fn) { fn(ctx); }); }
   };
 
+  /**
+   * Build the initial settings state from a schema's defaults, with injected
+   * (saved) values taking precedence. Number color defaults become hex strings.
+   *
+   * @param {Object} schema Config schema.
+   * @param {Object} [injected] Saved settings overriding the defaults.
+   * @returns {Object} Settings state keyed by messageKey.
+   */
   function hydrate(schema, injected) {
     var S = {};
     eachItem(schema, function (it) {
@@ -40,6 +53,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     });
     return Object.assign(S, injected || {});
   }
+
+  /**
+   * Flatten settings state into the messageKey->value blob sent back to the
+   * watch. staticText items (no real value) are skipped.
+   *
+   * @param {Object} schema Config schema.
+   * @param {Object} S Settings state.
+   * @returns {Object} Blob of messageKey -> value.
+   */
   function serialize(schema, S) {
     var out = {};
     eachItem(schema, function (it) { if (it.messageKey && it.type !== 'staticText') { out[it.messageKey] = S[it.messageKey]; } });
@@ -80,10 +102,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return min + ' minutes';
   }
 
-  // Resolve a select's options from current settings S. A static item.options passes through.
-  // Or item.optionsFrom = { byKey, map } yields map[S[byKey]] || [] (a synchronous lookup keyed off another setting's value).
-  // Otherwise item.optionsFrom = { interval, ladder } yields [interval] + ladder values strictly
-  // greater than the interval (so equal values dedupe), each as [label, String(minutes)].
+  /**
+   * Resolve a select's options from current settings S. A static item.options passes
+   * through. item.optionsFrom = { byKey, map } yields map[S[byKey]] || [] (a synchronous
+   * lookup keyed off another setting's value). Otherwise { interval, ladder } yields
+   * [interval] + ladder values strictly greater than the interval (so equal values
+   * dedupe), each as [label, String(minutes)].
+   *
+   * @param {Object} item Schema item (options or optionsFrom).
+   * @param {Object} S Settings state.
+   * @returns {Array.<Array>} List of [label, value] option pairs.
+   */
   function resolveOptionsFrom(item, S) {
     if (item.options) { return item.options; }
     var spec = item.optionsFrom;
@@ -113,8 +142,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     return h + '</select>';
   }
-  // Filtered option rows for an open searchSelect list. Case-insensitive substring match on the
-  // option label OR its value code; '' query -> all. The current value's row gets .on + a check.
+  /**
+   * Filtered option rows for an open searchSelect list. Case-insensitive substring
+   * match on the option label OR its value code; '' query -> all. The current value's
+   * row gets .on + a check. Yields a muted "No matches" row when nothing matches.
+   *
+   * @param {Object} item Schema item with options.
+   * @param {*} value Current selected value.
+   * @param {string} query Search query.
+   * @returns {string} Option rows HTML.
+   */
   function renderSelectOptions(item, value, query) {
     var q = String(query || '').toLowerCase(), h = '', i, o, lo, vo, shown = 0;
     for (i = 0; i < item.options.length; i++) {
@@ -177,14 +214,28 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     color: function (item, view) { return renderColor(item, view.value, view.openColor); },
     searchSelect: function (item, view) { return renderSearchSelect(item, view); }
   };
-  // view = { value, openColor, openSelect, selectQuery }
+  /**
+   * Dispatch to the control renderer for item.type; '' for an unknown type.
+   *
+   * @param {Object} item Schema item.
+   * @param {{value: *, openColor: ?string, openSelect: ?string, selectQuery: ?string}} view Render view state.
+   * @returns {string} Control HTML.
+   */
   function renderControl(item, view) {
     var fn = CONTROLS[item.type];
     return fn ? fn(item, view) : '';
   }
 
-  // Wrap a control in a row with label/hint chrome. Stacked for text/radio/open-color/open-searchSelect.
-  // noDivider appends the nb modifier so the row paints no bottom divider (used by joinPrevious).
+  /**
+   * Wrap a control in a row with label/hint chrome. Stacked for
+   * text/radio/open-color/open-searchSelect; otherwise inline (left/right).
+   *
+   * @param {Object} item Schema item.
+   * @param {Object} view Render view state.
+   * @param {boolean} [noDivider] Append the nb modifier so the row paints no
+   *   bottom divider (used by joinPrevious).
+   * @returns {string} Row HTML.
+   */
   function renderRow(item, view, noDivider) {
     var hint = item.hintByValue ? (item.hintByValue[view.value] || item.hint) : item.hint;
     var stacked = item.type === 'text' || item.type === 'radio'
@@ -208,6 +259,25 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return html ? '<div class="blockrow' + (sticky ? ' sticky' : '') + '">' + html + '</div>' : '';
   }
 
+  // Resolve a select/searchSelect's concrete options and normalize its stored value.
+  // For an optionsFrom item this materializes the derived options and, when the stored
+  // value is no longer among them (e.g. the interval they depend on was raised), snaps
+  // both view.value and cx.S to the first (lowest = interval) option so the rendered
+  // control and the stored state stay in lockstep. This is the ONE place that mutates
+  // cx.S during render — isolated here so renderItem stays a pure dispatcher. Returns
+  // the row item to render (a derived-options clone, or the original item unchanged).
+  function resolveRowItem(item, view, cx) {
+    if ((item.type !== 'select' && item.type !== 'searchSelect') || !item.optionsFrom) {
+      return item;
+    }
+    var derived = resolveOptionsFrom(item, cx.S);
+    if (derived.length && !optionHasValue(derived, view.value)) {
+      view.value = derived[0][1];
+      cx.S[item.messageKey] = derived[0][1];
+    }
+    return Object.assign({}, item, { options: derived });
+  }
+
   // Render one schema item honoring showWhen. Returns { html, kind } with kind in
   // 'control' | 'static' | 'hidden' so the section can decide if the card is empty.
   function renderItem(item, view, cx, noDivider) {
@@ -218,18 +288,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var staticCls = 'static' + (item.joinPrevious ? ' join' : '') + (noDivider ? ' nb' : '');
       return { html: '<div class="' + staticCls + '">' + (item.text || '') + '</div>', kind: 'static' };
     }
-    var rowItem = item;
-    if ((item.type === 'select' || item.type === 'searchSelect') && item.optionsFrom) {
-      var derived = resolveOptionsFrom(item, cx.S);
-      // Display-snap: if the stored value is no longer among the derived options (e.g. the
-      // interval they depend on was raised), snap it to the first (lowest = interval) option so
-      // the rendered <select> and the stored state stay in lockstep instead of silently diverging.
-      if (derived.length && !optionHasValue(derived, view.value)) {
-        view.value = derived[0][1];
-        cx.S[item.messageKey] = derived[0][1];
-      }
-      rowItem = Object.assign({}, item, { options: derived });
-    }
+    var rowItem = resolveRowItem(item, view, cx);
     var html = renderBlock(item.blockBefore, cx.S, cx.ENV, cx.USERDATA, item.blockBeforeSticky)
       + renderRow(rowItem, view, noDivider)
       + renderBlock(item.block, cx.S, cx.ENV, cx.USERDATA);
@@ -303,8 +362,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return '<div class="card' + (hdr ? '' : ' nohdr') + '">' + hdr + (isOpen ? '<div>' + body + '</div>' : '') + '</div>';
   }
 
-  // Seed the collapsed-state map so collapsible sections start collapsed by default. The toggle
-  // handler flips entries (true->open->true), so seeding true means the first click expands.
+  /**
+   * Seed the collapsed-state map so collapsible sections start collapsed by default.
+   * The toggle handler flips entries (true->open->true), so seeding true means the
+   * first click expands.
+   *
+   * @param {Object} schema Config schema.
+   * @returns {Object} Map of sectionId/title -> true for collapsible sections.
+   */
   function initialCollapsed(schema) {
     var map = {}, ti, si, sec, tabs = schema.tabs || [];
     for (ti = 0; ti < tabs.length; ti++) {
@@ -316,6 +381,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return map;
   }
 
+  /**
+   * Render the tab-bar buttons, marking the active tab with the on class.
+   *
+   * @param {Object} schema Config schema (schema.tabs).
+   * @param {string} activeTab Active tab id.
+   * @returns {string} Tab-bar buttons HTML.
+   */
   function renderTabBar(schema, activeTab) {
     var h = '', i, tab;
     for (i = 0; i < schema.tabs.length; i++) {
@@ -325,8 +397,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return h;
   }
 
-  // Pure: full scroll-body HTML for the active tab.
-  // cx = { S, ENV, USERDATA, openColor, openSelect, selectQuery, collapsed, evalCtx }
+  /**
+   * Build the full scroll-body HTML for the active tab (all its section cards
+   * plus the version footer).
+   *
+   * @param {Object} schema Config schema.
+   * @param {string} activeTab Active tab id.
+   * @param {Object} cx Render context { S, ENV, USERDATA, openColor, openSelect,
+   *   selectQuery, collapsed, evalCtx }.
+   * @returns {string} Scroll-body HTML.
+   */
   function renderBody(schema, activeTab, cx) {
     var h = '', ti, si;
     for (ti = 0; ti < schema.tabs.length; ti++) {
@@ -337,6 +417,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return h + '<div class="version">' + (schema.versionLabel || '') + '</div>';
   }
 
+  /**
+   * Page entry point (browser only): hydrate state from the injected schema/config,
+   * wire the DOM event handlers, run onLoad hooks, and render. Never called from the
+   * Node tests, which exercise the pure helpers above.
+   *
+   * @returns {void}
+   */
   function boot() {
     var SCHEMA = INJECTED_SCHEMA, ENV = INJECTED_ENV || { color: true, round: false, platform: '' };
     var USERDATA = INJECTED_USERDATA || {}, RETURN_TO = INJECTED_RETURN || 'pebblejs://close#';
@@ -358,47 +445,62 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       document.getElementById('scroll').innerHTML = renderBody(SCHEMA, activeTab, cx);
     }
 
+    // Tab bar: switch the active tab and close any open color/select overlays.
+    function wireTabBar() {
+      document.getElementById('tabs').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-tab]');
+        if (b) { activeTab = b.getAttribute('data-tab'); openColor = null; openSelect = null; render(); }
+      });
+    }
+
+    // Scroll body: click (control interactions), change (native select),
+    // and input (searchSelect filter + text fields).
+    function wireInputs() {
+      var scroll = document.getElementById('scroll');
+      scroll.addEventListener('click', function (e) {
+        var t;
+        if ((t = e.target.closest('[data-select-pick]'))) { S[t.getAttribute('data-k')] = t.getAttribute('data-select-pick'); openSelect = null; render(); return; }
+        if ((t = e.target.closest('[data-select]'))) { var sk = t.getAttribute('data-select'); openSelect = (openSelect === sk ? null : sk); selectQuery = ''; render(); focusSearch(); return; }
+        if ((t = e.target.closest('[data-toggle]'))) { S[t.getAttribute('data-k')] = !S[t.getAttribute('data-k')]; render(); return; }
+        if ((t = e.target.closest('[data-color-pick]'))) { S[t.getAttribute('data-k')] = t.getAttribute('data-color-pick'); openColor = null; render(); return; }
+        if ((t = e.target.closest('[data-color]'))) { var k = t.getAttribute('data-color'); openColor = (openColor === k ? null : k); render(); return; }
+        if ((t = e.target.closest('[data-v]'))) { S[t.getAttribute('data-k')] = t.getAttribute('data-v'); render(); return; }
+        if ((t = e.target.closest('[data-coll]'))) { var sid = t.getAttribute('data-coll'); collapsed[sid] = !collapsed[sid]; render(); return; }
+      });
+      scroll.addEventListener('change', function (e) {
+        var sel = e.target.closest('select');
+        if (sel) { S[sel.getAttribute('data-k')] = sel.value; render(); }
+      });
+      scroll.addEventListener('input', function (e) {
+        var sb = e.target.closest('[data-select-search]');
+        if (sb) {
+          var sk = sb.getAttribute('data-select-search');
+          selectQuery = sb.value;
+          // Rebuild ONLY the list (a sibling of the search box) so the input keeps focus + cursor.
+          var list = document.querySelector('[data-ssel-list="' + sk + '"]');
+          if (list) { list.innerHTML = renderSelectOptions(findItem(sk), S[sk], selectQuery); }
+          return;
+        }
+        var inp = e.target.closest('input[type=text]');
+        if (inp) { S[inp.getAttribute('data-k')] = inp.value; }
+      });
+    }
+
+    // Save: run submit hooks, serialize, flash the toast, then return to the watch.
+    function wireSave() {
+      document.getElementById('save').addEventListener('click', function () {
+        PConf.hooks.runSubmit(hookCtx);
+        var blob = serialize(SCHEMA, S);
+        document.getElementById('toast').classList.add('show');
+        setTimeout(function () { location.href = RETURN_TO + encodeURIComponent(JSON.stringify(blob)); }, 300);
+      });
+    }
+
     document.getElementById('appTitle').textContent = SCHEMA.appName;
     PConf.hooks.runLoad(hookCtx);
-
-    document.getElementById('tabs').addEventListener('click', function (e) {
-      var b = e.target.closest('[data-tab]');
-      if (b) { activeTab = b.getAttribute('data-tab'); openColor = null; openSelect = null; render(); }
-    });
-    document.getElementById('scroll').addEventListener('click', function (e) {
-      var t;
-      if ((t = e.target.closest('[data-select-pick]'))) { S[t.getAttribute('data-k')] = t.getAttribute('data-select-pick'); openSelect = null; render(); return; }
-      if ((t = e.target.closest('[data-select]'))) { var sk = t.getAttribute('data-select'); openSelect = (openSelect === sk ? null : sk); selectQuery = ''; render(); focusSearch(); return; }
-      if ((t = e.target.closest('[data-toggle]'))) { S[t.getAttribute('data-k')] = !S[t.getAttribute('data-k')]; render(); return; }
-      if ((t = e.target.closest('[data-color-pick]'))) { S[t.getAttribute('data-k')] = t.getAttribute('data-color-pick'); openColor = null; render(); return; }
-      if ((t = e.target.closest('[data-color]'))) { var k = t.getAttribute('data-color'); openColor = (openColor === k ? null : k); render(); return; }
-      if ((t = e.target.closest('[data-v]'))) { S[t.getAttribute('data-k')] = t.getAttribute('data-v'); render(); return; }
-      if ((t = e.target.closest('[data-coll]'))) { var sid = t.getAttribute('data-coll'); collapsed[sid] = !collapsed[sid]; render(); return; }
-    });
-    document.getElementById('scroll').addEventListener('change', function (e) {
-      var sel = e.target.closest('select');
-      if (sel) { S[sel.getAttribute('data-k')] = sel.value; render(); }
-    });
-    document.getElementById('scroll').addEventListener('input', function (e) {
-      var sb = e.target.closest('[data-select-search]');
-      if (sb) {
-        var sk = sb.getAttribute('data-select-search');
-        selectQuery = sb.value;
-        // Rebuild ONLY the list (a sibling of the search box) so the input keeps focus + cursor.
-        var list = document.querySelector('[data-ssel-list="' + sk + '"]');
-        if (list) { list.innerHTML = renderSelectOptions(findItem(sk), S[sk], selectQuery); }
-        return;
-      }
-      var inp = e.target.closest('input[type=text]');
-      if (inp) { S[inp.getAttribute('data-k')] = inp.value; }
-    });
-    document.getElementById('save').addEventListener('click', function () {
-      PConf.hooks.runSubmit(hookCtx);
-      var blob = serialize(SCHEMA, S);
-      document.getElementById('toast').classList.add('show');
-      setTimeout(function () { location.href = RETURN_TO + encodeURIComponent(JSON.stringify(blob)); }, 300);
-    });
-
+    wireTabBar();
+    wireInputs();
+    wireSave();
     render();
   }
 

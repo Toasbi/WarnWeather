@@ -1,4 +1,5 @@
 var WeatherProvider = require('./provider.js');
+var mphToKmh = require('../wire-units.js').mphToKmh;
 var request = WeatherProvider.request;
 var failure = WeatherProvider.failure;
 
@@ -144,14 +145,14 @@ WundergroundProvider.prototype.withProviderData = function(lat, lon, force, onSu
                 });
                 this.windTrend = forecast.map(function(entry) {
                     var wspdMph = typeof entry.wspd === 'number' ? entry.wspd : 0;
-                    return wspdMph * 1.60934; // imperial feed → mph; normalize to km/h
+                    return mphToKmh(wspdMph); // imperial feed → mph; normalize to km/h
                 });
                 this.gustTrend = forecast.map(function(entry) {
                     // WU reports gust=null on calm hours; fall back to wind speed so the
                     // gust line never dips below wind (gust ≥ wind physically). mph → km/h.
                     var gustMph = typeof entry.gust === 'number' ? entry.gust : 0;
                     var wspdMph = typeof entry.wspd === 'number' ? entry.wspd : 0;
-                    return Math.max(gustMph, wspdMph) * 1.60934;
+                    return mphToKmh(Math.max(gustMph, wspdMph));
                 });
                 this.uvTrend = forecast.map(function(entry) {
                     return typeof entry.uv_index === 'number' ? entry.uv_index : 0;

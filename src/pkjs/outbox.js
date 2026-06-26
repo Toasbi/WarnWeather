@@ -180,6 +180,9 @@ function clearClayCache() {
 }
 
 module.exports = {
+    // Read-only contract: shared by reference (change-detector + tests). Consumers
+    // must not mutate the category descriptors. No defensive copy — nothing mutates
+    // them, so it would only add code (a manual deep clone, since PKJS on aplite is ES5).
     WEATHER_CATEGORIES: WEATHER_CATEGORIES,
     sendWeather: sendWeather,
     sendClay: sendClay,

@@ -93,6 +93,31 @@ function seedDefaults(colors) {
 }
 
 /**
+ * Shared preamble for the marker-gated migrations: load the stored blob to
+ * migrate, or return null to skip when nothing is stored, the migration has
+ * already run, or the blob is malformed (logged once, tolerated).
+ *
+ * @param {Function} isMigrationDone Returns true when the migration marker is set.
+ * @param {string} label Migration name, used in the malformed-blob log line.
+ * @returns {Object|null} Parsed settings to migrate, or null to skip.
+ */
+function loadForMigration(isMigrationDone, label) {
+    var persistClayString = localStorage.getItem(STORAGE_KEY);
+
+    if (persistClayString === null || isMigrationDone()) {
+        return null;
+    }
+
+    try {
+        return JSON.parse(persistClayString);
+    }
+    catch (ex) {
+        console.log('Malformed clay settings found, skipping ' + label);
+        return null;
+    }
+}
+
+/**
  * Move existing installs from the old all-white weekend/holiday defaults to the
  * current highlighted default while preserving any customized color set.
  *
@@ -102,18 +127,9 @@ function seedDefaults(colors) {
  * @returns {boolean} True when the migrated settings should be sent to the watch.
  */
 function migrateWeekendHolidayColors(colors, isMigrationDone, markDone) {
-    var persistClayString = localStorage.getItem(STORAGE_KEY);
-    var persistClay;
+    var persistClay = loadForMigration(isMigrationDone, 'weekend/holiday color migration');
 
-    if (persistClayString === null || isMigrationDone()) {
-        return false;
-    }
-
-    try {
-        persistClay = JSON.parse(persistClayString);
-    }
-    catch (ex) {
-        console.log('Malformed clay settings found, skipping weekend/holiday color migration');
+    if (persistClay === null) {
         return false;
     }
 
@@ -156,18 +172,9 @@ function migrateWeekendHolidayColors(colors, isMigrationDone, markDone) {
  * @returns {boolean} True when the migrated settings should be sent to the watch.
  */
 function migrateHolidayWhiteToToggle(colors, isMigrationDone, markDone) {
-    var persistClayString = localStorage.getItem(STORAGE_KEY);
-    var persistClay;
+    var persistClay = loadForMigration(isMigrationDone, 'holiday highlight migration');
 
-    if (persistClayString === null || isMigrationDone()) {
-        return false;
-    }
-
-    try {
-        persistClay = JSON.parse(persistClayString);
-    }
-    catch (ex) {
-        console.log('Malformed clay settings found, skipping holiday highlight migration');
+    if (persistClay === null) {
         return false;
     }
 
@@ -192,20 +199,12 @@ function migrateHolidayWhiteToToggle(colors, isMigrationDone, markDone) {
  * @returns {void}
  */
 function migrateHolidayRegionKeys(isMigrationDone, markDone) {
-    var persistClayString = localStorage.getItem(STORAGE_KEY);
-    var persistClay;
+    var persistClay = loadForMigration(isMigrationDone, 'holidayRegion key migration');
     var oldKeys = ['holidayRegionDE', 'holidayRegionAT', 'holidayRegionCH', 'holidayRegionES', 'holidayRegionGB', 'holidayRegionUS'];
     var oldKey;
     var i;
 
-    if (persistClayString === null || isMigrationDone()) {
-        return;
-    }
-    try {
-        persistClay = JSON.parse(persistClayString);
-    }
-    catch (ex) {
-        console.log('Malformed clay settings found, skipping holidayRegion key migration');
+    if (persistClay === null) {
         return;
     }
 
