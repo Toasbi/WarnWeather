@@ -266,11 +266,17 @@ Fields supported in `fixtures/<name>.json`:
 - `watch.now` — date/time for C-rendered time/date UI
 - `watch.battery.percent` / `watch.battery.charging`
 - `watchSettings.timeFormat` — `"12h"` or `"24h"`
-- `claySettings` — Clay settings by `messageKey` (colors use Pebble SDK constants, e.g. `"GColorFolly"`)
-- `weather.city`, `weather.currentTemp`, `weather.startHour`
+- `claySettings` — Clay settings by `messageKey` (colors use Pebble SDK constants like `"GColorFolly"` — see the [Rebble color definitions](https://developer.rebble.io/docs/c/Graphics/Graphics_Types/Color_Definitions/))
+- `weather.city`, `weather.currentTemp` — status-row city label and current temperature (°F)
+- `weather.startHour` — local hour (0–23) of the first forecast entry; fixture prep converts it to a runtime epoch
+- `weather.startDayOffset` — optional day offset added to `watch.now.day` for the forecast start (default 0; pairs with `startHour`)
 - `weather.temps` — hourly Fahrenheit forecast array
-- `weather.precipPct` — hourly precipitation % array (0–100)
-- `weather.sunEvents` — next two sun events: `{ type, dayOffset, hour, minute }`
+- `weather.precipPct` — hourly precipitation-probability array (0–100)
+- `weather.rainMm` — hourly rain-amount array (mm); drives the optional rain bars
+- `weather.windKmh` / `weather.gustKmh` — hourly wind / gust speed arrays (km/h); a non-zero gust array turns the gust line on
+- `weather.rainRadarExactMm` / `weather.rainRadarAreaMm` — radar rain per 5-minute frame (mm/h): rain at the exact location, and the strongest rain within 2 km. Supply both or radar is skipped
+- `weather.radarStartEpoch` — optional Unix-seconds anchor for the radar window (defaults to the forecast start; the time-lapse uses it to scroll radar independently of the forecast)
+- `weather.sunEvents` — next two sun events, authored as local fields `{ type, dayOffset, hour, minute }` and normalized to `{ type, epoch }`
 
 ## Debug Flags (`src/pkjs/dev-config.js`)
 
@@ -279,6 +285,8 @@ Fields supported in `fixtures/<name>.json`:
 | `clearPkjsStorageOnBoot` | `true/false` | Forces PKJS `localStorage` reset on each boot (first-install testing) |
 | `forceShowReleaseNotificationOnBoot` | `'1.26.0'` | Always shows release notification for that version key |
 | `owmApiKey` | `'abc123'` | Preloads OpenWeatherMap API key |
+| `maxNotifiedVersion` | `'1.26.0'` | Seeds the release-notification "max notified version" marker (simulate skipped-version upgrades) |
+| `resetV134WeekendHolidayColorMigration` | `true/false` | Clears the v1.34.0 weekend/holiday color migration marker so it re-runs on next boot |
 
 These are local-only; not committed or written to Clay settings.
 

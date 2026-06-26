@@ -258,19 +258,9 @@ Notes:
 ### Fixtures (emulator/dev)
 
 Set `FIXTURE=<name>` in `.env` to load deterministic app-state data from `fixtures/<name>.json`.
-Fixtures currently support:
-
-- `watch.now`: local date/time fields used for C-rendered time/date UI.
-- `watch.battery.percent`: battery level used for C-rendered battery UI, 0-100.
-- `watch.battery.charging`: optional battery charging/plugged state, `true` or `false`.
-- `watchSettings.timeFormat`: watch-level time display preference, `"12h"` or `"24h"`.
-- `claySettings`: Clay-compatible settings keyed by `messageKey`, such as `"axisTimeFormat": "12h"`. Color settings use Pebble SDK color constants like `"GColorFolly"` from the Rebble color definitions: https://developer.rebble.io/docs/c/Graphics/Graphics_Types/Color_Definitions/
-- `weather.city`: weather status city label.
-- `weather.currentTemp`: current temperature in Fahrenheit.
-- `weather.startHour`: local hour for the first forecast entry; fixture prep converts it to the runtime forecast timestamp.
-- `weather.temps`: hourly Fahrenheit forecast values.
-- `weather.precipPct`: hourly precipitation percentages, 0-100.
-- `weather.sunEvents`: the next two sun events as local fields, e.g. `{ "type": "sunset", "dayOffset": 0, "hour": 20, "minute": 10 }`.
+See [DEV.md](DEV.md#fixtures) for the full list of supported fixture fields (`watch.now`,
+`watch.battery`, `watchSettings`, `claySettings`, and the `weather.*` forecast / wind /
+radar arrays).
 
 Minimal `.env`:
 
