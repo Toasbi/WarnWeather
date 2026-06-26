@@ -62,6 +62,7 @@ var KEY_GEOCODE_CACHE = storageKeys.GEOCODE_CACHE_KEY;
 var KEY_GEOCODE_BACKOFF = storageKeys.GEOCODE_BACKOFF_KEY;
 var KEY_V1_34_0_WEEKEND_HOLIDAY_COLOR_MIGRATION = 'v1.34.0_weekend_holiday_color_migration';
 var KEY_HOLIDAY_WHITE_TO_TOGGLE_MIGRATION = 'v1.4.0_holiday_white_to_toggle_migration';
+var KEY_V1_3_2_HOLIDAY_REGION_KEY_MIGRATION = 'v1.3.2_holiday_region_key_migration';
 var KEY_LAST_IS_SLEEPING = storageKeys.LAST_IS_SLEEPING_KEY;
 var KEY_LAST_HOLIDAY_DAY = 'last_holiday_day';
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
@@ -249,6 +250,10 @@ Pebble.addEventListener('ready',
             function() { return localStorage.getItem(KEY_HOLIDAY_WHITE_TO_TOGGLE_MIGRATION) !== null; },
             markHolidayWhiteToToggleMigrationComplete
         );
+        claySettings.migrateHolidayRegionKeys(
+            function() { return localStorage.getItem(KEY_V1_3_2_HOLIDAY_REGION_KEY_MIGRATION) !== null; },
+            function() { localStorage.setItem(KEY_V1_3_2_HOLIDAY_REGION_KEY_MIGRATION, '1'); }
+        );
         claySettings.applyDevConfig(app.devConfig);
         claySettings.applyFixtureSettings(activeFixture, pebbleColors);
         console.log('PebbleKit JS ready!');
@@ -380,6 +385,11 @@ function maybeHandleDevStorageReset(devConfig) {
     if (shouldResetV134WeekendHolidayColorMigration) {
         console.log('[dev] resetV134WeekendHolidayColorMigration=true, clearing migration marker');
         localStorage.removeItem(KEY_V1_34_0_WEEKEND_HOLIDAY_COLOR_MIGRATION);
+    }
+
+    if (Boolean(devConfig && devConfig.resetV132HolidayRegionKeyMigration)) {
+        console.log('[dev] resetV132HolidayRegionKeyMigration=true, clearing migration marker');
+        localStorage.removeItem(KEY_V1_3_2_HOLIDAY_REGION_KEY_MIGRATION);
     }
 }
 

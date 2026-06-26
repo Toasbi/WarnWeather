@@ -184,6 +184,48 @@ function migrateHolidayWhiteToToggle(colors, isMigrationDone, markDone) {
 }
 
 /**
+ * Collapse the six per-country holidayRegion<CC> keys into the single holidayRegion
+ * key, adopting the value for the currently-selected country. One-time; marker-gated.
+ *
+ * @param {Function} isMigrationDone Returns true when the migration marker is set.
+ * @param {Function} markDone Records the migration as complete.
+ * @returns {void}
+ */
+function migrateHolidayRegionKeys(isMigrationDone, markDone) {
+    var persistClayString = localStorage.getItem(STORAGE_KEY);
+    var persistClay;
+    var oldKeys = ['holidayRegionDE', 'holidayRegionAT', 'holidayRegionCH', 'holidayRegionES', 'holidayRegionGB', 'holidayRegionUS'];
+    var oldKey;
+    var i;
+
+    if (persistClayString === null || isMigrationDone()) {
+        return;
+    }
+    try {
+        persistClay = JSON.parse(persistClayString);
+    }
+    catch (ex) {
+        console.log('Malformed clay settings found, skipping holidayRegion key migration');
+        return;
+    }
+
+    oldKey = 'holidayRegion' + persistClay.holidayCountry;
+    if (persistClay[oldKey] && (typeof persistClay.holidayRegion === 'undefined' || persistClay.holidayRegion === 'all')) {
+        persistClay.holidayRegion = persistClay[oldKey];
+    }
+    for (i = 0; i < oldKeys.length; i += 1) {
+        if (Object.prototype.hasOwnProperty.call(persistClay, oldKeys[i])) {
+            delete persistClay[oldKeys[i]];
+        }
+    }
+    if (typeof persistClay.holidayRegion === 'undefined') {
+        persistClay.holidayRegion = 'all';
+    }
+    save(persistClay);
+    markDone();
+}
+
+/**
  * Apply values from a dev-config.js file to the stored Clay settings, skipping
  * the local-only dev keys that drive boot behavior rather than watch config.
  *
@@ -199,6 +241,7 @@ function applyDevConfig(devConfig) {
         forceShowReleaseNotificationOnBoot: true,
         maxNotifiedVersion: true,
         resetV134WeekendHolidayColorMigration: true,
+        resetV132HolidayRegionKeyMigration: true,
     };
 
     persistClay = read();
@@ -293,5 +336,6 @@ module.exports = {
     applyDevConfig: applyDevConfig,
     applyFixtureSettings: applyFixtureSettings,
     migrateWeekendHolidayColors: migrateWeekendHolidayColors,
-    migrateHolidayWhiteToToggle: migrateHolidayWhiteToToggle
+    migrateHolidayWhiteToToggle: migrateHolidayWhiteToToggle,
+    migrateHolidayRegionKeys: migrateHolidayRegionKeys
 };

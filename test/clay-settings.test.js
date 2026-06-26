@@ -157,3 +157,39 @@ test('migrateHolidayWhiteToToggle: no stored settings -> no-op', () => {
   const m = makeMarker();
   assert.equal(claySettings.migrateHolidayWhiteToToggle(COLORS, m.isDone, m.mark), false);
 });
+
+test('migrateHolidayRegionKeys: adopts the active country region and drops old keys', () => {
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  store['clay-settings'] = JSON.stringify({
+    holidayCountry: 'DE', holidayRegionDE: 'DE-BY', holidayRegionUS: 'US-CA', holidayRegion: 'all'
+  });
+  let marked = false;
+  claySettings.migrateHolidayRegionKeys(() => marked, () => { marked = true; });
+  const read = claySettings.read();
+  assert.equal(read.holidayRegion, 'DE-BY', 'adopted active-country region');
+  assert.equal('holidayRegionDE' in read, false, 'old DE key dropped');
+  assert.equal('holidayRegionUS' in read, false, 'old US key dropped');
+  assert.equal(marked, true, 'migration marked done');
+});
+
+test('migrateHolidayRegionKeys: no-op when marker already set', () => {
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  store['clay-settings'] = JSON.stringify({ holidayCountry: 'DE', holidayRegionDE: 'DE-BY' });
+  claySettings.migrateHolidayRegionKeys(() => true, () => { throw new Error('should not mark'); });
+  assert.equal('holidayRegionDE' in claySettings.read(), true, 'left intact when already migrated');
+});
+
+test('migrateHolidayRegionKeys: region-less country -> holidayRegion stays all, stale keys dropped', () => {
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  store['clay-settings'] = JSON.stringify({ holidayCountry: 'FR', holidayRegionDE: 'DE-BY', holidayRegion: 'all' });
+  claySettings.migrateHolidayRegionKeys(() => false, () => {});
+  const read = claySettings.read();
+  assert.equal(read.holidayRegion, 'all', 'no adoption for a region-less country');
+  assert.equal('holidayRegionDE' in read, false, 'stale per-country key still dropped');
+});

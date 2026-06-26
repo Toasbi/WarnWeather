@@ -12,13 +12,16 @@ function findItem(s, key) {
 }
 
 test('holiday pickers use the searchSelect control', () => {
-  ['holidayCountry', 'holidayRegionDE', 'holidayRegionAT', 'holidayRegionCH',
-   'holidayRegionES', 'holidayRegionGB', 'holidayRegionUS'].forEach((key) => {
-    const it = findItem(schema, key);
-    assert.ok(it, 'missing schema item ' + key);
-    assert.equal(it.type, 'searchSelect', key + ' should be searchSelect');
-    assert.ok(Array.isArray(it.options) && it.options.length > 0, key + ' keeps its options');
-  });
+  // holidayCountry has a static options list; holidayRegion uses optionsFrom.
+  const countryItem = findItem(schema, 'holidayCountry');
+  assert.ok(countryItem, 'missing schema item holidayCountry');
+  assert.equal(countryItem.type, 'searchSelect', 'holidayCountry should be searchSelect');
+  assert.ok(Array.isArray(countryItem.options) && countryItem.options.length > 0, 'holidayCountry keeps its options');
+
+  const regionItem = findItem(schema, 'holidayRegion');
+  assert.ok(regionItem, 'missing schema item holidayRegion');
+  assert.equal(regionItem.type, 'searchSelect', 'holidayRegion should be searchSelect');
+  assert.ok(regionItem.optionsFrom && typeof regionItem.optionsFrom === 'object', 'holidayRegion uses optionsFrom');
 });
 
 test('non-holiday selects stay plain select (spot check)', () => {
