@@ -35,6 +35,7 @@
 #define NIGHT_HATCH_COLOR_AREA PBL_IF_COLOR_ELSE(GColorBlue, GColorWhite)
 #define NIGHT_BOUNDARY_COLOR PBL_IF_COLOR_ELSE(GColorDarkGray, GColorLightGray)
 #define NIGHT_BOUNDARY_COLOR_AREA PBL_IF_COLOR_ELSE(GColorVividCerulean, GColorWhite)
+#define FORECAST_TREND_FULL_SCALE 250  // uint8 wire range (PKJS sends 0..250)
 #define FORECAST_STEP_SECONDS (60 * 60)
 #define DAY_SECONDS (24 * 60 * 60)
 #define MAX_FORECAST_ENTRIES 24
@@ -146,7 +147,7 @@ static void load_dataset(ForecastDataset *ds) {
         if (ds->bars_present > 0) { persist_get_bar_trend(ds->bars, ds->num_entries); }
         ds->third_line_present = persist_third_line_present();
         if (ds->third_line_present) { persist_get_third_line_trend(ds->third_line, ds->num_entries); }
-        min_max(ds->temps, ds->num_entries, &ds->temp_lo, &ds->temp_hi);
+        // temp autoscale removed: temp LINE layer now uses fixed 0..FORECAST_TREND_FULL_SCALE
     }
 }
 
@@ -673,7 +674,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     if (fill_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_AREA, .area = {
             .values = ds.line, .export_points = area_pts,
-            .count = ds.num_entries, .lo = 0, .hi = 1000,
+            .count = ds.num_entries, .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
             .fill_color = PBL_IF_COLOR_ELSE(ds.fill_color, GColorLightGray) } };
     }
     // night_under re-shades the filled area, so it needs the AREA layer's
@@ -689,7 +690,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     }
     if (bars_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_BARS, .bars = {
-            .values = ds.bars, .count = ds.num_entries, .lo = 0, .hi = 1000,
+            .values = ds.bars, .count = ds.num_entries, .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
             .stops = bar_stops, .num_stops = bar_num_stops,
             .style = PBL_IF_COLOR_ELSE(BAR_SOLID, BAR_OUTLINED) } };
     }
@@ -701,7 +702,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     if (ds.third_line_present) {
         layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
             .values = ds.third_line, .count = ds.num_entries,
-            .lo = 0, .hi = 1000, .inset_y = 0,
+            .lo = 0, .hi = FORECAST_TREND_FULL_SCALE, .inset_y = 0,
             .color = GColorWhite, .width = 1, .dashed = true } };
     }
     if (line_on) {
@@ -711,12 +712,12 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                   .color = ds.line_color, .width = 1 } }
             : (ChartLayer){ CHART_LAYER_LINE, .line = {
                   .values = ds.line, .count = ds.num_entries,
-                  .lo = 0, .hi = 1000, .inset_y = 0, .export_points = area_pts,
+                  .lo = 0, .hi = FORECAST_TREND_FULL_SCALE, .inset_y = 0, .export_points = area_pts,
                   .color = ds.line_color, .width = 1 } };
     }
     layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
         .values = ds.temps, .count = ds.num_entries,
-        .lo = ds.temp_lo, .hi = ds.temp_hi, .inset_y = MARGIN_TEMP_H,
+        .lo = 0, .hi = FORECAST_TREND_FULL_SCALE, .inset_y = MARGIN_TEMP_H,
         .color = PBL_IF_COLOR_ELSE(GColorRed, GColorWhite), .width = 3 } };
     layers[n++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
         .left   = { 1, axis_color },
@@ -752,16 +753,9 @@ static GSize temp_label_string_size(const char *text)
 
 static void text_labels_refresh()
 {
-    // Lo/hi are derived from the persisted trend rather than stored separately.
-    int16_t temps[MAX_FORECAST_ENTRIES] = {0};
-    const int raw = persist_get_num_entries();
-    const int num_entries = raw > MAX_FORECAST_ENTRIES ? MAX_FORECAST_ENTRIES : (raw < 0 ? 0 : raw);
-    int temp_lo = 0;
-    int temp_hi = 0;
-    if (num_entries > 0) {
-        persist_get_temp_trend(temps, num_entries);
-        min_max(temps, num_entries, &temp_lo, &temp_hi);
-    }
+    // Lo/hi are read from the dedicated persisted keys (set by PKJS alongside the trend).
+    const int temp_lo = persist_get_temp_min();
+    const int temp_hi = persist_get_temp_max();
     snprintf(s_buffer_hi, sizeof(s_buffer_hi), "%d", config_localize_temp(temp_hi));
     snprintf(s_buffer_lo, sizeof(s_buffer_lo), "%d", config_localize_temp(temp_lo));
 
