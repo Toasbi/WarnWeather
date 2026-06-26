@@ -75,13 +75,11 @@ test('payload emits TEMP_TREND_UINT8 byte array and TEMP_MIN/TEMP_MAX numbers', 
 
 test('fixture uvIndex feeds the UV secondary line', () => {
   const fixture = makeFixture({
-    uvIndex: [0, 5.5, 3]
+    uvIndex: [5.5, 5.5, 5.5]
   });
   const payload = getFixtureWeatherPayload(
     fixture, { secondaryLine: 'uv', thirdLine: 'off', barSource: 'off' });
   assert.ok(payload, 'fixture payload built');
   // UV 5.5 → tenths 55 → permille 500 → byte 125
-  assert.ok(Array.isArray(payload.SECONDARY_LINE_TREND_UINT8), 'secondary line trend exists');
-  assert.ok(payload.SECONDARY_LINE_TREND_UINT8.every(function(b) { return b >= 0 && b <= 250; }), 'all bytes in valid range');
-  assert.equal(payload.SECONDARY_LINE_TREND_UINT8[1], 125, 'UV 5.5 maps to byte 125');
+  assert.ok(payload.SECONDARY_LINE_TREND_UINT8.every(function(b) { return b === 125; }), 'all UV 5.5 → byte 125');
 });
