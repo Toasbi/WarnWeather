@@ -8,7 +8,7 @@ test('buildSettingsSnapshot includes forecast and radar display settings', () =>
     secondaryLine: 'wind',
     secondaryLineFill: true,
     windScale: 'high',
-    gustLine: false,
+    thirdLine: 'gust',
     barSource: 'rain',
     rainBarColor: 'white',
     radarProvider: 'dwd',
@@ -19,7 +19,7 @@ test('buildSettingsSnapshot includes forecast and radar display settings', () =>
   assert.equal(snapshot.secondaryLine, 'wind');
   assert.equal(snapshot.secondaryLineFill, true);
   assert.equal(snapshot.windScale, 'high');
-  assert.equal(snapshot.gustLine, false);
+  assert.equal(snapshot.thirdLine, 'gust');
   assert.equal(snapshot.barSource, 'rain');
   assert.equal(snapshot.rainBarColor, 'white');
   assert.equal(snapshot.radarProvider, 'dwd');
@@ -31,6 +31,6 @@ test('buildSettingsSnapshot coerces toggle settings to real booleans', () => {
   const snapshot = buildSettingsSnapshot({});
 
   assert.equal(snapshot.secondaryLineFill, false);
-  assert.equal(snapshot.gustLine, false);
+  assert.equal(snapshot.thirdLine, undefined);
   assert.equal(snapshot.devStatsEnabled, false);
 });
