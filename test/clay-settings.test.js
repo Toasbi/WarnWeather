@@ -98,3 +98,62 @@ test('seedDefaults backfills sleep keys into existing installs that lack them', 
   assert.equal(read.provider, 'dwd');
   assert.equal(read.timeFont, 'bitham');
 });
+
+// A migration marker pair backed by a single local flag, mirroring the boot wiring.
+function makeMarker() {
+  const state = { done: false };
+  return {
+    isDone: function () { return state.done; },
+    mark: function () { state.done = true; },
+    state: state
+  };
+}
+
+test('migrateHolidayWhiteToToggle: white holiday color -> toggle off + color reset to folly', () => {
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  store['clay-settings'] = JSON.stringify({ holidaysEnabled: true, colorUSFederal: COLORS.white });
+  const m = makeMarker();
+  const sent = claySettings.migrateHolidayWhiteToToggle(COLORS, m.isDone, m.mark);
+  const read = claySettings.read();
+  assert.equal(read.holidaysEnabled, false, 'white = old "off" must become toggle off');
+  assert.equal(read.colorUSFederal, COLORS.folly, 'white color must reset to a valid default');
+  assert.equal(sent, true, 'migrated settings should be resent to the watch');
+});
+
+test('migrateHolidayWhiteToToggle: non-white color left untouched and marks done', () => {
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  store['clay-settings'] = JSON.stringify({ holidaysEnabled: true, colorUSFederal: COLORS.folly });
+  const m = makeMarker();
+  const sent = claySettings.migrateHolidayWhiteToToggle(COLORS, m.isDone, m.mark);
+  const read = claySettings.read();
+  assert.equal(read.holidaysEnabled, true, 'a real color must not flip the toggle');
+  assert.equal(read.colorUSFederal, COLORS.folly);
+  assert.equal(sent, false);
+  assert.equal(m.state.done, true, 'nothing to migrate -> mark done so it never runs again');
+});
+
+test('migrateHolidayWhiteToToggle: idempotent once the marker is set', () => {
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  store['clay-settings'] = JSON.stringify({ holidaysEnabled: true, colorUSFederal: COLORS.white });
+  const m = makeMarker();
+  m.mark(); // already migrated in a prior boot
+  const sent = claySettings.migrateHolidayWhiteToToggle(COLORS, m.isDone, m.mark);
+  const read = claySettings.read();
+  assert.equal(read.holidaysEnabled, true, 'must not touch settings after migration is done');
+  assert.equal(read.colorUSFederal, COLORS.white);
+  assert.equal(sent, false);
+});
+
+test('migrateHolidayWhiteToToggle: no stored settings -> no-op', () => {
+  installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  const m = makeMarker();
+  assert.equal(claySettings.migrateHolidayWhiteToToggle(COLORS, m.isDone, m.mark), false);
+});

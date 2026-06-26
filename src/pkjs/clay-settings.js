@@ -143,6 +143,47 @@ function migrateWeekendHolidayColors(colors, isMigrationDone, markDone) {
 }
 
 /**
+ * Migrate installs that used white as the holiday "off" flag onto the
+ * Holiday highlight toggle. White was the old way to disable holiday
+ * highlighting; the toggle now owns on/off and white is no longer a
+ * selectable holiday color, so a stored white means "user wanted off".
+ * Preserve that intent (holidaysEnabled = false) and reset the color to a
+ * valid default for when they re-enable.
+ *
+ * @param {{white: number, folly: number}} colors Default color constants.
+ * @param {Function} isMigrationDone Returns true when the migration marker is set.
+ * @param {Function} markDone Records the migration as complete.
+ * @returns {boolean} True when the migrated settings should be sent to the watch.
+ */
+function migrateHolidayWhiteToToggle(colors, isMigrationDone, markDone) {
+    var persistClayString = localStorage.getItem(STORAGE_KEY);
+    var persistClay;
+
+    if (persistClayString === null || isMigrationDone()) {
+        return false;
+    }
+
+    try {
+        persistClay = JSON.parse(persistClayString);
+    }
+    catch (ex) {
+        console.log('Malformed clay settings found, skipping holiday highlight migration');
+        return false;
+    }
+
+    if (persistClay.colorUSFederal === colors.white) {
+        persistClay.holidaysEnabled = false;
+        persistClay.colorUSFederal = colors.folly;
+        save(persistClay);
+        console.log('Migrated white holiday color to Holiday highlight toggle off');
+        return true;
+    }
+
+    markDone();
+    return false;
+}
+
+/**
  * Apply values from a dev-config.js file to the stored Clay settings, skipping
  * the local-only dev keys that drive boot behavior rather than watch config.
  *
@@ -251,5 +292,6 @@ module.exports = {
     seedDefaults: seedDefaults,
     applyDevConfig: applyDevConfig,
     applyFixtureSettings: applyFixtureSettings,
-    migrateWeekendHolidayColors: migrateWeekendHolidayColors
+    migrateWeekendHolidayColors: migrateWeekendHolidayColors,
+    migrateHolidayWhiteToToggle: migrateHolidayWhiteToToggle
 };

@@ -61,6 +61,7 @@ var KEY_LAST_FETCH_ATTEMPT = storageKeys.LAST_FETCH_ATTEMPT_KEY;
 var KEY_GEOCODE_CACHE = storageKeys.GEOCODE_CACHE_KEY;
 var KEY_GEOCODE_BACKOFF = storageKeys.GEOCODE_BACKOFF_KEY;
 var KEY_V1_34_0_WEEKEND_HOLIDAY_COLOR_MIGRATION = 'v1.34.0_weekend_holiday_color_migration';
+var KEY_HOLIDAY_WHITE_TO_TOGGLE_MIGRATION = 'v1.4.0_holiday_white_to_toggle_migration';
 var KEY_LAST_IS_SLEEPING = storageKeys.LAST_IS_SLEEPING_KEY;
 var KEY_LAST_HOLIDAY_DAY = 'last_holiday_day';
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
@@ -228,6 +229,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
 Pebble.addEventListener('ready',
     function (e) {
         var migratedWeekendHolidayColors;
+        var migratedHolidayWhiteToToggle;
 
         app.devConfig = getDevConfig();
         maybeHandleDevStorageReset(app.devConfig);
@@ -241,6 +243,11 @@ Pebble.addEventListener('ready',
             { white: DEFAULT_COLOR_WHITE, folly: DEFAULT_COLOR_FOLLY },
             function() { return localStorage.getItem(KEY_V1_34_0_WEEKEND_HOLIDAY_COLOR_MIGRATION) !== null; },
             markWeekendHolidayColorMigrationComplete
+        );
+        migratedHolidayWhiteToToggle = claySettings.migrateHolidayWhiteToToggle(
+            { white: DEFAULT_COLOR_WHITE, folly: DEFAULT_COLOR_FOLLY },
+            function() { return localStorage.getItem(KEY_HOLIDAY_WHITE_TO_TOGGLE_MIGRATION) !== null; },
+            markHolidayWhiteToToggleMigrationComplete
         );
         claySettings.applyDevConfig(app.devConfig);
         claySettings.applyFixtureSettings(activeFixture, pebbleColors);
@@ -264,12 +271,13 @@ Pebble.addEventListener('ready',
             });
             return;
         }
-        if (migratedWeekendHolidayColors) {
+        if (migratedWeekendHolidayColors || migratedHolidayWhiteToToggle) {
             // The migration send covers any Clay send queued by the startup
             // handshake; chain the startup fetch to keep the channel half-duplex.
             app.pendingClaySend = false;
             sendClaySettings(function() {
-                markWeekendHolidayColorMigrationComplete();
+                if (migratedWeekendHolidayColors) { markWeekendHolidayColorMigrationComplete(); }
+                if (migratedHolidayWhiteToToggle) { markHolidayWhiteToToggleMigrationComplete(); }
                 drainPendingStartupFetch();
             }, drainPendingStartupFetch);
         } else {
@@ -448,8 +456,7 @@ function refreshHolidays() {
     if (!app.settings) { return; }
     var country = app.settings.hasOwnProperty('holidayCountry') ? app.settings.holidayCountry : 'US';
     if (country === 'none') { return; }
-    var color = app.settings.hasOwnProperty('colorUSFederal') ? app.settings.colorUSFederal : DEFAULT_COLOR_FOLLY;
-    if (color === DEFAULT_COLOR_WHITE) { return; }
+    if (app.settings.holidaysEnabled === false) { return; }
     var provider = registry.getProvider(country);
     if (!provider) { return; }
     var years = holidayMask.windowYears({
@@ -489,7 +496,6 @@ function sendClaySettings(onSuccess, onFailure) {
         "CLAY_COLOR_SATURDAY": app.settings.hasOwnProperty('colorSaturday') ? app.settings.colorSaturday : DEFAULT_COLOR_FOLLY,
         "CLAY_COLOR_US_FEDERAL": app.settings.hasOwnProperty('colorUSFederal') ? app.settings.colorUSFederal : DEFAULT_COLOR_FOLLY,
         "HOLIDAYS": (function() {
-            var color = app.settings.hasOwnProperty('colorUSFederal') ? app.settings.colorUSFederal : DEFAULT_COLOR_FOLLY;
             var country = app.settings.hasOwnProperty('holidayCountry') ? app.settings.holidayCountry : 'US';
             var region = app.settings['holidayRegion' + country] || 'all';
             var built = holidayMask.build({
@@ -497,7 +503,7 @@ function sendClaySettings(onSuccess, onFailure) {
                 prevWeek: app.settings.firstWeek === 'prev',
                 country: country,
                 region: region,
-                enabled: color !== DEFAULT_COLOR_WHITE
+                enabled: app.settings.holidaysEnabled !== false
             }, new Date());
             return holidayMask.pack(built.anchor, built.mask);
         })(),
@@ -559,6 +565,15 @@ function setProvider(providerId) {
  */
 function markWeekendHolidayColorMigrationComplete() {
     localStorage.setItem(KEY_V1_34_0_WEEKEND_HOLIDAY_COLOR_MIGRATION, '1');
+}
+
+/**
+ * Mark the white-holiday-color -> Holiday highlight toggle migration as complete.
+ *
+ * @returns {void}
+ */
+function markHolidayWhiteToToggleMigrationComplete() {
+    localStorage.setItem(KEY_HOLIDAY_WHITE_TO_TOGGLE_MIGRATION, '1');
 }
 
 function getDevConfig() {

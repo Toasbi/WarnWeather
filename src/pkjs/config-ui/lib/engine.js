@@ -152,9 +152,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var disp = String(v).toUpperCase();
     var h = '<div class="sw-wrap" data-color="' + item.messageKey + '"><b style="background:' + esc(v) + '"></b><span>' + esc(disp) + '</span></div>';
     if (openColor === item.messageKey) {
+      // excludeColors lets a picker drop specific swatches (e.g. white as the holiday color,
+      // where white means "no highlight" rather than a real color) without touching the shared PALETTE.
+      var excluded = {};
+      if (item.excludeColors) { for (var e = 0; e < item.excludeColors.length; e++) { excluded[item.excludeColors[e].toUpperCase()] = true; } }
       h += '<div class="palette">';
       for (var i = 0; i < PALETTE.length; i++) {
         var hex = PALETTE[i];
+        if (excluded[hex.toUpperCase()]) { continue; }
         h += '<button class="' + (disp === hex.toUpperCase() ? 'on' : '') + '" style="background:' + hex + '" data-k="' + item.messageKey + '" data-color-pick="' + hex + '"></button>';
       }
       h += '</div>';

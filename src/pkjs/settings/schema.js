@@ -276,12 +276,15 @@ module.exports = {
                 label: 'Saturday color',
                 defaultValue: 0xFF0055,
                 capabilities: ['COLOR']
-            }, {type: 'toggle', messageKey: 'holidaysEnabled', label: 'Holidays', defaultValue: true}, {
+            }, {type: 'toggle', messageKey: 'holidaysEnabled', label: 'Holiday highlight', defaultValue: true}, {
                 type: 'color',
                 messageKey: 'colorUSFederal',
                 label: 'Holiday color',
                 defaultValue: 0xFF0055,
                 capabilities: ['COLOR'],
+                // White is the "no highlight" appearance for normal days, so it is not a valid
+                // holiday color — the holidaysEnabled toggle owns on/off instead.
+                excludeColors: ['#FFFFFF'],
                 joinPrevious: true,
                 showWhen: {key: 'holidaysEnabled', eq: true}
 

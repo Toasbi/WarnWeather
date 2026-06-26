@@ -88,6 +88,17 @@ test('holiday country selector: select, default US, None first, includes Sweden'
   assert.equal(byKey('holidayRegionUS').label, 'State');
 });
 
+test('holiday highlight toggle is the on/off switch; color picker excludes white', () => {
+  const toggle = byKey('holidaysEnabled');
+  assert.equal(toggle.type, 'toggle');
+  assert.equal(toggle.label, 'Holiday highlight');
+  assert.equal(toggle.defaultValue, true);
+  // White is no longer an "off" flag, so it must not be selectable as a holiday color.
+  const color = byKey('colorUSFederal');
+  assert.ok(Array.isArray(color.excludeColors), 'colorUSFederal must declare excludeColors');
+  assert.ok(color.excludeColors.indexOf('#FFFFFF') >= 0, 'white must be excluded from the holiday palette');
+});
+
 test('holiday region selectors: gated to their country, default whole-country, ISO-3166-2', () => {
   const counts = { DE: 16, AT: 9, CH: 26, ES: 19, GB: 4, US: 51 };
   Object.keys(counts).forEach((cc) => {

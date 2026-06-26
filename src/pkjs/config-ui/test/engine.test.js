@@ -66,6 +66,17 @@ test('renderControl: text value and color display are HTML-escaped', () => {
   assert.ok(col.indexOf('#FF0055') >= 0 && col.indexOf('sw-wrap') >= 0);
 });
 
+test('renderControl color: excludeColors drops swatches from the open palette only', () => {
+  const open = (item) => E.renderControl(item, { value: '#FF0055', openColor: 'tint' });
+  // By default every picker offers white.
+  assert.ok(open({ type: 'color', messageKey: 'tint' }).indexOf('data-color-pick="#FFFFFF"') >= 0,
+    'white swatch should be present by default');
+  // excludeColors removes the listed swatch but keeps the rest.
+  const filtered = open({ type: 'color', messageKey: 'tint', excludeColors: ['#FFFFFF'] });
+  assert.equal(filtered.indexOf('data-color-pick="#FFFFFF"'), -1, 'white swatch must be excluded');
+  assert.ok(filtered.indexOf('data-color-pick="#FF0055"') >= 0, 'other swatches remain');
+});
+
 test('renderRow: stacked layout for text/radio/open-color, inline otherwise; hintByValue wins', () => {
   const inline = E.renderRow({ type: 'toggle', messageKey: 'flag', label: 'Flag', hint: 'h' }, { value: false });
   assert.ok(inline.indexOf('class="row"') >= 0 && inline.indexOf('lft') >= 0);
