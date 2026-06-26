@@ -77,7 +77,7 @@ test('gustLine is a toggle defaulting on, shown only for the wind secondary line
 
 test('holiday country selector: select, default US, None first, includes Sweden', () => {
   const c = byKey('holidayCountry');
-  assert.equal(c.type, 'select');
+  assert.equal(c.type, 'searchSelect');
   assert.equal(c.defaultValue, 'US');
   assert.equal(c.options[0][1], 'none', "first option must be 'none'");
   const values = c.options.map((o) => o[1]);
@@ -93,7 +93,7 @@ test('holiday region selectors: gated to their country, default whole-country, I
   Object.keys(counts).forEach((cc) => {
     const r = byKey('holidayRegion' + cc);
     assert.ok(r, 'missing holidayRegion' + cc);
-    assert.equal(r.type, 'select');
+    assert.equal(r.type, 'searchSelect');
     assert.equal(r.defaultValue, 'all');
     assert.deepEqual(r.showWhen, { key: 'holidayCountry', eq: cc });
     assert.equal(r.options[0][1], 'all', cc + ' first option must be whole-country');
