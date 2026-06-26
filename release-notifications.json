@@ -26,5 +26,9 @@
   "1.4.0": {
     "title": "Thanks for updating!",
     "body": "WarnWeather 1.4.0 adds public-holiday highlighting for many countries and regions, plus a configurable GPS location cache. Adjust your forecast, rain radar, holidays, and calendar in settings."
+  },
+  "1.4.1": {
+    "title": "Thanks for updating!",
+    "body": "WarnWeather 1.4.1 expands public-holiday highlighting to 150+ countries worldwide with refined regional pickers. Adjust your forecast, rain radar, holidays, and calendar in settings."
   }
 }

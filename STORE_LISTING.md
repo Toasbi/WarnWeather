@@ -39,8 +39,8 @@ FORECAST
 - Optional hourly rain bars — multicolor or white on color watches
 - Optional day/night hatch shading on the graph
 - Fahrenheit and Celsius temperatures
-- Multiple weather providers: Weather Underground, OpenWeatherMap, and Deutscher
-  Wetterdienst via Bright Sky (Germany only)
+- Multiple weather providers: Weather Underground, OpenWeatherMap, Open-Meteo, and
+  Deutscher Wetterdienst via Bright Sky (Germany only)
 - GPS or manual location entry
 - City where the forecast was fetched
 
@@ -51,7 +51,7 @@ RAIN RADAR (for now only available for Deutscher Wetterdienst)
 
 CALENDAR
 - 3-week calendar
-- Highlight public holidays for your country — the US plus 30+ European countries, with
+- Highlight public holidays for your country — 150+ countries worldwide, with
   region/state granularity where holidays vary (Germany, Austria, Switzerland, Spain, UK,
   United States)
 - Customize colors for Sundays, Saturdays, and holidays

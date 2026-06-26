@@ -34,7 +34,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Optional hourly rain bars — multicolor or white on color watches
 * Optional day/night hatch shading on the graph
 * Fahrenheit and Celsius temperatures
-* Multiple weather providers (Weather Underground, OpenWeatherMap, and Deutscher Wetterdienst via Bright Sky — Germany only)
+* Multiple weather providers (Weather Underground, OpenWeatherMap, Open-Meteo, and Deutscher Wetterdienst via Bright Sky — Germany only)
 * GPS or manual location entry
 * City where forecast was fetched
 
@@ -44,7 +44,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 **Calendar**
 * 3 week calendar
-* Highlight public holidays for your country — the US plus 30+ European countries, with region/state granularity where holidays vary (Germany, Austria, Switzerland, Spain, UK, US)
+* Highlight public holidays for your country — 150+ countries worldwide, with region/state granularity where holidays vary (Germany, Austria, Switzerland, Spain, UK, US)
 * Customize colors for Sundays, Saturdays, and holidays
 
 **Watch status**
