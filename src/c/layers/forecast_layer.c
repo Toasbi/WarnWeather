@@ -121,8 +121,9 @@ typedef struct {
     GColor line_color;        // stroke color, chosen per-metric by PKJS
     GColor fill_color;        // area-fill color (day), chosen per-metric by PKJS
     bool line_fill;           // shade the area under the line (metric color; gray on B&W)
-    int16_t third_line[MAX_FORECAST_ENTRIES]; // permille gust series; present via persist_exists
-    int     third_line_present;               // nonzero ⇒ draw the dashed gust line
+    int16_t third_line[MAX_FORECAST_ENTRIES]; // permille third-line series; present via persist_exists
+    int     third_line_present;               // nonzero ⇒ draw the dashed third line
+    GColor third_line_color;                  // per-metric stroke color for the dashed third line
     int temp_lo;
     int temp_hi;
 } ForecastDataset;
@@ -137,6 +138,7 @@ static void load_dataset(ForecastDataset *ds) {
     ds->line_color = persist_get_line_color();
     ds->fill_color = persist_get_fill_color();
     ds->line_fill = persist_get_line_fill();
+    ds->third_line_color = persist_get_third_line_color();
     if (ds->num_entries > 0) {
         persist_get_temp_trend(ds->temps, ds->num_entries);
         // line_present/bars_present are used only as on/off flags; PKJS always
@@ -678,11 +680,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // Z-order = array order, bottom first. Frame after the data bands so it
     // overwrites curve/area pixels at the border columns. Line/bars are gated on
     // what PKJS sent; the fill + its night re-hatch only exist with the line.
-    static ChartLayer layers[9];  // aplite: largest redraw array — must be static, not stack.
-                                  // 9 is defensive headroom: gusts and fill/night_under are
-                                  // mutually exclusive (fill only for precip, gusts only for
-                                  // wind), so the max reachable count is still 8 — the bump
-                                  // keeps the bound from depending on that PKJS-side invariant.
+    static ChartLayer layers[10]; // aplite: largest redraw array — must be static, not stack.
+                                  // Max reachable is 9: precip fill (+ night_under) can now
+                                  // coexist with a third metric line. 10 keeps defensive headroom.
     int n = 0;
     if (fill_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_AREA, .area = {
@@ -707,16 +707,14 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .stops = scaled_bar_stops, .num_stops = bar_num_stops,
             .style = PBL_IF_COLOR_ELSE(BAR_SOLID, BAR_OUTLINED) } };
     }
-    // Gust line: dashed, same scale as the wind line, drawn first so the solid
-    // wind line strokes on top where they coincide. Always white (GColorWhite) so
-    // it reads as distinct from the wind line color; third_line_present is only
-    // ever set when wind is selected. Uses the chart engine's internal static
-    // point buffer (no export_points, no fill).
+    // Third line: dashed, drawn under the solid secondary line. Per-metric color on
+    // color watches; white on B&W, where the dash pattern (not color) distinguishes
+    // it from the solid secondary line.
     if (ds.third_line_present) {
         layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
             .values = ds.third_line, .count = ds.num_entries,
             .lo = 0, .hi = FORECAST_TREND_FULL_SCALE, .inset_y = 0,
-            .color = GColorWhite, .width = 1, .dashed = true } };
+            .color = PBL_IF_COLOR_ELSE(ds.third_line_color, GColorWhite), .width = 1, .dashed = true } };
     }
     if (line_on) {
         layers[n++] = fill_on

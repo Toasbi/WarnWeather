@@ -11,6 +11,9 @@ int persist_get_line_trend(int16_t *buffer, const size_t buffer_size);
 int  persist_get_third_line_trend(int16_t *buffer, const size_t buffer_size);
 bool persist_third_line_present(void);
 
+GColor persist_get_third_line_color(void);
+bool persist_set_third_line_color(GColor color);
+
 int persist_get_bar_trend(int16_t *buffer, const size_t buffer_size);
 
 int persist_get_line_count(void);

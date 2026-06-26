@@ -13,9 +13,10 @@ enum key {
     // Appended (never reorder — these are persisted key IDs). PRECIP_TREND /
     // RAIN_TREND slots are now unused but kept to preserve existing IDs.
     LINE_TREND, BAR_TREND, LINE_COUNT, BAR_COUNT, LINE_COLOR, LINE_FILL, FILL_COLOR,
-    // Gust third line: presence is "does THIRD_LINE_TREND exist?" (persist_exists/
+    // Third line: presence is "does THIRD_LINE_TREND exist?" (persist_exists/
     // _delete) — intentionally NO THIRD_LINE_COUNT (a different presence convention
-    // than the count-based LINE_/BAR_ channels) and NO color key (reuses LINE_COLOR).
+    // than the count-based LINE_/BAR_ channels). Color is THIRD_LINE_COLOR (appended
+    // at the end); defaults white when absent to preserve the old gust look pre-resend.
     THIRD_LINE_TREND,
     // Appended: holiday highlighting moved to PKJS — anchored bitmask of the
     // visible calendar window (see calendar_layer.c / app_message.c).
@@ -24,7 +25,10 @@ enum key {
     TEMP_MIN, TEMP_MAX, TREND_ENCODING_VERSION,
     // Appended: persisted rain/radar color palettes (packed wire blobs, 3 B/stop)
     // so custom colors survive a watchface relaunch (palette is otherwise RAM-only).
-    BAR_PALETTE, RADAR_PALETTE
+    BAR_PALETTE, RADAR_PALETTE,
+    // Appended: per-metric stroke color for the (dashed) third line. Presence still
+    // tracked via THIRD_LINE_TREND; this only colors it (defaults white when absent).
+    THIRD_LINE_COLOR
 };
 
 // Setters report whether the stored value actually changed so callers can
@@ -115,6 +119,11 @@ GColor persist_get_line_color(void) {
     return (GColor){ .argb = (uint8_t) persist_read_int(LINE_COLOR) };
 }
 
+GColor persist_get_third_line_color(void) {
+    if (!persist_exists(THIRD_LINE_COLOR)) { return GColorWhite; }
+    return (GColor){ .argb = (uint8_t) persist_read_int(THIRD_LINE_COLOR) };
+}
+
 GColor persist_get_fill_color(void) {
     if (!persist_exists(FILL_COLOR)) { return GColorCobaltBlue; }
     return (GColor){ .argb = (uint8_t) persist_read_int(FILL_COLOR) };
@@ -180,6 +189,10 @@ bool persist_set_bar_trend(uint8_t *data, const size_t size) {
 
 bool persist_set_line_color(GColor color) {
     return write_int_if_changed(LINE_COLOR, color.argb);
+}
+
+bool persist_set_third_line_color(GColor color) {
+    return write_int_if_changed(THIRD_LINE_COLOR, color.argb);
 }
 
 bool persist_set_fill_color(GColor color) {

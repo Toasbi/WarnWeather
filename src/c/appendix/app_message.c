@@ -26,6 +26,7 @@ static bool handle_forecast(DictionaryIterator *iterator, bool *forecast_dirty) 
     Tuple *fill_color_tuple = dict_find(iterator, MESSAGE_KEY_SECONDARY_LINE_FILL_COLOR);
     Tuple *line_fill_tuple  = dict_find(iterator, MESSAGE_KEY_SECONDARY_LINE_FILL);
     Tuple *third_trend_tuple = dict_find(iterator, MESSAGE_KEY_THIRD_LINE_TREND_UINT8);
+    Tuple *third_color_tuple = dict_find(iterator, MESSAGE_KEY_THIRD_LINE_COLOR);
     Tuple *temp_min_tuple = dict_find(iterator, MESSAGE_KEY_TEMP_MIN);
     Tuple *temp_max_tuple = dict_find(iterator, MESSAGE_KEY_TEMP_MAX);
 
@@ -70,11 +71,14 @@ static bool handle_forecast(DictionaryIterator *iterator, bool *forecast_dirty) 
     if (line_fill_tuple) {
         changed |= persist_set_line_fill((bool)(line_fill_tuple->value->int16));
     }
-    // Gust third line: empty/missing trend ⇒ off (persist_set deletes the key).
-    // Mirrors the existing line/bar handling above: a zero-length tuple maps to
-    // NULL/0 → persist_set_third_line_trend deletes the key. No color tuple.
+    // Third line: empty/missing trend ⇒ off (persist_set deletes the key). Mirrors
+    // the line/bar handling. THIRD_LINE_COLOR colors it per metric (the dashed line
+    // is no longer always white); absent ⇒ persisted default (white) on read.
     changed |= persist_set_third_line_trend(
         third_count ? (uint8_t*) third_trend_tuple->value->data : NULL, third_count);
+    if (third_color_tuple) {
+        changed |= persist_set_third_line_color(GColorFromHEX(third_color_tuple->value->int32));
+    }
 
     *forecast_dirty |= changed;
     return true;
@@ -351,8 +355,8 @@ void app_message_init() {
     // Open AppMessage
     // All changed categories ride in one inbound message (outbox.js bundles
     // them because the channel is half-duplex). The heaviest bundle is DWD +
-    // wind: the gust THIRD_LINE rides on top of the secondary line, plus rain
-    // radar + status + sun — ~337 B. Sized with headroom for long city names.
+    // wind: the third line (any metric, including gust) rides alongside the
+    // secondary line + THIRD_LINE_COLOR, plus rain radar + status + sun.
     // The palette now rides the Clay message instead (see clay-payload.js).
     // test/inbox-size.test.js is the authoritative computation.
     const int inbox_size = 512;
