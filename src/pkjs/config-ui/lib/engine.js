@@ -92,6 +92,25 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     return shown ? h : '<div class="ssel-none">No matches</div>';
   }
+  // Current option's display label for a searchSelect trigger; falls back to the raw value.
+  function currentLabel(item, value) {
+    var i;
+    for (i = 0; i < item.options.length; i++) { if (item.options[i][1] === value) { return item.options[i][0]; } }
+    return String(value == null ? '' : value);
+  }
+  // searchSelect: closed -> a select-like trigger; open -> an (auto-focused) search box + a
+  // scrollable list of all options. The search input is a SIBLING of .ssel-list so typing can
+  // rebuild only the list (see boot's input handler) without destroying input focus.
+  function renderSearchSelect(item, view) {
+    if (view.openSelect !== item.messageKey) {
+      return '<div class="sel-wrap" data-select="' + esc(item.messageKey) + '"><span>'
+        + esc(currentLabel(item, view.value)) + '</span><i class="sel-chev"></i></div>';
+    }
+    return '<input type="text" class="ssel-search" data-select-search="' + esc(item.messageKey)
+      + '" placeholder="Search…" value="' + esc(view.selectQuery || '') + '">'
+      + '<div class="ssel-list" data-ssel-list="' + esc(item.messageKey) + '">'
+      + renderSelectOptions(item, view.value, view.selectQuery) + '</div>';
+  }
   function renderText(item, v) {
     var ph = (item.attributes && item.attributes.placeholder) ? esc(item.attributes.placeholder) : '';
     return '<input type="text" data-k="' + item.messageKey + '" value="' + esc(v || '') + '" placeholder="' + ph + '">';
@@ -115,7 +134,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     radio: function (item, view) { return renderRadio(item, view.value); },
     select: function (item, view) { return renderSelect(item, view.value); },
     text: function (item, view) { return renderText(item, view.value); },
-    color: function (item, view) { return renderColor(item, view.value, view.openColor); }
+    color: function (item, view) { return renderColor(item, view.value, view.openColor); },
+    searchSelect: function (item, view) { return renderSearchSelect(item, view); }
   };
   // view = { value, openColor }
   function renderControl(item, view) {
@@ -123,11 +143,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return fn ? fn(item, view) : '';
   }
 
-  // Wrap a control in a row with label/hint chrome. Stacked for text/radio/open-color.
+  // Wrap a control in a row with label/hint chrome. Stacked for text/radio/open-color/open-searchSelect.
   // noDivider appends the nb modifier so the row paints no bottom divider (used by joinPrevious).
   function renderRow(item, view, noDivider) {
     var hint = item.hintByValue ? (item.hintByValue[view.value] || item.hint) : item.hint;
-    var stacked = item.type === 'text' || item.type === 'radio' || (item.type === 'color' && view.openColor === item.messageKey);
+    var stacked = item.type === 'text' || item.type === 'radio'
+      || (item.type === 'color' && view.openColor === item.messageKey)
+      || (item.type === 'searchSelect' && view.openSelect === item.messageKey);
     var hintHtml = hint ? '<div class="hint">' + hint + '</div>' : '';
     var label = '<div class="lbl">' + esc(item.label) + '</div>';
     var rowCls = 'row' + (stacked ? ' stack' : '') + (noDivider ? ' nb' : '');
@@ -171,7 +193,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     for (i = 0; i < items.length; i++) {
       item = items[i];
       if (!PConf.showWhen.isVisible(item, cx.evalCtx)) { continue; }
-      view = { value: cx.S[item.messageKey], openColor: cx.openColor };
+      view = { value: cx.S[item.messageKey], openColor: cx.openColor, openSelect: cx.openSelect, selectQuery: cx.selectQuery };
       cells += '<div class="icell"><div class="lbl">' + esc(item.label) + '</div>' + renderControl(item, view) + '</div>';
       visible++;
     }
@@ -214,7 +236,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         body += g.html;
         continue;
       }
-      var view = { value: cx.S[item.messageKey], openColor: cx.openColor };
+      var view = { value: cx.S[item.messageKey], openColor: cx.openColor, openSelect: cx.openSelect, selectQuery: cx.selectQuery };
       var r = renderItem(item, view, cx, nextVisibleJoins(sec.items, i + 1, cx));
       if (r.kind === 'control') { controlCount++; }
       else if (r.kind === 'static') { staticCount++; }
