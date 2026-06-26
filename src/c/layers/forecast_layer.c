@@ -661,6 +661,19 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 
     int bar_num_stops = 0;
     const ChartColorStop *bar_stops = palette_bar_stops(&bar_num_stops);
+    // bar_stops are the canonical rain tiers in permille (0..1000) — the radar
+    // consumes them as-is at hi=1000. The forecast bars render in
+    // 0..FORECAST_TREND_FULL_SCALE space (uint8 wire), the same scale the bar
+    // VALUES were quantized to, so map each threshold into that space too;
+    // otherwise every tier above the first lands off the top of the plot and
+    // heavy-rain colors (green/yellow/orange) never show. Scratch copy keeps the
+    // shared palette store (and the radar's view of it) unmodified.
+    static ChartColorStop scaled_bar_stops[PALETTE_MAX_STOPS];
+    for (int i = 0; i < bar_num_stops; ++i) {
+        scaled_bar_stops[i].from = (int16_t)(
+            (int32_t)bar_stops[i].from * FORECAST_TREND_FULL_SCALE / 1000);
+        scaled_bar_stops[i].color = bar_stops[i].color;
+    }
 
     // Z-order = array order, bottom first. Frame after the data bands so it
     // overwrites curve/area pixels at the border columns. Line/bars are gated on
@@ -691,7 +704,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     if (bars_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_BARS, .bars = {
             .values = ds.bars, .count = ds.num_entries, .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
-            .stops = bar_stops, .num_stops = bar_num_stops,
+            .stops = scaled_bar_stops, .num_stops = bar_num_stops,
             .style = PBL_IF_COLOR_ELSE(BAR_SOLID, BAR_OUTLINED) } };
     }
     // Gust line: dashed, same scale as the wind line, drawn first so the solid
