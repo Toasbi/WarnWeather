@@ -45,6 +45,18 @@ if [[ $# -gt 0 ]]; then
 else
   platforms=("${all_platforms[@]}")
 fi
+
+# Optional PHASE env filter: "a" or "b" builds and captures only that phase;
+# unset does both. Lets a single phase be (re)done on its own — e.g.
+# PHASE=b scripts/capture-timelapse.sh v1.3.2 emery grabs just the radar frames.
+phase="${PHASE:-}"
+case "$phase" in
+  ""|a|b) ;;
+  *) printf 'Invalid PHASE=%s (use a, b, or leave unset for both)\n' "$phase" >&2; exit 1 ;;
+esac
+want_a() { [[ "$phase" != "b" ]]; }
+want_b() { [[ "$phase" != "a" ]]; }
+
 frames_root="screenshot/$version/timelapse/frames"
 pbw_dir="build/timelapse-pbw"
 
@@ -240,9 +252,16 @@ for platform in "${platforms[@]}"; do
 done
 
 # Build phase: one build per fixture, stash the .pbw. Skip fixtures already
-# stashed so a re-run resumes at capture instead of rebuilding.
+# stashed so a re-run resumes at capture instead of rebuilding. The unit suite
+# is skipped per build (WW_SKIP_TESTS) — it's a screenshot capture, not a test
+# run, and re-running the suite for every fixture only adds time and a chance for
+# a flake to abort the whole capture. Run `mise test` before capturing.
+export WW_SKIP_TESTS=1
 mkdir -p "$pbw_dir"
-for fixture in "${a_fixtures[@]}" "${b_fixtures[@]}"; do
+build_fixtures=()
+if want_a; then build_fixtures+=("${a_fixtures[@]}"); fi
+if want_b; then build_fixtures+=("${b_fixtures[@]}"); fi
+for fixture in "${build_fixtures[@]}"; do
   base="$(basename "$fixture" .json)"
   if [[ -f "$pbw_dir/$base.pbw" ]]; then
     printf 'Reusing stashed build for %s\n' "$base"
@@ -265,18 +284,22 @@ capture_platform() {
   need_boot=1
 
   # Phase A: forecast/calendar view (no tap).
-  for fixture in "${a_fixtures[@]}"; do
-    base="$(basename "$fixture" .json)"   # timelapse-a-00
-    nn="${base##*-}"                      # 00
-    capture_one "$platform" "$pbw_dir/$base.pbw" "$frames_root/$platform/a_$nn.png" "no-tap" || return 1
-  done
+  if want_a; then
+    for fixture in "${a_fixtures[@]}"; do
+      base="$(basename "$fixture" .json)"   # timelapse-a-00
+      nn="${base##*-}"                      # 00
+      capture_one "$platform" "$pbw_dir/$base.pbw" "$frames_root/$platform/a_$nn.png" "no-tap" || return 1
+    done
+  fi
 
   # Phase B: radar view (tap once after each reinstall).
-  for fixture in "${b_fixtures[@]}"; do
-    base="$(basename "$fixture" .json)"   # timelapse-b-00
-    nn="${base##*-}"                      # 00
-    capture_one "$platform" "$pbw_dir/$base.pbw" "$frames_root/$platform/b_$nn.png" "tap" || return 1
-  done
+  if want_b; then
+    for fixture in "${b_fixtures[@]}"; do
+      base="$(basename "$fixture" .json)"   # timelapse-b-00
+      nn="${base##*-}"                      # 00
+      capture_one "$platform" "$pbw_dir/$base.pbw" "$frames_root/$platform/b_$nn.png" "tap" || return 1
+    done
+  fi
 
   kill_emulators
 }

@@ -25,7 +25,14 @@ npm ci
 
 node scripts/prepare-fixture.js
 node scripts/build-config-page.js
-node --test
+# WW_SKIP_TESTS=1 skips the unit suite — used by batch screenshot/time-lapse
+# captures that build dozens of fixtures back-to-back after the suite has already
+# been run once, so a flake can't abort the whole capture and each build is fast.
+if [[ "${WW_SKIP_TESTS:-0}" == "1" ]]; then
+  echo "build.sh: WW_SKIP_TESTS=1 — skipping node --test"
+else
+  node --test
+fi
 pebble build "$@"
 
 # pebble build names the pbw after the project-directory basename, so in a

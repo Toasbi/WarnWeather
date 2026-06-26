@@ -18,6 +18,11 @@ const COLORS = { white: 0xFFFFFF, folly: 0xFF0055 };
 
 test('seedDefaults writes defaults when none stored', () => {
   installFakeStorage();
+  // Reload against the freshly-installed storage rather than relying on this
+  // being the first require of the module in the process (the other tests below
+  // already do this) — otherwise a shared-process test run that loaded
+  // clay-settings earlier hands back a stale module bound to another store.
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
   const claySettings = require('../src/pkjs/clay-settings');
   claySettings.seedDefaults(COLORS);
   const read = claySettings.read();
