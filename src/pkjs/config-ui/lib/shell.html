@@ -96,6 +96,16 @@
   select:focus { border-color: #FA4A35; }
   input[type=text] { width: 100%; background: #46474C; border: 1px solid rgba(255,255,255,0.11); border-radius: 9px; padding: 10px 13px; color: #ECEEF3; font: 400 14px 'Inter', sans-serif; outline: none; transition: border-color .15s; }
   input[type=text]:focus { border-color: #FA4A35; }
+  /* searchSelect: closed trigger (select-like) + open search box & scrollable option list */
+  .sel-wrap { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; max-width: 100%; background: #46474C; border: 1px solid rgba(255,255,255,0.11); border-radius: 9px; padding: 8px 12px; }
+  .sel-wrap span { font: 600 13.5px 'Inter', sans-serif; color: #ECEEF3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sel-wrap .sel-chev { flex: none; width: 8px; height: 6px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 8 6'%3E%3Cpath d='M0 0l4 6 4-6z' fill='%23B6BAC2'/%3E%3C/svg%3E") no-repeat center; }
+  .ssel-list { margin-top: 8px; max-height: 240px; overflow-y: auto; background: #46474C; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; }
+  .ssel-opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; cursor: pointer; padding: 11px 13px; font: 600 13.5px 'Inter', sans-serif; border: none; border-bottom: 1px solid rgba(255,255,255,0.06); background: transparent; color: #B6BAC2; }
+  .ssel-opt:last-child { border-bottom: none; }
+  .ssel-opt.on { background: rgba(250,74,53,0.16); color: #F0F2F6; }
+  .ssel-chk { flex: none; color: #FF6A52; font-weight: 700; }
+  .ssel-none { padding: 14px 13px; font: 600 13px 'Inter', sans-serif; color: #82868F; }
   .sw-wrap { display: flex; align-items: center; gap: 9px; cursor: pointer; background: #46474C; border: 1px solid rgba(255,255,255,0.11); border-radius: 9px; padding: 5px 11px 5px 6px; }
   .sw-wrap b { width: 24px; height: 24px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.25); }
   .sw-wrap span { font: 600 12px ui-monospace, monospace; color: #B6BAC2; letter-spacing: .02em; }

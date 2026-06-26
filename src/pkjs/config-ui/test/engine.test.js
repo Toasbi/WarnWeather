@@ -281,3 +281,84 @@ test('renderBody: empty section card is suppressed', () => {
   const html = E.renderBody(EMPTY, 't', cx);
   assert.equal(html.indexOf('Gone'), -1, 'card with only hidden items is omitted');
 });
+
+test('renderSelectOptions: empty query lists all; current value flagged on', () => {
+  const item = { messageKey: 'c', options: [['United States','US'],['Germany','DE'],['Spain','ES']] };
+  const all = E.renderSelectOptions(item, 'DE', '');
+  assert.ok(all.indexOf('>United States<') >= 0 && all.indexOf('>Germany<') >= 0 && all.indexOf('>Spain<') >= 0, 'all options present');
+  assert.ok(all.indexOf('data-select-pick="DE"') >= 0 && all.indexOf('data-k="c"') >= 0, 'pick + key attrs');
+  assert.ok(/class="ssel-opt on"[^>]*data-select-pick="DE"/.test(all), 'current value row is .on');
+  assert.equal(/class="ssel-opt on"[^>]*data-select-pick="US"/.test(all), false, 'non-current row not .on');
+});
+
+test('renderSelectOptions: case-insensitive label match', () => {
+  const item = { messageKey: 'c', options: [['United States','US'],['Germany','DE'],['Spain','ES']] };
+  const r = E.renderSelectOptions(item, 'US', 'ger');
+  assert.ok(r.indexOf('>Germany<') >= 0, 'matches Germany');
+  assert.equal(r.indexOf('>Spain<'), -1, 'Spain filtered out');
+  assert.equal(r.indexOf('>United States<'), -1, 'US filtered out');
+});
+
+test('renderSelectOptions: matches the value code too', () => {
+  const item = { messageKey: 'c', options: [['United States','US'],['Germany','DE']] };
+  const r = E.renderSelectOptions(item, 'DE', 'us');
+  assert.ok(r.indexOf('>United States<') >= 0, 'typing the code "us" finds United States');
+  assert.equal(r.indexOf('>Germany<'), -1, 'Germany filtered out');
+});
+
+test('renderSelectOptions: no matches yields the muted row', () => {
+  const item = { messageKey: 'c', options: [['United States','US'],['Germany','DE']] };
+  const r = E.renderSelectOptions(item, 'US', 'zzz');
+  assert.ok(r.indexOf('ssel-none') >= 0 && r.indexOf('No matches') >= 0);
+  assert.equal(r.indexOf('ssel-opt'), -1, 'no option rows');
+});
+
+test('renderSelectOptions: label is HTML-escaped', () => {
+  const item = { messageKey: 'c', options: [['<b>x</b>','X']] };
+  const r = E.renderSelectOptions(item, 'X', '');
+  assert.equal(r.indexOf('<b>x</b>'), -1, 'raw markup must not survive');
+  assert.ok(r.indexOf('&lt;b&gt;x&lt;/b&gt;') >= 0);
+});
+
+test('renderControl searchSelect: closed shows trigger with current label, no search input', () => {
+  const item = { type: 'searchSelect', messageKey: 'c', options: [['United States','US'],['Germany','DE']] };
+  const html = E.renderControl(item, { value: 'DE', openSelect: null });
+  assert.ok(html.indexOf('class="sel-wrap" data-select="c"') >= 0, 'trigger present');
+  assert.ok(html.indexOf('>Germany<') >= 0, 'shows current option label');
+  assert.equal(html.indexOf('data-select-search'), -1, 'no search input when closed');
+});
+
+test('renderControl searchSelect: open shows search input + list of all options', () => {
+  const item = { type: 'searchSelect', messageKey: 'c', options: [['United States','US'],['Germany','DE']] };
+  const html = E.renderControl(item, { value: 'DE', openSelect: 'c', selectQuery: '' });
+  assert.ok(html.indexOf('data-select-search="c"') >= 0, 'search input present');
+  assert.ok(html.indexOf('class="ssel-list" data-ssel-list="c"') >= 0, 'list container present');
+  assert.ok(html.indexOf('>United States<') >= 0 && html.indexOf('>Germany<') >= 0, 'all options listed');
+});
+
+test('renderControl searchSelect: open list reflects the query', () => {
+  const item = { type: 'searchSelect', messageKey: 'c', options: [['United States','US'],['Germany','DE']] };
+  const html = E.renderControl(item, { value: 'US', openSelect: 'c', selectQuery: 'ger' });
+  assert.ok(html.indexOf('>Germany<') >= 0, 'matching option shown');
+  assert.equal(html.indexOf('>United States<'), -1, 'non-matching option filtered');
+  assert.ok(html.indexOf('value="ger"') >= 0, 'search box keeps the typed query');
+});
+
+test('renderRow: an open searchSelect is stacked (full-width)', () => {
+  const item = { type: 'searchSelect', messageKey: 'c', label: 'Country', options: [['A','a']] };
+  const open = E.renderRow(item, { value: 'a', openSelect: 'c', selectQuery: '' });
+  assert.ok(open.indexOf('class="row stack"') >= 0, 'open searchSelect row stacks');
+  const closed = E.renderRow(item, { value: 'a', openSelect: null });
+  assert.ok(closed.indexOf('class="row"') >= 0 && closed.indexOf('stack') === -1, 'closed searchSelect row is inline');
+});
+
+test('renderBody: searchSelect opened via cx.openSelect renders the search input', () => {
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [ { title: 'S', items: [
+    { type: 'searchSelect', messageKey: 'c', label: 'Country', defaultValue: 'US', options: [['United States','US'],['Germany','DE']] }
+  ] } ] } ] };
+  const cx = { S: E.hydrate(SCH, {}), ENV: { color: true }, USERDATA: {}, openColor: null, openSelect: 'c', selectQuery: '', collapsed: {},
+    evalCtx: Object.assign({}, E.hydrate(SCH, {}), { env: { color: true } }) };
+  const html = E.renderBody(SCH, 't', cx);
+  assert.ok(html.indexOf('data-select-search="c"') >= 0, 'open search input rendered through renderBody');
+  assert.ok(html.indexOf('class="row stack"') >= 0, 'row is stacked while open');
+});

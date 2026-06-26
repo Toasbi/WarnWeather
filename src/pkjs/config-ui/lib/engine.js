@@ -111,6 +111,39 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     return h + '</select>';
   }
+  // Filtered option rows for an open searchSelect list. Case-insensitive substring match on the
+  // option label OR its value code; '' query -> all. The current value's row gets .on + a check.
+  function renderSelectOptions(item, value, query) {
+    var q = String(query || '').toLowerCase(), h = '', i, o, lo, vo, shown = 0;
+    for (i = 0; i < item.options.length; i++) {
+      o = item.options[i];
+      lo = o[0].toLowerCase(); vo = o[1].toLowerCase();
+      if (q && lo.indexOf(q) === -1 && vo.indexOf(q) === -1) { continue; }
+      h += '<button class="ssel-opt' + (value === o[1] ? ' on' : '') + '" data-select-pick="' + esc(o[1]) + '" data-k="' + esc(item.messageKey) + '">'
+        + '<span>' + esc(o[0]) + '</span>' + (value === o[1] ? '<span class="ssel-chk">&#10003;</span>' : '') + '</button>';
+      shown++;
+    }
+    return shown ? h : '<div class="ssel-none">No matches</div>';
+  }
+  // Current option's display label for a searchSelect trigger; falls back to the raw value.
+  function currentLabel(item, value) {
+    var i;
+    for (i = 0; i < item.options.length; i++) { if (item.options[i][1] === value) { return item.options[i][0]; } }
+    return String(value == null ? '' : value);
+  }
+  // searchSelect: closed -> a select-like trigger; open -> an (auto-focused) search box + a
+  // scrollable list of all options. The search input is a SIBLING of .ssel-list so typing can
+  // rebuild only the list (see boot's input handler) without destroying input focus.
+  function renderSearchSelect(item, view) {
+    if (view.openSelect !== item.messageKey) {
+      return '<div class="sel-wrap" data-select="' + esc(item.messageKey) + '"><span>'
+        + esc(currentLabel(item, view.value)) + '</span><i class="sel-chev"></i></div>';
+    }
+    return '<input type="text" class="ssel-search" data-select-search="' + esc(item.messageKey)
+      + '" placeholder="Search…" value="' + esc(view.selectQuery || '') + '">'
+      + '<div class="ssel-list" data-ssel-list="' + esc(item.messageKey) + '">'
+      + renderSelectOptions(item, view.value, view.selectQuery) + '</div>';
+  }
   function renderText(item, v) {
     var ph = (item.attributes && item.attributes.placeholder) ? esc(item.attributes.placeholder) : '';
     return '<input type="text" data-k="' + item.messageKey + '" value="' + esc(v || '') + '" placeholder="' + ph + '">';
@@ -134,19 +167,22 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     radio: function (item, view) { return renderRadio(item, view.value); },
     select: function (item, view) { return renderSelect(item, view.value); },
     text: function (item, view) { return renderText(item, view.value); },
-    color: function (item, view) { return renderColor(item, view.value, view.openColor); }
+    color: function (item, view) { return renderColor(item, view.value, view.openColor); },
+    searchSelect: function (item, view) { return renderSearchSelect(item, view); }
   };
-  // view = { value, openColor }
+  // view = { value, openColor, openSelect, selectQuery }
   function renderControl(item, view) {
     var fn = CONTROLS[item.type];
     return fn ? fn(item, view) : '';
   }
 
-  // Wrap a control in a row with label/hint chrome. Stacked for text/radio/open-color.
+  // Wrap a control in a row with label/hint chrome. Stacked for text/radio/open-color/open-searchSelect.
   // noDivider appends the nb modifier so the row paints no bottom divider (used by joinPrevious).
   function renderRow(item, view, noDivider) {
     var hint = item.hintByValue ? (item.hintByValue[view.value] || item.hint) : item.hint;
-    var stacked = item.type === 'text' || item.type === 'radio' || (item.type === 'color' && view.openColor === item.messageKey);
+    var stacked = item.type === 'text' || item.type === 'radio'
+      || (item.type === 'color' && view.openColor === item.messageKey)
+      || (item.type === 'searchSelect' && view.openSelect === item.messageKey);
     var hintHtml = hint ? '<div class="hint">' + hint + '</div>' : '';
     var label = '<div class="lbl">' + esc(item.label) + '</div>';
     var rowCls = 'row' + (stacked ? ' stack' : '') + (noDivider ? ' nb' : '');
@@ -202,7 +238,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     for (i = 0; i < items.length; i++) {
       item = items[i];
       if (!PConf.showWhen.isVisible(item, cx.evalCtx)) { continue; }
-      view = { value: cx.S[item.messageKey], openColor: cx.openColor };
+      view = { value: cx.S[item.messageKey], openColor: cx.openColor, openSelect: cx.openSelect, selectQuery: cx.selectQuery };
       cells += '<div class="icell"><div class="lbl">' + esc(item.label) + '</div>' + renderControl(item, view) + '</div>';
       visible++;
     }
@@ -245,7 +281,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         body += g.html;
         continue;
       }
-      var view = { value: cx.S[item.messageKey], openColor: cx.openColor };
+      var view = { value: cx.S[item.messageKey], openColor: cx.openColor, openSelect: cx.openSelect, selectQuery: cx.selectQuery };
       var r = renderItem(item, view, cx, nextVisibleJoins(sec.items, i + 1, cx));
       if (r.kind === 'control') { controlCount++; }
       else if (r.kind === 'static') { staticCount++; }
@@ -283,7 +319,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   // Pure: full scroll-body HTML for the active tab.
-  // cx = { S, ENV, USERDATA, openColor, collapsed, evalCtx }
+  // cx = { S, ENV, USERDATA, openColor, openSelect, selectQuery, collapsed, evalCtx }
   function renderBody(schema, activeTab, cx) {
     var h = '', ti, si;
     for (ti = 0; ti < schema.tabs.length; ti++) {
@@ -298,7 +334,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var SCHEMA = INJECTED_SCHEMA, ENV = INJECTED_ENV || { color: true, round: false, platform: '' };
     var USERDATA = INJECTED_USERDATA || {}, RETURN_TO = INJECTED_RETURN || 'pebblejs://close#';
     var S = hydrate(SCHEMA, INJECTED_CFG), INITIAL = Object.assign({}, S);
-    var activeTab = SCHEMA.tabs[0].id, openColor = null, collapsed = initialCollapsed(SCHEMA);
+    var activeTab = SCHEMA.tabs[0].id, openColor = null, openSelect = null, selectQuery = '', collapsed = initialCollapsed(SCHEMA);
+    // Recover a schema item by messageKey so the input handler can re-filter its options in place.
+    function findItem(key) { var f = null; eachItem(SCHEMA, function (it) { if (it.messageKey === key) { f = it; } }); return f; }
+    // Only one searchSelect is open at a time; focus its freshly-rendered search box.
+    function focusSearch() { var el = document.querySelector('[data-select-search]'); if (el) { el.focus(); } }
     // evalCtx(): the {settings..., env} object showWhen predicates evaluate against.
     function evalCtx() { var c = Object.assign({}, S); c.env = ENV; return c; }
     var hookCtx = { get: function (k) { return S[k]; }, set: function (k, v) { S[k] = v; }, getInitial: function (k) { return INITIAL[k]; } };
@@ -306,7 +346,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // boot() requires the DOM; it is never called from Node tests (which exercise the pure
     // helpers above), so DOM access here is unguarded by design.
     function render() {
-      var cx = { S: S, ENV: ENV, USERDATA: USERDATA, openColor: openColor, collapsed: collapsed, evalCtx: evalCtx() };
+      var cx = { S: S, ENV: ENV, USERDATA: USERDATA, openColor: openColor, openSelect: openSelect, selectQuery: selectQuery, collapsed: collapsed, evalCtx: evalCtx() };
       document.getElementById('tabs').innerHTML = renderTabBar(SCHEMA, activeTab);
       document.getElementById('scroll').innerHTML = renderBody(SCHEMA, activeTab, cx);
     }
@@ -316,10 +356,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
     document.getElementById('tabs').addEventListener('click', function (e) {
       var b = e.target.closest('[data-tab]');
-      if (b) { activeTab = b.getAttribute('data-tab'); openColor = null; render(); }
+      if (b) { activeTab = b.getAttribute('data-tab'); openColor = null; openSelect = null; render(); }
     });
     document.getElementById('scroll').addEventListener('click', function (e) {
       var t;
+      if ((t = e.target.closest('[data-select-pick]'))) { S[t.getAttribute('data-k')] = t.getAttribute('data-select-pick'); openSelect = null; render(); return; }
+      if ((t = e.target.closest('[data-select]'))) { var sk = t.getAttribute('data-select'); openSelect = (openSelect === sk ? null : sk); selectQuery = ''; render(); focusSearch(); return; }
       if ((t = e.target.closest('[data-toggle]'))) { S[t.getAttribute('data-k')] = !S[t.getAttribute('data-k')]; render(); return; }
       if ((t = e.target.closest('[data-color-pick]'))) { S[t.getAttribute('data-k')] = t.getAttribute('data-color-pick'); openColor = null; render(); return; }
       if ((t = e.target.closest('[data-color]'))) { var k = t.getAttribute('data-color'); openColor = (openColor === k ? null : k); render(); return; }
@@ -331,6 +373,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       if (sel) { S[sel.getAttribute('data-k')] = sel.value; render(); }
     });
     document.getElementById('scroll').addEventListener('input', function (e) {
+      var sb = e.target.closest('[data-select-search]');
+      if (sb) {
+        var sk = sb.getAttribute('data-select-search');
+        selectQuery = sb.value;
+        // Rebuild ONLY the list (a sibling of the search box) so the input keeps focus + cursor.
+        var list = document.querySelector('[data-ssel-list="' + sk + '"]');
+        if (list) { list.innerHTML = renderSelectOptions(findItem(sk), S[sk], selectQuery); }
+        return;
+      }
       var inp = e.target.closest('input[type=text]');
       if (inp) { S[inp.getAttribute('data-k')] = inp.value; }
     });
@@ -346,7 +397,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   PConf.engine = {
     serialize: serialize, hydrate: hydrate, boot: boot, initialCollapsed: initialCollapsed,
-    esc: esc, renderControl: renderControl, renderRow: renderRow,
+    esc: esc, renderControl: renderControl, renderRow: renderRow, renderSelectOptions: renderSelectOptions,
     renderTabBar: renderTabBar, renderBody: renderBody, resolveOptionsFrom: resolveOptionsFrom
   };
 })();
@@ -356,6 +407,7 @@ if (typeof module !== 'undefined' && module.exports) {
     initialCollapsed: PConf.engine.initialCollapsed,
     blocks: PConf.blocks, hooks: PConf.hooks,
     esc: PConf.engine.esc, renderControl: PConf.engine.renderControl, renderRow: PConf.engine.renderRow,
+    renderSelectOptions: PConf.engine.renderSelectOptions,
     renderTabBar: PConf.engine.renderTabBar, renderBody: PConf.engine.renderBody,
     resolveOptionsFrom: PConf.engine.resolveOptionsFrom
   };
