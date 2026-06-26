@@ -81,11 +81,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // Filtered option rows for an open searchSelect list. Case-insensitive substring match on the
   // option label OR its value code; '' query -> all. The current value's row gets .on + a check.
   function renderSelectOptions(item, value, query) {
-    var q = String(query || '').toLowerCase(), h = '', i, o, hay, shown = 0;
+    var q = String(query || '').toLowerCase(), h = '', i, o, lo, vo, shown = 0;
     for (i = 0; i < item.options.length; i++) {
       o = item.options[i];
-      hay = (o[0] + ' ' + o[1]).toLowerCase();
-      if (q && hay.indexOf(q) === -1) { continue; }
+      lo = o[0].toLowerCase(); vo = o[1].toLowerCase();
+      if (q && lo.indexOf(q) === -1 && vo.indexOf(q) === -1) { continue; }
       h += '<button class="ssel-opt' + (value === o[1] ? ' on' : '') + '" data-select-pick="' + esc(o[1]) + '" data-k="' + esc(item.messageKey) + '">'
         + '<span>' + esc(o[0]) + '</span>' + (value === o[1] ? '<span class="ssel-chk">&#10003;</span>' : '') + '</button>';
       shown++;
@@ -137,7 +137,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     color: function (item, view) { return renderColor(item, view.value, view.openColor); },
     searchSelect: function (item, view) { return renderSearchSelect(item, view); }
   };
-  // view = { value, openColor }
+  // view = { value, openColor, openSelect, selectQuery }
   function renderControl(item, view) {
     var fn = CONTROLS[item.type];
     return fn ? fn(item, view) : '';
@@ -274,7 +274,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   // Pure: full scroll-body HTML for the active tab.
-  // cx = { S, ENV, USERDATA, openColor, collapsed, evalCtx }
+  // cx = { S, ENV, USERDATA, openColor, openSelect, selectQuery, collapsed, evalCtx }
   function renderBody(schema, activeTab, cx) {
     var h = '', ti, si;
     for (ti = 0; ti < schema.tabs.length; ti++) {
