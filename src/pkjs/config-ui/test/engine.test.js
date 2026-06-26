@@ -217,6 +217,36 @@ test('renderBody: a standalone (non-joined) staticText has no join class', () =>
   assert.equal(html.indexOf('join'), -1, 'no join modifier when not joined');
 });
 
+test('resolveOptionsFrom: lowest option = interval, ladder above it, deduped + labeled', () => {
+  const item = { optionsFrom: { interval: 'iv', ladder: [30, 60, 120, 360, 720, 1440] } };
+  assert.deepEqual(E.resolveOptionsFrom(item, { iv: '5' }),
+    [['5 minutes','5'],['30 minutes','30'],['1 hour','60'],['2 hours','120'],['6 hours','360'],['12 hours','720'],['1 day','1440']]);
+  assert.deepEqual(E.resolveOptionsFrom(item, { iv: '30' }),
+    [['30 minutes','30'],['1 hour','60'],['2 hours','120'],['6 hours','360'],['12 hours','720'],['1 day','1440']]);
+  assert.deepEqual(E.resolveOptionsFrom(item, { iv: '60' }),
+    [['1 hour','60'],['2 hours','120'],['6 hours','360'],['12 hours','720'],['1 day','1440']]);
+});
+
+test('resolveOptionsFrom: static options pass through; bad interval falls back to ladder[0]', () => {
+  assert.deepEqual(E.resolveOptionsFrom({ options: [['A','a']] }, {}), [['A','a']]);
+  const item = { optionsFrom: { interval: 'iv', ladder: [30, 60] } };
+  assert.deepEqual(E.resolveOptionsFrom(item, { iv: undefined }), [['30 minutes','30'],['1 hour','60']]);
+});
+
+test('renderBody materializes an optionsFrom select into the right <option>s', () => {
+  const schema = { appName: 'X', versionLabel: '', tabs: [ { id: 't', label: 'T', sections: [ { title: 'S', items: [
+    { type: 'select', messageKey: 'iv', defaultValue: '15', options: [['15 minutes','15']] },
+    { type: 'select', messageKey: 'gpsCacheMin', defaultValue: '30', optionsFrom: { interval: 'iv', ladder: [30, 60, 1440] } }
+  ] } ] } ] };
+  const cx = { S: { iv: '15', gpsCacheMin: '30' }, ENV: { color: true }, USERDATA: {},
+    openColor: null, collapsed: {}, evalCtx: { iv: '15', gpsCacheMin: '30', env: { color: true } } };
+  const html = E.renderBody(schema, 't', cx);
+  assert.ok(html.indexOf('<option value="15" selected>15 minutes</option>') >= 0);
+  assert.ok(html.indexOf('<option value="30" selected>30 minutes</option>') >= 0);
+  assert.ok(html.indexOf('<option value="60">1 hour</option>') >= 0);
+  assert.ok(html.indexOf('<option value="1440">1 day</option>') >= 0);
+});
+
 test('renderBody: empty section card is suppressed', () => {
   const EMPTY = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [
     { title: 'Gone', items: [ { type: 'toggle', messageKey: 'x', defaultValue: false, showWhen: { key: 'never', eq: 'yes' } } ] }

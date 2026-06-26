@@ -36,6 +36,10 @@ module.exports = {
         type: 'select', messageKey: 'fetchIntervalMin', label: 'Update interval', defaultValue: '15',
           hint: 'Updates only send what actually changed (deltas), so short intervals like 5 min stay battery friendly.',
           options: [['5 minutes','5'],['10 minutes','10'],['15 minutes','15'],['30 minutes','30'],['1 hour','60']] }, {
+        type: 'select', messageKey: 'gpsCacheMin', label: 'GPS cache', defaultValue: '30',
+          optionsFrom: { interval: 'fetchIntervalMin', ladder: [30, 60, 120, 360, 720, 1440] },
+          showWhen: { key: 'locationMode', eq: 'gps' },
+          hint: 'How long a GPS fix is reused before re-acquiring. Longer saves battery; shorter keeps your location fresher on the move. The lowest value matches your update interval.' }, {
         type: 'toggle',
         messageKey: 'sleepNightEnabled',
         label: 'Pause weather at night',
