@@ -9,7 +9,7 @@ const byKey = (k) => items.filter((i) => i.messageKey === k)[0];
 
 const EXPECTED_KEYS = [
   'timeLeadingZero','timeShowAmPm','axisTimeFormat','timeFont','colorTime',
-  'weekStartDay','firstWeek','colorToday','colorSunday','colorSaturday','colorUSFederal',
+  'weekStartDay','firstWeek','colorToday','colorSunday','colorSaturday','holidaysEnabled','colorUSFederal',
   'holidayCountry','holidayRegionDE','holidayRegionAT','holidayRegionCH','holidayRegionES','holidayRegionGB','holidayRegionUS',
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','locationMode','location',
   'temperatureUnits','dayNightShading','secondaryLine','secondaryLineFill','windScale','gustLine',
@@ -95,7 +95,7 @@ test('holiday region selectors: gated to their country, default whole-country, I
     assert.ok(r, 'missing holidayRegion' + cc);
     assert.equal(r.type, 'searchSelect');
     assert.equal(r.defaultValue, 'all');
-    assert.deepEqual(r.showWhen, { key: 'holidayCountry', eq: cc });
+    assert.deepEqual(r.showWhen, { all: [{ key: 'holidayCountry', eq: cc }, { key: 'holidaysEnabled', eq: true }] });
     assert.equal(r.options[0][1], 'all', cc + ' first option must be whole-country');
     assert.equal(r.options.length, counts[cc] + 1, cc + ' region option count');
     r.options.slice(1).forEach((o) =>
