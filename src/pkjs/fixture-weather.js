@@ -68,6 +68,7 @@ function getFixtureWeatherPayload(fixture, settings) {
             provider.gustTrend[gustFillIdx] = 0;
         }
     }
+    provider.uvTrend = Array.isArray(weather.uvIndex) ? weather.uvIndex.slice(0) : [];
     provider.sunEvents = sunEvents;
 
     if (provider.numEntries <= 0 || sunEvents.length < 2 || !provider.hasValidData()) {
