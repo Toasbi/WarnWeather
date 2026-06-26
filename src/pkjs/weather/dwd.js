@@ -3,7 +3,7 @@ var request = WeatherProvider.request;
 var failure = WeatherProvider.failure;
 var openmeteo = require('./openmeteo.js');
 
-var BRIGHTSKY_BASE = 'https://api.brightsky.dev';
+var BRIGHTSKY_BASE = require('./brightsky.js').BASE_URL;
 var MAX_DIST_METERS = 500000;
 var FORECAST_HOURS = 24;
 var HOUR_MS = 60 * 60 * 1000;
@@ -81,6 +81,13 @@ DwdProvider.prototype.withDwdCurrent = function(lat, lon, callback, onFailure) {
 
 DwdProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, onFailure) {
     this.withDwdForecast(lat, lon, (function(hourly) {
+        // Reject an empty/missing forecast before the current-weather call.
+        // Otherwise the `hourly[0].timestamp` deref below only fails downstream
+        // inside withDwdCurrent's try/catch, mislabeled `dwd_current_parse_error`.
+        if (!Array.isArray(hourly) || hourly.length === 0) {
+            onFailure(failure('provider_data', 'dwd_forecast_empty'));
+            return;
+        }
         this.withDwdCurrent(lat, lon, (function(currentTempF) {
             this.tempTrend = hourly.map(function(e) { return celsiusToFahrenheit(e.temperature); });
             this.precipTrend = hourly.map(function(e) { return e.precipitation_probability / 100; });

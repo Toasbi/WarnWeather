@@ -1,5 +1,6 @@
 var WeatherProvider = require('./provider.js');
 var pickNext24hSunEvents = require('./sun-events.js').pickNext24hSunEvents;
+var mphToKmh = require('../wire-units.js').mphToKmh;
 var request = WeatherProvider.request;
 var failure = WeatherProvider.failure;
 
@@ -60,7 +61,23 @@ OpenWeatherMapProvider.prototype.withWeatherData = function(lat, lon, callback, 
     }
 };
 
-// ============== IMPORTANT OVERRIDE ================
+/**
+ * IMPORTANT OVERRIDE — behavioral divergence from the base contract.
+ *
+ * The base WeatherProvider.withSunEvents computes sun events *synchronously*
+ * from local SunCalc and can only fail with `failure('sun_events', 'calc_error')`.
+ * This override instead makes a *network* call (reusing the cached OWM One Call
+ * response) and so introduces an additional async failure mode,
+ * `failure('sun_events', 'owm_missing_daily')` when the response lacks two days
+ * of `daily` data. The failure `stage` ('sun_events') is kept identical to the
+ * base so callers' stage-based handling is unaffected (Liskov-safe for callers).
+ *
+ * @param {number} lat Latitude.
+ * @param {number} lon Longitude.
+ * @param {Function} callback Receives the next-24h sun-events array.
+ * @param {Function} onFailure Called with a failure object on error.
+ * @returns {void}
+ */
 OpenWeatherMapProvider.prototype.withSunEvents = function(lat, lon, callback, onFailure) {
     console.log('This is the overridden implementation of withSunEvents');
     this.withOwmResponse(lat, lon, (function(owmResponse) {
@@ -92,6 +109,14 @@ OpenWeatherMapProvider.prototype.withProviderData = function(lat, lon, force, on
     // onSuccess expects that this.hasValidData() will be true
     console.log('This is the overridden implementation of withProviderData');
     this.withWeatherData(lat, lon, (function(weatherData) {
+        // Mistrust the response: an empty (or non-array) `hourly` passes the
+        // truthiness guard in withOwmResponse but has no [0] element, so the
+        // `hourly[0].dt` deref below would throw outside any try/catch and kill
+        // the fetch chain silently. Reject it as a normal provider failure.
+        if (!Array.isArray(weatherData.hourly) || weatherData.hourly.length === 0) {
+            onFailure(failure('provider_data', 'owm_empty_hourly'));
+            return;
+        }
         this.tempTrend = weatherData.hourly.map(function(entry) {
             return entry.temp;
         });
@@ -104,10 +129,10 @@ OpenWeatherMapProvider.prototype.withProviderData = function(lat, lon, force, on
             return rainAmount + snowAmount;
         });
         this.windTrend = weatherData.hourly.map(function(entry) {
-            return (entry.wind_speed || 0) * 1.60934; // units=imperial → mph; normalize to km/h
+            return mphToKmh(entry.wind_speed); // units=imperial → mph; normalize to km/h
         });
         this.gustTrend = weatherData.hourly.map(function(entry) {
-            return (entry.wind_gust || 0) * 1.60934; // units=imperial → mph; normalize to km/h
+            return mphToKmh(entry.wind_gust); // units=imperial → mph; normalize to km/h
         });
         this.uvTrend = weatherData.hourly.map(function(entry) {
             return typeof entry.uvi === 'number' ? entry.uvi : 0; // OWM One Call hourly UV index
