@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const schema = require('../src/pkjs/settings/schema.js');
+const { REGION_OPTIONS } = require('../src/pkjs/settings/holiday-data.js');
 
 function allItems(s) { const out = []; s.tabs.forEach((t) => t.sections.forEach((sec) => sec.items.forEach((it) => out.push(it)))); return out; }
 const items = allItems(schema);
@@ -10,7 +11,7 @@ const byKey = (k) => items.filter((i) => i.messageKey === k)[0];
 const EXPECTED_KEYS = [
   'timeLeadingZero','timeShowAmPm','axisTimeFormat','timeFont','colorTime',
   'weekStartDay','firstWeek','colorToday','colorSunday','colorSaturday','holidaysEnabled','colorUSFederal',
-  'holidayCountry','holidayRegionDE','holidayRegionAT','holidayRegionCH','holidayRegionES','holidayRegionGB','holidayRegionUS',
+  'holidayCountry','holidayRegion',
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','locationMode','location',
   'temperatureUnits','dayNightShading','secondaryLine','secondaryLineFill','windScale','gustLine',
   'barSource','rainBarColor','provider','owmApiKey','radarProvider','radarColor',
@@ -75,17 +76,15 @@ test('gustLine is a toggle defaulting on, shown only for the wind secondary line
   assert.deepEqual(g.showWhen, { key: 'secondaryLine', eq: 'wind' });
 });
 
-test('holiday country selector: select, default US, None first, includes Sweden', () => {
+test('holiday country selector: searchSelect, default DE, None first, includes US/Sweden', () => {
   const c = byKey('holidayCountry');
   assert.equal(c.type, 'searchSelect');
-  assert.equal(c.defaultValue, 'US');
+  assert.equal(c.defaultValue, 'DE');
   assert.equal(c.options[0][1], 'none', "first option must be 'none'");
   const values = c.options.map((o) => o[1]);
   assert.ok(values.indexOf('SE') >= 0, 'Sweden (SE) missing');
   assert.ok(values.indexOf('US') >= 0, 'US missing');
-  // Guard the deliberate renames so an accidental un-rename fails loudly.
   assert.equal(byKey('colorUSFederal').label, 'Holiday color');
-  assert.equal(byKey('holidayRegionUS').label, 'State');
 });
 
 test('holiday highlight toggle is the on/off switch; color picker excludes white', () => {
@@ -99,19 +98,18 @@ test('holiday highlight toggle is the on/off switch; color picker excludes white
   assert.ok(color.excludeColors.indexOf('#FFFFFF') >= 0, 'white must be excluded from the holiday palette');
 });
 
-test('holiday region selectors: gated to their country, default whole-country, ISO-3166-2', () => {
-  const counts = { DE: 16, AT: 9, CH: 26, ES: 19, GB: 4, US: 51 };
-  Object.keys(counts).forEach((cc) => {
-    const r = byKey('holidayRegion' + cc);
-    assert.ok(r, 'missing holidayRegion' + cc);
-    assert.equal(r.type, 'searchSelect');
-    assert.equal(r.defaultValue, 'all');
-    assert.deepEqual(r.showWhen, { all: [{ key: 'holidayCountry', eq: cc }, { key: 'holidaysEnabled', eq: true }] });
-    assert.equal(r.options[0][1], 'all', cc + ' first option must be whole-country');
-    assert.equal(r.options.length, counts[cc] + 1, cc + ' region option count');
-    r.options.slice(1).forEach((o) =>
-      assert.ok(o[1].indexOf(cc + '-') === 0, cc + ' region value not ISO-3166-2: ' + o[1]));
-  });
+test('holiday region: one dynamic searchSelect keyed by country, gated to region countries + holidays', () => {
+  const r = byKey('holidayRegion');
+  assert.ok(r, 'missing holidayRegion');
+  assert.equal(r.type, 'searchSelect');
+  assert.equal(r.defaultValue, 'all');
+  assert.equal(r.options, undefined, 'options must be derived, not static');
+  assert.equal(r.optionsFrom.byKey, 'holidayCountry');
+  assert.equal(r.optionsFrom.map, REGION_OPTIONS, 'map is the REGION_OPTIONS object');
+  assert.deepEqual(r.showWhen, { all: [
+    { key: 'holidayCountry', in: Object.keys(REGION_OPTIONS) },
+    { key: 'holidaysEnabled', eq: true }
+  ] });
 });
 
 test('gpsCacheMin: select, default 30, interval-derived options, GPS-only', () => {

@@ -292,58 +292,18 @@ module.exports = {
                 type: 'searchSelect',
                 messageKey: 'holidayCountry',
                 label: 'Country',
-                defaultValue: 'US',
+                defaultValue: 'DE',
                 joinPrevious: true,
                 options: holidayData.COUNTRY_OPTIONS,
                 showWhen: {key: 'holidaysEnabled', eq: true}
             }, {
                 type: 'searchSelect',
-                messageKey: 'holidayRegionDE',
+                messageKey: 'holidayRegion',
                 label: 'Region',
                 defaultValue: 'all',
                 joinPrevious: true,
-                options: holidayData.REGION_OPTIONS.DE,
-                showWhen: {all: [{key: 'holidayCountry', eq: 'DE'}, {key: 'holidaysEnabled', eq: true}]}
-            }, {
-                type: 'searchSelect',
-                messageKey: 'holidayRegionAT',
-                label: 'Region',
-                defaultValue: 'all',
-                joinPrevious: true,
-                options: holidayData.REGION_OPTIONS.AT,
-                showWhen: {all: [{key: 'holidayCountry', eq: 'AT'}, {key: 'holidaysEnabled', eq: true}]}
-            }, {
-                type: 'searchSelect',
-                messageKey: 'holidayRegionCH',
-                label: 'Region',
-                defaultValue: 'all',
-                joinPrevious: true,
-                options: holidayData.REGION_OPTIONS.CH,
-                showWhen: {all: [{key: 'holidayCountry', eq: 'CH'}, {key: 'holidaysEnabled', eq: true}]}
-            }, {
-                type: 'searchSelect',
-                messageKey: 'holidayRegionES',
-                label: 'Region',
-                defaultValue: 'all',
-                joinPrevious: true,
-                options: holidayData.REGION_OPTIONS.ES,
-                showWhen: {all: [{key: 'holidayCountry', eq: 'ES'}, {key: 'holidaysEnabled', eq: true}]}
-            }, {
-                type: 'searchSelect',
-                messageKey: 'holidayRegionGB',
-                label: 'Region',
-                defaultValue: 'all',
-                joinPrevious: true,
-                options: holidayData.REGION_OPTIONS.GB,
-                showWhen: {all: [{key: 'holidayCountry', eq: 'GB'}, {key: 'holidaysEnabled', eq: true}]}
-            }, {
-                type: 'searchSelect',
-                messageKey: 'holidayRegionUS',
-                label: 'State',
-                defaultValue: 'all',
-                joinPrevious: true,
-                options: holidayData.REGION_OPTIONS.US,
-                showWhen: {all: [{key: 'holidayCountry', eq: 'US'}, {key: 'holidaysEnabled', eq: true}]}
+                optionsFrom: { byKey: 'holidayCountry', map: holidayData.REGION_OPTIONS },
+                showWhen: { all: [{ key: 'holidayCountry', in: Object.keys(holidayData.REGION_OPTIONS) }, { key: 'holidaysEnabled', eq: true }] }
             }]
         }]
     }, {
