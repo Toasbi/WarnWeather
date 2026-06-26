@@ -26,6 +26,7 @@ var fixtureWeather = require('./fixture-weather.js');
 var paletteWire = require('./weather/palette-wire.js');
 var holidayMask = require('./holidays/holiday-mask.js');
 var registry = require('./holidays/registry.js');
+var buildClayPayload = require('./clay-payload.js').buildClayPayload;
 
 /**
  * Full release-notification manifest (dev: force-show by version). Omitted from bundle if missing.
@@ -490,38 +491,7 @@ function refreshHolidays() {
  * @returns {void}
  */
 function sendClaySettings(onSuccess, onFailure) {
-    var payload = {
-        "CLAY_CELSIUS": app.settings.temperatureUnits === 'c',
-        "CLAY_TIME_LEAD_ZERO": app.settings.timeLeadingZero,
-        "CLAY_AXIS_12H": app.settings.axisTimeFormat === '12h',
-        "CLAY_COLOR_TODAY": app.settings.hasOwnProperty('colorToday') ? app.settings.colorToday : DEFAULT_COLOR_WHITE,
-        "CLAY_START_MON": app.settings.weekStartDay === 'mon',
-        "CLAY_PREV_WEEK": app.settings.firstWeek === 'prev',
-        "CLAY_TIME_FONT": ['roboto', 'leco', 'bitham'].indexOf(app.settings.timeFont),
-        "CLAY_SHOW_QT": app.settings.showQt,
-        "CLAY_SHOW_BT": app.settings.btIcons === "connected" || app.settings.btIcons === "both",
-        "CLAY_SHOW_BT_DISCONNECT": app.settings.btIcons === "disconnected" || app.settings.btIcons === "both",
-        "CLAY_VIBE": app.settings.vibe,
-        "CLAY_SHOW_AM_PM": app.settings.timeShowAmPm,
-        "CLAY_COLOR_SUNDAY": app.settings.hasOwnProperty('colorSunday') ? app.settings.colorSunday : DEFAULT_COLOR_FOLLY,
-        "CLAY_COLOR_SATURDAY": app.settings.hasOwnProperty('colorSaturday') ? app.settings.colorSaturday : DEFAULT_COLOR_FOLLY,
-        "CLAY_COLOR_US_FEDERAL": app.settings.hasOwnProperty('colorUSFederal') ? app.settings.colorUSFederal : DEFAULT_COLOR_FOLLY,
-        "HOLIDAYS": (function() {
-            var country = app.settings.hasOwnProperty('holidayCountry') ? app.settings.holidayCountry : 'US';
-            var region = app.settings['holidayRegion' + country] || 'all';
-            var built = holidayMask.build({
-                startMon: app.settings.weekStartDay === 'mon',
-                prevWeek: app.settings.firstWeek === 'prev',
-                country: country,
-                region: region,
-                enabled: app.settings.holidaysEnabled !== false
-            }, new Date());
-            return holidayMask.pack(built.anchor, built.mask);
-        })(),
-        "CLAY_COLOR_TIME": app.settings.hasOwnProperty('colorTime') ? app.settings.colorTime : DEFAULT_COLOR_WHITE,
-        "CLAY_DAY_NIGHT_SHADING": app.settings.hasOwnProperty('dayNightShading') ? app.settings.dayNightShading : true,
-        "CLAY_FETCH_INTERVAL_MIN": parseInt(app.settings.fetchIntervalMin, 10) || 30
-    }
+    var payload = buildClayPayload(app.settings, app.watchInfo);
     outbox.sendClay(payload, onSuccess, onFailure);
 }
 
