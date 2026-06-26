@@ -3,10 +3,6 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { getFixtureWeatherPayload, getFixtureRadarTuples } = require('../src/pkjs/fixture-weather');
 
-function decode16(bytes) {
-  return Array.from(new Int16Array(new Uint8Array(bytes).buffer));
-}
-
 // A minimal-but-valid 3-hour fixture: temps/precipPct present, 2 sun events.
 function makeFixture(over) {
   return {
@@ -28,7 +24,7 @@ function makeFixture(over) {
 test('fixture windKmh feeds the wind secondary line (mid scale)', () => {
   const fixture = makeFixture({ windKmh: [0, 25, 50] });
   const out = getFixtureWeatherPayload(fixture, { secondaryLine: 'wind', windScale: 'mid', barSource: 'off' });
-  assert.deepEqual(decode16(out.SECONDARY_LINE_TREND_INT16), [0, 500, 1000]);
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]);
   assert.equal(out.SECONDARY_LINE_FILL, false);
   assert.ok(!('WIND_TREND_UINT8' in out)); // transient key never survives
 });
@@ -36,7 +32,7 @@ test('fixture windKmh feeds the wind secondary line (mid scale)', () => {
 test('fixture without windKmh still produces a valid (flat) wind line', () => {
   const fixture = makeFixture({});  // no windKmh
   const out = getFixtureWeatherPayload(fixture, { secondaryLine: 'wind', windScale: 'mid', barSource: 'off' });
-  assert.deepEqual(decode16(out.SECONDARY_LINE_TREND_INT16), [0, 0, 0]);
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 0, 0]);
 });
 
 test('radar window anchors to startEpoch by default', () => {
@@ -60,9 +56,9 @@ test('fixture gustKmh flows to a dashed gust third line when wind is selected', 
     makeFixture({ windKmh: [0, 25, 50], gustKmh: [0, 50, 100] }), // helper used by existing tests
     { secondaryLine: 'wind', windScale: 'mid', barSource: 'off' }
   );
-  // 0/50/100 km/h gusts @ 50 ceiling → 0/1000/1000 permille (LE int16 bytes)
-  const gust = Array.from(new Int16Array(new Uint8Array(payload.THIRD_LINE_TREND_INT16).buffer));
-  assert.deepEqual(gust, [0, 1000, 1000]);
+  // 0/50/100 km/h gusts @ 50 ceiling → 0/250/250 (uint8 0..250)
+  const gust = payload.THIRD_LINE_TREND_UINT8;
+  assert.deepEqual(gust, [0, 250, 250]);
 });
 
 test('payload emits TEMP_TREND_UINT8 byte array and TEMP_MIN/TEMP_MAX numbers', () => {
