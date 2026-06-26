@@ -3,6 +3,7 @@ var pickNext24hSunEvents = require('./sun-events.js').pickNext24hSunEvents;
 var storageKeys = require('../storage-keys.js');
 var outbox = require('../outbox.js');
 var clampByte = require('../wire-units.js').clampByte;
+var forecastSeries = require('../forecast-series');
 
 var XHR_TIMEOUT_MS = 5000;
 var GPS_CACHE_KEY = 'gpsCache';
@@ -628,14 +629,15 @@ WeatherProvider.prototype.getPayload = function() {
     var gusts = this.gustTrend.slice(0, this.numEntries).map(function(kmhPerHour) {
         return clampByte(kmhPerHour || 0); // clampByte rounds + clamps to 0..255
     });
-    var tempsIntView = new Int16Array(temps);
-    var tempsByteArray = Array.prototype.slice.call(new Uint8Array(tempsIntView.buffer));
+    var tempEnc = forecastSeries.tempTrendToBytes(temps);
     var sunEventsIntView = new Int32Array(this.sunEvents.map(function(sunEvent) {
         return sunEvent.date.getTime() / 1000; // Seconds since epoch
     }));
     var sunEventsByteArray = Array.prototype.slice.call(new Uint8Array(sunEventsIntView.buffer));
     var payload = {
-        TEMP_TREND_INT16: tempsByteArray,
+        TEMP_TREND_UINT8: tempEnc.bytes,
+        TEMP_MIN: tempEnc.min,
+        TEMP_MAX: tempEnc.max,
         PRECIP_TREND_UINT8: precips, // Holds values within [0,100]
         RAIN_TREND_UINT8: rains, // Holds values within [0,255], representing 0.0..25.5 mm/h (5 mm cap on the watch; >5 mm signals overflow)
         WIND_TREND_UINT8: winds, // Transient PKJS-only: km/h integers; forecast-series consumes + deletes this before send

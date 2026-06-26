@@ -64,3 +64,15 @@ test('fixture gustKmh flows to a dashed gust third line when wind is selected', 
   const gust = Array.from(new Int16Array(new Uint8Array(payload.THIRD_LINE_TREND_INT16).buffer));
   assert.deepEqual(gust, [0, 1000, 1000]);
 });
+
+test('payload emits TEMP_TREND_UINT8 byte array and TEMP_MIN/TEMP_MAX numbers', () => {
+  const payload = getFixtureWeatherPayload(
+    makeFixture({ temps: [50, 60, 70] }),
+    { secondaryLine: 'wind', windScale: 'mid', barSource: 'off' }
+  );
+  assert.ok(Array.isArray(payload.TEMP_TREND_UINT8), 'temp trend is a byte array');
+  payload.TEMP_TREND_UINT8.forEach(function(b) { assert.ok(b >= 0 && b <= 250); });
+  assert.equal(typeof payload.TEMP_MIN, 'number');
+  assert.equal(typeof payload.TEMP_MAX, 'number');
+  assert.ok(!('TEMP_TREND_INT16' in payload), 'old int16 temp key is gone');
+});
