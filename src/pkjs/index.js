@@ -128,6 +128,10 @@ function drainPendingStartupSends() {
     }
     if (app.pendingClaySend) {
         app.pendingClaySend = false;
+        // This handshake Clay carries today's HOLIDAYS mask, so record the day:
+        // it stops the first-tick day-change resend from sending an identical
+        // Clay that would collide with this one on the half-duplex channel.
+        markHolidayDaySent();
         sendClaySettings(drainPendingStartupFetch, drainPendingStartupFetch);
         return;
     }
@@ -280,7 +284,10 @@ Pebble.addEventListener('ready',
         if (migratedWeekendHolidayColors || migratedHolidayWhiteToToggle) {
             // The migration send covers any Clay send queued by the startup
             // handshake; chain the startup fetch to keep the channel half-duplex.
+            // This Clay also carries today's HOLIDAYS mask, so record the day to
+            // keep the first-tick day-change resend from colliding with it.
             app.pendingClaySend = false;
+            markHolidayDaySent();
             sendClaySettings(function() {
                 if (migratedWeekendHolidayColors) { markWeekendHolidayColorMigrationComplete(); }
                 if (migratedHolidayWhiteToToggle) { markHolidayWhiteToToggleMigrationComplete(); }
@@ -438,6 +445,36 @@ function startTick() {
 }
 
 /**
+ * Today's local-day stamp (year-month-date) used to detect a local-day rollover
+ * for the holiday-mask resend.
+ *
+ * @returns {string} A stable key for the current local day.
+ */
+function localDayStamp() {
+    var now = new Date();
+    return now.getFullYear() + '-' + now.getMonth() + '-' + now.getDate();
+}
+
+/**
+ * Record that the watch already holds today's HOLIDAYS mask so the next
+ * maybeResendHolidaysOnDayChange tick suppresses an identical Clay send.
+ *
+ * Called whenever a startup-path Clay send (the handshake send, or the migration
+ * send) goes out: that payload carries the current mask. On a fresh install (or
+ * wiped config, or an upgrade from a pre-holidays version) both that send and the
+ * first-tick day-change resend would otherwise fire in the same synchronous tick
+ * and collide on the half-duplex channel — the watch drops the second
+ * ("Message dropped!"). Genuine day rollovers (during runtime, or while the app
+ * was off on an install whose watch already has config) don't ride a startup
+ * Clay, so they leave the stamp stale and still resend.
+ *
+ * @returns {void}
+ */
+function markHolidayDaySent() {
+    localStorage.setItem(KEY_LAST_HOLIDAY_DAY, localDayStamp());
+}
+
+/**
  * Resend Clay (which carries the HOLIDAYS mask) once per local-day change so a
  * week rollover refreshes the mask without the user opening settings. The Clay
  * outbox dedupes by content, so within-week days are suppressed and only week
@@ -447,8 +484,7 @@ function startTick() {
  */
 function maybeResendHolidaysOnDayChange() {
     if (!app.settings) { return; }
-    var now = new Date();
-    var today = now.getFullYear() + '-' + now.getMonth() + '-' + now.getDate();
+    var today = localDayStamp();
     if (localStorage.getItem(KEY_LAST_HOLIDAY_DAY) === today) { return; }
     localStorage.setItem(KEY_LAST_HOLIDAY_DAY, today);
     sendClaySettings(function() {}, function() {});
