@@ -23,6 +23,7 @@ var releaseNotifications = require('./release-notifications.js');
 var sleepWindow = require('./sleep-window.js');
 var claySettings = require('./clay-settings.js');
 var fixtureWeather = require('./fixture-weather.js');
+var paletteWire = require('./weather/palette-wire.js');
 var holidayMask = require('./holidays/holiday-mask.js');
 var registry = require('./holidays/registry.js');
 
@@ -683,7 +684,7 @@ function fetch(provider, force) {
             // Rain-tier color palette (send-once category): per platform + the
             // rainBarColor setting. Forecast bars + radar share it on the watch.
             // Shared with the fixture path so the two can't drift.
-            Object.assign(extras, fixtureWeather.buildPaletteTuples(app.watchInfo, app.settings));
+            Object.assign(extras, paletteWire.buildPaletteTuples(app.watchInfo, app.settings));
             provider.fetch(
                 function() {
                     // Sucess, update recent fetch time

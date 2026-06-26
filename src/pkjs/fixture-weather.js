@@ -7,8 +7,8 @@
 
 var WeatherProvider = require('./weather/provider.js');
 var forecastSeries = require('./forecast-series.js');
-var rainTier = require('./weather/rain-tier.js');
 var wireUnits = require('./wire-units.js');
+var paletteWire = require('./weather/palette-wire.js');
 
 /**
  * Convert a fixture weather object into the real watch weather AppMessage payload.
@@ -121,26 +121,6 @@ function getFixtureRadarTuples(fixture) {
 }
 
 /**
- * Build the packed palette AppMessage tuples for both channels. Bars follow
- * rainBarColor, the rain radar follows radarColor; each is an independent
- * GColor8 blob (3 B/stop). Both the live-fetch and fixture send paths bundle
- * these so the two paths can't drift; the fixture path has no fetch to ride
- * along with, so without this its bars/radar fall back to the watch defaults.
- *
- * @param {Object|null} watchInfo Active watch info (platform read for palette packing).
- * @param {Object} settings Clay settings (rainBarColor/radarColor).
- * @returns {{BAR_PALETTE_UINT8: number[], RADAR_PALETTE_UINT8: number[]}} Packed tuples.
- */
-function buildPaletteTuples(watchInfo, settings) {
-    var platform = watchInfo ? watchInfo.platform : 'basalt';
-    var resolved = settings || {};
-    return {
-        BAR_PALETTE_UINT8: rainTier.buildPackedPalette(platform, resolved.rainBarColor || 'multicolor'),
-        RADAR_PALETTE_UINT8: rainTier.buildPackedPalette(platform, resolved.radarColor || 'multicolor')
-    };
-}
-
-/**
  * Send fixture weather directly to the watch, bypassing live provider fetch logic.
  *
  * @param {Object} fixture Active fixture loaded from fixtures/<name>.json.
@@ -170,7 +150,7 @@ function sendFixtureWeather(fixture, deps) {
     }
 
     // Bundle the rain palette too, so fixture bars honor rainBarColor.
-    Object.assign(payload, buildPaletteTuples(deps.watchInfo, deps.settings));
+    Object.assign(payload, paletteWire.buildPaletteTuples(deps.watchInfo, deps.settings));
 
     console.log('[fixture] Sending weather fixture: ' + (fixture.name || '(unknown)'));
     Pebble.sendAppMessage(payload, function() {
@@ -181,7 +161,6 @@ function sendFixtureWeather(fixture, deps) {
 }
 
 module.exports = {
-    buildPaletteTuples: buildPaletteTuples,
     getFixtureRadarTuples: getFixtureRadarTuples,
     getFixtureWeatherPayload: getFixtureWeatherPayload,
     sendFixtureWeather: sendFixtureWeather
