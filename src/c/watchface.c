@@ -3,9 +3,11 @@
 #include "appendix/app_message.h"
 #include "appendix/config.h"
 #include "appendix/memory_log.h"
+#include "appendix/persist.h"
 
 
 static void init() {
+    persist_migrate_trend_encoding();
     MEMORY_LOG_HEAP("boot");
     app_message_init();
     config_load();
