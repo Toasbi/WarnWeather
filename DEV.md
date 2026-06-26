@@ -71,19 +71,19 @@ Take a screenshot from phone (reads `IP` from `.env`):
 mise screenshot-phone
 ```
 
-Capture screenshots for all platforms (replace `v1.0.0` with version):
+Capture screenshots for all platforms (replace `v1.4.1` with version):
 ```bash
-mise capture-screenshots v1.0.0
+mise capture-screenshots v1.4.1
 ```
 
 Capture the curated store configs on every platform (4 configs × 5 platforms):
 ```bash
-scripts/capture-store-shots.sh v1.0.0
+scripts/capture-store-shots.sh v1.4.1
 ```
 
 Composite the README hero shots (from the store captures) into framed PNGs:
 ```bash
-mise composite v1.0.0
+mise composite v1.4.1
 ```
 
 Composite a single screenshot PNG into an SVG Pebble frame:
@@ -200,12 +200,12 @@ mise screenshot-phone <IP>
 
 Capture screenshots for all platforms, no fixture:
 ```bash
-mise capture-screenshots v1.0.0
+mise capture-screenshots v1.4.1
 ```
 
 Capture screenshots for all platforms with a fixture:
 ```bash
-mise capture-screenshots v1.0.0 berlin
+mise capture-screenshots v1.4.1 berlin
 ```
 
 #### Store screenshots
@@ -214,12 +214,12 @@ Capture all four curated store configs on every platform and file them per platf
 under `screenshot/<version>/store/<platform>/<config>.png` (the appstore wants ≥1
 screenshot per supported platform):
 ```bash
-scripts/capture-store-shots.sh v1.0.0
+scripts/capture-store-shots.sh v1.4.1
 ```
 
 Resume from a given round if a run crashed mid-way (e.g. round 4):
 ```bash
-scripts/capture-store-shots.sh v1.0.0 4
+scripts/capture-store-shots.sh v1.4.1 4
 ```
 
 The four configs come from fixtures — `1-calendar` (`store-calendar`),
@@ -227,10 +227,10 @@ The four configs come from fixtures — `1-calendar` (`store-calendar`),
 (`store-wind-radar`). Upload each platform's four raw frames to the store as-is.
 
 Composite the README hero shots from the store captures into framed PNGs
-(`screenshot/v1.0.0/composite/`) — Pebble Time←flint/calendar,
+(`screenshot/v1.4.1/composite/`) — Pebble Time←flint/calendar,
 Pebble 2 Duo←flint/wind, Pebble Time 2←emery/radar:
 ```bash
-mise composite v1.0.0
+mise composite v1.4.1
 ```
 
 ### Package generation
