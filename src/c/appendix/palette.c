@@ -1,4 +1,5 @@
 #include "palette.h"
+#include "persist.h"
 #include <string.h>
 
 // Two independent channels. Legacy defaults (colour build / single black on
@@ -38,6 +39,23 @@ static int parse_packed(const uint8_t *packed, int len, ChartColorStop *out) {
     return count;
 }
 
+// A persist_get_bar/radar_palette accessor: fills the buffer, returns byte count
+// (<=0 when the key is absent). Top-level const on the size param is not part of
+// the function type, so the persist_get_* functions match this exactly.
+typedef int (*PaletteReader)(uint8_t *buffer, const size_t buffer_size);
+
+// Load a persisted packed palette into `store`. Returns true when a valid blob
+// was read; false (store untouched) when the key is absent or malformed.
+static bool load_persisted(ChartColorStop *store, int *store_num, PaletteReader get_fn) {
+    uint8_t packed[PALETTE_MAX_STOPS * 3];
+    int len = get_fn(packed, sizeof(packed));
+    if (len <= 0) { return false; }
+    int count = parse_packed(packed, len, store);
+    if (count < 1) { return false; }
+    *store_num = count;
+    return true;
+}
+
 static bool apply(const uint8_t *packed, int len, ChartColorStop *store, int *store_num) {
     // Zero-init so the struct's 1-byte tail padding is deterministic: the
     // changed-check below memcmp's whole structs (incl. padding), and an
@@ -56,21 +74,35 @@ static bool apply(const uint8_t *packed, int len, ChartColorStop *store, int *st
 }
 
 bool palette_set_bar(const uint8_t *packed, int len) {
-    return apply(packed, len, s_bar_stops, &s_bar_num_stops);
+    bool changed = apply(packed, len, s_bar_stops, &s_bar_num_stops);
+    if (changed) {
+        persist_set_bar_palette((uint8_t*) packed, (size_t) len);
+    }
+    return changed;
 }
 
 bool palette_set_radar(const uint8_t *packed, int len) {
-    return apply(packed, len, s_radar_stops, &s_radar_num_stops);
+    bool changed = apply(packed, len, s_radar_stops, &s_radar_num_stops);
+    if (changed) {
+        persist_set_radar_palette((uint8_t*) packed, (size_t) len);
+    }
+    return changed;
 }
 
 const ChartColorStop *palette_bar_stops(int *num_stops) {
-    fill_defaults(s_bar_stops, &s_bar_num_stops);
+    if (s_bar_num_stops == 0
+            && !load_persisted(s_bar_stops, &s_bar_num_stops, persist_get_bar_palette)) {
+        fill_defaults(s_bar_stops, &s_bar_num_stops);
+    }
     *num_stops = s_bar_num_stops;
     return s_bar_stops;
 }
 
 const ChartColorStop *palette_radar_stops(int *num_stops) {
-    fill_defaults(s_radar_stops, &s_radar_num_stops);
+    if (s_radar_num_stops == 0
+            && !load_persisted(s_radar_stops, &s_radar_num_stops, persist_get_radar_palette)) {
+        fill_defaults(s_radar_stops, &s_radar_num_stops);
+    }
     *num_stops = s_radar_num_stops;
     return s_radar_stops;
 }

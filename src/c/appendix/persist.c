@@ -21,7 +21,10 @@ enum key {
     // visible calendar window (see calendar_layer.c / app_message.c).
     HOLIDAY_ANCHOR, HOLIDAY_MASK,
     // Appended: uint8 forecast encoding — min/max scalars + migration sentinel.
-    TEMP_MIN, TEMP_MAX, TREND_ENCODING_VERSION
+    TEMP_MIN, TEMP_MAX, TREND_ENCODING_VERSION,
+    // Appended: persisted rain/radar color palettes (packed wire blobs, 3 B/stop)
+    // so custom colors survive a watchface relaunch (palette is otherwise RAM-only).
+    BAR_PALETTE, RADAR_PALETTE
 };
 
 // Setters report whether the stored value actually changed so callers can
@@ -201,6 +204,22 @@ int persist_get_rain_radar_trend_area(uint8_t *buffer, const size_t buffer_size)
 
 bool persist_set_rain_radar_trend_area(uint8_t *data, const size_t size) {
     return write_data_if_changed(RAIN_RADAR_TREND_AREA, data, size * sizeof(uint8_t));
+}
+
+int persist_get_bar_palette(uint8_t *buffer, const size_t buffer_size) {
+    return persist_read_data(BAR_PALETTE, (void*) buffer, buffer_size * sizeof(uint8_t));
+}
+
+bool persist_set_bar_palette(uint8_t *data, const size_t size) {
+    return write_data_if_changed(BAR_PALETTE, data, size * sizeof(uint8_t));
+}
+
+int persist_get_radar_palette(uint8_t *buffer, const size_t buffer_size) {
+    return persist_read_data(RADAR_PALETTE, (void*) buffer, buffer_size * sizeof(uint8_t));
+}
+
+bool persist_set_radar_palette(uint8_t *data, const size_t size) {
+    return write_data_if_changed(RADAR_PALETTE, data, size * sizeof(uint8_t));
 }
 
 time_t persist_get_rain_radar_start() {

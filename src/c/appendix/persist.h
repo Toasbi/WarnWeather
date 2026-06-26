@@ -65,6 +65,11 @@ bool persist_set_rain_radar_trend_area(uint8_t *data, const size_t size);
 
 bool persist_set_rain_radar_start(time_t val);
 
+int  persist_get_bar_palette(uint8_t *buffer, const size_t buffer_size);
+bool persist_set_bar_palette(uint8_t *data, const size_t size);
+int  persist_get_radar_palette(uint8_t *buffer, const size_t buffer_size);
+bool persist_set_radar_palette(uint8_t *data, const size_t size);
+
 bool persist_set_forecast_start(time_t val);
 
 bool persist_set_num_entries(int val);
