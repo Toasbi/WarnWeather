@@ -42,7 +42,7 @@ function tempTrendToBytes(temps) {
 var LINE_COLORS = {
     precip_prob: COLORS.GColorPictonBlue,
     wind: COLORS.GColorYellow,
-    gust: COLORS.GColorOrange,
+    gust: COLORS.GColorWhite,   // white reads most clearly over the night hatch (esp. as dotted 2nd metric)
     uv: COLORS.GColorMagenta
 };
 // Metric → area-fill color. Only precip fills; everything else falls back to its line color.
@@ -119,9 +119,7 @@ function buildForecastSeries(raw, settings) {
     var thirdBytes = thirdPm ? thirdPm.map(permilleToByte) : [];
     out.THIRD_LINE_TREND_UINT8 = thirdBytes;
     if (thirdBytes.length > 0) {
-        // The dotted second metric is always white: dots encode it by pattern, not color, so
-        // white reads most clearly over the night hatch and next to the temperature line.
-        out.THIRD_LINE_COLOR = COLORS.GColorWhite;
+        out.THIRD_LINE_COLOR = LINE_COLORS[thirdMetric] || COLORS.GColorWhite;
     }
 
     // Rain bars: independent of the metric lines.

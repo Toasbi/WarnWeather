@@ -49,7 +49,7 @@ test('lastFetch formats success / Never / failed-attempt-with-error', () => {
 test('forecastPreview draws the secondary line per metric (solid, per-metric color)', () => {
   const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', thirdLine: 'off' };
   assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind' }), { color: true }).indexOf('stroke="#FFFF55"') > -1, 'wind = yellow');
-  assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'gust' }), { color: true }).indexOf('stroke="#FF5500"') > -1, 'gust = orange');
+  assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'gust' }), { color: true }).indexOf('stroke="#FFFFFF"') > -1, 'gust = white');
   assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'uv' }), { color: true }).indexOf('stroke="#FF00FF"') > -1, 'uv = magenta');
 });
 
@@ -59,7 +59,7 @@ test('forecastPreview draws the second metric as round dots in its metric color,
   const noThird   = B.forecastPreview(Object.assign({}, base, { thirdLine: 'off' }), { color: true });
   // round dots are a near-zero dash + round cap; the dash value is unique to the second metric
   assert.ok(withThird.indexOf('stroke-dasharray="0.01 6"') > -1, 'second metric renders as round dots');
-  assert.ok(withThird.indexOf('stroke="#FF5500"') > -1, 'second metric uses the gust color');
+  assert.ok(withThird.indexOf('stroke="#FFFFFF"') > -1, 'second metric uses the gust color (white)');
   assert.equal(noThird.indexOf('stroke-dasharray'), -1, 'no dots when the second metric is off');
 });
 

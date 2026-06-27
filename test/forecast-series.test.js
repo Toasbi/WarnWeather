@@ -21,10 +21,10 @@ test('secondary wind: km/h scaled to ceiling, never filled, yellow', () => {
   assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFF00);                // GColorYellow
 });
 
-test('secondary gust: orange, scaled like wind', () => {
+test('secondary gust: white, scaled like wind', () => {
   const out = buildForecastSeries(RAW, { secondaryLine: 'gust', thirdLine: 'off', windScale: 'mid', barSource: 'off' });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 250, 250]); // 0/50/100 @50 ceiling, clamped
-  assert.equal(out.SECONDARY_LINE_COLOR, 0xFF5500);                // GColorOrange
+  assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFFFF);                // GColorWhite (gust is white everywhere)
 });
 
 test('secondary uv: scaled against UV 11.0 (110 tenths), magenta', () => {
@@ -39,18 +39,18 @@ test('third line off: empty third trend, no third color emitted', () => {
   assert.equal('THIRD_LINE_COLOR' in out, false);
 });
 
-test('third line gust over secondary wind: both present, dotted line is always white', () => {
+test('third line gust over secondary wind: both present, gust dots are white', () => {
   const out = buildForecastSeries(RAW, { secondaryLine: 'wind', thirdLine: 'gust', windScale: 'mid', barSource: 'off' });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]); // wind
   assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [0, 250, 250]);    // gust, same ceiling
-  assert.equal(out.THIRD_LINE_COLOR, 0xFFFFFF);                   // GColorWhite (dotted line is always white)
+  assert.equal(out.THIRD_LINE_COLOR, 0xFFFFFF);                   // GColorWhite (gust per-metric color)
 });
 
 test('third line uv over secondary precip: independent scales', () => {
   const out = buildForecastSeries(RAW, { secondaryLine: 'precip_prob', thirdLine: 'uv', secondaryLineFill: true, barSource: 'off' });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]); // precip %
   assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [0, 125, 250]);    // uv tenths @110
-  assert.equal(out.THIRD_LINE_COLOR, 0xFFFFFF);                   // GColorWhite (dotted line is always white)
+  assert.equal(out.THIRD_LINE_COLOR, 0xFF00FF);                   // GColorMagenta (uv per-metric color)
 });
 
 test('third line equal to secondary is treated as off (defensive: engine excludes it)', () => {
@@ -84,7 +84,7 @@ test('applyForecastSeries swaps raw keys for render-ready series in place, delet
   });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]); // uv
   assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [0, 125, 250]);    // wind
-  assert.equal(out.THIRD_LINE_COLOR, 0xFFFFFF);                   // GColorWhite (dotted line is always white)
+  assert.equal(out.THIRD_LINE_COLOR, 0xFFFF00);                   // GColorYellow (wind per-metric color)
   assert.deepEqual(out.TEMP_TREND_UINT8, [1, 2, 3]);
   assert.equal(out.NUM_ENTRIES, 3);
 });

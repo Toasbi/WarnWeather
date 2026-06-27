@@ -125,7 +125,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var METRIC = {
             precip_prob: { vals: precip, max: 100, color: '#00FFFF', fill: 'rgba(0,255,255,0.16)' },
             wind: { vals: wind, max: windMax, color: '#FFFF55' },
-            gust: { vals: gust, max: windMax, color: '#FF5500' },
+            gust: { vals: gust, max: windMax, color: '#FFFFFF' },
             uv: { vals: uv, max: 11, color: '#FF00FF' }
         };
         /**
