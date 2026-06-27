@@ -131,11 +131,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         /**
          * Build SVG path element(s) for one forecast metric line.
          * @param {string} metric - One of precip_prob, wind, gust, uv.
-         * @param {boolean} dashed - Whether to render as a dashed third line.
+         * @param {boolean} dotted - Whether to render the second metric as round dots.
          * @param {boolean} allowFill - Whether to render the fill area (precip-only).
          * @returns {string} SVG markup for the line (and optional fill area).
          */
-        var lineFor = function (metric, dashed, allowFill) {
+        var lineFor = function (metric, dotted, allowFill) {
             var m = METRIC[metric];
             if (!m) { return ''; }
             var pts = m.vals.map(function (v, i) { return [X(i), PB - Math.min(v, m.max) / m.max * (PB - PT - 3)]; });
@@ -144,11 +144,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (allowFill && metric === 'precip_prob' && state.secondaryLineFill && m.fill) {
                 out += '<path d="' + path + ' L' + X(n - 1) + ',' + PB + ' L' + X(0) + ',' + PB + ' Z" fill="' + m.fill + '"></path>';
             }
-            var dash = dashed ? ' stroke-dasharray="5 2 1 2 1 2" stroke-linecap="round"' : '';
-            out += '<path d="' + path + '" fill="none" stroke="' + m.color + '" stroke-width="' + (dashed ? 1.4 : 1.6) + '"' + dash + '></path>';
+            // round dots (≈ temperature-line preview width) for the second metric: near-zero dash + round cap = dots
+            var dots = dotted ? ' stroke-dasharray="0.01 6" stroke-linecap="round"' : '';
+            out += '<path d="' + path + '" fill="none" stroke="' + m.color + '" stroke-width="' + (dotted ? 2 : 1.6) + '"' + dots + '></path>';
             return out;
         };
-        // Third line (dashed) under the secondary line (solid), excluding a duplicate metric.
+        // Second metric (round dots) under the main metric (solid), excluding a duplicate metric.
         if (state.thirdLine && state.thirdLine !== 'off' && state.thirdLine !== state.secondaryLine) {
             e += lineFor(state.thirdLine, true, false);
         }

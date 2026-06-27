@@ -53,13 +53,14 @@ test('forecastPreview draws the secondary line per metric (solid, per-metric col
   assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'uv' }), { color: true }).indexOf('stroke="#FF00FF"') > -1, 'uv = magenta');
 });
 
-test('forecastPreview draws a dashed third line in its metric color, gated on thirdLine', () => {
+test('forecastPreview draws the second metric as round dots in its metric color, gated on thirdLine', () => {
   const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'precip_prob' };
   const withThird = B.forecastPreview(Object.assign({}, base, { thirdLine: 'gust' }), { color: true });
   const noThird   = B.forecastPreview(Object.assign({}, base, { thirdLine: 'off' }), { color: true });
-  assert.ok(withThird.indexOf('stroke-dasharray') > -1, 'third line is dashed');
-  assert.ok(withThird.indexOf('stroke="#FF5500"') > -1, 'third line uses the gust color');
-  assert.ok(noThird.indexOf('stroke-dasharray') === -1, 'no dashed line when third is off');
+  // round dots are a near-zero dash + round cap; the dash value is unique to the second metric
+  assert.ok(withThird.indexOf('stroke-dasharray="0.01 6"') > -1, 'second metric renders as round dots');
+  assert.ok(withThird.indexOf('stroke="#FF5500"') > -1, 'second metric uses the gust color');
+  assert.equal(noThird.indexOf('stroke-dasharray'), -1, 'no dots when the second metric is off');
 });
 
 test('forecastPreview never draws the third line as the same metric as the secondary', () => {
