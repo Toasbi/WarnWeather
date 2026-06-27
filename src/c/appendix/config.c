@@ -68,7 +68,7 @@ int config_format_time(char *s, size_t maxsize, const struct tm * tm_p) {
     int res = strftime(s, maxsize, watch_services_clock_is_24h_style() ? "%H:%M" : "%I:%M", tm_p);
     if (!g_config->time_lead_zero) {
         // Remove leading zero if configured as such
-        if (s[0] == '0') 
+        if (s[0] == '0')
             memmove(s, s+1, strlen(s));
     }
     return res;
@@ -79,7 +79,7 @@ int config_axis_hour(int hour) {
         hour = hour % 12;
         hour = hour == 0 ? 12 : hour;
     }
-    else 
+    else
         hour = hour % 24;
     return hour;
 }
@@ -118,9 +118,9 @@ static void config_unload_custom_time_font(void) {
 static GFont config_emery_custom_time_font(int16_t font_index) {
     uint32_t res_id = 0;
     if (font_index == TIME_FONT_ROBOTO)
-        res_id = RESOURCE_ID_FONT_ROBOTO_BOLD_80;
+        res_id = RESOURCE_ID_FONT_ROBOTO_BOLD_62;
     else if (font_index == TIME_FONT_BITHAM)
-        res_id = RESOURCE_ID_FONT_MONTSERRAT_MEDIUM_72;
+        res_id = RESOURCE_ID_FONT_MONTSERRAT_MEDIUM_62;
     if (res_id == 0) {                 // LECO: no custom font
         config_unload_custom_time_font();
         return NULL;

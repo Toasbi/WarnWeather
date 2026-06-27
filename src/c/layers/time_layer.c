@@ -9,12 +9,13 @@
 #define MT_AM_PM 7
 #define MT_TIME_LECO 2
 #define MT_AM_PM_LECO 2
-// emery: per-font vertical nudge for the enlarged custom Roboto/Bitham fonts, whose
-// metrics differ from the stock-49 calibration of MT_TIME. 0 is the measured-final
-// value: on the emulator Roboto-80 (54px) and Montserrat-72 (55px) digits already
-// share LECO-60's top edge, so no nudge is needed. Change only if a font is resized.
-#define MT_TIME_ROBOTO 0
-#define MT_TIME_BITHAM 0
+// emery: per-font vertical nudge (px, positive = up) for the enlarged custom
+// Roboto/Montserrat fonts. The centering math centers each font's *content box*, but
+// text_layer_get_content_size() under-reports these TTF fonts' line box and the digit ink
+// sits high within it, so the unaided result lands bottom-heavy. These constants are
+// measured on the emulator to give equal top/bottom padding around the digit ink.
+#define MT_TIME_ROBOTO 2
+#define MT_TIME_BITHAM 2
 
 
 static Layer *s_container_layer;
@@ -86,8 +87,13 @@ void time_layer_tick() {
     }
 #endif
 
-    // Update layer positions and visibility
-    text_layer_move_frame(s_time_layer, GRect(text_left, text_top, content_w, time_size.h));
+    // Update layer positions and visibility. Height spans from text_top down to the
+    // container bottom rather than time_size.h: text_layer_get_content_size() under-reports
+    // the line box of the enlarged custom TTF fonts (e.g. ~58px for the size-58 Montserrat
+    // whose real ascent+descent is ~68px), so a content-sized frame clips the bottom few px
+    // of round digits. These are descenderless numeric fonts and the container clips us, so
+    // extending the frame downward only reclaims the clipped glyph bottoms.
+    text_layer_move_frame(s_time_layer, GRect(text_left, text_top, content_w, bounds.size.h - text_top));
     if (g_config->show_am_pm) {
         int am_pm_y = MT_TIME - MT_AM_PM;
         // emery: nudge LECO AM/PM down slightly to align with larger time numerals.
