@@ -1,7 +1,7 @@
 {
   "name": "warnweather",
   "author": "Toasbi",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "buildProfile": "{{buildProfile}}",
   "keywords": [
     "pebble-app"
@@ -62,14 +62,18 @@
           "name": "FONT_ROBOTO_BOLD_62",
           "file": "fonts/Roboto-Bold.ttf",
           "characterRegex": "[0-9:]",
-          "targetPlatforms": ["emery"]
+          "targetPlatforms": [
+            "emery"
+          ]
         },
         {
           "type": "font",
           "name": "FONT_MONTSERRAT_MEDIUM_62",
           "file": "fonts/Montserrat-Medium.ttf",
           "characterRegex": "[0-9:]",
-          "targetPlatforms": ["emery"]
+          "targetPlatforms": [
+            "emery"
+          ]
         }
       ]
     },
