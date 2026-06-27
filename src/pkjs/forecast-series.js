@@ -119,7 +119,9 @@ function buildForecastSeries(raw, settings) {
     var thirdBytes = thirdPm ? thirdPm.map(permilleToByte) : [];
     out.THIRD_LINE_TREND_UINT8 = thirdBytes;
     if (thirdBytes.length > 0) {
-        out.THIRD_LINE_COLOR = LINE_COLORS[thirdMetric] || COLORS.GColorWhite;
+        // The dotted second metric is always white: dots encode it by pattern, not color, so
+        // white reads most clearly over the night hatch and next to the temperature line.
+        out.THIRD_LINE_COLOR = COLORS.GColorWhite;
     }
 
     // Rain bars: independent of the metric lines.
