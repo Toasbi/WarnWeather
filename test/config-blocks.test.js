@@ -49,7 +49,7 @@ test('lastFetch formats success / Never / failed-attempt-with-error', () => {
 });
 test('forecastPreview draws the secondary line per metric (solid, per-metric color)', () => {
   const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', thirdLine: 'off' };
-  assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind' }), { color: true }).indexOf('stroke="#FFFF55"') > -1, 'wind = yellow');
+  assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind' }), { color: true }).indexOf('stroke="#FFFF00"') > -1, 'wind = yellow');
   assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'gust' }), { color: true }).indexOf('stroke="#FFFFFF"') > -1, 'gust = white');
   assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'uv' }), { color: true }).indexOf('stroke="#FF00FF"') > -1, 'uv = magenta');
 });
@@ -75,10 +75,47 @@ test('forecastPreview gust dots take a color distinct from the rain bars', () =>
 });
 
 test('forecastPreview never draws the second metric as the same metric as the main', () => {
-  // duplicate metric → no second-metric squares; wind = #FFFF55 is only a fill for those squares.
+  // duplicate metric → no second-metric squares; wind = #FFFF00 is only a fill for those squares.
   const svg = B.forecastPreview({ dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'wind', thirdLine: 'wind' }, { color: true });
-  assert.equal(svg.indexOf('fill="#FFFF55"'), -1, 'duplicate metric → no second-metric squares');
+  assert.equal(svg.indexOf('fill="#FFFF00"'), -1, 'duplicate metric → no second-metric squares');
 });
 test('registers all four into PConf.blocks', () => {
   ['forecastPreview','radarPreview','devStats','lastFetch'].forEach((id) => assert.equal(typeof PConf.blocks.get(id), 'function'));
+});
+
+test('blocks fallback palette equals buildPreviewPalette (no color drift)', () => {
+  const { buildPreviewPalette } = require('../src/pkjs/settings/preview-palette.js');
+  assert.deepEqual(B.previewPaletteFallback, buildPreviewPalette());
+});
+
+test('blocks barPermille matches rain-tier.rainPermille byte-for-byte', () => {
+  const rt = require('../src/pkjs/weather/rain-tier.js');
+  [0, 1, 2, 3, 5, 6, 20, 21, 50, 100, 101, 200, 255, 500, 1000].forEach((t) =>
+    assert.equal(B.barPermille(t), rt.rainPermille(t), 'tenths=' + t));
+});
+
+test('rain bars span the full plot width (no early stop)', () => {
+  const svg = B.forecastPreview(
+    { barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'wind', windScale: 'mid', dayNightShading: false },
+    { color: true });
+  const xs = (svg.match(/<rect x="([\d.]+)"/g) || []).map((m) => parseFloat(m.replace(/[^\d.]/g, '')));
+  assert.ok(Math.max.apply(null, xs) > 180, 'a bar reaches the right edge (>180); got ' + Math.max.apply(null, xs));
+});
+
+test('UV line breaks at zeros instead of lying on the axis', () => {
+  const svg = B.forecastPreview(
+    { barSource: 'off', secondaryLine: 'uv', windScale: 'mid', dayNightShading: false },
+    { color: true });
+  const segs = svg.match(/fill="none" stroke="#FF00FF"/g) || [];
+  assert.ok(segs.length >= 2, 'UV renders as >=2 separate segments (day + dawn); got ' + segs.length);
+});
+
+test('B&W: series are white, temp thick (3) vs main thin (1), no hues', () => {
+  const bw = B.forecastPreview(
+    { barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'wind', windScale: 'mid', dayNightShading: false },
+    { color: false });
+  assert.equal(bw.indexOf('fill="#00FF00"'), -1, 'no color rain bands on B&W');
+  assert.equal(bw.indexOf('#FFFF00'), -1, 'wind hue not used on B&W (white instead)');
+  assert.ok(bw.indexOf('stroke-width="3"') >= 0, 'temp curve thick (3)');
+  assert.ok(bw.indexOf('stroke-width="1"') >= 0, 'main line thin (1)');
 });

@@ -12,30 +12,89 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /* ---- pure SVG helpers (verbatim from index.html:197-228) ---------------- */
-    function rainPermille(mm) {
-        if (mm <= 0) { return 0; }
-        var pts = [[0.1, 0.14], [0.5, 0.34], [2.0, 0.56], [10, 0.78], [40, 1.0]];
-        if (mm <= pts[0][0]) { return pts[0][1]; }
-        for (var i = 0; i < pts.length - 1; i++) {
-            if (mm <= pts[i + 1][0]) {
-                var f = (mm - pts[i][0]) / (pts[i + 1][0] - pts[i][0]);
-                return pts[i][1] + f * (pts[i + 1][1] - pts[i][1]);
-            }
+
+    // Fallback palette — used only if userData.palette wasn't injected (stale page). Kept in
+    // lockstep with preview-palette.buildPreviewPalette() by a test, so it cannot drift.
+    var FALLBACK_PALETTE = {
+        temp: '#FF0000',
+        precip: '#55AAFF',
+        wind: '#FFFF00',
+        uv: '#FF00FF',
+        gustOnColor: '#FFFFFF',
+        gustOnWhite: '#AAAAAA',
+        fillPrecip: '#0055AA',
+        rainTiers: [
+            { from: 0, color: '#AAAAAA' },
+            { from: 140, color: '#55FFFF' },
+            { from: 340, color: '#00FF00' },
+            { from: 560, color: '#FFFF00' },
+            { from: 780, color: '#FF5555' }
+        ],
+        white: '#FFFFFF'
+    };
+
+    // Port of rain-tier.rainPermille (and its helpers). The watch builds bar heights with this
+    // exact curve; the webview can't require() rain-tier, so it is mirrored here and guarded by
+    // test/config-blocks.test.js ('barPermille matches rain-tier.rainPermille byte-for-byte').
+    // Input is wire tenths (mm * 10); output is permille (0..1000) of plot height.
+    var TIER_MAX_TENTHS = [1, 5, 20, 100];
+    var TIER_TOP_PCT = [0, 14, 34, 56, 78, 100];
+    function tierOfTenths(tenths) {
+        if (tenths <= 0) { return 0; }
+        for (var i = 0; i < TIER_MAX_TENTHS.length; i += 1) {
+            if (tenths <= TIER_MAX_TENTHS[i]) { return i + 1; }
         }
-        return 1.0;
+        return 5;
+    }
+    function fillQ8(tenths, tier) {
+        var low, high;
+        switch (tier) {
+            case 1: return 256;
+            case 2: low = 2; high = 5; break;
+            case 3: low = 6; high = 20; break;
+            case 4: low = 21; high = 100; break;
+            case 5: low = 101; high = 255; break;
+            default: return 256;
+        }
+        if (tenths >= high) { return 256; }
+        if (tenths <= low) { return 0; }
+        return Math.trunc(((tenths - low) * 256) / (high - low));
+    }
+    function barPermille(tenths) {
+        if (tenths <= 0) { return 0; }
+        var tier = tierOfTenths(tenths);
+        var q8 = fillQ8(tenths, tier);
+        var belowH = Math.trunc((1000 * TIER_TOP_PCT[tier - 1]) / 100);
+        var slabTopFull = Math.trunc((1000 * TIER_TOP_PCT[tier]) / 100);
+        var slabHFull = slabTopFull - belowH;
+        var slabHTop = Math.trunc((slabHFull * q8) / 256);
+        if (slabHTop === 0 && q8 > 0) { slabHTop = 1; }
+        var total = belowH + slabHTop;
+        return total > 0 ? total : 1;
     }
 
-    function rainBars(mm, x, bw, baseY, plotH, white) {
-        var H = rainPermille(mm);
+    // Tier-banded rain bar at full plot height (mimics the watch). mm -> tenths internally.
+    // white=true is the B&W silhouette: outline=true draws top+sides with an open bottom
+    // (the x-axis closes it, matching chart.c BAR_OUTLINED); outline=false is a solid white bar.
+    function rainBars(mm, x, bw, baseY, plotH, white, tiers, outline) {
+        var H = barPermille(Math.round(mm * 10)) / 1000;
         if (H <= 0) { return ''; }
-        if (white) { return rect(x, baseY - H * plotH, bw, H * plotH, '#FFFFFF'); }
-        var bands = [[0, 0.14, '#AAAAAA'], [0.14, 0.34, '#55FFFF'], [0.34, 0.56, '#00FF00'], [0.56, 0.78, '#FFFF00'], [0.78, 1.0, '#FF5555']];
+        var top = baseY - H * plotH;
+        if (white) {
+            if (outline) {
+                return '<path d="M' + x + ',' + baseY + ' L' + x + ',' + top + ' L' + (x + bw) + ',' + top
+                    + ' L' + (x + bw) + ',' + baseY + '" fill="none" stroke="#FFFFFF" stroke-width="1"></path>';
+            }
+            return rect(x, top, bw, H * plotH, '#FFFFFF');
+        }
         var out = '';
-        for (var i = 0; i < bands.length; i++) {
-            var b = bands[i];
-            if (H <= b[0]) { break; }
-            var top = Math.min(b[1], H), h = (top - b[0]) * plotH - 0.5;
-            out += rect(x, baseY - top * plotH, bw, Math.max(h, 0.5), b[2]);
+        for (var k = 0; k < tiers.length; k += 1) {
+            var from = tiers[k].from / 1000;
+            if (H <= from) { break; }
+            var to = (k + 1 < tiers.length) ? tiers[k + 1].from / 1000 : 1;
+            var bandTop = Math.min(to, H);
+            var h = (bandTop - from) * plotH - 0.5;
+            out += rect(x, baseY - bandTop * plotH, bw, Math.max(h, 0.5), tiers[k].color);
         }
         return out;
     }
@@ -58,125 +117,154 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return '<text x="' + x + '" y="' + y + '" font-size="' + s + '" fill="' + fill + '" font-family="sans-serif" font-weight="' + weight + '" text-anchor="' + anchor + '">' + t + '</text>';
     }
 
-    // Wrap a preview SVG body in the standard 200x120 frame. The negative margins
+    // Wrap a preview SVG body in the standard 200×h frame. The negative margins
     // cancel the engine .blockrow padding (12px 16px 14px) so the preview bleeds
     // edge-to-edge.
-    function svgFrame(inner) {
-        return '<svg viewBox="0 0 200 120" style="aspect-ratio:200/120;display:block;width:calc(100% + 32px);margin:-12px -16px -14px">' + inner + '</svg>';
+    function svgFrame(inner, h) {
+        h = h || 120;
+        return '<svg viewBox="0 0 200 ' + h + '" style="aspect-ratio:200/' + h
+            + ';display:block;width:calc(100% + 32px);margin:-12px -16px -14px">' + inner + '</svg>';
     }
 
     /* ---- forecastPreview: adapted from index.html:231-267 forecastSVG ---- */
     function forecastPreview(state, env, userData) {
-        var temps = [24, 21, 17, 14, 13, 13, 15, 18, 21, 23, 24, 24];
-        var precip = [68, 74, 64, 46, 30, 20, 14, 10, 12, 16, 22, 28];
-        var wind = [12, 16, 22, 28, 25, 21, 17, 15, 19, 29, 34, 30];
-        var rain = [2, 12, 6, 3, 1, 0.5, 0.2, 0, 0, 0, 0, 0];
-        var gust = [18, 24, 31, 38, 34, 29, 24, 22, 27, 39, 45, 41];
-        var uv = [0, 0, 1, 3, 5, 7, 8, 7, 5, 3, 1, 0];
+        var isColor = !(env && !env.color);                  // B&W when env.color === false
+        var P = (userData && userData.palette) || FALLBACK_PALETTE;
+
+        // One coherent 12-point scenario starting at noon (slot 0 = 12:00): an afternoon
+        // shower that suppresses UV, UV gone overnight, temp dipping then rising toward dawn.
+        var temps  = [24, 24, 22, 20, 18, 16, 15, 14, 14, 15, 17, 19];
+        var precip = [20, 55, 80, 85, 60, 35, 20, 15, 12, 10, 14, 22];
+        var wind   = [14, 16, 20, 24, 22, 19, 17, 16, 18, 22, 26, 24];
+        var rain   = [0, 0.5, 6, 12, 4, 1, 0.3, 0, 0, 0, 0, 0.1];
+        var gust   = [22, 25, 30, 34, 32, 28, 25, 24, 27, 31, 36, 33];
+        var uv     = [8, 6, 4, 2, 1, 0, 0, 0, 0, 0, 1, 3];
+
         var n = temps.length, PX0 = 20, PX1 = 197, PT = 20, PB = 100, TH = 21;
-        var X = function (i) { return PX0 + i * (PX1 - PX0) / (n - 1); };
-        var tickX = function (h) { return PX0 + h * (PX1 - PX0) / TH; };
+        var plotW = PX1 - PX0, plotH = PB - PT;
+        var pitch = plotW / n;
+        // Shared slot grid: line, bars and dots all centre on the same slot, so a metric reads
+        // identically as a line or as dots and every series spans the full width.
+        var slotCenter = function (i) { return PX0 + (i + 0.5) * pitch; };
+        var tickX = function (h) { return PX0 + h * plotW / TH; };
         var tmin = Math.min.apply(null, temps), tmax = Math.max.apply(null, temps);
         var ytop = PT + 3, ybot = PB - 12;
         var yT = function (t) { return ybot - (t - tmin) / (tmax - tmin || 1) * (ybot - ytop); };
-        var maxBar = (PB - PT) * 0.62;
-        var n0 = tickX(6), n1 = tickX(15);
-        // Rain-bar width + per-hour column pitch — shared by the bars and the bar-aligned
-        // second-metric squares so the two line up exactly.
-        var bw = 7, cw = (PX1 - PX0) / TH;
+        var n0 = tickX(9), n1 = tickX(18);          // night band 21:00 -> 06:00 on the noon ruler
+        var bw = 9;                                  // rain-bar / dot width
 
-        // Night-shading band + boundary lines between the 06:00 and 15:00 ticks ('' when off).
+        var windMax = state.windScale === 'low' ? 30 : (state.windScale === 'high' ? 70 : 50);
+        // metric -> { sample series, full-scale max, fill? }. Color resolves per render.
+        var METRIC = {
+            precip_prob: { vals: precip, max: 100, fill: true },
+            wind: { vals: wind, max: windMax },
+            gust: { vals: gust, max: windMax },
+            uv: { vals: uv, max: 11 }
+        };
+        /**
+         * Per-metric stroke/dot color. White on B&W (series told apart by width/pattern). Gust has
+         * no hue: white over color bars, light gray over white bars (matches forecast-series.lineColorFor).
+         * @param {string} metric precip_prob|wind|gust|uv
+         * @returns {string} #RRGGBB
+         */
+        function metricColor(metric) {
+            if (!isColor) { return P.white; }
+            if (metric === 'gust') { return state.rainBarColor === 'white' ? P.gustOnWhite : P.gustOnColor; }
+            if (metric === 'precip_prob') { return P.precip; }
+            return P[metric];                        // wind | uv
+        }
+        var tempColor = isColor ? P.temp : P.white;
+        var tempW = isColor ? 2.2 : 3;               // B&W: thick temp vs thin main line
+        var mainW = isColor ? 1.6 : 1;
+
         function drawNightShading() {
             if (!state.dayNightShading) { return ''; }
             return '<rect x="' + n0 + '" y="' + PT + '" width="' + (n1 - n0) + '" height="' + (PB - PT) + '" fill="url(#nh)"></rect>'
                 + '<line x1="' + n0 + '" y1="' + PT + '" x2="' + n0 + '" y2="' + PB + '" stroke="rgba(255,255,255,0.45)" stroke-width="0.7"></line>'
                 + '<line x1="' + n1 + '" y1="' + PT + '" x2="' + n1 + '" y2="' + PB + '" stroke="rgba(255,255,255,0.45)" stroke-width="0.7"></line>';
         }
-
-        // The main temperature curve (solid Folly line).
         function drawTempCurve() {
-            return '<path d="' + smooth(temps.map(function (t, i) { return [X(i), yT(t)]; })) + '" fill="none" stroke="#FF0055" stroke-width="2" stroke-linecap="round"></path>';
+            return '<path d="' + smooth(temps.map(function (t, i) { return [slotCenter(i), yT(t)]; }))
+                + '" fill="none" stroke="' + tempColor + '" stroke-width="' + tempW + '" stroke-linecap="round"></path>';
         }
-
-        // Bottom hour axis: a tick per hour (longer every 3h) with 3-hourly labels.
         function drawAxis() {
-            var lbl = { 0: '15', 3: '18', 6: '21', 9: '0', 12: '3', 15: '6', 18: '9', 21: '12' };
+            var lbl = { 0: '12', 3: '15', 6: '18', 9: '21', 12: '0', 15: '3', 18: '6', 21: '9' };
             var out = '';
-            for (var h = 0; h <= TH; h++) {
+            for (var h = 0; h <= TH; h += 1) {
                 var big = h % 3 === 0;
                 out += '<line x1="' + tickX(h) + '" y1="' + PB + '" x2="' + tickX(h) + '" y2="' + (PB + (big ? 4 : 2)) + '" stroke="rgba(255,255,255,0.32)" stroke-width="0.6"></line>';
                 if (big) { out += txt(tickX(h), 117, 7.5, '#7C828D', 'middle', 600, lbl[h]); }
             }
             return out;
         }
-
-        var e = '';
-        e += rect(0, 0, 200, 120, '#000');
-        e += '<defs><pattern id="nh" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="rgba(255,255,255,0.30)" stroke-width="0.7"></line></pattern></defs>';
-        e += drawNightShading();
-        e += '<line x1="' + PX0 + '" y1="' + PB + '" x2="' + PX1 + '" y2="' + PB + '" stroke="rgba(255,255,255,0.20)" stroke-width="0.7"></line>';
-        if (state.barSource === 'rain') {
-            // On B/W platforms the color picker is hidden, so honor the hardware: always white.
-            var rainWhite = state.rainBarColor === 'white' || (env && !env.color);
-            for (var i = 0; i < rain.length; i++) {
-                e += rainBars(rain[i], PX0 + (i + 0.5) * cw - bw / 2, bw, PB, maxBar, rainWhite);
-            }
-        }
-        var windMax = state.windScale === 'low' ? 30 : (state.windScale === 'high' ? 70 : 50);
-        // Gust has no hue; match the watch and keep it off the bar color — white bars → light
-        // gray, colored (multicolor) bars → white. B/W watches force white C-side, so the gray
-        // only shows on color devices.
-        var gustColor = (env && env.color && state.rainBarColor === 'white') ? '#AAAAAA' : '#FFFFFF';
-        // metric → { sample series, full-scale max, preview stroke color, optional fill }
-        var METRIC = {
-            precip_prob: { vals: precip, max: 100, color: '#00FFFF', fill: 'rgba(0,255,255,0.16)' },
-            wind: { vals: wind, max: windMax, color: '#FFFF55' },
-            gust: { vals: gust, max: windMax, color: gustColor },
-            uv: { vals: uv, max: 11, color: '#FF00FF' }
-        };
         /**
-         * Build SVG markup for the main metric: a solid line with an optional fill (precip only).
-         * @param {string} metric - One of precip_prob, wind, gust, uv.
-         * @returns {string} SVG markup for the line (and optional fill area).
+         * Main metric: solid line, broken into separate segments at every zero so it never lies
+         * flat on the axis (deliberate preview-only divergence from the watch's continuous line).
+         * Precip is the only filled metric; the fill follows each segment.
+         * @param {string} metric precip_prob|wind|gust|uv
+         * @returns {string} SVG markup
          */
         var lineFor = function (metric) {
             var m = METRIC[metric];
             if (!m) { return ''; }
-            var pts = m.vals.map(function (v, i) { return [X(i), PB - Math.min(v, m.max) / m.max * (PB - PT - 3)]; });
-            var path = smooth(pts);
-            var out = '';
-            if (metric === 'precip_prob' && state.secondaryLineFill && m.fill) {
-                out += '<path d="' + path + ' L' + X(n - 1) + ',' + PB + ' L' + X(0) + ',' + PB + ' Z" fill="' + m.fill + '"></path>';
+            var col = metricColor(metric), out = '', seg = [];
+            var doFill = metric === 'precip_prob' && state.secondaryLineFill;
+            function flush() {
+                if (seg.length >= 2) {
+                    var d = smooth(seg);
+                    if (doFill) {
+                        var area = d + ' L' + seg[seg.length - 1][0] + ',' + PB + ' L' + seg[0][0] + ',' + PB + ' Z';
+                        out += isColor
+                            ? '<path d="' + area + '" fill="' + P.fillPrecip + '" fill-opacity="0.25"></path>'
+                            : '<path d="' + area + '" fill="url(#fillhatch)"></path>';
+                    }
+                    out += '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="' + mainW + '"></path>';
+                } else if (seg.length === 1) {
+                    out += rect(seg[0][0] - 0.8, seg[0][1] - 0.8, 1.6, 1.6, col);
+                }
+                seg = [];
             }
-            out += '<path d="' + path + '" fill="none" stroke="' + m.color + '" stroke-width="1.6"></path>';
+            for (var i = 0; i < m.vals.length; i += 1) {
+                var v = Math.min(m.vals[i], m.max);
+                if (v <= 0) { flush(); continue; }
+                seg.push([slotCenter(i), PB - v / m.max * (PB - PT - 3)]);
+            }
+            flush();
             return out;
         };
         /**
-         * Build SVG markup for the second metric: little squares matched to the rain bars —
-         * bar width, same column, at each hour's value height. A value of 0 sits on the baseline
-         * and is skipped, mirroring the watch.
-         * @param {string} metric - One of precip_prob, wind, gust, uv.
-         * @returns {string} SVG markup for the square markers.
+         * Second metric: bar-aligned squares; a value of 0 sits on the baseline and is skipped
+         * (mirrors the watch).
+         * @param {string} metric precip_prob|wind|gust|uv
+         * @returns {string} SVG markup
          */
         var barDotsFor = function (metric) {
             var m = METRIC[metric];
             if (!m) { return ''; }
-            // Width follows the bar width; height matches the watch — a white dot is the dominant
-            // case (gust over colored bars) so it gets a shorter cap, while a dimmed gray dot
-            // (gust over white bars) is a touch taller for presence. Color devices only; B/W keeps
-            // the taller height.
-            var dw = bw, dh = (env && env.color && m.color === '#FFFFFF') ? 3 : 4, out = '';
-            for (var i = 0; i < m.vals.length; i++) {
+            var col = metricColor(metric);
+            var dh = (isColor && col === P.white) ? 3 : 4, out = '';
+            for (var i = 0; i < m.vals.length; i += 1) {
                 var v = Math.min(m.vals[i], m.max);
-                if (v <= 0) { continue; }   // value 0 → on the baseline, skip
+                if (v <= 0) { continue; }
                 var cy = PB - v / m.max * (PB - PT - 3);
-                var cx = PX0 + (i + 0.5) * cw;   // bar column center
-                out += rect(cx - dw / 2, cy - dh / 2, dw, dh, m.color);
+                out += rect(slotCenter(i) - bw / 2, cy - dh / 2, bw, dh, col);
             }
             return out;
         };
-        // Main metric (solid) first, then the second metric's bar-aligned squares on top of it
-        // (excluding a duplicate metric), then the temperature curve.
+
+        var e = '';
+        e += rect(0, 0, 200, 120, '#000');
+        e += '<defs>'
+            + '<pattern id="nh" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="rgba(255,255,255,0.30)" stroke-width="0.7"></line></pattern>'
+            + '<pattern id="fillhatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="rgba(255,255,255,0.35)" stroke-width="0.6"></line></pattern>'
+            + '</defs>';
+        e += drawNightShading();
+        e += '<line x1="' + PX0 + '" y1="' + PB + '" x2="' + PX1 + '" y2="' + PB + '" stroke="rgba(255,255,255,0.20)" stroke-width="0.7"></line>';
+        if (state.barSource === 'rain') {
+            for (var i = 0; i < rain.length; i += 1) {
+                e += rainBars(rain[i], slotCenter(i) - bw / 2, bw, PB, plotH, !isColor, P.rainTiers, true);
+            }
+        }
         e += lineFor(state.secondaryLine);
         if (state.thirdLine && state.thirdLine !== 'off' && state.thirdLine !== state.secondaryLine) {
             e += barDotsFor(state.thirdLine);
@@ -186,8 +274,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         e += txt(3, 31, 8, '#AEB4BD', 'start', 600, tmax + '°') + txt(3, PB - 1, 8, '#AEB4BD', 'start', 600, tmin + '°');
         e += drawAxis();
         e += txt((n0 + n1) / 2, 13, 8.5, '#E6E9EF', 'middle', 600, 'Berlin') + txt(197, 12, 8, '#C9CCD2', 'end', 600, '21:29 ↓');
-        // The engine wraps this in a position:sticky .blockrow (see CSS); svgFrame's
-        // negative margins bleed the preview edge-to-edge within it.
         return svgFrame(e);
     }
 
@@ -209,15 +295,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
         e += txt(PX0, topY - 3, 7, '#7C828D', 'start', 600, 'now') + txt(PX0 + 12 * step, topY - 3, 7, '#7C828D', 'middle', 600, '+1h') + txt(PX1, topY - 3, 7, '#7C828D', 'end', 600, '+2h');
         e += '<line x1="' + PX0 + '" y1="' + PB + '" x2="' + PX1 + '" y2="' + PB + '" stroke="rgba(255,255,255,0.18)" stroke-width="0.7"></line>';
-        // On B/W platforms the color picker is hidden, so honor the hardware: always white.
+        var P = (userData && userData.palette) || FALLBACK_PALETTE;
         var radarWhite = state.radarColor === 'white' || (env && !env.color);
         for (var i = 0; i < n; i++) {
             var x = PX0 + i * step + (step - bw) / 2;
-            var nH = rainPermille(local[i] + add[i]);
+            var nH = barPermille(Math.round((local[i] + add[i]) * 10)) / 1000;
             if (nH > 0) {
                 e += '<rect x="' + x + '" y="' + (PB - nH * plotH) + '" width="' + bw + '" height="' + (nH * plotH) + '" fill="none" stroke="rgba(255,255,255,0.30)" stroke-width="0.7"></rect>';
             }
-            e += rainBars(local[i], x, bw, PB, plotH, radarWhite);
+            e += rainBars(local[i], x, bw, PB, plotH, radarWhite, P.rainTiers, false);
         }
         return svgFrame(e);
     }
@@ -402,6 +488,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     PConf.blocks.register('lastFetch', lastFetch);
 
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = { forecastPreview: forecastPreview, radarPreview: radarPreview, devStats: devStats, lastFetch: lastFetch };
+        module.exports = {
+            forecastPreview: forecastPreview, radarPreview: radarPreview,
+            devStats: devStats, lastFetch: lastFetch,
+            barPermille: barPermille, previewPaletteFallback: FALLBACK_PALETTE
+        };
     }
 })();
