@@ -189,5 +189,8 @@ module.exports = {
     applyForecastSeries: applyForecastSeries,
     needsUv: needsUv,
     permilleToByte: permilleToByte,
-    tempTrendToBytes: tempTrendToBytes
+    tempTrendToBytes: tempTrendToBytes,
+    LINE_COLORS: LINE_COLORS,
+    FILL_COLORS: FILL_COLORS,
+    lineColorFor: lineColorFor
 };
