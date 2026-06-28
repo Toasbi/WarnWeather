@@ -71,7 +71,7 @@ test('B/W bar-scale hints are staticText, gated to non-color + the picker condit
 
 test('COLOR-capability + showWhen wiring', () => {
   ['rainBarColor','radarColor','colorTime'].forEach((k) => assert.ok(byKey(k).capabilities.indexOf('COLOR') >= 0));
-  assert.deepEqual(byKey('secondaryLineFill').showWhen, { key: 'secondaryLine', eq: 'precip_prob' });
+  assert.equal(byKey('secondaryLineFill').showWhen, undefined); // fill now available for every metric
   assert.deepEqual(byKey('owmApiKey').showWhen, { key: 'provider', eq: 'openweathermap' });
   assert.deepEqual(byKey('devStatsClear').showWhen, { key: 'devStatsEnabled', eq: true });
 });
