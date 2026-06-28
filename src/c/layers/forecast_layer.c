@@ -11,6 +11,7 @@
 #include "c/appendix/slot_geometry.h"
 #include "c/appendix/display_width.h"
 #include "c/appendix/chart.h"
+#include "c/appendix/series.h"
 
 #define LEFT_AXIS_LABEL_STRIP_MIN_W 15
 #define LEFT_AXIS_LABEL_TO_GRAPH_GAP 2
@@ -28,7 +29,7 @@
 #endif
 #define NIGHT_HATCH_SPACING PBL_IF_COLOR_ELSE(6, 7)
 #define NIGHT_HATCH_COLOR GColorDarkGray
-// Day area fill is the per-metric color PKJS sends (ds.fill_color); B&W keeps the
+// Day area fill is the per-metric fill color (resolved at load); B&W keeps the
 // dithered light-gray. The night shades are hardcoded to the single supported
 // metric's blue family (a future metric adds its own hardcoded set).
 #define NIGHT_AREA_FILL_COLOR PBL_IF_COLOR_ELSE(GColorDukeBlue, GColorLightGray)
@@ -38,7 +39,6 @@
 #define FORECAST_TREND_FULL_SCALE 250  // uint8 wire range (PKJS sends 0..250)
 #define FORECAST_STEP_SECONDS (60 * 60)
 #define DAY_SECONDS (24 * 60 * 60)
-#define MAX_FORECAST_ENTRIES 24
 
 // Slot grid bar dimensions, bucketed by display width.
 // pitch = tick_w + 2*pad + bar_w
@@ -111,45 +111,51 @@ typedef struct
 } ForecastLayout;
 
 typedef struct {
-    int num_entries;          // clamped to MAX_FORECAST_ENTRIES
+    int    num_entries;          // clamped to MAX_FORECAST_ENTRIES
     time_t forecast_start;
-    int16_t temps[MAX_FORECAST_ENTRIES];
-    int16_t line[MAX_FORECAST_ENTRIES];   // permille; line_present==0 means off
-    int16_t bars[MAX_FORECAST_ENTRIES];   // permille; bars_present==0 means off
-    int line_present;   // nonzero if the line series is enabled
-    int bars_present;   // nonzero if the bar series is enabled
-    GColor line_color;        // stroke color, chosen per-metric by PKJS
-    GColor fill_color;        // area-fill color (day), chosen per-metric by PKJS
-    bool line_fill;           // shade the area under the line (metric color; gray on B&W)
-    int16_t third_line[MAX_FORECAST_ENTRIES]; // permille third-line series; present via persist_exists
-    int     third_line_present;               // nonzero ⇒ draw the dotted second-metric line
-    GColor third_line_color;                  // per-metric stroke color for the dotted second-metric line
-    int temp_lo;
-    int temp_hi;
+    Series series[SERIES_COUNT];
 } ForecastDataset;
 
 static void load_dataset(ForecastDataset *ds) {
-    // No demo data is seeded anymore, so missing persist keys must leave the
-    // dataset zeroed instead of reading uninitialized stack memory.
     memset(ds, 0, sizeof(*ds));
     const int raw = persist_get_num_entries();
-    ds->num_entries = raw > MAX_FORECAST_ENTRIES ? MAX_FORECAST_ENTRIES : (raw < 0 ? 0 : raw);
+    const int n = raw > MAX_FORECAST_ENTRIES ? MAX_FORECAST_ENTRIES : (raw < 0 ? 0 : raw);
+    ds->num_entries = n;
     ds->forecast_start = persist_get_forecast_start();
-    ds->line_color = persist_get_line_color();
-    ds->fill_color = persist_get_fill_color();
-    ds->line_fill = persist_get_line_fill();
-    ds->third_line_color = persist_get_third_line_color();
-    if (ds->num_entries > 0) {
-        persist_get_temp_trend(ds->temps, ds->num_entries);
-        // line_present/bars_present are used only as on/off flags; PKJS always
-        // builds each series at the full num_entries, so we read num_entries values.
-        ds->line_present = persist_get_line_count();
-        ds->bars_present = persist_get_bar_count();
-        if (ds->line_present > 0) { persist_get_line_trend(ds->line, ds->num_entries); }
-        if (ds->bars_present > 0) { persist_get_bar_trend(ds->bars, ds->num_entries); }
-        ds->third_line_present = persist_third_line_present();
-        if (ds->third_line_present) { persist_get_third_line_trend(ds->third_line, ds->num_entries); }
-        // temp autoscale removed: temp LINE layer now uses fixed 0..FORECAST_TREND_FULL_SCALE
+
+    // Per-id literals — every value (incl. resolved color) set inline.
+    ds->series[SERIES_FIRST] = (Series){
+        .id = SERIES_FIRST, .kind = SERIES_KIND_LINE, .present = (n > 0),
+        .line = { .color = PBL_IF_COLOR_ELSE(GColorRed, GColorWhite),
+                  .width = 3, .inset_y = MARGIN_TEMP_H } };
+
+    ds->series[SERIES_SECOND] = (Series){
+        .id = SERIES_SECOND, .kind = SERIES_KIND_LINE,
+        .present = persist_series_present(SERIES_SECOND),
+        .line = { .color      = persist_get_line_color(),   // raw stroke — SDK reduces on B&W
+                  .width      = 1,
+                  .fill_on    = persist_get_line_fill(),
+                  .fill_color = PBL_IF_COLOR_ELSE(persist_get_fill_color(), GColorLightGray) } };
+
+    ds->series[SERIES_THIRD] = (Series){
+        .id = SERIES_THIRD, .kind = SERIES_KIND_LINE,
+        .present = persist_series_present(SERIES_THIRD),
+        .line = { .color  = PBL_IF_COLOR_ELSE(persist_get_third_line_color(), GColorWhite),
+                  .width  = FORECAST_BAR_W,   // dots match the rain-bar columns
+                  .dotted = true } };
+
+    ds->series[SERIES_BARS] = (Series){
+        .id = SERIES_BARS, .kind = SERIES_KIND_BARS,
+        .present = persist_series_present(SERIES_BARS),
+        .bars = { .style = PBL_IF_COLOR_ELSE(BAR_SOLID, BAR_OUTLINED) } };
+    // .bars.stops/.num_stops are attached at render (scaled palette).
+
+    if (n > 0) {
+        for (SeriesId s = 0; s < SERIES_COUNT; ++s) {
+            if (ds->series[s].present) {
+                persist_series_trend(s, series_values(&ds->series[s]), n);
+            }
+        }
     }
 }
 
@@ -410,7 +416,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // Per-redraw data prep + layer list. The scratch arrays are module-static
     // (not stack): aplite's small app stack overflows otherwise (PC=0/LR=0).
     // Safe — single layer instance, single-threaded, all recomputed each redraw.
-    // ds.line / ds.bars are already contiguous int16 permille from PKJS, so the
+    // Series values are already contiguous int16 permille from PKJS, so the
     // chart layers read them directly; only the contour points + axis slots need
     // scratch.
     static GPoint  area_pts[MAX_FORECAST_ENTRIES + 2];
@@ -419,10 +425,15 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                              outer.origin.x, chart_def_pitch(&FORECAST_DEF),
                              bounds.size.w, forecast_start_local);
 
-    const bool line_on = ds.line_present > 0;
-    const bool fill_on = line_on && ds.line_fill;
-    const bool bars_on = ds.bars_present > 0;
-    const bool third_line_on = ds.third_line_present;  // already a flag (persist_exists), no > 0
+    Series *first  = &ds.series[SERIES_FIRST];
+    Series *second = &ds.series[SERIES_SECOND];
+    Series *third  = &ds.series[SERIES_THIRD];
+    Series *bars   = &ds.series[SERIES_BARS];
+
+    const bool line_on       = second->present;
+    const bool fill_on       = line_on && second->line.fill_on;
+    const bool bars_on       = bars->present;
+    const bool third_line_on = third->present;
 
     // Night bands span slot 0..(num_entries-1) so the linear time->x map lands
     // on the same hour columns (anchor_x + i*pitch) the ticks/lines use.
@@ -464,9 +475,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     int n = 0;
     if (fill_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_AREA, .area = {
-            .values = ds.line, .export_points = area_pts,
+            .values = second->line.values, .export_points = area_pts,
             .count = ds.num_entries, .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
-            .fill_color = PBL_IF_COLOR_ELSE(ds.fill_color, GColorLightGray) } };
+            .fill_color = second->line.fill_color } };
     }
     // night_under re-shades the filled area, so it needs the AREA layer's
     // exported contour and only runs when the fill is present.
@@ -489,11 +500,15 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .spacing        = NIGHT_HATCH_SPACING,
             .contour        = NULL } };
     }
+    // Attach the scaled rain-tier palette to the BARS series (computed above).
+    bars->bars.stops     = scaled_bar_stops;
+    bars->bars.num_stops = bar_num_stops;
     if (bars_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_BARS, .bars = {
-            .values = ds.bars, .count = ds.num_entries, .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
-            .stops = scaled_bar_stops, .num_stops = bar_num_stops,
-            .style = PBL_IF_COLOR_ELSE(BAR_SOLID, BAR_OUTLINED) } };
+            .values = bars->bars.values, .count = ds.num_entries,
+            .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
+            .stops = bars->bars.stops, .num_stops = bars->bars.num_stops,
+            .style = bars->bars.style } };
     }
     // Second metric: square dots for a second-metric line. Z-order vs. the
     // solid main-metric line depends on the fill: with an opaque area fill the
@@ -504,10 +519,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     ChartLayer third_line_layer = {0};
     if (third_line_on) {
         third_line_layer = (ChartLayer){ CHART_LAYER_LINE, .line = {
-            .values = ds.third_line, .count = ds.num_entries,
-            .lo = 0, .hi = FORECAST_TREND_FULL_SCALE, .inset_y = 0,
-            // width = bar width so the dots match the rain bars' columns (see chart_draw_bar_dots).
-            .color = PBL_IF_COLOR_ELSE(ds.third_line_color, GColorWhite), .width = FORECAST_BAR_W, .dotted = true } };
+            .values = third->line.values, .count = ds.num_entries,
+            .lo = 0, .hi = FORECAST_TREND_FULL_SCALE, .inset_y = third->line.inset_y,
+            .color = third->line.color, .width = third->line.width, .dotted = true } };
     }
     // No fill: dots go under the main line.
     if (third_line_on && !fill_on) { layers[n++] = third_line_layer; }
@@ -515,19 +529,20 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         layers[n++] = fill_on
             ? (ChartLayer){ CHART_LAYER_LINE, .line = {
                   .points = area_pts, .count = ds.num_entries,
-                  .color = ds.line_color, .width = 1 } }
+                  .color = second->line.color, .width = second->line.width } }
             : (ChartLayer){ CHART_LAYER_LINE, .line = {
-                  .values = ds.line, .count = ds.num_entries,
-                  .lo = 0, .hi = FORECAST_TREND_FULL_SCALE, .inset_y = 0, .export_points = area_pts,
-                  .color = ds.line_color, .width = 1 } };
+                  .values = second->line.values, .count = ds.num_entries,
+                  .lo = 0, .hi = FORECAST_TREND_FULL_SCALE, .inset_y = second->line.inset_y,
+                  .export_points = area_pts,
+                  .color = second->line.color, .width = second->line.width } };
     }
     // Fill present: dots go over the line + its opaque fill so they stay visible.
     if (third_line_on && fill_on) { layers[n++] = third_line_layer; }
 
     layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
-        .values = ds.temps, .count = ds.num_entries,
-        .lo = 0, .hi = FORECAST_TREND_FULL_SCALE, .inset_y = MARGIN_TEMP_H,
-        .color = PBL_IF_COLOR_ELSE(GColorRed, GColorWhite), .width = 3 } };
+        .values = first->line.values, .count = ds.num_entries,
+        .lo = 0, .hi = FORECAST_TREND_FULL_SCALE, .inset_y = first->line.inset_y,
+        .color = first->line.color, .width = first->line.width } };
     layers[n++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
         .left   = { 1, axis_color },
         .bottom = { 1, axis_color } } } };

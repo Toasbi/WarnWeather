@@ -3,6 +3,7 @@
 #include <pebble.h>
 
 #include "config.h"
+#include "series.h"
 
 int persist_get_temp_trend(int16_t *buffer, const size_t buffer_size);
 
@@ -19,6 +20,9 @@ int persist_get_bar_trend(int16_t *buffer, const size_t buffer_size);
 int persist_get_line_count(void);
 
 int persist_get_bar_count(void);
+
+bool persist_series_present(SeriesId id);
+int  persist_series_trend(SeriesId id, int16_t *out, size_t n);
 
 GColor persist_get_line_color(void);
 

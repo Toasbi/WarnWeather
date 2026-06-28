@@ -114,6 +114,25 @@ int persist_get_bar_count(void) {
     return persist_exists(BAR_COUNT) ? persist_read_int(BAR_COUNT) : 0;
 }
 
+bool persist_series_present(SeriesId id) {
+    switch (id) {
+        case SERIES_SECOND: return persist_get_line_count() > 0;
+        case SERIES_THIRD:  return persist_third_line_present();
+        case SERIES_BARS:   return persist_get_bar_count() > 0;
+        default:            return false;  // FIRST: caller uses num_entries > 0
+    }
+}
+
+int persist_series_trend(SeriesId id, int16_t *out, size_t n) {
+    switch (id) {
+        case SERIES_FIRST:  return persist_get_temp_trend(out, n);
+        case SERIES_SECOND: return persist_get_line_trend(out, n);
+        case SERIES_THIRD:  return persist_get_third_line_trend(out, n);
+        case SERIES_BARS:   return persist_get_bar_trend(out, n);
+        default:            return 0;
+    }
+}
+
 GColor persist_get_line_color(void) {
     if (!persist_exists(LINE_COLOR)) { return GColorPictonBlue; }
     return (GColor){ .argb = (uint8_t) persist_read_int(LINE_COLOR) };
