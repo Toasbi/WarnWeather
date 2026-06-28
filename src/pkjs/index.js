@@ -24,6 +24,7 @@ var holidayMask = require('./holidays/holiday-mask.js');
 var registry = require('./holidays/registry.js');
 var buildClayPayload = require('./clay-payload.js').buildClayPayload;
 var providerFactory = require('./provider-factory.js');
+var previewPalette = require('./settings/preview-palette.js');
 
 /**
  * Full release-notification manifest (dev: force-show by version). Omitted from bundle if missing.
@@ -176,7 +177,8 @@ Pebble.addEventListener('showConfiguration', function(e) {
     var userData = {
         lastFetchSuccess: localStorage.getItem(KEY_LAST_FETCH_SUCCESS),
         lastFetchAttempt: localStorage.getItem(KEY_LAST_FETCH_ATTEMPT),
-        devStats: JSON.stringify(devStats.read())
+        devStats: JSON.stringify(devStats.read()),
+        palette: previewPalette.buildPreviewPalette()
     };
     var values = claySettings.read();
     // Let the library pick the return target: pebblejs://close# on device, or the

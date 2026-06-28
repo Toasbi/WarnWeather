@@ -49,7 +49,7 @@ test('lastFetch formats success / Never / failed-attempt-with-error', () => {
 });
 test('forecastPreview draws the secondary line per metric (solid, per-metric color)', () => {
   const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', thirdLine: 'off' };
-  assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind' }), { color: true }).indexOf('stroke="#FFFF55"') > -1, 'wind = yellow');
+  assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind' }), { color: true }).indexOf('stroke="#FFFF00"') > -1, 'wind = yellow');
   assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'gust' }), { color: true }).indexOf('stroke="#FFFFFF"') > -1, 'gust = white');
   assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'uv' }), { color: true }).indexOf('stroke="#FF00FF"') > -1, 'uv = magenta');
 });
@@ -75,19 +75,115 @@ test('forecastPreview gust dots take a color distinct from the rain bars', () =>
 });
 
 test('forecastPreview never draws the second metric as the same metric as the main', () => {
-  // duplicate metric → no second-metric squares; wind = #FFFF55 is only a fill for those squares.
+  // duplicate metric → no second-metric squares; wind = #FFFF00 is only a fill for those squares.
   const svg = B.forecastPreview({ dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'wind', thirdLine: 'wind' }, { color: true });
-  assert.equal(svg.indexOf('fill="#FFFF55"'), -1, 'duplicate metric → no second-metric squares');
-});
-test('forecastPreview draws the area fill for wind/gust/uv when the fill toggle is on', () => {
-  const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', thirdLine: 'off' };
-  // fill on → each non-precip metric renders its own rgba fill polygon
-  assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind', secondaryLineFill: true }), { color: true }).indexOf('rgba(85,85,0,0.45)') > -1, 'wind fill renders');
-  assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'gust', secondaryLineFill: true }), { color: true }).indexOf('rgba(85,85,85,0.45)') > -1, 'gust fill renders');
-  assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'uv', secondaryLineFill: true }), { color: true }).indexOf('rgba(170,0,170,0.30)') > -1, 'uv fill renders');
-  // fill off → no fill polygon for a non-precip metric
-  assert.equal(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind', secondaryLineFill: false }), { color: true }).indexOf('rgba(85,85,0,0.45)'), -1, 'no wind fill when the toggle is off');
+  assert.equal(svg.indexOf('fill="#FFFF00"'), -1, 'duplicate metric → no second-metric squares');
 });
 test('registers all four into PConf.blocks', () => {
   ['forecastPreview','radarPreview','devStats','lastFetch'].forEach((id) => assert.equal(typeof PConf.blocks.get(id), 'function'));
+});
+
+test('blocks fallback palette equals buildPreviewPalette (no color drift)', () => {
+  const { buildPreviewPalette } = require('../src/pkjs/settings/preview-palette.js');
+  assert.deepEqual(B.previewPaletteFallback, buildPreviewPalette());
+});
+
+test('blocks barPermille matches rain-tier.rainPermille byte-for-byte', () => {
+  const rt = require('../src/pkjs/weather/rain-tier.js');
+  [0, 1, 2, 3, 5, 6, 20, 21, 50, 100, 101, 200, 255, 500, 1000].forEach((t) =>
+    assert.equal(B.barPermille(t), rt.rainPermille(t), 'tenths=' + t));
+});
+
+test('the second metric (dots) spans the full plot width (no early stop)', () => {
+  const svg = B.forecastPreview(
+    { barSource: 'off', secondaryLine: 'precip_prob', thirdLine: 'gust', windScale: 'mid', dayNightShading: false },
+    { color: true });
+  const xs = (svg.match(/<rect x="([\d.]+)"/g) || []).map((m) => parseFloat(m.replace(/[^\d.]/g, '')));
+  assert.ok(Math.max.apply(null, xs) > 180, 'a dot reaches the right edge (>180); got ' + Math.max.apply(null, xs));
+});
+
+test('UV line breaks at zeros instead of lying on the axis', () => {
+  const svg = B.forecastPreview(
+    { barSource: 'off', secondaryLine: 'uv', windScale: 'mid', dayNightShading: false },
+    { color: true });
+  const segs = svg.match(/fill="none" stroke="#FF00FF"/g) || [];
+  assert.ok(segs.length >= 2, 'UV renders as >=2 separate segments (day + dawn); got ' + segs.length);
+});
+
+test('B&W: series are white, temp thick (3) vs main thin (1), no hues', () => {
+  const bw = B.forecastPreview(
+    { barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'wind', windScale: 'mid', dayNightShading: false },
+    { color: false });
+  assert.equal(bw.indexOf('fill="#00FF00"'), -1, 'no color rain bands on B&W');
+  assert.equal(bw.indexOf('#FFFF00'), -1, 'wind hue not used on B&W (white instead)');
+  assert.ok(bw.indexOf('stroke-width="3"') >= 0, 'temp curve thick (3)');
+  assert.ok(bw.indexOf('stroke-width="1"') >= 0, 'main line thin (1)');
+});
+
+test('legend lists the shown series with palette colors (color watch)', () => {
+  const svg = B.forecastPreview(
+    { barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'precip_prob', thirdLine: 'wind', windScale: 'mid', dayNightShading: false },
+    { color: true });
+  assert.ok(svg.indexOf('viewBox="0 0 200 138"') >= 0, 'frame is taller to fit the legend');
+  assert.ok(svg.indexOf('>Temp<') >= 0, 'Temp entry');
+  assert.ok(svg.indexOf('>Precip<') >= 0, 'main metric entry (Precip)');
+  assert.ok(svg.indexOf('>Wind<') >= 0, 'second metric entry (Wind)');
+  assert.ok(svg.indexOf('>Rain<') >= 0, 'Rain entry (bars on)');
+});
+
+test('legend omits the second metric when thirdLine is off, and Rain when bars are off', () => {
+  const svg = B.forecastPreview(
+    { barSource: 'off', secondaryLine: 'uv', thirdLine: 'off', windScale: 'mid', dayNightShading: false },
+    { color: true });
+  assert.ok(svg.indexOf('>UV<') >= 0, 'main metric entry (UV)');
+  assert.equal(svg.indexOf('>Rain<'), -1, 'no Rain entry when bars are off');
+});
+
+test('legend uses white style glyphs on B&W (no hues)', () => {
+  const svg = B.forecastPreview(
+    { barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'wind', thirdLine: 'off', windScale: 'mid', dayNightShading: false },
+    { color: false });
+  assert.ok(svg.indexOf('>Temp<') >= 0 && svg.indexOf('>Wind<') >= 0 && svg.indexOf('>Rain<') >= 0);
+  assert.equal(svg.indexOf('#FFFF00'), -1, 'no wind hue in the B&W legend');
+});
+
+test('legend shows the second metric as white dots on B&W (no hue)', () => {
+  const svg = B.forecastPreview(
+    { barSource: 'off', secondaryLine: 'wind', thirdLine: 'gust', windScale: 'mid', dayNightShading: false },
+    { color: false });
+  assert.ok(svg.indexOf('>Gust<') >= 0, 'second-metric legend entry (Gust) present');
+  assert.ok(svg.indexOf('fill="#FFFFFF"') >= 0, 'second metric renders as white squares on B&W');
+  assert.equal(svg.indexOf('#AAAAAA'), -1, 'no gust gray hue on B&W (white instead)');
+});
+
+test('radarPreview shows a Rain legend (tier gradient on color, outline on B&W)', () => {
+  const color = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor' }, { color: true });
+  const bw = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor' }, { color: false });
+  assert.ok(color.indexOf('viewBox="0 0 200 138"') >= 0, 'taller frame for the legend');
+  assert.ok(color.indexOf('>Rain<') >= 0, 'Rain label present');
+  assert.ok(color.indexOf('fill="#00FF00"') >= 0, 'tier gradient (green) present on color');
+  assert.ok(bw.indexOf('>Rain<') >= 0, 'Rain label present on B&W too');
+});
+
+test('precip secondary line draws the cobalt fill on color and a hatch on B&W', () => {
+  const base = { barSource: 'off', secondaryLine: 'precip_prob', secondaryLineFill: true, windScale: 'mid', dayNightShading: false };
+  const color = B.forecastPreview(base, { color: true });
+  assert.ok(color.indexOf('fill="#0055AA"') >= 0 && color.indexOf('fill-opacity="0.25"') >= 0,
+    'color: translucent cobalt precip fill present');
+  const bw = B.forecastPreview(base, { color: false });
+  assert.ok(bw.indexOf('fill="url(#fillhatch)"') >= 0, 'B&W: precip fill uses the hatch pattern');
+  assert.equal(bw.indexOf('fill="#0055AA"'), -1, 'B&W: no solid cobalt fill');
+});
+
+test('area fill works for every main metric, in its palette fill color', () => {
+  // Fill colors are sourced from forecast-series.FILL_COLORS: wind=ArmyGreen, gust=DarkGray, uv=Purple.
+  const base = { barSource: 'off', windScale: 'mid', dayNightShading: false };
+  const wind = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind', secondaryLineFill: true }), { color: true });
+  const gust = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'gust', secondaryLineFill: true }), { color: true });
+  const uv = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'uv', secondaryLineFill: true }), { color: true });
+  assert.ok(wind.indexOf('fill="#555500"') >= 0, 'wind fill = ArmyGreen');
+  assert.ok(gust.indexOf('fill="#555555"') >= 0, 'gust fill = DarkGray');
+  assert.ok(uv.indexOf('fill="#AA00AA"') >= 0, 'uv fill = Purple');
+  const off = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind', secondaryLineFill: false }), { color: true });
+  assert.equal(off.indexOf('fill="#555500"'), -1, 'no fill when the toggle is off');
 });

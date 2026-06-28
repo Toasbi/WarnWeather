@@ -12,6 +12,7 @@ var build = require('../src/pkjs/config-ui/scripts/build-page.js');
 
 var ROOT = path.join(__dirname, '..');
 var schema = require(path.join(ROOT, 'src/pkjs/settings/schema.js'));
+var previewPalette = require(path.join(ROOT, 'src/pkjs/settings/preview-palette.js'));
 var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/blocks.js'),
   path.join(ROOT, 'src/pkjs/settings/onbuild.js')
@@ -34,7 +35,7 @@ function run(opts) {
     schema: schema,
     env: envFor(opts.platform || 'basalt'),
     cfg: {},
-    userData: {},
+    userData: { palette: previewPalette.buildPreviewPalette() },
     returnTo: '#'
   });
 }
