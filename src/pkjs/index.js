@@ -17,6 +17,7 @@ var pkg = require('../../package.json');
 var activeFixture = require('./active-fixture.generated.js');
 var pebbleColors = require('./pebble-colors.js');
 var releaseNotifications = require('./release-notifications.js');
+var updateCheck = require('./update-check.js');
 var sleepWindow = require('./sleep-window.js');
 var claySettings = require('./clay-settings.js');
 var fixtureWeather = require('./fixture-weather.js');
@@ -56,6 +57,15 @@ var releaseNotificationsManifest = loadReleaseNotificationsManifest();
  */
 var app = {};  // Namespace for global app variables
 var KEY_MAX_NOTIFIED_VERSION = 'max_notified_version';
+var KEY_UPDATE_NOTIFIED_VERSION = storageKeys.UPDATE_NOTIFIED_VERSION_KEY;
+var KEY_LAST_UPDATE_CHECK = storageKeys.LAST_UPDATE_CHECK_KEY;
+var UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
+// Public appstore APIs; latest version lives at data[0].latest_release.version.
+// Announce the min across stores so the target is installable from either one.
+var UPDATE_CHECK_STORES = [
+    'https://appstore-api.repebble.com/api/v1/apps/id/67d6f1fcdb264341b850f79a',
+    'https://appstore-api.rebble.io/api/v1/apps/id/6a3645239d979d000abc99db'
+];
 var KEY_FETCH_ATTEMPT = storageKeys.FETCH_ATTEMPT_KEY;
 var KEY_LAST_FETCH_SUCCESS = storageKeys.LAST_FETCH_SUCCESS_KEY;
 var KEY_LAST_FETCH_ATTEMPT = storageKeys.LAST_FETCH_ATTEMPT_KEY;
@@ -370,6 +380,118 @@ function maybeShowReleaseNotification(hadExistingInstall, forceVersionSpec) {
 }
 
 /**
+ * GET each store's latest version sequentially (ES5, no Promise). Calls
+ * callback(versions) only when EVERY store returned a parseable version;
+ * calls callback(null) on the first network error, non-2xx, or unparseable
+ * body so the caller can skip notifying when "available in both" is unconfirmed.
+ *
+ * @param {string[]} urls Store API URLs.
+ * @param {Function} callback Receives string[] of versions, or null on any failure.
+ * @returns {void}
+ */
+function fetchStoreVersions(urls, callback) {
+    var versions = [];
+
+    function next(i) {
+        var xhr;
+        if (i >= urls.length) {
+            callback(versions);
+            return;
+        }
+        xhr = new XMLHttpRequest();
+        xhr.open('GET', urls[i]);
+        xhr.onload = function() {
+            var version;
+            if (xhr.status < 200 || xhr.status >= 300) {
+                console.log('[update-check] store ' + i + ' non-2xx status=' + xhr.status);
+                callback(null);
+                return;
+            }
+            version = updateCheck.parseLatestVersion(xhr.responseText);
+            if (version === null) {
+                console.log('[update-check] store ' + i + ' unparseable response');
+                callback(null);
+                return;
+            }
+            versions.push(version);
+            next(i + 1);
+        };
+        xhr.onerror = function() {
+            console.log('[update-check] store ' + i + ' request error');
+            callback(null);
+        };
+        xhr.send();
+    }
+
+    next(0);
+}
+
+/**
+ * Decide on the fetched store versions and notify once per newer version.
+ *
+ * @param {Array<string|null>|null} storeVersions Versions, or null when a fetch failed.
+ * @returns {void}
+ */
+function finishUpdateCheck(storeVersions) {
+    var decision;
+    if (storeVersions === null) {
+        console.log('[update-check] skipped: a store request failed');
+        return;
+    }
+    decision = updateCheck.decideUpdateNotification({
+        storeVersions: storeVersions,
+        appVersion: pkg.version,
+        updateNotifiedVersion: localStorage.getItem(KEY_UPDATE_NOTIFIED_VERSION) || '0.0.0'
+    });
+    console.log(decision.logLine);
+    if (decision.shouldNotify) {
+        Pebble.showSimpleNotificationOnPebble(
+            'Update available',
+            'Open the Pebble app store from your watch settings to get the latest version.'
+        );
+        localStorage.setItem(KEY_UPDATE_NOTIFIED_VERSION, decision.version);
+        console.log('[update-check] notified version=' + decision.version);
+    }
+}
+
+/**
+ * Once per day (while a watch is connected), check both appstores for a newer
+ * version and notify. The throttle slot is claimed BEFORE fetching, so a
+ * persistently failing store cannot trigger a retry every tick. dev-config can
+ * force a run and/or inject synthetic store versions for offline testing.
+ *
+ * @returns {void}
+ */
+function maybeCheckForUpdate() {
+    var dev = app.devConfig || {};
+    var force = Boolean(dev.forceUpdateCheckOnBoot);
+    var lastRaw;
+    var last;
+
+    if (!force) {
+        if (!isWatchConnected()) {
+            return;
+        }
+        lastRaw = localStorage.getItem(KEY_LAST_UPDATE_CHECK);
+        last = Number(lastRaw);
+        if (isFinite(last) && last > 0 && (Date.now() - last) < UPDATE_CHECK_INTERVAL_MS) {
+            return;
+        }
+    }
+
+    // Claim the daily slot up front so failures don't retry every tick.
+    localStorage.setItem(KEY_LAST_UPDATE_CHECK, String(Date.now()));
+
+    if (dev.overrideLatestStoreVersions) {
+        console.log('[update-check] using dev override store versions');
+        finishUpdateCheck(dev.overrideLatestStoreVersions);
+        return;
+    }
+
+    fetchStoreVersions(UPDATE_CHECK_STORES, finishUpdateCheck);
+}
+
+/**
  * Optionally edit PKJS localStorage on boot when enabled in dev-config.js.
  *
  * @param {Object} devConfig Developer configuration object.
@@ -404,6 +526,12 @@ function maybeHandleDevStorageReset(devConfig) {
     if (Boolean(devConfig && devConfig.resetV140HolidayRegionKeyMigration)) {
         console.log('[dev] resetV140HolidayRegionKeyMigration=true, clearing migration marker');
         localStorage.removeItem(KEY_V1_4_0_HOLIDAY_REGION_KEY_MIGRATION);
+    }
+
+    if (Boolean(devConfig && devConfig.resetUpdateNotifiedVersion)) {
+        console.log('[dev] resetUpdateNotifiedVersion=true, clearing update notification marker');
+        localStorage.removeItem(KEY_UPDATE_NOTIFIED_VERSION);
+        localStorage.removeItem(KEY_LAST_UPDATE_CHECK);
     }
 }
 
@@ -453,6 +581,7 @@ function startTick() {
     console.log('Tick from PKJS!');
     maybeResendHolidaysOnDayChange();
     tryFetch(app.provider);
+    maybeCheckForUpdate();
     setTimeout(startTick, 60 * 1000); // 60 * 1000 milsec = 1 minute
 }
 
