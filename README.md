@@ -57,6 +57,9 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 **Customization**
 * Customize time font and color
 
+**Updates**
+* **Update notifications** — when a newer version is available on the Pebble appstore, the watchface sends you a one-time notification so you know to update.
+
 ## Forecast graph vs. rain radar
 
 Two things that both involve rain over time, but answer different questions:

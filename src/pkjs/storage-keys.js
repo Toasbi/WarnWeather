@@ -13,5 +13,7 @@ module.exports = {
     LAST_SENT_CLAY_KEY: 'lastSentClaySettings',
     DEV_STATS_KEY: 'devStats',
     HOLIDAY_CACHE_PREFIX: 'holidays_',
-    HOLIDAY_BACKOFF_PREFIX: 'holidaysBackoff_'
+    HOLIDAY_BACKOFF_PREFIX: 'holidaysBackoff_',
+    UPDATE_NOTIFIED_VERSION_KEY: 'update_notified_version',
+    LAST_UPDATE_CHECK_KEY: 'last_update_check'
 };

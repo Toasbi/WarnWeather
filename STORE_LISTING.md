@@ -59,6 +59,9 @@ WATCH STATUS
 CUSTOMIZATION
 - Customize time font and color
 
+UPDATES
+- Update notifications: get a one-time heads-up when a newer version is available in the appstore.
+
 PLATFORMS
 - Pebble Classic, Pebble Steel, Pebble Time, Pebble Time Steel, Pebble 2, and
   Pebble Time 2
