@@ -28,13 +28,11 @@
 #endif
 #define NIGHT_HATCH_SPACING PBL_IF_COLOR_ELSE(6, 7)
 #define NIGHT_HATCH_COLOR GColorDarkGray
-// Day area fill is the per-metric color PKJS sends (ds.fill_color); B&W keeps the
-// dithered light-gray. The night shades are hardcoded to the single supported
-// metric's blue family (a future metric adds its own hardcoded set).
-#define NIGHT_AREA_FILL_COLOR PBL_IF_COLOR_ELSE(GColorDukeBlue, GColorLightGray)
-#define NIGHT_HATCH_COLOR_AREA PBL_IF_COLOR_ELSE(GColorBlue, GColorWhite)
+// Day area fill is the per-metric colour PKJS sends (ds.fill_color). The night
+// hatch/boundary for the filled area are derived from that fill colour per metric
+// (night_area_palette_for_fill), so each metric keeps its own hue at night. B&W has
+// no range, so the night area path uses White over the LightGray fill (is_color guard).
 #define NIGHT_BOUNDARY_COLOR PBL_IF_COLOR_ELSE(GColorDarkGray, GColorLightGray)
-#define NIGHT_BOUNDARY_COLOR_AREA PBL_IF_COLOR_ELSE(GColorVividCerulean, GColorWhite)
 #define FORECAST_TREND_FULL_SCALE 250  // uint8 wire range (PKJS sends 0..250)
 #define FORECAST_STEP_SECONDS (60 * 60)
 #define DAY_SECONDS (24 * 60 * 60)
@@ -367,9 +365,21 @@ static int16_t clamped_area_fill_top_y_for_x(GRect graph_plot_rect,
     return area_fill_y;
 }
 
+typedef struct { GColor base, hatch, boundary; } NightAreaPalette;
+
+// Night base/hatch/boundary for the filled area, keyed on the day fill colour PKJS sent.
+// Used only on colour platforms (B&W draws White via the is_color guards). The four day
+// fills are distinct GColor8 values, so equality keys them; precip is the default.
+static NightAreaPalette night_area_palette_for_fill(GColor fill) {
+    if (gcolor_equal(fill, GColorArmyGreen)) { return (NightAreaPalette){ GColorArmyGreen, GColorLimerick, GColorLimerick }; }      // wind
+    if (gcolor_equal(fill, GColorPurple))    { return (NightAreaPalette){ GColorImperialPurple, GColorPurple, GColorVividViolet }; } // uv
+    if (gcolor_equal(fill, GColorDarkGray))  { return (NightAreaPalette){ GColorDarkGray, GColorLightGray, GColorLightGray }; }      // gust
+    return (NightAreaPalette){ GColorDukeBlue, GColorBlue, GColorVividCerulean };                                                    // precip / default
+}
+
 static void draw_night_hatch_over_area_fill(GContext *ctx, GRect graph_plot_rect, time_t graph_start, time_t graph_end,
                                          const NightSegments *night_segments,
-                                         const GPoint *points_area_fill, int num_entries)
+                                         const GPoint *points_area_fill, int num_entries, GColor fill_color)
 {
     if (!night_segments || night_segments->count == 0)
     {
@@ -382,6 +392,7 @@ static void draw_night_hatch_over_area_fill(GContext *ctx, GRect graph_plot_rect
     const int16_t y_bottom_inclusive = y_bottom_exclusive - 1;
     const int16_t hatch_spacing = NIGHT_HATCH_SPACING;
     const bool is_color = PBL_IF_COLOR_ELSE(true, false);
+    const NightAreaPalette pal = night_area_palette_for_fill(fill_color);
 
     for (int i = 0; i < night_segments->count; ++i)
     {
@@ -403,7 +414,7 @@ static void draw_night_hatch_over_area_fill(GContext *ctx, GRect graph_plot_rect
 
         if (is_color)
         {
-            graphics_context_set_stroke_color(ctx, NIGHT_AREA_FILL_COLOR);
+            graphics_context_set_stroke_color(ctx, pal.base);
             for (int16_t x = x0; x < x1; ++x)
             {
                 const int16_t area_fill_y = clamped_area_fill_top_y_for_x(graph_plot_rect, points_area_fill, num_entries, x);
@@ -414,7 +425,7 @@ static void draw_night_hatch_over_area_fill(GContext *ctx, GRect graph_plot_rect
             }
         }
 
-        const GColor hatch_color = is_color ? NIGHT_HATCH_COLOR_AREA : GColorWhite;
+        const GColor hatch_color = is_color ? pal.hatch : GColorWhite;
         for (int16_t x = x0; x < x1; ++x)
         {
             const int16_t area_fill_y = clamped_area_fill_top_y_for_x(graph_plot_rect, points_area_fill, num_entries, x);
@@ -457,14 +468,16 @@ static void draw_night_boundaries(GContext *ctx, GRect graph_plot_rect, time_t g
 
 static void draw_night_boundaries_over_area_fill(GContext *ctx, GRect graph_plot_rect, time_t graph_start, time_t graph_end,
                                                const NightSegments *night_segments,
-                                               const GPoint *points_area_fill, int num_entries)
+                                               const GPoint *points_area_fill, int num_entries, GColor fill_color)
 {
     if (!night_segments || night_segments->count == 0)
     {
         return;
     }
 
-    graphics_context_set_stroke_color(ctx, NIGHT_BOUNDARY_COLOR_AREA);
+    const bool is_color = PBL_IF_COLOR_ELSE(true, false);
+    const NightAreaPalette pal = night_area_palette_for_fill(fill_color);
+    graphics_context_set_stroke_color(ctx, is_color ? pal.boundary : GColorWhite);
     graphics_context_set_stroke_width(ctx, 1);
 
     const int16_t y_bottom = graph_plot_rect.origin.y + graph_plot_rect.size.h - 1;
@@ -494,11 +507,12 @@ static GSize temp_label_string_size(const char *text);
 static void draw_night_shading_under(GContext *ctx, GRect graph_plot_rect,
                                      time_t forecast_start, time_t forecast_end,
                                      const NightSegments *night_segments,
-                                     const GPoint *points_area_fill, int num_entries) {
+                                     const GPoint *points_area_fill, int num_entries,
+                                     GColor fill_color) {
     draw_night_hatch_over_area_fill(ctx, graph_plot_rect, forecast_start, forecast_end,
-                                 night_segments, points_area_fill, num_entries);
+                                 night_segments, points_area_fill, num_entries, fill_color);
     draw_night_boundaries_over_area_fill(ctx, graph_plot_rect, forecast_start, forecast_end,
-                                       night_segments, points_area_fill, num_entries);
+                                       night_segments, points_area_fill, num_entries, fill_color);
 }
 
 static void draw_night_shading_over(GContext *ctx, GRect graph_plot_rect,
@@ -577,12 +591,13 @@ typedef struct {
     const NightSegments *night;
     const GPoint        *area_pts;
     int                  count;
+    GColor               fill_color;   // day fill colour PKJS sent; selects the night palette
 } NightLayerCtx;
 
 static void night_under_layer(const ChartRender *r, void *user) {
     const NightLayerCtx *c = user;
     draw_night_shading_under(r->ctx, c->plot_rect, c->start, c->end,
-                             c->night, c->area_pts, c->count);
+                             c->night, c->area_pts, c->count, c->fill_color);
 }
 
 static void night_over_layer(const ChartRender *r, void *user) {
@@ -658,6 +673,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         .night      = &night_segments,
         .area_pts = area_pts,   // fill/line contour; exported by the AREA (or LINE) layer
         .count      = ds.num_entries,
+        .fill_color = ds.fill_color,
     };
     const GColor axis_color = night_on ? FORECAST_AXIS_COLOR_NIGHT
                                        : FORECAST_AXIS_COLOR_DAY;
@@ -689,7 +705,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         layers[n++] = (ChartLayer){ CHART_LAYER_AREA, .area = {
             .values = ds.line, .export_points = area_pts,
             .count = ds.num_entries, .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
-            .fill_color = PBL_IF_COLOR_ELSE(ds.fill_color, GColorLightGray) } };
+            .fill_color = ds.fill_color } };
     }
     // night_under re-shades the filled area, so it needs the AREA layer's
     // exported contour and only runs when the fill is present.
@@ -720,7 +736,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .values = ds.third_line, .count = ds.num_entries,
             .lo = 0, .hi = FORECAST_TREND_FULL_SCALE, .inset_y = 0,
             // width = bar width so the dots match the rain bars' columns (see chart_draw_bar_dots).
-            .color = PBL_IF_COLOR_ELSE(ds.third_line_color, GColorWhite), .width = FORECAST_BAR_W, .dotted = true } };
+            .color = ds.third_line_color, .width = FORECAST_BAR_W, .dotted = true } };
     }
     // No fill: dots go under the main line.
     if (third_line_on && !fill_on) { layers[n++] = third_line_layer; }

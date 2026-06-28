@@ -749,7 +749,7 @@ function fetch(provider, force) {
     // the old PRECIP_TREND/RAIN_TREND keys). Shared with the fixture path so the
     // two can't drift.
     function toRenderPayload(payload) {
-        return forecastSeries.applyForecastSeries(payload, app.settings);
+        return forecastSeries.applyForecastSeries(payload, app.settings, app.watchInfo);
     }
 
     try {

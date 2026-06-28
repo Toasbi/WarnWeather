@@ -14,11 +14,34 @@ test('secondary precip: line + fill + fill color, plus rain bars', () => {
   assert.deepEqual(out.BAR_TREND_UINT8, [0, 85, 140]);   // rainPermille(0,5,20) → byte
 });
 
-test('secondary wind: km/h scaled to ceiling, never filled, yellow', () => {
+test('secondary wind: km/h scaled to ceiling, now fillable, yellow line + army-green fill', () => {
   const out = buildForecastSeries(RAW, { secondaryLine: 'wind', thirdLine: 'off', windScale: 'mid', secondaryLineFill: true, barSource: 'off' });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]); // 0/25/50 @50 ceiling
-  assert.equal(out.SECONDARY_LINE_FILL, false);                    // precip-only
-  assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFF00);                // GColorYellow
+  assert.equal(out.SECONDARY_LINE_FILL, true);                     // fill now works for every metric
+  assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFF00);               // GColorYellow
+  assert.equal(out.SECONDARY_LINE_FILL_COLOR, 0x555500);         // GColorArmyGreen
+});
+
+test('per-metric fill colours on a colour watch', () => {
+  const base = { thirdLine: 'off', windScale: 'mid', secondaryLineFill: true, barSource: 'off' };
+  assert.equal(buildForecastSeries(RAW, Object.assign({ secondaryLine: 'precip_prob' }, base)).SECONDARY_LINE_FILL_COLOR, 0x0055AA); // CobaltBlue
+  assert.equal(buildForecastSeries(RAW, Object.assign({ secondaryLine: 'wind' }, base)).SECONDARY_LINE_FILL_COLOR, 0x555500);        // ArmyGreen
+  assert.equal(buildForecastSeries(RAW, Object.assign({ secondaryLine: 'uv' }, base)).SECONDARY_LINE_FILL_COLOR, 0xAA00AA);          // Purple
+  assert.equal(buildForecastSeries(RAW, Object.assign({ secondaryLine: 'gust' }, base)).SECONDARY_LINE_FILL_COLOR, 0x555555);        // DarkGray
+});
+
+test('B&W watch: every metric line is white and every fill is light gray', () => {
+  const bw = { platform: 'diorite' };
+  ['precip_prob', 'wind', 'uv', 'gust'].forEach(function(m) {
+    const out = buildForecastSeries(RAW, { secondaryLine: m, thirdLine: 'off', windScale: 'mid', secondaryLineFill: true, barSource: 'rain', rainBarColor: 'multicolor' }, bw);
+    assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFFFF, m + ' line white on B&W');          // GColorWhite
+    assert.equal(out.SECONDARY_LINE_FILL_COLOR, 0xAAAAAA, m + ' fill light gray on B&W'); // GColorLightGray
+  });
+});
+
+test('B&W watch: third line is white too', () => {
+  const out = buildForecastSeries(RAW, { secondaryLine: 'wind', thirdLine: 'gust', windScale: 'mid', barSource: 'off' }, { platform: 'flint' });
+  assert.equal(out.THIRD_LINE_COLOR, 0xFFFFFF); // GColorWhite on B&W
 });
 
 test('secondary gust: white with colored (multicolor) rain bars, scaled like wind', () => {

@@ -27,7 +27,8 @@ FORECAST
 - Current temperature
 - Temperature forecast line
 - Optional main metric (solid line) and optional second metric (drawn as bar-aligned square dots) — each
-  independently shows precipitation %, wind speed, wind gusts, or UV index
+  independently shows precipitation %, wind speed, wind gusts, or UV index; the main-metric line can
+  have a configurable fill
 - Optional hourly rain bars — multicolor or white on color watches
 - Optional day/night hatch shading on the graph
 - Fahrenheit and Celsius temperatures
