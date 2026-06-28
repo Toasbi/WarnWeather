@@ -79,6 +79,15 @@ test('forecastPreview never draws the second metric as the same metric as the ma
   const svg = B.forecastPreview({ dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'wind', thirdLine: 'wind' }, { color: true });
   assert.equal(svg.indexOf('fill="#FFFF55"'), -1, 'duplicate metric → no second-metric squares');
 });
+test('forecastPreview draws the area fill for wind/gust/uv when the fill toggle is on', () => {
+  const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', thirdLine: 'off' };
+  // fill on → each non-precip metric renders its own rgba fill polygon
+  assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind', secondaryLineFill: true }), { color: true }).indexOf('rgba(85,85,0,0.45)') > -1, 'wind fill renders');
+  assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'gust', secondaryLineFill: true }), { color: true }).indexOf('rgba(85,85,85,0.45)') > -1, 'gust fill renders');
+  assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'uv', secondaryLineFill: true }), { color: true }).indexOf('rgba(170,0,170,0.30)') > -1, 'uv fill renders');
+  // fill off → no fill polygon for a non-precip metric
+  assert.equal(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind', secondaryLineFill: false }), { color: true }).indexOf('rgba(85,85,0,0.45)'), -1, 'no wind fill when the toggle is off');
+});
 test('registers all four into PConf.blocks', () => {
   ['forecastPreview','radarPreview','devStats','lastFetch'].forEach((id) => assert.equal(typeof PConf.blocks.get(id), 'function'));
 });
