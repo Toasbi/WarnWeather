@@ -154,11 +154,17 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
         }
 
         if (b->style == BAR_OUTLINED) {
-            // B&W: white silhouette keeps black bars readable on black
+            // B&W: white silhouette keeps black bars readable on black. Draw only the
+            // top + side walls and leave the bottom open — the x-axis baseline already
+            // closes the bar, so a bottom edge would double the axis line.
+            const int x0 = bar_x;
+            const int x1 = bar_x + r->def->bar_w - 1;
+            const int y1 = bar_top + bar_h - 1;
             graphics_context_set_stroke_color(r->ctx, GColorWhite);
             graphics_context_set_stroke_width(r->ctx, 1);
-            graphics_draw_rect(r->ctx,
-                GRect(bar_x, bar_top, r->def->bar_w, bar_h));
+            graphics_draw_line(r->ctx, GPoint(x0, bar_top), GPoint(x1, bar_top));  // top
+            graphics_draw_line(r->ctx, GPoint(x0, bar_top), GPoint(x0, y1));       // left wall
+            graphics_draw_line(r->ctx, GPoint(x1, bar_top), GPoint(x1, y1));       // right wall
         }
     }
 }
