@@ -179,8 +179,11 @@ static void chart_draw_bar_dots(const ChartRender *r, const ChartLineLayer *l) {
                                                        // (the caller sets it to the rain-bar width)
     // Height is hardcoded (not derived from width). On color a white dot is the dominant case
     // (gust over colored bars) so it gets a shorter 2px cap; a dimmed gray dot (gust over white
-    // bars, where gray needs more presence) gets a slightly taller 3px on  e. B&W is a fixed 3px.
-    const int   dot_h       = PBL_IF_COLOR_ELSE(gcolor_equal(l->color, GColorWhite) ? 2 : 3, 3);
+    // bars, where gray needs more presence) gets a 4px cap. 4 not 3: the top edge is cy - dot_h/2,
+    // and 2/2 and 3/2 both round to 1 — so a 3px cap shared the white cap's top and only grew 1px
+    // downward, reading as the same height. 4/2 = 2 raises the top a pixel too, so the taller gray
+    // cap actually shows. B&W is a fixed 3px.
+    const int   dot_h       = PBL_IF_COLOR_ELSE(gcolor_equal(l->color, GColorWhite) ? 2 : 4, 3);
     graphics_context_set_fill_color(r->ctx, l->color);
     for (int i = 0; i < count; ++i) {
         if (l->values[i] <= l->lo) continue;           // value 0 → on the baseline, skip
