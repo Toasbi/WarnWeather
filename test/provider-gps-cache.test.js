@@ -113,3 +113,39 @@ test('withGpsCoordinates ignores the app cache when no window is configured', ()
   assert.equal(got, null);
   assert.equal(tracker.called, true);
 });
+
+test('withGpsCoordinates falls back to a cached fix when native GPS errors', () => {
+  var now = Date.now();
+  withLocalStorage({ gpsCache: JSON.stringify({ lat: 48.1, lon: 11.6, time: now - 60000 }) });
+  stubGeolocation(function (success, error) { error({ code: 2, message: 'position unavailable' }); });
+
+  var p = new WeatherProvider();
+  p.gpsMaxAgeMs = 0;    // no app-side window -> reach native -> error -> fallback
+  var got = null;
+  var failed = false;
+  p.withGpsCoordinates(
+    function (lat, lon) { got = { lat: lat, lon: lon }; },
+    function () { failed = true; }
+  );
+
+  assert.deepEqual(got, { lat: 48.1, lon: 11.6 });
+  assert.equal(failed, false);
+  assert.equal(p.usedGpsCache, true);
+  assert.equal(p.gpsErrorCode, 2);
+});
+
+test('withGpsCoordinates reports failure when native GPS errors and no cache exists', () => {
+  withLocalStorage({});
+  stubGeolocation(function (success, error) { error({ code: 1, message: 'denied' }); });
+
+  var p = new WeatherProvider();
+  p.gpsMaxAgeMs = 0;
+  var failureArg = null;
+  p.withGpsCoordinates(
+    function () { assert.fail('callback should not fire without a cache'); },
+    function (f) { failureArg = f; }
+  );
+
+  assert.ok(failureArg);
+  assert.equal(p.gpsErrorCode, 1);
+});

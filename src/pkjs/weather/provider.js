@@ -538,45 +538,26 @@ WeatherProvider.prototype.withGpsCoordinates = function(callback, onFailure) {
     }
 
     function error(err) {
-        var cached;
-        var parsed;
-        var cacheIsFresh;
+        var fallback;
         var errCode;
         console.log('location error (' + err.code + '): ' + err.message);
 
         errCode = Number(err && err.code);
         provider.gpsErrorCode = errCode;
 
-        cached = localStorage.getItem(GPS_CACHE_KEY);
-        if (cached !== null) {
-            try {
-                parsed = JSON.parse(cached);
-            }
-            catch (ex) {
-                parsed = null;
-            }
-
-            cacheIsFresh = true;
-            if (GPS_CACHE_MAX_AGE_MS > 0) {
-                cacheIsFresh = (
-                    parsed &&
-                    typeof parsed.time === 'number' &&
-                    Date.now() - parsed.time <= GPS_CACHE_MAX_AGE_MS
-                );
-            }
-
-            if (
-                parsed &&
-                typeof parsed.lat === 'number' &&
-                typeof parsed.lon === 'number' &&
-                cacheIsFresh
-            ) {
-                console.log('Using cached GPS coordinates: lat= ' + parsed.lat + ' lon= ' + parsed.lon);
-                provider.usedGpsCache = true;
-                provider.gpsErrorCode = errCode;
-                callback(parsed.lat, parsed.lon);
-                return;
-            }
+        // Last resort: serve the stored fix even when live GPS fails, as long as
+        // it is within the hard 24h cap (distinct from the configurable reuse
+        // window above — a stale-but-recent fix beats no weather at all).
+        fallback = readGpsCache();
+        if (
+            fallback &&
+            (GPS_CACHE_MAX_AGE_MS <= 0 || Date.now() - fallback.time <= GPS_CACHE_MAX_AGE_MS)
+        ) {
+            console.log('Using cached GPS coordinates: lat= ' + fallback.lat + ' lon= ' + fallback.lon);
+            provider.usedGpsCache = true;
+            provider.gpsErrorCode = errCode;
+            callback(fallback.lat, fallback.lon);
+            return;
         }
 
         onFailure(failure('coordinates', 'gps_' + err.code));
