@@ -34,3 +34,24 @@ test('buildSettingsSnapshot coerces toggle settings to real booleans', () => {
   assert.equal(snapshot.thirdLine, undefined);
   assert.equal(snapshot.devStatsEnabled, false);
 });
+
+test('settings snapshot keys match the Deno telemetry schema (lockstep)', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const ts = fs.readFileSync(
+    path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'index.ts'), 'utf8');
+
+  // Slice the settingsSchema object literal: `const settingsSchema = z ... .strip()`.
+  const start = ts.indexOf('const settingsSchema');
+  assert.ok(start !== -1, 'settingsSchema not found in telemetry-ingest/index.ts');
+  const slice = ts.slice(start, ts.indexOf('.strip()', start));
+
+  // Field lines look like `  fieldName: z.string()...` or `  provider: providerSchema...`.
+  const denoKeys = [];
+  slice.replace(/^\s*([a-zA-Z0-9_]+):\s*[A-Za-z]/gm, function (_m, name) { denoKeys.push(name); return _m; });
+  assert.ok(denoKeys.length >= 20, 'expected to parse the schema fields, got ' + denoKeys.length);
+
+  const snapshotKeys = Object.keys(buildSettingsSnapshot({}));
+  assert.deepEqual(snapshotKeys.slice().sort(), denoKeys.slice().sort(),
+    'buildSettingsSnapshot (telemetry.js) and the Deno settingsSchema must declare the same fields');
+});
