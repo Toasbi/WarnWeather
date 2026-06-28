@@ -43,9 +43,13 @@ function main() {
   console.log(`Release notification is valid for ${version}.`);
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
+if (require.main === module) {
+  try {
+    main();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
 }
+
+module.exports = { hasValidNotification: hasValidNotification, readJson: readJson, main: main };
