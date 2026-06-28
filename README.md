@@ -30,7 +30,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * 24 hour weather forecast with configurable update frequency
 * Current temperature
 * Temperature forecast line
-* Optional main metric (solid line) and optional second metric (drawn as bar-aligned square dots) — each independently shows precipitation %, wind speed, wind gusts, or UV index (the same metric can’t appear on both); the precipitation line has a configurable fill, and wind/gust lines have a selectable graph scale
+* Optional main metric (solid line) and optional second metric (drawn as bar-aligned square dots) — each independently shows precipitation %, wind speed, wind gusts, or UV index (the same metric can’t appear on both); any main-metric line can have a configurable fill, and wind/gust lines have a selectable graph scale
 * Optional hourly rain bars — multicolor or white on color watches
 * Optional day/night hatch shading on the graph
 * Fahrenheit and Celsius temperatures

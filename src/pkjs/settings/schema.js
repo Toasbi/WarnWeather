@@ -153,8 +153,7 @@ module.exports = {
                 label: 'Fill area below the line',
                 defaultValue: true,
                 joinPrevious: true,
-                hint: 'Fills the area beneath the curve. Precip only.',
-                showWhen: {key: 'secondaryLine', eq: 'precip_prob'}
+                hint: 'Fills the area beneath the line.'
             }, {
                 type: 'segmented',
                 messageKey: 'windScale',

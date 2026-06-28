@@ -130,12 +130,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // metric → { sample series, full-scale max, preview stroke color, optional fill }
         var METRIC = {
             precip_prob: { vals: precip, max: 100, color: '#00FFFF', fill: 'rgba(0,255,255,0.16)' },
-            wind: { vals: wind, max: windMax, color: '#FFFF55' },
-            gust: { vals: gust, max: windMax, color: gustColor },
-            uv: { vals: uv, max: 11, color: '#FF00FF' }
+            wind: { vals: wind, max: windMax, color: '#FFFF55', fill: 'rgba(85,85,0,0.45)' },
+            gust: { vals: gust, max: windMax, color: gustColor, fill: 'rgba(85,85,85,0.45)' },
+            uv: { vals: uv, max: 11, color: '#FF00FF', fill: 'rgba(170,0,170,0.30)' }
         };
         /**
-         * Build SVG markup for the main metric: a solid line with an optional fill (precip only).
+         * Build SVG markup for the main metric: a solid line with an optional fill.
          * @param {string} metric - One of precip_prob, wind, gust, uv.
          * @returns {string} SVG markup for the line (and optional fill area).
          */
@@ -145,7 +145,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var pts = m.vals.map(function (v, i) { return [X(i), PB - Math.min(v, m.max) / m.max * (PB - PT - 3)]; });
             var path = smooth(pts);
             var out = '';
-            if (metric === 'precip_prob' && state.secondaryLineFill && m.fill) {
+            if (state.secondaryLineFill && m.fill) {
                 out += '<path d="' + path + ' L' + X(n - 1) + ',' + PB + ' L' + X(0) + ',' + PB + ' Z" fill="' + m.fill + '"></path>';
             }
             out += '<path d="' + path + '" fill="none" stroke="' + m.color + '" stroke-width="1.6"></path>';

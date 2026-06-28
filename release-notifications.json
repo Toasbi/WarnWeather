@@ -33,6 +33,6 @@
   },
   "1.5.0": {
     "title": "UV index + third graph line",
-    "body": "Pick what the forecast graph's secondary and new third line show — precip, wind, gust or UV index."
+    "body": "Pick what the forecast graph's secondary and new third line show — precip, wind, gust or UV index. The area fill now works for any main metric, each in its own colour. Fixed Roboto and Bitham font scaling on emery"
   }
 }

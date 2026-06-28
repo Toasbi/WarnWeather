@@ -29,13 +29,12 @@
 #endif
 #define NIGHT_HATCH_SPACING PBL_IF_COLOR_ELSE(6, 7)
 #define NIGHT_HATCH_COLOR GColorDarkGray
-// Day area fill is the per-metric fill color (resolved at load); B&W keeps the
-// dithered light-gray. The night shades are hardcoded to the single supported
-// metric's blue family (a future metric adds its own hardcoded set).
-#define NIGHT_AREA_FILL_COLOR PBL_IF_COLOR_ELSE(GColorDukeBlue, GColorLightGray)
-#define NIGHT_HATCH_COLOR_AREA PBL_IF_COLOR_ELSE(GColorBlue, GColorWhite)
 #define NIGHT_BOUNDARY_COLOR PBL_IF_COLOR_ELSE(GColorDarkGray, GColorLightGray)
-#define NIGHT_BOUNDARY_COLOR_AREA PBL_IF_COLOR_ELSE(GColorVividCerulean, GColorWhite)
+// The night base/hatch/boundary for the FILLED area are derived per metric from
+// the day fill colour PKJS sent (night_area_palette_for_fill), so each metric
+// keeps its own hue at night. B&W has no range, so the night-area path draws White
+// over the LightGray fill (has_underlay gated to colour). The full-height night
+// hatch (no fill) uses NIGHT_HATCH_COLOR / NIGHT_BOUNDARY_COLOR above.
 #define FORECAST_TREND_FULL_SCALE 250  // uint8 wire range (PKJS sends 0..250)
 #define FORECAST_STEP_SECONDS (60 * 60)
 #define DAY_SECONDS (24 * 60 * 60)
@@ -135,12 +134,12 @@ static void load_dataset(ForecastDataset *ds) {
         .line = { .color      = persist_get_line_color(),   // raw stroke — SDK reduces on B&W
                   .width      = 1,
                   .fill_on    = persist_get_line_fill(),
-                  .fill_color = PBL_IF_COLOR_ELSE(persist_get_fill_color(), GColorLightGray) } };
+                  .fill_color = persist_get_fill_color() } };  // raw per-metric fill — SDK reduces on B&W
 
     ds->series[SERIES_THIRD] = (Series){
         .id = SERIES_THIRD, .kind = SERIES_KIND_LINE,
         .present = persist_series_present(SERIES_THIRD),
-        .line = { .color  = PBL_IF_COLOR_ELSE(persist_get_third_line_color(), GColorWhite),
+        .line = { .color  = persist_get_third_line_color(),   // raw per-metric — SDK reduces on B&W
                   .width  = FORECAST_BAR_W,   // dots match the rain-bar columns
                   .dotted = true } };
 
@@ -315,6 +314,18 @@ static int build_night_bands(ChartBand *out, int max,
     return n;
 }
 
+typedef struct { GColor base, hatch, boundary; } NightAreaPalette;
+
+// Night base/hatch/boundary for the filled area, keyed on the day fill colour PKJS sent.
+// Used only on colour platforms (B&W draws White via the has_underlay/hatch gates). The four
+// day fills are distinct GColor8 values, so equality keys them; precip is the default.
+static NightAreaPalette night_area_palette_for_fill(GColor fill) {
+    if (gcolor_equal(fill, GColorArmyGreen)) { return (NightAreaPalette){ GColorArmyGreen, GColorLimerick, GColorLimerick }; }      // wind
+    if (gcolor_equal(fill, GColorPurple))    { return (NightAreaPalette){ GColorImperialPurple, GColorPurple, GColorVividViolet }; } // uv
+    if (gcolor_equal(fill, GColorDarkGray))  { return (NightAreaPalette){ GColorDarkGray, GColorLightGray, GColorLightGray }; }      // gust
+    return (NightAreaPalette){ GColorDukeBlue, GColorBlue, GColorVividCerulean };                                                    // precip / default
+}
+
 static GSize temp_label_string_size(const char *text);
 
 static void draw_left_axis(GContext *ctx, int h) {
@@ -482,12 +493,13 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // night_under re-shades the filled area, so it needs the AREA layer's
     // exported contour and only runs when the fill is present.
     if (night_on && fill_on) {
+        const NightAreaPalette np = night_area_palette_for_fill(second->line.fill_color);
         layers[n++] = (ChartLayer){ CHART_LAYER_HATCH, .hatch = {
             .bands = night_bands, .num_bands = num_night_bands,
-            .hatch_color    = PBL_IF_COLOR_ELSE(NIGHT_HATCH_COLOR_AREA, GColorWhite),
-            .boundary_color = NIGHT_BOUNDARY_COLOR_AREA,
+            .hatch_color    = PBL_IF_COLOR_ELSE(np.hatch, GColorWhite),
+            .boundary_color = PBL_IF_COLOR_ELSE(np.boundary, GColorWhite),
             .spacing        = NIGHT_HATCH_SPACING,
-            .underlay_color = NIGHT_AREA_FILL_COLOR,
+            .underlay_color = np.base,
             .has_underlay   = PBL_IF_COLOR_ELSE(true, false),
             .contour        = area_pts, .contour_count = ds.num_entries } };
     }

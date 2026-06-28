@@ -21,12 +21,20 @@ function makeFixture(over) {
   };
 }
 
-test('fixture windKmh feeds the wind secondary line (mid scale)', () => {
+test('fixture windKmh feeds the wind secondary line (mid scale), now fillable', () => {
   const fixture = makeFixture({ windKmh: [0, 25, 50] });
-  const out = getFixtureWeatherPayload(fixture, { secondaryLine: 'wind', windScale: 'mid', barSource: 'off' });
+  const out = getFixtureWeatherPayload(fixture, { secondaryLine: 'wind', windScale: 'mid', secondaryLineFill: true, barSource: 'off' });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]);
-  assert.equal(out.SECONDARY_LINE_FILL, false);
-  assert.ok(!('WIND_TREND_UINT8' in out)); // transient key never survives
+  assert.equal(out.SECONDARY_LINE_FILL, true);            // fill now works for wind, not just precip
+  assert.equal(out.SECONDARY_LINE_FILL_COLOR, 0x555500);  // GColorArmyGreen (resolved as colour: no watchInfo)
+  assert.ok(!('WIND_TREND_UINT8' in out));                // transient key never survives
+});
+
+test('fixture path threads watchInfo: a B&W watch resolves the wind line white + fill light gray', () => {
+  const fixture = makeFixture({ windKmh: [0, 25, 50] });
+  const out = getFixtureWeatherPayload(fixture, { secondaryLine: 'wind', windScale: 'mid', secondaryLineFill: true, barSource: 'off' }, { platform: 'diorite' });
+  assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFFFF);       // GColorWhite on B&W — proves watchInfo reached the resolver
+  assert.equal(out.SECONDARY_LINE_FILL_COLOR, 0xAAAAAA);  // GColorLightGray on B&W
 });
 
 test('fixture without windKmh still produces a valid (flat) wind line', () => {
