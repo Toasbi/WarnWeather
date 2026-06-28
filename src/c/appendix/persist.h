@@ -23,6 +23,8 @@ int persist_get_bar_count(void);
 
 bool persist_series_present(SeriesId id);
 int  persist_series_trend(SeriesId id, int16_t *out, size_t n);
+bool persist_series_set_trend(SeriesId id, uint8_t *data, size_t size);
+bool persist_series_set_color(SeriesId id, GColor c);
 
 GColor persist_get_line_color(void);
 

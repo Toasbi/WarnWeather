@@ -133,6 +133,23 @@ int persist_series_trend(SeriesId id, int16_t *out, size_t n) {
     }
 }
 
+bool persist_series_set_trend(SeriesId id, uint8_t *data, size_t size) {
+    switch (id) {
+        case SERIES_SECOND: return persist_set_line_trend(data, size);
+        case SERIES_THIRD:  return persist_set_third_line_trend(data, size);
+        case SERIES_BARS:   return persist_set_bar_trend(data, size);
+        default:            return false;  // FIRST/temp is handled bespoke
+    }
+}
+
+bool persist_series_set_color(SeriesId id, GColor c) {
+    switch (id) {
+        case SERIES_SECOND: return persist_set_line_color(c);
+        case SERIES_THIRD:  return persist_set_third_line_color(c);
+        default:            return false;  // BARS has a palette, not a single color
+    }
+}
+
 GColor persist_get_line_color(void) {
     if (!persist_exists(LINE_COLOR)) { return GColorPictonBlue; }
     return (GColor){ .argb = (uint8_t) persist_read_int(LINE_COLOR) };
