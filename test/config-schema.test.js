@@ -200,3 +200,8 @@ test('forecast tab nests fill and wind scale under the line that enables them', 
   assert.ok(windIdxs[0] > iFill && windIdxs[0] < iThird, 'solid-line wind scale sits under the solid line');
   assert.ok(windIdxs[1] > iThird, 'dotted-line wind scale sits under the dotted line');
 });
+
+test('non-holiday selects stay plain select', () => {
+  assert.equal(byKey('fetchIntervalMin').type, 'select');
+  assert.equal(byKey('btIcons').type, 'select');
+});
