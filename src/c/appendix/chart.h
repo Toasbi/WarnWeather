@@ -126,7 +126,7 @@ typedef struct {
     int            inset_y;           // vertical margins (temp line: 7)
     GColor         color;
     int            width;
-    bool           dotted;            // true ⇒ stroke the line as round dots (second-metric line)
+    bool           dotted;            // true ⇒ stroke the line as square dots (second-metric line)
 } ChartLineLayer;
 
 typedef struct {

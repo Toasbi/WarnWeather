@@ -21,10 +21,15 @@ test('secondary wind: km/h scaled to ceiling, never filled, yellow', () => {
   assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFF00);                // GColorYellow
 });
 
-test('secondary gust: white, scaled like wind', () => {
-  const out = buildForecastSeries(RAW, { secondaryLine: 'gust', thirdLine: 'off', windScale: 'mid', barSource: 'off' });
+test('secondary gust: white with colored (multicolor) rain bars, scaled like wind', () => {
+  const out = buildForecastSeries(RAW, { secondaryLine: 'gust', thirdLine: 'off', windScale: 'mid', barSource: 'rain', rainBarColor: 'multicolor' });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 250, 250]); // 0/50/100 @50 ceiling, clamped
-  assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFFFF);                // GColorWhite (gust is white everywhere)
+  assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFFFF);               // colored bars → white gust
+});
+
+test('gust goes light gray when the rain bars are white (so it does not clash with them)', () => {
+  const out = buildForecastSeries(RAW, { secondaryLine: 'gust', thirdLine: 'off', windScale: 'mid', barSource: 'rain', rainBarColor: 'white' });
+  assert.equal(out.SECONDARY_LINE_COLOR, 0xAAAAAA);              // white bars → GColorLightGray
 });
 
 test('secondary uv: scaled against UV 11.0 (110 tenths), magenta', () => {
@@ -39,11 +44,16 @@ test('third line off: empty third trend, no third color emitted', () => {
   assert.equal('THIRD_LINE_COLOR' in out, false);
 });
 
-test('third line gust over secondary wind: both present, gust dots are white', () => {
-  const out = buildForecastSeries(RAW, { secondaryLine: 'wind', thirdLine: 'gust', windScale: 'mid', barSource: 'off' });
+test('third line gust over secondary wind: both present, gust dots white with colored rain bars', () => {
+  const out = buildForecastSeries(RAW, { secondaryLine: 'wind', thirdLine: 'gust', windScale: 'mid', barSource: 'rain', rainBarColor: 'multicolor' });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]); // wind
   assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [0, 250, 250]);    // gust, same ceiling
-  assert.equal(out.THIRD_LINE_COLOR, 0xFFFFFF);                   // GColorWhite (gust per-metric color)
+  assert.equal(out.THIRD_LINE_COLOR, 0xFFFFFF);                  // colored bars → white gust
+});
+
+test('gust dots go light gray when the rain bars are white (third-line path)', () => {
+  const out = buildForecastSeries(RAW, { secondaryLine: 'wind', thirdLine: 'gust', windScale: 'mid', barSource: 'rain', rainBarColor: 'white' });
+  assert.equal(out.THIRD_LINE_COLOR, 0xAAAAAA);                 // white bars → GColorLightGray
 });
 
 test('third line uv over secondary precip: independent scales', () => {

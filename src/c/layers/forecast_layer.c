@@ -707,15 +707,6 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .stops = scaled_bar_stops, .num_stops = bar_num_stops,
             .style = PBL_IF_COLOR_ELSE(BAR_SOLID, BAR_OUTLINED) } };
     }
-    // Second metric: round dots, drawn under the solid main-metric line. Per-metric color on
-    // color watches; white on B&W, where the dots (not color) distinguish
-    // it from the solid main-metric line.
-    if (ds.third_line_present) {
-        layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
-            .values = ds.third_line, .count = ds.num_entries,
-            .lo = 0, .hi = FORECAST_TREND_FULL_SCALE, .inset_y = 0,
-            .color = PBL_IF_COLOR_ELSE(ds.third_line_color, GColorWhite), .width = 1, .dotted = true } };
-    }
     if (line_on) {
         layers[n++] = fill_on
             ? (ChartLayer){ CHART_LAYER_LINE, .line = {
@@ -725,6 +716,17 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                   .values = ds.line, .count = ds.num_entries,
                   .lo = 0, .hi = FORECAST_TREND_FULL_SCALE, .inset_y = 0, .export_points = area_pts,
                   .color = ds.line_color, .width = 1 } };
+    }
+    // Second metric: square dots, drawn over the solid main-metric line and its fill so the
+    // dots stay visible where the two overlap (the opaque fill would otherwise hide them).
+    // Per-metric color on color watches; white on B&W, where the dots (not color) distinguish
+    // it from the solid main-metric line.
+    if (ds.third_line_present) {
+        layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
+            .values = ds.third_line, .count = ds.num_entries,
+            .lo = 0, .hi = FORECAST_TREND_FULL_SCALE, .inset_y = 0,
+            // width = bar width so the dots match the rain bars' columns (see chart_draw_bar_dots).
+            .color = PBL_IF_COLOR_ELSE(ds.third_line_color, GColorWhite), .width = FORECAST_BAR_W, .dotted = true } };
     }
     layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
         .values = ds.temps, .count = ds.num_entries,

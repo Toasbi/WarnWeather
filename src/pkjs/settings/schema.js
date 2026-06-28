@@ -19,10 +19,11 @@ var LINE_HINTS = {
     uv: 'UV index each hour<br>— half-height = UV 5.5<br>— full-height = UV 11 (extreme)',
     off: 'No third line — temperature and the secondary line only.'
 };
-// The second metric renders as dots; its picker reuses the per-metric LINE_HINTS prose with a
-// dots note appended. Separate from LINE_HINTS because hintByValue REPLACES item.hint (no append),
-// and LINE_HINTS is shared with the solid main-metric picker (which must not show the dots note).
-var DOTS_NOTE = '<br>Drawn as dots on the watch.';
+// The second metric renders as square dots aligned to the rain bars; its picker reuses the
+// per-metric LINE_HINTS prose with a dots note appended. Separate from LINE_HINTS because
+// hintByValue REPLACES item.hint (no append), and LINE_HINTS is shared with the solid
+// main-metric picker (which must not show the dots note).
+var DOTS_NOTE = '<br>Drawn as square dots, aligned to the rain bars.';
 var THIRD_LINE_HINTS = {
     precip_prob: LINE_HINTS.precip_prob + DOTS_NOTE,
     wind: LINE_HINTS.wind + DOTS_NOTE,
@@ -136,7 +137,7 @@ module.exports = {
         }]
     }, {
         id: 'forecast', label: 'Forecast', sections: [{
-            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always shown; on top of it the main metric (a solid line) shows one of precipitation %, wind speed, wind gusts or UV index, and an optional second metric (drawn as dots) adds another — plus optional bars for the hourly rain amount.',
+            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always shown; on top of it the main metric (a solid line) shows one of precipitation %, wind speed, wind gusts or UV index, and an optional second metric (drawn as bar-aligned square dots) adds another — plus optional bars for the hourly rain amount.',
             items: [{
                 type: 'select',
                 messageKey: 'secondaryLine',

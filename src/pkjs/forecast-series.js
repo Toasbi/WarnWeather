@@ -38,15 +38,31 @@ function tempTrendToBytes(temps) {
     return { bytes: bytes, min: min, max: max };
 }
 
-// Metric → line stroke color (0xRRGGBB). Hardcoded per metric (not user-selectable).
+// Metric → line stroke color (0xRRGGBB). Hardcoded per metric (not user-selectable). Gust has
+// no hue of its own — its color is picked in lineColorFor() so it never matches the rain bars.
 var LINE_COLORS = {
     precip_prob: COLORS.GColorPictonBlue,
     wind: COLORS.GColorYellow,
-    gust: COLORS.GColorWhite,   // white reads most clearly over the night hatch (esp. as dotted 2nd metric)
     uv: COLORS.GColorMagenta
 };
 // Metric → area-fill color. Only precip fills; everything else falls back to its line color.
 var FILL_COLORS = { precip_prob: COLORS.GColorCobaltBlue };
+
+/**
+ * Per-metric line/dot color. Most metrics have a fixed hue; gust has none, so pick it to not
+ * clash with the rain bars: white bars → light gray gust (no white-on-white), colored
+ * (multicolor) or no bars → white gust (stands out against the colored bars). (B/W watches
+ * force the second metric white C-side, so the gray only shows on color watches.)
+ * @param {string} metric One of precip_prob|wind|gust|uv.
+ * @param {Object} settings Clay settings (reads rainBarColor).
+ * @returns {number|undefined} 0xRRGGBB color, or undefined for an unknown metric.
+ */
+function lineColorFor(metric, settings) {
+    if (metric === 'gust') {
+        return settings.rainBarColor === 'white' ? COLORS.GColorLightGray : COLORS.GColorWhite;
+    }
+    return LINE_COLORS[metric];
+}
 
 // windScale → km/h ceiling at the top of the graph. Wind and gust share it so a
 // gust line always reads as >= the wind line.
@@ -108,7 +124,7 @@ function buildForecastSeries(raw, settings) {
     var secMetric = settings.secondaryLine;
     var secPm = metricPermille(secMetric, raw, settings);
     out.SECONDARY_LINE_TREND_UINT8 = secPm ? secPm.map(permilleToByte) : [];
-    out.SECONDARY_LINE_COLOR = LINE_COLORS[secMetric] || COLORS.GColorBlack;
+    out.SECONDARY_LINE_COLOR = lineColorFor(secMetric, settings) || COLORS.GColorBlack;
     out.SECONDARY_LINE_FILL = secMetric === 'precip_prob' && Boolean(settings.secondaryLineFill);
     out.SECONDARY_LINE_FILL_COLOR = FILL_COLORS[secMetric] || out.SECONDARY_LINE_COLOR;
 
@@ -119,7 +135,7 @@ function buildForecastSeries(raw, settings) {
     var thirdBytes = thirdPm ? thirdPm.map(permilleToByte) : [];
     out.THIRD_LINE_TREND_UINT8 = thirdBytes;
     if (thirdBytes.length > 0) {
-        out.THIRD_LINE_COLOR = LINE_COLORS[thirdMetric] || COLORS.GColorWhite;
+        out.THIRD_LINE_COLOR = lineColorFor(thirdMetric, settings) || COLORS.GColorWhite;
     }
 
     // Rain bars: independent of the metric lines.

@@ -180,10 +180,10 @@ test('metric options are spelled out fully on both pickers', () => {
   assert.equal(labelOf('gust', 'wind'), 'Wind speed');
 });
 
-test('Second metric picker hints note that it is drawn as dots', () => {
+test('Second metric picker hints note that it is drawn as bar-aligned square dots', () => {
   const hints = byKey('thirdLine').hintByValue;
   ['precip_prob', 'wind', 'gust', 'uv'].forEach((m) => {
-    assert.match(hints[m], /drawn as dots/i, m + ' hint should mention dots');
+    assert.match(hints[m], /square dots.*rain bars/i, m + ' hint should mention bar-aligned square dots');
   });
   assert.match(hints.off, /No second metric/i);
 });

@@ -53,19 +53,30 @@ test('forecastPreview draws the secondary line per metric (solid, per-metric col
   assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'uv' }), { color: true }).indexOf('stroke="#FF00FF"') > -1, 'uv = magenta');
 });
 
-test('forecastPreview draws the second metric as round dots in its metric color, gated on thirdLine', () => {
+test('forecastPreview draws the second metric as bar-aligned squares in its metric color, gated on thirdLine', () => {
   const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'precip_prob' };
-  const withThird = B.forecastPreview(Object.assign({}, base, { thirdLine: 'gust' }), { color: true });
+  // uv = #FF00FF is unique to the second-metric squares (not used by text/background/bars).
+  const withThird = B.forecastPreview(Object.assign({}, base, { thirdLine: 'uv' }), { color: true });
   const noThird   = B.forecastPreview(Object.assign({}, base, { thirdLine: 'off' }), { color: true });
-  // round dots are a near-zero dash + round cap; the dash value is unique to the second metric
-  assert.ok(withThird.indexOf('stroke-dasharray="0.01 6"') > -1, 'second metric renders as round dots');
-  assert.ok(withThird.indexOf('stroke="#FFFFFF"') > -1, 'second metric uses the gust color (white)');
-  assert.equal(noThird.indexOf('stroke-dasharray'), -1, 'no dots when the second metric is off');
+  assert.ok(withThird.indexOf('<rect') > -1 && withThird.indexOf('fill="#FF00FF"') > -1,
+    'second metric (uv) renders as filled magenta squares');
+  assert.equal(withThird.indexOf('stroke-dasharray'), -1, 'no dotted-line styling anymore');
+  assert.equal(noThird.indexOf('fill="#FF00FF"'), -1, 'no second-metric squares when it is off');
 });
 
-test('forecastPreview never draws the third line as the same metric as the secondary', () => {
+test('forecastPreview gust dots take a color distinct from the rain bars', () => {
+  // barSource off isolates the dot color (#AAAAAA is also a multicolor bar band when bars are on).
+  const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'precip_prob', thirdLine: 'gust' };
+  const whiteBars = B.forecastPreview(Object.assign({}, base, { rainBarColor: 'white' }), { color: true });
+  const multiBars = B.forecastPreview(Object.assign({}, base, { rainBarColor: 'multicolor' }), { color: true });
+  assert.ok(whiteBars.indexOf('fill="#AAAAAA"') > -1, 'white bars → light gray gust dots');
+  assert.equal(multiBars.indexOf('fill="#AAAAAA"'), -1, 'multicolor bars → white gust dots (not gray)');
+});
+
+test('forecastPreview never draws the second metric as the same metric as the main', () => {
+  // duplicate metric → no second-metric squares; wind = #FFFF55 is only a fill for those squares.
   const svg = B.forecastPreview({ dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'wind', thirdLine: 'wind' }, { color: true });
-  assert.equal(svg.indexOf('stroke-dasharray'), -1, 'duplicate metric → no third line');
+  assert.equal(svg.indexOf('fill="#FFFF55"'), -1, 'duplicate metric → no second-metric squares');
 });
 test('registers all four into PConf.blocks', () => {
   ['forecastPreview','radarPreview','devStats','lastFetch'].forEach((id) => assert.equal(typeof PConf.blocks.get(id), 'function'));

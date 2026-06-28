@@ -81,6 +81,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var yT = function (t) { return ybot - (t - tmin) / (tmax - tmin || 1) * (ybot - ytop); };
         var maxBar = (PB - PT) * 0.62;
         var n0 = tickX(6), n1 = tickX(15);
+        // Rain-bar width + per-hour column pitch — shared by the bars and the bar-aligned
+        // second-metric squares so the two line up exactly.
+        var bw = 7, cw = (PX1 - PX0) / TH;
 
         // Night-shading band + boundary lines between the 06:00 and 15:00 ticks ('' when off).
         function drawNightShading() {
@@ -115,45 +118,69 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (state.barSource === 'rain') {
             // On B/W platforms the color picker is hidden, so honor the hardware: always white.
             var rainWhite = state.rainBarColor === 'white' || (env && !env.color);
-            var bw = 7, cw = (PX1 - PX0) / TH;
             for (var i = 0; i < rain.length; i++) {
                 e += rainBars(rain[i], PX0 + (i + 0.5) * cw - bw / 2, bw, PB, maxBar, rainWhite);
             }
         }
         var windMax = state.windScale === 'low' ? 30 : (state.windScale === 'high' ? 70 : 50);
+        // Gust has no hue; match the watch and keep it off the bar color — white bars → light
+        // gray, colored (multicolor) bars → white. B/W watches force white C-side, so the gray
+        // only shows on color devices.
+        var gustColor = (env && env.color && state.rainBarColor === 'white') ? '#AAAAAA' : '#FFFFFF';
         // metric → { sample series, full-scale max, preview stroke color, optional fill }
         var METRIC = {
             precip_prob: { vals: precip, max: 100, color: '#00FFFF', fill: 'rgba(0,255,255,0.16)' },
             wind: { vals: wind, max: windMax, color: '#FFFF55' },
-            gust: { vals: gust, max: windMax, color: '#FFFFFF' },
+            gust: { vals: gust, max: windMax, color: gustColor },
             uv: { vals: uv, max: 11, color: '#FF00FF' }
         };
         /**
-         * Build SVG path element(s) for one forecast metric line.
+         * Build SVG markup for the main metric: a solid line with an optional fill (precip only).
          * @param {string} metric - One of precip_prob, wind, gust, uv.
-         * @param {boolean} dotted - Whether to render the second metric as round dots.
-         * @param {boolean} allowFill - Whether to render the fill area (precip-only).
          * @returns {string} SVG markup for the line (and optional fill area).
          */
-        var lineFor = function (metric, dotted, allowFill) {
+        var lineFor = function (metric) {
             var m = METRIC[metric];
             if (!m) { return ''; }
             var pts = m.vals.map(function (v, i) { return [X(i), PB - Math.min(v, m.max) / m.max * (PB - PT - 3)]; });
             var path = smooth(pts);
             var out = '';
-            if (allowFill && metric === 'precip_prob' && state.secondaryLineFill && m.fill) {
+            if (metric === 'precip_prob' && state.secondaryLineFill && m.fill) {
                 out += '<path d="' + path + ' L' + X(n - 1) + ',' + PB + ' L' + X(0) + ',' + PB + ' Z" fill="' + m.fill + '"></path>';
             }
-            // round dots (≈ temperature-line preview width) for the second metric: near-zero dash + round cap = dots
-            var dots = dotted ? ' stroke-dasharray="0.01 6" stroke-linecap="round"' : '';
-            out += '<path d="' + path + '" fill="none" stroke="' + m.color + '" stroke-width="' + (dotted ? 2 : 1.6) + '"' + dots + '></path>';
+            out += '<path d="' + path + '" fill="none" stroke="' + m.color + '" stroke-width="1.6"></path>';
             return out;
         };
-        // Second metric (round dots) under the main metric (solid), excluding a duplicate metric.
+        /**
+         * Build SVG markup for the second metric: little squares matched to the rain bars —
+         * bar width, same column, at each hour's value height. A value of 0 sits on the baseline
+         * and is skipped, mirroring the watch.
+         * @param {string} metric - One of precip_prob, wind, gust, uv.
+         * @returns {string} SVG markup for the square markers.
+         */
+        var barDotsFor = function (metric) {
+            var m = METRIC[metric];
+            if (!m) { return ''; }
+            // Width follows the bar width; height matches the watch — a white dot is the dominant
+            // case (gust over colored bars) so it gets a shorter cap, while a dimmed gray dot
+            // (gust over white bars) is a touch taller for presence. Color devices only; B/W keeps
+            // the taller height.
+            var dw = bw, dh = (env && env.color && m.color === '#FFFFFF') ? 3 : 4, out = '';
+            for (var i = 0; i < m.vals.length; i++) {
+                var v = Math.min(m.vals[i], m.max);
+                if (v <= 0) { continue; }   // value 0 → on the baseline, skip
+                var cy = PB - v / m.max * (PB - PT - 3);
+                var cx = PX0 + (i + 0.5) * cw;   // bar column center
+                out += rect(cx - dw / 2, cy - dh / 2, dw, dh, m.color);
+            }
+            return out;
+        };
+        // Main metric (solid) first, then the second metric's bar-aligned squares on top of it
+        // (excluding a duplicate metric), then the temperature curve.
+        e += lineFor(state.secondaryLine);
         if (state.thirdLine && state.thirdLine !== 'off' && state.thirdLine !== state.secondaryLine) {
-            e += lineFor(state.thirdLine, true, false);
+            e += barDotsFor(state.thirdLine);
         }
-        e += lineFor(state.secondaryLine, false, true);
         e += drawTempCurve();
         e += '<circle cx="6" cy="8.5" r="2.7" fill="#E6E9EF"></circle>' + txt(11, 11.5, 9.5, '#FFFFFF', 'start', 700, '22°');
         e += txt(3, 31, 8, '#AEB4BD', 'start', 600, tmax + '°') + txt(3, PB - 1, 8, '#AEB4BD', 'start', 600, tmin + '°');

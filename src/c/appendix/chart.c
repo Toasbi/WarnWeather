@@ -163,32 +163,39 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
     }
 }
 
-// Stroke a polyline as evenly-spaced round dots (~3px diameter ≈ the temperature line
-// width) with integer DDA stepping (no float — project constraint). The dot phase carries
-// across segment boundaries so spacing is even over the whole polyline. PERIOD avoids the
-// night hatch's ~6–7px diagonal spacing so the dots stay legible over it (worst on aplite,
-// both white). Replaces the former dash-dot-dot pattern; the second metric is now dotted.
-static void chart_stroke_dotted(GContext *ctx, const GPoint *pts, int count, GColor color) {
-    const int PERIOD = 8;   // center-to-center px between dots; avoids 6/7-px hatch resonance
-    const int RADIUS = 1;   // 3px-diameter dot ≈ temperature line width (3)
-    graphics_context_set_fill_color(ctx, color);
-    int dist = 0;   // running step count; carries across segments for even spacing
-    for (int i = 0; i + 1 < count; ++i) {
-        const int x0 = pts[i].x,     y0 = pts[i].y;
-        const int dx = pts[i+1].x - x0, dy = pts[i+1].y - y0;
-        const int adx = dx < 0 ? -dx : dx;
-        const int ady = dy < 0 ? -dy : dy;
-        const int steps = adx > ady ? adx : ady;   // walk the dominant axis
-        if (steps == 0) { continue; }
-        // First segment includes s=0; later segments start at 1 so the shared joint pixel
-        // (and its phase tick) is counted once, not twice.
-        for (int s = (i == 0 ? 0 : 1); s <= steps; ++s) {
-            if (dist % PERIOD == 0) {
-                const int x = x0 + (int)(((int32_t) dx * s) / steps);
-                const int y = y0 + (int)(((int32_t) dy * s) / steps);
-                graphics_fill_circle(ctx, GPoint(x, y), RADIUS);
-            }
-            ++dist;
+// Draw the second metric as one little mark per slot, column-aligned to the rain bars. The
+// width follows the line's width setting (the caller sets it to the rain-bar width); the height
+// is a hardcoded short cap (see the per-case heights below). A value of 0 lands on the x-axis
+// baseline and is skipped (a mark there reads as data where there is none), and every mark is
+// clamped to the plot so none spills past an axis.
+static void chart_draw_bar_dots(const ChartRender *r, const ChartLineLayer *l) {
+    const int   count       = chart_clamp_count(r, l->count);
+    const GRect c           = r->geo.content;
+    const int   plot_top    = c.origin.y;
+    const int   plot_bottom = c.origin.y + c.size.h;   // baseline; value 0 lands here
+    const int   inner_h     = c.size.h - 2 * l->inset_y;
+    const int   range       = l->hi - l->lo;
+    const int   w           = l->width;                // width follows the line's width setting
+                                                       // (the caller sets it to the rain-bar width)
+    // Height is hardcoded (not derived from width). On color a white dot is the dominant case
+    // (gust over colored bars) so it gets a shorter 2px cap; a dimmed gray dot (gust over white
+    // bars, where gray needs more presence) gets a slightly taller 3px on  e. B&W is a fixed 3px.
+    const int   dot_h       = PBL_IF_COLOR_ELSE(gcolor_equal(l->color, GColorWhite) ? 2 : 3, 3);
+    graphics_context_set_fill_color(r->ctx, l->color);
+    for (int i = 0; i < count; ++i) {
+        if (l->values[i] <= l->lo) continue;           // value 0 → on the baseline, skip
+        int h = inner_h / 2;                           // flat mark on zero range
+        if (range > 0) {
+            h = (int)(((int32_t)(l->values[i] - l->lo) * inner_h) / range);
+        }
+        const int cy = plot_bottom - h - l->inset_y;   // dot center = slot value height
+        const int x  = chart_slot_bar_x(&r->geo, i);   // exact bar column
+        int top = cy - dot_h / 2;
+        int bot = top + dot_h;
+        if (top < plot_top)    top = plot_top;
+        if (bot > plot_bottom) bot = plot_bottom;       // stay above the x-axis
+        if (bot > top) {
+            graphics_fill_rect(r->ctx, GRect(x, top, w, bot - top), 0, GCornerNone);
         }
     }
 }
@@ -196,6 +203,11 @@ static void chart_stroke_dotted(GContext *ctx, const GPoint *pts, int count, GCo
 static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
     const int count = chart_clamp_count(r, l->count);
     if (count < 2) return;
+
+    if (l->dotted) {            // second metric: bar-aligned square caps, not a polyline
+        chart_draw_bar_dots(r, l);
+        return;
+    }
 
     static GPoint buf[CHART_MAX_SLOTS];  // aplite: per-frame scratch must be static, not stack
     const GPoint *pts = l->points;
@@ -216,14 +228,10 @@ static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
         pts = out;
     }
 
-    if (l->dotted) {
-        chart_stroke_dotted(r->ctx, pts, count, l->color);
-    } else {
-        GPath path = { .num_points = (uint32_t)count, .points = (GPoint *)pts };
-        graphics_context_set_stroke_color(r->ctx, l->color);
-        graphics_context_set_stroke_width(r->ctx, l->width);
-        gpath_draw_outline_open(r->ctx, &path);
-    }
+    GPath path = { .num_points = (uint32_t)count, .points = (GPoint *)pts };
+    graphics_context_set_stroke_color(r->ctx, l->color);
+    graphics_context_set_stroke_width(r->ctx, l->width);
+    gpath_draw_outline_open(r->ctx, &path);
 }
 
 static void chart_render_area(const ChartRender *r, const ChartAreaLayer *a) {
