@@ -61,6 +61,25 @@ test('withGpsCoordinates: native call requests a fresh fix (maximumAge 0, high a
   assert.equal(tracker.opts.maximumAge, 0);
 });
 
+test('withGpsCoordinates writes the fresh fix to the cache on success', () => {
+  var store = {};
+  withLocalStorage(store);
+  stubGeolocation(function (success) { success({ coords: { latitude: 1.5, longitude: 2.5 } }); });
+
+  var p = new WeatherProvider();
+  p.gpsMaxAgeMs = 0;                  // no app-side reuse -> reach native -> success
+  var got = null;
+  p.withGpsCoordinates(function (lat, lon) { got = { lat: lat, lon: lon }; }, function () {});
+
+  assert.deepEqual(got, { lat: 1.5, lon: 2.5 });
+  var cached = JSON.parse(store.gpsCache);   // success() persists the fix for later reuse/fallback
+  assert.equal(cached.lat, 1.5);
+  assert.equal(cached.lon, 2.5);
+  assert.equal(typeof cached.time, 'number');
+  assert.equal(p.usedGpsCache, false);
+  assert.equal(p.gpsErrorCode, null);
+});
+
 test('withGpsCoordinates reuses a cached fix within the window without calling native GPS', () => {
   var now = Date.now();
   withLocalStorage({ gpsCache: JSON.stringify({ lat: 52.5, lon: 13.4, time: now - 10 * 60000 }) });
