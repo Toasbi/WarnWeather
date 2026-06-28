@@ -70,8 +70,9 @@ test('getDefaults includes gpsCacheMin defaulting to 30 minutes', () => {
   assert.equal(claySettings.getDefaults(COLORS).gpsCacheMin, '30');
 });
 
-test('seedDefaults enables night pause and Leco font by default', () => {
+test('seedDefaults seeds roboto font and night-pause disabled by default', () => {
   installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
   const claySettings = require('../src/pkjs/clay-settings');
   claySettings.seedDefaults(COLORS);
   const read = claySettings.read();

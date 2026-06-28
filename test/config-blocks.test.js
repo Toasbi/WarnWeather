@@ -4,9 +4,10 @@ const assert = require('node:assert/strict');
 global.PConf = { blocks: (function () { var m = {}; return { register: (id, fn) => { m[id] = fn; }, get: (id) => m[id] }; })() };
 const B = require('../src/pkjs/settings/blocks.js');
 
-test('forecastPreview returns an SVG', () => {
+test('forecastPreview returns an SVG with the rain bars rendered', () => {
   const fc = B.forecastPreview({ dayNightShading: true, barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'precip_prob', secondaryLineFill: true, windScale: 'mid' }, { color: true });
-  assert.ok(/^<svg/.test(fc) && fc.indexOf('</svg>') > 0);
+  assert.ok(/^<svg/.test(fc) && fc.indexOf('</svg>') > 0, 'is an SVG document');
+  assert.ok(fc.indexOf('fill="#00FF00"') > -1, 'multicolor rain bars actually render (not an empty frame)');
 });
 test('radarPreview: off message vs SVG', () => {
   assert.ok(B.radarPreview({ radarProvider: 'disabled', radarColor: 'multicolor' }, { color: true }).indexOf('Radar off') >= 0);

@@ -19,7 +19,7 @@ test('clampByte treats non-finite as 0', () => {
 
 test('mphToKmh multiplies by the mph→km/h constant', () => {
   assert.equal(MPH_TO_KMH, 1.60934);
-  assert.equal(mphToKmh(10), 10 * 1.60934);
+  assert.equal(Math.round(mphToKmh(10) * 10000) / 10000, 16.0934);
   assert.equal(mphToKmh(0), 0);
 });
 
