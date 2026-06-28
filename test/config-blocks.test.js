@@ -119,3 +119,30 @@ test('B&W: series are white, temp thick (3) vs main thin (1), no hues', () => {
   assert.ok(bw.indexOf('stroke-width="3"') >= 0, 'temp curve thick (3)');
   assert.ok(bw.indexOf('stroke-width="1"') >= 0, 'main line thin (1)');
 });
+
+test('legend lists the shown series with palette colors (color watch)', () => {
+  const svg = B.forecastPreview(
+    { barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'precip_prob', thirdLine: 'wind', windScale: 'mid', dayNightShading: false },
+    { color: true });
+  assert.ok(svg.indexOf('viewBox="0 0 200 138"') >= 0, 'frame is taller to fit the legend');
+  assert.ok(svg.indexOf('>Temp<') >= 0, 'Temp entry');
+  assert.ok(svg.indexOf('>Precip<') >= 0, 'main metric entry (Precip)');
+  assert.ok(svg.indexOf('>Wind<') >= 0, 'second metric entry (Wind)');
+  assert.ok(svg.indexOf('>Rain<') >= 0, 'Rain entry (bars on)');
+});
+
+test('legend omits the second metric when thirdLine is off, and Rain when bars are off', () => {
+  const svg = B.forecastPreview(
+    { barSource: 'off', secondaryLine: 'uv', thirdLine: 'off', windScale: 'mid', dayNightShading: false },
+    { color: true });
+  assert.ok(svg.indexOf('>UV<') >= 0, 'main metric entry (UV)');
+  assert.equal(svg.indexOf('>Rain<'), -1, 'no Rain entry when bars are off');
+});
+
+test('legend uses white style glyphs on B&W (no hues)', () => {
+  const svg = B.forecastPreview(
+    { barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'wind', thirdLine: 'off', windScale: 'mid', dayNightShading: false },
+    { color: false });
+  assert.ok(svg.indexOf('>Temp<') >= 0 && svg.indexOf('>Wind<') >= 0 && svg.indexOf('>Rain<') >= 0);
+  assert.equal(svg.indexOf('#FFFF00'), -1, 'no wind hue in the B&W legend');
+});

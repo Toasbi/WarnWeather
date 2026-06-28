@@ -252,8 +252,46 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             return out;
         };
 
+        /**
+         * Legend strip below the chart. Lists only the shown series (Temp always; main metric;
+         * second metric if on; Rain if bars on). Color watch: hued glyph + label, with a 5-band
+         * gradient for Rain. B&W: white style glyphs (thick line / thin line / dots / outline box).
+         * @returns {string} SVG markup
+         */
+        function drawLegend() {
+            var LABEL = { precip_prob: 'Precip', wind: 'Wind', gust: 'Gust', uv: 'UV' };
+            var entries = [];
+            entries.push({ kind: 'line', color: tempColor, w: tempW, label: 'Temp' });
+            entries.push({ kind: 'line', color: metricColor(state.secondaryLine), w: mainW, label: LABEL[state.secondaryLine] || '' });
+            if (state.thirdLine && state.thirdLine !== 'off' && state.thirdLine !== state.secondaryLine) {
+                entries.push({ kind: 'dots', color: metricColor(state.thirdLine), label: LABEL[state.thirdLine] || '' });
+            }
+            if (state.barSource === 'rain') { entries.push({ kind: 'rain', label: 'Rain' }); }
+
+            var gy = 128, ty = 131, out = '', x = PX0;
+            for (var i = 0; i < entries.length; i += 1) {
+                var en = entries[i], gw = 14;
+                if (en.kind === 'line') {
+                    out += '<line x1="' + x + '" y1="' + gy + '" x2="' + (x + 12) + '" y2="' + gy + '" stroke="' + en.color + '" stroke-width="' + en.w + '" stroke-linecap="round"></line>';
+                } else if (en.kind === 'dots') {
+                    out += rect(x + 1, gy - 1.6, 3.2, 3.2, en.color) + rect(x + 8, gy - 1.6, 3.2, 3.2, en.color);
+                } else if (isColor) {
+                    for (var k = 0; k < P.rainTiers.length; k += 1) {
+                        out += rect(x + k * 2.4, gy - 3.5, 2.4, 7, P.rainTiers[k].color);
+                    }
+                    gw = P.rainTiers.length * 2.4 + 2;
+                } else {
+                    out += '<rect x="' + x + '" y="' + (gy - 3.5) + '" width="12" height="7" fill="none" stroke="' + P.white + '" stroke-width="1"></rect>';
+                }
+                var lx = x + gw + 3;
+                out += txt(lx, ty, 7.5, '#AEB4BD', 'start', 600, en.label);
+                x = lx + en.label.length * 4.3 + 8;
+            }
+            return out;
+        }
+
         var e = '';
-        e += rect(0, 0, 200, 120, '#000');
+        e += rect(0, 0, 200, 138, '#000');
         e += '<defs>'
             + '<pattern id="nh" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="rgba(255,255,255,0.30)" stroke-width="0.7"></line></pattern>'
             + '<pattern id="fillhatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="rgba(255,255,255,0.35)" stroke-width="0.6"></line></pattern>'
@@ -274,7 +312,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         e += txt(3, 31, 8, '#AEB4BD', 'start', 600, tmax + '°') + txt(3, PB - 1, 8, '#AEB4BD', 'start', 600, tmin + '°');
         e += drawAxis();
         e += txt((n0 + n1) / 2, 13, 8.5, '#E6E9EF', 'middle', 600, 'Berlin') + txt(197, 12, 8, '#C9CCD2', 'end', 600, '21:29 ↓');
-        return svgFrame(e);
+        e += drawLegend();
+        return svgFrame(e, 138);
     }
 
     /* ---- radarPreview: adapted from index.html:270-286 radarSVG ----------- */
