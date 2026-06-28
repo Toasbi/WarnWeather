@@ -555,7 +555,6 @@ WeatherProvider.prototype.withGpsCoordinates = function(callback, onFailure) {
         ) {
             console.log('Using cached GPS coordinates: lat= ' + fallback.lat + ' lon= ' + fallback.lon);
             provider.usedGpsCache = true;
-            provider.gpsErrorCode = errCode;
             callback(fallback.lat, fallback.lon);
             return;
         }
@@ -580,6 +579,7 @@ WeatherProvider.prototype.withCoordinates = function(callback, onFailure) {
     this.usedGpsCache = false;
     this.gpsErrorCode = null;
     this.locationMode = null;
+    this.countryCode = null;
 
     locationOverride = parseLocationOverride(this.location);
     if (locationOverride.type === 'gps') {
@@ -673,9 +673,8 @@ WeatherProvider.prototype.fetch = function(onSuccess, onFailure, force, extraPay
  * @returns {void}
  */
 WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, onFailure, force, extraPayload, payloadTransform) {
-    // Note: withCoordinates() already reset usedGpsCache/gpsErrorCode/locationMode
-    // for this cycle; only countryCode needs resetting before the city lookup.
-    this.countryCode = null;
+    // Note: withCoordinates() already reset usedGpsCache/gpsErrorCode/locationMode/countryCode
+    // for this cycle; this method relies on those resets having already happened.
     this.withCityName(lat, lon, (function(cityName, countryCode) {
         this.countryCode = countryCode;
         this.withSunEvents(lat, lon, (function(sunEvents) {

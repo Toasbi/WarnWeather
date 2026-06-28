@@ -42,3 +42,28 @@ test('fetch reports coordinate failure through onFailure', () => {
   p.fetch(function () {}, function (f) { failed = f; }, false, {}, null);
   assert.deepEqual(failed, { category: 'coordinates', code: 'gps_1' });
 });
+
+test('withCoordinates resets countryCode to null even when coordinate resolution fails', () => {
+  // Simulates a stale countryCode from a previous successful fetch that should
+  // be cleared at the start of each cycle so coord-failure telemetry is not stale.
+  global.localStorage = (function () {
+    var store = {};
+    return {
+      getItem: function (k) { return Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null; },
+      setItem: function (k, v) { store[k] = String(v); },
+      removeItem: function (k) { delete store[k]; }
+    };
+  }());
+
+  var p = new WeatherProvider();
+  p.countryCode = 'DE'; // stale value from previous fetch
+  p.location = null;    // GPS mode
+  // Stub out the GPS call so no native API is invoked; simulates a coord failure
+  // by doing nothing (neither callback nor onFailure fires — we only care about
+  // the synchronous reset that withCoordinates must do before dispatching).
+  p.withGpsCoordinates = function () {};
+
+  p.withCoordinates(function () {}, function () {});
+
+  assert.equal(p.countryCode, null);
+});
