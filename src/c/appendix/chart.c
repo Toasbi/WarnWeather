@@ -1,4 +1,5 @@
 #include "chart.h"
+#include "hatch.h"
 
 static void graph_frame_draw(GContext *ctx, GraphFrame f, GRect outer) {
     if (f.left.width > 0) {
@@ -243,6 +244,92 @@ static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
     gpath_draw_outline_open(r->ctx, &path);
 }
 
+// Linear-interpolate the contour's top y at absolute pixel x (was
+// area_fill_top_y_for_x in forecast_layer.c — moved verbatim).
+static int16_t chart_contour_y_for_x(const GPoint *pts, int count, int16_t x) {
+    if (x <= pts[0].x) {
+        return pts[0].y;
+    }
+    for (int i = 0; i < count - 1; ++i) {
+        const int16_t x0 = pts[i].x;
+        const int16_t y0 = pts[i].y;
+        const int16_t x1 = pts[i + 1].x;
+        const int16_t y1 = pts[i + 1].y;
+        if (x > x1) {
+            continue;
+        }
+        if (x1 == x0) {
+            return y0 < y1 ? y0 : y1;
+        }
+        return y0 + (int16_t)(((int32_t)(y1 - y0) * (x - x0)) / (x1 - x0));
+    }
+    return pts[count - 1].y;
+}
+
+static void chart_render_hatch(const ChartRender *r, const ChartHatchLayer *hl) {
+    if (!hl->bands || hl->num_bands == 0) {
+        return;
+    }
+    GContext *ctx = r->ctx;
+    const GRect   c                   = r->geo.content;
+    const int16_t y_top               = c.origin.y;
+    const int16_t y_bottom_exclusive  = c.origin.y + c.size.h;
+    const int16_t y_bottom_inclusive  = y_bottom_exclusive - 1;
+
+    // 1) hatch fill (+ optional per-column underlay) ---------------------
+    for (int i = 0; i < hl->num_bands; ++i) {
+        const int16_t x0 = hl->bands[i].x0;
+        const int16_t x1 = hl->bands[i].x1;
+        if (x1 <= x0) {
+            continue;
+        }
+        if (hl->contour == NULL) {
+            hatch_fill_rect(ctx, GRect(x0, y_top, x1 - x0, c.size.h),
+                            hl->hatch_color, hl->spacing);
+            continue;
+        }
+        if (hl->has_underlay) {
+            graphics_context_set_stroke_color(ctx, hl->underlay_color);
+            for (int16_t x = x0; x < x1; ++x) {
+                int16_t ay = chart_contour_y_for_x(hl->contour, hl->contour_count, x);
+                if (ay < y_top) ay = y_top;
+                if (ay <= y_bottom_inclusive) {
+                    graphics_draw_line(ctx, GPoint(x, ay), GPoint(x, y_bottom_inclusive));
+                }
+            }
+        }
+        for (int16_t x = x0; x < x1; ++x) {
+            int16_t ay = chart_contour_y_for_x(hl->contour, hl->contour_count, x);
+            if (ay < y_top) ay = y_top;
+            hatch_fill_rect(ctx, GRect(x, ay, 1, y_bottom_exclusive - ay),
+                            hl->hatch_color, hl->spacing);
+        }
+    }
+
+    // 2) boundary lines at real (in-window) edges ------------------------
+    graphics_context_set_stroke_color(ctx, hl->boundary_color);
+    graphics_context_set_stroke_width(ctx, 1);
+    for (int i = 0; i < hl->num_bands; ++i) {
+        const ChartBand *b = &hl->bands[i];
+        if (b->boundary0) {
+            int16_t yt = y_top;
+            if (hl->contour) {
+                yt = chart_contour_y_for_x(hl->contour, hl->contour_count, b->x0);
+                if (yt < y_top) yt = y_top;
+            }
+            graphics_draw_line(ctx, GPoint(b->x0, yt), GPoint(b->x0, y_bottom_inclusive));
+        }
+        if (b->boundary1) {
+            int16_t yt = y_top;
+            if (hl->contour) {
+                yt = chart_contour_y_for_x(hl->contour, hl->contour_count, b->x1);
+                if (yt < y_top) yt = y_top;
+            }
+            graphics_draw_line(ctx, GPoint(b->x1, yt), GPoint(b->x1, y_bottom_inclusive));
+        }
+    }
+}
+
 static void chart_render_area(const ChartRender *r, const ChartAreaLayer *a) {
     const int count = chart_clamp_count(r, a->count);
     if (count < 1) return;
@@ -293,6 +380,9 @@ void chart_draw(GContext *ctx, const ChartDef *def, GRect outer,
                 break;
             case CHART_LAYER_AREA:
                 chart_render_area(&r, &l->area);
+                break;
+            case CHART_LAYER_HATCH:
+                chart_render_hatch(&r, &l->hatch);
                 break;
         }
     }

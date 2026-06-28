@@ -285,229 +285,31 @@ static int16_t graph_x_for_time(time_t timestamp, time_t graph_start, time_t gra
     return graph_left + (int16_t)((elapsed * graph_plot_rect.size.w) / total);
 }
 
-
-static void draw_night_regions(GContext *ctx, GRect graph_plot_rect, time_t graph_start, time_t graph_end,
-                               const NightSegments *night_segments)
-{
-    if (!night_segments || night_segments->count == 0)
-    {
-        return;
+// Convert night time-segments into absolute plot-x bands. Clamps x to the
+// plot like the old draw_night_* loops; flags each edge as a "real" boundary
+// (a sun event strictly inside the window) vs a clamped edge.
+static int build_night_bands(ChartBand *out, int max,
+                             const NightSegments *seg, GRect plot_rect,
+                             time_t gstart, time_t gend) {
+    if (!seg) return 0;
+    const int16_t gl = plot_rect.origin.x;
+    const int16_t gr = plot_rect.origin.x + plot_rect.size.w;
+    int n = 0;
+    for (int i = 0; i < seg->count && n < max; ++i) {
+        int16_t x0 = graph_x_for_time(seg->segments[i].start, gstart, gend, plot_rect);
+        int16_t x1 = graph_x_for_time(seg->segments[i].end,   gstart, gend, plot_rect);
+        if (x0 < gl) x0 = gl;
+        if (x1 > gr) x1 = gr;
+        out[n].x0 = x0;
+        out[n].x1 = x1;
+        out[n].boundary0 = seg->segments[i].start > gstart && seg->segments[i].start < gend;
+        out[n].boundary1 = seg->segments[i].end   > gstart && seg->segments[i].end   < gend;
+        ++n;
     }
-
-    const int16_t graph_left = graph_plot_rect.origin.x;
-    const int16_t graph_right = graph_plot_rect.origin.x + graph_plot_rect.size.w;
-
-    const int16_t hatch_spacing = NIGHT_HATCH_SPACING;
-    const bool is_color = PBL_IF_COLOR_ELSE(true, false);
-    const GColor hatch_color = is_color ? NIGHT_HATCH_COLOR : GColorWhite;
-
-    for (int i = 0; i < night_segments->count; ++i)
-    {
-        int16_t x0 = graph_x_for_time(night_segments->segments[i].start, graph_start, graph_end, graph_plot_rect);
-        int16_t x1 = graph_x_for_time(night_segments->segments[i].end, graph_start, graph_end, graph_plot_rect);
-
-        if (x0 < graph_left)
-        {
-            x0 = graph_left;
-        }
-        if (x1 > graph_right)
-        {
-            x1 = graph_right;
-        }
-        if (x1 <= x0)
-        {
-            continue;
-        }
-
-        GRect night_rect = GRect(x0, graph_plot_rect.origin.y, x1 - x0, graph_plot_rect.size.h);
-        hatch_fill_rect(ctx, night_rect, hatch_color, hatch_spacing);
-    }
-}
-
-static int16_t area_fill_top_y_for_x(const GPoint *points_area_fill, int num_entries, int16_t x)
-{
-    if (x <= points_area_fill[0].x)
-    {
-        return points_area_fill[0].y;
-    }
-
-    for (int i = 0; i < num_entries - 1; ++i)
-    {
-        const int16_t x0 = points_area_fill[i].x;
-        const int16_t y0 = points_area_fill[i].y;
-        const int16_t x1 = points_area_fill[i + 1].x;
-        const int16_t y1 = points_area_fill[i + 1].y;
-
-        if (x > x1)
-        {
-            continue;
-        }
-
-        if (x1 == x0)
-        {
-            return y0 < y1 ? y0 : y1;
-        }
-
-        return y0 + (int16_t)(((int32_t)(y1 - y0) * (x - x0)) / (x1 - x0));
-    }
-
-    return points_area_fill[num_entries - 1].y;
-}
-
-static int16_t clamped_area_fill_top_y_for_x(GRect graph_plot_rect,
-                                          const GPoint *points_area_fill, int num_entries, int16_t x)
-{
-    const int16_t y_top_limit = graph_plot_rect.origin.y;
-    int16_t area_fill_y = area_fill_top_y_for_x(points_area_fill, num_entries, x);
-    if (area_fill_y < y_top_limit)
-    {
-        area_fill_y = y_top_limit;
-    }
-
-    return area_fill_y;
-}
-
-static void draw_night_hatch_over_area_fill(GContext *ctx, GRect graph_plot_rect, time_t graph_start, time_t graph_end,
-                                         const NightSegments *night_segments,
-                                         const GPoint *points_area_fill, int num_entries)
-{
-    if (!night_segments || night_segments->count == 0)
-    {
-        return;
-    }
-
-    const int16_t graph_left = graph_plot_rect.origin.x;
-    const int16_t graph_right = graph_plot_rect.origin.x + graph_plot_rect.size.w;
-    const int16_t y_bottom_exclusive = graph_plot_rect.origin.y + graph_plot_rect.size.h;
-    const int16_t y_bottom_inclusive = y_bottom_exclusive - 1;
-    const int16_t hatch_spacing = NIGHT_HATCH_SPACING;
-    const bool is_color = PBL_IF_COLOR_ELSE(true, false);
-
-    for (int i = 0; i < night_segments->count; ++i)
-    {
-        int16_t x0 = graph_x_for_time(night_segments->segments[i].start, graph_start, graph_end, graph_plot_rect);
-        int16_t x1 = graph_x_for_time(night_segments->segments[i].end, graph_start, graph_end, graph_plot_rect);
-
-        if (x0 < graph_left)
-        {
-            x0 = graph_left;
-        }
-        if (x1 > graph_right)
-        {
-            x1 = graph_right;
-        }
-        if (x1 <= x0)
-        {
-            continue;
-        }
-
-        if (is_color)
-        {
-            graphics_context_set_stroke_color(ctx, NIGHT_AREA_FILL_COLOR);
-            for (int16_t x = x0; x < x1; ++x)
-            {
-                const int16_t area_fill_y = clamped_area_fill_top_y_for_x(graph_plot_rect, points_area_fill, num_entries, x);
-                if (area_fill_y <= y_bottom_inclusive)
-                {
-                    graphics_draw_line(ctx, GPoint(x, area_fill_y), GPoint(x, y_bottom_inclusive));
-                }
-            }
-        }
-
-        const GColor hatch_color = is_color ? NIGHT_HATCH_COLOR_AREA : GColorWhite;
-        for (int16_t x = x0; x < x1; ++x)
-        {
-            const int16_t area_fill_y = clamped_area_fill_top_y_for_x(graph_plot_rect, points_area_fill, num_entries, x);
-            hatch_fill_rect(ctx, GRect(x, area_fill_y, 1, y_bottom_exclusive - area_fill_y), hatch_color, hatch_spacing);
-        }
-    }
-}
-
-static void draw_night_boundaries(GContext *ctx, GRect graph_plot_rect, time_t graph_start, time_t graph_end,
-                                  const NightSegments *night_segments)
-{
-    if (!night_segments || night_segments->count == 0)
-    {
-        return;
-    }
-
-    graphics_context_set_stroke_color(ctx, NIGHT_BOUNDARY_COLOR);
-    graphics_context_set_stroke_width(ctx, 1);
-
-    const int16_t y0 = graph_plot_rect.origin.y;
-    const int16_t y1 = graph_plot_rect.origin.y + graph_plot_rect.size.h - 1;
-    for (int i = 0; i < night_segments->count; ++i)
-    {
-        const time_t segment_start = night_segments->segments[i].start;
-        const time_t segment_end = night_segments->segments[i].end;
-
-        if (segment_start > graph_start && segment_start < graph_end)
-        {
-            const int16_t start_x = graph_x_for_time(segment_start, graph_start, graph_end, graph_plot_rect);
-            graphics_draw_line(ctx, GPoint(start_x, y0), GPoint(start_x, y1));
-        }
-
-        if (segment_end > graph_start && segment_end < graph_end)
-        {
-            const int16_t end_x = graph_x_for_time(segment_end, graph_start, graph_end, graph_plot_rect);
-            graphics_draw_line(ctx, GPoint(end_x, y0), GPoint(end_x, y1));
-        }
-    }
-}
-
-static void draw_night_boundaries_over_area_fill(GContext *ctx, GRect graph_plot_rect, time_t graph_start, time_t graph_end,
-                                               const NightSegments *night_segments,
-                                               const GPoint *points_area_fill, int num_entries)
-{
-    if (!night_segments || night_segments->count == 0)
-    {
-        return;
-    }
-
-    graphics_context_set_stroke_color(ctx, NIGHT_BOUNDARY_COLOR_AREA);
-    graphics_context_set_stroke_width(ctx, 1);
-
-    const int16_t y_bottom = graph_plot_rect.origin.y + graph_plot_rect.size.h - 1;
-    for (int i = 0; i < night_segments->count; ++i)
-    {
-        const time_t segment_start = night_segments->segments[i].start;
-        const time_t segment_end = night_segments->segments[i].end;
-
-        if (segment_start > graph_start && segment_start < graph_end)
-        {
-            const int16_t start_x = graph_x_for_time(segment_start, graph_start, graph_end, graph_plot_rect);
-            const int16_t start_area_fill_y = clamped_area_fill_top_y_for_x(graph_plot_rect, points_area_fill, num_entries, start_x);
-            graphics_draw_line(ctx, GPoint(start_x, start_area_fill_y), GPoint(start_x, y_bottom));
-        }
-
-        if (segment_end > graph_start && segment_end < graph_end)
-        {
-            const int16_t end_x = graph_x_for_time(segment_end, graph_start, graph_end, graph_plot_rect);
-            const int16_t end_area_fill_y = clamped_area_fill_top_y_for_x(graph_plot_rect, points_area_fill, num_entries, end_x);
-            graphics_draw_line(ctx, GPoint(end_x, end_area_fill_y), GPoint(end_x, y_bottom));
-        }
-    }
+    return n;
 }
 
 static GSize temp_label_string_size(const char *text);
-
-static void draw_night_shading_under(GContext *ctx, GRect graph_plot_rect,
-                                     time_t forecast_start, time_t forecast_end,
-                                     const NightSegments *night_segments,
-                                     const GPoint *points_area_fill, int num_entries) {
-    draw_night_hatch_over_area_fill(ctx, graph_plot_rect, forecast_start, forecast_end,
-                                 night_segments, points_area_fill, num_entries);
-    draw_night_boundaries_over_area_fill(ctx, graph_plot_rect, forecast_start, forecast_end,
-                                       night_segments, points_area_fill, num_entries);
-}
-
-static void draw_night_shading_over(GContext *ctx, GRect graph_plot_rect,
-                                    time_t forecast_start, time_t forecast_end,
-                                    const NightSegments *night_segments) {
-    draw_night_regions(ctx, graph_plot_rect, forecast_start, forecast_end, night_segments);
-    draw_night_boundaries(ctx, graph_plot_rect, forecast_start, forecast_end, night_segments);
-}
-
 
 static void draw_left_axis(GContext *ctx, int h) {
     // Mask anything drawn into the label strip. The vertical axis line
@@ -569,27 +371,6 @@ static void forecast_fill_axis_slots(ChartAxisSlot *slots, int num_slots,
     }
 }
 
-typedef struct {
-    GRect                plot_rect;   // spans the full slot grid so night edges
-                                      // land on their hour columns (stage-2 fix;
-                                      // was the pre-phase-3 compat mapping)
-    time_t               start, end;
-    const NightSegments *night;
-    const GPoint        *area_pts;
-    int                  count;
-} NightLayerCtx;
-
-static void night_under_layer(const ChartRender *r, void *user) {
-    const NightLayerCtx *c = user;
-    draw_night_shading_under(r->ctx, c->plot_rect, c->start, c->end,
-                             c->night, c->area_pts, c->count);
-}
-
-static void night_over_layer(const ChartRender *r, void *user) {
-    const NightLayerCtx *c = user;
-    draw_night_shading_over(r->ctx, c->plot_rect, c->start, c->end, c->night);
-}
-
 static void forecast_update_proc(Layer *layer, GContext *ctx)
 {
     MEMORY_LOG_HEAP("forecast_update:enter");
@@ -643,22 +424,18 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     const bool bars_on = ds.bars_present > 0;
     const bool third_line_on = ds.third_line_present;  // already a flag (persist_exists), no > 0
 
-    NightLayerCtx night_ctx = {
-        // Width spans slot 0..(num_entries-1) so the linear time->x map lands
-        // on the same hour columns (anchor_x + i*pitch) the ticks/lines use.
-        // graph_end is the last slot's time, so the span is (num_entries-1)
-        // pitches; using MAX*pitch+tick_w over-stretches the scale and drifts
-        // mid-hour edges (e.g. a 5:30 sunrise) onto the next full-hour column.
-        .plot_rect  = GRect(outer.origin.x, 0,
-                            (ds.num_entries - 1)
-                                * chart_def_pitch(&FORECAST_DEF),
-                            outer.size.h - 1),
-        .start      = forecast_start,
-        .end        = forecast_end,
-        .night      = &night_segments,
-        .area_pts = area_pts,   // fill/line contour; exported by the AREA (or LINE) layer
-        .count      = ds.num_entries,
-    };
+    // Night bands span slot 0..(num_entries-1) so the linear time->x map lands
+    // on the same hour columns (anchor_x + i*pitch) the ticks/lines use.
+    const GRect night_plot_rect = GRect(outer.origin.x, 0,
+                                        (ds.num_entries - 1)
+                                            * chart_def_pitch(&FORECAST_DEF),
+                                        outer.size.h - 1);
+    static ChartBand night_bands[3];   // NightSegments holds at most 3
+    int num_night_bands = 0;
+    if (night_on) {
+        num_night_bands = build_night_bands(night_bands, 3, &night_segments,
+                                            night_plot_rect, forecast_start, forecast_end);
+    }
     const GColor axis_color = night_on ? FORECAST_AXIS_COLOR_NIGHT
                                        : FORECAST_AXIS_COLOR_DAY;
 
@@ -694,13 +471,23 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // night_under re-shades the filled area, so it needs the AREA layer's
     // exported contour and only runs when the fill is present.
     if (night_on && fill_on) {
-        layers[n++] = (ChartLayer){ CHART_LAYER_CUSTOM,
-                                    .custom = { night_under_layer, &night_ctx } };
+        layers[n++] = (ChartLayer){ CHART_LAYER_HATCH, .hatch = {
+            .bands = night_bands, .num_bands = num_night_bands,
+            .hatch_color    = PBL_IF_COLOR_ELSE(NIGHT_HATCH_COLOR_AREA, GColorWhite),
+            .boundary_color = NIGHT_BOUNDARY_COLOR_AREA,
+            .spacing        = NIGHT_HATCH_SPACING,
+            .underlay_color = NIGHT_AREA_FILL_COLOR,
+            .has_underlay   = PBL_IF_COLOR_ELSE(true, false),
+            .contour        = area_pts, .contour_count = ds.num_entries } };
     }
     // night_over is the full-height day/night hatch — independent of line/bars.
     if (night_on) {
-        layers[n++] = (ChartLayer){ CHART_LAYER_CUSTOM,
-                                    .custom = { night_over_layer, &night_ctx } };
+        layers[n++] = (ChartLayer){ CHART_LAYER_HATCH, .hatch = {
+            .bands = night_bands, .num_bands = num_night_bands,
+            .hatch_color    = PBL_IF_COLOR_ELSE(NIGHT_HATCH_COLOR, GColorWhite),
+            .boundary_color = NIGHT_BOUNDARY_COLOR,
+            .spacing        = NIGHT_HATCH_SPACING,
+            .contour        = NULL } };
     }
     if (bars_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_BARS, .bars = {

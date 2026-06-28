@@ -138,12 +138,31 @@ typedef struct {
 } ChartAreaLayer;
 
 typedef struct {
+    int16_t x0, x1;            // absolute plot-x pixels (already clamped by the caller)
+    bool    boundary0;         // draw a 1px boundary line at x0?
+    bool    boundary1;         // draw a 1px boundary line at x1?
+} ChartBand;
+
+typedef struct {
+    const ChartBand *bands;
+    int              num_bands;
+    GColor           hatch_color;
+    GColor           boundary_color;
+    int              spacing;            // hatch stride
+    GColor           underlay_color;     // per-column solid fill before hatch (area re-shade)
+    bool             has_underlay;
+    const GPoint    *contour;            // NULL => full-height bands; else per-column top y
+    int              contour_count;
+} ChartHatchLayer;
+
+typedef struct {
     void (*fn)(const ChartRender *r, void *user);
     void  *user;
 } ChartCustomLayer;
 
 typedef enum { CHART_LAYER_FRAME, CHART_LAYER_AXIS, CHART_LAYER_BARS,
-               CHART_LAYER_LINE, CHART_LAYER_AREA, CHART_LAYER_CUSTOM } ChartLayerType;
+               CHART_LAYER_LINE, CHART_LAYER_AREA, CHART_LAYER_HATCH,
+               CHART_LAYER_CUSTOM } ChartLayerType;
 
 typedef struct {
     ChartLayerType type;
@@ -153,6 +172,7 @@ typedef struct {
         ChartBarsLayer   bars;
         ChartLineLayer   line;
         ChartAreaLayer   area;
+        ChartHatchLayer  hatch;
         ChartCustomLayer custom;
     };
 } ChartLayer;
