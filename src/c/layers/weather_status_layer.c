@@ -15,6 +15,8 @@
 #ifdef PBL_PLATFORM_EMERY
 #define CITY_FONT_KEY FONT_KEY_GOTHIC_18
 #define SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_18
+// emery: city/sun are 18px too, so the 18px temp already matches — baseline-align.
+#define TEMP_Y_OFFSET FONT_18_OFFSET
 #define ARROW_H 10
 #define ARROW_HEAD_H 4
 #define ARROW_HEAD_W 3
@@ -22,6 +24,11 @@
 #else
 #define CITY_FONT_KEY FONT_KEY_GOTHIC_14
 #define SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_14
+// The 18px temp glyphs are 2px taller than the 14px city/sun labels, so a pure
+// baseline alignment makes the temp read as sitting too high. Nudge it down 1px
+// so it is vertically centered against the labels (verified: bottom stays within
+// the row's clip, well above the forecast below).
+#define TEMP_Y_OFFSET (FONT_18_OFFSET - 1)
 #define ARROW_H 8
 #define ARROW_HEAD_H 3
 #define ARROW_HEAD_W 2
@@ -74,8 +81,8 @@ static void current_temp_layer_refresh() {
         // a fixed box so the city label keeps its position. Only origin.x and
         // size.w of frame_curr_temp are ever read (by city_layer_refresh).
         s_temp_buffer[0] = '\0';
-        frame_temp_draw = GRect(MARGIN, -FONT_18_OFFSET, 0, 0);
-        frame_curr_temp = GRect(0, -FONT_18_OFFSET, SNOOZE_BOX_W + MARGIN, 24);
+        frame_temp_draw = GRect(MARGIN, -TEMP_Y_OFFSET, 0, 0);
+        frame_curr_temp = GRect(0, -TEMP_Y_OFFSET, SNOOZE_BOX_W + MARGIN, 24);
         return;
     }
     snprintf(s_temp_buffer, sizeof(s_temp_buffer), "• %d",
@@ -83,8 +90,8 @@ static void current_temp_layer_refresh() {
     GSize size = graphics_text_layout_get_content_size(
         s_temp_buffer, temp_font(), GRect(0, 0, 100, 100),
         STATUS_TEXT_OVERFLOW, GTextAlignmentLeft);
-    frame_temp_draw = GRect(MARGIN, -FONT_18_OFFSET, size.w, size.h);
-    frame_curr_temp = GRect(0, -FONT_18_OFFSET, size.w + MARGIN, size.h);
+    frame_temp_draw = GRect(MARGIN, -TEMP_Y_OFFSET, size.w, size.h);
+    frame_curr_temp = GRect(0, -TEMP_Y_OFFSET, size.w + MARGIN, size.h);
 }
 
 static void sun_event_layer_refresh() {
