@@ -708,6 +708,22 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .stops = scaled_bar_stops, .num_stops = bar_num_stops,
             .style = PBL_IF_COLOR_ELSE(BAR_SOLID, BAR_OUTLINED) } };
     }
+    // Second metric: square dots for a second-metric line. Z-order vs. the
+    // solid main-metric line depends on the fill: with an opaque area fill the
+    // dots ride ABOVE the line so the fill can't hide them; with no fill (a thin
+    // 1px stroke) the dots sit BELOW so the main line stays the dominant series.
+    // Per-metric color on color watches; white on B&W, where the dots (not
+    // color) distinguish them from the solid main-metric line.
+    ChartLayer third_line_layer = {0};
+    if (third_line_on) {
+        third_line_layer = (ChartLayer){ CHART_LAYER_LINE, .line = {
+            .values = ds.third_line, .count = ds.num_entries,
+            .lo = 0, .hi = FORECAST_TREND_FULL_SCALE, .inset_y = 0,
+            // width = bar width so the dots match the rain bars' columns (see chart_draw_bar_dots).
+            .color = PBL_IF_COLOR_ELSE(ds.third_line_color, GColorWhite), .width = FORECAST_BAR_W, .dotted = true } };
+    }
+    // No fill: dots go under the main line.
+    if (third_line_on && !fill_on) { layers[n++] = third_line_layer; }
     if (line_on) {
         layers[n++] = fill_on
             ? (ChartLayer){ CHART_LAYER_LINE, .line = {
@@ -718,17 +734,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                   .lo = 0, .hi = FORECAST_TREND_FULL_SCALE, .inset_y = 0, .export_points = area_pts,
                   .color = ds.line_color, .width = 1 } };
     }
-    // Second metric: square dots, drawn over the solid main-metric line and its fill so the
-    // dots stay visible where the two overlap (the opaque fill would otherwise hide them).
-    // Per-metric color on color watches; white on B&W, where the dots (not color) distinguish
-    // it from the solid main-metric line.
-    if (third_line_on) {
-        layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
-            .values = ds.third_line, .count = ds.num_entries,
-            .lo = 0, .hi = FORECAST_TREND_FULL_SCALE, .inset_y = 0,
-            // width = bar width so the dots match the rain bars' columns (see chart_draw_bar_dots).
-            .color = PBL_IF_COLOR_ELSE(ds.third_line_color, GColorWhite), .width = FORECAST_BAR_W, .dotted = true } };
-    }
+    // Fill present: dots go over the line + its opaque fill so they stay visible.
+    if (third_line_on && fill_on) { layers[n++] = third_line_layer; }
+
     layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
         .values = ds.temps, .count = ds.num_entries,
         .lo = 0, .hi = FORECAST_TREND_FULL_SCALE, .inset_y = MARGIN_TEMP_H,
