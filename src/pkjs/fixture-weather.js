@@ -15,9 +15,10 @@ var paletteWire = require('./weather/palette-wire.js');
  *
  * @param {Object} fixture Active fixture loaded from fixtures/<name>.json.
  * @param {Object} settings Clay settings used for the forecast-series transform.
+ * @param {Object} [watchInfo] Pebble watchInfo object; used to resolve platform-aware colours.
  * @returns {Object|null} Pebble weather payload, or null when invalid.
  */
-function getFixtureWeatherPayload(fixture, settings) {
+function getFixtureWeatherPayload(fixture, settings, watchInfo) {
     var weather;
     var provider;
     var sunEvents;
@@ -64,7 +65,7 @@ function getFixtureWeatherPayload(fixture, settings) {
     // getPayload() emits the raw PRECIP_TREND/RAIN_TREND keys; the watch only
     // reads the render-ready series, so run the same transform as the live path
     // (settings already reflects this fixture's claySettings).
-    return forecastSeries.applyForecastSeries(provider.getPayload(), settings);
+    return forecastSeries.applyForecastSeries(provider.getPayload(), settings, watchInfo);
 }
 
 /**
@@ -114,7 +115,7 @@ function getFixtureRadarTuples(fixture) {
  * @returns {void}
  */
 function sendFixtureWeather(fixture, deps) {
-    var payload = getFixtureWeatherPayload(fixture, deps.settings);
+    var payload = getFixtureWeatherPayload(fixture, deps.settings, deps.watchInfo);
     var radarTuples;
     var radarKey;
 

@@ -1,5 +1,6 @@
 var rainTier = require('./weather/rain-tier');
 var COLORS = require('./pebble-colors');
+var configUi = require('./config-ui');   // isColorPlatform — same helper rain-tier/palette-wire use
 
 /**
  * Quantize a permille value (0..1000) to a 0..250 byte for the wire.
@@ -38,30 +39,60 @@ function tempTrendToBytes(temps) {
     return { bytes: bytes, min: min, max: max };
 }
 
-// Metric → line stroke color (0xRRGGBB). Hardcoded per metric (not user-selectable). Gust has
-// no hue of its own — its color is picked in lineColorFor() so it never matches the rain bars.
+// Metric → line stroke colour per platform class. Gust is settings-dependent on colour
+// displays, so it is resolved in lineColorFor(), not from this table.
 var LINE_COLORS = {
-    precip_prob: COLORS.GColorPictonBlue,
-    wind: COLORS.GColorYellow,
-    uv: COLORS.GColorMagenta
+    precip_prob: { color: COLORS.GColorPictonBlue, bw: COLORS.GColorWhite },
+    wind:        { color: COLORS.GColorYellow,     bw: COLORS.GColorWhite },
+    uv:          { color: COLORS.GColorMagenta,    bw: COLORS.GColorWhite }
 };
-// Metric → area-fill color. Only precip fills; everything else falls back to its line color.
-var FILL_COLORS = { precip_prob: COLORS.GColorCobaltBlue };
+// Metric → area-fill colour per platform class. Every metric can fill; colour-platform
+// fills are a darker shade of the line so the line always reads brighter (precip
+// PictonBlue→CobaltBlue, wind→ArmyGreen, uv→Purple, gust→DarkGray). B&W has no range,
+// so all fills are LightGray.
+var FILL_COLORS = {
+    precip_prob: { color: COLORS.GColorCobaltBlue, bw: COLORS.GColorLightGray },
+    wind:        { color: COLORS.GColorArmyGreen,  bw: COLORS.GColorLightGray },
+    uv:          { color: COLORS.GColorPurple,     bw: COLORS.GColorLightGray },
+    gust:        { color: COLORS.GColorDarkGray,   bw: COLORS.GColorLightGray }
+};
 
 /**
- * Per-metric line/dot color. Most metrics have a fixed hue; gust has none, so pick it to not
- * clash with the rain bars: white bars → light gray gust (no white-on-white), colored
- * (multicolor) or no bars → white gust (stands out against the colored bars). (B/W watches
- * force the second metric white C-side, so the gray only shows on color watches.)
- * @param {string} metric One of precip_prob|wind|gust|uv.
- * @param {Object} settings Clay settings (reads rainBarColor).
- * @returns {number|undefined} 0xRRGGBB color, or undefined for an unknown metric.
+ * Whether the watch has a colour display.
+ * @param {Object} watchInfo getActiveWatchInfo() result, or null.
+ * @returns {boolean} True on colour platforms; defaults to colour when watchInfo is absent.
  */
-function lineColorFor(metric, settings) {
+function isColorWatch(watchInfo) {
+    return configUi.isColorPlatform(watchInfo ? watchInfo.platform : 'basalt');
+}
+
+/**
+ * Line/dot colour for a metric, resolved for the platform. On B&W every line is white;
+ * gust on colour is settings-dependent so it never matches the rain bars.
+ * @param {string} metric precip_prob|wind|gust|uv.
+ * @param {Object} settings Clay settings (reads rainBarColor for gust).
+ * @param {boolean} isColor Colour display?
+ * @returns {number} 0xRRGGBB colour.
+ */
+function lineColorFor(metric, settings, isColor) {
+    if (!isColor) { return COLORS.GColorWhite; }
     if (metric === 'gust') {
         return settings.rainBarColor === 'white' ? COLORS.GColorLightGray : COLORS.GColorWhite;
     }
-    return LINE_COLORS[metric];
+    var entry = LINE_COLORS[metric];
+    return entry ? entry.color : COLORS.GColorBlack;
+}
+
+/**
+ * Area-fill colour for a metric, resolved for the platform.
+ * @param {string} metric precip_prob|wind|gust|uv.
+ * @param {boolean} isColor Colour display?
+ * @returns {number|undefined} 0xRRGGBB colour, or undefined for an unknown metric.
+ */
+function fillColorFor(metric, isColor) {
+    var entry = FILL_COLORS[metric];
+    if (!entry) { return undefined; }
+    return isColor ? entry.color : entry.bw;
 }
 
 // windScale → km/h ceiling at the top of the graph. Wind and gust share it so a
@@ -111,22 +142,24 @@ function metricPermille(metric, raw, settings) {
  * Map raw provider series + settings to the render-ready forecast wire fields.
  * Secondary line is always one metric; third line is off or a different metric
  * (the config UI prevents duplicates; this also defends against a duplicate).
- * Fill is precip-only and only on the secondary (solid) line; the third line is
- * always dashed (styled C-side) and never filled.
+ * Fill works for every metric on the solid main line; the third line is always dashed
+ * and never filled.
  * @param {{precips:number[], rains:number[], winds:number[], gusts:number[], uvs:number[]}} raw Raw series.
  * @param {{secondaryLine:string, thirdLine:string, secondaryLineFill:boolean, windScale:string, barSource:string}} settings Settings.
+ * @param {Object} watchInfo getActiveWatchInfo() result, or null/undefined (treated as colour).
  * @returns {Object} Wire fields (see module interface).
  */
-function buildForecastSeries(raw, settings) {
+function buildForecastSeries(raw, settings, watchInfo) {
+    var isColor = isColorWatch(watchInfo);
     var out = {};
 
     // Secondary line: always present (one of the four metrics).
     var secMetric = settings.secondaryLine;
     var secPm = metricPermille(secMetric, raw, settings);
     out.SECONDARY_LINE_TREND_UINT8 = secPm ? secPm.map(permilleToByte) : [];
-    out.SECONDARY_LINE_COLOR = lineColorFor(secMetric, settings) || COLORS.GColorBlack;
-    out.SECONDARY_LINE_FILL = secMetric === 'precip_prob' && Boolean(settings.secondaryLineFill);
-    out.SECONDARY_LINE_FILL_COLOR = FILL_COLORS[secMetric] || out.SECONDARY_LINE_COLOR;
+    out.SECONDARY_LINE_COLOR = lineColorFor(secMetric, settings, isColor) || COLORS.GColorBlack;
+    out.SECONDARY_LINE_FILL = Boolean(settings.secondaryLineFill);
+    out.SECONDARY_LINE_FILL_COLOR = fillColorFor(secMetric, isColor) || out.SECONDARY_LINE_COLOR;
 
     // Third line: optional; off, or a metric distinct from the secondary one.
     var thirdMetric = settings.thirdLine;
@@ -135,7 +168,7 @@ function buildForecastSeries(raw, settings) {
     var thirdBytes = thirdPm ? thirdPm.map(permilleToByte) : [];
     out.THIRD_LINE_TREND_UINT8 = thirdBytes;
     if (thirdBytes.length > 0) {
-        out.THIRD_LINE_COLOR = lineColorFor(thirdMetric, settings) || COLORS.GColorWhite;
+        out.THIRD_LINE_COLOR = lineColorFor(thirdMetric, settings, isColor) || COLORS.GColorWhite;
     }
 
     // Rain bars: independent of the metric lines.
@@ -150,14 +183,15 @@ function buildForecastSeries(raw, settings) {
  * live-fetch and fixture send paths call this so the two can't drift.
  * @param {Object} payload Weather payload with PRECIP_/RAIN_/WIND_/GUST_/UV_TREND_UINT8.
  * @param {Object} settings Clay settings.
+ * @param {Object} watchInfo getActiveWatchInfo() result, or null/undefined (treated as colour).
  * @returns {Object} The same payload, raw keys removed and wire keys set.
  */
-function applyForecastSeries(payload, settings) {
+function applyForecastSeries(payload, settings, watchInfo) {
     var series = buildForecastSeries(
         { precips: payload.PRECIP_TREND_UINT8, rains: payload.RAIN_TREND_UINT8,
           winds: payload.WIND_TREND_UINT8, gusts: payload.GUST_TREND_UINT8,
           uvs: payload.UV_TREND_UINT8 },
-        settings
+        settings, watchInfo
     );
     delete payload.PRECIP_TREND_UINT8;
     delete payload.RAIN_TREND_UINT8;
@@ -192,5 +226,6 @@ module.exports = {
     tempTrendToBytes: tempTrendToBytes,
     LINE_COLORS: LINE_COLORS,
     FILL_COLORS: FILL_COLORS,
-    lineColorFor: lineColorFor
+    lineColorFor: lineColorFor,
+    fillColorFor: fillColorFor
 };

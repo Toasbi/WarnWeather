@@ -15,22 +15,31 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // Fallback palette — used only if userData.palette wasn't injected (stale page). Kept in
     // lockstep with preview-palette.buildPreviewPalette() by a test, so it cannot drift.
+    // Shape mirrors preview-palette.buildPreviewPalette(): per-metric line + fill colours, each
+    // with a colour-display value and a B&W value, all sourced from forecast-series so the preview
+    // can't diverge from the watch payload. gust has no fixed hue (resolved off the rain bars).
     var FALLBACK_PALETTE = {
         temp: '#FF0000',
-        precip: '#55AAFF',
-        wind: '#FFFF00',
-        uv: '#FF00FF',
-        gustOnColor: '#FFFFFF',
-        gustOnWhite: '#AAAAAA',
-        fillPrecip: '#0055AA',
+        white: '#FFFFFF',
+        line: {
+            precip_prob: { color: '#55AAFF', bw: '#FFFFFF' },
+            wind:        { color: '#FFFF00', bw: '#FFFFFF' },
+            uv:          { color: '#FF00FF', bw: '#FFFFFF' },
+            gust:        { colorMulti: '#FFFFFF', colorWhiteBars: '#AAAAAA', bw: '#FFFFFF' }
+        },
+        fill: {
+            precip_prob: { color: '#0055AA', bw: '#AAAAAA' },
+            wind:        { color: '#555500', bw: '#AAAAAA' },
+            uv:          { color: '#AA00AA', bw: '#AAAAAA' },
+            gust:        { color: '#555555', bw: '#AAAAAA' }
+        },
         rainTiers: [
             { from: 0, color: '#AAAAAA' },
             { from: 140, color: '#55FFFF' },
             { from: 340, color: '#00FF00' },
             { from: 560, color: '#FFFF00' },
             { from: 780, color: '#FF5555' }
-        ],
-        white: '#FFFFFF'
+        ]
     };
 
     // Port of rain-tier.rainPermille (and its helpers). The watch builds bar heights with this
@@ -168,10 +177,25 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
          * @returns {string} #RRGGBB
          */
         function metricColor(metric) {
-            if (!isColor) { return P.white; }
-            if (metric === 'gust') { return state.rainBarColor === 'white' ? P.gustOnWhite : P.gustOnColor; }
-            if (metric === 'precip_prob') { return P.precip; }
-            return P[metric];                        // wind | uv
+            if (metric === 'gust') {
+                var g = P.line.gust;
+                if (!isColor) { return g.bw; }
+                return state.rainBarColor === 'white' ? g.colorWhiteBars : g.colorMulti;
+            }
+            var e = P.line[metric];
+            if (!e) { return P.white; }
+            return isColor ? e.color : e.bw;
+        }
+        /**
+         * Per-metric area-fill color (every metric can fill, matching the watch). Null for an
+         * unknown metric. Sourced from the palette so it can't diverge from forecast-series.
+         * @param {string} metric precip_prob|wind|gust|uv
+         * @returns {?string} #RRGGBB or null
+         */
+        function fillColor(metric) {
+            var e = P.fill[metric];
+            if (!e) { return null; }
+            return isColor ? e.color : e.bw;
         }
         var tempColor = isColor ? P.temp : P.white;
         var tempW = isColor ? 2.2 : 3;               // B&W: thick temp vs thin main line
@@ -200,22 +224,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         /**
          * Main metric: solid line, broken into separate segments at every zero so it never lies
          * flat on the axis (deliberate preview-only divergence from the watch's continuous line).
-         * Precip is the only filled metric; the fill follows each segment.
+         * Every metric can fill (matches the watch); the fill follows each segment, in the
+         * metric's palette fill colour on colour displays and a hatch on B&W.
          * @param {string} metric precip_prob|wind|gust|uv
          * @returns {string} SVG markup
          */
         var lineFor = function (metric) {
             var m = METRIC[metric];
             if (!m) { return ''; }
-            var col = metricColor(metric), out = '', seg = [];
-            var doFill = metric === 'precip_prob' && state.secondaryLineFill;
+            var col = metricColor(metric), fc = fillColor(metric), out = '', seg = [];
+            var doFill = Boolean(state.secondaryLineFill) && Boolean(fc);
             function flush() {
                 if (seg.length >= 2) {
                     var d = smooth(seg);
                     if (doFill) {
                         var area = d + ' L' + seg[seg.length - 1][0] + ',' + PB + ' L' + seg[0][0] + ',' + PB + ' Z';
                         out += isColor
-                            ? '<path d="' + area + '" fill="' + P.fillPrecip + '" fill-opacity="0.25"></path>'
+                            ? '<path d="' + area + '" fill="' + fc + '" fill-opacity="0.25"></path>'
                             : '<path d="' + area + '" fill="url(#fillhatch)"></path>';
                     }
                     out += '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="' + mainW + '"></path>';

@@ -174,3 +174,16 @@ test('precip secondary line draws the cobalt fill on color and a hatch on B&W', 
   assert.ok(bw.indexOf('fill="url(#fillhatch)"') >= 0, 'B&W: precip fill uses the hatch pattern');
   assert.equal(bw.indexOf('fill="#0055AA"'), -1, 'B&W: no solid cobalt fill');
 });
+
+test('area fill works for every main metric, in its palette fill color', () => {
+  // Fill colors are sourced from forecast-series.FILL_COLORS: wind=ArmyGreen, gust=DarkGray, uv=Purple.
+  const base = { barSource: 'off', windScale: 'mid', dayNightShading: false };
+  const wind = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind', secondaryLineFill: true }), { color: true });
+  const gust = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'gust', secondaryLineFill: true }), { color: true });
+  const uv = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'uv', secondaryLineFill: true }), { color: true });
+  assert.ok(wind.indexOf('fill="#555500"') >= 0, 'wind fill = ArmyGreen');
+  assert.ok(gust.indexOf('fill="#555555"') >= 0, 'gust fill = DarkGray');
+  assert.ok(uv.indexOf('fill="#AA00AA"') >= 0, 'uv fill = Purple');
+  const off = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind', secondaryLineFill: false }), { color: true });
+  assert.equal(off.indexOf('fill="#555500"'), -1, 'no fill when the toggle is off');
+});

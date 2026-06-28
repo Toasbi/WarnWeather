@@ -9,6 +9,6 @@ test('dev preview page injects the preview palette into userData', () => {
   // NOT a bare substring that also matches the CSS class or the blocks.js fallback source.
   assert.ok(html.indexOf('INJECTED_USERDATA={"palette":{') >= 0,
     'palette object is injected into INJECTED_USERDATA');
-  assert.ok(html.indexOf('"precip":"#55AAFF"') >= 0,
+  assert.ok(html.indexOf('"precip_prob":{"color":"#55AAFF"') >= 0,
     'injected palette carries the watch precip color in JSON form (not the source fallback literal)');
 });

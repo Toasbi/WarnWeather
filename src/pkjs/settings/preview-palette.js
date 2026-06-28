@@ -16,12 +16,37 @@ function hex(n) {
     return '#' + s;
 }
 
+// Hued metrics whose line + fill colours come straight from forecast-series. gust has no
+// fixed hue (resolved off the rain bars), so it is handled separately below.
+var HUED = ['precip_prob', 'wind', 'uv'];
+
 /**
- * Build the preview palette. Color values are sourced from forecast-series (line/fill)
- * and rain-tier (bar tiers); the temperature curve color mirrors the C-side constant
- * GColorRed (forecast_layer.c PBL_IF_COLOR_ELSE(GColorRed, GColorWhite)) — it is never
- * sent over the wire, so it is a documented mirror, not a shared source.
- * @returns {{temp:string, precip:string, wind:string, uv:string, gustOnColor:string, gustOnWhite:string, fillPrecip:string, white:string, rainTiers:Array<{from:number, color:string}>}} Preview palette (#RRGGBB strings; rainTiers.from are permille thresholds).
+ * Line stroke colours for one metric, for both display classes, via forecast-series.lineColorFor.
+ * @param {string} metric precip_prob|wind|uv
+ * @returns {{color:string, bw:string}} Colour-display and B&W strokes.
+ */
+function lineEntry(metric) {
+    return { color: hex(series.lineColorFor(metric, {}, true)), bw: hex(series.lineColorFor(metric, {}, false)) };
+}
+
+/**
+ * Area-fill colours for one metric, for both display classes, via forecast-series.fillColorFor.
+ * @param {string} metric precip_prob|wind|uv|gust
+ * @returns {{color:string, bw:string}} Colour-display and B&W fills.
+ */
+function fillEntry(metric) {
+    return { color: hex(series.fillColorFor(metric, true)), bw: hex(series.fillColorFor(metric, false)) };
+}
+
+/**
+ * Build the preview palette. Every line and fill colour is sourced from forecast-series
+ * (the same module that builds the watch payload, including its platform-aware colour
+ * model), and the rain tiers from rain-tier — so the preview can't diverge from the watch.
+ * The temperature curve mirrors the C-side constant GColorRed (forecast_layer.c
+ * PBL_IF_COLOR_ELSE(GColorRed, GColorWhite)); it is never sent over the wire, so it is a
+ * documented mirror, not a shared source. Each line/fill entry carries a colour-display
+ * value and a B&W value; gust's line colour is settings-dependent on colour displays.
+ * @returns {{temp:string, white:string, line:Object, fill:Object, rainTiers:Array<{from:number, color:string}>}} Preview palette (#RRGGBB strings; rainTiers.from are permille thresholds).
  */
 function buildPreviewPalette() {
     var tierPal = rainTier.buildPalette('basalt', 'multicolor');
@@ -29,16 +54,24 @@ function buildPreviewPalette() {
     for (var i = 0; i < tierPal.from.length; i += 1) {
         tiers.push({ from: tierPal.from[i], color: hex(tierPal.rgb[i]) });
     }
+    var line = {}, fill = {}, m;
+    for (var j = 0; j < HUED.length; j += 1) {
+        m = HUED[j];
+        line[m] = lineEntry(m);
+        fill[m] = fillEntry(m);
+    }
+    line.gust = {
+        colorMulti: hex(series.lineColorFor('gust', { rainBarColor: 'multicolor' }, true)),
+        colorWhiteBars: hex(series.lineColorFor('gust', { rainBarColor: 'white' }, true)),
+        bw: hex(series.lineColorFor('gust', {}, false))
+    };
+    fill.gust = fillEntry('gust');
     return {
         temp: hex(COLORS.GColorRed),                                   // mirror: forecast_layer.c temp curve
-        precip: hex(series.LINE_COLORS.precip_prob),
-        wind: hex(series.LINE_COLORS.wind),
-        uv: hex(series.LINE_COLORS.uv),
-        gustOnColor: hex(series.lineColorFor('gust', { rainBarColor: 'multicolor' })),
-        gustOnWhite: hex(series.lineColorFor('gust', { rainBarColor: 'white' })),
-        fillPrecip: hex(series.FILL_COLORS.precip_prob),
-        rainTiers: tiers,
-        white: hex(COLORS.GColorWhite)
+        white: hex(COLORS.GColorWhite),
+        line: line,
+        fill: fill,
+        rainTiers: tiers
     };
 }
 
