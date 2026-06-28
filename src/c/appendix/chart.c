@@ -173,8 +173,9 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
 // Draw the second metric as one little mark per slot, column-aligned to the rain bars. The
 // width follows the line's width setting (the caller sets it to the rain-bar width); the height
 // is a hardcoded short cap (see the per-case heights below). A value of 0 lands on the x-axis
-// baseline and is skipped (a mark there reads as data where there is none), and every mark is
-// clamped to the plot so none spills past an axis.
+// baseline and is skipped (a mark there reads as data where there is none), and a mark that
+// would spill past an axis is slid back inside the plot at full height (not clipped), so a
+// 100% value keeps its whole dot.
 static void chart_draw_bar_dots(const ChartRender *r, const ChartLineLayer *l) {
     const int   count       = chart_clamp_count(r, l->count);
     const GRect c           = r->geo.content;
@@ -202,8 +203,12 @@ static void chart_draw_bar_dots(const ChartRender *r, const ChartLineLayer *l) {
         const int x  = chart_slot_bar_x(&r->geo, i);   // exact bar column
         int top = cy - dot_h / 2;
         int bot = top + dot_h;
-        if (top < plot_top)    top = plot_top;
-        if (bot > plot_bottom) bot = plot_bottom;       // stay above the x-axis
+        // Keep the mark its full height: when it would spill past an axis, slide it
+        // back inside the plot instead of clipping it. A 100% value lands cy on
+        // plot_top, which would otherwise shear off the dot's top half. dot_h is a
+        // few px, always far shorter than the plot, so a translate always fits.
+        if (top < plot_top)    { bot += plot_top - top; top = plot_top; }       // slide down off the top
+        if (bot > plot_bottom) { top -= bot - plot_bottom; bot = plot_bottom; } // slide up off the x-axis
         if (bot > top) {
             graphics_fill_rect(r->ctx, GRect(x, top, w, bot - top), 0, GCornerNone);
         }
