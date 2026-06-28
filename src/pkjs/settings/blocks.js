@@ -149,7 +149,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var gust   = [22, 25, 30, 34, 32, 28, 25, 24, 27, 31, 36, 33];
         var uv     = [8, 6, 4, 2, 1, 0, 0, 0, 0, 0, 1, 3];
 
-        var n = temps.length, PX0 = 20, PX1 = 197, PT = 20, PB = 100, TH = 21;
+        var n = temps.length, PX0 = 20, PX1 = 197, PT = 15, PB = 100, TH = 21;
         var plotW = PX1 - PX0, plotH = PB - PT;
         var pitch = plotW / n;
         // Shared slot grid: line, bars and dots all centre on the same slot, so a metric reads
@@ -217,7 +217,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             for (var h = 0; h <= TH; h += 1) {
                 var big = h % 3 === 0;
                 out += '<line x1="' + tickX(h) + '" y1="' + PB + '" x2="' + tickX(h) + '" y2="' + (PB + (big ? 4 : 2)) + '" stroke="rgba(255,255,255,0.32)" stroke-width="0.6"></line>';
-                if (big) { out += txt(tickX(h), 117, 7.5, '#7C828D', 'middle', 600, lbl[h]); }
+                if (big) { out += txt(tickX(h), 111, 7.5, '#7C828D', 'middle', 600, lbl[h]); }
             }
             return out;
         }
@@ -284,7 +284,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
          * @returns {string} SVG markup
          */
         function drawLegend() {
-            var LABEL = { precip_prob: 'Precip', wind: 'Wind', gust: 'Gust', uv: 'UV' };
+            var LABEL = { precip_prob: 'Precip %', wind: 'Wind', gust: 'Gust', uv: 'UV' };
             var entries = [];
             entries.push({ kind: 'line', color: tempColor, w: tempW, label: 'Temp' });
             entries.push({ kind: 'line', color: metricColor(state.secondaryLine), w: mainW, label: LABEL[state.secondaryLine] || '' });
@@ -293,7 +293,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             }
             if (state.barSource === 'rain') { entries.push({ kind: 'rain', label: 'Rain' }); }
 
-            var gy = 128, ty = 131, out = '', x = PX0;
+            var gy = 118, ty = 121, out = '', x = PX0;
             for (var i = 0; i < entries.length; i += 1) {
                 var en = entries[i], gw = 14;
                 if (en.kind === 'line') {
@@ -316,7 +316,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
 
         var e = '';
-        e += rect(0, 0, 200, 138, '#000');
+        e += rect(0, 0, 200, 124, '#000');
         e += '<defs>'
             + '<pattern id="nh" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="rgba(255,255,255,0.30)" stroke-width="0.7"></line></pattern>'
             + '<pattern id="fillhatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="rgba(255,255,255,0.35)" stroke-width="0.6"></line></pattern>'
@@ -333,12 +333,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             e += barDotsFor(state.thirdLine);
         }
         e += drawTempCurve();
-        e += '<circle cx="6" cy="8.5" r="2.7" fill="#E6E9EF"></circle>' + txt(11, 11.5, 9.5, '#FFFFFF', 'start', 700, '22°');
-        e += txt(3, 31, 8, '#AEB4BD', 'start', 600, tmax + '°') + txt(3, PB - 1, 8, '#AEB4BD', 'start', 600, tmin + '°');
+        e += '<circle cx="6" cy="6" r="2.7" fill="#E6E9EF"></circle>' + txt(11, 9, 9.5, '#FFFFFF', 'start', 700, '22°');
+        e += txt(3, 26, 8, '#AEB4BD', 'start', 600, tmax + '°') + txt(3, PB - 1, 8, '#AEB4BD', 'start', 600, tmin + '°');
         e += drawAxis();
-        e += txt((n0 + n1) / 2, 13, 8.5, '#E6E9EF', 'middle', 600, 'Berlin') + txt(197, 12, 8, '#C9CCD2', 'end', 600, '21:29 ↓');
+        e += txt((n0 + n1) / 2, 10, 8.5, '#E6E9EF', 'middle', 600, 'Berlin') + txt(197, 9.5, 8, '#C9CCD2', 'end', 600, '21:29 ↓');
         e += drawLegend();
-        return svgFrame(e, 138);
+        return svgFrame(e, 124);
     }
 
     /* ---- radarPreview: adapted from index.html:270-286 radarSVG ----------- */

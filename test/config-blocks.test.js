@@ -124,9 +124,9 @@ test('legend lists the shown series with palette colors (color watch)', () => {
   const svg = B.forecastPreview(
     { barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'precip_prob', thirdLine: 'wind', windScale: 'mid', dayNightShading: false },
     { color: true });
-  assert.ok(svg.indexOf('viewBox="0 0 200 138"') >= 0, 'frame is taller to fit the legend');
+  assert.ok(svg.indexOf('viewBox="0 0 200 124"') >= 0, 'frame is tall enough to fit the legend');
   assert.ok(svg.indexOf('>Temp<') >= 0, 'Temp entry');
-  assert.ok(svg.indexOf('>Precip<') >= 0, 'main metric entry (Precip)');
+  assert.ok(svg.indexOf('>Precip %<') >= 0, 'main metric entry (Precip %)');
   assert.ok(svg.indexOf('>Wind<') >= 0, 'second metric entry (Wind)');
   assert.ok(svg.indexOf('>Rain<') >= 0, 'Rain entry (bars on)');
 });
