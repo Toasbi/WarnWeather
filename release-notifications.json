@@ -41,6 +41,6 @@
   },
   "1.5.2": {
     "title": "Forecast preview alignment",
-    "body": "The settings forecast preview now mirrors the watch: the temperature line sits on the hour ticks and the dotted metrics line up with the rain bars, with tighter top spacing."
+    "body": "Settings forecast preview now matches the watch — lines and dots align with the hour ticks and rain bars."
   }
 }
