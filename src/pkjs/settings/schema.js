@@ -268,6 +268,16 @@ module.exports = {
                 capabilities: ['COLOR'],
                 options: [['Multicolor', 'multicolor'], ['White', 'white']],
                 showWhen: {key: 'radarProvider', ne: 'disabled'}
+            }, {
+                type: 'select',
+                messageKey: 'rainCountdownHorizon',
+                label: 'Rain countdown',
+                defaultValue: '60',
+                hint: 'Replaces the month with “Rain in X min” when rain is on the way ' +
+                      '(and “Rain for X min” while it’s raining), based on the radar.',
+                options: [['Off', '0'], ['Within 30 min', '30'], ['Within 60 min', '60'],
+                          ['Within 2 hours', '120']],
+                showWhen: {key: 'radarProvider', ne: 'disabled'}
             }]
         }]
     }, {

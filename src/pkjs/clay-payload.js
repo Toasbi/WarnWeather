@@ -49,7 +49,13 @@ function buildClayPayload(settings, watchInfo, now) {
         "CLAY_COLOR_TIME": settings.hasOwnProperty('colorTime') ? settings.colorTime : DEFAULT_COLOR_WHITE,
         "CLAY_DAY_NIGHT_SHADING": settings.hasOwnProperty('dayNightShading') ? settings.dayNightShading : true,
         "CLAY_HEALTH_ENABLED": settings.hasOwnProperty('healthEnabled') ? settings.healthEnabled : true,
-        "CLAY_FETCH_INTERVAL_MIN": parseInt(settings.fetchIntervalMin, 10) || 30
+        "CLAY_FETCH_INTERVAL_MIN": parseInt(settings.fetchIntervalMin, 10) || 30,
+        "CLAY_RAIN_COUNTDOWN_HORIZON": (function() {
+            var rc = parseInt(settings.rainCountdownHorizon, 10);
+            if (isNaN(rc)) { rc = 60; }
+            if (settings.radarProvider === 'disabled') { rc = 0; }
+            return rc;
+        })()
     };
     var palette = paletteWire.buildPaletteTuples(watchInfo, settings);
     payload.BAR_PALETTE_UINT8 = palette.BAR_PALETTE_UINT8;

@@ -120,7 +120,7 @@ function buildHeaviestClayMessage() {
     weekStartDay: 'mon', firstWeek: 'prev', timeFont: 'bitham', showQt: true,
     btIcons: 'both', vibe: true, timeShowAmPm: true, dayNightShading: true,
     fetchIntervalMin: '30', holidayCountry: 'US', holidaysEnabled: true,
-    rainBarColor: 'multicolor', radarColor: 'multicolor',
+    rainBarColor: 'multicolor', radarColor: 'multicolor', rainCountdownHorizon: '120',
   }, { platform: 'emery' }, new Date('2026-06-26T00:00:00Z'));
 }
 

@@ -15,7 +15,7 @@ const EXPECTED_KEYS = [
   'holidayCountry','holidayRegion',
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','locationMode','location',
   'temperatureUnits','dayNightShading','healthEnabled','secondaryLine','secondaryLineFill','windScale','thirdLine',
-  'barSource','rainBarColor','provider','owmApiKey','radarProvider','radarColor',
+  'barSource','rainBarColor','provider','owmApiKey','radarProvider','radarColor','rainCountdownHorizon',
   'showQt','vibe','btIcons','telemetryEnabled','devStatsEnabled','devStatsClear'
 ];
 
@@ -211,4 +211,12 @@ test('forecast tab nests fill and wind scale under the line that enables them', 
 test('non-holiday selects stay plain select', () => {
   assert.equal(byKey('fetchIntervalMin').type, 'select');
   assert.equal(byKey('btIcons').type, 'select');
+});
+
+test('rainCountdownHorizon is a radar-gated select with Off/30/60/120 and default 60', () => {
+  const it = byKey('rainCountdownHorizon');
+  assert.equal(it.type, 'select');
+  assert.equal(it.defaultValue, '60');
+  assert.deepEqual(it.options.map((o) => o[1]), ['0', '30', '60', '120']);
+  assert.deepEqual(it.showWhen, { key: 'radarProvider', ne: 'disabled' });
 });

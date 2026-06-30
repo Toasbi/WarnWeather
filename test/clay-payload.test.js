@@ -58,3 +58,21 @@ test('maps healthEnabled to CLAY_HEALTH_ENABLED', () => {
     const dflt = buildClayPayload({}, null, new Date());
     assert.strictEqual(dflt.CLAY_HEALTH_ENABLED, true); // default-on when unset
 });
+
+test('maps rainCountdownHorizon to CLAY_RAIN_COUNTDOWN_HORIZON', () => {
+  const base = baseSettings();
+  base.radarProvider = 'dwd';
+  // explicit value
+  base.rainCountdownHorizon = '30';
+  assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 30);
+  // off (0) is preserved, not coerced to the default
+  base.rainCountdownHorizon = '0';
+  assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 0);
+  // unset → default 60
+  delete base.rainCountdownHorizon;
+  assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 60);
+  // radar disabled forces 0 even if a horizon is set
+  base.radarProvider = 'disabled';
+  base.rainCountdownHorizon = '120';
+  assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 0);
+});
