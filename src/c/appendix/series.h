@@ -19,7 +19,7 @@ typedef struct {                       // FIRST / SECOND / THIRD
     int16_t values[MAX_FORECAST_ENTRIES];
     GColor  color;                      // stroke (resolved at load)
     int     width;
-    int     inset_y;                    // MARGIN_TEMP_H for FIRST, else 0
+    int     inset_y;                    // BOTTOM_VIEW_PRIMARY_LINE_INSET_Y for FIRST, else 0
     bool    dotted;                     // THIRD only
     bool    fill_on;                    // SECOND only
     GColor  fill_color;                 // SECOND only (B&W override already applied)

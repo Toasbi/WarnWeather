@@ -13,21 +13,11 @@
 #include "c/appendix/chart.h"
 #include "c/appendix/series.h"
 #include "c/appendix/forecast_grid.h"
+#include "c/appendix/bottom_view.h"
 
-#define LEFT_AXIS_LABEL_STRIP_MIN_W 15
-#define LEFT_AXIS_LABEL_TO_GRAPH_GAP 2
-#define LEFT_AXIS_GRAPH_INSET_DEFAULT (LEFT_AXIS_LABEL_STRIP_MIN_W + LEFT_AXIS_LABEL_TO_GRAPH_GAP)
 #define TEMP_LABEL_PAD 2
 #define TEMP_LABEL_MEASURE_BOX_W 200
 #define TEMP_LABEL_MEASURE_BOX_H 40
-#define BOTTOM_AXIS_H 10          // Height of the bottom axis (hour labels)
-#define MARGIN_TEMP_H 7           // Height of margins for the temperature plot
-// emery: reserve extra bottom space for larger hour labels and tick marks.
-#ifdef PBL_PLATFORM_EMERY
-#define FORECAST_BOTTOM_PAD 10
-#else
-#define FORECAST_BOTTOM_PAD 0
-#endif
 #define NIGHT_HATCH_SPACING PBL_IF_COLOR_ELSE(6, 7)
 #define NIGHT_HATCH_COLOR GColorDarkGray
 #define NIGHT_BOUNDARY_COLOR PBL_IF_COLOR_ELSE(GColorDarkGray, GColorLightGray)
@@ -37,7 +27,6 @@
 // over the LightGray fill (has_underlay gated to colour). The full-height night
 // hatch (no fill) uses NIGHT_HATCH_COLOR / NIGHT_BOUNDARY_COLOR above.
 #define FORECAST_TREND_FULL_SCALE 250  // uint8 wire range (PKJS sends 0..250)
-#define FORECAST_STEP_SECONDS (60 * 60)
 #define DAY_SECONDS (24 * 60 * 60)
 
 // Chart config: frame + ticks + slots in one block. Two variants because
@@ -46,23 +35,7 @@
 // part of the night region instead of competing with it. Left and
 // bottom share one colour per variant. Ticks and slots are identical
 // between variants; only the frame swaps at draw time.
-#define FORECAST_AXIS_COLOR_DAY    PBL_IF_COLOR_ELSE(GColorOrange,   GColorWhite)
 #define FORECAST_AXIS_COLOR_NIGHT  PBL_IF_COLOR_ELSE(GColorDarkGray, GColorWhite)
-
-// Tick rows: a label every big_every (3) slots. Emery draws every slot
-// (small ticks between labels); non-emery only draws the midpoint tick
-// between labels.
-#ifdef PBL_PLATFORM_EMERY
-    #define FORECAST_TICK_SMALL_COLOR  GColorDarkGray
-#else
-    #define FORECAST_TICK_SMALL_COLOR  GColorLightGray
-#endif
-
-// Tick style for the bottom axis (kinds come from the per-slot data)
-static const TickSide FORECAST_TICK_STYLE = {
-    .length     = 4,  .color     = FORECAST_TICK_SMALL_COLOR,
-    .big_length = 6,  .big_color = GColorLightGray,
-};
 
 typedef struct
 {
@@ -105,7 +78,7 @@ static void load_dataset(ForecastDataset *ds) {
     ds->series[SERIES_FIRST] = (Series){
         .id = SERIES_FIRST, .kind = SERIES_KIND_LINE, .present = (n > 0),
         .line = { .color = PBL_IF_COLOR_ELSE(GColorRed, GColorWhite),
-                  .width = 3, .inset_y = MARGIN_TEMP_H } };
+                  .width = 3, .inset_y = BOTTOM_VIEW_PRIMARY_LINE_INSET_Y } };
 
     ds->series[SERIES_SECOND] = (Series){
         .id = SERIES_SECOND, .kind = SERIES_KIND_LINE,
@@ -138,17 +111,16 @@ static void load_dataset(ForecastDataset *ds) {
 }
 
 static Layer *s_forecast_layer;
-static int s_axis_left_w = LEFT_AXIS_GRAPH_INSET_DEFAULT;
-static int s_label_strip_w = LEFT_AXIS_LABEL_STRIP_MIN_W;
 static char s_buffer_lo[12];
 static char s_buffer_hi[12];
 
 static ForecastLayout compute_layout(GRect bounds)
 {
     ForecastLayout layout;
-    layout.graph_bounds = GRect(s_axis_left_w, 0,
-                                bounds.size.w - s_axis_left_w,
-                                bounds.size.h - FORECAST_BOTTOM_PAD);
+    const int graph_left = bottom_view_graph_inset();
+    layout.graph_bounds = GRect(graph_left, 0,
+                                bounds.size.w - graph_left,
+                                bounds.size.h - BOTTOM_VIEW_BOTTOM_PAD);
     layout.h = layout.graph_bounds.size.h;
     return layout;
 }
@@ -311,14 +283,16 @@ static void draw_left_axis(GContext *ctx, int h) {
     // Mask anything drawn into the label strip. The vertical axis line
     // itself is painted by graph_frame_draw(cfg->frame, ...) earlier in
     // the update proc.
+    const int strip_w = bottom_view_label_strip_w();
+    const int inset_w = bottom_view_graph_inset();
     graphics_context_set_fill_color(ctx, GColorBlack);
-    graphics_fill_rect(ctx, GRect(0, 0, s_axis_left_w, h - BOTTOM_AXIS_H), 0, GCornerNone);
+    graphics_fill_rect(ctx, GRect(0, 0, inset_w, h - BOTTOM_VIEW_AXIS_H), 0, GCornerNone);
 
     graphics_context_set_text_color(ctx, GColorWhite);
     GSize hi_size = temp_label_string_size(s_buffer_hi);
     GSize lo_size = temp_label_string_size(s_buffer_lo);
 #ifdef PBL_PLATFORM_EMERY
-    const int16_t axis_y = h - BOTTOM_AXIS_H;
+    const int16_t axis_y = h - BOTTOM_VIEW_AXIS_H;
     const int hi_y = 0;
     const int lo_y = axis_y - lo_size.h - 2;
 #else
@@ -327,11 +301,11 @@ static void draw_left_axis(GContext *ctx, int h) {
 #endif
     graphics_draw_text(ctx, s_buffer_hi,
                        fonts_get_system_font(FONT_KEY_GOTHIC_18),
-                       GRect(0, hi_y, s_label_strip_w, hi_size.h),
+                       GRect(0, hi_y, strip_w, hi_size.h),
                        GTextOverflowModeFill, GTextAlignmentRight, NULL);
     graphics_draw_text(ctx, s_buffer_lo,
                        fonts_get_system_font(FONT_KEY_GOTHIC_18),
-                       GRect(0, lo_y, s_label_strip_w, lo_size.h),
+                       GRect(0, lo_y, strip_w, lo_size.h),
                        GTextOverflowModeFill, GTextAlignmentRight, NULL);
 }
 
@@ -356,7 +330,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         return;
     }
     const time_t forecast_start = ds.forecast_start;
-    const time_t forecast_end = forecast_start + (ds.num_entries - 1) * FORECAST_STEP_SECONDS;
+    const time_t forecast_end = forecast_start + (ds.num_entries - 1) * BOTTOM_VIEW_STEP_SECONDS;
     struct tm *forecast_start_local = localtime(&forecast_start);
 
 
@@ -365,7 +339,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     {
         night_segments = compute_night_segments(forecast_start, forecast_end);
     }
-    const int16_t axis_y     = h - BOTTOM_AXIS_H;
+    const int16_t axis_y     = h - BOTTOM_VIEW_AXIS_H;
     const int16_t grid_right = graph_bounds.origin.x
                              + ds.num_entries * chart_def_pitch(&FORECAST_GRID_DEF);
     const GRect outer = GRect(graph_bounds.origin.x, 0,
@@ -407,7 +381,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                                             night_plot_rect, forecast_start, forecast_end);
     }
     const GColor axis_color = night_on ? FORECAST_AXIS_COLOR_NIGHT
-                                       : FORECAST_AXIS_COLOR_DAY;
+                                       : BOTTOM_VIEW_AXIS_COLOR;
 
     int bar_num_stops = 0;
     const ChartColorStop *bar_stops = palette_bar_stops(&bar_num_stops);
@@ -507,7 +481,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         .left   = { 1, axis_color },
         .bottom = { 1, axis_color } } } };
     layers[n++] = (ChartLayer){ CHART_LAYER_AXIS, .axis = {
-        .side = GRAPH_SIDE_BOTTOM, .style = FORECAST_TICK_STYLE,
+        .side = GRAPH_SIDE_BOTTOM, .style = BOTTOM_VIEW_TICK_STYLE,
         .slots = axis_slots,
         .label_align = ALIGN_START, .tick_align = ALIGN_START } };
     chart_draw(ctx, &FORECAST_GRID_DEF, outer, layers, n);
@@ -551,18 +525,9 @@ static void text_labels_refresh()
     }
     content_w += TEMP_LABEL_PAD;
 
-    int label_strip_w = content_w;
-    if (label_strip_w < LEFT_AXIS_LABEL_STRIP_MIN_W)
-    {
-        label_strip_w = LEFT_AXIS_LABEL_STRIP_MIN_W;
-    }
-    s_label_strip_w = label_strip_w;
-    const int graph_inset_w = label_strip_w + LEFT_AXIS_LABEL_TO_GRAPH_GAP;
-
-    if (graph_inset_w != s_axis_left_w)
-    {
-        s_axis_left_w = graph_inset_w;
-    }
+    // Report the measured content width (pre-floor); bottom_view applies the
+    // MIN_W floor and takes the max with health's reported width.
+    bottom_view_report_label_w(BOTTOM_VIEW_SRC_FORECAST, content_w);
 }
 
 void forecast_layer_create(Layer *parent_layer, GRect frame)
