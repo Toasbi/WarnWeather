@@ -15,5 +15,6 @@ module.exports = {
     HOLIDAY_CACHE_PREFIX: 'holidays_',
     HOLIDAY_BACKOFF_PREFIX: 'holidaysBackoff_',
     UPDATE_NOTIFIED_VERSION_KEY: 'update_notified_version',
-    LAST_UPDATE_CHECK_KEY: 'last_update_check'
+    LAST_UPDATE_CHECK_KEY: 'last_update_check',
+    WU_HOURLY_CACHE_KEY: 'wuHourlyCache'
 };
