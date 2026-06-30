@@ -245,10 +245,12 @@ void main_window_create() {
 }
 
 void main_window_apply_top_view() {
-    // Re-apply the current view after radar availability changed; apply_view
-    // downgrades the radar top to the calendar when the radar data was cleared,
-    // while leaving the current bottom (forecast vs. health) untouched.
-    apply_view(s_top_view, s_bottom_view);
+    // Re-apply the current view after radar availability or health config changed.
+    // apply_view downgrades the radar top to the calendar when the radar data was
+    // cleared. The bottom is clamped to BOTTOM_FORECAST when health is no longer
+    // active so a settings message that disables health immediately falls back to
+    // the forecast view — apply_view also updates s_bottom_view in that case.
+    apply_view(s_top_view, health_view_active() ? s_bottom_view : BOTTOM_FORECAST);
 }
 
 void main_window_refresh() {

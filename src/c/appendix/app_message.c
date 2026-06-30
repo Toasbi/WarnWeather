@@ -314,6 +314,9 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
 
     if (config_dirty) {
         main_window_refresh();
+        // health_enabled may have been flipped off while the alternate view is
+        // shown; re-apply the view so the watch falls back to forecast immediately.
+        main_window_apply_top_view();
     }
     if (forecast_dirty) {
         loading_layer_refresh();
