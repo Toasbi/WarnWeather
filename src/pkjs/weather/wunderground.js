@@ -1,5 +1,6 @@
 var WeatherProvider = require('./provider.js');
 var mphToKmh = require('../wire-units.js').mphToKmh;
+var wuCache = require('./wu-current-hour-cache.js');
 var request = WeatherProvider.request;
 var failure = WeatherProvider.failure;
 
@@ -132,7 +133,13 @@ WundergroundProvider.prototype.withProviderData = function(lat, lon, force, onSu
 
     this.withApiKey((function(apiKey) {
         this.withWundergroundCurrent(lat, lon, apiKey, (function(currentTemp) {
-            this.withWundergroundForecast(lat, lon, apiKey, (function(forecast) {
+            this.withWundergroundForecast(lat, lon, apiKey, (function(rawForecast) {
+                // WU's hourly feed rounds up and drops the in-progress hour;
+                // anchor it to the current wall-clock hour, reusing the real
+                // forecast for that hour captured last cycle. See
+                // wu-current-hour-cache.js.
+                var hourFloor = Math.floor(Date.now() / 1000 / 3600) * 3600;
+                var forecast = wuCache.anchorForecast(rawForecast, hourFloor);
                 this.tempTrend = forecast.map(function(entry) {
                     return entry.temp;
                 });
