@@ -1,4 +1,4 @@
-#include "calendar_status_layer.h"
+#include "top_status_layer.h"
 #include "battery_layer.h"
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
@@ -21,7 +21,7 @@
 #define MONTH_FONT_KEY FONT_KEY_GOTHIC_18
 #endif
 
-static Layer *s_calendar_status_layer;
+static Layer *s_top_status_layer;
 static char s_calendar_month_text[10];
 static GBitmap *s_mute_bitmap;
 static GBitmap *s_bt_bitmap;
@@ -94,7 +94,7 @@ static void ensure_bt_disconnect_bitmap_loaded(void) {
     }
 }
 
-static void maybe_unload_calendar_status_bitmaps(bool show_qt, bool connected) {
+static void maybe_unload_top_status_bitmaps(bool show_qt, bool connected) {
     bool show_bt = connected && g_config->show_bt;
     bool show_bt_disconnect = !connected && g_config->show_bt_disconnect;
 
@@ -114,7 +114,7 @@ static void maybe_unload_calendar_status_bitmaps(bool show_qt, bool connected) {
     }
 }
 
-static void calendar_status_update_proc(Layer *layer, GContext *ctx) {
+static void top_status_update_proc(Layer *layer, GContext *ctx) {
     GRect bounds = layer_get_bounds(layer);
     bool show_qt = show_qt_icon();
     bool connected = connection_service_peek_pebble_app_connection();
@@ -122,7 +122,7 @@ static void calendar_status_update_proc(Layer *layer, GContext *ctx) {
     bool show_bt = connected && g_config->show_bt;
     bool show_bt_disconnect = !connected && g_config->show_bt_disconnect;
 
-    maybe_unload_calendar_status_bitmaps(show_qt, connected);
+    maybe_unload_top_status_bitmaps(show_qt, connected);
 
     if (show_qt) {
         ensure_mute_bitmap_loaded();
@@ -141,13 +141,13 @@ static void calendar_status_update_proc(Layer *layer, GContext *ctx) {
     draw_month_text(ctx, bounds);
 }
 
-void calendar_status_layer_create(Layer* parent_layer, GRect frame) {
-    MemoryHeapProbe probe = MEMORY_HEAP_PROBE_START("calendar_status_layer_create");
+void top_status_layer_create(Layer* parent_layer, GRect frame) {
+    MemoryHeapProbe probe = MEMORY_HEAP_PROBE_START("top_status_layer_create");
 
-    s_calendar_status_layer = layer_create(frame);
+    s_top_status_layer = layer_create(frame);
     MEMORY_HEAP_PROBE_SAMPLE("after_layer_create", &probe);
 
-    GRect bounds = layer_get_bounds(s_calendar_status_layer);
+    GRect bounds = layer_get_bounds(s_top_status_layer);
     int w = bounds.size.w;
 
     // Set up bluetooth handler
@@ -156,25 +156,25 @@ void calendar_status_layer_create(Layer* parent_layer, GRect frame) {
     });
     MEMORY_HEAP_PROBE_SAMPLE("after_connection_subscribe", &probe);
 
-    calendar_status_layer_refresh();
+    top_status_layer_refresh();
 
-    layer_set_update_proc(s_calendar_status_layer, calendar_status_update_proc);
+    layer_set_update_proc(s_top_status_layer, top_status_update_proc);
     MEMORY_HEAP_PROBE_SAMPLE("after_update_proc_set", &probe);
 
-    battery_layer_create(s_calendar_status_layer,
+    battery_layer_create(s_top_status_layer,
                          GRect(w - BATTERY_W - PADDING, BATTERY_Y(bounds.size.h), BATTERY_W, BATTERY_H));
     MEMORY_HEAP_PROBE_SAMPLE("after_battery_layer_create", &probe);
 
-    layer_add_child(parent_layer, s_calendar_status_layer);
+    layer_add_child(parent_layer, s_top_status_layer);
     MEMORY_HEAP_PROBE_SAMPLE("after_parent_child_added", &probe);
 
-    MEMORY_LOG_HEAP("after_calendar_status_layer_create");
+    MEMORY_LOG_HEAP("after_top_status_layer_create");
     MEMORY_HEAP_PROBE_LOG_MIN(&probe);
 }
 
 void bluetooth_icons_refresh(bool connected) {
     (void)connected;
-    layer_mark_dirty(s_calendar_status_layer);
+    layer_mark_dirty(s_top_status_layer);
 }
 
 void bluetooth_callback(bool connected) {
@@ -189,15 +189,15 @@ bool show_qt_icon() {
 
 void status_icons_refresh() {
     // A full strip repaint resyncs the per-minute QT baseline so the next
-    // calendar_status_layer_tick() only fires on a genuine QT transition.
+    // top_status_layer_tick() only fires on a genuine QT transition.
     s_last_qt_active = show_qt_icon();
-    layer_mark_dirty(s_calendar_status_layer);
+    layer_mark_dirty(s_top_status_layer);
 
     // Ensure bt icons are correct at start
     bluetooth_icons_refresh(connection_service_peek_pebble_app_connection());
 }
 
-void calendar_status_layer_tick() {
+void top_status_layer_tick() {
     // Per-minute hook from the tick handler. Battery and Bluetooth icons
     // repaint from their own service subscriptions (battery_state_service /
     // connection_service), and the month text only changes on DAY_UNIT, so the
@@ -209,17 +209,17 @@ void calendar_status_layer_tick() {
         return;
     }
     s_last_qt_active = qt_active;
-    layer_mark_dirty(s_calendar_status_layer);
+    layer_mark_dirty(s_top_status_layer);
 }
 
-void calendar_status_layer_refresh() {
+void top_status_layer_refresh() {
     struct tm tm_now = watch_services_localtime();
     strftime(s_calendar_month_text, sizeof(s_calendar_month_text), "%b %Y", &tm_now);
     status_icons_refresh();
 }
 
-void calendar_status_layer_destroy() {
-    MEMORY_LOG_HEAP("calendar_status_layer_destroy:before");
+void top_status_layer_destroy() {
+    MEMORY_LOG_HEAP("top_status_layer_destroy:before");
     battery_layer_destroy();
     if (s_mute_bitmap) {
         gbitmap_destroy(s_mute_bitmap);
@@ -233,6 +233,6 @@ void calendar_status_layer_destroy() {
         gbitmap_destroy(s_bt_disconnect_bitmap);
         s_bt_disconnect_bitmap = NULL;
     }
-    layer_destroy(s_calendar_status_layer);
-    MEMORY_LOG_HEAP("calendar_status_layer_destroy:after");
+    layer_destroy(s_top_status_layer);
+    MEMORY_LOG_HEAP("top_status_layer_destroy:after");
 }

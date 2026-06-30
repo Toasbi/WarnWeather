@@ -4,7 +4,7 @@
 #include "c/layers/weather_status_layer.h"
 #include "c/layers/calendar_layer.h"
 #include "c/layers/rain_radar_layer.h"
-#include "c/layers/calendar_status_layer.h"
+#include "c/layers/top_status_layer.h"
 #include "c/layers/loading_layer.h"
 #include "c/layers/health_graph_layer.h"
 #include "c/layers/health_status_layer.h"
@@ -172,7 +172,7 @@ static void main_window_load(Window *window) {
     time_layer_create(window_layer, GRect(content_x, time_y, content_w, time_h));
     calendar_layer_create(window_layer, GRect(content_x, calendar_y, content_w, calendar_h));
     rain_radar_layer_create(window_layer, GRect(content_x, calendar_y, content_w, calendar_h));
-    calendar_status_layer_create(window_layer, GRect(content_x, content_y, content_w, CALENDAR_STATUS_HEIGHT + 1)); // +1 to stop text clipping
+    top_status_layer_create(window_layer, GRect(content_x, content_y, content_w, CALENDAR_STATUS_HEIGHT + 1)); // +1 to stop text clipping
     loading_layer_create(window_layer, GRect(content_x, weather_status_y, content_w, h - EMERY_WINDOW_PAD_BOTTOM - weather_status_y));
 #else
     forecast_layer_create(window_layer,
@@ -194,7 +194,7 @@ static void main_window_load(Window *window) {
             GRect(0, CALENDAR_STATUS_HEIGHT, bounds.size.w, CALENDAR_HEIGHT));
     rain_radar_layer_create(window_layer,
             GRect(0, CALENDAR_STATUS_HEIGHT, bounds.size.w, CALENDAR_HEIGHT));
-    calendar_status_layer_create(window_layer,
+    top_status_layer_create(window_layer,
             GRect(0, 0, bounds.size.w, CALENDAR_STATUS_HEIGHT + 1));  // +1 to stop text clipping
     loading_layer_create(window_layer,
             GRect(0, h - FORECAST_HEIGHT - WEATHER_STATUS_HEIGHT, w, FORECAST_HEIGHT + WEATHER_STATUS_HEIGHT));
@@ -231,7 +231,7 @@ static void main_window_unload(Window *window) {
 #endif
     calendar_layer_destroy();
     rain_radar_layer_destroy();
-    calendar_status_layer_destroy();
+    top_status_layer_destroy();
     loading_layer_destroy();
     MEMORY_LOG_HEAP("after_window_unload");
 }
@@ -241,9 +241,9 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     /* tm_hour==0 missed day changes from emulator time jumps (same clock, new date). */
     if (units_changed & DAY_UNIT) {
         calendar_layer_refresh();
-        calendar_status_layer_refresh();
+        top_status_layer_refresh();
     }
-    calendar_status_layer_tick();
+    top_status_layer_tick();
     loading_layer_refresh();
 #if defined(PBL_HEALTH)
     // Keep the cache warm whenever health is enabled (rollover-warm always; the
@@ -315,7 +315,7 @@ void main_window_refresh() {
     weather_status_layer_refresh();
     forecast_layer_refresh();
     calendar_layer_refresh();
-    calendar_status_layer_refresh();
+    top_status_layer_refresh();
 }
 
 void main_window_destroy() {
