@@ -23,6 +23,7 @@ function buildSettingsSnapshot(settings) {
         healthEnabled: Boolean(safe.healthEnabled),
         provider: safe.provider,
         fetchIntervalMin: toIntOrUndefined(safe.fetchIntervalMin),
+        rainCountdownHorizon: toIntOrUndefined(safe.rainCountdownHorizon),
         sleepStartHour: safe.sleepNightEnabled ? toIntOrUndefined(safe.sleepStartHour) : undefined,
         sleepEndHour: safe.sleepNightEnabled ? toIntOrUndefined(safe.sleepEndHour) : undefined,
         axisTimeFormat: safe.axisTimeFormat,

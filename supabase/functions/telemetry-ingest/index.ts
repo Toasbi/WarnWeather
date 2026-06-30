@@ -34,6 +34,7 @@ const settingsSchema = z
     healthEnabled: z.boolean().optional(),
     provider: providerSchema.optional(),
     fetchIntervalMin: z.number().int().positive().optional(),
+    rainCountdownHorizon: z.number().int().min(0).optional(),
     sleepStartHour: z.number().int().min(0).max(23).optional(),
     sleepEndHour: z.number().int().min(0).max(23).optional(),
     axisTimeFormat: z.string().optional(),

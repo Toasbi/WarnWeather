@@ -40,6 +40,11 @@ test('snapshot includes healthEnabled', () => {
     assert.strictEqual(buildSettingsSnapshot({}).healthEnabled, false);
 });
 
+test('snapshot includes rainCountdownHorizon as an int', () => {
+  assert.strictEqual(buildSettingsSnapshot({ rainCountdownHorizon: '60' }).rainCountdownHorizon, 60);
+  assert.strictEqual(buildSettingsSnapshot({}).rainCountdownHorizon, undefined);
+});
+
 test('settings snapshot keys match the Deno telemetry schema (lockstep)', () => {
   const fs = require('fs');
   const path = require('path');
