@@ -8,6 +8,7 @@
 #include "c/appendix/hatch.h"
 #include "c/appendix/bottom_view.h"
 #include "c/services/health.h"
+#include "c/services/health_cache.h"
 
 // The health view exists only on health-capable hardware. Platforms without
 // PBL_HEALTH (e.g. aplite, which has no sensors) compile this module out
@@ -117,13 +118,10 @@ static void health_graph_compute(bool report_width) {
         visible_slots = FORECAST_GRID_DEF.num_slots;
     }
 
-    // end_hour = top of the current hour (integer truncation, no float).
-    const time_t now      = time(NULL);
-    const time_t end_hour = now - (now % BOTTOM_VIEW_STEP_SECONDS);
-
-    health_fill_hourly_steps(s_steps, visible_slots, end_hour);
-    health_fill_hourly_hr(s_hr, visible_slots, end_hour);
-    health_fill_hourly_sleep(s_sleep, visible_slots, end_hour);
+    // Copy the trailing `visible_slots` buckets out of the warm cache — NO
+    // HealthService calls on this path. The cache returns the grid anchor (top
+    // of the current hour); the in-progress hour is the last slot.
+    const time_t end_hour = health_cache_read(s_steps, s_hr, s_sleep, visible_slots);
 
     int step_peak = 0;
     for (int i = 0; i < visible_slots; ++i) {
@@ -181,6 +179,21 @@ static void draw_left_axis(GContext *ctx, int h, const char *label_top) {
 }
 
 static void health_graph_update_proc(Layer *layer, GContext *ctx) {
+    // While a (re)build is pending, paint the loading message (same black-fill +
+    // centered GOTHIC_18 idiom as loading_layer.c) instead of the chart. No
+    // HealthService calls here either way (spec goal #1).
+    if (!health_cache_ready()) {
+        const GRect b = layer_get_bounds(layer);
+        graphics_context_set_fill_color(ctx, GColorBlack);
+        graphics_fill_rect(ctx, b, 0, GCornerNone);
+        graphics_context_set_text_color(ctx, GColorWhite);
+        graphics_draw_text(ctx, "Loading...",
+                           fonts_get_system_font(FONT_KEY_GOTHIC_18),
+                           GRect(0, b.size.h / 3, b.size.w, b.size.h),
+                           GTextOverflowModeFill, GTextAlignmentCenter, NULL);
+        return;
+    }
+
     const GRect   bounds        = layer_get_bounds(layer);
     const int     h             = bounds.size.h - BOTTOM_VIEW_BOTTOM_PAD;
     const int16_t axis_y        = h - BOTTOM_VIEW_AXIS_H;
@@ -234,13 +247,14 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
         .stops = step_stops, .num_stops = 1,
         .style = PBL_IF_COLOR_ELSE(BAR_SOLID, BAR_OUTLINED) } };
 
-    if (health_hr_available()) {
-        layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
-            .values = s_hr, .count = visible_slots,
-            .lo = HEALTH_HR_LO, .hi = HEALTH_HR_HI,
-            .color = PBL_IF_COLOR_ELSE(GColorRed, GColorWhite),
-            .width = 3, .inset_y = BOTTOM_VIEW_PRIMARY_LINE_INSET_Y } };
-    }
+    // Always add the HR line: the cache stores CHART_ABSENT for hours with no
+    // reading, so the solid line breaks across gaps and draws nothing when HR is
+    // entirely absent — no render-path health_hr_available() query needed.
+    layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
+        .values = s_hr, .count = visible_slots,
+        .lo = HEALTH_HR_LO, .hi = HEALTH_HR_HI,
+        .color = PBL_IF_COLOR_ELSE(GColorRed, GColorWhite),
+        .width = 3, .inset_y = BOTTOM_VIEW_PRIMARY_LINE_INSET_Y } };
 
     layers[n++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
         .left   = { 1, BOTTOM_VIEW_AXIS_COLOR },
@@ -260,9 +274,8 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
 void health_graph_layer_create(Layer *parent_layer, GRect frame) {
     s_health_graph_layer = layer_create(frame);
     layer_set_update_proc(s_health_graph_layer, health_graph_update_proc);
-    // Seed the statics so a paint while hidden is valid, but do NOT report the
-    // strip width (preserves forecast's strip until the health view is shown).
-    health_graph_compute(false);
+    // No compute here: the cache populates on reset (boot/enable); the update
+    // proc paints the loading state until health_cache_ready().
     layer_add_child(parent_layer, s_health_graph_layer);
 }
 
@@ -271,7 +284,11 @@ Layer *health_graph_layer_get_root(void) {
 }
 
 void health_graph_layer_refresh(void) {
-    health_graph_compute(true);   // re-read health + report the strip width
+    if (!health_cache_ready()) {
+        layer_mark_dirty(s_health_graph_layer);   // paints the loading state
+        return;
+    }
+    health_graph_compute(true);   // copy from the cache + report the strip width
     layer_mark_dirty(s_health_graph_layer);
 }
 
