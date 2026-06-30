@@ -117,6 +117,13 @@ typedef struct {
     ChartBarStyle         style;
 } ChartBarsLayer;
 
+// Sentinel marking "no value for this bucket" in a LINE layer's values[]. The
+// solid line BREAKS across it (the polyline is drawn as separate segments)
+// instead of plunging through it; the dotted path and BARS/AREA layers ignore
+// it. Only emitters that can have genuine gaps (the health HR line) ever store
+// it — temp/forecast values never equal INT16_MIN.
+#define CHART_ABSENT INT16_MIN
+
 typedef struct {
     const int16_t *values;            // compute points from values...
     const GPoint  *points;            // ...OR consume precomputed points

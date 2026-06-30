@@ -225,7 +225,8 @@ static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
     }
 
     static GPoint buf[CHART_MAX_SLOTS];  // aplite: per-frame scratch must be static, not stack
-    const GPoint *pts = l->points;
+    const GPoint  *pts  = l->points;
+    const int16_t *vals = l->values;     // non-NULL when we compute the points here
     if (pts == NULL) {
         GPoint *out = l->export_points ? l->export_points : buf;
         const GRect c          = r->geo.content;
@@ -233,9 +234,14 @@ static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
         const int  plot_bottom = c.origin.y + c.size.h;
         const int  range       = l->hi - l->lo;
         for (int i = 0; i < count; ++i) {
+            if (vals && vals[i] == CHART_ABSENT) {
+                // Placeholder for an absent bucket; never drawn (skipped below).
+                out[i] = GPoint(chart_slot_tick_x(&r->geo, i), plot_bottom);
+                continue;
+            }
             int h = inner_h / 2;                        // flat line on zero range
             if (range > 0) {
-                h = (int)(((int32_t)(l->values[i] - l->lo) * inner_h) / range);
+                h = (int)(((int32_t)(vals[i] - l->lo) * inner_h) / range);
             }
             out[i] = GPoint(chart_slot_tick_x(&r->geo, i),
                             plot_bottom - h - l->inset_y);
@@ -243,10 +249,31 @@ static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
         pts = out;
     }
 
-    GPath path = { .num_points = (uint32_t)count, .points = (GPoint *)pts };
     graphics_context_set_stroke_color(r->ctx, l->color);
     graphics_context_set_stroke_width(r->ctx, l->width);
-    gpath_draw_outline_open(r->ctx, &path);
+
+    // Break the polyline across absent buckets: each contiguous run of non-absent
+    // points is its own open path. A line without a values[] array (precomputed
+    // points) carries no sentinel, so it draws as a single run — unchanged.
+    int i = 0;
+    while (i < count) {
+        while (i < count && vals && vals[i] == CHART_ABSENT) { i++; }      // skip gap
+        const int start = i;
+        while (i < count && !(vals && vals[i] == CHART_ABSENT)) { i++; }   // collect run
+        const int run = i - start;
+        if (run >= 2) {
+            GPath path = { .num_points = (uint32_t)run, .points = (GPoint *)&pts[start] };
+            gpath_draw_outline_open(r->ctx, &path);
+        } else if (run == 1) {
+            // A lone reading between two gaps can't form a line; mark it with a
+            // small filled square so the value isn't silently dropped.
+            const int w = l->width < 1 ? 1 : l->width;
+            graphics_context_set_fill_color(r->ctx, l->color);
+            graphics_fill_rect(r->ctx,
+                               GRect(pts[start].x - w / 2, pts[start].y - w / 2, w, w),
+                               0, GCornerNone);
+        }
+    }
 }
 
 // Linear-interpolate the contour's top y at absolute pixel x (was
