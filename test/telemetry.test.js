@@ -35,6 +35,11 @@ test('buildSettingsSnapshot coerces toggle settings to real booleans', () => {
   assert.equal(snapshot.devStatsEnabled, false);
 });
 
+test('snapshot includes healthEnabled', () => {
+    assert.strictEqual(buildSettingsSnapshot({ healthEnabled: true }).healthEnabled, true);
+    assert.strictEqual(buildSettingsSnapshot({}).healthEnabled, false);
+});
+
 test('settings snapshot keys match the Deno telemetry schema (lockstep)', () => {
   const fs = require('fs');
   const path = require('path');

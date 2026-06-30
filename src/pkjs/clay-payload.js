@@ -48,6 +48,7 @@ function buildClayPayload(settings, watchInfo, now) {
         })(),
         "CLAY_COLOR_TIME": settings.hasOwnProperty('colorTime') ? settings.colorTime : DEFAULT_COLOR_WHITE,
         "CLAY_DAY_NIGHT_SHADING": settings.hasOwnProperty('dayNightShading') ? settings.dayNightShading : true,
+        "CLAY_HEALTH_ENABLED": settings.hasOwnProperty('healthEnabled') ? settings.healthEnabled : true,
         "CLAY_FETCH_INTERVAL_MIN": parseInt(settings.fetchIntervalMin, 10) || 30
     };
     var palette = paletteWire.buildPaletteTuples(watchInfo, settings);

@@ -14,7 +14,7 @@ const EXPECTED_KEYS = [
   'weekStartDay','firstWeek','colorToday','colorSunday','colorSaturday','holidaysEnabled','colorUSFederal',
   'holidayCountry','holidayRegion',
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','locationMode','location',
-  'temperatureUnits','dayNightShading','secondaryLine','secondaryLineFill','windScale','thirdLine',
+  'temperatureUnits','dayNightShading','healthEnabled','secondaryLine','secondaryLineFill','windScale','thirdLine',
   'barSource','rainBarColor','provider','owmApiKey','radarProvider','radarColor',
   'showQt','vibe','btIcons','telemetryEnabled','devStatsEnabled','devStatsClear'
 ];

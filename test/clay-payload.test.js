@@ -51,3 +51,10 @@ test('buildClayPayload palette reflects rainBarColor', function() {
   const p = buildClayPayload(s, { platform: 'emery' }, NOW);
   assert.equal(p.BAR_PALETTE_UINT8.length, 3);    // white → single stop
 });
+
+test('maps healthEnabled to CLAY_HEALTH_ENABLED', () => {
+    const payload = buildClayPayload({ healthEnabled: false }, null, new Date());
+    assert.strictEqual(payload.CLAY_HEALTH_ENABLED, false);
+    const dflt = buildClayPayload({}, null, new Date());
+    assert.strictEqual(dflt.CLAY_HEALTH_ENABLED, true); // default-on when unset
+});

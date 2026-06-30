@@ -31,6 +31,7 @@ const settingsSchema = z
   .object({
     temperatureUnits: z.string().optional(),
     dayNightShading: z.boolean().optional(),
+    healthEnabled: z.boolean().optional(),
     provider: providerSchema.optional(),
     fetchIntervalMin: z.number().int().positive().optional(),
     sleepStartHour: z.number().int().min(0).max(23).optional(),

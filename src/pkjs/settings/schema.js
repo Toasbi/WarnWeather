@@ -225,6 +225,12 @@ module.exports = {
                 label: 'Day / night shading',
                 defaultValue: true,
                 hint: 'Show hatch shading between sunset and sunrise to distinguish day and night on the forecast graph.'
+            }, {
+                type: 'toggle',
+                messageKey: 'healthEnabled',
+                label: 'Health view',
+                defaultValue: true,
+                hint: 'Flick your wrist to switch the forecast graph and status line to a health view: hourly steps, a sleep band, and heart rate. Heart rate needs a watch with a heart-rate sensor.'
             }]
         }]
     }, {

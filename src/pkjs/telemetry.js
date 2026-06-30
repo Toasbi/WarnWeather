@@ -20,6 +20,7 @@ function buildSettingsSnapshot(settings) {
     return {
         temperatureUnits: safe.temperatureUnits,
         dayNightShading: !!safe.dayNightShading,
+        healthEnabled: Boolean(safe.healthEnabled),
         provider: safe.provider,
         fetchIntervalMin: toIntOrUndefined(safe.fetchIntervalMin),
         sleepStartHour: safe.sleepNightEnabled ? toIntOrUndefined(safe.sleepStartHour) : undefined,
