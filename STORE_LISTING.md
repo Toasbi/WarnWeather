@@ -41,6 +41,9 @@ RAIN RADAR (for now only available for Deutscher Wetterdienst)
 - 2-hour precipitation nowcast in 5-minute frames — rain at your exact location plus
   the strongest rain approaching from within 2 km
 - Switch between calendar and radar view with a flick of your wrist
+- Optional rain countdown: when rain is on the way, the month turns into "Rain in X min"
+  (and "Rain for X min" while it's raining), with a configurable look-ahead
+  (30 min / 60 min / 2 hours)
 
 HEALTH VIEW (requires health-capable watch)
 - Flick your wrist to switch the forecast graph to a health overview: hourly step bars,
