@@ -62,7 +62,7 @@ typedef struct
 } ForecastLayout;
 
 typedef struct {
-    int    num_entries;          // clamped to MAX_FORECAST_ENTRIES
+    int    num_entries;          // clamped to MAX_BOTTOM_VIEW_ENTRIES
     time_t forecast_start;
     Series series[SERIES_COUNT];
 } ForecastDataset;
@@ -70,7 +70,7 @@ typedef struct {
 static void load_dataset(ForecastDataset *ds) {
     memset(ds, 0, sizeof(*ds));
     const int raw = persist_get_num_entries();
-    const int n = raw > MAX_FORECAST_ENTRIES ? MAX_FORECAST_ENTRIES : (raw < 0 ? 0 : raw);
+    const int n = raw > MAX_BOTTOM_VIEW_ENTRIES ? MAX_BOTTOM_VIEW_ENTRIES : (raw < 0 ? 0 : raw);
     ds->num_entries = n;
     ds->forecast_start = persist_get_forecast_start();
 
@@ -352,9 +352,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // Series values are already contiguous int16 permille from PKJS, so the
     // chart layers read them directly; only the contour points + axis slots need
     // scratch.
-    static GPoint  area_pts[MAX_FORECAST_ENTRIES + 2];
-    static ChartAxisSlot axis_slots[MAX_FORECAST_ENTRIES];
-    forecast_grid_fill_axis_slots(axis_slots, MAX_FORECAST_ENTRIES,
+    static GPoint  area_pts[MAX_BOTTOM_VIEW_ENTRIES + 2];
+    static ChartAxisSlot axis_slots[MAX_BOTTOM_VIEW_ENTRIES];
+    forecast_grid_fill_axis_slots(axis_slots, MAX_BOTTOM_VIEW_ENTRIES,
                              outer.origin.x, chart_def_pitch(&FORECAST_GRID_DEF),
                              bounds.size.w, forecast_start_local);
 

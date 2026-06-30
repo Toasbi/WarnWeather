@@ -3,7 +3,7 @@
 #include "health_graph_layer.h"
 #include "c/appendix/chart.h"
 #include "c/appendix/forecast_grid.h"
-#include "c/appendix/series.h"          // MAX_FORECAST_ENTRIES
+#include "c/appendix/series.h"          // MAX_BOTTOM_VIEW_ENTRIES
 #include "c/appendix/display_width.h"
 #include "c/appendix/hatch.h"
 #include "c/appendix/bottom_view.h"
@@ -37,9 +37,9 @@ static Layer *s_health_graph_layer;
 // Per-redraw scratch. Module-static (NOT stack): aplite's app stack overflows
 // otherwise (mirrors forecast_layer.c). Single layer instance, single-threaded,
 // all recomputed each redraw.
-static int16_t s_steps[MAX_FORECAST_ENTRIES];
-static int16_t s_hr[MAX_FORECAST_ENTRIES];
-static uint8_t s_sleep[MAX_FORECAST_ENTRIES];
+static int16_t s_steps[MAX_BOTTOM_VIEW_ENTRIES];
+static int16_t s_hr[MAX_BOTTOM_VIEW_ENTRIES];
+static uint8_t s_sleep[MAX_BOTTOM_VIEW_ENTRIES];
 
 // Refresh-time results the update proc renders from (see health_graph_compute).
 static int    s_visible_slots;     // slots filled in s_steps/s_hr/s_sleep
@@ -112,7 +112,7 @@ static void health_graph_compute(bool report_width) {
     // "now" sits at the LAST VISIBLE slot, so don't fill clipped slots.
     int visible_slots = (bounds.size.w - graph_left) / pitch;
     if (visible_slots < 1)                    visible_slots = 1;
-    if (visible_slots > MAX_FORECAST_ENTRIES) visible_slots = MAX_FORECAST_ENTRIES;
+    if (visible_slots > MAX_BOTTOM_VIEW_ENTRIES) visible_slots = MAX_BOTTOM_VIEW_ENTRIES;
     if (visible_slots > FORECAST_GRID_DEF.num_slots) {
         visible_slots = FORECAST_GRID_DEF.num_slots;
     }
@@ -198,7 +198,7 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
     // Bottom-axis hour labels/ticks for the trailing window. chart_render_axis
     // iterates all def->num_slots entries, so clear the whole scratch first
     // (TICK_NONE, no label) and only fill the visible window.
-    static ChartAxisSlot axis_slots[MAX_FORECAST_ENTRIES];
+    static ChartAxisSlot axis_slots[MAX_BOTTOM_VIEW_ENTRIES];
     memset(axis_slots, 0, sizeof(axis_slots));  // {label "", TICK_NONE}
     time_t     start       = s_end_hour - (time_t)(visible_slots - 1) * BOTTOM_VIEW_STEP_SECONDS;
     struct tm *start_local = localtime(&start);

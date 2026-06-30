@@ -76,7 +76,7 @@ static bool write_string_if_changed(const uint32_t key, const char *val) {
 // Trends are stored as uint8 (0..250) but the shared chart engine consumes
 // int16 (it also serves the radar at 0..1000). Widen at read into a reused
 // scratch — single-threaded, one redraw at a time.
-static uint8_t s_trend_widen[24]; // MAX_FORECAST_ENTRIES
+static uint8_t s_trend_widen[24]; // MAX_BOTTOM_VIEW_ENTRIES
 
 static int read_trend_widened(uint32_t key, int16_t *out, size_t n) {
     if (n > sizeof(s_trend_widen)) { n = sizeof(s_trend_widen); }

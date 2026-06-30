@@ -2,7 +2,7 @@
 #include "c/appendix/config.h"
 
 const ChartDef FORECAST_GRID_DEF = {
-    .num_slots  = MAX_FORECAST_ENTRIES,
+    .num_slots  = MAX_BOTTOM_VIEW_ENTRIES,
     .tick_w     = 1,
     .bar_pad    = FORECAST_GRID_PAD,
     .bar_w      = FORECAST_GRID_BAR_W,

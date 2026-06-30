@@ -10,6 +10,10 @@
 // health guard. Paint-free; allocates zero heap (a few bytes of .bss only).
 
 // --- Geometry (group A) ---
+// Slot count for the shared bottom graphs. Renamed from MAX_FORECAST_ENTRIES
+// (formerly series.h) so the name reads correctly for the health view too.
+#define MAX_BOTTOM_VIEW_ENTRIES 24
+
 #define BOTTOM_VIEW_AXIS_H 10            // height reserved for the bottom hour-label row
 #ifdef PBL_PLATFORM_EMERY
 #define BOTTOM_VIEW_BOTTOM_PAD 10        // emery: larger hour labels + tick marks
