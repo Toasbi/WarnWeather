@@ -221,3 +221,7 @@ void weather_status_layer_destroy() {
     layer_destroy(s_weather_status_layer);
     MEMORY_LOG_HEAP("weather_status_layer_destroy:after");
 }
+
+Layer *weather_status_layer_get_root(void) {
+    return s_weather_status_layer;
+}

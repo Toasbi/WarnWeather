@@ -6,8 +6,12 @@
 #include "c/layers/rain_radar_layer.h"
 #include "c/layers/calendar_status_layer.h"
 #include "c/layers/loading_layer.h"
+#include "c/layers/health_graph_layer.h"
+#include "c/layers/health_status_layer.h"
+#include "c/services/health.h"
 #include "c/appendix/app_message.h"
 #include "c/appendix/persist.h"
+#include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
 
 typedef enum {
@@ -15,19 +19,38 @@ typedef enum {
     TOP_VIEW_RAIN_RADAR = 1
 } TopView;
 
+typedef enum {
+    BOTTOM_FORECAST = 0,
+    BOTTOM_HEALTH = 1
+} BottomView;
+
+// Session-only view state: every launch boots to DEFAULT (calendar + forecast +
+// weather-status). A wrist-flick (accel tap) toggles the whole screen.
 static TopView s_top_view;
+static BottomView s_bottom_view;
 
 static bool radar_has_data(void) {
     return persist_get_rain_radar_start() > 0;
 }
 
-static void apply_top_view(TopView v) {
-    if (v == TOP_VIEW_RAIN_RADAR && !radar_has_data()) {
-        v = TOP_VIEW_CALENDAR;
+// The alternate health view is only reachable when the user enabled it AND the
+// platform can serve health data (no-health builds report false).
+static bool health_view_active(void) {
+    return g_config->health_enabled && health_available();
+}
+
+static void apply_view(TopView top, BottomView bottom) {
+    if (top == TOP_VIEW_RAIN_RADAR && !radar_has_data()) {
+        top = TOP_VIEW_CALENDAR;
     }
-    s_top_view = v;
-    layer_set_hidden(calendar_layer_get_root(), v != TOP_VIEW_CALENDAR);
-    layer_set_hidden(rain_radar_layer_get_root(), v != TOP_VIEW_RAIN_RADAR);
+    s_top_view = top;
+    s_bottom_view = bottom;
+    layer_set_hidden(calendar_layer_get_root(), top != TOP_VIEW_CALENDAR);
+    layer_set_hidden(rain_radar_layer_get_root(), top != TOP_VIEW_RAIN_RADAR);
+    layer_set_hidden(forecast_layer_get_root(), bottom != BOTTOM_FORECAST);
+    layer_set_hidden(health_graph_layer_get_root(), bottom != BOTTOM_HEALTH);
+    layer_set_hidden(weather_status_layer_get_root(), bottom != BOTTOM_FORECAST);
+    layer_set_hidden(health_status_layer_get_root(), bottom != BOTTOM_HEALTH);
 }
 
 static void tap_handler(AccelAxisType axis, int32_t direction) {
@@ -41,8 +64,27 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
     uint64_t now_ms = (uint64_t)now_s * 1000 + now_ms_part;
     if (now_ms - s_last_tap_ms < 500) return;
     s_last_tap_ms = now_ms;
+
+    if (health_view_active()) {
+        // Toggle the whole screen between DEFAULT (calendar/forecast/weather-status)
+        // and ALTERNATE (radar-if-data-else-calendar / health-graph / health-status).
+        if (s_bottom_view == BOTTOM_FORECAST) {
+            // Pull fresh health data before the alternate view becomes visible.
+            health_graph_layer_refresh();
+            health_status_layer_refresh();
+            // apply_view downgrades the radar top to the calendar when there is no data.
+            apply_view(TOP_VIEW_RAIN_RADAR, BOTTOM_HEALTH);
+        } else {
+            apply_view(TOP_VIEW_CALENDAR, BOTTOM_FORECAST);
+        }
+        return;
+    }
+
+    // Legacy behaviour: top-only calendar<->radar with the forecast fixed; inert
+    // when there is no radar data to show.
     if (s_top_view == TOP_VIEW_CALENDAR && !radar_has_data()) { return; }
-    apply_top_view(s_top_view == TOP_VIEW_CALENDAR ? TOP_VIEW_RAIN_RADAR : TOP_VIEW_CALENDAR);
+    apply_view(s_top_view == TOP_VIEW_CALENDAR ? TOP_VIEW_RAIN_RADAR : TOP_VIEW_CALENDAR,
+               BOTTOM_FORECAST);
 }
 
 #define FORECAST_HEIGHT 51
@@ -99,7 +141,9 @@ static void main_window_load(Window *window) {
     int forecast_y = weather_status_y + WEATHER_STATUS_HEIGHT;
 
     forecast_layer_create(window_layer, GRect(content_x, forecast_y, forecast_w, forecast_h));
+    health_graph_layer_create(window_layer, GRect(content_x, forecast_y, forecast_w, forecast_h));
     weather_status_layer_create(window_layer, GRect(content_x, weather_status_y, content_w, WEATHER_STATUS_HEIGHT));
+    health_status_layer_create(window_layer, GRect(content_x, weather_status_y, content_w, WEATHER_STATUS_HEIGHT));
     time_layer_create(window_layer, GRect(content_x, time_y, content_w, time_h));
     calendar_layer_create(window_layer, GRect(content_x, calendar_y, content_w, calendar_h));
     rain_radar_layer_create(window_layer, GRect(content_x, calendar_y, content_w, calendar_h));
@@ -108,7 +152,11 @@ static void main_window_load(Window *window) {
 #else
     forecast_layer_create(window_layer,
             GRect(0, h - FORECAST_HEIGHT, w, FORECAST_HEIGHT));
+    health_graph_layer_create(window_layer,
+            GRect(0, h - FORECAST_HEIGHT, w, FORECAST_HEIGHT));
     weather_status_layer_create(window_layer,
+            GRect(0, h - FORECAST_HEIGHT - WEATHER_STATUS_HEIGHT, w, WEATHER_STATUS_HEIGHT));
+    health_status_layer_create(window_layer,
             GRect(0, h - FORECAST_HEIGHT - WEATHER_STATUS_HEIGHT, w, WEATHER_STATUS_HEIGHT));
     time_layer_create(window_layer,
             GRect(0, h - FORECAST_HEIGHT - WEATHER_STATUS_HEIGHT - TIME_HEIGHT,
@@ -124,9 +172,9 @@ static void main_window_load(Window *window) {
 #endif
     loading_layer_refresh();
     app_message_send_startup_state(loading_layer_data_is_fresh());
-    // The top view is session-only state: every launch starts on the calendar
-    // and a tap toggles to the radar whenever radar data is available.
-    apply_top_view(TOP_VIEW_CALENDAR);
+    // The view is session-only state: every launch starts on the DEFAULT view
+    // (calendar + forecast + weather-status) and a wrist-flick toggles it.
+    apply_view(TOP_VIEW_CALENDAR, BOTTOM_FORECAST);
     accel_tap_service_subscribe(tap_handler);
     MEMORY_LOG_HEAP("after_window_load");
 }
@@ -136,7 +184,9 @@ static void main_window_unload(Window *window) {
     MEMORY_LOG_HEAP("before_window_unload");
     time_layer_destroy();
     weather_status_layer_destroy();
+    health_status_layer_destroy();
     forecast_layer_destroy();
+    health_graph_layer_destroy();
     calendar_layer_destroy();
     rain_radar_layer_destroy();
     calendar_status_layer_destroy();
@@ -153,6 +203,11 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     }
     calendar_status_layer_tick();
     loading_layer_refresh();
+    // Keep the health view current only while it is the one on screen.
+    if (s_bottom_view == BOTTOM_HEALTH) {
+        health_graph_layer_refresh();
+        health_status_layer_refresh();
+    }
 #ifndef WW_FIXTURE_NOW_YEAR
     // Live builds only: advance the radar window when a fetch boundary passes.
     // Fixtures are frozen snapshots anchored to the fixture clock — their window
@@ -190,9 +245,10 @@ void main_window_create() {
 }
 
 void main_window_apply_top_view() {
-    // Re-apply the current view after radar availability changed; apply_top_view
-    // downgrades to the calendar when the radar data was cleared.
-    apply_top_view(s_top_view);
+    // Re-apply the current view after radar availability changed; apply_view
+    // downgrades the radar top to the calendar when the radar data was cleared,
+    // while leaving the current bottom (forecast vs. health) untouched.
+    apply_view(s_top_view, s_bottom_view);
 }
 
 void main_window_refresh() {
