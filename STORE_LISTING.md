@@ -40,7 +40,7 @@ FORECAST
 RAIN RADAR (for now only available for Deutscher Wetterdienst)
 - 2-hour precipitation nowcast in 5-minute frames — rain at your exact location plus
   the strongest rain approaching from within 2 km
-- Switch between calendar and radar view with a flick or tap
+- Switch between calendar and radar view with a flick of your wrist
 
 CALENDAR
 - 3-week calendar
