@@ -42,6 +42,14 @@ RAIN RADAR (for now only available for Deutscher Wetterdienst)
   the strongest rain approaching from within 2 km
 - Switch between calendar and radar view with a flick of your wrist
 
+HEALTH VIEW (requires health-capable watch)
+- Flick your wrist to switch the forecast graph to a health overview: hourly step bars,
+  a sleep band along the bottom (light/deep sleep), and a heart-rate dotted line
+- Status line shows today's steps, last night's sleep duration, and current heart rate
+- Heart rate requires a watch with a built-in heart-rate sensor; unavailable values
+  show as placeholders
+- Enable in settings
+
 CALENDAR
 - 3-week calendar
 - Highlight public holidays for your country — 150+ countries worldwide, with

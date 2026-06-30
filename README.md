@@ -42,6 +42,12 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Rain radar showing a 2-hour precipitation nowcast in 5-minute frames — rain at your exact location plus the strongest rain approaching from within 2 km
 * Switch between calendar and radar view (flick/tap)
 
+**Health view** *(requires health-capable watch)*
+* Flick your wrist to switch the forecast graph to a health overview: hourly step bars, a sleep band along the bottom (light sleep / deep sleep), and a heart-rate dotted line
+* Status line shows today's step count, last night's sleep duration, and current heart rate
+* Heart-rate line and current HR require a watch with a built-in heart-rate sensor; unavailable values show as placeholders
+* Enable in settings (Radar/display area)
+
 **Calendar**
 * 3 week calendar
 * Highlight public holidays for your country — 150+ countries worldwide, with region/state granularity where holidays vary (Germany, Austria, Switzerland, Spain, UK, US)

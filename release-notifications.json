@@ -42,5 +42,9 @@
   "1.5.2": {
     "title": "Forecast preview alignment",
     "body": "Settings forecast preview now matches the watch — lines and dots align with the hour ticks and rain bars."
+  },
+  "1.6.0": {
+    "title": "Health view",
+    "body": "Flick your wrist to switch the graph to a health overview: hourly step bars, a sleep band (light/deep), and a heart-rate line. The status line shows today's steps, last night's sleep, and current heart rate. Enable it in settings."
   }
 }
