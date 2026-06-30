@@ -29,7 +29,8 @@ static Config config_defaults(void) {
         .color_us_federal = GColorFolly,
         .color_time = GColorWhite,
         .day_night_shading = true,
-        .health_enabled = true
+        .health_enabled = true,
+        .rain_countdown_horizon_min = 60
     };
 }
 

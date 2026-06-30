@@ -28,6 +28,7 @@ typedef struct {
     bool day_night_shading;
     int16_t fetch_interval_min;
     bool health_enabled;
+    int16_t rain_countdown_horizon_min;
 } Config;
 
 extern Config *g_config;
