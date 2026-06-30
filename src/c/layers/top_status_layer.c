@@ -1,7 +1,9 @@
+#include <string.h>
 #include "top_status_layer.h"
 #include "battery_layer.h"
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
+#include "c/appendix/rain_countdown.h"
 #include "c/services/watch_services.h"
 
 #define BATTERY_W 29
@@ -33,29 +35,35 @@ static GColor s_mute_palette[2];
 // only status-strip element without an event source, so the minute handler
 // repaints the strip only when this flips. Kept in sync by status_icons_refresh.
 static bool s_last_qt_active;
+// Cached rain-countdown alert string + active flag. recompute_rain_alert keeps
+// these in sync from the flash-free Phase B derivation; when active, the alert
+// replaces the month in the strip.
+static char s_rain_alert_text[20];   // "Rain for 120min" = 15 chars + NUL
+static bool s_rain_alert_active;
 
-static GRect month_text_rect(GRect bounds, GFont font) {
+static GRect month_text_rect(GRect bounds, GFont font, const char *text) {
 #ifdef PBL_PLATFORM_EMERY
-    // emery: vertically center month text using measured height to match taller status bar.
+    // emery: vertically center status text using measured height to match taller status bar.
     const GRect measure_box = GRect(0, 0, bounds.size.w, bounds.size.h);
     const GSize text_size = graphics_text_layout_get_content_size(
-        s_calendar_month_text, font, measure_box, GTextOverflowModeFill, GTextAlignmentCenter);
+        text, font, measure_box, GTextOverflowModeFill, GTextAlignmentCenter);
     const int text_y = ((bounds.size.h - text_size.h) / 2) - 5;
     return GRect(0, text_y, bounds.size.w, text_size.h + 3);
 #else
     (void)font;
+    (void)text;
     return GRect(0, -MONTH_FONT_OFFSET, bounds.size.w, 25);
 #endif
 }
 
-static void draw_month_text(GContext *ctx, GRect bounds) {
-    const GFont month_font = fonts_get_system_font(MONTH_FONT_KEY);
+static void draw_status_text(GContext *ctx, GRect bounds, const char *text) {
+    const GFont font = fonts_get_system_font(MONTH_FONT_KEY);
     graphics_context_set_text_color(ctx, GColorWhite);
     graphics_draw_text(
         ctx,
-        s_calendar_month_text,
-        month_font,
-        month_text_rect(bounds, month_font),
+        text,
+        font,
+        month_text_rect(bounds, font, text),
         GTextOverflowModeFill,
         GTextAlignmentCenter,
         NULL);
@@ -138,7 +146,7 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
         draw_bitmap(ctx, s_bt_disconnect_bitmap, GRect(icon_x, STATUS_ICON_Y(bounds.size.h, 10), 10, 10));
     }
 
-    draw_month_text(ctx, bounds);
+    draw_status_text(ctx, bounds, s_rain_alert_active ? s_rain_alert_text : s_calendar_month_text);
 }
 
 void top_status_layer_create(Layer* parent_layer, GRect frame) {
@@ -156,6 +164,7 @@ void top_status_layer_create(Layer* parent_layer, GRect frame) {
     });
     MEMORY_HEAP_PROBE_SAMPLE("after_connection_subscribe", &probe);
 
+    rain_countdown_refresh(watch_services_now());
     top_status_layer_refresh();
 
     layer_set_update_proc(s_top_status_layer, top_status_update_proc);
@@ -197,24 +206,45 @@ void status_icons_refresh() {
     bluetooth_icons_refresh(connection_service_peek_pebble_app_connection());
 }
 
-void top_status_layer_tick() {
-    // Per-minute hook from the tick handler. Battery and Bluetooth icons
-    // repaint from their own service subscriptions (battery_state_service /
-    // connection_service), and the month text only changes on DAY_UNIT, so the
-    // Quiet-Time mute icon is the one element with no event source. Repaint the
-    // strip only when QT actually toggles instead of every minute — the time
-    // layer already drives the unavoidable once-a-minute redraw.
-    bool qt_active = show_qt_icon();
-    if (qt_active == s_last_qt_active) {
-        return;
+// Recompute the rain-alert string from the cached countdown. Returns true if
+// the active flag or the text changed (the caller should mark the layer dirty).
+static bool recompute_rain_alert(void) {
+    char buf[sizeof(s_rain_alert_text)];
+    bool active = rain_countdown_format(buf, sizeof(buf), watch_services_now());
+    if (active == s_rain_alert_active &&
+        (!active || strcmp(buf, s_rain_alert_text) == 0)) {
+        return false;
     }
-    s_last_qt_active = qt_active;
-    layer_mark_dirty(s_top_status_layer);
+    s_rain_alert_active = active;
+    if (active) {
+        strncpy(s_rain_alert_text, buf, sizeof(s_rain_alert_text));
+        s_rain_alert_text[sizeof(s_rain_alert_text) - 1] = '\0';
+    }
+    return true;
+}
+
+void top_status_layer_tick() {
+    // Per-minute hook. Repaint when the Quiet-Time icon toggles (its only event
+    // source) or when the rain-alert string changes (a flash-free derivation
+    // from the cached countdown; the radar scan itself runs only on data change).
+    bool dirty = false;
+    bool qt_active = show_qt_icon();
+    if (qt_active != s_last_qt_active) {
+        s_last_qt_active = qt_active;
+        dirty = true;
+    }
+    if (recompute_rain_alert()) {
+        dirty = true;
+    }
+    if (dirty) {
+        layer_mark_dirty(s_top_status_layer);
+    }
 }
 
 void top_status_layer_refresh() {
     struct tm tm_now = watch_services_localtime();
     strftime(s_calendar_month_text, sizeof(s_calendar_month_text), "%b %Y", &tm_now);
+    recompute_rain_alert();
     status_icons_refresh();
 }
 

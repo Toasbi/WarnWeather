@@ -8,7 +8,10 @@
 #include "c/layers/loading_layer.h"
 #include "c/layers/rain_radar_layer.h"
 #include "c/layers/calendar_layer.h"
+#include "c/layers/top_status_layer.h"
 #include "c/windows/main_window.h"
+#include "c/services/watch_services.h"
+#include "rain_countdown.h"
 #include "memory_log.h"
 
 // Payloads arrive split into categories that map onto screen areas (forecast
@@ -329,6 +332,10 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     }
     if (radar_dirty) {
         rain_radar_layer_refresh();
+        // The radar payload (or the snooze latch/release) is the rain-countdown's
+        // only data-change source: rescan the cache, then repaint the strip.
+        rain_countdown_refresh(watch_services_now());
+        top_status_layer_refresh();
         // Radar availability may have switched — re-evaluate the top view so
         // a cleared radar falls back to the calendar.
         main_window_apply_top_view();
