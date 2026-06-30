@@ -1,5 +1,12 @@
 #include "health.h"
 
+// This HealthService wrapper exists only on health-capable hardware. On
+// platforms without PBL_HEALTH (e.g. aplite) there are no sensors and no
+// callers — the health view that used these accessors is itself compiled out
+// (see health_graph_layer.c / health_status_layer.c / main_window.c) — so the
+// whole module drops out rather than shipping unreachable stubs.
+#if defined(PBL_HEALTH)
+
 #define HOUR_SECS 3600
 
 /* An hour with fewer than 5 minutes of sleep data is classified AWAKE. */
@@ -8,9 +15,7 @@
 /**
  * Returns local midnight (start of today) as a time_t.
  * Uses struct tm + mktime — no floating point.
- * Only compiled on health-capable platforms.
  */
-#if defined(PBL_HEALTH)
 static time_t s_start_of_today(void) {
     time_t now = time(NULL);
     struct tm *t = localtime(&now);
@@ -19,7 +24,6 @@ static time_t s_start_of_today(void) {
     t->tm_sec  = 0;
     return mktime(t);
 }
-#endif
 
 bool health_available(void) {
     return PBL_IF_HEALTH_ELSE(
@@ -108,3 +112,5 @@ void health_fill_hourly_sleep(uint8_t *state_out, int count, time_t end_hour) {
     for (int i = 0; i < count; i++) { state_out[i] = HEALTH_SLEEP_AWAKE; }
 #endif
 }
+
+#endif  // PBL_HEALTH

@@ -34,9 +34,15 @@ static bool radar_has_data(void) {
 }
 
 // The alternate health view is only reachable when the user enabled it AND the
-// platform can serve health data (no-health builds report false).
+// platform can serve health data. On no-health platforms (e.g. aplite, which
+// has no sensors) the whole view is compiled out, so this is a hard false and
+// never references the health service.
 static bool health_view_active(void) {
+#if defined(PBL_HEALTH)
     return g_config->health_enabled && health_available();
+#else
+    return false;
+#endif
 }
 
 static void apply_view(TopView top, BottomView bottom) {
@@ -48,9 +54,13 @@ static void apply_view(TopView top, BottomView bottom) {
     layer_set_hidden(calendar_layer_get_root(), top != TOP_VIEW_CALENDAR);
     layer_set_hidden(rain_radar_layer_get_root(), top != TOP_VIEW_RAIN_RADAR);
     layer_set_hidden(forecast_layer_get_root(), bottom != BOTTOM_FORECAST);
+#if defined(PBL_HEALTH)
     layer_set_hidden(health_graph_layer_get_root(), bottom != BOTTOM_HEALTH);
+#endif
     layer_set_hidden(weather_status_layer_get_root(), bottom != BOTTOM_FORECAST);
+#if defined(PBL_HEALTH)
     layer_set_hidden(health_status_layer_get_root(), bottom != BOTTOM_HEALTH);
+#endif
 }
 
 static void tap_handler(AccelAxisType axis, int32_t direction) {
@@ -65,6 +75,7 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
     if (now_ms - s_last_tap_ms < 500) return;
     s_last_tap_ms = now_ms;
 
+#if defined(PBL_HEALTH)
     if (health_view_active()) {
         // Toggle the whole screen between DEFAULT (calendar/forecast/weather-status)
         // and ALTERNATE (radar-if-data-else-calendar / health-graph / health-status).
@@ -79,6 +90,7 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
         }
         return;
     }
+#endif
 
     // Legacy behaviour: top-only calendar<->radar with the forecast fixed; inert
     // when there is no radar data to show.
@@ -141,9 +153,13 @@ static void main_window_load(Window *window) {
     int forecast_y = weather_status_y + WEATHER_STATUS_HEIGHT;
 
     forecast_layer_create(window_layer, GRect(content_x, forecast_y, forecast_w, forecast_h));
+#if defined(PBL_HEALTH)
     health_graph_layer_create(window_layer, GRect(content_x, forecast_y, forecast_w, forecast_h));
+#endif
     weather_status_layer_create(window_layer, GRect(content_x, weather_status_y, content_w, WEATHER_STATUS_HEIGHT));
+#if defined(PBL_HEALTH)
     health_status_layer_create(window_layer, GRect(content_x, weather_status_y, content_w, WEATHER_STATUS_HEIGHT));
+#endif
     time_layer_create(window_layer, GRect(content_x, time_y, content_w, time_h));
     calendar_layer_create(window_layer, GRect(content_x, calendar_y, content_w, calendar_h));
     rain_radar_layer_create(window_layer, GRect(content_x, calendar_y, content_w, calendar_h));
@@ -152,12 +168,16 @@ static void main_window_load(Window *window) {
 #else
     forecast_layer_create(window_layer,
             GRect(0, h - FORECAST_HEIGHT, w, FORECAST_HEIGHT));
+#if defined(PBL_HEALTH)
     health_graph_layer_create(window_layer,
             GRect(0, h - FORECAST_HEIGHT, w, FORECAST_HEIGHT));
+#endif
     weather_status_layer_create(window_layer,
             GRect(0, h - FORECAST_HEIGHT - WEATHER_STATUS_HEIGHT, w, WEATHER_STATUS_HEIGHT));
+#if defined(PBL_HEALTH)
     health_status_layer_create(window_layer,
             GRect(0, h - FORECAST_HEIGHT - WEATHER_STATUS_HEIGHT, w, WEATHER_STATUS_HEIGHT));
+#endif
     time_layer_create(window_layer,
             GRect(0, h - FORECAST_HEIGHT - WEATHER_STATUS_HEIGHT - TIME_HEIGHT,
             bounds.size.w, TIME_HEIGHT));
@@ -184,9 +204,13 @@ static void main_window_unload(Window *window) {
     MEMORY_LOG_HEAP("before_window_unload");
     time_layer_destroy();
     weather_status_layer_destroy();
+#if defined(PBL_HEALTH)
     health_status_layer_destroy();
+#endif
     forecast_layer_destroy();
+#if defined(PBL_HEALTH)
     health_graph_layer_destroy();
+#endif
     calendar_layer_destroy();
     rain_radar_layer_destroy();
     calendar_status_layer_destroy();
@@ -203,11 +227,13 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     }
     calendar_status_layer_tick();
     loading_layer_refresh();
+#if defined(PBL_HEALTH)
     // Keep the health view current only while it is the one on screen.
     if (s_bottom_view == BOTTOM_HEALTH) {
         health_graph_layer_refresh();
         health_status_layer_refresh();
     }
+#endif
 #ifndef WW_FIXTURE_NOW_YEAR
     // Live builds only: advance the radar window when a fetch boundary passes.
     // Fixtures are frozen snapshots anchored to the fixture clock — their window

@@ -8,6 +8,13 @@
 #include "c/appendix/hatch.h"
 #include "c/services/health.h"
 
+// The health view exists only on health-capable hardware. Platforms without
+// PBL_HEALTH (e.g. aplite, which has no sensors) compile this module out
+// entirely — its code + per-redraw scratch would otherwise burn ~scarce RAM
+// for a view that can never activate. main_window.c gates the create/toggle
+// calls behind the same guard.
+#if defined(PBL_HEALTH)
+
 // ---------------------------------------------------------------------------
 // Geometry constants. These mirror forecast_layer.c so the health grid lines
 // up pixel-for-pixel with the forecast view it stands in for.
@@ -286,3 +293,5 @@ void health_graph_layer_destroy(void) {
     layer_destroy(s_health_graph_layer);
     s_health_graph_layer = NULL;
 }
+
+#endif  // PBL_HEALTH

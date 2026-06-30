@@ -2,6 +2,10 @@
 #include "c/appendix/memory_log.h"
 #include "c/services/health.h"
 
+// Compiled only on health-capable hardware; see health_graph_layer.c and
+// main_window.c for the platform gating rationale.
+#if defined(PBL_HEALTH)
+
 // Mirror weather_status_layer.c font/offset constants exactly so this row
 // occupies the same height as the weather status line (Task 7 places them
 // in the same band).
@@ -167,3 +171,5 @@ void health_status_layer_destroy(void) {
     layer_destroy(s_health_status_layer);
     MEMORY_LOG_HEAP("health_status_layer_destroy:after");
 }
+
+#endif  // PBL_HEALTH
