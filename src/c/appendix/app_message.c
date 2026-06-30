@@ -215,12 +215,14 @@ static bool handle_clay_config(DictionaryIterator *iterator, bool *config_dirty)
     Tuple *clay_color_time_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_COLOR_TIME);
     Tuple *clay_day_night_shading_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_DAY_NIGHT_SHADING);
     Tuple *clay_fetch_interval_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_FETCH_INTERVAL_MIN);
+    Tuple *clay_health_enabled_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_HEALTH_ENABLED);
 
     if (!(clay_celsius_tuple && clay_time_lead_zero_tuple && clay_axis_12h_tuple && clay_start_mon_tuple
         && clay_prev_week_tuple && clay_color_today_tuple && clay_time_font_tuple && clay_vibe_tuple
         && clay_show_qt_tuple && clay_show_bt_tuple && clay_show_bt_disconnect_tuple && clay_show_am_pm_tuple
         && clay_color_saturday_tuple && clay_color_sunday_tuple && clay_color_us_federal_tuple
-        && clay_color_time_tuple && clay_day_night_shading_tuple && clay_fetch_interval_tuple)) {
+        && clay_color_time_tuple && clay_day_night_shading_tuple && clay_fetch_interval_tuple
+        && clay_health_enabled_tuple)) {
         return false;
     }
 
@@ -239,6 +241,7 @@ static bool handle_clay_config(DictionaryIterator *iterator, bool *config_dirty)
     config.show_bt_disconnect = (bool) (clay_show_bt_disconnect_tuple->value->int16);
     config.show_am_pm = (bool) (clay_show_am_pm_tuple->value->int16);
     config.day_night_shading = (bool) (clay_day_night_shading_tuple->value->int16);
+    config.health_enabled = (bool) (clay_health_enabled_tuple->value->int16);
     config.fetch_interval_min = clay_fetch_interval_tuple->value->int16;
     config.time_font = clay_time_font_tuple->value->int16;
     config.color_today = GColorFromHEX(clay_color_today_tuple->value->int32);

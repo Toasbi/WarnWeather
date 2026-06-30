@@ -79,7 +79,8 @@
     },
     "capabilities": [
       "location",
-      "configurable"
+      "configurable",
+      "health"
     ],
     "messageKeys": [
       "TEMP_TREND_UINT8",
