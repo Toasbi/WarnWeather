@@ -12,6 +12,7 @@
 #include "c/appendix/display_width.h"
 #include "c/appendix/chart.h"
 #include "c/appendix/series.h"
+#include "c/appendix/forecast_grid.h"
 
 #define LEFT_AXIS_LABEL_STRIP_MIN_W 15
 #define LEFT_AXIS_LABEL_TO_GRAPH_GAP 2
@@ -39,20 +40,6 @@
 #define FORECAST_STEP_SECONDS (60 * 60)
 #define DAY_SECONDS (24 * 60 * 60)
 
-// Slot grid bar dimensions, bucketed by display width.
-// pitch = tick_w + 2*pad + bar_w
-//   144-bucket: 1 + 2 + 4 = 7 → 24*7 + 1 = 169 px after the left axis
-//                              (127 px available → overflows by 42, rightmost slots clip)
-//   200-bucket: 1 + 2 + 5 = 8 → 24*8 + 1 = 193 px after the left axis
-//                              (181 px available on emery → overflows by 12, rightmost slots clip)
-#if defined(DISPLAY_WIDTH_200)
-    #define FORECAST_BAR_W 5
-    #define FORECAST_PAD   1
-#elif defined(DISPLAY_WIDTH_144)
-    #define FORECAST_BAR_W 4
-    #define FORECAST_PAD   1
-#endif
-
 // Chart config: frame + ticks + slots in one block. Two variants because
 // the axis colour tracks the night-overlay state — orange (or white on
 // B&W) normally, darker grey under night shading so the axis reads as
@@ -70,14 +57,6 @@
 #else
     #define FORECAST_TICK_SMALL_COLOR  GColorLightGray
 #endif
-
-static const ChartDef FORECAST_DEF = {
-    .num_slots = MAX_FORECAST_ENTRIES,
-    .tick_w    = 1,
-    .bar_pad   = FORECAST_PAD,
-    .bar_w     = FORECAST_BAR_W,
-    .inset_left = 1, .inset_bottom = 1,   // 1px left + bottom border rows
-};
 
 // Tick style for the bottom axis (kinds come from the per-slot data)
 static const TickSide FORECAST_TICK_STYLE = {
@@ -140,7 +119,7 @@ static void load_dataset(ForecastDataset *ds) {
         .id = SERIES_THIRD, .kind = SERIES_KIND_LINE,
         .present = persist_series_present(SERIES_THIRD),
         .line = { .color  = persist_get_third_line_color(),   // raw per-metric — SDK reduces on B&W
-                  .width  = FORECAST_BAR_W,   // dots match the rain-bar columns
+                  .width  = FORECAST_GRID_BAR_W,   // dots match the rain-bar columns
                   .dotted = true } };
 
     ds->series[SERIES_BARS] = (Series){
@@ -357,37 +336,6 @@ static void draw_left_axis(GContext *ctx, int h) {
 }
 
 
-// Bottom-axis slots: hour digit every 3rd slot; small screens mark the
-// midpoint between digits with a small tick, emery ticks every slot and
-// keeps a big tick under each digit.
-static void forecast_fill_axis_slots(ChartAxisSlot *slots, int num_slots,
-                                     int origin_x, int pitch, int visible_w,
-                                     const struct tm *start_local) {
-    for (int i = 0; i < num_slots; ++i) {
-        slots[i].label[0] = '\0';
-        slots[i].tick     = TICK_NONE;
-        if ((i % 3) != 0) {
-#ifdef PBL_PLATFORM_EMERY
-            // emery: a tick on every slot keeps the dense grid readable
-            slots[i].tick = TICK_SMALL;
-#else
-            if ((i % 3) == 1) slots[i].tick = TICK_SMALL;  // midpoint marker
-#endif
-            continue;
-        }
-#ifdef PBL_PLATFORM_EMERY
-        slots[i].tick = TICK_BIG;  // emery: digit slots keep their big tick
-#endif
-        const int hour = config_axis_hour(start_local->tm_hour + i);
-#ifndef PBL_PLATFORM_EMERY
-        // Two-digit labels sliced by the screen edge are omitted instead of
-        // drawing half a number (was clip logic in the tick callback).
-        if (hour >= 10 && (origin_x + i * pitch - 3) + 8 > visible_w) continue;
-#endif
-        snprintf(slots[i].label, sizeof(slots[i].label), "%d", hour);
-    }
-}
-
 static void forecast_update_proc(Layer *layer, GContext *ctx)
 {
     MEMORY_LOG_HEAP("forecast_update:enter");
@@ -419,7 +367,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     }
     const int16_t axis_y     = h - BOTTOM_AXIS_H;
     const int16_t grid_right = graph_bounds.origin.x
-                             + ds.num_entries * chart_def_pitch(&FORECAST_DEF);
+                             + ds.num_entries * chart_def_pitch(&FORECAST_GRID_DEF);
     const GRect outer = GRect(graph_bounds.origin.x, 0,
                               grid_right - graph_bounds.origin.x + 1,
                               axis_y + 1);
@@ -432,8 +380,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // scratch.
     static GPoint  area_pts[MAX_FORECAST_ENTRIES + 2];
     static ChartAxisSlot axis_slots[MAX_FORECAST_ENTRIES];
-    forecast_fill_axis_slots(axis_slots, MAX_FORECAST_ENTRIES,
-                             outer.origin.x, chart_def_pitch(&FORECAST_DEF),
+    forecast_grid_fill_axis_slots(axis_slots, MAX_FORECAST_ENTRIES,
+                             outer.origin.x, chart_def_pitch(&FORECAST_GRID_DEF),
                              bounds.size.w, forecast_start_local);
 
     Series *first  = &ds.series[SERIES_FIRST];
@@ -450,7 +398,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // on the same hour columns (anchor_x + i*pitch) the ticks/lines use.
     const GRect night_plot_rect = GRect(outer.origin.x, 0,
                                         (ds.num_entries - 1)
-                                            * chart_def_pitch(&FORECAST_DEF),
+                                            * chart_def_pitch(&FORECAST_GRID_DEF),
                                         outer.size.h - 1);
     static ChartBand night_bands[3];   // aplite: per-frame scratch — static not stack; NightSegments holds at most 3
     int num_night_bands = 0;
@@ -562,7 +510,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         .side = GRAPH_SIDE_BOTTOM, .style = FORECAST_TICK_STYLE,
         .slots = axis_slots,
         .label_align = ALIGN_START, .tick_align = ALIGN_START } };
-    chart_draw(ctx, &FORECAST_DEF, outer, layers, n);
+    chart_draw(ctx, &FORECAST_GRID_DEF, outer, layers, n);
 
     draw_left_axis(ctx, h);   // hi/lo temp strip: chart-adjacent chrome,
                               // not a chart layer (spec §4 engine boundary)
