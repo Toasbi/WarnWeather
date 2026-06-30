@@ -11,6 +11,7 @@ var path = require('path');
 var build = require('../src/pkjs/config-ui/scripts/build-page.js');
 
 var ROOT = path.join(__dirname, '..');
+var platformLib = require(path.join(ROOT, 'src/pkjs/config-ui/lib/platform.js'));
 var schema = require(path.join(ROOT, 'src/pkjs/settings/schema.js'));
 var previewPalette = require(path.join(ROOT, 'src/pkjs/settings/preview-palette.js'));
 var APP_FILES = [
@@ -39,13 +40,10 @@ function parseArgs(args) {
   return { out: out || DEFAULT_OUT, platform: platform || 'basalt' };
 }
 
-// color/round mirror each platform's hardware so showWhen env-gates render as they would on-watch.
+// Delegate to the platform SoT (platform.js) so color/round/health env-gates
+// render exactly as they would on-watch — no duplicated platform table here.
 function envFor(platform) {
-  return {
-    color: platform !== 'aplite' && platform !== 'diorite',
-    round: platform === 'chalk',
-    platform: platform
-  };
+  return platformLib.computeEnv({ platform: platform });
 }
 
 function run(opts) {

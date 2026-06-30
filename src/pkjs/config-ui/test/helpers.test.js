@@ -24,10 +24,17 @@ test('isColorPlatform: 1-bit set is b&w, others (and unknown) color', () => {
   assert.equal(platform.isColorPlatform(''), true);
 });
 
+test('isHealthPlatform: only aplite lacks health; others (and unknown) have it', () => {
+  assert.equal(platform.isHealthPlatform('aplite'), false);
+  ['basalt','chalk','diorite','emery','flint'].forEach((p) => assert.equal(platform.isHealthPlatform(p), true, p));
+  assert.equal(platform.isHealthPlatform(''), true);
+});
+
 test('computeEnv from watchInfo', () => {
-  assert.deepEqual(platform.computeEnv({ platform: 'flint' }), { color: false, round: false, platform: 'flint' });
-  assert.deepEqual(platform.computeEnv({ platform: 'chalk' }), { color: true, round: true, platform: 'chalk' });
-  assert.deepEqual(platform.computeEnv(null), { color: true, round: false, platform: '' });
+  assert.deepEqual(platform.computeEnv({ platform: 'flint' }), { color: false, round: false, platform: 'flint', health: true });
+  assert.deepEqual(platform.computeEnv({ platform: 'chalk' }), { color: true, round: true, platform: 'chalk', health: true });
+  assert.deepEqual(platform.computeEnv({ platform: 'aplite' }), { color: false, round: false, platform: 'aplite', health: false });
+  assert.deepEqual(platform.computeEnv(null), { color: true, round: false, platform: '', health: true });
 });
 
 test('deriveDefaults/deriveColorKeys are schema-driven (colors as ints)', () => {

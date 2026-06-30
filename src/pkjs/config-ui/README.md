@@ -297,15 +297,16 @@ Populated by the library from `Pebble.getActiveWatchInfo()` at `generateUrl` tim
 env = {
   color:    true,       // false for aplite, diorite, flint (known 1-bit platforms)
   round:    false,      // true only for chalk
-  platform: "basalt"    // raw platform string
+  platform: "basalt",   // raw platform string
+  health:   true        // false for aplite (no PBL_HEALTH sensors)
 }
-// Fallback when watchInfo is unavailable: { color: true, round: false, platform: '' }
+// Fallback when watchInfo is unavailable: { color: true, round: false, platform: '', health: true }
 ```
 
-The set of known 1-bit platforms (`aplite`, `diorite`, `flint`) is a Pebble fact owned by the
-library in `lib/platform.js`. The `color = true` fallback is conservative (show color controls if
-the platform is unknown). `env.round` is exposed for forward-compatibility; `env.color` is the
-load-bearing value.
+The set of known 1-bit platforms (`aplite`, `diorite`, `flint`) and the no-health platform
+(`aplite`) are Pebble facts owned by the library in `lib/platform.js`. The `color = true` and
+`health = true` fallbacks are conservative (show the controls if the platform is unknown). `env.round`
+is exposed for forward-compatibility; `env.color` and `env.health` are the load-bearing values.
 
 ### Hidden-item serialization rule
 

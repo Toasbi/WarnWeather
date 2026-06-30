@@ -425,7 +425,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @returns {void}
    */
   function boot() {
-    var SCHEMA = INJECTED_SCHEMA, ENV = INJECTED_ENV || { color: true, round: false, platform: '' };
+    var SCHEMA = INJECTED_SCHEMA, ENV = INJECTED_ENV || { color: true, round: false, platform: '', health: true };
     var USERDATA = INJECTED_USERDATA || {}, RETURN_TO = INJECTED_RETURN || 'pebblejs://close#';
     var S = hydrate(SCHEMA, INJECTED_CFG), INITIAL = Object.assign({}, S);
     var activeTab = SCHEMA.tabs[0].id, openColor = null, openSelect = null, selectQuery = '', collapsed = initialCollapsed(SCHEMA);

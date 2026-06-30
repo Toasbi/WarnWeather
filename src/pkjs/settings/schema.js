@@ -230,6 +230,9 @@ module.exports = {
                 messageKey: 'healthEnabled',
                 label: 'Health view',
                 defaultValue: true,
+                // aplite has no health sensors — the watch compiles the view out,
+                // so hide the inert toggle there (see platform.js health env flag).
+                showWhen: {env: 'health'},
                 hint: 'Flick your wrist to switch the forecast graph and status line to a health view: hourly steps, a sleep band, and heart rate. Heart rate needs a watch with a heart-rate sensor.'
             }]
         }]

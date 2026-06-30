@@ -76,6 +76,13 @@ test('COLOR-capability + showWhen wiring', () => {
   assert.deepEqual(byKey('devStatsClear').showWhen, { key: 'devStatsEnabled', eq: true });
 });
 
+test('health view toggle is gated to health-capable platforms', () => {
+  // aplite has no health sensors (PBL_HEALTH undefined), so the watch compiles
+  // the view out entirely — hide the now-inert setting there instead of showing
+  // a toggle that does nothing.
+  assert.deepEqual(byKey('healthEnabled').showWhen, { env: 'health' });
+});
+
 test('secondaryLine is a 4-metric dropdown with no Off', () => {
   const sec = byKey('secondaryLine');
   assert.equal(sec.type, 'select');
