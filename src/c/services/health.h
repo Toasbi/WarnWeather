@@ -1,0 +1,44 @@
+#pragma once
+
+#include <pebble.h>
+
+/* Sleep state constants for health_fill_hourly_sleep() */
+#define HEALTH_SLEEP_AWAKE 0
+#define HEALTH_SLEEP_LIGHT 1
+#define HEALTH_SLEEP_DEEP  2
+
+/** Returns true if step-count health data is accessible right now. */
+bool health_available(void);
+
+/** Returns true if HR data is accessible (HRM hardware + data present). */
+bool health_hr_available(void);
+
+/** Returns today's total step count, or 0 if unavailable. */
+int health_steps_today(void);
+
+/** Returns sum of SleepSeconds over the past 24 h, or 0 if unavailable. */
+int health_sleep_recent_seconds(void);
+
+/** Returns the current heart rate in BPM, or 0 if unavailable. */
+int health_hr_current(void);
+
+/**
+ * Fills `count` hourly step-count buckets.
+ * out[0] = oldest hour, out[count-1] = the hour ending at end_hour.
+ * Zeroes the array on no-health builds.
+ */
+void health_fill_hourly_steps(int16_t *out, int count, time_t end_hour);
+
+/**
+ * Fills `count` hourly average-BPM buckets (0 if no data for that hour).
+ * out[0] = oldest hour, out[count-1] = the hour ending at end_hour.
+ * Zeroes the array on no-health builds.
+ */
+void health_fill_hourly_hr(int16_t *out, int count, time_t end_hour);
+
+/**
+ * Fills `count` hourly sleep-state buckets with HEALTH_SLEEP_* values.
+ * out[0] = oldest hour, out[count-1] = the hour ending at end_hour.
+ * Zeroes the array on no-health builds.
+ */
+void health_fill_hourly_sleep(uint8_t *state_out, int count, time_t end_hour);
