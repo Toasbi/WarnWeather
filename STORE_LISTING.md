@@ -55,6 +55,8 @@ HEALTH VIEW (requires health-capable watch)
 
 CALENDAR
 - 3-week calendar
+- Compact top view (default): a 2-row calendar (this week + next) with a larger status
+  line and a taller forecast/health area — toggle off for the classic 3-row calendar
 - Highlight public holidays for your country — 150+ countries worldwide, with
   region/state granularity where holidays vary (Germany, Austria, Switzerland, Spain, UK,
   United States)

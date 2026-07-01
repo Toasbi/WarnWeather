@@ -45,6 +45,6 @@
   },
   "1.6.0": {
     "title": "Health view",
-    "body": "Flick your wrist to switch the graph to a health overview: hourly step bars, a sleep band (light/deep), and a heart-rate line. It opens instantly, and the latest hour keeps filling in live. The status line shows today's steps, last night's sleep, and current heart rate. Enable it in settings. Also new: an optional rain countdown that turns the month into \"Rain in X min\" when rain is on the way."
+    "body": "Flick your wrist to switch the graph to a health overview: hourly step bars, a sleep band (light/deep), and a heart-rate line. It opens instantly, and the latest hour keeps filling in live. The status line shows today's steps, last night's sleep, and current heart rate. Enable it in settings. Also new: an optional rain countdown that turns the month into \"Rain in X min\" when rain is on the way, and a compact top view — a 2-row calendar with a larger status line and a taller forecast area (on by default; switch it off in settings)."
   }
 }
