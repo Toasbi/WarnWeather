@@ -12,7 +12,7 @@
 
 // Delay before the deferred (re)build runs, so the loading frame paints first.
 // Imperceptible; tune on device if a build ever feels laggy behind it.
-#define HEALTH_CACHE_DEFER_MS 100
+#define HEALTH_CACHE_DEFER_MS 1500
 
 // --- Cache storage (module .bss, no heap) ---------------------------------
 static int16_t s_steps[N];
