@@ -113,3 +113,7 @@ run = [
   "node scripts/build-config-page.js",
   "node --test",
 ]
+
+[tasks.aplite-size]
+description = "Build and print aplite boot free-heap (lean-twin headroom leading indicator)"
+run = "scripts/aplite-size.sh"

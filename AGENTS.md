@@ -147,6 +147,34 @@ calling it directly. Exempt: `src/pkjs/clay/` is vendored and runs in the phone 
 - `ENABLE_MEMORY_LOGGING=1` does **not** build on aplite — the `MEM|` logging overflows
   `.bss`. Capture heap logs on diorite (a B/W proxy) or another platform instead.
 
+## Aplite source-fork convention
+
+Aplite (Pebble Classic/Steel) is a **frozen, lean variant**: a fixed feature set
+while other platforms grow past its 24 KB budget. Reach for the earliest
+mechanism that applies:
+
+1. **Capability macro** (`PBL_HEALTH`, `PBL_COLOR`/`PBL_IF_COLOR_ELSE`) — aplite
+   genuinely can't. Health lives here; do not demote it.
+2. **Exclusion** — an aplite-*absent* feature: give it its own leaf file and guard
+   its entry points so `--gc-sections` reaps it on aplite. No twin, no duplicate.
+3. **Lean twin** (`foo_aplite.c`) — aplite must still answer `foo.h`'s interface,
+   cheaply. It is a same-directory sibling of `foo.c`, selected by the `wscript`
+   filter; callers just `#include "foo.h"`. **Feature-frozen, not code-frozen:**
+   bugfixes are hand-ported, interface changes are forced by the aplite link
+   error. Start each twin with a provenance header naming `foo.c` and the
+   fork-point SHA. **Never fork contract files** (`app_message.c`, `persist.c`,
+   `config.c`) — savings there come indirectly via `--gc-sections`.
+4. **Interleaved `#ifdef PBL_PLATFORM_APLITE`** — last resort only.
+
+`scripts/check-aplite-twins.js` (CI, `aplite-twins-required.yml`) enforces that
+every `foo_aplite.c` has a same-dir `foo.c`+`foo.h`, and prompts a port review
+when a base changes without its twin (escape hatch: an `Aplite-Twin-Reviewed:`
+commit trailer). `mise aplite-size` prints the aplite image footprint
+(`text+data+bss`) via `arm-none-eabi-size` — the 1:1 leading indicator for a
+twin's recovery (every byte shrunk is a byte of heap); gate the real decision
+on runtime peak-free heap measured on the diorite proxy. See
+`docs/adr/0001-aplite-frozen-lean-fork.md` and `CONTEXT.md`.
+
 ## Debugging
 
 - C: `APP_LOG(APP_LOG_LEVEL_DEBUG, "msg %d", value);`
