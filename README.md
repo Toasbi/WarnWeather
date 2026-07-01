@@ -41,7 +41,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 **Radar (for now only available for Deutscher Wetterdienst)**
 * Rain radar showing a 2-hour precipitation nowcast in 5-minute frames — rain at your exact location plus the strongest rain approaching from within 2 km
 * Switch between calendar and radar view (flick/tap)
-* Optional rain countdown: when rain is on the way, the month turns into "Rain in X min" (and "Rain for X min" while it's raining), with a configurable look-ahead (30 min / 60 min / 2 hours)
+* Optional rain countdown: when rain is on the way, the month turns into "Drizzle / Rain / Downpour in X min" (and "… for X min" while it's raining) — with a rain-lines intensity icon colour-matched to the radar bars, and a configurable look-ahead (30 min / 60 min / 2 hours)
 
 **Health view** *(requires health-capable watch)*
 * Flick your wrist to switch the forecast graph to a health overview: hourly step bars, a sleep band along the bottom (light sleep / deep sleep), and a heart-rate dotted line
