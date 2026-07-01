@@ -9,6 +9,7 @@
 #include "c/layers/health_graph_layer.h"
 #include "c/layers/health_status_layer.h"
 #include "c/services/health.h"
+#include "c/services/health_cache.h"
 #include "c/appendix/app_message.h"
 #include "c/appendix/persist.h"
 #include "c/appendix/config.h"
@@ -28,6 +29,12 @@ typedef enum {
 // weather-status). A wrist-flick (accel tap) toggles the whole screen.
 static TopView s_top_view;
 static BottomView s_bottom_view;
+
+#if defined(PBL_HEALTH)
+// Tracks the last-seen health_enabled so a false->true flip (settings, boot)
+// triggers exactly one cache rebuild.
+static bool s_health_enabled_prev;
+#endif
 
 static bool radar_has_data(void) {
     return persist_get_rain_radar_start() > 0;
@@ -80,10 +87,12 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
         // Toggle the whole screen between DEFAULT (calendar/forecast/weather-status)
         // and ALTERNATE (radar-if-data-else-calendar / health-graph / health-status).
         if (s_bottom_view == BOTTOM_FORECAST) {
-            // Pull fresh health data before the alternate view becomes visible.
+            // Cheap in-progress-hour re-read (no-op if a build is pending), then
+            // render from the cache. apply_view downgrades the radar top to the
+            // calendar when there is no data.
+            health_cache_refresh_current_hour();
             health_graph_layer_refresh();
             health_status_layer_refresh();
-            // apply_view downgrades the radar top to the calendar when there is no data.
             apply_view(TOP_VIEW_RAIN_RADAR, BOTTOM_HEALTH);
         } else {
             apply_view(TOP_VIEW_CALENDAR, BOTTOM_FORECAST);
@@ -195,6 +204,15 @@ static void main_window_load(Window *window) {
     // The view is session-only state: every launch starts on the DEFAULT view
     // (calendar + forecast + weather-status) and a wrist-flick toggles it.
     apply_view(TOP_VIEW_CALENDAR, BOTTOM_FORECAST);
+#if defined(PBL_HEALTH)
+    // Repaint the health view when a deferred build finishes.
+    health_cache_set_repaint(health_graph_layer_refresh);
+    // Warm the cache at boot when health is enabled so the first flick is ready.
+    s_health_enabled_prev = g_config->health_enabled;
+    if (g_config->health_enabled) {
+        health_cache_reset();
+    }
+#endif
     accel_tap_service_subscribe(tap_handler);
     MEMORY_LOG_HEAP("after_window_load");
 }
@@ -228,7 +246,13 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     calendar_status_layer_tick();
     loading_layer_refresh();
 #if defined(PBL_HEALTH)
-    // Keep the health view current only while it is the one on screen.
+    // Keep the cache warm whenever health is enabled (rollover-warm always; the
+    // 15-min current-hour re-read only while the view is visible). The render
+    // path stays HealthService-free.
+    if (g_config->health_enabled) {
+        health_cache_tick(s_bottom_view == BOTTOM_HEALTH);
+    }
+    // Repaint the on-screen health view from the (now-warm) cache.
     if (s_bottom_view == BOTTOM_HEALTH) {
         health_graph_layer_refresh();
         health_status_layer_refresh();
@@ -271,6 +295,13 @@ void main_window_create() {
 }
 
 void main_window_apply_top_view() {
+#if defined(PBL_HEALTH)
+    // A settings flip enabling health (false->true) warms the cache immediately.
+    if (g_config->health_enabled && !s_health_enabled_prev) {
+        health_cache_reset();
+    }
+    s_health_enabled_prev = g_config->health_enabled;
+#endif
     // Re-apply the current view after radar availability or health config changed.
     // apply_view downgrades the radar top to the calendar when the radar data was
     // cleared. The bottom is clamped to BOTTOM_FORECAST when health is no longer
