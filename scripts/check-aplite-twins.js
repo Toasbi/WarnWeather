@@ -42,6 +42,10 @@ function twinPairs(files) {
 
 /**
  * Invariant 1: every lean twin must have a same-directory base .c and shared .h.
+ * Note: requiring the shared .h here is intentionally STRICTER than the
+ * wscript build filter, which swaps in foo_aplite.c for foo.c on aplite
+ * regardless of whether a shared foo.h exists. Don't relax this to match the
+ * build — the .h requirement is what keeps a twin's public surface honest.
  * @param {string[]} files Repo-relative source paths.
  * @returns {string[]} Violation messages (empty when clean).
  */

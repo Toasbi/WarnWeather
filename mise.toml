@@ -115,5 +115,5 @@ run = [
 ]
 
 [tasks.aplite-size]
-description = "Build and print aplite boot free-heap (lean-twin headroom leading indicator)"
+description = "Build and print aplite image footprint (text+data+bss via arm-none-eabi-size; heap leading indicator)"
 run = "scripts/aplite-size.sh"

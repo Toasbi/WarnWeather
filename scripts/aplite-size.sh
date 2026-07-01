@@ -23,6 +23,8 @@ fi
 # Locate arm-none-eabi-size: PATH first, else the Pebble SDK toolchain.
 size_bin=$(command -v arm-none-eabi-size 2>/dev/null || true)
 if [ -z "$size_bin" ]; then
+  # Any installed SDK toolchain works — arm-none-eabi-size reads ELF section
+  # sizes identically across versions, so the specific pick is arbitrary.
   size_bin=$(find "$HOME/Library/Application Support/Pebble SDK/SDKs" \
     -name arm-none-eabi-size 2>/dev/null | sort | tail -1)
 fi
