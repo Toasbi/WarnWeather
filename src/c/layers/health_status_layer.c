@@ -1,4 +1,5 @@
 #include "health_status_layer.h"
+#include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
 #include "c/services/health.h"
 
@@ -17,9 +18,13 @@
 #ifdef PBL_PLATFORM_EMERY
 #define STATUS_FONT_KEY FONT_KEY_GOTHIC_18
 #define SLOT_Y_OFFSET FONT_18_OFFSET
+#define COMPACT_STATUS_FONT_KEY FONT_KEY_GOTHIC_24
+#define COMPACT_SLOT_Y_OFFSET 9
 #else
 #define STATUS_FONT_KEY FONT_KEY_GOTHIC_14
 #define SLOT_Y_OFFSET FONT_14_OFFSET
+#define COMPACT_STATUS_FONT_KEY FONT_KEY_GOTHIC_18
+#define COMPACT_SLOT_Y_OFFSET FONT_18_OFFSET
 #endif
 
 #define STATUS_TEXT_OVERFLOW GTextOverflowModeTrailingEllipsis
@@ -48,7 +53,11 @@ static GRect frame_hr;
 
 static Layer *s_health_status_layer;
 
-static GFont status_font(void) { return fonts_get_system_font(STATUS_FONT_KEY); }
+static bool status_compact(void) { return g_config->compact_top_view; }
+
+static GFont status_font(void) {
+    return fonts_get_system_font(status_compact() ? COMPACT_STATUS_FONT_KEY : STATUS_FONT_KEY);
+}
 
 // ---------------------------------------------------------------------------
 // Slot refresh helpers
@@ -94,7 +103,8 @@ static void hr_slot_refresh(void) {
 static void health_status_layout(void) {
     GRect bounds = layer_get_bounds(s_health_status_layer);
     int w = bounds.size.w;
-    int y = -SLOT_Y_OFFSET;
+    int off = status_compact() ? COMPACT_SLOT_Y_OFFSET : SLOT_Y_OFFSET;
+    int y = -off;
 
     // Steps: flush left
     GSize steps_size = graphics_text_layout_get_content_size(
@@ -116,7 +126,7 @@ static void health_status_layout(void) {
         s_sleep_buf, status_font(), GRect(0, 0, center_w, 100),
         STATUS_TEXT_OVERFLOW, GTextAlignmentCenter);
     frame_sleep = GRect(center_x, y, center_w,
-                        sleep_size.h + SLOT_Y_OFFSET);
+                        sleep_size.h + off);
 }
 
 // ---------------------------------------------------------------------------
