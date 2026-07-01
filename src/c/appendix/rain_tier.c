@@ -25,6 +25,13 @@ int rain_tier_of_tenths(int tenths) {
     return RAIN_TIER_COUNT;
 }
 
+int rain_tier_to_bucket3(int tier) {
+    if (tier <= 0) { return 0; }
+    if (tier <= 2) { return 1; }  // drizzle
+    if (tier == 3) { return 2; }  // rain
+    return 3;                     // downpour (tier 4-5)
+}
+
 static int rain_tier_fill_q8(int tenths, int tier) {
     int low, high;
     switch (tier) {

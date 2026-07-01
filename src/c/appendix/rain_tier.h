@@ -9,6 +9,10 @@
 // Returns 1..RAIN_TIER_COUNT for tenths > 0, or 0 for tenths <= 0.
 int rain_tier_of_tenths(int tenths);
 
+// Collapse a radar tier (0..RAIN_TIER_COUNT) to the 3 alert buckets:
+// 0 -> 0 (none), tier 1-2 -> 1 (drizzle), tier 3 -> 2 (rain), tier 4-5 -> 3 (downpour).
+int rain_tier_to_bucket3(int tier);
+
 // Continuous pixel height for a bar of `tenths` rain: full lower-tier
 // slabs plus a fractional topmost slab. Returns 0 for tenths <= 0;
 // clamps to >= 1 otherwise.
