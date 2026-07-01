@@ -46,7 +46,6 @@ DwdProvider.prototype.withDwdForecast = function(lat, lon, callback, onFailure) 
         + '&date=' + encodeURIComponent(win.start)
         + '&last_date=' + encodeURIComponent(win.end)
         + '&max_dist=' + MAX_DIST_METERS;
-    console.log('Requesting ' + url);
     request(url, 'GET', function(response) {
         try {
             callback(JSON.parse(response).weather);
@@ -65,7 +64,6 @@ DwdProvider.prototype.withDwdCurrent = function(lat, lon, callback, onFailure) {
         + '?lat=' + lat
         + '&lon=' + lon
         + '&max_dist=' + MAX_DIST_METERS;
-    console.log('Requesting ' + url);
     request(url, 'GET', function(response) {
         try {
             callback(celsiusToFahrenheit(JSON.parse(response).weather.temperature));

@@ -20,8 +20,6 @@ OpenWeatherMapProvider.prototype._super = WeatherProvider;
 OpenWeatherMapProvider.prototype.withOwmResponse = function(lat, lon, callback, onFailure) {
     var url = 'https://api.openweathermap.org/data/3.0/onecall?appid=' + this.apiKey + '&lat=' + lat + '&lon=' + lon + '&units=imperial&exclude=alerts,minutely';
 
-    console.log('Requesting ' + url);
-
     request(
         url,
         'GET',

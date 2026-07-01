@@ -235,7 +235,6 @@ function mapUv(json, startTime) {
 function fetchUvInto(provider, lat, lon, done) {
     if (!provider.fetchUv) { done(); return; }
     var uvUrl = buildUvUrl(lat, lon);
-    console.log('Requesting ' + uvUrl);
     request(uvUrl, 'GET', function(resp) {
         var uvs = null;
         try { uvs = mapUv(JSON.parse(resp), provider.startTime); }
@@ -250,7 +249,6 @@ function fetchUvInto(provider, lat, lon, done) {
 
 OpenMeteoProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, onFailure) {
     var url = buildForecastUrl(lat, lon);
-    console.log('Requesting ' + url);
     request(url, 'GET', (function(response) {
         var json;
         var mapped;
@@ -278,7 +276,6 @@ OpenMeteoProvider.prototype.withProviderData = function(lat, lon, force, onSucce
         // empty gust call just leaves the null placeholder, so the gust line
         // stays hidden rather than failing the whole forecast.
         var gustUrl = buildGustUrl(lat, lon);
-        console.log('Requesting ' + gustUrl);
         request(gustUrl, 'GET', (function(gustResponse) {
             var gusts = null;
             try {

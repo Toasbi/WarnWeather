@@ -18,8 +18,6 @@ WundergroundProvider.prototype.withWundergroundForecast = function(lat, lon, api
     // callback(wundergroundResponse)
     var url = 'https://api.weather.com/v1/geocode/' + lat + '/' + lon + '/forecast/hourly/48hour.json?apiKey=' + apiKey + '&language=en-US';
 
-    console.log('Requesting ' + url);
-
     request(
         url,
         'GET',
@@ -51,8 +49,6 @@ WundergroundProvider.prototype.withWundergroundCurrent = function(lat, lon, apiK
     var url = 'https://api.weather.com/v3/wx/observations/current?language=en-US&units=e&format=json'
         + '&apiKey=' + apiKey
         + '&geocode=' + lat + ',' + lon;
-
-    console.log('Requesting ' + url);
 
     request(
         url,
@@ -115,7 +111,6 @@ WundergroundProvider.prototype.withApiKey = function(callback, onFailure) {
         );
     }
     else {
-        console.log('Using saved API key for Weather Underground');
         callback(apiKey);
     }
 };

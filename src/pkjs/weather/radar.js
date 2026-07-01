@@ -232,8 +232,6 @@ function sampleFrame(frame, xy, hasXy) {
  */
 function withRadar2hRain(lat, lon, slotZeroEpoch, onSuccess, onFailure) {
     var url = buildRadarUrl(lat, lon, slotZeroEpoch);
-    console.log('Requesting ' + url);
-
     request(
         url,
         'GET',
