@@ -21,8 +21,8 @@
 #define COMPACT_SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_24
 #define COMPACT_TEMP_FONT_KEY FONT_KEY_GOTHIC_24_BOLD
 // emery: 24px labels align to the 24px temp; use the 18-offset scaled up.
-#define COMPACT_LABEL_OFFSET 9
-#define COMPACT_TEMP_Y_OFFSET 9
+#define COMPACT_LABEL_OFFSET 7
+#define COMPACT_TEMP_Y_OFFSET 7
 #define ARROW_H 10
 #define ARROW_HEAD_H 4
 #define ARROW_HEAD_W 3
@@ -35,12 +35,14 @@
 // so it is vertically centered against the labels (verified: bottom stays within
 // the row's clip, well above the forecast below).
 #define TEMP_Y_OFFSET (FONT_18_OFFSET - 1)
-#define COMPACT_CITY_FONT_KEY FONT_KEY_GOTHIC_18
-#define COMPACT_SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_18
-#define COMPACT_TEMP_FONT_KEY FONT_KEY_GOTHIC_18_BOLD
-// Non-Emery compact: labels grow to 18px (matching the already-18px temp).
-#define COMPACT_LABEL_OFFSET FONT_18_OFFSET
-#define COMPACT_TEMP_Y_OFFSET FONT_18_OFFSET
+#define COMPACT_CITY_FONT_KEY FONT_KEY_GOTHIC_28
+#define COMPACT_SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_28
+#define COMPACT_TEMP_FONT_KEY FONT_KEY_GOTHIC_28_BOLD
+// Non-Emery compact: all three labels are 28px (the Gothic ceiling), matching the
+// 28px city name. The band abuts the calendar/radar; offset 6 seats the text just
+// below it (raise the offset to tighten the gap, lower it to widen).
+#define COMPACT_LABEL_OFFSET 6
+#define COMPACT_TEMP_Y_OFFSET 6
 #define ARROW_H 8
 #define ARROW_HEAD_H 3
 #define ARROW_HEAD_W 2
@@ -198,11 +200,12 @@ static void weather_status_update_proc(Layer *layer, GContext *ctx) {
     } else {
         gpath_rotate_to(s_arrow_path, 0);
     }
-    // emery: place arrow lower so it is vertically centered in the taller row.
+    // Vertically center the arrow in the status band. emery seats it lower to sit
+    // in its taller row.
 #ifdef PBL_PLATFORM_EMERY
     gpath_move_to(s_arrow_path, GPoint(w - 4, bounds.size.h - (ARROW_H / 2) - 4));
 #else
-    gpath_move_to(s_arrow_path, GPoint(w - 4, 6));
+    gpath_move_to(s_arrow_path, GPoint(w - 4, bounds.size.h / 2));
 #endif
     graphics_context_set_stroke_color(ctx, GColorWhite);
     gpath_draw_outline_open(ctx, s_arrow_path);
