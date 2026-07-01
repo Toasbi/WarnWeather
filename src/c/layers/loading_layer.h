@@ -9,3 +9,5 @@ bool loading_layer_data_is_fresh();
 void loading_layer_refresh();
 
 void loading_layer_destroy();
+
+Layer *loading_layer_get_root(void);

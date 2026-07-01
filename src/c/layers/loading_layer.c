@@ -56,3 +56,7 @@ void loading_layer_destroy() {
     layer_destroy(s_loading_layer);
     MEMORY_LOG_HEAP("loading_layer_destroy:after");
 }
+
+Layer *loading_layer_get_root(void) {
+    return s_loading_layer;
+}
