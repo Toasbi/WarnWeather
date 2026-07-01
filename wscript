@@ -119,7 +119,22 @@ def build(ctx):
             ]
         ctx.set_group(ctx.env.PLATFORM_NAME)
         app_elf = '{}/pebble-app.elf'.format(ctx.env.BUILD_DIR)
-        ctx.pbl_build(source=ctx.path.ant_glob('src/c/**/*.c'), target=app_elf, bin_type='app')
+        # Per-platform source selection for the aplite lean-twin convention
+        # (docs/adr/0001-aplite-frozen-lean-fork.md). Aplite compiles foo_aplite.c
+        # and drops the same-directory base foo.c; every other platform drops all
+        # *_aplite.c. Matching is by same-directory sibling, never bare basename.
+        all_c = ctx.path.ant_glob('src/c/**/*.c')
+        if platform == 'aplite':
+            shadowed = set()
+            for node in all_c:
+                if node.name.endswith('_aplite.c'):
+                    base = node.parent.find_node(node.name[:-len('_aplite.c')] + '.c')
+                    if base is not None:
+                        shadowed.add(base.abspath())
+            app_sources = [n for n in all_c if n.abspath() not in shadowed]
+        else:
+            app_sources = [n for n in all_c if not n.name.endswith('_aplite.c')]
+        ctx.pbl_build(source=app_sources, target=app_elf, bin_type='app')
 
         if build_worker:
             worker_elf = '{}/pebble-worker.elf'.format(ctx.env.BUILD_DIR)
