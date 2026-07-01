@@ -18,6 +18,7 @@ var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
  */
 function buildClayPayload(settings, watchInfo, now) {
     now = now || new Date();
+    var compact = settings.hasOwnProperty('compactTopView') ? Boolean(settings.compactTopView) : true;
     var payload = {
         "CLAY_CELSIUS": settings.temperatureUnits === 'c',
         "CLAY_TIME_LEAD_ZERO": settings.timeLeadingZero,
@@ -25,6 +26,7 @@ function buildClayPayload(settings, watchInfo, now) {
         "CLAY_COLOR_TODAY": settings.hasOwnProperty('colorToday') ? settings.colorToday : DEFAULT_COLOR_WHITE,
         "CLAY_START_MON": settings.weekStartDay === 'mon',
         "CLAY_PREV_WEEK": settings.firstWeek === 'prev',
+        "CLAY_COMPACT_TOP_VIEW": compact,
         "CLAY_TIME_FONT": ['roboto', 'leco', 'bitham'].indexOf(settings.timeFont),
         "CLAY_SHOW_QT": settings.showQt,
         "CLAY_SHOW_BT": settings.btIcons === "connected" || settings.btIcons === "both",
@@ -39,7 +41,7 @@ function buildClayPayload(settings, watchInfo, now) {
             var region = settings['holidayRegion' + country] || 'all';
             var built = holidayMask.build({
                 startMon: settings.weekStartDay === 'mon',
-                prevWeek: settings.firstWeek === 'prev',
+                prevWeek: compact ? false : (settings.firstWeek === 'prev'),
                 country: country,
                 region: region,
                 enabled: settings.holidaysEnabled !== false

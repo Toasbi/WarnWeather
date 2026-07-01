@@ -654,9 +654,10 @@ function refreshHolidays() {
     if (app.settings.holidaysEnabled === false) { return; }
     var provider = registry.getProvider(country);
     if (!provider) { return; }
+    var compact = app.settings.hasOwnProperty('compactTopView') ? Boolean(app.settings.compactTopView) : true;
     var years = holidayMask.windowYears({
         startMon: app.settings.weekStartDay === 'mon',
-        prevWeek: app.settings.firstWeek === 'prev'
+        prevWeek: compact ? false : (app.settings.firstWeek === 'prev')
     }, new Date());
     provider.ensure(years, function () {
         sendClaySettings(function () {}, function () {});
