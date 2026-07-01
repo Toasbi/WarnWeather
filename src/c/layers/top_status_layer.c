@@ -185,11 +185,13 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
     bool draw_bt_disc = !alert && wants_bt_disc;
     int bt_x = icon_x;  // month-mode BT position
 
-    // Square glyph filling the strip height (side = bounds.h - 2, with y = 1 for a
-    // 1px pad top+bottom). Square keeps the diagonal hatch at 45°; a non-square
-    // scale skews the lines and makes them chunky. glyph_x is set only in alert mode.
-    const int glyph_side = bounds.size.h - 2;
+    // Square glyph inset from the strip height (side = bounds.h - 6, vertically
+    // centered) so it reads a touch smaller than the battery beside it. Square
+    // keeps the diagonal hatch at 45°; a non-square scale skews the lines and
+    // makes them chunky. glyph_x is set only in alert mode.
+    const int glyph_side = bounds.size.h - 6;
     const int glyph_gap = 2;
+    const int glyph_y = (bounds.size.h - glyph_side) / 2;
     int glyph_x = icon_x;
 
     if (alert) {
@@ -234,7 +236,7 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
 
     if (alert) {
         int bucket = rain_tier_to_bucket3(s_rain_alert_tier);
-        draw_rain_glyph(ctx, GRect(glyph_x, 1, glyph_side, glyph_side),
+        draw_rain_glyph(ctx, GRect(glyph_x, glyph_y, glyph_side, glyph_side),
                         bucket, rain_glyph_color(s_rain_alert_tier));
     }
 
