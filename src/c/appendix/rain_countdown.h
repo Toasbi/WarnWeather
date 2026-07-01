@@ -13,5 +13,12 @@ void rain_countdown_refresh(time_t now);
 // true (and fills `out`, NUL-terminated) when an alert should replace the
 // month text. O(1) and flash-free on a normal tick; the sole exception is a
 // single self-heal rescan the moment a cached segment ends, to chain to the
-// next segment in the same data. `out_size` should be >= 16.
+// next segment in the same data. `out_size` should be >= 20 (longest:
+// `Downpour for 120m`).
 bool rain_countdown_format(char *out, size_t out_size, time_t now);
+
+// Radar tier (1..5) of the cached segment's peak intensity, or 0 when no segment is
+// cached / snoozed. Meaningful when rain_countdown_format() returned true; the layer
+// uses it for the glyph's density (via rain_tier_to_bucket3) and colour
+// (via palette_radar_color).
+int rain_countdown_peak_tier(void);

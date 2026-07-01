@@ -2,6 +2,7 @@
 #include "rain_countdown.h"
 #include "c/appendix/persist.h"
 #include "c/appendix/config.h"
+#include "c/appendix/rain_tier.h"
 
 #define RC_NUM_SLOTS    24
 #define RC_SLOT_SECONDS 300  // 5 minutes per radar slot
@@ -11,11 +12,13 @@ static bool   s_rc_valid;
 static bool   s_rc_snooze;
 static time_t s_rc_rain_start;  // epoch the segment's rain begins
 static time_t s_rc_rain_end;    // epoch the segment's rain ends (first dry slot)
+static uint8_t s_rc_peak_tenths;  // peak intensity (wire tenths) over the cached segment
 
 void rain_countdown_refresh(time_t now) {
     s_rc_valid = false;
     s_rc_rain_start = 0;
     s_rc_rain_end = 0;
+    s_rc_peak_tenths = 0;
     s_rc_snooze = persist_get_radar_snooze();
 
     const time_t start = persist_get_rain_radar_start();
@@ -50,7 +53,28 @@ void rain_countdown_refresh(time_t now) {
 
     s_rc_rain_start = start + (time_t) i * RC_SLOT_SECONDS;
     s_rc_rain_end   = start + (time_t) j * RC_SLOT_SECONDS;
+
+    uint8_t peak = 0;
+    for (int k = i; k < j; k++) {
+        if (exact[k] > peak) { peak = exact[k]; }
+    }
+    s_rc_peak_tenths = peak;
+
     s_rc_valid = true;
+}
+
+// Alert noun for the cached segment's peak intensity (indexed by 3-bucket; index 0
+// is an unreachable fallback since a cached segment always has >= 1 rain slot).
+static const char *rc_noun(void) {
+    static const char *const NOUNS[4] = { "Rain", "Drizzle", "Rain", "Downpour" };
+    int bucket = rain_tier_to_bucket3(rain_tier_of_tenths((int) s_rc_peak_tenths));
+    if (bucket < 1 || bucket > 3) { return "Rain"; }
+    return NOUNS[bucket];
+}
+
+int rain_countdown_peak_tier(void) {
+    if (!s_rc_valid || s_rc_snooze) { return 0; }
+    return rain_tier_of_tenths((int) s_rc_peak_tenths);
 }
 
 bool rain_countdown_format(char *out, size_t out_size, time_t now) {
@@ -74,7 +98,7 @@ bool rain_countdown_format(char *out, size_t out_size, time_t now) {
         if (mins > horizon) {
             return false;  // beyond the configured look-ahead → show the month
         }
-        snprintf(out, out_size, "Rain in %dmin", mins);
+        snprintf(out, out_size, "%s in %dm", rc_noun(), mins);
         return true;
     }
 
@@ -83,6 +107,6 @@ bool rain_countdown_format(char *out, size_t out_size, time_t now) {
     if (mins < 1) {
         mins = 1;
     }
-    snprintf(out, out_size, "Rain for %dmin", mins);
+    snprintf(out, out_size, "%s for %dm", rc_noun(), mins);
     return true;
 }
