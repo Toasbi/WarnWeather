@@ -77,6 +77,18 @@ int rain_countdown_peak_tier(void) {
     return rain_tier_of_tenths((int) s_rc_peak_tenths);
 }
 
+// Minute token for the strip, using `'` as the minute mark and capping anything
+// over 99 at "+99'" so the count never grows to 3 digits — that keeps the noun
+// readable on the 144 px strip (and the lean aplite twin, which has no ellipsize
+// ladder). Buffer needs >= 5 bytes ("+99'" + NUL).
+static void rc_mins_token(char *buf, size_t buf_size, int mins) {
+    if (mins > 99) {
+        snprintf(buf, buf_size, "+99'");
+    } else {
+        snprintf(buf, buf_size, "%d'", mins);
+    }
+}
+
 bool rain_countdown_format(char *out, size_t out_size, time_t now) {
     // Segment-end self-heal: one rescan to chain to the next segment in the
     // same data. After a fresh refresh rain_end > now, so this never loops.
@@ -89,6 +101,7 @@ bool rain_countdown_format(char *out, size_t out_size, time_t now) {
         return false;
     }
 
+    char mins_token[6];
     if (now < s_rc_rain_start) {
         // Upcoming: minutes until rain starts, rounded to nearest, min 1.
         int mins = (int) ((s_rc_rain_start - now + 30) / 60);
@@ -98,7 +111,8 @@ bool rain_countdown_format(char *out, size_t out_size, time_t now) {
         if (mins > horizon) {
             return false;  // beyond the configured look-ahead → show the month
         }
-        snprintf(out, out_size, "%s in %dm", rc_noun(), mins);
+        rc_mins_token(mins_token, sizeof(mins_token), mins);
+        snprintf(out, out_size, "%s in %s", rc_noun(), mins_token);
         return true;
     }
 
@@ -107,6 +121,7 @@ bool rain_countdown_format(char *out, size_t out_size, time_t now) {
     if (mins < 1) {
         mins = 1;
     }
-    snprintf(out, out_size, "%s for %dm", rc_noun(), mins);
+    rc_mins_token(mins_token, sizeof(mins_token), mins);
+    snprintf(out, out_size, "%s for %s", rc_noun(), mins_token);
     return true;
 }

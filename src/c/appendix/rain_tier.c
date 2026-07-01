@@ -28,8 +28,14 @@ int rain_tier_of_tenths(int tenths) {
 int rain_tier_to_bucket3(int tier) {
     if (tier <= 0) { return 0; }
     if (tier <= 2) { return 1; }  // drizzle
-    if (tier == 3) { return 2; }  // rain
-    return 3;                     // downpour (tier 4-5)
+    if (tier <= 4) { return 2; }  // rain (tier 3-4)
+#ifdef PBL_PLATFORM_EMERY
+    // emery: the only strip wide enough to fit "Downpour …" without an ellipsis,
+    // so the downpour bucket (widest noun + densest glyph) is emery-only.
+    return 3;                     // downpour (tier 5, > 10 mm/h)
+#else
+    return 2;                     // narrow strips (<= 144 px): fold tier 5 into rain
+#endif
 }
 
 static int rain_tier_fill_q8(int tenths, int tier) {

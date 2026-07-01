@@ -273,8 +273,8 @@ module.exports = {
                 messageKey: 'rainCountdownHorizon',
                 label: 'Rain countdown',
                 defaultValue: '60',
-                hint: 'Names the coming rain — Drizzle / Rain / Downpour in X m — ' +
-                      'based on the radar (and “… for X m” while it’s raining), ' +
+                hint: 'Names the coming rain — Drizzle / Rain / Downpour in X\' — ' +
+                      'based on the radar (and “… for X\'” while it’s raining), ' +
                       'colour-matched to the radar bars.',
                 options: [['Off', '0'], ['Within 30 min', '30'], ['Within 60 min', '60'],
                           ['Within 2 hours', '120']],

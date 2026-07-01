@@ -2,7 +2,8 @@
 //
 // Frozen fork of top_status_layer.c as of 3c5b2bc. FEATURE-FROZEN, NOT CODE-FROZEN:
 // never add features here (aplite deliberately lacks the rain-intensity glyph /
-// naming / ladder); hand-port bugfixes from top_status_layer.c
+// colour / drop-BT-then-ellipsize ladder; the intensity *naming* does reach aplite
+// via the shared, un-forked rain_countdown.c); hand-port bugfixes from top_status_layer.c
 // (see `git log 3c5b2bc.. -- src/c/layers/top_status_layer.c`); interface changes are
 // forced by the aplite link error. See docs/adr/0001-aplite-frozen-lean-fork.md.
 
@@ -46,7 +47,7 @@ static bool s_last_qt_active;
 // Cached rain-countdown alert string + active flag. recompute_rain_alert keeps
 // these in sync from the flash-free Phase B derivation; when active, the alert
 // replaces the month in the strip.
-static char s_rain_alert_text[20];   // "Rain for 120min" = 15 chars + NUL
+static char s_rain_alert_text[20];   // "Downpour for +99'" = 17 chars + NUL
 static bool s_rain_alert_active;
 
 static GRect month_text_rect(GRect bounds, GFont font, const char *text) {

@@ -40,7 +40,7 @@ static bool s_last_qt_active;
 // Cached rain-countdown alert string + active flag. recompute_rain_alert keeps
 // these in sync from the flash-free Phase B derivation; when active, the alert
 // replaces the month in the strip.
-static char s_rain_alert_text[20];   // "Downpour for 120m" = 17 chars + NUL
+static char s_rain_alert_text[20];   // "Downpour for +99'" = 17 chars + NUL
 static bool s_rain_alert_active;
 static int s_rain_alert_tier;   // radar tier (1..5) of the active alert's peak; drives glyph colour + density
 
@@ -61,29 +61,35 @@ static GRect month_text_rect(GRect bounds, GFont font, const char *text) {
 
 // rain-intensity glyph (family D: rain-lines density), drawn procedurally.
 // bucket 1 = drizzle (sparse), 2 = rain, 3 = downpour (dense). 10x10, '#' = lit.
+// Each bucket is a diagonal rain-line hatch that fills the full 10x10 box; the
+// three step up in density (every 5th / 4th / 3rd cell) so intensity reads at a
+// glance while occupying the same area as the battery it sits beside.
 static const char *const RAIN_GLYPH[3][10] = {
-    {   // 1 drizzle
-        "..........", "..........", "......#...", ".....#....", "....#.....",
-        "..........", "..........", "..........", "..........", ".........."
+    {   // 1 drizzle — light hatch (every 5th cell, on alternate rows)
+        "#....#....", "..........", "...#....#.", "..........", ".#....#...",
+        "..........", "....#....#", "..........", "..#....#..", ".........."
     },
-    {   // 2 rain
-        "..........", "....#..#..", "...#..#...", "..#..#....", "..........",
-        "....#..#..", "...#..#...", "..#..#....", "..........", ".........."
+    {   // 2 rain — medium hatch (every 4th cell)
+        "#...#...#.", "...#...#..", "..#...#...", ".#...#...#", "#...#...#.",
+        "...#...#..", "..#...#...", ".#...#...#", "#...#...#.", "...#...#.."
     },
-    {   // 3 downpour
-        "..#..#..#.", ".#..#..#..", "#..#..#...", "..#..#..#.", ".#..#..#..",
-        "#..#..#...", "..#..#..#.", ".#..#..#..", "#..#..#...", ".........."
+    {   // 3 downpour — dense hatch (every 3rd cell)
+        "#..#..#..#", "..#..#..#.", ".#..#..#..", "#..#..#..#", "..#..#..#.",
+        ".#..#..#..", "#..#..#..#", "..#..#..#.", ".#..#..#..", "#..#..#..#"
     }
 };
 
 static void draw_rain_glyph(GContext *ctx, GRect rect, int bucket, GColor color) {
-    if (bucket < 1 || bucket > 3) { return; }
+    if (bucket < 1 || bucket > 3 || rect.size.w <= 0 || rect.size.h <= 0) { return; }
     const char *const *rows = RAIN_GLYPH[bucket - 1];
     graphics_context_set_stroke_color(ctx, color);
-    for (int r = 0; r < 10; r++) {
-        for (int c = 0; c < 10; c++) {
-            if (rows[r][c] == '#') {
-                graphics_draw_pixel(ctx, GPoint(rect.origin.x + c, rect.origin.y + r));
+    // Nearest-neighbour scale the 10x10 source pattern to fill rect, so the glyph
+    // can be sized up to the strip height without editing the source pattern.
+    for (int y = 0; y < rect.size.h; y++) {
+        const char *row = rows[(y * 10) / rect.size.h];
+        for (int x = 0; x < rect.size.w; x++) {
+            if (row[(x * 10) / rect.size.w] == '#') {
+                graphics_draw_pixel(ctx, GPoint(rect.origin.x + x, rect.origin.y + y));
             }
         }
     }
@@ -98,32 +104,6 @@ static GColor rain_glyph_color(int tier) {
     (void) tier;
     return GColorWhite;
 #endif
-}
-
-// Natural rendered width (px) of `text` in `font`.
-static int rain_text_width(const char *text, GFont font) {
-    return graphics_text_layout_get_content_size(
-        text, font, GRect(0, 0, 1000, 40),
-        GTextOverflowModeFill, GTextAlignmentLeft).w;
-}
-
-// Fit `full` into `max_w` by clipping letters off the NOUN (text before the first
-// space) with a trailing ellipsis; the tail (from the first space) is preserved.
-static void ellipsize_noun(const char *full, int max_w, GFont font,
-                           char *out, size_t out_size) {
-    const char *space = strchr(full, ' ');
-    if (!space) {
-        strncpy(out, full, out_size);
-        out[out_size - 1] = '\0';
-        return;
-    }
-    int noun_len = (int) (space - full);
-    for (int k = noun_len; k >= 1; k--) {
-        // "\xE2\x80\xA6" is the UTF-8 ellipsis (…); the Gothic fonts include it.
-        snprintf(out, out_size, "%.*s\xE2\x80\xA6%s", k, full, space);
-        if (rain_text_width(out, font) <= max_w) { return; }
-    }
-    snprintf(out, out_size, "\xE2\x80\xA6%s", space);
 }
 
 static void draw_status_text_in(GContext *ctx, GRect rect, const char *text,
@@ -196,39 +176,37 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
     strncpy(shown, alert ? s_rain_alert_text : s_calendar_month_text, sizeof(shown));
     shown[sizeof(shown) - 1] = '\0';
 
-    GRect text_rect = month_text_rect(bounds, font, shown);  // month: full-width, centered
+    // Month mode uses the full-width centered rect. Alert mode centers the glyph +
+    // text as one unit (computed below), so the two read as a single grouped label.
+    GRect text_rect = month_text_rect(bounds, font, shown);
+    GTextAlignment text_align = GTextAlignmentCenter;
     bool draw_bt = !alert && wants_bt;
     bool draw_bt_disc = !alert && wants_bt_disc;
     int bt_x = icon_x;  // month-mode BT position
 
-    if (alert) {
-        // Fixed glyph slot; then the drop-BT-then-ellipsize ladder.
-        const int glyph_right = icon_x + 10;
-        const int battery_left = bounds.size.w - BATTERY_W - PADDING;
-        const int lane_right = battery_left - PADDING;
-        const int bt_slot_x = glyph_right + PADDING;
-        const int lane_with_bt_left = bt_slot_x + 10 + PADDING;
-        const int lane_without_bt_left = glyph_right + PADDING;
-        const int full_w = rain_text_width(shown, font);
+    // Square glyph filling the strip height (side = bounds.h - 2, with y = 1 for a
+    // 1px pad top+bottom). Square keeps the diagonal hatch at 45°; a non-square
+    // scale skews the lines and makes them chunky. glyph_x is set only in alert mode.
+    const int glyph_side = bounds.size.h - 2;
+    const int glyph_gap = 2;
+    int glyph_x = icon_x;
 
-        int lane_left;
-        if ((wants_bt || wants_bt_disc) && full_w <= (lane_right - lane_with_bt_left)) {
-            // rung 1: glyph + Bluetooth + text all fit
-            lane_left = lane_with_bt_left;
-            draw_bt = wants_bt;
-            draw_bt_disc = wants_bt_disc;
-            bt_x = bt_slot_x;
-        } else {
-            // rung 2: drop Bluetooth (widen lane); rung 3: ellipsize the noun
-            lane_left = lane_without_bt_left;
-            draw_bt = false;
-            draw_bt_disc = false;
-            int lane_w = lane_right - lane_left;
-            if (full_w > lane_w) {
-                ellipsize_noun(s_rain_alert_text, lane_w, font, shown, sizeof(shown));
-            }
-        }
-        text_rect = GRect(lane_left, text_rect.origin.y, lane_right - lane_left, text_rect.size.h);
+    if (alert) {
+        // No Bluetooth icon during an alert; the glyph + alert text take its place.
+        draw_bt = false;
+        draw_bt_disc = false;
+        // Center glyph+gap+text as one block: measure the text, seat the glyph just
+        // left of it, then left-align the text immediately after the glyph.
+        GSize text_size = graphics_text_layout_get_content_size(
+            shown, font, GRect(0, 0, bounds.size.w, bounds.size.h),
+            GTextOverflowModeFill, GTextAlignmentLeft);
+        int unit_w = glyph_side + glyph_gap + text_size.w;
+        int start_x = (bounds.size.w - unit_w) / 2;
+        if (start_x < 0) { start_x = 0; }
+        glyph_x = start_x;
+        text_rect.origin.x = start_x + glyph_side + glyph_gap;
+        text_rect.size.w = bounds.size.w - text_rect.origin.x;
+        text_align = GTextAlignmentLeft;
     }
 
     maybe_unload_top_status_bitmaps(show_qt, draw_bt, draw_bt_disc);
@@ -242,7 +220,7 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
 
     if (alert) {
         int bucket = rain_tier_to_bucket3(s_rain_alert_tier);
-        draw_rain_glyph(ctx, GRect(icon_x, STATUS_ICON_Y(bounds.size.h, 10), 10, 10),
+        draw_rain_glyph(ctx, GRect(glyph_x, 1, glyph_side, glyph_side),
                         bucket, rain_glyph_color(s_rain_alert_tier));
     }
 
@@ -254,7 +232,7 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
         draw_bitmap(ctx, s_bt_disconnect_bitmap, GRect(bt_x, STATUS_ICON_Y(bounds.size.h, 10), 10, 10));
     }
 
-    draw_status_text_in(ctx, text_rect, shown, GTextAlignmentCenter, font);
+    draw_status_text_in(ctx, text_rect, shown, text_align, font);
 }
 
 void top_status_layer_create(Layer* parent_layer, GRect frame) {
