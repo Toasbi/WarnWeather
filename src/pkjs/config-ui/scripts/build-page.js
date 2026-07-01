@@ -19,7 +19,14 @@ function buildPage(opts) {
 
 function writeGenerated(opts) {
   var html = buildPage(opts);
-  fs.writeFileSync(opts.out, 'module.exports = ' + JSON.stringify(html) + ';\n');
+  // Write to a per-process temp file then rename into place. rename(2) is atomic,
+  // so a concurrent reader — e.g. another parallel `node --test` worker requiring
+  // page.generated.js while config-integration-build.test.js regenerates it — always
+  // sees a complete file, never a half-written one that fails to parse (SyntaxError).
+  // The plain O_TRUNC writeFileSync exposed that truncation window and flaked the build.
+  var tmp = opts.out + '.' + process.pid + '.tmp';
+  fs.writeFileSync(tmp, 'module.exports = ' + JSON.stringify(html) + ';\n');
+  fs.renameSync(tmp, opts.out);
   return opts.out;
 }
 
