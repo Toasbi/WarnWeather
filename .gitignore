@@ -28,4 +28,7 @@ node_modules
 package.json
 !opencode.jsonc
 !AGENTS.md
-/docs
+# Ignore everything under docs/ (brainstorming specs & plans stay untracked)…
+/docs/*
+# …except tracked architecture decision records.
+!/docs/adr/
