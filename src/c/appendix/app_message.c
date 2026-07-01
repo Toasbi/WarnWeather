@@ -220,13 +220,14 @@ static bool handle_clay_config(DictionaryIterator *iterator, bool *config_dirty)
     Tuple *clay_fetch_interval_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_FETCH_INTERVAL_MIN);
     Tuple *clay_health_enabled_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_HEALTH_ENABLED);
     Tuple *clay_rain_countdown_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_RAIN_COUNTDOWN_HORIZON);
+    Tuple *clay_compact_top_view_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_COMPACT_TOP_VIEW);
 
     if (!(clay_celsius_tuple && clay_time_lead_zero_tuple && clay_axis_12h_tuple && clay_start_mon_tuple
         && clay_prev_week_tuple && clay_color_today_tuple && clay_time_font_tuple && clay_vibe_tuple
         && clay_show_qt_tuple && clay_show_bt_tuple && clay_show_bt_disconnect_tuple && clay_show_am_pm_tuple
         && clay_color_saturday_tuple && clay_color_sunday_tuple && clay_color_us_federal_tuple
         && clay_color_time_tuple && clay_day_night_shading_tuple && clay_fetch_interval_tuple
-        && clay_health_enabled_tuple && clay_rain_countdown_tuple)) {
+        && clay_health_enabled_tuple && clay_rain_countdown_tuple && clay_compact_top_view_tuple)) {
         return false;
     }
 
@@ -248,6 +249,7 @@ static bool handle_clay_config(DictionaryIterator *iterator, bool *config_dirty)
     config.health_enabled = (bool) (clay_health_enabled_tuple->value->int16);
     config.fetch_interval_min = clay_fetch_interval_tuple->value->int16;
     config.rain_countdown_horizon_min = clay_rain_countdown_tuple->value->int16;
+    config.compact_top_view = (bool) (clay_compact_top_view_tuple->value->int16);
     config.time_font = clay_time_font_tuple->value->int16;
     config.color_today = GColorFromHEX(clay_color_today_tuple->value->int32);
     config.color_saturday = GColorFromHEX(clay_color_saturday_tuple->value->int32);
@@ -318,6 +320,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     }
 
     if (config_dirty) {
+        main_window_relayout();
         main_window_refresh();
         // health_enabled may have been flipped off while the alternate view is
         // shown; re-apply the view so the watch falls back to forecast immediately.
