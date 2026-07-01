@@ -30,7 +30,8 @@ static Config config_defaults(void) {
         .color_time = GColorWhite,
         .day_night_shading = true,
         .health_enabled = true,
-        .rain_countdown_horizon_min = 60
+        .rain_countdown_horizon_min = 60,
+        .compact_top_view = true
     };
 }
 
@@ -93,10 +94,17 @@ int config_n_today() {
     int wday = tm_today.tm_wday;
     // Offset if user wants to start the week on monday
     wday = g_config->start_mon ? (wday + 6) % 7 : wday;
-    // Offset if user wants to show the previous week first
-    if (g_config->prev_week)
+    // Offset if user wants to show the previous week first — but compact top view
+    // is always current-week-first (matches the phone's holiday-mask anchor).
+    if (g_config->prev_week && !g_config->compact_top_view)
         wday += 7;
     return wday;
+}
+
+// Number of calendar rows: compact top view shows the current week + next week
+// (2 rows); the full layout shows the previous, current, and next week (3 rows).
+int config_calendar_rows(void) {
+    return g_config->compact_top_view ? 2 : 3;
 }
 
 #ifdef PBL_PLATFORM_EMERY
