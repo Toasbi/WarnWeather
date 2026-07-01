@@ -180,6 +180,7 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
     // text as one unit (computed below), so the two read as a single grouped label.
     GRect text_rect = month_text_rect(bounds, font, shown);
     GTextAlignment text_align = GTextAlignmentCenter;
+    bool draw_qt = show_qt;
     bool draw_bt = !alert && wants_bt;
     bool draw_bt_disc = !alert && wants_bt_disc;
     int bt_x = icon_x;  // month-mode BT position
@@ -192,9 +193,6 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
     int glyph_x = icon_x;
 
     if (alert) {
-        // No Bluetooth icon during an alert; the glyph + alert text take its place.
-        draw_bt = false;
-        draw_bt_disc = false;
         // Center glyph+gap+text as one block: measure the text, seat the glyph just
         // left of it, then left-align the text immediately after the glyph.
         GSize text_size = graphics_text_layout_get_content_size(
@@ -207,11 +205,27 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
         text_rect.origin.x = start_x + glyph_side + glyph_gap;
         text_rect.size.w = bounds.size.w - text_rect.origin.x;
         text_align = GTextAlignmentLeft;
+
+        // Keep the left status icons (Quiet-Time, Bluetooth) only while the centered
+        // unit clears them; once the alert grows wide enough to reach their slots,
+        // hide the whole icon group so the glyph + text get the space instead.
+        int icons_right = 0;
+        if (show_qt) {
+            icons_right = ICON_SLOT_1.origin.x + ICON_SLOT_1.size.w;
+        }
+        if (wants_bt || wants_bt_disc) {
+            const int bt_right = icon_x + 10;   // BT sits in slot 2 when QT holds slot 1
+            if (bt_right > icons_right) { icons_right = bt_right; }
+        }
+        const bool icons_fit = (icons_right == 0) || (start_x >= icons_right + PADDING);
+        draw_qt = show_qt && icons_fit;
+        draw_bt = wants_bt && icons_fit;
+        draw_bt_disc = wants_bt_disc && icons_fit;
     }
 
     maybe_unload_top_status_bitmaps(show_qt, draw_bt, draw_bt_disc);
 
-    if (show_qt) {
+    if (draw_qt) {
         ensure_mute_bitmap_loaded();
         draw_bitmap(ctx, s_mute_bitmap,
             GRect(ICON_SLOT_1.origin.x, STATUS_ICON_Y(bounds.size.h, ICON_SLOT_1.size.h),
