@@ -5,7 +5,6 @@
 #include "c/services/watch_services.h"
 #include <time.h>
 
-#define NUM_WEEKS 3
 #define DAYS_PER_WEEK 7
 #define FONT_OFFSET 5
 #define EMERY_CALENDAR_TEXT_SHIFT_Y 5
@@ -27,11 +26,11 @@ static Layer *s_calendar_layer;
 static uint32_t s_holiday_mask = 0;
 static int32_t s_holiday_anchor = 0;
 
-static GRect calendar_cell_rect(GRect bounds, int i) {
+static GRect calendar_cell_rect(GRect bounds, int i, int rows) {
     const int box_w = bounds.size.w / DAYS_PER_WEEK;
-    const int box_h = bounds.size.h / NUM_WEEKS;
+    const int box_h = bounds.size.h / rows;
     return GRect((i % DAYS_PER_WEEK) * bounds.size.w / DAYS_PER_WEEK,
-                 (i / DAYS_PER_WEEK) * bounds.size.h / NUM_WEEKS,
+                 (i / DAYS_PER_WEEK) * bounds.size.h / rows,
                  box_w, box_h);
 }
 
@@ -130,8 +129,9 @@ static void calendar_update_proc(Layer *layer, GContext *ctx) {
     GRect bounds = layer_get_bounds(layer);
     int w = bounds.size.w;
     int h = bounds.size.h;
+    const int rows = config_calendar_rows();
     const int box_w = w / DAYS_PER_WEEK;
-    const int box_h = h / NUM_WEEKS;
+    const int box_h = h / rows;
     s_holiday_mask = persist_get_holiday_mask();
     s_holiday_anchor = persist_get_holiday_anchor();
 
@@ -140,10 +140,10 @@ static void calendar_update_proc(Layer *layer, GContext *ctx) {
 
     graphics_context_set_fill_color(ctx, today_color());
     graphics_fill_rect(ctx,
-        GRect((i_today % DAYS_PER_WEEK) * w / DAYS_PER_WEEK, (i_today / DAYS_PER_WEEK) * h / NUM_WEEKS,
+        GRect((i_today % DAYS_PER_WEEK) * w / DAYS_PER_WEEK, (i_today / DAYS_PER_WEEK) * h / rows,
         box_w, box_h), 1, GCornersAll);
 
-    for (int i = 0; i < NUM_WEEKS * DAYS_PER_WEEK; ++i) {
+    for (int i = 0; i < rows * DAYS_PER_WEEK; ++i) {
         struct tm t = relative_tm(i - i_today);
         bool highlight_holiday = cell_is_holiday(&t);
         bool highlight_sunday = (config_highlight_sundays() && t.tm_wday == 0);
@@ -153,7 +153,7 @@ static void calendar_update_proc(Layer *layer, GContext *ctx) {
                                            : PBL_IF_COLOR_ELSE(date_color(&t), GColorWhite);
         char buffer[4];
         GFont font = fonts_get_system_font(bold ? CALENDAR_FONT_KEY_BOLD : CALENDAR_FONT_KEY);
-        GRect cell_rect = calendar_cell_rect(bounds, i);
+        GRect cell_rect = calendar_cell_rect(bounds, i, rows);
 
         graphics_context_set_text_color(ctx, text_color);
         graphics_draw_text(ctx,
