@@ -136,69 +136,99 @@ static void compute_content_layout(int content_h, int *calendar_h, int *time_h, 
 }
 #endif
 
-static void main_window_load(Window *window) {
-    // Get information about the Window
-    Layer *window_layer = window_get_root_layer(window);
-    GRect bounds = layer_get_bounds(window_layer);
+typedef struct {
+    GRect top_status;
+    GRect top;       // TopView band: calendar_layer / rain_radar_layer (same frame)
+    GRect status;    // weather_status / health_status band
+    GRect time;
+    GRect bottom;    // BottomView band: forecast_layer / health_graph_layer (same frame)
+    GRect loading;
+} MainLayout;
+
+// Single source of truth for the vertical band geometry, for both the window
+// load path and main_window_relayout(). Compact top view shrinks the calendar to
+// 2 rows, moves the status band into the freed 3rd-row slot (larger font handled
+// in the status layers), grows the bottom band up to the fixed time band, and the
+// radar (which shares the calendar frame) shrinks with it. The time and top-status
+// bands are identical in both modes, so relayout leaves them untouched.
+static MainLayout compute_layout(GRect bounds, bool compact) {
     int w = bounds.size.w;
     int h = bounds.size.h;
-    window_set_background_color(window, GColorBlack);
-
+    MainLayout L;
 #ifdef PBL_PLATFORM_EMERY
-    // emery: pad to avoid content getting obscured by screen edge
+    // emery: bands are proportional; keep calendar_y/time_y/time_h fixed and
+    // repartition the calendar band (2/3 dates + 1/3 status) while the forecast
+    // absorbs the weather-status gap between time and forecast.
     int content_x = EMERY_WINDOW_PAD_X;
     int content_y = EMERY_WINDOW_PAD_TOP;
     int content_w = w - EMERY_WINDOW_PAD_X * 2;
     int forecast_w = w - content_x;
     int content_h = h - EMERY_WINDOW_PAD_TOP - EMERY_WINDOW_PAD_BOTTOM - CALENDAR_STATUS_HEIGHT - WEATHER_STATUS_HEIGHT;
-    int calendar_h;
-    int time_h;
-    int forecast_h;
+    int calendar_h, time_h, forecast_h;
     compute_content_layout(content_h, &calendar_h, &time_h, &forecast_h);
 
     int calendar_y = content_y + CALENDAR_STATUS_HEIGHT;
     int time_y = calendar_y + calendar_h;
-    int weather_status_y = time_y + time_h;
-    int forecast_y = weather_status_y + WEATHER_STATUS_HEIGHT;
 
-    forecast_layer_create(window_layer, GRect(content_x, forecast_y, forecast_w, forecast_h));
-#if defined(PBL_HEALTH)
-    health_graph_layer_create(window_layer, GRect(content_x, forecast_y, forecast_w, forecast_h));
-#endif
-    weather_status_layer_create(window_layer, GRect(content_x, weather_status_y, content_w, WEATHER_STATUS_HEIGHT));
-#if defined(PBL_HEALTH)
-    health_status_layer_create(window_layer, GRect(content_x, weather_status_y, content_w, WEATHER_STATUS_HEIGHT));
-#endif
-    time_layer_create(window_layer, GRect(content_x, time_y, content_w, time_h));
-    calendar_layer_create(window_layer, GRect(content_x, calendar_y, content_w, calendar_h));
-    rain_radar_layer_create(window_layer, GRect(content_x, calendar_y, content_w, calendar_h));
-    top_status_layer_create(window_layer, GRect(content_x, content_y, content_w, CALENDAR_STATUS_HEIGHT + 1)); // +1 to stop text clipping
-    loading_layer_create(window_layer, GRect(content_x, weather_status_y, content_w, h - EMERY_WINDOW_PAD_BOTTOM - weather_status_y));
+    int cal_h      = compact ? (calendar_h - calendar_h / 3) : calendar_h;
+    int status_h   = compact ? (calendar_h - cal_h)          : WEATHER_STATUS_HEIGHT;
+    int status_y   = compact ? (calendar_y + cal_h)          : (time_y + time_h);
+    int forecast_y = compact ? (time_y + time_h)             : (time_y + time_h + WEATHER_STATUS_HEIGHT);
+    int fc_h       = compact ? (forecast_h + WEATHER_STATUS_HEIGHT) : forecast_h;
+
+    L.top_status = GRect(content_x, content_y, content_w, CALENDAR_STATUS_HEIGHT + 1);
+    L.top        = GRect(content_x, calendar_y, content_w, cal_h);
+    L.status     = GRect(content_x, status_y, content_w, status_h);
+    L.time       = GRect(content_x, time_y, content_w, time_h);
+    L.bottom     = GRect(content_x, forecast_y, forecast_w, fc_h);
+    L.loading    = compact
+        ? GRect(content_x, forecast_y, content_w, fc_h)
+        : GRect(content_x, time_y + time_h, content_w, h - EMERY_WINDOW_PAD_BOTTOM - (time_y + time_h));
 #else
-    forecast_layer_create(window_layer,
-            GRect(0, h - FORECAST_HEIGHT, w, FORECAST_HEIGHT));
+    int cal_full = CALENDAR_HEIGHT;                     // 45
+    int cal_row  = CALENDAR_HEIGHT / 3;                 // 15 (one calendar row)
+    int cal_y    = CALENDAR_STATUS_HEIGHT;              // 13
+    int time_y   = cal_y + cal_full;                    // 58 (fixed anchor; == 13+30+15 compact)
+
+    int cal_h      = compact ? (2 * cal_row)            : CALENDAR_HEIGHT;                       // 30 vs 45
+    int status_h   = compact ? cal_row                  : WEATHER_STATUS_HEIGHT;                 // 15 vs 14
+    int status_y   = compact ? (cal_y + cal_h)          : (h - FORECAST_HEIGHT - WEATHER_STATUS_HEIGHT); // 43 vs 103
+    int forecast_y = compact ? (time_y + TIME_HEIGHT)   : (h - FORECAST_HEIGHT);                 // 103 vs 117
+    int fc_h       = h - forecast_y;                                                             // 65 vs 51
+
+    L.top_status = GRect(0, 0, w, CALENDAR_STATUS_HEIGHT + 1);
+    L.top        = GRect(0, cal_y, w, cal_h);
+    L.status     = GRect(0, status_y, w, status_h);
+    L.time       = GRect(0, time_y, w, TIME_HEIGHT);
+    L.bottom     = GRect(0, forecast_y, w, fc_h);
+    L.loading    = compact
+        ? GRect(0, forecast_y, w, fc_h)
+        : GRect(0, h - FORECAST_HEIGHT - WEATHER_STATUS_HEIGHT, w, FORECAST_HEIGHT + WEATHER_STATUS_HEIGHT);
+#endif
+    return L;
+}
+
+static void main_window_load(Window *window) {
+    // Get information about the Window
+    Layer *window_layer = window_get_root_layer(window);
+    GRect bounds = layer_get_bounds(window_layer);
+    window_set_background_color(window, GColorBlack);
+
+    MainLayout L = compute_layout(bounds, g_config->compact_top_view);
+
+    forecast_layer_create(window_layer, L.bottom);
 #if defined(PBL_HEALTH)
-    health_graph_layer_create(window_layer,
-            GRect(0, h - FORECAST_HEIGHT, w, FORECAST_HEIGHT));
+    health_graph_layer_create(window_layer, L.bottom);
 #endif
-    weather_status_layer_create(window_layer,
-            GRect(0, h - FORECAST_HEIGHT - WEATHER_STATUS_HEIGHT, w, WEATHER_STATUS_HEIGHT));
+    weather_status_layer_create(window_layer, L.status);
 #if defined(PBL_HEALTH)
-    health_status_layer_create(window_layer,
-            GRect(0, h - FORECAST_HEIGHT - WEATHER_STATUS_HEIGHT, w, WEATHER_STATUS_HEIGHT));
+    health_status_layer_create(window_layer, L.status);
 #endif
-    time_layer_create(window_layer,
-            GRect(0, h - FORECAST_HEIGHT - WEATHER_STATUS_HEIGHT - TIME_HEIGHT,
-            bounds.size.w, TIME_HEIGHT));
-    calendar_layer_create(window_layer,
-            GRect(0, CALENDAR_STATUS_HEIGHT, bounds.size.w, CALENDAR_HEIGHT));
-    rain_radar_layer_create(window_layer,
-            GRect(0, CALENDAR_STATUS_HEIGHT, bounds.size.w, CALENDAR_HEIGHT));
-    top_status_layer_create(window_layer,
-            GRect(0, 0, bounds.size.w, CALENDAR_STATUS_HEIGHT + 1));  // +1 to stop text clipping
-    loading_layer_create(window_layer,
-            GRect(0, h - FORECAST_HEIGHT - WEATHER_STATUS_HEIGHT, w, FORECAST_HEIGHT + WEATHER_STATUS_HEIGHT));
-#endif
+    time_layer_create(window_layer, L.time);
+    calendar_layer_create(window_layer, L.top);
+    rain_radar_layer_create(window_layer, L.top);
+    top_status_layer_create(window_layer, L.top_status); // +1 height already in L.top_status
+    loading_layer_create(window_layer, L.loading);
     loading_layer_refresh();
     app_message_send_startup_state(loading_layer_data_is_fresh());
     // The view is session-only state: every launch starts on the DEFAULT view
@@ -310,9 +340,34 @@ void main_window_apply_top_view() {
     apply_view(s_top_view, health_view_active() ? s_bottom_view : BOTTOM_FORECAST);
 }
 
+void main_window_relayout(void) {
+    GRect bounds = layer_get_bounds(window_get_root_layer(s_main_window));
+    MainLayout L = compute_layout(bounds, g_config->compact_top_view);
+    // top-status and time bands are identical in both modes — only reframe what moves.
+    layer_set_frame(calendar_layer_get_root(), L.top);
+    layer_set_frame(rain_radar_layer_get_root(), L.top);
+    layer_set_frame(weather_status_layer_get_root(), L.status);
+#if defined(PBL_HEALTH)
+    layer_set_frame(health_status_layer_get_root(), L.status);
+#endif
+    layer_set_frame(forecast_layer_get_root(), L.bottom);
+#if defined(PBL_HEALTH)
+    layer_set_frame(health_graph_layer_get_root(), L.bottom);
+#endif
+    layer_set_frame(loading_layer_get_root(), L.loading);
+}
+
 void main_window_refresh() {
     time_layer_refresh();
     weather_status_layer_refresh();
+#if defined(PBL_HEALTH)
+    // Compact-top-view toggles change the status band's font/slot geometry;
+    // health_status_layer_refresh() recomputes its module-static slot frames
+    // the same way weather_status_layer_refresh() does above, so a settings
+    // change while the health view is active doesn't clip/misalign until the
+    // next minute tick.
+    health_status_layer_refresh();
+#endif
     forecast_layer_refresh();
     calendar_layer_refresh();
     top_status_layer_refresh();

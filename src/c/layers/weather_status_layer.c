@@ -17,6 +17,12 @@
 #define SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_18
 // emery: city/sun are 18px too, so the 18px temp already matches — baseline-align.
 #define TEMP_Y_OFFSET FONT_18_OFFSET
+#define COMPACT_CITY_FONT_KEY FONT_KEY_GOTHIC_24
+#define COMPACT_SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_24
+#define COMPACT_TEMP_FONT_KEY FONT_KEY_GOTHIC_24_BOLD
+// emery: 24px labels align to the 24px temp; use the 18-offset scaled up.
+#define COMPACT_LABEL_OFFSET 9
+#define COMPACT_TEMP_Y_OFFSET 9
 #define ARROW_H 10
 #define ARROW_HEAD_H 4
 #define ARROW_HEAD_W 3
@@ -29,6 +35,12 @@
 // so it is vertically centered against the labels (verified: bottom stays within
 // the row's clip, well above the forecast below).
 #define TEMP_Y_OFFSET (FONT_18_OFFSET - 1)
+#define COMPACT_CITY_FONT_KEY FONT_KEY_GOTHIC_18
+#define COMPACT_SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_18
+#define COMPACT_TEMP_FONT_KEY FONT_KEY_GOTHIC_18_BOLD
+// Non-Emery compact: labels grow to 18px (matching the already-18px temp).
+#define COMPACT_LABEL_OFFSET FONT_18_OFFSET
+#define COMPACT_TEMP_Y_OFFSET FONT_18_OFFSET
 #define ARROW_H 8
 #define ARROW_HEAD_H 3
 #define ARROW_HEAD_W 2
@@ -71,18 +83,27 @@ static const GPathInfo ARROW_PATH_INFO = {
     }
 };
 
-static GFont temp_font(void) { return fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD); }
-static GFont city_font(void) { return fonts_get_system_font(CITY_FONT_KEY); }
-static GFont sun_font(void)  { return fonts_get_system_font(SUN_EVENT_FONT_KEY); }
+static bool status_compact(void) { return g_config->compact_top_view; }
+
+static GFont temp_font(void) {
+    return fonts_get_system_font(status_compact() ? COMPACT_TEMP_FONT_KEY : FONT_KEY_GOTHIC_18_BOLD);
+}
+static GFont city_font(void) {
+    return fonts_get_system_font(status_compact() ? COMPACT_CITY_FONT_KEY : CITY_FONT_KEY);
+}
+static GFont sun_font(void) {
+    return fonts_get_system_font(status_compact() ? COMPACT_SUN_EVENT_FONT_KEY : SUN_EVENT_FONT_KEY);
+}
 
 static void current_temp_layer_refresh() {
+    int temp_y = status_compact() ? -COMPACT_TEMP_Y_OFFSET : -TEMP_Y_OFFSET;
     if (persist_get_is_sleeping()) {
         // Snooze glyphs are drawn in the update proc; blank the text and reserve
         // a fixed box so the city label keeps its position. Only origin.x and
         // size.w of frame_curr_temp are ever read (by city_layer_refresh).
         s_temp_buffer[0] = '\0';
-        frame_temp_draw = GRect(MARGIN, -TEMP_Y_OFFSET, 0, 0);
-        frame_curr_temp = GRect(0, -TEMP_Y_OFFSET, SNOOZE_BOX_W + MARGIN, 24);
+        frame_temp_draw = GRect(MARGIN, temp_y, 0, 0);
+        frame_curr_temp = GRect(0, temp_y, SNOOZE_BOX_W + MARGIN, 24);
         return;
     }
     snprintf(s_temp_buffer, sizeof(s_temp_buffer), "• %d",
@@ -90,8 +111,8 @@ static void current_temp_layer_refresh() {
     GSize size = graphics_text_layout_get_content_size(
         s_temp_buffer, temp_font(), GRect(0, 0, 100, 100),
         STATUS_TEXT_OVERFLOW, GTextAlignmentLeft);
-    frame_temp_draw = GRect(MARGIN, -TEMP_Y_OFFSET, size.w, size.h);
-    frame_curr_temp = GRect(0, -TEMP_Y_OFFSET, size.w + MARGIN, size.h);
+    frame_temp_draw = GRect(MARGIN, temp_y, size.w, size.h);
+    frame_curr_temp = GRect(0, temp_y, size.w + MARGIN, size.h);
 }
 
 static void sun_event_layer_refresh() {
@@ -108,9 +129,9 @@ static void sun_event_layer_refresh() {
     int y;
     // emery: align sun-event baseline with 18px font metrics instead of 14px.
 #ifdef PBL_PLATFORM_EMERY
-    y = -FONT_18_OFFSET;
+    y = status_compact() ? -COMPACT_LABEL_OFFSET : -FONT_18_OFFSET;
 #else
-    y = -FONT_14_OFFSET;
+    y = status_compact() ? -COMPACT_LABEL_OFFSET : -FONT_14_OFFSET;
 #endif
     frame_sun_draw  = GRect(bounds.size.w - MARGIN - ARROW_W - size.w, y,
                             size.w + ARROW_W, size.h);
@@ -132,12 +153,12 @@ static void city_layer_refresh() {
     int h;
     // emery: align city baseline with 18px font metrics instead of 14px.
 #ifdef PBL_PLATFORM_EMERY
-    y = -FONT_18_OFFSET;
-    h = size.h + FONT_18_OFFSET;
+    int city_off = status_compact() ? COMPACT_LABEL_OFFSET : FONT_18_OFFSET;
 #else
-    y = -FONT_14_OFFSET;
-    h = size.h + FONT_14_OFFSET;
+    int city_off = status_compact() ? COMPACT_LABEL_OFFSET : FONT_14_OFFSET;
 #endif
+    y = -city_off;
+    h = size.h + city_off;
     frame_city = GRect(x, y, w, h);
 }
 

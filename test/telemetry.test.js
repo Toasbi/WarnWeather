@@ -45,6 +45,11 @@ test('snapshot includes rainCountdownHorizon as an int', () => {
   assert.strictEqual(buildSettingsSnapshot({}).rainCountdownHorizon, undefined);
 });
 
+test('snapshot includes compactTopView as a boolean', () => {
+  assert.strictEqual(buildSettingsSnapshot({ compactTopView: true }).compactTopView, true);
+  assert.strictEqual(buildSettingsSnapshot({}).compactTopView, false);
+});
+
 test('settings snapshot keys match the Deno telemetry schema (lockstep)', () => {
   const fs = require('fs');
   const path = require('path');

@@ -20,6 +20,12 @@ static void loading_update_proc(Layer *layer, GContext *ctx) {
     int w = bounds.size.w;
     int h = bounds.size.h;
 
+    // Re-track the child text layer against our current bounds: main_window_relayout()
+    // reframes this layer's root via layer_set_frame() alone (children aren't resized
+    // automatically), so recompute here on every redraw to stay correct after a live
+    // compact-top-view toggle.
+    layer_set_frame(text_layer_get_layer(s_loading_text_layer), GRect(0, h / 3, w, h));
+
     // Black out the weather components
     graphics_context_set_fill_color(ctx, GColorBlack);
     graphics_fill_rect(ctx, GRect(0, 0, w, h), 0, GCornerNone);
@@ -55,4 +61,8 @@ void loading_layer_destroy() {
     text_layer_destroy(s_loading_text_layer);
     layer_destroy(s_loading_layer);
     MEMORY_LOG_HEAP("loading_layer_destroy:after");
+}
+
+Layer *loading_layer_get_root(void) {
+    return s_loading_layer;
 }

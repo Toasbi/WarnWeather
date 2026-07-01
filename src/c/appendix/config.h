@@ -29,6 +29,7 @@ typedef struct {
     int16_t fetch_interval_min;
     bool health_enabled;
     int16_t rain_countdown_horizon_min;
+    bool compact_top_view;
 } Config;
 
 extern Config *g_config;
@@ -46,6 +47,8 @@ int config_format_time(char *s, size_t maxsize, const struct tm * tm_p);
 int config_axis_hour(int hour);
 
 int config_n_today();
+
+int config_calendar_rows(void);
 
 GFont config_time_font();
 

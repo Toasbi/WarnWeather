@@ -16,7 +16,7 @@ const EXPECTED_KEYS = [
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','locationMode','location',
   'temperatureUnits','dayNightShading','healthEnabled','secondaryLine','secondaryLineFill','windScale','thirdLine',
   'barSource','rainBarColor','provider','owmApiKey','radarProvider','radarColor','rainCountdownHorizon',
-  'showQt','vibe','btIcons','telemetryEnabled','devStatsEnabled','devStatsClear'
+  'compactTopView','showQt','vibe','btIcons','telemetryEnabled','devStatsEnabled','devStatsClear'
 ];
 
 test('every Clay messageKey present; only windScale is duplicated (two contextual slots)', () => {
@@ -219,4 +219,17 @@ test('rainCountdownHorizon is a radar-gated select with Off/30/60/120 and defaul
   assert.equal(it.defaultValue, '60');
   assert.deepEqual(it.options.map((o) => o[1]), ['0', '30', '60', '120']);
   assert.deepEqual(it.showWhen, { key: 'radarProvider', ne: 'disabled' });
+});
+
+test('compactTopView is a Misc toggle defaulting on, and hides firstWeek', () => {
+  const t = byKey('compactTopView');
+  assert.ok(t, 'compactTopView item exists');
+  assert.equal(t.type, 'toggle');
+  assert.equal(t.defaultValue, true);
+  // Lives in the More tab's Misc section.
+  const more = schema.tabs.find((tab) => tab.id === 'more');
+  const misc = more.sections.find((s) => s.title === 'Misc');
+  assert.ok(misc.items.some((i) => i.messageKey === 'compactTopView'), 'in Misc section');
+  // First week to display hides when compact top view is on.
+  assert.deepEqual(byKey('firstWeek').showWhen, { key: 'compactTopView', eq: false });
 });

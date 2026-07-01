@@ -317,7 +317,8 @@ module.exports = {
                 messageKey: 'firstWeek',
                 label: 'First week to display',
                 defaultValue: 'prev',
-                options: [['Prev', 'prev'], ['Curr', 'curr']]
+                options: [['Prev', 'prev'], ['Curr', 'curr']],
+                showWhen: { key: 'compactTopView', eq: false }
             }, {
                 type: 'color',
                 messageKey: 'colorToday',
@@ -370,7 +371,15 @@ module.exports = {
     }, {
         id: 'more', label: 'More', sections: [{
             title: 'Misc',
-            items: [{type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true}, {
+            items: [{
+                type: 'toggle',
+                messageKey: 'compactTopView',
+                label: 'Compact top view',
+                defaultValue: true,
+                hint: 'Compact 2-row calendar (this week + next) with a larger status line and a ' +
+                      'taller forecast area. Turn off for the full 3-row calendar and the ' +
+                      '"First week to display" option under Watch → Calendar.'
+            }, {type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true}, {
                 type: 'toggle', messageKey: 'vibe', label: 'Vibrate on bluetooth disconnect', defaultValue: false
             }, {
                 type: 'select',
