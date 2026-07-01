@@ -40,7 +40,7 @@ static bool s_last_qt_active;
 // Cached rain-countdown alert string + active flag. recompute_rain_alert keeps
 // these in sync from the flash-free Phase B derivation; when active, the alert
 // replaces the month in the strip.
-static char s_rain_alert_text[20];   // "Rain for 120min" = 15 chars + NUL
+static char s_rain_alert_text[20];   // "Downpour for 120m" = 17 chars + NUL
 static bool s_rain_alert_active;
 static int s_rain_alert_tier;   // radar tier (1..5) of the active alert's peak; drives glyph colour + density
 
