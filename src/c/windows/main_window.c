@@ -360,6 +360,14 @@ void main_window_relayout(void) {
 void main_window_refresh() {
     time_layer_refresh();
     weather_status_layer_refresh();
+#if defined(PBL_HEALTH)
+    // Compact-top-view toggles change the status band's font/slot geometry;
+    // health_status_layer_refresh() recomputes its module-static slot frames
+    // the same way weather_status_layer_refresh() does above, so a settings
+    // change while the health view is active doesn't clip/misalign until the
+    // next minute tick.
+    health_status_layer_refresh();
+#endif
     forecast_layer_refresh();
     calendar_layer_refresh();
     top_status_layer_refresh();
