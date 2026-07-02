@@ -14,6 +14,12 @@ enum TopViewMode {
     TOP_VIEW_NONE = 2,     // no calendar; big time / status / forecast
 };
 
+enum HealthMode {
+    HEALTH_OFF = 0,     // health view off (default)
+    HEALTH_STATUS = 1,  // flick swaps only the bottom status line to health
+    HEALTH_ALL = 2,     // flick also swaps the forecast graph to the health graph (beta)
+};
+
 typedef struct {
     bool celsius;
     bool time_lead_zero;
@@ -33,7 +39,7 @@ typedef struct {
     GColor color_time;
     bool day_night_shading;
     int16_t fetch_interval_min;
-    bool health_enabled;
+    uint8_t health_mode;   // enum HealthMode; reinterprets the old bool health_enabled byte (0=off,1=status)
     int16_t rain_countdown_horizon_min;
     uint8_t top_view_mode;   // enum TopViewMode; reuses the old compact_top_view byte
 } Config;

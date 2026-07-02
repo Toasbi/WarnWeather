@@ -32,9 +32,9 @@ static TopView s_top_view;
 static BottomView s_bottom_view;
 
 #if defined(PBL_HEALTH)
-// Tracks the last-seen health_enabled so a false->true flip (settings, boot)
+// Tracks the last-seen health_mode so an off->on flip (settings, boot)
 // triggers exactly one cache rebuild.
-static bool s_health_enabled_prev;
+static uint8_t s_health_mode_prev;
 #endif
 
 static bool radar_has_data(void) {
@@ -47,7 +47,7 @@ static bool radar_has_data(void) {
 // never references the health service.
 static bool health_view_active(void) {
 #if defined(PBL_HEALTH)
-    return g_config->health_enabled && health_available();
+    return g_config->health_mode != HEALTH_OFF && health_available();
 #else
     return false;
 #endif
@@ -336,8 +336,8 @@ static void main_window_load(Window *window) {
     // Repaint the health view when a deferred build finishes.
     health_cache_set_repaint(health_graph_layer_refresh);
     // Warm the cache at boot when health is enabled so the first flick is ready.
-    s_health_enabled_prev = g_config->health_enabled;
-    if (g_config->health_enabled) {
+    s_health_mode_prev = g_config->health_mode;
+    if (g_config->health_mode != HEALTH_OFF) {
         health_cache_reset();
     }
 #endif
@@ -377,7 +377,7 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     // Keep the cache warm whenever health is enabled (rollover-warm always; the
     // 15-min current-hour re-read only while the view is visible). The render
     // path stays HealthService-free.
-    if (g_config->health_enabled) {
+    if (g_config->health_mode != HEALTH_OFF) {
         health_cache_tick(s_bottom_view == BOTTOM_HEALTH);
     }
     // Repaint the on-screen health view from the (now-warm) cache.
@@ -425,10 +425,10 @@ void main_window_create() {
 void main_window_apply_top_view() {
 #if defined(PBL_HEALTH)
     // A settings flip enabling health (false->true) warms the cache immediately.
-    if (g_config->health_enabled && !s_health_enabled_prev) {
+    if (g_config->health_mode != HEALTH_OFF && s_health_mode_prev == HEALTH_OFF) {
         health_cache_reset();
     }
-    s_health_enabled_prev = g_config->health_enabled;
+    s_health_mode_prev = g_config->health_mode;
 #endif
     // Re-apply the current view after radar availability or health config changed.
     // apply_view downgrades the radar (top in full/compact, bottom in none) when its
