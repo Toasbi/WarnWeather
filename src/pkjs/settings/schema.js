@@ -36,9 +36,9 @@ var THIRD_LINE_HINTS = {
 // The engine's display-snap resets thirdLine if it ever collides (see engine.js).
 var THIRD_LINE_OPTIONS = {
     precip_prob: [['Off', 'off'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['UV Index', 'uv']],
-    wind:        [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind gusts', 'gust'], ['UV Index', 'uv']],
-    gust:        [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['UV Index', 'uv']],
-    uv:          [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust']]
+    wind: [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind gusts', 'gust'], ['UV Index', 'uv']],
+    gust: [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['UV Index', 'uv']],
+    uv: [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust']]
 };
 // Color swatches (5 intensity bands) — shown only in the Multicolor hint.
 var SWATCHES = '<span style="display:inline-flex;gap:7px;margin-top:6px;align-items:flex-end;">' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#AAAAAA;margin-bottom:3px;"></span>0.1</span>' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#55FFFF;margin-bottom:3px;"></span>0.5</span>' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#00FF00;margin-bottom:3px;"></span>2</span>' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FFFF00;margin-bottom:3px;"></span>10</span>' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FF5555;margin-bottom:3px;"></span>40</span>' + '</span>';
@@ -174,7 +174,7 @@ module.exports = {
                 defaultValue: 'off',
                 joinPrevious: true,
                 hintByValue: THIRD_LINE_HINTS,
-                optionsFrom: { byKey: 'secondaryLine', map: THIRD_LINE_OPTIONS }
+                optionsFrom: {byKey: 'secondaryLine', map: THIRD_LINE_OPTIONS}
             }, {
                 type: 'segmented',
                 messageKey: 'windScale',
@@ -187,10 +187,12 @@ module.exports = {
                     high: 'Tops out at 70 km/h (43 mph) — keeps strong gusts from flattening against the top.'
                 },
                 options: [['Low', 'low'], ['Mid', 'mid'], ['High', 'high']],
-                showWhen: {all: [
-                    {key: 'thirdLine', in: ['wind', 'gust']},
-                    {not: {key: 'secondaryLine', in: ['wind', 'gust']}}
-                ]}
+                showWhen: {
+                    all: [
+                        {key: 'thirdLine', in: ['wind', 'gust']},
+                        {not: {key: 'secondaryLine', in: ['wind', 'gust']}}
+                    ]
+                }
             }, {
                 type: 'segmented',
                 messageKey: 'barSource',
@@ -228,53 +230,6 @@ module.exports = {
             }]
         }]
     }, {
-        id: 'layout', label: 'Layout', sections: [{
-            intro: 'How the watchface is arranged. The preview updates as you choose.',
-            items: [{
-                type: 'segmented',
-                messageKey: 'topViewMode',
-                label: 'Top view',
-                defaultValue: 'compact',
-                options: [['Full', 'full'], ['Compact', 'compact'], ['None', 'none']],
-                hintByValue: {
-                    full: 'Classic 3-row calendar (prev + current + next week) with the standard status line.',
-                    compact: '2-row calendar (this week + next) with a larger status line and a taller forecast/health area.',
-                    none: 'No calendar — a full-date strip, bigger clock and status line, and a forecast that fills the screen. Flick your wrist to reach the radar (and health graph, when enabled).'
-                },
-                blockBefore: 'layoutPreview',
-                blockBeforeSticky: true
-            }, {
-                type: 'toggle',
-                messageKey: 'dualStatus',
-                label: 'Show weather status too',
-                defaultValue: false,
-                showWhen: {all: [{key: 'healthMode', ne: 'off'}, {key: 'topViewMode', ne: 'full'}]},
-                hint: 'Keep the weather status on screen alongside health — health above the clock and weather below it (Compact), or stacked under the clock (None). A wrist-flick then just toggles the rain radar.'
-            }]
-        }]
-    }, {
-        // aplite has no health sensors — the watch compiles the view out, so the whole
-        // tab is env-hidden there (tab-level showWhen; see platform.js health env flag).
-        id: 'health', label: 'Health', showWhen: {env: 'health'}, sections: [{
-            intro: 'A wrist-flick reveals an alternate view (rain radar up top). Turn the health view on to make that flick also show your health stats.',
-            items: [{
-                type: 'radio',
-                messageKey: 'healthMode',
-                label: 'Health view',
-                defaultValue: 'off',
-                hintByValue: {
-                    off:    'Health view is off — a wrist-flick just toggles the rain radar.',
-                    status: 'Flick your wrist to switch the bottom status line to health: '
-                          + "today's steps, last night's sleep, and current heart rate. "
-                          + 'Heart rate needs a watch with a heart-rate sensor.',
-                    all:    'Beta — also swaps the forecast graph for a health graph on flick '
-                          + '(hourly step bars, a sleep band, and a heart-rate line). '
-                          + 'Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
-                },
-                options: [['Off', 'off'], ['Status bar', 'status'], ['Status + graph', 'all']]
-            }]
-        }]
-    }, {
         id: 'radar', label: 'Radar', sections: [{
             intro: 'Rain radar appears as a second screen revealed with a wrist flick.<br>' + 'Unlike the model prediction in the forecast graph, this is a short-term nowcast based on actual radar measurements moving toward you, and it refreshes often as new radar scans arrive. ' + 'Behind the scenes the provider gives a sequence of radar images covering the next 2 hours; we read the rain intensity at your location in each image and turn every 5-minute frame into one bar whose height is the rain amount. ' + 'Solid bars are rain at your exact spot; the hatched outline behind them is the strongest rain anywhere within 2 km — an early warning that rain is nearby even when it isn\'t directly overhead yet.<br>' + 'Radar is Germany-only for now (Deutscher Wetterdienst). I\'m open to adding more providers, but so far I haven\'t found another free one that delivers 5-minute updates precise to your exact location.',
             items: [{
@@ -298,6 +253,12 @@ module.exports = {
                 text: BW_LEGEND,
                 showWhen: {all: [{not: {env: 'color'}}, {key: 'radarProvider', ne: 'disabled'}]}
             }, {
+                type: 'staticText',
+                joinPrevious: true,
+                text: '<span style="color:#A9AEB8;font-size:12.5px;line-height:1.55;">' +
+                    'Because rain radar data is changing frequently, using a lower time window shows fewer false positives.</span>',
+                showWhen: {key: 'radarProvider', ne: 'disabled'}
+            }, {
                 type: 'segmented',
                 messageKey: 'radarColor',
                 label: 'Radar color',
@@ -311,13 +272,56 @@ module.exports = {
                 messageKey: 'rainCountdownHorizon',
                 label: 'Rain countdown',
                 defaultValue: '60',
-                hint: 'Names the coming rain in the status strip — Drizzle / Rain / Downpour in X\' ' +
-                      '(and “… for X\'” once it’s falling). ' +
-                      'The minutes are how far ahead to look: rain arriving within that window raises the alert; ' +
-                      'beyond it (or Off) the strip just shows the date.',
-                options: [['Off', '0'], ['Within 30 min', '30'], ['Within 60 min', '60'],
-                          ['Within 2 hours', '120']],
+                hint: 'Show an incoming rain alert in the status strip when there is rain at your location within the selected time frame.',
+                options: [['Off', '0'], ['Within 30 min', '30'], ['Within 60 min', '60'], ['Within 2 hours', '120']],
                 showWhen: {key: 'radarProvider', ne: 'disabled'}
+            }]
+        }]
+    }, {
+        // aplite has no health sensors — the watch compiles the view out, so the whole
+        // tab is env-hidden there (tab-level showWhen; see platform.js health env flag).
+        id: 'health', label: 'Health', showWhen: {env: 'health'}, sections: [{
+            intro: 'A wrist-flick reveals an alternate view (rain radar up top). Turn the health view on to make that flick also show your health stats.',
+            items: [{
+                type: 'radio',
+                messageKey: 'healthMode',
+                label: 'Health view',
+                defaultValue: 'off',
+                hintByValue: {
+                    off: 'Health view is off — a wrist-flick just toggles the rain radar.',
+                    status: 'Flick your wrist to switch the bottom status line to health: '
+                        + "today's steps, last night's sleep, and current heart rate. "
+                        + 'Heart rate needs a watch with a heart-rate sensor.',
+                    all: 'Beta — also swaps the forecast graph for a health graph on flick '
+                        + '(hourly step bars, a sleep band, and a heart-rate line). '
+                        + 'Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
+                },
+                options: [['Off', 'off'], ['Status bar', 'status'], ['Status + graph', 'all']]
+            }]
+        }]
+    }, {
+        id: 'layout', label: 'Layout', sections: [{
+            intro: 'How the watchface is arranged. The preview updates as you choose.',
+            items: [{
+                type: 'segmented',
+                messageKey: 'topViewMode',
+                label: 'Top view',
+                defaultValue: 'compact',
+                options: [['Full', 'full'], ['Compact', 'compact'], ['None', 'none']],
+                hintByValue: {
+                    full: 'Classic 3-row calendar (prev + current + next week) with the standard status line.',
+                    compact: '2-row calendar (this week + next) with a larger status line and a taller forecast/health area.',
+                    none: 'No calendar — a full-date strip, bigger clock and status line, and a forecast that fills the screen. Flick your wrist to reach the radar (and health graph, when enabled).'
+                },
+                blockBefore: 'layoutPreview',
+                blockBeforeSticky: true
+            }, {
+                type: 'toggle',
+                messageKey: 'dualStatus',
+                label: 'Show weather status too',
+                defaultValue: false,
+                showWhen: {all: [{key: 'healthMode', ne: 'off'}, {key: 'topViewMode', ne: 'full'}]},
+                hint: 'Keep the weather status on screen alongside health — health above the clock and weather below it (Compact), or stacked under the clock (None). A wrist-flick then just toggles the rain radar.'
             }]
         }]
     }, {
@@ -357,7 +361,7 @@ module.exports = {
                 label: 'First week to display',
                 defaultValue: 'prev',
                 options: [['Prev', 'prev'], ['Curr', 'curr']],
-                showWhen: { key: 'topViewMode', eq: 'full' }
+                showWhen: {key: 'topViewMode', eq: 'full'}
             }, {
                 type: 'color',
                 messageKey: 'colorToday',
@@ -403,8 +407,13 @@ module.exports = {
                 label: 'Region',
                 defaultValue: 'all',
                 joinPrevious: true,
-                optionsFrom: { byKey: 'holidayCountry', map: holidayData.REGION_OPTIONS },
-                showWhen: { all: [{ key: 'holidayCountry', in: Object.keys(holidayData.REGION_OPTIONS) }, { key: 'holidaysEnabled', eq: true }] }
+                optionsFrom: {byKey: 'holidayCountry', map: holidayData.REGION_OPTIONS},
+                showWhen: {
+                    all: [{
+                        key: 'holidayCountry',
+                        in: Object.keys(holidayData.REGION_OPTIONS)
+                    }, {key: 'holidaysEnabled', eq: true}]
+                }
             }]
         }]
     }, {
