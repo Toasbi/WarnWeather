@@ -35,9 +35,10 @@ test('buildSettingsSnapshot coerces toggle settings to real booleans', () => {
   assert.equal(snapshot.devStatsEnabled, false);
 });
 
-test('snapshot includes healthEnabled', () => {
-    assert.strictEqual(buildSettingsSnapshot({ healthEnabled: true }).healthEnabled, true);
-    assert.strictEqual(buildSettingsSnapshot({}).healthEnabled, false);
+test('snapshot includes healthMode', () => {
+    assert.strictEqual(buildSettingsSnapshot({ healthMode: 'all' }).healthMode, 'all');
+    assert.strictEqual(buildSettingsSnapshot({ healthMode: 'status' }).healthMode, 'status');
+    assert.strictEqual(buildSettingsSnapshot({}).healthMode, 'off'); // defaults to off when unset
 });
 
 test('snapshot includes rainCountdownHorizon as an int', () => {
