@@ -228,6 +228,11 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
 #define WEATHER_STATUS_HEIGHT 14
 #define TIME_HEIGHT 45
 #define CALENDAR_HEIGHT 45
+// Compact + single-status (dual off): the lone status band sits directly above the
+// clock, so nudge it down a couple px to close the gap and sit it snug under the
+// clock. Dual status keeps the health band where it is (weather rides a separate
+// lower band), and full/none aren't affected — see the guarded use in compute_layout.
+#define COMPACT_SINGLE_STATUS_NUDGE 3
 #define EMERY_WINDOW_PAD_X 2
 #define EMERY_WINDOW_PAD_TOP 2
 #define EMERY_WINDOW_PAD_BOTTOM 4
@@ -318,6 +323,8 @@ static MainLayout compute_layout(GRect bounds, uint8_t mode, bool dual) {
         int status_y   = compact ? (calendar_y + cal_h)          : (time_y + time_h);
         int forecast_y = compact ? (time_y + time_h)             : (time_y + time_h + WEATHER_STATUS_HEIGHT);
         int fc_h       = compact ? (forecast_h + WEATHER_STATUS_HEIGHT) : forecast_h;
+        // Single-status compact: drop the lone band toward the clock just below it.
+        if (compact && !dual) { status_y += COMPACT_SINGLE_STATUS_NUDGE; }
 
         L.top        = GRect(content_x, calendar_y, content_w, cal_h);
         L.status     = GRect(content_x, status_y, content_w, status_h);
@@ -357,6 +364,8 @@ static MainLayout compute_layout(GRect bounds, uint8_t mode, bool dual) {
         int status_y   = compact ? (cal_y + cal_h)        : (h - FORECAST_HEIGHT - WEATHER_STATUS_HEIGHT); // 43 vs 103
         int forecast_y = compact ? (time_y + TIME_HEIGHT) : (h - FORECAST_HEIGHT);                   // 103 vs 117
         int fc_h       = h - forecast_y;                                                             // 65 vs 51
+        // Single-status compact: drop the lone band toward the clock just below it.
+        if (compact && !dual) { status_y += COMPACT_SINGLE_STATUS_NUDGE; }
 
         L.top        = GRect(0, cal_y, w, cal_h);
         L.status     = GRect(0, status_y, w, status_h);
