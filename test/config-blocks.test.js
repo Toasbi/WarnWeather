@@ -227,6 +227,32 @@ test('radarPreview legend distinguishes exact-spot rain from nearby rain', () =>
   assert.ok(/<rect[^>]*fill="none"[^>]*stroke="#8A8F98"/.test(bw), 'hollow grey nearby box on B&W too');
 });
 
+test('radarPreview shows the countdown band ("Rain in 15\'") when the countdown is on', () => {
+  const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: true });
+  assert.ok(svg.indexOf("Rain in 15'") >= 0, 'countdown text present');
+  assert.ok(svg.indexOf('viewBox="0 0 200 138"') >= 0, 'frame grew by the 20px band height');
+});
+
+test('radarPreview hides the countdown band when the countdown is Off', () => {
+  const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
+  assert.equal(svg.indexOf("Rain in 15'"), -1, 'no countdown text when Off');
+  assert.ok(svg.indexOf('viewBox="0 0 200 118"') >= 0, 'frame back to the no-band height');
+});
+
+test('radarPreview never shows the countdown band on aplite', () => {
+  const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: false, platform: 'aplite' });
+  assert.equal(svg.indexOf("Rain in 15'"), -1, 'no band on aplite even with a horizon set');
+  assert.ok(svg.indexOf('viewBox="0 0 200 118"') >= 0, 'aplite frame stays at the no-band height');
+});
+
+test('countdown glyph is tier-coloured on color, white on B&W; text stays white', () => {
+  const color = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: true });
+  const bw = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: false });
+  assert.ok(/stroke="#00FF00"/.test(color), 'glyph uses the green tier stroke on color');
+  assert.equal(/stroke="#00FF00"/.test(bw), false, 'no green glyph stroke on B&W');
+  assert.ok(color.indexOf('fill="#FFFFFF"') >= 0, 'white band text present on color');
+});
+
 test('precip secondary line draws the cobalt fill on color and a dither on B&W', () => {
   const base = { barSource: 'off', secondaryLine: 'precip_prob', secondaryLineFill: true, windScale: 'mid', dayNightShading: false };
   const color = B.forecastPreview(base, { color: true });

@@ -131,6 +131,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // eyeball with `mise preview-config` and nudge the 0.52 factor if labels crowd.
     function labelAdvance(text, s) { return Math.round(text.length * s * 0.52); }
 
+    // Small rain-intensity glyph: three short diagonal strokes in a size×size box at
+    // (gx, gy). An SVG stand-in for the watch's procedural rain-lines glyph — visual
+    // approximation, not a pixel-for-pixel trace.
+    function rainGlyph(gx, gy, size, color) {
+        var s = '', i, x0;
+        for (i = 0; i < 3; i += 1) {
+            x0 = gx + 2 + i * (size / 3);
+            s += '<line x1="' + (x0 + size * 0.28) + '" y1="' + (gy + 1) + '" x2="' + x0 + '" y2="' + (gy + size - 1)
+                + '" stroke="' + color + '" stroke-width="1.4" stroke-linecap="round"></line>';
+        }
+        return s;
+    }
+
     // Wrap a preview SVG body in the standard 200×h frame. The negative margins
     // cancel the engine .blockrow padding (12px 16px 14px) so the preview bleeds
     // edge-to-edge.
@@ -397,7 +410,25 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         e += '<rect x="' + lx + '" y="' + (lgy - 3.5) + '" width="9" height="7" fill="none" stroke="#8A8F98" stroke-width="1"></rect>';
         lx += 11;
         e += txt(lx + 3, lgy + 3, 7.5, '#AEB4BD', 'start', 600, 'Nearby (2 km)');
-        return svgFrame(e, 118);
+        // Rain-countdown preview band: a status-strip mock ("Rain in 15'") above the
+        // chart, mirroring top_status_layer.c. Hidden when the countdown is Off, and
+        // never shown on aplite (which lacks the feature). Only the glyph is coloured
+        // (green tier on color, white on B&W); the text stays white and centred.
+        var countdownOff = String(state.rainCountdownHorizon) === '0';
+        var isAplite = Boolean(env && env.platform === 'aplite');
+        if (countdownOff || isAplite) {
+            return svgFrame(e, 118);
+        }
+        var isColor = !(env && !env.color);
+        var glyphColor = isColor ? P.rainTiers[2].color : P.white;
+        var bandH = 20, glyphSize = 10, label = "Rain in 15'";
+        var groupW = glyphSize + 4 + labelAdvance(label, 11);
+        var groupX = (200 - groupW) / 2;
+        var band = rect(0, 0, 200, bandH, '#000');
+        band += rainGlyph(groupX, (bandH - glyphSize) / 2, glyphSize, glyphColor);
+        band += txt(groupX + glyphSize + 4, bandH / 2 + 4, 11, '#FFFFFF', 'start', 700, label);
+        band += '<line x1="0" y1="' + bandH + '" x2="200" y2="' + bandH + '" stroke="rgba(255,255,255,0.18)" stroke-width="0.7"></line>';
+        return svgFrame(band + '<g transform="translate(0,' + bandH + ')">' + e + '</g>', 118 + bandH);
     }
 
     /* ---- devStats: ported from inject.js:30-199 renderDevStats, minus clear button --- */
