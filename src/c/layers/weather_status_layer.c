@@ -27,12 +27,16 @@
 #define ARROW_HEAD_H 4
 #define ARROW_HEAD_W 3
 #define ARROW_W 8
-// emery: none is one notch above compact (Gothic 28); offsets tuned in Task 7.
+// emery: none — city stays big (Gothic 28); temp is non-bold (big enough without it)
+// and the sun info is a notch smaller (24) so long city names get more room.
 #define NONE_CITY_FONT_KEY FONT_KEY_GOTHIC_28
-#define NONE_SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_28
-#define NONE_TEMP_FONT_KEY FONT_KEY_GOTHIC_28_BOLD
+#define NONE_SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_24
+#define NONE_TEMP_FONT_KEY FONT_KEY_GOTHIC_28
 #define NONE_LABEL_OFFSET 8
 #define NONE_TEMP_Y_OFFSET 8
+// The sun info is a smaller font than the city; a smaller top-offset drops its
+// baseline back in line with the taller city glyphs.
+#define NONE_SUN_OFFSET 5
 #else
 #define CITY_FONT_KEY FONT_KEY_GOTHIC_14
 #define SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_14
@@ -53,12 +57,16 @@
 #define ARROW_HEAD_H 3
 #define ARROW_HEAD_W 2
 #define ARROW_W 6
-// none is one notch above compact (Gothic 24); offsets tuned in Task 7.
+// none — city stays big (Gothic 24); temp is non-bold (big enough without it) and
+// the sun info is a notch smaller (18) so long city names get more room.
 #define NONE_CITY_FONT_KEY FONT_KEY_GOTHIC_24
-#define NONE_SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_24
-#define NONE_TEMP_FONT_KEY FONT_KEY_GOTHIC_24_BOLD
+#define NONE_SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_18
+#define NONE_TEMP_FONT_KEY FONT_KEY_GOTHIC_24
 #define NONE_LABEL_OFFSET 6
 #define NONE_TEMP_Y_OFFSET 6
+// The sun info is a smaller font than the city; a smaller top-offset drops its
+// baseline back in line with the taller city glyphs.
+#define NONE_SUN_OFFSET 1
 #endif
 
 // Overflow mode matching the previous TextLayer default. Centralized so it is
@@ -134,7 +142,7 @@ static void current_temp_layer_refresh() {
         frame_curr_temp = GRect(0, temp_y, SNOOZE_BOX_W + MARGIN, 24);
         return;
     }
-    snprintf(s_temp_buffer, sizeof(s_temp_buffer), "• %d",
+    snprintf(s_temp_buffer, sizeof(s_temp_buffer), "•%d",
              config_localize_temp(persist_get_current_temp()));
     GSize size = graphics_text_layout_get_content_size(
         s_temp_buffer, temp_font(), GRect(0, 0, 100, 100),
@@ -156,10 +164,11 @@ static void sun_event_layer_refresh() {
         STATUS_TEXT_OVERFLOW, GTextAlignmentLeft);
     int y;
     // emery: align sun-event baseline with 18px font metrics instead of 14px.
+    // none uses its own (smaller) offset since the sun font is smaller than the city.
 #ifdef PBL_PLATFORM_EMERY
-    y = -tier_int(FONT_18_OFFSET, COMPACT_LABEL_OFFSET, NONE_LABEL_OFFSET);
+    y = -tier_int(FONT_18_OFFSET, COMPACT_LABEL_OFFSET, NONE_SUN_OFFSET);
 #else
-    y = -tier_int(FONT_14_OFFSET, COMPACT_LABEL_OFFSET, NONE_LABEL_OFFSET);
+    y = -tier_int(FONT_14_OFFSET, COMPACT_LABEL_OFFSET, NONE_SUN_OFFSET);
 #endif
     frame_sun_draw  = GRect(bounds.size.w - MARGIN - ARROW_W - size.w, y,
                             size.w + ARROW_W, size.h);
@@ -227,12 +236,19 @@ static void weather_status_update_proc(Layer *layer, GContext *ctx) {
         gpath_rotate_to(s_arrow_path, 0);
     }
     // Vertically center the arrow in the status band. emery seats it lower to sit
-    // in its taller row.
+    // in its taller row. In none mode the band is taller and the sun text sits high,
+    // so track the sun text's own frame instead of the band edge.
+    int arrow_y;
+    if (g_config->top_view_mode == TOP_VIEW_NONE) {
+        arrow_y = frame_sun_draw.origin.y + frame_sun_draw.size.h / 2;
+    } else {
 #ifdef PBL_PLATFORM_EMERY
-    gpath_move_to(s_arrow_path, GPoint(w - 4, bounds.size.h - (ARROW_H / 2) - 4));
+        arrow_y = bounds.size.h - (ARROW_H / 2) - 4;
 #else
-    gpath_move_to(s_arrow_path, GPoint(w - 4, bounds.size.h / 2));
+        arrow_y = bounds.size.h / 2;
 #endif
+    }
+    gpath_move_to(s_arrow_path, GPoint(w - 4, arrow_y));
     graphics_context_set_stroke_color(ctx, GColorWhite);
     gpath_draw_outline_open(ctx, s_arrow_path);
     graphics_context_set_fill_color(ctx, GColorWhite);

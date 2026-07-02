@@ -73,6 +73,23 @@ static GPoint icon_pt_hr;
 // Gap between a slot's glyph and its value text.
 #define ICON_GAP 2
 
+// The metric PDCs are authored larger than the status text; draw them at this
+// fraction of their authored size so they read as glyphs beside the value, not
+// as oversized icons. Integer ratio (no float) applied to the vector points.
+#define ICON_SCALE_NUM 2
+#define ICON_SCALE_DEN 3
+
+// The sleep PDC's glyph sits lower within its own viewbox than the steps/heart
+// glyphs do, so pure bounds-centering renders it a touch low; nudge it up to match.
+// emery: its taller status band shifts the balance, so it needs a smaller nudge
+// than the other platforms (same emery-differs-on-padding pattern as
+// weather_status_layer.c).
+#ifdef PBL_PLATFORM_EMERY
+#define SLEEP_ICON_Y_NUDGE 0
+#else
+#define SLEEP_ICON_Y_NUDGE 3
+#endif
+
 static Layer *s_health_status_layer;
 
 // Pick a per-tier value for the active top-view mode (full / compact / none).
@@ -93,10 +110,24 @@ static GFont status_font(void) {
 }
 
 // Force every draw command white so the glyph reads regardless of the colors baked
-// into the PDC (and so it maps to white on 1-bit displays).
-static bool icon_recolor_white(GDrawCommand *command, uint32_t index, void *context) {
+// into the PDC (and so it maps to white on 1-bit displays), and scale its vector
+// points down so the glyph draws smaller than its authored size.
+static bool icon_prepare(GDrawCommand *command, uint32_t index, void *context) {
+    (void) index;
+    (void) context;
     gdraw_command_set_stroke_color(command, GColorWhite);
     gdraw_command_set_fill_color(command, GColorWhite);
+    uint16_t n = gdraw_command_get_num_points(command);
+    for (uint16_t i = 0; i < n; i++) {
+        GPoint p = gdraw_command_get_point(command, i);
+        p.x = (int16_t) ((p.x * ICON_SCALE_NUM) / ICON_SCALE_DEN);
+        p.y = (int16_t) ((p.y * ICON_SCALE_NUM) / ICON_SCALE_DEN);
+        gdraw_command_set_point(command, i, p);
+    }
+    uint8_t sw = gdraw_command_get_stroke_width(command);
+    if (sw > 1) {
+        gdraw_command_set_stroke_width(command, (uint8_t) ((sw * ICON_SCALE_NUM) / ICON_SCALE_DEN));
+    }
     return true;
 }
 
@@ -104,7 +135,13 @@ static GDrawCommandImage *icon_load(uint32_t resource_id) {
     GDrawCommandImage *image = gdraw_command_image_create_with_resource(resource_id);
     if (image) {
         gdraw_command_list_iterate(gdraw_command_image_get_command_list(image),
-                                   icon_recolor_white, NULL);
+                                   icon_prepare, NULL);
+        // Shrink the reported bounds to match the scaled points so the layout
+        // reserves the smaller footprint (glyph width + gap before the value).
+        GSize bs = gdraw_command_image_get_bounds_size(image);
+        gdraw_command_image_set_bounds_size(image, GSize(
+            (bs.w * ICON_SCALE_NUM) / ICON_SCALE_DEN,
+            (bs.h * ICON_SCALE_NUM) / ICON_SCALE_DEN));
     }
     return image;
 }
@@ -192,7 +229,7 @@ static void health_status_layout(void) {
     int sleep_group_w = sleep_isz.w + ICON_GAP + sleep_tsz.w;
     int sleep_group_x = region_l + (region_w - sleep_group_w) / 2;
     if (sleep_group_x < region_l) { sleep_group_x = region_l; }
-    icon_pt_sleep = GPoint(sleep_group_x, (h - sleep_isz.h) / 2);
+    icon_pt_sleep = GPoint(sleep_group_x, (h - sleep_isz.h) / 2 - SLEEP_ICON_Y_NUDGE);
     frame_sleep = GRect(sleep_group_x + sleep_isz.w + ICON_GAP, y,
                         sleep_tsz.w, sleep_tsz.h + off);
 }
