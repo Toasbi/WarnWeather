@@ -48,11 +48,19 @@ int health_sleep_recent_seconds(void) {
 }
 
 int health_hr_current(void) {
-    /* Guard on accessibility so non-HRM hardware (e.g. aplite) returns 0 cleanly. */
+    /* Peek the RAW metric (the most recent sample) rather than
+       HealthMetricHeartRateBPM: the latter is a *filtered* value "at most 15 min
+       old", so in idle — when the firmware samples the HRM infrequently — the
+       status row and the graph's in-progress bar showed a stale aggregate that
+       only changed roughly hourly. Raw reflects what the watch last actually
+       measured. We deliberately do NOT request a shorter sample period
+       (health_service_set_heart_rate_sample_period), so freshness still tracks
+       the firmware's own idle cadence and there is no extra HRM battery cost.
+       Guard on accessibility so non-HRM hardware (e.g. aplite) returns 0 cleanly. */
     return PBL_IF_HEALTH_ELSE(
-        (health_service_metric_accessible(HealthMetricHeartRateBPM,
+        (health_service_metric_accessible(HealthMetricHeartRateRawBPM,
             time(NULL) - HOUR_SECS, time(NULL)) & HealthServiceAccessibilityMaskAvailable)
-            ? (int)health_service_peek_current_value(HealthMetricHeartRateBPM)
+            ? (int)health_service_peek_current_value(HealthMetricHeartRateRawBPM)
             : 0,
         0);
 }

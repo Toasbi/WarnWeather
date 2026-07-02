@@ -24,7 +24,7 @@ int health_steps_today(void);
 /** Returns sum of SleepSeconds over the past 24 h, or 0 if unavailable. */
 int health_sleep_recent_seconds(void);
 
-/** Returns the current heart rate in BPM, or 0 if unavailable. */
+/** Returns the most recent raw heart-rate sample in BPM, or 0 if unavailable. */
 int health_hr_current(void);
 
 /**
