@@ -1,6 +1,7 @@
 #include "health_status_layer.h"
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
+#include "c/layers/layer_util.h"
 #include "c/services/health.h"
 
 // Compiled only on health-capable hardware; see health_graph_layer.c and
@@ -16,11 +17,13 @@
 #ifdef PBL_PLATFORM_EMERY
 #define STATUS_FONT_KEY FONT_KEY_GOTHIC_18
 #define COMPACT_STATUS_FONT_KEY FONT_KEY_GOTHIC_24
-#define NONE_STATUS_FONT_KEY FONT_KEY_GOTHIC_28
+// none now matches the weather row's uniform Gothic 24 (was 28) so the two bars line up.
+#define NONE_STATUS_FONT_KEY FONT_KEY_GOTHIC_24
 #else
 #define STATUS_FONT_KEY FONT_KEY_GOTHIC_14
 #define COMPACT_STATUS_FONT_KEY FONT_KEY_GOTHIC_18
-#define NONE_STATUS_FONT_KEY FONT_KEY_GOTHIC_24
+// none now matches the weather row's uniform Gothic 18 (was 24) so the two bars line up.
+#define NONE_STATUS_FONT_KEY FONT_KEY_GOTHIC_18
 #endif
 
 #define STATUS_TEXT_OVERFLOW GTextOverflowModeTrailingEllipsis
@@ -85,29 +88,13 @@ static GPoint icon_pt_hr;
 #define STEPS_ICON_NUM 6
 #define STEPS_ICON_DEN 7
 
-// Pebble draws the glyph low in its line box (baseline near the bottom), so pure content-box
-// centring seats the number too low and clips it in a short band. Pull the text up by this
-// fraction of the font's content height — a per-font-proportional constant, so it corrects
-// the same way at every tier/band. Tune the fraction if the number reads high or clips.
-#define TEXT_BIAS_NUM 2
-#define TEXT_BIAS_DEN 9
-
-// Lift the whole health row (icons + value text together, preserving their alignment) this
-// many px above band-centre so it seats level with the weather row's city name. emery's band
-// runs a touch low against that reference; other platforms centre cleanly.
-#ifdef PBL_PLATFORM_EMERY
-#define CONTENT_Y_LIFT 1
-#else
-#define CONTENT_Y_LIFT 0
-#endif
-
-// The full tier serves two bands: the short full-topview slot (≈WEATHER_STATUS_HEIGHT, where
-// the row lifts to meet the weather city) and the taller dual+compact band (where that lift
-// rides too high against the calendar). Ease the row back down when the full tier lands in a
-// band taller than the short slot — this leaves the 14px full-topview band and non-emery's
-// short compact band untouched. (Removed once the status bars share one positioning helper.)
-#define DUAL_COMPACT_BAND_MIN 16
-#define DUAL_COMPACT_DROP 2
+// The value text's vertical position comes from status_text_y() in layer_util.h — the same
+// helper the weather row uses — so the two status bars land at the same height in a shared
+// band. The one exception: in the taller dual+compact band the whole row (text + icons) drops
+// a few px so it isn't tight against the calendar/radar above it. Gated on band height so the
+// short full-topview band, none, and non-emery's short compact band are untouched.
+#define HEALTH_TALL_BAND_MIN 16
+#define HEALTH_SECTION_DROP 2
 
 static Layer *s_health_status_layer;
 
@@ -275,25 +262,36 @@ static void health_status_layout(void) {
     int w = bounds.size.w;
     int h = bounds.size.h;
     GFont font = status_font();
-    // Band-centre the value text's content box so it sits level with the band-centred icons
-    // in whatever band this tier lands in, then pull it up by a font-proportional bias to
-    // correct the glyph's low seat in the line box (see TEXT_BIAS_* above).
+    // Value text and icons both band-centre via the shared helper (see status_text_y in
+    // layer_util.h). In the taller dual+compact band, drop the whole row (text + icons) so it
+    // clears the calendar/radar above — applied uniformly so their alignment is preserved.
+    int section_drop = (s_render_tier == TOP_VIEW_FULL && h > HEALTH_TALL_BAND_MIN)
+                           ? HEALTH_SECTION_DROP : 0;
+    int y = status_text_y(h, font) + section_drop;
+    // Centre the icons on the value-text glyph (content-box centre + the low-seat bias), so
+    // they track the text in every band — including the short band where the text sits high.
     int content_h = font_content_h();
-    // Net upward shift of the whole row: the weather-matching lift, eased back down when the
-    // full tier lands in the taller dual+compact band (see DUAL_COMPACT_* above).
-    int lift = CONTENT_Y_LIFT;
-    if (s_render_tier == TOP_VIEW_FULL && h > DUAL_COMPACT_BAND_MIN) { lift -= DUAL_COMPACT_DROP; }
-    int y = (h - content_h) / 2 - (content_h * TEXT_BIAS_NUM) / TEXT_BIAS_DEN - lift;
+    int glyph_c = y + content_h / 2 + (content_h * STATUS_TEXT_BIAS_NUM) / STATUS_TEXT_BIAS_DEN;
 
     GSize steps_isz = icon_size(s_icon_steps);
     GSize sleep_isz = icon_size(s_icon_sleep);
     GSize hr_isz    = icon_size(s_icon_hr);
 
+    // One shared icon centre for all three, clamped by the TALLEST icon so none clips. Using a
+    // common centre (not a per-icon clamp) keeps the shorter shoe co-centred with sleep/heart
+    // instead of riding high when the taller two hit the clamp.
+    int tallest = steps_isz.h;
+    if (sleep_isz.h > tallest) { tallest = sleep_isz.h; }
+    if (hr_isz.h > tallest)    { tallest = hr_isz.h; }
+    int icon_c = glyph_c;
+    if (icon_c < tallest / 2)     { icon_c = tallest / 2; }
+    if (icon_c > h - tallest / 2) { icon_c = h - tallest / 2; }
+
     // Steps: flush left — [glyph][gap][value], glyph vertically centred in the band.
     GSize steps_tsz = graphics_text_layout_get_content_size(
         s_steps_buf, font, GRect(0, 0, w / 3, 100),
         STATUS_TEXT_OVERFLOW, GTextAlignmentLeft);
-    icon_pt_steps = GPoint(MARGIN, (h - steps_isz.h) / 2 - lift);
+    icon_pt_steps = GPoint(MARGIN, icon_c - steps_isz.h / 2);
     frame_steps = GRect(MARGIN + steps_isz.w + ICON_GAP, y, steps_tsz.w, steps_tsz.h);
 
     // HR: flush right — the whole [glyph][gap][value] group is right-aligned.
@@ -301,7 +299,7 @@ static void health_status_layout(void) {
         s_hr_buf, font, GRect(0, 0, w / 3, 100),
         STATUS_TEXT_OVERFLOW, GTextAlignmentLeft);
     int hr_group_x = w - MARGIN - hr_isz.w - ICON_GAP - hr_tsz.w;
-    icon_pt_hr = GPoint(hr_group_x, (h - hr_isz.h) / 2 - lift);
+    icon_pt_hr = GPoint(hr_group_x, icon_c - hr_isz.h / 2);
     frame_hr = GRect(hr_group_x + hr_isz.w + ICON_GAP, y, hr_tsz.w, hr_tsz.h);
 
     // Sleep: [glyph][gap][value] group centred in the space between steps and HR.
@@ -315,7 +313,7 @@ static void health_status_layout(void) {
     int sleep_group_w = sleep_isz.w + ICON_GAP + sleep_tsz.w;
     int sleep_group_x = region_l + (region_w - sleep_group_w) / 2;
     if (sleep_group_x < region_l) { sleep_group_x = region_l; }
-    icon_pt_sleep = GPoint(sleep_group_x, (h - sleep_isz.h) / 2 - lift);
+    icon_pt_sleep = GPoint(sleep_group_x, icon_c - sleep_isz.h / 2);
     frame_sleep = GRect(sleep_group_x + sleep_isz.w + ICON_GAP, y,
                         sleep_tsz.w, sleep_tsz.h);
 }

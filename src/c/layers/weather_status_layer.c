@@ -27,15 +27,16 @@
 #define ARROW_HEAD_H 4
 #define ARROW_HEAD_W 3
 #define ARROW_W 8
-// emery: none — city stays big (Gothic 28); temp is non-bold (big enough without it)
-// and the sun info is a notch smaller (24) so long city names get more room.
-#define NONE_CITY_FONT_KEY FONT_KEY_GOTHIC_28
+// Drop the arrow below the sun text's line-box centre onto the visible glyph (Pebble seats
+// the glyph low in the box), so it doesn't ride up and clip at the band top.
+#define ARROW_Y_DROP 4
+// emery: none — all three labels share the sun's size (Gothic 24) so the row is uniform
+// and the health status row can match it 1:1; one offset baseline-aligns them.
+#define NONE_CITY_FONT_KEY FONT_KEY_GOTHIC_24
 #define NONE_SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_24
-#define NONE_TEMP_FONT_KEY FONT_KEY_GOTHIC_28
-#define NONE_LABEL_OFFSET 8
-#define NONE_TEMP_Y_OFFSET 8
-// The sun info is a smaller font than the city; a smaller top-offset drops its
-// baseline back in line with the taller city glyphs.
+#define NONE_TEMP_FONT_KEY FONT_KEY_GOTHIC_24
+#define NONE_LABEL_OFFSET 5
+#define NONE_TEMP_Y_OFFSET 5
 #define NONE_SUN_OFFSET 5
 #else
 #define CITY_FONT_KEY FONT_KEY_GOTHIC_14
@@ -57,15 +58,16 @@
 #define ARROW_HEAD_H 3
 #define ARROW_HEAD_W 2
 #define ARROW_W 6
-// none — city stays big (Gothic 24); temp is non-bold (big enough without it) and
-// the sun info is a notch smaller (18) so long city names get more room.
-#define NONE_CITY_FONT_KEY FONT_KEY_GOTHIC_24
+// Drop the arrow below the sun text's line-box centre onto the visible glyph (Pebble seats
+// the glyph low in the box), so it doesn't ride up and clip at the band top.
+#define ARROW_Y_DROP 2
+// none — all three labels share the sun's size (Gothic 18) so the row is uniform and the
+// health status row can match it 1:1; one offset baseline-aligns them.
+#define NONE_CITY_FONT_KEY FONT_KEY_GOTHIC_18
 #define NONE_SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_18
-#define NONE_TEMP_FONT_KEY FONT_KEY_GOTHIC_24
-#define NONE_LABEL_OFFSET 6
-#define NONE_TEMP_Y_OFFSET 6
-// The sun info is a smaller font than the city; a smaller top-offset drops its
-// baseline back in line with the taller city glyphs.
+#define NONE_TEMP_FONT_KEY FONT_KEY_GOTHIC_18
+#define NONE_LABEL_OFFSET 1
+#define NONE_TEMP_Y_OFFSET 1
 #define NONE_SUN_OFFSET 1
 #endif
 
@@ -138,14 +140,6 @@ static const GPathInfo ARROW_PATH_INFO = {
 };
 #endif
 
-// Pick a per-tier value for the active render tier (full / compact / none).
-static int tier_int(int full, int compact, int none) {
-    switch (s_render_tier) {
-        case TOP_VIEW_NONE:    return none;
-        case TOP_VIEW_COMPACT: return compact;
-        default:               return full;
-    }
-}
 static const char *tier_key(const char *full, const char *compact, const char *none) {
     switch (s_render_tier) {
         case TOP_VIEW_NONE:    return none;
@@ -165,7 +159,7 @@ static GFont sun_font(void) {
 }
 
 static void current_temp_layer_refresh() {
-    int temp_y = -tier_int(TEMP_Y_OFFSET, COMPACT_TEMP_Y_OFFSET, NONE_TEMP_Y_OFFSET);
+    int temp_y = status_text_y(layer_get_bounds(s_weather_status_layer).size.h, temp_font());
     if (persist_get_is_sleeping()) {
         // Snooze glyphs are drawn in the update proc; blank the text and reserve
         // a fixed box so the city label keeps its position. Only origin.x and
@@ -195,14 +189,7 @@ static void sun_event_layer_refresh() {
     GSize size = graphics_text_layout_get_content_size(
         s_sun_buffer, sun_font(), GRect(0, 0, 100, 100),
         STATUS_TEXT_OVERFLOW, GTextAlignmentLeft);
-    int y;
-    // emery: align sun-event baseline with 18px font metrics instead of 14px.
-    // none uses its own (smaller) offset since the sun font is smaller than the city.
-#ifdef PBL_PLATFORM_EMERY
-    y = -tier_int(FONT_18_OFFSET, COMPACT_LABEL_OFFSET, NONE_SUN_OFFSET);
-#else
-    y = -tier_int(FONT_14_OFFSET, COMPACT_LABEL_OFFSET, NONE_SUN_OFFSET);
-#endif
+    int y = status_text_y(bounds.size.h, sun_font());
     frame_sun_draw  = GRect(bounds.size.w - MARGIN - ARROW_W - size.w, y,
                             size.w + ARROW_W, size.h);
     frame_sun_event = GRect(bounds.size.w - MARGIN - ARROW_W - size.w, y,
@@ -219,17 +206,8 @@ static void city_layer_refresh() {
     GSize size = graphics_text_layout_get_content_size(
         s_city_buffer, city_font(), GRect(0, 0, w, 100),
         STATUS_TEXT_OVERFLOW, GTextAlignmentCenter);
-    int y;
-    int h;
-    // emery: align city baseline with 18px font metrics instead of 14px.
-#ifdef PBL_PLATFORM_EMERY
-    int city_off = tier_int(FONT_18_OFFSET, COMPACT_LABEL_OFFSET, NONE_LABEL_OFFSET);
-#else
-    int city_off = tier_int(FONT_14_OFFSET, COMPACT_LABEL_OFFSET, NONE_LABEL_OFFSET);
-#endif
-    y = -city_off;
-    h = size.h + city_off;
-    frame_city = GRect(x, y, w, h);
+    int y = status_text_y(bounds.size.h, city_font());
+    frame_city = GRect(x, y, w, size.h);
 }
 
 static void weather_status_layer_init() {
@@ -258,19 +236,10 @@ static void weather_status_update_proc(Layer *layer, GContext *ctx) {
     graphics_draw_text(ctx, s_sun_buffer, sun_font(), frame_sun_draw,
                        STATUS_TEXT_OVERFLOW, GTextAlignmentLeft, NULL);
 
-    // Vertically center the arrow in the status band. emery seats it lower to sit
-    // in its taller row. In none mode the band is taller and the sun text sits high,
-    // so track the sun text's own frame instead of the band edge.
-    int arrow_y;
-    if (s_render_tier == TOP_VIEW_NONE) {
-        arrow_y = frame_sun_draw.origin.y + frame_sun_draw.size.h / 2;
-    } else {
-#ifdef PBL_PLATFORM_EMERY
-        arrow_y = bounds.size.h - (ARROW_H / 2) - 4;
-#else
-        arrow_y = bounds.size.h / 2;
-#endif
-    }
+    // Track the sun text's own frame so the arrow stays beside it wherever status_text_y
+    // seats the line (band-centred, or lifted in a short band) — no fixed band offsets. Drop
+    // onto the visible glyph (below the line-box centre) so it doesn't clip at the band top.
+    int arrow_y = frame_sun_draw.origin.y + frame_sun_draw.size.h / 2 + ARROW_Y_DROP;
     // start_type 0 → next event is a sunrise (arrow points up); else a sunset (down).
     const bool arrow_up = (persist_get_sun_event_start_type() == 0);
 #ifdef PBL_PLATFORM_APLITE
