@@ -22,6 +22,9 @@
 // Match weather_status_layer's COMPACT_LABEL_OFFSET (6) so this row seats at the
 // same height as the weather status line instead of crowding the row above it.
 #define COMPACT_SLOT_Y_OFFSET 6
+// emery: none is one notch above compact (Gothic 28); offset tuned in Task 7.
+#define NONE_STATUS_FONT_KEY FONT_KEY_GOTHIC_28
+#define NONE_SLOT_Y_OFFSET 8
 #else
 #define STATUS_FONT_KEY FONT_KEY_GOTHIC_14
 #define SLOT_Y_OFFSET FONT_14_OFFSET
@@ -29,6 +32,9 @@
 // Match weather_status_layer's COMPACT_LABEL_OFFSET (4). FONT_18_OFFSET (7) sat the
 // text 3px higher than the weather row, crowding the element above it in compact mode.
 #define COMPACT_SLOT_Y_OFFSET 4
+// none is one notch above compact (Gothic 24); offset tuned in Task 7.
+#define NONE_STATUS_FONT_KEY FONT_KEY_GOTHIC_24
+#define NONE_SLOT_Y_OFFSET 6
 #endif
 
 #define STATUS_TEXT_OVERFLOW GTextOverflowModeTrailingEllipsis
@@ -69,10 +75,21 @@ static GPoint icon_pt_hr;
 
 static Layer *s_health_status_layer;
 
-static bool status_compact(void) { return g_config->top_view_mode != TOP_VIEW_FULL; }
+// Pick a per-tier value for the active top-view mode (full / compact / none).
+static int tier_int(int full, int compact, int none) {
+    switch (g_config->top_view_mode) {
+        case TOP_VIEW_NONE:    return none;
+        case TOP_VIEW_COMPACT: return compact;
+        default:               return full;
+    }
+}
 
 static GFont status_font(void) {
-    return fonts_get_system_font(status_compact() ? COMPACT_STATUS_FONT_KEY : STATUS_FONT_KEY);
+    switch (g_config->top_view_mode) {
+        case TOP_VIEW_NONE:    return fonts_get_system_font(NONE_STATUS_FONT_KEY);
+        case TOP_VIEW_COMPACT: return fonts_get_system_font(COMPACT_STATUS_FONT_KEY);
+        default:               return fonts_get_system_font(STATUS_FONT_KEY);
+    }
 }
 
 // Force every draw command white so the glyph reads regardless of the colors baked
@@ -141,7 +158,7 @@ static void health_status_layout(void) {
     GRect bounds = layer_get_bounds(s_health_status_layer);
     int w = bounds.size.w;
     int h = bounds.size.h;
-    int off = status_compact() ? COMPACT_SLOT_Y_OFFSET : SLOT_Y_OFFSET;
+    int off = tier_int(SLOT_Y_OFFSET, COMPACT_SLOT_Y_OFFSET, NONE_SLOT_Y_OFFSET);
     int y = -off;
     GFont font = status_font();
 

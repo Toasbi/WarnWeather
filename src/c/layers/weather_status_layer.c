@@ -27,6 +27,12 @@
 #define ARROW_HEAD_H 4
 #define ARROW_HEAD_W 3
 #define ARROW_W 8
+// emery: none is one notch above compact (Gothic 28); offsets tuned in Task 7.
+#define NONE_CITY_FONT_KEY FONT_KEY_GOTHIC_28
+#define NONE_SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_28
+#define NONE_TEMP_FONT_KEY FONT_KEY_GOTHIC_28_BOLD
+#define NONE_LABEL_OFFSET 8
+#define NONE_TEMP_Y_OFFSET 8
 #else
 #define CITY_FONT_KEY FONT_KEY_GOTHIC_14
 #define SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_14
@@ -47,6 +53,12 @@
 #define ARROW_HEAD_H 3
 #define ARROW_HEAD_W 2
 #define ARROW_W 6
+// none is one notch above compact (Gothic 24); offsets tuned in Task 7.
+#define NONE_CITY_FONT_KEY FONT_KEY_GOTHIC_24
+#define NONE_SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_24
+#define NONE_TEMP_FONT_KEY FONT_KEY_GOTHIC_24_BOLD
+#define NONE_LABEL_OFFSET 6
+#define NONE_TEMP_Y_OFFSET 6
 #endif
 
 // Overflow mode matching the previous TextLayer default. Centralized so it is
@@ -85,20 +97,34 @@ static const GPathInfo ARROW_PATH_INFO = {
     }
 };
 
-static bool status_compact(void) { return g_config->top_view_mode != TOP_VIEW_FULL; }
+// Pick a per-tier value for the active top-view mode (full / compact / none).
+static int tier_int(int full, int compact, int none) {
+    switch (g_config->top_view_mode) {
+        case TOP_VIEW_NONE:    return none;
+        case TOP_VIEW_COMPACT: return compact;
+        default:               return full;
+    }
+}
+static const char *tier_key(const char *full, const char *compact, const char *none) {
+    switch (g_config->top_view_mode) {
+        case TOP_VIEW_NONE:    return none;
+        case TOP_VIEW_COMPACT: return compact;
+        default:               return full;
+    }
+}
 
 static GFont temp_font(void) {
-    return fonts_get_system_font(status_compact() ? COMPACT_TEMP_FONT_KEY : FONT_KEY_GOTHIC_18_BOLD);
+    return fonts_get_system_font(tier_key(FONT_KEY_GOTHIC_18_BOLD, COMPACT_TEMP_FONT_KEY, NONE_TEMP_FONT_KEY));
 }
 static GFont city_font(void) {
-    return fonts_get_system_font(status_compact() ? COMPACT_CITY_FONT_KEY : CITY_FONT_KEY);
+    return fonts_get_system_font(tier_key(CITY_FONT_KEY, COMPACT_CITY_FONT_KEY, NONE_CITY_FONT_KEY));
 }
 static GFont sun_font(void) {
-    return fonts_get_system_font(status_compact() ? COMPACT_SUN_EVENT_FONT_KEY : SUN_EVENT_FONT_KEY);
+    return fonts_get_system_font(tier_key(SUN_EVENT_FONT_KEY, COMPACT_SUN_EVENT_FONT_KEY, NONE_SUN_EVENT_FONT_KEY));
 }
 
 static void current_temp_layer_refresh() {
-    int temp_y = status_compact() ? -COMPACT_TEMP_Y_OFFSET : -TEMP_Y_OFFSET;
+    int temp_y = -tier_int(TEMP_Y_OFFSET, COMPACT_TEMP_Y_OFFSET, NONE_TEMP_Y_OFFSET);
     if (persist_get_is_sleeping()) {
         // Snooze glyphs are drawn in the update proc; blank the text and reserve
         // a fixed box so the city label keeps its position. Only origin.x and
@@ -131,9 +157,9 @@ static void sun_event_layer_refresh() {
     int y;
     // emery: align sun-event baseline with 18px font metrics instead of 14px.
 #ifdef PBL_PLATFORM_EMERY
-    y = status_compact() ? -COMPACT_LABEL_OFFSET : -FONT_18_OFFSET;
+    y = -tier_int(FONT_18_OFFSET, COMPACT_LABEL_OFFSET, NONE_LABEL_OFFSET);
 #else
-    y = status_compact() ? -COMPACT_LABEL_OFFSET : -FONT_14_OFFSET;
+    y = -tier_int(FONT_14_OFFSET, COMPACT_LABEL_OFFSET, NONE_LABEL_OFFSET);
 #endif
     frame_sun_draw  = GRect(bounds.size.w - MARGIN - ARROW_W - size.w, y,
                             size.w + ARROW_W, size.h);
@@ -155,9 +181,9 @@ static void city_layer_refresh() {
     int h;
     // emery: align city baseline with 18px font metrics instead of 14px.
 #ifdef PBL_PLATFORM_EMERY
-    int city_off = status_compact() ? COMPACT_LABEL_OFFSET : FONT_18_OFFSET;
+    int city_off = tier_int(FONT_18_OFFSET, COMPACT_LABEL_OFFSET, NONE_LABEL_OFFSET);
 #else
-    int city_off = status_compact() ? COMPACT_LABEL_OFFSET : FONT_14_OFFSET;
+    int city_off = tier_int(FONT_14_OFFSET, COMPACT_LABEL_OFFSET, NONE_LABEL_OFFSET);
 #endif
     y = -city_off;
     h = size.h + city_off;
