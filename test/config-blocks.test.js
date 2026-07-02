@@ -246,3 +246,19 @@ test('area fill works for every main metric, in its palette fill color', () => {
   const off = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind', secondaryLineFill: false }), { color: true });
   assert.equal(off.indexOf('fill="#555500"'), -1, 'no fill when the toggle is off');
 });
+
+test('layoutPreview: Calendar band shows for full/compact, not none', () => {
+    assert.ok(B.layoutPreview({ topViewMode: 'full' }, {}, {}).indexOf('Calendar') >= 0);
+    assert.ok(B.layoutPreview({ topViewMode: 'compact' }, {}, {}).indexOf('Calendar') >= 0);
+    assert.strictEqual(B.layoutPreview({ topViewMode: 'none' }, {}, {}).indexOf('Calendar'), -1);
+});
+
+test('layoutPreview: every mode returns an svg with Date/Clock/Status/Forecast bands', () => {
+    ['full', 'compact', 'none'].forEach(function (m) {
+        const svg = B.layoutPreview({ topViewMode: m }, {}, {});
+        assert.strictEqual(svg.indexOf('<svg'), 0, m + ' returns an svg');
+        ['Date', 'Clock', 'Status', 'Forecast'].forEach(function (label) {
+            assert.ok(svg.indexOf(label) >= 0, m + ' has a ' + label + ' band');
+        });
+    });
+});
