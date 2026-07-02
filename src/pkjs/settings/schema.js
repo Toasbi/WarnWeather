@@ -253,12 +253,6 @@ module.exports = {
                 text: BW_LEGEND,
                 showWhen: {all: [{not: {env: 'color'}}, {key: 'radarProvider', ne: 'disabled'}]}
             }, {
-                type: 'staticText',
-                joinPrevious: true,
-                text: '<span style="color:#A9AEB8;font-size:12.5px;line-height:1.55;">' +
-                    'Because rain radar data is changing frequently, using a lower time window shows fewer false positives.</span>',
-                showWhen: {key: 'radarProvider', ne: 'disabled'}
-            }, {
                 type: 'segmented',
                 messageKey: 'radarColor',
                 label: 'Radar color',
@@ -275,6 +269,12 @@ module.exports = {
                 hint: 'Show an incoming rain alert in the status strip when there is rain at your location within the selected time frame.',
                 options: [['Off', '0'], ['Within 30 min', '30'], ['Within 60 min', '60'], ['Within 2 hours', '120']],
                 showWhen: {all: [{key: 'radarProvider', ne: 'disabled'}, {env: 'platform', ne: 'aplite'}]}
+            }, {
+                type: 'staticText',
+                joinPrevious: true,
+                text: '<span style="color:#A9AEB8;font-size:12.5px;line-height:1.55;">' +
+                    'Because rain radar data is changing frequently, using a lower time window shows fewer false positives.</span>',
+                showWhen: {key: 'radarProvider', ne: 'disabled'}
             }]
         }]
     }, {
