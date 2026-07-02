@@ -286,7 +286,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // a joinPrevious static acts as the control's description, so the join modifier tightens its
       // top spacing to hug the row above (like a hint) instead of standing off as a separate block.
       var staticCls = 'static' + (item.joinPrevious ? ' join' : '') + (noDivider ? ' nb' : '');
-      return { html: '<div class="' + staticCls + '">' + (item.text || '') + '</div>', kind: 'static' };
+      // A staticText may host preview blocks too (blockBefore/block) — e.g. the Layout tab's
+      // after-flick preview rides a caption. renderBlock() no-ops when the id is absent.
+      var staticHtml = renderBlock(item.blockBefore, cx.S, cx.ENV, cx.USERDATA, item.blockBeforeSticky)
+        + '<div class="' + staticCls + '">' + (item.text || '') + '</div>'
+        + renderBlock(item.block, cx.S, cx.ENV, cx.USERDATA);
+      return { html: staticHtml, kind: 'static' };
     }
     var rowItem = resolveRowItem(item, view, cx);
     var html = renderBlock(item.blockBefore, cx.S, cx.ENV, cx.USERDATA, item.blockBeforeSticky)
