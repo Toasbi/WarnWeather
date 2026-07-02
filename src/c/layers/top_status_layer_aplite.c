@@ -2,17 +2,18 @@
 //
 // Frozen fork of top_status_layer.c as of 3c5b2bc. FEATURE-FROZEN, NOT CODE-FROZEN:
 // never add features here (aplite deliberately lacks the rain-intensity glyph /
-// colour / drop-BT-then-ellipsize ladder; the intensity *naming* does reach aplite
-// via the shared, un-forked rain_countdown.c); hand-port bugfixes from top_status_layer.c
-// (see `git log 3c5b2bc.. -- src/c/layers/top_status_layer.c`); interface changes are
-// forced by the aplite link error. See docs/adr/0001-aplite-frozen-lean-fork.md.
+// colour / drop-BT-then-ellipsize ladder AND the rain-countdown "Rain in X min"
+// alert — dropped from the strip to fit the 24 KB budget, so rain_countdown.c is
+// --gc-sections'd out of the aplite image); hand-port bugfixes from
+// top_status_layer.c (see `git log 3c5b2bc.. -- src/c/layers/top_status_layer.c`);
+// interface changes are forced by the aplite link error.
+// See docs/adr/0001-aplite-frozen-lean-fork.md.
 
 #include <string.h>
 #include "top_status_layer.h"
 #include "battery_layer.h"
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
-#include "c/appendix/rain_countdown.h"
 #include "c/services/watch_services.h"
 
 #define BATTERY_W 29
@@ -44,11 +45,6 @@ static GColor s_mute_palette[2];
 // only status-strip element without an event source, so the minute handler
 // repaints the strip only when this flips. Kept in sync by status_icons_refresh.
 static bool s_last_qt_active;
-// Cached rain-countdown alert string + active flag. recompute_rain_alert keeps
-// these in sync from the flash-free Phase B derivation; when active, the alert
-// replaces the month in the strip.
-static char s_rain_alert_text[20];   // "Downpour for +99'" = 17 chars + NUL
-static bool s_rain_alert_active;
 
 static GRect month_text_rect(GRect bounds, GFont font, const char *text) {
 #ifdef PBL_PLATFORM_EMERY
@@ -155,7 +151,7 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
         draw_bitmap(ctx, s_bt_disconnect_bitmap, GRect(icon_x, STATUS_ICON_Y(bounds.size.h, 10), 10, 10));
     }
 
-    draw_status_text(ctx, bounds, s_rain_alert_active ? s_rain_alert_text : s_calendar_month_text);
+    draw_status_text(ctx, bounds, s_calendar_month_text);
 }
 
 void top_status_layer_create(Layer* parent_layer, GRect frame) {
@@ -173,7 +169,6 @@ void top_status_layer_create(Layer* parent_layer, GRect frame) {
     });
     MEMORY_HEAP_PROBE_SAMPLE("after_connection_subscribe", &probe);
 
-    rain_countdown_refresh(watch_services_now());
     top_status_layer_refresh();
 
     layer_set_update_proc(s_top_status_layer, top_status_update_proc);
@@ -215,37 +210,13 @@ void status_icons_refresh() {
     bluetooth_icons_refresh(connection_service_peek_pebble_app_connection());
 }
 
-// Recompute the rain-alert string from the cached countdown. Returns true if
-// the active flag or the text changed (the caller should mark the layer dirty).
-static bool recompute_rain_alert(void) {
-    char buf[sizeof(s_rain_alert_text)];
-    bool active = rain_countdown_format(buf, sizeof(buf), watch_services_now());
-    if (active == s_rain_alert_active &&
-        (!active || strcmp(buf, s_rain_alert_text) == 0)) {
-        return false;
-    }
-    s_rain_alert_active = active;
-    if (active) {
-        strncpy(s_rain_alert_text, buf, sizeof(s_rain_alert_text));
-        s_rain_alert_text[sizeof(s_rain_alert_text) - 1] = '\0';
-    }
-    return true;
-}
-
 void top_status_layer_tick() {
-    // Per-minute hook. Repaint when the Quiet-Time icon toggles (its only event
-    // source) or when the rain-alert string changes (a flash-free derivation
-    // from the cached countdown; the radar scan itself runs only on data change).
-    bool dirty = false;
+    // Per-minute hook. The Quiet-Time icon is the only strip element without an
+    // event source (aplite lacks the rain-countdown alert), so repaint only when
+    // it toggles.
     bool qt_active = show_qt_icon();
     if (qt_active != s_last_qt_active) {
         s_last_qt_active = qt_active;
-        dirty = true;
-    }
-    if (recompute_rain_alert()) {
-        dirty = true;
-    }
-    if (dirty) {
         layer_mark_dirty(s_top_status_layer);
     }
 }
@@ -275,7 +246,6 @@ void top_status_layer_refresh() {
     } else {
         strftime(s_calendar_month_text, sizeof(s_calendar_month_text), "%b %Y", &tm_now);
     }
-    recompute_rain_alert();
     status_icons_refresh();
 }
 

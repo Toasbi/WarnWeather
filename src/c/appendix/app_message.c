@@ -337,7 +337,11 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
         rain_radar_layer_refresh();
         // The radar payload (or the snooze latch/release) is the rain-countdown's
         // only data-change source: rescan the cache, then repaint the strip.
+        // aplite drops the rain-countdown alert (24 KB budget), so it skips the
+        // rescan and rain_countdown.c is --gc-sections'd out of that image.
+#ifndef PBL_PLATFORM_APLITE
         rain_countdown_refresh(watch_services_now());
+#endif
         top_status_layer_refresh();
         // Radar availability may have switched — re-evaluate the top view so
         // a cleared radar falls back to the calendar.
