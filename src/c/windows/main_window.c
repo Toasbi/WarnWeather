@@ -66,6 +66,18 @@ static bool health_view_active(void) {
 #endif
 }
 
+// The render tier (a TopViewMode value) for the weather status band. Normally the
+// top-view mode, but in dual-status mode compute_layout() carves the weather band
+// from the forecast at the full-height band — never the shorter compact band — so
+// it renders as full. None keeps its own band and is unchanged. dual_active() is a
+// hard false on no-health platforms, so this is just top_view_mode there.
+static uint8_t weather_status_render_tier(void) {
+    if (dual_active() && g_config->top_view_mode == TOP_VIEW_COMPACT) {
+        return TOP_VIEW_FULL;
+    }
+    return g_config->top_view_mode;
+}
+
 static void apply_view(TopView top, BottomView bottom) {
     bool none = (g_config->top_view_mode == TOP_VIEW_NONE);
 
@@ -363,6 +375,8 @@ static void main_window_load(Window *window) {
 #if defined(PBL_HEALTH)
     health_graph_layer_create(window_layer, L.bottom);
 #endif
+    // Tell the weather status which tier to render at before it lays out its text.
+    weather_status_layer_set_render_tier(weather_status_render_tier());
 #if defined(PBL_HEALTH)
     weather_status_layer_create(window_layer, dual_active() ? L.status_lower : L.status);
     health_status_layer_create(window_layer, L.status);
@@ -501,6 +515,9 @@ void main_window_relayout(void) {
     layer_set_frame(time_layer_get_root(), L.time);
     layer_set_frame(calendar_layer_get_root(), L.top);
     layer_set_frame(rain_radar_layer_get_root(), L.radar);
+    // Keep the tier in sync with the reframed band; the refresh that follows this
+    // relayout (main_window_refresh) re-measures the text at the new tier.
+    weather_status_layer_set_render_tier(weather_status_render_tier());
 #if defined(PBL_HEALTH)
     layer_set_frame(weather_status_layer_get_root(), dual_active() ? L.status_lower : L.status);
     layer_set_frame(health_status_layer_get_root(), L.status);

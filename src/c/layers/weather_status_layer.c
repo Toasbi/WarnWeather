@@ -91,6 +91,17 @@ static char s_sun_buffer[8];
 
 static Layer *s_weather_status_layer;
 
+// The render tier (a TopViewMode value) whose fonts and offsets fit this layer's
+// band. The window sets it via weather_status_layer_set_render_tier(); the layer
+// never derives it from g_config, so the tier can't desync from the band the
+// window carved (e.g. the full-height dual-status band under a compact top view).
+// Defaults to the config default; always overwritten before the first paint.
+static uint8_t s_render_tier = TOP_VIEW_COMPACT;
+
+void weather_status_layer_set_render_tier(uint8_t tier) {
+    s_render_tier = tier;
+}
+
 #ifdef PBL_PLATFORM_APLITE
 // aplite: draw the sun-event arrow (shaft + filled triangular head) with graphics
 // primitives instead of a GPath. That removes the last gpath_* caller on aplite so
@@ -127,16 +138,16 @@ static const GPathInfo ARROW_PATH_INFO = {
 };
 #endif
 
-// Pick a per-tier value for the active top-view mode (full / compact / none).
+// Pick a per-tier value for the active render tier (full / compact / none).
 static int tier_int(int full, int compact, int none) {
-    switch (g_config->top_view_mode) {
+    switch (s_render_tier) {
         case TOP_VIEW_NONE:    return none;
         case TOP_VIEW_COMPACT: return compact;
         default:               return full;
     }
 }
 static const char *tier_key(const char *full, const char *compact, const char *none) {
-    switch (g_config->top_view_mode) {
+    switch (s_render_tier) {
         case TOP_VIEW_NONE:    return none;
         case TOP_VIEW_COMPACT: return compact;
         default:               return full;
@@ -251,7 +262,7 @@ static void weather_status_update_proc(Layer *layer, GContext *ctx) {
     // in its taller row. In none mode the band is taller and the sun text sits high,
     // so track the sun text's own frame instead of the band edge.
     int arrow_y;
-    if (g_config->top_view_mode == TOP_VIEW_NONE) {
+    if (s_render_tier == TOP_VIEW_NONE) {
         arrow_y = frame_sun_draw.origin.y + frame_sun_draw.size.h / 2;
     } else {
 #ifdef PBL_PLATFORM_EMERY
