@@ -262,3 +262,15 @@ test('layoutPreview: every mode returns an svg with Date/Clock/Status/Forecast b
         });
     });
 });
+
+test('layoutPreview: dualStatus splits Status into Health + Weather (compact/none, status mode)', () => {
+    const on = { dualStatus: true, healthMode: 'status' };
+    const c = B.layoutPreview(Object.assign({ topViewMode: 'compact' }, on), {}, {});
+    assert.ok(c.indexOf('Health') >= 0 && c.indexOf('Weather') >= 0, 'compact shows both');
+    const n = B.layoutPreview(Object.assign({ topViewMode: 'none' }, on), {}, {});
+    assert.ok(n.indexOf('Health') >= 0 && n.indexOf('Weather') >= 0, 'none shows both');
+    // Not applicable: full mode, or health not in status mode → single Status band.
+    assert.ok(B.layoutPreview({ topViewMode: 'full', dualStatus: true, healthMode: 'status' }, {}, {}).indexOf('Weather') === -1);
+    assert.ok(B.layoutPreview({ topViewMode: 'compact', dualStatus: true, healthMode: 'all' }, {}, {}).indexOf('Weather') === -1);
+    assert.ok(B.layoutPreview({ topViewMode: 'compact' }, {}, {}).indexOf('Status') >= 0);
+});

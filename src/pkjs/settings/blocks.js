@@ -565,6 +565,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // Schematic band stack for the layout preview — proportional, not pixel-accurate.
     function layoutBands(state) {
         var mode = state.topViewMode || 'compact';
+        var dual = Boolean(state.dualStatus) && state.healthMode === 'status' && mode !== 'full';
         if (mode === 'full') {
             return [
                 { label: 'Date', h: 12 }, { label: 'Calendar (3 rows)', h: 34 },
@@ -572,9 +573,22 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             ];
         }
         if (mode === 'none') {
+            if (dual) {
+                return [
+                    { label: 'Date', h: 12 }, { label: 'Clock', h: 30 },
+                    { label: 'Health', h: 15 }, { label: 'Weather', h: 15 }, { label: 'Forecast', h: 28 }
+                ];
+            }
             return [
                 { label: 'Date', h: 12 }, { label: 'Clock', h: 30 },
                 { label: 'Status', h: 16 }, { label: 'Forecast', h: 42 }
+            ];
+        }
+        if (dual) {   // compact + dual: health above clock, weather below
+            return [
+                { label: 'Date', h: 12 }, { label: 'Calendar (2 rows)', h: 24 },
+                { label: 'Health', h: 14 }, { label: 'Clock', h: 22 },
+                { label: 'Weather', h: 14 }, { label: 'Forecast', h: 14 }
             ];
         }
         return [   // compact (default)

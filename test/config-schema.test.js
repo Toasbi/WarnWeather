@@ -16,7 +16,7 @@ const EXPECTED_KEYS = [
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','locationMode','location',
   'temperatureUnits','dayNightShading','healthMode','secondaryLine','secondaryLineFill','windScale','thirdLine',
   'barSource','rainBarColor','provider','owmApiKey','radarProvider','radarColor','rainCountdownHorizon',
-  'topViewMode','showQt','vibe','btIcons','telemetryEnabled','devStatsEnabled','devStatsClear'
+  'topViewMode','dualStatus','showQt','vibe','btIcons','telemetryEnabled','devStatsEnabled','devStatsClear'
 ];
 
 test('every Clay messageKey present; only windScale is duplicated (two contextual slots)', () => {

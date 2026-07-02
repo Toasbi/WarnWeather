@@ -243,6 +243,13 @@ module.exports = {
                 },
                 blockBefore: 'layoutPreview',
                 blockBeforeSticky: true
+            }, {
+                type: 'toggle',
+                messageKey: 'dualStatus',
+                label: 'Show weather status too',
+                defaultValue: false,
+                showWhen: {all: [{key: 'healthMode', eq: 'status'}, {key: 'topViewMode', ne: 'full'}]},
+                hint: 'Keep the weather status on screen alongside health — health above the clock and weather below it (Compact), or stacked under the clock (None). A wrist-flick then just toggles the rain radar.'
             }]
         }]
     }, {
