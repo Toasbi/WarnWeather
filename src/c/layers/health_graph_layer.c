@@ -254,7 +254,12 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
         .values = s_hr, .count = visible_slots,
         .lo = HEALTH_HR_LO, .hi = HEALTH_HR_HI,
         .color = PBL_IF_COLOR_ELSE(GColorRed, GColorWhite),
-        .width = 3, .inset_y = BOTTOM_VIEW_PRIMARY_LINE_INSET_Y } };
+        .width = 3,
+        // Normal top margin; the bottom adds the sleep-stripe height on top of that
+        // margin so low sleeping-hour HR readings ride clear above the stripe instead
+        // of overlaying it.
+        .inset_top    = BOTTOM_VIEW_PRIMARY_LINE_INSET_Y,
+        .inset_bottom = BOTTOM_VIEW_PRIMARY_LINE_INSET_Y + SLEEP_STRIPE_H } };
 
     layers[n++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
         .left   = { 1, BOTTOM_VIEW_AXIS_COLOR },

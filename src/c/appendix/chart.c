@@ -181,7 +181,7 @@ static void chart_draw_bar_dots(const ChartRender *r, const ChartLineLayer *l) {
     const GRect c           = r->geo.content;
     const int   plot_top    = c.origin.y;
     const int   plot_bottom = c.origin.y + c.size.h;   // baseline; value 0 lands here
-    const int   inner_h     = c.size.h - 2 * l->inset_y;
+    const int   inner_h     = c.size.h - l->inset_top - l->inset_bottom;
     const int   range       = l->hi - l->lo;
     const int   w           = l->width;                // width follows the line's width setting
                                                        // (the caller sets it to the rain-bar width)
@@ -199,7 +199,7 @@ static void chart_draw_bar_dots(const ChartRender *r, const ChartLineLayer *l) {
         if (range > 0) {
             h = (int)(((int32_t)(l->values[i] - l->lo) * inner_h) / range);
         }
-        const int cy = plot_bottom - h - l->inset_y;   // dot center = slot value height
+        const int cy = plot_bottom - h - l->inset_bottom;   // dot center = slot value height
         const int x  = chart_slot_bar_x(&r->geo, i);   // exact bar column
         int top = cy - dot_h / 2;
         int bot = top + dot_h;
@@ -230,7 +230,11 @@ static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
     if (pts == NULL) {
         GPoint *out = l->export_points ? l->export_points : buf;
         const GRect c          = r->geo.content;
-        const int  inner_h     = c.size.h - 2 * l->inset_y;
+        // The value range spans inner_h, seated between the two margins: value==lo
+        // lands at plot_bottom - inset_bottom, value==hi at plot_top + inset_top.
+        // A larger inset_bottom lifts the baseline clear of a bottom band (e.g. the
+        // health sleep stripe) without lowering the top.
+        const int  inner_h     = c.size.h - l->inset_top - l->inset_bottom;
         const int  plot_bottom = c.origin.y + c.size.h;
         const int  range       = l->hi - l->lo;
         for (int i = 0; i < count; ++i) {
@@ -244,7 +248,7 @@ static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
                 h = (int)(((int32_t)(vals[i] - l->lo) * inner_h) / range);
             }
             out[i] = GPoint(chart_slot_tick_x(&r->geo, i),
-                            plot_bottom - h - l->inset_y);
+                            plot_bottom - h - l->inset_bottom);
         }
         pts = out;
     }

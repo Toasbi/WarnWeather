@@ -454,7 +454,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     if (third_line_on) {
         third_line_layer = (ChartLayer){ CHART_LAYER_LINE, .line = {
             .values = third->line.values, .count = ds.num_entries,
-            .lo = 0, .hi = FORECAST_TREND_FULL_SCALE, .inset_y = third->line.inset_y,
+            .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
+            .inset_top = third->line.inset_y, .inset_bottom = third->line.inset_y,
             .color = third->line.color, .width = third->line.width, .dotted = true } };
     }
     // No fill: dots go under the main line.
@@ -466,7 +467,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                   .color = second->line.color, .width = second->line.width } }
             : (ChartLayer){ CHART_LAYER_LINE, .line = {
                   .values = second->line.values, .count = ds.num_entries,
-                  .lo = 0, .hi = FORECAST_TREND_FULL_SCALE, .inset_y = second->line.inset_y,
+                  .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
+                  .inset_top = second->line.inset_y, .inset_bottom = second->line.inset_y,
                   .export_points = area_pts,
                   .color = second->line.color, .width = second->line.width } };
     }
@@ -475,7 +477,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 
     layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
         .values = first->line.values, .count = ds.num_entries,
-        .lo = 0, .hi = FORECAST_TREND_FULL_SCALE, .inset_y = first->line.inset_y,
+        .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
+        .inset_top = first->line.inset_y, .inset_bottom = first->line.inset_y,
         .color = first->line.color, .width = first->line.width } };
     layers[n++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
         .left   = { 1, axis_color },

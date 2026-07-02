@@ -130,7 +130,11 @@ typedef struct {
     GPoint        *export_points;     // optional out: count points
     int            count;
     int            lo, hi;
-    int            inset_y;           // vertical margins (temp line: 7)
+    int            inset_top;         // top margin px: value==hi lands at plot_top + inset_top
+    int            inset_bottom;      // bottom margin px: value==lo lands at plot_bottom -
+                                      // inset_bottom. Set larger than inset_top to lift the
+                                      // baseline clear of a bottom band (e.g. the health
+                                      // sleep stripe). Equal top/bottom = a symmetric inset.
     GColor         color;
     int            width;
     bool           dotted;            // true ⇒ stroke the line as square dots (second-metric line)
