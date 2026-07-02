@@ -22,7 +22,8 @@ typedef enum {
 
 typedef enum {
     BOTTOM_FORECAST = 0,
-    BOTTOM_HEALTH = 1
+    BOTTOM_HEALTH = 1,
+    BOTTOM_RADAR = 2   // none-mode only: radar reframed into the bottom band
 } BottomView;
 
 // Session-only view state: every launch boots to DEFAULT (calendar + forecast +
@@ -53,21 +54,54 @@ static bool health_view_active(void) {
 }
 
 static void apply_view(TopView top, BottomView bottom) {
-    if (top == TOP_VIEW_RAIN_RADAR && !radar_has_data()) {
+    bool none = (g_config->top_view_mode == TOP_VIEW_NONE);
+
+    // Downgrade a radar request when there is no data: top band (full/compact) or
+    // bottom band (none).
+    if (!none && top == TOP_VIEW_RAIN_RADAR && !radar_has_data()) {
         top = TOP_VIEW_CALENDAR;
+    }
+    if (none && bottom == BOTTOM_RADAR && !radar_has_data()) {
+        bottom = BOTTOM_FORECAST;
     }
     s_top_view = top;
     s_bottom_view = bottom;
-    layer_set_hidden(calendar_layer_get_root(), top != TOP_VIEW_CALENDAR);
-    layer_set_hidden(rain_radar_layer_get_root(), top != TOP_VIEW_RAIN_RADAR);
+
+    // Calendar: only in full/compact when the top band is on the calendar.
+    layer_set_hidden(calendar_layer_get_root(), none || top != TOP_VIEW_CALENDAR);
+    // Radar: top band in full/compact, bottom band in none.
+    bool radar_visible = none ? (bottom == BOTTOM_RADAR) : (top == TOP_VIEW_RAIN_RADAR);
+    layer_set_hidden(rain_radar_layer_get_root(), !radar_visible);
+
     layer_set_hidden(forecast_layer_get_root(), bottom != BOTTOM_FORECAST);
 #if defined(PBL_HEALTH)
     layer_set_hidden(health_graph_layer_get_root(), bottom != BOTTOM_HEALTH);
 #endif
-    layer_set_hidden(weather_status_layer_get_root(), bottom != BOTTOM_FORECAST);
+    // Status band follows the bottom content: health-status for the health view,
+    // weather-status for forecast and radar alike.
+    layer_set_hidden(weather_status_layer_get_root(), bottom == BOTTOM_HEALTH);
 #if defined(PBL_HEALTH)
     layer_set_hidden(health_status_layer_get_root(), bottom != BOTTOM_HEALTH);
 #endif
+}
+
+// none-mode flick: cycle the big bottom band through the enabled views,
+// FORECAST -> RADAR (if data) -> HEALTH (if active) -> FORECAST. health_view_active()
+// is a hard false on no-health platforms, so BOTTOM_HEALTH is never returned there.
+static BottomView none_next_bottom(BottomView cur) {
+    bool has_radar = radar_has_data();
+    bool has_health = health_view_active();
+    switch (cur) {
+        case BOTTOM_FORECAST:
+            if (has_radar)  { return BOTTOM_RADAR; }
+            if (has_health) { return BOTTOM_HEALTH; }
+            return BOTTOM_FORECAST;
+        case BOTTOM_RADAR:
+            if (has_health) { return BOTTOM_HEALTH; }
+            return BOTTOM_FORECAST;
+        default: /* BOTTOM_HEALTH */
+            return BOTTOM_FORECAST;
+    }
 }
 
 static void tap_handler(AccelAxisType axis, int32_t direction) {
@@ -81,6 +115,21 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
     uint64_t now_ms = (uint64_t)now_s * 1000 + now_ms_part;
     if (now_ms - s_last_tap_ms < 500) return;
     s_last_tap_ms = now_ms;
+
+    if (g_config->top_view_mode == TOP_VIEW_NONE) {
+        BottomView next = none_next_bottom(s_bottom_view);
+#if defined(PBL_HEALTH)
+        if (next == BOTTOM_HEALTH) {
+            // Cheap in-progress-hour re-read (no-op if a build is pending), then
+            // render from the cache before showing the health view.
+            health_cache_refresh_current_hour();
+            health_graph_layer_refresh();
+            health_status_layer_refresh();
+        }
+#endif
+        apply_view(s_top_view, next);   // top is ignored in none
+        return;
+    }
 
 #if defined(PBL_HEALTH)
     if (health_view_active()) {
@@ -379,11 +428,16 @@ void main_window_apply_top_view() {
     s_health_enabled_prev = g_config->health_enabled;
 #endif
     // Re-apply the current view after radar availability or health config changed.
-    // apply_view downgrades the radar top to the calendar when the radar data was
-    // cleared. The bottom is clamped to BOTTOM_FORECAST when health is no longer
-    // active so a settings message that disables health immediately falls back to
-    // the forecast view — apply_view also updates s_bottom_view in that case.
-    apply_view(s_top_view, health_view_active() ? s_bottom_view : BOTTOM_FORECAST);
+    // apply_view downgrades the radar (top in full/compact, bottom in none) when its
+    // data was cleared.
+    // Fall back from the health view when health is no longer active, but leave
+    // FORECAST/RADAR alone; apply_view separately downgrades RADAR when its data
+    // was cleared.
+    BottomView bottom = s_bottom_view;
+    if (bottom == BOTTOM_HEALTH && !health_view_active()) {
+        bottom = BOTTOM_FORECAST;
+    }
+    apply_view(s_top_view, bottom);
 }
 
 void main_window_relayout(void) {
