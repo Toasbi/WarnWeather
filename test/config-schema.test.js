@@ -260,3 +260,12 @@ test('Layout tab splits into Default view + After a wrist-flick, with the flick 
   assert.ok(flick.items.some((i) => i.blockBefore === 'layoutPreviewFlick' && i.blockBeforeSticky === true), 'flick section hosts the after-flick preview');
   assert.ok(flick.items.some((i) => i.messageKey === 'dualStatus'), 'dualStatus moved into the flick section');
 });
+
+test('flick/positioning narrative lives only in the Layout tab, not Health/Radar copy', () => {
+  const health = schema.tabs.find((t) => t.id === 'health');
+  assert.ok(!/flick/i.test(health.sections[0].intro), 'health intro drops flick narrative');
+  const mode = byKey('healthMode');
+  Object.keys(mode.hintByValue).forEach((k) => assert.ok(!/flick/i.test(mode.hintByValue[k]), 'healthMode hint "' + k + '" drops flick'));
+  const radar = schema.tabs.find((t) => t.id === 'radar');
+  assert.ok(!/wrist flick/i.test(radar.sections[0].intro), 'radar intro drops the wrist-flick line');
+});

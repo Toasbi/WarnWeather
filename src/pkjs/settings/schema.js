@@ -231,7 +231,7 @@ module.exports = {
         }]
     }, {
         id: 'radar', label: 'Radar', sections: [{
-            intro: 'Rain radar appears as a second screen revealed with a wrist flick.<br>' + 'Unlike the model prediction in the forecast graph, this is a short-term nowcast based on actual radar measurements moving toward you, and it refreshes often as new radar scans arrive. ' + 'Behind the scenes the provider gives a sequence of radar images covering the next 2 hours; we read the rain intensity at your location in each image and turn every 5-minute frame into one bar whose height is the rain amount. ' + 'Solid bars are rain at your exact spot; the hatched outline behind them is the strongest rain anywhere within 2 km — an early warning that rain is nearby even when it isn\'t directly overhead yet.<br>' + 'Radar is Germany-only for now (Deutscher Wetterdienst). I\'m open to adding more providers, but so far I haven\'t found another free one that delivers 5-minute updates precise to your exact location.',
+            intro: 'Rain radar is a second view — set where it appears in the Layout tab.<br>' + 'Unlike the model prediction in the forecast graph, this is a short-term nowcast based on actual radar measurements moving toward you, and it refreshes often as new radar scans arrive. ' + 'Behind the scenes the provider gives a sequence of radar images covering the next 2 hours; we read the rain intensity at your location in each image and turn every 5-minute frame into one bar whose height is the rain amount. ' + 'Solid bars are rain at your exact spot; the hatched outline behind them is the strongest rain anywhere within 2 km — an early warning that rain is nearby even when it isn\'t directly overhead yet.<br>' + 'Radar is Germany-only for now (Deutscher Wetterdienst). I\'m open to adding more providers, but so far I haven\'t found another free one that delivers 5-minute updates precise to your exact location.',
             items: [{
                 type: 'segmented',
                 messageKey: 'radarProvider',
@@ -281,20 +281,16 @@ module.exports = {
         // aplite has no health sensors — the watch compiles the view out, so the whole
         // tab is env-hidden there (tab-level showWhen; see platform.js health env flag).
         id: 'health', label: 'Health', showWhen: {env: 'health'}, sections: [{
-            intro: 'A wrist-flick reveals an alternate view (rain radar up top). Turn the health view on to make that flick also show your health stats.',
+            intro: 'Show your activity on the watchface: today\'s steps, last night\'s sleep, and current heart rate. Where it appears is set in the Layout tab.',
             items: [{
                 type: 'radio',
                 messageKey: 'healthMode',
                 label: 'Health view',
                 defaultValue: 'off',
                 hintByValue: {
-                    off: 'Health view is off — a wrist-flick just toggles the rain radar.',
-                    status: 'Flick your wrist to switch the bottom status line to health: '
-                        + "today's steps, last night's sleep, and current heart rate. "
-                        + 'Heart rate needs a watch with a heart-rate sensor.',
-                    all: 'Beta — also swaps the forecast graph for a health graph on flick '
-                        + '(hourly step bars, a sleep band, and a heart-rate line). '
-                        + 'Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
+                    off: 'Health is hidden.',
+                    status: 'Adds a health status line — today\'s steps, last night\'s sleep, and current heart rate. Heart rate needs a watch with a heart-rate sensor.',
+                    all: 'Beta — also adds a health graph (hourly step bars, a sleep band, and a heart-rate line). Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
                 },
                 options: [['Off', 'off'], ['Status bar', 'status'], ['Status + graph', 'all']]
             }]
