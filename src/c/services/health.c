@@ -29,13 +29,6 @@ bool health_available(void) {
         false);
 }
 
-bool health_hr_available(void) {
-    return PBL_IF_HEALTH_ELSE(
-        (health_service_metric_accessible(HealthMetricHeartRateBPM,
-            time(NULL) - HOUR_SECS, time(NULL)) & HealthServiceAccessibilityMaskAvailable) != 0,
-        false);
-}
-
 int health_steps_today(void) {
     return PBL_IF_HEALTH_ELSE((int)health_service_sum_today(HealthMetricStepCount), 0);
 }

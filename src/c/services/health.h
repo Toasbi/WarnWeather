@@ -15,9 +15,6 @@
 /** Returns true if step-count health data is accessible right now. */
 bool health_available(void);
 
-/** Returns true if HR data is accessible (HRM hardware + data present). */
-bool health_hr_available(void);
-
 /** Returns today's total step count, or 0 if unavailable. */
 int health_steps_today(void);
 

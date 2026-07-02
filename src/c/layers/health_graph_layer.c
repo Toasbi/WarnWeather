@@ -221,9 +221,12 @@ static void draw_left_axis(GContext *ctx, int h, int hi) {
     const GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_18);
     const int ks[2] = { top_k, mid_k };
     for (int i = 0; i < 2; ++i) {
-        const int k = ks[i];
+        int k = ks[i];
         if (i == 1 && k == top_k) { break; }      // top_k==1: highest is also the middle
         const int y = axis_y - (int)(((int32_t)(k * STEP_GRID_STEP) * axis_y) / hi);
+        // s_step_hi is clamped to <=99000 on refresh, so k is 1..99; clamping here makes
+        // that bound visible to the compiler so the "%dk" label always fits buf.
+        if (k > 99) { k = 99; }
         char buf[6];
         snprintf(buf, sizeof(buf), "%dk", k);
         // Center the GOTHIC_18 digits on the gridline y (box top ≈ y - 11).
@@ -308,7 +311,7 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
 
     // Always add the HR line: the cache stores CHART_ABSENT for hours with no
     // reading, so the solid line breaks across gaps and draws nothing when HR is
-    // entirely absent — no render-path health_hr_available() query needed.
+    // entirely absent — no render-path HR-availability query needed.
     layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
         .values = s_hr, .count = visible_slots,
         .lo = HEALTH_HR_LO, .hi = HEALTH_HR_HI,

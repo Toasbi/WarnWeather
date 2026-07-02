@@ -73,28 +73,48 @@ static GPoint icon_pt_hr;
 // Gap between a slot's glyph and its value text.
 #define ICON_GAP 2
 
-// The metric PDCs are authored larger than the status text; draw them at this
-// fraction of their authored size so they read as glyphs beside the value, not
-// as oversized icons. Integer ratio (no float) applied to the vector points.
-#define ICON_SCALE_NUM 2
-#define ICON_SCALE_DEN 3
-
-// The sleep PDC's glyph sits lower within its own viewbox than the steps/heart
-// glyphs do, so pure bounds-centering renders it a touch low; nudge it up to match.
-// emery: its taller status band shifts the balance, so it needs a smaller nudge
-// than the other platforms (same emery-differs-on-padding pattern as
-// weather_status_layer.c).
+// The metric PDCs are authored as ~25px precise-path glyphs that fill their viewboxes
+// by different amounts (the heart spans nearly the full height, the shoe much less), so
+// scaling them by a uniform fraction of the viewbox produced mismatched on-screen heights
+// — the heart read oversized, the sleep glyph overflowed the band, the shoe sat low.
+// Instead each glyph is normalized to its OWN bounding box and scaled so that box's height
+// equals the per-tier target below, chosen to match the value text's cap height so the
+// glyph reads at the same top/bottom as the number beside it. Centering the tight box in
+// the band then aligns every glyph consistently — no per-glyph nudge needed.
+// Precise-path points are in 1/8-pixel units.
+#define PRECISE_UNITS_PER_PX 8
+// Target heights ≈ the cap height of each tier's value font (measured on-screen: a Gothic
+// digit's cap scales sub-linearly with the point size — Gothic 14→10px, 18→12px, 24→14px —
+// so these are hand-calibrated per font rather than a fixed ratio). The glyph renders ~1px
+// taller than the target (stroke overshoot), landing it flush with the digit's top/bottom.
+// emery uses one notch larger status fonts (Gothic 18/24/28), so its targets step up too.
 #ifdef PBL_PLATFORM_EMERY
-#define SLEEP_ICON_Y_NUDGE 0
+#define ICON_H_FULL 12
+#define ICON_H_COMPACT 14
+#define ICON_H_NONE 16
 #else
-#define SLEEP_ICON_Y_NUDGE 3
+#define ICON_H_FULL 10
+#define ICON_H_COMPACT 12
+#define ICON_H_NONE 14
 #endif
 
 static Layer *s_health_status_layer;
 
-// Pick a per-tier value for the active top-view mode (full / compact / none).
+// The render tier (a TopViewMode value) whose fonts and offsets fit this layer's
+// band. The window sets it via health_status_layer_set_render_tier(); the layer
+// never derives it from g_config, so the tier can't desync from the band the window
+// carved — in dual-status + compact top view the window passes TOP_VIEW_FULL so the
+// health row uses the same smaller font as the weather row (mirrors weather_status_layer).
+// Defaults to the config default; always overwritten before the first paint.
+static uint8_t s_render_tier = TOP_VIEW_COMPACT;
+
+void health_status_layer_set_render_tier(uint8_t tier) {
+    s_render_tier = tier;
+}
+
+// Pick a per-tier value for the active render tier (full / compact / none).
 static int tier_int(int full, int compact, int none) {
-    switch (g_config->top_view_mode) {
+    switch (s_render_tier) {
         case TOP_VIEW_NONE:    return none;
         case TOP_VIEW_COMPACT: return compact;
         default:               return full;
@@ -102,48 +122,97 @@ static int tier_int(int full, int compact, int none) {
 }
 
 static GFont status_font(void) {
-    switch (g_config->top_view_mode) {
+    switch (s_render_tier) {
         case TOP_VIEW_NONE:    return fonts_get_system_font(NONE_STATUS_FONT_KEY);
         case TOP_VIEW_COMPACT: return fonts_get_system_font(COMPACT_STATUS_FONT_KEY);
         default:               return fonts_get_system_font(STATUS_FONT_KEY);
     }
 }
 
-// Force every draw command white so the glyph reads regardless of the colors baked
-// into the PDC (and so it maps to white on 1-bit displays), and scale its vector
-// points down so the glyph draws smaller than its authored size.
-static bool icon_prepare(GDrawCommand *command, uint32_t index, void *context) {
+// On-screen target glyph height (px) for the active render tier.
+static int icon_target_h(void) {
+    return tier_int(ICON_H_FULL, ICON_H_COMPACT, ICON_H_NONE);
+}
+
+// Glyph bounding box (in the PDC's point units) plus the scale ratio to apply.
+typedef struct {
+    int16_t min_x, min_y, max_x, max_y;
+    int16_t num, den;   // transform each point: (p - min) * num / den
+} IconNorm;
+
+// First pass: accumulate the glyph's bounding box across every command's points.
+static bool icon_bbox_cb(GDrawCommand *command, uint32_t index, void *context) {
     (void) index;
-    (void) context;
-    gdraw_command_set_stroke_color(command, GColorWhite);
-    gdraw_command_set_fill_color(command, GColorWhite);
+    IconNorm *b = (IconNorm *)context;
     uint16_t n = gdraw_command_get_num_points(command);
     for (uint16_t i = 0; i < n; i++) {
         GPoint p = gdraw_command_get_point(command, i);
-        p.x = (int16_t) ((p.x * ICON_SCALE_NUM) / ICON_SCALE_DEN);
-        p.y = (int16_t) ((p.y * ICON_SCALE_NUM) / ICON_SCALE_DEN);
+        if (p.x < b->min_x) { b->min_x = p.x; }
+        if (p.y < b->min_y) { b->min_y = p.y; }
+        if (p.x > b->max_x) { b->max_x = p.x; }
+        if (p.y > b->max_y) { b->max_y = p.y; }
+    }
+    return true;
+}
+
+// Second pass: recolor to white line-art (stroke white, fill cleared → light outlines;
+// the sleep glyph's "Z" strokes then read white inside the unfilled pillow outline), and
+// normalize each point to the origin-anchored, target-sized box (translate the bbox to
+// 0,0, then scale by num/den — the same ratio scales width and stroke width).
+static bool icon_normalize_cb(GDrawCommand *command, uint32_t index, void *context) {
+    (void) index;
+    IconNorm *b = (IconNorm *)context;
+    gdraw_command_set_stroke_color(command, GColorWhite);
+    gdraw_command_set_fill_color(command, GColorClear);
+    uint16_t n = gdraw_command_get_num_points(command);
+    for (uint16_t i = 0; i < n; i++) {
+        GPoint p = gdraw_command_get_point(command, i);
+        p.x = (int16_t)(((p.x - b->min_x) * b->num) / b->den);
+        p.y = (int16_t)(((p.y - b->min_y) * b->num) / b->den);
         gdraw_command_set_point(command, i, p);
     }
     uint8_t sw = gdraw_command_get_stroke_width(command);
     if (sw > 1) {
-        gdraw_command_set_stroke_width(command, (uint8_t) ((sw * ICON_SCALE_NUM) / ICON_SCALE_DEN));
+        int nw = (sw * b->num) / b->den;
+        gdraw_command_set_stroke_width(command, (uint8_t)(nw < 1 ? 1 : nw));
     }
     return true;
 }
 
 static GDrawCommandImage *icon_load(uint32_t resource_id) {
     GDrawCommandImage *image = gdraw_command_image_create_with_resource(resource_id);
-    if (image) {
-        gdraw_command_list_iterate(gdraw_command_image_get_command_list(image),
-                                   icon_prepare, NULL);
-        // Shrink the reported bounds to match the scaled points so the layout
-        // reserves the smaller footprint (glyph width + gap before the value).
-        GSize bs = gdraw_command_image_get_bounds_size(image);
-        gdraw_command_image_set_bounds_size(image, GSize(
-            (bs.w * ICON_SCALE_NUM) / ICON_SCALE_DEN,
-            (bs.h * ICON_SCALE_NUM) / ICON_SCALE_DEN));
-    }
+    if (!image) { return NULL; }
+    GDrawCommandList *list = gdraw_command_image_get_command_list(image);
+    IconNorm b = { .min_x = INT16_MAX, .min_y = INT16_MAX, .max_x = INT16_MIN, .max_y = INT16_MIN };
+    gdraw_command_list_iterate(list, icon_bbox_cb, &b);
+    int glyph_h = b.max_y - b.min_y;
+    if (glyph_h <= 0) { return image; }   // degenerate glyph; leave untouched
+    int glyph_w = b.max_x - b.min_x;
+    int target_h = icon_target_h();
+    // Scale so the glyph's height maps to target_h px. Points are in 1/8-px units, so the
+    // numerator carries the ×8; the max point then lands at target_h * 8 units == target_h px.
+    b.num = (int16_t)(target_h * PRECISE_UNITS_PER_PX);
+    b.den = (int16_t)glyph_h;
+    gdraw_command_list_iterate(list, icon_normalize_cb, &b);
+    // Tight bounds: height == target_h px; width scaled by the same ratio so the layout
+    // reserves the glyph's real footprint (width + gap before the value).
+    gdraw_command_image_set_bounds_size(image, GSize((glyph_w * target_h) / glyph_h, target_h));
     return image;
+}
+
+// (Re)load all three glyphs at the current tier's target size. Called at create and again
+// whenever the render tier changes (a live settings switch), since the glyph geometry is
+// baked in at load time. The initial NULL checks make it safe on the first call.
+static uint8_t s_icons_tier;
+
+static void icons_rebuild(void) {
+    if (s_icon_steps) { gdraw_command_image_destroy(s_icon_steps); }
+    if (s_icon_sleep) { gdraw_command_image_destroy(s_icon_sleep); }
+    if (s_icon_hr)    { gdraw_command_image_destroy(s_icon_hr); }
+    s_icon_steps = icon_load(RESOURCE_ID_HEALTH_STEPS);
+    s_icon_sleep = icon_load(RESOURCE_ID_HEALTH_SLEEP);
+    s_icon_hr    = icon_load(RESOURCE_ID_HEALTH_HEART);
+    s_icons_tier = s_render_tier;
 }
 
 static GSize icon_size(GDrawCommandImage *image) {
@@ -174,14 +243,15 @@ static void sleep_slot_refresh(void) {
 }
 
 static void hr_slot_refresh(void) {
-    if (health_hr_available()) {
-        int bpm = health_hr_current();
-        if (bpm > 0) {
-            if (bpm > HR_MAX) { bpm = HR_MAX; }
-            snprintf(s_hr_buf, sizeof(s_hr_buf), "%d", bpm);
-        } else {
-            snprintf(s_hr_buf, sizeof(s_hr_buf), "--");
-        }
+    // Read the last measured value straight from health_hr_current() (a raw-BPM peek,
+    // guarded on raw accessibility) — the same source the graph's in-progress bar uses.
+    // Don't gate on health_hr_available(): it checks the *filtered* HeartRateBPM (at most
+    // 15 min old), which lags the raw sample, so the row showed "--" until that filtered
+    // value materialised even though the last-measured BPM was already available.
+    int bpm = health_hr_current();
+    if (bpm > 0) {
+        if (bpm > HR_MAX) { bpm = HR_MAX; }
+        snprintf(s_hr_buf, sizeof(s_hr_buf), "%d", bpm);
     } else {
         snprintf(s_hr_buf, sizeof(s_hr_buf), "--");
     }
@@ -229,7 +299,7 @@ static void health_status_layout(void) {
     int sleep_group_w = sleep_isz.w + ICON_GAP + sleep_tsz.w;
     int sleep_group_x = region_l + (region_w - sleep_group_w) / 2;
     if (sleep_group_x < region_l) { sleep_group_x = region_l; }
-    icon_pt_sleep = GPoint(sleep_group_x, (h - sleep_isz.h) / 2 - SLEEP_ICON_Y_NUDGE);
+    icon_pt_sleep = GPoint(sleep_group_x, (h - sleep_isz.h) / 2);
     frame_sleep = GRect(sleep_group_x + sleep_isz.w + ICON_GAP, y,
                         sleep_tsz.w, sleep_tsz.h + off);
 }
@@ -240,7 +310,7 @@ static void health_status_layout(void) {
 
 static void health_status_update_proc(Layer *layer, GContext *ctx) {
     MEMORY_LOG_HEAP("health_status_update:enter");
-    // Metric glyphs first (already recolored white), then the value text.
+    // Metric glyphs first (recolored to white line-art at load), then the value text.
     if (s_icon_steps) { gdraw_command_image_draw(ctx, s_icon_steps, icon_pt_steps); }
     if (s_icon_sleep) { gdraw_command_image_draw(ctx, s_icon_sleep, icon_pt_sleep); }
     if (s_icon_hr)    { gdraw_command_image_draw(ctx, s_icon_hr, icon_pt_hr); }
@@ -262,10 +332,9 @@ static void health_status_update_proc(Layer *layer, GContext *ctx) {
 void health_status_layer_create(Layer *parent_layer, GRect frame) {
     s_health_status_layer = layer_create(frame);
 
-    // Load the metric glyphs before the first layout — it reads their sizes.
-    s_icon_steps = icon_load(RESOURCE_ID_HEALTH_STEPS);
-    s_icon_sleep = icon_load(RESOURCE_ID_HEALTH_SLEEP);
-    s_icon_hr    = icon_load(RESOURCE_ID_HEALTH_HEART);
+    // Load the metric glyphs before the first layout — it reads their sizes. The window
+    // sets the render tier before create(), so they load at the right size immediately.
+    icons_rebuild();
 
     steps_slot_refresh();
     sleep_slot_refresh();
@@ -282,6 +351,9 @@ Layer *health_status_layer_get_root(void) {
 }
 
 void health_status_layer_refresh(void) {
+    // A live tier switch (e.g. toggling dual-status / top-view in settings) changes the
+    // target glyph size, which is baked in at load — so rebuild the glyphs when it moves.
+    if (s_icons_tier != s_render_tier) { icons_rebuild(); }
     steps_slot_refresh();
     sleep_slot_refresh();
     hr_slot_refresh();
