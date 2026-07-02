@@ -97,6 +97,32 @@ static int s_minute_steps(time_t h0, time_t h1) {
     return sum;
 }
 
+/**
+ * Average the per-minute heart-rate samples recorded in [h0, h1) from the
+ * minute history — the same source health_fill_hourly_steps uses, and for the
+ * same reason: health_service_aggregate_averaged(HealthMetricHeartRateBPM, ...)
+ * only answers a short recent window, so trailing hours came back empty. Each
+ * HealthMinuteData carries a uint8 heart_rate_bpm (0 when no sample that
+ * minute); we average the non-zero readings in the hour.
+ *
+ * @param h0 UTC start of the hour (inclusive).
+ * @param h1 UTC end of the hour (exclusive).
+ * @return Average recorded BPM in the window, or 0 if no reading.
+ */
+static int s_minute_hr_avg(time_t h0, time_t h1) {
+    static HealthMinuteData md[60];
+    time_t   ts = h0, te = h1;
+    uint32_t n   = health_service_get_minute_history(md, 60, &ts, &te);
+    int      sum = 0, cnt = 0;
+    for (uint32_t k = 0; k < n; k++) {
+        if (!md[k].is_invalid && md[k].heart_rate_bpm > 0) {
+            sum += md[k].heart_rate_bpm;
+            cnt++;
+        }
+    }
+    return cnt ? (sum / cnt) : 0;
+}
+
 void health_fill_hourly_steps(int16_t *out, int count, time_t end_hour) {
 #if defined(PBL_HEALTH)
     for (int i = 0; i < count; i++) {
@@ -114,15 +140,7 @@ void health_fill_hourly_hr(int16_t *out, int count, time_t end_hour) {
     for (int i = 0; i < count; i++) {
         time_t h1 = end_hour - (time_t)(count - 1 - i) * HOUR_SECS;
         time_t h0 = h1 - HOUR_SECS;
-        /* Check accessibility per slot — non-HRM platforms or sparse data yield 0. */
-        if (health_service_metric_accessible(HealthMetricHeartRateBPM, h0, h1)
-                & HealthServiceAccessibilityMaskAvailable) {
-            out[i] = (int16_t)health_service_aggregate_averaged(
-                HealthMetricHeartRateBPM, h0, h1,
-                HealthAggregationAvg, HealthServiceTimeScopeOnce);
-        } else {
-            out[i] = 0;
-        }
+        out[i] = (int16_t)s_minute_hr_avg(h0, h1);
     }
 #else
     for (int i = 0; i < count; i++) { out[i] = 0; }
