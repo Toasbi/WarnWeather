@@ -7,34 +7,20 @@
 // main_window.c for the platform gating rationale.
 #if defined(PBL_HEALTH)
 
-// Mirror weather_status_layer.c font/offset constants exactly so this row
-// occupies the same height as the weather status line (Task 7 places them
-// in the same band).
-#define FONT_18_OFFSET 7
-#define FONT_14_OFFSET 3
 #define MARGIN 2
 
-// emery: use larger text to match weather_status_layer emery sizing
+// Only the font KEY differs per tier — the value text's vertical position and the metric
+// glyphs' size derive from that font (+ the band height) at runtime, in health_status_layout
+// and icons_rebuild, so a given tier fits whatever band it lands in without per-band tuning.
+// emery renders one notch larger to match weather_status_layer's emery sizing.
 #ifdef PBL_PLATFORM_EMERY
 #define STATUS_FONT_KEY FONT_KEY_GOTHIC_18
-#define SLOT_Y_OFFSET FONT_18_OFFSET
 #define COMPACT_STATUS_FONT_KEY FONT_KEY_GOTHIC_24
-// Match weather_status_layer's COMPACT_LABEL_OFFSET (6) so this row seats at the
-// same height as the weather status line instead of crowding the row above it.
-#define COMPACT_SLOT_Y_OFFSET 6
-// emery: none is one notch above compact (Gothic 28); offset tuned in Task 7.
 #define NONE_STATUS_FONT_KEY FONT_KEY_GOTHIC_28
-#define NONE_SLOT_Y_OFFSET 8
 #else
 #define STATUS_FONT_KEY FONT_KEY_GOTHIC_14
-#define SLOT_Y_OFFSET FONT_14_OFFSET
 #define COMPACT_STATUS_FONT_KEY FONT_KEY_GOTHIC_18
-// Match weather_status_layer's COMPACT_LABEL_OFFSET (4). FONT_18_OFFSET (7) sat the
-// text 3px higher than the weather row, crowding the element above it in compact mode.
-#define COMPACT_SLOT_Y_OFFSET 4
-// none is one notch above compact (Gothic 24); offset tuned in Task 7.
 #define NONE_STATUS_FONT_KEY FONT_KEY_GOTHIC_24
-#define NONE_SLOT_Y_OFFSET 6
 #endif
 
 #define STATUS_TEXT_OVERFLOW GTextOverflowModeTrailingEllipsis
@@ -70,33 +56,58 @@ static GPoint icon_pt_steps;
 static GPoint icon_pt_sleep;
 static GPoint icon_pt_hr;
 
-// Gap between a slot's glyph and its value text.
-#define ICON_GAP 2
-
-// The metric PDCs are authored as ~25px precise-path glyphs that fill their viewboxes
-// by different amounts (the heart spans nearly the full height, the shoe much less), so
-// scaling them by a uniform fraction of the viewbox produced mismatched on-screen heights
-// — the heart read oversized, the sleep glyph overflowed the band, the shoe sat low.
-// Instead each glyph is normalized to its OWN bounding box and scaled so that box's height
-// equals the per-tier target below, chosen to match the value text's cap height so the
-// glyph reads at the same top/bottom as the number beside it. Centering the tight box in
-// the band then aligns every glyph consistently — no per-glyph nudge needed.
-// Precise-path points are in 1/8-pixel units.
-#define PRECISE_UNITS_PER_PX 8
-// Target heights ≈ the cap height of each tier's value font (measured on-screen: a Gothic
-// digit's cap scales sub-linearly with the point size — Gothic 14→10px, 18→12px, 24→14px —
-// so these are hand-calibrated per font rather than a fixed ratio). The glyph renders ~1px
-// taller than the target (stroke overshoot), landing it flush with the digit's top/bottom.
-// emery uses one notch larger status fonts (Gothic 18/24/28), so its targets step up too.
+// Gap between a slot's glyph and its value text. emery's larger glyphs/text carry a touch
+// more so the number doesn't crowd the icon.
 #ifdef PBL_PLATFORM_EMERY
-#define ICON_H_FULL 12
-#define ICON_H_COMPACT 14
-#define ICON_H_NONE 16
+#define ICON_GAP 4
 #else
-#define ICON_H_FULL 10
-#define ICON_H_COMPACT 12
-#define ICON_H_NONE 14
+#define ICON_GAP 2
 #endif
+
+// The metric PDCs are authored as ~25px precise-path glyphs that fill their viewboxes by
+// different amounts (heart nearly full-height, shoe much less), so a uniform viewbox scale
+// gives mismatched on-screen heights. Instead each glyph is normalized to its OWN bounding
+// box (see icon_load) and scaled so that box's height equals a target derived from the tier
+// font — matching the value text's cap height so the glyph reads at the same top/bottom as
+// the number beside it. Precise-path points are in 1/8-pixel units.
+#define PRECISE_UNITS_PER_PX 8
+
+// Icon target height = value-font content height × ICON_RATIO (≈ its cap height), so the
+// glyph tracks the font across tiers/platforms. content height is the (padded) font line
+// height; ~5/9 of it reproduces the cap heights we previously hand-tuned per tier.
+#define ICON_RATIO_NUM 5
+#define ICON_RATIO_DEN 9
+// Breathing room kept when clamping the icon to a short band (e.g. the full-mode 14px slot).
+#define ICON_BAND_MARGIN 2
+
+// The shoe glyph is wider and visually heavier than the heart/sleep marks, so at an equal
+// height it reads oversized; render it a notch shorter — this fraction of the icon target.
+#define STEPS_ICON_NUM 6
+#define STEPS_ICON_DEN 7
+
+// Pebble draws the glyph low in its line box (baseline near the bottom), so pure content-box
+// centring seats the number too low and clips it in a short band. Pull the text up by this
+// fraction of the font's content height — a per-font-proportional constant, so it corrects
+// the same way at every tier/band. Tune the fraction if the number reads high or clips.
+#define TEXT_BIAS_NUM 2
+#define TEXT_BIAS_DEN 9
+
+// Lift the whole health row (icons + value text together, preserving their alignment) this
+// many px above band-centre so it seats level with the weather row's city name. emery's band
+// runs a touch low against that reference; other platforms centre cleanly.
+#ifdef PBL_PLATFORM_EMERY
+#define CONTENT_Y_LIFT 1
+#else
+#define CONTENT_Y_LIFT 0
+#endif
+
+// The full tier serves two bands: the short full-topview slot (≈WEATHER_STATUS_HEIGHT, where
+// the row lifts to meet the weather city) and the taller dual+compact band (where that lift
+// rides too high against the calendar). Ease the row back down when the full tier lands in a
+// band taller than the short slot — this leaves the 14px full-topview band and non-emery's
+// short compact band untouched. (Removed once the status bars share one positioning helper.)
+#define DUAL_COMPACT_BAND_MIN 16
+#define DUAL_COMPACT_DROP 2
 
 static Layer *s_health_status_layer;
 
@@ -112,15 +123,6 @@ void health_status_layer_set_render_tier(uint8_t tier) {
     s_render_tier = tier;
 }
 
-// Pick a per-tier value for the active render tier (full / compact / none).
-static int tier_int(int full, int compact, int none) {
-    switch (s_render_tier) {
-        case TOP_VIEW_NONE:    return none;
-        case TOP_VIEW_COMPACT: return compact;
-        default:               return full;
-    }
-}
-
 static GFont status_font(void) {
     switch (s_render_tier) {
         case TOP_VIEW_NONE:    return fonts_get_system_font(NONE_STATUS_FONT_KEY);
@@ -129,9 +131,12 @@ static GFont status_font(void) {
     }
 }
 
-// On-screen target glyph height (px) for the active render tier.
-static int icon_target_h(void) {
-    return tier_int(ICON_H_FULL, ICON_H_COMPACT, ICON_H_NONE);
+// Content height (px) of the active tier's value font — the padded line height, measured
+// off a representative digit. Drives both the icon target size and the text centring.
+static int font_content_h(void) {
+    return graphics_text_layout_get_content_size(
+        "0", status_font(), GRect(0, 0, 100, 100),
+        STATUS_TEXT_OVERFLOW, GTextAlignmentLeft).h;
 }
 
 // Glyph bounding box (in the PDC's point units) plus the scale ratio to apply.
@@ -179,7 +184,7 @@ static bool icon_normalize_cb(GDrawCommand *command, uint32_t index, void *conte
     return true;
 }
 
-static GDrawCommandImage *icon_load(uint32_t resource_id) {
+static GDrawCommandImage *icon_load(uint32_t resource_id, int target_h) {
     GDrawCommandImage *image = gdraw_command_image_create_with_resource(resource_id);
     if (!image) { return NULL; }
     GDrawCommandList *list = gdraw_command_image_get_command_list(image);
@@ -188,7 +193,6 @@ static GDrawCommandImage *icon_load(uint32_t resource_id) {
     int glyph_h = b.max_y - b.min_y;
     if (glyph_h <= 0) { return image; }   // degenerate glyph; leave untouched
     int glyph_w = b.max_x - b.min_x;
-    int target_h = icon_target_h();
     // Scale so the glyph's height maps to target_h px. Points are in 1/8-px units, so the
     // numerator carries the ×8; the max point then lands at target_h * 8 units == target_h px.
     b.num = (int16_t)(target_h * PRECISE_UNITS_PER_PX);
@@ -209,9 +213,14 @@ static void icons_rebuild(void) {
     if (s_icon_steps) { gdraw_command_image_destroy(s_icon_steps); }
     if (s_icon_sleep) { gdraw_command_image_destroy(s_icon_sleep); }
     if (s_icon_hr)    { gdraw_command_image_destroy(s_icon_hr); }
-    s_icon_steps = icon_load(RESOURCE_ID_HEALTH_STEPS);
-    s_icon_sleep = icon_load(RESOURCE_ID_HEALTH_SLEEP);
-    s_icon_hr    = icon_load(RESOURCE_ID_HEALTH_HEART);
+    // Icon height ≈ the value font's cap height, clamped so it always fits the band.
+    int t = (font_content_h() * ICON_RATIO_NUM) / ICON_RATIO_DEN;
+    int band_h = layer_get_bounds(s_health_status_layer).size.h;
+    if (t > band_h - ICON_BAND_MARGIN) { t = band_h - ICON_BAND_MARGIN; }
+    if (t < 1) { t = 1; }
+    s_icon_steps = icon_load(RESOURCE_ID_HEALTH_STEPS, (t * STEPS_ICON_NUM) / STEPS_ICON_DEN);
+    s_icon_sleep = icon_load(RESOURCE_ID_HEALTH_SLEEP, t);
+    s_icon_hr    = icon_load(RESOURCE_ID_HEALTH_HEART, t);
     s_icons_tier = s_render_tier;
 }
 
@@ -265,9 +274,16 @@ static void health_status_layout(void) {
     GRect bounds = layer_get_bounds(s_health_status_layer);
     int w = bounds.size.w;
     int h = bounds.size.h;
-    int off = tier_int(SLOT_Y_OFFSET, COMPACT_SLOT_Y_OFFSET, NONE_SLOT_Y_OFFSET);
-    int y = -off;
     GFont font = status_font();
+    // Band-centre the value text's content box so it sits level with the band-centred icons
+    // in whatever band this tier lands in, then pull it up by a font-proportional bias to
+    // correct the glyph's low seat in the line box (see TEXT_BIAS_* above).
+    int content_h = font_content_h();
+    // Net upward shift of the whole row: the weather-matching lift, eased back down when the
+    // full tier lands in the taller dual+compact band (see DUAL_COMPACT_* above).
+    int lift = CONTENT_Y_LIFT;
+    if (s_render_tier == TOP_VIEW_FULL && h > DUAL_COMPACT_BAND_MIN) { lift -= DUAL_COMPACT_DROP; }
+    int y = (h - content_h) / 2 - (content_h * TEXT_BIAS_NUM) / TEXT_BIAS_DEN - lift;
 
     GSize steps_isz = icon_size(s_icon_steps);
     GSize sleep_isz = icon_size(s_icon_sleep);
@@ -277,7 +293,7 @@ static void health_status_layout(void) {
     GSize steps_tsz = graphics_text_layout_get_content_size(
         s_steps_buf, font, GRect(0, 0, w / 3, 100),
         STATUS_TEXT_OVERFLOW, GTextAlignmentLeft);
-    icon_pt_steps = GPoint(MARGIN, (h - steps_isz.h) / 2);
+    icon_pt_steps = GPoint(MARGIN, (h - steps_isz.h) / 2 - lift);
     frame_steps = GRect(MARGIN + steps_isz.w + ICON_GAP, y, steps_tsz.w, steps_tsz.h);
 
     // HR: flush right — the whole [glyph][gap][value] group is right-aligned.
@@ -285,7 +301,7 @@ static void health_status_layout(void) {
         s_hr_buf, font, GRect(0, 0, w / 3, 100),
         STATUS_TEXT_OVERFLOW, GTextAlignmentLeft);
     int hr_group_x = w - MARGIN - hr_isz.w - ICON_GAP - hr_tsz.w;
-    icon_pt_hr = GPoint(hr_group_x, (h - hr_isz.h) / 2);
+    icon_pt_hr = GPoint(hr_group_x, (h - hr_isz.h) / 2 - lift);
     frame_hr = GRect(hr_group_x + hr_isz.w + ICON_GAP, y, hr_tsz.w, hr_tsz.h);
 
     // Sleep: [glyph][gap][value] group centred in the space between steps and HR.
@@ -299,9 +315,9 @@ static void health_status_layout(void) {
     int sleep_group_w = sleep_isz.w + ICON_GAP + sleep_tsz.w;
     int sleep_group_x = region_l + (region_w - sleep_group_w) / 2;
     if (sleep_group_x < region_l) { sleep_group_x = region_l; }
-    icon_pt_sleep = GPoint(sleep_group_x, (h - sleep_isz.h) / 2);
+    icon_pt_sleep = GPoint(sleep_group_x, (h - sleep_isz.h) / 2 - lift);
     frame_sleep = GRect(sleep_group_x + sleep_isz.w + ICON_GAP, y,
-                        sleep_tsz.w, sleep_tsz.h + off);
+                        sleep_tsz.w, sleep_tsz.h);
 }
 
 // ---------------------------------------------------------------------------
