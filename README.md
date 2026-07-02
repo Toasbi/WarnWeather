@@ -43,11 +43,11 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Switch between calendar and radar view (flick/tap)
 * Optional rain countdown: when rain is on the way, the month turns into "Drizzle / Rain / Downpour in X min" (and "… for X min" while it's raining) — with a rain-lines intensity icon colour-matched to the radar bars, and a configurable look-ahead (30 min / 60 min / 2 hours)
 
-**Health view** *(requires health-capable watch)*
-* Flick your wrist to switch the forecast graph to a health overview: hourly step bars, a sleep band along the bottom (light sleep / deep sleep), and a heart-rate dotted line
-* Status line shows today's step count, last night's sleep duration, and current heart rate
+**Health view** *(requires health-capable watch; off by default)*
+* Turn it on in the **Health** tab in settings — off by default
+* **Status bar:** flick your wrist to switch the bottom status line to health — today's step count, last night's sleep duration, and current heart rate
+* **Status + graph** *(beta):* also swaps the forecast graph for a health graph on flick — hourly step bars, a sleep band along the bottom (light sleep / deep sleep), and a heart-rate dotted line
 * Heart-rate line and current HR require a watch with a built-in heart-rate sensor; unavailable values show as placeholders
-* Enable in settings (Radar/display area)
 
 **Calendar**
 * 3 week calendar
