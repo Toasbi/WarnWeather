@@ -40,6 +40,17 @@ var THIRD_LINE_OPTIONS = {
     gust: [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['UV Index', 'uv']],
     uv: [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust']]
 };
+// Layout "after a wrist-flick" reveals nothing when there's no radar AND health is
+// off / absent / already pinned on-screen by dualStatus — mirrors layoutBandsFlick()
+// in blocks.js. Drives the caption/preview visibility and the "nothing to flick" note.
+var FLICK_REVEALS_NOTHING = {all: [
+    {key: 'radarProvider', ne: 'dwd'},
+    {any: [
+        {key: 'healthMode', eq: 'off'},
+        {not: {env: 'health'}},
+        {all: [{key: 'dualStatus', eq: true}, {key: 'healthMode', eq: 'status'}, {key: 'topViewMode', ne: 'full'}]}
+    ]}
+]};
 // Color swatches (5 intensity bands) — shown only in the Multicolor hint.
 var SWATCHES = '<span style="display:inline-flex;gap:7px;margin-top:6px;align-items:flex-end;">' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#AAAAAA;margin-bottom:3px;"></span>0.1</span>' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#55FFFF;margin-bottom:3px;"></span>0.5</span>' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#00FF00;margin-bottom:3px;"></span>2</span>' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FFFF00;margin-bottom:3px;"></span>10</span>' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FF5555;margin-bottom:3px;"></span>40</span>' + '</span>';
 // Bar color hint depends on the selected mode (hintByValue): Multicolor shows the swatches; White doesn't.
@@ -231,7 +242,7 @@ module.exports = {
         }]
     }, {
         id: 'radar', label: 'Radar', sections: [{
-            intro: 'Rain radar appears as a second screen revealed with a wrist flick.<br>' + 'Unlike the model prediction in the forecast graph, this is a short-term nowcast based on actual radar measurements moving toward you, and it refreshes often as new radar scans arrive. ' + 'Behind the scenes the provider gives a sequence of radar images covering the next 2 hours; we read the rain intensity at your location in each image and turn every 5-minute frame into one bar whose height is the rain amount. ' + 'Solid bars are rain at your exact spot; the hatched outline behind them is the strongest rain anywhere within 2 km — an early warning that rain is nearby even when it isn\'t directly overhead yet.<br>' + 'Radar is Germany-only for now (Deutscher Wetterdienst). I\'m open to adding more providers, but so far I haven\'t found another free one that delivers 5-minute updates precise to your exact location.',
+            intro: 'Rain radar is a second view — set where it appears in the Layout tab.<br>' + 'Unlike the model prediction in the forecast graph, this is a short-term nowcast based on actual radar measurements moving toward you, and it refreshes often as new radar scans arrive. ' + 'Behind the scenes the provider gives a sequence of radar images covering the next 2 hours; we read the rain intensity at your location in each image and turn every 5-minute frame into one bar whose height is the rain amount. ' + 'Solid bars are rain at your exact spot; the hatched outline behind them is the strongest rain anywhere within 2 km — an early warning that rain is nearby even when it isn\'t directly overhead yet.<br>' + 'Radar is Germany-only for now (Deutscher Wetterdienst). I\'m open to adding more providers, but so far I haven\'t found another free one that delivers 5-minute updates precise to your exact location.',
             items: [{
                 type: 'segmented',
                 messageKey: 'radarProvider',
@@ -281,27 +292,24 @@ module.exports = {
         // aplite has no health sensors — the watch compiles the view out, so the whole
         // tab is env-hidden there (tab-level showWhen; see platform.js health env flag).
         id: 'health', label: 'Health', showWhen: {env: 'health'}, sections: [{
-            intro: 'A wrist-flick reveals an alternate view (rain radar up top). Turn the health view on to make that flick also show your health stats.',
+            intro: 'Show your activity on the watchface: today\'s steps, last night\'s sleep, and current heart rate. Where it appears is set in the Layout tab.',
             items: [{
                 type: 'radio',
                 messageKey: 'healthMode',
                 label: 'Health view',
                 defaultValue: 'off',
                 hintByValue: {
-                    off: 'Health view is off — a wrist-flick just toggles the rain radar.',
-                    status: 'Flick your wrist to switch the bottom status line to health: '
-                        + "today's steps, last night's sleep, and current heart rate. "
-                        + 'Heart rate needs a watch with a heart-rate sensor.',
-                    all: 'Beta — also swaps the forecast graph for a health graph on flick '
-                        + '(hourly step bars, a sleep band, and a heart-rate line). '
-                        + 'Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
+                    off: 'Health is hidden.',
+                    status: 'Adds a health status line — today\'s steps, last night\'s sleep, and current heart rate. Heart rate needs a watch with a heart-rate sensor.',
+                    all: 'Beta — also adds a health graph (hourly step bars, a sleep band, and a heart-rate line). Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
                 },
                 options: [['Off', 'off'], ['Status bar', 'status'], ['Status + graph', 'all']]
             }]
         }]
     }, {
         id: 'layout', label: 'Layout', sections: [{
-            intro: 'How the watchface is arranged. The preview updates as you choose.',
+            title: 'Default view',
+            intro: 'Where each element sits on the watchface. What a metric means or how it\'s coloured lives in its own tab.',
             items: [{
                 type: 'segmented',
                 messageKey: 'topViewMode',
@@ -309,12 +317,26 @@ module.exports = {
                 defaultValue: 'compact',
                 options: [['Full', 'full'], ['Compact', 'compact'], ['None', 'none']],
                 hintByValue: {
-                    full: 'Classic 3-row calendar (prev + current + next week) with the standard status line.',
-                    compact: '2-row calendar (this week + next) with a larger status line and a taller forecast/health area.',
-                    none: 'No calendar — a full-date strip, bigger clock and status line, and a forecast that fills the screen. Flick your wrist to reach the radar (and health graph, when enabled).'
+                    full: 'Top status, a 3-row calendar (prev · this · next week), the clock, the weather status line, then the forecast.',
+                    compact: 'Calendar drops to 2 rows (this week · next) and the freed row goes to a taller forecast; status sits under the calendar.',
+                    none: 'No calendar — a full-date strip, bigger clock and status, and a forecast that fills the screen.'
                 },
                 blockBefore: 'layoutPreview',
                 blockBeforeSticky: true
+            }]
+        }, {
+            title: 'After a wrist-flick',
+            intro: 'A wrist-flick reveals a second view. Full and Compact toggle to it and back; None cycles Forecast → Radar → Health. What it shows depends on your Radar and Health settings.',
+            items: [{
+                type: 'staticText',
+                text: '<span style="color:#A9AEB8;font-size:12.5px;line-height:1.55;">The view after one flick, based on your current Radar and Health settings.</span>',
+                blockBefore: 'layoutPreviewFlick',
+                blockBeforeSticky: true,
+                showWhen: {not: FLICK_REVEALS_NOTHING}
+            }, {
+                type: 'staticText',
+                text: '<span style="color:#A9AEB8;font-size:12.5px;line-height:1.55;">Nothing to flick to yet — turn on the rain radar (Radar tab) or a health view (Health tab).</span>',
+                showWhen: FLICK_REVEALS_NOTHING
             }, {
                 type: 'toggle',
                 messageKey: 'dualStatus',

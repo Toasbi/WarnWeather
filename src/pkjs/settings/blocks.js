@@ -640,8 +640,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ];
     }
 
-    function layoutPreview(state, env, userData) {
-        var bands = layoutBands(state), W = 200, PAD = 8, w = W - PAD * 2, y = PAD, i;
+    // Render a band array (each {label, h}) as the schematic band-stack SVG shared by
+    // both layout previews. Returns '' for an empty/null band list (nothing to show).
+    function renderBandStack(bands) {
+        if (!bands || !bands.length) { return ''; }
+        var W = 200, PAD = 8, w = W - PAD * 2, y = PAD, i;
         var e = rect(0, 0, W, 118, '#000');
         for (i = 0; i < bands.length; i++) {
             e += rect(PAD, y, w, bands[i].h, '#1B1F27');
@@ -651,9 +654,54 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return svgFrame(e, 118);
     }
 
+    function layoutPreview(state, env, userData) {
+        return renderBandStack(layoutBands(state));
+    }
+
+    // Bands shown after ONE wrist-flick, given the current radar/health settings.
+    // Mirrors apply_view() in main_window.c: full/compact toggle (top calendar->radar,
+    // status->health, forecast->health graph when healthMode 'all'); none cycles the big
+    // bottom band and we show the first step. Returns null when a flick reveals nothing.
+    function layoutBandsFlick(state) {
+        var mode = state.topViewMode || 'compact';
+        var radar = state.radarProvider === 'dwd';
+        var health = Boolean(state.healthMode) && state.healthMode !== 'off';
+        var healthAll = state.healthMode === 'all';
+        var dual = Boolean(state.dualStatus) && state.healthMode === 'status' && mode !== 'full';
+        // Nothing to reveal: no radar and (no health, or health already pinned on-screen by dual).
+        if (!radar && (!health || dual)) { return null; }
+        var base = layoutBands(state), out = [], i, b, label;
+        if (mode === 'none') {
+            var bottom = radar ? 'Radar' : (healthAll ? 'Health graph' : 'Forecast');
+            var toHealth = !radar && health;   // first flick lands on the health step
+            for (i = 0; i < base.length; i++) {
+                b = base[i]; label = b.label;
+                if (label === 'Forecast') { label = bottom; }
+                else if (toHealth && label === 'Status') { label = 'Health'; }
+                out.push({ label: label, h: b.h });
+            }
+            return out;
+        }
+        for (i = 0; i < base.length; i++) {   // full / compact
+            b = base[i]; label = b.label;
+            if (radar && label.indexOf('Calendar') === 0) { label = 'Radar'; }
+            if (!dual && health) {
+                if (label === 'Status') { label = 'Health'; }
+                else if (healthAll && label === 'Forecast') { label = 'Health graph'; }
+            }
+            out.push({ label: label, h: b.h });
+        }
+        return out;
+    }
+
+    function layoutPreviewFlick(state, env, userData) {
+        return renderBandStack(layoutBandsFlick(state));
+    }
+
     PConf.blocks.register('forecastPreview', forecastPreview);
     PConf.blocks.register('radarPreview', radarPreview);
     PConf.blocks.register('layoutPreview', layoutPreview);
+    PConf.blocks.register('layoutPreviewFlick', layoutPreviewFlick);
     PConf.blocks.register('devStats', devStats);
     PConf.blocks.register('lastFetch', lastFetch);
 
@@ -662,6 +710,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             forecastPreview: forecastPreview, radarPreview: radarPreview,
             devStats: devStats, lastFetch: lastFetch,
             layoutPreview: layoutPreview, layoutBands: layoutBands,
+            layoutPreviewFlick: layoutPreviewFlick, layoutBandsFlick: layoutBandsFlick,
             barPermille: barPermille, previewPaletteFallback: FALLBACK_PALETTE
         };
     }
