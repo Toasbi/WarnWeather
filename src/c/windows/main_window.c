@@ -118,8 +118,12 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
 // emery: increase top calendar status row height to fit larger month and icon alignment.
 #ifdef PBL_PLATFORM_EMERY
 #define CALENDAR_STATUS_HEIGHT 20
+// none: status band sized for the one-notch-larger Gothic-28 line (tune visually).
+#define NONE_STATUS_HEIGHT 30
 #else
 #define CALENDAR_STATUS_HEIGHT 13
+// none: status band sized for the one-notch-larger Gothic-24 line (tune visually).
+#define NONE_STATUS_HEIGHT 22
 #endif
 
 static Window *s_main_window;
@@ -143,16 +147,18 @@ typedef struct {
     GRect time;
     GRect bottom;    // BottomView band: forecast_layer / health_graph_layer (same frame)
     GRect loading;
+    GRect radar;     // rain_radar frame: == top in full/compact, == bottom in none
 } MainLayout;
 
 // Single source of truth for the vertical band geometry, for both the window
 // load path and main_window_relayout(). Compact top view shrinks the calendar to
 // 2 rows, moves the status band into the freed 3rd-row slot (larger font handled
 // in the status layers), grows the bottom band up to the fixed time band, and the
-// radar (which shares the calendar frame) shrinks with it. The time and top-status
-// bands are identical in both modes, so relayout leaves them untouched.
+// radar (which shares the calendar frame) shrinks with it. The top-status band is
+// identical in every mode. None drops the calendar entirely (zero-height top band),
+// moves the time band up under the strip, and rides the radar on the bottom band
+// instead — see the mode-specific branches below.
 static MainLayout compute_layout(GRect bounds, uint8_t mode) {
-    // none uses the compact geometry until Task 2 adds its own branch.
     bool compact = (mode != TOP_VIEW_FULL);
     int w = bounds.size.w;
     int h = bounds.size.h;
@@ -172,40 +178,78 @@ static MainLayout compute_layout(GRect bounds, uint8_t mode) {
     int calendar_y = content_y + CALENDAR_STATUS_HEIGHT;
     int time_y = calendar_y + calendar_h;
 
-    int cal_h      = compact ? (calendar_h - calendar_h / 3) : calendar_h;
-    int status_h   = compact ? (calendar_h - cal_h)          : WEATHER_STATUS_HEIGHT;
-    int status_y   = compact ? (calendar_y + cal_h)          : (time_y + time_h);
-    int forecast_y = compact ? (time_y + time_h)             : (time_y + time_h + WEATHER_STATUS_HEIGHT);
-    int fc_h       = compact ? (forecast_h + WEATHER_STATUS_HEIGHT) : forecast_h;
-
     L.top_status = GRect(content_x, content_y, content_w, CALENDAR_STATUS_HEIGHT + 1);
-    L.top        = GRect(content_x, calendar_y, content_w, cal_h);
-    L.status     = GRect(content_x, status_y, content_w, status_h);
-    L.time       = GRect(content_x, time_y, content_w, time_h);
-    L.bottom     = GRect(content_x, forecast_y, forecast_w, fc_h);
-    L.loading    = compact
-        ? GRect(content_x, forecast_y, content_w, fc_h)
-        : GRect(content_x, time_y + time_h, content_w, h - EMERY_WINDOW_PAD_BOTTOM - (time_y + time_h));
+    if (mode == TOP_VIEW_NONE) {
+        // emery: no calendar — time sits directly under the strip, status one notch
+        // taller, forecast fills the rest; keep proportional time_h for the big clock.
+        int strip_h     = CALENDAR_STATUS_HEIGHT + 1;   // 21
+        int none_time_y = content_y + strip_h;          // 2 + 21 = 23
+        int status_h    = NONE_STATUS_HEIGHT;           // 30 (fits Gothic 28; tune)
+        int status_y    = none_time_y + time_h;
+        int forecast_y  = status_y + status_h;
+        int fc_h        = h - EMERY_WINDOW_PAD_BOTTOM - forecast_y;
+
+        L.top     = GRect(content_x, calendar_y, content_w, 0);
+        L.status  = GRect(content_x, status_y, content_w, status_h);
+        L.time    = GRect(content_x, none_time_y, content_w, time_h);
+        L.bottom  = GRect(content_x, forecast_y, forecast_w, fc_h);
+        L.loading = L.bottom;
+        L.radar   = L.bottom;
+    } else {
+        int cal_h      = compact ? (calendar_h - calendar_h / 3) : calendar_h;
+        int status_h   = compact ? (calendar_h - cal_h)          : WEATHER_STATUS_HEIGHT;
+        int status_y   = compact ? (calendar_y + cal_h)          : (time_y + time_h);
+        int forecast_y = compact ? (time_y + time_h)             : (time_y + time_h + WEATHER_STATUS_HEIGHT);
+        int fc_h       = compact ? (forecast_h + WEATHER_STATUS_HEIGHT) : forecast_h;
+
+        L.top        = GRect(content_x, calendar_y, content_w, cal_h);
+        L.status     = GRect(content_x, status_y, content_w, status_h);
+        L.time       = GRect(content_x, time_y, content_w, time_h);
+        L.bottom     = GRect(content_x, forecast_y, forecast_w, fc_h);
+        L.loading    = compact
+            ? GRect(content_x, forecast_y, content_w, fc_h)
+            : GRect(content_x, time_y + time_h, content_w, h - EMERY_WINDOW_PAD_BOTTOM - (time_y + time_h));
+        L.radar      = L.top;
+    }
 #else
     int cal_full = CALENDAR_HEIGHT;                     // 45
     int cal_row  = CALENDAR_HEIGHT / 3;                 // 15 (one calendar row)
     int cal_y    = CALENDAR_STATUS_HEIGHT;              // 13
     int time_y   = cal_y + cal_full;                    // 58 (fixed anchor; == 13+30+15 compact)
 
-    int cal_h      = compact ? (2 * cal_row)            : CALENDAR_HEIGHT;                       // 30 vs 45
-    int status_h   = compact ? cal_row                  : WEATHER_STATUS_HEIGHT;                 // 15 vs 14
-    int status_y   = compact ? (cal_y + cal_h)          : (h - FORECAST_HEIGHT - WEATHER_STATUS_HEIGHT); // 43 vs 103
-    int forecast_y = compact ? (time_y + TIME_HEIGHT)   : (h - FORECAST_HEIGHT);                 // 103 vs 117
-    int fc_h       = h - forecast_y;                                                             // 65 vs 51
-
     L.top_status = GRect(0, 0, w, CALENDAR_STATUS_HEIGHT + 1);
-    L.top        = GRect(0, cal_y, w, cal_h);
-    L.status     = GRect(0, status_y, w, status_h);
-    L.time       = GRect(0, time_y, w, TIME_HEIGHT);
-    L.bottom     = GRect(0, forecast_y, w, fc_h);
-    L.loading    = compact
-        ? GRect(0, forecast_y, w, fc_h)
-        : GRect(0, h - FORECAST_HEIGHT - WEATHER_STATUS_HEIGHT, w, FORECAST_HEIGHT + WEATHER_STATUS_HEIGHT);
+    if (mode == TOP_VIEW_NONE) {
+        // No calendar: time rises directly under the strip, the status sits one
+        // notch taller beneath it, and the forecast fills everything below.
+        int strip_h    = CALENDAR_STATUS_HEIGHT + 1;    // 14
+        int none_time_y = strip_h;                      // time directly under the strip
+        int status_h   = NONE_STATUS_HEIGHT;            // 22 (fits Gothic 24; tune)
+        int status_y   = none_time_y + TIME_HEIGHT;     // 14 + 45 = 59
+        int forecast_y = status_y + status_h;           // 81
+        int fc_h       = h - forecast_y;                // 87 on a 168px screen
+
+        L.top     = GRect(0, cal_y, w, 0);              // calendar hidden; zero-height band
+        L.status  = GRect(0, status_y, w, status_h);
+        L.time    = GRect(0, none_time_y, w, TIME_HEIGHT);
+        L.bottom  = GRect(0, forecast_y, w, fc_h);
+        L.loading = L.bottom;
+        L.radar   = L.bottom;                           // radar rides the bottom band
+    } else {
+        int cal_h      = compact ? (2 * cal_row)          : CALENDAR_HEIGHT;                         // 30 vs 45
+        int status_h   = compact ? cal_row                : WEATHER_STATUS_HEIGHT;                   // 15 vs 14
+        int status_y   = compact ? (cal_y + cal_h)        : (h - FORECAST_HEIGHT - WEATHER_STATUS_HEIGHT); // 43 vs 103
+        int forecast_y = compact ? (time_y + TIME_HEIGHT) : (h - FORECAST_HEIGHT);                   // 103 vs 117
+        int fc_h       = h - forecast_y;                                                             // 65 vs 51
+
+        L.top        = GRect(0, cal_y, w, cal_h);
+        L.status     = GRect(0, status_y, w, status_h);
+        L.time       = GRect(0, time_y, w, TIME_HEIGHT);
+        L.bottom     = GRect(0, forecast_y, w, fc_h);
+        L.loading    = compact
+            ? GRect(0, forecast_y, w, fc_h)
+            : GRect(0, h - FORECAST_HEIGHT - WEATHER_STATUS_HEIGHT, w, FORECAST_HEIGHT + WEATHER_STATUS_HEIGHT);
+        L.radar      = L.top;                           // radar shares the calendar frame
+    }
 #endif
     return L;
 }
@@ -228,7 +272,7 @@ static void main_window_load(Window *window) {
 #endif
     time_layer_create(window_layer, L.time);
     calendar_layer_create(window_layer, L.top);
-    rain_radar_layer_create(window_layer, L.top);
+    rain_radar_layer_create(window_layer, L.radar);
     top_status_layer_create(window_layer, L.top_status); // +1 height already in L.top_status
     loading_layer_create(window_layer, L.loading);
     loading_layer_refresh();
@@ -345,9 +389,13 @@ void main_window_apply_top_view() {
 void main_window_relayout(void) {
     GRect bounds = layer_get_bounds(window_get_root_layer(s_main_window));
     MainLayout L = compute_layout(bounds, g_config->top_view_mode);
-    // top-status and time bands are identical in both modes — only reframe what moves.
+    // The top-status band is identical in every mode, so it's never reframed here.
+    // The time band is also unchanged between full/compact, but none moves it —
+    // time_layer has no reframe hook yet, so a live settings switch into/out of
+    // none leaves the on-screen time band stale until the next app relaunch.
+    // (Tracked as a known gap; out of scope for this pass.)
     layer_set_frame(calendar_layer_get_root(), L.top);
-    layer_set_frame(rain_radar_layer_get_root(), L.top);
+    layer_set_frame(rain_radar_layer_get_root(), L.radar);
     layer_set_frame(weather_status_layer_get_root(), L.status);
 #if defined(PBL_HEALTH)
     layer_set_frame(health_status_layer_get_root(), L.status);
