@@ -26,7 +26,7 @@
 #endif
 
 static Layer *s_top_status_layer;
-static char s_calendar_month_text[10];
+static char s_calendar_month_text[16];  // "22. Sep 2026" (12+NUL) in none mode; "Jul 2026" otherwise
 static GBitmap *s_mute_bitmap;
 static GBitmap *s_bt_bitmap;
 static GBitmap *s_bt_disconnect_bitmap;
@@ -347,7 +347,24 @@ void top_status_layer_tick() {
 
 void top_status_layer_refresh() {
     struct tm tm_now = watch_services_localtime();
-    strftime(s_calendar_month_text, sizeof(s_calendar_month_text), "%b %Y", &tm_now);
+    if (g_config->top_view_mode == TOP_VIEW_NONE) {
+        // No calendar carries the day-of-month, so the strip shows the full date.
+        // Keep the abbreviated month; build with snprintf from the int day/year to
+        // avoid %e space-padding and match the app's no-leading-zero day. Order
+        // follows the watch locale (US English = month-first).
+        char mon[8];
+        strftime(mon, sizeof(mon), "%b", &tm_now);          // "Jul"
+        int mday = tm_now.tm_mday;
+        int year = tm_now.tm_year + 1900;
+        const char *loc = i18n_get_system_locale();
+        if (loc && strncmp(loc, "en_US", 5) == 0) {
+            snprintf(s_calendar_month_text, sizeof(s_calendar_month_text), "%s %d. %d", mon, mday, year); // Jul 4. 2026
+        } else {
+            snprintf(s_calendar_month_text, sizeof(s_calendar_month_text), "%d. %s %d", mday, mon, year); // 2. Jul 2026
+        }
+    } else {
+        strftime(s_calendar_month_text, sizeof(s_calendar_month_text), "%b %Y", &tm_now);
+    }
     recompute_rain_alert();
     status_icons_refresh();
 }
