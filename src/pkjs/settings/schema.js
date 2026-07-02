@@ -40,17 +40,6 @@ var THIRD_LINE_OPTIONS = {
     gust: [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['UV Index', 'uv']],
     uv: [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust']]
 };
-// Layout "after a wrist-flick" reveals nothing when there's no radar AND health is
-// off / absent / already pinned on-screen by dualStatus — mirrors layoutBandsFlick()
-// in blocks.js. Drives the caption/preview visibility and the "nothing to flick" note.
-var FLICK_REVEALS_NOTHING = {all: [
-    {key: 'radarProvider', ne: 'dwd'},
-    {any: [
-        {key: 'healthMode', eq: 'off'},
-        {not: {env: 'health'}},
-        {all: [{key: 'dualStatus', eq: true}, {key: 'healthMode', eq: 'status'}, {key: 'topViewMode', ne: 'full'}]}
-    ]}
-]};
 // Color swatches (5 intensity bands) — shown only in the Multicolor hint.
 var SWATCHES = '<span style="display:inline-flex;gap:7px;margin-top:6px;align-items:flex-end;">' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#AAAAAA;margin-bottom:3px;"></span>0.1</span>' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#55FFFF;margin-bottom:3px;"></span>0.5</span>' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#00FF00;margin-bottom:3px;"></span>2</span>' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FFFF00;margin-bottom:3px;"></span>10</span>' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FF5555;margin-bottom:3px;"></span>40</span>' + '</span>';
 // Bar color hint depends on the selected mode (hintByValue): Multicolor shows the swatches; White doesn't.
@@ -296,20 +285,19 @@ module.exports = {
             items: [{
                 type: 'radio',
                 messageKey: 'healthMode',
-                label: 'Health view',
+                label: 'Health view (BETA)',
                 defaultValue: 'off',
                 hintByValue: {
                     off: 'Health is hidden.',
                     status: 'Adds a health status line — today\'s steps, last night\'s sleep, and current heart rate. Heart rate needs a watch with a heart-rate sensor.',
-                    all: 'Beta — also adds a health graph (hourly step bars, a sleep band, and a heart-rate line). Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
+                    all: 'Also adds a health graph (hourly step bars, a sleep band, and a heart-rate line). Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
                 },
-                options: [['Off', 'off'], ['Status bar', 'status'], ['Status + graph', 'all']]
+                options: [['Off', 'off'], ['Status bar', 'status'], ['Status + Graph', 'all']]
             }]
         }]
     }, {
         id: 'layout', label: 'Layout', sections: [{
-            title: 'Default view',
-            intro: 'Where each element sits on the watchface. What a metric means or how it\'s coloured lives in its own tab.',
+            intro: 'How the watchface is arranged, and what a wrist-flick reveals — shown side by side in the preview. What a metric means or how it\'s coloured lives in its own tab.',
             items: [{
                 type: 'segmented',
                 messageKey: 'topViewMode',
@@ -321,28 +309,14 @@ module.exports = {
                     compact: 'Calendar drops to 2 rows (this week · next) and the freed row goes to a taller forecast; status sits under the calendar.',
                     none: 'No calendar — a full-date strip, bigger clock and status, and a forecast that fills the screen.'
                 },
-                blockBefore: 'layoutPreview',
+                blockBefore: 'layoutPreviewCombined',
                 blockBeforeSticky: true
-            }]
-        }, {
-            title: 'After a wrist-flick',
-            intro: 'A wrist-flick reveals a second view. Full and Compact toggle to it and back; None cycles Forecast → Radar → Health. What it shows depends on your Radar and Health settings.',
-            items: [{
-                type: 'staticText',
-                text: '<span style="color:#A9AEB8;font-size:12.5px;line-height:1.55;">The view after one flick, based on your current Radar and Health settings.</span>',
-                blockBefore: 'layoutPreviewFlick',
-                blockBeforeSticky: true,
-                showWhen: {not: FLICK_REVEALS_NOTHING}
-            }, {
-                type: 'staticText',
-                text: '<span style="color:#A9AEB8;font-size:12.5px;line-height:1.55;">Nothing to flick to yet — turn on the rain radar (Radar tab) or a health view (Health tab).</span>',
-                showWhen: FLICK_REVEALS_NOTHING
             }, {
                 type: 'toggle',
                 messageKey: 'dualStatus',
                 label: 'Show weather status too',
                 defaultValue: false,
-                showWhen: {all: [{key: 'healthMode', ne: 'off'}, {key: 'topViewMode', ne: 'full'}]},
+                showWhen: {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}, {key: 'topViewMode', ne: 'full'}]},
                 hint: 'Keep the weather status on screen alongside health — health above the clock and weather below it (Compact), or stacked under the clock (None). A wrist-flick then just toggles the rain radar.'
             }]
         }]

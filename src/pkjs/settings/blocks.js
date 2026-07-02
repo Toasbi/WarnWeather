@@ -612,31 +612,31 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (mode === 'full') {
             return [
                 { label: 'Date', h: 12 }, { label: 'Calendar (3 rows)', h: 34 },
-                { label: 'Clock', h: 22 }, { label: 'Status', h: 12 }, { label: 'Forecast', h: 20 }
+                { label: 'Clock', h: 22 }, { label: 'Weather status', h: 12 }, { label: 'Forecast', h: 20 }
             ];
         }
         if (mode === 'none') {
             if (dual) {
                 return [
                     { label: 'Date', h: 12 }, { label: 'Clock', h: 30 },
-                    { label: 'Health', h: 15 }, { label: 'Weather', h: 15 }, { label: 'Forecast', h: 28 }
+                    { label: 'Health status', h: 15 }, { label: 'Weather status', h: 15 }, { label: 'Forecast', h: 28 }
                 ];
             }
             return [
                 { label: 'Date', h: 12 }, { label: 'Clock', h: 30 },
-                { label: 'Status', h: 16 }, { label: 'Forecast', h: 42 }
+                { label: 'Weather status', h: 16 }, { label: 'Forecast', h: 42 }
             ];
         }
         if (dual) {   // compact + dual: health above clock, weather below
             return [
                 { label: 'Date', h: 12 }, { label: 'Calendar (2 rows)', h: 24 },
-                { label: 'Health', h: 14 }, { label: 'Clock', h: 22 },
-                { label: 'Weather', h: 14 }, { label: 'Forecast', h: 14 }
+                { label: 'Health status', h: 14 }, { label: 'Clock', h: 22 },
+                { label: 'Weather status', h: 14 }, { label: 'Forecast', h: 14 }
             ];
         }
         return [   // compact (default)
             { label: 'Date', h: 12 }, { label: 'Calendar (2 rows)', h: 24 },
-            { label: 'Status', h: 14 }, { label: 'Clock', h: 22 }, { label: 'Forecast', h: 28 }
+            { label: 'Weather status', h: 14 }, { label: 'Clock', h: 22 }, { label: 'Forecast', h: 28 }
         ];
     }
 
@@ -672,21 +672,28 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!radar && (!health || dual)) { return null; }
         var base = layoutBands(state), out = [], i, b, label;
         if (mode === 'none') {
-            var bottom = radar ? 'Radar' : (healthAll ? 'Health graph' : 'Forecast');
-            var toHealth = !radar && health;   // first flick lands on the health step
+            // None flicks are a cycle. The big bottom band steps through the views that take
+            // it over — radar, and the health GRAPH (only in 'all' mode; a status-bar health
+            // view leaves the big band on the forecast). Any active health view still swaps
+            // the status line to the health status line on its cycle step.
+            var parts = [];
+            if (radar) { parts.push('Radar'); }
+            if (healthAll && !dual) { parts.push('Health'); }
+            var bottom = parts.length ? parts.join('/') : 'Forecast';
+            var toHealth = health && !dual;
             for (i = 0; i < base.length; i++) {
                 b = base[i]; label = b.label;
                 if (label === 'Forecast') { label = bottom; }
-                else if (toHealth && label === 'Status') { label = 'Health'; }
+                else if (toHealth && label === 'Weather status') { label = 'Health status'; }
                 out.push({ label: label, h: b.h });
             }
             return out;
         }
-        for (i = 0; i < base.length; i++) {   // full / compact
+        for (i = 0; i < base.length; i++) {   // full / compact: a single toggle to the alternate view
             b = base[i]; label = b.label;
             if (radar && label.indexOf('Calendar') === 0) { label = 'Radar'; }
             if (!dual && health) {
-                if (label === 'Status') { label = 'Health'; }
+                if (label === 'Weather status') { label = 'Health status'; }
                 else if (healthAll && label === 'Forecast') { label = 'Health graph'; }
             }
             out.push({ label: label, h: b.h });
@@ -698,10 +705,39 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return renderBandStack(layoutBandsFlick(state));
     }
 
+    // One column of a side-by-side layout preview: a header label over a band stack that
+    // fills the column width (no side padding). Shows emptyMsg when there are no bands.
+    function renderBandColumn(bands, x, w, header, emptyMsg) {
+        var e = txt(x + w / 2, 9, 8, '#8A92A0', 'middle', 700, header), y = 16, i;
+        if (!bands || !bands.length) {
+            e += rect(x, y, w, 104, '#12151C');
+            e += txt(x + w / 2, y + 54, 8, '#6A7280', 'middle', 600, emptyMsg || '—');
+            return e;
+        }
+        for (i = 0; i < bands.length; i++) {
+            e += rect(x, y, w, bands[i].h, '#1B1F27');
+            e += txt(x + w / 2, y + bands[i].h / 2 + 3, 7.5, '#AEB4BD', 'middle', 600, bands[i].label);
+            y += bands[i].h + 2;
+        }
+        return e;
+    }
+
+    // Layout preview: the default view and the after-flick view side by side in one window.
+    // Full-width columns (no side padding); the flick column shows a placeholder when a
+    // wrist-flick would reveal nothing.
+    function layoutPreviewCombined(state, env, userData) {
+        var W = 200, GAP = 6, colW = (W - GAP) / 2;
+        var e = rect(0, 0, W, 128, '#000');
+        e += renderBandColumn(layoutBands(state), 0, colW, 'Default', null);
+        e += renderBandColumn(layoutBandsFlick(state), colW + GAP, colW, 'After flick', 'Nothing to flick');
+        return svgFrame(e, 128);
+    }
+
     PConf.blocks.register('forecastPreview', forecastPreview);
     PConf.blocks.register('radarPreview', radarPreview);
     PConf.blocks.register('layoutPreview', layoutPreview);
     PConf.blocks.register('layoutPreviewFlick', layoutPreviewFlick);
+    PConf.blocks.register('layoutPreviewCombined', layoutPreviewCombined);
     PConf.blocks.register('devStats', devStats);
     PConf.blocks.register('lastFetch', lastFetch);
 
@@ -711,6 +747,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             devStats: devStats, lastFetch: lastFetch,
             layoutPreview: layoutPreview, layoutBands: layoutBands,
             layoutPreviewFlick: layoutPreviewFlick, layoutBandsFlick: layoutBandsFlick,
+            layoutPreviewCombined: layoutPreviewCombined,
             barPermille: barPermille, previewPaletteFallback: FALLBACK_PALETTE
         };
     }
