@@ -49,10 +49,20 @@ int health_hr_current(void) {
        measured. We deliberately do NOT request a shorter sample period
        (health_service_set_heart_rate_sample_period), so freshness still tracks
        the firmware's own idle cadence and there is no extra HRM battery cost.
-       Guard on accessibility so non-HRM hardware (e.g. aplite) returns 0 cleanly. */
+
+       Gate the peek with health_service_metric_aggregate_averaged_accessible at
+       the instant `now`, NOT health_service_metric_accessible: the latter only
+       reports whether health_service_sum() works over a time *span*, and the raw
+       HR metric can't be summed over a span, so it answered "not available" and
+       the row stayed stuck at "--" on real HRM hardware. peek_current_value() is
+       documented as equivalent to health_service_aggregate_averaged(metric, now,
+       now, Avg, Once), so this is its matching accessibility probe (the exact
+       pattern the SDK header shows). Non-HRM hardware still returns 0 cleanly. */
+    time_t now = time(NULL);
     return PBL_IF_HEALTH_ELSE(
-        (health_service_metric_accessible(HealthMetricHeartRateRawBPM,
-            time(NULL) - HOUR_SECS, time(NULL)) & HealthServiceAccessibilityMaskAvailable)
+        (health_service_metric_aggregate_averaged_accessible(HealthMetricHeartRateRawBPM,
+            now, now, HealthAggregationAvg, HealthServiceTimeScopeOnce)
+            & HealthServiceAccessibilityMaskAvailable)
             ? (int)health_service_peek_current_value(HealthMetricHeartRateRawBPM)
             : 0,
         0);
