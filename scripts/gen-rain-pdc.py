@@ -10,7 +10,7 @@ viewbox. Run by hand when the art changes and commit the output — no deps.
 Fill is authored white (0xFF) / stroke clear (0x00); top_status_layer.c recolors
 the fill per radar tier and scales the glyph to the strip slot at load time.
 Precise-path points are in 1/8-pixel units (viewbox 25 px -> 0..200 units).
-Shape + arrangement validated in scratchpad/mock_drops.py.
+Shape + arrangement were tuned against an offline PIL mock before authoring.
 """
 import math
 import os
@@ -40,7 +40,7 @@ def teardrop(cx, cy, r, tip_y, n_arc=14):
 
 
 def drop_in_box(x0, y0, size, scale=1.0):
-    """A teardrop sized to a sub-box (matches scratchpad/mock_drops.py)."""
+    """A teardrop sized to a sub-box (diagonal falling-rain stagger)."""
     return teardrop(cx=x0 + 0.5 * size,
                     cy=y0 + 0.60 * size,
                     r=0.30 * size * scale,
