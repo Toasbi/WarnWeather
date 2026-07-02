@@ -142,23 +142,46 @@ static void step_grid_draw(const ChartRender *r, void *user) {
     }
 }
 
+// Health-graph grid, distinct from FORECAST_GRID_DEF. The forecast shows near-term
+// hours and keeps its fixed (wider) pitch, but the health view must always span a FULL
+// 24 h so the *previous night's* sleep band stays on screen through the day. At the
+// forecast's pitch only ~18 h fit on a 144 px screen, so last night's sleep (which ends
+// ~07:00) scrolled off the left edge ~18 h later — around 01:00, "after midnight". A
+// trailing window of length L shows a sleep session until wake+L, so L must be a full
+// day: at 24 h it survives until ~07:00 next morning, by when tonight's band already
+// exists (continuous coverage). We therefore derive the pitch from the available plot
+// width so all num_slots (24) buckets fit, dropping bar_pad and narrowing the bars to
+// make room — never widening past the forecast's pitch. Both the compute and the update
+// proc build the def the same way, so their geometry agrees within a frame.
+static ChartDef health_grid_def(void) {
+    ChartDef d = FORECAST_GRID_DEF;   // inherit tick_w, insets and num_slots (24)
+    const int avail = layer_get_bounds(s_health_graph_layer).size.w
+                          - bottom_view_graph_inset();
+    const int fc_pitch = chart_def_pitch(&FORECAST_GRID_DEF);
+    int pitch = (d.num_slots > 0) ? avail / d.num_slots : fc_pitch;   // fit all buckets
+    if (pitch > fc_pitch)        { pitch = fc_pitch; }        // never sparser than forecast
+    if (pitch < d.tick_w + 1)    { pitch = d.tick_w + 1; }    // keep at least a 1 px bar
+    d.bar_pad = 0;                                            // tight pitch → no side pad
+    d.bar_w   = pitch - d.tick_w;                             // pitch == tick_w + 0 + bar_w
+    return d;
+}
+
 // Read health for the visible window and derive the step scale + "Nk" axis label
 // into the module statics the update proc renders from. When report_width is true
 // (refresh path) it also feeds the measured label width into bottom_view so the
 // shared left strip widens to fit; create passes false so a paint while hidden
 // never perturbs forecast's strip before the health view is ever shown.
 static void health_graph_compute(bool report_width) {
-    const GRect bounds     = layer_get_bounds(s_health_graph_layer);
-    const int   pitch      = chart_def_pitch(&FORECAST_GRID_DEF);
-    const int   graph_left = bottom_view_graph_inset();
+    const GRect    bounds     = layer_get_bounds(s_health_graph_layer);
+    const ChartDef def        = health_grid_def();
+    const int      pitch      = chart_def_pitch(&def);
+    const int      graph_left = bottom_view_graph_inset();
 
-    // "now" sits at the LAST VISIBLE slot, so don't fill clipped slots.
+    // "now" sits at the LAST VISIBLE slot, so don't fill clipped slots. The health
+    // pitch is sized so all def.num_slots (24 h) fit; this clamp makes that explicit.
     int visible_slots = (bounds.size.w - graph_left) / pitch;
-    if (visible_slots < 1)                    visible_slots = 1;
-    if (visible_slots > MAX_BOTTOM_VIEW_ENTRIES) visible_slots = MAX_BOTTOM_VIEW_ENTRIES;
-    if (visible_slots > FORECAST_GRID_DEF.num_slots) {
-        visible_slots = FORECAST_GRID_DEF.num_slots;
-    }
+    if (visible_slots < 1)                  visible_slots = 1;
+    if (visible_slots > def.num_slots)      visible_slots = def.num_slots;
 
     // Copy the trailing `visible_slots` buckets out of the warm cache — NO
     // HealthService calls on this path. The cache returns the grid anchor (top
@@ -255,7 +278,8 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
     const int     h             = bounds.size.h - BOTTOM_VIEW_BOTTOM_PAD;
     const int16_t axis_y        = h - BOTTOM_VIEW_AXIS_H;
     const int     graph_left    = bottom_view_graph_inset();
-    const int     pitch         = chart_def_pitch(&FORECAST_GRID_DEF);
+    const ChartDef def          = health_grid_def();   // full-24 h pitch (see health_grid_def)
+    const int     pitch         = chart_def_pitch(&def);
     const int     visible_slots = s_visible_slots;
 
     // Outer rect spans the grid columns and reserves the bottom axis row, exactly
@@ -334,7 +358,7 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
         .slots = axis_slots,
         .label_align = ALIGN_START, .tick_align = ALIGN_START } };
 
-    chart_draw(ctx, &FORECAST_GRID_DEF, outer, layers, n);
+    chart_draw(ctx, &def, outer, layers, n);
 
     draw_left_axis(ctx, h, s_step_hi);      // "1k"/"2k" gridline labels — chart-adjacent
                                             // chrome, not a chart layer.
