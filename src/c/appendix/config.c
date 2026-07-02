@@ -31,7 +31,7 @@ static Config config_defaults(void) {
         .day_night_shading = true,
         .health_enabled = true,
         .rain_countdown_horizon_min = 60,
-        .compact_top_view = true
+        .top_view_mode = TOP_VIEW_COMPACT
     };
 }
 
@@ -96,7 +96,7 @@ int config_n_today() {
     wday = g_config->start_mon ? (wday + 6) % 7 : wday;
     // Offset if user wants to show the previous week first — but compact top view
     // is always current-week-first (matches the phone's holiday-mask anchor).
-    if (g_config->prev_week && !g_config->compact_top_view)
+    if (g_config->prev_week && g_config->top_view_mode == TOP_VIEW_FULL)
         wday += 7;
     return wday;
 }
@@ -104,7 +104,10 @@ int config_n_today() {
 // Number of calendar rows: compact top view shows the current week + next week
 // (2 rows); the full layout shows the previous, current, and next week (3 rows).
 int config_calendar_rows(void) {
-    return g_config->compact_top_view ? 2 : 3;
+    // Full = prev+current+next (3 rows); compact = current+next (2 rows). None
+    // hides the calendar, but return 2 (not 0) so a stray refresh can't divide by
+    // zero in calendar_update_proc (box_h = h / rows).
+    return g_config->top_view_mode == TOP_VIEW_FULL ? 3 : 2;
 }
 
 #ifdef PBL_PLATFORM_EMERY

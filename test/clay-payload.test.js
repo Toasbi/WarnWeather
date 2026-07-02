@@ -78,10 +78,12 @@ test('maps rainCountdownHorizon to CLAY_RAIN_COUNTDOWN_HORIZON', () => {
   assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 0);
 });
 
-test('maps compactTopView to CLAY_COMPACT_TOP_VIEW, default on', () => {
-  assert.strictEqual(buildClayPayload(baseSettings(), null, NOW).CLAY_COMPACT_TOP_VIEW, true); // unset → on
-  const s = baseSettings(); s.compactTopView = false;
-  assert.strictEqual(buildClayPayload(s, null, NOW).CLAY_COMPACT_TOP_VIEW, false);
+test('maps topViewMode to CLAY_TOP_VIEW_MODE int (full=0, compact=1, none=2), default compact', () => {
+  assert.strictEqual(buildClayPayload(baseSettings(), null, NOW).CLAY_TOP_VIEW_MODE, 1); // unset → compact
+  const full = baseSettings(); full.topViewMode = 'full';
+  assert.strictEqual(buildClayPayload(full, null, NOW).CLAY_TOP_VIEW_MODE, 0);
+  const none = baseSettings(); none.topViewMode = 'none';
+  assert.strictEqual(buildClayPayload(none, null, NOW).CLAY_TOP_VIEW_MODE, 2);
 });
 
 test('compact top view anchors the holiday window to the current week (prevWeek forced false)', () => {
@@ -89,7 +91,7 @@ test('compact top view anchors the holiday window to the current week (prevWeek 
   const s = baseSettings();
   s.firstWeek = 'prev';          // would normally anchor a week earlier
   s.holidayCountry = 'US';
-  s.compactTopView = true;
+  s.topViewMode = 'compact';
   const got = anchorOf(buildClayPayload(s, null, NOW).HOLIDAYS);
   const expectCurrent = holidayMask.build(
     { startMon: s.weekStartDay === 'mon', prevWeek: false, country: 'US', region: 'all', enabled: true }, NOW).anchor;

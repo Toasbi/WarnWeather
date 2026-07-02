@@ -18,7 +18,11 @@ var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
  */
 function buildClayPayload(settings, watchInfo, now) {
     now = now || new Date();
-    var compact = settings.hasOwnProperty('compactTopView') ? Boolean(settings.compactTopView) : true;
+    var TOP_VIEW_MODES = ['full', 'compact', 'none'];
+    var topViewMode = settings.topViewMode || 'compact';
+    var topViewIdx = TOP_VIEW_MODES.indexOf(topViewMode);
+    if (topViewIdx < 0) { topViewIdx = 1; }        // unknown → compact
+    var compact = topViewMode !== 'full';          // none anchors like compact
     var payload = {
         "CLAY_CELSIUS": settings.temperatureUnits === 'c',
         "CLAY_TIME_LEAD_ZERO": settings.timeLeadingZero,
@@ -26,7 +30,7 @@ function buildClayPayload(settings, watchInfo, now) {
         "CLAY_COLOR_TODAY": settings.hasOwnProperty('colorToday') ? settings.colorToday : DEFAULT_COLOR_WHITE,
         "CLAY_START_MON": settings.weekStartDay === 'mon',
         "CLAY_PREV_WEEK": settings.firstWeek === 'prev',
-        "CLAY_COMPACT_TOP_VIEW": compact,
+        "CLAY_TOP_VIEW_MODE": topViewIdx,
         "CLAY_TIME_FONT": ['roboto', 'leco', 'bitham'].indexOf(settings.timeFont),
         "CLAY_SHOW_QT": settings.showQt,
         "CLAY_SHOW_BT": settings.btIcons === "connected" || settings.btIcons === "both",

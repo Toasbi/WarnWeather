@@ -8,6 +8,12 @@ enum TimeFont {
     TIME_FONT_BITHAM = 2,
 };
 
+enum TopViewMode {
+    TOP_VIEW_FULL = 0,     // classic 3-row calendar
+    TOP_VIEW_COMPACT = 1,  // 2-row calendar + larger status (default)
+    TOP_VIEW_NONE = 2,     // no calendar; big time / status / forecast
+};
+
 typedef struct {
     bool celsius;
     bool time_lead_zero;
@@ -29,7 +35,7 @@ typedef struct {
     int16_t fetch_interval_min;
     bool health_enabled;
     int16_t rain_countdown_horizon_min;
-    bool compact_top_view;
+    uint8_t top_view_mode;   // enum TopViewMode; reuses the old compact_top_view byte
 } Config;
 
 extern Config *g_config;

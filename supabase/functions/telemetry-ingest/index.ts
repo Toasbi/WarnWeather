@@ -44,7 +44,7 @@ const settingsSchema = z
     weekStartDay: z.string().optional(),
     firstWeek: z.string().optional(),
     showQt: z.boolean().optional(),
-    compactTopView: z.boolean().optional(),
+    topViewMode: z.enum(['full', 'compact', 'none']).optional(),
     vibe: z.boolean().optional(),
     btIcons: z.string().optional(),
     secondaryLine: z.string().optional(),

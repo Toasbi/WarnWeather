@@ -16,7 +16,7 @@ const EXPECTED_KEYS = [
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','locationMode','location',
   'temperatureUnits','dayNightShading','healthEnabled','secondaryLine','secondaryLineFill','windScale','thirdLine',
   'barSource','rainBarColor','provider','owmApiKey','radarProvider','radarColor','rainCountdownHorizon',
-  'compactTopView','showQt','vibe','btIcons','telemetryEnabled','devStatsEnabled','devStatsClear'
+  'topViewMode','showQt','vibe','btIcons','telemetryEnabled','devStatsEnabled','devStatsClear'
 ];
 
 test('every Clay messageKey present; only windScale is duplicated (two contextual slots)', () => {
@@ -221,15 +221,16 @@ test('rainCountdownHorizon is a radar-gated select with Off/30/60/120 and defaul
   assert.deepEqual(it.showWhen, { key: 'radarProvider', ne: 'disabled' });
 });
 
-test('compactTopView is a Misc toggle defaulting on, and hides firstWeek', () => {
-  const t = byKey('compactTopView');
-  assert.ok(t, 'compactTopView item exists');
-  assert.equal(t.type, 'toggle');
-  assert.equal(t.defaultValue, true);
+test('topViewMode is a Misc segmented control defaulting to compact, and gates firstWeek', () => {
+  const t = byKey('topViewMode');
+  assert.ok(t, 'topViewMode item exists');
+  assert.equal(t.type, 'segmented');
+  assert.equal(t.defaultValue, 'compact');
+  assert.deepEqual(t.options.map((o) => o[1]), ['full', 'compact', 'none']);
   // Lives in the More tab's Misc section.
   const more = schema.tabs.find((tab) => tab.id === 'more');
   const misc = more.sections.find((s) => s.title === 'Misc');
-  assert.ok(misc.items.some((i) => i.messageKey === 'compactTopView'), 'in Misc section');
-  // First week to display hides when compact top view is on.
-  assert.deepEqual(byKey('firstWeek').showWhen, { key: 'compactTopView', eq: false });
+  assert.ok(misc.items.some((i) => i.messageKey === 'topViewMode'), 'in Misc section');
+  // "First week to display" shows only for the full 3-row calendar.
+  assert.deepEqual(byKey('firstWeek').showWhen, { key: 'topViewMode', eq: 'full' });
 });

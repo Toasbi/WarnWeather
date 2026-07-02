@@ -654,7 +654,7 @@ function refreshHolidays() {
     if (app.settings.holidaysEnabled === false) { return; }
     var provider = registry.getProvider(country);
     if (!provider) { return; }
-    var compact = app.settings.hasOwnProperty('compactTopView') ? Boolean(app.settings.compactTopView) : true;
+    var compact = (app.settings.topViewMode || 'compact') !== 'full';
     var years = holidayMask.windowYears({
         startMon: app.settings.weekStartDay === 'mon',
         prevWeek: compact ? false : (app.settings.firstWeek === 'prev')

@@ -85,7 +85,7 @@ static const GPathInfo ARROW_PATH_INFO = {
     }
 };
 
-static bool status_compact(void) { return g_config->compact_top_view; }
+static bool status_compact(void) { return g_config->top_view_mode != TOP_VIEW_FULL; }
 
 static GFont temp_font(void) {
     return fonts_get_system_font(status_compact() ? COMPACT_TEMP_FONT_KEY : FONT_KEY_GOTHIC_18_BOLD);

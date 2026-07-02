@@ -45,9 +45,9 @@ test('snapshot includes rainCountdownHorizon as an int', () => {
   assert.strictEqual(buildSettingsSnapshot({}).rainCountdownHorizon, undefined);
 });
 
-test('snapshot includes compactTopView as a boolean', () => {
-  assert.strictEqual(buildSettingsSnapshot({ compactTopView: true }).compactTopView, true);
-  assert.strictEqual(buildSettingsSnapshot({}).compactTopView, false);
+test('snapshot includes topViewMode as a string', () => {
+  assert.strictEqual(buildSettingsSnapshot({ topViewMode: 'none' }).topViewMode, 'none');
+  assert.strictEqual(buildSettingsSnapshot({}).topViewMode, undefined);
 });
 
 test('settings snapshot keys match the Deno telemetry schema (lockstep)', () => {

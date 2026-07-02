@@ -69,7 +69,7 @@ static GPoint icon_pt_hr;
 
 static Layer *s_health_status_layer;
 
-static bool status_compact(void) { return g_config->compact_top_view; }
+static bool status_compact(void) { return g_config->top_view_mode != TOP_VIEW_FULL; }
 
 static GFont status_font(void) {
     return fonts_get_system_font(status_compact() ? COMPACT_STATUS_FONT_KEY : STATUS_FONT_KEY);

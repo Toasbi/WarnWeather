@@ -318,7 +318,7 @@ module.exports = {
                 label: 'First week to display',
                 defaultValue: 'prev',
                 options: [['Prev', 'prev'], ['Curr', 'curr']],
-                showWhen: { key: 'compactTopView', eq: false }
+                showWhen: { key: 'topViewMode', eq: 'full' }
             }, {
                 type: 'color',
                 messageKey: 'colorToday',
@@ -372,13 +372,16 @@ module.exports = {
         id: 'more', label: 'More', sections: [{
             title: 'Misc',
             items: [{
-                type: 'toggle',
-                messageKey: 'compactTopView',
-                label: 'Compact top view',
-                defaultValue: true,
-                hint: 'Compact 2-row calendar (this week + next) with a larger status line and a ' +
-                      'taller forecast area. Turn off for the full 3-row calendar and the ' +
-                      '"First week to display" option under Watch → Calendar.'
+                type: 'segmented',
+                messageKey: 'topViewMode',
+                label: 'Top view',
+                defaultValue: 'compact',
+                options: [['Full', 'full'], ['Compact', 'compact'], ['None', 'none']],
+                hintByValue: {
+                    full: 'Classic 3-row calendar (prev + current + next week) with the standard status line.',
+                    compact: '2-row calendar (this week + next) with a larger status line and a taller forecast/health area.',
+                    none: 'No calendar — a full-date strip, bigger clock and status line, and a forecast that fills the screen. Flick your wrist to reach the radar (and health graph, when enabled).'
+                }
             }, {type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true}, {
                 type: 'toggle', messageKey: 'vibe', label: 'Vibrate on bluetooth disconnect', defaultValue: false
             }, {

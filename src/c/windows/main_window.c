@@ -151,7 +151,9 @@ typedef struct {
 // in the status layers), grows the bottom band up to the fixed time band, and the
 // radar (which shares the calendar frame) shrinks with it. The time and top-status
 // bands are identical in both modes, so relayout leaves them untouched.
-static MainLayout compute_layout(GRect bounds, bool compact) {
+static MainLayout compute_layout(GRect bounds, uint8_t mode) {
+    // none uses the compact geometry until Task 2 adds its own branch.
+    bool compact = (mode != TOP_VIEW_FULL);
     int w = bounds.size.w;
     int h = bounds.size.h;
     MainLayout L;
@@ -214,7 +216,7 @@ static void main_window_load(Window *window) {
     GRect bounds = layer_get_bounds(window_layer);
     window_set_background_color(window, GColorBlack);
 
-    MainLayout L = compute_layout(bounds, g_config->compact_top_view);
+    MainLayout L = compute_layout(bounds, g_config->top_view_mode);
 
     forecast_layer_create(window_layer, L.bottom);
 #if defined(PBL_HEALTH)
@@ -342,7 +344,7 @@ void main_window_apply_top_view() {
 
 void main_window_relayout(void) {
     GRect bounds = layer_get_bounds(window_get_root_layer(s_main_window));
-    MainLayout L = compute_layout(bounds, g_config->compact_top_view);
+    MainLayout L = compute_layout(bounds, g_config->top_view_mode);
     // top-status and time bands are identical in both modes — only reframe what moves.
     layer_set_frame(calendar_layer_get_root(), L.top);
     layer_set_frame(rain_radar_layer_get_root(), L.top);

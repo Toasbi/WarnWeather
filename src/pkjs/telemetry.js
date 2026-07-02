@@ -33,7 +33,7 @@ function buildSettingsSnapshot(settings) {
         weekStartDay: safe.weekStartDay,
         firstWeek: safe.firstWeek,
         showQt: !!safe.showQt,
-        compactTopView: Boolean(safe.compactTopView),
+        topViewMode: safe.topViewMode,
         vibe: !!safe.vibe,
         btIcons: safe.btIcons,
         secondaryLine: safe.secondaryLine,
