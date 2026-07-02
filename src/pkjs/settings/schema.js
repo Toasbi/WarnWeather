@@ -40,6 +40,17 @@ var THIRD_LINE_OPTIONS = {
     gust: [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['UV Index', 'uv']],
     uv: [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust']]
 };
+// Layout "after a wrist-flick" reveals nothing when there's no radar AND health is
+// off / absent / already pinned on-screen by dualStatus — mirrors layoutBandsFlick()
+// in blocks.js. Drives the caption/preview visibility and the "nothing to flick" note.
+var FLICK_REVEALS_NOTHING = {all: [
+    {key: 'radarProvider', ne: 'dwd'},
+    {any: [
+        {key: 'healthMode', eq: 'off'},
+        {not: {env: 'health'}},
+        {all: [{key: 'dualStatus', eq: true}, {key: 'healthMode', eq: 'status'}, {key: 'topViewMode', ne: 'full'}]}
+    ]}
+]};
 // Color swatches (5 intensity bands) — shown only in the Multicolor hint.
 var SWATCHES = '<span style="display:inline-flex;gap:7px;margin-top:6px;align-items:flex-end;">' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#AAAAAA;margin-bottom:3px;"></span>0.1</span>' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#55FFFF;margin-bottom:3px;"></span>0.5</span>' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#00FF00;margin-bottom:3px;"></span>2</span>' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FFFF00;margin-bottom:3px;"></span>10</span>' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FF5555;margin-bottom:3px;"></span>40</span>' + '</span>';
 // Bar color hint depends on the selected mode (hintByValue): Multicolor shows the swatches; White doesn't.
@@ -320,11 +331,12 @@ module.exports = {
                 type: 'staticText',
                 text: '<span style="color:#A9AEB8;font-size:12.5px;line-height:1.55;">The view after one flick, based on your current Radar and Health settings.</span>',
                 blockBefore: 'layoutPreviewFlick',
-                blockBeforeSticky: true
+                blockBeforeSticky: true,
+                showWhen: {not: FLICK_REVEALS_NOTHING}
             }, {
                 type: 'staticText',
                 text: '<span style="color:#A9AEB8;font-size:12.5px;line-height:1.55;">Nothing to flick to yet — turn on the rain radar (Radar tab) or a health view (Health tab).</span>',
-                showWhen: {all: [{key: 'radarProvider', eq: 'disabled'}, {any: [{key: 'healthMode', eq: 'off'}, {not: {env: 'health'}}]}]}
+                showWhen: FLICK_REVEALS_NOTHING
             }, {
                 type: 'toggle',
                 messageKey: 'dualStatus',

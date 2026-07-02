@@ -672,8 +672,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!radar && (!health || dual)) { return null; }
         var base = layoutBands(state), out = [], i, b, label;
         if (mode === 'none') {
-            var bottom = radar ? 'Radar' : ((healthAll && !dual) ? 'Health graph' : 'Forecast');
-            var toHealth = !radar && health && !dual;   // first flick lands on the health step
+            var bottom = radar ? 'Radar' : (healthAll ? 'Health graph' : 'Forecast');
+            var toHealth = !radar && health;   // first flick lands on the health step
             for (i = 0; i < base.length; i++) {
                 b = base[i]; label = b.label;
                 if (label === 'Forecast') { label = bottom; }

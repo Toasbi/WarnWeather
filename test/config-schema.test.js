@@ -3,6 +3,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const schema = require('../src/pkjs/settings/schema.js');
 const { REGION_OPTIONS } = require('../src/pkjs/settings/holiday-data.js');
+const showWhen = require('../src/pkjs/config-ui/lib/show-when.js');
+const platform = require('../src/pkjs/config-ui/lib/platform.js');
 
 function allItems(s) { const out = []; s.tabs.forEach((t) => t.sections.forEach((sec) => sec.items.forEach((it) => out.push(it)))); return out; }
 const items = allItems(schema);
@@ -259,6 +261,33 @@ test('Layout tab splits into Default view + After a wrist-flick, with the flick 
   const flick = layout.sections.find((s) => s.title === 'After a wrist-flick');
   assert.ok(flick.items.some((i) => i.blockBefore === 'layoutPreviewFlick' && i.blockBeforeSticky === true), 'flick section hosts the after-flick preview');
   assert.ok(flick.items.some((i) => i.messageKey === 'dualStatus'), 'dualStatus moved into the flick section');
+});
+
+test('after-flick caption and "nothing to flick" note are mutually exclusive based on radar/health/dualStatus', () => {
+  const layout = schema.tabs.find((t) => t.id === 'layout');
+  const flick = layout.sections.find((s) => s.title === 'After a wrist-flick');
+  const caption = flick.items.find((i) => i.blockBefore === 'layoutPreviewFlick');
+  const note = flick.items.find((i) => i.type === 'staticText' && /Nothing to flick/.test(i.text));
+  assert.ok(caption, 'caption item exists');
+  assert.ok(note, 'note item exists');
+
+  const healthEnv = platform.computeEnv({ platform: 'basalt' });
+  const ctx = (settings) => Object.assign({}, settings, { env: healthEnv });
+
+  // Default state: no radar, health off -> nothing to flick to -> note visible, caption hidden.
+  let c = ctx({ radarProvider: 'disabled', healthMode: 'off', topViewMode: 'compact' });
+  assert.equal(showWhen.isVisible(note, c), true, 'note visible by default');
+  assert.equal(showWhen.isVisible(caption, c), false, 'caption hidden by default');
+
+  // Radar enabled -> flick reveals the radar view -> caption visible, note hidden.
+  c = ctx({ radarProvider: 'dwd', healthMode: 'off', topViewMode: 'compact' });
+  assert.equal(showWhen.isVisible(caption, c), true, 'caption visible when radar enabled');
+  assert.equal(showWhen.isVisible(note, c), false, 'note hidden when radar enabled');
+
+  // No radar, but health already pinned on-screen by dualStatus -> flick still reveals nothing.
+  c = ctx({ radarProvider: 'disabled', dualStatus: true, healthMode: 'status', topViewMode: 'compact' });
+  assert.equal(showWhen.isVisible(note, c), true, 'note visible when dualStatus pins health on screen');
+  assert.equal(showWhen.isVisible(caption, c), false, 'caption hidden when dualStatus pins health on screen');
 });
 
 test('flick/positioning narrative lives only in the Layout tab, not Health/Radar copy', () => {
