@@ -386,12 +386,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    *
    * @param {Object} schema Config schema (schema.tabs).
    * @param {string} activeTab Active tab id.
+   * @param {Object} [cx] Render context; when given, tabs whose showWhen resolves
+   *   false against cx.evalCtx are skipped.
    * @returns {string} Tab-bar buttons HTML.
    */
-  function renderTabBar(schema, activeTab) {
+  function renderTabBar(schema, activeTab, cx) {
     var h = '', i, tab;
     for (i = 0; i < schema.tabs.length; i++) {
       tab = schema.tabs[i];
+      if (cx && !PConf.showWhen.isVisible(tab, cx.evalCtx)) { continue; }
       h += '<button class="tab' + (activeTab === tab.id ? ' on' : '') + '" data-tab="' + esc(tab.id) + '">' + esc(tab.label) + '</button>';
     }
     return h;
@@ -411,6 +414,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var h = '', ti, si;
     for (ti = 0; ti < schema.tabs.length; ti++) {
       var t = schema.tabs[ti];
+      if (cx && !PConf.showWhen.isVisible(t, cx.evalCtx)) { continue; }
       if (t.id !== activeTab) { continue; }
       for (si = 0; si < t.sections.length; si++) { h += renderSection(t.sections[si], cx); }
     }
@@ -441,7 +445,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // helpers above), so DOM access here is unguarded by design.
     function render() {
       var cx = { S: S, ENV: ENV, USERDATA: USERDATA, openColor: openColor, openSelect: openSelect, selectQuery: selectQuery, collapsed: collapsed, evalCtx: evalCtx() };
-      document.getElementById('tabs').innerHTML = renderTabBar(SCHEMA, activeTab);
+      document.getElementById('tabs').innerHTML = renderTabBar(SCHEMA, activeTab, cx);
       document.getElementById('scroll').innerHTML = renderBody(SCHEMA, activeTab, cx);
     }
 
