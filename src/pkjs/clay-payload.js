@@ -55,6 +55,7 @@ function buildClayPayload(settings, watchInfo, now) {
         "CLAY_COLOR_TIME": settings.hasOwnProperty('colorTime') ? settings.colorTime : DEFAULT_COLOR_WHITE,
         "CLAY_DAY_NIGHT_SHADING": settings.hasOwnProperty('dayNightShading') ? settings.dayNightShading : true,
         "CLAY_HEALTH_MODE": ['off', 'status', 'all'].indexOf(settings.healthMode || 'off'),
+        "CLAY_DUAL_STATUS": Boolean(settings.dualStatus),
         "CLAY_FETCH_INTERVAL_MIN": parseInt(settings.fetchIntervalMin, 10) || 30,
         "CLAY_RAIN_COUNTDOWN_HORIZON": (function() {
             var rc = parseInt(settings.rainCountdownHorizon, 10);

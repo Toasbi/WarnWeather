@@ -60,6 +60,12 @@ test('maps healthMode to CLAY_HEALTH_MODE', () => {
     assert.strictEqual(buildClayPayload({}, null, new Date()).CLAY_HEALTH_MODE, 0); // default off when unset
 });
 
+test('maps dualStatus to CLAY_DUAL_STATUS', () => {
+    assert.strictEqual(buildClayPayload({ dualStatus: true }, null, new Date()).CLAY_DUAL_STATUS, true);
+    assert.strictEqual(buildClayPayload({ dualStatus: false }, null, new Date()).CLAY_DUAL_STATUS, false);
+    assert.strictEqual(buildClayPayload({}, null, new Date()).CLAY_DUAL_STATUS, false); // default off
+});
+
 test('maps rainCountdownHorizon to CLAY_RAIN_COUNTDOWN_HORIZON', () => {
   const base = baseSettings();
   base.radarProvider = 'dwd';
