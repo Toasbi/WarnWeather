@@ -19,12 +19,16 @@
 #define STATUS_FONT_KEY FONT_KEY_GOTHIC_18
 #define SLOT_Y_OFFSET FONT_18_OFFSET
 #define COMPACT_STATUS_FONT_KEY FONT_KEY_GOTHIC_24
-#define COMPACT_SLOT_Y_OFFSET 9
+// Match weather_status_layer's COMPACT_LABEL_OFFSET (6) so this row seats at the
+// same height as the weather status line instead of crowding the row above it.
+#define COMPACT_SLOT_Y_OFFSET 6
 #else
 #define STATUS_FONT_KEY FONT_KEY_GOTHIC_14
 #define SLOT_Y_OFFSET FONT_14_OFFSET
 #define COMPACT_STATUS_FONT_KEY FONT_KEY_GOTHIC_18
-#define COMPACT_SLOT_Y_OFFSET FONT_18_OFFSET
+// Match weather_status_layer's COMPACT_LABEL_OFFSET (4). FONT_18_OFFSET (7) sat the
+// text 3px higher than the weather row, crowding the element above it in compact mode.
+#define COMPACT_SLOT_Y_OFFSET 4
 #endif
 
 #define STATUS_TEXT_OVERFLOW GTextOverflowModeTrailingEllipsis
@@ -33,10 +37,9 @@
 // format-truncation analysis from flagging theoretical int-max overflows:
 //  s_steps_buf: clamped to 6 digits (999999 steps max display) + NUL = 7
 //  s_sleep_buf: clamped to "99h59" (5 chars) + NUL = 6; padded to 8 for safety
-//  s_hr_buf:    clamped to 3 digits (999 bpm) + "bpm" (3) + NUL = 7; padded to 8
-//  (HR glyph: we append "bpm" suffix as an ASCII-safe indicator — a literal
-//   heart character U+2665 may not render in Gothic-14/18; "bpm" is unambiguous
-//   and fits the slot. Task 7 can tune this after visual confirmation.)
+//  s_hr_buf:    clamped to 3 digits (999 bpm) + NUL = 4; padded to 8 for safety.
+//  Each slot is prefixed by its own PDC glyph (steps / sleep / heart), so the value
+//  text carries no unit suffix — the heart glyph conveys "bpm".
 static char s_steps_buf[8];
 static char s_sleep_buf[8];
 static char s_hr_buf[8];
@@ -46,10 +49,23 @@ static char s_hr_buf[8];
 #define SLEEP_HOURS_MAX 99
 #define HR_MAX 999
 
-// Draw rects in the layer's local coordinate space, one per slot.
+// Draw rects in the layer's local coordinate space, one per slot (the value text).
 static GRect frame_steps;
 static GRect frame_sleep;
 static GRect frame_hr;
+
+// Per-slot metric glyphs (PDC vector), created in _create and recolored white so
+// they always read on the black status band and on 1-bit displays. Each is drawn
+// from its top-left GPoint, just left of the slot's value text.
+static GDrawCommandImage *s_icon_steps;
+static GDrawCommandImage *s_icon_sleep;
+static GDrawCommandImage *s_icon_hr;
+static GPoint icon_pt_steps;
+static GPoint icon_pt_sleep;
+static GPoint icon_pt_hr;
+
+// Gap between a slot's glyph and its value text.
+#define ICON_GAP 2
 
 static Layer *s_health_status_layer;
 
@@ -57,6 +73,27 @@ static bool status_compact(void) { return g_config->compact_top_view; }
 
 static GFont status_font(void) {
     return fonts_get_system_font(status_compact() ? COMPACT_STATUS_FONT_KEY : STATUS_FONT_KEY);
+}
+
+// Force every draw command white so the glyph reads regardless of the colors baked
+// into the PDC (and so it maps to white on 1-bit displays).
+static bool icon_recolor_white(GDrawCommand *command, uint32_t index, void *context) {
+    gdraw_command_set_stroke_color(command, GColorWhite);
+    gdraw_command_set_fill_color(command, GColorWhite);
+    return true;
+}
+
+static GDrawCommandImage *icon_load(uint32_t resource_id) {
+    GDrawCommandImage *image = gdraw_command_image_create_with_resource(resource_id);
+    if (image) {
+        gdraw_command_list_iterate(gdraw_command_image_get_command_list(image),
+                                   icon_recolor_white, NULL);
+    }
+    return image;
+}
+
+static GSize icon_size(GDrawCommandImage *image) {
+    return image ? gdraw_command_image_get_bounds_size(image) : GSizeZero;
 }
 
 // ---------------------------------------------------------------------------
@@ -87,12 +124,12 @@ static void hr_slot_refresh(void) {
         int bpm = health_hr_current();
         if (bpm > 0) {
             if (bpm > HR_MAX) { bpm = HR_MAX; }
-            snprintf(s_hr_buf, sizeof(s_hr_buf), "%dbpm", bpm);
+            snprintf(s_hr_buf, sizeof(s_hr_buf), "%d", bpm);
         } else {
-            snprintf(s_hr_buf, sizeof(s_hr_buf), "--bpm");
+            snprintf(s_hr_buf, sizeof(s_hr_buf), "--");
         }
     } else {
-        snprintf(s_hr_buf, sizeof(s_hr_buf), "--bpm");
+        snprintf(s_hr_buf, sizeof(s_hr_buf), "--");
     }
 }
 
@@ -103,30 +140,44 @@ static void hr_slot_refresh(void) {
 static void health_status_layout(void) {
     GRect bounds = layer_get_bounds(s_health_status_layer);
     int w = bounds.size.w;
+    int h = bounds.size.h;
     int off = status_compact() ? COMPACT_SLOT_Y_OFFSET : SLOT_Y_OFFSET;
     int y = -off;
+    GFont font = status_font();
 
-    // Steps: flush left
-    GSize steps_size = graphics_text_layout_get_content_size(
-        s_steps_buf, status_font(), GRect(0, 0, w / 3, 100),
+    GSize steps_isz = icon_size(s_icon_steps);
+    GSize sleep_isz = icon_size(s_icon_sleep);
+    GSize hr_isz    = icon_size(s_icon_hr);
+
+    // Steps: flush left — [glyph][gap][value], glyph vertically centred in the band.
+    GSize steps_tsz = graphics_text_layout_get_content_size(
+        s_steps_buf, font, GRect(0, 0, w / 3, 100),
         STATUS_TEXT_OVERFLOW, GTextAlignmentLeft);
-    frame_steps = GRect(MARGIN, y, steps_size.w, steps_size.h);
+    icon_pt_steps = GPoint(MARGIN, (h - steps_isz.h) / 2);
+    frame_steps = GRect(MARGIN + steps_isz.w + ICON_GAP, y, steps_tsz.w, steps_tsz.h);
 
-    // HR: flush right — measure first so we know its width
-    GSize hr_size = graphics_text_layout_get_content_size(
-        s_hr_buf, status_font(), GRect(0, 0, w / 3, 100),
+    // HR: flush right — the whole [glyph][gap][value] group is right-aligned.
+    GSize hr_tsz = graphics_text_layout_get_content_size(
+        s_hr_buf, font, GRect(0, 0, w / 3, 100),
         STATUS_TEXT_OVERFLOW, GTextAlignmentLeft);
-    frame_hr = GRect(w - MARGIN - hr_size.w, y, hr_size.w, hr_size.h);
+    int hr_group_x = w - MARGIN - hr_isz.w - ICON_GAP - hr_tsz.w;
+    icon_pt_hr = GPoint(hr_group_x, (h - hr_isz.h) / 2);
+    frame_hr = GRect(hr_group_x + hr_isz.w + ICON_GAP, y, hr_tsz.w, hr_tsz.h);
 
-    // Sleep: centred in the remaining space between steps and HR
-    int center_x     = frame_steps.origin.x + frame_steps.size.w + MARGIN * 2;
-    int center_w     = frame_hr.origin.x - center_x - MARGIN * 2;
-    if (center_w < 0) { center_w = 0; }
-    GSize sleep_size = graphics_text_layout_get_content_size(
-        s_sleep_buf, status_font(), GRect(0, 0, center_w, 100),
-        STATUS_TEXT_OVERFLOW, GTextAlignmentCenter);
-    frame_sleep = GRect(center_x, y, center_w,
-                        sleep_size.h + off);
+    // Sleep: [glyph][gap][value] group centred in the space between steps and HR.
+    int region_l = frame_steps.origin.x + frame_steps.size.w + MARGIN * 2;
+    int region_r = hr_group_x - MARGIN * 2;
+    int region_w = region_r - region_l;
+    if (region_w < 0) { region_w = 0; }
+    GSize sleep_tsz = graphics_text_layout_get_content_size(
+        s_sleep_buf, font, GRect(0, 0, region_w, 100),
+        STATUS_TEXT_OVERFLOW, GTextAlignmentLeft);
+    int sleep_group_w = sleep_isz.w + ICON_GAP + sleep_tsz.w;
+    int sleep_group_x = region_l + (region_w - sleep_group_w) / 2;
+    if (sleep_group_x < region_l) { sleep_group_x = region_l; }
+    icon_pt_sleep = GPoint(sleep_group_x, (h - sleep_isz.h) / 2);
+    frame_sleep = GRect(sleep_group_x + sleep_isz.w + ICON_GAP, y,
+                        sleep_tsz.w, sleep_tsz.h + off);
 }
 
 // ---------------------------------------------------------------------------
@@ -135,12 +186,16 @@ static void health_status_layout(void) {
 
 static void health_status_update_proc(Layer *layer, GContext *ctx) {
     MEMORY_LOG_HEAP("health_status_update:enter");
-    graphics_context_set_text_color(ctx, GColorWhite);
+    // Metric glyphs first (already recolored white), then the value text.
+    if (s_icon_steps) { gdraw_command_image_draw(ctx, s_icon_steps, icon_pt_steps); }
+    if (s_icon_sleep) { gdraw_command_image_draw(ctx, s_icon_sleep, icon_pt_sleep); }
+    if (s_icon_hr)    { gdraw_command_image_draw(ctx, s_icon_hr, icon_pt_hr); }
 
+    graphics_context_set_text_color(ctx, GColorWhite);
     graphics_draw_text(ctx, s_steps_buf, status_font(), frame_steps,
                        STATUS_TEXT_OVERFLOW, GTextAlignmentLeft, NULL);
     graphics_draw_text(ctx, s_sleep_buf, status_font(), frame_sleep,
-                       STATUS_TEXT_OVERFLOW, GTextAlignmentCenter, NULL);
+                       STATUS_TEXT_OVERFLOW, GTextAlignmentLeft, NULL);
     graphics_draw_text(ctx, s_hr_buf, status_font(), frame_hr,
                        STATUS_TEXT_OVERFLOW, GTextAlignmentLeft, NULL);
     MEMORY_LOG_HEAP("health_status_update:exit");
@@ -152,6 +207,11 @@ static void health_status_update_proc(Layer *layer, GContext *ctx) {
 
 void health_status_layer_create(Layer *parent_layer, GRect frame) {
     s_health_status_layer = layer_create(frame);
+
+    // Load the metric glyphs before the first layout — it reads their sizes.
+    s_icon_steps = icon_load(RESOURCE_ID_HEALTH_STEPS);
+    s_icon_sleep = icon_load(RESOURCE_ID_HEALTH_SLEEP);
+    s_icon_hr    = icon_load(RESOURCE_ID_HEALTH_HEART);
 
     steps_slot_refresh();
     sleep_slot_refresh();
@@ -178,6 +238,9 @@ void health_status_layer_refresh(void) {
 
 void health_status_layer_destroy(void) {
     MEMORY_LOG_HEAP("health_status_layer_destroy:before");
+    if (s_icon_steps) { gdraw_command_image_destroy(s_icon_steps); s_icon_steps = NULL; }
+    if (s_icon_sleep) { gdraw_command_image_destroy(s_icon_sleep); s_icon_sleep = NULL; }
+    if (s_icon_hr)    { gdraw_command_image_destroy(s_icon_hr); s_icon_hr = NULL; }
     layer_destroy(s_health_status_layer);
     MEMORY_LOG_HEAP("health_status_layer_destroy:after");
 }

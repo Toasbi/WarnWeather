@@ -58,6 +58,39 @@
           "memoryFormat": "1BitPalette"
         },
         {
+          "type": "raw",
+          "name": "HEALTH_STEPS",
+          "file": "data/HEALTH_STEPS.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "HEALTH_SLEEP",
+          "file": "data/HEALTH_SLEEP.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "HEALTH_HEART",
+          "file": "data/HEALTH_HEART.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
           "type": "font",
           "name": "FONT_ROBOTO_BOLD_62",
           "file": "fonts/Roboto-Bold.ttf",
