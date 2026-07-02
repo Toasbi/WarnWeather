@@ -91,6 +91,27 @@ static char s_sun_buffer[8];
 
 static Layer *s_weather_status_layer;
 
+#ifdef PBL_PLATFORM_APLITE
+// aplite: draw the sun-event arrow (shaft + filled triangular head) with graphics
+// primitives instead of a GPath. That removes the last gpath_* caller on aplite so
+// the SDK's GPath rasteriser is --gc-sections'd out of the 24 KB image, and no
+// transient GPath buffer is allocated at draw time. `up` = arrow points up.
+static void draw_sun_arrow(GContext *ctx, int cx, int cy, bool up) {
+    const int h2 = ARROW_H / 2;
+    const int apex_y = up ? (cy - h2) : (cy + h2);
+    const int dir    = up ? 1 : -1;   // head widens away from the apex
+    graphics_context_set_stroke_color(ctx, GColorWhite);
+    // Shaft: from the tail to the head base.
+    graphics_draw_line(ctx, GPoint(cx, up ? cy + h2 : cy - h2),
+                            GPoint(cx, apex_y + dir * ARROW_HEAD_H));
+    // Head: filled triangle, one white row per head line (0 wide at the apex).
+    for (int i = 0; i <= ARROW_HEAD_H; ++i) {
+        const int hw = (ARROW_HEAD_W * i) / ARROW_HEAD_H;
+        graphics_draw_line(ctx, GPoint(cx - hw, apex_y + dir * i),
+                                GPoint(cx + hw, apex_y + dir * i));
+    }
+}
+#else
 static GPath *s_arrow_path = NULL;
 static const GPathInfo ARROW_PATH_INFO = {
     // Downward facing arrow, centered at the origin
@@ -104,6 +125,7 @@ static const GPathInfo ARROW_PATH_INFO = {
         {0, ARROW_H/2 - ARROW_HEAD_H}
     }
 };
+#endif
 
 // Pick a per-tier value for the active top-view mode (full / compact / none).
 static int tier_int(int full, int compact, int none) {
@@ -225,16 +247,6 @@ static void weather_status_update_proc(Layer *layer, GContext *ctx) {
     graphics_draw_text(ctx, s_sun_buffer, sun_font(), frame_sun_draw,
                        STATUS_TEXT_OVERFLOW, GTextAlignmentLeft, NULL);
 
-    if (!s_arrow_path) {
-        MEMORY_LOG_HEAP("weather_status_update:missing_arrow_path");
-        return;
-    }
-    // Translate to correct location in layer
-    if (persist_get_sun_event_start_type() == 0) {
-        gpath_rotate_to(s_arrow_path, TRIG_MAX_ANGLE / 2);
-    } else {
-        gpath_rotate_to(s_arrow_path, 0);
-    }
     // Vertically center the arrow in the status band. emery seats it lower to sit
     // in its taller row. In none mode the band is taller and the sun text sits high,
     // so track the sun text's own frame instead of the band edge.
@@ -248,21 +260,34 @@ static void weather_status_update_proc(Layer *layer, GContext *ctx) {
         arrow_y = bounds.size.h / 2;
 #endif
     }
+    // start_type 0 → next event is a sunrise (arrow points up); else a sunset (down).
+    const bool arrow_up = (persist_get_sun_event_start_type() == 0);
+#ifdef PBL_PLATFORM_APLITE
+    draw_sun_arrow(ctx, w - 4, arrow_y, arrow_up);
+#else
+    if (!s_arrow_path) {
+        MEMORY_LOG_HEAP("weather_status_update:missing_arrow_path");
+        return;
+    }
+    gpath_rotate_to(s_arrow_path, arrow_up ? TRIG_MAX_ANGLE / 2 : 0);
     gpath_move_to(s_arrow_path, GPoint(w - 4, arrow_y));
     graphics_context_set_stroke_color(ctx, GColorWhite);
     gpath_draw_outline_open(ctx, s_arrow_path);
     graphics_context_set_fill_color(ctx, GColorWhite);
     gpath_draw_filled(ctx, s_arrow_path);
+#endif
     MEMORY_LOG_HEAP("weather_status_update:exit");
 }
 
 void weather_status_layer_create(Layer* parent_layer, GRect frame) {
     s_weather_status_layer = layer_create(frame);
 
+#ifndef PBL_PLATFORM_APLITE
     s_arrow_path = gpath_create(&ARROW_PATH_INFO);
     if (!s_arrow_path) {
         APP_LOG(APP_LOG_LEVEL_ERROR, "weather_status_layer_create: failed to allocate arrow path");
     }
+#endif
 
     weather_status_layer_init();
     layer_set_update_proc(s_weather_status_layer, weather_status_update_proc);
@@ -280,10 +305,12 @@ void weather_status_layer_refresh() {
 
 void weather_status_layer_destroy() {
     MEMORY_LOG_HEAP("weather_status_layer_destroy:before");
+#ifndef PBL_PLATFORM_APLITE
     if (s_arrow_path) {
         gpath_destroy(s_arrow_path);
         s_arrow_path = NULL;
     }
+#endif
     layer_destroy(s_weather_status_layer);
     MEMORY_LOG_HEAP("weather_status_layer_destroy:after");
 }
