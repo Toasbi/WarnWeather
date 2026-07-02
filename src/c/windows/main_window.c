@@ -66,6 +66,17 @@ static bool health_view_active(void) {
 #endif
 }
 
+#if defined(PBL_HEALTH)
+// Whether the health status line (rather than the weather one) shows for a given bottom
+// view. Dual shows both, so true there; otherwise the health line rides any non-forecast
+// body (the health graph, and in none mode the radar stop) while weather rides the
+// forecast — so a none-mode radar flick pairs with the health status line.
+static bool health_status_shown_for(BottomView bottom) {
+    if (dual_active()) { return true; }
+    return bottom != BOTTOM_FORECAST && health_view_active();
+}
+#endif
+
 // The render tier (a TopViewMode value) for the status bands. Normally the top-view
 // mode, but in dual-status + compact top view compute_layout() carves the weather band
 // from the forecast at the full-height band — never the shorter compact band — so both
@@ -116,34 +127,41 @@ static void apply_view(TopView top, BottomView bottom) {
 #if defined(PBL_HEALTH)
     layer_set_hidden(health_graph_layer_get_root(), !show_health_graph);
 #endif
-    // Status bands. Dual mode shows both (health above/below the clock, weather in its
-    // own band); otherwise they toggle on the bottom view.
+    // Status bands. Dual mode shows both; otherwise the health status line rides any
+    // non-forecast body (the health graph, and in none mode the radar stop) while the
+    // weather line rides the forecast — so a none-mode radar flick pairs with health.
 #if defined(PBL_HEALTH)
     if (dual_active()) {
         layer_set_hidden(weather_status_layer_get_root(), false);
         layer_set_hidden(health_status_layer_get_root(), false);
     } else {
-        layer_set_hidden(weather_status_layer_get_root(), bottom == BOTTOM_HEALTH);
-        layer_set_hidden(health_status_layer_get_root(), bottom != BOTTOM_HEALTH);
+        bool health_bar = health_status_shown_for(bottom);
+        layer_set_hidden(weather_status_layer_get_root(), health_bar);
+        layer_set_hidden(health_status_layer_get_root(), !health_bar);
     }
 #else
     layer_set_hidden(weather_status_layer_get_root(), bottom == BOTTOM_HEALTH);
 #endif
 }
 
-// none-mode flick: cycle the big bottom band through the enabled views,
-// FORECAST -> RADAR (if data) -> HEALTH (if active) -> FORECAST. health_view_active()
-// is a hard false on no-health platforms, so BOTTOM_HEALTH is never returned there.
+// none-mode flick: cycle the big bottom band. FORECAST -> RADAR (if data) -> HEALTH
+// (if a dedicated health stop applies) -> FORECAST. The radar stop carries the health
+// status line (see health_status_shown_for), so in Status mode with radar present it's
+// a clean two-view cycle with no separate HEALTH stop. A dedicated HEALTH stop appears
+// only when the health graph is enabled (ALL), or in Status mode with no radar to carry
+// the health bar (so health stays reachable). health_view_active() is a hard false on
+// no-health platforms, so BOTTOM_HEALTH is never returned there.
 static BottomView none_next_bottom(BottomView cur) {
     bool has_radar = radar_has_data();
-    bool has_health = health_view_active();
+    bool has_health_stop = health_view_active()
+        && (g_config->health_mode == HEALTH_ALL || !has_radar);
     switch (cur) {
         case BOTTOM_FORECAST:
-            if (has_radar)  { return BOTTOM_RADAR; }
-            if (has_health) { return BOTTOM_HEALTH; }
+            if (has_radar)       { return BOTTOM_RADAR; }
+            if (has_health_stop) { return BOTTOM_HEALTH; }
             return BOTTOM_FORECAST;
         case BOTTOM_RADAR:
-            if (has_health) { return BOTTOM_HEALTH; }
+            if (has_health_stop) { return BOTTOM_HEALTH; }
             return BOTTOM_FORECAST;
         default: /* BOTTOM_HEALTH */
             return BOTTOM_FORECAST;
@@ -165,11 +183,14 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
     if (g_config->top_view_mode == TOP_VIEW_NONE) {
         BottomView next = none_next_bottom(s_bottom_view);
 #if defined(PBL_HEALTH)
-        if (next == BOTTOM_HEALTH) {
-            // Cheap in-progress-hour re-read (no-op if a build is pending), then
-            // render from the cache before showing the health view.
+        // The health status line rides the health stop AND (Status mode) the radar stop,
+        // so refresh health whenever the next stop shows it. Cheap in-progress-hour
+        // re-read (no-op if a build is pending), then render from the cache.
+        if (health_status_shown_for(next)) {
             health_cache_refresh_current_hour();
-            if (g_config->health_mode == HEALTH_ALL) { health_graph_layer_refresh(); }
+            if (next == BOTTOM_HEALTH && g_config->health_mode == HEALTH_ALL) {
+                health_graph_layer_refresh();
+            }
             health_status_layer_refresh();
         }
 #endif
@@ -438,14 +459,17 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     loading_layer_refresh();
 #if defined(PBL_HEALTH)
     // Keep the cache warm whenever health is enabled (rollover-warm always; the
-    // 15-min current-hour re-read only while the view is visible). The render
-    // path stays HealthService-free.
+    // 15-min current-hour re-read only while the health line is on screen — which now
+    // includes the none-mode radar stop). The render path stays HealthService-free.
+    bool health_on_screen = health_status_shown_for(s_bottom_view);
     if (g_config->health_mode != HEALTH_OFF) {
-        health_cache_tick(s_bottom_view == BOTTOM_HEALTH);
+        health_cache_tick(health_on_screen);
     }
     // Repaint the on-screen health view from the (now-warm) cache.
-    if (s_bottom_view == BOTTOM_HEALTH) {
-        if (g_config->health_mode == HEALTH_ALL) { health_graph_layer_refresh(); }
+    if (health_on_screen) {
+        if (s_bottom_view == BOTTOM_HEALTH && g_config->health_mode == HEALTH_ALL) {
+            health_graph_layer_refresh();
+        }
         health_status_layer_refresh();
     }
 #endif
