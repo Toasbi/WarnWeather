@@ -59,40 +59,96 @@ static GRect month_text_rect(GRect bounds, GFont font, const char *text) {
 #endif
 }
 
-// rain-intensity glyph (family D: rain-lines density), drawn procedurally.
-// bucket 1 = drizzle (sparse), 2 = rain, 3 = downpour (dense). 10x10, '#' = lit.
-// Each bucket is a diagonal rain-line hatch that fills the full 10x10 box; the
-// three step up in density (every 5th / 4th / 3rd cell) so intensity reads at a
-// glance while occupying the same area as the battery it sits beside.
-static const char *const RAIN_GLYPH[3][10] = {
-    {   // 1 drizzle — light hatch (every 5th cell, on alternate rows)
-        "#....#....", "..........", "...#....#.", "..........", ".#....#...",
-        "..........", "....#....#", "..........", "..#....#..", ".........."
-    },
-    {   // 2 rain — medium hatch (every 4th cell)
-        "#...#...#.", "...#...#..", "..#...#...", ".#...#...#", "#...#...#.",
-        "...#...#..", "..#...#...", ".#...#...#", "#...#...#.", "...#...#.."
-    },
-    {   // 3 downpour — dense hatch (every 3rd cell)
-        "#..#..#..#", "..#..#..#.", ".#..#..#..", "#..#..#..#", "..#..#..#.",
-        ".#..#..#..", "#..#..#..#", "..#..#..#.", ".#..#..#..", "#..#..#..#"
-    }
-};
+// Rain-intensity glyph: PDC vector raindrops (drop count = intensity bucket),
+// lazy-loaded during an active alert to match the health-strip glyph pipeline.
+// Authored filled/white in a 25px viewbox (scripts/gen-rain-pdc.py); recolored
+// per radar tier and scaled to the square glyph slot at load. aplite excludes
+// both the resources and this file (its twin has no rain glyph).
+static GDrawCommandImage *s_rain_glyph;   // NULL unless an alert is showing
+static int    s_rain_glyph_bucket;        // bucket (1..3) the cached glyph was built for; 0 = none
+static int    s_rain_glyph_side;          // px slot side the cached glyph was scaled to
+static GColor s_rain_glyph_tint;          // fill tint the cached glyph was recolored to
 
-static void draw_rain_glyph(GContext *ctx, GRect rect, int bucket, GColor color) {
-    if (bucket < 1 || bucket > 3 || rect.size.w <= 0 || rect.size.h <= 0) { return; }
-    const char *const *rows = RAIN_GLYPH[bucket - 1];
-    graphics_context_set_stroke_color(ctx, color);
-    // Nearest-neighbour scale the 10x10 source pattern to fill rect, so the glyph
-    // can be sized up to the strip height without editing the source pattern.
-    for (int y = 0; y < rect.size.h; y++) {
-        const char *row = rows[(y * 10) / rect.size.h];
-        for (int x = 0; x < rect.size.w; x++) {
-            if (row[(x * 10) / rect.size.w] == '#') {
-                graphics_draw_pixel(ctx, GPoint(rect.origin.x + x, rect.origin.y + y));
-            }
-        }
+// Combined-bbox normalize + per-tier recolor, mirroring health_status_layer's
+// PDC pipeline (points are 1/8-px precise-path units).
+typedef struct {
+    int16_t min_x, min_y, max_x, max_y;
+    int16_t num, den;   // transform each point: (p - min) * num / den
+    GColor tint;
+} RainNorm;
+
+static bool rain_bbox_cb(GDrawCommand *command, uint32_t index, void *context) {
+    (void)index;
+    RainNorm *b = (RainNorm *)context;
+    uint16_t n = gdraw_command_get_num_points(command);
+    for (uint16_t i = 0; i < n; i++) {
+        GPoint p = gdraw_command_get_point(command, i);
+        if (p.x < b->min_x) { b->min_x = p.x; }
+        if (p.y < b->min_y) { b->min_y = p.y; }
+        if (p.x > b->max_x) { b->max_x = p.x; }
+        if (p.y > b->max_y) { b->max_y = p.y; }
     }
+    return true;
+}
+
+static bool rain_norm_cb(GDrawCommand *command, uint32_t index, void *context) {
+    (void)index;
+    RainNorm *b = (RainNorm *)context;
+    gdraw_command_set_fill_color(command, b->tint);
+    uint16_t n = gdraw_command_get_num_points(command);
+    for (uint16_t i = 0; i < n; i++) {
+        GPoint p = gdraw_command_get_point(command, i);
+        p.x = (int16_t)(((p.x - b->min_x) * b->num) / b->den);
+        p.y = (int16_t)(((p.y - b->min_y) * b->num) / b->den);
+        gdraw_command_set_point(command, i, p);
+    }
+    return true;
+}
+
+static uint32_t rain_glyph_resource(int bucket) {
+    switch (bucket) {
+        case 1:  return RESOURCE_ID_RAIN_DRIZZLE;
+        case 2:  return RESOURCE_ID_RAIN_RAIN;
+        default: return RESOURCE_ID_RAIN_DOWNPOUR;   // bucket 3 (emery-only)
+    }
+}
+
+static void rain_glyph_unload(void) {
+    if (s_rain_glyph) {
+        gdraw_command_image_destroy(s_rain_glyph);
+        s_rain_glyph = NULL;
+    }
+    s_rain_glyph_bucket = 0;
+}
+
+// Ensure s_rain_glyph holds the bucket's drops scaled to a `side`-px square and
+// tinted `tint`. Reloads only when one of those changes (bucket tracks tier, side
+// is fixed per platform), so the steady-state redraw is a cache hit.
+static void ensure_rain_glyph_loaded(int bucket, int side, GColor tint) {
+    if (s_rain_glyph && s_rain_glyph_bucket == bucket &&
+        s_rain_glyph_side == side && gcolor_equal(s_rain_glyph_tint, tint)) {
+        return;
+    }
+    rain_glyph_unload();
+    if (side <= 0) { return; }
+    GDrawCommandImage *img = gdraw_command_image_create_with_resource(rain_glyph_resource(bucket));
+    if (!img) { return; }
+    GDrawCommandList *list = gdraw_command_image_get_command_list(img);
+    RainNorm b = { .min_x = INT16_MAX, .min_y = INT16_MAX,
+                   .max_x = INT16_MIN, .max_y = INT16_MIN, .tint = tint };
+    gdraw_command_list_iterate(list, rain_bbox_cb, &b);
+    int gw = b.max_x - b.min_x;
+    int gh = b.max_y - b.min_y;
+    int span = gw > gh ? gw : gh;          // fit the square slot by the larger dimension
+    if (span <= 0) { gdraw_command_image_destroy(img); return; }
+    b.num = (int16_t)(side * 8);           // points are 1/8-px, so ×8 lands the max at `side` px
+    b.den = (int16_t)span;
+    gdraw_command_list_iterate(list, rain_norm_cb, &b);
+    gdraw_command_image_set_bounds_size(img, GSize((gw * side) / span, (gh * side) / span));
+    s_rain_glyph = img;
+    s_rain_glyph_bucket = bucket;
+    s_rain_glyph_side = side;
+    s_rain_glyph_tint = tint;
 }
 
 // Glyph colour tracks the radar bars per tier; on B&W the strip is black and the
@@ -185,10 +241,10 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
     bool draw_bt_disc = !alert && wants_bt_disc;
     int bt_x = icon_x;  // month-mode BT position
 
-    // Square glyph inset from the strip height (side = bounds.h - 6, vertically
-    // centered) so it reads a touch smaller than the battery beside it. Square
-    // keeps the diagonal hatch at 45°; a non-square scale skews the lines and
-    // makes them chunky. glyph_x is set only in alert mode.
+    // Square glyph slot inset from the strip height (side = bounds.h - 6, vertically
+    // centered) so the raindrop reads a touch smaller than the battery beside it. The
+    // PDC drops are authored in a square viewbox and scaled to fit this side at load.
+    // glyph_x is set only in alert mode.
     const int glyph_side = bounds.size.h - 6;
     const int glyph_gap = 2;
     const int glyph_y = (bounds.size.h - glyph_side) / 2;
@@ -226,6 +282,7 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
     }
 
     maybe_unload_top_status_bitmaps(show_qt, draw_bt, draw_bt_disc);
+    if (!alert) { rain_glyph_unload(); }
 
     if (draw_qt) {
         ensure_mute_bitmap_loaded();
@@ -236,8 +293,12 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
 
     if (alert) {
         int bucket = rain_tier_to_bucket3(s_rain_alert_tier);
-        draw_rain_glyph(ctx, GRect(glyph_x, glyph_y, glyph_side, glyph_side),
-                        bucket, rain_glyph_color(s_rain_alert_tier));
+        ensure_rain_glyph_loaded(bucket, glyph_side, rain_glyph_color(s_rain_alert_tier));
+        if (s_rain_glyph) {
+            GSize gsz = gdraw_command_image_get_bounds_size(s_rain_glyph);
+            gdraw_command_image_draw(ctx, s_rain_glyph,
+                GPoint(glyph_x + (glyph_side - gsz.w) / 2, glyph_y + (glyph_side - gsz.h) / 2));
+        }
     }
 
     if (draw_bt) {
@@ -389,6 +450,7 @@ void top_status_layer_destroy() {
         gbitmap_destroy(s_bt_disconnect_bitmap);
         s_bt_disconnect_bitmap = NULL;
     }
+    rain_glyph_unload();
     layer_destroy(s_top_status_layer);
     MEMORY_LOG_HEAP("top_status_layer_destroy:after");
 }

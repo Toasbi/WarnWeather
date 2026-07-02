@@ -91,6 +91,39 @@
           ]
         },
         {
+          "type": "raw",
+          "name": "RAIN_DRIZZLE",
+          "file": "data/RAIN_DRIZZLE.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "RAIN_RAIN",
+          "file": "data/RAIN_RAIN.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "RAIN_DOWNPOUR",
+          "file": "data/RAIN_DOWNPOUR.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
           "type": "font",
           "name": "FONT_ROBOTO_BOLD_62",
           "file": "fonts/Roboto-Bold.ttf",
