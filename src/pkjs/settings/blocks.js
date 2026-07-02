@@ -562,8 +562,55 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return html;
     }
 
+    // Schematic band stack for the layout preview — proportional, not pixel-accurate.
+    function layoutBands(state) {
+        var mode = state.topViewMode || 'compact';
+        var dual = Boolean(state.dualStatus) && state.healthMode === 'status' && mode !== 'full';
+        if (mode === 'full') {
+            return [
+                { label: 'Date', h: 12 }, { label: 'Calendar (3 rows)', h: 34 },
+                { label: 'Clock', h: 22 }, { label: 'Status', h: 12 }, { label: 'Forecast', h: 20 }
+            ];
+        }
+        if (mode === 'none') {
+            if (dual) {
+                return [
+                    { label: 'Date', h: 12 }, { label: 'Clock', h: 30 },
+                    { label: 'Health', h: 15 }, { label: 'Weather', h: 15 }, { label: 'Forecast', h: 28 }
+                ];
+            }
+            return [
+                { label: 'Date', h: 12 }, { label: 'Clock', h: 30 },
+                { label: 'Status', h: 16 }, { label: 'Forecast', h: 42 }
+            ];
+        }
+        if (dual) {   // compact + dual: health above clock, weather below
+            return [
+                { label: 'Date', h: 12 }, { label: 'Calendar (2 rows)', h: 24 },
+                { label: 'Health', h: 14 }, { label: 'Clock', h: 22 },
+                { label: 'Weather', h: 14 }, { label: 'Forecast', h: 14 }
+            ];
+        }
+        return [   // compact (default)
+            { label: 'Date', h: 12 }, { label: 'Calendar (2 rows)', h: 24 },
+            { label: 'Status', h: 14 }, { label: 'Clock', h: 22 }, { label: 'Forecast', h: 28 }
+        ];
+    }
+
+    function layoutPreview(state, env, userData) {
+        var bands = layoutBands(state), W = 200, PAD = 8, w = W - PAD * 2, y = PAD, i;
+        var e = rect(0, 0, W, 118, '#000');
+        for (i = 0; i < bands.length; i++) {
+            e += rect(PAD, y, w, bands[i].h, '#1B1F27');
+            e += txt(W / 2, y + bands[i].h / 2 + 3, 8, '#AEB4BD', 'middle', 600, bands[i].label);
+            y += bands[i].h + 2;
+        }
+        return svgFrame(e, 118);
+    }
+
     PConf.blocks.register('forecastPreview', forecastPreview);
     PConf.blocks.register('radarPreview', radarPreview);
+    PConf.blocks.register('layoutPreview', layoutPreview);
     PConf.blocks.register('devStats', devStats);
     PConf.blocks.register('lastFetch', lastFetch);
 
@@ -571,6 +618,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         module.exports = {
             forecastPreview: forecastPreview, radarPreview: radarPreview,
             devStats: devStats, lastFetch: lastFetch,
+            layoutPreview: layoutPreview, layoutBands: layoutBands,
             barPermille: barPermille, previewPaletteFallback: FALLBACK_PALETTE
         };
     }

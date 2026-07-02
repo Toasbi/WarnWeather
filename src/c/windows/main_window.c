@@ -32,13 +32,26 @@ static TopView s_top_view;
 static BottomView s_bottom_view;
 
 #if defined(PBL_HEALTH)
-// Tracks the last-seen health_enabled so a false->true flip (settings, boot)
+// Tracks the last-seen health_mode so an off->on flip (settings, boot)
 // triggers exactly one cache rebuild.
-static bool s_health_enabled_prev;
+static uint8_t s_health_mode_prev;
 #endif
 
 static bool radar_has_data(void) {
     return persist_get_rain_radar_start() > 0;
+}
+
+// Dual status = show health AND weather status at once (Status mode, non-Full, on).
+// Hard false on no-health platforms so aplite never links the health service.
+static bool dual_active(void) {
+#if defined(PBL_HEALTH)
+    return g_config->top_view_mode != TOP_VIEW_FULL
+        && g_config->health_mode == HEALTH_STATUS
+        && g_config->dual_status
+        && health_available();
+#else
+    return false;
+#endif
 }
 
 // The alternate health view is only reachable when the user enabled it AND the
@@ -47,7 +60,7 @@ static bool radar_has_data(void) {
 // never references the health service.
 static bool health_view_active(void) {
 #if defined(PBL_HEALTH)
-    return g_config->health_enabled && health_available();
+    return g_config->health_mode != HEALTH_OFF && health_available() && !dual_active();
 #else
     return false;
 #endif
@@ -76,15 +89,32 @@ static void apply_view(TopView top, BottomView bottom) {
     bool radar_visible = none ? (bottom == BOTTOM_RADAR) : (top == TOP_VIEW_RAIN_RADAR);
     layer_set_hidden(rain_radar_layer_get_root(), !radar_visible);
 
-    layer_set_hidden(forecast_layer_get_root(), bottom != BOTTOM_FORECAST);
+    // The bottom graph swaps to the health graph only in HEALTH_ALL; HEALTH_STATUS
+    // keeps the forecast graph and swaps just the status line (below).
 #if defined(PBL_HEALTH)
-    layer_set_hidden(health_graph_layer_get_root(), bottom != BOTTOM_HEALTH);
+    bool show_health_graph = (bottom == BOTTOM_HEALTH) && g_config->health_mode == HEALTH_ALL;
+#else
+    bool show_health_graph = false;
 #endif
-    // Status band follows the bottom content: health-status for the health view,
-    // weather-status for forecast and radar alike.
-    layer_set_hidden(weather_status_layer_get_root(), bottom == BOTTOM_HEALTH);
+    // Forecast graph shows for the forecast bottom, and for a HEALTH bottom in status
+    // mode (graph unchanged). Stays hidden for the none-mode radar and the health graph.
+    bool show_forecast = (bottom == BOTTOM_FORECAST) || (bottom == BOTTOM_HEALTH && !show_health_graph);
+    layer_set_hidden(forecast_layer_get_root(), !show_forecast);
 #if defined(PBL_HEALTH)
-    layer_set_hidden(health_status_layer_get_root(), bottom != BOTTOM_HEALTH);
+    layer_set_hidden(health_graph_layer_get_root(), !show_health_graph);
+#endif
+    // Status bands. Dual mode shows both (health above/below the clock, weather in its
+    // own band); otherwise they toggle on the bottom view.
+#if defined(PBL_HEALTH)
+    if (dual_active()) {
+        layer_set_hidden(weather_status_layer_get_root(), false);
+        layer_set_hidden(health_status_layer_get_root(), false);
+    } else {
+        layer_set_hidden(weather_status_layer_get_root(), bottom == BOTTOM_HEALTH);
+        layer_set_hidden(health_status_layer_get_root(), bottom != BOTTOM_HEALTH);
+    }
+#else
+    layer_set_hidden(weather_status_layer_get_root(), bottom == BOTTOM_HEALTH);
 #endif
 }
 
@@ -126,7 +156,7 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
             // Cheap in-progress-hour re-read (no-op if a build is pending), then
             // render from the cache before showing the health view.
             health_cache_refresh_current_hour();
-            health_graph_layer_refresh();
+            if (g_config->health_mode == HEALTH_ALL) { health_graph_layer_refresh(); }
             health_status_layer_refresh();
         }
 #endif
@@ -143,7 +173,7 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
             // render from the cache. apply_view downgrades the radar top to the
             // calendar when there is no data.
             health_cache_refresh_current_hour();
-            health_graph_layer_refresh();
+            if (g_config->health_mode == HEALTH_ALL) { health_graph_layer_refresh(); }
             health_status_layer_refresh();
             apply_view(TOP_VIEW_RAIN_RADAR, BOTTOM_HEALTH);
         } else {
@@ -196,6 +226,7 @@ typedef struct {
     GRect top_status;
     GRect top;       // TopView band: calendar_layer / rain_radar_layer (same frame)
     GRect status;    // weather_status / health_status band
+    GRect status_lower;  // dual mode: the second (weather) status band; else == status
     GRect time;
     GRect bottom;    // BottomView band: forecast_layer / health_graph_layer (same frame)
     GRect loading;
@@ -210,7 +241,7 @@ typedef struct {
 // identical in every mode. None drops the calendar entirely (zero-height top band),
 // moves the time band up under the strip, and rides the radar on the bottom band
 // instead — see the mode-specific branches below.
-static MainLayout compute_layout(GRect bounds, uint8_t mode) {
+static MainLayout compute_layout(GRect bounds, uint8_t mode, bool dual) {
     bool compact = (mode != TOP_VIEW_FULL);
     int w = bounds.size.w;
     int h = bounds.size.h;
@@ -303,6 +334,20 @@ static MainLayout compute_layout(GRect bounds, uint8_t mode) {
         L.radar      = L.top;                           // radar shares the calendar frame
     }
 #endif
+    // Dual status: health keeps L.status; carve a weather band (L.status_lower) from
+    // the top of the forecast and shrink the forecast. dual is only ever true in
+    // compact/none (never full) — see dual_active().
+    L.status_lower = L.status;
+#if defined(PBL_HEALTH)
+    if (dual) {
+        int lower_h = (mode == TOP_VIEW_NONE) ? NONE_STATUS_HEIGHT : WEATHER_STATUS_HEIGHT;
+        L.status_lower = GRect(L.bottom.origin.x, L.bottom.origin.y, L.bottom.size.w, lower_h);
+        L.bottom.origin.y += lower_h;
+        L.bottom.size.h   -= lower_h;
+        L.loading = L.bottom;
+        if (mode == TOP_VIEW_NONE) { L.radar = L.bottom; }
+    }
+#endif
     return L;
 }
 
@@ -312,15 +357,17 @@ static void main_window_load(Window *window) {
     GRect bounds = layer_get_bounds(window_layer);
     window_set_background_color(window, GColorBlack);
 
-    MainLayout L = compute_layout(bounds, g_config->top_view_mode);
+    MainLayout L = compute_layout(bounds, g_config->top_view_mode, dual_active());
 
     forecast_layer_create(window_layer, L.bottom);
 #if defined(PBL_HEALTH)
     health_graph_layer_create(window_layer, L.bottom);
 #endif
-    weather_status_layer_create(window_layer, L.status);
 #if defined(PBL_HEALTH)
+    weather_status_layer_create(window_layer, dual_active() ? L.status_lower : L.status);
     health_status_layer_create(window_layer, L.status);
+#else
+    weather_status_layer_create(window_layer, L.status);
 #endif
     time_layer_create(window_layer, L.time);
     calendar_layer_create(window_layer, L.top);
@@ -336,8 +383,8 @@ static void main_window_load(Window *window) {
     // Repaint the health view when a deferred build finishes.
     health_cache_set_repaint(health_graph_layer_refresh);
     // Warm the cache at boot when health is enabled so the first flick is ready.
-    s_health_enabled_prev = g_config->health_enabled;
-    if (g_config->health_enabled) {
+    s_health_mode_prev = g_config->health_mode;
+    if (g_config->health_mode != HEALTH_OFF) {
         health_cache_reset();
     }
 #endif
@@ -377,12 +424,12 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     // Keep the cache warm whenever health is enabled (rollover-warm always; the
     // 15-min current-hour re-read only while the view is visible). The render
     // path stays HealthService-free.
-    if (g_config->health_enabled) {
+    if (g_config->health_mode != HEALTH_OFF) {
         health_cache_tick(s_bottom_view == BOTTOM_HEALTH);
     }
     // Repaint the on-screen health view from the (now-warm) cache.
     if (s_bottom_view == BOTTOM_HEALTH) {
-        health_graph_layer_refresh();
+        if (g_config->health_mode == HEALTH_ALL) { health_graph_layer_refresh(); }
         health_status_layer_refresh();
     }
 #endif
@@ -425,10 +472,10 @@ void main_window_create() {
 void main_window_apply_top_view() {
 #if defined(PBL_HEALTH)
     // A settings flip enabling health (false->true) warms the cache immediately.
-    if (g_config->health_enabled && !s_health_enabled_prev) {
+    if (g_config->health_mode != HEALTH_OFF && s_health_mode_prev == HEALTH_OFF) {
         health_cache_reset();
     }
-    s_health_enabled_prev = g_config->health_enabled;
+    s_health_mode_prev = g_config->health_mode;
 #endif
     // Re-apply the current view after radar availability or health config changed.
     // apply_view downgrades the radar (top in full/compact, bottom in none) when its
@@ -445,7 +492,7 @@ void main_window_apply_top_view() {
 
 void main_window_relayout(void) {
     GRect bounds = layer_get_bounds(window_get_root_layer(s_main_window));
-    MainLayout L = compute_layout(bounds, g_config->top_view_mode);
+    MainLayout L = compute_layout(bounds, g_config->top_view_mode, dual_active());
     // The top-status band is identical in every mode, so it's never reframed here.
     // The time band moves in none (up under the strip), so reframe it too — a live
     // settings switch into/out of none then reflows the clock without a relaunch.
@@ -454,9 +501,11 @@ void main_window_relayout(void) {
     layer_set_frame(time_layer_get_root(), L.time);
     layer_set_frame(calendar_layer_get_root(), L.top);
     layer_set_frame(rain_radar_layer_get_root(), L.radar);
-    layer_set_frame(weather_status_layer_get_root(), L.status);
 #if defined(PBL_HEALTH)
+    layer_set_frame(weather_status_layer_get_root(), dual_active() ? L.status_lower : L.status);
     layer_set_frame(health_status_layer_get_root(), L.status);
+#else
+    layer_set_frame(weather_status_layer_get_root(), L.status);
 #endif
     layer_set_frame(forecast_layer_get_root(), L.bottom);
 #if defined(PBL_HEALTH)

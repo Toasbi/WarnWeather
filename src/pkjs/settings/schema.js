@@ -225,15 +225,53 @@ module.exports = {
                 label: 'Day / night shading',
                 defaultValue: true,
                 hint: 'Show hatch shading between sunset and sunrise to distinguish day and night on the forecast graph.'
+            }]
+        }]
+    }, {
+        id: 'layout', label: 'Layout', sections: [{
+            intro: 'How the watchface is arranged. The preview updates as you choose.',
+            items: [{
+                type: 'segmented',
+                messageKey: 'topViewMode',
+                label: 'Top view',
+                defaultValue: 'compact',
+                options: [['Full', 'full'], ['Compact', 'compact'], ['None', 'none']],
+                hintByValue: {
+                    full: 'Classic 3-row calendar (prev + current + next week) with the standard status line.',
+                    compact: '2-row calendar (this week + next) with a larger status line and a taller forecast/health area.',
+                    none: 'No calendar — a full-date strip, bigger clock and status line, and a forecast that fills the screen. Flick your wrist to reach the radar (and health graph, when enabled).'
+                },
+                blockBefore: 'layoutPreview',
+                blockBeforeSticky: true
             }, {
                 type: 'toggle',
-                messageKey: 'healthEnabled',
+                messageKey: 'dualStatus',
+                label: 'Show weather status too',
+                defaultValue: false,
+                showWhen: {all: [{key: 'healthMode', eq: 'status'}, {key: 'topViewMode', ne: 'full'}]},
+                hint: 'Keep the weather status on screen alongside health — health above the clock and weather below it (Compact), or stacked under the clock (None). A wrist-flick then just toggles the rain radar.'
+            }]
+        }]
+    }, {
+        // aplite has no health sensors — the watch compiles the view out, so the whole
+        // tab is env-hidden there (tab-level showWhen; see platform.js health env flag).
+        id: 'health', label: 'Health', showWhen: {env: 'health'}, sections: [{
+            intro: 'A wrist-flick reveals an alternate view (rain radar up top). Turn the health view on to make that flick also show your health stats.',
+            items: [{
+                type: 'radio',
+                messageKey: 'healthMode',
                 label: 'Health view',
-                defaultValue: true,
-                // aplite has no health sensors — the watch compiles the view out,
-                // so hide the inert toggle there (see platform.js health env flag).
-                showWhen: {env: 'health'},
-                hint: 'Flick your wrist to switch the forecast graph and status line to a health view: hourly steps, a sleep band, and heart rate. Heart rate needs a watch with a heart-rate sensor.'
+                defaultValue: 'off',
+                hintByValue: {
+                    off:    'Health view is off — a wrist-flick just toggles the rain radar.',
+                    status: 'Flick your wrist to switch the bottom status line to health: '
+                          + "today's steps, last night's sleep, and current heart rate. "
+                          + 'Heart rate needs a watch with a heart-rate sensor.',
+                    all:    'Beta — also swaps the forecast graph for a health graph on flick '
+                          + '(hourly step bars, a sleep band, and a heart-rate line). '
+                          + 'Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
+                },
+                options: [['Off', 'off'], ['Status bar', 'status'], ['Status + graph', 'all']]
             }]
         }]
     }, {
@@ -371,18 +409,7 @@ module.exports = {
     }, {
         id: 'more', label: 'More', sections: [{
             title: 'Misc',
-            items: [{
-                type: 'segmented',
-                messageKey: 'topViewMode',
-                label: 'Top view',
-                defaultValue: 'compact',
-                options: [['Full', 'full'], ['Compact', 'compact'], ['None', 'none']],
-                hintByValue: {
-                    full: 'Classic 3-row calendar (prev + current + next week) with the standard status line.',
-                    compact: '2-row calendar (this week + next) with a larger status line and a taller forecast/health area.',
-                    none: 'No calendar — a full-date strip, bigger clock and status line, and a forecast that fills the screen. Flick your wrist to reach the radar (and health graph, when enabled).'
-                }
-            }, {type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true}, {
+            items: [{type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true}, {
                 type: 'toggle', messageKey: 'vibe', label: 'Vibrate on bluetooth disconnect', defaultValue: false
             }, {
                 type: 'select',

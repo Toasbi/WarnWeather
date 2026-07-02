@@ -246,3 +246,31 @@ test('area fill works for every main metric, in its palette fill color', () => {
   const off = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind', secondaryLineFill: false }), { color: true });
   assert.equal(off.indexOf('fill="#555500"'), -1, 'no fill when the toggle is off');
 });
+
+test('layoutPreview: Calendar band shows for full/compact, not none', () => {
+    assert.ok(B.layoutPreview({ topViewMode: 'full' }, {}, {}).indexOf('Calendar') >= 0);
+    assert.ok(B.layoutPreview({ topViewMode: 'compact' }, {}, {}).indexOf('Calendar') >= 0);
+    assert.strictEqual(B.layoutPreview({ topViewMode: 'none' }, {}, {}).indexOf('Calendar'), -1);
+});
+
+test('layoutPreview: every mode returns an svg with Date/Clock/Status/Forecast bands', () => {
+    ['full', 'compact', 'none'].forEach(function (m) {
+        const svg = B.layoutPreview({ topViewMode: m }, {}, {});
+        assert.strictEqual(svg.indexOf('<svg'), 0, m + ' returns an svg');
+        ['Date', 'Clock', 'Status', 'Forecast'].forEach(function (label) {
+            assert.ok(svg.indexOf(label) >= 0, m + ' has a ' + label + ' band');
+        });
+    });
+});
+
+test('layoutPreview: dualStatus splits Status into Health + Weather (compact/none, status mode)', () => {
+    const on = { dualStatus: true, healthMode: 'status' };
+    const c = B.layoutPreview(Object.assign({ topViewMode: 'compact' }, on), {}, {});
+    assert.ok(c.indexOf('Health') >= 0 && c.indexOf('Weather') >= 0, 'compact shows both');
+    const n = B.layoutPreview(Object.assign({ topViewMode: 'none' }, on), {}, {});
+    assert.ok(n.indexOf('Health') >= 0 && n.indexOf('Weather') >= 0, 'none shows both');
+    // Not applicable: full mode, or health not in status mode → single Status band.
+    assert.ok(B.layoutPreview({ topViewMode: 'full', dualStatus: true, healthMode: 'status' }, {}, {}).indexOf('Weather') === -1);
+    assert.ok(B.layoutPreview({ topViewMode: 'compact', dualStatus: true, healthMode: 'all' }, {}, {}).indexOf('Weather') === -1);
+    assert.ok(B.layoutPreview({ topViewMode: 'compact' }, {}, {}).indexOf('Status') >= 0);
+});

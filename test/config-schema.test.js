@@ -14,9 +14,9 @@ const EXPECTED_KEYS = [
   'weekStartDay','firstWeek','colorToday','colorSunday','colorSaturday','holidaysEnabled','colorUSFederal',
   'holidayCountry','holidayRegion',
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','locationMode','location',
-  'temperatureUnits','dayNightShading','healthEnabled','secondaryLine','secondaryLineFill','windScale','thirdLine',
+  'temperatureUnits','dayNightShading','healthMode','secondaryLine','secondaryLineFill','windScale','thirdLine',
   'barSource','rainBarColor','provider','owmApiKey','radarProvider','radarColor','rainCountdownHorizon',
-  'topViewMode','showQt','vibe','btIcons','telemetryEnabled','devStatsEnabled','devStatsClear'
+  'topViewMode','dualStatus','showQt','vibe','btIcons','telemetryEnabled','devStatsEnabled','devStatsClear'
 ];
 
 test('every Clay messageKey present; only windScale is duplicated (two contextual slots)', () => {
@@ -76,11 +76,17 @@ test('COLOR-capability + showWhen wiring', () => {
   assert.deepEqual(byKey('devStatsClear').showWhen, { key: 'devStatsEnabled', eq: true });
 });
 
-test('health view toggle is gated to health-capable platforms', () => {
+test('health tab is gated to health-capable platforms, with a 3-state mode radio', () => {
   // aplite has no health sensors (PBL_HEALTH undefined), so the watch compiles
-  // the view out entirely — hide the now-inert setting there instead of showing
-  // a toggle that does nothing.
-  assert.deepEqual(byKey('healthEnabled').showWhen, { env: 'health' });
+  // the view out entirely — hide the now-inert tab there instead of showing
+  // a control that does nothing.
+  const healthTab = schema.tabs.find((t) => t.id === 'health');
+  assert.ok(healthTab, 'health tab exists');
+  assert.deepEqual(healthTab.showWhen, { env: 'health' });
+  const mode = byKey('healthMode');
+  assert.equal(mode.type, 'radio');
+  assert.equal(mode.defaultValue, 'off');
+  assert.deepEqual(mode.options.map((o) => o[1]), ['off', 'status', 'all']);
 });
 
 test('secondaryLine is a 4-metric dropdown with no Off', () => {
@@ -221,16 +227,23 @@ test('rainCountdownHorizon is a radar-gated select with Off/30/60/120 and defaul
   assert.deepEqual(it.showWhen, { key: 'radarProvider', ne: 'disabled' });
 });
 
-test('topViewMode is a Misc segmented control defaulting to compact, and gates firstWeek', () => {
+test('topViewMode is a Layout tab segmented control defaulting to compact, and gates firstWeek', () => {
   const t = byKey('topViewMode');
   assert.ok(t, 'topViewMode item exists');
   assert.equal(t.type, 'segmented');
   assert.equal(t.defaultValue, 'compact');
   assert.deepEqual(t.options.map((o) => o[1]), ['full', 'compact', 'none']);
-  // Lives in the More tab's Misc section.
+  // Lives in the Layout tab, with a sticky layoutPreview block above it.
+  const layout = schema.tabs.find((tab) => tab.id === 'layout');
+  assert.ok(layout, 'layout tab exists');
+  const section = layout.sections.find((s) => s.items.some((i) => i.messageKey === 'topViewMode'));
+  assert.ok(section, 'in a Layout tab section');
+  assert.equal(t.blockBefore, 'layoutPreview');
+  assert.equal(t.blockBeforeSticky, true);
+  // No longer lives in the More tab's Misc section.
   const more = schema.tabs.find((tab) => tab.id === 'more');
   const misc = more.sections.find((s) => s.title === 'Misc');
-  assert.ok(misc.items.some((i) => i.messageKey === 'topViewMode'), 'in Misc section');
+  assert.ok(!misc.items.some((i) => i.messageKey === 'topViewMode'), 'moved out of Misc section');
   // "First week to display" shows only for the full 3-row calendar.
   assert.deepEqual(byKey('firstWeek').showWhen, { key: 'topViewMode', eq: 'full' });
 });

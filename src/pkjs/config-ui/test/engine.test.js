@@ -86,6 +86,26 @@ test('renderRow: stacked layout for text/radio/open-color, inline otherwise; hin
   assert.ok(byVal.indexOf('special') >= 0 && byVal.indexOf('base') === -1);
 });
 
+test('renderTabBar/renderBody: env-hidden tab produces no button and no body', () => {
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [
+    { id: 'general', label: 'General', sections: [{ items: [{ type: 'toggle', messageKey: 'a', label: 'A' }] }] },
+    { id: 'health', label: 'Health', showWhen: { env: 'health' },
+      sections: [{ items: [{ type: 'toggle', messageKey: 'h', label: 'H' }] }] }
+  ] };
+  const mkCx = (health) => ({ S: E.hydrate(SCH, {}), ENV: { health }, USERDATA: {}, openColor: null, collapsed: {},
+    evalCtx: Object.assign({}, E.hydrate(SCH, {}), { env: { health } }) });
+
+  // Hidden (aplite): no Health tab button, and no body even if it is forced active.
+  const barHidden = E.renderTabBar(SCH, 'general', mkCx(false));
+  assert.ok(barHidden.indexOf('data-tab="general"') >= 0, 'General tab present');
+  assert.equal(barHidden.indexOf('data-tab="health"'), -1, 'Health tab button hidden when env.health is false');
+  assert.equal(E.renderBody(SCH, 'health', mkCx(false)).indexOf('data-k="h"'), -1, 'hidden tab renders no body');
+
+  // Visible (color platform): Health tab button present.
+  assert.ok(E.renderTabBar(SCH, 'general', mkCx(true)).indexOf('data-tab="health"') >= 0,
+    'Health tab button shown when env.health is true');
+});
+
 test('renderBody: only active tab, showWhen hides items, version footer present', () => {
   const cx = { S: E.hydrate(FIXTURE, {}), ENV: { color: true }, USERDATA: {}, openColor: null, collapsed: {},
     evalCtx: Object.assign({}, E.hydrate(FIXTURE, {}), { env: { color: true } }) };
