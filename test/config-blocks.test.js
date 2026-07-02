@@ -79,8 +79,8 @@ test('forecastPreview never draws the second metric as the same metric as the ma
   const svg = B.forecastPreview({ dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'wind', thirdLine: 'wind' }, { color: true });
   assert.equal(svg.indexOf('fill="#FFFF00"'), -1, 'duplicate metric → no second-metric squares');
 });
-test('registers all four into PConf.blocks', () => {
-  ['forecastPreview','radarPreview','devStats','lastFetch'].forEach((id) => assert.equal(typeof PConf.blocks.get(id), 'function'));
+test('registers all preview/util blocks into PConf.blocks', () => {
+  ['forecastPreview','radarPreview','layoutPreview','layoutPreviewFlick','devStats','lastFetch'].forEach((id) => assert.equal(typeof PConf.blocks.get(id), 'function'));
 });
 
 test('blocks fallback palette equals buildPreviewPalette (no color drift)', () => {
@@ -302,4 +302,39 @@ test('layoutPreview: dualStatus splits Status into Health + Weather (compact/non
     assert.ok(B.layoutPreview({ topViewMode: 'full', dualStatus: true, healthMode: 'status' }, {}, {}).indexOf('Weather') === -1);
     assert.ok(B.layoutPreview({ topViewMode: 'compact', dualStatus: true, healthMode: 'all' }, {}, {}).indexOf('Weather') === -1);
     assert.ok(B.layoutPreview({ topViewMode: 'compact' }, {}, {}).indexOf('Status') >= 0);
+});
+
+test('layoutBandsFlick: nothing to reveal (radar off + health off) returns null / empty preview', () => {
+    const s = { topViewMode: 'compact', radarProvider: 'disabled', healthMode: 'off' };
+    assert.strictEqual(B.layoutBandsFlick(s), null);
+    assert.strictEqual(B.layoutPreviewFlick(s, {}, {}), '');
+});
+
+test('layoutPreviewFlick: full/compact with radar swaps Calendar → Radar', () => {
+    const svg = B.layoutPreviewFlick({ topViewMode: 'compact', radarProvider: 'dwd', healthMode: 'off' }, {}, {});
+    assert.ok(svg.indexOf('Radar') >= 0, 'shows Radar');
+    assert.strictEqual(svg.indexOf('Calendar'), -1, 'calendar replaced');
+});
+
+test('layoutBandsFlick: healthMode status swaps Status → Health, forecast unchanged', () => {
+    const labels = B.layoutBandsFlick({ topViewMode: 'compact', radarProvider: 'disabled', healthMode: 'status' }).map((x) => x.label);
+    assert.ok(labels.indexOf('Health') >= 0, 'status → health');
+    assert.ok(labels.indexOf('Forecast') >= 0, 'forecast stays');
+    assert.strictEqual(labels.indexOf('Health graph'), -1, 'no graph in status mode');
+});
+
+test('layoutBandsFlick: healthMode all swaps Forecast → Health graph too', () => {
+    const labels = B.layoutBandsFlick({ topViewMode: 'compact', radarProvider: 'disabled', healthMode: 'all' }).map((x) => x.label);
+    assert.ok(labels.indexOf('Health graph') >= 0, 'forecast → health graph');
+    assert.ok(labels.indexOf('Health') >= 0, 'status → health');
+});
+
+test('layoutBandsFlick: none mode first flick shows Radar in the big band when radar on', () => {
+    const labels = B.layoutBandsFlick({ topViewMode: 'none', radarProvider: 'dwd', healthMode: 'off' }).map((x) => x.label);
+    assert.ok(labels.indexOf('Radar') >= 0, 'radar shown');
+    assert.strictEqual(labels.indexOf('Forecast'), -1, 'forecast replaced by radar');
+});
+
+test('layoutBandsFlick: dual + no radar reveals nothing (health already pinned)', () => {
+    assert.strictEqual(B.layoutBandsFlick({ topViewMode: 'compact', dualStatus: true, healthMode: 'status', radarProvider: 'disabled' }), null);
 });
