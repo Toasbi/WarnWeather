@@ -46,6 +46,10 @@ void time_layer_create(Layer* parent_layer, GRect frame) {
 
 }
 
+Layer *time_layer_get_root(void) {
+    return s_container_layer;
+}
+
 // 12:30 -> 12:30
 // 13:30 -> 1:30
 // 00:30 -> 12:30

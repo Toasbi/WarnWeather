@@ -390,10 +390,11 @@ void main_window_relayout(void) {
     GRect bounds = layer_get_bounds(window_get_root_layer(s_main_window));
     MainLayout L = compute_layout(bounds, g_config->top_view_mode);
     // The top-status band is identical in every mode, so it's never reframed here.
-    // The time band is also unchanged between full/compact, but none moves it —
-    // time_layer has no reframe hook yet, so a live settings switch into/out of
-    // none leaves the on-screen time band stale until the next app relaunch.
-    // (Tracked as a known gap; out of scope for this pass.)
+    // The time band moves in none (up under the strip), so reframe it too — a live
+    // settings switch into/out of none then reflows the clock without a relaunch.
+    // main_window_refresh()'s time_layer_refresh() recomputes the inner digit
+    // position from the container bounds, so the clock re-centers after this.
+    layer_set_frame(time_layer_get_root(), L.time);
     layer_set_frame(calendar_layer_get_root(), L.top);
     layer_set_frame(rain_radar_layer_get_root(), L.radar);
     layer_set_frame(weather_status_layer_get_root(), L.status);
