@@ -225,15 +225,28 @@ module.exports = {
                 label: 'Day / night shading',
                 defaultValue: true,
                 hint: 'Show hatch shading between sunset and sunrise to distinguish day and night on the forecast graph.'
-            }, {
-                type: 'toggle',
-                messageKey: 'healthEnabled',
+            }]
+        }]
+    }, {
+        // aplite has no health sensors — the watch compiles the view out, so the whole
+        // tab is env-hidden there (tab-level showWhen; see platform.js health env flag).
+        id: 'health', label: 'Health', showWhen: {env: 'health'}, sections: [{
+            intro: 'A wrist-flick reveals an alternate view (rain radar up top). Turn the health view on to make that flick also show your health stats.',
+            items: [{
+                type: 'radio',
+                messageKey: 'healthMode',
                 label: 'Health view',
-                defaultValue: true,
-                // aplite has no health sensors — the watch compiles the view out,
-                // so hide the inert toggle there (see platform.js health env flag).
-                showWhen: {env: 'health'},
-                hint: 'Flick your wrist to switch the forecast graph and status line to a health view: hourly steps, a sleep band, and heart rate. Heart rate needs a watch with a heart-rate sensor.'
+                defaultValue: 'off',
+                hintByValue: {
+                    off:    'Health view is off — a wrist-flick just toggles the rain radar.',
+                    status: 'Flick your wrist to switch the bottom status line to health: '
+                          + "today's steps, last night's sleep, and current heart rate. "
+                          + 'Heart rate needs a watch with a heart-rate sensor.',
+                    all:    'Beta — also swaps the forecast graph for a health graph on flick '
+                          + '(hourly step bars, a sleep band, and a heart-rate line). '
+                          + 'Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
+                },
+                options: [['Off', 'off'], ['Status bar', 'status'], ['Status + graph', 'all']]
             }]
         }]
     }, {

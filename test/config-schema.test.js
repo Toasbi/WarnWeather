@@ -14,7 +14,7 @@ const EXPECTED_KEYS = [
   'weekStartDay','firstWeek','colorToday','colorSunday','colorSaturday','holidaysEnabled','colorUSFederal',
   'holidayCountry','holidayRegion',
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','locationMode','location',
-  'temperatureUnits','dayNightShading','healthEnabled','secondaryLine','secondaryLineFill','windScale','thirdLine',
+  'temperatureUnits','dayNightShading','healthMode','secondaryLine','secondaryLineFill','windScale','thirdLine',
   'barSource','rainBarColor','provider','owmApiKey','radarProvider','radarColor','rainCountdownHorizon',
   'topViewMode','showQt','vibe','btIcons','telemetryEnabled','devStatsEnabled','devStatsClear'
 ];
@@ -76,11 +76,17 @@ test('COLOR-capability + showWhen wiring', () => {
   assert.deepEqual(byKey('devStatsClear').showWhen, { key: 'devStatsEnabled', eq: true });
 });
 
-test('health view toggle is gated to health-capable platforms', () => {
+test('health tab is gated to health-capable platforms, with a 3-state mode radio', () => {
   // aplite has no health sensors (PBL_HEALTH undefined), so the watch compiles
-  // the view out entirely — hide the now-inert setting there instead of showing
-  // a toggle that does nothing.
-  assert.deepEqual(byKey('healthEnabled').showWhen, { env: 'health' });
+  // the view out entirely — hide the now-inert tab there instead of showing
+  // a control that does nothing.
+  const healthTab = schema.tabs.find((t) => t.id === 'health');
+  assert.ok(healthTab, 'health tab exists');
+  assert.deepEqual(healthTab.showWhen, { env: 'health' });
+  const mode = byKey('healthMode');
+  assert.equal(mode.type, 'radio');
+  assert.equal(mode.defaultValue, 'off');
+  assert.deepEqual(mode.options.map((o) => o[1]), ['off', 'status', 'all']);
 });
 
 test('secondaryLine is a 4-metric dropdown with no Off', () => {
