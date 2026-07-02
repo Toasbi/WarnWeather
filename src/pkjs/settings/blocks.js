@@ -126,6 +126,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return '<text x="' + x + '" y="' + y + '" font-size="' + s + '" fill="' + fill + '" font-family="sans-serif" font-weight="' + weight + '" text-anchor="' + anchor + '">' + t + '</text>';
     }
 
+    // Rough advance width (px) of a proportional sans-serif label at font-size `s`.
+    // Used to lay out legend items left-to-right without a real text-metrics engine;
+    // eyeball with `mise preview-config` and nudge the 0.52 factor if labels crowd.
+    function labelAdvance(text, s) { return Math.round(text.length * s * 0.52); }
+
     // Wrap a preview SVG body in the standard 200×h frame. The negative margins
     // cancel the engine .blockrow padding (12px 16px 14px) so the preview bleeds
     // edge-to-edge.
@@ -373,7 +378,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             }
             e += rainBars(local[i], x, bw, PB, plotH, radarWhite, P.rainTiers, false);
         }
-        // Rain legend: tier gradient (color) or outline box (B&W) + label.
+        // Rain legend (one row): the exact-spot swatch (tier gradient on color, solid
+        // white on B&W) + label, then a hollow grey "nearby" box + label. The nearby
+        // box is a fixed grey outline (not tier-coloured), so it reads the same on
+        // color and B&W — matching the faint nearby-rain outline bars above.
         var lgy = 110, lx = PX0;
         if (!radarWhite) {
             for (var t = 0; t < P.rainTiers.length; t += 1) {
@@ -381,10 +389,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             }
             lx += P.rainTiers.length * 2.4 + 2;
         } else {
-            e += '<rect x="' + lx + '" y="' + (lgy - 3.5) + '" width="12" height="7" fill="none" stroke="' + P.white + '" stroke-width="1"></rect>';
+            e += rect(lx, lgy - 3.5, 12, 7, P.white);
             lx += 14;
         }
-        e += txt(lx + 3, lgy + 3, 7.5, '#AEB4BD', 'start', 600, 'Rain');
+        e += txt(lx + 3, lgy + 3, 7.5, '#AEB4BD', 'start', 600, 'Rain at your exact spot');
+        lx += 3 + labelAdvance('Rain at your exact spot', 7.5) + 7;
+        e += '<rect x="' + lx + '" y="' + (lgy - 3.5) + '" width="9" height="7" fill="none" stroke="#8A8F98" stroke-width="1"></rect>';
+        lx += 11;
+        e += txt(lx + 3, lgy + 3, 7.5, '#AEB4BD', 'start', 600, 'Nearby (2 km)');
         return svgFrame(e, 118);
     }
 

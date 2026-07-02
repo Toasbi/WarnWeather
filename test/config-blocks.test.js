@@ -215,13 +215,16 @@ test('legend shows the second metric as white dots on B&W (no hue)', () => {
   assert.equal(svg.indexOf('#AAAAAA'), -1, 'no gust gray hue on B&W (white instead)');
 });
 
-test('radarPreview shows a Rain legend (tier gradient on color, outline on B&W)', () => {
-  const color = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor' }, { color: true });
-  const bw = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor' }, { color: false });
+test('radarPreview legend distinguishes exact-spot rain from nearby rain', () => {
+  const color = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
+  const bw = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: false });
   assert.ok(color.indexOf('viewBox="0 0 200 118"') >= 0, 'frame sized to fit the legend snug under the chart');
-  assert.ok(color.indexOf('>Rain<') >= 0, 'Rain label present');
+  assert.ok(color.indexOf('>Rain at your exact spot<') >= 0, 'exact-spot label present');
+  assert.ok(color.indexOf('>Nearby (2 km)<') >= 0, 'nearby label present');
   assert.ok(color.indexOf('fill="#00FF00"') >= 0, 'tier gradient (green) present on color');
-  assert.ok(bw.indexOf('>Rain<') >= 0, 'Rain label present on B&W too');
+  assert.ok(/<rect[^>]*fill="none"[^>]*stroke="#8A8F98"/.test(color), 'hollow grey nearby box present');
+  assert.ok(bw.indexOf('>Rain at your exact spot<') >= 0 && bw.indexOf('>Nearby (2 km)<') >= 0, 'both labels on B&W too');
+  assert.ok(/<rect[^>]*fill="none"[^>]*stroke="#8A8F98"/.test(bw), 'hollow grey nearby box on B&W too');
 });
 
 test('precip secondary line draws the cobalt fill on color and a dither on B&W', () => {
