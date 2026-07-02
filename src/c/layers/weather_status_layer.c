@@ -21,8 +21,8 @@
 #define COMPACT_SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_24
 #define COMPACT_TEMP_FONT_KEY FONT_KEY_GOTHIC_24_BOLD
 // emery: 24px labels align to the 24px temp; use the 18-offset scaled up.
-#define COMPACT_LABEL_OFFSET 7
-#define COMPACT_TEMP_Y_OFFSET 7
+#define COMPACT_LABEL_OFFSET 6
+#define COMPACT_TEMP_Y_OFFSET 6
 #define ARROW_H 10
 #define ARROW_HEAD_H 4
 #define ARROW_HEAD_W 3
@@ -35,14 +35,14 @@
 // so it is vertically centered against the labels (verified: bottom stays within
 // the row's clip, well above the forecast below).
 #define TEMP_Y_OFFSET (FONT_18_OFFSET - 1)
-#define COMPACT_CITY_FONT_KEY FONT_KEY_GOTHIC_28
-#define COMPACT_SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_28
-#define COMPACT_TEMP_FONT_KEY FONT_KEY_GOTHIC_28_BOLD
+#define COMPACT_CITY_FONT_KEY FONT_KEY_GOTHIC_18
+#define COMPACT_SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_18
+#define COMPACT_TEMP_FONT_KEY FONT_KEY_GOTHIC_18_BOLD
 // Non-Emery compact: all three labels are 28px (the Gothic ceiling), matching the
 // 28px city name. The band abuts the calendar/radar; offset 6 seats the text just
 // below it (raise the offset to tighten the gap, lower it to widen).
-#define COMPACT_LABEL_OFFSET 6
-#define COMPACT_TEMP_Y_OFFSET 6
+#define COMPACT_LABEL_OFFSET 4
+#define COMPACT_TEMP_Y_OFFSET 4
 #define ARROW_H 8
 #define ARROW_HEAD_H 3
 #define ARROW_HEAD_W 2
