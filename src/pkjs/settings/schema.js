@@ -301,7 +301,8 @@ module.exports = {
         }]
     }, {
         id: 'layout', label: 'Layout', sections: [{
-            intro: 'How the watchface is arranged. The preview updates as you choose.',
+            title: 'Default view',
+            intro: 'Where each element sits on the watchface. What a metric means or how it\'s coloured lives in its own tab.',
             items: [{
                 type: 'segmented',
                 messageKey: 'topViewMode',
@@ -309,12 +310,25 @@ module.exports = {
                 defaultValue: 'compact',
                 options: [['Full', 'full'], ['Compact', 'compact'], ['None', 'none']],
                 hintByValue: {
-                    full: 'Classic 3-row calendar (prev + current + next week) with the standard status line.',
-                    compact: '2-row calendar (this week + next) with a larger status line and a taller forecast/health area.',
-                    none: 'No calendar — a full-date strip, bigger clock and status line, and a forecast that fills the screen. Flick your wrist to reach the radar (and health graph, when enabled).'
+                    full: 'Top status, a 3-row calendar (prev · this · next week), the clock, the weather status line, then the forecast.',
+                    compact: 'Calendar drops to 2 rows (this week · next) and the freed row goes to a taller forecast; status sits under the calendar.',
+                    none: 'No calendar — a full-date strip, bigger clock and status, and a forecast that fills the screen.'
                 },
                 blockBefore: 'layoutPreview',
                 blockBeforeSticky: true
+            }]
+        }, {
+            title: 'After a wrist-flick',
+            intro: 'A wrist-flick reveals a second view. Full and Compact toggle to it and back; None cycles Forecast → Radar → Health. What it shows depends on your Radar and Health settings.',
+            items: [{
+                type: 'staticText',
+                text: '<span style="color:#A9AEB8;font-size:12.5px;line-height:1.55;">The view after one flick, based on your current Radar and Health settings.</span>',
+                blockBefore: 'layoutPreviewFlick',
+                blockBeforeSticky: true
+            }, {
+                type: 'staticText',
+                text: '<span style="color:#A9AEB8;font-size:12.5px;line-height:1.55;">Nothing to flick to yet — turn on the rain radar (Radar tab) or a health view (Health tab).</span>',
+                showWhen: {all: [{key: 'radarProvider', eq: 'disabled'}, {any: [{key: 'healthMode', eq: 'off'}, {not: {env: 'health'}}]}]}
             }, {
                 type: 'toggle',
                 messageKey: 'dualStatus',

@@ -250,3 +250,13 @@ test('topViewMode is a Layout tab segmented control defaulting to compact, and g
   // "First week to display" shows only for the full 3-row calendar.
   assert.deepEqual(byKey('firstWeek').showWhen, { key: 'topViewMode', eq: 'full' });
 });
+
+test('Layout tab splits into Default view + After a wrist-flick, with the flick preview and dualStatus in the flick section', () => {
+  const layout = schema.tabs.find((t) => t.id === 'layout');
+  assert.deepEqual(layout.sections.map((s) => s.title), ['Default view', 'After a wrist-flick']);
+  const def = layout.sections.find((s) => s.title === 'Default view');
+  assert.ok(def.items.some((i) => i.messageKey === 'topViewMode' && i.blockBefore === 'layoutPreview' && i.blockBeforeSticky === true), 'default view hosts topViewMode + layoutPreview');
+  const flick = layout.sections.find((s) => s.title === 'After a wrist-flick');
+  assert.ok(flick.items.some((i) => i.blockBefore === 'layoutPreviewFlick' && i.blockBeforeSticky === true), 'flick section hosts the after-flick preview');
+  assert.ok(flick.items.some((i) => i.messageKey === 'dualStatus'), 'dualStatus moved into the flick section');
+});
