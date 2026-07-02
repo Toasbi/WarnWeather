@@ -76,12 +76,22 @@ static void apply_view(TopView top, BottomView bottom) {
     bool radar_visible = none ? (bottom == BOTTOM_RADAR) : (top == TOP_VIEW_RAIN_RADAR);
     layer_set_hidden(rain_radar_layer_get_root(), !radar_visible);
 
-    layer_set_hidden(forecast_layer_get_root(), bottom != BOTTOM_FORECAST);
+    // The bottom graph swaps to the health graph only in HEALTH_ALL; HEALTH_STATUS
+    // keeps the forecast graph and swaps just the status line (below).
 #if defined(PBL_HEALTH)
-    layer_set_hidden(health_graph_layer_get_root(), bottom != BOTTOM_HEALTH);
+    bool show_health_graph = (bottom == BOTTOM_HEALTH) && g_config->health_mode == HEALTH_ALL;
+#else
+    bool show_health_graph = false;
+#endif
+    // Forecast graph shows for the forecast bottom, and for a HEALTH bottom in status
+    // mode (graph unchanged). Stays hidden for the none-mode radar and the health graph.
+    bool show_forecast = (bottom == BOTTOM_FORECAST) || (bottom == BOTTOM_HEALTH && !show_health_graph);
+    layer_set_hidden(forecast_layer_get_root(), !show_forecast);
+#if defined(PBL_HEALTH)
+    layer_set_hidden(health_graph_layer_get_root(), !show_health_graph);
 #endif
     // Status band follows the bottom content: health-status for the health view,
-    // weather-status for forecast and radar alike.
+    // weather-status for forecast and radar alike. (Unchanged — keyed on BOTTOM_HEALTH.)
     layer_set_hidden(weather_status_layer_get_root(), bottom == BOTTOM_HEALTH);
 #if defined(PBL_HEALTH)
     layer_set_hidden(health_status_layer_get_root(), bottom != BOTTOM_HEALTH);
@@ -126,7 +136,7 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
             // Cheap in-progress-hour re-read (no-op if a build is pending), then
             // render from the cache before showing the health view.
             health_cache_refresh_current_hour();
-            health_graph_layer_refresh();
+            if (g_config->health_mode == HEALTH_ALL) { health_graph_layer_refresh(); }
             health_status_layer_refresh();
         }
 #endif
@@ -143,7 +153,7 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
             // render from the cache. apply_view downgrades the radar top to the
             // calendar when there is no data.
             health_cache_refresh_current_hour();
-            health_graph_layer_refresh();
+            if (g_config->health_mode == HEALTH_ALL) { health_graph_layer_refresh(); }
             health_status_layer_refresh();
             apply_view(TOP_VIEW_RAIN_RADAR, BOTTOM_HEALTH);
         } else {
@@ -382,7 +392,7 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     }
     // Repaint the on-screen health view from the (now-warm) cache.
     if (s_bottom_view == BOTTOM_HEALTH) {
-        health_graph_layer_refresh();
+        if (g_config->health_mode == HEALTH_ALL) { health_graph_layer_refresh(); }
         health_status_layer_refresh();
     }
 #endif
