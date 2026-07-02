@@ -61,7 +61,10 @@ static void apply_view(TopView top, BottomView bottom) {
     if (!none && top == TOP_VIEW_RAIN_RADAR && !radar_has_data()) {
         top = TOP_VIEW_CALENDAR;
     }
-    if (none && bottom == BOTTOM_RADAR && !radar_has_data()) {
+    // BOTTOM_RADAR is a none-only view: normalize it to the forecast whenever we're
+    // not in none (e.g. a live switch away from none left it selected), or when none
+    // but the radar has no data to show.
+    if (bottom == BOTTOM_RADAR && (!none || !radar_has_data())) {
         bottom = BOTTOM_FORECAST;
     }
     s_top_view = top;
