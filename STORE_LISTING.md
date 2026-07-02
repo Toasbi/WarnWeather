@@ -54,6 +54,9 @@ HEALTH VIEW (requires health-capable watch; off by default)
   dotted line
 - Heart rate requires a watch with a built-in heart-rate sensor; unavailable values
   show as placeholders
+- In "Status bar" mode, optionally show the weather status alongside health (health
+  above the clock, weather below in Compact; stacked under the clock in None) — turn on
+  "Show weather status too" in the Layout tab
 
 CALENDAR
 - 3-week calendar
