@@ -262,8 +262,19 @@ static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
         while (i < count && !(vals && vals[i] == CHART_ABSENT)) { i++; }   // collect run
         const int run = i - start;
         if (run >= 2) {
+#ifdef PBL_PLATFORM_APLITE
+            // aplite: stroke the open polyline segment-by-segment instead of via a
+            // GPath. gpath_draw_outline_open allocates a transient transformed-points
+            // buffer that OOMs on aplite's ~2.7 KB boot heap (gpath.c "Unable to
+            // allocate memory for GPath call"); graphics_draw_line is allocation-free
+            // and identical at the 1 px B/W stroke this chart uses.
+            for (int k = start; k + 1 < start + run; ++k) {
+                graphics_draw_line(r->ctx, pts[k], pts[k + 1]);
+            }
+#else
             GPath path = { .num_points = (uint32_t)run, .points = (GPoint *)&pts[start] };
             gpath_draw_outline_open(r->ctx, &path);
+#endif
         } else if (run == 1) {
             // A lone reading between two gaps can't form a line; mark it with a
             // small filled square so the value isn't silently dropped.
@@ -376,12 +387,27 @@ static void chart_render_area(const ChartRender *r, const ChartAreaLayer *a) {
         const int h = (int)(((int32_t)(a->values[i] - a->lo) * c.size.h) / range_safe);
         pts[i] = GPoint(chart_slot_tick_x(&r->geo, i), plot_bottom - h);
     }
+    graphics_context_set_fill_color(r->ctx, a->fill_color);
+#ifdef PBL_PLATFORM_APLITE
+    // aplite: fill the area under the contour with 1 px columns rather than a GPath.
+    // gpath_draw_filled allocates a transient buffer that OOMs on aplite's ~2.7 KB
+    // heap (gpath.c "Unable to allocate memory for GPath call"); graphics_fill_rect
+    // is allocation-free and still dithers the fill colour, so the shade is identical.
+    const int16_t x_lo = pts[0].x;
+    const int16_t x_hi = pts[count - 1].x;
+    for (int16_t x = x_lo; x <= x_hi; ++x) {
+        const int16_t y = chart_contour_y_for_x(pts, count, x);
+        if (y < plot_bottom) {
+            graphics_fill_rect(r->ctx, GRect(x, y, 1, plot_bottom - y), 0, GCornerNone);
+        }
+    }
+#else
     pts[count]     = GPoint(chart_slot_tick_x(&r->geo, r->def->num_slots), plot_bottom);
     pts[count + 1] = GPoint(r->geo.anchor_x, plot_bottom);
 
     GPath path = { .num_points = (uint32_t)(count + 2), .points = pts };
-    graphics_context_set_fill_color(r->ctx, a->fill_color);
     gpath_draw_filled(r->ctx, &path);
+#endif
 }
 
 void chart_draw(GContext *ctx, const ChartDef *def, GRect outer,
