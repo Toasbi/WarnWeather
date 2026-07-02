@@ -219,12 +219,15 @@ test('non-holiday selects stay plain select', () => {
   assert.equal(byKey('btIcons').type, 'select');
 });
 
-test('rainCountdownHorizon is a radar-gated select with Off/30/60/120 and default 60', () => {
+test('rainCountdownHorizon is a radar- and non-aplite-gated select with Off/30/60/120 and default 60', () => {
   const it = byKey('rainCountdownHorizon');
   assert.equal(it.type, 'select');
   assert.equal(it.defaultValue, '60');
   assert.deepEqual(it.options.map((o) => o[1]), ['0', '30', '60', '120']);
-  assert.deepEqual(it.showWhen, { key: 'radarProvider', ne: 'disabled' });
+  // Shown only when a radar provider is enabled AND not on aplite (feature-frozen there).
+  assert.deepEqual(it.showWhen, {
+    all: [{ key: 'radarProvider', ne: 'disabled' }, { env: 'platform', ne: 'aplite' }],
+  });
 });
 
 test('topViewMode is a Layout tab segmented control defaulting to compact, and gates firstWeek', () => {

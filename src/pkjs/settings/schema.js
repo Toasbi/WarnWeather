@@ -274,7 +274,7 @@ module.exports = {
                 defaultValue: '60',
                 hint: 'Show an incoming rain alert in the status strip when there is rain at your location within the selected time frame.',
                 options: [['Off', '0'], ['Within 30 min', '30'], ['Within 60 min', '60'], ['Within 2 hours', '120']],
-                showWhen: {key: 'radarProvider', ne: 'disabled'}
+                showWhen: {all: [{key: 'radarProvider', ne: 'disabled'}, {env: 'platform', ne: 'aplite'}]}
             }]
         }]
     }, {
