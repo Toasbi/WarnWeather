@@ -50,8 +50,8 @@ HEALTH VIEW (requires health-capable watch; off by default)
 - Status bar: flick your wrist to switch the bottom status line to health — today's
   steps, last night's sleep duration, and current heart rate
 - Status + graph (beta): also swaps the forecast graph for a health graph on flick —
-  hourly step bars, a sleep band along the bottom (light/deep sleep), and a heart-rate
-  dotted line
+  hourly step bars, a sleep band along the bottom (light/deep sleep), and a solid
+  heart-rate line
 - Heart rate requires a watch with a built-in heart-rate sensor; unavailable values
   show as placeholders
 - In "Status bar" mode, optionally show the weather status alongside health (health
