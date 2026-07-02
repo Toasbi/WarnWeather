@@ -31,7 +31,8 @@ static Config config_defaults(void) {
         .day_night_shading = true,
         .health_mode = HEALTH_OFF,
         .rain_countdown_horizon_min = 60,
-        .top_view_mode = TOP_VIEW_COMPACT
+        .top_view_mode = TOP_VIEW_COMPACT,
+        .dual_status = false
     };
 }
 

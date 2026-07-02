@@ -42,6 +42,7 @@ typedef struct {
     uint8_t health_mode;   // enum HealthMode; reinterprets the old bool health_enabled byte (0=off,1=status)
     int16_t rain_countdown_horizon_min;
     uint8_t top_view_mode;   // enum TopViewMode; reuses the old compact_top_view byte
+    bool dual_status;        // Status mode only: show health + weather status together (append-only — keep last)
 } Config;
 
 extern Config *g_config;
