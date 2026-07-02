@@ -32,6 +32,7 @@ const settingsSchema = z
     temperatureUnits: z.string().optional(),
     dayNightShading: z.boolean().optional(),
     healthMode: z.enum(['off', 'status', 'all']).optional(),
+    dualStatus: z.boolean().optional(),
     provider: providerSchema.optional(),
     fetchIntervalMin: z.number().int().positive().optional(),
     rainCountdownHorizon: z.number().int().min(0).optional(),
