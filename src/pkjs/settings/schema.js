@@ -228,6 +228,24 @@ module.exports = {
             }]
         }]
     }, {
+        id: 'layout', label: 'Layout', sections: [{
+            intro: 'How the watchface is arranged. The preview updates as you choose.',
+            items: [{
+                type: 'segmented',
+                messageKey: 'topViewMode',
+                label: 'Top view',
+                defaultValue: 'compact',
+                options: [['Full', 'full'], ['Compact', 'compact'], ['None', 'none']],
+                hintByValue: {
+                    full: 'Classic 3-row calendar (prev + current + next week) with the standard status line.',
+                    compact: '2-row calendar (this week + next) with a larger status line and a taller forecast/health area.',
+                    none: 'No calendar — a full-date strip, bigger clock and status line, and a forecast that fills the screen. Flick your wrist to reach the radar (and health graph, when enabled).'
+                },
+                blockBefore: 'layoutPreview',
+                blockBeforeSticky: true
+            }]
+        }]
+    }, {
         // aplite has no health sensors — the watch compiles the view out, so the whole
         // tab is env-hidden there (tab-level showWhen; see platform.js health env flag).
         id: 'health', label: 'Health', showWhen: {env: 'health'}, sections: [{
@@ -384,18 +402,7 @@ module.exports = {
     }, {
         id: 'more', label: 'More', sections: [{
             title: 'Misc',
-            items: [{
-                type: 'segmented',
-                messageKey: 'topViewMode',
-                label: 'Top view',
-                defaultValue: 'compact',
-                options: [['Full', 'full'], ['Compact', 'compact'], ['None', 'none']],
-                hintByValue: {
-                    full: 'Classic 3-row calendar (prev + current + next week) with the standard status line.',
-                    compact: '2-row calendar (this week + next) with a larger status line and a taller forecast/health area.',
-                    none: 'No calendar — a full-date strip, bigger clock and status line, and a forecast that fills the screen. Flick your wrist to reach the radar (and health graph, when enabled).'
-                }
-            }, {type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true}, {
+            items: [{type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true}, {
                 type: 'toggle', messageKey: 'vibe', label: 'Vibrate on bluetooth disconnect', defaultValue: false
             }, {
                 type: 'select',

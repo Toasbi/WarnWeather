@@ -227,16 +227,23 @@ test('rainCountdownHorizon is a radar-gated select with Off/30/60/120 and defaul
   assert.deepEqual(it.showWhen, { key: 'radarProvider', ne: 'disabled' });
 });
 
-test('topViewMode is a Misc segmented control defaulting to compact, and gates firstWeek', () => {
+test('topViewMode is a Layout tab segmented control defaulting to compact, and gates firstWeek', () => {
   const t = byKey('topViewMode');
   assert.ok(t, 'topViewMode item exists');
   assert.equal(t.type, 'segmented');
   assert.equal(t.defaultValue, 'compact');
   assert.deepEqual(t.options.map((o) => o[1]), ['full', 'compact', 'none']);
-  // Lives in the More tab's Misc section.
+  // Lives in the Layout tab, with a sticky layoutPreview block above it.
+  const layout = schema.tabs.find((tab) => tab.id === 'layout');
+  assert.ok(layout, 'layout tab exists');
+  const section = layout.sections.find((s) => s.items.some((i) => i.messageKey === 'topViewMode'));
+  assert.ok(section, 'in a Layout tab section');
+  assert.equal(t.blockBefore, 'layoutPreview');
+  assert.equal(t.blockBeforeSticky, true);
+  // No longer lives in the More tab's Misc section.
   const more = schema.tabs.find((tab) => tab.id === 'more');
   const misc = more.sections.find((s) => s.title === 'Misc');
-  assert.ok(misc.items.some((i) => i.messageKey === 'topViewMode'), 'in Misc section');
+  assert.ok(!misc.items.some((i) => i.messageKey === 'topViewMode'), 'moved out of Misc section');
   // "First week to display" shows only for the full 3-row calendar.
   assert.deepEqual(byKey('firstWeek').showWhen, { key: 'topViewMode', eq: 'full' });
 });
