@@ -18,6 +18,8 @@ set -euo pipefail
 #
 # Usage:   scripts/assemble-showcase-gif.sh <version> <platform> [hold_secs] [fade_secs] [fps]
 # Example: scripts/assemble-showcase-gif.sh v1.6.0 basalt 1 0.35 15
+# Env:     MAX_SCENES=N  include only the first N captured scenes in the GIF (default 3;
+#                        0 = all captured scenes).
 
 if [[ $# -lt 2 ]]; then
   printf 'Usage: %s <version> <platform> [hold_secs] [fade_secs] [fps]\n' "$0" >&2
@@ -29,6 +31,10 @@ platform="$2"
 hold="${3:-1}"
 fade="${4:-0.55}"
 fps="${5:-15}"
+# Cap how many of the captured scenes land in the GIF (first N by scene id). All scenes
+# are still captured by capture-showcase.sh; this only trims what the GIF shows. Set
+# MAX_SCENES=0 to include every captured scene.
+max_scenes="${MAX_SCENES:-3}"
 
 frames_dir="screenshot/$version/showcase/frames/$platform"
 out_dir="screenshot/$version/showcase"
@@ -40,6 +46,12 @@ n=${#scenes[@]}
 if [[ $n -eq 0 ]]; then
   printf 'No scene frames in %s; run capture-showcase.sh first\n' "$frames_dir" >&2
   exit 1
+fi
+
+# Glob expands in sorted (scene id) order, so slicing keeps the first N scenes.
+if [[ $max_scenes -gt 0 && $max_scenes -lt $n ]]; then
+  scenes=("${scenes[@]:0:max_scenes}")
+  n=${#scenes[@]}
 fi
 
 tmp="$(mktemp -d -t ww-showcase-gif.XXXXXX)"
