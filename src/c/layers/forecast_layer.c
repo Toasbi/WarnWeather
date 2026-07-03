@@ -291,14 +291,18 @@ static void draw_left_axis(GContext *ctx, int h) {
     graphics_context_set_text_color(ctx, GColorWhite);
     GSize hi_size = temp_label_string_size(s_buffer_hi);
     GSize lo_size = temp_label_string_size(s_buffer_lo);
-#ifdef PBL_PLATFORM_EMERY
     const int16_t axis_y = h - BOTTOM_VIEW_AXIS_H;
+#ifdef PBL_PLATFORM_EMERY
+    // emery: top label sits flush at the strip top.
     const int hi_y = 0;
-    const int lo_y = axis_y - lo_size.h - 2;
 #else
-    const int hi_y = -3;
-    const int lo_y = 22;
+    const int hi_y = -3;  // GOTHIC_18 top-whitespace pull-up
 #endif
+    // Min label is bottom-anchored (just above the x-axis baseline) so it tracks
+    // the forecast band height across every top-view mode (full/compact/none)
+    // instead of floating at a fixed offset — was a hardcoded 22 on non-emery,
+    // which only landed at the bottom in the short full-mode band.
+    const int lo_y = axis_y - lo_size.h - 2;
     graphics_draw_text(ctx, s_buffer_hi,
                        fonts_get_system_font(FONT_KEY_GOTHIC_18),
                        GRect(0, hi_y, strip_w, hi_size.h),
