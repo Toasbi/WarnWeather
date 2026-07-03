@@ -28,3 +28,20 @@ static inline int status_text_y(int band_h, GFont font) {
     }
     return -(content_h - band_h) - STATUS_SHORT_LIFT;
 }
+
+// Vertical centre of the digits a status line actually renders, for marks drawn beside the text
+// (the health metric icons, the weather sun arrow) to co-centre on. Pebble seats digits low in the
+// line box, so their visual centre is NOT the line-box centre but the content-box bottom
+// (text_y + content_h) minus the font descent minus half a cap height — both derived as fractions
+// of the content height so they track the font size across tiers, not a hardcoded pixel. `text_y`
+// is the text frame top from status_text_y(); `content_h` its measured line height. Tune the two
+// fractions here, once, for both bars.
+#define STATUS_DIGIT_DESCENT_NUM 1
+#define STATUS_DIGIT_DESCENT_DEN 16
+#define STATUS_DIGIT_CAP_NUM 5
+#define STATUS_DIGIT_CAP_DEN 9
+static inline int status_glyph_center_y(int text_y, int content_h) {
+    int descent = (content_h * STATUS_DIGIT_DESCENT_NUM) / STATUS_DIGIT_DESCENT_DEN;
+    int cap     = (content_h * STATUS_DIGIT_CAP_NUM) / STATUS_DIGIT_CAP_DEN;
+    return text_y + content_h - descent - cap / 2;
+}

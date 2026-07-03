@@ -96,14 +96,6 @@ static GPoint icon_pt_hr;
 #define HEALTH_TALL_BAND_MIN 16
 #define HEALTH_SECTION_DROP 2
 
-// The value digits seat low in their line box: their visual bottom (baseline) sits above the text
-// content-box bottom by the font's descent. health_status_layout subtracts this to find the digits'
-// visual centre and co-centre the metric icons on it. Derived as a fraction of the content height so
-// it tracks the tier's font size instead of a hardcoded pixel (~1px at Gothic 18). A larger descent
-// lifts the icons, a smaller one drops them; tune against the value text on a real screen.
-#define ICON_BASELINE_DESCENT_NUM 1
-#define ICON_BASELINE_DESCENT_DEN 16
-
 static Layer *s_health_status_layer;
 
 // The render tier (a TopViewMode value) whose fonts and offsets fit this layer's
@@ -287,16 +279,10 @@ static void health_status_layout(void) {
     if (sleep_isz.h > tallest) { tallest = sleep_isz.h; }
     if (hr_isz.h > tallest)    { tallest = hr_isz.h; }
 
-    // All three icons co-centre on the value digits' visual centre, so the shorter shoe insets
-    // equally top and bottom rather than dropping below the taller sleep/heart. The digits seat low
-    // in their line box, so their visual centre is the content-box bottom (y + content_h) minus the
-    // font's descent (ICON_BASELINE_DESCENT_*, derived from content_h so it scales) minus half a cap
-    // height. The icons are ≈ a cap height tall, so the tallest icon is that reference. No hardcoded
-    // pixel and no per-icon offset — every tier/font falls out of the same expression.
-    int icon_c = y + content_h
-                 - (content_h * ICON_BASELINE_DESCENT_NUM) / ICON_BASELINE_DESCENT_DEN
-                 - tallest / 2;
-    // Clamp so the tallest icon clears the band top and nothing spills past the band bottom.
+    // All three icons co-centre on the value digits' visual centre (status_glyph_center_y — shared
+    // with the weather sun arrow), so the shorter shoe insets equally top and bottom rather than
+    // dropping below the taller sleep/heart. Clamped by the tallest icon so none clips top or bottom.
+    int icon_c = status_glyph_center_y(y, content_h);
     if (icon_c < tallest / 2)     { icon_c = tallest / 2; }
     if (icon_c > h - tallest / 2) { icon_c = h - tallest / 2; }
 

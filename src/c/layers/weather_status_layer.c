@@ -27,9 +27,6 @@
 #define ARROW_HEAD_H 4
 #define ARROW_HEAD_W 3
 #define ARROW_W 8
-// Drop the arrow below the sun text's line-box centre onto the visible glyph (Pebble seats
-// the glyph low in the box), so it doesn't ride up and clip at the band top.
-#define ARROW_Y_DROP 4
 // emery: none — all three labels share the sun's size (Gothic 24) so the row is uniform
 // and the health status row can match it 1:1; one offset baseline-aligns them.
 #define NONE_CITY_FONT_KEY FONT_KEY_GOTHIC_24
@@ -58,9 +55,6 @@
 #define ARROW_HEAD_H 3
 #define ARROW_HEAD_W 2
 #define ARROW_W 6
-// Drop the arrow below the sun text's line-box centre onto the visible glyph (Pebble seats
-// the glyph low in the box), so it doesn't ride up and clip at the band top.
-#define ARROW_Y_DROP 2
 // none — all three labels share the sun's size (Gothic 18) so the row is uniform and the
 // health status row can match it 1:1; one offset baseline-aligns them.
 #define NONE_CITY_FONT_KEY FONT_KEY_GOTHIC_18
@@ -236,10 +230,10 @@ static void weather_status_update_proc(Layer *layer, GContext *ctx) {
     graphics_draw_text(ctx, s_sun_buffer, sun_font(), frame_sun_draw,
                        STATUS_TEXT_OVERFLOW, GTextAlignmentLeft, NULL);
 
-    // Track the sun text's own frame so the arrow stays beside it wherever status_text_y
-    // seats the line (band-centred, or lifted in a short band) — no fixed band offsets. Drop
-    // onto the visible glyph (below the line-box centre) so it doesn't clip at the band top.
-    int arrow_y = frame_sun_draw.origin.y + frame_sun_draw.size.h / 2 + ARROW_Y_DROP;
+    // Centre the arrow on the sun-time digits' visual centre (status_glyph_center_y — the same
+    // helper the health metric icons use), so it tracks the digits wherever status_text_y seats the
+    // line without a fixed per-band drop.
+    int arrow_y = status_glyph_center_y(frame_sun_draw.origin.y, frame_sun_draw.size.h);
     // start_type 0 → next event is a sunrise (arrow points up); else a sunset (down).
     const bool arrow_up = (persist_get_sun_event_start_type() == 0);
 #ifdef PBL_PLATFORM_APLITE
