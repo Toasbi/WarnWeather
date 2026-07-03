@@ -383,8 +383,11 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
     //  4. HR line (LINE, solid) — primary line, styled like forecast's temp line.
     //  5. Frame (left + bottom borders).
     //  6. Axis (bottom hour labels/ticks).
+    // On B&W the fill is BLACK, not white: BAR_OUTLINED adds a white silhouette, so a
+    // black fill leaves just the outline (matching the rain bars, palette.c). A white
+    // fill here would combine with the white outline into a solid white bar.
     static const ChartColorStop step_stops[1] = {
-        { .from = 0, .color = PBL_IF_COLOR_ELSE(GColorGreen, GColorWhite) },
+        { .from = 0, .color = PBL_IF_COLOR_ELSE(GColorGreen, GColorBlack) },
     };
 
     // aplite-style discipline: per-frame layer array is module-static, not stack.
