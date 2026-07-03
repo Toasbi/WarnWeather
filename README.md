@@ -16,9 +16,9 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 ## Screenshots
 
-| Pebble Time | Pebble 2 Duo | Pebble Time 2 |
-| --- | --- | --- |
-| <img src="screenshot/v1.6.0/showcase/basalt-showcase.gif" alt="Pebble Time showcase" height="240"> | <img src="screenshot/v1.6.0/showcase/flint-showcase.gif" alt="Pebble 2 Duo showcase" height="240"> | <img src="screenshot/v1.6.0/showcase/emery-showcase.gif" alt="Pebble Time 2 showcase" height="240"> |
+| Pebble Time                                                                                       | Pebble 2 Duo                                                                                       | Pebble Time 2                                                                                      |
+|---------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|
+| <img src="screenshot/v1.6.1/showcase/basalt-showcase.gif" alt="Pebble Time showcase"> | <img src="screenshot/v1.6.1/showcase/flint-showcase.gif" alt="Pebble 2 Duo showcase"> | <img src="screenshot/v1.6.1/showcase/emery-showcase.gif" alt="Pebble Time 2 showcase"> |
 
 ## Features
 
