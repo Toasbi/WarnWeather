@@ -5,7 +5,6 @@
 #include "c/appendix/forecast_grid.h"
 #include "c/appendix/series.h"          // MAX_BOTTOM_VIEW_ENTRIES
 #include "c/appendix/display_width.h"
-#include "c/appendix/hatch.h"
 #include "c/appendix/bottom_view.h"
 #include "c/services/health.h"
 #include "c/services/health_cache.h"
@@ -26,9 +25,6 @@
 #else
 #define SLEEP_STRIPE_H            6
 #endif
-
-// B&W sleep hatch stride: matches forecast night-hatch on B&W (7).
-#define SLEEP_HATCH_SPACING       7
 
 // HR fixed scale (resting..high): 40..180 BPM.
 #define HEALTH_HR_LO              40
@@ -74,8 +70,9 @@ typedef struct {
 // CUSTOM layer: draws the bottom sleep band. For each slot whose state is not
 // AWAKE, fills a fixed-height rect at the BOTTOM of the plot spanning the full
 // slot pitch (a continuous band). On colour, DEEP is plain blue and LIGHT is a
-// brighter blue; on B&W, DEEP is a diagonal hatch and LIGHT a solid white rect,
-// so the two are distinguishable without colour.
+// brighter blue; on B&W, DEEP is a solid white rect and LIGHT a lighter dither
+// (GColorLightGray, which the 1-bit display renders as a checkerboard), so the two
+// are distinguishable without colour and deep reads as the stronger fill.
 static void sleep_stripe_draw(const ChartRender *r, void *user) {
     const SleepStripe *st = (const SleepStripe *)user;
     if (!st || !st->sleep || st->height <= 0) {
@@ -105,13 +102,11 @@ static void sleep_stripe_draw(const ChartRender *r, void *user) {
             state == HEALTH_SLEEP_DEEP ? GColorBlue : GColorVividCerulean);
         graphics_fill_rect(r->ctx, rect, 0, GCornerNone);
 #else
-        if (state == HEALTH_SLEEP_DEEP) {
-            // B&W: diagonal hatch so DEEP reads differently from LIGHT's solid fill.
-            hatch_fill_rect(r->ctx, rect, GColorWhite, SLEEP_HATCH_SPACING);
-        } else {
-            graphics_context_set_fill_color(r->ctx, GColorWhite);
-            graphics_fill_rect(r->ctx, rect, 0, GCornerNone);
-        }
+        // DEEP = solid white (the stronger fill); LIGHT = GColorLightGray, which the
+        // 1-bit display dithers to a checkerboard — a lighter texture than DEEP.
+        graphics_context_set_fill_color(r->ctx,
+            state == HEALTH_SLEEP_DEEP ? GColorWhite : GColorLightGray);
+        graphics_fill_rect(r->ctx, rect, 0, GCornerNone);
 #endif
     }
 }
