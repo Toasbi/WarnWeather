@@ -166,30 +166,21 @@ static ChartDef health_grid_def(void) {
     return d;
 }
 
-// Formats a full-hundred step mark into an axis label of up to two rows (top_row over
-// bot_row). The "k" unit rides only the lowest mark (with_unit), so a higher mark shows
-// a bare number and two marks don't each carry a "k" row. Whole thousands stay a single
-// row ("1" / "1k"); other levels put the decimal on top and, when the unit shows, a lone
-// "k" beneath ("0.2" + "k") — keeping the strip ~3 chars wide instead of "0.2k"'s 4.
-// Returns true when the label uses the stacked (two-row) form.
-static bool step_mark_label(int value, bool with_unit, char *top_row, size_t top_sz,
-                            char *bot_row, size_t bot_sz) {
+// Formats a full-hundred step mark into a single-row axis label. The scale is in thousands
+// of steps but carries NO "k" suffix — a lone "k" (or a stacked "0.2"/"k" pair) read as
+// adrift on the narrow strip. Whole thousands stay a bare integer ("1", "2"); other levels
+// show one decimal ("0.2", "1.5").
+static void step_mark_label(int value, char *out, size_t out_sz) {
     int tk = value / 100;              // tenths of a thousand (200→2, 500→5, 1500→15)
     if (tk < 0)   { tk = 0; }          // marks are always positive; keeps "%d" bounded
     if (tk > 995) { tk = 995; }        // s_step_hi ≤ 99000 → keeps "%d.%d" within buf
     const int whole = tk / 10;
     const int frac  = tk % 10;
-    bot_row[0] = '\0';
     if (frac == 0) {
-        snprintf(top_row, top_sz, with_unit ? "%dk" : "%d", whole);
-        return false;
+        snprintf(out, out_sz, "%d", whole);
+    } else {
+        snprintf(out, out_sz, "%d.%d", whole, frac);
     }
-    snprintf(top_row, top_sz, "%d.%d", whole, frac);
-    if (with_unit) {
-        snprintf(bot_row, bot_sz, "k");
-        return true;
-    }
-    return false;
 }
 
 // Derive the labeled dotted line(s) from the visible peak. Goal: round levels that sit
@@ -264,22 +255,20 @@ static void health_graph_compute(bool report_width) {
         const GRect box  = GRect(0, 0, 200, 40);
         int max_w = 0;
         for (int i = 0; i < s_step_mark_n; ++i) {
-            char top_row[6], bot_row[3];
-            step_mark_label(s_step_marks[i], i == s_step_mark_n - 1,
-                            top_row, sizeof top_row, bot_row, sizeof bot_row);
+            char label[6];
+            step_mark_label(s_step_marks[i], label, sizeof label);
             const GSize sz = graphics_text_layout_get_content_size(
-                top_row, font, box, GTextOverflowModeFill, GTextAlignmentRight);
+                label, font, box, GTextOverflowModeFill, GTextAlignmentRight);
             if (sz.w > max_w) { max_w = sz.w; }
         }
         bottom_view_report_label_w(BOTTOM_VIEW_SRC_HEALTH, max_w);
     }
 }
 
-// Left-axis strip: labels each dotted step mark (see compute_step_marks). The "k" unit
-// rides only the lowest mark, so a higher mark shows a bare number ("1.5") while the
-// lowest carries the unit ("1k", or a stacked "0.2" over "k"). The value→y mapping
-// matches the plot (plot_bottom == plot_h == axis_y). The vertical axis line itself is
-// painted by the FRAME layer in chart_draw.
+// Left-axis strip: labels each dotted step mark (see compute_step_marks) as a single-row
+// number in thousands ("2", "0.5") — no "k" suffix. The value→y mapping matches the plot
+// (plot_bottom == plot_h == axis_y). The vertical axis line itself is painted by the FRAME
+// layer in chart_draw.
 static void draw_left_axis(GContext *ctx, int h, int hi) {
     const int strip_w = bottom_view_label_strip_w();
     const int inset_w = bottom_view_graph_inset();
@@ -298,29 +287,13 @@ static void draw_left_axis(GContext *ctx, int h, int hi) {
         if (v <= 0 || v > hi) { continue; }
         const int y = axis_y - (int)(((int32_t)v * axis_y) / hi);
 
-        // The "k" unit rides only the lowest mark; higher marks show a bare number.
-        const bool with_unit = (i == s_step_mark_n - 1);
-        char top_row[6], bot_row[3];
-        const bool stacked = step_mark_label(v, with_unit, top_row, sizeof top_row,
-                                             bot_row, sizeof bot_row);
-        if (!stacked) {
-            // Single-row label centered on the gridline y (box top ≈ y - 11).
-            int ty = y - 11;
-            if (ty < 0) { ty = 0; }
-            graphics_draw_text(ctx, top_row, font, GRect(0, ty, strip_w, 20),
-                               GTextOverflowModeFill, GTextAlignmentRight, NULL);
-        } else {
-            // Stacked "N.d" over "k": the decimal value rides just above the line, the
-            // lone "k" hangs just below, so the pair straddles the gridline. Clamp at the
-            // top edge so a mark at the plot ceiling keeps both rows on-screen.
-            int ny = y - 15;
-            if (ny < 0) { ny = 0; }
-            const int ky = ny + 14;
-            graphics_draw_text(ctx, top_row, font, GRect(0, ny, strip_w, 18),
-                               GTextOverflowModeFill, GTextAlignmentRight, NULL);
-            graphics_draw_text(ctx, bot_row, font, GRect(0, ky, strip_w, 18),
-                               GTextOverflowModeFill, GTextAlignmentRight, NULL);
-        }
+        // Single-row label centered on the gridline y (box top ≈ y - 11).
+        char label[6];
+        step_mark_label(v, label, sizeof label);
+        int ty = y - 11;
+        if (ty < 0) { ty = 0; }
+        graphics_draw_text(ctx, label, font, GRect(0, ty, strip_w, 20),
+                           GTextOverflowModeFill, GTextAlignmentRight, NULL);
     }
 }
 
