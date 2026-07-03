@@ -19,17 +19,28 @@ fi
 version="$1"
 export FIXTURE="${2:-berlin}"
 raw_dir="screenshot/$version/raw"
-platforms=(aplite basalt diorite emery flint)
+# PLATFORMS (space-separated) overrides the default set — e.g. the showcase shoots only
+# the three README platforms.
+if [[ -n "${PLATFORMS:-}" ]]; then
+  read -ra platforms <<< "$PLATFORMS"
+else
+  platforms=(aplite basalt diorite emery flint)
+fi
 
-# The watch always boots on the calendar view; fixtures that showcase the
-# rain radar need an accel tap to toggle the top view before the screenshot.
+# Wrist-flicks to send before the screenshot. FLICKS (an integer) overrides; otherwise 1
+# for the radar fixtures (the watch boots on the calendar and needs a tap to reach the
+# radar), else 0. WW_HEALTH_FIXTURE is read from the environment by the build (mise run
+# build), so callers wanting canned health values just export it before invoking this.
 radar_fixtures=(berlin rainy store-wind-radar)
-wants_radar=0
-for radar_fixture in "${radar_fixtures[@]}"; do
-  if [[ "$FIXTURE" == "$radar_fixture" ]]; then
-    wants_radar=1
-  fi
-done
+flicks="${FLICKS:-}"
+if [[ -z "$flicks" ]]; then
+  flicks=0
+  for radar_fixture in "${radar_fixtures[@]}"; do
+    if [[ "$FIXTURE" == "$radar_fixture" ]]; then
+      flicks=1
+    fi
+  done
+fi
 
 # Bound any command with a timeout so a wedged emulator can't hang the capture
 # forever. Uses timeout/gtimeout when present (GNU coreutils), else a portable
@@ -114,10 +125,10 @@ for platform in "${platforms[@]}"; do
     sleep 5
   fi
 
-  if [[ $wants_radar -eq 1 ]]; then
+  for (( k = 0; k < flicks; k++ )); do
     run_bounded 20 pebble emu-tap --emulator "$platform" || printf 'WARN: emu-tap failed on %s\n' "$platform" >&2
-    sleep 1
-  fi
+    sleep 1   # honor the ~500ms accel-tap debounce between flicks
+  done
 
   output="$raw_dir/$platform.png"
   screenshot_bounded "$output" "$platform"

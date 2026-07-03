@@ -263,6 +263,40 @@ Pebble 2 Duo←flint/wind, Pebble Time 2←emery/radar:
 mise composite v1.4.1
 ```
 
+#### Showcase GIF (README hero)
+
+The README's animated hero is a **showcase GIF**: a handful of curated scenes (different
+layouts + functions, all Berlin) captured per platform and cross-faded into one looping
+GIF. Scenes live in `scripts/gen-showcase-fixtures.js` (regenerated into
+`fixtures/showcase-N.json` on every capture) and are guarded by
+`test/showcase-fixtures.test.js`.
+
+Health readings and the rain-countdown strip are read live on the watch and don't
+reproduce in a static compile-time fixture, so screenshot builds swap in two canned twins
+(wired in `wscript`, never shipped in a normal build):
+
+- `WW_HEALTH_FIXTURE=1` → `src/c/services/health_fixture.c` — canned steps / sleep / heart rate.
+- a fixture `countdown` block → `src/c/appendix/rain_countdown_fixture.c` — the exact
+  "Rain in 15'" / "Drizzle in 15'" / "Rain for 20'" strip.
+
+Capture the default platforms (aplite, basalt, flint, emery), or a subset via `PLATFORMS`:
+```bash
+scripts/capture-showcase.sh <version>                    # aplite basalt flint emery
+PLATFORMS=basalt scripts/capture-showcase.sh <version>   # one platform
+```
+It's a thin wrapper over `capture-screenshots.sh` (same pattern as `capture-store-shots.sh`):
+per scene it exports `WW_HEALTH_FIXTURE=1` + `FLICKS=<scene flicks>`, shoots the platforms,
+and files each frame to `screenshot/<version>/showcase/frames/<platform>/scene_N.png`. A
+fresh build runs per scene, so after changing watch C code just re-run — use `mise clean`
+first if a stale waf cache would skip the recompile.
+
+Assemble one platform's frames into the looping, cross-faded GIF
+(`screenshot/<version>/showcase/<platform>-showcase.gif`):
+```bash
+scripts/assemble-showcase-gif.sh <version> <platform> [hold_secs] [fade_secs] [fps]
+# defaults: hold=1, fade=0.55, fps=15
+```
+
 ### Package generation
 
 `package.json` is generated from `package.template.json` + profile in `profiles/`.

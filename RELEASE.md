@@ -51,3 +51,17 @@ Pebble 2 Duo←flint/wind, Pebble Time 2←emery/radar) and writes the framed PN
 `screenshot/<version>/composite/`.
 
 Some downloaded frame assets used older names. Track them with the modern device names: `core-time2-red.svg` becomes `pebble-time2-red.svg`, and `pebble2-white.svg` becomes `pebble2-duo-white.svg`. The Pebble Time 2 rename is noted in Eric Migicovsky's July Pebble update: https://ericmigi.com/blog/july-pebble-update/
+
+### Refresh the README showcase GIF
+
+The README's animated hero is a multi-scene showcase captured per platform and
+cross-faded into one looping GIF. Regenerate it when the UI or the scene set changes:
+
+```sh
+scripts/capture-showcase.sh <version>                    # aplite basalt flint emery
+scripts/assemble-showcase-gif.sh <version> <platform>    # per platform → *-showcase.gif
+```
+
+Then point the README's three `screenshot/<version>/showcase/*-showcase.gif` links at the
+new version, and commit the GIFs. The scene set and the deterministic health /
+rain-countdown twins are documented in [DEV.md](DEV.md#showcase-gif-readme-hero).
