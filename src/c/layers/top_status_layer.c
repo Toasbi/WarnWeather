@@ -228,18 +228,24 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
     bool draw_bt_disc = !alert && wants_bt_disc;
     int bt_x = icon_x;  // month-mode BT position
 
-    // Square glyph slot, vertically centered, that the PDC viewbox scales into (see
-    // ensure_rain_glyph_loaded). The band is short on 144-px screens (~14 px), so it can
-    // spare only a small inset before the drops read as tiny; emery's taller band (~21 px)
-    // takes a larger inset so the single drizzle drop isn't oversized. glyph_x is set only
-    // in alert mode. (Tune visually.)
+    // Square glyph slot that the PDC viewbox scales into (see ensure_rain_glyph_loaded).
+    // The band is short on 144-px screens (~14 px), so it can spare only a small inset
+    // before the drops read as tiny; emery's taller band (~21 px) takes a larger inset so
+    // the single drizzle drop isn't oversized. glyph_x is set only in alert mode.
+    // (Tune visually.)
 #ifdef PBL_PLATFORM_EMERY
     const int glyph_side = bounds.size.h - 6;   // emery: ~21 - 6 = 15
+    // emery: center in the taller band (matches month_text_rect's centered text).
+    const int glyph_y = (bounds.size.h - glyph_side) / 2;
 #else
     const int glyph_side = bounds.size.h - 2;   // ~14 - 2 = 12
+    // Bottom-align to the "Rain in X" baseline rather than centering in the band: the drop
+    // should sit on the text line, not float above it. The 3px inset ≈ the GOTHIC-18
+    // baseline that month_text_rect's -MONTH_FONT_OFFSET produces; a slightly negative
+    // glyph_y only trims the drop's empty top margin, never the drop itself. (Tune visually.)
+    const int glyph_y = bounds.size.h - glyph_side - 3;
 #endif
     const int glyph_gap = 2;
-    const int glyph_y = (bounds.size.h - glyph_side) / 2;
     int glyph_x = icon_x;
 
     if (alert) {

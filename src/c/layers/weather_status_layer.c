@@ -40,13 +40,15 @@
 #else
 #define CITY_FONT_KEY FONT_KEY_GOTHIC_14
 #define SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_14
-// Full-tier temp: Gothic 18 (regular) — a notch larger than the 14px city/sun labels so the
-// temperature reads as the row's headline. NOT bold: Gothic 18 bold towered over the labels
-// and dominated the row, while bold Gothic 14 was cramped and barely legible at this size.
-// Regular 18 keeps the emphasis-by-size but stays crisp.
-#define TEMP_FONT_KEY FONT_KEY_GOTHIC_18
+// Full-tier temp: Gothic 14 — the SAME size as the city/sun labels. The 14px band is too short
+// for an 18px temp: status_text_y() seats an oversized line in its "too tall" (sit-high) regime
+// while the 14px labels use the "fits" (band-centre) regime, so their baselines landed a couple
+// px apart and the labels read as sitting too low relative to the temp. One shared size keeps
+// all three in the same regime → one baseline, so the row reads level. (The COMPACT/NONE tiers
+// get their headline emphasis from their taller bands; the full-tier row is uniform.)
+#define TEMP_FONT_KEY FONT_KEY_GOTHIC_14
 // (Legacy baseline nudge, retained for reference; positioning now comes from status_text_y.)
-#define TEMP_Y_OFFSET (FONT_18_OFFSET - 1)
+#define TEMP_Y_OFFSET FONT_14_OFFSET
 #define COMPACT_CITY_FONT_KEY FONT_KEY_GOTHIC_18
 #define COMPACT_SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_18
 #define COMPACT_TEMP_FONT_KEY FONT_KEY_GOTHIC_18_BOLD

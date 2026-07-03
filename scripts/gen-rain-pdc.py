@@ -49,7 +49,11 @@ def drop_in_box(x0, y0, size, scale=1.0):
 
 S = VIEWBOX
 ARRANGEMENTS = {
-    "RAIN_DRIZZLE":  [drop_in_box(0, 0, S, scale=1.05)],
+    # A single, normal-sized teardrop — centered horizontally, its base near the
+    # viewbox bottom (same ~2px bottom margin as the multi-drop glyphs so all three
+    # bottom-align the same). Deliberately NOT filling the box: a lone drop that fills
+    # the viewbox reads as one huge blob, not a raindrop.
+    "RAIN_DRIZZLE":  [drop_in_box(0.15 * S, 0.28 * S, 0.70 * S)],
     "RAIN_RAIN":     [drop_in_box(0.02 * S, 0.00 * S, 0.62 * S),
                       drop_in_box(0.38 * S, 0.34 * S, 0.62 * S)],
     "RAIN_DOWNPOUR": [drop_in_box(0.00 * S, 0.00 * S, 0.50 * S),
