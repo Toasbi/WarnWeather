@@ -18,8 +18,9 @@ bool health_available(void);
 /** Returns today's total step count, or 0 if unavailable. */
 int health_steps_today(void);
 
-/** Returns sum of SleepSeconds over the past 24 h, or 0 if unavailable. */
-int health_sleep_recent_seconds(void);
+/** Returns today's total sleep in seconds (last night, matching the phone
+ *  Health app), or 0 if unavailable. */
+int health_sleep_today_seconds(void);
 
 /** Returns the most recent raw heart-rate sample in BPM, or 0 if unavailable. */
 int health_hr_current(void);

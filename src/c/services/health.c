@@ -33,10 +33,16 @@ int health_steps_today(void) {
     return PBL_IF_HEALTH_ELSE((int)health_service_sum_today(HealthMetricStepCount), 0);
 }
 
-int health_sleep_recent_seconds(void) {
+int health_sleep_today_seconds(void) {
+    /* Use health_service_sum_today, NOT health_service_sum over a trailing 24 h
+       window: that window straddles midnight, and health_service_sum daily-
+       weights each day it overlaps, blending YESTERDAY's sleep into the total.
+       Verified on device — the trailing-24h sum read 11h00 while last night was
+       6h53; sum_today (like the phone Health app) reports 6h53. This mirrors the
+       same daily-weighting trap that drove the per-hour graph onto
+       activities_iterate (see health_fill_hourly_sleep). */
     return PBL_IF_HEALTH_ELSE(
-        (int)health_service_sum(HealthMetricSleepSeconds,
-            time(NULL) - 24 * HOUR_SECS, time(NULL)),
+        (int)health_service_sum_today(HealthMetricSleepSeconds),
         0);
 }
 

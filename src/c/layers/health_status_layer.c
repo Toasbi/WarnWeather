@@ -227,7 +227,7 @@ static void steps_slot_refresh(void) {
 }
 
 static void sleep_slot_refresh(void) {
-    int secs = health_sleep_recent_seconds();
+    int secs = health_sleep_today_seconds();
     if (secs <= 0) {
         snprintf(s_sleep_buf, sizeof(s_sleep_buf), "--");
     } else {
