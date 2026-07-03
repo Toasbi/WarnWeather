@@ -34,7 +34,7 @@ fps="${5:-15}"
 # Cap how many of the captured scenes land in the GIF (first N by scene id). All scenes
 # are still captured by capture-showcase.sh; this only trims what the GIF shows. Set
 # MAX_SCENES=0 to include every captured scene.
-max_scenes="${MAX_SCENES:-3}"
+max_scenes="${MAX_SCENES:-2}"
 
 frames_dir="screenshot/$version/showcase/frames/$platform"
 out_dir="screenshot/$version/showcase"
