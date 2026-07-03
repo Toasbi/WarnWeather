@@ -45,18 +45,11 @@ RAIN RADAR (for now only available for Deutscher Wetterdienst)
   Downpour in X min", with a rain-lines intensity icon colour-matched to the radar bars
   (and "… for X min" while it's raining), configurable look-ahead (30 min / 60 min / 2 hours)
 
-HEALTH VIEW (requires health-capable watch; off by default)
-- Turn it on in the Health tab in settings (off by default)
-- Status bar: flick your wrist to switch the bottom status line to health — today's
-  steps, last night's sleep duration, and current heart rate
-- Status + graph (beta): also swaps the forecast graph for a health graph on flick —
-  hourly step bars, a sleep band along the bottom (light/deep sleep), and a solid
-  heart-rate line
-- Heart rate requires a watch with a built-in heart-rate sensor; unavailable values
-  show as placeholders
-- In "Status bar" mode, optionally show the weather status alongside health (health
-  above the clock, weather below in Compact; stacked under the clock in None) — turn on
-  "Show weather status too" in the Layout tab
+HEALTH VIEW (requires a health-capable watch; heart rate needs a heart-rate sensor)
+- Your day's activity — today's steps, last night's sleep, and current heart rate — as
+  a status line, or an hourly graph with step bars, a sleep band (light/deep sleep), and
+  a heart-rate line
+- Optionally show the weather and health status together
 
 CALENDAR
 - 3-week calendar
@@ -78,6 +71,8 @@ WATCH STATUS
 
 CUSTOMIZATION
 - Customize time font and color
+- Adjustable layout — choose how much of the screen goes to the calendar vs. the
+  forecast, radar, and health views
 
 UPDATES
 - Update notifications: get a one-time heads-up when a newer version is available in the appstore.

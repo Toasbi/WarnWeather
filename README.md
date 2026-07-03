@@ -43,12 +43,9 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Switch between calendar and radar view (flick/tap)
 * Optional rain countdown: when rain is on the way, the month turns into "Drizzle / Rain / Downpour in X min" (and "… for X min" while it's raining) — with a rain-lines intensity icon colour-matched to the radar bars, and a configurable look-ahead (30 min / 60 min / 2 hours)
 
-**Health view** *(requires health-capable watch; off by default)*
-* Turn it on in the **Health** tab in settings — off by default
-* **Status bar:** flick your wrist to switch the bottom status line to health — today's step count, last night's sleep duration, and current heart rate
-* **Status + graph** *(beta):* also swaps the forecast graph for a health graph on flick — hourly step bars, a sleep band along the bottom (light sleep / deep sleep), and a solid heart-rate line
-* Heart-rate line and current HR require a watch with a built-in heart-rate sensor; unavailable values show as placeholders
-* With any health view on (Status bar **or** Status + graph) you can also **show the weather status alongside health** (health above the clock, weather below in Compact; stacked under the clock in None) — enable "Show weather status too" in the **Layout** tab. In Status + graph, a flick still reveals the health graph.
+**Health view** *(requires a health-capable watch; heart rate needs a heart-rate sensor)*
+* Your day's activity on the watchface — today's step count, last night's sleep, and current heart rate — as a status line, or as an hourly graph with step bars, a sleep band (light / deep sleep), and a heart-rate line
+* Optionally show the weather and health status together
 
 **Calendar**
 * 3 week calendar
@@ -65,6 +62,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 **Customization**
 * Customize time font and color
+* Adjustable layout — choose how much of the screen goes to the calendar vs. the forecast, radar, and health views
 
 **Updates**
 * **Update notifications** — when a newer version is available on the Pebble appstore, the watchface sends you a one-time notification so you know to update.
@@ -111,6 +109,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for developer setup and workflow.
 WarnWeather includes privacy-respecting telemetry. I do not collect precise location or API keys. Account and watch identifiers are stored only as server-side HMAC hashes—enough for rough usage stats (e.g. DAU), not as readable IDs.
 
 - Collected: each weather fetch’s outcome and duration, provider, coarse country code when available, app and watch metadata, and an allowlist of non-sensitive settings.
-- Not collected: coordinates (lat/lon), city/state, manual location strings, or your API keys.
+- Not collected: coordinates (lat/lon), city/state, manual location strings, your API keys, or any health data — your steps, sleep, and heart-rate readings never leave the watch.
 - Purpose: estimate DAU, see coarse country mix, spot weather-fetch failures, and learn which settings are common.
 - You may opt-out of telemetry by disabling it in the settings.
