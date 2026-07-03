@@ -41,12 +41,15 @@ static bool radar_has_data(void) {
     return persist_get_rain_radar_start() > 0;
 }
 
-// Dual status = show health AND weather status at once (Status mode, non-Full, on).
-// Hard false on no-health platforms so aplite never links the health service.
+// Dual status = show health AND weather status at once. Works with ANY health view
+// (status bar OR graph): the phone gates dual_status so it's only ever set when a
+// health view is on, so the watch just trusts the flag plus the two guards it alone
+// owns — the layout invariant (never in full) and the local health capability (the
+// phone can't know it). Hard false on no-health platforms so aplite never links the
+// health service.
 static bool dual_active(void) {
 #if defined(PBL_HEALTH)
     return g_config->top_view_mode != TOP_VIEW_FULL
-        && g_config->health_mode == HEALTH_STATUS
         && g_config->dual_status
         && health_available();
 #else
@@ -60,7 +63,13 @@ static bool dual_active(void) {
 // never references the health service.
 static bool health_view_active(void) {
 #if defined(PBL_HEALTH)
-    return g_config->health_mode != HEALTH_OFF && health_available() && !dual_active();
+    if (g_config->health_mode == HEALTH_OFF || !health_available()) { return false; }
+    // Dual already pins both status bands on screen, so the flick's status-swap is
+    // redundant there — but the ALL-mode health graph is still a distinct body worth
+    // revealing on a flick, so keep it reachable. In Status-bar dual, there's no graph,
+    // so the flick falls back to the legacy calendar<->radar toggle.
+    if (dual_active()) { return g_config->health_mode == HEALTH_ALL; }
+    return true;
 #else
     return false;
 #endif

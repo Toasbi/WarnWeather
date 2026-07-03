@@ -48,7 +48,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * **Status bar:** flick your wrist to switch the bottom status line to health — today's step count, last night's sleep duration, and current heart rate
 * **Status + graph** *(beta):* also swaps the forecast graph for a health graph on flick — hourly step bars, a sleep band along the bottom (light sleep / deep sleep), and a solid heart-rate line
 * Heart-rate line and current HR require a watch with a built-in heart-rate sensor; unavailable values show as placeholders
-* In "Status bar" mode you can also **show the weather status alongside health** (health above the clock, weather below in Compact; stacked under the clock in None) — enable "Show weather status too" in the **Layout** tab
+* With any health view on (Status bar **or** Status + graph) you can also **show the weather status alongside health** (health above the clock, weather below in Compact; stacked under the clock in None) — enable "Show weather status too" in the **Layout** tab. In Status + graph, a flick still reveals the health graph.
 
 **Calendar**
 * 3 week calendar

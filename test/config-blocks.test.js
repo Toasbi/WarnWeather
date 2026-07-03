@@ -292,16 +292,27 @@ test('layoutPreview: every mode returns an svg with Date/Clock/Weather status/Fo
     });
 });
 
-test('layoutPreview: dualStatus shows Health status + Weather status (compact/none, status mode only)', () => {
-    const on = { dualStatus: true, healthMode: 'status' };
-    const c = B.layoutPreview(Object.assign({ topViewMode: 'compact' }, on), {}, {});
-    assert.ok(c.indexOf('Health status') >= 0 && c.indexOf('Weather status') >= 0, 'compact shows both status lines');
-    const n = B.layoutPreview(Object.assign({ topViewMode: 'none' }, on), {}, {});
-    assert.ok(n.indexOf('Health status') >= 0 && n.indexOf('Weather status') >= 0, 'none shows both status lines');
-    // Not applicable: full mode, or health not in status mode → single Weather status band, no Health status.
+test('layoutPreview: dualStatus shows Health status + Weather status in both status and all modes (compact/none, not full)', () => {
+    ['status', 'all'].forEach((hm) => {
+        const on = { dualStatus: true, healthMode: hm };
+        const c = B.layoutPreview(Object.assign({ topViewMode: 'compact' }, on), {}, {});
+        assert.ok(c.indexOf('Health status') >= 0 && c.indexOf('Weather status') >= 0, hm + ' compact shows both status lines');
+        const n = B.layoutPreview(Object.assign({ topViewMode: 'none' }, on), {}, {});
+        assert.ok(n.indexOf('Health status') >= 0 && n.indexOf('Weather status') >= 0, hm + ' none shows both status lines');
+    });
+    // Not applicable: full mode, or health off → single Weather status band, no Health status.
     assert.strictEqual(B.layoutPreview({ topViewMode: 'full', dualStatus: true, healthMode: 'status' }, {}, {}).indexOf('Health status'), -1);
-    assert.strictEqual(B.layoutPreview({ topViewMode: 'compact', dualStatus: true, healthMode: 'all' }, {}, {}).indexOf('Health status'), -1);
+    assert.strictEqual(B.layoutPreview({ topViewMode: 'compact', dualStatus: true, healthMode: 'off' }, {}, {}).indexOf('Health status'), -1);
     assert.ok(B.layoutPreview({ topViewMode: 'compact' }, {}, {}).indexOf('Weather status') >= 0);
+});
+
+test('layoutBandsFlick: all + dual keeps both status bands pinned and reveals the health graph on flick', () => {
+    const labels = B.layoutBandsFlick({ topViewMode: 'compact', dualStatus: true, healthMode: 'all', radarProvider: 'disabled' }).map((x) => x.label);
+    assert.ok(labels.indexOf('Health graph') >= 0, 'compact: forecast → health graph on flick');
+    assert.ok(labels.indexOf('Health status') >= 0 && labels.indexOf('Weather status') >= 0, 'compact: both status bands remain');
+    const none = B.layoutBandsFlick({ topViewMode: 'none', dualStatus: true, healthMode: 'all', radarProvider: 'disabled' }).map((x) => x.label);
+    assert.ok(none.indexOf('Health') >= 0, 'none: big band cycles to Health (graph)');
+    assert.ok(none.indexOf('Health status') >= 0 && none.indexOf('Weather status') >= 0, 'none: both status bands remain');
 });
 
 test('layoutBandsFlick: nothing to reveal (radar off + health off) returns null / empty preview', () => {

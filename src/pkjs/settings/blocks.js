@@ -608,7 +608,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // Schematic band stack for the layout preview — proportional, not pixel-accurate.
     function layoutBands(state) {
         var mode = state.topViewMode || 'compact';
-        var dual = Boolean(state.dualStatus) && state.healthMode === 'status' && mode !== 'full';
+        // Dual = show both status bands. Works with any health view (status OR graph),
+        // never in full — mirrors the phone gate + the watch's dual_active().
+        var dual = Boolean(state.dualStatus) && Boolean(state.healthMode) && state.healthMode !== 'off' && mode !== 'full';
         if (mode === 'full') {
             return [
                 { label: 'Date', h: 12 }, { label: 'Calendar (3 rows)', h: 34 },
@@ -667,9 +669,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var radar = state.radarProvider === 'dwd';
         var health = Boolean(state.healthMode) && state.healthMode !== 'off';
         var healthAll = state.healthMode === 'all';
-        var dual = Boolean(state.dualStatus) && state.healthMode === 'status' && mode !== 'full';
-        // Nothing to reveal: no radar and (no health, or health already pinned on-screen by dual).
-        if (!radar && (!health || dual)) { return null; }
+        var dual = Boolean(state.dualStatus) && health && mode !== 'full';
+        // Nothing to reveal: no radar and no alternate body. With dual both status bands
+        // are already pinned, so the only flickable body is the ALL-mode health graph;
+        // without dual, any health view (status swap and/or graph) counts.
+        if (!radar && !(dual ? healthAll : health)) { return null; }
         var base = layoutBands(state), out = [], i, b, label;
         if (mode === 'none') {
             // None flicks are a cycle. The big bottom band steps through the views that take
@@ -678,9 +682,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             // the status line to the health status line on its cycle step.
             var parts = [];
             if (radar) { parts.push('Radar'); }
-            if (healthAll && !dual) { parts.push('Health'); }
+            if (healthAll) { parts.push('Health'); }   // graph is reachable with or without dual
             var bottom = parts.length ? parts.join('/') : 'Forecast';
-            var toHealth = health && !dual;
+            var toHealth = health && !dual;   // dual keeps both bands pinned, so no status swap
             for (i = 0; i < base.length; i++) {
                 b = base[i]; label = b.label;
                 if (label === 'Forecast') { label = bottom; }
@@ -692,7 +696,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         for (i = 0; i < base.length; i++) {   // full / compact: a single toggle to the alternate view
             b = base[i]; label = b.label;
             if (radar && label.indexOf('Calendar') === 0) { label = 'Radar'; }
-            if (!dual && health) {
+            if (dual) {
+                // Both status bands stay pinned; only the ALL-mode graph swaps onto the bottom.
+                if (healthAll && label === 'Forecast') { label = 'Health graph'; }
+            } else if (health) {
                 if (label === 'Weather status') { label = 'Health status'; }
                 else if (healthAll && label === 'Forecast') { label = 'Health graph'; }
             }
