@@ -69,27 +69,17 @@ static int    s_rain_glyph_bucket;        // bucket (1..3) the cached glyph was 
 static int    s_rain_glyph_side;          // px slot side the cached glyph was scaled to
 static GColor s_rain_glyph_tint;          // fill tint the cached glyph was recolored to
 
-// Combined-bbox normalize + per-tier recolor, mirroring health_status_layer's
-// PDC pipeline (points are 1/8-px precise-path units).
+// Per-tier recolor + uniform scale of the PDC, mirroring health_status_layer's
+// pipeline (points are 1/8-px precise-path units). We scale the fixed authored
+// VIEWBOX (25 px square) into the slot, NOT the tight content bbox: the three
+// buckets are drawn in one shared viewbox at deliberately different drop sizes
+// (drizzle big, downpour small), so one viewbox→slot scale preserves those relative
+// sizes. Fitting the content bbox instead blew a lone drizzle drop up to fill the
+// whole slot while shrinking the multi-drop glyphs.
 typedef struct {
-    int16_t min_x, min_y, max_x, max_y;
-    int16_t num, den;   // transform each point: (p - min) * num / den
-    GColor tint;
+    int16_t num, den;   // scale each point: p * num / den
+    GColor  tint;
 } RainNorm;
-
-static bool rain_bbox_cb(GDrawCommand *command, uint32_t index, void *context) {
-    (void)index;
-    RainNorm *b = (RainNorm *)context;
-    uint16_t n = gdraw_command_get_num_points(command);
-    for (uint16_t i = 0; i < n; i++) {
-        GPoint p = gdraw_command_get_point(command, i);
-        if (p.x < b->min_x) { b->min_x = p.x; }
-        if (p.y < b->min_y) { b->min_y = p.y; }
-        if (p.x > b->max_x) { b->max_x = p.x; }
-        if (p.y > b->max_y) { b->max_y = p.y; }
-    }
-    return true;
-}
 
 static bool rain_norm_cb(GDrawCommand *command, uint32_t index, void *context) {
     (void)index;
@@ -98,8 +88,8 @@ static bool rain_norm_cb(GDrawCommand *command, uint32_t index, void *context) {
     uint16_t n = gdraw_command_get_num_points(command);
     for (uint16_t i = 0; i < n; i++) {
         GPoint p = gdraw_command_get_point(command, i);
-        p.x = (int16_t)(((p.x - b->min_x) * b->num) / b->den);
-        p.y = (int16_t)(((p.y - b->min_y) * b->num) / b->den);
+        p.x = (int16_t)((p.x * b->num) / b->den);
+        p.y = (int16_t)((p.y * b->num) / b->den);
         gdraw_command_set_point(command, i, p);
     }
     return true;
@@ -133,18 +123,15 @@ static void ensure_rain_glyph_loaded(int bucket, int side, GColor tint) {
     if (side <= 0) { return; }
     GDrawCommandImage *img = gdraw_command_image_create_with_resource(rain_glyph_resource(bucket));
     if (!img) { return; }
+    // Scale the authored square viewbox uniformly into the `side`-px slot (see RainNorm).
+    const GSize vb    = gdraw_command_image_get_bounds_size(img);   // authored viewbox (px)
+    const int   vspan = vb.h > vb.w ? vb.h : vb.w;
+    if (vspan <= 0) { gdraw_command_image_destroy(img); return; }
     GDrawCommandList *list = gdraw_command_image_get_command_list(img);
-    RainNorm b = { .min_x = INT16_MAX, .min_y = INT16_MAX,
-                   .max_x = INT16_MIN, .max_y = INT16_MIN, .tint = tint };
-    gdraw_command_list_iterate(list, rain_bbox_cb, &b);
-    int gw = b.max_x - b.min_x;
-    int gh = b.max_y - b.min_y;
-    int span = gw > gh ? gw : gh;          // fit the square slot by the larger dimension
-    if (span <= 0) { gdraw_command_image_destroy(img); return; }
-    b.num = (int16_t)(side * 8);           // points are 1/8-px, so ×8 lands the max at `side` px
-    b.den = (int16_t)span;
+    RainNorm b = { .num = (int16_t)side, .den = (int16_t)vspan, .tint = tint };
     gdraw_command_list_iterate(list, rain_norm_cb, &b);
-    gdraw_command_image_set_bounds_size(img, GSize((gw * side) / span, (gh * side) / span));
+    gdraw_command_image_set_bounds_size(img, GSize((int16_t)((vb.w * side) / vspan),
+                                                   (int16_t)((vb.h * side) / vspan)));
     s_rain_glyph = img;
     s_rain_glyph_bucket = bucket;
     s_rain_glyph_side = side;
@@ -241,11 +228,16 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
     bool draw_bt_disc = !alert && wants_bt_disc;
     int bt_x = icon_x;  // month-mode BT position
 
-    // Square glyph slot inset from the strip height (side = bounds.h - 6, vertically
-    // centered) so the raindrop reads a touch smaller than the battery beside it. The
-    // PDC drops are authored in a square viewbox and scaled to fit this side at load.
-    // glyph_x is set only in alert mode.
-    const int glyph_side = bounds.size.h - 6;
+    // Square glyph slot, vertically centered, that the PDC viewbox scales into (see
+    // ensure_rain_glyph_loaded). The band is short on 144-px screens (~14 px), so it can
+    // spare only a small inset before the drops read as tiny; emery's taller band (~21 px)
+    // takes a larger inset so the single drizzle drop isn't oversized. glyph_x is set only
+    // in alert mode. (Tune visually.)
+#ifdef PBL_PLATFORM_EMERY
+    const int glyph_side = bounds.size.h - 6;   // emery: ~21 - 6 = 15
+#else
+    const int glyph_side = bounds.size.h - 2;   // ~14 - 2 = 12
+#endif
     const int glyph_gap = 2;
     const int glyph_y = (bounds.size.h - glyph_side) / 2;
     int glyph_x = icon_x;
