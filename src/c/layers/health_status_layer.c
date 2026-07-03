@@ -3,6 +3,7 @@
 #include "c/appendix/memory_log.h"
 #include "c/layers/layer_util.h"
 #include "c/services/health.h"
+#include "c/services/health_summary.h"
 
 // Compiled only on health-capable hardware; see health_graph_layer.c and
 // main_window.c for the platform gating rationale.
@@ -105,6 +106,12 @@ static Layer *s_health_status_layer;
 // health row uses the same smaller font as the weather row (mirrors weather_status_layer).
 // Defaults to the config default; always overwritten before the first paint.
 static uint8_t s_render_tier = TOP_VIEW_COMPACT;
+
+// Band size the current layout was computed for. The relayout gate compares
+// against it so a reframe (view/settings switch) still re-lays-out even when the
+// value strings are unchanged. Only w/h matter — health_status_layout reads
+// bounds.size, never the origin.
+static GSize s_laid_size;
 
 void health_status_layer_set_render_tier(uint8_t tier) {
     s_render_tier = tier;
@@ -220,14 +227,14 @@ static GSize icon_size(GDrawCommandImage *image) {
 // ---------------------------------------------------------------------------
 
 static void steps_slot_refresh(void) {
-    int steps = health_steps_today();
+    int steps = health_summary_steps();
     if (steps > STEPS_MAX) { steps = STEPS_MAX; }
     if (steps < 0)         { steps = 0; }
     snprintf(s_steps_buf, sizeof(s_steps_buf), "%d", steps);
 }
 
 static void sleep_slot_refresh(void) {
-    int secs = health_sleep_today_seconds();
+    int secs = health_summary_sleep_seconds();
     if (secs <= 0) {
         snprintf(s_sleep_buf, sizeof(s_sleep_buf), "--");
     } else {
@@ -244,7 +251,7 @@ static void hr_slot_refresh(void) {
     // Don't gate on health_hr_available(): it checks the *filtered* HeartRateBPM (at most
     // 15 min old), which lags the raw sample, so the row showed "--" until that filtered
     // value materialised even though the last-measured BPM was already available.
-    int bpm = health_hr_current();
+    int bpm = health_summary_hr_bpm();
     if (bpm > 0) {
         if (bpm > HR_MAX) { bpm = HR_MAX; }
         snprintf(s_hr_buf, sizeof(s_hr_buf), "%d", bpm);
@@ -350,10 +357,12 @@ void health_status_layer_create(Layer *parent_layer, GRect frame) {
     // sets the render tier before create(), so they load at the right size immediately.
     icons_rebuild();
 
+    health_summary_refresh();   // prime held values before the slots read them
     steps_slot_refresh();
     sleep_slot_refresh();
     hr_slot_refresh();
     health_status_layout();
+    s_laid_size = layer_get_bounds(s_health_status_layer).size;
 
     layer_set_update_proc(s_health_status_layer, health_status_update_proc);
     layer_add_child(parent_layer, s_health_status_layer);
@@ -365,14 +374,23 @@ Layer *health_status_layer_get_root(void) {
 }
 
 void health_status_layer_refresh(void) {
-    // A live tier switch (e.g. toggling dual-status / top-view in settings) changes the
-    // target glyph size, which is baked in at load — so rebuild the glyphs when it moves.
-    if (s_icons_tier != s_render_tier) { icons_rebuild(); }
+    // A live tier switch changes the target glyph size (baked in at load), so
+    // rebuild the glyphs when it moves. Capture the tier change for the gate too.
+    bool tier = (s_icons_tier != s_render_tier);
+    if (tier) { icons_rebuild(); }
+
+    bool vals = health_summary_refresh();
+    GSize sz  = layer_get_bounds(s_health_status_layer).size;
+    bool reframe = (sz.w != s_laid_size.w) || (sz.h != s_laid_size.h);
+
+    if (!vals && !tier && !reframe) { return; }
+
     steps_slot_refresh();
     sleep_slot_refresh();
     hr_slot_refresh();
     health_status_layout();
     layer_mark_dirty(s_health_status_layer);
+    s_laid_size = sz;
     MEMORY_LOG_HEAP("after_health_status_refresh");
 }
 
