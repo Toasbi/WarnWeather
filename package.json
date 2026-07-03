@@ -1,7 +1,7 @@
 {
   "name": "warnweather",
   "author": "Toasbi",
-  "version": "1.5.2",
+  "version": "1.6.0",
   "buildProfile": "dev",
   "keywords": [
     "pebble-app"
@@ -241,12 +241,16 @@
     "1.5.2": {
       "title": "Forecast preview alignment",
       "body": "Settings forecast preview now matches the watch — lines and dots align with the hour ticks and rain bars."
+    },
+    "1.6.0": {
+      "title": "Layout fixes",
+      "body": "Fine tuned layout for non emery platforms."
     }
   },
   "releaseNotification": {
     "enabled": true,
-    "title": "Forecast preview alignment",
-    "body": "Settings forecast preview now matches the watch — lines and dots align with the hour ticks and rain bars."
+    "title": "Layout fixes",
+    "body": "Fine tuned layout for non emery platforms."
   },
   "telemetry": {
     "enabled": false,
