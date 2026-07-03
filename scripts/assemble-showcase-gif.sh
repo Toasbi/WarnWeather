@@ -9,10 +9,12 @@ set -euo pipefail
 #
 #   <platform>-showcase.gif    scene_1..N, each held `hold`s, `fade`s crossfade between
 #
-# Each scene is looped into a (hold+fade)-second segment; consecutive segments are
-# chained with xfade at offset O_k = k*hold + (k-1)*fade (k = 1..N-1), so every scene is
-# fully visible for `hold` then dissolves over `fade` into the next. The loop-around
-# (last → first) is a hard cut, as is conventional for a looping GIF.
+# Each scene is looped into a (hold + 2*fade)-second segment; consecutive segments are
+# chained with xfade at offset O_k = k*(hold+fade) (k = 1..N-1), so every scene is
+# fully visible for `hold` then dissolves over `fade` into the next. For a seamless
+# endless loop, scene_1 is appended once more (only `fade` long — its real hold already
+# plays at the start) and the final xfade dissolves the last scene back into it, so the
+# GIF ends fully resolved on scene_1, matching frame 0 — the loop-around has no seam.
 #
 # Usage:   scripts/assemble-showcase-gif.sh <version> <platform> [hold_secs] [fade_secs] [fps]
 # Example: scripts/assemble-showcase-gif.sh v1.6.0 basalt 1 0.35 15
@@ -62,16 +64,23 @@ else
   for s in "${scenes[@]}"; do
     inputs+=(-loop 1 -t "$seg" -r "$fps" -i "$s")
   done
-  # Chain: [0][1]xfade→[x1]; [x1][2]xfade→[x2]; …; last → [v].
+  # Seamless wrap: append scene_1 again as input N. It's a still image, so `fade`
+  # seconds is enough for the closing dissolve — no extra hold (its real hold plays at
+  # the start of the GIF), which avoids a double-hold of scene_1 across the loop seam.
+  inputs+=(-loop 1 -t "$fade" -r "$fps" -i "${scenes[0]}")
+  # Chain: [0][1]xfade→[x1]; …; [x_{N-2}][N-1]xfade→[x_{N-1}]; then the wrap
+  # [x_{N-1}][N]xfade→[v] dissolves scene_N back into the appended scene_1. Every
+  # xfade sits at offset k*(hold+fade); the accumulated stream is exactly long enough
+  # for each (offset+fade == accumulated length), including the wrap at k=N.
   filter=""
   acc="[0]"
   for (( k = 1; k < n; k++ )); do
     off="$(fnum "$k * ($hold + $fade)")"
-    if [[ $k -eq $((n - 1)) ]]; then outlabel="[v]"; else outlabel="[x$k]"; fi
-    filter+="${acc}[$k]xfade=transition=fade:duration=$fade:offset=$off$outlabel;"
+    filter+="${acc}[$k]xfade=transition=fade:duration=$fade:offset=$off[x$k];"
     acc="[x$k]"
   done
-  filter="${filter%;}"
+  wrap_off="$(fnum "$n * ($hold + $fade)")"
+  filter+="${acc}[$n]xfade=transition=fade:duration=$fade:offset=$wrap_off[v]"
   ffmpeg -y "${inputs[@]}" -filter_complex "$filter" -map "[v]" "$tmp/f_%04d.png"
 fi
 
