@@ -6,6 +6,7 @@
 #include "c/layers/rain_radar_layer.h"
 #include "c/layers/top_status_layer.h"
 #include "c/layers/loading_layer.h"
+#include "c/layers/layer_util.h"
 #include "c/layers/health_graph_layer.h"
 #include "c/layers/health_status_layer.h"
 #include "c/services/health.h"
@@ -302,6 +303,10 @@ static MainLayout compute_layout(GRect bounds, uint8_t mode, bool dual) {
     int w = bounds.size.w;
     int h = bounds.size.h;
     MainLayout L;
+    // Height of the status band that abuts the forecast (full mode both rows; dual-status compact
+    // the weather row), derived from the full-tier row font so the line clears the graph by a
+    // constant margin on every platform — see status_forecast_band_h() / the uses below.
+    int fc_band_h = status_forecast_band_h(weather_status_layer_full_tier_font());
 #ifdef PBL_PLATFORM_EMERY
     // emery: bands are proportional; keep calendar_y/time_y/time_h fixed and
     // repartition the calendar band (2/3 dates + 1/3 status) while the forecast
@@ -337,9 +342,13 @@ static MainLayout compute_layout(GRect bounds, uint8_t mode, bool dual) {
         L.radar   = L.bottom;
     } else {
         int cal_h      = compact ? (calendar_h - calendar_h / 3) : calendar_h;
-        int status_h   = compact ? (calendar_h - cal_h)          : WEATHER_STATUS_HEIGHT;
-        int status_y   = compact ? (calendar_y + cal_h)          : (time_y + time_h);
         int forecast_y = compact ? (time_y + time_h)             : (time_y + time_h + WEATHER_STATUS_HEIGHT);
+        // full: the status band rides directly above the forecast — size it from the font
+        // (fc_band_h) and pin its bottom to the forecast top so the line clears the graph by a
+        // constant margin, rising up into the clock band's slack. compact: the band drops into the
+        // freed part of the calendar band and abuts the calendar, so keep the carved-row height.
+        int status_h   = compact ? (calendar_h - cal_h)          : fc_band_h;
+        int status_y   = compact ? (calendar_y + cal_h)          : (forecast_y - fc_band_h);
         int fc_h       = compact ? (forecast_h + WEATHER_STATUS_HEIGHT) : forecast_h;
         // Single-status compact: drop the lone band toward the clock just below it.
         if (compact && !dual) { status_y += COMPACT_SINGLE_STATUS_NUDGE; }
@@ -379,8 +388,13 @@ static MainLayout compute_layout(GRect bounds, uint8_t mode, bool dual) {
         L.radar   = L.bottom;                           // radar rides the bottom band
     } else {
         int cal_h      = compact ? (2 * cal_row)          : CALENDAR_HEIGHT;                         // 30 vs 45
-        int status_h   = compact ? cal_row                : WEATHER_STATUS_HEIGHT;                   // 15 vs 14
-        int status_y   = compact ? (cal_y + cal_h)        : (h - FORECAST_HEIGHT - WEATHER_STATUS_HEIGHT); // 43 vs 103
+        // full: the status band rides directly above the forecast. Size it from the font
+        // (fc_band_h) and pin its bottom to the forecast top (h - FORECAST_HEIGHT), so the centred
+        // line clears the graph by a constant margin and rises up into the clock band's slack.
+        // compact: the band drops into the freed 3rd calendar row and abuts the calendar, so keep
+        // the calendar-row height there.
+        int status_h   = compact ? cal_row                : fc_band_h;                              // 15 vs 20
+        int status_y   = compact ? (cal_y + cal_h)        : (h - FORECAST_HEIGHT - fc_band_h);       // 43 vs 97
         int forecast_y = compact ? (time_y + TIME_HEIGHT) : (h - FORECAST_HEIGHT);                   // 103 vs 117
         int fc_h       = h - forecast_y;                                                             // 65 vs 51
         // Single-status compact: drop the lone band toward the clock just below it.
@@ -392,7 +406,7 @@ static MainLayout compute_layout(GRect bounds, uint8_t mode, bool dual) {
         L.bottom     = GRect(0, forecast_y, w, fc_h);
         L.loading    = compact
             ? GRect(0, forecast_y, w, fc_h)
-            : GRect(0, h - FORECAST_HEIGHT - WEATHER_STATUS_HEIGHT, w, FORECAST_HEIGHT + WEATHER_STATUS_HEIGHT);
+            : GRect(0, h - FORECAST_HEIGHT - fc_band_h, w, FORECAST_HEIGHT + fc_band_h);
         L.radar      = L.top;                           // radar shares the calendar frame
     }
 #endif
@@ -402,12 +416,25 @@ static MainLayout compute_layout(GRect bounds, uint8_t mode, bool dual) {
     L.status_lower = L.status;
 #if defined(PBL_HEALTH)
     if (dual) {
-        int lower_h = (mode == TOP_VIEW_NONE) ? NONE_STATUS_HEIGHT : WEATHER_STATUS_HEIGHT;
-        L.status_lower = GRect(L.bottom.origin.x, L.bottom.origin.y, L.bottom.size.w, lower_h);
-        L.bottom.origin.y += lower_h;
-        L.bottom.size.h   -= lower_h;
+        if (mode == TOP_VIEW_NONE) {
+            // none: carve a full-height weather band off the top of the bottom (radar/forecast) band.
+            int lower_h = NONE_STATUS_HEIGHT;
+            L.status_lower = GRect(L.bottom.origin.x, L.bottom.origin.y, L.bottom.size.w, lower_h);
+            L.bottom.origin.y += lower_h;
+            L.bottom.size.h   -= lower_h;
+            L.radar = L.bottom;
+        } else {
+            // compact: the weather row rides the SAME forecast-abutting band as full mode, so the
+            // line lands identically whether the top view is full or compact. The forecast gives up
+            // WEATHER_STATUS_HEIGHT from its top — landing it exactly where full mode pins it — while
+            // the taller fc_band_h band sits with its bottom on that forecast top and rises up into
+            // the clock's slack above. Health keeps the compact top band L.status.
+            int forecast_top = L.bottom.origin.y + WEATHER_STATUS_HEIGHT;
+            L.status_lower = GRect(L.bottom.origin.x, forecast_top - fc_band_h, L.bottom.size.w, fc_band_h);
+            L.bottom.origin.y  = forecast_top;
+            L.bottom.size.h   -= WEATHER_STATUS_HEIGHT;
+        }
         L.loading = L.bottom;
-        if (mode == TOP_VIEW_NONE) { L.radar = L.bottom; }
     }
 #endif
     return L;
@@ -430,6 +457,7 @@ static void main_window_load(Window *window) {
 #if defined(PBL_HEALTH)
     weather_status_layer_create(window_layer, dual_active() ? L.status_lower : L.status);
     health_status_layer_set_render_tier(status_render_tier());
+    health_status_layer_set_full_mode(g_config->top_view_mode == TOP_VIEW_FULL);
     health_status_layer_create(window_layer, L.status);
 #else
     weather_status_layer_create(window_layer, L.status);
@@ -575,6 +603,7 @@ void main_window_relayout(void) {
 #if defined(PBL_HEALTH)
     layer_set_frame(weather_status_layer_get_root(), dual_active() ? L.status_lower : L.status);
     health_status_layer_set_render_tier(status_render_tier());
+    health_status_layer_set_full_mode(g_config->top_view_mode == TOP_VIEW_FULL);
     layer_set_frame(health_status_layer_get_root(), L.status);
 #else
     layer_set_frame(weather_status_layer_get_root(), L.status);

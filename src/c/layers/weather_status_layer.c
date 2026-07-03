@@ -104,6 +104,13 @@ void weather_status_layer_set_render_tier(uint8_t tier) {
     s_render_tier = tier;
 }
 
+// The full-tier row font, for the layout to size the forecast-abutting band. All three full-tier
+// labels (temp/city/sun) share this size, so the city key is representative; the health row's
+// full-tier value font matches it too, so one band fits both rows.
+GFont weather_status_layer_full_tier_font(void) {
+    return fonts_get_system_font(CITY_FONT_KEY);
+}
+
 #ifdef PBL_PLATFORM_APLITE
 // aplite: draw the sun-event arrow (shaft + filled triangular head) with graphics
 // primitives instead of a GPath. That removes the last gpath_* caller on aplite so

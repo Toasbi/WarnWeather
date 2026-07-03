@@ -117,6 +117,10 @@ static Layer *s_health_status_layer;
 // Defaults to the config default; always overwritten before the first paint.
 static uint8_t s_render_tier = TOP_VIEW_COMPACT;
 
+// True when the window is in full top-view mode, so this row is the forecast-abutting band (not
+// the calendar-abutting compact band) and must skip the section-drop nudge. Set by the window.
+static bool s_full_mode = false;
+
 // Band size the current layout was computed for. The relayout gate compares
 // against it so a reframe (view/settings switch) still re-lays-out even when the
 // value strings are unchanged. Only w/h matter — health_status_layout reads
@@ -125,6 +129,10 @@ static GSize s_laid_size;
 
 void health_status_layer_set_render_tier(uint8_t tier) {
     s_render_tier = tier;
+}
+
+void health_status_layer_set_full_mode(bool full) {
+    s_full_mode = full;
 }
 
 static GFont status_font(void) {
@@ -288,8 +296,10 @@ static void health_status_layout(void) {
     // Value text is placed by the shared helper (see status_text_y in layer_util.h); the icons
     // then anchor to the resulting digit position (below). In the taller dual+compact band, drop
     // the whole row (text + icons) so it clears the calendar/radar above — applied uniformly so
-    // their alignment is preserved.
-    int section_drop = (s_render_tier == TOP_VIEW_FULL && h > HEALTH_TALL_BAND_MIN)
+    // their alignment is preserved. Skip it in real full mode: there the row rides the
+    // forecast-abutting band (clock slack above, no calendar to clear), and that font-sized band
+    // is now tall enough to trip the height heuristic — see health_status_layer_set_full_mode().
+    int section_drop = (s_render_tier == TOP_VIEW_FULL && h > HEALTH_TALL_BAND_MIN && !s_full_mode)
                            ? HEALTH_SECTION_DROP : 0;
     int y = status_text_y(h, font) + section_drop;
     int content_h = font_content_h();
