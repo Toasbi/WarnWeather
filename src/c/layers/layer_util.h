@@ -36,12 +36,22 @@ static inline int status_text_y(int band_h, GFont font) {
 // of the content height so they track the font size across tiers, not a hardcoded pixel. `text_y`
 // is the text frame top from status_text_y(); `content_h` its measured line height. Tune the two
 // fractions here, once, for both bars.
+//
+// The subtracted amount (descent + cap/2) is folded into ONE rounded division over a common
+// denominator rather than three truncating integer divides. At small fonts the separate divides
+// collapsed — Gothic 14 (content_h 14) gave descent 14/16 = 0 and cap/2 = (14*5/9)/2 = 3 (vs 3.9),
+// losing ~2px and seating the icons visibly low next to the digits; the larger emery fonts hid it.
+// Folding + rounding keeps the emery landings identical while tracking the small fonts faithfully.
 #define STATUS_DIGIT_DESCENT_NUM 1
 #define STATUS_DIGIT_DESCENT_DEN 16
 #define STATUS_DIGIT_CAP_NUM 5
 #define STATUS_DIGIT_CAP_DEN 9
 static inline int status_glyph_center_y(int text_y, int content_h) {
-    int descent = (content_h * STATUS_DIGIT_DESCENT_NUM) / STATUS_DIGIT_DESCENT_DEN;
-    int cap     = (content_h * STATUS_DIGIT_CAP_NUM) / STATUS_DIGIT_CAP_DEN;
-    return text_y + content_h - descent - cap / 2;
+    // descent + cap/2 = content_h * (DESCENT_NUM/DESCENT_DEN + CAP_NUM/(2*CAP_DEN)); combine
+    // over the common denominator DESCENT_DEN * 2 * CAP_DEN and round to nearest px.
+    int num = STATUS_DIGIT_DESCENT_NUM * (2 * STATUS_DIGIT_CAP_DEN)
+            + STATUS_DIGIT_CAP_NUM * STATUS_DIGIT_DESCENT_DEN;
+    int den = STATUS_DIGIT_DESCENT_DEN * (2 * STATUS_DIGIT_CAP_DEN);
+    int below = (content_h * num + den / 2) / den;
+    return text_y + content_h - below;
 }

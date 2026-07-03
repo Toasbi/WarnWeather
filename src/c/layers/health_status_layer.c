@@ -36,9 +36,15 @@
 //  s_hr_buf:    clamped to 3 digits (999 bpm) + NUL = 4; padded to 8 for safety.
 //  Each slot is prefixed by its own PDC glyph (steps / sleep / heart), so the value
 //  text carries no unit suffix — the heart glyph conveys "bpm".
+// The HR slot is EMERY-ONLY: of the target platforms only Pebble Time 2 (emery) has a
+// heart-rate sensor, so non-emery drops HR entirely and shows a two-slot steps+sleep row.
+// All HR-specific state/refresh/layout/draw below is gated on PBL_PLATFORM_EMERY so it
+// leaves no dead code (and no unused-symbol -Werror) on the two-slot platforms.
 static char s_steps_buf[8];
 static char s_sleep_buf[8];
+#ifdef PBL_PLATFORM_EMERY
 static char s_hr_buf[8];
+#endif
 
 // Clamp helpers — avoids format-truncation warnings and limits display to sane ranges.
 #define STEPS_MAX 999999
@@ -48,17 +54,21 @@ static char s_hr_buf[8];
 // Draw rects in the layer's local coordinate space, one per slot (the value text).
 static GRect frame_steps;
 static GRect frame_sleep;
+#ifdef PBL_PLATFORM_EMERY
 static GRect frame_hr;
+#endif
 
 // Per-slot metric glyphs (PDC vector), created in _create and recolored white so
 // they always read on the black status band and on 1-bit displays. Each is drawn
 // from its top-left GPoint, just left of the slot's value text.
 static GDrawCommandImage *s_icon_steps;
 static GDrawCommandImage *s_icon_sleep;
-static GDrawCommandImage *s_icon_hr;
 static GPoint icon_pt_steps;
 static GPoint icon_pt_sleep;
+#ifdef PBL_PLATFORM_EMERY
+static GDrawCommandImage *s_icon_hr;
 static GPoint icon_pt_hr;
+#endif
 
 // Gap between a slot's glyph and its value text. emery's larger glyphs/text carry a touch
 // more so the number doesn't crowd the icon.
@@ -206,7 +216,9 @@ static uint8_t s_icons_tier;
 static void icons_rebuild(void) {
     if (s_icon_steps) { gdraw_command_image_destroy(s_icon_steps); }
     if (s_icon_sleep) { gdraw_command_image_destroy(s_icon_sleep); }
+#ifdef PBL_PLATFORM_EMERY
     if (s_icon_hr)    { gdraw_command_image_destroy(s_icon_hr); }
+#endif
     // Icon height ≈ the value font's cap height, clamped so it always fits the band.
     int t = (font_content_h() * ICON_RATIO_NUM) / ICON_RATIO_DEN;
     int band_h = layer_get_bounds(s_health_status_layer).size.h;
@@ -214,7 +226,9 @@ static void icons_rebuild(void) {
     if (t < 1) { t = 1; }
     s_icon_steps = icon_load(RESOURCE_ID_HEALTH_STEPS, (t * STEPS_ICON_NUM) / STEPS_ICON_DEN);
     s_icon_sleep = icon_load(RESOURCE_ID_HEALTH_SLEEP, t);
+#ifdef PBL_PLATFORM_EMERY
     s_icon_hr    = icon_load(RESOURCE_ID_HEALTH_HEART, t);
+#endif
     s_icons_tier = s_render_tier;
 }
 
@@ -245,6 +259,7 @@ static void sleep_slot_refresh(void) {
     }
 }
 
+#ifdef PBL_PLATFORM_EMERY
 static void hr_slot_refresh(void) {
     // Read the last measured value straight from health_hr_current() (a raw-BPM peek,
     // guarded on raw accessibility) — the same source the graph's in-progress bar uses.
@@ -259,6 +274,7 @@ static void hr_slot_refresh(void) {
         snprintf(s_hr_buf, sizeof(s_hr_buf), "--");
     }
 }
+#endif  // PBL_PLATFORM_EMERY
 
 // ---------------------------------------------------------------------------
 // Layout — recomputed on every refresh so it tracks dynamic bounds
@@ -280,15 +296,19 @@ static void health_status_layout(void) {
 
     GSize steps_isz = icon_size(s_icon_steps);
     GSize sleep_isz = icon_size(s_icon_sleep);
+#ifdef PBL_PLATFORM_EMERY
     GSize hr_isz    = icon_size(s_icon_hr);
+#endif
 
     int tallest = steps_isz.h;
     if (sleep_isz.h > tallest) { tallest = sleep_isz.h; }
+#ifdef PBL_PLATFORM_EMERY
     if (hr_isz.h > tallest)    { tallest = hr_isz.h; }
+#endif
 
-    // All three icons co-centre on the value digits' visual centre (status_glyph_center_y — shared
-    // with the weather sun arrow), so the shorter shoe insets equally top and bottom rather than
-    // dropping below the taller sleep/heart. Clamped by the tallest icon so none clips top or bottom.
+    // Icons co-centre on the value digits' visual centre (status_glyph_center_y — shared with the
+    // weather sun arrow), so the shorter shoe insets equally top and bottom rather than dropping
+    // below the taller sleep/heart. Clamped by the tallest icon so none clips top or bottom.
     int icon_c = status_glyph_center_y(y, content_h);
     if (icon_c < tallest / 2)     { icon_c = tallest / 2; }
     if (icon_c > h - tallest / 2) { icon_c = h - tallest / 2; }
@@ -300,7 +320,9 @@ static void health_status_layout(void) {
     icon_pt_steps = GPoint(MARGIN, icon_c - steps_isz.h / 2);
     frame_steps = GRect(MARGIN + steps_isz.w + ICON_GAP, y, steps_tsz.w, steps_tsz.h);
 
-    // HR: flush right — the whole [glyph][gap][value] group is right-aligned.
+#ifdef PBL_PLATFORM_EMERY
+    // Three slots (emery has an HRM). HR: flush right — the whole [glyph][gap][value] group is
+    // right-aligned; sleep is then centred in the gap between steps and HR.
     GSize hr_tsz = graphics_text_layout_get_content_size(
         s_hr_buf, font, GRect(0, 0, w / 3, 100),
         STATUS_TEXT_OVERFLOW, GTextAlignmentLeft);
@@ -319,6 +341,17 @@ static void health_status_layout(void) {
     int sleep_group_w = sleep_isz.w + ICON_GAP + sleep_tsz.w;
     int sleep_group_x = region_l + (region_w - sleep_group_w) / 2;
     if (sleep_group_x < region_l) { sleep_group_x = region_l; }
+#else
+    // Two slots (no HRM off emery): sleep takes the right-flush slot the heart holds on emery —
+    // [glyph][gap][value] right-aligned against the band's right edge, clamped so it never
+    // overlaps the steps group on the left.
+    GSize sleep_tsz = graphics_text_layout_get_content_size(
+        s_sleep_buf, font, GRect(0, 0, w / 3, 100),
+        STATUS_TEXT_OVERFLOW, GTextAlignmentLeft);
+    int region_l = frame_steps.origin.x + frame_steps.size.w + MARGIN * 2;
+    int sleep_group_x = w - MARGIN - sleep_isz.w - ICON_GAP - sleep_tsz.w;
+    if (sleep_group_x < region_l) { sleep_group_x = region_l; }
+#endif
     icon_pt_sleep = GPoint(sleep_group_x, icon_c - sleep_isz.h / 2);
     frame_sleep = GRect(sleep_group_x + sleep_isz.w + ICON_GAP, y,
                         sleep_tsz.w, sleep_tsz.h);
@@ -333,15 +366,19 @@ static void health_status_update_proc(Layer *layer, GContext *ctx) {
     // Metric glyphs first (recolored to white line-art at load), then the value text.
     if (s_icon_steps) { gdraw_command_image_draw(ctx, s_icon_steps, icon_pt_steps); }
     if (s_icon_sleep) { gdraw_command_image_draw(ctx, s_icon_sleep, icon_pt_sleep); }
+#ifdef PBL_PLATFORM_EMERY
     if (s_icon_hr)    { gdraw_command_image_draw(ctx, s_icon_hr, icon_pt_hr); }
+#endif
 
     graphics_context_set_text_color(ctx, GColorWhite);
     graphics_draw_text(ctx, s_steps_buf, status_font(), frame_steps,
                        STATUS_TEXT_OVERFLOW, GTextAlignmentLeft, NULL);
     graphics_draw_text(ctx, s_sleep_buf, status_font(), frame_sleep,
                        STATUS_TEXT_OVERFLOW, GTextAlignmentLeft, NULL);
+#ifdef PBL_PLATFORM_EMERY
     graphics_draw_text(ctx, s_hr_buf, status_font(), frame_hr,
                        STATUS_TEXT_OVERFLOW, GTextAlignmentLeft, NULL);
+#endif
     MEMORY_LOG_HEAP("health_status_update:exit");
 }
 
@@ -359,7 +396,9 @@ void health_status_layer_create(Layer *parent_layer, GRect frame) {
     health_summary_refresh();   // prime held values before the slots read them
     steps_slot_refresh();
     sleep_slot_refresh();
+#ifdef PBL_PLATFORM_EMERY
     hr_slot_refresh();
+#endif
     health_status_layout();
     s_laid_size = layer_get_bounds(s_health_status_layer).size;
 
@@ -386,7 +425,9 @@ void health_status_layer_refresh(void) {
 
     steps_slot_refresh();
     sleep_slot_refresh();
+#ifdef PBL_PLATFORM_EMERY
     hr_slot_refresh();
+#endif
     health_status_layout();
     layer_mark_dirty(s_health_status_layer);
     s_laid_size = sz;
@@ -397,7 +438,9 @@ void health_status_layer_destroy(void) {
     MEMORY_LOG_HEAP("health_status_layer_destroy:before");
     if (s_icon_steps) { gdraw_command_image_destroy(s_icon_steps); s_icon_steps = NULL; }
     if (s_icon_sleep) { gdraw_command_image_destroy(s_icon_sleep); s_icon_sleep = NULL; }
+#ifdef PBL_PLATFORM_EMERY
     if (s_icon_hr)    { gdraw_command_image_destroy(s_icon_hr); s_icon_hr = NULL; }
+#endif
     layer_destroy(s_health_status_layer);
     MEMORY_LOG_HEAP("health_status_layer_destroy:after");
 }

@@ -15,6 +15,8 @@
 #ifdef PBL_PLATFORM_EMERY
 #define CITY_FONT_KEY FONT_KEY_GOTHIC_18
 #define SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_18
+// emery: city/sun are 18px, so an 18px bold temp matches them — emphasised, not oversized.
+#define TEMP_FONT_KEY FONT_KEY_GOTHIC_18_BOLD
 // emery: city/sun are 18px too, so the 18px temp already matches — baseline-align.
 #define TEMP_Y_OFFSET FONT_18_OFFSET
 #define COMPACT_CITY_FONT_KEY FONT_KEY_GOTHIC_24
@@ -38,10 +40,12 @@
 #else
 #define CITY_FONT_KEY FONT_KEY_GOTHIC_14
 #define SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_14
-// The 18px temp glyphs are 2px taller than the 14px city/sun labels, so a pure
-// baseline alignment makes the temp read as sitting too high. Nudge it down 1px
-// so it is vertically centered against the labels (verified: bottom stays within
-// the row's clip, well above the forecast below).
+// Full-tier temp: Gothic 18 (regular) — a notch larger than the 14px city/sun labels so the
+// temperature reads as the row's headline. NOT bold: Gothic 18 bold towered over the labels
+// and dominated the row, while bold Gothic 14 was cramped and barely legible at this size.
+// Regular 18 keeps the emphasis-by-size but stays crisp.
+#define TEMP_FONT_KEY FONT_KEY_GOTHIC_18
+// (Legacy baseline nudge, retained for reference; positioning now comes from status_text_y.)
 #define TEMP_Y_OFFSET (FONT_18_OFFSET - 1)
 #define COMPACT_CITY_FONT_KEY FONT_KEY_GOTHIC_18
 #define COMPACT_SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_18
@@ -143,7 +147,7 @@ static const char *tier_key(const char *full, const char *compact, const char *n
 }
 
 static GFont temp_font(void) {
-    return fonts_get_system_font(tier_key(FONT_KEY_GOTHIC_18_BOLD, COMPACT_TEMP_FONT_KEY, NONE_TEMP_FONT_KEY));
+    return fonts_get_system_font(tier_key(TEMP_FONT_KEY, COMPACT_TEMP_FONT_KEY, NONE_TEMP_FONT_KEY));
 }
 static GFont city_font(void) {
     return fonts_get_system_font(tier_key(CITY_FONT_KEY, COMPACT_CITY_FONT_KEY, NONE_CITY_FONT_KEY));
