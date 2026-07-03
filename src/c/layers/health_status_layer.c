@@ -96,6 +96,14 @@ static GPoint icon_pt_hr;
 #define HEALTH_TALL_BAND_MIN 16
 #define HEALTH_SECTION_DROP 2
 
+// The value digits seat low in their line box: their visual bottom (baseline) sits above the text
+// content-box bottom by the font's descent. health_status_layout subtracts this to find the digits'
+// visual centre and co-centre the metric icons on it. Derived as a fraction of the content height so
+// it tracks the tier's font size instead of a hardcoded pixel (~1px at Gothic 18). A larger descent
+// lifts the icons, a smaller one drops them; tune against the value text on a real screen.
+#define ICON_BASELINE_DESCENT_NUM 1
+#define ICON_BASELINE_DESCENT_DEN 16
+
 static Layer *s_health_status_layer;
 
 // The render tier (a TopViewMode value) whose fonts and offsets fit this layer's
@@ -262,32 +270,37 @@ static void health_status_layout(void) {
     int w = bounds.size.w;
     int h = bounds.size.h;
     GFont font = status_font();
-    // Value text and icons both band-centre via the shared helper (see status_text_y in
-    // layer_util.h). In the taller dual+compact band, drop the whole row (text + icons) so it
-    // clears the calendar/radar above — applied uniformly so their alignment is preserved.
+    // Value text is placed by the shared helper (see status_text_y in layer_util.h); the icons
+    // then anchor to the resulting digit position (below). In the taller dual+compact band, drop
+    // the whole row (text + icons) so it clears the calendar/radar above — applied uniformly so
+    // their alignment is preserved.
     int section_drop = (s_render_tier == TOP_VIEW_FULL && h > HEALTH_TALL_BAND_MIN)
                            ? HEALTH_SECTION_DROP : 0;
     int y = status_text_y(h, font) + section_drop;
-    // Centre the icons on the value-text glyph (content-box centre + the low-seat bias), so
-    // they track the text in every band — including the short band where the text sits high.
     int content_h = font_content_h();
-    int glyph_c = y + content_h / 2 + (content_h * STATUS_TEXT_BIAS_NUM) / STATUS_TEXT_BIAS_DEN;
 
     GSize steps_isz = icon_size(s_icon_steps);
     GSize sleep_isz = icon_size(s_icon_sleep);
     GSize hr_isz    = icon_size(s_icon_hr);
 
-    // One shared icon centre for all three, clamped by the TALLEST icon so none clips. Using a
-    // common centre (not a per-icon clamp) keeps the shorter shoe co-centred with sleep/heart
-    // instead of riding high when the taller two hit the clamp.
     int tallest = steps_isz.h;
     if (sleep_isz.h > tallest) { tallest = sleep_isz.h; }
     if (hr_isz.h > tallest)    { tallest = hr_isz.h; }
-    int icon_c = glyph_c;
+
+    // All three icons co-centre on the value digits' visual centre, so the shorter shoe insets
+    // equally top and bottom rather than dropping below the taller sleep/heart. The digits seat low
+    // in their line box, so their visual centre is the content-box bottom (y + content_h) minus the
+    // font's descent (ICON_BASELINE_DESCENT_*, derived from content_h so it scales) minus half a cap
+    // height. The icons are ≈ a cap height tall, so the tallest icon is that reference. No hardcoded
+    // pixel and no per-icon offset — every tier/font falls out of the same expression.
+    int icon_c = y + content_h
+                 - (content_h * ICON_BASELINE_DESCENT_NUM) / ICON_BASELINE_DESCENT_DEN
+                 - tallest / 2;
+    // Clamp so the tallest icon clears the band top and nothing spills past the band bottom.
     if (icon_c < tallest / 2)     { icon_c = tallest / 2; }
     if (icon_c > h - tallest / 2) { icon_c = h - tallest / 2; }
 
-    // Steps: flush left — [glyph][gap][value], glyph vertically centred in the band.
+    // Steps: flush left — [glyph][gap][value], glyph co-centred at the shared icon centre.
     GSize steps_tsz = graphics_text_layout_get_content_size(
         s_steps_buf, font, GRect(0, 0, w / 3, 100),
         STATUS_TEXT_OVERFLOW, GTextAlignmentLeft);
