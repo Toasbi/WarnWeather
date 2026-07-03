@@ -24,6 +24,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 **Time**
 * Current time
+* 12- or 24-hour format, with an optional AM/PM indicator
 * Next sunrise or sunset time
 
 **Forecast**
@@ -35,7 +36,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Optional day/night hatch shading on the graph
 * Fahrenheit and Celsius temperatures
 * Multiple weather providers (Weather Underground, OpenWeatherMap, Open-Meteo, and Deutscher Wetterdienst via Bright Sky — Germany only)
-* GPS or manual location entry
+* GPS or manual location entry, with a configurable GPS cache
 * City where forecast was fetched
 
 **Radar (for now only available for Deutscher Wetterdienst)**
@@ -49,6 +50,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 **Calendar**
 * 3 week calendar
+* Selectable start of the week (Sunday or Monday)
 * Top view (default **Compact**): choose **Full** (classic 3-row calendar: prev + current + next week), **Compact** (2-row calendar — this week + next — with a larger status line and a taller forecast/health area), or **None** (no calendar — a full-date strip, bigger clock and status line, and a forecast that fills the screen; flick to reach the radar and health graph)
 * Highlight public holidays for your country — 150+ countries worldwide, with region/state granularity where holidays vary (Germany, Austria, Switzerland, Spain, UK, US)
 * Customize colors for Sundays, Saturdays, and holidays
@@ -94,7 +96,7 @@ Pebble Classic, Pebble Steel, Pebble Time, Pebble Time Steel, Pebble 2, and Pebb
 - RePebble: https://apps.repebble.com/67d6f1fcdb264341b850f79a
 - Rebble: https://apps.rebble.io/en_US/application/6a3645239d979d000abc99db
 
-If you're using the modern Pebble app, the RePebble listing should be the simplest install path. If you prefer the Rebble flow, follow https://help.rebble.io/setup to set up your Pebble app first. The RePebble store uses Rebble's backend ([blog](https://ericmigi.com/blog/re-introducing-the-pebble-appstore)), so the they're effectively the same catalog through a different entry point.
+If you're using the modern Pebble app, the RePebble listing should be the simplest install path. If you prefer the Rebble flow, follow https://help.rebble.io/setup to set up your Pebble app first. The RePebble store uses Rebble's backend ([blog](https://ericmigi.com/blog/re-introducing-the-pebble-appstore)), so they're effectively the same catalog through a different entry point.
 
 ### Manual install
 

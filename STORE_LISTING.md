@@ -1,66 +1,71 @@
 # WarnWeather — Pebble Appstore listing
 
-The store description field is **plain text only** — paste the block below verbatim
-(headings and bullets are plain characters, not markdown).
-
-## Title
-
-WarnWeather — weather, radar & calendar
-
-## Short blurb (one-liner)
-
-Temperature, rain, and wind for the next 24 hours, plus a live rain radar and a 3-week calendar — all on your Pebble watchface.
-
 ## Full description (plain text — paste verbatim)
 
 ```
-WarnWeather is a weather watchface for Pebble, inspired by ForecasWatch2. It packs a
-whole day of temperature, precipitation probability+amount, UV-index and wind into a single graph, and keeps a
-3-week calendar and a live rain radar one wrist-flick away.
+WarnWeather is a weather watchface for Pebble, based on the ForecasWatch2 watchface.
+Highly customizable with a modern settings UI and previews.
 
-TIME
-- Current time
-- Next sunrise or sunset time
+
+If you like this watchface and want to support the development, 
+press the ❤️ button and consider buying me a coffee at
+https://www.buymeacoffee.com/toaster2.
+
 
 FORECAST
 - 24-hour weather forecast with configurable update frequency
-- Current temperature
-- Temperature forecast line
-- Optional main metric (solid line) and optional second metric (drawn as bar-aligned square dots) — each
-  independently shows precipitation %, wind speed, wind gusts, or UV index; the main-metric line can
-  have a configurable fill
-- Optional hourly rain bars — multicolor or white on color watches
-- Optional day/night hatch shading on the graph
+  Optimized for low battery consumption, messages are only sent if something changes
 - Fahrenheit and Celsius temperatures
-- Multiple weather providers: Weather Underground, OpenWeatherMap, Open-Meteo, and
-  Deutscher Wetterdienst via Bright Sky (Germany only)
-- GPS or manual location entry
-- City where the forecast was fetched
+- Weather status with: 
+  - Current temperature
+  - City where the forecast was fetched
+  - Next sunrise or sunset time
+- Temperature forecast line
+- Configurable metrics:
+  - precipitation probability
+  - precipitation amount
+  - UV index
+  - wind speed
+  - wind gusts
+- Optional day/night hatch shading
+- Multiple weather providers: 
+  - Weather Underground
+  - OpenWeatherMap
+  - Open-Meteo
+  - Deutscher Wetterdienst via Bright Sky (Germany only)
+- GPS or manual location with configurable GPS cache
+
 
 RAIN RADAR (for now only available for Deutscher Wetterdienst)
 - 2-hour precipitation nowcast in 5-minute frames — rain at your exact location plus
   the strongest rain approaching from within 2 km
-- Switch between calendar and radar view with a flick of your wrist
-- Optional rain countdown: when rain is on the way, the month turns into "Drizzle / Rain /
-  Downpour in X min", with a rain-lines intensity icon colour-matched to the radar bars
-  (and "… for X min" while it's raining), configurable look-ahead (30 min / 60 min / 2 hours)
+- Rain countdown: when rain is on the way, the top status line turns into 
+  "Drizzle / Rain / Downpour in X min",
+  and while it's raining, "… for X min".
+  Configurable look-ahead (30 min / 60 min / 2 hours)
 
 HEALTH VIEW (requires a health-capable watch; heart rate needs a heart-rate sensor)
-- Your day's activity — today's steps, last night's sleep, and current heart rate — as
-  a status line, or an hourly graph with step bars, a sleep band (light/deep sleep), and
-  a heart-rate line
-- Optionally show the weather and health status together
+- Health status with:
+  - today's steps
+  - last night's sleep
+  - current heart rate
+- Optional last 24h chart with
+  - steps per hour
+  - sleep band at the bottom (light/deep)
+  - heart-rate line
 
 CALENDAR
-- 3-week calendar
-- Top view (default Compact): choose Full (classic 3-row calendar), Compact (2-row
-  calendar with a larger status line and taller forecast/health area), or None (no
-  calendar — a full-date strip, bigger clock and status line, and a full-screen
-  forecast; flick to reach the radar and health graph)
-- Highlight public holidays for your country — 150+ countries worldwide, with
-  region/state granularity where holidays vary (Germany, Austria, Switzerland, Spain, UK,
-  United States)
-- Customize colors for Sundays, Saturdays, and holidays
+- 3/2-week calendar with current day highlight
+- Selectable start of week day (Sun/Mon)
+- Customizable highlight for
+  - Saturday
+  - Sunday
+  - Holidays (supporting 150+ countries worldwide and their region/state)
+
+TIME
+- Current time in custom color
+- 12h/24h format
+- Optional AM/PM format
 
 WATCH STATUS
 - Battery indicator
@@ -69,10 +74,12 @@ WATCH STATUS
 - Quiet time indicator
 - Sleep mode (battery-saving night pause)
 
-CUSTOMIZATION
-- Customize time font and color
-- Adjustable layout — choose how much of the screen goes to the calendar vs. the
-  forecast, radar, and health views
+LAYOUT CUSTOMIZATION
+- Selectable top view (default Compact):
+  - Full (classic 3-row calendar)
+  - Compact (2-row calendar with a larger status line and taller forecast/health area)
+  - None (no calendar — a full-date strip, bigger clock and status line, and a full-screen
+    forecast; flick to reach the radar and health graph)
 
 UPDATES
 - Update notifications: get a one-time heads-up when a newer version is available in the appstore.
@@ -82,7 +89,7 @@ PLATFORMS
   Pebble Time 2
 ```
 
-## Screenshots (planned)
+## Screenshots 
 
 The store wants at least one screenshot per supported platform, so we capture all four
 configs on **every** platform (aplite, basalt, diorite, emery, flint) — 4 shots × 5
