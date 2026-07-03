@@ -37,10 +37,10 @@
 // Gray axis frame, matching the forecast's night axis (GColorDarkGray); white on B&W.
 #define HEALTH_AXIS_COLOR         PBL_IF_COLOR_ELSE(GColorDarkGray, GColorWhite)
 
-// Dashed horizontal gridline at each 1000-step level. Same gray family as the axis;
-// the dashing (2px on / 2px off) keeps it distinct from the solid frame.
+// Dashed horizontal gridline(s) at the labeled step marks (see compute_step_marks).
+// Same gray family as the axis; the dashing (2px on / 2px off) keeps it distinct from
+// the solid frame.
 #define STEP_GRID_COLOR           PBL_IF_COLOR_ELSE(GColorDarkGray, GColorWhite)
-#define STEP_GRID_STEP            1000
 #define STEP_GRID_DASH            4      // dash period px (draws a 2px dash each period)
 
 // Extra clearance the HR baseline keeps above the sleep stripe. Full top-view has a
@@ -59,8 +59,9 @@ static uint8_t s_sleep[MAX_BOTTOM_VIEW_ENTRIES];
 
 // Refresh-time results the update proc renders from (see health_graph_compute).
 static int    s_visible_slots;     // slots filled in s_steps/s_hr/s_sleep
-static int    s_step_hi;           // bars/gridline scale top (peak rounded up to 100)
-static char   s_step_label[8];     // widest gridline label ("2k") — sizes the left strip
+static int    s_step_hi;           // bars/HR scale top (peak rounded up to 100)
+static int    s_step_marks[2];     // step values of the labeled dotted lines, top first
+static int    s_step_mark_n;       // number of marks in use (1 or 2)
 static time_t s_end_hour;          // hour boundary the last visible slot ends at
 
 // Sleep-stripe payload handed to the CUSTOM layer's fn via the user pointer.
@@ -115,15 +116,15 @@ static void sleep_stripe_draw(const ChartRender *r, void *user) {
     }
 }
 
-// CUSTOM layer: dashed horizontal gridline at each STEP_GRID_STEP (1000) level from
-// the first thousand up to the scale top `hi`. Drawn under the bars so data sits on
-// top; the left axis labels these same levels (see draw_left_axis). Value→y matches
-// the BARS/left-axis mapping: y = plot_bottom - v * plot_h / hi.
-typedef struct { int hi; } StepGrid;
+// CUSTOM layer: dashed horizontal gridline at each labeled step mark (see
+// compute_step_marks / draw_left_axis) — the marks are the ONLY gridlines, so the left
+// strip never carries an unlabeled line. Drawn under the bars so data sits on top.
+// Value→y matches the BARS/left-axis mapping: y = plot_bottom - v * plot_h / hi.
+typedef struct { int hi; const int *marks; int n; } StepGrid;
 
 static void step_grid_draw(const ChartRender *r, void *user) {
     const StepGrid *g = (const StepGrid *)user;
-    if (!g || g->hi <= 0) {
+    if (!g || g->hi <= 0 || !g->marks) {
         return;
     }
     const GRect c           = r->geo.content;
@@ -132,7 +133,11 @@ static void step_grid_draw(const ChartRender *r, void *user) {
     const int   x0          = c.origin.x;
     const int   x1          = c.origin.x + c.size.w;
     graphics_context_set_stroke_color(r->ctx, STEP_GRID_COLOR);
-    for (int v = STEP_GRID_STEP; v <= g->hi; v += STEP_GRID_STEP) {
+    for (int i = 0; i < g->n; ++i) {
+        const int v = g->marks[i];
+        if (v <= 0 || v > g->hi) {
+            continue;
+        }
         const int y = plot_bottom - (int)(((int32_t)v * plot_h) / g->hi);
         for (int x = x0; x < x1; x += STEP_GRID_DASH) {
             int xe = x + 1;
@@ -166,11 +171,63 @@ static ChartDef health_grid_def(void) {
     return d;
 }
 
-// Read health for the visible window and derive the step scale + "Nk" axis label
-// into the module statics the update proc renders from. When report_width is true
-// (refresh path) it also feeds the measured label width into bottom_view so the
-// shared left strip widens to fit; create passes false so a paint while hidden
-// never perturbs forecast's strip before the health view is ever shown.
+// Formats a full-hundred step mark into an axis label of up to two rows (top_row over
+// bot_row). The "k" unit rides only the lowest mark (with_unit), so a higher mark shows
+// a bare number and two marks don't each carry a "k" row. Whole thousands stay a single
+// row ("1" / "1k"); other levels put the decimal on top and, when the unit shows, a lone
+// "k" beneath ("0.2" + "k") — keeping the strip ~3 chars wide instead of "0.2k"'s 4.
+// Returns true when the label uses the stacked (two-row) form.
+static bool step_mark_label(int value, bool with_unit, char *top_row, size_t top_sz,
+                            char *bot_row, size_t bot_sz) {
+    int tk = value / 100;              // tenths of a thousand (200→2, 500→5, 1500→15)
+    if (tk < 0)   { tk = 0; }          // marks are always positive; keeps "%d" bounded
+    if (tk > 995) { tk = 995; }        // s_step_hi ≤ 99000 → keeps "%d.%d" within buf
+    const int whole = tk / 10;
+    const int frac  = tk % 10;
+    bot_row[0] = '\0';
+    if (frac == 0) {
+        snprintf(top_row, top_sz, with_unit ? "%dk" : "%d", whole);
+        return false;
+    }
+    snprintf(top_row, top_sz, "%d.%d", whole, frac);
+    if (with_unit) {
+        snprintf(bot_row, bot_sz, "k");
+        return true;
+    }
+    return false;
+}
+
+// Derive the labeled dotted line(s) from the visible peak. Goal: round levels that sit
+// BELOW the peak so each line cuts through the tallest bar (like the higher-value grid),
+// never pinned above the bars. peak ≥ 500 → the closest full-500 (top) and its halfway
+// line (mid); a quiet day under 500 → a single full-200 line, so a short band never
+// stacks two "0.x"/"k" labels on top of each other. Fills s_step_marks (top first) +
+// s_step_mark_n.
+static void compute_step_marks(int peak) {
+    if (peak < 500) {
+        int top = (peak / 200) * 200;   // closest full-200 ≤ peak (0.2k or 0.4k)
+        if (top < 100) { top = 100; }   // very low peak: a single 0.1k line still fits
+        s_step_marks[0] = top;
+        s_step_mark_n   = 1;
+        return;
+    }
+    const int top   = (peak / 500) * 500;  // closest full-500 ≤ peak → cuts the top bar
+    const int top_u = top / 500;
+    const int mid_u = (top_u + 1) / 2;      // halfway line (mirrors the old 1k halving)
+    s_step_marks[0] = top;
+    if (mid_u == top_u) {
+        s_step_mark_n = 1;                  // top == mid (500) → a single line
+    } else {
+        s_step_marks[1] = mid_u * 500;
+        s_step_mark_n   = 2;
+    }
+}
+
+// Read health for the visible window and derive the step scale + labeled marks into
+// the module statics the update proc renders from. When report_width is true (refresh
+// path) it also feeds the widest mark label into bottom_view so the shared left strip
+// widens to fit; create passes false so a paint while hidden never perturbs forecast's
+// strip before the health view is ever shown.
 static void health_graph_compute(bool report_width) {
     const GRect    bounds     = layer_get_bounds(s_health_graph_layer);
     const ChartDef def        = health_grid_def();
@@ -194,21 +251,15 @@ static void health_graph_compute(bool report_width) {
             step_peak = s_steps[i];
         }
     }
-    // Round the visible peak UP to the next full 100 so the tallest bar always fills
-    // ~most of the plot (a coarser ceiling made a lone spike hour dwarf the rest).
-    // hi stays > lo (0).
-    int hi = (step_peak <= 0) ? 100 : ((step_peak + 99) / 100) * 100;
+    // Scale the bars so the tallest always fills ~95% of the plot: hi = peak / 0.95.
+    // (Rounding the ceiling up to a full 100 left a low-activity day mostly empty above
+    // the bars.) The dotted marks sit at round levels below the peak, so they scale with
+    // hi and keep cutting through the bars.
+    int hi = (step_peak <= 0) ? 100 : (step_peak * 100 + 94) / 95;
     if (hi > 99000) { hi = 99000; }
     s_step_hi = hi;
-    // The left axis labels the 1k gridlines rather than the exact ceiling, so the
-    // widest label is the top thousand ("2k" for a 2.4k scale) — reported here to
-    // size the strip. Under 1k there are no gridlines, so no label.
-    int top_k = hi / STEP_GRID_STEP;
-    if (top_k >= 1) {
-        snprintf(s_step_label, sizeof(s_step_label), "%dk", top_k);
-    } else {
-        s_step_label[0] = '\0';
-    }
+
+    compute_step_marks(step_peak);
 
     s_visible_slots = visible_slots;
     s_end_hour      = end_hour;
@@ -216,17 +267,24 @@ static void health_graph_compute(bool report_width) {
     if (report_width) {
         const GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_18);
         const GRect box  = GRect(0, 0, 200, 40);
-        const GSize sz   = graphics_text_layout_get_content_size(
-            s_step_label, font, box, GTextOverflowModeFill, GTextAlignmentRight);
-        bottom_view_report_label_w(BOTTOM_VIEW_SRC_HEALTH, sz.w);
+        int max_w = 0;
+        for (int i = 0; i < s_step_mark_n; ++i) {
+            char top_row[6], bot_row[3];
+            step_mark_label(s_step_marks[i], i == s_step_mark_n - 1,
+                            top_row, sizeof top_row, bot_row, sizeof bot_row);
+            const GSize sz = graphics_text_layout_get_content_size(
+                top_row, font, box, GTextOverflowModeFill, GTextAlignmentRight);
+            if (sz.w > max_w) { max_w = sz.w; }
+        }
+        bottom_view_report_label_w(BOTTOM_VIEW_SRC_HEALTH, max_w);
     }
 }
 
-// Left-axis strip: labels AT MOST TWO of the dashed 1k gridlines — the highest line
-// and the middle one — to keep the strip quiet (a label on every line was too noisy).
-// The strip width stays fixed (widest label is the top "Nk", no exact-max). The
-// value→y mapping matches the plot (plot_bottom == plot_h == axis_y). The vertical
-// axis line itself is painted by the FRAME layer in chart_draw.
+// Left-axis strip: labels each dotted step mark (see compute_step_marks). The "k" unit
+// rides only the lowest mark, so a higher mark shows a bare number ("1.5") while the
+// lowest carries the unit ("1k", or a stacked "0.2" over "k"). The value→y mapping
+// matches the plot (plot_bottom == plot_h == axis_y). The vertical axis line itself is
+// painted by the FRAME layer in chart_draw.
 static void draw_left_axis(GContext *ctx, int h, int hi) {
     const int strip_w = bottom_view_label_strip_w();
     const int inset_w = bottom_view_graph_inset();
@@ -236,25 +294,38 @@ static void draw_left_axis(GContext *ctx, int h, int hi) {
     graphics_context_set_fill_color(ctx, GColorBlack);
     graphics_fill_rect(ctx, GRect(0, 0, inset_w, axis_y), 0, GCornerNone);
 
-    const int top_k = hi / STEP_GRID_STEP;        // highest labeled gridline (in thousands)
-    if (top_k < 1 || axis_y <= 0) { return; }     // no gridlines under 1k
-    const int mid_k = (top_k + 1) / 2;            // middle gridline; == top_k only when top_k==1
+    if (axis_y <= 0 || hi <= 0) { return; }
 
     graphics_context_set_text_color(ctx, GColorWhite);
     const GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_18);
-    const int ks[2] = { top_k, mid_k };
-    for (int i = 0; i < 2; ++i) {
-        int k = ks[i];
-        if (i == 1 && k == top_k) { break; }      // top_k==1: highest is also the middle
-        const int y = axis_y - (int)(((int32_t)(k * STEP_GRID_STEP) * axis_y) / hi);
-        // s_step_hi is clamped to <=99000 on refresh, so k is 1..99; clamping here makes
-        // that bound visible to the compiler so the "%dk" label always fits buf.
-        if (k > 99) { k = 99; }
-        char buf[6];
-        snprintf(buf, sizeof(buf), "%dk", k);
-        // Center the GOTHIC_18 digits on the gridline y (box top ≈ y - 11).
-        graphics_draw_text(ctx, buf, font, GRect(0, y - 11, strip_w, 20),
-                           GTextOverflowModeFill, GTextAlignmentRight, NULL);
+    for (int i = 0; i < s_step_mark_n; ++i) {
+        const int v = s_step_marks[i];
+        if (v <= 0 || v > hi) { continue; }
+        const int y = axis_y - (int)(((int32_t)v * axis_y) / hi);
+
+        // The "k" unit rides only the lowest mark; higher marks show a bare number.
+        const bool with_unit = (i == s_step_mark_n - 1);
+        char top_row[6], bot_row[3];
+        const bool stacked = step_mark_label(v, with_unit, top_row, sizeof top_row,
+                                             bot_row, sizeof bot_row);
+        if (!stacked) {
+            // Single-row label centered on the gridline y (box top ≈ y - 11).
+            int ty = y - 11;
+            if (ty < 0) { ty = 0; }
+            graphics_draw_text(ctx, top_row, font, GRect(0, ty, strip_w, 20),
+                               GTextOverflowModeFill, GTextAlignmentRight, NULL);
+        } else {
+            // Stacked "N.d" over "k": the decimal value rides just above the line, the
+            // lone "k" hangs just below, so the pair straddles the gridline. Clamp at the
+            // top edge so a mark at the plot ceiling keeps both rows on-screen.
+            int ny = y - 15;
+            if (ny < 0) { ny = 0; }
+            const int ky = ny + 14;
+            graphics_draw_text(ctx, top_row, font, GRect(0, ny, strip_w, 18),
+                               GTextOverflowModeFill, GTextAlignmentRight, NULL);
+            graphics_draw_text(ctx, bot_row, font, GRect(0, ky, strip_w, 18),
+                               GTextOverflowModeFill, GTextAlignmentRight, NULL);
+        }
     }
 }
 
@@ -303,7 +374,7 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
     // CUSTOM-layer payloads.
     SleepStripe stripe = { .sleep = s_sleep, .count = visible_slots,
                            .height = SLEEP_STRIPE_H };
-    StepGrid    grid   = { .hi = s_step_hi };
+    StepGrid    grid   = { .hi = s_step_hi, .marks = s_step_marks, .n = s_step_mark_n };
 
     // Z-order = array order, bottom first.
     //  1. Sleep stripe (CUSTOM) — bottom band, drawn under everything else.
