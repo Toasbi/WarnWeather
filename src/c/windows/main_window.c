@@ -250,10 +250,18 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
 #define CALENDAR_STATUS_HEIGHT 20
 // none: status band sized for the one-notch-larger Gothic-28 line (tune visually).
 #define NONE_STATUS_HEIGHT 30
+// none: drop the clock a few px so its gap to the date strip above matches its gap to the status
+// line below. The status text seats low in its tall band, so a clock centred flush under the strip
+// reads high; this rebalances it. Tune visually (grows with the taller emery status band/fonts).
+#define NONE_TIME_DROP 3
 #else
 #define CALENDAR_STATUS_HEIGHT 13
 // none: status band sized for the one-notch-larger Gothic-24 line (tune visually).
 #define NONE_STATUS_HEIGHT 22
+// none: drop the clock a couple px so its gap to the date strip above matches its gap to the status
+// line below. The status text seats low in its tall band, so a clock centred flush under the strip
+// reads high; this rebalances it. Tune visually.
+#define NONE_TIME_DROP 2
 #endif
 
 static Window *s_main_window;
@@ -322,7 +330,8 @@ static MainLayout compute_layout(GRect bounds, uint8_t mode, bool dual) {
 
         L.top     = GRect(content_x, calendar_y, content_w, 0);
         L.status  = GRect(content_x, status_y, content_w, status_h);
-        L.time    = GRect(content_x, none_time_y, content_w, time_h);
+        // Drop only the clock (not the status/forecast below) to balance its top/bottom gaps.
+        L.time    = GRect(content_x, none_time_y + NONE_TIME_DROP, content_w, time_h);
         L.bottom  = GRect(content_x, forecast_y, forecast_w, fc_h);
         L.loading = L.bottom;
         L.radar   = L.bottom;
@@ -363,7 +372,8 @@ static MainLayout compute_layout(GRect bounds, uint8_t mode, bool dual) {
 
         L.top     = GRect(0, cal_y, w, 0);              // calendar hidden; zero-height band
         L.status  = GRect(0, status_y, w, status_h);
-        L.time    = GRect(0, none_time_y, w, TIME_HEIGHT);
+        // Drop only the clock (not the status/forecast below) to balance its top/bottom gaps.
+        L.time    = GRect(0, none_time_y + NONE_TIME_DROP, w, TIME_HEIGHT);
         L.bottom  = GRect(0, forecast_y, w, fc_h);
         L.loading = L.bottom;
         L.radar   = L.bottom;                           // radar rides the bottom band
