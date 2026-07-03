@@ -71,7 +71,7 @@ static inline int status_glyph_center_y(int text_y, int content_h) {
 // clock). This is the single per-platform taste knob, tuned on-device; not a return to per-mode
 // band hacks.
 #ifdef PBL_PLATFORM_EMERY
-#define STATUS_FORECAST_CLEARANCE 0
+#define STATUS_FORECAST_CLEARANCE 1
 #else
 #define STATUS_FORECAST_CLEARANCE 3
 #endif
