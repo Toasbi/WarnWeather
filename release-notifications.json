@@ -44,7 +44,7 @@
     "body": "Settings forecast preview now matches the watch — lines and dots align with the hour ticks and rain bars."
   },
   "1.6.0": {
-    "title": "Health view",
-    "body": "Flick your wrist for a health overview: today's steps, last night's sleep, and current heart rate on the status line — turn it on in the new Health tab. Try the beta health graph too (hourly step bars, a sleep band, and a heart-rate line) and let me know what you think. Also new: an optional rain countdown that names the coming rain — Drizzle, Rain, or Downpour in X min — with an intensity icon colour-matched to the radar bars, and a new top-view choice: the compact 2-row calendar (default), the classic full 3-row calendar, or None — no calendar at all, with a bigger clock, status line, and forecast; flick your wrist to reach the radar and health graph. In Status-bar mode you can now keep the weather status on screen alongside health, arranged in the new Layout tab."
+    "title": "More Layouts & Health view",
+    "body": "Added Health data — steps, sleep, and heart rate on the status line + beta health graph. New too: warning for incoming rain(needs radar) and a some layout customizations with bigger fonts."
   }
 }
