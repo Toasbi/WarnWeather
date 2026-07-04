@@ -16,12 +16,12 @@
 // and icons_rebuild, so a given tier fits whatever band it lands in without per-band tuning.
 // emery renders one notch larger to match weather_status_layer's emery sizing.
 #ifdef PBL_PLATFORM_EMERY
-#define STATUS_FONT_KEY FONT_KEY_GOTHIC_18
+#define STATUS_FONT_KEY STATUS_FULL_TIER_FONT_KEY
 #define COMPACT_STATUS_FONT_KEY FONT_KEY_GOTHIC_24
 // none now matches the weather row's uniform Gothic 24 (was 28) so the two bars line up.
 #define NONE_STATUS_FONT_KEY FONT_KEY_GOTHIC_24
 #else
-#define STATUS_FONT_KEY FONT_KEY_GOTHIC_14
+#define STATUS_FONT_KEY STATUS_FULL_TIER_FONT_KEY
 #define COMPACT_STATUS_FONT_KEY FONT_KEY_GOTHIC_18
 // none now matches the weather row's uniform Gothic 18 (was 24) so the two bars line up.
 #define NONE_STATUS_FONT_KEY FONT_KEY_GOTHIC_18

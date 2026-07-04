@@ -13,7 +13,7 @@
 
 // emery: use larger text and arrow geometry
 #ifdef PBL_PLATFORM_EMERY
-#define CITY_FONT_KEY FONT_KEY_GOTHIC_18
+#define CITY_FONT_KEY STATUS_FULL_TIER_FONT_KEY
 #define SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_18
 // emery: city/sun are 18px, so an 18px bold temp matches them — emphasised, not oversized.
 #define TEMP_FONT_KEY FONT_KEY_GOTHIC_18_BOLD
@@ -38,7 +38,7 @@
 #define NONE_TEMP_Y_OFFSET 5
 #define NONE_SUN_OFFSET 5
 #else
-#define CITY_FONT_KEY FONT_KEY_GOTHIC_14
+#define CITY_FONT_KEY STATUS_FULL_TIER_FONT_KEY
 #define SUN_EVENT_FONT_KEY FONT_KEY_GOTHIC_14
 // Full-tier temp: Gothic 14 — the SAME size as the city/sun labels. The 14px band is too short
 // for an 18px temp: status_text_y() seats an oversized line in its "too tall" (sit-high) regime
@@ -102,13 +102,6 @@ static uint8_t s_render_tier = TOP_VIEW_COMPACT;
 
 void weather_status_layer_set_render_tier(uint8_t tier) {
     s_render_tier = tier;
-}
-
-// The full-tier row font, for the layout to size the forecast-abutting band. All three full-tier
-// labels (temp/city/sun) share this size, so the city key is representative; the health row's
-// full-tier value font matches it too, so one band fits both rows.
-GFont weather_status_layer_full_tier_font(void) {
-    return fonts_get_system_font(CITY_FONT_KEY);
 }
 
 #ifdef PBL_PLATFORM_APLITE

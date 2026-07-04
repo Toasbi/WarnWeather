@@ -81,3 +81,17 @@ static inline int status_forecast_band_h(GFont font) {
         GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).h;
     return content_h + 2 * STATUS_FORECAST_CLEARANCE;
 }
+
+// The full-tier status-row font. Both rows render the full tier at this size (weather
+// city/sun and regular temp; health value text), so the window can size the shared
+// forecast-abutting band from ONE font — see status_forecast_band_h(). Lives here, next
+// to the band math, so neither status layer owns geometry the other depends on.
+// emery: one notch larger, same step as the layers' whole font ladder.
+#ifdef PBL_PLATFORM_EMERY
+#define STATUS_FULL_TIER_FONT_KEY FONT_KEY_GOTHIC_18
+#else
+#define STATUS_FULL_TIER_FONT_KEY FONT_KEY_GOTHIC_14
+#endif
+static inline GFont status_full_tier_font(void) {
+    return fonts_get_system_font(STATUS_FULL_TIER_FONT_KEY);
+}

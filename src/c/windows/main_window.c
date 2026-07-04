@@ -306,7 +306,7 @@ static MainLayout compute_layout(GRect bounds, uint8_t mode, bool dual) {
     // Height of the status band that abuts the forecast (full mode both rows; dual-status compact
     // the weather row), derived from the full-tier row font so the line clears the graph by a
     // constant margin on every platform — see status_forecast_band_h() / the uses below.
-    int fc_band_h = status_forecast_band_h(weather_status_layer_full_tier_font());
+    int fc_band_h = status_forecast_band_h(status_full_tier_font());
 #ifdef PBL_PLATFORM_EMERY
     // emery: bands are proportional; keep calendar_y/time_y/time_h fixed and
     // repartition the calendar band (2/3 dates + 1/3 status) while the forecast
