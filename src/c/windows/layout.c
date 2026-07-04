@@ -175,16 +175,18 @@ ViewSpec view_spec_unpack(uint8_t byte) {
     return spec;
 }
 
-ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar) {
-    if (spec.top == TOP_BAND_RADAR && !has_radar) {
-        spec.top = TOP_BAND_CALENDAR;
+ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health) {
+    if (!has_health) {
+        if (spec.body == BODY_HEALTH_GRAPH) { spec.body = BODY_FORECAST; }
+        if (spec.status == STATUS_ROW_HEALTH || spec.status == STATUS_ROW_DUAL) {
+            spec.status = STATUS_ROW_WEATHER;
+        }
     }
-    // BODY_RADAR is a none-only body; downgrade outside none or without data. The
-    // health status row pairs with that radar stop, so it falls back alongside
-    // (dual is untouched — both rows stay).
-    if (spec.body == BODY_RADAR && (spec.calendar_rows != 0 || !has_radar)) {
+    if (spec.top == TOP_BAND_RADAR && !has_radar) {
+        spec.top = TOP_BAND_CALENDAR;   // radar-in-top implies full tier → 3-row calendar
+    }
+    if (spec.body == BODY_RADAR && !has_radar) {
         spec.body = BODY_FORECAST;
-        if (spec.status == STATUS_ROW_HEALTH) { spec.status = STATUS_ROW_WEATHER; }
     }
     return spec;
 }

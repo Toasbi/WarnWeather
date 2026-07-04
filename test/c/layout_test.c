@@ -155,6 +155,23 @@ static void viewspec_tests(void) {
     expect("unpack.dual.tier_full", u.status_tier == LAYOUT_TIER_FULL, true);
 
     expect("unpack.off_tier", view_spec_unpack(0x00).calendar_rows == 0, true);
+
+    // Availability resolve. has_health=false must make aplite/health-off safe.
+    ViewSpec r = view_spec_resolve(view_spec_unpack(0x92), true, false);  // CAL2·FC·D
+    expect("resolve.nohealth.dual_to_weather", r.status == STATUS_ROW_WEATHER, true);
+    r = view_spec_resolve(view_spec_unpack(0x45), true, false);            // NONE·GRAPH·H
+    expect("resolve.nohealth.graph_to_forecast", r.body == BODY_FORECAST, true);
+    expect("resolve.nohealth.health_to_weather", r.status == STATUS_ROW_WEATHER, true);
+
+    // Radar-in-body under a calendar stays radar WHEN data present (new behaviour).
+    r = view_spec_resolve(view_spec_unpack(0x98), true, true);             // CAL2·RDR·W
+    expect("resolve.radar_body_with_cal_ok", r.body == BODY_RADAR, true);
+    r = view_spec_resolve(view_spec_unpack(0x98), false, true);            // no radar data
+    expect("resolve.radar_body_fallback", r.body == BODY_FORECAST, true);
+
+    // Radar-in-top without data falls back to a calendar top band.
+    r = view_spec_resolve(view_spec_unpack(0xE0), false, true);            // RDR·FC·W
+    expect("resolve.radar_top_fallback", r.top == TOP_BAND_CALENDAR, true);
 }
 
 int main(int argc, char **argv) {

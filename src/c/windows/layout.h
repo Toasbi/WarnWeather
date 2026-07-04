@@ -59,9 +59,10 @@ typedef struct {
 // separately by view_spec_resolve. Byte 0 (tier=off) decodes to a zeroed spec.
 ViewSpec view_spec_unpack(uint8_t byte);
 
-// Data-availability downgrades, pure: a radar band without radar data falls back
-// (and a health status row that only rode that radar stop falls back with it).
-ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar);
+// Data-availability downgrades, pure. Without health data (aplite, or health off):
+// health graph -> forecast, health/dual status -> weather. Without radar data: a radar
+// top band -> calendar, a radar body -> forecast. Radar-in-body is valid with a calendar.
+ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health);
 
 LayerVisibility layout_visibility(const ViewSpec *spec);
 
