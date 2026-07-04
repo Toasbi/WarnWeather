@@ -633,5 +633,6 @@ void main_window_refresh() {
 
 void main_window_destroy() {
     // Interface for destroying the main window (implicitly unloads contents)
+    tick_timer_service_unsubscribe();
     window_destroy(s_main_window);
 }

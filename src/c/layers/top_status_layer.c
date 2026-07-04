@@ -435,6 +435,7 @@ void top_status_layer_refresh() {
 
 void top_status_layer_destroy() {
     MEMORY_LOG_HEAP("top_status_layer_destroy:before");
+    connection_service_unsubscribe();
     battery_layer_destroy();
     if (s_mute_bitmap) {
         gbitmap_destroy(s_mute_bitmap);

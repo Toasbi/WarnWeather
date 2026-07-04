@@ -8,7 +8,9 @@ global.localStorage = {
   getItem: (k) => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null),
   setItem: (k, v) => { store[k] = String(v); },
   removeItem: (k) => { delete store[k]; },
-  clear: () => { Object.keys(store).forEach((k) => { delete store[k]; }); }
+  clear: () => { Object.keys(store).forEach((k) => { delete store[k]; }); },
+  key: (i) => { const ks = Object.keys(store); return i >= 0 && i < ks.length ? ks[i] : null; },
+  get length() { return Object.keys(store).length; }
 };
 
 const holidayMask = require('../src/pkjs/holidays/holiday-mask.js');

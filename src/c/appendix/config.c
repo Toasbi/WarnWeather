@@ -54,7 +54,15 @@ void config_refresh() {
     MEMORY_LOG_HEAP("after_config_refresh");
 }
 
+#ifdef PBL_PLATFORM_EMERY
+static void config_unload_custom_time_font(void);
+#endif
+
 void config_unload() {
+#ifdef PBL_PLATFORM_EMERY
+    // emery: release the cached enlarged time font along with the config.
+    config_unload_custom_time_font();
+#endif
     free(g_config);
 }
 

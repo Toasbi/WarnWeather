@@ -11,10 +11,15 @@ var STORAGE_KEY = 'clay-settings';
 /**
  * Read and parse the stored Clay settings blob.
  *
- * @returns {Object|null} Parsed settings object, or null when nothing stored.
+ * @returns {Object|null} Parsed settings object, or null when nothing stored
+ *   or the blob is malformed.
  */
 function read() {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY));
+    try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY));
+    } catch (ex) {
+        return null;
+    }
 }
 
 /**

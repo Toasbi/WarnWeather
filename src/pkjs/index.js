@@ -1009,7 +1009,14 @@ function needRefresh() {
     if (raw === null) {
         return true;
     }
-    var last = JSON.parse(raw);
+    // A corrupt marker must count as "refresh due": this runs on every minute
+    // tick, and an uncaught throw here would kill the tick loop for good.
+    var last;
+    try {
+        last = JSON.parse(raw);
+    } catch (e) {
+        return true;
+    }
     if (!last || !last.time) {
         return true;
     }

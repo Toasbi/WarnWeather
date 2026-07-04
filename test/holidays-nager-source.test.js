@@ -10,7 +10,9 @@ function installStorage() {
     getItem: (k) => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null),
     setItem: (k, v) => { store[k] = String(v); },
     removeItem: (k) => { delete store[k]; },
-    clear: () => { Object.keys(store).forEach((k) => { delete store[k]; }); }
+    clear: () => { Object.keys(store).forEach((k) => { delete store[k]; }); },
+    key: (i) => { const ks = Object.keys(store); return i >= 0 && i < ks.length ? ks[i] : null; },
+    get length() { return Object.keys(store).length; }
   };
 }
 
@@ -101,6 +103,21 @@ test('non-global holiday with null/empty counties is inert (never highlighted)',
   const mayDay = new Date(2026, 4, 1);
   assert.equal(nagerSource.isHoliday('DE', 'all', mayDay), false);
   assert.equal(nagerSource.isHoliday('DE', 'DE-BY', mayDay), false);
+});
+
+test('ensure prunes stale year and other-country keys, keeps the wanted window', () => {
+  const KEYS = require('../src/pkjs/storage-keys');
+  global.localStorage.setItem(KEYS.HOLIDAY_CACHE_PREFIX + 'DE_2025', JSON.stringify({ f: NOW, h: [] }));
+  global.localStorage.setItem(KEYS.HOLIDAY_CACHE_PREFIX + 'US_2026', JSON.stringify({ f: NOW, h: [] }));
+  global.localStorage.setItem(KEYS.HOLIDAY_BACKOFF_PREFIX + 'US', String(NOW + DAY));
+  global.localStorage.setItem('unrelatedKey', 'kept');
+  nagerSource.ensure('DE', [2026, 2027], () => {}, { now: () => NOW, request: (u, ok) => ok(DE_2026) });
+  assert.equal(global.localStorage.getItem(KEYS.HOLIDAY_CACHE_PREFIX + 'DE_2025'), null);
+  assert.equal(global.localStorage.getItem(KEYS.HOLIDAY_CACHE_PREFIX + 'US_2026'), null);
+  assert.equal(global.localStorage.getItem(KEYS.HOLIDAY_BACKOFF_PREFIX + 'US'), null);
+  assert.equal(global.localStorage.getItem('unrelatedKey'), 'kept');
+  assert.notEqual(global.localStorage.getItem(KEYS.HOLIDAY_CACHE_PREFIX + 'DE_2026'), null);
+  assert.notEqual(global.localStorage.getItem(KEYS.HOLIDAY_CACHE_PREFIX + 'DE_2027'), null);
 });
 
 test('ensure fetches each year across a year boundary and caches both', () => {

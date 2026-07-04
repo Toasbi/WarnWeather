@@ -157,6 +157,31 @@ function fetchYear(country, year, now, request, onUpdated) {
 }
 
 /**
+ * Drop cached entries no longer covered by the current country/years: years
+ * that scrolled out of the visible window and countries the user switched
+ * away from. Without this the per-(country, year) keys accumulate forever.
+ * @param {string} country ISO-3166-1 alpha-2 code in use.
+ * @param {number[]} years Years being kept fresh.
+ * @returns {void}
+ */
+function pruneCache(country, years) {
+    var keep = {};
+    var i, key;
+    for (i = 0; i < years.length; i++) {
+        keep[cacheKey(country, years[i])] = true;
+    }
+    keep[backoffKey(country)] = true;
+    for (i = localStorage.length - 1; i >= 0; i--) {
+        key = localStorage.key(i);
+        if (key === null || keep[key]) { continue; }
+        if (key.indexOf(storageKeys.HOLIDAY_CACHE_PREFIX) === 0 ||
+            key.indexOf(storageKeys.HOLIDAY_BACKOFF_PREFIX) === 0) {
+            localStorage.removeItem(key);
+        }
+    }
+}
+
+/**
  * Ensure cached holiday data for a country across the given years.
  * @param {string} country ISO-3166-1 alpha-2 code.
  * @param {number[]} years Years to ensure (usually one; two across a year boundary).
@@ -169,6 +194,7 @@ function ensure(country, years, onUpdated, opts) {
     var now = opts.now ? opts.now() : Date.now();
     var request = opts.request || defaultRequest;
     var i;
+    pruneCache(country, years);
     for (i = 0; i < years.length; i++) {
         fetchYear(country, years[i], now, request, onUpdated);
     }

@@ -45,7 +45,14 @@ static bool handle_forecast(DictionaryIterator *iterator, bool *forecast_dirty) 
         return false;
     }
 
-    const int num_entries = (int) num_entries_tuple->value->int32;
+    // NUM_ENTRIES rides a separate tuple from the trend bytes; clamp it to the
+    // trend tuple's own length so a skewed count can never size a read past
+    // the array (write_data_if_changed memcmp/writes exactly this many bytes).
+    int num_entries = (int) num_entries_tuple->value->int32;
+    if (num_entries < 0) { num_entries = 0; }
+    if (num_entries > (int) temp_trend_tuple->length) {
+        num_entries = (int) temp_trend_tuple->length;
+    }
 #ifdef WW_ENABLE_MEMORY_LOGGING
     APP_LOG(APP_LOG_LEVEL_DEBUG, "MEM|forecast_payload|entries=%d|free=%lu|used=%lu",
             num_entries,
@@ -132,7 +139,11 @@ static bool handle_sun_events(DictionaryIterator *iterator, bool *forecast_dirty
         return false;
     }
 
-    // Packed as one start-type byte followed by two epoch timestamps.
+    // Packed as one start-type byte followed by two epoch timestamps; a
+    // shorter tuple is corrupt/skewed — don't read past its end.
+    if (sun_events_tuple->length < (int) (1 + 2 * sizeof(time_t))) {
+        return false;
+    }
     uint8_t sun_event_start_type = (uint8_t) sun_events_tuple->value->uint8;
     time_t *sun_event_times = (time_t*) (sun_events_tuple->value->data + 1);
     bool changed = false;
@@ -171,6 +182,13 @@ static bool handle_rain_radar(DictionaryIterator *iterator, bool *radar_dirty) {
         changed |= persist_set_rain_radar_trend(zeros, 24);
         changed |= persist_set_rain_radar_trend_area(zeros, 24);
         changed |= persist_set_rain_radar_start(0);
+    } else if (rain_radar_exact_tuple->length < 24 || rain_radar_area_tuple->length < 24) {
+        // Short arrays (version skew / corrupt payload) — discard rather than
+        // overread the inbox and persist the trailing bytes as intensities.
+        APP_LOG(APP_LOG_LEVEL_WARNING,
+                "Rain-radar arrays too short (exact=%u area=%u) — skipping",
+                (unsigned) rain_radar_exact_tuple->length,
+                (unsigned) rain_radar_area_tuple->length);
     } else {
         changed |= persist_set_rain_radar_trend(
             (uint8_t*) rain_radar_exact_tuple->value->data, 24);
