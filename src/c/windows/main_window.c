@@ -17,6 +17,13 @@
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
 
+// The layout module mirrors config.h's TopViewMode as its own LAYOUT_TIER_* (see layout.h);
+// main_window passes top_view_mode straight into the tier param, so lock the values together.
+_Static_assert((int)TOP_VIEW_FULL == (int)LAYOUT_TIER_FULL
+            && (int)TOP_VIEW_COMPACT == (int)LAYOUT_TIER_COMPACT
+            && (int)TOP_VIEW_NONE == (int)LAYOUT_TIER_NONE,
+               "LAYOUT_TIER_* must stay in lockstep with enum TopViewMode");
+
 typedef enum {
     TOP_VIEW_CALENDAR = 0,
     TOP_VIEW_RAIN_RADAR = 1

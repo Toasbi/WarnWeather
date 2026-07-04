@@ -167,7 +167,8 @@ ViewSpec view_spec_from_state(uint8_t top_view_mode, bool dual,
                 : (bottom_view != 0 && health_active) ? STATUS_ROW_HEALTH
                 : STATUS_ROW_WEATHER;
     // Dual under a compact top view renders both rows at the full tier so they match;
-    // none keeps its own taller band. Mirrors the old status_render_tier().
+    // none keeps its own taller band. This is the rule main_window.c's old per-window
+    // tier helper used to encode, now computed here as spec.status_tier.
     spec.status_tier = (dual && top_view_mode == LAYOUT_TIER_COMPACT)
                        ? LAYOUT_TIER_FULL : top_view_mode;
     spec.weights[0] = WEIGHT_CALENDAR;
