@@ -187,6 +187,10 @@
       "CLAY_RAIN_COUNTDOWN_HORIZON",
       "CLAY_TOP_VIEW_MODE",
       "CLAY_DUAL_STATUS",
+      "CLAY_VIEW_0",
+      "CLAY_VIEW_1",
+      "CLAY_VIEW_2",
+      "CLAY_VIEW_RESET_MIN",
       "RAIN_RADAR_TREND_UINT8",
       "RAIN_RADAR_TREND_AREA_UINT8",
       "RAIN_RADAR_START",
@@ -243,14 +247,14 @@
       "body": "Settings forecast preview now matches the watch — lines and dots align with the hour ticks and rain bars."
     },
     "1.6.0": {
-      "title": "Layout fixes",
-      "body": "Fine tuned layout for non emery platforms."
+      "title": "More Layouts & Health view",
+      "body": "Added Health data — steps, sleep, and heart rate on the status line + beta health graph. New too: warning for incoming rain(needs radar) and a some layout customizations with bigger fonts."
     }
   },
   "releaseNotification": {
     "enabled": true,
-    "title": "Layout fixes",
-    "body": "Fine tuned layout for non emery platforms."
+    "title": "More Layouts & Health view",
+    "body": "Added Health data — steps, sleep, and heart rate on the status line + beta health graph. New too: warning for incoming rain(needs radar) and a some layout customizations with bigger fonts."
   },
   "telemetry": {
     "enabled": false,

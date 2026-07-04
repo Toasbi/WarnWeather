@@ -240,6 +240,12 @@ static bool handle_clay_config(DictionaryIterator *iterator, bool *config_dirty)
     Tuple *clay_rain_countdown_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_RAIN_COUNTDOWN_HORIZON);
     Tuple *clay_top_view_mode_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_TOP_VIEW_MODE);
     Tuple *clay_dual_status_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_DUAL_STATUS);
+    // Optional (not in the required gate): older phone builds omit these; view_content
+    // then stays zeroed (all VC_OFF → the producer renders a safe compact forecast).
+    Tuple *clay_view_0_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_0);
+    Tuple *clay_view_1_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_1);
+    Tuple *clay_view_2_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_2);
+    Tuple *clay_view_reset_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_RESET_MIN);
 
     if (!(clay_celsius_tuple && clay_time_lead_zero_tuple && clay_axis_12h_tuple && clay_start_mon_tuple
         && clay_prev_week_tuple && clay_color_today_tuple && clay_time_font_tuple && clay_vibe_tuple
@@ -271,6 +277,10 @@ static bool handle_clay_config(DictionaryIterator *iterator, bool *config_dirty)
     config.rain_countdown_horizon_min = clay_rain_countdown_tuple->value->int16;
     config.top_view_mode = (uint8_t) (clay_top_view_mode_tuple->value->int16);
     config.dual_status = (bool) (clay_dual_status_tuple->value->int16);
+    if (clay_view_0_tuple) { config.view_content[0] = (uint8_t) clay_view_0_tuple->value->int16; }
+    if (clay_view_1_tuple) { config.view_content[1] = (uint8_t) clay_view_1_tuple->value->int16; }
+    if (clay_view_2_tuple) { config.view_content[2] = (uint8_t) clay_view_2_tuple->value->int16; }
+    if (clay_view_reset_tuple) { config.view_reset_min = (uint8_t) clay_view_reset_tuple->value->int16; }
     config.time_font = clay_time_font_tuple->value->int16;
     config.color_today = GColorFromHEX(clay_color_today_tuple->value->int32);
     config.color_saturday = GColorFromHEX(clay_color_saturday_tuple->value->int32);
