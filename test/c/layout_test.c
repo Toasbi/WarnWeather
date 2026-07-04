@@ -130,14 +130,16 @@ static void expect(const char *name, bool got, bool want) {
 }
 
 static void viewspec_tests(void) {
-    // Packed-byte decode. Byte format: tier<<6 | top<<4 | body<<2 | status.
-    ViewSpec u = view_spec_unpack(0x80);   // CAL2·FC·W (tier=2,top=CAL,body=FC,status=W)
+    // Packed-byte decode. Byte format: tier<<6 | top<<4 | body<<2 | status. The wire
+    // `top` field uses EMPTY=0, CALENDAR=1, RADAR=2 (see src/pkjs/view-cycle.js);
+    // view_spec_unpack translates it to the C TopBand enum.
+    ViewSpec u = view_spec_unpack(0x90);   // CAL2·FC·W (wire tier=2,top=1(CAL),body=0,status=0)
     expect("unpack.cal2.rows", u.calendar_rows == 2, true);
     expect("unpack.cal2.top", u.top == TOP_BAND_CALENDAR, true);
     expect("unpack.cal2.body", u.body == BODY_FORECAST, true);
     expect("unpack.cal2.status", u.status == STATUS_ROW_WEATHER, true);
 
-    u = view_spec_unpack(0xD3);            // FULL·RDR·FC·— (radar in top, no status)
+    u = view_spec_unpack(0xE3);            // RDR·FC·— : FULL, top=2(RADAR), body=0(FC), status=3(NONE)
     expect("unpack.rdrtop.rows", u.calendar_rows == 3, true);
     expect("unpack.rdrtop.top", u.top == TOP_BAND_RADAR, true);
     expect("unpack.rdrtop.body", u.body == BODY_FORECAST, true);
@@ -148,7 +150,7 @@ static void viewspec_tests(void) {
     expect("rdrtop.forecast_visible", vn.forecast, true);
     expect("rdrtop.no_status", vn.weather_status || vn.health_status, false);
 
-    u = view_spec_unpack(0x82);            // CAL2·FC·D — dual promotes status tier to FULL
+    u = view_spec_unpack(0x92);            // CAL2·FC·D — dual promotes status tier to FULL
     expect("unpack.dual.status", u.status == STATUS_ROW_DUAL, true);
     expect("unpack.dual.tier_full", u.status_tier == LAYOUT_TIER_FULL, true);
 

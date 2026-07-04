@@ -157,7 +157,10 @@ ViewSpec view_spec_unpack(uint8_t byte) {
     uint8_t status = byte & 3;          // StatusRowContent
     ViewSpec spec;
     spec.calendar_rows = (tier == 3) ? 3 : (tier == 2) ? 2 : 0;
-    spec.top = top;
+    // Wire `top` uses EMPTY=0, CALENDAR=1, RADAR=2 (see src/pkjs/view-cycle.js);
+    // translate to the C TopBand enum (which numbers them differently). body/status
+    // fields happen to share the wire's numbering, so they pass through directly.
+    spec.top = (top == 1) ? TOP_BAND_CALENDAR : (top == 2) ? TOP_BAND_RADAR : TOP_BAND_EMPTY;
     spec.body = body;
     spec.status = status;
     // Dual under a compact top view renders both status rows at the full tier so they
