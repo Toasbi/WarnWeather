@@ -46,7 +46,6 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 **Health view** *(requires a health-capable watch; heart rate needs a heart-rate sensor)*
 * Your day's activity on the watchface — today's step count, last night's sleep, and current heart rate — as a status line, or as an hourly graph with step bars, a sleep band (light / deep sleep), and a heart-rate line
-* Optionally show the weather and health status together
 
 **Calendar**
 * 3 week calendar
@@ -65,7 +64,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 **Customization**
 * Customize time font and color
 * Adjustable layout — choose how much of the screen goes to the calendar vs. the forecast, radar, and health views
-* **Layout preset** — pick what's on screen by default and what a wrist-flick cycles through next (Classic, Radar last, Big forecast, Full calendar, or Health first), previewed live in settings
+* **Layout preset** — pick what's on screen by default and what a wrist-flick cycles through next (Classic, Radar last, Big forecast, Full calendar, or Health graph first), previewed live in settings
 * Optional auto-return to the default view a set time after flicking away (1–10 minutes, or never)
 
 **Updates**

@@ -305,10 +305,10 @@ module.exports = {
                 defaultValue: 'classic',
                 options: [
                     ['Classic (compact, flick to radar)', 'classic'],
-                    ['Radar last (health first)', 'radarLast'],
+                    ['Radar last (health status first)', 'radarLast'],
                     ['Big forecast', 'forecast'],
                     ['Full calendar', 'fullCal'],
-                    ['Health first', 'healthFirst']
+                    ['Health graph first', 'healthFirst']
                 ],
                 blockBefore: 'layoutPreviewCombined',
                 blockBeforeSticky: true

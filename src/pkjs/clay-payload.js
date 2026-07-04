@@ -22,7 +22,42 @@ function buildClayPayload(settings, watchInfo, now) {
     var topViewMode = settings.topViewMode || 'compact';
     var topViewIdx = TOP_VIEW_MODES.indexOf(topViewMode);
     if (topViewIdx < 0) { topViewIdx = 1; }        // unknown → compact
-    var compact = topViewMode !== 'full';          // none anchors like compact
+
+    // Layout preset → the watch's three-slot view cycle (ViewContent enum in
+    // config.h: VC_OFF=0, VC_FORECAST_FULL=1, VC_FORECAST_COMPACT=2,
+    // VC_FORECAST_NONE=3, VC_RADAR=4, VC_HEALTH_STATUS=5, VC_HEALTH_GRAPH=6).
+    // Resolved up front (rather than down by CLAY_VIEW_*) because the holiday
+    // mask below needs to know whether the DEFAULT (slot 0) view is the 3-row
+    // full calendar, to anchor prevWeek the same way the watch will draw it.
+    var LAYOUT_PRESETS = {
+        classic:    [2, 4, 0],   // compact / radar / off      (today's behaviour)
+        radarLast:  [2, 5, 4],   // compact / health-status / radar
+        forecast:   [3, 4, 0],   // big forecast / radar / off
+        fullCal:    [1, 4, 0],   // 3-row calendar / radar / off
+        healthFirst:[2, 6, 4]    // compact / health-graph / radar
+    };
+    // Legacy migration: pre-preset installs only ever set healthMode/topViewMode.
+    // When layoutPreset hasn't been chosen yet (new setting, unset in existing
+    // storage), derive an equivalent preset so an upgrade doesn't silently reset
+    // the watch to the classic layout — and, for existing health users, so health
+    // stays reachable instead of being dropped from the cycle entirely.
+    var layoutPresetKey = settings.layoutPreset;
+    if (!layoutPresetKey) {
+        if (settings.healthMode === 'all') {
+            layoutPresetKey = 'healthFirst';
+        } else if (settings.healthMode === 'status') {
+            layoutPresetKey = 'radarLast';
+        } else if (settings.topViewMode === 'full') {
+            layoutPresetKey = 'fullCal';
+        } else if (settings.topViewMode === 'none') {
+            layoutPresetKey = 'forecast';
+        } else {
+            layoutPresetKey = 'classic';
+        }
+    }
+    var preset = LAYOUT_PRESETS[layoutPresetKey] || LAYOUT_PRESETS.classic;
+    var defaultIsFull = preset[0] === 1;           // slot 0 is the 3-row calendar
+    var compact = !defaultIsFull;
     var payload = {
         "CLAY_CELSIUS": settings.temperatureUnits === 'c',
         "CLAY_TIME_LEAD_ZERO": settings.timeLeadingZero,
@@ -71,31 +106,8 @@ function buildClayPayload(settings, watchInfo, now) {
     payload.BAR_PALETTE_UINT8 = palette.BAR_PALETTE_UINT8;
     payload.RADAR_PALETTE_UINT8 = palette.RADAR_PALETTE_UINT8;
 
-    // Layout preset → the watch's three-slot view cycle (ViewContent enum in
-    // config.h: VC_OFF=0, VC_FORECAST_FULL=1, VC_FORECAST_COMPACT=2,
-    // VC_FORECAST_NONE=3, VC_RADAR=4, VC_HEALTH_STATUS=5).
-    var LAYOUT_PRESETS = {
-        classic:    [2, 4, 0],   // compact / radar / off      (today's behaviour)
-        radarLast:  [2, 5, 4],   // compact / health-status / radar
-        forecast:   [3, 4, 0],   // big forecast / radar / off
-        fullCal:    [1, 4, 0],   // 3-row calendar / radar / off
-        healthFirst:[2, 5, 4]    // compact / health / radar
-    };
-    // Legacy migration: pre-preset installs only ever set topViewMode. When
-    // layoutPreset hasn't been chosen yet (new setting, unset in existing
-    // storage), derive an equivalent preset from it so an upgrade doesn't
-    // silently reset the watch to the classic layout.
-    var layoutPresetKey = settings.layoutPreset;
-    if (!layoutPresetKey) {
-        if (settings.topViewMode === 'full') {
-            layoutPresetKey = 'fullCal';
-        } else if (settings.topViewMode === 'none') {
-            layoutPresetKey = 'forecast';
-        } else {
-            layoutPresetKey = 'classic';
-        }
-    }
-    var preset = LAYOUT_PRESETS[layoutPresetKey] || LAYOUT_PRESETS.classic;
+    // preset was resolved above (before HOLIDAYS) so the calendar anchoring
+    // could see the default view's slot; reuse it here rather than resolving twice.
     payload.CLAY_VIEW_0 = preset[0];
     payload.CLAY_VIEW_1 = preset[1];
     payload.CLAY_VIEW_2 = preset[2];

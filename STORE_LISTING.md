@@ -76,7 +76,7 @@ WATCH STATUS
 
 LAYOUT CUSTOMIZATION
 - Layout presets choose what's on screen by default and what a wrist-flick cycles
-  through next: Classic, Radar last, Big forecast, Full calendar, or Health first
+  through next: Classic, Radar last, Big forecast, Full calendar, or Health graph first
   (previewed live in settings)
 - Presets range from a 3-row calendar down to no calendar at all (full-date strip,
   bigger clock and status line, full-screen forecast)
