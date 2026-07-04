@@ -36,6 +36,10 @@ Remove build artifacts:
 mise clean
 ```
 
+- `mise test-c` — host-compiled C tests (layout golden rects). Also runs inside
+  `mise test`. `mise test-c -- dump` prints the actual rects for deliberate
+  golden updates.
+
 Regenerate `package.json` from template + profile:
 ```bash
 mise prepare-package

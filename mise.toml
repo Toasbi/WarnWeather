@@ -112,7 +112,12 @@ description = "Run the Node test suite"
 run = [
   "node scripts/build-config-page.js",
   "node --test",
+  "scripts/test-c.sh",
 ]
+
+[tasks.test-c]
+description = "Host-compiled C tests (layout golden rects; 'mise test-c -- dump' prints actuals)"
+run = "scripts/test-c.sh"
 
 [tasks.aplite-size]
 description = "Build and print aplite image footprint (text+data+bss via arm-none-eabi-size; heap leading indicator)"
