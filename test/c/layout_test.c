@@ -125,9 +125,93 @@ static void golden_rects(void) {
 #endif
 }
 
+static void expect(const char *name, bool got, bool want) {
+    if (got != want) { printf("FAIL %s: got %d want %d\n", name, got, want); s_failures++; }
+}
+
+static ViewSpec spec_of(uint8_t mode, bool dual, uint8_t top, uint8_t bottom,
+                        bool graph_on, bool active) {
+    return view_spec_resolve(
+        view_spec_from_state(mode, dual, top, bottom, graph_on, active), true);
+}
+
+static void viewspec_tests(void) {
+    // Default boot view: full, calendar + forecast + weather status.
+    ViewSpec s = spec_of(LAYOUT_TIER_FULL, false, 0, 0, false, false);
+    LayerVisibility v = layout_visibility(&s);
+    expect("boot.calendar", v.calendar, true);
+    expect("boot.radar", v.radar, false);
+    expect("boot.forecast", v.forecast, true);
+    expect("boot.health_graph", v.health_graph, false);
+    expect("boot.weather_status", v.weather_status, true);
+    expect("boot.health_status", v.health_status, false);
+    expect("boot.tier", s.status_tier == LAYOUT_TIER_FULL, true);
+
+    // Health ALL flick: radar top + health graph + health status.
+    s = spec_of(LAYOUT_TIER_COMPACT, false, 1, 1, true, true);
+    v = layout_visibility(&s);
+    expect("alt.calendar", v.calendar, false);
+    expect("alt.radar", v.radar, true);
+    expect("alt.forecast", v.forecast, false);
+    expect("alt.health_graph", v.health_graph, true);
+    expect("alt.health_status", v.health_status, true);
+    expect("alt.weather_status", v.weather_status, false);
+
+    // Health STATUS mode: bottom=health keeps the forecast graph, swaps the status row.
+    s = spec_of(LAYOUT_TIER_COMPACT, false, 1, 1, false, true);
+    v = layout_visibility(&s);
+    expect("hstat.forecast", v.forecast, true);
+    expect("hstat.health_graph", v.health_graph, false);
+    expect("hstat.health_status", v.health_status, true);
+
+    // Radar top requested with NO data -> calendar (the flick dead-end downgrade).
+    ViewSpec raw = view_spec_from_state(LAYOUT_TIER_COMPACT, false, 1, 0, false, false);
+    s = view_spec_resolve(raw, false);
+    expect("noradar.top_is_calendar", s.top == TOP_BAND_CALENDAR, true);
+
+    // none-mode radar stop carries the health status row; without data both fall back.
+    raw = view_spec_from_state(LAYOUT_TIER_NONE, false, 0, 2, false, true);
+    s = view_spec_resolve(raw, true);
+    expect("noneradar.body", s.body == BODY_RADAR, true);
+    expect("noneradar.status", s.status == STATUS_ROW_HEALTH, true);
+    s = view_spec_resolve(raw, false);
+    expect("noneradar.fallback_body", s.body == BODY_FORECAST, true);
+    expect("noneradar.fallback_status", s.status == STATUS_ROW_WEATHER, true);
+
+    // A stray BODY_RADAR outside none normalizes to forecast even with data.
+    raw = view_spec_from_state(LAYOUT_TIER_FULL, false, 0, 2, false, false);
+    s = view_spec_resolve(raw, true);
+    expect("strayradar.body", s.body == BODY_FORECAST, true);
+
+    // Dual: both status rows; tier promotes to FULL under a compact top view only.
+    s = spec_of(LAYOUT_TIER_COMPACT, true, 0, 0, false, true);
+    v = layout_visibility(&s);
+    expect("dual.weather_status", v.weather_status, true);
+    expect("dual.health_status", v.health_status, true);
+    expect("dual.tier_full", s.status_tier == LAYOUT_TIER_FULL, true);
+    s = spec_of(LAYOUT_TIER_NONE, true, 0, 0, false, true);
+    expect("dualnone.tier_none", s.status_tier == LAYOUT_TIER_NONE, true);
+
+    // Geometry equivalence: spec-driven == legacy for every mode x dual.
+    static const uint8_t tiers[3] = { LAYOUT_TIER_FULL, LAYOUT_TIER_COMPACT, LAYOUT_TIER_NONE };
+    for (int t = 0; t < 3; t++) {
+        for (int d = 0; d < 2; d++) {
+            bool dual = (d == 1) && tiers[t] != LAYOUT_TIER_FULL;  // dual never in full
+            ViewSpec sp = view_spec_from_state(tiers[t], dual, 0, 0, false, dual);
+            MainLayout a = layout_compute_spec(BOUNDS, &sp, FC_BAND_H);
+            MainLayout b = layout_compute(BOUNDS, tiers[t], dual, FC_BAND_H);
+            if (memcmp(&a, &b, sizeof(MainLayout)) != 0) {
+                printf("FAIL equivalence tier=%d dual=%d\n", tiers[t], dual);
+                s_failures++;
+            }
+        }
+    }
+}
+
 int main(int argc, char **argv) {
     s_dump = (argc > 1 && strcmp(argv[1], "dump") == 0);
     golden_rects();
+    if (!s_dump) viewspec_tests();
     if (s_dump) return 0;
     if (s_failures) { printf("%d golden-rect failure(s)\n", s_failures); return 1; }
     printf("layout golden rects OK%s\n",

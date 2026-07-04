@@ -147,3 +147,64 @@ MainLayout layout_compute(GRect bounds, uint8_t tier, bool dual, int fc_band_h) 
     static const uint8_t default_weights[3] = { WEIGHT_CALENDAR, WEIGHT_TIME, WEIGHT_BOTTOM };
     return compute_with_weights(bounds, tier, dual, fc_band_h, default_weights);
 }
+
+// ── ViewSpec producers/consumers ────────────────────────────────────────────
+
+ViewSpec view_spec_from_state(uint8_t top_view_mode, bool dual,
+                              uint8_t top_view, uint8_t bottom_view,
+                              bool health_graph_on, bool health_active) {
+    ViewSpec spec;
+    bool none = (top_view_mode == LAYOUT_TIER_NONE);
+    spec.calendar_rows = none ? 0 : (top_view_mode == LAYOUT_TIER_COMPACT ? 2 : 3);
+    spec.top = none ? TOP_BAND_EMPTY
+                    : (top_view == 1 ? TOP_BAND_RADAR : TOP_BAND_CALENDAR);
+    spec.body = (bottom_view == 2) ? BODY_RADAR
+              : (bottom_view == 1 && health_graph_on) ? BODY_HEALTH_GRAPH
+              : BODY_FORECAST;
+    // Dual shows both rows; otherwise the health row rides any non-forecast stop
+    // (health graph, and in none mode the radar stop) while weather rides the forecast.
+    spec.status = dual ? STATUS_ROW_DUAL
+                : (bottom_view != 0 && health_active) ? STATUS_ROW_HEALTH
+                : STATUS_ROW_WEATHER;
+    // Dual under a compact top view renders both rows at the full tier so they match;
+    // none keeps its own taller band. Mirrors the old status_render_tier().
+    spec.status_tier = (dual && top_view_mode == LAYOUT_TIER_COMPACT)
+                       ? LAYOUT_TIER_FULL : top_view_mode;
+    spec.weights[0] = WEIGHT_CALENDAR;
+    spec.weights[1] = WEIGHT_TIME;
+    spec.weights[2] = WEIGHT_BOTTOM;
+    return spec;
+}
+
+ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar) {
+    if (spec.top == TOP_BAND_RADAR && !has_radar) {
+        spec.top = TOP_BAND_CALENDAR;
+    }
+    // BODY_RADAR is a none-only body; downgrade outside none or without data. The
+    // health status row pairs with that radar stop, so it falls back alongside
+    // (dual is untouched — both rows stay).
+    if (spec.body == BODY_RADAR && (spec.calendar_rows != 0 || !has_radar)) {
+        spec.body = BODY_FORECAST;
+        if (spec.status == STATUS_ROW_HEALTH) { spec.status = STATUS_ROW_WEATHER; }
+    }
+    return spec;
+}
+
+LayerVisibility layout_visibility(const ViewSpec *spec) {
+    LayerVisibility v;
+    v.calendar = (spec->calendar_rows > 0) && (spec->top == TOP_BAND_CALENDAR);
+    v.radar = (spec->top == TOP_BAND_RADAR) || (spec->body == BODY_RADAR);
+    v.forecast = (spec->body == BODY_FORECAST);
+    v.health_graph = (spec->body == BODY_HEALTH_GRAPH);
+    v.weather_status = (spec->status == STATUS_ROW_WEATHER) || (spec->status == STATUS_ROW_DUAL);
+    v.health_status = (spec->status == STATUS_ROW_HEALTH) || (spec->status == STATUS_ROW_DUAL);
+    return v;
+}
+
+MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h) {
+    uint8_t tier = (spec->calendar_rows == 0) ? LAYOUT_TIER_NONE
+                 : (spec->calendar_rows == 2) ? LAYOUT_TIER_COMPACT
+                 : LAYOUT_TIER_FULL;
+    return compute_with_weights(bounds, tier, spec->status == STATUS_ROW_DUAL,
+                                fc_band_h, spec->weights);
+}
