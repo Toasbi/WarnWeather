@@ -40,10 +40,63 @@ function unpackSpec(b) {
   return spec((b >> 6) & 3, (b >> 4) & 3, (b >> 2) & 3, b & 3);
 }
 
+// Named views (see the design doc's view vocabulary).
+var CAL3_FC_W    = spec(TIER_FULL, TOP_CAL, BODY_FC, ST_W);
+var CAL3_RDR_W   = spec(TIER_FULL, TOP_CAL, BODY_RADAR, ST_W);
+var CAL2_FC_W    = spec(TIER_COMPACT, TOP_CAL, BODY_FC, ST_W);
+var CAL2_FC_H    = spec(TIER_COMPACT, TOP_CAL, BODY_FC, ST_H);
+var CAL2_FC_D    = spec(TIER_COMPACT, TOP_CAL, BODY_FC, ST_D);
+var CAL2_RDR_W   = spec(TIER_COMPACT, TOP_CAL, BODY_RADAR, ST_W);
+var CAL2_RDR_D   = spec(TIER_COMPACT, TOP_CAL, BODY_RADAR, ST_D);
+var CAL2_GRAPH_D = spec(TIER_COMPACT, TOP_CAL, BODY_GRAPH, ST_D);
+var RDR_FC_W     = spec(TIER_FULL, TOP_RADAR, BODY_FC, ST_W);
+var RDR_FC_NONE  = spec(TIER_FULL, TOP_RADAR, BODY_FC, ST_NONE);
+var NONE_FC_W    = spec(TIER_NONE, TOP_EMPTY, BODY_FC, ST_W);
+var NONE_FC_H    = spec(TIER_NONE, TOP_EMPTY, BODY_FC, ST_H);
+var NONE_GRAPH_H = spec(TIER_NONE, TOP_EMPTY, BODY_GRAPH, ST_H);
+var NONE_RDR_W   = spec(TIER_NONE, TOP_EMPTY, BODY_RADAR, ST_W);
+
+// preset -> healthMode -> radar-key ('r' = radar on, 'n' = off) -> cycle.
+var MATRIX = {
+  fullCal: {
+    off:    { n: [CAL3_FC_W],           r: [CAL3_FC_W, CAL3_RDR_W] },
+    status: { n: [CAL3_FC_W, CAL2_FC_D], r: [CAL3_FC_W, CAL2_FC_D, RDR_FC_W] },
+    all:    { n: [CAL3_FC_W, NONE_GRAPH_H], r: [CAL3_FC_W, NONE_GRAPH_H, NONE_RDR_W] }
+  },
+  compactCal: {
+    off:    { n: [CAL2_FC_W],           r: [CAL2_FC_W, CAL2_RDR_W] },
+    status: { n: [CAL2_FC_W, CAL2_FC_H], r: [CAL2_FC_W, CAL2_FC_H, RDR_FC_NONE] },
+    all:    { n: [CAL2_FC_W, NONE_GRAPH_H], r: [CAL3_FC_W, NONE_GRAPH_H, NONE_RDR_W] }
+  },
+  compactDense: {
+    off:    { n: [CAL2_FC_W],           r: [CAL2_FC_W, CAL2_RDR_W] },
+    status: { n: [CAL2_FC_D],           r: [CAL2_FC_D, RDR_FC_W] },
+    all:    { n: [CAL2_FC_D, CAL2_GRAPH_D], r: [CAL2_FC_D, CAL2_GRAPH_D, CAL2_RDR_D] }
+  },
+  noCal: {
+    off:    { n: [NONE_FC_W],           r: [NONE_FC_W, NONE_RDR_W] },
+    status: { n: [NONE_FC_W, NONE_FC_H], r: [NONE_FC_W, NONE_FC_H, NONE_RDR_W] },
+    all:    { n: [NONE_FC_W, NONE_GRAPH_H], r: [NONE_FC_W, NONE_GRAPH_H, NONE_RDR_W] }
+  }
+};
+
+/**
+ * Compile a preset + health mode + radar availability to the 1–3 view cycle.
+ * @param {string} presetKey 'fullCal'|'compactCal'|'compactDense'|'noCal'
+ * @param {string} healthMode 'off'|'status'|'all'
+ * @param {boolean} radarEnabled
+ * @returns {Array<{tier:number,top:number,body:number,status:number}>}
+ */
+function buildViewCycle(presetKey, healthMode, radarEnabled) {
+  var byPreset = MATRIX[presetKey] || MATRIX.compactCal;
+  var byHealth = byPreset[healthMode] || byPreset.off;
+  return byHealth[radarEnabled ? 'r' : 'n'];
+}
+
 module.exports = {
   TIER_OFF: TIER_OFF, TIER_NONE: TIER_NONE, TIER_COMPACT: TIER_COMPACT, TIER_FULL: TIER_FULL,
   TOP_EMPTY: TOP_EMPTY, TOP_CAL: TOP_CAL, TOP_RADAR: TOP_RADAR,
   BODY_FC: BODY_FC, BODY_GRAPH: BODY_GRAPH, BODY_RADAR: BODY_RADAR,
   ST_W: ST_W, ST_H: ST_H, ST_D: ST_D, ST_NONE: ST_NONE,
-  spec: spec, packSpec: packSpec, unpackSpec: unpackSpec
+  spec: spec, packSpec: packSpec, unpackSpec: unpackSpec, buildViewCycle: buildViewCycle
 };

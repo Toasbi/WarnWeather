@@ -19,3 +19,47 @@ test('unpackSpec round-trips packSpec', () => {
   assert.deepStrictEqual(vc.unpackSpec(vc.packSpec(s)), s);
   assert.strictEqual(vc.unpackSpec(0), null);
 });
+
+function bytes(presetKey, healthMode, radar) {
+  return vc.buildViewCycle(presetKey, healthMode, radar).map(vc.packSpec);
+}
+
+test('compactCal cycles', () => {
+  assert.deepStrictEqual(bytes('compactCal', 'off', false), [0x90]);                 // CAL2·FC·W
+  assert.deepStrictEqual(bytes('compactCal', 'off', true),  [0x90, 0x98]);           // + CAL2·RDR·W
+  assert.deepStrictEqual(bytes('compactCal', 'status', false), [0x90, 0x91]);        // + CAL2·FC·H
+  assert.deepStrictEqual(bytes('compactCal', 'status', true),  [0x90, 0x91, 0xE3]);  // + RDR·FC·— (no status)
+  assert.deepStrictEqual(bytes('compactCal', 'all', false), [0x90, 0x45]);           // + NONE·GRAPH·H
+  assert.deepStrictEqual(bytes('compactCal', 'all', true),  [0xD0, 0x45, 0x48]);     // packed: CAL3 default, big flicks
+});
+
+test('compactDense cycles (dual on default when health on)', () => {
+  assert.deepStrictEqual(bytes('compactDense', 'off', false), [0x90]);
+  assert.deepStrictEqual(bytes('compactDense', 'off', true),  [0x90, 0x98]);
+  assert.deepStrictEqual(bytes('compactDense', 'status', false), [0x92]);            // CAL2·FC·D only
+  assert.deepStrictEqual(bytes('compactDense', 'status', true),  [0x92, 0xE0]);      // + RDR·FC·W
+  assert.deepStrictEqual(bytes('compactDense', 'all', false), [0x92, 0x96]);         // + CAL2·GRAPH·D
+  assert.deepStrictEqual(bytes('compactDense', 'all', true),  [0x92, 0x96, 0x9A]);   // + CAL2·RDR·D
+});
+
+test('fullCal cycles', () => {
+  assert.deepStrictEqual(bytes('fullCal', 'off', false), [0xD0]);                    // CAL3·FC·W
+  assert.deepStrictEqual(bytes('fullCal', 'off', true),  [0xD0, 0xD8]);              // + CAL3·RDR·W
+  assert.deepStrictEqual(bytes('fullCal', 'status', false), [0xD0, 0x92]);           // + CAL2·FC·D
+  assert.deepStrictEqual(bytes('fullCal', 'status', true),  [0xD0, 0x92, 0xE0]);     // + RDR·FC·W
+  assert.deepStrictEqual(bytes('fullCal', 'all', false), [0xD0, 0x45]);              // + NONE·GRAPH·H
+  assert.deepStrictEqual(bytes('fullCal', 'all', true),  [0xD0, 0x45, 0x48]);        // + NONE·RDR·W
+});
+
+test('noCal cycles (never a calendar)', () => {
+  assert.deepStrictEqual(bytes('noCal', 'off', false), [0x40]);                      // NONE·FC·W
+  assert.deepStrictEqual(bytes('noCal', 'off', true),  [0x40, 0x48]);
+  assert.deepStrictEqual(bytes('noCal', 'status', false), [0x40, 0x41]);             // + NONE·FC·H
+  assert.deepStrictEqual(bytes('noCal', 'status', true),  [0x40, 0x41, 0x48]);
+  assert.deepStrictEqual(bytes('noCal', 'all', false), [0x40, 0x45]);
+  assert.deepStrictEqual(bytes('noCal', 'all', true),  [0x40, 0x45, 0x48]);
+});
+
+test('unknown preset falls back to compactCal', () => {
+  assert.deepStrictEqual(bytes('bogus', 'off', false), bytes('compactCal', 'off', false));
+});
