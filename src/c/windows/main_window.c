@@ -35,10 +35,13 @@ typedef enum {
     BOTTOM_RADAR = 2   // none-mode only: radar reframed into the bottom band
 } BottomView;
 
-// Session-only view state: every launch boots to DEFAULT (calendar + forecast +
-// weather-status). A wrist-flick (accel tap) toggles the whole screen.
-static TopView s_top_view;
-static BottomView s_bottom_view;
+static Window *s_main_window;
+
+// Session-only cycle cursor: every launch boots to the DEFAULT view (index 0).
+// A wrist-flick advances to the next enabled + available view and wraps back.
+static uint8_t s_view_index;
+// Minutes since the last flick, for the auto-return-to-default timer (0 = disabled).
+static uint8_t s_minutes_since_flick;
 
 #if defined(PBL_HEALTH)
 // Tracks the last-seen health_mode so an off->on flip (settings, boot)
@@ -84,47 +87,81 @@ static bool health_view_active(void) {
 #endif
 }
 
-#if defined(PBL_HEALTH)
-// Whether the health status line (rather than the weather one) shows for a given bottom
-// view. Dual shows both, so true there; otherwise the health line rides any non-forecast
-// body (the health graph, and in none mode the radar stop) while weather rides the
-// forecast — so a none-mode radar flick pairs with the health status line.
-static bool health_status_shown_for(BottomView bottom) {
-    if (dual_active()) { return true; }
-    return bottom != BOTTOM_FORECAST && health_view_active();
-}
-#endif
-
-// The current ViewSpec: session state + config compiled to data. The SDK/persist
-// queries happen HERE (the producer); layout.c stays pure.
-static ViewSpec current_view_spec(void) {
-    bool health_graph_on = false;
-    bool health_active = false;
-#if defined(PBL_HEALTH)
-    health_graph_on = (g_config->health_mode == HEALTH_ALL);
-    health_active = health_view_active();
-#endif
-    ViewSpec spec = view_spec_from_state(g_config->top_view_mode, dual_active(),
-                                         (uint8_t)s_top_view, (uint8_t)s_bottom_view,
+// Map a configured ViewContent to the layout module's preset producer, then resolve
+// data-availability downgrades. The SDK/persist queries happen HERE (the producer);
+// layout.c stays pure. top_view/bottom_view mirror the old TopView/BottomView ints
+// (top: 0=calendar,1=radar; bottom: 0=forecast,1=health,2=radar).
+static ViewSpec spec_for_content(uint8_t content) {
+    uint8_t mode = TOP_VIEW_COMPACT, top_view = TOP_VIEW_CALENDAR, bottom_view = BOTTOM_FORECAST;
+    bool health_graph_on = false, health_active = false;
+    switch (content) {
+        case VC_FORECAST_FULL:    mode = TOP_VIEW_FULL;    break;
+        case VC_FORECAST_COMPACT: mode = TOP_VIEW_COMPACT; break;
+        case VC_FORECAST_NONE:    mode = TOP_VIEW_NONE;    break;
+        case VC_RADAR:            mode = TOP_VIEW_NONE; bottom_view = BOTTOM_RADAR; break;
+        case VC_HEALTH_STATUS:    mode = TOP_VIEW_COMPACT; bottom_view = BOTTOM_HEALTH;
+                                  health_active = health_view_active(); break;
+        case VC_HEALTH_GRAPH:     mode = TOP_VIEW_NONE; bottom_view = BOTTOM_HEALTH;
+                                  health_graph_on = true; health_active = health_view_active(); break;
+        default:                  mode = TOP_VIEW_COMPACT; break;   // VC_OFF safety
+    }
+    ViewSpec spec = view_spec_from_state(mode, false, top_view, bottom_view,
                                          health_graph_on, health_active);
     return view_spec_resolve(spec, radar_has_data());
 }
 
-static void apply_view(TopView top, BottomView bottom) {
-    bool none = (g_config->top_view_mode == TOP_VIEW_NONE);
-    // Normalize the STORED session state exactly as before. These two downgrades
-    // mirror view_spec_resolve() in the TopView/BottomView domain — keep in sync
-    // until phase 2 replaces the (top, bottom) state with stop specs.
-    if (!none && top == TOP_VIEW_RAIN_RADAR && !radar_has_data()) {
-        top = TOP_VIEW_CALENDAR;
-    }
-    if (bottom == BOTTOM_RADAR && (!none || !radar_has_data())) {
-        bottom = BOTTOM_FORECAST;
-    }
-    s_top_view = top;
-    s_bottom_view = bottom;
+// The ViewSpec for the view currently on screen.
+static ViewSpec current_view_spec(void) {
+    return spec_for_content(g_config->view_content[s_view_index]);
+}
 
+// Is a view slot renderable right now? OFF never; radar needs data; health needs a live
+// view. health_view_active() is a hard false on no-health platforms.
+static bool view_available(uint8_t content) {
+    if (content == VC_OFF) { return false; }
+    if (content == VC_RADAR) { return radar_has_data(); }
+    if (content == VC_HEALTH_STATUS || content == VC_HEALTH_GRAPH) { return health_view_active(); }
+    return true;
+}
+
+// Next enabled + available slot after `from`, wrapping. Index 0 (the default view) is
+// always a valid stop, so the cycle can never get stuck.
+static uint8_t next_view_index(uint8_t from) {
+    for (int step = 1; step <= 3; step++) {
+        uint8_t i = (uint8_t)((from + step) % 3);
+        if (i == 0 || view_available(g_config->view_content[i])) { return i; }
+    }
+    return 0;
+}
+
+// Reframe every band and set layer visibility + status tiers for the active view.
+// Geometry can change on a flick (a view may be a different tier), so this recomputes
+// the layout each time rather than only toggling visibility. Layers are reframed, never
+// destroyed/recreated. Text re-measurement is the caller's main_window_refresh().
+static void render_active_view(void) {
+    GRect bounds = layer_get_bounds(window_get_root_layer(s_main_window));
     ViewSpec spec = current_view_spec();
+    MainLayout L = layout_compute_spec(bounds, &spec,
+                                       status_forecast_band_h(status_full_tier_font()));
+    layer_set_frame(time_layer_get_root(), L.time);
+    layer_set_frame(calendar_layer_get_root(), L.top);
+    layer_set_frame(rain_radar_layer_get_root(), L.radar);
+    weather_status_layer_set_render_tier(spec.status_tier);
+#if defined(PBL_HEALTH)
+    layer_set_frame(weather_status_layer_get_root(),
+                    (spec.status == STATUS_ROW_DUAL) ? L.status_lower : L.status);
+    health_status_layer_set_render_tier(spec.status_tier);
+    health_status_layer_set_full_mode(spec.calendar_rows == 3);
+    layer_set_frame(health_status_layer_get_root(), L.status);
+#else
+    layer_set_frame(weather_status_layer_get_root(), L.status);
+#endif
+    layer_set_frame(forecast_layer_get_root(), L.bottom);
+#if defined(PBL_HEALTH)
+    layer_set_frame(health_graph_layer_get_root(), L.bottom);
+#endif
+    layer_set_frame(loading_layer_get_root(), L.loading);
+
     LayerVisibility v = layout_visibility(&spec);
     layer_set_hidden(calendar_layer_get_root(), !v.calendar);
     layer_set_hidden(rain_radar_layer_get_root(), !v.radar);
@@ -136,34 +173,10 @@ static void apply_view(TopView top, BottomView bottom) {
 #endif
 }
 
-// none-mode flick: cycle the big bottom band. FORECAST -> RADAR (if data) -> HEALTH
-// (if a dedicated health stop applies) -> FORECAST. The radar stop carries the health
-// status line (see health_status_shown_for), so in Status mode with radar present it's
-// a clean two-view cycle with no separate HEALTH stop. A dedicated HEALTH stop appears
-// only when the health graph is enabled (ALL), or in Status mode with no radar to carry
-// the health bar (so health stays reachable). health_view_active() is a hard false on
-// no-health platforms, so BOTTOM_HEALTH is never returned there.
-static BottomView none_next_bottom(BottomView cur) {
-    bool has_radar = radar_has_data();
-    bool has_health_stop = health_view_active()
-        && (g_config->health_mode == HEALTH_ALL || !has_radar);
-    switch (cur) {
-        case BOTTOM_FORECAST:
-            if (has_radar)       { return BOTTOM_RADAR; }
-            if (has_health_stop) { return BOTTOM_HEALTH; }
-            return BOTTOM_FORECAST;
-        case BOTTOM_RADAR:
-            if (has_health_stop) { return BOTTOM_HEALTH; }
-            return BOTTOM_FORECAST;
-        default: /* BOTTOM_HEALTH */
-            return BOTTOM_FORECAST;
-    }
-}
-
 static void tap_handler(AccelAxisType axis, int32_t direction) {
     // accel_tap_service fires per-axis, so one physical tap commonly delivers
     // 2+ callbacks in quick succession (e.g. X then Z) — without debounce the
-    // toggle flips an even number of times and looks like it did nothing.
+    // cursor advances an even number of times and looks like it did nothing.
     static uint64_t s_last_tap_ms = 0;
     time_t now_s;
     uint16_t now_ms_part;
@@ -172,51 +185,24 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
     if (now_ms - s_last_tap_ms < 500) return;
     s_last_tap_ms = now_ms;
 
-    if (g_config->top_view_mode == TOP_VIEW_NONE) {
-        BottomView next = none_next_bottom(s_bottom_view);
+    uint8_t next = next_view_index(s_view_index);
+    if (next == s_view_index) { return; }   // nothing else enabled/available
+    s_view_index = next;
+    s_minutes_since_flick = 0;               // restart the auto-return timer
 #if defined(PBL_HEALTH)
-        // The health status line rides the health stop AND (Status mode) the radar stop,
-        // so refresh health whenever the next stop shows it. Cheap in-progress-hour
-        // re-read (no-op if a build is pending), then render from the cache.
-        if (health_status_shown_for(next)) {
+    // Warm health for the incoming view before it renders (cheap current-hour re-read).
+    {
+        ViewSpec ns = current_view_spec();
+        LayerVisibility nv = layout_visibility(&ns);
+        if (nv.health_status || nv.health_graph) {
             health_cache_refresh_current_hour();
-            if (next == BOTTOM_HEALTH && g_config->health_mode == HEALTH_ALL) {
-                health_graph_layer_refresh();
-            }
-            health_status_layer_refresh();
+            if (nv.health_graph) { health_graph_layer_refresh(); }
         }
-#endif
-        apply_view(s_top_view, next);   // top is ignored in none
-        return;
-    }
-
-#if defined(PBL_HEALTH)
-    if (health_view_active()) {
-        // Toggle the whole screen between DEFAULT (calendar/forecast/weather-status)
-        // and ALTERNATE (radar-if-data-else-calendar / health-graph / health-status).
-        if (s_bottom_view == BOTTOM_FORECAST) {
-            // Cheap in-progress-hour re-read (no-op if a build is pending), then
-            // render from the cache. apply_view downgrades the radar top to the
-            // calendar when there is no data.
-            health_cache_refresh_current_hour();
-            if (g_config->health_mode == HEALTH_ALL) { health_graph_layer_refresh(); }
-            health_status_layer_refresh();
-            apply_view(TOP_VIEW_RAIN_RADAR, BOTTOM_HEALTH);
-        } else {
-            apply_view(TOP_VIEW_CALENDAR, BOTTOM_FORECAST);
-        }
-        return;
     }
 #endif
-
-    // Legacy behaviour: top-only calendar<->radar with the forecast fixed; inert
-    // when there is no radar data to show.
-    if (s_top_view == TOP_VIEW_CALENDAR && !radar_has_data()) { return; }
-    apply_view(s_top_view == TOP_VIEW_CALENDAR ? TOP_VIEW_RAIN_RADAR : TOP_VIEW_CALENDAR,
-               BOTTOM_FORECAST);
+    render_active_view();
+    main_window_refresh();
 }
-
-static Window *s_main_window;
 
 static void main_window_load(Window *window) {
     // Get information about the Window
@@ -237,7 +223,7 @@ static void main_window_load(Window *window) {
 #if defined(PBL_HEALTH)
     weather_status_layer_create(window_layer, (spec.status == STATUS_ROW_DUAL) ? L.status_lower : L.status);
     health_status_layer_set_render_tier(spec.status_tier);
-    health_status_layer_set_full_mode(g_config->top_view_mode == TOP_VIEW_FULL);
+    health_status_layer_set_full_mode(spec.calendar_rows == 3);
     health_status_layer_create(window_layer, L.status);
 #else
     weather_status_layer_create(window_layer, L.status);
@@ -249,9 +235,9 @@ static void main_window_load(Window *window) {
     loading_layer_create(window_layer, L.loading);
     loading_layer_refresh();
     app_message_send_startup_state(loading_layer_data_is_fresh());
-    // The view is session-only state: every launch starts on the DEFAULT view
-    // (calendar + forecast + weather-status) and a wrist-flick toggles it.
-    apply_view(TOP_VIEW_CALENDAR, BOTTOM_FORECAST);
+    // The cycle cursor is session-only: every launch starts on the DEFAULT view
+    // (index 0). Set the initial layer visibility for it (geometry already applied above).
+    render_active_view();
 #if defined(PBL_HEALTH)
     // Repaint the health view when a deferred build finishes.
     health_cache_set_repaint(health_graph_layer_refresh);
@@ -295,20 +281,31 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     loading_layer_refresh();
 #if defined(PBL_HEALTH)
     // Keep the cache warm whenever health is enabled (rollover-warm always; the
-    // 15-min current-hour re-read only while the health line is on screen — which now
-    // includes the none-mode radar stop). The render path stays HealthService-free.
-    bool health_on_screen = health_status_shown_for(s_bottom_view);
+    // 15-min current-hour re-read only while the health line is on screen). The
+    // render path stays HealthService-free.
+    ViewSpec aspec = current_view_spec();
+    LayerVisibility av = layout_visibility(&aspec);
+    bool health_on_screen = av.health_status || av.health_graph;
     if (g_config->health_mode != HEALTH_OFF) {
         health_cache_tick(health_on_screen);
     }
     // Repaint the on-screen health view from the (now-warm) cache.
     if (health_on_screen) {
-        if (s_bottom_view == BOTTOM_HEALTH && g_config->health_mode == HEALTH_ALL) {
+        if (av.health_graph) {
             health_graph_layer_refresh();
         }
         health_status_layer_refresh();
     }
 #endif
+    // Auto-return to the default view after view_reset_min minutes without a flick.
+    if (s_view_index != 0 && g_config->view_reset_min > 0) {
+        if (++s_minutes_since_flick >= g_config->view_reset_min) {
+            s_minutes_since_flick = 0;
+            s_view_index = 0;
+            render_active_view();
+            main_window_refresh();
+        }
+    }
 #ifndef WW_FIXTURE_NOW_YEAR
     // Live builds only: advance the radar window when a fetch boundary passes.
     // Fixtures are frozen snapshots anchored to the fixture clock — their window
@@ -353,48 +350,21 @@ void main_window_apply_top_view() {
     }
     s_health_mode_prev = g_config->health_mode;
 #endif
-    // Re-apply the current view after radar availability or health config changed.
-    // apply_view downgrades the radar (top in full/compact, bottom in none) when its
-    // data was cleared.
-    // Fall back from the health view when health is no longer active, but leave
-    // FORECAST/RADAR alone; apply_view separately downgrades RADAR when its data
-    // was cleared.
-    BottomView bottom = s_bottom_view;
-    if (bottom == BOTTOM_HEALTH && !health_view_active()) {
-        bottom = BOTTOM_FORECAST;
+    // Re-apply the current view after radar availability or config changed. A radar/health
+    // view whose data or capability vanished degrades in place via view_spec_resolve; only
+    // fall back to the default view if a config change turned the current slot OFF entirely.
+    if (s_view_index != 0 && g_config->view_content[s_view_index] == VC_OFF) {
+        s_view_index = 0;
     }
-    apply_view(s_top_view, bottom);
+    render_active_view();
+    main_window_refresh();
 }
 
 void main_window_relayout(void) {
-    GRect bounds = layer_get_bounds(window_get_root_layer(s_main_window));
-    ViewSpec spec = current_view_spec();
-    MainLayout L = layout_compute_spec(bounds, &spec,
-                                       status_forecast_band_h(status_full_tier_font()));
-    // The top-status band is identical in every mode, so it's never reframed here.
-    // The time band moves in none (up under the strip), so reframe it too — a live
-    // settings switch into/out of none then reflows the clock without a relaunch.
-    // main_window_refresh()'s time_layer_refresh() recomputes the inner digit
-    // position from the container bounds, so the clock re-centers after this.
-    layer_set_frame(time_layer_get_root(), L.time);
-    layer_set_frame(calendar_layer_get_root(), L.top);
-    layer_set_frame(rain_radar_layer_get_root(), L.radar);
-    // Keep the tier in sync with the reframed band; the refresh that follows this
-    // relayout (main_window_refresh) re-measures the text at the new tier.
-    weather_status_layer_set_render_tier(spec.status_tier);
-#if defined(PBL_HEALTH)
-    layer_set_frame(weather_status_layer_get_root(), (spec.status == STATUS_ROW_DUAL) ? L.status_lower : L.status);
-    health_status_layer_set_render_tier(spec.status_tier);
-    health_status_layer_set_full_mode(g_config->top_view_mode == TOP_VIEW_FULL);
-    layer_set_frame(health_status_layer_get_root(), L.status);
-#else
-    layer_set_frame(weather_status_layer_get_root(), L.status);
-#endif
-    layer_set_frame(forecast_layer_get_root(), L.bottom);
-#if defined(PBL_HEALTH)
-    layer_set_frame(health_graph_layer_get_root(), L.bottom);
-#endif
-    layer_set_frame(loading_layer_get_root(), L.loading);
+    // Recompute geometry, visibility and status tiers for the active view; the top-status
+    // band is identical across MVP presets so render_active_view leaves it framed as created.
+    // main_window_refresh() (called by the caller) re-measures the text at the new tier.
+    render_active_view();
 }
 
 void main_window_refresh() {
