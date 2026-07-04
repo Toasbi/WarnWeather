@@ -63,3 +63,23 @@ test('noCal cycles (never a calendar)', () => {
 test('unknown preset falls back to compactCal', () => {
   assert.deepStrictEqual(bytes('bogus', 'off', false), bytes('compactCal', 'off', false));
 });
+
+test('resolvePresetKey passes through new keys', () => {
+  assert.strictEqual(vc.resolvePresetKey({ layoutPreset: 'fullCal' }), 'fullCal');
+  assert.strictEqual(vc.resolvePresetKey({ layoutPreset: 'compactCal' }), 'compactCal');
+  assert.strictEqual(vc.resolvePresetKey({ layoutPreset: 'compactDense' }), 'compactDense');
+  assert.strictEqual(vc.resolvePresetKey({ layoutPreset: 'noCal' }), 'noCal');
+});
+
+test('resolvePresetKey migrates legacy layoutPreset values', () => {
+  assert.strictEqual(vc.resolvePresetKey({ layoutPreset: 'classic' }), 'compactCal');
+  assert.strictEqual(vc.resolvePresetKey({ layoutPreset: 'forecast' }), 'noCal');
+  assert.strictEqual(vc.resolvePresetKey({ layoutPreset: 'radarLast' }), 'compactCal');
+  assert.strictEqual(vc.resolvePresetKey({ layoutPreset: 'healthFirst' }), 'compactCal');
+});
+
+test('resolvePresetKey migrates pre-preset installs (topViewMode only)', () => {
+  assert.strictEqual(vc.resolvePresetKey({ topViewMode: 'full' }), 'fullCal');
+  assert.strictEqual(vc.resolvePresetKey({ topViewMode: 'none' }), 'noCal');
+  assert.strictEqual(vc.resolvePresetKey({}), 'compactCal');
+});

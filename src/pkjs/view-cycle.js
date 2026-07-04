@@ -93,10 +93,32 @@ function buildViewCycle(presetKey, healthMode, radarEnabled) {
   return byHealth[radarEnabled ? 'r' : 'n'];
 }
 
+var NEW_KEYS = { fullCal: 1, compactCal: 1, compactDense: 1, noCal: 1 };
+// legacy layoutPreset -> new. fullCal is unchanged (key kept, new semantics).
+var LEGACY_PRESET = {
+  classic: 'compactCal', radarLast: 'compactCal', healthFirst: 'compactCal',
+  forecast: 'noCal', fullCal: 'fullCal'
+};
+
+/**
+ * Resolve the effective preset key from a settings object, migrating legacy values.
+ * @param {Object} state Clay settings (or config-UI state).
+ * @returns {string} one of fullCal|compactCal|compactDense|noCal
+ */
+function resolvePresetKey(state) {
+  state = state || {};
+  var p = state.layoutPreset;
+  if (p && NEW_KEYS[p]) { return p; }
+  if (p && LEGACY_PRESET[p]) { return LEGACY_PRESET[p]; }
+  if (state.topViewMode === 'full') { return 'fullCal'; }
+  if (state.topViewMode === 'none') { return 'noCal'; }
+  return 'compactCal';
+}
+
 module.exports = {
   TIER_OFF: TIER_OFF, TIER_NONE: TIER_NONE, TIER_COMPACT: TIER_COMPACT, TIER_FULL: TIER_FULL,
   TOP_EMPTY: TOP_EMPTY, TOP_CAL: TOP_CAL, TOP_RADAR: TOP_RADAR,
   BODY_FC: BODY_FC, BODY_GRAPH: BODY_GRAPH, BODY_RADAR: BODY_RADAR,
   ST_W: ST_W, ST_H: ST_H, ST_D: ST_D, ST_NONE: ST_NONE,
-  spec: spec, packSpec: packSpec, unpackSpec: unpackSpec, buildViewCycle: buildViewCycle
+  spec: spec, packSpec: packSpec, unpackSpec: unpackSpec, buildViewCycle: buildViewCycle, resolvePresetKey: resolvePresetKey
 };
