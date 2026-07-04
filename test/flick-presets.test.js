@@ -1,54 +1,51 @@
 // test/flick-presets.test.js
-// The Layout tab's preset radio maps to the watch's three-slot view cycle
-// (view_content[3] + view_reset_min) via clay-payload.js's LAYOUT_PRESETS map.
-// Values mirror enum ViewContent in src/c/config.h: VC_OFF=0, VC_FORECAST_FULL=1,
-// VC_FORECAST_COMPACT=2, VC_FORECAST_NONE=3, VC_RADAR=4, VC_HEALTH_STATUS=5,
-// VC_HEALTH_GRAPH=6.
+// The Layout preset compiles (preset x healthMode x radarEnabled) to CLAY_VIEW_0/1/2
+// packed ViewSpec bytes via view-cycle.js. Packed-byte format & values: see view-cycle.test.js.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// holiday-mask → nager-source touches localStorage; install the mock before
-// any watch module loads (see change-detector.test.js for the pattern).
-global.localStorage = {
-  getItem: function(k) { return null; },
-  setItem: function(k, v) {},
-  removeItem: function(k) {}
-};
+global.localStorage = { getItem: function () { return null; }, setItem: function () {}, removeItem: function () {} };
 
 const { buildClayPayload } = require('../src/pkjs/clay-payload.js');
 
-test('classic preset → compact default, radar first flick, none second', () => {
-  const p = buildClayPayload({ layoutPreset: 'classic' }, null, new Date(0));
-  assert.strictEqual(p.CLAY_VIEW_0, 2);   // VC_FORECAST_COMPACT
-  assert.strictEqual(p.CLAY_VIEW_1, 4);   // VC_RADAR
-  assert.strictEqual(p.CLAY_VIEW_2, 0);   // VC_OFF
+function views(settings) {
+  const p = buildClayPayload(settings, null, new Date(0));
+  return [p.CLAY_VIEW_0, p.CLAY_VIEW_1, p.CLAY_VIEW_2];
+}
+
+test('compactCal default (off/no-radar) → [CAL2·FC·W, off, off]', () => {
+  assert.deepStrictEqual(views({ layoutPreset: 'compactCal', radarProvider: 'disabled' }), [0x90, 0, 0]);
 });
 
-test('radar-last preset → radar on the second flick', () => {
-  const p = buildClayPayload({ layoutPreset: 'radarLast', healthMode: 'status' }, null, new Date(0));
-  assert.strictEqual(p.CLAY_VIEW_1, 5);   // VC_HEALTH_STATUS first
-  assert.strictEqual(p.CLAY_VIEW_2, 4);   // VC_RADAR second
+test('compactCal all + radar → packed 3-stop cycle', () => {
+  assert.deepStrictEqual(views({ layoutPreset: 'compactCal', healthMode: 'all', radarProvider: 'dwd' }),
+    [0xD0, 0x45, 0x48]);
 });
 
-test('legacy topViewMode maps to a preset when no layoutPreset is set', () => {
-  assert.strictEqual(buildClayPayload({ topViewMode: 'none' }, null, new Date(0)).CLAY_VIEW_0, 3);   // none→big forecast default
-  assert.strictEqual(buildClayPayload({ topViewMode: 'full' }, null, new Date(0)).CLAY_VIEW_0, 1);   // full→3-row cal
+test('compactDense status → dual default, single flick', () => {
+  assert.deepStrictEqual(views({ layoutPreset: 'compactDense', healthMode: 'status', radarProvider: 'disabled' }),
+    [0x92, 0, 0]);
 });
 
-test('viewResetMin maps straight through to CLAY_VIEW_RESET_MIN', () => {
-  const p = buildClayPayload({ layoutPreset: 'classic', viewResetMin: '5' }, null, new Date(0));
+test('fullCal status + radar', () => {
+  assert.deepStrictEqual(views({ layoutPreset: 'fullCal', healthMode: 'status', radarProvider: 'dwd' }),
+    [0xD0, 0x92, 0xE0]);
+});
+
+test('legacy layoutPreset migrates (classic → compactCal)', () => {
+  assert.deepStrictEqual(views({ layoutPreset: 'classic', radarProvider: 'dwd' }), [0x90, 0x98, 0]);
+});
+
+test('legacy pre-preset topViewMode=none → noCal', () => {
+  assert.deepStrictEqual(views({ topViewMode: 'none', radarProvider: 'disabled' }), [0x40, 0, 0]);
+});
+
+test('viewResetMin maps straight through', () => {
+  const p = buildClayPayload({ layoutPreset: 'compactCal', viewResetMin: '5' }, null, new Date(0));
   assert.strictEqual(p.CLAY_VIEW_RESET_MIN, 5);
 });
 
-test('unknown/unset layoutPreset with no legacy settings falls back to classic', () => {
-  const p = buildClayPayload({}, null, new Date(0));
-  assert.strictEqual(p.CLAY_VIEW_0, 2);   // VC_FORECAST_COMPACT
-  assert.strictEqual(p.CLAY_VIEW_1, 4);   // VC_RADAR
-  assert.strictEqual(p.CLAY_VIEW_2, 0);   // VC_OFF
-});
-
-test('legacy healthMode=status maps to radarLast when no layoutPreset is set', () => {
-  const p = buildClayPayload({ healthMode: 'status' }, null, new Date(0));
-  assert.strictEqual(p.CLAY_VIEW_1, 5);   // VC_HEALTH_STATUS
-  assert.strictEqual(p.CLAY_VIEW_2, 4);   // VC_RADAR
+test('no CLAY_DUAL_STATUS key is emitted', () => {
+  const p = buildClayPayload({ layoutPreset: 'compactDense', healthMode: 'status' }, null, new Date(0));
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(p, 'CLAY_DUAL_STATUS'), false);
 });
