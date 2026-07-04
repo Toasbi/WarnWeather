@@ -150,27 +150,22 @@ MainLayout layout_compute(GRect bounds, uint8_t tier, bool dual, int fc_band_h) 
 
 // ── ViewSpec producers/consumers ────────────────────────────────────────────
 
-ViewSpec view_spec_from_state(uint8_t top_view_mode, bool dual,
-                              uint8_t top_view, uint8_t bottom_view,
-                              bool health_graph_on, bool health_active) {
+ViewSpec view_spec_unpack(uint8_t byte) {
+    uint8_t tier   = (byte >> 6) & 3;   // 0=off,1=none,2=compact,3=full
+    uint8_t top    = (byte >> 4) & 3;   // TopBand
+    uint8_t body   = (byte >> 2) & 3;   // BodyContent
+    uint8_t status = byte & 3;          // StatusRowContent
     ViewSpec spec;
-    bool none = (top_view_mode == LAYOUT_TIER_NONE);
-    spec.calendar_rows = none ? 0 : (top_view_mode == LAYOUT_TIER_COMPACT ? 2 : 3);
-    spec.top = none ? TOP_BAND_EMPTY
-                    : (top_view == 1 ? TOP_BAND_RADAR : TOP_BAND_CALENDAR);
-    spec.body = (bottom_view == 2) ? BODY_RADAR
-              : (bottom_view == 1 && health_graph_on) ? BODY_HEALTH_GRAPH
-              : BODY_FORECAST;
-    // Dual shows both rows; otherwise the health row rides any non-forecast stop
-    // (health graph, and in none mode the radar stop) while weather rides the forecast.
-    spec.status = dual ? STATUS_ROW_DUAL
-                : (bottom_view != 0 && health_active) ? STATUS_ROW_HEALTH
-                : STATUS_ROW_WEATHER;
-    // Dual under a compact top view renders both rows at the full tier so they match;
-    // none keeps its own taller band. This is the rule main_window.c's old per-window
-    // tier helper used to encode, now computed here as spec.status_tier.
-    spec.status_tier = (dual && top_view_mode == LAYOUT_TIER_COMPACT)
-                       ? LAYOUT_TIER_FULL : top_view_mode;
+    spec.calendar_rows = (tier == 3) ? 3 : (tier == 2) ? 2 : 0;
+    spec.top = top;
+    spec.body = body;
+    spec.status = status;
+    // Dual under a compact top view renders both status rows at the full tier so they
+    // match; every other case renders at its own tier. Mirrors the old producer rule.
+    uint8_t layout_tier = (tier == 3) ? LAYOUT_TIER_FULL
+                        : (tier == 2) ? LAYOUT_TIER_COMPACT : LAYOUT_TIER_NONE;
+    spec.status_tier = (status == STATUS_ROW_DUAL && layout_tier == LAYOUT_TIER_COMPACT)
+                       ? LAYOUT_TIER_FULL : layout_tier;
     spec.weights[0] = WEIGHT_CALENDAR;
     spec.weights[1] = WEIGHT_TIME;
     spec.weights[2] = WEIGHT_BOTTOM;
