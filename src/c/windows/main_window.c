@@ -88,70 +88,44 @@ static bool health_status_shown_for(BottomView bottom) {
 }
 #endif
 
-// The render tier (a TopViewMode value) for the status bands. Normally the top-view
-// mode, but in dual-status + compact top view compute_layout() carves the weather band
-// from the forecast at the full-height band — never the shorter compact band — so both
-// the weather row and the health row render as full (the smaller font), matching each
-// other. None keeps its own (taller) band and is unchanged. dual_active() is a hard
-// false on no-health platforms, so this is just top_view_mode there.
-static uint8_t status_render_tier(void) {
-    if (dual_active() && g_config->top_view_mode == TOP_VIEW_COMPACT) {
-        return TOP_VIEW_FULL;
-    }
-    return g_config->top_view_mode;
+// The current ViewSpec: session state + config compiled to data. The SDK/persist
+// queries happen HERE (the producer); layout.c stays pure.
+static ViewSpec current_view_spec(void) {
+    bool health_graph_on = false;
+    bool health_active = false;
+#if defined(PBL_HEALTH)
+    health_graph_on = (g_config->health_mode == HEALTH_ALL);
+    health_active = health_view_active();
+#endif
+    ViewSpec spec = view_spec_from_state(g_config->top_view_mode, dual_active(),
+                                         (uint8_t)s_top_view, (uint8_t)s_bottom_view,
+                                         health_graph_on, health_active);
+    return view_spec_resolve(spec, radar_has_data());
 }
 
 static void apply_view(TopView top, BottomView bottom) {
     bool none = (g_config->top_view_mode == TOP_VIEW_NONE);
-
-    // Downgrade a radar request when there is no data: top band (full/compact) or
-    // bottom band (none).
+    // Normalize the STORED session state exactly as before. These two downgrades
+    // mirror view_spec_resolve() in the TopView/BottomView domain — keep in sync
+    // until phase 2 replaces the (top, bottom) state with stop specs.
     if (!none && top == TOP_VIEW_RAIN_RADAR && !radar_has_data()) {
         top = TOP_VIEW_CALENDAR;
     }
-    // BOTTOM_RADAR is a none-only view: normalize it to the forecast whenever we're
-    // not in none (e.g. a live switch away from none left it selected), or when none
-    // but the radar has no data to show.
     if (bottom == BOTTOM_RADAR && (!none || !radar_has_data())) {
         bottom = BOTTOM_FORECAST;
     }
     s_top_view = top;
     s_bottom_view = bottom;
 
-    // Calendar: only in full/compact when the top band is on the calendar.
-    layer_set_hidden(calendar_layer_get_root(), none || top != TOP_VIEW_CALENDAR);
-    // Radar: top band in full/compact, bottom band in none.
-    bool radar_visible = none ? (bottom == BOTTOM_RADAR) : (top == TOP_VIEW_RAIN_RADAR);
-    layer_set_hidden(rain_radar_layer_get_root(), !radar_visible);
-
-    // The bottom graph swaps to the health graph only in HEALTH_ALL; HEALTH_STATUS
-    // keeps the forecast graph and swaps just the status line (below).
+    ViewSpec spec = current_view_spec();
+    LayerVisibility v = layout_visibility(&spec);
+    layer_set_hidden(calendar_layer_get_root(), !v.calendar);
+    layer_set_hidden(rain_radar_layer_get_root(), !v.radar);
+    layer_set_hidden(forecast_layer_get_root(), !v.forecast);
+    layer_set_hidden(weather_status_layer_get_root(), !v.weather_status);
 #if defined(PBL_HEALTH)
-    bool show_health_graph = (bottom == BOTTOM_HEALTH) && g_config->health_mode == HEALTH_ALL;
-#else
-    bool show_health_graph = false;
-#endif
-    // Forecast graph shows for the forecast bottom, and for a HEALTH bottom in status
-    // mode (graph unchanged). Stays hidden for the none-mode radar and the health graph.
-    bool show_forecast = (bottom == BOTTOM_FORECAST) || (bottom == BOTTOM_HEALTH && !show_health_graph);
-    layer_set_hidden(forecast_layer_get_root(), !show_forecast);
-#if defined(PBL_HEALTH)
-    layer_set_hidden(health_graph_layer_get_root(), !show_health_graph);
-#endif
-    // Status bands. Dual mode shows both; otherwise the health status line rides any
-    // non-forecast body (the health graph, and in none mode the radar stop) while the
-    // weather line rides the forecast — so a none-mode radar flick pairs with health.
-#if defined(PBL_HEALTH)
-    if (dual_active()) {
-        layer_set_hidden(weather_status_layer_get_root(), false);
-        layer_set_hidden(health_status_layer_get_root(), false);
-    } else {
-        bool health_bar = health_status_shown_for(bottom);
-        layer_set_hidden(weather_status_layer_get_root(), health_bar);
-        layer_set_hidden(health_status_layer_get_root(), !health_bar);
-    }
-#else
-    layer_set_hidden(weather_status_layer_get_root(), bottom == BOTTOM_HEALTH);
+    layer_set_hidden(health_graph_layer_get_root(), !v.health_graph);
+    layer_set_hidden(health_status_layer_get_root(), !v.health_status);
 #endif
 }
 
@@ -243,18 +217,19 @@ static void main_window_load(Window *window) {
     GRect bounds = layer_get_bounds(window_layer);
     window_set_background_color(window, GColorBlack);
 
-    MainLayout L = layout_compute(bounds, g_config->top_view_mode, dual_active(),
-                                  status_forecast_band_h(status_full_tier_font()));
+    ViewSpec spec = current_view_spec();
+    MainLayout L = layout_compute_spec(bounds, &spec,
+                                       status_forecast_band_h(status_full_tier_font()));
 
     forecast_layer_create(window_layer, L.bottom);
 #if defined(PBL_HEALTH)
     health_graph_layer_create(window_layer, L.bottom);
 #endif
     // Tell the status layers which tier to render at before they lay out their text.
-    weather_status_layer_set_render_tier(status_render_tier());
+    weather_status_layer_set_render_tier(spec.status_tier);
 #if defined(PBL_HEALTH)
-    weather_status_layer_create(window_layer, dual_active() ? L.status_lower : L.status);
-    health_status_layer_set_render_tier(status_render_tier());
+    weather_status_layer_create(window_layer, (spec.status == STATUS_ROW_DUAL) ? L.status_lower : L.status);
+    health_status_layer_set_render_tier(spec.status_tier);
     health_status_layer_set_full_mode(g_config->top_view_mode == TOP_VIEW_FULL);
     health_status_layer_create(window_layer, L.status);
 #else
@@ -386,8 +361,9 @@ void main_window_apply_top_view() {
 
 void main_window_relayout(void) {
     GRect bounds = layer_get_bounds(window_get_root_layer(s_main_window));
-    MainLayout L = layout_compute(bounds, g_config->top_view_mode, dual_active(),
-                                  status_forecast_band_h(status_full_tier_font()));
+    ViewSpec spec = current_view_spec();
+    MainLayout L = layout_compute_spec(bounds, &spec,
+                                       status_forecast_band_h(status_full_tier_font()));
     // The top-status band is identical in every mode, so it's never reframed here.
     // The time band moves in none (up under the strip), so reframe it too — a live
     // settings switch into/out of none then reflows the clock without a relaunch.
@@ -398,10 +374,10 @@ void main_window_relayout(void) {
     layer_set_frame(rain_radar_layer_get_root(), L.radar);
     // Keep the tier in sync with the reframed band; the refresh that follows this
     // relayout (main_window_refresh) re-measures the text at the new tier.
-    weather_status_layer_set_render_tier(status_render_tier());
+    weather_status_layer_set_render_tier(spec.status_tier);
 #if defined(PBL_HEALTH)
-    layer_set_frame(weather_status_layer_get_root(), dual_active() ? L.status_lower : L.status);
-    health_status_layer_set_render_tier(status_render_tier());
+    layer_set_frame(weather_status_layer_get_root(), (spec.status == STATUS_ROW_DUAL) ? L.status_lower : L.status);
+    health_status_layer_set_render_tier(spec.status_tier);
     health_status_layer_set_full_mode(g_config->top_view_mode == TOP_VIEW_FULL);
     layer_set_frame(health_status_layer_get_root(), L.status);
 #else
