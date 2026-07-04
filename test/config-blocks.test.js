@@ -276,103 +276,91 @@ test('area fill works for every main metric, in its palette fill color', () => {
   assert.equal(off.indexOf('fill="#555500"'), -1, 'no fill when the toggle is off');
 });
 
-test('layoutPreview: Calendar band shows for full/compact, not none', () => {
-    assert.ok(B.layoutPreview({ topViewMode: 'full' }, {}, {}).indexOf('Calendar') >= 0);
-    assert.ok(B.layoutPreview({ topViewMode: 'compact' }, {}, {}).indexOf('Calendar') >= 0);
-    assert.strictEqual(B.layoutPreview({ topViewMode: 'none' }, {}, {}).indexOf('Calendar'), -1);
+test('presetContents resolves each named preset directly (layoutPreset set)', () => {
+    assert.deepEqual(B.presetContents({ layoutPreset: 'classic' }), [2, 4, 0]);
+    assert.deepEqual(B.presetContents({ layoutPreset: 'radarLast' }), [2, 5, 4]);
+    assert.deepEqual(B.presetContents({ layoutPreset: 'forecast' }), [3, 4, 0]);
+    assert.deepEqual(B.presetContents({ layoutPreset: 'fullCal' }), [1, 4, 0]);
+    assert.deepEqual(B.presetContents({ layoutPreset: 'healthFirst' }), [2, 6, 4]);
 });
 
-test('layoutPreview: every mode returns an svg with Date/Clock/Weather status/Forecast bands', () => {
-    ['full', 'compact', 'none'].forEach(function (m) {
-        const svg = B.layoutPreview({ topViewMode: m }, {}, {});
-        assert.strictEqual(svg.indexOf('<svg'), 0, m + ' returns an svg');
-        ['Date', 'Clock', 'Weather status', 'Forecast'].forEach(function (label) {
-            assert.ok(svg.indexOf(label) >= 0, m + ' has a ' + label + ' band');
-        });
-    });
+test('presetContents falls back to classic for an unrecognised preset key', () => {
+    assert.deepEqual(B.presetContents({ layoutPreset: 'bogus' }), [2, 4, 0]);
 });
 
-test('layoutPreview: dualStatus shows Health status + Weather status in both status and all modes (compact/none, not full)', () => {
-    ['status', 'all'].forEach((hm) => {
-        const on = { dualStatus: true, healthMode: hm };
-        const c = B.layoutPreview(Object.assign({ topViewMode: 'compact' }, on), {}, {});
-        assert.ok(c.indexOf('Health status') >= 0 && c.indexOf('Weather status') >= 0, hm + ' compact shows both status lines');
-        const n = B.layoutPreview(Object.assign({ topViewMode: 'none' }, on), {}, {});
-        assert.ok(n.indexOf('Health status') >= 0 && n.indexOf('Weather status') >= 0, hm + ' none shows both status lines');
-    });
-    // Not applicable: full mode, or health off → single Weather status band, no Health status.
-    assert.strictEqual(B.layoutPreview({ topViewMode: 'full', dualStatus: true, healthMode: 'status' }, {}, {}).indexOf('Health status'), -1);
-    assert.strictEqual(B.layoutPreview({ topViewMode: 'compact', dualStatus: true, healthMode: 'off' }, {}, {}).indexOf('Health status'), -1);
-    assert.ok(B.layoutPreview({ topViewMode: 'compact' }, {}, {}).indexOf('Weather status') >= 0);
+test('presetContents migrates legacy healthMode/topViewMode settings when layoutPreset is unset', () => {
+    assert.deepEqual(B.presetContents({ healthMode: 'all' }), [2, 6, 4], 'healthMode all -> healthFirst');
+    assert.deepEqual(B.presetContents({ healthMode: 'status' }), [2, 5, 4], 'healthMode status -> radarLast');
+    assert.deepEqual(B.presetContents({ topViewMode: 'full' }), [1, 4, 0], 'topViewMode full -> fullCal');
+    assert.deepEqual(B.presetContents({ topViewMode: 'none' }), [3, 4, 0], 'topViewMode none -> forecast');
+    assert.deepEqual(B.presetContents({}), [2, 4, 0], 'nothing set -> classic');
+    // healthMode migration takes priority over topViewMode (mirrors clay-payload.js order).
+    assert.deepEqual(B.presetContents({ healthMode: 'all', topViewMode: 'full' }), [2, 6, 4], 'healthMode wins over topViewMode');
 });
 
-test('layoutBandsFlick: all + dual keeps both status bands pinned and reveals the health graph on flick', () => {
-    const labels = B.layoutBandsFlick({ topViewMode: 'compact', dualStatus: true, healthMode: 'all', radarProvider: 'disabled' }).map((x) => x.label);
-    assert.ok(labels.indexOf('Health graph') >= 0, 'compact: forecast → health graph on flick');
-    assert.ok(labels.indexOf('Health status') >= 0 && labels.indexOf('Weather status') >= 0, 'compact: both status bands remain');
-    const none = B.layoutBandsFlick({ topViewMode: 'none', dualStatus: true, healthMode: 'all', radarProvider: 'disabled' }).map((x) => x.label);
-    assert.ok(none.indexOf('Health') >= 0, 'none: big band cycles to Health (graph)');
-    assert.ok(none.indexOf('Health status') >= 0 && none.indexOf('Weather status') >= 0, 'none: both status bands remain');
+test('contentBands returns the labeled stack for each ViewContent value', () => {
+    assert.deepEqual(B.contentBands(1).map((b) => b.label),
+        ['Date', 'Calendar (3 rows)', 'Clock', 'Weather status', 'Forecast'], 'FORECAST_FULL');
+    assert.deepEqual(B.contentBands(2).map((b) => b.label),
+        ['Date', 'Calendar (2 rows)', 'Weather status', 'Clock', 'Forecast'], 'FORECAST_COMPACT');
+    assert.deepEqual(B.contentBands(3).map((b) => b.label),
+        ['Date', 'Clock', 'Weather status', 'Forecast'], 'FORECAST_NONE');
+    assert.deepEqual(B.contentBands(4).map((b) => b.label),
+        ['Date', 'Clock', 'Weather status', 'Radar'], 'RADAR');
+    assert.deepEqual(B.contentBands(5).map((b) => b.label),
+        ['Date', 'Calendar (2 rows)', 'Health status', 'Clock', 'Forecast'], 'HEALTH_STATUS');
+    assert.deepEqual(B.contentBands(6).map((b) => b.label),
+        ['Date', 'Clock', 'Health status', 'Health graph'], 'HEALTH_GRAPH');
+    assert.strictEqual(B.contentBands(0), null, 'VC_OFF has no bands');
 });
 
-test('layoutBandsFlick: nothing to reveal (radar off + health off) returns null / empty preview', () => {
-    const s = { topViewMode: 'compact', radarProvider: 'disabled', healthMode: 'off' };
-    assert.strictEqual(B.layoutBandsFlick(s), null);
-    assert.strictEqual(B.layoutPreviewFlick(s, {}, {}), '');
+test('layoutPreview renders the resolved preset\'s default (slot 0) content', () => {
+    assert.ok(B.layoutPreview({ layoutPreset: 'fullCal' }, {}, {}).indexOf('Calendar (3 rows)') >= 0,
+        'fullCal default is the 3-row calendar view');
+    assert.ok(B.layoutPreview({ layoutPreset: 'forecast' }, {}, {}).indexOf('Calendar') === -1,
+        'forecast preset default has no calendar');
 });
 
-test('layoutPreviewFlick: full/compact with radar swaps Calendar → Radar', () => {
-    const svg = B.layoutPreviewFlick({ topViewMode: 'compact', radarProvider: 'dwd', healthMode: 'off' }, {}, {});
-    assert.ok(svg.indexOf('Radar') >= 0, 'shows Radar');
-    assert.strictEqual(svg.indexOf('Calendar'), -1, 'calendar replaced');
+test('layoutPreviewFlick renders the first non-OFF flick slot', () => {
+    assert.ok(B.layoutPreviewFlick({ layoutPreset: 'classic' }, {}, {}).indexOf('Radar') >= 0,
+        'classic flick 1 is radar');
+    assert.ok(B.layoutPreviewFlick({ layoutPreset: 'radarLast' }, {}, {}).indexOf('Health status') >= 0,
+        'radarLast flick 1 is health status');
 });
 
-test('layoutBandsFlick: healthMode status swaps Weather status → Health status, forecast unchanged', () => {
-    const labels = B.layoutBandsFlick({ topViewMode: 'compact', radarProvider: 'disabled', healthMode: 'status' }).map((x) => x.label);
-    assert.ok(labels.indexOf('Health status') >= 0, 'weather status → health status');
-    assert.ok(labels.indexOf('Forecast') >= 0, 'forecast stays');
-    assert.strictEqual(labels.indexOf('Health graph'), -1, 'no graph in status mode');
+test('layoutPreviewCombined: classic shows Default + Flick 1 (a Radar band); the OFF slot 2 produces no Flick 2 column', () => {
+    const svg = B.layoutPreviewCombined({ layoutPreset: 'classic' }, {}, {});
+    assert.ok(svg.indexOf('Default') >= 0 && svg.indexOf('Flick 1') >= 0, 'Default + Flick 1 headers present');
+    assert.ok(svg.indexOf('Radar') >= 0, 'flick 1 column shows the Radar band');
+    assert.strictEqual(svg.indexOf('Flick 2'), -1, 'classic\'s OFF slot 2 produces no Flick 2 column');
 });
 
-test('layoutBandsFlick: healthMode all swaps Forecast → Health graph too', () => {
-    const labels = B.layoutBandsFlick({ topViewMode: 'compact', radarProvider: 'disabled', healthMode: 'all' }).map((x) => x.label);
-    assert.ok(labels.indexOf('Health graph') >= 0, 'forecast → health graph');
-    assert.ok(labels.indexOf('Health status') >= 0, 'weather status → health status');
+test('layoutPreviewCombined: radarLast has all three slots filled, so Flick 2 shows up too', () => {
+    const svg = B.layoutPreviewCombined({ layoutPreset: 'radarLast' }, {}, {});
+    assert.ok(svg.indexOf('Default') >= 0 && svg.indexOf('Flick 1') >= 0 && svg.indexOf('Flick 2') >= 0,
+        'all three column headers present');
 });
 
-test('layoutBandsFlick: none bottom takes the graph only in "all"; status line follows any health view', () => {
-    const radarOnly = B.layoutBandsFlick({ topViewMode: 'none', radarProvider: 'dwd', healthMode: 'off' }).map((x) => x.label);
-    assert.ok(radarOnly.indexOf('Radar') >= 0 && radarOnly.indexOf('Weather status') >= 0, 'radar-only: Radar + weather status');
-    assert.strictEqual(radarOnly.indexOf('Forecast'), -1, 'forecast replaced by radar');
-    // Graph mode: the health graph takes the big band too → Radar/Health, plus the health status line.
-    const radarAll = B.layoutBandsFlick({ topViewMode: 'none', radarProvider: 'dwd', healthMode: 'all' }).map((x) => x.label);
-    assert.ok(radarAll.indexOf('Radar/Health') >= 0, 'radar + graph → Radar/Health in the bottom band');
-    assert.ok(radarAll.indexOf('Health status') >= 0, 'radar + graph → health status line');
-    // Status-bar mode: health stays in the status line only; the big band stays on Radar.
-    const radarStatus = B.layoutBandsFlick({ topViewMode: 'none', radarProvider: 'dwd', healthMode: 'status' }).map((x) => x.label);
-    assert.ok(radarStatus.indexOf('Radar') >= 0, 'radar + status-bar → Radar in the bottom band');
-    assert.strictEqual(radarStatus.indexOf('Radar/Health'), -1, 'status-bar health does NOT take the bottom band');
-    assert.ok(radarStatus.indexOf('Health status') >= 0, 'radar + status-bar → health status line');
-    // Status-bar only: big band stays Forecast, status line shows health.
-    const statusOnly = B.layoutBandsFlick({ topViewMode: 'none', radarProvider: 'disabled', healthMode: 'status' }).map((x) => x.label);
-    assert.ok(statusOnly.indexOf('Forecast') >= 0 && statusOnly.indexOf('Health status') >= 0, 'status-bar only: Forecast + health status line');
+test('layoutPreviewCombined: a radar flick is dimmed with a "needs radar" note when radarProvider is not dwd', () => {
+    const noProvider = B.layoutPreviewCombined({ layoutPreset: 'classic' }, {}, {});
+    assert.ok(noProvider.indexOf('needs radar') >= 0, 'radar flick flagged unavailable when radarProvider is unset');
+    const disabled = B.layoutPreviewCombined({ layoutPreset: 'classic', radarProvider: 'disabled' }, {}, {});
+    assert.ok(disabled.indexOf('needs radar') >= 0, 'also flagged when radarProvider is explicitly disabled');
+    const enabled = B.layoutPreviewCombined({ layoutPreset: 'classic', radarProvider: 'dwd' }, {}, {});
+    assert.strictEqual(enabled.indexOf('needs radar'), -1, 'no note once radar is enabled');
 });
 
-test('layoutBandsFlick: dual + no radar reveals nothing (health already pinned)', () => {
-    assert.strictEqual(B.layoutBandsFlick({ topViewMode: 'compact', dualStatus: true, healthMode: 'status', radarProvider: 'disabled' }), null);
+test('layoutPreviewCombined: a health flick is dimmed with a "needs health" note when healthMode is off/unset', () => {
+    const noHealth = B.layoutPreviewCombined({ layoutPreset: 'healthFirst' }, {}, {});
+    assert.ok(noHealth.indexOf('needs health') >= 0, 'health flick flagged unavailable when healthMode is unset');
+    const off = B.layoutPreviewCombined({ layoutPreset: 'healthFirst', healthMode: 'off' }, {}, {});
+    assert.ok(off.indexOf('needs health') >= 0, 'also flagged when healthMode is explicitly off');
+    const on = B.layoutPreviewCombined({ layoutPreset: 'healthFirst', healthMode: 'all' }, {}, {});
+    assert.strictEqual(on.indexOf('needs health'), -1, 'no note once health is on');
 });
 
-test('layoutPreviewCombined: Default + After flick columns side by side; placeholder when nothing to reveal', () => {
-    const on = B.layoutPreviewCombined({ topViewMode: 'compact', radarProvider: 'dwd', healthMode: 'off' }, {}, {});
-    assert.ok(on.indexOf('Default') >= 0 && on.indexOf('After flick') >= 0, 'both column headers present');
-    assert.ok(on.indexOf('Radar') >= 0, 'flick column shows the radar swap');
-    const off = B.layoutPreviewCombined({ topViewMode: 'compact', radarProvider: 'disabled', healthMode: 'off' }, {}, {});
-    assert.ok(off.indexOf('Nothing to flick') >= 0, 'flick column shows the placeholder when nothing to reveal');
-    assert.ok(off.indexOf('Default') >= 0, 'default column still present when nothing to flick');
-});
-
-test('layoutPreviewCombined: bands span the full column width (no side padding)', () => {
-    const svg = B.layoutPreviewCombined({ topViewMode: 'compact', radarProvider: 'dwd', healthMode: 'off' }, {}, {});
-    // Left column starts flush at x=0 (no black side padding inset).
+test('layoutPreviewCombined: columns span the full window width, flush left (no side padding)', () => {
+    const svg = B.layoutPreviewCombined({ layoutPreset: 'classic' }, {}, {});
+    // Left (Default) column starts flush at x=0 (no black side padding inset).
     assert.ok(svg.indexOf('<rect x="0" y="16"') >= 0, 'left column band starts at x=0');
 });

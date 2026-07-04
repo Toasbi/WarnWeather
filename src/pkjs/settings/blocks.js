@@ -605,41 +605,78 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return html;
     }
 
-    // Schematic band stack for the layout preview — proportional, not pixel-accurate.
-    function layoutBands(state) {
-        var mode = state.topViewMode || 'compact';
-        // Dual = show both status bands. Works with any health view (status OR graph),
-        // never in full — mirrors the phone gate + the watch's dual_active().
-        var dual = Boolean(state.dualStatus) && Boolean(state.healthMode) && state.healthMode !== 'off' && mode !== 'full';
-        if (mode === 'full') {
-            return [
-                { label: 'Date', h: 12 }, { label: 'Calendar (3 rows)', h: 34 },
-                { label: 'Clock', h: 22 }, { label: 'Weather status', h: 12 }, { label: 'Forecast', h: 20 }
-            ];
+    // ViewContent enum (config.h): the watch's three-slot view cycle. Keep in sync with
+    // clay-payload.js's comment referencing the same enum.
+    var VC_OFF = 0, VC_FORECAST_FULL = 1, VC_FORECAST_COMPACT = 2, VC_FORECAST_NONE = 3,
+        VC_RADAR = 4, VC_HEALTH_STATUS = 5, VC_HEALTH_GRAPH = 6;
+
+    // Resolve the Layout tab's layoutPreset (+ legacy topViewMode/healthMode migration) to
+    // the watch's three-slot [default, flick1, flick2] ViewContent array.
+    // keep in sync with clay-payload.js LAYOUT_PRESETS
+    function presetContents(state) {
+        state = state || {};
+        var LAYOUT_PRESETS = {
+            classic:     [VC_FORECAST_COMPACT, VC_RADAR, VC_OFF],           // compact / radar / off (today's behaviour)
+            radarLast:   [VC_FORECAST_COMPACT, VC_HEALTH_STATUS, VC_RADAR], // compact / health-status / radar
+            forecast:    [VC_FORECAST_NONE, VC_RADAR, VC_OFF],              // big forecast / radar / off
+            fullCal:     [VC_FORECAST_FULL, VC_RADAR, VC_OFF],              // 3-row calendar / radar / off
+            healthFirst: [VC_FORECAST_COMPACT, VC_HEALTH_GRAPH, VC_RADAR]   // compact / health-graph / radar
+        };
+        var layoutPresetKey = state.layoutPreset;
+        if (!layoutPresetKey) {
+            if (state.healthMode === 'all') {
+                layoutPresetKey = 'healthFirst';
+            } else if (state.healthMode === 'status') {
+                layoutPresetKey = 'radarLast';
+            } else if (state.topViewMode === 'full') {
+                layoutPresetKey = 'fullCal';
+            } else if (state.topViewMode === 'none') {
+                layoutPresetKey = 'forecast';
+            } else {
+                layoutPresetKey = 'classic';
+            }
         }
-        if (mode === 'none') {
-            if (dual) {
+        return LAYOUT_PRESETS[layoutPresetKey] || LAYOUT_PRESETS.classic;
+    }
+
+    // Schematic band stack for a single ViewContent slot — proportional, not pixel-accurate.
+    // Mirrors spec_for_content()'s mode/bottom_view mapping in main_window.c (and, through
+    // it, layout.c's compute_with_weights band ordering). Returns null for VC_OFF (no view).
+    function contentBands(content) {
+        switch (content) {
+            case VC_FORECAST_FULL:
+                return [
+                    { label: 'Date', h: 12 }, { label: 'Calendar (3 rows)', h: 34 },
+                    { label: 'Clock', h: 22 }, { label: 'Weather status', h: 12 }, { label: 'Forecast', h: 20 }
+                ];
+            case VC_FORECAST_COMPACT:
+                return [
+                    { label: 'Date', h: 12 }, { label: 'Calendar (2 rows)', h: 24 },
+                    { label: 'Weather status', h: 14 }, { label: 'Clock', h: 22 }, { label: 'Forecast', h: 28 }
+                ];
+            case VC_FORECAST_NONE:
                 return [
                     { label: 'Date', h: 12 }, { label: 'Clock', h: 30 },
-                    { label: 'Health status', h: 15 }, { label: 'Weather status', h: 15 }, { label: 'Forecast', h: 28 }
+                    { label: 'Weather status', h: 16 }, { label: 'Forecast', h: 42 }
                 ];
-            }
-            return [
-                { label: 'Date', h: 12 }, { label: 'Clock', h: 30 },
-                { label: 'Weather status', h: 16 }, { label: 'Forecast', h: 42 }
-            ];
+            case VC_RADAR:
+                return [
+                    { label: 'Date', h: 12 }, { label: 'Clock', h: 30 },
+                    { label: 'Weather status', h: 16 }, { label: 'Radar', h: 42 }
+                ];
+            case VC_HEALTH_STATUS:
+                return [
+                    { label: 'Date', h: 12 }, { label: 'Calendar (2 rows)', h: 24 },
+                    { label: 'Health status', h: 14 }, { label: 'Clock', h: 22 }, { label: 'Forecast', h: 28 }
+                ];
+            case VC_HEALTH_GRAPH:
+                return [
+                    { label: 'Date', h: 12 }, { label: 'Clock', h: 30 },
+                    { label: 'Health status', h: 16 }, { label: 'Health graph', h: 42 }
+                ];
+            default:   // VC_OFF (or unrecognised) — nothing to show
+                return null;
         }
-        if (dual) {   // compact + dual: health above clock, weather below
-            return [
-                { label: 'Date', h: 12 }, { label: 'Calendar (2 rows)', h: 24 },
-                { label: 'Health status', h: 14 }, { label: 'Clock', h: 22 },
-                { label: 'Weather status', h: 14 }, { label: 'Forecast', h: 14 }
-            ];
-        }
-        return [   // compact (default)
-            { label: 'Date', h: 12 }, { label: 'Calendar (2 rows)', h: 24 },
-            { label: 'Weather status', h: 14 }, { label: 'Clock', h: 22 }, { label: 'Forecast', h: 28 }
-        ];
     }
 
     // Render a band array (each {label, h}) as the schematic band-stack SVG shared by
@@ -657,86 +694,87 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     function layoutPreview(state, env, userData) {
-        return renderBandStack(layoutBands(state));
+        return renderBandStack(contentBands(presetContents(state)[0]));
     }
 
-    // Bands shown after ONE wrist-flick, given the current radar/health settings.
-    // Mirrors apply_view() in main_window.c: full/compact toggle (top calendar->radar,
-    // status->health, forecast->health graph when healthMode 'all'); none cycles the big
-    // bottom band and we show the first step. Returns null when a flick reveals nothing.
-    function layoutBandsFlick(state) {
-        var mode = state.topViewMode || 'compact';
-        var radar = state.radarProvider === 'dwd';
-        var health = Boolean(state.healthMode) && state.healthMode !== 'off';
-        var healthAll = state.healthMode === 'all';
-        var dual = Boolean(state.dualStatus) && health && mode !== 'full';
-        // Nothing to reveal: no radar and no alternate body. With dual both status bands
-        // are already pinned, so the only flickable body is the ALL-mode health graph;
-        // without dual, any health view (status swap and/or graph) counts.
-        if (!radar && !(dual ? healthAll : health)) { return null; }
-        var base = layoutBands(state), out = [], i, b, label;
-        if (mode === 'none') {
-            // None flicks are a cycle. The big bottom band steps through the views that take
-            // it over — radar, and the health GRAPH (only in 'all' mode; a status-bar health
-            // view leaves the big band on the forecast). Any active health view still swaps
-            // the status line to the health status line on its cycle step.
-            var parts = [];
-            if (radar) { parts.push('Radar'); }
-            if (healthAll) { parts.push('Health'); }   // graph is reachable with or without dual
-            var bottom = parts.length ? parts.join('/') : 'Forecast';
-            var toHealth = health && !dual;   // dual keeps both bands pinned, so no status swap
-            for (i = 0; i < base.length; i++) {
-                b = base[i]; label = b.label;
-                if (label === 'Forecast') { label = bottom; }
-                else if (toHealth && label === 'Weather status') { label = 'Health status'; }
-                out.push({ label: label, h: b.h });
-            }
-            return out;
+    // First non-OFF flick slot (index 1 or 2), or null when the preset has none.
+    function firstFlickContent(state) {
+        var contents = presetContents(state), i;
+        for (i = 1; i < contents.length; i += 1) {
+            if (contents[i] !== VC_OFF) { return contents[i]; }
         }
-        for (i = 0; i < base.length; i++) {   // full / compact: a single toggle to the alternate view
-            b = base[i]; label = b.label;
-            if (radar && label.indexOf('Calendar') === 0) { label = 'Radar'; }
-            if (dual) {
-                // Both status bands stay pinned; only the ALL-mode graph swaps onto the bottom.
-                if (healthAll && label === 'Forecast') { label = 'Health graph'; }
-            } else if (health) {
-                if (label === 'Weather status') { label = 'Health status'; }
-                else if (healthAll && label === 'Forecast') { label = 'Health graph'; }
-            }
-            out.push({ label: label, h: b.h });
-        }
-        return out;
+        return null;
     }
 
     function layoutPreviewFlick(state, env, userData) {
-        return renderBandStack(layoutBandsFlick(state));
+        var content = firstFlickContent(state);
+        return content === null ? '' : renderBandStack(contentBands(content));
     }
 
     // One column of a side-by-side layout preview: a header label over a band stack that
-    // fills the column width (no side padding). Shows emptyMsg when there are no bands.
-    function renderBandColumn(bands, x, w, header, emptyMsg) {
-        var e = txt(x + w / 2, 9, 8, '#8A92A0', 'middle', 700, header), y = 16, i;
+    // fills the column width (no side padding). dim mutes the fill/label colors and, when
+    // `note` is set, appends a small sub-note below the stack — used to flag a flick slot
+    // the watch would currently skip (radar with no data source, health while it's off).
+    function renderBandColumn(bands, x, w, header, note, dim) {
+        var headerColor = dim ? '#5A6270' : '#8A92A0';
+        var bandFill = dim ? '#14161C' : '#1B1F27';
+        var labelColor = dim ? '#4A505C' : '#AEB4BD';
+        var e = txt(x + w / 2, 9, 8, headerColor, 'middle', 700, header), y = 16, i;
         if (!bands || !bands.length) {
             e += rect(x, y, w, 104, '#12151C');
-            e += txt(x + w / 2, y + 54, 8, '#6A7280', 'middle', 600, emptyMsg || '—');
+            e += txt(x + w / 2, y + 54, 8, '#6A7280', 'middle', 600, note || '—');
             return e;
         }
         for (i = 0; i < bands.length; i++) {
-            e += rect(x, y, w, bands[i].h, '#1B1F27');
-            e += txt(x + w / 2, y + bands[i].h / 2 + 3, 7.5, '#AEB4BD', 'middle', 600, bands[i].label);
+            e += rect(x, y, w, bands[i].h, bandFill);
+            e += txt(x + w / 2, y + bands[i].h / 2 + 3, 7.5, labelColor, 'middle', 600, bands[i].label);
             y += bands[i].h + 2;
+        }
+        if (note) {
+            e += txt(x + w / 2, y + 8, 7, '#7C828D', 'middle', 600, note);
         }
         return e;
     }
 
-    // Layout preview: the default view and the after-flick view side by side in one window.
-    // Full-width columns (no side padding); the flick column shows a placeholder when a
-    // wrist-flick would reveal nothing.
+    // Slot content -> { dim, note } availability verdict. Mirrors view_available() in
+    // main_window.c: a radar slot needs the DWD provider; a health slot needs health on.
+    // The Default slot (index 0) is exempt — it's never RADAR/HEALTH in any preset, and the
+    // spec calls for it to always render normally regardless.
+    function flickAvailability(state, content) {
+        if (content === VC_RADAR && state.radarProvider !== 'dwd') {
+            return { dim: true, note: 'needs radar' };
+        }
+        if ((content === VC_HEALTH_STATUS || content === VC_HEALTH_GRAPH)
+            && (!state.healthMode || state.healthMode === 'off')) {
+            return { dim: true, note: 'needs health' };
+        }
+        return { dim: false, note: null };
+    }
+
+    // Layout preview: one labeled column per non-OFF slot of the resolved preset — "Default"
+    // (slot 0, always present), then "Flick 1" / "Flick 2" for whichever flick slots are in
+    // use. A 2-view preset renders 2 columns, a 3-view preset 3; an OFF slot is skipped
+    // entirely (no placeholder column). Columns share the 200px window width evenly.
     function layoutPreviewCombined(state, env, userData) {
-        var W = 200, GAP = 6, colW = (W - GAP) / 2;
+        state = state || {};
+        var contents = presetContents(state);
+        var HEADERS = ['Default', 'Flick 1', 'Flick 2'];
+        var slots = [], i, content, avail;
+        for (i = 0; i < contents.length; i += 1) {
+            content = contents[i];
+            if (content === VC_OFF) { continue; }
+            avail = (i === 0) ? { dim: false, note: null } : flickAvailability(state, content);
+            slots.push({
+                header: HEADERS[i], bands: contentBands(content),
+                dim: avail.dim, note: avail.note
+            });
+        }
+        var W = 200, GAP = 6, n = slots.length || 1, colW = (W - GAP * (n - 1)) / n;
         var e = rect(0, 0, W, 128, '#000');
-        e += renderBandColumn(layoutBands(state), 0, colW, 'Default', null);
-        e += renderBandColumn(layoutBandsFlick(state), colW + GAP, colW, 'After flick', 'Nothing to flick');
+        for (i = 0; i < slots.length; i += 1) {
+            e += renderBandColumn(slots[i].bands, i * (colW + GAP), colW,
+                slots[i].header, slots[i].note, slots[i].dim);
+        }
         return svgFrame(e, 128);
     }
 
@@ -752,9 +790,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         module.exports = {
             forecastPreview: forecastPreview, radarPreview: radarPreview,
             devStats: devStats, lastFetch: lastFetch,
-            layoutPreview: layoutPreview, layoutBands: layoutBands,
-            layoutPreviewFlick: layoutPreviewFlick, layoutBandsFlick: layoutBandsFlick,
+            layoutPreview: layoutPreview, layoutPreviewFlick: layoutPreviewFlick,
             layoutPreviewCombined: layoutPreviewCombined,
+            presetContents: presetContents, contentBands: contentBands,
             barPermille: barPermille, previewPaletteFallback: FALLBACK_PALETTE
         };
     }
