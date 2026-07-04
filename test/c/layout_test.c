@@ -86,7 +86,7 @@ static void golden_rects(void) {
     check("full.status_lower", L.status_lower, 2, 132, 196, 24);
     check("full.time",         L.time,         2, 82, 196, 60);
     check("full.bottom",       L.bottom,       2, 156, 198, 68);
-    check("full.loading",      L.loading,      2, 142, 196, 82);  // Task 4 changes this row
+    check("full.loading",      L.loading,      2, 132, 196, 92);  // was (2,142,196,82): unified rule = status top → bottom pad
     check("full.radar",        L.radar,        2, 22, 196, 60);
 
     L = layout_compute(BOUNDS, LAYOUT_TIER_COMPACT, false, FC_BAND_H);
