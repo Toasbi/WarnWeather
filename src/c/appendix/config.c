@@ -32,7 +32,10 @@ static Config config_defaults(void) {
         .health_mode = HEALTH_OFF,
         .rain_countdown_horizon_min = 60,
         .top_view_mode = TOP_VIEW_COMPACT,
-        .dual_status = false
+        .dual_status = false,
+        // Default flick cycle mirrors today: compact default view, radar on the first flick.
+        .view_content = { VC_FORECAST_COMPACT, VC_RADAR, VC_OFF },
+        .view_reset_min = 0
     };
 }
 

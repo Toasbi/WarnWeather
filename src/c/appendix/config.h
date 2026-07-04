@@ -20,6 +20,19 @@ enum HealthMode {
     HEALTH_ALL = 2,     // flick also swaps the forecast graph to the health graph (beta)
 };
 
+// A composed view in the flick cycle. Each value maps to a ViewSpec the layout
+// module already renders (see spec_for_content() in main_window.c). VC_OFF is only
+// valid for the two flick slots (the default view always renders something).
+enum ViewContent {
+    VC_OFF = 0,              // flick slot disabled / skipped
+    VC_FORECAST_FULL = 1,    // 3-row calendar + forecast
+    VC_FORECAST_COMPACT = 2, // 2-row calendar + forecast
+    VC_FORECAST_NONE = 3,    // no calendar + big forecast
+    VC_RADAR = 4,            // big rain radar
+    VC_HEALTH_STATUS = 5,    // forecast + health status line
+    VC_HEALTH_GRAPH = 6,     // health graph + health status line
+};
+
 typedef struct {
     bool celsius;
     bool time_lead_zero;
@@ -43,6 +56,9 @@ typedef struct {
     int16_t rain_countdown_horizon_min;
     uint8_t top_view_mode;   // enum TopViewMode; reuses the old compact_top_view byte
     bool dual_status;        // Status mode only: show health + weather status together (append-only — keep last)
+    // --- flick cycle (v1.7): three composed views + auto-return timer (append-only) ---
+    uint8_t view_content[3]; // [default, flick1, flick2] — enum ViewContent
+    uint8_t view_reset_min;  // minutes of no-flick before returning to the default view; 0 = Never
 } Config;
 
 extern Config *g_config;
