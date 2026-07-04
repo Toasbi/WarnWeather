@@ -299,25 +299,25 @@ module.exports = {
         id: 'layout', label: 'Layout', sections: [{
             intro: 'How the watchface is arranged, and what a wrist-flick reveals — shown side by side in the preview. What a metric means or how it\'s coloured lives in its own tab.',
             items: [{
-                type: 'segmented',
-                messageKey: 'topViewMode',
-                label: 'Top view',
-                defaultValue: 'compact',
-                options: [['Full', 'full'], ['Compact', 'compact'], ['None', 'none']],
-                hintByValue: {
-                    full: 'Top status, a 3-row calendar (prev · this · next week), the clock, the weather status line, then the forecast.',
-                    compact: 'Calendar drops to 2 rows (this week · next) and the freed row goes to a taller forecast; status sits under the calendar.',
-                    none: 'No calendar — a full-date strip, bigger clock and status, and a forecast that fills the screen.'
-                },
+                type: 'radio',
+                messageKey: 'layoutPreset',
+                label: 'Layout preset',
+                defaultValue: 'classic',
+                options: [
+                    ['Classic (compact, flick to radar)', 'classic'],
+                    ['Radar last (health first)', 'radarLast'],
+                    ['Big forecast', 'forecast'],
+                    ['Full calendar', 'fullCal'],
+                    ['Health first', 'healthFirst']
+                ],
                 blockBefore: 'layoutPreviewCombined',
                 blockBeforeSticky: true
             }, {
-                type: 'toggle',
-                messageKey: 'dualStatus',
-                label: 'Show weather & health status on the same view',
-                defaultValue: false,
-                showWhen: {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}, {key: 'topViewMode', ne: 'full'}]},
-                hint: 'Keep the weather status on screen alongside health — health above the clock and weather below it (Compact), or stacked under the clock (None).'
+                type: 'segmented',
+                messageKey: 'viewResetMin',
+                label: 'Return to default view after',
+                defaultValue: '0',
+                options: [['Never', '0'], ['1m', '1'], ['2m', '2'], ['5m', '5'], ['10m', '10']]
             }]
         }]
     }, {
@@ -356,8 +356,7 @@ module.exports = {
                 messageKey: 'firstWeek',
                 label: 'First week to display',
                 defaultValue: 'prev',
-                options: [['Prev', 'prev'], ['Curr', 'curr']],
-                showWhen: {key: 'topViewMode', eq: 'full'}
+                options: [['Prev', 'prev'], ['Curr', 'curr']]
             }, {
                 type: 'color',
                 messageKey: 'colorToday',

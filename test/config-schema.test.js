@@ -3,8 +3,6 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const schema = require('../src/pkjs/settings/schema.js');
 const { REGION_OPTIONS } = require('../src/pkjs/settings/holiday-data.js');
-const showWhen = require('../src/pkjs/config-ui/lib/show-when.js');
-const platform = require('../src/pkjs/config-ui/lib/platform.js');
 
 function allItems(s) { const out = []; s.tabs.forEach((t) => t.sections.forEach((sec) => sec.items.forEach((it) => out.push(it)))); return out; }
 const items = allItems(schema);
@@ -18,7 +16,7 @@ const EXPECTED_KEYS = [
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','locationMode','location',
   'temperatureUnits','dayNightShading','healthMode','secondaryLine','secondaryLineFill','windScale','thirdLine',
   'barSource','rainBarColor','provider','owmApiKey','radarProvider','radarColor','rainCountdownHorizon',
-  'topViewMode','dualStatus','showQt','vibe','btIcons','telemetryEnabled','devStatsEnabled','devStatsClear'
+  'layoutPreset','viewResetMin','showQt','vibe','btIcons','telemetryEnabled','devStatsEnabled','devStatsClear'
 ];
 
 test('every Clay messageKey present; only windScale is duplicated (two contextual slots)', () => {
@@ -232,49 +230,47 @@ test('rainCountdownHorizon is a radar- and non-aplite-gated select with Off/30/6
   });
 });
 
-test('topViewMode is a Layout tab segmented control defaulting to compact, and gates firstWeek', () => {
-  const t = byKey('topViewMode');
-  assert.ok(t, 'topViewMode item exists');
-  assert.equal(t.type, 'segmented');
-  assert.equal(t.defaultValue, 'compact');
-  assert.deepEqual(t.options.map((o) => o[1]), ['full', 'compact', 'none']);
+test('layoutPreset is a Layout tab radio defaulting to classic, with a sticky combined preview block; firstWeek is no longer gated by it', () => {
+  const t = byKey('layoutPreset');
+  assert.ok(t, 'layoutPreset item exists');
+  assert.equal(t.type, 'radio');
+  assert.equal(t.defaultValue, 'classic');
+  assert.deepEqual(t.options.map((o) => o[1]), ['classic', 'radarLast', 'forecast', 'fullCal', 'healthFirst']);
   // Lives in the Layout tab, with a sticky combined preview block above it.
   const layout = schema.tabs.find((tab) => tab.id === 'layout');
   assert.ok(layout, 'layout tab exists');
-  const section = layout.sections.find((s) => s.items.some((i) => i.messageKey === 'topViewMode'));
+  const section = layout.sections.find((s) => s.items.some((i) => i.messageKey === 'layoutPreset'));
   assert.ok(section, 'in a Layout tab section');
   assert.equal(t.blockBefore, 'layoutPreviewCombined');
   assert.equal(t.blockBeforeSticky, true);
   // No longer lives in the More tab's Misc section.
   const more = schema.tabs.find((tab) => tab.id === 'more');
   const misc = more.sections.find((s) => s.title === 'Misc');
-  assert.ok(!misc.items.some((i) => i.messageKey === 'topViewMode'), 'moved out of Misc section');
-  // "First week to display" shows only for the full 3-row calendar.
-  assert.deepEqual(byKey('firstWeek').showWhen, { key: 'topViewMode', eq: 'full' });
+  assert.ok(!misc.items.some((i) => i.messageKey === 'layoutPreset'), 'not in the Misc section');
+  // The preset now owns the 3-row-calendar decision, so "First week to display" is
+  // always shown (it only matters for the fullCal preset, which is acceptable to
+  // always expose rather than re-deriving preset membership here).
+  assert.equal(byKey('firstWeek').showWhen, undefined);
 });
 
-test('Layout tab is one section: combined preview above Top view, dualStatus directly below', () => {
+test('viewResetMin is a Layout tab segmented control defaulting to Never, directly below the preset radio', () => {
+  const r = byKey('viewResetMin');
+  assert.ok(r, 'viewResetMin item exists');
+  assert.equal(r.type, 'segmented');
+  assert.equal(r.defaultValue, '0');
+  assert.deepEqual(r.options.map((o) => o[1]), ['0', '1', '2', '5', '10']);
+});
+
+test('Layout tab is one section: combined preview above the preset radio, reset segmented directly below', () => {
   const layout = schema.tabs.find((t) => t.id === 'layout');
   assert.equal(layout.sections.length, 1, 'single Layout section');
   const items = layout.sections[0].items;
-  const topIdx = items.findIndex((i) => i.messageKey === 'topViewMode');
-  const dualIdx = items.findIndex((i) => i.messageKey === 'dualStatus');
-  assert.ok(topIdx >= 0, 'topViewMode present');
-  assert.equal(items[topIdx].blockBefore, 'layoutPreviewCombined', 'combined preview hosted on Top view');
-  assert.equal(items[topIdx].blockBeforeSticky, true, 'preview sticky');
-  assert.equal(dualIdx, topIdx + 1, 'dualStatus sits directly below Top view');
-});
-
-test('dualStatus is health-gated (hidden on no-health platforms like aplite) and only for compact/none', () => {
-  const dual = byKey('dualStatus');
-  const ctx = (settings, plat) => Object.assign({}, settings, { env: platform.computeEnv({ platform: plat }) });
-  // Shown: health platform, a health view on, non-full layout.
-  assert.equal(showWhen.isVisible(dual, ctx({ healthMode: 'status', topViewMode: 'compact' }, 'basalt')), true, 'shown when health on + compact');
-  // Hidden on aplite (no health sensors) regardless of other settings.
-  assert.equal(showWhen.isVisible(dual, ctx({ healthMode: 'status', topViewMode: 'compact' }, 'aplite')), false, 'hidden on aplite (no health)');
-  // Hidden when health is off, and in full mode.
-  assert.equal(showWhen.isVisible(dual, ctx({ healthMode: 'off', topViewMode: 'compact' }, 'basalt')), false, 'hidden when health off');
-  assert.equal(showWhen.isVisible(dual, ctx({ healthMode: 'status', topViewMode: 'full' }, 'basalt')), false, 'hidden in full mode');
+  const presetIdx = items.findIndex((i) => i.messageKey === 'layoutPreset');
+  const resetIdx = items.findIndex((i) => i.messageKey === 'viewResetMin');
+  assert.ok(presetIdx >= 0, 'layoutPreset present');
+  assert.equal(items[presetIdx].blockBefore, 'layoutPreviewCombined', 'combined preview hosted on the preset radio');
+  assert.equal(items[presetIdx].blockBeforeSticky, true, 'preview sticky');
+  assert.equal(resetIdx, presetIdx + 1, 'viewResetMin sits directly below the preset radio');
 });
 
 test('flick/positioning narrative lives only in the Layout tab, not Health/Radar copy', () => {

@@ -70,6 +70,23 @@ function buildClayPayload(settings, watchInfo, now) {
     var palette = paletteWire.buildPaletteTuples(watchInfo, settings);
     payload.BAR_PALETTE_UINT8 = palette.BAR_PALETTE_UINT8;
     payload.RADAR_PALETTE_UINT8 = palette.RADAR_PALETTE_UINT8;
+
+    // Layout preset → the watch's three-slot view cycle (ViewContent enum in
+    // config.h: VC_OFF=0, VC_FORECAST_FULL=1, VC_FORECAST_COMPACT=2,
+    // VC_FORECAST_NONE=3, VC_RADAR=4, VC_HEALTH_STATUS=5).
+    var LAYOUT_PRESETS = {
+        classic:    [2, 4, 0],   // compact / radar / off      (today's behaviour)
+        radarLast:  [2, 5, 4],   // compact / health-status / radar
+        forecast:   [3, 4, 0],   // big forecast / radar / off
+        fullCal:    [1, 4, 0],   // 3-row calendar / radar / off
+        healthFirst:[2, 5, 4]    // compact / health / radar
+    };
+    var preset = LAYOUT_PRESETS[settings.layoutPreset] || LAYOUT_PRESETS.classic;
+    payload.CLAY_VIEW_0 = preset[0];
+    payload.CLAY_VIEW_1 = preset[1];
+    payload.CLAY_VIEW_2 = preset[2];
+    payload.CLAY_VIEW_RESET_MIN = parseInt(settings.viewResetMin, 10) || 0;
+
     return payload;
 }
 
