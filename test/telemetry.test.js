@@ -56,6 +56,16 @@ test('snapshot includes dualStatus', () => {
     assert.strictEqual(buildSettingsSnapshot({}).dualStatus, false);
 });
 
+test('snapshot includes layoutPreset as a string', () => {
+  assert.strictEqual(buildSettingsSnapshot({ layoutPreset: 'radarLast' }).layoutPreset, 'radarLast');
+  assert.strictEqual(buildSettingsSnapshot({}).layoutPreset, undefined);
+});
+
+test('snapshot includes viewResetMin as an int', () => {
+  assert.strictEqual(buildSettingsSnapshot({ viewResetMin: '5' }).viewResetMin, 5);
+  assert.strictEqual(buildSettingsSnapshot({}).viewResetMin, undefined);
+});
+
 test('settings snapshot keys match the Deno telemetry schema (lockstep)', () => {
   const fs = require('fs');
   const path = require('path');

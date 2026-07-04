@@ -35,6 +35,8 @@ function buildSettingsSnapshot(settings) {
         firstWeek: safe.firstWeek,
         showQt: !!safe.showQt,
         topViewMode: safe.topViewMode,
+        layoutPreset: safe.layoutPreset,
+        viewResetMin: toIntOrUndefined(safe.viewResetMin),
         vibe: !!safe.vibe,
         btIcons: safe.btIcons,
         secondaryLine: safe.secondaryLine,

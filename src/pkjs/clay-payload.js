@@ -81,7 +81,21 @@ function buildClayPayload(settings, watchInfo, now) {
         fullCal:    [1, 4, 0],   // 3-row calendar / radar / off
         healthFirst:[2, 5, 4]    // compact / health / radar
     };
-    var preset = LAYOUT_PRESETS[settings.layoutPreset] || LAYOUT_PRESETS.classic;
+    // Legacy migration: pre-preset installs only ever set topViewMode. When
+    // layoutPreset hasn't been chosen yet (new setting, unset in existing
+    // storage), derive an equivalent preset from it so an upgrade doesn't
+    // silently reset the watch to the classic layout.
+    var layoutPresetKey = settings.layoutPreset;
+    if (!layoutPresetKey) {
+        if (settings.topViewMode === 'full') {
+            layoutPresetKey = 'fullCal';
+        } else if (settings.topViewMode === 'none') {
+            layoutPresetKey = 'forecast';
+        } else {
+            layoutPresetKey = 'classic';
+        }
+    }
+    var preset = LAYOUT_PRESETS[layoutPresetKey] || LAYOUT_PRESETS.classic;
     payload.CLAY_VIEW_0 = preset[0];
     payload.CLAY_VIEW_1 = preset[1];
     payload.CLAY_VIEW_2 = preset[2];

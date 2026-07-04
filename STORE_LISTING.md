@@ -75,11 +75,13 @@ WATCH STATUS
 - Sleep mode (battery-saving night pause)
 
 LAYOUT CUSTOMIZATION
-- Selectable top view (default Compact):
-  - Full (classic 3-row calendar)
-  - Compact (2-row calendar with a larger status line and taller forecast/health area)
-  - None (no calendar — a full-date strip, bigger clock and status line, and a full-screen
-    forecast; flick to reach the radar and health graph)
+- Layout presets choose what's on screen by default and what a wrist-flick cycles
+  through next: Classic, Radar last, Big forecast, Full calendar, or Health first
+  (previewed live in settings)
+- Presets range from a 3-row calendar down to no calendar at all (full-date strip,
+  bigger clock and status line, full-screen forecast)
+- Optional auto-return to the default view a set time after flicking away
+  (1-10 minutes, or never)
 
 UPDATES
 - Update notifications: get a one-time heads-up when a newer version is available in the appstore.

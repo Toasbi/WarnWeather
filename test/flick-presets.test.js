@@ -28,3 +28,8 @@ test('radar-last preset → radar on the second flick', () => {
   assert.strictEqual(p.CLAY_VIEW_1, 5);   // VC_HEALTH_STATUS first
   assert.strictEqual(p.CLAY_VIEW_2, 4);   // VC_RADAR second
 });
+
+test('legacy topViewMode maps to a preset when no layoutPreset is set', () => {
+  assert.strictEqual(buildClayPayload({ topViewMode: 'none' }, null, new Date(0)).CLAY_VIEW_0, 3);   // none→big forecast default
+  assert.strictEqual(buildClayPayload({ topViewMode: 'full' }, null, new Date(0)).CLAY_VIEW_0, 1);   // full→3-row cal
+});

@@ -46,6 +46,8 @@ const settingsSchema = z
     firstWeek: z.string().optional(),
     showQt: z.boolean().optional(),
     topViewMode: z.enum(['full', 'compact', 'none']).optional(),
+    layoutPreset: z.enum(['classic', 'radarLast', 'forecast', 'fullCal', 'healthFirst']).optional(),
+    viewResetMin: z.number().int().min(0).optional(),
     vibe: z.boolean().optional(),
     btIcons: z.string().optional(),
     secondaryLine: z.string().optional(),
