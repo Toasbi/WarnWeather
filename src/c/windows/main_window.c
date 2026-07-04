@@ -141,6 +141,12 @@ static uint8_t next_view_index(uint8_t from) {
 static void render_active_view(void) {
     GRect bounds = layer_get_bounds(window_get_root_layer(s_main_window));
     ViewSpec spec = current_view_spec();
+    // Bridge the legacy top_view_mode consumers (config_calendar_rows / config_n_today
+    // for the calendar row count + prev-week offset, and the aplite date strip) to the
+    // ACTIVE view's tier, so a flick to a different-density view draws the right calendar.
+    g_config->top_view_mode = (spec.calendar_rows == 3) ? TOP_VIEW_FULL
+                            : (spec.calendar_rows == 2) ? TOP_VIEW_COMPACT
+                            : TOP_VIEW_NONE;
     MainLayout L = layout_compute_spec(bounds, &spec,
                                        status_forecast_band_h(status_full_tier_font()));
     layer_set_frame(time_layer_get_root(), L.time);
