@@ -27,6 +27,10 @@
 // none: drop the clock a few px so its gap to the date strip above matches its gap to
 // the status line below (tune visually; grows with the taller emery status band/fonts).
 #define NONE_TIME_DROP 3
+// compact: px shifted from the 2-row calendar into the status/health band below it, so
+// the Gothic-24 compact line (taller than its raw calendar_h/3 slot) gets headroom and
+// descender room. Grows the band upward; the calendar rows tighten by the same amount.
+#define COMPACT_STATUS_STEAL 4
 #else
 #define LAYOUT_PAD_X 0
 #define LAYOUT_PAD_TOP 0
@@ -35,6 +39,10 @@
 // none: status band sized for the one-notch-larger Gothic-24 line (tune visually).
 #define NONE_STATUS_HEIGHT 22
 #define NONE_TIME_DROP 2
+// compact: px shifted from the 2-row calendar into the status/health band below it, so
+// the Gothic-18 compact line (taller than its raw calendar_h/3 slot) gets headroom and
+// descender room. Grows the band upward; the calendar rows tighten by the same amount.
+#define COMPACT_STATUS_STEAL 3
 #endif
 
 // Partition the content height by the three band weights; the bottom band absorbs
@@ -89,7 +97,6 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool dual,
         L.loading = L.bottom;
         L.radar = L.bottom;                              // radar rides the bottom band
     } else {
-        int cal_h = compact ? (calendar_h - calendar_h / 3) : calendar_h;
         // full: reserve the abutting status band above the forecast — but only when a status
         // row is actually shown. A statusless full view (the radar-top forecast flick,
         // RDR_FC_NONE) reclaims that row so its forecast matches the compact tier's height.
@@ -98,8 +105,11 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool dual,
         // full: the status band rides directly above the forecast — size it from the font
         // (fc_band_h) and pin its bottom to the forecast top so the centred line clears the
         // graph by a constant margin, rising up into the clock band's slack. compact: the
-        // band drops into the freed 3rd calendar row and abuts the calendar.
-        int status_h = compact ? (calendar_h / 3) : fc_band_h;
+        // band drops into the freed 3rd calendar row, plus COMPACT_STATUS_STEAL px borrowed
+        // from the 2-row calendar above so the taller compact line clears its descenders.
+        // cal_h + status_h == calendar_h always, so the band still bottoms on the time band.
+        int status_h = compact ? (calendar_h / 3 + COMPACT_STATUS_STEAL) : fc_band_h;
+        int cal_h    = compact ? (calendar_h - status_h) : calendar_h;
         int status_y = compact ? (calendar_y + cal_h) : (forecast_y - fc_band_h);
         // Single-status compact: drop the lone band toward the clock just below it.
         if (compact && !dual) { status_y += COMPACT_SINGLE_STATUS_NUDGE; }

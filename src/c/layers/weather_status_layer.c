@@ -203,11 +203,14 @@ static void city_layer_refresh() {
     GRect bounds = layer_get_bounds(s_weather_status_layer);
     int x = frame_curr_temp.origin.x + frame_curr_temp.size.w + MARGIN * 2;
     int w = bounds.size.w - frame_curr_temp.size.w - frame_sun_event.size.w - MARGIN * 4;
-    GSize size = graphics_text_layout_get_content_size(
-        s_city_buffer, city_font(), GRect(0, 0, w, 100),
-        STATUS_TEXT_OVERFLOW, GTextAlignmentCenter);
     int y = status_text_y(bounds.size.h, city_font());
-    frame_city = GRect(x, y, w, size.h);
+    // status_text_y sizes the seating from digit metrics (shared with temp/sun), which
+    // budget almost no descent. The city name is the ONE status string with lowercase
+    // descenders (the "g" in "Virginia"): a clip box only one line-height tall shaves
+    // their tails at the bottom edge. Extend the clip box down to the band bottom — the
+    // glyph stays top-anchored where status_text_y put it, so its cap-box still shares
+    // the temp/sun baseline; we only stop clipping the descender into the band's slack.
+    frame_city = GRect(x, y, w, bounds.size.h - y);
 }
 
 static void weather_status_layer_init() {
