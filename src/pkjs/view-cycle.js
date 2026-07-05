@@ -5,6 +5,9 @@
 
 var TIER_OFF = 0, TIER_NONE = 1, TIER_COMPACT = 2, TIER_FULL = 3;
 var TOP_EMPTY = 0, TOP_CAL = 1, TOP_RADAR = 2;
+// Unlike `top` above (deliberately renumbered and translated by view_spec_unpack()),
+// these numberings must stay bit-for-bit identical to BodyContent/StatusRowContent in
+// src/c/windows/layout.h — the packed wire byte passes them through untranslated.
 var BODY_FC = 0, BODY_GRAPH = 1, BODY_RADAR = 2;
 var ST_W = 0, ST_H = 1, ST_D = 2, ST_NONE = 3;
 

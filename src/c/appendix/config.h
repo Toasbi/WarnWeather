@@ -20,9 +20,10 @@ enum HealthMode {
     HEALTH_ALL = 2,     // flick also swaps the forecast graph to the health graph (beta)
 };
 
-// A composed view in the flick cycle. Each value maps to a ViewSpec the layout
-// module already renders (see spec_for_content() in main_window.c). VC_OFF is only
-// valid for the two flick slots (the default view always renders something).
+// Legacy per-slot content enum, superseded by the packed ViewSpec wire byte (decoded
+// by view_spec_unpack() in windows/layout.c). Retained only to give the RETIRED
+// view_content[] field below meaningful-looking defaults. VC_OFF is only valid for
+// the two flick slots (the default view always renders something).
 enum ViewContent {
     VC_OFF = 0,              // flick slot disabled / skipped
     VC_FORECAST_FULL = 1,    // 3-row calendar + forecast

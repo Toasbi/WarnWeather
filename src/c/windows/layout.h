@@ -33,6 +33,10 @@ MainLayout layout_compute(GRect bounds, uint8_t tier, bool dual, int fc_band_h);
 // user layout). See CONTEXT.md "View spec".
 
 typedef enum { TOP_BAND_CALENDAR = 0, TOP_BAND_RADAR = 1, TOP_BAND_EMPTY = 2 } TopBand;
+// Unlike TopBand above (deliberately renumbered vs. the wire `top` field and translated
+// by view_spec_unpack()), BodyContent/StatusRowContent must stay bit-for-bit identical to
+// BODY_FC/GRAPH/RADAR and ST_W/H/D/NONE in src/pkjs/view-cycle.js — the packed wire byte
+// passes them through untranslated.
 typedef enum { BODY_FORECAST = 0, BODY_HEALTH_GRAPH = 1, BODY_RADAR = 2 } BodyContent;
 typedef enum { STATUS_ROW_WEATHER = 0, STATUS_ROW_HEALTH = 1, STATUS_ROW_DUAL = 2, STATUS_ROW_NONE = 3 } StatusRowContent;
 
