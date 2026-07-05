@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const preview = require('../scripts/preview-config-page.js');
+const build = require('../scripts/build-config-page.js');
 
 test('dev preview page injects the preview palette into userData', () => {
   const html = preview.run({ platform: 'basalt' });
@@ -44,4 +45,13 @@ test('parseArgs with no args uses defaults', () => {
   const r = preview.parseArgs([]);
   assert.equal(r.out, preview.DEFAULT_OUT);
   assert.equal(r.platform, 'basalt');
+});
+
+// Regression: this file's APP_FILES and build-config-page.js's APP_FILES are two
+// independent lists that build the SAME page (dev preview vs. the real shipped page).
+// A file (e.g. view-cycle.js) added to one but forgotten in the other renders fine in
+// whichever entrypoint got the fix and silently throws in the webview via the other —
+// exactly how the Layout tab broke. Keep them identical.
+test('preview-config-page.js and build-config-page.js bundle the same app files', () => {
+  assert.deepEqual(preview.APP_FILES, build.APP_FILES);
 });

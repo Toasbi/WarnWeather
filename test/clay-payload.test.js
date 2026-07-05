@@ -60,15 +60,9 @@ test('maps healthMode to CLAY_HEALTH_MODE', () => {
     assert.strictEqual(buildClayPayload({}, null, new Date()).CLAY_HEALTH_MODE, 0); // default off when unset
 });
 
-test('CLAY_DUAL_STATUS is gated by healthMode (phone only sets it when a health view is on)', () => {
-    // Works with either health view — status OR graph — so long as health is on.
-    assert.strictEqual(buildClayPayload({ dualStatus: true, healthMode: 'status' }, null, new Date()).CLAY_DUAL_STATUS, true);
-    assert.strictEqual(buildClayPayload({ dualStatus: true, healthMode: 'all' }, null, new Date()).CLAY_DUAL_STATUS, true);
-    // Phone gates health-off: dual_status is never sent true when health is off, so the
-    // watch can trust the flag without re-checking health_mode.
-    assert.strictEqual(buildClayPayload({ dualStatus: true, healthMode: 'off' }, null, new Date()).CLAY_DUAL_STATUS, false);
-    assert.strictEqual(buildClayPayload({ dualStatus: true }, null, new Date()).CLAY_DUAL_STATUS, false); // health defaults off
-    assert.strictEqual(buildClayPayload({ dualStatus: false, healthMode: 'status' }, null, new Date()).CLAY_DUAL_STATUS, false);
+test('CLAY_DUAL_STATUS is no longer emitted (dual/single now folded into the packed view cycle)', () => {
+    const p = buildClayPayload({ healthMode: 'status' }, null, new Date());
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(p, 'CLAY_DUAL_STATUS'), false);
 });
 
 test('maps rainCountdownHorizon to CLAY_RAIN_COUNTDOWN_HORIZON', () => {

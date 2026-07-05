@@ -50,7 +50,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 **Calendar**
 * 3 week calendar
 * Selectable start of the week (Sunday or Monday)
-* Calendar shown as a **3-row** (prev + current + next week), **2-row** (this week + next, with a larger status line and a taller forecast/health area), or hidden entirely for a full-date strip, bigger clock/status line, and a forecast that fills the screen — set via the **Layout preset** (see **Customization**)
+* Calendar shown as a **3-row** (**Full calendar**: prev + current + next week), **2-row** (**Compact calendar**: this week + next, with a larger status line and a taller forecast/health area; **Compact calendar (dense)**: the same 2-row calendar with health and weather status shown together), or hidden entirely (**No calendar**: full-date strip, bigger clock/status line, and a forecast that fills the screen) — set via the **Layout preset** (see **Customization**)
 * Highlight public holidays for your country — 150+ countries worldwide, with region/state granularity where holidays vary (Germany, Austria, Switzerland, Spain, UK, US)
 * Customize colors for Sundays, Saturdays, and holidays
 
@@ -64,7 +64,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 **Customization**
 * Customize time font and color
 * Adjustable layout — choose how much of the screen goes to the calendar vs. the forecast, radar, and health views
-* **Layout preset** — pick what's on screen by default and what a wrist-flick cycles through next (Classic, Radar last, Big forecast, Full calendar, or Health graph first), previewed live in settings
+* **Layout preset** — pick a calendar style (**Full calendar**, **Compact calendar**, **Compact calendar (dense)**, or **No calendar**); the wrist-flick cycle then builds itself from your health and radar settings — enable health or radar and a flick reveals them automatically, previewed live in settings
 * Optional auto-return to the default view a set time after flicking away (1–10 minutes, or never)
 
 **Updates**

@@ -33,8 +33,12 @@ MainLayout layout_compute(GRect bounds, uint8_t tier, bool dual, int fc_band_h);
 // user layout). See CONTEXT.md "View spec".
 
 typedef enum { TOP_BAND_CALENDAR = 0, TOP_BAND_RADAR = 1, TOP_BAND_EMPTY = 2 } TopBand;
+// Unlike TopBand above (deliberately renumbered vs. the wire `top` field and translated
+// by view_spec_unpack()), BodyContent/StatusRowContent must stay bit-for-bit identical to
+// BODY_FC/GRAPH/RADAR and ST_W/H/D/NONE in src/pkjs/view-cycle.js — the packed wire byte
+// passes them through untranslated.
 typedef enum { BODY_FORECAST = 0, BODY_HEALTH_GRAPH = 1, BODY_RADAR = 2 } BodyContent;
-typedef enum { STATUS_ROW_WEATHER = 0, STATUS_ROW_HEALTH = 1, STATUS_ROW_DUAL = 2 } StatusRowContent;
+typedef enum { STATUS_ROW_WEATHER = 0, STATUS_ROW_HEALTH = 1, STATUS_ROW_DUAL = 2, STATUS_ROW_NONE = 3 } StatusRowContent;
 
 typedef struct {
     uint8_t top;            // TopBand
@@ -54,17 +58,15 @@ typedef struct {
     bool health_status;
 } LayerVisibility;
 
-// Preset compiler: today's session state -> spec. top_view mirrors main_window's
-// TopView (0=calendar, 1=radar); bottom_view mirrors BottomView (0=forecast,
-// 1=health, 2=radar). health_graph_on = (health_mode == HEALTH_ALL);
-// health_active = health_view_active(). Both false on no-health platforms.
-ViewSpec view_spec_from_state(uint8_t top_view_mode, bool dual,
-                              uint8_t top_view, uint8_t bottom_view,
-                              bool health_graph_on, bool health_active);
+// Decode a packed wire byte (tier<<6 | top<<4 | body<<2 | status) to a ViewSpec.
+// Pure — the producer (main_window) supplies the byte; availability is resolved
+// separately by view_spec_resolve. Byte 0 (tier=off) decodes to a zeroed spec.
+ViewSpec view_spec_unpack(uint8_t byte);
 
-// Data-availability downgrades, pure: a radar band without radar data falls back
-// (and a health status row that only rode that radar stop falls back with it).
-ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar);
+// Data-availability downgrades, pure. Without health data (aplite, or health off):
+// health graph -> forecast, health/dual status -> weather. Without radar data: a radar
+// top band -> calendar, a radar body -> forecast. Radar-in-body is valid with a calendar.
+ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health);
 
 LayerVisibility layout_visibility(const ViewSpec *spec);
 

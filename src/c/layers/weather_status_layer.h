@@ -15,6 +15,7 @@ Layer *weather_status_layer_get_root(void);
 // lays the band out and pushes it here — usually the top-view mode, but in
 // dual-status mode the weather band is carved from the forecast at the
 // full-height band, so the window passes TOP_VIEW_FULL even in compact top view.
-// See the ViewSpec tier (spec.status_tier / view_spec_from_state() in windows/layout.c).
+// See the ViewSpec's status_tier field (view_spec_unpack()/view_spec_resolve() in
+// windows/layout.c).
 // Must be set before the first layout/paint.
 void weather_status_layer_set_render_tier(uint8_t tier);

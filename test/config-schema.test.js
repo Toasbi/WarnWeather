@@ -230,12 +230,12 @@ test('rainCountdownHorizon is a radar- and non-aplite-gated select with Off/30/6
   });
 });
 
-test('layoutPreset is a Layout tab radio defaulting to classic, with a sticky combined preview block; firstWeek is no longer gated by it', () => {
+test('layoutPreset offers the four adaptive presets', () => {
   const t = byKey('layoutPreset');
   assert.ok(t, 'layoutPreset item exists');
   assert.equal(t.type, 'radio');
-  assert.equal(t.defaultValue, 'classic');
-  assert.deepEqual(t.options.map((o) => o[1]), ['classic', 'radarLast', 'forecast', 'fullCal', 'healthFirst']);
+  assert.equal(t.defaultValue, 'compactCal');
+  assert.deepEqual(t.options.map((o) => o[1]), ['fullCal', 'compactCal', 'compactDense', 'noCal']);
   // Lives in the Layout tab, with a sticky combined preview block above it.
   const layout = schema.tabs.find((tab) => tab.id === 'layout');
   assert.ok(layout, 'layout tab exists');

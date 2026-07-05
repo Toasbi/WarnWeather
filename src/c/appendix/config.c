@@ -33,9 +33,12 @@ static Config config_defaults(void) {
         .rain_countdown_horizon_min = 60,
         .top_view_mode = TOP_VIEW_COMPACT,
         .dual_status = false,
-        // Default flick cycle mirrors today: compact default view, radar on the first flick.
+        // Retired; superseded by view_spec. Left initialised for determinism.
         .view_content = { VC_FORECAST_COMPACT, VC_RADAR, VC_OFF },
-        .view_reset_min = 0
+        .view_reset_min = 0,
+        // Default view cycle: compact calendar + forecast (0x90), flick slots disabled.
+        // The phone re-sends the real cycle on connect; this only covers the first boot.
+        .view_spec = { 0x90, 0x00, 0x00 }
     };
 }
 

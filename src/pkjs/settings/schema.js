@@ -302,13 +302,18 @@ module.exports = {
                 type: 'radio',
                 messageKey: 'layoutPreset',
                 label: 'Layout preset',
-                defaultValue: 'classic',
+                defaultValue: 'compactCal',
+                hintByValue: {
+                    fullCal: '3-row calendar. Health and radar appear on wrist-flicks.',
+                    compactCal: '2-row calendar. Flick to radar and health as you enable them.',
+                    compactDense: 'Compact calendar with health and weather status shown together.',
+                    noCal: 'No calendar — a big forecast. Flick to radar and health.'
+                },
                 options: [
-                    ['Classic (compact, flick to radar)', 'classic'],
-                    ['Radar last (health status first)', 'radarLast'],
-                    ['Big forecast', 'forecast'],
                     ['Full calendar', 'fullCal'],
-                    ['Health graph first', 'healthFirst']
+                    ['Compact calendar', 'compactCal'],
+                    ['Compact calendar (dense)', 'compactDense'],
+                    ['No calendar', 'noCal']
                 ],
                 blockBefore: 'layoutPreviewCombined',
                 blockBeforeSticky: true

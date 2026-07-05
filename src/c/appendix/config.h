@@ -20,9 +20,10 @@ enum HealthMode {
     HEALTH_ALL = 2,     // flick also swaps the forecast graph to the health graph (beta)
 };
 
-// A composed view in the flick cycle. Each value maps to a ViewSpec the layout
-// module already renders (see spec_for_content() in main_window.c). VC_OFF is only
-// valid for the two flick slots (the default view always renders something).
+// Legacy per-slot content enum, superseded by the packed ViewSpec wire byte (decoded
+// by view_spec_unpack() in windows/layout.c). Retained only to give the RETIRED
+// view_content[] field below meaningful-looking defaults. VC_OFF is only valid for
+// the two flick slots (the default view always renders something).
 enum ViewContent {
     VC_OFF = 0,              // flick slot disabled / skipped
     VC_FORECAST_FULL = 1,    // 3-row calendar + forecast
@@ -54,11 +55,13 @@ typedef struct {
     int16_t fetch_interval_min;
     uint8_t health_mode;   // enum HealthMode; reinterprets the old bool health_enabled byte (0=off,1=status)
     int16_t rain_countdown_horizon_min;
-    uint8_t top_view_mode;   // enum TopViewMode; reuses the old compact_top_view byte
-    bool dual_status;        // Status mode only: show health + weather status together (append-only — keep last)
+    uint8_t top_view_mode;   // enum TopViewMode; boot-time hint, overwritten per active view
+    bool dual_status;        // RETIRED (superseded by per-slot ViewSpec status); kept for persist offset stability
     // --- flick cycle (v1.7): three composed views + auto-return timer (append-only) ---
-    uint8_t view_content[3]; // [default, flick1, flick2] — enum ViewContent
+    uint8_t view_content[3]; // RETIRED (superseded by view_spec); kept for persist offset stability
     uint8_t view_reset_min;  // minutes of no-flick before returning to the default view; 0 = Never
+    // --- adaptive presets (v1.8): packed per-slot ViewSpec bytes (append-only) ---
+    uint8_t view_spec[3];    // [default, flick1, flick2] — packed byte (see view_spec_unpack); 0 = disabled slot
 } Config;
 
 extern Config *g_config;
