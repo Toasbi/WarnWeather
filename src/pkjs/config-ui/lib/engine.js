@@ -259,21 +259,25 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return html ? '<div class="blockrow' + (sticky ? ' sticky' : '') + '">' + html + '</div>' : '';
   }
 
-  // Resolve a select/searchSelect's concrete options and normalize its stored value.
+  // Resolve a select/searchSelect/radio's concrete options and normalize its stored value.
   // For an optionsFrom item this materializes the derived options and, when the stored
-  // value is no longer among them (e.g. the interval they depend on was raised), snaps
-  // both view.value and cx.S to the first (lowest = interval) option so the rendered
-  // control and the stored state stay in lockstep. This is the ONE place that mutates
-  // cx.S during render — isolated here so renderItem stays a pure dispatcher. Returns
-  // the row item to render (a derived-options clone, or the original item unchanged).
+  // value is no longer among them (e.g. the interval they depend on was raised, or a
+  // preset was hidden for the current mode), snaps both view.value and cx.S into a valid
+  // option so the rendered control and stored state stay in lockstep — preferring the
+  // item's defaultValue when it survived (e.g. Compact-dense → the default Compact when
+  // health turns off), else the first (lowest = interval) option. This is the ONE place
+  // that mutates cx.S during render — isolated here so renderItem stays a pure dispatcher.
+  // Returns the row item to render (a derived-options clone, or the original unchanged).
   function resolveRowItem(item, view, cx) {
-    if ((item.type !== 'select' && item.type !== 'searchSelect') || !item.optionsFrom) {
+    if ((item.type !== 'select' && item.type !== 'searchSelect' && item.type !== 'radio') || !item.optionsFrom) {
       return item;
     }
     var derived = resolveOptionsFrom(item, cx.S);
     if (derived.length && !optionHasValue(derived, view.value)) {
-      view.value = derived[0][1];
-      cx.S[item.messageKey] = derived[0][1];
+      var snap = (item.defaultValue != null && optionHasValue(derived, item.defaultValue))
+        ? item.defaultValue : derived[0][1];
+      view.value = snap;
+      cx.S[item.messageKey] = snap;
     }
     return Object.assign({}, item, { options: derived });
   }

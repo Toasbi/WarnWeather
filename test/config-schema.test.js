@@ -235,7 +235,14 @@ test('layoutPreset offers the four adaptive presets', () => {
   assert.ok(t, 'layoutPreset item exists');
   assert.equal(t.type, 'radio');
   assert.equal(t.defaultValue, 'compactCal');
-  assert.deepEqual(t.options.map((o) => o[1]), ['fullCal', 'compactCal', 'compactDense', 'noCal']);
+  // Options derive from healthMode: Compact-dense is hidden when health is off (it only
+  // differs from Compact when a status row shows), present otherwise. Order stays constant
+  // so toggling health doesn't reshuffle the list.
+  assert.equal(t.options, undefined, 'options must be derived, not static');
+  assert.equal(t.optionsFrom.byKey, 'healthMode');
+  assert.deepEqual(t.optionsFrom.map.off.map((o) => o[1]), ['fullCal', 'compactCal', 'noCal']);
+  assert.deepEqual(t.optionsFrom.map.status.map((o) => o[1]), ['fullCal', 'compactCal', 'compactDense', 'noCal']);
+  assert.deepEqual(t.optionsFrom.map.all.map((o) => o[1]), ['fullCal', 'compactCal', 'compactDense', 'noCal']);
   // Lives in the Layout tab, with a sticky combined preview block above it.
   const layout = schema.tabs.find((tab) => tab.id === 'layout');
   assert.ok(layout, 'layout tab exists');

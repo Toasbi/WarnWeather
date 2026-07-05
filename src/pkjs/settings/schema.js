@@ -309,12 +309,30 @@ module.exports = {
                     compactDense: 'Compact calendar with health and weather status shown together.',
                     noCal: 'No calendar — a big forecast. Flick to radar and health.'
                 },
-                options: [
-                    ['Full calendar', 'fullCal'],
-                    ['Compact calendar', 'compactCal'],
-                    ['Compact calendar (dense)', 'compactDense'],
-                    ['No calendar', 'noCal']
-                ],
+                // Compact-dense only differs from Compact when a health status row is shown;
+                // with health off the two produce identical cycles, so it's hidden then. A
+                // stored compactDense falls back to the default (compactCal) via the
+                // defaultValue-snap in engine.resolveRowItem. Order stays constant across
+                // modes so toggling health doesn't reshuffle the list.
+                optionsFrom: { byKey: 'healthMode', map: {
+                    off: [
+                        ['Full calendar', 'fullCal'],
+                        ['Compact calendar', 'compactCal'],
+                        ['No calendar', 'noCal']
+                    ],
+                    status: [
+                        ['Full calendar', 'fullCal'],
+                        ['Compact calendar', 'compactCal'],
+                        ['Compact calendar (dense)', 'compactDense'],
+                        ['No calendar', 'noCal']
+                    ],
+                    all: [
+                        ['Full calendar', 'fullCal'],
+                        ['Compact calendar', 'compactCal'],
+                        ['Compact calendar (dense)', 'compactDense'],
+                        ['No calendar', 'noCal']
+                    ]
+                } },
                 blockBefore: 'layoutPreviewCombined',
                 blockBeforeSticky: true
             }, {
