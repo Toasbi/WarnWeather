@@ -1,7 +1,7 @@
 {
   "name": "warnweather",
   "author": "Toasbi",
-  "version": "1.6.0",
+  "version": "1.6.2",
   "buildProfile": "dev",
   "keywords": [
     "pebble-app"
@@ -248,12 +248,20 @@
     "1.6.0": {
       "title": "More Layouts & Health view",
       "body": "Added Health data — steps, sleep, and heart rate on the status line + beta health graph. New too: warning for incoming rain(needs radar) and a some layout customizations with bigger fonts."
+    },
+    "1.6.1": {
+      "title": "Layout fixes",
+      "body": "Fine tuned layout for non emery platforms."
+    },
+    "1.6.2": {
+      "title": "Layout presets and fixes for older watches",
+      "body": "Updated layout presets. More incoming. Fixed the watchface not starting on Pebble Classic and Steel."
     }
   },
   "releaseNotification": {
     "enabled": true,
-    "title": "More Layouts & Health view",
-    "body": "Added Health data — steps, sleep, and heart rate on the status line + beta health graph. New too: warning for incoming rain(needs radar) and a some layout customizations with bigger fonts."
+    "title": "Layout presets and fixes for older watches",
+    "body": "Updated layout presets. More incoming. Fixed the watchface not starting on Pebble Classic and Steel."
   },
   "telemetry": {
     "enabled": false,
