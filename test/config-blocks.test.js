@@ -339,6 +339,44 @@ test('contentBands renders dual as two status rows', () => {
     assert.ok(labels.indexOf('Health status') >= 0 && labels.indexOf('Weather status') >= 0);
 });
 
+// A status line occupies exactly the space freed by dropping the 3rd calendar row, so
+// the compact calendar + its status band read as tall as the full 3-row calendar.
+test('contentBands: Cal2 + gap + status = Cal3 (status = the freed calendar row)', () => {
+    const vc = require('../src/pkjs/view-cycle.js');
+    const GAP = 2; // renderers stack bands with a 2px gap
+    const full = B.contentBands(vc.spec(vc.TIER_FULL, vc.TOP_CAL, vc.BODY_FC, vc.ST_W));
+    const compact = B.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.ST_W));
+    const cal3 = full.find((b) => b.label === 'Calendar (3 rows)').h;
+    const cal2 = compact.find((b) => b.label === 'Calendar (2 rows)').h;
+    const status = compact.find((b) => b.label === 'Weather status').h;
+    assert.equal(cal2 + GAP + status, cal3, 'dropping the 3rd calendar row buys exactly one status line');
+});
+
+// The body (Forecast / Health graph / Radar) is the flex element: it absorbs whatever
+// vertical space the fixed bands leave, so it always reaches the bottom of the frame.
+test('contentBands: the body band is the flex element, all others fixed', () => {
+    const vc = require('../src/pkjs/view-cycle.js');
+    [vc.BODY_FC, vc.BODY_GRAPH, vc.BODY_RADAR].forEach((body) => {
+        const bands = B.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, body, vc.ST_W));
+        const last = bands[bands.length - 1];
+        assert.equal(last.flex, true, 'the last (body) band is marked flex');
+        bands.slice(0, -1).forEach((b) => assert.ok(!b.flex, b.label + ' is fixed-height'));
+    });
+});
+
+test('resolveBandHeights: the flex band absorbs the slack so bands + gaps fill availH', () => {
+    const bands = [{ h: 12 }, { h: 20 }, { h: 20, flex: true }];
+    const heights = B.resolveBandHeights(bands, 100, 2);
+    const total = heights.reduce((s, h) => s + h, 0) + (bands.length - 1) * 2;
+    assert.equal(total, 100, 'bands + gaps exactly fill the available height');
+    assert.equal(heights[2], 100 - 12 - 20 - 2 * 2, 'flex band = remaining space after fixed bands + gaps');
+});
+
+test('resolveBandHeights: the flex band never collapses below a visible minimum', () => {
+    const heights = B.resolveBandHeights([{ h: 90 }, { h: 20, flex: true }], 50, 2);
+    assert.ok(heights[1] >= 12, 'flex band clamped to a visible minimum instead of going negative');
+});
+
 test('layoutPreview renders the resolved preset\'s default (slot 0) content', () => {
     assert.ok(B.layoutPreview({ layoutPreset: 'fullCal' }, {}, {}).indexOf('Calendar (3 rows)') >= 0,
         'fullCal default is the 3-row calendar view');

@@ -118,16 +118,19 @@ function resolvePresetKey(state) {
   return 'compactCal';
 }
 
-// Guarded: this file is also concatenated as a plain <script> into the config-UI
-// webview (see scripts/build-config-page.js), which has no `module` global. There,
-// settings/blocks.js picks up these same declarations directly from the shared
-// top-level scope instead (see its VC fallback).
+// Single public API object, defined once. As a CommonJS module (watch runtime, tests)
+// this is module.exports. When this file is instead concatenated as a plain <script> into
+// the config-UI webview (see scripts/build-config-page.js, which has no `module`),
+// settings/blocks.js reads this same VIEW_CYCLE object from the shared top-level scope
+// rather than require()-ing it — one export list, no hand-copied duplicate to drift.
+var VIEW_CYCLE = {
+  TIER_OFF: TIER_OFF, TIER_NONE: TIER_NONE, TIER_COMPACT: TIER_COMPACT, TIER_FULL: TIER_FULL,
+  TOP_EMPTY: TOP_EMPTY, TOP_CAL: TOP_CAL, TOP_RADAR: TOP_RADAR,
+  BODY_FC: BODY_FC, BODY_GRAPH: BODY_GRAPH, BODY_RADAR: BODY_RADAR,
+  ST_W: ST_W, ST_H: ST_H, ST_D: ST_D, ST_NONE: ST_NONE,
+  spec: spec, packSpec: packSpec, unpackSpec: unpackSpec,
+  buildViewCycle: buildViewCycle, resolvePresetKey: resolvePresetKey
+};
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = {
-    TIER_OFF: TIER_OFF, TIER_NONE: TIER_NONE, TIER_COMPACT: TIER_COMPACT, TIER_FULL: TIER_FULL,
-    TOP_EMPTY: TOP_EMPTY, TOP_CAL: TOP_CAL, TOP_RADAR: TOP_RADAR,
-    BODY_FC: BODY_FC, BODY_GRAPH: BODY_GRAPH, BODY_RADAR: BODY_RADAR,
-    ST_W: ST_W, ST_H: ST_H, ST_D: ST_D, ST_NONE: ST_NONE,
-    spec: spec, packSpec: packSpec, unpackSpec: unpackSpec, buildViewCycle: buildViewCycle, resolvePresetKey: resolvePresetKey
-  };
+  module.exports = VIEW_CYCLE;
 }

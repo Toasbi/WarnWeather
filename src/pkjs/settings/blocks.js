@@ -1,6 +1,6 @@
 // src/pkjs/settings/blocks.js — ES5, WebView. Registers WarnWeather's custom blocks.
 // Each block: function(state, env, userData) -> htmlString
-/* global PConf */
+/* global PConf, VIEW_CYCLE */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf
     : (typeof PConf !== 'undefined' && PConf) ? PConf
@@ -8,16 +8,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 (function () {
     // Node (tests/build tooling): view-cycle.js is a real CommonJS module, require it.
     // Webview: view-cycle.js is concatenated as a plain <script> before this file (see
-    // scripts/build-config-page.js), so its top-level declarations share this scope —
-    // reference them directly rather than via require(), which doesn't exist there.
-    var VC = (typeof require !== 'undefined') ? require('../view-cycle.js') : {
-        TIER_OFF: TIER_OFF, TIER_NONE: TIER_NONE, TIER_COMPACT: TIER_COMPACT, TIER_FULL: TIER_FULL,
-        TOP_EMPTY: TOP_EMPTY, TOP_CAL: TOP_CAL, TOP_RADAR: TOP_RADAR,
-        BODY_FC: BODY_FC, BODY_GRAPH: BODY_GRAPH, BODY_RADAR: BODY_RADAR,
-        ST_W: ST_W, ST_H: ST_H, ST_D: ST_D, ST_NONE: ST_NONE,
-        spec: spec, packSpec: packSpec, unpackSpec: unpackSpec,
-        buildViewCycle: buildViewCycle, resolvePresetKey: resolvePresetKey
-    };
+    // scripts/build-config-page.js), which has no require(). It exposes its whole API as
+    // one top-level VIEW_CYCLE object sharing this scope — read that directly. Matches how
+    // this file already resolves PConf (see above): one name, no hand-copied export list.
+    var VC = (typeof require !== 'undefined') ? require('../view-cycle.js') : VIEW_CYCLE;
 
     function parseStoredJson(v) {
         if (v === null || typeof v === 'undefined') { return null; }
@@ -626,6 +620,32 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return VC.buildViewCycle(VC.resolvePresetKey(state), state.healthMode || 'off', radarEnabled);
     }
 
+    // Schematic band-stack geometry (px). The calendar is modelled as rows of height ROW
+    // stacked with BAND_GAP between them (the same gap the renderers draw), so a status line
+    // is exactly one freed calendar row: CAL2_H + BAND_GAP + STATUS_H === CAL3_H. Dropping the
+    // 3rd calendar row buys precisely one status band. Kept honest by a test in config-blocks.
+    var ROW = 10, BAND_GAP = 2;
+    var CAL3_H = ROW * 3 + BAND_GAP * 2;   // 34 — full 3-row calendar (2 inter-row gaps)
+    var CAL2_H = ROW * 2 + BAND_GAP;       // 22 — compact 2-row calendar (1 inter-row gap)
+    var STATUS_H = ROW;                    // 10 — a status line = the freed calendar row
+    var FLEX_MIN = 12;                     // floor for the flex (body) band so it never vanishes
+
+    // Resolve band heights for a stack that fills `availH` (bands + gaps span exactly availH).
+    // The single band flagged `flex` absorbs the slack; the rest keep their fixed `h`. Returns
+    // a parallel array of heights (px). With no flex band, returns the fixed heights unchanged.
+    function resolveBandHeights(bands, availH, gap) {
+        var fixed = 0, flexIdx = -1, i, out = [];
+        for (i = 0; i < bands.length; i++) {
+            out.push(bands[i].h);
+            if (bands[i].flex) { flexIdx = i; } else { fixed += bands[i].h; }
+        }
+        if (flexIdx >= 0) {
+            var rest = availH - fixed - (bands.length - 1) * gap;
+            out[flexIdx] = rest > FLEX_MIN ? rest : FLEX_MIN;
+        }
+        return out;
+    }
+
     // Schematic band stack for one ViewSpec — proportional, not pixel-accurate. Mirrors
     // layout.c band ordering: compact = cal, single status (whichever is on) before clock;
     // dual = health before clock, weather after; full/none = clock then status row(s).
@@ -635,13 +655,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var isNone = spec.tier === VC.TIER_NONE;
         var isFull = spec.tier === VC.TIER_FULL;
         var topBand = null;
-        if (spec.top === VC.TOP_RADAR) { topBand = { label: 'Radar', h: 34 }; }
-        else if (!isNone) { topBand = { label: isFull ? 'Calendar (3 rows)' : 'Calendar (2 rows)', h: isFull ? 34 : 24 }; }
+        if (spec.top === VC.TOP_RADAR) { topBand = { label: 'Radar', h: CAL3_H }; }
+        else if (!isNone) { topBand = { label: isFull ? 'Calendar (3 rows)' : 'Calendar (2 rows)', h: isFull ? CAL3_H : CAL2_H }; }
         var bodyLabel = spec.body === VC.BODY_GRAPH ? 'Health graph'
                       : spec.body === VC.BODY_RADAR ? 'Radar' : 'Forecast';
-        var bodyBand = { label: bodyLabel, h: isNone ? 42 : (isFull ? 20 : 28) };
-        var weather = { label: 'Weather status', h: 14 };
-        var health = { label: 'Health status', h: 14 };
+        // The body always takes the remaining space (flex); the fallback h only matters to a
+        // consumer that doesn't resolve flex bands.
+        var bodyBand = { label: bodyLabel, h: 20, flex: true };
+        var weather = { label: 'Weather status', h: STATUS_H };
+        var health = { label: 'Health status', h: STATUS_H };
         var clock = { label: 'Clock', h: isNone ? 30 : 22 };
         var dual = spec.status === VC.ST_D;
         var showW = spec.status === VC.ST_W || dual;
@@ -671,11 +693,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function renderBandStack(bands) {
         if (!bands || !bands.length) { return ''; }
         var W = 200, PAD = 8, w = W - PAD * 2, y = PAD, i;
+        var heights = resolveBandHeights(bands, 118 - PAD * 2, BAND_GAP);
         var e = rect(0, 0, W, 118, '#000');
         for (i = 0; i < bands.length; i++) {
-            e += rect(PAD, y, w, bands[i].h, '#1B1F27');
-            e += txt(W / 2, y + bands[i].h / 2 + 3, 8, '#AEB4BD', 'middle', 600, bands[i].label);
-            y += bands[i].h + 2;
+            e += rect(PAD, y, w, heights[i], '#1B1F27');
+            e += txt(W / 2, y + heights[i] / 2 + 3, 8, '#AEB4BD', 'middle', 600, bands[i].label);
+            y += heights[i] + BAND_GAP;
         }
         return svgFrame(e, 118);
     }
@@ -707,10 +730,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             e += txt(x + w / 2, y + 54, 8, '#6A7280', 'middle', 600, note || '—');
             return e;
         }
+        // Bands + gaps span y=16..120, matching the empty-column placeholder's 104px box, so
+        // the flex (body) band always fills down to the same bottom across all columns.
+        var heights = resolveBandHeights(bands, 104, BAND_GAP);
         for (i = 0; i < bands.length; i++) {
-            e += rect(x, y, w, bands[i].h, bandFill);
-            e += txt(x + w / 2, y + bands[i].h / 2 + 3, 7.5, labelColor, 'middle', 600, bands[i].label);
-            y += bands[i].h + 2;
+            e += rect(x, y, w, heights[i], bandFill);
+            e += txt(x + w / 2, y + heights[i] / 2 + 3, 7.5, labelColor, 'middle', 600, bands[i].label);
+            y += heights[i] + BAND_GAP;
         }
         if (note) {
             e += txt(x + w / 2, y + 8, 7, '#7C828D', 'middle', 600, note);
@@ -749,6 +775,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             layoutPreview: layoutPreview, layoutPreviewFlick: layoutPreviewFlick,
             layoutPreviewCombined: layoutPreviewCombined,
             presetContents: presetContents, contentBands: contentBands,
+            resolveBandHeights: resolveBandHeights,
             barPermille: barPermille, previewPaletteFallback: FALLBACK_PALETTE
         };
     }
