@@ -13,6 +13,8 @@ src/pkjs/settings/page.generated.js
 screenshot/**/*
 !screenshot/**/
 !screenshot/frames/*.svg
+!screenshot/fonts/*.ttf
+!screenshot/fonts/*.txt
 !screenshot/v*/*.png
 !screenshot/v*/raw/*.png
 !screenshot/v*/composite/*.png
