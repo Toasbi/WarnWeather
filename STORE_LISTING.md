@@ -75,11 +75,12 @@ WATCH STATUS
 - Sleep mode (battery-saving night pause)
 
 LAYOUT CUSTOMIZATION
-- Layout presets choose what's on screen by default and what a wrist-flick cycles
-  through next: Classic, Radar last, Big forecast, Full calendar, or Health graph first
-  (previewed live in settings)
-- Presets range from a 3-row calendar down to no calendar at all (full-date strip,
-  bigger clock and status line, full-screen forecast)
+- Four layout presets set your calendar style: Full calendar (3-row), Compact
+  calendar (2-row), Compact calendar (dense — health and weather status shown
+  together), or No calendar (full-date strip, bigger clock/status line, full-screen
+  forecast)
+- The wrist-flick cycle builds itself: enable health or radar and a flick reveals
+  them automatically (previewed live in settings)
 - Optional auto-return to the default view a set time after flicking away
   (1-10 minutes, or never)
 
