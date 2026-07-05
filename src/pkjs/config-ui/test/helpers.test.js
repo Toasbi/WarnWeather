@@ -30,11 +30,17 @@ test('isHealthPlatform: only aplite lacks health; others (and unknown) have it',
   assert.equal(platform.isHealthPlatform(''), true);
 });
 
+test('isRadarPlatform: only aplite lacks radar; others (and unknown) have it', () => {
+  assert.equal(platform.isRadarPlatform('aplite'), false);
+  ['basalt','chalk','diorite','emery','flint'].forEach((p) => assert.equal(platform.isRadarPlatform(p), true, p));
+  assert.equal(platform.isRadarPlatform(''), true);
+});
+
 test('computeEnv from watchInfo', () => {
-  assert.deepEqual(platform.computeEnv({ platform: 'flint' }), { color: false, round: false, platform: 'flint', health: true });
-  assert.deepEqual(platform.computeEnv({ platform: 'chalk' }), { color: true, round: true, platform: 'chalk', health: true });
-  assert.deepEqual(platform.computeEnv({ platform: 'aplite' }), { color: false, round: false, platform: 'aplite', health: false });
-  assert.deepEqual(platform.computeEnv(null), { color: true, round: false, platform: '', health: true });
+  assert.deepEqual(platform.computeEnv({ platform: 'flint' }), { color: false, round: false, platform: 'flint', health: true, radar: true });
+  assert.deepEqual(platform.computeEnv({ platform: 'chalk' }), { color: true, round: true, platform: 'chalk', health: true, radar: true });
+  assert.deepEqual(platform.computeEnv({ platform: 'aplite' }), { color: false, round: false, platform: 'aplite', health: false, radar: false });
+  assert.deepEqual(platform.computeEnv(null), { color: true, round: false, platform: '', health: true, radar: true });
 });
 
 test('deriveDefaults/deriveColorKeys are schema-driven (colors as ints)', () => {

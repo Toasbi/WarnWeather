@@ -230,7 +230,10 @@ module.exports = {
             }]
         }]
     }, {
-        id: 'radar', label: 'Radar', sections: [{
+        // aplite compiles the rain-radar view out (WW_RAIN_RADAR undefined — the 24 KB
+        // budget can't afford it), so the whole tab is env-hidden there (tab-level
+        // showWhen; see platform.js radar env flag). Mirrors the health tab.
+        id: 'radar', label: 'Radar', showWhen: {env: 'radar'}, sections: [{
             intro: 'Rain radar is a second view — set where it appears in the Layout tab.<br>' + 'Unlike the model prediction in the forecast graph, this is a short-term nowcast based on actual radar measurements moving toward you, and it refreshes often as new radar scans arrive. ' + 'Behind the scenes the provider gives a sequence of radar images covering the next 2 hours; we read the rain intensity at your location in each image and turn every 5-minute frame into one bar whose height is the rain amount. ' + 'Solid bars are rain at your exact spot; the hatched outline behind them is the strongest rain anywhere within 2 km — an early warning that rain is nearby even when it isn\'t directly overhead yet.<br>' + 'Radar is Germany-only for now (Deutscher Wetterdienst). I\'m open to adding more providers, but so far I haven\'t found another free one that delivers 5-minute updates precise to your exact location.',
             items: [{
                 type: 'segmented',
@@ -339,9 +342,13 @@ module.exports = {
                 type: 'segmented',
                 messageKey: 'viewResetMin',
                 label: 'View reset time',
-                hint: 'Return to default view after the selected time has passed.',
                 defaultValue: '0',
                 options: [['Never', '0'], ['1m', '1'], ['2m', '2'], ['5m', '5'], ['10m', '10']]
+            }, {
+                type: 'staticText',
+                joinPrevious: true,
+                text: '<span style="color:#A9AEB8;font-size:12.5px;line-height:1.55;">' +
+                    'Automatically return to the default view after the selected time has passed.</span>'
             }]
         }]
     }, {

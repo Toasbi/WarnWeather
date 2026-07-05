@@ -89,6 +89,15 @@ test('health tab is gated to health-capable platforms, with a 3-state mode radio
   assert.deepEqual(mode.options.map((o) => o[1]), ['off', 'status', 'all']);
 });
 
+test('radar tab is gated to radar-capable platforms', () => {
+  // aplite compiles the rain-radar view out (WW_RAIN_RADAR undefined) to reclaim
+  // boot heap, so hide the whole tab there instead of showing controls that do
+  // nothing — mirrors the health tab.
+  const radarTab = schema.tabs.find((t) => t.id === 'radar');
+  assert.ok(radarTab, 'radar tab exists');
+  assert.deepEqual(radarTab.showWhen, { env: 'radar' });
+});
+
 test('secondaryLine is a 4-metric dropdown with no Off', () => {
   const sec = byKey('secondaryLine');
   assert.equal(sec.type, 'select');
