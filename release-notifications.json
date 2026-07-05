@@ -51,6 +51,10 @@
     "title": "Layout fixes",
     "body": "Fine tuned layout for non emery platforms."
   },
+  "1.6.2": {
+    "title": "Pebble Classic & Steel fix",
+    "body": "Fixed the watchface not starting on Pebble Classic and Steel. Rain radar is unavailable on those models."
+  },
   "1.7.0": {
     "title": "Adaptive layout presets",
     "body": "Layout presets now adapt to your health and radar settings — pick a calendar style and the flick cycle builds itself, with an optional auto-return to your default view after a few minutes."
