@@ -34,17 +34,39 @@ static inline int status_glyph_below(int content_h) {
     return (content_h * num + den / 2) / den;
 }
 
+// How far lowercase descenders ('g', 'y') paint BELOW the measured content box. Pebble's
+// content size excludes true descent — "0g" measures the same height as "0" — so a line
+// needs this much band below its content box or the tails cross the layer frame and are
+// clipped (no clip-rect inside the layer can reveal them). Rounded content_h/6: ~2px at
+// Gothic 14, ~3px at 18, ~4px at 24.
+#define STATUS_DESCENDER_NUM 1
+#define STATUS_DESCENDER_DEN 6
+static inline int status_descender_h(int content_h) {
+    return (content_h * STATUS_DESCENDER_NUM + STATUS_DESCENDER_DEN / 2) / STATUS_DESCENDER_DEN;
+}
+
 // Shared status-bar text positioning: seat the line so its visual glyph (cap box) is centred
 // in the band. Solving `glyph centre == band_h/2` (see status_glyph_center_y) for the frame top:
 //     text_y + content_h - below == band_h / 2   →   text_y = band_h/2 - content_h + below
 // Fully font-derived, so it holds at ANY band size and font with no per-tier tuning: the glyph
 // always centres, and its clearance above and below is (band_h - cap)/2. To change that
 // clearance — e.g. more padding above the forecast — resize the band, don't offset here.
+//
+// Descender clamp: a band shorter than its line (the compact tier's calendar_h/3 slot is 20px
+// under a 24px Gothic line on emery, 15px under 18px elsewhere) cannot both centre the cap box
+// and keep the descenders inside the layer frame — centring left ~2px under the content box
+// while the tails need status_descender_h(), so the city 'g'/'y' were shaved at the band
+// bottom. When centring would seat the line that low, lift it just enough that the descender
+// fits (the line rises toward the calendar above, which also reads better on-device). Bands
+// sized from the font (status_forecast_band_h, the none-tier bands) already satisfy the clamp,
+// so full/none seating is untouched.
 static inline int status_text_y(int band_h, GFont font) {
     int content_h = graphics_text_layout_get_content_size(
         "0", font, GRect(0, 0, 100, 100),
         GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).h;
-    return band_h / 2 - content_h + status_glyph_below(content_h);
+    int y = band_h / 2 - content_h + status_glyph_below(content_h);
+    int y_fit = band_h - content_h - status_descender_h(content_h);
+    return (y < y_fit) ? y : y_fit;
 }
 
 // Vertical centre of the digits a status line actually renders, for marks drawn beside the
