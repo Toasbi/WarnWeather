@@ -29,6 +29,10 @@ static Window *s_main_window;
 // Session-only cycle cursor: every launch boots to the DEFAULT view (index 0).
 // A wrist-flick advances to the next enabled + available view and wraps back.
 static uint8_t s_view_index;
+// The cycle definition (view_spec bytes) the cursor was last validated against, so
+// main_window_apply_top_view can tell a real settings change (cycle redefined → return
+// to default) from a same-cycle re-apply (radar/health availability → keep the cursor).
+static uint8_t s_applied_view_spec[3];
 // Minutes since the last flick, for the auto-return-to-default timer (0 = disabled).
 static uint8_t s_minutes_since_flick;
 
@@ -65,28 +69,10 @@ static ViewSpec current_view_spec(void) {
     return unpack_slot_spec(g_config->view_spec[s_view_index]);
 }
 
-// Is a slot renderable right now? Disabled (0) never; a radar band needs radar data;
-// a health band/row needs health renderable. Decodes via view_spec_unpack so the
-// wire-format top field is translated the same way current_view_spec() does.
-static bool view_available(uint8_t byte) {
-    if (byte == 0) { return false; }                 // tier=off → disabled slot
-    ViewSpec spec = view_spec_unpack(byte);
-    bool needs_radar = (spec.top == TOP_BAND_RADAR) || (spec.body == BODY_RADAR);
-    bool needs_health = (spec.body == BODY_HEALTH_GRAPH)
-                     || (spec.status == STATUS_ROW_HEALTH) || (spec.status == STATUS_ROW_DUAL);
-    if (needs_radar && !radar_has_data()) { return false; }
-    if (needs_health && !health_renderable()) { return false; }
-    return true;
-}
-
-// Next enabled + available slot after `from`, wrapping. Index 0 (the default view) is
-// always a valid stop, so the cycle can never get stuck.
+// Next flick target after `from`. Resolves availability from the SDK here (radar data
+// present? health renderable?) and defers the pure wrap logic to layout.c.
 static uint8_t next_view_index(uint8_t from) {
-    for (int step = 1; step <= 3; step++) {
-        uint8_t i = (uint8_t)((from + step) % 3);
-        if (i == 0 || view_available(g_config->view_spec[i])) { return i; }
-    }
-    return 0;
+    return view_cursor_next(from, g_config->view_spec, radar_has_data(), health_renderable());
 }
 
 // Reframe every band and set layer visibility + status tiers for the active view.
@@ -197,7 +183,10 @@ static void main_window_load(Window *window) {
     loading_layer_refresh();
     app_message_send_startup_state(loading_layer_data_is_fresh());
     // The cycle cursor is session-only: every launch starts on the DEFAULT view
-    // (index 0). Set the initial layer visibility for it (geometry already applied above).
+    // (index 0). Seed the applied-cycle snapshot with the boot config so the first
+    // same-cycle re-apply (e.g. an incoming radar update) doesn't read it as a settings
+    // change and reset a cursor the user has since flicked. Set initial visibility too.
+    memcpy(s_applied_view_spec, g_config->view_spec, sizeof(s_applied_view_spec));
     render_active_view();
 #if defined(PBL_HEALTH)
     // Repaint the health view when a deferred build finishes.
@@ -312,12 +301,13 @@ void main_window_apply_top_view() {
     s_health_mode_prev = g_config->health_mode;
 #endif
     // Re-apply the current view after radar availability or config changed. A radar/health
-    // view whose data or capability vanished degrades in place via view_spec_resolve; only
-    // fall back to the default view if a config change turned the current slot disabled (0)
-    // entirely.
-    if (s_view_index != 0 && g_config->view_spec[s_view_index] == 0) {
-        s_view_index = 0;
-    }
+    // view whose data or capability vanished degrades in place via view_spec_resolve. But a
+    // settings change that redefines the cycle makes the cursor's old slot mean a different
+    // view — return to the default then, so the cursor never strands on a stale slot (the
+    // "default view never shows after changing settings" bug). A same-cycle re-apply (radar
+    // availability flip) leaves the cursor where the user put it.
+    s_view_index = view_cursor_after_config(s_view_index, s_applied_view_spec, g_config->view_spec);
+    memcpy(s_applied_view_spec, g_config->view_spec, sizeof(s_applied_view_spec));
     render_active_view();
     main_window_refresh();
 }

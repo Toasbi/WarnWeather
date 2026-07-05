@@ -54,7 +54,8 @@ static void split_content(int content_h, const uint8_t weights[3],
 // calendar, time rises under the strip, a taller status band beneath it, the bottom
 // band (which also hosts the radar) fills the rest.
 static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool dual,
-                                       int fc_band_h, const uint8_t weights[3]) {
+                                       bool has_status, int fc_band_h,
+                                       const uint8_t weights[3]) {
     bool compact = (tier != LAYOUT_TIER_FULL);
     int w = bounds.size.w;
     int h = bounds.size.h;
@@ -89,8 +90,11 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool dual,
         L.radar = L.bottom;                              // radar rides the bottom band
     } else {
         int cal_h = compact ? (calendar_h - calendar_h / 3) : calendar_h;
+        // full: reserve the abutting status band above the forecast — but only when a status
+        // row is actually shown. A statusless full view (the radar-top forecast flick,
+        // RDR_FC_NONE) reclaims that row so its forecast matches the compact tier's height.
         int forecast_y = compact ? (time_y + time_h)
-                                 : (time_y + time_h + WEATHER_STATUS_HEIGHT);
+                                 : (time_y + time_h + (has_status ? WEATHER_STATUS_HEIGHT : 0));
         // full: the status band rides directly above the forecast — size it from the font
         // (fc_band_h) and pin its bottom to the forecast top so the centred line clears the
         // graph by a constant margin, rising up into the clock band's slack. compact: the
@@ -105,11 +109,13 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool dual,
         L.time = GRect(content_x, time_y, content_w, time_h);
         L.bottom = GRect(content_x, forecast_y, bottom_w, h - LAYOUT_PAD_BOTTOM - forecast_y);
         // Unified loading rule: from the status band's top to the bottom pad. In compact
-        // the status band sits inside the calendar band, so loading covers just the graph.
+        // the status band sits inside the calendar band, so loading covers just the graph;
+        // a statusless full view has no band above the forecast, so loading starts at it.
+        int full_loading_top = has_status ? (forecast_y - fc_band_h) : forecast_y;
         L.loading = compact
             ? GRect(content_x, forecast_y, content_w, h - LAYOUT_PAD_BOTTOM - forecast_y)
-            : GRect(content_x, forecast_y - fc_band_h, content_w,
-                    h - LAYOUT_PAD_BOTTOM - (forecast_y - fc_band_h));
+            : GRect(content_x, full_loading_top, content_w,
+                    h - LAYOUT_PAD_BOTTOM - full_loading_top);
         L.radar = L.top;                                 // radar shares the calendar frame
     }
 
@@ -146,7 +152,8 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool dual,
 
 MainLayout layout_compute(GRect bounds, uint8_t tier, bool dual, int fc_band_h) {
     static const uint8_t default_weights[3] = { WEIGHT_CALENDAR, WEIGHT_TIME, WEIGHT_BOTTOM };
-    return compute_with_weights(bounds, tier, dual, fc_band_h, default_weights);
+    // Legacy entry point (tests): assume a status row is present, matching prior geometry.
+    return compute_with_weights(bounds, tier, dual, /* has_status */ true, fc_band_h, default_weights);
 }
 
 // ── ViewSpec producers/consumers ────────────────────────────────────────────
@@ -219,7 +226,7 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
                  : (spec->calendar_rows == 2) ? LAYOUT_TIER_COMPACT
                  : LAYOUT_TIER_FULL;
     MainLayout L = compute_with_weights(bounds, tier, spec->status == STATUS_ROW_DUAL,
-                                        fc_band_h, spec->weights);
+                                        spec->status != STATUS_ROW_NONE, fc_band_h, spec->weights);
     // Radar rides wherever it's placed: the top band when it replaces the calendar,
     // otherwise the body band (under a retained calendar, or full-screen in none tier).
     if (spec->top == TOP_BAND_RADAR) {
@@ -228,4 +235,36 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
         L.radar = L.bottom;
     }
     return L;
+}
+
+// ── View-cycle cursor (pure) ─────────────────────────────────────────────────
+
+bool view_slot_available(uint8_t byte, bool has_radar, bool has_health) {
+    if (byte == 0) { return false; }                 // tier=off → disabled slot
+    ViewSpec spec = view_spec_unpack(byte);
+    bool needs_radar = (spec.top == TOP_BAND_RADAR) || (spec.body == BODY_RADAR);
+    bool needs_health = (spec.body == BODY_HEALTH_GRAPH)
+                     || (spec.status == STATUS_ROW_HEALTH) || (spec.status == STATUS_ROW_DUAL);
+    if (needs_radar && !has_radar) { return false; }
+    if (needs_health && !has_health) { return false; }
+    return true;
+}
+
+uint8_t view_cursor_next(uint8_t from, const uint8_t spec[3], bool has_radar, bool has_health) {
+    for (int step = 1; step <= 3; step++) {
+        uint8_t i = (uint8_t)((from + step) % 3);
+        if (i == 0 || view_slot_available(spec[i], has_radar, has_health)) { return i; }
+    }
+    return 0;
+}
+
+uint8_t view_cursor_after_config(uint8_t cursor, const uint8_t old_spec[3],
+                                 const uint8_t new_spec[3]) {
+    // If the cycle definition changed at all, the cursor's old slot may now hold a
+    // different view (or none) — snap back to the default. This also covers the current
+    // slot being disabled. An identical cycle keeps the cursor untouched.
+    for (int i = 0; i < 3; i++) {
+        if (old_spec[i] != new_spec[i]) { return 0; }
+    }
+    return cursor;
 }

@@ -71,3 +71,23 @@ ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health);
 LayerVisibility layout_visibility(const ViewSpec *spec);
 
 MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h);
+
+// ── View-cycle cursor (pure) ─────────────────────────────────────────────────
+// The wrist-flick cursor is a position in the 3-slot cycle. main_window owns the
+// cursor state and resolves availability from the SDK (radar data present? health
+// renderable?); these helpers keep the navigation rules pure and host-testable.
+
+// Is a configured slot byte renderable right now? Disabled (0) never; a radar band
+// needs radar data; a health band/row needs health. Availability is caller-supplied.
+bool view_slot_available(uint8_t byte, bool has_radar, bool has_health);
+
+// Next enabled + available slot after `from`, wrapping. Index 0 (the default view) is
+// always a valid stop, so the cycle can never get stuck.
+uint8_t view_cursor_next(uint8_t from, const uint8_t spec[3], bool has_radar, bool has_health);
+
+// The cursor to keep after a settings apply. A settings change can redefine the cycle
+// (each slot may now hold a different view), which makes the old cursor position
+// meaningless — snap back to the default view (0). An unchanged cycle keeps the cursor
+// (a radar/health availability re-apply must not yank the user off their chosen view).
+uint8_t view_cursor_after_config(uint8_t cursor, const uint8_t old_spec[3],
+                                 const uint8_t new_spec[3]);

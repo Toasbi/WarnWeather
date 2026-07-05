@@ -195,14 +195,87 @@ static void radar_placement_tests(void) {
     s = view_spec_unpack(0xE0);            // RDR·FC·W — radar in top, forecast in body
     L = layout_compute_spec(BOUNDS, &s, FC_BAND_H);
     check("rdrtop.radar", L.radar, 0, 13, 144, 45);       // == full L.top
-    check("rdrtop.bottom", L.bottom, 0, 117, 144, 51);    // forecast keeps the bottom band
+    check("rdrtop.bottom", L.bottom, 0, 117, 144, 51);    // status band present → squeezed forecast
+
+    s = view_spec_unpack(0xE3);            // RDR·FC·NONE — statusless radar-top forecast flick
+    L = layout_compute_spec(BOUNDS, &s, FC_BAND_H);
+    check("rdrtopNone.radar",  L.radar,  0, 13, 144, 45);   // radar keeps the full top band
+    check("rdrtopNone.bottom", L.bottom, 0, 103, 144, 65);  // no status row → forecast == compact tier
+    check("rdrtopNone.loading", L.loading, 0, 103, 144, 65);// loading covers the reclaimed forecast
 #endif
+}
+
+// Packed cycle bytes (tier<<6 | top<<4 | body<<2 | status; wire top: EMPTY0/CAL1/RADAR2).
+#define B_CAL3_FC_W   0xD0   // full, calendar, forecast, weather
+#define B_CAL3_RDR_W  0xD8   // full, calendar, radar-body, weather
+#define B_CAL2_FC_W   0x90   // compact, calendar, forecast, weather
+#define B_CAL2_FC_H   0x91   // compact, calendar, forecast, health
+#define B_CAL2_RDR_W  0x98   // compact, calendar, radar-body, weather
+#define B_RDR_FC_NONE 0xE3   // full, radar-top, forecast, no status
+#define B_NONE_FC_W   0x40   // none, forecast, weather
+#define B_NONE_GRAPH_H 0x45  // none, health graph, health status
+#define B_NONE_RDR_W  0x48   // none, radar-body, weather
+
+static void view_cursor_tests(void) {
+    // ── The reported bug: live settings change after a flick ──────────────────
+    // User flicked to slot 1 under compactCal+status+radar, then switched preset to
+    // fullCal+off+radar (a different cycle). The cursor must return to the default view;
+    // leaving it on slot 1 is exactly "stuck at flick 1, default never shows".
+    uint8_t compactStatusRadar[3] = { B_CAL2_FC_W, B_CAL2_FC_H, B_RDR_FC_NONE };
+    uint8_t fullCalRadar[3]       = { B_CAL3_FC_W, B_CAL3_RDR_W, 0x00 };
+    expect("cursor.preset_switch_resets_to_default",
+           view_cursor_after_config(1, compactStatusRadar, fullCalRadar) == 0, true);
+
+    // noCal+all+radar reached with a carried-over non-default cursor → back to default.
+    uint8_t noCalAllRadar[3] = { B_NONE_FC_W, B_NONE_GRAPH_H, B_NONE_RDR_W };
+    expect("cursor.noCal_carryover_resets",
+           view_cursor_after_config(2, compactStatusRadar, noCalAllRadar) == 0, true);
+
+    // An unchanged cycle (radar/health availability re-apply, not a settings edit) must
+    // keep the user on their chosen view.
+    expect("cursor.unchanged_keeps",
+           view_cursor_after_config(2, noCalAllRadar, noCalAllRadar) == 2, true);
+    expect("cursor.unchanged_keeps_default",
+           view_cursor_after_config(0, fullCalRadar, fullCalRadar) == 0, true);
+
+    // Even a single-slot change redefines the cycle → reset (cursor could point anywhere).
+    uint8_t fullCalRadar2[3] = { B_CAL3_FC_W, B_CAL3_RDR_W, B_NONE_FC_W };
+    expect("cursor.single_slot_change_resets",
+           view_cursor_after_config(1, fullCalRadar, fullCalRadar2) == 0, true);
+
+    // Reported facet: parked on a health/radar flick slot, then health/radar toggled in
+    // settings. The forecast (default, slot 0) must become reachable again. This is where
+    // the OLD rule failed: it only reset when the current slot went disabled (byte 0), so
+    // disabling BOTH health+radar returned to the forecast, but toggling to another
+    // populated cycle left the cursor stranded off the forecast.
+    uint8_t compactAllRadar[3]  = { B_CAL3_FC_W, B_NONE_GRAPH_H, B_NONE_RDR_W }; // health all + radar
+    uint8_t compactOffNoRadar[3] = { B_CAL2_FC_W, 0x00, 0x00 };                  // both off (1 slot)
+    uint8_t compactOffRadar[3]   = { B_CAL2_FC_W, B_CAL2_RDR_W, 0x00 };          // health off, radar on
+    expect("cursor.disable_all_returns_to_forecast",
+           view_cursor_after_config(2, compactAllRadar, compactOffNoRadar) == 0, true);
+    expect("cursor.health_off_radar_on_returns_to_forecast",
+           view_cursor_after_config(1, compactAllRadar, compactOffRadar) == 0, true);
+
+    // ── Navigation (wrap + availability) ──────────────────────────────────────
+    expect("next.3slot.0to1", view_cursor_next(0, noCalAllRadar, true, true) == 1, true);
+    expect("next.3slot.1to2", view_cursor_next(1, noCalAllRadar, true, true) == 2, true);
+    expect("next.3slot.2to0", view_cursor_next(2, noCalAllRadar, true, true) == 0, true);
+    // Health off → the graph/health slot is skipped.
+    expect("next.3slot.nohealth.0to2", view_cursor_next(0, noCalAllRadar, true, false) == 2, true);
+    // No radar + no health → only the default is a valid stop.
+    expect("next.3slot.nodata.stays0", view_cursor_next(0, noCalAllRadar, false, false) == 0, true);
+    // 2-slot cycle toggles 0<->1; 1-slot cycle never leaves 0.
+    expect("next.2slot.0to1", view_cursor_next(0, fullCalRadar, true, true) == 1, true);
+    expect("next.2slot.1to0", view_cursor_next(1, fullCalRadar, true, true) == 0, true);
+    uint8_t oneSlot[3] = { B_CAL3_FC_W, 0x00, 0x00 };
+    expect("next.1slot.stays0", view_cursor_next(0, oneSlot, true, true) == 0, true);
 }
 
 int main(int argc, char **argv) {
     s_dump = (argc > 1 && strcmp(argv[1], "dump") == 0);
     golden_rects();
     if (!s_dump) viewspec_tests();
+    if (!s_dump) view_cursor_tests();
     if (!s_dump) radar_placement_tests();
     if (s_dump) return 0;
     if (s_failures) { printf("%d golden-rect failure(s)\n", s_failures); return 1; }
