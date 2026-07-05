@@ -43,3 +43,39 @@ test('categories without a comparator use the default exact comparator', () => {
   assert.equal(new ChangeDetector([cat]).detect({ A: 2 }).categories[0].changed, false);
   assert.equal(new ChangeDetector([cat]).detect({ A: 3 }).categories[0].changed, true);
 });
+
+const FORECAST_AND_STATUS = [
+  { name: 'forecast', cacheKey: 'testForecast', keys: ['TEMP', 'START'] },
+  { name: 'status', cacheKey: 'testStatus', keys: ['CITY'] }
+];
+
+test('nothing cached yet -> every present category reports changed, with subset/serialized/cacheKey', () => {
+  withLocalStorage({});
+  const result = new ChangeDetector(FORECAST_AND_STATUS).detect({ TEMP: [1, 2], START: 100, CITY: 'Berlin' });
+  assert.equal(result.categories.length, 2, 'both categories present');
+  assert.equal(result.categories[0].name, 'forecast');
+  assert.equal(result.categories[0].changed, true);
+  assert.deepEqual(result.categories[0].subset, { TEMP: [1, 2], START: 100 });
+  assert.equal(result.categories[0].cacheKey, 'testForecast');
+  assert.equal(result.categories[0].serialized, JSON.stringify({ TEMP: [1, 2], START: 100 }));
+  assert.equal(result.categories[1].changed, true);
+});
+
+test('a cached category with an identical subset reports unchanged', () => {
+  withLocalStorage({ testStatus: JSON.stringify({ CITY: 'Berlin' }) });
+  const result = new ChangeDetector(FORECAST_AND_STATUS).detect({ TEMP: [1, 2], START: 100, CITY: 'Berlin' });
+  assert.equal(result.categories[1].changed, false, 'cached status must report unchanged');
+});
+
+test('categories absent from the payload are not listed', () => {
+  withLocalStorage({});
+  const result = new ChangeDetector(FORECAST_AND_STATUS).detect({ CITY: 'Berlin' });
+  assert.equal(result.categories.length, 1);
+  assert.equal(result.categories[0].name, 'status');
+});
+
+test('serialization is stable across payload property order', () => {
+  withLocalStorage({ testForecast: JSON.stringify({ TEMP: [1, 2], START: 100 }) });
+  const result = new ChangeDetector(FORECAST_AND_STATUS).detect({ START: 100, TEMP: [1, 2], CITY: 'Berlin' });
+  assert.equal(result.categories[0].changed, false, 'key order must not affect serialization');
+});
