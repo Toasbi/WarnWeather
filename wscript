@@ -119,6 +119,14 @@ def build(ctx):
         # Suppress SDK linker-script RWX segment noise.
         # Pebble's single APP region is expected: https://sourceware.org/binutils/docs/ld/Options.html#index-_002d_002dwarn_002drwx_002dsegments
         ctx.env.LINKFLAGS += ['-Wl,--no-warn-rwx-segments']
+        # Rain radar is a rich feature aplite cannot afford: on the 24 KB Pebble
+        # Classic the extra layer + drawing code starved the boot heap and the
+        # watchface OOM-faulted before first paint. Every other platform defines
+        # WW_RAIN_RADAR; aplite lacks it, so the guarded call sites drop out and
+        # --gc-sections reaps rain_radar_layer.c from the image (frozen-lean fork,
+        # docs/adr/0001; parallels PBL_HEALTH gating the health subsystem).
+        if platform != 'aplite':
+            ctx.env.CFLAGS += ['-DWW_RAIN_RADAR=1']
         if enable_memory_logging:
             ctx.env.CFLAGS += ['-DWW_ENABLE_MEMORY_LOGGING=1']
         if fixture_now:

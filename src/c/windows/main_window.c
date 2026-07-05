@@ -43,7 +43,13 @@ static uint8_t s_health_mode_prev;
 #endif
 
 static bool radar_has_data(void) {
+#if defined(WW_RAIN_RADAR)
     return persist_get_rain_radar_start() > 0;
+#else
+    // aplite: radar is compiled out, so it never has data — the view cycle
+    // resolves every radar slot away (view_spec_resolve/view_slot_available).
+    return false;
+#endif
 }
 
 // Can this platform + config render health right now? Hard false on no-health platforms
@@ -92,7 +98,9 @@ static void render_active_view(void) {
                                        status_forecast_band_h(status_full_tier_font()));
     layer_set_frame(time_layer_get_root(), L.time);
     layer_set_frame(calendar_layer_get_root(), L.top);
+#if defined(WW_RAIN_RADAR)
     layer_set_frame(rain_radar_layer_get_root(), L.radar);
+#endif
     weather_status_layer_set_render_tier(spec.status_tier);
 #if defined(PBL_HEALTH)
     layer_set_frame(weather_status_layer_get_root(),
@@ -111,7 +119,9 @@ static void render_active_view(void) {
 
     LayerVisibility v = layout_visibility(&spec);
     layer_set_hidden(calendar_layer_get_root(), !v.calendar);
+#if defined(WW_RAIN_RADAR)
     layer_set_hidden(rain_radar_layer_get_root(), !v.radar);
+#endif
     layer_set_hidden(forecast_layer_get_root(), !v.forecast);
     layer_set_hidden(weather_status_layer_get_root(), !v.weather_status);
 #if defined(PBL_HEALTH)
@@ -177,7 +187,9 @@ static void main_window_load(Window *window) {
 #endif
     time_layer_create(window_layer, L.time);
     calendar_layer_create(window_layer, L.top);
+#if defined(WW_RAIN_RADAR)
     rain_radar_layer_create(window_layer, L.radar);
+#endif
     top_status_layer_create(window_layer, L.top_status); // +1 height already in L.top_status
     loading_layer_create(window_layer, L.loading);
     loading_layer_refresh();
@@ -214,7 +226,9 @@ static void main_window_unload(Window *window) {
     health_graph_layer_destroy();
 #endif
     calendar_layer_destroy();
+#if defined(WW_RAIN_RADAR)
     rain_radar_layer_destroy();
+#endif
     top_status_layer_destroy();
     loading_layer_destroy();
     MEMORY_LOG_HEAP("after_window_unload");
@@ -256,13 +270,14 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
             main_window_refresh();
         }
     }
-#ifndef WW_FIXTURE_NOW_YEAR
+#if !defined(WW_FIXTURE_NOW_YEAR) && defined(WW_RAIN_RADAR)
     // Live builds only: advance the radar window when a fetch boundary passes.
     // Fixtures are frozen snapshots anchored to the fixture clock — their window
     // must never self-advance. time(NULL) is the real wall clock even in fixture
     // builds (watch_services_now() freezes it for display but mktime/TZ/DST make
     // it unsafe to compare against the JS-derived radar start), so the advance
     // logic would roll the whole window to empty and re-anchor to real time.
+    // (aplite has no radar — WW_RAIN_RADAR undefined — so this drops out.)
     if (rain_radar_layer_tick(time(NULL))) {
         // Window advanced — re-evaluate the top view, mirroring the arrival path.
         main_window_apply_top_view();

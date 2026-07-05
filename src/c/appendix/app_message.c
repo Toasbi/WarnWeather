@@ -156,6 +156,7 @@ static bool handle_sun_events(DictionaryIterator *iterator, bool *forecast_dirty
     return true;
 }
 
+#if defined(WW_RAIN_RADAR)
 static bool handle_rain_radar(DictionaryIterator *iterator, bool *radar_dirty) {
     Tuple *rain_radar_exact_tuple = dict_find(iterator, MESSAGE_KEY_RAIN_RADAR_TREND_UINT8);
     Tuple *rain_radar_area_tuple  = dict_find(iterator, MESSAGE_KEY_RAIN_RADAR_TREND_AREA_UINT8);
@@ -200,6 +201,7 @@ static bool handle_rain_radar(DictionaryIterator *iterator, bool *radar_dirty) {
     *radar_dirty |= changed;
     return true;
 }
+#endif  // WW_RAIN_RADAR
 
 static bool handle_palette(DictionaryIterator *iterator, bool *forecast_dirty,
                            bool *radar_dirty) {
@@ -327,7 +329,11 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     handled |= handle_forecast(iterator, &forecast_dirty);
     handled |= handle_status(iterator, &status_dirty, &radar_dirty);
     handled |= handle_sun_events(iterator, &forecast_dirty, &status_dirty);
+#if defined(WW_RAIN_RADAR)
+    // aplite has no radar layer (--gc-sections reaps rain_radar_layer.c), so it
+    // ignores inbound radar payloads; the whole radar persist surface drops too.
     handled |= handle_rain_radar(iterator, &radar_dirty);
+#endif
     handled |= handle_palette(iterator, &forecast_dirty, &radar_dirty);
     handled |= handle_clay_config(iterator, &config_dirty);
     handled |= handle_holidays(iterator, &calendar_dirty);
@@ -362,7 +368,9 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
         weather_status_layer_refresh();
     }
     if (radar_dirty) {
+#if defined(WW_RAIN_RADAR)
         rain_radar_layer_refresh();
+#endif
         // The radar payload (or the snooze latch/release) is the rain-countdown's
         // only data-change source: rescan the cache, then repaint the strip.
         // aplite drops the rain-countdown alert (24 KB budget), so it skips the
