@@ -70,17 +70,10 @@ static inline int status_glyph_center_y(int text_y, int content_h) {
 // takes 1px less clearance — the whole line drops ~1px toward the forecast (and away from the
 // clock). This is the single per-platform taste knob, tuned on-device; not a return to per-mode
 // band hacks.
-//
-// The clearance is measured to the MEASURED content box. The city name's descenders (the "g" in
-// "Virginia") overflow ~2px past that box — invisible while clipped, but once the city clip rect
-// shows them (see city_layer_refresh) the tail eats into this gap, and on the small low-res font
-// it read as the whole line sitting low. Non-emery therefore carries one extra px of clearance so
-// the revealed descender still clears the graph; the band grows up into the clock slack, lifting
-// the whole (weather + health) full-tier line — the endorsed "resize the band, don't offset" lever.
 #ifdef PBL_PLATFORM_EMERY
 #define STATUS_FORECAST_CLEARANCE 1
 #else
-#define STATUS_FORECAST_CLEARANCE 4
+#define STATUS_FORECAST_CLEARANCE 3
 #endif
 static inline int status_forecast_band_h(GFont font) {
     int content_h = graphics_text_layout_get_content_size(

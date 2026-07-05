@@ -25,13 +25,16 @@ npm ci
 
 node scripts/prepare-fixture.js
 node scripts/build-config-page.js
-# WW_SKIP_TESTS=1 skips the unit suite — used by batch screenshot/time-lapse
-# captures that build dozens of fixtures back-to-back after the suite has already
+# WW_SKIP_TESTS=1 skips the unit suites — used by batch screenshot/time-lapse
+# captures that build dozens of fixtures back-to-back after the suites have already
 # been run once, so a flake can't abort the whole capture and each build is fast.
 if [[ "${WW_SKIP_TESTS:-0}" == "1" ]]; then
-  echo "build.sh: WW_SKIP_TESTS=1 — skipping node --test"
+  echo "build.sh: WW_SKIP_TESTS=1 — skipping node --test + host C tests"
 else
   node --test
+  # Host-compiled layout golden-rect tests (no Pebble SDK needed). Run them here so a
+  # C geometry change can't build green and only surface later under `mise test`.
+  scripts/test-c.sh
 fi
 pebble build "$@"
 
