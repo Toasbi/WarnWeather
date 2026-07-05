@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="resources/banner-pebble-time2-red.png" alt="WarnWeather — weather, radar &amp; calendar" width="720">
+  <img src="resources/banner-pebble-time2-red.png" alt="WarnWeather — weather, calendar, health &amp; radar" width="720">
 </p>
 
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/Toasbi/WarnWeather?label=latest&color=85C1E9&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAQAAABKfvVzAAAAAmJLR0QA/4ePzL8AAAC0SURBVDjLldLLCcJAFEbhP4oIE1xYhw1pA4JWYRGCVbhxoTshWIUNaAnBgB4XBiTJ3HncbALznXAZIpnDmHnnmSqAS470p2Fn8wrfNEzS+INX++ZS+J6CRZu4lGWWEgVPT2DsfmfFwbMSjiuxcXn8H5gX6Q+S+ZtRDofT7/uXRF5RSmJEncEliS2fDC5JrCPJjVn/lwglQx5M/NxMbO5NwnyQxHknSeOSxIaac+feo0lhn30BIXaN/u4MXmAAAAAASUVORK5CYII=)](https://github.com/Toasbi/WarnWeather/releases/latest)
@@ -12,13 +12,13 @@
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/toaster2)
 
 
-A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecast, rain radar, and a 3-week calendar.
+A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecast, a 3-week calendar, health tracking, and rain radar.
 
 ## Screenshots
 
 | Pebble Time                                                                                       | Pebble 2 Duo                                                                                       | Pebble Time 2                                                                                      |
 |---------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|
-| <img src="screenshot/v1.6.1/showcase/basalt-showcase.gif" alt="Pebble Time showcase"> | <img src="screenshot/v1.6.1/showcase/flint-showcase.gif" alt="Pebble 2 Duo showcase"> | <img src="screenshot/v1.6.1/showcase/emery-showcase.gif" alt="Pebble Time 2 showcase"> |
+| <img src="screenshot/v1.6.2/showcase/basalt-showcase.gif" alt="Pebble Time showcase"> | <img src="screenshot/v1.6.2/showcase/flint-showcase.gif" alt="Pebble 2 Duo showcase"> | <img src="screenshot/v1.6.2/showcase/emery-showcase.gif" alt="Pebble Time 2 showcase"> |
 
 ## Features
 

@@ -4,7 +4,7 @@ set -euo pipefail
 
 if [ "$#" -ne 3 ]; then
   echo "Usage: mise composite-screenshot <frame> <screenshot.png> <output.png>"
-  echo "Frames: pebble-time-red, pebble2-duo-white, pebble-time2-red"
+  echo "Frames: pebble-time-red, pebble2-duo-white, pebble-time2-red, phone-black"
   exit 64
 fi
 
@@ -38,9 +38,17 @@ case "$frame" in
     screen_h="228"
     screen_rx="0"
     ;;
+  phone-black)
+    frame_svg="screenshot/frames/phone-black.svg"
+    screen_x="10"
+    screen_y="34"
+    screen_w="210"
+    screen_h="425"
+    screen_rx="10"
+    ;;
   *)
     echo "Unknown frame: $frame"
-    echo "Frames: pebble-time-red, pebble2-duo-white, pebble-time2-red"
+    echo "Frames: pebble-time-red, pebble2-duo-white, pebble-time2-red, phone-black"
     exit 64
     ;;
 esac
