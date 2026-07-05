@@ -24,17 +24,6 @@ _Static_assert((int)TOP_VIEW_FULL == (int)LAYOUT_TIER_FULL
             && (int)TOP_VIEW_NONE == (int)LAYOUT_TIER_NONE,
                "LAYOUT_TIER_* must stay in lockstep with enum TopViewMode");
 
-typedef enum {
-    TOP_VIEW_CALENDAR = 0,
-    TOP_VIEW_RAIN_RADAR = 1
-} TopView;
-
-typedef enum {
-    BOTTOM_FORECAST = 0,
-    BOTTOM_HEALTH = 1,
-    BOTTOM_RADAR = 2   // none-mode only: radar reframed into the bottom band
-} BottomView;
-
 static Window *s_main_window;
 
 // Session-only cycle cursor: every launch boots to the DEFAULT view (index 0).
@@ -53,74 +42,40 @@ static bool radar_has_data(void) {
     return persist_get_rain_radar_start() > 0;
 }
 
-// Dual status = show health AND weather status at once. Works with ANY health view
-// (status bar OR graph): the phone gates dual_status so it's only ever set when a
-// health view is on, so the watch just trusts the flag plus the two guards it alone
-// owns — the layout invariant (never in full) and the local health capability (the
-// phone can't know it). Hard false on no-health platforms so aplite never links the
-// health service.
-static bool dual_active(void) {
+// Can this platform + config render health right now? Hard false on no-health platforms
+// (aplite compiles the health service out entirely).
+static bool health_renderable(void) {
 #if defined(PBL_HEALTH)
-    return g_config->top_view_mode != TOP_VIEW_FULL
-        && g_config->dual_status
-        && health_available();
+    return g_config->health_mode != HEALTH_OFF && health_available();
 #else
     return false;
 #endif
 }
 
-// The alternate health view is only reachable when the user enabled it AND the
-// platform can serve health data. On no-health platforms (e.g. aplite, which
-// has no sensors) the whole view is compiled out, so this is a hard false and
-// never references the health service.
-static bool health_view_active(void) {
-#if defined(PBL_HEALTH)
-    if (g_config->health_mode == HEALTH_OFF || !health_available()) { return false; }
-    // Dual already pins both status bands on screen, so the flick's status-swap is
-    // redundant there — but the ALL-mode health graph is still a distinct body worth
-    // revealing on a flick, so keep it reachable. In Status-bar dual, there's no graph,
-    // so the flick falls back to the legacy calendar<->radar toggle.
-    if (dual_active()) { return g_config->health_mode == HEALTH_ALL; }
-    return true;
-#else
-    return false;
-#endif
-}
-
-// Map a configured ViewContent to the layout module's preset producer, then resolve
-// data-availability downgrades. The SDK/persist queries happen HERE (the producer);
-// layout.c stays pure. top_view/bottom_view mirror the old TopView/BottomView ints
-// (top: 0=calendar,1=radar; bottom: 0=forecast,1=health,2=radar).
-static ViewSpec spec_for_content(uint8_t content) {
-    uint8_t mode = TOP_VIEW_COMPACT, top_view = TOP_VIEW_CALENDAR, bottom_view = BOTTOM_FORECAST;
-    bool health_graph_on = false, health_active = false;
-    switch (content) {
-        case VC_FORECAST_FULL:    mode = TOP_VIEW_FULL;    break;
-        case VC_FORECAST_COMPACT: mode = TOP_VIEW_COMPACT; break;
-        case VC_FORECAST_NONE:    mode = TOP_VIEW_NONE;    break;
-        case VC_RADAR:            mode = TOP_VIEW_NONE; bottom_view = BOTTOM_RADAR; break;
-        case VC_HEALTH_STATUS:    mode = TOP_VIEW_COMPACT; bottom_view = BOTTOM_HEALTH;
-                                  health_active = health_view_active(); break;
-        case VC_HEALTH_GRAPH:     mode = TOP_VIEW_NONE; bottom_view = BOTTOM_HEALTH;
-                                  health_graph_on = true; health_active = health_view_active(); break;
-        default:                  mode = TOP_VIEW_COMPACT; break;   // VC_OFF safety
-    }
-    ViewSpec spec = view_spec_from_state(mode, false, top_view, bottom_view,
-                                         health_graph_on, health_active);
-    return view_spec_resolve(spec, radar_has_data());
+// Decode a configured slot byte to a ViewSpec, then apply runtime availability
+// downgrades (radar data present? health renderable?). The SDK queries happen HERE;
+// layout.c stays pure.
+static ViewSpec unpack_slot_spec(uint8_t byte) {
+    ViewSpec spec = view_spec_unpack(byte);
+    return view_spec_resolve(spec, radar_has_data(), health_renderable());
 }
 
 // The ViewSpec for the view currently on screen.
 static ViewSpec current_view_spec(void) {
-    return spec_for_content(g_config->view_content[s_view_index]);
+    return unpack_slot_spec(g_config->view_spec[s_view_index]);
 }
 
-// Is a view slot renderable right now? OFF never; radar needs data; health needs a live
-// view. health_view_active() is a hard false on no-health platforms.
-static bool view_available(uint8_t content) {
-    if (content == VC_OFF) { return false; }
-    if (content == VC_RADAR) { return radar_has_data(); }
-    if (content == VC_HEALTH_STATUS || content == VC_HEALTH_GRAPH) { return health_view_active(); }
+// Is a slot renderable right now? Disabled (0) never; a radar band needs radar data;
+// a health band/row needs health renderable. Decodes via view_spec_unpack so the
+// wire-format top field is translated the same way current_view_spec() does.
+static bool view_available(uint8_t byte) {
+    if (byte == 0) { return false; }                 // tier=off → disabled slot
+    ViewSpec spec = view_spec_unpack(byte);
+    bool needs_radar = (spec.top == TOP_BAND_RADAR) || (spec.body == BODY_RADAR);
+    bool needs_health = (spec.body == BODY_HEALTH_GRAPH)
+                     || (spec.status == STATUS_ROW_HEALTH) || (spec.status == STATUS_ROW_DUAL);
+    if (needs_radar && !radar_has_data()) { return false; }
+    if (needs_health && !health_renderable()) { return false; }
     return true;
 }
 
@@ -129,7 +84,7 @@ static bool view_available(uint8_t content) {
 static uint8_t next_view_index(uint8_t from) {
     for (int step = 1; step <= 3; step++) {
         uint8_t i = (uint8_t)((from + step) % 3);
-        if (i == 0 || view_available(g_config->view_content[i])) { return i; }
+        if (i == 0 || view_available(g_config->view_spec[i])) { return i; }
     }
     return 0;
 }
@@ -358,8 +313,9 @@ void main_window_apply_top_view() {
 #endif
     // Re-apply the current view after radar availability or config changed. A radar/health
     // view whose data or capability vanished degrades in place via view_spec_resolve; only
-    // fall back to the default view if a config change turned the current slot OFF entirely.
-    if (s_view_index != 0 && g_config->view_content[s_view_index] == VC_OFF) {
+    // fall back to the default view if a config change turned the current slot disabled (0)
+    // entirely.
+    if (s_view_index != 0 && g_config->view_spec[s_view_index] == 0) {
         s_view_index = 0;
     }
     render_active_view();
