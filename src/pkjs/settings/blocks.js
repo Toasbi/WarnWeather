@@ -616,8 +616,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     // Schematic band stack for one ViewSpec — proportional, not pixel-accurate. Mirrors
-    // layout.c band ordering: compact = cal, (health status), clock, (weather status), body;
-    // full = cal/radar-top, clock, status, body; none = clock, status, body.
+    // layout.c band ordering: compact = cal, single status (whichever is on) before clock;
+    // dual = health before clock, weather after; full/none = clock then status row(s).
     function contentBands(spec) {
         if (!spec) { return null; }
         var bands = [{ label: 'Date', h: 12 }];
@@ -636,10 +636,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var showW = spec.status === VC.ST_W || dual;
         var showH = spec.status === VC.ST_H || dual;
         if (topBand) { bands.push(topBand); }
-        if (!isNone && !isFull) {                 // compact: health status rides the freed cal row
-            if (showH) { bands.push(health); }
-            bands.push(clock);
-            if (showW) { bands.push(weather); }
+        if (!isNone && !isFull) {                 // compact: single status rides the freed cal row
+            if (dual) {
+                bands.push(health);               // freed row, above the clock
+                bands.push(clock);
+                bands.push(weather);              // carved band, below the clock (near the body)
+            } else {
+                if (showH) { bands.push(health); }
+                if (showW) { bands.push(weather); }
+                bands.push(clock);
+            }
         } else {                                  // full / none: clock, then status row(s)
             bands.push(clock);
             if (showH) { bands.push(health); }
