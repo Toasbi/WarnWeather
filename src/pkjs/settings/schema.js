@@ -315,7 +315,8 @@ module.exports = {
             }, {
                 type: 'segmented',
                 messageKey: 'viewResetMin',
-                label: 'Return to default view after',
+                label: 'View reset time',
+                hint: 'Return to default view after the selected time has passed.',
                 defaultValue: '0',
                 options: [['Never', '0'], ['1m', '1'], ['2m', '2'], ['5m', '5'], ['10m', '10']]
             }]
