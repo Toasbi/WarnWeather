@@ -52,8 +52,6 @@ var CAL2_FC_D    = spec(TIER_COMPACT, TOP_CAL, BODY_FC, ST_D);
 var CAL2_RDR_W   = spec(TIER_COMPACT, TOP_CAL, BODY_RADAR, ST_W);
 var CAL2_RDR_D   = spec(TIER_COMPACT, TOP_CAL, BODY_RADAR, ST_D);
 var CAL2_GRAPH_D = spec(TIER_COMPACT, TOP_CAL, BODY_GRAPH, ST_D);
-var RDR_FC_W     = spec(TIER_FULL, TOP_RADAR, BODY_FC, ST_W);
-var RDR_FC_NONE  = spec(TIER_FULL, TOP_RADAR, BODY_FC, ST_NONE);
 var NONE_FC_W    = spec(TIER_NONE, TOP_EMPTY, BODY_FC, ST_W);
 var NONE_FC_H    = spec(TIER_NONE, TOP_EMPTY, BODY_FC, ST_H);
 var NONE_GRAPH_H = spec(TIER_NONE, TOP_EMPTY, BODY_GRAPH, ST_H);
@@ -63,17 +61,25 @@ var NONE_RDR_W   = spec(TIER_NONE, TOP_EMPTY, BODY_RADAR, ST_W);
 var MATRIX = {
   fullCal: {
     off:    { n: [CAL3_FC_W],           r: [CAL3_FC_W, CAL3_RDR_W] },
-    status: { n: [CAL3_FC_W, CAL2_FC_D], r: [CAL3_FC_W, CAL2_FC_D, RDR_FC_W] },
+    // radar flick shows radar as the body (calendar on top), matching the off variant —
+    // not radar-on-top with a squeezed forecast.
+    status: { n: [CAL3_FC_W, CAL2_FC_D], r: [CAL3_FC_W, CAL2_FC_D, CAL3_RDR_W] },
     all:    { n: [CAL3_FC_W, NONE_GRAPH_H], r: [CAL3_FC_W, NONE_GRAPH_H, NONE_RDR_W] }
   },
   compactCal: {
     off:    { n: [CAL2_FC_W],           r: [CAL2_FC_W, CAL2_RDR_W] },
-    status: { n: [CAL2_FC_W, CAL2_FC_H], r: [CAL2_FC_W, CAL2_FC_H, RDR_FC_NONE] },
-    all:    { n: [CAL2_FC_W, NONE_GRAPH_H], r: [CAL3_FC_W, NONE_GRAPH_H, NONE_RDR_W] }
+    // radar flick moves radar down into the body (calendar on top), matching the off
+    // variant — not radar-on-top.
+    status: { n: [CAL2_FC_W, CAL2_FC_H], r: [CAL2_FC_W, CAL2_FC_H, CAL2_RDR_W] },
+    // default stays the compact 2-row calendar (was CAL3_FC_W — a 3-row default under the
+    // Compact preset); big graph/radar flicks follow.
+    all:    { n: [CAL2_FC_W, NONE_GRAPH_H], r: [CAL2_FC_W, NONE_GRAPH_H, NONE_RDR_W] }
   },
   compactDense: {
     off:    { n: [CAL2_FC_W],           r: [CAL2_FC_W, CAL2_RDR_W] },
-    status: { n: [CAL2_FC_D],           r: [CAL2_FC_D, RDR_FC_W] },
+    // radar flick shows radar in the body (dual-status dense), consistent with the other
+    // presets — not radar-on-top.
+    status: { n: [CAL2_FC_D],           r: [CAL2_FC_D, CAL2_RDR_D] },
     all:    { n: [CAL2_FC_D, CAL2_GRAPH_D], r: [CAL2_FC_D, CAL2_GRAPH_D, CAL2_RDR_D] }
   },
   noCal: {

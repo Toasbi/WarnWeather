@@ -28,16 +28,16 @@ test('compactCal cycles', () => {
   assert.deepStrictEqual(bytes('compactCal', 'off', false), [0x90]);                 // CAL2·FC·W
   assert.deepStrictEqual(bytes('compactCal', 'off', true),  [0x90, 0x98]);           // + CAL2·RDR·W
   assert.deepStrictEqual(bytes('compactCal', 'status', false), [0x90, 0x91]);        // + CAL2·FC·H
-  assert.deepStrictEqual(bytes('compactCal', 'status', true),  [0x90, 0x91, 0xE3]);  // + RDR·FC·— (no status)
+  assert.deepStrictEqual(bytes('compactCal', 'status', true),  [0x90, 0x91, 0x98]);  // + CAL2·RDR·W (radar in body)
   assert.deepStrictEqual(bytes('compactCal', 'all', false), [0x90, 0x45]);           // + NONE·GRAPH·H
-  assert.deepStrictEqual(bytes('compactCal', 'all', true),  [0xD0, 0x45, 0x48]);     // packed: CAL3 default, big flicks
+  assert.deepStrictEqual(bytes('compactCal', 'all', true),  [0x90, 0x45, 0x48]);     // CAL2 default, big graph/radar flicks
 });
 
 test('compactDense cycles (dual on default when health on)', () => {
   assert.deepStrictEqual(bytes('compactDense', 'off', false), [0x90]);
   assert.deepStrictEqual(bytes('compactDense', 'off', true),  [0x90, 0x98]);
   assert.deepStrictEqual(bytes('compactDense', 'status', false), [0x92]);            // CAL2·FC·D only
-  assert.deepStrictEqual(bytes('compactDense', 'status', true),  [0x92, 0xE0]);      // + RDR·FC·W
+  assert.deepStrictEqual(bytes('compactDense', 'status', true),  [0x92, 0x9A]);      // + CAL2·RDR·D (radar in body)
   assert.deepStrictEqual(bytes('compactDense', 'all', false), [0x92, 0x96]);         // + CAL2·GRAPH·D
   assert.deepStrictEqual(bytes('compactDense', 'all', true),  [0x92, 0x96, 0x9A]);   // + CAL2·RDR·D
 });
@@ -46,7 +46,7 @@ test('fullCal cycles', () => {
   assert.deepStrictEqual(bytes('fullCal', 'off', false), [0xD0]);                    // CAL3·FC·W
   assert.deepStrictEqual(bytes('fullCal', 'off', true),  [0xD0, 0xD8]);              // + CAL3·RDR·W
   assert.deepStrictEqual(bytes('fullCal', 'status', false), [0xD0, 0x92]);           // + CAL2·FC·D
-  assert.deepStrictEqual(bytes('fullCal', 'status', true),  [0xD0, 0x92, 0xE0]);     // + RDR·FC·W
+  assert.deepStrictEqual(bytes('fullCal', 'status', true),  [0xD0, 0x92, 0xD8]);     // + CAL3·RDR·W (radar in body)
   assert.deepStrictEqual(bytes('fullCal', 'all', false), [0xD0, 0x45]);              // + NONE·GRAPH·H
   assert.deepStrictEqual(bytes('fullCal', 'all', true),  [0xD0, 0x45, 0x48]);        // + NONE·RDR·W
 });

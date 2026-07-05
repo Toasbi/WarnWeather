@@ -19,7 +19,7 @@ test('compactCal default (off/no-radar) → [CAL2·FC·W, off, off]', () => {
 
 test('compactCal all + radar → packed 3-stop cycle', () => {
   assert.deepStrictEqual(views({ layoutPreset: 'compactCal', healthMode: 'all', radarProvider: 'dwd' }),
-    [0xD0, 0x45, 0x48]);
+    [0x90, 0x45, 0x48]);   // CAL2 default (2-row), big graph + radar flicks
 });
 
 test('compactDense status → dual default, single flick', () => {
@@ -29,7 +29,7 @@ test('compactDense status → dual default, single flick', () => {
 
 test('fullCal status + radar', () => {
   assert.deepStrictEqual(views({ layoutPreset: 'fullCal', healthMode: 'status', radarProvider: 'dwd' }),
-    [0xD0, 0x92, 0xE0]);
+    [0xD0, 0x92, 0xD8]);   // radar flick = CAL3·RDR·W (radar in body)
 });
 
 test('legacy layoutPreset migrates (classic → compactCal)', () => {
