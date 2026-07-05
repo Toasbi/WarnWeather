@@ -159,6 +159,13 @@ static void viewspec_tests(void) {
     // Availability resolve. has_health=false must make aplite/health-off safe.
     ViewSpec r = view_spec_resolve(view_spec_unpack(0x92), true, false);  // CAL2·FC·D
     expect("resolve.nohealth.dual_to_weather", r.status == STATUS_ROW_WEATHER, true);
+    // The dual->weather downgrade must also recompute status_tier: the original 0x92
+    // unpack promotes to FULL (dual-in-compact), but once status is no longer dual the
+    // band geometry (layout_compute_spec) treats it as a plain compact single-status
+    // band, so status_tier must follow it back down to COMPACT or the status text
+    // renders with FULL-tier fonts inside a COMPACT-sized band.
+    ViewSpec r2 = view_spec_resolve(view_spec_unpack(0x92), true, false);  // CAL2·FC·D, no health
+    expect("resolve.nohealth.tier_downgraded", r2.status_tier == LAYOUT_TIER_COMPACT, true);
     r = view_spec_resolve(view_spec_unpack(0x45), true, false);            // NONE·GRAPH·H
     expect("resolve.nohealth.graph_to_forecast", r.body == BODY_FORECAST, true);
     expect("resolve.nohealth.health_to_weather", r.status == STATUS_ROW_WEATHER, true);

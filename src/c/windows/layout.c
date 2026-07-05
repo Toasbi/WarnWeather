@@ -115,7 +115,8 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool dual,
 
     // Dual status: health keeps L.status; carve a weather band (L.status_lower) from
     // the top of the bottom band and shrink it. dual is only ever true in compact/none
-    // (never full) — the window's dual_active() owns that invariant.
+    // (never full) — no named view pairs STATUS_ROW_DUAL with a full-tier calendar (see
+    // the preset matrix in src/pkjs/view-cycle.js).
     L.status_lower = L.status;
 #if defined(PBL_HEALTH)
     if (dual) {
@@ -180,6 +181,17 @@ ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health) {
         if (spec.body == BODY_HEALTH_GRAPH) { spec.body = BODY_FORECAST; }
         if (spec.status == STATUS_ROW_HEALTH || spec.status == STATUS_ROW_DUAL) {
             spec.status = STATUS_ROW_WEATHER;
+            // Recompute status_tier from the FINAL status: view_spec_unpack promotes
+            // dual-in-compact to FULL so both rows share one font, but that no longer
+            // applies once status is downgraded to a single (weather) row — the band
+            // geometry (layout_compute_spec) now sees a plain compact status band, so
+            // the tier must follow it back down or the text renders at the wrong font
+            // for its actual band size. Same tier-derivation rule as view_spec_unpack.
+            uint8_t layout_tier = (spec.calendar_rows == 3) ? LAYOUT_TIER_FULL
+                                : (spec.calendar_rows == 2) ? LAYOUT_TIER_COMPACT
+                                : LAYOUT_TIER_NONE;
+            spec.status_tier = (spec.status == STATUS_ROW_DUAL && layout_tier == LAYOUT_TIER_COMPACT)
+                               ? LAYOUT_TIER_FULL : layout_tier;
         }
     }
     if (spec.top == TOP_BAND_RADAR && !has_radar) {
