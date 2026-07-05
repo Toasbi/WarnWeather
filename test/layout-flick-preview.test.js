@@ -1,8 +1,8 @@
 // test/layout-flick-preview.test.js
-// The Layout tab shows one combined preview: one column per non-OFF slot of the resolved
-// layoutPreset (Default, Flick 1, Flick 2). Drive the real engine over the Layout tab and
-// assert the flick column reflects radar/health availability (dimmed + a note when the
-// watch would currently skip it, rather than omitted).
+// The Layout tab shows one combined preview: one column per slot of the resolved
+// preset's adaptive view cycle (Default, Flick 1, Flick 2). Drive the real engine over
+// the Layout tab and assert the columns track the cycle — a disabled radar/health slot
+// simply isn't in the cycle, so there's no column to dim.
 // Also covers the engine capability that a staticText item may host a blockBefore.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -26,18 +26,23 @@ function layoutBody(overrides) {
   return eng.renderBody(schema, 'layout', cx);
 }
 
-test('combined preview renders both columns for the default (classic) preset; flick column shows Radar', () => {
-  const body = layoutBody({ radarProvider: 'dwd', healthMode: 'off' });
+test('compactCal + radar shows a Default and a Flick column (radar view present)', () => {
+  const body = layoutBody({ layoutPreset: 'compactCal', radarProvider: 'dwd', healthMode: 'off' });
   assert.ok(body.indexOf('<svg') >= 0, 'preview SVG renders');
-  assert.ok(body.indexOf('Default') >= 0 && body.indexOf('Flick 1') >= 0, 'both column headers');
-  assert.ok(body.indexOf('Radar') >= 0, 'flick column shows the radar view');
-  assert.strictEqual(body.indexOf('needs radar'), -1, 'radar is available, so no unavailable note');
+  assert.ok(body.indexOf('Default') >= 0 && body.indexOf('Flick 1') >= 0, 'two columns');
+  assert.ok(body.indexOf('Radar') >= 0, 'radar view present in the cycle');
 });
 
-test('combined preview flick column is dimmed with a "needs radar" note when radar has no provider', () => {
-  const body = layoutBody({ radarProvider: 'disabled', healthMode: 'off' });
-  assert.ok(body.indexOf('needs radar') >= 0, 'note shown when the radar flick is unavailable');
-  assert.ok(body.indexOf('Default') >= 0 && body.indexOf('Flick 1') >= 0, 'both columns still render');
+test('compactCal with radar disabled has no radar column', () => {
+  const body = layoutBody({ layoutPreset: 'compactCal', radarProvider: 'disabled', healthMode: 'off' });
+  assert.ok(body.indexOf('Default') >= 0, 'default column renders');
+  assert.strictEqual(body.indexOf('Radar'), -1, 'no radar column when radar is disabled');
+});
+
+test('compactDense all + radar shows three columns incl. Health graph', () => {
+  const body = layoutBody({ layoutPreset: 'compactDense', radarProvider: 'dwd', healthMode: 'all' });
+  assert.ok(body.indexOf('Flick 2') >= 0, 'three columns');
+  assert.ok(body.indexOf('Health graph') >= 0, 'graph flick present');
 });
 
 test('engine renders a blockBefore hosted on a staticText item', () => {
