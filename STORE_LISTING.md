@@ -75,12 +75,12 @@ WATCH STATUS
 - Sleep mode (battery-saving night pause)
 
 LAYOUT CUSTOMIZATION
-- Four layout presets set your calendar style: Full calendar (3-row), Compact
-  calendar (2-row), Compact calendar (dense — health and weather status shown
-  together), or No calendar (full-date strip, bigger clock/status line, full-screen
-  forecast)
-- The wrist-flick cycle builds itself: enable health or radar and a flick reveals
-  them automatically (previewed live in settings)
+- Layout presets: 
+  - Full calendar (3-row)
+  - Compact calendar (2-row)
+  - Compact calendar (dense)
+  - No calendar
+  Flick your wrist to cycle through different views
 - Optional auto-return to the default view a set time after flicking away
   (1-10 minutes, or never)
 
