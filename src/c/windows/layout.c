@@ -206,6 +206,14 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
     uint8_t tier = (spec->calendar_rows == 0) ? LAYOUT_TIER_NONE
                  : (spec->calendar_rows == 2) ? LAYOUT_TIER_COMPACT
                  : LAYOUT_TIER_FULL;
-    return compute_with_weights(bounds, tier, spec->status == STATUS_ROW_DUAL,
-                                fc_band_h, spec->weights);
+    MainLayout L = compute_with_weights(bounds, tier, spec->status == STATUS_ROW_DUAL,
+                                        fc_band_h, spec->weights);
+    // Radar rides wherever it's placed: the top band when it replaces the calendar,
+    // otherwise the body band (under a retained calendar, or full-screen in none tier).
+    if (spec->top == TOP_BAND_RADAR) {
+        L.radar = L.top;
+    } else if (spec->body == BODY_RADAR) {
+        L.radar = L.bottom;
+    }
+    return L;
 }

@@ -174,10 +174,29 @@ static void viewspec_tests(void) {
     expect("resolve.radar_top_fallback", r.top == TOP_BAND_CALENDAR, true);
 }
 
+static void radar_placement_tests(void) {
+#ifndef PBL_PLATFORM_EMERY
+    ViewSpec s = view_spec_unpack(0x98);   // CAL2·RDR·W — radar in body under 2-row cal
+    MainLayout L = layout_compute_spec(BOUNDS, &s, FC_BAND_H);
+    check("cal2radar.radar", L.radar, 0, 103, 144, 65);   // == compact L.bottom
+    check("cal2radar.top",   L.top,   0, 13, 144, 30);    // 2-row calendar band intact
+
+    s = view_spec_unpack(0xD8);            // CAL3·RDR·W — radar in body under 3-row cal
+    L = layout_compute_spec(BOUNDS, &s, FC_BAND_H);
+    check("cal3radar.radar", L.radar, 0, 117, 144, 51);   // == full L.bottom
+
+    s = view_spec_unpack(0xE0);            // RDR·FC·W — radar in top, forecast in body
+    L = layout_compute_spec(BOUNDS, &s, FC_BAND_H);
+    check("rdrtop.radar", L.radar, 0, 13, 144, 45);       // == full L.top
+    check("rdrtop.bottom", L.bottom, 0, 117, 144, 51);    // forecast keeps the bottom band
+#endif
+}
+
 int main(int argc, char **argv) {
     s_dump = (argc > 1 && strcmp(argv[1], "dump") == 0);
     golden_rects();
     if (!s_dump) viewspec_tests();
+    if (!s_dump) radar_placement_tests();
     if (s_dump) return 0;
     if (s_failures) { printf("%d golden-rect failure(s)\n", s_failures); return 1; }
     printf("layout golden rects OK%s\n",
