@@ -51,9 +51,9 @@ test('snapshot includes topViewMode as a string', () => {
   assert.strictEqual(buildSettingsSnapshot({}).topViewMode, undefined);
 });
 
-test('snapshot includes dualStatus', () => {
-    assert.strictEqual(buildSettingsSnapshot({ dualStatus: true }).dualStatus, true);
-    assert.strictEqual(buildSettingsSnapshot({}).dualStatus, false);
+test('snapshot omits the retired dualStatus field', () => {
+  const snap = buildSettingsSnapshot({});
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(snap, 'dualStatus'), false);
 });
 
 test('snapshot includes layoutPreset as a string', () => {

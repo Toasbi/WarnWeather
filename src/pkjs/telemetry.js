@@ -21,7 +21,6 @@ function buildSettingsSnapshot(settings) {
         temperatureUnits: safe.temperatureUnits,
         dayNightShading: !!safe.dayNightShading,
         healthMode: safe.healthMode || 'off',
-        dualStatus: Boolean(safe.dualStatus),
         provider: safe.provider,
         fetchIntervalMin: toIntOrUndefined(safe.fetchIntervalMin),
         rainCountdownHorizon: toIntOrUndefined(safe.rainCountdownHorizon),
