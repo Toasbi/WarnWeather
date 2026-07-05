@@ -15,6 +15,11 @@ var platformLib = require(path.join(ROOT, 'src/pkjs/config-ui/lib/platform.js'))
 var schema = require(path.join(ROOT, 'src/pkjs/settings/schema.js'));
 var previewPalette = require(path.join(ROOT, 'src/pkjs/settings/preview-palette.js'));
 var APP_FILES = [
+  // view-cycle.js must precede blocks.js: blocks.js's VC fallback (used when this page
+  // is a flat concatenated <script>, not a Node module) reads its declarations directly
+  // from this shared top-level scope. Keep in lockstep with build-config-page.js's
+  // APP_FILES — both build the same page, from two separate entrypoints.
+  path.join(ROOT, 'src/pkjs/view-cycle.js'),
   path.join(ROOT, 'src/pkjs/settings/blocks.js'),
   path.join(ROOT, 'src/pkjs/settings/onbuild.js')
 ];
@@ -65,4 +70,4 @@ if (require.main === module) {
   console.log('wrote ' + parsed.out + ' (' + parsed.platform + ')');
 }
 
-module.exports = { run: run, parseArgs: parseArgs, DEFAULT_OUT: DEFAULT_OUT, PLATFORMS: PLATFORMS };
+module.exports = { run: run, parseArgs: parseArgs, DEFAULT_OUT: DEFAULT_OUT, PLATFORMS: PLATFORMS, APP_FILES: APP_FILES };

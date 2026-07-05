@@ -6,7 +6,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof PConf !== 'undefined' && PConf) ? PConf
     : { blocks: { register: function () {}, get: function () {} } };
 (function () {
-    var VC = (typeof require !== 'undefined') ? require('../view-cycle.js') : null;
+    // Node (tests/build tooling): view-cycle.js is a real CommonJS module, require it.
+    // Webview: view-cycle.js is concatenated as a plain <script> before this file (see
+    // scripts/build-config-page.js), so its top-level declarations share this scope —
+    // reference them directly rather than via require(), which doesn't exist there.
+    var VC = (typeof require !== 'undefined') ? require('../view-cycle.js') : {
+        TIER_OFF: TIER_OFF, TIER_NONE: TIER_NONE, TIER_COMPACT: TIER_COMPACT, TIER_FULL: TIER_FULL,
+        TOP_EMPTY: TOP_EMPTY, TOP_CAL: TOP_CAL, TOP_RADAR: TOP_RADAR,
+        BODY_FC: BODY_FC, BODY_GRAPH: BODY_GRAPH, BODY_RADAR: BODY_RADAR,
+        ST_W: ST_W, ST_H: ST_H, ST_D: ST_D, ST_NONE: ST_NONE,
+        spec: spec, packSpec: packSpec, unpackSpec: unpackSpec,
+        buildViewCycle: buildViewCycle, resolvePresetKey: resolvePresetKey
+    };
 
     function parseStoredJson(v) {
         if (v === null || typeof v === 'undefined') { return null; }
