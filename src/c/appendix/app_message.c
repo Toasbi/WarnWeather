@@ -239,9 +239,8 @@ static bool handle_clay_config(DictionaryIterator *iterator, bool *config_dirty)
     Tuple *clay_health_mode_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_HEALTH_MODE);
     Tuple *clay_rain_countdown_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_RAIN_COUNTDOWN_HORIZON);
     Tuple *clay_top_view_mode_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_TOP_VIEW_MODE);
-    Tuple *clay_dual_status_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_DUAL_STATUS);
-    // Optional (not in the required gate): older phone builds omit these; view_content
-    // then stays zeroed (all VC_OFF → the producer renders a safe compact forecast).
+    // Optional (older phone builds omit these); view_spec then stays 0 (all slots
+    // disabled → producer renders the default view).
     Tuple *clay_view_0_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_0);
     Tuple *clay_view_1_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_1);
     Tuple *clay_view_2_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_2);
@@ -252,8 +251,7 @@ static bool handle_clay_config(DictionaryIterator *iterator, bool *config_dirty)
         && clay_show_qt_tuple && clay_show_bt_tuple && clay_show_bt_disconnect_tuple && clay_show_am_pm_tuple
         && clay_color_saturday_tuple && clay_color_sunday_tuple && clay_color_us_federal_tuple
         && clay_color_time_tuple && clay_day_night_shading_tuple && clay_fetch_interval_tuple
-        && clay_health_mode_tuple && clay_rain_countdown_tuple && clay_top_view_mode_tuple
-        && clay_dual_status_tuple)) {
+        && clay_health_mode_tuple && clay_rain_countdown_tuple && clay_top_view_mode_tuple)) {
         return false;
     }
 
@@ -276,10 +274,9 @@ static bool handle_clay_config(DictionaryIterator *iterator, bool *config_dirty)
     config.fetch_interval_min = clay_fetch_interval_tuple->value->int16;
     config.rain_countdown_horizon_min = clay_rain_countdown_tuple->value->int16;
     config.top_view_mode = (uint8_t) (clay_top_view_mode_tuple->value->int16);
-    config.dual_status = (bool) (clay_dual_status_tuple->value->int16);
-    if (clay_view_0_tuple) { config.view_content[0] = (uint8_t) clay_view_0_tuple->value->int16; }
-    if (clay_view_1_tuple) { config.view_content[1] = (uint8_t) clay_view_1_tuple->value->int16; }
-    if (clay_view_2_tuple) { config.view_content[2] = (uint8_t) clay_view_2_tuple->value->int16; }
+    if (clay_view_0_tuple) { config.view_spec[0] = (uint8_t) clay_view_0_tuple->value->int16; }
+    if (clay_view_1_tuple) { config.view_spec[1] = (uint8_t) clay_view_1_tuple->value->int16; }
+    if (clay_view_2_tuple) { config.view_spec[2] = (uint8_t) clay_view_2_tuple->value->int16; }
     if (clay_view_reset_tuple) { config.view_reset_min = (uint8_t) clay_view_reset_tuple->value->int16; }
     config.time_font = clay_time_font_tuple->value->int16;
     config.color_today = GColorFromHEX(clay_color_today_tuple->value->int32);
