@@ -28,7 +28,12 @@ enum key {
     BAR_PALETTE, RADAR_PALETTE,
     // Appended: per-metric stroke color for the (dotted) third line. Presence still
     // tracked via THIRD_LINE_TREND; this only colors it (defaults white when absent).
-    THIRD_LINE_COLOR
+    THIRD_LINE_COLOR,
+    // Appended: view-cursor + health-cache restore across an app relaunch (Pebble's
+    // Quiet Time forces a full process relaunch on real hardware, wiping module
+    // statics). See docs/superpowers/specs/2026-07-06-persist-across-relaunch-design.md.
+    VIEW_CURSOR, WATCHFACE_UNLOAD_EPOCH,
+    HEALTH_CACHE_STEPS, HEALTH_CACHE_HR, HEALTH_CACHE_SLEEP, HEALTH_CACHE_END_HOUR
 };
 
 // Setters report whether the stored value actually changed so callers can
@@ -369,4 +374,56 @@ bool persist_get_radar_snooze() {
 
 bool persist_set_radar_snooze(bool snooze) {
     return write_bool_if_changed(RADAR_SNOOZE, snooze);
+}
+
+bool persist_set_view_cursor(uint8_t val) {
+    return write_int_if_changed(VIEW_CURSOR, (int) val);
+}
+
+uint8_t persist_get_view_cursor(void) {
+    return (uint8_t) persist_read_int(VIEW_CURSOR);
+}
+
+bool persist_set_watchface_unload_epoch(time_t val) {
+    return write_int_if_changed(WATCHFACE_UNLOAD_EPOCH, (int) val);
+}
+
+time_t persist_get_watchface_unload_epoch(void) {
+    return (time_t) persist_read_int(WATCHFACE_UNLOAD_EPOCH);
+}
+
+bool persist_health_cache_present(void) {
+    return persist_exists(HEALTH_CACHE_END_HOUR);
+}
+
+bool persist_set_health_cache_steps(int16_t *data, const size_t count) {
+    return write_data_if_changed(HEALTH_CACHE_STEPS, data, count * sizeof(int16_t));
+}
+
+int persist_get_health_cache_steps(int16_t *buffer, const size_t count) {
+    return persist_read_data(HEALTH_CACHE_STEPS, (void*) buffer, count * sizeof(int16_t));
+}
+
+bool persist_set_health_cache_hr(int16_t *data, const size_t count) {
+    return write_data_if_changed(HEALTH_CACHE_HR, data, count * sizeof(int16_t));
+}
+
+int persist_get_health_cache_hr(int16_t *buffer, const size_t count) {
+    return persist_read_data(HEALTH_CACHE_HR, (void*) buffer, count * sizeof(int16_t));
+}
+
+bool persist_set_health_cache_sleep(uint8_t *data, const size_t count) {
+    return write_data_if_changed(HEALTH_CACHE_SLEEP, data, count * sizeof(uint8_t));
+}
+
+int persist_get_health_cache_sleep(uint8_t *buffer, const size_t count) {
+    return persist_read_data(HEALTH_CACHE_SLEEP, (void*) buffer, count * sizeof(uint8_t));
+}
+
+bool persist_set_health_cache_end_hour(time_t val) {
+    return write_int_if_changed(HEALTH_CACHE_END_HOUR, (int) val);
+}
+
+time_t persist_get_health_cache_end_hour(void) {
+    return (time_t) persist_read_int(HEALTH_CACHE_END_HOUR);
 }

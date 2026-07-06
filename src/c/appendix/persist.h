@@ -117,4 +117,33 @@ int persist_get_temp_min(void);
 
 int persist_get_temp_max(void);
 
+// Staleness horizon for persisted session state (currently: the view cursor —
+// see persist_get_view_cursor). Matches the health cache's own
+// MAX_BOTTOM_VIEW_ENTRIES * BOTTOM_VIEW_STEP_SECONDS window: the point past
+// which health_build_rollover itself would already fall back to a full
+// rebuild, so restoring anything else past that point buys nothing either.
+#define MAX_STALE_TIME_SEC (MAX_BOTTOM_VIEW_ENTRIES * BOTTOM_VIEW_STEP_SECONDS)
+
+bool persist_set_view_cursor(uint8_t val);
+uint8_t persist_get_view_cursor(void);
+
+bool persist_set_watchface_unload_epoch(time_t val);
+time_t persist_get_watchface_unload_epoch(void);
+
+// True once a complete health-cache snapshot has been written (see
+// persist_set_health_cache_end_hour, which is always written last).
+bool persist_health_cache_present(void);
+
+bool persist_set_health_cache_steps(int16_t *data, size_t count);
+int persist_get_health_cache_steps(int16_t *buffer, size_t count);
+
+bool persist_set_health_cache_hr(int16_t *data, size_t count);
+int persist_get_health_cache_hr(int16_t *buffer, size_t count);
+
+bool persist_set_health_cache_sleep(uint8_t *data, size_t count);
+int persist_get_health_cache_sleep(uint8_t *buffer, size_t count);
+
+bool persist_set_health_cache_end_hour(time_t val);
+time_t persist_get_health_cache_end_hour(void);
+
 void persist_migrate_trend_encoding(void);
