@@ -56,7 +56,7 @@ const SCENES = [
     // Full top view (classic 3-row calendar) with a "Rain in X" countdown up top.
     id: 1, flicks: 0,
     clay: {
-      topViewMode: 'full', dualStatus: false, healthMode: 'off',
+      layoutPreset: 'fullCal', healthMode: 'off',
       secondaryLine: 'precip_prob', secondaryLineFill: true, thirdLine: 'uv',
       barSource: 'rain', rainBarColor: 'multicolor',
       radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60',
@@ -65,10 +65,22 @@ const SCENES = [
     countdown: { text: "Rain in 15'", tier: 3 },
   },
   {
-    // Compact + single status showing the weather status, drizzle approaching in the top bar.
+    // Compact-DENSE: weather & health status shown together by default (no flick needed),
+    // with a different-looking forecast (wind + dotted gust). Radar off — the dense
+    // preset's off-radar cycle is a single view, so there's nothing to flick to anyway.
     id: 2, flicks: 0,
     clay: {
-      topViewMode: 'compact', dualStatus: false, healthMode: 'status',
+      layoutPreset: 'compactDense', healthMode: 'status',
+      secondaryLine: 'wind', thirdLine: 'gust', barSource: 'off',
+      radarProvider: 'disabled', rainCountdownHorizon: '0',
+    },
+    radar: null,
+  },
+  {
+    // Compact + single status showing the weather status, drizzle approaching in the top bar.
+    id: 3, flicks: 0,
+    clay: {
+      layoutPreset: 'compactCal', healthMode: 'status',
       secondaryLine: 'precip_prob', secondaryLineFill: true, thirdLine: 'uv',
       barSource: 'rain', rainBarColor: 'multicolor',
       radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60',
@@ -77,60 +89,36 @@ const SCENES = [
     countdown: { text: "Drizzle in 15'", tier: 2 },
   },
   {
-    // NONE mode with a rain-now countdown ("Rain for X"): full-date strip, big clock,
-    // full-screen forecast.
-    id: 3, flicks: 0,
-    clay: {
-      topViewMode: 'none', dualStatus: false, healthMode: 'off',
-      secondaryLine: 'precip_prob', secondaryLineFill: true,
-      barSource: 'rain', rainBarColor: 'multicolor',
-      radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60',
-    },
-    radar: { exact: RAIN_NOW_EXACT, area: RAIN_NOW_AREA },
-    countdown: { text: "Rain for 20'", tier: 3 },
-  },
-  {
-    // Compact + DUAL status (health & weather) + radar (via flick), rain-now countdown up
-    // top. Dual pins both status bars, so the single flickable body is the radar.
+    // No-calendar layout with the HEALTH graph (healthMode 'all'): a flick swaps the
+    // full-screen forecast for the hourly health graph — step bars + step-count scale, a
+    // sleep band, and the heart-rate line — with the health status line above. Radar off
+    // so the single flick lands on the graph. The graph's numbers come from the
+    // health_fixture.c twin.
     id: 4, flicks: 1,
     clay: {
-      topViewMode: 'compact', dualStatus: true, healthMode: 'status',
-      secondaryLine: 'precip_prob', secondaryLineFill: true,
-      barSource: 'rain', rainBarColor: 'multicolor',
-      radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60',
-    },
-    radar: { exact: RAIN_NOW_EXACT, area: RAIN_NOW_AREA },
-    countdown: { text: "Rain for 20'", tier: 3 },
-  },
-  {
-    // Compact + single status showing the HEALTH status, with a different-looking forecast
-    // (wind + dotted gust). Radar is off, so the one flick's only effect is swapping the
-    // weather status line for the health one.
-    id: 5, flicks: 1,
-    clay: {
-      topViewMode: 'compact', dualStatus: false, healthMode: 'status',
-      secondaryLine: 'wind', thirdLine: 'gust', barSource: 'off',
-      radarProvider: 'disabled', rainCountdownHorizon: '0',
-    },
-    radar: null,
-  },
-  {
-    // Compact + HEALTH graph (healthMode 'all'): a flick swaps the forecast for the hourly
-    // health graph — step bars + step-count scale, a sleep band, and the heart-rate line —
-    // with the health status line above. Radar off so the single flick lands on the graph.
-    // The graph's numbers come from the health_fixture.c twin.
-    id: 6, flicks: 1,
-    clay: {
-      topViewMode: 'compact', dualStatus: false, healthMode: 'all',
+      layoutPreset: 'noCal', healthMode: 'all',
       secondaryLine: 'precip_prob', barSource: 'off',
       radarProvider: 'disabled', rainCountdownHorizon: '0',
     },
     radar: null,
   },
+  {
+    // NONE mode with a rain-now countdown ("Rain for X"): full-date strip, big clock,
+    // full-screen forecast.
+    id: 5, flicks: 0,
+    clay: {
+      layoutPreset: 'noCal', healthMode: 'off',
+      secondaryLine: 'precip_prob', secondaryLineFill: true,
+      barSource: 'rain', rainBarColor: 'multicolor',
+      radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60',
+    },
+    radar: { exact: RAIN_NOW_EXACT, area: RAIN_NOW_AREA },
+    countdown: { text: "Rain for 20'", tier: 3 },
+  },
 ];
 
 /**
- * Build the four showcase scene fixtures from the Berlin base and write them to disk.
+ * Build the showcase scene fixtures from the Berlin base and write them to disk.
  *
  * @param {Object} [opts] Options.
  * @param {string} [opts.outDir="fixtures"] Directory to write scene fixtures into.
