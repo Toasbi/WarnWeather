@@ -2,6 +2,7 @@
 
 #include "health_cache.h"
 #include "c/services/health.h"
+#include "c/services/health_build.h"
 #include "c/appendix/bottom_view.h"   // MAX_BOTTOM_VIEW_ENTRIES, BOTTOM_VIEW_STEP_SECONDS
 #include "c/appendix/chart.h"         // CHART_ABSENT
 
@@ -26,6 +27,10 @@ static int        s_pending_count;// trailing bucket count the deferred build re
 static AppTimer  *s_timer;
 static HealthCacheRepaintCb s_repaint;
 
+static int  s_build_next;       // next window-bucket index to fill (ascending)
+static int  s_build_start;      // first bucket index this build owns
+static bool s_build_sleep_done; // one-shot sleep iterate has run this build
+
 static time_t current_hour_top(void) {
     const time_t now = time(NULL);
     return now - (now % STEP);
@@ -39,44 +44,50 @@ bool health_cache_ready(void) {
     return s_ready;
 }
 
-// The actual reads. Recomputes the trailing `count` buckets [N-count .. N-1] of
-// the window anchored so bucket N-1 (in-progress) starts at s_end_hour. Steps and
-// HR per bucket; sleep over the whole window when count >= 2 (rollover/build).
-static void health_cache_fill_trailing(int count) {
-    if (count < 1) { return; }
-    if (count > N) { count = N; }
-    const int    start = N - count;
-    const time_t fa    = s_end_hour + STEP;   // exclusive end of the in-progress bucket
-
-    // Steps for all trailing buckets (the last is partial: get_minute_history caps at now).
-    health_fill_hourly_steps(&s_steps[start], count, fa);
-
-    // HR for the COMPLETED trailing buckets (exclude the in-progress last one).
-    const int hr_count = count - 1;
-    if (hr_count > 0) {
-        // fa - STEP == s_end_hour == exclusive end of the last completed bucket.
-        health_fill_hourly_hr(&s_hr[start], hr_count, fa - STEP);
-        for (int k = start; k < N - 1; ++k) {
-            if (s_hr[k] == 0) { s_hr[k] = CHART_ABSENT; }   // 0 from the helper == no reading
+// Fill window buckets [start, start+len) for steps, and the COMPLETED subset for HR
+// (HR excludes the in-progress bucket N-1, which is set from live BPM at completion).
+static void health_cache_fill_range(int start, int len) {
+    if (len < 1) { return; }
+    const time_t fa = s_end_hour + STEP;                 // exclusive end of bucket N-1
+    health_fill_hourly_steps(&s_steps[start],
+                             len,
+                             health_build_range_end(fa, N, STEP, start, len));
+    // HR: only completed buckets in [start, min(start+len, N-1)). Window of the
+    // completed buckets is (fa - STEP, N-1).
+    int hstart = start;
+    int hend   = (start + len < N - 1) ? (start + len) : (N - 1);
+    int hlen   = hend - hstart;
+    if (hlen > 0) {
+        health_fill_hourly_hr(&s_hr[hstart], hlen,
+                              health_build_range_end(fa - STEP, N - 1, STEP, hstart, hlen));
+        for (int k = hstart; k < hend; ++k) {
+            if (s_hr[k] == 0) { s_hr[k] = CHART_ABSENT; }
         }
-    }
-    // In-progress hour HR = live BPM (or absent if there is no current reading).
-    const int bpm = health_hr_current();
-    s_hr[N - 1] = (bpm > 0) ? (int16_t)bpm : CHART_ABSENT;
-
-    // Sleep is a single activities_iterate over the whole window; only re-run it
-    // on a rollover/build (count >= 2), never on the count==1 current-hour refresh.
-    if (count >= 2) {
-        health_fill_hourly_sleep(s_sleep, N, fa);
     }
 }
 
-static void health_cache_deferred_cb(void *ctx) {
+// One deferred build chunk: fill up to CHUNK step/HR buckets, then re-arm; once all
+// buckets are filled, run the single sleep iterate, set the in-progress HR, mark ready.
+static void health_cache_build_step(void *ctx) {
     s_timer = NULL;
-    health_cache_fill_trailing(s_pending_count);
+    const int len = health_build_chunk_len(s_build_next, N, HEALTH_CACHE_BUILD_CHUNK);
+    if (len > 0) {
+        health_cache_fill_range(s_build_next, len);
+        s_build_next += len;
+    }
+    if (s_build_next < N) {
+        s_timer = app_timer_register(0, health_cache_build_step, NULL);  // yield, continue
+        return;
+    }
+    if (!s_build_sleep_done) {
+        health_fill_hourly_sleep(s_sleep, N, s_end_hour + STEP);  // one iterate over the window
+        s_build_sleep_done = true;
+    }
+    const int bpm = health_hr_current();                          // in-progress hour = live BPM
+    s_hr[N - 1] = (bpm > 0) ? (int16_t)bpm : CHART_ABSENT;
     s_build_pending = false;
     s_ready = true;
-    if (s_repaint) { s_repaint(); }   // paint the chart from the now-ready cache
+    if (s_repaint) { s_repaint(); }
 }
 
 void health_cache_recalc(time_t end_hour, int count) {
@@ -85,14 +96,23 @@ void health_cache_recalc(time_t end_hour, int count) {
     s_end_hour = end_hour;
 
     if (count > HEALTH_CACHE_LOADING_THRESHOLD) {
+        // Deferred, chunked build: paint loading now, fill a few buckets per timer tick.
+        if (s_timer) { app_timer_cancel(s_timer); s_timer = NULL; }
         s_ready = false;
         s_build_pending = true;
-        s_pending_count = count;
-        if (s_timer) { app_timer_cancel(s_timer); }
-        s_timer = app_timer_register(HEALTH_CACHE_DEFER_MS, health_cache_deferred_cb, NULL);
-        if (s_repaint) { s_repaint(); }   // paint loading now (cache is !ready)
+        s_build_start = N - count;
+        s_build_next = s_build_start;
+        s_build_sleep_done = false;
+        s_pending_count = count;                    // kept for introspection/parity
+        s_timer = app_timer_register(HEALTH_CACHE_DEFER_MS, health_cache_build_step, NULL);
+        if (s_repaint) { s_repaint(); }             // loading frame first
     } else {
-        health_cache_fill_trailing(count);
+        // Cheap inline path (current-hour refresh / single rollover): fill now.
+        const int start = N - count;
+        health_cache_fill_range(start, count);
+        if (count >= 2) { health_fill_hourly_sleep(s_sleep, N, s_end_hour + STEP); }
+        const int bpm = health_hr_current();
+        s_hr[N - 1] = (bpm > 0) ? (int16_t)bpm : CHART_ABSENT;
         s_ready = true;
     }
 }
@@ -101,7 +121,8 @@ void health_cache_reset(void) {
     if (s_timer) { app_timer_cancel(s_timer); s_timer = NULL; }
     s_ready = false;
     s_build_pending = false;
-    health_cache_recalc(current_hour_top(), N);   // full build => deferred + loading
+    s_build_sleep_done = false;
+    health_cache_recalc(current_hour_top(), N);   // full build => chunked + loading
 }
 
 void health_cache_refresh_current_hour(void) {
@@ -120,21 +141,16 @@ void health_cache_tick(bool view_visible) {
     const time_t now_hour = now - (now % STEP);
 
     if (now_hour != s_end_hour) {
-        const long gap = (long)((now_hour - s_end_hour) / STEP);
-        // Backward jump (DST fall-back / manual set back) or a gap too large to
-        // slide => full rebuild. This subsumes the spec's separate "clock jump =>
-        // reset" without extra detection plumbing.
-        if (gap < 1 || gap >= N) {
-            health_cache_recalc(now_hour, N);
+        int keep = 0, recalc = 0;
+        if (health_build_rollover(s_end_hour, now_hour, STEP, N, &keep, &recalc)) {
+            health_cache_recalc(now_hour, N);   // full rebuild
             return;
         }
-        const int keep = N - (int)gap;
+        const int gap = N - keep;
         memmove(&s_steps[0], &s_steps[gap], (size_t)keep * sizeof(int16_t));
         memmove(&s_hr[0],    &s_hr[gap],    (size_t)keep * sizeof(int16_t));
         memmove(&s_sleep[0], &s_sleep[gap], (size_t)keep * sizeof(uint8_t));
-        // Recompute the newly-entered hour(s) + the previously-in-progress hour
-        // (now completed). gap==1 => 2 buckets (inline); gap>=2 => deferred+loading.
-        health_cache_recalc(now_hour, (int)gap + 1);
+        health_cache_recalc(now_hour, recalc);   // gap==1 => inline (2); gap>=2 => chunked
         return;
     }
 

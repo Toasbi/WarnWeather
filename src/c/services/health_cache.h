@@ -12,6 +12,11 @@
 // run inline.
 #define HEALTH_CACHE_LOADING_THRESHOLD 2
 
+// Buckets filled per deferred build tick. The build re-arms an app_timer between
+// chunks so the UI thread yields, preventing the freeze a single 24-bucket read
+// caused. Tune on device: smaller = smoother but longer total build.
+#define HEALTH_CACHE_BUILD_CHUNK 4
+
 // Repaint hook: invoked after a deferred (re)build finishes so the health view
 // can redraw from the now-ready cache. main_window registers
 // health_graph_layer_refresh.
