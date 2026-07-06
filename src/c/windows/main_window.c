@@ -27,8 +27,12 @@ _Static_assert((int)TOP_VIEW_FULL == (int)LAYOUT_TIER_FULL
 
 static Window *s_main_window;
 
-// Session-only cycle cursor: every launch boots to the DEFAULT view (index 0).
-// A wrist-flick advances to the next enabled + available view and wraps back.
+// Cycle cursor. A wrist-flick advances to the next enabled + available view and
+// wraps back. Survives a relaunch (e.g. Pebble's Quiet Time forces a full app
+// process relaunch on real hardware) within g_config->view_reset_min minutes, or
+// MAX_STALE_TIME_SEC when auto-return is disabled — see persist_get_view_cursor()
+// in main_window_load() and docs/superpowers/specs/2026-07-06-persist-across-
+// relaunch-design.md. Beyond that window it boots to the DEFAULT view (index 0).
 static uint8_t s_view_index;
 // The cycle definition (view_spec bytes) the cursor was last validated against, so
 // main_window_apply_top_view can tell a real settings change (cycle redefined → return
@@ -167,6 +171,24 @@ static void main_window_load(Window *window) {
     GRect bounds = layer_get_bounds(window_layer);
     window_set_background_color(window, GColorBlack);
 
+    // Restore the view cursor across a relaunch, gated on the same window the
+    // user's own auto-return setting already allows a non-default view to live
+    // (or MAX_STALE_TIME_SEC when auto-return is off). Must run before
+    // current_view_spec() below, which reads s_view_index indirectly.
+    time_t unload_epoch = persist_get_watchface_unload_epoch();
+    time_t restore_window = (g_config->view_reset_min > 0)
+                                 ? (time_t) g_config->view_reset_min * 60
+                                 : (time_t) MAX_STALE_TIME_SEC;
+    if (unload_epoch > 0 && time(NULL) - unload_epoch <= restore_window) {
+        uint8_t restored = (uint8_t) persist_get_view_cursor();
+        if (restored < 3
+                && view_slot_available(g_config->view_spec[restored], radar_has_data(), health_renderable())) {
+            s_view_index = restored;
+        }
+        // else: corrupt flash, or the slot no longer resolves to anything (e.g. a
+        // future config migration redefined/disabled it) — stay on the default view.
+    }
+
     ViewSpec spec = current_view_spec();
     MainLayout L = layout_compute_spec(bounds, &spec,
                                        status_forecast_band_h(status_full_tier_font()));
@@ -194,18 +216,19 @@ static void main_window_load(Window *window) {
     loading_layer_create(window_layer, L.loading);
     loading_layer_refresh();
     app_message_send_startup_state(loading_layer_data_is_fresh());
-    // The cycle cursor is session-only: every launch starts on the DEFAULT view
-    // (index 0). Seed the applied-cycle snapshot with the boot config so the first
-    // same-cycle re-apply (e.g. an incoming radar update) doesn't read it as a settings
-    // change and reset a cursor the user has since flicked. Set initial visibility too.
+    // Seed the applied-cycle snapshot with the boot config so the first same-cycle
+    // re-apply (e.g. an incoming radar update) doesn't read it as a settings change
+    // and reset a cursor the user has since flicked (or we just restored above).
     memcpy(s_applied_view_spec, g_config->view_spec, sizeof(s_applied_view_spec));
     render_active_view();
 #if defined(PBL_HEALTH)
     // Repaint the health view when a deferred build finishes.
     health_cache_set_repaint(health_graph_layer_refresh);
-    // Warm the cache at boot when health is enabled so the first flick is ready.
+    // Warm the cache at boot when health is enabled — restoring a fresh-enough
+    // snapshot if we have one, so the graph doesn't reshow "Loading health data"
+    // for a relaunch that changed little; otherwise a full build, as before.
     s_health_mode_prev = g_config->health_mode;
-    if (g_config->health_mode != HEALTH_OFF) {
+    if (g_config->health_mode != HEALTH_OFF && !health_cache_restore()) {
         health_cache_reset();
     }
 #endif
@@ -215,6 +238,15 @@ static void main_window_load(Window *window) {
 
 static void main_window_unload(Window *window) {
     accel_tap_service_unsubscribe();
+    // Snapshot session state for a possible relaunch (see main_window_load's
+    // restore logic above). g_config is already freed by this point —
+    // watchface.c's deinit() calls config_unload() before main_window_destroy()
+    // — so nothing below may dereference it.
+    persist_set_view_cursor(s_view_index);
+    persist_set_watchface_unload_epoch(time(NULL));
+#if defined(PBL_HEALTH)
+    health_cache_persist_save();
+#endif
     MEMORY_LOG_HEAP("before_window_unload");
     time_layer_destroy();
     weather_status_layer_destroy();
