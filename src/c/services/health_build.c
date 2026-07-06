@@ -15,7 +15,7 @@ time_t health_build_range_end(time_t fa, int n, int step, int start, int len) {
 bool health_build_rollover(time_t old_end_hour, time_t now_hour, int step, int n,
                            int *keep, int *recalc_count) {
     long gap = (long)((now_hour - old_end_hour) / step);
-    if (gap < 1 || gap >= n) { return true; }      // backward / too large => full rebuild
+    if (now_hour < old_end_hour || gap >= n) { return true; }  // backward / too large => full rebuild
     *keep = n - (int)gap;
     *recalc_count = (int)gap + 1;
     return false;

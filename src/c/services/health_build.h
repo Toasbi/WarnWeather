@@ -1,5 +1,5 @@
 #pragma once
-#include <pebble.h>   // time_t, int16_t, bool
+#include <pebble.h>   // time_t, bool
 
 // Pure scheduling math for the incremental health-cache build. No HealthService
 // calls — host-testable (see test/c/health_build_test.c). Health-only.

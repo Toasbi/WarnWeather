@@ -1,7 +1,6 @@
 // Host golden tests for src/c/services/health_build.c (pure scheduling math).
 // Build & run via scripts/test-c.sh (PBL_HEALTH defined; no SDK calls exercised).
 #include <stdio.h>
-#include <string.h>
 #include "c/services/health_build.h"
 
 static int s_failures = 0;
@@ -36,6 +35,10 @@ static void range_end_tests(void) {
 static void rollover_tests(void) {
     int keep = -1, recalc = -1;
     const time_t base = 1000000 - (1000000 % STEP);
+    // gap 0: anchor unmoved => not a rebuild; keep all, recalc just the in-progress bucket.
+    expect_int("roll.gap0.full", health_build_rollover(base, base, STEP, N, &keep, &recalc), 0);
+    expect_int("roll.gap0.keep", keep, N);
+    expect_int("roll.gap0.recalc", recalc, 1);
     // gap 1: slide keep N-1, recalc 2.
     expect_int("roll.gap1.full", health_build_rollover(base, base + STEP, STEP, N, &keep, &recalc), 0);
     expect_int("roll.gap1.keep", keep, N - 1);
