@@ -12,6 +12,7 @@
 #include "c/layers/health_status_layer.h"
 #include "c/services/health.h"
 #include "c/services/health_cache.h"
+#include "c/services/health_summary.h"
 #include "c/appendix/app_message.h"
 #include "c/appendix/persist.h"
 #include "c/appendix/config.h"
@@ -253,12 +254,15 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     if (g_config->health_mode != HEALTH_OFF) {
         health_cache_tick(health_on_screen);
     }
-    // Repaint the on-screen health view from the (now-warm) cache.
+    // Repaint the on-screen health view from the (now-warm) cache. The summary
+    // (steps/sleep/HR) recomputes here, on the minute cadence, rather than in
+    // health_status_layer_refresh() — so an unrelated main_window_refresh() (e.g. a
+    // settings save) repaints from held values with zero HealthService reads.
     if (health_on_screen) {
-        if (av.health_graph) {
-            health_graph_layer_refresh();
+        if (av.health_graph) { health_graph_layer_refresh(); }
+        if (av.health_status && health_summary_refresh()) {
+            health_status_layer_refresh();
         }
-        health_status_layer_refresh();
     }
 #endif
     // Auto-return to the default view after view_reset_min minutes without a flick.
@@ -309,9 +313,13 @@ void main_window_create() {
 
 void main_window_apply_top_view() {
 #if defined(PBL_HEALTH)
-    // A settings flip enabling health (false->true) warms the cache immediately.
+    // A settings flip enabling health (false->true) warms the cache immediately, and
+    // recomputes the summary so the immediately-following main_window_refresh() below
+    // renders fresh values (the status layer already exists — only its held values are
+    // stale from being off).
     if (g_config->health_mode != HEALTH_OFF && s_health_mode_prev == HEALTH_OFF) {
         health_cache_reset();
+        health_summary_refresh();
     }
     s_health_mode_prev = g_config->health_mode;
 #endif

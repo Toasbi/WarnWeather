@@ -4,6 +4,7 @@
 #include "c/layers/layer_util.h"
 #include "c/services/health.h"
 #include "c/services/health_summary.h"
+#include <limits.h>
 
 // Compiled only on health-capable hardware; see health_graph_layer.c and
 // main_window.c for the platform gating rationale.
@@ -126,6 +127,12 @@ static bool s_full_mode = false;
 // value strings are unchanged. Only w/h matter — health_status_layout reads
 // bounds.size, never the origin.
 static GSize s_laid_size;
+
+// Last-rendered snapshot of the held summary values, so health_status_layer_refresh()
+// can detect a change without itself calling health_summary_refresh() (that recompute
+// now happens on the minute tick / enable in main_window.c) — keeps the render path
+// free of HealthService reads while preserving the redundant-redraw guard.
+static int s_rendered_steps = INT_MIN, s_rendered_sleep_min = INT_MIN, s_rendered_hr = INT_MIN;
 
 void health_status_layer_set_render_tier(uint8_t tier) {
     s_render_tier = tier;
@@ -427,11 +434,17 @@ void health_status_layer_refresh(void) {
     bool tier = (s_icons_tier != s_render_tier);
     if (tier) { icons_rebuild(); }
 
-    bool vals = health_summary_refresh();
+    // Summary values are recomputed on the minute tick / enable (main_window), NOT here,
+    // so an unrelated settings save re-renders from held values with zero health reads.
+    bool vals = (health_summary_steps()        != s_rendered_steps)
+             || (health_summary_sleep_seconds()/60 != s_rendered_sleep_min)
+             || (health_summary_hr_bpm()        != s_rendered_hr);
     GSize sz  = layer_get_bounds(s_health_status_layer).size;
     bool reframe = (sz.w != s_laid_size.w) || (sz.h != s_laid_size.h);
-
     if (!vals && !tier && !reframe) { return; }
+    s_rendered_steps   = health_summary_steps();
+    s_rendered_sleep_min = health_summary_sleep_seconds() / 60;
+    s_rendered_hr      = health_summary_hr_bpm();
 
     steps_slot_refresh();
     sleep_slot_refresh();
