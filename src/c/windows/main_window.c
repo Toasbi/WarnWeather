@@ -154,6 +154,11 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
         LayerVisibility nv = layout_visibility(&ns);
         if (nv.health_status || nv.health_graph) {
             health_cache_refresh_current_hour();
+            // A flick to a health-status view is a deliberate request to see health —
+            // recompute the summary now (main_window_refresh below reads held values),
+            // else the row would show values held since boot/last-active until the next
+            // minute tick. Unlike an unrelated settings save, this re-read is warranted.
+            if (nv.health_status) { health_summary_refresh(); }
             if (nv.health_graph) { health_graph_layer_refresh(); }
         }
     }
