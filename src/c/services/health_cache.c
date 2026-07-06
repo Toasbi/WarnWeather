@@ -16,6 +16,12 @@
 // Imperceptible; tune on device if a build ever feels laggy behind it.
 #define HEALTH_CACHE_DEFER_MS 1500
 
+// Delay before a paint-first restore's top-up recalc runs, so the first paint
+// (persisted buckets) lands before the HealthService reads. Ordering is not a
+// correctness concern — worst case the top-up merely makes the already-painted
+// graph fully current — the delay only preserves the latency win. Tune on device.
+#define HEALTH_CACHE_TOPUP_MS 100
+
 // --- Cache storage (module .bss, no heap) ---------------------------------
 static int16_t s_steps[N];
 static int16_t s_hr[N];
@@ -31,6 +37,9 @@ static HealthCacheRepaintCb s_repaint;
 static int  s_build_next;       // next window-bucket index to fill (ascending)
 static int  s_build_start;      // first bucket index this build owns
 static bool s_build_sleep_done; // one-shot sleep iterate has run this build
+
+static int  s_topup_count;      // trailing bucket count the deferred restore top-up refills (<= 2)
+static bool s_topup_pending;    // a paint-first restore top-up is armed but not yet run
 
 static time_t current_hour_top(void) {
     const time_t now = time(NULL);
@@ -118,13 +127,29 @@ void health_cache_recalc(time_t end_hour, int count) {
     }
 }
 
+// Deferred restore top-up: refill the trailing live bucket(s) (steps + HR +
+// live BPM) off the first-paint path, then redraw. s_topup_count stays
+// <= HEALTH_CACHE_LOADING_THRESHOLD, so health_cache_recalc takes its inline
+// branch — the chunked path is unreachable from here. health_cache_recalc
+// re-sets s_end_hour to the same value; if an intervening tick rollover
+// advanced s_end_hour, the recalc correctly anchors to the new hour.
+static void health_cache_restore_topup(void *ctx) {
+    s_timer = NULL;
+    health_cache_recalc(s_end_hour, s_topup_count);
+    s_topup_pending = false;
+    if (s_repaint) { s_repaint(); }   // redraw with the topped-up live data
+}
+
 // Slide the kept buckets to the front and recompute the trailing gap via the
 // existing rollover contract in health_build_rollover. Shared by
-// health_cache_tick (same-session hour rollover) and health_cache_restore
-// (catch-up after a relaunch). Returns false when health_build_rollover
+// health_cache_tick (same-session hour rollover, paint_first = false: sync
+// recalc as before) and health_cache_restore (catch-up after a relaunch,
+// paint_first = true: a fresh-enough restore paints the persisted buckets
+// immediately and defers the trailing HealthService reads to
+// health_cache_restore_topup). Returns false when health_build_rollover
 // itself calls for a full rebuild (backward jump, or gap >= N) — the caller
 // falls back to health_cache_recalc(now_hour, N) / health_cache_reset().
-static bool health_cache_rollover_to(time_t now_hour) {
+static bool health_cache_rollover_to(time_t now_hour, bool paint_first) {
     int keep = 0, recalc = 0;
     if (health_build_rollover(s_end_hour, now_hour, STEP, N, &keep, &recalc)) {
         return false;
@@ -133,7 +158,20 @@ static bool health_cache_rollover_to(time_t now_hour) {
     memmove(&s_steps[0], &s_steps[gap], (size_t)keep * sizeof(int16_t));
     memmove(&s_hr[0],    &s_hr[gap],    (size_t)keep * sizeof(int16_t));
     memmove(&s_sleep[0], &s_sleep[gap], (size_t)keep * sizeof(uint8_t));
-    health_cache_recalc(now_hour, recalc);
+    if (paint_first && recalc <= HEALTH_CACHE_LOADING_THRESHOLD) {
+        // Fresh restore: show the persisted buckets NOW, top up the trailing
+        // live buckets off the first-paint path. The repaint computes from the
+        // cache only (health_graph_compute makes no HealthService calls).
+        s_end_hour = now_hour;                 // recalc would set this; set it for the paint
+        s_ready = true;
+        if (s_repaint) { s_repaint(); }        // compute + paint persisted data now
+        s_topup_count = recalc;
+        s_topup_pending = true;
+        if (s_timer) { app_timer_cancel(s_timer); s_timer = NULL; }
+        s_timer = app_timer_register(HEALTH_CACHE_TOPUP_MS, health_cache_restore_topup, NULL);
+    } else {
+        health_cache_recalc(now_hour, recalc);  // tick (sync) or stale restore (chunked loading)
+    }
     return true;
 }
 
@@ -146,7 +184,7 @@ void health_cache_reset(void) {
 }
 
 void health_cache_persist_save(void) {
-    if (!s_ready) { return; }   // never persist a mid-build snapshot
+    if (!s_ready || s_topup_pending) { return; }   // never persist a mid-build or pre-top-up snapshot
     persist_set_health_cache_steps(s_steps, N);
     persist_set_health_cache_hr(s_hr, N);
     persist_set_health_cache_sleep(s_sleep, N);
@@ -159,7 +197,7 @@ bool health_cache_restore(void) {
     if (persist_get_health_cache_hr(s_hr, N) != (int)(N * sizeof(int16_t))) { return false; }
     if (persist_get_health_cache_sleep(s_sleep, N) != (int)(N * sizeof(uint8_t))) { return false; }
     s_end_hour = persist_get_health_cache_end_hour();
-    return health_cache_rollover_to(current_hour_top());
+    return health_cache_rollover_to(current_hour_top(), true);
 }
 
 void health_cache_refresh_current_hour(void) {
@@ -178,7 +216,7 @@ void health_cache_tick(bool view_visible) {
     const time_t now_hour = now - (now % STEP);
 
     if (now_hour != s_end_hour) {
-        if (!health_cache_rollover_to(now_hour)) {
+        if (!health_cache_rollover_to(now_hour, false)) {
             health_cache_recalc(now_hour, N);   // full rebuild
         }
         return;
