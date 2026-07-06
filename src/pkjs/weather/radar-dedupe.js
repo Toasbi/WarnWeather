@@ -54,9 +54,13 @@ function radarComparator(newSubset, cachedSubset) {
             return true;
         }
     }
-    // Non-overlapping new tail must be dry. area >= exact, so checking area suffices.
+    // Non-overlapping new tail must be dry in BOTH arrays. DWD guarantees
+    // area >= exact (so area alone would suffice there), but point providers
+    // (Rainbow) send area ≡ 0 with real data in exact — checking only area
+    // would miss freshly-revealed tail rain, skip the send, and let the
+    // watch zero-pad the skipped slots (frozen radar, dead rain-countdown).
     for (i = overlapCount; i < NUM_BARS; i += 1) {
-        if (newArea[i] !== 0) {
+        if (newExact[i] !== 0 || newArea[i] !== 0) {
             return true;
         }
     }

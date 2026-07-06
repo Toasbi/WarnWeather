@@ -86,3 +86,19 @@ test('HEADLINE: 3h of fetch-every-5-min with no rain → exactly one send', () =
   }
   assert.equal(sends, 0);  // every subsequent fetch skips
 });
+
+test('REGRESSION (Rainbow): zero-area candidate with rain only in the exact tail → changed', () => {
+  const cached = subset(zeros(), zeros(), 0);
+  // Point providers (Rainbow) send area ≡ 0; the newly-exposed last slot has
+  // exact rain. Checking only the area array would skip this send and freeze
+  // the watch radar on stale zeros.
+  const exact = zeros(); exact[N - 1] = 7;
+  assert.equal(radarComparator(subset(exact, zeros(), SLOT), cached), true);
+});
+
+test('DWD-shaped tail rain (exact and area both set) still → changed (no behavior change)', () => {
+  const cached = subset(zeros(), zeros(), 0);
+  const exact = zeros(); exact[N - 1] = 3;
+  const area = zeros(); area[N - 1] = 7;   // DWD invariant: area >= exact
+  assert.equal(radarComparator(subset(exact, area, SLOT), cached), true);
+});
