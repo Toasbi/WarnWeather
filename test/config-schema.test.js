@@ -45,9 +45,9 @@ test('providers include openmeteo as 4th selectable option', () => {
 
 test('defaults match Clay/clay-settings (not the prototype drift)', () => {
   assert.equal(byKey('provider').defaultValue, 'wunderground');
-  assert.equal(byKey('radarProvider').defaultValue, 'disabled');
+  assert.equal(byKey('radarProvider').defaultValue, 'rainbow');
   assert.equal(byKey('timeFont').defaultValue, 'roboto');
-  assert.equal(byKey('sleepNightEnabled').defaultValue, false);
+  assert.equal(byKey('sleepNightEnabled').defaultValue, true);
   assert.equal(byKey('fetchIntervalMin').defaultValue, '15');
 });
 
@@ -85,7 +85,7 @@ test('health tab is gated to health-capable platforms, with a 3-state mode radio
   assert.deepEqual(healthTab.showWhen, { env: 'health' });
   const mode = byKey('healthMode');
   assert.equal(mode.type, 'radio');
-  assert.equal(mode.defaultValue, 'off');
+  assert.equal(mode.defaultValue, 'all');
   assert.deepEqual(mode.options.map((o) => o[1]), ['off', 'status', 'all']);
 });
 
@@ -102,7 +102,7 @@ test('secondaryLine is a 4-metric dropdown with no Off', () => {
   const sec = byKey('secondaryLine');
   assert.equal(sec.type, 'select');
   assert.deepEqual(sec.options.map((o) => o[1]), ['precip_prob', 'wind', 'gust', 'uv']);
-  assert.equal(sec.defaultValue, 'precip_prob');
+  assert.equal(sec.defaultValue, 'uv');
 });
 
 test('thirdLine derives options from secondaryLine, excluding it, with Off + default off', () => {
@@ -269,11 +269,11 @@ test('layoutPreset offers the four adaptive presets', () => {
   assert.equal(byKey('firstWeek').showWhen, undefined);
 });
 
-test('viewResetMin is a Layout tab segmented control defaulting to Never, directly below the preset radio', () => {
+test('viewResetMin is a Layout tab segmented control defaulting to 2m, directly below the preset radio', () => {
   const r = byKey('viewResetMin');
   assert.ok(r, 'viewResetMin item exists');
   assert.equal(r.type, 'segmented');
-  assert.equal(r.defaultValue, '0');
+  assert.equal(r.defaultValue, '2');
   assert.deepEqual(r.options.map((o) => o[1]), ['0', '1', '2', '5', '10']);
 });
 

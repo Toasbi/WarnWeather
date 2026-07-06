@@ -70,7 +70,7 @@ test('getDefaults includes gpsCacheMin defaulting to 30 minutes', () => {
   assert.equal(claySettings.getDefaults(COLORS).gpsCacheMin, '30');
 });
 
-test('seedDefaults seeds roboto font and night-pause disabled by default', () => {
+test('seedDefaults seeds roboto font and night-pause enabled by default', () => {
   installFakeStorage();
   delete require.cache[require.resolve('../src/pkjs/clay-settings')];
   const claySettings = require('../src/pkjs/clay-settings');
@@ -78,8 +78,8 @@ test('seedDefaults seeds roboto font and night-pause disabled by default', () =>
   const read = claySettings.read();
   assert.equal(read.provider, 'wunderground');
   assert.equal(read.timeFont, 'roboto');
-  assert.equal(read.sleepNightEnabled, false);
-  assert.equal(read.sleepStartHour, '22');
+  assert.equal(read.sleepNightEnabled, true);
+  assert.equal(read.sleepStartHour, '0');
   assert.equal(read.sleepEndHour, '7');
 });
 
@@ -92,8 +92,8 @@ test('seedDefaults backfills sleep keys into existing installs that lack them', 
   claySettings.seedDefaults(COLORS);
   const read = claySettings.read();
   // Backfill must seed the night-pause default for the existing user.
-  assert.equal(read.sleepNightEnabled, false);
-  assert.equal(read.sleepStartHour, '22');
+  assert.equal(read.sleepNightEnabled, true);
+  assert.equal(read.sleepStartHour, '0');
   assert.equal(read.sleepEndHour, '7');
   // Pre-existing custom values must be preserved (backfill only fills missing keys).
   assert.equal(read.provider, 'dwd');
