@@ -50,6 +50,17 @@ function cacheKey(lat: number, lon: number, start: number): string {
   return lat.toFixed(3) + ":" + lon.toFixed(3) + ":" + start;
 }
 
+/**
+ * Parses an integer env var, falling back to `fallback` only when the value is
+ * unset/empty/non-numeric. Unlike `parseInt(...) || fallback`, an explicit "0"
+ * is honored (the operator's emergency killswitch for the budget/IP-cap gates).
+ */
+function envInt(value: string | undefined, fallback: number): number {
+  if (value === undefined || value === "") return fallback;
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 /** Query param that treats absent AND empty ('?lat=') as missing (z.coerce would turn '' into 0). */
 function qp(url: URL, name: string): string | undefined {
   const v = url.searchParams.get(name);
@@ -113,13 +124,13 @@ export function createHandler(deps: Deps) {
     const staleFallback = cached ? cached.payload : EMPTY_FORECAST;
 
     const ip = (req.headers.get("x-forwarded-for") || "unknown").split(",")[0].trim();
-    const ipCap = parseInt(deps.env("RAINBOW_IP_HOURLY_CAP") || "", 10) || DEFAULT_IP_HOURLY_CAP;
+    const ipCap = envInt(deps.env("RAINBOW_IP_HOURLY_CAP"), DEFAULT_IP_HOURLY_CAP);
     const ipCalls = await deps.store.incrementIpUsage(utcHourKey(ip, now));
     if (ipCalls > ipCap) {
       return Response.json(staleFallback, { status: 200, headers: { "x-rainbow-cache": "ip-capped" } });
     }
 
-    const budget = parseInt(deps.env("RAINBOW_MONTHLY_BUDGET") || "", 10) || DEFAULT_MONTHLY_BUDGET;
+    const budget = envInt(deps.env("RAINBOW_MONTHLY_BUDGET"), DEFAULT_MONTHLY_BUDGET);
     const used = await deps.store.getMonthlyUsage(utcMonth(now));
     if (used >= budget) {
       return Response.json(staleFallback, { status: 200, headers: { "x-rainbow-cache": "budget-capped" } });

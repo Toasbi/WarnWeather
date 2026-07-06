@@ -147,6 +147,36 @@ Deno.test("RAINBOW_MONTHLY_BUDGET secret raises the ceiling without a redeploy",
   assertEquals(up.calls.length, 1, "raised budget allows upstream");
 });
 
+Deno.test("RAINBOW_MONTHLY_BUDGET=0 (killswitch) → no upstream even with zero usage", async () => {
+  const mem = memoryStore();
+  const up = upstreamFetch();
+  const handle = createHandler(makeDeps({
+    store: mem.store,
+    fetchFn: up.fetchFn,
+    env: (n) =>
+      n === "RAINBOW_API_KEY" ? "test-key" : n === "RAINBOW_MONTHLY_BUDGET" ? "0" : undefined,
+  }));
+  const res = await handle(reqFor(`?lat=52.5&lon=13.4&start=${BUCKET}`));
+  assertEquals(res.status, 200);
+  assertEquals((await res.json()).forecast, []);
+  assertEquals(up.calls.length, 0, "budget=0 must block upstream, not fall back to the default");
+});
+
+Deno.test("RAINBOW_IP_HOURLY_CAP=0 (killswitch) → no upstream on first cache-miss request", async () => {
+  const mem = memoryStore();
+  const up = upstreamFetch();
+  const handle = createHandler(makeDeps({
+    store: mem.store,
+    fetchFn: up.fetchFn,
+    env: (n) =>
+      n === "RAINBOW_API_KEY" ? "test-key" : n === "RAINBOW_IP_HOURLY_CAP" ? "0" : undefined,
+  }));
+  const res = await handle(reqFor(`?lat=52.5&lon=13.4&start=${BUCKET}`));
+  assertEquals(res.status, 200);
+  assertEquals((await res.json()).forecast, []);
+  assertEquals(up.calls.length, 0, "ip cap=0 must block upstream, not fall back to the default");
+});
+
 Deno.test("per-IP hourly cap exceeded → no upstream, empty forecast", async () => {
   const mem = memoryStore();
   mem.ip.set("203.0.113.9:2026-07-06T12", 30);   // at the DEFAULT_IP_HOURLY_CAP
