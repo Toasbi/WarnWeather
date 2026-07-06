@@ -1,6 +1,5 @@
 // src/c/appendix/rain_tier.c
 #include "rain_tier.h"
-#include "palette.h"
 
 // Q8 fixed-point unit: 256 represents 1.0 (full fill of a tier slab).
 #define Q8_ONE 256

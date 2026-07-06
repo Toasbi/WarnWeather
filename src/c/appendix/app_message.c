@@ -414,7 +414,6 @@ void app_message_send_startup_state(bool has_forecast_data) {
 }
 
 void app_message_init() {
-    // Register callbacks
     app_message_register_inbox_received(inbox_received_callback);
     app_message_register_inbox_dropped(inbox_dropped_callback);
 

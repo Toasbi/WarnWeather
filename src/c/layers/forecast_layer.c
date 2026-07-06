@@ -2,12 +2,9 @@
 
 #include "forecast_layer.h"
 #include "c/appendix/persist.h"
-#include "c/appendix/math.h"
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
-#include "c/appendix/rain_tier.h"
 #include "c/appendix/palette.h"
-#include "c/appendix/hatch.h"
 #include "c/appendix/slot_geometry.h"
 #include "c/appendix/display_width.h"
 #include "c/appendix/chart.h"
@@ -540,13 +537,8 @@ static void text_labels_refresh()
 void forecast_layer_create(Layer *parent_layer, GRect frame)
 {
     s_forecast_layer = layer_create(frame);
-
-    // Fill the contents with values
-
     layer_set_update_proc(s_forecast_layer, forecast_update_proc);
     text_labels_refresh();
-
-    // Add it as a child layer to the Window's root layer
     layer_add_child(parent_layer, s_forecast_layer);
     MEMORY_LOG_HEAP("after_forecast_layer_create");
 }

@@ -1,5 +1,4 @@
 #include "battery_layer.h"
-#include "c/appendix/persist.h"
 #include "c/appendix/memory_log.h"
 #include "c/services/watch_services.h"
 
@@ -73,7 +72,6 @@ static void battery_update_proc(Layer *layer, GContext *ctx) {
     int battery_total_w = w - battery_x;
     int battery_w = battery_total_w - BATTERY_NUB_W;
 
-    // Fill the battery level
     GRect color_bounds = GRect(
         battery_x + BATTERY_STROKE + FILL_PADDING, BATTERY_STROKE + FILL_PADDING,
         battery_w - (BATTERY_STROKE + FILL_PADDING) * 2, h - (BATTERY_STROKE + FILL_PADDING) * 2);
@@ -93,12 +91,10 @@ static void battery_update_proc(Layer *layer, GContext *ctx) {
         draw_power_icon(ctx, h, s_battery_power_bitmap);
     }
 
-    // Draw the white battery outline
     graphics_context_set_stroke_color(ctx, GColorWhite);
     graphics_context_set_stroke_width(ctx, BATTERY_STROKE);
     graphics_draw_rect(ctx, GRect(battery_x, 0, battery_w, h));
 
-    // Draw the battery nub on the right
     graphics_draw_rect(
         ctx,
         GRect(battery_x + battery_w - 1, h / 2 - BATTERY_NUB_H / 2, BATTERY_NUB_W + 1, BATTERY_NUB_H));

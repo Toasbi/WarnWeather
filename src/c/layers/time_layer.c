@@ -55,25 +55,20 @@ Layer *time_layer_get_root(void) {
 // 00:30 -> 12:30
 
 void time_layer_tick() {
-    // Get a tm structure
     struct tm tick_time = watch_services_localtime();
 
-    // Format the time into a buffer
     static char s_buffer[8];
     config_format_time(s_buffer, sizeof(s_buffer), &tick_time);
 
-    // Update the time and AM/PM indicator
     text_layer_set_text(s_time_layer, s_buffer);
     if (g_config->show_am_pm)
         text_layer_set_text(s_am_pm_layer, tick_time.tm_hour < 12 ? "AM" : "PM");
     
-    // Reposition everything
     GRect bounds = layer_get_bounds(s_container_layer);
     text_layer_move_frame(s_time_layer, GRect(0, 0, bounds.size.w, bounds.size.h)); // Reset for size calculation
     GSize time_size = text_layer_get_content_size(s_time_layer);
     GSize am_pm_size = text_layer_get_content_size(s_am_pm_layer);
 
-    // Calculate some landmarks
     int content_w = time_size.w + (g_config->show_am_pm ? am_pm_size.w : 0);
     int text_h = time_size.h - MT_TIME; // Remove top margin, approximately
     int text_top = -MT_TIME + (bounds.size.h/2 - text_h/2);

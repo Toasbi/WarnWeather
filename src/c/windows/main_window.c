@@ -163,7 +163,6 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
 }
 
 static void main_window_load(Window *window) {
-    // Get information about the Window
     Layer *window_layer = window_get_root_layer(window);
     GRect bounds = layer_get_bounds(window_layer);
     window_set_background_color(window, GColorBlack);
@@ -294,19 +293,15 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
 ----------------------------*/
 
 void main_window_create() {
-    // Create main Window element and assign to pointer
     s_main_window = window_create();
 
-    // Set handlers to manage the elements inside the Window
     window_set_window_handlers(s_main_window, (WindowHandlers) {
         .load = main_window_load,
         .unload = main_window_unload
     });
 
-    // Register with TickTimerService
     tick_timer_service_subscribe(MINUTE_UNIT | DAY_UNIT, minute_handler);
 
-    // Show the window on the watch with animated=true
     window_stack_push(s_main_window, true);
     time_layer_refresh();
 }

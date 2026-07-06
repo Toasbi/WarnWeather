@@ -104,7 +104,6 @@ static bool cell_is_holiday(struct tm *t) {
 
 #ifdef PBL_COLOR
 static GColor date_color(struct tm *t) {
-    // Get color for a date, considering weekends and holidays
     if (cell_is_holiday(t))
         return g_config->color_us_federal;
     if (t->tm_wday == 0)

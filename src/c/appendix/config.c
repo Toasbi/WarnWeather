@@ -73,7 +73,6 @@ void config_unload() {
 }
 
 int config_localize_temp(int temp_f) {
-    // Convert temperatures as desired
     int result;
     if (g_config->celsius)
         result = f_to_c(temp_f);
