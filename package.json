@@ -266,5 +266,8 @@
   "telemetry": {
     "enabled": false,
     "endpoint": ""
+  },
+  "rainbow": {
+    "endpoint": ""
   }
 }

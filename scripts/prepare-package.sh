@@ -101,6 +101,15 @@ pkg.telemetry = {
   endpoint: telemetryEndpoint,
 };
 
+// Rainbow nowcast proxy URL baked into the bundle. Empty ('') hides the
+// Rainbow radar option in the config UI (env-gate) and makes a stray
+// 'rainbow' selection fail soft. PKJS tests endpoint !== '' — no enabled flag.
+const rainbowEndpoint = typeof process.env.RAINBOW_PROXY_ENDPOINT === 'string' ? process.env.RAINBOW_PROXY_ENDPOINT.trim() : '';
+
+pkg.rainbow = {
+  endpoint: rainbowEndpoint,
+};
+
 fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
 "
 
