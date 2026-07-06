@@ -306,10 +306,17 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
         graphics_context_set_fill_color(ctx, GColorBlack);
         graphics_fill_rect(ctx, b, 0, GCornerNone);
         graphics_context_set_text_color(ctx, GColorWhite);
-        graphics_draw_text(ctx, "Loading health data...",
-                           fonts_get_system_font(FONT_KEY_GOTHIC_18),
-                           GRect(0, b.size.h / 3, b.size.w, b.size.h),
-                           GTextOverflowModeFill, GTextAlignmentCenter, NULL);
+        // Center vertically on the ACTUAL wrapped height: "Loading health data..."
+        // is one line on wide displays but wraps to two on a 144 px band, so a
+        // fixed y (the old b.size.h / 3) sat too high. Measure, then center.
+        GFont       font = fonts_get_system_font(FONT_KEY_GOTHIC_18);
+        const char *msg  = "Loading health data...";
+        const GSize sz   = graphics_text_layout_get_content_size(
+            msg, font, b, GTextOverflowModeWordWrap, GTextAlignmentCenter);
+        int y = (b.size.h - sz.h) / 2;
+        if (y < 0) { y = 0; }
+        graphics_draw_text(ctx, msg, font, GRect(0, y, b.size.w, sz.h),
+                           GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
         return;
     }
 
