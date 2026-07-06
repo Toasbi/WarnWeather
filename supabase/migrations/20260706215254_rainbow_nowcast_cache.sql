@@ -1,12 +1,9 @@
 -- Rainbow.ai nowcast proxy state: response cache + upstream usage counters.
--- Declarative schema (source of truth). Never hand-write supabase/migrations/ —
--- generate with: supabase db diff -f rainbow_nowcast_cache
+-- Source of truth is the declarative schema supabase/schemas/rainbow.sql.
+-- Applied to the remote project (ref uorytkglrxbafryiugpu) via the Supabase MCP
+-- apply_migration at version 20260706215254; mirrored here so `supabase db push`
+-- sees a consistent migration history (Docker was unavailable to run `db diff`).
 
--- Short-TTL coarse response cache. cache_key = '<lat.3dp>:<lon.3dp>:<start>'
--- (3 decimals ≈ 100 m; start is the 5-min bucket) so nearby users in the same
--- window share one upstream call. TTL is enforced by the edge function
--- (expires_at comparison); expired rows double as a stale fallback when the
--- budget guards trip.
 create table public.rainbow_nowcast_cache (
   cache_key text primary key,
   payload jsonb not null,
@@ -27,8 +24,6 @@ with check (false);
 create index rainbow_nowcast_cache_expires_idx
   on public.rainbow_nowcast_cache (expires_at);
 
--- One row per UTC month (e.g. '2026-07'): the hard wallet cap. Above
--- RAINBOW_MONTHLY_BUDGET upstream calls, the proxy serves cache-or-empty.
 create table public.rainbow_upstream_usage (
   period text primary key,
   upstream_calls integer not null default 0
@@ -43,9 +38,6 @@ to anon, authenticated
 using (false)
 with check (false);
 
--- One row per requesting IP per UTC hour (key '<ip>:<YYYY-MM-DDTHH>'): the
--- coarse hourly backstop that blunts a single abuser before it burns the
--- monthly budget. Rows go dead after their hour; prune opportunistically.
 create table public.rainbow_ip_usage (
   ip_hour text primary key,
   calls integer not null default 0
@@ -60,9 +52,8 @@ to anon, authenticated
 using (false)
 with check (false);
 
--- Atomic increment-and-read: a plain read-modify-write races between
--- concurrent edge invocations; the upsert increments atomically and returns
--- the post-increment count.
+-- Atomic increment-and-read. search_path is pinned empty (bodies are fully
+-- schema-qualified) to satisfy the function_search_path_mutable advisor.
 create or replace function public.increment_rainbow_usage(p_period text)
 returns integer
 language sql
