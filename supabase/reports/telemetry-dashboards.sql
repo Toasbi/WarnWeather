@@ -160,9 +160,10 @@ order by attempt;
 --   reporting_users = users who sent the relevant key at all (older clients
 --                     predating the key are excluded, so the % stays honest)
 --   enabled_pct     = enabled_users / reporting_users
--- Newer keys (secondaryLine, barSource, radarProvider, devStatsEnabled, ...)
--- require telemetry >= the release that added them; before that they read NULL
--- and simply drop out of reporting_users.
+-- Newer keys (secondaryLine, barSource, radarProvider, devStatsEnabled,
+-- thirdLine, healthMode, rainCountdownHorizon, ...) require telemetry >= the
+-- release that added them; before that they read NULL and simply drop out of
+-- reporting_users.
 -- ============================================================
 with latest_per_user_day as (
   select distinct on ((received_at at time zone 'UTC')::date, account_token_hash)
@@ -181,11 +182,13 @@ flags as (
     -- only meaningful in precip mode; everyone else reads NULL (out of denominator)
     ('secondary_fill',     case when (l.settings_json ->> 'secondaryLine') = 'precip_prob'
                                 then (l.settings_json ->> 'secondaryLineFill') = 'true' end),
-    -- only meaningful in wind mode
-    ('gust_line',          case when (l.settings_json ->> 'secondaryLine') = 'wind'
-                                then (l.settings_json ->> 'gustLine') = 'true' end),
+    -- third metric line (any metric, incl. wind gust / UV); off sentinel = 'off'
+    ('forecast_third',     (l.settings_json ->> 'thirdLine') <> 'off'),
     ('rain_bars',          (l.settings_json ->> 'barSource') <> 'off'),
     ('radar',              (l.settings_json ->> 'radarProvider') <> 'disabled'),
+    -- rain-countdown alert; horizon 0 = off
+    ('rain_countdown',     (l.settings_json ->> 'rainCountdownHorizon') <> '0'),
+    ('health',             (l.settings_json ->> 'healthMode') <> 'off'),
     -- presence of sleepStartHour implies night-sleep on; key has always been sent,
     -- so reporting_users here is effectively all active users
     ('night_sleep',        l.settings_json ? 'sleepStartHour'),
@@ -228,10 +231,11 @@ flags as (
     ('forecast_secondary', (l.settings_json ->> 'secondaryLine') <> 'off'),
     ('secondary_fill',     case when (l.settings_json ->> 'secondaryLine') = 'precip_prob'
                                 then (l.settings_json ->> 'secondaryLineFill') = 'true' end),
-    ('gust_line',          case when (l.settings_json ->> 'secondaryLine') = 'wind'
-                                then (l.settings_json ->> 'gustLine') = 'true' end),
+    ('forecast_third',     (l.settings_json ->> 'thirdLine') <> 'off'),
     ('rain_bars',          (l.settings_json ->> 'barSource') <> 'off'),
     ('radar',              (l.settings_json ->> 'radarProvider') <> 'disabled'),
+    ('rain_countdown',     (l.settings_json ->> 'rainCountdownHorizon') <> '0'),
+    ('health',             (l.settings_json ->> 'healthMode') <> 'off'),
     ('night_sleep',        l.settings_json ? 'sleepStartHour'),
     ('quiet_time_icon',    (l.settings_json ->> 'showQt') = 'true'),
     ('bt_vibrate',         (l.settings_json ->> 'vibe') = 'true'),
@@ -270,19 +274,25 @@ select
   count(*) as users
 from latest_per_user l
 cross join lateral (values
-  ('temperatureUnits', l.settings_json ->> 'temperatureUnits'),
-  ('provider',         l.settings_json ->> 'provider'),
-  ('fetchIntervalMin', l.settings_json ->> 'fetchIntervalMin'),
-  ('secondaryLine',    l.settings_json ->> 'secondaryLine'),
-  ('windScale',        l.settings_json ->> 'windScale'),
-  ('rainBarColor',     l.settings_json ->> 'rainBarColor'),
-  ('radarProvider',    l.settings_json ->> 'radarProvider'),
-  ('radarColor',       l.settings_json ->> 'radarColor'),
-  ('btIcons',          l.settings_json ->> 'btIcons'),
-  ('timeFont',         l.settings_json ->> 'timeFont'),
-  ('axisTimeFormat',   l.settings_json ->> 'axisTimeFormat'),
-  ('weekStartDay',     l.settings_json ->> 'weekStartDay'),
-  ('firstWeek',        l.settings_json ->> 'firstWeek')
+  ('temperatureUnits',     l.settings_json ->> 'temperatureUnits'),
+  ('provider',             l.settings_json ->> 'provider'),
+  ('fetchIntervalMin',     l.settings_json ->> 'fetchIntervalMin'),
+  ('secondaryLine',        l.settings_json ->> 'secondaryLine'),
+  ('thirdLine',            l.settings_json ->> 'thirdLine'),
+  ('windScale',            l.settings_json ->> 'windScale'),
+  ('rainBarColor',         l.settings_json ->> 'rainBarColor'),
+  ('radarProvider',        l.settings_json ->> 'radarProvider'),
+  ('radarColor',           l.settings_json ->> 'radarColor'),
+  ('healthMode',           l.settings_json ->> 'healthMode'),
+  ('rainCountdownHorizon', l.settings_json ->> 'rainCountdownHorizon'),
+  ('topViewMode',          l.settings_json ->> 'topViewMode'),
+  ('layoutPreset',         l.settings_json ->> 'layoutPreset'),
+  ('viewResetMin',         l.settings_json ->> 'viewResetMin'),
+  ('btIcons',              l.settings_json ->> 'btIcons'),
+  ('timeFont',             l.settings_json ->> 'timeFont'),
+  ('axisTimeFormat',       l.settings_json ->> 'axisTimeFormat'),
+  ('weekStartDay',         l.settings_json ->> 'weekStartDay'),
+  ('firstWeek',            l.settings_json ->> 'firstWeek')
 ) as s(setting, option)
 where s.option is not null
 group by s.setting, s.option
