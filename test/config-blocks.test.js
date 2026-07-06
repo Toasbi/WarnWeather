@@ -427,3 +427,19 @@ test('layoutPreviewCombined: columns span the full window width, flush left (no 
     // Left (Default) column starts flush at x=0 (no black side padding inset).
     assert.ok(svg.indexOf('<rect x="0" y="16"') >= 0, 'left column band starts at x=0');
 });
+
+test('radarPreview (rainbow): no nearby outline bars and no "Nearby (2 km)" legend', () => {
+  const dwd = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
+  const rainbow = B.radarPreview({ radarProvider: 'rainbow', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
+  assert.ok(dwd.indexOf('>Nearby (2 km)<') >= 0, 'dwd keeps the nearby legend');
+  assert.equal(rainbow.indexOf('>Nearby (2 km)<'), -1, 'rainbow drops the nearby legend');
+  assert.ok(rainbow.indexOf('>Rain at your exact spot<') >= 0, 'exact-spot legend stays');
+  assert.ok(dwd.indexOf('fill="none" stroke="rgba(255,255,255,0.30)"') >= 0, 'dwd draws hollow nearby bars');
+  assert.equal(rainbow.indexOf('fill="none" stroke="rgba(255,255,255,0.30)"'), -1, 'rainbow draws no hollow nearby bars');
+});
+
+test('radarPreview (rainbow) still renders exact bars and the countdown band', () => {
+  const svg = B.radarPreview({ radarProvider: 'rainbow', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: true });
+  assert.ok(/^<svg/.test(svg), 'renders an SVG, not the off message');
+  assert.ok(svg.indexOf("Rain in 15'") >= 0, 'countdown band applies to rainbow too');
+});

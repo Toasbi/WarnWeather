@@ -390,10 +390,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         e += '<line x1="' + PX0 + '" y1="' + PB + '" x2="' + PX1 + '" y2="' + PB + '" stroke="rgba(255,255,255,0.18)" stroke-width="0.7"></line>';
         var P = (userData && userData.palette) || FALLBACK_PALETTE;
         var radarWhite = state.radarColor === 'white' || (env && !env.color);
+        // Rainbow is a single-point nowcast: no 2 km-area signal → omit the
+        // hollow "nearby" outline bars and their legend entry entirely.
+        var showNearby = state.radarProvider !== 'rainbow';
         for (var i = 0; i < n; i++) {
             var x = PX0 + i * step + (step - bw) / 2;
             var nH = barPermille(Math.round((local[i] + add[i]) * 10)) / 1000;
-            if (nH > 0) {
+            if (showNearby && nH > 0) {
                 e += '<rect x="' + x + '" y="' + (PB - nH * plotH) + '" width="' + bw + '" height="' + (nH * plotH) + '" fill="none" stroke="rgba(255,255,255,0.30)" stroke-width="0.7"></rect>';
             }
             e += rainBars(local[i], x, bw, PB, plotH, radarWhite, P.rainTiers, false);
@@ -413,10 +416,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             lx += 14;
         }
         e += txt(lx + 3, lgy + 3, 7.5, '#AEB4BD', 'start', 600, 'Rain at your exact spot');
-        lx += 3 + labelAdvance('Rain at your exact spot', 7.5) + 7;
-        e += '<rect x="' + lx + '" y="' + (lgy - 3.5) + '" width="9" height="7" fill="none" stroke="#8A8F98" stroke-width="1"></rect>';
-        lx += 11;
-        e += txt(lx + 3, lgy + 3, 7.5, '#AEB4BD', 'start', 600, 'Nearby (2 km)');
+        if (showNearby) {
+            lx += 3 + labelAdvance('Rain at your exact spot', 7.5) + 7;
+            e += '<rect x="' + lx + '" y="' + (lgy - 3.5) + '" width="9" height="7" fill="none" stroke="#8A8F98" stroke-width="1"></rect>';
+            lx += 11;
+            e += txt(lx + 3, lgy + 3, 7.5, '#AEB4BD', 'start', 600, 'Nearby (2 km)');
+        }
         // Rain-countdown preview band: a status-strip mock ("Rain in 15'") above the
         // chart, mirroring top_status_layer.c. Hidden when the countdown is Off, and
         // never shown on aplite (which lacks the feature). Only the glyph is coloured

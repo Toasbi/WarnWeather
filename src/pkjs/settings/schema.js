@@ -234,14 +234,19 @@ module.exports = {
         // budget can't afford it), so the whole tab is env-hidden there (tab-level
         // showWhen; see platform.js radar env flag). Mirrors the health tab.
         id: 'radar', label: 'Radar', showWhen: {env: 'radar'}, sections: [{
-            intro: 'Rain radar is a second view — set where it appears in the Layout tab.<br>' + 'Unlike the model prediction in the forecast graph, this is a short-term nowcast based on actual radar measurements moving toward you, and it refreshes often as new radar scans arrive. ' + 'Behind the scenes the provider gives a sequence of radar images covering the next 2 hours; we read the rain intensity at your location in each image and turn every 5-minute frame into one bar whose height is the rain amount. ' + 'Solid bars are rain at your exact spot; the hatched outline behind them is the strongest rain anywhere within 2 km — an early warning that rain is nearby even when it isn\'t directly overhead yet.<br>' + 'Radar is Germany-only for now (Deutscher Wetterdienst). I\'m open to adding more providers, but so far I haven\'t found another free one that delivers 5-minute updates precise to your exact location.',
+            intro: 'Rain radar is a second view — a precise short-term rain forecast for your location. Set where it appears in the Layout tab.<br>' +
+                '<b>DWD</b> (Germany): rain at your exact spot and nearby (within ~2 km).<br>' +
+                '<b>Rainbow</b>: worldwide, at your exact spot only.',
             items: [{
                 type: 'segmented',
                 messageKey: 'radarProvider',
                 label: 'Radar provider',
                 defaultValue: 'disabled',
-                hintByValue: {dwd: 'Deutscher Wetterdienst (Germany only)'},
-                options: [['DWD', 'dwd'], ['Off', 'disabled']],
+                hintByValue: {dwd: 'Deutscher Wetterdienst (Germany only)', rainbow: 'Worldwide'},
+                // Rainbow is always offered. Builds without a proxy endpoint
+                // (dev/forks) still show it; selecting it there fails soft with
+                // the Task 2 warning. Production always sets RAINBOW_PROXY_ENDPOINT.
+                options: [['DWD', 'dwd'], ['Rainbow', 'rainbow'], ['Off', 'disabled']],
                 blockBefore: 'radarPreview',
                 blockBeforeSticky: true
             }, {
