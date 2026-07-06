@@ -127,6 +127,10 @@ run = [
 description = "Host-compiled C tests (layout golden rects; 'mise test-c -- dump' prints actuals)"
 run = "scripts/test-c.sh"
 
+[tasks.test-deno]
+description = "Run the rainbow-nowcast Edge Function's Deno test suite (separate runner from 'mise test' — Node can't run Deno's @std/assert imports)"
+run = "cd supabase/functions/rainbow-nowcast && deno test"
+
 [tasks.aplite-size]
 description = "Build and print aplite image footprint (text+data+bss via arm-none-eabi-size; heap leading indicator)"
 run = "scripts/aplite-size.sh"

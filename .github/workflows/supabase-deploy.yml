@@ -35,6 +35,7 @@ jobs:
         with:
           install: true
           cache: true
+      - run: mise test-deno
       - run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
       - run: supabase db push --yes
       - run: supabase functions deploy
