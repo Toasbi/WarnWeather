@@ -397,3 +397,10 @@ entrypoint = "./functions/telemetry-ingest/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/telemetry-ingest/*.html" ]
+
+[functions.rainbow-nowcast]
+enabled = true
+# Public like telemetry-ingest: the watch calls the proxy unauthenticated (no JWT).
+verify_jwt = false
+import_map = "./functions/rainbow-nowcast/deno.json"
+entrypoint = "./functions/rainbow-nowcast/index.ts"
