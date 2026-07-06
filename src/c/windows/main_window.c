@@ -154,11 +154,6 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
         LayerVisibility nv = layout_visibility(&ns);
         if (nv.health_status || nv.health_graph) {
             health_cache_refresh_current_hour();
-            // A flick to a health-status view is a deliberate request to see health —
-            // recompute the summary now (main_window_refresh below reads held values),
-            // else the row would show values held since boot/last-active until the next
-            // minute tick. Unlike an unrelated settings save, this re-read is warranted.
-            if (nv.health_status) { health_summary_refresh(); }
             if (nv.health_graph) { health_graph_layer_refresh(); }
         }
     }
@@ -318,13 +313,11 @@ void main_window_create() {
 
 void main_window_apply_top_view() {
 #if defined(PBL_HEALTH)
-    // A settings flip enabling health (false->true) warms the cache immediately, and
-    // recomputes the summary so the immediately-following main_window_refresh() below
-    // renders fresh values (the status layer already exists — only its held values are
-    // stale from being off).
+    // A settings flip enabling health (false->true) warms the cache immediately; the
+    // status summary is recomputed on the minute tick (the row shows values held from
+    // the boot prime / last tick until then).
     if (g_config->health_mode != HEALTH_OFF && s_health_mode_prev == HEALTH_OFF) {
         health_cache_reset();
-        health_summary_refresh();
     }
     s_health_mode_prev = g_config->health_mode;
 #endif
