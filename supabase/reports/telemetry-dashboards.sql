@@ -300,9 +300,10 @@ order by s.setting, users desc;
 
 -- ── Active install base (queries 16-18) ──────────────────────────────────────
 -- These three count the CURRENTLY-ACTIVE fleet, not everyone who ever opened the
--- watchface. A watch is "active" when it (a) has more than one lifetime event —
--- i.e. was opened more than once, dropping one-shot trials — and (b) fetched
--- within the last day. The unit is the WATCH: watch_token_hash, falling back to
+-- watchface. A watch is "active" when it (a) has at least 20 lifetime events — a
+-- genuinely-used install, not someone who installed it, fired a few fetches
+-- playing around, and removed it — and (b) fetched within the last day. Tune the
+-- `events >= 20` floor per query. The unit is the WATCH: watch_token_hash, falling back to
 -- account_token_hash when the watch token is null so null-watch rows don't
 -- collapse into one bucket. The 1-day window is deliberately tight (the watchface
 -- fetches every 30-60 min, so a day of silence means it's gone); widen the
@@ -322,7 +323,7 @@ with watch_stats as (
 ),
 active as (
   select watch_key from watch_stats
-  where events >= 2 and last_seen >= now() - interval '1 day'
+  where events >= 20 and last_seen >= now() - interval '1 day'
 ),
 latest_per_watch as (
   select distinct on (coalesce(t.watch_token_hash, t.account_token_hash))
@@ -378,7 +379,7 @@ with watch_stats as (
 ),
 active as (
   select watch_key from watch_stats
-  where events >= 2 and last_seen >= now() - interval '1 day'
+  where events >= 20 and last_seen >= now() - interval '1 day'
 ),
 latest_per_watch as (
   select distinct on (coalesce(t.watch_token_hash, t.account_token_hash))
@@ -398,10 +399,10 @@ order by app_version desc, watches desc;
 
 -- ============================================================
 -- 18. Retention: active vs churned watches
--- Of the watches that were opened more than once (one-shot trials excluded), how
--- many are still active (fetched within the last day) vs churned (their last
--- fetch is older). Per watch, same key/window as #16-17, so the "active" bucket
--- here equals the population those two queries report on.
+-- Of the genuinely-used watches (>= 20 lifetime events, so play-around installs
+-- are excluded), how many are still active (fetched within the last day) vs
+-- churned (their last fetch is older). Per watch, same key/window as #16-17, so
+-- the "active" bucket here equals the population those two queries report on.
 -- ============================================================
 with watch_stats as (
   select coalesce(watch_token_hash, account_token_hash) as watch_key,
@@ -415,6 +416,6 @@ select
   count(*) as watches,
   round(100.0 * count(*) / sum(count(*)) over (), 1) as pct
 from watch_stats
-where events >= 2   -- opened more than once; one-shot trials excluded
+where events >= 20   -- genuinely used, not a play-around install
 group by 1
 order by status;
