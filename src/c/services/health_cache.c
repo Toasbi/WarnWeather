@@ -5,6 +5,7 @@
 #include "c/services/health_build.h"
 #include "c/appendix/bottom_view.h"   // MAX_BOTTOM_VIEW_ENTRIES, BOTTOM_VIEW_STEP_SECONDS
 #include "c/appendix/chart.h"         // CHART_ABSENT
+#include "c/appendix/persist.h"       // persist_*_health_cache_*
 
 #if defined(PBL_HEALTH)
 
@@ -117,12 +118,48 @@ void health_cache_recalc(time_t end_hour, int count) {
     }
 }
 
+// Slide the kept buckets to the front and recompute the trailing gap via the
+// existing rollover contract in health_build_rollover. Shared by
+// health_cache_tick (same-session hour rollover) and health_cache_restore
+// (catch-up after a relaunch). Returns false when health_build_rollover
+// itself calls for a full rebuild (backward jump, or gap >= N) — the caller
+// falls back to health_cache_recalc(now_hour, N) / health_cache_reset().
+static bool health_cache_rollover_to(time_t now_hour) {
+    int keep = 0, recalc = 0;
+    if (health_build_rollover(s_end_hour, now_hour, STEP, N, &keep, &recalc)) {
+        return false;
+    }
+    const int gap = N - keep;
+    memmove(&s_steps[0], &s_steps[gap], (size_t)keep * sizeof(int16_t));
+    memmove(&s_hr[0],    &s_hr[gap],    (size_t)keep * sizeof(int16_t));
+    memmove(&s_sleep[0], &s_sleep[gap], (size_t)keep * sizeof(uint8_t));
+    health_cache_recalc(now_hour, recalc);
+    return true;
+}
+
 void health_cache_reset(void) {
     if (s_timer) { app_timer_cancel(s_timer); s_timer = NULL; }
     s_ready = false;
     s_build_pending = false;
     s_build_sleep_done = false;
     health_cache_recalc(current_hour_top(), N);   // full build => chunked + loading
+}
+
+void health_cache_persist_save(void) {
+    if (!s_ready) { return; }   // never persist a mid-build snapshot
+    persist_set_health_cache_steps(s_steps, N);
+    persist_set_health_cache_hr(s_hr, N);
+    persist_set_health_cache_sleep(s_sleep, N);
+    persist_set_health_cache_end_hour(s_end_hour);   // written last: presence == complete snapshot
+}
+
+bool health_cache_restore(void) {
+    if (!persist_health_cache_present()) { return false; }
+    if (persist_get_health_cache_steps(s_steps, N) != (int)(N * sizeof(int16_t))) { return false; }
+    if (persist_get_health_cache_hr(s_hr, N) != (int)(N * sizeof(int16_t))) { return false; }
+    if (persist_get_health_cache_sleep(s_sleep, N) != (int)(N * sizeof(uint8_t))) { return false; }
+    s_end_hour = persist_get_health_cache_end_hour();
+    return health_cache_rollover_to(current_hour_top());
 }
 
 void health_cache_refresh_current_hour(void) {
@@ -141,16 +178,9 @@ void health_cache_tick(bool view_visible) {
     const time_t now_hour = now - (now % STEP);
 
     if (now_hour != s_end_hour) {
-        int keep = 0, recalc = 0;
-        if (health_build_rollover(s_end_hour, now_hour, STEP, N, &keep, &recalc)) {
+        if (!health_cache_rollover_to(now_hour)) {
             health_cache_recalc(now_hour, N);   // full rebuild
-            return;
         }
-        const int gap = N - keep;
-        memmove(&s_steps[0], &s_steps[gap], (size_t)keep * sizeof(int16_t));
-        memmove(&s_hr[0],    &s_hr[gap],    (size_t)keep * sizeof(int16_t));
-        memmove(&s_sleep[0], &s_sleep[gap], (size_t)keep * sizeof(uint8_t));
-        health_cache_recalc(now_hour, recalc);   // gap==1 => inline (2); gap>=2 => chunked
         return;
     }
 

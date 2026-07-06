@@ -66,4 +66,21 @@ bool health_cache_ready(void);
 time_t health_cache_read(int16_t *steps_out, int16_t *hr_out,
                          uint8_t *sleep_out, int count);
 
+/**
+ * Snapshot the current cache (steps/HR/sleep/anchor hour) to persist storage.
+ * No-op unless the cache is ready (never persists a mid-build snapshot).
+ * Call from main_window_unload() — must not depend on g_config, which may
+ * already be freed by the time unload runs (see AGENTS.md / the design doc).
+ */
+void health_cache_persist_save(void);
+
+/**
+ * Restore the cache from a persisted snapshot and catch it up to the current
+ * hour via the same rollover contract health_cache_tick() uses for a
+ * same-session hour rollover. Returns false (nothing restored) when no
+ * snapshot exists, it's incomplete/corrupt, or the gap since it was taken is
+ * too large or backward — callers fall back to health_cache_reset().
+ */
+bool health_cache_restore(void);
+
 #endif  // PBL_HEALTH
