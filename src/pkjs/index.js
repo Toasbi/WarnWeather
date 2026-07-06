@@ -4,6 +4,7 @@
 require('./polyfills.js');
 
 var radar = require('./weather/radar.js');
+var rainbowRadar = require('./weather/rainbow-radar.js');
 var radarDispatch = require('./weather/radar-dispatch.js');
 var runFetchCycle = require('./weather/fetch-orchestrator.js').runFetchCycle;
 var forecastSeries = require('./forecast-series.js');
@@ -803,7 +804,16 @@ function withRainRadarTuplesAt(lat, lon, callback) {
     // Radar source is configured independently of the forecast provider.
     radarDispatch.dispatchRadarTuplesAt(
         app.settings.radarProvider,
-        { lat: lat, lon: lon, slotZeroEpoch: slotZeroEpoch, fetchDwdAt: radar.fetchRadarTuplesAt },
+        {
+            lat: lat,
+            lon: lon,
+            slotZeroEpoch: slotZeroEpoch,
+            fetchDwdAt: radar.fetchRadarTuplesAt,
+            fetchRainbowAt: rainbowRadar.fetchRadarTuplesAt,
+            // '' when the build carried no RAINBOW_PROXY_ENDPOINT — the module
+            // then fails soft (callback(null)) and the config UI hides the option.
+            rainbowEndpoint: (pkg.rainbow && pkg.rainbow.endpoint) || ''
+        },
         callback
     );
 }
