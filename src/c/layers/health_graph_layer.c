@@ -306,7 +306,7 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
         graphics_context_set_fill_color(ctx, GColorBlack);
         graphics_fill_rect(ctx, b, 0, GCornerNone);
         graphics_context_set_text_color(ctx, GColorWhite);
-        graphics_draw_text(ctx, "Loading...",
+        graphics_draw_text(ctx, "Loading health data",
                            fonts_get_system_font(FONT_KEY_GOTHIC_18),
                            GRect(0, b.size.h / 3, b.size.w, b.size.h),
                            GTextOverflowModeFill, GTextAlignmentCenter, NULL);
