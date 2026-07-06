@@ -10,3 +10,5 @@ cc $CFLAGS test/c/layout_test.c src/c/windows/layout.c -o build/host/layout_test
 cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/layout_test.c src/c/windows/layout.c -o build/host/layout_test_emery
 build/host/layout_test "${1:-}"
 build/host/layout_test_emery "${1:-}"
+cc $CFLAGS test/c/health_build_test.c src/c/services/health_build.c -o build/host/health_build_test
+build/host/health_build_test
