@@ -73,13 +73,13 @@ module.exports = {
                 type: 'toggle',
                 messageKey: 'sleepNightEnabled',
                 label: 'Pause weather at night',
-                defaultValue: false,
+                defaultValue: true,
                 hint: 'Stop fetching weather between the hours below to save battery.'
             }, {
                 type: 'select',
                 messageKey: 'sleepStartHour',
                 label: 'From',
-                defaultValue: '22',
+                defaultValue: '0',
                 options: HOURS,
                 inline: 'sleepHours',
                 joinPrevious: true,
@@ -142,7 +142,7 @@ module.exports = {
                 type: 'select',
                 messageKey: 'secondaryLine',
                 label: 'Main metric',
-                defaultValue: 'precip_prob',
+                defaultValue: 'uv',
                 hintByValue: LINE_HINTS,
                 options: [['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['UV Index', 'uv']],
                 blockBefore: 'forecastPreview',
@@ -241,7 +241,7 @@ module.exports = {
                 type: 'segmented',
                 messageKey: 'radarProvider',
                 label: 'Radar provider',
-                defaultValue: 'disabled',
+                defaultValue: 'rainbow',
                 hintByValue: {dwd: 'Deutscher Wetterdienst (Germany only)', rainbow: 'Worldwide'},
                 // Rainbow is always offered. Builds without a proxy endpoint
                 // (dev/forks) still show it; selecting it there fails soft with
@@ -294,7 +294,7 @@ module.exports = {
                 type: 'radio',
                 messageKey: 'healthMode',
                 label: 'Health view (BETA)',
-                defaultValue: 'off',
+                defaultValue: 'all',
                 hintByValue: {
                     off: 'Health is hidden.',
                     status: 'Adds a health status line — today\'s steps, last night\'s sleep, and current heart rate. Heart rate needs a watch with a heart-rate sensor.',
@@ -347,7 +347,7 @@ module.exports = {
                 type: 'segmented',
                 messageKey: 'viewResetMin',
                 label: 'View reset time',
-                defaultValue: '0',
+                defaultValue: '2',
                 options: [['Never', '0'], ['1m', '1'], ['2m', '2'], ['5m', '5'], ['10m', '10']]
             }, {
                 type: 'staticText',
