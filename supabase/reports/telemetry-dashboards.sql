@@ -296,3 +296,36 @@ cross join lateral (values
 where s.option is not null
 group by s.setting, s.option
 order by s.setting, watches desc;
+
+-- ============================================================
+-- 12. Weather provider by country — active users only
+-- Which provider active watches use, grouped by country. Active install base
+-- (>= 20 events + fetched in the last day; see the note above #7), one row per
+-- active watch at its latest event. provider/country come from that event's row.
+-- ============================================================
+with watch_stats as (
+  select coalesce(watch_token_hash, account_token_hash) as watch_key,
+         count(*) as events,
+         max(received_at) as last_seen
+  from telemetry_weather_fetch
+  group by 1
+),
+active as (
+  select watch_key from watch_stats
+  where events >= 20 and last_seen >= now() - interval '1 day'
+),
+latest_per_watch as (
+  select distinct on (coalesce(t.watch_token_hash, t.account_token_hash))
+    coalesce(t.country_code, 'unknown') as country,
+    t.provider
+  from telemetry_weather_fetch t
+  join active a on a.watch_key = coalesce(t.watch_token_hash, t.account_token_hash)
+  order by coalesce(t.watch_token_hash, t.account_token_hash), t.received_at desc
+)
+select
+  country,
+  provider,
+  count(*) as watches
+from latest_per_watch
+group by country, provider
+order by country, watches desc;
