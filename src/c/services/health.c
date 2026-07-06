@@ -87,6 +87,15 @@ int health_hr_current(void) {
  * skipped. Each minute's `steps` is a uint8, so a full hour maxes at 60*255 =
  * 15300, well within int16_t.
  *
+ * CRITICAL: health_service_get_minute_history REWRITES *time_start to the first
+ * second of the first record it actually returns, and for a window that predates
+ * the available minute history it clamps to the OLDEST available records rather
+ * than returning none (verified on device — every hour before the watch was put
+ * on came back with the same oldest 60-minute window, ~12 phantom steps each).
+ * The records are consecutive minutes from the returned `ts`, so record k covers
+ * [ts + k*60, +60); we count only those whose minute actually falls in [h0, h1).
+ * A clamped / non-overlapping window then correctly contributes 0.
+ *
  * @param h0 UTC start of the hour (inclusive).
  * @param h1 UTC end of the hour (exclusive).
  * @return Total steps recorded in the window.
@@ -99,7 +108,8 @@ static int s_minute_steps(time_t h0, time_t h1) {
     uint32_t n   = health_service_get_minute_history(md, 60, &ts, &te);
     int      sum = 0;
     for (uint32_t k = 0; k < n; k++) {
-        if (!md[k].is_invalid) {
+        const time_t rec = ts + (time_t)k * 60;   // start of record k's minute
+        if (rec >= h0 && rec < h1 && !md[k].is_invalid) {
             sum += md[k].steps;
         }
     }
@@ -114,6 +124,10 @@ static int s_minute_steps(time_t h0, time_t h1) {
  * HealthMinuteData carries a uint8 heart_rate_bpm (0 when no sample that
  * minute); we average the non-zero readings in the hour.
  *
+ * Same window-clamp guard as s_minute_steps: only records whose minute falls in
+ * [h0, h1) count, so an empty (pre-history) hour that the API clamped to the
+ * oldest available window averages to 0 rather than borrowing that window's HR.
+ *
  * @param h0 UTC start of the hour (inclusive).
  * @param h1 UTC end of the hour (exclusive).
  * @return Average recorded BPM in the window, or 0 if no reading.
@@ -124,7 +138,8 @@ static int s_minute_hr_avg(time_t h0, time_t h1) {
     uint32_t n   = health_service_get_minute_history(md, 60, &ts, &te);
     int      sum = 0, cnt = 0;
     for (uint32_t k = 0; k < n; k++) {
-        if (!md[k].is_invalid && md[k].heart_rate_bpm > 0) {
+        const time_t rec = ts + (time_t)k * 60;   // start of record k's minute
+        if (rec >= h0 && rec < h1 && !md[k].is_invalid && md[k].heart_rate_bpm > 0) {
             sum += md[k].heart_rate_bpm;
             cnt++;
         }
