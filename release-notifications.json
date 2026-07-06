@@ -58,5 +58,9 @@
   "1.6.3": {
     "title": "Smoother health graph",
     "body": "The health graph now loads without freezing and reappears instantly when the watchface restarts. Fixed stray early-hour steps and heart rate, and aligned the radar's time axis to the quarter hour."
+  },
+  "1.7.0": {
+    "title": "Worldwide rain radar",
+    "body": "The rain radar now works everywhere: pick Rainbow as the radar provider in settings for a short-term rain nowcast at your exact location, anywhere in the world. DWD (Germany) keeps its nearby-rain early warning."
   }
 }
