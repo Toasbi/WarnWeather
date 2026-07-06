@@ -36,9 +36,11 @@ FORECAST
 - GPS or manual location with configurable GPS cache
 
 
-RAIN RADAR (for now only available for Deutscher Wetterdienst)
-- 2-hour precipitation nowcast in 5-minute frames — rain at your exact location plus
-  the strongest rain approaching from within 2 km
+RAIN RADAR
+- 2-hour precipitation nowcast in 5-minute frames
+- Providers: Deutscher Wetterdienst (Germany — rain at your exact location plus the
+  strongest rain approaching from within 2 km) and Rainbow.ai (worldwide — rain at
+  your exact location)
 - Rain countdown: when rain is on the way, the top status line turns into 
   "Drizzle / Rain / Downpour in X min",
   and while it's raining, "… for X min".

@@ -332,6 +332,7 @@ mise prepare-package release
 | `PEBBLE_EMULATOR` | Default emulator platform (e.g. `basalt`) |
 | `TELEMETRY_ENDPOINT` | Telemetry function URL (set for release/CI builds) |
 | `TELEMETRY_HASH_SECRET` | Secret for server-side HMAC hashing of IDs |
+| `RAINBOW_PROXY_ENDPOINT` | Rainbow nowcast proxy URL baked into the bundle (set for release/CI builds via the `RAINBOW_PROXY_ENDPOINT_RELEASE`/`_PREVIEW` repo secrets; empty hides the Rainbow radar option) |
 
 ## Fixtures
 
@@ -378,7 +379,7 @@ MEMORY_LOG_HEAP("tag");
 console.log("msg");
 ```
 
-## Supabase (telemetry)
+## Supabase (telemetry & rainbow proxy)
 
 Start local Supabase stack:
 ```bash
@@ -436,6 +437,23 @@ supabase db push
 Deploy telemetry edge function:
 ```bash
 supabase functions deploy telemetry-ingest
+```
+
+Serve the rainbow-nowcast edge function locally:
+```bash
+supabase functions serve rainbow-nowcast --env-file .env
+```
+
+Set the Rainbow proxy secrets (hosted):
+```bash
+supabase secrets set RAINBOW_API_KEY=<key from https://developer.rainbow.ai/profile>
+supabase secrets set RAINBOW_MONTHLY_BUDGET=5000   # optional; default 5000 upstream calls per UTC month (raise to accept paid overage — no redeploy needed)
+supabase secrets set RAINBOW_IP_HOURLY_CAP=30      # optional; default 30 cache-miss requests per IP per hour
+```
+
+Deploy the rainbow-nowcast edge function:
+```bash
+supabase functions deploy rainbow-nowcast
 ```
 
 ## Upgrading pebble-tool
