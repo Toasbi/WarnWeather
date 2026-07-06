@@ -298,20 +298,38 @@ where s.option is not null
 group by s.setting, s.option
 order by s.setting, users desc;
 
+-- ── Active install base (queries 16-18) ──────────────────────────────────────
+-- These three count the CURRENTLY-ACTIVE fleet, not everyone who ever opened the
+-- watchface. A watch is "active" when it (a) has more than one lifetime event —
+-- i.e. was opened more than once, dropping one-shot trials — and (b) fetched
+-- within the last day. The unit is the WATCH: watch_token_hash, falling back to
+-- account_token_hash when the watch token is null so null-watch rows don't
+-- collapse into one bucket. The 1-day window is deliberately tight (the watchface
+-- fetches every 30-60 min, so a day of silence means it's gone); widen the
+-- `interval '1 day'` literal in each query to loosen it.
+
 -- ============================================================
--- 16. Feature adoption — current, deduplicated per watch
--- Like #14 but the unit is the WATCH, not the account: dedup on
--- watch_token_hash (falling back to account_token_hash when the watch token is
--- null so null-watch rows don't collapse into one bucket), keeping each watch's
--- latest event. So a user with two watches counts twice, and a watch that fires
--- many times a day counts once. Same enabled/reporting/% columns and the same
--- NULL-drops-older-clients rule as #13/#14.
+-- 16. Feature adoption — active watches only, deduplicated per watch
+-- Same enabled/reporting/% columns and NULL-drops-older-clients rule as #13/#14,
+-- but restricted to the active install base (see the note above).
 -- ============================================================
-with latest_per_watch as (
-  select distinct on (coalesce(watch_token_hash, account_token_hash))
-    settings_json
+with watch_stats as (
+  select coalesce(watch_token_hash, account_token_hash) as watch_key,
+         count(*) as events,
+         max(received_at) as last_seen
   from telemetry_weather_fetch
-  order by coalesce(watch_token_hash, account_token_hash), received_at desc
+  group by 1
+),
+active as (
+  select watch_key from watch_stats
+  where events >= 2 and last_seen >= now() - interval '1 day'
+),
+latest_per_watch as (
+  select distinct on (coalesce(t.watch_token_hash, t.account_token_hash))
+    t.settings_json
+  from telemetry_weather_fetch t
+  join active a on a.watch_key = coalesce(t.watch_token_hash, t.account_token_hash)
+  order by coalesce(t.watch_token_hash, t.account_token_hash), t.received_at desc
 ),
 flags as (
   select f.feature, f.enabled
@@ -345,18 +363,30 @@ group by feature
 order by enabled_watches desc;
 
 -- ============================================================
--- 17. App version x watch platform — each watch counted once, at its LATEST event
--- Version and platform grouped in one table. Deduped on the watch (same key as
--- #16), so a watch that upgraded appears only under its current version — never
--- double-counted in a version it has moved off. app_version orders lexically
--- (good enough for display; not strict semver, so 1.10 would sort under 1.9).
+-- 17. App version x watch platform — active watches only, at each watch's LATEST event
+-- Version and platform grouped in one table over the active install base. Each
+-- active watch appears once under its current version (never double-counted in a
+-- version it moved off). app_version orders lexically (good enough for display;
+-- not strict semver, so 1.10 would sort under 1.9).
 -- ============================================================
-with latest_per_watch as (
-  select distinct on (coalesce(watch_token_hash, account_token_hash))
-    app_version,
-    coalesce(watch_info ->> 'platform', 'unknown') as platform
+with watch_stats as (
+  select coalesce(watch_token_hash, account_token_hash) as watch_key,
+         count(*) as events,
+         max(received_at) as last_seen
   from telemetry_weather_fetch
-  order by coalesce(watch_token_hash, account_token_hash), received_at desc
+  group by 1
+),
+active as (
+  select watch_key from watch_stats
+  where events >= 2 and last_seen >= now() - interval '1 day'
+),
+latest_per_watch as (
+  select distinct on (coalesce(t.watch_token_hash, t.account_token_hash))
+    t.app_version,
+    coalesce(t.watch_info ->> 'platform', 'unknown') as platform
+  from telemetry_weather_fetch t
+  join active a on a.watch_key = coalesce(t.watch_token_hash, t.account_token_hash)
+  order by coalesce(t.watch_token_hash, t.account_token_hash), t.received_at desc
 )
 select
   app_version,
@@ -365,3 +395,26 @@ select
 from latest_per_watch
 group by app_version, platform
 order by app_version desc, watches desc;
+
+-- ============================================================
+-- 18. Retention: active vs churned watches
+-- Of the watches that were opened more than once (one-shot trials excluded), how
+-- many are still active (fetched within the last day) vs churned (their last
+-- fetch is older). Per watch, same key/window as #16-17, so the "active" bucket
+-- here equals the population those two queries report on.
+-- ============================================================
+with watch_stats as (
+  select coalesce(watch_token_hash, account_token_hash) as watch_key,
+         count(*) as events,
+         max(received_at) as last_seen
+  from telemetry_weather_fetch
+  group by 1
+)
+select
+  case when last_seen >= now() - interval '1 day' then 'active' else 'churned' end as status,
+  count(*) as watches,
+  round(100.0 * count(*) / sum(count(*)) over (), 1) as pct
+from watch_stats
+where events >= 2   -- opened more than once; one-shot trials excluded
+group by 1
+order by status;
