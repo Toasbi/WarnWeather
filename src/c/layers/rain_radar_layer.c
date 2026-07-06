@@ -3,6 +3,7 @@
 #include "c/appendix/persist.h"
 #include "c/appendix/config.h"
 #include "c/appendix/rain_tier.h"
+#include "c/appendix/radar_axis.h"
 #include "c/appendix/palette.h"
 #include "c/appendix/hatch.h"
 #include "c/appendix/memory_log.h"
@@ -17,8 +18,7 @@
 // on that column instead.
 #define RADAR_AXIS_H            12
 #define RADAR_NUM_SLOTS         24
-#define RADAR_SLOT_SECONDS      (5 * 60)
-#define HOUR_SECONDS            3600
+// RADAR_SLOT_SECONDS comes from radar_axis.h (shared with the axis maths).
 // Grace after a grid fetch boundary before the watch synthesizes an advance,
 // giving PKJS time to deliver the real frame. 55s (not 60) so the gate clears
 // strictly before the next minute tick, which then reliably redraws.
@@ -53,9 +53,9 @@
 #define RADAR_AREA_HATCH_COLOR PBL_IF_COLOR_ELSE(GColorDarkGray, GColorWhite)
 
 // Chart config: no-border frame; top tick row sits in the axis strip
-// above the bar plot. Small ticks every 5-min slot, big ticks every
-// 15 min (3 × 5min). Outer for the radar is the bar plot rect — top
-// ticks extend upward from there into the axis strip.
+// above the bar plot. Small ticks every 5-min slot, big ticks on
+// wall-clock quarter-hours. Outer for the radar is the bar plot rect —
+// top ticks extend upward from there into the axis strip.
 #define RADAR_TICK_COLOR PBL_IF_COLOR_ELSE(GColorLightGray, GColorWhite)
 
 // Breathing room around the snooze glyphs inside the layer bounds.
@@ -76,21 +76,23 @@ static const TickSide RADAR_TICK_STYLE = {
 
 static Layer *s_radar_layer;
 
-// Top-axis slots: small tick every 5-min slot, big every 15 min; slots
-// whose start lands on a whole hour inside the window carry the hour
-// digit instead of a tick. Slot-aligned label x equals the old
-// time-proportional x because radar windows start on 5-min boundaries.
+// Top-axis slots: small tick every 5-min slot, big on wall-clock
+// quarter-hours; slots whose start lands on a whole hour inside the
+// window carry the hour digit instead of a tick. The schedule lives in
+// radar_axis.c (host-tested); only digit formatting happens here.
 static void radar_fill_axis_slots(ChartAxisSlot *slots, time_t radar_start) {
     for (int i = 0; i < RADAR_NUM_SLOTS; ++i) {
         slots[i].label[0] = '\0';
-        slots[i].tick     = (i % 3 == 0) ? TICK_BIG : TICK_SMALL;
-        if (radar_start <= 0 || i == 0) continue;    // no data: ticks only
+        switch (radar_axis_slot_mark(radar_start, i)) {
+            case RADAR_AXIS_TICK_BIG:   slots[i].tick = TICK_BIG;   continue;
+            case RADAR_AXIS_TICK_SMALL: slots[i].tick = TICK_SMALL; continue;
+            case RADAR_AXIS_HOUR_LABEL: break;
+        }
+        slots[i].tick = TICK_NONE;                   // digit replaces the tick
         const time_t t = radar_start + (time_t)i * RADAR_SLOT_SECONDS;
-        if ((t % HOUR_SECONDS) != 0) continue;
         struct tm *lt = localtime(&t);
         snprintf(slots[i].label, sizeof(slots[i].label), "%d",
                  config_axis_hour(lt->tm_hour));
-        slots[i].tick = TICK_NONE;                   // digit replaces the tick
     }
 }
 

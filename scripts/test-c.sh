@@ -12,3 +12,5 @@ build/host/layout_test "${1:-}"
 build/host/layout_test_emery "${1:-}"
 cc $CFLAGS test/c/health_build_test.c src/c/services/health_build.c -o build/host/health_build_test
 build/host/health_build_test
+cc $CFLAGS test/c/radar_axis_test.c src/c/appendix/radar_axis.c -o build/host/radar_axis_test
+build/host/radar_axis_test
