@@ -297,3 +297,71 @@ cross join lateral (values
 where s.option is not null
 group by s.setting, s.option
 order by s.setting, users desc;
+
+-- ============================================================
+-- 16. Feature adoption — current, deduplicated per watch
+-- Like #14 but the unit is the WATCH, not the account: dedup on
+-- watch_token_hash (falling back to account_token_hash when the watch token is
+-- null so null-watch rows don't collapse into one bucket), keeping each watch's
+-- latest event. So a user with two watches counts twice, and a watch that fires
+-- many times a day counts once. Same enabled/reporting/% columns and the same
+-- NULL-drops-older-clients rule as #13/#14.
+-- ============================================================
+with latest_per_watch as (
+  select distinct on (coalesce(watch_token_hash, account_token_hash))
+    settings_json
+  from telemetry_weather_fetch
+  order by coalesce(watch_token_hash, account_token_hash), received_at desc
+),
+flags as (
+  select f.feature, f.enabled
+  from latest_per_watch l
+  cross join lateral (values
+    ('day_night_shading',  (l.settings_json ->> 'dayNightShading') = 'true'),
+    ('forecast_secondary', (l.settings_json ->> 'secondaryLine') <> 'off'),
+    ('secondary_fill',     case when (l.settings_json ->> 'secondaryLine') = 'precip_prob'
+                                then (l.settings_json ->> 'secondaryLineFill') = 'true' end),
+    ('forecast_third',     (l.settings_json ->> 'thirdLine') <> 'off'),
+    ('rain_bars',          (l.settings_json ->> 'barSource') <> 'off'),
+    ('radar',              (l.settings_json ->> 'radarProvider') <> 'disabled'),
+    ('rain_countdown',     (l.settings_json ->> 'rainCountdownHorizon') <> '0'),
+    ('health',             (l.settings_json ->> 'healthMode') <> 'off'),
+    ('night_sleep',        l.settings_json ? 'sleepStartHour'),
+    ('quiet_time_icon',    (l.settings_json ->> 'showQt') = 'true'),
+    ('bt_vibrate',         (l.settings_json ->> 'vibe') = 'true'),
+    ('time_leading_zero',  (l.settings_json ->> 'timeLeadingZero') = 'true'),
+    ('time_am_pm',         (l.settings_json ->> 'timeShowAmPm') = 'true'),
+    ('dev_stats',          (l.settings_json ->> 'devStatsEnabled') = 'true')
+  ) as f(feature, enabled)
+)
+select
+  feature,
+  count(*) filter (where enabled) as enabled_watches,
+  count(*) filter (where enabled is not null) as reporting_watches,
+  round(100.0 * count(*) filter (where enabled)
+        / nullif(count(*) filter (where enabled is not null), 0), 1) as enabled_pct
+from flags
+group by feature
+order by enabled_watches desc;
+
+-- ============================================================
+-- 17. App version x watch platform — each watch counted once, at its LATEST event
+-- Version and platform grouped in one table. Deduped on the watch (same key as
+-- #16), so a watch that upgraded appears only under its current version — never
+-- double-counted in a version it has moved off. app_version orders lexically
+-- (good enough for display; not strict semver, so 1.10 would sort under 1.9).
+-- ============================================================
+with latest_per_watch as (
+  select distinct on (coalesce(watch_token_hash, account_token_hash))
+    app_version,
+    coalesce(watch_info ->> 'platform', 'unknown') as platform
+  from telemetry_weather_fetch
+  order by coalesce(watch_token_hash, account_token_hash), received_at desc
+)
+select
+  app_version,
+  platform,
+  count(*) as watches
+from latest_per_watch
+group by app_version, platform
+order by app_version desc, watches desc;
