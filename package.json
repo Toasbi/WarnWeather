@@ -1,7 +1,7 @@
 {
   "name": "warnweather",
   "author": "Toasbi",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "buildProfile": "dev",
   "keywords": [
     "pebble-app"
@@ -256,18 +256,22 @@
     "1.6.2": {
       "title": "Layout presets and fixes for older watches",
       "body": "Updated layout presets. More incoming. Fixed the watchface not starting on Pebble Classic and Steel."
+    },
+    "1.6.3": {
+      "title": "Smoother health graph",
+      "body": "The health graph now loads without freezing and reappears instantly when the watchface restarts. Fixed stray early-hour steps and heart rate, and aligned the radar's time axis to the quarter hour."
     }
   },
   "releaseNotification": {
     "enabled": true,
-    "title": "Layout presets and fixes for older watches",
-    "body": "Updated layout presets. More incoming. Fixed the watchface not starting on Pebble Classic and Steel."
+    "title": "Smoother health graph",
+    "body": "The health graph now loads without freezing and reappears instantly when the watchface restarts. Fixed stray early-hour steps and heart rate, and aligned the radar's time axis to the quarter hour."
   },
   "telemetry": {
     "enabled": false,
     "endpoint": ""
   },
   "rainbow": {
-    "endpoint": ""
+    "endpoint": "https://uorytkglrxbafryiugpu.supabase.co/functions/v1/rainbow-nowcast"
   }
 }
