@@ -398,11 +398,13 @@ group by app_version, platform
 order by app_version desc, watches desc;
 
 -- ============================================================
--- 18. Retention: active vs churned watches
--- Of the genuinely-used watches (>= 20 lifetime events, so play-around installs
--- are excluded), how many are still active (fetched within the last day) vs
--- churned (their last fetch is older). Per watch, same key/window as #16-17, so
--- the "active" bucket here equals the population those two queries report on.
+-- 18. Lifecycle cohorts over the complete timeline
+-- Every watch that ever sent data, split into a few cohorts:
+--   trial   — < 20 lifetime events (installed, played around, never stuck)
+--   active  — >= 20 events AND fetched within the last day
+--   churned — >= 20 events but last fetch is older (was a real user, now gone)
+-- Per watch, same key/window as #16-17. Covers the whole install history, so the
+-- three cohorts sum to every watch ever seen.
 -- ============================================================
 with watch_stats as (
   select coalesce(watch_token_hash, account_token_hash) as watch_key,
@@ -412,10 +414,102 @@ with watch_stats as (
   group by 1
 )
 select
-  case when last_seen >= now() - interval '1 day' then 'active' else 'churned' end as status,
+  case
+    when events < 20                              then 'trial (<20 events)'
+    when last_seen >= now() - interval '1 day'    then 'active'
+    else                                               'churned'
+  end as cohort,
   count(*) as watches,
   round(100.0 * count(*) / sum(count(*)) over (), 1) as pct
 from watch_stats
-where events >= 20   -- genuinely used, not a play-around install
 group by 1
-order by status;
+order by watches desc;
+
+-- ============================================================
+-- 19. Churn tenure — after how many days did churned watches churn
+-- For churned watches (>= 20 events, inactive > 1 day), how long they were around
+-- before going silent: last_seen - first_seen. Answers "they used it for N days,
+-- then churned." Buckets are prefixed 0-4 so they sort in order, not alphabetically.
+-- ============================================================
+with watch_stats as (
+  select coalesce(watch_token_hash, account_token_hash) as watch_key,
+         count(*) as events,
+         min(received_at) as first_seen,
+         max(received_at) as last_seen
+  from telemetry_weather_fetch
+  group by 1
+),
+churned as (
+  select extract(epoch from (last_seen - first_seen)) / 86400.0 as tenure_days
+  from watch_stats
+  where events >= 20 and last_seen < now() - interval '1 day'
+)
+select
+  case
+    when tenure_days < 1  then '0: < 1 day'
+    when tenure_days < 2  then '1: 1-2 days'
+    when tenure_days < 3  then '2: 2-3 days'
+    when tenure_days < 7  then '3: 3-7 days'
+    when tenure_days < 30 then '4: 7-30 days'
+    when tenure_days < 90 then '5: 30-90 days'
+    else                       '6: 90+ days'
+  end as churned_after,
+  count(*) as watches,
+  round(100.0 * count(*) / sum(count(*)) over (), 1) as pct
+from churned
+group by 1
+order by churned_after;
+
+-- ============================================================
+-- 20. Settings profile of the ACTIVE users
+-- Setting option distribution (as #15) but restricted to the active install base
+-- (>= 20 events + fetched in the last day), one row per active watch at its latest
+-- event. Shows how people who actually use the app configure it.
+-- ============================================================
+with watch_stats as (
+  select coalesce(watch_token_hash, account_token_hash) as watch_key,
+         count(*) as events,
+         max(received_at) as last_seen
+  from telemetry_weather_fetch
+  group by 1
+),
+active as (
+  select watch_key from watch_stats
+  where events >= 20 and last_seen >= now() - interval '1 day'
+),
+latest_per_watch as (
+  select distinct on (coalesce(t.watch_token_hash, t.account_token_hash))
+    t.settings_json
+  from telemetry_weather_fetch t
+  join active a on a.watch_key = coalesce(t.watch_token_hash, t.account_token_hash)
+  order by coalesce(t.watch_token_hash, t.account_token_hash), t.received_at desc
+)
+select
+  s.setting,
+  s.option,
+  count(*) as watches
+from latest_per_watch l
+cross join lateral (values
+  ('temperatureUnits',     l.settings_json ->> 'temperatureUnits'),
+  ('provider',             l.settings_json ->> 'provider'),
+  ('fetchIntervalMin',     l.settings_json ->> 'fetchIntervalMin'),
+  ('secondaryLine',        l.settings_json ->> 'secondaryLine'),
+  ('thirdLine',            l.settings_json ->> 'thirdLine'),
+  ('windScale',            l.settings_json ->> 'windScale'),
+  ('rainBarColor',         l.settings_json ->> 'rainBarColor'),
+  ('radarProvider',        l.settings_json ->> 'radarProvider'),
+  ('radarColor',           l.settings_json ->> 'radarColor'),
+  ('healthMode',           l.settings_json ->> 'healthMode'),
+  ('rainCountdownHorizon', l.settings_json ->> 'rainCountdownHorizon'),
+  ('topViewMode',          l.settings_json ->> 'topViewMode'),
+  ('layoutPreset',         l.settings_json ->> 'layoutPreset'),
+  ('viewResetMin',         l.settings_json ->> 'viewResetMin'),
+  ('btIcons',              l.settings_json ->> 'btIcons'),
+  ('timeFont',             l.settings_json ->> 'timeFont'),
+  ('axisTimeFormat',       l.settings_json ->> 'axisTimeFormat'),
+  ('weekStartDay',         l.settings_json ->> 'weekStartDay'),
+  ('firstWeek',            l.settings_json ->> 'firstWeek')
+) as s(setting, option)
+where s.option is not null
+group by s.setting, s.option
+order by s.setting, watches desc;
