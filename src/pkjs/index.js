@@ -927,7 +927,7 @@ function fetch(provider, force) {
 function renderSignature(settings) {
     if (!settings) { return ''; }
     return [settings.secondaryLine, settings.thirdLine, settings.secondaryLineFill,
-            settings.barSource, settings.windScale].join('|');
+            settings.barSource, settings.windScale, settings.theme].join('|');
 }
 
 /**
