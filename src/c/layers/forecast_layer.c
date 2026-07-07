@@ -11,6 +11,7 @@
 #include "c/appendix/series.h"
 #include "c/appendix/forecast_grid.h"
 #include "c/appendix/bottom_view.h"
+#include "c/appendix/theme.h"
 
 #define TEMP_LABEL_PAD 2
 #define TEMP_LABEL_MEASURE_BOX_W 200
@@ -27,12 +28,13 @@
 #define DAY_SECONDS (24 * 60 * 60)
 
 // Chart config: frame + ticks + slots in one block. Two variants because
-// the axis colour tracks the night-overlay state — orange (or white on
+// the axis colour tracks the night-overlay state — orange (or theme_fg() on
 // B&W) normally, darker grey under night shading so the axis reads as
 // part of the night region instead of competing with it. Left and
 // bottom share one colour per variant. Ticks and slots are identical
-// between variants; only the frame swaps at draw time.
-#define FORECAST_AXIS_COLOR_NIGHT  PBL_IF_COLOR_ELSE(GColorDarkGray, GColorWhite)
+// between variants; only the frame swaps at draw time. theme_furniture()
+// flattens the gray to black in the light theme.
+#define FORECAST_AXIS_COLOR_NIGHT  theme_pick(theme_furniture(GColorDarkGray), theme_fg())
 
 typedef struct
 {
@@ -74,7 +76,7 @@ static void load_dataset(ForecastDataset *ds) {
     // Per-id literals — every value (incl. resolved color) set inline.
     ds->series[SERIES_FIRST] = (Series){
         .id = SERIES_FIRST, .kind = SERIES_KIND_LINE, .present = (n > 0),
-        .line = { .color = PBL_IF_COLOR_ELSE(GColorRed, GColorWhite),
+        .line = { .color = PBL_IF_COLOR_ELSE(GColorRed, theme_fg()),
                   .width = 3, .inset_y = BOTTOM_VIEW_PRIMARY_LINE_INSET_Y } };
 
     ds->series[SERIES_SECOND] = (Series){
@@ -282,10 +284,10 @@ static void draw_left_axis(GContext *ctx, int h) {
     // the update proc.
     const int strip_w = bottom_view_label_strip_w();
     const int inset_w = bottom_view_graph_inset();
-    graphics_context_set_fill_color(ctx, GColorBlack);
+    graphics_context_set_fill_color(ctx, theme_bg());
     graphics_fill_rect(ctx, GRect(0, 0, inset_w, h - BOTTOM_VIEW_AXIS_H), 0, GCornerNone);
 
-    graphics_context_set_text_color(ctx, GColorWhite);
+    graphics_context_set_text_color(ctx, theme_fg());
     GSize hi_size = temp_label_string_size(s_buffer_hi);
     GSize lo_size = temp_label_string_size(s_buffer_lo);
     const int16_t axis_y = h - BOTTOM_VIEW_AXIS_H;
@@ -325,7 +327,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     MemoryHeapProbe redraw_probe = MEMORY_HEAP_PROBE_START("forecast_update");
     if (ds.num_entries < 2)
     {
-        graphics_context_set_fill_color(ctx, GColorBlack);
+        graphics_context_set_fill_color(ctx, theme_bg());
         graphics_fill_rect(ctx, bounds, 0, GCornerNone);
         MEMORY_LOG_HEAP("forecast_update:exit");
         return;
@@ -419,8 +421,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         const NightAreaPalette np = night_area_palette_for_fill(second->line.fill_color);
         layers[n++] = (ChartLayer){ CHART_LAYER_HATCH, .hatch = {
             .bands = night_bands, .num_bands = num_night_bands,
-            .hatch_color    = PBL_IF_COLOR_ELSE(np.hatch, GColorWhite),
-            .boundary_color = PBL_IF_COLOR_ELSE(np.boundary, GColorWhite),
+            .hatch_color    = PBL_IF_COLOR_ELSE(np.hatch, theme_fg()),
+            .boundary_color = PBL_IF_COLOR_ELSE(np.boundary, theme_fg()),
             .spacing        = NIGHT_HATCH_SPACING,
             .underlay_color = np.base,
             .has_underlay   = PBL_IF_COLOR_ELSE(true, false),
@@ -430,7 +432,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     if (night_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_HATCH, .hatch = {
             .bands = night_bands, .num_bands = num_night_bands,
-            .hatch_color    = PBL_IF_COLOR_ELSE(NIGHT_HATCH_COLOR, GColorWhite),
+            .hatch_color    = PBL_IF_COLOR_ELSE(NIGHT_HATCH_COLOR, theme_fg()),
             .boundary_color = NIGHT_BOUNDARY_COLOR,
             .spacing        = NIGHT_HATCH_SPACING,
             .contour        = NULL } };
