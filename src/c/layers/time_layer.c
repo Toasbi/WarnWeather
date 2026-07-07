@@ -109,7 +109,8 @@ void time_layer_tick() {
 
 void time_layer_refresh() {
     text_layer_set_font(s_time_layer, config_time_font());
-    text_layer_set_text_color(s_time_layer, PBL_IF_COLOR_ELSE(g_config->color_time, theme_fg()));
+    text_layer_set_text_color(s_time_layer, theme_pick(g_config->color_time, theme_fg()));
+    text_layer_set_text_color(s_am_pm_layer, theme_fg());  // re-apply: create-time value goes stale on a live theme flip
     time_layer_tick();  // Update main time text and layer positions
 }
 

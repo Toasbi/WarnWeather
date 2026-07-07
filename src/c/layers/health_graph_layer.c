@@ -361,12 +361,14 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
     //  4. HR line (LINE, solid) — primary line, styled like forecast's temp line.
     //  5. Frame (left + bottom borders).
     //  6. Axis (bottom hour labels/ticks).
-    // On B&W the fill is BLACK, not white: BAR_OUTLINED adds a white silhouette, so a
-    // black fill leaves just the outline (matching the rain bars, palette.c). A white
-    // fill here would combine with the white outline into a solid white bar.
-    static const ChartColorStop step_stops[1] = {
-        { .from = 0, .color = PBL_IF_COLOR_ELSE(GColorGreen, GColorBlack) },
-    };
+    // On B&W (device or bw theme) the fill is BLACK, not white: BAR_OUTLINED adds a
+    // white silhouette, so a black fill leaves just the outline (matching the rain
+    // bars, palette.c). A white fill here would combine with the white outline into
+    // a solid white bar. theme_pick() is a runtime call on color builds, so this
+    // can no longer be a static initializer — module-static scratch, rebuilt each
+    // redraw (mirrors rain_radar_layer.c's radar_tick_style()).
+    static ChartColorStop step_stops[1];
+    step_stops[0] = (ChartColorStop){ .from = 0, .color = theme_pick(GColorGreen, GColorBlack) };
 
     // aplite-style discipline: per-frame layer array is module-static, not stack.
     // Max reachable here is 6 (sleep + gridlines + bars + HR + frame + axis).

@@ -185,7 +185,7 @@ static void ensure_mute_bitmap_loaded(void) {
 static GColor s_bt_bitmap_fg;
 
 static void ensure_bt_bitmap_loaded(void) {
-    GColor fg = PBL_IF_COLOR_ELSE(GColorPictonBlue, theme_fg());
+    GColor fg = theme_pick(GColorPictonBlue, theme_fg());
     if (s_bt_bitmap && gcolor_equal(s_bt_bitmap_fg, fg)) {
         return;
     }
@@ -201,7 +201,7 @@ static void ensure_bt_bitmap_loaded(void) {
 static GColor s_bt_disconnect_bitmap_fg;
 
 static void ensure_bt_disconnect_bitmap_loaded(void) {
-    GColor fg = PBL_IF_COLOR_ELSE(GColorRed, theme_fg());
+    GColor fg = theme_pick(GColorRed, theme_fg());
     if (s_bt_disconnect_bitmap && gcolor_equal(s_bt_disconnect_bitmap_fg, fg)) {
         return;
     }

@@ -195,7 +195,7 @@ static void chart_draw_bar_dots(const ChartRender *r, const ChartLineLayer *l) {
     // and 2/2 and 3/2 both round to 1 — so a 3px cap shared the white cap's top and only grew 1px
     // downward, reading as the same height. 4/2 = 2 raises the top a pixel too, so the taller gray
     // cap actually shows. B&W is a fixed 3px.
-    const int   dot_h       = PBL_IF_COLOR_ELSE(gcolor_equal(l->color, theme_fg()) ? 2 : 4, 3);
+    const int   dot_h       = theme_is_bw() ? 3 : (gcolor_equal(l->color, theme_fg()) ? 2 : 4);
     graphics_context_set_fill_color(r->ctx, l->color);
     for (int i = 0; i < count; ++i) {
         if (l->values[i] <= l->lo) continue;           // value 0 → on the baseline, skip
