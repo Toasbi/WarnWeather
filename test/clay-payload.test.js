@@ -105,3 +105,20 @@ test('compact top view anchors the holiday window to the current week (prevWeek 
   assert.strictEqual(got, expectCurrent);        // aligned to current-week-first
   assert.notStrictEqual(got, prevAnchor);        // the override actually changed the anchor
 });
+
+test('maps theme to CLAY_THEME', () => {
+  assert.strictEqual(buildClayPayload({ theme: 'light' }, null, NOW).CLAY_THEME, 1);
+  assert.strictEqual(buildClayPayload({ theme: 'bw' }, null, NOW).CLAY_THEME, 2);
+  assert.strictEqual(buildClayPayload({}, null, NOW).CLAY_THEME, 0, 'defaults to dark (0) when unset');
+});
+
+test('CLAY_COLOR_TIME default is theme-aware: white in dark/bw, black in light', () => {
+  assert.strictEqual(buildClayPayload({ theme: 'dark' }, null, NOW).CLAY_COLOR_TIME, 0xFFFFFF);
+  assert.strictEqual(buildClayPayload({ theme: 'bw' }, null, NOW).CLAY_COLOR_TIME, 0xFFFFFF);
+  assert.strictEqual(buildClayPayload({ theme: 'light' }, null, NOW).CLAY_COLOR_TIME, 0x000000);
+});
+
+test('CLAY_COLOR_TIME an explicit colorTime setting is never overridden by theme', () => {
+  const p = buildClayPayload({ theme: 'light', colorTime: 0xFF0000 }, null, NOW);
+  assert.strictEqual(p.CLAY_COLOR_TIME, 0xFF0000);
+});
