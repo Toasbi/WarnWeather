@@ -42,5 +42,9 @@ const ChartColorStop *palette_radar_stops(int *num_stops) {
 
 GColor palette_radar_color(int tier) {
     (void) tier;    // every tier is black on a 1-bit screen.
+    // Bar FILL, not foreground/outline — stays literal black in every theme
+    // (including light), matching palette.c's color-build equivalent and
+    // chart.c's BAR_OUTLINED fill/outline split. Known v1 limit: a light-theme
+    // outline is theme_fg() (black) over a black fill — invisible but harmless.
     return GColorBlack;
 }

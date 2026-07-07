@@ -1,4 +1,5 @@
 #include "palette.h"
+#include "theme.h"
 #include "persist.h"
 #include <string.h>
 
@@ -11,18 +12,21 @@ static int s_radar_num_stops = 0;
 
 static void fill_defaults(ChartColorStop *stops, int *num) {
     if (*num > 0) { return; }
-#ifdef PBL_COLOR
+    if (theme_is_bw()) {
+        // B&W (real hardware, or the Black & White theme on a color build): single
+        // black stop; the watch pairs it with the white outline. theme_is_bw()
+        // compiles to a constant true on B&W builds, so this collapses to exactly
+        // the same compile-time behavior those builds always had.
+        stops[0] = (ChartColorStop){ 0, GColorBlack };
+        *num = 1;
+        return;
+    }
     stops[0] = (ChartColorStop){ 0,   GColorLightGray };
     stops[1] = (ChartColorStop){ 140, GColorElectricBlue };
     stops[2] = (ChartColorStop){ 340, GColorGreen };
     stops[3] = (ChartColorStop){ 560, GColorYellow };
     stops[4] = (ChartColorStop){ 780, GColorSunsetOrange };
     *num = 5;
-#else
-    // B&W: single black stop; the watch pairs it with the white outline.
-    stops[0] = (ChartColorStop){ 0, GColorBlack };
-    *num = 1;
-#endif
 }
 
 // Parse the packed blob (3 B/stop) into `out`. Returns count, or -1 if the
@@ -110,7 +114,7 @@ const ChartColorStop *palette_radar_stops(int *num_stops) {
 GColor palette_radar_color(int tier) {
     int n = 0;
     const ChartColorStop *stops = palette_radar_stops(&n);
-    if (tier <= 0 || n <= 0) { return PBL_IF_COLOR_ELSE(GColorWhite, GColorBlack); }
+    if (tier <= 0 || n <= 0) { return theme_pick(GColorWhite, GColorBlack); }
     int idx = tier - 1;
     if (idx >= n) { idx = n - 1; }   // B&W: single stop catches every tier
     return stops[idx].color;

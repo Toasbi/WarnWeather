@@ -1,6 +1,7 @@
 #pragma once
 #include <pebble.h>
 #include "c/appendix/chart.h"   // TickSide
+#include "c/appendix/theme.h"
 
 // Shared config for the two mutually-exclusive bottom-region graphs (forecast +
 // health), which render on the same FORECAST_GRID_DEF so they line up
@@ -29,9 +30,10 @@
 #define BOTTOM_VIEW_STEP_SECONDS 3600    // one slot == one hour
 
 // --- Axis chrome (group B) ---
-// Day axis colour (orange on colour, white on B&W). Forecast's NIGHT variant
-// stays local to forecast_layer.c (health has no night concept).
-#define BOTTOM_VIEW_AXIS_COLOR PBL_IF_COLOR_ELSE(GColorOrange, GColorWhite)
+// Day axis colour (orange on colour, theme_fg() on B&W — the hue itself is an
+// untouched-in-v1 known limit; only the B&W/bw-theme arm changes with theme).
+// Forecast's NIGHT variant stays local to forecast_layer.c (health has no night concept).
+#define BOTTOM_VIEW_AXIS_COLOR theme_pick(GColorOrange, theme_fg())
 extern const TickSide BOTTOM_VIEW_TICK_STYLE;
 
 // --- Primary data line (temp in forecast, HR in health) ---

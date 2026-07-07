@@ -2,6 +2,7 @@
 #include "persist.h"
 #include "math.h"
 #include "memory_log.h"
+#include "theme.h"
 #include "c/services/watch_services.h"
 
 Config *g_config;
@@ -187,9 +188,9 @@ GFont config_time_font() {
 }
 
 bool config_highlight_sundays() {
-    return !gcolor_equal(g_config->color_sunday, GColorWhite);
+    return !gcolor_equal(g_config->color_sunday, theme_fg());
 }
 
 bool config_highlight_saturdays() {
-    return !gcolor_equal(g_config->color_saturday, GColorWhite);
+    return !gcolor_equal(g_config->color_saturday, theme_fg());
 }

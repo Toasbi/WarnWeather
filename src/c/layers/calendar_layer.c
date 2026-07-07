@@ -2,6 +2,7 @@
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
 #include "c/appendix/persist.h"
+#include "c/appendix/theme.h"
 #include "c/services/watch_services.h"
 #include <time.h>
 
@@ -102,26 +103,33 @@ static bool cell_is_holiday(struct tm *t) {
     return bit >= 0 && bit < 28 && ((s_holiday_mask >> bit) & 1u);
 }
 
-#ifdef PBL_COLOR
+// Effective-color pick: the Black & White theme on a color build renders
+// pixel-identical to real B&W hardware — no weekend/holiday/today highlight,
+// just the default foreground. theme_is_bw() compiles to a constant true on
+// B&W builds, so these now-unconditional functions collapse to exactly the
+// behavior real B&W hardware always had; dark/light keep the configured
+// highlight colors (color_today's black "auto" sentinel is exempt from theme
+// conversion — see theme-convert.js — and stays literal in every theme).
 static GColor date_color(struct tm *t) {
+    if (theme_is_bw()) {
+        return theme_fg();
+    }
     if (cell_is_holiday(t))
         return g_config->color_us_federal;
     if (t->tm_wday == 0)
         return g_config->color_sunday;
     if (t->tm_wday == 6)
         return g_config->color_saturday;
-    return GColorWhite;
+    return theme_fg();
 }
-#endif
 
 static GColor today_color() {
-    // Either follow the date color or override to configured value
-#ifdef PBL_COLOR
+    // Either follow the date color or override to configured value.
+    if (theme_is_bw()) {
+        return theme_fg();
+    }
     struct tm t = relative_tm(0);
     return gcolor_equal(g_config->color_today, GColorBlack) ? date_color(&t) : g_config->color_today;
-#else
-    return GColorWhite;
-#endif
 }
 
 static void calendar_update_proc(Layer *layer, GContext *ctx) {
@@ -149,7 +157,7 @@ static void calendar_update_proc(Layer *layer, GContext *ctx) {
         bool highlight_saturday = (config_highlight_saturdays() && t.tm_wday == 6);
         bool bold = (i == i_today) || highlight_holiday || highlight_sunday || highlight_saturday;
         GColor text_color = (i == i_today) ? gcolor_legible_over(today_color())
-                                           : PBL_IF_COLOR_ELSE(date_color(&t), GColorWhite);
+                                           : date_color(&t);
         char buffer[4];
         GFont font = fonts_get_system_font(bold ? CALENDAR_FONT_KEY_BOLD : CALENDAR_FONT_KEY);
         GRect cell_rect = calendar_cell_rect(bounds, i, rows);
