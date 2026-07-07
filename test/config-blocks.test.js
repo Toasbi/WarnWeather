@@ -443,3 +443,34 @@ test('radarPreview (rainbow) still renders exact bars and the countdown band', (
   assert.ok(/^<svg/.test(svg), 'renders an SVG, not the off message');
   assert.ok(svg.indexOf("Rain in 15'") >= 0, 'countdown band applies to rainbow too');
 });
+
+test('forecastPreview: light theme flips the canvas background to white', () => {
+  const state = { dayNightShading: true, barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'off', theme: 'light' };
+  const svg = B.forecastPreview(state, { color: true });
+  assert.ok(svg.indexOf('fill="#FFFFFF"') >= 0, 'canvas background is now white');
+});
+
+test('forecastPreview: bw theme on a color env renders the B&W path, not multicolor', () => {
+  const state = { dayNightShading: true, barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'off', theme: 'bw' };
+  const color = B.forecastPreview({ ...state, theme: 'dark' }, { color: true });
+  const bw = B.forecastPreview(state, { color: true });
+  assert.ok(color.indexOf('fill="#00FF00"') >= 0, 'sanity: dark theme on a color env keeps multicolor bands');
+  assert.equal(bw.indexOf('fill="#00FF00"'), -1, 'bw theme drops multicolor rain bands even though env.color is true');
+});
+
+test('radarPreview: light theme flips the canvas background to white', () => {
+  const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'light' }, { color: true });
+  assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0);
+});
+
+test('radarPreview: bw theme on a color env renders solid white bars, not multicolor', () => {
+  const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'bw' }, { color: true });
+  assert.equal(svg.indexOf('fill="#00FF00"'), -1);
+  assert.ok(svg.indexOf('fill="#FFFFFF"') >= 0);
+});
+
+test('layoutPreview / layoutPreviewCombined: light theme flips the canvas background to white', () => {
+  const state = { layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'light' };
+  assert.ok(B.layoutPreview(state, {}).indexOf('fill="#FFFFFF"') >= 0);
+  assert.ok(B.layoutPreviewCombined(state, {}).indexOf('fill="#FFFFFF"') >= 0);
+});
