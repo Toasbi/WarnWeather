@@ -1,5 +1,6 @@
 #include "chart.h"
 #include "hatch.h"
+#include "theme.h"
 
 static void graph_frame_draw(GContext *ctx, GraphFrame f, GRect outer) {
     if (f.left.width > 0) {
@@ -98,7 +99,7 @@ static void chart_draw_axis_label(const ChartRender *r, GraphSide side,
 }
 
 static void chart_render_axis(const ChartRender *r, const ChartAxisLayer *a) {
-    graphics_context_set_text_color(r->ctx, GColorWhite);
+    graphics_context_set_text_color(r->ctx, theme_fg());
     const GFont font     = fonts_get_system_font(FONT_KEY_GOTHIC_14);
     const int  mid_shift = r->geo.slots.pitch / 2;
     for (int i = 0; i < r->def->num_slots; ++i) {
@@ -155,13 +156,16 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
         }
 
         if (b->style == BAR_OUTLINED) {
-            // B&W: white silhouette keeps black bars readable on black. Draw only the
-            // top + side walls and leave the bottom open — the x-axis baseline already
-            // closes the bar, so a bottom edge would double the axis line.
+            // B&W: a theme_fg() silhouette keeps the (always-black, untouched-in-v1)
+            // bar fill readable against theme_bg(). Draw only the top + side walls and
+            // leave the bottom open — the x-axis baseline already closes the bar, so a
+            // bottom edge would double the axis line. In the light theme this silhouette
+            // is black-on-black — invisible but harmless (known v1 limit; the bar fill
+            // itself stays literal black in every theme).
             const int x0 = bar_x;
             const int x1 = bar_x + r->def->bar_w - 1;
             const int y1 = bar_top + bar_h - 1;
-            graphics_context_set_stroke_color(r->ctx, GColorWhite);
+            graphics_context_set_stroke_color(r->ctx, theme_fg());
             graphics_context_set_stroke_width(r->ctx, 1);
             graphics_draw_line(r->ctx, GPoint(x0, bar_top), GPoint(x1, bar_top));  // top
             graphics_draw_line(r->ctx, GPoint(x0, bar_top), GPoint(x0, y1));       // left wall
@@ -191,7 +195,7 @@ static void chart_draw_bar_dots(const ChartRender *r, const ChartLineLayer *l) {
     // and 2/2 and 3/2 both round to 1 — so a 3px cap shared the white cap's top and only grew 1px
     // downward, reading as the same height. 4/2 = 2 raises the top a pixel too, so the taller gray
     // cap actually shows. B&W is a fixed 3px.
-    const int   dot_h       = PBL_IF_COLOR_ELSE(gcolor_equal(l->color, GColorWhite) ? 2 : 4, 3);
+    const int   dot_h       = PBL_IF_COLOR_ELSE(gcolor_equal(l->color, theme_fg()) ? 2 : 4, 3);
     graphics_context_set_fill_color(r->ctx, l->color);
     for (int i = 0; i < count; ++i) {
         if (l->values[i] <= l->lo) continue;           // value 0 → on the baseline, skip
