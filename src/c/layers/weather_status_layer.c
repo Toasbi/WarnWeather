@@ -3,6 +3,7 @@
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
 #include "c/appendix/snooze.h"
+#include "c/appendix/theme.h"
 #include "c/layers/layer_util.h"
 
 #define FONT_18_OFFSET 7
@@ -113,7 +114,7 @@ static void draw_sun_arrow(GContext *ctx, int cx, int cy, bool up) {
     const int h2 = ARROW_H / 2;
     const int apex_y = up ? (cy - h2) : (cy + h2);
     const int dir    = up ? 1 : -1;   // head widens away from the apex
-    graphics_context_set_stroke_color(ctx, GColorWhite);
+    graphics_context_set_stroke_color(ctx, theme_fg());
     // Shaft: from the tail to the head base.
     graphics_draw_line(ctx, GPoint(cx, up ? cy + h2 : cy - h2),
                             GPoint(cx, apex_y + dir * ARROW_HEAD_H));
@@ -226,10 +227,10 @@ static void weather_status_update_proc(Layer *layer, GContext *ctx) {
     GRect bounds = layer_get_bounds(layer);
     int w = bounds.size.w;
 
-    graphics_context_set_text_color(ctx, GColorWhite);
+    graphics_context_set_text_color(ctx, theme_fg());
     if (persist_get_is_sleeping()) {
         // Compact snooze glyphs in the slot the temperature text vacated.
-        snooze_draw(ctx, GRect(MARGIN, 2, SNOOZE_BOX_W, bounds.size.h - 4), GColorWhite);
+        snooze_draw(ctx, GRect(MARGIN, 2, SNOOZE_BOX_W, bounds.size.h - 4), theme_fg());
     } else {
         graphics_draw_text(ctx, s_temp_buffer, temp_font(), frame_temp_draw,
                            STATUS_TEXT_OVERFLOW, GTextAlignmentLeft, NULL);
@@ -254,9 +255,9 @@ static void weather_status_update_proc(Layer *layer, GContext *ctx) {
     }
     gpath_rotate_to(s_arrow_path, arrow_up ? TRIG_MAX_ANGLE / 2 : 0);
     gpath_move_to(s_arrow_path, GPoint(w - 4, arrow_y));
-    graphics_context_set_stroke_color(ctx, GColorWhite);
+    graphics_context_set_stroke_color(ctx, theme_fg());
     gpath_draw_outline_open(ctx, s_arrow_path);
-    graphics_context_set_fill_color(ctx, GColorWhite);
+    graphics_context_set_fill_color(ctx, theme_fg());
     gpath_draw_filled(ctx, s_arrow_path);
 #endif
     MEMORY_LOG_HEAP("weather_status_update:exit");
