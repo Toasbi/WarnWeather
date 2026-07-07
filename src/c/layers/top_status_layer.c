@@ -6,6 +6,7 @@
 #include "c/appendix/palette.h"
 #include "c/appendix/rain_countdown.h"
 #include "c/appendix/rain_tier.h"
+#include "c/appendix/theme.h"
 #include "c/services/watch_services.h"
 
 #define BATTERY_W 29
@@ -138,20 +139,21 @@ static void ensure_rain_glyph_loaded(int bucket, int side, GColor tint) {
     s_rain_glyph_tint = tint;
 }
 
-// Glyph colour tracks the radar bars per tier; on B&W the strip is black and the
-// radar palette is black, so force white.
+// Glyph colour tracks the radar bars per tier; on B&W (or the color-build Black &
+// White theme) the strip is theme_bg() and the radar palette is black, so force
+// the default foreground.
 static GColor rain_glyph_color(int tier) {
 #ifdef PBL_COLOR
     return palette_radar_color(tier);
 #else
     (void) tier;
-    return GColorWhite;
+    return theme_fg();
 #endif
 }
 
 static void draw_status_text_in(GContext *ctx, GRect rect, const char *text,
                                 GTextAlignment align, GFont font) {
-    graphics_context_set_text_color(ctx, GColorWhite);
+    graphics_context_set_text_color(ctx, theme_fg());
     graphics_draw_text(ctx, text, font, rect, GTextOverflowModeFill, align, NULL);
 }
 
@@ -161,31 +163,55 @@ static void draw_bitmap(GContext *ctx, GBitmap *bitmap, GRect frame) {
     graphics_context_set_compositing_mode(ctx, GCompOpAssign);
 }
 
+// Tracks the foreground the cached bitmap's palette was tinted with, so a live
+// theme change re-applies the palette (cheap: no image reload) instead of leaving
+// a stale tint from before the flip.
+static GColor s_mute_bitmap_fg;
+
 static void ensure_mute_bitmap_loaded(void) {
+    GColor fg = theme_fg();
+    if (s_mute_bitmap && gcolor_equal(s_mute_bitmap_fg, fg)) {
+        return;
+    }
     if (!s_mute_bitmap) {
         s_mute_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_MUTE);
-        s_mute_palette[0] = GColorWhite;
-        s_mute_palette[1] = GColorClear;
-        gbitmap_set_palette(s_mute_bitmap, s_mute_palette, false);
     }
+    s_mute_palette[0] = fg;
+    s_mute_palette[1] = GColorClear;
+    gbitmap_set_palette(s_mute_bitmap, s_mute_palette, false);
+    s_mute_bitmap_fg = fg;
 }
+
+static GColor s_bt_bitmap_fg;
 
 static void ensure_bt_bitmap_loaded(void) {
+    GColor fg = PBL_IF_COLOR_ELSE(GColorPictonBlue, theme_fg());
+    if (s_bt_bitmap && gcolor_equal(s_bt_bitmap_fg, fg)) {
+        return;
+    }
     if (!s_bt_bitmap) {
         s_bt_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BT_CONNECT);
-        s_bt_palette[0] = PBL_IF_COLOR_ELSE(GColorPictonBlue, GColorWhite);
-        s_bt_palette[1] = GColorClear;
-        gbitmap_set_palette(s_bt_bitmap, s_bt_palette, false);
     }
+    s_bt_palette[0] = fg;
+    s_bt_palette[1] = GColorClear;
+    gbitmap_set_palette(s_bt_bitmap, s_bt_palette, false);
+    s_bt_bitmap_fg = fg;
 }
 
+static GColor s_bt_disconnect_bitmap_fg;
+
 static void ensure_bt_disconnect_bitmap_loaded(void) {
+    GColor fg = PBL_IF_COLOR_ELSE(GColorRed, theme_fg());
+    if (s_bt_disconnect_bitmap && gcolor_equal(s_bt_disconnect_bitmap_fg, fg)) {
+        return;
+    }
     if (!s_bt_disconnect_bitmap) {
         s_bt_disconnect_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BT_DISCONNECT);
-        s_bt_disconnect_palette[0] = PBL_IF_COLOR_ELSE(GColorRed, GColorWhite);
-        s_bt_disconnect_palette[1] = GColorClear;
-        gbitmap_set_palette(s_bt_disconnect_bitmap, s_bt_disconnect_palette, false);
     }
+    s_bt_disconnect_palette[0] = fg;
+    s_bt_disconnect_palette[1] = GColorClear;
+    gbitmap_set_palette(s_bt_disconnect_bitmap, s_bt_disconnect_palette, false);
+    s_bt_disconnect_bitmap_fg = fg;
 }
 
 static void maybe_unload_top_status_bitmaps(bool show_qt, bool draw_bt, bool draw_bt_disconnect) {
