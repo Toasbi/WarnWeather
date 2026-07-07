@@ -24,7 +24,7 @@ if [[ ! -f "$profile_file" ]]; then
 fi
 
 npx --yes mustache "$profile_file" "$template_file" > "$output_file"
-node -e "
+WW_BUILD_PROFILE="$profile" node -e "
 const fs = require('fs');
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 delete pkg.releaseNotification;
@@ -101,10 +101,24 @@ pkg.telemetry = {
   endpoint: telemetryEndpoint,
 };
 
-// Rainbow nowcast proxy URL baked into the bundle. Empty ('') hides the
-// Rainbow radar option in the config UI (env-gate) and makes a stray
-// 'rainbow' selection fail soft. PKJS tests endpoint !== '' — no enabled flag.
+// Rainbow nowcast proxy URL baked into the bundle. The config UI always offers
+// Rainbow radar (and defaults to it), and PKJS gates purely on endpoint !== ''
+// — an empty endpoint does NOT hide the option; it makes every 'rainbow'
+// selection fail soft (fetchRadarTuplesAt returns null → no radar reaches the
+// watch). On a release build that would silently break radar for every user, so
+// the guard below hard-fails instead. Dev/fork builds may ship empty on purpose.
 const rainbowEndpoint = typeof process.env.RAINBOW_PROXY_ENDPOINT === 'string' ? process.env.RAINBOW_PROXY_ENDPOINT.trim() : '';
+
+const buildProfile = process.env.WW_BUILD_PROFILE || 'dev';
+if (buildProfile === 'release' && rainbowEndpoint.length === 0) {
+  throw new Error(
+    'RAINBOW_PROXY_ENDPOINT is empty for a release build. Rainbow radar is the ' +
+    'default provider, so every release device would silently receive no radar ' +
+    '(fetchRadarTuplesAt fails soft on an empty endpoint). Set the ' +
+    'RAINBOW_PROXY_ENDPOINT_RELEASE GitHub Actions secret (or export ' +
+    'RAINBOW_PROXY_ENDPOINT locally) before building the release profile.'
+  );
+}
 
 pkg.rainbow = {
   endpoint: rainbowEndpoint,
