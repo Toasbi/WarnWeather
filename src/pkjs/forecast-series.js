@@ -1,6 +1,7 @@
 var rainTier = require('./weather/rain-tier');
 var COLORS = require('./pebble-colors');
 var configUi = require('./config-ui');   // isColorPlatform — same helper rain-tier/palette-wire use
+var resolveInk = require('./resolve-ink.js').resolveInk;
 
 /**
  * Quantize a permille value (0..1000) to a 0..250 byte for the wire.
@@ -67,20 +68,29 @@ function isColorWatch(watchInfo) {
 }
 
 /**
- * Line/dot colour for a metric, resolved for the platform. On B&W every line is white;
- * gust on colour is settings-dependent so it never matches the rain bars.
+ * Line/dot colour for a metric, resolved for the platform + theme. isColor should
+ * already be the EFFECTIVE color flag (isColorWatch(watchInfo) && theme !== 'bw') —
+ * see buildForecastSeries. On B&W (or bw theme) every line is the theme foreground;
+ * gust on colour is settings-dependent so it never matches the rain bars. resolveInk
+ * flips an exact white to black in the light theme; hues and grays pass through.
  * @param {string} metric precip_prob|wind|gust|uv.
  * @param {Object} settings Clay settings (reads rainBarColor for gust).
- * @param {boolean} isColor Colour display?
+ * @param {boolean} isColor Effective colour display?
+ * @param {string} [theme] 'dark'|'light'|'bw'; defaults to 'dark' (no flip) when omitted.
  * @returns {number} 0xRRGGBB colour.
  */
-function lineColorFor(metric, settings, isColor) {
-    if (!isColor) { return COLORS.GColorWhite; }
-    if (metric === 'gust') {
-        return settings.rainBarColor === 'white' ? COLORS.GColorLightGray : COLORS.GColorWhite;
+function lineColorFor(metric, settings, isColor, theme) {
+    theme = theme || 'dark';
+    var result;
+    if (!isColor) {
+        result = COLORS.GColorWhite;
+    } else if (metric === 'gust') {
+        result = settings.rainBarColor === 'white' ? COLORS.GColorLightGray : COLORS.GColorWhite;
+    } else {
+        var entry = LINE_COLORS[metric];
+        result = entry ? entry.color : COLORS.GColorBlack;
     }
-    var entry = LINE_COLORS[metric];
-    return entry ? entry.color : COLORS.GColorBlack;
+    return resolveInk(result, theme);
 }
 
 /**
@@ -150,14 +160,17 @@ function metricPermille(metric, raw, settings) {
  * @returns {Object} Wire fields (see module interface).
  */
 function buildForecastSeries(raw, settings, watchInfo) {
-    var isColor = isColorWatch(watchInfo);
+    var theme = settings.theme || 'dark';
+    // Effective color: a color display renders as color only when the theme isn't
+    // Black & White — a bw theme reuses the exact color model B&W watches get today.
+    var isColor = isColorWatch(watchInfo) && theme !== 'bw';
     var out = {};
 
     // Secondary line: always present (one of the four metrics).
     var secMetric = settings.secondaryLine;
     var secPm = metricPermille(secMetric, raw, settings);
     out.SECONDARY_LINE_TREND_UINT8 = secPm ? secPm.map(permilleToByte) : [];
-    out.SECONDARY_LINE_COLOR = lineColorFor(secMetric, settings, isColor) || COLORS.GColorBlack;
+    out.SECONDARY_LINE_COLOR = lineColorFor(secMetric, settings, isColor, theme) || COLORS.GColorBlack;
     out.SECONDARY_LINE_FILL = Boolean(settings.secondaryLineFill);
     out.SECONDARY_LINE_FILL_COLOR = fillColorFor(secMetric, isColor) || out.SECONDARY_LINE_COLOR;
 
@@ -168,7 +181,7 @@ function buildForecastSeries(raw, settings, watchInfo) {
     var thirdBytes = thirdPm ? thirdPm.map(permilleToByte) : [];
     out.THIRD_LINE_TREND_UINT8 = thirdBytes;
     if (thirdBytes.length > 0) {
-        out.THIRD_LINE_COLOR = lineColorFor(thirdMetric, settings, isColor) || COLORS.GColorWhite;
+        out.THIRD_LINE_COLOR = lineColorFor(thirdMetric, settings, isColor, theme) || resolveInk(COLORS.GColorWhite, theme);
     }
 
     // Rain bars: independent of the metric lines.

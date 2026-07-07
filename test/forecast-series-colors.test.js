@@ -33,3 +33,20 @@ test('fillColorFor resolves per platform for every metric', () => {
   assert.equal(fs.fillColorFor('wind', false), C.GColorLightGray);
   assert.equal(fs.fillColorFor('nope', true), undefined);
 });
+
+test('lineColorFor: bw theme on color hardware routes through the B&W (isColor=false) arm', () => {
+  assert.equal(fs.lineColorFor('precip_prob', {}, false, 'bw'), C.GColorWhite);
+});
+
+test('lineColorFor: light theme flips a resolved white line to black', () => {
+  assert.equal(fs.lineColorFor('precip_prob', {}, false, 'light'), C.GColorBlack);
+  assert.equal(fs.lineColorFor('gust', { rainBarColor: 'multicolor' }, true, 'light'), C.GColorBlack);
+});
+
+test('lineColorFor: hued colors pass through untouched in light theme', () => {
+  assert.equal(fs.lineColorFor('wind', {}, true, 'light'), C.GColorYellow);
+});
+
+test('lineColorFor: theme omitted defaults to dark (no flip) — backward compatible', () => {
+  assert.equal(fs.lineColorFor('precip_prob', {}, false), C.GColorWhite);
+});

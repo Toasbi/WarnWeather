@@ -168,3 +168,13 @@ test('tempTrendToBytes: negative °F handled (no negative bytes)', () => {
 test('tempTrendToBytes: empty input → empty bytes, zero min/max', () => {
   assert.deepEqual(tempTrendToBytes([]), { bytes: [], min: 0, max: 0 });
 });
+
+test('buildForecastSeries: bw theme on color watch resolves colors as if it were B&W hardware', () => {
+  const out = buildForecastSeries(RAW, { secondaryLine: 'precip_prob', thirdLine: 'off', barSource: 'off', theme: 'bw' }, { platform: 'basalt' });
+  assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFFFF, 'basalt + bw theme uses the same white line a real B&W watch gets');
+});
+
+test('buildForecastSeries: light theme flips the third-line white fallback to black', () => {
+  const out = buildForecastSeries(RAW, { secondaryLine: 'precip_prob', thirdLine: 'wind', barSource: 'off', theme: 'light' }, { platform: 'diorite' });
+  assert.equal(out.THIRD_LINE_COLOR, 0x000000, 'B&W hardware + light theme: third-line white fallback flips to black');
+});
