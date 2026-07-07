@@ -247,6 +247,8 @@ static bool handle_clay_config(DictionaryIterator *iterator, bool *config_dirty)
     Tuple *clay_view_1_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_1);
     Tuple *clay_view_2_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_2);
     Tuple *clay_view_reset_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_RESET_MIN);
+    // Optional (older phone builds omit it); config.theme then stays 0 = dark.
+    Tuple *clay_theme_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_THEME);
 
     if (!(clay_celsius_tuple && clay_time_lead_zero_tuple && clay_axis_12h_tuple && clay_start_mon_tuple
         && clay_prev_week_tuple && clay_color_today_tuple && clay_time_font_tuple && clay_vibe_tuple
@@ -280,6 +282,7 @@ static bool handle_clay_config(DictionaryIterator *iterator, bool *config_dirty)
     if (clay_view_1_tuple) { config.view_spec[1] = (uint8_t) clay_view_1_tuple->value->int16; }
     if (clay_view_2_tuple) { config.view_spec[2] = (uint8_t) clay_view_2_tuple->value->int16; }
     if (clay_view_reset_tuple) { config.view_reset_min = (uint8_t) clay_view_reset_tuple->value->int16; }
+    if (clay_theme_tuple) { config.theme = (uint8_t) clay_theme_tuple->value->int16; }
     config.time_font = clay_time_font_tuple->value->int16;
     config.color_today = GColorFromHEX(clay_color_today_tuple->value->int32);
     config.color_saturday = GColorFromHEX(clay_color_saturday_tuple->value->int32);

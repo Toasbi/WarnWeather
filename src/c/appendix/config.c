@@ -38,7 +38,8 @@ static Config config_defaults(void) {
         .view_reset_min = 0,
         // Default view cycle: compact calendar + forecast (0x90), flick slots disabled.
         // The phone re-sends the real cycle on connect; this only covers the first boot.
-        .view_spec = { 0x90, 0x00, 0x00 }
+        .view_spec = { 0x90, 0x00, 0x00 },
+        .theme = 0   // dark — today's look, unchanged until the user picks otherwise
     };
 }
 
