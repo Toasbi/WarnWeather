@@ -17,6 +17,7 @@
 #include "c/appendix/persist.h"
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
+#include "c/appendix/theme.h"
 
 // The layout module mirrors config.h's TopViewMode as its own LAYOUT_TIER_* (see layout.h);
 // main_window passes top_view_mode straight into the tier param, so lock the values together.
@@ -169,7 +170,7 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
 static void main_window_load(Window *window) {
     Layer *window_layer = window_get_root_layer(window);
     GRect bounds = layer_get_bounds(window_layer);
-    window_set_background_color(window, GColorBlack);
+    main_window_apply_theme();
 
     // Restore the view cursor across a relaunch, gated on the same window the
     // user's own auto-return setting already allows a non-default view to live
@@ -358,6 +359,10 @@ void main_window_apply_top_view() {
     memcpy(s_applied_view_spec, g_config->view_spec, sizeof(s_applied_view_spec));
     render_active_view();
     main_window_refresh();
+}
+
+void main_window_apply_theme(void) {
+    window_set_background_color(s_main_window, theme_bg());
 }
 
 void main_window_relayout(void) {

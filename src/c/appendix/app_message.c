@@ -357,6 +357,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     }
 
     if (config_dirty) {
+        main_window_apply_theme();
         main_window_relayout();
         main_window_refresh();
         // health_mode may have been changed (e.g. to off) while the alternate view is

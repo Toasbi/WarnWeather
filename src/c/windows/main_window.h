@@ -15,4 +15,10 @@ void main_window_apply_top_view();
 // this only calls layer_set_frame() on the bands that move.
 void main_window_relayout(void);
 
+// Re-apply the window background color for the current theme. Called at load
+// and again whenever a settings change may have flipped the theme (config_dirty
+// in app_message.c) so the background repaints immediately, not just on the
+// next full redraw.
+void main_window_apply_theme(void);
+
 void main_window_destroy();
