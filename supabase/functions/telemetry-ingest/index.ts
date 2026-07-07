@@ -58,6 +58,7 @@ const settingsSchema = z
     radarProvider: z.string().optional(),
     radarColor: z.string().optional(),
     devStatsEnabled: z.boolean().optional(),
+    theme: z.string().optional(),
     colorTime: z.number().optional(),
     colorToday: z.number().optional(),
     colorSunday: z.number().optional(),

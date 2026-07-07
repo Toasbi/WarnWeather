@@ -47,6 +47,7 @@ function buildSettingsSnapshot(settings) {
         radarProvider: safe.radarProvider,
         radarColor: safe.radarColor,
         devStatsEnabled: Boolean(safe.devStatsEnabled),
+        theme: safe.theme,
         colorTime: safe.colorTime,
         colorToday: safe.colorToday,
         colorSunday: safe.colorSunday,
