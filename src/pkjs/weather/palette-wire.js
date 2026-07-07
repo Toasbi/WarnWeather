@@ -8,15 +8,16 @@ var rainTier = require('./rain-tier.js');
 /**
  * Build the packed palette tuples for both channels.
  * @param {Object|null} watchInfo Active watch info (platform read for packing).
- * @param {Object} settings Clay settings (rainBarColor/radarColor).
+ * @param {Object} settings Clay settings (rainBarColor/radarColor/theme).
  * @returns {{BAR_PALETTE_UINT8: number[], RADAR_PALETTE_UINT8: number[]}} Packed tuples.
  */
 function buildPaletteTuples(watchInfo, settings) {
     var platform = watchInfo ? watchInfo.platform : 'basalt';
     var resolved = settings || {};
+    var theme = resolved.theme || 'dark';
     return {
-        BAR_PALETTE_UINT8: rainTier.buildPackedPalette(platform, resolved.rainBarColor || 'multicolor'),
-        RADAR_PALETTE_UINT8: rainTier.buildPackedPalette(platform, resolved.radarColor || 'multicolor')
+        BAR_PALETTE_UINT8: rainTier.buildPackedPalette(platform, resolved.rainBarColor || 'multicolor', theme),
+        RADAR_PALETTE_UINT8: rainTier.buildPackedPalette(platform, resolved.radarColor || 'multicolor', theme)
     };
 }
 
