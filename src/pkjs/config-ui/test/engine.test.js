@@ -416,3 +416,9 @@ test('renderBody: searchSelect opened via cx.openSelect renders the search input
   assert.ok(html.indexOf('data-select-search="c"') >= 0, 'open search input rendered through renderBody');
   assert.ok(html.indexOf('class="row stack"') >= 0, 'row is stacked while open');
 });
+
+test('onChange registry: register/get; unknown id -> undefined', () => {
+  E.onChange.register('demo', (S, oldV, newV) => { S.touched = [oldV, newV]; });
+  assert.equal(typeof E.onChange.get('demo'), 'function');
+  assert.equal(E.onChange.get('nope'), undefined);
+});

@@ -21,7 +21,8 @@ var APP_FILES = [
   // APP_FILES — both build the same page, from two separate entrypoints.
   path.join(ROOT, 'src/pkjs/view-cycle.js'),
   path.join(ROOT, 'src/pkjs/settings/blocks.js'),
-  path.join(ROOT, 'src/pkjs/settings/onbuild.js')
+  path.join(ROOT, 'src/pkjs/settings/onbuild.js'),
+  path.join(ROOT, 'src/pkjs/settings/theme-convert.js')
 ];
 var DEFAULT_OUT = path.join(ROOT, 'build/config-ui-preview.html');
 var PLATFORMS = ['basalt', 'chalk', 'aplite', 'diorite', 'emery'];

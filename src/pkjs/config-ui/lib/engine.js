@@ -28,6 +28,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     get: function (id) { return blockMap[id]; }
   };
 
+  // --- onChange registry --- a schema item opts into a post-change side effect by
+  // name (item.onChange: id) without the engine knowing what that side effect is —
+  // mirrors the block registry above. fn(S, oldValue, newValue) runs synchronously,
+  // right after the click handler sets the new value and before the next render().
+  var onChangeMap = {};
+  PConf.onChange = {
+    register: function (id, fn) { onChangeMap[id] = fn; },
+    get: function (id) { return onChangeMap[id]; }
+  };
+
   // --- hook registry ---
   var loadFns = [], submitFns = [];
   PConf.hooks = {
@@ -477,7 +487,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if ((t = e.target.closest('[data-toggle]'))) { S[t.getAttribute('data-k')] = !S[t.getAttribute('data-k')]; render(); return; }
         if ((t = e.target.closest('[data-color-pick]'))) { S[t.getAttribute('data-k')] = t.getAttribute('data-color-pick'); openColor = null; render(); return; }
         if ((t = e.target.closest('[data-color]'))) { var k = t.getAttribute('data-color'); openColor = (openColor === k ? null : k); render(); return; }
-        if ((t = e.target.closest('[data-v]'))) { S[t.getAttribute('data-k')] = t.getAttribute('data-v'); render(); return; }
+        if ((t = e.target.closest('[data-v]'))) {
+          var vk = t.getAttribute('data-k'), oldV = S[vk], newV = t.getAttribute('data-v');
+          S[vk] = newV;
+          var vItem = findItem(vk);
+          var onChangeFn = vItem && vItem.onChange && PConf.onChange.get(vItem.onChange);
+          if (onChangeFn) { onChangeFn(S, oldV, newV); }
+          render();
+          return;
+        }
         if ((t = e.target.closest('[data-coll]'))) { var sid = t.getAttribute('data-coll'); collapsed[sid] = !collapsed[sid]; render(); return; }
       });
       scroll.addEventListener('change', function (e) {
@@ -527,7 +545,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     serialize: PConf.engine.serialize, hydrate: PConf.engine.hydrate, boot: PConf.engine.boot,
     initialCollapsed: PConf.engine.initialCollapsed,
-    blocks: PConf.blocks, hooks: PConf.hooks,
+    blocks: PConf.blocks, hooks: PConf.hooks, onChange: PConf.onChange,
     esc: PConf.engine.esc, renderControl: PConf.engine.renderControl, renderRow: PConf.engine.renderRow,
     renderSelectOptions: PConf.engine.renderSelectOptions,
     renderTabBar: PConf.engine.renderTabBar, renderBody: PConf.engine.renderBody,
