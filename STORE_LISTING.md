@@ -64,6 +64,10 @@ CALENDAR
   - Sunday
   - Holidays (supporting 150+ countries worldwide and their region/state)
 
+THEME
+- Dark (default), Light, or Black & White (color watches only — renders exactly like a
+  B&W watch); set it in the General tab
+
 TIME
 - Current time in custom color
 - 12h/24h format

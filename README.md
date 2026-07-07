@@ -63,6 +63,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Sleep mode (battery-saving night pause)
 
 **Customization**
+* **Theme** — Dark (default), Light, or Black & White (color watches only — renders exactly like a B&W watch); set it in the General tab
 * Customize time font and color
 * Adjustable layout — choose how much of the screen goes to the calendar vs. the forecast, radar, and health views
 * **Layout preset** — pick a calendar style (**Full calendar**, **Compact calendar**, **Compact calendar (dense)**, or **No calendar**); the wrist-flick cycle then builds itself from your health and radar settings — enable health or radar and a flick reveals them automatically, previewed live in settings
