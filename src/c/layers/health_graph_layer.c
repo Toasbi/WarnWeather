@@ -99,18 +99,14 @@ static void sleep_stripe_draw(const ChartRender *r, void *user) {
         // Full slot pitch → a continuous band across adjacent sleeping hours.
         const int x = chart_slot_bar_x(&r->geo, i) - r->geo.slots.bar_dx;
         const GRect rect = GRect(x, stripe_y, pitch, h);
-#if defined(PBL_COLOR)
+        // DEEP = the stronger fill (Blue on colour, theme_fg() on B&W); LIGHT =
+        // VividCerulean on colour, GColorLightGray on B&W (untouched — a data gray,
+        // not a default-foreground white; stays distinguishable from a now-black
+        // DEEP band in the light theme too).
         graphics_context_set_fill_color(r->ctx,
-            state == HEALTH_SLEEP_DEEP ? GColorBlue : GColorVividCerulean);
+            state == HEALTH_SLEEP_DEEP ? theme_pick(GColorBlue, theme_fg())
+                                       : theme_pick(GColorVividCerulean, GColorLightGray));
         graphics_fill_rect(r->ctx, rect, 0, GCornerNone);
-#else
-        // DEEP = the stronger fill (theme_fg()); LIGHT = GColorLightGray (untouched —
-        // a data gray, not a default-foreground white; stays distinguishable from a
-        // now-black DEEP band in the light theme too).
-        graphics_context_set_fill_color(r->ctx,
-            state == HEALTH_SLEEP_DEEP ? theme_fg() : GColorLightGray);
-        graphics_fill_rect(r->ctx, rect, 0, GCornerNone);
-#endif
     }
 }
 
@@ -385,7 +381,7 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
         .values = s_steps, .count = visible_slots,
         .lo = 0, .hi = s_step_hi,
         .stops = step_stops, .num_stops = 1,
-        .style = PBL_IF_COLOR_ELSE(BAR_SOLID, BAR_OUTLINED) } };
+        .style = theme_is_bw() ? BAR_OUTLINED : BAR_SOLID } };
 
     // Always add the HR line: the cache stores CHART_ABSENT for hours with no
     // reading, so the solid line breaks across gaps and draws nothing when HR is
@@ -393,7 +389,7 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
     layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
         .values = s_hr, .count = visible_slots,
         .lo = HEALTH_HR_LO, .hi = HEALTH_HR_HI,
-        .color = PBL_IF_COLOR_ELSE(GColorRed, theme_fg()),
+        .color = theme_pick(GColorRed, theme_fg()),
         .width = 3,
         // Normal top margin; the bottom reserves the sleep-stripe height plus a gap
         // so low sleeping-hour HR readings ride clear above the stripe instead of

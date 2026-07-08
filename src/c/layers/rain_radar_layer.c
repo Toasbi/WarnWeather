@@ -45,7 +45,7 @@
 
 // Hatch line spacing for the 1km background bars. Matches the night-shading
 // stride for visual consistency.
-#define RADAR_HATCH_SPACING PBL_IF_COLOR_ELSE(6, 7)
+#define RADAR_HATCH_SPACING (theme_is_bw() ? 7 : 6)
 
 // Hatch fill colour for the 1km nearby-rain shape. Matches the
 // night-region hatch (DarkGray on colour, theme_fg() on B&W) so the fill
@@ -120,29 +120,34 @@ static GColor border_color_for_slot(uint8_t exact_t, uint8_t area_t) {
 }
 
 // Draw a dotted horizontal/vertical line segment for the nearby border on
-// B&W devices; fall back to a solid line on colour devices.
+// B&W devices (hardware or the color-build Black & White theme); fall back
+// to a solid line on effectively-color devices.
 static void nearby_border_h_line(GContext *ctx, int16_t x0, int16_t x1, int16_t y) {
 #ifdef PBL_COLOR
-    graphics_draw_line(ctx, GPoint(x0, y), GPoint(x1, y));
-#else
+    if (!theme_is_bw()) {
+        graphics_draw_line(ctx, GPoint(x0, y), GPoint(x1, y));
+        return;
+    }
+#endif
     graphics_context_set_stroke_color(ctx, theme_fg());
     if (x0 > x1) { int16_t t = x0; x0 = x1; x1 = t; }
     for (int16_t x = x0; x <= x1; x += 2) {
         graphics_draw_pixel(ctx, GPoint(x, y));
     }
-#endif
 }
 
 static void nearby_border_v_line(GContext *ctx, int16_t x, int16_t y0, int16_t y1) {
 #ifdef PBL_COLOR
-    graphics_draw_line(ctx, GPoint(x, y0), GPoint(x, y1));
-#else
+    if (!theme_is_bw()) {
+        graphics_draw_line(ctx, GPoint(x, y0), GPoint(x, y1));
+        return;
+    }
+#endif
     graphics_context_set_stroke_color(ctx, theme_fg());
     if (y0 > y1) { int16_t t = y0; y0 = y1; y1 = t; }
     for (int16_t y = y0; y <= y1; y += 2) {
         graphics_draw_pixel(ctx, GPoint(x, y));
     }
-#endif
 }
 
 // Pass 1: 1km background bars. Per slot with area > 0, hatch-fill a
@@ -305,7 +310,7 @@ static void radar_or_snooze_update_proc(Layer *layer, GContext *ctx) {
         { CHART_LAYER_BARS, .bars = {
               .values = exact_pm, .count = RADAR_NUM_SLOTS, .lo = 0, .hi = 1000,
               .stops = radar_stops, .num_stops = radar_num_stops,
-              .style = PBL_IF_COLOR_ELSE(BAR_SOLID, BAR_OUTLINED) } },
+              .style = theme_is_bw() ? BAR_OUTLINED : BAR_SOLID } },
     };
     chart_draw(ctx, &RADAR_DEF, outer, layers,
                (int)(sizeof(layers) / sizeof(layers[0])));

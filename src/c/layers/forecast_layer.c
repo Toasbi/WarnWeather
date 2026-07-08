@@ -16,9 +16,9 @@
 #define TEMP_LABEL_PAD 2
 #define TEMP_LABEL_MEASURE_BOX_W 200
 #define TEMP_LABEL_MEASURE_BOX_H 40
-#define NIGHT_HATCH_SPACING PBL_IF_COLOR_ELSE(6, 7)
+#define NIGHT_HATCH_SPACING (theme_is_bw() ? 7 : 6)
 #define NIGHT_HATCH_COLOR GColorDarkGray
-#define NIGHT_BOUNDARY_COLOR PBL_IF_COLOR_ELSE(GColorDarkGray, GColorLightGray)
+#define NIGHT_BOUNDARY_COLOR theme_pick(GColorDarkGray, GColorLightGray)
 // The night base/hatch/boundary for the FILLED area are derived per metric from
 // the day fill colour PKJS sent (night_area_palette_for_fill), so each metric
 // keeps its own hue at night. B&W has no range, so the night-area path draws White
@@ -76,7 +76,7 @@ static void load_dataset(ForecastDataset *ds) {
     // Per-id literals — every value (incl. resolved color) set inline.
     ds->series[SERIES_FIRST] = (Series){
         .id = SERIES_FIRST, .kind = SERIES_KIND_LINE, .present = (n > 0),
-        .line = { .color = PBL_IF_COLOR_ELSE(GColorRed, theme_fg()),
+        .line = { .color = theme_pick(GColorRed, theme_fg()),
                   .width = 3, .inset_y = BOTTOM_VIEW_PRIMARY_LINE_INSET_Y } };
 
     ds->series[SERIES_SECOND] = (Series){
@@ -97,7 +97,7 @@ static void load_dataset(ForecastDataset *ds) {
     ds->series[SERIES_BARS] = (Series){
         .id = SERIES_BARS, .kind = SERIES_KIND_BARS,
         .present = persist_series_present(SERIES_BARS),
-        .bars = { .style = PBL_IF_COLOR_ELSE(BAR_SOLID, BAR_OUTLINED) } };
+        .bars = { .style = theme_is_bw() ? BAR_OUTLINED : BAR_SOLID } };
     // .bars.stops/.num_stops are attached at render (scaled palette).
 
     if (n > 0) {
@@ -421,18 +421,18 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         const NightAreaPalette np = night_area_palette_for_fill(second->line.fill_color);
         layers[n++] = (ChartLayer){ CHART_LAYER_HATCH, .hatch = {
             .bands = night_bands, .num_bands = num_night_bands,
-            .hatch_color    = PBL_IF_COLOR_ELSE(np.hatch, theme_fg()),
-            .boundary_color = PBL_IF_COLOR_ELSE(np.boundary, theme_fg()),
+            .hatch_color    = theme_pick(np.hatch, theme_fg()),
+            .boundary_color = theme_pick(np.boundary, theme_fg()),
             .spacing        = NIGHT_HATCH_SPACING,
             .underlay_color = np.base,
-            .has_underlay   = PBL_IF_COLOR_ELSE(true, false),
+            .has_underlay   = !theme_is_bw(),
             .contour        = area_pts, .contour_count = ds.num_entries } };
     }
     // night_over is the full-height day/night hatch — independent of line/bars.
     if (night_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_HATCH, .hatch = {
             .bands = night_bands, .num_bands = num_night_bands,
-            .hatch_color    = PBL_IF_COLOR_ELSE(NIGHT_HATCH_COLOR, theme_fg()),
+            .hatch_color    = theme_pick(NIGHT_HATCH_COLOR, theme_fg()),
             .boundary_color = NIGHT_BOUNDARY_COLOR,
             .spacing        = NIGHT_HATCH_SPACING,
             .contour        = NULL } };

@@ -144,11 +144,10 @@ static void ensure_rain_glyph_loaded(int bucket, int side, GColor tint) {
 // the default foreground.
 static GColor rain_glyph_color(int tier) {
 #ifdef PBL_COLOR
-    return palette_radar_color(tier);
-#else
+    if (!theme_is_bw()) { return palette_radar_color(tier); }
+#endif
     (void) tier;
     return theme_fg();
-#endif
 }
 
 static void draw_status_text_in(GContext *ctx, GRect rect, const char *text,

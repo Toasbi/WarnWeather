@@ -88,7 +88,7 @@ static void battery_update_proc(Layer *layer, GContext *ctx) {
         color_bounds.origin.x, color_bounds.origin.y,
         color_bounds.size.w * (battery_level + 10) / 110, color_bounds.size.h);
 #ifdef PBL_COLOR
-    graphics_context_set_fill_color(ctx, get_battery_color(battery_level));
+    graphics_context_set_fill_color(ctx, theme_is_bw() ? theme_fg() : get_battery_color(battery_level));
 #else
     graphics_context_set_fill_color(ctx, theme_fg());
 #endif
