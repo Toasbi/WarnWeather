@@ -6,16 +6,18 @@
 // compiles the whole module + every call site out (see main_window.c).
 #if defined(PBL_HEALTH)
 
-// Bucket count above which a recalc DEFERS (one-shot app_timer) and shows the
-// loading state instead of reading inline. 2 => only multi-hour catch-ups and
-// the full build defer; the current-hour (1) and single-rollover (2) refreshes
-// run inline.
-#define HEALTH_CACHE_LOADING_THRESHOLD 2
+// Rollover/restore gaps up to this many trailing buckets keep the cache ready
+// (the slid buckets stay on screen) and refill in background slices; larger
+// catch-ups drop to the loading state first — slid data hours stale is worse
+// than the loading frame.
+#define HEALTH_CACHE_PAINT_FIRST_MAX 2
 
-// Buckets filled per deferred build tick. The build re-arms an app_timer between
-// chunks so the UI thread yields, preventing the freeze a single 24-bucket read
-// caused. Tune on device: smaller = smoother but longer total build.
-#define HEALTH_CACHE_BUILD_CHUNK 4
+// Buckets filled per deferred build slice. 1 => at most two minute-history
+// reads (steps + HR) per event-loop turn; the whole-window sleep iterate gets
+// a slice of its own. Bigger slices block taps/ticks for the whole burst — the
+// 2-6 s frozen-flick bug was 4-bucket slices (8 reads back-to-back) plus the
+// hourly rollover reading inline in the tick handler.
+#define HEALTH_CACHE_BUILD_CHUNK 1
 
 // Repaint hook: invoked after a deferred (re)build finishes so the health view
 // can redraw from the now-ready cache. main_window registers
@@ -26,19 +28,23 @@ void health_cache_set_repaint(HealthCacheRepaintCb cb);
 /**
  * THE single recompute entry point. Recomputes the trailing `count` buckets of
  * the MAX_BOTTOM_VIEW_ENTRIES window whose in-progress (last) bucket starts at
- * `end_hour`. count > HEALTH_CACHE_LOADING_THRESHOLD clears ready, paints the
- * loading state, and runs the reads from a one-shot app_timer; otherwise the
- * reads run inline. Assumes buckets outside the trailing `count` are already
- * valid for `end_hour` (the tick slides them before calling for a rollover).
+ * `end_hour`. count == 1 (the current-hour refresh) runs inline — one
+ * minute-history read plus the live-BPM peek; any multi-bucket recompute
+ * clears ready, paints the loading state, and runs sliced from one-shot
+ * app_timers (see HEALTH_CACHE_BUILD_CHUNK) so no handler ever blocks on a
+ * read burst. Assumes buckets outside the trailing `count` are already valid
+ * for `end_hour` (the tick slides them before calling for a rollover).
  */
 void health_cache_recalc(time_t end_hour, int count);
 
 /**
  * Per-minute upkeep, called from minute_handler while health is enabled. At an
- * hour rollover it slides the window and finalizes the completed hour(s)
- * (always); when `view_visible`, it also re-reads the in-progress hour on a
- * 15-min cadence. Self-heals (reset) if it ever finds the cache neither ready
- * nor building.
+ * hour rollover it slides the window and refills the trailing bucket(s) in
+ * background slices — the cache stays ready and the slid data stays on screen;
+ * no HealthService call runs inside the tick itself. When `view_visible`, it
+ * also re-reads the in-progress hour (inline, single read) on a 15-min
+ * cadence. While a build/refresh is in flight it waits; self-heals (reset) if
+ * it ever finds the cache neither ready nor building.
  */
 void health_cache_tick(bool view_visible);
 
@@ -50,8 +56,8 @@ void health_cache_reset(void);
 
 /**
  * Cheap in-progress-hour re-read for the flick path. No-op unless the cache is
- * ready and still aligned to the current hour (a pending rollover is left to
- * the tick).
+ * ready, no build/refresh is in flight, and it is still aligned to the current
+ * hour (a pending rollover is left to the tick).
  */
 void health_cache_refresh_current_hour(void);
 

@@ -12,15 +12,16 @@
 #define N    MAX_BOTTOM_VIEW_ENTRIES
 #define STEP BOTTOM_VIEW_STEP_SECONDS
 
-// Delay before the deferred (re)build runs, so the loading frame paints first.
-// Imperceptible; tune on device if a build ever feels laggy behind it.
+// Delay before a LOADING (re)build's first slice runs, so the loading frame
+// paints first. Imperceptible; tune on device if a build ever feels laggy
+// behind it.
 #define HEALTH_CACHE_DEFER_MS 1500
 
-// Delay before a paint-first restore's top-up recalc runs, so the first paint
-// (persisted buckets) lands before the HealthService reads. Ordering is not a
-// correctness concern — worst case the top-up merely makes the already-painted
-// graph fully current — the delay only preserves the latency win. Tune on device.
-#define HEALTH_CACHE_TOPUP_MS 100
+// Delay before a BACKGROUND refresh's first slice runs (hour rollover, restore
+// top-up): the cache stays ready and the current paint stays on screen, so this
+// only has to let the calling handler finish before the reads start. Ordering
+// is not a correctness concern — worst case a repaint lands one slice early.
+#define HEALTH_CACHE_BG_DELAY_MS 100
 
 // --- Cache storage (module .bss, no heap) ---------------------------------
 static int16_t s_steps[N];
@@ -28,18 +29,15 @@ static int16_t s_hr[N];
 static uint8_t s_sleep[N];
 static time_t  s_end_hour;        // top of the current hour = start of bucket N-1
 
-static bool       s_ready;        // valid + current?
-static bool       s_build_pending;// a deferred recalc timer is scheduled
-static int        s_pending_count;// trailing bucket count the deferred build recomputes
+static bool       s_ready;        // valid enough to paint? (stays true through a background refresh)
+static bool       s_build_pending;// a sliced build/refresh is armed or mid-flight
+static int        s_pending_count;// trailing bucket count the sliced build recomputes
 static AppTimer  *s_timer;
 static HealthCacheRepaintCb s_repaint;
 
 static int  s_build_next;       // next window-bucket index to fill (ascending)
 static int  s_build_start;      // first bucket index this build owns
 static bool s_build_sleep_done; // one-shot sleep iterate has run this build
-
-static int  s_topup_count;      // trailing bucket count the deferred restore top-up refills (<= 2)
-static bool s_topup_pending;    // a paint-first restore top-up is armed but not yet run
 
 static time_t current_hour_top(void) {
     const time_t now = time(NULL);
@@ -76,22 +74,27 @@ static void health_cache_fill_range(int start, int len) {
     }
 }
 
-// One deferred build chunk: fill up to CHUNK step/HR buckets, then re-arm; once all
-// buckets are filled, run the single sleep iterate, set the in-progress HR, mark ready.
+// One build slice. Every slice does at most ONE kind of work, then yields the
+// event loop (re-arms a 0 ms timer), so a tap or tick queued behind it waits a
+// fraction of a second, not the whole read burst:
+//   fill slices  — HEALTH_CACHE_BUILD_CHUNK bucket(s) of steps + completed-HR
+//   sleep slice  — the whole-window activities iterate (one un-splittable SDK call)
+//   final slice  — live-BPM peek for the in-progress bucket, mark ready, repaint
 static void health_cache_build_step(void *ctx) {
+    (void)ctx;
     s_timer = NULL;
     const int len = health_build_chunk_len(s_build_next, N, HEALTH_CACHE_BUILD_CHUNK);
     if (len > 0) {
         health_cache_fill_range(s_build_next, len);
         s_build_next += len;
-    }
-    if (s_build_next < N) {
         s_timer = app_timer_register(0, health_cache_build_step, NULL);  // yield, continue
         return;
     }
     if (!s_build_sleep_done) {
         health_fill_hourly_sleep(s_sleep, N, s_end_hour + STEP);  // one iterate over the window
         s_build_sleep_done = true;
+        s_timer = app_timer_register(0, health_cache_build_step, NULL);  // yield, finalize next
+        return;
     }
     const int bpm = health_hr_current();                          // in-progress hour = live BPM
     s_hr[N - 1] = (bpm > 0) ? (int16_t)bpm : CHART_ABSENT;
@@ -100,56 +103,57 @@ static void health_cache_build_step(void *ctx) {
     if (s_repaint) { s_repaint(); }
 }
 
+// Arm the sliced recompute of the trailing `count` buckets. show_loading drops
+// the cache to the loading state first (full/stale rebuilds — there is nothing
+// current to paint); a background refresh (hour rollover, restore top-up)
+// keeps s_ready and the on-screen data while the slices refill behind it.
+static void health_cache_start_build(int count, bool show_loading) {
+    if (s_timer) { app_timer_cancel(s_timer); s_timer = NULL; }
+    s_build_pending = true;
+    s_build_start = N - count;
+    s_build_next = s_build_start;
+    s_build_sleep_done = false;
+    s_pending_count = count;                    // kept for introspection/parity
+    if (show_loading) {
+        s_ready = false;
+        s_timer = app_timer_register(HEALTH_CACHE_DEFER_MS, health_cache_build_step, NULL);
+        if (s_repaint) { s_repaint(); }         // loading frame first
+    } else {
+        s_timer = app_timer_register(HEALTH_CACHE_BG_DELAY_MS, health_cache_build_step, NULL);
+    }
+}
+
 void health_cache_recalc(time_t end_hour, int count) {
     if (count < 1) { return; }
     if (count > N) { count = N; }
     s_end_hour = end_hour;
 
-    if (count > HEALTH_CACHE_LOADING_THRESHOLD) {
-        // Deferred, chunked build: paint loading now, fill a few buckets per timer tick.
-        if (s_timer) { app_timer_cancel(s_timer); s_timer = NULL; }
-        s_ready = false;
-        s_build_pending = true;
-        s_build_start = N - count;
-        s_build_next = s_build_start;
-        s_build_sleep_done = false;
-        s_pending_count = count;                    // kept for introspection/parity
-        s_timer = app_timer_register(HEALTH_CACHE_DEFER_MS, health_cache_build_step, NULL);
-        if (s_repaint) { s_repaint(); }             // loading frame first
-    } else {
-        // Cheap inline path (current-hour refresh / single rollover): fill now.
-        const int start = N - count;
-        health_cache_fill_range(start, count);
-        if (count >= 2) { health_fill_hourly_sleep(s_sleep, N, s_end_hour + STEP); }
+    if (count == 1) {
+        // Cheap inline path (current-hour refresh): one minute-history read
+        // (steps; HR of the in-progress bucket comes from the peek) — safe to
+        // run inside a handler.
+        health_cache_fill_range(N - 1, 1);
         const int bpm = health_hr_current();
         s_hr[N - 1] = (bpm > 0) ? (int16_t)bpm : CHART_ABSENT;
         s_ready = true;
+        return;
     }
-}
-
-// Deferred restore top-up: refill the trailing live bucket(s) (steps + HR +
-// live BPM) off the first-paint path, then redraw. s_topup_count stays
-// <= HEALTH_CACHE_LOADING_THRESHOLD, so health_cache_recalc takes its inline
-// branch — the chunked path is unreachable from here. health_cache_recalc
-// re-sets s_end_hour to the same value; if an intervening tick rollover
-// advanced s_end_hour, the recalc correctly anchors to the new hour.
-static void health_cache_restore_topup(void *ctx) {
-    s_timer = NULL;
-    health_cache_recalc(s_end_hour, s_topup_count);
-    s_topup_pending = false;
-    if (s_repaint) { s_repaint(); }   // redraw with the topped-up live data
+    // Any multi-bucket recompute runs sliced behind the loading state. Nothing
+    // multi-read may run inline in a handler — that was the frozen-flick bug.
+    health_cache_start_build(count, true);
 }
 
 // Slide the kept buckets to the front and recompute the trailing gap via the
 // existing rollover contract in health_build_rollover. Shared by
-// health_cache_tick (same-session hour rollover, paint_first = false: sync
-// recalc as before) and health_cache_restore (catch-up after a relaunch,
-// paint_first = true: a fresh-enough restore paints the persisted buckets
-// immediately and defers the trailing HealthService reads to
-// health_cache_restore_topup). Returns false when health_build_rollover
-// itself calls for a full rebuild (backward jump, or gap >= N) — the caller
-// falls back to health_cache_recalc(now_hour, N) / health_cache_reset().
-static bool health_cache_rollover_to(time_t now_hour, bool paint_first) {
+// health_cache_tick (same-session hour rollover) and health_cache_restore
+// (catch-up after a relaunch). A small gap (<= HEALTH_CACHE_PAINT_FIRST_MAX)
+// keeps painting the slid buckets and refills the trailing one(s) in background
+// slices; a larger gap means the slid data is hours stale — drop to the loading
+// state and rebuild the trailing gap sliced. Returns false when
+// health_build_rollover itself calls for a full rebuild (backward jump, or
+// gap >= N) — the caller falls back to health_cache_recalc(now_hour, N) /
+// health_cache_reset().
+static bool health_cache_rollover_to(time_t now_hour) {
     int keep = 0, recalc = 0;
     if (health_build_rollover(s_end_hour, now_hour, STEP, N, &keep, &recalc)) {
         return false;
@@ -158,19 +162,18 @@ static bool health_cache_rollover_to(time_t now_hour, bool paint_first) {
     memmove(&s_steps[0], &s_steps[gap], (size_t)keep * sizeof(int16_t));
     memmove(&s_hr[0],    &s_hr[gap],    (size_t)keep * sizeof(int16_t));
     memmove(&s_sleep[0], &s_sleep[gap], (size_t)keep * sizeof(uint8_t));
-    if (paint_first && recalc <= HEALTH_CACHE_LOADING_THRESHOLD) {
-        // Fresh restore: show the persisted buckets NOW, top up the trailing
-        // live buckets off the first-paint path. The repaint computes from the
-        // cache only (health_graph_compute makes no HealthService calls).
-        s_end_hour = now_hour;                 // recalc would set this; set it for the paint
+    if (recalc <= HEALTH_CACHE_PAINT_FIRST_MAX) {
+        // Common case (hourly rollover, fresh restore): show the slid buckets
+        // NOW — the trailing one(s) hold last hour's values for well under a
+        // second — and refill them off the handler path. The old inline recalc
+        // here (3 minute-history reads + a whole-window sleep iterate inside
+        // the minute tick) was the multi-second freeze at every HH:00.
+        s_end_hour = now_hour;                 // the sliced build reads against this anchor
         s_ready = true;
-        if (s_repaint) { s_repaint(); }        // compute + paint persisted data now
-        s_topup_count = recalc;
-        s_topup_pending = true;
-        if (s_timer) { app_timer_cancel(s_timer); s_timer = NULL; }
-        s_timer = app_timer_register(HEALTH_CACHE_TOPUP_MS, health_cache_restore_topup, NULL);
+        if (s_repaint) { s_repaint(); }        // compute + paint the slid data now
+        health_cache_start_build(recalc, false);
     } else {
-        health_cache_recalc(now_hour, recalc);  // tick (sync) or stale restore (chunked loading)
+        health_cache_recalc(now_hour, recalc);  // stale catch-up: loading + sliced
     }
     return true;
 }
@@ -180,11 +183,11 @@ void health_cache_reset(void) {
     s_ready = false;
     s_build_pending = false;
     s_build_sleep_done = false;
-    health_cache_recalc(current_hour_top(), N);   // full build => chunked + loading
+    health_cache_recalc(current_hour_top(), N);   // full build => sliced + loading
 }
 
 void health_cache_persist_save(void) {
-    if (!s_ready || s_topup_pending) { return; }   // never persist a mid-build or pre-top-up snapshot
+    if (!s_ready || s_build_pending) { return; }   // never persist a mid-build/mid-refresh snapshot
     persist_set_health_cache_steps(s_steps, N);
     persist_set_health_cache_hr(s_hr, N);
     persist_set_health_cache_sleep(s_sleep, N);
@@ -197,26 +200,24 @@ bool health_cache_restore(void) {
     if (persist_get_health_cache_hr(s_hr, N) != (int)(N * sizeof(int16_t))) { return false; }
     if (persist_get_health_cache_sleep(s_sleep, N) != (int)(N * sizeof(uint8_t))) { return false; }
     s_end_hour = persist_get_health_cache_end_hour();
-    return health_cache_rollover_to(current_hour_top(), true);
+    return health_cache_rollover_to(current_hour_top());
 }
 
 void health_cache_refresh_current_hour(void) {
-    if (!s_ready) { return; }                       // build pending / never built
+    if (!s_ready || s_build_pending) { return; }    // never built / build or refresh in flight
     if (current_hour_top() != s_end_hour) { return; } // rollover pending => leave it to the tick
     health_cache_recalc(s_end_hour, 1);             // inline, cheap (steps + live BPM)
 }
 
 void health_cache_tick(bool view_visible) {
-    if (!s_ready) {
-        if (!s_build_pending) { health_cache_reset(); }  // defensive: shouldn't happen
-        return;                                          // build in flight: wait
-    }
+    if (s_build_pending) { return; }                     // build/refresh in flight: wait
+    if (!s_ready) { health_cache_reset(); return; }      // defensive: shouldn't happen
 
     const time_t now      = time(NULL);
     const time_t now_hour = now - (now % STEP);
 
     if (now_hour != s_end_hour) {
-        if (!health_cache_rollover_to(now_hour, false)) {
+        if (!health_cache_rollover_to(now_hour)) {
             health_cache_recalc(now_hour, N);   // full rebuild
         }
         return;
