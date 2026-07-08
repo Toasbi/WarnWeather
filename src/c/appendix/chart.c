@@ -140,6 +140,20 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
         const int bar_x   = chart_slot_bar_x(&r->geo, i);
         const int bar_top = plot_bottom - bar_h;
 
+        // Color-only bar-separation halo: a 1px theme_bg() ring outside the bar's
+        // left/right/top edges, painted before the segment fills so the colored
+        // segments keep their full width/height on top. Not expanded downward — the
+        // x-axis baseline sits there, and painting bg over it would notch the axis.
+        // B&W builds/themes skip this: theme_is_bw() is a compile-time constant-true
+        // macro there, so the whole block (and this GColor arm) compiles out; the
+        // BAR_OUTLINED fg silhouette below is B&W's own separation aid.
+        if (!theme_is_bw()) {
+            graphics_context_set_fill_color(r->ctx, theme_bg());
+            graphics_fill_rect(r->ctx,
+                GRect(bar_x - 1, bar_top - 1, r->def->bar_w + 2, bar_h + 1),
+                0, GCornerNone);
+        }
+
         for (int k = 0; k < b->num_stops; ++k) {
             int seg_bottom = plot_bottom
                            - chart_scale_h(b->stops[k].from, b->lo, b->hi, plot_h);
