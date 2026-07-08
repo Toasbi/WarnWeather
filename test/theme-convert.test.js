@@ -26,6 +26,39 @@ test('dark <-> bw is not a polarity change: no conversion', () => {
   assert.equal(S.colorTime, '#FFFFFF');
 });
 
+test('light <-> bw-light is not a polarity change: no conversion', () => {
+  const S = { colorTime: '#000000' };
+  applyThemeConvert(S, 'light', 'bw-light');
+  assert.equal(S.colorTime, '#000000');
+  applyThemeConvert(S, 'bw-light', 'light');
+  assert.equal(S.colorTime, '#000000');
+});
+
+test('dark -> bw-light IS a polarity change: white picks convert to black', () => {
+  const S = { colorTime: '#FFFFFF', colorSunday: '#FFFFFF' };
+  applyThemeConvert(S, 'dark', 'bw-light');
+  assert.equal(S.colorTime, '#000000');
+  assert.equal(S.colorSunday, '#000000');
+});
+
+test('bw -> bw-light IS a polarity change: white picks convert to black', () => {
+  const S = { colorTime: '#FFFFFF' };
+  applyThemeConvert(S, 'bw', 'bw-light');
+  assert.equal(S.colorTime, '#000000');
+});
+
+test('bw-light -> dark IS a polarity change: black picks convert to white', () => {
+  const S = { colorTime: '#000000' };
+  applyThemeConvert(S, 'bw-light', 'dark');
+  assert.equal(S.colorTime, '#FFFFFF');
+});
+
+test('bw-light -> bw IS a polarity change: black picks convert to white', () => {
+  const S = { colorTime: '#000000' };
+  applyThemeConvert(S, 'bw-light', 'bw');
+  assert.equal(S.colorTime, '#FFFFFF');
+});
+
 test('colorToday is exempt from conversion (black is the "auto" sentinel, not a color)', () => {
   const S = { colorToday: '#000000' };
   applyThemeConvert(S, 'dark', 'light');

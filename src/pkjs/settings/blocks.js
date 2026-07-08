@@ -120,16 +120,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="' + fill + '"></rect>';
     }
 
+    // Local mirrors of resolve-ink.js's isLightPolarity/isBwTheme — the source of truth
+    // for both axes (see src/pkjs/resolve-ink.js). Inlined rather than require()'d
+    // because this file runs standalone in the webview as a concatenated <script> (see
+    // scripts/build-config-page.js's APP_FILES), which resolve-ink.js isn't wired into.
+    function isLightPolarity(theme) { return theme === 'light' || theme === 'bw-light'; }
+    function isBwTheme(theme) { return theme === 'bw' || theme === 'bw-light'; }
+
     /**
      * Theme-aware ink for preview canvases: white-on-black in dark/bw, black-on-white
-     * in light. Structural chrome only (backgrounds, dividers, axis lines) — hued data
-     * colors and the muted gray label/legend palette are untouched (known v1 limit:
-     * graph hues/data-grays are untuned on light backgrounds).
-     * @param {string} theme 'dark'|'light'|'bw'.
+     * in light/bw-light. Structural chrome only (backgrounds, dividers, axis lines) —
+     * hued data colors and the muted gray label/legend palette are untouched (known v1
+     * limit: graph hues/data-grays are untuned on light backgrounds).
+     * @param {string} theme 'dark'|'light'|'bw'|'bw-light'.
      * @returns {{bg: string, fg: string, rgba: function(number): string}} Theme ink set.
      */
     function previewInk(theme) {
-        var light = theme === 'light';
+        var light = isLightPolarity(theme);
         return {
             bg: light ? '#FFFFFF' : '#000000',
             fg: light ? '#000000' : '#FFFFFF',
@@ -183,8 +190,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /* ---- forecastPreview: adapted from index.html:231-267 forecastSVG ---- */
     function forecastPreview(state, env, userData) {
         // Effective color: a color display renders as color only when the theme isn't
-        // Black & White — a bw theme reuses the exact preview a B&W watch gets.
-        var isColor = !(env && !env.color) && state.theme !== 'bw';
+        // Black & White — a bw/bw-light theme reuses the exact preview a B&W watch gets.
+        var isColor = !(env && !env.color) && !isBwTheme(state.theme);
         var ink = previewInk(state.theme);
         var P = (userData && userData.palette) || FALLBACK_PALETTE;
 
@@ -237,14 +244,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 if (!e) { result = P.white; }
                 else { result = isColor ? e.color : e.bw; }
             }
-            // Flip an exactly-white resolved color to black in the light theme (dark/bw
-            // stay white-on-black); hued colors pass through untouched.
-            return (state.theme === 'light' && result === '#FFFFFF') ? '#000000' : result;
+            // Flip an exactly-white resolved color to black in a light-polarity theme
+            // (dark/bw stay white-on-black); hued colors pass through untouched.
+            return (isLightPolarity(state.theme) && result === '#FFFFFF') ? '#000000' : result;
         }
         /**
          * Per-metric area-fill color (every metric can fill, matching the watch). Null for an
          * unknown metric. Sourced from the palette so it can't diverge from forecast-series;
-         * the light theme swaps in the brighter `light` tint instead of the dark-theme shade.
+         * a light-polarity theme swaps in the brighter `light` tint instead of the dark-theme
+         * shade. Gated behind the `!isColor` check above, so bw/bw-light never reach this
+         * branch — they resolve to e.bw instead (mirrors forecast-series.fillColorFor).
          * @param {string} metric precip_prob|wind|gust|uv
          * @returns {?string} #RRGGBB or null
          */
@@ -252,7 +261,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var e = P.fill[metric];
             if (!e) { return null; }
             if (!isColor) { return e.bw; }
-            return state.theme === 'light' ? e.light : e.color;
+            return isLightPolarity(state.theme) ? e.light : e.color;
         }
         var tempColor = isColor ? P.temp : ink.fg;
         var tempW = isColor ? 2.2 : 3;               // B&W: thick temp vs thin main line
@@ -405,8 +414,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /* ---- radarPreview: adapted from index.html:270-286 radarSVG ----------- */
     function radarPreview(state, env, userData) {
         // Effective color: a color display renders as color only when the theme isn't
-        // Black & White — a bw theme reuses the exact preview a B&W watch gets.
-        var isColor = !(env && !env.color) && state.theme !== 'bw';
+        // Black & White — a bw/bw-light theme reuses the exact preview a B&W watch gets.
+        var isColor = !(env && !env.color) && !isBwTheme(state.theme);
         var ink = previewInk(state.theme);
         if (state.radarProvider === 'disabled') {
             return svgFrame(rect(0, 0, 200, 120, ink.bg) + txt(100, 63, 10, '#566072', 'middle', 700, 'Radar off — enable a provider'));

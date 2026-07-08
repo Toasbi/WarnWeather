@@ -42,7 +42,7 @@ function buildClayPayload(settings, watchInfo, now) {
         "CLAY_START_MON": settings.weekStartDay === 'mon',
         "CLAY_PREV_WEEK": settings.firstWeek === 'prev',
         "CLAY_TOP_VIEW_MODE": topViewIdx,
-        "CLAY_THEME": ['dark', 'light', 'bw'].indexOf(theme),
+        "CLAY_THEME": ['dark', 'light', 'bw', 'bw-light'].indexOf(theme),
         "CLAY_TIME_FONT": ['roboto', 'leco', 'bitham'].indexOf(settings.timeFont),
         "CLAY_SHOW_QT": settings.showQt,
         "CLAY_SHOW_BT": settings.btIcons === "connected" || settings.btIcons === "both",

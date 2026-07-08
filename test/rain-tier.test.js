@@ -91,6 +91,11 @@ test('buildPalette: bw theme on a color platform collapses to the single-black-s
   assert.deepEqual(p, { from: [0], rgb: [0x000000] });
 });
 
+test('buildPalette: bw-light theme on a color platform also collapses to a single black stop, ignoring colorMode', () => {
+  assert.deepEqual(rainTier.buildPalette('basalt', 'multicolor', 'bw-light'), { from: [0], rgb: [0x000000] });
+  assert.deepEqual(rainTier.buildPalette('basalt', 'white', 'bw-light'), { from: [0], rgb: [0x000000] });
+});
+
 test("buildPalette: 'white' mode flips to a single black stop in the light theme", () => {
   const p = rainTier.buildPalette('basalt', 'white', 'light');
   assert.deepEqual(p, { from: [0], rgb: [0x000000] });

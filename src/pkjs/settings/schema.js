@@ -64,9 +64,10 @@ module.exports = {
                 hintByValue: {
                     dark: 'Black background, white text/lines (default).',
                     light: 'White background, black text/lines. Graph colors are unchanged for now.',
-                    bw: 'Renders exactly like a Black & White watch — same colors, same drawing.'
+                    bw: 'Renders exactly like a Black & White watch — same colors, same drawing.',
+                    'bw-light': 'Renders exactly like a Black & White watch in its Light theme — black on white.'
                 },
-                options: [['Dark', 'dark'], ['Light', 'light'], ['Black & White', 'bw']],
+                options: [['Dark', 'dark'], ['Light', 'light'], ['Black & White', 'bw'], ['B&W Light', 'bw-light']],
                 showWhen: {env: 'color'},
                 onChange: 'themeConvert'
             }, {
@@ -230,15 +231,15 @@ module.exports = {
                 joinPrevious: true,
                 text: SCALE_NOTE,
                 capabilities: ['COLOR'],
-                showWhen: {all: [{key: 'barSource', eq: 'rain'}, {key: 'theme', ne: 'bw'}]}
+                showWhen: {all: [{key: 'barSource', eq: 'rain'}, {key: 'theme', nin: ['bw', 'bw-light']}]}
             }, {
                 type: 'staticText',
                 joinPrevious: true,
                 text: BW_LEGEND,
                 // Effective color: shows whenever the display isn't rendering as color —
-                // real B&W hardware OR the Black & White theme on a color watch.
+                // real B&W hardware OR the Black & White theme (bw/bw-light) on a color watch.
                 showWhen: {all: [
-                    {not: {all: [{env: 'color'}, {key: 'theme', ne: 'bw'}]}},
+                    {not: {all: [{env: 'color'}, {key: 'theme', nin: ['bw', 'bw-light']}]}},
                     {key: 'barSource', eq: 'rain'}
                 ]}
             }, {
@@ -296,13 +297,13 @@ module.exports = {
                 joinPrevious: true,
                 text: SCALE_NOTE,
                 capabilities: ['COLOR'],
-                showWhen: {all: [{key: 'radarProvider', ne: 'disabled'}, {key: 'theme', ne: 'bw'}]}
+                showWhen: {all: [{key: 'radarProvider', ne: 'disabled'}, {key: 'theme', nin: ['bw', 'bw-light']}]}
             }, {
                 type: 'staticText',
                 joinPrevious: true,
                 text: BW_LEGEND,
                 showWhen: {all: [
-                    {not: {all: [{env: 'color'}, {key: 'theme', ne: 'bw'}]}},
+                    {not: {all: [{env: 'color'}, {key: 'theme', nin: ['bw', 'bw-light']}]}},
                     {key: 'radarProvider', ne: 'disabled'}
                 ]}
             }, {
@@ -435,7 +436,7 @@ module.exports = {
                 label: 'Main time color',
                 defaultValue: 0xFFFFFF,
                 capabilities: ['COLOR'],
-                showWhen: {key: 'theme', ne: 'bw'}
+                showWhen: {key: 'theme', nin: ['bw', 'bw-light']}
             }]
         }, {
             title: 'Calendar', items: [{
@@ -457,21 +458,21 @@ module.exports = {
                 defaultValue: 0,
                 capabilities: ['COLOR'],
                 hint: 'Black (default) means match date color; any other value overrides it.',
-                showWhen: {key: 'theme', ne: 'bw'}
+                showWhen: {key: 'theme', nin: ['bw', 'bw-light']}
             }, {
                 type: 'color',
                 messageKey: 'colorSunday',
                 label: 'Sunday color',
                 defaultValue: 0xFF0055,
                 capabilities: ['COLOR'],
-                showWhen: {key: 'theme', ne: 'bw'}
+                showWhen: {key: 'theme', nin: ['bw', 'bw-light']}
             }, {
                 type: 'color',
                 messageKey: 'colorSaturday',
                 label: 'Saturday color',
                 defaultValue: 0xFF0055,
                 capabilities: ['COLOR'],
-                showWhen: {key: 'theme', ne: 'bw'}
+                showWhen: {key: 'theme', nin: ['bw', 'bw-light']}
             }, {type: 'toggle', messageKey: 'holidaysEnabled', label: 'Holiday highlight', defaultValue: true}, {
                 type: 'color',
                 messageKey: 'colorUSFederal',

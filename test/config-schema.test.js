@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const schema = require('../src/pkjs/settings/schema.js');
 const { REGION_OPTIONS } = require('../src/pkjs/settings/holiday-data.js');
+const showWhen = require('../src/pkjs/config-ui/lib/show-when.js');
 
 function allItems(s) { const out = []; s.tabs.forEach((t) => t.sections.forEach((sec) => sec.items.forEach((it) => out.push(it)))); return out; }
 const items = allItems(schema);
@@ -71,13 +72,24 @@ test('color defaults are ints', () => {
 
 test('B/W bar-scale hints are staticText, gated to effective non-color + the picker condition', () => {
   const hints = items.filter((i) => i.type === 'staticText' && i.showWhen && i.showWhen.all);
-  // Effective color: real B&W hardware OR the Black & White theme on a color watch.
+  // Effective color: real B&W hardware OR the Black & White theme (bw/bw-light) on a color watch.
   const isBwGated = (h, cond) =>
-    JSON.stringify(h.showWhen.all) === JSON.stringify([{ not: { all: [{ env: 'color' }, { key: 'theme', ne: 'bw' }] } }, cond]);
+    JSON.stringify(h.showWhen.all) === JSON.stringify([{ not: { all: [{ env: 'color' }, { key: 'theme', nin: ['bw', 'bw-light'] }] } }, cond]);
   assert.ok(hints.some((h) => isBwGated(h, { key: 'barSource', eq: 'rain' })), 'forecast B/W hint missing');
   assert.ok(hints.some((h) => isBwGated(h, { key: 'radarProvider', ne: 'disabled' })), 'radar B/W hint missing');
   // No messageKey, so they never serialize into the settings blob.
   hints.forEach((h) => assert.equal(h.messageKey, undefined));
+});
+
+test('B/W bar-scale hints actually show for bw-light (not just bw) via the show-when evaluator', () => {
+  const forecastHint = items.find((i) => i.type === 'staticText' && i.showWhen && i.showWhen.all
+    && JSON.stringify(i.showWhen.all).indexOf('barSource') >= 0
+    && JSON.stringify(i.showWhen.all).indexOf('"not"') >= 0);
+  assert.ok(forecastHint, 'forecast B/W hint item found');
+  assert.equal(showWhen.isVisible(forecastHint, { env: { color: true }, theme: 'bw-light', barSource: 'rain' }), true,
+    'B/W legend shows for bw-light on a color env');
+  assert.equal(showWhen.isVisible(forecastHint, { env: { color: true }, theme: 'dark', barSource: 'rain' }), false,
+    'B/W legend hidden for dark on a color env');
 });
 
 test('COLOR-capability + showWhen wiring', () => {
@@ -328,25 +340,39 @@ test('radar intro copy drops mechanics and positions the providers', () => {
   assert.ok(intro.toLowerCase().indexOf('worldwide') >= 0, 'Rainbow positioned as worldwide');
 });
 
-test('theme is a two-slot segmented control (color env: 3 options; B&W env: 2), like windScale', () => {
+test('theme is a two-slot segmented control (color env: 4 options; B&W env: 2), like windScale', () => {
   const themeItems = items.filter((i) => i.messageKey === 'theme');
   assert.equal(themeItems.length, 2);
   const colorItem = themeItems.find((i) => JSON.stringify(i.showWhen).indexOf('"color"') >= 0 || JSON.stringify(i.showWhen) === '{"env":"color"}');
   const bwItem = themeItems.find((i) => i !== colorItem);
-  assert.deepEqual(colorItem.options.map((o) => o[1]), ['dark', 'light', 'bw']);
+  assert.deepEqual(colorItem.options.map((o) => o[1]), ['dark', 'light', 'bw', 'bw-light']);
   assert.deepEqual(bwItem.options.map((o) => o[1]), ['dark', 'light']);
+  assert.ok(colorItem.hintByValue['bw-light'], 'color-env theme item has a bw-light hint');
   themeItems.forEach((i) => {
     assert.equal(i.defaultValue, 'dark');
     assert.equal(i.onChange, 'themeConvert');
   });
 });
 
-test('every capabilities:[COLOR] item additionally requires theme !== bw (effective color)', () => {
+test('every capabilities:[COLOR] item additionally requires theme not in [bw, bw-light] (effective color)', () => {
   const colorGated = items.filter((i) => i.capabilities && i.capabilities.indexOf('COLOR') >= 0);
   assert.ok(colorGated.length > 0, 'expected at least one capabilities:[COLOR] item');
   colorGated.forEach((i) => {
     const asStr = JSON.stringify(i.showWhen || null);
-    assert.ok(asStr.indexOf('"theme"') >= 0, i.messageKey + ' (label "' + i.label + '") is missing a theme!==bw gate: ' + asStr);
+    assert.ok(asStr.indexOf('"theme"') >= 0, i.messageKey + ' (label "' + i.label + '") is missing a theme gate: ' + asStr);
+    // Every such gate must exclude bw-light too, not just bw (nin form, or an eq to
+    // something other than bw/bw-light for the dark/light contextual slots).
+    const isBwLightExcluded = asStr.indexOf('bw-light') >= 0
+      || asStr.indexOf('"eq":"dark"') >= 0 || asStr.indexOf('"eq":"light"') >= 0;
+    assert.ok(isBwLightExcluded, i.messageKey + ' (label "' + i.label + '") does not exclude bw-light: ' + asStr);
+  });
+});
+
+test('bw-light hides every effective-color gate (color pickers, B/W legends, scale notes) via the show-when evaluator', () => {
+  const colorGated = items.filter((i) => i.capabilities && i.capabilities.indexOf('COLOR') >= 0);
+  colorGated.forEach((i) => {
+    const visible = showWhen.isVisible(i, { env: { color: true }, theme: 'bw-light', barSource: 'rain', radarProvider: 'dwd', holidaysEnabled: true });
+    assert.equal(visible, false, i.messageKey + ' (label "' + i.label + '") must be hidden when theme is bw-light');
   });
 });
 

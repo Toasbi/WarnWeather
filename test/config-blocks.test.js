@@ -467,6 +467,13 @@ test('forecastPreview: bw theme on a color env renders the B&W path, not multico
   assert.equal(bw.indexOf('fill="#00FF00"'), -1, 'bw theme drops multicolor rain bands even though env.color is true');
 });
 
+test('forecastPreview: bw-light theme on a color env renders the B&W path with a white canvas (light polarity)', () => {
+  const state = { dayNightShading: true, barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'off', theme: 'bw-light' };
+  const svg = B.forecastPreview(state, { color: true });
+  assert.equal(svg.indexOf('fill="#00FF00"'), -1, 'bw-light theme drops multicolor rain bands even though env.color is true');
+  assert.ok(svg.indexOf('fill="#FFFFFF"') >= 0, 'canvas background is white (light polarity)');
+});
+
 test('radarPreview: light theme flips the canvas background to white', () => {
   const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'light' }, { color: true });
   assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0);
@@ -478,8 +485,20 @@ test('radarPreview: bw theme on a color env renders solid white bars, not multic
   assert.ok(svg.indexOf('fill="#FFFFFF"') >= 0);
 });
 
+test('radarPreview: bw-light theme on a color env renders solid bars on a white canvas (light polarity)', () => {
+  const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'bw-light' }, { color: true });
+  assert.equal(svg.indexOf('fill="#00FF00"'), -1, 'no multicolor bands');
+  assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0, 'canvas background is white');
+});
+
 test('layoutPreview / layoutPreviewCombined: light theme flips the canvas background to white', () => {
   const state = { layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'light' };
+  assert.ok(B.layoutPreview(state, {}).indexOf('fill="#FFFFFF"') >= 0);
+  assert.ok(B.layoutPreviewCombined(state, {}).indexOf('fill="#FFFFFF"') >= 0);
+});
+
+test('layoutPreview / layoutPreviewCombined: bw-light theme also flips the canvas background to white', () => {
+  const state = { layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'bw-light' };
   assert.ok(B.layoutPreview(state, {}).indexOf('fill="#FFFFFF"') >= 0);
   assert.ok(B.layoutPreviewCombined(state, {}).indexOf('fill="#FFFFFF"') >= 0);
 });

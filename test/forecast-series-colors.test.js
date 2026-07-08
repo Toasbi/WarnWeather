@@ -53,12 +53,25 @@ test('fillColorFor: B&W fills ignore theme (always LightGray, even in "light")',
   assert.equal(fs.fillColorFor('wind', false, 'light'), C.GColorLightGray);
 });
 
+test('fillColorFor: bw-light behaves like light for the brighter tint when effectively color', () => {
+  assert.equal(fs.fillColorFor('precip_prob', true, 'bw-light'), C.GColorCeleste);
+  assert.equal(fs.fillColorFor('wind', true, 'bw-light'), C.GColorInchworm);
+});
+
+test('fillColorFor: bw-light fills ignore theme when not effectively color (always LightGray)', () => {
+  assert.equal(fs.fillColorFor('precip_prob', false, 'bw-light'), C.GColorLightGray);
+});
+
 test('fillColorFor: theme omitted defaults to dark (no light variant) — backward compatible', () => {
   assert.equal(fs.fillColorFor('precip_prob', true), C.GColorCobaltBlue);
 });
 
 test('lineColorFor: bw theme on color hardware routes through the B&W (isColor=false) arm', () => {
   assert.equal(fs.lineColorFor('precip_prob', {}, false, 'bw'), C.GColorWhite);
+});
+
+test('lineColorFor: bw-light theme on color hardware routes through the B&W arm, flipped to black (light polarity)', () => {
+  assert.equal(fs.lineColorFor('precip_prob', {}, false, 'bw-light'), C.GColorBlack);
 });
 
 test('lineColorFor: light theme flips a resolved white line to black', () => {

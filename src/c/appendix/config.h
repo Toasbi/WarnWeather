@@ -62,9 +62,10 @@ typedef struct {
     uint8_t view_reset_min;  // minutes of no-flick before returning to the default view; 0 = Never
     // --- adaptive presets (v1.8): packed per-slot ViewSpec bytes (append-only) ---
     uint8_t view_spec[3];    // [default, flick1, flick2] — packed byte (see view_spec_unpack); 0 = disabled slot
-    // --- theme (v1.8): dark=0 (default) / light=1 / bw=2 — append-only. B&W
-    // hardware treats any value != 1 as dark (see theme.h); a stray 2 reaching a
-    // B&W watch from a phone previously paired with a color watch is harmless.
+    // --- theme (v1.8): dark=0 (default) / light=1 / bw=2 / bw-light=3 — append-only.
+    // B&W hardware treats any value other than 1 or 3 as dark (see theme.h); a
+    // stray 2 or 3 reaching a B&W watch from a phone previously paired with a
+    // color watch is harmless (2 renders dark, 3 renders light).
     uint8_t theme;
 } Config;
 

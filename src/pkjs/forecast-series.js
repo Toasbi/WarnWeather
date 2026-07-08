@@ -1,7 +1,10 @@
 var rainTier = require('./weather/rain-tier');
 var COLORS = require('./pebble-colors');
 var configUi = require('./config-ui');   // isColorPlatform — same helper rain-tier/palette-wire use
-var resolveInk = require('./resolve-ink.js').resolveInk;
+var resolveInkLib = require('./resolve-ink.js');
+var resolveInk = resolveInkLib.resolveInk;
+var isBwTheme = resolveInkLib.isBwTheme;
+var isLightPolarity = resolveInkLib.isLightPolarity;
 
 /**
  * Quantize a permille value (0..1000) to a 0..250 byte for the wire.
@@ -72,14 +75,15 @@ function isColorWatch(watchInfo) {
 
 /**
  * Line/dot colour for a metric, resolved for the platform + theme. isColor should
- * already be the EFFECTIVE color flag (isColorWatch(watchInfo) && theme !== 'bw') —
- * see buildForecastSeries. On B&W (or bw theme) every line is the theme foreground;
- * gust on colour is settings-dependent so it never matches the rain bars. resolveInk
- * flips an exact white to black in the light theme; hues and grays pass through.
+ * already be the EFFECTIVE color flag (isColorWatch(watchInfo) && !isBwTheme(theme)) —
+ * see buildForecastSeries. On B&W (or bw/bw-light theme) every line is the theme
+ * foreground; gust on colour is settings-dependent so it never matches the rain bars.
+ * resolveInk flips an exact white to black in light-polarity themes; hues and grays
+ * pass through.
  * @param {string} metric precip_prob|wind|gust|uv.
  * @param {Object} settings Clay settings (reads rainBarColor for gust).
  * @param {boolean} isColor Effective colour display?
- * @param {string} [theme] 'dark'|'light'|'bw'; defaults to 'dark' (no flip) when omitted.
+ * @param {string} [theme] 'dark'|'light'|'bw'|'bw-light'; defaults to 'dark' (no flip) when omitted.
  * @returns {number} 0xRRGGBB colour.
  */
 function lineColorFor(metric, settings, isColor, theme) {
@@ -98,12 +102,14 @@ function lineColorFor(metric, settings, isColor, theme) {
 
 /**
  * Area-fill colour for a metric, resolved for the platform + theme. On a colour display,
- * the light theme swaps in the metric's brighter `light` tint (see FILL_COLORS) instead
- * of the dark-theme shade so the fill reads against a white background; B&W ignores theme
- * (always LightGray).
+ * a light-polarity theme (light or bw-light) swaps in the metric's brighter `light` tint
+ * (see FILL_COLORS) instead of the dark-theme shade so the fill reads against a white
+ * background; B&W ignores theme (always LightGray). isColor is already the EFFECTIVE
+ * color flag, so bw/bw-light never reach the light-tint branch — they resolve via the
+ * `!isColor` guard above instead.
  * @param {string} metric precip_prob|wind|gust|uv.
  * @param {boolean} isColor Colour display?
- * @param {string} [theme] 'dark'|'light'|'bw'; defaults to 'dark' (no light variant) when omitted.
+ * @param {string} [theme] 'dark'|'light'|'bw'|'bw-light'; defaults to 'dark' (no light variant) when omitted.
  * @returns {number|undefined} 0xRRGGBB colour, or undefined for an unknown metric.
  */
 function fillColorFor(metric, isColor, theme) {
@@ -111,7 +117,7 @@ function fillColorFor(metric, isColor, theme) {
     var entry = FILL_COLORS[metric];
     if (!entry) { return undefined; }
     if (!isColor) { return entry.bw; }
-    return theme === 'light' ? entry.light : entry.color;
+    return isLightPolarity(theme) ? entry.light : entry.color;
 }
 
 // windScale → km/h ceiling at the top of the graph. Wind and gust share it so a
@@ -171,8 +177,9 @@ function metricPermille(metric, raw, settings) {
 function buildForecastSeries(raw, settings, watchInfo) {
     var theme = settings.theme || 'dark';
     // Effective color: a color display renders as color only when the theme isn't
-    // Black & White — a bw theme reuses the exact color model B&W watches get today.
-    var isColor = isColorWatch(watchInfo) && theme !== 'bw';
+    // Black & White — a bw/bw-light theme reuses the exact color model B&W watches
+    // get today (bw-light in its light-polarity form).
+    var isColor = isColorWatch(watchInfo) && !isBwTheme(theme);
     var out = {};
 
     // Secondary line: always present (one of the four metrics).
