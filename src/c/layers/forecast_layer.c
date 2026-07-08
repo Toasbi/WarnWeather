@@ -430,22 +430,6 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .count = ds.num_entries, .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
             .fill_color = second->line.fill_color } };
     }
-    // night_over is the full-height day/night hatch — independent of line/bars.
-    // Z-order vs night_under is polarity-dependent: in light polarity it draws
-    // FIRST so night_under's solid re-shade covers the over-dots inside the fill
-    // area (the over-hatch reads as part of the area there, dots remain only
-    // above the contour); dark keeps the over-dots on top of the fill — the
-    // established pre-theme look.
-    const bool night_over_first = theme_is_light();
-    const ChartLayer night_over_layer = { CHART_LAYER_HATCH, .hatch = {
-        .bands = night_bands, .num_bands = num_night_bands,
-        .hatch_color    = theme_pick(NIGHT_HATCH_COLOR, theme_fg()),
-        .boundary_color = NIGHT_BOUNDARY_COLOR,
-        .spacing        = NIGHT_HATCH_SPACING,
-        .contour        = NULL } };
-    if (night_on && night_over_first) {
-        layers[n++] = night_over_layer;
-    }
     // night_under re-shades the filled area, so it needs the AREA layer's
     // exported contour and only runs when the fill is present.
     if (night_on && fill_on) {
@@ -459,8 +443,14 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .has_underlay   = !theme_is_bw(),
             .contour        = area_pts, .contour_count = ds.num_entries } };
     }
-    if (night_on && !night_over_first) {
-        layers[n++] = night_over_layer;
+    // night_over is the full-height day/night hatch — independent of line/bars.
+    if (night_on) {
+        layers[n++] = (ChartLayer){ CHART_LAYER_HATCH, .hatch = {
+            .bands = night_bands, .num_bands = num_night_bands,
+            .hatch_color    = theme_pick(NIGHT_HATCH_COLOR, theme_fg()),
+            .boundary_color = NIGHT_BOUNDARY_COLOR,
+            .spacing        = NIGHT_HATCH_SPACING,
+            .contour        = NULL } };
     }
     // Attach the scaled rain-tier palette to the BARS series (computed above).
     bars->bars.stops     = scaled_bar_stops;
