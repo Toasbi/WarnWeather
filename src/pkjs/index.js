@@ -99,7 +99,10 @@ var scheduler = createChannelScheduler({
     checkForUpdate: maybeCheckForUpdate,
     clearClayCache: outbox.clearClayCache,
     clearWeatherCaches: outbox.clearWeatherCaches,
-    setTimeout: setTimeout,
+    // Wrap the native timer: deps.setTimeout(...) would otherwise invoke it
+    // with the deps object as receiver — WebView runtimes (WebIDL receiver
+    // check) throw "Illegal invocation" for that; a plain call stays safe.
+    setTimeout: function (fn, ms) { return setTimeout(fn, ms); },
     now: function () { return new Date(); }
 });
 
@@ -230,6 +233,9 @@ Pebble.addEventListener('ready',
             }, function() {
                 fixtureWeather.sendFixtureWeather(activeFixture, { settings: app.settings, watchInfo: app.watchInfo });
             });
+            // Intentionally skip scheduler.onReady(): the readiness latch stays
+            // unset in fixture mode, so a late watch-status handshake can't drain
+            // a real Clay send/fetch that would race the fixture send above.
             return;
         }
         scheduler.onReady({

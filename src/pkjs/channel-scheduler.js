@@ -5,7 +5,10 @@
 // (sending, fetching, timers, clock, cache-clears) is injected via deps, so the
 // ordering invariants run under Node's test runner instead of only inside the
 // Pebble runtime. Extracted verbatim from index.js's inline handshake/tick/
-// day-stamp logic — every path maps 1:1 to the original; no new behavior.
+// day-stamp logic — every path maps 1:1 to the original, with one
+// intentional exception: in fixture mode the readiness latch never sets, so
+// startup drains are suppressed (previously a fixture run could drain a real
+// startup fetch).
 
 var storageKeys = require('./storage-keys.js');
 
