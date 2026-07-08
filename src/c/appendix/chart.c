@@ -140,14 +140,19 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
         const int bar_x   = chart_slot_bar_x(&r->geo, i);
         const int bar_top = plot_bottom - bar_h;
 
-        // Bar-separation halo: a 1px theme_bg() ring outside the bar's left/right/top
-        // edges, painted before the segment fills so the colored segments keep their
-        // full width/height on top. Not expanded downward — the x-axis baseline sits
-        // there, and painting bg over it would notch the axis. Every theme gets the
-        // same halo + BAR_OUTLINED silhouette treatment; only the interior differs
+        // Bar-separation halo: a 1px ring outside the bar's left/right/top edges,
+        // painted before the segment fills so the colored segments keep their full
+        // width/height on top. Not expanded downward — the x-axis baseline sits
+        // there, and painting over it would notch the axis. Every theme gets the
+        // same halo + BAR_OUTLINED silhouette anatomy; only the interior differs
         // (multicolor/solid palette in the color themes, theme_bg() fill in the B&W
-        // ones), so the bars read identically across modes.
-        graphics_context_set_fill_color(r->ctx, theme_bg());
+        // ones). Color-dark swaps the two roles — fg (white) halo + bg (black)
+        // outline — so the ring stands out against the black window while the dark
+        // edge separates it from the multicolor interior; every other theme uses
+        // bg halo + fg outline. On B&W builds theme_is_bw() is constant-true, so
+        // the swap compiles out.
+        const bool swap_ring = !theme_is_bw() && !theme_is_light();
+        graphics_context_set_fill_color(r->ctx, swap_ring ? theme_fg() : theme_bg());
         graphics_fill_rect(r->ctx,
             GRect(bar_x - 1, bar_top - 1, r->def->bar_w + 2, bar_h + 1),
             0, GCornerNone);
@@ -178,7 +183,7 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
             const int x0 = bar_x;
             const int x1 = bar_x + r->def->bar_w - 1;
             const int y1 = bar_top + bar_h - 1;
-            graphics_context_set_stroke_color(r->ctx, theme_fg());
+            graphics_context_set_stroke_color(r->ctx, swap_ring ? theme_bg() : theme_fg());
             graphics_context_set_stroke_width(r->ctx, 1);
             graphics_draw_line(r->ctx, GPoint(x0, bar_top), GPoint(x1, bar_top));  // top
             graphics_draw_line(r->ctx, GPoint(x0, bar_top), GPoint(x0, y1));       // left wall
