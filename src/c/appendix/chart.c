@@ -137,7 +137,12 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
         if (v <= b->lo) continue;
         int bar_h = chart_scale_h(v, b->lo, b->hi, plot_h);
         if (bar_h < 1) bar_h = 1;
-        const int bar_x   = chart_slot_bar_x(&r->geo, i);
+        int bar_x = chart_slot_bar_x(&r->geo, i);
+        int bar_w = r->def->bar_w;
+        // B&W themes: the solid theme_fg() fill reads much heavier than the outlined
+        // look it replaced, so slim the bar 1px per side — but only when there's room
+        // (a bar must stay >= 2px; the health grid's thin bars keep their width).
+        if (theme_is_bw() && bar_w >= 4) { bar_x += 1; bar_w -= 2; }
         const int bar_top = plot_bottom - bar_h;
 
         // Bar-separation halo: a 1px theme_bg() ring outside the bar's left/right/top
@@ -154,7 +159,7 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
         if (theme_is_light() || theme_is_bw()) {
             graphics_context_set_fill_color(r->ctx, theme_bg());
             graphics_fill_rect(r->ctx,
-                GRect(bar_x - 1, bar_top - 1, r->def->bar_w + 2, bar_h + 1),
+                GRect(bar_x - 1, bar_top - 1, bar_w + 2, bar_h + 1),
                 0, GCornerNone);
         }
 
@@ -170,7 +175,7 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
             if (seg_h <= 0) continue;
             graphics_context_set_fill_color(r->ctx, b->stops[k].color);
             graphics_fill_rect(r->ctx,
-                GRect(bar_x, seg_top, r->def->bar_w, seg_h), 0, GCornerNone);
+                GRect(bar_x, seg_top, bar_w, seg_h), 0, GCornerNone);
         }
 
         if (b->style == BAR_OUTLINED) {
@@ -185,7 +190,7 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
             // x-axis baseline already closes the bar, so a bottom edge would double
             // the axis line.
             const int x0 = bar_x;
-            const int x1 = bar_x + r->def->bar_w - 1;
+            const int x1 = bar_x + bar_w - 1;
             const int y1 = bar_top + bar_h - 1;
             graphics_context_set_stroke_color(r->ctx, theme_fg());
             graphics_context_set_stroke_width(r->ctx, 1);
