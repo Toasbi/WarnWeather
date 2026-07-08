@@ -142,3 +142,31 @@ test('scenario 4b: migration Clay NACK -> onClayAck skipped, startup fetch still
     assert.equal(h.calls.startFetch.length, 1, 'startup fetch drains on NACK too');
     assert.equal(h.calls.startFetch[0], true);
 });
+
+test('scenario 6: config close with forceFetch -> Clay sent, fetch deferred via setTimeout(0)', function () {
+    resetStore();
+    var h = makeHarness();
+    h.scheduler.onConfigClosed({ forceFetch: true });
+    assert.equal(h.calls.sendClay.length, 1, 'Clay sent on config close');
+    assert.equal(h.calls.startFetch.length, 0, 'no synchronous fetch');
+    assert.equal(h.timers.length, 0, 'fetch not scheduled until the Clay callback runs');
+
+    h.ackClay();
+    assert.equal(h.calls.startFetch.length, 0, 'still no synchronous fetch inside the ACK callback');
+    assert.equal(h.timers.length, 1, 'ACK callback schedules a deferred fetch');
+    assert.equal(h.timers[0].ms, 0, 'deferred with setTimeout(..., 0) to clear the webview teardown');
+
+    h.flushTimers();
+    assert.equal(h.calls.startFetch.length, 1, 'deferred fetch fires after the timer');
+    assert.equal(h.calls.startFetch[0], true, 'config-close fetch is forced');
+});
+
+test('scenario 6b: config close without forceFetch -> Clay sent, no fetch ever', function () {
+    resetStore();
+    var h = makeHarness();
+    h.scheduler.onConfigClosed({ forceFetch: false });
+    assert.equal(h.calls.sendClay.length, 1, 'Clay still sent');
+    h.ackClay();
+    assert.equal(h.timers.length, 0, 'no deferred fetch scheduled');
+    assert.equal(h.calls.startFetch.length, 0, 'no fetch');
+});

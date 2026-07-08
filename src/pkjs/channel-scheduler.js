@@ -22,7 +22,7 @@ var storageKeys = require('./storage-keys.js');
  * @param {function():void} deps.clearWeatherCaches Forget the last-sent weather categories.
  * @param {function(Function, number):*} deps.setTimeout Timer function (injected so tests drive a fake queue).
  * @param {function():Date} deps.now Current-time supplier (injected for a fake clock).
- * @returns {{onWatchStatus: Function, onReady: Function}} The scheduler.
+ * @returns {{onWatchStatus: Function, onReady: Function, onConfigClosed: Function}} The scheduler.
  */
 function createChannelScheduler(deps) {
     // Readiness latch: replaces index.js's `app.settings && app.provider` peek.
@@ -140,9 +140,36 @@ function createChannelScheduler(deps) {
         drainPendingStartupSends();
     }
 
+    /**
+     * Force-fetch weather one tick after the config webview closed, past the
+     * webview teardown, and only from inside the Clay-send callbacks so it never
+     * rides the channel alongside the Clay send.
+     *
+     * @returns {void}
+     */
+    function scheduleConfigCloseFetch() {
+        deps.setTimeout(function () {
+            console.log('Force fetch!');
+            deps.startFetch(true);
+        }, 0);
+    }
+
+    /**
+     * Handle a config-webview close: send Clay, then (when forceFetch) chain a
+     * deferred force-fetch into both callbacks.
+     *
+     * @param {{forceFetch: boolean}} opts Config-close options.
+     * @returns {void}
+     */
+    function onConfigClosed(opts) {
+        var cb = opts.forceFetch ? scheduleConfigCloseFetch : undefined;
+        deps.sendClay(cb, cb);
+    }
+
     return {
         onWatchStatus: onWatchStatus,
-        onReady: onReady
+        onReady: onReady,
+        onConfigClosed: onConfigClosed
     };
 }
 
