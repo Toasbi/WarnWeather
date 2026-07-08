@@ -154,10 +154,10 @@ static void ensure_rain_glyph_loaded(int bucket, int side, GColor tint) {
 }
 
 // Glyph colour tracks the radar bars per tier; on B&W (or the color-build Black &
-// White theme) palette_radar_color() now returns theme_fg() too (bars are
-// fg-filled — see palette.c's fill_defaults), so calling through would happen to
-// agree. Force the default foreground directly anyway rather than depend on that
-// coincidence — it's the strip's own foreground either way.
+// White theme) the strip background is theme_bg() and palette_radar_color() now
+// returns that SAME theme_bg() stop (it's a bar-fill color — see palette.c), so
+// using it here would paint the glyph invisibly onto its own background. Force
+// the default foreground instead.
 static GColor rain_glyph_color(int tier) {
 #ifdef PBL_COLOR
     if (!theme_is_bw()) { return palette_radar_color(tier); }

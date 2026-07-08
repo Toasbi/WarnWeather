@@ -479,43 +479,27 @@ test('radarPreview: light theme flips the canvas background to white', () => {
   assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0);
 });
 
-// A bar drawn by rainBars() in halo mode is two adjacent <rect> elements: a 1px-
-// larger bg-colored halo rect immediately followed by the bar's own fg-colored fill
-// rect (mirrors chart.c's bar-separation halo — a theme_bg() ring drawn just outside
-// a theme_fg()-filled bar, universal on B&W/bw as of the fg-fill round). Solid
-// (non-B&W) mode draws just the bar's own fill rect, no halo. These two literal
-// strings mark the OLD (pre-fg-fill) outline-path rendering, kept here only to
-// prove it is gone.
-const OLD_OUTLINE_WHITE = 'fill="none" stroke="#FFFFFF" stroke-width="1"';
-const OLD_OUTLINE_BLACK = 'fill="none" stroke="#000000" stroke-width="1"';
+// A bar drawn by rainBars() in outline mode is a <path fill="none" stroke="COLOR"
+// stroke-width="1">; a solid bar is a <rect ... fill="COLOR">. The watch's actual
+// bw-theme bar (chart.c BAR_OUTLINED) is a theme_bg()-filled bar with a theme_fg()
+// outline on top — closer to "outline" than "flat solid fill" — so the preview's
+// outline path (transparent interior showing the canvas bg through) is the more
+// faithful approximation; see the block comment above rainBars' `outline` param.
+const OUTLINE_MARK = 'fill="none" stroke="#000000" stroke-width="1"';
 
-test('radarPreview: bw theme on a color env fg-fills the exact bars in white with a black bg halo, not an outline', () => {
+test('radarPreview: bw theme on a color env outlines the exact bars in white, not a solid fill', () => {
   const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'bw' }, { color: true });
   assert.equal(svg.indexOf('fill="#00FF00"'), -1, 'no multicolor bands');
-  assert.equal(svg.indexOf(OLD_OUTLINE_WHITE), -1,
-    'exact bars no longer draw as a white outline path (the pre-fg-fill look)');
-  assert.ok(/<rect x="[-\d.]+" y="[-\d.]+" width="[\d.]+" height="[\d.]+" fill="#000000"><\/rect><rect x="[-\d.]+" y="[-\d.]+" width="[\d.]+" height="[\d.]+" fill="#FFFFFF"><\/rect>/.test(svg),
-    'each exact bar draws a black (bg) halo rect immediately followed by its white (fg) fill rect');
+  assert.ok(svg.indexOf('fill="none" stroke="#FFFFFF" stroke-width="1"') >= 0,
+    'exact bars are a white outline path (mirrors the watch\'s theme_bg()-filled + theme_fg()-outlined bar)');
 });
 
-test('radarPreview: bw-light theme on a color env fg-fills the exact bars in black with a white bg halo, on a white canvas', () => {
+test('radarPreview: bw-light theme on a color env outlines the exact bars in black on a white canvas (light polarity)', () => {
   const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'bw-light' }, { color: true });
   assert.equal(svg.indexOf('fill="#00FF00"'), -1, 'no multicolor bands');
   assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0, 'canvas background is white');
-  assert.equal(svg.indexOf(OLD_OUTLINE_BLACK), -1,
-    'exact bars no longer draw as a black outline path — the polarity mirror of bw');
-  assert.ok(/<rect x="[-\d.]+" y="[-\d.]+" width="[\d.]+" height="[\d.]+" fill="#FFFFFF"><\/rect><rect x="[-\d.]+" y="[-\d.]+" width="[\d.]+" height="[\d.]+" fill="#000000"><\/rect>/.test(svg),
-    'each exact bar draws a white (bg) halo rect immediately followed by its black (fg) fill rect');
-});
-
-test('forecastPreview: legend Rain swatch on B&W is fg-filled with a bg border, not a hollow outline box', () => {
-  const svg = B.forecastPreview(
-    { barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'off', windScale: 'mid', dayNightShading: false },
-    { color: false });
-  assert.equal(svg.indexOf(OLD_OUTLINE_WHITE), -1,
-    'Rain legend swatch no longer draws as a hollow outline box');
-  assert.ok(/<rect x="[\d.]+" y="[\d.]+" width="12" height="7" fill="#FFFFFF" stroke="#000000" stroke-width="1"><\/rect>/.test(svg),
-    'Rain legend swatch is a solid white (fg) box with a black (bg) border');
+  assert.ok(svg.indexOf(OUTLINE_MARK) >= 0,
+    'exact bars are a black outline path, not a solid black fill — the polarity mirror of bw');
 });
 
 test('radarPreview: radarColor=Solid in the light theme uses DarkGray, not black', () => {
@@ -545,4 +529,30 @@ test('layoutPreview / layoutPreviewCombined: bw-light theme also flips the canva
   const state = { layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'bw-light' };
   assert.ok(B.layoutPreview(state, {}).indexOf('fill="#FFFFFF"') >= 0);
   assert.ok(B.layoutPreviewCombined(state, {}).indexOf('fill="#FFFFFF"') >= 0);
+});
+
+// The band-stack chrome (renderBandStack's band fill, renderBandColumn's band fill +
+// empty-column placeholder) used to be a fixed dark hex regardless of theme, so a light
+// canvas still showed dark "cards" floating on it. Both now wash previewInk's rgba
+// helper — the same theme-relative mechanism the other previews use for dividers/
+// gridlines — instead of a hardcoded color.
+test('layoutPreview / layoutPreviewFlick / layoutPreviewCombined: light theme themes the band chrome too, not just the canvas', () => {
+  const state = { layoutPreset: 'compactCal', healthMode: 'status', radarProvider: 'dwd', theme: 'light' };
+  const preview = B.layoutPreview(state, {});
+  const flick = B.layoutPreviewFlick(state, {});
+  const combined = B.layoutPreviewCombined(state, {});
+  assert.equal(preview.indexOf('#1B1F27'), -1, 'layoutPreview band fill is no longer hardcoded dark');
+  assert.ok(preview.indexOf('rgba(0,0,0,0.12)') >= 0, 'layoutPreview band fill washes black-on-white in light theme');
+  assert.equal(flick.indexOf('#1B1F27'), -1, 'layoutPreviewFlick band fill is no longer hardcoded dark');
+  assert.ok(flick.indexOf('rgba(0,0,0,0.12)') >= 0, 'layoutPreviewFlick band fill washes black-on-white in light theme');
+  assert.equal(combined.indexOf('#1B1F27'), -1, 'layoutPreviewCombined band fill is no longer hardcoded dark');
+  assert.equal(combined.indexOf('#12151C'), -1, 'layoutPreviewCombined placeholder fill is no longer hardcoded dark');
+  assert.ok(combined.indexOf('rgba(0,0,0,0.12)') >= 0, 'layoutPreviewCombined band fill washes black-on-white in light theme');
+});
+
+test('layoutPreview / layoutPreviewFlick / layoutPreviewCombined: dark theme keeps the light-on-black band wash', () => {
+  const state = { layoutPreset: 'compactCal', healthMode: 'status', radarProvider: 'dwd', theme: 'dark' };
+  assert.ok(B.layoutPreview(state, {}).indexOf('rgba(255,255,255,0.12)') >= 0);
+  assert.ok(B.layoutPreviewFlick(state, {}).indexOf('rgba(255,255,255,0.12)') >= 0);
+  assert.ok(B.layoutPreviewCombined(state, {}).indexOf('rgba(255,255,255,0.12)') >= 0);
 });

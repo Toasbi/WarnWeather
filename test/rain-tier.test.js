@@ -22,10 +22,10 @@ test('buildPalette: color platform → 5 tier stops in permille order', () => {
   assert.deepEqual(p.rgb, [0xAAAAAA, 0x55FFFF, 0x00FF00, 0xFFFF00, 0xFF5555]);
 });
 
-test('buildPalette: b&w platform → single white (dark-polarity fg) stop', () => {
+test('buildPalette: b&w platform → single black stop', () => {
   const p = rainTier.buildPalette('aplite');
   assert.deepEqual(p.from, [0]);
-  assert.deepEqual(p.rgb, [0xFFFFFF]);
+  assert.deepEqual(p.rgb, [0x000000]);
 });
 
 test('buildPalette: color + white → single white stop', () => {
@@ -38,17 +38,16 @@ test('buildPalette: color defaults to multicolor when rainBarColor omitted', () 
   assert.deepEqual(rainTier.buildPalette('basalt').rgb.length, 5);
 });
 
-test('buildPalette: b&w ignores colorMode (stays the single polarity-fg stop)', () => {
+test('buildPalette: b&w ignores white (stays a single black stop)', () => {
   const p = rainTier.buildPalette('aplite', 'white');
-  assert.deepEqual(p.rgb, [0xFFFFFF]);
+  assert.deepEqual(p.rgb, [0x000000]);
 });
 
-test('buildPalette: flint is b&w — colorMode is ignored either way, both yield the polarity-fg stop', () => {
-  // flint is a 1-bit display; colorMode must never leak through the B&W branch —
-  // both 'white' and 'multicolor' collapse to the same single stop (dark-polarity
-  // fg = white, the fill the watch pairs with a theme_bg() border).
-  assert.deepEqual(rainTier.buildPalette('flint', 'white').rgb, [0xFFFFFF]);
-  assert.deepEqual(rainTier.buildPalette('flint', 'multicolor').rgb, [0xFFFFFF]);
+test('buildPalette: flint is b&w (black stop, not white) — must match C PBL_COLOR', () => {
+  // flint is a 1-bit display; sending a white stop made the watch's white
+  // outline render an invisible solid-white bar. It must get the black stop.
+  assert.deepEqual(rainTier.buildPalette('flint', 'white').rgb, [0x000000]);
+  assert.deepEqual(rainTier.buildPalette('flint', 'multicolor').rgb, [0x000000]);
 });
 
 test('rgbToGColor8 maps 0xRRGGBB to the GColorFromHEX byte', () => {
@@ -76,7 +75,7 @@ test('packPalette emits 3 bytes/stop: int16 LE from + GColor8 color', () => {
 
 test('packPalette handles the single-stop white/b&w palettes', () => {
   assert.deepEqual(rainTier.packPalette(rainTier.buildPalette('basalt', 'white')), [0, 0, 0xFF]);
-  assert.deepEqual(rainTier.packPalette(rainTier.buildPalette('aplite')), [0, 0, 0xFF]);
+  assert.deepEqual(rainTier.packPalette(rainTier.buildPalette('aplite')), [0, 0, 0xC0]);
 });
 
 test('buildPackedPalette: bar vs radar color modes yield different blobs (independence)', () => {
@@ -87,14 +86,14 @@ test('buildPackedPalette: bar vs radar color modes yield different blobs (indepe
   assert.equal(multi.length, 15);    // five tier stops
 });
 
-test('buildPalette: bw theme on a color platform collapses to the single-white-stop B&W default (dark-polarity fg)', () => {
+test('buildPalette: bw theme on a color platform collapses to the single-black-stop B&W default', () => {
   const p = rainTier.buildPalette('basalt', 'multicolor', 'bw');
-  assert.deepEqual(p, { from: [0], rgb: [0xFFFFFF] });
+  assert.deepEqual(p, { from: [0], rgb: [0x000000] });
 });
 
-test('buildPalette: bw-light theme on a color platform collapses to a single BLACK stop (light-polarity fg), ignoring colorMode', () => {
-  assert.deepEqual(rainTier.buildPalette('basalt', 'multicolor', 'bw-light'), { from: [0], rgb: [0x000000] });
-  assert.deepEqual(rainTier.buildPalette('basalt', 'white', 'bw-light'), { from: [0], rgb: [0x000000] });
+test('buildPalette: bw-light theme on a color platform collapses to a single WHITE stop (light polarity), ignoring colorMode', () => {
+  assert.deepEqual(rainTier.buildPalette('basalt', 'multicolor', 'bw-light'), { from: [0], rgb: [0xFFFFFF] });
+  assert.deepEqual(rainTier.buildPalette('basalt', 'white', 'bw-light'), { from: [0], rgb: [0xFFFFFF] });
 });
 
 test("buildPalette: 'white' mode becomes DarkGray (not black) in the light theme", () => {
@@ -106,10 +105,10 @@ test("buildPalette: 'white' mode stays white in dark/bw... except bw always coll
   assert.deepEqual(rainTier.buildPalette('basalt', 'white', 'dark'), { from: [0], rgb: [0xFFFFFF] });
 });
 
-test('buildPalette: B&W hardware (not color-capable) is polarity-aware too — white (fg) in dark, black (fg) in light', () => {
-  assert.deepEqual(rainTier.buildPalette('aplite', 'multicolor', 'dark'), { from: [0], rgb: [0xFFFFFF] });
-  assert.deepEqual(rainTier.buildPalette('aplite', 'multicolor', 'light'), { from: [0], rgb: [0x000000] });
-  assert.deepEqual(rainTier.buildPalette('flint', undefined, 'light'), { from: [0], rgb: [0x000000] });
+test('buildPalette: B&W hardware (not color-capable) is polarity-aware too — black in dark, white in light', () => {
+  assert.deepEqual(rainTier.buildPalette('aplite', 'multicolor', 'dark'), { from: [0], rgb: [0x000000] });
+  assert.deepEqual(rainTier.buildPalette('aplite', 'multicolor', 'light'), { from: [0], rgb: [0xFFFFFF] });
+  assert.deepEqual(rainTier.buildPalette('flint', undefined, 'light'), { from: [0], rgb: [0xFFFFFF] });
 });
 
 test('buildPalette: multicolor passes through untouched regardless of theme', () => {

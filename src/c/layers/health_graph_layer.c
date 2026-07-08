@@ -357,16 +357,16 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
     //  4. HR line (LINE, solid) — primary line, styled like forecast's temp line.
     //  5. Frame (left + bottom borders).
     //  6. Axis (bottom hour labels/ticks).
-    // On B&W (device or bw theme) the fill is theme_fg() — the polarity
-    // foreground, not a fixed color — paired with the chart engine's theme_bg()
-    // 1px halo (chart.c's bar-separation halo, universal on B&W as of the fg-fill
-    // round) instead of a fg-on-fg BAR_OUTLINED silhouette: bw-dark fills white
-    // with a black border and bw-light fills black with a white border, the
-    // polarity mirror. theme_pick() is a runtime call on color builds, so this can
-    // no longer be a static initializer — module-static scratch, rebuilt each
-    // redraw (mirrors rain_radar_layer.c's radar_tick_style()).
+    // On B&W (device or bw theme) the fill is theme_bg() — the polarity background,
+    // not a fixed color — and BAR_OUTLINED adds a theme_fg() silhouette on top
+    // (matching the rain bars, palette.c): bw-dark fills black (pixel-identical to
+    // pre-theme v1, combining with the white outline into what reads as a solid
+    // white bar) and bw-light fills white with a black outline, the polarity
+    // mirror. theme_pick() is a runtime call on color builds, so this can no longer
+    // be a static initializer — module-static scratch, rebuilt each redraw (mirrors
+    // rain_radar_layer.c's radar_tick_style()).
     static ChartColorStop step_stops[1];
-    step_stops[0] = (ChartColorStop){ .from = 0, .color = theme_pick(GColorGreen, theme_fg()) };
+    step_stops[0] = (ChartColorStop){ .from = 0, .color = theme_pick(GColorGreen, theme_bg()) };
 
     // aplite-style discipline: per-frame layer array is module-static, not stack.
     // Max reachable here is 6 (sleep + gridlines + bars + HR + frame + axis).
@@ -383,7 +383,7 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
         .values = s_steps, .count = visible_slots,
         .lo = 0, .hi = s_step_hi,
         .stops = step_stops, .num_stops = 1,
-        .style = BAR_SOLID } };
+        .style = theme_is_bw() ? BAR_OUTLINED : BAR_SOLID } };
 
     // Always add the HR line: the cache stores CHART_ABSENT for hours with no
     // reading, so the solid line breaks across gaps and draws nothing when HR is
