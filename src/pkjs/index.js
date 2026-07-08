@@ -3,9 +3,8 @@
 // before anything else so the aplite JavaScriptCore runtime can run the bundle.
 require('./polyfills.js');
 
-var radar = require('./weather/radar.js');
-var rainbowRadar = require('./weather/rainbow-radar.js');
-var radarDispatch = require('./weather/radar-dispatch.js');
+var radarFactory = require('./weather/radar-factory.js');
+var radarWire = require('./weather/radar-wire.js');
 var runFetchCycle = require('./weather/fetch-orchestrator.js').runFetchCycle;
 var forecastSeries = require('./forecast-series.js');
 var WeatherProvider = require('./weather/provider.js');
@@ -797,25 +796,16 @@ function isWatchConnected() {
  * @returns {void}
  */
 function withRainRadarTuplesAt(lat, lon, callback) {
-    // RAIN_RADAR_START is the watch's "5-min pinned" slot-0 epoch: the most
-    // recent wall-clock 5-min boundary at or before dispatch.
-    var RADAR_SLOT_SECONDS = 5 * 60;
-    var slotZeroEpoch = Math.floor(Date.now() / 1000 / RADAR_SLOT_SECONDS) * RADAR_SLOT_SECONDS;
-    // Radar source is configured independently of the forecast provider.
-    radarDispatch.dispatchRadarTuplesAt(
+    // Radar source is configured independently of the forecast provider. The
+    // 5-min pinned slot-0 epoch (RAIN_RADAR_START on the wire) is computed here
+    // at the clock edge, so the adapters stay deterministic (no clock injection).
+    var source = radarFactory.createRadarSource(
         app.settings.radarProvider,
-        {
-            lat: lat,
-            lon: lon,
-            slotZeroEpoch: slotZeroEpoch,
-            fetchDwdAt: radar.fetchRadarTuplesAt,
-            fetchRainbowAt: rainbowRadar.fetchRadarTuplesAt,
-            // '' when the build carried no RAINBOW_PROXY_ENDPOINT — the module
-            // then fails soft (callback(null)) and the config UI hides the option.
-            rainbowEndpoint: (pkg.rainbow && pkg.rainbow.endpoint) || ''
-        },
-        callback
+        // '' when the build carried no RAINBOW_PROXY_ENDPOINT — the rainbow
+        // adapter then fails soft (callback(null)).
+        { rainbowEndpoint: (pkg.rainbow && pkg.rainbow.endpoint) || '' }
     );
+    source.fetchRadarTuplesAt(lat, lon, radarWire.slotZeroEpochFor(Date.now()), callback);
 }
 
 /**
