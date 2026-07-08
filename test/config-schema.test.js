@@ -28,10 +28,14 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   const dups = Object.keys(counts).filter((k) => counts[k] > 1);
   // windScale: solid-line slot vs. dotted-line slot. theme: color-env (3 options) vs.
   // B&W-env (2 options). colorUSFederal: dark-exclude-white vs. light-exclude-black.
-  assert.deepEqual(dups.sort(), ['colorUSFederal', 'theme', 'windScale'], 'unexpected duplicates: ' + dups.join(','));
+  // rainBarColor/radarColor: dark-label-White vs. light-label-Black (same 'white' value).
+  assert.deepEqual(dups.sort(), ['colorUSFederal', 'radarColor', 'rainBarColor', 'theme', 'windScale'],
+    'unexpected duplicates: ' + dups.join(','));
   assert.equal(counts.windScale, 2, 'windScale appears in exactly two slots');
   assert.equal(counts.theme, 2, 'theme appears in exactly two slots');
   assert.equal(counts.colorUSFederal, 2, 'colorUSFederal appears in exactly two slots');
+  assert.equal(counts.rainBarColor, 2, 'rainBarColor appears in exactly two slots');
+  assert.equal(counts.radarColor, 2, 'radarColor appears in exactly two slots');
   assert.deepEqual(Object.keys(counts).sort(), EXPECTED_KEYS.slice().sort());
 });
 
@@ -353,4 +357,28 @@ test('colorUSFederal splits into a dark-exclude-white / light-exclude-black pair
   const lightItem = federalItems.find((i) => JSON.stringify(i.showWhen).indexOf('"light"') >= 0);
   assert.deepEqual(darkItem.excludeColors, ['#FFFFFF']);
   assert.deepEqual(lightItem.excludeColors, ['#000000']);
+});
+
+// The single-stop palette (rainBarColor/radarColor "white" option) renders as black pixels
+// in the light theme (the watch flips a resolved-white bar/radar fill to black there — see
+// forecast-series.resolveInk / rain_tier.js). The stored value stays 'white' for wire
+// compatibility across all themes; only the visible label changes to avoid a "White" option
+// that paints black.
+['rainBarColor', 'radarColor'].forEach((key) => {
+  test(key + ' splits into a dark-label-White / light-label-Black pair, same "white" value, no bw item', () => {
+    const slots = items.filter((i) => i.messageKey === key);
+    assert.equal(slots.length, 2, key + ' must have exactly two contextual slots');
+    const darkItem = slots.find((i) => JSON.stringify(i.showWhen).indexOf('"dark"') >= 0);
+    const lightItem = slots.find((i) => JSON.stringify(i.showWhen).indexOf('"light"') >= 0);
+    assert.ok(darkItem, key + ' missing a dark-theme slot');
+    assert.ok(lightItem, key + ' missing a light-theme slot');
+    assert.deepEqual(darkItem.options.map((o) => o[0]), ['Multicolor', 'White']);
+    assert.deepEqual(lightItem.options.map((o) => o[0]), ['Multicolor', 'Black']);
+    // Values must be identical across both slots — only the label differs.
+    assert.deepEqual(darkItem.options.map((o) => o[1]), lightItem.options.map((o) => o[1]));
+    assert.deepEqual(darkItem.options.map((o) => o[1]), ['multicolor', 'white']);
+    // No bw slot: capabilities:[COLOR] items are hidden entirely on the B&W theme, and
+    // neither slot's showWhen should ever match theme === 'bw'.
+    slots.forEach((s) => assert.equal(JSON.stringify(s.showWhen).indexOf('"bw"'), -1));
+  });
 });

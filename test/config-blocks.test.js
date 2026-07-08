@@ -276,6 +276,15 @@ test('area fill works for every main metric, in its palette fill color', () => {
   assert.equal(off.indexOf('fill="#555500"'), -1, 'no fill when the toggle is off');
 });
 
+test('area fill uses the brighter light-theme variant when theme is light', () => {
+  const base = { barSource: 'off', windScale: 'mid', dayNightShading: false, theme: 'light' };
+  const wind = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind', secondaryLineFill: true }), { color: true });
+  const uv = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'uv', secondaryLineFill: true }), { color: true });
+  assert.ok(wind.indexOf('fill="#AAFF55"') >= 0, 'wind light fill = Inchworm');
+  assert.equal(wind.indexOf('fill="#555500"'), -1, 'not the dark-theme ArmyGreen fill');
+  assert.ok(uv.indexOf('fill="#FF55FF"') >= 0, 'uv light fill = ShockingPink');
+});
+
 test('presetContents resolves each named preset directly (layoutPreset set)', () => {
     const vc = require('../src/pkjs/view-cycle.js');
     assert.deepEqual(B.presetContents({ layoutPreset: 'fullCal', healthMode: 'off', radarProvider: 'disabled' }),

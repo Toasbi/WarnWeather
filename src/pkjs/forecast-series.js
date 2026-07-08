@@ -50,12 +50,15 @@ var LINE_COLORS = {
 // Metric → area-fill colour per platform class. Every metric can fill; colour-platform
 // fills are a darker shade of the line so the line always reads brighter (precip
 // PictonBlue→CobaltBlue, wind→ArmyGreen, uv→Purple, gust→DarkGray). B&W has no range,
-// so all fills are LightGray.
+// so all fills are LightGray. `light` is the light-theme fill: the dark-theme shades read
+// too heavy against a white background, so light theme gets a brighter tint of the same
+// hue instead (precip→Celeste, wind→Inchworm, uv→ShockingPink, gust→LightGray). First
+// pass — the user will tune these further.
 var FILL_COLORS = {
-    precip_prob: { color: COLORS.GColorCobaltBlue, bw: COLORS.GColorLightGray },
-    wind:        { color: COLORS.GColorArmyGreen,  bw: COLORS.GColorLightGray },
-    uv:          { color: COLORS.GColorPurple,     bw: COLORS.GColorLightGray },
-    gust:        { color: COLORS.GColorDarkGray,   bw: COLORS.GColorLightGray }
+    precip_prob: { color: COLORS.GColorCobaltBlue, light: COLORS.GColorCeleste,      bw: COLORS.GColorLightGray },
+    wind:        { color: COLORS.GColorArmyGreen,  light: COLORS.GColorInchworm,     bw: COLORS.GColorLightGray },
+    uv:          { color: COLORS.GColorPurple,     light: COLORS.GColorShockingPink, bw: COLORS.GColorLightGray },
+    gust:        { color: COLORS.GColorDarkGray,   light: COLORS.GColorLightGray,    bw: COLORS.GColorLightGray }
 };
 
 /**
@@ -94,15 +97,21 @@ function lineColorFor(metric, settings, isColor, theme) {
 }
 
 /**
- * Area-fill colour for a metric, resolved for the platform.
+ * Area-fill colour for a metric, resolved for the platform + theme. On a colour display,
+ * the light theme swaps in the metric's brighter `light` tint (see FILL_COLORS) instead
+ * of the dark-theme shade so the fill reads against a white background; B&W ignores theme
+ * (always LightGray).
  * @param {string} metric precip_prob|wind|gust|uv.
  * @param {boolean} isColor Colour display?
+ * @param {string} [theme] 'dark'|'light'|'bw'; defaults to 'dark' (no light variant) when omitted.
  * @returns {number|undefined} 0xRRGGBB colour, or undefined for an unknown metric.
  */
-function fillColorFor(metric, isColor) {
+function fillColorFor(metric, isColor, theme) {
+    theme = theme || 'dark';
     var entry = FILL_COLORS[metric];
     if (!entry) { return undefined; }
-    return isColor ? entry.color : entry.bw;
+    if (!isColor) { return entry.bw; }
+    return theme === 'light' ? entry.light : entry.color;
 }
 
 // windScale → km/h ceiling at the top of the graph. Wind and gust share it so a
@@ -172,7 +181,7 @@ function buildForecastSeries(raw, settings, watchInfo) {
     out.SECONDARY_LINE_TREND_UINT8 = secPm ? secPm.map(permilleToByte) : [];
     out.SECONDARY_LINE_COLOR = lineColorFor(secMetric, settings, isColor, theme) || COLORS.GColorBlack;
     out.SECONDARY_LINE_FILL = Boolean(settings.secondaryLineFill);
-    out.SECONDARY_LINE_FILL_COLOR = fillColorFor(secMetric, isColor) || out.SECONDARY_LINE_COLOR;
+    out.SECONDARY_LINE_FILL_COLOR = fillColorFor(secMetric, isColor, theme) || out.SECONDARY_LINE_COLOR;
 
     // Third line: optional; off, or a metric distinct from the secondary one.
     var thirdMetric = settings.thirdLine;

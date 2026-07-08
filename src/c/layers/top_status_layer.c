@@ -69,6 +69,7 @@ static GDrawCommandImage *s_rain_glyph;   // NULL unless an alert is showing
 static int    s_rain_glyph_bucket;        // bucket (1..3) the cached glyph was built for; 0 = none
 static int    s_rain_glyph_side;          // px slot side the cached glyph was scaled to
 static GColor s_rain_glyph_tint;          // fill tint the cached glyph was recolored to
+static bool   s_rain_glyph_outlined;      // whether the cached glyph got the light-theme stroke
 
 // Per-tier recolor + uniform scale of the PDC, mirroring health_status_layer's
 // pipeline (points are 1/8-px precise-path units). We scale the fixed authored
@@ -80,12 +81,20 @@ static GColor s_rain_glyph_tint;          // fill tint the cached glyph was reco
 typedef struct {
     int16_t num, den;   // scale each point: p * num / den
     GColor  tint;
+    bool    outline;    // light theme: force a 1px black stroke (light tier tints
+                         // like drizzle's gray otherwise vanish on a white strip)
 } RainNorm;
 
 static bool rain_norm_cb(GDrawCommand *command, uint32_t index, void *context) {
     (void)index;
     RainNorm *b = (RainNorm *)context;
     gdraw_command_set_fill_color(command, b->tint);
+    if (b->outline) {
+        // Stroke width is baked 0 (clear) by the generator — a nonzero width must be
+        // set at runtime too, not just the color, or the stroke stays invisible.
+        gdraw_command_set_stroke_color(command, GColorBlack);
+        gdraw_command_set_stroke_width(command, 1);
+    }
     uint16_t n = gdraw_command_get_num_points(command);
     for (uint16_t i = 0; i < n; i++) {
         GPoint p = gdraw_command_get_point(command, i);
@@ -116,8 +125,12 @@ static void rain_glyph_unload(void) {
 // tinted `tint`. Reloads only when one of those changes (bucket tracks tier, side
 // is fixed per platform), so the steady-state redraw is a cache hit.
 static void ensure_rain_glyph_loaded(int bucket, int side, GColor tint) {
+    const bool outline = theme_is_light();
+    // Cache key includes `outline`, not just tint: a live theme flip (light<->dark)
+    // with an unchanged tint must still re-recolor, since the stroke depends on theme.
     if (s_rain_glyph && s_rain_glyph_bucket == bucket &&
-        s_rain_glyph_side == side && gcolor_equal(s_rain_glyph_tint, tint)) {
+        s_rain_glyph_side == side && gcolor_equal(s_rain_glyph_tint, tint) &&
+        s_rain_glyph_outlined == outline) {
         return;
     }
     rain_glyph_unload();
@@ -129,7 +142,7 @@ static void ensure_rain_glyph_loaded(int bucket, int side, GColor tint) {
     const int   vspan = vb.h > vb.w ? vb.h : vb.w;
     if (vspan <= 0) { gdraw_command_image_destroy(img); return; }
     GDrawCommandList *list = gdraw_command_image_get_command_list(img);
-    RainNorm b = { .num = (int16_t)side, .den = (int16_t)vspan, .tint = tint };
+    RainNorm b = { .num = (int16_t)side, .den = (int16_t)vspan, .tint = tint, .outline = outline };
     gdraw_command_list_iterate(list, rain_norm_cb, &b);
     gdraw_command_image_set_bounds_size(img, GSize((int16_t)((vb.w * side) / vspan),
                                                    (int16_t)((vb.h * side) / vspan)));
@@ -137,6 +150,7 @@ static void ensure_rain_glyph_loaded(int bucket, int side, GColor tint) {
     s_rain_glyph_bucket = bucket;
     s_rain_glyph_side = side;
     s_rain_glyph_tint = tint;
+    s_rain_glyph_outlined = outline;
 }
 
 // Glyph colour tracks the radar bars per tier; on B&W (or the color-build Black &

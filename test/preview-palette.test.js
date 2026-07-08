@@ -28,6 +28,17 @@ test('palette fill colors come from forecast-series.fillColorFor for every metri
   assert.equal(P.fill.precip_prob.color, '#0055AA'); // CobaltBlue
 });
 
+test('palette fill colors carry a light-theme variant for every metric', () => {
+  const P = buildPreviewPalette();
+  ['precip_prob', 'wind', 'uv', 'gust'].forEach((m) => {
+    assert.equal(P.fill[m].light, hex(fs.fillColorFor(m, true, 'light')), m + ' fill light');
+  });
+  assert.equal(P.fill.precip_prob.light, '#AAFFFF'); // Celeste
+  assert.equal(P.fill.wind.light, '#AAFF55');         // Inchworm
+  assert.equal(P.fill.uv.light, '#FF55FF');           // ShockingPink
+  assert.equal(P.fill.gust.light, '#AAAAAA');         // LightGray
+});
+
 test('palette rain tiers come from rain-tier.buildPalette', () => {
   const P = buildPreviewPalette();
   const tier = rt.buildPalette('basalt', 'multicolor');

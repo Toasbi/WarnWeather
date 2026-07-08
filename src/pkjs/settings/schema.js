@@ -250,7 +250,19 @@ module.exports = {
                 hintByValue: {multicolor: MULTICOLOR_HINT, white: WHITE_HINT},
                 capabilities: ['COLOR'],
                 options: [['Multicolor', 'multicolor'], ['White', 'white']],
-                showWhen: {all: [{key: 'barSource', eq: 'rain'}, {key: 'theme', ne: 'bw'}]}
+                showWhen: {all: [{key: 'barSource', eq: 'rain'}, {key: 'theme', eq: 'dark'}]}
+            }, {
+                type: 'segmented',
+                messageKey: 'rainBarColor',
+                label: 'Bar color',
+                defaultValue: 'multicolor',
+                joinPrevious: true,
+                hintByValue: {multicolor: MULTICOLOR_HINT, white: WHITE_HINT},
+                capabilities: ['COLOR'],
+                // Light theme flips the single-stop palette to black on the watch — the
+                // stored value stays 'white' (wire compatibility), only the label changes.
+                options: [['Multicolor', 'multicolor'], ['Black', 'white']],
+                showWhen: {all: [{key: 'barSource', eq: 'rain'}, {key: 'theme', eq: 'light'}]}
             }, {
                 type: 'toggle',
                 messageKey: 'dayNightShading',
@@ -301,7 +313,18 @@ module.exports = {
                 hintByValue: {multicolor: MULTICOLOR_HINT, white: WHITE_HINT},
                 capabilities: ['COLOR'],
                 options: [['Multicolor', 'multicolor'], ['White', 'white']],
-                showWhen: {all: [{key: 'radarProvider', ne: 'disabled'}, {key: 'theme', ne: 'bw'}]}
+                showWhen: {all: [{key: 'radarProvider', ne: 'disabled'}, {key: 'theme', eq: 'dark'}]}
+            }, {
+                type: 'segmented',
+                messageKey: 'radarColor',
+                label: 'Radar color',
+                defaultValue: 'multicolor',
+                hintByValue: {multicolor: MULTICOLOR_HINT, white: WHITE_HINT},
+                capabilities: ['COLOR'],
+                // Light theme flips the single-stop palette to black on the watch — the
+                // stored value stays 'white' (wire compatibility), only the label changes.
+                options: [['Multicolor', 'multicolor'], ['Black', 'white']],
+                showWhen: {all: [{key: 'radarProvider', ne: 'disabled'}, {key: 'theme', eq: 'light'}]}
             }, {
                 type: 'select',
                 messageKey: 'rainCountdownHorizon',

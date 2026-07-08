@@ -35,10 +35,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             gust:        { colorMulti: '#FFFFFF', colorWhiteBars: '#AAAAAA', bw: '#FFFFFF' }
         },
         fill: {
-            precip_prob: { color: '#0055AA', bw: '#AAAAAA' },
-            wind:        { color: '#555500', bw: '#AAAAAA' },
-            uv:          { color: '#AA00AA', bw: '#AAAAAA' },
-            gust:        { color: '#555555', bw: '#AAAAAA' }
+            precip_prob: { color: '#0055AA', light: '#AAFFFF', bw: '#AAAAAA' },
+            wind:        { color: '#555500', light: '#AAFF55', bw: '#AAAAAA' },
+            uv:          { color: '#AA00AA', light: '#FF55FF', bw: '#AAAAAA' },
+            gust:        { color: '#555555', light: '#AAAAAA', bw: '#AAAAAA' }
         },
         rainTiers: [
             { from: 0, color: '#AAAAAA' },
@@ -243,14 +243,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
         /**
          * Per-metric area-fill color (every metric can fill, matching the watch). Null for an
-         * unknown metric. Sourced from the palette so it can't diverge from forecast-series.
+         * unknown metric. Sourced from the palette so it can't diverge from forecast-series;
+         * the light theme swaps in the brighter `light` tint instead of the dark-theme shade.
          * @param {string} metric precip_prob|wind|gust|uv
          * @returns {?string} #RRGGBB or null
          */
         function fillColor(metric) {
             var e = P.fill[metric];
             if (!e) { return null; }
-            return isColor ? e.color : e.bw;
+            if (!isColor) { return e.bw; }
+            return state.theme === 'light' ? e.light : e.color;
         }
         var tempColor = isColor ? P.temp : ink.fg;
         var tempW = isColor ? 2.2 : 3;               // B&W: thick temp vs thin main line

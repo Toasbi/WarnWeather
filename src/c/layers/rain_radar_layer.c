@@ -310,7 +310,7 @@ static void radar_or_snooze_update_proc(Layer *layer, GContext *ctx) {
         { CHART_LAYER_BARS, .bars = {
               .values = exact_pm, .count = RADAR_NUM_SLOTS, .lo = 0, .hi = 1000,
               .stops = radar_stops, .num_stops = radar_num_stops,
-              .style = theme_is_bw() ? BAR_OUTLINED : BAR_SOLID } },
+              .style = (theme_is_bw() || theme_is_light()) ? BAR_OUTLINED : BAR_SOLID } },
     };
     chart_draw(ctx, &RADAR_DEF, outer, layers,
                (int)(sizeof(layers) / sizeof(layers[0])));

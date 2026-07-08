@@ -34,6 +34,29 @@ test('fillColorFor resolves per platform for every metric', () => {
   assert.equal(fs.fillColorFor('nope', true), undefined);
 });
 
+test('fillColorFor: light theme brightens every metric fill for contrast against white (first pass, to be tuned)', () => {
+  assert.equal(fs.fillColorFor('precip_prob', true, 'light'), C.GColorCeleste);
+  assert.equal(fs.fillColorFor('wind', true, 'light'), C.GColorInchworm);
+  assert.equal(fs.fillColorFor('uv', true, 'light'), C.GColorShockingPink);
+  assert.equal(fs.fillColorFor('gust', true, 'light'), C.GColorLightGray);
+});
+
+test('fillColorFor: dark theme fills are unchanged from the pre-light-theme colors', () => {
+  assert.equal(fs.fillColorFor('precip_prob', true, 'dark'), C.GColorCobaltBlue);
+  assert.equal(fs.fillColorFor('wind', true, 'dark'), C.GColorArmyGreen);
+  assert.equal(fs.fillColorFor('uv', true, 'dark'), C.GColorPurple);
+  assert.equal(fs.fillColorFor('gust', true, 'dark'), C.GColorDarkGray);
+});
+
+test('fillColorFor: B&W fills ignore theme (always LightGray, even in "light")', () => {
+  assert.equal(fs.fillColorFor('precip_prob', false, 'light'), C.GColorLightGray);
+  assert.equal(fs.fillColorFor('wind', false, 'light'), C.GColorLightGray);
+});
+
+test('fillColorFor: theme omitted defaults to dark (no light variant) — backward compatible', () => {
+  assert.equal(fs.fillColorFor('precip_prob', true), C.GColorCobaltBlue);
+});
+
 test('lineColorFor: bw theme on color hardware routes through the B&W (isColor=false) arm', () => {
   assert.equal(fs.lineColorFor('precip_prob', {}, false, 'bw'), C.GColorWhite);
 });

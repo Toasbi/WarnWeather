@@ -30,12 +30,17 @@ function lineEntry(metric) {
 }
 
 /**
- * Area-fill colours for one metric, for both display classes, via forecast-series.fillColorFor.
+ * Area-fill colours for one metric, for both display classes plus the light-theme
+ * variant, via forecast-series.fillColorFor.
  * @param {string} metric precip_prob|wind|uv|gust
- * @returns {{color:string, bw:string}} Colour-display and B&W fills.
+ * @returns {{color:string, light:string, bw:string}} Colour-display (dark theme), light-theme, and B&W fills.
  */
 function fillEntry(metric) {
-    return { color: hex(series.fillColorFor(metric, true)), bw: hex(series.fillColorFor(metric, false)) };
+    return {
+        color: hex(series.fillColorFor(metric, true)),
+        light: hex(series.fillColorFor(metric, true, 'light')),
+        bw: hex(series.fillColorFor(metric, false))
+    };
 }
 
 /**
@@ -44,8 +49,9 @@ function fillEntry(metric) {
  * model), and the rain tiers from rain-tier — so the preview can't diverge from the watch.
  * The temperature curve mirrors the C-side constant GColorRed (forecast_layer.c
  * PBL_IF_COLOR_ELSE(GColorRed, GColorWhite)); it is never sent over the wire, so it is a
- * documented mirror, not a shared source. Each line/fill entry carries a colour-display
- * value and a B&W value; gust's line colour is settings-dependent on colour displays.
+ * documented mirror, not a shared source. Each line entry carries a colour-display value
+ * and a B&W value; each fill entry additionally carries a light-theme value; gust's line
+ * colour is settings-dependent on colour displays.
  * @returns {{temp:string, white:string, line:Object, fill:Object, rainTiers:Array<{from:number, color:string}>}} Preview palette (#RRGGBB strings; rainTiers.from are permille thresholds).
  */
 function buildPreviewPalette() {
