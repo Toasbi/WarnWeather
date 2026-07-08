@@ -280,14 +280,9 @@ static NightAreaPalette night_area_palette_for_fill(GColor fill) {
     // tints so each metric's fill reads against a white window background instead of
     // the dark-theme shade above). Base sits between the dark-theme base above and
     // the bright fill itself: lighter than the dark base, slightly darker than the
-    // fill, so the night underlay still reads as dimmer than day. Hatch matches the
-    // base so the night region reads as one solid tone (no two-tone dither);
-    // boundary keeps the day fill's hue. First tuning pass — revisit on user
-    // feedback.
-    if (gcolor_equal(fill, GColorCeleste))      { return (NightAreaPalette){ GColorCyan,          GColorCyan,          GColorCeleste }; }      // precip (light)
-    if (gcolor_equal(fill, GColorInchworm))     { return (NightAreaPalette){ GColorScreaminGreen, GColorScreaminGreen, GColorInchworm }; }      // wind (light)
-    if (gcolor_equal(fill, GColorShockingPink)) { return (NightAreaPalette){ GColorPurpureus,     GColorPurpureus,     GColorShockingPink }; }  // uv (light)
-    if (gcolor_equal(fill, GColorLightGray))    { return (NightAreaPalette){ GColorDarkGray,      GColorDarkGray,      GColorLightGray }; }     // gust (light)
+    // Light-theme fills (Celeste/Inchworm/ShockingPink/LightGray) never reach this
+    // table: light (color) polarity skips the night_under layer entirely — the fill
+    // keeps its day color under the night overlay (see the call site).
     return (NightAreaPalette){ GColorDukeBlue, GColorBlue, GColorVividCerulean };                                                    // precip (dark) / default
 }
 
@@ -431,8 +426,13 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .fill_color = second->line.fill_color } };
     }
     // night_under re-shades the filled area, so it needs the AREA layer's
-    // exported contour and only runs when the fill is present.
-    if (night_on && fill_on) {
+    // exported contour and only runs when the fill is present. Light (color)
+    // polarity skips it entirely: the fill keeps its day color under the night
+    // overlay (no darker re-shade — user-tuned), and night_over's dots alone
+    // carry the night marking. bw themes keep it (its fg hatch dots below the
+    // contour are B&W's night texture; the underlay is color-only anyway), and
+    // on B&W builds theme_is_bw() is constant-true so the skip compiles out.
+    if (night_on && fill_on && !(theme_is_light() && !theme_is_bw())) {
         const NightAreaPalette np = night_area_palette_for_fill(second->line.fill_color);
         layers[n++] = (ChartLayer){ CHART_LAYER_HATCH, .hatch = {
             .bands = night_bands, .num_bands = num_night_bands,

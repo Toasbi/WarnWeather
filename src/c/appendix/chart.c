@@ -146,12 +146,9 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
         // there, and painting over it would notch the axis. Every theme gets the
         // same halo + BAR_OUTLINED silhouette anatomy; only the interior differs
         // (multicolor/solid palette in the color themes, theme_bg() fill in the B&W
-        // ones). Color-dark inverts the recipe: NO halo (bars keep their pre-theme
-        // footprint against the black window) but a theme_bg() (black) BAR_OUTLINED
-        // silhouette on the bar itself, separating the multicolor interior from the
-        // area fill behind; every other theme draws the bg halo plus a theme_fg()
-        // silhouette. On B&W builds theme_is_bw() is constant-true, so the
-        // dark-only branch compiles out.
+        // ones). Color-dark opts out of both — no halo, no silhouette: the exact
+        // pre-theme look the user tuned before theming existed. On B&W builds
+        // theme_is_bw() is constant-true, so the dark-only skips compile out.
         const bool dark = !theme_is_bw() && !theme_is_light();
         if (!dark) {
             graphics_context_set_fill_color(r->ctx, theme_bg());
@@ -175,7 +172,7 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
                 GRect(bar_x, seg_top, r->def->bar_w, seg_h), 0, GCornerNone);
         }
 
-        if (b->style == BAR_OUTLINED) {
+        if (b->style == BAR_OUTLINED && !dark) {
             // theme_fg() silhouette around the bar interior — the shared bar look in
             // every theme (all three call sites: rain bars, radar bars, health step
             // bars). Draw only the top + side walls and leave the bottom open — the
@@ -186,7 +183,7 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
             const int x0 = bar_x;
             const int x1 = bar_x + r->def->bar_w - 1;
             const int y1 = bar_top + bar_h - 1;
-            graphics_context_set_stroke_color(r->ctx, dark ? theme_bg() : theme_fg());
+            graphics_context_set_stroke_color(r->ctx, theme_fg());
             graphics_context_set_stroke_width(r->ctx, 1);
             graphics_draw_line(r->ctx, GPoint(x0, bar_top), GPoint(x1, bar_top));  // top
             graphics_draw_line(r->ctx, GPoint(x0, bar_top), GPoint(x0, y1));       // left wall
