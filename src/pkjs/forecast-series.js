@@ -44,9 +44,16 @@ function tempTrendToBytes(temps) {
 }
 
 // Metric → line stroke colour per platform class. Gust is settings-dependent on colour
-// displays, so it is resolved in lineColorFor(), not from this table.
+// displays, so it is resolved in lineColorFor(), not from this table. `light` is an
+// optional light-theme override, consulted by lineColorFor() when the theme is
+// light-polarity and the display is effectively colour; a metric without one keeps its
+// `color` value in every color-capable theme (see fillColorFor's identical `light`
+// convention below). precip is the only metric with one so far (readability feedback
+// round: PictonBlue read too bright against the light-theme's white background —
+// VividCerulean is one Pebble-palette step darker, same R-channel notch as the fill
+// below).
 var LINE_COLORS = {
-    precip_prob: { color: COLORS.GColorPictonBlue, bw: COLORS.GColorWhite },
+    precip_prob: { color: COLORS.GColorPictonBlue, light: COLORS.GColorVividCerulean, bw: COLORS.GColorWhite },
     wind:        { color: COLORS.GColorYellow,     bw: COLORS.GColorWhite },
     uv:          { color: COLORS.GColorMagenta,    bw: COLORS.GColorWhite }
 };
@@ -55,10 +62,15 @@ var LINE_COLORS = {
 // PictonBlue→CobaltBlue, wind→ArmyGreen, uv→Purple, gust→DarkGray). B&W has no range,
 // so all fills are LightGray. `light` is the light-theme fill: the dark-theme shades read
 // too heavy against a white background, so light theme gets a brighter tint of the same
-// hue instead (precip→Celeste, wind→Inchworm, uv→ShockingPink, gust→LightGray). First
-// pass — the user will tune these further.
+// hue instead (precip→ElectricBlue, wind→Inchworm, uv→ShockingPink, gust→LightGray).
+// precip's light tint was Celeste (0xAAFFFF) until the readability feedback round: it
+// read too washed-out, so it moved one Pebble-palette step darker to ElectricBlue
+// (0x55FFFF — the R channel steps 0xAA -> 0x55, matching the line's PictonBlue ->
+// VividCerulean step above). NOTE: 0x55FFFF has no "Cyan"-named constant in
+// pebble-colors.js — the real GColorCyan is 0x00FFFF — GColorElectricBlue is the
+// correct name for this hex. First pass — the user will tune these further.
 var FILL_COLORS = {
-    precip_prob: { color: COLORS.GColorCobaltBlue, light: COLORS.GColorCeleste,      bw: COLORS.GColorLightGray },
+    precip_prob: { color: COLORS.GColorCobaltBlue, light: COLORS.GColorElectricBlue, bw: COLORS.GColorLightGray },
     wind:        { color: COLORS.GColorArmyGreen,  light: COLORS.GColorInchworm,     bw: COLORS.GColorLightGray },
     uv:          { color: COLORS.GColorPurple,     light: COLORS.GColorShockingPink, bw: COLORS.GColorLightGray },
     gust:        { color: COLORS.GColorDarkGray,   light: COLORS.GColorLightGray,    bw: COLORS.GColorLightGray }
@@ -78,8 +90,12 @@ function isColorWatch(watchInfo) {
  * already be the EFFECTIVE color flag (isColorWatch(watchInfo) && !isBwTheme(theme)) —
  * see buildForecastSeries. On B&W (or bw/bw-light theme) every line is the theme
  * foreground; gust on colour is settings-dependent so it never matches the rain bars.
- * resolveInk flips an exact white to black in light-polarity themes; hues and grays
- * pass through.
+ * On a colour display, a light-polarity theme (light or bw-light) swaps in the metric's
+ * `light` variant (see LINE_COLORS) when one is defined — mirrors fillColorFor's `light`
+ * convention below; a metric without one keeps its dark-theme `color`. isColor is
+ * already the EFFECTIVE color flag, so bw/bw-light never reach the light-variant branch
+ * — they resolve via the `!isColor` guard above instead. resolveInk flips an exact white
+ * to black in light-polarity themes; hues and grays pass through.
  * @param {string} metric precip_prob|wind|gust|uv.
  * @param {Object} settings Clay settings (reads rainBarColor for gust).
  * @param {boolean} isColor Effective colour display?
@@ -95,7 +111,13 @@ function lineColorFor(metric, settings, isColor, theme) {
         result = settings.rainBarColor === 'white' ? COLORS.GColorLightGray : COLORS.GColorWhite;
     } else {
         var entry = LINE_COLORS[metric];
-        result = entry ? entry.color : COLORS.GColorBlack;
+        if (!entry) {
+            result = COLORS.GColorBlack;
+        } else if (entry.light && isLightPolarity(theme)) {
+            result = entry.light;
+        } else {
+            result = entry.color;
+        }
     }
     return resolveInk(result, theme);
 }

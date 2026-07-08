@@ -17,6 +17,19 @@ test('forecast-series exposes the platform-aware line/fill color maps', () => {
   assert.equal(fs.FILL_COLORS.precip_prob.bw, C.GColorLightGray);
 });
 
+test('LINE_COLORS.precip_prob carries a light-theme variant, one palette step darker than the line', () => {
+  // PictonBlue (0x55AAFF) -> VividCerulean (0x00AAFF): R channel steps down one notch.
+  assert.equal(fs.LINE_COLORS.precip_prob.light, C.GColorVividCerulean);
+});
+
+test('FILL_COLORS.precip_prob.light is one palette step darker than the pre-fix Celeste tint', () => {
+  // Celeste (0xAAFFFF) -> ElectricBlue (0x55FFFF): R channel steps down one notch,
+  // matching the line's darkening above. (0x55FFFF has no "Cyan" name in
+  // pebble-colors.js — real GColorCyan is 0x00FFFF — ElectricBlue is the correct name
+  // for this hex.)
+  assert.equal(fs.FILL_COLORS.precip_prob.light, C.GColorElectricBlue);
+});
+
 test('lineColorFor resolves per platform, with the gust rule on color', () => {
   // Color display:
   assert.equal(fs.lineColorFor('wind', {}, true), C.GColorYellow);
@@ -35,7 +48,9 @@ test('fillColorFor resolves per platform for every metric', () => {
 });
 
 test('fillColorFor: light theme brightens every metric fill for contrast against white (first pass, to be tuned)', () => {
-  assert.equal(fs.fillColorFor('precip_prob', true, 'light'), C.GColorCeleste);
+  // precip is one step darker than the other metrics' light tints (readability
+  // feedback round; see FILL_COLORS.precip_prob.light).
+  assert.equal(fs.fillColorFor('precip_prob', true, 'light'), C.GColorElectricBlue);
   assert.equal(fs.fillColorFor('wind', true, 'light'), C.GColorInchworm);
   assert.equal(fs.fillColorFor('uv', true, 'light'), C.GColorShockingPink);
   assert.equal(fs.fillColorFor('gust', true, 'light'), C.GColorLightGray);
@@ -54,7 +69,7 @@ test('fillColorFor: B&W fills ignore theme (always LightGray, even in "light")',
 });
 
 test('fillColorFor: bw-light behaves like light for the brighter tint when effectively color', () => {
-  assert.equal(fs.fillColorFor('precip_prob', true, 'bw-light'), C.GColorCeleste);
+  assert.equal(fs.fillColorFor('precip_prob', true, 'bw-light'), C.GColorElectricBlue);
   assert.equal(fs.fillColorFor('wind', true, 'bw-light'), C.GColorInchworm);
 });
 
@@ -81,6 +96,15 @@ test('lineColorFor: light theme flips a resolved white line to black', () => {
 
 test('lineColorFor: hued colors pass through untouched in light theme', () => {
   assert.equal(fs.lineColorFor('wind', {}, true, 'light'), C.GColorYellow);
+});
+
+test('lineColorFor: precip line uses its darker light-theme variant when effectively color', () => {
+  assert.equal(fs.lineColorFor('precip_prob', {}, true, 'light'), C.GColorVividCerulean);
+});
+
+test('lineColorFor: precip line keeps the dark-theme PictonBlue in the dark theme', () => {
+  assert.equal(fs.lineColorFor('precip_prob', {}, true, 'dark'), C.GColorPictonBlue);
+  assert.equal(fs.lineColorFor('precip_prob', {}, true), C.GColorPictonBlue);
 });
 
 test('lineColorFor: theme omitted defaults to dark (no flip) — backward compatible', () => {

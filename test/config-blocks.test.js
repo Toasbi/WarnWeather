@@ -285,6 +285,16 @@ test('area fill uses the brighter light-theme variant when theme is light', () =
   assert.ok(uv.indexOf('fill="#FF55FF"') >= 0, 'uv light fill = ShockingPink');
 });
 
+test('precip line + fill go one step darker in the light theme (readability round)', () => {
+  const base = { barSource: 'off', windScale: 'mid', dayNightShading: false, secondaryLine: 'precip_prob', theme: 'light' };
+  const line = B.forecastPreview(base, { color: true });
+  assert.ok(line.indexOf('stroke="#00AAFF"') >= 0, 'precip light line = VividCerulean');
+  assert.equal(line.indexOf('stroke="#55AAFF"'), -1, 'not the dark-theme PictonBlue line');
+  const filled = B.forecastPreview(Object.assign({}, base, { secondaryLineFill: true }), { color: true });
+  assert.ok(filled.indexOf('fill="#55FFFF"') >= 0, 'precip light fill = ElectricBlue (one step darker than Celeste)');
+  assert.equal(filled.indexOf('fill="#AAFFFF"'), -1, 'not the pre-fix Celeste fill');
+});
+
 test('presetContents resolves each named preset directly (layoutPreset set)', () => {
     const vc = require('../src/pkjs/view-cycle.js');
     assert.deepEqual(B.presetContents({ layoutPreset: 'fullCal', healthMode: 'off', radarProvider: 'disabled' }),

@@ -23,19 +23,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // Fallback palette — used only if userData.palette wasn't injected (stale page). Kept in
     // lockstep with preview-palette.buildPreviewPalette() by a test, so it cannot drift.
     // Shape mirrors preview-palette.buildPreviewPalette(): per-metric line + fill colours, each
-    // with a colour-display value and a B&W value, all sourced from forecast-series so the preview
-    // can't diverge from the watch payload. gust has no fixed hue (resolved off the rain bars).
+    // with a colour-display value, a light-theme value, and a B&W value, all sourced from
+    // forecast-series so the preview can't diverge from the watch payload. gust has no fixed
+    // hue (resolved off the rain bars), so it keeps its own colorMulti/colorWhiteBars/bw shape.
     var FALLBACK_PALETTE = {
         temp: '#FF0000',
         white: '#FFFFFF',
         line: {
-            precip_prob: { color: '#55AAFF', bw: '#FFFFFF' },
-            wind:        { color: '#FFFF00', bw: '#FFFFFF' },
-            uv:          { color: '#FF00FF', bw: '#FFFFFF' },
+            precip_prob: { color: '#55AAFF', light: '#00AAFF', bw: '#FFFFFF' },
+            wind:        { color: '#FFFF00', light: '#FFFF00', bw: '#FFFFFF' },
+            uv:          { color: '#FF00FF', light: '#FF00FF', bw: '#FFFFFF' },
             gust:        { colorMulti: '#FFFFFF', colorWhiteBars: '#AAAAAA', bw: '#FFFFFF' }
         },
         fill: {
-            precip_prob: { color: '#0055AA', light: '#AAFFFF', bw: '#AAAAAA' },
+            precip_prob: { color: '#0055AA', light: '#55FFFF', bw: '#AAAAAA' },
             wind:        { color: '#555500', light: '#AAFF55', bw: '#AAAAAA' },
             uv:          { color: '#AA00AA', light: '#FF55FF', bw: '#AAAAAA' },
             gust:        { color: '#555555', light: '#AAAAAA', bw: '#AAAAAA' }
@@ -242,8 +243,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             uv: { vals: uv, max: 11 }
         };
         /**
-         * Per-metric stroke/dot color. White on B&W (series told apart by width/pattern). Gust has
-         * no hue: white over color bars, light gray over white bars (matches forecast-series.lineColorFor).
+         * Per-metric stroke/dot color. White on B&W (series told apart by width/pattern). A
+         * light-polarity theme swaps in the metric's `light` variant when the palette defines
+         * one (mirrors fillColor's `light` swap below and forecast-series.lineColorFor); a
+         * metric without one keeps its dark-theme `color`. Gust has no hue: white over color
+         * bars, light gray over white bars (matches forecast-series.lineColorFor) — no `light`
+         * concept, so it's untouched by the swap.
          * @param {string} metric precip_prob|wind|gust|uv
          * @returns {string} #RRGGBB
          */
@@ -256,7 +261,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             } else {
                 var e = P.line[metric];
                 if (!e) { result = P.white; }
-                else { result = isColor ? e.color : e.bw; }
+                else if (isColor) { result = isLightPolarity(state.theme) ? e.light : e.color; }
+                else { result = e.bw; }
             }
             // Flip an exactly-white resolved color to black in a light-polarity theme
             // (dark/bw stay white-on-black); hued colors pass through untouched.

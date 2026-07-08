@@ -21,12 +21,19 @@ function hex(n) {
 var HUED = ['precip_prob', 'wind', 'uv'];
 
 /**
- * Line stroke colours for one metric, for both display classes, via forecast-series.lineColorFor.
+ * Line stroke colours for one metric, for both display classes plus the light-theme
+ * variant, via forecast-series.lineColorFor. Mirrors fillEntry's shape: a metric with no
+ * light-theme override in LINE_COLORS resolves `light` to the same value as `color`
+ * (lineColorFor falls back to the dark-theme colour), so this is safe to call uniformly.
  * @param {string} metric precip_prob|wind|uv
- * @returns {{color:string, bw:string}} Colour-display and B&W strokes.
+ * @returns {{color:string, light:string, bw:string}} Colour-display (dark theme), light-theme, and B&W strokes.
  */
 function lineEntry(metric) {
-    return { color: hex(series.lineColorFor(metric, {}, true)), bw: hex(series.lineColorFor(metric, {}, false)) };
+    return {
+        color: hex(series.lineColorFor(metric, {}, true)),
+        light: hex(series.lineColorFor(metric, {}, true, 'light')),
+        bw: hex(series.lineColorFor(metric, {}, false))
+    };
 }
 
 /**
@@ -49,9 +56,9 @@ function fillEntry(metric) {
  * model), and the rain tiers from rain-tier — so the preview can't diverge from the watch.
  * The temperature curve mirrors the C-side constant GColorRed (forecast_layer.c
  * PBL_IF_COLOR_ELSE(GColorRed, GColorWhite)); it is never sent over the wire, so it is a
- * documented mirror, not a shared source. Each line entry carries a colour-display value
- * and a B&W value; each fill entry additionally carries a light-theme value; gust's line
- * colour is settings-dependent on colour displays.
+ * documented mirror, not a shared source. Each line and fill entry carries a
+ * colour-display value, a light-theme value, and a B&W value; gust's line colour is
+ * settings-dependent on colour displays, so it gets its own shape (see line.gust below).
  * @returns {{temp:string, white:string, line:Object, fill:Object, rainTiers:Array<{from:number, color:string}>}} Preview palette (#RRGGBB strings; rainTiers.from are permille thresholds).
  */
 function buildPreviewPalette() {

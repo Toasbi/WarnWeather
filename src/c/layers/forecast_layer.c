@@ -502,7 +502,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         .left   = { 1, axis_color },
         .bottom = { 1, axis_color } } } };
     layers[n++] = (ChartLayer){ CHART_LAYER_AXIS, .axis = {
-        .side = GRAPH_SIDE_BOTTOM, .style = BOTTOM_VIEW_TICK_STYLE,
+        .side = GRAPH_SIDE_BOTTOM, .style = bottom_view_tick_style(),
         .slots = axis_slots,
         .label_align = ALIGN_START, .tick_align = ALIGN_START } };
     chart_draw(ctx, &FORECAST_GRID_DEF, outer, layers, n);

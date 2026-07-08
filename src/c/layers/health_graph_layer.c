@@ -406,7 +406,7 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
         .bottom = { 1, HEALTH_AXIS_COLOR } } } };
 
     layers[n++] = (ChartLayer){ CHART_LAYER_AXIS, .axis = {
-        .side = GRAPH_SIDE_BOTTOM, .style = BOTTOM_VIEW_TICK_STYLE,
+        .side = GRAPH_SIDE_BOTTOM, .style = bottom_view_tick_style(),
         .slots = axis_slots,
         .label_align = ALIGN_START, .tick_align = ALIGN_START } };
 

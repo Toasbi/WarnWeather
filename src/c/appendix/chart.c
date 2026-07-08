@@ -232,6 +232,18 @@ static void chart_draw_bar_dots(const ChartRender *r, const ChartLineLayer *l) {
         if (top < plot_top)    { bot += plot_top - top; top = plot_top; }       // slide down off the top
         if (bot > plot_bottom) { top -= bot - plot_bottom; bot = plot_bottom; } // slide up off the x-axis
         if (bot > top) {
+            if (theme_is_bw()) {
+                // B&W: an fg-colored dot vanishes over an fg-territory surface behind it
+                // (the checkerboard area fill from chart_render_area, or an fg bar
+                // segment). A theme_bg() backing 1px larger on every side fixes that —
+                // and needs no overlap detection, because it's neutral everywhere it
+                // isn't needed: a bg backing over an already-bg surface (a rain bar,
+                // empty background) is a no-op, so this reads as "black behind the dot
+                // on the area fill, unchanged over the bars" for free.
+                graphics_context_set_fill_color(r->ctx, theme_bg());
+                graphics_fill_rect(r->ctx, GRect(x - 1, top - 1, w + 2, bot - top + 2), 0, GCornerNone);
+                graphics_context_set_fill_color(r->ctx, l->color);
+            }
             graphics_fill_rect(r->ctx, GRect(x, top, w, bot - top), 0, GCornerNone);
         }
     }
@@ -413,6 +425,37 @@ static void chart_render_area(const ChartRender *r, const ChartAreaLayer *a) {
         const int h = (int)(((int32_t)(a->values[i] - a->lo) * c.size.h) / range_safe);
         pts[i] = GPoint(chart_slot_tick_x(&r->geo, i), plot_bottom - h);
     }
+
+#ifdef PBL_COLOR
+    // The phone sends a flat GColorLightGray fill_color for bw themes (see
+    // forecast-series.js FILL_COLORS' bw entries); real B&W hardware dithers that
+    // in silicon, but color hardware just paints it flat gray. Reproduce the
+    // dithered look by hand instead: a true 50% fg/bg checkerboard confined to the
+    // same contour a solid fill would use — a plain bg base per column
+    // (graphics_fill_rect, no GPath) plus an UNBACKED stride-2 fg dot pass
+    // (hatch_fill_rect_raw, not hatch_fill_rect — a per-dot backing square would
+    // paint over half of every other checker cell instead of completing the
+    // pattern). Same per-column contour walk the aplite branch below already
+    // does, so this is the same cost class of work, not an extra pass. Gated to
+    // color hardware only: on real B&W builds theme_is_bw() is constant-true with
+    // no PBL_COLOR, so this whole arm compiles out and the plain fill below runs,
+    // which real hardware then dithers itself.
+    if (theme_is_bw()) {
+        const int16_t x_lo = pts[0].x;
+        const int16_t x_hi = pts[count - 1].x;
+        graphics_context_set_fill_color(r->ctx, theme_bg());
+        for (int16_t x = x_lo; x <= x_hi; ++x) {
+            const int16_t y = chart_contour_y_for_x(pts, count, x);
+            if (y < plot_bottom) {
+                const GRect col = GRect(x, y, 1, plot_bottom - y);
+                graphics_fill_rect(r->ctx, col, 0, GCornerNone);
+                hatch_fill_rect_raw(r->ctx, col, theme_fg(), 2);
+            }
+        }
+        return;
+    }
+#endif
+
     graphics_context_set_fill_color(r->ctx, a->fill_color);
 #ifdef PBL_PLATFORM_APLITE
     // aplite: fill the area under the contour with 1 px columns rather than a GPath.
