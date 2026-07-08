@@ -479,27 +479,51 @@ test('radarPreview: light theme flips the canvas background to white', () => {
   assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0);
 });
 
-// A bar drawn by rainBars() in outline mode is a <path fill="none" stroke="COLOR"
+// A bar drawn by rainBars() in outline mode is a <path fill="BG" stroke="FG"
 // stroke-width="1">; a solid bar is a <rect ... fill="COLOR">. The watch's actual
 // bw-theme bar (chart.c BAR_OUTLINED) is a theme_bg()-filled bar with a theme_fg()
-// outline on top — closer to "outline" than "flat solid fill" — so the preview's
-// outline path (transparent interior showing the canvas bg through) is the more
-// faithful approximation; see the block comment above rainBars' `outline` param.
-const OUTLINE_MARK = 'fill="none" stroke="#000000" stroke-width="1"';
+// outline on top, opaque against whatever's behind it (e.g. a dithered area fill) —
+// so the preview's outline path is filled with the polarity background (bg), not
+// left transparent, matching that opacity; see the block comment above rainBars'
+// `outline` param.
+const OUTLINE_MARK = 'fill="#FFFFFF" stroke="#000000" stroke-width="1"';
 
-test('radarPreview: bw theme on a color env outlines the exact bars in white, not a solid fill', () => {
+test('radarPreview: bw theme on a color env outlines the exact bars in white, filled opaque black (not a solid white fill, not hollow)', () => {
   const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'bw' }, { color: true });
   assert.equal(svg.indexOf('fill="#00FF00"'), -1, 'no multicolor bands');
-  assert.ok(svg.indexOf('fill="none" stroke="#FFFFFF" stroke-width="1"') >= 0,
-    'exact bars are a white outline path (mirrors the watch\'s theme_bg()-filled + theme_fg()-outlined bar)');
+  assert.ok(svg.indexOf('fill="#000000" stroke="#FFFFFF" stroke-width="1"') >= 0,
+    'exact bars are opaque black-filled with a white outline (mirrors the watch\'s theme_bg()-filled + theme_fg()-outlined bar)');
 });
 
-test('radarPreview: bw-light theme on a color env outlines the exact bars in black on a white canvas (light polarity)', () => {
+test('radarPreview: bw-light theme on a color env outlines the exact bars in black, filled opaque white (light polarity)', () => {
   const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'bw-light' }, { color: true });
   assert.equal(svg.indexOf('fill="#00FF00"'), -1, 'no multicolor bands');
   assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0, 'canvas background is white');
   assert.ok(svg.indexOf(OUTLINE_MARK) >= 0,
-    'exact bars are a black outline path, not a solid black fill — the polarity mirror of bw');
+    'exact bars are opaque white-filled with a black outline — the polarity mirror of bw, not a hollow box');
+});
+
+test('forecastPreview: bw/bw-light rain bars are opaque (filled with the polarity background), not hollow outlines', () => {
+  const base = { barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'off', windScale: 'mid', dayNightShading: false };
+  const bw = B.forecastPreview(Object.assign({}, base, { theme: 'bw' }), { color: true });
+  assert.ok(bw.indexOf('fill="#000000" stroke="#FFFFFF" stroke-width="1"') >= 0,
+    'bw rain bars are opaque black-filled with a white outline');
+  const bwLight = B.forecastPreview(Object.assign({}, base, { theme: 'bw-light' }), { color: true });
+  assert.ok(bwLight.indexOf(OUTLINE_MARK) >= 0,
+    'bw-light rain bars are opaque white-filled with a black outline');
+});
+
+test('forecastPreview: bw rain bars draw above (after) the dithered metric-area fill, matching the watch\'s z-order', () => {
+  const state = {
+    barSource: 'rain', rainBarColor: 'multicolor', windScale: 'mid', dayNightShading: false, theme: 'bw',
+    secondaryLine: 'precip_prob', secondaryLineFill: true
+  };
+  const svg = B.forecastPreview(state, { color: true });
+  const fillIdx = svg.indexOf('fill="url(#fillhatch)"');
+  const barIdx = svg.indexOf('fill="#000000" stroke="#FFFFFF" stroke-width="1"');
+  assert.ok(fillIdx >= 0, 'the dithered metric-area fill is present');
+  assert.ok(barIdx >= 0, 'an outlined rain bar is present');
+  assert.ok(fillIdx < barIdx, 'the dithered area fill is drawn before the bars, so bars paint over it (watch z-order: AREA then BARS)');
 });
 
 test('radarPreview: radarColor=Solid in the light theme uses DarkGray, not black', () => {

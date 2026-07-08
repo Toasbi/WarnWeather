@@ -92,15 +92,22 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // Tier-banded rain bar at full plot height (mimics the watch). mm -> tenths internally.
     // white=true is the B&W silhouette: outline=true draws top+sides with an open bottom
     // (the x-axis closes it, matching chart.c BAR_OUTLINED); outline=false is a solid white bar.
-    function rainBars(mm, x, bw, baseY, plotH, white, tiers, outline, fg) {
+    // The outline path is filled with `bg` (the polarity background, theme_bg() on the watch)
+    // so it's opaque — matching chart.c's theme_bg()-filled + theme_fg()-outlined bar — rather
+    // than transparent, which would let whatever's painted behind it (e.g. a dithered area
+    // fill) show through. SVG fills an open subpath as if closed by a straight line back to
+    // its start, so the implicit 4th (bottom) edge closes exactly on the baseline without
+    // needing to be stroked.
+    function rainBars(mm, x, bw, baseY, plotH, white, tiers, outline, fg, bg) {
         var H = barPermille(Math.round(mm * 10)) / 1000;
         if (H <= 0) { return ''; }
         fg = fg || '#FFFFFF';
+        bg = bg || '#000000';
         var top = baseY - H * plotH;
         if (white) {
             if (outline) {
                 return '<path d="M' + x + ',' + baseY + ' L' + x + ',' + top + ' L' + (x + bw) + ',' + top
-                    + ' L' + (x + bw) + ',' + baseY + '" fill="none" stroke="' + fg + '" stroke-width="1"></path>';
+                    + ' L' + (x + bw) + ',' + baseY + '" fill="' + bg + '" stroke="' + fg + '" stroke-width="1"></path>';
             }
             return rect(x, top, bw, H * plotH, fg);
         }
@@ -295,36 +302,56 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             }
             return out;
         }
-        /**
-         * Main metric: one continuous line whose vertices sit on the hour ticks, so it spans the
-         * first tick to the last. Zero values stay in the line at the baseline (matching the watch's
-         * chart_render_line) rather than breaking it — a line that dips to or starts at zero is still
-         * drawn. Every metric can fill (matches the watch): the metric's palette fill colour on
-         * colour displays, a dithered stipple on B&W (mirrors the watch's 1-bit
-         * dither of the GColorLightGray fill — not diagonal lines).
-         * @param {string} metric precip_prob|wind|gust|uv
-         * @returns {string} SVG markup
-         */
-        var lineFor = function (metric) {
+        // Shared vertex computation for the main-metric line/fill: one point per sample,
+        // vertices on the hour ticks. Zero values stay in the series at the baseline
+        // (matching the watch's chart_render_line) rather than breaking it. Returns null
+        // for an unknown metric or fewer than 2 points (nothing to draw).
+        function metricPoints(metric) {
             var m = METRIC[metric];
-            if (!m) { return ''; }
-            var col = metricColor(metric), fc = fillColor(metric), out = '', pts = [];
-            var doFill = Boolean(state.secondaryLineFill) && Boolean(fc);
+            if (!m) { return null; }
+            var pts = [];
             for (var i = 0; i < m.vals.length; i += 1) {
                 var v = Math.min(m.vals[i], m.max);
                 if (v < 0) { v = 0; }
                 pts.push([tickX(i), PB - v / m.max * (PB - PT - 3)]);   // v == 0 lands on the baseline
             }
-            if (pts.length < 2) { return out; }
+            return pts.length >= 2 ? pts : null;
+        }
+        /**
+         * Main metric's area fill only (no stroke) — the metric's palette fill colour on
+         * colour displays, a dithered stipple on B&W (mirrors the watch's 1-bit dither of
+         * the GColorLightGray fill — not diagonal lines). Drawn separately from lineFor()
+         * so the caller can place it beneath the rain bars, matching chart.c's z-order
+         * (CHART_LAYER_AREA before CHART_LAYER_BARS in forecast_layer.c) — the bars paint
+         * over the fill, not the other way around.
+         * @param {string} metric precip_prob|wind|gust|uv
+         * @returns {string} SVG markup
+         */
+        function areaFillFor(metric) {
+            var fc = fillColor(metric);
+            var doFill = Boolean(state.secondaryLineFill) && Boolean(fc);
+            if (!doFill) { return ''; }
+            var pts = metricPoints(metric);
+            if (!pts) { return ''; }
             var d = smooth(pts);
-            if (doFill) {
-                var area = d + ' L' + pts[pts.length - 1][0] + ',' + PB + ' L' + pts[0][0] + ',' + PB + ' Z';
-                out += isColor
-                    ? '<path d="' + area + '" fill="' + fc + '" fill-opacity="0.25"></path>'
-                    : '<path d="' + area + '" fill="url(#fillhatch)"></path>';
-            }
-            out += '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="' + mainW + '"></path>';
-            return out;
+            var area = d + ' L' + pts[pts.length - 1][0] + ',' + PB + ' L' + pts[0][0] + ',' + PB + ' Z';
+            return isColor
+                ? '<path d="' + area + '" fill="' + fc + '" fill-opacity="0.25"></path>'
+                : '<path d="' + area + '" fill="url(#fillhatch)"></path>';
+        }
+        /**
+         * Main metric: one continuous line whose vertices sit on the hour ticks, so it spans the
+         * first tick to the last. The fill (if any) is drawn separately by areaFillFor() — see
+         * its doc comment for why.
+         * @param {string} metric precip_prob|wind|gust|uv
+         * @returns {string} SVG markup
+         */
+        var lineFor = function (metric) {
+            var col = metricColor(metric);
+            var pts = metricPoints(metric);
+            if (!pts) { return ''; }
+            var d = smooth(pts);
+            return '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="' + mainW + '"></path>';
         };
         /**
          * Second metric: bar-aligned squares centred in the hour column (same columns as the rain
@@ -397,13 +424,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             + '</defs>';
         e += drawNightShading();
         e += '<line x1="' + PX0 + '" y1="' + PB + '" x2="' + PX1 + '" y2="' + PB + '" stroke="' + ink.rgba('0.20') + '" stroke-width="0.7"></line>';
+        // Z-order matches forecast_layer.c: AREA fill, then BARS, then the LINE strokes —
+        // so the bars paint over the (possibly dithered) area fill, and the lines paint over
+        // the bars. See areaFillFor()'s doc comment.
+        e += areaFillFor(state.secondaryLine);
         if (state.barSource === 'rain') {
             // White (or theme-flipped) when the setting says so OR effectively-B&W. B&W draws
             // the outlined silhouette (BAR_OUTLINED); colour-white draws a solid bar
             // (BAR_SOLID) — matching the watch.
             var rainWhite = state.rainBarColor === 'white' || !isColor;
             for (var i = 0; i < n - 1; i += 1) {
-                e += rainBars(rain[i], gapCenter(i) - bw / 2, bw, PB, plotH, rainWhite, P.rainTiers, !isColor, barFg);
+                e += rainBars(rain[i], gapCenter(i) - bw / 2, bw, PB, plotH, rainWhite, P.rainTiers, !isColor, barFg, ink.bg);
             }
         }
         e += lineFor(state.secondaryLine);
@@ -460,7 +491,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             // outline (B&W/bw: unfilled — the transparent interior shows the canvas
             // background through, i.e. theme_bg(), matching the watch's polarity-aware
             // palette fill) vs. solid (effectively-color Solid mode: radarBarFg).
-            e += rainBars(local[i], x, bw, PB, plotH, radarWhite, P.rainTiers, !isColor, radarBarFg);
+            e += rainBars(local[i], x, bw, PB, plotH, radarWhite, P.rainTiers, !isColor, radarBarFg, ink.bg);
         }
         // Rain legend (one row): the exact-spot swatch (tier gradient on color, solid
         // theme-fg on B&W) + label, then a hollow grey "nearby" box + label. The nearby

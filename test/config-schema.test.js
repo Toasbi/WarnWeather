@@ -345,8 +345,9 @@ test('theme is a two-slot select dropdown (color env: 4 options; B&W env: 2), li
   const colorItem = themeItems.find((i) => JSON.stringify(i.showWhen).indexOf('"color"') >= 0 || JSON.stringify(i.showWhen) === '{"env":"color"}');
   const bwItem = themeItems.find((i) => i !== colorItem);
   assert.deepEqual(colorItem.options.map((o) => o[1]), ['dark', 'light', 'bw', 'bw-light']);
-  assert.deepEqual(colorItem.options.map((o) => o[0]), ['Dark', 'Light', 'Black & White', 'Black & White Inverted']);
+  assert.deepEqual(colorItem.options.map((o) => o[0]), ['Dark', 'Light (Alpha)', 'B&W', 'B&W Inverted']);
   assert.deepEqual(bwItem.options.map((o) => o[1]), ['dark', 'light']);
+  assert.deepEqual(bwItem.options.map((o) => o[0]), ['Dark', 'Light (Alpha)']);
   assert.ok(colorItem.hintByValue['bw-light'], 'color-env theme item has a bw-light hint');
   themeItems.forEach((i) => {
     assert.equal(i.type, 'select', 'theme is a dropdown, not segmented');

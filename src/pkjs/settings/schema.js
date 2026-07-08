@@ -67,7 +67,7 @@ module.exports = {
                     bw: 'Renders exactly like a Black & White watch — same colors, same drawing.',
                     'bw-light': 'Renders exactly like a Black & White watch in its Light theme — black on white.'
                 },
-                options: [['Dark', 'dark'], ['Light', 'light'], ['Black & White', 'bw'], ['Black & White Inverted', 'bw-light']],
+                options: [['Dark', 'dark'], ['Light (Alpha)', 'light'], ['B&W', 'bw'], ['B&W Inverted', 'bw-light']],
                 showWhen: {env: 'color'},
                 onChange: 'themeConvert'
             }, {
@@ -79,7 +79,7 @@ module.exports = {
                     dark: 'Black background, white text/lines (default).',
                     light: 'White background, black text/lines. Graph colors are unchanged for now.'
                 },
-                options: [['Dark', 'dark'], ['Light', 'light']],
+                options: [['Dark', 'dark'], ['Light (Alpha)', 'light']],
                 showWhen: {not: {env: 'color'}},
                 onChange: 'themeConvert'
             }, {
