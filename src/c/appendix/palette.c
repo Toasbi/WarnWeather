@@ -14,12 +14,13 @@ static void fill_defaults(ChartColorStop *stops, int *num) {
     if (*num > 0) { return; }
     if (theme_is_bw()) {
         // B&W (real hardware, or the Black & White theme on a color build): single
-        // theme_bg() stop; the watch pairs it with a theme_fg() outline
-        // (chart.c BAR_OUTLINED). bw-dark's theme_bg() is black — pixel-identical
-        // to the literal-black stop this always returned before polarity existed.
-        // bw-light's theme_bg() is white, the polarity mirror (white fill, black
-        // outline).
-        stops[0] = (ChartColorStop){ 0, theme_bg() };
+        // theme_fg() stop; the watch pairs it with a theme_bg() 1px halo drawn
+        // OUTSIDE the bar (chart.c's bar-separation halo, gated
+        // theme_is_light() || theme_is_bw()) rather than a fg BAR_OUTLINED
+        // silhouette on top, which would be fg-on-fg and invisible now. bw-dark:
+        // white fill, black border. bw-light: black fill, white border, the
+        // polarity mirror.
+        stops[0] = (ChartColorStop){ 0, theme_fg() };
         *num = 1;
         return;
     }

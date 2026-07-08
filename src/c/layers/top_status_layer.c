@@ -154,10 +154,10 @@ static void ensure_rain_glyph_loaded(int bucket, int side, GColor tint) {
 }
 
 // Glyph colour tracks the radar bars per tier; on B&W (or the color-build Black &
-// White theme) the strip background is theme_bg() and palette_radar_color() now
-// returns that SAME theme_bg() stop (it's a bar-fill color — see palette.c), so
-// using it here would paint the glyph invisibly onto its own background. Force
-// the default foreground instead.
+// White theme) palette_radar_color() now returns theme_fg() too (bars are
+// fg-filled — see palette.c's fill_defaults), so calling through would happen to
+// agree. Force the default foreground directly anyway rather than depend on that
+// coincidence — it's the strip's own foreground either way.
 static GColor rain_glyph_color(int tier) {
 #ifdef PBL_COLOR
     if (!theme_is_bw()) { return palette_radar_color(tier); }
@@ -176,38 +176,6 @@ static void draw_bitmap(GContext *ctx, GBitmap *bitmap, GRect frame) {
     graphics_context_set_compositing_mode(ctx, GCompOpSet);
     graphics_draw_bitmap_in_rect(ctx, bitmap, frame);
     graphics_context_set_compositing_mode(ctx, GCompOpAssign);
-}
-
-// BT connect/disconnect icons get a 1px black poor-man's outline in the light theme on
-// color builds: draw four 1px-offset copies with the bitmap's tint temporarily forced to
-// black, then the real tint on top at the true position (no true anti-aliasing — just
-// enough to separate the icon from a white strip). B&W/bw themes already tint the icon
-// theme_fg() (see ensure_bt_bitmap_loaded/ensure_bt_disconnect_bitmap_loaded below), so
-// they're legible without this. #ifdef PBL_COLOR: hue tints (and this light/color
-// distinction) only exist on color builds — aplite/diorite/flint keep the plain draw,
-// unchanged, no port needed (see the Aplite-Twin-Reviewed commit trailer). No heap: reuses
-// the bitmap's own module-static 2-entry palette array (s_bt_palette /
-// s_bt_disconnect_palette), mutated for the outline passes and restored before the real
-// draw. Done here in the draw proc, not the ensure_*_bitmap_loaded loaders, so the
-// palette[0]=black mutation never touches the s_bt_bitmap_fg / s_bt_disconnect_bitmap_fg
-// re-tint-tracking guards — those still only ever see the real tint.
-static void draw_bt_icon(GContext *ctx, GBitmap *bitmap, GColor *palette, GRect frame) {
-#ifdef PBL_COLOR
-    if (theme_is_light() && !theme_is_bw()) {
-        GColor tint = palette[0];
-        palette[0] = GColorBlack;
-        gbitmap_set_palette(bitmap, palette, false);
-        draw_bitmap(ctx, bitmap, GRect(frame.origin.x - 1, frame.origin.y, frame.size.w, frame.size.h));
-        draw_bitmap(ctx, bitmap, GRect(frame.origin.x + 1, frame.origin.y, frame.size.w, frame.size.h));
-        draw_bitmap(ctx, bitmap, GRect(frame.origin.x, frame.origin.y - 1, frame.size.w, frame.size.h));
-        draw_bitmap(ctx, bitmap, GRect(frame.origin.x, frame.origin.y + 1, frame.size.w, frame.size.h));
-        palette[0] = tint;
-        gbitmap_set_palette(bitmap, palette, false);
-    }
-#else
-    (void) palette;
-#endif
-    draw_bitmap(ctx, bitmap, frame);
 }
 
 // Tracks the foreground the cached bitmap's palette was tinted with, so a live
@@ -232,7 +200,13 @@ static void ensure_mute_bitmap_loaded(void) {
 static GColor s_bt_bitmap_fg;
 
 static void ensure_bt_bitmap_loaded(void) {
-    GColor fg = theme_pick(GColorPictonBlue, theme_fg());
+    // Light theme tints the icon the default foreground (black) instead of the hue —
+    // a saturated blue reads poorly on a white strip. Dark keeps the hue; bw/bw-light
+    // already collapse to theme_fg() via theme_pick(), same as light, so this only
+    // changes the color-build dark-vs-light split. On B&W hardware builds theme_pick()
+    // is a macro that always resolves to theme_fg(), so both arms of the ternary agree
+    // and this collapses to theme_fg() regardless of theme_is_light().
+    GColor fg = theme_is_light() ? theme_fg() : theme_pick(GColorPictonBlue, theme_fg());
     if (s_bt_bitmap && gcolor_equal(s_bt_bitmap_fg, fg)) {
         return;
     }
@@ -248,7 +222,8 @@ static void ensure_bt_bitmap_loaded(void) {
 static GColor s_bt_disconnect_bitmap_fg;
 
 static void ensure_bt_disconnect_bitmap_loaded(void) {
-    GColor fg = theme_pick(GColorRed, theme_fg());
+    // Same light-theme fg tint as ensure_bt_bitmap_loaded above (see its comment).
+    GColor fg = theme_is_light() ? theme_fg() : theme_pick(GColorRed, theme_fg());
     if (s_bt_disconnect_bitmap && gcolor_equal(s_bt_disconnect_bitmap_fg, fg)) {
         return;
     }
@@ -374,10 +349,10 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
 
     if (draw_bt) {
         ensure_bt_bitmap_loaded();
-        draw_bt_icon(ctx, s_bt_bitmap, s_bt_palette, GRect(bt_x, STATUS_ICON_Y(bounds.size.h, 10), 10, 10));
+        draw_bitmap(ctx, s_bt_bitmap, GRect(bt_x, STATUS_ICON_Y(bounds.size.h, 10), 10, 10));
     } else if (draw_bt_disc) {
         ensure_bt_disconnect_bitmap_loaded();
-        draw_bt_icon(ctx, s_bt_disconnect_bitmap, s_bt_disconnect_palette, GRect(bt_x, STATUS_ICON_Y(bounds.size.h, 10), 10, 10));
+        draw_bitmap(ctx, s_bt_disconnect_bitmap, GRect(bt_x, STATUS_ICON_Y(bounds.size.h, 10), 10, 10));
     }
 
     draw_status_text_in(ctx, text_rect, shown, text_align, font);

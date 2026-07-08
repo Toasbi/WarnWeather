@@ -143,12 +143,15 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
         // Bar-separation halo: a 1px theme_bg() ring outside the bar's left/right/top
         // edges, painted before the segment fills so the colored segments keep their
         // full width/height on top. Not expanded downward — the x-axis baseline sits
-        // there, and painting bg over it would notch the axis. Light-polarity aid,
-        // not a color/B&W split: draws in light AND bw-light (a white ring — bw-light
-        // hardware shows exactly what a color build's bw-light theme draws), never in
-        // dark or bw. Dark reverts to its pre-theme look (bars butt directly, no
-        // halo); bw-dark's own BAR_OUTLINED fg silhouette below is its separation aid.
-        if (theme_is_light()) {
+        // there, and painting bg over it would notch the axis. Universal separator
+        // except the color dark theme (untouched, pre-theme look — bars butt
+        // directly, no halo): draws in light, bw, AND bw-light. theme_is_bw() is
+        // constant-true on B&W hardware builds, so the halo always draws there too —
+        // fg-filled bars (palette.c's fill_defaults / health_graph_layer.c's step
+        // stop) get a bg border in both polarities, replacing the old fg
+        // BAR_OUTLINED silhouette (now an unused-but-kept engine capability, see
+        // below).
+        if (theme_is_light() || theme_is_bw()) {
             graphics_context_set_fill_color(r->ctx, theme_bg());
             graphics_fill_rect(r->ctx,
                 GRect(bar_x - 1, bar_top - 1, r->def->bar_w + 2, bar_h + 1),
@@ -171,15 +174,16 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
         }
 
         if (b->style == BAR_OUTLINED) {
-            // B&W: a theme_fg() silhouette keeps the bar fill (theme_bg() — see
-            // palette.c's fill_defaults() and health_graph_layer.c's step stop)
-            // readable against theme_bg(). Draw only the top + side walls and leave
-            // the bottom open — the x-axis baseline already closes the bar, so a
-            // bottom edge would double the axis line. bw-dark: white-on-black,
-            // pixel-identical to pre-theme v1. bw-light: the fill is white
-            // (theme_bg()) and this silhouette is black (theme_fg()) — clearly
-            // visible, the polarity mirror of bw-dark (not the black-on-black v1
-            // limit this comment used to describe).
+            // Reserved engine capability, not exercised by any current call site as
+            // of the fg-fill B&W round: bars now fill theme_fg() (palette.c's
+            // fill_defaults / health_graph_layer.c's step stop), so a theme_fg()
+            // silhouette drawn on top would be fg-on-fg and invisible. B&W's
+            // separation aid is now the theme_bg() halo above (theme_is_light() ||
+            // theme_is_bw()), drawn OUTSIDE the bar instead of outlining it. Kept
+            // for any future caller with a non-fg fill that still wants an outline:
+            // draws only the top + side walls and leaves the bottom open — the
+            // x-axis baseline already closes the bar, so a bottom edge would double
+            // the axis line.
             const int x0 = bar_x;
             const int x1 = bar_x + r->def->bar_w - 1;
             const int y1 = bar_top + bar_h - 1;

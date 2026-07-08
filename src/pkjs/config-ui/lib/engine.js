@@ -500,7 +500,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       });
       scroll.addEventListener('change', function (e) {
         var sel = e.target.closest('select');
-        if (sel) { S[sel.getAttribute('data-k')] = sel.value; render(); }
+        if (!sel) { return; }
+        var sk = sel.getAttribute('data-k'), oldV = S[sk], newV = sel.value;
+        S[sk] = newV;
+        var sItem = findItem(sk);
+        var onChangeFn = sItem && sItem.onChange && PConf.onChange.get(sItem.onChange);
+        if (onChangeFn) { onChangeFn(S, oldV, newV); }
+        render();
       });
       scroll.addEventListener('input', function (e) {
         var sb = e.target.closest('[data-select-search]');

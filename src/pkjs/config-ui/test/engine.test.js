@@ -1,6 +1,8 @@
 // src/pkjs/config-ui/test/engine.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 // Shared dual-use modules must populate global.PConf before engine.js reads PConf.color/schemaWalk/showWhen.
 require('../lib/schema-walk.js');
 require('../lib/color.js');
@@ -421,4 +423,50 @@ test('onChange registry: register/get; unknown id -> undefined', () => {
   E.onChange.register('demo', (S, oldV, newV) => { S.touched = [oldV, newV]; });
   assert.equal(typeof E.onChange.get('demo'), 'function');
   assert.equal(E.onChange.get('nope'), undefined);
+});
+
+// boot() requires a DOM; drive it with a minimal document shim (same technique as
+// statictext-showwhen.test.js) so wireInputs()'s real click/change listeners run.
+// scroll.addEventListener here CAPTURES the listener (instead of no-op'ing it) so the
+// test can invoke it directly, simulating a real browser event.
+function bootWithCapturedListeners(schema, env) {
+  const LIB = path.join(__dirname, '..', 'lib');
+  const BUNDLE = fs.readFileSync(path.join(LIB, 'schema-walk.js'), 'utf8')
+    + '\n' + fs.readFileSync(path.join(LIB, 'color.js'), 'utf8')
+    + '\n' + fs.readFileSync(path.join(LIB, 'show-when.js'), 'utf8')
+    + '\n' + fs.readFileSync(path.join(LIB, 'engine.js'), 'utf8')
+    + '\nPConf.engine.boot();';
+  const listeners = {};
+  const scroll = { innerHTML: '', addEventListener: (type, fn) => { listeners[type] = fn; } };
+  const generic = () => ({ innerHTML: '', textContent: '', addEventListener: () => {} });
+  const ids = { scroll, tabs: generic(), save: generic(), appTitle: generic(), toast: generic() };
+  const document = { getElementById: (id) => ids[id] || generic() };
+  const fn = new Function('document', 'INJECTED_SCHEMA', 'INJECTED_ENV', 'INJECTED_CFG',
+    'INJECTED_USERDATA', 'INJECTED_RETURN', 'module', BUNDLE);
+  const mod = { exports: {} };
+  fn(document, schema, env, {}, {}, 'pebblejs://close#', mod);
+  return { listeners, scroll, onChange: mod.exports.onChange };
+}
+
+const THEME_SCHEMA = {
+  appName: 'X', versionLabel: 'v0',
+  tabs: [{ id: 't', label: 'T', sections: [{ title: 'S', items: [
+    { type: 'select', messageKey: 'theme', label: 'Theme', defaultValue: 'dark', onChange: 'themeConvert',
+      options: [['Dark', 'dark'], ['Light', 'light']] }
+  ] }] }]
+};
+
+test('boot(): a native <select> change fires the item\'s registered onChange hook (regression: only the segmented [data-v] click path did)', () => {
+  const { listeners, onChange } = bootWithCapturedListeners(THEME_SCHEMA, { color: true, round: false, platform: 'basalt' });
+  let captured = null;
+  onChange.register('themeConvert', (S, oldV, newV) => { captured = { oldV, newV, sTheme: S.theme }; });
+
+  assert.equal(typeof listeners.change, 'function', 'a change listener was wired on #scroll');
+  const fakeSelect = { getAttribute: (a) => (a === 'data-k' ? 'theme' : null), value: 'light' };
+  listeners.change({ target: { closest: (sel) => (sel === 'select' ? fakeSelect : null) } });
+
+  assert.ok(captured, 'the registered onChange hook fired for a select-driven change');
+  assert.equal(captured.oldV, 'dark', 'old value captured before the change');
+  assert.equal(captured.newV, 'light', 'new value passed through');
+  assert.equal(captured.sTheme, 'light', 'S was updated before the hook ran');
 });

@@ -479,27 +479,43 @@ test('radarPreview: light theme flips the canvas background to white', () => {
   assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0);
 });
 
-// A bar drawn by rainBars() in outline mode is a <path fill="none" stroke="COLOR"
-// stroke-width="1">; a solid bar is a <rect ... fill="COLOR">. The watch's actual
-// bw-theme bar (chart.c BAR_OUTLINED) is a theme_bg()-filled bar with a theme_fg()
-// outline on top — closer to "outline" than "flat solid fill" — so the preview's
-// outline path (transparent interior showing the canvas bg through) is the more
-// faithful approximation; see the block comment above rainBars' `outline` param.
-const OUTLINE_MARK = 'fill="none" stroke="#000000" stroke-width="1"';
+// A bar drawn by rainBars() in halo mode is two adjacent <rect> elements: a 1px-
+// larger bg-colored halo rect immediately followed by the bar's own fg-colored fill
+// rect (mirrors chart.c's bar-separation halo — a theme_bg() ring drawn just outside
+// a theme_fg()-filled bar, universal on B&W/bw as of the fg-fill round). Solid
+// (non-B&W) mode draws just the bar's own fill rect, no halo. These two literal
+// strings mark the OLD (pre-fg-fill) outline-path rendering, kept here only to
+// prove it is gone.
+const OLD_OUTLINE_WHITE = 'fill="none" stroke="#FFFFFF" stroke-width="1"';
+const OLD_OUTLINE_BLACK = 'fill="none" stroke="#000000" stroke-width="1"';
 
-test('radarPreview: bw theme on a color env outlines the exact bars in white, not a solid fill', () => {
+test('radarPreview: bw theme on a color env fg-fills the exact bars in white with a black bg halo, not an outline', () => {
   const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'bw' }, { color: true });
   assert.equal(svg.indexOf('fill="#00FF00"'), -1, 'no multicolor bands');
-  assert.ok(svg.indexOf('fill="none" stroke="#FFFFFF" stroke-width="1"') >= 0,
-    'exact bars are a white outline path (mirrors the watch\'s theme_bg()-filled + theme_fg()-outlined bar)');
+  assert.equal(svg.indexOf(OLD_OUTLINE_WHITE), -1,
+    'exact bars no longer draw as a white outline path (the pre-fg-fill look)');
+  assert.ok(/<rect x="[-\d.]+" y="[-\d.]+" width="[\d.]+" height="[\d.]+" fill="#000000"><\/rect><rect x="[-\d.]+" y="[-\d.]+" width="[\d.]+" height="[\d.]+" fill="#FFFFFF"><\/rect>/.test(svg),
+    'each exact bar draws a black (bg) halo rect immediately followed by its white (fg) fill rect');
 });
 
-test('radarPreview: bw-light theme on a color env outlines the exact bars in black on a white canvas (light polarity)', () => {
+test('radarPreview: bw-light theme on a color env fg-fills the exact bars in black with a white bg halo, on a white canvas', () => {
   const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'bw-light' }, { color: true });
   assert.equal(svg.indexOf('fill="#00FF00"'), -1, 'no multicolor bands');
   assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0, 'canvas background is white');
-  assert.ok(svg.indexOf(OUTLINE_MARK) >= 0,
-    'exact bars are a black outline path, not a solid black fill — the polarity mirror of bw');
+  assert.equal(svg.indexOf(OLD_OUTLINE_BLACK), -1,
+    'exact bars no longer draw as a black outline path — the polarity mirror of bw');
+  assert.ok(/<rect x="[-\d.]+" y="[-\d.]+" width="[\d.]+" height="[\d.]+" fill="#FFFFFF"><\/rect><rect x="[-\d.]+" y="[-\d.]+" width="[\d.]+" height="[\d.]+" fill="#000000"><\/rect>/.test(svg),
+    'each exact bar draws a white (bg) halo rect immediately followed by its black (fg) fill rect');
+});
+
+test('forecastPreview: legend Rain swatch on B&W is fg-filled with a bg border, not a hollow outline box', () => {
+  const svg = B.forecastPreview(
+    { barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'off', windScale: 'mid', dayNightShading: false },
+    { color: false });
+  assert.equal(svg.indexOf(OLD_OUTLINE_WHITE), -1,
+    'Rain legend swatch no longer draws as a hollow outline box');
+  assert.ok(/<rect x="[\d.]+" y="[\d.]+" width="12" height="7" fill="#FFFFFF" stroke="#000000" stroke-width="1"><\/rect>/.test(svg),
+    'Rain legend swatch is a solid white (fg) box with a black (bg) border');
 });
 
 test('radarPreview: radarColor=Solid in the light theme uses DarkGray, not black', () => {

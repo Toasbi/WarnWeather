@@ -90,17 +90,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     // Tier-banded rain bar at full plot height (mimics the watch). mm -> tenths internally.
-    // white=true is the B&W silhouette: outline=true draws top+sides with an open bottom
-    // (the x-axis closes it, matching chart.c BAR_OUTLINED); outline=false is a solid white bar.
-    function rainBars(mm, x, bw, baseY, plotH, white, tiers, outline, fg) {
+    // white=true is the single-stop (non-multicolor-tier) bar: outline=true draws a solid
+    // fg-filled bar with a 1px bg halo just outside its left/right/top edges (mirrors
+    // chart.c's bar-separation halo, universal on B&W/bw as of the fg-fill round — bg is
+    // the halo color); outline=false is a plain solid fg bar, no halo.
+    function rainBars(mm, x, bw, baseY, plotH, white, tiers, outline, fg, bg) {
         var H = barPermille(Math.round(mm * 10)) / 1000;
         if (H <= 0) { return ''; }
         fg = fg || '#FFFFFF';
+        bg = bg || '#000000';
         var top = baseY - H * plotH;
         if (white) {
             if (outline) {
-                return '<path d="M' + x + ',' + baseY + ' L' + x + ',' + top + ' L' + (x + bw) + ',' + top
-                    + ' L' + (x + bw) + ',' + baseY + '" fill="none" stroke="' + fg + '" stroke-width="1"></path>';
+                var halo = rect(x - 1, top - 1, bw + 2, (baseY - top) + 1, bg);
+                return halo + rect(x, top, bw, H * plotH, fg);
             }
             return rect(x, top, bw, H * plotH, fg);
         }
@@ -197,9 +200,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // Solid ('white'/Solid) rain-bar color, mirroring rain-tier.js buildPalette's
         // colorMode==='white' branch: DarkGray in light polarity (not black — a pure
         // white bar reads too flat on a white background), white in dark. Only used on
-        // effectively-color displays (isColor); B&W/bw themes draw an OUTLINE instead
-        // (see rainBars' `outline` param below) using ink.fg as the stroke color, which
-        // this variable also equals there — same value, different role.
+        // effectively-color displays (isColor); B&W/bw themes fg-fill the bar with a bg
+        // halo instead (see rainBars' `outline` param below) using ink.fg as the fill
+        // color, which this variable also equals there — same value, different role.
         var barFg = isColor ? (isLightPolarity(state.theme) ? '#555555' : '#FFFFFF') : ink.fg;
 
         // One coherent 12-point scenario starting at noon (slot 0 = 12:00): an afternoon
@@ -379,8 +382,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                     // DarkGray in the light theme, like the bars themselves — see barFg)
                     out += rect(x, gy - 3.5, 12, 7, barFg);
                 } else {
-                    // B&W: outline box, matching the outlined silhouette bars
-                    out += '<rect x="' + x + '" y="' + (gy - 3.5) + '" width="12" height="7" fill="none" stroke="' + ink.fg + '" stroke-width="1"></rect>';
+                    // B&W: fg-filled swatch with a 1px bg border, matching the fg-filled bars.
+                    out += '<rect x="' + x + '" y="' + (gy - 3.5) + '" width="12" height="7" fill="' + ink.fg + '" stroke="' + ink.bg + '" stroke-width="1"></rect>';
                 }
                 var lx = x + gw + 3;
                 out += txt(lx, ty, 7.5, '#AEB4BD', 'start', 600, en.label);
@@ -399,11 +402,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         e += '<line x1="' + PX0 + '" y1="' + PB + '" x2="' + PX1 + '" y2="' + PB + '" stroke="' + ink.rgba('0.20') + '" stroke-width="0.7"></line>';
         if (state.barSource === 'rain') {
             // White (or theme-flipped) when the setting says so OR effectively-B&W. B&W draws
-            // the outlined silhouette (BAR_OUTLINED); colour-white draws a solid bar
-            // (BAR_SOLID) — matching the watch.
+            // a fg-filled bar with a bg halo border (mirrors chart.c's bar-separation halo,
+            // universal on B&W/bw — replaces the old fg BAR_OUTLINED silhouette); colour-white
+            // draws a plain solid bar (BAR_SOLID, no halo) — matching the watch.
             var rainWhite = state.rainBarColor === 'white' || !isColor;
             for (var i = 0; i < n - 1; i += 1) {
-                e += rainBars(rain[i], gapCenter(i) - bw / 2, bw, PB, plotH, rainWhite, P.rainTiers, !isColor, barFg);
+                e += rainBars(rain[i], gapCenter(i) - bw / 2, bw, PB, plotH, rainWhite, P.rainTiers, !isColor, barFg, ink.bg);
             }
         }
         e += lineFor(state.secondaryLine);
@@ -444,9 +448,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var radarWhite = state.radarColor === 'white' || !isColor;
         // Solid ('white'/Solid) radar-bar color: DarkGray in light polarity, white in
         // dark (mirrors rain-tier.js buildPalette's colorMode==='white' branch — see
-        // forecastPreview's barFg, same rule). B&W/bw themes draw an OUTLINE instead
-        // (see the `outline` param below) using ink.fg as the stroke color, which this
-        // also equals there — same value, different role.
+        // forecastPreview's barFg, same rule). B&W/bw themes fg-fill the bar with a bg
+        // halo instead (see the `outline` param below) using ink.fg as the fill color,
+        // which this also equals there — same value, different role.
         var radarBarFg = isColor ? (isLightPolarity(state.theme) ? '#555555' : '#FFFFFF') : ink.fg;
         // Rainbow is a single-point nowcast: no 2 km-area signal → omit the
         // hollow "nearby" outline bars and their legend entry entirely.
@@ -457,10 +461,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (showNearby && nH > 0) {
                 e += '<rect x="' + x + '" y="' + (PB - nH * plotH) + '" width="' + bw + '" height="' + (nH * plotH) + '" fill="none" stroke="' + ink.rgba('0.30') + '" stroke-width="0.7"></rect>';
             }
-            // outline (B&W/bw: unfilled — the transparent interior shows the canvas
-            // background through, i.e. theme_bg(), matching the watch's polarity-aware
-            // palette fill) vs. solid (effectively-color Solid mode: radarBarFg).
-            e += rainBars(local[i], x, bw, PB, plotH, radarWhite, P.rainTiers, !isColor, radarBarFg);
+            // fg-filled bar with a 1px bg halo outside it (B&W/bw: theme_fg() fill + a
+            // theme_bg() border, mirroring chart.c's bar-separation halo) vs. plain solid
+            // (effectively-color Solid mode: radarBarFg, no halo).
+            e += rainBars(local[i], x, bw, PB, plotH, radarWhite, P.rainTiers, !isColor, radarBarFg, ink.bg);
         }
         // Rain legend (one row): the exact-spot swatch (tier gradient on color, solid
         // theme-fg on B&W) + label, then a hollow grey "nearby" box + label. The nearby

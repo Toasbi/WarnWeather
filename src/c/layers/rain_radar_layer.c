@@ -112,7 +112,8 @@ static inline int slot_height_px(uint8_t tenths, int16_t bar_plot_h) {
 // of the exact bar in column k. Falls back to the area tier when the
 // slot has no exact bar so the border still has a colour.
 // B&W audit note: palette_radar_color() now returns a bar-FILL colour
-// (theme_bg()) in bw themes, not an outline colour — but that's moot here.
+// (theme_fg(), matching the fg-filled bars — see palette.c) in bw themes, not
+// an outline colour — but that's moot here.
 // This result only reaches the screen via nearby_border_h_line/v_line below,
 // which unconditionally override the stroke colour to theme_fg() whenever
 // theme_is_bw() (both on B&W hardware and a color build's bw/bw-light theme),
@@ -320,7 +321,7 @@ static void radar_or_snooze_update_proc(Layer *layer, GContext *ctx) {
         { CHART_LAYER_BARS, .bars = {
               .values = exact_pm, .count = RADAR_NUM_SLOTS, .lo = 0, .hi = 1000,
               .stops = radar_stops, .num_stops = radar_num_stops,
-              .style = theme_is_bw() ? BAR_OUTLINED : BAR_SOLID } },
+              .style = BAR_SOLID } },
     };
     chart_draw(ctx, &RADAR_DEF, outer, layers,
                (int)(sizeof(layers) / sizeof(layers[0])));

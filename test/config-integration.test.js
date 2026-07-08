@@ -5,8 +5,8 @@ const fs = require('node:fs');
 const rainTier = require('../src/pkjs/weather/rain-tier.js');
 const colors = require('../src/pkjs/pebble-colors.js');
 
-test('rain-tier consumes library platform classification (flint -> single black stop)', () => {
-  assert.deepEqual(rainTier.buildPalette('flint', 'multicolor').rgb, [colors.GColorBlack]);
+test('rain-tier consumes library platform classification (flint -> single white/fg stop)', () => {
+  assert.deepEqual(rainTier.buildPalette('flint', 'multicolor').rgb, [colors.GColorWhite]);
   assert.deepEqual(rainTier.buildPalette('basalt', 'white').rgb, [colors.GColorWhite]);
   assert.ok(rainTier.buildPalette('basalt', 'multicolor').rgb.length > 1, 'color platform keeps tier stops');
 });
