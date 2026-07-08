@@ -11,8 +11,9 @@
  * UNCHANGED (skip the send) iff the overlap matches and the tail is dry.
  */
 
-var SLOT_SECONDS = 5 * 60;   // must match radar.js SLOT_SECONDS / RADAR_SLOT_SECONDS on the watch
-var NUM_BARS = 24;
+var radarWire = require('./radar-wire.js');
+var SLOT_SECONDS = radarWire.SLOT_SECONDS; // shared wire invariant (300 s/slot)
+var NUM_BARS = radarWire.NUM_BARS;         // shared wire invariant (24 frames)
 
 /**
  * Decide whether a candidate radar subset differs from the last-sent one.
