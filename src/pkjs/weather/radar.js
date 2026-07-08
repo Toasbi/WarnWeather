@@ -1,12 +1,15 @@
 var WeatherProvider = require('./provider.js');
 var request = WeatherProvider.request;
-var clampByte = require('../wire-units.js').clampByte;
+var wireUnits = require('../wire-units.js');
+var clampByte = wireUnits.clampByte;
+var zeroFilledArray = wireUnits.zeroFilledArray;
+var radarWire = require('./radar-wire.js');
+var NUM_BARS = radarWire.NUM_BARS;         // shared wire invariant (24 frames)
+var SLOT_SECONDS = radarWire.SLOT_SECONDS; // shared wire invariant (300 s/slot)
 
 var BRIGHTSKY_BASE = require('./brightsky.js').BASE_URL;
 var DISTANCE_METERS = 2000;   // must match NEARBY_RADIUS_KM * 1000; Brightsky returns all cells within this radius
-var NUM_BARS = 24;             // 24 frames * 5 min = 120 min
 var NEARBY_RADIUS_KM = 2;      // disk radius for the "nearby" max signal; radar grid is ~1 km/cell
-var SLOT_SECONDS = 5 * 60;     // wire-side slot width; must match RADAR_SLOT_SECONDS on the watch
 
 /**
  * Build the URL for the Brightsky /radar request.
@@ -31,20 +34,6 @@ function buildRadarUrl(lat, lon, slotZeroEpoch) {
         + '&date=' + encodeURIComponent(startIso)
         + '&last_date=' + encodeURIComponent(endIso)
         + '&format=plain';
-}
-
-/**
- * Build a `[0, 0, ..., 0]` array of length NUM_BARS.
- *
- * @returns {number[]} 24-entry zero array.
- */
-function zeroBars() {
-    var out = new Array(NUM_BARS);
-    var i;
-    for (i = 0; i < NUM_BARS; i += 1) {
-        out[i] = 0;
-    }
-    return out;
 }
 
 /**
@@ -253,8 +242,8 @@ function withRadar2hRain(lat, lon, slotZeroEpoch, onSuccess, onFailure) {
                 // consumers see a flat signal rather than a
                 // coverage-specific error code.
                 onSuccess({
-                    exact: zeroBars(),
-                    nearby_1km: zeroBars(),
+                    exact: zeroFilledArray(NUM_BARS),
+                    nearby_1km: zeroFilledArray(NUM_BARS),
                     startEpoch: slotZeroEpoch
                 });
                 return;
@@ -262,14 +251,14 @@ function withRadar2hRain(lat, lon, slotZeroEpoch, onSuccess, onFailure) {
             var frames = body.radar;
             var xy = body.latlon_position;
             var hasXy = Boolean(xy && isFinite(xy.x) && isFinite(xy.y));
-            var exactOut = zeroBars();
-            var nearbyOut = zeroBars();
+            var exactOut = zeroFilledArray(NUM_BARS);
+            var nearbyOut = zeroFilledArray(NUM_BARS);
             var i;
             var sampled;
             for (i = 0; i < NUM_BARS && i < frames.length; i += 1) {
                 sampled = sampleFrame(frames[i], xy, hasXy);
-                // A malformed frame contributes a (0, 0) pair (the zeroBars
-                // default) rather than aborting the whole fetch.
+                // A malformed frame contributes a (0, 0) pair (the
+                // zero-filled default) rather than aborting the whole fetch.
                 if (sampled === null) {
                     continue;
                 }

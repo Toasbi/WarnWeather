@@ -4,8 +4,9 @@ var wireUnits = require('../wire-units.js');
 var clampByte = wireUnits.clampByte;
 var zeroFilledArray = wireUnits.zeroFilledArray;
 
-var NUM_BARS = 24;             // 24 frames * 5 min = 120 min (same wire as DWD radar)
-var SLOT_SECONDS = 5 * 60;     // wire-side slot width; must match RADAR_SLOT_SECONDS on the watch
+var radarWire = require('./radar-wire.js');
+var NUM_BARS = radarWire.NUM_BARS;         // shared wire invariant (24 frames)
+var SLOT_SECONDS = radarWire.SLOT_SECONDS; // shared wire invariant (300 s/slot)
 
 /**
  * Build the rainbow-nowcast proxy URL. The endpoint is injected by the caller
