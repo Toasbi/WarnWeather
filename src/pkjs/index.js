@@ -26,6 +26,7 @@ var registry = require('./holidays/registry.js');
 var buildClayPayload = require('./clay-payload.js').buildClayPayload;
 var providerFactory = require('./provider-factory.js');
 var previewPalette = require('./settings/preview-palette.js');
+var createChannelScheduler = require('./channel-scheduler.js');
 
 /**
  * Full release-notification manifest (dev: force-show by version). Omitted from bundle if missing.
@@ -45,8 +46,6 @@ var releaseNotificationsManifest = loadReleaseNotificationsManifest();
 /**
  * @type {{
  *     fetchInProgress: boolean,
- *     pendingStartupFetch: boolean,
- *     pendingClaySend: boolean,
  *     lastIsSleeping?: boolean,
  *     settings?: Object,
  *     telemetry?: Object,
@@ -75,7 +74,6 @@ var KEY_V1_34_0_WEEKEND_HOLIDAY_COLOR_MIGRATION = 'v1.34.0_weekend_holiday_color
 var KEY_HOLIDAY_WHITE_TO_TOGGLE_MIGRATION = 'v1.4.0_holiday_white_to_toggle_migration';
 var KEY_V1_4_0_HOLIDAY_REGION_KEY_MIGRATION = 'v1.4.0_holiday_region_key_migration';
 var KEY_LAST_IS_SLEEPING = storageKeys.LAST_IS_SLEEPING_KEY;
-var KEY_LAST_HOLIDAY_DAY = storageKeys.LAST_HOLIDAY_DAY_KEY;
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
 var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
 // Default weekend/holiday color constants, passed to seedDefaults and the two
@@ -83,73 +81,27 @@ var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
 var DEFAULT_HOLIDAY_COLORS = { white: DEFAULT_COLOR_WHITE, folly: DEFAULT_COLOR_FOLLY };
 
 app.fetchInProgress = false;
-app.pendingStartupFetch = false;
-app.pendingClaySend = false;
 
 (function initLastIsSleeping() {
     var raw = localStorage.getItem(KEY_LAST_IS_SLEEPING);
     app.lastIsSleeping = raw === 'true';   // default false when missing
 })();
 
-/**
- * Run the weather fetch queued by the watch's startup state, if any.
- *
- * @returns {void}
- */
-function drainPendingStartupFetch() {
-    if (app.pendingStartupFetch) {
-        app.pendingStartupFetch = false;
-        fetch(app.provider, true);
-    }
-}
-
-/**
- * Force-fetch weather one tick after the config webview closed.
- *
- * The AppMessage channel is half-duplex and is briefly unavailable while the
- * config webview tears down, so a force-fetch issued synchronously in the
- * webviewclosed handler can be NACKed before the watch ever sees it. Slow
- * providers hid this by accident — their network latency spaced the weather
- * send well past the teardown — but a fast provider (Open-Meteo: cached geocode
- * + a single request) resolves in the same tick the view closes and loses the
- * race. Deferring the send pushes it past the teardown. Wired into the Clay-send
- * completion callbacks (see webviewclosed) so it also never rides the channel at
- * the same time as the Clay send — the same discipline drainPendingStartupSends
- * uses for the startup path.
- *
- * @returns {void}
- */
-function scheduleConfigCloseFetch() {
-    setTimeout(function() {
-        console.log('Force fetch!');
-        fetch(app.provider, true);
-    }, 0);
-}
-
-/**
- * Send whatever the watch's startup state asked for: Clay settings first
- * (the AppMessage channel is half-duplex, so the fetch is chained into the
- * Clay callbacks instead of being sent back-to-back), then the weather fetch.
- * No-op until the 'ready' handler has initialized settings and provider;
- * 'ready' calls this again afterwards.
- *
- * @returns {void}
- */
-function drainPendingStartupSends() {
-    if (!app.settings || !app.provider) {
-        return;
-    }
-    if (app.pendingClaySend) {
-        app.pendingClaySend = false;
-        // This handshake Clay carries today's HOLIDAYS mask, so record the day:
-        // it stops the first-tick day-change resend from sending an identical
-        // Clay that would collide with this one on the half-duplex channel.
-        markHolidayDaySent();
-        sendClaySettings(drainPendingStartupFetch, drainPendingStartupFetch);
-        return;
-    }
-    drainPendingStartupFetch();
-}
+// The channel scheduler owns WHEN Clay settings / weather fetches ride the
+// half-duplex AppMessage channel. index.js keeps the fetch() lifecycle,
+// needRefresh(), the fixture path, and provider/settings reconciliation, and
+// injects those as behavior deps here.
+var scheduler = createChannelScheduler({
+    sendClay: sendClaySettings,
+    startFetch: function (force) { fetch(app.provider, force); },
+    shouldFetchNow: function () { return needRefresh(); },
+    refreshHolidays: refreshHolidays,
+    checkForUpdate: maybeCheckForUpdate,
+    clearClayCache: outbox.clearClayCache,
+    clearWeatherCaches: outbox.clearWeatherCaches,
+    setTimeout: setTimeout,
+    now: function () { return new Date(); }
+});
 
 Pebble.addEventListener('appmessage', function(e) {
     var payload = e && e.payload;
@@ -158,27 +110,14 @@ Pebble.addEventListener('appmessage', function(e) {
         return;
     }
 
-    if (Object.prototype.hasOwnProperty.call(payload, 'WATCH_HAS_CONFIG')
-            && !Boolean(payload.WATCH_HAS_CONFIG)) {
-        // Fresh install or wiped persist: forget the last-sent Clay settings
-        // and push the user's settings without requiring a settings-page visit.
-        console.log('Watch reported no persisted config at startup.');
-        outbox.clearClayCache();
-        app.pendingClaySend = true;
-    }
-
-    if (Boolean(payload.WATCH_HAS_FORECAST_DATA)) {
-        console.log('Watch reported valid forecast data at startup.');
-        app.pendingStartupFetch = false;
-    } else {
-        // The watch renders from its own persist; if that is missing or stale,
-        // the last-sent caches no longer describe what the watch shows.
-        console.log('Watch reported no forecast data at startup.');
-        outbox.clearWeatherCaches();
-        app.pendingStartupFetch = true;
-    }
-
-    drainPendingStartupSends();
+    // hasConfig is false ONLY when the key is present AND falsy (matches the
+    // original `hasOwnProperty(...) && !Boolean(...)` gate); an absent key means
+    // "no config report", which must not clear the Clay cache.
+    var hasConfigKey = Object.prototype.hasOwnProperty.call(payload, 'WATCH_HAS_CONFIG');
+    scheduler.onWatchStatus({
+        hasConfig: !hasConfigKey || Boolean(payload.WATCH_HAS_CONFIG),
+        hasForecast: Boolean(payload.WATCH_HAS_FORECAST_DATA)
+    });
 });
 
 Pebble.addEventListener('showConfiguration', function(e) {
@@ -232,16 +171,12 @@ Pebble.addEventListener('webviewclosed', function(e) {
         outbox.clearWeatherCaches();
     }
 
-    // Send Clay settings, then force-fetch (when requested) only after that send
-    // settles. The channel is half-duplex, so the fetch is chained into the
-    // Clay-send callbacks — never issued back-to-back — and scheduleConfigCloseFetch
-    // defers it past the webview teardown so a fast provider can't lose the race
-    // (see scheduleConfigCloseFetch / drainPendingStartupSends).
+    // Send Clay settings, then (when a refetch is needed) force-fetch after that
+    // send settles. The scheduler chains the fetch into the Clay-send callbacks
+    // and defers it past the webview teardown, so it never rides the half-duplex
+    // channel back-to-back with the Clay send.
     var shouldForceFetch = app.settings.fetch === true || needsRefetch;
-    sendClaySettings(
-        shouldForceFetch ? scheduleConfigCloseFetch : undefined,
-        shouldForceFetch ? scheduleConfigCloseFetch : undefined
-    );
+    scheduler.onConfigClosed({ forceFetch: shouldForceFetch });
     refreshHolidays();
     // app.settings was just reloaded from storage above; log it rather than re-reading.
     console.log('Closing clay: ' + JSON.stringify(app.settings));
@@ -297,23 +232,18 @@ Pebble.addEventListener('ready',
             });
             return;
         }
-        if (migratedWeekendHolidayColors || migratedHolidayWhiteToToggle) {
-            // The migration send covers any Clay send queued by the startup
-            // handshake; chain the startup fetch to keep the channel half-duplex.
-            // This Clay also carries today's HOLIDAYS mask, so record the day to
-            // keep the first-tick day-change resend from colliding with it.
-            app.pendingClaySend = false;
-            markHolidayDaySent();
-            sendClaySettings(function() {
+        scheduler.onReady({
+            migrationClayRequired: Boolean(migratedWeekendHolidayColors || migratedHolidayWhiteToToggle),
+            onClayAck: function() {
+                // Runs on ACK only, so a NACK leaves the migration markers unset
+                // and the migration retries next boot (matches the original
+                // failure path, which never marked complete on NACK).
                 if (migratedWeekendHolidayColors) { markWeekendHolidayColorMigrationComplete(); }
                 if (migratedHolidayWhiteToToggle) { markHolidayWhiteToToggleMigrationComplete(); }
-                drainPendingStartupFetch();
-            }, drainPendingStartupFetch);
-        } else {
-            drainPendingStartupSends();
-        }
+            }
+        });
         refreshHolidays();
-        startTick();
+        scheduler.start();
     }
 );
 
@@ -576,67 +506,6 @@ function incrementFetchAttemptCounter() {
  */
 function resetFetchAttemptCounter() {
     localStorage.setItem(KEY_FETCH_ATTEMPT, '0');
-}
-
-/**
- * Per-minute scheduler: resend holidays on a day change, attempt a weather
- * fetch when due, then re-arm itself one minute out.
- *
- * @returns {void}
- */
-function startTick() {
-    console.log('Tick from PKJS!');
-    maybeResendHolidaysOnDayChange();
-    tryFetch(app.provider);
-    maybeCheckForUpdate();
-    setTimeout(startTick, 60 * 1000); // 60 * 1000 milsec = 1 minute
-}
-
-/**
- * Today's local-day stamp (year-month-date) used to detect a local-day rollover
- * for the holiday-mask resend.
- *
- * @returns {string} A stable key for the current local day.
- */
-function localDayStamp() {
-    var now = new Date();
-    return now.getFullYear() + '-' + now.getMonth() + '-' + now.getDate();
-}
-
-/**
- * Record that the watch already holds today's HOLIDAYS mask so the next
- * maybeResendHolidaysOnDayChange tick suppresses an identical Clay send.
- *
- * Called whenever a startup-path Clay send (the handshake send, or the migration
- * send) goes out: that payload carries the current mask. On a fresh install (or
- * wiped config, or an upgrade from a pre-holidays version) both that send and the
- * first-tick day-change resend would otherwise fire in the same synchronous tick
- * and collide on the half-duplex channel — the watch drops the second
- * ("Message dropped!"). Genuine day rollovers (during runtime, or while the app
- * was off on an install whose watch already has config) don't ride a startup
- * Clay, so they leave the stamp stale and still resend.
- *
- * @returns {void}
- */
-function markHolidayDaySent() {
-    localStorage.setItem(KEY_LAST_HOLIDAY_DAY, localDayStamp());
-}
-
-/**
- * Resend Clay (which carries the HOLIDAYS mask) once per local-day change so a
- * week rollover refreshes the mask without the user opening settings. The Clay
- * outbox dedupes by content, so within-week days are suppressed and only week
- * boundaries actually transmit.
- *
- * @returns {void}
- */
-function maybeResendHolidaysOnDayChange() {
-    if (!app.settings) { return; }
-    var today = localDayStamp();
-    if (localStorage.getItem(KEY_LAST_HOLIDAY_DAY) === today) { return; }
-    localStorage.setItem(KEY_LAST_HOLIDAY_DAY, today);
-    sendClaySettings(function() {}, function() {});
-    refreshHolidays();
 }
 
 /**
@@ -953,18 +822,6 @@ function maybeTrackWeatherFetch(event) {
         return;
     }
     app.telemetry.trackWeatherFetch(event || {});
-}
-
-/**
- * Fetch weather (non-forced) only when needRefresh() says a refresh is due.
- *
- * @param {Object} provider Active weather provider.
- * @returns {void}
- */
-function tryFetch(provider) {
-    if (needRefresh()) {
-        fetch(provider, false);
-    }
 }
 
 /**
