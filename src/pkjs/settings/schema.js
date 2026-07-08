@@ -57,7 +57,7 @@ module.exports = {
     tabs: [{
         id: 'general', label: 'General', sections: [{
             items: [{
-                type: 'segmented',
+                type: 'select',
                 messageKey: 'theme',
                 label: 'Theme',
                 defaultValue: 'dark',
@@ -67,11 +67,11 @@ module.exports = {
                     bw: 'Renders exactly like a Black & White watch — same colors, same drawing.',
                     'bw-light': 'Renders exactly like a Black & White watch in its Light theme — black on white.'
                 },
-                options: [['Dark', 'dark'], ['Light', 'light'], ['Black & White', 'bw'], ['B&W Light', 'bw-light']],
+                options: [['Dark', 'dark'], ['Light', 'light'], ['Black & White', 'bw'], ['Black & White Inverted', 'bw-light']],
                 showWhen: {env: 'color'},
                 onChange: 'themeConvert'
             }, {
-                type: 'segmented',
+                type: 'select',
                 messageKey: 'theme',
                 label: 'Theme',
                 defaultValue: 'dark',
@@ -250,20 +250,10 @@ module.exports = {
                 joinPrevious: true,
                 hintByValue: {multicolor: MULTICOLOR_HINT, white: WHITE_HINT},
                 capabilities: ['COLOR'],
-                options: [['Multicolor', 'multicolor'], ['White', 'white']],
-                showWhen: {all: [{key: 'barSource', eq: 'rain'}, {key: 'theme', eq: 'dark'}]}
-            }, {
-                type: 'segmented',
-                messageKey: 'rainBarColor',
-                label: 'Bar color',
-                defaultValue: 'multicolor',
-                joinPrevious: true,
-                hintByValue: {multicolor: MULTICOLOR_HINT, white: WHITE_HINT},
-                capabilities: ['COLOR'],
-                // Light theme flips the single-stop palette to black on the watch — the
-                // stored value stays 'white' (wire compatibility), only the label changes.
-                options: [['Multicolor', 'multicolor'], ['Black', 'white']],
-                showWhen: {all: [{key: 'barSource', eq: 'rain'}, {key: 'theme', eq: 'light'}]}
+                // VALUE stays 'white' for wire compatibility (the watch resolves it to the
+                // right polarity color itself — see rain-tier.js); only the label changes.
+                options: [['Multicolor', 'multicolor'], ['Solid', 'white']],
+                showWhen: {all: [{key: 'barSource', eq: 'rain'}, {key: 'theme', nin: ['bw', 'bw-light']}]}
             }, {
                 type: 'toggle',
                 messageKey: 'dayNightShading',
@@ -313,19 +303,10 @@ module.exports = {
                 defaultValue: 'multicolor',
                 hintByValue: {multicolor: MULTICOLOR_HINT, white: WHITE_HINT},
                 capabilities: ['COLOR'],
-                options: [['Multicolor', 'multicolor'], ['White', 'white']],
-                showWhen: {all: [{key: 'radarProvider', ne: 'disabled'}, {key: 'theme', eq: 'dark'}]}
-            }, {
-                type: 'segmented',
-                messageKey: 'radarColor',
-                label: 'Radar color',
-                defaultValue: 'multicolor',
-                hintByValue: {multicolor: MULTICOLOR_HINT, white: WHITE_HINT},
-                capabilities: ['COLOR'],
-                // Light theme flips the single-stop palette to black on the watch — the
-                // stored value stays 'white' (wire compatibility), only the label changes.
-                options: [['Multicolor', 'multicolor'], ['Black', 'white']],
-                showWhen: {all: [{key: 'radarProvider', ne: 'disabled'}, {key: 'theme', eq: 'light'}]}
+                // VALUE stays 'white' for wire compatibility (the watch resolves it to the
+                // right polarity color itself — see rain-tier.js); only the label changes.
+                options: [['Multicolor', 'multicolor'], ['Solid', 'white']],
+                showWhen: {all: [{key: 'radarProvider', ne: 'disabled'}, {key: 'theme', nin: ['bw', 'bw-light']}]}
             }, {
                 type: 'select',
                 messageKey: 'rainCountdownHorizon',

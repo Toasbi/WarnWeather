@@ -140,14 +140,15 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
         const int bar_x   = chart_slot_bar_x(&r->geo, i);
         const int bar_top = plot_bottom - bar_h;
 
-        // Color-only bar-separation halo: a 1px theme_bg() ring outside the bar's
-        // left/right/top edges, painted before the segment fills so the colored
-        // segments keep their full width/height on top. Not expanded downward — the
-        // x-axis baseline sits there, and painting bg over it would notch the axis.
-        // B&W builds/themes skip this: theme_is_bw() is a compile-time constant-true
-        // macro there, so the whole block (and this GColor arm) compiles out; the
-        // BAR_OUTLINED fg silhouette below is B&W's own separation aid.
-        if (!theme_is_bw()) {
+        // Bar-separation halo: a 1px theme_bg() ring outside the bar's left/right/top
+        // edges, painted before the segment fills so the colored segments keep their
+        // full width/height on top. Not expanded downward — the x-axis baseline sits
+        // there, and painting bg over it would notch the axis. Light-polarity aid,
+        // not a color/B&W split: draws in light AND bw-light (a white ring — bw-light
+        // hardware shows exactly what a color build's bw-light theme draws), never in
+        // dark or bw. Dark reverts to its pre-theme look (bars butt directly, no
+        // halo); bw-dark's own BAR_OUTLINED fg silhouette below is its separation aid.
+        if (theme_is_light()) {
             graphics_context_set_fill_color(r->ctx, theme_bg());
             graphics_fill_rect(r->ctx,
                 GRect(bar_x - 1, bar_top - 1, r->def->bar_w + 2, bar_h + 1),
@@ -170,12 +171,15 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
         }
 
         if (b->style == BAR_OUTLINED) {
-            // B&W: a theme_fg() silhouette keeps the (always-black, untouched-in-v1)
-            // bar fill readable against theme_bg(). Draw only the top + side walls and
-            // leave the bottom open — the x-axis baseline already closes the bar, so a
-            // bottom edge would double the axis line. In the light theme this silhouette
-            // is black-on-black — invisible but harmless (known v1 limit; the bar fill
-            // itself stays literal black in every theme).
+            // B&W: a theme_fg() silhouette keeps the bar fill (theme_bg() — see
+            // palette.c's fill_defaults() and health_graph_layer.c's step stop)
+            // readable against theme_bg(). Draw only the top + side walls and leave
+            // the bottom open — the x-axis baseline already closes the bar, so a
+            // bottom edge would double the axis line. bw-dark: white-on-black,
+            // pixel-identical to pre-theme v1. bw-light: the fill is white
+            // (theme_bg()) and this silhouette is black (theme_fg()) — clearly
+            // visible, the polarity mirror of bw-dark (not the black-on-black v1
+            // limit this comment used to describe).
             const int x0 = bar_x;
             const int x1 = bar_x + r->def->bar_w - 1;
             const int y1 = bar_top + bar_h - 1;

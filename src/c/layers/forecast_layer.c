@@ -18,7 +18,9 @@
 #define TEMP_LABEL_MEASURE_BOX_H 40
 #define NIGHT_HATCH_SPACING (theme_is_bw() ? 7 : 6)
 #define NIGHT_HATCH_COLOR GColorDarkGray
-#define NIGHT_BOUNDARY_COLOR theme_pick(GColorDarkGray, GColorLightGray)
+// bw-dark unchanged (GColorLightGray); bw-light swaps to GColorDarkGray — a
+// LightGray boundary line reads too faint against a white bw-light background.
+#define NIGHT_BOUNDARY_COLOR theme_pick(GColorDarkGray, theme_is_light() ? GColorDarkGray : GColorLightGray)
 // The night base/hatch/boundary for the FILLED area are derived per metric from
 // the day fill colour PKJS sent (night_area_palette_for_fill), so each metric
 // keeps its own hue at night. B&W has no range, so the night-area path draws White
@@ -97,7 +99,7 @@ static void load_dataset(ForecastDataset *ds) {
     ds->series[SERIES_BARS] = (Series){
         .id = SERIES_BARS, .kind = SERIES_KIND_BARS,
         .present = persist_series_present(SERIES_BARS),
-        .bars = { .style = (theme_is_bw() || theme_is_light()) ? BAR_OUTLINED : BAR_SOLID } };
+        .bars = { .style = theme_is_bw() ? BAR_OUTLINED : BAR_SOLID } };
     // .bars.stops/.num_stops are attached at render (scaled palette).
 
     if (n > 0) {
@@ -267,13 +269,26 @@ static int build_night_bands(ChartBand *out, int max,
 typedef struct { GColor base, hatch, boundary; } NightAreaPalette;
 
 // Night base/hatch/boundary for the filled area, keyed on the day fill colour PKJS sent.
-// Used only on colour platforms (B&W draws White via the has_underlay/hatch gates). The four
-// day fills are distinct GColor8 values, so equality keys them; precip is the default.
+// Used only on colour platforms (B&W draws White via the has_underlay/hatch gates). The
+// eight dark- and light-theme day fills (4 metrics x 2 polarities) are distinct GColor8
+// values, so equality keys them; precip (dark) is the default.
 static NightAreaPalette night_area_palette_for_fill(GColor fill) {
-    if (gcolor_equal(fill, GColorArmyGreen)) { return (NightAreaPalette){ GColorArmyGreen, GColorLimerick, GColorLimerick }; }      // wind
-    if (gcolor_equal(fill, GColorPurple))    { return (NightAreaPalette){ GColorImperialPurple, GColorPurple, GColorVividViolet }; } // uv
-    if (gcolor_equal(fill, GColorDarkGray))  { return (NightAreaPalette){ GColorDarkGray, GColorLightGray, GColorLightGray }; }      // gust
-    return (NightAreaPalette){ GColorDukeBlue, GColorBlue, GColorVividCerulean };                                                    // precip / default
+    if (gcolor_equal(fill, GColorArmyGreen)) { return (NightAreaPalette){ GColorArmyGreen, GColorLimerick, GColorLimerick }; }      // wind (dark)
+    if (gcolor_equal(fill, GColorPurple))    { return (NightAreaPalette){ GColorImperialPurple, GColorPurple, GColorVividViolet }; } // uv (dark)
+    if (gcolor_equal(fill, GColorDarkGray))  { return (NightAreaPalette){ GColorDarkGray, GColorLightGray, GColorLightGray }; }      // gust (dark)
+    // Light-theme fills (forecast-series.js FILL_COLORS `light` entries — brighter
+    // tints so each metric's fill reads against a white window background instead of
+    // the dark-theme shade above). Base sits between the dark-theme base above and
+    // the bright fill itself: lighter than the dark base, slightly darker than the
+    // fill, so the night underlay still reads as dimmer than day. Hatch/boundary
+    // reuse the fill's own hue (as the uv/gust dark entries above already do) so the
+    // accent stays legible against the darker base. First tuning pass — revisit on
+    // user feedback.
+    if (gcolor_equal(fill, GColorCeleste))      { return (NightAreaPalette){ GColorCyan,         GColorCeleste,      GColorCeleste }; }       // precip (light)
+    if (gcolor_equal(fill, GColorInchworm))     { return (NightAreaPalette){ GColorScreaminGreen, GColorInchworm,    GColorInchworm }; }       // wind (light)
+    if (gcolor_equal(fill, GColorShockingPink)) { return (NightAreaPalette){ GColorPurpureus,     GColorShockingPink,GColorShockingPink }; }   // uv (light)
+    if (gcolor_equal(fill, GColorLightGray))    { return (NightAreaPalette){ GColorDarkGray,      GColorLightGray,  GColorLightGray }; }       // gust (light)
+    return (NightAreaPalette){ GColorDukeBlue, GColorBlue, GColorVividCerulean };                                                    // precip (dark) / default
 }
 
 static GSize temp_label_string_size(const char *text);

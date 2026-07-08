@@ -194,6 +194,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var isColor = !(env && !env.color) && !isBwTheme(state.theme);
         var ink = previewInk(state.theme);
         var P = (userData && userData.palette) || FALLBACK_PALETTE;
+        // Solid ('white'/Solid) rain-bar color, mirroring rain-tier.js buildPalette's
+        // colorMode==='white' branch: DarkGray in light polarity (not black — a pure
+        // white bar reads too flat on a white background), white in dark. Only used on
+        // effectively-color displays (isColor); B&W/bw themes draw an OUTLINE instead
+        // (see rainBars' `outline` param below) using ink.fg as the stroke color, which
+        // this variable also equals there — same value, different role.
+        var barFg = isColor ? (isLightPolarity(state.theme) ? '#555555' : '#FFFFFF') : ink.fg;
 
         // One coherent 12-point scenario starting at noon (slot 0 = 12:00): an afternoon
         // shower that suppresses UV, UV gone overnight, temp dipping then rising toward dawn.
@@ -368,9 +375,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                     }
                     gw = P.rainTiers.length * 2.4 + 2;
                 } else if (isColor) {
-                    // colour + white bars: a solid swatch, matching the solid bars (flips to
-                    // black in the light theme, like the bars themselves)
-                    out += rect(x, gy - 3.5, 12, 7, ink.fg);
+                    // colour + Solid bars: a solid swatch, matching the solid bars (dims to
+                    // DarkGray in the light theme, like the bars themselves — see barFg)
+                    out += rect(x, gy - 3.5, 12, 7, barFg);
                 } else {
                     // B&W: outline box, matching the outlined silhouette bars
                     out += '<rect x="' + x + '" y="' + (gy - 3.5) + '" width="12" height="7" fill="none" stroke="' + ink.fg + '" stroke-width="1"></rect>';
@@ -396,7 +403,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             // (BAR_SOLID) — matching the watch.
             var rainWhite = state.rainBarColor === 'white' || !isColor;
             for (var i = 0; i < n - 1; i += 1) {
-                e += rainBars(rain[i], gapCenter(i) - bw / 2, bw, PB, plotH, rainWhite, P.rainTiers, !isColor, ink.fg);
+                e += rainBars(rain[i], gapCenter(i) - bw / 2, bw, PB, plotH, rainWhite, P.rainTiers, !isColor, barFg);
             }
         }
         e += lineFor(state.secondaryLine);
@@ -435,6 +442,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         e += '<line x1="' + PX0 + '" y1="' + PB + '" x2="' + PX1 + '" y2="' + PB + '" stroke="' + ink.rgba('0.18') + '" stroke-width="0.7"></line>';
         var P = (userData && userData.palette) || FALLBACK_PALETTE;
         var radarWhite = state.radarColor === 'white' || !isColor;
+        // Solid ('white'/Solid) radar-bar color: DarkGray in light polarity, white in
+        // dark (mirrors rain-tier.js buildPalette's colorMode==='white' branch — see
+        // forecastPreview's barFg, same rule). B&W/bw themes draw an OUTLINE instead
+        // (see the `outline` param below) using ink.fg as the stroke color, which this
+        // also equals there — same value, different role.
+        var radarBarFg = isColor ? (isLightPolarity(state.theme) ? '#555555' : '#FFFFFF') : ink.fg;
         // Rainbow is a single-point nowcast: no 2 km-area signal → omit the
         // hollow "nearby" outline bars and their legend entry entirely.
         var showNearby = state.radarProvider !== 'rainbow';
@@ -444,7 +457,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (showNearby && nH > 0) {
                 e += '<rect x="' + x + '" y="' + (PB - nH * plotH) + '" width="' + bw + '" height="' + (nH * plotH) + '" fill="none" stroke="' + ink.rgba('0.30') + '" stroke-width="0.7"></rect>';
             }
-            e += rainBars(local[i], x, bw, PB, plotH, radarWhite, P.rainTiers, false, ink.fg);
+            // outline (B&W/bw: unfilled — the transparent interior shows the canvas
+            // background through, i.e. theme_bg(), matching the watch's polarity-aware
+            // palette fill) vs. solid (effectively-color Solid mode: radarBarFg).
+            e += rainBars(local[i], x, bw, PB, plotH, radarWhite, P.rainTiers, !isColor, radarBarFg);
         }
         // Rain legend (one row): the exact-spot swatch (tier gradient on color, solid
         // theme-fg on B&W) + label, then a hollow grey "nearby" box + label. The nearby
@@ -457,7 +473,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             }
             lx += P.rainTiers.length * 2.4 + 2;
         } else {
-            e += rect(lx, lgy - 3.5, 12, 7, ink.fg);
+            e += rect(lx, lgy - 3.5, 12, 7, radarBarFg);
             lx += 14;
         }
         e += txt(lx + 3, lgy + 3, 7.5, '#AEB4BD', 'start', 600, 'Rain at your exact spot');

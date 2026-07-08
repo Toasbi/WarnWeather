@@ -479,16 +479,44 @@ test('radarPreview: light theme flips the canvas background to white', () => {
   assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0);
 });
 
-test('radarPreview: bw theme on a color env renders solid white bars, not multicolor', () => {
+// A bar drawn by rainBars() in outline mode is a <path fill="none" stroke="COLOR"
+// stroke-width="1">; a solid bar is a <rect ... fill="COLOR">. The watch's actual
+// bw-theme bar (chart.c BAR_OUTLINED) is a theme_bg()-filled bar with a theme_fg()
+// outline on top — closer to "outline" than "flat solid fill" — so the preview's
+// outline path (transparent interior showing the canvas bg through) is the more
+// faithful approximation; see the block comment above rainBars' `outline` param.
+const OUTLINE_MARK = 'fill="none" stroke="#000000" stroke-width="1"';
+
+test('radarPreview: bw theme on a color env outlines the exact bars in white, not a solid fill', () => {
   const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'bw' }, { color: true });
-  assert.equal(svg.indexOf('fill="#00FF00"'), -1);
-  assert.ok(svg.indexOf('fill="#FFFFFF"') >= 0);
+  assert.equal(svg.indexOf('fill="#00FF00"'), -1, 'no multicolor bands');
+  assert.ok(svg.indexOf('fill="none" stroke="#FFFFFF" stroke-width="1"') >= 0,
+    'exact bars are a white outline path (mirrors the watch\'s theme_bg()-filled + theme_fg()-outlined bar)');
 });
 
-test('radarPreview: bw-light theme on a color env renders solid bars on a white canvas (light polarity)', () => {
+test('radarPreview: bw-light theme on a color env outlines the exact bars in black on a white canvas (light polarity)', () => {
   const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'bw-light' }, { color: true });
   assert.equal(svg.indexOf('fill="#00FF00"'), -1, 'no multicolor bands');
   assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0, 'canvas background is white');
+  assert.ok(svg.indexOf(OUTLINE_MARK) >= 0,
+    'exact bars are a black outline path, not a solid black fill — the polarity mirror of bw');
+});
+
+test('radarPreview: radarColor=Solid in the light theme uses DarkGray, not black', () => {
+  // rainCountdownHorizon: '0' — the countdown band's own text is theme_fg() (black in
+  // light polarity), unrelated to bar/legend fill; excluded here to isolate the bars.
+  const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'white', theme: 'light', rainCountdownHorizon: '0' }, { color: true });
+  assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0, 'canvas background is white');
+  assert.ok(svg.indexOf('fill="#555555"') >= 0, 'solid bars/legend render DarkGray');
+  assert.equal(svg.indexOf('fill="#000000"'), -1, 'never a plain black bar/legend fill in the light theme');
+});
+
+test('forecastPreview: rainBarColor=Solid in the light theme uses DarkGray, not black', () => {
+  const state = { barSource: 'rain', rainBarColor: 'white', secondaryLine: 'off', windScale: 'mid', dayNightShading: false, theme: 'light' };
+  const svg = B.forecastPreview(state, { color: true });
+  assert.ok(/width="9"[^>]*fill="#555555"/.test(svg), 'a DarkGray solid rain bar');
+  assert.ok(/width="12"[^>]*fill="#555555"/.test(svg), 'the Rain legend swatch is DarkGray too');
+  assert.equal(svg.indexOf('fill="#000000"'), -1, 'never a plain black fill in the light theme');
 });
 
 test('layoutPreview / layoutPreviewCombined: light theme flips the canvas background to white', () => {

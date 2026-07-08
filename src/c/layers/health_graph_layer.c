@@ -357,14 +357,16 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
     //  4. HR line (LINE, solid) — primary line, styled like forecast's temp line.
     //  5. Frame (left + bottom borders).
     //  6. Axis (bottom hour labels/ticks).
-    // On B&W (device or bw theme) the fill is BLACK, not white: BAR_OUTLINED adds a
-    // white silhouette, so a black fill leaves just the outline (matching the rain
-    // bars, palette.c). A white fill here would combine with the white outline into
-    // a solid white bar. theme_pick() is a runtime call on color builds, so this
-    // can no longer be a static initializer — module-static scratch, rebuilt each
-    // redraw (mirrors rain_radar_layer.c's radar_tick_style()).
+    // On B&W (device or bw theme) the fill is theme_bg() — the polarity background,
+    // not a fixed color — and BAR_OUTLINED adds a theme_fg() silhouette on top
+    // (matching the rain bars, palette.c): bw-dark fills black (pixel-identical to
+    // pre-theme v1, combining with the white outline into what reads as a solid
+    // white bar) and bw-light fills white with a black outline, the polarity
+    // mirror. theme_pick() is a runtime call on color builds, so this can no longer
+    // be a static initializer — module-static scratch, rebuilt each redraw (mirrors
+    // rain_radar_layer.c's radar_tick_style()).
     static ChartColorStop step_stops[1];
-    step_stops[0] = (ChartColorStop){ .from = 0, .color = theme_pick(GColorGreen, GColorBlack) };
+    step_stops[0] = (ChartColorStop){ .from = 0, .color = theme_pick(GColorGreen, theme_bg()) };
 
     // aplite-style discipline: per-frame layer array is module-static, not stack.
     // Max reachable here is 6 (sleep + gridlines + bars + HR + frame + axis).

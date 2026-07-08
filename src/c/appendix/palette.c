@@ -14,10 +14,12 @@ static void fill_defaults(ChartColorStop *stops, int *num) {
     if (*num > 0) { return; }
     if (theme_is_bw()) {
         // B&W (real hardware, or the Black & White theme on a color build): single
-        // black stop; the watch pairs it with the white outline. theme_is_bw()
-        // compiles to a constant true on B&W builds, so this collapses to exactly
-        // the same compile-time behavior those builds always had.
-        stops[0] = (ChartColorStop){ 0, GColorBlack };
+        // theme_bg() stop; the watch pairs it with a theme_fg() outline
+        // (chart.c BAR_OUTLINED). bw-dark's theme_bg() is black — pixel-identical
+        // to the literal-black stop this always returned before polarity existed.
+        // bw-light's theme_bg() is white, the polarity mirror (white fill, black
+        // outline).
+        stops[0] = (ChartColorStop){ 0, theme_bg() };
         *num = 1;
         return;
     }
