@@ -280,14 +280,14 @@ static NightAreaPalette night_area_palette_for_fill(GColor fill) {
     // tints so each metric's fill reads against a white window background instead of
     // the dark-theme shade above). Base sits between the dark-theme base above and
     // the bright fill itself: lighter than the dark base, slightly darker than the
-    // fill, so the night underlay still reads as dimmer than day. Hatch/boundary
-    // reuse the fill's own hue (as the uv/gust dark entries above already do) so the
-    // accent stays legible against the darker base. First tuning pass — revisit on
-    // user feedback.
-    if (gcolor_equal(fill, GColorCeleste))      { return (NightAreaPalette){ GColorCyan,         GColorCeleste,      GColorCeleste }; }       // precip (light)
-    if (gcolor_equal(fill, GColorInchworm))     { return (NightAreaPalette){ GColorScreaminGreen, GColorInchworm,    GColorInchworm }; }       // wind (light)
-    if (gcolor_equal(fill, GColorShockingPink)) { return (NightAreaPalette){ GColorPurpureus,     GColorShockingPink,GColorShockingPink }; }   // uv (light)
-    if (gcolor_equal(fill, GColorLightGray))    { return (NightAreaPalette){ GColorDarkGray,      GColorLightGray,  GColorLightGray }; }       // gust (light)
+    // fill, so the night underlay still reads as dimmer than day. Hatch matches the
+    // base so the night region reads as one solid tone (no two-tone dither);
+    // boundary keeps the day fill's hue. First tuning pass — revisit on user
+    // feedback.
+    if (gcolor_equal(fill, GColorCeleste))      { return (NightAreaPalette){ GColorCyan,          GColorCyan,          GColorCeleste }; }      // precip (light)
+    if (gcolor_equal(fill, GColorInchworm))     { return (NightAreaPalette){ GColorScreaminGreen, GColorScreaminGreen, GColorInchworm }; }      // wind (light)
+    if (gcolor_equal(fill, GColorShockingPink)) { return (NightAreaPalette){ GColorPurpureus,     GColorPurpureus,     GColorShockingPink }; }  // uv (light)
+    if (gcolor_equal(fill, GColorLightGray))    { return (NightAreaPalette){ GColorDarkGray,      GColorDarkGray,      GColorLightGray }; }     // gust (light)
     return (NightAreaPalette){ GColorDukeBlue, GColorBlue, GColorVividCerulean };                                                    // precip (dark) / default
 }
 
