@@ -143,19 +143,14 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
         // Bar-separation halo: a 1px theme_bg() ring outside the bar's left/right/top
         // edges, painted before the segment fills so the colored segments keep their
         // full width/height on top. Not expanded downward — the x-axis baseline sits
-        // there, and painting bg over it would notch the axis. Draws in every theme
-        // except color-dark, which keeps its pre-theme look (bars butt directly, no
-        // halo): light and bw-light get a white ring (bw-light hardware shows exactly
-        // what a color build's bw-light theme draws), and bw-dark now gets a black
-        // ring too, separating the white BAR_OUTLINED silhouette from the dithered
-        // area fill behind it. On B&W hardware theme_is_bw() is a constant true, so
-        // the halo always draws there.
-        if (theme_is_light() || theme_is_bw()) {
-            graphics_context_set_fill_color(r->ctx, theme_bg());
-            graphics_fill_rect(r->ctx,
-                GRect(bar_x - 1, bar_top - 1, r->def->bar_w + 2, bar_h + 1),
-                0, GCornerNone);
-        }
+        // there, and painting bg over it would notch the axis. Every theme gets the
+        // same halo + BAR_OUTLINED silhouette treatment; only the interior differs
+        // (multicolor/solid palette in the color themes, theme_bg() fill in the B&W
+        // ones), so the bars read identically across modes.
+        graphics_context_set_fill_color(r->ctx, theme_bg());
+        graphics_fill_rect(r->ctx,
+            GRect(bar_x - 1, bar_top - 1, r->def->bar_w + 2, bar_h + 1),
+            0, GCornerNone);
 
         for (int k = 0; k < b->num_stops; ++k) {
             int seg_bottom = plot_bottom
@@ -173,18 +168,13 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
         }
 
         if (b->style == BAR_OUTLINED) {
-            // B&W: a theme_fg() silhouette keeps the bar fill (theme_bg() — see
-            // palette.c's fill_defaults() and health_graph_layer.c's step stop)
-            // readable against theme_bg(). Draw only the top + side walls and leave
-            // the bottom open — the x-axis baseline already closes the bar, so a
-            // bottom edge would double the axis line. bw-dark: white-on-black, plus
-            // the theme_bg() halo above rings it in black, separating the silhouette
-            // from a dithered area fill behind (no longer the butted-together
-            // pre-theme v1 look). bw-light: the fill is white (theme_bg()) and this
-            // silhouette is black (theme_fg()) — clearly visible, the polarity mirror
-            // of bw-dark. Both bw call sites (rain bars,
-            // radar bars, health step bars) exercise this arm via their
-            // theme_is_bw() ? BAR_OUTLINED : BAR_SOLID style.
+            // theme_fg() silhouette around the bar interior — the shared bar look in
+            // every theme (all three call sites: rain bars, radar bars, health step
+            // bars). Draw only the top + side walls and leave the bottom open — the
+            // x-axis baseline already closes the bar, so a bottom edge would double
+            // the axis line. Composes with the theme_bg() halo above: fg outline on
+            // the bar's outer pixels, bg ring outside it; only the interior differs
+            // per theme (multicolor/solid palette on color, theme_bg() fill on B&W).
             const int x0 = bar_x;
             const int x1 = bar_x + r->def->bar_w - 1;
             const int y1 = bar_top + bar_h - 1;

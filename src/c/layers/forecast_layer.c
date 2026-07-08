@@ -99,7 +99,7 @@ static void load_dataset(ForecastDataset *ds) {
     ds->series[SERIES_BARS] = (Series){
         .id = SERIES_BARS, .kind = SERIES_KIND_BARS,
         .present = persist_series_present(SERIES_BARS),
-        .bars = { .style = theme_is_bw() ? BAR_OUTLINED : BAR_SOLID } };
+        .bars = { .style = BAR_OUTLINED } };
     // .bars.stops/.num_stops are attached at render (scaled palette).
 
     if (n > 0) {

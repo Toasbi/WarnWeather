@@ -383,7 +383,7 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
         .values = s_steps, .count = visible_slots,
         .lo = 0, .hi = s_step_hi,
         .stops = step_stops, .num_stops = 1,
-        .style = theme_is_bw() ? BAR_OUTLINED : BAR_SOLID } };
+        .style = BAR_OUTLINED } };
 
     // Always add the HR line: the cache stores CHART_ABSENT for hours with no
     // reading, so the solid line breaks across gaps and draws nothing when HR is
