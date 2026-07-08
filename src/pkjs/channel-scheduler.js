@@ -22,7 +22,7 @@ var storageKeys = require('./storage-keys.js');
  * @param {function():void} deps.clearWeatherCaches Forget the last-sent weather categories.
  * @param {function(Function, number):*} deps.setTimeout Timer function (injected so tests drive a fake queue).
  * @param {function():Date} deps.now Current-time supplier (injected for a fake clock).
- * @returns {{onWatchStatus: Function, onReady: Function, onConfigClosed: Function}} The scheduler.
+ * @returns {{onWatchStatus: Function, onReady: Function, onConfigClosed: Function, start: Function}} The scheduler.
  */
 function createChannelScheduler(deps) {
     // Readiness latch: replaces index.js's `app.settings && app.provider` peek.
@@ -166,10 +166,56 @@ function createChannelScheduler(deps) {
         deps.sendClay(cb, cb);
     }
 
+    /**
+     * Resend Clay (which carries the HOLIDAYS mask) once per local-day change so
+     * a week rollover refreshes the mask without opening settings. The Clay
+     * outbox dedupes by content, so only week boundaries actually transmit.
+     *
+     * @returns {void}
+     */
+    function maybeResendHolidaysOnDayChange() {
+        var today = localDayStamp();
+        if (localStorage.getItem(storageKeys.LAST_HOLIDAY_DAY_KEY) === today) {
+            return;
+        }
+        localStorage.setItem(storageKeys.LAST_HOLIDAY_DAY_KEY, today);
+        deps.sendClay(function () {}, function () {});
+        deps.refreshHolidays();
+    }
+
+    /**
+     * Per-minute scheduler body: resend holidays on a day change, attempt a
+     * non-forced weather fetch when due, run the daily update check, then re-arm
+     * one minute out.
+     *
+     * @returns {void}
+     */
+    function tick() {
+        console.log('Tick from PKJS!');
+        maybeResendHolidaysOnDayChange();
+        if (deps.shouldFetchNow()) {
+            deps.startFetch(false);
+        }
+        deps.checkForUpdate();
+        deps.setTimeout(tick, 60 * 1000); // 60 * 1000 milsec = 1 minute
+    }
+
+    /**
+     * Start the self-rearming 60 s tick. Runs the first tick synchronously.
+     * Must be called only after onReady (index.js honors this; the fixture path
+     * never calls start()).
+     *
+     * @returns {void}
+     */
+    function start() {
+        tick();
+    }
+
     return {
         onWatchStatus: onWatchStatus,
         onReady: onReady,
-        onConfigClosed: onConfigClosed
+        onConfigClosed: onConfigClosed,
+        start: start
     };
 }
 

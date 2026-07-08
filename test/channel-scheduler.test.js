@@ -170,3 +170,57 @@ test('scenario 6b: config close without forceFetch -> Clay sent, no fetch ever',
     assert.equal(h.timers.length, 0, 'no deferred fetch scheduled');
     assert.equal(h.calls.startFetch.length, 0, 'no fetch');
 });
+
+test('scenario 5: startup Clay stamps today; first tick suppresses resend; a rollover resends once', function () {
+    resetStore();
+    var h = makeHarness();
+    h.setNow(new Date(2026, 6, 7, 12, 0, 0)); // July 7 2026, month index 6
+    h.scheduler.onWatchStatus({ hasConfig: false, hasForecast: false });
+    h.scheduler.onReady({ migrationClayRequired: false });
+    h.ackClay();
+    assert.equal(h.calls.sendClay.length, 1, 'startup handshake sent one Clay');
+    assert.equal(localStorage.getItem(KEYS.LAST_HOLIDAY_DAY_KEY), '2026-6-7', 'startup Clay stamped today');
+
+    h.scheduler.start();
+    assert.equal(h.calls.sendClay.length, 1, 'first tick suppresses the day-change resend (already stamped)');
+    assert.equal(h.calls.refreshHolidays, 0, 'no holiday refresh on the first tick');
+
+    h.setNow(new Date(2026, 6, 8, 0, 30, 0)); // July 8 2026, past midnight
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 2, 'day rollover resends Clay exactly once');
+    assert.equal(h.calls.refreshHolidays, 1, 'day rollover refreshes holidays');
+    assert.equal(localStorage.getItem(KEYS.LAST_HOLIDAY_DAY_KEY), '2026-6-8', 're-stamped to the new day');
+
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 2, 'a second tick on the same day does not resend again');
+});
+
+test('scenario 7: start() runs a tick immediately and re-arms every 60s', function () {
+    resetStore();
+    var h = makeHarness();
+    h.setNow(new Date(2026, 6, 7, 12, 0, 0));
+    // Pre-stamp today so the tick's holiday resend stays quiet and we isolate cadence.
+    localStorage.setItem(KEYS.LAST_HOLIDAY_DAY_KEY, '2026-6-7');
+
+    h.scheduler.start();
+    assert.equal(h.calls.checkForUpdate, 1, 'first tick runs immediately');
+    assert.equal(h.timers.length, 1, 'tick re-arms a timer');
+    assert.equal(h.timers[0].ms, 60 * 1000, 're-arm interval is 60s');
+    assert.equal(h.calls.startFetch.length, 0, 'shouldFetchNow false -> no fetch');
+
+    h.flushTimers();
+    assert.equal(h.calls.checkForUpdate, 2, 'the re-armed timer runs the next tick');
+    assert.equal(h.timers.length, 1, 'each tick re-arms exactly one timer');
+});
+
+test('scenario 7b: a tick fetches (non-forced) only when shouldFetchNow is true', function () {
+    resetStore();
+    var h = makeHarness();
+    h.setNow(new Date(2026, 6, 7, 12, 0, 0));
+    localStorage.setItem(KEYS.LAST_HOLIDAY_DAY_KEY, '2026-6-7');
+    h.setShouldFetch(true);
+
+    h.scheduler.start();
+    assert.equal(h.calls.startFetch.length, 1, 'shouldFetchNow true -> one fetch');
+    assert.equal(h.calls.startFetch[0], false, 'tick fetch is non-forced');
+});
