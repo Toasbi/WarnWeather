@@ -94,6 +94,8 @@ UPDATES
 PLATFORMS
 - Pebble Classic, Pebble Steel, Pebble Time, Pebble Time Steel, Pebble 2, and
   Pebble Time 2
+
+Weather and radar data from MET Norway (CC BY 4.0).
 ```
 
 ## Screenshots 
@@ -124,5 +126,3 @@ scripts/capture-store-shots.sh v1.0.0
 Output lands in `screenshot/v1.0.0/store/<platform>/<label>.png` — e.g.
 `store/emery/1-calendar.png`. Upload each platform's four files to that platform in the
 store listing.
-
-Weather and radar data from MET Norway (CC BY 4.0).
