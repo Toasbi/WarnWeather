@@ -7,10 +7,22 @@ var FORECAST_HOURS = 24;
 var HOUR_SECONDS = 60 * 60;
 var LOCATIONFORECAST_BASE = 'https://api.met.no/weatherapi/locationforecast/2.0/complete';
 
+/**
+ * Convert Celsius to Fahrenheit.
+ *
+ * @param {number} celsius Temperature in degrees Celsius.
+ * @returns {number} Temperature in degrees Fahrenheit.
+ */
 function celsiusToFahrenheit(celsius) {
     return celsius * 9 / 5 + 32;
 }
 
+/**
+ * Convert metres/second to kilometres/hour, rounded to the nearest integer.
+ *
+ * @param {number} metersPerSecond Speed in m/s.
+ * @returns {number} Speed in km/h, rounded.
+ */
 function msToKmh(metersPerSecond) {
     return Math.round(metersPerSecond * 3.6);
 }
