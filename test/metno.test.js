@@ -151,7 +151,9 @@ test('withProviderData routes a short/malformed response to onFailure', () => {
   responder = function(url, type, onSuccess) { onSuccess(JSON.stringify(forecastBody(5, HOUR0))); };
   const p = new metno.MetnoProvider();
   let f = null;
-  p.withProviderData(0, 0, true, () => { throw new Error('must not succeed'); }, (x) => { f = x; });
+  withMockedNow(NOW, () => {
+    p.withProviderData(0, 0, true, () => { throw new Error('must not succeed'); }, (x) => { f = x; });
+  });
   assert.equal(f.code, 'metno_missing_fields');
 });
 
