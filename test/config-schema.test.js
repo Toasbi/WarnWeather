@@ -39,8 +39,8 @@ test('location is a GPS/Manual picker; the text field is gated to Manual', () =>
   assert.deepEqual(byKey('location').showWhen, { key: 'locationMode', eq: 'manual' });
 });
 
-test('providers include openmeteo as 4th selectable option', () => {
-  assert.deepEqual(byKey('provider').options.map((o) => o[1]), ['wunderground','openweathermap','dwd','openmeteo']);
+test('providers include openmeteo and metno as 4th/5th selectable options', () => {
+  assert.deepEqual(byKey('provider').options.map((o) => o[1]), ['wunderground','openweathermap','dwd','openmeteo','metno']);
 });
 
 test('defaults match Clay/clay-settings (not the prototype drift)', () => {
@@ -298,12 +298,25 @@ test('flick/positioning narrative lives only in the Layout tab, not Health/Radar
   assert.ok(!/wrist flick/i.test(radar.sections[0].intro), 'radar intro drops the wrist-flick line');
 });
 
-test('radarProvider offers DWD/Rainbow/Off as plain options (no option-level gate)', () => {
+test('radarProvider is a radio offering DWD/Met.no/Rainbow/Off with scope in the label', () => {
   const item = byKey('radarProvider');
-  assert.deepEqual(item.options, [['DWD', 'dwd'], ['Rainbow', 'rainbow'], ['Off', 'disabled']]);
-  assert.equal(item.options[1].length, 2, 'Rainbow is a plain [label, value] pair — no predicate');
-  assert.equal(item.hintByValue.rainbow, 'Worldwide');
-  assert.equal(item.hintByValue.dwd, 'Deutscher Wetterdienst (Germany only)');
+  assert.equal(item.type, 'radio', 'four options no longer fit a segmented row');
+  assert.deepEqual(item.options, [
+    ['DWD (Germany only)', 'dwd'],
+    ['Met.no (Nordics only)', 'metno'],
+    ['Rainbow (Worldwide)', 'rainbow'],
+    ['Off', 'disabled']
+  ]);
+  assert.equal(item.hintByValue.dwd, 'Precise weather radar — rain at your exact spot and nearby (~2 km).');
+  assert.equal(item.hintByValue.metno, 'Precise weather radar — rain at your exact spot.');
+  assert.equal(item.hintByValue.rainbow, 'Model-based nowcast, works worldwide.');
+  assert.equal(item.defaultValue, 'rainbow');
+});
+
+test('weather provider radio offers Met.no with scope in the label', () => {
+  const item = byKey('provider');
+  assert.ok(item.options.some((o) => o[0] === 'Met.no (Nordics only)' && o[1] === 'metno'));
+  assert.equal(item.hintByValue.metno, 'Nordics · the service behind yr.no · 2.5 km model · no API key needed.');
 });
 
 test('radar intro copy drops mechanics and positions the providers', () => {
