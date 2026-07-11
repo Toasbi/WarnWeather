@@ -5,6 +5,7 @@ require('./polyfills.js');
 
 var radar = require('./weather/radar.js');
 var rainbowRadar = require('./weather/rainbow-radar.js');
+var metnoRadar = require('./weather/metno-radar.js');
 var radarDispatch = require('./weather/radar-dispatch.js');
 var runFetchCycle = require('./weather/fetch-orchestrator.js').runFetchCycle;
 var forecastSeries = require('./forecast-series.js');
@@ -810,6 +811,7 @@ function withRainRadarTuplesAt(lat, lon, callback) {
             slotZeroEpoch: slotZeroEpoch,
             fetchDwdAt: radar.fetchRadarTuplesAt,
             fetchRainbowAt: rainbowRadar.fetchRadarTuplesAt,
+            fetchMetnoAt: metnoRadar.fetchRadarTuplesAt,
             // '' when the build carried no RAINBOW_PROXY_ENDPOINT — the module
             // then fails soft (callback(null)) and the config UI hides the option.
             rainbowEndpoint: (pkg.rainbow && pkg.rainbow.endpoint) || ''
