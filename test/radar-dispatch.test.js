@@ -66,3 +66,35 @@ test("'dwd' and 'disabled' never call fetchRainbowAt", () => {
     { lat: 0, lon: 0, slotZeroEpoch: 0, fetchDwdAt: () => {}, fetchRainbowAt }, () => {});
   assert.equal(rainbowCalled, false);
 });
+
+test("'metno' delegates to fetchMetnoAt with lat/lon/slot and passes its tuples through", () => {
+  const fetched = { RAIN_RADAR_TREND_UINT8: [1], RAIN_RADAR_TREND_AREA_UINT8: [0], RAIN_RADAR_START: 100 };
+  let seen = null;
+  let result;
+  const fetchMetnoAt = (lat, lon, slot, cb) => { seen = { lat, lon, slot }; cb(fetched); };
+  dispatchRadarTuplesAt('metno',
+    { lat: 59.91, lon: 10.75, slotZeroEpoch: 100,
+      fetchDwdAt: () => { throw new Error('wrong provider'); },
+      fetchRainbowAt: () => { throw new Error('wrong provider'); },
+      fetchMetnoAt },
+    (t) => { result = t; });
+  assert.deepEqual(seen, { lat: 59.91, lon: 10.75, slot: 100 });
+  assert.equal(result, fetched);
+});
+
+test("'metno' passes null through (Met.no failure preserves watch radar)", () => {
+  let result = 'unset';
+  const fetchMetnoAt = (lat, lon, slot, cb) => cb(null);
+  dispatchRadarTuplesAt('metno', { lat: 0, lon: 0, slotZeroEpoch: 0, fetchMetnoAt }, (t) => { result = t; });
+  assert.equal(result, null);
+});
+
+test("'dwd' and 'disabled' never call fetchMetnoAt", () => {
+  let metnoCalled = false;
+  const fetchMetnoAt = () => { metnoCalled = true; };
+  dispatchRadarTuplesAt('dwd',
+    { lat: 0, lon: 0, slotZeroEpoch: 0, fetchDwdAt: (a, b, c, cb) => cb(null), fetchMetnoAt }, () => {});
+  dispatchRadarTuplesAt('disabled',
+    { lat: 0, lon: 0, slotZeroEpoch: 0, fetchDwdAt: () => {}, fetchMetnoAt }, () => {});
+  assert.equal(metnoCalled, false);
+});
