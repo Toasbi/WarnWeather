@@ -33,6 +33,7 @@ FORECAST
   - OpenWeatherMap
   - Open-Meteo
   - Deutscher Wetterdienst via Bright Sky (Germany only)
+  - Met.no / MET Norway (Nordics only)
 - GPS or manual location with configurable GPS cache
 
 
@@ -40,6 +41,7 @@ RAIN RADAR
 - 2-hour precipitation nowcast in 5-minute frames
 - Providers: 
   - Deutscher Wetterdienst (Germany only)
+  - Met.no / MET Norway (Nordics only)
   - Rainbow.ai (worldwide)
 - Rain countdown: when rain is on the way, the top status line turns into 
   "Drizzle / Rain / Downpour in X min",
@@ -122,3 +124,5 @@ scripts/capture-store-shots.sh v1.0.0
 Output lands in `screenshot/v1.0.0/store/<platform>/<label>.png` — e.g.
 `store/emery/1-calendar.png`. Upload each platform's four files to that platform in the
 store listing.
+
+Weather and radar data from MET Norway (CC BY 4.0).
