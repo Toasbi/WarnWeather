@@ -10,6 +10,7 @@ var WundergroundProvider = require('./weather/wunderground.js');
 var OpenWeatherMapProvider = require('./weather/openweathermap.js');
 var DwdProvider = require('./weather/dwd.js');
 var OpenMeteoProvider = require('./weather/openmeteo.js').OpenMeteoProvider;
+var MetnoProvider = require('./weather/metno.js').MetnoProvider;
 
 var DEFAULT_PROVIDER_ID = 'wunderground';
 
@@ -17,6 +18,7 @@ var PROVIDER_FACTORIES = {
     openweathermap: function(settings) { return new OpenWeatherMapProvider(settings.owmApiKey); },
     dwd: function(settings) { return new DwdProvider(); },
     openmeteo: function(settings) { return new OpenMeteoProvider(); },
+    metno: function(settings) { return new MetnoProvider(); },
     wunderground: function(settings) { return new WundergroundProvider(); }
 };
 
