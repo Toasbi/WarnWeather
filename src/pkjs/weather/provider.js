@@ -20,9 +20,12 @@ var RATE_LIMIT_BACKOFF_KEY = storageKeys.GEOCODE_BACKOFF_KEY;
  * @param {string} type HTTP method.
  * @param {Function} onSuccess Callback with response text.
  * @param {Function} onFailure Callback with error details.
+ * @param {Object} [headers] Optional request headers ({name: value}). Each one
+ *   is set individually in try/catch: some runtimes forbid certain headers
+ *   (e.g. User-Agent) and must not abort the request.
  * @returns {void}
  */
-function request(url, type, onSuccess, onFailure) {
+function request(url, type, onSuccess, onFailure, headers) {
     var xhr = new XMLHttpRequest();
     xhr.timeout = XHR_TIMEOUT_MS;
     xhr.onload = function() {
@@ -48,6 +51,18 @@ function request(url, type, onSuccess, onFailure) {
         });
     };
     xhr.open(type, url);
+    if (headers) {
+        for (var name in headers) {
+            if (Object.prototype.hasOwnProperty.call(headers, name)) {
+                try {
+                    xhr.setRequestHeader(name, headers[name]);
+                }
+                catch (ex) {
+                    // Runtime forbids this header — the others still identify us.
+                }
+            }
+        }
+    }
     xhr.send();
 }
 
