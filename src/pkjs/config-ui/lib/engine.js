@@ -474,7 +474,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // `window`/`body` — real browser boot always has both.
     function applyTheme() {
       if (typeof window === 'undefined' || !document.body) { return; }
-      var prefersLight = Boolean(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
+      var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)');
+      var prefersLight = Boolean(mq && mq.matches);
       if (resolveTheme(SCHEMA, S, prefersLight) === 'light') {
         document.body.classList.add('light');
       } else {
@@ -547,7 +548,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     wireSave();
     render();
 
-    if (SCHEMA.themeKey && window.matchMedia) {
+    if (SCHEMA.themeKey && typeof window !== 'undefined' && window.matchMedia) {
       var mqLight = window.matchMedia('(prefers-color-scheme: light)');
       if (mqLight.addListener) { mqLight.addListener(applyTheme); }
     }
