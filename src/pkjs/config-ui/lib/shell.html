@@ -18,6 +18,8 @@
     --lbl: #ECEEF3; --muted: #B6BAC2; --hint: #A9AEB8; --ttl: #898E98;
     --faint: #82868F; --static: #D2D5DC; --static-strong: #CDD1D9;
     --sw-track: #5A5B61; --line-strong: rgba(255,255,255,0.24);
+    --ctl-line-soft: rgba(255,255,255,0.1); --swatch-line: rgba(255,255,255,0.18);
+    --chip-line: rgba(255,255,255,0.25);
     --screen-line: rgba(255,255,255,0.14); --link: #FF6A52;
     font-family: 'Inter', -apple-system, system-ui, sans-serif;
     color: #F0F2F6; color: var(--fg);
@@ -32,6 +34,8 @@
     --lbl: #23252A; --muted: #5A5F6A; --hint: #6A707B; --ttl: #7A7F89;
     --faint: #8A8E97; --static: #3A3E46; --static-strong: #2E3238;
     --sw-track: #C9CCD2; --line-strong: rgba(0,0,0,0.22);
+    --ctl-line-soft: rgba(0,0,0,0.11); --swatch-line: rgba(0,0,0,0.18);
+    --chip-line: rgba(0,0,0,0.24);
     --screen-line: rgba(0,0,0,0.16); --link: #D93A24;
   }
   /* accent — flat Pebble-app red (#FA4A35), matching the watchface store listing */
@@ -105,7 +109,7 @@
   .sw i { position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 11px; background: #fff; transition: left .18s; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
   .sw.on i { left: 21px; }
   .radio { display: flex; flex-direction: column; gap: 8px; width: 100%; }
-  .radio button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; cursor: pointer; padding: 11px 13px; border-radius: 10px; font: 600 13.5px 'Inter', sans-serif; border: 1px solid var(--ctl-line); background: var(--ctl); color: var(--muted); transition: background .15s, border-color .15s, color .15s; }
+  .radio button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; cursor: pointer; padding: 11px 13px; border-radius: 10px; font: 600 13.5px 'Inter', sans-serif; border: 1px solid var(--ctl-line-soft); background: var(--ctl); color: var(--muted); transition: background .15s, border-color .15s, color .15s; }
   .radio button.on { border-color: #FA4A35; background: rgba(250,74,53,0.16); color: var(--fg); }
   .radio .dot { flex: none; width: 18px; height: 18px; border-radius: 9px; border: 2px solid var(--line-strong); display: flex; align-items: center; justify-content: center; }
   .radio button.on .dot { border-color: #FF6A52; }
@@ -120,17 +124,17 @@
   .sel-wrap { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; max-width: 100%; background: var(--ctl); border: 1px solid var(--ctl-line); border-radius: 9px; padding: 8px 12px; }
   .sel-wrap span { font: 600 13.5px 'Inter', sans-serif; color: var(--lbl); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sel-wrap .sel-chev { flex: none; width: 8px; height: 6px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 8 6'%3E%3Cpath d='M0 0l4 6 4-6z' fill='%23B6BAC2'/%3E%3C/svg%3E") no-repeat center; }
-  .ssel-list { margin-top: 8px; max-height: 240px; overflow-y: auto; background: var(--ctl); border: 1px solid var(--ctl-line); border-radius: 10px; }
+  .ssel-list { margin-top: 8px; max-height: 240px; overflow-y: auto; background: var(--ctl); border: 1px solid var(--ctl-line-soft); border-radius: 10px; }
   .ssel-opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; cursor: pointer; padding: 11px 13px; font: 600 13.5px 'Inter', sans-serif; border: none; border-bottom: 1px solid var(--row-line); background: transparent; color: var(--muted); }
   .ssel-opt:last-child { border-bottom: none; }
-  .ssel-opt.on { background: rgba(250,74,53,0.16); color: #F0F2F6; }
+  .ssel-opt.on { background: rgba(250,74,53,0.16); color: var(--fg); }
   .ssel-chk { flex: none; color: var(--link); font-weight: 700; }
   .ssel-none { padding: 14px 13px; font: 600 13px 'Inter', sans-serif; color: var(--faint); }
   .sw-wrap { display: flex; align-items: center; gap: 9px; cursor: pointer; background: var(--ctl); border: 1px solid var(--ctl-line); border-radius: 9px; padding: 5px 11px 5px 6px; }
-  .sw-wrap b { width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--line-strong); }
+  .sw-wrap b { width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--chip-line); }
   .sw-wrap span { font: 600 12px ui-monospace, monospace; color: var(--muted); letter-spacing: .02em; }
   .palette { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; margin-top: 12px; }
-  .palette button { aspect-ratio: 1.2 / 1; border-radius: 5px; cursor: pointer; border: 1px solid var(--line-strong); padding: 0; }
+  .palette button { aspect-ratio: 1.2 / 1; border-radius: 5px; cursor: pointer; border: 1px solid var(--swatch-line); padding: 0; }
   .palette button.on { border: 2px solid #fff; box-shadow: 0 0 0 2px #FA4A35; }
   .toast { position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%); background: var(--ctl); border: 1px solid rgba(250,74,53,0.5); color: var(--fg); padding: 10px 18px; border-radius: 12px; font: 700 13px 'Inter', sans-serif; box-shadow: 0 10px 28px rgba(0,0,0,0.5); opacity: 0; pointer-events: none; transition: opacity .2s; }
   .toast.show { opacity: 1; }
