@@ -416,3 +416,22 @@ test('renderBody: searchSelect opened via cx.openSelect renders the search input
   assert.ok(html.indexOf('data-select-search="c"') >= 0, 'open search input rendered through renderBody');
   assert.ok(html.indexOf('class="row stack"') >= 0, 'row is stacked while open');
 });
+
+test('resolveTheme: no themeKey -> dark', () => {
+  assert.equal(E.resolveTheme({ tabs: [] }, {}, true), 'dark');
+  assert.equal(E.resolveTheme({ tabs: [] }, {}, false), 'dark');
+});
+
+test('resolveTheme: explicit light/dark ignore the media query', () => {
+  const schema = { themeKey: 'ct', tabs: [] };
+  assert.equal(E.resolveTheme(schema, { ct: 'light' }, false), 'light');
+  assert.equal(E.resolveTheme(schema, { ct: 'dark' }, true), 'dark');
+});
+
+test('resolveTheme: auto follows prefers-color-scheme, unknown falls back to dark', () => {
+  const schema = { themeKey: 'ct', tabs: [] };
+  assert.equal(E.resolveTheme(schema, { ct: 'auto' }, true), 'light');
+  assert.equal(E.resolveTheme(schema, { ct: 'auto' }, false), 'dark');
+  assert.equal(E.resolveTheme(schema, {}, true), 'light');   // missing value = auto
+  assert.equal(E.resolveTheme(schema, { ct: 'weird' }, false), 'dark');
+});
