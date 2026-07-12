@@ -105,3 +105,10 @@ test('compact top view anchors the holiday window to the current week (prevWeek 
   assert.strictEqual(got, expectCurrent);        // aligned to current-week-first
   assert.notStrictEqual(got, prevAnchor);        // the override actually changed the anchor
 });
+
+test('configTheme is a settings-only key and never rides the Clay AppMessage', function() {
+  const s = baseSettings();
+  s.configTheme = 'light';
+  const p = buildClayPayload(s, { platform: 'emery' }, NOW);
+  assert.equal(Object.prototype.hasOwnProperty.call(p, 'configTheme'), false);
+});

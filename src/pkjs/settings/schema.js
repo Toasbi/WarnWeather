@@ -53,6 +53,7 @@ var SCALE_NOTE = '<span style="color:#A9AEB8;font-size:12.5px;line-height:1.55;"
 var BW_LEGEND = '<span style="color:#A9AEB8;font-size:12.5px;line-height:1.55;">The bars don\'t scale linearly. They\'re divided into 5 parts, standing for up to 0.1, 0.5, 2, 10 and 40 mm/h of downfall.</span>';
 module.exports = {
     appName: 'WarnWeather',
+    themeKey: 'configTheme',
     versionLabel: versionLabel + ' <a href="https://github.com/Toasbi/WarnWeather">GitHub source</a>',
     tabs: [{
         id: 'general', label: 'General', sections: [{
@@ -450,7 +451,14 @@ module.exports = {
     }, {
         id: 'more', label: 'More', sections: [{
             title: 'Misc',
-            items: [{type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true}, {
+            items: [{
+                type: 'segmented',
+                messageKey: 'configTheme',
+                label: 'Theme',
+                defaultValue: 'auto',
+                options: [['Auto', 'auto'], ['Light', 'light'], ['Dark', 'dark']],
+                hint: 'Auto follows your Pebble app theme. The watchface itself is unaffected.'
+            }, {type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true}, {
                 type: 'toggle', messageKey: 'vibe', label: 'Vibrate on bluetooth disconnect', defaultValue: false
             }, {
                 type: 'select',
