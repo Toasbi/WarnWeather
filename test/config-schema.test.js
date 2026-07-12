@@ -298,9 +298,9 @@ test('flick/positioning narrative lives only in the Layout tab, not Health/Radar
   assert.ok(!/wrist flick/i.test(radar.sections[0].intro), 'radar intro drops the wrist-flick line');
 });
 
-test('radarProvider is a radio offering DWD/Met.no/Rainbow/Off with scope in the label', () => {
+test('radarProvider is a dropdown offering DWD/Met.no/Rainbow/Off with scope in the label', () => {
   const item = byKey('radarProvider');
-  assert.equal(item.type, 'radio', 'four options no longer fit a segmented row');
+  assert.equal(item.type, 'select', 'dropdown — four options no longer fit a segmented row');
   assert.deepEqual(item.options, [
     ['DWD (Germany only)', 'dwd'],
     ['Met.no (Nordics only)', 'metno'],

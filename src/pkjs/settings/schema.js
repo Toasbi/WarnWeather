@@ -240,7 +240,7 @@ module.exports = {
                 '<b>Met.no</b> (Nordics): rain at your exact spot.<br>' +
                 '<b>Rainbow</b>: worldwide, at your exact spot only.',
             items: [{
-                type: 'radio',
+                type: 'select',
                 messageKey: 'radarProvider',
                 label: 'Radar provider',
                 defaultValue: 'rainbow',
