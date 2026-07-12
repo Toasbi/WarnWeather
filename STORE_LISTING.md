@@ -85,6 +85,8 @@ LAYOUT CUSTOMIZATION
   Flick your wrist to cycle through different views
 - Optional auto-return to the default view a set time after flicking away
   (1-10 minutes, or never)
+- Settings page now supports a light theme: follows your Pebble app theme
+  automatically, with a manual Auto / Light / Dark override
 
 UPDATES
 - Update notifications: get a one-time heads-up when a newer version is available in the appstore.

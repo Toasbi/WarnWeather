@@ -67,6 +67,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Adjustable layout — choose how much of the screen goes to the calendar vs. the forecast, radar, and health views
 * **Layout preset** — pick a calendar style (**Full calendar**, **Compact calendar**, **Compact calendar (dense)**, or **No calendar**); the wrist-flick cycle then builds itself from your health and radar settings — enable health or radar and a flick reveals them automatically, previewed live in settings
 * Optional auto-return to the default view a set time after flicking away (1–10 minutes, or never)
+* **Settings theme** — the settings page now follows your Pebble app's light or dark theme automatically, with a manual Auto / Light / Dark override (Misc tab). The watchface itself is unaffected.
 
 **Updates**
 * **Update notifications** — when a newer version is available on the Pebble appstore, the watchface sends you a one-time notification so you know to update.

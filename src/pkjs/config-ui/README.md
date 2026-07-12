@@ -198,9 +198,16 @@ configUi.deriveColorKeys(schema)     // ['key', …] — all type:'color' messag
 module.exports = {
   appName:      "MyApp",
   versionLabel: "v1.0.0",
+  themeKey:     "configTheme",   // optional: messageKey of an 'auto'|'light'|'dark' setting
   tabs: [ /* Tab, … */ ]
 };
 ```
+
+`themeKey` (optional) names a setting whose value (`'auto' | 'light' | 'dark'`) drives the page
+theme. `'auto'` follows `prefers-color-scheme`; a missing `matchMedia` or `var()` support falls
+back to dark. Omit `themeKey` and the page stays dark (base theme). Support floor: correct
+rendering ~Chromium 84+, theming from Chromium 49; below that the page stays dark and readable
+via literal fallbacks.
 
 ### Tabs, sections, items
 
