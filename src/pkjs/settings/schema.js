@@ -235,10 +235,7 @@ module.exports = {
         // budget can't afford it), so the whole tab is env-hidden there (tab-level
         // showWhen; see platform.js radar env flag). Mirrors the health tab.
         id: 'radar', label: 'Radar', showWhen: {env: 'radar'}, sections: [{
-            intro: 'Rain radar is a second view — a precise short-term rain forecast for your location. Set where it appears in the Layout tab.<br>' +
-                '<b>DWD</b> (Germany): rain at your exact spot and nearby (within ~2 km).<br>' +
-                '<b>Met.no</b> (Nordics): rain at your exact spot.<br>' +
-                '<b>Rainbow</b>: worldwide, at your exact spot only.',
+            intro: 'Rain radar is a second view — a precise short-term rain forecast for your location. Set where it appears in the Layout tab.<br>',
             items: [{
                 type: 'select',
                 messageKey: 'radarProvider',
