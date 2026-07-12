@@ -453,7 +453,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var TABLE_STYLE = 'border-collapse:collapse;font-size:0.72em;margin:2px 0 6px;width:100%;text-align:center;';
         var CELL_STYLE = 'border:1px solid #555;padding:1px 3px;';
         var TITLE_STYLE = 'font-size:0.8em;font-weight:bold;margin:8px 0 0;padding:0 16px;';
-        var LEGEND_STYLE = 'font-size:0.7em;color:#9aa0a6;line-height:1.3;margin:1px 0 3px;padding:0 16px;';
+        var LEGEND_STYLE = 'font-size:0.7em;color:var(--hint);line-height:1.3;margin:1px 0 3px;padding:0 16px;';
         // App-owned override: this custom element ships its own CSS rather than the config-ui lib
         // carrying dev-stats rules. .dsBleed cancels the lib .blockrow's 16px side padding (full
         // bleed) so the tables run to the card's inner edge; dropping the grid's outer left/right
