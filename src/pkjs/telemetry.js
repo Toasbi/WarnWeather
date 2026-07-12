@@ -19,6 +19,7 @@ function buildSettingsSnapshot(settings) {
     var safe = settings || {};
     return {
         temperatureUnits: safe.temperatureUnits,
+        configTheme: safe.configTheme,
         dayNightShading: !!safe.dayNightShading,
         healthMode: safe.healthMode || 'off',
         provider: safe.provider,

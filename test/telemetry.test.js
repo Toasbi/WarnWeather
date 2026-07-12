@@ -66,6 +66,11 @@ test('snapshot includes viewResetMin as an int', () => {
   assert.strictEqual(buildSettingsSnapshot({}).viewResetMin, undefined);
 });
 
+test('snapshot includes configTheme as a string', () => {
+  assert.strictEqual(buildSettingsSnapshot({ configTheme: 'light' }).configTheme, 'light');
+  assert.strictEqual(buildSettingsSnapshot({}).configTheme, undefined);
+});
+
 test('settings snapshot keys match the Deno telemetry schema (lockstep)', () => {
   const fs = require('fs');
   const path = require('path');
