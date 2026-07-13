@@ -452,14 +452,7 @@ module.exports = {
     }, {
         id: 'more', label: 'More', sections: [{
             title: 'Misc',
-            items: [{
-                type: 'segmented',
-                messageKey: 'configTheme',
-                label: 'Theme',
-                defaultValue: 'auto',
-                options: [['Auto', 'auto'], ['Light', 'light'], ['Dark', 'dark']],
-                hint: 'Auto follows your Pebble app theme. The watchface itself is unaffected.'
-            }, {type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true}, {
+            items: [{type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true}, {
                 type: 'toggle', messageKey: 'vibe', label: 'Vibrate on bluetooth disconnect', defaultValue: false
             }, {
                 type: 'select',
@@ -484,6 +477,13 @@ module.exports = {
             }]
         }, {
             title: 'Advanced', collapsible: true, items: [{
+                type: 'segmented',
+                messageKey: 'configTheme',
+                label: 'Settings Theme',
+                defaultValue: 'auto',
+                options: [['Auto', 'auto'], ['Light', 'light'], ['Dark', 'dark']],
+                hint: 'Auto follows your Pebble app theme. The watchface itself is unaffected.'
+            }, {
                 type: 'toggle',
                 messageKey: 'fetch',
                 label: 'Force weather fetch',

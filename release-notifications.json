@@ -69,6 +69,6 @@
   },
   "1.8.0": {
     "title": "Light theme for settings",
-    "body": "The settings page now follows your Pebble app's light or dark theme automatically. Prefer one? Pick Auto, Light, or Dark under the Misc tab."
+    "body": "The settings page now follows your Pebble app's light or dark theme automatically. Prefer one? Pick Auto, Light, or Dark under More → Advanced."
   }
 }
