@@ -319,13 +319,15 @@ test('weather provider radio offers Met.no with scope in the label', () => {
   assert.equal(item.hintByValue.metno, 'Nordics · the service behind yr.no · 2.5 km model · no API key needed.');
 });
 
-test('radar intro copy drops mechanics and positions the providers', () => {
+test('radar intro drops mechanics; provider positioning lives in the per-provider hints', () => {
   const radarTab = schema.tabs.find((t) => t.id === 'radar');
   const intro = radarTab.sections[0].intro;
   assert.ok(intro.indexOf('precise short-term rain forecast for your location') >= 0, 'core promise present');
   assert.ok(intro.indexOf('Layout tab') >= 0, 'placement pointer kept');
   assert.equal(intro.indexOf('radar images'), -1, 'mechanics dropped');
   assert.equal(intro.indexOf('5-minute frame'), -1, 'mechanics dropped');
-  assert.ok(intro.indexOf('2 km') >= 0, 'DWD nearby signal explained');
-  assert.ok(intro.toLowerCase().indexOf('worldwide') >= 0, 'Rainbow positioned as worldwide');
+  // Provider positioning was de-duplicated out of the intro (b91a416) into the provider hints.
+  const hints = radarTab.sections[0].items.find((i) => i.messageKey === 'radarProvider').hintByValue;
+  assert.ok(hints.dwd.indexOf('2 km') >= 0, 'DWD nearby signal explained in its hint');
+  assert.ok(hints.rainbow.toLowerCase().indexOf('worldwide') >= 0, 'Rainbow positioned as worldwide in its hint');
 });
