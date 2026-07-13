@@ -41,18 +41,19 @@ var THIRD_LINE_OPTIONS = {
     uv: [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust']]
 };
 // Color swatches (5 intensity bands) — shown only in the Multicolor hint.
-var SWATCHES = '<span style="display:inline-flex;gap:7px;margin-top:6px;align-items:flex-end;">' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#AAAAAA;margin-bottom:3px;"></span>0.1</span>' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#55FFFF;margin-bottom:3px;"></span>0.5</span>' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#00FF00;margin-bottom:3px;"></span>2</span>' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FFFF00;margin-bottom:3px;"></span>10</span>' + '<span style="text-align:center;font-size:10px;color:#8A92A0;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FF5555;margin-bottom:3px;"></span>40</span>' + '</span>';
+var SWATCHES = '<span style="display:inline-flex;gap:7px;margin-top:6px;align-items:flex-end;">' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#AAAAAA;margin-bottom:3px;"></span>0.1</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#55FFFF;margin-bottom:3px;"></span>0.5</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#00FF00;margin-bottom:3px;"></span>2</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FFFF00;margin-bottom:3px;"></span>10</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FF5555;margin-bottom:3px;"></span>40</span>' + '</span>';
 // Bar color hint depends on the selected mode (hintByValue): Multicolor shows the swatches; White doesn't.
 var MULTICOLOR_HINT = 'Colors each part differently depending on intensity:' + SWATCHES;
 var WHITE_HINT = 'Shows every bar in a single color.';
 // Full-width note between the Bars and Bar color controls (its own staticText) so the prose isn't
 // cramped in a control's left column. Color watches only; B/W uses BW_LEGEND.
-var SCALE_NOTE = '<span style="color:#A9AEB8;font-size:12.5px;line-height:1.55;">The bars don\'t scale linearly. They\'re divided into 5 parts, standing for up to 0.1, 0.5, 2, 10 and 40 mm/h of downfall, so light drizzle stays visible while heavy rain still has room to grow.</span>';
+var SCALE_NOTE = 'The bars don\'t scale linearly. They\'re divided into 5 parts, standing for up to 0.1, 0.5, 2, 10 and 40 mm/h of downfall, so light drizzle stays visible while heavy rain still has room to grow.';
 // B/W watches hide the color picker (no colors to choose), so this stands in for COLOR_LEGEND
 // there: text-only, since height is the only encoding (no color steps to show).
-var BW_LEGEND = '<span style="color:#A9AEB8;font-size:12.5px;line-height:1.55;">The bars don\'t scale linearly. They\'re divided into 5 parts, standing for up to 0.1, 0.5, 2, 10 and 40 mm/h of downfall.</span>';
+var BW_LEGEND = 'The bars don\'t scale linearly. They\'re divided into 5 parts, standing for up to 0.1, 0.5, 2, 10 and 40 mm/h of downfall.';
 module.exports = {
     appName: 'WarnWeather',
+    themeKey: 'configTheme',
     versionLabel: versionLabel + ' <a href="https://github.com/Toasbi/WarnWeather">GitHub source</a>',
     tabs: [{
         id: 'general', label: 'General', sections: [{
@@ -127,9 +128,10 @@ module.exports = {
                     wunderground: 'Global · no API key needed.',
                     openweathermap: 'Global · enter API key below.',
                     dwd: 'Germany only · no API key needed.',
-                    openmeteo: 'Global · no API key needed.'
+                    openmeteo: 'Global · no API key needed.',
+                    metno: 'Nordics · the service behind yr.no · 2.5 km model · no API key needed.'
                 },
-                options: [['Weather Underground', 'wunderground'], ['OpenWeatherMap', 'openweathermap'], ['Deutscher Wetterdienst (Germany only)', 'dwd'], ['Open-Meteo', 'openmeteo']]
+                options: [['Weather Underground', 'wunderground'], ['OpenWeatherMap', 'openweathermap'], ['Deutscher Wetterdienst (Germany only)', 'dwd'], ['Open-Meteo', 'openmeteo'], ['Met.no (Nordics only)', 'metno']]
             }, {
                 type: 'text',
                 messageKey: 'owmApiKey',
@@ -267,19 +269,21 @@ module.exports = {
         // budget can't afford it), so the whole tab is env-hidden there (tab-level
         // showWhen; see platform.js radar env flag). Mirrors the health tab.
         id: 'radar', label: 'Radar', showWhen: {env: 'radar'}, sections: [{
-            intro: 'Rain radar is a second view — a precise short-term rain forecast for your location. Set where it appears in the Layout tab.<br>' +
-                '<b>DWD</b> (Germany): rain at your exact spot and nearby (within ~2 km).<br>' +
-                '<b>Rainbow</b>: worldwide, at your exact spot only.',
+            intro: 'Rain radar is a second view — a precise short-term rain forecast for your location. Set where it appears in the Layout tab.<br>',
             items: [{
-                type: 'segmented',
+                type: 'select',
                 messageKey: 'radarProvider',
                 label: 'Radar provider',
                 defaultValue: 'rainbow',
-                hintByValue: {dwd: 'Deutscher Wetterdienst (Germany only)', rainbow: 'Worldwide'},
+                hintByValue: {
+                    dwd: 'Precise weather radar — rain at your exact spot and nearby (~2 km).',
+                    metno: 'Precise weather radar — rain at your exact spot.',
+                    rainbow: 'Model-based nowcast, works worldwide.'
+                },
                 // Rainbow is always offered. Builds without a proxy endpoint
                 // (dev/forks) still show it; selecting it there fails soft with
                 // the Task 2 warning. Production always sets RAINBOW_PROXY_ENDPOINT.
-                options: [['DWD', 'dwd'], ['Rainbow', 'rainbow'], ['Off', 'disabled']],
+                options: [['DWD (Germany only)', 'dwd'], ['Met.no (Nordics only)', 'metno'], ['Rainbow (Worldwide)', 'rainbow'], ['Off', 'disabled']],
                 blockBefore: 'radarPreview',
                 blockBeforeSticky: true
             }, {
@@ -318,8 +322,7 @@ module.exports = {
             }, {
                 type: 'staticText',
                 joinPrevious: true,
-                text: '<span style="color:#A9AEB8;font-size:12.5px;line-height:1.55;">' +
-                    'Because rain radar data is changing frequently, using a lower time window shows fewer false positives.</span>',
+                text: 'Because rain radar data is changing frequently, using a lower time window shows fewer false positives.',
                 showWhen: {key: 'radarProvider', ne: 'disabled'}
             }]
         }]
@@ -390,8 +393,7 @@ module.exports = {
             }, {
                 type: 'staticText',
                 joinPrevious: true,
-                text: '<span style="color:#A9AEB8;font-size:12.5px;line-height:1.55;">' +
-                    'Automatically return to the default view after the selected time has passed.</span>'
+                text: 'Automatically return to the default view after the selected time has passed.'
             }]
         }]
     }, {
@@ -519,13 +521,20 @@ module.exports = {
         }, {
             title: 'Links', items: [{
                 type: 'staticText',
-                text: '<div style="display:flex;justify-content:space-between;align-items:center;gap:18px;">' + '<span style="font-size:14.5px;font-weight:600;color:#ECEEF3;">Help</span>' + '<a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a></div>'
+                text: '<div style="display:flex;justify-content:space-between;align-items:center;gap:18px;">' + '<span style="font-size:14.5px;font-weight:600;color:var(--lbl);">Help</span>' + '<a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a></div>'
             }, {
                 type: 'staticText',
-                text: '<div style="display:flex;justify-content:space-between;align-items:center;gap:18px;">' + '<span style="font-size:14.5px;font-weight:600;color:#ECEEF3;">Support me <3</span>' + '<a href="https://buymeacoffee.com/toaster2"><img alt="Buy me a coffee" style="height:40px;width:auto;display:block;" src="' + BMC_BADGE + '"></a></div>'
+                text: '<div style="display:flex;justify-content:space-between;align-items:center;gap:18px;">' + '<span style="font-size:14.5px;font-weight:600;color:var(--lbl);">Support me <3</span>' + '<a href="https://buymeacoffee.com/toaster2"><img alt="Buy me a coffee" style="height:40px;width:auto;display:block;" src="' + BMC_BADGE + '"></a></div>'
             }]
         }, {
             title: 'Advanced', collapsible: true, items: [{
+                type: 'segmented',
+                messageKey: 'configTheme',
+                label: 'Settings Theme',
+                defaultValue: 'auto',
+                options: [['Auto', 'auto'], ['Light', 'light'], ['Dark', 'dark']],
+                hint: 'Auto follows your Pebble app theme. The watchface itself is unaffected.'
+            }, {
                 type: 'toggle',
                 messageKey: 'fetch',
                 label: 'Force weather fetch',

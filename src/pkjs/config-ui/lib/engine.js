@@ -65,6 +65,22 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
+   * Resolve the effective theme class from the theme setting.
+   *
+   * @param {Object} schema Config schema (reads schema.themeKey).
+   * @param {Object} S Settings state.
+   * @param {boolean} prefersLight Result of the prefers-color-scheme: light media query.
+   * @returns {string} 'light' or 'dark' — the class applied to <body> ('dark' = class absent).
+   */
+  function resolveTheme(schema, S, prefersLight) {
+    if (!schema || !schema.themeKey) { return 'dark'; }
+    var v = S ? S[schema.themeKey] : undefined;
+    if (v === 'light') { return 'light'; }
+    if (v === 'dark') { return 'dark'; }
+    return prefersLight ? 'light' : 'dark';
+  }
+
+  /**
    * Flatten settings state into the messageKey->value blob sent back to the
    * watch. staticText items (no real value) are skipped.
    *
@@ -462,10 +478,26 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
     // boot() requires the DOM; it is never called from Node tests (which exercise the pure
     // helpers above), so DOM access here is unguarded by design.
+
+    // Toggle body.light from the theme setting; re-run on every render + on OS theme change.
+    // Guarded for the pure-render Node test harness, which shims `document` without a
+    // `window`/`body` — real browser boot always has both.
+    function applyTheme() {
+      if (typeof window === 'undefined' || !document.body) { return; }
+      var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)');
+      var prefersLight = Boolean(mq && mq.matches);
+      if (resolveTheme(SCHEMA, S, prefersLight) === 'light') {
+        document.body.classList.add('light');
+      } else {
+        document.body.classList.remove('light');
+      }
+    }
+
     function render() {
       var cx = { S: S, ENV: ENV, USERDATA: USERDATA, openColor: openColor, openSelect: openSelect, selectQuery: selectQuery, collapsed: collapsed, evalCtx: evalCtx() };
       document.getElementById('tabs').innerHTML = renderTabBar(SCHEMA, activeTab, cx);
       document.getElementById('scroll').innerHTML = renderBody(SCHEMA, activeTab, cx);
+      applyTheme();
     }
 
     // Tab bar: switch the active tab and close any open color/select overlays.
@@ -539,12 +571,18 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     wireInputs();
     wireSave();
     render();
+
+    if (SCHEMA.themeKey && typeof window !== 'undefined' && window.matchMedia) {
+      var mqLight = window.matchMedia('(prefers-color-scheme: light)');
+      if (mqLight.addListener) { mqLight.addListener(applyTheme); }
+    }
   }
 
   PConf.engine = {
     serialize: serialize, hydrate: hydrate, boot: boot, initialCollapsed: initialCollapsed,
     esc: esc, renderControl: renderControl, renderRow: renderRow, renderSelectOptions: renderSelectOptions,
-    renderTabBar: renderTabBar, renderBody: renderBody, resolveOptionsFrom: resolveOptionsFrom
+    renderTabBar: renderTabBar, renderBody: renderBody, resolveOptionsFrom: resolveOptionsFrom,
+    resolveTheme: resolveTheme
   };
 })();
 if (typeof module !== 'undefined' && module.exports) {
@@ -555,6 +593,7 @@ if (typeof module !== 'undefined' && module.exports) {
     esc: PConf.engine.esc, renderControl: PConf.engine.renderControl, renderRow: PConf.engine.renderRow,
     renderSelectOptions: PConf.engine.renderSelectOptions,
     renderTabBar: PConf.engine.renderTabBar, renderBody: PConf.engine.renderBody,
-    resolveOptionsFrom: PConf.engine.resolveOptionsFrom
+    resolveOptionsFrom: PConf.engine.resolveOptionsFrom,
+    resolveTheme: PConf.engine.resolveTheme
   };
 }

@@ -54,7 +54,7 @@ function buildClayPayload(settings, watchInfo, now) {
         "CLAY_COLOR_US_FEDERAL": settings.hasOwnProperty('colorUSFederal') ? settings.colorUSFederal : DEFAULT_COLOR_FOLLY,
         "HOLIDAYS": (function() {
             var country = settings.hasOwnProperty('holidayCountry') ? settings.holidayCountry : 'US';
-            var region = settings['holidayRegion' + country] || 'all';
+            var region = settings.holidayRegion || 'all';
             var built = holidayMask.build({
                 startMon: settings.weekStartDay === 'mon',
                 prevWeek: compact ? false : (settings.firstWeek === 'prev'),

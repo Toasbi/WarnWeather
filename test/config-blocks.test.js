@@ -590,3 +590,10 @@ test('layoutPreview / layoutPreviewFlick / layoutPreviewCombined: dark theme kee
   assert.ok(B.layoutPreviewFlick(state, {}).indexOf('rgba(255,255,255,0.12)') >= 0);
   assert.ok(B.layoutPreviewCombined(state, {}).indexOf('rgba(255,255,255,0.12)') >= 0);
 });
+
+test('radarPreview (metno): point provider renders like rainbow — no nearby bars or legend', () => {
+  const metno = B.radarPreview({ radarProvider: 'metno', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
+  const rainbow = B.radarPreview({ radarProvider: 'rainbow', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
+  assert.equal(metno, rainbow, 'metno and rainbow share the point-provider preview');
+  assert.equal(metno.indexOf('>Nearby (2 km)<'), -1, 'metno drops the nearby legend');
+});

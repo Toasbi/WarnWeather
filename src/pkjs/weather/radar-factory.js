@@ -14,6 +14,7 @@
 // radar source is a new table entry; index.js never learns source names.
 
 var radar = require('./radar.js');
+var metnoRadar = require('./metno-radar.js');
 var rainbowRadar = require('./rainbow-radar.js');
 var radarWire = require('./radar-wire.js');
 
@@ -22,6 +23,9 @@ var DEFAULT_RADAR_ID = 'disabled';
 var RADAR_FACTORIES = {
     dwd: function(cfg) {
         return { fetchRadarTuplesAt: radar.fetchRadarTuplesAt };
+    },
+    metno: function(cfg) {
+        return { fetchRadarTuplesAt: metnoRadar.fetchRadarTuplesAt };
     },
     rainbow: function(cfg) {
         return {
@@ -54,7 +58,7 @@ function isKnownRadarSource(radarId) {
  * fall back to the 'disabled' source (clears the watch's radar), matching the
  * legacy default-off behavior.
  *
- * @param {string} radarId Clay radarProvider id ('dwd', 'rainbow', 'disabled').
+ * @param {string} radarId Clay radarProvider id ('dwd', 'metno', 'rainbow', 'disabled').
  * @param {Object} cfg Per-source config.
  * @param {string} cfg.rainbowEndpoint Rainbow proxy URL ('' when the build carries none).
  * @returns {{fetchRadarTuplesAt: Function}} Radar-source adapter satisfying the seam.

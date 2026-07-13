@@ -10,6 +10,7 @@ const providerSchema = z.enum([
   "mock",
   "dwd",
   "openmeteo",
+  "metno",
 ]);
 const locationModeSchema = z.enum(["gps", "manual_coordinates", "manual_address"]);
 
@@ -30,6 +31,7 @@ const watchInfoSchema = z.object({
 const settingsSchema = z
   .object({
     temperatureUnits: z.string().optional(),
+    configTheme: z.enum(['auto', 'light', 'dark']).optional(),
     dayNightShading: z.boolean().optional(),
     healthMode: z.enum(['off', 'status', 'all']).optional(),
     provider: providerSchema.optional(),

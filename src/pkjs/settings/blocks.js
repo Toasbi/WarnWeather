@@ -485,9 +485,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // (see the `outline` param below) using ink.fg as the stroke color, which this
         // also equals there — same value, different role.
         var radarBarFg = isColor ? (isLightPolarity(state.theme) ? '#555555' : '#FFFFFF') : ink.fg;
-        // Rainbow is a single-point nowcast: no 2 km-area signal → omit the
-        // hollow "nearby" outline bars and their legend entry entirely.
-        var showNearby = state.radarProvider !== 'rainbow';
+        // Only DWD carries a 2 km-area signal; Met.no and Rainbow are
+        // single-point nowcasts → omit the hollow "nearby" outline bars and
+        // their legend entry entirely.
+        var showNearby = state.radarProvider === 'dwd';
         for (var i = 0; i < n; i++) {
             var x = PX0 + i * step + (step - bw) / 2;
             var nH = barPermille(Math.round((local[i] + add[i]) * 10)) / 1000;
@@ -551,7 +552,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var TABLE_STYLE = 'border-collapse:collapse;font-size:0.72em;margin:2px 0 6px;width:100%;text-align:center;';
         var CELL_STYLE = 'border:1px solid #555;padding:1px 3px;';
         var TITLE_STYLE = 'font-size:0.8em;font-weight:bold;margin:8px 0 0;padding:0 16px;';
-        var LEGEND_STYLE = 'font-size:0.7em;color:#9aa0a6;line-height:1.3;margin:1px 0 3px;padding:0 16px;';
+        var LEGEND_STYLE = 'font-size:0.7em;color:var(--hint);line-height:1.3;margin:1px 0 3px;padding:0 16px;';
         // App-owned override: this custom element ships its own CSS rather than the config-ui lib
         // carrying dev-stats rules. .dsBleed cancels the lib .blockrow's 16px side padding (full
         // bleed) so the tables run to the card's inner edge; dropping the grid's outer left/right

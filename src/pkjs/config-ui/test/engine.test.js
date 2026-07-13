@@ -470,3 +470,28 @@ test('boot(): a native <select> change fires the item\'s registered onChange hoo
   assert.equal(captured.newV, 'light', 'new value passed through');
   assert.equal(captured.sTheme, 'light', 'S was updated before the hook ran');
 });
+
+test('resolveTheme: no themeKey -> dark', () => {
+  assert.equal(E.resolveTheme({ tabs: [] }, {}, true), 'dark');
+  assert.equal(E.resolveTheme({ tabs: [] }, {}, false), 'dark');
+});
+
+test('resolveTheme: explicit light/dark ignore the media query', () => {
+  const schema = { themeKey: 'ct', tabs: [] };
+  assert.equal(E.resolveTheme(schema, { ct: 'light' }, false), 'light');
+  assert.equal(E.resolveTheme(schema, { ct: 'dark' }, true), 'dark');
+});
+
+test('resolveTheme: auto follows prefers-color-scheme, unknown falls back to dark', () => {
+  const schema = { themeKey: 'ct', tabs: [] };
+  assert.equal(E.resolveTheme(schema, { ct: 'auto' }, true), 'light');
+  assert.equal(E.resolveTheme(schema, { ct: 'auto' }, false), 'dark');
+  assert.equal(E.resolveTheme(schema, {}, true), 'light');   // missing value = auto
+  assert.equal(E.resolveTheme(schema, { ct: 'weird' }, false), 'dark');
+});
+
+test('hydrate: configTheme defaults to auto when absent from the saved blob', () => {
+  const schema = require('../../settings/schema.js');
+  const S = E.hydrate(schema, {});
+  assert.equal(S.configTheme, 'auto');
+});

@@ -11,6 +11,7 @@ test('createProvider builds each known provider by id', () => {
   assert.equal(providerFactory.createProvider('dwd', {}).id, 'dwd');
   assert.equal(providerFactory.createProvider('openmeteo', {}).id, 'openmeteo');
   assert.equal(providerFactory.createProvider('openweathermap', { owmApiKey: 'KEY' }).id, 'openweathermap');
+  assert.equal(providerFactory.createProvider('metno', {}).id, 'metno');
 });
 
 test('createProvider passes the OWM API key from settings', () => {

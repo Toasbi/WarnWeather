@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const radar = require('../src/pkjs/weather/radar.js');
+const metnoRadar = require('../src/pkjs/weather/metno-radar.js');
 const rainbowRadar = require('../src/pkjs/weather/rainbow-radar.js');
 const radarFactory = require('../src/pkjs/weather/radar-factory.js');
 const schema = require('../src/pkjs/settings/schema.js');
@@ -20,6 +21,22 @@ test("createRadarSource('dwd') routes to radar.fetchRadarTuplesAt with lat/lon/s
     assert.equal(result, fetched);
   } finally {
     radar.fetchRadarTuplesAt = orig;
+  }
+});
+
+test("createRadarSource('metno') routes to metnoRadar.fetchRadarTuplesAt with lat/lon/slot", () => {
+  let seen = null;
+  const fetched = { RAIN_RADAR_TREND_UINT8: [3], RAIN_RADAR_TREND_AREA_UINT8: [0], RAIN_RADAR_START: 100 };
+  const orig = metnoRadar.fetchRadarTuplesAt;
+  metnoRadar.fetchRadarTuplesAt = function(lat, lon, slot, cb) { seen = { lat, lon, slot }; cb(fetched); };
+  try {
+    const source = radarFactory.createRadarSource('metno', { rainbowEndpoint: '' });
+    let result;
+    source.fetchRadarTuplesAt(52.5, 13.4, 100, function(t) { result = t; });
+    assert.deepEqual(seen, { lat: 52.5, lon: 13.4, slot: 100 });
+    assert.equal(result, fetched);
+  } finally {
+    metnoRadar.fetchRadarTuplesAt = orig;
   }
 });
 
@@ -68,6 +85,7 @@ test('unknown and unset ids fall back to disabled (clearing tuples)', () => {
 
 test('isKnownRadarSource recognizes registered ids only', () => {
   assert.equal(radarFactory.isKnownRadarSource('dwd'), true);
+  assert.equal(radarFactory.isKnownRadarSource('metno'), true);
   assert.equal(radarFactory.isKnownRadarSource('rainbow'), true);
   assert.equal(radarFactory.isKnownRadarSource('disabled'), true);
   assert.equal(radarFactory.isKnownRadarSource('bogus'), false);

@@ -281,6 +281,6 @@
     "endpoint": ""
   },
   "rainbow": {
-    "endpoint": "https://uorytkglrxbafryiugpu.supabase.co/functions/v1/rainbow-nowcast"
+    "endpoint": ""
   }
 }
