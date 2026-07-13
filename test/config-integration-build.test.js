@@ -71,3 +71,20 @@ test('generated page renders the Layout tab preview without require() (webview h
     var out = fn({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled' }, {}, {});
     assert.ok(out.indexOf('<svg') >= 0, 'renders real SVG content, not a thrown error');
 });
+
+test('generated page registers PConf.actions.startWizard (wizard.js concatenated + shimmed)', function () {
+    var vm = require('vm');
+    var url = settings.generateUrl({ values: settings.getDefaults(), watchInfo: { platform: 'basalt' }, userData: {} });
+    var decoded = decodeURIComponent(url.slice('data:text/html;charset=utf-8,'.length));
+    var scriptMatch = decoded.match(/<script>([\s\S]*)<\/script>/);
+    assert.ok(scriptMatch, 'page contains a <script> block');
+    // Strip the auto-appended boot() call — it reaches into live DOM APIs the sandbox lacks.
+    var src = scriptMatch[1].replace(/PConf\.engine\.boot\(\);\s*$/, '');
+    var sandbox = { console: console };
+    sandbox.window = sandbox;
+    sandbox.document = { getElementById: function () { return { addEventListener: function () {} }; }, addEventListener: function () {} };
+    sandbox.navigator = {};
+    vm.createContext(sandbox);
+    vm.runInContext(src, sandbox, { filename: 'generated-page.js' });
+    assert.equal(typeof sandbox.PConf.actions.startWizard, 'function', 'startWizard action registered');
+});
