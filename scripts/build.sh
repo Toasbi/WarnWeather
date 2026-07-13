@@ -42,16 +42,20 @@ else
 fi
 pebble build "$@"
 
-# pebble build names the pbw after the project-directory basename, so in a
-# git worktree it lands as build/<worktree-dir>.pbw rather than the canonical
-# build/warnweather.pbw the install scripts expect. Normalize the name.
+# pebble build names the pbw after the project-directory basename, so it lands
+# as build/WarnWeather.pbw (or build/<worktree-dir>.pbw in a git worktree)
+# rather than the canonical build/warnweather.pbw the install scripts expect.
+# Normalize with mv, not cp: on a case-insensitive filesystem (macOS) the two
+# names are the SAME file, where cp fails with "are identical" and the
+# case-sensitive find below would delete the freshly built pbw — mv is a plain
+# case-rename there and a real rename everywhere else.
 pbw_built=$(ls -1t build/*.pbw 2>/dev/null | head -n1)
 if [[ -z "$pbw_built" ]]; then
   echo "build.sh: no .pbw produced by pebble build" >&2
   exit 1
 fi
 if [[ "$pbw_built" != "build/warnweather.pbw" ]]; then
-  cp "$pbw_built" build/warnweather.pbw
+  mv "$pbw_built" build/warnweather.pbw
 fi
 
 if [[ "$profile" == "dev" ]]; then

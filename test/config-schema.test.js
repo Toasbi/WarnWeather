@@ -39,8 +39,8 @@ test('location is a GPS/Manual picker; the text field is gated to Manual', () =>
   assert.deepEqual(byKey('location').showWhen, { key: 'locationMode', eq: 'manual' });
 });
 
-test('providers include openmeteo as 4th selectable option', () => {
-  assert.deepEqual(byKey('provider').options.map((o) => o[1]), ['wunderground','openweathermap','dwd','openmeteo']);
+test('providers include openmeteo and metno as 4th/5th selectable options', () => {
+  assert.deepEqual(byKey('provider').options.map((o) => o[1]), ['wunderground','openweathermap','dwd','openmeteo','metno']);
 });
 
 test('defaults match Clay/clay-settings (not the prototype drift)', () => {
@@ -298,21 +298,36 @@ test('flick/positioning narrative lives only in the Layout tab, not Health/Radar
   assert.ok(!/wrist flick/i.test(radar.sections[0].intro), 'radar intro drops the wrist-flick line');
 });
 
-test('radarProvider offers DWD/Rainbow/Off as plain options (no option-level gate)', () => {
+test('radarProvider is a dropdown offering DWD/Met.no/Rainbow/Off with scope in the label', () => {
   const item = byKey('radarProvider');
-  assert.deepEqual(item.options, [['DWD', 'dwd'], ['Rainbow', 'rainbow'], ['Off', 'disabled']]);
-  assert.equal(item.options[1].length, 2, 'Rainbow is a plain [label, value] pair — no predicate');
-  assert.equal(item.hintByValue.rainbow, 'Worldwide');
-  assert.equal(item.hintByValue.dwd, 'Deutscher Wetterdienst (Germany only)');
+  assert.equal(item.type, 'select', 'dropdown — four options no longer fit a segmented row');
+  assert.deepEqual(item.options, [
+    ['DWD (Germany only)', 'dwd'],
+    ['Met.no (Nordics only)', 'metno'],
+    ['Rainbow (Worldwide)', 'rainbow'],
+    ['Off', 'disabled']
+  ]);
+  assert.equal(item.hintByValue.dwd, 'Precise weather radar — rain at your exact spot and nearby (~2 km).');
+  assert.equal(item.hintByValue.metno, 'Precise weather radar — rain at your exact spot.');
+  assert.equal(item.hintByValue.rainbow, 'Model-based nowcast, works worldwide.');
+  assert.equal(item.defaultValue, 'rainbow');
 });
 
-test('radar intro copy drops mechanics and positions the providers', () => {
+test('weather provider radio offers Met.no with scope in the label', () => {
+  const item = byKey('provider');
+  assert.ok(item.options.some((o) => o[0] === 'Met.no (Nordics only)' && o[1] === 'metno'));
+  assert.equal(item.hintByValue.metno, 'Nordics · the service behind yr.no · 2.5 km model · no API key needed.');
+});
+
+test('radar intro drops mechanics; provider positioning lives in the per-provider hints', () => {
   const radarTab = schema.tabs.find((t) => t.id === 'radar');
   const intro = radarTab.sections[0].intro;
   assert.ok(intro.indexOf('precise short-term rain forecast for your location') >= 0, 'core promise present');
   assert.ok(intro.indexOf('Layout tab') >= 0, 'placement pointer kept');
   assert.equal(intro.indexOf('radar images'), -1, 'mechanics dropped');
   assert.equal(intro.indexOf('5-minute frame'), -1, 'mechanics dropped');
-  assert.ok(intro.indexOf('2 km') >= 0, 'DWD nearby signal explained');
-  assert.ok(intro.toLowerCase().indexOf('worldwide') >= 0, 'Rainbow positioned as worldwide');
+  // Provider positioning was de-duplicated out of the intro (b91a416) into the provider hints.
+  const hints = radarTab.sections[0].items.find((i) => i.messageKey === 'radarProvider').hintByValue;
+  assert.ok(hints.dwd.indexOf('2 km') >= 0, 'DWD nearby signal explained in its hint');
+  assert.ok(hints.rainbow.toLowerCase().indexOf('worldwide') >= 0, 'Rainbow positioned as worldwide in its hint');
 });

@@ -102,9 +102,10 @@ module.exports = {
                     wunderground: 'Global · no API key needed.',
                     openweathermap: 'Global · enter API key below.',
                     dwd: 'Germany only · no API key needed.',
-                    openmeteo: 'Global · no API key needed.'
+                    openmeteo: 'Global · no API key needed.',
+                    metno: 'Nordics · the service behind yr.no · 2.5 km model · no API key needed.'
                 },
-                options: [['Weather Underground', 'wunderground'], ['OpenWeatherMap', 'openweathermap'], ['Deutscher Wetterdienst (Germany only)', 'dwd'], ['Open-Meteo', 'openmeteo']]
+                options: [['Weather Underground', 'wunderground'], ['OpenWeatherMap', 'openweathermap'], ['Deutscher Wetterdienst (Germany only)', 'dwd'], ['Open-Meteo', 'openmeteo'], ['Met.no (Nordics only)', 'metno']]
             }, {
                 type: 'text',
                 messageKey: 'owmApiKey',
@@ -235,19 +236,21 @@ module.exports = {
         // budget can't afford it), so the whole tab is env-hidden there (tab-level
         // showWhen; see platform.js radar env flag). Mirrors the health tab.
         id: 'radar', label: 'Radar', showWhen: {env: 'radar'}, sections: [{
-            intro: 'Rain radar is a second view — a precise short-term rain forecast for your location. Set where it appears in the Layout tab.<br>' +
-                '<b>DWD</b> (Germany): rain at your exact spot and nearby (within ~2 km).<br>' +
-                '<b>Rainbow</b>: worldwide, at your exact spot only.',
+            intro: 'Rain radar is a second view — a precise short-term rain forecast for your location. Set where it appears in the Layout tab.<br>',
             items: [{
-                type: 'segmented',
+                type: 'select',
                 messageKey: 'radarProvider',
                 label: 'Radar provider',
                 defaultValue: 'rainbow',
-                hintByValue: {dwd: 'Deutscher Wetterdienst (Germany only)', rainbow: 'Worldwide'},
+                hintByValue: {
+                    dwd: 'Precise weather radar — rain at your exact spot and nearby (~2 km).',
+                    metno: 'Precise weather radar — rain at your exact spot.',
+                    rainbow: 'Model-based nowcast, works worldwide.'
+                },
                 // Rainbow is always offered. Builds without a proxy endpoint
                 // (dev/forks) still show it; selecting it there fails soft with
                 // the Task 2 warning. Production always sets RAINBOW_PROXY_ENDPOINT.
-                options: [['DWD', 'dwd'], ['Rainbow', 'rainbow'], ['Off', 'disabled']],
+                options: [['DWD (Germany only)', 'dwd'], ['Met.no (Nordics only)', 'metno'], ['Rainbow (Worldwide)', 'rainbow'], ['Off', 'disabled']],
                 blockBefore: 'radarPreview',
                 blockBeforeSticky: true
             }, {

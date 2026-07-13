@@ -33,6 +33,7 @@ FORECAST
   - OpenWeatherMap
   - Open-Meteo
   - Deutscher Wetterdienst via Bright Sky (Germany only)
+  - Met.no / MET Norway (Nordics only)
 - GPS or manual location with configurable GPS cache
 
 
@@ -40,6 +41,7 @@ RAIN RADAR
 - 2-hour precipitation nowcast in 5-minute frames
 - Providers: 
   - Deutscher Wetterdienst (Germany only)
+  - Met.no / MET Norway (Nordics only)
   - Rainbow.ai (worldwide)
 - Rain countdown: when rain is on the way, the top status line turns into 
   "Drizzle / Rain / Downpour in X min",
@@ -94,6 +96,8 @@ UPDATES
 PLATFORMS
 - Pebble Classic, Pebble Steel, Pebble Time, Pebble Time Steel, Pebble 2, and
   Pebble Time 2
+
+Weather and radar data from MET Norway (CC BY 4.0).
 ```
 
 ## Screenshots 

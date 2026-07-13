@@ -40,6 +40,24 @@ test('buildClayPayload packs the holiday window as an 8-byte array', function() 
   assert.equal(p.HOLIDAYS.length, 8);
 });
 
+test('HOLIDAYS reads the flat holidayRegion key, not the obsolete per-country holidayRegion<CC>', function() {
+  // Regression: the schema stores a single `holidayRegion` (a one-time migration collapsed the
+  // per-country holidayRegion<CC> keys into it), but clay-payload used to read
+  // settings['holidayRegion' + country], which no longer exists — silently forcing region 'all'.
+  const s = baseSettings();
+  s.holidayCountry = 'DE';
+  s.holidayRegion = 'BY';                 // Bavaria — a real ISO-3166-2 subdivision
+  const origBuild = holidayMask.build;
+  let seenRegion = null;
+  holidayMask.build = function(opts, now) { seenRegion = opts.region; return origBuild(opts, now); };
+  try {
+    buildClayPayload(s, { platform: 'emery' }, NOW);
+  } finally {
+    holidayMask.build = origBuild;
+  }
+  assert.equal(seenRegion, 'BY');
+});
+
 test('buildClayPayload includes the rain/radar palette tuples', function() {
   const p = buildClayPayload(baseSettings(), { platform: 'emery' }, NOW);
   assert.ok(Array.isArray(p.BAR_PALETTE_UINT8));

@@ -35,13 +35,14 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Optional hourly rain bars — multicolor or white on color watches
 * Optional day/night hatch shading on the graph
 * Fahrenheit and Celsius temperatures
-* Multiple weather providers (Weather Underground, OpenWeatherMap, Open-Meteo, and Deutscher Wetterdienst via Bright Sky — Germany only)
+* Multiple weather providers (Weather Underground, OpenWeatherMap, Open-Meteo, Met.no/MET Norway — Nordics, and Deutscher Wetterdienst via Bright Sky — Germany only)
+* Weather and radar data from MET Norway is used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — "Data from MET Norway"
 * GPS or manual location entry, with a configurable GPS cache
 * City where forecast was fetched
 
 **Radar**
 * Rain radar showing a 2-hour precipitation nowcast in 5-minute frames
-* Two providers: DWD (Germany — rain at your exact location plus the strongest rain approaching from within 2 km) and Rainbow.ai (worldwide — rain at your exact location)
+* Three providers: DWD (Germany — rain at your exact location plus the strongest rain approaching from within 2 km), Met.no (Nordics — rain at your exact location), and Rainbow.ai (worldwide — rain at your exact location)
 * Switch between calendar and radar view (flick/tap)
 * Optional rain countdown: when rain is on the way, the month turns into "Drizzle / Rain / Downpour in X min" (and "… for X min" while it's raining) — with a rain-lines intensity icon colour-matched to the radar bars, and a configurable look-ahead (30 min / 60 min / 2 hours)
 
@@ -85,7 +86,7 @@ Two things that both involve rain over time, but answer different questions:
   Instead of a map it's drawn as bars: the provider's radar images for the next 2 hours are
   sampled at your location, and each 5-minute frame becomes one bar whose height is the rain
   amount — solid bars are rain at your exact spot; with DWD, the hatched outline behind
-  them is the strongest rain within 2 km. Available from DWD (Germany) and Rainbow.ai
+  them is the strongest rain within 2 km. Available from DWD (Germany), Met.no (Nordics) and Rainbow.ai
   (worldwide, exact location only). Good for *"is it about to rain on me right now?"*
 
 ## Platforms

@@ -443,3 +443,10 @@ test('radarPreview (rainbow) still renders exact bars and the countdown band', (
   assert.ok(/^<svg/.test(svg), 'renders an SVG, not the off message');
   assert.ok(svg.indexOf("Rain in 15'") >= 0, 'countdown band applies to rainbow too');
 });
+
+test('radarPreview (metno): point provider renders like rainbow — no nearby bars or legend', () => {
+  const metno = B.radarPreview({ radarProvider: 'metno', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
+  const rainbow = B.radarPreview({ radarProvider: 'rainbow', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
+  assert.equal(metno, rainbow, 'metno and rainbow share the point-provider preview');
+  assert.equal(metno.indexOf('>Nearby (2 km)<'), -1, 'metno drops the nearby legend');
+});

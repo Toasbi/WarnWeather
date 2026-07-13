@@ -390,9 +390,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         e += '<line x1="' + PX0 + '" y1="' + PB + '" x2="' + PX1 + '" y2="' + PB + '" stroke="rgba(255,255,255,0.18)" stroke-width="0.7"></line>';
         var P = (userData && userData.palette) || FALLBACK_PALETTE;
         var radarWhite = state.radarColor === 'white' || (env && !env.color);
-        // Rainbow is a single-point nowcast: no 2 km-area signal → omit the
-        // hollow "nearby" outline bars and their legend entry entirely.
-        var showNearby = state.radarProvider !== 'rainbow';
+        // Only DWD carries a 2 km-area signal; Met.no and Rainbow are
+        // single-point nowcasts → omit the hollow "nearby" outline bars and
+        // their legend entry entirely.
+        var showNearby = state.radarProvider === 'dwd';
         for (var i = 0; i < n; i++) {
             var x = PX0 + i * step + (step - bw) / 2;
             var nH = barPermille(Math.round((local[i] + add[i]) * 10)) / 1000;
