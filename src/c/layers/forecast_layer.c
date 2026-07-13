@@ -332,7 +332,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     GRect graph_bounds = layout.graph_bounds;
     int h = layout.h;
 
-    ForecastDataset ds;
+    // Single static layer, single-threaded redraw: keep the dataset off the stack so
+    // nested chart_draw/SDK graphics calls retain enough stack headroom.
+    static ForecastDataset ds;
     load_dataset(&ds);
     MemoryHeapProbe redraw_probe = MEMORY_HEAP_PROBE_START("forecast_update");
     if (ds.num_entries < 2)
