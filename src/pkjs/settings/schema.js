@@ -144,7 +144,7 @@ module.exports = {
                 type: 'select',
                 messageKey: 'secondaryLine',
                 label: 'Main metric',
-                defaultValue: 'uv',
+                defaultValue: 'precip_prob',
                 hintByValue: LINE_HINTS,
                 options: [['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['UV Index', 'uv']],
                 blockBefore: 'forecastPreview',
@@ -173,7 +173,7 @@ module.exports = {
                 type: 'select',
                 messageKey: 'thirdLine',
                 label: 'Second metric',
-                defaultValue: 'off',
+                defaultValue: 'uv',
                 joinPrevious: true,
                 hintByValue: THIRD_LINE_HINTS,
                 optionsFrom: {byKey: 'secondaryLine', map: THIRD_LINE_OPTIONS}
@@ -466,6 +466,18 @@ module.exports = {
                 label: 'Share anonymous telemetry',
                 defaultValue: true,
                 hint: 'Share privacy-respecting weather telemetry to improve reliability and understand usage patterns. Learn more about what gets sent in the <a href="https://github.com/Toasbi/WarnWeather#telemetry">Telemetry section</a>.'
+            }, {
+                type: 'button',
+                label: 'Run setup again',
+                action: 'startWizard',
+                hint: 'Re-open the first-run setup wizard.'
+            }, {
+                // Config-UI-only flag: set true when onboarding is finished/skipped so the
+                // wizard never auto-opens again. Rides the saved-settings blob (localStorage);
+                // NOT a messageKey — never sent to the watch.
+                type: 'hidden',
+                messageKey: 'onboardingDone',
+                defaultValue: false
             }]
         }, {
             title: 'Links', items: [{

@@ -16,7 +16,7 @@ const EXPECTED_KEYS = [
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','locationMode','location',
   'temperatureUnits','dayNightShading','healthMode','secondaryLine','secondaryLineFill','windScale','thirdLine',
   'barSource','rainBarColor','provider','owmApiKey','radarProvider','radarColor','rainCountdownHorizon',
-  'layoutPreset','viewResetMin','configTheme','showQt','vibe','btIcons','telemetryEnabled','devStatsEnabled','devStatsClear'
+  'layoutPreset','viewResetMin','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear'
 ];
 
 test('every Clay messageKey present; only windScale is duplicated (two contextual slots)', () => {
@@ -102,13 +102,13 @@ test('secondaryLine is a 4-metric dropdown with no Off', () => {
   const sec = byKey('secondaryLine');
   assert.equal(sec.type, 'select');
   assert.deepEqual(sec.options.map((o) => o[1]), ['precip_prob', 'wind', 'gust', 'uv']);
-  assert.equal(sec.defaultValue, 'uv');
+  assert.equal(sec.defaultValue, 'precip_prob');
 });
 
-test('thirdLine derives options from secondaryLine, excluding it, with Off + default off', () => {
+test('thirdLine derives options from secondaryLine, excluding it, with Off + default UV', () => {
   const third = byKey('thirdLine');
   assert.equal(third.type, 'select');
-  assert.equal(third.defaultValue, 'off');
+  assert.equal(third.defaultValue, 'uv');
   assert.equal(third.optionsFrom.byKey, 'secondaryLine');
   const map = third.optionsFrom.map;
   // Every secondary metric maps to Off + the OTHER three (never itself).
@@ -221,6 +221,11 @@ test('forecast tab nests fill and wind scale under the line that enables them', 
   assert.equal(windIdxs.length, 2, 'two wind-scale slots');
   assert.ok(windIdxs[0] > iFill && windIdxs[0] < iThird, 'solid-line wind scale sits under the solid line');
   assert.ok(windIdxs[1] > iThird, 'dotted-line wind scale sits under the dotted line');
+});
+
+test('onboardingDone is a hidden key and a startWizard button exists', () => {
+  assert.equal(byKey('onboardingDone').type, 'hidden');
+  assert.ok(items.some((it) => it.type === 'button' && it.action === 'startWizard'));
 });
 
 test('non-holiday selects stay plain select', () => {
