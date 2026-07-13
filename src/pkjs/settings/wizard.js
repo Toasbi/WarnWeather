@@ -119,9 +119,50 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         welcome: 'Welcome to WarnWeather', layout: 'Choose your layout',
         radar: 'Rain radar', health: 'Health', done: 'All set'
     };
+    // Per-option copy shown under the carousel for the centered selection (fixes "text doesn't update").
+    var LAYOUT_DESC = {
+        fullCal: 'Full calendar — a three-row month grid with today highlighted, above the weather status and forecast.',
+        compactCal: 'Compact — a slim agenda row, leaving more room for the 24-hour forecast graph.',
+        noCal: 'No calendar — a big clock and date with the weather status and full-screen forecast.'
+    };
+    var HEALTH_DESC = {
+        off: 'Off — no health information on the watchface.',
+        status: 'Status bar — today’s steps, last night’s sleep and current heart rate on the status line.',
+        all: 'Status + graph — the status line plus a flick-away graph: hourly step bars, a sleep band and a heart-rate line.'
+    };
+    // Real watch screenshots, base64-inlined by `mise capture-wizard-screenshots` into
+    // wizard-screenshots.generated.js (which assigns PConf.screenshots when concatenated into the
+    // page). Empty {} in the Node harness — the controller runs only in the webview.
+    var SHOTS = (PConf && PConf.screenshots) ? PConf.screenshots : {};
+
+    // Overlay styles: use the app's CSS custom properties so the wizard follows body.light (theme).
+    // Brand red #FA4A35 / its gradient are intentionally hardcoded to match .hdr h1 / .saveBtn / .tab.on.
+    var WIZ_CSS =
+        '#wizard{position:fixed;top:0;left:0;right:0;bottom:0;z-index:1000;display:flex;flex-direction:column;'
+        + 'max-width:460px;margin:0 auto;background:var(--bg);color:var(--fg);font-family:Inter,system-ui,sans-serif}'
+        + '#wizard .wiz-hd{padding:16px 18px 6px;flex:none}'
+        + '#wizard .wiz-hd h2{margin:0;color:#FA4A35;font-size:19px;font-weight:800}'
+        + '#wizard .wiz-body{flex:1;min-height:0;overflow-y:auto;padding:4px 18px 16px}'
+        + '#wizard .wiz-foot{flex:none;display:flex;gap:10px;padding:12px 18px;border-top:1px solid var(--card-line)}'
+        + '#wizard .wiz-head{font:700 12px Inter,sans-serif;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:6px 0 8px}'
+        + '#wizard p{line-height:1.55}#wizard a{color:var(--link)}'
+        + '#wizard .wiz-car{position:relative;display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;'
+        + '-webkit-overflow-scrolling:touch;padding:6px calc(50% - 75px) 14px;scrollbar-width:none}'
+        + '#wizard .wiz-car::-webkit-scrollbar{display:none}'
+        + '#wizard .wiz-card{scroll-snap-align:center;flex:none;width:150px;background:var(--card);'
+        + 'border:1px solid var(--screen-line);border-radius:10px;padding:0;overflow:hidden;cursor:pointer;'
+        + 'opacity:.5;transform:scale(.94);transition:opacity .15s,border-color .15s,transform .15s}'
+        + '#wizard .wiz-card.on{opacity:1;border:2px solid #FA4A35;transform:scale(1)}'
+        + '#wizard .wiz-shot{display:block;width:100%;image-rendering:pixelated}'
+        + '#wizard .wiz-card .cap{font:700 12px Inter,sans-serif;color:var(--muted);padding:7px 4px}'
+        + '#wizard .wiz-cardhint{line-height:1.5;color:var(--fg);min-height:2.6em;margin:2px 0 10px}'
+        + '#wizard .wiz-radar{border:1px solid var(--screen-line);border-radius:10px;overflow:hidden;background:var(--card)}'
+        + '#wizard .wiz-nav{flex:1;padding:12px;border-radius:11px;font:700 14px Inter,sans-serif;cursor:pointer}'
+        + '#wizard .wiz-nav.pri{border:none;background:linear-gradient(135deg,#FA4A35,#D93A24);color:#fff}'
+        + '#wizard .wiz-nav.sec{border:1px solid var(--ctl-line);background:var(--ctl);color:var(--fg)}';
 
     // Live wizard state, captured from the onReady ctx when the wizard opens.
-    var W = { ctx: null, steps: [], idx: 0, overlay: null };
+    var W = { ctx: null, steps: [], idx: 0, overlay: null, openSelect: null, selectQuery: '' };
 
     function esc(s) { return (PConf.engine && PConf.engine.esc) ? PConf.engine.esc(s) : String(s); }
 
@@ -133,84 +174,135 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return found;
     }
     function optionsFor(schema, key) { var it = findItem(schema, key); return (it && it.options) || []; }
-    function regionMap(schema) { var it = findItem(schema, 'holidayRegion'); return (it && it.optionsFrom && it.optionsFrom.map) || {}; }
     function optionHasCode(opts, code) {
         var i; for (i = 0; i < opts.length; i += 1) { if (opts[i][1] === code) { return true; } }
         return false;
     }
+    function indexOfCode(opts, code) {
+        var i; for (i = 0; i < opts.length; i += 1) { if (opts[i][1] === code) { return i; } }
+        return 0;
+    }
 
-    function applyProviders() {
+    // Country → provider + radar provider + temperature unit, written onto shared state.
+    function applyDerived() {
         var m = mapCountry(W.ctx.S.holidayCountry);
         W.ctx.S.provider = m.provider;
         W.ctx.S.radarProvider = m.radarProvider;
+        W.ctx.S.temperatureUnits = m.temperatureUnits;
     }
 
-    // --- small HTML builders (inline styles; no shell.html CSS needed) ---
-    function selectHtml(id, opts, val) {
-        var h = '<select data-wiz-select="' + esc(id) + '" style="-webkit-appearance:none;appearance:none;background:#46474C;color:#ECEEF3;border:1px solid rgba(255,255,255,0.11);border-radius:9px;padding:8px 12px;font:600 13.5px Inter,sans-serif;max-width:200px">', i;
-        for (i = 0; i < opts.length; i += 1) {
-            h += '<option value="' + esc(opts[i][1]) + '"' + (opts[i][1] === val ? ' selected' : '') + '>' + esc(opts[i][0]) + '</option>';
+    // --- screen 1: reuse the real settings searchSelect for country/region ---
+    // A clone of the schema item with its concrete options resolved (region derives from country),
+    // rendered through the engine's own row/control renderers so it looks + behaves like Settings.
+    function selectRow(schema, key) {
+        var item = findItem(schema, key);
+        if (!item) { return ''; }
+        var withOpts = Object.assign({}, item, { options: PConf.engine.resolveOptionsFrom(item, W.ctx.S) });
+        return PConf.engine.renderRow(withOpts, { value: W.ctx.S[key], openSelect: W.openSelect, selectQuery: W.selectQuery });
+    }
+    function regionHasOptions(schema) {
+        var item = findItem(schema, 'holidayRegion');
+        return Boolean(item && PConf.engine.resolveOptionsFrom(item, W.ctx.S).length);
+    }
+    // Rebuild only the open list (sibling of the search box) so typing keeps input focus + cursor.
+    function refilter(key) {
+        var item = findItem(W.ctx.schema, key);
+        if (!item) { return; }
+        var withOpts = Object.assign({}, item, { options: PConf.engine.resolveOptionsFrom(item, W.ctx.S) });
+        var list = W.overlay.querySelector('[data-ssel-list="' + key + '"]');
+        if (list) { list.innerHTML = PConf.engine.renderSelectOptions(withOpts, W.ctx.S[key], W.selectQuery); }
+    }
+    function focusOverlaySearch() {
+        var el = W.overlay.querySelector('[data-select-search]');
+        if (el) { el.focus(); }
+    }
+
+    // --- screens 2 & 4: carousel of real screenshots ---
+    function shotFor(group, val) { return (SHOTS[group] && SHOTS[group][val]) || ''; }
+    function carCard(group, label, val, on) {
+        return '<button class="wiz-card' + (on ? ' on' : '') + '" data-wiz-idx-val="' + esc(val) + '">'
+            + '<img class="wiz-shot" src="' + esc(shotFor(group, val)) + '" alt="">'
+            + '<div class="cap">' + esc(label) + '</div></button>';
+    }
+    function carousel(group, opts, selVal, desc) {
+        var h = '<div class="wiz-car" data-wiz-car="' + esc(group) + '">', i;
+        for (i = 0; i < opts.length; i += 1) { h += carCard(group, opts[i][0], opts[i][1], opts[i][1] === selVal); }
+        h += '</div><p class="wiz-cardhint">' + esc(desc[selVal] || '') + '</p>';
+        return h;
+    }
+    function optsFor(group) { return group === 'layoutPreset' ? LAYOUT_OPTS : HEALTH_OPTS; }
+    function descFor(group) { return group === 'layoutPreset' ? LAYOUT_DESC : HEALTH_DESC; }
+    // Scroll the selected card to the horizontal center (offsetParent is the position:relative .wiz-car).
+    function centerCar() {
+        var car = W.overlay.querySelector('.wiz-car'); if (!car) { return; }
+        var on = car.querySelector('.wiz-card.on'); if (!on) { return; }
+        car.scrollLeft = on.offsetLeft + on.offsetWidth / 2 - car.clientWidth / 2;
+    }
+    // Commit a carousel selection: update state, the .on highlight, and the description text in place
+    // (no full re-render, so a swipe isn't interrupted). recenter=true also scrolls it to center.
+    function selectCar(group, idx, recenter) {
+        var opts = optsFor(group);
+        idx = Math.max(0, Math.min(opts.length - 1, idx));
+        W.ctx.S[group] = opts[idx][1];
+        var car = W.overlay.querySelector('[data-wiz-car="' + group + '"]'); if (!car) { return; }
+        var cards = car.querySelectorAll('.wiz-card'), i;
+        for (i = 0; i < cards.length; i += 1) { cards[i].className = (i === idx) ? 'wiz-card on' : 'wiz-card'; }
+        var hint = car.parentNode.querySelector('.wiz-cardhint');
+        if (hint) { hint.textContent = descFor(group)[opts[idx][1]] || ''; }
+        if (recenter && cards[idx]) { car.scrollLeft = cards[idx].offsetLeft + cards[idx].offsetWidth / 2 - car.clientWidth / 2; }
+    }
+    function nearestCard(car) {
+        var cards = car.querySelectorAll('.wiz-card'), mid = car.scrollLeft + car.clientWidth / 2;
+        var best = 0, bestd = 1e9, i, cc;
+        for (i = 0; i < cards.length; i += 1) {
+            cc = cards[i].offsetLeft + cards[i].offsetWidth / 2;
+            if (Math.abs(cc - mid) < bestd) { bestd = Math.abs(cc - mid); best = i; }
         }
-        return h + '</select>';
+        return best;
     }
-    function fieldRow(label, control) {
-        return '<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.06)">'
-            + '<div style="font-weight:600">' + esc(label) + '</div><div>' + control + '</div></div>';
-    }
-    function galleryCard(val, label, svg, on, key) {
-        var border = on ? '2px solid #FA4A35' : '1px solid rgba(255,255,255,0.14)';
-        return '<button data-wiz-pick="' + esc(val) + '" data-wiz-key="' + esc(key) + '" style="flex:none;width:150px;background:#000;border:' + border + ';border-radius:10px;padding:0;overflow:hidden;cursor:pointer">'
-            + '<div style="width:100%">' + svg + '</div>'
-            + '<div style="color:#B6BAC2;font:700 12px Inter,sans-serif;padding:7px 4px">' + esc(label) + '</div></button>';
-    }
-    function gallery(opts, currentVal, key, blockId, overrideKey) {
-        var block = PConf.blocks.get(blockId), h = '<div style="display:flex;gap:10px;overflow-x:auto;padding:6px 0 12px">', i, val, over, svg;
-        for (i = 0; i < opts.length; i += 1) {
-            val = opts[i][1];
-            over = {}; over[overrideKey] = val;
-            svg = block ? block(Object.assign({}, W.ctx.S, over), W.ctx.ENV, W.ctx.USERDATA) : '';
-            h += galleryCard(val, opts[i][0], svg, currentVal === val, key);
-        }
-        return h + '</div>';
+    // On free scroll (swipe), select the card nearest the center without re-centering (don't fight the drag).
+    function wireCar() {
+        var car = W.overlay.querySelector('.wiz-car'); if (!car) { return; }
+        var group = car.getAttribute('data-wiz-car'), pending = false;
+        car.addEventListener('scroll', function () {
+            if (pending) { return; }
+            pending = true;
+            setTimeout(function () { pending = false; selectCar(group, nearestCard(car), false); }, 90);
+        });
     }
 
     // --- step bodies ---
     function stepWelcome() {
-        var schema = W.ctx.schema, S = W.ctx.S;
-        var cOpts = optionsFor(schema, 'holidayCountry');
-        var rOpts = regionMap(schema)[S.holidayCountry] || null;
-        var h = '<p style="line-height:1.55">Thanks for trying WarnWeather! We’ll apply the best settings for your country/region — you can change anything later. This quick setup is optional; skip it any time.</p>'
-            + fieldRow('Country', selectHtml('country', cOpts, S.holidayCountry));
-        if (rOpts) { h += fieldRow('Region', selectHtml('region', rOpts, S.holidayRegion)); }
+        var schema = W.ctx.schema;
+        var h = '<p>Thanks for trying WarnWeather! We’ll apply the best settings for your country — you can change anything later. This quick setup is optional; skip it any time.</p>'
+            + '<div class="wiz-head">Choose your country</div>'
+            + selectRow(schema, 'holidayCountry');
+        if (regionHasOptions(schema)) { h += selectRow(schema, 'holidayRegion'); }
         return h;
     }
     function stepLayout() {
-        return gallery(LAYOUT_OPTS, W.ctx.S.layoutPreset, 'layoutPreset', 'layoutPreviewCombined', 'layoutPreset')
-            + '<div style="line-height:1.55;color:#D2D5DC">'
+        return carousel('layoutPreset', LAYOUT_OPTS, W.ctx.S.layoutPreset, LAYOUT_DESC)
+            + '<div style="line-height:1.55;color:var(--muted)">'
             + '<p><b>Weather status</b> — the top strip shows your location, current conditions and sunset.</p>'
-            + '<p><b>Forecast</b> — a 24-hour graph: temperature, the precipitation-% line, UV shown as dots, and rain-amount bars.</p></div>';
+            + '<p><b>Forecast</b> — a 24-hour graph: temperature, the precipitation-% line, UV dots and rain bars.</p></div>';
     }
     function stepRadar() {
-        var block = PConf.blocks.get('radarPreview');
-        var svg = block ? block(W.ctx.S, W.ctx.ENV, W.ctx.USERDATA) : '';
-        var h = '<div style="border:1px solid rgba(255,255,255,0.14);border-radius:10px;overflow:hidden;background:#000">' + svg + '</div>'
-            + '<div style="line-height:1.55;color:#D2D5DC">'
+        var h = '<div class="wiz-radar"><img class="wiz-shot" src="' + esc(SHOTS.radar || '') + '" alt=""></div>'
             + '<p><b>Rain radar</b> — a precise short-term rain forecast for the next 2 hours, in 5-minute frames.</p>'
             + '<p><b>Rain countdown</b> — when rain is heading your way, the status strip shows how soon it starts (e.g. “Rain in 15’”).</p>';
         if (radarNearby(W.ctx.S.radarProvider)) {
             h += '<p><b>Nearby</b> — DWD also shows rain around you (~2 km), not just at your exact spot.</p>';
         }
-        return h + '</div>';
+        return h;
     }
     function stepHealth() {
-        return gallery(HEALTH_OPTS, W.ctx.S.healthMode, 'healthMode', 'layoutPreviewCombined', 'healthMode')
-            + '<div style="line-height:1.55;color:#D2D5DC">'
-            + '<p><b>Health</b> — today’s steps, last night’s sleep and current heart rate. The graph adds hourly step bars, a sleep band and a heart-rate line.</p></div>';
+        return carousel('healthMode', HEALTH_OPTS, W.ctx.S.healthMode, HEALTH_DESC)
+            + '<div style="line-height:1.55;color:var(--muted)"><p><b>Health</b> — today’s steps, last night’s sleep and current heart rate, with an optional hourly graph.</p></div>';
     }
     function stepDone() {
-        return '<p style="line-height:1.55"><b>You’re all set!</b> Everything is editable later in the settings tabs.</p>'
-            + '<p style="line-height:1.55">If you enjoy WarnWeather, please ♥ it on the Pebble appstore — it really helps.</p>'
-            + '<p style="line-height:1.55">Need help or have feedback? Open an issue on <a href="https://github.com/Toasbi/WarnWeather/issues" style="color:#FF6A52">GitHub</a>, or use the appstore’s “Message the developer” to reach me directly.</p>';
+        return '<p><b>You’re all set!</b> Everything is editable later in the settings tabs.</p>'
+            + '<p>If you enjoy WarnWeather, please ♥ it on the Pebble appstore — it really helps.</p>'
+            + '<p>Need help or have feedback? Open an issue on <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>, or use the appstore’s “Message the developer” to reach me directly.</p>';
     }
     function stepBody(id) {
         if (id === 'welcome') { return stepWelcome(); }
@@ -222,10 +314,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // --- footer buttons ---
     function navBtn(nav, label, primary) {
-        var s = primary
-            ? 'flex:1;padding:12px;border:none;border-radius:11px;background:linear-gradient(135deg,#FA4A35,#D93A24);color:#fff;font:700 14px Inter,sans-serif;cursor:pointer'
-            : 'flex:1;padding:12px;border:1px solid rgba(255,255,255,0.14);border-radius:11px;background:#3D3E42;color:#B6BAC2;font:700 14px Inter,sans-serif;cursor:pointer';
-        return '<button data-wiz-nav="' + nav + '" style="' + s + '">' + esc(label) + '</button>';
+        return '<button class="wiz-nav ' + (primary ? 'pri' : 'sec') + '" data-wiz-nav="' + nav + '">' + esc(label) + '</button>';
     }
     function footer(id) {
         if (id === 'welcome') { return navBtn('skip', 'Skip', false) + navBtn('next', 'Get started', true); }
@@ -238,6 +327,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         W.overlay.querySelector('[data-wiz-title]').textContent = STEP_TITLES[id] || '';
         W.overlay.querySelector('[data-wiz-body]').innerHTML = stepBody(id);
         W.overlay.querySelector('[data-wiz-foot]').innerHTML = footer(id);
+        if (W.openSelect) { focusOverlaySearch(); }
+        wireCar();
+        centerCar();
     }
 
     function closeWizard() {
@@ -248,47 +340,64 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function finishTweak() { W.ctx.set('onboardingDone', true); closeWizard(); W.ctx.render(); }
 
     function onNav(nav) {
-        if (nav === 'back') { W.idx = Math.max(0, W.idx - 1); renderStep(); }
-        else if (nav === 'next') { W.idx = Math.min(W.steps.length - 1, W.idx + 1); renderStep(); }
+        if (nav === 'back') { W.idx = Math.max(0, W.idx - 1); W.openSelect = null; renderStep(); }
+        else if (nav === 'next') { W.idx = Math.min(W.steps.length - 1, W.idx + 1); W.openSelect = null; renderStep(); }
         else if (nav === 'skip' || nav === 'save') { finishSave(); }
         else if (nav === 'tweak') { finishTweak(); }
     }
 
+    function onClick(e) {
+        if (!e.target || !e.target.closest) { return; }
+        var t;
+        if ((t = e.target.closest('[data-wiz-nav]'))) { onNav(t.getAttribute('data-wiz-nav')); return; }
+        if ((t = e.target.closest('[data-select-pick]'))) {
+            var pk = t.getAttribute('data-k'); W.ctx.S[pk] = t.getAttribute('data-select-pick');
+            if (pk === 'holidayCountry') { W.ctx.S.holidayRegion = 'all'; applyDerived(); }
+            W.openSelect = null; renderStep(); return;
+        }
+        if ((t = e.target.closest('[data-select]'))) {
+            var sk = t.getAttribute('data-select'); W.openSelect = (W.openSelect === sk ? null : sk); W.selectQuery = '';
+            renderStep(); focusOverlaySearch(); return;
+        }
+        if ((t = e.target.closest('[data-wiz-idx-val]'))) {
+            var group = t.parentNode.getAttribute('data-wiz-car');
+            selectCar(group, indexOfCode(optsFor(group), t.getAttribute('data-wiz-idx-val')), true); return;
+        }
+    }
+    function onInput(e) {
+        var sb = e.target.closest ? e.target.closest('[data-select-search]') : null;
+        if (!sb) { return; }
+        W.selectQuery = sb.value;
+        refilter(sb.getAttribute('data-select-search'));
+    }
+
+    function ensureStyle() {
+        if (document.getElementById('wiz-style')) { return; }
+        var st = document.createElement('style');
+        st.id = 'wiz-style';
+        st.textContent = WIZ_CSS;
+        document.head.appendChild(st);
+    }
+
     function openWizard(ctx, fresh) {
-        W.ctx = ctx;
-        W.steps = buildSteps(ctx.ENV);
-        W.idx = 0;
+        W.ctx = ctx; W.steps = buildSteps(ctx.ENV); W.idx = 0; W.openSelect = null; W.selectQuery = '';
         if (fresh) {
             var cc = inferCountry();
             var cOpts = optionsFor(ctx.schema, 'holidayCountry');
             if (cc && optionHasCode(cOpts, cc)) { ctx.S.holidayCountry = cc; ctx.S.holidayRegion = 'all'; }
-            applyProviders();
+            applyDerived();
         }
+        ensureStyle();
         var overlay = document.createElement('div');
         overlay.id = 'wizard';
-        overlay.setAttribute('style', 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:1000;background:#333;color:#F0F2F6;display:flex;flex-direction:column;max-width:460px;margin:0 auto;font-family:Inter,system-ui,sans-serif');
         overlay.innerHTML =
-            '<div style="padding:16px 18px 6px;flex:none"><h2 data-wiz-title style="margin:0;color:#FA4A35;font-size:19px;font-weight:800"></h2></div>'
-            + '<div data-wiz-body style="flex:1;min-height:0;overflow-y:auto;padding:4px 18px 16px"></div>'
-            + '<div data-wiz-foot style="flex:none;display:flex;gap:10px;padding:12px 18px;border-top:1px solid rgba(255,255,255,0.08)"></div>';
+            '<div class="wiz-hd"><h2 data-wiz-title></h2></div>'
+            + '<div class="wiz-body" data-wiz-body></div>'
+            + '<div class="wiz-foot" data-wiz-foot></div>';
         document.body.appendChild(overlay);
         W.overlay = overlay;
-
-        overlay.addEventListener('click', function (e) {
-            if (!e.target || !e.target.closest) { return; }
-            var t = e.target.closest('[data-wiz-nav]');
-            if (t) { onNav(t.getAttribute('data-wiz-nav')); return; }
-            var p = e.target.closest('[data-wiz-pick]');
-            if (p) { W.ctx.S[p.getAttribute('data-wiz-key')] = p.getAttribute('data-wiz-pick'); renderStep(); return; }
-        });
-        overlay.addEventListener('change', function (e) {
-            if (!e.target || !e.target.closest) { return; }
-            var sel = e.target.closest('[data-wiz-select]');
-            if (!sel) { return; }
-            var id = sel.getAttribute('data-wiz-select');
-            if (id === 'country') { W.ctx.S.holidayCountry = sel.value; W.ctx.S.holidayRegion = 'all'; applyProviders(); renderStep(); }
-            else if (id === 'region') { W.ctx.S.holidayRegion = sel.value; }
-        });
+        overlay.addEventListener('click', onClick);
+        overlay.addEventListener('input', onInput);
         renderStep();
     }
 
