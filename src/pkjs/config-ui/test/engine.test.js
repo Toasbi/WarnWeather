@@ -441,3 +441,33 @@ test('hydrate: configTheme defaults to auto when absent from the saved blob', ()
   const S = E.hydrate(schema, {});
   assert.equal(S.configTheme, 'auto');
 });
+
+test('hooks: onReady runs registered fns with ctx (render/save exposed)', () => {
+  let got = null;
+  E.hooks.onReady((c) => { got = c; });
+  E.hooks.runReady({ render: function () {}, save: function () {}, cfg: {} });
+  assert.equal(typeof got.render, 'function');
+  assert.equal(typeof got.save, 'function');
+  assert.deepEqual(got.cfg, {});
+});
+
+test('serialize: hidden item is included in the blob', () => {
+  const schema = { tabs: [{ id: 't', label: 'T', sections: [{ items: [
+    { type: 'hidden', messageKey: 'onboardingDone', defaultValue: false }
+  ] }] }] };
+  const out = E.serialize(schema, E.hydrate(schema, {}));
+  assert.equal(out.onboardingDone, false);
+});
+
+test('renderBody: button renders data-action row; hidden renders nothing', () => {
+  const schema = { versionLabel: '', tabs: [{ id: 't', label: 'T', sections: [{ items: [
+    { type: 'button', label: 'Run setup again', action: 'startWizard' },
+    { type: 'hidden', messageKey: 'onboardingDone', defaultValue: false }
+  ] }] }] };
+  const S = E.hydrate(schema, {});
+  const cx = { S: S, ENV: {}, USERDATA: {}, collapsed: {}, evalCtx: Object.assign({}, S) };
+  const html = E.renderBody(schema, 't', cx);
+  assert.match(html, /data-action="startWizard"/);
+  assert.match(html, /Run setup again/);
+  assert.doesNotMatch(html, /onboardingDone/);
+});

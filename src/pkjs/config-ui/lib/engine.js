@@ -29,13 +29,21 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   };
 
   // --- hook registry ---
-  var loadFns = [], submitFns = [];
+  var loadFns = [], submitFns = [], readyFns = [];
   PConf.hooks = {
     onLoad: function (fn) { loadFns.push(fn); },
     onSubmit: function (fn) { submitFns.push(fn); },
+    // onReady runs at the end of boot() (after the first render) with a rich ctx that
+    // exposes render()/save() so an overlay (e.g. the onboarding wizard) can push state
+    // into the visible form or save-and-close.
+    onReady: function (fn) { readyFns.push(fn); },
     runLoad: function (ctx) { loadFns.forEach(function (fn) { fn(ctx); }); },
-    runSubmit: function (ctx) { submitFns.forEach(function (fn) { fn(ctx); }); }
+    runSubmit: function (ctx) { submitFns.forEach(function (fn) { fn(ctx); }); },
+    runReady: function (ctx) { readyFns.forEach(function (fn) { fn(ctx); }); }
   };
+
+  // --- action registry: type:'button' items dispatch here by their action id ---
+  PConf.actions = PConf.actions || {};
 
   /**
    * Build the initial settings state from a schema's defaults, with injected
@@ -302,6 +310,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // 'control' | 'static' | 'hidden' so the section can decide if the card is empty.
   function renderItem(item, view, cx, noDivider) {
     if (!PConf.showWhen.isVisible(item, cx.evalCtx)) { return { html: '', kind: 'hidden' }; }
+    // A persisted-but-invisible key (hydrated + serialized, never drawn) — e.g. onboardingDone.
+    if (item.type === 'hidden') { return { html: '', kind: 'hidden' }; }
+    // A tappable action row: dispatches to PConf.actions[item.action] via the scroll click handler.
+    if (item.type === 'button') {
+      var bHint = item.hint ? '<div class="hint">' + item.hint + '</div>' : '';
+      return { kind: 'control', html:
+        '<div class="row' + (noDivider ? ' nb' : '') + '" data-action="' + esc(item.action) + '" style="cursor:pointer">'
+        + '<div class="lft"><div class="lbl">' + esc(item.label) + '</div>' + bHint + '</div>'
+        + '<div class="rgt"><span style="color:#FF6A52;font-size:16px;font-weight:700;line-height:1">&#9656;</span></div></div>' };
+    }
     if (item.type === 'staticText') {
       // a joinPrevious static acts as the control's description, so the join modifier tightens its
       // top spacing to hug the row above (like a hint) instead of standing off as a separate block.
@@ -511,6 +529,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if ((t = e.target.closest('[data-color]'))) { var k = t.getAttribute('data-color'); openColor = (openColor === k ? null : k); render(); return; }
         if ((t = e.target.closest('[data-v]'))) { S[t.getAttribute('data-k')] = t.getAttribute('data-v'); render(); return; }
         if ((t = e.target.closest('[data-coll]'))) { var sid = t.getAttribute('data-coll'); collapsed[sid] = !collapsed[sid]; render(); return; }
+        if ((t = e.target.closest('[data-action]'))) { var act = t.getAttribute('data-action'); if (PConf.actions[act]) { PConf.actions[act](); } return; }
       });
       scroll.addEventListener('change', function (e) {
         var sel = e.target.closest('select');
@@ -532,13 +551,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
 
     // Save: run submit hooks, serialize, flash the toast, then return to the watch.
+    function save() {
+      PConf.hooks.runSubmit(hookCtx);
+      var blob = serialize(SCHEMA, S);
+      document.getElementById('toast').classList.add('show');
+      setTimeout(function () { location.href = RETURN_TO + encodeURIComponent(JSON.stringify(blob)); }, 300);
+    }
     function wireSave() {
-      document.getElementById('save').addEventListener('click', function () {
-        PConf.hooks.runSubmit(hookCtx);
-        var blob = serialize(SCHEMA, S);
-        document.getElementById('toast').classList.add('show');
-        setTimeout(function () { location.href = RETURN_TO + encodeURIComponent(JSON.stringify(blob)); }, 300);
-      });
+      document.getElementById('save').addEventListener('click', save);
     }
 
     document.getElementById('appTitle').textContent = SCHEMA.appName;
@@ -547,6 +567,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     wireInputs();
     wireSave();
     render();
+    PConf.hooks.runReady({
+      S: S, ENV: ENV, USERDATA: USERDATA, schema: SCHEMA, cfg: INJECTED_CFG || {},
+      get: hookCtx.get, set: hookCtx.set, render: render, save: save
+    });
 
     if (SCHEMA.themeKey && typeof window !== 'undefined' && window.matchMedia) {
       var mqLight = window.matchMedia('(prefers-color-scheme: light)');
