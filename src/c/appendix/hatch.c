@@ -60,10 +60,19 @@ void hatch_fill_rect(GContext *ctx, GRect rect, GColor color, int stride)
         return;
     }
 
-    // Fix 3's neutrality argument applies here too: a bg backing square over an
+    // Fix 3's neutrality argument applies here too: a bg backing over an
     // already-bg pixel (background, or a bar/fill that happens to be bg-colored)
     // is a no-op; it only matters where the fg dot would otherwise land on fg
     // territory (an area fill, a colored bar) and vanish.
+    //
+    // The backing is a 1px-wide VERTICAL run (x, y-1..y+1), NOT a 3x3 square. The
+    // hatch is a diagonal (dots at (x+y)%stride==0, so a dot's up-right neighbour
+    // sits one column over and one row up), and columns paint left-to-right: a
+    // square backing's +1 horizontal spill would repaint bg over the neighbouring
+    // column's dot that was drawn a moment earlier, erasing all but the top/right
+    // fringe of the diagonal (and spilling past the band's x edges too). Keeping
+    // the run to the dot's own column removes both hazards while still giving the
+    // dot a bg channel above/below so it reads over a fill/bar.
     graphics_context_set_stroke_color(ctx, color);
     graphics_context_set_fill_color(ctx, theme_bg());
 
@@ -74,7 +83,7 @@ void hatch_fill_rect(GContext *ctx, GRect rect, GColor color, int stride)
         int16_t hatch_y = aligned_hatch_start_y(x, rect.origin.y, (int16_t)stride);
         for (int16_t y = hatch_y; y < y_end; y += stride)
         {
-            graphics_fill_rect(ctx, GRect(x - 1, y - 1, 3, 3), 0, GCornerNone);
+            graphics_fill_rect(ctx, GRect(x, y - 1, 1, 3), 0, GCornerNone);
             graphics_draw_pixel(ctx, GPoint(x, y));
         }
     }
