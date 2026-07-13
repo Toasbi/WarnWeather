@@ -68,7 +68,7 @@
     "body": "The rain radar now works everywhere: pick Rainbow as the radar provider in settings for a short-term rain nowcast at your exact location. Let me know how well it work s:) (Fixing a missing API key)"
   },
   "1.7.2": {
-    "title": "New Nordics Weather & radar provider + Light theme for settings",
-    "body": "Added new provider met.no with precise radar and weather forcast. The settings page now follows your Pebble app's light or dark theme automatically."
+    "title": "Met.no forecasts, radar & settings themes",
+    "body": "Added Met.no weather forecasts and Nordic rain radar, plus automatic light/dark settings. Also fixes a forecast-render crash on Pebble Time."
   }
 }
