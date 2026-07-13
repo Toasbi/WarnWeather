@@ -22,6 +22,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     };
     // Countries served by the metno (MET Norway) 2.5 km model — the "Nordics only" set.
     var METNO_COUNTRIES = { NO: true, SE: true, DK: true, FI: true, IS: true };
+    // Countries that use Fahrenheit. Realistically the inference table only yields US here;
+    // kept as a set so it's trivially extensible (Liberia, some Caribbean territories, …).
+    var FAHRENHEIT_COUNTRIES = { US: true };
 
     /**
      * Map an IANA timezone id to an ISO country code.
@@ -63,14 +66,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Derive the weather + radar provider from a country code.
+     * Derive the weather + radar provider AND temperature unit from a country code.
      * @param {?string} cc ISO alpha-2 country code.
-     * @returns {{provider: string, radarProvider: string}} Derived provider ids.
+     * @returns {{provider: string, radarProvider: string, temperatureUnits: string}} Derived settings.
      */
     function mapCountry(cc) {
-        if (cc === 'DE') { return { provider: 'dwd', radarProvider: 'dwd' }; }
-        if (cc && METNO_COUNTRIES[cc]) { return { provider: 'metno', radarProvider: 'metno' }; }
-        return { provider: 'openmeteo', radarProvider: 'rainbow' };
+        var units = (cc && FAHRENHEIT_COUNTRIES[cc]) ? 'f' : 'c';
+        if (cc === 'DE') { return { provider: 'dwd', radarProvider: 'dwd', temperatureUnits: units }; }
+        if (cc && METNO_COUNTRIES[cc]) { return { provider: 'metno', radarProvider: 'metno', temperatureUnits: units }; }
+        return { provider: 'openmeteo', radarProvider: 'rainbow', temperatureUnits: units };
     }
 
     /**

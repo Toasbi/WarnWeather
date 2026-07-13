@@ -19,12 +19,13 @@ test('countryFromLocale: region subtag or null', () => {
   assert.equal(W.countryFromLocale(null), null);
 });
 
-test('mapCountry: DE -> dwd, Nordic -> metno, else -> openmeteo/rainbow', () => {
-  assert.deepEqual(W.mapCountry('DE'), { provider: 'dwd', radarProvider: 'dwd' });
-  assert.deepEqual(W.mapCountry('NO'), { provider: 'metno', radarProvider: 'metno' });
-  assert.deepEqual(W.mapCountry('SE'), { provider: 'metno', radarProvider: 'metno' });
-  assert.deepEqual(W.mapCountry('US'), { provider: 'openmeteo', radarProvider: 'rainbow' });
-  assert.deepEqual(W.mapCountry(null), { provider: 'openmeteo', radarProvider: 'rainbow' });
+test('mapCountry: providers by country + temperature unit (US=f, else c)', () => {
+  assert.deepEqual(W.mapCountry('DE'), { provider: 'dwd', radarProvider: 'dwd', temperatureUnits: 'c' });
+  assert.deepEqual(W.mapCountry('NO'), { provider: 'metno', radarProvider: 'metno', temperatureUnits: 'c' });
+  assert.deepEqual(W.mapCountry('SE'), { provider: 'metno', radarProvider: 'metno', temperatureUnits: 'c' });
+  assert.deepEqual(W.mapCountry('US'), { provider: 'openmeteo', radarProvider: 'rainbow', temperatureUnits: 'f' });
+  assert.deepEqual(W.mapCountry('GB'), { provider: 'openmeteo', radarProvider: 'rainbow', temperatureUnits: 'c' });
+  assert.deepEqual(W.mapCountry(null), { provider: 'openmeteo', radarProvider: 'rainbow', temperatureUnits: 'c' });
 });
 
 test('buildSteps: env gates radar and health', () => {
