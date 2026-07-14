@@ -80,6 +80,10 @@ run = "pebble kill"
 description = "Build dev .pbw and capture screenshots for all platforms (args: version [fixture], e.g. v1.0.0 berlin)"
 run = "scripts/capture-screenshots.sh"
 
+[tasks.capture-wizard-screenshots]
+description = "Capture per-option wizard screenshots (basalt) and inline them (RUN ON THE MAC)"
+run = "scripts/capture-wizard-screenshots.sh"
+
 [tasks.screenshot-phone]
 description = "Take a screenshot from phone"
 run = "scripts/screenshot-phone.sh"
