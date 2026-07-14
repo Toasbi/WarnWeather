@@ -331,6 +331,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
     function stepRadar() {
         var h = '<div class="wiz-radar"><img class="wiz-shot" src="' + esc(shotSet().radar || '') + '" alt=""></div>'
+            + '<p><b>Tip</b> — flick your wrist on the watch to switch to the rain radar.</p>'
             + '<p><b>Rain radar</b> — a precise short-term rain forecast for the next 2 hours, in 5-minute frames.</p>'
             + '<p><b>Rain countdown</b> — when rain is heading your way, the status strip shows how soon it starts (e.g. “Rain in 15’”).</p>';
         if (radarNearby(W.ctx.S.radarProvider)) {
@@ -339,7 +340,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return h;
     }
     function stepHealth() {
-        return carousel('healthMode', HEALTH_OPTS, W.ctx.S.healthMode, HEALTH_DESC);
+        return carousel('healthMode', HEALTH_OPTS, W.ctx.S.healthMode, HEALTH_DESC)
+            + '<p><b>Tip</b> — flick your wrist on the watch to switch to the health view.</p>';
     }
     function stepTheme() {
         return carousel('theme', optsFor('theme'), W.ctx.S.theme, THEME_DESC)
