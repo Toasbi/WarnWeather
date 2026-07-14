@@ -3,6 +3,9 @@
 // they are duplicated there for the radar's on-watch height math — keep in sync.
 var COLORS = require('../pebble-colors');
 var configUi = require('../config-ui');
+var resolveInkLib = require('../resolve-ink.js');
+var isBwTheme = resolveInkLib.isBwTheme;
+var isLightPolarity = resolveInkLib.isLightPolarity;
 
 var MAX_TENTHS = [1, 5, 20, 100];                 // tier upper bounds (wire tenths)
 var TOP_PCT    = [0, 14, 34, 56, 78, 100];        // cumulative slab tops (% of plot)
@@ -11,7 +14,8 @@ var TIER_COLORS = [
     COLORS.GColorLightGray, COLORS.GColorElectricBlue, COLORS.GColorGreen,
     COLORS.GColorYellow, COLORS.GColorSunsetOrange
 ];
-// B&W platforms get a single black stop; the watch adds the white outline.
+// B&W platforms get a single polarity-background stop (black in dark, white in light);
+// the watch adds a polarity-foreground outline.
 
 /**
  * Tier index 1..5 for a wire-tenths rain value, or 0 for <= 0.
@@ -68,20 +72,28 @@ function rainPermille(tenths) {
 }
 
 /**
- * Build the rain color palette for a watch platform + color choice.
- * B&W platforms always get a single black stop (the watch adds the white outline) and
- * ignore colorMode. On color displays, 'white' collapses to a single white stop;
- * anything else (default) yields the five multicolor tier stops.
+ * Build the rain color palette for a watch platform + color choice + theme.
+ * B&W platforms (or the Black & White theme — bw or bw-light — on a color
+ * platform, effective color) always get a single stop matching the polarity
+ * background (theme_bg() on the watch: black in dark polarity, white in light
+ * polarity — see palette.c fill_defaults / health_graph_layer.c) and ignore
+ * colorMode; the watch pairs it with a theme_fg() outline. On effectively-color
+ * displays, 'white' collapses to a single stop — white in dark polarity,
+ * GColorDarkGray in light polarity (a pure white bar reads too flat against a
+ * white background) — anything else (default) yields the five multicolor tier
+ * stops, untouched by theme.
  * @param {string} platform Pebble platform id (aplite/basalt/chalk/diorite/emery/flint).
- * @param {string} [colorMode] 'multicolor' (default) or 'white'. Color displays only.
+ * @param {string} [colorMode] 'multicolor' (default) or 'white'. Effectively-color displays only.
+ * @param {string} [theme] 'dark'|'light'|'bw'|'bw-light'; defaults to 'dark' (dark-polarity stop, no B&W collapse beyond hardware).
  * @returns {{from: number[], rgb: number[]}} Stops: permille thresholds + 0xRRGGBB colors.
  */
-function buildPalette(platform, colorMode) {
-    if (!configUi.isColorPlatform(platform)) {
-        return { from: [0], rgb: [COLORS.GColorBlack] };
+function buildPalette(platform, colorMode, theme) {
+    theme = theme || 'dark';
+    if (!configUi.isColorPlatform(platform) || isBwTheme(theme)) {
+        return { from: [0], rgb: [isLightPolarity(theme) ? COLORS.GColorWhite : COLORS.GColorBlack] };
     }
     if (colorMode === 'white') {
-        return { from: [0], rgb: [COLORS.GColorWhite] };
+        return { from: [0], rgb: [isLightPolarity(theme) ? COLORS.GColorDarkGray : COLORS.GColorWhite] };
     }
     return {
         from: [0, 140, 340, 560, 780],   // TOP_PCT[0..4] * 10
@@ -125,10 +137,11 @@ function packPalette(palette) {
  * Build and pack one channel's palette in a single call.
  * @param {string} platform Pebble platform id.
  * @param {string} colorMode 'multicolor' or 'white'.
+ * @param {string} [theme] 'dark'|'light'|'bw'|'bw-light'.
  * @returns {number[]} Packed uint8 palette blob for the wire.
  */
-function buildPackedPalette(platform, colorMode) {
-    return packPalette(buildPalette(platform, colorMode));
+function buildPackedPalette(platform, colorMode, theme) {
+    return packPalette(buildPalette(platform, colorMode, theme));
 }
 
 module.exports = {

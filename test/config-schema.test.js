@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const schema = require('../src/pkjs/settings/schema.js');
 const { REGION_OPTIONS } = require('../src/pkjs/settings/holiday-data.js');
+const showWhen = require('../src/pkjs/config-ui/lib/show-when.js');
 
 function allItems(s) { const out = []; s.tabs.forEach((t) => t.sections.forEach((sec) => sec.items.forEach((it) => out.push(it)))); return out; }
 const items = allItems(schema);
@@ -10,6 +11,7 @@ const byKey = (k) => items.filter((i) => i.messageKey === k)[0];
 function forecastItems(s) { return s.tabs.find((t) => t.id === 'forecast').sections[0].items; }
 
 const EXPECTED_KEYS = [
+  'theme',
   'timeLeadingZero','timeShowAmPm','axisTimeFormat','timeFont','colorTime',
   'weekStartDay','firstWeek','colorToday','colorSunday','colorSaturday','holidaysEnabled','colorUSFederal',
   'holidayCountry','holidayRegion',
@@ -19,15 +21,21 @@ const EXPECTED_KEYS = [
   'layoutPreset','viewResetMin','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear'
 ];
 
-test('every Clay messageKey present; only windScale is duplicated (two contextual slots)', () => {
+test('every Clay messageKey present; theme/windScale/colorUSFederal are the only duplicates (contextual slots)', () => {
   EXPECTED_KEYS.forEach((k) => assert.ok(byKey(k), 'missing messageKey: ' + k));
   const seen = items.filter((i) => i.messageKey).map((i) => i.messageKey);
   const counts = {};
   seen.forEach((k) => { counts[k] = (counts[k] || 0) + 1; });
   const dups = Object.keys(counts).filter((k) => counts[k] > 1);
-  // windScale lives in two mutually-exclusive slots: under the solid line and under the dotted line.
-  assert.deepEqual(dups, ['windScale'], 'only windScale may repeat; got: ' + dups.join(','));
+  // windScale: solid-line slot vs. dotted-line slot. theme: color-env (4 options) vs.
+  // B&W-env (2 options). colorUSFederal: dark-exclude-white vs. light-exclude-black.
+  // rainBarColor/radarColor are single items again (Multicolor/Solid), gated to
+  // theme not in [bw, bw-light] — no more per-theme label split, so no duplicate.
+  assert.deepEqual(dups.sort(), ['colorUSFederal', 'theme', 'windScale'],
+    'unexpected duplicates: ' + dups.join(','));
   assert.equal(counts.windScale, 2, 'windScale appears in exactly two slots');
+  assert.equal(counts.theme, 2, 'theme appears in exactly two slots');
+  assert.equal(counts.colorUSFederal, 2, 'colorUSFederal appears in exactly two slots');
   assert.deepEqual(Object.keys(counts).sort(), EXPECTED_KEYS.slice().sort());
 });
 
@@ -55,18 +63,32 @@ test('color defaults are ints', () => {
   assert.equal(byKey('colorTime').defaultValue, 0xFFFFFF);
   assert.equal(byKey('colorToday').defaultValue, 0);
   assert.equal(byKey('colorSunday').defaultValue, 0xFF0055);
-  const colorTypeKeys = items.filter((i) => i.type === 'color').map((i) => i.messageKey).sort();
+  // colorUSFederal now has two contextual slots (dark-exclude-white / light-exclude-black),
+  // like windScale/theme — dedupe by messageKey to assert the SET of color-typed controls.
+  const colorTypeKeys = Array.from(new Set(items.filter((i) => i.type === 'color').map((i) => i.messageKey))).sort();
   assert.deepEqual(colorTypeKeys, ['colorSaturday','colorSunday','colorTime','colorToday','colorUSFederal']);
 });
 
-test('B/W bar-scale hints are staticText, gated to non-color + the picker condition', () => {
+test('B/W bar-scale hints are staticText, gated to effective non-color + the picker condition', () => {
   const hints = items.filter((i) => i.type === 'staticText' && i.showWhen && i.showWhen.all);
+  // Effective color: real B&W hardware OR the Black & White theme (bw/bw-light) on a color watch.
   const isBwGated = (h, cond) =>
-    JSON.stringify(h.showWhen.all) === JSON.stringify([{ not: { env: 'color' } }, cond]);
+    JSON.stringify(h.showWhen.all) === JSON.stringify([{ not: { all: [{ env: 'color' }, { key: 'theme', nin: ['bw', 'bw-light'] }] } }, cond]);
   assert.ok(hints.some((h) => isBwGated(h, { key: 'barSource', eq: 'rain' })), 'forecast B/W hint missing');
   assert.ok(hints.some((h) => isBwGated(h, { key: 'radarProvider', ne: 'disabled' })), 'radar B/W hint missing');
   // No messageKey, so they never serialize into the settings blob.
   hints.forEach((h) => assert.equal(h.messageKey, undefined));
+});
+
+test('B/W bar-scale hints actually show for bw-light (not just bw) via the show-when evaluator', () => {
+  const forecastHint = items.find((i) => i.type === 'staticText' && i.showWhen && i.showWhen.all
+    && JSON.stringify(i.showWhen.all).indexOf('barSource') >= 0
+    && JSON.stringify(i.showWhen.all).indexOf('"not"') >= 0);
+  assert.ok(forecastHint, 'forecast B/W hint item found');
+  assert.equal(showWhen.isVisible(forecastHint, { env: { color: true }, theme: 'bw-light', barSource: 'rain' }), true,
+    'B/W legend shows for bw-light on a color env');
+  assert.equal(showWhen.isVisible(forecastHint, { env: { color: true }, theme: 'dark', barSource: 'rain' }), false,
+    'B/W legend hidden for dark on a color env');
 });
 
 test('COLOR-capability + showWhen wiring', () => {
@@ -335,4 +357,70 @@ test('radar intro drops mechanics; provider positioning lives in the per-provide
   const hints = radarTab.sections[0].items.find((i) => i.messageKey === 'radarProvider').hintByValue;
   assert.ok(hints.dwd.indexOf('2 km') >= 0, 'DWD nearby signal explained in its hint');
   assert.ok(hints.rainbow.toLowerCase().indexOf('worldwide') >= 0, 'Rainbow positioned as worldwide in its hint');
+});
+
+test('theme is a two-slot select dropdown (color env: 4 options; B&W env: 2), like windScale', () => {
+  const themeItems = items.filter((i) => i.messageKey === 'theme');
+  assert.equal(themeItems.length, 2);
+  const colorItem = themeItems.find((i) => JSON.stringify(i.showWhen).indexOf('"color"') >= 0 || JSON.stringify(i.showWhen) === '{"env":"color"}');
+  const bwItem = themeItems.find((i) => i !== colorItem);
+  assert.deepEqual(colorItem.options.map((o) => o[1]), ['dark', 'light', 'bw', 'bw-light']);
+  assert.deepEqual(colorItem.options.map((o) => o[0]), ['Dark', 'Light (Alpha)', 'B&W', 'B&W Inverted']);
+  assert.deepEqual(bwItem.options.map((o) => o[1]), ['dark', 'light']);
+  assert.deepEqual(bwItem.options.map((o) => o[0]), ['Dark', 'Light (Alpha)']);
+  assert.ok(colorItem.hintByValue['bw-light'], 'color-env theme item has a bw-light hint');
+  themeItems.forEach((i) => {
+    assert.equal(i.type, 'select', 'theme is a dropdown, not segmented');
+    assert.equal(i.defaultValue, 'dark');
+    assert.equal(i.onChange, 'themeConvert');
+  });
+});
+
+test('every capabilities:[COLOR] item additionally requires theme not in [bw, bw-light] (effective color)', () => {
+  const colorGated = items.filter((i) => i.capabilities && i.capabilities.indexOf('COLOR') >= 0);
+  assert.ok(colorGated.length > 0, 'expected at least one capabilities:[COLOR] item');
+  colorGated.forEach((i) => {
+    const asStr = JSON.stringify(i.showWhen || null);
+    assert.ok(asStr.indexOf('"theme"') >= 0, i.messageKey + ' (label "' + i.label + '") is missing a theme gate: ' + asStr);
+    // Every such gate must exclude bw-light too, not just bw (nin form, or an eq to
+    // something other than bw/bw-light for the dark/light contextual slots).
+    const isBwLightExcluded = asStr.indexOf('bw-light') >= 0
+      || asStr.indexOf('"eq":"dark"') >= 0 || asStr.indexOf('"eq":"light"') >= 0;
+    assert.ok(isBwLightExcluded, i.messageKey + ' (label "' + i.label + '") does not exclude bw-light: ' + asStr);
+  });
+});
+
+test('bw-light hides every effective-color gate (color pickers, B/W legends, scale notes) via the show-when evaluator', () => {
+  const colorGated = items.filter((i) => i.capabilities && i.capabilities.indexOf('COLOR') >= 0);
+  colorGated.forEach((i) => {
+    const visible = showWhen.isVisible(i, { env: { color: true }, theme: 'bw-light', barSource: 'rain', radarProvider: 'dwd', holidaysEnabled: true });
+    assert.equal(visible, false, i.messageKey + ' (label "' + i.label + '") must be hidden when theme is bw-light');
+  });
+});
+
+test('colorUSFederal splits into a dark-exclude-white / light-exclude-black pair (no bw item — bw hides it)', () => {
+  const federalItems = items.filter((i) => i.messageKey === 'colorUSFederal');
+  assert.equal(federalItems.length, 2);
+  const darkItem = federalItems.find((i) => JSON.stringify(i.showWhen).indexOf('"dark"') >= 0);
+  const lightItem = federalItems.find((i) => JSON.stringify(i.showWhen).indexOf('"light"') >= 0);
+  assert.deepEqual(darkItem.excludeColors, ['#FFFFFF']);
+  assert.deepEqual(lightItem.excludeColors, ['#000000']);
+});
+
+// The single-stop palette (rainBarColor/radarColor "white" option / value) renders as
+// DarkGray in the light theme and white in dark (the watch resolves the polarity itself —
+// see rain_tier.js buildPalette's colorMode==='white' branch). One item, one label
+// ('Solid') regardless of theme; the stored VALUE stays 'white' for wire compatibility.
+['rainBarColor', 'radarColor'].forEach((key) => {
+  test(key + ' is a single Multicolor/Solid item (no per-theme label split), value stays "white", no bw item', () => {
+    const slots = items.filter((i) => i.messageKey === key);
+    assert.equal(slots.length, 1, key + ' must have exactly one item');
+    const item = slots[0];
+    assert.deepEqual(item.options.map((o) => o[0]), ['Multicolor', 'Solid']);
+    assert.deepEqual(item.options.map((o) => o[1]), ['multicolor', 'white']);
+    // Shown whenever theme isn't bw/bw-light (not just dark, not just light) — a nin
+    // gate, never an eq match to a single theme value.
+    const themeCond = item.showWhen.all.find((c) => c.key === 'theme');
+    assert.deepEqual(themeCond, {key: 'theme', nin: ['bw', 'bw-light']});
+  });
 });

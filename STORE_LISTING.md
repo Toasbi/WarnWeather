@@ -32,16 +32,16 @@ FORECAST
   - Weather Underground
   - OpenWeatherMap
   - Open-Meteo
-  - Deutscher Wetterdienst via Bright Sky (Germany only)
-  - Met.no / MET Norway (Nordics only)
+  - Deutscher Wetterdienst (Germany)
+  - Met.no / MET Norway (Nordics)
 - GPS or manual location with configurable GPS cache
 
 
 RAIN RADAR
 - 2-hour precipitation nowcast in 5-minute frames
 - Providers: 
-  - Deutscher Wetterdienst (Germany only)
-  - Met.no / MET Norway (Nordics only)
+  - Deutscher Wetterdienst (Germany)
+  - Met.no / MET Norway (Nordics)
   - Rainbow.ai (worldwide)
 - Rain countdown: when rain is on the way, the top status line turns into 
   "Drizzle / Rain / Downpour in X min",
@@ -65,6 +65,11 @@ CALENDAR
   - Saturday
   - Sunday
   - Holidays (supporting 150+ countries worldwide and their region/state)
+
+WATCHFACE THEMES
+- Dark (default) and Light on every watch
+- Black & White and B&W Inverted on color watches
+  Set the theme in the General tab
 
 TIME
 - Current time in custom color

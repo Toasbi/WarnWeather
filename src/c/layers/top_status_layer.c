@@ -6,6 +6,7 @@
 #include "c/appendix/palette.h"
 #include "c/appendix/rain_countdown.h"
 #include "c/appendix/rain_tier.h"
+#include "c/appendix/theme.h"
 #include "c/services/watch_services.h"
 
 #define BATTERY_W 29
@@ -68,6 +69,7 @@ static GDrawCommandImage *s_rain_glyph;   // NULL unless an alert is showing
 static int    s_rain_glyph_bucket;        // bucket (1..3) the cached glyph was built for; 0 = none
 static int    s_rain_glyph_side;          // px slot side the cached glyph was scaled to
 static GColor s_rain_glyph_tint;          // fill tint the cached glyph was recolored to
+static bool   s_rain_glyph_outlined;      // whether the cached glyph got the light-theme stroke
 
 // Per-tier recolor + uniform scale of the PDC, mirroring health_status_layer's
 // pipeline (points are 1/8-px precise-path units). We scale the fixed authored
@@ -79,12 +81,20 @@ static GColor s_rain_glyph_tint;          // fill tint the cached glyph was reco
 typedef struct {
     int16_t num, den;   // scale each point: p * num / den
     GColor  tint;
+    bool    outline;    // light theme: force a 1px black stroke (light tier tints
+                         // like drizzle's gray otherwise vanish on a white strip)
 } RainNorm;
 
 static bool rain_norm_cb(GDrawCommand *command, uint32_t index, void *context) {
     (void)index;
     RainNorm *b = (RainNorm *)context;
     gdraw_command_set_fill_color(command, b->tint);
+    if (b->outline) {
+        // Stroke width is baked 0 (clear) by the generator — a nonzero width must be
+        // set at runtime too, not just the color, or the stroke stays invisible.
+        gdraw_command_set_stroke_color(command, GColorBlack);
+        gdraw_command_set_stroke_width(command, 1);
+    }
     uint16_t n = gdraw_command_get_num_points(command);
     for (uint16_t i = 0; i < n; i++) {
         GPoint p = gdraw_command_get_point(command, i);
@@ -115,8 +125,12 @@ static void rain_glyph_unload(void) {
 // tinted `tint`. Reloads only when one of those changes (bucket tracks tier, side
 // is fixed per platform), so the steady-state redraw is a cache hit.
 static void ensure_rain_glyph_loaded(int bucket, int side, GColor tint) {
+    const bool outline = theme_is_light();
+    // Cache key includes `outline`, not just tint: a live theme flip (light<->dark)
+    // with an unchanged tint must still re-recolor, since the stroke depends on theme.
     if (s_rain_glyph && s_rain_glyph_bucket == bucket &&
-        s_rain_glyph_side == side && gcolor_equal(s_rain_glyph_tint, tint)) {
+        s_rain_glyph_side == side && gcolor_equal(s_rain_glyph_tint, tint) &&
+        s_rain_glyph_outlined == outline) {
         return;
     }
     rain_glyph_unload();
@@ -128,7 +142,7 @@ static void ensure_rain_glyph_loaded(int bucket, int side, GColor tint) {
     const int   vspan = vb.h > vb.w ? vb.h : vb.w;
     if (vspan <= 0) { gdraw_command_image_destroy(img); return; }
     GDrawCommandList *list = gdraw_command_image_get_command_list(img);
-    RainNorm b = { .num = (int16_t)side, .den = (int16_t)vspan, .tint = tint };
+    RainNorm b = { .num = (int16_t)side, .den = (int16_t)vspan, .tint = tint, .outline = outline };
     gdraw_command_list_iterate(list, rain_norm_cb, &b);
     gdraw_command_image_set_bounds_size(img, GSize((int16_t)((vb.w * side) / vspan),
                                                    (int16_t)((vb.h * side) / vspan)));
@@ -136,22 +150,25 @@ static void ensure_rain_glyph_loaded(int bucket, int side, GColor tint) {
     s_rain_glyph_bucket = bucket;
     s_rain_glyph_side = side;
     s_rain_glyph_tint = tint;
+    s_rain_glyph_outlined = outline;
 }
 
-// Glyph colour tracks the radar bars per tier; on B&W the strip is black and the
-// radar palette is black, so force white.
+// Glyph colour tracks the radar bars per tier; on B&W (or the color-build Black &
+// White theme) the strip background is theme_bg() and palette_radar_color() now
+// returns that SAME theme_bg() stop (it's a bar-fill color — see palette.c), so
+// using it here would paint the glyph invisibly onto its own background. Force
+// the default foreground instead.
 static GColor rain_glyph_color(int tier) {
 #ifdef PBL_COLOR
-    return palette_radar_color(tier);
-#else
-    (void) tier;
-    return GColorWhite;
+    if (!theme_is_bw()) { return palette_radar_color(tier); }
 #endif
+    (void) tier;
+    return theme_fg();
 }
 
 static void draw_status_text_in(GContext *ctx, GRect rect, const char *text,
                                 GTextAlignment align, GFont font) {
-    graphics_context_set_text_color(ctx, GColorWhite);
+    graphics_context_set_text_color(ctx, theme_fg());
     graphics_draw_text(ctx, text, font, rect, GTextOverflowModeFill, align, NULL);
 }
 
@@ -161,31 +178,62 @@ static void draw_bitmap(GContext *ctx, GBitmap *bitmap, GRect frame) {
     graphics_context_set_compositing_mode(ctx, GCompOpAssign);
 }
 
+// Tracks the foreground the cached bitmap's palette was tinted with, so a live
+// theme change re-applies the palette (cheap: no image reload) instead of leaving
+// a stale tint from before the flip.
+static GColor s_mute_bitmap_fg;
+
 static void ensure_mute_bitmap_loaded(void) {
+    GColor fg = theme_fg();
+    if (s_mute_bitmap && gcolor_equal(s_mute_bitmap_fg, fg)) {
+        return;
+    }
     if (!s_mute_bitmap) {
         s_mute_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_MUTE);
-        s_mute_palette[0] = GColorWhite;
-        s_mute_palette[1] = GColorClear;
-        gbitmap_set_palette(s_mute_bitmap, s_mute_palette, false);
     }
+    s_mute_palette[0] = fg;
+    s_mute_palette[1] = GColorClear;
+    gbitmap_set_palette(s_mute_bitmap, s_mute_palette, false);
+    s_mute_bitmap_fg = fg;
 }
+
+static GColor s_bt_bitmap_fg;
 
 static void ensure_bt_bitmap_loaded(void) {
+    // Light theme tints the icon the default foreground (black) instead of the hue —
+    // a saturated blue reads poorly on a white strip. Dark keeps the hue; bw/bw-light
+    // already collapse to theme_fg() via theme_pick(), same as light, so this only
+    // changes the color-build dark-vs-light split. On B&W hardware builds theme_pick()
+    // is a macro that always resolves to theme_fg(), so both arms of the ternary agree
+    // and this collapses to theme_fg() regardless of theme_is_light().
+    GColor fg = theme_is_light() ? theme_fg() : theme_pick(GColorPictonBlue, theme_fg());
+    if (s_bt_bitmap && gcolor_equal(s_bt_bitmap_fg, fg)) {
+        return;
+    }
     if (!s_bt_bitmap) {
         s_bt_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BT_CONNECT);
-        s_bt_palette[0] = PBL_IF_COLOR_ELSE(GColorPictonBlue, GColorWhite);
-        s_bt_palette[1] = GColorClear;
-        gbitmap_set_palette(s_bt_bitmap, s_bt_palette, false);
     }
+    s_bt_palette[0] = fg;
+    s_bt_palette[1] = GColorClear;
+    gbitmap_set_palette(s_bt_bitmap, s_bt_palette, false);
+    s_bt_bitmap_fg = fg;
 }
 
+static GColor s_bt_disconnect_bitmap_fg;
+
 static void ensure_bt_disconnect_bitmap_loaded(void) {
+    // Same light-theme fg tint as ensure_bt_bitmap_loaded above (see its comment).
+    GColor fg = theme_is_light() ? theme_fg() : theme_pick(GColorRed, theme_fg());
+    if (s_bt_disconnect_bitmap && gcolor_equal(s_bt_disconnect_bitmap_fg, fg)) {
+        return;
+    }
     if (!s_bt_disconnect_bitmap) {
         s_bt_disconnect_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BT_DISCONNECT);
-        s_bt_disconnect_palette[0] = PBL_IF_COLOR_ELSE(GColorRed, GColorWhite);
-        s_bt_disconnect_palette[1] = GColorClear;
-        gbitmap_set_palette(s_bt_disconnect_bitmap, s_bt_disconnect_palette, false);
     }
+    s_bt_disconnect_palette[0] = fg;
+    s_bt_disconnect_palette[1] = GColorClear;
+    gbitmap_set_palette(s_bt_disconnect_bitmap, s_bt_disconnect_palette, false);
+    s_bt_disconnect_bitmap_fg = fg;
 }
 
 static void maybe_unload_top_status_bitmaps(bool show_qt, bool draw_bt, bool draw_bt_disconnect) {

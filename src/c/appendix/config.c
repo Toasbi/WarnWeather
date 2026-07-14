@@ -2,6 +2,7 @@
 #include "persist.h"
 #include "math.h"
 #include "memory_log.h"
+#include "theme.h"
 #include "c/services/watch_services.h"
 
 Config *g_config;
@@ -38,7 +39,8 @@ static Config config_defaults(void) {
         .view_reset_min = 0,
         // Default view cycle: compact calendar + forecast (0x90), flick slots disabled.
         // The phone re-sends the real cycle on connect; this only covers the first boot.
-        .view_spec = { 0x90, 0x00, 0x00 }
+        .view_spec = { 0x90, 0x00, 0x00 },
+        .theme = 0   // dark — today's look, unchanged until the user picks otherwise
     };
 }
 
@@ -186,9 +188,9 @@ GFont config_time_font() {
 }
 
 bool config_highlight_sundays() {
-    return !gcolor_equal(g_config->color_sunday, GColorWhite);
+    return !gcolor_equal(g_config->color_sunday, theme_fg());
 }
 
 bool config_highlight_saturdays() {
-    return !gcolor_equal(g_config->color_saturday, GColorWhite);
+    return !gcolor_equal(g_config->color_saturday, theme_fg());
 }

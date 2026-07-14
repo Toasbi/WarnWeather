@@ -1,6 +1,7 @@
 #include "health_status_layer.h"
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
+#include "c/appendix/theme.h"
 #include "c/layers/layer_util.h"
 #include "c/services/health.h"
 #include "c/services/health_summary.h"
@@ -186,7 +187,7 @@ static bool icon_bbox_cb(GDrawCommand *command, uint32_t index, void *context) {
 static bool icon_normalize_cb(GDrawCommand *command, uint32_t index, void *context) {
     (void) index;
     IconNorm *b = (IconNorm *)context;
-    gdraw_command_set_stroke_color(command, GColorWhite);
+    gdraw_command_set_stroke_color(command, theme_fg());
     gdraw_command_set_fill_color(command, GColorClear);
     uint16_t n = gdraw_command_get_num_points(command);
     for (uint16_t i = 0; i < n; i++) {
@@ -227,6 +228,10 @@ static GDrawCommandImage *icon_load(uint32_t resource_id, int target_h) {
 // whenever the render tier changes (a live settings switch), since the glyph geometry is
 // baked in at load time. The initial NULL checks make it safe on the first call.
 static uint8_t s_icons_tier;
+// Tracks the foreground the currently-loaded icons were tinted with. Declared here (ahead
+// of health_status_layer_create, which seeds it) rather than beside its only other reader
+// (health_status_layer_refresh, further down) — file-scope statics must precede every use.
+static GColor s_icons_fg;
 
 static void icons_rebuild(void) {
     if (s_icon_steps) { gdraw_command_image_destroy(s_icon_steps); }
@@ -380,14 +385,14 @@ static void health_status_layout(void) {
 
 static void health_status_update_proc(Layer *layer, GContext *ctx) {
     MEMORY_LOG_HEAP("health_status_update:enter");
-    // Metric glyphs first (recolored to white line-art at load), then the value text.
+    // Metric glyphs first (recolored to the theme foreground at load), then the value text.
     if (s_icon_steps) { gdraw_command_image_draw(ctx, s_icon_steps, icon_pt_steps); }
     if (s_icon_sleep) { gdraw_command_image_draw(ctx, s_icon_sleep, icon_pt_sleep); }
 #ifdef PBL_PLATFORM_EMERY
     if (s_icon_hr)    { gdraw_command_image_draw(ctx, s_icon_hr, icon_pt_hr); }
 #endif
 
-    graphics_context_set_text_color(ctx, GColorWhite);
+    graphics_context_set_text_color(ctx, theme_fg());
     graphics_draw_text(ctx, s_steps_buf, status_font(), frame_steps,
                        STATUS_TEXT_OVERFLOW, GTextAlignmentLeft, NULL);
     graphics_draw_text(ctx, s_sleep_buf, status_font(), frame_sleep,
@@ -409,6 +414,7 @@ void health_status_layer_create(Layer *parent_layer, GRect frame) {
     // Load the metric glyphs before the first layout — it reads their sizes. The window
     // sets the render tier before create(), so they load at the right size immediately.
     icons_rebuild();
+    s_icons_fg = theme_fg();
 
     health_summary_refresh();   // prime held values before the slots read them
     steps_slot_refresh();
@@ -429,10 +435,12 @@ Layer *health_status_layer_get_root(void) {
 }
 
 void health_status_layer_refresh(void) {
-    // A live tier switch changes the target glyph size (baked in at load), so
-    // rebuild the glyphs when it moves. Capture the tier change for the gate too.
+    // A live tier switch changes the target glyph size (baked in at load); a theme
+    // switch changes the tint (baked in at load too, via icon_normalize_cb). Either
+    // one means the cached icons are stale — rebuild.
     bool tier = (s_icons_tier != s_render_tier);
-    if (tier) { icons_rebuild(); }
+    bool tint = !gcolor_equal(s_icons_fg, theme_fg());
+    if (tier || tint) { icons_rebuild(); s_icons_fg = theme_fg(); }
 
     // Summary values are recomputed on the minute tick / enable (main_window), NOT here,
     // so an unrelated settings save re-renders from held values with zero health reads.

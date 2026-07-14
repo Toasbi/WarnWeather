@@ -23,22 +23,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // Fallback palette — used only if userData.palette wasn't injected (stale page). Kept in
     // lockstep with preview-palette.buildPreviewPalette() by a test, so it cannot drift.
     // Shape mirrors preview-palette.buildPreviewPalette(): per-metric line + fill colours, each
-    // with a colour-display value and a B&W value, all sourced from forecast-series so the preview
-    // can't diverge from the watch payload. gust has no fixed hue (resolved off the rain bars).
+    // with a colour-display value, a light-theme value, and a B&W value, all sourced from
+    // forecast-series so the preview can't diverge from the watch payload. gust has no fixed
+    // hue (resolved off the rain bars), so it keeps its own colorMulti/colorWhiteBars/bw shape.
     var FALLBACK_PALETTE = {
         temp: '#FF0000',
         white: '#FFFFFF',
         line: {
-            precip_prob: { color: '#55AAFF', bw: '#FFFFFF' },
-            wind:        { color: '#FFFF00', bw: '#FFFFFF' },
-            uv:          { color: '#FF00FF', bw: '#FFFFFF' },
+            precip_prob: { color: '#55AAFF', light: '#00AAFF', bw: '#FFFFFF' },
+            wind:        { color: '#FFFF00', light: '#FFFF00', bw: '#FFFFFF' },
+            uv:          { color: '#FF00FF', light: '#FF00FF', bw: '#FFFFFF' },
             gust:        { colorMulti: '#FFFFFF', colorWhiteBars: '#AAAAAA', bw: '#FFFFFF' }
         },
         fill: {
-            precip_prob: { color: '#0055AA', bw: '#AAAAAA' },
-            wind:        { color: '#555500', bw: '#AAAAAA' },
-            uv:          { color: '#AA00AA', bw: '#AAAAAA' },
-            gust:        { color: '#555555', bw: '#AAAAAA' }
+            precip_prob: { color: '#0055AA', light: '#55FFFF', bw: '#AAAAAA' },
+            wind:        { color: '#555500', light: '#AAFF55', bw: '#AAAAAA' },
+            uv:          { color: '#AA00AA', light: '#FF55FF', bw: '#AAAAAA' },
+            gust:        { color: '#555555', light: '#AAAAAA', bw: '#AAAAAA' }
         },
         rainTiers: [
             { from: 0, color: '#AAAAAA' },
@@ -92,16 +93,24 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // Tier-banded rain bar at full plot height (mimics the watch). mm -> tenths internally.
     // white=true is the B&W silhouette: outline=true draws top+sides with an open bottom
     // (the x-axis closes it, matching chart.c BAR_OUTLINED); outline=false is a solid white bar.
-    function rainBars(mm, x, bw, baseY, plotH, white, tiers, outline) {
+    // The outline path is filled with `bg` (the polarity background, theme_bg() on the watch)
+    // so it's opaque — matching chart.c's theme_bg()-filled + theme_fg()-outlined bar — rather
+    // than transparent, which would let whatever's painted behind it (e.g. a dithered area
+    // fill) show through. SVG fills an open subpath as if closed by a straight line back to
+    // its start, so the implicit 4th (bottom) edge closes exactly on the baseline without
+    // needing to be stroked.
+    function rainBars(mm, x, bw, baseY, plotH, white, tiers, outline, fg, bg) {
         var H = barPermille(Math.round(mm * 10)) / 1000;
         if (H <= 0) { return ''; }
+        fg = fg || '#FFFFFF';
+        bg = bg || '#000000';
         var top = baseY - H * plotH;
         if (white) {
             if (outline) {
                 return '<path d="M' + x + ',' + baseY + ' L' + x + ',' + top + ' L' + (x + bw) + ',' + top
-                    + ' L' + (x + bw) + ',' + baseY + '" fill="none" stroke="#FFFFFF" stroke-width="1"></path>';
+                    + ' L' + (x + bw) + ',' + baseY + '" fill="' + bg + '" stroke="' + fg + '" stroke-width="1"></path>';
             }
-            return rect(x, top, bw, H * plotH, '#FFFFFF');
+            return rect(x, top, bw, H * plotH, fg);
         }
         var out = '';
         for (var k = 0; k < tiers.length; k += 1) {
@@ -117,6 +126,32 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     function rect(x, y, w, h, fill) {
         return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="' + fill + '"></rect>';
+    }
+
+    // Local mirrors of resolve-ink.js's isLightPolarity/isBwTheme — the source of truth
+    // for both axes (see src/pkjs/resolve-ink.js). Inlined rather than require()'d
+    // because this file runs standalone in the webview as a concatenated <script> (see
+    // scripts/build-config-page.js's APP_FILES), which resolve-ink.js isn't wired into.
+    function isLightPolarity(theme) { return theme === 'light' || theme === 'bw-light'; }
+    function isBwTheme(theme) { return theme === 'bw' || theme === 'bw-light'; }
+
+    /**
+     * Theme-aware ink for preview canvases: white-on-black in dark/bw, black-on-white
+     * in light/bw-light. Structural chrome only (backgrounds, dividers, axis lines) —
+     * hued data colors and the muted gray label/legend palette are untouched (known v1
+     * limit: graph hues/data-grays are untuned on light backgrounds).
+     * @param {string} theme 'dark'|'light'|'bw'|'bw-light'.
+     * @returns {{bg: string, fg: string, rgba: function(number): string}} Theme ink set.
+     */
+    function previewInk(theme) {
+        var light = isLightPolarity(theme);
+        return {
+            bg: light ? '#FFFFFF' : '#000000',
+            fg: light ? '#000000' : '#FFFFFF',
+            rgba: function (alpha) {
+                return light ? 'rgba(0,0,0,' + alpha + ')' : 'rgba(255,255,255,' + alpha + ')';
+            }
+        };
     }
 
     function smooth(pts) {
@@ -162,8 +197,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /* ---- forecastPreview: adapted from index.html:231-267 forecastSVG ---- */
     function forecastPreview(state, env, userData) {
-        var isColor = !(env && !env.color);                  // B&W when env.color === false
+        // Effective color: a color display renders as color only when the theme isn't
+        // Black & White — a bw/bw-light theme reuses the exact preview a B&W watch gets.
+        var isColor = !(env && !env.color) && !isBwTheme(state.theme);
+        var ink = previewInk(state.theme);
         var P = (userData && userData.palette) || FALLBACK_PALETTE;
+        // Solid ('white'/Solid) rain-bar color, mirroring rain-tier.js buildPalette's
+        // colorMode==='white' branch: DarkGray in light polarity (not black — a pure
+        // white bar reads too flat on a white background), white in dark. Only used on
+        // effectively-color displays (isColor); B&W/bw themes draw an OUTLINE instead
+        // (see rainBars' `outline` param below) using ink.fg as the stroke color, which
+        // this variable also equals there — same value, different role.
+        var barFg = isColor ? (isLightPolarity(state.theme) ? '#555555' : '#FFFFFF') : ink.fg;
 
         // One coherent 12-point scenario starting at noon (slot 0 = 12:00): an afternoon
         // shower that suppresses UV, UV gone overnight, temp dipping then rising toward dawn.
@@ -198,41 +243,55 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             uv: { vals: uv, max: 11 }
         };
         /**
-         * Per-metric stroke/dot color. White on B&W (series told apart by width/pattern). Gust has
-         * no hue: white over color bars, light gray over white bars (matches forecast-series.lineColorFor).
+         * Per-metric stroke/dot color. White on B&W (series told apart by width/pattern). A
+         * light-polarity theme swaps in the metric's `light` variant when the palette defines
+         * one (mirrors fillColor's `light` swap below and forecast-series.lineColorFor); a
+         * metric without one keeps its dark-theme `color`. Gust has no hue: white over color
+         * bars, light gray over white bars (matches forecast-series.lineColorFor) — no `light`
+         * concept, so it's untouched by the swap.
          * @param {string} metric precip_prob|wind|gust|uv
          * @returns {string} #RRGGBB
          */
         function metricColor(metric) {
+            var result;
             if (metric === 'gust') {
                 var g = P.line.gust;
-                if (!isColor) { return g.bw; }
-                return state.rainBarColor === 'white' ? g.colorWhiteBars : g.colorMulti;
+                if (!isColor) { result = g.bw; }
+                else { result = state.rainBarColor === 'white' ? g.colorWhiteBars : g.colorMulti; }
+            } else {
+                var e = P.line[metric];
+                if (!e) { result = P.white; }
+                else if (isColor) { result = isLightPolarity(state.theme) ? e.light : e.color; }
+                else { result = e.bw; }
             }
-            var e = P.line[metric];
-            if (!e) { return P.white; }
-            return isColor ? e.color : e.bw;
+            // Flip an exactly-white resolved color to black in a light-polarity theme
+            // (dark/bw stay white-on-black); hued colors pass through untouched.
+            return (isLightPolarity(state.theme) && result === '#FFFFFF') ? '#000000' : result;
         }
         /**
          * Per-metric area-fill color (every metric can fill, matching the watch). Null for an
-         * unknown metric. Sourced from the palette so it can't diverge from forecast-series.
+         * unknown metric. Sourced from the palette so it can't diverge from forecast-series;
+         * a light-polarity theme swaps in the brighter `light` tint instead of the dark-theme
+         * shade. Gated behind the `!isColor` check above, so bw/bw-light never reach this
+         * branch — they resolve to e.bw instead (mirrors forecast-series.fillColorFor).
          * @param {string} metric precip_prob|wind|gust|uv
          * @returns {?string} #RRGGBB or null
          */
         function fillColor(metric) {
             var e = P.fill[metric];
             if (!e) { return null; }
-            return isColor ? e.color : e.bw;
+            if (!isColor) { return e.bw; }
+            return isLightPolarity(state.theme) ? e.light : e.color;
         }
-        var tempColor = isColor ? P.temp : P.white;
+        var tempColor = isColor ? P.temp : ink.fg;
         var tempW = isColor ? 2.2 : 3;               // B&W: thick temp vs thin main line
         var mainW = isColor ? 1.6 : 1;
 
         function drawNightShading() {
             if (!state.dayNightShading) { return ''; }
             return '<rect x="' + n0 + '" y="' + PT + '" width="' + (n1 - n0) + '" height="' + (PB - PT) + '" fill="url(#nh)"></rect>'
-                + '<line x1="' + n0 + '" y1="' + PT + '" x2="' + n0 + '" y2="' + PB + '" stroke="rgba(255,255,255,0.45)" stroke-width="0.7"></line>'
-                + '<line x1="' + n1 + '" y1="' + PT + '" x2="' + n1 + '" y2="' + PB + '" stroke="rgba(255,255,255,0.45)" stroke-width="0.7"></line>';
+                + '<line x1="' + n0 + '" y1="' + PT + '" x2="' + n0 + '" y2="' + PB + '" stroke="' + ink.rgba('0.45') + '" stroke-width="0.7"></line>'
+                + '<line x1="' + n1 + '" y1="' + PT + '" x2="' + n1 + '" y2="' + PB + '" stroke="' + ink.rgba('0.45') + '" stroke-width="0.7"></line>';
         }
         function drawTempCurve() {
             return '<path d="' + smooth(temps.map(function (t, i) { return [tickX(i), yT(t)]; }))
@@ -244,41 +303,61 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var out = '';
             for (var i = 0; i < n; i += 1) {
                 var big = i % 3 === 0;
-                out += '<line x1="' + tickX(i) + '" y1="' + PB + '" x2="' + tickX(i) + '" y2="' + (PB + (big ? 4 : 2)) + '" stroke="rgba(255,255,255,0.32)" stroke-width="0.6"></line>';
+                out += '<line x1="' + tickX(i) + '" y1="' + PB + '" x2="' + tickX(i) + '" y2="' + (PB + (big ? 4 : 2)) + '" stroke="' + ink.rgba('0.32') + '" stroke-width="0.6"></line>';
                 if (big) { out += txt(tickX(i), 111, 7.5, '#7C828D', 'middle', 600, String((12 + i) % 24)); }
             }
             return out;
         }
-        /**
-         * Main metric: one continuous line whose vertices sit on the hour ticks, so it spans the
-         * first tick to the last. Zero values stay in the line at the baseline (matching the watch's
-         * chart_render_line) rather than breaking it — a line that dips to or starts at zero is still
-         * drawn. Every metric can fill (matches the watch): the metric's palette fill colour on
-         * colour displays, a dithered stipple on B&W (mirrors the watch's 1-bit
-         * dither of the GColorLightGray fill — not diagonal lines).
-         * @param {string} metric precip_prob|wind|gust|uv
-         * @returns {string} SVG markup
-         */
-        var lineFor = function (metric) {
+        // Shared vertex computation for the main-metric line/fill: one point per sample,
+        // vertices on the hour ticks. Zero values stay in the series at the baseline
+        // (matching the watch's chart_render_line) rather than breaking it. Returns null
+        // for an unknown metric or fewer than 2 points (nothing to draw).
+        function metricPoints(metric) {
             var m = METRIC[metric];
-            if (!m) { return ''; }
-            var col = metricColor(metric), fc = fillColor(metric), out = '', pts = [];
-            var doFill = Boolean(state.secondaryLineFill) && Boolean(fc);
+            if (!m) { return null; }
+            var pts = [];
             for (var i = 0; i < m.vals.length; i += 1) {
                 var v = Math.min(m.vals[i], m.max);
                 if (v < 0) { v = 0; }
                 pts.push([tickX(i), PB - v / m.max * (PB - PT - 3)]);   // v == 0 lands on the baseline
             }
-            if (pts.length < 2) { return out; }
+            return pts.length >= 2 ? pts : null;
+        }
+        /**
+         * Main metric's area fill only (no stroke) — the metric's palette fill colour on
+         * colour displays, a dithered stipple on B&W (mirrors the watch's 1-bit dither of
+         * the GColorLightGray fill — not diagonal lines). Drawn separately from lineFor()
+         * so the caller can place it beneath the rain bars, matching chart.c's z-order
+         * (CHART_LAYER_AREA before CHART_LAYER_BARS in forecast_layer.c) — the bars paint
+         * over the fill, not the other way around.
+         * @param {string} metric precip_prob|wind|gust|uv
+         * @returns {string} SVG markup
+         */
+        function areaFillFor(metric) {
+            var fc = fillColor(metric);
+            var doFill = Boolean(state.secondaryLineFill) && Boolean(fc);
+            if (!doFill) { return ''; }
+            var pts = metricPoints(metric);
+            if (!pts) { return ''; }
             var d = smooth(pts);
-            if (doFill) {
-                var area = d + ' L' + pts[pts.length - 1][0] + ',' + PB + ' L' + pts[0][0] + ',' + PB + ' Z';
-                out += isColor
-                    ? '<path d="' + area + '" fill="' + fc + '" fill-opacity="0.25"></path>'
-                    : '<path d="' + area + '" fill="url(#fillhatch)"></path>';
-            }
-            out += '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="' + mainW + '"></path>';
-            return out;
+            var area = d + ' L' + pts[pts.length - 1][0] + ',' + PB + ' L' + pts[0][0] + ',' + PB + ' Z';
+            return isColor
+                ? '<path d="' + area + '" fill="' + fc + '" fill-opacity="0.25"></path>'
+                : '<path d="' + area + '" fill="url(#fillhatch)"></path>';
+        }
+        /**
+         * Main metric: one continuous line whose vertices sit on the hour ticks, so it spans the
+         * first tick to the last. The fill (if any) is drawn separately by areaFillFor() — see
+         * its doc comment for why.
+         * @param {string} metric precip_prob|wind|gust|uv
+         * @returns {string} SVG markup
+         */
+        var lineFor = function (metric) {
+            var col = metricColor(metric);
+            var pts = metricPoints(metric);
+            if (!pts) { return ''; }
+            var d = smooth(pts);
+            return '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="' + mainW + '"></path>';
         };
         /**
          * Second metric: bar-aligned squares centred in the hour column (same columns as the rain
@@ -290,7 +369,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var m = METRIC[metric];
             if (!m) { return ''; }
             var col = metricColor(metric);
-            var dh = (isColor && col === P.white) ? 3 : 4, out = '';
+            var dh = (isColor && col === ink.fg) ? 3 : 4, out = '';
             for (var i = 0; i < n - 1; i += 1) {
                 var v = Math.min(m.vals[i], m.max);
                 if (v <= 0) { continue; }
@@ -329,11 +408,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                     }
                     gw = P.rainTiers.length * 2.4 + 2;
                 } else if (isColor) {
-                    // colour + white bars: a solid white swatch, matching the solid white bars
-                    out += rect(x, gy - 3.5, 12, 7, P.white);
+                    // colour + Solid bars: a solid swatch, matching the solid bars (dims to
+                    // DarkGray in the light theme, like the bars themselves — see barFg)
+                    out += rect(x, gy - 3.5, 12, 7, barFg);
                 } else {
                     // B&W: outline box, matching the outlined silhouette bars
-                    out += '<rect x="' + x + '" y="' + (gy - 3.5) + '" width="12" height="7" fill="none" stroke="' + P.white + '" stroke-width="1"></rect>';
+                    out += '<rect x="' + x + '" y="' + (gy - 3.5) + '" width="12" height="7" fill="none" stroke="' + ink.fg + '" stroke-width="1"></rect>';
                 }
                 var lx = x + gw + 3;
                 out += txt(lx, ty, 7.5, '#AEB4BD', 'start', 600, en.label);
@@ -343,19 +423,24 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
 
         var e = '';
-        e += rect(0, 0, 200, 124, '#000');
+        e += rect(0, 0, 200, 124, ink.bg);
         e += '<defs>'
-            + '<pattern id="nh" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="rgba(255,255,255,0.30)" stroke-width="0.7"></line></pattern>'
-            + '<pattern id="fillhatch" width="2" height="2" patternUnits="userSpaceOnUse"><rect width="1" height="1" fill="rgba(255,255,255,0.55)" shape-rendering="crispEdges"></rect><rect x="1" y="1" width="1" height="1" fill="rgba(255,255,255,0.55)" shape-rendering="crispEdges"></rect></pattern>'
+            + '<pattern id="nh" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="' + ink.rgba('0.30') + '" stroke-width="0.7"></line></pattern>'
+            + '<pattern id="fillhatch" width="2" height="2" patternUnits="userSpaceOnUse"><rect width="1" height="1" fill="' + ink.rgba('0.55') + '" shape-rendering="crispEdges"></rect><rect x="1" y="1" width="1" height="1" fill="' + ink.rgba('0.55') + '" shape-rendering="crispEdges"></rect></pattern>'
             + '</defs>';
         e += drawNightShading();
-        e += '<line x1="' + PX0 + '" y1="' + PB + '" x2="' + PX1 + '" y2="' + PB + '" stroke="rgba(255,255,255,0.20)" stroke-width="0.7"></line>';
+        e += '<line x1="' + PX0 + '" y1="' + PB + '" x2="' + PX1 + '" y2="' + PB + '" stroke="' + ink.rgba('0.20') + '" stroke-width="0.7"></line>';
+        // Z-order matches forecast_layer.c: AREA fill, then BARS, then the LINE strokes —
+        // so the bars paint over the (possibly dithered) area fill, and the lines paint over
+        // the bars. See areaFillFor()'s doc comment.
+        e += areaFillFor(state.secondaryLine);
         if (state.barSource === 'rain') {
-            // White when the setting says so OR on a B&W display. B&W draws the outlined silhouette
-            // (BAR_OUTLINED); colour-white draws a solid bar (BAR_SOLID) — matching the watch.
+            // White (or theme-flipped) when the setting says so OR effectively-B&W. B&W draws
+            // the outlined silhouette (BAR_OUTLINED); colour-white draws a solid bar
+            // (BAR_SOLID) — matching the watch.
             var rainWhite = state.rainBarColor === 'white' || !isColor;
             for (var i = 0; i < n - 1; i += 1) {
-                e += rainBars(rain[i], gapCenter(i) - bw / 2, bw, PB, plotH, rainWhite, P.rainTiers, !isColor);
+                e += rainBars(rain[i], gapCenter(i) - bw / 2, bw, PB, plotH, rainWhite, P.rainTiers, !isColor, barFg, ink.bg);
             }
         }
         e += lineFor(state.secondaryLine);
@@ -372,24 +457,34 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /* ---- radarPreview: adapted from index.html:270-286 radarSVG ----------- */
     function radarPreview(state, env, userData) {
+        // Effective color: a color display renders as color only when the theme isn't
+        // Black & White — a bw/bw-light theme reuses the exact preview a B&W watch gets.
+        var isColor = !(env && !env.color) && !isBwTheme(state.theme);
+        var ink = previewInk(state.theme);
         if (state.radarProvider === 'disabled') {
-            return svgFrame(rect(0, 0, 200, 120, '#000') + txt(100, 63, 10, '#566072', 'middle', 700, 'Radar off — enable a provider'));
+            return svgFrame(rect(0, 0, 200, 120, ink.bg) + txt(100, 63, 10, '#566072', 'middle', 700, 'Radar off — enable a provider'));
         }
         var local = [0, 0, 0, 0.2, 0.6, 1.5, 3, 7, 14, 10, 5, 2, 0.8, 0.3, 0.1, 0, 0.3, 1, 3, 8, 12, 6, 2, 0.5];
         var add = [0.4, 0.5, 0.7, 1, 1.5, 2, 3, 4, 3, 2, 1.5, 1, 0.8, 0.5, 0.4, 0.3, 0.5, 1.5, 3, 4, 3, 2, 1, 0.5];
         var n = local.length, PX0 = 11, PX1 = 196, PT = 24, PB = 99, plotH = PB - PT;
         var step = (PX1 - PX0) / n, bw = step - 1.6;
-        var e = rect(0, 0, 200, 118, '#000');
+        var e = rect(0, 0, 200, 118, ink.bg);
         var topY = PT - 7;
-        e += '<line x1="' + PX0 + '" y1="' + topY + '" x2="' + PX1 + '" y2="' + topY + '" stroke="rgba(255,255,255,0.22)" stroke-width="0.6"></line>';
+        e += '<line x1="' + PX0 + '" y1="' + topY + '" x2="' + PX1 + '" y2="' + topY + '" stroke="' + ink.rgba('0.22') + '" stroke-width="0.6"></line>';
         for (var k = 0; k <= n; k++) {
             var tx = PX0 + k * step, big = k % 6 === 0;
-            e += '<line x1="' + tx + '" y1="' + topY + '" x2="' + tx + '" y2="' + (topY + (big ? 4 : 2)) + '" stroke="rgba(255,255,255,0.30)" stroke-width="0.6"></line>';
+            e += '<line x1="' + tx + '" y1="' + topY + '" x2="' + tx + '" y2="' + (topY + (big ? 4 : 2)) + '" stroke="' + ink.rgba('0.30') + '" stroke-width="0.6"></line>';
         }
         e += txt(PX0, topY - 3, 7, '#7C828D', 'start', 600, 'now') + txt(PX0 + 12 * step, topY - 3, 7, '#7C828D', 'middle', 600, '+1h') + txt(PX1, topY - 3, 7, '#7C828D', 'end', 600, '+2h');
-        e += '<line x1="' + PX0 + '" y1="' + PB + '" x2="' + PX1 + '" y2="' + PB + '" stroke="rgba(255,255,255,0.18)" stroke-width="0.7"></line>';
+        e += '<line x1="' + PX0 + '" y1="' + PB + '" x2="' + PX1 + '" y2="' + PB + '" stroke="' + ink.rgba('0.18') + '" stroke-width="0.7"></line>';
         var P = (userData && userData.palette) || FALLBACK_PALETTE;
-        var radarWhite = state.radarColor === 'white' || (env && !env.color);
+        var radarWhite = state.radarColor === 'white' || !isColor;
+        // Solid ('white'/Solid) radar-bar color: DarkGray in light polarity, white in
+        // dark (mirrors rain-tier.js buildPalette's colorMode==='white' branch — see
+        // forecastPreview's barFg, same rule). B&W/bw themes draw an OUTLINE instead
+        // (see the `outline` param below) using ink.fg as the stroke color, which this
+        // also equals there — same value, different role.
+        var radarBarFg = isColor ? (isLightPolarity(state.theme) ? '#555555' : '#FFFFFF') : ink.fg;
         // Only DWD carries a 2 km-area signal; Met.no and Rainbow are
         // single-point nowcasts → omit the hollow "nearby" outline bars and
         // their legend entry entirely.
@@ -398,12 +493,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var x = PX0 + i * step + (step - bw) / 2;
             var nH = barPermille(Math.round((local[i] + add[i]) * 10)) / 1000;
             if (showNearby && nH > 0) {
-                e += '<rect x="' + x + '" y="' + (PB - nH * plotH) + '" width="' + bw + '" height="' + (nH * plotH) + '" fill="none" stroke="rgba(255,255,255,0.30)" stroke-width="0.7"></rect>';
+                e += '<rect x="' + x + '" y="' + (PB - nH * plotH) + '" width="' + bw + '" height="' + (nH * plotH) + '" fill="none" stroke="' + ink.rgba('0.30') + '" stroke-width="0.7"></rect>';
             }
-            e += rainBars(local[i], x, bw, PB, plotH, radarWhite, P.rainTiers, false);
+            // outline (B&W/bw: unfilled — the transparent interior shows the canvas
+            // background through, i.e. theme_bg(), matching the watch's polarity-aware
+            // palette fill) vs. solid (effectively-color Solid mode: radarBarFg).
+            e += rainBars(local[i], x, bw, PB, plotH, radarWhite, P.rainTiers, !isColor, radarBarFg, ink.bg);
         }
         // Rain legend (one row): the exact-spot swatch (tier gradient on color, solid
-        // white on B&W) + label, then a hollow grey "nearby" box + label. The nearby
+        // theme-fg on B&W) + label, then a hollow grey "nearby" box + label. The nearby
         // box is a fixed grey outline (not tier-coloured), so it reads the same on
         // color and B&W — matching the faint nearby-rain outline bars above.
         var lgy = 110, lx = PX0;
@@ -413,7 +511,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             }
             lx += P.rainTiers.length * 2.4 + 2;
         } else {
-            e += rect(lx, lgy - 3.5, 12, 7, P.white);
+            e += rect(lx, lgy - 3.5, 12, 7, radarBarFg);
             lx += 14;
         }
         e += txt(lx + 3, lgy + 3, 7.5, '#AEB4BD', 'start', 600, 'Rain at your exact spot');
@@ -426,21 +524,21 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // Rain-countdown preview band: a status-strip mock ("Rain in 15'") above the
         // chart, mirroring top_status_layer.c. Hidden when the countdown is Off, and
         // never shown on aplite (which lacks the feature). Only the glyph is coloured
-        // (green tier on color, white on B&W); the text stays white and centred.
+        // (green tier when effectively color, theme-fg otherwise); the text stays
+        // theme-fg and centred.
         var countdownOff = String(state.rainCountdownHorizon) === '0';
         var isAplite = Boolean(env && env.platform === 'aplite');
         if (countdownOff || isAplite) {
             return svgFrame(e, 118);
         }
-        var isColor = !(env && !env.color);
-        var glyphColor = isColor ? P.rainTiers[2].color : P.white;
+        var glyphColor = isColor ? P.rainTiers[2].color : ink.fg;
         var bandH = 20, glyphSize = 10, label = "Rain in 15'";
         var groupW = glyphSize + 4 + labelAdvance(label, 11);
         var groupX = (200 - groupW) / 2;
-        var band = rect(0, 0, 200, bandH, '#000');
+        var band = rect(0, 0, 200, bandH, ink.bg);
         band += rainGlyph(groupX, (bandH - glyphSize) / 2, glyphSize, glyphColor);
-        band += txt(groupX + glyphSize + 4, bandH / 2 + 4, 11, '#FFFFFF', 'start', 700, label);
-        band += '<line x1="0" y1="' + bandH + '" x2="200" y2="' + bandH + '" stroke="rgba(255,255,255,0.18)" stroke-width="0.7"></line>';
+        band += txt(groupX + glyphSize + 4, bandH / 2 + 4, 11, ink.fg, 'start', 700, label);
+        band += '<line x1="0" y1="' + bandH + '" x2="200" y2="' + bandH + '" stroke="' + ink.rgba('0.18') + '" stroke-width="0.7"></line>';
         return svgFrame(band + '<g transform="translate(0,' + bandH + ')">' + e + '</g>', 118 + bandH);
     }
 
@@ -696,13 +794,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // Render a band array (each {label, h}) as the schematic band-stack SVG shared by
     // both layout previews. Returns '' for an empty/null band list (nothing to show).
-    function renderBandStack(bands) {
+    // Band fill is a theme-relative wash (previewInk's rgba helper — same mechanism the
+    // other previews use for dividers/gridlines) rather than a fixed dark hex, so it
+    // reads as an "elevated card" against the canvas in either polarity: a light ring on
+    // black in dark/bw, a soft gray panel on white in light/bw-light.
+    function renderBandStack(bands, theme) {
         if (!bands || !bands.length) { return ''; }
         var W = 200, PAD = 8, w = W - PAD * 2, y = PAD, i;
         var heights = resolveBandHeights(bands, 118 - PAD * 2, BAND_GAP);
-        var e = rect(0, 0, W, 118, '#000');
+        var ink = previewInk(theme);
+        var e = rect(0, 0, W, 118, ink.bg);
         for (i = 0; i < bands.length; i++) {
-            e += rect(PAD, y, w, heights[i], '#1B1F27');
+            e += rect(PAD, y, w, heights[i], ink.rgba('0.12'));
             e += txt(W / 2, y + heights[i] / 2 + 3, 8, '#AEB4BD', 'middle', 600, bands[i].label);
             y += heights[i] + BAND_GAP;
         }
@@ -710,7 +813,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     function layoutPreview(state, env, userData) {
-        return renderBandStack(contentBands(presetContents(state)[0]));
+        return renderBandStack(contentBands(presetContents(state)[0]), state.theme);
     }
     // First flick slot (index 1), or null when the cycle has none.
     function firstFlickContent(state) {
@@ -719,20 +822,24 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
     function layoutPreviewFlick(state, env, userData) {
         var content = firstFlickContent(state);
-        return content ? renderBandStack(contentBands(content)) : '';
+        return content ? renderBandStack(contentBands(content), state.theme) : '';
     }
 
     // One column of a side-by-side layout preview: a header label over a band stack that
     // fills the column width (no side padding). `dim`/`note` are unused by the adaptive
     // cycle preview (every slot in the cycle is available by construction) but kept as
     // params — `note` still renders as a placeholder sub-note when a column has no bands.
-    function renderBandColumn(bands, x, w, header, note, dim) {
+    // Card/placeholder fills are theme-relative washes (previewInk's rgba helper), like
+    // renderBandStack above, so this — the block actually wired into the Layout tab via
+    // layoutPreviewCombined — follows the theme too, not just its outer canvas.
+    function renderBandColumn(bands, x, w, header, note, dim, theme) {
+        var ink = previewInk(theme);
         var headerColor = dim ? '#5A6270' : '#8A92A0';
-        var bandFill = dim ? '#14161C' : '#1B1F27';
+        var bandFill = ink.rgba(dim ? '0.08' : '0.12');
         var labelColor = dim ? '#4A505C' : '#AEB4BD';
         var e = txt(x + w / 2, 9, 8, headerColor, 'middle', 700, header), y = 16, i;
         if (!bands || !bands.length) {
-            e += rect(x, y, w, 104, '#12151C');
+            e += rect(x, y, w, 104, ink.rgba('0.07'));
             e += txt(x + w / 2, y + 54, 8, '#6A7280', 'middle', 600, note || '—');
             return e;
         }
@@ -758,10 +865,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var contents = presetContents(state);
         var HEADERS = ['Default', 'Flick 1', 'Flick 2'];
         var W = 200, GAP = 6, n = contents.length || 1, colW = (W - GAP * (n - 1)) / n;
-        var e = rect(0, 0, W, 128, '#000'), i;
+        var e = rect(0, 0, W, 128, previewInk(state.theme).bg), i;
         for (i = 0; i < contents.length; i += 1) {
             e += renderBandColumn(contentBands(contents[i]), i * (colW + GAP), colW,
-                HEADERS[i], null, false);
+                HEADERS[i], null, false, state.theme);
         }
         return svgFrame(e, 128);
     }

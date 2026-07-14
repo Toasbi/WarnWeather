@@ -22,3 +22,14 @@ test('buildPaletteTuples falls back to basalt when watchInfo is null', function(
   const tuples = paletteWire.buildPaletteTuples(null, { rainBarColor: 'multicolor' });
   assert.equal(tuples.BAR_PALETTE_UINT8.length, 15);  // basalt is a color platform
 });
+
+test('buildPaletteTuples: bw theme collapses both channels to a single black stop even on a color platform', () => {
+  const t = paletteWire.buildPaletteTuples({ platform: 'emery' }, { rainBarColor: 'multicolor', radarColor: 'multicolor', theme: 'bw' });
+  assert.equal(t.BAR_PALETTE_UINT8.length, 3, 'one packed stop = 3 bytes');
+  assert.equal(t.RADAR_PALETTE_UINT8.length, 3);
+});
+
+test('buildPaletteTuples: theme omitted defaults to dark (unchanged behavior)', () => {
+  const t = paletteWire.buildPaletteTuples({ platform: 'emery' }, { rainBarColor: 'multicolor' });
+  assert.equal(t.BAR_PALETTE_UINT8.length, 15, 'five multicolor stops = 15 bytes, unchanged');
+});

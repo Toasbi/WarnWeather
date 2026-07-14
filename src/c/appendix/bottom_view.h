@@ -1,6 +1,7 @@
 #pragma once
 #include <pebble.h>
 #include "c/appendix/chart.h"   // TickSide
+#include "c/appendix/theme.h"
 
 // Shared config for the two mutually-exclusive bottom-region graphs (forecast +
 // health), which render on the same FORECAST_GRID_DEF so they line up
@@ -29,10 +30,17 @@
 #define BOTTOM_VIEW_STEP_SECONDS 3600    // one slot == one hour
 
 // --- Axis chrome (group B) ---
-// Day axis colour (orange on colour, white on B&W). Forecast's NIGHT variant
-// stays local to forecast_layer.c (health has no night concept).
-#define BOTTOM_VIEW_AXIS_COLOR PBL_IF_COLOR_ELSE(GColorOrange, GColorWhite)
-extern const TickSide BOTTOM_VIEW_TICK_STYLE;
+// Day axis colour (orange on colour, theme_fg() on B&W — the hue itself is an
+// untouched-in-v1 known limit; only the B&W/bw-theme arm changes with theme).
+// Forecast's NIGHT variant stays local to forecast_layer.c (health has no night concept).
+#define BOTTOM_VIEW_AXIS_COLOR theme_pick(GColorOrange, theme_fg())
+// theme_pick()/theme_furniture() are runtime calls (they read g_config->theme),
+// which C disallows in a static-storage initializer — so this can't be a plain
+// `const TickSide`, the same reason rain_radar_layer.c's axis ticks moved to a
+// per-redraw radar_tick_style() builder. Call fresh on every redraw; both callers
+// (forecast_layer.c, health_graph_layer.c) assign the result into a local
+// ChartAxisLayer, so a runtime value is fine.
+TickSide bottom_view_tick_style(void);
 
 // --- Primary data line (temp in forecast, HR in health) ---
 // Vertical margin so the primary line clears the plot's top/bottom edges.

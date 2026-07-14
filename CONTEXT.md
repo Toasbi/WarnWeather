@@ -68,3 +68,35 @@ the *category detector* — it distinguishes "this message carries no config"
 (normal for weather messages) from "carries config". Holidays and palettes are
 deliberately unguarded: they have their own handlers and dirty flags, so a
 parse problem there can't take the whole config down.
+
+## Channel
+
+**Half-duplex channel**:
+The phone↔watch AppMessage link: one message in flight at a time — a second
+send issued before the ACK collides and is dropped. Every send-ordering rule
+on the phone side derives from this constraint.
+
+**Channel scheduler**:
+The module that decides *when* anything rides the channel (startup handshake,
+config-close chaining, day-change resend, minute tick). The outbox decides
+*what* rides it (dedupe, one-message bundling, ACK-gated cache commit).
+_Avoid_: send queue.
+
+## Radar
+
+**Radar source**:
+The user-selected origin of the short-term rain nowcast — DWD (exact spot +
+nearby area, Germany-only) or Rainbow (exact spot only, worldwide) — chosen
+independently of the weather provider. Every source answers the same
+interface; "off" is itself a source whose tuples clear the radar.
+_Avoid_: radar provider in prose (the wire key `radarProvider` keeps its name).
+
+**Radar tuples**:
+The wire triplet every radar source produces: exact-spot trend, nearby-area
+trend, and the slot-0 start epoch. Empty trends with a zero start mean "clear
+the radar on the watch".
+
+**Slot (radar)**:
+One five-minute bucket of the two-hour nowcast window; slot 0 is pinned to the
+most recent wall-clock five-minute boundary. Slot alignment is what lets the
+dedupe treat a time-shifted but otherwise identical radar as unchanged.

@@ -6,6 +6,7 @@ var pebbleColors = require('./pebble-colors.js');
 var holidayMask = require('./holidays/holiday-mask.js');
 var paletteWire = require('./weather/palette-wire.js');
 var viewCycle = require('./view-cycle.js');
+var resolveInk = require('./resolve-ink.js').resolveInk;
 
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
 var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
@@ -19,6 +20,7 @@ var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
  */
 function buildClayPayload(settings, watchInfo, now) {
     now = now || new Date();
+    var theme = settings.theme || 'dark';
 
     // Resolve preset + health + radar to the packed view cycle up front — the holiday
     // mask below needs to know whether the DEFAULT (slot 0) view is the 3-row full
@@ -40,6 +42,7 @@ function buildClayPayload(settings, watchInfo, now) {
         "CLAY_START_MON": settings.weekStartDay === 'mon',
         "CLAY_PREV_WEEK": settings.firstWeek === 'prev',
         "CLAY_TOP_VIEW_MODE": topViewIdx,
+        "CLAY_THEME": ['dark', 'light', 'bw', 'bw-light'].indexOf(theme),
         "CLAY_TIME_FONT": ['roboto', 'leco', 'bitham'].indexOf(settings.timeFont),
         "CLAY_SHOW_QT": settings.showQt,
         "CLAY_SHOW_BT": settings.btIcons === "connected" || settings.btIcons === "both",
@@ -61,7 +64,7 @@ function buildClayPayload(settings, watchInfo, now) {
             }, now);
             return holidayMask.pack(built.anchor, built.mask);
         })(),
-        "CLAY_COLOR_TIME": settings.hasOwnProperty('colorTime') ? settings.colorTime : DEFAULT_COLOR_WHITE,
+        "CLAY_COLOR_TIME": settings.hasOwnProperty('colorTime') ? settings.colorTime : resolveInk(DEFAULT_COLOR_WHITE, theme),
         "CLAY_DAY_NIGHT_SHADING": settings.hasOwnProperty('dayNightShading') ? settings.dayNightShading : true,
         "CLAY_HEALTH_MODE": ['off', 'status', 'all'].indexOf(settings.healthMode || 'off'),
         "CLAY_FETCH_INTERVAL_MIN": parseInt(settings.fetchIntervalMin, 10) || 30,

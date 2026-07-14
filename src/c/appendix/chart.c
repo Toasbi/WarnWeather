@@ -1,5 +1,6 @@
 #include "chart.h"
 #include "hatch.h"
+#include "theme.h"
 
 static void graph_frame_draw(GContext *ctx, GraphFrame f, GRect outer) {
     if (f.left.width > 0) {
@@ -98,7 +99,7 @@ static void chart_draw_axis_label(const ChartRender *r, GraphSide side,
 }
 
 static void chart_render_axis(const ChartRender *r, const ChartAxisLayer *a) {
-    graphics_context_set_text_color(r->ctx, GColorWhite);
+    graphics_context_set_text_color(r->ctx, theme_fg());
     const GFont font     = fonts_get_system_font(FONT_KEY_GOTHIC_14);
     const int  mid_shift = r->geo.slots.pitch / 2;
     for (int i = 0; i < r->def->num_slots; ++i) {
@@ -139,6 +140,23 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
         const int bar_x   = chart_slot_bar_x(&r->geo, i);
         const int bar_top = plot_bottom - bar_h;
 
+        // Bar-separation halo: a 1px ring outside the bar's left/right/top edges,
+        // painted before the segment fills so the colored segments keep their full
+        // width/height on top. Not expanded downward — the x-axis baseline sits
+        // there, and painting over it would notch the axis. Every theme gets the
+        // same halo + BAR_OUTLINED silhouette anatomy; only the interior differs
+        // (multicolor/solid palette in the color themes, theme_bg() fill in the B&W
+        // ones). Color-dark opts out of both — no halo, no silhouette: the exact
+        // pre-theme look the user tuned before theming existed. On B&W builds
+        // theme_is_bw() is constant-true, so the dark-only skips compile out.
+        const bool dark = !theme_is_bw() && !theme_is_light();
+        if (!dark) {
+            graphics_context_set_fill_color(r->ctx, theme_bg());
+            graphics_fill_rect(r->ctx,
+                GRect(bar_x - 1, bar_top - 1, r->def->bar_w + 2, bar_h + 1),
+                0, GCornerNone);
+        }
+
         for (int k = 0; k < b->num_stops; ++k) {
             int seg_bottom = plot_bottom
                            - chart_scale_h(b->stops[k].from, b->lo, b->hi, plot_h);
@@ -154,14 +172,18 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
                 GRect(bar_x, seg_top, r->def->bar_w, seg_h), 0, GCornerNone);
         }
 
-        if (b->style == BAR_OUTLINED) {
-            // B&W: white silhouette keeps black bars readable on black. Draw only the
-            // top + side walls and leave the bottom open — the x-axis baseline already
-            // closes the bar, so a bottom edge would double the axis line.
+        if (b->style == BAR_OUTLINED && !dark) {
+            // theme_fg() silhouette around the bar interior — the shared bar look in
+            // every theme (all three call sites: rain bars, radar bars, health step
+            // bars). Draw only the top + side walls and leave the bottom open — the
+            // x-axis baseline already closes the bar, so a bottom edge would double
+            // the axis line. Composes with the theme_bg() halo above: fg outline on
+            // the bar's outer pixels, bg ring outside it; only the interior differs
+            // per theme (multicolor/solid palette on color, theme_bg() fill on B&W).
             const int x0 = bar_x;
             const int x1 = bar_x + r->def->bar_w - 1;
             const int y1 = bar_top + bar_h - 1;
-            graphics_context_set_stroke_color(r->ctx, GColorWhite);
+            graphics_context_set_stroke_color(r->ctx, theme_fg());
             graphics_context_set_stroke_width(r->ctx, 1);
             graphics_draw_line(r->ctx, GPoint(x0, bar_top), GPoint(x1, bar_top));  // top
             graphics_draw_line(r->ctx, GPoint(x0, bar_top), GPoint(x0, y1));       // left wall
@@ -191,7 +213,7 @@ static void chart_draw_bar_dots(const ChartRender *r, const ChartLineLayer *l) {
     // and 2/2 and 3/2 both round to 1 — so a 3px cap shared the white cap's top and only grew 1px
     // downward, reading as the same height. 4/2 = 2 raises the top a pixel too, so the taller gray
     // cap actually shows. B&W is a fixed 3px.
-    const int   dot_h       = PBL_IF_COLOR_ELSE(gcolor_equal(l->color, GColorWhite) ? 2 : 4, 3);
+    const int   dot_h       = theme_is_bw() ? 3 : (gcolor_equal(l->color, theme_fg()) ? 2 : 4);
     graphics_context_set_fill_color(r->ctx, l->color);
     for (int i = 0; i < count; ++i) {
         if (l->values[i] <= l->lo) continue;           // value 0 → on the baseline, skip
@@ -210,6 +232,18 @@ static void chart_draw_bar_dots(const ChartRender *r, const ChartLineLayer *l) {
         if (top < plot_top)    { bot += plot_top - top; top = plot_top; }       // slide down off the top
         if (bot > plot_bottom) { top -= bot - plot_bottom; bot = plot_bottom; } // slide up off the x-axis
         if (bot > top) {
+            if (theme_is_bw()) {
+                // B&W: an fg-colored dot vanishes over an fg-territory surface behind it
+                // (the checkerboard area fill from chart_render_area, or an fg bar
+                // segment). A theme_bg() backing 1px larger on every side fixes that —
+                // and needs no overlap detection, because it's neutral everywhere it
+                // isn't needed: a bg backing over an already-bg surface (a rain bar,
+                // empty background) is a no-op, so this reads as "black behind the dot
+                // on the area fill, unchanged over the bars" for free.
+                graphics_context_set_fill_color(r->ctx, theme_bg());
+                graphics_fill_rect(r->ctx, GRect(x - 1, top - 1, w + 2, bot - top + 2), 0, GCornerNone);
+                graphics_context_set_fill_color(r->ctx, l->color);
+            }
             graphics_fill_rect(r->ctx, GRect(x, top, w, bot - top), 0, GCornerNone);
         }
     }
@@ -391,6 +425,37 @@ static void chart_render_area(const ChartRender *r, const ChartAreaLayer *a) {
         const int h = (int)(((int32_t)(a->values[i] - a->lo) * c.size.h) / range_safe);
         pts[i] = GPoint(chart_slot_tick_x(&r->geo, i), plot_bottom - h);
     }
+
+#ifdef PBL_COLOR
+    // The phone sends a flat GColorLightGray fill_color for bw themes (see
+    // forecast-series.js FILL_COLORS' bw entries); real B&W hardware dithers that
+    // in silicon, but color hardware just paints it flat gray. Reproduce the
+    // dithered look by hand instead: a true 50% fg/bg checkerboard confined to the
+    // same contour a solid fill would use — a plain bg base per column
+    // (graphics_fill_rect, no GPath) plus an UNBACKED stride-2 fg dot pass
+    // (hatch_fill_rect_raw, not hatch_fill_rect — a per-dot backing square would
+    // paint over half of every other checker cell instead of completing the
+    // pattern). Same per-column contour walk the aplite branch below already
+    // does, so this is the same cost class of work, not an extra pass. Gated to
+    // color hardware only: on real B&W builds theme_is_bw() is constant-true with
+    // no PBL_COLOR, so this whole arm compiles out and the plain fill below runs,
+    // which real hardware then dithers itself.
+    if (theme_is_bw()) {
+        const int16_t x_lo = pts[0].x;
+        const int16_t x_hi = pts[count - 1].x;
+        graphics_context_set_fill_color(r->ctx, theme_bg());
+        for (int16_t x = x_lo; x <= x_hi; ++x) {
+            const int16_t y = chart_contour_y_for_x(pts, count, x);
+            if (y < plot_bottom) {
+                const GRect col = GRect(x, y, 1, plot_bottom - y);
+                graphics_fill_rect(r->ctx, col, 0, GCornerNone);
+                hatch_fill_rect_raw(r->ctx, col, theme_fg(), 2);
+            }
+        }
+        return;
+    }
+#endif
+
     graphics_context_set_fill_color(r->ctx, a->fill_color);
 #ifdef PBL_PLATFORM_APLITE
     // aplite: fill the area under the contour with 1 px columns rather than a GPath.

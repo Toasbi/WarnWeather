@@ -1,6 +1,7 @@
 #include "time_layer.h"
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
+#include "c/appendix/theme.h"
 #include "c/layers/layer_util.h"
 #include "c/services/watch_services.h"
 
@@ -35,7 +36,7 @@ void time_layer_create(Layer* parent_layer, GRect frame) {
     // AM/PM formatting
     text_layer_set_font(s_am_pm_layer, fonts_get_system_font(FONT_KEY_GOTHIC_18));
     text_layer_set_background_color(s_am_pm_layer, GColorClear);
-    text_layer_set_text_color(s_am_pm_layer, GColorWhite);
+    text_layer_set_text_color(s_am_pm_layer, theme_fg());
     text_layer_set_text(s_am_pm_layer, "PM");
     text_layer_set_text_alignment(s_am_pm_layer, GTextAlignmentLeft);
 
@@ -108,7 +109,8 @@ void time_layer_tick() {
 
 void time_layer_refresh() {
     text_layer_set_font(s_time_layer, config_time_font());
-    text_layer_set_text_color(s_time_layer, PBL_IF_COLOR_ELSE(g_config->color_time, GColorWhite));
+    text_layer_set_text_color(s_time_layer, theme_pick(g_config->color_time, theme_fg()));
+    text_layer_set_text_color(s_am_pm_layer, theme_fg());  // re-apply: create-time value goes stale on a live theme flip
     time_layer_tick();  // Update main time text and layer positions
 }
 

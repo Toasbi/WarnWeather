@@ -9,6 +9,7 @@
 #include "c/services/health.h"
 #include "c/services/health_cache.h"
 #include "c/appendix/config.h"         // g_config->top_view_mode
+#include "c/appendix/theme.h"
 
 // The health view exists only on health-capable hardware. Platforms without
 // PBL_HEALTH (e.g. aplite, which has no sensors) compile this module out
@@ -30,13 +31,14 @@
 #define HEALTH_HR_LO              40
 #define HEALTH_HR_HI             180
 
-// Gray axis frame, matching the forecast's night axis (GColorDarkGray); white on B&W.
-#define HEALTH_AXIS_COLOR         PBL_IF_COLOR_ELSE(GColorDarkGray, GColorWhite)
+// Gray axis frame, matching the forecast's night axis (GColorDarkGray); theme_fg()
+// on B&W. theme_furniture() flattens the gray to black in the light theme.
+#define HEALTH_AXIS_COLOR         theme_pick(theme_furniture(GColorDarkGray), theme_fg())
 
 // Dashed horizontal gridline(s) at the labeled step marks (see compute_step_marks).
 // Same gray family as the axis; the dashing (2px on / 2px off) keeps it distinct from
 // the solid frame.
-#define STEP_GRID_COLOR           PBL_IF_COLOR_ELSE(GColorDarkGray, GColorWhite)
+#define STEP_GRID_COLOR           theme_pick(theme_furniture(GColorDarkGray), theme_fg())
 #define STEP_GRID_DASH            4      // dash period px (draws a 2px dash each period)
 
 // Extra clearance the HR baseline keeps above the sleep stripe. Full top-view has a
@@ -97,17 +99,14 @@ static void sleep_stripe_draw(const ChartRender *r, void *user) {
         // Full slot pitch → a continuous band across adjacent sleeping hours.
         const int x = chart_slot_bar_x(&r->geo, i) - r->geo.slots.bar_dx;
         const GRect rect = GRect(x, stripe_y, pitch, h);
-#if defined(PBL_COLOR)
+        // DEEP = the stronger fill (Blue on colour, theme_fg() on B&W); LIGHT =
+        // VividCerulean on colour, GColorLightGray on B&W (untouched — a data gray,
+        // not a default-foreground white; stays distinguishable from a now-black
+        // DEEP band in the light theme too).
         graphics_context_set_fill_color(r->ctx,
-            state == HEALTH_SLEEP_DEEP ? GColorBlue : GColorVividCerulean);
+            state == HEALTH_SLEEP_DEEP ? theme_pick(GColorBlue, theme_fg())
+                                       : theme_pick(GColorVividCerulean, GColorLightGray));
         graphics_fill_rect(r->ctx, rect, 0, GCornerNone);
-#else
-        // DEEP = solid white (the stronger fill); LIGHT = GColorLightGray, which the
-        // 1-bit display dithers to a checkerboard — a lighter texture than DEEP.
-        graphics_context_set_fill_color(r->ctx,
-            state == HEALTH_SLEEP_DEEP ? GColorWhite : GColorLightGray);
-        graphics_fill_rect(r->ctx, rect, 0, GCornerNone);
-#endif
     }
 }
 
@@ -275,12 +274,12 @@ static void draw_left_axis(GContext *ctx, int h, int hi) {
     const int axis_y  = h - BOTTOM_VIEW_AXIS_H;   // plot bottom; plot height == axis_y
 
     // Mask the label strip (anything that bled left of the plot).
-    graphics_context_set_fill_color(ctx, GColorBlack);
+    graphics_context_set_fill_color(ctx, theme_bg());
     graphics_fill_rect(ctx, GRect(0, 0, inset_w, axis_y), 0, GCornerNone);
 
     if (axis_y <= 0 || hi <= 0) { return; }
 
-    graphics_context_set_text_color(ctx, GColorWhite);
+    graphics_context_set_text_color(ctx, theme_fg());
     const GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_18);
     for (int i = 0; i < s_step_mark_n; ++i) {
         const int v = s_step_marks[i];
@@ -303,9 +302,9 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
     // HealthService calls here either way (spec goal #1).
     if (!health_cache_ready()) {
         const GRect b = layer_get_bounds(layer);
-        graphics_context_set_fill_color(ctx, GColorBlack);
+        graphics_context_set_fill_color(ctx, theme_bg());
         graphics_fill_rect(ctx, b, 0, GCornerNone);
-        graphics_context_set_text_color(ctx, GColorWhite);
+        graphics_context_set_text_color(ctx, theme_fg());
         // Center vertically on the ACTUAL wrapped height: "Loading health data..."
         // is one line on wide displays but wraps to two on a 144 px band, so a
         // fixed y (the old b.size.h / 3) sat too high. Measure, then center.
@@ -358,12 +357,16 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
     //  4. HR line (LINE, solid) — primary line, styled like forecast's temp line.
     //  5. Frame (left + bottom borders).
     //  6. Axis (bottom hour labels/ticks).
-    // On B&W the fill is BLACK, not white: BAR_OUTLINED adds a white silhouette, so a
-    // black fill leaves just the outline (matching the rain bars, palette.c). A white
-    // fill here would combine with the white outline into a solid white bar.
-    static const ChartColorStop step_stops[1] = {
-        { .from = 0, .color = PBL_IF_COLOR_ELSE(GColorGreen, GColorBlack) },
-    };
+    // On B&W (device or bw theme) the fill is theme_bg() — the polarity background,
+    // not a fixed color — and BAR_OUTLINED adds a theme_fg() silhouette on top
+    // (matching the rain bars, palette.c): bw-dark fills black (pixel-identical to
+    // pre-theme v1, combining with the white outline into what reads as a solid
+    // white bar) and bw-light fills white with a black outline, the polarity
+    // mirror. theme_pick() is a runtime call on color builds, so this can no longer
+    // be a static initializer — module-static scratch, rebuilt each redraw (mirrors
+    // rain_radar_layer.c's radar_tick_style()).
+    static ChartColorStop step_stops[1];
+    step_stops[0] = (ChartColorStop){ .from = 0, .color = theme_pick(GColorGreen, theme_bg()) };
 
     // aplite-style discipline: per-frame layer array is module-static, not stack.
     // Max reachable here is 6 (sleep + gridlines + bars + HR + frame + axis).
@@ -380,7 +383,7 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
         .values = s_steps, .count = visible_slots,
         .lo = 0, .hi = s_step_hi,
         .stops = step_stops, .num_stops = 1,
-        .style = PBL_IF_COLOR_ELSE(BAR_SOLID, BAR_OUTLINED) } };
+        .style = BAR_OUTLINED } };
 
     // Always add the HR line: the cache stores CHART_ABSENT for hours with no
     // reading, so the solid line breaks across gaps and draws nothing when HR is
@@ -388,7 +391,7 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
     layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
         .values = s_hr, .count = visible_slots,
         .lo = HEALTH_HR_LO, .hi = HEALTH_HR_HI,
-        .color = PBL_IF_COLOR_ELSE(GColorRed, GColorWhite),
+        .color = theme_pick(GColorRed, theme_fg()),
         .width = 3,
         // Normal top margin; the bottom reserves the sleep-stripe height plus a gap
         // so low sleeping-hour HR readings ride clear above the stripe instead of
@@ -403,7 +406,7 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
         .bottom = { 1, HEALTH_AXIS_COLOR } } } };
 
     layers[n++] = (ChartLayer){ CHART_LAYER_AXIS, .axis = {
-        .side = GRAPH_SIDE_BOTTOM, .style = BOTTOM_VIEW_TICK_STYLE,
+        .side = GRAPH_SIDE_BOTTOM, .style = bottom_view_tick_style(),
         .slots = axis_slots,
         .label_align = ALIGN_START, .tick_align = ALIGN_START } };
 

@@ -11,13 +11,16 @@
 #include "c/appendix/series.h"
 #include "c/appendix/forecast_grid.h"
 #include "c/appendix/bottom_view.h"
+#include "c/appendix/theme.h"
 
 #define TEMP_LABEL_PAD 2
 #define TEMP_LABEL_MEASURE_BOX_W 200
 #define TEMP_LABEL_MEASURE_BOX_H 40
-#define NIGHT_HATCH_SPACING PBL_IF_COLOR_ELSE(6, 7)
+#define NIGHT_HATCH_SPACING (theme_is_bw() ? 7 : 6)
 #define NIGHT_HATCH_COLOR GColorDarkGray
-#define NIGHT_BOUNDARY_COLOR PBL_IF_COLOR_ELSE(GColorDarkGray, GColorLightGray)
+// bw-dark unchanged (GColorLightGray); bw-light swaps to GColorDarkGray — a
+// LightGray boundary line reads too faint against a white bw-light background.
+#define NIGHT_BOUNDARY_COLOR theme_pick(GColorDarkGray, theme_is_light() ? GColorDarkGray : GColorLightGray)
 // The night base/hatch/boundary for the FILLED area are derived per metric from
 // the day fill colour PKJS sent (night_area_palette_for_fill), so each metric
 // keeps its own hue at night. B&W has no range, so the night-area path draws White
@@ -27,12 +30,13 @@
 #define DAY_SECONDS (24 * 60 * 60)
 
 // Chart config: frame + ticks + slots in one block. Two variants because
-// the axis colour tracks the night-overlay state — orange (or white on
+// the axis colour tracks the night-overlay state — orange (or theme_fg() on
 // B&W) normally, darker grey under night shading so the axis reads as
 // part of the night region instead of competing with it. Left and
 // bottom share one colour per variant. Ticks and slots are identical
-// between variants; only the frame swaps at draw time.
-#define FORECAST_AXIS_COLOR_NIGHT  PBL_IF_COLOR_ELSE(GColorDarkGray, GColorWhite)
+// between variants; only the frame swaps at draw time. theme_furniture()
+// flattens the gray to black in the light theme.
+#define FORECAST_AXIS_COLOR_NIGHT  theme_pick(theme_furniture(GColorDarkGray), theme_fg())
 
 typedef struct
 {
@@ -74,7 +78,7 @@ static void load_dataset(ForecastDataset *ds) {
     // Per-id literals — every value (incl. resolved color) set inline.
     ds->series[SERIES_FIRST] = (Series){
         .id = SERIES_FIRST, .kind = SERIES_KIND_LINE, .present = (n > 0),
-        .line = { .color = PBL_IF_COLOR_ELSE(GColorRed, GColorWhite),
+        .line = { .color = theme_pick(GColorRed, theme_fg()),
                   .width = 3, .inset_y = BOTTOM_VIEW_PRIMARY_LINE_INSET_Y } };
 
     ds->series[SERIES_SECOND] = (Series){
@@ -95,7 +99,7 @@ static void load_dataset(ForecastDataset *ds) {
     ds->series[SERIES_BARS] = (Series){
         .id = SERIES_BARS, .kind = SERIES_KIND_BARS,
         .present = persist_series_present(SERIES_BARS),
-        .bars = { .style = PBL_IF_COLOR_ELSE(BAR_SOLID, BAR_OUTLINED) } };
+        .bars = { .style = BAR_OUTLINED } };
     // .bars.stops/.num_stops are attached at render (scaled palette).
 
     if (n > 0) {
@@ -265,13 +269,21 @@ static int build_night_bands(ChartBand *out, int max,
 typedef struct { GColor base, hatch, boundary; } NightAreaPalette;
 
 // Night base/hatch/boundary for the filled area, keyed on the day fill colour PKJS sent.
-// Used only on colour platforms (B&W draws White via the has_underlay/hatch gates). The four
-// day fills are distinct GColor8 values, so equality keys them; precip is the default.
+// Used only on colour platforms (B&W draws White via the has_underlay/hatch gates). The
+// eight dark- and light-theme day fills (4 metrics x 2 polarities) are distinct GColor8
+// values, so equality keys them; precip (dark) is the default.
 static NightAreaPalette night_area_palette_for_fill(GColor fill) {
-    if (gcolor_equal(fill, GColorArmyGreen)) { return (NightAreaPalette){ GColorArmyGreen, GColorLimerick, GColorLimerick }; }      // wind
-    if (gcolor_equal(fill, GColorPurple))    { return (NightAreaPalette){ GColorImperialPurple, GColorPurple, GColorVividViolet }; } // uv
-    if (gcolor_equal(fill, GColorDarkGray))  { return (NightAreaPalette){ GColorDarkGray, GColorLightGray, GColorLightGray }; }      // gust
-    return (NightAreaPalette){ GColorDukeBlue, GColorBlue, GColorVividCerulean };                                                    // precip / default
+    if (gcolor_equal(fill, GColorArmyGreen)) { return (NightAreaPalette){ GColorArmyGreen, GColorLimerick, GColorLimerick }; }      // wind (dark)
+    if (gcolor_equal(fill, GColorPurple))    { return (NightAreaPalette){ GColorImperialPurple, GColorPurple, GColorVividViolet }; } // uv (dark)
+    if (gcolor_equal(fill, GColorDarkGray))  { return (NightAreaPalette){ GColorDarkGray, GColorLightGray, GColorLightGray }; }      // gust (dark)
+    // Light-theme fills (forecast-series.js FILL_COLORS `light` entries — brighter
+    // tints so each metric's fill reads against a white window background instead of
+    // the dark-theme shade above). Base sits between the dark-theme base above and
+    // the bright fill itself: lighter than the dark base, slightly darker than the
+    // Light-theme fills (Celeste/Inchworm/ShockingPink/LightGray) never reach this
+    // table: light (color) polarity skips the night_under layer entirely — the fill
+    // keeps its day color under the night overlay (see the call site).
+    return (NightAreaPalette){ GColorDukeBlue, GColorBlue, GColorVividCerulean };                                                    // precip (dark) / default
 }
 
 static GSize temp_label_string_size(const char *text);
@@ -282,10 +294,10 @@ static void draw_left_axis(GContext *ctx, int h) {
     // the update proc.
     const int strip_w = bottom_view_label_strip_w();
     const int inset_w = bottom_view_graph_inset();
-    graphics_context_set_fill_color(ctx, GColorBlack);
+    graphics_context_set_fill_color(ctx, theme_bg());
     graphics_fill_rect(ctx, GRect(0, 0, inset_w, h - BOTTOM_VIEW_AXIS_H), 0, GCornerNone);
 
-    graphics_context_set_text_color(ctx, GColorWhite);
+    graphics_context_set_text_color(ctx, theme_fg());
     GSize hi_size = temp_label_string_size(s_buffer_hi);
     GSize lo_size = temp_label_string_size(s_buffer_lo);
     const int16_t axis_y = h - BOTTOM_VIEW_AXIS_H;
@@ -320,12 +332,14 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     GRect graph_bounds = layout.graph_bounds;
     int h = layout.h;
 
-    ForecastDataset ds;
+    // Single static layer, single-threaded redraw: keep the dataset off the stack so
+    // nested chart_draw/SDK graphics calls retain enough stack headroom.
+    static ForecastDataset ds;
     load_dataset(&ds);
     MemoryHeapProbe redraw_probe = MEMORY_HEAP_PROBE_START("forecast_update");
     if (ds.num_entries < 2)
     {
-        graphics_context_set_fill_color(ctx, GColorBlack);
+        graphics_context_set_fill_color(ctx, theme_bg());
         graphics_fill_rect(ctx, bounds, 0, GCornerNone);
         MEMORY_LOG_HEAP("forecast_update:exit");
         return;
@@ -414,23 +428,28 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .fill_color = second->line.fill_color } };
     }
     // night_under re-shades the filled area, so it needs the AREA layer's
-    // exported contour and only runs when the fill is present.
-    if (night_on && fill_on) {
+    // exported contour and only runs when the fill is present. Light (color)
+    // polarity skips it entirely: the fill keeps its day color under the night
+    // overlay (no darker re-shade — user-tuned), and night_over's dots alone
+    // carry the night marking. bw themes keep it (its fg hatch dots below the
+    // contour are B&W's night texture; the underlay is color-only anyway), and
+    // on B&W builds theme_is_bw() is constant-true so the skip compiles out.
+    if (night_on && fill_on && !(theme_is_light() && !theme_is_bw())) {
         const NightAreaPalette np = night_area_palette_for_fill(second->line.fill_color);
         layers[n++] = (ChartLayer){ CHART_LAYER_HATCH, .hatch = {
             .bands = night_bands, .num_bands = num_night_bands,
-            .hatch_color    = PBL_IF_COLOR_ELSE(np.hatch, GColorWhite),
-            .boundary_color = PBL_IF_COLOR_ELSE(np.boundary, GColorWhite),
+            .hatch_color    = theme_pick(np.hatch, theme_fg()),
+            .boundary_color = theme_pick(np.boundary, theme_fg()),
             .spacing        = NIGHT_HATCH_SPACING,
             .underlay_color = np.base,
-            .has_underlay   = PBL_IF_COLOR_ELSE(true, false),
+            .has_underlay   = !theme_is_bw(),
             .contour        = area_pts, .contour_count = ds.num_entries } };
     }
     // night_over is the full-height day/night hatch — independent of line/bars.
     if (night_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_HATCH, .hatch = {
             .bands = night_bands, .num_bands = num_night_bands,
-            .hatch_color    = PBL_IF_COLOR_ELSE(NIGHT_HATCH_COLOR, GColorWhite),
+            .hatch_color    = theme_pick(NIGHT_HATCH_COLOR, theme_fg()),
             .boundary_color = NIGHT_BOUNDARY_COLOR,
             .spacing        = NIGHT_HATCH_SPACING,
             .contour        = NULL } };
@@ -485,7 +504,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         .left   = { 1, axis_color },
         .bottom = { 1, axis_color } } } };
     layers[n++] = (ChartLayer){ CHART_LAYER_AXIS, .axis = {
-        .side = GRAPH_SIDE_BOTTOM, .style = BOTTOM_VIEW_TICK_STYLE,
+        .side = GRAPH_SIDE_BOTTOM, .style = bottom_view_tick_style(),
         .slots = axis_slots,
         .label_align = ALIGN_START, .tick_align = ALIGN_START } };
     chart_draw(ctx, &FORECAST_GRID_DEF, outer, layers, n);

@@ -11,6 +11,7 @@
 #include "c/appendix/display_width.h"
 #include "c/appendix/chart.h"
 #include "c/appendix/snooze.h"
+#include "c/appendix/theme.h"
 
 // Layout constants. The axis area sits above the bar plot. Hour labels
 // share a single vertical strip with the tick row: at hour-aligned slot
@@ -44,19 +45,20 @@
 
 // Hatch line spacing for the 1km background bars. Matches the night-shading
 // stride for visual consistency.
-#define RADAR_HATCH_SPACING PBL_IF_COLOR_ELSE(6, 7)
+#define RADAR_HATCH_SPACING (theme_is_bw() ? 7 : 6)
 
 // Hatch fill colour for the 1km nearby-rain shape. Matches the
-// night-region hatch (DarkGray on colour, White on B&W) so the fill
+// night-region hatch (DarkGray on colour, theme_fg() on B&W) so the fill
 // reads as low-emphasis context; tier intensity is conveyed by the
-// outline + the exact bars on top.
-#define RADAR_AREA_HATCH_COLOR PBL_IF_COLOR_ELSE(GColorDarkGray, GColorWhite)
+// outline + the exact bars on top. theme_furniture() flattens the gray to
+// black in the light theme (a midtone gray reads too close to white).
+#define RADAR_AREA_HATCH_COLOR theme_pick(theme_furniture(GColorDarkGray), theme_fg())
 
 // Chart config: no-border frame; top tick row sits in the axis strip
 // above the bar plot. Small ticks every 5-min slot, big ticks on
 // wall-clock quarter-hours. Outer for the radar is the bar plot rect —
 // top ticks extend upward from there into the axis strip.
-#define RADAR_TICK_COLOR PBL_IF_COLOR_ELSE(GColorLightGray, GColorWhite)
+#define RADAR_TICK_COLOR theme_pick(theme_furniture(GColorLightGray), theme_fg())
 
 // Breathing room around the snooze glyphs inside the layer bounds.
 #define RADAR_SNOOZE_INSET 4
@@ -69,10 +71,15 @@ static const ChartDef RADAR_DEF = {
     // no borders, no insets — the radar plot fills its outer rect
 };
 
-static const TickSide RADAR_TICK_STYLE = {
-    .length     = 2,  .color     = RADAR_TICK_COLOR,
-    .big_length = 5,  .big_color = RADAR_TICK_COLOR,
-};
+// RADAR_TICK_COLOR is now a runtime call (theme_pick/theme_furniture), so this can
+// no longer be a static initializer (C requires static-storage-duration objects to
+// be initialized with constant expressions) — build it fresh on every redraw
+// instead. Its one call site (below) assigns into a LOCAL, non-static array, where
+// a runtime-computed initializer is fine.
+static TickSide radar_tick_style(void) {
+    GColor c = RADAR_TICK_COLOR;
+    return (TickSide){ .length = 2, .color = c, .big_length = 5, .big_color = c };
+}
 
 static Layer *s_radar_layer;
 
@@ -104,6 +111,16 @@ static inline int slot_height_px(uint8_t tenths, int16_t bar_plot_h) {
 // slot — the border at column k matches the colour of the topmost slab
 // of the exact bar in column k. Falls back to the area tier when the
 // slot has no exact bar so the border still has a colour.
+// B&W audit note: palette_radar_color() now returns a bar-FILL colour
+// (theme_bg()) in bw themes, not an outline colour — but that's moot here.
+// This result only reaches the screen via nearby_border_h_line/v_line below,
+// which unconditionally override the stroke colour to theme_fg() whenever
+// theme_is_bw() (both on B&W hardware and a color build's bw/bw-light theme),
+// ignoring whatever this function returned. So in bw themes this call is dead
+// for rendering purposes; only the effectively-color (!theme_is_bw()) path
+// actually paints with it, where palette_radar_color()'s tier colours are
+// exactly right for an outline. Left as the raw stop rather than a redundant
+// theme_fg() guard here.
 static GColor border_color_for_slot(uint8_t exact_t, uint8_t area_t) {
     int tier = rain_tier_of_tenths(exact_t);
     if (tier == 0) {
@@ -113,29 +130,34 @@ static GColor border_color_for_slot(uint8_t exact_t, uint8_t area_t) {
 }
 
 // Draw a dotted horizontal/vertical line segment for the nearby border on
-// B&W devices; fall back to a solid line on colour devices.
+// B&W devices (hardware or the color-build Black & White theme); fall back
+// to a solid line on effectively-color devices.
 static void nearby_border_h_line(GContext *ctx, int16_t x0, int16_t x1, int16_t y) {
 #ifdef PBL_COLOR
-    graphics_draw_line(ctx, GPoint(x0, y), GPoint(x1, y));
-#else
-    graphics_context_set_stroke_color(ctx, GColorWhite);
+    if (!theme_is_bw()) {
+        graphics_draw_line(ctx, GPoint(x0, y), GPoint(x1, y));
+        return;
+    }
+#endif
+    graphics_context_set_stroke_color(ctx, theme_fg());
     if (x0 > x1) { int16_t t = x0; x0 = x1; x1 = t; }
     for (int16_t x = x0; x <= x1; x += 2) {
         graphics_draw_pixel(ctx, GPoint(x, y));
     }
-#endif
 }
 
 static void nearby_border_v_line(GContext *ctx, int16_t x, int16_t y0, int16_t y1) {
 #ifdef PBL_COLOR
-    graphics_draw_line(ctx, GPoint(x, y0), GPoint(x, y1));
-#else
-    graphics_context_set_stroke_color(ctx, GColorWhite);
+    if (!theme_is_bw()) {
+        graphics_draw_line(ctx, GPoint(x, y0), GPoint(x, y1));
+        return;
+    }
+#endif
+    graphics_context_set_stroke_color(ctx, theme_fg());
     if (y0 > y1) { int16_t t = y0; y0 = y1; y1 = t; }
     for (int16_t y = y0; y <= y1; y += 2) {
         graphics_draw_pixel(ctx, GPoint(x, y));
     }
-#endif
 }
 
 // Pass 1: 1km background bars. Per slot with area > 0, hatch-fill a
@@ -291,14 +313,14 @@ static void radar_or_snooze_update_proc(Layer *layer, GContext *ctx) {
 
     const ChartLayer layers[] = {
         { CHART_LAYER_AXIS, .axis = {
-              .side = GRAPH_SIDE_TOP, .style = RADAR_TICK_STYLE,
+              .side = GRAPH_SIDE_TOP, .style = radar_tick_style(),
               .slots = axis_slots,
               .label_align = ALIGN_START, .tick_align = ALIGN_START } },
         { CHART_LAYER_CUSTOM, .custom = { radar_area_bars_layer, &area_ctx } },
         { CHART_LAYER_BARS, .bars = {
               .values = exact_pm, .count = RADAR_NUM_SLOTS, .lo = 0, .hi = 1000,
               .stops = radar_stops, .num_stops = radar_num_stops,
-              .style = PBL_IF_COLOR_ELSE(BAR_SOLID, BAR_OUTLINED) } },
+              .style = BAR_OUTLINED } },
     };
     chart_draw(ctx, &RADAR_DEF, outer, layers,
                (int)(sizeof(layers) / sizeof(layers[0])));

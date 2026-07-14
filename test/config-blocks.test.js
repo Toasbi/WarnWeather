@@ -276,6 +276,25 @@ test('area fill works for every main metric, in its palette fill color', () => {
   assert.equal(off.indexOf('fill="#555500"'), -1, 'no fill when the toggle is off');
 });
 
+test('area fill uses the brighter light-theme variant when theme is light', () => {
+  const base = { barSource: 'off', windScale: 'mid', dayNightShading: false, theme: 'light' };
+  const wind = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind', secondaryLineFill: true }), { color: true });
+  const uv = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'uv', secondaryLineFill: true }), { color: true });
+  assert.ok(wind.indexOf('fill="#AAFF55"') >= 0, 'wind light fill = Inchworm');
+  assert.equal(wind.indexOf('fill="#555500"'), -1, 'not the dark-theme ArmyGreen fill');
+  assert.ok(uv.indexOf('fill="#FF55FF"') >= 0, 'uv light fill = ShockingPink');
+});
+
+test('precip line + fill go one step darker in the light theme (readability round)', () => {
+  const base = { barSource: 'off', windScale: 'mid', dayNightShading: false, secondaryLine: 'precip_prob', theme: 'light' };
+  const line = B.forecastPreview(base, { color: true });
+  assert.ok(line.indexOf('stroke="#00AAFF"') >= 0, 'precip light line = VividCerulean');
+  assert.equal(line.indexOf('stroke="#55AAFF"'), -1, 'not the dark-theme PictonBlue line');
+  const filled = B.forecastPreview(Object.assign({}, base, { secondaryLineFill: true }), { color: true });
+  assert.ok(filled.indexOf('fill="#55FFFF"') >= 0, 'precip light fill = ElectricBlue (one step darker than Celeste)');
+  assert.equal(filled.indexOf('fill="#AAFFFF"'), -1, 'not the pre-fix Celeste fill');
+});
+
 test('presetContents resolves each named preset directly (layoutPreset set)', () => {
     const vc = require('../src/pkjs/view-cycle.js');
     assert.deepEqual(B.presetContents({ layoutPreset: 'fullCal', healthMode: 'off', radarProvider: 'disabled' }),
@@ -442,6 +461,134 @@ test('radarPreview (rainbow) still renders exact bars and the countdown band', (
   const svg = B.radarPreview({ radarProvider: 'rainbow', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: true });
   assert.ok(/^<svg/.test(svg), 'renders an SVG, not the off message');
   assert.ok(svg.indexOf("Rain in 15'") >= 0, 'countdown band applies to rainbow too');
+});
+
+test('forecastPreview: light theme flips the canvas background to white', () => {
+  const state = { dayNightShading: true, barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'off', theme: 'light' };
+  const svg = B.forecastPreview(state, { color: true });
+  assert.ok(svg.indexOf('fill="#FFFFFF"') >= 0, 'canvas background is now white');
+});
+
+test('forecastPreview: bw theme on a color env renders the B&W path, not multicolor', () => {
+  const state = { dayNightShading: true, barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'off', theme: 'bw' };
+  const color = B.forecastPreview({ ...state, theme: 'dark' }, { color: true });
+  const bw = B.forecastPreview(state, { color: true });
+  assert.ok(color.indexOf('fill="#00FF00"') >= 0, 'sanity: dark theme on a color env keeps multicolor bands');
+  assert.equal(bw.indexOf('fill="#00FF00"'), -1, 'bw theme drops multicolor rain bands even though env.color is true');
+});
+
+test('forecastPreview: bw-light theme on a color env renders the B&W path with a white canvas (light polarity)', () => {
+  const state = { dayNightShading: true, barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'off', theme: 'bw-light' };
+  const svg = B.forecastPreview(state, { color: true });
+  assert.equal(svg.indexOf('fill="#00FF00"'), -1, 'bw-light theme drops multicolor rain bands even though env.color is true');
+  assert.ok(svg.indexOf('fill="#FFFFFF"') >= 0, 'canvas background is white (light polarity)');
+});
+
+test('radarPreview: light theme flips the canvas background to white', () => {
+  const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'light' }, { color: true });
+  assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0);
+});
+
+// A bar drawn by rainBars() in outline mode is a <path fill="BG" stroke="FG"
+// stroke-width="1">; a solid bar is a <rect ... fill="COLOR">. The watch's actual
+// bw-theme bar (chart.c BAR_OUTLINED) is a theme_bg()-filled bar with a theme_fg()
+// outline on top, opaque against whatever's behind it (e.g. a dithered area fill) —
+// so the preview's outline path is filled with the polarity background (bg), not
+// left transparent, matching that opacity; see the block comment above rainBars'
+// `outline` param.
+const OUTLINE_MARK = 'fill="#FFFFFF" stroke="#000000" stroke-width="1"';
+
+test('radarPreview: bw theme on a color env outlines the exact bars in white, filled opaque black (not a solid white fill, not hollow)', () => {
+  const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'bw' }, { color: true });
+  assert.equal(svg.indexOf('fill="#00FF00"'), -1, 'no multicolor bands');
+  assert.ok(svg.indexOf('fill="#000000" stroke="#FFFFFF" stroke-width="1"') >= 0,
+    'exact bars are opaque black-filled with a white outline (mirrors the watch\'s theme_bg()-filled + theme_fg()-outlined bar)');
+});
+
+test('radarPreview: bw-light theme on a color env outlines the exact bars in black, filled opaque white (light polarity)', () => {
+  const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'bw-light' }, { color: true });
+  assert.equal(svg.indexOf('fill="#00FF00"'), -1, 'no multicolor bands');
+  assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0, 'canvas background is white');
+  assert.ok(svg.indexOf(OUTLINE_MARK) >= 0,
+    'exact bars are opaque white-filled with a black outline — the polarity mirror of bw, not a hollow box');
+});
+
+test('forecastPreview: bw/bw-light rain bars are opaque (filled with the polarity background), not hollow outlines', () => {
+  const base = { barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'off', windScale: 'mid', dayNightShading: false };
+  const bw = B.forecastPreview(Object.assign({}, base, { theme: 'bw' }), { color: true });
+  assert.ok(bw.indexOf('fill="#000000" stroke="#FFFFFF" stroke-width="1"') >= 0,
+    'bw rain bars are opaque black-filled with a white outline');
+  const bwLight = B.forecastPreview(Object.assign({}, base, { theme: 'bw-light' }), { color: true });
+  assert.ok(bwLight.indexOf(OUTLINE_MARK) >= 0,
+    'bw-light rain bars are opaque white-filled with a black outline');
+});
+
+test('forecastPreview: bw rain bars draw above (after) the dithered metric-area fill, matching the watch\'s z-order', () => {
+  const state = {
+    barSource: 'rain', rainBarColor: 'multicolor', windScale: 'mid', dayNightShading: false, theme: 'bw',
+    secondaryLine: 'precip_prob', secondaryLineFill: true
+  };
+  const svg = B.forecastPreview(state, { color: true });
+  const fillIdx = svg.indexOf('fill="url(#fillhatch)"');
+  const barIdx = svg.indexOf('fill="#000000" stroke="#FFFFFF" stroke-width="1"');
+  assert.ok(fillIdx >= 0, 'the dithered metric-area fill is present');
+  assert.ok(barIdx >= 0, 'an outlined rain bar is present');
+  assert.ok(fillIdx < barIdx, 'the dithered area fill is drawn before the bars, so bars paint over it (watch z-order: AREA then BARS)');
+});
+
+test('radarPreview: radarColor=Solid in the light theme uses DarkGray, not black', () => {
+  // rainCountdownHorizon: '0' — the countdown band's own text is theme_fg() (black in
+  // light polarity), unrelated to bar/legend fill; excluded here to isolate the bars.
+  const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'white', theme: 'light', rainCountdownHorizon: '0' }, { color: true });
+  assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0, 'canvas background is white');
+  assert.ok(svg.indexOf('fill="#555555"') >= 0, 'solid bars/legend render DarkGray');
+  assert.equal(svg.indexOf('fill="#000000"'), -1, 'never a plain black bar/legend fill in the light theme');
+});
+
+test('forecastPreview: rainBarColor=Solid in the light theme uses DarkGray, not black', () => {
+  const state = { barSource: 'rain', rainBarColor: 'white', secondaryLine: 'off', windScale: 'mid', dayNightShading: false, theme: 'light' };
+  const svg = B.forecastPreview(state, { color: true });
+  assert.ok(/width="9"[^>]*fill="#555555"/.test(svg), 'a DarkGray solid rain bar');
+  assert.ok(/width="12"[^>]*fill="#555555"/.test(svg), 'the Rain legend swatch is DarkGray too');
+  assert.equal(svg.indexOf('fill="#000000"'), -1, 'never a plain black fill in the light theme');
+});
+
+test('layoutPreview / layoutPreviewCombined: light theme flips the canvas background to white', () => {
+  const state = { layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'light' };
+  assert.ok(B.layoutPreview(state, {}).indexOf('fill="#FFFFFF"') >= 0);
+  assert.ok(B.layoutPreviewCombined(state, {}).indexOf('fill="#FFFFFF"') >= 0);
+});
+
+test('layoutPreview / layoutPreviewCombined: bw-light theme also flips the canvas background to white', () => {
+  const state = { layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'bw-light' };
+  assert.ok(B.layoutPreview(state, {}).indexOf('fill="#FFFFFF"') >= 0);
+  assert.ok(B.layoutPreviewCombined(state, {}).indexOf('fill="#FFFFFF"') >= 0);
+});
+
+// The band-stack chrome (renderBandStack's band fill, renderBandColumn's band fill +
+// empty-column placeholder) used to be a fixed dark hex regardless of theme, so a light
+// canvas still showed dark "cards" floating on it. Both now wash previewInk's rgba
+// helper — the same theme-relative mechanism the other previews use for dividers/
+// gridlines — instead of a hardcoded color.
+test('layoutPreview / layoutPreviewFlick / layoutPreviewCombined: light theme themes the band chrome too, not just the canvas', () => {
+  const state = { layoutPreset: 'compactCal', healthMode: 'status', radarProvider: 'dwd', theme: 'light' };
+  const preview = B.layoutPreview(state, {});
+  const flick = B.layoutPreviewFlick(state, {});
+  const combined = B.layoutPreviewCombined(state, {});
+  assert.equal(preview.indexOf('#1B1F27'), -1, 'layoutPreview band fill is no longer hardcoded dark');
+  assert.ok(preview.indexOf('rgba(0,0,0,0.12)') >= 0, 'layoutPreview band fill washes black-on-white in light theme');
+  assert.equal(flick.indexOf('#1B1F27'), -1, 'layoutPreviewFlick band fill is no longer hardcoded dark');
+  assert.ok(flick.indexOf('rgba(0,0,0,0.12)') >= 0, 'layoutPreviewFlick band fill washes black-on-white in light theme');
+  assert.equal(combined.indexOf('#1B1F27'), -1, 'layoutPreviewCombined band fill is no longer hardcoded dark');
+  assert.equal(combined.indexOf('#12151C'), -1, 'layoutPreviewCombined placeholder fill is no longer hardcoded dark');
+  assert.ok(combined.indexOf('rgba(0,0,0,0.12)') >= 0, 'layoutPreviewCombined band fill washes black-on-white in light theme');
+});
+
+test('layoutPreview / layoutPreviewFlick / layoutPreviewCombined: dark theme keeps the light-on-black band wash', () => {
+  const state = { layoutPreset: 'compactCal', healthMode: 'status', radarProvider: 'dwd', theme: 'dark' };
+  assert.ok(B.layoutPreview(state, {}).indexOf('rgba(255,255,255,0.12)') >= 0);
+  assert.ok(B.layoutPreviewFlick(state, {}).indexOf('rgba(255,255,255,0.12)') >= 0);
+  assert.ok(B.layoutPreviewCombined(state, {}).indexOf('rgba(255,255,255,0.12)') >= 0);
 });
 
 test('radarPreview (metno): point provider renders like rainbow — no nearby bars or legend', () => {

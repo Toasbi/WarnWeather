@@ -13,7 +13,8 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/view-cycle.js'),
   path.join(ROOT, 'src/pkjs/settings/blocks.js'),
   path.join(ROOT, 'src/pkjs/settings/wizard.js'),
-  path.join(ROOT, 'src/pkjs/settings/onbuild.js')
+  path.join(ROOT, 'src/pkjs/settings/onbuild.js'),
+  path.join(ROOT, 'src/pkjs/settings/theme-convert.js')
 ];
 
 function run() {

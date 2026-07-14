@@ -35,7 +35,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Optional hourly rain bars — multicolor or white on color watches
 * Optional day/night hatch shading on the graph
 * Fahrenheit and Celsius temperatures
-* Multiple weather providers (Weather Underground, OpenWeatherMap, Open-Meteo, Met.no/MET Norway — Nordics, and Deutscher Wetterdienst via Bright Sky — Germany only)
+* Five weather providers: Weather Underground, OpenWeatherMap, Open-Meteo, Met.no/MET Norway (Nordics), and Deutscher Wetterdienst via Bright Sky (Germany)
 * Weather and radar data from MET Norway is used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — "Data from MET Norway"
 * GPS or manual location entry, with a configurable GPS cache
 * City where forecast was fetched
@@ -64,6 +64,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Sleep mode (battery-saving night pause)
 
 **Customization**
+* **Watchface themes** — Dark (default) and Light on every watch, plus Black & White and B&W Inverted on color watches; set the theme in the General tab
 * Customize time font and color
 * Adjustable layout — choose how much of the screen goes to the calendar vs. the forecast, radar, and health views
 * **Layout preset** — pick a calendar style (**Full calendar**, **Compact calendar**, **Compact calendar (dense)**, or **No calendar**); the wrist-flick cycle then builds itself from your health and radar settings — enable health or radar and a flick reveals them automatically, previewed live in settings

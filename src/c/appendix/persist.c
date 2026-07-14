@@ -2,6 +2,7 @@
 
 #include "persist.h"
 #include "config.h"
+#include "theme.h"
 
 #define TREND_ENCODING_VERSION_CURRENT 2
 
@@ -161,7 +162,7 @@ GColor persist_get_line_color(void) {
 }
 
 GColor persist_get_third_line_color(void) {
-    if (!persist_exists(THIRD_LINE_COLOR)) { return GColorWhite; }
+    if (!persist_exists(THIRD_LINE_COLOR)) { return theme_fg(); }
     return (GColor){ .argb = (uint8_t) persist_read_int(THIRD_LINE_COLOR) };
 }
 

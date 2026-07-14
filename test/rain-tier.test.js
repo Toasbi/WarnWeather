@@ -85,3 +85,39 @@ test('buildPackedPalette: bar vs radar color modes yield different blobs (indepe
   assert.equal(white.length, 3);     // single white stop
   assert.equal(multi.length, 15);    // five tier stops
 });
+
+test('buildPalette: bw theme on a color platform collapses to the single-black-stop B&W default', () => {
+  const p = rainTier.buildPalette('basalt', 'multicolor', 'bw');
+  assert.deepEqual(p, { from: [0], rgb: [0x000000] });
+});
+
+test('buildPalette: bw-light theme on a color platform collapses to a single WHITE stop (light polarity), ignoring colorMode', () => {
+  assert.deepEqual(rainTier.buildPalette('basalt', 'multicolor', 'bw-light'), { from: [0], rgb: [0xFFFFFF] });
+  assert.deepEqual(rainTier.buildPalette('basalt', 'white', 'bw-light'), { from: [0], rgb: [0xFFFFFF] });
+});
+
+test("buildPalette: 'white' mode becomes DarkGray (not black) in the light theme", () => {
+  const p = rainTier.buildPalette('basalt', 'white', 'light');
+  assert.deepEqual(p, { from: [0], rgb: [0x555555] });
+});
+
+test("buildPalette: 'white' mode stays white in dark/bw... except bw always collapses to the polarity stop first", () => {
+  assert.deepEqual(rainTier.buildPalette('basalt', 'white', 'dark'), { from: [0], rgb: [0xFFFFFF] });
+});
+
+test('buildPalette: B&W hardware (not color-capable) is polarity-aware too — black in dark, white in light', () => {
+  assert.deepEqual(rainTier.buildPalette('aplite', 'multicolor', 'dark'), { from: [0], rgb: [0x000000] });
+  assert.deepEqual(rainTier.buildPalette('aplite', 'multicolor', 'light'), { from: [0], rgb: [0xFFFFFF] });
+  assert.deepEqual(rainTier.buildPalette('flint', undefined, 'light'), { from: [0], rgb: [0xFFFFFF] });
+});
+
+test('buildPalette: multicolor passes through untouched regardless of theme', () => {
+  const dark = rainTier.buildPalette('basalt', 'multicolor', 'dark');
+  const light = rainTier.buildPalette('basalt', 'multicolor', 'light');
+  assert.deepEqual(dark, light);
+  assert.equal(dark.rgb.length, 5);
+});
+
+test('buildPalette: theme omitted defaults to dark (backward compatible with preview-palette.js)', () => {
+  assert.deepEqual(rainTier.buildPalette('basalt', 'white'), { from: [0], rgb: [0xFFFFFF] });
+});

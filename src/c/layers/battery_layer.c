@@ -1,5 +1,6 @@
 #include "battery_layer.h"
 #include "c/appendix/memory_log.h"
+#include "c/appendix/theme.h"
 #include "c/services/watch_services.h"
 
 #define BATTERY_NUB_W 2
@@ -30,13 +31,20 @@ static GColor get_battery_color(int level) {
 }
 #endif
 
+static GColor s_battery_power_fg;
+
 static void ensure_battery_power_bitmap_loaded(void) {
+    GColor fg = theme_fg();
+    if (s_battery_power_bitmap && gcolor_equal(s_battery_power_fg, fg)) {
+        return;
+    }
     if (!s_battery_power_bitmap) {
         s_battery_power_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BATTERY_CHARGING);
-        s_battery_palette[0] = GColorWhite;
-        s_battery_palette[1] = GColorClear;
-        gbitmap_set_palette(s_battery_power_bitmap, s_battery_palette, false);
     }
+    s_battery_palette[0] = fg;
+    s_battery_palette[1] = GColorClear;
+    gbitmap_set_palette(s_battery_power_bitmap, s_battery_palette, false);
+    s_battery_power_fg = fg;
 }
 
 static void maybe_unload_battery_power_bitmap(bool show_power_icon) {
@@ -80,9 +88,9 @@ static void battery_update_proc(Layer *layer, GContext *ctx) {
         color_bounds.origin.x, color_bounds.origin.y,
         color_bounds.size.w * (battery_level + 10) / 110, color_bounds.size.h);
 #ifdef PBL_COLOR
-    graphics_context_set_fill_color(ctx, get_battery_color(battery_level));
+    graphics_context_set_fill_color(ctx, theme_is_bw() ? theme_fg() : get_battery_color(battery_level));
 #else
-    graphics_context_set_fill_color(ctx, GColorWhite);
+    graphics_context_set_fill_color(ctx, theme_fg());
 #endif
     graphics_fill_rect(ctx, color_area, 0, GCornerNone);
 
@@ -91,7 +99,7 @@ static void battery_update_proc(Layer *layer, GContext *ctx) {
         draw_power_icon(ctx, h, s_battery_power_bitmap);
     }
 
-    graphics_context_set_stroke_color(ctx, GColorWhite);
+    graphics_context_set_stroke_color(ctx, theme_fg());
     graphics_context_set_stroke_width(ctx, BATTERY_STROKE);
     graphics_draw_rect(ctx, GRect(battery_x, 0, battery_w, h));
 

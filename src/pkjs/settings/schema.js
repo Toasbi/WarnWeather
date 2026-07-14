@@ -58,6 +58,32 @@ module.exports = {
     tabs: [{
         id: 'general', label: 'General', sections: [{
             items: [{
+                type: 'select',
+                messageKey: 'theme',
+                label: 'Theme',
+                defaultValue: 'dark',
+                hintByValue: {
+                    dark: 'Black background, white text/lines (default).',
+                    light: 'White background, black text/lines. Graph colors are unchanged for now.',
+                    bw: 'Renders exactly like a Black & White watch — same colors, same drawing.',
+                    'bw-light': 'Renders exactly like a Black & White watch in its Light theme — black on white.'
+                },
+                options: [['Dark', 'dark'], ['Light (Alpha)', 'light'], ['B&W', 'bw'], ['B&W Inverted', 'bw-light']],
+                showWhen: {env: 'color'},
+                onChange: 'themeConvert'
+            }, {
+                type: 'select',
+                messageKey: 'theme',
+                label: 'Theme',
+                defaultValue: 'dark',
+                hintByValue: {
+                    dark: 'Black background, white text/lines (default).',
+                    light: 'White background, black text/lines. Graph colors are unchanged for now.'
+                },
+                options: [['Dark', 'dark'], ['Light (Alpha)', 'light']],
+                showWhen: {not: {env: 'color'}},
+                onChange: 'themeConvert'
+            }, {
                 type: 'segmented',
                 messageKey: 'temperatureUnits',
                 label: 'Temperature units',
@@ -207,12 +233,17 @@ module.exports = {
                 joinPrevious: true,
                 text: SCALE_NOTE,
                 capabilities: ['COLOR'],
-                showWhen: {key: 'barSource', eq: 'rain'}
+                showWhen: {all: [{key: 'barSource', eq: 'rain'}, {key: 'theme', nin: ['bw', 'bw-light']}]}
             }, {
                 type: 'staticText',
                 joinPrevious: true,
                 text: BW_LEGEND,
-                showWhen: {all: [{not: {env: 'color'}}, {key: 'barSource', eq: 'rain'}]}
+                // Effective color: shows whenever the display isn't rendering as color —
+                // real B&W hardware OR the Black & White theme (bw/bw-light) on a color watch.
+                showWhen: {all: [
+                    {not: {all: [{env: 'color'}, {key: 'theme', nin: ['bw', 'bw-light']}]}},
+                    {key: 'barSource', eq: 'rain'}
+                ]}
             }, {
                 type: 'segmented',
                 messageKey: 'rainBarColor',
@@ -221,8 +252,10 @@ module.exports = {
                 joinPrevious: true,
                 hintByValue: {multicolor: MULTICOLOR_HINT, white: WHITE_HINT},
                 capabilities: ['COLOR'],
-                options: [['Multicolor', 'multicolor'], ['White', 'white']],
-                showWhen: {key: 'barSource', eq: 'rain'}
+                // VALUE stays 'white' for wire compatibility (the watch resolves it to the
+                // right polarity color itself — see rain-tier.js); only the label changes.
+                options: [['Multicolor', 'multicolor'], ['Solid', 'white']],
+                showWhen: {all: [{key: 'barSource', eq: 'rain'}, {key: 'theme', nin: ['bw', 'bw-light']}]}
             }, {
                 type: 'toggle',
                 messageKey: 'dayNightShading',
@@ -258,12 +291,15 @@ module.exports = {
                 joinPrevious: true,
                 text: SCALE_NOTE,
                 capabilities: ['COLOR'],
-                showWhen: {key: 'radarProvider', ne: 'disabled'}
+                showWhen: {all: [{key: 'radarProvider', ne: 'disabled'}, {key: 'theme', nin: ['bw', 'bw-light']}]}
             }, {
                 type: 'staticText',
                 joinPrevious: true,
                 text: BW_LEGEND,
-                showWhen: {all: [{not: {env: 'color'}}, {key: 'radarProvider', ne: 'disabled'}]}
+                showWhen: {all: [
+                    {not: {all: [{env: 'color'}, {key: 'theme', nin: ['bw', 'bw-light']}]}},
+                    {key: 'radarProvider', ne: 'disabled'}
+                ]}
             }, {
                 type: 'segmented',
                 messageKey: 'radarColor',
@@ -271,8 +307,10 @@ module.exports = {
                 defaultValue: 'multicolor',
                 hintByValue: {multicolor: MULTICOLOR_HINT, white: WHITE_HINT},
                 capabilities: ['COLOR'],
-                options: [['Multicolor', 'multicolor'], ['White', 'white']],
-                showWhen: {key: 'radarProvider', ne: 'disabled'}
+                // VALUE stays 'white' for wire compatibility (the watch resolves it to the
+                // right polarity color itself — see rain-tier.js); only the label changes.
+                options: [['Multicolor', 'multicolor'], ['Solid', 'white']],
+                showWhen: {all: [{key: 'radarProvider', ne: 'disabled'}, {key: 'theme', nin: ['bw', 'bw-light']}]}
             }, {
                 type: 'select',
                 messageKey: 'rainCountdownHorizon',
@@ -380,7 +418,8 @@ module.exports = {
                 messageKey: 'colorTime',
                 label: 'Main time color',
                 defaultValue: 0xFFFFFF,
-                capabilities: ['COLOR']
+                capabilities: ['COLOR'],
+                showWhen: {key: 'theme', nin: ['bw', 'bw-light']}
             }]
         }, {
             title: 'Calendar', items: [{
@@ -401,31 +440,43 @@ module.exports = {
                 label: 'Today highlight',
                 defaultValue: 0,
                 capabilities: ['COLOR'],
-                hint: 'Black (default) means match date color; any other value overrides it.'
+                hint: 'Black (default) means match date color; any other value overrides it.',
+                showWhen: {key: 'theme', nin: ['bw', 'bw-light']}
             }, {
                 type: 'color',
                 messageKey: 'colorSunday',
                 label: 'Sunday color',
                 defaultValue: 0xFF0055,
-                capabilities: ['COLOR']
+                capabilities: ['COLOR'],
+                showWhen: {key: 'theme', nin: ['bw', 'bw-light']}
             }, {
                 type: 'color',
                 messageKey: 'colorSaturday',
                 label: 'Saturday color',
                 defaultValue: 0xFF0055,
-                capabilities: ['COLOR']
+                capabilities: ['COLOR'],
+                showWhen: {key: 'theme', nin: ['bw', 'bw-light']}
             }, {type: 'toggle', messageKey: 'holidaysEnabled', label: 'Holiday highlight', defaultValue: true}, {
                 type: 'color',
                 messageKey: 'colorUSFederal',
                 label: 'Holiday color',
                 defaultValue: 0xFF0055,
                 capabilities: ['COLOR'],
-                // White is the "no highlight" appearance for normal days, so it is not a valid
-                // holiday color — the holidaysEnabled toggle owns on/off instead.
+                // White is the "no highlight" appearance in dark; the holidaysEnabled
+                // toggle owns on/off instead of a special color.
                 excludeColors: ['#FFFFFF'],
                 joinPrevious: true,
-                showWhen: {key: 'holidaysEnabled', eq: true}
-
+                showWhen: {all: [{key: 'holidaysEnabled', eq: true}, {key: 'theme', eq: 'dark'}]}
+            }, {
+                type: 'color',
+                messageKey: 'colorUSFederal',
+                label: 'Holiday color',
+                defaultValue: 0xFF0055,
+                capabilities: ['COLOR'],
+                // Black is the "no highlight" appearance in the light theme instead.
+                excludeColors: ['#000000'],
+                joinPrevious: true,
+                showWhen: {all: [{key: 'holidaysEnabled', eq: true}, {key: 'theme', eq: 'light'}]}
             }, {
                 type: 'searchSelect',
                 messageKey: 'holidayCountry',

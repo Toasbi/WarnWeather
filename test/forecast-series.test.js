@@ -168,3 +168,23 @@ test('tempTrendToBytes: negative °F handled (no negative bytes)', () => {
 test('tempTrendToBytes: empty input → empty bytes, zero min/max', () => {
   assert.deepEqual(tempTrendToBytes([]), { bytes: [], min: 0, max: 0 });
 });
+
+test('buildForecastSeries: bw theme on color watch resolves colors as if it were B&W hardware', () => {
+  const out = buildForecastSeries(RAW, { secondaryLine: 'precip_prob', thirdLine: 'off', barSource: 'off', theme: 'bw' }, { platform: 'basalt' });
+  assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFFFF, 'basalt + bw theme uses the same white line a real B&W watch gets');
+});
+
+test('buildForecastSeries: bw-light theme on color watch also resolves as B&W hardware (effective color false)', () => {
+  const out = buildForecastSeries(RAW, { secondaryLine: 'precip_prob', thirdLine: 'off', barSource: 'off', theme: 'bw-light' }, { platform: 'basalt' });
+  assert.equal(out.SECONDARY_LINE_COLOR, 0x000000, 'basalt + bw-light theme: white B&W line flips to black (light polarity)');
+});
+
+test('buildForecastSeries: light theme flips the third-line white fallback to black', () => {
+  const out = buildForecastSeries(RAW, { secondaryLine: 'precip_prob', thirdLine: 'wind', barSource: 'off', theme: 'light' }, { platform: 'diorite' });
+  assert.equal(out.THIRD_LINE_COLOR, 0x000000, 'B&W hardware + light theme: third-line white fallback flips to black');
+});
+
+test('buildForecastSeries: bw-light theme flips the third-line white fallback to black too', () => {
+  const out = buildForecastSeries(RAW, { secondaryLine: 'precip_prob', thirdLine: 'wind', barSource: 'off', theme: 'bw-light' }, { platform: 'diorite' });
+  assert.equal(out.THIRD_LINE_COLOR, 0x000000, 'B&W hardware + bw-light theme: third-line white fallback flips to black');
+});

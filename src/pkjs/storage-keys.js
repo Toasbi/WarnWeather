@@ -5,6 +5,7 @@ module.exports = {
     GEOCODE_CACHE_KEY: 'geocodeCache',
     GEOCODE_BACKOFF_KEY: 'geocodeBackoff',
     LAST_IS_SLEEPING_KEY: 'lastIsSleeping',
+    LAST_HOLIDAY_DAY_KEY: 'last_holiday_day',
     LAST_SENT_FORECAST_KEY: 'lastSentForecast',
     LAST_SENT_STATUS_KEY: 'lastSentStatus',
     LAST_SENT_SUN_KEY: 'lastSentSun',

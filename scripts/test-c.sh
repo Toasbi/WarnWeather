@@ -12,5 +12,9 @@ build/host/layout_test "${1:-}"
 build/host/layout_test_emery "${1:-}"
 cc $CFLAGS test/c/health_build_test.c src/c/services/health_build.c -o build/host/health_build_test
 build/host/health_build_test
+# WW_HOST_FAKE_TIME reroutes time(NULL) inside health_cache.c to the test's
+# controllable clock (see test/c/stub/pebble.h).
+cc $CFLAGS -DWW_HOST_FAKE_TIME test/c/health_cache_test.c src/c/services/health_cache.c src/c/services/health_build.c -o build/host/health_cache_test
+build/host/health_cache_test
 cc $CFLAGS test/c/radar_axis_test.c src/c/appendix/radar_axis.c -o build/host/radar_axis_test
 build/host/radar_axis_test

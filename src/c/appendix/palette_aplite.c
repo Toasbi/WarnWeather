@@ -14,9 +14,16 @@
 // aplite, so --gc-sections strips them and app_message.c / persist.c are untouched.
 
 #include "palette.h"
+#include "theme.h"
 
-// Single black stop shared by both channels; `from == 0` covers the whole range.
-static const ChartColorStop s_bw_stop = { 0, GColorBlack };
+// Single stop shared by both channels; `from == 0` covers the whole range. Not
+// const: .color is set to theme_bg() by the accessors below on every call —
+// theme_bg() reads g_config->theme at runtime, so it can't be a static
+// initializer. Mirrors palette.c's fill_defaults() B&W branch (bw-dark: black,
+// pixel-identical to the literal-black stop this returned before polarity
+// existed; bw-light: white, the polarity mirror). No heap: same module-static
+// instance, just mutated in place before each return.
+static ChartColorStop s_bw_stop = { 0, GColorBlack };
 
 bool palette_set_bar(const uint8_t *packed, int len) {
     (void) packed;
@@ -31,16 +38,24 @@ bool palette_set_radar(const uint8_t *packed, int len) {
 }
 
 const ChartColorStop *palette_bar_stops(int *num_stops) {
+    s_bw_stop.color = theme_bg();
     *num_stops = 1;
     return &s_bw_stop;
 }
 
 const ChartColorStop *palette_radar_stops(int *num_stops) {
+    s_bw_stop.color = theme_bg();
     *num_stops = 1;
     return &s_bw_stop;
 }
 
 GColor palette_radar_color(int tier) {
-    (void) tier;    // every tier is black on a 1-bit screen.
-    return GColorBlack;
+    (void) tier;    // every tier collapses to the one stop on a 1-bit screen.
+    // Bar FILL, not foreground/outline — mirrors theme_bg(), like palette.c's
+    // color-build equivalent (bw-dark: black; bw-light: white). In practice
+    // unreachable on aplite: radar is compiled out here (WW_RAIN_RADAR), and
+    // this function's only other caller (top_status_layer.c's rain_glyph_color)
+    // guards its use behind #ifdef PBL_COLOR. Kept polarity-consistent anyway
+    // for palette.h interface parity with palette.c.
+    return theme_bg();
 }

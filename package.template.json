@@ -1,7 +1,7 @@
 {
   "name": "warnweather",
   "author": "Toasbi",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "buildProfile": "{{buildProfile}}",
   "keywords": [
     "pebble-app"
@@ -197,7 +197,8 @@
       "RADAR_PALETTE_UINT8",
       "IS_SLEEPING",
       "WATCH_HAS_CONFIG",
-      "HOLIDAYS"
+      "HOLIDAYS",
+      "CLAY_THEME"
     ]
   }
 }
