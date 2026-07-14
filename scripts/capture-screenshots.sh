@@ -94,9 +94,16 @@ reset_emulator() {
   run_bounded 30 pebble wipe >/dev/null 2>&1 || true
 }
 
-# Reap on every exit path (set -e abort, screenshot-timeout, Ctrl-C) so a wedged
-# emulator can never outlive the script — matches capture-timelapse.sh.
-trap kill_emulators EXIT
+# WW_BUILD_PLATFORMS narrows package.json's targetPlatforms for the build; package.json is a
+# generated + tracked file, so revert it to HEAD on exit — a capture must never leave the tree
+# dirty (this was leaving package.json narrowed to the last shot's platforms).
+restore_package_json() {
+  git checkout -- package.json >/dev/null 2>&1 || true
+}
+
+# Reap on every exit path (set -e abort, screenshot-timeout, Ctrl-C) so a wedged emulator can
+# never outlive the script — matches capture-timelapse.sh — and restore package.json.
+trap 'kill_emulators; restore_package_json' EXIT
 
 mkdir -p "$raw_dir"
 
