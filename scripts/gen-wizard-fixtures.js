@@ -27,7 +27,11 @@ const SHOTS = [
   { slug: 'health-status',     group: 'healthMode',   val: 'status',     flicks: 0, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'status', radarProvider: 'disabled' }, FORECAST) },
   { slug: 'health-all',        group: 'healthMode',   val: 'all',        flicks: 1, clay: Object.assign({ layoutPreset: 'noCal',      healthMode: 'all', radarProvider: 'disabled' }, FORECAST) },
   { slug: 'radar',             group: 'radar',        val: '_',          flicks: 1, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, FORECAST),
-    radar: { exact: RAIN_EXACT, area: RAIN_AREA }, countdown: { text: "Rain in 15'", tier: 3 } }
+    radar: { exact: RAIN_EXACT, area: RAIN_AREA }, countdown: { text: "Rain in 15'", tier: 3 } },
+  { slug: 'theme-dark',     group: 'theme', val: 'dark',     flicks: 0, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'dark' }, FORECAST) },
+  { slug: 'theme-light',    group: 'theme', val: 'light',    flicks: 0, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'light' }, FORECAST) },
+  { slug: 'theme-bw',       group: 'theme', val: 'bw',       flicks: 0, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'bw' }, FORECAST) },
+  { slug: 'theme-bw-light', group: 'theme', val: 'bw-light', flicks: 0, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'bw-light' }, FORECAST) }
 ];
 function generate(opts = {}) {
   const outDir = opts.outDir ?? 'fixtures';
