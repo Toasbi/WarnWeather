@@ -133,8 +133,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     };
     // Watchface theme (messageKey 'theme'). Mirrors schema.js's two theme selects: color watches get
     // 4 options, B&W hardware only dark/light. Chosen by env.color at render time.
-    var THEME_OPTS_COLOR = [['Dark', 'dark'], ['Light', 'light'], ['B&W', 'bw'], ['B&W Inverted', 'bw-light']];
-    var THEME_OPTS_BW = [['Dark', 'dark'], ['Light', 'light']];
+    var THEME_OPTS_COLOR = [['Dark', 'dark'], ['Light (Alpha)', 'light'], ['B&W', 'bw'], ['B&W Inverted', 'bw-light']];
+    var THEME_OPTS_BW = [['Dark', 'dark'], ['Light (Alpha)', 'light']];
     var THEME_DESC = {
         dark: 'Black background, white text and lines (the default).',
         light: 'White background, black text and lines.',
