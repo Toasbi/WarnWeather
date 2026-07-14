@@ -2,8 +2,8 @@
 'use strict';
 // Wizard screenshot fixtures: one static scene per selectable option (3 layout presets, 3 health
 // modes, 1 radar view), layered on the Berlin base. Mirrors gen-showcase-fixtures.js. `flicks` reaches
-// the intended view; the health-graph view needs a flick (flicks:1); confirm the radar view's
-// flick count visually when capturing.
+// the intended view: the watch boots on the calendar, so the health-graph and radar views each need a
+// flick (flicks:1) — see capture-screenshots.sh's radar_fixtures default. Confirm counts visually when capturing.
 const fs = require('fs');
 const path = require('path');
 const BASE_PATH = path.join('fixtures', 'berlin.json');
@@ -26,7 +26,7 @@ const SHOTS = [
   { slug: 'health-off',        group: 'healthMode',   val: 'off',        flicks: 0, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled' }, FORECAST) },
   { slug: 'health-status',     group: 'healthMode',   val: 'status',     flicks: 0, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'status', radarProvider: 'disabled' }, FORECAST) },
   { slug: 'health-all',        group: 'healthMode',   val: 'all',        flicks: 1, clay: Object.assign({ layoutPreset: 'noCal',      healthMode: 'all', radarProvider: 'disabled' }, FORECAST) },
-  { slug: 'radar',             group: 'radar',        val: '_',          flicks: 0, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, FORECAST),
+  { slug: 'radar',             group: 'radar',        val: '_',          flicks: 1, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, FORECAST),
     radar: { exact: RAIN_EXACT, area: RAIN_AREA }, countdown: { text: "Rain in 15'", tier: 3 } }
 ];
 function generate(opts = {}) {
