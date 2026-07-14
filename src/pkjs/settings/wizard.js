@@ -121,25 +121,26 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         radar: 'Rain radar', health: 'Health', theme: 'Choose your theme', done: 'All set'
     };
     // Per-option copy shown under the carousel for the centered selection (fixes "text doesn't update").
+    // Bodies only — the carousel prepends the option's own label in bold (see cardHintHtml).
     var LAYOUT_DESC = {
-        fullCal: 'Full calendar — a three-row month grid with today highlighted, above the weather status and forecast.',
-        compactCal: 'Compact — a slim agenda row, leaving more room for the 24-hour forecast graph.',
-        noCal: 'No calendar — a big clock and date with the weather status and full-screen forecast.'
+        fullCal: 'a three-row month grid with today highlighted, above the weather status and forecast.',
+        compactCal: 'a slim agenda row, leaving more room for the 24-hour forecast graph.',
+        noCal: 'a big clock and date with the weather status and full-screen forecast.'
     };
     var HEALTH_DESC = {
-        off: 'Off — no health information on the watchface.',
-        status: 'Status bar — today’s steps, last night’s sleep and current heart rate on the status line.',
-        all: 'Status + graph — the status line plus a flick-away graph: hourly step bars, a sleep band and a heart-rate line.'
+        off: 'no health information on the watchface.',
+        status: 'today’s steps, last night’s sleep and current heart rate on the status line.',
+        all: 'the status line plus a flick-away graph: hourly step bars, a sleep band and a heart-rate line.'
     };
     // Watchface theme (messageKey 'theme'). Mirrors schema.js's two theme selects: color watches get
     // 4 options, B&W hardware only dark/light. Chosen by env.color at render time.
     var THEME_OPTS_COLOR = [['Dark', 'dark'], ['Light (Alpha)', 'light'], ['B&W', 'bw'], ['B&W Inverted', 'bw-light']];
     var THEME_OPTS_BW = [['Dark', 'dark'], ['Light (Alpha)', 'light']];
     var THEME_DESC = {
-        dark: 'Black background, white text and lines (the default).',
-        light: 'White background, black text and lines.',
-        bw: 'Renders like a Black & White watch — the same drawing, on your color display.',
-        'bw-light': 'Like a Black & White watch in its light theme — black on white.'
+        dark: 'black background, white text and lines (the default).',
+        light: 'white background, black text and lines.',
+        bw: 'renders like a Black & White watch — the same drawing, on your color display.',
+        'bw-light': 'like a Black & White watch in its light theme — black on white.'
     };
     // Real watch screenshots, base64-inlined by `mise capture-wizard-screenshots` into
     // wizard-screenshots.generated.js (which assigns PConf.screenshots when concatenated into the
@@ -243,10 +244,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             + '<img class="wiz-shot" src="' + esc(shotFor(group, val)) + '" alt="">'
             + '<div class="cap">' + esc(label) + '</div></button>';
     }
+    function labelFor(opts, val) {
+        var i; for (i = 0; i < opts.length; i += 1) { if (opts[i][1] === val) { return opts[i][0]; } }
+        return '';
+    }
+    // The selected option's name in bold, then its description — matching the bold-label bullets
+    // used elsewhere in the steps.
+    function cardHintHtml(label, body) { return '<b>' + esc(label) + '</b> — ' + esc(body || ''); }
     function carousel(group, opts, selVal, desc) {
         var h = '<div class="wiz-car" data-wiz-car="' + esc(group) + '">', i;
         for (i = 0; i < opts.length; i += 1) { h += carCard(group, opts[i][0], opts[i][1], opts[i][1] === selVal); }
-        h += '</div><p class="wiz-cardhint">' + esc(desc[selVal] || '') + '</p>';
+        h += '</div><p class="wiz-cardhint">' + cardHintHtml(labelFor(opts, selVal), desc[selVal]) + '</p>';
         return h;
     }
     function optsFor(group) {
@@ -283,7 +291,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var cards = car.querySelectorAll('.wiz-card'), i;
         for (i = 0; i < cards.length; i += 1) { cards[i].className = (i === idx) ? 'wiz-card on' : 'wiz-card'; }
         var hint = car.parentNode.querySelector('.wiz-cardhint');
-        if (hint) { hint.textContent = descFor(group)[opts[idx][1]] || ''; }
+        if (hint) { hint.innerHTML = cardHintHtml(opts[idx][0], descFor(group)[opts[idx][1]]); }
         if (recenter && cards[idx]) { car.scrollLeft = cards[idx].offsetLeft + cards[idx].offsetWidth / 2 - car.clientWidth / 2; }
     }
     function nearestCard(car) {
@@ -317,7 +325,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
     function stepLayout() {
         return carousel('layoutPreset', LAYOUT_OPTS, W.ctx.S.layoutPreset, LAYOUT_DESC)
-            + '<div style="line-height:1.55;color:var(--muted)">'
+            + '<div>'
             + '<p><b>Weather status</b> — the top strip shows your location, current conditions and sunset.</p>'
             + '<p><b>Forecast</b> — a 24-hour graph: temperature, the precipitation-% line, UV dots and rain bars.</p></div>';
     }
@@ -331,12 +339,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return h;
     }
     function stepHealth() {
-        return carousel('healthMode', HEALTH_OPTS, W.ctx.S.healthMode, HEALTH_DESC)
-            + '<div style="line-height:1.55;color:var(--muted)"><p><b>Health</b> — today’s steps, last night’s sleep and current heart rate, with an optional hourly graph.</p></div>';
+        return carousel('healthMode', HEALTH_OPTS, W.ctx.S.healthMode, HEALTH_DESC);
     }
     function stepTheme() {
         return carousel('theme', optsFor('theme'), W.ctx.S.theme, THEME_DESC)
-            + '<div style="line-height:1.55;color:var(--muted)"><p>The theme sets your watchface’s colours. You can fine-tune individual colours later in Settings.</p></div>';
+            + '<div><p>The theme sets your watchface’s colours. You can fine-tune individual colours later in Settings.</p></div>';
     }
     function stepDone() {
         return '<p><b>You’re all set!</b> Everything is editable later in the settings tabs.</p>'
@@ -376,7 +383,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (W.overlay && W.overlay.parentNode) { W.overlay.parentNode.removeChild(W.overlay); }
         W.overlay = null;
     }
-    function finishSave() { W.ctx.set('onboardingDone', true); closeWizard(); W.ctx.save(); }
+    // Keep the overlay up: save() flashes a toast then navigates back to the watch, which unloads
+    // the page. Removing the overlay first would flash the settings menu before that navigation.
+    function finishSave() { W.ctx.set('onboardingDone', true); W.ctx.save(); }
     function finishTweak() { W.ctx.set('onboardingDone', true); closeWizard(); W.ctx.render(); }
 
     function onNav(nav) {
