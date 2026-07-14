@@ -125,12 +125,9 @@ for platform in "${platforms[@]}"; do
     sleep 4
   done
 
-  # emery boots slower; give it extra time before screenshotting
-  if [[ "$platform" == "emery" ]]; then
-    sleep 12
-  else
-    sleep 5
-  fi
+  # Wait for the watchface to render before screenshotting. Capped at 2s for fast captures;
+  # bump WW_SHOT_WAIT if a slow platform (emery) ever screenshots before it finishes rendering.
+  sleep "${WW_SHOT_WAIT:-2}"
 
   for (( k = 0; k < flicks; k++ )); do
     run_bounded 20 pebble emu-tap --emulator "$platform" || printf 'WARN: emu-tap failed on %s\n' "$platform" >&2
