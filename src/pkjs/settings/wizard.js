@@ -348,7 +348,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             + '<div><p>The theme sets your watchface’s colours. You can fine-tune individual colours later in Settings.</p></div>';
     }
     function stepDone() {
-        return '<p><b>You’re all set!</b> Everything is editable later in the settings tabs.</p>'
+        return '<p><b>You’re all set!</b> Everything is editable later in the settings tabs, and you can run this setup again any time from <b>More → Misc → Run setup again</b>.</p>'
             + '<p>If you enjoy WarnWeather, please ♥ it on the Pebble appstore — it really helps.</p>'
             + '<p>Need help or have feedback? Open an issue on <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>, or use the appstore’s “Message the developer” to reach me directly.</p>';
     }
