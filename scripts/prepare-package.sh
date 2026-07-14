@@ -124,6 +124,21 @@ pkg.rainbow = {
   endpoint: rainbowEndpoint,
 };
 
+// WW_BUILD_PLATFORMS (space/comma-separated) narrows the build to a subset of the
+// template's targetPlatforms — screenshot captures that shoot a single platform set it
+// so \`pebble build\` compiles just that one instead of all five. Unset → build every
+// platform (unchanged default). Unknown names hard-fail rather than silently build nothing.
+const wantPlatforms = String(process.env.WW_BUILD_PLATFORMS || '').split(/[\s,]+/).filter(Boolean);
+if (wantPlatforms.length && pkg.pebble && Array.isArray(pkg.pebble.targetPlatforms)) {
+  const all = pkg.pebble.targetPlatforms;
+  const unknown = wantPlatforms.filter((p) => all.indexOf(p) === -1);
+  if (unknown.length) {
+    throw new Error('WW_BUILD_PLATFORMS has unknown platform(s): ' + unknown.join(', ') + ' (valid: ' + all.join(', ') + ')');
+  }
+  pkg.pebble.targetPlatforms = all.filter((p) => wantPlatforms.indexOf(p) !== -1);
+  console.error('prepare-package: building only ' + pkg.pebble.targetPlatforms.join(', ') + ' (WW_BUILD_PLATFORMS)');
+}
+
 fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
 "
 

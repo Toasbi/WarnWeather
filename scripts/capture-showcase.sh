@@ -28,20 +28,26 @@ node "$here/scripts/gen-showcase-fixtures.js"
 
 # One capture-screenshots run per scene, filing raw/<platform>.png into the scene frame
 # before the next scene overwrites raw/. Scene id + flick count are read from the
-# generator so they never drift from the fixtures.
+# generator so they never drift from the fixtures. Collect the id/flick pairs FIRST, then
+# capture in a separate loop: running capture-screenshots.sh inside `while read < <(node …)`
+# let its pebble/mise children drain the process-substitution fd, so the loop ran only once.
+ids=(); flickss=()
 while IFS= read -r line; do
   [[ -n "$line" ]] || continue
-  id="${line%% *}"
-  flicks="${line##* }"
+  ids+=("${line%% *}"); flickss+=("${line##* }")
+done < <(node -e "require('$here/scripts/gen-showcase-fixtures.js').SCENES.forEach(function(s){console.log(s.id + ' ' + s.flicks);})")
+
+for i in "${!ids[@]}"; do
+  id="${ids[$i]}"; flicks="${flickss[$i]}"
   printf '\n######## showcase scene %s (flicks=%s) ########\n' "$id" "$flicks"
-  FLICKS="$flicks" "$here/scripts/capture-screenshots.sh" "$version" "showcase-$id"
+  FLICKS="$flicks" "$here/scripts/capture-screenshots.sh" "$version" "showcase-$id" </dev/null
   for platform in $PLATFORMS; do
     raw="$here/screenshot/$version/raw/$platform.png"
     dest_dir="$here/screenshot/$version/showcase/frames/$platform"
     mkdir -p "$dest_dir"
     cp "$raw" "$dest_dir/scene_$id.png"
   done
-done < <(node -e "require('$here/scripts/gen-showcase-fixtures.js').SCENES.forEach(function(s){console.log(s.id + ' ' + s.flicks);})")
+done
 
 printf '\nShowcase frames captured under screenshot/%s/showcase/frames/<platform>/.\n' "$version"
 printf 'Assemble the looping GIF per platform:\n'

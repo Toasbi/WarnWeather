@@ -9,7 +9,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 stage="$here/screenshot/tmp/wizard"
 export WW_HEALTH_FIXTURE=1          # canned health values for the health shots
 export PLATFORMS="basalt"           # color-only; used for all watches in the wizard
-export WW_SKIP_TESTS=1              # skip node/C tests on each per-fixture build — capture-only run
+# capture-screenshots.sh defaults WW_SKIP_TESTS=1 and narrows the build to $PLATFORMS.
 node "$here/scripts/gen-wizard-fixtures.js"
 rm -rf "$stage"; mkdir -p "$stage"
 

@@ -27,6 +27,13 @@ else
   platforms=(aplite basalt diorite emery flint)
 fi
 
+# Screenshot captures don't need the unit suites (visual artifact; suites run elsewhere),
+# and building only the platforms we're about to shoot avoids compiling all five for a
+# single-platform capture. Both default here for every screenshot wrapper and stay
+# overridable (WW_SKIP_TESTS=0 / WW_BUILD_PLATFORMS=... before invoking).
+export WW_SKIP_TESTS="${WW_SKIP_TESTS:-1}"
+export WW_BUILD_PLATFORMS="${WW_BUILD_PLATFORMS:-${platforms[*]}}"
+
 # Wrist-flicks to send before the screenshot. FLICKS (an integer) overrides; otherwise 1
 # for the radar fixtures (the watch boots on the calendar and needs a tap to reach the
 # radar), else 0. WW_HEALTH_FIXTURE is read from the environment by the build (mise run
