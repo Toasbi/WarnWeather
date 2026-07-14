@@ -28,8 +28,16 @@ for i in "${!slugs[@]}"; do
   printf '\n######## wizard shot %s (flicks=%s) ########\n' "$slug" "$flicks"
   # </dev/null: keep capture-screenshots.sh (and pebble/mise) off this script's stdin.
   FLICKS="$flicks" "$here/scripts/capture-screenshots.sh" "$version" "wizard-$slug" </dev/null
+  # raw/basalt.png is a scratch file overwritten every shot; stage it under the per-option
+  # name that gen-wizard-screenshots.js reads. The cksum makes each distinct file visible —
+  # if two shots print the SAME cksum, that fixture didn't change the render (investigate).
   cp "$here/screenshot/$version/raw/basalt.png" "$stage/$slug.png"
+  printf '  → staged %s [cksum %s]\n' "$stage/$slug.png" "$(cksum < "$stage/$slug.png" | cut -d' ' -f1)"
 done
+
+echo ""
+echo "Staged shots (distinct cksums expected):"
+( cd "$stage" && cksum ./*.png )
 
 node "$here/scripts/gen-wizard-screenshots.js" "$stage"
 printf '\nWrote src/pkjs/settings/wizard-screenshots.generated.js — review the images, then commit it.\n'
