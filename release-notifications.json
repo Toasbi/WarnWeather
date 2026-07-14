@@ -70,5 +70,9 @@
   "1.7.2": {
     "title": "Themes, new Met.no forecasts, radar & settings themes",
     "body": "Added new themes and Met.no weather forecasts and Nordic rain radar. Settings support light/dark theme as well. Also some health graph performance improvements and other bug fixes."
+  },
+  "1.7.3": {
+    "title": "Onboarding wizard added",
+    "body": "Added an onboarding wizard. Try it out from Settings -> More -> Misc -> Run setup again"
   }
 }
