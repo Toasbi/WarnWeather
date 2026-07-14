@@ -32,13 +32,20 @@ const SHOTS = [
   { slug: 'layout-fullcal',    group: 'layoutPreset', val: 'fullCal',    flicks: 0, platforms: ALL,          clay: Object.assign({ layoutPreset: 'fullCal',    healthMode: 'off', radarProvider: 'disabled' }, FORECAST) },
   { slug: 'layout-compactcal', group: 'layoutPreset', val: 'compactCal', flicks: 0, platforms: ALL,          clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled' }, FORECAST) },
   { slug: 'layout-nocal',      group: 'layoutPreset', val: 'noCal',      flicks: 0, platforms: ALL,          clay: Object.assign({ layoutPreset: 'noCal',      healthMode: 'off', radarProvider: 'disabled' }, FORECAST) },
-  { slug: 'health-off',        group: 'healthMode',   val: 'off',        flicks: 0, platforms: HEALTH_RADAR, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled' }, FORECAST) },
-  { slug: 'health-status',     group: 'healthMode',   val: 'status',     flicks: 0, platforms: HEALTH_RADAR, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'status', radarProvider: 'disabled' }, FORECAST) },
-  { slug: 'health-all',        group: 'healthMode',   val: 'all',        flicks: 1, platforms: HEALTH_RADAR, clay: Object.assign({ layoutPreset: 'noCal',      healthMode: 'all', radarProvider: 'disabled' }, FORECAST) },
+  // compactDense surfaces the health status by default (dual weather+health row) and reaches the
+  // health graph with one flick — the same views the showcase uses. compactCal/noCal hid the health
+  // line at flick 0, so off/status rendered identically. off=weather-only, status=+health line,
+  // all=flick to the health graph.
+  { slug: 'health-off',        group: 'healthMode',   val: 'off',        flicks: 0, platforms: HEALTH_RADAR, clay: Object.assign({ layoutPreset: 'compactDense', healthMode: 'off', radarProvider: 'disabled' }, FORECAST) },
+  { slug: 'health-status',     group: 'healthMode',   val: 'status',     flicks: 0, platforms: HEALTH_RADAR, clay: Object.assign({ layoutPreset: 'compactDense', healthMode: 'status', radarProvider: 'disabled' }, FORECAST) },
+  { slug: 'health-all',        group: 'healthMode',   val: 'all',        flicks: 1, platforms: HEALTH_RADAR, clay: Object.assign({ layoutPreset: 'compactDense', healthMode: 'all', radarProvider: 'disabled' }, FORECAST) },
   { slug: 'radar',             group: 'radar',        val: '_',          flicks: 1, platforms: HEALTH_RADAR, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, FORECAST),
     radar: { exact: RAIN_EXACT, area: RAIN_AREA }, countdown: { text: "Rain in 15'", tier: 3 } },
   { slug: 'theme-dark',     group: 'theme', val: 'dark',     flicks: 0, platforms: ALL,   clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'dark' }, FORECAST) },
-  { slug: 'theme-light',    group: 'theme', val: 'light',    flicks: 0, platforms: ALL,   clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'light' }, FORECAST) },
+  // colorTime is normally flipped white→black by the config-UI 'themeConvert' hook on switching to
+  // a light polarity; the fixture bypasses that, and clay-payload sends colorTime verbatim, so set it
+  // black here — otherwise the default-white time is invisible on the light theme's white background.
+  { slug: 'theme-light',    group: 'theme', val: 'light',    flicks: 0, platforms: ALL,   clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'light', colorTime: '#000000' }, FORECAST) },
   { slug: 'theme-bw',       group: 'theme', val: 'bw',       flicks: 0, platforms: COLOR, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'bw' }, FORECAST) },
   { slug: 'theme-bw-light', group: 'theme', val: 'bw-light', flicks: 0, platforms: COLOR, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'bw-light' }, FORECAST) }
 ];
