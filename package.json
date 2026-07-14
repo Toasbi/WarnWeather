@@ -1,7 +1,7 @@
 {
   "name": "warnweather",
   "author": "Toasbi",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "buildProfile": "dev",
   "keywords": [
     "pebble-app"
@@ -269,12 +269,16 @@
     "1.7.1": {
       "title": "Worldwide rain radar",
       "body": "The rain radar now works everywhere: pick Rainbow as the radar provider in settings for a short-term rain nowcast at your exact location. Let me know how well it work s:) (Fixing a missing API key)"
+    },
+    "1.7.2": {
+      "title": "Themes, new Met.no forecasts, radar & settings themes",
+      "body": "Added new themes and Met.no weather forecasts and Nordic rain radar. Settings support light/dark theme as well. Also some health graph performance improvements and other bug fixes."
     }
   },
   "releaseNotification": {
     "enabled": true,
-    "title": "Worldwide rain radar",
-    "body": "The rain radar now works everywhere: pick Rainbow as the radar provider in settings for a short-term rain nowcast at your exact location. Let me know how well it work s:) (Fixing a missing API key)"
+    "title": "Themes, new Met.no forecasts, radar & settings themes",
+    "body": "Added new themes and Met.no weather forecasts and Nordic rain radar. Settings support light/dark theme as well. Also some health graph performance improvements and other bug fixes."
   },
   "telemetry": {
     "enabled": false,
