@@ -18,20 +18,29 @@ const RAIN_EXACT = segment(3, 4, 1.5);
 const RAIN_AREA = segment(2, 6, 1.8);
 // Common forecast look for the layout shots.
 const FORECAST = { secondaryLine: 'precip_prob', secondaryLineFill: true, thirdLine: 'uv', barSource: 'rain', rainBarColor: 'multicolor' };
-// slug → fixture; group/val are consumed by gen-wizard-screenshots.js to key the generated module.
+// Which platforms each shot is captured on (space-separated; consumed by capture-wizard-screenshots.sh
+// per fixture and by gen-wizard-screenshots.js to key the module). Facts from config-ui/lib/platform.js:
+//   basalt, emery — color, health, radar        flint — B&W, health, radar
+//   aplite — B&W, no health, no radar            (diorite ≈ flint; wizard maps diorite→flint, not captured)
+// Layout + dark/light theme show on every watch; health/radar only where the platform has them (not
+// aplite); bw / bw-light are color-watch-only theme options (flint + aplite are B&W → dark/light only).
+const ALL = 'basalt flint emery aplite';
+const HEALTH_RADAR = 'basalt flint emery';   // exclude aplite (no PBL_HEALTH / no WW_RAIN_RADAR)
+const COLOR = 'basalt emery';                // flint + aplite are B&W → they never show bw/bw-light cards
+// slug → fixture; group/val/platforms are consumed by gen-wizard-screenshots.js to key the module.
 const SHOTS = [
-  { slug: 'layout-fullcal',    group: 'layoutPreset', val: 'fullCal',    flicks: 0, clay: Object.assign({ layoutPreset: 'fullCal',    healthMode: 'off', radarProvider: 'disabled' }, FORECAST) },
-  { slug: 'layout-compactcal', group: 'layoutPreset', val: 'compactCal', flicks: 0, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled' }, FORECAST) },
-  { slug: 'layout-nocal',      group: 'layoutPreset', val: 'noCal',      flicks: 0, clay: Object.assign({ layoutPreset: 'noCal',      healthMode: 'off', radarProvider: 'disabled' }, FORECAST) },
-  { slug: 'health-off',        group: 'healthMode',   val: 'off',        flicks: 0, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled' }, FORECAST) },
-  { slug: 'health-status',     group: 'healthMode',   val: 'status',     flicks: 0, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'status', radarProvider: 'disabled' }, FORECAST) },
-  { slug: 'health-all',        group: 'healthMode',   val: 'all',        flicks: 1, clay: Object.assign({ layoutPreset: 'noCal',      healthMode: 'all', radarProvider: 'disabled' }, FORECAST) },
-  { slug: 'radar',             group: 'radar',        val: '_',          flicks: 1, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, FORECAST),
+  { slug: 'layout-fullcal',    group: 'layoutPreset', val: 'fullCal',    flicks: 0, platforms: ALL,          clay: Object.assign({ layoutPreset: 'fullCal',    healthMode: 'off', radarProvider: 'disabled' }, FORECAST) },
+  { slug: 'layout-compactcal', group: 'layoutPreset', val: 'compactCal', flicks: 0, platforms: ALL,          clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled' }, FORECAST) },
+  { slug: 'layout-nocal',      group: 'layoutPreset', val: 'noCal',      flicks: 0, platforms: ALL,          clay: Object.assign({ layoutPreset: 'noCal',      healthMode: 'off', radarProvider: 'disabled' }, FORECAST) },
+  { slug: 'health-off',        group: 'healthMode',   val: 'off',        flicks: 0, platforms: HEALTH_RADAR, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled' }, FORECAST) },
+  { slug: 'health-status',     group: 'healthMode',   val: 'status',     flicks: 0, platforms: HEALTH_RADAR, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'status', radarProvider: 'disabled' }, FORECAST) },
+  { slug: 'health-all',        group: 'healthMode',   val: 'all',        flicks: 1, platforms: HEALTH_RADAR, clay: Object.assign({ layoutPreset: 'noCal',      healthMode: 'all', radarProvider: 'disabled' }, FORECAST) },
+  { slug: 'radar',             group: 'radar',        val: '_',          flicks: 1, platforms: HEALTH_RADAR, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, FORECAST),
     radar: { exact: RAIN_EXACT, area: RAIN_AREA }, countdown: { text: "Rain in 15'", tier: 3 } },
-  { slug: 'theme-dark',     group: 'theme', val: 'dark',     flicks: 0, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'dark' }, FORECAST) },
-  { slug: 'theme-light',    group: 'theme', val: 'light',    flicks: 0, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'light' }, FORECAST) },
-  { slug: 'theme-bw',       group: 'theme', val: 'bw',       flicks: 0, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'bw' }, FORECAST) },
-  { slug: 'theme-bw-light', group: 'theme', val: 'bw-light', flicks: 0, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'bw-light' }, FORECAST) }
+  { slug: 'theme-dark',     group: 'theme', val: 'dark',     flicks: 0, platforms: ALL,   clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'dark' }, FORECAST) },
+  { slug: 'theme-light',    group: 'theme', val: 'light',    flicks: 0, platforms: ALL,   clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'light' }, FORECAST) },
+  { slug: 'theme-bw',       group: 'theme', val: 'bw',       flicks: 0, platforms: COLOR, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'bw' }, FORECAST) },
+  { slug: 'theme-bw-light', group: 'theme', val: 'bw-light', flicks: 0, platforms: COLOR, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'bw-light' }, FORECAST) }
 ];
 function generate(opts = {}) {
   const outDir = opts.outDir ?? 'fixtures';

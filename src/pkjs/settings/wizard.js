@@ -229,7 +229,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     // --- screens 2 & 4: carousel of real screenshots ---
-    function shotFor(group, val) { return (SHOTS[group] && SHOTS[group][val]) || ''; }
+    // Screenshots are keyed by platform (SHOTS[platform][group][val]) so each watch sees its own
+    // rendering. diorite isn't captured separately — it's a B&W watch with health+radar, same class
+    // as flint, so it reuses flint's shots.
+    function shotPlatform() {
+        var p = (W.ctx && W.ctx.ENV && W.ctx.ENV.platform) || 'basalt';
+        return (p === 'diorite') ? 'flint' : p;
+    }
+    function shotSet() { return SHOTS[shotPlatform()] || {}; }
+    function shotFor(group, val) { var s = shotSet(); return (s[group] && s[group][val]) || ''; }
     function carCard(group, label, val, on) {
         return '<button class="wiz-card' + (on ? ' on' : '') + '" data-wiz-idx-val="' + esc(val) + '">'
             + '<img class="wiz-shot" src="' + esc(shotFor(group, val)) + '" alt="">'
@@ -314,7 +322,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             + '<p><b>Forecast</b> — a 24-hour graph: temperature, the precipitation-% line, UV dots and rain bars.</p></div>';
     }
     function stepRadar() {
-        var h = '<div class="wiz-radar"><img class="wiz-shot" src="' + esc(SHOTS.radar || '') + '" alt=""></div>'
+        var h = '<div class="wiz-radar"><img class="wiz-shot" src="' + esc(shotSet().radar || '') + '" alt=""></div>'
             + '<p><b>Rain radar</b> — a precise short-term rain forecast for the next 2 hours, in 5-minute frames.</p>'
             + '<p><b>Rain countdown</b> — when rain is heading your way, the status strip shows how soon it starts (e.g. “Rain in 15’”).</p>';
         if (radarNearby(W.ctx.S.radarProvider)) {

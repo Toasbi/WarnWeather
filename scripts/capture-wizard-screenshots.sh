@@ -1,43 +1,46 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Capture one basalt screenshot per wizard-selectable option and inline them into
-# src/pkjs/settings/wizard-screenshots.generated.js. RUN ON THE MAC (needs the Pebble SDK + emulator).
-# Thin wrapper over capture-screenshots.sh (same pattern as capture-showcase.sh). Usage:
+# Capture per-option wizard screenshots on every platform the wizard can show them on, and inline
+# them (keyed by platform) into src/pkjs/settings/wizard-screenshots.generated.js. RUN ON THE MAC
+# (needs the Pebble SDK + emulator). Thin wrapper over capture-screenshots.sh. Usage:
 #   scripts/capture-wizard-screenshots.sh [version]
 version="${1:-wizard}"
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 stage="$here/screenshot/tmp/wizard"
 export WW_HEALTH_FIXTURE=1          # canned health values for the health shots
-export PLATFORMS="basalt"           # color-only; used for all watches in the wizard
-# capture-screenshots.sh defaults WW_SKIP_TESTS=1 and narrows the build to $PLATFORMS.
+# Each fixture carries its own platform set (see gen-wizard-fixtures.js). capture-screenshots.sh
+# defaults WW_SKIP_TESTS=1 and builds only the PLATFORMS it's shooting, so each fixture compiles
+# just its platforms with no tests.
 node "$here/scripts/gen-wizard-fixtures.js"
 rm -rf "$stage"; mkdir -p "$stage"
 
-# Collect the slug/flicks pairs FIRST, then capture in a separate loop. Running the captures
-# directly inside `while read … done < <(node …)` let capture-screenshots.sh's children
-# (pebble/mise) drain the process-substitution fd, so the loop ran only ONCE — that was the
-# "only the first basalt went through" bug. The read loop below has no such children.
-slugs=(); flickss=()
-while IFS= read -r line; do
-  [[ -n "$line" ]] || continue
-  slugs+=("${line%% *}"); flickss+=("${line##* }")
-done < <(node -e "require('$here/scripts/gen-wizard-fixtures.js').SHOTS.forEach(function(s){console.log(s.slug + ' ' + s.flicks);})")
+# Collect slug|flicks|platforms FIRST, then capture in a separate loop: running
+# capture-screenshots.sh inside `while read < <(node …)` let its pebble/mise children drain the
+# process-substitution fd, so the loop ran only once (the "only the first shot" bug).
+slugs=(); flickss=(); platss=()
+while IFS='|' read -r slug flicks plats; do
+  [[ -n "$slug" ]] || continue
+  slugs+=("$slug"); flickss+=("$flicks"); platss+=("$plats")
+done < <(node -e "require('$here/scripts/gen-wizard-fixtures.js').SHOTS.forEach(function(s){console.log(s.slug + '|' + s.flicks + '|' + s.platforms);})")
 
 for i in "${!slugs[@]}"; do
-  slug="${slugs[$i]}"; flicks="${flickss[$i]}"
-  printf '\n######## wizard shot %s (flicks=%s) ########\n' "$slug" "$flicks"
+  slug="${slugs[$i]}"; flicks="${flickss[$i]}"; plats="${platss[$i]}"
+  printf '\n######## wizard shot %s (flicks=%s, platforms=%s) ########\n' "$slug" "$flicks" "$plats"
   # </dev/null: keep capture-screenshots.sh (and pebble/mise) off this script's stdin.
-  FLICKS="$flicks" "$here/scripts/capture-screenshots.sh" "$version" "wizard-$slug" </dev/null
-  # raw/basalt.png is a scratch file overwritten every shot; stage it under the per-option
-  # name that gen-wizard-screenshots.js reads. The cksum makes each distinct file visible —
-  # if two shots print the SAME cksum, that fixture didn't change the render (investigate).
-  cp "$here/screenshot/$version/raw/basalt.png" "$stage/$slug.png"
-  printf '  → staged %s [cksum %s]\n' "$stage/$slug.png" "$(cksum < "$stage/$slug.png" | cut -d' ' -f1)"
+  PLATFORMS="$plats" FLICKS="$flicks" "$here/scripts/capture-screenshots.sh" "$version" "wizard-$slug" </dev/null
+  # capture-screenshots.sh writes raw/<platform>.png per shot platform; stage each under its own
+  # platform dir + option name (what gen-wizard-screenshots.js reads). cksum makes distinct shots
+  # visible — the same cksum for two different fixtures means that render didn't change.
+  for plat in $plats; do
+    mkdir -p "$stage/$plat"
+    cp "$here/screenshot/$version/raw/$plat.png" "$stage/$plat/$slug.png"
+    printf '  → staged %s/%s.png [cksum %s]\n' "$plat" "$slug" "$(cksum < "$stage/$plat/$slug.png" | cut -d' ' -f1)"
+  done
 done
 
 echo ""
-echo "Staged shots (distinct cksums expected):"
-( cd "$stage" && cksum ./*.png )
+echo "Staged shots (distinct cksums expected within each platform):"
+( cd "$stage" && cksum ./*/*.png )
 
 node "$here/scripts/gen-wizard-screenshots.js" "$stage"
 printf '\nWrote src/pkjs/settings/wizard-screenshots.generated.js — review the images, then commit it.\n'
