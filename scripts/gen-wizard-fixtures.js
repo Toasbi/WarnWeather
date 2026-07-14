@@ -2,7 +2,8 @@
 'use strict';
 // Wizard screenshot fixtures: one static scene per selectable option (3 layout presets, 3 health
 // modes, 1 radar view), layered on the Berlin base. Mirrors gen-showcase-fixtures.js. `flicks` reaches
-// the intended view; the radar/health-graph views need a flick — confirm counts while capturing.
+// the intended view; the health-graph view needs a flick (flicks:1); confirm the radar view's
+// flick count visually when capturing.
 const fs = require('fs');
 const path = require('path');
 const BASE_PATH = path.join('fixtures', 'berlin.json');
@@ -19,9 +20,9 @@ const RAIN_AREA = segment(2, 6, 1.8);
 const FORECAST = { secondaryLine: 'precip_prob', secondaryLineFill: true, thirdLine: 'uv', barSource: 'rain', rainBarColor: 'multicolor' };
 // slug → fixture; group/val are consumed by gen-wizard-screenshots.js to key the generated module.
 const SHOTS = [
-  { slug: 'layout-fullCal',    group: 'layoutPreset', val: 'fullCal',    flicks: 0, clay: Object.assign({ layoutPreset: 'fullCal',    healthMode: 'off', radarProvider: 'disabled' }, FORECAST) },
-  { slug: 'layout-compactCal', group: 'layoutPreset', val: 'compactCal', flicks: 0, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled' }, FORECAST) },
-  { slug: 'layout-noCal',      group: 'layoutPreset', val: 'noCal',      flicks: 0, clay: Object.assign({ layoutPreset: 'noCal',      healthMode: 'off', radarProvider: 'disabled' }, FORECAST) },
+  { slug: 'layout-fullcal',    group: 'layoutPreset', val: 'fullCal',    flicks: 0, clay: Object.assign({ layoutPreset: 'fullCal',    healthMode: 'off', radarProvider: 'disabled' }, FORECAST) },
+  { slug: 'layout-compactcal', group: 'layoutPreset', val: 'compactCal', flicks: 0, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled' }, FORECAST) },
+  { slug: 'layout-nocal',      group: 'layoutPreset', val: 'noCal',      flicks: 0, clay: Object.assign({ layoutPreset: 'noCal',      healthMode: 'off', radarProvider: 'disabled' }, FORECAST) },
   { slug: 'health-off',        group: 'healthMode',   val: 'off',        flicks: 0, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled' }, FORECAST) },
   { slug: 'health-status',     group: 'healthMode',   val: 'status',     flicks: 0, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'status', radarProvider: 'disabled' }, FORECAST) },
   { slug: 'health-all',        group: 'healthMode',   val: 'all',        flicks: 1, clay: Object.assign({ layoutPreset: 'noCal',      healthMode: 'all', radarProvider: 'disabled' }, FORECAST) },
