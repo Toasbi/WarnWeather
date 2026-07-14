@@ -87,6 +87,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var steps = ['welcome', 'layout'];
         if (env.radar) { steps.push('radar'); }
         if (env.health) { steps.push('health'); }
+        steps.push('theme');
         steps.push('done');
         return steps;
     }
@@ -117,7 +118,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var HEALTH_OPTS = [['Off', 'off'], ['Status bar', 'status'], ['Status + graph', 'all']];
     var STEP_TITLES = {
         welcome: 'Welcome to WarnWeather', layout: 'Choose your layout',
-        radar: 'Rain radar', health: 'Health', done: 'All set'
+        radar: 'Rain radar', health: 'Health', theme: 'Choose your theme', done: 'All set'
     };
     // Per-option copy shown under the carousel for the centered selection (fixes "text doesn't update").
     var LAYOUT_DESC = {
@@ -129,6 +130,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         off: 'Off — no health information on the watchface.',
         status: 'Status bar — today’s steps, last night’s sleep and current heart rate on the status line.',
         all: 'Status + graph — the status line plus a flick-away graph: hourly step bars, a sleep band and a heart-rate line.'
+    };
+    // Watchface theme (messageKey 'theme'). Mirrors schema.js's two theme selects: color watches get
+    // 4 options, B&W hardware only dark/light. Chosen by env.color at render time.
+    var THEME_OPTS_COLOR = [['Dark', 'dark'], ['Light', 'light'], ['B&W', 'bw'], ['B&W Inverted', 'bw-light']];
+    var THEME_OPTS_BW = [['Dark', 'dark'], ['Light', 'light']];
+    var THEME_DESC = {
+        dark: 'Black background, white text and lines (the default).',
+        light: 'White background, black text and lines.',
+        bw: 'Renders like a Black & White watch — the same drawing, on your color display.',
+        'bw-light': 'Like a Black & White watch in its light theme — black on white.'
     };
     // Real watch screenshots, base64-inlined by `mise capture-wizard-screenshots` into
     // wizard-screenshots.generated.js (which assigns PConf.screenshots when concatenated into the
@@ -230,8 +241,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         h += '</div><p class="wiz-cardhint">' + esc(desc[selVal] || '') + '</p>';
         return h;
     }
-    function optsFor(group) { return group === 'layoutPreset' ? LAYOUT_OPTS : HEALTH_OPTS; }
-    function descFor(group) { return group === 'layoutPreset' ? LAYOUT_DESC : HEALTH_DESC; }
+    function optsFor(group) {
+        if (group === 'layoutPreset') { return LAYOUT_OPTS; }
+        if (group === 'healthMode') { return HEALTH_OPTS; }
+        return (W.ctx.ENV && W.ctx.ENV.color) ? THEME_OPTS_COLOR : THEME_OPTS_BW;   // 'theme'
+    }
+    function descFor(group) {
+        if (group === 'layoutPreset') { return LAYOUT_DESC; }
+        if (group === 'healthMode') { return HEALTH_DESC; }
+        return THEME_DESC;   // 'theme'
+    }
     // Scroll the selected card to the horizontal center (offsetParent is the position:relative .wiz-car).
     function centerCar() {
         var car = W.overlay.querySelector('.wiz-car'); if (!car) { return; }
@@ -243,7 +262,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function selectCar(group, idx, recenter) {
         var opts = optsFor(group);
         idx = Math.max(0, Math.min(opts.length - 1, idx));
-        W.ctx.S[group] = opts[idx][1];
+        var newVal = opts[idx][1];
+        if (group === 'theme') {
+            var oldTheme = W.ctx.S.theme;
+            W.ctx.S.theme = newVal;
+            var conv = (PConf.onChange && PConf.onChange.get) ? PConf.onChange.get('themeConvert') : null;
+            if (conv) { conv(W.ctx.S, oldTheme, newVal); }
+        } else {
+            W.ctx.S[group] = newVal;
+        }
         var car = W.overlay.querySelector('[data-wiz-car="' + group + '"]'); if (!car) { return; }
         var cards = car.querySelectorAll('.wiz-card'), i;
         for (i = 0; i < cards.length; i += 1) { cards[i].className = (i === idx) ? 'wiz-card on' : 'wiz-card'; }
@@ -299,6 +326,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return carousel('healthMode', HEALTH_OPTS, W.ctx.S.healthMode, HEALTH_DESC)
             + '<div style="line-height:1.55;color:var(--muted)"><p><b>Health</b> — today’s steps, last night’s sleep and current heart rate, with an optional hourly graph.</p></div>';
     }
+    function stepTheme() {
+        return carousel('theme', optsFor('theme'), W.ctx.S.theme, THEME_DESC)
+            + '<div style="line-height:1.55;color:var(--muted)"><p>The theme sets your watchface’s colours. You can fine-tune individual colours later in Settings.</p></div>';
+    }
     function stepDone() {
         return '<p><b>You’re all set!</b> Everything is editable later in the settings tabs.</p>'
             + '<p>If you enjoy WarnWeather, please ♥ it on the Pebble appstore — it really helps.</p>'
@@ -309,6 +340,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (id === 'layout') { return stepLayout(); }
         if (id === 'radar') { return stepRadar(); }
         if (id === 'health') { return stepHealth(); }
+        if (id === 'theme') { return stepTheme(); }
         return stepDone();
     }
 
