@@ -49,3 +49,45 @@ test('shouldShow: only on fresh, un-onboarded config', () => {
   assert.equal(W.shouldShow({ provider: 'dwd' }), false);
   assert.equal(W.shouldShow(null), true);
 });
+
+test('flickStops: layout-only cycle -> Default + Radar; DWD gets the nearby line', () => {
+  const stops = W.flickStops({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'dwd' });
+  assert.equal(stops.length, 2);
+  assert.equal(stops[0].label, 'Default');
+  assert.equal(stops[0].shotGroup, 'layoutPreset');
+  assert.equal(stops[0].shotVal, 'compactCal');
+  assert.equal(stops[0].caption, 'your calendar, weather status and forecast.');
+  assert.equal(stops[1].label, 'Radar');
+  assert.equal(stops[1].shotGroup, 'radar');
+  assert.match(stops[1].caption, /nearby \(~2 km\)/);
+});
+
+test('flickStops: health graph rides between default and radar; non-DWD has no nearby line', () => {
+  const stops = W.flickStops({ layoutPreset: 'fullCal', healthMode: 'all', radarProvider: 'rainbow' });
+  assert.deepEqual(stops.map((s) => s.label), ['Default', 'Health graph', 'Radar']);
+  assert.equal(stops[0].shotVal, 'fullCal');
+  assert.equal(stops[1].shotGroup, 'healthMode');
+  assert.equal(stops[1].shotVal, 'all');
+  assert.doesNotMatch(stops[2].caption, /nearby/);
+});
+
+test('flickStops: health-status flick maps to the healthMode.status shot', () => {
+  const stops = W.flickStops({ layoutPreset: 'noCal', healthMode: 'status', radarProvider: 'metno' });
+  assert.deepEqual(stops.map((s) => s.label), ['Default', 'Health status', 'Radar']);
+  assert.equal(stops[1].shotGroup, 'healthMode');
+  assert.equal(stops[1].shotVal, 'status');
+});
+
+test('flickStops: fullCal/status dual-status middle stop (ST_D) also maps to healthMode.status', () => {
+  const stops = W.flickStops({ layoutPreset: 'fullCal', healthMode: 'status', radarProvider: 'dwd' });
+  assert.deepEqual(stops.map((s) => s.label), ['Default', 'Health status', 'Radar']);
+  assert.equal(stops[1].shotVal, 'status');
+});
+
+test('flickStops: disabled radar drops the radar stop; empty state resolves defaults', () => {
+  const noRadar = W.flickStops({ layoutPreset: 'compactCal', healthMode: 'all', radarProvider: 'disabled' });
+  assert.deepEqual(noRadar.map((s) => s.label), ['Default', 'Health graph']);
+  const fresh = W.flickStops({});
+  assert.equal(fresh[0].shotVal, 'compactCal');
+  assert.deepEqual(fresh.map((s) => s.label), ['Default', 'Radar']);
+});

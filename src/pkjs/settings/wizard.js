@@ -1,12 +1,17 @@
 // src/pkjs/settings/wizard.js — ES5, WebView. First-run onboarding wizard.
 // Pure helpers (top) are unit-tested via module.exports; the DOM controller (added later)
 // registers onReady + PConf.actions.startWizard and is exercised via `mise preview-config`.
-/* global PConf, Intl, navigator, document, INJECTED_SCHEMA */
+/* global PConf, Intl, navigator, document, INJECTED_SCHEMA, VIEW_CYCLE */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf
     : (typeof PConf !== 'undefined' && PConf) ? PConf
     : {};
 (function () {
+    // Node (tests): view-cycle.js is a real CommonJS module — require it. Webview: it is
+    // concatenated as a plain <script> before this file (scripts/build-config-page.js) and
+    // shares the top-level scope as VIEW_CYCLE. Same pattern as settings/blocks.js.
+    var VC = (typeof require !== 'undefined') ? require('../view-cycle.js') : VIEW_CYCLE;
+
     // Compact IANA-timezone -> ISO-3166-1 alpha-2 table. Covers DE + the Nordic metno
     // zones (the countries that change the derived provider) plus common others; anything
     // absent falls through to the navigator.language region subtag.
@@ -98,6 +103,57 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {boolean} True only for DWD.
      */
     function radarNearby(radarProvider) { return radarProvider === 'dwd'; }
+
+    // Fixed per-stop demo copy (spec 2026-07-15). The Default caption is intentionally
+    // preset-independent; the radar caption gains the DWD "nearby" sentence via radarNearby().
+    var FLICK_CAPTION_DEFAULT = 'your calendar, weather status and forecast.';
+    var FLICK_CAPTION_GRAPH = 'hourly step bars, a sleep band and a heart-rate line.';
+    var FLICK_CAPTION_STATUS = 'today’s steps, last night’s sleep and current heart rate on the status line.';
+    var FLICK_CAPTION_RADAR = 'a precise short-term rain forecast for the next 2 hours, in 5-minute frames. When rain’s on the way, the status strip counts it down (“Rain in 15’”).';
+    var FLICK_CAPTION_RADAR_NEARBY = ' DWD also shows rain nearby (~2 km), not just at your exact spot.';
+
+    /**
+     * Describe one cycle slot as a flick-demo stop: display label, caption, and the
+     * SHOTS screenshot key. shotGroup 'radar' flags the string-typed radar shot
+     * (SHOTS[platform].radar is a plain data URI, not a {val: uri} map).
+     * @param {{tier:number,top:number,body:number,status:number}} viewSpec One ViewSpec slot.
+     * @param {boolean} isFirst True for cycle index 0 (the default view).
+     * @param {Object} state Wizard/Clay settings state.
+     * @returns {{label:string,caption:string,shotGroup:string,shotVal:string}} Stop descriptor.
+     */
+    function flickStop(viewSpec, isFirst, state) {
+        state = state || {};
+        if (viewSpec.body === VC.BODY_GRAPH) {
+            return { label: 'Health graph', caption: FLICK_CAPTION_GRAPH, shotGroup: 'healthMode', shotVal: 'all' };
+        }
+        if (viewSpec.body === VC.BODY_RADAR) {
+            var cap = FLICK_CAPTION_RADAR;
+            if (radarNearby(state.radarProvider)) { cap += FLICK_CAPTION_RADAR_NEARBY; }
+            return { label: 'Radar', caption: cap, shotGroup: 'radar', shotVal: '' };
+        }
+        if (!isFirst && (viewSpec.status === VC.ST_H || viewSpec.status === VC.ST_D)) {
+            // Health-status flick stop: BODY_FC carrying the health status row. ST_D is the
+            // fullCal/status dual-status variant — healthMode.status represents both.
+            return { label: 'Health status', caption: FLICK_CAPTION_STATUS, shotGroup: 'healthMode', shotVal: 'status' };
+        }
+        return { label: 'Default', caption: FLICK_CAPTION_DEFAULT, shotGroup: 'layoutPreset', shotVal: VC.resolvePresetKey(state) };
+    }
+
+    /**
+     * The flick-demo stop list for the current settings: the REAL view cycle
+     * (view-cycle.js — the same call blocks.js's presetContents makes) mapped to
+     * stop descriptors. 1–3 entries; radar, when present, is always last.
+     * @param {Object} state Wizard/Clay settings state.
+     * @returns {Array.<{label:string,caption:string,shotGroup:string,shotVal:string}>} Stops.
+     */
+    function flickStops(state) {
+        state = state || {};
+        var radarEnabled = state.radarProvider !== 'disabled';
+        var cycle = VC.buildViewCycle(VC.resolvePresetKey(state), state.healthMode || 'off', radarEnabled);
+        var stops = [], i;
+        for (i = 0; i < cycle.length; i += 1) { stops.push(flickStop(cycle[i], i === 0, state)); }
+        return stops;
+    }
 
     /**
      * Whether the wizard should auto-open: only on a fresh install (no saved keys) that
@@ -468,7 +524,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         module.exports = {
             countryFromTimezone: countryFromTimezone, countryFromLocale: countryFromLocale,
             inferCountry: inferCountry, mapCountry: mapCountry,
-            buildSteps: buildSteps, radarNearby: radarNearby, shouldShow: shouldShow
+            buildSteps: buildSteps, radarNearby: radarNearby, shouldShow: shouldShow,
+            flickStops: flickStops
         };
     }
 })();
