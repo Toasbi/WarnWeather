@@ -393,8 +393,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function onNav(nav) {
         if (nav === 'back') { W.idx = Math.max(0, W.idx - 1); W.openSelect = null; renderStep(); }
         else if (nav === 'next') { W.idx = Math.min(W.steps.length - 1, W.idx + 1); W.openSelect = null; renderStep(); }
-        else if (nav === 'skip' || nav === 'save') { finishSave(); }
-        else if (nav === 'tweak') { finishTweak(); }
+        else if (nav === 'save') { finishSave(); }
+        // Skip closes the wizard onto the live settings page (same as "Continue tweaking"),
+        // rather than saving and navigating back to the watch.
+        else if (nav === 'skip' || nav === 'tweak') { finishTweak(); }
     }
 
     function onClick(e) {
