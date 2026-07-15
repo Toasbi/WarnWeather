@@ -74,7 +74,7 @@
       if (settings && settings.healthMode === 'off') { return false; }
     }
     if (item.emeryOnly && (!env || env.platform !== 'emery')) { return false; }
-    if (item.needsRadarOff && settings && settings.radarProvider !== 'disabled') {
+    if (item.needsRadarOff && (!settings || settings.radarProvider !== 'disabled')) {
       return false;
     }
     return true;

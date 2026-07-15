@@ -46,6 +46,16 @@ test('availability gating', () => {
   assert.ok(!catalog.itemAvailable(catalog.byCode('date'), s, ENV_BASALT));
 });
 
+test('precipitation probability is unavailable without settings', () => {
+  const item = catalog.byCode('precip_prob');
+  assert.ok(!catalog.itemAvailable(item, undefined, ENV_BASALT));
+});
+
+test('precipitation probability is unavailable without a radar provider', () => {
+  const item = catalog.byCode('precip_prob');
+  assert.ok(!catalog.itemAvailable(item, {}, ENV_BASALT));
+});
+
 test('slotOptions: empty first, sibling selections and excluded codes removed', () => {
   const s = {
     healthMode: 'all', radarProvider: 'rainbow',
