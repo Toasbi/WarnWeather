@@ -33,6 +33,22 @@ int health_steps_today(void) {
     return PBL_IF_HEALTH_ELSE((int)health_service_sum_today(HealthMetricStepCount), 0);
 }
 
+int health_distance_today_m(void) {
+    const time_t start = s_start_of_today();
+    const time_t end = time(NULL);
+    HealthServiceAccessibilityMask access = health_service_metric_accessible(
+        HealthMetricWalkedDistanceMeters, start, end);
+    if (!(access & HealthServiceAccessibilityMaskAvailable)) {
+        return -1;
+    }
+    return (int)health_service_sum_today(HealthMetricWalkedDistanceMeters);
+}
+
+MeasurementSystem health_distance_units(void) {
+    return health_service_get_measurement_system_for_display(
+        HealthMetricWalkedDistanceMeters);
+}
+
 int health_sleep_today_seconds(void) {
     /* Use health_service_sum_today, NOT health_service_sum over a trailing 24 h
        window: that window straddles midnight, and health_service_sum daily-
