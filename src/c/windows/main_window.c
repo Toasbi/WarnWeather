@@ -17,6 +17,7 @@
 #include "c/appendix/persist.h"
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
+#include "c/appendix/status_line.h"
 #include "c/appendix/theme.h"
 
 // The layout module mirrors config.h's TopViewMode as its own LAYOUT_TIER_* (see layout.h);
@@ -109,6 +110,9 @@ static void render_active_view(void) {
     layer_set_frame(rain_radar_layer_get_root(), L.radar);
 #endif
     weather_status_layer_set_render_tier(spec.status_tier);
+    weather_status_layer_set_line(
+        (spec.top == TOP_BAND_RADAR || spec.body == BODY_RADAR)
+            ? STATUS_LINE_RADAR : STATUS_LINE_FORECAST);
 #if defined(PBL_HEALTH)
     layer_set_frame(weather_status_layer_get_root(),
                     (spec.status == STATUS_ROW_DUAL) ? L.status_lower : L.status);
@@ -202,6 +206,9 @@ static void main_window_load(Window *window) {
 #endif
     // Tell the status layers which tier to render at before they lay out their text.
     weather_status_layer_set_render_tier(spec.status_tier);
+    weather_status_layer_set_line(
+        (spec.top == TOP_BAND_RADAR || spec.body == BODY_RADAR)
+            ? STATUS_LINE_RADAR : STATUS_LINE_FORECAST);
 #if defined(PBL_HEALTH)
     weather_status_layer_create(window_layer, (spec.status == STATUS_ROW_DUAL) ? L.status_lower : L.status);
     health_status_layer_set_render_tier(spec.status_tier);
@@ -285,6 +292,8 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     ViewSpec aspec = current_view_spec();
     LayerVisibility av = layout_visibility(&aspec);
     bool health_on_screen = av.health_status || av.health_graph;
+    // Status rows may carry LIVE health slots on any line now.
+    bool status_needs_health = weather_status_layer_uses_live_health();
     if (g_config->health_mode != HEALTH_OFF) {
         health_cache_tick(health_on_screen);
     }
@@ -292,10 +301,11 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     // (steps/sleep/HR) recomputes here, on the minute cadence, rather than in
     // health_status_layer_refresh() — so an unrelated main_window_refresh() (e.g. a
     // settings save) repaints from held values with zero HealthService reads.
-    if (health_on_screen) {
+    if (health_renderable() && (health_on_screen || status_needs_health)) {
         if (av.health_graph) { health_graph_layer_refresh(); }
-        if (av.health_status && health_summary_refresh()) {
-            health_status_layer_refresh();
+        if (health_summary_refresh()) {
+            if (av.health_status) { health_status_layer_refresh(); }
+            if (status_needs_health) { weather_status_layer_refresh(); }
         }
     }
 #endif

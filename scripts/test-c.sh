@@ -26,3 +26,5 @@ cc $CFLAGS test/c/status_line_test.c src/c/appendix/status_line.c -o build/host/
 build/host/status_line_test
 cc $CFLAGS test/c/status_row_layout_test.c src/c/layers/status_row_layout.c -o build/host/status_row_layout_test
 build/host/status_row_layout_test
+cc $CFLAGS test/c/weather_status_layer_test.c src/c/layers/weather_status_layer.c -o build/host/weather_status_layer_test
+build/host/weather_status_layer_test

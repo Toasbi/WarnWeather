@@ -26,6 +26,14 @@ typedef void *GFont;
 typedef struct GContext GContext;
 typedef struct Layer Layer;
 typedef struct Window Window;
+typedef void (*LayerUpdateProc)(Layer *layer, GContext *ctx);
+
+Layer *layer_create(GRect frame);
+void layer_set_update_proc(Layer *layer, LayerUpdateProc update_proc);
+void layer_add_child(Layer *parent, Layer *child);
+GRect layer_get_bounds(const Layer *layer);
+void layer_mark_dirty(Layer *layer);
+void layer_destroy(Layer *layer);
 
 // --- HealthService stand-ins -----------------------------------------------
 // Keep these declarations aligned with SDK 4.17 so the real health.c can be
