@@ -56,6 +56,19 @@ test('utf8 encode + boundary-safe truncate', () => {
   assert.deepEqual(statusLines.utf8Truncate(statusLines.utf8Encode('ab'), 2), [0x61, 0x62]);
 });
 
+test('utf8 encode replaces unpaired UTF-16 surrogates', () => {
+  assert.deepEqual(statusLines.utf8Encode('\uD800'), [0xEF, 0xBF, 0xBD]);
+  assert.deepEqual(statusLines.utf8Encode('\uDC00'), [0xEF, 0xBF, 0xBD]);
+});
+
+test('utf8 encode and truncate preserve astral code-point boundaries', () => {
+  const encoded = statusLines.utf8Encode('a\uD83D\uDE00b');
+  assert.deepEqual(encoded, [0x61, 0xF0, 0x9F, 0x98, 0x80, 0x62]);
+  assert.deepEqual(statusLines.utf8Truncate(encoded, 4), [0x61]);
+  assert.deepEqual(statusLines.utf8Truncate(encoded, 5),
+    [0x61, 0xF0, 0x9F, 0x98, 0x80]);
+});
+
 test('value formatting', () => {
   const p = basePayload();
   assert.equal(statusLines.formatValue('temp', p, baseSettings()), '20°'); // 68 degrees F

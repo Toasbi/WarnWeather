@@ -14,12 +14,16 @@ function utf8Encode(str) {
   var out = [];
   for (var i = 0; i < str.length; i++) {
     var c = str.charCodeAt(i);
-    if (c >= 0xD800 && c <= 0xDBFF && i + 1 < str.length) {
-      var lo = str.charCodeAt(i + 1);
+    if (c >= 0xD800 && c <= 0xDBFF) {
+      var lo = i + 1 < str.length ? str.charCodeAt(i + 1) : 0;
       if (lo >= 0xDC00 && lo <= 0xDFFF) {
         c = 0x10000 + ((c - 0xD800) << 10) + (lo - 0xDC00);
         i++;
+      } else {
+        c = 0xFFFD;
       }
+    } else if (c >= 0xDC00 && c <= 0xDFFF) {
+      c = 0xFFFD;
     }
     if (c < 0x80) {
       out.push(c);
