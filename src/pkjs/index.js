@@ -27,6 +27,7 @@ var buildClayPayload = require('./clay-payload.js').buildClayPayload;
 var providerFactory = require('./provider-factory.js');
 var previewPalette = require('./settings/preview-palette.js');
 var createChannelScheduler = require('./channel-scheduler.js');
+var statusCatalog = require('./status-line-catalog.js');
 
 /**
  * Full release-notification manifest (dev: force-show by version). Omitted from bundle if missing.
@@ -791,8 +792,17 @@ function fetch(provider, force) {
  */
 function renderSignature(settings) {
     if (!settings) { return ''; }
-    return [settings.secondaryLine, settings.thirdLine, settings.secondaryLineFill,
-            settings.barSource, settings.windScale, settings.theme].join('|');
+    var parts = [settings.secondaryLine, settings.thirdLine, settings.secondaryLineFill,
+        settings.barSource, settings.windScale, settings.theme,
+        // Status-line bake inputs: value formatting...
+        settings.temperatureUnits, settings.axisTimeFormat, settings.timeShowAmPm,
+        settings.timeLeadingZero, settings.healthMode];
+    // ...and the ten slot selections themselves.
+    var slotKeys = statusCatalog.allSlotKeys();
+    for (var i = 0; i < slotKeys.length; i++) {
+        parts.push(settings[slotKeys[i]]);
+    }
+    return parts.join('|');
 }
 
 /**
