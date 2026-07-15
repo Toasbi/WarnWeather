@@ -74,5 +74,9 @@
   "1.7.3": {
     "title": "Onboarding wizard added",
     "body": "Added an onboarding wizard. Try it out from Settings -> More -> Misc -> Run setup again"
+  },
+  "1.7.4": {
+    "title": "Setup and view-switch fixes",
+    "body": "Skipping the setup wizard now opens Settings instead of closing. And after a wrist-flick, the watchface waits the full return time before switching back to your default view."
   }
 }
