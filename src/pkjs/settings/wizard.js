@@ -215,10 +215,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var THEME_OPTS_COLOR = [['Dark', 'dark'], ['Light (Alpha)', 'light'], ['B&W', 'bw'], ['B&W Inverted', 'bw-light']];
     var THEME_OPTS_BW = [['Dark', 'dark'], ['Light (Alpha)', 'light']];
     var THEME_DESC = {
-        dark: 'black background, white text and lines (the default).',
+        dark: 'black background, white text and lines — the default, and the most tuned theme.',
         light: 'white background, black text and lines.',
-        bw: 'black and white — the highest contrast.',
-        'bw-light': 'inverted — black on white, with good contrast.'
+        bw: 'simple and clean, with good contrast.',
+        'bw-light': 'inverted — simple and clean, with good contrast.'
     };
     // Real watch screenshots, base64-inlined by `mise capture-wizard-screenshots` into
     // wizard-screenshots.generated.js (which assigns PConf.screenshots when concatenated into the
