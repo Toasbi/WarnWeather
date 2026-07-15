@@ -103,7 +103,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // Per-stop demo copy. The Default and radar captions are fixed (the radar copy stays
     // provider-agnostic — no provider named); the health-status and health-graph captions
-    // vary with heart-rate availability (emery-only hardware) and are built from the shared
+    // vary with heart-rate availability (emery + diorite hardware) and are built from the shared
     // item helpers below, so the health step and the flick demo can never drift.
     var FLICK_CAPTION_DEFAULT = 'your calendar, weather status and forecast.';
     var FLICK_CAPTION_RADAR = 'a precise short-term rain forecast for the next 2 hours, in 5-minute frames. When rain’s on the way, the status strip counts it down (“Rain in 15’”).';
@@ -345,9 +345,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var p = (W.ctx && W.ctx.ENV && W.ctx.ENV.platform) || 'basalt';
         return (p === 'diorite') ? 'flint' : p;
     }
-    // Heart rate is emery-only hardware; other platforms don't surface it, so the health
-    // copy (status line + graph) drops the heart-rate clause on them.
-    function hasHeartRate() { return Boolean(W.ctx && W.ctx.ENV && W.ctx.ENV.platform === 'emery'); }
+    // Heart rate is available on emery (Time 2) and diorite (Pebble 2); other platforms don't
+    // have the sensor, so the health copy (status line + graph) drops the heart-rate clause there.
+    function hasHeartRate() {
+        var p = W.ctx && W.ctx.ENV && W.ctx.ENV.platform;
+        return Boolean(p === 'emery' || p === 'diorite');
+    }
     function shotSet() { return SHOTS[shotPlatform()] || {}; }
     function shotFor(group, val) { var s = shotSet(); return (s[group] && s[group][val]) || ''; }
     function carCard(group, label, val, on) {
@@ -640,7 +643,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // compactDense (set in full Settings) can't be represented here, so fall back to compactCal
         // (the nearest, same 2-row calendar) for the carousel selection and the flick demo alike.
         if (ctx.S.layoutPreset === 'compactDense') { ctx.S.layoutPreset = 'compactCal'; }
-        // Heart rate is emery-only; upgrade the health copy to the heart-rate variant there.
+        // Heart rate exists on emery + diorite; upgrade the health copy to the HR variant there.
         HEALTH_DESC.status = healthStatusItems(hasHeartRate()) + ' on the status line.';
         HEALTH_DESC.all = 'health status plus an hourly graph: ' + healthGraphItems(hasHeartRate()) + '.';
         if (fresh) {
