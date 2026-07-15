@@ -1,7 +1,7 @@
 {
   "name": "warnweather",
   "author": "Toasbi",
-  "version": "1.7.2",
+  "version": "1.7.3",
   "buildProfile": "dev",
   "keywords": [
     "pebble-app"
@@ -198,7 +198,11 @@
       "IS_SLEEPING",
       "WATCH_HAS_CONFIG",
       "HOLIDAYS",
-      "CLAY_THEME"
+      "CLAY_THEME",
+      "STATUS_LINE_1_UINT8",
+      "STATUS_LINE_2_UINT8",
+      "STATUS_LINE_3_UINT8",
+      "STATUS_LINE_4_UINT8"
     ]
   },
   "releaseNotifications": {
@@ -273,18 +277,22 @@
     "1.7.2": {
       "title": "Themes, new Met.no forecasts, radar & settings themes",
       "body": "Added new themes and Met.no weather forecasts and Nordic rain radar. Settings support light/dark theme as well. Also some health graph performance improvements and other bug fixes."
+    },
+    "1.7.3": {
+      "title": "Onboarding wizard added",
+      "body": "Added an onboarding wizard. Try it out from Settings -> More -> Misc -> Run setup again"
     }
   },
   "releaseNotification": {
     "enabled": true,
-    "title": "Themes, new Met.no forecasts, radar & settings themes",
-    "body": "Added new themes and Met.no weather forecasts and Nordic rain radar. Settings support light/dark theme as well. Also some health graph performance improvements and other bug fixes."
+    "title": "Onboarding wizard added",
+    "body": "Added an onboarding wizard. Try it out from Settings -> More -> Misc -> Run setup again"
   },
   "telemetry": {
     "enabled": false,
     "endpoint": ""
   },
   "rainbow": {
-    "endpoint": ""
+    "endpoint": "https://uorytkglrxbafryiugpu.supabase.co/functions/v1/rainbow-nowcast"
   }
 }

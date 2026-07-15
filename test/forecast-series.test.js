@@ -122,6 +122,28 @@ test('applyForecastSeries swaps raw keys for render-ready series in place, delet
   assert.equal(out.NUM_ENTRIES, 3);
 });
 
+test('applyForecastSeries bakes status lines before deleting trends', () => {
+  const payload = {
+    CURRENT_TEMP: 68, CITY: 'Bonn',
+    SUN_EVENTS: [0, 0x10, 0x20, 0x30, 0x40],
+    PRECIP_TREND_UINT8: [70], RAIN_TREND_UINT8: [0],
+    WIND_TREND_UINT8: [17], GUST_TREND_UINT8: [48], UV_TREND_UINT8: [64],
+    TEMP_TREND_UINT8: [100], TEMP_MIN: 0, TEMP_MAX: 30,
+    FORECAST_START: 1700000000, NUM_ENTRIES: 1
+  };
+  const settings = {
+    secondaryLine: 'precip_prob', thirdLine: 'off', secondaryLineFill: true,
+    barSource: 'rain', windScale: 'mid', theme: 'dark',
+    temperatureUnits: 'c', axisTimeFormat: '24h',
+    statusForecastLeft: 'wind'
+  };
+  const out = applyForecastSeries(payload, settings, { platform: 'basalt' });
+  assert.ok(Array.isArray(out.STATUS_LINE_1_UINT8));
+  assert.ok(Array.isArray(out.STATUS_LINE_4_UINT8));
+  assert.equal(out.WIND_TREND_UINT8, undefined);
+  assert.equal(out.STATUS_LINE_1_UINT8[2], 6);
+});
+
 test('applyForecastSeries clears a stale THIRD_LINE_COLOR when the third line turns off', () => {
   const payload = { PRECIP_TREND_UINT8: [0], RAIN_TREND_UINT8: [0], THIRD_LINE_COLOR: 0xFF00FF };
   const out = applyForecastSeries(payload, { secondaryLine: 'precip_prob', thirdLine: 'off', barSource: 'off' });
@@ -133,6 +155,13 @@ test('needsUv: true iff uv is on either line', () => {
   assert.equal(needsUv({ secondaryLine: 'wind', thirdLine: 'uv' }), true);
   assert.equal(needsUv({ secondaryLine: 'wind', thirdLine: 'gust' }), false);
   assert.equal(needsUv(null), false);
+});
+
+test('needsUv is true when any status slot selects uv', () => {
+  assert.equal(needsUv({ secondaryLine: 'wind', thirdLine: 'off' }), false);
+  assert.equal(needsUv({ secondaryLine: 'wind', thirdLine: 'off',
+                         statusTopLeft: 'uv' }), true);
+  assert.equal(needsUv({ secondaryLine: 'uv', thirdLine: 'off' }), true);
 });
 
 const { permilleToByte, tempTrendToBytes } = require('../src/pkjs/forecast-series');

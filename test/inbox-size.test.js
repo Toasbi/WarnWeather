@@ -13,6 +13,7 @@ global.localStorage = {
 
 const { applyForecastSeries } = require('../src/pkjs/forecast-series');
 const { buildClayPayload } = require('../src/pkjs/clay-payload');
+const { WEATHER_CATEGORIES } = require('../src/pkjs/outbox');
 
 // Regression guard for the AppMessage inbox size.
 //
@@ -64,6 +65,24 @@ function dictSize(payload) {
   }, 1);
 }
 
+/**
+ * Project a full transformed payload through the weather outbox categories.
+ * This mirrors the first send, where every present category has changed.
+ * @param {Object} payload Full transformed weather payload.
+ * @returns {Object} AppMessage payload after outbox category filtering.
+ */
+function buildWeatherOutboxPayload(payload) {
+  const outgoing = {};
+  WEATHER_CATEGORIES.forEach(function(category) {
+    category.keys.forEach(function(key) {
+      if (Object.prototype.hasOwnProperty.call(payload, key)) {
+        outgoing[key] = payload[key];
+      }
+    });
+  });
+  return outgoing;
+}
+
 /** Build the heaviest single AppMessage the phone can emit (DWD + wind). */
 function buildHeaviestBundle() {
   const range = Array.from({ length: N }, function(_, i) { return i; });
@@ -81,7 +100,7 @@ function buildHeaviestBundle() {
     NUM_ENTRIES: N,
     CURRENT_TEMP: 20,
     // A long real-world city name (UTF-8), so the guard keeps headroom for them.
-    CITY: 'Mönchengladbach',
+    CITY: 'Mönchengladbach-Ost',
     // start-type byte + two int32 epoch timestamps (handle_sun_events reads two).
     SUN_EVENTS: [0].concat(
       Array.prototype.slice.call(new Uint8Array(new Int32Array([1700000000, 1700040000]).buffer))),
@@ -91,7 +110,15 @@ function buildHeaviestBundle() {
   // distinct third line (two 24-byte trends + THIRD_LINE_COLOR) + rain bars.
   applyForecastSeries(payload, {
     secondaryLine: 'wind', thirdLine: 'gust', secondaryLineFill: false, barSource: 'rain', windScale: 'high',
-  });
+    temperatureUnits: 'c', axisTimeFormat: '12h', timeShowAmPm: true,
+    healthMode: 'all', radarProvider: 'rainbow',
+    // heaviest realistic selections: 8-byte texts on every free edge,
+    // city (19B) in the radar mid
+    statusForecastLeft: 'gust', statusForecastRight: 'wind',
+    statusRadarLeft: 'gust', statusRadarMid: 'city', statusRadarRight: 'wind',
+    statusTopLeft: 'gust', statusTopRight: 'wind',
+    statusHealthLeft: 'gust', statusHealthMid: 'city', statusHealthRight: 'wind'
+  }, { platform: 'emery' });
 
   // Radar (DWD supplies it) — two 24-slot trends + a start epoch.
   payload.RAIN_RADAR_TREND_UINT8 = range.map(function() { return 7; });
@@ -101,7 +128,9 @@ function buildHeaviestBundle() {
   // Sleep state rides in the same bundle.
   payload.IS_SLEEPING = false;
 
-  return payload;
+  // Lines 3-4 are already baked for the later watch handlers, but the staged
+  // outbox contract defers them until legacy CURRENT_TEMP/CITY can be removed.
+  return buildWeatherOutboxPayload(payload);
 }
 
 test('heaviest bundled payload (DWD + wind) fits the watch inbox', function() {
@@ -111,6 +140,13 @@ test('heaviest bundled payload (DWD + wind) fits the watch inbox', function() {
     size <= inbox,
     'bundled DWD+wind payload is ' + size + ' B but inbox_size is only ' + inbox +
     ' B — the message would be dropped (APP_MSG_BUFFER_OVERFLOW). Bump inbox_size.');
+});
+
+test('weather bundle keeps explicit headroom below the watch inbox', () => {
+  const size = dictSize(buildHeaviestBundle());
+  const inbox = readInboxSize();
+  console.log(`heaviest weather bundle: ${size} B of ${inbox} B (headroom ${inbox - size})`);
+  assert.ok(inbox - size >= 16, `headroom ${inbox - size} B is below the 16 B floor`);
 });
 
 /** The Clay settings message now carries the palette tuples too. */

@@ -198,7 +198,11 @@
       "IS_SLEEPING",
       "WATCH_HAS_CONFIG",
       "HOLIDAYS",
-      "CLAY_THEME"
+      "CLAY_THEME",
+      "STATUS_LINE_1_UINT8",
+      "STATUS_LINE_2_UINT8",
+      "STATUS_LINE_3_UINT8",
+      "STATUS_LINE_4_UINT8"
     ]
   }
 }

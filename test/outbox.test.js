@@ -3,9 +3,16 @@ const assert = require('node:assert/strict');
 const { WEATHER_CATEGORIES } = require('../src/pkjs/outbox');
 
 const forecastCategory = WEATHER_CATEGORIES.find(function(c) { return c.name === 'forecast'; });
+const statusCategory = WEATHER_CATEGORIES.find(function(c) { return c.name === 'status'; });
 
 test('WEATHER_CATEGORIES has a forecast category', function() {
     assert.ok(forecastCategory, 'forecast category must exist');
+});
+
+test('status category stages legacy keys with the first two packed status lines', function() {
+    assert.deepEqual(statusCategory.keys, [
+        'CURRENT_TEMP', 'CITY', 'STATUS_LINE_1_UINT8', 'STATUS_LINE_2_UINT8'
+    ]);
 });
 
 test("forecast category keys includes 'THIRD_LINE_TREND_UINT8' (gust line live path)", function() {
