@@ -248,6 +248,7 @@ bool status_row_uses_live_health(const StatusRow *row) {
 bool status_row_refresh(StatusRow *row) {
     if (!row) { return false; }
     uint16_t sig = 5381;
+    bool has_drawn_sun = false;
     row->uses_live_health = false;
     int len = load_blob(row->line_id);
     if (len > 0) {
@@ -259,8 +260,15 @@ bool status_row_refresh(StatusRow *row) {
             sig = sig_fold(sig, &slot.icon, 1);
             sig = sig_fold(sig, (const uint8_t *)s_text_scratch,
                            strlen(s_text_scratch));
+            if (slot.kind != SLOT_EMPTY && slot.icon == STATUS_ICON_DRAWN_SUN) {
+                has_drawn_sun = true;
+            }
             if (slot.kind >= SLOT_LIVE_STEPS) { row->uses_live_health = true; }
         }
+    }
+    if (has_drawn_sun) {
+        uint8_t sun_event_start_type = (uint8_t)persist_get_sun_event_start_type();
+        sig = sig_fold(sig, &sun_event_start_type, 1);
     }
     uint8_t tail[2] = { row->tier, (uint8_t)row->sleeping };
     sig = sig_fold(sig, tail, 2);
