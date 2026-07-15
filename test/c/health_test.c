@@ -1,18 +1,56 @@
 // Host tests for the HealthService wrapper's walked-distance accessors.
-#include <stddef.h>
 #include <stdio.h>
 
 #include "c/services/health.h"
 
-// SDK 4.17 packs the invalid/light/padding bitfields into byte 4, followed by
-// heart rate and six reserved bytes.
-_Static_assert(sizeof(HealthMinuteData) == 12, "SDK 4.17 HealthMinuteData size drift");
-_Static_assert(offsetof(HealthMinuteData, heart_rate_bpm) == 5,
-               "SDK 4.17 HealthMinuteData heart-rate offset drift");
-_Static_assert(offsetof(HealthMinuteData, reserved) == 6,
-               "SDK 4.17 HealthMinuteData reserved offset drift");
+// SDK 4.17 schema guards that do not assume a host compiler's bitfield ABI.
 _Static_assert(sizeof(((HealthMinuteData *)0)->reserved) == 6,
                "SDK 4.17 HealthMinuteData reserved width drift");
+_Static_assert(HealthMetricStepCount == 0
+                   && HealthMetricActiveSeconds == 1
+                   && HealthMetricWalkedDistanceMeters == 2
+                   && HealthMetricSleepSeconds == 3
+                   && HealthMetricSleepRestfulSeconds == 4
+                   && HealthMetricRestingKCalories == 5
+                   && HealthMetricActiveKCalories == 6
+                   && HealthMetricHeartRateBPM == 7
+                   && HealthMetricHeartRateRawBPM == 8,
+               "SDK 4.17 HealthMetric values drift");
+_Static_assert(HealthServiceAccessibilityMaskAvailable == 1
+                   && HealthServiceAccessibilityMaskNoPermission == 2
+                   && HealthServiceAccessibilityMaskNotSupported == 4
+                   && HealthServiceAccessibilityMaskNotAvailable == 8,
+               "SDK 4.17 HealthServiceAccessibilityMask values drift");
+_Static_assert(HealthAggregationSum == 0
+                   && HealthAggregationAvg == 1
+                   && HealthAggregationMin == 2
+                   && HealthAggregationMax == 3,
+               "SDK 4.17 HealthAggregation values drift");
+_Static_assert(HealthServiceTimeScopeOnce == 0
+                   && HealthServiceTimeScopeWeekly == 1
+                   && HealthServiceTimeScopeDailyWeekdayOrWeekend == 2
+                   && HealthServiceTimeScopeDaily == 3,
+               "SDK 4.17 HealthServiceTimeScope values drift");
+_Static_assert(HealthActivityNone == 0
+                   && HealthActivitySleep == 1
+                   && HealthActivityRestfulSleep == 2
+                   && HealthActivityWalk == 4
+                   && HealthActivityRun == 8
+                   && HealthActivityOpenWorkout == 16
+                   && HealthActivityMaskAll == 31,
+               "SDK 4.17 HealthActivity values drift");
+_Static_assert(HealthIterationDirectionPast == 0 && HealthIterationDirectionFuture == 1,
+               "SDK 4.17 HealthIterationDirection values drift");
+_Static_assert(MeasurementSystemUnknown == 0
+                   && MeasurementSystemMetric == 1
+                   && MeasurementSystemImperial == 2,
+               "SDK 4.17 MeasurementSystem values drift");
+_Static_assert(AmbientLightLevelUnknown == 0
+                   && AmbientLightLevelVeryDark == 1
+                   && AmbientLightLevelDark == 2
+                   && AmbientLightLevelLight == 3
+                   && AmbientLightLevelVeryLight == 4,
+               "SDK 4.17 AmbientLightLevel values drift");
 
 static int s_failures;
 static HealthServiceAccessibilityMask s_access;
@@ -125,10 +163,32 @@ static void distance_units_delegate_to_sdk(void) {
     expect_int("distance.units.sdk_metric", s_units_metric, HealthMetricWalkedDistanceMeters);
 }
 
+static void health_minute_schema_fields_are_usable(void) {
+    HealthMinuteData minute = {0};
+    minute.steps = 1;
+    minute.orientation = 2;
+    minute.vmc = 3;
+    minute.is_invalid = true;
+    minute.light = AmbientLightLevelLight;
+    minute.padding = 15;
+    minute.heart_rate_bpm = 80;
+    minute.reserved[5] = 6;
+
+    expect_int("minute.steps", minute.steps, 1);
+    expect_int("minute.orientation", minute.orientation, 2);
+    expect_int("minute.vmc", minute.vmc, 3);
+    expect_int("minute.invalid", minute.is_invalid, true);
+    expect_int("minute.light", minute.light, AmbientLightLevelLight);
+    expect_int("minute.padding", minute.padding, 15);
+    expect_int("minute.heart_rate", minute.heart_rate_bpm, 80);
+    expect_int("minute.reserved", minute.reserved[5], 6);
+}
+
 int main(void) {
     accessible_distance_returns_today_sum();
     inaccessible_distance_returns_sentinel_without_sum();
     distance_units_delegate_to_sdk();
+    health_minute_schema_fields_are_usable();
     if (s_failures) {
         printf("%d health failure(s)\n", s_failures);
         return 1;
