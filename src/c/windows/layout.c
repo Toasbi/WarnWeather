@@ -221,6 +221,47 @@ LayerVisibility layout_visibility(const ViewSpec *spec) {
     return v;
 }
 
+#if defined(WW_QUICK_VIEW)
+// Excluded on aplite (Timeline Quick View is compiled out there via WW_QUICK_VIEW, see
+// wscript) so aplite's layout code pays nothing for a view it never renders.
+MainLayout layout_compute_peek(GRect bounds, const ViewSpec *spec, int fc_band_h) {
+    // The active view minus its calendar: date strip at the top (kept), then the clock, the
+    // status row(s), and the body below. Clock and body split the freed space by their
+    // normal weights (so they keep ~full-tier proportions). A DUAL status stacks both rows
+    // (health on L.status above weather on L.status_lower — the order the render maps).
+    MainLayout L;
+    int x = bounds.origin.x, y = bounds.origin.y, w = bounds.size.w, h = bounds.size.h;
+    int strip_h = CALENDAR_STATUS_HEIGHT + 1;      // == the created top_status band
+    L.top_status = GRect(x, y, w, strip_h);        // date strip stays at the top
+    L.top = GRect(x, y + strip_h, w, 0);           // no calendar
+
+    int nbands = (spec->status == STATUS_ROW_NONE) ? 0
+               : (spec->status == STATUS_ROW_DUAL) ? 2 : 1;
+    int status_total = nbands * fc_band_h;
+    int available = h - strip_h - status_total;    // clock + body share this
+    int clock_h = available * WEIGHT_TIME / (WEIGHT_TIME + WEIGHT_BOTTOM);
+
+    int time_y = y + strip_h;
+    int status_y = time_y + clock_h;
+    int forecast_y = status_y + status_total;
+    L.time = GRect(x, time_y, w, clock_h);
+    if (nbands == 2) {
+        L.status       = GRect(x, status_y, w, fc_band_h);
+        L.status_lower = GRect(x, status_y + fc_band_h, w, fc_band_h);
+    } else if (nbands == 1) {
+        L.status = GRect(x, status_y, w, fc_band_h);
+        L.status_lower = L.status;
+    } else {
+        L.status = GRect(x, status_y, w, 0);
+        L.status_lower = L.status;
+    }
+    L.bottom = GRect(x, forecast_y, w, y + h - forecast_y);
+    L.loading = L.bottom;
+    L.radar = L.bottom;                            // a body-radar rides the bottom band
+    return L;
+}
+#endif
+
 MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h) {
     uint8_t tier = (spec->calendar_rows == 0) ? LAYOUT_TIER_NONE
                  : (spec->calendar_rows == 2) ? LAYOUT_TIER_COMPACT

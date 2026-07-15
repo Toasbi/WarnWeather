@@ -181,6 +181,65 @@ static void viewspec_tests(void) {
     expect("resolve.radar_top_fallback", r.top == TOP_BAND_CALENDAR, true);
 }
 
+static void peek_tests(void) {
+    // layout_compute_peek: the active view minus its calendar, fit into the clear area above
+    // a Timeline Quick View overlay. Date strip stays at top, then clock, status, body.
+    // Start from a full-cal forecast+weather view; peek ignores top/calendar. Visibility:
+    // calendar hidden (top emptied), forecast + weather status still on.
+    ViewSpec s = view_spec_unpack(0xD0);   // CAL3·FC·W
+    s.top = TOP_BAND_EMPTY; s.calendar_rows = 0; s.status_tier = LAYOUT_TIER_FULL;
+    LayerVisibility v = layout_visibility(&s);
+    expect("peek.calendar_hidden",        v.calendar, false);
+    expect("peek.forecast_visible",       v.forecast, true);
+    expect("peek.weather_status_visible", v.weather_status, true);
+
+    GRect clear = GRect(0, 0, 144, 117);   // 168 - 51 overlay
+    MainLayout L = layout_compute_peek(clear, &s, FC_BAND_H);
+#ifndef PBL_PLATFORM_EMERY
+    // strip 14; available 117-14-20=83; clock 83*45/96=38; status@52 h20; forecast@72 h45.
+    check("peek.top_status", L.top_status, 0, 0,  144, 14);
+    check("peek.top",        L.top,        0, 14, 144, 0);
+    check("peek.time",       L.time,       0, 14, 144, 38);
+    check("peek.status",     L.status,     0, 52, 144, 20);
+    check("peek.bottom",     L.bottom,     0, 72, 144, 45);
+#else
+    // strip 21; available 117-21-24=72; clock 72*45/96=33; status@54 h24; forecast@78 h39.
+    check("peek.top_status", L.top_status, 0, 0,  144, 21);
+    check("peek.top",        L.top,        0, 21, 144, 0);
+    check("peek.time",       L.time,       0, 21, 144, 33);
+    check("peek.status",     L.status,     0, 54, 144, 24);
+    check("peek.bottom",     L.bottom,     0, 78, 144, 39);
+#endif
+
+    // A statusless view: clock + body only, status band collapses to zero height.
+    ViewSpec sn = view_spec_unpack(0xD0);
+    sn.top = TOP_BAND_EMPTY; sn.calendar_rows = 0; sn.status = STATUS_ROW_NONE;
+    MainLayout Ln = layout_compute_peek(clear, &sn, FC_BAND_H);
+    expect("peekNone.status_zero_h", Ln.status.size.h == 0, true);
+    expect("peekNone.body_fills",    Ln.bottom.size.h > L.bottom.size.h, true);
+
+    // DUAL status stacks two bands between the clock and the body — health on L.status
+    // (upper) above weather on L.status_lower (lower), the order render_active_view maps.
+    ViewSpec sd = view_spec_unpack(0x92);   // dual status
+    sd.top = TOP_BAND_EMPTY; sd.calendar_rows = 0; sd.status_tier = LAYOUT_TIER_FULL;
+    LayerVisibility vd = layout_visibility(&sd);
+    expect("peekDual.both_status", vd.weather_status && vd.health_status, true);
+    MainLayout Ld = layout_compute_peek(clear, &sd, FC_BAND_H);
+#ifndef PBL_PLATFORM_EMERY
+    // strip 14; available 117-14-40=63; clock 63*45/96=29; health@43 weather@63 (h20); fc@83 h34.
+    check("peekDual.time",         Ld.time,         0, 14, 144, 29);
+    check("peekDual.status",       Ld.status,       0, 43, 144, 20);
+    check("peekDual.status_lower", Ld.status_lower, 0, 63, 144, 20);
+    check("peekDual.bottom",       Ld.bottom,       0, 83, 144, 34);
+#else
+    // strip 21; available 117-21-48=48; clock 48*45/96=22; health@43 weather@67 (h24); fc@91 h26.
+    check("peekDual.time",         Ld.time,         0, 21, 144, 22);
+    check("peekDual.status",       Ld.status,       0, 43, 144, 24);
+    check("peekDual.status_lower", Ld.status_lower, 0, 67, 144, 24);
+    check("peekDual.bottom",       Ld.bottom,       0, 91, 144, 26);
+#endif
+}
+
 static void radar_placement_tests(void) {
 #ifndef PBL_PLATFORM_EMERY
     ViewSpec s = view_spec_unpack(0x98);   // CAL2·RDR·W — radar in body under 2-row cal
@@ -298,6 +357,7 @@ int main(int argc, char **argv) {
     s_dump = (argc > 1 && strcmp(argv[1], "dump") == 0);
     golden_rects();
     if (!s_dump) viewspec_tests();
+    if (!s_dump) peek_tests();
     if (!s_dump) view_cursor_tests();
     if (!s_dump) view_timer_tests();
     if (!s_dump) radar_placement_tests();

@@ -9,13 +9,15 @@
 // never called (call sites are guarded), so there is no link error.
 
 // Subscribe to Timeline Quick View obstruction changes. `on_change` is invoked on the
-// app task whenever the obstruction state begins changing or settles, so the caller can
-// re-render. Call once at window load.
+// app task whenever the overlay begins changing or settles, so the caller can re-render.
+// Call once at window load.
 void quick_view_subscribe(void (*on_change)(void));
 
 // Stop receiving obstruction-change notifications. Call at window unload.
 void quick_view_unsubscribe(void);
 
-// True while the Timeline Quick View overlay is (about to be) covering part of the
-// screen. Consulted by the render path to hide the content below the clock.
-bool quick_view_is_obstructed(void);
+// The area of `root` not covered by the Timeline Quick View overlay (== layer_get_bounds
+// when nothing is obstructing). The render path compares this to the full bounds on every
+// render, so the peek decision is always derived from the live screen state — never a
+// cached flag that can go stale across settings / timeline / focus / relaunch transitions.
+GRect quick_view_unobstructed_bounds(Layer *root);

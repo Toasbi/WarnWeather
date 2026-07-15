@@ -94,16 +94,37 @@ static uint8_t next_view_index(uint8_t from) {
 // the layout each time rather than only toggling visibility. Layers are reframed, never
 // destroyed/recreated. Text re-measurement is the caller's main_window_refresh().
 static void render_active_view(void) {
-    GRect bounds = layer_get_bounds(window_get_root_layer(s_main_window));
+    Layer *root_layer = window_get_root_layer(s_main_window);
+    GRect bounds = layer_get_bounds(root_layer);
     ViewSpec spec = current_view_spec();
+    int fc_band = status_forecast_band_h(status_full_tier_font());
+    MainLayout L;
+#if defined(WW_QUICK_VIEW)
+    // Peek is derived LIVE from the unobstructed bounds every render (never a cached flag),
+    // so it stays correct across settings/timeline/relaunch — any path that lands here
+    // re-checks reality. While a Timeline Quick View overlay covers the lower screen, render
+    // the active view minus its calendar (date strip, clock, status row and a small body,
+    // fit into the clear area) via layout_compute_peek. Reuses the ViewSpec->visibility
+    // pipeline: dropping the top/calendar makes layout_visibility hide the calendar while
+    // the body + status stay on.
+    GRect unobstructed = quick_view_unobstructed_bounds(root_layer);
+    bool peek = unobstructed.size.h < bounds.size.h;
+    if (peek) {
+        spec.top = TOP_BAND_EMPTY;
+        spec.calendar_rows = 0;
+        spec.status_tier = LAYOUT_TIER_FULL;   // status band is full-tier-sized (fc_band)
+        L = layout_compute_peek(unobstructed, &spec, fc_band);
+    } else
+#endif
+    {
+        L = layout_compute_spec(bounds, &spec, fc_band);
+    }
     // Bridge the legacy top_view_mode consumers (config_calendar_rows / config_n_today
     // for the calendar row count + prev-week offset, and the aplite date strip) to the
     // ACTIVE view's tier, so a flick to a different-density view draws the right calendar.
     g_config->top_view_mode = (spec.calendar_rows == 3) ? TOP_VIEW_FULL
                             : (spec.calendar_rows == 2) ? TOP_VIEW_COMPACT
                             : TOP_VIEW_NONE;
-    MainLayout L = layout_compute_spec(bounds, &spec,
-                                       status_forecast_band_h(status_full_tier_font()));
     layer_set_frame(time_layer_get_root(), L.time);
     layer_set_frame(calendar_layer_get_root(), L.top);
 #if defined(WW_RAIN_RADAR)
@@ -126,23 +147,6 @@ static void render_active_view(void) {
     layer_set_frame(loading_layer_get_root(), L.loading);
 
     LayerVisibility v = layout_visibility(&spec);
-#if defined(WW_QUICK_VIEW)
-    if (quick_view_is_obstructed()) {
-        // A Timeline Quick View overlay is covering the bottom of the screen. Hide the
-        // content below the clock so the overlay owns that space; the clock/calendar
-        // stay put (bounds are unchanged — no reflow).
-        v.forecast = false;
-        v.health_graph = false;
-        if (spec.body == BODY_RADAR) { v.radar = false; }   // keep a top-band radar
-#ifdef PBL_PLATFORM_EMERY
-        // emery: the Quick View overlay is taller here, so the status row that clears the
-        // ~51px overlay on the 168px watches would be crowded/clipped — hide it too,
-        // giving the overlay the whole space below the clock.
-        v.weather_status = false;
-        v.health_status = false;
-#endif
-    }
-#endif
     layer_set_hidden(calendar_layer_get_root(), !v.calendar);
 #if defined(WW_RAIN_RADAR)
     layer_set_hidden(rain_radar_layer_get_root(), !v.radar);
@@ -154,6 +158,16 @@ static void render_active_view(void) {
     layer_set_hidden(health_status_layer_get_root(), !v.health_status);
 #endif
 }
+
+#if defined(WW_QUICK_VIEW)
+// A Timeline Quick View overlay appeared or retracted: re-render for the new obstruction
+// state, then refresh so the clock/status/forecast text re-measures for its (peek vs
+// normal) frame — the same render+refresh pairing a flick uses. quick_view on_change cb.
+static void quick_view_on_change(void) {
+    render_active_view();
+    main_window_refresh();
+}
+#endif
 
 static void tap_handler(AccelAxisType axis, int32_t direction) {
     // accel_tap_service fires per-axis, so one physical tap commonly delivers
@@ -255,9 +269,9 @@ static void main_window_load(Window *window) {
 #endif
     accel_tap_service_subscribe(tap_handler);
 #if defined(WW_QUICK_VIEW)
-    // Re-render (which re-applies the obstruction override in render_active_view) whenever
-    // a Timeline Quick View overlay appears or retracts.
-    quick_view_subscribe(main_window_relayout);
+    // Switch to the peek view (and back) whenever a Timeline Quick View overlay appears or
+    // retracts. See quick_view_on_change / render_active_view.
+    quick_view_subscribe(quick_view_on_change);
 #endif
     MEMORY_LOG_HEAP("after_window_load");
 }

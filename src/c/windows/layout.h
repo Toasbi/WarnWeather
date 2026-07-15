@@ -72,6 +72,16 @@ LayerVisibility layout_visibility(const ViewSpec *spec);
 
 MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h);
 
+#if defined(WW_QUICK_VIEW)
+// "Peek" geometry for the Timeline Quick View overlay: the active view minus its calendar,
+// fit into `bounds` (the unobstructed area above the overlay) — the date strip stays at the
+// top, then the clock, the status row(s), and the body (forecast/graph/radar) below. Clock
+// and body keep ~full-tier proportions (the freed calendar space covers the ~51px overlay).
+// `spec` supplies the status shape (NONE / single / DUAL); its top/calendar fields are
+// ignored. Pure; excluded on aplite.
+MainLayout layout_compute_peek(GRect bounds, const ViewSpec *spec, int fc_band_h);
+#endif
+
 // ── View-cycle cursor (pure) ─────────────────────────────────────────────────
 // The wrist-flick cursor is a position in the 3-slot cycle. main_window owns the
 // cursor state and resolves availability from the SDK (radar data present? health
