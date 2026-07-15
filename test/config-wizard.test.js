@@ -28,13 +28,15 @@ test('mapCountry: providers by country + temperature unit (US=f, else c)', () =>
   assert.deepEqual(W.mapCountry(null), { provider: 'openmeteo', radarProvider: 'rainbow', temperatureUnits: 'c' });
 });
 
-test('buildSteps: env gates radar and health; theme always sits before done', () => {
+test('buildSteps: health precedes the flick demo; flick gated on radar (absent on aplite)', () => {
   assert.deepEqual(W.buildSteps({ radar: true, health: true }),
-    ['welcome', 'layout', 'radar', 'health', 'theme', 'done']);
+    ['welcome', 'layout', 'health', 'flick', 'theme', 'done']);
+  assert.deepEqual(W.buildSteps({ radar: true, health: false }),
+    ['welcome', 'layout', 'flick', 'theme', 'done']);
   assert.deepEqual(W.buildSteps({ radar: false, health: false }),
     ['welcome', 'layout', 'theme', 'done']);
-  assert.deepEqual(W.buildSteps({ radar: true, health: false }),
-    ['welcome', 'layout', 'radar', 'theme', 'done']);
+  assert.deepEqual(W.buildSteps({ radar: false, health: true }),
+    ['welcome', 'layout', 'health', 'theme', 'done']);
 });
 
 test('radarNearby: DWD only', () => {

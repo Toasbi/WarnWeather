@@ -83,15 +83,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Ordered wizard step ids, filtered by platform env (radar/health absent on aplite).
+     * Ordered wizard step ids, filtered by platform env: health only where the platform
+     * has it, and the flick demo only where there is a second view to flick to (env.radar
+     * — false on aplite, whose single view leaves nothing to demo). layout and health are
+     * the selection steps that shape the cycle, so the demo comes after both and shows the
+     * user's real cycle.
      * @param {{radar: boolean, health: boolean}} env Config-UI env facts.
      * @returns {Array.<string>} Step ids in order.
      */
     function buildSteps(env) {
         env = env || {};
         var steps = ['welcome', 'layout'];
-        if (env.radar) { steps.push('radar'); }
         if (env.health) { steps.push('health'); }
+        if (env.radar) { steps.push('flick'); }
         steps.push('theme');
         steps.push('done');
         return steps;
@@ -174,7 +178,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var HEALTH_OPTS = [['Off', 'off'], ['Status bar', 'status'], ['Status + graph', 'all']];
     var STEP_TITLES = {
         welcome: 'Welcome to WarnWeather', layout: 'Choose your layout',
-        radar: 'Rain radar', health: 'Health', flick: 'Flick to explore',
+        health: 'Health', flick: 'Flick to explore',
         theme: 'Choose your theme', done: 'All set'
     };
     // Per-option copy shown under the carousel for the centered selection (fixes "text doesn't update").
@@ -493,19 +497,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             + '<p><b>Weather status</b> — the top strip shows your location, current conditions and sunset.</p>'
             + '<p><b>Forecast</b> — a 24-hour graph: temperature, the precipitation-% line, UV dots and rain bars.</p></div>';
     }
-    function stepRadar() {
-        var h = '<div class="wiz-radar"><img class="wiz-shot" src="' + esc(shotSet().radar || '') + '" alt=""></div>'
-            + '<p><b>Tip</b> — flick your wrist on the watch to switch to the rain radar.</p>'
-            + '<p><b>Rain radar</b> — a precise short-term rain forecast for the next 2 hours, in 5-minute frames.</p>'
-            + '<p><b>Rain countdown</b> — when rain is heading your way, the status strip shows how soon it starts (e.g. “Rain in 15’”).</p>';
-        if (radarNearby(W.ctx.S.radarProvider)) {
-            h += '<p><b>Nearby</b> — DWD also shows rain around you (~2 km), not just at your exact spot.</p>';
-        }
-        return h;
-    }
     function stepHealth() {
-        return carousel('healthMode', HEALTH_OPTS, W.ctx.S.healthMode, HEALTH_DESC)
-            + '<p><b>Tip</b> — flick your wrist on the watch to switch to the health view.</p>';
+        return carousel('healthMode', HEALTH_OPTS, W.ctx.S.healthMode, HEALTH_DESC);
     }
     function stepFlick() {
         // Render always opens on stop 0 (the default view), so re-entering the step resets
@@ -543,7 +536,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function stepBody(id) {
         if (id === 'welcome') { return stepWelcome(); }
         if (id === 'layout') { return stepLayout(); }
-        if (id === 'radar') { return stepRadar(); }
         if (id === 'health') { return stepHealth(); }
         if (id === 'flick') { return stepFlick(); }
         if (id === 'theme') { return stepTheme(); }
