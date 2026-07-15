@@ -140,7 +140,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             // fullCal/status dual-status variant — healthMode.status represents both.
             return { label: 'Health status', caption: FLICK_CAPTION_STATUS, shotGroup: 'healthMode', shotVal: 'status' };
         }
-        return { label: 'Default', caption: FLICK_CAPTION_DEFAULT, shotGroup: 'layoutPreset', shotVal: VC.resolvePresetKey(state) };
+        var pk = VC.resolvePresetKey(state);
+        if (pk === 'compactDense') { pk = 'compactCal'; } // no captured shot for compactDense; compactCal is the nearest (same 2-row calendar)
+        return { label: 'Default', caption: FLICK_CAPTION_DEFAULT, shotGroup: 'layoutPreset', shotVal: pk };
     }
 
     /**
@@ -233,8 +235,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '#wizard .wiz-nav{flex:1;padding:12px;border-radius:11px;font:700 14px Inter,sans-serif;cursor:pointer}'
         + '#wizard .wiz-nav.pri{border:none;background:linear-gradient(135deg,#FA4A35,#D93A24);color:#fff}'
         + '#wizard .wiz-nav.sec{border:1px solid var(--ctl-line);background:var(--ctl);color:var(--fg)}'
-        // Flick demo: watch bezel (reuses the .wiz-radar screen framing), tilt-and-snap
-        // keyframes with a faint motion arc (::after), cycle dots + label, primary button.
+        // Flick demo: watch bezel (reuses the screen-framing tokens: var(--screen-line) border,
+        // rounded corners, var(--card) background), tilt-and-snap keyframes with a faint motion
+        // arc (::after), cycle dots + label, primary button.
         + '#wizard .wiz-flick{text-align:center;margin-top:14px}'
         + '#wizard .wiz-flick-watch{position:relative;display:inline-block;cursor:pointer;transform-origin:50% 100%}'
         + '#wizard .wiz-flick-watch.tilt{animation:wiz-tilt .45s ease-in-out}'
@@ -242,7 +245,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + 'margin-left:-35px;border:2px solid transparent;border-top-color:var(--muted);'
         + 'border-radius:50% 50% 0 0/100% 100% 0 0;opacity:0;pointer-events:none}'
         + '#wizard .wiz-flick-watch.tilt::after{animation:wiz-arc .45s ease-out}'
-        + '#wizard .wiz-flick-bezel{position:relative;width:150px;border:1px solid var(--screen-line);'
+        + '#wizard .wiz-flick-bezel{position:relative;width:150px;min-height:90px;border:1px solid var(--screen-line);'
         + 'border-radius:12px;overflow:hidden;background:var(--card)}'
         + '#wizard .wiz-flick-shot{opacity:0;transition:opacity .18s}'
         + '#wizard .wiz-flick-shot.on{opacity:1}'
@@ -407,10 +410,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     // --- flick demo (step 'flick'): interactive tilt-and-snap through the real cycle ---
-    // 1x1 transparent GIF, shown only if a stop unexpectedly has no screenshot. Unreachable in
-    // practice: scripts/build-config-page.js hard-fails the build on any missing wizard shot,
-    // and blocks.js's band-stack renderer is private to its IIFE — so the fallback stays a
-    // blank watch face; the dots label + caption below still identify the stop.
+    // 1x1 transparent GIF, shown only if a stop unexpectedly has no screenshot. Stays unreachable
+    // because the Default stop clamps compactDense (the one preset with no captured shot) to
+    // compactCal, and scripts/build-config-page.js hard-fails the build on any other missing wizard
+    // shot — so the fallback stays a blank watch face (padded out by the bezel's min-height rather
+    // than collapsing to a sliver); the dots label + caption below still identify the stop.
     var BLANK_SHOT = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
 
     /**

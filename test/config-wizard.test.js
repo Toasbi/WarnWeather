@@ -86,6 +86,13 @@ test('flickStops: fullCal/status dual-status middle stop (ST_D) also maps to hea
   assert.equal(stops[1].shotVal, 'status');
 });
 
+test('flickStops: compactDense (no screenshot) maps the Default stop to the compactCal shot', () => {
+  const stops = W.flickStops({ layoutPreset: 'compactDense', healthMode: 'all', radarProvider: 'dwd' });
+  assert.equal(stops[0].label, 'Default');
+  assert.equal(stops[0].shotGroup, 'layoutPreset');
+  assert.equal(stops[0].shotVal, 'compactCal'); // clamped: compactDense has no captured shot
+});
+
 test('flickStops: disabled radar drops the radar stop; empty state resolves defaults', () => {
   const noRadar = W.flickStops({ layoutPreset: 'compactCal', healthMode: 'all', radarProvider: 'disabled' });
   assert.deepEqual(noRadar.map((s) => s.label), ['Default', 'Health graph']);
