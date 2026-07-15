@@ -143,6 +143,26 @@ static void owner_forwards_lifecycle_and_state(void) {
 
     int apply_before = s_apply_count;
     int refresh_before = s_refresh_count;
+    weather_status_layer_set_render_tier(TOP_VIEW_NONE);
+    expect_int("same_tier.no_apply", s_apply_count, apply_before);
+    expect_int("same_tier.no_refresh", s_refresh_count, refresh_before);
+
+    s_refresh_changed = true;
+    weather_status_layer_set_render_tier(TOP_VIEW_COMPACT);
+    expect_int("new_tier.applied", s_last_tier, TOP_VIEW_COMPACT);
+    expect_int("new_tier.apply_count", s_apply_count, apply_before + 1);
+    expect_int("new_tier.refresh_count", s_refresh_count, refresh_before + 1);
+    expect_int("new_tier.dirty", s_dirty_count, 2);
+
+    s_refresh_changed = false;
+    weather_status_layer_set_render_tier(TOP_VIEW_FULL);
+    expect_int("changed_tier_same_content.applied", s_last_tier, TOP_VIEW_FULL);
+    expect_int("changed_tier_same_content.apply_count", s_apply_count, apply_before + 2);
+    expect_int("changed_tier_same_content.refresh_count", s_refresh_count, refresh_before + 2);
+    expect_int("changed_tier_same_content.no_dirty", s_dirty_count, 2);
+
+    apply_before = s_apply_count;
+    refresh_before = s_refresh_count;
     weather_status_layer_set_line(STATUS_LINE_FORECAST);
     expect_int("same_line.no_apply", s_apply_count, apply_before);
     expect_int("same_line.no_refresh", s_refresh_count, refresh_before);
@@ -150,7 +170,7 @@ static void owner_forwards_lifecycle_and_state(void) {
     s_refresh_changed = true;
     weather_status_layer_set_line(STATUS_LINE_RADAR);
     expect_int("new_line.applied", s_last_line, STATUS_LINE_RADAR);
-    expect_int("new_line.dirty", s_dirty_count, 2);
+    expect_int("new_line.dirty", s_dirty_count, 3);
 
     s_live_health = true;
     expect_int("live_health", weather_status_layer_uses_live_health(), true);

@@ -20,6 +20,13 @@ static void apply_row(void) {
     status_row_apply(s_row, bounds, s_render_tier, s_line_id);
 }
 
+static void refresh_row(void) {
+    apply_row();
+    if (s_row && status_row_refresh(s_row)) {
+        layer_mark_dirty(s_weather_status_layer);
+    }
+}
+
 void weather_status_layer_create(Layer *parent_layer, GRect frame) {
     s_weather_status_layer = layer_create(frame);
     layer_set_update_proc(s_weather_status_layer, weather_status_update_proc);
@@ -32,23 +39,19 @@ void weather_status_layer_create(Layer *parent_layer, GRect frame) {
 void weather_status_layer_refresh() {
     if (!s_row) { return; }
     status_row_set_sleeping(s_row, persist_get_is_sleeping());
-    apply_row();
-    if (status_row_refresh(s_row)) {
-        layer_mark_dirty(s_weather_status_layer);
-    }
+    refresh_row();
 }
 
 void weather_status_layer_set_render_tier(uint8_t tier) {
+    if (tier == s_render_tier) { return; }
     s_render_tier = tier;
+    refresh_row();
 }
 
 void weather_status_layer_set_line(uint8_t line_id) {
     if (line_id == s_line_id) { return; }
     s_line_id = line_id;
-    apply_row();
-    if (s_row && status_row_refresh(s_row)) {
-        layer_mark_dirty(s_weather_status_layer);
-    }
+    refresh_row();
 }
 
 bool weather_status_layer_uses_live_health(void) {
