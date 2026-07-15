@@ -13,6 +13,7 @@
 #include "c/services/health.h"
 #include "c/services/health_cache.h"
 #include "c/services/health_summary.h"
+#include "c/services/quick_view.h"
 #include "c/appendix/app_message.h"
 #include "c/appendix/persist.h"
 #include "c/appendix/config.h"
@@ -125,6 +126,23 @@ static void render_active_view(void) {
     layer_set_frame(loading_layer_get_root(), L.loading);
 
     LayerVisibility v = layout_visibility(&spec);
+#if defined(WW_QUICK_VIEW)
+    if (quick_view_is_obstructed()) {
+        // A Timeline Quick View overlay is covering the bottom of the screen. Hide the
+        // content below the clock so the overlay owns that space; the clock/calendar
+        // stay put (bounds are unchanged — no reflow).
+        v.forecast = false;
+        v.health_graph = false;
+        if (spec.body == BODY_RADAR) { v.radar = false; }   // keep a top-band radar
+#ifdef PBL_PLATFORM_EMERY
+        // emery: the Quick View overlay is taller here, so the status row that clears the
+        // ~51px overlay on the 168px watches would be crowded/clipped — hide it too,
+        // giving the overlay the whole space below the clock.
+        v.weather_status = false;
+        v.health_status = false;
+#endif
+    }
+#endif
     layer_set_hidden(calendar_layer_get_root(), !v.calendar);
 #if defined(WW_RAIN_RADAR)
     layer_set_hidden(rain_radar_layer_get_root(), !v.radar);
@@ -236,11 +254,19 @@ static void main_window_load(Window *window) {
     }
 #endif
     accel_tap_service_subscribe(tap_handler);
+#if defined(WW_QUICK_VIEW)
+    // Re-render (which re-applies the obstruction override in render_active_view) whenever
+    // a Timeline Quick View overlay appears or retracts.
+    quick_view_subscribe(main_window_relayout);
+#endif
     MEMORY_LOG_HEAP("after_window_load");
 }
 
 static void main_window_unload(Window *window) {
     accel_tap_service_unsubscribe();
+#if defined(WW_QUICK_VIEW)
+    quick_view_unsubscribe();
+#endif
     // Snapshot session state for a possible relaunch (see main_window_load's
     // restore logic above). g_config is already freed by this point —
     // watchface.c's deinit() calls config_unload() before main_window_destroy()
