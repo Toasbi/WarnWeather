@@ -127,6 +127,13 @@ def build(ctx):
         # docs/adr/0001; parallels PBL_HEALTH gating the health subsystem).
         if platform != 'aplite':
             ctx.env.CFLAGS += ['-DWW_RAIN_RADAR=1']
+        # Timeline Quick View peek handling uses the firmware-4 Unobstructed Area API,
+        # which the frozen-lean aplite variant (~1.5 KB peak heap) does not carry. Every
+        # other platform defines WW_QUICK_VIEW; aplite lacks it, so the guarded call sites
+        # in main_window.c drop out and quick_view.c compiles to an empty translation unit
+        # (--gc-sections reaps anything left). Mirrors WW_RAIN_RADAR above.
+        if platform != 'aplite':
+            ctx.env.CFLAGS += ['-DWW_QUICK_VIEW=1']
         if enable_memory_logging:
             ctx.env.CFLAGS += ['-DWW_ENABLE_MEMORY_LOGGING=1']
         if fixture_now:
