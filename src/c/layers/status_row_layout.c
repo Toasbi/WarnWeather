@@ -41,7 +41,11 @@ static GroupFit fit_group(const StatusSlotMeasure *m, int16_t max_w) {
 
 static void place_group(const StatusSlotMeasure *m, const GroupFit *fit,
                         int16_t x, StatusSlotPlace *out) {
-    out->visible = fit->visible;
+    if (!fit->visible) {
+        return;
+    }
+
+    out->visible = true;
     out->text_visible = fit->text_visible;
     out->icon_x = x;
     out->text_x = x + m->icon_w + ((m->icon_w > 0 && fit->text_w > 0)
@@ -52,15 +56,24 @@ static void place_group(const StatusSlotMeasure *m, const GroupFit *fit,
 
 void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
                        StatusSlotPlace out[3]) {
+    StatusSlotMeasure normalized[3];
     for (int i = 0; i < 3; i++) {
         out[i] = (StatusSlotPlace) { false, false, 0, 0, 0 };
+        normalized[i] = (StatusSlotMeasure) {
+            m[i].present,
+            m[i].icon_w > 0 ? m[i].icon_w : 0,
+            m[i].text_w > 0 ? m[i].text_w : 0
+        };
+    }
+    if (content_w <= 0) {
+        return;
     }
 
     int16_t cap = content_w / 3;
-    GroupFit left = fit_group(&m[0], cap);
-    GroupFit right = fit_group(&m[2], cap);
-    place_group(&m[0], &left, 0, &out[0]);
-    place_group(&m[2], &right, content_w - right.group_w, &out[2]);
+    GroupFit left = fit_group(&normalized[0], cap);
+    GroupFit right = fit_group(&normalized[2], cap);
+    place_group(&normalized[0], &left, 0, &out[0]);
+    place_group(&normalized[2], &right, content_w - right.group_w, &out[2]);
 
     // The mid group gets whatever remains, bounded by GROUP_GAP from each
     // present neighbour, or the content edge when a side is empty.
@@ -70,8 +83,8 @@ void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
     int16_t avail_x1 = right.visible
         ? (int16_t)(content_w - right.group_w - STATUS_ROW_GROUP_GAP)
         : content_w;
-    GroupFit mid = fit_group(&m[1], (int16_t)(avail_x1 - avail_x0));
-    place_group(&m[1], &mid,
+    GroupFit mid = fit_group(&normalized[1], (int16_t)(avail_x1 - avail_x0));
+    place_group(&normalized[1], &mid,
                 (int16_t)(avail_x0 + ((avail_x1 - avail_x0) - mid.group_w) / 2),
                 &out[1]);
 }

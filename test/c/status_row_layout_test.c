@@ -6,6 +6,14 @@ static void expect(const char *name, long got, long want) {
     if (got != want) { printf("FAIL %s: got %ld want %ld\n", name, got, want); s_failures++; }
 }
 
+static void expect_hidden_zero(const char *name, const StatusSlotPlace *p) {
+    expect(name, p->visible, 0);
+    expect(name, p->text_visible, 0);
+    expect(name, p->icon_x, 0);
+    expect(name, p->text_x, 0);
+    expect(name, p->text_w, 0);
+}
+
 // content_w = 138, cap = 46 for every case below.
 
 static void empty_row(void) {
@@ -92,6 +100,99 @@ static void text_to_zero_keeps_icon(void) {
     expect("zero2.text_visible", p[1].text_visible, 0); // 38-37-2 < 0 → text gone
 }
 
+static void component_shapes(void) {
+    StatusSlotPlace p[3];
+
+    StatusSlotMeasure empty[3] = {
+        { false, 0, 0 }, { true, 0, 20 }, { true, 0, 0 }
+    };
+    status_row_layout(138, empty, p);
+    expect_hidden_zero("shape.empty", &p[2]);
+    expect("shape.empty.mid_x", p[1].text_x, 59);
+
+    StatusSlotMeasure icon_only[3] = {
+        { true, 10, 0 }, { false, 0, 0 }, { false, 0, 0 }
+    };
+    status_row_layout(138, icon_only, p);
+    expect("shape.icon.visible", p[0].visible, 1);
+    expect("shape.icon.text_visible", p[0].text_visible, 0);
+    expect("shape.icon.icon_x", p[0].icon_x, 0);
+    expect("shape.icon.text_w", p[0].text_w, 0);
+
+    StatusSlotMeasure text_only[3] = {
+        { false, 0, 0 }, { false, 0, 0 }, { true, 0, 20 }
+    };
+    status_row_layout(138, text_only, p);
+    expect("shape.text.visible", p[2].visible, 1);
+    expect("shape.text.text_visible", p[2].text_visible, 1);
+    expect("shape.text.text_x", p[2].text_x, 118);
+    expect("shape.text.text_w", p[2].text_w, 20);
+}
+
+static void non_positive_and_narrow_content(void) {
+    StatusSlotMeasure all[3] = {
+        { true, 1, 1 }, { true, 1, 1 }, { true, 1, 1 }
+    };
+    StatusSlotPlace p[3];
+    status_row_layout(0, all, p);
+    expect_hidden_zero("width.zero.l", &p[0]);
+    expect_hidden_zero("width.zero.m", &p[1]);
+    expect_hidden_zero("width.zero.r", &p[2]);
+
+    status_row_layout(-10, all, p);
+    expect_hidden_zero("width.negative.l", &p[0]);
+    expect_hidden_zero("width.negative.m", &p[1]);
+    expect_hidden_zero("width.negative.r", &p[2]);
+
+    StatusSlotMeasure narrow[3] = {
+        { true, 1, 0 }, { true, 0, 5 }, { true, 1, 0 }
+    };
+    status_row_layout(2, narrow, p);
+    expect_hidden_zero("width.narrow.l", &p[0]);
+    expect_hidden_zero("width.narrow.r", &p[2]);
+    expect("width.narrow.mid_visible", p[1].visible, 1);
+    expect("width.narrow.mid_x", p[1].text_x, 0);
+    expect("width.narrow.mid_w", p[1].text_w, 2);
+}
+
+static void negative_measures_normalize_to_zero(void) {
+    StatusSlotPlace p[3];
+
+    StatusSlotMeasure negative_text[3] = {
+        { true, 0, -10 }, { true, 0, 50 }, { false, 0, 0 }
+    };
+    status_row_layout(138, negative_text, p);
+    expect_hidden_zero("negative.text.left", &p[0]);
+    expect("negative.text.mid_x", p[1].text_x, 44);
+    expect("negative.text.mid_w", p[1].text_w, 50);
+
+    StatusSlotMeasure negative_icon[3] = {
+        { true, -10, 20 }, { false, 0, 0 }, { false, 0, 0 }
+    };
+    status_row_layout(138, negative_icon, p);
+    expect("negative.icon.visible", p[0].visible, 1);
+    expect("negative.icon.icon_x", p[0].icon_x, 0);
+    expect("negative.icon.text_x", p[0].text_x, 0);
+    expect("negative.icon.text_w", p[0].text_w, 20);
+
+    StatusSlotMeasure both_negative[3] = {
+        { false, 0, 0 }, { false, 0, 0 }, { true, -10, -20 }
+    };
+    status_row_layout(138, both_negative, p);
+    expect_hidden_zero("negative.both.right", &p[2]);
+}
+
+static void unfit_outer_glyph_is_omitted(void) {
+    StatusSlotMeasure m[3] = {
+        { true, 47, 20 }, { true, 0, 50 }, { false, 0, 0 }
+    };
+    StatusSlotPlace p[3];
+    status_row_layout(138, m, p);
+    expect_hidden_zero("outer.unfit.left", &p[0]);
+    expect("outer.unfit.mid_x", p[1].text_x, 44);
+    expect("outer.unfit.mid_w", p[1].text_w, 50);
+}
+
 int main(void) {
     empty_row();
     typical_row();
@@ -99,6 +200,10 @@ int main(void) {
     mid_uses_free_edges();
     mid_squeezed_out();
     text_to_zero_keeps_icon();
+    component_shapes();
+    non_positive_and_narrow_content();
+    negative_measures_normalize_to_zero();
+    unfit_outer_glyph_is_omitted();
     if (s_failures) { printf("%d status_row_layout failure(s)\n", s_failures); return 1; }
     printf("status_row_layout OK\n");
     return 0;
