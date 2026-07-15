@@ -1,21 +1,26 @@
 #include "status_line.h"
 
-// Well-formed UTF-8 over exactly len bytes. Guards against mid-code-point
-// truncation and stray continuation bytes; overlong encodings are the trusted
-// phone packer's problem, not a memory-safety concern here.
+// Well-formed UTF-8 over exactly len bytes, including shortest-form and Unicode
+// scalar-value constraints.
 static bool utf8_complete(const uint8_t *s, size_t len) {
     size_t i = 0;
     while (i < len) {
         uint8_t b = s[i];
         size_t need;
         if (b < 0x80) { need = 0; }
-        else if ((b & 0xE0) == 0xC0) { need = 1; }
+        else if (b >= 0xC2 && b <= 0xDF) { need = 1; }
         else if ((b & 0xF0) == 0xE0) { need = 2; }
-        else if ((b & 0xF8) == 0xF0) { need = 3; }
+        else if (b >= 0xF0 && b <= 0xF4) { need = 3; }
         else { return false; }
         if (i + 1 + need > len) { return false; }
         for (size_t k = 1; k <= need; k++) {
             if ((s[i + k] & 0xC0) != 0x80) { return false; }
+        }
+        if ((b == 0xE0 && s[i + 1] < 0xA0) ||
+            (b == 0xED && s[i + 1] > 0x9F) ||
+            (b == 0xF0 && s[i + 1] < 0x90) ||
+            (b == 0xF4 && s[i + 1] > 0x8F)) {
+            return false;
         }
         i += 1 + need;
     }
@@ -65,7 +70,10 @@ bool status_line_validate(const uint8_t *blob, size_t len) {
 
 bool status_line_slot(const uint8_t *blob, size_t len, int slot_index,
                       StatusSlotView *out) {
-    if (!blob || slot_index < 0 || slot_index >= STATUS_SLOT_COUNT) { return false; }
+    if (!out || slot_index < 0 || slot_index >= STATUS_SLOT_COUNT ||
+        !status_line_validate(blob, len)) {
+        return false;
+    }
     size_t off = 0;
     for (int i = 0; i <= slot_index; i++) {
         if (!walk_slot(blob, len, i, &off, (i == slot_index) ? out : NULL)) {

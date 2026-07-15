@@ -100,6 +100,34 @@ static void validate_tests(void) {
     n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
     expect("utf8-trunc.reject", status_line_validate(b, n), 0);
 
+    // Non-shortest UTF-8 encodings.
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_NONE, "\xC0\x80");
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("utf8-overlong-2.reject", status_line_validate(b, n), 0);
+
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_NONE, "\xE0\x80\x80");
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("utf8-overlong-3.reject", status_line_validate(b, n), 0);
+
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_NONE, "\xF0\x80\x80\x80");
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("utf8-overlong-4.reject", status_line_validate(b, n), 0);
+
+    // UTF-16 surrogate U+D800 encoded as UTF-8.
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_NONE, "\xED\xA0\x80");
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("utf8-surrogate.reject", status_line_validate(b, n), 0);
+
+    // U+110000 is above the Unicode maximum U+10FFFF.
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_NONE, "\xF4\x90\x80\x80");
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("utf8-too-high.reject", status_line_validate(b, n), 0);
+
     // Value declared longer than blob.
     uint8_t short_blob[] = { SLOT_TEXT, STATUS_ICON_NONE, 5, 'a', 'b' };
     expect("short.reject", status_line_validate(short_blob, sizeof(short_blob)), 0);
@@ -131,6 +159,28 @@ static void slot_tests(void) {
 
     expect("slot3.reject", status_line_slot(b, n, 3, &v), 0);
     expect("slot-neg.reject", status_line_slot(b, n, -1, &v), 0);
+    expect("slot-null-out.reject", status_line_slot(b, n, 0, NULL), 0);
+
+    // Extraction is atomic: an invalid remainder rejects an earlier slot.
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_TEMP, "5\xC2\xB0");
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, (uint8_t)(STATUS_SLOT_KIND_MAX + 1), STATUS_ICON_NONE, NULL);
+    expect("slot-later-invalid.reject", status_line_slot(b, n, 0, &v), 0);
+
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_TEMP, "5\xC2\xB0");
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("slot-two-slots.reject", status_line_slot(b, n, 0, &v), 0);
+
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_TEMP, "5\xC2\xB0");
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    b[n] = 0;
+    expect("slot-trailing.reject", status_line_slot(b, n + 1, 0, &v), 0);
+
+    memset(b, 0, sizeof(b));
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_TEMP, "5\xC2\xB0");
+    expect("slot-max-bytes.reject",
+           status_line_slot(b, STATUS_LINE_MAX_BYTES + 1, 0, &v), 0);
 }
 
 int main(void) {
