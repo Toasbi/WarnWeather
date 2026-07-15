@@ -20,3 +20,5 @@ cc $CFLAGS test/c/radar_axis_test.c src/c/appendix/radar_axis.c -o build/host/ra
 build/host/radar_axis_test
 cc $CFLAGS test/c/status_line_test.c src/c/appendix/status_line.c -o build/host/status_line_test
 build/host/status_line_test
+cc $CFLAGS test/c/status_row_layout_test.c src/c/layers/status_row_layout.c -o build/host/status_row_layout_test
+build/host/status_row_layout_test
