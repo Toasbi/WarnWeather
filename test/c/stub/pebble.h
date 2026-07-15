@@ -34,6 +34,7 @@ void layer_add_child(Layer *parent, Layer *child);
 GRect layer_get_bounds(const Layer *layer);
 void layer_mark_dirty(Layer *layer);
 void layer_destroy(Layer *layer);
+void layer_set_frame(Layer *layer, GRect frame);
 
 // --- HealthService stand-ins -----------------------------------------------
 // Keep these declarations aligned with SDK 4.17 so the real health.c can be

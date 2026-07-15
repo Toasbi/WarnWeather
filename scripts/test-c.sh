@@ -28,3 +28,5 @@ cc $CFLAGS test/c/status_row_layout_test.c src/c/layers/status_row_layout.c -o b
 build/host/status_row_layout_test
 cc $CFLAGS test/c/weather_status_layer_test.c src/c/layers/weather_status_layer.c -o build/host/weather_status_layer_test
 build/host/weather_status_layer_test
+cc $CFLAGS test/c/health_status_layer_test.c src/c/layers/health_status_layer.c -o build/host/health_status_layer_test
+build/host/health_status_layer_test
