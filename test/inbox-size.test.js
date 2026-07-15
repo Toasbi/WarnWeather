@@ -128,8 +128,8 @@ function buildHeaviestBundle() {
   // Sleep state rides in the same bundle.
   payload.IS_SLEEPING = false;
 
-  // Lines 3-4 are already baked for the later watch handlers, but the staged
-  // outbox contract defers them until legacy CURRENT_TEMP/CITY can be removed.
+  // The transformed payload has baked all four packed lines and removed the
+  // legacy temp/city transients before the outbox projects transmitted keys.
   return buildWeatherOutboxPayload(payload);
 }
 
@@ -146,6 +146,7 @@ test('weather bundle keeps explicit headroom below the watch inbox', () => {
   const size = dictSize(buildHeaviestBundle());
   const inbox = readInboxSize();
   console.log(`heaviest weather bundle: ${size} B of ${inbox} B (headroom ${inbox - size})`);
+  assert.equal(size, 482, 'update the recorded realistic bundle size when its wire contract changes');
   assert.ok(inbox - size >= 16, `headroom ${inbox - size} B is below the 16 B floor`);
 });
 

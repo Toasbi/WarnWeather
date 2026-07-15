@@ -249,6 +249,8 @@ function applyForecastSeries(payload, settings, watchInfo) {
           uvs: payload.UV_TREND_UINT8 },
         settings, watchInfo
     );
+    delete payload.CURRENT_TEMP; // baked into the status lines; no longer a wire key
+    delete payload.CITY;         // baked into the status lines; no longer a wire key
     delete payload.PRECIP_TREND_UINT8;
     delete payload.RAIN_TREND_UINT8;
     delete payload.WIND_TREND_UINT8;  // transient PKJS-only; never over the wire

@@ -46,12 +46,12 @@ test('categories without a comparator use the default exact comparator', () => {
 
 const FORECAST_AND_STATUS = [
   { name: 'forecast', cacheKey: 'testForecast', keys: ['TEMP', 'START'] },
-  { name: 'status', cacheKey: 'testStatus', keys: ['CITY'] }
+  { name: 'status', cacheKey: 'testStatus', keys: ['STATUS_LINE'] }
 ];
 
 test('nothing cached yet -> every present category reports changed, with subset/serialized/cacheKey', () => {
   withLocalStorage({});
-  const result = new ChangeDetector(FORECAST_AND_STATUS).detect({ TEMP: [1, 2], START: 100, CITY: 'Berlin' });
+  const result = new ChangeDetector(FORECAST_AND_STATUS).detect({ TEMP: [1, 2], START: 100, STATUS_LINE: [1, 2] });
   assert.equal(result.categories.length, 2, 'both categories present');
   assert.equal(result.categories[0].name, 'forecast');
   assert.equal(result.categories[0].changed, true);
@@ -62,20 +62,20 @@ test('nothing cached yet -> every present category reports changed, with subset/
 });
 
 test('a cached category with an identical subset reports unchanged', () => {
-  withLocalStorage({ testStatus: JSON.stringify({ CITY: 'Berlin' }) });
-  const result = new ChangeDetector(FORECAST_AND_STATUS).detect({ TEMP: [1, 2], START: 100, CITY: 'Berlin' });
+  withLocalStorage({ testStatus: JSON.stringify({ STATUS_LINE: [1, 2] }) });
+  const result = new ChangeDetector(FORECAST_AND_STATUS).detect({ TEMP: [1, 2], START: 100, STATUS_LINE: [1, 2] });
   assert.equal(result.categories[1].changed, false, 'cached status must report unchanged');
 });
 
 test('categories absent from the payload are not listed', () => {
   withLocalStorage({});
-  const result = new ChangeDetector(FORECAST_AND_STATUS).detect({ CITY: 'Berlin' });
+  const result = new ChangeDetector(FORECAST_AND_STATUS).detect({ STATUS_LINE: [1, 2] });
   assert.equal(result.categories.length, 1);
   assert.equal(result.categories[0].name, 'status');
 });
 
 test('serialization is stable across payload property order', () => {
   withLocalStorage({ testForecast: JSON.stringify({ TEMP: [1, 2], START: 100 }) });
-  const result = new ChangeDetector(FORECAST_AND_STATUS).detect({ START: 100, TEMP: [1, 2], CITY: 'Berlin' });
+  const result = new ChangeDetector(FORECAST_AND_STATUS).detect({ START: 100, TEMP: [1, 2], STATUS_LINE: [1, 2] });
   assert.equal(result.categories[0].changed, false, 'key order must not affect serialization');
 });

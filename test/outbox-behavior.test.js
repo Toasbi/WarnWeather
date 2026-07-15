@@ -20,7 +20,8 @@ function reset() { for (var k in store) { delete store[k]; } sent = []; }
 
 const FORECAST_AND_STATUS = {
   TEMP_TREND_UINT8: [1], TEMP_MIN: 0, TEMP_MAX: 1, NUM_ENTRIES: 1, FORECAST_START: 100,
-  CURRENT_TEMP: 5, CITY: 'Berlin'
+  STATUS_LINE_1_UINT8: [1], STATUS_LINE_2_UINT8: [2],
+  STATUS_LINE_3_UINT8: [3], STATUS_LINE_4_UINT8: [4]
 };
 
 test('bundles changed categories into a single send', () => {
@@ -28,7 +29,7 @@ test('bundles changed categories into a single send', () => {
   outbox.sendWeather(FORECAST_AND_STATUS);
   assert.equal(sent.length, 1, 'exactly one sendAppMessage for two changed categories');
   assert.ok('TEMP_TREND_UINT8' in sent[0].payload, 'carries forecast keys');
-  assert.ok('CITY' in sent[0].payload, 'carries status keys in the SAME send');
+  assert.ok('STATUS_LINE_4_UINT8' in sent[0].payload, 'carries all status keys in the SAME send');
 });
 
 test('commits the last-sent cache only after the ACK fires', () => {

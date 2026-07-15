@@ -122,7 +122,7 @@ test('applyForecastSeries swaps raw keys for render-ready series in place, delet
   assert.equal(out.NUM_ENTRIES, 3);
 });
 
-test('applyForecastSeries bakes status lines before deleting trends', () => {
+test('applyForecastSeries bakes all status lines before deleting trends and legacy wire fields', () => {
   const payload = {
     CURRENT_TEMP: 68, CITY: 'Bonn',
     SUN_EVENTS: [0, 0x10, 0x20, 0x30, 0x40],
@@ -140,6 +140,8 @@ test('applyForecastSeries bakes status lines before deleting trends', () => {
   const out = applyForecastSeries(payload, settings, { platform: 'basalt' });
   assert.ok(Array.isArray(out.STATUS_LINE_1_UINT8));
   assert.ok(Array.isArray(out.STATUS_LINE_4_UINT8));
+  assert.equal('CURRENT_TEMP' in out, false);
+  assert.equal('CITY' in out, false);
   assert.equal(out.WIND_TREND_UINT8, undefined);
   assert.equal(out.STATUS_LINE_1_UINT8[2], 6);
 });

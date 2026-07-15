@@ -105,30 +105,20 @@ static bool handle_forecast(DictionaryIterator *iterator, bool *forecast_dirty) 
 }
 
 static bool handle_status(DictionaryIterator *iterator, bool *status_dirty, bool *radar_dirty) {
-    Tuple *current_temp_tuple = dict_find(iterator, MESSAGE_KEY_CURRENT_TEMP);
-    Tuple *city_tuple = dict_find(iterator, MESSAGE_KEY_CITY);
     Tuple *is_sleeping_tuple = dict_find(iterator, MESSAGE_KEY_IS_SLEEPING);
 
-    if (!(current_temp_tuple || city_tuple || is_sleeping_tuple)) {
+    if (!is_sleeping_tuple) {
         return false;
     }
 
     bool changed = false;
-    if (current_temp_tuple) {
-        changed |= persist_set_current_temp((int) current_temp_tuple->value->int32);
-    }
-    if (city_tuple) {
-        changed |= persist_set_city((char*) city_tuple->value->cstring);
-    }
-    if (is_sleeping_tuple) {
-        const bool sleeping = (bool) is_sleeping_tuple->value->int16;
-        changed |= persist_set_is_sleeping(sleeping);
-        if (sleeping) {
-            // Sleep onset latches the radar area into snooze immediately.
-            // The latch is released on the wake transition by the awake check
-            // in inbox_received_callback.
-            *radar_dirty |= persist_set_radar_snooze(true);
-        }
+    const bool sleeping = (bool) is_sleeping_tuple->value->int16;
+    changed |= persist_set_is_sleeping(sleeping);
+    if (sleeping) {
+        // Sleep onset latches the radar area into snooze immediately.
+        // The latch is released on the wake transition by the awake check
+        // in inbox_received_callback.
+        *radar_dirty |= persist_set_radar_snooze(true);
     }
 
     *status_dirty |= changed;

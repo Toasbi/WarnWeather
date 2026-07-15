@@ -227,8 +227,6 @@
       "TEMP_MAX",
       "FORECAST_START",
       "NUM_ENTRIES",
-      "CURRENT_TEMP",
-      "CITY",
       "SUN_EVENTS",
       "WATCH_HAS_FORECAST_DATA",
       "CLAY_CELSIUS",

@@ -9,9 +9,10 @@ test('WEATHER_CATEGORIES has a forecast category', function() {
     assert.ok(forecastCategory, 'forecast category must exist');
 });
 
-test('status category stages legacy keys with the first two packed status lines', function() {
+test('status category carries exactly the four packed status lines', function() {
     assert.deepEqual(statusCategory.keys, [
-        'CURRENT_TEMP', 'CITY', 'STATUS_LINE_1_UINT8', 'STATUS_LINE_2_UINT8'
+        'STATUS_LINE_1_UINT8', 'STATUS_LINE_2_UINT8',
+        'STATUS_LINE_3_UINT8', 'STATUS_LINE_4_UINT8'
     ]);
 });
 

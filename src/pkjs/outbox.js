@@ -32,9 +32,8 @@ var WEATHER_CATEGORIES = [
     {
         name: 'status',
         cacheKey: KEYS.LAST_SENT_STATUS_KEY,
-        // Lines 3-4 are baked now but stay off the wire until the watch views
-        // own status rendering and the legacy CURRENT_TEMP/CITY tuples retire.
-        keys: ['CURRENT_TEMP', 'CITY', 'STATUS_LINE_1_UINT8', 'STATUS_LINE_2_UINT8']
+        keys: ['STATUS_LINE_1_UINT8', 'STATUS_LINE_2_UINT8',
+               'STATUS_LINE_3_UINT8', 'STATUS_LINE_4_UINT8']
     },
     {
         name: 'sun',

@@ -9,8 +9,11 @@
 #define STATUS_LINE_ENCODING_VERSION_CURRENT 1
 
 enum key {
-    TEMP_TREND, PRECIP_TREND, FORECAST_START, CITY, SUN_EVENT_START_TYPE, SUN_EVENT_TIMES, NUM_ENTRIES,
-    CURRENT_TEMP, CONFIG, RAIN_TREND,
+    TEMP_TREND, PRECIP_TREND, FORECAST_START,
+    CITY,          // 3 — retired slot: no longer written/read; keep for ID stability
+    SUN_EVENT_START_TYPE, SUN_EVENT_TIMES, NUM_ENTRIES,
+    CURRENT_TEMP,  // 7 — retired slot: no longer written/read; keep for ID stability
+    CONFIG, RAIN_TREND,
     RAIN_RADAR_TREND, RAIN_RADAR_TREND_AREA, RAIN_RADAR_START,
     IS_SLEEPING, RADAR_SNOOZE,
     // Appended (never reorder — these are persisted key IDs). PRECIP_TREND /
@@ -90,16 +93,6 @@ static bool write_sized_data_if_changed(const uint32_t key, const void *data,
         return false;
     }
     persist_write_data(key, data, size);
-    return true;
-}
-
-static bool write_string_if_changed(const uint32_t key, const char *val) {
-    char current[64];
-    if (persist_read_string(key, current, sizeof(current)) > 0
-            && strcmp(current, val) == 0) {
-        return false;
-    }
-    persist_write_string(key, val);
     return true;
 }
 
@@ -205,14 +198,6 @@ time_t persist_get_forecast_start() {
 
 int persist_get_num_entries() {
     return persist_read_int(NUM_ENTRIES);
-}
-
-int persist_get_current_temp() {
-    return persist_read_int(CURRENT_TEMP);
-}
-
-int persist_get_city(char *buffer, const size_t buffer_size) {
-    return persist_read_string(CITY, buffer, buffer_size);
 }
 
 int persist_get_sun_event_start_type() {
@@ -329,10 +314,6 @@ bool persist_set_num_entries(int val) {
     return write_int_if_changed(NUM_ENTRIES, val);
 }
 
-bool persist_set_current_temp(int val) {
-    return write_int_if_changed(CURRENT_TEMP, val);
-}
-
 bool persist_set_holiday_anchor(int32_t val) {
     return write_int_if_changed(HOLIDAY_ANCHOR, (int) val);
 }
@@ -385,10 +366,6 @@ void persist_migrate_status_line_encoding(void) {
     }
     persist_delete(FORECAST_START);
     persist_write_int(STATUS_LINE_ENCODING_VERSION, STATUS_LINE_ENCODING_VERSION_CURRENT);
-}
-
-bool persist_set_city(char *val) {
-    return write_string_if_changed(CITY, val);
 }
 
 bool persist_set_sun_event_start_type(int val) {
