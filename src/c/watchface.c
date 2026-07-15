@@ -8,6 +8,7 @@
 
 static void init() {
     persist_migrate_trend_encoding();
+    persist_migrate_status_line_encoding();
     MEMORY_LOG_HEAP("boot");
     app_message_init();
     config_load();

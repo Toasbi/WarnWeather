@@ -2,9 +2,11 @@
 
 #include "persist.h"
 #include "config.h"
+#include "status_line.h"
 #include "theme.h"
 
 #define TREND_ENCODING_VERSION_CURRENT 2
+#define STATUS_LINE_ENCODING_VERSION_CURRENT 1
 
 enum key {
     TEMP_TREND, PRECIP_TREND, FORECAST_START, CITY, SUN_EVENT_START_TYPE, SUN_EVENT_TIMES, NUM_ENTRIES,
@@ -34,7 +36,12 @@ enum key {
     // Quiet Time forces a full process relaunch on real hardware, wiping module
     // statics). See docs/superpowers/specs/2026-07-06-persist-across-relaunch-design.md.
     VIEW_CURSOR, WATCHFACE_UNLOAD_EPOCH,
-    HEALTH_CACHE_STEPS, HEALTH_CACHE_HR, HEALTH_CACHE_SLEEP, HEALTH_CACHE_END_HOUR
+    HEALTH_CACHE_STEPS, HEALTH_CACHE_HR, HEALTH_CACHE_SLEEP, HEALTH_CACHE_END_HOUR, // 36
+    STATUS_LINE_1,                // 37 — packed line blob, forecast
+    STATUS_LINE_2,                // 38 — radar
+    STATUS_LINE_3,                // 39 — top
+    STATUS_LINE_4,                // 40 — health
+    STATUS_LINE_ENCODING_VERSION  // 41
 };
 
 // Setters report whether the stored value actually changed so callers can
@@ -61,6 +68,23 @@ static bool write_data_if_changed(const uint32_t key, const void *data, const si
     // oversized blobs fall through to an unconditional write.
     uint8_t current[64];
     if (size <= sizeof(current)
+            && persist_read_data(key, current, size) == (int) size
+            && memcmp(current, data, size) == 0) {
+        return false;
+    }
+    persist_write_data(key, data, size);
+    return true;
+}
+
+// write_data_if_changed compares only the first `size` bytes, so a new blob
+// that prefixes the stored one would be skipped; blobs of varying length
+// need the stored size compared too.
+static bool write_sized_data_if_changed(const uint32_t key, const void *data,
+                                        const size_t size) {
+    uint8_t current[STATUS_LINE_MAX_BYTES];
+    if (size <= sizeof(current)
+            && persist_exists(key)
+            && persist_get_size(key) == (int) size
             && persist_read_data(key, current, size) == (int) size
             && memcmp(current, data, size) == 0) {
         return false;
@@ -277,6 +301,18 @@ bool persist_set_radar_palette(uint8_t *data, const size_t size) {
     return write_data_if_changed(RADAR_PALETTE, data, size * sizeof(uint8_t));
 }
 
+int persist_get_status_line(uint8_t line_id, uint8_t *buffer, size_t buffer_size) {
+    if (line_id >= STATUS_LINE_COUNT) { return 0; }
+    uint32_t key = STATUS_LINE_1 + line_id;
+    if (!persist_exists(key)) { return 0; }
+    return persist_read_data(key, (void*) buffer, buffer_size);
+}
+
+bool persist_set_status_line(uint8_t line_id, const uint8_t *data, size_t len) {
+    if (line_id >= STATUS_LINE_COUNT || len > STATUS_LINE_MAX_BYTES) { return false; }
+    return write_sized_data_if_changed(STATUS_LINE_1 + line_id, data, len);
+}
+
 time_t persist_get_rain_radar_start() {
     return (time_t) persist_read_int(RAIN_RADAR_START);
 }
@@ -335,6 +371,20 @@ void persist_migrate_trend_encoding(void) {
     persist_delete(FORECAST_START);
     persist_set_num_entries(0);
     persist_write_int(TREND_ENCODING_VERSION, TREND_ENCODING_VERSION_CURRENT);
+}
+
+void persist_migrate_status_line_encoding(void) {
+    int version = persist_exists(STATUS_LINE_ENCODING_VERSION)
+        ? persist_read_int(STATUS_LINE_ENCODING_VERSION) : 0;
+    if (version == STATUS_LINE_ENCODING_VERSION_CURRENT) { return; }
+    // Unknown/old encoding: drop only the line blobs, and force the startup
+    // handshake to report forecast data missing so the phone resends the
+    // weather bundle (which now carries the lines).
+    for (uint32_t key = STATUS_LINE_1; key <= STATUS_LINE_4; key++) {
+        persist_delete(key);
+    }
+    persist_delete(FORECAST_START);
+    persist_write_int(STATUS_LINE_ENCODING_VERSION, STATUS_LINE_ENCODING_VERSION_CURRENT);
 }
 
 bool persist_set_city(char *val) {
