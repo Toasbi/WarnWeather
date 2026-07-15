@@ -39,8 +39,9 @@ static uint8_t s_view_index;
 // main_window_apply_top_view can tell a real settings change (cycle redefined → return
 // to default) from a same-cycle re-apply (radar/health availability → keep the cursor).
 static uint8_t s_applied_view_spec[3];
-// Minutes since the last flick, for the auto-return-to-default timer (0 = disabled).
-static uint8_t s_minutes_since_flick;
+// Epoch of the last flick (or relaunch-restore to a non-default view), seeding the
+// auto-return-to-default timer. 0 = on the default view / no timer running.
+static time_t s_flick_epoch;
 
 #if defined(PBL_HEALTH)
 // Tracks the last-seen health_mode so an off->on flip (settings, boot)
@@ -151,7 +152,7 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
     uint8_t next = next_view_index(s_view_index);
     if (next == s_view_index) { return; }   // nothing else enabled/available
     s_view_index = next;
-    s_minutes_since_flick = 0;               // restart the auto-return timer
+    s_flick_epoch = time(NULL);              // restart the auto-return timer
 #if defined(PBL_HEALTH)
     // Warm health for the incoming view before it renders (cheap current-hour re-read).
     {
@@ -185,6 +186,7 @@ static void main_window_load(Window *window) {
         if (restored < 3
                 && view_slot_available(g_config->view_spec[restored], radar_has_data(), health_renderable())) {
             s_view_index = restored;
+            s_flick_epoch = time(NULL);   // restored a non-default view → run its full window
         }
         // else: corrupt flash, or the slot no longer resolves to anything (e.g. a
         // future config migration redefined/disabled it) — stay on the default view.
@@ -297,14 +299,15 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
         }
     }
 #endif
-    // Auto-return to the default view after view_reset_min minutes without a flick.
-    if (s_view_index != 0 && g_config->view_reset_min > 0) {
-        if (++s_minutes_since_flick >= g_config->view_reset_min) {
-            s_minutes_since_flick = 0;
-            s_view_index = 0;
-            render_active_view();
-            main_window_refresh();
-        }
+    // Auto-return to the default view once view_reset_min minutes of real time have
+    // elapsed since the flick — elapsed seconds, not minute-tick edges, so a flick late
+    // in a wall-clock minute still gets its full window before snapping back.
+    if (s_view_index != 0
+            && view_auto_return_due(time(NULL), s_flick_epoch, g_config->view_reset_min)) {
+        s_flick_epoch = 0;
+        s_view_index = 0;
+        render_active_view();
+        main_window_refresh();
     }
 #if !defined(WW_FIXTURE_NOW_YEAR) && defined(WW_RAIN_RADAR)
     // Live builds only: advance the radar window when a fetch boundary passes.

@@ -91,3 +91,9 @@ uint8_t view_cursor_next(uint8_t from, const uint8_t spec[3], bool has_radar, bo
 // (a radar/health availability re-apply must not yank the user off their chosen view).
 uint8_t view_cursor_after_config(uint8_t cursor, const uint8_t old_spec[3],
                                  const uint8_t new_spec[3]);
+
+// Whether the auto-return-to-default timer is due. `now` and `flick_since` are epoch
+// seconds; reset_min is the configured window in minutes (0 = auto-return disabled).
+// Compares ELAPSED SECONDS — not minute-tick edges — so a flick late in a wall-clock
+// minute still gets its full window before snapping back to the default view.
+bool view_auto_return_due(int32_t now, int32_t flick_since, uint8_t reset_min);

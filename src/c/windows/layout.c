@@ -268,3 +268,8 @@ uint8_t view_cursor_after_config(uint8_t cursor, const uint8_t old_spec[3],
     }
     return cursor;
 }
+
+bool view_auto_return_due(int32_t now, int32_t flick_since, uint8_t reset_min) {
+    if (reset_min == 0) { return false; }
+    return (now - flick_since) >= (int32_t) reset_min * 60;
+}

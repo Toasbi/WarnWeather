@@ -271,11 +271,35 @@ static void view_cursor_tests(void) {
     expect("next.1slot.stays0", view_cursor_next(0, oneSlot, true, true) == 0, true);
 }
 
+static void view_timer_tests(void) {
+    // Auto-return measures ELAPSED SECONDS since the flick, not minute-tick edges. The
+    // old counter (s_minutes_since_flick, ++ per MINUTE_UNIT tick) counted the first
+    // partial minute as a whole one: a flick at :59 hit the next :00 tick ~1s later and,
+    // with view_reset_min = 1, snapped straight back. These pin the "full window must
+    // actually pass" contract.
+    const int32_t t0 = 1000000;   // arbitrary flick epoch (seconds)
+
+    // reset_min = 0 disables auto-return entirely, regardless of elapsed time.
+    expect("timer.disabled_never_returns", view_auto_return_due(t0 + 99999, t0, 0), false);
+
+    // 1-minute window: one second after the flick must NOT return (the reported bug).
+    expect("timer.1min.after_1s_stays", view_auto_return_due(t0 + 1, t0, 1), false);
+    expect("timer.1min.after_59s_stays", view_auto_return_due(t0 + 59, t0, 1), false);
+    // Exactly a full minute (and beyond) returns.
+    expect("timer.1min.after_60s_returns", view_auto_return_due(t0 + 60, t0, 1), true);
+    expect("timer.1min.after_2min_returns", view_auto_return_due(t0 + 120, t0, 1), true);
+
+    // Larger window scales by 60s/min.
+    expect("timer.5min.after_299s_stays", view_auto_return_due(t0 + 299, t0, 5), false);
+    expect("timer.5min.after_300s_returns", view_auto_return_due(t0 + 300, t0, 5), true);
+}
+
 int main(int argc, char **argv) {
     s_dump = (argc > 1 && strcmp(argv[1], "dump") == 0);
     golden_rects();
     if (!s_dump) viewspec_tests();
     if (!s_dump) view_cursor_tests();
+    if (!s_dump) view_timer_tests();
     if (!s_dump) radar_placement_tests();
     if (s_dump) return 0;
     if (s_failures) { printf("%d golden-rect failure(s)\n", s_failures); return 1; }
