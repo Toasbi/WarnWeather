@@ -101,20 +101,33 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return steps;
     }
 
-    /**
-     * Whether the radar step should show the DWD "nearby (~2 km)" note.
-     * @param {?string} radarProvider Selected radar provider id.
-     * @returns {boolean} True only for DWD.
-     */
-    function radarNearby(radarProvider) { return radarProvider === 'dwd'; }
-
-    // Fixed per-stop demo copy (spec 2026-07-15). The Default caption is intentionally
-    // preset-independent; the radar caption gains the DWD "nearby" sentence via radarNearby().
+    // Per-stop demo copy. The Default and radar captions are fixed (the radar copy stays
+    // provider-agnostic — no provider named); the health-status and health-graph captions
+    // vary with heart-rate availability (emery-only hardware) and are built from the shared
+    // item helpers below, so the health step and the flick demo can never drift.
     var FLICK_CAPTION_DEFAULT = 'your calendar, weather status and forecast.';
-    var FLICK_CAPTION_GRAPH = 'hourly step bars, a sleep band and a heart-rate line.';
-    var FLICK_CAPTION_STATUS = 'today’s steps, last night’s sleep and current heart rate on the status line.';
     var FLICK_CAPTION_RADAR = 'a precise short-term rain forecast for the next 2 hours, in 5-minute frames. When rain’s on the way, the status strip counts it down (“Rain in 15’”).';
-    var FLICK_CAPTION_RADAR_NEARBY = ' DWD also shows rain nearby (~2 km), not just at your exact spot.';
+
+    /**
+     * Health status-line contents, with the heart-rate clause only where the hardware has a
+     * heart-rate sensor (emery). Shared by the health step and the flick demo.
+     * @param {boolean} hasHeartRate Whether the platform has a heart-rate sensor.
+     * @returns {string} e.g. "today’s steps, last night’s sleep and current heart rate".
+     */
+    function healthStatusItems(hasHeartRate) {
+        return hasHeartRate
+            ? 'today’s steps, last night’s sleep and current heart rate'
+            : 'today’s steps and last night’s sleep';
+    }
+    /**
+     * Health-graph contents, with the heart-rate line only where the hardware has a
+     * heart-rate sensor (emery). Shared by the health step and the flick demo.
+     * @param {boolean} hasHeartRate Whether the platform has a heart-rate sensor.
+     * @returns {string} e.g. "step bars, a sleep band and a heart-rate line".
+     */
+    function healthGraphItems(hasHeartRate) {
+        return hasHeartRate ? 'step bars, a sleep band and a heart-rate line' : 'step bars and a sleep band';
+    }
 
     /**
      * Describe one cycle slot as a flick-demo stop: display label, caption, and the
@@ -123,22 +136,21 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @param {{tier:number,top:number,body:number,status:number}} viewSpec One ViewSpec slot.
      * @param {boolean} isFirst True for cycle index 0 (the default view).
      * @param {Object} state Wizard/Clay settings state.
+     * @param {boolean} hasHeartRate Whether the platform has a heart-rate sensor (emery).
      * @returns {{label:string,caption:string,shotGroup:string,shotVal:string}} Stop descriptor.
      */
-    function flickStop(viewSpec, isFirst, state) {
+    function flickStop(viewSpec, isFirst, state, hasHeartRate) {
         state = state || {};
         if (viewSpec.body === VC.BODY_GRAPH) {
-            return { label: 'Health graph', caption: FLICK_CAPTION_GRAPH, shotGroup: 'healthMode', shotVal: 'all' };
+            return { label: 'Health graph', caption: 'hourly ' + healthGraphItems(hasHeartRate) + '.', shotGroup: 'healthMode', shotVal: 'all' };
         }
         if (viewSpec.body === VC.BODY_RADAR) {
-            var cap = FLICK_CAPTION_RADAR;
-            if (radarNearby(state.radarProvider)) { cap += FLICK_CAPTION_RADAR_NEARBY; }
-            return { label: 'Radar', caption: cap, shotGroup: 'radar', shotVal: '' };
+            return { label: 'Radar', caption: FLICK_CAPTION_RADAR, shotGroup: 'radar', shotVal: '' };
         }
         if (!isFirst && (viewSpec.status === VC.ST_H || viewSpec.status === VC.ST_D)) {
             // Health-status flick stop: BODY_FC carrying the health status row. ST_D is the
             // fullCal/status dual-status variant — healthMode.status represents both.
-            return { label: 'Health status', caption: FLICK_CAPTION_STATUS, shotGroup: 'healthMode', shotVal: 'status' };
+            return { label: 'Health status', caption: healthStatusItems(hasHeartRate) + ' on the status line.', shotGroup: 'healthMode', shotVal: 'status' };
         }
         var pk = VC.resolvePresetKey(state);
         if (pk === 'compactDense') { pk = 'compactCal'; } // no captured shot for compactDense; compactCal is the nearest (same 2-row calendar)
@@ -150,14 +162,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * (view-cycle.js — the same call blocks.js's presetContents makes) mapped to
      * stop descriptors. 1–3 entries; radar, when present, is always last.
      * @param {Object} state Wizard/Clay settings state.
+     * @param {boolean} hasHeartRate Whether the platform has a heart-rate sensor (emery).
      * @returns {Array.<{label:string,caption:string,shotGroup:string,shotVal:string}>} Stops.
      */
-    function flickStops(state) {
+    function flickStops(state, hasHeartRate) {
         state = state || {};
         var radarEnabled = state.radarProvider !== 'disabled';
         var cycle = VC.buildViewCycle(VC.resolvePresetKey(state), state.healthMode || 'off', radarEnabled);
         var stops = [], i;
-        for (i = 0; i < cycle.length; i += 1) { stops.push(flickStop(cycle[i], i === 0, state)); }
+        for (i = 0; i < cycle.length; i += 1) { stops.push(flickStop(cycle[i], i === 0, state, hasHeartRate)); }
         return stops;
     }
 
@@ -177,7 +190,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // ---- DOM controller (webview only; exercised via `mise preview-config`, not Node) ----
     var LAYOUT_OPTS = [['Full calendar', 'fullCal'], ['Compact', 'compactCal'], ['No calendar', 'noCal']];
-    var HEALTH_OPTS = [['Off', 'off'], ['Status bar', 'status'], ['Status + graph', 'all']];
+    var HEALTH_OPTS = [['Off', 'off'], ['Health Status', 'status'], ['Health Status + Graph', 'all']];
     var STEP_TITLES = {
         welcome: 'Welcome to WarnWeather', layout: 'Choose your layout',
         health: 'Health', flick: 'Flick to explore',
@@ -190,10 +203,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         compactCal: 'a slim agenda row, leaving more room for the 24-hour forecast graph.',
         noCal: 'a big clock and date with the weather status and full-screen forecast.'
     };
+    // status/all default to the no-heart-rate copy; openWizard upgrades them to the
+    // heart-rate variant on emery (the only platform with a heart-rate sensor).
     var HEALTH_DESC = {
         off: 'no health information on the watchface.',
-        status: 'today’s steps, last night’s sleep and current heart rate on the status line.',
-        all: 'the status line plus a flick-away graph: hourly step bars, a sleep band and a heart-rate line.'
+        status: healthStatusItems(false) + ' on the status line.',
+        all: 'health status plus an hourly graph: ' + healthGraphItems(false) + '.'
     };
     // Watchface theme (messageKey 'theme'). Mirrors schema.js's two theme selects: color watches get
     // 4 options, B&W hardware only dark/light. Chosen by env.color at render time.
@@ -202,8 +217,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var THEME_DESC = {
         dark: 'black background, white text and lines (the default).',
         light: 'white background, black text and lines.',
-        bw: 'renders like a Black & White watch — the same drawing, on your color display.',
-        'bw-light': 'like a Black & White watch in its light theme — black on white.'
+        bw: 'black and white — the highest contrast.',
+        'bw-light': 'inverted — black on white, with good contrast.'
     };
     // Real watch screenshots, base64-inlined by `mise capture-wizard-screenshots` into
     // wizard-screenshots.generated.js (which assigns PConf.screenshots when concatenated into the
@@ -332,6 +347,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var p = (W.ctx && W.ctx.ENV && W.ctx.ENV.platform) || 'basalt';
         return (p === 'diorite') ? 'flint' : p;
     }
+    // Heart rate is emery-only hardware; other platforms don't surface it, so the health
+    // copy (status line + graph) drops the heart-rate clause on them.
+    function hasHeartRate() { return Boolean(W.ctx && W.ctx.ENV && W.ctx.ENV.platform === 'emery'); }
     function shotSet() { return SHOTS[shotPlatform()] || {}; }
     function shotFor(group, val) { var s = shotSet(); return (s[group] && s[group][val]) || ''; }
     function carCard(group, label, val, on) {
@@ -473,7 +491,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {undefined}
      */
     function advanceFlick() {
-        var stops = flickStops(W.ctx.S);
+        var stops = flickStops(W.ctx.S, hasHeartRate());
         if (!stops.length) { return; }
         W.flickIdx = (W.flickIdx + 1) % stops.length;
         var stop = stops[W.flickIdx], idx = W.flickIdx;
@@ -489,7 +507,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // --- step bodies ---
     function stepWelcome() {
         var schema = W.ctx.schema;
-        var h = '<p>Thanks for trying WarnWeather! We’ll apply the best settings for your country — you can change anything later. This quick setup is optional; skip it any time.</p>'
+        var h = '<p>Thanks for trying WarnWeather!</p>'
+            + '<p>With this quick setup we’ll apply the best settings for your country — you can change anything later. It’s optional, so skip it any time.</p>'
             + '<div class="wiz-head">Choose your country</div>'
             + selectRow(schema, 'holidayCountry');
         if (regionHasOptions(schema)) { h += selectRow(schema, 'holidayRegion'); }
@@ -498,7 +517,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function stepLayout() {
         return carousel('layoutPreset', LAYOUT_OPTS, W.ctx.S.layoutPreset, LAYOUT_DESC)
             + '<div>'
-            + '<p><b>Weather status</b> — the top strip shows your location, current conditions and sunset.</p>'
+            + '<p><b>Weather status</b> — shows your location, current conditions and sunset.</p>'
             + '<p><b>Forecast</b> — a 24-hour graph: temperature, the precipitation-% line, UV dots and rain bars.</p></div>';
     }
     function stepHealth() {
@@ -508,7 +527,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // Render always opens on stop 0 (the default view), so re-entering the step resets
         // the demo — keeps W.flickIdx and the DOM trivially in sync.
         W.flickIdx = 0;
-        var stops = flickStops(W.ctx.S);
+        var stops = flickStops(W.ctx.S, hasHeartRate());
         var stop = stops[0];
         var src = esc(stopShot(stop));
         return '<p>Your watch shows one view at a time. Flick your wrist to peek at the rest — it returns to your default view on its own.</p>'
@@ -620,6 +639,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     function openWizard(ctx, fresh) {
         W.ctx = ctx; W.steps = buildSteps(ctx.ENV); W.idx = 0; W.openSelect = null; W.selectQuery = '';
+        // compactDense isn't offered in the wizard's layout carousel (LAYOUT_OPTS) — a persisted
+        // compactDense (set in full Settings) can't be represented here, so fall back to compactCal
+        // (the nearest, same 2-row calendar) for the carousel selection and the flick demo alike.
+        if (ctx.S.layoutPreset === 'compactDense') { ctx.S.layoutPreset = 'compactCal'; }
+        // Heart rate is emery-only; upgrade the health copy to the heart-rate variant there.
+        HEALTH_DESC.status = healthStatusItems(hasHeartRate()) + ' on the status line.';
+        HEALTH_DESC.all = 'health status plus an hourly graph: ' + healthGraphItems(hasHeartRate()) + '.';
         if (fresh) {
             var cc = inferCountry();
             var cOpts = optionsFor(ctx.schema, 'holidayCountry');
@@ -654,7 +680,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         module.exports = {
             countryFromTimezone: countryFromTimezone, countryFromLocale: countryFromLocale,
             inferCountry: inferCountry, mapCountry: mapCountry,
-            buildSteps: buildSteps, radarNearby: radarNearby, shouldShow: shouldShow,
+            buildSteps: buildSteps, shouldShow: shouldShow,
             flickStops: flickStops
         };
     }

@@ -39,12 +39,6 @@ test('buildSteps: health precedes the flick demo; flick gated on radar (absent o
     ['welcome', 'layout', 'health', 'theme', 'done']);
 });
 
-test('radarNearby: DWD only', () => {
-  assert.equal(W.radarNearby('dwd'), true);
-  assert.equal(W.radarNearby('metno'), false);
-  assert.equal(W.radarNearby('rainbow'), false);
-});
-
 test('shouldShow: only on fresh, un-onboarded config', () => {
   assert.equal(W.shouldShow({}), true);
   assert.equal(W.shouldShow({ onboardingDone: true }), false);
@@ -52,7 +46,7 @@ test('shouldShow: only on fresh, un-onboarded config', () => {
   assert.equal(W.shouldShow(null), true);
 });
 
-test('flickStops: layout-only cycle -> Default + Radar; DWD gets the nearby line', () => {
+test('flickStops: layout-only cycle -> Default + Radar; radar copy is provider-agnostic', () => {
   const stops = W.flickStops({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'dwd' });
   assert.equal(stops.length, 2);
   assert.equal(stops[0].label, 'Default');
@@ -61,23 +55,30 @@ test('flickStops: layout-only cycle -> Default + Radar; DWD gets the nearby line
   assert.equal(stops[0].caption, 'your calendar, weather status and forecast.');
   assert.equal(stops[1].label, 'Radar');
   assert.equal(stops[1].shotGroup, 'radar');
-  assert.match(stops[1].caption, /nearby \(~2 km\)/);
+  assert.match(stops[1].caption, /short-term rain forecast/);
+  assert.doesNotMatch(stops[1].caption, /DWD|nearby/); // no provider named, kept general
 });
 
-test('flickStops: health graph rides between default and radar; non-DWD has no nearby line', () => {
-  const stops = W.flickStops({ layoutPreset: 'fullCal', healthMode: 'all', radarProvider: 'rainbow' });
-  assert.deepEqual(stops.map((s) => s.label), ['Default', 'Health graph', 'Radar']);
-  assert.equal(stops[0].shotVal, 'fullCal');
-  assert.equal(stops[1].shotGroup, 'healthMode');
-  assert.equal(stops[1].shotVal, 'all');
-  assert.doesNotMatch(stops[2].caption, /nearby/);
+test('flickStops: health graph rides between default and radar; heart-rate line only with hasHeartRate', () => {
+  const withHR = W.flickStops({ layoutPreset: 'fullCal', healthMode: 'all', radarProvider: 'rainbow' }, true);
+  assert.deepEqual(withHR.map((s) => s.label), ['Default', 'Health graph', 'Radar']);
+  assert.equal(withHR[0].shotVal, 'fullCal');
+  assert.equal(withHR[1].shotGroup, 'healthMode');
+  assert.equal(withHR[1].shotVal, 'all');
+  assert.match(withHR[1].caption, /heart-rate line/);
+  const noHR = W.flickStops({ layoutPreset: 'fullCal', healthMode: 'all', radarProvider: 'rainbow' }, false);
+  assert.doesNotMatch(noHR[1].caption, /heart/);
+  assert.match(noHR[1].caption, /step bars and a sleep band/);
 });
 
-test('flickStops: health-status flick maps to the healthMode.status shot', () => {
-  const stops = W.flickStops({ layoutPreset: 'noCal', healthMode: 'status', radarProvider: 'metno' });
-  assert.deepEqual(stops.map((s) => s.label), ['Default', 'Health status', 'Radar']);
-  assert.equal(stops[1].shotGroup, 'healthMode');
-  assert.equal(stops[1].shotVal, 'status');
+test('flickStops: health-status flick maps to the healthMode.status shot; heart rate gated on hasHeartRate', () => {
+  const withHR = W.flickStops({ layoutPreset: 'noCal', healthMode: 'status', radarProvider: 'metno' }, true);
+  assert.deepEqual(withHR.map((s) => s.label), ['Default', 'Health status', 'Radar']);
+  assert.equal(withHR[1].shotGroup, 'healthMode');
+  assert.equal(withHR[1].shotVal, 'status');
+  assert.match(withHR[1].caption, /current heart rate/);
+  const noHR = W.flickStops({ layoutPreset: 'noCal', healthMode: 'status', radarProvider: 'metno' }, false);
+  assert.doesNotMatch(noHR[1].caption, /heart/);
 });
 
 test('flickStops: fullCal/status dual-status middle stop (ST_D) also maps to healthMode.status', () => {
