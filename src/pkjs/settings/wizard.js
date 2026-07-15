@@ -174,7 +174,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var HEALTH_OPTS = [['Off', 'off'], ['Status bar', 'status'], ['Status + graph', 'all']];
     var STEP_TITLES = {
         welcome: 'Welcome to WarnWeather', layout: 'Choose your layout',
-        radar: 'Rain radar', health: 'Health', theme: 'Choose your theme', done: 'All set'
+        radar: 'Rain radar', health: 'Health', flick: 'Flick to explore',
+        theme: 'Choose your theme', done: 'All set'
     };
     // Per-option copy shown under the carousel for the centered selection (fixes "text doesn't update").
     // Bodies only — the carousel prepends the option's own label in bold (see cardHintHtml).
@@ -227,10 +228,41 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '#wizard .wiz-radar{display:table;max-width:100%;margin:0 auto;border:1px solid var(--screen-line);border-radius:10px;overflow:hidden;background:var(--card)}'
         + '#wizard .wiz-nav{flex:1;padding:12px;border-radius:11px;font:700 14px Inter,sans-serif;cursor:pointer}'
         + '#wizard .wiz-nav.pri{border:none;background:linear-gradient(135deg,#FA4A35,#D93A24);color:#fff}'
-        + '#wizard .wiz-nav.sec{border:1px solid var(--ctl-line);background:var(--ctl);color:var(--fg)}';
+        + '#wizard .wiz-nav.sec{border:1px solid var(--ctl-line);background:var(--ctl);color:var(--fg)}'
+        // Flick demo: watch bezel (reuses the .wiz-radar screen framing), tilt-and-snap
+        // keyframes with a faint motion arc (::after), cycle dots + label, primary button.
+        + '#wizard .wiz-flick{text-align:center;margin-top:14px}'
+        + '#wizard .wiz-flick-watch{position:relative;display:inline-block;cursor:pointer;transform-origin:50% 100%}'
+        + '#wizard .wiz-flick-watch.tilt{animation:wiz-tilt .45s ease-in-out}'
+        + '#wizard .wiz-flick-watch::after{content:"";position:absolute;top:-16px;left:50%;width:70px;height:34px;'
+        + 'margin-left:-35px;border:2px solid transparent;border-top-color:var(--muted);'
+        + 'border-radius:50% 50% 0 0/100% 100% 0 0;opacity:0;pointer-events:none}'
+        + '#wizard .wiz-flick-watch.tilt::after{animation:wiz-arc .45s ease-out}'
+        + '#wizard .wiz-flick-bezel{position:relative;width:150px;border:1px solid var(--screen-line);'
+        + 'border-radius:12px;overflow:hidden;background:var(--card)}'
+        + '#wizard .wiz-flick-shot{opacity:0;transition:opacity .18s}'
+        + '#wizard .wiz-flick-shot.on{opacity:1}'
+        + '#wizard .wiz-flick-shot+.wiz-flick-shot{position:absolute;top:0;left:0;right:0}'
+        + '#wizard .wiz-flick-strap{width:96px;height:10px;margin:3px auto 0;background:var(--ctl);'
+        + 'border:1px solid var(--ctl-line);border-radius:5px}'
+        + '#wizard .wiz-flick-track{display:flex;align-items:center;justify-content:center;gap:9px;margin:12px 0 2px}'
+        + '#wizard .wiz-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--muted);'
+        + 'opacity:.35;margin:0 2px;vertical-align:middle}'
+        + '#wizard .wiz-dot.on{background:#FA4A35;opacity:1}'
+        + '#wizard .wiz-flick-label{font:700 13px Inter,sans-serif;color:var(--fg)}'
+        + '#wizard .wiz-flick-btn{display:block;margin:10px auto 2px;padding:11px 26px;border:none;border-radius:11px;'
+        + 'background:linear-gradient(135deg,#FA4A35,#D93A24);color:#fff;font:700 14px Inter,sans-serif;cursor:pointer}'
+        + '#wizard .wiz-flick-btn:focus-visible{outline:2px solid #FA4A35;outline-offset:2px}'
+        + '#wizard .wiz-flick-cap{margin-top:10px;text-align:left}'
+        + '@keyframes wiz-tilt{0%{transform:rotate(0)}30%{transform:rotate(14deg)}55%{transform:rotate(-5deg)}'
+        + '75%{transform:rotate(2deg)}100%{transform:rotate(0)}}'
+        + '@keyframes wiz-arc{0%{opacity:0}30%{opacity:.7}100%{opacity:0}}'
+        + '@media (prefers-reduced-motion:reduce){#wizard .wiz-flick-watch.tilt{animation:none}'
+        + '#wizard .wiz-flick-watch.tilt::after{animation:none}}';
 
     // Live wizard state, captured from the onReady ctx when the wizard opens.
-    var W = { ctx: null, steps: [], idx: 0, overlay: null, openSelect: null, selectQuery: '' };
+    // flickIdx = current stop of the flick demo (reset to 0 whenever stepFlick renders).
+    var W = { ctx: null, steps: [], idx: 0, overlay: null, openSelect: null, selectQuery: '', flickIdx: 0 };
 
     function esc(s) { return (PConf.engine && PConf.engine.esc) ? PConf.engine.esc(s) : String(s); }
 
@@ -370,6 +402,82 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         });
     }
 
+    // --- flick demo (step 'flick'): interactive tilt-and-snap through the real cycle ---
+    // 1x1 transparent GIF, shown only if a stop unexpectedly has no screenshot. Unreachable in
+    // practice: scripts/build-config-page.js hard-fails the build on any missing wizard shot,
+    // and blocks.js's band-stack renderer is private to its IIFE — so the fallback stays a
+    // blank watch face; the dots label + caption below still identify the stop.
+    var BLANK_SHOT = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+
+    /**
+     * Resolve a stop descriptor to its screenshot data URI. SHOTS[platform].radar is a
+     * plain string (no {val: uri} map), so the 'radar' group bypasses shotFor().
+     * @param {{shotGroup:string,shotVal:string}} stop Stop descriptor from flickStops().
+     * @returns {string} data: URI (BLANK_SHOT if missing).
+     */
+    function stopShot(stop) {
+        var src = (stop.shotGroup === 'radar') ? (shotSet().radar || '') : shotFor(stop.shotGroup, stop.shotVal);
+        return src || BLANK_SHOT;
+    }
+    /**
+     * Cycle-position dots: one span per stop, the current one highlighted. A text label
+     * sits beside the dots in the markup, so position is never conveyed by color alone.
+     * @param {number} count Number of stops in the cycle.
+     * @param {number} idx Current stop index.
+     * @returns {string} HTML.
+     */
+    function flickDotsHtml(count, idx) {
+        var h = '', i;
+        for (i = 0; i < count; i += 1) { h += '<span class="wiz-dot' + (i === idx ? ' on' : '') + '"></span>'; }
+        return h;
+    }
+    /**
+     * Swap the demo to a stop: crossfade the screenshot (two stacked imgs; the CSS opacity
+     * transition does the fade), and rewrite dots, label and caption. Every lookup is
+     * guarded — the step may have been re-rendered or the wizard closed between the flick
+     * and the snap timeout.
+     * @param {{label:string,caption:string,shotGroup:string,shotVal:string}} stop Target stop.
+     * @param {number} idx The stop's index in the cycle.
+     * @param {number} count Total stops.
+     * @returns {undefined}
+     */
+    function showFlickStop(stop, idx, count) {
+        if (!W.overlay) { return; }
+        var imgs = W.overlay.querySelectorAll('.wiz-flick-shot');
+        if (imgs.length === 2) {
+            var cur = (imgs[0].className.indexOf(' on') >= 0) ? 0 : 1, nxt = 1 - cur;
+            imgs[nxt].src = stopShot(stop);
+            imgs[cur].className = 'wiz-shot wiz-flick-shot';
+            imgs[nxt].className = 'wiz-shot wiz-flick-shot on';
+        }
+        var dots = W.overlay.querySelector('[data-wiz-flick-dots]');
+        if (dots) { dots.innerHTML = flickDotsHtml(count, idx); }
+        var lbl = W.overlay.querySelector('[data-wiz-flick-label]');
+        if (lbl) { lbl.textContent = stop.label; }
+        var cap = W.overlay.querySelector('[data-wiz-flick-cap]');
+        if (cap) { cap.innerHTML = cardHintHtml(stop.label, stop.caption); }
+    }
+    /**
+     * Advance the demo one stop (wrapping past the last back to Default), replay the
+     * tilt-and-snap animation on the watch, and swap the content on the snap (~150 ms in,
+     * mid-tilt of the 450 ms keyframe). Under prefers-reduced-motion the CSS suppresses
+     * the tilt and only the crossfade shows — no JS branch needed.
+     * @returns {undefined}
+     */
+    function advanceFlick() {
+        var stops = flickStops(W.ctx.S);
+        if (!stops.length) { return; }
+        W.flickIdx = (W.flickIdx + 1) % stops.length;
+        var stop = stops[W.flickIdx], idx = W.flickIdx;
+        var watch = W.overlay.querySelector('[data-wiz-flick-watch]');
+        if (watch) {
+            watch.className = 'wiz-flick-watch';    // restart the animation:
+            void watch.offsetWidth;                 // force a reflow between the class flips
+            watch.className = 'wiz-flick-watch tilt';
+        }
+        setTimeout(function () { showFlickStop(stop, idx, stops.length); }, 150);
+    }
+
     // --- step bodies ---
     function stepWelcome() {
         var schema = W.ctx.schema;
@@ -399,6 +507,30 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return carousel('healthMode', HEALTH_OPTS, W.ctx.S.healthMode, HEALTH_DESC)
             + '<p><b>Tip</b> — flick your wrist on the watch to switch to the health view.</p>';
     }
+    function stepFlick() {
+        // Render always opens on stop 0 (the default view), so re-entering the step resets
+        // the demo — keeps W.flickIdx and the DOM trivially in sync.
+        W.flickIdx = 0;
+        var stops = flickStops(W.ctx.S);
+        var stop = stops[0];
+        var src = esc(stopShot(stop));
+        return '<p>Your watch shows one view at a time. Flick your wrist to peek at the rest — it returns to your default view on its own.</p>'
+            + '<div class="wiz-flick">'
+            + '<div class="wiz-flick-watch" data-wiz-flick-watch data-wiz-flick>'
+            + '<div class="wiz-flick-bezel">'
+            + '<img class="wiz-shot wiz-flick-shot on" src="' + src + '" alt="">'
+            + '<img class="wiz-shot wiz-flick-shot" src="' + src + '" alt="">'
+            + '</div>'
+            + '<div class="wiz-flick-strap"></div>'
+            + '</div>'
+            + '<div class="wiz-flick-track">'
+            + '<span data-wiz-flick-dots>' + flickDotsHtml(stops.length, 0) + '</span>'
+            + '<span class="wiz-flick-label" data-wiz-flick-label>' + esc(stop.label) + '</span>'
+            + '</div>'
+            + '<button class="wiz-flick-btn" data-wiz-flick>⟳&nbsp;&nbsp;Flick wrist</button>'
+            + '<p class="wiz-cardhint wiz-flick-cap" data-wiz-flick-cap>' + cardHintHtml(stop.label, stop.caption) + '</p>'
+            + '</div>';
+    }
     function stepTheme() {
         return carousel('theme', optsFor('theme'), W.ctx.S.theme, THEME_DESC)
             + '<div><p>The theme sets your watchface’s colours. You can fine-tune individual colours later in Settings.</p></div>';
@@ -413,6 +545,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (id === 'layout') { return stepLayout(); }
         if (id === 'radar') { return stepRadar(); }
         if (id === 'health') { return stepHealth(); }
+        if (id === 'flick') { return stepFlick(); }
         if (id === 'theme') { return stepTheme(); }
         return stepDone();
     }
@@ -472,6 +605,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var group = t.parentNode.getAttribute('data-wiz-car');
             selectCar(group, indexOfCode(optsFor(group), t.getAttribute('data-wiz-idx-val')), true); return;
         }
+        if ((t = e.target.closest('[data-wiz-flick]'))) { advanceFlick(); return; }
     }
     function onInput(e) {
         var sb = e.target.closest ? e.target.closest('[data-select-search]') : null;
