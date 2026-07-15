@@ -60,14 +60,21 @@ typedef enum {
 
 typedef enum {
     HealthServiceTimeScopeOnce,
+    HealthServiceTimeScopeWeekly,
+    HealthServiceTimeScopeDailyWeekdayOrWeekend,
+    HealthServiceTimeScopeDaily,
 } HealthServiceTimeScope;
 
 typedef enum {
-    HealthActivityNone,
+    HealthActivityNone = 0,
     HealthActivitySleep = 1 << 0,
     HealthActivityRestfulSleep = 1 << 1,
+    HealthActivityWalk = 1 << 2,
+    HealthActivityRun = 1 << 3,
+    HealthActivityOpenWorkout = 1 << 4,
 } HealthActivity;
 typedef uint32_t HealthActivityMask;
+#define HealthActivityMaskAll ((HealthActivityOpenWorkout << 1) - 1)
 
 typedef enum {
     HealthIterationDirectionPast,
@@ -80,15 +87,23 @@ typedef enum {
     MeasurementSystemImperial,
 } MeasurementSystem;
 
+typedef enum AmbientLightLevel {
+    AmbientLightLevelUnknown = 0,
+    AmbientLightLevelVeryDark,
+    AmbientLightLevelDark,
+    AmbientLightLevelLight,
+    AmbientLightLevelVeryLight,
+} AmbientLightLevel;
+
 typedef struct {
     uint8_t steps;
     uint8_t orientation;
     uint16_t vmc;
-    bool is_invalid;
-    uint8_t light;
-    uint8_t padding;
+    bool is_invalid: 1;
+    AmbientLightLevel light: 3;
+    uint8_t padding: 4;
     uint8_t heart_rate_bpm;
-    uint8_t reserved;
+    uint8_t reserved[6];
 } HealthMinuteData;
 
 typedef bool (*HealthActivityIteratorCB)(HealthActivity activity,

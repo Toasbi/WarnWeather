@@ -1,7 +1,18 @@
 // Host tests for the HealthService wrapper's walked-distance accessors.
+#include <stddef.h>
 #include <stdio.h>
 
 #include "c/services/health.h"
+
+// SDK 4.17 packs the invalid/light/padding bitfields into byte 4, followed by
+// heart rate and six reserved bytes.
+_Static_assert(sizeof(HealthMinuteData) == 12, "SDK 4.17 HealthMinuteData size drift");
+_Static_assert(offsetof(HealthMinuteData, heart_rate_bpm) == 5,
+               "SDK 4.17 HealthMinuteData heart-rate offset drift");
+_Static_assert(offsetof(HealthMinuteData, reserved) == 6,
+               "SDK 4.17 HealthMinuteData reserved offset drift");
+_Static_assert(sizeof(((HealthMinuteData *)0)->reserved) == 6,
+               "SDK 4.17 HealthMinuteData reserved width drift");
 
 static int s_failures;
 static HealthServiceAccessibilityMask s_access;
