@@ -14,14 +14,21 @@ static Layer *s_health_status_layer;
 static StatusRow *s_row;
 static uint8_t s_render_tier = TOP_VIEW_COMPACT;
 static bool s_full_mode = false;
+static GRect s_applied_bounds;
+static bool s_has_applied_bounds;
 
 static void health_status_update_proc(Layer *layer, GContext *ctx) {
     (void)layer;
     status_row_draw(s_row, ctx);
 }
 
-static void apply_row(void) {
-    if (!s_row || !s_health_status_layer) { return; }
+static bool bounds_equal(GRect a, GRect b) {
+    return a.origin.x == b.origin.x && a.origin.y == b.origin.y
+        && a.size.w == b.size.w && a.size.h == b.size.h;
+}
+
+static bool apply_row(void) {
+    if (!s_row || !s_health_status_layer) { return false; }
     GRect bounds = layer_get_bounds(s_health_status_layer);
     // The dual-row compact view delegates TOP_VIEW_FULL to both rows. Preserve its
     // legacy nudge away from the calendar; the true full view must remain unshifted.
@@ -31,7 +38,20 @@ static void apply_row(void) {
         bounds.origin.y += HEALTH_SECTION_DROP;
         bounds.size.h -= HEALTH_SECTION_DROP;
     }
+    bool geometry_changed = !s_has_applied_bounds
+        || !bounds_equal(bounds, s_applied_bounds);
     status_row_apply(s_row, bounds, s_render_tier, STATUS_LINE_HEALTH);
+    s_applied_bounds = bounds;
+    s_has_applied_bounds = true;
+    return geometry_changed;
+}
+
+static void refresh_row(void) {
+    bool geometry_changed = apply_row();
+    if (!s_row) { return; }
+    if (status_row_refresh(s_row) || geometry_changed) {
+        layer_mark_dirty(s_health_status_layer);
+    }
 }
 
 void health_status_layer_create(Layer *parent_layer, GRect frame) {
@@ -44,11 +64,15 @@ void health_status_layer_create(Layer *parent_layer, GRect frame) {
 }
 
 void health_status_layer_set_render_tier(uint8_t tier) {
+    if (tier == s_render_tier) { return; }
     s_render_tier = tier;
+    refresh_row();
 }
 
 void health_status_layer_set_full_mode(bool full) {
+    if (full == s_full_mode) { return; }
     s_full_mode = full;
+    refresh_row();
 }
 
 Layer *health_status_layer_get_root(void) {
@@ -56,16 +80,13 @@ Layer *health_status_layer_get_root(void) {
 }
 
 void health_status_layer_refresh(void) {
-    if (!s_row) { return; }
-    apply_row();
-    if (status_row_refresh(s_row)) {
-        layer_mark_dirty(s_health_status_layer);
-    }
+    refresh_row();
 }
 
 void health_status_layer_destroy(void) {
     status_row_destroy(s_row);
     s_row = NULL;
+    s_has_applied_bounds = false;
     layer_destroy(s_health_status_layer);
     s_health_status_layer = NULL;
 }
