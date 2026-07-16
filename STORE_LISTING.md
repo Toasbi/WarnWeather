@@ -90,6 +90,7 @@ STATUS LINES
   on the radar and health views — from a catalog:
   - current temperature
   - city
+  - calendar week
   - sunrise/sunset
   - UV index
   - air quality index (AQI)

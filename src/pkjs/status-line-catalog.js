@@ -21,6 +21,7 @@
     { code: 'empty', label: 'Empty', kind: KINDS.EMPTY, icon: ICONS.NONE },
     { code: 'temp', label: 'Current temperature', kind: KINDS.TEXT, icon: ICONS.TEMP },
     { code: 'city', label: 'City', kind: KINDS.TEXT, icon: ICONS.NONE },
+    { code: 'week', label: 'Calendar week', kind: KINDS.TEXT, icon: ICONS.NONE },
     { code: 'sun', label: 'Sunrise/sunset', kind: KINDS.TEXT, icon: ICONS.DRAWN_SUN },
     { code: 'uv', label: 'UV index', kind: KINDS.TEXT, icon: ICONS.UV },
     { code: 'aqi', label: 'Air quality (AQI)', kind: KINDS.TEXT, icon: ICONS.NONE },

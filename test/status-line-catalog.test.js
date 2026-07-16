@@ -108,3 +108,14 @@ test('aqi is a TEXT/NONE item available on every platform and in slot options', 
   const codes = catalog.slotOptions({}, ENV_BASALT, {}).map(o => o[1]);
   assert.ok(codes.indexOf('aqi') !== -1, 'aqi offered in slot dropdown');
 });
+
+test('week is a TEXT/NONE item available on every platform and in slot options', () => {
+  const item = catalog.byCode('week');
+  assert.ok(item, 'week item exists');
+  assert.equal(item.kind, catalog.KINDS.TEXT);
+  assert.equal(item.icon, catalog.ICONS.NONE);
+  assert.ok(catalog.itemAvailable(item, {}, ENV_APLITE), 'available on aplite');
+  assert.ok(catalog.itemAvailable(item, {}, ENV_BASALT), 'available on basalt');
+  const codes = catalog.slotOptions({}, ENV_BASALT, {}).map(o => o[1]);
+  assert.ok(codes.indexOf('week') !== -1, 'week offered in slot dropdown');
+});
