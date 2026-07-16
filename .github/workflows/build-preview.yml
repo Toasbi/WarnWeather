@@ -42,6 +42,7 @@ jobs:
         env:
           TELEMETRY_ENDPOINT: ${{ secrets.TELEMETRY_ENDPOINT_PREVIEW }}
           RAINBOW_PROXY_ENDPOINT: ${{ secrets.RAINBOW_PROXY_ENDPOINT_PREVIEW }}
+          NEWS_ENDPOINT: ${{ secrets.NEWS_ENDPOINT_PREVIEW }}
         shell: bash
         run: |
           set -euo pipefail
