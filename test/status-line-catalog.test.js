@@ -97,3 +97,14 @@ test('allSlotKeys lists the 10 configurable slot settings', () => {
     'statusHealthLeft', 'statusHealthMid', 'statusHealthRight'
   ]);
 });
+
+test('aqi is a TEXT/NONE item available on every platform and in slot options', () => {
+  const item = catalog.byCode('aqi');
+  assert.ok(item, 'aqi item exists');
+  assert.equal(item.kind, catalog.KINDS.TEXT);
+  assert.equal(item.icon, catalog.ICONS.NONE);
+  assert.ok(catalog.itemAvailable(item, {}, ENV_APLITE), 'available on aplite');
+  assert.ok(catalog.itemAvailable(item, {}, ENV_BASALT), 'available on basalt');
+  const codes = catalog.slotOptions({}, ENV_BASALT, {}).map(o => o[1]);
+  assert.ok(codes.indexOf('aqi') !== -1, 'aqi offered in slot dropdown');
+});

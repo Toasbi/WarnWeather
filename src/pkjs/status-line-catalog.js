@@ -23,6 +23,7 @@
     { code: 'city', label: 'City', kind: KINDS.TEXT, icon: ICONS.NONE },
     { code: 'sun', label: 'Sunrise/sunset', kind: KINDS.TEXT, icon: ICONS.DRAWN_SUN },
     { code: 'uv', label: 'UV index', kind: KINDS.TEXT, icon: ICONS.UV },
+    { code: 'aqi', label: 'Air quality (AQI)', kind: KINDS.TEXT, icon: ICONS.NONE },
     { code: 'wind', label: 'Wind speed', kind: KINDS.TEXT, icon: ICONS.WIND },
     { code: 'gust', label: 'Wind gusts', kind: KINDS.TEXT, icon: ICONS.GUST },
     { code: 'precip_prob', label: 'Precipitation %', kind: KINDS.TEXT, icon: ICONS.PRECIP, needsRadarOff: true },
