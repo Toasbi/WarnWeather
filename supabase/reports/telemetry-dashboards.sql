@@ -291,7 +291,20 @@ cross join lateral (values
   ('timeFont',             l.settings_json ->> 'timeFont'),
   ('axisTimeFormat',       l.settings_json ->> 'axisTimeFormat'),
   ('weekStartDay',         l.settings_json ->> 'weekStartDay'),
-  ('firstWeek',            l.settings_json ->> 'firstWeek')
+  ('firstWeek',            l.settings_json ->> 'firstWeek'),
+  ('theme',                l.settings_json ->> 'theme'),
+  ('configTheme',          l.settings_json ->> 'configTheme'),
+  ('aqiScale',             l.settings_json ->> 'aqiScale'),
+  ('statusForecastLeft',   l.settings_json ->> 'statusForecastLeft'),
+  ('statusForecastRight',  l.settings_json ->> 'statusForecastRight'),
+  ('statusRadarLeft',      l.settings_json ->> 'statusRadarLeft'),
+  ('statusRadarMid',       l.settings_json ->> 'statusRadarMid'),
+  ('statusRadarRight',     l.settings_json ->> 'statusRadarRight'),
+  ('statusTopLeft',        l.settings_json ->> 'statusTopLeft'),
+  ('statusTopRight',       l.settings_json ->> 'statusTopRight'),
+  ('statusHealthLeft',     l.settings_json ->> 'statusHealthLeft'),
+  ('statusHealthMid',      l.settings_json ->> 'statusHealthMid'),
+  ('statusHealthRight',    l.settings_json ->> 'statusHealthRight')
 ) as s(setting, option)
 where s.option is not null
 group by s.setting, s.option
