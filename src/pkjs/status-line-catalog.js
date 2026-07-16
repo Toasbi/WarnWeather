@@ -9,7 +9,7 @@
 (function() {
   var KINDS = {
     EMPTY: 0, TEXT: 1, LIVE_DATE: 2,
-    LIVE_STEPS: 3, LIVE_HR: 4, LIVE_SLEEP: 5, LIVE_DISTANCE: 6
+    LIVE_STEPS: 3, LIVE_HR: 4, LIVE_SLEEP: 5, LIVE_DISTANCE: 6, LIVE_WEEK: 7
   };
   var ICONS = {
     NONE: 0, DRAWN_SUN: 1, TEMP: 2, UV: 3, WIND: 4, GUST: 5,
@@ -21,7 +21,7 @@
     { code: 'empty', label: 'Empty', kind: KINDS.EMPTY, icon: ICONS.NONE },
     { code: 'temp', label: 'Current temperature', kind: KINDS.TEXT, icon: ICONS.TEMP },
     { code: 'city', label: 'City', kind: KINDS.TEXT, icon: ICONS.NONE },
-    { code: 'week', label: 'Calendar week', kind: KINDS.TEXT, icon: ICONS.NONE },
+    { code: 'week', label: 'Calendar week', kind: KINDS.LIVE_WEEK, icon: ICONS.NONE, notAplite: true },
     { code: 'sun', label: 'Sunrise/sunset', kind: KINDS.TEXT, icon: ICONS.DRAWN_SUN },
     { code: 'uv', label: 'UV index', kind: KINDS.TEXT, icon: ICONS.UV },
     { code: 'aqi', label: 'Air quality (AQI)', kind: KINDS.TEXT, icon: ICONS.NONE },
@@ -76,6 +76,9 @@
       if (settings && settings.healthMode === 'off') { return false; }
     }
     if (item.emeryOnly && (!env || env.platform !== 'emery')) { return false; }
+    // aplite renders the calendar-week slot from watch-side C that is compiled
+    // out there (frozen image budget), so never offer it on aplite.
+    if (item.notAplite && env && env.platform === 'aplite') { return false; }
     if (item.needsRadarOff && (!settings || settings.radarProvider !== 'disabled')) {
       return false;
     }

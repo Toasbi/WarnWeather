@@ -183,9 +183,20 @@ static void slot_tests(void) {
            status_line_slot(b, STATUS_LINE_MAX_BYTES + 1, 0, &v), 0);
 }
 
+// iso_week(year, yday(0-based), wday(0=Sun..6=Sat)) -> ISO-8601 week (1..53).
+static void iso_week_tests(void) {
+    expect("isoweek.2024-01-01(Mon)", iso_week(2024, 0, 1), 1);    // -> W1
+    expect("isoweek.2023-01-01(Sun)", iso_week(2023, 0, 0), 52);   // -> W52 of 2022
+    expect("isoweek.2021-01-01(Fri)", iso_week(2021, 0, 5), 53);   // -> W53 of 2020
+    expect("isoweek.2026-01-01(Thu)", iso_week(2026, 0, 4), 1);    // -> W1
+    expect("isoweek.2026-07-16(Thu)", iso_week(2026, 196, 4), 29); // -> W29
+    expect("isoweek.2020-12-31(Thu)", iso_week(2020, 365, 4), 53); // leap, 53-week year
+}
+
 int main(void) {
     validate_tests();
     slot_tests();
+    iso_week_tests();
     if (s_failures) { printf("%d status_line failure(s)\n", s_failures); return 1; }
     printf("status_line OK\n");
     return 0;

@@ -125,6 +125,16 @@ static void format_live_value(const StatusRow *row, uint8_t kind, char *buf, siz
         case SLOT_LIVE_DATE:
             format_status_date(row->full_date, buf, cap);
             return;
+#if !defined(PBL_PLATFORM_APLITE)
+        // aplite: excluded to stay within its frozen image budget; the phone
+        // never offers/sends the calendar-week slot to aplite (catalog gate).
+        case SLOT_LIVE_WEEK: {
+            struct tm tm_now = watch_services_localtime();
+            snprintf(buf, cap, "W%d",
+                     iso_week(tm_now.tm_year + 1900, tm_now.tm_yday, tm_now.tm_wday));
+            return;
+        }
+#endif
 #if defined(PBL_HEALTH)
         case SLOT_LIVE_STEPS: {
             int steps = health_summary_steps();

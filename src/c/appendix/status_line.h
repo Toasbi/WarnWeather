@@ -29,8 +29,9 @@ typedef enum {
     SLOT_LIVE_HR = 4,
     SLOT_LIVE_SLEEP = 5,
     SLOT_LIVE_DISTANCE = 6,
+    SLOT_LIVE_WEEK = 7,     // watch formats the current ISO-8601 calendar week
 } StatusSlotKind;
-#define STATUS_SLOT_KIND_MAX SLOT_LIVE_DISTANCE
+#define STATUS_SLOT_KIND_MAX SLOT_LIVE_WEEK
 
 typedef enum {
     STATUS_ICON_NONE = 0,
@@ -57,3 +58,8 @@ typedef struct {
 bool status_line_validate(const uint8_t *blob, size_t len);
 bool status_line_slot(const uint8_t *blob, size_t len, int slot_index,
                       StatusSlotView *out);
+
+// ISO 8601 week number (1-53) for a local calendar date. Integer-only (no FP),
+// host-compilable. year: full year (e.g. 2026); yday: 0-based day of year
+// (struct tm.tm_yday); wday: 0=Sun..6=Sat (struct tm.tm_wday).
+int iso_week(int year, int yday, int wday);

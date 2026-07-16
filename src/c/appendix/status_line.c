@@ -1,5 +1,22 @@
 #include "status_line.h"
 
+// Number of ISO-8601 weeks in a year: 53 iff its dominical value is 4, or the
+// previous year's is 3 (the standard integer identity); else 52.
+static int iso_weeks_in_year(int y) {
+    int p = (y + y / 4 - y / 100 + y / 400) % 7;
+    int q = ((y - 1) + (y - 1) / 4 - (y - 1) / 100 + (y - 1) / 400) % 7;
+    return (p == 4 || q == 3) ? 53 : 52;
+}
+
+int iso_week(int year, int yday, int wday) {
+    int iso_dow = (wday == 0) ? 7 : wday;   // Mon=1 .. Sun=7
+    int ordinal = yday + 1;                  // 1-based day of year
+    int week = (ordinal - iso_dow + 10) / 7;
+    if (week < 1) { return iso_weeks_in_year(year - 1); }
+    if (week > iso_weeks_in_year(year)) { return 1; }
+    return week;
+}
+
 // Well-formed UTF-8 over exactly len bytes, including shortest-form and Unicode
 // scalar-value constraints.
 static bool utf8_complete(const uint8_t *s, size_t len) {

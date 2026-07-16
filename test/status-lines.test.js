@@ -203,18 +203,11 @@ test('every baked line validates against the caps', () => {
   });
 });
 
-test('isoWeek returns canonical ISO 8601 week numbers', () => {
-  assert.equal(statusLines.isoWeek(new Date(2024, 0, 1)), 1);   // Mon 2024-01-01 -> W1
-  assert.equal(statusLines.isoWeek(new Date(2023, 0, 1)), 52);  // Sun 2023-01-01 -> W52 of 2022
-  assert.equal(statusLines.isoWeek(new Date(2021, 0, 1)), 53);  // Fri 2021-01-01 -> W53 of 2020
-  assert.equal(statusLines.isoWeek(new Date(2026, 0, 1)), 1);   // Thu 2026-01-01 -> W1
-});
-
-test('week slot renders "Wn"', () => {
+test('week slot bakes as a LIVE_WEEK kind (watch renders it live, no baked text)', () => {
   const payload = basePayload();
   statusLines.buildStatusLines(payload, baseSettings({ statusForecastLeft: 'week' }), WATCH_BASALT);
   const slots = decodeLine(payload.STATUS_LINE_1_UINT8);
-  assert.equal(slots[0].kind, K.TEXT);
+  assert.equal(slots[0].kind, K.LIVE_WEEK);
   assert.equal(slots[0].icon, I.NONE);
-  assert.match(slots[0].text, /^W\d{1,2}$/);
+  assert.equal(slots[0].len, 0);
 });

@@ -112,22 +112,6 @@ function trendHead(arr) {
 }
 
 /**
- * ISO 8601 calendar week (1-53) for a date, in the date's local calendar.
- * Week 1 is the week holding the year's first Thursday; weeks start Monday
- * (the "Kalenderwoche" convention). Normalizes through UTC midnight of the
- * local Y/M/D so daylight-saving offsets can't shift the day.
- * @param {Date} date any Date
- * @returns {number} ISO week number
- */
-function isoWeek(date) {
-  var d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  var dayNum = d.getUTCDay() || 7; // Mon=1 .. Sun=7
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum); // shift onto this week's Thursday
-  var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-}
-
-/**
  * Format one catalog item's display text from the payload.
  * @param {string} code catalog item code (TEXT kinds only)
  * @param {Object} payload weather payload (pre-transform)
@@ -168,9 +152,6 @@ function formatValue(code, payload, settings) {
   if (code === 'aqi') {
     v = trendHead(payload.AQI_TREND);
     return v === null ? '--' : 'AQI ' + Math.round(v);
-  }
-  if (code === 'week') {
-    return 'W' + isoWeek(new Date());
   }
   return '--';
 }
@@ -234,7 +215,6 @@ function buildStatusLines(payload, settings, watchInfo) {
 module.exports = {
   buildStatusLines: buildStatusLines,
   formatValue: formatValue,
-  isoWeek: isoWeek,
   utf8Encode: utf8Encode,
   utf8Truncate: utf8Truncate
 };

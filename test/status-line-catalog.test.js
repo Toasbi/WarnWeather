@@ -109,13 +109,15 @@ test('aqi is a TEXT/NONE item available on every platform and in slot options', 
   assert.ok(codes.indexOf('aqi') !== -1, 'aqi offered in slot dropdown');
 });
 
-test('week is a TEXT/NONE item available on every platform and in slot options', () => {
+test('week is a LIVE_WEEK item offered on non-aplite platforms only', () => {
   const item = catalog.byCode('week');
   assert.ok(item, 'week item exists');
-  assert.equal(item.kind, catalog.KINDS.TEXT);
+  assert.equal(item.kind, catalog.KINDS.LIVE_WEEK);
   assert.equal(item.icon, catalog.ICONS.NONE);
-  assert.ok(catalog.itemAvailable(item, {}, ENV_APLITE), 'available on aplite');
   assert.ok(catalog.itemAvailable(item, {}, ENV_BASALT), 'available on basalt');
-  const codes = catalog.slotOptions({}, ENV_BASALT, {}).map(o => o[1]);
-  assert.ok(codes.indexOf('week') !== -1, 'week offered in slot dropdown');
+  assert.ok(!catalog.itemAvailable(item, {}, ENV_APLITE), 'excluded on aplite');
+  const basalt = catalog.slotOptions({}, ENV_BASALT, {}).map(o => o[1]);
+  assert.ok(basalt.indexOf('week') !== -1, 'week offered on basalt dropdown');
+  const aplite = catalog.slotOptions({}, ENV_APLITE, {}).map(o => o[1]);
+  assert.ok(aplite.indexOf('week') === -1, 'week not offered on aplite dropdown');
 });
