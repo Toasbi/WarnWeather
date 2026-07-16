@@ -7,6 +7,7 @@ typedef struct StatusRow StatusRow;
 
 StatusRow *status_row_create(uint8_t line_id);
 void status_row_destroy(StatusRow *row);
+// tier is a LayoutTier value (windows/layout.h) — the font tier this row renders at.
 void status_row_apply(StatusRow *row, GRect bounds, uint8_t tier, uint8_t line_id);
 bool status_row_refresh(StatusRow *row);
 void status_row_set_sleeping(StatusRow *row, bool sleeping);

@@ -19,6 +19,7 @@
 #include "c/appendix/memory_log.h"
 #include "c/appendix/status_line.h"
 #include "c/appendix/theme.h"
+#include "c/windows/layout.h"   // LayoutTier (status_row tier param)
 
 #define BATTERY_W 29
 #define BATTERY_H 10
@@ -150,7 +151,7 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
         draw_bitmap(ctx, s_bt_disconnect_bitmap, GRect(icon_x, STATUS_ICON_Y(bounds.size.h, 10), 10, 10));
     }
 
-    status_row_apply(s_row, content_rect(), TOP_VIEW_FULL, STATUS_LINE_TOP);
+    status_row_apply(s_row, content_rect(), LAYOUT_TIER_FULL, STATUS_LINE_TOP);
     status_row_draw(s_row, ctx);
 }
 
@@ -171,7 +172,7 @@ void top_status_layer_create(Layer* parent_layer, GRect frame) {
 
     s_row = status_row_create(STATUS_LINE_TOP);
     status_row_set_full_date(s_row, s_full_date);
-    status_row_apply(s_row, content_rect(), TOP_VIEW_FULL, STATUS_LINE_TOP);
+    status_row_apply(s_row, content_rect(), LAYOUT_TIER_FULL, STATUS_LINE_TOP);
 
     top_status_layer_refresh();
 

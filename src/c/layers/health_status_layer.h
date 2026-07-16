@@ -4,10 +4,10 @@
 
 void health_status_layer_create(Layer *parent_layer, GRect frame);
 
-// Set the render tier (a TopViewMode value: full / compact / none) whose fonts and
+// Set the render tier (a LayoutTier value: full / compact / none) whose fonts and
 // offsets fit the band this layer occupies. The window decides it and pushes it here
-// so the health row matches the weather row — usually the top-view mode, but in
-// dual-status + compact top view both bands render at TOP_VIEW_FULL (the smaller
+// so the health row matches the weather row — usually the top-view tier, but in
+// dual-status + compact top view both bands render at LAYOUT_TIER_FULL (the smaller
 // font). Mirrors weather_status_layer; the window pushes it from the current ViewSpec's
 // status_tier field (see view_spec_unpack()/view_spec_resolve() in windows/layout.c).
 // A pre-create call stores the tier for the first paint. After create, a changed tier

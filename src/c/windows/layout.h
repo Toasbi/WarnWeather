@@ -3,8 +3,10 @@
 #include <pebble.h>   // GRect only — this module must stay free of any other SDK call
                       // (fonts, persist, config_get, layers); host tests stub pebble.h.
 
-// Values mirror enum TopViewMode in config.h (0=full, 1=compact, 2=none) — that enum is
-// wire/persist contract, this one is layout vocabulary. Keep the values in lockstep.
+// The C-side tier vocabulary (0=full, 1=compact, 2=none). Values are pinned by the
+// packed view-spec byte's tier bits (see view-cycle.js) — wire contract, do not
+// renumber. config.h's TopViewMode shares these values but is wire/flash-only
+// vocabulary with no C reader; nothing converts between the two enums.
 typedef enum {
     LAYOUT_TIER_FULL = 0,
     LAYOUT_TIER_COMPACT = 1,

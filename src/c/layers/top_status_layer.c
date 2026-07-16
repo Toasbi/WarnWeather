@@ -10,6 +10,7 @@
 #include "c/appendix/status_line.h"
 #include "c/appendix/theme.h"
 #include "c/services/watch_services.h"
+#include "c/windows/layout.h"   // LayoutTier (status_row tier param)
 
 #define BATTERY_W 29
 #define BATTERY_H 10
@@ -361,7 +362,7 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
     if (alert) {
         draw_status_text_in(ctx, text_rect, shown, text_align, font);
     } else {
-        status_row_apply(s_row, content_rect(), TOP_VIEW_FULL, STATUS_LINE_TOP);
+        status_row_apply(s_row, content_rect(), LAYOUT_TIER_FULL, STATUS_LINE_TOP);
         status_row_draw(s_row, ctx);
     }
 }
@@ -383,7 +384,7 @@ void top_status_layer_create(Layer* parent_layer, GRect frame) {
 
     s_row = status_row_create(STATUS_LINE_TOP);
     status_row_set_full_date(s_row, s_full_date);
-    status_row_apply(s_row, content_rect(), TOP_VIEW_FULL, STATUS_LINE_TOP);
+    status_row_apply(s_row, content_rect(), LAYOUT_TIER_FULL, STATUS_LINE_TOP);
 
     rain_countdown_refresh(watch_services_now());
     top_status_layer_refresh();

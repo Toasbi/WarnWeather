@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "c/appendix/config.h"
+#include "c/windows/layout.h"
 #include "c/appendix/status_line.h"
 #include "c/layers/status_row.h"
 #include "c/layers/weather_status_layer.h"
@@ -126,7 +126,7 @@ bool persist_get_is_sleeping(void) {
 static void owner_forwards_lifecycle_and_state(void) {
     Layer parent = {0};
     s_refresh_changed = true;
-    weather_status_layer_set_render_tier(TOP_VIEW_NONE);
+    weather_status_layer_set_render_tier(LAYOUT_TIER_NONE);
     weather_status_layer_create(&parent, GRect(3, 4, 144, 28));
 
     expect_int("create.before_add", s_create_sequence < s_add_sequence, true);
@@ -137,7 +137,7 @@ static void owner_forwards_lifecycle_and_state(void) {
     expect_int("create.dirty", s_dirty_count, 1);
     expect_int("create.bounds.w", s_last_bounds.size.w, 144);
     expect_int("create.bounds.h", s_last_bounds.size.h, 28);
-    expect_int("create.tier", s_last_tier, TOP_VIEW_NONE);
+    expect_int("create.tier", s_last_tier, LAYOUT_TIER_NONE);
     expect_int("create.line", s_last_line, STATUS_LINE_FORECAST);
 
     s_sleeping = true;
@@ -148,20 +148,20 @@ static void owner_forwards_lifecycle_and_state(void) {
 
     int apply_before = s_apply_count;
     int refresh_before = s_refresh_count;
-    weather_status_layer_set_render_tier(TOP_VIEW_NONE);
+    weather_status_layer_set_render_tier(LAYOUT_TIER_NONE);
     expect_int("same_tier.no_apply", s_apply_count, apply_before);
     expect_int("same_tier.no_refresh", s_refresh_count, refresh_before);
 
     s_refresh_changed = true;
-    weather_status_layer_set_render_tier(TOP_VIEW_COMPACT);
-    expect_int("new_tier.applied", s_last_tier, TOP_VIEW_COMPACT);
+    weather_status_layer_set_render_tier(LAYOUT_TIER_COMPACT);
+    expect_int("new_tier.applied", s_last_tier, LAYOUT_TIER_COMPACT);
     expect_int("new_tier.apply_count", s_apply_count, apply_before + 1);
     expect_int("new_tier.refresh_count", s_refresh_count, refresh_before + 1);
     expect_int("new_tier.dirty", s_dirty_count, 2);
 
     s_refresh_changed = false;
-    weather_status_layer_set_render_tier(TOP_VIEW_FULL);
-    expect_int("changed_tier_same_content.applied", s_last_tier, TOP_VIEW_FULL);
+    weather_status_layer_set_render_tier(LAYOUT_TIER_FULL);
+    expect_int("changed_tier_same_content.applied", s_last_tier, LAYOUT_TIER_FULL);
     expect_int("changed_tier_same_content.apply_count", s_apply_count, apply_before + 2);
     expect_int("changed_tier_same_content.refresh_count", s_refresh_count, refresh_before + 2);
     expect_int("changed_tier_same_content.no_dirty", s_dirty_count, 2);

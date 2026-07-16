@@ -4,7 +4,7 @@
 #include "layer_util.h"
 #include "../appendix/persist.h"
 #include "../appendix/theme.h"
-#include "../appendix/config.h"
+#include "../windows/layout.h"   // LayoutTier (row_font)
 #include "../appendix/snooze.h"
 #include "../services/watch_services.h"
 #if defined(PBL_HEALTH)
@@ -91,9 +91,9 @@ static int s_row_count;
 
 static GFont row_font(uint8_t tier) {
     switch (tier) {
-        case TOP_VIEW_NONE:
+        case LAYOUT_TIER_NONE:
             return fonts_get_system_font(NONE_ROW_FONT_KEY);
-        case TOP_VIEW_COMPACT:
+        case LAYOUT_TIER_COMPACT:
             return fonts_get_system_font(COMPACT_ROW_FONT_KEY);
         default:
             return fonts_get_system_font(STATUS_FULL_TIER_FONT_KEY);

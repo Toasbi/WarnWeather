@@ -21,17 +21,6 @@
 #include "c/appendix/status_line.h"
 #include "c/appendix/theme.h"
 
-// The layout module mirrors config.h's TopViewMode as its own LAYOUT_TIER_* (see layout.h).
-// No code converts between them anymore (the top_view_mode shadow write is gone), but
-// status_row.c's row_font and health_status_layer.c's full-tier compare still switch on
-// TOP_VIEW_* while the window feeds them the LayoutTier-valued spec.status_tier (the peek
-// fork even assigns LAYOUT_TIER_FULL directly) — so the values stay locked until the tier
-// vocabulary is unified in status_row.
-_Static_assert((int)TOP_VIEW_FULL == (int)LAYOUT_TIER_FULL
-            && (int)TOP_VIEW_COMPACT == (int)LAYOUT_TIER_COMPACT
-            && (int)TOP_VIEW_NONE == (int)LAYOUT_TIER_NONE,
-               "LAYOUT_TIER_* must stay in lockstep with enum TopViewMode");
-
 static Window *s_main_window;
 
 // Cycle cursor. A wrist-flick advances to the next enabled + available view and

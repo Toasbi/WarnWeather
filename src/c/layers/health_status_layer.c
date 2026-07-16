@@ -4,7 +4,7 @@
 #if defined(PBL_HEALTH)
 
 #include "status_row.h"
-#include "../appendix/config.h"
+#include "../windows/layout.h"   // LayoutTier
 #include "../appendix/status_line.h"
 
 #define HEALTH_TALL_BAND_MIN 16
@@ -12,7 +12,7 @@
 
 static Layer *s_health_status_layer;
 static StatusRow *s_row;
-static uint8_t s_render_tier = TOP_VIEW_COMPACT;
+static uint8_t s_render_tier = LAYOUT_TIER_COMPACT;
 static bool s_full_mode = false;
 static bool s_full_date;
 static GRect s_applied_bounds;
@@ -31,9 +31,9 @@ static bool bounds_equal(GRect a, GRect b) {
 static bool apply_row(void) {
     if (!s_row || !s_health_status_layer) { return false; }
     GRect bounds = layer_get_bounds(s_health_status_layer);
-    // The dual-row compact view delegates TOP_VIEW_FULL to both rows. Preserve its
+    // The dual-row compact view delegates LAYOUT_TIER_FULL to both rows. Preserve its
     // legacy nudge away from the calendar; the true full view must remain unshifted.
-    if (s_render_tier == TOP_VIEW_FULL
+    if (s_render_tier == LAYOUT_TIER_FULL
             && bounds.size.h > HEALTH_TALL_BAND_MIN
             && !s_full_mode) {
         bounds.origin.y += HEALTH_SECTION_DROP;

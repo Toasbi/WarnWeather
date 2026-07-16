@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "c/appendix/config.h"
+#include "c/windows/layout.h"
 #include "c/appendix/status_line.h"
 #include "c/layers/health_status_layer.h"
 #include "c/layers/status_row.h"
@@ -112,7 +112,7 @@ static void owner_forwards_health_row_and_preserves_nudge(void) {
     Layer parent = {0};
     GContext ctx = {0};
     s_refresh_changed = true;
-    health_status_layer_set_render_tier(TOP_VIEW_FULL);
+    health_status_layer_set_render_tier(LAYOUT_TIER_FULL);
     health_status_layer_set_full_mode(true);
     expect_int("precreate.no_apply", s_apply_count, 0);
     expect_int("precreate.no_refresh", s_row_refresh_count, 0);
@@ -128,7 +128,7 @@ static void owner_forwards_health_row_and_preserves_nudge(void) {
     expect_int("create.dirty", s_dirty_count, 1);
     expect_int("create.bounds.y", s_last_bounds.origin.y, 0);
     expect_int("create.bounds.h", s_last_bounds.size.h, 20);
-    expect_int("create.tier", s_last_tier, TOP_VIEW_FULL);
+    expect_int("create.tier", s_last_tier, LAYOUT_TIER_FULL);
     expect_int("create.line", s_last_line, STATUS_LINE_HEALTH);
     expect_int("get_root", health_status_layer_get_root() != NULL, true);
 
@@ -139,7 +139,7 @@ static void owner_forwards_health_row_and_preserves_nudge(void) {
     int apply_before = s_apply_count;
     int refresh_before = s_row_refresh_count;
     int dirty_before = s_dirty_count;
-    health_status_layer_set_render_tier(TOP_VIEW_FULL);
+    health_status_layer_set_render_tier(LAYOUT_TIER_FULL);
     health_status_layer_set_full_mode(true);
     expect_int("same_setters.no_apply", s_apply_count, apply_before);
     expect_int("same_setters.no_refresh", s_row_refresh_count, refresh_before);
@@ -172,18 +172,18 @@ static void owner_forwards_health_row_and_preserves_nudge(void) {
     refresh_before = s_row_refresh_count;
     dirty_before = s_dirty_count;
     s_refresh_changed = true;
-    health_status_layer_set_render_tier(TOP_VIEW_COMPACT);
+    health_status_layer_set_render_tier(LAYOUT_TIER_COMPACT);
     expect_int("compact.applied_immediately", s_apply_count, apply_before + 1);
     expect_int("compact.refreshed_immediately", s_row_refresh_count, refresh_before + 1);
     expect_int("compact.dirty", s_dirty_count, dirty_before + 1);
     expect_int("compact.bounds.y", s_last_bounds.origin.y, 0);
     expect_int("compact.bounds.h", s_last_bounds.size.h, 20);
-    expect_int("compact.tier", s_last_tier, TOP_VIEW_COMPACT);
+    expect_int("compact.tier", s_last_tier, LAYOUT_TIER_COMPACT);
 
     apply_before = s_apply_count;
     refresh_before = s_row_refresh_count;
     dirty_before = s_dirty_count;
-    health_status_layer_set_render_tier(TOP_VIEW_COMPACT);
+    health_status_layer_set_render_tier(LAYOUT_TIER_COMPACT);
     expect_int("same_tier.no_apply", s_apply_count, apply_before);
     expect_int("same_tier.no_refresh", s_row_refresh_count, refresh_before);
     expect_int("same_tier.no_dirty", s_dirty_count, dirty_before);
@@ -195,8 +195,8 @@ static void owner_forwards_health_row_and_preserves_nudge(void) {
     expect_int("compact_full_change.no_geometry_dirty", s_dirty_count, dirty_before);
 
     s_refresh_changed = true;
-    health_status_layer_set_render_tier(TOP_VIEW_FULL);
-    expect_int("full_tier.applied_immediately", s_last_tier, TOP_VIEW_FULL);
+    health_status_layer_set_render_tier(LAYOUT_TIER_FULL);
+    expect_int("full_tier.applied_immediately", s_last_tier, LAYOUT_TIER_FULL);
     expect_int("full_tier.nudged_immediately", s_last_bounds.origin.y, 2);
 
     s_refresh_changed = false;

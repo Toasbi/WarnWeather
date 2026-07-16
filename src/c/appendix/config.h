@@ -8,6 +8,8 @@ enum TimeFont {
     TIME_FONT_BITHAM = 2,
 };
 
+// Wire/flash vocabulary only (CLAY_TOP_VIEW_MODE + Config.top_view_mode) — no C
+// reader. Layout code speaks LayoutTier (windows/layout.h), which shares these values.
 enum TopViewMode {
     TOP_VIEW_FULL = 0,     // classic 3-row calendar
     TOP_VIEW_COMPACT = 1,  // 2-row calendar + larger status (default)

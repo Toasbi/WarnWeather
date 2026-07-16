@@ -1,12 +1,13 @@
 #include <pebble.h>
 #include "weather_status_layer.h"
 #include "status_row.h"
+#include "../windows/layout.h"   // LayoutTier
 #include "../appendix/persist.h"
 #include "../appendix/status_line.h"
 
 static Layer *s_weather_status_layer;
 static StatusRow *s_row;
-static uint8_t s_render_tier = TOP_VIEW_COMPACT;
+static uint8_t s_render_tier = LAYOUT_TIER_COMPACT;
 static bool s_full_date;
 static uint8_t s_line_id = STATUS_LINE_FORECAST;
 
