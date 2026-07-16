@@ -21,8 +21,12 @@
 #include "c/appendix/status_line.h"
 #include "c/appendix/theme.h"
 
-// The layout module mirrors config.h's TopViewMode as its own LAYOUT_TIER_* (see layout.h);
-// main_window passes top_view_mode straight into the tier param, so lock the values together.
+// The layout module mirrors config.h's TopViewMode as its own LAYOUT_TIER_* (see layout.h).
+// No code converts between them anymore (the top_view_mode shadow write is gone), but
+// status_row.c's row_font and health_status_layer.c's full-tier compare still switch on
+// TOP_VIEW_* while the window feeds them the LayoutTier-valued spec.status_tier (the peek
+// fork even assigns LAYOUT_TIER_FULL directly) — so the values stay locked until the tier
+// vocabulary is unified in status_row.
 _Static_assert((int)TOP_VIEW_FULL == (int)LAYOUT_TIER_FULL
             && (int)TOP_VIEW_COMPACT == (int)LAYOUT_TIER_COMPACT
             && (int)TOP_VIEW_NONE == (int)LAYOUT_TIER_NONE,
@@ -120,15 +124,10 @@ static void render_active_view(void) {
     {
         L = layout_compute_spec(bounds, &spec, fc_band);
     }
-    // Bridge the remaining legacy top_view_mode consumers (status_row's aplite date
-    // strip and health_graph_layer's full-mode inset) to the ACTIVE view's tier, so a
-    // flick to a different-density view keeps them in sync. calendar_layer no longer
-    // reads this shadow — see the tier push below.
-    g_config->top_view_mode = (spec.calendar_rows == 3) ? TOP_VIEW_FULL
-                            : (spec.calendar_rows == 2) ? TOP_VIEW_COMPACT
-                            : TOP_VIEW_NONE;
-    // Tier push: per-view layout facts flow view spec -> window -> layer static.
-    // (The legacy top_view_mode bridge above is deleted once all readers are pushed.)
+    // Tier push: per-view layout facts flow one way, view spec -> window -> owner ->
+    // layer/row state. Layers never read tier facts from config (see CONTEXT.md
+    // "Tier push"). Sits after the peek fork above, so the pushed facts track
+    // quick-view peek too.
     calendar_layer_set_rows(spec.calendar_rows);
     top_status_layer_set_full_date(spec.calendar_rows == 0);
     weather_status_layer_set_full_date(spec.calendar_rows == 0);

@@ -55,7 +55,9 @@ typedef struct {
     int16_t fetch_interval_min;
     uint8_t health_mode;   // enum HealthMode; reinterprets the old bool health_enabled byte (0=off,1=status)
     int16_t rain_countdown_horizon_min;
-    uint8_t top_view_mode;   // enum TopViewMode; boot-time hint, overwritten per active view
+    uint8_t top_view_mode;   // enum TopViewMode; wire/flash compat only — no C reader.
+                             // The active view's tier is pushed by main_window instead
+                             // (tier push; see render_active_view).
     bool dual_status;        // RETIRED (superseded by per-slot ViewSpec status); kept for persist offset stability
     // --- flick cycle (v1.7): three composed views + auto-return timer (append-only) ---
     uint8_t view_content[3]; // RETIRED (superseded by view_spec); kept for persist offset stability
