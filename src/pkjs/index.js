@@ -129,11 +129,22 @@ Pebble.addEventListener('appmessage', function(e) {
 Pebble.addEventListener('showConfiguration', function(e) {
     // Build userData fresh here so it's actually up to date; the library computes
     // env from the raw watchInfo we pass.
+    // The raw account token rides to the config page and on to the news edge
+    // function, which HMAC-hashes it server-side (same pattern as telemetry).
+    var newsAccountToken = '';
+    try {
+        newsAccountToken = Pebble.getAccountToken() || '';
+    } catch (err) {
+        console.log('news: getAccountToken failed: ' + err.message);
+    }
     var userData = {
         lastFetchSuccess: localStorage.getItem(KEY_LAST_FETCH_SUCCESS),
         lastFetchAttempt: localStorage.getItem(KEY_LAST_FETCH_ATTEMPT),
         devStats: JSON.stringify(devStats.read()),
-        palette: previewPalette.buildPreviewPalette()
+        palette: previewPalette.buildPreviewPalette(),
+        newsEndpoint: (pkg.news && pkg.news.endpoint) || '',
+        appVersion: pkg.version || '',
+        accountToken: newsAccountToken
     };
     var values = claySettings.read();
     // Let the library pick the return target: pebblejs://close# on device, or the

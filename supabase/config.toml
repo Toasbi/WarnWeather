@@ -404,3 +404,10 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/rainbow-nowcast/deno.json"
 entrypoint = "./functions/rainbow-nowcast/index.ts"
+
+[functions.news]
+enabled = true
+# Public like telemetry-ingest: the config page calls it unauthenticated (no JWT).
+verify_jwt = false
+import_map = "./functions/news/deno.json"
+entrypoint = "./functions/news/index.ts"

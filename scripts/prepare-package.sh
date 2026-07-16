@@ -124,6 +124,25 @@ pkg.rainbow = {
   endpoint: rainbowEndpoint,
 };
 
+// News edge-function URL baked into the bundle. PKJS passes it to the config
+// page via userData; an empty endpoint disables the news pill entirely. A
+// release build with an empty endpoint would silently kill the feature for
+// every user (see the v1.7.0 rainbow-endpoint incident), so hard-fail instead.
+const newsEndpoint = typeof process.env.NEWS_ENDPOINT === 'string' ? process.env.NEWS_ENDPOINT.trim() : '';
+
+if (buildProfile === 'release' && newsEndpoint.length === 0) {
+  throw new Error(
+    'NEWS_ENDPOINT is empty for a release build. The config-page news pill ' +
+    'would be silently disabled for every release user. Set the ' +
+    'NEWS_ENDPOINT_RELEASE GitHub Actions secret (or export NEWS_ENDPOINT ' +
+    'locally) before building the release profile.'
+  );
+}
+
+pkg.news = {
+  endpoint: newsEndpoint,
+};
+
 // WW_BUILD_PLATFORMS (space/comma-separated) narrows the build to a subset of the
 // template's targetPlatforms — screenshot captures that shoot a single platform set it
 // so \`pebble build\` compiles just that one instead of all five. Unset → build every

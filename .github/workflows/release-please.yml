@@ -41,6 +41,7 @@ jobs:
         env:
           TELEMETRY_ENDPOINT: ${{ secrets.TELEMETRY_ENDPOINT_RELEASE }}
           RAINBOW_PROXY_ENDPOINT: ${{ secrets.RAINBOW_PROXY_ENDPOINT_RELEASE }}
+          NEWS_ENDPOINT: ${{ secrets.NEWS_ENDPOINT_RELEASE }}
         run: mise build release
 
       - name: Verify release asset exists
