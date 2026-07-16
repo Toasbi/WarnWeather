@@ -94,6 +94,13 @@ module.exports = {
                 defaultValue: 'c',
                 options: [['°F', 'f'], ['°C', 'c']]
             }, {
+                type: 'segmented',
+                messageKey: 'aqiScale',
+                label: 'Air quality scale',
+                defaultValue: 'european',
+                options: [['European', 'european'], ['US', 'us']],
+                hint: 'Which air-quality index the "Air quality (AQI)" status item shows. Only used when a status slot is set to Air quality.'
+            }, {
                 type: 'select',
                 messageKey: 'fetchIntervalMin',
                 label: 'Update interval',
