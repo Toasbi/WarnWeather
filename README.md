@@ -44,7 +44,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Rain radar showing a 2-hour precipitation nowcast in 5-minute frames
 * Three providers: DWD (Germany — rain at your exact location plus the strongest rain approaching from within 2 km), Met.no (Nordics — rain at your exact location), and Rainbow.ai (worldwide — rain at your exact location)
 * Switch between calendar and radar view (flick/tap)
-* Optional rain countdown: when rain is on the way, the month turns into "Drizzle / Rain / Downpour in X min" (and "… for X min" while it's raining) — with a rain-lines intensity icon colour-matched to the radar bars, and a configurable look-ahead (30 min / 60 min / 2 hours)
+* Optional rain countdown: when rain is on the way, the top status line turns into "Drizzle / Rain / Downpour in X min" (and "… for X min" while it's raining) — with an outline raindrop intensity icon (one / two / three drops for drizzle / rain / downpour) colour-matched to the radar bars, and a configurable look-ahead (30 min / 60 min / 2 hours)
 
 **Health view** *(requires a health-capable watch; heart rate needs a heart-rate sensor)*
 * Your day's activity on the watchface — today's step count, last night's sleep, and current heart rate — as a status line, or as an hourly graph with step bars, a sleep band (light / deep sleep), and a heart-rate line
@@ -62,6 +62,11 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Vibrate on disconnect
 * Quiet time indicator
 * Sleep mode (battery-saving night pause)
+
+**Status lines**
+* Configurable status lines — for each view (forecast, radar, top strip, and health) choose what appears in the left and right slots, plus the middle slot on the radar and health views, from a catalog: current temperature, city, sunrise/sunset, UV index, wind speed, wind gusts, precipitation chance, steps, walked distance, sleep, and heart rate
+* The forecast view keeps the city in its centre and the top strip keeps the date (with the battery top-right); health items appear only on health-capable watches, and heart rate only where a heart-rate sensor is present
+* A temporarily missing weather value shows as "--" so the row never jumps
 
 **Customization**
 * **Watchface themes** — Dark (default) and Light on every watch, plus Black & White and B&W Inverted on color watches; set the theme in the General tab

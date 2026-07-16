@@ -83,6 +83,23 @@ WATCH STATUS
 - Quiet time indicator
 - Sleep mode (battery-saving night pause)
 
+STATUS LINES
+- Configurable status lines: for each view (forecast, radar, top strip, and
+  health) choose what shows in the left and right slots — plus the middle slot
+  on the radar and health views — from a catalog:
+  - current temperature
+  - city
+  - sunrise/sunset
+  - UV index
+  - wind speed and wind gusts
+  - precipitation chance
+  - steps and walked distance
+  - sleep
+  - heart rate
+  The forecast view keeps the city centered; the top strip keeps the date and
+  battery. Health items need a health-capable watch (heart rate needs a
+  heart-rate sensor). A missing value shows as "--" so the row never jumps.
+
 LAYOUT CUSTOMIZATION
 - Layout presets: 
   - Full calendar (3-row)
