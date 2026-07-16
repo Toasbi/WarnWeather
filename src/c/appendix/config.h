@@ -83,9 +83,11 @@ int config_format_time(char *s, size_t maxsize, const struct tm * tm_p);
 
 int config_axis_hour(int hour);
 
-int config_n_today();
-
-int config_calendar_rows(void);
+// Index of the calendar box holding today's date, for a calendar of
+// `calendar_rows` rows (3 = full, else compact). The prev-week offset applies
+// only to the 3-row calendar — compact is always current-week-first (matches
+// the phone's holiday-mask anchor).
+int config_n_today(uint8_t calendar_rows);
 
 GFont config_time_font();
 

@@ -120,12 +120,16 @@ static void render_active_view(void) {
     {
         L = layout_compute_spec(bounds, &spec, fc_band);
     }
-    // Bridge the legacy top_view_mode consumers (config_calendar_rows / config_n_today
-    // for the calendar row count + prev-week offset, and the aplite date strip) to the
-    // ACTIVE view's tier, so a flick to a different-density view draws the right calendar.
+    // Bridge the remaining legacy top_view_mode consumers (status_row's aplite date
+    // strip and health_graph_layer's full-mode inset) to the ACTIVE view's tier, so a
+    // flick to a different-density view keeps them in sync. calendar_layer no longer
+    // reads this shadow — see the tier push below.
     g_config->top_view_mode = (spec.calendar_rows == 3) ? TOP_VIEW_FULL
                             : (spec.calendar_rows == 2) ? TOP_VIEW_COMPACT
                             : TOP_VIEW_NONE;
+    // Tier push: per-view layout facts flow view spec -> window -> layer static.
+    // (The legacy top_view_mode bridge above is deleted once all readers are pushed.)
+    calendar_layer_set_rows(spec.calendar_rows);
     layer_set_frame(time_layer_get_root(), L.time);
     layer_set_frame(calendar_layer_get_root(), L.top);
 #if defined(WW_RAIN_RADAR)

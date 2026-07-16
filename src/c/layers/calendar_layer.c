@@ -132,18 +132,26 @@ static GColor today_color() {
     return gcolor_equal(g_config->color_today, GColorBlack) ? date_color(&t) : g_config->color_today;
 }
 
+// Rows for the active view, pushed by the window (tier push). See the header
+// for the 0→2 clamp rationale. Default 2 = the boot-config compact default.
+static uint8_t s_rows = 2;
+
+void calendar_layer_set_rows(uint8_t rows) {
+    s_rows = (rows == 0) ? 2 : rows;
+}
+
 static void calendar_update_proc(Layer *layer, GContext *ctx) {
     GRect bounds = layer_get_bounds(layer);
     int w = bounds.size.w;
     int h = bounds.size.h;
-    const int rows = config_calendar_rows();
+    const int rows = s_rows;
     const int box_w = w / DAYS_PER_WEEK;
     const int box_h = h / rows;
     s_holiday_mask = persist_get_holiday_mask();
     s_holiday_anchor = persist_get_holiday_anchor();
 
     // Calculate which box holds today's date
-    const int i_today = config_n_today();
+    const int i_today = config_n_today(s_rows);
 
     graphics_context_set_fill_color(ctx, today_color());
     graphics_fill_rect(ctx,
