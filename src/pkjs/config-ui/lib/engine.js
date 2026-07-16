@@ -219,7 +219,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
   function renderText(item, v) {
     var ph = (item.attributes && item.attributes.placeholder) ? esc(item.attributes.placeholder) : '';
-    return '<input type="text" data-k="' + item.messageKey + '" value="' + esc(v || '') + '" placeholder="' + ph + '">';
+    var input = '<input type="text" data-k="' + item.messageKey + '" value="' + esc(v || '') + '" placeholder="' + ph + '">';
+    if (!item.suffixAction) { return input; }
+    // Optional inline action button to the RIGHT of the input (e.g. "Test" a key),
+    // plus an empty result line the action fills — targeted by
+    // data-action-result="<messageKey>". Dispatches via the shared [data-action] handler.
+    return '<div class="txt-act">' + input
+      + '<button class="txt-act-btn" data-action="' + esc(item.suffixAction) + '">'
+      + esc(item.suffixLabel || 'Go') + '</button></div>'
+      + '<div class="hint txt-act-result" data-action-result="' + esc(item.messageKey) + '"></div>';
   }
   function renderColor(item, v, openColor) {
     var disp = String(v).toUpperCase();

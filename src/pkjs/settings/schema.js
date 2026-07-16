@@ -138,7 +138,9 @@ module.exports = {
                 label: 'OpenWeatherMap API key',
                 defaultValue: '',
                 joinPrevious: true,
-                hint: '<a href=\'https://openweathermap.org/\'>Register an OpenWeatherMap account</a> and paste your API key here. The key must be subscribed to the <a href=\'https://openweathermap.org/api/one-call-3\'>One Call API 3.0</a> plan, or fetches fail with a 401 error.',
+                suffixAction: 'testOwmKey',
+                suffixLabel: 'Test',
+                hint: '<a href=\'https://openweathermap.org/\'>Register an OpenWeatherMap account</a> and paste your API key here, then Test it. The key must be subscribed to <a href=\'https://openweathermap.org/api/one-call-3\'>One Call API 3.0</a> (it has a free allowance) or fetches fail with a 401. Saving a changed key re-fetches automatically.',
                 showWhen: {key: 'provider', eq: 'openweathermap'}
             }, {
                 type: 'segmented', messageKey: 'locationMode', label: 'Location', defaultValue: 'gps', hintByValue: {

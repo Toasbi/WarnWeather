@@ -120,6 +120,12 @@
   body.light .sel-wrap .sel-chev { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 8 6'%3E%3Cpath d='M0 0l4 6 4-6z' fill='%235A5F6A'/%3E%3C/svg%3E") no-repeat center; }
   input[type=text] { width: 100%; background: var(--ctl); border: 1px solid var(--ctl-line); border-radius: 9px; padding: 10px 13px; color: var(--lbl); font: 400 14px 'Inter', sans-serif; outline: none; transition: border-color .15s; }
   input[type=text]:focus { border-color: #FA4A35; }
+  /* a text field with an inline action button on its right (item.suffixAction) */
+  .txt-act { display: flex; gap: 8px; align-items: stretch; }
+  .txt-act > input[type=text] { flex: 1 1 auto; min-width: 0; }
+  .txt-act-btn { flex: 0 0 auto; cursor: pointer; padding: 0 15px; border-radius: 9px; border: 1px solid var(--ctl-line); background: var(--ctl); color: var(--lbl); font: 600 13px 'Inter', sans-serif; white-space: nowrap; transition: background .15s, border-color .15s; }
+  .txt-act-btn:active { border-color: #FA4A35; background: rgba(250,74,53,0.12); }
+  .txt-act-result:empty { display: none; }
   /* searchSelect: closed trigger (select-like) + open search box & scrollable option list */
   .sel-wrap { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; max-width: 100%; background: var(--ctl); border: 1px solid var(--ctl-line); border-radius: 9px; padding: 8px 12px; }
   .sel-wrap span { font: 600 13.5px 'Inter', sans-serif; color: var(--lbl); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

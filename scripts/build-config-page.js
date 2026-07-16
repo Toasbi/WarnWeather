@@ -16,6 +16,7 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/wizard-screenshots.generated.js'),
   path.join(ROOT, 'src/pkjs/settings/wizard.js'),
   path.join(ROOT, 'src/pkjs/settings/onbuild.js'),
+  path.join(ROOT, 'src/pkjs/settings/owm-key-test.js'),
   path.join(ROOT, 'src/pkjs/settings/theme-convert.js')
 ];
 
