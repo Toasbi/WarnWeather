@@ -37,6 +37,12 @@ test('blocks registry: register/get; unknown id -> undefined', () => {
   assert.equal(E.blocks.get('nope'), undefined);
 });
 
+test('optionsResolvers registry: register/get; unknown id -> undefined', () => {
+  PConf.optionsResolvers.register('demo', function (S) { return [['Demo', S.mode]]; });
+  assert.equal(typeof PConf.optionsResolvers.get('demo'), 'function');
+  assert.equal(PConf.optionsResolvers.get('nope'), undefined);
+});
+
 test('hooks registry: onLoad/onSubmit run with ctx', () => {
   let loaded = false, submitted = false;
   E.hooks.onLoad(() => { loaded = true; });
@@ -272,6 +278,11 @@ test('resolveOptionsFrom: byKey/map returns the selected key\'s list, [] when un
   assert.deepEqual(E.resolveOptionsFrom(item, { country: 'DE' }), [['Whole country', 'all'], ['Bavaria', 'DE-BY']]);
   assert.deepEqual(E.resolveOptionsFrom(item, { country: 'US' }), [['Whole country', 'all']]);
   assert.deepEqual(E.resolveOptionsFrom(item, { country: 'FR' }), [], 'unmapped country -> empty');
+});
+
+test('resolveOptionsFrom: unregistered resolver name falls back to []', () => {
+  assert.deepEqual(E.resolveOptionsFrom({ optionsFrom: { resolver: 'missing-resolver' } }, {}, {}), [],
+    'unregistered resolver -> empty');
 });
 
 test('optionsFrom.resolver derives options via the registry (multi-key + env) and the display-snap still applies', () => {
