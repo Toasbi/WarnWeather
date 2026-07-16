@@ -7,10 +7,11 @@ var build = require('../src/pkjs/config-ui/scripts/build-page.js');
 var ROOT = path.join(__dirname, '..');
 var OUT  = path.join(ROOT, 'src/pkjs/settings/page.generated.js');
 var APP_FILES = [
-  // view-cycle.js must precede blocks.js: blocks.js's VC fallback (used when this page
-  // is a flat concatenated <script>, not a Node module) reads its declarations directly
-  // from this shared top-level scope.
+  // view-cycle.js and status-line-catalog.js must precede blocks.js: blocks.js's VC /
+  // statusLineCatalog fallbacks (used when this page is a flat concatenated <script>,
+  // not a Node module) read their declarations directly from this shared top-level scope.
   path.join(ROOT, 'src/pkjs/view-cycle.js'),
+  path.join(ROOT, 'src/pkjs/status-line-catalog.js'),
   path.join(ROOT, 'src/pkjs/settings/blocks.js'),
   // wizard-screenshots.generated.js assigns PConf.screenshots; must precede wizard.js, which reads it.
   path.join(ROOT, 'src/pkjs/settings/wizard-screenshots.generated.js'),

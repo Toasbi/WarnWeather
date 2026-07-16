@@ -15,11 +15,13 @@ var platformLib = require(path.join(ROOT, 'src/pkjs/config-ui/lib/platform.js'))
 var schema = require(path.join(ROOT, 'src/pkjs/settings/schema.js'));
 var previewPalette = require(path.join(ROOT, 'src/pkjs/settings/preview-palette.js'));
 var APP_FILES = [
-  // view-cycle.js must precede blocks.js: blocks.js's VC fallback (used when this page
-  // is a flat concatenated <script>, not a Node module) reads its declarations directly
-  // from this shared top-level scope. Keep in lockstep with build-config-page.js's
-  // APP_FILES — both build the same page, from two separate entrypoints.
+  // view-cycle.js and status-line-catalog.js must precede blocks.js: blocks.js's VC /
+  // statusLineCatalog fallbacks (used when this page is a flat concatenated <script>,
+  // not a Node module) read their declarations directly from this shared top-level
+  // scope. Keep in lockstep with build-config-page.js's APP_FILES — both build the
+  // same page, from two separate entrypoints.
   path.join(ROOT, 'src/pkjs/view-cycle.js'),
+  path.join(ROOT, 'src/pkjs/status-line-catalog.js'),
   path.join(ROOT, 'src/pkjs/settings/blocks.js'),
   // wizard-screenshots.generated.js assigns PConf.screenshots; must precede wizard.js, which reads it.
   path.join(ROOT, 'src/pkjs/settings/wizard-screenshots.generated.js'),

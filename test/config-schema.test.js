@@ -18,7 +18,9 @@ const EXPECTED_KEYS = [
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','locationMode','location',
   'temperatureUnits','dayNightShading','healthMode','secondaryLine','secondaryLineFill','windScale','thirdLine',
   'barSource','rainBarColor','provider','owmApiKey','radarProvider','radarColor','rainCountdownHorizon',
-  'layoutPreset','viewResetMin','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear'
+  'layoutPreset','viewResetMin','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear',
+  'statusForecastLeft','statusForecastRight','statusRadarLeft','statusRadarMid','statusRadarRight',
+  'statusTopLeft','statusTopRight','statusHealthLeft','statusHealthMid','statusHealthRight'
 ];
 
 test('every Clay messageKey present; theme/windScale/colorUSFederal are the only duplicates (contextual slots)', () => {
@@ -423,4 +425,41 @@ test('colorUSFederal splits into a dark-exclude-white / light-exclude-black pair
     const themeCond = item.showWhen.all.find((c) => c.key === 'theme');
     assert.deepEqual(themeCond, {key: 'theme', nin: ['bw', 'bw-light']});
   });
+});
+
+test('status slot dropdowns: resolver, defaults, sibling exclusion args', () => {
+  const cases = [
+    ['statusForecastLeft', 'temp', ['statusForecastRight'], ['city']],
+    ['statusForecastRight', 'sun', ['statusForecastLeft'], ['city']],
+    ['statusRadarLeft', 'temp', ['statusRadarMid', 'statusRadarRight'], []],
+    ['statusRadarMid', 'city', ['statusRadarLeft', 'statusRadarRight'], []],
+    ['statusRadarRight', 'sun', ['statusRadarLeft', 'statusRadarMid'], []],
+    ['statusTopLeft', 'empty', ['statusTopRight'], []],
+    ['statusTopRight', 'empty', ['statusTopLeft'], []],
+    ['statusHealthLeft', 'steps', ['statusHealthMid', 'statusHealthRight'], []],
+    ['statusHealthMid', 'empty', ['statusHealthLeft', 'statusHealthRight'], []],
+    ['statusHealthRight', 'sleep', ['statusHealthLeft', 'statusHealthMid'], []]
+  ];
+  for (const [key, def, excludeKeys, excludeCodes] of cases) {
+    const item = byKey(key);
+    assert.ok(item, key);
+    assert.equal(item.type, 'select', key);
+    assert.equal(item.defaultValue, def, key + ' default');
+    assert.equal(item.optionsFrom.resolver, 'statusSlot', key);
+    assert.deepEqual(item.optionsFrom.args.excludeKeys, excludeKeys, key);
+    assert.deepEqual(item.optionsFrom.args.excludeCodes || [], excludeCodes, key);
+  }
+});
+
+test('fixed slots are read-only labels', () => {
+  const statics = allItems(schema)
+    .filter(i => i.type === 'staticText')
+    .map(i => i.text || '');
+  assert.ok(statics.some(t => t.indexOf('City (fixed)') !== -1),
+    'forecast fixed-mid label present');
+  assert.ok(statics.some(t => t.indexOf('Date (fixed)') !== -1),
+    'top fixed-mid label present');
+  // Fixed slots must NOT be selectable: no messageKey exists for them.
+  assert.equal(byKey('statusForecastMid'), undefined);
+  assert.equal(byKey('statusTopMid'), undefined);
 });
