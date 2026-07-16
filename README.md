@@ -79,7 +79,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 **Updates**
 * **Update notifications** — when a newer version is available on the Pebble appstore, the watchface sends you a one-time notification so you know to update.
-* **News & feedback** — announcements from the developer appear in the settings page (with an unread badge), and you can reply privately without leaving the page.
+* **News & feedback** — announcements from the developer appear in the settings page (with an unread badge), and you can reply privately, or answer quick one-tap questions, without leaving the page.
 
 ## Forecast graph vs. rain radar
 

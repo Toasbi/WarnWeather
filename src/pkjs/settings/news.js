@@ -224,13 +224,21 @@
          */
         var postNews = function (payload, timeoutMs, cb) {
             var xhr = new XMLHttpRequest();
-            xhr.open('POST', USERDATA.newsEndpoint);
-            xhr.setRequestHeader('Content-Type', 'application/json');
-            xhr.timeout = timeoutMs;
-            xhr.onload = function () { cb(xhr.status, xhr.responseText || ''); };
-            xhr.onerror = function () { cb(0, ''); };
-            xhr.ontimeout = function () { cb(0, ''); };
-            xhr.send(JSON.stringify(payload));
+            // A synchronous throw here (e.g. a malformed endpoint) must not leave
+            // the caller's Send/vote buttons stuck disabled — report it as a
+            // network failure (status 0) so onload/onerror handling is uniform.
+            try {
+                xhr.open('POST', USERDATA.newsEndpoint);
+                xhr.setRequestHeader('Content-Type', 'application/json');
+                xhr.timeout = timeoutMs;
+                xhr.onload = function () { cb(xhr.status, xhr.responseText || ''); };
+                xhr.onerror = function () { cb(0, ''); };
+                xhr.ontimeout = function () { cb(0, ''); };
+                xhr.send(JSON.stringify(payload));
+            } catch (e) {
+                cb(0, '');
+                return;
+            }
         };
 
         var injectNewsStyles = function () {
@@ -238,6 +246,7 @@
                 + '#newsHint { position: relative; margin-left: auto; margin-right: 10px; padding: 5px 9px;'
                 +   ' border: 1px solid var(--ctl-line); border-radius: 11px; background: var(--ctl);'
                 +   ' font-size: 15px; line-height: 1; cursor: pointer; }'
+                + '#newsHint.muted { opacity: 0.65; }'
                 + '#newsHint .news-badge { position: absolute; top: -6px; right: -6px; min-width: 16px; height: 16px;'
                 +   ' border-radius: 8px; background: #FA4A35; color: #FFFFFF; font: 700 11px \'Inter\', sans-serif;'
                 +   ' line-height: 16px; text-align: center; padding: 0 3px; }'
@@ -250,7 +259,7 @@
                 + '.news-modal-hdr h2 { font-size: 17px; margin: 12px 0 4px; }'
                 + '.news-close { border: none; background: none; color: var(--muted); font-size: 20px; cursor: pointer; padding: 8px 0 0 8px; }'
                 + '.news-item { border-top: 1px solid var(--row-line); padding: 10px 0 12px; }'
-                + '.news-item:first-of-type { border-top: none; }'
+                + '.news-modal-hdr + .news-item { border-top: none; }'
                 + '.news-title { font-weight: 700; }'
                 + '.news-date { color: var(--muted); font-size: 11px; margin: 2px 0 6px; }'
                 + '.news-body { font-size: 13px; line-height: 1.45; }'
@@ -326,6 +335,9 @@
         };
 
         var sendNewsVote = function (btn) {
+            // Re-tapping the already-selected option is a no-op: it would burn a
+            // shared daily action (10/day, replies + votes) on a redundant re-vote.
+            if (btn.className.indexOf(' on') !== -1) { return; }
             var id = btn.getAttribute('data-news-vote');
             var idx = Number(btn.getAttribute('data-choice-index'));
             var statusEl = newsOverlay.querySelector('[data-news-vote-status="' + id + '"]');
@@ -357,6 +369,7 @@
             }
             var badge = newsPill.querySelector('.news-badge');
             if (badge) { badge.parentNode.removeChild(badge); }
+            newsPill.className = 'muted';
         };
         var injectOverlay = function () {
             newsOverlay = document.createElement('div');
@@ -394,6 +407,7 @@
             newsPill.type = 'button';
             var unread = countUnread(newsItems, newsLastSeenId);
             newsPill.innerHTML = '📰' + (unread > 0 ? '<span class="news-badge">' + unread + '</span>' : '');
+            if (unread === 0) { newsPill.className = 'muted'; }
             newsPill.onclick = openNewsPopup;
             hdr.insertBefore(newsPill, saveBtn);
         };

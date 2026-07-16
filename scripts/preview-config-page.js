@@ -70,6 +70,9 @@ function run(opts) {
       palette: previewPalette.buildPreviewPalette(),
       newsEndpoint: process.env.NEWS_ENDPOINT || '',
       appVersion: process.env.NEWS_PREVIEW_VERSION || '9.9.9',
+      // WARNING: pointing NEWS_ENDPOINT at the PRODUCTION news function makes the
+      // preview write real news_seen / news_replies / news_votes rows under this
+      // dummy 'preview-account-token'. Preview against the LOCAL Supabase stack.
       accountToken: process.env.NEWS_ENDPOINT ? 'preview-account-token' : ''
     },
     returnTo: '#'
