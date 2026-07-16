@@ -243,11 +243,12 @@
 
         var injectNewsStyles = function () {
             var css = ''
-                + '#newsHint { position: relative; margin-left: auto; margin-right: 10px; padding: 5px 9px;'
-                +   ' border: 1px solid var(--ctl-line); border-radius: 11px; background: var(--ctl);'
-                +   ' font-size: 15px; line-height: 1; cursor: pointer; }'
+                + '#newsHint { position: relative; margin-left: auto; margin-right: 14px; padding: 6px 2px;'
+                +   ' border: none; background: none; color: var(--fg);'
+                +   ' font: 600 13px \'Inter\', sans-serif; letter-spacing: .02em; line-height: 1;'
+                +   ' text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }'
                 + '#newsHint.muted { opacity: 0.65; }'
-                + '#newsHint .news-badge { position: absolute; top: -6px; right: -6px; min-width: 16px; height: 16px;'
+                + '#newsHint .news-badge { position: absolute; top: -8px; right: -13px; min-width: 16px; height: 16px;'
                 +   ' border-radius: 8px; background: #FA4A35; color: #FFFFFF; font: 700 11px \'Inter\', sans-serif;'
                 +   ' line-height: 16px; text-align: center; padding: 0 3px; }'
                 + '.news-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 60;'
@@ -406,7 +407,7 @@
             newsPill.id = 'newsHint';
             newsPill.type = 'button';
             var unread = countUnread(newsItems, newsLastSeenId);
-            newsPill.innerHTML = '📰' + (unread > 0 ? '<span class="news-badge">' + unread + '</span>' : '');
+            newsPill.innerHTML = 'News' + (unread > 0 ? '<span class="news-badge">' + unread + '</span>' : '');
             if (unread === 0) { newsPill.className = 'muted'; }
             newsPill.onclick = openNewsPopup;
             hdr.insertBefore(newsPill, saveBtn);
