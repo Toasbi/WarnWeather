@@ -3,6 +3,7 @@ import { z } from "zod";
 
 const MAX_BODY_BYTES = 4096;
 const MAX_ACTIONS_PER_DAY = 10; // shared budget: free-text replies + poll votes
+const MAX_TOTAL_REPLIES_PER_DAY = 500; // global reply flood cap across all tokens
 const MAX_ITEMS = 50;
 
 // The config page runs from a data: URL (opaque origin), so unlike the
@@ -22,42 +23,55 @@ function json(body: unknown, status: number) {
 
 // Version strings feed a PostgREST .or() filter; the regex keeps filter
 // metacharacters (commas, parens) out of it.
-const versionSchema = z.string().trim().min(1).max(32).regex(/^[0-9A-Za-z.+-]+$/);
+export const versionSchema = z.string().trim().min(1).max(32).regex(/^[0-9A-Za-z.+-]+$/);
 
-const listSchema = z.object({
+// Deliberately permissive: Pebble account tokens are 32-hex today, but the Core
+// Devices mobile app's token format isn't guaranteed — this blocks arbitrary
+// junk/flood strings without betting on one specific format.
+export const accountTokenSchema = z.string().trim().regex(/^[0-9A-Za-z-]{8,64}$/);
+
+// Read-side leniency: a present-but-non-conforming token (a future app with a
+// different format) is treated as absent so list reads never break. Returns ""
+// for anything that doesn't conform, else the trimmed token.
+export function conformingToken(t: unknown): string {
+  const s = typeof t === "string" ? t.trim() : "";
+  return /^[0-9A-Za-z-]{8,64}$/.test(s) ? s : "";
+}
+
+export const listSchema = z.object({
   op: z.literal("list"),
   accountToken: z.string().optional(),
   version: versionSchema,
 }).strip();
 
-const seenSchema = z.object({
+export const seenSchema = z.object({
   op: z.literal("seen"),
-  accountToken: z.string().trim().min(1),
+  accountToken: accountTokenSchema,
   maxSeenId: z.number().int().positive(),
 }).strip();
 
-const replySchema = z.object({
+export const replySchema = z.object({
   op: z.literal("reply"),
-  accountToken: z.string().trim().min(1),
+  accountToken: accountTokenSchema,
   version: versionSchema,
   newsId: z.number().int().positive(),
   message: z.string().trim().min(1).max(1000),
 }).strip();
 
-const voteSchema = z.object({
+export const voteSchema = z.object({
   op: z.literal("vote"),
-  accountToken: z.string().trim().min(1),
+  accountToken: accountTokenSchema,
   newsId: z.number().int().positive(),
   choiceIndex: z.number().int().nonnegative(),
 }).strip();
 
-const payloadSchema = z.discriminatedUnion("op", [listSchema, seenSchema, replySchema, voteSchema]);
+export const payloadSchema = z.discriminatedUnion("op", [listSchema, seenSchema, replySchema, voteSchema]);
 
 function encodeUtf8(value: string) {
   return new TextEncoder().encode(value);
 }
 
-async function hmacSha256Hex(secret: string, message: string) {
+export async function hmacSha256Hex(secret: string, message: string) {
   const key = await crypto.subtle.importKey(
     "raw",
     encodeUtf8(secret),
@@ -150,12 +164,13 @@ Deno.serve(async (req) => {
         .order("id", { ascending: false })
         .limit(MAX_ITEMS);
       if (itemsRes.error) {
+        console.error("news: list list_failed", itemsRes.error);
         return json({ error: "list_failed" }, 500);
       }
 
       let lastSeenId: number | null = null;
       const votesByNews: Record<number, number> = {};
-      const token = (payload.accountToken || "").trim();
+      const token = conformingToken(payload.accountToken);
       if (token !== "") {
         const hash = await hmacSha256Hex(hashSecret, token);
         const seenRes = await supabase
@@ -164,6 +179,7 @@ Deno.serve(async (req) => {
           .eq("account_token_hash", hash)
           .maybeSingle();
         if (seenRes.error) {
+          console.error("news: list seen_lookup_failed", seenRes.error);
           return json({ error: "seen_lookup_failed" }, 500);
         }
         lastSeenId = seenRes.data ? seenRes.data.last_seen_news_id : 0;
@@ -176,6 +192,7 @@ Deno.serve(async (req) => {
             .eq("account_token_hash", hash)
             .in("news_id", ids);
           if (votesRes.error) {
+            console.error("news: list votes_lookup_failed", votesRes.error);
             return json({ error: "votes_lookup_failed" }, 500);
           }
           for (const v of votesRes.data) {
@@ -199,6 +216,7 @@ Deno.serve(async (req) => {
         .insert({ account_token_hash: hash, last_seen_news_id: payload.maxSeenId });
       if (ins.error) {
         if (ins.error.code !== "23505") {
+          console.error("news: seen seen_failed", ins.error);
           return json({ error: "seen_failed" }, 500);
         }
         // Row exists — raise the watermark, never lower it.
@@ -211,6 +229,7 @@ Deno.serve(async (req) => {
           .eq("account_token_hash", hash)
           .lt("last_seen_news_id", payload.maxSeenId);
         if (upd.error) {
+          console.error("news: seen seen_failed", upd.error);
           return json({ error: "seen_failed" }, 500);
         }
       }
@@ -225,6 +244,7 @@ Deno.serve(async (req) => {
         .eq("id", payload.newsId)
         .maybeSingle();
       if (newsRes.error) {
+        console.error("news: vote news_lookup_failed", newsRes.error);
         return json({ error: "news_lookup_failed" }, 500);
       }
       const choices = newsRes.data ? newsRes.data.choices : null;
@@ -234,6 +254,7 @@ Deno.serve(async (req) => {
 
       const actions = await countRecentActions(supabase, hash);
       if (actions === null) {
+        console.error("news: vote rate_check_failed");
         return json({ error: "rate_check_failed" }, 500);
       }
       if (actions >= MAX_ACTIONS_PER_DAY) {
@@ -248,6 +269,7 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString(),
       }, { onConflict: "news_id,account_token_hash" });
       if (up.error) {
+        console.error("news: vote vote_failed", up.error);
         return json({ error: "vote_failed" }, 500);
       }
       return json({ ok: true }, 200);
@@ -255,8 +277,27 @@ Deno.serve(async (req) => {
 
     // op === "reply"
     const hash = await hmacSha256Hex(hashSecret, payload.accountToken);
+
+    // Global flood cap across ALL tokens (no account filter): bounds storage
+    // abuse via fabricated-token rotation — free-text reply bodies are the
+    // flagged blast radius, so this backstops the per-account budget.
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const totalReplies = await supabase
+      .from("news_replies")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", oneDayAgo);
+    if (totalReplies.error) {
+      console.error("news: reply rate_check_failed", totalReplies.error);
+      return json({ error: "rate_check_failed" }, 500);
+    }
+    if ((totalReplies.count || 0) >= MAX_TOTAL_REPLIES_PER_DAY) {
+      console.error("news: global reply cap reached");
+      return json({ error: "rate_limit_exceeded", remaining: 0 }, 429);
+    }
+
     const actions = await countRecentActions(supabase, hash);
     if (actions === null) {
+      console.error("news: reply rate_check_failed");
       return json({ error: "rate_check_failed" }, 500);
     }
     if (actions >= MAX_ACTIONS_PER_DAY) {
@@ -274,6 +315,7 @@ Deno.serve(async (req) => {
       if (insertResult.error.code === "23503") {
         return json({ error: "unknown_news" }, 400);
       }
+      console.error("news: reply insert_failed", insertResult.error);
       return json({ error: "insert_failed" }, 500);
     }
     return json({ ok: true }, 202);
