@@ -752,6 +752,8 @@ function fetch(provider, force) {
     app.fetchInProgress = true;
     // Tell providers whether to spend a request on UV (DWD/Open-Meteo fallback).
     provider.fetchUv = forecastSeries.needsUv(app.settings);
+    provider.fetchAqi = forecastSeries.needsAqi(app.settings);
+    provider.aqiScale = (app.settings && app.settings.aqiScale) || 'european';
     var fetchStart = Date.now();
     var attempt = incrementFetchAttemptCounter();
     var fetchStatus = {
