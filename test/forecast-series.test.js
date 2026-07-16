@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildForecastSeries, applyForecastSeries, needsUv } = require('../src/pkjs/forecast-series');
+const { buildForecastSeries, applyForecastSeries, needsUv, needsAqi } = require('../src/pkjs/forecast-series');
 
 // precip % + rain wire tenths + winds/gusts km/h + uv tenths (UV×10)
 const RAW = { precips: [0, 50, 100], rains: [0, 5, 20], winds: [0, 25, 50], gusts: [0, 50, 100], uvs: [0, 55, 110] };
@@ -164,6 +164,25 @@ test('needsUv is true when any status slot selects uv', () => {
   assert.equal(needsUv({ secondaryLine: 'wind', thirdLine: 'off',
                          statusTopLeft: 'uv' }), true);
   assert.equal(needsUv({ secondaryLine: 'uv', thirdLine: 'off' }), true);
+});
+
+test('needsAqi is true only when a status slot selects aqi', () => {
+  assert.equal(needsAqi(null), false);
+  assert.equal(needsAqi({}), false);
+  assert.equal(needsAqi({ secondaryLine: 'uv' }), false);
+  assert.equal(needsAqi({ statusForecastLeft: 'aqi' }), true);
+  assert.equal(needsAqi({ statusRadarMid: 'aqi' }), true);
+});
+
+test('applyForecastSeries deletes the transient AQI_TREND key', () => {
+  const payload = {
+    AQI_TREND: [42],
+    PRECIP_TREND_UINT8: [], RAIN_TREND_UINT8: [], WIND_TREND_UINT8: [],
+    GUST_TREND_UINT8: [], UV_TREND_UINT8: [],
+    CURRENT_TEMP: 68, CITY: 'X', SUN_EVENTS: [1]
+  };
+  applyForecastSeries(payload, {}, { platform: 'basalt' });
+  assert.equal('AQI_TREND' in payload, false);
 });
 
 const { permilleToByte, tempTrendToBytes } = require('../src/pkjs/forecast-series');

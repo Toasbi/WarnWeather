@@ -256,6 +256,7 @@ function applyForecastSeries(payload, settings, watchInfo) {
     delete payload.WIND_TREND_UINT8;  // transient PKJS-only; never over the wire
     delete payload.GUST_TREND_UINT8;  // transient PKJS-only; never over the wire
     delete payload.UV_TREND_UINT8;    // transient PKJS-only; never over the wire
+    delete payload.AQI_TREND;         // transient PKJS-only; baked into status text, never wired
     payload.SECONDARY_LINE_TREND_UINT8 = series.SECONDARY_LINE_TREND_UINT8;
     payload.SECONDARY_LINE_COLOR = series.SECONDARY_LINE_COLOR;
     payload.SECONDARY_LINE_FILL = series.SECONDARY_LINE_FILL;
@@ -279,10 +280,22 @@ function needsUv(settings) {
     return statusCatalog.selectedCodes(settings).indexOf('uv') !== -1;
 }
 
+/**
+ * Whether AQI is in a status slot, so providers fetch it. AQI is status-only
+ * (never a forecast line), so unlike needsUv there is no secondary/third check.
+ * @param {Object} settings Clay settings.
+ * @returns {boolean} True when any status slot selects AQI.
+ */
+function needsAqi(settings) {
+    if (!settings) { return false; }
+    return statusCatalog.selectedCodes(settings).indexOf('aqi') !== -1;
+}
+
 module.exports = {
     buildForecastSeries: buildForecastSeries,
     applyForecastSeries: applyForecastSeries,
     needsUv: needsUv,
+    needsAqi: needsAqi,
     permilleToByte: permilleToByte,
     tempTrendToBytes: tempTrendToBytes,
     LINE_COLORS: LINE_COLORS,
