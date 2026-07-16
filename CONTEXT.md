@@ -48,6 +48,12 @@ One position in the wrist-flick cycle: a view spec shown when the user flicks.
 Today the stops are hardcoded transitions; the à-la-carte plan makes them user
 data.
 
+**Tier push**:
+Per-view layout facts (calendar rows, the date slot's full-date mode, graph gap,
+status tier and line id) flow one way: view spec → window → owning layer →
+consumed state (a layer static or per-instance row field). Layers never read
+tier facts from config; config's `top_view_mode` is wire/flash compat only.
+
 ## Settings pipeline
 
 **Clay bundle**:
