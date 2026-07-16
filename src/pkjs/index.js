@@ -12,6 +12,7 @@ var createTelemetryClient = require('./telemetry.js');
 var settings = require('./settings');
 var storageKeys = require('./storage-keys.js');
 var outbox = require('./outbox.js');
+var authBackoff = require('./auth-backoff.js');
 var devStats = require('./dev-stats.js');
 var pkg = require('../../package.json');
 var activeFixture = require('./active-fixture.generated.js');
@@ -178,7 +179,12 @@ Pebble.addEventListener('webviewclosed', function(e) {
     // send settles. The scheduler chains the fetch into the Clay-send callbacks
     // and defers it past the webview teardown, so it never rides the half-duplex
     // channel back-to-back with the Clay send.
-    var shouldForceFetch = app.settings.fetch === true || needsRefetch;
+    // Also force when an auth backoff is active: closing the config is an explicit
+    // user action (they likely just fixed the key/subscription), so give the provider
+    // an immediate retry — even if the key STRING didn't change here (e.g. they
+    // activated One Call by Call on OWM with the same key). A forced fetch clears the
+    // backoff; without this they'd have to toggle Force weather fetch by hand.
+    var shouldForceFetch = app.settings.fetch === true || needsRefetch || authBackoff.isActive();
     scheduler.onConfigClosed({ forceFetch: shouldForceFetch });
     refreshHolidays();
     // app.settings was just reloaded from storage above; log it rather than re-reading.
@@ -713,6 +719,18 @@ function fetch(provider, force) {
         return;
     }
 
+    // A permanent auth failure (HTTP 401/403) will not fix itself on retry, so
+    // stop auto-fetching until the user acts. A forced fetch — the Force-fetch
+    // toggle, or a provider/key/location change (onbuild sets fetch:true) —
+    // clears the backoff and retries; scheduled fetches are skipped meanwhile.
+    if (force) {
+        authBackoff.clear();
+    }
+    else if (authBackoff.isActive()) {
+        console.log('Skipping weather fetch: auth failure backoff active (Force fetch to retry).');
+        return;
+    }
+
     if (typeof provider.isGeocodeBackoffActive === 'function' && provider.isGeocodeBackoffActive()) {
         console.log('Skipping weather fetch: geocoding is in backoff cooldown.');
         return;
@@ -736,6 +754,7 @@ function fetch(provider, force) {
         app.fetchInProgress = false;
         localStorage.setItem(KEY_LAST_FETCH_SUCCESS, JSON.stringify(fetchStatus));
         resetFetchAttemptCounter();
+        authBackoff.clear();
         console.log('Successfully fetched weather!');
         var successEvent = baseTelemetryEvent(provider, attempt, fetchStart);
         successEvent.success = true;
@@ -745,6 +764,12 @@ function fetch(provider, force) {
     function onFetchFailure(failure) {
         app.fetchInProgress = false;
         console.log('[!] Provider failed to update weather: ' + JSON.stringify(failure));
+        // A 401/403 won't recover on its own — set the backoff so we stop
+        // re-fetching a doomed key every cycle until the user forces a retry.
+        if (authBackoff.isAuthFailure(failure)) {
+            console.log('[!] Auth failure — pausing auto-fetch until Force fetch or config change.');
+            authBackoff.set(failure);
+        }
         var attemptStatus = {
             time: fetchStatus.time,
             id: fetchStatus.id,
