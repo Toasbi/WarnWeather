@@ -39,8 +39,10 @@ const payload = {
   RAIN_TREND_UINT8: [4],
   FORECAST_START: 100,
   NUM_ENTRIES: 24,
-  CURRENT_TEMP: 20,
-  CITY: 'Berlin',
+  STATUS_LINE_1_UINT8: [1],
+  STATUS_LINE_2_UINT8: [2],
+  STATUS_LINE_3_UINT8: [3],
+  STATUS_LINE_4_UINT8: [4],
   SUN_EVENTS: [0, 1, 2]
 };
 
@@ -50,11 +52,11 @@ const payload = {
 test('first send: everything changed -> one AppMessage, caches committed, ack event', () => {
   outbox.sendWeather(payload);
   assert.equal(transmitted.length, 1);
-  assert.equal(transmitted[0].CITY, 'Berlin');
+  assert.deepEqual(transmitted[0].STATUS_LINE_4_UINT8, [4]);
   assert.equal(transmitted[0].FORECAST_START, 100);
   assert.equal(
     localStorage.getItem(KEYS.LAST_SENT_STATUS_KEY),
-    JSON.stringify({ CURRENT_TEMP: 20, CITY: 'Berlin' }),
+    JSON.stringify({ STATUS_LINE_1_UINT8: [1], STATUS_LINE_2_UINT8: [2], STATUS_LINE_3_UINT8: [3], STATUS_LINE_4_UINT8: [4] }),
     'ACK must commit category caches'
   );
   const events = devStats.read();
@@ -77,14 +79,14 @@ test('second identical send: full skip -> no AppMessage, skip event, all cached'
 
 test('nack: changed payload, send fails -> caches untouched, nack event', () => {
   nextSendOutcome = 'nack';
-  payload.CURRENT_TEMP = 21;
+  payload.STATUS_LINE_1_UINT8 = [9];
   var failed = false;
   outbox.sendWeather(payload, null, function() { failed = true; });
   assert.equal(failed, true);
   assert.equal(transmitted.length, 2);
   assert.equal(
     localStorage.getItem(KEYS.LAST_SENT_STATUS_KEY),
-    JSON.stringify({ CURRENT_TEMP: 20, CITY: 'Berlin' }),
+    JSON.stringify({ STATUS_LINE_1_UINT8: [1], STATUS_LINE_2_UINT8: [2], STATUS_LINE_3_UINT8: [3], STATUS_LINE_4_UINT8: [4] }),
     'NACK must not commit caches'
   );
   const events = devStats.read();

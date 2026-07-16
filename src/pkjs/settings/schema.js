@@ -269,6 +269,32 @@ module.exports = {
                 defaultValue: true,
                 hint: 'Show hatch shading between sunset and sunrise to distinguish day and night on the forecast graph.'
             }]
+        }, {
+            title: 'Status line',
+            items: [
+                {
+                    type: 'select',
+                    messageKey: 'statusForecastLeft',
+                    label: 'Left slot',
+                    defaultValue: 'temp',
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {excludeKeys: ['statusForecastRight'], excludeCodes: ['city']}},
+                    hint: 'Pick what shows left in this view’s status row.'
+                },
+                {
+                    type: 'staticText',
+                    text: 'Middle slot: City (fixed)'
+                },
+                {
+                    type: 'select',
+                    messageKey: 'statusForecastRight',
+                    label: 'Right slot',
+                    defaultValue: 'sun',
+                    joinPrevious: true,
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {excludeKeys: ['statusForecastLeft'], excludeCodes: ['city']}}
+                }
+            ]
         }]
     }, {
         // aplite compiles the rain-radar view out (WW_RAIN_RADAR undefined — the 24 KB
@@ -331,6 +357,28 @@ module.exports = {
                 text: 'Because rain radar data is changing frequently, using a lower time window shows fewer false positives.',
                 showWhen: {key: 'radarProvider', ne: 'disabled'}
             }]
+        }, {
+            title: 'Status line',
+            items: [
+                {
+                    type: 'select', messageKey: 'statusRadarLeft', label: 'Left slot',
+                    defaultValue: 'temp',
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {excludeKeys: ['statusRadarMid', 'statusRadarRight']}}
+                },
+                {
+                    type: 'select', messageKey: 'statusRadarMid', label: 'Middle slot',
+                    defaultValue: 'city', joinPrevious: true,
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {excludeKeys: ['statusRadarLeft', 'statusRadarRight']}}
+                },
+                {
+                    type: 'select', messageKey: 'statusRadarRight', label: 'Right slot',
+                    defaultValue: 'sun', joinPrevious: true,
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {excludeKeys: ['statusRadarLeft', 'statusRadarMid']}}
+                }
+            ]
         }]
     }, {
         // aplite has no health sensors — the watch compiles the view out, so the whole
@@ -349,6 +397,28 @@ module.exports = {
                 },
                 options: [['Off', 'off'], ['Status bar', 'status'], ['Status + Graph (ALPHA)', 'all']]
             }]
+        }, {
+            title: 'Status line',
+            items: [
+                {
+                    type: 'select', messageKey: 'statusHealthLeft', label: 'Left slot',
+                    defaultValue: 'steps',
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {excludeKeys: ['statusHealthMid', 'statusHealthRight']}}
+                },
+                {
+                    type: 'select', messageKey: 'statusHealthMid', label: 'Middle slot',
+                    defaultValue: 'empty', joinPrevious: true,
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {excludeKeys: ['statusHealthLeft', 'statusHealthRight']}}
+                },
+                {
+                    type: 'select', messageKey: 'statusHealthRight', label: 'Right slot',
+                    defaultValue: 'sleep', joinPrevious: true,
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {excludeKeys: ['statusHealthLeft', 'statusHealthMid']}}
+                }
+            ]
         }]
     }, {
         id: 'layout', label: 'Layout', sections: [{
@@ -536,6 +606,27 @@ module.exports = {
                 messageKey: 'onboardingDone',
                 defaultValue: false
             }]
+        }, {
+            title: 'Top strip slots',
+            items: [
+                {
+                    type: 'select', messageKey: 'statusTopLeft', label: 'Left slot',
+                    defaultValue: 'empty',
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {excludeKeys: ['statusTopRight']}},
+                    hint: 'A rain alert temporarily replaces these slots.'
+                },
+                {
+                    type: 'staticText',
+                    text: 'Middle slot: Date (fixed) — battery stays top-right'
+                },
+                {
+                    type: 'select', messageKey: 'statusTopRight', label: 'Right slot',
+                    defaultValue: 'empty', joinPrevious: true,
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {excludeKeys: ['statusTopLeft']}}
+                }
+            ]
         }, {
             title: 'Links', items: [{
                 type: 'staticText',

@@ -12,6 +12,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // one top-level VIEW_CYCLE object sharing this scope — read that directly. Matches how
     // this file already resolves PConf (see above): one name, no hand-copied export list.
     var VC = (typeof require !== 'undefined') ? require('../view-cycle.js') : VIEW_CYCLE;
+    // Same dual-context pattern as VC above: status-line-catalog.js is a real CommonJS
+    // module under Node, but a plain concatenated <script> in the webview build (see
+    // scripts/build-config-page.js), where it exposes itself as window.StatusLineCatalog.
+    var statusLineCatalog = (typeof require !== 'undefined')
+        ? require('../status-line-catalog.js') : window.StatusLineCatalog;
 
     function parseStoredJson(v) {
         if (v === null || typeof v === 'undefined') { return null; }
@@ -880,6 +885,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     PConf.blocks.register('layoutPreviewCombined', layoutPreviewCombined);
     PConf.blocks.register('devStats', devStats);
     PConf.blocks.register('lastFetch', lastFetch);
+
+    // Slot-dropdown options resolver: derives a status-line slot's option list from the
+    // catalog (Tasks 2 + 17) — Empty first, availability-gated, sibling+excludeCodes filtered.
+    PConf.optionsResolvers.register('statusSlot', function (S, env, args) {
+        return statusLineCatalog.slotOptions(S, env, args);
+    });
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {

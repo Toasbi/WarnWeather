@@ -37,6 +37,12 @@ test('blocks registry: register/get; unknown id -> undefined', () => {
   assert.equal(E.blocks.get('nope'), undefined);
 });
 
+test('optionsResolvers registry: register/get; unknown id -> undefined', () => {
+  PConf.optionsResolvers.register('demo', function (S) { return [['Demo', S.mode]]; });
+  assert.equal(typeof PConf.optionsResolvers.get('demo'), 'function');
+  assert.equal(PConf.optionsResolvers.get('nope'), undefined);
+});
+
 test('hooks registry: onLoad/onSubmit run with ctx', () => {
   let loaded = false, submitted = false;
   E.hooks.onLoad(() => { loaded = true; });
@@ -287,6 +293,37 @@ test('resolveOptionsFrom: byKey/map returns the selected key\'s list, [] when un
   assert.deepEqual(E.resolveOptionsFrom(item, { country: 'DE' }), [['Whole country', 'all'], ['Bavaria', 'DE-BY']]);
   assert.deepEqual(E.resolveOptionsFrom(item, { country: 'US' }), [['Whole country', 'all']]);
   assert.deepEqual(E.resolveOptionsFrom(item, { country: 'FR' }), [], 'unmapped country -> empty');
+});
+
+test('resolveOptionsFrom: unregistered resolver name falls back to []', () => {
+  assert.deepEqual(E.resolveOptionsFrom({ optionsFrom: { resolver: 'missing-resolver' } }, {}, {}), [],
+    'unregistered resolver -> empty');
+});
+
+test('optionsFrom.resolver derives options via the registry (multi-key + env) and the display-snap still applies', () => {
+  PConf.optionsResolvers.register('testResolver', function (S, env, args) {
+    var opts = [['Empty', 'empty'], ['Alpha', 'a']];
+    if (env && env.health) { opts.push(['Beta', 'b']); }
+    if (S.other !== 'a') { return opts; }
+    return opts.filter(function (o) { return o[1] !== 'a'; });
+  });
+  const item = { type: 'select', messageKey: 'k', defaultValue: 'empty',
+    optionsFrom: { resolver: 'testResolver', args: {} } };
+
+  // Direct call: env.health adds Beta; S.other !== 'a' keeps Alpha in the list.
+  assert.deepEqual(E.resolveOptionsFrom(item, { other: 'x' }, { health: true }),
+    [['Empty', 'empty'], ['Alpha', 'a'], ['Beta', 'b']]);
+
+  // renderBody exercise: S.other='a' makes the resolver exclude 'a' from the derived
+  // list, so the stored value 'a' is no longer offered and the existing display-snap
+  // (resolveRowItem) must still fire, snapping it to the item's defaultValue.
+  const schema = { appName: 'X', versionLabel: '', tabs: [ { id: 't', label: 'T', sections: [ { title: 'S', items: [ item ] } ] } ] };
+  const cx = { S: { other: 'a', k: 'a' }, ENV: { health: true }, USERDATA: {}, openColor: null, collapsed: {},
+    evalCtx: { other: 'a', k: 'a', env: { health: true } } };
+  const html = E.renderBody(schema, 't', cx);
+  assert.equal(cx.S.k, 'empty', 'stored value no longer among the derived options snaps to defaultValue');
+  assert.ok(html.indexOf('<option value="empty" selected>Empty</option>') >= 0, 'snapped option rendered selected');
+  assert.equal(html.indexOf('value="a"'), -1, 'the excluded option is not rendered');
 });
 
 test('renderBody materializes an optionsFrom select into the right <option>s', () => {

@@ -19,3 +19,9 @@ Layer *weather_status_layer_get_root(void);
 // windows/layout.c).
 // Must be set before the first layout/paint.
 void weather_status_layer_set_render_tier(uint8_t tier);
+
+// Select the packed weather line rendered by this owner.
+void weather_status_layer_set_line(uint8_t line_id);
+
+// Whether the active packed line contains a live health slot.
+bool weather_status_layer_uses_live_health(void);

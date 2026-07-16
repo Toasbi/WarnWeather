@@ -1,7 +1,10 @@
 // test/config-blocks.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-global.PConf = { blocks: (function () { var m = {}; return { register: (id, fn) => { m[id] = fn; }, get: (id) => m[id] }; })() };
+global.PConf = {
+  blocks: (function () { var m = {}; return { register: (id, fn) => { m[id] = fn; }, get: (id) => m[id] }; })(),
+  optionsResolvers: (function () { var m = {}; return { register: (id, fn) => { m[id] = fn; }, get: (id) => m[id] }; })()
+};
 const B = require('../src/pkjs/settings/blocks.js');
 
 test('forecastPreview returns an SVG with the rain bars rendered', () => {
@@ -81,6 +84,10 @@ test('forecastPreview never draws the second metric as the same metric as the ma
 });
 test('registers all preview/util blocks into PConf.blocks', () => {
   ['forecastPreview','radarPreview','layoutPreview','layoutPreviewFlick','layoutPreviewCombined','devStats','lastFetch'].forEach((id) => assert.equal(typeof PConf.blocks.get(id), 'function'));
+});
+
+test('registers the statusSlot options resolver into PConf.optionsResolvers', () => {
+  assert.equal(typeof PConf.optionsResolvers.get('statusSlot'), 'function');
 });
 
 test('blocks fallback palette equals buildPreviewPalette (no color drift)', () => {

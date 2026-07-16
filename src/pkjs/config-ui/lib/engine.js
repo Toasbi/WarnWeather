@@ -28,6 +28,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     get: function (id) { return blockMap[id]; }
   };
 
+  // --- options-resolver registry --- a select/searchSelect/radio item opts into a
+  // multi-key derived option list by name (item.optionsFrom.resolver: id) without the
+  // engine knowing what the derivation logic is — mirrors the block registry above.
+  // fn(S, env, args) returns [[label, value], ...]; see resolveOptionsFrom below.
+  var optionsResolverMap = {};
+  PConf.optionsResolvers = {
+    register: function (name, fn) { optionsResolverMap[name] = fn; },
+    get: function (name) { return optionsResolverMap[name]; }
+  };
+
   // --- onChange registry --- a schema item opts into a post-change side effect by
   // name (item.onChange: id) without the engine knowing what that side effect is —
   // mirrors the block registry above. fn(S, oldValue, newValue) runs synchronously,
@@ -139,19 +149,28 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   /**
    * Resolve a select's options from current settings S. A static item.options passes
    * through. item.optionsFrom = { byKey, map } yields map[S[byKey]] || [] (a synchronous
-   * lookup keyed off another setting's value). Otherwise { interval, ladder } yields
+   * lookup keyed off another setting's value). item.optionsFrom = { resolver, args }
+   * dispatches to a named fn registered via PConf.optionsResolvers, called as
+   * fn(S, env, args) so it can derive its list from multiple settings keys and/or the
+   * platform env (e.g. health/radar/emery). Otherwise { interval, ladder } yields
    * [interval] + ladder values strictly greater than the interval (so equal values
    * dedupe), each as [label, String(minutes)].
    *
    * @param {Object} item Schema item (options or optionsFrom).
    * @param {Object} S Settings state.
+   * @param {Object} [env] Platform env (as read by show-when's env.* predicates); passed
+   *   through to a registered resolver.
    * @returns {Array.<Array>} List of [label, value] option pairs.
    */
-  function resolveOptionsFrom(item, S) {
+  function resolveOptionsFrom(item, S, env) {
     if (item.options) { return item.options; }
     var spec = item.optionsFrom;
     if (!spec) { return []; }
     if (spec.byKey && spec.map) { return spec.map[S[spec.byKey]] || []; }
+    if (spec.resolver) {
+      var fn = PConf.optionsResolvers.get(spec.resolver);
+      return fn ? fn(S, env, spec.args || {}) : [];
+    }
     var ladder = spec.ladder || [];
     var interval = parseInt(S[spec.interval], 10);
     if (isNaN(interval) || interval <= 0) { interval = ladder.length ? ladder[0] : 0; }
@@ -314,7 +333,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if ((item.type !== 'select' && item.type !== 'searchSelect' && item.type !== 'radio') || !item.optionsFrom) {
       return item;
     }
-    var derived = resolveOptionsFrom(item, cx.S);
+    var derived = resolveOptionsFrom(item, cx.S, cx.ENV);
     if (derived.length && !optionHasValue(derived, view.value)) {
       var snap = (item.defaultValue != null && optionHasValue(derived, item.defaultValue))
         ? item.defaultValue : derived[0][1];

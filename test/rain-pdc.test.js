@@ -18,3 +18,45 @@ for (const [file, drops] of Object.entries(EXPECT)) {
     assert.strictEqual(buf.readUInt16LE(14), drops, 'command (drop) count');
   });
 }
+
+function commands(buf) {
+  const out = [];
+  let off = 16;
+  const n = buf.readUInt16LE(14);
+  for (let c = 0; c < n; c++) {
+    const strokeColor = buf.readUInt8(off + 2);
+    const strokeWidth = buf.readUInt8(off + 3);
+    const fillColor = buf.readUInt8(off + 4);
+    const nPts = buf.readUInt16LE(off + 7);
+    off += 9;
+    const pts = [];
+    for (let p = 0; p < nPts; p++) {
+      pts.push([buf.readInt16LE(off), buf.readInt16LE(off + 2)]);
+      off += 4;
+    }
+    out.push({ strokeColor, strokeWidth, fillColor, pts });
+  }
+  return out;
+}
+
+function dropSize(cmd) {
+  const xs = cmd.pts.map(p => p[0]), ys = cmd.pts.map(p => p[1]);
+  return [Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)];
+}
+
+test('all drops share one geometry unit, outline-styled', () => {
+  const all = [];
+  for (const [file, drops] of Object.entries(EXPECT)) {
+    const cmds = commands(fs.readFileSync(path.join(DATA, file)));
+    assert.equal(cmds.length, drops, file);
+    all.push(...cmds);
+  }
+  const ref = all[0];
+  for (const cmd of all) {
+    assert.notEqual(cmd.strokeColor, 0x00, 'stroke set (outline)');
+    assert.equal(cmd.strokeWidth, ref.strokeWidth, 'uniform stroke width');
+    assert.equal(cmd.fillColor, 0x00, 'fill clear (outline)');
+    assert.equal(cmd.pts.length, ref.pts.length, 'same point count per drop');
+    assert.deepEqual(dropSize(cmd), dropSize(ref), 'same per-drop bounds');
+  }
+});

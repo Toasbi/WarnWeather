@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """Generate the rain-intensity glyph PDC files (drizzle / rain / downpour).
 
-Emits three Pebble Draw Command Image (PDCI) files of filled teardrops; drop
-count = intensity bucket, arranged on a diagonal (falling-rain) inside a 25x25
-viewbox. Run by hand when the art changes and commit the output — no deps.
+Emits three Pebble Draw Command Image (PDCI) files of OUTLINE teardrops (Tabler
+`droplets` style); drop count = intensity bucket. All three files share ONE drop
+geometry unit (translated, never rescaled per variant) so the family reads as one
+consistent glyph at 1/2/3 copies. Run by hand when the art changes and commit the
+output — no deps.
 
     python3 scripts/gen-rain-pdc.py
 
-Fill is authored white (0xFF) / stroke clear (0x00); top_status_layer.c recolors
-the fill per radar tier and scales the glyph to the strip slot at load time.
-Precise-path points are in 1/8-pixel units (viewbox 25 px -> 0..200 units).
-Shape + arrangement were tuned against an offline PIL mock before authoring.
+Stroke is authored white (0xFF) / fill clear (0x00); top_status_layer.c recolors
+the stroke per radar tier (or theme_fg() in light/B&W) and scales the glyph to the
+strip slot at load time. Precise-path points are in 1/8-pixel units (viewbox 25 px
+-> 0..200 units). Shape + arrangement were tuned against an offline PIL mock before
+authoring.
 """
 import math
 import os
@@ -18,8 +21,9 @@ import struct
 
 VIEWBOX = 25          # px
 SUBPX = 8             # precise-path units per px
-FILL_WHITE = 0xFF     # GColorWhite (recolored per tier at runtime)
-STROKE_CLEAR = 0x00   # GColorClear (drops are pure fills, no outline)
+STROKE_WHITE = 0xFF   # GColorWhite (recolored per tier/theme at runtime)
+STROKE_W = 2          # px, uniform across the family
+FILL_CLEAR = 0x00     # GColorClear (drops are pure outlines, no fill)
 
 
 def teardrop(cx, cy, r, tip_y, n_arc=14):
@@ -39,31 +43,28 @@ def teardrop(cx, cy, r, tip_y, n_arc=14):
     return pts
 
 
-def drop_in_box(x0, y0, size, scale=1.0):
-    """A teardrop sized to a sub-box (diagonal falling-rain stagger)."""
-    return teardrop(cx=x0 + 0.5 * size,
-                    cy=y0 + 0.60 * size,
-                    r=0.30 * size * scale,
-                    tip_y=y0 + 0.06 * size)
+# One drop unit, sized as in the three-drop composition (Tabler `droplets`);
+# a lone drop gains whitespace but must NOT be materially larger.
+DROP = teardrop(0, 0, 4.2, -6.5)  # local coords around (0,0); tune r/tip once
 
 
-S = VIEWBOX
+def translated(dx, dy):
+    return [(x + dx, y + dy) for x, y in DROP]
+
+
 ARRANGEMENTS = {
-    # A single, normal-sized teardrop — centered horizontally, its base near the
-    # viewbox bottom (same ~2px bottom margin as the multi-drop glyphs so all three
-    # bottom-align the same). Deliberately NOT filling the box: a lone drop that fills
-    # the viewbox reads as one huge blob, not a raindrop.
-    "RAIN_DRIZZLE":  [drop_in_box(0.15 * S, 0.28 * S, 0.70 * S)],
-    "RAIN_RAIN":     [drop_in_box(0.02 * S, 0.00 * S, 0.62 * S),
-                      drop_in_box(0.38 * S, 0.34 * S, 0.62 * S)],
-    "RAIN_DOWNPOUR": [drop_in_box(0.00 * S, 0.00 * S, 0.50 * S),
-                      drop_in_box(0.27 * S, 0.24 * S, 0.50 * S),
-                      drop_in_box(0.52 * S, 0.48 * S, 0.50 * S)],
+    # A single, normal-sized teardrop — nudged to visual center. Deliberately NOT
+    # scaled up to fill the box: a lone drop that fills the viewbox reads as one
+    # huge blob, not a raindrop; count (not size) encodes intensity.
+    "RAIN_DRIZZLE.pdc": [translated(12.5, 14)],                      # centered
+    "RAIN_RAIN.pdc": [translated(8, 14), translated(17, 14)],        # balanced
+    "RAIN_DOWNPOUR.pdc": [translated(12.5, 9),                       # one above
+                          translated(7, 17), translated(18, 17)],    # two below
 }
 
 
 def encode_command(points):
-    header = struct.pack("<BBBBBHH", 3, 0, STROKE_CLEAR, 0, FILL_WHITE, 0, len(points))
+    header = struct.pack("<BBBBBHH", 3, 0, STROKE_WHITE, STROKE_W, FILL_CLEAR, 0, len(points))
     body = b"".join(struct.pack("<hh", int(round(x * SUBPX)), int(round(y * SUBPX)))
                     for x, y in points)
     return header + body
@@ -87,9 +88,9 @@ def main():
     for name, drops in ARRANGEMENTS.items():
         blob = encode_pdc(drops)
         verify(blob, len(drops))
-        with open(os.path.join(out_dir, name + ".pdc"), "wb") as f:
+        with open(os.path.join(out_dir, name), "wb") as f:
             f.write(blob)
-        print("wrote %-20s %3d bytes  %d drop(s)" % (name + ".pdc", len(blob), len(drops)))
+        print("wrote %-20s %3d bytes  %d drop(s)" % (name, len(blob), len(drops)))
 
 
 if __name__ == "__main__":

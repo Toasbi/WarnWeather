@@ -36,10 +36,6 @@ time_t persist_get_forecast_start();
 
 int persist_get_num_entries();
 
-int persist_get_current_temp();
-
-int persist_get_city(char *buffer, const size_t buffer_size);
-
 int persist_get_sun_event_start_type();
 
 int persist_get_sun_event_times(time_t *buffer, const size_t buffer_size);
@@ -79,13 +75,12 @@ bool persist_set_bar_palette(uint8_t *data, const size_t size);
 int  persist_get_radar_palette(uint8_t *buffer, const size_t buffer_size);
 bool persist_set_radar_palette(uint8_t *data, const size_t size);
 
+int persist_get_status_line(uint8_t line_id, uint8_t *buffer, size_t buffer_size);
+bool persist_set_status_line(uint8_t line_id, const uint8_t *data, size_t len);
+
 bool persist_set_forecast_start(time_t val);
 
 bool persist_set_num_entries(int val);
-
-bool persist_set_current_temp(int val);
-
-bool persist_set_city(char *val);
 
 bool persist_set_sun_event_start_type(int val);
 
@@ -147,3 +142,4 @@ bool persist_set_health_cache_end_hour(time_t val);
 time_t persist_get_health_cache_end_hour(void);
 
 void persist_migrate_trend_encoding(void);
+void persist_migrate_status_line_encoding(void);

@@ -32,7 +32,8 @@ var WEATHER_CATEGORIES = [
     {
         name: 'status',
         cacheKey: KEYS.LAST_SENT_STATUS_KEY,
-        keys: ['CURRENT_TEMP', 'CITY']
+        keys: ['STATUS_LINE_1_UINT8', 'STATUS_LINE_2_UINT8',
+               'STATUS_LINE_3_UINT8', 'STATUS_LINE_4_UINT8']
     },
     {
         name: 'sun',

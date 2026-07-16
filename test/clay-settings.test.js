@@ -210,3 +210,34 @@ test('migrateHolidayRegionKeys: already-real subdivision preserved, old keys sti
   assert.equal('holidayRegionUS' in read, false, 'old US key dropped');
   assert.equal(marked, true, 'migration marked done');
 });
+
+test('migrateStatusLineHealthDefaults: emery upgrades the seeded triple once, without clobbering edits', () => {
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+
+  // seeded static defaults -> emery triple
+  claySettings.save({ statusHealthLeft: 'steps', statusHealthMid: 'empty', statusHealthRight: 'sleep' });
+  let done = false;
+  claySettings.migrateStatusLineHealthDefaults('emery', () => done, () => { done = true; });
+  let s = claySettings.read();
+  assert.equal(s.statusHealthMid, 'sleep');
+  assert.equal(s.statusHealthRight, 'hr');
+  assert.ok(done);
+
+  // user-edited values stay untouched even on emery
+  claySettings.save({ statusHealthLeft: 'distance', statusHealthMid: 'empty', statusHealthRight: 'sleep' });
+  done = false;
+  claySettings.migrateStatusLineHealthDefaults('emery', () => done, () => { done = true; });
+  s = claySettings.read();
+  assert.equal(s.statusHealthLeft, 'distance');
+  assert.equal(s.statusHealthRight, 'sleep');
+  assert.ok(done);
+
+  // non-emery: marked done, nothing changes
+  claySettings.save({ statusHealthLeft: 'steps', statusHealthMid: 'empty', statusHealthRight: 'sleep' });
+  done = false;
+  claySettings.migrateStatusLineHealthDefaults('basalt', () => done, () => { done = true; });
+  assert.equal(claySettings.read().statusHealthRight, 'sleep');
+  assert.ok(done);
+});

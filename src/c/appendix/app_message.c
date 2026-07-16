@@ -9,10 +9,12 @@
 #include "c/layers/rain_radar_layer.h"
 #include "c/layers/calendar_layer.h"
 #include "c/layers/top_status_layer.h"
+#include "c/layers/health_status_layer.h"
 #include "c/windows/main_window.h"
 #include "c/services/watch_services.h"
 #include "rain_countdown.h"
 #include "memory_log.h"
+#include "status_line.h"
 
 // Payloads arrive split into categories that map onto screen areas (forecast
 // chart, status row, radar). Each category is processed independently and the
@@ -103,34 +105,55 @@ static bool handle_forecast(DictionaryIterator *iterator, bool *forecast_dirty) 
 }
 
 static bool handle_status(DictionaryIterator *iterator, bool *status_dirty, bool *radar_dirty) {
-    Tuple *current_temp_tuple = dict_find(iterator, MESSAGE_KEY_CURRENT_TEMP);
-    Tuple *city_tuple = dict_find(iterator, MESSAGE_KEY_CITY);
     Tuple *is_sleeping_tuple = dict_find(iterator, MESSAGE_KEY_IS_SLEEPING);
 
-    if (!(current_temp_tuple || city_tuple || is_sleeping_tuple)) {
+    if (!is_sleeping_tuple) {
         return false;
     }
 
     bool changed = false;
-    if (current_temp_tuple) {
-        changed |= persist_set_current_temp((int) current_temp_tuple->value->int32);
-    }
-    if (city_tuple) {
-        changed |= persist_set_city((char*) city_tuple->value->cstring);
-    }
-    if (is_sleeping_tuple) {
-        const bool sleeping = (bool) is_sleeping_tuple->value->int16;
-        changed |= persist_set_is_sleeping(sleeping);
-        if (sleeping) {
-            // Sleep onset latches the radar area into snooze immediately.
-            // The latch is released on the wake transition by the awake check
-            // in inbox_received_callback.
-            *radar_dirty |= persist_set_radar_snooze(true);
-        }
+    const bool sleeping = (bool) is_sleeping_tuple->value->int16;
+    changed |= persist_set_is_sleeping(sleeping);
+    if (sleeping) {
+        // Sleep onset latches the radar area into snooze immediately.
+        // The latch is released on the wake transition by the awake check
+        // in inbox_received_callback.
+        *radar_dirty |= persist_set_radar_snooze(true);
     }
 
     *status_dirty |= changed;
     return true;
+}
+
+static uint32_t status_line_key(int line_id) {
+    switch (line_id) {
+        case 0: return MESSAGE_KEY_STATUS_LINE_1_UINT8;
+        case 1: return MESSAGE_KEY_STATUS_LINE_2_UINT8;
+        case 2: return MESSAGE_KEY_STATUS_LINE_3_UINT8;
+        default: return MESSAGE_KEY_STATUS_LINE_4_UINT8;
+    }
+}
+
+static bool handle_status_lines(DictionaryIterator *iterator, bool *status_dirty) {
+    bool any = false;
+    bool changed = false;
+    for (int i = 0; i < STATUS_LINE_COUNT; i++) {
+        Tuple *tuple = dict_find(iterator, status_line_key(i));
+        if (!tuple) { continue; }
+        any = true;
+        if (tuple->type != TUPLE_BYTE_ARRAY ||
+            !status_line_validate(tuple->value->data, tuple->length)) {
+            // Reject atomically; the last good persisted line stays intact.
+            APP_LOG(APP_LOG_LEVEL_WARNING,
+                    "Status line %d invalid (%u bytes) — skipping", i + 1,
+                    (unsigned) tuple->length);
+            continue;
+        }
+        changed |= persist_set_status_line((uint8_t) i, tuple->value->data,
+                                           tuple->length);
+    }
+    *status_dirty |= changed;
+    return any;
 }
 
 static bool handle_sun_events(DictionaryIterator *iterator, bool *forecast_dirty, bool *status_dirty) {
@@ -331,6 +354,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     bool calendar_dirty = false;  // calendar holiday highlights only
     handled |= handle_forecast(iterator, &forecast_dirty);
     handled |= handle_status(iterator, &status_dirty, &radar_dirty);
+    handled |= handle_status_lines(iterator, &status_dirty);
     handled |= handle_sun_events(iterator, &forecast_dirty, &status_dirty);
 #if defined(WW_RAIN_RADAR)
     // aplite has no radar layer (--gc-sections reaps rain_radar_layer.c), so it
@@ -370,6 +394,10 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     }
     if (status_dirty) {
         weather_status_layer_refresh();
+        top_status_layer_refresh();
+#if defined(PBL_HEALTH)
+        health_status_layer_refresh();
+#endif
     }
     if (radar_dirty) {
 #if defined(WW_RAIN_RADAR)

@@ -2,6 +2,8 @@ var rainTier = require('./weather/rain-tier');
 var COLORS = require('./pebble-colors');
 var configUi = require('./config-ui');   // isColorPlatform — same helper rain-tier/palette-wire use
 var resolveInkLib = require('./resolve-ink.js');
+var statusLines = require('./status-lines.js');
+var statusCatalog = require('./status-line-catalog.js');
 var resolveInk = resolveInkLib.resolveInk;
 var isBwTheme = resolveInkLib.isBwTheme;
 var isLightPolarity = resolveInkLib.isLightPolarity;
@@ -238,12 +240,17 @@ function buildForecastSeries(raw, settings, watchInfo) {
  * @returns {Object} The same payload, raw keys removed and wire keys set.
  */
 function applyForecastSeries(payload, settings, watchInfo) {
+    // Bake the packed status lines while the transient trend arrays are
+    // still on the payload (they die a few lines below).
+    statusLines.buildStatusLines(payload, settings, watchInfo);
     var series = buildForecastSeries(
         { precips: payload.PRECIP_TREND_UINT8, rains: payload.RAIN_TREND_UINT8,
           winds: payload.WIND_TREND_UINT8, gusts: payload.GUST_TREND_UINT8,
           uvs: payload.UV_TREND_UINT8 },
         settings, watchInfo
     );
+    delete payload.CURRENT_TEMP; // baked into the status lines; no longer a wire key
+    delete payload.CITY;         // baked into the status lines; no longer a wire key
     delete payload.PRECIP_TREND_UINT8;
     delete payload.RAIN_TREND_UINT8;
     delete payload.WIND_TREND_UINT8;  // transient PKJS-only; never over the wire
@@ -261,12 +268,15 @@ function applyForecastSeries(payload, settings, watchInfo) {
 }
 
 /**
- * Whether UV is on either line (so providers know to fetch UV data).
+ * Whether UV is on a forecast line or in a status slot, so providers fetch it.
  * @param {Object} settings Clay settings.
- * @returns {boolean} True iff secondaryLine or thirdLine is 'uv'.
+ * @returns {boolean} True when any rendered selection needs UV.
  */
 function needsUv(settings) {
-    return Boolean(settings) && (settings.secondaryLine === 'uv' || settings.thirdLine === 'uv');
+    if (!settings) { return false; }
+    if (settings.secondaryLine === 'uv' || settings.thirdLine === 'uv') { return true; }
+    // A status-line UV slot must extend the fetch gate or it bakes empty.
+    return statusCatalog.selectedCodes(settings).indexOf('uv') !== -1;
 }
 
 module.exports = {

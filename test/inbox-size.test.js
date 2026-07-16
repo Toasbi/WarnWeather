@@ -13,6 +13,7 @@ global.localStorage = {
 
 const { applyForecastSeries } = require('../src/pkjs/forecast-series');
 const { buildClayPayload } = require('../src/pkjs/clay-payload');
+const { WEATHER_CATEGORIES } = require('../src/pkjs/outbox');
 
 // Regression guard for the AppMessage inbox size.
 //
@@ -64,6 +65,24 @@ function dictSize(payload) {
   }, 1);
 }
 
+/**
+ * Project a full transformed payload through the weather outbox categories.
+ * This mirrors the first send, where every present category has changed.
+ * @param {Object} payload Full transformed weather payload.
+ * @returns {Object} AppMessage payload after outbox category filtering.
+ */
+function buildWeatherOutboxPayload(payload) {
+  const outgoing = {};
+  WEATHER_CATEGORIES.forEach(function(category) {
+    category.keys.forEach(function(key) {
+      if (Object.prototype.hasOwnProperty.call(payload, key)) {
+        outgoing[key] = payload[key];
+      }
+    });
+  });
+  return outgoing;
+}
+
 /** Build the heaviest single AppMessage the phone can emit (DWD + wind). */
 function buildHeaviestBundle() {
   const range = Array.from({ length: N }, function(_, i) { return i; });
@@ -81,7 +100,7 @@ function buildHeaviestBundle() {
     NUM_ENTRIES: N,
     CURRENT_TEMP: 20,
     // A long real-world city name (UTF-8), so the guard keeps headroom for them.
-    CITY: 'Mönchengladbach',
+    CITY: 'Mönchengladbach-Ost',
     // start-type byte + two int32 epoch timestamps (handle_sun_events reads two).
     SUN_EVENTS: [0].concat(
       Array.prototype.slice.call(new Uint8Array(new Int32Array([1700000000, 1700040000]).buffer))),
@@ -91,7 +110,18 @@ function buildHeaviestBundle() {
   // distinct third line (two 24-byte trends + THIRD_LINE_COLOR) + rain bars.
   applyForecastSeries(payload, {
     secondaryLine: 'wind', thirdLine: 'gust', secondaryLineFill: false, barSource: 'rain', windScale: 'high',
-  });
+    temperatureUnits: 'c', axisTimeFormat: '12h', timeShowAmPm: true,
+    healthMode: 'all', radarProvider: 'rainbow',
+    // Heaviest realistic selections: 'city' truncates payload.CITY to each
+    // slot's text cap, so every edge slot packs its full 8-byte EDGE_TEXT_MAX
+    // (wind/gust top out around 7 bytes -- "255km/h" -- and would under-model
+    // the true worst case) and every mid slot packs its full 19-byte
+    // MID_TEXT_MAX off the long real-world city name above.
+    statusForecastLeft: 'city', statusForecastRight: 'city',
+    statusRadarLeft: 'city', statusRadarMid: 'city', statusRadarRight: 'city',
+    statusTopLeft: 'city', statusTopRight: 'city',
+    statusHealthLeft: 'city', statusHealthMid: 'city', statusHealthRight: 'city'
+  }, { platform: 'emery' });
 
   // Radar (DWD supplies it) — two 24-slot trends + a start epoch.
   payload.RAIN_RADAR_TREND_UINT8 = range.map(function() { return 7; });
@@ -101,7 +131,9 @@ function buildHeaviestBundle() {
   // Sleep state rides in the same bundle.
   payload.IS_SLEEPING = false;
 
-  return payload;
+  // The transformed payload has baked all four packed lines and removed the
+  // legacy temp/city transients before the outbox projects transmitted keys.
+  return buildWeatherOutboxPayload(payload);
 }
 
 test('heaviest bundled payload (DWD + wind) fits the watch inbox', function() {
@@ -111,6 +143,14 @@ test('heaviest bundled payload (DWD + wind) fits the watch inbox', function() {
     size <= inbox,
     'bundled DWD+wind payload is ' + size + ' B but inbox_size is only ' + inbox +
     ' B — the message would be dropped (APP_MSG_BUFFER_OVERFLOW). Bump inbox_size.');
+});
+
+test('weather bundle keeps explicit headroom below the watch inbox', () => {
+  const size = dictSize(buildHeaviestBundle());
+  const inbox = readInboxSize();
+  console.log(`heaviest weather bundle: ${size} B of ${inbox} B (headroom ${inbox - size})`);
+  assert.equal(size, 498, 'update the recorded realistic bundle size when its wire contract changes');
+  assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });
 
 /** The Clay settings message now carries the palette tuples too. */

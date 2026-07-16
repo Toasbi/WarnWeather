@@ -76,6 +76,19 @@ test('snapshot includes configTheme as a string', () => {
   assert.strictEqual(buildSettingsSnapshot({}).configTheme, undefined);
 });
 
+test('snapshot carries the ten status slot selections', () => {
+  const snap = buildSettingsSnapshot({
+    statusForecastLeft: 'temp', statusForecastRight: 'sun',
+    statusRadarLeft: 'temp', statusRadarMid: 'city', statusRadarRight: 'sun',
+    statusTopLeft: 'empty', statusTopRight: 'uv',
+    statusHealthLeft: 'steps', statusHealthMid: 'sleep', statusHealthRight: 'hr'
+  });
+  assert.equal(snap.statusForecastLeft, 'temp');
+  assert.equal(snap.statusRadarMid, 'city');
+  assert.equal(snap.statusTopRight, 'uv');
+  assert.equal(snap.statusHealthRight, 'hr');
+});
+
 test('settings snapshot keys match the Deno telemetry schema (lockstep)', () => {
   const fs = require('fs');
   const path = require('path');
