@@ -68,6 +68,21 @@ test('renderControl: text value and color display are HTML-escaped', () => {
   assert.ok(col.indexOf('#FF0055') >= 0 && col.indexOf('sw-wrap') >= 0);
 });
 
+test('renderControl text: suffixAction adds an inline action button + result line', () => {
+  const plain = E.renderControl({ type: 'text', messageKey: 'q' }, { value: 'x' });
+  assert.equal(plain.indexOf('txt-act'), -1, 'no wrapper without suffixAction');
+
+  const withBtn = E.renderControl(
+    { type: 'text', messageKey: 'owmApiKey', suffixAction: 'testOwmKey', suffixLabel: 'Test' },
+    { value: 'abc' }
+  );
+  assert.ok(withBtn.indexOf('class="txt-act"') >= 0, 'wraps input + button');
+  assert.ok(withBtn.indexOf('data-action="testOwmKey"') >= 0, 'button dispatches the action');
+  assert.ok(withBtn.indexOf('>Test<') >= 0, 'uses suffixLabel');
+  assert.ok(withBtn.indexOf('data-action-result="owmApiKey"') >= 0, 'has a result line keyed by messageKey');
+  assert.ok(withBtn.indexOf('data-k="owmApiKey"') >= 0, 'still renders the input');
+});
+
 test('renderControl color: excludeColors drops swatches from the open palette only', () => {
   const open = (item) => E.renderControl(item, { value: '#FF0055', openColor: 'tint' });
   // By default every picker offers white.
