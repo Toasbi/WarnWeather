@@ -116,6 +116,7 @@ LAYOUT CUSTOMIZATION
 
 UPDATES
 - Update notifications: get a one-time heads-up when a newer version is available in the appstore.
+- News & feedback: announcements from the developer appear in the settings page (with an unread badge), and you can reply privately without leaving the page.
 
 PLATFORMS
 - Pebble Classic, Pebble Steel, Pebble Time, Pebble Time Steel, Pebble 2, and
