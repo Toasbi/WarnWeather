@@ -64,3 +64,30 @@ test('fetchAqiInto populates aqiTrend on success', () => {
   assert.equal(done, true);
   assert.equal(provider.aqiTrend[0], 42);
 });
+
+function stubProvider() {
+  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const p = new WeatherProvider();
+  p.tempTrend = new Array(24).fill(20);
+  p.precipTrend = new Array(24).fill(0);
+  p.startTime = START;
+  p.currentTemp = 68;
+  p.cityName = 'Test';
+  p.sunEvents = [{ type: 'sunrise', date: new Date(START * 1000) }];
+  return p;
+}
+
+test('provider constructor defaults aqiTrend to an empty array', () => {
+  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  assert.deepEqual(new WeatherProvider().aqiTrend, []);
+});
+
+test('getPayload emits transient AQI_TREND from aqiTrend', () => {
+  const p = stubProvider();
+  p.aqiTrend = [42, 43, 44];
+  assert.deepEqual(p.getPayload().AQI_TREND, [42, 43, 44]);
+});
+
+test('getPayload emits empty AQI_TREND when aqiTrend is empty', () => {
+  assert.deepEqual(stubProvider().getPayload().AQI_TREND, []);
+});
