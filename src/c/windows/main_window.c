@@ -247,14 +247,14 @@ static void main_window_load(Window *window) {
 #endif
     // Tell the status layers which tier to render at before they lay out their text.
     weather_status_layer_set_render_tier(spec.status_tier);
-    weather_status_layer_set_full_date(spec.calendar_rows == 0);   // NEW
+    weather_status_layer_set_full_date(spec.calendar_rows == 0);
     weather_status_layer_set_line(
         (spec.top == TOP_BAND_RADAR || spec.body == BODY_RADAR)
             ? STATUS_LINE_RADAR : STATUS_LINE_FORECAST);
 #if defined(PBL_HEALTH)
     weather_status_layer_create(window_layer, (spec.status == STATUS_ROW_DUAL) ? L.status_lower : L.status);
     health_status_layer_set_render_tier(spec.status_tier);
-    health_status_layer_set_full_date(spec.calendar_rows == 0);   // NEW
+    health_status_layer_set_full_date(spec.calendar_rows == 0);
     health_status_layer_set_full_mode(spec.calendar_rows == 3);
     health_status_layer_create(window_layer, L.status);
 #else
