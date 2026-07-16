@@ -36,11 +36,17 @@ test('isRadarPlatform: only aplite lacks radar; others (and unknown) have it', (
   assert.equal(platform.isRadarPlatform(''), true);
 });
 
+test('isThemePolarityPlatform: only aplite lacks the light polarity; others (and unknown) have it', () => {
+  assert.equal(platform.isThemePolarityPlatform('aplite'), false);
+  ['basalt','chalk','diorite','emery','flint'].forEach((p) => assert.equal(platform.isThemePolarityPlatform(p), true, p));
+  assert.equal(platform.isThemePolarityPlatform(''), true);
+});
+
 test('computeEnv from watchInfo', () => {
-  assert.deepEqual(platform.computeEnv({ platform: 'flint' }), { color: false, round: false, platform: 'flint', health: true, radar: true });
-  assert.deepEqual(platform.computeEnv({ platform: 'chalk' }), { color: true, round: true, platform: 'chalk', health: true, radar: true });
-  assert.deepEqual(platform.computeEnv({ platform: 'aplite' }), { color: false, round: false, platform: 'aplite', health: false, radar: false });
-  assert.deepEqual(platform.computeEnv(null), { color: true, round: false, platform: '', health: true, radar: true });
+  assert.deepEqual(platform.computeEnv({ platform: 'flint' }), { color: false, round: false, platform: 'flint', health: true, radar: true, themePolarity: true });
+  assert.deepEqual(platform.computeEnv({ platform: 'chalk' }), { color: true, round: true, platform: 'chalk', health: true, radar: true, themePolarity: true });
+  assert.deepEqual(platform.computeEnv({ platform: 'aplite' }), { color: false, round: false, platform: 'aplite', health: false, radar: false, themePolarity: false });
+  assert.deepEqual(platform.computeEnv(null), { color: true, round: false, platform: '', health: true, radar: true, themePolarity: true });
 });
 
 test('deriveDefaults/deriveColorKeys are schema-driven (colors as ints)', () => {

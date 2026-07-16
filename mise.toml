@@ -138,3 +138,7 @@ run = "cd supabase/functions/rainbow-nowcast && deno test"
 [tasks.aplite-size]
 description = "Build and print aplite image footprint (text+data+bss via arm-none-eabi-size; heap leading indicator)"
 run = "scripts/aplite-size.sh"
+
+[tasks.check-aplite-size]
+description = "On-demand: fail when the aplite image exceeds the launch-safety ceiling (past ~22.06 KB the firmware silently never starts the app). Builds first if needed; portable across macOS/Linux SDK layouts. Run it yourself before shipping aplite changes."
+run = "scripts/check-aplite-size.sh"

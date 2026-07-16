@@ -84,11 +84,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Ordered wizard step ids, filtered by platform env: health only where the platform
-     * has it, and the flick demo only where there is a second view to flick to (env.radar
-     * — false on aplite, whose single view leaves nothing to demo). layout and health are
-     * the selection steps that shape the cycle, so the demo comes after both and shows the
-     * user's real cycle.
-     * @param {{radar: boolean, health: boolean}} env Config-UI env facts.
+     * has it, the flick demo only where there is a second view to flick to (env.radar
+     * — false on aplite, whose single view leaves nothing to demo), and the theme step
+     * only where the watch ships the light polarity (env.themePolarity — false on aplite,
+     * where WW_THEME_POLARITY is compiled out and a choice would be a silent no-op).
+     * layout and health are the selection steps that shape the cycle, so the demo comes
+     * after both and shows the user's real cycle.
+     * @param {{radar: boolean, health: boolean, themePolarity: boolean}} env Config-UI env facts.
      * @returns {Array.<string>} Step ids in order.
      */
     function buildSteps(env) {
@@ -96,7 +98,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var steps = ['welcome', 'layout'];
         if (env.health) { steps.push('health'); }
         if (env.radar) { steps.push('flick'); }
-        steps.push('theme');
+        if (env.themePolarity) { steps.push('theme'); }
         steps.push('done');
         return steps;
     }

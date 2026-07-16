@@ -11,6 +11,14 @@ var NO_HEALTH_PLATFORMS = { aplite: true };
 // lockstep with the C `#if defined(WW_RAIN_RADAR)` guards (wscript defines the
 // macro for every platform except aplite).
 var NO_RADAR_PLATFORMS = { aplite: true };
+// Platforms where the watch compiles the theme light polarity out (no
+// WW_THEME_POLARITY): aplite (Pebble Classic/Steel), whose image outgrew the
+// ~22 KB launch ceiling — theme_is_light() is pinned false there, so a light /
+// B&W-Inverted pick would be a silent no-op. The theme item is hidden entirely
+// (aplite renders the classic white-on-black only). diorite/flint keep both
+// polarities. Keep in lockstep with the C `#if defined(WW_THEME_POLARITY)`
+// guard in theme.h (wscript defines the macro for every platform except aplite).
+var NO_THEME_POLARITY_PLATFORMS = { aplite: true };
 /**
  * Whether a Pebble platform has a color display (false for the B/W platforms).
  * @param {string} platform Platform name (e.g. 'basalt', 'aplite', 'chalk').
@@ -33,12 +41,20 @@ function isHealthPlatform(platform) { return !NO_HEALTH_PLATFORMS[platform]; }
  */
 function isRadarPlatform(platform) { return !NO_RADAR_PLATFORMS[platform]; }
 /**
+ * Whether a Pebble platform ships the theme light polarity (WW_THEME_POLARITY).
+ * Unknown platforms are treated as capable so a missing watchInfo never hides
+ * a real feature.
+ * @param {string} platform Platform name (e.g. 'basalt', 'aplite').
+ * @returns {boolean} True if the platform supports the light / B&W-Inverted theme.
+ */
+function isThemePolarityPlatform(platform) { return !NO_THEME_POLARITY_PLATFORMS[platform]; }
+/**
  * Derive the config-UI environment facts from a Pebble watchInfo object.
  * @param {Object} watchInfo Pebble watchInfo; its .platform names the model.
- * @returns {{color: boolean, round: boolean, platform: string, health: boolean, radar: boolean}} Env: color display, round (chalk), platform name, health support, and radar support.
+ * @returns {{color: boolean, round: boolean, platform: string, health: boolean, radar: boolean, themePolarity: boolean}} Env: color display, round (chalk), platform name, health support, radar support, and theme light-polarity support.
  */
 function computeEnv(watchInfo) {
   var p = watchInfo && watchInfo.platform ? watchInfo.platform : '';
-  return { color: isColorPlatform(p), round: p === 'chalk', platform: p, health: isHealthPlatform(p), radar: isRadarPlatform(p) };
+  return { color: isColorPlatform(p), round: p === 'chalk', platform: p, health: isHealthPlatform(p), radar: isRadarPlatform(p), themePolarity: isThemePolarityPlatform(p) };
 }
-module.exports = { isColorPlatform: isColorPlatform, isHealthPlatform: isHealthPlatform, isRadarPlatform: isRadarPlatform, computeEnv: computeEnv };
+module.exports = { isColorPlatform: isColorPlatform, isHealthPlatform: isHealthPlatform, isRadarPlatform: isRadarPlatform, isThemePolarityPlatform: isThemePolarityPlatform, computeEnv: computeEnv };
