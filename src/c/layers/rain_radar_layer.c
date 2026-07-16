@@ -349,8 +349,8 @@ bool rain_radar_layer_tick(time_t now) {
         return false;  // Bluetooth down: freeze the last real window
     }
 
-    int interval_min = (g_config && g_config->fetch_interval_min > 0)
-                     ? g_config->fetch_interval_min : 30;
+    int interval_min = (config_get() && config_get()->fetch_interval_min > 0)
+                     ? config_get()->fetch_interval_min : 30;
     const time_t interval_sec = (time_t)interval_min * 60;
 
     // PKJS fetches on an aligned grid (index.js shouldFetch): the boundary that

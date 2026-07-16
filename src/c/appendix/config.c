@@ -5,7 +5,11 @@
 #include "theme.h"
 #include "c/services/watch_services.h"
 
-Config *g_config;
+static Config *s_config;
+
+const Config *config_get(void) {
+    return s_config;
+}
 
 // Returns defaults as a function (not a static const) because GColor values like
 // GColorBlack expand to "compound literals" — C's syntax for inline struct values.
@@ -50,15 +54,15 @@ static void config_read_or_default(Config *config) {
 }
 
 void config_load() {
-    g_config = (Config*) malloc(sizeof(Config));
-    config_read_or_default(g_config);
+    s_config = (Config*) malloc(sizeof(Config));
+    config_read_or_default(s_config);
     MEMORY_LOG_HEAP("after_config_load");
 }
 
 void config_refresh() {
-    free(g_config);  // Clear out the old config
-    g_config = (Config*) malloc(sizeof(Config));
-    config_read_or_default(g_config);  // Then reload
+    free(s_config);  // Clear out the old config
+    s_config = (Config*) malloc(sizeof(Config));
+    config_read_or_default(s_config);  // Then reload
     MEMORY_LOG_HEAP("after_config_refresh");
 }
 
@@ -71,12 +75,13 @@ void config_unload() {
     // emery: release the cached enlarged time font along with the config.
     config_unload_custom_time_font();
 #endif
-    free(g_config);
+    free(s_config);
+    s_config = NULL;   // config_get() must never hand out a dangling pointer
 }
 
 int config_localize_temp(int temp_f) {
     int result;
-    if (g_config->celsius)
+    if (s_config->celsius)
         result = f_to_c(temp_f);
     else
         result = temp_f;
@@ -85,7 +90,7 @@ int config_localize_temp(int temp_f) {
 
 int config_format_time(char *s, size_t maxsize, const struct tm * tm_p) {
     int res = strftime(s, maxsize, watch_services_clock_is_24h_style() ? "%H:%M" : "%I:%M", tm_p);
-    if (!g_config->time_lead_zero) {
+    if (!s_config->time_lead_zero) {
         // Remove leading zero if configured as such
         if (s[0] == '0')
             memmove(s, s+1, strlen(s));
@@ -94,7 +99,7 @@ int config_format_time(char *s, size_t maxsize, const struct tm * tm_p) {
 }
 
 int config_axis_hour(int hour) {
-    if (g_config->axis_12h) {
+    if (s_config->axis_12h) {
         hour = hour % 12;
         hour = hour == 0 ? 12 : hour;
     }
@@ -109,11 +114,11 @@ int config_n_today(uint8_t calendar_rows) {
     struct tm tm_today = watch_services_localtime();
     int wday = tm_today.tm_wday;
     // Offset if user wants to start the week on monday
-    wday = g_config->start_mon ? (wday + 6) % 7 : wday;
+    wday = s_config->start_mon ? (wday + 6) % 7 : wday;
     // Offset if user wants to show the previous week first — only the 3-row
     // (full) calendar renders the previous week; compact is always
     // current-week-first (matches the phone's holiday-mask anchor).
-    if (g_config->prev_week && calendar_rows == 3)
+    if (s_config->prev_week && calendar_rows == 3)
         wday += 7;
     return wday;
 }
@@ -156,7 +161,7 @@ static GFont config_emery_custom_time_font(int16_t font_index) {
 #endif
 
 GFont config_time_font() {
-    int16_t font_index = g_config->time_font;
+    int16_t font_index = s_config->time_font;
     if (font_index < 0 || font_index > TIME_FONT_BITHAM)
         font_index = TIME_FONT_ROBOTO;
 
@@ -180,9 +185,9 @@ GFont config_time_font() {
 }
 
 bool config_highlight_sundays() {
-    return !gcolor_equal(g_config->color_sunday, theme_fg());
+    return !gcolor_equal(s_config->color_sunday, theme_fg());
 }
 
 bool config_highlight_saturdays() {
-    return !gcolor_equal(g_config->color_saturday, theme_fg());
+    return !gcolor_equal(s_config->color_saturday, theme_fg());
 }

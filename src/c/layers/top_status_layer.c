@@ -258,8 +258,8 @@ static GRect content_rect(void) {
     GRect bounds = layer_get_bounds(s_top_status_layer);
     bool show_qt = show_qt_icon();
     bool connected = connection_service_peek_pebble_app_connection();
-    bool wants_bt = connected && g_config->show_bt;
-    bool wants_bt_disc = !connected && g_config->show_bt_disconnect;
+    bool wants_bt = connected && config_get()->show_bt;
+    bool wants_bt_disc = !connected && config_get()->show_bt_disconnect;
 
     int16_t left = ICON_SLOT_1.origin.x;   // no icons showing: clear just the padding
     if (show_qt) {
@@ -282,8 +282,8 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
     int icon_x = show_qt ? ICON_SLOT_2.origin.x : ICON_SLOT_1.origin.x;
     const GFont font = fonts_get_system_font(MONTH_FONT_KEY);
 
-    bool wants_bt = connected && g_config->show_bt;
-    bool wants_bt_disc = !connected && g_config->show_bt_disconnect;
+    bool wants_bt = connected && config_get()->show_bt;
+    bool wants_bt_disc = !connected && config_get()->show_bt_disconnect;
 
     // Alert mode centers a glyph+text unit in place of the configurable slots
     // (computed below, byte-identical to before); non-alert mode defers the row
@@ -439,12 +439,12 @@ void bluetooth_icons_refresh(bool connected) {
 
 void bluetooth_callback(bool connected) {
     bluetooth_icons_refresh(connected);
-    if (!connected && g_config->vibe)
+    if (!connected && config_get()->vibe)
         vibes_double_pulse();
 }
 
 bool show_qt_icon() {
-    return g_config->show_qt && quiet_time_is_active();
+    return config_get()->show_qt && quiet_time_is_active();
 }
 
 void status_icons_refresh() {

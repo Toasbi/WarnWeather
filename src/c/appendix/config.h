@@ -71,7 +71,11 @@ typedef struct {
     uint8_t theme;
 } Config;
 
-extern Config *g_config;
+// Read-only view of the loaded config. Non-NULL from config_load() until
+// config_unload() (NULL outside that window) — code on the unload path must not
+// call it: watchface.c's deinit() unloads config BEFORE main_window_destroy().
+// Only config.c writes the struct; everyone else reads through this pointer.
+const Config *config_get(void);
 
 void config_load();
 

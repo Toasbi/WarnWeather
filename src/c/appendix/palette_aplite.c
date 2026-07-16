@@ -18,7 +18,7 @@
 
 // Single stop shared by both channels; `from == 0` covers the whole range. Not
 // const: .color is set to theme_bg() by the accessors below on every call —
-// theme_bg() reads g_config->theme at runtime, so it can't be a static
+// theme_bg() reads config_get()->theme at runtime, so it can't be a static
 // initializer. Mirrors palette.c's fill_defaults() B&W branch (bw-dark: black,
 // pixel-identical to the literal-black stop this returned before polarity
 // existed; bw-light: white, the polarity mirror). No heap: same module-static

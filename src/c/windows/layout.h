@@ -1,7 +1,7 @@
 #pragma once
 
 #include <pebble.h>   // GRect only — this module must stay free of any other SDK call
-                      // (fonts, persist, g_config, layers); host tests stub pebble.h.
+                      // (fonts, persist, config_get, layers); host tests stub pebble.h.
 
 // Values mirror enum TopViewMode in config.h (0=full, 1=compact, 2=none) — that enum is
 // wire/persist contract, this one is layout vocabulary. Keep the values in lockstep.

@@ -62,7 +62,7 @@ void time_layer_tick() {
     config_format_time(s_buffer, sizeof(s_buffer), &tick_time);
 
     text_layer_set_text(s_time_layer, s_buffer);
-    if (g_config->show_am_pm)
+    if (config_get()->show_am_pm)
         text_layer_set_text(s_am_pm_layer, tick_time.tm_hour < 12 ? "AM" : "PM");
     
     GRect bounds = layer_get_bounds(s_container_layer);
@@ -70,7 +70,7 @@ void time_layer_tick() {
     GSize time_size = text_layer_get_content_size(s_time_layer);
     GSize am_pm_size = text_layer_get_content_size(s_am_pm_layer);
 
-    int content_w = time_size.w + (g_config->show_am_pm ? am_pm_size.w : 0);
+    int content_w = time_size.w + (config_get()->show_am_pm ? am_pm_size.w : 0);
     int text_h = time_size.h - MT_TIME; // Remove top margin, approximately
     int text_top = -MT_TIME + (bounds.size.h/2 - text_h/2);
     int text_left = bounds.size.w / 2 - content_w / 2;
@@ -78,11 +78,11 @@ void time_layer_tick() {
     // emery: nudge custom/LECO time text vertically to keep optical centering, since each
     // font's metrics differ from the stock-49 MT_TIME calibration.
 #ifdef PBL_PLATFORM_EMERY
-    if (g_config->time_font == TIME_FONT_LECO) {
+    if (config_get()->time_font == TIME_FONT_LECO) {
         text_top -= MT_TIME_LECO;
-    } else if (g_config->time_font == TIME_FONT_ROBOTO) {
+    } else if (config_get()->time_font == TIME_FONT_ROBOTO) {
         text_top -= MT_TIME_ROBOTO;
-    } else if (g_config->time_font == TIME_FONT_BITHAM) {
+    } else if (config_get()->time_font == TIME_FONT_BITHAM) {
         text_top -= MT_TIME_BITHAM;
     }
 #endif
@@ -94,22 +94,22 @@ void time_layer_tick() {
     // of round digits. These are descenderless numeric fonts and the container clips us, so
     // extending the frame downward only reclaims the clipped glyph bottoms.
     text_layer_move_frame(s_time_layer, GRect(text_left, text_top, content_w, bounds.size.h - text_top));
-    if (g_config->show_am_pm) {
+    if (config_get()->show_am_pm) {
         int am_pm_y = MT_TIME - MT_AM_PM;
         // emery: nudge LECO AM/PM down slightly to align with larger time numerals.
 #ifdef PBL_PLATFORM_EMERY
-        if (g_config->time_font == TIME_FONT_LECO) {
+        if (config_get()->time_font == TIME_FONT_LECO) {
             am_pm_y += MT_AM_PM_LECO;
         }
 #endif
         text_layer_move_frame(s_am_pm_layer, GRect(time_size.w, am_pm_y, 30, time_size.h));
     }
-    layer_set_hidden(text_layer_get_layer(s_am_pm_layer), !g_config->show_am_pm);
+    layer_set_hidden(text_layer_get_layer(s_am_pm_layer), !config_get()->show_am_pm);
 }
 
 void time_layer_refresh() {
     text_layer_set_font(s_time_layer, config_time_font());
-    text_layer_set_text_color(s_time_layer, theme_pick(g_config->color_time, theme_fg()));
+    text_layer_set_text_color(s_time_layer, theme_pick(config_get()->color_time, theme_fg()));
     text_layer_set_text_color(s_am_pm_layer, theme_fg());  // re-apply: create-time value goes stale on a live theme flip
     time_layer_tick();  // Update main time text and layer positions
 }

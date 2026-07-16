@@ -34,7 +34,7 @@
 // untouched-in-v1 known limit; only the B&W/bw-theme arm changes with theme).
 // Forecast's NIGHT variant stays local to forecast_layer.c (health has no night concept).
 #define BOTTOM_VIEW_AXIS_COLOR theme_pick(GColorOrange, theme_fg())
-// theme_pick()/theme_furniture() are runtime calls (they read g_config->theme),
+// theme_pick()/theme_furniture() are runtime calls (they read config_get()->theme),
 // which C disallows in a static-storage initializer — so this can't be a plain
 // `const TickSide`, the same reason rain_radar_layer.c's axis ticks moved to a
 // per-redraw radar_tick_style() builder. Call fresh on every redraw; both callers

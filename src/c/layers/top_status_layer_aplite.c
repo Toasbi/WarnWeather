@@ -106,8 +106,8 @@ static void ensure_bt_disconnect_bitmap_loaded(void) {
 }
 
 static void maybe_unload_top_status_bitmaps(bool show_qt, bool connected) {
-    bool show_bt = connected && g_config->show_bt;
-    bool show_bt_disconnect = !connected && g_config->show_bt_disconnect;
+    bool show_bt = connected && config_get()->show_bt;
+    bool show_bt_disconnect = !connected && config_get()->show_bt_disconnect;
 
     if (!show_qt && s_mute_bitmap) {
         gbitmap_destroy(s_mute_bitmap);
@@ -133,8 +133,8 @@ static GRect content_rect(void) {
     GRect bounds = layer_get_bounds(s_top_status_layer);
     bool show_qt = show_qt_icon();
     bool connected = connection_service_peek_pebble_app_connection();
-    bool show_bt = connected && g_config->show_bt;
-    bool show_bt_disconnect = !connected && g_config->show_bt_disconnect;
+    bool show_bt = connected && config_get()->show_bt;
+    bool show_bt_disconnect = !connected && config_get()->show_bt_disconnect;
 
     int16_t left = ICON_SLOT_1.origin.x;   // no icons showing: clear just the padding
     if (show_qt) {
@@ -154,8 +154,8 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
     bool show_qt = show_qt_icon();
     bool connected = connection_service_peek_pebble_app_connection();
     int icon_x = show_qt ? ICON_SLOT_2.origin.x : ICON_SLOT_1.origin.x;
-    bool show_bt = connected && g_config->show_bt;
-    bool show_bt_disconnect = !connected && g_config->show_bt_disconnect;
+    bool show_bt = connected && config_get()->show_bt;
+    bool show_bt_disconnect = !connected && config_get()->show_bt_disconnect;
 
     maybe_unload_top_status_bitmaps(show_qt, connected);
 
@@ -228,12 +228,12 @@ void bluetooth_icons_refresh(bool connected) {
 
 void bluetooth_callback(bool connected) {
     bluetooth_icons_refresh(connected);
-    if (!connected && g_config->vibe)
+    if (!connected && config_get()->vibe)
         vibes_double_pulse();
 }
 
 bool show_qt_icon() {
-    return g_config->show_qt && quiet_time_is_active();
+    return config_get()->show_qt && quiet_time_is_active();
 }
 
 void status_icons_refresh() {

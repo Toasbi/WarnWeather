@@ -95,7 +95,7 @@ bool rain_countdown_format(char *out, size_t out_size, time_t now) {
         rain_countdown_refresh(now);
     }
 
-    const int horizon = g_config ? g_config->rain_countdown_horizon_min : 0;
+    const int horizon = config_get() ? config_get()->rain_countdown_horizon_min : 0;
     if (horizon <= 0 || s_rc_snooze || !s_rc_valid) {
         return false;
     }

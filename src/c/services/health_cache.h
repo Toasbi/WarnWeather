@@ -75,8 +75,8 @@ time_t health_cache_read(int16_t *steps_out, int16_t *hr_out,
 /**
  * Snapshot the current cache (steps/HR/sleep/anchor hour) to persist storage.
  * No-op unless the cache is ready (never persists a mid-build snapshot).
- * Call from main_window_unload() — must not depend on g_config, which may
- * already be freed by the time unload runs (see AGENTS.md / the design doc).
+ * Call from main_window_unload() — must not call config_get(), which is already
+ * NULL by then (watchface.c unloads config before the window).
  */
 void health_cache_persist_save(void);
 

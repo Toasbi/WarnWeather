@@ -36,7 +36,7 @@ static Window *s_main_window;
 
 // Cycle cursor. A wrist-flick advances to the next enabled + available view and
 // wraps back. Survives a relaunch (e.g. Pebble's Quiet Time forces a full app
-// process relaunch on real hardware) within g_config->view_reset_min minutes, or
+// process relaunch on real hardware) within config_get()->view_reset_min minutes, or
 // MAX_STALE_TIME_SEC when auto-return is disabled — see persist_get_view_cursor()
 // in main_window_load() and docs/superpowers/specs/2026-07-06-persist-across-
 // relaunch-design.md. Beyond that window it boots to the DEFAULT view (index 0).
@@ -69,7 +69,7 @@ static bool radar_has_data(void) {
 // (aplite compiles the health service out entirely).
 static bool health_renderable(void) {
 #if defined(PBL_HEALTH)
-    return g_config->health_mode != HEALTH_OFF && health_available();
+    return config_get()->health_mode != HEALTH_OFF && health_available();
 #else
     return false;
 #endif
@@ -85,13 +85,13 @@ static ViewSpec unpack_slot_spec(uint8_t byte) {
 
 // The ViewSpec for the view currently on screen.
 static ViewSpec current_view_spec(void) {
-    return unpack_slot_spec(g_config->view_spec[s_view_index]);
+    return unpack_slot_spec(config_get()->view_spec[s_view_index]);
 }
 
 // Next flick target after `from`. Resolves availability from the SDK here (radar data
 // present? health renderable?) and defers the pure wrap logic to layout.c.
 static uint8_t next_view_index(uint8_t from) {
-    return view_cursor_next(from, g_config->view_spec, radar_has_data(), health_renderable());
+    return view_cursor_next(from, config_get()->view_spec, radar_has_data(), health_renderable());
 }
 
 // Reframe every band and set layer visibility + status tiers for the active view.
@@ -223,13 +223,13 @@ static void main_window_load(Window *window) {
     // (or MAX_STALE_TIME_SEC when auto-return is off). Must run before
     // current_view_spec() below, which reads s_view_index indirectly.
     time_t unload_epoch = persist_get_watchface_unload_epoch();
-    time_t restore_window = (g_config->view_reset_min > 0)
-                                 ? (time_t) g_config->view_reset_min * 60
+    time_t restore_window = (config_get()->view_reset_min > 0)
+                                 ? (time_t) config_get()->view_reset_min * 60
                                  : (time_t) MAX_STALE_TIME_SEC;
     if (unload_epoch > 0 && time(NULL) - unload_epoch <= restore_window) {
         uint8_t restored = (uint8_t) persist_get_view_cursor();
         if (restored < 3
-                && view_slot_available(g_config->view_spec[restored], radar_has_data(), health_renderable())) {
+                && view_slot_available(config_get()->view_spec[restored], radar_has_data(), health_renderable())) {
             s_view_index = restored;
             s_flick_epoch = time(NULL);   // restored a non-default view → run its full window
         }
@@ -276,7 +276,7 @@ static void main_window_load(Window *window) {
     // Seed the applied-cycle snapshot with the boot config so the first same-cycle
     // re-apply (e.g. an incoming radar update) doesn't read it as a settings change
     // and reset a cursor the user has since flicked (or we just restored above).
-    memcpy(s_applied_view_spec, g_config->view_spec, sizeof(s_applied_view_spec));
+    memcpy(s_applied_view_spec, config_get()->view_spec, sizeof(s_applied_view_spec));
     render_active_view();
 #if defined(PBL_HEALTH)
     // Repaint the health view when a deferred build finishes.
@@ -284,8 +284,8 @@ static void main_window_load(Window *window) {
     // Warm the cache at boot when health is enabled — restoring a fresh-enough
     // snapshot if we have one, so the graph doesn't reshow "Loading health data"
     // for a relaunch that changed little; otherwise a full build, as before.
-    s_health_mode_prev = g_config->health_mode;
-    if (g_config->health_mode != HEALTH_OFF && !health_cache_restore()) {
+    s_health_mode_prev = config_get()->health_mode;
+    if (config_get()->health_mode != HEALTH_OFF && !health_cache_restore()) {
         health_cache_reset();
     }
 #endif
@@ -304,9 +304,9 @@ static void main_window_unload(Window *window) {
     quick_view_unsubscribe();
 #endif
     // Snapshot session state for a possible relaunch (see main_window_load's
-    // restore logic above). g_config is already freed by this point —
-    // watchface.c's deinit() calls config_unload() before main_window_destroy()
-    // — so nothing below may dereference it.
+    // restore logic above). config is already unloaded by this point
+    // (config_get() returns NULL) — watchface.c's deinit() calls config_unload()
+    // before main_window_destroy() — so nothing below may call it.
     persist_set_view_cursor(s_view_index);
     persist_set_watchface_unload_epoch(time(NULL));
 #if defined(PBL_HEALTH)
@@ -353,7 +353,7 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     bool weather_needs_health = weather_status_layer_uses_live_health();
     bool top_needs_health = top_status_layer_uses_live_health();
     bool status_needs_health = weather_needs_health || top_needs_health;
-    if (g_config->health_mode != HEALTH_OFF) {
+    if (config_get()->health_mode != HEALTH_OFF) {
         health_cache_tick(health_on_screen);
     }
     // Repaint the on-screen health view from the (now-warm) cache. The summary
@@ -373,7 +373,7 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     // elapsed since the flick — elapsed seconds, not minute-tick edges, so a flick late
     // in a wall-clock minute still gets its full window before snapping back.
     if (s_view_index != 0
-            && view_auto_return_due(time(NULL), s_flick_epoch, g_config->view_reset_min)) {
+            && view_auto_return_due(time(NULL), s_flick_epoch, config_get()->view_reset_min)) {
         s_flick_epoch = 0;
         s_view_index = 0;
         render_active_view();
@@ -417,10 +417,10 @@ void main_window_apply_top_view() {
     // A settings flip enabling health (false->true) warms the cache immediately; the
     // status summary is recomputed on the minute tick (the row shows values held from
     // the boot prime / last tick until then).
-    if (g_config->health_mode != HEALTH_OFF && s_health_mode_prev == HEALTH_OFF) {
+    if (config_get()->health_mode != HEALTH_OFF && s_health_mode_prev == HEALTH_OFF) {
         health_cache_reset();
     }
-    s_health_mode_prev = g_config->health_mode;
+    s_health_mode_prev = config_get()->health_mode;
 #endif
     // Re-apply the current view after radar availability or config changed. A radar/health
     // view whose data or capability vanished degrades in place via view_spec_resolve. But a
@@ -428,8 +428,8 @@ void main_window_apply_top_view() {
     // view — return to the default then, so the cursor never strands on a stale slot (the
     // "default view never shows after changing settings" bug). A same-cycle re-apply (radar
     // availability flip) leaves the cursor where the user put it.
-    s_view_index = view_cursor_after_config(s_view_index, s_applied_view_spec, g_config->view_spec);
-    memcpy(s_applied_view_spec, g_config->view_spec, sizeof(s_applied_view_spec));
+    s_view_index = view_cursor_after_config(s_view_index, s_applied_view_spec, config_get()->view_spec);
+    memcpy(s_applied_view_spec, config_get()->view_spec, sizeof(s_applied_view_spec));
     render_active_view();
     main_window_refresh();
 }

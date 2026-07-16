@@ -115,11 +115,11 @@ static GColor date_color(struct tm *t) {
         return theme_fg();
     }
     if (cell_is_holiday(t))
-        return g_config->color_us_federal;
+        return config_get()->color_us_federal;
     if (t->tm_wday == 0)
-        return g_config->color_sunday;
+        return config_get()->color_sunday;
     if (t->tm_wday == 6)
-        return g_config->color_saturday;
+        return config_get()->color_saturday;
     return theme_fg();
 }
 
@@ -129,7 +129,7 @@ static GColor today_color() {
         return theme_fg();
     }
     struct tm t = relative_tm(0);
-    return gcolor_equal(g_config->color_today, GColorBlack) ? date_color(&t) : g_config->color_today;
+    return gcolor_equal(config_get()->color_today, GColorBlack) ? date_color(&t) : config_get()->color_today;
 }
 
 // Rows for the active view, pushed by the window (tier push). See the header

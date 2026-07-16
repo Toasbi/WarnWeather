@@ -327,7 +327,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 {
     MEMORY_LOG_HEAP("forecast_update:enter");
     GRect bounds = layer_get_bounds(layer);
-    const bool night_on = g_config->day_night_shading;
+    const bool night_on = config_get()->day_night_shading;
     ForecastLayout layout = compute_layout(bounds);
     GRect graph_bounds = layout.graph_bounds;
     int h = layout.h;

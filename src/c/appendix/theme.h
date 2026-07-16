@@ -2,7 +2,7 @@
 
 // Theme accessors — dark=0 (default) / light=1 / bw=2 / bw-light=3 (Config.theme;
 // see docs/superpowers/specs/2026-07-07-theme-inversion-design.md). Static-inline,
-// header-only: no new .c file, no heap. Every accessor reads g_config->theme
+// header-only: no new .c file, no heap. Every accessor reads config_get()->theme
 // directly, so it's safe to call anywhere after config_load() has run.
 //
 // Two independent axes used throughout the C render sweep:
@@ -26,7 +26,7 @@
 /** True in the light theme (black-on-white polarity): light or bw-light. */
 static inline bool theme_is_light(void) {
 #if defined(WW_THEME_POLARITY)
-    return g_config->theme == 1 || g_config->theme == 3;
+    return config_get()->theme == 1 || config_get()->theme == 3;
 #else
     // aplite (frozen-lean fork, docs/adr/0001): the light polarity is compiled out —
     // see WW_THEME_POLARITY in wscript. Constant false folds every light arm and the
@@ -58,7 +58,7 @@ static inline GColor theme_furniture(GColor gray) {
 #ifdef PBL_COLOR
 /** True when this color build is rendering the Black & White theme (bw or bw-light). */
 static inline bool theme_is_bw(void) {
-    return g_config->theme == 2 || g_config->theme == 3;
+    return config_get()->theme == 2 || config_get()->theme == 3;
 }
 /**
  * Effective-color pick: on a color build, a bw theme takes bw_arm (the exact
