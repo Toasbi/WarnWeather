@@ -76,6 +76,11 @@ test('snapshot includes configTheme as a string', () => {
   assert.strictEqual(buildSettingsSnapshot({}).configTheme, undefined);
 });
 
+test('snapshot includes aqiScale', () => {
+  assert.equal(buildSettingsSnapshot({ aqiScale: 'us' }).aqiScale, 'us');
+  assert.equal(buildSettingsSnapshot({ aqiScale: 'european' }).aqiScale, 'european');
+});
+
 test('snapshot carries the ten status slot selections', () => {
   const snap = buildSettingsSnapshot({
     statusForecastLeft: 'temp', statusForecastRight: 'sun',
