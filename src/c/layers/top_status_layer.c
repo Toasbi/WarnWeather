@@ -30,6 +30,7 @@
 
 static Layer *s_top_status_layer;
 static StatusRow *s_row;
+static bool s_full_date;
 static GBitmap *s_mute_bitmap;
 static GBitmap *s_bt_bitmap;
 static GBitmap *s_bt_disconnect_bitmap;
@@ -402,6 +403,7 @@ void top_status_layer_create(Layer* parent_layer, GRect frame) {
     MEMORY_HEAP_PROBE_SAMPLE("after_connection_subscribe", &probe);
 
     s_row = status_row_create(STATUS_LINE_TOP);
+    status_row_set_full_date(s_row, s_full_date);
     status_row_apply(s_row, content_rect(), TOP_VIEW_FULL, STATUS_LINE_TOP);
 
     rain_countdown_refresh(watch_services_now());
@@ -419,6 +421,15 @@ void top_status_layer_create(Layer* parent_layer, GRect frame) {
 
     MEMORY_LOG_HEAP("after_top_status_layer_create");
     MEMORY_HEAP_PROBE_LOG_MIN(&probe);
+}
+
+void top_status_layer_set_full_date(bool full_date) {
+    if (full_date == s_full_date) { return; }
+    s_full_date = full_date;
+    if (s_row) {
+        status_row_set_full_date(s_row, s_full_date);
+        top_status_layer_refresh();
+    }
 }
 
 void bluetooth_icons_refresh(bool connected) {

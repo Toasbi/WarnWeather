@@ -20,6 +20,12 @@ Layer *weather_status_layer_get_root(void);
 // Must be set before the first layout/paint.
 void weather_status_layer_set_render_tier(uint8_t tier);
 
+// The active view has no calendar (none tier / quick-view peek) -> this row's
+// date slot renders the full date. Pushed by the window from the current ViewSpec
+// (tier push). A pre-create call stores it for the first paint; a change after
+// create forwards into the row and refreshes; identical value is a no-op.
+void weather_status_layer_set_full_date(bool full_date);
+
 // Select the packed weather line rendered by this owner.
 void weather_status_layer_set_line(uint8_t line_id);
 

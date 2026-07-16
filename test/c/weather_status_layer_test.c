@@ -105,6 +105,11 @@ void status_row_set_sleeping(StatusRow *row, bool sleeping) {
     s_last_sleeping = sleeping;
 }
 
+void status_row_set_full_date(StatusRow *row, bool full_date) {
+    (void)row;
+    (void)full_date;
+}
+
 bool status_row_uses_live_health(const StatusRow *row) {
     return row && s_live_health;
 }

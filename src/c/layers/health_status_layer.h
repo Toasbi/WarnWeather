@@ -23,6 +23,12 @@ void health_status_layer_set_render_tier(uint8_t tier);
 // comes from the active ViewSpec assembled in windows/layout.c.
 void health_status_layer_set_full_mode(bool full);
 
+// The active view has no calendar (none tier / quick-view peek) -> this row's
+// date slot renders the full date. Pushed by the window from the current ViewSpec
+// (tier push). A pre-create call stores it for the first paint; a change after
+// create forwards into the row and refreshes; identical value is a no-op.
+void health_status_layer_set_full_date(bool full_date);
+
 Layer *health_status_layer_get_root(void);
 
 void health_status_layer_refresh(void);

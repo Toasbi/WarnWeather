@@ -43,6 +43,7 @@ struct StatusRow {
     uint8_t tier;
     GRect bounds;
     bool sleeping;
+    bool full_date;
     GDrawCommandImage *glyphs[STATUS_SLOT_COUNT];
     uint8_t glyph_icons[STATUS_SLOT_COUNT];
     int16_t glyph_h;
@@ -99,9 +100,9 @@ static GFont row_font(uint8_t tier) {
     }
 }
 
-static void format_status_date(char *buf, size_t cap) {
+static void format_status_date(bool full_date, char *buf, size_t cap) {
     struct tm tm_now = watch_services_localtime();
-    if (g_config->top_view_mode == TOP_VIEW_NONE) {
+    if (full_date) {
         char mon[8];
         strftime(mon, sizeof(mon), "%b", &tm_now);
         int mday = tm_now.tm_mday;
@@ -119,10 +120,10 @@ static void format_status_date(char *buf, size_t cap) {
     }
 }
 
-static void format_live_value(uint8_t kind, char *buf, size_t cap) {
+static void format_live_value(const StatusRow *row, uint8_t kind, char *buf, size_t cap) {
     switch (kind) {
         case SLOT_LIVE_DATE:
-            format_status_date(buf, cap);
+            format_status_date(row->full_date, buf, cap);
             return;
 #if defined(PBL_HEALTH)
         case SLOT_LIVE_STEPS: {
@@ -170,7 +171,7 @@ static void format_live_value(uint8_t kind, char *buf, size_t cap) {
     }
 }
 
-static void resolve_slot_text(const StatusSlotView *slot, char *buf, size_t cap) {
+static void resolve_slot_text(const StatusRow *row, const StatusSlotView *slot, char *buf, size_t cap) {
     if (cap == 0) { return; }
     if (slot->kind == SLOT_TEXT) {
         size_t n = slot->value_len;
@@ -180,7 +181,7 @@ static void resolve_slot_text(const StatusSlotView *slot, char *buf, size_t cap)
     } else if (slot->kind == SLOT_EMPTY) {
         buf[0] = '\0';
     } else {
-        format_live_value(slot->kind, buf, cap);
+        format_live_value(row, slot->kind, buf, cap);
     }
 }
 
@@ -241,6 +242,10 @@ void status_row_set_sleeping(StatusRow *row, bool sleeping) {
     if (row) { row->sleeping = sleeping; }
 }
 
+void status_row_set_full_date(StatusRow *row, bool full_date) {
+    if (row) { row->full_date = full_date; }
+}
+
 bool status_row_uses_live_health(const StatusRow *row) {
     return row && row->uses_live_health;
 }
@@ -255,7 +260,7 @@ bool status_row_refresh(StatusRow *row) {
         for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
             StatusSlotView slot;
             if (!status_line_slot(s_blob_scratch, (size_t)len, i, &slot)) { break; }
-            resolve_slot_text(&slot, s_text_scratch, sizeof(s_text_scratch));
+            resolve_slot_text(row, &slot, s_text_scratch, sizeof(s_text_scratch));
             sig = sig_fold(sig, &slot.kind, 1);
             sig = sig_fold(sig, &slot.icon, 1);
             sig = sig_fold(sig, (const uint8_t *)s_text_scratch,
@@ -325,7 +330,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
                      || row->line_id == STATUS_LINE_RADAR;
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         if (!status_line_slot(s_blob_scratch, (size_t)len, i, &slots[i])) { return; }
-        resolve_slot_text(&slots[i], texts[i], sizeof(texts[i]));
+        resolve_slot_text(row, &slots[i], texts[i], sizeof(texts[i]));
         if (row->sleeping && weather_line && i == 0) {
             measures[i].present = true;
             measures[i].icon_w = SNOOZE_BOX_W;

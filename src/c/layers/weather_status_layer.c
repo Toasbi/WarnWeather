@@ -7,6 +7,7 @@
 static Layer *s_weather_status_layer;
 static StatusRow *s_row;
 static uint8_t s_render_tier = TOP_VIEW_COMPACT;
+static bool s_full_date;
 static uint8_t s_line_id = STATUS_LINE_FORECAST;
 
 static void weather_status_update_proc(Layer *layer, GContext *ctx) {
@@ -32,6 +33,7 @@ void weather_status_layer_create(Layer *parent_layer, GRect frame) {
     layer_set_update_proc(s_weather_status_layer, weather_status_update_proc);
     layer_add_child(parent_layer, s_weather_status_layer);
     s_row = status_row_create(s_line_id);
+    status_row_set_full_date(s_row, s_full_date);
     apply_row();
     weather_status_layer_refresh();
 }
@@ -46,6 +48,15 @@ void weather_status_layer_set_render_tier(uint8_t tier) {
     if (tier == s_render_tier) { return; }
     s_render_tier = tier;
     refresh_row();
+}
+
+void weather_status_layer_set_full_date(bool full_date) {
+    if (full_date == s_full_date) { return; }
+    s_full_date = full_date;
+    if (s_row) {
+        status_row_set_full_date(s_row, s_full_date);
+        refresh_row();
+    }
 }
 
 void weather_status_layer_set_line(uint8_t line_id) {

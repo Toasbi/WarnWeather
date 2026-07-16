@@ -130,6 +130,11 @@ static void render_active_view(void) {
     // Tier push: per-view layout facts flow view spec -> window -> layer static.
     // (The legacy top_view_mode bridge above is deleted once all readers are pushed.)
     calendar_layer_set_rows(spec.calendar_rows);
+    top_status_layer_set_full_date(spec.calendar_rows == 0);
+    weather_status_layer_set_full_date(spec.calendar_rows == 0);
+#if defined(PBL_HEALTH)
+    health_status_layer_set_full_date(spec.calendar_rows == 0);
+#endif
     layer_set_frame(time_layer_get_root(), L.time);
     layer_set_frame(calendar_layer_get_root(), L.top);
 #if defined(WW_RAIN_RADAR)
@@ -242,12 +247,14 @@ static void main_window_load(Window *window) {
 #endif
     // Tell the status layers which tier to render at before they lay out their text.
     weather_status_layer_set_render_tier(spec.status_tier);
+    weather_status_layer_set_full_date(spec.calendar_rows == 0);   // NEW
     weather_status_layer_set_line(
         (spec.top == TOP_BAND_RADAR || spec.body == BODY_RADAR)
             ? STATUS_LINE_RADAR : STATUS_LINE_FORECAST);
 #if defined(PBL_HEALTH)
     weather_status_layer_create(window_layer, (spec.status == STATUS_ROW_DUAL) ? L.status_lower : L.status);
     health_status_layer_set_render_tier(spec.status_tier);
+    health_status_layer_set_full_date(spec.calendar_rows == 0);   // NEW
     health_status_layer_set_full_mode(spec.calendar_rows == 3);
     health_status_layer_create(window_layer, L.status);
 #else
@@ -258,6 +265,10 @@ static void main_window_load(Window *window) {
 #if defined(WW_RAIN_RADAR)
     rain_radar_layer_create(window_layer, L.radar);
 #endif
+    // Boot tier push: the strip resolves its slots inside create(), and the date
+    // slot needs the BOOT view's density — not the Clay hint. Also fixes the stale
+    // date after a relaunch-restore onto a none-tier view.
+    top_status_layer_set_full_date(spec.calendar_rows == 0);
     top_status_layer_create(window_layer, L.top_status); // +1 height already in L.top_status
     loading_layer_create(window_layer, L.loading);
     loading_layer_refresh();

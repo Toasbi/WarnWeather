@@ -14,6 +14,7 @@ static Layer *s_health_status_layer;
 static StatusRow *s_row;
 static uint8_t s_render_tier = TOP_VIEW_COMPACT;
 static bool s_full_mode = false;
+static bool s_full_date;
 static GRect s_applied_bounds;
 static bool s_has_applied_bounds;
 
@@ -59,6 +60,7 @@ void health_status_layer_create(Layer *parent_layer, GRect frame) {
     layer_set_update_proc(s_health_status_layer, health_status_update_proc);
     layer_add_child(parent_layer, s_health_status_layer);
     s_row = status_row_create(STATUS_LINE_HEALTH);
+    status_row_set_full_date(s_row, s_full_date);
     apply_row();
     health_status_layer_refresh();
 }
@@ -73,6 +75,15 @@ void health_status_layer_set_full_mode(bool full) {
     if (full == s_full_mode) { return; }
     s_full_mode = full;
     refresh_row();
+}
+
+void health_status_layer_set_full_date(bool full_date) {
+    if (full_date == s_full_date) { return; }
+    s_full_date = full_date;
+    if (s_row) {
+        status_row_set_full_date(s_row, s_full_date);
+        refresh_row();
+    }
 }
 
 Layer *health_status_layer_get_root(void) {

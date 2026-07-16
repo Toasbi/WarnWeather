@@ -103,6 +103,11 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     if (row && ctx) { s_draw_count++; }
 }
 
+void status_row_set_full_date(StatusRow *row, bool full_date) {
+    (void)row;
+    (void)full_date;
+}
+
 static void owner_forwards_health_row_and_preserves_nudge(void) {
     Layer parent = {0};
     GContext ctx = {0};
