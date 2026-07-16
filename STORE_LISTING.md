@@ -92,6 +92,7 @@ STATUS LINES
   - city
   - sunrise/sunset
   - UV index
+  - air quality index (AQI)
   - wind speed and wind gusts
   - precipitation chance
   - steps and walked distance

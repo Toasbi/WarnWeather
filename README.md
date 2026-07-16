@@ -64,7 +64,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Sleep mode (battery-saving night pause)
 
 **Status lines**
-* Configurable status lines — for each view (forecast, radar, top strip, and health) choose what appears in the left and right slots, plus the middle slot on the radar and health views, from a catalog: current temperature, city, sunrise/sunset, UV index, wind speed, wind gusts, precipitation chance, steps, walked distance, sleep, and heart rate
+* Configurable status lines — for each view (forecast, radar, top strip, and health) choose what appears in the left and right slots, plus the middle slot on the radar and health views, from a catalog: current temperature, city, sunrise/sunset, UV index, air quality index, wind speed, wind gusts, precipitation chance, steps, walked distance, sleep, and heart rate
 * The forecast view keeps the city in its centre and the top strip keeps the date (with the battery top-right); health items appear only on health-capable watches, and heart rate only where a heart-rate sensor is present
 * A temporarily missing weather value shows as "--" so the row never jumps
 
