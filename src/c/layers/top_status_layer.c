@@ -1,11 +1,13 @@
 #include <string.h>
 #include "top_status_layer.h"
 #include "battery_layer.h"
+#include "status_row.h"
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
 #include "c/appendix/palette.h"
 #include "c/appendix/rain_countdown.h"
 #include "c/appendix/rain_tier.h"
+#include "c/appendix/status_line.h"
 #include "c/appendix/theme.h"
 #include "c/services/watch_services.h"
 
@@ -27,7 +29,7 @@
 #endif
 
 static Layer *s_top_status_layer;
-static char s_calendar_month_text[20];   // "22. Sep 2026" in none mode ("Jul 2026" otherwise)
+static StatusRow *s_row;
 static GBitmap *s_mute_bitmap;
 static GBitmap *s_bt_bitmap;
 static GBitmap *s_bt_disconnect_bitmap;
@@ -251,6 +253,33 @@ static void maybe_unload_top_status_bitmaps(bool show_qt, bool draw_bt, bool dra
     }
 }
 
+// Configurable slots (status_row's left slot / fixed date mid slot / right slot)
+// live between the left icon slot(s) and the battery. Left inset clears whichever
+// icons are currently on screen (QT and/or BT), reusing the same booleans
+// top_status_update_proc computes; right inset clears the battery. This is only
+// ever consulted in non-alert mode (the alert branch draws its own centered
+// glyph+text unit instead), so it need not account for the alert's icon-suppression
+// gate.
+static GRect content_rect(void) {
+    GRect bounds = layer_get_bounds(s_top_status_layer);
+    bool show_qt = show_qt_icon();
+    bool connected = connection_service_peek_pebble_app_connection();
+    bool wants_bt = connected && g_config->show_bt;
+    bool wants_bt_disc = !connected && g_config->show_bt_disconnect;
+
+    int16_t left = ICON_SLOT_1.origin.x;   // no icons showing: clear just the padding
+    if (show_qt) {
+        // QT holds slot 1; BT (if any) holds slot 2 alongside it.
+        left = (int16_t)(ICON_SLOT_2.origin.x + ICON_SLOT_2.size.w + PADDING);
+    } else if (wants_bt || wants_bt_disc) {
+        left = (int16_t)(ICON_SLOT_1.origin.x + ICON_SLOT_1.size.w + PADDING);
+    }
+    int16_t right = (int16_t)(BATTERY_W + 2 * PADDING);
+    int16_t w = (int16_t)(bounds.size.w - left - right);
+    if (w < 0) { w = 0; }
+    return GRect((int16_t)(bounds.origin.x + left), bounds.origin.y, w, bounds.size.h);
+}
+
 static void top_status_update_proc(Layer *layer, GContext *ctx) {
     GRect bounds = layer_get_bounds(layer);
     bool show_qt = show_qt_icon();
@@ -262,14 +291,11 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
     bool wants_bt = connected && g_config->show_bt;
     bool wants_bt_disc = !connected && g_config->show_bt_disconnect;
 
-    // What text, where, and whether/where Bluetooth draws. Defaults = month mode.
+    // Alert mode centers a glyph+text unit in place of the configurable slots
+    // (computed below, byte-identical to before); non-alert mode defers the row
+    // to status_row after the icon draws instead of drawing text here.
     char shown[sizeof(s_rain_alert_text)];
-    strncpy(shown, alert ? s_rain_alert_text : s_calendar_month_text, sizeof(shown));
-    shown[sizeof(shown) - 1] = '\0';
-
-    // Month mode uses the full-width centered rect. Alert mode centers the glyph +
-    // text as one unit (computed below), so the two read as a single grouped label.
-    GRect text_rect = month_text_rect(bounds, font, shown);
+    GRect text_rect = bounds;   // unused unless alert (overwritten below)
     GTextAlignment text_align = GTextAlignmentCenter;
     bool draw_qt = show_qt;
     bool draw_bt = !alert && wants_bt;
@@ -297,6 +323,10 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
     int glyph_x = icon_x;
 
     if (alert) {
+        strncpy(shown, s_rain_alert_text, sizeof(shown));
+        shown[sizeof(shown) - 1] = '\0';
+        text_rect = month_text_rect(bounds, font, shown);
+
         // Center glyph+gap+text as one block: measure the text, seat the glyph just
         // left of it, then left-align the text immediately after the glyph.
         GSize text_size = graphics_text_layout_get_content_size(
@@ -355,7 +385,12 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
         draw_bitmap(ctx, s_bt_disconnect_bitmap, GRect(bt_x, STATUS_ICON_Y(bounds.size.h, 10), 10, 10));
     }
 
-    draw_status_text_in(ctx, text_rect, shown, text_align, font);
+    if (alert) {
+        draw_status_text_in(ctx, text_rect, shown, text_align, font);
+    } else {
+        status_row_apply(s_row, content_rect(), TOP_VIEW_FULL, STATUS_LINE_TOP);
+        status_row_draw(s_row, ctx);
+    }
 }
 
 void top_status_layer_create(Layer* parent_layer, GRect frame) {
@@ -372,6 +407,9 @@ void top_status_layer_create(Layer* parent_layer, GRect frame) {
         .pebble_app_connection_handler = bluetooth_callback
     });
     MEMORY_HEAP_PROBE_SAMPLE("after_connection_subscribe", &probe);
+
+    s_row = status_row_create(STATUS_LINE_TOP);
+    status_row_apply(s_row, content_rect(), TOP_VIEW_FULL, STATUS_LINE_TOP);
 
     rain_countdown_refresh(watch_services_now());
     top_status_layer_refresh();
@@ -447,38 +485,22 @@ void top_status_layer_tick() {
     if (recompute_rain_alert()) {
         dirty = true;
     }
+    if (status_row_refresh(s_row)) {
+        dirty = true;
+    }
     if (dirty) {
         layer_mark_dirty(s_top_status_layer);
     }
 }
 
 void top_status_layer_refresh() {
-    struct tm tm_now = watch_services_localtime();
-    if (g_config->top_view_mode == TOP_VIEW_NONE) {
-        // No calendar carries the day-of-month, so the strip shows the full date.
-        // Keep the abbreviated month; build with snprintf from the int day/year to
-        // avoid %e space-padding and match the app's no-leading-zero day. Order
-        // follows the watch locale (US English = month-first).
-        char mon[8];
-        strftime(mon, sizeof(mon), "%b", &tm_now);          // "Jul"
-        // Clamp to real calendar ranges so the compiler's format-truncation
-        // analysis knows these are 2- and 4-digit values (same discipline as
-        // health_status_layer.c) — otherwise it assumes full int width.
-        int mday = tm_now.tm_mday;
-        if (mday < 1) { mday = 1; } else if (mday > 31) { mday = 31; }
-        int year = tm_now.tm_year + 1900;
-        if (year < 0) { year = 0; } else if (year > 9999) { year = 9999; }
-        const char *loc = i18n_get_system_locale();
-        if (loc && strncmp(loc, "en_US", 5) == 0) {
-            snprintf(s_calendar_month_text, sizeof(s_calendar_month_text), "%s %d. %d", mon, mday, year); // Jul 4. 2026
-        } else {
-            snprintf(s_calendar_month_text, sizeof(s_calendar_month_text), "%d. %s %d", mday, mon, year); // 2. Jul 2026
-        }
-    } else {
-        strftime(s_calendar_month_text, sizeof(s_calendar_month_text), "%b %Y", &tm_now);
-    }
+    // Date formatting lives in status_row.c's format_status_date (SLOT_LIVE_DATE);
+    // this owner only keeps the alert derivation and icon state in sync.
     recompute_rain_alert();
     status_icons_refresh();
+    if (status_row_refresh(s_row)) {
+        layer_mark_dirty(s_top_status_layer);
+    }
 }
 
 void top_status_layer_destroy() {
@@ -498,6 +520,8 @@ void top_status_layer_destroy() {
         s_bt_disconnect_bitmap = NULL;
     }
     rain_glyph_unload();
+    status_row_destroy(s_row);
+    s_row = NULL;
     layer_destroy(s_top_status_layer);
     MEMORY_LOG_HEAP("top_status_layer_destroy:after");
 }

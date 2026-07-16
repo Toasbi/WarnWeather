@@ -1,41 +1,41 @@
 // Lean aplite (Pebble Classic/Steel) twin of top_status_layer.c.
 //
-// Frozen fork of top_status_layer.c as of 3c5b2bc. FEATURE-FROZEN, NOT CODE-FROZEN:
+// Frozen fork of top_status_layer.c as of fc8cf4d. FEATURE-FROZEN, NOT CODE-FROZEN:
 // never add features here (aplite deliberately lacks the rain-intensity glyph /
 // colour / drop-BT-then-ellipsize ladder AND the rain-countdown "Rain in X min"
 // alert — dropped from the strip to fit the 24 KB budget, so rain_countdown.c is
 // --gc-sections'd out of the aplite image); hand-port bugfixes from
-// top_status_layer.c (see `git log 3c5b2bc.. -- src/c/layers/top_status_layer.c`);
-// interface changes are forced by the aplite link error.
+// top_status_layer.c (see `git log fc8cf4d.. -- src/c/layers/top_status_layer.c`);
+// interface changes are forced by the aplite link error. As of fc8cf4d the strip
+// also embeds status_row (Task 12/15) for the configurable left/right slots around
+// the fixed date; status_row_icons_load() returns NULL on aplite, so the slots
+// render as plain text (no icon glyphs) here.
 // See docs/adr/0001-aplite-frozen-lean-fork.md.
 
-#include <string.h>
 #include "top_status_layer.h"
 #include "battery_layer.h"
+#include "status_row.h"
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
+#include "c/appendix/status_line.h"
 #include "c/appendix/theme.h"
-#include "c/services/watch_services.h"
 
 #define BATTERY_W 29
 #define BATTERY_H 10
 #define PADDING 4
-#define MONTH_FONT_OFFSET 7
 #define ICON_SLOT_1 GRect(PADDING, 0, 10, 10)
 #define ICON_SLOT_2 GRect(PADDING * 2 + 10, 0, 10, 10)
 // emery: center icons in the taller status row.
 #ifdef PBL_PLATFORM_EMERY
 #define STATUS_ICON_Y(bounds_h, icon_h) (((bounds_h) - (icon_h)) / 2)
 #define BATTERY_Y(bounds_h) (((bounds_h) - BATTERY_H) / 2)
-#define MONTH_FONT_KEY FONT_KEY_GOTHIC_24
 #else
 #define STATUS_ICON_Y(bounds_h, icon_h) ((void)(bounds_h), (void)(icon_h), 0)
 #define BATTERY_Y(bounds_h) ((void)(bounds_h), 1)
-#define MONTH_FONT_KEY FONT_KEY_GOTHIC_18
 #endif
 
 static Layer *s_top_status_layer;
-static char s_calendar_month_text[20];   // "22. Sep 2026" in none mode ("Jul 2026" otherwise)
+static StatusRow *s_row;
 static GBitmap *s_mute_bitmap;
 static GBitmap *s_bt_bitmap;
 static GBitmap *s_bt_disconnect_bitmap;
@@ -46,34 +46,6 @@ static GColor s_mute_palette[2];
 // only status-strip element without an event source, so the minute handler
 // repaints the strip only when this flips. Kept in sync by status_icons_refresh.
 static bool s_last_qt_active;
-
-static GRect month_text_rect(GRect bounds, GFont font, const char *text) {
-#ifdef PBL_PLATFORM_EMERY
-    // emery: vertically center status text using measured height to match taller status bar.
-    const GRect measure_box = GRect(0, 0, bounds.size.w, bounds.size.h);
-    const GSize text_size = graphics_text_layout_get_content_size(
-        text, font, measure_box, GTextOverflowModeFill, GTextAlignmentCenter);
-    const int text_y = ((bounds.size.h - text_size.h) / 2) - 5;
-    return GRect(0, text_y, bounds.size.w, text_size.h + 3);
-#else
-    (void)font;
-    (void)text;
-    return GRect(0, -MONTH_FONT_OFFSET, bounds.size.w, 25);
-#endif
-}
-
-static void draw_status_text(GContext *ctx, GRect bounds, const char *text) {
-    const GFont font = fonts_get_system_font(MONTH_FONT_KEY);
-    graphics_context_set_text_color(ctx, theme_fg());
-    graphics_draw_text(
-        ctx,
-        text,
-        font,
-        month_text_rect(bounds, font, text),
-        GTextOverflowModeFill,
-        GTextAlignmentCenter,
-        NULL);
-}
 
 static void draw_bitmap(GContext *ctx, GBitmap *bitmap, GRect frame) {
     graphics_context_set_compositing_mode(ctx, GCompOpSet);
@@ -152,6 +124,30 @@ static void maybe_unload_top_status_bitmaps(bool show_qt, bool connected) {
     }
 }
 
+// Configurable slots (status_row's left slot / fixed date mid slot / right slot)
+// live between the left icon slot(s) and the battery. Left inset clears whichever
+// icons are currently on screen (QT and/or BT), reusing the same booleans
+// top_status_update_proc computes; right inset clears the battery.
+static GRect content_rect(void) {
+    GRect bounds = layer_get_bounds(s_top_status_layer);
+    bool show_qt = show_qt_icon();
+    bool connected = connection_service_peek_pebble_app_connection();
+    bool show_bt = connected && g_config->show_bt;
+    bool show_bt_disconnect = !connected && g_config->show_bt_disconnect;
+
+    int16_t left = ICON_SLOT_1.origin.x;   // no icons showing: clear just the padding
+    if (show_qt) {
+        // QT holds slot 1; BT (if any) holds slot 2 alongside it.
+        left = (int16_t)(ICON_SLOT_2.origin.x + ICON_SLOT_2.size.w + PADDING);
+    } else if (show_bt || show_bt_disconnect) {
+        left = (int16_t)(ICON_SLOT_1.origin.x + ICON_SLOT_1.size.w + PADDING);
+    }
+    int16_t right = (int16_t)(BATTERY_W + 2 * PADDING);
+    int16_t w = (int16_t)(bounds.size.w - left - right);
+    if (w < 0) { w = 0; }
+    return GRect((int16_t)(bounds.origin.x + left), bounds.origin.y, w, bounds.size.h);
+}
+
 static void top_status_update_proc(Layer *layer, GContext *ctx) {
     GRect bounds = layer_get_bounds(layer);
     bool show_qt = show_qt_icon();
@@ -176,7 +172,8 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
         draw_bitmap(ctx, s_bt_disconnect_bitmap, GRect(icon_x, STATUS_ICON_Y(bounds.size.h, 10), 10, 10));
     }
 
-    draw_status_text(ctx, bounds, s_calendar_month_text);
+    status_row_apply(s_row, content_rect(), TOP_VIEW_FULL, STATUS_LINE_TOP);
+    status_row_draw(s_row, ctx);
 }
 
 void top_status_layer_create(Layer* parent_layer, GRect frame) {
@@ -193,6 +190,9 @@ void top_status_layer_create(Layer* parent_layer, GRect frame) {
         .pebble_app_connection_handler = bluetooth_callback
     });
     MEMORY_HEAP_PROBE_SAMPLE("after_connection_subscribe", &probe);
+
+    s_row = status_row_create(STATUS_LINE_TOP);
+    status_row_apply(s_row, content_rect(), TOP_VIEW_FULL, STATUS_LINE_TOP);
 
     top_status_layer_refresh();
 
@@ -236,42 +236,30 @@ void status_icons_refresh() {
 }
 
 void top_status_layer_tick() {
-    // Per-minute hook. The Quiet-Time icon is the only strip element without an
-    // event source (aplite lacks the rain-countdown alert), so repaint only when
-    // it toggles.
+    // Per-minute hook. Repaint when the Quiet-Time icon toggles (its only event
+    // source; aplite lacks the rain-countdown alert) or when a LIVE health slot
+    // value changes.
+    bool dirty = false;
     bool qt_active = show_qt_icon();
     if (qt_active != s_last_qt_active) {
         s_last_qt_active = qt_active;
+        dirty = true;
+    }
+    if (status_row_refresh(s_row)) {
+        dirty = true;
+    }
+    if (dirty) {
         layer_mark_dirty(s_top_status_layer);
     }
 }
 
 void top_status_layer_refresh() {
-    struct tm tm_now = watch_services_localtime();
-    if (g_config->top_view_mode == TOP_VIEW_NONE) {
-        // No calendar carries the day-of-month, so the strip shows the full date.
-        // Keep the abbreviated month; build with snprintf from the int day/year to
-        // avoid %e space-padding and match the app's no-leading-zero day. Order
-        // follows the watch locale (US English = month-first).
-        char mon[8];
-        strftime(mon, sizeof(mon), "%b", &tm_now);          // "Jul"
-        // Clamp to real calendar ranges so the compiler's format-truncation
-        // analysis knows these are 2- and 4-digit values (same discipline as
-        // health_status_layer.c) — otherwise it assumes full int width.
-        int mday = tm_now.tm_mday;
-        if (mday < 1) { mday = 1; } else if (mday > 31) { mday = 31; }
-        int year = tm_now.tm_year + 1900;
-        if (year < 0) { year = 0; } else if (year > 9999) { year = 9999; }
-        const char *loc = i18n_get_system_locale();
-        if (loc && strncmp(loc, "en_US", 5) == 0) {
-            snprintf(s_calendar_month_text, sizeof(s_calendar_month_text), "%s %d. %d", mon, mday, year); // Jul 4. 2026
-        } else {
-            snprintf(s_calendar_month_text, sizeof(s_calendar_month_text), "%d. %s %d", mday, mon, year); // 2. Jul 2026
-        }
-    } else {
-        strftime(s_calendar_month_text, sizeof(s_calendar_month_text), "%b %Y", &tm_now);
-    }
+    // Date formatting lives in status_row.c's format_status_date (SLOT_LIVE_DATE);
+    // this owner only keeps the icon state in sync.
     status_icons_refresh();
+    if (status_row_refresh(s_row)) {
+        layer_mark_dirty(s_top_status_layer);
+    }
 }
 
 void top_status_layer_destroy() {
@@ -290,6 +278,8 @@ void top_status_layer_destroy() {
         gbitmap_destroy(s_bt_disconnect_bitmap);
         s_bt_disconnect_bitmap = NULL;
     }
+    status_row_destroy(s_row);
+    s_row = NULL;
     layer_destroy(s_top_status_layer);
     MEMORY_LOG_HEAP("top_status_layer_destroy:after");
 }
