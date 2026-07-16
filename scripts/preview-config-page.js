@@ -28,6 +28,7 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/wizard.js'),
   path.join(ROOT, 'src/pkjs/settings/onbuild.js'),
   path.join(ROOT, 'src/pkjs/settings/owm-key-test.js'),
+  path.join(ROOT, 'src/pkjs/settings/news.js'),
   path.join(ROOT, 'src/pkjs/settings/theme-convert.js')
 ];
 var DEFAULT_OUT = path.join(ROOT, 'build/config-ui-preview.html');
@@ -65,7 +66,12 @@ function run(opts) {
     schema: schema,
     env: envFor(opts.platform || 'basalt'),
     cfg: {},
-    userData: { palette: previewPalette.buildPreviewPalette() },
+    userData: {
+      palette: previewPalette.buildPreviewPalette(),
+      newsEndpoint: process.env.NEWS_ENDPOINT || '',
+      appVersion: process.env.NEWS_PREVIEW_VERSION || '9.9.9',
+      accountToken: process.env.NEWS_ENDPOINT ? 'preview-account-token' : ''
+    },
     returnTo: '#'
   });
 }
