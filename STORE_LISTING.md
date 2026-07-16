@@ -67,8 +67,9 @@ CALENDAR
   - Holidays (supporting 150+ countries worldwide and their region/state)
 
 WATCHFACE THEMES
-- Dark (default) and Light on every watch
+- Dark (default) and Light
 - Black & White and B&W Inverted on color watches
+- Pebble Classic/Steel: classic dark look only
   Set the theme in the General tab
 
 TIME

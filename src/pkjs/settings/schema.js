@@ -81,7 +81,11 @@ module.exports = {
                     light: 'White background, black text/lines. Graph colors are unchanged for now.'
                 },
                 options: [['Dark', 'dark'], ['Light (Alpha)', 'light']],
-                showWhen: {not: {env: 'color'}},
+                // aplite compiles the light polarity out (no WW_THEME_POLARITY — the
+                // theme sweep pushed the image past the 24 KB launch ceiling), so the
+                // picker is hidden there entirely; a choice would be a silent no-op.
+                // diorite/flint (also B&W) keep this 2-option slot.
+                showWhen: {all: [{not: {env: 'color'}}, {env: 'themePolarity'}]},
                 onChange: 'themeConvert'
             }, {
                 type: 'segmented',

@@ -25,7 +25,15 @@
 
 /** True in the light theme (black-on-white polarity): light or bw-light. */
 static inline bool theme_is_light(void) {
+#if defined(WW_THEME_POLARITY)
     return g_config->theme == 1 || g_config->theme == 3;
+#else
+    // aplite (frozen-lean fork, docs/adr/0001): the light polarity is compiled out —
+    // see WW_THEME_POLARITY in wscript. Constant false folds every light arm and the
+    // out-of-line theme_fg/theme_bg copies out of the image; a stored light/bw-light
+    // theme byte is ignored and renders as the classic white-on-black.
+    return false;
+#endif
 }
 
 /** dark/bw polarity: white. light polarity: black. Default foreground. */

@@ -134,6 +134,16 @@ def build(ctx):
         # (--gc-sections reaps anything left). Mirrors WW_RAIN_RADAR above.
         if platform != 'aplite':
             ctx.env.CFLAGS += ['-DWW_QUICK_VIEW=1']
+        # Theme polarity (the light / B&W-Inverted axis) is compiled out of aplite:
+        # the 2026-07 theme sweep grew the aplite image past the ~22.06 KB launch
+        # ceiling (the whole image loads into the fixed 24 KB app RAM and the loader
+        # needs ~2.5 KB left, so the firmware silently refused to start the app).
+        # Without WW_THEME_POLARITY, theme.h pins theme_is_light() to false and the
+        # compiler constant-folds every light-polarity arm out of the render sweep
+        # (measured −780 B). aplite keeps the classic white-on-black rendering only;
+        # diorite/flint (also B&W) keep both polarities. Mirrors WW_RAIN_RADAR above.
+        if platform != 'aplite':
+            ctx.env.CFLAGS += ['-DWW_THEME_POLARITY=1']
         if enable_memory_logging:
             ctx.env.CFLAGS += ['-DWW_ENABLE_MEMORY_LOGGING=1']
         if fixture_now:

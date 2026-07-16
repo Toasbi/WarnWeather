@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const schema = require('../src/pkjs/settings/schema.js');
 const { REGION_OPTIONS } = require('../src/pkjs/settings/holiday-data.js');
 const showWhen = require('../src/pkjs/config-ui/lib/show-when.js');
+const platform = require('../src/pkjs/config-ui/lib/platform.js');
 
 function allItems(s) { const out = []; s.tabs.forEach((t) => t.sections.forEach((sec) => sec.items.forEach((it) => out.push(it)))); return out; }
 const items = allItems(schema);
@@ -374,6 +375,22 @@ test('theme is a two-slot select dropdown (color env: 4 options; B&W env: 2), li
     assert.equal(i.defaultValue, 'dark');
     assert.equal(i.onChange, 'themeConvert');
   });
+});
+
+test('aplite hides the theme picker entirely (light polarity compiled out); diorite keeps its 2-option slot', () => {
+  // The watch compiles the light polarity out on aplite (no WW_THEME_POLARITY —
+  // the theme sweep pushed the image past the 24 KB launch ceiling), so offering
+  // a theme choice there would be a silent no-op. diorite/flint (also B&W) keep it.
+  const themeItems = items.filter((i) => i.messageKey === 'theme');
+  const apliteEnv = platform.computeEnv({ platform: 'aplite' });
+  const dioriteEnv = platform.computeEnv({ platform: 'diorite' });
+  themeItems.forEach((i) => {
+    assert.equal(showWhen.isVisible(i, { env: apliteEnv }), false,
+      'theme slot "' + JSON.stringify(i.showWhen) + '" must be hidden on aplite');
+  });
+  const visibleOnDiorite = themeItems.filter((i) => showWhen.isVisible(i, { env: dioriteEnv }));
+  assert.equal(visibleOnDiorite.length, 1, 'diorite keeps exactly one theme slot');
+  assert.deepEqual(visibleOnDiorite[0].options.map((o) => o[1]), ['dark', 'light']);
 });
 
 test('every capabilities:[COLOR] item additionally requires theme not in [bw, bw-light] (effective color)', () => {
