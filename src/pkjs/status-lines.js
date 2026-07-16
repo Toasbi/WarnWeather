@@ -149,6 +149,10 @@ function formatValue(code, payload, settings) {
     v = trendHead(payload.PRECIP_TREND_UINT8);
     return v === null ? '--' : v + '%';
   }
+  if (code === 'aqi') {
+    v = trendHead(payload.AQI_TREND);
+    return v === null ? '--' : 'AQI ' + Math.round(v);
+  }
   return '--';
 }
 

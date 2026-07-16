@@ -173,6 +173,26 @@ test('sun time mirrors leading-zero and AM/PM settings', () => {
     hour12 + ':' + minute + marker);
 });
 
+test('aqi slot renders "AQI n" from AQI_TREND head', () => {
+  const payload = Object.assign(basePayload(), { AQI_TREND: [42, 50] });
+  const settings = baseSettings({ statusForecastLeft: 'aqi' });
+  statusLines.buildStatusLines(payload, settings, WATCH_BASALT);
+  const slots = decodeLine(payload.STATUS_LINE_1_UINT8);
+  assert.equal(slots[0].kind, K.TEXT);
+  assert.equal(slots[0].icon, I.NONE);
+  assert.equal(slots[0].text, 'AQI 42');
+});
+
+test('aqi slot shows -- when AQI_TREND head is null or absent', () => {
+  const nulls = Object.assign(basePayload(), { AQI_TREND: [null] });
+  statusLines.buildStatusLines(nulls, baseSettings({ statusForecastLeft: 'aqi' }), WATCH_BASALT);
+  assert.equal(decodeLine(nulls.STATUS_LINE_1_UINT8)[0].text, '--');
+
+  const absent = basePayload(); // no AQI_TREND at all
+  statusLines.buildStatusLines(absent, baseSettings({ statusForecastLeft: 'aqi' }), WATCH_BASALT);
+  assert.equal(decodeLine(absent.STATUS_LINE_1_UINT8)[0].text, '--');
+});
+
 test('every baked line validates against the caps', () => {
   const p = basePayload();
   statusLines.buildStatusLines(p, baseSettings(), WATCH_EMERY);
