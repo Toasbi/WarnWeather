@@ -230,6 +230,29 @@ function migrateHolidayRegionKeys(isMigrationDone, markDone) {
 }
 
 /**
+ * One-time upgrade of the seeded health-line defaults to the emery triple
+ * (steps/sleep/hr). Only rewrites slots still holding the static defaults, so
+ * a user's explicit choice is never clobbered.
+ * @param {string} platform watch platform name ('emery', 'basalt', ...)
+ * @param {function(): boolean} isMigrationDone marker probe
+ * @param {function()} markDone marker setter
+ */
+function migrateStatusLineHealthDefaults(platform, isMigrationDone, markDone) {
+    var persistClay = loadForMigration(isMigrationDone, 'status line health defaults');
+    if (persistClay === null) { return; }
+    if (platform === 'emery'
+            && persistClay.statusHealthLeft === 'steps'
+            && persistClay.statusHealthMid === 'empty'
+            && persistClay.statusHealthRight === 'sleep') {
+        persistClay.statusHealthMid = 'sleep';
+        persistClay.statusHealthRight = 'hr';
+        save(persistClay);
+        console.log('Migrated health status line to emery defaults');
+    }
+    markDone();
+}
+
+/**
  * Apply values from a dev-config.js file to the stored Clay settings, skipping
  * the local-only dev keys that drive boot behavior rather than watch config.
  *
@@ -341,5 +364,6 @@ module.exports = {
     applyFixtureSettings: applyFixtureSettings,
     migrateWeekendHolidayColors: migrateWeekendHolidayColors,
     migrateHolidayWhiteToToggle: migrateHolidayWhiteToToggle,
-    migrateHolidayRegionKeys: migrateHolidayRegionKeys
+    migrateHolidayRegionKeys: migrateHolidayRegionKeys,
+    migrateStatusLineHealthDefaults: migrateStatusLineHealthDefaults
 };
