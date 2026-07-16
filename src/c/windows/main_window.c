@@ -292,8 +292,12 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     ViewSpec aspec = current_view_spec();
     LayerVisibility av = layout_visibility(&aspec);
     bool health_on_screen = av.health_status || av.health_graph;
-    // Status rows may carry LIVE health slots on any line now.
-    bool status_needs_health = weather_status_layer_uses_live_health();
+    // Status rows may carry LIVE health slots on any line now — the weather row
+    // and the top strip are separate status_row owners, so each is tracked
+    // independently and only refreshed when it actually uses health.
+    bool weather_needs_health = weather_status_layer_uses_live_health();
+    bool top_needs_health = top_status_layer_uses_live_health();
+    bool status_needs_health = weather_needs_health || top_needs_health;
     if (g_config->health_mode != HEALTH_OFF) {
         health_cache_tick(health_on_screen);
     }
@@ -305,7 +309,8 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
         if (av.health_graph) { health_graph_layer_refresh(); }
         if (health_summary_refresh()) {
             if (av.health_status) { health_status_layer_refresh(); }
-            if (status_needs_health) { weather_status_layer_refresh(); }
+            if (weather_needs_health) { weather_status_layer_refresh(); }
+            if (top_needs_health) { top_status_layer_refresh(); }
         }
     }
 #endif

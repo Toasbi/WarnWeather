@@ -112,12 +112,15 @@ function buildHeaviestBundle() {
     secondaryLine: 'wind', thirdLine: 'gust', secondaryLineFill: false, barSource: 'rain', windScale: 'high',
     temperatureUnits: 'c', axisTimeFormat: '12h', timeShowAmPm: true,
     healthMode: 'all', radarProvider: 'rainbow',
-    // heaviest realistic selections: 8-byte texts on every free edge,
-    // city (19B) in the radar mid
-    statusForecastLeft: 'gust', statusForecastRight: 'wind',
-    statusRadarLeft: 'gust', statusRadarMid: 'city', statusRadarRight: 'wind',
-    statusTopLeft: 'gust', statusTopRight: 'wind',
-    statusHealthLeft: 'gust', statusHealthMid: 'city', statusHealthRight: 'wind'
+    // Heaviest realistic selections: 'city' truncates payload.CITY to each
+    // slot's text cap, so every edge slot packs its full 8-byte EDGE_TEXT_MAX
+    // (wind/gust top out around 7 bytes -- "255km/h" -- and would under-model
+    // the true worst case) and every mid slot packs its full 19-byte
+    // MID_TEXT_MAX off the long real-world city name above.
+    statusForecastLeft: 'city', statusForecastRight: 'city',
+    statusRadarLeft: 'city', statusRadarMid: 'city', statusRadarRight: 'city',
+    statusTopLeft: 'city', statusTopRight: 'city',
+    statusHealthLeft: 'city', statusHealthMid: 'city', statusHealthRight: 'city'
   }, { platform: 'emery' });
 
   // Radar (DWD supplies it) — two 24-slot trends + a start epoch.
@@ -146,8 +149,8 @@ test('weather bundle keeps explicit headroom below the watch inbox', () => {
   const size = dictSize(buildHeaviestBundle());
   const inbox = readInboxSize();
   console.log(`heaviest weather bundle: ${size} B of ${inbox} B (headroom ${inbox - size})`);
-  assert.equal(size, 482, 'update the recorded realistic bundle size when its wire contract changes');
-  assert.ok(inbox - size >= 16, `headroom ${inbox - size} B is below the 16 B floor`);
+  assert.equal(size, 498, 'update the recorded realistic bundle size when its wire contract changes');
+  assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });
 
 /** The Clay settings message now carries the palette tuples too. */

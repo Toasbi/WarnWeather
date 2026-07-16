@@ -17,3 +17,6 @@ bool show_qt_icon();
 void top_status_layer_refresh();
 
 void top_status_layer_destroy();
+
+// Whether the active packed line(s) contain a live health slot.
+bool top_status_layer_uses_live_health(void);
