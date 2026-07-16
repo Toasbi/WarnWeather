@@ -8,7 +8,6 @@
 #include "c/appendix/bottom_view.h"
 #include "c/services/health.h"
 #include "c/services/health_cache.h"
-#include "c/appendix/config.h"         // g_config->top_view_mode
 #include "c/appendix/theme.h"
 
 // The health view exists only on health-capable hardware. Platforms without
@@ -47,6 +46,13 @@
 #define HR_STRIPE_GAP_OTHER       BOTTOM_VIEW_PRIMARY_LINE_INSET_Y
 
 static Layer *s_health_graph_layer;
+
+// See health_graph_layer.h — pushed by the window (tier push).
+static bool s_full_mode;
+
+void health_graph_layer_set_full_mode(bool full) {
+    s_full_mode = full;
+}
 
 // Per-redraw scratch. Module-static (NOT stack): aplite's app stack overflows
 // otherwise (mirrors forecast_layer.c). Single layer instance, single-threaded,
@@ -398,7 +404,7 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
         // overlaying it. Full top-view's graph band is shorter, so it uses a tighter
         // gap to avoid squashing the line.
         .inset_top    = BOTTOM_VIEW_PRIMARY_LINE_INSET_Y,
-        .inset_bottom = SLEEP_STRIPE_H + (g_config->top_view_mode == TOP_VIEW_FULL
+        .inset_bottom = SLEEP_STRIPE_H + (s_full_mode
                                               ? HR_STRIPE_GAP_FULL : HR_STRIPE_GAP_OTHER) } };
 
     layers[n++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {

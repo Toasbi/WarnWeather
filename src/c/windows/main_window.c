@@ -134,6 +134,7 @@ static void render_active_view(void) {
     weather_status_layer_set_full_date(spec.calendar_rows == 0);
 #if defined(PBL_HEALTH)
     health_status_layer_set_full_date(spec.calendar_rows == 0);
+    health_graph_layer_set_full_mode(spec.calendar_rows == 3);
 #endif
     layer_set_frame(time_layer_get_root(), L.time);
     layer_set_frame(calendar_layer_get_root(), L.top);
