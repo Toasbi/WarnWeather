@@ -1,4 +1,3 @@
-// src/c/appendix/snooze.c
 #include "snooze.h"
 
 // Areas shorter than this get the compact 2-glyph variant. The status row

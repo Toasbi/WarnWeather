@@ -6,12 +6,9 @@
 #define BV_TICK_SMALL_COLOR GColorLightGray
 #endif
 
-// Was `const TickSide BOTTOM_VIEW_TICK_STYLE = { .color = BV_TICK_SMALL_COLOR, ...
-// .big_color = GColorLightGray }` — baked at compile time, so the big/small ticks
-// stayed the same gray in every theme (bug: e.g. bw-light should show black ticks,
-// like every other B&W-theme element). theme_furniture() flattens the gray to
-// black in the (non-bw) light theme; theme_pick() swaps to theme_fg() outright in
-// bw/bw-light. See bottom_view.h for why this must be a function, not a const.
+// theme_furniture() flattens the gray to black in the (non-bw) light theme;
+// theme_pick() swaps to theme_fg() outright in bw/bw-light. See bottom_view.h
+// for why this must be a function, not a const.
 TickSide bottom_view_tick_style(void) {
     return (TickSide){
         .length     = 4, .color     = theme_pick(theme_furniture(BV_TICK_SMALL_COLOR), theme_fg()),

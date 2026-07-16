@@ -34,6 +34,9 @@
 #define BATTERY_Y(bounds_h) ((void)(bounds_h), 1)
 #endif
 
+static bool show_qt_icon(void);
+static void bluetooth_callback(bool connected);
+
 static Layer *s_top_status_layer;
 static StatusRow *s_row;
 static bool s_full_date;
@@ -54,55 +57,25 @@ static void draw_bitmap(GContext *ctx, GBitmap *bitmap, GRect frame) {
     graphics_context_set_compositing_mode(ctx, GCompOpAssign);
 }
 
-// Tracks the foreground the cached bitmap's palette was tinted with, so a live
-// theme change re-applies the palette (cheap: no image reload) instead of leaving
-// a stale tint from before the flip.
 static GColor s_mute_bitmap_fg;
-
-static void ensure_mute_bitmap_loaded(void) {
-    GColor fg = theme_fg();
-    if (s_mute_bitmap && gcolor_equal(s_mute_bitmap_fg, fg)) {
-        return;
-    }
-    if (!s_mute_bitmap) {
-        s_mute_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_MUTE);
-    }
-    s_mute_palette[0] = fg;
-    s_mute_palette[1] = GColorClear;
-    gbitmap_set_palette(s_mute_bitmap, s_mute_palette, false);
-    s_mute_bitmap_fg = fg;
-}
-
 static GColor s_bt_bitmap_fg;
-
-static void ensure_bt_bitmap_loaded(void) {
-    GColor fg = theme_pick(GColorPictonBlue, theme_fg());
-    if (s_bt_bitmap && gcolor_equal(s_bt_bitmap_fg, fg)) {
-        return;
-    }
-    if (!s_bt_bitmap) {
-        s_bt_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BT_CONNECT);
-    }
-    s_bt_palette[0] = fg;
-    s_bt_palette[1] = GColorClear;
-    gbitmap_set_palette(s_bt_bitmap, s_bt_palette, false);
-    s_bt_bitmap_fg = fg;
-}
-
 static GColor s_bt_disconnect_bitmap_fg;
 
-static void ensure_bt_disconnect_bitmap_loaded(void) {
-    GColor fg = theme_pick(GColorRed, theme_fg());
-    if (s_bt_disconnect_bitmap && gcolor_equal(s_bt_disconnect_bitmap_fg, fg)) {
+// Lazy-load an icon bitmap and (re)tint its 2-color palette to fg. cached_fg
+// remembers the tint the palette was last built with, so a live theme change
+// re-applies the palette (cheap: no image reload) instead of leaving a stale tint.
+static void ensure_icon_loaded(GBitmap **bmp, GColor *palette, GColor *cached_fg,
+                               uint32_t resource_id, GColor fg) {
+    if (*bmp && gcolor_equal(*cached_fg, fg)) {
         return;
     }
-    if (!s_bt_disconnect_bitmap) {
-        s_bt_disconnect_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BT_DISCONNECT);
+    if (!*bmp) {
+        *bmp = gbitmap_create_with_resource(resource_id);
     }
-    s_bt_disconnect_palette[0] = fg;
-    s_bt_disconnect_palette[1] = GColorClear;
-    gbitmap_set_palette(s_bt_disconnect_bitmap, s_bt_disconnect_palette, false);
-    s_bt_disconnect_bitmap_fg = fg;
+    palette[0] = fg;
+    palette[1] = GColorClear;
+    gbitmap_set_palette(*bmp, palette, false);
+    *cached_fg = fg;
 }
 
 static void maybe_unload_top_status_bitmaps(bool show_qt, bool connected) {
@@ -160,16 +133,20 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
     maybe_unload_top_status_bitmaps(show_qt, connected);
 
     if (show_qt) {
-        ensure_mute_bitmap_loaded();
+        ensure_icon_loaded(&s_mute_bitmap, s_mute_palette, &s_mute_bitmap_fg,
+                           RESOURCE_ID_IMAGE_MUTE, theme_fg());
         draw_bitmap(ctx, s_mute_bitmap, GRect(ICON_SLOT_1.origin.x, STATUS_ICON_Y(bounds.size.h, ICON_SLOT_1.size.h),
                                               ICON_SLOT_1.size.w, ICON_SLOT_1.size.h));
     }
 
     if (show_bt) {
-        ensure_bt_bitmap_loaded();
+        ensure_icon_loaded(&s_bt_bitmap, s_bt_palette, &s_bt_bitmap_fg,
+                           RESOURCE_ID_IMAGE_BT_CONNECT, theme_pick(GColorPictonBlue, theme_fg()));
         draw_bitmap(ctx, s_bt_bitmap, GRect(icon_x, STATUS_ICON_Y(bounds.size.h, 10), 10, 10));
     } else if (show_bt_disconnect) {
-        ensure_bt_disconnect_bitmap_loaded();
+        ensure_icon_loaded(&s_bt_disconnect_bitmap, s_bt_disconnect_palette,
+                           &s_bt_disconnect_bitmap_fg,
+                           RESOURCE_ID_IMAGE_BT_DISCONNECT, theme_pick(GColorRed, theme_fg()));
         draw_bitmap(ctx, s_bt_disconnect_bitmap, GRect(icon_x, STATUS_ICON_Y(bounds.size.h, 10), 10, 10));
     }
 
@@ -221,18 +198,13 @@ void top_status_layer_set_full_date(bool full_date) {
     }
 }
 
-void bluetooth_icons_refresh(bool connected) {
-    (void)connected;
+static void bluetooth_callback(bool connected) {
     layer_mark_dirty(s_top_status_layer);
-}
-
-void bluetooth_callback(bool connected) {
-    bluetooth_icons_refresh(connected);
     if (!connected && config_get()->vibe)
         vibes_double_pulse();
 }
 
-bool show_qt_icon() {
+static bool show_qt_icon(void) {
     return config_get()->show_qt && quiet_time_is_active();
 }
 
@@ -241,9 +213,6 @@ void status_icons_refresh() {
     // top_status_layer_tick() only fires on a genuine QT transition.
     s_last_qt_active = show_qt_icon();
     layer_mark_dirty(s_top_status_layer);
-
-    // Ensure bt icons are correct at start
-    bluetooth_icons_refresh(connection_service_peek_pebble_app_connection());
 }
 
 void top_status_layer_tick() {

@@ -38,8 +38,7 @@ static Window *s_main_window;
 // wraps back. Survives a relaunch (e.g. Pebble's Quiet Time forces a full app
 // process relaunch on real hardware) within config_get()->view_reset_min minutes, or
 // MAX_STALE_TIME_SEC when auto-return is disabled — see persist_get_view_cursor()
-// in main_window_load() and docs/superpowers/specs/2026-07-06-persist-across-
-// relaunch-design.md. Beyond that window it boots to the DEFAULT view (index 0).
+// in main_window_load(). Beyond that window it boots to the DEFAULT view (index 0).
 static uint8_t s_view_index;
 // The cycle definition (view_spec bytes) the cursor was last validated against, so
 // main_window_apply_top_view can tell a real settings change (cycle redefined → return
@@ -462,7 +461,6 @@ void main_window_refresh() {
 }
 
 void main_window_destroy() {
-    // Interface for destroying the main window (implicitly unloads contents)
     tick_timer_service_unsubscribe();
     window_destroy(s_main_window);
 }

@@ -1,4 +1,3 @@
-// src/c/appendix/rain_countdown.c
 #include "rain_countdown.h"
 #include "c/appendix/persist.h"
 #include "c/appendix/rain_tier.h"

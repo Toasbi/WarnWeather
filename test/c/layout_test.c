@@ -29,6 +29,18 @@ static void check(const char *name, GRect got, int x, int y, int w, int h) {
 #define FC_BAND_H 20
 #endif
 
+// Golden-test shim for the retired layout_compute() production wrapper: geometry
+// for a plain calendar+forecast view at the given tier, built from the packed
+// wire byte (tier<<6 | top<<4 | body<<2 | status) so the default weights and
+// has_status=true come from view_spec_unpack, exactly as the wrapper did.
+static MainLayout layout_compute(GRect bounds, uint8_t tier, bool dual, int fc_band_h) {
+    uint8_t wire_tier = (tier == LAYOUT_TIER_FULL) ? 3
+                      : (tier == LAYOUT_TIER_COMPACT) ? 2 : 1;
+    uint8_t status = dual ? 2 : 0;   // wire STATUS_ROW_DUAL / STATUS_ROW_WEATHER
+    ViewSpec spec = view_spec_unpack((uint8_t)((wire_tier << 6) | (1 << 4) | status));
+    return layout_compute_spec(bounds, &spec, fc_band_h);
+}
+
 static void golden_rects(void) {
     MainLayout L;
 #ifndef PBL_PLATFORM_EMERY

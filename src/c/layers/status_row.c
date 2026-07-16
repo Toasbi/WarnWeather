@@ -292,10 +292,7 @@ bool status_row_refresh(StatusRow *row) {
     return true;
 }
 
-static void ensure_glyphs(StatusRow *row, int len, GFont font) {
-    int content_h = graphics_text_layout_get_content_size(
-        "0", font, GRect(0, 0, 100, 100),
-        GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).h;
+static void ensure_glyphs(StatusRow *row, int len, int content_h) {
     int16_t target_h = (int16_t)((content_h * ICON_RATIO_NUM) / ICON_RATIO_DEN);
     int16_t band_cap = (int16_t)(row->bounds.size.h - ICON_BAND_MARGIN);
     if (target_h > band_cap) { target_h = band_cap; }
@@ -328,7 +325,10 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     if (len == 0) { return; }
 
     GFont font = row_font(row->tier);
-    ensure_glyphs(row, len, font);
+    int content_h = graphics_text_layout_get_content_size(
+        "0", font, GRect(0, 0, 100, 100),
+        GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).h;
+    ensure_glyphs(row, len, content_h);
 
     int16_t content_w = (int16_t)(row->bounds.size.w - 2 * STATUS_ROW_MARGIN);
     if (content_w < 0) { content_w = 0; }
@@ -368,9 +368,6 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     StatusSlotPlace places[STATUS_SLOT_COUNT];
     status_row_layout(content_w, measures, places);
 
-    int content_h = graphics_text_layout_get_content_size(
-        "0", font, GRect(0, 0, 100, 100),
-        GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).h;
     int text_y_rel = status_text_y(row->bounds.size.h, font);
     int text_y = row->bounds.origin.y + text_y_rel;
     int glyph_cy = row->bounds.origin.y

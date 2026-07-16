@@ -142,21 +142,14 @@ void calendar_layer_set_rows(uint8_t rows) {
 
 static void calendar_update_proc(Layer *layer, GContext *ctx) {
     GRect bounds = layer_get_bounds(layer);
-    int w = bounds.size.w;
-    int h = bounds.size.h;
     const int rows = s_rows;
-    const int box_w = w / DAYS_PER_WEEK;
-    const int box_h = h / rows;
     s_holiday_mask = persist_get_holiday_mask();
     s_holiday_anchor = persist_get_holiday_anchor();
 
-    // Calculate which box holds today's date
     const int i_today = config_n_today(s_rows);
 
     graphics_context_set_fill_color(ctx, today_color());
-    graphics_fill_rect(ctx,
-        GRect((i_today % DAYS_PER_WEEK) * w / DAYS_PER_WEEK, (i_today / DAYS_PER_WEEK) * h / rows,
-        box_w, box_h), 1, GCornersAll);
+    graphics_fill_rect(ctx, calendar_cell_rect(bounds, i_today, rows), 1, GCornersAll);
 
     for (int i = 0; i < rows * DAYS_PER_WEEK; ++i) {
         struct tm t = relative_tm(i - i_today);
@@ -167,14 +160,13 @@ static void calendar_update_proc(Layer *layer, GContext *ctx) {
         GColor text_color = (i == i_today) ? gcolor_legible_over(today_color())
                                            : date_color(&t);
         char buffer[4];
+        snprintf(buffer, sizeof(buffer), "%d", t.tm_mday);
         GFont font = fonts_get_system_font(bold ? CALENDAR_FONT_KEY_BOLD : CALENDAR_FONT_KEY);
         GRect cell_rect = calendar_cell_rect(bounds, i, rows);
 
         graphics_context_set_text_color(ctx, text_color);
-        graphics_draw_text(ctx,
-            (snprintf(buffer, sizeof(buffer), "%d", t.tm_mday), buffer),
-            font,
-            calendar_text_rect(cell_rect, buffer, font), GTextOverflowModeFill, GTextAlignmentCenter, NULL);
+        graphics_draw_text(ctx, buffer, font, calendar_text_rect(cell_rect, buffer, font),
+                           GTextOverflowModeFill, GTextAlignmentCenter, NULL);
     }
 }
 
@@ -188,7 +180,6 @@ void calendar_layer_create(Layer* parent_layer, GRect frame) {
 
 
 void calendar_layer_refresh() {
-    // Request redraw (of today's highlight)
     layer_mark_dirty(s_calendar_layer);
 }
 

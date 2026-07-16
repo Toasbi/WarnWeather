@@ -23,14 +23,12 @@ static time_t s_start_of_today(void) {
 }
 
 bool health_available(void) {
-    return PBL_IF_HEALTH_ELSE(
-        (health_service_metric_accessible(HealthMetricStepCount,
-            s_start_of_today(), time(NULL)) & HealthServiceAccessibilityMaskAvailable) != 0,
-        false);
+    return (health_service_metric_accessible(HealthMetricStepCount,
+        s_start_of_today(), time(NULL)) & HealthServiceAccessibilityMaskAvailable) != 0;
 }
 
 int health_steps_today(void) {
-    return PBL_IF_HEALTH_ELSE((int)health_service_sum_today(HealthMetricStepCount), 0);
+    return (int)health_service_sum_today(HealthMetricStepCount);
 }
 
 int health_distance_today_m(void) {
@@ -57,9 +55,7 @@ int health_sleep_today_seconds(void) {
        6h53; sum_today (like the phone Health app) reports 6h53. This mirrors the
        same daily-weighting trap that drove the per-hour graph onto
        activities_iterate (see health_fill_hourly_sleep). */
-    return PBL_IF_HEALTH_ELSE(
-        (int)health_service_sum_today(HealthMetricSleepSeconds),
-        0);
+    return (int)health_service_sum_today(HealthMetricSleepSeconds);
 }
 
 int health_hr_current(void) {
@@ -81,13 +77,11 @@ int health_hr_current(void) {
        now, Avg, Once), so this is its matching accessibility probe (the exact
        pattern the SDK header shows). Non-HRM hardware still returns 0 cleanly. */
     time_t now = time(NULL);
-    return PBL_IF_HEALTH_ELSE(
-        (health_service_metric_aggregate_averaged_accessible(HealthMetricHeartRateRawBPM,
-            now, now, HealthAggregationAvg, HealthServiceTimeScopeOnce)
-            & HealthServiceAccessibilityMaskAvailable)
-            ? (int)health_service_peek_current_value(HealthMetricHeartRateRawBPM)
-            : 0,
-        0);
+    return (health_service_metric_aggregate_averaged_accessible(HealthMetricHeartRateRawBPM,
+        now, now, HealthAggregationAvg, HealthServiceTimeScopeOnce)
+        & HealthServiceAccessibilityMaskAvailable)
+        ? (int)health_service_peek_current_value(HealthMetricHeartRateRawBPM)
+        : 0;
 }
 
 /**
@@ -116,10 +110,15 @@ int health_hr_current(void) {
  * @param h1 UTC end of the hour (exclusive).
  * @return Total steps recorded in the window.
  */
+/* Shared minute-history scratch. Module .bss, not stack: 60 *
+   sizeof(HealthMinuteData) is too large for the app stack (mirrors the layer
+   modules' static-scratch convention). One buffer serves both readers below —
+   they run serialized on the single event loop and consume the records within
+   their own call. */
+static HealthMinuteData s_minute_data[60];
+
 static int s_minute_steps(time_t h0, time_t h1) {
-    /* Module scratch, not stack: 60 * sizeof(HealthMinuteData) is too large for
-       the app stack (mirrors the layer modules' static-scratch convention). */
-    static HealthMinuteData md[60];
+    HealthMinuteData *md = s_minute_data;
     time_t   ts = h0, te = h1;
     uint32_t n   = health_service_get_minute_history(md, 60, &ts, &te);
     int      sum = 0;
@@ -149,7 +148,7 @@ static int s_minute_steps(time_t h0, time_t h1) {
  * @return Average recorded BPM in the window, or 0 if no reading.
  */
 static int s_minute_hr_avg(time_t h0, time_t h1) {
-    static HealthMinuteData md[60];
+    HealthMinuteData *md = s_minute_data;
     time_t   ts = h0, te = h1;
     uint32_t n   = health_service_get_minute_history(md, 60, &ts, &te);
     int      sum = 0, cnt = 0;
@@ -164,27 +163,19 @@ static int s_minute_hr_avg(time_t h0, time_t h1) {
 }
 
 void health_fill_hourly_steps(int16_t *out, int count, time_t end_hour) {
-#if defined(PBL_HEALTH)
     for (int i = 0; i < count; i++) {
         time_t h1 = end_hour - (time_t)(count - 1 - i) * HOUR_SECS;
         time_t h0 = h1 - HOUR_SECS;
         out[i] = (int16_t)s_minute_steps(h0, h1);
     }
-#else
-    for (int i = 0; i < count; i++) { out[i] = 0; }
-#endif
 }
 
 void health_fill_hourly_hr(int16_t *out, int count, time_t end_hour) {
-#if defined(PBL_HEALTH)
     for (int i = 0; i < count; i++) {
         time_t h1 = end_hour - (time_t)(count - 1 - i) * HOUR_SECS;
         time_t h0 = h1 - HOUR_SECS;
         out[i] = (int16_t)s_minute_hr_avg(h0, h1);
     }
-#else
-    for (int i = 0; i < count; i++) { out[i] = 0; }
-#endif
 }
 
 /* Context for the sleep-activity iterator: the slot array to fill and the hour
@@ -217,7 +208,6 @@ static bool s_sleep_activity_cb(HealthActivity activity,
 }
 
 void health_fill_hourly_sleep(uint8_t *state_out, int count, time_t end_hour) {
-#if defined(PBL_HEALTH)
     /* Like steps, per-hour sleep can't come from health_service_sum (daily-
        weighted → identical every hour). Sleep has no per-minute field in the
        history API, so we read sleep ACTIVITIES — each is a [start,end] interval
@@ -228,9 +218,6 @@ void health_fill_hourly_sleep(uint8_t *state_out, int count, time_t end_hour) {
         HealthActivitySleep | HealthActivityRestfulSleep,
         end_hour - (time_t)count * HOUR_SECS, end_hour,
         HealthIterationDirectionPast, s_sleep_activity_cb, &f);
-#else
-    for (int i = 0; i < count; i++) { state_out[i] = HEALTH_SLEEP_AWAKE; }
-#endif
 }
 
 #endif  // PBL_HEALTH

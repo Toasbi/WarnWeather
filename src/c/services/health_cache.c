@@ -31,12 +31,10 @@ static time_t  s_end_hour;        // top of the current hour = start of bucket N
 
 static bool       s_ready;        // valid enough to paint? (stays true through a background refresh)
 static bool       s_build_pending;// a sliced build/refresh is armed or mid-flight
-static int        s_pending_count;// trailing bucket count the sliced build recomputes
 static AppTimer  *s_timer;
 static HealthCacheRepaintCb s_repaint;
 
 static int  s_build_next;       // next window-bucket index to fill (ascending)
-static int  s_build_start;      // first bucket index this build owns
 static bool s_build_sleep_done; // one-shot sleep iterate has run this build
 
 static time_t current_hour_top(void) {
@@ -110,10 +108,8 @@ static void health_cache_build_step(void *ctx) {
 static void health_cache_start_build(int count, bool show_loading) {
     if (s_timer) { app_timer_cancel(s_timer); s_timer = NULL; }
     s_build_pending = true;
-    s_build_start = N - count;
-    s_build_next = s_build_start;
+    s_build_next = N - count;
     s_build_sleep_done = false;
-    s_pending_count = count;                    // kept for introspection/parity
     if (show_loading) {
         s_ready = false;
         s_timer = app_timer_register(HEALTH_CACHE_DEFER_MS, health_cache_build_step, NULL);

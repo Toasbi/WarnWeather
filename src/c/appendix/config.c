@@ -60,9 +60,9 @@ void config_load() {
 }
 
 void config_refresh() {
-    free(s_config);  // Clear out the old config
-    s_config = (Config*) malloc(sizeof(Config));
-    config_read_or_default(s_config);  // Then reload
+    // Reload in place — same-size struct, so a free/malloc round-trip would only
+    // churn the allocator.
+    config_read_or_default(s_config);
     MEMORY_LOG_HEAP("after_config_refresh");
 }
 
@@ -80,12 +80,7 @@ void config_unload() {
 }
 
 int config_localize_temp(int temp_f) {
-    int result;
-    if (s_config->celsius)
-        result = f_to_c(temp_f);
-    else
-        result = temp_f;
-    return result;
+    return s_config->celsius ? f_to_c(temp_f) : temp_f;
 }
 
 int config_format_time(char *s, size_t maxsize, const struct tm * tm_p) {

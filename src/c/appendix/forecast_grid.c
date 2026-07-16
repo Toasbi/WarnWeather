@@ -30,7 +30,7 @@ void forecast_grid_fill_axis_slots(ChartAxisSlot *slots, int num_slots,
         const int hour = config_axis_hour(start_local->tm_hour + i);
 #ifndef PBL_PLATFORM_EMERY
         // Two-digit labels sliced by the screen edge are omitted instead of
-        // drawing half a number (was clip logic in the tick callback).
+        // drawing half a number.
         if (hour >= 10 && (origin_x + i * pitch - 3) + 8 > visible_w) continue;
 #endif
         snprintf(slots[i].label, sizeof(slots[i].label), "%d", hour);

@@ -18,8 +18,7 @@
 #if defined(PBL_HEALTH)
 
 // Sleep stripe height: a fixed band at the bottom of the plot. Bucketed per
-// display width — 6 px on 144, taller on the larger emery screen. (A reasonable
-// fixed value; Task 7 / on-device review may tune it.)
+// display width — 6 px on 144, taller on the larger emery screen.
 #if defined(DISPLAY_WIDTH_200)
 #define SLEEP_STRIPE_H            9
 #else
@@ -305,7 +304,7 @@ static void draw_left_axis(GContext *ctx, int h, int hi) {
 static void health_graph_update_proc(Layer *layer, GContext *ctx) {
     // While a (re)build is pending, paint the loading message (same black-fill +
     // centered GOTHIC_18 idiom as loading_layer.c) instead of the chart. No
-    // HealthService calls here either way (spec goal #1).
+    // HealthService calls on the render path either way.
     if (!health_cache_ready()) {
         const GRect b = layer_get_bounds(layer);
         graphics_context_set_fill_color(ctx, theme_bg());

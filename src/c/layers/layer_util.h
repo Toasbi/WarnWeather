@@ -86,7 +86,7 @@ static inline int status_glyph_center_y(int text_y, int content_h) {
 // on emery), so the line lands identically across top-view modes and never crowds the graph.
 // This replaces the old magic per-mode band pixels (WEATHER_STATUS_HEIGHT for the full band, the
 // FULL_STATUS_RISE nudge) that fit one font and were wrong for another. The band extends up into
-// the clock band's slack; see layout_compute() in windows/layout.c.
+// the clock band's slack; see layout_compute_spec() in windows/layout.c.
 //
 // emery renders the row in Gothic 18, big enough that a symmetric centre reads a hair high, so it
 // takes 1px less clearance — the whole line drops ~1px toward the forecast (and away from the

@@ -22,11 +22,6 @@ typedef struct {
     GRect radar;         // rain_radar frame: == top in full/compact, == bottom in none
 } MainLayout;
 
-// Pure vertical band geometry for the main window. fc_band_h is the font-derived height
-// of the forecast-abutting status band (status_forecast_band_h(status_full_tier_font())
-// on the watch; a fixed representative value in host tests).
-MainLayout layout_compute(GRect bounds, uint8_t tier, bool dual, int fc_band_h);
-
 // ── ViewSpec: what is on screen, as data ────────────────────────────────────
 // Geometry and layer visibility both derive from one spec. Producers build specs
 // (today: the preset compiler + flick state in main_window; later: the à-la-carte
@@ -70,6 +65,9 @@ ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health);
 
 LayerVisibility layout_visibility(const ViewSpec *spec);
 
+// Pure vertical band geometry for the main window. fc_band_h is the font-derived height
+// of the forecast-abutting status band (status_forecast_band_h(status_full_tier_font())
+// on the watch; a fixed representative value in host tests).
 MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h);
 
 #if defined(WW_QUICK_VIEW)

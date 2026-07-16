@@ -449,7 +449,6 @@ void app_message_init() {
     app_message_register_inbox_received(inbox_received_callback);
     app_message_register_inbox_dropped(inbox_dropped_callback);
 
-    // Open AppMessage
     // All changed categories ride in one inbound message (outbox.js bundles
     // them because the channel is half-duplex). The heaviest bundle is DWD +
     // wind: the third line (any metric, including gust) rides alongside the

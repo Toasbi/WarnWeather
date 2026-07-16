@@ -56,12 +56,6 @@ typedef struct
     int type; // 0 = sunrise, 1 = sunset
 } SunEvent;
 
-typedef struct
-{
-    GRect   graph_bounds;
-    int16_t h;
-} ForecastLayout;
-
 typedef struct {
     int    num_entries;          // clamped to MAX_BOTTOM_VIEW_ENTRIES
     time_t forecast_start;
@@ -75,7 +69,6 @@ static void load_dataset(ForecastDataset *ds) {
     ds->num_entries = n;
     ds->forecast_start = persist_get_forecast_start();
 
-    // Per-id literals — every value (incl. resolved color) set inline.
     ds->series[SERIES_FIRST] = (Series){
         .id = SERIES_FIRST, .kind = SERIES_KIND_LINE, .present = (n > 0),
         .line = { .color = theme_pick(GColorRed, theme_fg()),
@@ -114,17 +107,6 @@ static void load_dataset(ForecastDataset *ds) {
 static Layer *s_forecast_layer;
 static char s_buffer_lo[12];
 static char s_buffer_hi[12];
-
-static ForecastLayout compute_layout(GRect bounds)
-{
-    ForecastLayout layout;
-    const int graph_left = bottom_view_graph_inset();
-    layout.graph_bounds = GRect(graph_left, 0,
-                                bounds.size.w - graph_left,
-                                bounds.size.h - BOTTOM_VIEW_BOTTOM_PAD);
-    layout.h = layout.graph_bounds.size.h;
-    return layout;
-}
 
 static void night_segments_add(NightSegments *night_segments, time_t start, time_t end)
 {
@@ -276,10 +258,6 @@ static NightAreaPalette night_area_palette_for_fill(GColor fill) {
     if (gcolor_equal(fill, GColorArmyGreen)) { return (NightAreaPalette){ GColorArmyGreen, GColorLimerick, GColorLimerick }; }      // wind (dark)
     if (gcolor_equal(fill, GColorPurple))    { return (NightAreaPalette){ GColorImperialPurple, GColorPurple, GColorVividViolet }; } // uv (dark)
     if (gcolor_equal(fill, GColorDarkGray))  { return (NightAreaPalette){ GColorDarkGray, GColorLightGray, GColorLightGray }; }      // gust (dark)
-    // Light-theme fills (forecast-series.js FILL_COLORS `light` entries — brighter
-    // tints so each metric's fill reads against a white window background instead of
-    // the dark-theme shade above). Base sits between the dark-theme base above and
-    // the bright fill itself: lighter than the dark base, slightly darker than the
     // Light-theme fills (Celeste/Inchworm/ShockingPink/LightGray) never reach this
     // table: light (color) polarity skips the night_under layer entirely — the fill
     // keeps its day color under the night overlay (see the call site).
@@ -309,8 +287,7 @@ static void draw_left_axis(GContext *ctx, int h) {
 #endif
     // Min label is bottom-anchored (just above the x-axis baseline) so it tracks
     // the forecast band height across every top-view mode (full/compact/none)
-    // instead of floating at a fixed offset — was a hardcoded 22 on non-emery,
-    // which only landed at the bottom in the short full-mode band.
+    // instead of floating at a fixed offset.
     const int lo_y = axis_y - lo_size.h - 2;
     graphics_draw_text(ctx, s_buffer_hi,
                        fonts_get_system_font(FONT_KEY_GOTHIC_18),
@@ -328,9 +305,11 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     MEMORY_LOG_HEAP("forecast_update:enter");
     GRect bounds = layer_get_bounds(layer);
     const bool night_on = config_get()->day_night_shading;
-    ForecastLayout layout = compute_layout(bounds);
-    GRect graph_bounds = layout.graph_bounds;
-    int h = layout.h;
+    const int graph_left = bottom_view_graph_inset();
+    const GRect graph_bounds = GRect(graph_left, 0,
+                                     bounds.size.w - graph_left,
+                                     bounds.size.h - BOTTOM_VIEW_BOTTOM_PAD);
+    const int h = graph_bounds.size.h;
 
     // Single static layer, single-threaded redraw: keep the dataset off the stack so
     // nested chart_draw/SDK graphics calls retain enough stack headroom.
@@ -509,19 +488,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         .label_align = ALIGN_START, .tick_align = ALIGN_START } };
     chart_draw(ctx, &FORECAST_GRID_DEF, outer, layers, n);
 
-    draw_left_axis(ctx, h);   // hi/lo temp strip: chart-adjacent chrome,
-                              // not a chart layer (spec §4 engine boundary)
+    draw_left_axis(ctx, h);   // hi/lo temp strip: chart-adjacent chrome, not a chart layer
     MEMORY_HEAP_PROBE_LOG_MIN(&redraw_probe);
     MEMORY_LOG_HEAP("forecast_update:exit");
-}
-
-static int temp_label_string_width(const char *text)
-{
-    const GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_18);
-    const GRect box = GRect(0, 0, TEMP_LABEL_MEASURE_BOX_W, TEMP_LABEL_MEASURE_BOX_H);
-    const GSize sz = graphics_text_layout_get_content_size(text, font, box, GTextOverflowModeFill,
-                                                           GTextAlignmentRight);
-    return sz.w;
 }
 
 static GSize temp_label_string_size(const char *text)
@@ -540,8 +509,8 @@ static void text_labels_refresh()
     snprintf(s_buffer_hi, sizeof(s_buffer_hi), "%d", config_localize_temp(temp_hi));
     snprintf(s_buffer_lo, sizeof(s_buffer_lo), "%d", config_localize_temp(temp_lo));
 
-    int content_w = temp_label_string_width(s_buffer_hi);
-    const int w_lo = temp_label_string_width(s_buffer_lo);
+    int content_w = temp_label_string_size(s_buffer_hi).w;
+    const int w_lo = temp_label_string_size(s_buffer_lo).w;
     if (w_lo > content_w)
     {
         content_w = w_lo;

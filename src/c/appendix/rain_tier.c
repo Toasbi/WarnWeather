@@ -1,4 +1,3 @@
-// src/c/appendix/rain_tier.c
 #include "rain_tier.h"
 
 // Q8 fixed-point unit: 256 represents 1.0 (full fill of a tier slab).

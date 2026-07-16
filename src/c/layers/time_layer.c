@@ -51,10 +51,6 @@ Layer *time_layer_get_root(void) {
     return s_container_layer;
 }
 
-// 12:30 -> 12:30
-// 13:30 -> 1:30
-// 00:30 -> 12:30
-
 void time_layer_tick() {
     struct tm tick_time = watch_services_localtime();
 

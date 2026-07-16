@@ -2,7 +2,7 @@
 #include <pebble.h>
 #include "c/appendix/slot_geometry.h"
 
-// Chart engine v2 — shared types and the one public entry point chart_draw().
+// Chart engine — shared types and the one public entry point chart_draw().
 
 // --- Frame ----------------------------------------------------------
 
@@ -17,10 +17,6 @@ typedef struct {
     Border top;
     Border bottom;
 } GraphFrame;
-
-// Paints each non-zero-width border side as a single graphics_fill_rect.
-// Sides with width == 0 are skipped (color is irrelevant for them).
-// Engine-internal: called by chart_draw's FRAME case.
 
 // --- Ticks ----------------------------------------------------------
 
@@ -39,13 +35,12 @@ typedef enum {
 } GraphSide;
 
 typedef struct {
-    int          anchor_x;  // outer.origin.x — THE column anchor (engine v2)
+    int          anchor_x;  // outer.origin.x — THE column anchor
     GRect        content;   // rect inside the frame's borders
     SlotGeometry slots;     // num_slots, pitch, bar_dx, bar_w
 } ChartGeometry;
 
 // =====================================================================
-// Chart engine v2 (spec: docs/superpowers/specs/2026-06-12-chart-engine-design.md)
 // One public entry point: chart_draw(). A chart is a ChartDef (grid) plus
 // an ordered list of ChartLayers — z-order IS array order, bottom first.
 // A ChartLayer is NOT a Pebble Layer: no heap, no framebuffer, ~40 B of
@@ -99,7 +94,7 @@ typedef struct {
 
 typedef struct {
     GraphSide            side;        // GRAPH_SIDE_BOTTOM / GRAPH_SIDE_TOP
-    TickSide             style;       // small/big tick length+color (big_every ignored)
+    TickSide             style;       // small/big tick length+color
     const ChartAxisSlot *slots;       // exactly def->num_slots entries
     ChartSlotAlign       label_align; // text centered on slot start / middle
     ChartSlotAlign       tick_align;  // tick line on slot start / middle

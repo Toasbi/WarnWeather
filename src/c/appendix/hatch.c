@@ -1,4 +1,3 @@
-// src/c/appendix/hatch.c
 #include "hatch.h"
 #include "theme.h"
 

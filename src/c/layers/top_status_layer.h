@@ -13,12 +13,6 @@ void status_icons_refresh();
 
 void top_status_layer_tick();
 
-void bluetooth_icons_refresh(bool connected);
-
-void bluetooth_callback(bool connected);
-
-bool show_qt_icon();
-
 void top_status_layer_refresh();
 
 void top_status_layer_destroy();

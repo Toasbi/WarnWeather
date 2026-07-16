@@ -150,12 +150,6 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool dual,
     return L;
 }
 
-MainLayout layout_compute(GRect bounds, uint8_t tier, bool dual, int fc_band_h) {
-    static const uint8_t default_weights[3] = { WEIGHT_CALENDAR, WEIGHT_TIME, WEIGHT_BOTTOM };
-    // Legacy entry point (tests): assume a status row is present, matching prior geometry.
-    return compute_with_weights(bounds, tier, dual, /* has_status */ true, fc_band_h, default_weights);
-}
-
 // ── ViewSpec producers/consumers ────────────────────────────────────────────
 
 ViewSpec view_spec_unpack(uint8_t byte) {

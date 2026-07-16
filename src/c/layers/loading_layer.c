@@ -52,10 +52,7 @@ void loading_layer_create(Layer* parent_layer, GRect frame) {
 
 void loading_layer_refresh() {
     text_layer_set_text_color(s_loading_text_layer, theme_fg());  // re-apply: create-time value goes stale on a live theme flip
-    if (loading_layer_data_is_fresh())
-        layer_set_hidden(s_loading_layer, true);
-    else
-        layer_set_hidden(s_loading_layer, false); // show the no data notice
+    layer_set_hidden(s_loading_layer, loading_layer_data_is_fresh());
 }
 
 void loading_layer_destroy() {

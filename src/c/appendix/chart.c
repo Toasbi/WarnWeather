@@ -2,6 +2,12 @@
 #include "hatch.h"
 #include "theme.h"
 
+// Shared per-call point scratch for LINE and AREA layers (callers that don't
+// pass export_points). Static, not stack: aplite's small app stack overflows
+// otherwise. Safe to share — chart_draw runs layers sequentially and each
+// renderer consumes the points within its own call.
+static GPoint s_pts_scratch[CHART_MAX_SLOTS + 2];
+
 static void graph_frame_draw(GContext *ctx, GraphFrame f, GRect outer) {
     if (f.left.width > 0) {
         graphics_context_set_fill_color(ctx, f.left.color);
@@ -205,8 +211,7 @@ static void chart_draw_bar_dots(const ChartRender *r, const ChartLineLayer *l) {
     const int   plot_bottom = c.origin.y + c.size.h;   // baseline; value 0 lands here
     const int   inner_h     = c.size.h - l->inset_top - l->inset_bottom;
     const int   range       = l->hi - l->lo;
-    const int   w           = l->width;                // width follows the line's width setting
-                                                       // (the caller sets it to the rain-bar width)
+    const int   w           = l->width;
     // Height is hardcoded (not derived from width). On color a white dot is the dominant case
     // (gust over colored bars) so it gets a shorter 2px cap; a dimmed gray dot (gust over white
     // bars, where gray needs more presence) gets a 4px cap. 4 not 3: the top edge is cy - dot_h/2,
@@ -258,11 +263,10 @@ static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
         return;
     }
 
-    static GPoint buf[CHART_MAX_SLOTS];  // aplite: per-frame scratch must be static, not stack
     const GPoint  *pts  = l->points;
     const int16_t *vals = l->values;     // non-NULL when we compute the points here
     if (pts == NULL) {
-        GPoint *out = l->export_points ? l->export_points : buf;
+        GPoint *out = l->export_points ? l->export_points : s_pts_scratch;
         const GRect c          = r->geo.content;
         // The value range spans inner_h, seated between the two margins: value==lo
         // lands at plot_bottom - inset_bottom, value==hi at plot_top + inset_top.
@@ -325,8 +329,7 @@ static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
     }
 }
 
-// Linear-interpolate the contour's top y at absolute pixel x (was
-// area_fill_top_y_for_x in forecast_layer.c — moved verbatim).
+// Linear-interpolate the contour's top y at absolute pixel x.
 static int16_t chart_contour_y_for_x(const GPoint *pts, int count, int16_t x) {
     if (x <= pts[0].x) {
         return pts[0].y;
@@ -415,8 +418,7 @@ static void chart_render_area(const ChartRender *r, const ChartAreaLayer *a) {
     const int count = chart_clamp_count(r, a->count);
     if (count < 1) return;
 
-    static GPoint buf[CHART_MAX_SLOTS + 2];  // aplite: per-frame scratch must be static, not stack
-    GPoint *pts = a->export_points ? a->export_points : buf;
+    GPoint *pts = a->export_points ? a->export_points : s_pts_scratch;
     const GRect c          = r->geo.content;
     const int  plot_bottom = c.origin.y + c.size.h;
     const int  range       = a->hi - a->lo;

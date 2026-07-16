@@ -37,7 +37,7 @@ enum key {
     THIRD_LINE_COLOR,
     // Appended: view-cursor + health-cache restore across an app relaunch (Pebble's
     // Quiet Time forces a full process relaunch on real hardware, wiping module
-    // statics). See docs/superpowers/specs/2026-07-06-persist-across-relaunch-design.md.
+    // statics).
     VIEW_CURSOR, WATCHFACE_UNLOAD_EPOCH,
     HEALTH_CACHE_STEPS, HEALTH_CACHE_HR, HEALTH_CACHE_SLEEP, HEALTH_CACHE_END_HOUR, // 36
     STATUS_LINE_1,                // 37 — packed line blob, forecast
