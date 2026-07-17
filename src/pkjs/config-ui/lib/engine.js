@@ -40,8 +40,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   // --- onChange registry --- a schema item opts into a post-change side effect by
   // name (item.onChange: id) without the engine knowing what that side effect is —
-  // mirrors the block registry above. fn(S, oldValue, newValue) runs synchronously,
-  // right after the click handler sets the new value and before the next render().
+  // mirrors the block registry above. fn(S, oldValue, newValue, env) runs synchronously,
+  // right after the click handler sets the new value and before the next render(). env is the platform env (INJECTED_ENV).
   var onChangeMap = {};
   PConf.onChange = {
     register: function (id, fn) { onChangeMap[id] = fn; },
@@ -572,7 +572,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           S[vk] = newV;
           var vItem = findItem(vk);
           var onChangeFn = vItem && vItem.onChange && PConf.onChange.get(vItem.onChange);
-          if (onChangeFn) { onChangeFn(S, oldV, newV); }
+          if (onChangeFn) { onChangeFn(S, oldV, newV, ENV); }
           render();
           return;
         }
@@ -586,7 +586,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         S[sk] = newV;
         var sItem = findItem(sk);
         var onChangeFn = sItem && sItem.onChange && PConf.onChange.get(sItem.onChange);
-        if (onChangeFn) { onChangeFn(S, oldV, newV); }
+        if (onChangeFn) { onChangeFn(S, oldV, newV, ENV); }
         render();
       });
       scroll.addEventListener('input', function (e) {
