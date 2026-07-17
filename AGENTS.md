@@ -83,14 +83,14 @@ calling it directly. Exempt: `src/pkjs/clay/` is vendored and runs in the phone 
   `change-detector.js`, bundle only the categories whose content changed into ONE send
   (the AppMessage channel is half-duplex, so back-to-back sends collide), and commit the
   last-sent cache only in the ACK callback so a NACK retries next time.
-- **Keep the bundled message within the watch's inbox — `inbox_size = 512` B
+- **Keep the bundled message within the watch's inbox — `inbox_size = 528` B
   (`src/c/appendix/app_message.c`).** Because all changed categories ride in one send, a
   new or enlarged payload key has to keep the *heaviest* bundle under budget. The buffer
-  is allocated from aplite's already-tiny heap, so 512 B is effectively a hard ceiling —
+  is allocated from aplite's already-tiny heap, so 528 B is effectively a hard ceiling —
   you can't just bump it. An overflow is dropped silently (`APP_MSG_BUFFER_OVERFLOW` →
-  "Message dropped!"). Worst realistic case is DWD + wind (gust + secondary line + radar +
-  status + sun) ≈337 B (≈175 B headroom; the six uint8 trend arrays dominate at ~31 B
-  each). The palette now rides the Clay/settings message instead. `test/inbox-size.test.js`
+  "Message dropped!"). Worst realistic case is DWD + wind with City in every status slot
+  ≈517 B (see `test/inbox-size.test.js` — the authoritative computation; keep its recorded
+  size in sync). The palette now rides the Clay/settings message instead. `test/inbox-size.test.js`
   guards both the weather and Clay bundles; when
   you grow the worst-case bundle, update its `buildHeaviestBundle()`, and treat bumping
   `inbox_size` as a last resort.

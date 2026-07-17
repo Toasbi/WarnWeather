@@ -396,7 +396,9 @@ void app_message_init() {
     // secondary line + THIRD_LINE_COLOR, plus rain radar + status + sun.
     // The palette now rides the Clay message instead (see clay-payload.js).
     // test/inbox-size.test.js is the authoritative computation.
-    const int inbox_size = 512;
+    // 528 (was 512): the selectable top-strip middle slot lets City pack up to
+    // 19 text bytes where the fixed Date packed none (+19 B worst case, 517 B).
+    const int inbox_size = 528;
     const int outbox_size = dict_calc_buffer_size(2, sizeof(uint8_t), sizeof(uint8_t));
     APP_LOG(APP_LOG_LEVEL_INFO, "AppMessage buffer sizes: inbox=%d outbox=%d", inbox_size, outbox_size);
     app_message_open(inbox_size, outbox_size);

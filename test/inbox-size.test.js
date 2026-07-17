@@ -116,10 +116,12 @@ function buildHeaviestBundle() {
     // slot's text cap, so every edge slot packs its full 8-byte EDGE_TEXT_MAX
     // (wind/gust top out around 7 bytes -- "255km/h" -- and would under-model
     // the true worst case) and every mid slot packs its full 19-byte
-    // MID_TEXT_MAX off the long real-world city name above.
+    // MID_TEXT_MAX off the long real-world city name above. statusTopMid
+    // became selectable in the top-strip polish, so the top line's mid also
+    // models a full 19-byte city.
     statusForecastLeft: 'city', statusForecastRight: 'city',
     statusRadarLeft: 'city', statusRadarMid: 'city', statusRadarRight: 'city',
-    statusTopLeft: 'city', statusTopRight: 'city',
+    statusTopLeft: 'city', statusTopMid: 'city', statusTopRight: 'city',
     statusHealthLeft: 'city', statusHealthMid: 'city', statusHealthRight: 'city'
   }, { platform: 'emery' });
 
@@ -149,7 +151,7 @@ test('weather bundle keeps explicit headroom below the watch inbox', () => {
   const size = dictSize(buildHeaviestBundle());
   const inbox = readInboxSize();
   console.log(`heaviest weather bundle: ${size} B of ${inbox} B (headroom ${inbox - size})`);
-  assert.equal(size, 498, 'update the recorded realistic bundle size when its wire contract changes');
+  assert.equal(size, 517, 'update the recorded realistic bundle size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });
 
