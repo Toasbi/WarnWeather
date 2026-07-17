@@ -517,3 +517,11 @@ test('fixed slots are read-only labels', () => {
   // 'top' middle is still fixed: no messageKey exists for it.
   assert.equal(byKey('statusTopMid'), undefined);
 });
+
+test('Units section wording: the section title carries the noun, labels stay short', () => {
+  assert.equal(byKey('temperatureUnits').label, 'Temperature');
+  assert.equal(byKey('aqiScale').label, 'Air quality');
+  assert.equal(byKey('aqiScale').hint,
+    'Which air-quality index the "Air quality (AQI)" status item shows.');
+  assert.equal(byKey('windUnits').hint, 'Unit for the wind and gust status items.');
+});

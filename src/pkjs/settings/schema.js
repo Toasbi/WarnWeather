@@ -208,23 +208,23 @@ module.exports = {
             title: 'Units', items: [{
                 type: 'segmented',
                 messageKey: 'temperatureUnits',
-                label: 'Temperature units',
+                label: 'Temperature',
                 defaultValue: 'c',
                 options: [['°F', 'f'], ['°C', 'c']]
             }, {
                 type: 'segmented',
                 messageKey: 'aqiScale',
-                label: 'Air quality scale',
+                label: 'Air quality',
                 defaultValue: 'european',
                 options: [['European', 'european'], ['US', 'us']],
-                hint: 'Which air-quality index the "Air quality (AQI)" status item shows. Only used when a status slot is set to Air quality.'
+                hint: 'Which air-quality index the "Air quality (AQI)" status item shows.'
             }, {
                 type: 'segmented',
                 messageKey: 'windUnits',
                 label: 'Wind speed',
                 defaultValue: 'kph',
                 options: [['kph', 'kph'], ['mph', 'mph'], ['Knots', 'knots']],
-                hint: 'Unit for the wind and gust status items, and the wind graph scale hint below.'
+                hint: 'Unit for the wind and gust status items.'
             }, {
                 type: 'segmented',
                 messageKey: 'distanceUnits',
