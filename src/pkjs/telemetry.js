@@ -37,6 +37,7 @@ function buildSettingsSnapshot(settings) {
         weekStartDay: safe.weekStartDay,
         firstWeek: safe.firstWeek,
         showQt: !!safe.showQt,
+        batteryLowOnly: Boolean(safe.batteryLowOnly),
         topViewMode: safe.topViewMode,
         layoutPreset: safe.layoutPreset,
         viewResetMin: toIntOrUndefined(safe.viewResetMin),

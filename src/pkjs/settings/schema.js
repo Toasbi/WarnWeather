@@ -676,10 +676,15 @@ module.exports = {
                 },
                 {
                     type: 'select', messageKey: 'statusTopRight', label: 'Right slot',
-                    defaultValue: 'empty', joinPrevious: true,
+                    defaultValue: 'battery', joinPrevious: true,
                     optionsFrom: {resolver: 'statusSlot',
                         args: {excludeKeys: ['statusTopLeft', 'statusTopMid'],
                                slotKey: 'statusTopRight', position: 'right'}}
+                },
+                {
+                    type: 'toggle', messageKey: 'batteryLowOnly', label: 'Show battery below 10%',
+                    defaultValue: false,
+                    hint: 'Replaces the top-right slot when your battery drops below 10%.'
                 },
                 {type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true},
                 {

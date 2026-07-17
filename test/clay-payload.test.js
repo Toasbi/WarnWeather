@@ -58,6 +58,13 @@ test('HOLIDAYS reads the flat holidayRegion key, not the obsolete per-country ho
   assert.equal(seenRegion, 'BY');
 });
 
+test('CLAY_BATTERY_LOW_ONLY reflects the batteryLowOnly setting (default false)', () => {
+  assert.equal(buildClayPayload(baseSettings(), { platform: 'basalt' }, NOW).CLAY_BATTERY_LOW_ONLY, false);
+  const s = baseSettings();
+  s.batteryLowOnly = true;
+  assert.equal(buildClayPayload(s, { platform: 'basalt' }, NOW).CLAY_BATTERY_LOW_ONLY, true);
+});
+
 test('buildClayPayload includes the rain/radar palette tuples', function() {
   const p = buildClayPayload(baseSettings(), { platform: 'emery' }, NOW);
   assert.ok(Array.isArray(p.BAR_PALETTE_UINT8));

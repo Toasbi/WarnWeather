@@ -45,6 +45,7 @@ function buildClayPayload(settings, watchInfo, now) {
         "CLAY_THEME": ['dark', 'light', 'bw', 'bw-light'].indexOf(theme),
         "CLAY_TIME_FONT": ['roboto', 'leco', 'bitham'].indexOf(settings.timeFont),
         "CLAY_SHOW_QT": settings.showQt,
+        "CLAY_BATTERY_LOW_ONLY": Boolean(settings.batteryLowOnly),
         "CLAY_SHOW_BT": settings.btIcons === "connected" || settings.btIcons === "both",
         "CLAY_SHOW_BT_DISCONNECT": settings.btIcons === "disconnected" || settings.btIcons === "both",
         "CLAY_VIBE": settings.vibe,

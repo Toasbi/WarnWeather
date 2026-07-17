@@ -101,6 +101,11 @@ test('snapshot carries the eleven status slot selections', () => {
   assert.equal(snap.statusHealthRight, 'hr');
 });
 
+test('snapshot includes batteryLowOnly as a real boolean', () => {
+  assert.equal(buildSettingsSnapshot({ batteryLowOnly: true }).batteryLowOnly, true);
+  assert.equal(buildSettingsSnapshot({}).batteryLowOnly, false);
+});
+
 test('settings snapshot keys match the Deno telemetry schema (lockstep)', () => {
   const fs = require('fs');
   const path = require('path');

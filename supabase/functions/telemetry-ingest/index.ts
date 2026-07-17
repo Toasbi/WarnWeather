@@ -49,6 +49,7 @@ const settingsSchema = z
     weekStartDay: z.string().optional(),
     firstWeek: z.string().optional(),
     showQt: z.boolean().optional(),
+    batteryLowOnly: z.boolean().optional(),
     topViewMode: z.enum(['full', 'compact', 'none']).optional(),
     layoutPreset: z.enum(['classic', 'radarLast', 'forecast', 'fullCal', 'healthFirst', 'compactCal', 'compactDense', 'noCal']).optional(),
     viewResetMin: z.number().int().min(0).optional(),

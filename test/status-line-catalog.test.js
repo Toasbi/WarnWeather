@@ -24,7 +24,7 @@ test('defaults preserve today\'s watchface', () => {
   assert.deepEqual(catalog.LINES[1].defaults,
     { statusRadarLeft: 'temp', statusRadarMid: 'city', statusRadarRight: 'sun' });
   assert.deepEqual(catalog.LINES[2].defaults,
-    { statusTopLeft: 'empty', statusTopMid: 'date', statusTopRight: 'empty' });
+    { statusTopLeft: 'empty', statusTopMid: 'date', statusTopRight: 'battery' });
   assert.deepEqual(catalog.LINES[3].defaults,
     { statusHealthLeft: 'steps', statusHealthMid: 'empty', statusHealthRight: 'sleep' });
   assert.deepEqual(catalog.LINES[3].emeryDefaults,

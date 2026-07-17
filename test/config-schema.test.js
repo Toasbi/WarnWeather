@@ -21,7 +21,7 @@ const EXPECTED_KEYS = [
   'barSource','rainBarColor','provider','owmApiKey','radarProvider','radarColor','rainCountdownHorizon',
   'layoutPreset','viewResetMin','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear',
   'statusForecastLeft','statusForecastMid','statusForecastRight','statusRadarLeft','statusRadarMid','statusRadarRight',
-  'statusTopLeft','statusTopMid','statusTopRight','statusHealthLeft','statusHealthMid','statusHealthRight'
+  'statusTopLeft','statusTopMid','statusTopRight','batteryLowOnly','statusHealthLeft','statusHealthMid','statusHealthRight'
 ];
 
 test('every Clay messageKey present; theme/windScale/colorUSFederal are the only duplicates (contextual slots)', () => {
@@ -493,7 +493,7 @@ test('status slot dropdowns: resolver, defaults, sibling exclusion + slot contex
     ['statusRadarRight', 'sun', ['statusRadarLeft', 'statusRadarMid'], 'right'],
     ['statusTopLeft', 'empty', ['statusTopMid', 'statusTopRight'], 'left'],
     ['statusTopMid', 'date', ['statusTopLeft', 'statusTopRight'], 'mid'],
-    ['statusTopRight', 'empty', ['statusTopLeft', 'statusTopMid'], 'right'],
+    ['statusTopRight', 'battery', ['statusTopLeft', 'statusTopMid'], 'right'],
     ['statusHealthLeft', 'steps', ['statusHealthMid', 'statusHealthRight'], 'left'],
     ['statusHealthMid', 'empty', ['statusHealthLeft', 'statusHealthRight'], 'mid'],
     ['statusHealthRight', 'sleep', ['statusHealthLeft', 'statusHealthMid'], 'right']
@@ -549,4 +549,20 @@ test('top-strip icon controls live in the Top strip slots section, not Misc', ()
   assert.ok(stripKeys.indexOf('vibe') < stripKeys.indexOf('btIcons'),
     'btIcons comes last');
   assert.equal(byKey('vibe').joinPrevious, true, 'vibe joins showQt as one visual group');
+});
+
+test('batteryLowOnly toggle lives in Top strip slots, off by default', () => {
+  const item = byKey('batteryLowOnly');
+  assert.ok(item, 'batteryLowOnly exists');
+  assert.equal(item.type, 'toggle');
+  assert.equal(item.defaultValue, false);
+  assert.equal(item.label, 'Show battery below 10%');
+  assert.equal(item.hint, 'Replaces the top-right slot when your battery drops below 10%.');
+  const strip = schema.tabs.find((t) => t.id === 'more')
+    .sections.find((s) => s.title === 'Top strip slots');
+  const keys = strip.items.map((i) => i.messageKey).filter(Boolean);
+  assert.ok(keys.indexOf('statusTopRight') < keys.indexOf('batteryLowOnly'),
+    'toggle sits below the slot selects');
+  assert.ok(keys.indexOf('batteryLowOnly') < keys.indexOf('showQt'),
+    'toggle sits above the quiet-time toggle');
 });

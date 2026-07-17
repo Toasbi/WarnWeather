@@ -54,7 +54,7 @@
       defaults: { statusRadarLeft: 'temp', statusRadarMid: 'city', statusRadarRight: 'sun' } },
     { id: 'top', wireKey: 'STATUS_LINE_3_UINT8',
       slots: ['statusTopLeft', 'statusTopMid', 'statusTopRight'],
-      defaults: { statusTopLeft: 'empty', statusTopMid: 'date', statusTopRight: 'empty' } },
+      defaults: { statusTopLeft: 'empty', statusTopMid: 'date', statusTopRight: 'battery' } },
     { id: 'health', wireKey: 'STATUS_LINE_4_UINT8',
       slots: ['statusHealthLeft', 'statusHealthMid', 'statusHealthRight'],
       defaults: { statusHealthLeft: 'steps', statusHealthMid: 'empty', statusHealthRight: 'sleep' },

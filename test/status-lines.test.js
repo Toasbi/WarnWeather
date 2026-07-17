@@ -132,7 +132,7 @@ test('buildStatusLines packs four lines with defaults', () => {
   const top = decodeLine(p.STATUS_LINE_3_UINT8);
   assert.equal(top[0].kind, K.EMPTY);
   assert.equal(top[1].kind, K.LIVE_DATE); // fixed mid = date
-  assert.equal(top[2].kind, K.EMPTY);
+  assert.equal(top[2].kind, K.LIVE_BATTERY); // default right = battery
 
   const health = decodeLine(p.STATUS_LINE_4_UINT8);
   assert.deepEqual(health.map(s => s.kind), [K.LIVE_STEPS, K.EMPTY, K.LIVE_SLEEP]);
@@ -189,9 +189,9 @@ test('top line: mid defaults to live date; stored mid packs; date is rejected at
   const topLine = catalog.LINES.filter(l => l.id === 'top')[0];
   const env = basaltEnv();
   const p = basePayload();
-  // default: empty / date / empty
+  // default: empty / date / battery
   let slots = decodeLine(statusLines.packLine(topLine, p, baseSettings(), env));
-  assert.deepEqual(slots.map(s => s.kind), [K.EMPTY, K.LIVE_DATE, K.EMPTY]);
+  assert.deepEqual(slots.map(s => s.kind), [K.EMPTY, K.LIVE_DATE, K.LIVE_BATTERY]);
   // stored mid selection packs as TEXT
   slots = decodeLine(statusLines.packLine(topLine, p,
     baseSettings({ statusTopMid: 'city' }), env));
