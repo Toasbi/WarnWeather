@@ -37,8 +37,8 @@
 
   var LINES = [
     { id: 'forecast', wireKey: 'STATUS_LINE_1_UINT8',
-      slots: ['statusForecastLeft', null, 'statusForecastRight'], fixedMid: 'city',
-      defaults: { statusForecastLeft: 'temp', statusForecastRight: 'sun' } },
+      slots: ['statusForecastLeft', 'statusForecastMid', 'statusForecastRight'],
+      defaults: { statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'sun' } },
     { id: 'radar', wireKey: 'STATUS_LINE_2_UINT8',
       slots: ['statusRadarLeft', 'statusRadarMid', 'statusRadarRight'],
       defaults: { statusRadarLeft: 'temp', statusRadarMid: 'city', statusRadarRight: 'sun' } },

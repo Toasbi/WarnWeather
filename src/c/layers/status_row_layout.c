@@ -54,6 +54,16 @@ static void place_group(const StatusSlotMeasure *m, const GroupFit *fit,
     out->text_w = fit->text_w;
 }
 
+// Desired group width (icon + gap + text) for a normalized (non-negative) measure.
+static int16_t desired_group_w(const StatusSlotMeasure *m) {
+    if (!m->present) { return 0; }
+    int16_t icon = m->icon_w;
+    int16_t text = m->text_w;
+    if (icon <= 0 && text <= 0) { return 0; }
+    int16_t gap = (icon > 0 && text > 0) ? STATUS_ROW_ICON_TEXT_GAP : 0;
+    return (int16_t)(icon + gap + text);
+}
+
 void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
                        StatusSlotPlace out[3]) {
     StatusSlotMeasure normalized[3];
@@ -69,11 +79,36 @@ void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
         return;
     }
 
-    int16_t cap = content_w / 3;
-    GroupFit left = fit_group(&normalized[0], cap);
-    GroupFit right = fit_group(&normalized[2], cap);
+    // Edge-priority: the two edge slots claim their full desired width first;
+    // the middle slot takes the remaining span. Only when both edges together
+    // out-desire the row do they split it max-min-fairly (neither truncates
+    // while the other has surplus).
+    int16_t d0 = desired_group_w(&normalized[0]);
+    int16_t d2 = desired_group_w(&normalized[2]);
+    int16_t b0, b2;
+    if (d0 > 0 && d2 > 0) {
+        if (d0 + d2 <= content_w) {
+            b0 = d0;
+            b2 = d2;
+        } else {
+            int16_t half = (int16_t)(content_w / 2);
+            if (d0 <= d2) {
+                b0 = d0 < half ? d0 : half;
+                b2 = (int16_t)(content_w - b0);
+            } else {
+                b2 = d2 < half ? d2 : half;
+                b0 = (int16_t)(content_w - b2);
+            }
+        }
+    } else {
+        b0 = d0 > 0 ? content_w : 0;
+        b2 = d2 > 0 ? content_w : 0;
+    }
+
+    GroupFit left = fit_group(&normalized[0], b0);
+    GroupFit right = fit_group(&normalized[2], b2);
     place_group(&normalized[0], &left, 0, &out[0]);
-    place_group(&normalized[2], &right, content_w - right.group_w, &out[2]);
+    place_group(&normalized[2], &right, (int16_t)(content_w - right.group_w), &out[2]);
 
     // The mid group gets whatever remains, bounded by GROUP_GAP from each
     // present neighbour, or the content edge when a side is empty.

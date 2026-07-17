@@ -214,6 +214,7 @@ function buildStatusLines(payload, settings, watchInfo) {
 
 module.exports = {
   buildStatusLines: buildStatusLines,
+  packLine: packLine,
   formatValue: formatValue,
   utf8Encode: utf8Encode,
   utf8Truncate: utf8Truncate

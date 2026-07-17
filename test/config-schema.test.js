@@ -20,7 +20,7 @@ const EXPECTED_KEYS = [
   'temperatureUnits','aqiScale','dayNightShading','healthMode','secondaryLine','secondaryLineFill','windScale','thirdLine',
   'barSource','rainBarColor','provider','owmApiKey','radarProvider','radarColor','rainCountdownHorizon',
   'layoutPreset','viewResetMin','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear',
-  'statusForecastLeft','statusForecastRight','statusRadarLeft','statusRadarMid','statusRadarRight',
+  'statusForecastLeft','statusForecastMid','statusForecastRight','statusRadarLeft','statusRadarMid','statusRadarRight',
   'statusTopLeft','statusTopRight','statusHealthLeft','statusHealthMid','statusHealthRight'
 ];
 
@@ -446,8 +446,9 @@ test('colorUSFederal splits into a dark-exclude-white / light-exclude-black pair
 
 test('status slot dropdowns: resolver, defaults, sibling exclusion args', () => {
   const cases = [
-    ['statusForecastLeft', 'temp', ['statusForecastRight'], ['city']],
-    ['statusForecastRight', 'sun', ['statusForecastLeft'], ['city']],
+    ['statusForecastLeft', 'temp', ['statusForecastMid', 'statusForecastRight'], []],
+    ['statusForecastMid', 'city', ['statusForecastLeft', 'statusForecastRight'], []],
+    ['statusForecastRight', 'sun', ['statusForecastLeft', 'statusForecastMid'], []],
     ['statusRadarLeft', 'temp', ['statusRadarMid', 'statusRadarRight'], []],
     ['statusRadarMid', 'city', ['statusRadarLeft', 'statusRadarRight'], []],
     ['statusRadarRight', 'sun', ['statusRadarLeft', 'statusRadarMid'], []],
@@ -472,11 +473,13 @@ test('fixed slots are read-only labels', () => {
   const statics = allItems(schema)
     .filter(i => i.type === 'staticText')
     .map(i => i.text || '');
-  assert.ok(statics.some(t => t.indexOf('City (fixed)') !== -1),
-    'forecast fixed-mid label present');
   assert.ok(statics.some(t => t.indexOf('Date (fixed)') !== -1),
     'top fixed-mid label present');
-  // Fixed slots must NOT be selectable: no messageKey exists for them.
-  assert.equal(byKey('statusForecastMid'), undefined);
+  // The forecast middle is now a configurable select, not a fixed label.
+  const forecastMid = byKey('statusForecastMid');
+  assert.ok(forecastMid, 'statusForecastMid is selectable');
+  assert.equal(forecastMid.type, 'select');
+  assert.equal(forecastMid.defaultValue, 'city');
+  // 'top' middle is still fixed: no messageKey exists for it.
   assert.equal(byKey('statusTopMid'), undefined);
 });

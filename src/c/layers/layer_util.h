@@ -114,6 +114,16 @@ static inline int status_forecast_band_h(GFont font) {
 #else
 #define STATUS_FULL_TIER_FONT_KEY FONT_KEY_GOTHIC_14
 #endif
+
+// The top status strip's font. It renders the calendar/date at FULL tier but,
+// unlike the weather/health rows, must NOT share STATUS_FULL_TIER_FONT_KEY:
+// that constant also sizes the forecast-abutting band. The top strip is a
+// fixed-height band, so it keeps its pre-tier-refactor size (one notch larger).
+#ifdef PBL_PLATFORM_EMERY
+#define STATUS_TOP_TIER_FONT_KEY FONT_KEY_GOTHIC_24
+#else
+#define STATUS_TOP_TIER_FONT_KEY FONT_KEY_GOTHIC_18
+#endif
 static inline GFont status_full_tier_font(void) {
     return fonts_get_system_font(STATUS_FULL_TIER_FONT_KEY);
 }

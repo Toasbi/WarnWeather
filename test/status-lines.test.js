@@ -49,6 +49,19 @@ function decodeLine(bytes) {
   return slots;
 }
 
+// packLine() test helpers (Task 3: forecast middle is now a configurable slot).
+function forecastLine() {
+  return catalog.LINES.filter(l => l.id === 'forecast')[0];
+}
+
+function basaltEnv() {
+  return { color: true, round: false, platform: 'basalt', health: true, radar: true };
+}
+
+function decodeMidText(bytes) {
+  return decodeLine(bytes)[1].text;
+}
+
 test('utf8 encode + boundary-safe truncate', () => {
   assert.deepEqual(statusLines.utf8Encode('a°'), [0x61, 0xC2, 0xB0]);
   // cap in the middle of degree symbol backs off to the code-point boundary
@@ -99,7 +112,7 @@ test('buildStatusLines packs four lines with defaults', () => {
   assert.equal(forecast[0].icon, I.TEMP);
   assert.equal(forecast[0].text, '20°');
   assert.equal(forecast[1].icon, I.NONE);
-  assert.equal(forecast[1].text, 'Saarbrücken'); // fixed mid = city
+  assert.equal(forecast[1].text, 'Saarbrücken'); // default mid = city
   assert.equal(forecast[2].icon, I.DRAWN_SUN);
 
   const radar = decodeLine(p.STATUS_LINE_2_UINT8);
@@ -132,6 +145,17 @@ test('user selections and availability resolution', () => {
   statusLines.buildStatusLines(p, s, WATCH_EMERY);
   const healthEmery = decodeLine(p.STATUS_LINE_4_UINT8);
   assert.equal(healthEmery[2].kind, K.LIVE_HR); // same stored choice, capable watch
+});
+
+test('forecast line sources its middle from statusForecastMid', () => {
+  const payload = { CURRENT_TEMP: 50, CITY: 'Berlin' };  // 50F -> 10C
+  // default (unset) -> city
+  const def = statusLines.packLine(forecastLine(), payload, {}, basaltEnv());
+  assert.ok(decodeMidText(def).indexOf('Berlin') === 0);
+  // explicit selection -> UV (a TEXT item), city no longer forced
+  const uv = statusLines.packLine(forecastLine(),
+    { UV_TREND_UINT8: [30] }, { statusForecastMid: 'uv' }, basaltEnv());
+  assert.equal(decodeMidText(uv), '3');
 });
 
 test('city cap: 19 bytes in mid, 8 in edge, code-point safe', () => {

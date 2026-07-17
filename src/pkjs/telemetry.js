@@ -51,6 +51,7 @@ function buildSettingsSnapshot(settings) {
         devStatsEnabled: Boolean(safe.devStatsEnabled),
         theme: safe.theme,
         statusForecastLeft: safe.statusForecastLeft,
+        statusForecastMid: safe.statusForecastMid,
         statusForecastRight: safe.statusForecastRight,
         statusRadarLeft: safe.statusRadarLeft,
         statusRadarMid: safe.statusRadarMid,
