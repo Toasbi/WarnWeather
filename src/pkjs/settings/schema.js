@@ -320,7 +320,8 @@ module.exports = {
                     label: 'Left slot',
                     defaultValue: 'temp',
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusForecastMid', 'statusForecastRight']}},
+                        args: {excludeKeys: ['statusForecastMid', 'statusForecastRight'],
+                               slotKey: 'statusForecastLeft', position: 'left'}},
                     hint: 'Pick what shows left in this view’s status row.'
                 },
                 {
@@ -330,7 +331,8 @@ module.exports = {
                     defaultValue: 'city',
                     joinPrevious: true,
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusForecastLeft', 'statusForecastRight']}}
+                        args: {excludeKeys: ['statusForecastLeft', 'statusForecastRight'],
+                               slotKey: 'statusForecastMid', position: 'mid'}}
                 },
                 {
                     type: 'select',
@@ -339,7 +341,8 @@ module.exports = {
                     defaultValue: 'sun',
                     joinPrevious: true,
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusForecastLeft', 'statusForecastMid']}}
+                        args: {excludeKeys: ['statusForecastLeft', 'statusForecastMid'],
+                               slotKey: 'statusForecastRight', position: 'right'}}
                 }
             ]
         }]
@@ -411,19 +414,22 @@ module.exports = {
                     type: 'select', messageKey: 'statusRadarLeft', label: 'Left slot',
                     defaultValue: 'temp',
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusRadarMid', 'statusRadarRight']}}
+                        args: {excludeKeys: ['statusRadarMid', 'statusRadarRight'],
+                               slotKey: 'statusRadarLeft', position: 'left'}}
                 },
                 {
                     type: 'select', messageKey: 'statusRadarMid', label: 'Middle slot',
                     defaultValue: 'city', joinPrevious: true,
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusRadarLeft', 'statusRadarRight']}}
+                        args: {excludeKeys: ['statusRadarLeft', 'statusRadarRight'],
+                               slotKey: 'statusRadarMid', position: 'mid'}}
                 },
                 {
                     type: 'select', messageKey: 'statusRadarRight', label: 'Right slot',
                     defaultValue: 'sun', joinPrevious: true,
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusRadarLeft', 'statusRadarMid']}}
+                        args: {excludeKeys: ['statusRadarLeft', 'statusRadarMid'],
+                               slotKey: 'statusRadarRight', position: 'right'}}
                 }
             ]
         }]
@@ -451,19 +457,22 @@ module.exports = {
                     type: 'select', messageKey: 'statusHealthLeft', label: 'Left slot',
                     defaultValue: 'steps',
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusHealthMid', 'statusHealthRight']}}
+                        args: {excludeKeys: ['statusHealthMid', 'statusHealthRight'],
+                               slotKey: 'statusHealthLeft', position: 'left'}}
                 },
                 {
                     type: 'select', messageKey: 'statusHealthMid', label: 'Middle slot',
                     defaultValue: 'empty', joinPrevious: true,
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusHealthLeft', 'statusHealthRight']}}
+                        args: {excludeKeys: ['statusHealthLeft', 'statusHealthRight'],
+                               slotKey: 'statusHealthMid', position: 'mid'}}
                 },
                 {
                     type: 'select', messageKey: 'statusHealthRight', label: 'Right slot',
                     defaultValue: 'sleep', joinPrevious: true,
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusHealthLeft', 'statusHealthMid']}}
+                        args: {excludeKeys: ['statusHealthLeft', 'statusHealthMid'],
+                               slotKey: 'statusHealthRight', position: 'right'}}
                 }
             ]
         }]
@@ -652,18 +661,23 @@ module.exports = {
                     type: 'select', messageKey: 'statusTopLeft', label: 'Left slot',
                     defaultValue: 'empty',
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusTopRight']}},
+                        args: {excludeKeys: ['statusTopMid', 'statusTopRight'],
+                               slotKey: 'statusTopLeft', position: 'left'}},
                     hint: 'A rain alert temporarily replaces these slots.'
                 },
                 {
-                    type: 'staticText',
-                    text: 'Middle slot: Date (fixed) — battery stays top-right'
+                    type: 'select', messageKey: 'statusTopMid', label: 'Middle slot',
+                    defaultValue: 'date', joinPrevious: true,
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {excludeKeys: ['statusTopLeft', 'statusTopRight'],
+                               slotKey: 'statusTopMid', position: 'mid'}}
                 },
                 {
                     type: 'select', messageKey: 'statusTopRight', label: 'Right slot',
                     defaultValue: 'empty', joinPrevious: true,
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusTopLeft']}}
+                        args: {excludeKeys: ['statusTopLeft', 'statusTopMid'],
+                               slotKey: 'statusTopRight', position: 'right'}}
                 },
                 {type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true},
                 {

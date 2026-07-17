@@ -59,6 +59,7 @@ function buildSettingsSnapshot(settings) {
         statusRadarMid: safe.statusRadarMid,
         statusRadarRight: safe.statusRadarRight,
         statusTopLeft: safe.statusTopLeft,
+        statusTopMid: safe.statusTopMid,
         statusTopRight: safe.statusTopRight,
         statusHealthLeft: safe.statusHealthLeft,
         statusHealthMid: safe.statusHealthMid,

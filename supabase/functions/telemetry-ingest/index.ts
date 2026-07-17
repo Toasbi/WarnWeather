@@ -71,6 +71,7 @@ const settingsSchema = z
     statusRadarMid: z.string().optional(),
     statusRadarRight: z.string().optional(),
     statusTopLeft: z.string().optional(),
+    statusTopMid: z.string().optional(),
     statusTopRight: z.string().optional(),
     statusHealthLeft: z.string().optional(),
     statusHealthMid: z.string().optional(),

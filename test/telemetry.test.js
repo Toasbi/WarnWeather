@@ -90,12 +90,13 @@ test('snapshot carries the eleven status slot selections', () => {
   const snap = buildSettingsSnapshot({
     statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'sun',
     statusRadarLeft: 'temp', statusRadarMid: 'city', statusRadarRight: 'sun',
-    statusTopLeft: 'empty', statusTopRight: 'uv',
+    statusTopLeft: 'empty', statusTopMid: 'date', statusTopRight: 'uv',
     statusHealthLeft: 'steps', statusHealthMid: 'sleep', statusHealthRight: 'hr'
   });
   assert.equal(snap.statusForecastLeft, 'temp');
   assert.equal(snap.statusForecastMid, 'city');
   assert.equal(snap.statusRadarMid, 'city');
+  assert.equal(snap.statusTopMid, 'date');
   assert.equal(snap.statusTopRight, 'uv');
   assert.equal(snap.statusHealthRight, 'hr');
 });

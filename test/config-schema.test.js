@@ -21,7 +21,7 @@ const EXPECTED_KEYS = [
   'barSource','rainBarColor','provider','owmApiKey','radarProvider','radarColor','rainCountdownHorizon',
   'layoutPreset','viewResetMin','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear',
   'statusForecastLeft','statusForecastMid','statusForecastRight','statusRadarLeft','statusRadarMid','statusRadarRight',
-  'statusTopLeft','statusTopRight','statusHealthLeft','statusHealthMid','statusHealthRight'
+  'statusTopLeft','statusTopMid','statusTopRight','statusHealthLeft','statusHealthMid','statusHealthRight'
 ];
 
 test('every Clay messageKey present; theme/windScale/colorUSFederal are the only duplicates (contextual slots)', () => {
@@ -478,44 +478,43 @@ test('colorUSFederal splits into a dark-exclude-white / light-exclude-black pair
   });
 });
 
-test('status slot dropdowns: resolver, defaults, sibling exclusion args', () => {
+test('status slot dropdowns: resolver, defaults, sibling exclusion + slot context args', () => {
   const cases = [
-    ['statusForecastLeft', 'temp', ['statusForecastMid', 'statusForecastRight'], []],
-    ['statusForecastMid', 'city', ['statusForecastLeft', 'statusForecastRight'], []],
-    ['statusForecastRight', 'sun', ['statusForecastLeft', 'statusForecastMid'], []],
-    ['statusRadarLeft', 'temp', ['statusRadarMid', 'statusRadarRight'], []],
-    ['statusRadarMid', 'city', ['statusRadarLeft', 'statusRadarRight'], []],
-    ['statusRadarRight', 'sun', ['statusRadarLeft', 'statusRadarMid'], []],
-    ['statusTopLeft', 'empty', ['statusTopRight'], []],
-    ['statusTopRight', 'empty', ['statusTopLeft'], []],
-    ['statusHealthLeft', 'steps', ['statusHealthMid', 'statusHealthRight'], []],
-    ['statusHealthMid', 'empty', ['statusHealthLeft', 'statusHealthRight'], []],
-    ['statusHealthRight', 'sleep', ['statusHealthLeft', 'statusHealthMid'], []]
+    ['statusForecastLeft', 'temp', ['statusForecastMid', 'statusForecastRight'], 'left'],
+    ['statusForecastMid', 'city', ['statusForecastLeft', 'statusForecastRight'], 'mid'],
+    ['statusForecastRight', 'sun', ['statusForecastLeft', 'statusForecastMid'], 'right'],
+    ['statusRadarLeft', 'temp', ['statusRadarMid', 'statusRadarRight'], 'left'],
+    ['statusRadarMid', 'city', ['statusRadarLeft', 'statusRadarRight'], 'mid'],
+    ['statusRadarRight', 'sun', ['statusRadarLeft', 'statusRadarMid'], 'right'],
+    ['statusTopLeft', 'empty', ['statusTopMid', 'statusTopRight'], 'left'],
+    ['statusTopMid', 'date', ['statusTopLeft', 'statusTopRight'], 'mid'],
+    ['statusTopRight', 'empty', ['statusTopLeft', 'statusTopMid'], 'right'],
+    ['statusHealthLeft', 'steps', ['statusHealthMid', 'statusHealthRight'], 'left'],
+    ['statusHealthMid', 'empty', ['statusHealthLeft', 'statusHealthRight'], 'mid'],
+    ['statusHealthRight', 'sleep', ['statusHealthLeft', 'statusHealthMid'], 'right']
   ];
-  for (const [key, def, excludeKeys, excludeCodes] of cases) {
+  for (const [key, def, excludeKeys, pos] of cases) {
     const item = byKey(key);
     assert.ok(item, key);
     assert.equal(item.type, 'select', key);
     assert.equal(item.defaultValue, def, key + ' default');
     assert.equal(item.optionsFrom.resolver, 'statusSlot', key);
     assert.deepEqual(item.optionsFrom.args.excludeKeys, excludeKeys, key);
-    assert.deepEqual(item.optionsFrom.args.excludeCodes || [], excludeCodes, key);
+    assert.equal(item.optionsFrom.args.slotKey, key, key + ' slotKey');
+    assert.equal(item.optionsFrom.args.position, pos, key + ' position');
   }
 });
 
-test('fixed slots are read-only labels', () => {
+test('top-strip middle is a selectable Date slot; the fixed label is gone', () => {
   const statics = allItems(schema)
     .filter(i => i.type === 'staticText')
     .map(i => i.text || '');
-  assert.ok(statics.some(t => t.indexOf('Date (fixed)') !== -1),
-    'top fixed-mid label present');
-  // The forecast middle is now a configurable select, not a fixed label.
-  const forecastMid = byKey('statusForecastMid');
-  assert.ok(forecastMid, 'statusForecastMid is selectable');
-  assert.equal(forecastMid.type, 'select');
-  assert.equal(forecastMid.defaultValue, 'city');
-  // 'top' middle is still fixed: no messageKey exists for it.
-  assert.equal(byKey('statusTopMid'), undefined);
+  assert.ok(!statics.some(t => t.indexOf('Date (fixed)') !== -1),
+    'fixed-mid label removed');
+  const topMid = byKey('statusTopMid');
+  assert.ok(topMid, 'statusTopMid exists');
+  assert.equal(topMid.type, 'select');
+  assert.equal(topMid.defaultValue, 'date');
 });
 
 test('Units section wording: the section title carries the noun, labels stay short', () => {
