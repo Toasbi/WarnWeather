@@ -86,6 +86,9 @@ bool persist_set_sun_event_start_type(int val);
 
 bool persist_set_sun_event_times(time_t *data, const size_t size);
 
+// Returns whether the stored config actually changed. Storage only: a caller
+// that gets true must call config_refresh() itself to reload the cached
+// config the rest of the app reads.
 bool persist_set_config(Config config);
 
 bool persist_get_is_sleeping();

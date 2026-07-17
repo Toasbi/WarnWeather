@@ -313,7 +313,10 @@ static bool handle_clay_config(DictionaryIterator *iterator, bool *config_dirty)
     config.color_us_federal = GColorFromHEX(clay_color_us_federal_tuple->value->int32);
     config.color_time = GColorFromHEX(clay_color_time_tuple->value->int32);
 
-    *config_dirty |= persist_set_config(config);
+    if (persist_set_config(config)) {
+        config_refresh();   // reload the cached config (persist no longer does this)
+        *config_dirty = true;
+    }
     return true;
 }
 

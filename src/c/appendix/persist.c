@@ -378,12 +378,10 @@ bool persist_set_sun_event_times(time_t *data, const size_t size) {
 
 bool persist_set_config(Config config) {
     // Callers must memset the struct before filling fields so padding bytes
-    // compare deterministically.
-    bool changed = write_data_if_changed(CONFIG, &config, sizeof(Config));
-    if (changed) {
-        config_refresh();  // Refresh global config variable
-    }
-    return changed;
+    // compare deterministically. Storage only: on a true return the caller
+    // drives config_refresh() itself — persist must not reach back into its
+    // consumer's cache.
+    return write_data_if_changed(CONFIG, &config, sizeof(Config));
 }
 
 bool persist_get_is_sleeping() {
