@@ -352,10 +352,33 @@ test('contentBands renders each tier\'s band ordering', () => {
     assert.deepEqual(B.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.ST_W)).map((b) => b.label),
         ['Date', 'Calendar (2 rows)', 'Weather status', 'Clock', 'Forecast'], 'compact tier: weather-only status before clock (non-dual)');
     assert.deepEqual(B.contentBands(vc.spec(vc.TIER_NONE, vc.TOP_EMPTY, vc.BODY_RADAR, vc.ST_W)).map((b) => b.label),
-        ['Date', 'Clock', 'Weather status', 'Radar'], 'none tier: no top band, big body');
+        ['Date', 'Clock', 'Radar status', 'Radar'], 'none tier: no top band, big body; radar view uses the radar status line');
     assert.deepEqual(B.contentBands(vc.spec(vc.TIER_FULL, vc.TOP_RADAR, vc.BODY_FC, vc.ST_NONE)).map((b) => b.label),
         ['Date', 'Radar', 'Clock', 'Forecast'], 'radar rides the top band; ST_NONE hides both status rows');
     assert.strictEqual(B.contentBands(null), null, 'a null/disabled slot has no bands');
+});
+
+// The weather status row IS the radar status line whenever the view shows radar (top band
+// or body) — mirrors main_window.c's (top == TOP_RADAR || body == BODY_RADAR) ?
+// STATUS_LINE_RADAR : STATUS_LINE_FORECAST. A forecast-body view keeps "Weather status".
+test('contentBands labels the status row "Radar status" for a radar view', () => {
+    const vc = require('../src/pkjs/view-cycle.js');
+    const label = (spec) => B.contentBands(spec).map((b) => b.label);
+    // radar as the body (the radar flick stop)
+    assert.ok(label(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_RADAR, vc.ST_W)).indexOf('Radar status') >= 0,
+        'radar-body view: weather status row reads Radar status');
+    assert.ok(label(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_RADAR, vc.ST_W)).indexOf('Weather status') < 0,
+        'radar-body view: no Weather status label');
+    // radar riding the top band with a weather status row present
+    assert.ok(label(vc.spec(vc.TIER_FULL, vc.TOP_RADAR, vc.BODY_FC, vc.ST_W)).indexOf('Radar status') >= 0,
+        'top-radar view with a status row: reads Radar status');
+    // dual status on a radar view: the weather half becomes Radar status, health unchanged
+    const dual = label(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_RADAR, vc.ST_D));
+    assert.ok(dual.indexOf('Radar status') >= 0 && dual.indexOf('Health status') >= 0,
+        'dual radar view: Radar status + Health status');
+    // a plain forecast view still reads Weather status
+    assert.ok(label(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.ST_W)).indexOf('Weather status') >= 0,
+        'forecast-body view keeps Weather status');
 });
 
 test('contentBands renders dual as two status rows', () => {

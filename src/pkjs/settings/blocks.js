@@ -771,7 +771,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // The body always takes the remaining space (flex); the fallback h only matters to a
         // consumer that doesn't resolve flex bands.
         var bodyBand = { label: bodyLabel, h: 20, flex: true };
-        var weather = { label: 'Weather status', h: STATUS_H };
+        // The "weather" status row IS the radar status line when the view shows radar (top
+        // band or body) — mirrors main_window.c's (top == TOP_RADAR || body == BODY_RADAR)
+        // ? STATUS_LINE_RADAR : STATUS_LINE_FORECAST. A forecast-body view keeps "Weather status".
+        var isRadarView = spec.top === VC.TOP_RADAR || spec.body === VC.BODY_RADAR;
+        var weather = { label: isRadarView ? 'Radar status' : 'Weather status', h: STATUS_H };
         var health = { label: 'Health status', h: STATUS_H };
         var clock = { label: 'Clock', h: isNone ? 30 : 22 };
         var dual = spec.status === VC.ST_D;
