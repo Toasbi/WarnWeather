@@ -80,6 +80,34 @@ static void mid_uses_free_edges(void) {
     expect("free.text_w", p[1].text_w, 50);
 }
 
+static void mid_stays_centered_when_one_edge_disabled(void) {
+    // Disabling one edge slot must NOT pull the middle off the row's true centre.
+    // The mid group is centred on content_w/2 (69 for 138), clamped only so it
+    // never overlaps a present neighbour.
+    StatusSlotPlace p[3];
+
+    // Left empty, right present (battery-like icon, 29 wide). Mid text 40 fits
+    // centred without touching the battery -> true centre (138-40)/2 = 49.
+    StatusSlotMeasure right_only[3] = { { false, 0, 0 }, { true, 0, 40 }, { true, 29, 0 } };
+    status_row_layout(138, right_only, p);
+    expect("centered.rightpresent.mid_x", p[1].text_x, 49);
+    expect("centered.rightpresent.mid_w", p[1].text_w, 40);
+    expect("centered.rightpresent.r_icon_x", p[2].icon_x, 109);   // right stays right-aligned
+
+    // Left present (temp 10+2+30=42), right empty. Same true centre 49 (clears the
+    // left group at [0,42]).
+    StatusSlotMeasure left_only[3] = { { true, 10, 30 }, { true, 0, 40 }, { false, 0, 0 } };
+    status_row_layout(138, left_only, p);
+    expect("centered.leftpresent.mid_x", p[1].text_x, 49);
+    expect("centered.leftpresent.l_icon_x", p[0].icon_x, 0);
+
+    // A wide present edge would collide with the true-centred mid: clamp so it
+    // just clears the edge (left group 80 -> avail_x0 = 84) instead of overlapping.
+    StatusSlotMeasure wide_left[3] = { { true, 0, 80 }, { true, 0, 40 }, { false, 0, 0 } };
+    status_row_layout(138, wide_left, p);
+    expect("centered.clamp.mid_x", p[1].text_x, 84);
+}
+
 static void both_edges_oversized_split_mid_yields(void) {
     // Two very wide edges (unusual): split content_w max-min (69/69); mid yields.
     StatusSlotMeasure m[3] = { { true, 0, 100 }, { true, 10, 40 }, { true, 0, 100 } };
@@ -172,6 +200,7 @@ int main(void) {
     lone_edge_uses_full_width();
     edge_priority_over_long_mid();
     mid_uses_free_edges();
+    mid_stays_centered_when_one_edge_disabled();
     both_edges_oversized_split_mid_yields();
     component_shapes();
     non_positive_and_narrow_content();

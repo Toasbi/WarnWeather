@@ -119,7 +119,14 @@ void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
         ? (int16_t)(content_w - right.group_w - STATUS_ROW_GROUP_GAP)
         : content_w;
     GroupFit mid = fit_group(&normalized[1], (int16_t)(avail_x1 - avail_x0));
-    place_group(&normalized[1], &mid,
-                (int16_t)(avail_x0 + ((avail_x1 - avail_x0) - mid.group_w) / 2),
-                &out[1]);
+    // Centre the mid group on the row's true centre (content_w/2) so a disabled or
+    // absent edge slot doesn't pull it off-centre. Clamp into the span left free by
+    // any present neighbour(s) — [avail_x0, avail_x1 - group_w] — so it never
+    // overlaps them; fit_group already sized it to fit, so lo <= hi.
+    int16_t mid_x = (int16_t)((content_w - mid.group_w) / 2);
+    int16_t mid_lo = avail_x0;
+    int16_t mid_hi = (int16_t)(avail_x1 - mid.group_w);
+    if (mid_x < mid_lo) { mid_x = mid_lo; }
+    if (mid_x > mid_hi) { mid_x = mid_hi; }
+    place_group(&normalized[1], &mid, mid_x, &out[1]);
 }
