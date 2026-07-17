@@ -10,8 +10,8 @@ test('LINES describes 4 lines in wire order with fixed slots', () => {
   assert.deepEqual(catalog.LINES.map(l => l.id), ['forecast', 'radar', 'top', 'health']);
   assert.deepEqual(catalog.LINES.map(l => l.wireKey),
     ['STATUS_LINE_1_UINT8', 'STATUS_LINE_2_UINT8', 'STATUS_LINE_3_UINT8', 'STATUS_LINE_4_UINT8']);
-  assert.equal(catalog.LINES[0].fixedMid, 'city');
-  assert.equal(catalog.LINES[0].slots[1], null);
+  assert.equal(catalog.LINES[0].fixedMid, undefined);
+  assert.equal(catalog.LINES[0].slots[1], 'statusForecastMid');
   assert.equal(catalog.LINES[2].fixedMid, 'date');
   assert.equal(catalog.LINES[2].slots[1], null);
   assert.equal(catalog.LINES[1].fixedMid, undefined);
@@ -20,7 +20,7 @@ test('LINES describes 4 lines in wire order with fixed slots', () => {
 
 test('defaults preserve today\'s watchface', () => {
   assert.deepEqual(catalog.LINES[0].defaults,
-    { statusForecastLeft: 'temp', statusForecastRight: 'sun' });
+    { statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'sun' });
   assert.deepEqual(catalog.LINES[1].defaults,
     { statusRadarLeft: 'temp', statusRadarMid: 'city', statusRadarRight: 'sun' });
   assert.deepEqual(catalog.LINES[2].defaults,
@@ -75,7 +75,7 @@ test('slotOptions: empty first, sibling selections and excluded codes removed', 
 
 test('selectedCodes falls back to line defaults for missing keys', () => {
   const codes = catalog.selectedCodes({ statusRadarMid: 'wind' });
-  assert.equal(codes.length, 10);
+  assert.equal(codes.length, 11);
   assert.ok(codes.includes('wind'));  // stored value wins
   assert.ok(codes.includes('temp'));  // forecast-left default
   assert.ok(codes.includes('sun'));
@@ -89,9 +89,9 @@ test('resolveSelection maps invalid/unavailable to empty without touching storag
   assert.equal(catalog.resolveSelection('empty', s, ENV_EMERY), 'empty');
 });
 
-test('allSlotKeys lists the 10 configurable slot settings', () => {
+test('allSlotKeys lists the 11 configurable slot settings', () => {
   assert.deepEqual(catalog.allSlotKeys(), [
-    'statusForecastLeft', 'statusForecastRight',
+    'statusForecastLeft', 'statusForecastMid', 'statusForecastRight',
     'statusRadarLeft', 'statusRadarMid', 'statusRadarRight',
     'statusTopLeft', 'statusTopRight',
     'statusHealthLeft', 'statusHealthMid', 'statusHealthRight'
@@ -120,4 +120,19 @@ test('week is a LIVE_WEEK item offered on non-aplite platforms only', () => {
   assert.ok(basalt.indexOf('week') !== -1, 'week offered on basalt dropdown');
   const aplite = catalog.slotOptions({}, ENV_APLITE, {}).map(o => o[1]);
   assert.ok(aplite.indexOf('week') === -1, 'week not offered on aplite dropdown');
+});
+
+test('forecast line has a configurable middle defaulting to city', () => {
+  const forecast = catalog.LINES.filter(l => l.id === 'forecast')[0];
+  assert.deepEqual(forecast.slots,
+    ['statusForecastLeft', 'statusForecastMid', 'statusForecastRight']);
+  assert.equal(forecast.fixedMid, undefined);
+  assert.equal(forecast.defaults.statusForecastMid, 'city');
+  assert.ok(catalog.allSlotKeys().indexOf('statusForecastMid') !== -1);
+});
+
+test('city is offered in the forecast slot dropdowns', () => {
+  const codes = catalog.slotOptions({}, ENV_BASALT,
+    { excludeKeys: ['statusForecastLeft', 'statusForecastRight'] }).map(o => o[1]);
+  assert.ok(codes.indexOf('city') !== -1);
 });

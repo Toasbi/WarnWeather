@@ -63,6 +63,7 @@ const settingsSchema = z
     devStatsEnabled: z.boolean().optional(),
     theme: z.string().optional(),
     statusForecastLeft: z.string().optional(),
+    statusForecastMid: z.string().optional(),
     statusForecastRight: z.string().optional(),
     statusRadarLeft: z.string().optional(),
     statusRadarMid: z.string().optional(),

@@ -285,12 +285,17 @@ module.exports = {
                     label: 'Left slot',
                     defaultValue: 'temp',
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusForecastRight'], excludeCodes: ['city']}},
+                        args: {excludeKeys: ['statusForecastMid', 'statusForecastRight']}},
                     hint: 'Pick what shows left in this view’s status row.'
                 },
                 {
-                    type: 'staticText',
-                    text: 'Middle slot: City (fixed)'
+                    type: 'select',
+                    messageKey: 'statusForecastMid',
+                    label: 'Middle slot',
+                    defaultValue: 'city',
+                    joinPrevious: true,
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {excludeKeys: ['statusForecastLeft', 'statusForecastRight']}}
                 },
                 {
                     type: 'select',
@@ -299,7 +304,7 @@ module.exports = {
                     defaultValue: 'sun',
                     joinPrevious: true,
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusForecastLeft'], excludeCodes: ['city']}}
+                        args: {excludeKeys: ['statusForecastLeft', 'statusForecastMid']}}
                 }
             ]
         }]
