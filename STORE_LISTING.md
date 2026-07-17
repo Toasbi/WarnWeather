@@ -87,7 +87,7 @@ WATCH STATUS
 STATUS LINES
 - Configurable status lines: for each view (forecast, radar, top strip, and
   health) choose what shows in the left and right slots — plus the middle slot
-  on the radar and health views — from a catalog:
+  on every view — from a catalog:
   - current temperature
   - city
   - calendar week
@@ -99,9 +99,8 @@ STATUS LINES
   - steps and walked distance
   - sleep
   - heart rate
-  The forecast view keeps the city centered; the top strip keeps the date and
-  battery. Health items need a health-capable watch (heart rate needs a
-  heart-rate sensor). A missing value shows as "--" so the row never jumps.
+  - battery
+  The forecast view keeps the city centered; the top strip defaults to the date centered with the battery top-right — both selectable. An optional 'Show battery below 10%' setting keeps the battery visible on a low charge even when the top-right slot holds something else. Health items need a health-capable watch (heart rate needs a heart-rate sensor). A missing value shows as "--" so the row never jumps.
 
 LAYOUT CUSTOMIZATION
 - Layout presets: 
