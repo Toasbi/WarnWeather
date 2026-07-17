@@ -1,6 +1,6 @@
 #include <string.h>
 #include "top_status_layer.h"
-#include "battery_layer.h"
+#include "battery_draw.h"
 #include "status_row.h"
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
@@ -12,8 +12,6 @@
 #include "c/services/watch_services.h"
 #include "c/windows/layout.h"   // LayoutTier (status_row tier param)
 
-#define BATTERY_W 29
-#define BATTERY_H 10
 #define PADDING 4
 #define MONTH_FONT_OFFSET 7
 #define ICON_SLOT_1 GRect(PADDING, 0, 10, 10)
@@ -21,16 +19,16 @@
 // emery: center icons in the taller status row.
 #ifdef PBL_PLATFORM_EMERY
 #define STATUS_ICON_Y(bounds_h, icon_h) (((bounds_h) - (icon_h)) / 2)
-#define BATTERY_Y(bounds_h) (((bounds_h) - BATTERY_H) / 2)
 #define MONTH_FONT_KEY FONT_KEY_GOTHIC_24
 #else
 #define STATUS_ICON_Y(bounds_h, icon_h) ((void)(bounds_h), (void)(icon_h), 0)
-#define BATTERY_Y(bounds_h) ((void)(bounds_h), 1)
 #define MONTH_FONT_KEY FONT_KEY_GOTHIC_18
 #endif
 
 static bool show_qt_icon(void);
 static void bluetooth_callback(bool connected);
+static void update_battery_override(void);
+static void battery_state_callback(BatteryChargeState charge);
 
 static Layer *s_top_status_layer;
 static StatusRow *s_row;
@@ -225,12 +223,12 @@ static void maybe_unload_top_status_bitmaps(bool show_qt, bool draw_bt, bool dra
 }
 
 // Configurable slots (status_row's left slot / fixed date mid slot / right slot)
-// live between the left icon slot(s) and the battery. Left inset clears whichever
+// span from the left icon slot(s) to the right edge. Left inset clears whichever
 // icons are currently on screen (QT and/or BT), reusing the same booleans
-// top_status_update_proc computes; right inset clears the battery. This is only
-// ever consulted in non-alert mode (the alert branch draws its own centered
-// glyph+text unit instead), so it need not account for the alert's icon-suppression
-// gate.
+// top_status_update_proc computes; the right inset is plain padding now that the
+// top-right slot draws the battery itself. This is only ever consulted in
+// non-alert mode (the alert branch draws its own centered glyph+text unit
+// instead), so it need not account for the alert's icon-suppression gate.
 static GRect content_rect(void) {
     GRect bounds = layer_get_bounds(s_top_status_layer);
     bool show_qt = show_qt_icon();
@@ -245,7 +243,7 @@ static GRect content_rect(void) {
     } else if (wants_bt || wants_bt_disc) {
         left = (int16_t)(ICON_SLOT_1.origin.x + ICON_SLOT_1.size.w + PADDING);
     }
-    int16_t right = (int16_t)(BATTERY_W + 2 * PADDING);
+    int16_t right = PADDING;   // the top-right slot now draws the battery itself
     int16_t w = (int16_t)(bounds.size.w - left - right);
     if (w < 0) { w = 0; }
     return GRect((int16_t)(bounds.origin.x + left), bounds.origin.y, w, bounds.size.h);
@@ -293,6 +291,16 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
     int glyph_x = icon_x;
 
     if (alert) {
+        // Keep the right slot (battery) visible during the alert: suppress the
+        // left+mid slots and reserve exactly the right slot's measured width so
+        // the alert unit never overlaps it (a text/live metric there can be wider
+        // than the battery glyph). Empty right slot -> right_w 0 -> full width.
+        status_row_set_suppress_edges(s_row, true);
+        status_row_apply(s_row, content_rect(), LAYOUT_TIER_FULL, STATUS_LINE_TOP);
+        int16_t right_w = status_row_right_slot_width(s_row);
+        int16_t alert_w = (int16_t)(bounds.size.w - (right_w > 0 ? right_w + PADDING : 0));
+        if (alert_w < 0) { alert_w = 0; }
+
         strncpy(shown, s_rain_alert_text, sizeof(shown));
         shown[sizeof(shown) - 1] = '\0';
         text_rect = month_text_rect(bounds, font, shown);
@@ -303,11 +311,11 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
             shown, font, GRect(0, 0, bounds.size.w, bounds.size.h),
             GTextOverflowModeFill, GTextAlignmentLeft);
         int unit_w = glyph_side + glyph_gap + text_size.w;
-        int start_x = (bounds.size.w - unit_w) / 2;
+        int start_x = (alert_w - unit_w) / 2;
         if (start_x < 0) { start_x = 0; }
         glyph_x = start_x;
         text_rect.origin.x = start_x + glyph_side + glyph_gap;
-        text_rect.size.w = bounds.size.w - text_rect.origin.x;
+        text_rect.size.w = alert_w - text_rect.origin.x;
         text_align = GTextAlignmentLeft;
 
         // Keep the left status icons (Quiet-Time, Bluetooth) only while the centered
@@ -361,7 +369,9 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
 
     if (alert) {
         draw_status_text_in(ctx, text_rect, shown, text_align, font);
+        status_row_draw(s_row, ctx);   // suppress_edges already set above -> right slot only
     } else {
+        status_row_set_suppress_edges(s_row, false);
         status_row_apply(s_row, content_rect(), LAYOUT_TIER_FULL, STATUS_LINE_TOP);
         status_row_draw(s_row, ctx);
     }
@@ -373,9 +383,6 @@ void top_status_layer_create(Layer* parent_layer, GRect frame) {
     s_top_status_layer = layer_create(frame);
     MEMORY_HEAP_PROBE_SAMPLE("after_layer_create", &probe);
 
-    GRect bounds = layer_get_bounds(s_top_status_layer);
-    int w = bounds.size.w;
-
     // Set up bluetooth handler
     connection_service_subscribe((ConnectionHandlers) {
         .pebble_app_connection_handler = bluetooth_callback
@@ -384,6 +391,12 @@ void top_status_layer_create(Layer* parent_layer, GRect frame) {
 
     s_row = status_row_create(STATUS_LINE_TOP);
     status_row_set_full_date(s_row, s_full_date);
+    // The battery now lives in the top-right status slot (status_row draws it);
+    // own its event source here as the retired battery corner layer used to.
+    update_battery_override();
+    if (!watch_services_battery_is_fixture()) {
+        battery_state_service_subscribe(battery_state_callback);
+    }
     status_row_apply(s_row, content_rect(), LAYOUT_TIER_FULL, STATUS_LINE_TOP);
 
     rain_countdown_refresh(watch_services_now());
@@ -391,10 +404,6 @@ void top_status_layer_create(Layer* parent_layer, GRect frame) {
 
     layer_set_update_proc(s_top_status_layer, top_status_update_proc);
     MEMORY_HEAP_PROBE_SAMPLE("after_update_proc_set", &probe);
-
-    battery_layer_create(s_top_status_layer,
-                         GRect(w - BATTERY_W - PADDING, BATTERY_Y(bounds.size.h), BATTERY_W, BATTERY_H));
-    MEMORY_HEAP_PROBE_SAMPLE("after_battery_layer_create", &probe);
 
     layer_add_child(parent_layer, s_top_status_layer);
     MEMORY_HEAP_PROBE_SAMPLE("after_parent_child_added", &probe);
@@ -416,6 +425,20 @@ static void bluetooth_callback(bool connected) {
     layer_mark_dirty(s_top_status_layer);
     if (!connected && config_get()->vibe)
         vibes_double_pulse();
+}
+
+// Low-battery takeover: when "show battery below 10%" is on and the charge is
+// under 10%, force the right slot to the battery glyph regardless of its packed
+// kind. Off/above threshold clears the override (the slot renders its own kind).
+static void update_battery_override(void) {
+    bool active = config_get()->battery_low_only
+        && watch_services_battery_state().charge_percent < 10;
+    status_row_set_battery_override(s_row, active);
+}
+
+static void battery_state_callback(BatteryChargeState charge) {
+    update_battery_override();
+    layer_mark_dirty(s_top_status_layer);
 }
 
 static bool show_qt_icon(void) {
@@ -452,6 +475,9 @@ void top_status_layer_tick() {
     // Per-minute hook. Repaint when the Quiet-Time icon toggles (its only event
     // source) or when the rain-alert string changes (a flash-free derivation
     // from the cached countdown; the radar scan itself runs only on data change).
+    // update_battery_override here catches crossing the 10% threshold between the
+    // discrete battery_state events.
+    update_battery_override();
     bool dirty = false;
     bool qt_active = show_qt_icon();
     if (qt_active != s_last_qt_active) {
@@ -472,6 +498,7 @@ void top_status_layer_tick() {
 void top_status_layer_refresh() {
     // Date formatting lives in status_row.c's format_status_date (SLOT_LIVE_DATE);
     // this owner only keeps the alert derivation and icon state in sync.
+    update_battery_override();   // config may have flipped battery_low_only
     recompute_rain_alert();
     status_icons_refresh();
     if (status_row_refresh(s_row)) {
@@ -486,7 +513,10 @@ bool top_status_layer_uses_live_health(void) {
 void top_status_layer_destroy() {
     MEMORY_LOG_HEAP("top_status_layer_destroy:before");
     connection_service_unsubscribe();
-    battery_layer_destroy();
+    if (!watch_services_battery_is_fixture()) {
+        battery_state_service_unsubscribe();
+    }
+    battery_draw_deinit();
     if (s_mute_bitmap) {
         gbitmap_destroy(s_mute_bitmap);
         s_mute_bitmap = NULL;

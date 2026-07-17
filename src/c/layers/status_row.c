@@ -1,6 +1,7 @@
 #include "status_row.h"
 #include "status_row_icons.h"
 #include "status_row_layout.h"
+#include "battery_draw.h"
 #include "layer_util.h"
 #include "../appendix/persist.h"
 #include "../appendix/theme.h"
@@ -44,6 +45,8 @@ struct StatusRow {
     GRect bounds;
     bool sleeping;
     bool full_date;
+    bool battery_override;
+    bool suppress_edges;
     GDrawCommandImage *glyphs[STATUS_SLOT_COUNT];
     uint8_t glyph_icons[STATUS_SLOT_COUNT];
     int16_t glyph_h;
@@ -197,6 +200,17 @@ static void format_live_value(const StatusRow *row, uint8_t kind, char *buf, siz
     }
 }
 
+// The low-battery takeover: force the right slot to render as the battery glyph
+// (icon-only, no text) without touching the packed blob. No-op for other slots.
+static void apply_battery_override(const StatusRow *row, int slot_index, StatusSlotView *slot) {
+    if (row->battery_override && slot_index == STATUS_SLOT_COUNT - 1) {
+        slot->kind = SLOT_LIVE_BATTERY;
+        slot->icon = STATUS_ICON_NONE;
+        slot->value_len = 0;
+        slot->value = NULL;
+    }
+}
+
 static void resolve_slot_text(const StatusRow *row, const StatusSlotView *slot, char *buf, size_t cap) {
     if (cap == 0) { return; }
     if (slot->kind == SLOT_TEXT) {
@@ -204,7 +218,7 @@ static void resolve_slot_text(const StatusRow *row, const StatusSlotView *slot, 
         if (n > cap - 1) { n = cap - 1; }
         memcpy(buf, slot->value, n);
         buf[n] = '\0';
-    } else if (slot->kind == SLOT_EMPTY) {
+    } else if (slot->kind == SLOT_EMPTY || slot->kind == SLOT_LIVE_BATTERY) {
         buf[0] = '\0';
     } else {
         format_live_value(row, slot->kind, buf, cap);
@@ -272,6 +286,20 @@ void status_row_set_full_date(StatusRow *row, bool full_date) {
     if (row) { row->full_date = full_date; }
 }
 
+void status_row_set_battery_override(StatusRow *row, bool active) {
+    if (row && row->battery_override != active) {
+        row->battery_override = active;
+        row->content_sig = 0;   // force the next refresh to report a change
+    }
+}
+
+void status_row_set_suppress_edges(StatusRow *row, bool suppress) {
+    if (row && row->suppress_edges != suppress) {
+        row->suppress_edges = suppress;
+        row->content_sig = 0;
+    }
+}
+
 bool status_row_uses_live_health(const StatusRow *row) {
     return row && row->uses_live_health;
 }
@@ -286,6 +314,7 @@ bool status_row_refresh(StatusRow *row) {
         for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
             StatusSlotView slot;
             if (!status_line_slot(s_blob_scratch, (size_t)len, i, &slot)) { break; }
+            apply_battery_override(row, i, &slot);
             resolve_slot_text(row, &slot, s_text_scratch, sizeof(s_text_scratch));
             sig = sig_fold(sig, &slot.kind, 1);
             sig = sig_fold(sig, &slot.icon, 1);
@@ -294,7 +323,17 @@ bool status_row_refresh(StatusRow *row) {
             if (slot.kind != SLOT_EMPTY && slot.icon == STATUS_ICON_DRAWN_SUN) {
                 has_drawn_sun = true;
             }
-            if (slot.kind >= SLOT_LIVE_STEPS) { row->uses_live_health = true; }
+            if (slot.kind == SLOT_LIVE_BATTERY) {
+                BatteryChargeState bs = watch_services_battery_state();
+                uint8_t bt[2] = { (uint8_t) bs.charge_percent,
+                                  (uint8_t) (bs.is_charging || bs.is_plugged) };
+                sig = sig_fold(sig, bt, 2);
+            }
+            // battery has its own event source (battery_state_service) and is not
+            // health — keep it out of the live-health refresh gate.
+            if (slot.kind >= SLOT_LIVE_STEPS && slot.kind != SLOT_LIVE_BATTERY) {
+                row->uses_live_health = true;
+            }
         }
     }
     if (has_drawn_sun) {
@@ -335,6 +374,58 @@ static void ensure_glyphs(StatusRow *row, int len, int content_h) {
     row->glyph_fg = fg;
 }
 
+// Measured footprint of one slot: icon width (battery = fixed glyph, loaded PDC,
+// or the drawn-sun arrow) + text width. Shared by the draw pass and the
+// right-slot width query. Does not handle the sleeping-snooze special case
+// (slot 0 of a weather line) — the draw loop keeps that inline.
+static StatusSlotMeasure measure_slot(StatusRow *row, int i, GFont font,
+                                      int16_t content_w, const StatusSlotView *slot,
+                                      const char *text) {
+    StatusSlotMeasure m;
+    int16_t icon_w = 0;
+    if (slot->kind == SLOT_LIVE_BATTERY) {
+        icon_w = BATTERY_GLYPH_W;
+    } else if (row->glyphs[i]) {
+        icon_w = gdraw_command_image_get_bounds_size(row->glyphs[i]).w;
+    } else if (slot->icon == STATUS_ICON_DRAWN_SUN && slot->kind != SLOT_EMPTY) {
+        icon_w = ARROW_W;
+    }
+    int16_t text_w = 0;
+    if (text[0] != '\0' && content_w > 0 && row->bounds.size.h > 0) {
+        text_w = graphics_text_layout_get_content_size(
+            text, font, GRect(0, 0, content_w, row->bounds.size.h),
+            GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).w;
+    }
+    m.present = icon_w > 0 || text_w > 0;
+    m.icon_w = icon_w;
+    m.text_w = text_w;
+    return m;
+}
+
+int16_t status_row_right_slot_width(StatusRow *row) {
+    if (!row) { return 0; }
+    int len = load_blob(row->line_id);
+    if (len == 0) { return 0; }
+    GFont font = row_font(row->tier, row->line_id);
+    int content_h = graphics_text_layout_get_content_size(
+        "0", font, GRect(0, 0, 100, 100),
+        GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).h;
+    ensure_glyphs(row, len, content_h);   // idempotent; the following draw hits the cache
+    int16_t content_w = (int16_t)(row->bounds.size.w - 2 * STATUS_ROW_MARGIN);
+    if (content_w < 0) { content_w = 0; }
+    int i = STATUS_SLOT_COUNT - 1;   // right slot
+    StatusSlotView slot;
+    if (!status_line_slot(s_blob_scratch, (size_t)len, i, &slot)) { return 0; }
+    apply_battery_override(row, i, &slot);
+    char text[STATUS_TEXT_MID_MAX + 1];
+    resolve_slot_text(row, &slot, text, sizeof(text));
+    StatusSlotMeasure m = measure_slot(row, i, font, content_w, &slot, text);
+    if (!m.present) { return 0; }
+    int16_t w = m.icon_w + m.text_w;
+    if (m.icon_w > 0 && m.text_w > 0) { w += STATUS_ROW_ICON_TEXT_GAP; }
+    return w;
+}
+
 void status_row_draw(StatusRow *row, GContext *ctx) {
     if (!row || !ctx) { return; }
     int len = load_blob(row->line_id);
@@ -356,6 +447,16 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
                      || row->line_id == STATUS_LINE_RADAR;
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         if (!status_line_slot(s_blob_scratch, (size_t)len, i, &slots[i])) { return; }
+        // Rain-alert takeover: hide left + mid so only the right slot (battery)
+        // renders; the owner draws the alert glyph+text over the vacated region.
+        if (row->suppress_edges && i != STATUS_SLOT_COUNT - 1) {
+            measures[i].present = false;
+            measures[i].icon_w = 0;
+            measures[i].text_w = 0;
+            texts[i][0] = '\0';
+            continue;
+        }
+        apply_battery_override(row, i, &slots[i]);
         resolve_slot_text(row, &slots[i], texts[i], sizeof(texts[i]));
         if (row->sleeping && weather_line && i == 0) {
             measures[i].present = true;
@@ -363,22 +464,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
             measures[i].text_w = 0;
             continue;
         }
-        int16_t icon_w = 0;
-        if (row->glyphs[i]) {
-            icon_w = gdraw_command_image_get_bounds_size(row->glyphs[i]).w;
-        } else if (slots[i].icon == STATUS_ICON_DRAWN_SUN
-                   && slots[i].kind != SLOT_EMPTY) {
-            icon_w = ARROW_W;
-        }
-        int16_t text_w = 0;
-        if (texts[i][0] != '\0' && content_w > 0 && row->bounds.size.h > 0) {
-            text_w = graphics_text_layout_get_content_size(
-                texts[i], font, GRect(0, 0, content_w, row->bounds.size.h),
-                GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).w;
-        }
-        measures[i].present = icon_w > 0 || text_w > 0;
-        measures[i].icon_w = icon_w;
-        measures[i].text_w = text_w;
+        measures[i] = measure_slot(row, i, font, content_w, &slots[i], texts[i]);
     }
 
     StatusSlotPlace places[STATUS_SLOT_COUNT];
@@ -394,7 +480,10 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         if (!places[i].visible) { continue; }
         int16_t icon_x = (int16_t)(x0 + places[i].icon_x);
-        if (row->sleeping && weather_line && i == 0) {
+        if (slots[i].kind == SLOT_LIVE_BATTERY) {
+            battery_draw(ctx, GRect(icon_x, glyph_cy - BATTERY_GLYPH_H / 2,
+                                    BATTERY_GLYPH_W, BATTERY_GLYPH_H), theme_fg());
+        } else if (row->sleeping && weather_line && i == 0) {
             snooze_draw(ctx,
                         GRect(icon_x, row->bounds.origin.y + 2,
                               SNOOZE_BOX_W, row->bounds.size.h - 4),
