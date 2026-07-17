@@ -626,15 +626,7 @@ module.exports = {
     }, {
         id: 'more', label: 'More', sections: [{
             title: 'Misc',
-            items: [{type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true}, {
-                type: 'toggle', messageKey: 'vibe', label: 'Vibrate on bluetooth disconnect', defaultValue: false
-            }, {
-                type: 'select',
-                messageKey: 'btIcons',
-                label: 'Show icon for bluetooth',
-                defaultValue: 'both',
-                options: [['Disconnected', 'disconnected'], ['Connected', 'connected'], ['Both', 'both'], ['None', 'none']]
-            }, {
+            items: [{
                 type: 'toggle',
                 messageKey: 'telemetryEnabled',
                 label: 'Share anonymous telemetry',
@@ -672,6 +664,18 @@ module.exports = {
                     defaultValue: 'empty', joinPrevious: true,
                     optionsFrom: {resolver: 'statusSlot',
                         args: {excludeKeys: ['statusTopLeft']}}
+                },
+                {type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true},
+                {
+                    type: 'toggle', messageKey: 'vibe', label: 'Vibrate on bluetooth disconnect',
+                    defaultValue: false, joinPrevious: true
+                },
+                {
+                    type: 'select',
+                    messageKey: 'btIcons',
+                    label: 'Show icon for bluetooth',
+                    defaultValue: 'both',
+                    options: [['Disconnected', 'disconnected'], ['Connected', 'connected'], ['Both', 'both'], ['None', 'none']]
                 }
             ]
         }, {

@@ -525,3 +525,24 @@ test('Units section wording: the section title carries the noun, labels stay sho
     'Which air-quality index the "Air quality (AQI)" status item shows.');
   assert.equal(byKey('windUnits').hint, 'Unit for the wind and gust status items.');
 });
+
+test('top-strip icon controls live in the Top strip slots section, not Misc', () => {
+  const more = schema.tabs.find((t) => t.id === 'more');
+  const misc = more.sections.find((s) => s.title === 'Misc');
+  const strip = more.sections.find((s) => s.title === 'Top strip slots');
+  const miscKeys = misc.items.map((i) => i.messageKey).filter(Boolean);
+  ['showQt', 'vibe', 'btIcons'].forEach((k) =>
+    assert.ok(miscKeys.indexOf(k) === -1, k + ' moved out of Misc'));
+  assert.ok(miscKeys.indexOf('telemetryEnabled') !== -1, 'telemetry stays in Misc');
+  assert.ok(miscKeys.indexOf('onboardingDone') !== -1, 'onboardingDone stays in Misc');
+  const stripKeys = strip.items.map((i) => i.messageKey).filter(Boolean);
+  ['showQt', 'vibe', 'btIcons'].forEach((k) =>
+    assert.ok(stripKeys.indexOf(k) !== -1, k + ' now in Top strip slots'));
+  assert.ok(stripKeys.indexOf('statusTopRight') < stripKeys.indexOf('showQt'),
+    'slot selects render above the icon toggles');
+  assert.ok(stripKeys.indexOf('showQt') < stripKeys.indexOf('vibe'),
+    'vibe sits directly below showQt');
+  assert.ok(stripKeys.indexOf('vibe') < stripKeys.indexOf('btIcons'),
+    'btIcons comes last');
+  assert.equal(byKey('vibe').joinPrevious, true, 'vibe joins showQt as one visual group');
+});
