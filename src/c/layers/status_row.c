@@ -89,7 +89,12 @@ static const GPathInfo ARROW_PATH_INFO = {
 
 static int s_row_count;
 
-static GFont row_font(uint8_t tier) {
+static GFont row_font(uint8_t tier, uint8_t line_id) {
+    // The top strip keeps its own (larger) font at all times; it always renders
+    // the FULL tier but must not share the weather/health full-tier size.
+    if (line_id == STATUS_LINE_TOP) {
+        return fonts_get_system_font(STATUS_TOP_TIER_FONT_KEY);
+    }
     switch (tier) {
         case LAYOUT_TIER_NONE:
             return fonts_get_system_font(NONE_ROW_FONT_KEY);
@@ -324,7 +329,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     int len = load_blob(row->line_id);
     if (len == 0) { return; }
 
-    GFont font = row_font(row->tier);
+    GFont font = row_font(row->tier, row->line_id);
     int content_h = graphics_text_layout_get_content_size(
         "0", font, GRect(0, 0, 100, 100),
         GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).h;
