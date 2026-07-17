@@ -34,6 +34,7 @@ test('slot kinds are in lockstep with status_line.h', () => {
   assert.equal(catalog.KINDS.LIVE_SLEEP, cEnum('SLOT_LIVE_SLEEP'));
   assert.equal(catalog.KINDS.LIVE_DISTANCE, cEnum('SLOT_LIVE_DISTANCE'));
   assert.equal(catalog.KINDS.LIVE_WEEK, cEnum('SLOT_LIVE_WEEK'));
+  assert.equal(catalog.KINDS.LIVE_DISTANCE_MI, cEnum('SLOT_LIVE_DISTANCE_MI'));
 });
 
 test('icon ids are in lockstep with status_line.h', () => {

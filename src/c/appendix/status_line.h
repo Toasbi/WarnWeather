@@ -28,10 +28,11 @@ typedef enum {
     SLOT_LIVE_STEPS = 3,
     SLOT_LIVE_HR = 4,
     SLOT_LIVE_SLEEP = 5,
-    SLOT_LIVE_DISTANCE = 6,
+    SLOT_LIVE_DISTANCE = 6,     // walked distance in km (metric)
     SLOT_LIVE_WEEK = 7,     // watch formats the current ISO-8601 calendar week
+    SLOT_LIVE_DISTANCE_MI = 8,  // walked distance in miles (imperial); unit chosen by the phone
 } StatusSlotKind;
-#define STATUS_SLOT_KIND_MAX SLOT_LIVE_WEEK
+#define STATUS_SLOT_KIND_MAX SLOT_LIVE_DISTANCE_MI
 
 typedef enum {
     STATUS_ICON_NONE = 0,
