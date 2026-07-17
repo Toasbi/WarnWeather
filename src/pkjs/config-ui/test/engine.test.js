@@ -577,3 +577,18 @@ test('renderBody: button renders data-action row; hidden renders nothing', () =>
   assert.match(html, /Run setup again/);
   assert.doesNotMatch(html, /onboardingDone/);
 });
+
+test('renderSelect: options carrying {disabled:true} render as disabled', () => {
+  const html = E.renderControl(
+    { type: 'select', messageKey: 'slot', options: [
+      ['Empty', 'empty'],
+      ['Weather', '__hdr_weather', { disabled: true }],
+      ['   City', 'city']
+    ] },
+    { value: 'city' });
+  assert.ok(html.indexOf('<option value="__hdr_weather" disabled>Weather</option>') !== -1,
+    'header option disabled');
+  assert.ok(html.indexOf('<option value="city" selected>') !== -1,
+    'selectable option untouched');
+  assert.ok(html.indexOf('<option value="empty">') !== -1, 'no stray disabled attr');
+});

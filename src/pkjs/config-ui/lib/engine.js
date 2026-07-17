@@ -188,10 +188,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   function renderSelect(item, v) {
-    var h = '<select data-k="' + item.messageKey + '">', i, o;
+    var h = '<select data-k="' + item.messageKey + '">', i, o, dis;
     for (i = 0; i < item.options.length; i++) {
       o = item.options[i];
-      h += '<option value="' + esc(o[1]) + '"' + (v === o[1] ? ' selected' : '') + '>' + esc(o[0]) + '</option>';
+      // Optional third element {disabled:true} marks a non-selectable header
+      // row (e.g. the status-slot category headers) — see slotOptions().
+      dis = (o[2] && o[2].disabled) ? ' disabled' : '';
+      h += '<option value="' + esc(o[1]) + '"' + (v === o[1] ? ' selected' : '') + dis + '>' + esc(o[0]) + '</option>';
     }
     return h + '</select>';
   }
