@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "app_message.h"
+#include "config_wire.h"
 #include "persist.h"
 #include "palette.h"
 #include "c/layers/forecast_layer.h"
@@ -242,77 +243,14 @@ static bool handle_palette(DictionaryIterator *iterator, bool *forecast_dirty,
     return true;
 }
 
+// Parse (bytes→Config, config_wire.c) is separate from apply (Config→persist +
+// cache reload + dirty bit, here). config_parse_wire returning false means the
+// message carries no config — normal for weather messages.
 static bool handle_clay_config(DictionaryIterator *iterator, bool *config_dirty) {
-    Tuple *clay_celsius_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_CELSIUS);
-    Tuple *clay_time_lead_zero_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_TIME_LEAD_ZERO);
-    Tuple *clay_axis_12h_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_AXIS_12H);
-    Tuple *clay_start_mon_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_START_MON);
-    Tuple *clay_prev_week_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_PREV_WEEK);
-    Tuple *clay_color_today_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_COLOR_TODAY);
-    Tuple *clay_time_font_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_TIME_FONT);
-    Tuple *clay_vibe_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIBE);
-    Tuple *clay_show_qt_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_SHOW_QT);
-    Tuple *clay_show_bt_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_SHOW_BT);
-    Tuple *clay_show_bt_disconnect_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_SHOW_BT_DISCONNECT);
-    Tuple *clay_show_am_pm_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_SHOW_AM_PM);
-    Tuple *clay_color_saturday_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_COLOR_SATURDAY);
-    Tuple *clay_color_sunday_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_COLOR_SUNDAY);
-    Tuple *clay_color_us_federal_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_COLOR_US_FEDERAL);
-    Tuple *clay_color_time_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_COLOR_TIME);
-    Tuple *clay_day_night_shading_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_DAY_NIGHT_SHADING);
-    Tuple *clay_fetch_interval_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_FETCH_INTERVAL_MIN);
-    Tuple *clay_health_mode_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_HEALTH_MODE);
-    Tuple *clay_rain_countdown_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_RAIN_COUNTDOWN_HORIZON);
-    Tuple *clay_top_view_mode_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_TOP_VIEW_MODE);
-    // Optional (older phone builds omit these); view_spec then stays 0 (all slots
-    // disabled → producer renders the default view).
-    Tuple *clay_view_0_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_0);
-    Tuple *clay_view_1_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_1);
-    Tuple *clay_view_2_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_2);
-    Tuple *clay_view_reset_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_RESET_MIN);
-    // Optional (older phone builds omit it); config.theme then stays 0 = dark.
-    Tuple *clay_theme_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_THEME);
-
-    if (!(clay_celsius_tuple && clay_time_lead_zero_tuple && clay_axis_12h_tuple && clay_start_mon_tuple
-        && clay_prev_week_tuple && clay_color_today_tuple && clay_time_font_tuple && clay_vibe_tuple
-        && clay_show_qt_tuple && clay_show_bt_tuple && clay_show_bt_disconnect_tuple && clay_show_am_pm_tuple
-        && clay_color_saturday_tuple && clay_color_sunday_tuple && clay_color_us_federal_tuple
-        && clay_color_time_tuple && clay_day_night_shading_tuple && clay_fetch_interval_tuple
-        && clay_health_mode_tuple && clay_rain_countdown_tuple && clay_top_view_mode_tuple)) {
+    Config config;
+    if (!config_parse_wire(iterator, &config)) {
         return false;
     }
-
-    // Zero the struct first so padding bytes compare deterministically in
-    // persist_set_config's change detection.
-    Config config;
-    memset(&config, 0, sizeof(config));
-    config.celsius = (bool) (clay_celsius_tuple->value->int16);
-    config.time_lead_zero = (bool) (clay_time_lead_zero_tuple->value->int16);
-    config.axis_12h = (bool) (clay_axis_12h_tuple->value->int16);
-    config.start_mon = (bool) (clay_start_mon_tuple->value->int16);
-    config.prev_week = (bool) (clay_prev_week_tuple->value->int16);
-    config.vibe = (bool) (clay_vibe_tuple->value->int16);
-    config.show_qt = (bool) (clay_show_qt_tuple->value->int16);
-    config.show_bt = (bool) (clay_show_bt_tuple->value->int16);
-    config.show_bt_disconnect = (bool) (clay_show_bt_disconnect_tuple->value->int16);
-    config.show_am_pm = (bool) (clay_show_am_pm_tuple->value->int16);
-    config.day_night_shading = (bool) (clay_day_night_shading_tuple->value->int16);
-    config.health_mode = (uint8_t) (clay_health_mode_tuple->value->int16);
-    config.fetch_interval_min = clay_fetch_interval_tuple->value->int16;
-    config.rain_countdown_horizon_min = clay_rain_countdown_tuple->value->int16;
-    config.top_view_mode = (uint8_t) (clay_top_view_mode_tuple->value->int16);
-    if (clay_view_0_tuple) { config.view_spec[0] = (uint8_t) clay_view_0_tuple->value->int16; }
-    if (clay_view_1_tuple) { config.view_spec[1] = (uint8_t) clay_view_1_tuple->value->int16; }
-    if (clay_view_2_tuple) { config.view_spec[2] = (uint8_t) clay_view_2_tuple->value->int16; }
-    if (clay_view_reset_tuple) { config.view_reset_min = (uint8_t) clay_view_reset_tuple->value->int16; }
-    if (clay_theme_tuple) { config.theme = (uint8_t) clay_theme_tuple->value->int16; }
-    config.time_font = clay_time_font_tuple->value->int16;
-    config.color_today = GColorFromHEX(clay_color_today_tuple->value->int32);
-    config.color_saturday = GColorFromHEX(clay_color_saturday_tuple->value->int32);
-    config.color_sunday = GColorFromHEX(clay_color_sunday_tuple->value->int32);
-    config.color_us_federal = GColorFromHEX(clay_color_us_federal_tuple->value->int32);
-    config.color_time = GColorFromHEX(clay_color_time_tuple->value->int32);
-
     if (persist_set_config(config)) {
         config_refresh();   // reload the cached config (persist no longer does this)
         *config_dirty = true;
