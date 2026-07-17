@@ -71,6 +71,10 @@ typedef struct {
     // stray 2 or 3 reaching a B&W watch from a phone previously paired with a
     // color watch is harmless (2 renders dark, 3 renders light).
     uint8_t theme;
+    // --- top-strip battery (v1.8): show the battery only below 10%, taking over
+    // the top-right slot. Append-only; optional wire tuple (older phones omit it,
+    // leaving the memset-zeroed default false). ---
+    bool battery_low_only;
 } Config;
 
 // Read-only view of the loaded config. Non-NULL from config_load() until

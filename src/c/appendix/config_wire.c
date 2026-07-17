@@ -32,6 +32,8 @@ bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
     Tuple *clay_view_reset_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_RESET_MIN);
     // Optional (older phone builds omit it); config.theme then stays 0 = dark.
     Tuple *clay_theme_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_THEME);
+    // Optional (older phone builds omit it); battery_low_only then stays false.
+    Tuple *clay_battery_low_only_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_BATTERY_LOW_ONLY);
 
     // The core-key presence chain — see config_wire.h. New keys go in the
     // optional block above, never in here.
@@ -67,6 +69,9 @@ bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
     if (clay_view_2_tuple) { out->view_spec[2] = (uint8_t) clay_view_2_tuple->value->int16; }
     if (clay_view_reset_tuple) { out->view_reset_min = (uint8_t) clay_view_reset_tuple->value->int16; }
     if (clay_theme_tuple) { out->theme = (uint8_t) clay_theme_tuple->value->int16; }
+    if (clay_battery_low_only_tuple) {
+        out->battery_low_only = (bool) (clay_battery_low_only_tuple->value->int16);
+    }
     out->time_font = clay_time_font_tuple->value->int16;
     out->color_today = GColorFromHEX(clay_color_today_tuple->value->int32);
     out->color_saturday = GColorFromHEX(clay_color_saturday_tuple->value->int32);
