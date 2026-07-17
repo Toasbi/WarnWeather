@@ -42,11 +42,6 @@ int health_distance_today_m(void) {
     return (int)health_service_sum_today(HealthMetricWalkedDistanceMeters);
 }
 
-MeasurementSystem health_distance_units(void) {
-    return health_service_get_measurement_system_for_display(
-        HealthMetricWalkedDistanceMeters);
-}
-
 int health_sleep_today_seconds(void) {
     /* Use health_service_sum_today, NOT health_service_sum over a trailing 24 h
        window: that window straddles midnight, and health_service_sum daily-

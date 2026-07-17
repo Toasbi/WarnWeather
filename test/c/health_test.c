@@ -55,10 +55,8 @@ _Static_assert(AmbientLightLevelUnknown == 0
 static int s_failures;
 static HealthServiceAccessibilityMask s_access;
 static HealthValue s_sum;
-static MeasurementSystem s_units;
 static HealthMetric s_access_metric;
 static HealthMetric s_sum_metric;
-static HealthMetric s_units_metric;
 static int s_sum_calls;
 
 static void expect_int(const char *name, int got, int want) {
@@ -80,11 +78,6 @@ HealthServiceAccessibilityMask health_service_metric_accessible(
     (void)time_end;
     s_access_metric = metric;
     return s_access;
-}
-
-MeasurementSystem health_service_get_measurement_system_for_display(HealthMetric metric) {
-    s_units_metric = metric;
-    return s_units;
 }
 
 HealthValue health_service_peek_current_value(HealthMetric metric) {
@@ -151,18 +144,6 @@ static void inaccessible_distance_returns_sentinel_without_sum(void) {
     expect_int("distance.inaccessible.sum_calls", s_sum_calls, 0);
 }
 
-static void distance_units_delegate_to_sdk(void) {
-    s_units = MeasurementSystemUnknown;
-    expect_int("distance.units.unknown", health_distance_units(), MeasurementSystemUnknown);
-
-    s_units = MeasurementSystemMetric;
-    expect_int("distance.units.metric", health_distance_units(), MeasurementSystemMetric);
-
-    s_units = MeasurementSystemImperial;
-    expect_int("distance.units.imperial", health_distance_units(), MeasurementSystemImperial);
-    expect_int("distance.units.sdk_metric", s_units_metric, HealthMetricWalkedDistanceMeters);
-}
-
 static void health_minute_schema_fields_are_usable(void) {
     HealthMinuteData minute = {0};
     minute.steps = 1;
@@ -187,7 +168,6 @@ static void health_minute_schema_fields_are_usable(void) {
 int main(void) {
     accessible_distance_returns_today_sum();
     inaccessible_distance_returns_sentinel_without_sum();
-    distance_units_delegate_to_sdk();
     health_minute_schema_fields_are_usable();
     if (s_failures) {
         printf("%d health failure(s)\n", s_failures);

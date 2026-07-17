@@ -125,6 +125,26 @@ static void format_status_date(bool full_date, char *buf, size_t cap) {
     }
 }
 
+#if defined(PBL_HEALTH)
+// Shared walked-distance formatter for both distance slot kinds. Integer-only
+// (no FP): km = metres/100 tenths, mi = metres*10/1609 tenths, each clamped to
+// 999 tenths (99.9). The unit comes from the packed slot kind the phone chose
+// (SLOT_LIVE_DISTANCE = km, SLOT_LIVE_DISTANCE_MI = mi), NOT the firmware system
+// Units setting, so the in-app Distance choice drives it.
+static void format_distance_value(char *buf, size_t cap, bool imperial) {
+    int m = health_summary_distance_m();
+    if (m < 0) { snprintf(buf, cap, "--"); return; }
+    int tenths;
+    if (imperial && m > (999 * 1609) / 10) {
+        tenths = 999;
+    } else {
+        tenths = imperial ? (m * 10) / 1609 : m / 100;
+        if (tenths > 999) { tenths = 999; }
+    }
+    snprintf(buf, cap, "%d.%d%s", tenths / 10, tenths % 10, imperial ? "mi" : "km");
+}
+#endif
+
 static void format_live_value(const StatusRow *row, uint8_t kind, char *buf, size_t cap) {
     switch (kind) {
         case SLOT_LIVE_DATE:
@@ -164,21 +184,12 @@ static void format_live_value(const StatusRow *row, uint8_t kind, char *buf, siz
             snprintf(buf, cap, "%d", bpm);
             return;
         }
-        case SLOT_LIVE_DISTANCE: {
-            int m = health_summary_distance_m();
-            if (m < 0) { snprintf(buf, cap, "--"); return; }
-            bool imperial = health_distance_units() == MeasurementSystemImperial;
-            int tenths;
-            if (imperial && m > (999 * 1609) / 10) {
-                tenths = 999;
-            } else {
-                tenths = imperial ? (m * 10) / 1609 : m / 100;
-                if (tenths > 999) { tenths = 999; }
-            }
-            snprintf(buf, cap, "%d.%d%s", tenths / 10, tenths % 10,
-                     imperial ? "mi" : "km");
+        case SLOT_LIVE_DISTANCE:
+            format_distance_value(buf, cap, false);
             return;
-        }
+        case SLOT_LIVE_DISTANCE_MI:
+            format_distance_value(buf, cap, true);
+            return;
 #endif
         default:
             snprintf(buf, cap, "--");

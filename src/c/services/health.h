@@ -21,9 +21,6 @@ int health_steps_today(void);
 /** Returns today's walked distance in meters, or -1 if unavailable. */
 int health_distance_today_m(void);
 
-/** Returns the user's display measurement system for walked distance. */
-MeasurementSystem health_distance_units(void);
-
 /** Returns today's total sleep in seconds (last night, matching the phone
  *  Health app), or 0 if unavailable. */
 int health_sleep_today_seconds(void);
