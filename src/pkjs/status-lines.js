@@ -183,13 +183,20 @@ function packLine(line, payload, settings, env) {
                                       settings, env);
     }
     var item = catalog.byCode(code) || catalog.byCode('empty');
+    // Distance carries its unit in the wire kind (phone-only distanceUnits): the
+    // watch renders km for LIVE_DISTANCE and mi for LIVE_DISTANCE_MI. Every other
+    // item keeps its catalog kind unchanged.
+    var kind = item.kind;
+    if (code === 'distance' && settings && settings.distanceUnits === 'imperial') {
+      kind = catalog.KINDS.LIVE_DISTANCE_MI;
+    }
     if (item.kind === catalog.KINDS.TEXT) {
       var valueBytes = utf8Truncate(utf8Encode(formatValue(code, payload, settings)),
                                     textCap(s));
       bytes.push(item.kind, item.icon, valueBytes.length);
       for (var b = 0; b < valueBytes.length; b++) { bytes.push(valueBytes[b]); }
     } else {
-      bytes.push(item.kind, item.icon, 0);
+      bytes.push(kind, item.icon, 0);
     }
   }
   return bytes;

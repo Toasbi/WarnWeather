@@ -158,6 +158,22 @@ test('forecast line sources its middle from statusForecastMid', () => {
   assert.equal(decodeMidText(uv), '3');
 });
 
+test('distance slot packs km vs mi kind from distanceUnits', () => {
+  const env = basaltEnv(); // health: true
+  const sel = (u) => Object.assign(
+    { statusForecastLeft: 'distance', healthMode: 'all' },
+    u === undefined ? {} : { distanceUnits: u });
+  const metric = statusLines.packLine(forecastLine(), {}, sel('metric'), env);
+  assert.equal(decodeLine(metric)[0].kind, catalog.KINDS.LIVE_DISTANCE);
+  const imperial = statusLines.packLine(forecastLine(), {}, sel('imperial'), env);
+  assert.equal(decodeLine(imperial)[0].kind, catalog.KINDS.LIVE_DISTANCE_MI);
+  const unset = statusLines.packLine(forecastLine(), {}, sel(undefined), env);
+  assert.equal(decodeLine(unset)[0].kind, catalog.KINDS.LIVE_DISTANCE); // defaults to km
+  // Icon is the distance icon in both units.
+  assert.equal(decodeLine(imperial)[0].icon, catalog.ICONS.DISTANCE);
+  assert.equal(decodeLine(metric)[0].icon, catalog.ICONS.DISTANCE);
+});
+
 test('city cap: 19 bytes in mid, 8 in edge, code-point safe', () => {
   const p = basePayload();
   p.CITY = 'Mönchengladbach-Ost'; // 20 UTF-8 bytes (o-umlaut = 2)

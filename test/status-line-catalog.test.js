@@ -136,3 +136,12 @@ test('city is offered in the forecast slot dropdowns', () => {
     { excludeKeys: ['statusForecastLeft', 'statusForecastRight'] }).map(o => o[1]);
   assert.ok(codes.indexOf('city') !== -1);
 });
+
+test('walked distance is one catalog entry; the mi kind is pack-time only', () => {
+  assert.ok(catalog.byCode('distance'), 'distance entry exists');
+  assert.equal(catalog.byCode('distance').kind, catalog.KINDS.LIVE_DISTANCE);
+  assert.equal(catalog.byCode('distance_mi'), null, 'no separate mi dropdown code');
+  const labels = catalog.slotOptions({ healthMode: 'all' }, ENV_BASALT, {})
+    .filter(o => o[0] === 'Walked distance');
+  assert.equal(labels.length, 1, 'exactly one Walked distance dropdown entry');
+});
