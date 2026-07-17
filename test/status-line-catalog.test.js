@@ -6,16 +6,16 @@ const ENV_EMERY = { color: true, round: false, platform: 'emery', health: true, 
 const ENV_BASALT = { color: true, round: false, platform: 'basalt', health: true, radar: true };
 const ENV_APLITE = { color: false, round: false, platform: 'aplite', health: false, radar: false };
 
-test('LINES describes 4 lines in wire order with fixed slots', () => {
+test('LINES describes 4 lines in wire order with three real slots each', () => {
   assert.deepEqual(catalog.LINES.map(l => l.id), ['forecast', 'radar', 'top', 'health']);
   assert.deepEqual(catalog.LINES.map(l => l.wireKey),
     ['STATUS_LINE_1_UINT8', 'STATUS_LINE_2_UINT8', 'STATUS_LINE_3_UINT8', 'STATUS_LINE_4_UINT8']);
-  assert.equal(catalog.LINES[0].fixedMid, undefined);
-  assert.equal(catalog.LINES[0].slots[1], 'statusForecastMid');
-  assert.equal(catalog.LINES[2].fixedMid, 'date');
-  assert.equal(catalog.LINES[2].slots[1], null);
-  assert.equal(catalog.LINES[1].fixedMid, undefined);
-  assert.equal(catalog.LINES[3].fixedMid, undefined);
+  catalog.LINES.forEach(l => {
+    assert.equal(l.fixedMid, undefined, l.id + ' has no fixed mid');
+    assert.equal(l.slots.length, 3);
+    l.slots.forEach(k => assert.equal(typeof k, 'string'));
+  });
+  assert.equal(catalog.LINES[2].slots[1], 'statusTopMid');
 });
 
 test('defaults preserve today\'s watchface', () => {
@@ -24,7 +24,7 @@ test('defaults preserve today\'s watchface', () => {
   assert.deepEqual(catalog.LINES[1].defaults,
     { statusRadarLeft: 'temp', statusRadarMid: 'city', statusRadarRight: 'sun' });
   assert.deepEqual(catalog.LINES[2].defaults,
-    { statusTopLeft: 'empty', statusTopRight: 'empty' });
+    { statusTopLeft: 'empty', statusTopMid: 'date', statusTopRight: 'empty' });
   assert.deepEqual(catalog.LINES[3].defaults,
     { statusHealthLeft: 'steps', statusHealthMid: 'empty', statusHealthRight: 'sleep' });
   assert.deepEqual(catalog.LINES[3].emeryDefaults,
@@ -42,8 +42,28 @@ test('availability gating', () => {
   assert.ok(!catalog.itemAvailable(catalog.byCode('precip_prob'), s, ENV_BASALT));
   assert.ok(catalog.itemAvailable(catalog.byCode('precip_prob'),
     { radarProvider: 'disabled' }, ENV_BASALT));
-  // 'date' is fixed-only: never offered in a dropdown.
-  assert.ok(!catalog.itemAvailable(catalog.byCode('date'), s, ENV_BASALT));
+});
+
+test('date is middle-only: offered in mid slots of any line, nowhere else', () => {
+  const s = { healthMode: 'all', radarProvider: 'rainbow' };
+  const date = catalog.byCode('date');
+  assert.ok(!catalog.itemAvailable(date, s, ENV_BASALT), 'no slot context -> unavailable');
+  assert.ok(!catalog.itemAvailable(date, s, ENV_BASALT, { slotKey: 'statusTopLeft', position: 'left' }));
+  assert.ok(!catalog.itemAvailable(date, s, ENV_BASALT, { slotKey: 'statusTopRight', position: 'right' }));
+  assert.ok(catalog.itemAvailable(date, s, ENV_BASALT, { slotKey: 'statusTopMid', position: 'mid' }));
+  assert.ok(catalog.itemAvailable(date, s, ENV_BASALT, { slotKey: 'statusForecastMid', position: 'mid' }));
+  const mid = catalog.slotOptions(s, ENV_BASALT, { slotKey: 'statusTopMid', position: 'mid' });
+  assert.ok(mid.some(o => o[1] === 'date'), 'date offered in a mid dropdown');
+  const left = catalog.slotOptions(s, ENV_BASALT, { slotKey: 'statusTopLeft', position: 'left' });
+  assert.ok(!left.some(o => o[1] === 'date'), 'date absent from an edge dropdown');
+});
+
+test('resolveSelection honors the slot context', () => {
+  const s = {};
+  assert.equal(catalog.resolveSelection('date', s, ENV_BASALT,
+    { slotKey: 'statusTopMid', position: 'mid' }), 'date');
+  assert.equal(catalog.resolveSelection('date', s, ENV_BASALT,
+    { slotKey: 'statusTopLeft', position: 'left' }), 'empty');
 });
 
 test('precipitation probability is unavailable without settings', () => {
@@ -75,7 +95,7 @@ test('slotOptions: empty first, sibling selections and excluded codes removed', 
 
 test('selectedCodes falls back to line defaults for missing keys', () => {
   const codes = catalog.selectedCodes({ statusRadarMid: 'wind' });
-  assert.equal(codes.length, 11);
+  assert.equal(codes.length, 12);
   assert.ok(codes.includes('wind'));  // stored value wins
   assert.ok(codes.includes('temp'));  // forecast-left default
   assert.ok(codes.includes('sun'));
@@ -89,11 +109,11 @@ test('resolveSelection maps invalid/unavailable to empty without touching storag
   assert.equal(catalog.resolveSelection('empty', s, ENV_EMERY), 'empty');
 });
 
-test('allSlotKeys lists the 11 configurable slot settings', () => {
+test('allSlotKeys lists the 12 configurable slot settings', () => {
   assert.deepEqual(catalog.allSlotKeys(), [
     'statusForecastLeft', 'statusForecastMid', 'statusForecastRight',
     'statusRadarLeft', 'statusRadarMid', 'statusRadarRight',
-    'statusTopLeft', 'statusTopRight',
+    'statusTopLeft', 'statusTopMid', 'statusTopRight',
     'statusHealthLeft', 'statusHealthMid', 'statusHealthRight'
   ]);
 });

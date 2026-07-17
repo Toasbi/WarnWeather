@@ -33,7 +33,7 @@
     { code: 'distance', label: 'Walked distance', kind: KINDS.LIVE_DISTANCE, icon: ICONS.DISTANCE, needsHealth: true },
     { code: 'hr', label: 'Heart rate', kind: KINDS.LIVE_HR, icon: ICONS.HR, needsHealth: true, emeryOnly: true },
     { code: 'sleep', label: 'Sleep', kind: KINDS.LIVE_SLEEP, icon: ICONS.SLEEP, needsHealth: true },
-    { code: 'date', label: 'Date', kind: KINDS.LIVE_DATE, icon: ICONS.NONE, fixedOnly: true }
+    { code: 'date', label: 'Date', kind: KINDS.LIVE_DATE, icon: ICONS.NONE, middleOnly: true }
   ];
 
   var LINES = [
@@ -44,8 +44,8 @@
       slots: ['statusRadarLeft', 'statusRadarMid', 'statusRadarRight'],
       defaults: { statusRadarLeft: 'temp', statusRadarMid: 'city', statusRadarRight: 'sun' } },
     { id: 'top', wireKey: 'STATUS_LINE_3_UINT8',
-      slots: ['statusTopLeft', null, 'statusTopRight'], fixedMid: 'date',
-      defaults: { statusTopLeft: 'empty', statusTopRight: 'empty' } },
+      slots: ['statusTopLeft', 'statusTopMid', 'statusTopRight'],
+      defaults: { statusTopLeft: 'empty', statusTopMid: 'date', statusTopRight: 'empty' } },
     { id: 'health', wireKey: 'STATUS_LINE_4_UINT8',
       slots: ['statusHealthLeft', 'statusHealthMid', 'statusHealthRight'],
       defaults: { statusHealthLeft: 'steps', statusHealthMid: 'empty', statusHealthRight: 'sleep' },
@@ -68,10 +68,14 @@
    * @param {Object} item catalog entry
    * @param {Object} settings Clay settings blob
    * @param {Object} env {color, round, platform, health, radar}
+   * @param {Object} [slotCtx] {slotKey, position: 'left'|'mid'|'right'} of the
+   *   slot being resolved; position-gated items are unavailable without it
    * @returns {boolean}
    */
-  function itemAvailable(item, settings, env) {
-    if (!item || item.fixedOnly) { return false; }
+  function itemAvailable(item, settings, env, slotCtx) {
+    if (!item) { return false; }
+    if (item.middleOnly && (!slotCtx || slotCtx.position !== 'mid')) { return false; }
+    if (item.topRightOnly && (!slotCtx || slotCtx.slotKey !== 'statusTopRight')) { return false; }
     if (item.needsHealth) {
       if (!env || !env.health) { return false; }
       if (settings && settings.healthMode === 'off') { return false; }
@@ -91,11 +95,13 @@
    * item minus codes selected in sibling slots and minus args.excludeCodes.
    * @param {Object} settings Clay settings blob
    * @param {Object} env platform env
-   * @param {Object} args {excludeKeys: string[], excludeCodes: string[]}
+   * @param {Object} args {excludeKeys: string[], excludeCodes: string[],
+   *   slotKey: string, position: 'left'|'mid'|'right'}
    * @returns {Array} [[label, code], ...]
    */
   function slotOptions(settings, env, args) {
     args = args || {};
+    var slotCtx = { slotKey: args.slotKey, position: args.position };
     var taken = {};
     var i;
     var keys = args.excludeKeys || [];
@@ -109,7 +115,7 @@
     for (i = 0; i < ITEMS.length; i++) {
       var item = ITEMS[i];
       if (item.code === 'empty' || taken[item.code]) { continue; }
-      if (!itemAvailable(item, settings, env)) { continue; }
+      if (!itemAvailable(item, settings, env, slotCtx)) { continue; }
       out.push([item.label, item.code]);
     }
     return out;
@@ -117,7 +123,7 @@
 
   /**
    * @param {Object} settings Clay settings blob
-   * @returns {string[]} the 10 effective slot codes (stored or line default)
+   * @returns {string[]} the 12 effective slot codes (stored or line default)
    */
   function selectedCodes(settings) {
     var out = [];
@@ -125,7 +131,6 @@
       var line = LINES[l];
       for (var s = 0; s < line.slots.length; s++) {
         var key = line.slots[s];
-        if (key === null) { continue; }
         var v = settings && settings[key];
         out.push(v || line.defaults[key]);
       }
@@ -137,21 +142,22 @@
    * @param {string} code catalog item code
    * @param {Object} settings Clay settings blob
    * @param {Object} env platform env
+   * @param {Object} [slotCtx] {slotKey, position} of the slot being resolved
    * @returns {string} code if selectable and available, else 'empty'
    */
-  function resolveSelection(code, settings, env) {
+  function resolveSelection(code, settings, env, slotCtx) {
     if (!code || code === 'empty') { return 'empty'; }
     var item = byCode(code);
-    if (!item || !itemAvailable(item, settings, env)) { return 'empty'; }
+    if (!item || !itemAvailable(item, settings, env, slotCtx)) { return 'empty'; }
     return code;
   }
 
-  /** @returns {string[]} the 10 configurable slot settings keys, line order */
+  /** @returns {string[]} the 12 configurable slot settings keys, line order */
   function allSlotKeys() {
     var out = [];
     for (var l = 0; l < LINES.length; l++) {
       for (var s = 0; s < LINES[l].slots.length; s++) {
-        if (LINES[l].slots[s] !== null) { out.push(LINES[l].slots[s]); }
+        out.push(LINES[l].slots[s]);
       }
     }
     return out;

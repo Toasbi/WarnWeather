@@ -6,6 +6,9 @@
 var catalog = require('./status-line-catalog.js');
 var platformLib = require('./config-ui/lib/platform.js');
 
+// Slot positions by index, the catalog's slot-context vocabulary.
+var POSITIONS = ['left', 'mid', 'right'];
+
 /**
  * @param {string} str
  * @returns {number[]} UTF-8 bytes
@@ -187,14 +190,10 @@ function textCap(slotIndex) {
 function packLine(line, payload, settings, env) {
   var bytes = [];
   for (var s = 0; s < 3; s++) {
-    var code;
-    if (line.slots[s] === null) {
-      code = line.fixedMid;
-    } else {
-      var stored = settings ? settings[line.slots[s]] : null;
-      code = catalog.resolveSelection(stored || line.defaults[line.slots[s]],
-                                      settings, env);
-    }
+    var key = line.slots[s];
+    var stored = settings ? settings[key] : null;
+    var code = catalog.resolveSelection(stored || line.defaults[key], settings, env,
+                                        { slotKey: key, position: POSITIONS[s] });
     var item = catalog.byCode(code) || catalog.byCode('empty');
     // Distance carries its unit in the wire kind (phone-only distanceUnits): the
     // watch renders km for LIVE_DISTANCE and mi for LIVE_DISTANCE_MI. Every other

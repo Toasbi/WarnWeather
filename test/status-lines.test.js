@@ -185,6 +185,24 @@ test('distance slot packs km vs mi kind from distanceUnits', () => {
   assert.equal(decodeLine(metric)[0].icon, catalog.ICONS.DISTANCE);
 });
 
+test('top line: mid defaults to live date; stored mid packs; date is rejected at edges', () => {
+  const topLine = catalog.LINES.filter(l => l.id === 'top')[0];
+  const env = basaltEnv();
+  const p = basePayload();
+  // default: empty / date / empty
+  let slots = decodeLine(statusLines.packLine(topLine, p, baseSettings(), env));
+  assert.deepEqual(slots.map(s => s.kind), [K.EMPTY, K.LIVE_DATE, K.EMPTY]);
+  // stored mid selection packs as TEXT
+  slots = decodeLine(statusLines.packLine(topLine, p,
+    baseSettings({ statusTopMid: 'city' }), env));
+  assert.equal(slots[1].kind, K.TEXT);
+  assert.equal(slots[1].text, 'Saarbrücken');
+  // a stray 'date' in an edge slot resolves to empty (position gate)
+  slots = decodeLine(statusLines.packLine(topLine, p,
+    baseSettings({ statusTopLeft: 'date' }), env));
+  assert.equal(slots[0].kind, K.EMPTY);
+});
+
 test('city cap: 19 bytes in mid, 8 in edge, code-point safe', () => {
   const p = basePayload();
   p.CITY = 'Mönchengladbach-Ost'; // 20 UTF-8 bytes (o-umlaut = 2)
