@@ -40,6 +40,48 @@ var THIRD_LINE_OPTIONS = {
     gust: [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['UV Index', 'uv']],
     uv: [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust']]
 };
+// windScale ceilings pre-rendered per wind unit, chosen by showWhen on windUnits
+// (§2b). Same descriptive tails as the original single hint; only the ceiling +
+// unit change. Ceilings: kph 30/50/70 · mph 19/31/43 · kn 16/27/38.
+var WIND_SCALE_HINTS_KPH = {
+    low: 'Tops out at 30 kph — emphasizes light, gentle winds.',
+    mid: 'Tops out at 50 kph — general use; gusts visible, typical winds sit mid-graph.',
+    high: 'Tops out at 70 kph — keeps strong gusts from flattening against the top.'
+};
+var WIND_SCALE_HINTS_MPH = {
+    low: 'Tops out at 19 mph — emphasizes light, gentle winds.',
+    mid: 'Tops out at 31 mph — general use; gusts visible, typical winds sit mid-graph.',
+    high: 'Tops out at 43 mph — keeps strong gusts from flattening against the top.'
+};
+var WIND_SCALE_HINTS_KNOTS = {
+    low: 'Tops out at 16 kn — emphasizes light, gentle winds.',
+    mid: 'Tops out at 27 kn — general use; gusts visible, typical winds sit mid-graph.',
+    high: 'Tops out at 38 kn — keeps strong gusts from flattening against the top.'
+};
+// The two line-contexts each windScale copy is gated on (secondary vs. third line),
+// combined per-copy with a windUnits equality below.
+var WIND_SCALE_WHEN_SECONDARY = {key: 'secondaryLine', in: ['wind', 'gust']};
+var WIND_SCALE_WHEN_THIRD = {all: [
+    {key: 'thirdLine', in: ['wind', 'gust']},
+    {not: {key: 'secondaryLine', in: ['wind', 'gust']}}
+]};
+// One windScale copy: base line-context AND the given windUnits value, with the
+// pre-rendered hint set for that unit. `context` is 'secondary' | 'third'.
+function windScaleCopy(context, unit, hints) {
+    var lineWhen = context === 'secondary'
+        ? [WIND_SCALE_WHEN_SECONDARY]
+        : WIND_SCALE_WHEN_THIRD.all;
+    return {
+        type: 'segmented',
+        messageKey: 'windScale',
+        label: 'Wind graph scale',
+        defaultValue: 'mid',
+        joinPrevious: true,
+        hintByValue: hints,
+        options: [['Low', 'low'], ['Mid', 'mid'], ['High', 'high']],
+        showWhen: {all: lineWhen.concat([{key: 'windUnits', eq: unit}])}
+    };
+}
 // Color swatches (5 intensity bands) — shown only in the Multicolor hint.
 var SWATCHES = '<span style="display:inline-flex;gap:7px;margin-top:6px;align-items:flex-end;">' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#AAAAAA;margin-bottom:3px;"></span>0.1</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#55FFFF;margin-bottom:3px;"></span>0.5</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#00FF00;margin-bottom:3px;"></span>2</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FFFF00;margin-bottom:3px;"></span>10</span>' + '<span style="text-align:center;font-size:10px;"><span style="display:block;width:17px;height:8px;border-radius:2px;background:#FF5555;margin-bottom:3px;"></span>40</span>' + '</span>';
 // Bar color hint depends on the selected mode (hintByValue): Multicolor shows the swatches; White doesn't.
@@ -87,19 +129,6 @@ module.exports = {
                 // diorite/flint (also B&W) keep this 2-option slot.
                 showWhen: {all: [{not: {env: 'color'}}, {env: 'themePolarity'}]},
                 onChange: 'themeConvert'
-            }, {
-                type: 'segmented',
-                messageKey: 'temperatureUnits',
-                label: 'Temperature units',
-                defaultValue: 'c',
-                options: [['°F', 'f'], ['°C', 'c']]
-            }, {
-                type: 'segmented',
-                messageKey: 'aqiScale',
-                label: 'Air quality scale',
-                defaultValue: 'european',
-                options: [['European', 'european'], ['US', 'us']],
-                hint: 'Which air-quality index the "Air quality (AQI)" status item shows. Only used when a status slot is set to Air quality.'
             }, {
                 type: 'select',
                 messageKey: 'fetchIntervalMin',
@@ -175,6 +204,35 @@ module.exports = {
                 showWhen: {key: 'locationMode', eq: 'gps'},
                 hint: 'How long a GPS fix is reused before re-acquiring. Longer saves battery; shorter keeps your location fresher on the move. The lowest value matches your update interval.'
             }]
+        }, {
+            title: 'Units', items: [{
+                type: 'segmented',
+                messageKey: 'temperatureUnits',
+                label: 'Temperature units',
+                defaultValue: 'c',
+                options: [['°F', 'f'], ['°C', 'c']]
+            }, {
+                type: 'segmented',
+                messageKey: 'aqiScale',
+                label: 'Air quality scale',
+                defaultValue: 'european',
+                options: [['European', 'european'], ['US', 'us']],
+                hint: 'Which air-quality index the "Air quality (AQI)" status item shows. Only used when a status slot is set to Air quality.'
+            }, {
+                type: 'segmented',
+                messageKey: 'windUnits',
+                label: 'Wind speed',
+                defaultValue: 'kph',
+                options: [['kph', 'kph'], ['mph', 'mph'], ['Knots', 'knots']],
+                hint: 'Unit for the wind and gust status items, and the wind graph scale hint below.'
+            }, {
+                type: 'segmented',
+                messageKey: 'distanceUnits',
+                label: 'Distance',
+                defaultValue: 'metric',
+                options: [['Kilometres', 'metric'], ['Miles', 'imperial']],
+                hint: 'Unit for the "Walked distance" status item.'
+            }]
         }]
     }, {
         id: 'forecast', label: 'Forecast', sections: [{
@@ -195,20 +253,11 @@ module.exports = {
                 defaultValue: true,
                 joinPrevious: true,
                 hint: 'Fills the area beneath the line.'
-            }, {
-                type: 'segmented',
-                messageKey: 'windScale',
-                label: 'Wind graph scale',
-                defaultValue: 'mid',
-                joinPrevious: true,
-                hintByValue: {
-                    low: 'Tops out at 30 km/h (19 mph) — emphasizes light, gentle winds.',
-                    mid: 'Tops out at 50 km/h (31 mph) — general use; gusts visible, typical winds sit mid-graph.',
-                    high: 'Tops out at 70 km/h (43 mph) — keeps strong gusts from flattening against the top.'
-                },
-                options: [['Low', 'low'], ['Mid', 'mid'], ['High', 'high']],
-                showWhen: {key: 'secondaryLine', in: ['wind', 'gust']}
-            }, {
+            },
+            windScaleCopy('secondary', 'kph', WIND_SCALE_HINTS_KPH),
+            windScaleCopy('secondary', 'mph', WIND_SCALE_HINTS_MPH),
+            windScaleCopy('secondary', 'knots', WIND_SCALE_HINTS_KNOTS),
+            {
                 type: 'select',
                 messageKey: 'thirdLine',
                 label: 'Second metric',
@@ -216,25 +265,11 @@ module.exports = {
                 joinPrevious: true,
                 hintByValue: THIRD_LINE_HINTS,
                 optionsFrom: {byKey: 'secondaryLine', map: THIRD_LINE_OPTIONS}
-            }, {
-                type: 'segmented',
-                messageKey: 'windScale',
-                label: 'Wind graph scale',
-                defaultValue: 'mid',
-                joinPrevious: true,
-                hintByValue: {
-                    low: 'Tops out at 30 km/h (19 mph) — emphasizes light, gentle winds.',
-                    mid: 'Tops out at 50 km/h (31 mph) — general use; gusts visible, typical winds sit mid-graph.',
-                    high: 'Tops out at 70 km/h (43 mph) — keeps strong gusts from flattening against the top.'
-                },
-                options: [['Low', 'low'], ['Mid', 'mid'], ['High', 'high']],
-                showWhen: {
-                    all: [
-                        {key: 'thirdLine', in: ['wind', 'gust']},
-                        {not: {key: 'secondaryLine', in: ['wind', 'gust']}}
-                    ]
-                }
-            }, {
+            },
+            windScaleCopy('third', 'kph', WIND_SCALE_HINTS_KPH),
+            windScaleCopy('third', 'mph', WIND_SCALE_HINTS_MPH),
+            windScaleCopy('third', 'knots', WIND_SCALE_HINTS_KNOTS),
+            {
                 type: 'segmented',
                 messageKey: 'barSource',
                 label: 'Bars',

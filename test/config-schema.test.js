@@ -17,7 +17,7 @@ const EXPECTED_KEYS = [
   'weekStartDay','firstWeek','colorToday','colorSunday','colorSaturday','holidaysEnabled','colorUSFederal',
   'holidayCountry','holidayRegion',
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','locationMode','location',
-  'temperatureUnits','aqiScale','dayNightShading','healthMode','secondaryLine','secondaryLineFill','windScale','thirdLine',
+  'temperatureUnits','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','secondaryLine','secondaryLineFill','windScale','thirdLine',
   'barSource','rainBarColor','provider','owmApiKey','radarProvider','radarColor','rainCountdownHorizon',
   'layoutPreset','viewResetMin','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear',
   'statusForecastLeft','statusForecastMid','statusForecastRight','statusRadarLeft','statusRadarMid','statusRadarRight',
@@ -36,7 +36,7 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   // theme not in [bw, bw-light] — no more per-theme label split, so no duplicate.
   assert.deepEqual(dups.sort(), ['colorUSFederal', 'theme', 'windScale'],
     'unexpected duplicates: ' + dups.join(','));
-  assert.equal(counts.windScale, 2, 'windScale appears in exactly two slots');
+  assert.equal(counts.windScale, 6, 'windScale appears in six slots (2 contexts × 3 units)');
   assert.equal(counts.theme, 2, 'theme appears in exactly two slots');
   assert.equal(counts.colorUSFederal, 2, 'colorUSFederal appears in exactly two slots');
   assert.deepEqual(Object.keys(counts).sort(), EXPECTED_KEYS.slice().sort());
@@ -151,16 +151,48 @@ test('UV hint explains the fixed 0-11 scale (parallel to precip percentage)', ()
   assert.match(hint, /half-height/);
 });
 
-test('windScale has two contextual slots gated to the line that enabled it', () => {
+test('windScale has six contextual slots: two line-contexts × three wind units', () => {
   const slots = items.filter((i) => i.messageKey === 'windScale');
-  assert.equal(slots.length, 2, 'two windScale slots');
-  const slotA = slots.find((s) => s.showWhen && s.showWhen.key === 'secondaryLine');
-  const slotB = slots.find((s) => s.showWhen && s.showWhen.all);
-  assert.deepEqual(slotA.showWhen, { key: 'secondaryLine', in: ['wind', 'gust'] });
-  assert.deepEqual(slotB.showWhen, { all: [
-    { key: 'thirdLine', in: ['wind', 'gust'] },
-    { not: { key: 'secondaryLine', in: ['wind', 'gust'] } }
-  ] });
+  assert.equal(slots.length, 6, 'six windScale slots');
+  const secondary = slots.filter((s) => s.showWhen.all.some((c) => c.key === 'secondaryLine' && c.in));
+  const third = slots.filter((s) => s.showWhen.all.some((c) => c.key === 'thirdLine'));
+  assert.equal(secondary.length, 3, 'three secondary-line copies (one per unit)');
+  assert.equal(third.length, 3, 'three third-line copies (one per unit)');
+  const midShows = { kph: '50 kph', mph: '31 mph', knots: '27 kn' };
+  ['kph', 'mph', 'knots'].forEach((unit) => {
+    [secondary, third].forEach((group) => {
+      const copy = group.find((s) => s.showWhen.all.some((c) => c.key === 'windUnits' && c.eq === unit));
+      assert.ok(copy, unit + ' copy present in both contexts');
+      assert.ok(copy.hintByValue.mid.indexOf(midShows[unit]) >= 0,
+        unit + ' mid hint should show ' + midShows[unit] + '; got: ' + copy.hintByValue.mid);
+    });
+  });
+  slots.forEach((s) => assert.equal(s.messageKey, 'windScale'));
+});
+
+test('Units section groups temperature, AQI scale, wind + distance units in the General tab', () => {
+  const general = schema.tabs.find((t) => t.id === 'general');
+  const unitsSection = general.sections.find((s) => s.title === 'Units');
+  assert.ok(unitsSection, 'General tab has a titled "Units" section');
+  assert.deepEqual(unitsSection.items.map((i) => i.messageKey),
+    ['temperatureUnits', 'aqiScale', 'windUnits', 'distanceUnits']);
+  const first = general.sections[0];
+  assert.ok(!first.items.some((i) => i.messageKey === 'temperatureUnits'), 'temperatureUnits relocated');
+  assert.ok(!first.items.some((i) => i.messageKey === 'aqiScale'), 'aqiScale relocated');
+});
+
+test('windUnits is a segmented kph/mph/Knots picker defaulting to kph', () => {
+  const w = byKey('windUnits');
+  assert.equal(w.type, 'segmented');
+  assert.equal(w.defaultValue, 'kph');
+  assert.deepEqual(w.options, [['kph', 'kph'], ['mph', 'mph'], ['Knots', 'knots']]);
+});
+
+test('distanceUnits is a segmented Kilometres/Miles picker defaulting to metric', () => {
+  const d = byKey('distanceUnits');
+  assert.equal(d.type, 'segmented');
+  assert.equal(d.defaultValue, 'metric');
+  assert.deepEqual(d.options, [['Kilometres', 'metric'], ['Miles', 'imperial']]);
 });
 
 test('holiday country selector: searchSelect, default DE, None first, includes US/Sweden', () => {
@@ -243,9 +275,11 @@ test('forecast tab nests fill and wind scale under the line that enables them', 
   assert.ok(iSolid >= 0 && iFill > iSolid && iThird > iFill,
     'order must be Main metric -> Fill area -> Second metric; got ' + keys.join(','));
   const windIdxs = keys.reduce((a, k, i) => (k === 'windScale' ? a.concat(i) : a), []);
-  assert.equal(windIdxs.length, 2, 'two wind-scale slots');
-  assert.ok(windIdxs[0] > iFill && windIdxs[0] < iThird, 'solid-line wind scale sits under the solid line');
-  assert.ok(windIdxs[1] > iThird, 'dotted-line wind scale sits under the dotted line');
+  assert.equal(windIdxs.length, 6, 'six wind-scale slots (2 contexts × 3 units)');
+  assert.ok(windIdxs.slice(0, 3).every((i) => i > iFill && i < iThird),
+    'secondary-line wind-scale copies sit under the solid line');
+  assert.ok(windIdxs.slice(3).every((i) => i > iThird),
+    'third-line wind-scale copies sit under the dotted line');
 });
 
 test('onboardingDone is a hidden key and a startWizard button exists', () => {
