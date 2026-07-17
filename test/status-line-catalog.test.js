@@ -184,6 +184,26 @@ test('slotOptions groups items under disabled headers with indented children', (
   assert.deepEqual(wi.slice().sort((a, b) => a - b), wi, 'weather children keep spec order');
 });
 
+test('battery is a LIVE_BATTERY item offered only in the top-right slot', () => {
+  const item = catalog.byCode('battery');
+  assert.ok(item, 'battery item exists');
+  assert.equal(item.kind, catalog.KINDS.LIVE_BATTERY);
+  assert.equal(item.icon, catalog.ICONS.NONE);
+  assert.equal(item.category, 'battery');
+  const s = { healthMode: 'all', radarProvider: 'rainbow' };
+  const topRight = { slotKey: 'statusTopRight', position: 'right' };
+  const topLeft = { slotKey: 'statusTopLeft', position: 'left' };
+  assert.ok(catalog.itemAvailable(item, s, ENV_BASALT, topRight), 'available top-right');
+  assert.ok(!catalog.itemAvailable(item, s, ENV_BASALT, topLeft), 'not in the left slot');
+  assert.ok(!catalog.itemAvailable(item, s, ENV_BASALT,
+    { slotKey: 'statusForecastRight', position: 'right' }), 'not in other lines');
+  const opts = catalog.slotOptions(s, ENV_BASALT, topRight);
+  assert.ok(opts.some(o => o[1] === '__hdr_battery'), 'Battery header shown top-right');
+  assert.ok(opts.some(o => o[1] === 'battery'), 'battery offered top-right');
+  const leftOpts = catalog.slotOptions(s, ENV_BASALT, topLeft);
+  assert.ok(!leftOpts.some(o => o[1] === '__hdr_battery'), 'no Battery header elsewhere');
+});
+
 test('slotOptions omits headers whose category has no available item', () => {
   const healthOff = catalog.slotOptions({ healthMode: 'off', radarProvider: 'rainbow' },
     ENV_BASALT, { slotKey: 'statusForecastLeft', position: 'left' });

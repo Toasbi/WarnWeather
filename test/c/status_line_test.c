@@ -51,6 +51,12 @@ static void validate_tests(void) {
     n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
     expect("distance-kinds.valid", status_line_validate(b, n), 1);
 
+    // Battery packs like any live glyph (kind, icon=NONE, len=0); append-only kind 9.
+    n = put_slot(b, 0, SLOT_LIVE_BATTERY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("battery.valid", status_line_validate(b, n), 1);
+
     // Rejections.
     n = put_slot(b, 0, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
     n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
