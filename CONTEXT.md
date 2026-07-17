@@ -69,7 +69,8 @@ what the drift tests check the payload builder, `messageKeys`, and the C
 parser against.
 
 **Guarded key (of the Clay bundle)**:
-A key in `handle_clay_config`'s all-or-nothing presence chain. The chain is
+A key in `config_parse_wire`'s all-or-nothing presence chain
+(`src/c/appendix/config_wire.c`). The chain is
 the *category detector* — it distinguishes "this message carries no config"
 (normal for weather messages) from "carries config". Holidays and palettes are
 deliberately unguarded: they have their own handlers and dirty flags, so a
