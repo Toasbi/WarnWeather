@@ -20,20 +20,28 @@
 
   var ITEMS = [
     { code: 'empty', label: 'Empty', kind: KINDS.EMPTY, icon: ICONS.NONE },
-    { code: 'temp', label: 'Current temperature', kind: KINDS.TEXT, icon: ICONS.TEMP },
-    { code: 'city', label: 'City', kind: KINDS.TEXT, icon: ICONS.NONE },
-    { code: 'week', label: 'Calendar week', kind: KINDS.LIVE_WEEK, icon: ICONS.NONE, notAplite: true },
-    { code: 'sun', label: 'Sunrise/sunset', kind: KINDS.TEXT, icon: ICONS.DRAWN_SUN },
-    { code: 'uv', label: 'UV index', kind: KINDS.TEXT, icon: ICONS.UV },
-    { code: 'aqi', label: 'Air quality (AQI)', kind: KINDS.TEXT, icon: ICONS.NONE },
-    { code: 'wind', label: 'Wind speed', kind: KINDS.TEXT, icon: ICONS.WIND },
-    { code: 'gust', label: 'Wind gusts', kind: KINDS.TEXT, icon: ICONS.GUST },
-    { code: 'precip_prob', label: 'Precipitation %', kind: KINDS.TEXT, icon: ICONS.PRECIP, needsRadarOff: true },
-    { code: 'steps', label: 'Steps', kind: KINDS.LIVE_STEPS, icon: ICONS.STEPS, needsHealth: true },
-    { code: 'distance', label: 'Walked distance', kind: KINDS.LIVE_DISTANCE, icon: ICONS.DISTANCE, needsHealth: true },
-    { code: 'hr', label: 'Heart rate', kind: KINDS.LIVE_HR, icon: ICONS.HR, needsHealth: true, emeryOnly: true },
-    { code: 'sleep', label: 'Sleep', kind: KINDS.LIVE_SLEEP, icon: ICONS.SLEEP, needsHealth: true },
-    { code: 'date', label: 'Date', kind: KINDS.LIVE_DATE, icon: ICONS.NONE, middleOnly: true }
+    { code: 'temp', label: 'Current temperature', kind: KINDS.TEXT, icon: ICONS.TEMP, category: 'weather' },
+    { code: 'wind', label: 'Wind speed', kind: KINDS.TEXT, icon: ICONS.WIND, category: 'weather' },
+    { code: 'gust', label: 'Wind gusts', kind: KINDS.TEXT, icon: ICONS.GUST, category: 'weather' },
+    { code: 'precip_prob', label: 'Precipitation %', kind: KINDS.TEXT, icon: ICONS.PRECIP, needsRadarOff: true, category: 'weather' },
+    { code: 'uv', label: 'UV index', kind: KINDS.TEXT, icon: ICONS.UV, category: 'weather' },
+    { code: 'aqi', label: 'Air quality (AQI)', kind: KINDS.TEXT, icon: ICONS.NONE, category: 'weather' },
+    { code: 'sun', label: 'Sunrise/sunset', kind: KINDS.TEXT, icon: ICONS.DRAWN_SUN, category: 'weather' },
+    { code: 'date', label: 'Date', kind: KINDS.LIVE_DATE, icon: ICONS.NONE, middleOnly: true, category: 'datetime' },
+    { code: 'week', label: 'Calendar week', kind: KINDS.LIVE_WEEK, icon: ICONS.NONE, notAplite: true, category: 'datetime' },
+    { code: 'city', label: 'City', kind: KINDS.TEXT, icon: ICONS.NONE, category: 'location' },
+    { code: 'steps', label: 'Steps', kind: KINDS.LIVE_STEPS, icon: ICONS.STEPS, needsHealth: true, category: 'health' },
+    { code: 'distance', label: 'Walked distance', kind: KINDS.LIVE_DISTANCE, icon: ICONS.DISTANCE, needsHealth: true, category: 'health' },
+    { code: 'hr', label: 'Heart rate', kind: KINDS.LIVE_HR, icon: ICONS.HR, needsHealth: true, emeryOnly: true, category: 'health' },
+    { code: 'sleep', label: 'Sleep', kind: KINDS.LIVE_SLEEP, icon: ICONS.SLEEP, needsHealth: true, category: 'health' }
+  ];
+
+  // Dropdown grouping order + header labels (Part F). A category with no
+  // available item for a slot emits no header, so gated items never leave an
+  // orphan heading. 'battery' is populated by the battery item (top-right only).
+  var CATEGORIES = [
+    ['weather', 'Weather'], ['datetime', 'Date & time'], ['location', 'Location'],
+    ['health', 'Health'], ['battery', 'Battery']
   ];
 
   var LINES = [
@@ -91,13 +99,15 @@
   }
 
   /**
-   * Option list for one slot dropdown: 'empty' first, then every available
-   * item minus codes selected in sibling slots and minus args.excludeCodes.
+   * Option list for one slot dropdown: 'Empty' first, then per category a
+   * disabled header row followed by its available items (labels indented three
+   * spaces), minus codes selected in sibling slots and minus args.excludeCodes.
+   * Header rows are [label, '__hdr_<cat>', {disabled: true}] — non-selectable
+   * sentinels the select renderer disables.
    * @param {Object} settings Clay settings blob
    * @param {Object} env platform env
-   * @param {Object} args {excludeKeys: string[], excludeCodes: string[],
-   *   slotKey: string, position: 'left'|'mid'|'right'}
-   * @returns {Array} [[label, code], ...]
+   * @param {Object} args {excludeKeys, excludeCodes, slotKey, position}
+   * @returns {Array} [[label, code], ...] with optional {disabled} third element
    */
   function slotOptions(settings, env, args) {
     args = args || {};
@@ -112,11 +122,17 @@
     var codes = args.excludeCodes || [];
     for (i = 0; i < codes.length; i++) { taken[codes[i]] = true; }
     var out = [['Empty', 'empty']];
-    for (i = 0; i < ITEMS.length; i++) {
-      var item = ITEMS[i];
-      if (item.code === 'empty' || taken[item.code]) { continue; }
-      if (!itemAvailable(item, settings, env, slotCtx)) { continue; }
-      out.push([item.label, item.code]);
+    for (var c = 0; c < CATEGORIES.length; c++) {
+      var children = [];
+      for (i = 0; i < ITEMS.length; i++) {
+        var item = ITEMS[i];
+        if (item.category !== CATEGORIES[c][0] || taken[item.code]) { continue; }
+        if (!itemAvailable(item, settings, env, slotCtx)) { continue; }
+        children.push(['   ' + item.label, item.code]);
+      }
+      if (!children.length) { continue; }
+      out.push([CATEGORIES[c][1], '__hdr_' + CATEGORIES[c][0], { disabled: true }]);
+      for (i = 0; i < children.length; i++) { out.push(children[i]); }
     }
     return out;
   }

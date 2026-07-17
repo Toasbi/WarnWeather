@@ -161,7 +161,35 @@ test('walked distance is one catalog entry; the mi kind is pack-time only', () =
   assert.ok(catalog.byCode('distance'), 'distance entry exists');
   assert.equal(catalog.byCode('distance').kind, catalog.KINDS.LIVE_DISTANCE);
   assert.equal(catalog.byCode('distance_mi'), null, 'no separate mi dropdown code');
-  const labels = catalog.slotOptions({ healthMode: 'all' }, ENV_BASALT, {})
-    .filter(o => o[0] === 'Walked distance');
-  assert.equal(labels.length, 1, 'exactly one Walked distance dropdown entry');
+  const entries = catalog.slotOptions({ healthMode: 'all' }, ENV_BASALT, {})
+    .filter(o => o[1] === 'distance');
+  assert.equal(entries.length, 1, 'exactly one Walked distance dropdown entry');
+});
+
+test('slotOptions groups items under disabled headers with indented children', () => {
+  const s = { healthMode: 'all', radarProvider: 'disabled' };
+  const opts = catalog.slotOptions(s, ENV_EMERY, { slotKey: 'statusForecastMid', position: 'mid' });
+  assert.deepEqual(opts[0], ['Empty', 'empty'], 'Empty stays first and ungrouped');
+  const headers = opts.filter(o => o[2] && o[2].disabled);
+  assert.deepEqual(headers.map(o => o[1]),
+    ['__hdr_weather', '__hdr_datetime', '__hdr_location', '__hdr_health']);
+  assert.deepEqual(headers.map(o => o[0]),
+    ['Weather', 'Date & time', 'Location', 'Health']);
+  opts.slice(1)
+    .filter(o => !(o[2] && o[2].disabled))
+    .forEach(o => assert.ok(o[0].indexOf('   ') === 0, o[1] + ' child label indented'));
+  // spec ordering inside Weather
+  const weather = opts.filter(o => !(o[2] && o[2].disabled)).map(o => o[1]);
+  const wi = ['temp', 'wind', 'gust', 'precip_prob', 'uv', 'aqi', 'sun'].map(c => weather.indexOf(c));
+  assert.deepEqual(wi.slice().sort((a, b) => a - b), wi, 'weather children keep spec order');
+});
+
+test('slotOptions omits headers whose category has no available item', () => {
+  const healthOff = catalog.slotOptions({ healthMode: 'off', radarProvider: 'rainbow' },
+    ENV_BASALT, { slotKey: 'statusForecastLeft', position: 'left' });
+  assert.ok(!healthOff.some(o => o[1] === '__hdr_health'), 'no orphan Health header');
+  // aplite edge slot: week (notAplite) and date (edge) both gone -> no Date & time header
+  const apliteEdge = catalog.slotOptions({ healthMode: 'off', radarProvider: 'disabled' },
+    ENV_APLITE, { slotKey: 'statusTopLeft', position: 'left' });
+  assert.ok(!apliteEdge.some(o => o[1] === '__hdr_datetime'), 'no orphan Date & time header');
 });
