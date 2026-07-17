@@ -32,6 +32,8 @@ const settingsSchema = z
   .object({
     temperatureUnits: z.string().optional(),
     aqiScale: z.enum(['european', 'us']).optional(),
+    windUnits: z.string().optional(),
+    distanceUnits: z.string().optional(),
     configTheme: z.enum(['auto', 'light', 'dark']).optional(),
     dayNightShading: z.boolean().optional(),
     healthMode: z.enum(['off', 'status', 'all']).optional(),

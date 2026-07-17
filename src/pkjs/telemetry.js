@@ -20,6 +20,8 @@ function buildSettingsSnapshot(settings) {
     return {
         temperatureUnits: safe.temperatureUnits,
         aqiScale: safe.aqiScale,
+        windUnits: safe.windUnits,
+        distanceUnits: safe.distanceUnits,
         configTheme: safe.configTheme,
         dayNightShading: !!safe.dayNightShading,
         healthMode: safe.healthMode || 'off',

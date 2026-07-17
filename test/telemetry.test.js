@@ -81,6 +81,11 @@ test('snapshot includes aqiScale', () => {
   assert.equal(buildSettingsSnapshot({ aqiScale: 'european' }).aqiScale, 'european');
 });
 
+test('snapshot includes windUnits and distanceUnits', () => {
+  assert.equal(buildSettingsSnapshot({ windUnits: 'mph' }).windUnits, 'mph');
+  assert.equal(buildSettingsSnapshot({ distanceUnits: 'imperial' }).distanceUnits, 'imperial');
+});
+
 test('snapshot carries the eleven status slot selections', () => {
   const snap = buildSettingsSnapshot({
     statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'sun',
