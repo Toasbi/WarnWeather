@@ -253,6 +253,27 @@ function migrateStatusLineHealthDefaults(platform, isMigrationDone, markDone) {
 }
 
 /**
+ * One-time migration: existing installs stored statusTopRight = 'empty' while
+ * old builds always drew the fixed battery corner. The corner is now the
+ * top-right slot (default 'battery'), so a stored 'empty' would hide the
+ * battery on upgrade — map it to 'battery'. A user's explicit non-empty choice
+ * is left alone.
+ * @param {function(): boolean} isMigrationDone marker probe
+ * @param {function()} markDone marker setter
+ * @returns {void}
+ */
+function migrateStatusTopRightBattery(isMigrationDone, markDone) {
+    var persistClay = loadForMigration(isMigrationDone, 'top-right battery slot');
+    if (persistClay === null) { return; }
+    if (persistClay.statusTopRight === 'empty') {
+        persistClay.statusTopRight = 'battery';
+        save(persistClay);
+        console.log('Migrated top-right slot empty -> battery');
+    }
+    markDone();
+}
+
+/**
  * Apply values from a dev-config.js file to the stored Clay settings, skipping
  * the local-only dev keys that drive boot behavior rather than watch config.
  *
@@ -365,5 +386,6 @@ module.exports = {
     migrateWeekendHolidayColors: migrateWeekendHolidayColors,
     migrateHolidayWhiteToToggle: migrateHolidayWhiteToToggle,
     migrateHolidayRegionKeys: migrateHolidayRegionKeys,
-    migrateStatusLineHealthDefaults: migrateStatusLineHealthDefaults
+    migrateStatusLineHealthDefaults: migrateStatusLineHealthDefaults,
+    migrateStatusTopRightBattery: migrateStatusTopRightBattery
 };

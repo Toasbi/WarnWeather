@@ -241,3 +241,35 @@ test('migrateStatusLineHealthDefaults: emery upgrades the seeded triple once, wi
   assert.equal(claySettings.read().statusHealthRight, 'sleep');
   assert.ok(done);
 });
+
+test('migrateStatusTopRightBattery: stored empty becomes battery once', () => {
+  installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+
+  localStorage.setItem('clay-settings', JSON.stringify({ statusTopRight: 'empty' }));
+  let done = false;
+  claySettings.migrateStatusTopRightBattery(() => done, () => { done = true; });
+  assert.equal(JSON.parse(localStorage.getItem('clay-settings')).statusTopRight, 'battery');
+  assert.equal(done, true, 'marker set');
+});
+
+test('migrateStatusTopRightBattery: a custom top-right choice is preserved', () => {
+  installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+
+  localStorage.setItem('clay-settings', JSON.stringify({ statusTopRight: 'uv' }));
+  claySettings.migrateStatusTopRightBattery(() => false, () => {});
+  assert.equal(JSON.parse(localStorage.getItem('clay-settings')).statusTopRight, 'uv');
+});
+
+test('migrateStatusTopRightBattery: no-op when already migrated', () => {
+  installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+
+  localStorage.setItem('clay-settings', JSON.stringify({ statusTopRight: 'empty' }));
+  claySettings.migrateStatusTopRightBattery(() => true, () => {});
+  assert.equal(JSON.parse(localStorage.getItem('clay-settings')).statusTopRight, 'empty');
+});

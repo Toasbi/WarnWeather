@@ -77,6 +77,7 @@ var KEY_V1_34_0_WEEKEND_HOLIDAY_COLOR_MIGRATION = 'v1.34.0_weekend_holiday_color
 var KEY_HOLIDAY_WHITE_TO_TOGGLE_MIGRATION = 'v1.4.0_holiday_white_to_toggle_migration';
 var KEY_V1_4_0_HOLIDAY_REGION_KEY_MIGRATION = 'v1.4.0_holiday_region_key_migration';
 var KEY_STATUS_LINE_HEALTH_DEFAULTS_MIGRATION = 'v1.8.0_status_line_health_defaults_migration';
+var KEY_STATUS_TOP_RIGHT_BATTERY_MIGRATION = 'v1.8.0_status_top_right_battery_migration';
 var KEY_LAST_IS_SLEEPING = storageKeys.LAST_IS_SLEEPING_KEY;
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
 var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
@@ -271,6 +272,9 @@ Pebble.addEventListener('ready',
             statusMigrationPlatform,
             function() { return localStorage.getItem(KEY_STATUS_LINE_HEALTH_DEFAULTS_MIGRATION) !== null; },
             function() { localStorage.setItem(KEY_STATUS_LINE_HEALTH_DEFAULTS_MIGRATION, '1'); });
+        claySettings.migrateStatusTopRightBattery(
+            function() { return localStorage.getItem(KEY_STATUS_TOP_RIGHT_BATTERY_MIGRATION) !== null; },
+            function() { localStorage.setItem(KEY_STATUS_TOP_RIGHT_BATTERY_MIGRATION, '1'); });
         claySettings.applyDevConfig(app.devConfig);
         claySettings.applyFixtureSettings(activeFixture, pebbleColors);
         console.log('PebbleKit JS ready!');
