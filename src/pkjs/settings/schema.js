@@ -367,7 +367,8 @@ module.exports = {
                 // the Task 2 warning. Production always sets RAINBOW_PROXY_ENDPOINT.
                 options: [['DWD (Germany only)', 'dwd'], ['Met.no (Nordics only)', 'metno'], ['Rainbow (Worldwide)', 'rainbow'], ['Off', 'disabled']],
                 blockBefore: 'radarPreview',
-                blockBeforeSticky: true
+                blockBeforeSticky: true,
+                onChange: 'resetStatusRadar'
             }, {
                 type: 'staticText',
                 joinPrevious: true,
@@ -448,7 +449,8 @@ module.exports = {
                     status: 'Adds a health status line — today\'s steps, last night\'s sleep, and current heart rate. Heart rate needs a watch with a heart-rate sensor.',
                     all: 'Also adds a health graph (hourly step bars, a sleep band, and a heart-rate line). Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
                 },
-                options: [['Off', 'off'], ['Status bar', 'status'], ['Status + Graph (ALPHA)', 'all']]
+                options: [['Off', 'off'], ['Status bar', 'status'], ['Status + Graph (ALPHA)', 'all']],
+                onChange: 'resetStatusHealth'
             }]
         }, {
             title: 'Status line',

@@ -29,7 +29,8 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/onbuild.js'),
   path.join(ROOT, 'src/pkjs/settings/owm-key-test.js'),
   path.join(ROOT, 'src/pkjs/settings/news.js'),
-  path.join(ROOT, 'src/pkjs/settings/theme-convert.js')
+  path.join(ROOT, 'src/pkjs/settings/theme-convert.js'),
+  path.join(ROOT, 'src/pkjs/settings/reset-status-defaults.js')
 ];
 var DEFAULT_OUT = path.join(ROOT, 'build/config-ui-preview.html');
 var PLATFORMS = ['basalt', 'chalk', 'aplite', 'diorite', 'emery'];

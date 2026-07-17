@@ -377,6 +377,11 @@ test('radarProvider is a dropdown offering DWD/Met.no/Rainbow/Off with scope in 
   assert.equal(item.defaultValue, 'rainbow');
 });
 
+test('radar/health toggles register the status-defaults reset handlers', () => {
+  assert.equal(byKey('radarProvider').onChange, 'resetStatusRadar');
+  assert.equal(byKey('healthMode').onChange, 'resetStatusHealth');
+});
+
 test('weather provider radio offers Met.no with scope in the label', () => {
   const item = byKey('provider');
   assert.ok(item.options.some((o) => o[0] === 'Met.no (Nordics only)' && o[1] === 'metno'));

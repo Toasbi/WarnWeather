@@ -19,7 +19,8 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/onbuild.js'),
   path.join(ROOT, 'src/pkjs/settings/owm-key-test.js'),
   path.join(ROOT, 'src/pkjs/settings/news.js'),
-  path.join(ROOT, 'src/pkjs/settings/theme-convert.js')
+  path.join(ROOT, 'src/pkjs/settings/theme-convert.js'),
+  path.join(ROOT, 'src/pkjs/settings/reset-status-defaults.js')
 ];
 
 // Hard-fail if the wizard screenshots are missing/incomplete — the wizard has NO fallback. The
