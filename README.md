@@ -34,7 +34,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Optional main metric (solid line) and optional second metric (drawn as bar-aligned square dots) — each independently shows precipitation %, wind speed, wind gusts, or UV index (the same metric can’t appear on both); any main-metric line can have a configurable fill, and wind/gust lines have a selectable graph scale
 * Optional hourly rain bars — multicolor or white on color watches
 * Optional day/night hatch shading on the graph
-* Fahrenheit and Celsius temperatures
+* Selectable units — temperature (°C / °F), wind speed (kph / mph / knots), and walked distance (kilometres / miles)
 * Five weather providers: Weather Underground, OpenWeatherMap, Open-Meteo, Met.no/MET Norway (Nordics), and Deutscher Wetterdienst via Bright Sky (Germany)
 * Weather and radar data from MET Norway is used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — "Data from MET Norway"
 * GPS or manual location entry, with a configurable GPS cache

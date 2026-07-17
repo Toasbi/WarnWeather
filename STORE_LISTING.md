@@ -15,7 +15,7 @@ https://www.buymeacoffee.com/toaster2.
 FORECAST
 - 24-hour weather forecast with configurable update frequency
   Optimized for low battery consumption, messages are only sent if something changes
-- Fahrenheit and Celsius temperatures
+- Selectable units: temperature (°C / °F), wind speed (kph / mph / knots), and walked distance (kilometres / miles)
 - Weather status with: 
   - Current temperature
   - City where the forecast was fetched
