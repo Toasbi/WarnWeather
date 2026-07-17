@@ -143,7 +143,7 @@ test('applyForecastSeries bakes all status lines before deleting trends and lega
   assert.equal('CURRENT_TEMP' in out, false);
   assert.equal('CITY' in out, false);
   assert.equal(out.WIND_TREND_UINT8, undefined);
-  assert.equal(out.STATUS_LINE_1_UINT8[2], 6);
+  assert.equal(out.STATUS_LINE_1_UINT8[2], 5); // "17kph" (5 bytes; was 6 for "17km/h" pre-kph label)
 });
 
 test('applyForecastSeries clears a stale THIRD_LINE_COLOR when the third line turns off', () => {

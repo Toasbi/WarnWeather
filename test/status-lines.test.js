@@ -87,10 +87,21 @@ test('value formatting', () => {
   assert.equal(statusLines.formatValue('temp', p, baseSettings()), '20°'); // 68 degrees F
   assert.equal(statusLines.formatValue('temp', p, baseSettings({ temperatureUnits: 'f' })), '68°');
   assert.equal(statusLines.formatValue('uv', p, baseSettings()), '6'); // 64 tenths
-  assert.equal(statusLines.formatValue('wind', p, baseSettings()), '17km/h');
-  assert.equal(statusLines.formatValue('gust', p, baseSettings()), '48km/h');
+  assert.equal(statusLines.formatValue('wind', p, baseSettings()), '17kph');
+  assert.equal(statusLines.formatValue('gust', p, baseSettings()), '48kph');
   assert.equal(statusLines.formatValue('precip_prob', p, baseSettings()), '80%');
   assert.equal(statusLines.formatValue('city', p, baseSettings()), 'Saarbrücken');
+});
+
+test('wind + gust format in the selected wind unit (default kph)', () => {
+  const p = Object.assign(basePayload(), { WIND_TREND_UINT8: [50], GUST_TREND_UINT8: [50] });
+  assert.equal(statusLines.formatValue('wind', p, baseSettings()), '50kph'); // default = kph
+  assert.equal(statusLines.formatValue('wind', p, baseSettings({ windUnits: 'kph' })), '50kph');
+  assert.equal(statusLines.formatValue('wind', p, baseSettings({ windUnits: 'mph' })), '31mph');
+  assert.equal(statusLines.formatValue('wind', p, baseSettings({ windUnits: 'knots' })), '27kn');
+  assert.equal(statusLines.formatValue('gust', p, baseSettings({ windUnits: 'mph' })), '31mph');
+  const absent = basePayload(); delete absent.WIND_TREND_UINT8;
+  assert.equal(statusLines.formatValue('wind', absent, baseSettings({ windUnits: 'mph' })), '--');
 });
 
 test('missing weather values bake as --', () => {

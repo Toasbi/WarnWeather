@@ -112,6 +112,19 @@ function trendHead(arr) {
 }
 
 /**
+ * Convert an internal km/h wind value to the display unit and label.
+ * @param {number} v wind/gust value in km/h
+ * @param {Object} settings Clay settings blob (reads windUnits)
+ * @returns {string} e.g. "50kph", "31mph", "27kn"
+ */
+function formatWind(v, settings) {
+  var unit = settings && settings.windUnits;
+  if (unit === 'mph') { return Math.round(v / 1.60934) + 'mph'; }
+  if (unit === 'knots') { return Math.round(v / 1.852) + 'kn'; }
+  return v + 'kph';
+}
+
+/**
  * Format one catalog item's display text from the payload.
  * @param {string} code catalog item code (TEXT kinds only)
  * @param {Object} payload weather payload (pre-transform)
@@ -139,11 +152,11 @@ function formatValue(code, payload, settings) {
   }
   if (code === 'wind') {
     v = trendHead(payload.WIND_TREND_UINT8);
-    return v === null ? '--' : v + 'km/h';
+    return v === null ? '--' : formatWind(v, settings);
   }
   if (code === 'gust') {
     v = trendHead(payload.GUST_TREND_UINT8);
-    return v === null ? '--' : v + 'km/h';
+    return v === null ? '--' : formatWind(v, settings);
   }
   if (code === 'precip_prob') {
     v = trendHead(payload.PRECIP_TREND_UINT8);
