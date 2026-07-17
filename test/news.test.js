@@ -60,6 +60,29 @@ test('maxId returns the highest id, 0 for empty', () => {
   assert.equal(news.maxId([]), 0);
 });
 
+// --- parseNewsCache ---
+
+test('parseNewsCache passes items and watermark through', () => {
+  assert.deepEqual(
+    news.parseNewsCache('{"items":[{"id":2}],"lastSeenId":1}'),
+    { items: [{ id: 2 }], lastSeenId: 1 });
+  // a null watermark (no account token at fetch time) survives as null
+  assert.deepEqual(
+    news.parseNewsCache('{"items":[],"lastSeenId":null}'),
+    { items: [], lastSeenId: null });
+});
+
+test('parseNewsCache degrades absent/malformed input to the empty state', () => {
+  const empty = { items: [], lastSeenId: null };
+  assert.deepEqual(news.parseNewsCache(''), empty);
+  assert.deepEqual(news.parseNewsCache(null), empty);
+  assert.deepEqual(news.parseNewsCache(undefined), empty);
+  assert.deepEqual(news.parseNewsCache('not json'), empty);
+  assert.deepEqual(news.parseNewsCache('{"items":"nope"}'), empty);
+  // a missing lastSeenId normalizes to null
+  assert.deepEqual(news.parseNewsCache('{"items":[]}'), empty);
+});
+
 // --- interpretReplyStatus ---
 
 test('interpretReplyStatus maps 2xx/429/0/other', () => {

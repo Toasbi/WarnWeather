@@ -27,6 +27,7 @@ var registry = require('./holidays/registry.js');
 var buildClayPayload = require('./clay-payload.js').buildClayPayload;
 var providerFactory = require('./provider-factory.js');
 var previewPalette = require('./settings/preview-palette.js');
+var newsCache = require('./news-cache.js');
 var createChannelScheduler = require('./channel-scheduler.js');
 var statusCatalog = require('./status-line-catalog.js');
 
@@ -144,7 +145,10 @@ Pebble.addEventListener('showConfiguration', function(e) {
         palette: previewPalette.buildPreviewPalette(),
         newsEndpoint: (pkg.news && pkg.news.endpoint) || '',
         appVersion: pkg.version || '',
-        accountToken: newsAccountToken
+        accountToken: newsAccountToken,
+        // Raw cached `list` response (≤1h old at last refresh); the page
+        // renders the news pill from this instead of fetching the list itself.
+        newsCache: newsCache.readBody() || ''
     };
     var values = claySettings.read();
     // Let the library pick the return target: pebblejs://close# on device, or the
@@ -158,6 +162,12 @@ Pebble.addEventListener('showConfiguration', function(e) {
 });
 
 Pebble.addEventListener('webviewclosed', function(e) {
+    // Refetch the news cache once it's an hour old, so the next config open
+    // renders the pill instantly from reasonably fresh data. Seen-state is
+    // server-side only: until this refetch, a read dot can reappear from the
+    // stale cache (accepted trade-off). Runs on cancel too, hence before the
+    // empty-response early-out.
+    newsCache.refreshIfStale(newsCacheOpts());
     if (e && !e.response) {
         return;
     }
@@ -203,6 +213,25 @@ Pebble.addEventListener('webviewclosed', function(e) {
     // app.settings was just reloaded from storage above; log it rather than re-reading.
     console.log('Closing clay: ' + JSON.stringify(app.settings));
 });
+
+/**
+ * Common context for the phone-side news cache operations (see news-cache.js).
+ *
+ * @returns {{endpoint: string, accountToken: string, version: string}} Fetch context.
+ */
+function newsCacheOpts() {
+    var token = '';
+    try {
+        token = Pebble.getAccountToken() || '';
+    } catch (err) {
+        console.log('news: getAccountToken failed: ' + err.message);
+    }
+    return {
+        endpoint: (pkg.news && pkg.news.endpoint) || '',
+        accountToken: token,
+        version: pkg.version || ''
+    };
+}
 
 // Listen for when the watchface is opened
 Pebble.addEventListener('ready',
@@ -256,6 +285,10 @@ Pebble.addEventListener('ready',
         }
         app.telemetry = createTelemetryClient(getRuntimeTelemetryConfig());
         refreshProvider();
+        // Seed the news cache once (fetch only while nothing usable is cached)
+        // so the very first config open already has news; steady-state
+        // refreshes happen on config close.
+        newsCache.seedIfAbsent(newsCacheOpts());
         if (activeFixture) {
             sendClaySettings(function() {
                 fixtureWeather.sendFixtureWeather(activeFixture, { settings: app.settings, watchInfo: app.watchInfo });

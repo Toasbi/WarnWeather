@@ -1,11 +1,14 @@
 // src/pkjs/settings/news.js — config UI (phone webview) + Node-testable.
 //
-// News pill + popup for the settings header: fetches announcements from the
-// `news` Supabase edge function (general + exact-version-targeted), shows an
-// unread badge against a server-side per-account watermark, renders a small
-// escaped-first markdown subset, and sends private per-item replies
-// (rate-limited server-side to 10/day). Pure helpers are exported for unit
-// tests; the webview wiring lives at the bottom, guarded like owm-key-test.js.
+// News pill + popup for the settings header: renders announcements from the
+// `news` Supabase edge function (general + exact-version-targeted) out of the
+// phone-side 1h cache injected as userData.newsCache (see ../news-cache.js) —
+// the page itself never sends the list request, so the pill and its unread
+// badge (against a server-side per-account watermark) appear immediately on
+// load. Renders a small escaped-first markdown subset and sends private
+// per-item replies (rate-limited server-side to 10/day). Pure helpers are
+// exported for unit tests; the webview wiring lives at the bottom, guarded
+// like owm-key-test.js.
 (function () {
     /**
      * Escape the HTML metacharacters. Runs BEFORE any markdown transform so
@@ -105,6 +108,28 @@
             if (items[i].id > m) { m = items[i].id; }
         }
         return m;
+    }
+
+    /**
+     * Parse the injected news cache (the raw `list` response text the phone
+     * cached for an hour). Anything absent or malformed degrades to the empty
+     * state so the pill still renders.
+     *
+     * @param {?string} text Raw cached response text ('' or null when absent).
+     * @returns {{items: Array<Object>, lastSeenId: ?number}} Items + watermark.
+     */
+    function parseNewsCache(text) {
+        var data = null;
+        if (text) {
+            try { data = JSON.parse(text); } catch (e) { data = null; }
+        }
+        if (!data || !Array.isArray(data.items)) {
+            return { items: [], lastSeenId: null };
+        }
+        return {
+            items: data.items,
+            lastSeenId: (data.lastSeenId === undefined) ? null : data.lastSeenId
+        };
     }
 
     /**
@@ -259,6 +284,7 @@
                 + '.news-modal-hdr h2 { font-size: 17px; margin: 12px 0 4px; }'
                 + '.news-close { border: none; background: none; color: var(--muted); font-size: 20px; cursor: pointer; padding: 8px 0 0 8px; }'
                 + '.news-item { border-top: 1px solid var(--row-line); padding: 10px 0 12px; }'
+                + '.news-empty { color: var(--muted); font-size: 13px; }'
                 + '.news-modal-hdr + .news-item { border-top: none; }'
                 + '.news-title { font-weight: 700; }'
                 + '.news-date { color: var(--muted); font-size: 11px; margin: 2px 0 6px; }'
@@ -291,8 +317,11 @@
          */
         var renderNewsListHtml = function (items) {
             var canReply = Boolean(USERDATA.accountToken);
-            var html = '<div class="news-modal-hdr"><h2>News</h2>'
+            var html = '<div class="news-modal-hdr"><h2>News &amp; Feedback</h2>'
                 + '<button class="news-close" data-news-close="1">✕</button></div>';
+            if (!items.length) {
+                html += '<div class="news-item news-empty">Nothing here yet — check back after the next update.</div>';
+            }
             var i, it;
             for (i = 0; i < items.length; i += 1) {
                 it = items[i];
@@ -406,26 +435,22 @@
             newsPill.id = 'newsHint';
             newsPill.type = 'button';
             var unread = countUnread(newsItems, newsLastSeenId);
-            newsPill.innerHTML = 'News' + (unread > 0 ? '<span class="news-badge"></span>' : '');
+            newsPill.innerHTML = 'News &amp; Feedback' + (unread > 0 ? '<span class="news-badge"></span>' : '');
             if (unread === 0) { newsPill.className = 'muted'; }
             newsPill.onclick = openNewsPopup;
             hdr.insertBefore(newsPill, saveBtn);
         };
 
         var initNews = function () {
-            if (!USERDATA.newsEndpoint) { return; }
-            postNews(buildListPayload(USERDATA), 6000, function (status, text) {
-                if (status < 200 || status >= 300) {
-                    console.log('news: list failed status=' + status);
-                    return;
-                }
-                var data;
-                try { data = JSON.parse(text); } catch (e) { return; }
-                if (!data || !data.items || !data.items.length) { return; }
-                newsItems = data.items;
-                newsLastSeenId = data.lastSeenId;
-                injectNewsPill();
-            });
+            // Render synchronously from the phone-injected cache — no list
+            // request from the page, so the pill never pops in late. The pill
+            // shows whenever the feature is configured (endpoint), even while
+            // the cache is still empty; the popup then shows the empty state.
+            if (!USERDATA.newsEndpoint && !USERDATA.newsCache) { return; }
+            var cached = parseNewsCache(USERDATA.newsCache);
+            newsItems = cached.items;
+            newsLastSeenId = cached.lastSeenId;
+            injectNewsPill();
         };
 
         initNews();
@@ -436,6 +461,7 @@
             renderMarkdown: renderMarkdown,
             countUnread: countUnread,
             maxId: maxId,
+            parseNewsCache: parseNewsCache,
             interpretReplyStatus: interpretReplyStatus,
             buildListPayload: buildListPayload,
             buildSeenPayload: buildSeenPayload,
