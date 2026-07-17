@@ -86,7 +86,7 @@ test('snapshot includes windUnits and distanceUnits', () => {
   assert.equal(buildSettingsSnapshot({ distanceUnits: 'imperial' }).distanceUnits, 'imperial');
 });
 
-test('snapshot carries the eleven status slot selections', () => {
+test('snapshot carries the twelve status slot selections', () => {
   const snap = buildSettingsSnapshot({
     statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'sun',
     statusRadarLeft: 'temp', statusRadarMid: 'city', statusRadarRight: 'sun',

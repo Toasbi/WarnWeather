@@ -883,7 +883,7 @@ function renderSignature(settings) {
         // Status-line bake inputs: value formatting...
         settings.temperatureUnits, settings.axisTimeFormat, settings.timeShowAmPm,
         settings.timeLeadingZero, settings.healthMode];
-    // ...and the ten slot selections themselves.
+    // ...and the twelve slot selections themselves.
     var slotKeys = statusCatalog.allSlotKeys();
     for (var i = 0; i < slotKeys.length; i++) {
         parts.push(settings[slotKeys[i]]);

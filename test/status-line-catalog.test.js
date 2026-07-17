@@ -90,7 +90,7 @@ test('slotOptions: empty first, sibling selections and excluded codes removed', 
   assert.ok(!codes.includes('city'));      // excludeCodes honored
   assert.ok(!codes.includes('hr'));        // env gate (basalt)
   assert.ok(!codes.includes('precip_prob')); // radar on
-  assert.ok(!codes.includes('date'));      // fixed-only
+  assert.ok(!codes.includes('date'));      // date is middle-only: absent without a mid slot context
 });
 
 test('selectedCodes falls back to line defaults for missing keys', () => {
