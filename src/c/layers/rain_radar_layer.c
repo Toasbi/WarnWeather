@@ -80,6 +80,7 @@ static TickSide radar_tick_style(void) {
 static Layer *s_radar_layer;
 static GDrawCommandImage *s_sleep_glyph;
 static int16_t s_sleep_glyph_h;   // target height s_sleep_glyph was loaded at
+static GColor s_sleep_glyph_fg;   // theme_fg() the cached glyph was recolored to
 
 // Top-axis slots: small tick every 5-min slot, big on wall-clock
 // quarter-hours; slots whose start lands on a whole hour inside the
@@ -263,10 +264,13 @@ static void radar_or_snooze_update_proc(Layer *layer, GContext *ctx) {
         GRect area = grect_inset(bounds, GEdgeInsets(RADAR_SNOOZE_INSET));
         int16_t target_h = area.size.h - 4;
         if (target_h > MAX_SLEEP_GLYPH_H) { target_h = MAX_SLEEP_GLYPH_H; }
-        if (target_h > 0 && (!s_sleep_glyph || s_sleep_glyph_h != target_h)) {
+        GColor fg = theme_fg();
+        if (target_h > 0 && (!s_sleep_glyph || s_sleep_glyph_h != target_h
+                              || !gcolor_equal(fg, s_sleep_glyph_fg))) {
             status_row_icons_destroy(s_sleep_glyph);
             s_sleep_glyph = status_row_icons_load(STATUS_ICON_SLEEP, target_h);
             s_sleep_glyph_h = target_h;
+            s_sleep_glyph_fg = fg;
         }
         if (s_sleep_glyph) {
             GSize gs = gdraw_command_image_get_bounds_size(s_sleep_glyph);
@@ -399,6 +403,7 @@ void rain_radar_layer_destroy(void) {
     status_row_icons_destroy(s_sleep_glyph);
     s_sleep_glyph = NULL;
     s_sleep_glyph_h = 0;
+    s_sleep_glyph_fg = GColorClear;
     layer_destroy(s_radar_layer);
 }
 
