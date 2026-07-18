@@ -163,12 +163,12 @@ Pebble.addEventListener('showConfiguration', function(e) {
 });
 
 Pebble.addEventListener('webviewclosed', function(e) {
-    // Refetch the news cache once it's an hour old, so the next config open
-    // renders the pill instantly from reasonably fresh data. Seen-state is
-    // server-side only: until this refetch, a read dot can reappear from the
-    // stale cache (accepted trade-off). Runs on cancel too, hence before the
-    // empty-response early-out.
-    newsCache.refreshIfStale(newsCacheOpts());
+    // Refetch the news cache so the next config open renders the pill instantly
+    // from fresh data: when it's an hour old, or whenever it still shows an
+    // unread dot. The unread case pulls the server watermark the page just
+    // advanced by opening the popup, so a read dot doesn't reappear next open.
+    // Runs on cancel too, hence before the empty-response early-out.
+    newsCache.refreshOnClose(newsCacheOpts());
     if (e && !e.response) {
         return;
     }

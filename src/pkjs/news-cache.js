@@ -8,11 +8,13 @@
 // own). Phone-side traffic is deliberately minimal:
 //   - ready: one-time seed fetch, only while nothing usable is cached, so the
 //     very first config open has content.
-//   - config close: refetch only once the cache is an hour old.
+//   - config close: refetch when the cache is an hour old OR currently shows an
+//     unread dot.
 // Seen-state is server-side only (the page's `seen` op, sent when the popup
-// opens). Accepted consequence: after reading, the unread dot can reappear
-// from the stale cache for up to an hour — the next refetch brings the
-// server-side watermark and clears it for good.
+// opens) — it advances the server watermark without touching this cache. The
+// unread-triggered close refetch closes that gap: after reading the news and
+// closing settings, the refetch pulls the advanced watermark, so the dot does
+// not reappear on the next open. (When nothing is unread, no extra request.)
 
 var storageKeys = require('./storage-keys.js');
 var news = require('./settings/news.js');
@@ -78,6 +80,20 @@ function readBody() {
 }
 
 /**
+ * Whether a cached `list` response text currently shows unread items (items
+ * newer than its baked-in server watermark). A null/absent watermark counts as
+ * no unread (see news.countUnread).
+ *
+ * @param {?string} body Raw cached response text.
+ * @returns {boolean} True when the cached view would render the unread dot.
+ */
+function bodyShowsUnread(body) {
+    if (!body) { return false; }
+    var parsed = news.parseNewsCache(body);
+    return news.countUnread(parsed.items, parsed.lastSeenId) > 0;
+}
+
+/**
  * Fetch the list and store the raw response text. Any failure (non-2xx,
  * network, bad JSON) keeps the previous cache.
  *
@@ -125,23 +141,29 @@ function seedIfAbsent(opts) {
 }
 
 /**
- * Refetch the list when the cache is missing, from another version, or older
- * than an hour; a fresh cache costs no request.
+ * Config-close refetch. Refetch the list when the cache is missing, from
+ * another version, older than an hour, OR currently showing an unread dot; a
+ * fresh cache with nothing unread costs no request.
+ *
+ * The unread trigger is what stops a just-read dot from reappearing: the page's
+ * `seen` op advances the server watermark without touching this cache, so a
+ * cache still showing unread on close is exactly the one whose watermark may now
+ * be stale — refetching pulls the current one for the next open.
  *
  * @param {{endpoint: string, accountToken: string, version: string, nowMs?: number}} opts Fetch context.
  * @returns {void}
  */
-function refreshIfStale(opts) {
+function refreshOnClose(opts) {
     if (!opts || !opts.endpoint) { return; }
     var now = typeof opts.nowMs === 'number' ? opts.nowMs : Date.now();
     var env = usableEnvelope(opts);
-    if (env && now - env.at < MAX_AGE_MS) { return; }
+    if (env && now - env.at < MAX_AGE_MS && !bodyShowsUnread(env.body)) { return; }
     fetchList(opts, now);
 }
 
 module.exports = {
     readBody: readBody,
     seedIfAbsent: seedIfAbsent,
-    refreshIfStale: refreshIfStale,
+    refreshOnClose: refreshOnClose,
     MAX_AGE_MS: MAX_AGE_MS
 };
