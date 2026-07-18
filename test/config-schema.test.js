@@ -377,7 +377,8 @@ test('radarProvider is a dropdown offering DWD/Met.no/Rainbow/Off with scope in 
   assert.equal(item.defaultValue, 'rainbow');
 });
 
-test('radar/health toggles register the status-defaults reset handlers', () => {
+test('provider/radar/health controls register their status cleanup handlers', () => {
+  assert.equal(byKey('provider').onChange, 'clearPollenForProvider');
   assert.equal(byKey('radarProvider').onChange, 'resetStatusRadar');
   assert.equal(byKey('healthMode').onChange, 'resetStatusHealth');
 });

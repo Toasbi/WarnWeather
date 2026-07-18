@@ -1,6 +1,6 @@
 // src/pkjs/settings/reset-status-defaults.js — ES5, WebView. Registers the
-// config-ui engine's 'resetStatusRadar' / 'resetStatusHealth' onChange hooks
-// (see engine.js's PConf.onChange) on radarProvider and healthMode.
+// config-ui engine's provider/status onChange hooks (see engine.js's
+// PConf.onChange) on provider, radarProvider, and healthMode.
 //
 // When radar or health flips its enable state (radar: disabled <-> any
 // provider; health: off <-> status/all), two live resets keep the slot
@@ -131,6 +131,25 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         resetUnavailable(S, env);
     }
 
+    /**
+     * Clear DWD-only pollen selections after switching to another provider.
+     * Mutates S in place.
+     * @param {Object} S live settings state
+     * @param {string} newProvider newly selected weather provider
+     * @returns {void}
+     */
+    function clearPollenForProvider(S, newProvider) {
+        if (newProvider === 'dwd') { return; }
+        var keys = catalog.allSlotKeys();
+        for (var i = 0; i < keys.length; i++) {
+            if (S[keys[i]] === 'pollen') { S[keys[i]] = 'empty'; }
+        }
+    }
+
+    PConf.onChange.register('clearPollenForProvider', function (S, oldValue, newValue) {
+        clearPollenForProvider(S, newValue);
+    });
+
     PConf.onChange.register('resetStatusRadar', function (S, oldValue, newValue, env) {
         applyReset(S, 'radar', oldValue, newValue, env);
     });
@@ -139,6 +158,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     });
 
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = { applyReset: applyReset };
+        module.exports = {
+            applyReset: applyReset,
+            clearPollenForProvider: clearPollenForProvider
+        };
     }
 })();

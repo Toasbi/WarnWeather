@@ -164,6 +164,7 @@ module.exports = {
                 messageKey: 'provider',
                 label: 'Provider',
                 defaultValue: 'wunderground',
+                onChange: 'clearPollenForProvider',
                 hintByValue: {
                     wunderground: 'Global · no API key needed.',
                     openweathermap: 'Global · enter API key below.',
