@@ -11,6 +11,8 @@
 #include "c/appendix/chart.h"
 #include "c/appendix/snooze.h"
 #include "c/appendix/theme.h"
+#include "c/appendix/status_line.h"
+#include "status_row_icons.h"
 
 // Layout constants. The axis area sits above the bar plot. Hour labels
 // share a single vertical strip with the tick row: at hour-aligned slot
@@ -56,6 +58,10 @@
 // Breathing room around the snooze glyphs inside the layer bounds.
 #define RADAR_SNOOZE_INSET 4
 
+// Cap the sleep glyph height so the taller No-Calendar radar area doesn't balloon
+// it. Starting value; tune live in the emulator against the calendar layout.
+#define MAX_SLEEP_GLYPH_H 40
+
 static const ChartDef RADAR_DEF = {
     .num_slots = RADAR_NUM_SLOTS,
     .tick_w    = 1,
@@ -72,6 +78,8 @@ static TickSide radar_tick_style(void) {
 }
 
 static Layer *s_radar_layer;
+static GDrawCommandImage *s_sleep_glyph;
+static int16_t s_sleep_glyph_h;   // target height s_sleep_glyph was loaded at
 
 // Top-axis slots: small tick every 5-min slot, big on wall-clock
 // quarter-hours; slots whose start lands on a whole hour inside the
@@ -249,9 +257,25 @@ static void radar_or_snooze_update_proc(Layer *layer, GContext *ctx) {
     GRect bounds = layer_get_bounds(layer);
 
     if (persist_get_radar_snooze()) {
-        // Sleep mode: big snooze glyphs instead of the chart. Latched on
-        // sleep onset and released on the wake transition (see app_message.c).
-        snooze_draw(ctx, grect_inset(bounds, GEdgeInsets(RADAR_SNOOZE_INSET)), RADAR_TICK_COLOR);
+        // Sleep mode: the pillow sleep glyph instead of the chart, height-capped so
+        // the taller No-Calendar radar area doesn't oversize it. Falls back to the
+        // procedural glyph when the PDC is unavailable (load failure / aplite).
+        GRect area = grect_inset(bounds, GEdgeInsets(RADAR_SNOOZE_INSET));
+        int16_t target_h = area.size.h - 4;
+        if (target_h > MAX_SLEEP_GLYPH_H) { target_h = MAX_SLEEP_GLYPH_H; }
+        if (target_h > 0 && (!s_sleep_glyph || s_sleep_glyph_h != target_h)) {
+            status_row_icons_destroy(s_sleep_glyph);
+            s_sleep_glyph = status_row_icons_load(STATUS_ICON_SLEEP, target_h);
+            s_sleep_glyph_h = target_h;
+        }
+        if (s_sleep_glyph) {
+            GSize gs = gdraw_command_image_get_bounds_size(s_sleep_glyph);
+            gdraw_command_image_draw(ctx, s_sleep_glyph,
+                GPoint(area.origin.x + (area.size.w - gs.w) / 2,
+                       area.origin.y + (area.size.h - gs.h) / 2));
+        } else {
+            snooze_draw(ctx, area, RADAR_TICK_COLOR);
+        }
         MEMORY_LOG_HEAP("radar_update:exit");
         return;
     }
@@ -372,6 +396,9 @@ bool rain_radar_layer_tick(time_t now) {
 }
 
 void rain_radar_layer_destroy(void) {
+    status_row_icons_destroy(s_sleep_glyph);
+    s_sleep_glyph = NULL;
+    s_sleep_glyph_h = 0;
     layer_destroy(s_radar_layer);
 }
 
