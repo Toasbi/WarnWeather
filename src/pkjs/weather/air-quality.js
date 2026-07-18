@@ -6,6 +6,7 @@
  */
 
 var AIR_QUALITY_BASE = 'https://air-quality-api.open-meteo.com/v1/air-quality';
+var WAQI_BASE = 'https://api.waqi.info';
 var FORECAST_HOURS = 24;
 var HOUR_SECONDS = 60 * 60;
 
@@ -67,6 +68,32 @@ function mapAqi(json, startTime, scale) {
 }
 
 /**
+ * Build the WAQI (aqicn.org) geo-feed request URL for a shared token.
+ * @param {number} lat Latitude in decimal degrees.
+ * @param {number} lon Longitude in decimal degrees.
+ * @param {string} token Shared WAQI API token.
+ * @returns {string} Fully-formed WAQI feed request URL.
+ */
+function buildWaqiUrl(lat, lon, token) {
+    return WAQI_BASE + '/feed/geo:' + lat + ';' + lon + '/?token=' + token;
+}
+
+/**
+ * Extract the current US-EPA AQI from a WAQI feed response. WAQI returns a
+ * finished index (data.aqi); no station / error responses lack a numeric aqi.
+ * @param {Object} json Parsed WAQI response.
+ * @returns {(number|null)} Current AQI, or null when unavailable/malformed.
+ */
+function mapWaqi(json) {
+    var data = json && json.data;
+    var aqi = data && data.aqi;
+    if (!json || json.status !== 'ok' || typeof aqi !== 'number') {
+        return null;
+    }
+    return aqi;
+}
+
+/**
  * Fetch AQI into provider.aqiTrend, but only when provider.fetchAqi is set.
  * Non-fatal: a failed/empty call leaves aqiTrend untouched so the slot shows
  * '--' rather than failing the whole forecast. Always calls done() exactly once.
@@ -96,5 +123,7 @@ function fetchAqiInto(provider, lat, lon, done) {
 module.exports = {
     buildAqiUrl: buildAqiUrl,
     mapAqi: mapAqi,
+    buildWaqiUrl: buildWaqiUrl,
+    mapWaqi: mapWaqi,
     fetchAqiInto: fetchAqiInto
 };

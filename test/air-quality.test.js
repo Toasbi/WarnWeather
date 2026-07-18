@@ -91,3 +91,21 @@ test('getPayload emits transient AQI_TREND from aqiTrend', () => {
 test('getPayload emits empty AQI_TREND when aqiTrend is empty', () => {
   assert.deepEqual(stubProvider().getPayload().AQI_TREND, []);
 });
+
+test('buildWaqiUrl targets the WAQI geo feed with the token', () => {
+  const u = aq.buildWaqiUrl(49.2, 7.0, 'TKN');
+  assert.ok(u.indexOf('api.waqi.info/feed/geo:49.2;7') !== -1);
+  assert.ok(u.indexOf('token=TKN') !== -1);
+});
+
+test('mapWaqi returns the numeric current AQI on status ok', () => {
+  assert.equal(aq.mapWaqi({ status: 'ok', data: { aqi: 42 } }), 42);
+});
+
+test('mapWaqi returns null for error envelope, non-numeric aqi, or malformed input', () => {
+  assert.equal(aq.mapWaqi({ status: 'error', data: 'Unknown station' }), null);
+  assert.equal(aq.mapWaqi({ status: 'ok', data: { aqi: '-' } }), null);
+  assert.equal(aq.mapWaqi({ status: 'ok', data: {} }), null);
+  assert.equal(aq.mapWaqi({}), null);
+  assert.equal(aq.mapWaqi(null), null);
+});
