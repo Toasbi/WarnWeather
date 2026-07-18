@@ -174,7 +174,7 @@ test('Units section groups temperature, AQI scale, wind + distance units in the 
   const general = schema.tabs.find((t) => t.id === 'general');
   const unitsSection = general.sections.find((s) => s.title === 'Units');
   assert.ok(unitsSection, 'General tab has a titled "Units" section');
-  assert.deepEqual(unitsSection.items.map((i) => i.messageKey),
+  assert.deepEqual(unitsSection.items.map((i) => i.messageKey).filter(Boolean),
     ['temperatureUnits', 'aqiSource', 'aqiScale', 'windUnits', 'distanceUnits']);
   const first = general.sections[0];
   assert.ok(!first.items.some((i) => i.messageKey === 'temperatureUnits'), 'temperatureUnits relocated');
@@ -531,10 +531,11 @@ test('Units section wording: the section title carries the noun, labels stay sho
   assert.equal(byKey('windUnits').hint, 'Unit for the wind and gust status items.');
 });
 
-test('top-strip icon controls live in the Top strip slots section, not Misc', () => {
+test('top-strip icon controls live in the Top status line section on the Watch tab, not Misc', () => {
   const more = schema.tabs.find((t) => t.id === 'more');
   const misc = more.sections.find((s) => s.title === 'Misc');
-  const strip = more.sections.find((s) => s.title === 'Top strip slots');
+  const strip = schema.tabs.find((t) => t.id === 'watch')
+    .sections.find((s) => s.title === 'Top status line');
   const miscKeys = misc.items.map((i) => i.messageKey).filter(Boolean);
   ['showQt', 'vibe', 'btIcons'].forEach((k) =>
     assert.ok(miscKeys.indexOf(k) === -1, k + ' moved out of Misc'));
@@ -542,7 +543,7 @@ test('top-strip icon controls live in the Top strip slots section, not Misc', ()
   assert.ok(miscKeys.indexOf('onboardingDone') !== -1, 'onboardingDone stays in Misc');
   const stripKeys = strip.items.map((i) => i.messageKey).filter(Boolean);
   ['showQt', 'vibe', 'btIcons'].forEach((k) =>
-    assert.ok(stripKeys.indexOf(k) !== -1, k + ' now in Top strip slots'));
+    assert.ok(stripKeys.indexOf(k) !== -1, k + ' now in Top status line'));
   assert.ok(stripKeys.indexOf('statusTopRight') < stripKeys.indexOf('showQt'),
     'slot selects render above the icon toggles');
   assert.ok(stripKeys.indexOf('showQt') < stripKeys.indexOf('vibe'),
@@ -552,18 +553,56 @@ test('top-strip icon controls live in the Top strip slots section, not Misc', ()
   assert.equal(byKey('vibe').joinPrevious, true, 'vibe joins showQt as one visual group');
 });
 
-test('batteryLowOnly toggle lives in Top strip slots, off by default', () => {
+test('batteryLowOnly toggle lives in Top status line, off by default', () => {
   const item = byKey('batteryLowOnly');
   assert.ok(item, 'batteryLowOnly exists');
   assert.equal(item.type, 'toggle');
   assert.equal(item.defaultValue, false);
   assert.equal(item.label, 'Show battery below 10%');
   assert.equal(item.hint, 'Replaces the top-right slot when your battery drops below 10%.');
-  const strip = schema.tabs.find((t) => t.id === 'more')
-    .sections.find((s) => s.title === 'Top strip slots');
+  const strip = schema.tabs.find((t) => t.id === 'watch')
+    .sections.find((s) => s.title === 'Top status line');
   const keys = strip.items.map((i) => i.messageKey).filter(Boolean);
   assert.ok(keys.indexOf('statusTopRight') < keys.indexOf('batteryLowOnly'),
     'toggle sits below the slot selects');
   assert.ok(keys.indexOf('batteryLowOnly') < keys.indexOf('showQt'),
     'toggle sits above the quiet-time toggle');
+});
+
+test('AQI source is a dropdown with its explanation joined below the control', () => {
+  const general = schema.tabs.find((t) => t.id === 'general');
+  const units = general.sections.find((s) => s.title === 'Units');
+  const src = byKey('aqiSource');
+  assert.equal(src.type, 'select', 'AQI source is a dropdown, like the radar provider');
+  assert.equal(src.hint, undefined, 'the long explanation is no longer an inline hint');
+  const idx = units.items.indexOf(src);
+  const note = units.items[idx + 1];
+  assert.equal(note.type, 'staticText', 'a note follows the AQI source control');
+  assert.equal(note.joinPrevious, true, 'the note is joined below the select box');
+  assert.ok(note.text.indexOf('WAQI (aqicn.org)') !== -1, 'note carries the AQI explanation');
+});
+
+test('Top status line is the first section on the Watch tab; the left slot has no inline hint', () => {
+  const watch = schema.tabs.find((t) => t.id === 'watch');
+  assert.equal(watch.sections[0].title, 'Top status line', 'Top status line sits above Time');
+  assert.equal(byKey('statusTopLeft').hint, undefined, 'left-slot hint removed');
+  const items = watch.sections[0].items;
+  const rightIdx = items.findIndex((i) => i.messageKey === 'statusTopRight');
+  const note = items[rightIdx + 1];
+  assert.equal(note.type, 'staticText', 'a general hint follows the three slots');
+  assert.equal(note.joinPrevious, true, 'the hint is joined below the line');
+  assert.ok(note.text.indexOf('top of the watchface') !== -1, 'hint describes the top strip');
+  const battIdx = items.findIndex((i) => i.messageKey === 'batteryLowOnly');
+  assert.ok(rightIdx < battIdx, 'hint sits between the slots and the battery toggle');
+});
+
+test('radar and health status-line slots hide when the feature is off', () => {
+  ['statusRadarLeft', 'statusRadarMid', 'statusRadarRight'].forEach((k) =>
+    assert.deepEqual(byKey(k).showWhen, {key: 'radarProvider', ne: 'disabled'}, k));
+  ['statusHealthLeft', 'statusHealthMid', 'statusHealthRight'].forEach((k) =>
+    assert.deepEqual(byKey(k).showWhen, {key: 'healthMode', ne: 'off'}, k));
+});
+
+test('the radar rain-horizon control is labelled "Rain Alert"', () => {
+  assert.equal(byKey('rainCountdownHorizon').label, 'Rain Alert');
 });

@@ -760,7 +760,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // dual = health before clock, weather after; full/none = clock then status row(s).
     function contentBands(spec) {
         if (!spec) { return null; }
-        var bands = [{ label: 'Date', h: 12 }];
+        var bands = [{ label: 'Top status', h: 12 }];
         var isNone = spec.tier === VC.TIER_NONE;
         var isFull = spec.tier === VC.TIER_FULL;
         var topBand = null;

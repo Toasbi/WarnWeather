@@ -346,15 +346,15 @@ test('presetContents reads healthMode/radarProvider off state to grow/shrink the
 test('contentBands renders each tier\'s band ordering', () => {
     const vc = require('../src/pkjs/view-cycle.js');
     assert.deepEqual(B.contentBands(vc.spec(vc.TIER_FULL, vc.TOP_CAL, vc.BODY_FC, vc.ST_W)).map((b) => b.label),
-        ['Date', 'Calendar (3 rows)', 'Clock', 'Weather status', 'Forecast'], 'full tier: clock before status');
+        ['Top status', 'Calendar (3 rows)', 'Clock', 'Weather status', 'Forecast'], 'full tier: clock before status');
     assert.deepEqual(B.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.ST_H)).map((b) => b.label),
-        ['Date', 'Calendar (2 rows)', 'Health status', 'Clock', 'Forecast'], 'compact tier: status before clock');
+        ['Top status', 'Calendar (2 rows)', 'Health status', 'Clock', 'Forecast'], 'compact tier: status before clock');
     assert.deepEqual(B.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.ST_W)).map((b) => b.label),
-        ['Date', 'Calendar (2 rows)', 'Weather status', 'Clock', 'Forecast'], 'compact tier: weather-only status before clock (non-dual)');
+        ['Top status', 'Calendar (2 rows)', 'Weather status', 'Clock', 'Forecast'], 'compact tier: weather-only status before clock (non-dual)');
     assert.deepEqual(B.contentBands(vc.spec(vc.TIER_NONE, vc.TOP_EMPTY, vc.BODY_RADAR, vc.ST_W)).map((b) => b.label),
-        ['Date', 'Clock', 'Radar status', 'Radar'], 'none tier: no top band, big body; radar view uses the radar status line');
+        ['Top status', 'Clock', 'Radar status', 'Radar'], 'none tier: no top band, big body; radar view uses the radar status line');
     assert.deepEqual(B.contentBands(vc.spec(vc.TIER_FULL, vc.TOP_RADAR, vc.BODY_FC, vc.ST_NONE)).map((b) => b.label),
-        ['Date', 'Radar', 'Clock', 'Forecast'], 'radar rides the top band; ST_NONE hides both status rows');
+        ['Top status', 'Radar', 'Clock', 'Forecast'], 'radar rides the top band; ST_NONE hides both status rows');
     assert.strictEqual(B.contentBands(null), null, 'a null/disabled slot has no bands');
 });
 

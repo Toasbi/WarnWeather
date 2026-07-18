@@ -212,12 +212,15 @@ module.exports = {
                 defaultValue: 'c',
                 options: [['°F', 'f'], ['°C', 'c']]
             }, {
-                type: 'segmented',
+                type: 'select',
                 messageKey: 'aqiSource',
                 label: 'AQI source',
                 defaultValue: 'waqi',
-                options: [['WAQI', 'waqi'], ['Auto', 'auto'], ['Open-Meteo', 'openmeteo']],
-                hint: 'WAQI (aqicn.org) reads real monitoring stations — most accurate, but rural / under-monitored areas may have no nearby station and show "--". Auto prefers WAQI and falls back to Open-Meteo. Open-Meteo is a global model with coverage everywhere.'
+                options: [['WAQI', 'waqi'], ['Auto', 'auto'], ['Open-Meteo', 'openmeteo']]
+            }, {
+                type: 'staticText',
+                joinPrevious: true,
+                text: 'WAQI (aqicn.org) reads real monitoring stations — most accurate, but rural / under-monitored areas may have no nearby station and show "--". Auto prefers WAQI and falls back to Open-Meteo. Open-Meteo is a global model with coverage everywhere.'
             }, {
                 type: 'segmented',
                 messageKey: 'aqiScale',
@@ -405,7 +408,7 @@ module.exports = {
             }, {
                 type: 'select',
                 messageKey: 'rainCountdownHorizon',
-                label: 'Rain countdown',
+                label: 'Rain Alert',
                 defaultValue: '60',
                 hint: 'Show an incoming rain alert in the status strip when there is rain at your location within the selected time frame.',
                 options: [['Off', '0'], ['Within 30 min', '30'], ['Within 60 min', '60'], ['Within 2 hours', '120']],
@@ -422,6 +425,7 @@ module.exports = {
                 {
                     type: 'select', messageKey: 'statusRadarLeft', label: 'Left slot',
                     defaultValue: 'temp',
+                    showWhen: {key: 'radarProvider', ne: 'disabled'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {excludeKeys: ['statusRadarMid', 'statusRadarRight'],
                                slotKey: 'statusRadarLeft', position: 'left'}}
@@ -429,6 +433,7 @@ module.exports = {
                 {
                     type: 'select', messageKey: 'statusRadarMid', label: 'Middle slot',
                     defaultValue: 'city', joinPrevious: true,
+                    showWhen: {key: 'radarProvider', ne: 'disabled'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {excludeKeys: ['statusRadarLeft', 'statusRadarRight'],
                                slotKey: 'statusRadarMid', position: 'mid'}}
@@ -436,6 +441,7 @@ module.exports = {
                 {
                     type: 'select', messageKey: 'statusRadarRight', label: 'Right slot',
                     defaultValue: 'sun', joinPrevious: true,
+                    showWhen: {key: 'radarProvider', ne: 'disabled'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {excludeKeys: ['statusRadarLeft', 'statusRadarMid'],
                                slotKey: 'statusRadarRight', position: 'right'}}
@@ -466,6 +472,7 @@ module.exports = {
                 {
                     type: 'select', messageKey: 'statusHealthLeft', label: 'Left slot',
                     defaultValue: 'steps',
+                    showWhen: {key: 'healthMode', ne: 'off'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {excludeKeys: ['statusHealthMid', 'statusHealthRight'],
                                slotKey: 'statusHealthLeft', position: 'left'}}
@@ -473,6 +480,7 @@ module.exports = {
                 {
                     type: 'select', messageKey: 'statusHealthMid', label: 'Middle slot',
                     defaultValue: 'empty', joinPrevious: true,
+                    showWhen: {key: 'healthMode', ne: 'off'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {excludeKeys: ['statusHealthLeft', 'statusHealthRight'],
                                slotKey: 'statusHealthMid', position: 'mid'}}
@@ -480,6 +488,7 @@ module.exports = {
                 {
                     type: 'select', messageKey: 'statusHealthRight', label: 'Right slot',
                     defaultValue: 'sleep', joinPrevious: true,
+                    showWhen: {key: 'healthMode', ne: 'off'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {excludeKeys: ['statusHealthLeft', 'statusHealthMid'],
                                slotKey: 'statusHealthRight', position: 'right'}}
@@ -540,6 +549,53 @@ module.exports = {
         }]
     }, {
         id: 'watch', label: 'Watch', sections: [{
+            title: 'Top status line',
+            items: [
+                {
+                    type: 'select', messageKey: 'statusTopLeft', label: 'Left slot',
+                    defaultValue: 'empty',
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {excludeKeys: ['statusTopMid', 'statusTopRight'],
+                               slotKey: 'statusTopLeft', position: 'left'}}
+                },
+                {
+                    type: 'select', messageKey: 'statusTopMid', label: 'Middle slot',
+                    defaultValue: 'date', joinPrevious: true,
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {excludeKeys: ['statusTopLeft', 'statusTopRight'],
+                               slotKey: 'statusTopMid', position: 'mid'}}
+                },
+                {
+                    type: 'select', messageKey: 'statusTopRight', label: 'Right slot',
+                    defaultValue: 'battery', joinPrevious: true,
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {excludeKeys: ['statusTopLeft', 'statusTopMid'],
+                               slotKey: 'statusTopRight', position: 'right'}}
+                },
+                {
+                    type: 'staticText',
+                    joinPrevious: true,
+                    text: 'These three slots sit at the very top of the watchface, above the calendar. An incoming-rain alert temporarily takes over the row.'
+                },
+                {
+                    type: 'toggle', messageKey: 'batteryLowOnly', label: 'Show battery below 10%',
+                    defaultValue: false,
+                    hint: 'Replaces the top-right slot when your battery drops below 10%.'
+                },
+                {type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true},
+                {
+                    type: 'toggle', messageKey: 'vibe', label: 'Vibrate on bluetooth disconnect',
+                    defaultValue: false, joinPrevious: true
+                },
+                {
+                    type: 'select',
+                    messageKey: 'btIcons',
+                    label: 'Show icon for bluetooth',
+                    defaultValue: 'both',
+                    options: [['Disconnected', 'disconnected'], ['Connected', 'connected'], ['Both', 'both'], ['None', 'none']]
+                }
+            ]
+        }, {
             title: 'Time', items: [{
                 type: 'toggle', messageKey: 'timeLeadingZero', label: 'Leading zero', defaultValue: false
             }, {type: 'toggle', messageKey: 'timeShowAmPm', label: 'Show AM / PM', defaultValue: false}, {
@@ -664,49 +720,6 @@ module.exports = {
                 messageKey: 'onboardingDone',
                 defaultValue: false
             }]
-        }, {
-            title: 'Top strip slots',
-            items: [
-                {
-                    type: 'select', messageKey: 'statusTopLeft', label: 'Left slot',
-                    defaultValue: 'empty',
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusTopMid', 'statusTopRight'],
-                               slotKey: 'statusTopLeft', position: 'left'}},
-                    hint: 'A rain alert temporarily replaces these slots.'
-                },
-                {
-                    type: 'select', messageKey: 'statusTopMid', label: 'Middle slot',
-                    defaultValue: 'date', joinPrevious: true,
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusTopLeft', 'statusTopRight'],
-                               slotKey: 'statusTopMid', position: 'mid'}}
-                },
-                {
-                    type: 'select', messageKey: 'statusTopRight', label: 'Right slot',
-                    defaultValue: 'battery', joinPrevious: true,
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusTopLeft', 'statusTopMid'],
-                               slotKey: 'statusTopRight', position: 'right'}}
-                },
-                {
-                    type: 'toggle', messageKey: 'batteryLowOnly', label: 'Show battery below 10%',
-                    defaultValue: false,
-                    hint: 'Replaces the top-right slot when your battery drops below 10%.'
-                },
-                {type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true},
-                {
-                    type: 'toggle', messageKey: 'vibe', label: 'Vibrate on bluetooth disconnect',
-                    defaultValue: false, joinPrevious: true
-                },
-                {
-                    type: 'select',
-                    messageKey: 'btIcons',
-                    label: 'Show icon for bluetooth',
-                    defaultValue: 'both',
-                    options: [['Disconnected', 'disconnected'], ['Connected', 'connected'], ['Both', 'both'], ['None', 'none']]
-                }
-            ]
         }, {
             title: 'Links', items: [{
                 type: 'staticText',
