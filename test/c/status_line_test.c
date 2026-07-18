@@ -195,6 +195,28 @@ static void slot_tests(void) {
            status_line_slot(b, STATUS_LINE_MAX_BYTES + 1, 0, &v), 0);
 }
 
+static void frozen_weather_tests(void) {
+    StatusSlotView v;
+    // Icon-bearing weather TEXT slots -> frozen weather.
+    v.kind = SLOT_TEXT; v.value_len = 0; v.value = NULL;
+    v.icon = STATUS_ICON_TEMP;   expect("frozen.temp",   status_slot_is_frozen_weather(&v), 1);
+    v.icon = STATUS_ICON_UV;     expect("frozen.uv",     status_slot_is_frozen_weather(&v), 1);
+    v.icon = STATUS_ICON_WIND;   expect("frozen.wind",   status_slot_is_frozen_weather(&v), 1);
+    v.icon = STATUS_ICON_GUST;   expect("frozen.gust",   status_slot_is_frozen_weather(&v), 1);
+    v.icon = STATUS_ICON_PRECIP; expect("frozen.precip", status_slot_is_frozen_weather(&v), 1);
+    // TEXT but icon-less (City, AQI) -> excluded.
+    v.icon = STATUS_ICON_NONE;   expect("frozen.city-aqi", status_slot_is_frozen_weather(&v), 0);
+    // Sunrise/sunset (drawn-sun sentinel) -> excluded.
+    v.icon = STATUS_ICON_DRAWN_SUN; expect("frozen.sun", status_slot_is_frozen_weather(&v), 0);
+    // LIVE kinds are watch-computed, never frozen — whatever the icon.
+    v.kind = SLOT_LIVE_STEPS; v.icon = STATUS_ICON_STEPS;
+    expect("frozen.steps", status_slot_is_frozen_weather(&v), 0);
+    v.kind = SLOT_EMPTY; v.icon = STATUS_ICON_NONE;
+    expect("frozen.empty", status_slot_is_frozen_weather(&v), 0);
+    // NULL-safe.
+    expect("frozen.null", status_slot_is_frozen_weather(NULL), 0);
+}
+
 // iso_week(year, yday(0-based), wday(0=Sun..6=Sat)) -> ISO-8601 week (1..53).
 static void iso_week_tests(void) {
     expect("isoweek.2024-01-01(Mon)", iso_week(2024, 0, 1), 1);    // -> W1
@@ -208,6 +230,7 @@ static void iso_week_tests(void) {
 int main(void) {
     validate_tests();
     slot_tests();
+    frozen_weather_tests();
     iso_week_tests();
     if (s_failures) { printf("%d status_line failure(s)\n", s_failures); return 1; }
     printf("status_line OK\n");
