@@ -61,10 +61,11 @@ bool status_line_validate(const uint8_t *blob, size_t len);
 bool status_line_slot(const uint8_t *blob, size_t len, int slot_index,
                       StatusSlotView *out);
 
-// True iff this slot's value comes from the phone weather feed AND carries a
-// weather icon — i.e. it freezes while the phone is asleep and should show the
-// sleep glyph. City/AQI (icon NONE) and sunrise/sunset (DRAWN_SUN) are excluded;
-// LIVE (watch-computed) slots are never frozen.
+// True iff a phone-fed TEXT slot carries a drawable icon other than the
+// sunrise/sunset sentinel — in practice the weather readings (temp/UV/wind/gust/
+// precip, and pollen once wired). City/AQI (icon NONE) and sunrise/sunset
+// (DRAWN_SUN) are excluded, and LIVE/watch-computed slots are never TEXT, so
+// they never count as frozen either.
 bool status_slot_is_frozen_weather(const StatusSlotView *slot);
 
 // ISO 8601 week number (1-53) for a local calendar date. Integer-only (no FP),

@@ -360,14 +360,21 @@ static void ensure_glyphs(StatusRow *row, int len, int content_h) {
 
     GColor fg = theme_fg();
     bool env_changed = target_h != row->glyph_h || !gcolor_equal(fg, row->glyph_fg);
+#if !defined(PBL_PLATFORM_APLITE)
+    bool any_frozen_weather = false;
+#endif
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         StatusSlotView slot;
         uint8_t wanted = STATUS_ICON_NONE;
-        if (len > 0 && status_line_slot(s_blob_scratch, (size_t)len, i, &slot)
-                && slot.kind != SLOT_EMPTY
-                && slot.icon != STATUS_ICON_NONE
-                && slot.icon != STATUS_ICON_DRAWN_SUN) {
-            wanted = slot.icon;
+        if (len > 0 && status_line_slot(s_blob_scratch, (size_t)len, i, &slot)) {
+#if !defined(PBL_PLATFORM_APLITE)
+            any_frozen_weather = any_frozen_weather || status_slot_is_frozen_weather(&slot);
+#endif
+            if (slot.kind != SLOT_EMPTY
+                    && slot.icon != STATUS_ICON_NONE
+                    && slot.icon != STATUS_ICON_DRAWN_SUN) {
+                wanted = slot.icon;
+            }
         }
         if (!env_changed && wanted == row->glyph_icons[i]) { continue; }
         status_row_icons_destroy(row->glyphs[i]);
@@ -377,14 +384,21 @@ static void ensure_glyphs(StatusRow *row, int len, int content_h) {
         row->glyph_icons[i] = wanted;
     }
 #if !defined(PBL_PLATFORM_APLITE)
-    // Sleep glyph (pillow) reused across all frozen weather slots while asleep;
-    // reload on env change (size/theme). aplite: frozen lean — no glyph pipeline,
-    // status_row_draw falls back to snooze_draw on slot 0 only.
-    if (row->sleeping) {
-        if (env_changed || !row->sleep_glyph) {
-            status_row_icons_destroy(row->sleep_glyph);
-            row->sleep_glyph = status_row_icons_load(STATUS_ICON_SLEEP, target_h);
-        }
+    // Sleep glyph (pillow) reused across all frozen weather slots while asleep.
+    // Invalidate on env change (size/theme) even while awake — otherwise a theme
+    // flip or tier change between two sleeps leaves the cached pillow the old
+    // colour/size (a wrong-colour pillow can be invisible under theme inversion).
+    // (Re)load lazily only when asleep AND at least one slot is actually a frozen
+    // weather slot, so weather-less rows (a pure health row, a weather-less top
+    // strip) don't allocate a pillow that's never drawn.
+    // aplite: frozen lean — no glyph pipeline, status_row_draw falls back to
+    // snooze_draw on slot 0 only.
+    if (env_changed) {
+        status_row_icons_destroy(row->sleep_glyph);
+        row->sleep_glyph = NULL;
+    }
+    if (row->sleeping && !row->sleep_glyph && any_frozen_weather) {
+        row->sleep_glyph = status_row_icons_load(STATUS_ICON_SLEEP, target_h);
     }
 #endif
     row->glyph_h = target_h;
