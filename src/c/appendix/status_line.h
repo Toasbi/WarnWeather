@@ -61,6 +61,12 @@ bool status_line_validate(const uint8_t *blob, size_t len);
 bool status_line_slot(const uint8_t *blob, size_t len, int slot_index,
                       StatusSlotView *out);
 
+// True iff this slot's value comes from the phone weather feed AND carries a
+// weather icon — i.e. it freezes while the phone is asleep and should show the
+// sleep glyph. City/AQI (icon NONE) and sunrise/sunset (DRAWN_SUN) are excluded;
+// LIVE (watch-computed) slots are never frozen.
+bool status_slot_is_frozen_weather(const StatusSlotView *slot);
+
 // ISO 8601 week number (1-53) for a local calendar date. Integer-only (no FP),
 // host-compilable. year: full year (e.g. 2026); yday: 0-based day of year
 // (struct tm.tm_yday); wday: 0=Sun..6=Sat (struct tm.tm_wday).
