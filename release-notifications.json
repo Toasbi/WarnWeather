@@ -79,7 +79,7 @@
     "title": "Timeline peek + setup fixes",
     "body": "Now supporting timeline peek events. Skipping setup now opens Settings. Flicked views stay for the full return time."
   },
-  "1.9.0": {
+  "1.8.0": {
     "title": "Choose your air-quality source",
     "body": "Air quality can now come from real monitoring stations, with an automatic fallback to modelled data where no station is nearby. Pick your source under Units."
   }
