@@ -57,12 +57,76 @@ test('fetchAqiInto populates aqiTrend on success', () => {
   const orig = WeatherProvider.request;
   WeatherProvider.request = (url, method, onSuccess) =>
     onSuccess(JSON.stringify({ hourly: { time: [START], european_aqi: [42] } }));
-  const provider = { fetchAqi: true, aqiScale: 'european', startTime: START };
+  const provider = { fetchAqi: true, aqiSource: 'openmeteo', aqiScale: 'european', startTime: START };
   let done = false;
   aq.fetchAqiInto(provider, 1, 2, () => { done = true; });
   WeatherProvider.request = orig;
   assert.equal(done, true);
   assert.equal(provider.aqiTrend[0], 42);
+});
+
+test('waqi source populates a one-element aqiTrend on success', () => {
+  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const orig = WeatherProvider.request;
+  WeatherProvider.request = (url, method, onSuccess) =>
+    onSuccess(JSON.stringify({ status: 'ok', data: { aqi: 42 } }));
+  const provider = { fetchAqi: true, aqiSource: 'waqi', aqicnToken: 'T', startTime: START };
+  let done = false;
+  aq.fetchAqiInto(provider, 1, 2, () => { done = true; });
+  WeatherProvider.request = orig;
+  assert.equal(done, true);
+  assert.deepEqual(provider.aqiTrend, [42]);
+});
+
+test('strict waqi leaves aqiTrend untouched when no station (slot shows --)', () => {
+  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const orig = WeatherProvider.request;
+  WeatherProvider.request = (url, method, onSuccess) =>
+    onSuccess(JSON.stringify({ status: 'error', data: 'Unknown station' }));
+  const provider = { fetchAqi: true, aqiSource: 'waqi', aqicnToken: 'T', startTime: START };
+  let done = false;
+  aq.fetchAqiInto(provider, 1, 2, () => { done = true; });
+  WeatherProvider.request = orig;
+  assert.equal(done, true);
+  assert.equal(provider.aqiTrend, undefined);
+});
+
+test('auto falls back to Open-Meteo US field when WAQI has no station', () => {
+  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const orig = WeatherProvider.request;
+  const urls = [];
+  WeatherProvider.request = (url, method, onSuccess) => {
+    urls.push(url);
+    if (url.indexOf('api.waqi.info') !== -1) {
+      onSuccess(JSON.stringify({ status: 'error', data: 'Unknown station' }));
+    } else {
+      onSuccess(JSON.stringify({ hourly: { time: [START], us_aqi: [77] } }));
+    }
+  };
+  const provider = { fetchAqi: true, aqiSource: 'auto', aqicnToken: 'T', startTime: START };
+  let done = false;
+  aq.fetchAqiInto(provider, 1, 2, () => { done = true; });
+  WeatherProvider.request = orig;
+  assert.equal(done, true);
+  assert.equal(provider.aqiTrend[0], 77);
+  assert.ok(urls[1].indexOf('hourly=us_aqi') !== -1);
+});
+
+test('empty token degrades a waqi source to Open-Meteo US (dev builds)', () => {
+  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const orig = WeatherProvider.request;
+  let waqiCalled = false;
+  WeatherProvider.request = (url, method, onSuccess) => {
+    if (url.indexOf('api.waqi.info') !== -1) { waqiCalled = true; }
+    onSuccess(JSON.stringify({ hourly: { time: [START], us_aqi: [55] } }));
+  };
+  const provider = { fetchAqi: true, aqiSource: 'waqi', aqicnToken: '', startTime: START };
+  let done = false;
+  aq.fetchAqiInto(provider, 1, 2, () => { done = true; });
+  WeatherProvider.request = orig;
+  assert.equal(done, true);
+  assert.equal(waqiCalled, false);
+  assert.equal(provider.aqiTrend[0], 55);
 });
 
 function stubProvider() {

@@ -94,10 +94,65 @@ function mapWaqi(json) {
 }
 
 /**
- * Fetch AQI into provider.aqiTrend, but only when provider.fetchAqi is set.
- * Non-fatal: a failed/empty call leaves aqiTrend untouched so the slot shows
- * '--' rather than failing the whole forecast. Always calls done() exactly once.
- * @param {Object} provider Active provider (reads .fetchAqi/.aqiScale/.startTime, writes .aqiTrend).
+ * Open-Meteo air-quality path: fetch the keyless window for an explicit scale
+ * and populate provider.aqiTrend. Non-fatal; always calls done() once.
+ * @param {Object} provider Active provider (reads .startTime, writes .aqiTrend).
+ * @param {number} lat Latitude.
+ * @param {number} lon Longitude.
+ * @param {string} scale 'us' | 'european'.
+ * @param {Function} done Continuation (called exactly once).
+ * @returns {void}
+ */
+function fetchOpenMeteoInto(provider, lat, lon, scale, done) {
+    var request = require('./provider.js').request;
+    var url = buildAqiUrl(lat, lon, scale);
+    request(url, 'GET', function(resp) {
+        var aqi = null;
+        try { aqi = mapAqi(JSON.parse(resp), provider.startTime, scale); }
+        catch (ex) { aqi = null; }
+        if (aqi) { provider.aqiTrend = aqi; }
+        done();
+    }, function(err) {
+        console.log('[!] Open-Meteo air-quality request failed: ' + JSON.stringify(err));
+        done();
+    });
+}
+
+/**
+ * WAQI (aqicn.org) path: fetch the current station AQI and populate
+ * provider.aqiTrend with a one-element window. On no-data/failure calls
+ * notFound() (so Auto can fall back) instead of done().
+ * @param {Object} provider Active provider (reads .aqicnToken, writes .aqiTrend).
+ * @param {number} lat Latitude.
+ * @param {number} lon Longitude.
+ * @param {Function} done Continuation on success (called exactly once).
+ * @param {Function} notFound Continuation on no-data/failure (called exactly once).
+ * @returns {void}
+ */
+function fetchWaqiInto(provider, lat, lon, done, notFound) {
+    var request = require('./provider.js').request;
+    var url = buildWaqiUrl(lat, lon, provider.aqicnToken);
+    request(url, 'GET', function(resp) {
+        var aqi = null;
+        try { aqi = mapWaqi(JSON.parse(resp)); }
+        catch (ex) { aqi = null; }
+        if (aqi !== null) { provider.aqiTrend = [aqi]; done(); }
+        else { notFound(); }
+    }, function(err) {
+        console.log('[!] WAQI air-quality request failed: ' + JSON.stringify(err));
+        notFound();
+    });
+}
+
+/**
+ * Fetch AQI into provider.aqiTrend, dispatching on provider.aqiSource:
+ *   'openmeteo' -> Open-Meteo using the aqiScale toggle.
+ *   'waqi'      -> WAQI; no station leaves aqiTrend untouched ('--').
+ *   'auto'      -> WAQI, falling back to Open-Meteo (US) on no station.
+ * An empty token degrades 'waqi'/'auto' to Open-Meteo (US) so token-less dev
+ * builds still show AQI. Only runs when provider.fetchAqi is set. Non-fatal;
+ * always calls done() exactly once.
+ * @param {Object} provider Active provider.
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
  * @param {Function} done Continuation (always called exactly once).
@@ -105,18 +160,25 @@ function mapWaqi(json) {
  */
 function fetchAqiInto(provider, lat, lon, done) {
     if (!provider.fetchAqi) { done(); return; }
-    // Lazy require avoids a load-time cycle (provider.js requires this module).
-    var request = require('./provider.js').request;
-    var url = buildAqiUrl(lat, lon, provider.aqiScale);
-    request(url, 'GET', function(resp) {
-        var aqi = null;
-        try { aqi = mapAqi(JSON.parse(resp), provider.startTime, provider.aqiScale); }
-        catch (ex) { aqi = null; }
-        if (aqi) { provider.aqiTrend = aqi; }
-        done();
-    }, function(err) {
-        console.log('[!] Open-Meteo air-quality request failed: ' + JSON.stringify(err));
-        done();
+    var source = provider.aqiSource || 'waqi';
+    var hasToken = Boolean(provider.aqicnToken);
+
+    if (source === 'openmeteo') {
+        fetchOpenMeteoInto(provider, lat, lon, provider.aqiScale || 'european', done);
+        return;
+    }
+    if (!hasToken) {
+        // WAQI-oriented source but no token available (dev build): use US to
+        // match WAQI's scale.
+        fetchOpenMeteoInto(provider, lat, lon, 'us', done);
+        return;
+    }
+    fetchWaqiInto(provider, lat, lon, done, function() {
+        if (source === 'auto') {
+            fetchOpenMeteoInto(provider, lat, lon, 'us', done);
+        } else {
+            done(); // strict WAQI: leave aqiTrend untouched -> '--'
+        }
     });
 }
 
