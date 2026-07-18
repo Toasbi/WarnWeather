@@ -81,6 +81,12 @@ test('snapshot includes aqiScale', () => {
   assert.equal(buildSettingsSnapshot({ aqiScale: 'european' }).aqiScale, 'european');
 });
 
+test('snapshot includes aqiSource', () => {
+  assert.strictEqual(buildSettingsSnapshot({ aqiSource: 'waqi' }).aqiSource, 'waqi');
+  assert.strictEqual(buildSettingsSnapshot({ aqiSource: 'auto' }).aqiSource, 'auto');
+  assert.strictEqual(buildSettingsSnapshot({}).aqiSource, undefined);
+});
+
 test('snapshot includes windUnits and distanceUnits', () => {
   assert.equal(buildSettingsSnapshot({ windUnits: 'mph' }).windUnits, 'mph');
   assert.equal(buildSettingsSnapshot({ distanceUnits: 'imperial' }).distanceUnits, 'imperial');

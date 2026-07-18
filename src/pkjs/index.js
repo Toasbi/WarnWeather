@@ -802,6 +802,8 @@ function fetch(provider, force) {
     provider.fetchUv = forecastSeries.needsUv(app.settings);
     provider.fetchAqi = forecastSeries.needsAqi(app.settings);
     provider.aqiScale = (app.settings && app.settings.aqiScale) || 'european';
+    provider.aqiSource = (app.settings && app.settings.aqiSource) || 'waqi';
+    provider.aqicnToken = (pkg.waqi && pkg.waqi.token) || '';
     var fetchStart = Date.now();
     var attempt = incrementFetchAttemptCounter();
     var fetchStatus = {
