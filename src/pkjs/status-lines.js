@@ -142,7 +142,8 @@ function formatValue(code, payload, settings) {
     if (settings.temperatureUnits !== 'f') {
       t = Math.round((t - 32) * 5 / 9);
     }
-    return t + '°';
+    // Bare number; the thermometer icon carries the "temperature" context (UV/AQI-style).
+    return String(t);
   }
   if (code === 'city') { return payload.CITY || '--'; }
   if (code === 'sun') {

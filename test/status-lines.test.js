@@ -84,8 +84,8 @@ test('utf8 encode and truncate preserve astral code-point boundaries', () => {
 
 test('value formatting', () => {
   const p = basePayload();
-  assert.equal(statusLines.formatValue('temp', p, baseSettings()), '20°'); // 68 degrees F
-  assert.equal(statusLines.formatValue('temp', p, baseSettings({ temperatureUnits: 'f' })), '68°');
+  assert.equal(statusLines.formatValue('temp', p, baseSettings()), '20'); // 68F → 20C, bare number
+  assert.equal(statusLines.formatValue('temp', p, baseSettings({ temperatureUnits: 'f' })), '68');
   assert.equal(statusLines.formatValue('uv', p, baseSettings()), '6'); // 64 tenths
   assert.equal(statusLines.formatValue('wind', p, baseSettings()), '17kph');
   assert.equal(statusLines.formatValue('gust', p, baseSettings()), '48kph');
@@ -121,7 +121,7 @@ test('buildStatusLines packs four lines with defaults', () => {
   const forecast = decodeLine(p.STATUS_LINE_1_UINT8);
   assert.equal(forecast[0].kind, K.TEXT);
   assert.equal(forecast[0].icon, I.TEMP);
-  assert.equal(forecast[0].text, '20°');
+  assert.equal(forecast[0].text, '20'); // bare number; thermometer icon carries context
   assert.equal(forecast[1].icon, I.NONE);
   assert.equal(forecast[1].text, 'Saarbrücken'); // default mid = city
   assert.equal(forecast[2].icon, I.DRAWN_SUN);
