@@ -62,11 +62,14 @@ FILL_CLEAR = 0x00
 # inherently symmetric about the arc's axis, so dropping RDP fixes the asymmetry; the
 # extra vertices cost a few PDC bytes (negligible). Assumes 24-viewBox source SVGs
 # (Tabler/Lucide), so segment length is measured in ~viewbox units.
-CURVE_SPACING = 1.2   # viewbox px between flattened curve points
-CURVE_MIN_STEPS = 3   # never fewer than this many chords per curved segment
-CIRCLE_SPACING = 1.2  # viewbox px between polygon vertices for <circle>/<ellipse>
-CIRCLE_MIN = 12
-CIRCLE_MAX = 64
+# Curve faceting: keep facet counts LOW. The runtime scaler in status_row_icons.c snaps
+# every vertex to the pixel grid symmetrically, so it re-crisps whatever we emit — the only
+# author-time job left is to not OVER-sample (a 20-facet curve at a 10px render just collapses
+# neighbouring vertices onto the same grid cell). ~2.5 viewbox px per chord gives a full circle
+# ~8 facets, a small hook ~4-5, which read clean-and-angular at the render tiers (sleep style).
+CURVE_SPACING = 2.5   # viewbox px between flattened curve points
+CURVE_MIN_STEPS = 2   # never fewer than this many chords per curved segment
+CIRCLE_FACETS = 8     # <circle>/<ellipse> -> flat-top octagon (only 0/45/90 edges)
 
 
 def _f(v, default=0.0):
@@ -118,14 +121,15 @@ def flatten_path(d):
     return [(s["pts"], not s["closed"]) for s in subs]
 
 
-def circle_pts(cx, cy, rx, ry, n=None):
+def circle_pts(cx, cy, rx, ry, n=CIRCLE_FACETS):
     import math
-    if n is None:
-        r = max(abs(rx), abs(ry))
-        n = int(round(2 * math.pi * r / CIRCLE_SPACING))
-        n = max(CIRCLE_MIN, min(CIRCLE_MAX, n))
-    return [(cx + rx * math.cos(2 * math.pi * i / n),
-             cy + ry * math.sin(2 * math.pi * i / n)) for i in range(n)]
+    # Rotate by half a step so an EDGE (not a vertex) sits at top/bottom/left/right: a
+    # flat-top octagon (chamfered square) whose edges are all horizontal/vertical/45°, which
+    # reads round at the small tiers and snaps crisp. A vertex-up octagon would put a point at
+    # 12 o'clock and look lumpy.
+    phase = math.pi / n
+    return [(cx + rx * math.cos(2 * math.pi * i / n + phase),
+             cy + ry * math.sin(2 * math.pi * i / n + phase)) for i in range(n)]
 
 
 def local(tag):

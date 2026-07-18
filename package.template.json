@@ -136,6 +136,17 @@
         },
         {
           "type": "raw",
+          "name": "STATUS_TEMP_LG",
+          "file": "data/STATUS_TEMP_LG.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
           "name": "STATUS_UV",
           "file": "data/STATUS_UV.pdc",
           "targetPlatforms": [
