@@ -93,7 +93,7 @@ STATUS LINES
   - calendar week
   - sunrise/sunset
   - UV index
-  - air quality index (AQI)
+  - air quality index (AQI) — from real monitoring stations (aqicn.org) or the Open-Meteo model
   - wind speed and wind gusts
   - precipitation chance
   - steps and walked distance
