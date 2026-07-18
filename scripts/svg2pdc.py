@@ -2,7 +2,7 @@
 """Convert an outline SVG icon into a Pebble PDC (precise-path) glyph.
 
 This is the pipeline for the status/health outline family in resources/data/
-(STATUS_TEMP/UV/WIND/GUST/PRECIP/POLLEN/DISTANCE, HEALTH_HEART). Sources live in
+(STATUS_TEMP/UV/WIND/GUST/PRECIP/POLLEN/DISTANCE). Sources live in
 docs/superpowers/svg/*.svg (Tabler outline icons). It replaces the old
 gen-status-pdc.py, which is now a no-op.
 
@@ -34,12 +34,12 @@ Usage: python3 scripts/svg2pdc.py in.svg NAME [out_dir]   # writes out_dir/NAME.
 Regenerate the whole family (from repo root):
     for pair in \\
       temperature:STATUS_TEMP uv:STATUS_UV wind:STATUS_WIND gusts:STATUS_GUST \\
-      umbrella:STATUS_PRECIP pollen:STATUS_POLLEN distance:STATUS_DISTANCE \\
-      heart-pulse:HEALTH_HEART; do
+      umbrella:STATUS_PRECIP pollen:STATUS_POLLEN distance:STATUS_DISTANCE; do
       svg=${pair%%:*}; name=${pair##*:}
       python3 scripts/svg2pdc.py "docs/superpowers/svg/$svg.svg" "$name" resources/data
     done
-(HEALTH_STEPS / HEALTH_SLEEP are hand-authored PDCs, not produced here.)
+(HEALTH_HEART / HEALTH_STEPS / HEALTH_SLEEP are hand-authored PDCs, not produced
+here — HEALTH_HEART is the plain heart glyph, deliberately without the ECG line.)
 """
 import os
 import re

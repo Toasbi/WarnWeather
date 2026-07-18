@@ -44,7 +44,7 @@ function walkPdc(file, viewbox, checkCmd) {
 // hooked up.
 const OUTLINE_24 = ['STATUS_TEMP.pdc', 'STATUS_UV.pdc', 'STATUS_WIND.pdc',
                     'STATUS_GUST.pdc', 'STATUS_POLLEN.pdc', 'STATUS_PRECIP.pdc',
-                    'STATUS_DISTANCE.pdc', 'STATUS_AQI.pdc', 'HEALTH_HEART.pdc'];
+                    'STATUS_DISTANCE.pdc', 'STATUS_AQI.pdc'];
 
 for (const file of OUTLINE_24) {
   test(`${file} is a valid 24x24 outline PDCI`, () => {
@@ -56,11 +56,12 @@ for (const file of OUTLINE_24) {
   });
 }
 
-// 25x25 health family: hand-authored glyphs (sleep/steps). Unlike the outline family
-// these mix fill and stroke commands (the render path clears the fill and recolors the
-// stroke, so they still read as outlines on the watch). Validate the container +
+// 25x25 health family: hand-authored glyphs (heart/sleep/steps). Unlike the outline
+// family these mix fill and stroke commands (the render path clears the fill and recolors
+// the stroke, so they still read as outlines on the watch). HEALTH_HEART is the plain
+// heart glyph, deliberately without the ECG pulse line. Validate the container +
 // geometry only — do not assert stroke/fill specifics.
-const HEALTH_25 = ['HEALTH_SLEEP.pdc', 'HEALTH_STEPS.pdc'];
+const HEALTH_25 = ['HEALTH_HEART.pdc', 'HEALTH_SLEEP.pdc', 'HEALTH_STEPS.pdc'];
 
 for (const file of HEALTH_25) {
   test(`${file} is a valid 25x25 health PDCI`, () => {
