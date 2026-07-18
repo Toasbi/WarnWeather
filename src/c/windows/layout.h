@@ -82,6 +82,7 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
 MainLayout layout_compute_peek(GRect bounds, const ViewSpec *spec, int fc_band_h);
 #endif
 
+#if defined(WW_VIEW_CYCLE)
 // ── View-cycle cursor (pure) ─────────────────────────────────────────────────
 // The wrist-flick cursor is a position in the 3-slot cycle. main_window owns the
 // cursor state and resolves availability from the SDK (radar data present? health
@@ -107,3 +108,4 @@ uint8_t view_cursor_after_config(uint8_t cursor, const uint8_t old_spec[3],
 // Compares ELAPSED SECONDS — not minute-tick edges — so a flick late in a wall-clock
 // minute still gets its full window before snapping back to the default view.
 bool view_auto_return_due(int32_t now, int32_t flick_since, uint8_t reset_min);
+#endif  // WW_VIEW_CYCLE

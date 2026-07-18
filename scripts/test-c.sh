@@ -8,8 +8,8 @@ mkdir -p build/host
 CFLAGS="-std=c11 -Wall -Wextra -Werror -DPBL_HEALTH -Itest/c/stub -Isrc"
 # WW_QUICK_VIEW is defined for every non-aplite platform (wscript); the host layout test
 # represents that evolving-platform build, so it exercises the peek view/layout.
-cc $CFLAGS -DWW_QUICK_VIEW test/c/layout_test.c src/c/windows/layout.c -o build/host/layout_test
-cc $CFLAGS -DWW_QUICK_VIEW -DPBL_PLATFORM_EMERY test/c/layout_test.c src/c/windows/layout.c -o build/host/layout_test_emery
+cc $CFLAGS -DWW_QUICK_VIEW -DWW_VIEW_CYCLE test/c/layout_test.c src/c/windows/layout.c -o build/host/layout_test
+cc $CFLAGS -DWW_QUICK_VIEW -DWW_VIEW_CYCLE -DPBL_PLATFORM_EMERY test/c/layout_test.c src/c/windows/layout.c -o build/host/layout_test_emery
 build/host/layout_test "${1:-}"
 build/host/layout_test_emery "${1:-}"
 cc $CFLAGS test/c/health_build_test.c src/c/services/health_build.c -o build/host/health_build_test

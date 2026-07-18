@@ -29,6 +29,7 @@ static Window *s_main_window;
 // MAX_STALE_TIME_SEC when auto-return is disabled — see persist_get_view_cursor()
 // in main_window_load(). Beyond that window it boots to the DEFAULT view (index 0).
 static uint8_t s_view_index;
+#if defined(WW_VIEW_CYCLE)
 // The cycle definition (view_spec bytes) the cursor was last validated against, so
 // main_window_apply_top_view can tell a real settings change (cycle redefined → return
 // to default) from a same-cycle re-apply (radar/health availability → keep the cursor).
@@ -36,6 +37,7 @@ static uint8_t s_applied_view_spec[3];
 // Epoch of the last flick (or relaunch-restore to a non-default view), seeding the
 // auto-return-to-default timer. 0 = on the default view / no timer running.
 static time_t s_flick_epoch;
+#endif
 
 #if defined(PBL_HEALTH)
 // Tracks the last-seen health_mode so an off->on flip (settings, boot)
@@ -76,11 +78,13 @@ static ViewSpec current_view_spec(void) {
     return unpack_slot_spec(config_get()->view_spec[s_view_index]);
 }
 
+#if defined(WW_VIEW_CYCLE)
 // Next flick target after `from`. Resolves availability from the SDK here (radar data
 // present? health renderable?) and defers the pure wrap logic to layout.c.
 static uint8_t next_view_index(uint8_t from) {
     return view_cursor_next(from, config_get()->view_spec, radar_has_data(), health_renderable());
 }
+#endif
 
 // Reframe every band and set layer visibility + status tiers for the active view.
 // Geometry can change on a flick (a view may be a different tier), so this recomputes
@@ -170,6 +174,7 @@ static void quick_view_on_change(void) {
 }
 #endif
 
+#if defined(WW_VIEW_CYCLE)
 static void tap_handler(AccelAxisType axis, int32_t direction) {
     // accel_tap_service fires per-axis, so one physical tap commonly delivers
     // 2+ callbacks in quick succession (e.g. X then Z) — without debounce the
@@ -200,12 +205,14 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
     render_active_view();
     main_window_refresh();
 }
+#endif
 
 static void main_window_load(Window *window) {
     Layer *window_layer = window_get_root_layer(window);
     GRect bounds = layer_get_bounds(window_layer);
     main_window_apply_theme();
 
+#if defined(WW_VIEW_CYCLE)
     // Restore the view cursor across a relaunch, gated on the same window the
     // user's own auto-return setting already allows a non-default view to live
     // (or MAX_STALE_TIME_SEC when auto-return is off). Must run before
@@ -224,6 +231,7 @@ static void main_window_load(Window *window) {
         // else: corrupt flash, or the slot no longer resolves to anything (e.g. a
         // future config migration redefined/disabled it) — stay on the default view.
     }
+#endif
 
     ViewSpec spec = current_view_spec();
     MainLayout L = layout_compute_spec(bounds, &spec,
@@ -261,10 +269,12 @@ static void main_window_load(Window *window) {
     loading_layer_create(window_layer, L.loading);
     loading_layer_refresh();
     app_message_send_startup_state(loading_layer_data_is_fresh());
+#if defined(WW_VIEW_CYCLE)
     // Seed the applied-cycle snapshot with the boot config so the first same-cycle
     // re-apply (e.g. an incoming radar update) doesn't read it as a settings change
     // and reset a cursor the user has since flicked (or we just restored above).
     memcpy(s_applied_view_spec, config_get()->view_spec, sizeof(s_applied_view_spec));
+#endif
     render_active_view();
 #if defined(PBL_HEALTH)
     // Repaint the health view when a deferred build finishes.
@@ -277,7 +287,9 @@ static void main_window_load(Window *window) {
         health_cache_reset();
     }
 #endif
+#if defined(WW_VIEW_CYCLE)
     accel_tap_service_subscribe(tap_handler);
+#endif
 #if defined(WW_QUICK_VIEW)
     // Switch to the peek view (and back) whenever a Timeline Quick View overlay appears or
     // retracts. See quick_view_on_change / render_active_view.
@@ -287,7 +299,9 @@ static void main_window_load(Window *window) {
 }
 
 static void main_window_unload(Window *window) {
+#if defined(WW_VIEW_CYCLE)
     accel_tap_service_unsubscribe();
+#endif
 #if defined(WW_QUICK_VIEW)
     quick_view_unsubscribe();
 #endif
@@ -295,8 +309,10 @@ static void main_window_unload(Window *window) {
     // restore logic above). config is already unloaded by this point
     // (config_get() returns NULL) — watchface.c's deinit() calls config_unload()
     // before main_window_destroy() — so nothing below may call it.
+#if defined(WW_VIEW_CYCLE)
     persist_set_view_cursor(s_view_index);
     persist_set_watchface_unload_epoch(time(NULL));
+#endif
 #if defined(PBL_HEALTH)
     health_cache_persist_save();
 #endif
@@ -357,6 +373,7 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
         }
     }
 #endif
+#if defined(WW_VIEW_CYCLE)
     // Auto-return to the default view once view_reset_min minutes of real time have
     // elapsed since the flick — elapsed seconds, not minute-tick edges, so a flick late
     // in a wall-clock minute still gets its full window before snapping back.
@@ -367,6 +384,7 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
         render_active_view();
         main_window_refresh();
     }
+#endif
 #if !defined(WW_FIXTURE_NOW_YEAR) && defined(WW_RAIN_RADAR)
     // Live builds only: advance the radar window when a fetch boundary passes.
     // Fixtures are frozen snapshots anchored to the fixture clock — their window
@@ -416,8 +434,10 @@ void main_window_apply_top_view() {
     // view — return to the default then, so the cursor never strands on a stale slot (the
     // "default view never shows after changing settings" bug). A same-cycle re-apply (radar
     // availability flip) leaves the cursor where the user put it.
+#if defined(WW_VIEW_CYCLE)
     s_view_index = view_cursor_after_config(s_view_index, s_applied_view_spec, config_get()->view_spec);
     memcpy(s_applied_view_spec, config_get()->view_spec, sizeof(s_applied_view_spec));
+#endif
     render_active_view();
     main_window_refresh();
 }
