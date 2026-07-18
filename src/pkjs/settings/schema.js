@@ -213,11 +213,19 @@ module.exports = {
                 options: [['°F', 'f'], ['°C', 'c']]
             }, {
                 type: 'segmented',
+                messageKey: 'aqiSource',
+                label: 'AQI source',
+                defaultValue: 'waqi',
+                options: [['WAQI', 'waqi'], ['Auto', 'auto'], ['Open-Meteo', 'openmeteo']],
+                hint: 'WAQI (aqicn.org) reads real monitoring stations — most accurate, but rural / under-monitored areas may have no nearby station and show "--". Auto prefers WAQI and falls back to Open-Meteo. Open-Meteo is a global model with coverage everywhere.'
+            }, {
+                type: 'segmented',
                 messageKey: 'aqiScale',
-                label: 'Air quality',
+                label: 'Air quality scale',
                 defaultValue: 'european',
                 options: [['European', 'european'], ['US', 'us']],
-                hint: 'Which air-quality index the "Air quality (AQI)" status item shows.'
+                showWhen: {key: 'aqiSource', eq: 'openmeteo'},
+                hint: 'Which air-quality index the Open-Meteo source reports. WAQI always uses the US EPA scale.'
             }, {
                 type: 'segmented',
                 messageKey: 'windUnits',

@@ -17,7 +17,7 @@ const EXPECTED_KEYS = [
   'weekStartDay','firstWeek','colorToday','colorSunday','colorSaturday','holidaysEnabled','colorUSFederal',
   'holidayCountry','holidayRegion',
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','locationMode','location',
-  'temperatureUnits','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','secondaryLine','secondaryLineFill','windScale','thirdLine',
+  'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','secondaryLine','secondaryLineFill','windScale','thirdLine',
   'barSource','rainBarColor','provider','owmApiKey','radarProvider','radarColor','rainCountdownHorizon',
   'layoutPreset','viewResetMin','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear',
   'statusForecastLeft','statusForecastMid','statusForecastRight','statusRadarLeft','statusRadarMid','statusRadarRight',
@@ -175,7 +175,7 @@ test('Units section groups temperature, AQI scale, wind + distance units in the 
   const unitsSection = general.sections.find((s) => s.title === 'Units');
   assert.ok(unitsSection, 'General tab has a titled "Units" section');
   assert.deepEqual(unitsSection.items.map((i) => i.messageKey),
-    ['temperatureUnits', 'aqiScale', 'windUnits', 'distanceUnits']);
+    ['temperatureUnits', 'aqiSource', 'aqiScale', 'windUnits', 'distanceUnits']);
   const first = general.sections[0];
   assert.ok(!first.items.some((i) => i.messageKey === 'temperatureUnits'), 'temperatureUnits relocated');
   assert.ok(!first.items.some((i) => i.messageKey === 'aqiScale'), 'aqiScale relocated');
@@ -524,9 +524,10 @@ test('top-strip middle is a selectable Date slot; the fixed label is gone', () =
 
 test('Units section wording: the section title carries the noun, labels stay short', () => {
   assert.equal(byKey('temperatureUnits').label, 'Temperature');
-  assert.equal(byKey('aqiScale').label, 'Air quality');
+  assert.equal(byKey('aqiSource').label, 'AQI source');
+  assert.equal(byKey('aqiScale').label, 'Air quality scale');
   assert.equal(byKey('aqiScale').hint,
-    'Which air-quality index the "Air quality (AQI)" status item shows.');
+    'Which air-quality index the Open-Meteo source reports. WAQI always uses the US EPA scale.');
   assert.equal(byKey('windUnits').hint, 'Unit for the wind and gust status items.');
 });
 
