@@ -228,10 +228,14 @@ static void maybe_unload_top_status_bitmaps(bool show_qt, bool draw_bt, bool dra
 // Configurable slots (status_row's left slot / fixed date mid slot / right slot)
 // span from the left icon slot(s) to the right edge. Left inset clears whichever
 // icons are currently on screen (QT and/or BT), reusing the same booleans
-// top_status_update_proc computes; the right inset is plain padding now that the
-// top-right slot draws the battery itself. This is only ever consulted in
-// non-alert mode (the alert branch draws its own centered glyph+text unit
-// instead), so it need not account for the alert's icon-suppression gate.
+// top_status_update_proc computes. The right inset is flush (0) on emery so the
+// top-right slot lines up exactly with the weather/health rows' right slots (those
+// rows pass their full bounds to status_row_apply — see weather_status_layer.c); on
+// the smaller-screen platforms a flush right slot clips the right-slot glyph at
+// content_w (the battery nub reaches its slot edge), so they keep a PADDING right pad.
+// This is only ever consulted in non-alert mode (the alert branch draws its own
+// centered glyph+text unit instead), so it need not account for the alert's
+// icon-suppression gate.
 static GRect content_rect(void) {
     GRect bounds = layer_get_bounds(s_top_status_layer);
     bool show_qt = show_qt_icon();
@@ -246,7 +250,14 @@ static GRect content_rect(void) {
     } else if (wants_bt || wants_bt_disc) {
         left = (int16_t)(ICON_SLOT_1.origin.x + ICON_SLOT_1.size.w + PADDING);
     }
-    int16_t right = PADDING;   // the top-right slot now draws the battery itself
+    // emery: the wider band clears the right-slot glyph at content_w, so the top-right
+    // slot sits flush (aligned with the weather/health rows). The smaller-screen bands
+    // clip a flush right slot, so they keep the small right pad.
+#ifdef PBL_PLATFORM_EMERY
+    int16_t right = 0;
+#else
+    int16_t right = PADDING;
+#endif
     int16_t w = (int16_t)(bounds.size.w - left - right);
     if (w < 0) { w = 0; }
     return GRect((int16_t)(bounds.origin.x + left), bounds.origin.y, w, bounds.size.h);

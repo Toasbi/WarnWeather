@@ -101,8 +101,9 @@ static void maybe_unload_top_status_bitmaps(bool show_qt, bool connected) {
 // Configurable slots (status_row's left slot / fixed date mid slot / right slot)
 // span from the left icon slot(s) to the right edge. Left inset clears whichever
 // icons are currently on screen (QT and/or BT), reusing the same booleans
-// top_status_update_proc computes; the right inset is plain padding now that the
-// top-right slot draws the battery itself.
+// top_status_update_proc computes; the right keeps a PADDING pad so the right-slot
+// glyph isn't clipped flush at content_w (aplite is a small screen — never emery, so
+// it takes the base file's non-emery branch; see top_status_layer.c's content_rect).
 static GRect content_rect(void) {
     GRect bounds = layer_get_bounds(s_top_status_layer);
     bool show_qt = show_qt_icon();
@@ -117,7 +118,7 @@ static GRect content_rect(void) {
     } else if (show_bt || show_bt_disconnect) {
         left = (int16_t)(ICON_SLOT_1.origin.x + ICON_SLOT_1.size.w + PADDING);
     }
-    int16_t right = PADDING;   // the top-right slot now draws the battery itself
+    int16_t right = PADDING;   // small screen: pad so the right slot isn't clipped flush
     int16_t w = (int16_t)(bounds.size.w - left - right);
     if (w < 0) { w = 0; }
     return GRect((int16_t)(bounds.origin.x + left), bounds.origin.y, w, bounds.size.h);
