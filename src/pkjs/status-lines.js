@@ -167,7 +167,8 @@ function formatValue(code, payload, settings) {
   }
   if (code === 'aqi') {
     v = trendHead(payload.AQI_TREND);
-    return v === null ? '--' : 'AQI ' + Math.round(v);
+    // Bare index; the leaf icon carries the "air quality" context (UV-style).
+    return v === null ? '--' : String(Math.round(v));
   }
   return '--';
 }

@@ -47,8 +47,9 @@ typedef enum {
     STATUS_ICON_SLEEP = 8,
     STATUS_ICON_HR = 9,
     STATUS_ICON_DISTANCE = 10,
+    STATUS_ICON_AQI = 11,       // air quality (leaf); weather metric, not health-gated
 } StatusIconId;
-#define STATUS_ICON_MAX STATUS_ICON_DISTANCE
+#define STATUS_ICON_MAX STATUS_ICON_AQI
 
 typedef struct {
     uint8_t kind;

@@ -242,14 +242,14 @@ test('sun time mirrors leading-zero and AM/PM settings', () => {
     hour12 + ':' + minute + marker);
 });
 
-test('aqi slot renders "AQI n" from AQI_TREND head', () => {
+test('aqi slot renders the bare index from AQI_TREND head (leaf icon carries context)', () => {
   const payload = Object.assign(basePayload(), { AQI_TREND: [42, 50] });
   const settings = baseSettings({ statusForecastLeft: 'aqi' });
   statusLines.buildStatusLines(payload, settings, WATCH_BASALT);
   const slots = decodeLine(payload.STATUS_LINE_1_UINT8);
   assert.equal(slots[0].kind, K.TEXT);
-  assert.equal(slots[0].icon, I.NONE);
-  assert.equal(slots[0].text, 'AQI 42');
+  assert.equal(slots[0].icon, I.AQI);
+  assert.equal(slots[0].text, '42');
 });
 
 test('aqi slot shows -- when AQI_TREND head is null or absent', () => {

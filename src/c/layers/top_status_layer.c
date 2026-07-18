@@ -96,8 +96,10 @@ static bool rain_norm_cb(GDrawCommand *command, uint32_t index, void *context) {
     uint16_t n = gdraw_command_get_num_points(command);
     for (uint16_t i = 0; i < n; i++) {
         GPoint p = gdraw_command_get_point(command, i);
-        p.x = (int16_t)((p.x * b->num) / b->den);
-        p.y = (int16_t)((p.y * b->num) / b->den);
+        // Round-half (not floor) so downscaling doesn't bias every point toward
+        // the origin; points are non-negative and num,den > 0 (matches status_row_icons).
+        p.x = (int16_t)((p.x * b->num + b->den / 2) / b->den);
+        p.y = (int16_t)((p.y * b->num + b->den / 2) / b->den);
         gdraw_command_set_point(command, i, p);
     }
     return true;

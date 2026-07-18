@@ -1,7 +1,7 @@
 {
   "name": "warnweather",
   "author": "Toasbi",
-  "version": "1.7.4",
+  "version": "1.8.0",
   "buildProfile": "{{buildProfile}}",
   "keywords": [
     "pebble-app"
@@ -182,6 +182,17 @@
           "type": "raw",
           "name": "STATUS_DISTANCE",
           "file": "data/STATUS_DISTANCE.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "STATUS_AQI",
+          "file": "data/STATUS_AQI.pdc",
           "targetPlatforms": [
             "basalt",
             "diorite",

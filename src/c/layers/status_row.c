@@ -19,8 +19,15 @@
 
 #define STATUS_ROW_MARGIN 2
 #define SNOOZE_BOX_W 24
-#define ICON_RATIO_NUM 5
+// Icon height as a fraction of the status text's content height. Bumped 5/9 -> 6/9
+// (~2/3) so the glyphs read heftier at every tier (they were noticeably timid at 5/9);
+// still capped at the row band via ICON_BAND_MARGIN. One knob — tune for weight.
+#define ICON_RATIO_NUM 6
 #define ICON_RATIO_DEN 9
+// The top strip abuts the calendar/date, so its glyphs use a smaller ratio than the
+// weather/health rows to avoid crowding the month text — the third (smallest) size.
+#define TOP_ICON_RATIO_NUM 5
+#define TOP_ICON_RATIO_DEN 9
 #define ICON_BAND_MARGIN 2
 
 #ifdef PBL_PLATFORM_EMERY
@@ -348,7 +355,10 @@ bool status_row_refresh(StatusRow *row) {
 }
 
 static void ensure_glyphs(StatusRow *row, int len, int content_h) {
-    int16_t target_h = (int16_t)((content_h * ICON_RATIO_NUM) / ICON_RATIO_DEN);
+    bool top = (row->line_id == STATUS_LINE_TOP);
+    int rn = top ? TOP_ICON_RATIO_NUM : ICON_RATIO_NUM;
+    int rd = top ? TOP_ICON_RATIO_DEN : ICON_RATIO_DEN;
+    int16_t target_h = (int16_t)((content_h * rn) / rd);
     int16_t band_cap = (int16_t)(row->bounds.size.h - ICON_BAND_MARGIN);
     if (target_h > band_cap) { target_h = band_cap; }
 
