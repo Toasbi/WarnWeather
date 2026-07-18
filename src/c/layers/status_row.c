@@ -53,6 +53,7 @@ struct StatusRow {
     GColor glyph_fg;
     uint16_t content_sig;
     bool uses_live_health;
+    GDrawCommandImage *sleep_glyph;   // pillow drawn over frozen weather slots while asleep
 };
 
 // Main-app drawing and refresh callbacks are serialized, so all row instances can
@@ -261,6 +262,7 @@ void status_row_destroy(StatusRow *row) {
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         status_row_icons_destroy(row->glyphs[i]);
     }
+    status_row_icons_destroy(row->sleep_glyph);
     free(row);
     s_row_count--;
 #ifndef PBL_PLATFORM_APLITE
@@ -370,14 +372,22 @@ static void ensure_glyphs(StatusRow *row, int len, int content_h) {
             : NULL;
         row->glyph_icons[i] = wanted;
     }
+    // Sleep glyph (pillow) reused across all frozen weather slots while asleep;
+    // reload on env change (size/theme). NULL on aplite -> snooze_draw fallback.
+    if (row->sleeping) {
+        if (env_changed || !row->sleep_glyph) {
+            status_row_icons_destroy(row->sleep_glyph);
+            row->sleep_glyph = status_row_icons_load(STATUS_ICON_SLEEP, target_h);
+        }
+    }
     row->glyph_h = target_h;
     row->glyph_fg = fg;
 }
 
 // Measured footprint of one slot: icon width (battery = fixed glyph, loaded PDC,
 // or the drawn-sun arrow) + text width. Shared by the draw pass and the
-// right-slot width query. Does not handle the sleeping-snooze special case
-// (slot 0 of a weather line) — the draw loop keeps that inline.
+// right-slot width query. Does not handle the sleeping pillow-glyph special
+// case (any frozen weather slot) — the draw loop keeps that inline.
 static StatusSlotMeasure measure_slot(StatusRow *row, int i, GFont font,
                                       int16_t content_w, const StatusSlotView *slot,
                                       const char *text) {
@@ -443,8 +453,6 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     StatusSlotView slots[STATUS_SLOT_COUNT];
     char texts[STATUS_SLOT_COUNT][STATUS_TEXT_MID_MAX + 1];
 
-    bool weather_line = row->line_id == STATUS_LINE_FORECAST
-                     || row->line_id == STATUS_LINE_RADAR;
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         if (!status_line_slot(s_blob_scratch, (size_t)len, i, &slots[i])) { return; }
         // Rain-alert takeover: hide left + mid so only the right slot (battery)
@@ -458,9 +466,11 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         }
         apply_battery_override(row, i, &slots[i]);
         resolve_slot_text(row, &slots[i], texts[i], sizeof(texts[i]));
-        if (row->sleeping && weather_line && i == 0) {
+        if (row->sleeping && status_slot_is_frozen_weather(&slots[i])) {
             measures[i].present = true;
-            measures[i].icon_w = SNOOZE_BOX_W;
+            measures[i].icon_w = row->sleep_glyph
+                ? gdraw_command_image_get_bounds_size(row->sleep_glyph).w
+                : SNOOZE_BOX_W;
             measures[i].text_w = 0;
             continue;
         }
@@ -483,11 +493,17 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         if (slots[i].kind == SLOT_LIVE_BATTERY) {
             battery_draw(ctx, GRect(icon_x, glyph_cy - BATTERY_GLYPH_H / 2,
                                     BATTERY_GLYPH_W, BATTERY_GLYPH_H), theme_fg());
-        } else if (row->sleeping && weather_line && i == 0) {
-            snooze_draw(ctx,
-                        GRect(icon_x, row->bounds.origin.y + 2,
-                              SNOOZE_BOX_W, row->bounds.size.h - 4),
-                        theme_fg());
+        } else if (row->sleeping && status_slot_is_frozen_weather(&slots[i])) {
+            if (row->sleep_glyph) {
+                GSize gs = gdraw_command_image_get_bounds_size(row->sleep_glyph);
+                gdraw_command_image_draw(ctx, row->sleep_glyph,
+                    GPoint(icon_x, glyph_cy - gs.h / 2));
+            } else {
+                snooze_draw(ctx,
+                            GRect(icon_x, row->bounds.origin.y + 2,
+                                  SNOOZE_BOX_W, row->bounds.size.h - 4),
+                            theme_fg());
+            }
         } else if (row->glyphs[i]) {
             GSize gs = gdraw_command_image_get_bounds_size(row->glyphs[i]);
             gdraw_command_image_draw(ctx, row->glyphs[i],

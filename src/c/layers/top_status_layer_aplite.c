@@ -17,6 +17,7 @@
 #include "status_row.h"
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
+#include "c/appendix/persist.h"
 #include "c/appendix/status_line.h"
 #include "c/appendix/theme.h"
 #include "c/services/watch_services.h"
@@ -254,6 +255,7 @@ void top_status_layer_refresh() {
     // this owner only keeps the icon state in sync.
     update_battery_override();   // config may have flipped battery_low_only
     status_icons_refresh();
+    status_row_set_sleeping(s_row, persist_get_is_sleeping());
     if (status_row_refresh(s_row)) {
         layer_mark_dirty(s_top_status_layer);
     }

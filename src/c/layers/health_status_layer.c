@@ -5,6 +5,7 @@
 
 #include "status_row.h"
 #include "../windows/layout.h"   // LayoutTier
+#include "../appendix/persist.h"
 #include "../appendix/status_line.h"
 
 #define HEALTH_TALL_BAND_MIN 16
@@ -91,6 +92,7 @@ Layer *health_status_layer_get_root(void) {
 }
 
 void health_status_layer_refresh(void) {
+    status_row_set_sleeping(s_row, persist_get_is_sleeping());
     refresh_row();
 }
 
