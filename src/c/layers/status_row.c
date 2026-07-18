@@ -387,7 +387,8 @@ static void ensure_glyphs(StatusRow *row, int len, int content_h) {
 // Measured footprint of one slot: icon width (battery = fixed glyph, loaded PDC,
 // or the drawn-sun arrow) + text width. Shared by the draw pass and the
 // right-slot width query. Does not handle the sleeping pillow-glyph special
-// case (any frozen weather slot) — the draw loop keeps that inline.
+// case (any frozen weather slot) — callers (the draw loop and the right-slot
+// width query) apply that override inline instead.
 static StatusSlotMeasure measure_slot(StatusRow *row, int i, GFont font,
                                       int16_t content_w, const StatusSlotView *slot,
                                       const char *text) {
@@ -429,6 +430,11 @@ int16_t status_row_right_slot_width(StatusRow *row) {
     apply_battery_override(row, i, &slot);
     char text[STATUS_TEXT_MID_MAX + 1];
     resolve_slot_text(row, &slot, text, sizeof(text));
+    if (row->sleeping && status_slot_is_frozen_weather(&slot)) {
+        return row->sleep_glyph
+            ? gdraw_command_image_get_bounds_size(row->sleep_glyph).w
+            : SNOOZE_BOX_W;
+    }
     StatusSlotMeasure m = measure_slot(row, i, font, content_w, &slot, text);
     if (!m.present) { return 0; }
     int16_t w = m.icon_w + m.text_w;
