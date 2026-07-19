@@ -1,6 +1,15 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const onChangeHandlers = {};
+global.PConf = {
+  onChange: {
+    register: function (name, fn) { onChangeHandlers[name] = fn; },
+    get: function (name) { return onChangeHandlers[name]; }
+  },
+  actions: {}
+};
+require('../src/pkjs/settings/reset-status-defaults.js');
 const W = require('../src/pkjs/settings/wizard.js');
 
 test('countryFromTimezone: known zones map, unknown -> null', () => {
@@ -26,6 +35,38 @@ test('mapCountry: providers by country + temperature unit (US=f, else c)', () =>
   assert.deepEqual(W.mapCountry('US'), { provider: 'openmeteo', radarProvider: 'rainbow', temperatureUnits: 'f' });
   assert.deepEqual(W.mapCountry('GB'), { provider: 'openmeteo', radarProvider: 'rainbow', temperatureUnits: 'c' });
   assert.deepEqual(W.mapCountry(null), { provider: 'openmeteo', radarProvider: 'rainbow', temperatureUnits: 'c' });
+});
+
+test('applyDerived clears pollen when the wizard derives a non-DWD provider', () => {
+  const S = {
+    holidayCountry: 'US',
+    provider: 'dwd',
+    statusForecastLeft: 'pollen',
+    statusForecastMid: 'wind',
+    statusTopLeft: 'uv'
+  };
+
+  W.applyDerived(S);
+
+  assert.equal(S.provider, 'openmeteo');
+  assert.equal(S.statusForecastLeft, 'empty');
+  assert.equal(S.statusForecastMid, 'wind', 'unrelated slot remains unchanged');
+  assert.equal(S.statusTopLeft, 'uv', 'unrelated slot remains unchanged');
+});
+
+test('applyDerived leaves pollen intact when the wizard derives DWD', () => {
+  const S = {
+    holidayCountry: 'DE',
+    provider: 'openmeteo',
+    statusForecastLeft: 'pollen',
+    statusForecastMid: 'wind'
+  };
+
+  W.applyDerived(S);
+
+  assert.equal(S.provider, 'dwd');
+  assert.equal(S.statusForecastLeft, 'pollen');
+  assert.equal(S.statusForecastMid, 'wind');
 });
 
 test('buildSteps: health precedes the flick demo; flick and theme gated by env (both absent on aplite)', () => {

@@ -305,12 +305,21 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return 0;
     }
 
-    // Country → provider + radar provider + temperature unit, written onto shared state.
-    function applyDerived() {
-        var m = mapCountry(W.ctx.S.holidayCountry);
-        W.ctx.S.provider = m.provider;
-        W.ctx.S.radarProvider = m.radarProvider;
-        W.ctx.S.temperatureUnits = m.temperatureUnits;
+    /**
+     * Derive country-dependent settings onto the shared state and run the
+     * provider cleanup hook just like the settings control does.
+     * @param {Object} S live settings state
+     * @returns {void}
+     */
+    function applyDerived(S) {
+        var m = mapCountry(S.holidayCountry);
+        var oldProvider = S.provider;
+        S.provider = m.provider;
+        var cleanup = (PConf.onChange && PConf.onChange.get)
+            ? PConf.onChange.get('clearPollenForProvider') : null;
+        if (cleanup) { cleanup(S, oldProvider, m.provider); }
+        S.radarProvider = m.radarProvider;
+        S.temperatureUnits = m.temperatureUnits;
     }
 
     // --- screen 1: reuse the real settings searchSelect for country/region ---
@@ -611,7 +620,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if ((t = e.target.closest('[data-wiz-nav]'))) { onNav(t.getAttribute('data-wiz-nav')); return; }
         if ((t = e.target.closest('[data-select-pick]'))) {
             var pk = t.getAttribute('data-k'); W.ctx.S[pk] = t.getAttribute('data-select-pick');
-            if (pk === 'holidayCountry') { W.ctx.S.holidayRegion = 'all'; applyDerived(); }
+            if (pk === 'holidayCountry') { W.ctx.S.holidayRegion = 'all'; applyDerived(W.ctx.S); }
             W.openSelect = null; renderStep(); return;
         }
         if ((t = e.target.closest('[data-select]'))) {
@@ -652,7 +661,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var cc = inferCountry();
             var cOpts = optionsFor(ctx.schema, 'holidayCountry');
             if (cc && optionHasCode(cOpts, cc)) { ctx.S.holidayCountry = cc; ctx.S.holidayRegion = 'all'; }
-            applyDerived();
+            applyDerived(ctx.S);
         }
         ensureStyle();
         var overlay = document.createElement('div');
@@ -681,7 +690,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
             countryFromTimezone: countryFromTimezone, countryFromLocale: countryFromLocale,
-            inferCountry: inferCountry, mapCountry: mapCountry,
+            inferCountry: inferCountry, mapCountry: mapCountry, applyDerived: applyDerived,
             buildSteps: buildSteps, shouldShow: shouldShow,
             flickStops: flickStops
         };
