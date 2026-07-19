@@ -105,15 +105,16 @@
   }
 
   /**
-   * Option list for one slot dropdown: 'Empty' first, then per category a
-   * disabled header row followed by its available items (labels indented three
-   * spaces), minus codes selected in sibling slots and minus args.excludeCodes.
-   * Header rows are [label, '__hdr_<cat>', {disabled: true}] — non-selectable
-   * sentinels the select renderer disables.
+   * Option list for one slot dropdown: 'Empty' first, then available items per
+   * category, minus codes selected in sibling slots and minus args.excludeCodes.
+   * Multi-item categories emit a non-selectable header with
+   * {disabled: true, groupHeader: true}; each child has
+   * {groupChild: true, groupEnd: boolean}. Single-item categories collapse to
+   * an ordinary two-element [label, code] tuple with no header.
    * @param {Object} settings Clay settings blob
    * @param {Object} env platform env
    * @param {Object} args {excludeKeys, excludeCodes, slotKey, position}
-   * @returns {Array} [[label, code], ...] with optional {disabled} third element
+   * @returns {Array} [[label, code], ...] with optional grouping metadata
    */
   function slotOptions(settings, env, args) {
     args = args || {};
@@ -134,11 +135,19 @@
         var item = ITEMS[i];
         if (item.category !== CATEGORIES[c][0] || taken[item.code]) { continue; }
         if (!itemAvailable(item, settings, env, slotCtx)) { continue; }
-        children.push(['   ' + item.label, item.code]);
+        children.push([item.label, item.code]);
       }
       if (!children.length) { continue; }
-      out.push([CATEGORIES[c][1], '__hdr_' + CATEGORIES[c][0], { disabled: true }]);
-      for (i = 0; i < children.length; i++) { out.push(children[i]); }
+      if (children.length === 1) {
+        out.push(children[0]);
+        continue;
+      }
+      out.push([CATEGORIES[c][1], '__hdr_' + CATEGORIES[c][0],
+        { disabled: true, groupHeader: true }]);
+      for (i = 0; i < children.length; i++) {
+        children[i][2] = { groupChild: true, groupEnd: i === children.length - 1 };
+        out.push(children[i]);
+      }
     }
     return out;
   }
