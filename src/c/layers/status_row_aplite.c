@@ -6,7 +6,6 @@
 // or rain-alert pipeline. See docs/adr/0001-aplite-frozen-lean-fork.md.
 
 #include "status_row.h"
-#include "battery_draw.h"
 #include "layer_util.h"
 #include "../appendix/persist.h"
 #include "../appendix/snooze.h"
@@ -83,6 +82,10 @@ static void format_live_value(const StatusRow *row, uint8_t kind,
                               char *buf, size_t cap) {
     if (kind == SLOT_LIVE_DATE) {
         format_status_date(row->full_date, buf, cap);
+    } else if (kind == SLOT_LIVE_BATTERY) {
+        int level = watch_services_battery_state().charge_percent;
+        if (level < 0) { level = 0; } else if (level > 100) { level = 100; }
+        snprintf(buf, cap, "%d%%", level);
     } else {
         snprintf(buf, cap, "--");
     }
@@ -106,7 +109,7 @@ static void resolve_slot_text(const StatusRow *row, const StatusSlotView *slot,
         if (n > cap - 1) { n = cap - 1; }
         memcpy(buf, slot->value, n);
         buf[n] = '\0';
-    } else if (slot->kind == SLOT_EMPTY || slot->kind == SLOT_LIVE_BATTERY) {
+    } else if (slot->kind == SLOT_EMPTY) {
         buf[0] = '\0';
     } else {
         format_live_value(row, slot->kind, buf, cap);
@@ -211,14 +214,6 @@ bool status_row_refresh(StatusRow *row) {
         if (slot.kind != SLOT_EMPTY && slot.icon == STATUS_ICON_DRAWN_SUN) {
             has_drawn_sun = true;
         }
-        if (slot.kind == SLOT_LIVE_BATTERY) {
-            BatteryChargeState bs = watch_services_battery_state();
-            uint8_t battery[2] = {
-                (uint8_t)bs.charge_percent,
-                (uint8_t)(bs.is_charging || bs.is_plugged)
-            };
-            sig = sig_fold(sig, battery, sizeof(battery));
-        }
     }
     if (has_drawn_sun) {
         uint8_t sun_type = (uint8_t)persist_get_sun_event_start_type();
@@ -237,7 +232,6 @@ bool status_row_refresh(StatusRow *row) {
 static const uint16_t MASK_TEMP[]   = {0x01c,0x022,0x02a,0x02a,0x02a,0x02a,0x02a,0x02a,0x02a,0x05d,0x05d,0x022,0x01c};
 static const uint16_t MASK_WIND[]   = {0x080,0x100,0x500,0x8fe,0x800,0x7ff,0x000,0x1fe,0x200,0x200,0x100};
 static const uint16_t MASK_GUST[]   = {0x002,0x1fe,0x202,0x202,0x1fe,0x002,0x002,0x002,0x002,0x002,0x007};
-static const uint16_t MASK_PRECIP[] = {0x040,0x040,0x0e0,0x318,0x404,0x802,0x1bfb,0x040,0x040,0x440,0x380};
 static const uint16_t MASK_UV[]     = {0x040,0x842,0x404,0x0e0,0x110,0x1913,0x110,0x0e0,0x404,0x842,0x040};
 static const uint16_t MASK_AQI[]    = {0x380,0xc40,0x1820,0x1810,0x1808,0xc04,0x622,0x192,0x0ca,0x03c,0x002,0x001};
 static const uint16_t MASK_POLLEN[] = {0x020,0x124,0x0f8,0x326,0x1fc,0x326,0x0f8,0x124,0x020,0x010,0x008,0x004,0x002};
@@ -250,7 +244,6 @@ static const StatusMask *status_mask_for(uint8_t icon_id) {
     static const StatusMask temp   = { MASK_TEMP,   13,  7 };
     static const StatusMask wind   = { MASK_WIND,   11, 12 };
     static const StatusMask gust   = { MASK_GUST,   11, 11 };
-    static const StatusMask precip = { MASK_PRECIP, 11, 13 };
     static const StatusMask uv     = { MASK_UV,     11, 13 };
     static const StatusMask aqi    = { MASK_AQI,    12, 13 };
     static const StatusMask pollen = { MASK_POLLEN, 13, 11 };
@@ -258,7 +251,6 @@ static const StatusMask *status_mask_for(uint8_t icon_id) {
         case STATUS_ICON_TEMP:   return &temp;
         case STATUS_ICON_WIND:   return &wind;
         case STATUS_ICON_GUST:   return &gust;
-        case STATUS_ICON_PRECIP: return &precip;
         case STATUS_ICON_UV:     return &uv;
         case STATUS_ICON_AQI:    return &aqi;
         case STATUS_ICON_POLLEN: return &pollen;
@@ -339,7 +331,6 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         const StatusMask *mask = (slots[i].kind != SLOT_EMPTY)
             ? status_mask_for(slots[i].icon) : NULL;
         icon_w[i] = snoozing[i] ? SNOOZE_BOX_W
-            : slots[i].kind == SLOT_LIVE_BATTERY ? BATTERY_GLYPH_W
             : (slots[i].icon == STATUS_ICON_DRAWN_SUN
                && slots[i].kind != SLOT_EMPTY) ? ARROW_W
             : mask ? mask->w : 0;
@@ -362,10 +353,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         if (draw_w[i] == 0) { continue; }   // empty, or dropped for lack of space
         int16_t gxs = (int16_t)(x0 + gx[i]);
-        if (slots[i].kind == SLOT_LIVE_BATTERY) {
-            battery_draw(ctx, GRect(gxs, glyph_cy - BATTERY_GLYPH_H / 2,
-                                    BATTERY_GLYPH_W, BATTERY_GLYPH_H), theme_fg());
-        } else if (snoozing[i]) {
+        if (snoozing[i]) {
             snooze_draw(ctx, GRect(gxs, row->bounds.origin.y + 2,
                                    SNOOZE_BOX_W, row->bounds.size.h - 4), theme_fg());
         } else if (slots[i].icon == STATUS_ICON_DRAWN_SUN && icon_w[i] > 0) {
