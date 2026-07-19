@@ -262,6 +262,28 @@ test('aqi slot shows -- when AQI_TREND head is null or absent', () => {
   assert.equal(decodeLine(absent.STATUS_LINE_1_UINT8)[0].text, '--');
 });
 
+test('pollen slot emits POLLEN_TODAY verbatim with the pollen icon', () => {
+  const payload = Object.assign(basePayload(), { POLLEN_TODAY: '2-3' });
+  const settings = baseSettings({ provider: 'dwd', statusForecastLeft: 'pollen' });
+  statusLines.buildStatusLines(payload, settings, WATCH_BASALT);
+  const slot = decodeLine(payload.STATUS_LINE_1_UINT8)[0];
+  assert.equal(statusLines.formatValue('pollen', payload, settings), '2-3');
+  assert.equal(slot.kind, K.TEXT);
+  assert.equal(slot.icon, I.POLLEN);
+  assert.equal(slot.text, '2-3');
+});
+
+test('pollen slot shows -- when POLLEN_TODAY is null or absent', () => {
+  const settings = baseSettings({ provider: 'dwd', statusForecastLeft: 'pollen' });
+  const missing = basePayload();
+  statusLines.buildStatusLines(missing, settings, WATCH_BASALT);
+  assert.equal(decodeLine(missing.STATUS_LINE_1_UINT8)[0].text, '--');
+
+  const nullValue = Object.assign(basePayload(), { POLLEN_TODAY: null });
+  statusLines.buildStatusLines(nullValue, settings, WATCH_BASALT);
+  assert.equal(decodeLine(nullValue.STATUS_LINE_1_UINT8)[0].text, '--');
+});
+
 test('every baked line validates against the caps', () => {
   const p = basePayload();
   statusLines.buildStatusLines(p, baseSettings(), WATCH_EMERY);

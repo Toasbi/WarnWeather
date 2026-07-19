@@ -257,6 +257,7 @@ function applyForecastSeries(payload, settings, watchInfo) {
     delete payload.GUST_TREND_UINT8;  // transient PKJS-only; never over the wire
     delete payload.UV_TREND_UINT8;    // transient PKJS-only; never over the wire
     delete payload.AQI_TREND;         // transient PKJS-only; baked into status text, never wired
+    delete payload.POLLEN_TODAY;      // transient PKJS-only; baked into status text, never wired
     payload.SECONDARY_LINE_TREND_UINT8 = series.SECONDARY_LINE_TREND_UINT8;
     payload.SECONDARY_LINE_COLOR = series.SECONDARY_LINE_COLOR;
     payload.SECONDARY_LINE_FILL = series.SECONDARY_LINE_FILL;
@@ -291,11 +292,22 @@ function needsAqi(settings) {
     return statusCatalog.selectedCodes(settings).indexOf('aqi') !== -1;
 }
 
+/**
+ * Whether a DWD status slot selects pollen. Pollen is DWD-only and status-only.
+ * @param {Object} settings Clay settings.
+ * @returns {boolean} True when the effective provider and slot selection need pollen.
+ */
+function needsPollen(settings) {
+    if (!settings || settings.provider !== 'dwd') { return false; }
+    return statusCatalog.selectedCodes(settings).indexOf('pollen') !== -1;
+}
+
 module.exports = {
     buildForecastSeries: buildForecastSeries,
     applyForecastSeries: applyForecastSeries,
     needsUv: needsUv,
     needsAqi: needsAqi,
+    needsPollen: needsPollen,
     permilleToByte: permilleToByte,
     tempTrendToBytes: tempTrendToBytes,
     LINE_COLORS: LINE_COLORS,

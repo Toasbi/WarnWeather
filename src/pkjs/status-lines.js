@@ -171,6 +171,10 @@ function formatValue(code, payload, settings) {
     // Bare index; the leaf icon carries the "air quality" context (UV-style).
     return v === null ? '--' : String(Math.round(v));
   }
+  if (code === 'pollen') {
+    return payload.POLLEN_TODAY === null || typeof payload.POLLEN_TODAY === 'undefined'
+      ? '--' : String(payload.POLLEN_TODAY);
+  }
   return '--';
 }
 
