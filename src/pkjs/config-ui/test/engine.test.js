@@ -62,8 +62,10 @@ test('renderControl: toggle on/off, segmented selection, select selected option'
   assert.ok(seg.indexOf('<div class="seg">') === 0, 'segmented wraps in .seg');
   assert.ok(seg.indexOf('class="on" data-k="mode" data-v="b"') >= 0, 'selected pill marked on');
   assert.ok(seg.indexOf('class="" data-k="mode" data-v="a"') >= 0, 'unselected pill not on');
-  const sel = E.renderControl({ type: 'select', messageKey: 'mode', options: [['A','a'],['B','b']] }, { value: 'a' });
-  assert.ok(sel.indexOf('<option value="a" selected>A</option>') >= 0);
+  const sel = E.renderControl({ type: 'select', messageKey: 'mode', label: 'Mode', options: [['A','a'],['B','b']] }, { value: 'a', openSelect: null });
+  assert.ok(sel.indexOf('class="sel-wrap" data-select="mode"') >= 0, 'select renders the shared trigger button');
+  assert.ok(sel.indexOf('<span>A</span>') >= 0, 'trigger shows the current value label');
+  assert.equal(sel.indexOf('<option'), -1, 'no native <option> markup');
 });
 
 test('renderControl: text value and color display are HTML-escaped', () => {
@@ -133,7 +135,7 @@ test('renderBody: only active tab, showWhen hides items, version footer present'
   const cx = { S: E.hydrate(FIXTURE, {}), ENV: { color: true }, USERDATA: {}, openColor: null, collapsed: {},
     evalCtx: Object.assign({}, E.hydrate(FIXTURE, {}), { env: { color: true } }) };
   const html = E.renderBody(FIXTURE, 't', cx);
-  assert.ok(html.indexOf('data-k="mode"') >= 0, 'visible select rendered');
+  assert.ok(html.indexOf('data-select="mode"') >= 0, 'visible select rendered');
   assert.equal(html.indexOf('data-toggle'), -1, 'flag hidden because mode!=b');
   assert.ok(html.indexOf('<div class="version">v0</div>') >= 0);
 });
@@ -146,7 +148,7 @@ test('renderBody: consecutive inline-grouped items share one row with no interna
   const cx = { S: E.hydrate(SCH, {}), ENV: { color: true }, USERDATA: {}, openColor: null, collapsed: {},
     evalCtx: Object.assign({}, E.hydrate(SCH, {}), { env: { color: true } }) };
   const html = E.renderBody(SCH, 't', cx);
-  assert.ok(html.indexOf('data-k="from"') >= 0 && html.indexOf('data-k="to"') >= 0, 'both selects rendered');
+  assert.ok(html.indexOf('data-select="from"') >= 0 && html.indexOf('data-select="to"') >= 0, 'both selects rendered');
   const rows = html.match(/class="row inline"/g) || [];
   assert.equal(rows.length, 1, 'exactly one combined inline row wraps the pair');
   assert.equal(html.indexOf('class="row"><div class="lft"'), -1, 'neither member rendered as its own standalone row');
@@ -322,22 +324,23 @@ test('optionsFrom.resolver derives options via the registry (multi-key + env) an
     evalCtx: { other: 'a', k: 'a', env: { health: true } } };
   const html = E.renderBody(schema, 't', cx);
   assert.equal(cx.S.k, 'empty', 'stored value no longer among the derived options snaps to defaultValue');
-  assert.ok(html.indexOf('<option value="empty" selected>Empty</option>') >= 0, 'snapped option rendered selected');
+  assert.ok(html.indexOf('<span>Empty</span>') >= 0, 'snapped label shown in the trigger');
   assert.equal(html.indexOf('value="a"'), -1, 'the excluded option is not rendered');
 });
 
-test('renderBody materializes an optionsFrom select into the right <option>s', () => {
+test('renderSelectModal materializes an optionsFrom select into pickable option rows (and has no search box)', () => {
   const schema = { appName: 'X', versionLabel: '', tabs: [ { id: 't', label: 'T', sections: [ { title: 'S', items: [
     { type: 'select', messageKey: 'iv', defaultValue: '15', options: [['15 minutes','15']] },
-    { type: 'select', messageKey: 'gpsCacheMin', defaultValue: '30', optionsFrom: { interval: 'iv', ladder: [30, 60, 1440] } }
+    { type: 'select', messageKey: 'gpsCacheMin', label: 'GPS cache', defaultValue: '30', optionsFrom: { interval: 'iv', ladder: [30, 60, 1440] } }
   ] } ] } ] };
   const cx = { S: { iv: '15', gpsCacheMin: '30' }, ENV: { color: true }, USERDATA: {},
-    openColor: null, collapsed: {}, evalCtx: { iv: '15', gpsCacheMin: '30', env: { color: true } } };
-  const html = E.renderBody(schema, 't', cx);
-  assert.ok(html.indexOf('<option value="15" selected>15 minutes</option>') >= 0);
-  assert.ok(html.indexOf('<option value="30" selected>30 minutes</option>') >= 0);
-  assert.ok(html.indexOf('<option value="60">1 hour</option>') >= 0);
-  assert.ok(html.indexOf('<option value="1440">1 day</option>') >= 0);
+    openColor: null, openSelect: 'gpsCacheMin', selectQuery: '', collapsed: {},
+    evalCtx: { iv: '15', gpsCacheMin: '30', env: { color: true } } };
+  const html = E.renderSelectModal(schema, cx);
+  assert.ok(html.indexOf('data-select-pick="30"') >= 0 && html.indexOf('30 minutes') >= 0);
+  assert.ok(html.indexOf('data-select-pick="60"') >= 0 && html.indexOf('1 hour') >= 0);
+  assert.ok(html.indexOf('data-select-pick="1440"') >= 0 && html.indexOf('1 day') >= 0);
+  assert.equal(html.indexOf('data-select-search'), -1, 'plain select modal has no search box');
 });
 
 test('renderBody snaps an optionsFrom value no longer in the derived options to the first option', () => {
@@ -350,7 +353,7 @@ test('renderBody snaps an optionsFrom value no longer in the derived options to 
     openColor: null, collapsed: {}, evalCtx: { iv: '60', gpsCacheMin: '30', env: { color: true } } };
   const html = E.renderBody(schema, 't', cx);
   assert.equal(cx.S.gpsCacheMin, '60', 'stale value snapped to the first (lowest = interval) option');
-  assert.ok(html.indexOf('<option value="60" selected>1 hour</option>') >= 0, 'snapped option rendered selected');
+  assert.ok(html.indexOf('<span>1 hour</span>') >= 0, 'snapped label shown in the trigger');
   assert.ok(html.indexOf('value="30"') < 0, 'the removed value is not rendered');
 });
 
@@ -363,7 +366,7 @@ test('renderBody leaves an optionsFrom value untouched when it is still a valid 
     openColor: null, collapsed: {}, evalCtx: { iv: '60', gpsCacheMin: '120', env: { color: true } } };
   const html = E.renderBody(schema, 't', cx);
   assert.equal(cx.S.gpsCacheMin, '120', 'valid value is not snapped');
-  assert.ok(html.indexOf('<option value="120" selected>2 hours</option>') >= 0);
+  assert.ok(html.indexOf('<span>2 hours</span>') >= 0, 'valid value label shown in the trigger');
 });
 
 test('renderBody applies optionsFrom to a searchSelect and snaps an invalid value to the first option', () => {
@@ -467,44 +470,64 @@ test('renderControl searchSelect: closed trigger is a labelled native listbox bu
   assert.doesNotMatch(html, /tabindex=|onkeydown=|role="button"/, 'native button supplies keyboard behavior and tab stop');
 });
 
-test('renderControl searchSelect: open trigger and controlled list expose expanded listbox semantics', () => {
+test('renderControl searchSelect: an open trigger reports expanded but renders no inline list', () => {
   const item = { type: 'searchSelect', messageKey: 'c', label: 'Country', options: [['United States','US'],['Germany','DE']] };
   const html = E.renderControl(item, { value: 'DE', openSelect: 'c', selectQuery: '' });
   assert.match(html, /^<button type="button" class="sel-wrap" data-select="c"/);
-  assert.match(html, /aria-label="Country: Germany"/);
   assert.match(html, /aria-haspopup="listbox" aria-expanded="true" aria-controls="ssel-list-c"/);
-  assert.ok(html.indexOf('data-select-search="c"') >= 0, 'search input present');
+  assert.equal(html.indexOf('data-select-search'), -1, 'search input is in the modal, not the control');
+  assert.equal(html.indexOf('class="ssel-list"'), -1, 'option list is in the modal, not the control');
+});
+
+test('renderSelectModal: open searchSelect exposes dialog + search + controlled listbox with the current value on', () => {
+  const item = { type: 'searchSelect', messageKey: 'c', label: 'Country', options: [['United States','US'],['Germany','DE']] };
+  const schema = { appName: 'X', versionLabel: '', tabs: [{ id: 't', label: 'T', sections: [{ title: 'S', items: [item] }] }] };
+  const cx = { S: { c: 'DE' }, ENV: {}, USERDATA: {}, openColor: null, openSelect: 'c', selectQuery: '', collapsed: {}, evalCtx: { c: 'DE', env: {} } };
+  const html = E.renderSelectModal(schema, cx);
+  assert.match(html, /class="ssel-overlay" data-select-overlay/);
+  assert.match(html, /class="ssel-modal" role="dialog" aria-modal="true"/);
+  assert.match(html, /data-select-close/);
+  assert.ok(html.indexOf('data-select-search="c"') >= 0, 'searchSelect modal has a search box');
   assert.match(html, /id="ssel-list-c" class="ssel-list" role="listbox" aria-label="Country options" data-ssel-list="c"/);
   assert.match(html, /role="option" aria-selected="true"[^>]*data-select-pick="DE"/);
   assert.match(html, /role="option" aria-selected="false"[^>]*data-select-pick="US"/);
-  assert.ok(html.indexOf('>United States<') >= 0 && html.indexOf('>Germany<') >= 0, 'all options listed');
 });
 
-test('renderControl searchSelect: open list reflects the query', () => {
-  const item = { type: 'searchSelect', messageKey: 'c', options: [['United States','US'],['Germany','DE']] };
-  const html = E.renderControl(item, { value: 'US', openSelect: 'c', selectQuery: 'ger' });
-  assert.ok(html.indexOf('>Germany<') >= 0, 'matching option shown');
+test('renderSelectModal: the open list reflects the query', () => {
+  const item = { type: 'searchSelect', messageKey: 'c', label: 'C', options: [['United States','US'],['Germany','DE']] };
+  const schema = { appName: 'X', versionLabel: '', tabs: [{ id: 't', label: 'T', sections: [{ title: 'S', items: [item] }] }] };
+  const cx = { S: { c: 'US' }, ENV: {}, USERDATA: {}, openColor: null, openSelect: 'c', selectQuery: 'ger', collapsed: {}, evalCtx: { c: 'US', env: {} } };
+  const html = E.renderSelectModal(schema, cx);
+  assert.ok(html.indexOf('data-select-pick="DE"') >= 0, 'matching option present');
   assert.equal(html.indexOf('data-select-pick="US"'), -1, 'non-matching option filtered from the list');
-  assert.ok(html.indexOf('value="ger"') >= 0, 'search box keeps the typed query');
 });
 
-test('renderRow: an open searchSelect is stacked (full-width)', () => {
-  const item = { type: 'searchSelect', messageKey: 'c', label: 'Country', options: [['A','a']] };
-  const open = E.renderRow(item, { value: 'a', openSelect: 'c', selectQuery: '' });
-  assert.ok(open.indexOf('class="row stack"') >= 0, 'open searchSelect row stacks');
-  const closed = E.renderRow(item, { value: 'a', openSelect: null });
-  assert.ok(closed.indexOf('class="row"') >= 0 && closed.indexOf('stack') === -1, 'closed searchSelect row is inline');
+test('renderSelectModal: nothing open -> empty string', () => {
+  const item = { type: 'searchSelect', messageKey: 'c', label: 'C', options: [['A','a']] };
+  const schema = { appName: 'X', versionLabel: '', tabs: [{ id: 't', label: 'T', sections: [{ title: 'S', items: [item] }] }] };
+  const cx = { S: { c: 'a' }, ENV: {}, USERDATA: {}, openColor: null, openSelect: null, selectQuery: '', collapsed: {}, evalCtx: { c: 'a', env: {} } };
+  assert.equal(E.renderSelectModal(schema, cx), '');
 });
 
-test('renderBody: searchSelect opened via cx.openSelect renders the search input', () => {
+test('renderRow: neither select nor searchSelect stacks (trigger stays inline)', () => {
+  const ss = { type: 'searchSelect', messageKey: 'c', label: 'Country', options: [['A','a']] };
+  const open = E.renderRow(ss, { value: 'a', openSelect: 'c', selectQuery: '' });
+  assert.ok(open.indexOf('class="row"') >= 0 && open.indexOf('stack') === -1, 'open searchSelect row is inline');
+  const sel = { type: 'select', messageKey: 'm', label: 'Mode', options: [['A','a']] };
+  const selRow = E.renderRow(sel, { value: 'a', openSelect: null });
+  assert.ok(selRow.indexOf('class="row"') >= 0 && selRow.indexOf('stack') === -1, 'select row is inline');
+});
+
+test('renderBody: an open searchSelect renders only the trigger; the popup is the modal\'s job, not renderBody\'s', () => {
   const SCH = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [ { title: 'S', items: [
     { type: 'searchSelect', messageKey: 'c', label: 'Country', defaultValue: 'US', options: [['United States','US'],['Germany','DE']] }
   ] } ] } ] };
   const cx = { S: E.hydrate(SCH, {}), ENV: { color: true }, USERDATA: {}, openColor: null, openSelect: 'c', selectQuery: '', collapsed: {},
     evalCtx: Object.assign({}, E.hydrate(SCH, {}), { env: { color: true } }) };
   const html = E.renderBody(SCH, 't', cx);
-  assert.ok(html.indexOf('data-select-search="c"') >= 0, 'open search input rendered through renderBody');
-  assert.ok(html.indexOf('class="row stack"') >= 0, 'row is stacked while open');
+  assert.ok(html.indexOf('class="sel-wrap" data-select="c"') >= 0, 'trigger rendered through renderBody');
+  assert.equal(html.indexOf('data-select-search'), -1, 'no inline search input; that lives in the modal (Task 2)');
+  assert.ok(html.indexOf('class="row"') >= 0 && html.indexOf('class="row stack"') === -1, 'row stays inline while open');
 });
 
 test('onChange registry: register/get; unknown id -> undefined', () => {
@@ -619,19 +642,4 @@ test('renderBody: button renders data-action row; hidden renders nothing', () =>
   assert.match(html, /data-action="startWizard"/);
   assert.match(html, /Run setup again/);
   assert.doesNotMatch(html, /onboardingDone/);
-});
-
-test('renderSelect: options carrying {disabled:true} render as disabled', () => {
-  const html = E.renderControl(
-    { type: 'select', messageKey: 'slot', options: [
-      ['Empty', 'empty'],
-      ['Weather', '__hdr_weather', { disabled: true }],
-      ['   City', 'city']
-    ] },
-    { value: 'city' });
-  assert.ok(html.indexOf('<option value="__hdr_weather" disabled>Weather</option>') !== -1,
-    'header option disabled');
-  assert.ok(html.indexOf('<option value="city" selected>') !== -1,
-    'selectable option untouched');
-  assert.ok(html.indexOf('<option value="empty">') !== -1, 'no stray disabled attr');
 });

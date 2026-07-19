@@ -187,17 +187,6 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return false;
   }
 
-  function renderSelect(item, v) {
-    var h = '<select data-k="' + item.messageKey + '">', i, o, dis;
-    for (i = 0; i < item.options.length; i++) {
-      o = item.options[i];
-      // Optional third element {disabled:true} marks a non-selectable header
-      // row (e.g. the status-slot category headers) — see slotOptions().
-      dis = (o[2] && o[2].disabled) ? ' disabled' : '';
-      h += '<option value="' + esc(o[1]) + '"' + (v === o[1] ? ' selected' : '') + dis + '>' + esc(o[0]) + '</option>';
-    }
-    return h + '</select>';
-  }
   /**
    * Filtered option rows for an open searchSelect list. Case-insensitive substring
    * match on the option label OR its value code; '' query -> all. The current value's
@@ -237,23 +226,58 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     for (i = 0; i < item.options.length; i++) { if (item.options[i][1] === value) { return item.options[i][0]; } }
     return String(value == null ? '' : value);
   }
-  // searchSelect: closed -> a select-like trigger; open -> an (auto-focused) search box + a
-  // scrollable list of all options. The search input is a SIBLING of .ssel-list so typing can
-  // rebuild only the list (see boot's input handler) without destroying input focus.
-  function renderSearchSelect(item, view) {
+  /**
+   * Shared trigger for both `select` and `searchSelect`: a select-like button that opens
+   * the modal popup. aria-controls points at the option list the modal renders into #modal.
+   *
+   * @param {Object} item Schema item (select or searchSelect).
+   * @param {{value: *, openSelect: ?string}} view Render view state.
+   * @returns {string} Trigger button HTML.
+   */
+  function renderSelectTrigger(item, view) {
     var key = esc(item.messageKey), label = currentLabel(item, view.value);
     var listId = 'ssel-list-' + key, open = view.openSelect === item.messageKey;
     var accessibleLabel = String(item.label || 'Selection') + ': ' + label;
-    var h = '<button type="button" class="sel-wrap" data-select="' + key
+    return '<button type="button" class="sel-wrap" data-select="' + key
       + '" aria-label="' + esc(accessibleLabel) + '" aria-haspopup="listbox" aria-expanded="'
       + (open ? 'true' : 'false') + '" aria-controls="' + listId + '"><span>'
       + esc(label) + '</span><i class="sel-chev"></i></button>';
-    if (!open) { return h; }
-    return h + '<input type="text" class="ssel-search" data-select-search="' + key
-      + '" aria-controls="' + listId + '" placeholder="Search…" value="' + esc(view.selectQuery || '') + '">'
-      + '<div id="' + listId + '" class="ssel-list" role="listbox" aria-label="'
-      + esc(String(item.label || 'Selection') + ' options') + '" data-ssel-list="' + key + '">'
-      + renderSelectOptions(item, view.value, view.selectQuery) + '</div>';
+  }
+
+  /**
+   * The open select/searchSelect modal: a dim overlay + a centered card holding an optional
+   * search box (searchSelect only) and the scrollable option list. Returns '' when nothing is
+   * open. optionsFrom items are resolved through resolveRowItem so derived lists (status slots,
+   * Holiday Region) render — the row already normalized cx.S this render pass, so the call is
+   * idempotent. This also fixes live search on optionsFrom items: the old inline handler passed
+   * the raw (option-less) item to renderSelectOptions and threw.
+   *
+   * @param {Object} schema Config schema.
+   * @param {{S: Object, ENV: Object, openSelect: ?string, selectQuery: ?string}} cx Render context.
+   * @returns {string} Overlay + modal HTML, or ''.
+   */
+  function renderSelectModal(schema, cx) {
+    if (!cx.openSelect) { return ''; }
+    var found = null;
+    eachItem(schema, function (it) { if (it.messageKey === cx.openSelect) { found = it; } });
+    if (!found) { return ''; }
+    var item = resolveRowItem(found, { value: cx.S[found.messageKey] }, cx);
+    var key = esc(item.messageKey), value = cx.S[item.messageKey];
+    var listId = 'ssel-list-' + key, titleId = 'ssel-ttl-' + key;
+    var title = esc(String(item.label || 'Selection'));
+    var search = item.type === 'searchSelect'
+      ? '<input type="text" class="ssel-search" data-select-search="' + key
+        + '" aria-controls="' + listId + '" placeholder="Search…" value="'
+        + esc(cx.selectQuery || '') + '">'
+      : '';
+    return '<div class="ssel-overlay" data-select-overlay>'
+      + '<div class="ssel-modal" role="dialog" aria-modal="true" aria-labelledby="' + titleId + '">'
+      + '<div class="ssel-modal-hdr"><span class="ssel-modal-ttl" id="' + titleId + '">' + title + '</span>'
+      + '<button type="button" class="ssel-modal-close" data-select-close aria-label="Close">×</button></div>'
+      + search
+      + '<div id="' + listId + '" class="ssel-list" role="listbox" aria-label="' + title
+      + ' options" data-ssel-list="' + key + '">'
+      + renderSelectOptions(item, value, cx.selectQuery) + '</div></div></div>';
   }
   function renderText(item, v) {
     var ph = (item.attributes && item.attributes.placeholder) ? esc(item.attributes.placeholder) : '';
@@ -289,10 +313,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     toggle: function (item, view) { return renderToggle(item, view.value); },
     segmented: function (item, view) { return renderSegmented(item, view.value); },
     radio: function (item, view) { return renderRadio(item, view.value); },
-    select: function (item, view) { return renderSelect(item, view.value); },
+    select: function (item, view) { return renderSelectTrigger(item, view); },
     text: function (item, view) { return renderText(item, view.value); },
     color: function (item, view) { return renderColor(item, view.value, view.openColor); },
-    searchSelect: function (item, view) { return renderSearchSelect(item, view); }
+    searchSelect: function (item, view) { return renderSelectTrigger(item, view); }
   };
   /**
    * Dispatch to the control renderer for item.type; '' for an unknown type.
@@ -319,8 +343,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   function renderRow(item, view, noDivider) {
     var hint = item.hintByValue ? (item.hintByValue[view.value] || item.hint) : item.hint;
     var stacked = item.type === 'text' || item.type === 'radio'
-      || (item.type === 'color' && view.openColor === item.messageKey)
-      || (item.type === 'searchSelect' && view.openSelect === item.messageKey);
+      || (item.type === 'color' && view.openColor === item.messageKey);
     var hintHtml = hint ? '<div class="hint">' + hint + '</div>' : '';
     var label = '<div class="lbl">' + esc(item.label) + '</div>';
     var rowCls = 'row' + (stacked ? ' stack' : '') + (noDivider ? ' nb' : '');
@@ -656,6 +679,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   PConf.engine = {
     serialize: serialize, hydrate: hydrate, boot: boot, initialCollapsed: initialCollapsed,
     esc: esc, renderControl: renderControl, renderRow: renderRow, renderSelectOptions: renderSelectOptions,
+    renderSelectModal: renderSelectModal,
     renderTabBar: renderTabBar, renderBody: renderBody, resolveOptionsFrom: resolveOptionsFrom,
     resolveTheme: resolveTheme
   };
@@ -667,6 +691,7 @@ if (typeof module !== 'undefined' && module.exports) {
     blocks: PConf.blocks, hooks: PConf.hooks, onChange: PConf.onChange,
     esc: PConf.engine.esc, renderControl: PConf.engine.renderControl, renderRow: PConf.engine.renderRow,
     renderSelectOptions: PConf.engine.renderSelectOptions,
+    renderSelectModal: PConf.engine.renderSelectModal,
     renderTabBar: PConf.engine.renderTabBar, renderBody: PConf.engine.renderBody,
     resolveOptionsFrom: PConf.engine.resolveOptionsFrom,
     resolveTheme: PConf.engine.resolveTheme
