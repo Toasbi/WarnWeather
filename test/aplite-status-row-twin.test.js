@@ -47,4 +47,12 @@ test('aplite status row is a complete frozen lean twin', function() {
     assert.equal(source.indexOf(forbidden), -1,
       forbidden + ' does not belong in the frozen aplite twin');
   });
+
+  ['STATUS_ICON_TEMP', 'STATUS_ICON_WIND', 'STATUS_ICON_GUST', 'STATUS_ICON_PRECIP',
+   'STATUS_ICON_UV', 'STATUS_ICON_AQI', 'STATUS_ICON_POLLEN'].forEach(function(id) {
+    assert.ok(source.indexOf('case ' + id + ':') !== -1,
+      'status_row_aplite must map a pictogram for ' + id);
+  });
+  assert.match(source, /status_mask_draw/,
+    'status_row_aplite must draw masks via the run-length routine');
 });

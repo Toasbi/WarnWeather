@@ -231,6 +231,61 @@ bool status_row_refresh(StatusRow *row) {
     return true;
 }
 
+// Weather-slot pictograms as bit-packed rows (bit x = column x). Monochrome,
+// allocation-free; drawn by run-length below. Authored as ASCII in the design
+// spec; keep these in sync with it.
+static const uint16_t MASK_TEMP[]   = {0x01c,0x022,0x02a,0x02a,0x02a,0x02a,0x02a,0x02a,0x02a,0x05d,0x05d,0x022,0x01c};
+static const uint16_t MASK_WIND[]   = {0x080,0x100,0x500,0x8fe,0x800,0x7ff,0x000,0x1fe,0x200,0x200,0x100};
+static const uint16_t MASK_GUST[]   = {0x002,0x1fe,0x202,0x202,0x1fe,0x002,0x002,0x002,0x002,0x002,0x007};
+static const uint16_t MASK_PRECIP[] = {0x040,0x040,0x0e0,0x318,0x404,0x802,0x1bfb,0x040,0x040,0x440,0x380};
+static const uint16_t MASK_UV[]     = {0x040,0x842,0x404,0x0e0,0x110,0x1913,0x110,0x0e0,0x404,0x842,0x040};
+static const uint16_t MASK_AQI[]    = {0x380,0xc40,0x1820,0x1810,0x1808,0xc04,0x622,0x192,0x0ca,0x03c,0x002,0x001};
+static const uint16_t MASK_POLLEN[] = {0x020,0x124,0x0f8,0x326,0x1fc,0x326,0x0f8,0x124,0x020,0x010,0x008,0x004,0x002};
+
+typedef struct { const uint16_t *rows; uint8_t n, w; } StatusMask;
+
+// Returns the pictogram for a weather icon id, or NULL when the slot has none
+// (Date/City text-only, DRAWN_SUN handled separately, health ids absent on aplite).
+static const StatusMask *status_mask_for(uint8_t icon_id) {
+    static const StatusMask temp   = { MASK_TEMP,   13,  7 };
+    static const StatusMask wind   = { MASK_WIND,   11, 12 };
+    static const StatusMask gust   = { MASK_GUST,   11, 11 };
+    static const StatusMask precip = { MASK_PRECIP, 11, 13 };
+    static const StatusMask uv     = { MASK_UV,     11, 13 };
+    static const StatusMask aqi    = { MASK_AQI,    12, 13 };
+    static const StatusMask pollen = { MASK_POLLEN, 13, 11 };
+    switch (icon_id) {
+        case STATUS_ICON_TEMP:   return &temp;
+        case STATUS_ICON_WIND:   return &wind;
+        case STATUS_ICON_GUST:   return &gust;
+        case STATUS_ICON_PRECIP: return &precip;
+        case STATUS_ICON_UV:     return &uv;
+        case STATUS_ICON_AQI:    return &aqi;
+        case STATUS_ICON_POLLEN: return &pollen;
+        default: return NULL;
+    }
+}
+
+// Draw a mask with its occupied rows vertically centred on `cy`; each run of set
+// pixels becomes one horizontal fill (no per-pixel calls, no allocation).
+static void status_mask_draw(GContext *ctx, const StatusMask *m, int x0, int cy) {
+    int y0 = cy - m->n / 2;
+    for (int y = 0; y < m->n; y++) {
+        uint16_t bits = m->rows[y];
+        int x = 0;
+        while (x < m->w) {
+            if (bits & (1 << x)) {
+                int run = 1;
+                while (x + run < m->w && (bits & (1 << (x + run)))) { run++; }
+                graphics_fill_rect(ctx, GRect(x0 + x, y0 + y, run, 1), 0, GCornerNone);
+                x += run;
+            } else {
+                x++;
+            }
+        }
+    }
+}
+
 void status_row_draw(StatusRow *row, GContext *ctx) {
     if (!row || !ctx) { return; }
     int len = load_blob(row->line_id);
@@ -281,10 +336,13 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         snoozing[i] = row->sleeping && weather_line && i == 0;
         has_text[i] = texts[i][0] != '\0' && !snoozing[i];
+        const StatusMask *mask = (slots[i].kind != SLOT_EMPTY)
+            ? status_mask_for(slots[i].icon) : NULL;
         icon_w[i] = snoozing[i] ? SNOOZE_BOX_W
             : slots[i].kind == SLOT_LIVE_BATTERY ? BATTERY_GLYPH_W
             : (slots[i].icon == STATUS_ICON_DRAWN_SUN
-               && slots[i].kind != SLOT_EMPTY) ? ARROW_W : 0;
+               && slots[i].kind != SLOT_EMPTY) ? ARROW_W
+            : mask ? mask->w : 0;
         int tw = 0;
         if (has_text[i]) {
             tw = graphics_text_layout_get_content_size(
@@ -313,6 +371,13 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         } else if (slots[i].icon == STATUS_ICON_DRAWN_SUN && icon_w[i] > 0) {
             draw_sun_arrow(ctx, gxs + ARROW_W / 2, glyph_cy,
                            persist_get_sun_event_start_type() == 0);
+        } else {
+            const StatusMask *mask = (slots[i].kind != SLOT_EMPTY)
+                ? status_mask_for(slots[i].icon) : NULL;
+            if (mask) {
+                graphics_context_set_fill_color(ctx, theme_fg());
+                status_mask_draw(ctx, mask, gxs, glyph_cy);
+            }
         }
         if (has_text[i]) {
             int16_t off = (int16_t)(icon_w[i] ? icon_w[i] + SLOT_GAP : 0);
