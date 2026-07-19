@@ -683,7 +683,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           S[vk] = newV;
           var vItem = findItem(vk);
           var onChangeFn = vItem && vItem.onChange && PConf.onChange.get(vItem.onChange);
-          if (onChangeFn) { onChangeFn(S, oldV, newV, ENV); }
+          if (onChangeFn) { onChangeFn(S, oldV, newV, ENV, vk); }
           render();
           return;
         }
@@ -708,7 +708,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           S[k] = newV;
           var it = findItem(k);
           var onChangeFn = it && it.onChange && PConf.onChange.get(it.onChange);
-          if (onChangeFn) { onChangeFn(S, oldV, newV, ENV); }
+          if (onChangeFn) { onChangeFn(S, oldV, newV, ENV, k); }
           closeSelect(); return;
         }
         if (e.target.closest('[data-select-close]') || e.target.hasAttribute('data-select-overlay')) {

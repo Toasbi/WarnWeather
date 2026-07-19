@@ -626,7 +626,7 @@ test('boot(): onLoad hook context exposes the injected platform environment', ()
 test('boot(): picking a modal option fires the item\'s registered onChange hook (replaces the native <select> change path)', () => {
   const { modalListeners, onChange } = bootWithCapturedListeners(THEME_SCHEMA, { color: true, round: false, platform: 'basalt' });
   let captured = null;
-  onChange.register('themeConvert', (S, oldV, newV) => { captured = { oldV, newV, sTheme: S.theme }; });
+  onChange.register('themeConvert', (S, oldV, newV, env, key) => { captured = { oldV, newV, sTheme: S.theme, key }; });
 
   assert.equal(typeof modalListeners.click, 'function', 'a click listener was wired on #modal');
   const fakePick = { getAttribute: (a) => (a === 'data-k' ? 'theme' : a === 'data-select-pick' ? 'light' : null), closest: (sel) => (sel === '[data-select-pick]' ? fakePick : null) };
@@ -636,6 +636,7 @@ test('boot(): picking a modal option fires the item\'s registered onChange hook 
   assert.equal(captured.oldV, 'dark', 'old value captured before the change');
   assert.equal(captured.newV, 'light', 'new value passed through');
   assert.equal(captured.sTheme, 'light', 'S was updated before the hook ran');
+  assert.equal(captured.key, 'theme', 'the changed item messageKey is passed as the 5th onChange arg');
 });
 
 test('boot(): modal live-search on an optionsFrom searchSelect resolves options without throwing (regression: raw item threw)', () => {

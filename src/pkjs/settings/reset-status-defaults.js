@@ -146,6 +146,29 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
     }
 
+    /**
+     * When a slot is set to a code a same-line sibling already holds, clear that
+     * sibling to 'empty' (the picked value moves to the changed slot). Per-line
+     * only — cross-bar duplicates are allowed. No-op for 'empty'/unset. Mutates S.
+     * @param {Object} S live settings state (changedKey already set to its new value)
+     * @param {string} changedKey the slot messageKey the user just changed
+     * @returns {void}
+     */
+    function dedupeStatusSlot(S, changedKey) {
+        var code = S[changedKey];
+        if (!code || code === 'empty') { return; }
+        for (var l = 0; l < catalog.LINES.length; l++) {
+            var slots = catalog.LINES[l].slots;
+            if (slots.indexOf(changedKey) === -1) { continue; }
+            for (var s = 0; s < slots.length; s++) {
+                if (slots[s] !== changedKey && S[slots[s]] === code) {
+                    S[slots[s]] = 'empty';
+                }
+            }
+            return;
+        }
+    }
+
     PConf.onChange.register('clearPollenForProvider', function (S, oldValue, newValue) {
         clearPollenForProvider(S, newValue);
     });
@@ -156,11 +179,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     PConf.onChange.register('resetStatusHealth', function (S, oldValue, newValue, env) {
         applyReset(S, 'health', oldValue, newValue, env);
     });
+    PConf.onChange.register('dedupeStatusSlot', function (S, oldValue, newValue, env, key) {
+        dedupeStatusSlot(S, key);
+    });
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
             applyReset: applyReset,
-            clearPollenForProvider: clearPollenForProvider
+            clearPollenForProvider: clearPollenForProvider,
+            dedupeStatusSlot: dedupeStatusSlot
         };
     }
 })();

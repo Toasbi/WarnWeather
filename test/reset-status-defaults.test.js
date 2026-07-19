@@ -2,7 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   applyReset,
-  clearPollenForProvider
+  clearPollenForProvider,
+  dedupeStatusSlot
 } = require('../src/pkjs/settings/reset-status-defaults.js');
 
 const ENV_BASALT = { color: true, round: false, platform: 'basalt', health: true, radar: true };
@@ -107,4 +108,30 @@ test('switching to DWD leaves pollen selections and unrelated slots unchanged', 
   assert.equal(S.statusForecastLeft, 'pollen');
   assert.equal(S.statusForecastMid, 'wind');
   assert.equal(S.statusTopLeft, 'uv');
+});
+
+test('dedupeStatusSlot: a same-line sibling holding the new code reverts to empty', () => {
+  const S = blob({ statusForecastLeft: 'temp', statusForecastMid: 'temp' }); // user just set Mid to temp
+  dedupeStatusSlot(S, 'statusForecastMid');
+  assert.equal(S.statusForecastLeft, 'empty', 'the other slot holding temp cleared');
+  assert.equal(S.statusForecastMid, 'temp', 'the just-picked slot is untouched');
+});
+
+test('dedupeStatusSlot: a slot on a different bar holding the same code is left alone', () => {
+  const S = blob({ statusForecastMid: 'temp', statusRadarLeft: 'temp' });
+  dedupeStatusSlot(S, 'statusForecastMid');
+  assert.equal(S.statusRadarLeft, 'temp', 'cross-bar duplicate allowed');
+});
+
+test('dedupeStatusSlot: picking empty never clears a sibling', () => {
+  const S = blob({ statusForecastLeft: 'empty', statusForecastMid: 'empty' });
+  dedupeStatusSlot(S, 'statusForecastMid');
+  assert.equal(S.statusForecastLeft, 'empty');
+});
+
+test('dedupeStatusSlot: no sibling holds the code -> no change', () => {
+  const S = blob({ statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'sun' });
+  dedupeStatusSlot(S, 'statusForecastMid');
+  assert.equal(S.statusForecastLeft, 'temp');
+  assert.equal(S.statusForecastRight, 'sun');
 });
