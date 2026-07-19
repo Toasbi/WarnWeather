@@ -168,3 +168,31 @@ test('renderNewsListHtml omits message controls and hint when replies are unavai
   assert.doesNotMatch(html, /data-news-reply=/);
   assert.doesNotMatch(html, /news-message-hint/);
 });
+
+test('renderNewsListHtml titles the popup "News", not "News & Feedback"', () => {
+  const html = news.renderNewsListHtml([], false);
+  assert.match(html, /<h2>News<\/h2>/);
+  assert.doesNotMatch(html, /News &amp; Feedback/);
+});
+
+test('renderNewsListHtml renders a single message composer targeting the newest item', () => {
+  const html = news.renderNewsListHtml([
+    { id: 7, title: 'B', created_at: '2026-07-19T00:00:00Z', body_md: 'b' },
+    { id: 3, title: 'A', created_at: '2026-07-18T00:00:00Z', body_md: 'a' }
+  ], true);
+  // Exactly one "Write a message" toggle for the whole popup...
+  assert.equal((html.match(/data-news-reply="/g) || []).length, 1);
+  assert.equal((html.match(/I’m happy to hear from you/g) || []).length, 1);
+  // ...and it (plus its hint) sits after the news items, targeting the max id.
+  assert.match(html, /data-news-reply="7"/);
+  assert.ok(html.indexOf('news-message-hint') > html.lastIndexOf('news-title'),
+    'the hint sits below the news items');
+  assert.ok(html.indexOf('news-message-hint') < html.indexOf('Write a message'),
+    'the hint sits above the "Write a message" button');
+});
+
+test('renderNewsListHtml shows no composer when there is nothing to attach a reply to', () => {
+  const html = news.renderNewsListHtml([], true);
+  assert.doesNotMatch(html, /data-news-reply=/);
+  assert.doesNotMatch(html, /news-message-hint/);
+});

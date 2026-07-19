@@ -244,20 +244,16 @@
     /**
      * Render the popup's inner HTML from cached news items. Titles are
      * escaped; bodies go through renderMarkdown (which escapes first).
-     * Message and voting UI are omitted when no account token is available.
+     * Per-item poll voting and a single trailing message composer (targeting
+     * the newest item) are omitted when no account token is available.
      *
      * @param {Array<Object>} items News items.
      * @param {boolean} canReply Whether account-backed message UI is available.
      * @returns {string} Modal HTML.
      */
     function renderNewsListHtml(items, canReply) {
-        var html = '<div class="news-modal-hdr"><h2>News &amp; Feedback</h2>'
+        var html = '<div class="news-modal-hdr"><h2>News</h2>'
             + '<button class="news-close" data-news-close="1">✕</button></div>';
-        if (canReply) {
-            html += '<div class="news-message-hint">I’m happy to hear from you. Messages sent here are one-way, so I can’t reply. If you’d like a response, use '
-                + '<a href="https://apps.repebble.com/67d6f1fcdb264341b850f79a" target="_blank" rel="noopener">Pebble Store messaging</a> or open a '
-                + '<a href="https://github.com/Toasbi/WarnWeather/issues" target="_blank" rel="noopener">GitHub issue</a>.</div>';
-        }
         if (!items.length) {
             html += '<div class="news-item news-empty">Nothing here yet — check back after the next update.</div>';
         }
@@ -270,14 +266,25 @@
                 + '<div class="news-body">' + renderMarkdown(it.body_md) + '</div>';
             if (canReply) {
                 html += renderChoicesHtml(it);
-                html += '<button class="news-reply-toggle" data-news-reply="' + it.id + '">Write a message</button>'
-                    + '<div class="news-reply-box" data-news-reply-box="' + it.id + '" style="display:none">'
-                    + '<textarea maxlength="1000" rows="3" data-news-reply-text="' + it.id + '"></textarea>'
-                    + '<button class="news-reply-toggle" data-news-send="' + it.id + '">Send</button>'
-                    + '<div class="news-reply-status" data-news-reply-status="' + it.id + '"></div>'
-                    + '</div>';
             }
             html += '</div>';
+        }
+        // One message composer for the whole popup (general feedback), with the
+        // hint sitting directly above its "Write a message" button. A reply must
+        // reference a real news row (FK), so it targets the newest item and is
+        // omitted when there is nothing to attach it to.
+        if (canReply && items.length) {
+            var replyId = maxId(items);
+            html += '<div class="news-message">'
+                + '<div class="news-message-hint">I’m happy to hear from you. Messages sent here are one-way, so I can’t reply. If you’d like a response, use '
+                + '<a href="https://apps.repebble.com/67d6f1fcdb264341b850f79a" target="_blank" rel="noopener">Pebble Store messaging</a> or open a '
+                + '<a href="https://github.com/Toasbi/WarnWeather/issues" target="_blank" rel="noopener">GitHub issue</a>.</div>'
+                + '<button class="news-reply-toggle" data-news-reply="' + replyId + '">Write a message</button>'
+                + '<div class="news-reply-box" data-news-reply-box="' + replyId + '" style="display:none">'
+                + '<textarea maxlength="1000" rows="3" data-news-reply-text="' + replyId + '"></textarea>'
+                + '<button class="news-reply-toggle" data-news-send="' + replyId + '">Send</button>'
+                + '<div class="news-reply-status" data-news-reply-status="' + replyId + '"></div>'
+                + '</div></div>';
         }
         return html;
     }
@@ -322,7 +329,8 @@
 
         var injectNewsStyles = function () {
             var css = ''
-                + '#newsHint { position: relative; box-sizing: border-box; width: 24px; height: 24px; margin: 0 8px; padding: 2px;'
+                + '.news-hdr-left { display: flex; align-items: center; }'
+                + '#newsHint { position: relative; box-sizing: border-box; width: 24px; height: 24px; margin: 0 0 0 10px; padding: 2px;'
                 +   ' border: none; background: none; color: var(--fg);'
                 +   ' line-height: 1; cursor: pointer; }'
                 + '#newsHint.muted { opacity: 0.65; }'
@@ -339,12 +347,13 @@
                 +   ' overflow-y: auto; padding: 4px 16px 16px; }'
                 + '.news-modal-hdr { display: flex; align-items: center; justify-content: space-between; }'
                 + '.news-modal-hdr h2 { font-size: 17px; margin: 12px 0 4px; }'
-                + '.news-message-hint { color: var(--muted); font-size: 12px; line-height: 1.4; margin: 4px 0 10px; }'
+                + '.news-message { border-top: 1px solid var(--row-line); margin-top: 4px; padding-top: 12px; }'
+                + '.news-message-hint { color: var(--muted); font-size: 12px; line-height: 1.4; margin: 0 0 8px; }'
                 + '.news-message-hint a { color: var(--link); }'
                 + '.news-close { border: none; background: none; color: var(--muted); font-size: 20px; cursor: pointer; padding: 8px 0 0 8px; }'
                 + '.news-item { border-top: 1px solid var(--row-line); padding: 10px 0 12px; }'
                 + '.news-empty { color: var(--muted); font-size: 13px; }'
-                + '.news-modal-hdr + .news-item, .news-message-hint + .news-item { border-top: none; }'
+                + '.news-modal-hdr + .news-item { border-top: none; }'
                 + '.news-title { font-weight: 700; }'
                 + '.news-date { color: var(--muted); font-size: 11px; margin: 2px 0 6px; }'
                 + '.news-body { font-size: 13px; line-height: 1.45; }'
@@ -464,7 +473,18 @@
             newsPill.innerHTML = renderNewsBellHtml(unread);
             if (unread === 0) { newsPill.className = 'muted'; }
             newsPill.onclick = openNewsPopup;
-            hdr.insertBefore(newsPill, saveBtn);
+            // Sit the bell just right of the title (padded): group the two so the
+            // header's space-between keeps the pair on the left and Save right.
+            var titleEl = hdr.querySelector('h1');
+            if (titleEl) {
+                var left = document.createElement('div');
+                left.className = 'news-hdr-left';
+                hdr.insertBefore(left, titleEl);
+                left.appendChild(titleEl);
+                left.appendChild(newsPill);
+            } else {
+                hdr.insertBefore(newsPill, saveBtn);
+            }
         };
 
         var initNews = function () {
