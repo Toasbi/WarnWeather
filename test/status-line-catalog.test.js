@@ -203,10 +203,13 @@ test('slotOptions marks multi-item groups and collapses single-item groups', () 
   assert.equal(weatherChildren[0][2].groupEnd, false);
   assert.equal(weatherChildren[weatherChildren.length - 1][2].groupEnd, true);
 
+  // city now lives in the "Date and location" group. On an aplite left edge slot,
+  // date (middleOnly) and calendar-week (notAplite) are both gone, so the group is
+  // left with only city and collapses to an ordinary tuple with no header.
   const edge = catalog.slotOptions({ healthMode: 'off', radarProvider: 'disabled' },
     ENV_APLITE, { slotKey: 'statusTopLeft', position: 'left' });
-  assert.ok(edge.some(o => o[1] === 'city'), 'single Location item remains selectable');
-  assert.ok(!edge.some(o => o[1] === '__hdr_location'), 'single Location group is collapsed');
+  assert.ok(edge.some(o => o[1] === 'city'), 'single-item group member remains selectable');
+  assert.ok(!edge.some(o => o[1] === '__hdr_datelocation'), 'single-item group is collapsed (no header)');
   assert.equal(edge.find(o => o[1] === 'city').length, 2, 'collapsed item is ordinary');
 });
 
@@ -235,8 +238,9 @@ test('slotOptions omits headers whose category has no available item', () => {
   const healthOff = catalog.slotOptions({ healthMode: 'off', radarProvider: 'rainbow' },
     ENV_BASALT, { slotKey: 'statusForecastLeft', position: 'left' });
   assert.ok(!healthOff.some(o => o[1] === '__hdr_health'), 'no orphan Health header');
-  // aplite edge slot: week (notAplite) and date (edge) both gone -> no Date & time header
+  // aplite edge slot: week (notAplite) and date (edge) both gone, leaving only city,
+  // so the Date and location group collapses to a plain tuple -> no group header
   const apliteEdge = catalog.slotOptions({ healthMode: 'off', radarProvider: 'disabled' },
     ENV_APLITE, { slotKey: 'statusTopLeft', position: 'left' });
-  assert.ok(!apliteEdge.some(o => o[1] === '__hdr_datetime'), 'no orphan Date & time header');
+  assert.ok(!apliteEdge.some(o => o[1] === '__hdr_datelocation'), 'no orphan Date and location header');
 });
