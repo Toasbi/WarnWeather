@@ -554,7 +554,7 @@ function bootWithCapturedListeners(schema, env) {
   const modal = { innerHTML: '', addEventListener: (type, fn) => { modalListeners[type] = fn; } };
   const generic = () => ({ innerHTML: '', textContent: '', addEventListener: () => {} });
   const ids = { scroll, modal, tabs: generic(), save: generic(), appTitle: generic(), toast: generic() };
-  const document = { getElementById: (id) => ids[id] || generic() };
+  const document = { getElementById: (id) => ids[id] || generic(), addEventListener: () => {} };
   const fn = new Function('document', 'INJECTED_SCHEMA', 'INJECTED_ENV', 'INJECTED_CFG',
     'INJECTED_USERDATA', 'INJECTED_RETURN', 'module', BUNDLE);
   const mod = { exports: {} };

@@ -18,7 +18,7 @@ function renderScroll(schema, env) {
   const scroll = { innerHTML: '', addEventListener: function () {} };
   const generic = function () { return { innerHTML: '', textContent: '', addEventListener: function () {} }; };
   const ids = { scroll: scroll, tabs: generic(), save: generic(), appTitle: generic(), toast: generic() };
-  const document = { getElementById: function (id) { return ids[id] || generic(); } };
+  const document = { getElementById: function (id) { return ids[id] || generic(); }, addEventListener: function () {} };
   // INJECTED_* are free identifiers inside boot(); pass them as bundle params.
   const fn = new Function('document', 'INJECTED_SCHEMA', 'INJECTED_ENV', 'INJECTED_CFG',
     'INJECTED_USERDATA', 'INJECTED_RETURN', 'module', BUNDLE);

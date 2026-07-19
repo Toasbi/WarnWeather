@@ -557,8 +557,20 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var activeTab = SCHEMA.tabs[0].id, openColor = null, openSelect = null, selectQuery = '', collapsed = initialCollapsed(SCHEMA);
     // Recover a schema item by messageKey so the input handler can re-filter its options in place.
     function findItem(key) { var f = null; eachItem(SCHEMA, function (it) { if (it.messageKey === key) { f = it; } }); return f; }
-    // Only one searchSelect is open at a time; focus its freshly-rendered search box.
-    function focusSearch() { var el = document.querySelector('[data-select-search]'); if (el) { el.focus(); } }
+    // The element to restore focus to when the modal closes (the trigger that opened it).
+    var lastTrigger = null;
+    // On open, focus the search box (searchSelect) or the selected/first option (select).
+    function focusModal() {
+      var modal = document.getElementById('modal');
+      var el = modal.querySelector('[data-select-search]')
+        || modal.querySelector('.ssel-opt.on') || modal.querySelector('.ssel-opt');
+      if (el) { el.focus(); }
+    }
+    // Close the open modal and return focus to the trigger that opened it.
+    function closeSelect() {
+      openSelect = null; render();
+      if (lastTrigger) { lastTrigger.focus(); lastTrigger = null; }
+    }
     // evalCtx(): the {settings..., env} object showWhen predicates evaluate against.
     function evalCtx() { var c = Object.assign({}, S); c.env = ENV; return c; }
     var hookCtx = {
@@ -590,6 +602,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       document.getElementById('tabs').innerHTML = renderTabBar(SCHEMA, activeTab, cx);
       document.getElementById('scroll').innerHTML = renderBody(SCHEMA, activeTab, cx);
       document.getElementById('modal').innerHTML = renderSelectModal(SCHEMA, cx);
+      document.getElementById('scroll').className = 'scroll' + (openSelect ? ' locked' : '');
       applyTheme();
     }
 
@@ -607,7 +620,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var scroll = document.getElementById('scroll');
       scroll.addEventListener('click', function (e) {
         var t;
-        if ((t = e.target.closest('[data-select]'))) { var sk = t.getAttribute('data-select'); openSelect = (openSelect === sk ? null : sk); selectQuery = ''; render(); focusSearch(); return; }
+        if ((t = e.target.closest('[data-select]'))) {
+          var sk = t.getAttribute('data-select');
+          if (openSelect === sk) { closeSelect(); return; }
+          openSelect = sk; selectQuery = ''; lastTrigger = t; render(); focusModal(); return;
+        }
         if ((t = e.target.closest('[data-toggle]'))) { S[t.getAttribute('data-k')] = !S[t.getAttribute('data-k')]; render(); return; }
         if ((t = e.target.closest('[data-color-pick]'))) { S[t.getAttribute('data-k')] = t.getAttribute('data-color-pick'); openColor = null; render(); return; }
         if ((t = e.target.closest('[data-color]'))) { var k = t.getAttribute('data-color'); openColor = (openColor === k ? null : k); render(); return; }
@@ -642,10 +659,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           var it = findItem(k);
           var onChangeFn = it && it.onChange && PConf.onChange.get(it.onChange);
           if (onChangeFn) { onChangeFn(S, oldV, newV, ENV); }
-          openSelect = null; render(); return;
+          closeSelect(); return;
         }
         if (e.target.closest('[data-select-close]') || e.target.hasAttribute('data-select-overlay')) {
-          openSelect = null; render(); return;
+          closeSelect(); return;
         }
       });
       modal.addEventListener('input', function (e) {
@@ -678,6 +695,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     wireInputs();
     wireModal();
     wireSave();
+    document.addEventListener('keydown', function (e) {
+      if ((e.key === 'Escape' || e.keyCode === 27) && openSelect) { closeSelect(); }
+    });
     render();
     PConf.hooks.runReady({
       S: S, ENV: ENV, USERDATA: USERDATA, schema: SCHEMA, cfg: INJECTED_CFG || {},
