@@ -99,30 +99,30 @@ test('seedIfAbsent treats a cache from another app version as absent', () => {
   assert.equal(xhrs.length, 1);
 });
 
-// --- refreshOnClose ---
+// --- refreshIfStale ---
 
-test('refreshOnClose without an endpoint sends nothing', () => {
+test('refreshIfStale without an endpoint sends nothing', () => {
   withLocalStorage({});
   const xhrs = withXhr();
-  newsCache.refreshOnClose({ endpoint: '', accountToken: 'tok', version: '1.8.0', nowMs: NOW });
+  newsCache.refreshIfStale({ endpoint: '', accountToken: 'tok', version: '1.8.0', nowMs: NOW });
   assert.equal(xhrs.length, 0);
 });
 
-test('refreshOnClose with a fresh, fully-read cache sends nothing', () => {
+test('refreshIfStale with a fresh, fully-read cache sends nothing', () => {
   // Nothing unread → no stale watermark to heal → traffic stays minimal.
   withLocalStorage({ [KEY]: envelope(HOUR - 1, READ_BODY) });
   const xhrs = withXhr();
-  newsCache.refreshOnClose(OPTS);
+  newsCache.refreshIfStale(OPTS);
   assert.equal(xhrs.length, 0);
 });
 
-test('refreshOnClose refetches a fresh cache that still shows unread', () => {
+test('refreshIfStale refetches a fresh cache that still shows unread', () => {
   // The read-then-close case: opening the popup advanced the server watermark
   // without touching this cache, so the close refetch pulls it and the dot
   // does not reappear on the next open.
   const map = withLocalStorage({ [KEY]: envelope(HOUR - 1, UNREAD_BODY) });
   const xhrs = withXhr();
-  newsCache.refreshOnClose(OPTS);
+  newsCache.refreshIfStale(OPTS);
   assert.equal(xhrs.length, 1);
   assert.deepEqual(JSON.parse(xhrs[0].sentBody),
     { op: 'list', accountToken: 'tok', version: '1.8.0' });
@@ -133,10 +133,10 @@ test('refreshOnClose refetches a fresh cache that still shows unread', () => {
     { at: NOW, version: '1.8.0', body: READ_BODY });
 });
 
-test('refreshOnClose refetches an hour-old cache and stores the response', () => {
+test('refreshIfStale refetches an hour-old cache and stores the response', () => {
   const map = withLocalStorage({ [KEY]: envelope(HOUR + 1, UNREAD_BODY) });
   const xhrs = withXhr();
-  newsCache.refreshOnClose(OPTS);
+  newsCache.refreshIfStale(OPTS);
   assert.equal(xhrs.length, 1);
   assert.deepEqual(JSON.parse(xhrs[0].sentBody),
     { op: 'list', accountToken: 'tok', version: '1.8.0' });
@@ -147,18 +147,18 @@ test('refreshOnClose refetches an hour-old cache and stores the response', () =>
     { at: NOW, version: '1.8.0', body: READ_BODY });
 });
 
-test('refreshOnClose refetches when the cache is missing or from another version', () => {
+test('refreshIfStale refetches when the cache is missing or from another version', () => {
   withLocalStorage({});
   let xhrs = withXhr();
-  newsCache.refreshOnClose(OPTS);
+  newsCache.refreshIfStale(OPTS);
   assert.equal(xhrs.length, 1);
   withLocalStorage({ [KEY]: envelope(0, '{"items":[]}', '1.7.0') });
   xhrs = withXhr();
-  newsCache.refreshOnClose(OPTS);
+  newsCache.refreshIfStale(OPTS);
   assert.equal(xhrs.length, 1);
 });
 
-test('refreshOnClose keeps the old cache on refetch failures', () => {
+test('refreshIfStale keeps the old cache on refetch failures', () => {
   const stale = envelope(HOUR + 1, '{"items":[]}');
   const cases = [
     function (xhr) { xhr.status = 500; xhr.responseText = 'oops'; xhr.onload(); },
@@ -170,7 +170,7 @@ test('refreshOnClose keeps the old cache on refetch failures', () => {
   cases.forEach(function (fire) {
     const map = withLocalStorage({ [KEY]: stale });
     const xhrs = withXhr();
-    newsCache.refreshOnClose(OPTS);
+    newsCache.refreshIfStale(OPTS);
     assert.equal(xhrs.length, 1);
     fire(xhrs[0]);
     assert.equal(map[KEY], stale);
@@ -184,5 +184,5 @@ test('news-cache calls survive a synchronous XHR throw', () => {
   withLocalStorage({});
   assert.doesNotThrow(function () { newsCache.seedIfAbsent(OPTS); });
   withLocalStorage({ [KEY]: envelope(HOUR + 1, UNREAD_BODY) });
-  assert.doesNotThrow(function () { newsCache.refreshOnClose(OPTS); });
+  assert.doesNotThrow(function () { newsCache.refreshIfStale(OPTS); });
 });

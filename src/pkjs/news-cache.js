@@ -141,19 +141,21 @@ function seedIfAbsent(opts) {
 }
 
 /**
- * Config-close refetch. Refetch the list when the cache is missing, from
- * another version, older than an hour, OR currently showing an unread dot; a
- * fresh cache with nothing unread costs no request.
+ * Refetch the list when the cache is missing, from another version, older than
+ * an hour, OR currently showing an unread dot; a fresh cache with nothing unread
+ * costs no request. Called on BOTH settings open (`showConfiguration`) and close
+ * (`webviewclosed`) — some phone apps never fire `webviewclosed`, so the open
+ * trigger is what guarantees the heal runs at all.
  *
  * The unread trigger is what stops a just-read dot from reappearing: the page's
  * `seen` op advances the server watermark without touching this cache, so a
- * cache still showing unread on close is exactly the one whose watermark may now
- * be stale — refetching pulls the current one for the next open.
+ * cache still showing unread is exactly the one whose watermark may now be
+ * stale — refetching pulls the current one for the next open.
  *
  * @param {{endpoint: string, accountToken: string, version: string, nowMs?: number}} opts Fetch context.
  * @returns {void}
  */
-function refreshOnClose(opts) {
+function refreshIfStale(opts) {
     if (!opts || !opts.endpoint) { return; }
     var now = typeof opts.nowMs === 'number' ? opts.nowMs : Date.now();
     var env = usableEnvelope(opts);
@@ -164,6 +166,6 @@ function refreshOnClose(opts) {
 module.exports = {
     readBody: readBody,
     seedIfAbsent: seedIfAbsent,
-    refreshOnClose: refreshOnClose,
+    refreshIfStale: refreshIfStale,
     MAX_AGE_MS: MAX_AGE_MS
 };

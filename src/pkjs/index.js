@@ -129,6 +129,11 @@ Pebble.addEventListener('appmessage', function(e) {
 });
 
 Pebble.addEventListener('showConfiguration', function(e) {
+    // Heal the news cache on settings OPEN (the reliable event — some phone apps
+    // never fire webviewclosed). The async refetch pulls the current server
+    // watermark for the NEXT open, so a read dot stops reappearing. The cache
+    // injected below is still this-open's snapshot; the refetch updates it after.
+    newsCache.refreshIfStale(newsCacheOpts());
     // Build userData fresh here so it's actually up to date; the library computes
     // env from the raw watchInfo we pass.
     // The raw account token rides to the config page and on to the news edge
@@ -167,8 +172,10 @@ Pebble.addEventListener('webviewclosed', function(e) {
     // from fresh data: when it's an hour old, or whenever it still shows an
     // unread dot. The unread case pulls the server watermark the page just
     // advanced by opening the popup, so a read dot doesn't reappear next open.
-    // Runs on cancel too, hence before the empty-response early-out.
-    newsCache.refreshOnClose(newsCacheOpts());
+    // Runs on cancel too, hence before the empty-response early-out. NOTE: some
+    // phone apps never fire webviewclosed — showConfiguration also refreshes so
+    // the heal still happens there.
+    newsCache.refreshIfStale(newsCacheOpts());
     if (e && !e.response) {
         return;
     }
