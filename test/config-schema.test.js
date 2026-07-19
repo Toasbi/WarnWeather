@@ -496,30 +496,31 @@ test('colorUSFederal splits into a dark-exclude-white / light-exclude-black pair
   });
 });
 
-test('status slot dropdowns: resolver, defaults, sibling exclusion + slot context args', () => {
+test('status slot dropdowns: resolver, defaults, slot context args + dedupe onChange (no excludeKeys)', () => {
   const cases = [
-    ['statusForecastLeft', 'temp', ['statusForecastMid', 'statusForecastRight'], 'left'],
-    ['statusForecastMid', 'city', ['statusForecastLeft', 'statusForecastRight'], 'mid'],
-    ['statusForecastRight', 'sun', ['statusForecastLeft', 'statusForecastMid'], 'right'],
-    ['statusRadarLeft', 'temp', ['statusRadarMid', 'statusRadarRight'], 'left'],
-    ['statusRadarMid', 'city', ['statusRadarLeft', 'statusRadarRight'], 'mid'],
-    ['statusRadarRight', 'sun', ['statusRadarLeft', 'statusRadarMid'], 'right'],
-    ['statusTopLeft', 'empty', ['statusTopMid', 'statusTopRight'], 'left'],
-    ['statusTopMid', 'date', ['statusTopLeft', 'statusTopRight'], 'mid'],
-    ['statusTopRight', 'battery', ['statusTopLeft', 'statusTopMid'], 'right'],
-    ['statusHealthLeft', 'steps', ['statusHealthMid', 'statusHealthRight'], 'left'],
-    ['statusHealthMid', 'empty', ['statusHealthLeft', 'statusHealthRight'], 'mid'],
-    ['statusHealthRight', 'sleep', ['statusHealthLeft', 'statusHealthMid'], 'right']
+    ['statusForecastLeft', 'temp', 'left'],
+    ['statusForecastMid', 'city', 'mid'],
+    ['statusForecastRight', 'sun', 'right'],
+    ['statusRadarLeft', 'temp', 'left'],
+    ['statusRadarMid', 'city', 'mid'],
+    ['statusRadarRight', 'sun', 'right'],
+    ['statusTopLeft', 'empty', 'left'],
+    ['statusTopMid', 'date', 'mid'],
+    ['statusTopRight', 'battery', 'right'],
+    ['statusHealthLeft', 'steps', 'left'],
+    ['statusHealthMid', 'empty', 'mid'],
+    ['statusHealthRight', 'sleep', 'right']
   ];
-  for (const [key, def, excludeKeys, pos] of cases) {
+  for (const [key, def, pos] of cases) {
     const item = byKey(key);
     assert.ok(item, key);
     assert.equal(item.type, 'searchSelect', key);
     assert.equal(item.defaultValue, def, key + ' default');
     assert.equal(item.optionsFrom.resolver, 'statusSlot', key);
-    assert.deepEqual(item.optionsFrom.args.excludeKeys, excludeKeys, key);
+    assert.equal(item.optionsFrom.args.excludeKeys, undefined, key + ' no excludeKeys');
     assert.equal(item.optionsFrom.args.slotKey, key, key + ' slotKey');
     assert.equal(item.optionsFrom.args.position, pos, key + ' position');
+    assert.equal(item.onChange, 'dedupeStatusSlot', key + ' dedupe onChange');
   }
 });
 

@@ -477,9 +477,9 @@ module.exports = {
                     messageKey: 'statusForecastLeft',
                     label: 'Left slot',
                     defaultValue: 'temp',
+                    onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusForecastMid', 'statusForecastRight'],
-                               slotKey: 'statusForecastLeft', position: 'left'}}
+                        args: {slotKey: 'statusForecastLeft', position: 'left'}}
                 },
                 {
                     type: 'searchSelect',
@@ -487,9 +487,9 @@ module.exports = {
                     label: 'Middle slot',
                     defaultValue: 'city',
                     joinPrevious: true,
+                    onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusForecastLeft', 'statusForecastRight'],
-                               slotKey: 'statusForecastMid', position: 'mid'}}
+                        args: {slotKey: 'statusForecastMid', position: 'mid'}}
                 },
                 {
                     type: 'searchSelect',
@@ -497,9 +497,9 @@ module.exports = {
                     label: 'Right slot',
                     defaultValue: 'sun',
                     joinPrevious: true,
+                    onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusForecastLeft', 'statusForecastMid'],
-                               slotKey: 'statusForecastRight', position: 'right'}}
+                        args: {slotKey: 'statusForecastRight', position: 'right'}}
                 }
             ]
         }, {
@@ -510,25 +510,25 @@ module.exports = {
                     type: 'searchSelect', messageKey: 'statusRadarLeft', label: 'Left slot',
                     defaultValue: 'temp',
                     showWhen: {all: [{env: 'radar'}, {key: 'radarProvider', ne: 'disabled'}]},
+                    onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusRadarMid', 'statusRadarRight'],
-                               slotKey: 'statusRadarLeft', position: 'left'}}
+                        args: {slotKey: 'statusRadarLeft', position: 'left'}}
                 },
                 {
                     type: 'searchSelect', messageKey: 'statusRadarMid', label: 'Middle slot',
                     defaultValue: 'city', joinPrevious: true,
                     showWhen: {all: [{env: 'radar'}, {key: 'radarProvider', ne: 'disabled'}]},
+                    onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusRadarLeft', 'statusRadarRight'],
-                               slotKey: 'statusRadarMid', position: 'mid'}}
+                        args: {slotKey: 'statusRadarMid', position: 'mid'}}
                 },
                 {
                     type: 'searchSelect', messageKey: 'statusRadarRight', label: 'Right slot',
                     defaultValue: 'sun', joinPrevious: true,
                     showWhen: {all: [{env: 'radar'}, {key: 'radarProvider', ne: 'disabled'}]},
+                    onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusRadarLeft', 'statusRadarMid'],
-                               slotKey: 'statusRadarRight', position: 'right'}}
+                        args: {slotKey: 'statusRadarRight', position: 'right'}}
                 }
             ]
         }, {
@@ -539,25 +539,25 @@ module.exports = {
                     type: 'searchSelect', messageKey: 'statusHealthLeft', label: 'Left slot',
                     defaultValue: 'steps',
                     showWhen: {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}]},
+                    onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusHealthMid', 'statusHealthRight'],
-                               slotKey: 'statusHealthLeft', position: 'left'}}
+                        args: {slotKey: 'statusHealthLeft', position: 'left'}}
                 },
                 {
                     type: 'searchSelect', messageKey: 'statusHealthMid', label: 'Middle slot',
                     defaultValue: 'empty', joinPrevious: true,
                     showWhen: {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}]},
+                    onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusHealthLeft', 'statusHealthRight'],
-                               slotKey: 'statusHealthMid', position: 'mid'}}
+                        args: {slotKey: 'statusHealthMid', position: 'mid'}}
                 },
                 {
                     type: 'searchSelect', messageKey: 'statusHealthRight', label: 'Right slot',
                     defaultValue: 'sleep', joinPrevious: true,
                     showWhen: {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}]},
+                    onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusHealthLeft', 'statusHealthMid'],
-                               slotKey: 'statusHealthRight', position: 'right'}}
+                        args: {slotKey: 'statusHealthRight', position: 'right'}}
                 }
             ]
         }, {
@@ -577,23 +577,23 @@ module.exports = {
                     // On aplite the note is hidden, so this simply becomes the first item.
                     type: 'searchSelect', messageKey: 'statusTopLeft', label: 'Left slot',
                     defaultValue: 'empty', joinPrevious: true,
+                    onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusTopMid', 'statusTopRight'],
-                               slotKey: 'statusTopLeft', position: 'left'}}
+                        args: {slotKey: 'statusTopLeft', position: 'left'}}
                 },
                 {
                     type: 'searchSelect', messageKey: 'statusTopMid', label: 'Middle slot',
                     defaultValue: 'date', joinPrevious: true,
+                    onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusTopLeft', 'statusTopRight'],
-                               slotKey: 'statusTopMid', position: 'mid'}}
+                        args: {slotKey: 'statusTopMid', position: 'mid'}}
                 },
                 {
                     type: 'searchSelect', messageKey: 'statusTopRight', label: 'Right slot',
                     defaultValue: 'battery', joinPrevious: true,
+                    onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusTopLeft', 'statusTopMid'],
-                               slotKey: 'statusTopRight', position: 'right'}}
+                        args: {slotKey: 'statusTopRight', position: 'right'}}
                 },
                 {
                     type: 'toggle', messageKey: 'batteryLowOnly', label: 'Show battery below 10%',
