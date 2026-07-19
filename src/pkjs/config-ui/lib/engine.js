@@ -270,14 +270,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         + '" aria-controls="' + listId + '" placeholder="Search…" value="'
         + esc(cx.selectQuery || '') + '">'
       : '';
-    return '<div class="ssel-overlay" data-select-overlay>'
-      + '<div class="ssel-modal" role="dialog" aria-modal="true" aria-labelledby="' + titleId + '">'
-      + '<div class="ssel-modal-hdr"><span class="ssel-modal-ttl" id="' + titleId + '">' + title + '</span>'
+    // Inner content only — the host <dialog id="modal"> is the sheet, and its ::backdrop
+    // replaces the old dim overlay. The dialog carries role/modal semantics natively;
+    // boot() copies titleId onto the dialog's aria-labelledby when it opens.
+    return '<div class="ssel-modal-hdr"><span class="ssel-modal-ttl" id="' + titleId + '">' + title + '</span>'
       + '<button type="button" class="ssel-modal-close" data-select-close aria-label="Close">×</button></div>'
       + search
       + '<div id="' + listId + '" class="ssel-list" role="listbox" aria-label="' + title
       + ' options" data-ssel-list="' + key + '">'
-      + renderSelectOptions(item, value, cx.selectQuery) + '</div></div></div>';
+      + renderSelectOptions(item, value, cx.selectQuery) + '</div>';
   }
   function renderText(item, v) {
     var ph = (item.attributes && item.attributes.placeholder) ? esc(item.attributes.placeholder) : '';
@@ -608,12 +609,63 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // (not the DOM node) because render() replaces #scroll's innerHTML, detaching any node
     // captured at open time; re-querying by key after render finds the fresh trigger.
     var lastSelectKey = null;
+    // Optional one-shot callback fired after the sheet closes, set by openSheet() so an external
+    // caller (the onboarding wizard, which lives in its own overlay) can react to a pick/dismiss.
+    var onSheetClose = null;
     // On open, focus the search box (searchSelect) or the selected/first option (select).
     function focusModal() {
       var modal = document.getElementById('modal');
       var el = modal.querySelector('[data-select-search]')
         || modal.querySelector('.ssel-opt.on') || modal.querySelector('.ssel-opt');
       if (el) { el.focus(); }
+    }
+    // Open/close the native <dialog> to match openSelect. showModal()/close() fire only on the
+    // state edges (calling showModal() on an already-open dialog throws), and no-op in the
+    // pure-render test harness, which shims a plain #modal element without the dialog methods.
+    function syncDialog() {
+      var dlg = document.getElementById('modal');
+      if (!dlg || !dlg.showModal) { return; }
+      if (openSelect && !dlg.open) {
+        dlg.showModal();
+        var ttl = dlg.querySelector('.ssel-modal-ttl');
+        if (ttl && ttl.id) { dlg.setAttribute('aria-labelledby', ttl.id); }
+        // searchSelect filters as you type; pin a fixed height so a shrinking list can't
+        // resize the sheet and make it jump. Plain select stays content-sized.
+        if (dlg.querySelector('[data-select-search]')) { dlg.classList.add('search'); }
+        else { dlg.classList.remove('search'); }
+      } else if (!openSelect && dlg.open) {
+        dlg.classList.remove('search');
+        dlg.style.bottom = '';
+        dlg.style.maxHeight = '';
+        dlg.style.transform = '';
+        dlg.style.transition = '';
+        dlg.close();
+      }
+    }
+    // searchSelect summons the on-screen keyboard, which overlays the bottom-anchored sheet.
+    // While an input in the sheet is focused and the visual viewport has shrunk (keyboard up),
+    // lift the sheet to sit just above the keyboard and let it grow past the 80dvh cap into the
+    // freed space; otherwise clear the overrides and fall back to the CSS cap. On iOS the
+    // keyboard overlays the layout viewport (bottom:0/dvh stay behind it), so window.innerHeight
+    // stays full while visualViewport.height shrinks — their difference is the keyboard height.
+    // No-op unless window.visualViewport exists (modern phone webview only; never runs on watch).
+    function fitToKeyboard() {
+      var dlg = document.getElementById('modal');
+      if (!dlg || !dlg.open) { return; }
+      var vv = window.visualViewport, ae = document.activeElement;
+      var typing = Boolean(vv && ae && ae.tagName === 'INPUT' && dlg.contains(ae));
+      // Gate on focus, not on a keyboard-height threshold: while the search stays focused the
+      // keyboard is up, so keep the sheet lifted even if a transient viewport reading (momentum
+      // rubber-band) would otherwise look like the keyboard closed. Tearing down mid-scroll is
+      // what unpinned the header and dropped the spacer.
+      if (typing) {
+        var kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+        dlg.style.bottom = kb + 'px';
+        dlg.style.maxHeight = (vv.height - 12) + 'px';
+      } else {
+        dlg.style.bottom = '';
+        dlg.style.maxHeight = '';
+      }
     }
     // Close the open modal and return focus to the trigger that opened it.
     function closeSelect() {
@@ -623,6 +675,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if (trg) { trg.focus(); }
         lastSelectKey = null;
       }
+      if (onSheetClose) { var cb = onSheetClose; onSheetClose = null; cb(); }
     }
     // evalCtx(): the {settings..., env} object showWhen predicates evaluate against.
     function evalCtx() { var c = Object.assign({}, S); c.env = ENV; return c; }
@@ -655,6 +708,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       document.getElementById('tabs').innerHTML = renderTabBar(SCHEMA, activeTab, cx);
       document.getElementById('scroll').innerHTML = renderBody(SCHEMA, activeTab, cx);
       document.getElementById('modal').innerHTML = renderSelectModal(SCHEMA, cx);
+      syncDialog();
       document.getElementById('scroll').className = 'scroll' + (openSelect ? ' locked' : '');
       applyTheme();
     }
@@ -714,10 +768,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           if (onChangeFn) { onChangeFn(S, oldV, newV, ENV, k); }
           closeSelect(); return;
         }
-        if (e.target.closest('[data-select-close]') || e.target.hasAttribute('data-select-overlay')) {
+        // Backdrop light-dismiss: a ::backdrop click targets the dialog element itself.
+        if (e.target.closest('[data-select-close]') || e.target === modal) {
           closeSelect(); return;
         }
       });
+      // Escape fires the dialog's native `cancel`; route it through closeSelect (the single
+      // close path via render → syncDialog) instead of letting the dialog self-close and
+      // desync openSelect.
+      modal.addEventListener('cancel', function (e) { e.preventDefault(); closeSelect(); });
       modal.addEventListener('input', function (e) {
         var sb = e.target.closest('[data-select-search]');
         if (!sb) { return; }
@@ -729,6 +788,31 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           list.innerHTML = renderSelectOptions(item, S[sk], selectQuery);
         }
       });
+      // Swipe-down-to-dismiss: only arms when the list is already at the top, so a downward
+      // swipe mid-list still scrolls the list. Once armed, dragging down follows the finger
+      // (translateY) and closes past a threshold; a shorter drag snaps back.
+      var dragY = null, dragging = false;
+      modal.addEventListener('touchstart', function (e) {
+        var list = modal.querySelector('.ssel-list');
+        dragY = (list && list.scrollTop <= 0) ? e.touches[0].clientY : null;
+        dragging = false;
+        modal.style.transition = '';
+      }, { passive: true });
+      modal.addEventListener('touchmove', function (e) {
+        if (dragY == null) { return; }
+        var dy = e.touches[0].clientY - dragY;
+        if (dy <= 0) { if (dragging) { modal.style.transform = ''; dragging = false; } return; }
+        dragging = true;
+        e.preventDefault();            // hold the list still while the sheet follows the finger
+        modal.style.transform = 'translateY(' + dy + 'px)';
+      }, { passive: false });
+      modal.addEventListener('touchend', function (e) {
+        if (dragY != null && dragging) {
+          if (e.changedTouches[0].clientY - dragY > 90) { closeSelect(); }
+          else { modal.style.transition = 'transform .2s ease'; modal.style.transform = ''; }
+        }
+        dragY = null; dragging = false;
+      }, { passive: true });
     }
 
     // Save: run submit hooks, serialize, flash the toast, then return to the watch.
@@ -748,13 +832,25 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     wireInputs();
     wireModal();
     wireSave();
-    document.addEventListener('keydown', function (e) {
-      if ((e.key === 'Escape' || e.keyCode === 27) && openSelect) { closeSelect(); }
-    });
+    // Re-fit the sheet whenever the on-screen keyboard opens/closes or the viewport shifts.
+    if (typeof window !== 'undefined' && window.visualViewport) {
+      // Only react to keyboard open/close (resize). NOT visualViewport 'scroll' — that fires when
+      // iOS pans the visual viewport during momentum/rubber-band list scrolling and would resize
+      // the sheet mid-scroll, making it jump and flicker the header/spacer.
+      window.visualViewport.addEventListener('resize', fitToKeyboard);
+    }
     render();
     PConf.hooks.runReady({
       S: S, ENV: ENV, USERDATA: USERDATA, schema: SCHEMA, cfg: INJECTED_CFG || {},
-      get: hookCtx.get, set: hookCtx.set, render: render, save: save
+      get: hookCtx.get, set: hookCtx.set, render: render, save: save,
+      // Open a schema select/searchSelect in the shared bottom-sheet dialog. Used by the wizard,
+      // which lives in its own overlay: the sheet is a showModal() top-layer dialog, so it renders
+      // above that overlay. The engine sets S[key] on pick; onClose fires after any close.
+      openSheet: function (key, onClose) {
+        openSelect = key; selectQuery = ''; lastSelectKey = null;
+        onSheetClose = onClose || null;
+        render(); focusModal();
+      }
     });
 
     if (SCHEMA.themeKey && typeof window !== 'undefined' && window.matchMedia) {
