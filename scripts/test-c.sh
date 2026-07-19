@@ -8,10 +8,15 @@ mkdir -p build/host
 CFLAGS="-std=c11 -Wall -Wextra -Werror -DPBL_HEALTH -Itest/c/stub -Isrc"
 # WW_QUICK_VIEW is defined for every non-aplite platform (wscript); the host layout test
 # represents that evolving-platform build, so it exercises the peek view/layout.
-cc $CFLAGS -DWW_QUICK_VIEW test/c/layout_test.c src/c/windows/layout.c -o build/host/layout_test
-cc $CFLAGS -DWW_QUICK_VIEW -DPBL_PLATFORM_EMERY test/c/layout_test.c src/c/windows/layout.c -o build/host/layout_test_emery
+cc $CFLAGS -DWW_QUICK_VIEW -DWW_VIEW_CYCLE test/c/layout_test.c src/c/windows/layout.c -o build/host/layout_test
+cc $CFLAGS -DWW_QUICK_VIEW -DWW_VIEW_CYCLE -DPBL_PLATFORM_EMERY test/c/layout_test.c src/c/windows/layout.c -o build/host/layout_test_emery
 build/host/layout_test "${1:-}"
 build/host/layout_test_emery "${1:-}"
+# Aplite lean twin: compiled exactly as the aplite platform build (no PBL_HEALTH,
+# no WW_QUICK_VIEW, no WW_VIEW_CYCLE), goldens equal layout_test.c's forecast cases.
+cc -std=c11 -Wall -Wextra -Werror -Itest/c/stub -Isrc -DPBL_PLATFORM_APLITE \
+   test/c/layout_aplite_test.c src/c/windows/layout_aplite.c -o build/host/layout_aplite_test
+build/host/layout_aplite_test
 cc $CFLAGS test/c/health_build_test.c src/c/services/health_build.c -o build/host/health_build_test
 build/host/health_build_test
 cc $CFLAGS test/c/health_test.c src/c/services/health.c -o build/host/health_test

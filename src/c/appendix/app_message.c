@@ -230,16 +230,26 @@ static bool handle_rain_radar(DictionaryIterator *iterator, bool *radar_dirty) {
 static bool handle_palette(DictionaryIterator *iterator, bool *forecast_dirty,
                            bool *radar_dirty) {
     Tuple *bar_tuple   = dict_find(iterator, MESSAGE_KEY_BAR_PALETTE_UINT8);
+#if defined(WW_RAIN_RADAR)
     Tuple *radar_tuple = dict_find(iterator, MESSAGE_KEY_RADAR_PALETTE_UINT8);
     if (!bar_tuple && !radar_tuple) {
         return false;
     }
+#else
+    // aplite: no radar layer, so the radar palette is never applied.
+    (void) radar_dirty;
+    if (!bar_tuple) {
+        return false;
+    }
+#endif
     if (bar_tuple) {
         *forecast_dirty |= palette_set_bar(bar_tuple->value->data, (int) bar_tuple->length);
     }
+#if defined(WW_RAIN_RADAR)
     if (radar_tuple) {
         *radar_dirty |= palette_set_radar(radar_tuple->value->data, (int) radar_tuple->length);
     }
+#endif
     return true;
 }
 

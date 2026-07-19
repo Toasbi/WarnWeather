@@ -272,6 +272,7 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
     return L;
 }
 
+#if defined(WW_VIEW_CYCLE)
 // ── View-cycle cursor (pure) ─────────────────────────────────────────────────
 
 bool view_slot_available(uint8_t byte, bool has_radar, bool has_health) {
@@ -308,3 +309,4 @@ bool view_auto_return_due(int32_t now, int32_t flick_since, uint8_t reset_min) {
     if (reset_min == 0) { return false; }
     return (now - flick_since) >= (int32_t) reset_min * 60;
 }
+#endif  // WW_VIEW_CYCLE

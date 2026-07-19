@@ -134,6 +134,14 @@ def build(ctx):
         # (--gc-sections reaps anything left). Mirrors WW_RAIN_RADAR above.
         if platform != 'aplite':
             ctx.env.CFLAGS += ['-DWW_QUICK_VIEW=1']
+        # Wrist-flick view-cycle: cycling between forecast / radar / health-graph views.
+        # aplite has neither radar nor health (WW_RAIN_RADAR / PBL_HEALTH undefined), so the
+        # cycle resolves every non-default slot away and can never leave slot 0 — the whole
+        # cursor + accel-tap subsystem is inert there. Every other platform defines
+        # WW_VIEW_CYCLE; aplite lacks it, so the flick helpers + main_window's flick wiring
+        # drop out and --gc-sections reaps the rest. Mirrors WW_RAIN_RADAR / WW_QUICK_VIEW.
+        if platform != 'aplite':
+            ctx.env.CFLAGS += ['-DWW_VIEW_CYCLE=1']
         # Theme polarity (the light / B&W-Inverted axis) is compiled out of aplite:
         # the 2026-07 theme sweep grew the aplite image past the ~22.06 KB launch
         # ceiling (the whole image loads into the fixed 24 KB app RAM and the loader
