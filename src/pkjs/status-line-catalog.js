@@ -106,14 +106,14 @@
 
   /**
    * Option list for one slot dropdown: 'Empty' first, then available items per
-   * category, minus codes selected in sibling slots and minus args.excludeCodes.
+   * category, minus args.excludeCodes.
    * Multi-item categories emit a non-selectable header with
    * {disabled: true, groupHeader: true}; each child has
    * {groupChild: true, groupEnd: boolean}. Single-item categories collapse to
    * an ordinary two-element [label, code] tuple with no header.
    * @param {Object} settings Clay settings blob
    * @param {Object} env platform env
-   * @param {Object} args {excludeKeys, excludeCodes, slotKey, position}
+   * @param {Object} args {excludeCodes, slotKey, position}
    * @returns {Array} [[label, code], ...] with optional grouping metadata
    */
   function slotOptions(settings, env, args) {
@@ -121,11 +121,6 @@
     var slotCtx = { slotKey: args.slotKey, position: args.position };
     var taken = {};
     var i;
-    var keys = args.excludeKeys || [];
-    for (i = 0; i < keys.length; i++) {
-      var v = settings && settings[keys[i]];
-      if (v && v !== 'empty') { taken[v] = true; }
-    }
     var codes = args.excludeCodes || [];
     for (i = 0; i < codes.length; i++) { taken[codes[i]] = true; }
     var out = [['Empty', 'empty']];

@@ -76,7 +76,7 @@ test('precipitation probability is unavailable without a radar provider', () => 
   assert.ok(!catalog.itemAvailable(item, {}, ENV_BASALT));
 });
 
-test('slotOptions: empty first, sibling selections and excluded codes removed', () => {
+test('slotOptions: empty first, excludeCodes removed, sibling selections now shown', () => {
   const s = {
     healthMode: 'all', radarProvider: 'rainbow',
     statusForecastLeft: 'temp', statusForecastRight: 'sun'
@@ -85,9 +85,9 @@ test('slotOptions: empty first, sibling selections and excluded codes removed', 
     { excludeKeys: ['statusForecastRight'], excludeCodes: ['city'] });
   const codes = opts.map(o => o[1]);
   assert.equal(codes[0], 'empty');
-  assert.ok(codes.includes('temp'));       // own current value is NOT excluded
-  assert.ok(!codes.includes('sun'));       // sibling's selection excluded
-  assert.ok(!codes.includes('city'));      // excludeCodes honored
+  assert.ok(codes.includes('temp'));       // own current value present
+  assert.ok(codes.includes('sun'));        // sibling's selection NO LONGER hidden
+  assert.ok(!codes.includes('city'));      // excludeCodes still honored
   assert.ok(!codes.includes('hr'));        // env gate (basalt)
   assert.ok(!codes.includes('precip_prob')); // radar on
   assert.ok(!codes.includes('date'));      // date is middle-only: absent without a mid slot context
