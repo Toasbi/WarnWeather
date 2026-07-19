@@ -68,14 +68,15 @@ static GRect month_text_rect(GRect bounds, GFont font, const char *text) {
 
 // Rain-intensity glyph: PDC vector raindrops (drop count = intensity bucket),
 // lazy-loaded during an active alert to match the health-strip glyph pipeline.
-// Authored as outline drops (white stroke / clear fill) in a 25px viewbox
-// (scripts/gen-rain-pdc.py); the stroke is recolored per radar tier and the glyph
+// Authored as filled drops (white fill / clear stroke) in a 25px viewbox
+// (scripts/gen-rain-pdc.py); the fill is recolored per radar tier and the glyph
 // is scaled to the square glyph slot at load. aplite excludes both the resources
 // and this file (its twin has no rain glyph).
 static GDrawCommandImage *s_rain_glyph;   // NULL unless an alert is showing
 static int    s_rain_glyph_bucket;        // bucket (1..3) the cached glyph was built for; 0 = none
 static int    s_rain_glyph_side;          // px slot side the cached glyph was scaled to
-static GColor s_rain_glyph_tint;          // stroke tint the cached glyph was recolored to
+static GColor s_rain_glyph_tint;          // fill tint the cached glyph was recolored to
+static bool   s_rain_glyph_outlined;      // whether the cached glyph got the light-theme stroke
 
 // Per-tier recolor + uniform scale of the PDC, mirroring health_status_layer's
 // pipeline (points are 1/8-px precise-path units). We scale the fixed authored
@@ -87,13 +88,20 @@ static GColor s_rain_glyph_tint;          // stroke tint the cached glyph was re
 typedef struct {
     int16_t num, den;   // scale each point: p * num / den
     GColor  tint;
+    bool    outline;    // light theme: force a 1px black stroke so pale tier fills
+                         // remain legible on the white strip
 } RainNorm;
 
 static bool rain_norm_cb(GDrawCommand *command, uint32_t index, void *context) {
     (void)index;
     RainNorm *b = (RainNorm *)context;
-    gdraw_command_set_stroke_color(command, b->tint);
-    gdraw_command_set_fill_color(command, GColorClear);
+    gdraw_command_set_fill_color(command, b->tint);
+    if (b->outline) {
+        // Stroke width is baked 0 (clear) by the generator — a nonzero width must be
+        // set at runtime too, not just the color, or the stroke stays invisible.
+        gdraw_command_set_stroke_color(command, GColorBlack);
+        gdraw_command_set_stroke_width(command, 1);
+    }
     uint16_t n = gdraw_command_get_num_points(command);
     for (uint16_t i = 0; i < n; i++) {
         GPoint p = gdraw_command_get_point(command, i);
@@ -125,12 +133,13 @@ static void rain_glyph_unload(void) {
 // Ensure s_rain_glyph holds the bucket's drops scaled to a `side`-px square and
 // tinted `tint`. Reloads only when one of those changes (bucket tracks tier, side
 // is fixed per platform), so the steady-state redraw is a cache hit.
-// A live theme flip (light<->dark) still invalidates correctly without a separate
-// cache-key term: rain_glyph_color() already returns a theme-dependent tint (theme_fg()
-// in light/B&W vs palette_radar_color() otherwise), so the flip changes `tint` itself.
 static void ensure_rain_glyph_loaded(int bucket, int side, GColor tint) {
+    const bool outline = theme_is_light();
+    // Cache key includes `outline`, not just tint: a live theme flip (light<->dark)
+    // with an unchanged tint must still re-style the stroke.
     if (s_rain_glyph && s_rain_glyph_bucket == bucket &&
-        s_rain_glyph_side == side && gcolor_equal(s_rain_glyph_tint, tint)) {
+        s_rain_glyph_side == side && gcolor_equal(s_rain_glyph_tint, tint) &&
+        s_rain_glyph_outlined == outline) {
         return;
     }
     rain_glyph_unload();
@@ -142,7 +151,12 @@ static void ensure_rain_glyph_loaded(int bucket, int side, GColor tint) {
     const int   vspan = vb.h > vb.w ? vb.h : vb.w;
     if (vspan <= 0) { gdraw_command_image_destroy(img); return; }
     GDrawCommandList *list = gdraw_command_image_get_command_list(img);
-    RainNorm b = { .num = (int16_t)side, .den = (int16_t)vspan, .tint = tint };
+    RainNorm b = {
+        .num = (int16_t)side,
+        .den = (int16_t)vspan,
+        .tint = tint,
+        .outline = outline
+    };
     gdraw_command_list_iterate(list, rain_norm_cb, &b);
     gdraw_command_image_set_bounds_size(img, GSize((int16_t)((vb.w * side) / vspan),
                                                    (int16_t)((vb.h * side) / vspan)));
@@ -150,18 +164,18 @@ static void ensure_rain_glyph_loaded(int bucket, int side, GColor tint) {
     s_rain_glyph_bucket = bucket;
     s_rain_glyph_side = side;
     s_rain_glyph_tint = tint;
+    s_rain_glyph_outlined = outline;
 }
 
-// Glyph colour tracks the radar bars per tier on color dark themes. On B&W (or
-// the color-build Black & White theme) the strip background is theme_bg() and
-// palette_radar_color() now returns that SAME theme_bg() stop (it's a bar-fill
-// color — see palette.c), so using it here would paint the glyph invisibly onto
-// its own background. Light theme's white strip has the same problem with pale
-// tiers (e.g. drizzle's gray). Both cases fall back to the default foreground,
-// which the now-outline (stroke-only) glyph reads fine against either polarity.
+// Glyph colour tracks the radar bars per tier. On B&W (or the color-build Black &
+// White theme) the strip background is theme_bg() and palette_radar_color() now
+// returns that SAME theme_bg() stop (it's a bar-fill color — see palette.c), so
+// using it here would paint the glyph invisibly onto its own background. Force
+// the default foreground instead. Light-theme fills retain the tier colour and
+// get a 1px black outline in rain_norm_cb for contrast.
 static GColor rain_glyph_color(int tier) {
-#if defined(PBL_COLOR)
-    if (!theme_is_bw() && !theme_is_light()) { return palette_radar_color(tier); }
+#ifdef PBL_COLOR
+    if (!theme_is_bw()) { return palette_radar_color(tier); }
 #endif
     (void) tier;
     return theme_fg();

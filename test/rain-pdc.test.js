@@ -44,7 +44,7 @@ function dropSize(cmd) {
   return [Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)];
 }
 
-test('all drops share one geometry unit, outline-styled', () => {
+test('all drops share one geometry unit, filled-styled', () => {
   const all = [];
   for (const [file, drops] of Object.entries(EXPECT)) {
     const cmds = commands(fs.readFileSync(path.join(DATA, file)));
@@ -53,10 +53,23 @@ test('all drops share one geometry unit, outline-styled', () => {
   }
   const ref = all[0];
   for (const cmd of all) {
-    assert.notEqual(cmd.strokeColor, 0x00, 'stroke set (outline)');
+    assert.equal(cmd.strokeColor, 0x00, 'stroke clear (filled)');
     assert.equal(cmd.strokeWidth, ref.strokeWidth, 'uniform stroke width');
-    assert.equal(cmd.fillColor, 0x00, 'fill clear (outline)');
+    assert.notEqual(cmd.fillColor, 0x00, 'fill set (filled)');
     assert.equal(cmd.pts.length, ref.pts.length, 'same point count per drop');
     assert.deepEqual(dropSize(cmd), dropSize(ref), 'same per-drop bounds');
   }
+});
+
+test('rain glyph normalization preserves filled styling when tinting', () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'c', 'layers', 'top_status_layer.c'), 'utf8');
+  const callback = source.slice(
+    source.indexOf('static bool rain_norm_cb'),
+    source.indexOf('static uint32_t rain_glyph_resource'));
+
+  assert.match(callback, /gdraw_command_set_fill_color\(command, b->tint\);/,
+               'runtime applies the tier tint to the drop fill');
+  assert.match(callback, /if \(b->outline\)[\s\S]*gdraw_command_set_stroke_color\(command, GColorBlack\);[\s\S]*gdraw_command_set_stroke_width\(command, 1\);/,
+               'light theme may add contrast without replacing the fill');
 });

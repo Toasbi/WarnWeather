@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the rain-intensity glyph PDC files (drizzle / rain / downpour).
 
-Emits three Pebble Draw Command Image (PDCI) files of OUTLINE teardrops (Tabler
+Emits three Pebble Draw Command Image (PDCI) files of filled teardrops (Tabler
 `droplets` style); drop count = intensity bucket. All three files share ONE drop
 geometry unit (translated, never rescaled per variant) so the family reads as one
 consistent glyph at 1/2/3 copies. Run by hand when the art changes and commit the
@@ -9,8 +9,8 @@ output — no deps.
 
     python3 scripts/gen-rain-pdc.py
 
-Stroke is authored white (0xFF) / fill clear (0x00); top_status_layer.c recolors
-the stroke per radar tier (or theme_fg() in light/B&W) and scales the glyph to the
+Fill is authored white (0xFF) / stroke clear (0x00); top_status_layer.c recolors
+the fill per radar tier and scales the glyph to the
 strip slot at load time. Precise-path points are in 1/8-pixel units (viewbox 25 px
 -> 0..200 units). Shape + arrangement were tuned against an offline PIL mock before
 authoring.
@@ -21,9 +21,8 @@ import struct
 
 VIEWBOX = 25          # px
 SUBPX = 8             # precise-path units per px
-STROKE_WHITE = 0xFF   # GColorWhite (recolored per tier/theme at runtime)
-STROKE_W = 2          # px, uniform across the family
-FILL_CLEAR = 0x00     # GColorClear (drops are pure outlines, no fill)
+FILL_WHITE = 0xFF     # GColorWhite (recolored per tier at runtime)
+STROKE_CLEAR = 0x00   # GColorClear (drops are pure fills, no outline)
 
 
 def teardrop(cx, cy, r, tip_y, n_arc=14):
@@ -64,7 +63,7 @@ ARRANGEMENTS = {
 
 
 def encode_command(points):
-    header = struct.pack("<BBBBBHH", 3, 0, STROKE_WHITE, STROKE_W, FILL_CLEAR, 0, len(points))
+    header = struct.pack("<BBBBBHH", 3, 0, STROKE_CLEAR, 0, FILL_WHITE, 0, len(points))
     body = b"".join(struct.pack("<hh", int(round(x * SUBPX)), int(round(y * SUBPX)))
                     for x, y in points)
     return header + body
