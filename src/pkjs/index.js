@@ -180,6 +180,15 @@ Pebble.addEventListener('webviewclosed', function(e) {
     var prevRender = renderSignature(app.settings);
     claySettings.save(settings.parseResponse(e.response));  // This triggers the update in localStorage
     app.settings = claySettings.read();  // This reads from localStorage in sensible format
+    if (claySettings.shouldReset(app.settings)) {
+        // "Reset watchface" (gated behind its confirm toggle): wipe ALL phone-side
+        // storage and stop here so the resend/force-fetch tail below can't
+        // repopulate it. The next launch boots as a fresh install — defaults
+        // seeded, migrations run once against those defaults, wizard reopens.
+        console.log('Reset watchface requested — clearing all PKJS storage');
+        claySettings.resetAll();
+        return;
+    }
     devStats.setEnabled(Boolean(app.settings.devStatsEnabled));
     if (app.settings.devStatsClear === true) {
         // The config page's "Clear connection stats" toggle sets this flag; wipe

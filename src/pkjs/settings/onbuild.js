@@ -17,6 +17,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function onLoad(ctx) {
         ctx.set('fetch', false);
         ctx.set('devStatsClear', false);
+        // "Reset watchface" is one-shot and destructive: never let a prior save
+        // leave it pre-checked on the next open.
+        ctx.set('reset', false);
         ctx.set('locationMode', ctx.get('location') ? 'manual' : 'gps');
         if (ctx.env && ctx.env.platform === 'aplite') {
             ctx.set('radarProvider', 'disabled');

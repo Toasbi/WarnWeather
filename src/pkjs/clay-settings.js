@@ -9,6 +9,31 @@ var settings = require('./settings');
 var STORAGE_KEY = 'clay-settings';
 
 /**
+ * Wipe ALL phone-side PKJS localStorage — the settings blob and every cache /
+ * migration-marker key — for a full "Reset watchface" fresh start. The next
+ * boot then follows the first-install path (defaults seeded, migrations run
+ * once, wizard reopens), so there is nothing pre-migrated to double-apply.
+ *
+ * @returns {void}
+ */
+function resetAll() {
+    localStorage.clear();
+}
+
+/**
+ * Whether a saved-settings response should trigger a full reset. The one-shot
+ * "Reset watchface" toggle wipes on Save; the blunt on-Save/undo-warning in its
+ * hint is the safeguard, and onbuild.js re-zeroes it each open so it never
+ * persists checked.
+ *
+ * @param {?Object} s Parsed settings (app.settings) from the config response.
+ * @returns {boolean} True only when the reset flag is exactly true.
+ */
+function shouldReset(s) {
+    return Boolean(s) && s.reset === true;
+}
+
+/**
  * Read and parse the stored Clay settings blob.
  *
  * @returns {Object|null} Parsed settings object, or null when nothing stored
@@ -378,6 +403,8 @@ function normalizeFixtureColor(value, colorMap) {
 module.exports = {
     read: read,
     save: save,
+    resetAll: resetAll,
+    shouldReset: shouldReset,
     hasStored: hasStored,
     getDefaults: getDefaults,
     seedDefaults: seedDefaults,
