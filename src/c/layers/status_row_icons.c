@@ -133,7 +133,6 @@ static uint32_t icon_resource(uint8_t icon_id, bool detailed) {
         case STATUS_ICON_UV: return RESOURCE_ID_STATUS_UV;
         case STATUS_ICON_WIND: return RESOURCE_ID_STATUS_WIND;
         case STATUS_ICON_GUST: return RESOURCE_ID_STATUS_GUST;
-        case STATUS_ICON_PRECIP: return RESOURCE_ID_STATUS_PRECIP;
         case STATUS_ICON_AQI: return RESOURCE_ID_STATUS_AQI;   // weather metric, all providers
         case STATUS_ICON_POLLEN: return RESOURCE_ID_STATUS_POLLEN;
 #if defined(PBL_HEALTH)

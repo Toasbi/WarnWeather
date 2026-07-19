@@ -203,7 +203,6 @@ static void frozen_weather_tests(void) {
     v.icon = STATUS_ICON_UV;     expect("frozen.uv",     status_slot_is_frozen_weather(&v), 1);
     v.icon = STATUS_ICON_WIND;   expect("frozen.wind",   status_slot_is_frozen_weather(&v), 1);
     v.icon = STATUS_ICON_GUST;   expect("frozen.gust",   status_slot_is_frozen_weather(&v), 1);
-    v.icon = STATUS_ICON_PRECIP; expect("frozen.precip", status_slot_is_frozen_weather(&v), 1);
     v.icon = STATUS_ICON_POLLEN; expect("frozen.pollen", status_slot_is_frozen_weather(&v), 1);
     // TEXT but icon-less (City, AQI) -> excluded.
     v.icon = STATUS_ICON_NONE;   expect("frozen.city-aqi", status_slot_is_frozen_weather(&v), 0);

@@ -162,10 +162,6 @@ function formatValue(code, payload, settings) {
     v = trendHead(payload.GUST_TREND_UINT8);
     return v === null ? '--' : formatWind(v, settings);
   }
-  if (code === 'precip_prob') {
-    v = trendHead(payload.PRECIP_TREND_UINT8);
-    return v === null ? '--' : v + '%';
-  }
   if (code === 'aqi') {
     v = trendHead(payload.AQI_TREND);
     // Bare index; the leaf icon carries the "air quality" context (UV-style).

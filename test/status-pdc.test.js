@@ -42,7 +42,7 @@ function walkPdc(file, viewbox, checkCmd) {
 // just needs a non-clear stroke and a clear fill. STATUS_POLLEN is wired as a status-row
 // resource and is validated here with the rest of the outline family.
 const OUTLINE_24 = ['STATUS_TEMP.pdc', 'STATUS_UV.pdc', 'STATUS_WIND.pdc',
-                    'STATUS_GUST.pdc', 'STATUS_POLLEN.pdc', 'STATUS_PRECIP.pdc',
+                    'STATUS_GUST.pdc', 'STATUS_POLLEN.pdc',
                     'STATUS_DISTANCE.pdc', 'STATUS_AQI.pdc'];
 
 for (const file of OUTLINE_24) {

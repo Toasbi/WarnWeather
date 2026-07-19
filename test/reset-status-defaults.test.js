@@ -19,19 +19,6 @@ function blob(extra) {
   }, extra || {});
 }
 
-test('radar enable flip resets the radar line and displaces precip slots to defaults', () => {
-  const S = blob({
-    radarProvider: 'rainbow',                    // new value already applied by the engine
-    statusRadarLeft: 'uv',                       // customized radar line
-    statusForecastLeft: 'precip_prob'            // precip needs radar OFF
-  });
-  applyReset(S, 'radar', 'disabled', 'rainbow', ENV_BASALT);
-  assert.equal(S.statusRadarLeft, 'temp', 'radar line back to catalog defaults');
-  assert.equal(S.statusRadarMid, 'city');
-  assert.equal(S.statusRadarRight, 'sun');
-  assert.equal(S.statusForecastLeft, 'temp', 'precip slot resets to ITS slot default');
-});
-
 test('scan reset falls back to empty when the slot default is already a sibling pick', () => {
   const S = blob({
     radarProvider: 'rainbow',

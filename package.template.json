@@ -187,17 +187,6 @@
         },
         {
           "type": "raw",
-          "name": "STATUS_PRECIP",
-          "file": "data/STATUS_PRECIP.pdc",
-          "targetPlatforms": [
-            "basalt",
-            "diorite",
-            "emery",
-            "flint"
-          ]
-        },
-        {
-          "type": "raw",
           "name": "STATUS_DISTANCE",
           "file": "data/STATUS_DISTANCE.pdc",
           "targetPlatforms": [

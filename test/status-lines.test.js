@@ -22,8 +22,7 @@ function basePayload() {
     SUN_EVENTS: sunEvents(1, [1767258000]), // 2026-01-01T09:00:00Z
     UV_TREND_UINT8: [64],
     WIND_TREND_UINT8: [17],
-    GUST_TREND_UINT8: [48],
-    PRECIP_TREND_UINT8: [80]
+    GUST_TREND_UINT8: [48]
   };
 }
 
@@ -89,7 +88,6 @@ test('value formatting', () => {
   assert.equal(statusLines.formatValue('uv', p, baseSettings()), '6'); // 64 tenths
   assert.equal(statusLines.formatValue('wind', p, baseSettings()), '17kph');
   assert.equal(statusLines.formatValue('gust', p, baseSettings()), '48kph');
-  assert.equal(statusLines.formatValue('precip_prob', p, baseSettings()), '80%');
   assert.equal(statusLines.formatValue('city', p, baseSettings()), 'Saarbrücken');
 });
 

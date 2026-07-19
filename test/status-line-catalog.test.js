@@ -39,9 +39,6 @@ test('availability gating', () => {
   assert.ok(!catalog.itemAvailable(catalog.byCode('steps'), { healthMode: 'off' }, ENV_BASALT));
   assert.ok(catalog.itemAvailable(catalog.byCode('hr'), s, ENV_EMERY));
   assert.ok(!catalog.itemAvailable(catalog.byCode('hr'), s, ENV_BASALT));
-  assert.ok(!catalog.itemAvailable(catalog.byCode('precip_prob'), s, ENV_BASALT));
-  assert.ok(catalog.itemAvailable(catalog.byCode('precip_prob'),
-    { radarProvider: 'disabled' }, ENV_BASALT));
 });
 
 test('date is middle-only: offered in mid slots of any line, nowhere else', () => {
@@ -66,16 +63,6 @@ test('resolveSelection honors the slot context', () => {
     { slotKey: 'statusTopLeft', position: 'left' }), 'empty');
 });
 
-test('precipitation probability is unavailable without settings', () => {
-  const item = catalog.byCode('precip_prob');
-  assert.ok(!catalog.itemAvailable(item, undefined, ENV_BASALT));
-});
-
-test('precipitation probability is unavailable without a radar provider', () => {
-  const item = catalog.byCode('precip_prob');
-  assert.ok(!catalog.itemAvailable(item, {}, ENV_BASALT));
-});
-
 test('slotOptions: empty first, excludeCodes removed, sibling selections now shown', () => {
   const s = {
     healthMode: 'all', radarProvider: 'rainbow',
@@ -89,7 +76,6 @@ test('slotOptions: empty first, excludeCodes removed, sibling selections now sho
   assert.ok(codes.includes('sun'));        // sibling's selection NO LONGER hidden
   assert.ok(!codes.includes('city'));      // excludeCodes still honored
   assert.ok(!codes.includes('hr'));        // env gate (basalt)
-  assert.ok(!codes.includes('precip_prob')); // radar on
   assert.ok(!codes.includes('date'));      // date is middle-only: absent without a mid slot context
 });
 
@@ -198,7 +184,7 @@ test('slotOptions marks multi-item groups and collapses single-item groups', () 
   const weatherHeader = opts.find(o => o[1] === '__hdr_weather');
   assert.deepEqual(weatherHeader[2], { disabled: true, groupHeader: true });
   const weatherChildren = opts.filter(o => o[2] && o[2].groupChild
-    && ['temp', 'wind', 'gust', 'precip_prob', 'uv', 'aqi', 'sun'].indexOf(o[1]) >= 0);
+    && ['temp', 'wind', 'gust', 'uv', 'aqi', 'sun'].indexOf(o[1]) >= 0);
   assert.equal(weatherChildren[0][0], 'Current temperature', 'no label-space indentation');
   assert.equal(weatherChildren[0][2].groupEnd, false);
   assert.equal(weatherChildren[weatherChildren.length - 1][2].groupEnd, true);
