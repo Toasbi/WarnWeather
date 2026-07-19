@@ -5,6 +5,15 @@ var _L = [], _S = [];
 global.PConf = { hooks: { onLoad: function (fn) { _L.push(fn); }, onSubmit: function (fn) { _S.push(fn); } } };
 const OB = require('../src/pkjs/settings/onbuild.js');
 
+function loadContext(store, platform) {
+    return {
+        env: { platform: platform },
+        get: function (k) { return store[k]; },
+        set: function (k, v) { store[k] = v; },
+        getInitial: function (k) { return store[k]; }
+    };
+}
+
 test('onLoad resets transient toggles to false', function () {
     var store = { fetch: true, devStatsClear: true };
     var ctx = { get: function (k) { return store[k]; }, set: function (k, v) { store[k] = v; }, getInitial: function (k) { return store[k]; } };
@@ -21,6 +30,20 @@ test('onLoad derives locationMode from the stored location', function () {
     var gps = { location: '' };
     OB.onLoad({ get: function (k) { return gps[k]; }, set: function (k, v) { gps[k] = v; }, getInitial: function () {} });
     assert.equal(gps.locationMode, 'gps');
+});
+
+test('onLoad forces radar and health off on aplite', function () {
+    var store = { radarProvider: 'dwd', healthMode: 'all' };
+    OB.onLoad(loadContext(store, 'aplite'));
+    assert.equal(store.radarProvider, 'disabled');
+    assert.equal(store.healthMode, 'off');
+});
+
+test('onLoad preserves radar and health settings on non-aplite platforms', function () {
+    var store = { radarProvider: 'dwd', healthMode: 'all' };
+    OB.onLoad(loadContext(store, 'basalt'));
+    assert.equal(store.radarProvider, 'dwd');
+    assert.equal(store.healthMode, 'all');
 });
 
 test('onSubmit clears location in GPS mode and that change forces a refetch', function () {

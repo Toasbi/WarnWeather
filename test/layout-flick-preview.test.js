@@ -15,10 +15,17 @@ const eng = require('../src/pkjs/config-ui/lib/engine.js');
 require('../src/pkjs/settings/blocks.js'); // registers layoutPreviewCombined
 const plat = require('../src/pkjs/config-ui/lib/platform.js');
 const schema = require('../src/pkjs/settings/schema.js');
+const onbuild = require('../src/pkjs/settings/onbuild.js');
 
-function layoutBody(overrides) {
+function layoutBody(overrides, platformName) {
   const S = Object.assign(eng.hydrate(schema, {}), overrides);
-  const ENV = plat.computeEnv({ platform: 'basalt' });
+  const ENV = plat.computeEnv({ platform: platformName || 'basalt' });
+  onbuild.onLoad({
+    env: ENV,
+    get: function (k) { return S[k]; },
+    set: function (k, v) { S[k] = v; },
+    getInitial: function (k) { return S[k]; },
+  });
   const cx = {
     S: S, ENV: ENV, USERDATA: {}, openColor: null, openSelect: null,
     selectQuery: '', collapsed: {}, evalCtx: Object.assign({}, S, { env: ENV }),
@@ -43,6 +50,14 @@ test('compactDense all + radar shows three columns incl. Health graph', () => {
   const body = layoutBody({ layoutPreset: 'compactDense', radarProvider: 'dwd', healthMode: 'all' });
   assert.ok(body.indexOf('Flick 2') >= 0, 'three columns');
   assert.ok(body.indexOf('Health graph') >= 0, 'graph flick present');
+});
+
+test('aplite normalizes stale enabled settings to a single Default view', () => {
+  const body = layoutBody({ layoutPreset: 'compactDense', radarProvider: 'dwd', healthMode: 'all' }, 'aplite');
+  assert.ok(body.indexOf('Default') >= 0, 'default column renders');
+  assert.equal(body.indexOf('Flick 1'), -1, 'no first flick column');
+  assert.equal(body.indexOf('Flick 2'), -1, 'no second flick column');
+  assert.equal(body.indexOf('View reset time'), -1, 'reset control is hidden');
 });
 
 test('engine renders a blockBefore hosted on a staticText item', () => {

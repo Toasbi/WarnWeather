@@ -541,11 +541,13 @@ module.exports = {
                 messageKey: 'viewResetMin',
                 label: 'View reset time',
                 defaultValue: '2',
-                options: [['Never', '0'], ['1m', '1'], ['2m', '2'], ['5m', '5'], ['10m', '10']]
+                options: [['Never', '0'], ['1m', '1'], ['2m', '2'], ['5m', '5'], ['10m', '10']],
+                showWhen: {env: 'platform', ne: 'aplite'}
             }, {
                 type: 'staticText',
                 joinPrevious: true,
-                text: 'Automatically return to the default view after the selected time has passed.'
+                text: 'Automatically return to the default view after the selected time has passed.',
+                showWhen: {env: 'platform', ne: 'aplite'}
             }]
         }]
     }, {

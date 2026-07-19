@@ -333,12 +333,24 @@ test('layoutPreset offers the four adaptive presets', () => {
   assert.equal(byKey('firstWeek').showWhen, undefined);
 });
 
-test('viewResetMin is a Layout tab segmented control defaulting to 2m, directly below the preset radio', () => {
-  const r = byKey('viewResetMin');
-  assert.ok(r, 'viewResetMin item exists');
-  assert.equal(r.type, 'segmented');
-  assert.equal(r.defaultValue, '2');
-  assert.deepEqual(r.options.map((o) => o[1]), ['0', '1', '2', '5', '10']);
+test('viewResetMin is hidden with its explanation on aplite', () => {
+  const layout = schema.tabs.find((t) => t.id === 'layout');
+  const layoutItems = layout.sections[0].items;
+  const resetIdx = layoutItems.findIndex((i) => i.messageKey === 'viewResetMin');
+  const reset = layoutItems[resetIdx];
+  const explanation = layoutItems[resetIdx + 1];
+  const nonAplite = { env: platform.computeEnv({ platform: 'basalt' }) };
+  const aplite = { env: platform.computeEnv({ platform: 'aplite' }) };
+
+  assert.equal(reset.type, 'segmented');
+  assert.equal(reset.defaultValue, '2');
+  assert.deepEqual(reset.options.map((o) => o[1]), ['0', '1', '2', '5', '10']);
+  assert.deepEqual(reset.showWhen, { env: 'platform', ne: 'aplite' });
+  assert.deepEqual(explanation.showWhen, { env: 'platform', ne: 'aplite' });
+  assert.equal(showWhen.isVisible(reset, nonAplite), true);
+  assert.equal(showWhen.isVisible(explanation, nonAplite), true);
+  assert.equal(showWhen.isVisible(reset, aplite), false);
+  assert.equal(showWhen.isVisible(explanation, aplite), false);
 });
 
 test('Layout tab is one section: combined preview above the preset radio, reset segmented directly below', () => {

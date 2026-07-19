@@ -12,12 +12,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * watch-side meaning — an empty vs set location is the real GPS/manual contract,
      * see index.js). Deriving it here makes an existing manual location preselect
      * Manual instead of defaulting to GPS, which would silently clear it on save.
-     * @param {{ get: function, set: function, getInitial: function }} ctx
+     * @param {{ env: Object, get: function, set: function, getInitial: function }} ctx
      */
     function onLoad(ctx) {
         ctx.set('fetch', false);
         ctx.set('devStatsClear', false);
         ctx.set('locationMode', ctx.get('location') ? 'manual' : 'gps');
+        if (ctx.env && ctx.env.platform === 'aplite') {
+            ctx.set('radarProvider', 'disabled');
+            ctx.set('healthMode', 'off');
+        }
     }
 
     /**
