@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define STATUS_ROW_ICON_TEXT_GAP 2
+#define STATUS_ROW_ICON_TEXT_GAP 3
 #define STATUS_ROW_GROUP_GAP 4
 
 typedef struct {

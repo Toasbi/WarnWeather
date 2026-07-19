@@ -27,18 +27,18 @@ static void empty_row(void) {
 }
 
 static void typical_row(void) {
-    // temp (10+2+30=42) | long city | sun (10+2+20=32). Edges fit fully
-    // (74 <= 138); city gets the remainder. Identical to the equal-thirds era.
+    // temp (10+3+30=43) | long city | sun (10+3+20=33). Edges fit fully
+    // (76 <= 138); city gets the remainder.
     StatusSlotMeasure m[3] = { { true, 10, 30 }, { true, 0, 200 }, { true, 10, 20 } };
     StatusSlotPlace p[3];
     status_row_layout(138, m, p);
     expect("typ.l.icon_x", p[0].icon_x, 0);
-    expect("typ.l.text_x", p[0].text_x, 12);
+    expect("typ.l.text_x", p[0].text_x, 13);
     expect("typ.l.text_w", p[0].text_w, 30);
-    expect("typ.r.icon_x", p[2].icon_x, 106);
+    expect("typ.r.icon_x", p[2].icon_x, 105);
     expect("typ.r.text_x", p[2].text_x, 118);
-    expect("typ.m.text_w", p[1].text_w, 56);
-    expect("typ.m.text_x", p[1].text_x, 46);
+    expect("typ.m.text_w", p[1].text_w, 54);
+    expect("typ.m.text_x", p[1].text_x, 47);
     expect("typ.m.visible", p[1].visible, 1);
 }
 
@@ -51,24 +51,24 @@ static void lone_edge_uses_full_width(void) {
     expect("lone.text_x", p[0].text_x, 0);
     StatusSlotMeasure m2[3] = { { true, 10, 100 }, { false, 0, 0 }, { false, 0, 0 } };
     status_row_layout(138, m2, p);
-    expect("lone.icon.text_w", p[0].text_w, 100);   // 112 <= 138: full text kept
-    expect("lone.icon.text_x", p[0].text_x, 12);
+    expect("lone.icon.text_w", p[0].text_w, 100);   // 113 <= 138: full text kept
+    expect("lone.icon.text_x", p[0].text_x, 13);
     expect("lone.icon.visible", p[0].visible, 1);
 }
 
 static void edge_priority_over_long_mid(void) {
-    // The reported bug: a wide edge value ("24 km/h" gust ~ 14+2+44=60) beside a
+    // The reported bug: a wide edge value ("24 km/h" gust ~ 14+3+44=61) beside a
     // long city name. The edge keeps its full width; the city ellipsizes.
     StatusSlotMeasure m[3] = { { true, 14, 44 }, { true, 0, 200 }, { true, 10, 20 } };
     StatusSlotPlace p[3];
     status_row_layout(138, m, p);
     expect("prio.l.text_w", p[0].text_w, 44);        // gust NOT truncated
     expect("prio.l.text_visible", p[0].text_visible, 1);
-    expect("prio.l.text_x", p[0].text_x, 16);
+    expect("prio.l.text_x", p[0].text_x, 17);
     expect("prio.r.text_w", p[2].text_w, 20);
-    expect("prio.r.icon_x", p[2].icon_x, 106);
-    expect("prio.m.text_w", p[1].text_w, 38);        // mid span [64,102] = 38
-    expect("prio.m.text_x", p[1].text_x, 64);
+    expect("prio.r.icon_x", p[2].icon_x, 105);
+    expect("prio.m.text_w", p[1].text_w, 36);        // mid span [65,101] = 36
+    expect("prio.m.text_x", p[1].text_x, 65);
     expect("prio.m.visible", p[1].visible, 1);
 }
 
@@ -94,8 +94,8 @@ static void mid_stays_centered_when_one_edge_disabled(void) {
     expect("centered.rightpresent.mid_w", p[1].text_w, 40);
     expect("centered.rightpresent.r_icon_x", p[2].icon_x, 109);   // right stays right-aligned
 
-    // Left present (temp 10+2+30=42), right empty. Same true centre 49 (clears the
-    // left group at [0,42]).
+    // Left present (temp 10+3+30=43), right empty. Same true centre 49 (clears the
+    // left group at [0,43]).
     StatusSlotMeasure left_only[3] = { { true, 10, 30 }, { true, 0, 40 }, { false, 0, 0 } };
     status_row_layout(138, left_only, p);
     expect("centered.leftpresent.mid_x", p[1].text_x, 49);
