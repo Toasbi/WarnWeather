@@ -6,6 +6,7 @@ const catalog = require('../src/pkjs/status-line-catalog.js');
 const K = catalog.KINDS, I = catalog.ICONS;
 const WATCH_BASALT = { platform: 'basalt' };
 const WATCH_EMERY = { platform: 'emery' };
+const WATCH_APLITE = { platform: 'aplite' };
 
 function sunEvents(startType, epochs) {
   const bytes = [startType];
@@ -299,4 +300,22 @@ test('week slot bakes as a LIVE_WEEK kind (watch renders it live, no baked text)
   assert.equal(slots[0].kind, K.LIVE_WEEK);
   assert.equal(slots[0].icon, I.NONE);
   assert.equal(slots[0].len, 0);
+});
+
+test('week slot bakes as phone-baked TEXT on aplite', () => {
+  const payload = basePayload();
+  statusLines.buildStatusLines(payload, baseSettings({ statusForecastLeft: 'week' }), WATCH_APLITE);
+  const slots = decodeLine(payload.STATUS_LINE_1_UINT8);
+  assert.equal(slots[0].kind, K.TEXT);
+  assert.equal(slots[0].icon, I.NONE);
+  // value is "W" + 1..53
+  assert.match(slots[0].text, /^W([1-9]|[1-4][0-9]|5[0-3])$/);
+});
+
+test('isoWeek matches known ISO-8601 week numbers', () => {
+  assert.equal(statusLines.isoWeek(new Date(2021, 0, 4)), 1);
+  assert.equal(statusLines.isoWeek(new Date(2021, 0, 1)), 53); // belongs to 2020 (leap, Jan1=Wed)
+  assert.equal(statusLines.isoWeek(new Date(2023, 0, 1)), 52); // Sun, belongs to 2022
+  assert.equal(statusLines.isoWeek(new Date(2024, 0, 1)), 1);
+  assert.equal(statusLines.isoWeek(new Date(2020, 11, 31)), 53);
 });

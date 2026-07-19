@@ -115,6 +115,22 @@ function trendHead(arr) {
 }
 
 /**
+ * ISO-8601 week number (1..53) for a local date. Mirrors the watch-side iso_week()
+ * used on non-aplite so the phone-baked aplite week matches other platforms.
+ * @param {Date} d local date
+ * @returns {number}
+ */
+function isoWeek(d) {
+  var t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  var day = (t.getUTCDay() + 6) % 7;               // Mon=0 .. Sun=6
+  t.setUTCDate(t.getUTCDate() - day + 3);           // Thursday of this ISO week
+  var firstThursday = new Date(Date.UTC(t.getUTCFullYear(), 0, 4));
+  var fday = (firstThursday.getUTCDay() + 6) % 7;
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - fday + 3);
+  return 1 + Math.round((t - firstThursday) / 604800000); // 7*24*3600*1000
+}
+
+/**
  * Convert an internal km/h wind value to the display unit and label.
  * @param {number} v wind/gust value in km/h
  * @param {Object} settings Clay settings blob (reads windUnits)
@@ -204,7 +220,13 @@ function packLine(line, payload, settings, env) {
     if (code === 'distance' && settings && settings.distanceUnits === 'imperial') {
       kind = catalog.KINDS.LIVE_DISTANCE_MI;
     }
-    if (item.kind === catalog.KINDS.TEXT) {
+    if (env.platform === 'aplite' && item.kind === catalog.KINDS.LIVE_WEEK) {
+      // aplite has no watch-side iso_week() (reaped for image budget), so the
+      // phone bakes the ISO week as an ordinary TEXT slot instead.
+      var weekBytes = utf8Truncate(utf8Encode('W' + isoWeek(new Date())), textCap(s));
+      bytes.push(catalog.KINDS.TEXT, item.icon, weekBytes.length);
+      for (var wb = 0; wb < weekBytes.length; wb++) { bytes.push(weekBytes[wb]); }
+    } else if (item.kind === catalog.KINDS.TEXT) {
       var valueBytes = utf8Truncate(utf8Encode(formatValue(code, payload, settings)),
                                     textCap(s));
       bytes.push(item.kind, item.icon, valueBytes.length);
@@ -238,5 +260,6 @@ module.exports = {
   packLine: packLine,
   formatValue: formatValue,
   utf8Encode: utf8Encode,
-  utf8Truncate: utf8Truncate
+  utf8Truncate: utf8Truncate,
+  isoWeek: isoWeek
 };

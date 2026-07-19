@@ -29,7 +29,7 @@
     { code: 'pollen', label: 'Pollen', kind: KINDS.TEXT, icon: ICONS.POLLEN, needsProvider: 'dwd', category: 'weather' },
     { code: 'sun', label: 'Sunrise/sunset', kind: KINDS.TEXT, icon: ICONS.DRAWN_SUN, category: 'weather' },
     { code: 'date', label: 'Date', kind: KINDS.LIVE_DATE, icon: ICONS.NONE, middleOnly: true, category: 'datelocation' },
-    { code: 'week', label: 'Calendar week', kind: KINDS.LIVE_WEEK, icon: ICONS.NONE, notAplite: true, category: 'datelocation' },
+    { code: 'week', label: 'Calendar week', kind: KINDS.LIVE_WEEK, icon: ICONS.NONE, category: 'datelocation' },
     { code: 'city', label: 'City', kind: KINDS.TEXT, icon: ICONS.NONE, category: 'datelocation' },
     { code: 'steps', label: 'Steps', kind: KINDS.LIVE_STEPS, icon: ICONS.STEPS, needsHealth: true, category: 'health' },
     { code: 'distance', label: 'Walked distance', kind: KINDS.LIVE_DISTANCE, icon: ICONS.DISTANCE, needsHealth: true, category: 'health' },
@@ -91,8 +91,10 @@
       if (settings && settings.healthMode === 'off') { return false; }
     }
     if (item.emeryOnly && (!env || env.platform !== 'emery')) { return false; }
-    // aplite renders the calendar-week slot from watch-side C that is compiled
-    // out there (frozen image budget), so never offer it on aplite.
+    // Mechanism for items whose watch-side C rendering is compiled out on
+    // aplite (frozen image budget). No current item uses it: calendar-week
+    // used to (the watch-side iso_week() is aplite-excluded), but the phone
+    // now bakes that slot as phone-side TEXT for aplite instead (status-lines.js).
     if (item.notAplite && env && env.platform === 'aplite') { return false; }
     if (item.needsRadarOff && (!settings || settings.radarProvider !== 'disabled')) {
       return false;

@@ -140,17 +140,17 @@ test('pollen defensively resolves to empty unless the weather provider is DWD', 
   assert.equal(catalog.resolveSelection('pollen', {}, ENV_BASALT), 'empty', 'missing provider');
 });
 
-test('week is a LIVE_WEEK item offered on non-aplite platforms only', () => {
+test('week is a LIVE_WEEK item offered on all platforms (aplite gets it as phone-baked text)', () => {
   const item = catalog.byCode('week');
   assert.ok(item, 'week item exists');
   assert.equal(item.kind, catalog.KINDS.LIVE_WEEK);
   assert.equal(item.icon, catalog.ICONS.NONE);
   assert.ok(catalog.itemAvailable(item, {}, ENV_BASALT), 'available on basalt');
-  assert.ok(!catalog.itemAvailable(item, {}, ENV_APLITE), 'excluded on aplite');
+  assert.ok(catalog.itemAvailable(item, {}, ENV_APLITE), 'available on aplite');
   const basalt = catalog.slotOptions({}, ENV_BASALT, {}).map(o => o[1]);
   assert.ok(basalt.indexOf('week') !== -1, 'week offered on basalt dropdown');
   const aplite = catalog.slotOptions({}, ENV_APLITE, {}).map(o => o[1]);
-  assert.ok(aplite.indexOf('week') === -1, 'week not offered on aplite dropdown');
+  assert.ok(aplite.indexOf('week') !== -1, 'week offered on aplite dropdown');
 });
 
 test('forecast line has a configurable middle defaulting to city', () => {
@@ -190,13 +190,14 @@ test('slotOptions marks multi-item groups and collapses single-item groups', () 
   assert.equal(weatherChildren[weatherChildren.length - 1][2].groupEnd, true);
 
   // city now lives in the "Date and location" group. On an aplite left edge slot,
-  // date (middleOnly) and calendar-week (notAplite) are both gone, so the group is
-  // left with only city and collapses to an ordinary tuple with no header.
+  // date (middleOnly) is gone but calendar-week is now available (phone-baked
+  // text on aplite), so the group has {city, week} -> it gets a header and does
+  // NOT collapse.
   const edge = catalog.slotOptions({ healthMode: 'off', radarProvider: 'disabled' },
     ENV_APLITE, { slotKey: 'statusTopLeft', position: 'left' });
-  assert.ok(edge.some(o => o[1] === 'city'), 'single-item group member remains selectable');
-  assert.ok(!edge.some(o => o[1] === '__hdr_datelocation'), 'single-item group is collapsed (no header)');
-  assert.equal(edge.find(o => o[1] === 'city').length, 2, 'collapsed item is ordinary');
+  assert.ok(edge.some(o => o[1] === 'city'), 'city is offered');
+  assert.ok(edge.some(o => o[1] === 'week'), 'week is offered on aplite too');
+  assert.ok(edge.some(o => o[1] === '__hdr_datelocation'), 'multi-item group gets a header');
 });
 
 test('battery is a LIVE_BATTERY item offered only in the top-right slot', () => {
@@ -224,9 +225,10 @@ test('slotOptions omits headers whose category has no available item', () => {
   const healthOff = catalog.slotOptions({ healthMode: 'off', radarProvider: 'rainbow' },
     ENV_BASALT, { slotKey: 'statusForecastLeft', position: 'left' });
   assert.ok(!healthOff.some(o => o[1] === '__hdr_health'), 'no orphan Health header');
-  // aplite edge slot: week (notAplite) and date (edge) both gone, leaving only city,
-  // so the Date and location group collapses to a plain tuple -> no group header
+  // aplite edge slot: date (middleOnly) is gone, but city and week (now available
+  // on aplite as phone-baked text) remain, so the Date and location group DOES
+  // get a header (it is not an orphan single-item collapse).
   const apliteEdge = catalog.slotOptions({ healthMode: 'off', radarProvider: 'disabled' },
     ENV_APLITE, { slotKey: 'statusTopLeft', position: 'left' });
-  assert.ok(!apliteEdge.some(o => o[1] === '__hdr_datelocation'), 'no orphan Date and location header');
+  assert.ok(apliteEdge.some(o => o[1] === '__hdr_datelocation'), 'Date and location header present');
 });
