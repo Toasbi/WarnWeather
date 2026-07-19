@@ -139,3 +139,32 @@ test('renderChoicesHtml: no/empty choices -> empty string', () => {
   assert.equal(news.renderChoicesHtml({ id: 1 }), '');
   assert.equal(news.renderChoicesHtml({ id: 1, choices: [] }), '');
 });
+
+// --- news UI render helpers ---
+
+test('renderNewsBellHtml is accessible and preserves unread state', () => {
+  const html = news.renderNewsBellHtml(2);
+  assert.match(html, /<svg[^>]*aria-hidden="true"/);
+  assert.match(html, /class="sr-only">News &amp; Feedback<\/span>/);
+  assert.match(html, /<span class="news-badge"><\/span>/);
+});
+
+test('renderNewsListHtml uses one-way message wording when replies are available', () => {
+  const html = news.renderNewsListHtml([
+    { id: 4, title: 'Hello', created_at: '2026-07-19T00:00:00Z', body_md: 'Body' }
+  ], true);
+  assert.match(html, /Write a message/);
+  assert.doesNotMatch(html, />Reply</);
+  assert.match(html, /I’m happy to hear from you/);
+  assert.match(html, /one-way, so I can’t reply/);
+  assert.match(html, /https:\/\/apps\.repebble\.com\/67d6f1fcdb264341b850f79a/);
+  assert.match(html, /https:\/\/github\.com\/Toasbi\/WarnWeather\/issues/);
+});
+
+test('renderNewsListHtml omits message controls and hint when replies are unavailable', () => {
+  const html = news.renderNewsListHtml([
+    { id: 4, title: 'Hello', created_at: '2026-07-19T00:00:00Z', body_md: 'Body' }
+  ], false);
+  assert.doesNotMatch(html, /data-news-reply=/);
+  assert.doesNotMatch(html, /news-message-hint/);
+});

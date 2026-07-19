@@ -730,13 +730,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     // Schematic band-stack geometry (px). The calendar is modelled as rows of height ROW
-    // stacked with BAND_GAP between them (the same gap the renderers draw), so a status line
+    // stacked with BAND_GAP between them (the same gap the renderers draw), so a status bar
     // is exactly one freed calendar row: CAL2_H + BAND_GAP + STATUS_H === CAL3_H. Dropping the
     // 3rd calendar row buys precisely one status band. Kept honest by a test in config-blocks.
     var ROW = 10, BAND_GAP = 2;
     var CAL3_H = ROW * 3 + BAND_GAP * 2;   // 34 — full 3-row calendar (2 inter-row gaps)
     var CAL2_H = ROW * 2 + BAND_GAP;       // 22 — compact 2-row calendar (1 inter-row gap)
-    var STATUS_H = ROW;                    // 10 — a status line = the freed calendar row
+    var STATUS_H = ROW;                    // 10 — a status bar = the freed calendar row
     var FLEX_MIN = 12;                     // floor for the flex (body) band so it never vanishes
 
     // Resolve band heights for a stack that fills `availH` (bands + gaps span exactly availH).
@@ -757,10 +757,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // Schematic band stack for one ViewSpec — proportional, not pixel-accurate. Mirrors
     // layout.c band ordering: compact = cal, single status (whichever is on) before clock;
-    // dual = health before clock, weather after; full/none = clock then status row(s).
+    // dual = health before clock, forecast after; full/none = clock then status bar(s).
     function contentBands(spec) {
         if (!spec) { return null; }
-        var bands = [{ label: 'Top status', h: 12 }];
+        var bands = [{ label: 'Watch Status Bar', h: 12 }];
         var isNone = spec.tier === VC.TIER_NONE;
         var isFull = spec.tier === VC.TIER_FULL;
         var topBand = null;
@@ -771,12 +771,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // The body always takes the remaining space (flex); the fallback h only matters to a
         // consumer that doesn't resolve flex bands.
         var bodyBand = { label: bodyLabel, h: 20, flex: true };
-        // The "weather" status row IS the radar status line when the view shows radar (top
+        // The Forecast Status Bar becomes the Radar Status Bar when the view shows radar (top
         // band or body) — mirrors main_window.c's (top == TOP_RADAR || body == BODY_RADAR)
-        // ? STATUS_LINE_RADAR : STATUS_LINE_FORECAST. A forecast-body view keeps "Weather status".
+        // ? STATUS_LINE_RADAR : STATUS_LINE_FORECAST. A forecast-body view keeps "Forecast Status Bar".
         var isRadarView = spec.top === VC.TOP_RADAR || spec.body === VC.BODY_RADAR;
-        var weather = { label: isRadarView ? 'Radar status' : 'Weather status', h: STATUS_H };
-        var health = { label: 'Health status', h: STATUS_H };
+        var weather = { label: isRadarView ? 'Radar Status Bar' : 'Forecast Status Bar', h: STATUS_H };
+        var health = { label: 'Health Status Bar', h: STATUS_H };
         var clock = { label: 'Clock', h: isNone ? 30 : 22 };
         var dual = spec.status === VC.ST_D;
         var showW = spec.status === VC.ST_W || dual;
@@ -792,7 +792,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 if (showW) { bands.push(weather); }
                 bands.push(clock);
             }
-        } else {                                  // full / none: clock, then status row(s)
+        } else {                                  // full / none: clock, then status bar(s)
             bands.push(clock);
             if (showH) { bands.push(health); }
             if (showW) { bands.push(weather); }

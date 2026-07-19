@@ -95,10 +95,11 @@ test('flickStops: layout-only cycle -> Default + Radar; radar copy is provider-a
   assert.equal(stops[0].label, 'Default');
   assert.equal(stops[0].shotGroup, 'layoutPreset');
   assert.equal(stops[0].shotVal, 'compactCal');
-  assert.equal(stops[0].caption, 'your calendar, weather status and forecast.');
+  assert.equal(stops[0].caption, 'your calendar, the Forecast Status Bar, and the forecast.');
   assert.equal(stops[1].label, 'Radar');
   assert.equal(stops[1].shotGroup, 'radar');
   assert.match(stops[1].caption, /short-term rain forecast/);
+  assert.match(stops[1].caption, /Watch Status Bar/);
   assert.doesNotMatch(stops[1].caption, /DWD|nearby/); // no provider named, kept general
 });
 
@@ -116,17 +117,18 @@ test('flickStops: health graph rides between default and radar; heart-rate line 
 
 test('flickStops: health-status flick maps to the healthMode.status shot; heart rate gated on hasHeartRate', () => {
   const withHR = W.flickStops({ layoutPreset: 'noCal', healthMode: 'status', radarProvider: 'metno' }, true);
-  assert.deepEqual(withHR.map((s) => s.label), ['Default', 'Health status', 'Radar']);
+  assert.deepEqual(withHR.map((s) => s.label), ['Default', 'Health Status Bar', 'Radar']);
   assert.equal(withHR[1].shotGroup, 'healthMode');
   assert.equal(withHR[1].shotVal, 'status');
   assert.match(withHR[1].caption, /current heart rate/);
+  assert.match(withHR[1].caption, /Health Status Bar/);
   const noHR = W.flickStops({ layoutPreset: 'noCal', healthMode: 'status', radarProvider: 'metno' }, false);
   assert.doesNotMatch(noHR[1].caption, /heart/);
 });
 
 test('flickStops: fullCal/status dual-status middle stop (ST_D) also maps to healthMode.status', () => {
   const stops = W.flickStops({ layoutPreset: 'fullCal', healthMode: 'status', radarProvider: 'dwd' });
-  assert.deepEqual(stops.map((s) => s.label), ['Default', 'Health status', 'Radar']);
+  assert.deepEqual(stops.map((s) => s.label), ['Default', 'Health Status Bar', 'Radar']);
   assert.equal(stops[1].shotVal, 'status');
 });
 

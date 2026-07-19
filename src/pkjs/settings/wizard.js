@@ -107,8 +107,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // provider-agnostic — no provider named); the health-status and health-graph captions
     // vary with heart-rate availability (emery + diorite hardware) and are built from the shared
     // item helpers below, so the health step and the flick demo can never drift.
-    var FLICK_CAPTION_DEFAULT = 'your calendar, weather status and forecast.';
-    var FLICK_CAPTION_RADAR = 'a precise short-term rain forecast for the next 2 hours, in 5-minute frames. When rain’s on the way, the status strip counts it down (“Rain in 15’”).';
+    var FLICK_CAPTION_DEFAULT = 'your calendar, the Forecast Status Bar, and the forecast.';
+    var FLICK_CAPTION_RADAR = 'a precise short-term rain forecast for the next 2 hours, in 5-minute frames. When rain’s on the way, the Watch Status Bar counts it down (“Rain in 15’”).';
 
     /**
      * Health status-line contents, with the heart-rate clause only where the hardware has a
@@ -152,7 +152,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!isFirst && (viewSpec.status === VC.ST_H || viewSpec.status === VC.ST_D)) {
             // Health-status flick stop: BODY_FC carrying the health status row. ST_D is the
             // fullCal/status dual-status variant — healthMode.status represents both.
-            return { label: 'Health status', caption: healthStatusItems(hasHeartRate) + ' on the status line.', shotGroup: 'healthMode', shotVal: 'status' };
+            return { label: 'Health Status Bar', caption: healthStatusItems(hasHeartRate) + ' on the Health Status Bar.', shotGroup: 'healthMode', shotVal: 'status' };
         }
         var pk = VC.resolvePresetKey(state);
         if (pk === 'compactDense') { pk = 'compactCal'; } // no captured shot for compactDense; compactCal is the nearest (same 2-row calendar)
@@ -192,7 +192,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // ---- DOM controller (webview only; exercised via `mise preview-config`, not Node) ----
     var LAYOUT_OPTS = [['Full calendar', 'fullCal'], ['Compact', 'compactCal'], ['No calendar', 'noCal']];
-    var HEALTH_OPTS = [['Off', 'off'], ['Health Status', 'status'], ['Health Status + Graph', 'all']];
+    var HEALTH_OPTS = [['Off', 'off'], ['Health Status Bar', 'status'], ['Health Status Bar + Graph', 'all']];
     var STEP_TITLES = {
         welcome: 'Welcome to WarnWeather', layout: 'Choose your layout',
         health: 'Health', flick: 'Flick to explore',
@@ -201,16 +201,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // Per-option copy shown under the carousel for the centered selection (fixes "text doesn't update").
     // Bodies only — the carousel prepends the option's own label in bold (see cardHintHtml).
     var LAYOUT_DESC = {
-        fullCal: 'a three-row month grid with today highlighted, above the weather status and forecast.',
+        fullCal: 'a three-row month grid with today highlighted, above the Forecast Status Bar and forecast.',
         compactCal: 'a slim agenda row, leaving more room for the 24-hour forecast graph.',
-        noCal: 'a big clock and date with the weather status and full-screen forecast.'
+        noCal: 'a big clock and date with the Forecast Status Bar and full-screen forecast.'
     };
     // status/all default to the no-heart-rate copy; openWizard upgrades them to the
     // heart-rate variant on emery (the only platform with a heart-rate sensor).
     var HEALTH_DESC = {
         off: 'no health information on the watchface.',
-        status: healthStatusItems(false) + ' on the status line.',
-        all: 'health status plus an hourly graph: ' + healthGraphItems(false) + '.'
+        status: healthStatusItems(false) + ' on the Health Status Bar.',
+        all: 'Health Status Bar plus an hourly graph: ' + healthGraphItems(false) + '.'
     };
     // Watchface theme (messageKey 'theme'). Mirrors schema.js's two theme selects: color watches get
     // 4 options, B&W hardware only dark/light. Chosen by env.color at render time.
@@ -529,7 +529,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function stepLayout() {
         return carousel('layoutPreset', LAYOUT_OPTS, W.ctx.S.layoutPreset, LAYOUT_DESC)
             + '<div>'
-            + '<p><b>Weather status</b> — shows your location, current conditions and sunset.</p>'
+            + '<p><b>Forecast Status Bar</b> — shows your location, current conditions and sunset.</p>'
             + '<p><b>Forecast</b> — a 24-hour graph: temperature, the precipitation-% line, UV dots and rain bars.</p></div>';
     }
     function stepHealth() {
@@ -655,8 +655,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // (the nearest, same 2-row calendar) for the carousel selection and the flick demo alike.
         if (ctx.S.layoutPreset === 'compactDense') { ctx.S.layoutPreset = 'compactCal'; }
         // Heart rate exists on emery + diorite; upgrade the health copy to the HR variant there.
-        HEALTH_DESC.status = healthStatusItems(hasHeartRate()) + ' on the status line.';
-        HEALTH_DESC.all = 'health status plus an hourly graph: ' + healthGraphItems(hasHeartRate()) + '.';
+        HEALTH_DESC.status = healthStatusItems(hasHeartRate()) + ' on the Health Status Bar.';
+        HEALTH_DESC.all = 'Health Status Bar plus an hourly graph: ' + healthGraphItems(hasHeartRate()) + '.';
         if (fresh) {
             var cc = inferCountry();
             var cOpts = optionsFor(ctx.schema, 'holidayCountry');

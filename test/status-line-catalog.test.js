@@ -191,22 +191,23 @@ test('walked distance is one catalog entry; the mi kind is pack-time only', () =
   assert.equal(entries.length, 1, 'exactly one Walked distance dropdown entry');
 });
 
-test('slotOptions groups items under disabled headers with indented children', () => {
+test('slotOptions marks multi-item groups and collapses single-item groups', () => {
   const s = { healthMode: 'all', radarProvider: 'disabled' };
-  const opts = catalog.slotOptions(s, ENV_EMERY, { slotKey: 'statusForecastMid', position: 'mid' });
-  assert.deepEqual(opts[0], ['Empty', 'empty'], 'Empty stays first and ungrouped');
-  const headers = opts.filter(o => o[2] && o[2].disabled);
-  assert.deepEqual(headers.map(o => o[1]),
-    ['__hdr_weather', '__hdr_datetime', '__hdr_location', '__hdr_health']);
-  assert.deepEqual(headers.map(o => o[0]),
-    ['Weather', 'Date & time', 'Location', 'Health']);
-  opts.slice(1)
-    .filter(o => !(o[2] && o[2].disabled))
-    .forEach(o => assert.ok(o[0].indexOf('   ') === 0, o[1] + ' child label indented'));
-  // spec ordering inside Weather
-  const weather = opts.filter(o => !(o[2] && o[2].disabled)).map(o => o[1]);
-  const wi = ['temp', 'wind', 'gust', 'precip_prob', 'uv', 'aqi', 'sun'].map(c => weather.indexOf(c));
-  assert.deepEqual(wi.slice().sort((a, b) => a - b), wi, 'weather children keep spec order');
+  const opts = catalog.slotOptions(s, ENV_EMERY,
+    { slotKey: 'statusForecastMid', position: 'mid' });
+  const weatherHeader = opts.find(o => o[1] === '__hdr_weather');
+  assert.deepEqual(weatherHeader[2], { disabled: true, groupHeader: true });
+  const weatherChildren = opts.filter(o => o[2] && o[2].groupChild
+    && ['temp', 'wind', 'gust', 'precip_prob', 'uv', 'aqi', 'sun'].indexOf(o[1]) >= 0);
+  assert.equal(weatherChildren[0][0], 'Current temperature', 'no label-space indentation');
+  assert.equal(weatherChildren[0][2].groupEnd, false);
+  assert.equal(weatherChildren[weatherChildren.length - 1][2].groupEnd, true);
+
+  const edge = catalog.slotOptions({ healthMode: 'off', radarProvider: 'disabled' },
+    ENV_APLITE, { slotKey: 'statusTopLeft', position: 'left' });
+  assert.ok(edge.some(o => o[1] === 'city'), 'single Location item remains selectable');
+  assert.ok(!edge.some(o => o[1] === '__hdr_location'), 'single Location group is collapsed');
+  assert.equal(edge.find(o => o[1] === 'city').length, 2, 'collapsed item is ordinary');
 });
 
 test('battery is a LIVE_BATTERY item offered only in the top-right slot', () => {
@@ -223,8 +224,9 @@ test('battery is a LIVE_BATTERY item offered only in the top-right slot', () => 
   assert.ok(!catalog.itemAvailable(item, s, ENV_BASALT,
     { slotKey: 'statusForecastRight', position: 'right' }), 'not in other lines');
   const opts = catalog.slotOptions(s, ENV_BASALT, topRight);
-  assert.ok(opts.some(o => o[1] === '__hdr_battery'), 'Battery header shown top-right');
-  assert.ok(opts.some(o => o[1] === 'battery'), 'battery offered top-right');
+  assert.ok(!opts.some(o => o[1] === '__hdr_battery'), 'single Battery group is collapsed');
+  assert.equal(opts.find(o => o[1] === 'battery').length, 2,
+    'battery is offered top-right as an ordinary option');
   const leftOpts = catalog.slotOptions(s, ENV_BASALT, topLeft);
   assert.ok(!leftOpts.some(o => o[1] === '__hdr_battery'), 'no Battery header elsewhere');
 });

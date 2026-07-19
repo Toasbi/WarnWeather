@@ -514,7 +514,7 @@ test('status slot dropdowns: resolver, defaults, sibling exclusion + slot contex
   for (const [key, def, excludeKeys, pos] of cases) {
     const item = byKey(key);
     assert.ok(item, key);
-    assert.equal(item.type, 'select', key);
+    assert.equal(item.type, 'searchSelect', key);
     assert.equal(item.defaultValue, def, key + ' default');
     assert.equal(item.optionsFrom.resolver, 'statusSlot', key);
     assert.deepEqual(item.optionsFrom.args.excludeKeys, excludeKeys, key);
@@ -531,7 +531,7 @@ test('top-strip middle is a selectable Date slot; the fixed label is gone', () =
     'fixed-mid label removed');
   const topMid = byKey('statusTopMid');
   assert.ok(topMid, 'statusTopMid exists');
-  assert.equal(topMid.type, 'select');
+  assert.equal(topMid.type, 'searchSelect');
   assert.equal(topMid.defaultValue, 'date');
 });
 
@@ -544,11 +544,11 @@ test('Units section wording: the section title carries the noun, labels stay sho
   assert.equal(byKey('windUnits').hint, 'Unit for the wind and gust status items.');
 });
 
-test('top-strip icon controls live in the Top status line section on the Watch tab, not Misc', () => {
+test('watch status-bar icon controls live in the Watch Status Bar section, not Misc', () => {
   const more = schema.tabs.find((t) => t.id === 'more');
   const misc = more.sections.find((s) => s.title === 'Misc');
   const strip = schema.tabs.find((t) => t.id === 'watch')
-    .sections.find((s) => s.title === 'Top status line');
+    .sections.find((s) => s.title === 'Watch Status Bar');
   const miscKeys = misc.items.map((i) => i.messageKey).filter(Boolean);
   ['showQt', 'vibe', 'btIcons'].forEach((k) =>
     assert.ok(miscKeys.indexOf(k) === -1, k + ' moved out of Misc'));
@@ -556,7 +556,7 @@ test('top-strip icon controls live in the Top status line section on the Watch t
   assert.ok(miscKeys.indexOf('onboardingDone') !== -1, 'onboardingDone stays in Misc');
   const stripKeys = strip.items.map((i) => i.messageKey).filter(Boolean);
   ['showQt', 'vibe', 'btIcons'].forEach((k) =>
-    assert.ok(stripKeys.indexOf(k) !== -1, k + ' now in Top status line'));
+    assert.ok(stripKeys.indexOf(k) !== -1, k + ' now in Watch Status Bar'));
   assert.ok(stripKeys.indexOf('statusTopRight') < stripKeys.indexOf('showQt'),
     'slot selects render above the icon toggles');
   assert.ok(stripKeys.indexOf('showQt') < stripKeys.indexOf('vibe'),
@@ -566,7 +566,7 @@ test('top-strip icon controls live in the Top status line section on the Watch t
   assert.equal(byKey('vibe').joinPrevious, true, 'vibe joins showQt as one visual group');
 });
 
-test('batteryLowOnly toggle lives in Top status line, off by default', () => {
+test('batteryLowOnly toggle lives in Watch Status Bar, off by default', () => {
   const item = byKey('batteryLowOnly');
   assert.ok(item, 'batteryLowOnly exists');
   assert.equal(item.type, 'toggle');
@@ -574,7 +574,7 @@ test('batteryLowOnly toggle lives in Top status line, off by default', () => {
   assert.equal(item.label, 'Show battery below 10%');
   assert.equal(item.hint, 'Replaces the top-right slot when your battery drops below 10%.');
   const strip = schema.tabs.find((t) => t.id === 'watch')
-    .sections.find((s) => s.title === 'Top status line');
+    .sections.find((s) => s.title === 'Watch Status Bar');
   const keys = strip.items.map((i) => i.messageKey).filter(Boolean);
   assert.ok(keys.indexOf('statusTopRight') < keys.indexOf('batteryLowOnly'),
     'toggle sits below the slot selects');
@@ -595,18 +595,30 @@ test('AQI source is a dropdown with its explanation joined below the control', (
   assert.ok(note.text.indexOf('WAQI (aqicn.org)') !== -1, 'note carries the AQI explanation');
 });
 
-test('Top status line is the first section on the Watch tab; the left slot has no inline hint', () => {
+test('Watch Status Bar is first on the Watch tab and has no redundant slot hint or note', () => {
   const watch = schema.tabs.find((t) => t.id === 'watch');
-  assert.equal(watch.sections[0].title, 'Top status line', 'Top status line sits above Time');
+  assert.equal(watch.sections[0].title, 'Watch Status Bar', 'Watch Status Bar sits above Time');
   assert.equal(byKey('statusTopLeft').hint, undefined, 'left-slot hint removed');
   const items = watch.sections[0].items;
   const rightIdx = items.findIndex((i) => i.messageKey === 'statusTopRight');
-  const note = items[rightIdx + 1];
-  assert.equal(note.type, 'staticText', 'a general hint follows the three slots');
-  assert.equal(note.joinPrevious, true, 'the hint is joined below the line');
-  assert.ok(note.text.indexOf('top of the watchface') !== -1, 'hint describes the top strip');
   const battIdx = items.findIndex((i) => i.messageKey === 'batteryLowOnly');
-  assert.ok(rightIdx < battIdx, 'hint sits between the slots and the battery toggle');
+  assert.equal(battIdx, rightIdx + 1, 'battery toggle follows the slots directly');
+});
+
+test('the four status sections have named headers and one-sentence intros', () => {
+  const expected = {
+    forecast: ['Forecast Status Bar', 'Choose what appears in the left, middle, and right slots of the Forecast Status Bar.'],
+    radar: ['Radar Status Bar', 'Choose what appears in the left, middle, and right slots of the Radar Status Bar.'],
+    health: ['Health Status Bar', 'Choose what appears in the left, middle, and right slots of the Health Status Bar.'],
+    watch: ['Watch Status Bar', 'Choose what appears in the left, middle, and right slots of the Watch Status Bar; an incoming-rain alert temporarily replaces this bar.']
+  };
+  Object.keys(expected).forEach((tabId) => {
+    const tab = schema.tabs.find((t) => t.id === tabId);
+    const section = tab.sections.find((s) => s.title === expected[tabId][0]);
+    assert.ok(section, expected[tabId][0] + ' section exists');
+    assert.equal(section.intro, expected[tabId][1]);
+  });
+  assert.equal(byKey('statusForecastLeft').hint, undefined, 'forecast left-slot hint removed');
 });
 
 test('radar and health status-line slots hide when the feature is off', () => {

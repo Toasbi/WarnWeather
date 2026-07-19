@@ -346,49 +346,49 @@ test('presetContents reads healthMode/radarProvider off state to grow/shrink the
 test('contentBands renders each tier\'s band ordering', () => {
     const vc = require('../src/pkjs/view-cycle.js');
     assert.deepEqual(B.contentBands(vc.spec(vc.TIER_FULL, vc.TOP_CAL, vc.BODY_FC, vc.ST_W)).map((b) => b.label),
-        ['Top status', 'Calendar (3 rows)', 'Clock', 'Weather status', 'Forecast'], 'full tier: clock before status');
+        ['Watch Status Bar', 'Calendar (3 rows)', 'Clock', 'Forecast Status Bar', 'Forecast'], 'full tier: clock before status');
     assert.deepEqual(B.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.ST_H)).map((b) => b.label),
-        ['Top status', 'Calendar (2 rows)', 'Health status', 'Clock', 'Forecast'], 'compact tier: status before clock');
+        ['Watch Status Bar', 'Calendar (2 rows)', 'Health Status Bar', 'Clock', 'Forecast'], 'compact tier: status before clock');
     assert.deepEqual(B.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.ST_W)).map((b) => b.label),
-        ['Top status', 'Calendar (2 rows)', 'Weather status', 'Clock', 'Forecast'], 'compact tier: weather-only status before clock (non-dual)');
+        ['Watch Status Bar', 'Calendar (2 rows)', 'Forecast Status Bar', 'Clock', 'Forecast'], 'compact tier: forecast status before clock (non-dual)');
     assert.deepEqual(B.contentBands(vc.spec(vc.TIER_NONE, vc.TOP_EMPTY, vc.BODY_RADAR, vc.ST_W)).map((b) => b.label),
-        ['Top status', 'Clock', 'Radar status', 'Radar'], 'none tier: no top band, big body; radar view uses the radar status line');
+        ['Watch Status Bar', 'Clock', 'Radar Status Bar', 'Radar'], 'none tier: no top band, big body; radar view uses the Radar Status Bar');
     assert.deepEqual(B.contentBands(vc.spec(vc.TIER_FULL, vc.TOP_RADAR, vc.BODY_FC, vc.ST_NONE)).map((b) => b.label),
-        ['Top status', 'Radar', 'Clock', 'Forecast'], 'radar rides the top band; ST_NONE hides both status rows');
+        ['Watch Status Bar', 'Radar', 'Clock', 'Forecast'], 'radar rides the top band; ST_NONE hides both status bars');
     assert.strictEqual(B.contentBands(null), null, 'a null/disabled slot has no bands');
 });
 
-// The weather status row IS the radar status line whenever the view shows radar (top band
+// The Forecast Status Bar becomes the Radar Status Bar whenever the view shows radar (top band
 // or body) — mirrors main_window.c's (top == TOP_RADAR || body == BODY_RADAR) ?
-// STATUS_LINE_RADAR : STATUS_LINE_FORECAST. A forecast-body view keeps "Weather status".
-test('contentBands labels the status row "Radar status" for a radar view', () => {
+// STATUS_LINE_RADAR : STATUS_LINE_FORECAST. A forecast-body view keeps "Forecast Status Bar".
+test('contentBands labels the configurable bar "Radar Status Bar" for a radar view', () => {
     const vc = require('../src/pkjs/view-cycle.js');
     const label = (spec) => B.contentBands(spec).map((b) => b.label);
     // radar as the body (the radar flick stop)
-    assert.ok(label(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_RADAR, vc.ST_W)).indexOf('Radar status') >= 0,
-        'radar-body view: weather status row reads Radar status');
-    assert.ok(label(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_RADAR, vc.ST_W)).indexOf('Weather status') < 0,
-        'radar-body view: no Weather status label');
-    // radar riding the top band with a weather status row present
-    assert.ok(label(vc.spec(vc.TIER_FULL, vc.TOP_RADAR, vc.BODY_FC, vc.ST_W)).indexOf('Radar status') >= 0,
-        'top-radar view with a status row: reads Radar status');
-    // dual status on a radar view: the weather half becomes Radar status, health unchanged
+    assert.ok(label(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_RADAR, vc.ST_W)).indexOf('Radar Status Bar') >= 0,
+        'radar-body view reads Radar Status Bar');
+    assert.ok(label(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_RADAR, vc.ST_W)).indexOf('Forecast Status Bar') < 0,
+        'radar-body view has no Forecast Status Bar label');
+    // radar riding the top band with the configurable status bar present
+    assert.ok(label(vc.spec(vc.TIER_FULL, vc.TOP_RADAR, vc.BODY_FC, vc.ST_W)).indexOf('Radar Status Bar') >= 0,
+        'top-radar view with a status bar reads Radar Status Bar');
+    // dual status on a radar view: the forecast half becomes Radar Status Bar, health unchanged
     const dual = label(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_RADAR, vc.ST_D));
-    assert.ok(dual.indexOf('Radar status') >= 0 && dual.indexOf('Health status') >= 0,
-        'dual radar view: Radar status + Health status');
-    // a plain forecast view still reads Weather status
-    assert.ok(label(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.ST_W)).indexOf('Weather status') >= 0,
-        'forecast-body view keeps Weather status');
+    assert.ok(dual.indexOf('Radar Status Bar') >= 0 && dual.indexOf('Health Status Bar') >= 0,
+        'dual radar view: Radar Status Bar + Health Status Bar');
+    // a plain forecast view still reads Forecast Status Bar
+    assert.ok(label(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.ST_W)).indexOf('Forecast Status Bar') >= 0,
+        'forecast-body view keeps Forecast Status Bar');
 });
 
 test('contentBands renders dual as two status rows', () => {
     const vc = require('../src/pkjs/view-cycle.js');
     const bands = B.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.ST_D));
     const labels = bands.map((b) => b.label);
-    assert.ok(labels.indexOf('Health status') >= 0 && labels.indexOf('Weather status') >= 0);
+    assert.ok(labels.indexOf('Health Status Bar') >= 0 && labels.indexOf('Forecast Status Bar') >= 0);
 });
 
-// A status line occupies exactly the space freed by dropping the 3rd calendar row, so
+// A status bar occupies exactly the space freed by dropping the 3rd calendar row, so
 // the compact calendar + its status band read as tall as the full 3-row calendar.
 test('contentBands: Cal2 + gap + status = Cal3 (status = the freed calendar row)', () => {
     const vc = require('../src/pkjs/view-cycle.js');
@@ -397,7 +397,7 @@ test('contentBands: Cal2 + gap + status = Cal3 (status = the freed calendar row)
     const compact = B.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.ST_W));
     const cal3 = full.find((b) => b.label === 'Calendar (3 rows)').h;
     const cal2 = compact.find((b) => b.label === 'Calendar (2 rows)').h;
-    const status = compact.find((b) => b.label === 'Weather status').h;
+    const status = compact.find((b) => b.label === 'Forecast Status Bar').h;
     assert.equal(cal2 + GAP + status, cal3, 'dropping the 3rd calendar row buys exactly one status line');
 });
 
@@ -436,7 +436,7 @@ test('layoutPreview renders the resolved preset\'s default (slot 0) content', ()
 test('layoutPreviewFlick renders the first flick slot, or nothing when the cycle has none', () => {
     assert.ok(B.layoutPreviewFlick({ layoutPreset: 'compactCal', radarProvider: 'dwd', healthMode: 'off' }, {}, {}).indexOf('Radar') >= 0,
         'compactCal + radar flick 1 is radar');
-    assert.ok(B.layoutPreviewFlick({ layoutPreset: 'compactCal', radarProvider: 'dwd', healthMode: 'status' }, {}, {}).indexOf('Health status') >= 0,
+    assert.ok(B.layoutPreviewFlick({ layoutPreset: 'compactCal', radarProvider: 'dwd', healthMode: 'status' }, {}, {}).indexOf('Health Status Bar') >= 0,
         'compactCal + health status flick 1 shows health status');
     assert.strictEqual(B.layoutPreviewFlick({ layoutPreset: 'compactCal', radarProvider: 'disabled', healthMode: 'off' }, {}, {}), '',
         'a single-slot cycle (no radar, no health) has no flick');
@@ -466,8 +466,8 @@ test('layoutPreviewCombined: toggling radar/health grows or shrinks the columns 
 
     const healthOff = B.layoutPreviewCombined({ layoutPreset: 'compactCal', radarProvider: 'disabled', healthMode: 'off' }, {}, {});
     const healthOn = B.layoutPreviewCombined({ layoutPreset: 'compactCal', radarProvider: 'disabled', healthMode: 'status' }, {}, {});
-    assert.strictEqual(healthOff.indexOf('Health status'), -1, 'health column absent when health is off');
-    assert.ok(healthOn.indexOf('Health status') >= 0, 'health column present once health is on');
+    assert.strictEqual(healthOff.indexOf('Health Status Bar'), -1, 'health column absent when health is off');
+    assert.ok(healthOn.indexOf('Health Status Bar') >= 0, 'health column present once health is on');
     assert.strictEqual(healthOn.indexOf('needs health'), -1, 'no availability note anywhere');
 });
 
