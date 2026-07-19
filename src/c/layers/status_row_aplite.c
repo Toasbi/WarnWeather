@@ -26,7 +26,7 @@
 #define ARROW_HEAD_H 3
 #define ARROW_HEAD_W 2
 #define ARROW_W 6
-#define SLOT_GAP 3
+#define SLOT_GAP 2   /* px between a slot's icon and its text */
 
 struct StatusRow {
     uint8_t line_id;
@@ -259,9 +259,12 @@ static const StatusMask *status_mask_for(uint8_t icon_id) {
 }
 
 // Draw a mask with its occupied rows vertically centred on `cy`; each run of set
-// pixels becomes one horizontal fill (no per-pixel calls, no allocation).
+// pixels becomes one horizontal fill (no per-pixel calls, no allocation). The +1
+// seats the glyph 1px lower: the tallest masks (n=12-13) otherwise clip against the
+// tight top of the Gothic-14 forecast band, and even-height masks bias 1px high under
+// the truncating `n/2`.
 static void status_mask_draw(GContext *ctx, const StatusMask *m, int x0, int cy) {
-    int y0 = cy - m->n / 2;
+    int y0 = cy - m->n / 2 + 1;
     for (int y = 0; y < m->n; y++) {
         uint16_t bits = m->rows[y];
         int x = 0;
