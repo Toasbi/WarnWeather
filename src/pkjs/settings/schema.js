@@ -327,7 +327,7 @@ module.exports = {
             title: 'Status line',
             items: [
                 {
-                    type: 'select',
+                    type: 'searchSelect',
                     messageKey: 'statusForecastLeft',
                     label: 'Left slot',
                     defaultValue: 'temp',
@@ -337,7 +337,7 @@ module.exports = {
                     hint: 'Pick what shows left in this view’s status row.'
                 },
                 {
-                    type: 'select',
+                    type: 'searchSelect',
                     messageKey: 'statusForecastMid',
                     label: 'Middle slot',
                     defaultValue: 'city',
@@ -347,7 +347,7 @@ module.exports = {
                                slotKey: 'statusForecastMid', position: 'mid'}}
                 },
                 {
-                    type: 'select',
+                    type: 'searchSelect',
                     messageKey: 'statusForecastRight',
                     label: 'Right slot',
                     defaultValue: 'sun',
@@ -424,7 +424,7 @@ module.exports = {
             title: 'Status line',
             items: [
                 {
-                    type: 'select', messageKey: 'statusRadarLeft', label: 'Left slot',
+                    type: 'searchSelect', messageKey: 'statusRadarLeft', label: 'Left slot',
                     defaultValue: 'temp',
                     showWhen: {key: 'radarProvider', ne: 'disabled'},
                     optionsFrom: {resolver: 'statusSlot',
@@ -432,7 +432,7 @@ module.exports = {
                                slotKey: 'statusRadarLeft', position: 'left'}}
                 },
                 {
-                    type: 'select', messageKey: 'statusRadarMid', label: 'Middle slot',
+                    type: 'searchSelect', messageKey: 'statusRadarMid', label: 'Middle slot',
                     defaultValue: 'city', joinPrevious: true,
                     showWhen: {key: 'radarProvider', ne: 'disabled'},
                     optionsFrom: {resolver: 'statusSlot',
@@ -440,7 +440,7 @@ module.exports = {
                                slotKey: 'statusRadarMid', position: 'mid'}}
                 },
                 {
-                    type: 'select', messageKey: 'statusRadarRight', label: 'Right slot',
+                    type: 'searchSelect', messageKey: 'statusRadarRight', label: 'Right slot',
                     defaultValue: 'sun', joinPrevious: true,
                     showWhen: {key: 'radarProvider', ne: 'disabled'},
                     optionsFrom: {resolver: 'statusSlot',
@@ -471,7 +471,7 @@ module.exports = {
             title: 'Status line',
             items: [
                 {
-                    type: 'select', messageKey: 'statusHealthLeft', label: 'Left slot',
+                    type: 'searchSelect', messageKey: 'statusHealthLeft', label: 'Left slot',
                     defaultValue: 'steps',
                     showWhen: {key: 'healthMode', ne: 'off'},
                     optionsFrom: {resolver: 'statusSlot',
@@ -479,7 +479,7 @@ module.exports = {
                                slotKey: 'statusHealthLeft', position: 'left'}}
                 },
                 {
-                    type: 'select', messageKey: 'statusHealthMid', label: 'Middle slot',
+                    type: 'searchSelect', messageKey: 'statusHealthMid', label: 'Middle slot',
                     defaultValue: 'empty', joinPrevious: true,
                     showWhen: {key: 'healthMode', ne: 'off'},
                     optionsFrom: {resolver: 'statusSlot',
@@ -487,7 +487,7 @@ module.exports = {
                                slotKey: 'statusHealthMid', position: 'mid'}}
                 },
                 {
-                    type: 'select', messageKey: 'statusHealthRight', label: 'Right slot',
+                    type: 'searchSelect', messageKey: 'statusHealthRight', label: 'Right slot',
                     defaultValue: 'sleep', joinPrevious: true,
                     showWhen: {key: 'healthMode', ne: 'off'},
                     optionsFrom: {resolver: 'statusSlot',
@@ -553,21 +553,21 @@ module.exports = {
             title: 'Top status line',
             items: [
                 {
-                    type: 'select', messageKey: 'statusTopLeft', label: 'Left slot',
+                    type: 'searchSelect', messageKey: 'statusTopLeft', label: 'Left slot',
                     defaultValue: 'empty',
                     optionsFrom: {resolver: 'statusSlot',
                         args: {excludeKeys: ['statusTopMid', 'statusTopRight'],
                                slotKey: 'statusTopLeft', position: 'left'}}
                 },
                 {
-                    type: 'select', messageKey: 'statusTopMid', label: 'Middle slot',
+                    type: 'searchSelect', messageKey: 'statusTopMid', label: 'Middle slot',
                     defaultValue: 'date', joinPrevious: true,
                     optionsFrom: {resolver: 'statusSlot',
                         args: {excludeKeys: ['statusTopLeft', 'statusTopRight'],
                                slotKey: 'statusTopMid', position: 'mid'}}
                 },
                 {
-                    type: 'select', messageKey: 'statusTopRight', label: 'Right slot',
+                    type: 'searchSelect', messageKey: 'statusTopRight', label: 'Right slot',
                     defaultValue: 'battery', joinPrevious: true,
                     optionsFrom: {resolver: 'statusSlot',
                         args: {excludeKeys: ['statusTopLeft', 'statusTopMid'],

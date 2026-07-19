@@ -131,8 +131,12 @@
   .sel-wrap span { font: 600 13.5px 'Inter', sans-serif; color: var(--lbl); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sel-wrap .sel-chev { flex: none; width: 8px; height: 6px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 8 6'%3E%3Cpath d='M0 0l4 6 4-6z' fill='%23B6BAC2'/%3E%3C/svg%3E") no-repeat center; }
   .ssel-list { margin-top: 8px; max-height: 240px; overflow-y: auto; background: var(--ctl); border: 1px solid var(--ctl-line-soft); border-radius: 10px; }
+  .ssel-group { padding: 11px 13px 7px; border-top: 1px solid var(--row-line); font: 700 12px 'Inter', sans-serif; color: var(--ttl); }
   .ssel-opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; cursor: pointer; padding: 11px 13px; font: 600 13.5px 'Inter', sans-serif; border: none; border-bottom: 1px solid var(--row-line); background: transparent; color: var(--muted); }
   .ssel-opt:last-child { border-bottom: none; }
+  .ssel-opt.group-child { padding-left: 29px; border-bottom: none; }
+  .ssel-opt.group-child.group-end { border-bottom: 1px solid var(--row-line); }
+  .ssel-opt + .ssel-group { border-top: none; }
   .ssel-opt.on { background: rgba(250,74,53,0.16); color: var(--fg); }
   .ssel-chk { flex: none; color: var(--link); font-weight: 700; }
   .ssel-none { padding: 14px 13px; font: 600 13px 'Inter', sans-serif; color: var(--faint); }

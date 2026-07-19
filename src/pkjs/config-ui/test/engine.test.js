@@ -399,6 +399,22 @@ test('renderSelectOptions: empty query lists all; current value flagged on', () 
   assert.equal(/class="ssel-opt on"[^>]*data-select-pick="US"/.test(all), false, 'non-current row not .on');
 });
 
+test('renderSelectOptions renders explicit groups without heading indicators', () => {
+  const item = { messageKey: 'slot', options: [
+    ['Empty', 'empty'],
+    ['Weather', '__hdr_weather', { disabled: true, groupHeader: true }],
+    ['Temperature', 'temp', { groupChild: true, groupEnd: false }],
+    ['Wind', 'wind', { groupChild: true, groupEnd: true }],
+    ['City', 'city']
+  ] };
+  const html = E.renderSelectOptions(item, 'temp', '');
+  assert.match(html, /class="ssel-group">\s*<span>Weather<\/span>/);
+  assert.doesNotMatch(html, /data-select-pick="__hdr_weather"/);
+  assert.match(html, /class="ssel-opt group-child on"[^>]*data-select-pick="temp"/);
+  assert.match(html, /class="ssel-opt group-child group-end"[^>]*data-select-pick="wind"/);
+  assert.equal((html.match(/ssel-chk/g) || []).length, 1, 'indicator only on selected item');
+});
+
 test('renderSelectOptions: case-insensitive label match', () => {
   const item = { messageKey: 'c', options: [['United States','US'],['Germany','DE'],['Spain','ES']] };
   const r = E.renderSelectOptions(item, 'US', 'ger');

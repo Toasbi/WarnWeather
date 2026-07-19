@@ -502,7 +502,7 @@ test('status slot dropdowns: resolver, defaults, sibling exclusion + slot contex
   for (const [key, def, excludeKeys, pos] of cases) {
     const item = byKey(key);
     assert.ok(item, key);
-    assert.equal(item.type, 'select', key);
+    assert.equal(item.type, 'searchSelect', key);
     assert.equal(item.defaultValue, def, key + ' default');
     assert.equal(item.optionsFrom.resolver, 'statusSlot', key);
     assert.deepEqual(item.optionsFrom.args.excludeKeys, excludeKeys, key);
@@ -519,7 +519,7 @@ test('top-strip middle is a selectable Date slot; the fixed label is gone', () =
     'fixed-mid label removed');
   const topMid = byKey('statusTopMid');
   assert.ok(topMid, 'statusTopMid exists');
-  assert.equal(topMid.type, 'select');
+  assert.equal(topMid.type, 'searchSelect');
   assert.equal(topMid.defaultValue, 'date');
 });
 

@@ -209,13 +209,23 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @returns {string} Option rows HTML.
    */
   function renderSelectOptions(item, value, query) {
-    var q = String(query || '').toLowerCase(), h = '', i, o, lo, vo, shown = 0;
+    var q = String(query || '').toLowerCase(), h = '', i, o, lo, vo, meta, classes, shown = 0;
     for (i = 0; i < item.options.length; i++) {
       o = item.options[i];
       lo = o[0].toLowerCase(); vo = o[1].toLowerCase();
       if (q && lo.indexOf(q) === -1 && vo.indexOf(q) === -1) { continue; }
-      h += '<button class="ssel-opt' + (value === o[1] ? ' on' : '') + '" data-select-pick="' + esc(o[1]) + '" data-k="' + esc(item.messageKey) + '">'
-        + '<span>' + esc(o[0]) + '</span>' + (value === o[1] ? '<span class="ssel-chk">&#10003;</span>' : '') + '</button>';
+      meta = o[2] || {};
+      if (meta.groupHeader) {
+        if (q) { continue; }
+        h += '<div class="ssel-group"><span>' + esc(o[0]) + '</span></div>';
+        shown++;
+        continue;
+      }
+      classes = 'ssel-opt' + (!q && meta.groupChild ? ' group-child' : '')
+        + (!q && meta.groupEnd ? ' group-end' : '') + (value === o[1] ? ' on' : '');
+      h += '<button class="' + classes + '" data-select-pick="' + esc(o[1])
+        + '" data-k="' + esc(item.messageKey) + '"><span>' + esc(o[0]) + '</span>'
+        + (value === o[1] ? '<span class="ssel-chk">&#10003;</span>' : '') + '</button>';
       shown++;
     }
     return shown ? h : '<div class="ssel-none">No matches</div>';
