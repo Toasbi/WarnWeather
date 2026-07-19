@@ -55,7 +55,14 @@
           "type": "bitmap",
           "name": "IMAGE_BATTERY_CHARGING",
           "file": "img/battery-charging.png",
-          "memoryFormat": "1BitPalette"
+          "memoryFormat": "1BitPalette",
+          "targetPlatforms": [
+            "basalt",
+            "chalk",
+            "diorite",
+            "emery",
+            "flint"
+          ]
         },
         {
           "type": "raw",
