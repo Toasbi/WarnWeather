@@ -565,12 +565,16 @@ module.exports = {
             title: 'Watch Status Bar',
             items: [
                 {
+                    // aplite compiles out rain radar (WW_RAIN_RADAR), so no incoming-rain
+                    // alert can ever replace this bar there — hide the note on aplite.
                     type: 'staticText',
-                    text: 'An incoming-rain alert temporarily replaces this bar.'
+                    text: 'An incoming-rain alert temporarily replaces this bar.',
+                    showWhen: {env: 'platform', ne: 'aplite'}
                 },
                 {
                     // joinPrevious drops the divider between the incoming-rain note above and
                     // the slots, so the Watch Status Bar note flows straight into its slots.
+                    // On aplite the note is hidden, so this simply becomes the first item.
                     type: 'searchSelect', messageKey: 'statusTopLeft', label: 'Left slot',
                     defaultValue: 'empty', joinPrevious: true,
                     optionsFrom: {resolver: 'statusSlot',
