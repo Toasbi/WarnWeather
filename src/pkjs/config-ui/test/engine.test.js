@@ -537,9 +537,9 @@ test('onChange registry: register/get; unknown id -> undefined', () => {
 });
 
 // boot() requires a DOM; drive it with a minimal document shim (same technique as
-// statictext-showwhen.test.js) so wireInputs()'s real click/change listeners run.
-// scroll.addEventListener here CAPTURES the listener (instead of no-op'ing it) so the
-// test can invoke it directly, simulating a real browser event.
+// statictext-showwhen.test.js) so wireInputs()'s and wireModal()'s real click/input
+// listeners run. scroll/modal.addEventListener here CAPTURE the listener (instead of
+// no-op'ing it) so the test can invoke it directly, simulating a real browser event.
 function bootWithCapturedListeners(schema, env) {
   const LIB = path.join(__dirname, '..', 'lib');
   const BUNDLE = fs.readFileSync(path.join(LIB, 'schema-walk.js'), 'utf8')
@@ -549,15 +549,17 @@ function bootWithCapturedListeners(schema, env) {
     + '\nPConf.hooks.onLoad(function (ctx) { module.exports.loadEnv = ctx.env; });'
     + '\nPConf.engine.boot();';
   const listeners = {};
+  const modalListeners = {};
   const scroll = { innerHTML: '', addEventListener: (type, fn) => { listeners[type] = fn; } };
+  const modal = { innerHTML: '', addEventListener: (type, fn) => { modalListeners[type] = fn; } };
   const generic = () => ({ innerHTML: '', textContent: '', addEventListener: () => {} });
-  const ids = { scroll, tabs: generic(), save: generic(), appTitle: generic(), toast: generic() };
+  const ids = { scroll, modal, tabs: generic(), save: generic(), appTitle: generic(), toast: generic() };
   const document = { getElementById: (id) => ids[id] || generic() };
   const fn = new Function('document', 'INJECTED_SCHEMA', 'INJECTED_ENV', 'INJECTED_CFG',
     'INJECTED_USERDATA', 'INJECTED_RETURN', 'module', BUNDLE);
   const mod = { exports: {} };
   fn(document, schema, env, {}, {}, 'pebblejs://close#', mod);
-  return { listeners, scroll, onChange: mod.exports.onChange, loadEnv: mod.exports.loadEnv };
+  return { listeners, modalListeners, scroll, modal, onChange: mod.exports.onChange, loadEnv: mod.exports.loadEnv };
 }
 
 const THEME_SCHEMA = {
@@ -574,16 +576,16 @@ test('boot(): onLoad hook context exposes the injected platform environment', ()
   assert.strictEqual(result.loadEnv, env);
 });
 
-test('boot(): a native <select> change fires the item\'s registered onChange hook (regression: only the segmented [data-v] click path did)', () => {
-  const { listeners, onChange } = bootWithCapturedListeners(THEME_SCHEMA, { color: true, round: false, platform: 'basalt' });
+test('boot(): picking a modal option fires the item\'s registered onChange hook (replaces the native <select> change path)', () => {
+  const { modalListeners, onChange } = bootWithCapturedListeners(THEME_SCHEMA, { color: true, round: false, platform: 'basalt' });
   let captured = null;
   onChange.register('themeConvert', (S, oldV, newV) => { captured = { oldV, newV, sTheme: S.theme }; });
 
-  assert.equal(typeof listeners.change, 'function', 'a change listener was wired on #scroll');
-  const fakeSelect = { getAttribute: (a) => (a === 'data-k' ? 'theme' : null), value: 'light' };
-  listeners.change({ target: { closest: (sel) => (sel === 'select' ? fakeSelect : null) } });
+  assert.equal(typeof modalListeners.click, 'function', 'a click listener was wired on #modal');
+  const fakePick = { getAttribute: (a) => (a === 'data-k' ? 'theme' : a === 'data-select-pick' ? 'light' : null), closest: (sel) => (sel === '[data-select-pick]' ? fakePick : null) };
+  modalListeners.click({ target: { closest: (sel) => (sel === '[data-select-pick]' ? fakePick : null) } });
 
-  assert.ok(captured, 'the registered onChange hook fired for a select-driven change');
+  assert.ok(captured, 'the registered onChange hook fired for a modal pick');
   assert.equal(captured.oldV, 'dark', 'old value captured before the change');
   assert.equal(captured.newV, 'light', 'new value passed through');
   assert.equal(captured.sTheme, 'light', 'S was updated before the hook ran');

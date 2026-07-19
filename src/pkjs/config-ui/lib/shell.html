@@ -140,6 +140,15 @@
   .ssel-opt.on { background: rgba(250,74,53,0.16); color: var(--fg); }
   .ssel-chk { flex: none; color: var(--link); font-weight: 700; }
   .ssel-none { padding: 14px 13px; font: 600 13px 'Inter', sans-serif; color: var(--faint); }
+  /* select/searchSelect popup — dim overlay + centered card, matching the News popup */
+  .ssel-overlay { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .ssel-modal { display: flex; flex-direction: column; background: var(--card); color: var(--fg); border: 1px solid var(--card-line); border-radius: 14px; width: 100%; max-width: 420px; max-height: 80vh; overflow: hidden; box-shadow: 0 18px 48px rgba(0,0,0,0.55); }
+  .ssel-modal-hdr { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px; }
+  .ssel-modal-ttl { font: 800 15px 'Inter', sans-serif; color: var(--fg); }
+  .ssel-modal-close { flex: none; border: none; background: none; color: var(--muted); font-size: 22px; line-height: 1; cursor: pointer; padding: 0 2px 2px; }
+  .ssel-modal .ssel-search { flex: none; margin: 0 16px 10px; width: auto; }
+  .ssel-modal .ssel-list { flex: 1 1 auto; margin: 0; border: none; border-top: 1px solid var(--row-line); border-radius: 0; max-height: none; overflow-y: auto; }
+  .scroll.locked { overflow: hidden; }
   .sw-wrap { display: flex; align-items: center; gap: 9px; cursor: pointer; background: var(--ctl); border: 1px solid var(--ctl-line); border-radius: 9px; padding: 5px 11px 5px 6px; }
   .sw-wrap b { width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--chip-line); }
   .sw-wrap span { font: 600 12px ui-monospace, monospace; color: var(--muted); letter-spacing: .02em; }
@@ -156,6 +165,7 @@
     <div class="tabs" id="tabs"></div>
   </div>
   <div class="scroll" id="scroll"></div>
+  <div id="modal"></div>
   <div class="toast" id="toast">Settings saved ✓</div>
 <script>
 "use strict";

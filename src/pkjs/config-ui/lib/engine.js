@@ -589,6 +589,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var cx = { S: S, ENV: ENV, USERDATA: USERDATA, openColor: openColor, openSelect: openSelect, selectQuery: selectQuery, collapsed: collapsed, evalCtx: evalCtx() };
       document.getElementById('tabs').innerHTML = renderTabBar(SCHEMA, activeTab, cx);
       document.getElementById('scroll').innerHTML = renderBody(SCHEMA, activeTab, cx);
+      document.getElementById('modal').innerHTML = renderSelectModal(SCHEMA, cx);
       applyTheme();
     }
 
@@ -600,13 +601,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       });
     }
 
-    // Scroll body: click (control interactions), change (native select),
-    // and input (searchSelect filter + text fields).
+    // Scroll body: click (control interactions incl. opening a select/searchSelect,
+    // handled by #modal once open) and input (text fields).
     function wireInputs() {
       var scroll = document.getElementById('scroll');
       scroll.addEventListener('click', function (e) {
         var t;
-        if ((t = e.target.closest('[data-select-pick]'))) { S[t.getAttribute('data-k')] = t.getAttribute('data-select-pick'); openSelect = null; render(); return; }
         if ((t = e.target.closest('[data-select]'))) { var sk = t.getAttribute('data-select'); openSelect = (openSelect === sk ? null : sk); selectQuery = ''; render(); focusSearch(); return; }
         if ((t = e.target.closest('[data-toggle]'))) { S[t.getAttribute('data-k')] = !S[t.getAttribute('data-k')]; render(); return; }
         if ((t = e.target.closest('[data-color-pick]'))) { S[t.getAttribute('data-k')] = t.getAttribute('data-color-pick'); openColor = null; render(); return; }
@@ -623,28 +623,41 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if ((t = e.target.closest('[data-coll]'))) { var sid = t.getAttribute('data-coll'); collapsed[sid] = !collapsed[sid]; render(); return; }
         if ((t = e.target.closest('[data-action]'))) { var act = t.getAttribute('data-action'); if (PConf.actions[act]) { PConf.actions[act](); } return; }
       });
-      scroll.addEventListener('change', function (e) {
-        var sel = e.target.closest('select');
-        if (!sel) { return; }
-        var sk = sel.getAttribute('data-k'), oldV = S[sk], newV = sel.value;
-        S[sk] = newV;
-        var sItem = findItem(sk);
-        var onChangeFn = sItem && sItem.onChange && PConf.onChange.get(sItem.onChange);
-        if (onChangeFn) { onChangeFn(S, oldV, newV, ENV); }
-        render();
-      });
       scroll.addEventListener('input', function (e) {
-        var sb = e.target.closest('[data-select-search]');
-        if (sb) {
-          var sk = sb.getAttribute('data-select-search');
-          selectQuery = sb.value;
-          // Rebuild ONLY the list (a sibling of the search box) so the input keeps focus + cursor.
-          var list = document.querySelector('[data-ssel-list="' + sk + '"]');
-          if (list) { list.innerHTML = renderSelectOptions(findItem(sk), S[sk], selectQuery); }
-          return;
-        }
         var inp = e.target.closest('input[type=text]');
         if (inp) { S[inp.getAttribute('data-k')] = inp.value; }
+      });
+    }
+
+    // The #modal overlay lives outside #scroll, so it needs its own delegated handlers:
+    // pick an option (set value + fire onChange + close), close (backdrop / X), and the
+    // searchSelect live filter (rebuild only the list so the input keeps focus + cursor).
+    function wireModal() {
+      var modal = document.getElementById('modal');
+      modal.addEventListener('click', function (e) {
+        var t;
+        if ((t = e.target.closest('[data-select-pick]'))) {
+          var k = t.getAttribute('data-k'), oldV = S[k], newV = t.getAttribute('data-select-pick');
+          S[k] = newV;
+          var it = findItem(k);
+          var onChangeFn = it && it.onChange && PConf.onChange.get(it.onChange);
+          if (onChangeFn) { onChangeFn(S, oldV, newV, ENV); }
+          openSelect = null; render(); return;
+        }
+        if (e.target.closest('[data-select-close]') || e.target.hasAttribute('data-select-overlay')) {
+          openSelect = null; render(); return;
+        }
+      });
+      modal.addEventListener('input', function (e) {
+        var sb = e.target.closest('[data-select-search]');
+        if (!sb) { return; }
+        var sk = sb.getAttribute('data-select-search');
+        selectQuery = sb.value;
+        var list = document.querySelector('[data-ssel-list="' + sk + '"]');
+        if (list) {
+          var item = resolveRowItem(findItem(sk), { value: S[sk] }, { S: S, ENV: ENV });
+          list.innerHTML = renderSelectOptions(item, S[sk], selectQuery);
+        }
       });
     }
 
@@ -663,6 +676,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     PConf.hooks.runLoad(hookCtx);
     wireTabBar();
     wireInputs();
+    wireModal();
     wireSave();
     render();
     PConf.hooks.runReady({
