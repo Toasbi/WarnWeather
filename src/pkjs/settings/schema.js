@@ -324,7 +324,8 @@ module.exports = {
                 hint: 'Show hatch shading between sunset and sunrise to distinguish day and night on the forecast graph.'
             }]
         }, {
-            title: 'Status line',
+            title: 'Forecast Status Bar',
+            intro: 'Choose what appears in the left, middle, and right slots of the Forecast Status Bar.',
             items: [
                 {
                     type: 'searchSelect',
@@ -333,8 +334,7 @@ module.exports = {
                     defaultValue: 'temp',
                     optionsFrom: {resolver: 'statusSlot',
                         args: {excludeKeys: ['statusForecastMid', 'statusForecastRight'],
-                               slotKey: 'statusForecastLeft', position: 'left'}},
-                    hint: 'Pick what shows left in this view’s status row.'
+                               slotKey: 'statusForecastLeft', position: 'left'}}
                 },
                 {
                     type: 'searchSelect',
@@ -411,7 +411,7 @@ module.exports = {
                 messageKey: 'rainCountdownHorizon',
                 label: 'Rain Alert',
                 defaultValue: '60',
-                hint: 'Show an incoming rain alert in the status strip when there is rain at your location within the selected time frame.',
+                hint: 'Show an incoming rain alert in the Watch Status Bar when there is rain at your location within the selected time frame.',
                 options: [['Off', '0'], ['Within 30 min', '30'], ['Within 60 min', '60'], ['Within 2 hours', '120']],
                 showWhen: {all: [{key: 'radarProvider', ne: 'disabled'}, {env: 'platform', ne: 'aplite'}]}
             }, {
@@ -421,7 +421,8 @@ module.exports = {
                 showWhen: {key: 'radarProvider', ne: 'disabled'}
             }]
         }, {
-            title: 'Status line',
+            title: 'Radar Status Bar',
+            intro: 'Choose what appears in the left, middle, and right slots of the Radar Status Bar.',
             items: [
                 {
                     type: 'searchSelect', messageKey: 'statusRadarLeft', label: 'Left slot',
@@ -461,14 +462,15 @@ module.exports = {
                 defaultValue: 'all',
                 hintByValue: {
                     off: 'Health is hidden.',
-                    status: 'Adds a health status line — today\'s steps, last night\'s sleep, and current heart rate. Heart rate needs a watch with a heart-rate sensor.',
+                    status: 'Adds the Health Status Bar — today\'s steps, last night\'s sleep, and current heart rate. Heart rate needs a watch with a heart-rate sensor.',
                     all: 'Also adds a health graph (hourly step bars, a sleep band, and a heart-rate line). Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
                 },
                 options: [['Off', 'off'], ['Status bar', 'status'], ['Status + Graph (ALPHA)', 'all']],
                 onChange: 'resetStatusHealth'
             }]
         }, {
-            title: 'Status line',
+            title: 'Health Status Bar',
+            intro: 'Choose what appears in the left, middle, and right slots of the Health Status Bar.',
             items: [
                 {
                     type: 'searchSelect', messageKey: 'statusHealthLeft', label: 'Left slot',
@@ -507,7 +509,7 @@ module.exports = {
                 hintByValue: {
                     fullCal: '3-row calendar. Health and radar appear on wrist-flicks.',
                     compactCal: '2-row calendar. Flick to radar and health as you enable them.',
-                    compactDense: 'Compact calendar with health and weather status shown together.',
+                    compactDense: 'Compact calendar with the Health and Forecast Status Bars shown together.',
                     noCal: 'No calendar — a big forecast. Flick to radar and health.'
                 },
                 // Compact-dense only differs from Compact when a health status row is shown;
@@ -550,7 +552,8 @@ module.exports = {
         }]
     }, {
         id: 'watch', label: 'Watch', sections: [{
-            title: 'Top status line',
+            title: 'Watch Status Bar',
+            intro: 'Choose what appears in the left, middle, and right slots of the Watch Status Bar; an incoming-rain alert temporarily replaces this bar.',
             items: [
                 {
                     type: 'searchSelect', messageKey: 'statusTopLeft', label: 'Left slot',
@@ -572,11 +575,6 @@ module.exports = {
                     optionsFrom: {resolver: 'statusSlot',
                         args: {excludeKeys: ['statusTopLeft', 'statusTopMid'],
                                slotKey: 'statusTopRight', position: 'right'}}
-                },
-                {
-                    type: 'staticText',
-                    joinPrevious: true,
-                    text: 'These three slots sit at the very top of the watchface, above the calendar. An incoming-rain alert temporarily takes over the row.'
                 },
                 {
                     type: 'toggle', messageKey: 'batteryLowOnly', label: 'Show battery below 10%',

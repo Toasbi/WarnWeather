@@ -760,7 +760,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // dual = health before clock, weather after; full/none = clock then status row(s).
     function contentBands(spec) {
         if (!spec) { return null; }
-        var bands = [{ label: 'Top status', h: 12 }];
+        var bands = [{ label: 'Watch Status Bar', h: 12 }];
         var isNone = spec.tier === VC.TIER_NONE;
         var isFull = spec.tier === VC.TIER_FULL;
         var topBand = null;
@@ -775,8 +775,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // band or body) — mirrors main_window.c's (top == TOP_RADAR || body == BODY_RADAR)
         // ? STATUS_LINE_RADAR : STATUS_LINE_FORECAST. A forecast-body view keeps "Weather status".
         var isRadarView = spec.top === VC.TOP_RADAR || spec.body === VC.BODY_RADAR;
-        var weather = { label: isRadarView ? 'Radar status' : 'Weather status', h: STATUS_H };
-        var health = { label: 'Health status', h: STATUS_H };
+        var weather = { label: isRadarView ? 'Radar Status Bar' : 'Forecast Status Bar', h: STATUS_H };
+        var health = { label: 'Health Status Bar', h: STATUS_H };
         var clock = { label: 'Clock', h: isNone ? 30 : 22 };
         var dual = spec.status === VC.ST_D;
         var showW = spec.status === VC.ST_W || dual;
