@@ -212,6 +212,17 @@
           ]
         },
         {
+          "type": "raw",
+          "name": "STATUS_POLLEN",
+          "file": "data/STATUS_POLLEN.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
           "type": "font",
           "name": "FONT_ROBOTO_BOLD_62",
           "file": "fonts/Roboto-Bold.ttf",

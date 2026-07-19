@@ -39,9 +39,8 @@ function walkPdc(file, viewbox, checkCmd) {
 // 24x24 outline family: all converted from docs/superpowers/svg/*.svg via
 // scripts/svg2pdc.py. Stroke-only line-art — status_row_icons.c recolors the stroke to
 // theme_fg() and clears the fill, so the authored stroke *colour* is irrelevant; each
-// just needs a non-clear stroke and a clear fill. STATUS_POLLEN is an unwired asset (no
-// resource decl yet) but is validated here so a corrupt file can't linger until it is
-// hooked up.
+// just needs a non-clear stroke and a clear fill. STATUS_POLLEN is wired as a status-row
+// resource and is validated here with the rest of the outline family.
 const OUTLINE_24 = ['STATUS_TEMP.pdc', 'STATUS_UV.pdc', 'STATUS_WIND.pdc',
                     'STATUS_GUST.pdc', 'STATUS_POLLEN.pdc', 'STATUS_PRECIP.pdc',
                     'STATUS_DISTANCE.pdc', 'STATUS_AQI.pdc'];
