@@ -473,7 +473,7 @@ module.exports = {
             title: 'Forecast Status Bar',
             items: [
                 {
-                    type: 'searchSelect',
+                    type: 'select',
                     messageKey: 'statusForecastLeft',
                     label: 'Left slot',
                     defaultValue: 'temp',
@@ -482,7 +482,7 @@ module.exports = {
                         args: {slotKey: 'statusForecastLeft', position: 'left'}}
                 },
                 {
-                    type: 'searchSelect',
+                    type: 'select',
                     messageKey: 'statusForecastMid',
                     label: 'Middle slot',
                     defaultValue: 'city',
@@ -492,7 +492,7 @@ module.exports = {
                         args: {slotKey: 'statusForecastMid', position: 'mid'}}
                 },
                 {
-                    type: 'searchSelect',
+                    type: 'select',
                     messageKey: 'statusForecastRight',
                     label: 'Right slot',
                     defaultValue: 'sun',
@@ -507,7 +507,7 @@ module.exports = {
             title: 'Radar Status Bar',
             items: [
                 {
-                    type: 'searchSelect', messageKey: 'statusRadarLeft', label: 'Left slot',
+                    type: 'select', messageKey: 'statusRadarLeft', label: 'Left slot',
                     defaultValue: 'temp',
                     showWhen: {all: [{env: 'radar'}, {key: 'radarProvider', ne: 'disabled'}]},
                     onChange: 'dedupeStatusSlot',
@@ -515,7 +515,7 @@ module.exports = {
                         args: {slotKey: 'statusRadarLeft', position: 'left'}}
                 },
                 {
-                    type: 'searchSelect', messageKey: 'statusRadarMid', label: 'Middle slot',
+                    type: 'select', messageKey: 'statusRadarMid', label: 'Middle slot',
                     defaultValue: 'city', joinPrevious: true,
                     showWhen: {all: [{env: 'radar'}, {key: 'radarProvider', ne: 'disabled'}]},
                     onChange: 'dedupeStatusSlot',
@@ -523,7 +523,7 @@ module.exports = {
                         args: {slotKey: 'statusRadarMid', position: 'mid'}}
                 },
                 {
-                    type: 'searchSelect', messageKey: 'statusRadarRight', label: 'Right slot',
+                    type: 'select', messageKey: 'statusRadarRight', label: 'Right slot',
                     defaultValue: 'sun', joinPrevious: true,
                     showWhen: {all: [{env: 'radar'}, {key: 'radarProvider', ne: 'disabled'}]},
                     onChange: 'dedupeStatusSlot',
@@ -536,7 +536,7 @@ module.exports = {
             title: 'Health Status Bar',
             items: [
                 {
-                    type: 'searchSelect', messageKey: 'statusHealthLeft', label: 'Left slot',
+                    type: 'select', messageKey: 'statusHealthLeft', label: 'Left slot',
                     defaultValue: 'steps',
                     showWhen: {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}]},
                     onChange: 'dedupeStatusSlot',
@@ -544,7 +544,7 @@ module.exports = {
                         args: {slotKey: 'statusHealthLeft', position: 'left'}}
                 },
                 {
-                    type: 'searchSelect', messageKey: 'statusHealthMid', label: 'Middle slot',
+                    type: 'select', messageKey: 'statusHealthMid', label: 'Middle slot',
                     defaultValue: 'empty', joinPrevious: true,
                     showWhen: {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}]},
                     onChange: 'dedupeStatusSlot',
@@ -552,7 +552,7 @@ module.exports = {
                         args: {slotKey: 'statusHealthMid', position: 'mid'}}
                 },
                 {
-                    type: 'searchSelect', messageKey: 'statusHealthRight', label: 'Right slot',
+                    type: 'select', messageKey: 'statusHealthRight', label: 'Right slot',
                     defaultValue: 'sleep', joinPrevious: true,
                     showWhen: {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}]},
                     onChange: 'dedupeStatusSlot',
@@ -575,21 +575,21 @@ module.exports = {
                     // joinPrevious drops the divider between the incoming-rain note above and
                     // the slots, so the Watch Status Bar note flows straight into its slots.
                     // On aplite the note is hidden, so this simply becomes the first item.
-                    type: 'searchSelect', messageKey: 'statusTopLeft', label: 'Left slot',
+                    type: 'select', messageKey: 'statusTopLeft', label: 'Left slot',
                     defaultValue: 'empty', joinPrevious: true,
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusTopLeft', position: 'left'}}
                 },
                 {
-                    type: 'searchSelect', messageKey: 'statusTopMid', label: 'Middle slot',
+                    type: 'select', messageKey: 'statusTopMid', label: 'Middle slot',
                     defaultValue: 'date', joinPrevious: true,
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusTopMid', position: 'mid'}}
                 },
                 {
-                    type: 'searchSelect', messageKey: 'statusTopRight', label: 'Right slot',
+                    type: 'select', messageKey: 'statusTopRight', label: 'Right slot',
                     defaultValue: 'battery', joinPrevious: true,
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',

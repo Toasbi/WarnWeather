@@ -29,9 +29,9 @@
     { code: 'aqi', label: 'Air quality (AQI)', kind: KINDS.TEXT, icon: ICONS.AQI, category: 'weather' },
     { code: 'pollen', label: 'Pollen', kind: KINDS.TEXT, icon: ICONS.POLLEN, needsProvider: 'dwd', category: 'weather' },
     { code: 'sun', label: 'Sunrise/sunset', kind: KINDS.TEXT, icon: ICONS.DRAWN_SUN, category: 'weather' },
-    { code: 'date', label: 'Date', kind: KINDS.LIVE_DATE, icon: ICONS.NONE, middleOnly: true, category: 'datetime' },
-    { code: 'week', label: 'Calendar week', kind: KINDS.LIVE_WEEK, icon: ICONS.NONE, notAplite: true, category: 'datetime' },
-    { code: 'city', label: 'City', kind: KINDS.TEXT, icon: ICONS.NONE, category: 'location' },
+    { code: 'date', label: 'Date', kind: KINDS.LIVE_DATE, icon: ICONS.NONE, middleOnly: true, category: 'datelocation' },
+    { code: 'week', label: 'Calendar week', kind: KINDS.LIVE_WEEK, icon: ICONS.NONE, notAplite: true, category: 'datelocation' },
+    { code: 'city', label: 'City', kind: KINDS.TEXT, icon: ICONS.NONE, category: 'datelocation' },
     { code: 'steps', label: 'Steps', kind: KINDS.LIVE_STEPS, icon: ICONS.STEPS, needsHealth: true, category: 'health' },
     { code: 'distance', label: 'Walked distance', kind: KINDS.LIVE_DISTANCE, icon: ICONS.DISTANCE, needsHealth: true, category: 'health' },
     { code: 'hr', label: 'Heart rate', kind: KINDS.LIVE_HR, icon: ICONS.HR, needsHealth: true, emeryOnly: true, category: 'health' },
@@ -43,7 +43,7 @@
   // available item for a slot emits no header, so gated items never leave an
   // orphan heading. 'battery' is populated by the battery item (top-right only).
   var CATEGORIES = [
-    ['weather', 'Weather'], ['datetime', 'Date & time'], ['location', 'Location'],
+    ['weather', 'Weather'], ['datelocation', 'Date and location'],
     ['health', 'Health'], ['battery', 'Battery']
   ];
 
