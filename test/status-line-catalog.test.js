@@ -129,6 +129,31 @@ test('aqi is a TEXT item (leaf icon) available on every platform and in slot opt
   assert.ok(codes.indexOf('aqi') !== -1, 'aqi offered in slot dropdown');
 });
 
+test('pollen is a DWD-only TEXT item offered only for the DWD weather provider', () => {
+  const item = catalog.byCode('pollen');
+  assert.ok(item, 'pollen item exists');
+  assert.equal(item.kind, catalog.KINDS.TEXT);
+  assert.equal(item.icon, catalog.ICONS.POLLEN);
+  assert.equal(catalog.ICONS.POLLEN, 12);
+  assert.equal(item.needsProvider, 'dwd');
+
+  const providerCodes = ['wunderground', 'openweathermap', 'dwd', 'openmeteo', 'metno'];
+  providerCodes.forEach(provider => {
+    const settings = { provider };
+    const codes = catalog.slotOptions(settings, ENV_BASALT,
+      { slotKey: 'statusForecastLeft', position: 'left' }).map(o => o[1]);
+    assert.equal(codes.indexOf('pollen') !== -1, provider === 'dwd', provider);
+  });
+});
+
+test('pollen defensively resolves to empty unless the weather provider is DWD', () => {
+  assert.equal(catalog.resolveSelection('pollen', { provider: 'dwd' }, ENV_BASALT), 'pollen');
+  ['wunderground', 'openweathermap', 'openmeteo', 'metno'].forEach(provider => {
+    assert.equal(catalog.resolveSelection('pollen', { provider }, ENV_BASALT), 'empty', provider);
+  });
+  assert.equal(catalog.resolveSelection('pollen', {}, ENV_BASALT), 'empty', 'missing provider');
+});
+
 test('week is a LIVE_WEEK item offered on non-aplite platforms only', () => {
   const item = catalog.byCode('week');
   assert.ok(item, 'week item exists');

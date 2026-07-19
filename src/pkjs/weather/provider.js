@@ -7,6 +7,7 @@ var clampByte = wireUnits.clampByte;
 var zeroFilledArray = wireUnits.zeroFilledArray;
 var forecastSeries = require('../forecast-series');
 var airQuality = require('./air-quality.js');
+var pollen = require('./pollen.js');
 
 var XHR_TIMEOUT_MS = 5000;
 var GPS_CACHE_KEY = 'gpsCache';
@@ -193,6 +194,9 @@ var WeatherProvider = function() {
     // AQI is opt-in (status slot only); empty → the slot shows '--' unless a
     // fetch fills it. Transient: consumed by formatValue, never wired.
     this.aqiTrend = [];
+    // Pollen is opt-in and DWD-only; null renders as '--' unless the auxiliary
+    // fetch fills it. Transient: consumed by formatValue, never wired.
+    this.pollenToday = null;
 };
 
 /**
@@ -713,20 +717,23 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
                 // failed AQI call still sends the forecast.
                 var self = this;
                 airQuality.fetchAqiInto(this, lat, lon, function() {
-                    // The outbox sends only the categories that changed since
-                    // the last ACKed message — possibly nothing, which still
-                    // counts as a successful fetch.
-                    outbox.sendWeather(
-                        self.composeWeatherPayload(extraPayload, payloadTransform),
-                        function() {
-                            console.log('Weather info sent to Pebble successfully!');
-                            onSuccess();
-                        },
-                        function(e) {
-                            console.log('Error sending weather info to Pebble!');
-                            onFailure(failure('app_message', 'nack'));
-                        }
-                    );
+                    self.pollenToday = null;
+                    pollen.fetchPollenInto(self, lat, lon, function() {
+                        // The outbox sends only the categories that changed since
+                        // the last ACKed message — possibly nothing, which still
+                        // counts as a successful fetch.
+                        outbox.sendWeather(
+                            self.composeWeatherPayload(extraPayload, payloadTransform),
+                            function() {
+                                console.log('Weather info sent to Pebble successfully!');
+                                onSuccess();
+                            },
+                            function(e) {
+                                console.log('Error sending weather info to Pebble!');
+                                onFailure(failure('app_message', 'nack'));
+                            }
+                        );
+                    });
                 });
             }).bind(this), function(providerFailure) {
                 onFailure(providerFailure || failure('provider_data', 'unknown_error'));
@@ -833,6 +840,7 @@ WeatherProvider.prototype.getPayload = function() {
         GUST_TREND_UINT8: gusts, // Transient PKJS-only: km/h integers; forecast-series consumes + deletes this before send
         UV_TREND_UINT8: uvs, // Transient PKJS-only: UV tenths; forecast-series consumes + deletes before send
         AQI_TREND: (this.aqiTrend && this.aqiTrend.length) ? this.aqiTrend.slice(0, numEntries) : [], // Transient PKJS-only: current-window AQI ints; forecast-series consumes + deletes before send
+        POLLEN_TODAY: this.pollenToday, // Transient PKJS-only: native DWD severity; forecast-series consumes + deletes before send
         FORECAST_START: this.startTime,
         NUM_ENTRIES: numEntries,
         CURRENT_TEMP: Math.round(this.currentTemp),

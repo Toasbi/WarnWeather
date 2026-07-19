@@ -94,6 +94,7 @@ STATUS LINES
   - sunrise/sunset
   - UV index
   - air quality index (AQI) — from real monitoring stations (aqicn.org) or the Open-Meteo model
+  - pollen — DWD forecasts only, showing the worst of all pollen species with native DWD values 0, 0-1, 1, 1-2, 2, 2-3, or 3
   - wind speed and wind gusts
   - precipitation chance
   - steps and walked distance

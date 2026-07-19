@@ -1,6 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { applyReset } = require('../src/pkjs/settings/reset-status-defaults.js');
+const {
+  applyReset,
+  clearPollenForProvider
+} = require('../src/pkjs/settings/reset-status-defaults.js');
 
 const ENV_BASALT = { color: true, round: false, platform: 'basalt', health: true, radar: true };
 const ENV_EMERY = { color: true, round: false, platform: 'emery', health: true, radar: true };
@@ -69,4 +72,39 @@ test('status<->all is not a flip', () => {
   const S = blob({ healthMode: 'status', statusHealthLeft: 'hr' });
   applyReset(S, 'health', 'all', 'status', ENV_EMERY);
   assert.equal(S.statusHealthLeft, 'hr');
+});
+
+test('switching to any non-DWD provider clears pollen from all 12 status slots', () => {
+  const slotKeys = [
+    'statusForecastLeft', 'statusForecastMid', 'statusForecastRight',
+    'statusRadarLeft', 'statusRadarMid', 'statusRadarRight',
+    'statusTopLeft', 'statusTopMid', 'statusTopRight',
+    'statusHealthLeft', 'statusHealthMid', 'statusHealthRight'
+  ];
+  ['wunderground', 'openweathermap', 'openmeteo', 'metno'].forEach(provider => {
+    const S = { provider: provider, healthMode: 'all', radarProvider: 'disabled' };
+    slotKeys.forEach(key => { S[key] = 'pollen'; });
+
+    clearPollenForProvider(S, provider);
+
+    slotKeys.forEach(key => assert.equal(S[key], 'empty', provider + ': ' + key));
+    assert.equal(S.provider, provider, 'provider remains unchanged');
+    assert.equal(S.healthMode, 'all', 'unrelated setting remains unchanged');
+    assert.equal(S.radarProvider, 'disabled', 'unrelated setting remains unchanged');
+  });
+});
+
+test('switching to DWD leaves pollen selections and unrelated slots unchanged', () => {
+  const S = blob({
+    provider: 'dwd',
+    statusForecastLeft: 'pollen',
+    statusForecastMid: 'wind',
+    statusTopLeft: 'uv'
+  });
+
+  clearPollenForProvider(S, 'dwd');
+
+  assert.equal(S.statusForecastLeft, 'pollen');
+  assert.equal(S.statusForecastMid, 'wind');
+  assert.equal(S.statusTopLeft, 'uv');
 });

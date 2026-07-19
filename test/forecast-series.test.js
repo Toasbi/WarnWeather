@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildForecastSeries, applyForecastSeries, needsUv, needsAqi } = require('../src/pkjs/forecast-series');
+const { buildForecastSeries, applyForecastSeries, needsUv, needsAqi, needsPollen } = require('../src/pkjs/forecast-series');
 
 // precip % + rain wire tenths + winds/gusts km/h + uv tenths (UV×10)
 const RAW = { precips: [0, 50, 100], rains: [0, 5, 20], winds: [0, 25, 50], gusts: [0, 50, 100], uvs: [0, 55, 110] };
@@ -174,6 +174,15 @@ test('needsAqi is true only when a status slot selects aqi', () => {
   assert.equal(needsAqi({ statusRadarMid: 'aqi' }), true);
 });
 
+test('needsPollen is true only for DWD with an effective pollen status selection', () => {
+  assert.equal(needsPollen(null), false);
+  assert.equal(needsPollen({}), false);
+  assert.equal(needsPollen({ provider: 'openmeteo', statusForecastLeft: 'pollen' }), false);
+  assert.equal(needsPollen({ provider: 'dwd', statusForecastLeft: 'uv' }), false);
+  assert.equal(needsPollen({ provider: 'dwd', statusForecastLeft: 'pollen' }), true);
+  assert.equal(needsPollen({ provider: 'dwd', statusRadarMid: 'pollen' }), true);
+});
+
 test('applyForecastSeries deletes the transient AQI_TREND key', () => {
   const payload = {
     AQI_TREND: [42],
@@ -183,6 +192,18 @@ test('applyForecastSeries deletes the transient AQI_TREND key', () => {
   };
   applyForecastSeries(payload, {}, { platform: 'basalt' });
   assert.equal('AQI_TREND' in payload, false);
+});
+
+test('applyForecastSeries deletes POLLEN_TODAY after baking the pollen status slot', () => {
+  const payload = {
+    POLLEN_TODAY: '2-3',
+    PRECIP_TREND_UINT8: [], RAIN_TREND_UINT8: [], WIND_TREND_UINT8: [],
+    GUST_TREND_UINT8: [], UV_TREND_UINT8: [], CURRENT_TEMP: 68,
+    CITY: 'X', SUN_EVENTS: [1]
+  };
+  applyForecastSeries(payload, { provider: 'dwd', statusForecastLeft: 'pollen' }, { platform: 'basalt' });
+  assert.equal('POLLEN_TODAY' in payload, false);
+  assert.equal(Buffer.from(payload.STATUS_LINE_1_UINT8.slice(3, 6)).toString('utf8'), '2-3');
 });
 
 const { permilleToByte, tempTrendToBytes } = require('../src/pkjs/forecast-series');

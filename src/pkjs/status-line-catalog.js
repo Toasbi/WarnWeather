@@ -14,7 +14,8 @@
   };
   var ICONS = {
     NONE: 0, DRAWN_SUN: 1, TEMP: 2, UV: 3, WIND: 4, GUST: 5,
-    PRECIP: 6, STEPS: 7, SLEEP: 8, HR: 9, DISTANCE: 10, AQI: 11
+    PRECIP: 6, STEPS: 7, SLEEP: 8, HR: 9, DISTANCE: 10, AQI: 11,
+    POLLEN: 12
   };
   var CAPS = { LINE_MAX: 48, EDGE_TEXT_MAX: 8, MID_TEXT_MAX: 19 };
 
@@ -26,6 +27,7 @@
     { code: 'precip_prob', label: 'Precipitation %', kind: KINDS.TEXT, icon: ICONS.PRECIP, needsRadarOff: true, category: 'weather' },
     { code: 'uv', label: 'UV index', kind: KINDS.TEXT, icon: ICONS.UV, category: 'weather' },
     { code: 'aqi', label: 'Air quality (AQI)', kind: KINDS.TEXT, icon: ICONS.AQI, category: 'weather' },
+    { code: 'pollen', label: 'Pollen', kind: KINDS.TEXT, icon: ICONS.POLLEN, needsProvider: 'dwd', category: 'weather' },
     { code: 'sun', label: 'Sunrise/sunset', kind: KINDS.TEXT, icon: ICONS.DRAWN_SUN, category: 'weather' },
     { code: 'date', label: 'Date', kind: KINDS.LIVE_DATE, icon: ICONS.NONE, middleOnly: true, category: 'datetime' },
     { code: 'week', label: 'Calendar week', kind: KINDS.LIVE_WEEK, icon: ICONS.NONE, notAplite: true, category: 'datetime' },
@@ -94,6 +96,9 @@
     // out there (frozen image budget), so never offer it on aplite.
     if (item.notAplite && env && env.platform === 'aplite') { return false; }
     if (item.needsRadarOff && (!settings || settings.radarProvider !== 'disabled')) {
+      return false;
+    }
+    if (item.needsProvider && (!settings || settings.provider !== item.needsProvider)) {
       return false;
     }
     return true;

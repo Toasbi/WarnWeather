@@ -801,6 +801,7 @@ function fetch(provider, force) {
     // Tell providers whether to spend a request on UV (DWD/Open-Meteo fallback).
     provider.fetchUv = forecastSeries.needsUv(app.settings);
     provider.fetchAqi = forecastSeries.needsAqi(app.settings);
+    provider.fetchPollen = forecastSeries.needsPollen(app.settings);
     provider.aqiScale = (app.settings && app.settings.aqiScale) || 'european';
     provider.aqiSource = (app.settings && app.settings.aqiSource) || 'waqi';
     provider.aqicnToken = (pkg.waqi && pkg.waqi.token) || '';
