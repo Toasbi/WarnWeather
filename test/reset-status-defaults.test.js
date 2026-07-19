@@ -6,16 +6,17 @@ const {
   dedupeStatusSlot
 } = require('../src/pkjs/settings/reset-status-defaults.js');
 
-const ENV_BASALT = { color: true, round: false, platform: 'basalt', health: true, radar: true };
-const ENV_EMERY = { color: true, round: false, platform: 'emery', health: true, radar: true };
+const ENV_BASALT = { color: true, round: false, platform: 'basalt', health: true, radar: true, hr: false };
+const ENV_EMERY = { color: true, round: false, platform: 'emery', health: true, radar: true, hr: true };
+const ENV_DIORITE = { color: false, round: false, platform: 'diorite', health: true, radar: true, hr: true };
 
 function blob(extra) {
   return Object.assign({
     healthMode: 'all', radarProvider: 'disabled',
-    statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'sun',
-    statusRadarLeft: 'temp', statusRadarMid: 'city', statusRadarRight: 'sun',
-    statusTopLeft: 'empty', statusTopMid: 'date', statusTopRight: 'empty',
-    statusHealthLeft: 'steps', statusHealthMid: 'empty', statusHealthRight: 'sleep'
+    statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'aqi',
+    statusRadarLeft: 'temp', statusRadarMid: 'wind', statusRadarRight: 'gust',
+    statusTopLeft: 'week', statusTopMid: 'date', statusTopRight: 'sun',
+    statusHealthLeft: 'steps', statusHealthMid: 'sleep', statusHealthRight: 'distance'
   }, extra || {});
 }
 
@@ -42,7 +43,7 @@ test('health off flip clears displaced health items everywhere', () => {
     statusHealthLeft: 'hr'                       // customized health line
   });
   applyReset(S, 'health', 'all', 'off', ENV_BASALT);
-  assert.equal(S.statusForecastRight, 'sun', 'displaced health item -> slot default');
+  assert.equal(S.statusForecastRight, 'aqi', 'displaced health item -> slot default');
   // own-line defaults are health items, unavailable while off -> empty
   assert.equal(S.statusHealthLeft, 'empty');
   assert.equal(S.statusHealthRight, 'empty');
@@ -54,6 +55,20 @@ test('health re-enable restores the health line defaults (emery flavor on emery)
   assert.equal(S.statusHealthLeft, 'steps');
   assert.equal(S.statusHealthMid, 'sleep');
   assert.equal(S.statusHealthRight, 'hr');
+});
+
+test('health re-enable restores hr on diorite (Pebble 2 is HR-capable)', () => {
+  const S = blob({ healthMode: 'all', statusHealthLeft: 'empty', statusHealthMid: 'empty', statusHealthRight: 'empty' });
+  applyReset(S, 'health', 'off', 'all', ENV_DIORITE);
+  assert.equal(S.statusHealthRight, 'hr');
+});
+
+test('health re-enable restores distance on a non-HR platform', () => {
+  const S = blob({ healthMode: 'all', statusHealthLeft: 'empty', statusHealthMid: 'empty', statusHealthRight: 'empty' });
+  applyReset(S, 'health', 'off', 'all', ENV_BASALT);
+  assert.equal(S.statusHealthLeft, 'steps');
+  assert.equal(S.statusHealthMid, 'sleep');
+  assert.equal(S.statusHealthRight, 'distance');
 });
 
 test('status<->all is not a flip', () => {

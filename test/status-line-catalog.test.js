@@ -2,9 +2,10 @@ const test = require('node:test');
 const assert = require('node:assert');
 const catalog = require('../src/pkjs/status-line-catalog.js');
 
-const ENV_EMERY = { color: true, round: false, platform: 'emery', health: true, radar: true };
-const ENV_BASALT = { color: true, round: false, platform: 'basalt', health: true, radar: true };
-const ENV_APLITE = { color: false, round: false, platform: 'aplite', health: false, radar: false };
+const ENV_EMERY = { color: true, round: false, platform: 'emery', health: true, radar: true, hr: true };
+const ENV_DIORITE = { color: false, round: false, platform: 'diorite', health: true, radar: true, hr: true };
+const ENV_BASALT = { color: true, round: false, platform: 'basalt', health: true, radar: true, hr: false };
+const ENV_APLITE = { color: false, round: false, platform: 'aplite', health: false, radar: false, hr: false };
 
 test('LINES describes 4 lines in wire order with three real slots each', () => {
   assert.deepEqual(catalog.LINES.map(l => l.id), ['forecast', 'radar', 'top', 'health']);
@@ -18,17 +19,27 @@ test('LINES describes 4 lines in wire order with three real slots each', () => {
   assert.equal(catalog.LINES[2].slots[1], 'statusTopMid');
 });
 
-test('defaults preserve today\'s watchface', () => {
+test('defaults + hrDefaults are the shipped status-bar set', () => {
   assert.deepEqual(catalog.LINES[0].defaults,
-    { statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'sun' });
+    { statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'aqi' });
   assert.deepEqual(catalog.LINES[1].defaults,
-    { statusRadarLeft: 'temp', statusRadarMid: 'city', statusRadarRight: 'sun' });
+    { statusRadarLeft: 'temp', statusRadarMid: 'wind', statusRadarRight: 'gust' });
   assert.deepEqual(catalog.LINES[2].defaults,
-    { statusTopLeft: 'empty', statusTopMid: 'date', statusTopRight: 'battery' });
+    { statusTopLeft: 'week', statusTopMid: 'date', statusTopRight: 'sun' });
   assert.deepEqual(catalog.LINES[3].defaults,
-    { statusHealthLeft: 'steps', statusHealthMid: 'empty', statusHealthRight: 'sleep' });
-  assert.deepEqual(catalog.LINES[3].emeryDefaults,
+    { statusHealthLeft: 'steps', statusHealthMid: 'sleep', statusHealthRight: 'distance' });
+  assert.deepEqual(catalog.LINES[3].hrDefaults,
     { statusHealthLeft: 'steps', statusHealthMid: 'sleep', statusHealthRight: 'hr' });
+});
+
+test('slotDefault is HR-aware for the health-right slot, platform-independent elsewhere', () => {
+  assert.equal(catalog.slotDefault('statusHealthRight', ENV_EMERY), 'hr');
+  assert.equal(catalog.slotDefault('statusHealthRight', ENV_DIORITE), 'hr');
+  assert.equal(catalog.slotDefault('statusHealthRight', ENV_BASALT), 'distance');
+  assert.equal(catalog.slotDefault('statusHealthRight', undefined), 'distance');
+  assert.equal(catalog.slotDefault('statusForecastRight', ENV_EMERY), 'aqi');
+  assert.equal(catalog.slotDefault('statusTopLeft', ENV_BASALT), 'week');
+  assert.equal(catalog.slotDefault('nope', ENV_BASALT), undefined);
 });
 
 test('availability gating', () => {
@@ -38,6 +49,7 @@ test('availability gating', () => {
   assert.ok(!catalog.itemAvailable(catalog.byCode('steps'), s, ENV_APLITE));
   assert.ok(!catalog.itemAvailable(catalog.byCode('steps'), { healthMode: 'off' }, ENV_BASALT));
   assert.ok(catalog.itemAvailable(catalog.byCode('hr'), s, ENV_EMERY));
+  assert.ok(catalog.itemAvailable(catalog.byCode('hr'), s, ENV_DIORITE));
   assert.ok(!catalog.itemAvailable(catalog.byCode('hr'), s, ENV_BASALT));
 });
 

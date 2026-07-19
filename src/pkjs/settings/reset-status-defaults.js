@@ -6,7 +6,7 @@
 // provider; health: off <-> status/all), two live resets keep the slot
 // dropdowns coherent before the user saves:
 //   1. the toggled feature's own status line returns to its catalog defaults
-//      (emeryDefaults on emery), and
+//      (hrDefaults on a heart-rate-capable watch), and
 //   2. any slot on any line whose stored item just became unavailable (a
 //      health item after health-off, Precipitation % after radar-on) snaps
 //      back to that slot's default — or Empty when the default is already
@@ -30,11 +30,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * @param {Object} line catalog line definition
      * @param {Object} env platform env
-     * @returns {Object} the line's defaults map (emery flavor when present)
+     * @returns {Object} the line's defaults map (hrDefaults flavor when present)
      */
     function lineDefaults(line, env) {
-        return (env && env.platform === 'emery' && line.emeryDefaults)
-            ? line.emeryDefaults : line.defaults;
+        return (env && env.hr && line.hrDefaults)
+            ? line.hrDefaults : line.defaults;
     }
 
     /**
