@@ -284,7 +284,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // Live wizard state, captured from the onReady ctx when the wizard opens.
     // flickIdx = current stop of the flick demo (reset to 0 whenever stepFlick renders).
-    var W = { ctx: null, steps: [], idx: 0, overlay: null, openSelect: null, selectQuery: '', flickIdx: 0 };
+    var W = { ctx: null, steps: [], idx: 0, overlay: null, flickIdx: 0 };
 
     function esc(s) { return (PConf.engine && PConf.engine.esc) ? PConf.engine.esc(s) : String(s); }
 
@@ -329,25 +329,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var item = findItem(schema, key);
         if (!item) { return ''; }
         var withOpts = Object.assign({}, item, { options: PConf.engine.resolveOptionsFrom(item, W.ctx.S) });
-        return PConf.engine.renderRow(withOpts, { value: W.ctx.S[key], openSelect: W.openSelect, selectQuery: W.selectQuery });
+        return PConf.engine.renderRow(withOpts, { value: W.ctx.S[key] });
     }
     function regionHasOptions(schema) {
         var item = findItem(schema, 'holidayRegion');
         return Boolean(item && PConf.engine.resolveOptionsFrom(item, W.ctx.S).length);
     }
-    // Rebuild only the open list (sibling of the search box) so typing keeps input focus + cursor.
-    function refilter(key) {
-        var item = findItem(W.ctx.schema, key);
-        if (!item) { return; }
-        var withOpts = Object.assign({}, item, { options: PConf.engine.resolveOptionsFrom(item, W.ctx.S) });
-        var list = W.overlay.querySelector('[data-ssel-list="' + key + '"]');
-        if (list) { list.innerHTML = PConf.engine.renderSelectOptions(withOpts, W.ctx.S[key], W.selectQuery); }
-    }
-    function focusOverlaySearch() {
-        var el = W.overlay.querySelector('[data-select-search]');
-        if (el) { el.focus(); }
-    }
-
     // --- screens 2 & 4: carousel of real screenshots ---
     // Screenshots are keyed by platform (SHOTS[platform][group][val]) so each watch sees its own
     // rendering. diorite isn't captured separately — it's a B&W watch with health+radar, same class
@@ -591,7 +578,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         W.overlay.querySelector('[data-wiz-title]').textContent = STEP_TITLES[id] || '';
         W.overlay.querySelector('[data-wiz-body]').innerHTML = stepBody(id);
         W.overlay.querySelector('[data-wiz-foot]').innerHTML = footer(id);
-        if (W.openSelect) { focusOverlaySearch(); }
         wireCar();
         centerCar();
     }
@@ -606,8 +592,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function finishTweak() { W.ctx.set('onboardingDone', true); closeWizard(); W.ctx.render(); }
 
     function onNav(nav) {
-        if (nav === 'back') { W.idx = Math.max(0, W.idx - 1); W.openSelect = null; renderStep(); }
-        else if (nav === 'next') { W.idx = Math.min(W.steps.length - 1, W.idx + 1); W.openSelect = null; renderStep(); }
+        if (nav === 'back') { W.idx = Math.max(0, W.idx - 1); renderStep(); }
+        else if (nav === 'next') { W.idx = Math.min(W.steps.length - 1, W.idx + 1); renderStep(); }
         else if (nav === 'save') { finishSave(); }
         // Skip closes the wizard onto the live settings page (same as "Continue tweaking"),
         // rather than saving and navigating back to the watch.
@@ -618,26 +604,24 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!e.target || !e.target.closest) { return; }
         var t;
         if ((t = e.target.closest('[data-wiz-nav]'))) { onNav(t.getAttribute('data-wiz-nav')); return; }
-        if ((t = e.target.closest('[data-select-pick]'))) {
-            var pk = t.getAttribute('data-k'); W.ctx.S[pk] = t.getAttribute('data-select-pick');
-            if (pk === 'holidayCountry') { W.ctx.S.holidayRegion = 'all'; applyDerived(W.ctx.S); }
-            W.openSelect = null; renderStep(); return;
-        }
         if ((t = e.target.closest('[data-select]'))) {
-            var sk = t.getAttribute('data-select'); W.openSelect = (W.openSelect === sk ? null : sk); W.selectQuery = '';
-            renderStep(); focusOverlaySearch(); return;
+            // Open the shared bottom-sheet dialog (a showModal() top-layer dialog, so it renders
+            // above this overlay). The engine sets S[key] on pick; when a country was newly chosen,
+            // reset the region and re-derive the country defaults, then re-render the step.
+            var sk = t.getAttribute('data-select'), before = W.ctx.S[sk];
+            W.ctx.openSheet(sk, function () {
+                if (sk === 'holidayCountry' && W.ctx.S.holidayCountry !== before) {
+                    W.ctx.S.holidayRegion = 'all'; applyDerived(W.ctx.S);
+                }
+                renderStep();
+            });
+            return;
         }
         if ((t = e.target.closest('[data-wiz-idx-val]'))) {
             var group = t.parentNode.getAttribute('data-wiz-car');
             selectCar(group, indexOfCode(optsFor(group), t.getAttribute('data-wiz-idx-val')), true); return;
         }
         if ((t = e.target.closest('[data-wiz-flick]'))) { advanceFlick(); return; }
-    }
-    function onInput(e) {
-        var sb = e.target.closest ? e.target.closest('[data-select-search]') : null;
-        if (!sb) { return; }
-        W.selectQuery = sb.value;
-        refilter(sb.getAttribute('data-select-search'));
     }
 
     function ensureStyle() {
@@ -649,7 +633,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     function openWizard(ctx, fresh) {
-        W.ctx = ctx; W.steps = buildSteps(ctx.ENV); W.idx = 0; W.openSelect = null; W.selectQuery = '';
+        W.ctx = ctx; W.steps = buildSteps(ctx.ENV); W.idx = 0;
         // compactDense isn't offered in the wizard's layout carousel (LAYOUT_OPTS) — a persisted
         // compactDense (set in full Settings) can't be represented here, so fall back to compactCal
         // (the nearest, same 2-row calendar) for the carousel selection and the flick demo alike.
@@ -673,7 +657,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         document.body.appendChild(overlay);
         W.overlay = overlay;
         overlay.addEventListener('click', onClick);
-        overlay.addEventListener('input', onInput);
         renderStep();
     }
 

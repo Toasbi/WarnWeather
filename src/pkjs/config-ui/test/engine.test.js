@@ -503,13 +503,13 @@ test('renderControl searchSelect: an open trigger reports expanded but renders n
   assert.equal(html.indexOf('class="ssel-list"'), -1, 'option list is in the modal, not the control');
 });
 
-test('renderSelectModal: open searchSelect exposes dialog + search + controlled listbox with the current value on', () => {
+test('renderSelectModal: open searchSelect exposes header + search + controlled listbox, no overlay wrapper', () => {
   const item = { type: 'searchSelect', messageKey: 'c', label: 'Country', options: [['United States','US'],['Germany','DE']] };
   const schema = { appName: 'X', versionLabel: '', tabs: [{ id: 't', label: 'T', sections: [{ title: 'S', items: [item] }] }] };
   const cx = { S: { c: 'DE' }, ENV: {}, USERDATA: {}, openColor: null, openSelect: 'c', selectQuery: '', collapsed: {}, evalCtx: { c: 'DE', env: {} } };
   const html = E.renderSelectModal(schema, cx);
-  assert.match(html, /class="ssel-overlay" data-select-overlay/);
-  assert.match(html, /class="ssel-modal" role="dialog" aria-modal="true"/);
+  assert.equal(html.indexOf('ssel-overlay'), -1, 'no full-screen overlay wrapper — the host <dialog> is the sheet');
+  assert.match(html, /class="ssel-modal-hdr"><span class="ssel-modal-ttl" id="ssel-ttl-c">Country<\/span>/);
   assert.match(html, /data-select-close/);
   assert.ok(html.indexOf('data-select-search="c"') >= 0, 'searchSelect modal has a search box');
   assert.match(html, /id="ssel-list-c" class="ssel-list" role="listbox" aria-label="Country options" data-ssel-list="c"/);

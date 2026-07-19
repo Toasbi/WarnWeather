@@ -114,20 +114,7 @@ static GDrawCommandImage *icon_load(uint32_t resource_id, int target_h) {
     return image;
 }
 
-// Render height (px) at/above which an icon's DETAILED (_LG) variant is used. Below it, the
-// base master is drawn — whose fine features (cap rounding, chamfers) are shaped generously
-// enough to survive the downscale. A single uniformly-scaled master can't be both thin at the
-// large tiers and survivable-with-rounding at the small ones, so icons that need it ship two
-// variants and this threshold picks between them. Icons without a _LG variant ignore it.
-#define ICON_DETAIL_MIN_H 15
-
-static uint32_t icon_resource(uint8_t icon_id, bool detailed) {
-    if (detailed) {
-        switch (icon_id) {
-            case STATUS_ICON_TEMP: return RESOURCE_ID_STATUS_TEMP_LG;
-            default: break;   // no detailed variant → fall through to the base master
-        }
-    }
+static uint32_t icon_resource(uint8_t icon_id) {
     switch (icon_id) {
         case STATUS_ICON_TEMP: return RESOURCE_ID_STATUS_TEMP;
         case STATUS_ICON_UV: return RESOURCE_ID_STATUS_UV;
@@ -168,9 +155,7 @@ GDrawCommandImage *status_row_icons_load(uint8_t icon_id, int target_h) {
     if (target_h <= 0) { return NULL; }
     int h = (target_h * icon_scale_pct(icon_id)) / 100;
     if (h < 1) { h = 1; }
-    // Pick the variant from the FINAL render height (after the per-icon scale trim), so the
-    // detailed master is used exactly when the glyph is actually drawn large enough for it.
-    uint32_t resource = icon_resource(icon_id, h >= ICON_DETAIL_MIN_H);
+    uint32_t resource = icon_resource(icon_id);
     if (resource == 0) { return NULL; }
     return icon_load(resource, h);
 }

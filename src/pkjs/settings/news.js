@@ -252,8 +252,13 @@
      * @returns {string} Modal HTML.
      */
     function renderNewsListHtml(items, canReply) {
+        // Header and composer sit outside the scroll wrapper so they pin to the
+        // top and bottom of the flex-column modal; only the items scroll. This
+        // keeps the "Write a message" button reachable without scrolling past a
+        // long announcement.
         var html = '<div class="news-modal-hdr"><h2>News</h2>'
-            + '<button class="news-close" data-news-close="1">✕</button></div>';
+            + '<button class="news-close" data-news-close="1">✕</button></div>'
+            + '<div class="news-scroll">';
         if (!items.length) {
             html += '<div class="news-item news-empty">Nothing here yet — check back after the next update.</div>';
         }
@@ -269,10 +274,12 @@
             }
             html += '</div>';
         }
+        html += '</div>'; // .news-scroll
         // One message composer for the whole popup (general feedback), with the
         // hint sitting directly above its "Write a message" button. A reply must
         // reference a real news row (FK), so it targets the newest item and is
-        // omitted when there is nothing to attach it to.
+        // omitted when there is nothing to attach it to. Rendered after the
+        // scroll wrapper so it pins to the modal's bottom edge.
         if (canReply && items.length) {
             var replyId = maxId(items);
             html += '<div class="news-message">'
@@ -344,16 +351,17 @@
                 +   ' background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; }'
                 + '.news-modal { background: var(--card); color: var(--fg); border: 1px solid var(--card-line);'
                 +   ' border-radius: 14px; width: calc(100% - 32px); max-width: 420px; max-height: 80vh;'
-                +   ' overflow-y: auto; padding: 4px 16px 16px; }'
-                + '.news-modal-hdr { display: flex; align-items: center; justify-content: space-between; }'
+                +   ' display: flex; flex-direction: column; overflow: hidden; }'
+                + '.news-modal-hdr { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 4px 16px 0; }'
                 + '.news-modal-hdr h2 { font-size: 17px; margin: 12px 0 4px; }'
-                + '.news-message { border-top: 1px solid var(--row-line); margin-top: 4px; padding-top: 12px; }'
+                + '.news-scroll { flex: 1 1 auto; overflow-y: auto; padding: 0 16px; }'
+                + '.news-message { flex: 0 0 auto; border-top: 1px solid var(--row-line); padding: 12px 16px 16px; background: var(--card); }'
                 + '.news-message-hint { color: var(--muted); font-size: 12px; line-height: 1.4; margin: 0 0 8px; }'
                 + '.news-message-hint a { color: var(--link); }'
                 + '.news-close { border: none; background: none; color: var(--muted); font-size: 20px; cursor: pointer; padding: 8px 0 0 8px; }'
                 + '.news-item { border-top: 1px solid var(--row-line); padding: 10px 0 12px; }'
                 + '.news-empty { color: var(--muted); font-size: 13px; }'
-                + '.news-modal-hdr + .news-item { border-top: none; }'
+                + '.news-scroll > .news-item:first-child { border-top: none; }'
                 + '.news-title { font-weight: 700; }'
                 + '.news-date { color: var(--muted); font-size: 11px; margin: 2px 0 6px; }'
                 + '.news-body { font-size: 13px; line-height: 1.45; }'

@@ -196,3 +196,20 @@ test('renderNewsListHtml shows no composer when there is nothing to attach a rep
   assert.doesNotMatch(html, /data-news-reply=/);
   assert.doesNotMatch(html, /news-message-hint/);
 });
+
+test('renderNewsListHtml wraps items in a scroll container between the pinned header and composer', () => {
+  const html = news.renderNewsListHtml([
+    { id: 7, title: 'B', created_at: '2026-07-20T00:00:00Z', body_md: 'b' }
+  ], true);
+  // The header, the scroll wrapper, and the composer appear in that order so the
+  // header pins to the top and the composer pins to the bottom (flex column),
+  // leaving only the news items to scroll.
+  assert.match(html, /<div class="news-scroll">/);
+  const hdr = html.indexOf('news-modal-hdr');
+  const scroll = html.indexOf('news-scroll');
+  const item = html.indexOf('news-item');
+  const composer = html.indexOf('news-message');
+  assert.ok(hdr < scroll, 'header comes before the scroll wrapper');
+  assert.ok(scroll < item, 'the news item lives inside the scroll wrapper');
+  assert.ok(item < composer, 'the composer comes after the news items');
+});

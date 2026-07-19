@@ -771,6 +771,12 @@ module.exports = {
                 label: 'Enable connection stats',
                 defaultValue: false,
                 hint: 'Locally records connection events sent to the watch. Events older than 7 days are deleted.'
+            }, {
+                type: 'toggle',
+                messageKey: 'reset',
+                label: 'Reset watchface',
+                defaultValue: false,
+                hint: 'When you save, this erases all settings and cached data and re-runs first-time setup. This cannot be undone.'
             }]
         }, {
             title: 'Connection stats', collapsible: true, block: 'devStats', items: [{

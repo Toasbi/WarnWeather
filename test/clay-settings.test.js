@@ -273,3 +273,30 @@ test('migrateStatusTopRightBattery: no-op when already migrated', () => {
   claySettings.migrateStatusTopRightBattery(() => true, () => {});
   assert.equal(JSON.parse(localStorage.getItem('clay-settings')).statusTopRight, 'empty');
 });
+
+test('shouldReset triggers when the Reset toggle is exactly true', () => {
+  installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+
+  assert.equal(claySettings.shouldReset({ reset: true }), true);
+  assert.equal(claySettings.shouldReset({ reset: false }), false);
+  assert.equal(claySettings.shouldReset({}), false);
+  assert.equal(claySettings.shouldReset(null), false);
+});
+
+test('resetAll wipes the settings blob and every cache key for a fresh start', () => {
+  installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+
+  localStorage.setItem('clay-settings', JSON.stringify({ provider: 'dwd' }));
+  localStorage.setItem('newsCache', '{"items":[]}');
+  localStorage.setItem('lastSentForecast', '{"a":1}');
+
+  claySettings.resetAll();
+
+  assert.equal(claySettings.hasStored(), false, 'settings blob gone');
+  assert.equal(localStorage.getItem('newsCache'), null, 'news cache gone');
+  assert.equal(localStorage.getItem('lastSentForecast'), null, 'resend cache gone');
+});
