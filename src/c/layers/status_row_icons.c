@@ -154,9 +154,11 @@ static uint32_t icon_resource(uint8_t icon_id, bool detailed) {
 static int icon_scale_pct(uint8_t icon_id) {
     switch (icon_id) {
         case STATUS_ICON_DISTANCE: return 95;
-        case STATUS_ICON_HR:       return 92;
         case STATUS_ICON_WIND:     return 95;
         case STATUS_ICON_GUST:     return 95;
+        case STATUS_ICON_UV:       return 95;
+        case STATUS_ICON_AQI:      return 85;
+        case STATUS_ICON_TEMP:     return 93;
         case STATUS_ICON_STEPS:    return 80;   // the 25x25 footprint glyph is wide
         default:                   return 100;
     }
