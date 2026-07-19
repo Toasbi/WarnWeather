@@ -487,6 +487,7 @@ function bootWithCapturedListeners(schema, env) {
     + '\n' + fs.readFileSync(path.join(LIB, 'color.js'), 'utf8')
     + '\n' + fs.readFileSync(path.join(LIB, 'show-when.js'), 'utf8')
     + '\n' + fs.readFileSync(path.join(LIB, 'engine.js'), 'utf8')
+    + '\nPConf.hooks.onLoad(function (ctx) { module.exports.loadEnv = ctx.env; });'
     + '\nPConf.engine.boot();';
   const listeners = {};
   const scroll = { innerHTML: '', addEventListener: (type, fn) => { listeners[type] = fn; } };
@@ -497,7 +498,7 @@ function bootWithCapturedListeners(schema, env) {
     'INJECTED_USERDATA', 'INJECTED_RETURN', 'module', BUNDLE);
   const mod = { exports: {} };
   fn(document, schema, env, {}, {}, 'pebblejs://close#', mod);
-  return { listeners, scroll, onChange: mod.exports.onChange };
+  return { listeners, scroll, onChange: mod.exports.onChange, loadEnv: mod.exports.loadEnv };
 }
 
 const THEME_SCHEMA = {
@@ -507,6 +508,12 @@ const THEME_SCHEMA = {
       options: [['Dark', 'dark'], ['Light', 'light']] }
   ] }] }]
 };
+
+test('boot(): onLoad hook context exposes the injected platform environment', () => {
+  const env = { color: false, round: false, platform: 'aplite', health: false, radar: false, themePolarity: false };
+  const result = bootWithCapturedListeners(THEME_SCHEMA, env);
+  assert.strictEqual(result.loadEnv, env);
+});
 
 test('boot(): a native <select> change fires the item\'s registered onChange hook (regression: only the segmented [data-v] click path did)', () => {
   const { listeners, onChange } = bootWithCapturedListeners(THEME_SCHEMA, { color: true, round: false, platform: 'basalt' });

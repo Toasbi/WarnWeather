@@ -522,7 +522,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     function focusSearch() { var el = document.querySelector('[data-select-search]'); if (el) { el.focus(); } }
     // evalCtx(): the {settings..., env} object showWhen predicates evaluate against.
     function evalCtx() { var c = Object.assign({}, S); c.env = ENV; return c; }
-    var hookCtx = { get: function (k) { return S[k]; }, set: function (k, v) { S[k] = v; }, getInitial: function (k) { return INITIAL[k]; } };
+    var hookCtx = {
+      env: ENV,
+      get: function (k) { return S[k]; },
+      set: function (k, v) { S[k] = v; },
+      getInitial: function (k) { return INITIAL[k]; }
+    };
 
     // boot() requires the DOM; it is never called from Node tests (which exercise the pure
     // helpers above), so DOM access here is unguarded by design.
