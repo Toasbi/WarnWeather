@@ -303,3 +303,67 @@ test('fetchWithCoordinates completes AQI then pollen before composing the payloa
   assert.deepEqual(order, ['aqi', 'pollen', 'compose', 'send']);
   assert.equal(composedPollen, '3');
 });
+
+test('a failed second pollen refresh packs -- instead of the previous severity and still sends', () => {
+  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const airQuality = require('../src/pkjs/weather/air-quality.js');
+  const forecastSeries = require('../src/pkjs/forecast-series.js');
+  const outbox = require('../src/pkjs/outbox.js');
+  const originalAqi = airQuality.fetchAqiInto;
+  const originalPollen = pollen.fetchPollenInto;
+  const originalSend = outbox.sendWeather;
+  const provider = new WeatherProvider();
+  const packedValues = [];
+  let pollenCalls = 0;
+  let successCalls = 0;
+
+  provider.withCityName = function(lat, lon, done) { done('Berlin', 'DE'); };
+  provider.withSunEvents = function(lat, lon, done) {
+    done([{ type: 'sunrise', date: new Date(1700003600000) }]);
+  };
+  provider.withProviderData = function(lat, lon, force, done) {
+    provider.tempTrend = [68];
+    provider.precipTrend = [0];
+    provider.currentTemp = 68;
+    provider.startTime = 1700000000;
+    provider.numEntries = 1;
+    done();
+  };
+  provider.hasValidData = function() { return true; };
+  airQuality.fetchAqiInto = function(p, lat, lon, done) { done(); };
+  pollen.fetchPollenInto = function(p, lat, lon, done) {
+    pollenCalls += 1;
+    if (pollenCalls === 1) { p.pollenToday = '2-3'; }
+    // Second call simulates the Task 2 no-data/error contract: preserve state.
+    done();
+  };
+  outbox.sendWeather = function(payload, done) {
+    var length = payload.STATUS_LINE_1_UINT8[2];
+    packedValues.push(Buffer.from(payload.STATUS_LINE_1_UINT8.slice(3, 3 + length)).toString('utf8'));
+    done();
+  };
+
+  const settings = {
+    provider: 'dwd', statusForecastLeft: 'pollen', secondaryLine: 'precip_prob',
+    thirdLine: 'off', barSource: 'off', theme: 'dark'
+  };
+  function transform(payload) {
+    return forecastSeries.applyForecastSeries(payload, settings, { platform: 'basalt' });
+  }
+  function fetchOnce() {
+    provider.fetchWithCoordinates(52.52, 13.405, function() {
+      successCalls += 1;
+    }, assert.fail, false, {}, transform);
+  }
+
+  try {
+    fetchOnce();
+    fetchOnce();
+  } finally {
+    airQuality.fetchAqiInto = originalAqi;
+    pollen.fetchPollenInto = originalPollen;
+    outbox.sendWeather = originalSend;
+  }
+  assert.deepEqual(packedValues, ['2-3', '--']);
+  assert.equal(successCalls, 2);
+});

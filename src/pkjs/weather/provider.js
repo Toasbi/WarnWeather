@@ -717,6 +717,7 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
                 // failed AQI call still sends the forecast.
                 var self = this;
                 airQuality.fetchAqiInto(this, lat, lon, function() {
+                    self.pollenToday = null;
                     pollen.fetchPollenInto(self, lat, lon, function() {
                         // The outbox sends only the categories that changed since
                         // the last ACKed message — possibly nothing, which still
