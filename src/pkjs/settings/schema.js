@@ -462,9 +462,14 @@ module.exports = {
         }]
     }, {
         id: 'watch', label: 'Watch', sections: [{
+            // The intro + the four status-bar sections share one groupCard so they render as a
+            // single card (each title becomes an in-card sub-header). Time/Calendar below stay
+            // their own cards.
+            groupCard: 'watchStatus',
             intro: 'Every view has its own status bar — one row with a left, middle, and right slot you can fill with weather, time, health, and more. Choose what each view shows below.',
             items: []
         }, {
+            groupCard: 'watchStatus',
             title: 'Forecast Status Bar',
             items: [
                 {
@@ -498,6 +503,7 @@ module.exports = {
                 }
             ]
         }, {
+            groupCard: 'watchStatus',
             title: 'Radar Status Bar',
             items: [
                 {
@@ -526,6 +532,7 @@ module.exports = {
                 }
             ]
         }, {
+            groupCard: 'watchStatus',
             title: 'Health Status Bar',
             items: [
                 {
@@ -554,6 +561,7 @@ module.exports = {
                 }
             ]
         }, {
+            groupCard: 'watchStatus',
             title: 'Watch Status Bar',
             items: [
                 {
@@ -561,8 +569,10 @@ module.exports = {
                     text: 'An incoming-rain alert temporarily replaces this bar.'
                 },
                 {
+                    // joinPrevious drops the divider between the incoming-rain note above and
+                    // the slots, so the Watch Status Bar note flows straight into its slots.
                     type: 'searchSelect', messageKey: 'statusTopLeft', label: 'Left slot',
-                    defaultValue: 'empty',
+                    defaultValue: 'empty', joinPrevious: true,
                     optionsFrom: {resolver: 'statusSlot',
                         args: {excludeKeys: ['statusTopMid', 'statusTopRight'],
                                slotKey: 'statusTopLeft', position: 'left'}}
@@ -589,13 +599,17 @@ module.exports = {
                 {type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true},
                 {
                     type: 'toggle', messageKey: 'vibe', label: 'Vibrate on bluetooth disconnect',
-                    defaultValue: false, joinPrevious: true
+                    defaultValue: false
                 },
                 {
+                    // joinPrevious groups the bluetooth icon select with the vibrate-on-disconnect
+                    // toggle above it (no divider between the two bluetooth settings); the divider
+                    // stays between "Show quiet time icon" and "Vibrate on bluetooth disconnect".
                     type: 'select',
                     messageKey: 'btIcons',
                     label: 'Show icon for bluetooth',
                     defaultValue: 'both',
+                    joinPrevious: true,
                     options: [['Disconnected', 'disconnected'], ['Connected', 'connected'], ['Both', 'both'], ['None', 'none']]
                 }
             ]

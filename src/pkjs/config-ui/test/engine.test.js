@@ -224,6 +224,30 @@ test('renderBody: joinPrevious look-ahead skips hidden items (mutually-exclusive
   assert.ok(/\bnb\b/.test(modeRow), 'Mode drops its divider because the next VISIBLE item (wOpt) joins, skipping hidden pOpt');
 });
 
+test('renderBody: groupCard merges consecutive sections into one card with in-card sub-headers', () => {
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [
+    { groupCard: 'g', intro: 'Lead-in text.', items: [] },
+    { groupCard: 'g', title: 'First Bar', items: [ { type: 'toggle', messageKey: 'a', label: 'A', defaultValue: true } ] },
+    { groupCard: 'g', title: 'Gated Bar', items: [ { type: 'toggle', messageKey: 'b', label: 'B', defaultValue: true, showWhen: { key: 'never', eq: 'yes' } } ] },
+    { groupCard: 'g', title: 'Last Bar', items: [ { type: 'toggle', messageKey: 'c', label: 'C', defaultValue: true } ] },
+    { title: 'Standalone', items: [ { type: 'toggle', messageKey: 'd', label: 'D', defaultValue: true } ] }
+  ] } ] };
+  const cx = { S: E.hydrate(SCH, {}), ENV: { color: true }, USERDATA: {}, openColor: null, collapsed: {},
+    evalCtx: Object.assign({}, E.hydrate(SCH, {}), { env: { color: true } }) };
+  const html = E.renderBody(SCH, 't', cx);
+  // Two card containers: the merged group + the standalone section.
+  assert.equal((html.match(/<div class="card/g) || []).length, 2, 'the four grouped sections collapse to one card beside the standalone');
+  assert.ok(html.indexOf('Lead-in text.') >= 0, 'group intro rides the top of the merged card');
+  // Grouped titles render as in-card sub-headers, never as their own card headers.
+  assert.ok(html.indexOf('class="subhdr">First Bar</div>') >= 0, 'first bar title is a sub-header');
+  assert.ok(html.indexOf('class="subhdr">Last Bar</div>') >= 0, 'last bar title is a sub-header');
+  assert.equal(html.indexOf('class="ttl">First Bar'), -1, 'grouped title is not a card header');
+  // A fully gated-off sub-section drops out entirely — sub-header and all.
+  assert.equal(html.indexOf('Gated Bar'), -1, 'empty sub-section omitted, its sub-header included');
+  // The ungrouped section keeps its own card header.
+  assert.ok(html.indexOf('class="ttl">Standalone</span>') >= 0, 'standalone section keeps a normal card header');
+});
+
 test('initialCollapsed: collapsible sections seeded collapsed, non-collapsible absent', () => {
   const SCH = { tabs: [ { id: 't', sections: [
     { id: 'a', collapsible: true, items: [] },
@@ -493,7 +517,7 @@ test('renderRow: an open searchSelect is stacked (full-width)', () => {
   const open = E.renderRow(item, { value: 'a', openSelect: 'c', selectQuery: '' });
   assert.ok(open.indexOf('class="row stack"') >= 0, 'open searchSelect row stacks');
   const closed = E.renderRow(item, { value: 'a', openSelect: null });
-  assert.ok(closed.indexOf('class="row"') >= 0 && closed.indexOf('stack') === -1, 'closed searchSelect row is inline');
+  assert.ok(closed.indexOf('class="row slot"') >= 0 && closed.indexOf('stack') === -1, 'closed searchSelect row is inline, tightened as a status-line slot');
 });
 
 test('renderBody: searchSelect opened via cx.openSelect renders the search input', () => {

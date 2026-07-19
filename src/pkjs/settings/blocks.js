@@ -760,7 +760,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // dual = health before clock, forecast after; full/none = clock then status bar(s).
     function contentBands(spec) {
         if (!spec) { return null; }
-        var bands = [{ label: 'Watch Status Bar', h: 12 }];
+        var bands = [{ label: 'Watch Status', h: 12 }];
         var isNone = spec.tier === VC.TIER_NONE;
         var isFull = spec.tier === VC.TIER_FULL;
         var topBand = null;
@@ -771,12 +771,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // The body always takes the remaining space (flex); the fallback h only matters to a
         // consumer that doesn't resolve flex bands.
         var bodyBand = { label: bodyLabel, h: 20, flex: true };
-        // The Forecast Status Bar becomes the Radar Status Bar when the view shows radar (top
+        // The Forecast status bar becomes the Radar status bar when the view shows radar (top
         // band or body) — mirrors main_window.c's (top == TOP_RADAR || body == BODY_RADAR)
-        // ? STATUS_LINE_RADAR : STATUS_LINE_FORECAST. A forecast-body view keeps "Forecast Status Bar".
+        // ? STATUS_LINE_RADAR : STATUS_LINE_FORECAST. A forecast-body view keeps "Forecast Status".
+        // Labels drop the trailing "Bar" to stay compact in the narrow preview columns.
         var isRadarView = spec.top === VC.TOP_RADAR || spec.body === VC.BODY_RADAR;
-        var weather = { label: isRadarView ? 'Radar Status Bar' : 'Forecast Status Bar', h: STATUS_H };
-        var health = { label: 'Health Status Bar', h: STATUS_H };
+        var weather = { label: isRadarView ? 'Radar Status' : 'Forecast Status', h: STATUS_H };
+        var health = { label: 'Health Status', h: STATUS_H };
         var clock = { label: 'Clock', h: isNone ? 30 : 22 };
         var dual = spec.status === VC.ST_D;
         var showW = spec.status === VC.ST_W || dual;
