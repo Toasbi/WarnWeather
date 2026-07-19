@@ -9,7 +9,7 @@ function feature(date, pollenInt, species) {
     properties: {
       FORECAST_DATE: date,
       POLLENINT: pollenInt,
-      POLLEN: species || 'Hasel'
+      PARAMETER_NAME: species || 'Hasel'
     }
   };
 }
@@ -25,6 +25,7 @@ test('buildUrl targets the DWD pollen WFS with a latitude-first point', () => {
   assert.match(decoded, /typeNames=dwd:Pollenflug/i);
   assert.match(decoded, /outputFormat=application\/json/i);
   assert.match(decoded, /srsName=EPSG:4326/i);
+  assert.match(decoded, /propertyName=FORECAST_DATE,POLLENINT/i);
   assert.match(decoded, /CQL_FILTER=INTERSECTS\(THE_GEOM,POINT\(52\.52 13\.405\)\)/i);
 });
 
@@ -47,7 +48,7 @@ test('worstToday maps every native POLLENINT ordinal', () => {
 
 test('worstToday chooses the maximum across all eight species', () => {
   const species = ['Hasel', 'Erle', 'Esche', 'Birke', 'Graeser', 'Roggen', 'Beifuss', 'Ambrosia'];
-  const features = species.map((name, index) => feature('2026-07-19', index === 6 ? 5 : index % 5, name));
+  const features = species.map((name, index) => feature('2026-07-19T00:00:00Z', index === 6 ? 5 : index % 5, name));
 
   assert.equal(pollen.worstToday({ type: 'FeatureCollection', features }, '2026-07-19'), '2-3');
 });
@@ -72,10 +73,21 @@ test('worstToday ignores invalid values and malformed features', () => {
     { type: 'Feature' },
     { type: 'Feature', properties: { FORECAST_DATE: '2026-07-19' } },
     null,
-    feature('2026-07-19', 3)
+    feature('2026-07-19T00:00:00Z', 3)
   ];
 
   assert.equal(pollen.worstToday({ features }, '2026-07-19'), '1-2');
+});
+
+test('worstToday requires an exact date-time day boundary', () => {
+  const features = [
+    feature('2026-07-190T00:00:00Z', 6),
+    feature('2026-07-19', 6),
+    feature('2026-07-19 00:00:00Z', 6),
+    feature('2026-07-19T00:00:00Z', 2)
+  ];
+
+  assert.equal(pollen.worstToday({ features }, '2026-07-19'), '1');
 });
 
 test('worstToday returns null for malformed envelopes or no valid today data', () => {
@@ -114,7 +126,7 @@ test('fetchPollenInto writes valid today data and calls done exactly once', () =
   WeatherProvider.request = function(url, method, onSuccess) {
     requestedUrl = url;
     requestedMethod = method;
-    onSuccess(JSON.stringify({ features: [feature(today, 1), feature(today, 6)] }));
+    onSuccess(JSON.stringify({ features: [feature(today + 'T00:00:00Z', 1), feature(today + 'T00:00:00Z', 6)] }));
   };
   try {
     pollen.fetchPollenInto(provider, 52.52, 13.405, function() { doneCalls += 1; });
@@ -169,6 +181,61 @@ test('fetchPollenInto treats transport failures as non-fatal and calls done once
   };
   try {
     pollen.fetchPollenInto(provider, 52.52, 13.405, function() { doneCalls += 1; });
+  } finally {
+    WeatherProvider.request = originalRequest;
+  }
+  assert.equal(provider.pollenToday, 'existing');
+  assert.equal(doneCalls, 1);
+});
+
+test('fetchPollenInto ignores duplicate success callbacks after completing once', () => {
+  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const originalRequest = WeatherProvider.request;
+  const today = pollen.localDateKey(new Date()) + 'T00:00:00Z';
+  const provider = { fetchPollen: true, pollenToday: null };
+  let doneCalls = 0;
+  WeatherProvider.request = function(url, method, onSuccess) {
+    onSuccess(JSON.stringify({ features: [feature(today, 2)] }));
+    onSuccess(JSON.stringify({ features: [feature(today, 6)] }));
+  };
+  try {
+    pollen.fetchPollenInto(provider, 52.52, 13.405, function() { doneCalls += 1; });
+  } finally {
+    WeatherProvider.request = originalRequest;
+  }
+  assert.equal(provider.pollenToday, '1', 'late callback cannot mutate completed state');
+  assert.equal(doneCalls, 1);
+});
+
+test('fetchPollenInto ignores an error callback after success', () => {
+  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const originalRequest = WeatherProvider.request;
+  const today = pollen.localDateKey(new Date()) + 'T00:00:00Z';
+  const provider = { fetchPollen: true, pollenToday: null };
+  let doneCalls = 0;
+  WeatherProvider.request = function(url, method, onSuccess, onError) {
+    onSuccess(JSON.stringify({ features: [feature(today, 4)] }));
+    onError({ code: 500 });
+  };
+  try {
+    pollen.fetchPollenInto(provider, 52.52, 13.405, function() { doneCalls += 1; });
+  } finally {
+    WeatherProvider.request = originalRequest;
+  }
+  assert.equal(provider.pollenToday, '2');
+  assert.equal(doneCalls, 1);
+});
+
+test('fetchPollenInto treats a synchronous request throw as non-fatal', () => {
+  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const originalRequest = WeatherProvider.request;
+  const provider = { fetchPollen: true, pollenToday: 'existing' };
+  let doneCalls = 0;
+  WeatherProvider.request = function() { throw new Error('open failed'); };
+  try {
+    assert.doesNotThrow(() => {
+      pollen.fetchPollenInto(provider, 52.52, 13.405, function() { doneCalls += 1; });
+    });
   } finally {
     WeatherProvider.request = originalRequest;
   }

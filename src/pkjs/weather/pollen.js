@@ -17,6 +17,7 @@ function buildUrl(lat, lon) {
         + '&typeNames=' + encodeURIComponent('dwd:Pollenflug')
         + '&outputFormat=' + encodeURIComponent('application/json')
         + '&srsName=' + encodeURIComponent('EPSG:4326')
+        + '&propertyName=' + encodeURIComponent('FORECAST_DATE,POLLENINT')
         + '&CQL_FILTER=' + encodeURIComponent(cql);
 }
 
@@ -50,7 +51,8 @@ function worstToday(json, dateKey) {
         var forecastDate = properties && properties.FORECAST_DATE;
         var pollenInt = properties && properties.POLLENINT;
         if (typeof forecastDate !== 'string'
-                || forecastDate.indexOf(dateKey) !== 0
+                || forecastDate.slice(0, 10) !== dateKey
+                || forecastDate.charAt(10) !== 'T'
                 || typeof pollenInt !== 'number'
                 || pollenInt % 1 !== 0
                 || pollenInt < 0
@@ -75,19 +77,35 @@ function fetchPollenInto(provider, lat, lon, done) {
     if (!provider.fetchPollen) { done(); return; }
 
     var request = require('./provider.js').request;
-    request(buildUrl(lat, lon), 'GET', function(response) {
-        var severity = null;
-        try {
-            severity = worstToday(JSON.parse(response), localDateKey(new Date()));
-        } catch (ex) {
-            console.log('[!] DWD pollen response parse failed');
+    var completed = false;
+    function complete() {
+        if (completed) { return; }
+        completed = true;
+        done();
+    }
+
+    try {
+        request(buildUrl(lat, lon), 'GET', function(response) {
+            if (completed) { return; }
+            var severity = null;
+            try {
+                severity = worstToday(JSON.parse(response), localDateKey(new Date()));
+            } catch (ex) {
+                console.log('[!] DWD pollen response parse failed');
+            }
+            if (severity !== null) { provider.pollenToday = severity; }
+            complete();
+        }, function(error) {
+            if (completed) { return; }
+            console.log('[!] DWD pollen request failed: ' + JSON.stringify(error));
+            complete();
+        });
+    } catch (ex) {
+        if (!completed) {
+            console.log('[!] DWD pollen request failed before completion');
         }
-        if (severity !== null) { provider.pollenToday = severity; }
-        done();
-    }, function(error) {
-        console.log('[!] DWD pollen request failed: ' + JSON.stringify(error));
-        done();
-    });
+        complete();
+    }
 }
 
 module.exports = {
