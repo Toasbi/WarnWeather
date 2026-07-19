@@ -228,6 +228,60 @@
         return html;
     }
 
+    /**
+     * Render the accessible contents of the icon-only news button.
+     *
+     * @param {number} unread Number of unread news items.
+     * @returns {string} Bell markup, including the unread dot when needed.
+     */
+    function renderNewsBellHtml(unread) {
+        return '<span class="sr-only">News &amp; Feedback</span>'
+            + '<svg class="news-bell" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+            + '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>'
+            + '</svg>' + (unread > 0 ? '<span class="news-badge"></span>' : '');
+    }
+
+    /**
+     * Render the popup's inner HTML from cached news items. Titles are
+     * escaped; bodies go through renderMarkdown (which escapes first).
+     * Message and voting UI are omitted when no account token is available.
+     *
+     * @param {Array<Object>} items News items.
+     * @param {boolean} canReply Whether account-backed message UI is available.
+     * @returns {string} Modal HTML.
+     */
+    function renderNewsListHtml(items, canReply) {
+        var html = '<div class="news-modal-hdr"><h2>News &amp; Feedback</h2>'
+            + '<button class="news-close" data-news-close="1">✕</button></div>';
+        if (canReply) {
+            html += '<div class="news-message-hint">I’m happy to hear from you. Messages sent here are one-way, so I can’t reply. If you’d like a response, use '
+                + '<a href="https://apps.repebble.com/67d6f1fcdb264341b850f79a" target="_blank" rel="noopener">Pebble Store messaging</a> or open a '
+                + '<a href="https://github.com/Toasbi/WarnWeather/issues" target="_blank" rel="noopener">GitHub issue</a>.</div>';
+        }
+        if (!items.length) {
+            html += '<div class="news-item news-empty">Nothing here yet — check back after the next update.</div>';
+        }
+        var i, it;
+        for (i = 0; i < items.length; i += 1) {
+            it = items[i];
+            html += '<div class="news-item">'
+                + '<div class="news-title">' + escapeHtml(it.title) + '</div>'
+                + '<div class="news-date">' + escapeHtml(String(it.created_at).slice(0, 10)) + '</div>'
+                + '<div class="news-body">' + renderMarkdown(it.body_md) + '</div>';
+            if (canReply) {
+                html += renderChoicesHtml(it);
+                html += '<button class="news-reply-toggle" data-news-reply="' + it.id + '">Write a message</button>'
+                    + '<div class="news-reply-box" data-news-reply-box="' + it.id + '" style="display:none">'
+                    + '<textarea maxlength="1000" rows="3" data-news-reply-text="' + it.id + '"></textarea>'
+                    + '<button class="news-reply-toggle" data-news-send="' + it.id + '">Send</button>'
+                    + '<div class="news-reply-status" data-news-reply-status="' + it.id + '"></div>'
+                    + '</div>';
+            }
+            html += '</div>';
+        }
+        return html;
+    }
+
     var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         : (typeof window !== 'undefined' && window.PConf) ? window.PConf
         : null;
@@ -268,13 +322,16 @@
 
         var injectNewsStyles = function () {
             var css = ''
-                + '#newsHint { position: relative; margin: 0 8px; padding: 6px 2px;'
+                + '#newsHint { position: relative; box-sizing: border-box; width: 24px; height: 24px; margin: 0 8px; padding: 2px;'
                 +   ' border: none; background: none; color: var(--fg);'
-                +   ' font: 600 13px \'Inter\', sans-serif; letter-spacing: .02em; line-height: 1;'
-                +   ' text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }'
+                +   ' line-height: 1; cursor: pointer; }'
                 + '#newsHint.muted { opacity: 0.65; }'
+                + '#newsHint .news-bell { display: block; width: 20px; height: 20px; fill: none;'
+                +   ' stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }'
                 + '#newsHint .news-badge { position: absolute; top: -2px; right: -9px; width: 7px; height: 7px;'
                 +   ' border-radius: 50%; background: #FA4A35; }'
+                + '.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;'
+                +   ' overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }'
                 + '.news-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 60;'
                 +   ' background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; }'
                 + '.news-modal { background: var(--card); color: var(--fg); border: 1px solid var(--card-line);'
@@ -282,10 +339,12 @@
                 +   ' overflow-y: auto; padding: 4px 16px 16px; }'
                 + '.news-modal-hdr { display: flex; align-items: center; justify-content: space-between; }'
                 + '.news-modal-hdr h2 { font-size: 17px; margin: 12px 0 4px; }'
+                + '.news-message-hint { color: var(--muted); font-size: 12px; line-height: 1.4; margin: 4px 0 10px; }'
+                + '.news-message-hint a { color: var(--link); }'
                 + '.news-close { border: none; background: none; color: var(--muted); font-size: 20px; cursor: pointer; padding: 8px 0 0 8px; }'
                 + '.news-item { border-top: 1px solid var(--row-line); padding: 10px 0 12px; }'
                 + '.news-empty { color: var(--muted); font-size: 13px; }'
-                + '.news-modal-hdr + .news-item { border-top: none; }'
+                + '.news-modal-hdr + .news-item, .news-message-hint + .news-item { border-top: none; }'
                 + '.news-title { font-weight: 700; }'
                 + '.news-date { color: var(--muted); font-size: 11px; margin: 2px 0 6px; }'
                 + '.news-body { font-size: 13px; line-height: 1.45; }'
@@ -307,42 +366,6 @@
             style.appendChild(document.createTextNode(css));
             document.head.appendChild(style);
         };
-        /**
-         * Render the popup's inner HTML from the fetched items. Titles are
-         * escaped; bodies go through renderMarkdown (which escapes first).
-         * Reply UI is omitted entirely when no account token is available.
-         *
-         * @param {Array<Object>} items News items.
-         * @returns {string} Modal HTML.
-         */
-        var renderNewsListHtml = function (items) {
-            var canReply = Boolean(USERDATA.accountToken);
-            var html = '<div class="news-modal-hdr"><h2>News &amp; Feedback</h2>'
-                + '<button class="news-close" data-news-close="1">✕</button></div>';
-            if (!items.length) {
-                html += '<div class="news-item news-empty">Nothing here yet — check back after the next update.</div>';
-            }
-            var i, it;
-            for (i = 0; i < items.length; i += 1) {
-                it = items[i];
-                html += '<div class="news-item">'
-                    + '<div class="news-title">' + escapeHtml(it.title) + '</div>'
-                    + '<div class="news-date">' + escapeHtml(String(it.created_at).slice(0, 10)) + '</div>'
-                    + '<div class="news-body">' + renderMarkdown(it.body_md) + '</div>';
-                if (canReply) {
-                    html += renderChoicesHtml(it);
-                    html += '<button class="news-reply-toggle" data-news-reply="' + it.id + '">Reply</button>'
-                        + '<div class="news-reply-box" data-news-reply-box="' + it.id + '" style="display:none">'
-                        + '<textarea maxlength="1000" rows="3" data-news-reply-text="' + it.id + '"></textarea>'
-                        + '<button class="news-reply-toggle" data-news-send="' + it.id + '">Send</button>'
-                        + '<div class="news-reply-status" data-news-reply-status="' + it.id + '"></div>'
-                        + '</div>';
-                }
-                html += '</div>';
-            }
-            return html;
-        };
-
         var sendNewsReply = function (id) {
             var ta = newsOverlay.querySelector('[data-news-reply-text="' + id + '"]');
             var statusEl = newsOverlay.querySelector('[data-news-reply-status="' + id + '"]');
@@ -403,7 +426,8 @@
         var injectOverlay = function () {
             newsOverlay = document.createElement('div');
             newsOverlay.className = 'news-overlay';
-            newsOverlay.innerHTML = '<div class="news-modal">' + renderNewsListHtml(newsItems) + '</div>';
+            newsOverlay.innerHTML = '<div class="news-modal">'
+                + renderNewsListHtml(newsItems, Boolean(USERDATA.accountToken)) + '</div>';
             newsOverlay.addEventListener('click', function (e) {
                 var t;
                 if (e.target === newsOverlay || e.target.closest('[data-news-close]')) {
@@ -434,8 +458,10 @@
             newsPill = document.createElement('button');
             newsPill.id = 'newsHint';
             newsPill.type = 'button';
+            newsPill.setAttribute('aria-label', 'News & Feedback');
+            newsPill.title = 'News & Feedback';
             var unread = countUnread(newsItems, newsLastSeenId);
-            newsPill.innerHTML = 'News &amp; Feedback' + (unread > 0 ? '<span class="news-badge"></span>' : '');
+            newsPill.innerHTML = renderNewsBellHtml(unread);
             if (unread === 0) { newsPill.className = 'muted'; }
             newsPill.onclick = openNewsPopup;
             hdr.insertBefore(newsPill, saveBtn);
@@ -467,7 +493,9 @@
             buildSeenPayload: buildSeenPayload,
             buildReplyPayload: buildReplyPayload,
             buildVotePayload: buildVotePayload,
-            renderChoicesHtml: renderChoicesHtml
+            renderChoicesHtml: renderChoicesHtml,
+            renderNewsBellHtml: renderNewsBellHtml,
+            renderNewsListHtml: renderNewsListHtml
         };
     }
 }());
