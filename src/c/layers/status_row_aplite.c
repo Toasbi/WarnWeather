@@ -13,6 +13,7 @@
 #include "../appendix/theme.h"
 #include "../services/watch_services.h"
 #include "../windows/layout.h"
+#include "../appendix/status_row_alloc.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -262,49 +263,64 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     int16_t x0 = (int16_t)(row->bounds.origin.x + STATUS_ROW_MARGIN);
 
     graphics_context_set_text_color(ctx, theme_fg());
+
+    // Measure each slot as one contiguous group (icon + optional gap + text), then
+    // allocate the three slot boxes with the lean allocator so an empty or short edge
+    // yields its width to the middle instead of truncating it. Priority is right slot,
+    // then left, then middle; a slot that cannot fit even an ellipsis is dropped rather
+    // than drawn as an unreadable sliver.
+    int ellipsis_w = graphics_text_layout_get_content_size(
+        "\xE2\x80\xA6", font, GRect(0, 0, content_w, 100),
+        GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).w;
+
+    int16_t icon_w[STATUS_SLOT_COUNT];
+    bool has_text[STATUS_SLOT_COUNT];
+    bool snoozing[STATUS_SLOT_COUNT];
+    int group_w[STATUS_SLOT_COUNT];
+    int min_w[STATUS_SLOT_COUNT];
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        // Aplite keeps the pre-configurable-row layout style: three dynamic
-        // bands, with Pebble's text renderer handling ellipsis inside each band.
-        int16_t cell_x = (int16_t)((content_w * i) / STATUS_SLOT_COUNT);
-        int16_t cell_right = (int16_t)((content_w * (i + 1)) / STATUS_SLOT_COUNT);
-        bool snoozing = row->sleeping && weather_line && i == 0;
-        bool has_text = texts[i][0] != '\0' && !snoozing;
-        int16_t icon_w = snoozing ? SNOOZE_BOX_W
+        snoozing[i] = row->sleeping && weather_line && i == 0;
+        has_text[i] = texts[i][0] != '\0' && !snoozing[i];
+        icon_w[i] = snoozing[i] ? SNOOZE_BOX_W
             : slots[i].kind == SLOT_LIVE_BATTERY ? BATTERY_GLYPH_W
             : (slots[i].icon == STATUS_ICON_DRAWN_SUN
                && slots[i].kind != SLOT_EMPTY) ? ARROW_W : 0;
-        if (!has_text && icon_w == 0) { continue; }
+        int tw = 0;
+        if (has_text[i]) {
+            tw = graphics_text_layout_get_content_size(
+                texts[i], font, GRect(0, 0, content_w, 100),
+                GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).w;
+        }
+        int gap = (icon_w[i] && has_text[i]) ? SLOT_GAP : 0;
+        group_w[i] = icon_w[i] + gap + tw;
+        // Minimum renderable width: an icon-only slot needs its whole icon; a text slot
+        // needs its icon + gap + at least an ellipsis; an empty slot needs nothing.
+        min_w[i] = has_text[i] ? icon_w[i] + gap + ellipsis_w : icon_w[i];
+    }
 
-        int16_t icon_x = cell_x;
-        if (!has_text && i == 1) {
-            icon_x = (int16_t)((cell_x + cell_right - icon_w) / 2);
-        } else if (!has_text && i == 2) {
-            icon_x = (int16_t)(cell_right - icon_w);
-        }
-        icon_x = (int16_t)(x0 + icon_x);
+    int gx[STATUS_SLOT_COUNT], draw_w[STATUS_SLOT_COUNT];
+    status_row_alloc(content_w, group_w, min_w, gx, draw_w);
+
+    for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
+        if (draw_w[i] == 0) { continue; }   // empty, or dropped for lack of space
+        int16_t gxs = (int16_t)(x0 + gx[i]);
         if (slots[i].kind == SLOT_LIVE_BATTERY) {
-            battery_draw(ctx, GRect(icon_x, glyph_cy - BATTERY_GLYPH_H / 2,
-                                    BATTERY_GLYPH_W, BATTERY_GLYPH_H),
-                         theme_fg());
-        } else if (row->sleeping && weather_line && i == 0) {
-            snooze_draw(ctx,
-                        GRect(icon_x, row->bounds.origin.y + 2,
-                              SNOOZE_BOX_W, row->bounds.size.h - 4),
-                        theme_fg());
-        } else if (slots[i].icon == STATUS_ICON_DRAWN_SUN
-                   && icon_w > 0) {
-            bool arrow_up = persist_get_sun_event_start_type() == 0;
-            draw_sun_arrow(ctx, icon_x + ARROW_W / 2, glyph_cy, arrow_up);
+            battery_draw(ctx, GRect(gxs, glyph_cy - BATTERY_GLYPH_H / 2,
+                                    BATTERY_GLYPH_W, BATTERY_GLYPH_H), theme_fg());
+        } else if (snoozing[i]) {
+            snooze_draw(ctx, GRect(gxs, row->bounds.origin.y + 2,
+                                   SNOOZE_BOX_W, row->bounds.size.h - 4), theme_fg());
+        } else if (slots[i].icon == STATUS_ICON_DRAWN_SUN && icon_w[i] > 0) {
+            draw_sun_arrow(ctx, gxs + ARROW_W / 2, glyph_cy,
+                           persist_get_sun_event_start_type() == 0);
         }
-        if (has_text) {
-            int16_t text_x = (int16_t)(cell_x + (icon_w ? icon_w + SLOT_GAP : 0));
-            int16_t text_w = (int16_t)(cell_right - text_x);
-            GTextAlignment align = i == 0 ? GTextAlignmentLeft
-                : i == 1 ? GTextAlignmentCenter : GTextAlignmentRight;
+        if (has_text[i]) {
+            int16_t off = (int16_t)(icon_w[i] ? icon_w[i] + SLOT_GAP : 0);
+            int16_t tw = (int16_t)(draw_w[i] - off);
+            if (tw < 0) { tw = 0; }
             graphics_draw_text(ctx, texts[i], font,
-                GRect(x0 + text_x, text_y, text_w,
-                      row->bounds.size.h - text_y_rel),
-                GTextOverflowModeTrailingEllipsis, align, NULL);
+                GRect(gxs + off, text_y, tw, row->bounds.size.h - text_y_rel),
+                GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
         }
     }
 }
