@@ -563,7 +563,10 @@ test('watch status-bar icon controls live in the Watch Status Bar section, not M
     'vibe sits directly below showQt');
   assert.ok(stripKeys.indexOf('vibe') < stripKeys.indexOf('btIcons'),
     'btIcons comes last');
-  assert.equal(byKey('vibe').joinPrevious, true, 'vibe joins showQt as one visual group');
+  // The two bluetooth settings group together: btIcons joins vibe (no divider between them),
+  // while a divider stays between showQt and vibe.
+  assert.ok(!byKey('vibe').joinPrevious, 'vibe keeps its divider under showQt');
+  assert.equal(byKey('btIcons').joinPrevious, true, 'btIcons joins vibe as one visual group');
 });
 
 test('batteryLowOnly toggle lives in Watch Status Bar, off by default', () => {
@@ -595,37 +598,49 @@ test('AQI source is a dropdown with its explanation joined below the control', (
   assert.ok(note.text.indexOf('WAQI (aqicn.org)') !== -1, 'note carries the AQI explanation');
 });
 
-test('Watch Status Bar is first on the Watch tab and has no redundant slot hint or note', () => {
+test('Watch tab opens with a general status-bar intro, then the four bars in forecast/radar/health/top order', () => {
   const watch = schema.tabs.find((t) => t.id === 'watch');
-  assert.equal(watch.sections[0].title, 'Watch Status Bar', 'Watch Status Bar sits above Time');
+  const intro = watch.sections[0];
+  assert.equal(intro.title, undefined, 'first Watch section is a titleless intro');
+  assert.ok(/status bar/i.test(intro.intro), 'general intro describes status bars once');
+  const titles = watch.sections.map((s) => s.title).filter(Boolean);
+  assert.deepEqual(titles.slice(0, 4),
+    ['Forecast Status Bar', 'Radar Status Bar', 'Health Status Bar', 'Watch Status Bar'],
+    'four status bars grouped at the top of the Watch tab in order');
+  // Time and Calendar keep their spots below the bars.
+  assert.deepEqual(titles.slice(4), ['Time', 'Calendar'], 'Time then Calendar follow the bars');
   assert.equal(byKey('statusTopLeft').hint, undefined, 'left-slot hint removed');
-  const items = watch.sections[0].items;
-  const rightIdx = items.findIndex((i) => i.messageKey === 'statusTopRight');
-  const battIdx = items.findIndex((i) => i.messageKey === 'batteryLowOnly');
+  const wsb = watch.sections.find((s) => s.title === 'Watch Status Bar').items;
+  const note = wsb.find((i) => i.type === 'staticText' && /incoming-rain alert/.test(i.text || ''));
+  assert.ok(note, 'Watch bar keeps the incoming-rain alert note as a staticText');
+  const rightIdx = wsb.findIndex((i) => i.messageKey === 'statusTopRight');
+  const battIdx = wsb.findIndex((i) => i.messageKey === 'batteryLowOnly');
   assert.equal(battIdx, rightIdx + 1, 'battery toggle follows the slots directly');
 });
 
-test('the four status sections have named headers and one-sentence intros', () => {
-  const expected = {
-    forecast: ['Forecast Status Bar', 'Choose what appears in the left, middle, and right slots of the Forecast Status Bar.'],
-    radar: ['Radar Status Bar', 'Choose what appears in the left, middle, and right slots of the Radar Status Bar.'],
-    health: ['Health Status Bar', 'Choose what appears in the left, middle, and right slots of the Health Status Bar.'],
-    watch: ['Watch Status Bar', 'Choose what appears in the left, middle, and right slots of the Watch Status Bar; an incoming-rain alert temporarily replaces this bar.']
-  };
-  Object.keys(expected).forEach((tabId) => {
+test('the four status sections live in the Watch tab with named headers and no per-bar intros', () => {
+  const watch = schema.tabs.find((t) => t.id === 'watch');
+  ['Forecast Status Bar', 'Radar Status Bar', 'Health Status Bar', 'Watch Status Bar'].forEach((title) => {
+    const section = watch.sections.find((s) => s.title === title);
+    assert.ok(section, title + ' lives in the Watch tab');
+    assert.equal(section.intro, undefined, title + ' has no per-bar intro (the general intro says it once)');
+  });
+  // The feature tabs keep their config but no longer carry a status-bar section.
+  ['forecast', 'radar', 'health'].forEach((tabId) => {
     const tab = schema.tabs.find((t) => t.id === tabId);
-    const section = tab.sections.find((s) => s.title === expected[tabId][0]);
-    assert.ok(section, expected[tabId][0] + ' section exists');
-    assert.equal(section.intro, expected[tabId][1]);
+    assert.ok(!tab.sections.some((s) => /Status Bar$/.test(s.title || '')),
+      tabId + ' tab no longer has its own status-bar section');
   });
   assert.equal(byKey('statusForecastLeft').hint, undefined, 'forecast left-slot hint removed');
 });
 
-test('radar and health status-line slots hide when the feature is off', () => {
+test('radar and health status-line slots hide when the feature is off or the platform lacks it', () => {
+  // Moved to the always-shown Watch tab, so each slot carries the env guard the
+  // Radar/Health tab used to provide, AND-ed with its feature-toggle check.
   ['statusRadarLeft', 'statusRadarMid', 'statusRadarRight'].forEach((k) =>
-    assert.deepEqual(byKey(k).showWhen, {key: 'radarProvider', ne: 'disabled'}, k));
+    assert.deepEqual(byKey(k).showWhen, {all: [{env: 'radar'}, {key: 'radarProvider', ne: 'disabled'}]}, k));
   ['statusHealthLeft', 'statusHealthMid', 'statusHealthRight'].forEach((k) =>
-    assert.deepEqual(byKey(k).showWhen, {key: 'healthMode', ne: 'off'}, k));
+    assert.deepEqual(byKey(k).showWhen, {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}]}, k));
 });
 
 test('the radar rain-horizon control is labelled "Rain Alert"', () => {

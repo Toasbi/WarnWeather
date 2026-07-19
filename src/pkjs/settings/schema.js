@@ -323,40 +323,6 @@ module.exports = {
                 defaultValue: true,
                 hint: 'Show hatch shading between sunset and sunrise to distinguish day and night on the forecast graph.'
             }]
-        }, {
-            title: 'Forecast Status Bar',
-            intro: 'Choose what appears in the left, middle, and right slots of the Forecast Status Bar.',
-            items: [
-                {
-                    type: 'searchSelect',
-                    messageKey: 'statusForecastLeft',
-                    label: 'Left slot',
-                    defaultValue: 'temp',
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusForecastMid', 'statusForecastRight'],
-                               slotKey: 'statusForecastLeft', position: 'left'}}
-                },
-                {
-                    type: 'searchSelect',
-                    messageKey: 'statusForecastMid',
-                    label: 'Middle slot',
-                    defaultValue: 'city',
-                    joinPrevious: true,
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusForecastLeft', 'statusForecastRight'],
-                               slotKey: 'statusForecastMid', position: 'mid'}}
-                },
-                {
-                    type: 'searchSelect',
-                    messageKey: 'statusForecastRight',
-                    label: 'Right slot',
-                    defaultValue: 'sun',
-                    joinPrevious: true,
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusForecastLeft', 'statusForecastMid'],
-                               slotKey: 'statusForecastRight', position: 'right'}}
-                }
-            ]
         }]
     }, {
         // aplite compiles the rain-radar view out (WW_RAIN_RADAR undefined — the 24 KB
@@ -420,35 +386,6 @@ module.exports = {
                 text: 'Because rain radar data is changing frequently, using a lower time window shows fewer false positives.',
                 showWhen: {key: 'radarProvider', ne: 'disabled'}
             }]
-        }, {
-            title: 'Radar Status Bar',
-            intro: 'Choose what appears in the left, middle, and right slots of the Radar Status Bar.',
-            items: [
-                {
-                    type: 'searchSelect', messageKey: 'statusRadarLeft', label: 'Left slot',
-                    defaultValue: 'temp',
-                    showWhen: {key: 'radarProvider', ne: 'disabled'},
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusRadarMid', 'statusRadarRight'],
-                               slotKey: 'statusRadarLeft', position: 'left'}}
-                },
-                {
-                    type: 'searchSelect', messageKey: 'statusRadarMid', label: 'Middle slot',
-                    defaultValue: 'city', joinPrevious: true,
-                    showWhen: {key: 'radarProvider', ne: 'disabled'},
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusRadarLeft', 'statusRadarRight'],
-                               slotKey: 'statusRadarMid', position: 'mid'}}
-                },
-                {
-                    type: 'searchSelect', messageKey: 'statusRadarRight', label: 'Right slot',
-                    defaultValue: 'sun', joinPrevious: true,
-                    showWhen: {key: 'radarProvider', ne: 'disabled'},
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusRadarLeft', 'statusRadarMid'],
-                               slotKey: 'statusRadarRight', position: 'right'}}
-                }
-            ]
         }]
     }, {
         // aplite has no health sensors — the watch compiles the view out, so the whole
@@ -468,35 +405,6 @@ module.exports = {
                 options: [['Off', 'off'], ['Status bar', 'status'], ['Status + Graph (ALPHA)', 'all']],
                 onChange: 'resetStatusHealth'
             }]
-        }, {
-            title: 'Health Status Bar',
-            intro: 'Choose what appears in the left, middle, and right slots of the Health Status Bar.',
-            items: [
-                {
-                    type: 'searchSelect', messageKey: 'statusHealthLeft', label: 'Left slot',
-                    defaultValue: 'steps',
-                    showWhen: {key: 'healthMode', ne: 'off'},
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusHealthMid', 'statusHealthRight'],
-                               slotKey: 'statusHealthLeft', position: 'left'}}
-                },
-                {
-                    type: 'searchSelect', messageKey: 'statusHealthMid', label: 'Middle slot',
-                    defaultValue: 'empty', joinPrevious: true,
-                    showWhen: {key: 'healthMode', ne: 'off'},
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusHealthLeft', 'statusHealthRight'],
-                               slotKey: 'statusHealthMid', position: 'mid'}}
-                },
-                {
-                    type: 'searchSelect', messageKey: 'statusHealthRight', label: 'Right slot',
-                    defaultValue: 'sleep', joinPrevious: true,
-                    showWhen: {key: 'healthMode', ne: 'off'},
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {excludeKeys: ['statusHealthLeft', 'statusHealthMid'],
-                               slotKey: 'statusHealthRight', position: 'right'}}
-                }
-            ]
         }]
     }, {
         id: 'layout', label: 'Layout', sections: [{
@@ -554,12 +462,121 @@ module.exports = {
         }]
     }, {
         id: 'watch', label: 'Watch', sections: [{
-            title: 'Watch Status Bar',
-            intro: 'Choose what appears in the left, middle, and right slots of the Watch Status Bar; an incoming-rain alert temporarily replaces this bar.',
+            // The intro + the four status-bar sections share one groupCard so they render as a
+            // single card (each title becomes an in-card sub-header). Time/Calendar below stay
+            // their own cards.
+            groupCard: 'watchStatus',
+            intro: 'Every view has its own status bar — one row with a left, middle, and right slot you can fill with weather, time, health, and more. Choose what each view shows below.',
+            items: []
+        }, {
+            groupCard: 'watchStatus',
+            title: 'Forecast Status Bar',
             items: [
                 {
+                    type: 'searchSelect',
+                    messageKey: 'statusForecastLeft',
+                    label: 'Left slot',
+                    defaultValue: 'temp',
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {excludeKeys: ['statusForecastMid', 'statusForecastRight'],
+                               slotKey: 'statusForecastLeft', position: 'left'}}
+                },
+                {
+                    type: 'searchSelect',
+                    messageKey: 'statusForecastMid',
+                    label: 'Middle slot',
+                    defaultValue: 'city',
+                    joinPrevious: true,
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {excludeKeys: ['statusForecastLeft', 'statusForecastRight'],
+                               slotKey: 'statusForecastMid', position: 'mid'}}
+                },
+                {
+                    type: 'searchSelect',
+                    messageKey: 'statusForecastRight',
+                    label: 'Right slot',
+                    defaultValue: 'sun',
+                    joinPrevious: true,
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {excludeKeys: ['statusForecastLeft', 'statusForecastMid'],
+                               slotKey: 'statusForecastRight', position: 'right'}}
+                }
+            ]
+        }, {
+            groupCard: 'watchStatus',
+            title: 'Radar Status Bar',
+            items: [
+                {
+                    type: 'searchSelect', messageKey: 'statusRadarLeft', label: 'Left slot',
+                    defaultValue: 'temp',
+                    showWhen: {all: [{env: 'radar'}, {key: 'radarProvider', ne: 'disabled'}]},
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {excludeKeys: ['statusRadarMid', 'statusRadarRight'],
+                               slotKey: 'statusRadarLeft', position: 'left'}}
+                },
+                {
+                    type: 'searchSelect', messageKey: 'statusRadarMid', label: 'Middle slot',
+                    defaultValue: 'city', joinPrevious: true,
+                    showWhen: {all: [{env: 'radar'}, {key: 'radarProvider', ne: 'disabled'}]},
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {excludeKeys: ['statusRadarLeft', 'statusRadarRight'],
+                               slotKey: 'statusRadarMid', position: 'mid'}}
+                },
+                {
+                    type: 'searchSelect', messageKey: 'statusRadarRight', label: 'Right slot',
+                    defaultValue: 'sun', joinPrevious: true,
+                    showWhen: {all: [{env: 'radar'}, {key: 'radarProvider', ne: 'disabled'}]},
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {excludeKeys: ['statusRadarLeft', 'statusRadarMid'],
+                               slotKey: 'statusRadarRight', position: 'right'}}
+                }
+            ]
+        }, {
+            groupCard: 'watchStatus',
+            title: 'Health Status Bar',
+            items: [
+                {
+                    type: 'searchSelect', messageKey: 'statusHealthLeft', label: 'Left slot',
+                    defaultValue: 'steps',
+                    showWhen: {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}]},
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {excludeKeys: ['statusHealthMid', 'statusHealthRight'],
+                               slotKey: 'statusHealthLeft', position: 'left'}}
+                },
+                {
+                    type: 'searchSelect', messageKey: 'statusHealthMid', label: 'Middle slot',
+                    defaultValue: 'empty', joinPrevious: true,
+                    showWhen: {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}]},
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {excludeKeys: ['statusHealthLeft', 'statusHealthRight'],
+                               slotKey: 'statusHealthMid', position: 'mid'}}
+                },
+                {
+                    type: 'searchSelect', messageKey: 'statusHealthRight', label: 'Right slot',
+                    defaultValue: 'sleep', joinPrevious: true,
+                    showWhen: {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}]},
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {excludeKeys: ['statusHealthLeft', 'statusHealthMid'],
+                               slotKey: 'statusHealthRight', position: 'right'}}
+                }
+            ]
+        }, {
+            groupCard: 'watchStatus',
+            title: 'Watch Status Bar',
+            items: [
+                {
+                    // aplite compiles out rain radar (WW_RAIN_RADAR), so no incoming-rain
+                    // alert can ever replace this bar there — hide the note on aplite.
+                    type: 'staticText',
+                    text: 'An incoming-rain alert temporarily replaces this bar.',
+                    showWhen: {env: 'platform', ne: 'aplite'}
+                },
+                {
+                    // joinPrevious drops the divider between the incoming-rain note above and
+                    // the slots, so the Watch Status Bar note flows straight into its slots.
+                    // On aplite the note is hidden, so this simply becomes the first item.
                     type: 'searchSelect', messageKey: 'statusTopLeft', label: 'Left slot',
-                    defaultValue: 'empty',
+                    defaultValue: 'empty', joinPrevious: true,
                     optionsFrom: {resolver: 'statusSlot',
                         args: {excludeKeys: ['statusTopMid', 'statusTopRight'],
                                slotKey: 'statusTopLeft', position: 'left'}}
@@ -586,13 +603,17 @@ module.exports = {
                 {type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true},
                 {
                     type: 'toggle', messageKey: 'vibe', label: 'Vibrate on bluetooth disconnect',
-                    defaultValue: false, joinPrevious: true
+                    defaultValue: false
                 },
                 {
+                    // joinPrevious groups the bluetooth icon select with the vibrate-on-disconnect
+                    // toggle above it (no divider between the two bluetooth settings); the divider
+                    // stays between "Show quiet time icon" and "Vibrate on bluetooth disconnect".
                     type: 'select',
                     messageKey: 'btIcons',
                     label: 'Show icon for bluetooth',
                     defaultValue: 'both',
+                    joinPrevious: true,
                     options: [['Disconnected', 'disconnected'], ['Connected', 'connected'], ['Both', 'both'], ['None', 'none']]
                 }
             ]

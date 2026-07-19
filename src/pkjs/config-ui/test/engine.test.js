@@ -226,6 +226,30 @@ test('renderBody: joinPrevious look-ahead skips hidden items (mutually-exclusive
   assert.ok(/\bnb\b/.test(modeRow), 'Mode drops its divider because the next VISIBLE item (wOpt) joins, skipping hidden pOpt');
 });
 
+test('renderBody: groupCard merges consecutive sections into one card with in-card sub-headers', () => {
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [
+    { groupCard: 'g', intro: 'Lead-in text.', items: [] },
+    { groupCard: 'g', title: 'First Bar', items: [ { type: 'toggle', messageKey: 'a', label: 'A', defaultValue: true } ] },
+    { groupCard: 'g', title: 'Gated Bar', items: [ { type: 'toggle', messageKey: 'b', label: 'B', defaultValue: true, showWhen: { key: 'never', eq: 'yes' } } ] },
+    { groupCard: 'g', title: 'Last Bar', items: [ { type: 'toggle', messageKey: 'c', label: 'C', defaultValue: true } ] },
+    { title: 'Standalone', items: [ { type: 'toggle', messageKey: 'd', label: 'D', defaultValue: true } ] }
+  ] } ] };
+  const cx = { S: E.hydrate(SCH, {}), ENV: { color: true }, USERDATA: {}, openColor: null, collapsed: {},
+    evalCtx: Object.assign({}, E.hydrate(SCH, {}), { env: { color: true } }) };
+  const html = E.renderBody(SCH, 't', cx);
+  // Two card containers: the merged group + the standalone section.
+  assert.equal((html.match(/<div class="card/g) || []).length, 2, 'the four grouped sections collapse to one card beside the standalone');
+  assert.ok(html.indexOf('Lead-in text.') >= 0, 'group intro rides the top of the merged card');
+  // Grouped titles render as in-card sub-headers, never as their own card headers.
+  assert.ok(html.indexOf('class="subhdr">First Bar</div>') >= 0, 'first bar title is a sub-header');
+  assert.ok(html.indexOf('class="subhdr">Last Bar</div>') >= 0, 'last bar title is a sub-header');
+  assert.equal(html.indexOf('class="ttl">First Bar'), -1, 'grouped title is not a card header');
+  // A fully gated-off sub-section drops out entirely — sub-header and all.
+  assert.equal(html.indexOf('Gated Bar'), -1, 'empty sub-section omitted, its sub-header included');
+  // The ungrouped section keeps its own card header.
+  assert.ok(html.indexOf('class="ttl">Standalone</span>') >= 0, 'standalone section keeps a normal card header');
+});
+
 test('initialCollapsed: collapsible sections seeded collapsed, non-collapsible absent', () => {
   const SCH = { tabs: [ { id: 't', sections: [
     { id: 'a', collapsible: true, items: [] },
@@ -509,10 +533,21 @@ test('renderSelectModal: nothing open -> empty string', () => {
   assert.equal(E.renderSelectModal(schema, cx), '');
 });
 
+// The status-bar work tightens searchSelect rows into status-line slots (.slot). Since the
+// modal refactor, a searchSelect never stacks inline (open or closed) — the popup is the
+// modal's job — so the row stays a slot in both states.
+test('renderRow: a searchSelect row is a tight status-line slot, never stacked', () => {
+  const item = { type: 'searchSelect', messageKey: 'c', label: 'Country', options: [['A','a']] };
+  const closed = E.renderRow(item, { value: 'a', openSelect: null });
+  assert.ok(closed.indexOf('class="row slot"') >= 0 && closed.indexOf('stack') === -1, 'closed searchSelect row is inline, tightened as a status-line slot');
+  const open = E.renderRow(item, { value: 'a', openSelect: 'c', selectQuery: '' });
+  assert.ok(open.indexOf('slot') >= 0 && open.indexOf('stack') === -1, 'open searchSelect row stays a slot, not stacked (the popup is the modal\'s job)');
+});
+
 test('renderRow: neither select nor searchSelect stacks (trigger stays inline)', () => {
   const ss = { type: 'searchSelect', messageKey: 'c', label: 'Country', options: [['A','a']] };
   const open = E.renderRow(ss, { value: 'a', openSelect: 'c', selectQuery: '' });
-  assert.ok(open.indexOf('class="row"') >= 0 && open.indexOf('stack') === -1, 'open searchSelect row is inline');
+  assert.ok(open.indexOf('class="row slot"') >= 0 && open.indexOf('stack') === -1, 'open searchSelect row is inline (a tight status-line slot)');
   const sel = { type: 'select', messageKey: 'm', label: 'Mode', options: [['A','a']] };
   const selRow = E.renderRow(sel, { value: 'a', openSelect: null });
   assert.ok(selRow.indexOf('class="row"') >= 0 && selRow.indexOf('stack') === -1, 'select row is inline');
@@ -527,7 +562,7 @@ test('renderBody: an open searchSelect renders only the trigger; the popup is th
   const html = E.renderBody(SCH, 't', cx);
   assert.ok(html.indexOf('class="sel-wrap" data-select="c"') >= 0, 'trigger rendered through renderBody');
   assert.equal(html.indexOf('data-select-search'), -1, 'no inline search input; that lives in the modal (Task 2)');
-  assert.ok(html.indexOf('class="row"') >= 0 && html.indexOf('class="row stack"') === -1, 'row stays inline while open');
+  assert.ok(html.indexOf('class="row slot"') >= 0 && html.indexOf('class="row stack"') === -1, 'row stays inline while open (a tight status-line slot)');
 });
 
 test('onChange registry: register/get; unknown id -> undefined', () => {

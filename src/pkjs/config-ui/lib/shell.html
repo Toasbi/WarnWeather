@@ -66,12 +66,19 @@
   .intro { padding: 2px 16px 12px; font-size: 12.5px; color: var(--hint); line-height: 1.55; }
   .card.nohdr .intro { padding-top: 14px; }
   .intro a { color: var(--link); }
+  /* in-card sub-header for grouped sections (groupCard): the same muted-gray, tracked
+     uppercase treatment as a standalone card title (var(--ttl)), so a grouped bar's header
+     reads just like a section header. The preceding group's last-row divider carries the
+     separating line, so this stays borderless. */
+  .subhdr { padding: 15px 16px 8px; font-size: 11.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--ttl); }
   .row { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 16px; border-bottom: 1px solid var(--row-line); }
   /* stacked rows are a column, so the .row flex `gap` would space label/hint/control far apart;
      zero it and let the hint's own margin-top own the label→hint gap (matching non-stacked rows). */
   .row.stack { flex-direction: column; align-items: stretch; gap: 0; }
   .row.stack > div:last-child { margin-top: 11px; }
   .row.nb { border-bottom: none; }
+  /* status-line slots (compact searchSelect rows) sit closer together than standard rows */
+  .row.slot { padding-top: 8px; padding-bottom: 8px; }
   .row.indent { padding-left: 30px; }
   /* inline group: consecutive `inline`-grouped items rendered side by side in one row (e.g. sleep From/To) */
   .row.inline { gap: 14px; }

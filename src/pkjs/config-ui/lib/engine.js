@@ -346,7 +346,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       || (item.type === 'color' && view.openColor === item.messageKey);
     var hintHtml = hint ? '<div class="hint">' + hint + '</div>' : '';
     var label = '<div class="lbl">' + esc(item.label) + '</div>';
-    var rowCls = 'row' + (stacked ? ' stack' : '') + (noDivider ? ' nb' : '');
+    // A compact (closed) searchSelect is a status-line slot; the .slot modifier tightens the
+    // vertical rhythm so the stacked slot rows sit closer together. The open (stacked) state
+    // keeps the normal row padding so its search box + option list aren't cramped.
+    var rowCls = 'row' + (stacked ? ' stack' : '') + (noDivider ? ' nb' : '')
+      + (item.type === 'searchSelect' && !stacked ? ' slot' : '');
     if (stacked) {
       return '<div class="' + rowCls + '">' + label + hintHtml + '<div>' + renderControl(item, view) + '</div></div>';
     }
@@ -453,9 +457,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       + '<span class="ttl">' + esc(sec.title || '') + '</span>' + chev + '</button>';
   }
 
-  // Render one section card. '' when empty (no intro, no visible control/static items, no block).
-  function renderSection(sec, cx) {
-    var secId = sec.id || sec.title;
+  // Build a section's inner body HTML (intro + items + block) and whether it's empty
+  // (no intro, no visible control/static items, no block). Shared by renderSection (a
+  // standalone card) and renderSectionGroup (a section merged into a shared card), so the
+  // "hide when everything is gated off" rule stays in one place.
+  function buildSectionBody(sec, cx) {
     var body = sec.intro ? '<div class="intro">' + sec.intro + '</div>' : '';
     var controlCount = 0, staticCount = 0, i;
     for (i = 0; i < sec.items.length; i++) {
@@ -477,11 +483,36 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     var blockHtml = renderBlock(sec.block, cx.S, cx.ENV, cx.USERDATA);
     body += blockHtml;
-    if (!sec.intro && controlCount === 0 && staticCount === 0 && blockHtml === '') { return ''; }
+    var isEmpty = !sec.intro && controlCount === 0 && staticCount === 0 && blockHtml === '';
+    return { body: body, isEmpty: isEmpty };
+  }
+
+  // Render one section card. '' when empty (no intro, no visible control/static items, no block).
+  function renderSection(sec, cx) {
+    var secId = sec.id || sec.title;
+    var built = buildSectionBody(sec, cx);
+    if (built.isEmpty) { return ''; }
     var isCollapsible = Boolean(sec.collapsible);
     var isOpen = isCollapsible ? !cx.collapsed[secId] : true;
     var hdr = renderCardHeader(sec, secId, isCollapsible, isOpen);
-    return '<div class="card' + (hdr ? '' : ' nohdr') + '">' + hdr + (isOpen ? '<div>' + body + '</div>' : '') + '</div>';
+    return '<div class="card' + (hdr ? '' : ' nohdr') + '">' + hdr + (isOpen ? '<div>' + built.body + '</div>' : '') + '</div>';
+  }
+
+  // Render a run of consecutive sections that share a groupCard id as ONE card: each
+  // section's title becomes an in-card sub-header (.subhdr) instead of its own card header,
+  // and their intros/items stack inside a single card. An empty sub-section (all items
+  // gated off — e.g. a disabled feature) drops out entirely, sub-header and all, via the
+  // same emptiness rule renderSection uses, so the group collapses cleanly. '' if all empty.
+  function renderSectionGroup(sections, cx) {
+    var inner = '', i, sec, built;
+    for (i = 0; i < sections.length; i++) {
+      sec = sections[i];
+      built = buildSectionBody(sec, cx);
+      if (built.isEmpty) { continue; }
+      if (sec.title) { inner += '<div class="subhdr">' + esc(sec.title) + '</div>'; }
+      inner += built.body;
+    }
+    return inner ? '<div class="card nohdr">' + inner + '</div>' : '';
   }
 
   /**
@@ -538,7 +569,20 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var t = schema.tabs[ti];
       if (cx && !PConf.showWhen.isVisible(t, cx.evalCtx)) { continue; }
       if (t.id !== activeTab) { continue; }
-      for (si = 0; si < t.sections.length; si++) { h += renderSection(t.sections[si], cx); }
+      for (si = 0; si < t.sections.length; si++) {
+        var sec = t.sections[si];
+        // Consecutive sections sharing a groupCard id render into one card (titles become
+        // in-card sub-headers); everything else stays a card of its own.
+        if (sec.groupCard) {
+          var group = [sec];
+          while (si + 1 < t.sections.length && t.sections[si + 1].groupCard === sec.groupCard) {
+            group.push(t.sections[si + 1]); si++;
+          }
+          h += renderSectionGroup(group, cx);
+        } else {
+          h += renderSection(sec, cx);
+        }
+      }
     }
     return h + '<div class="version">' + (schema.versionLabel || '') + '</div>';
   }
