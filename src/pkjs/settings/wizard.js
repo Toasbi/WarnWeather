@@ -107,7 +107,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // provider-agnostic — no provider named); the health-status and health-graph captions
     // vary with heart-rate availability (emery + diorite hardware) and are built from the shared
     // item helpers below, so the health step and the flick demo can never drift.
-    var FLICK_CAPTION_DEFAULT = 'your calendar, Forecast Status Bar and forecast.';
+    var FLICK_CAPTION_DEFAULT = 'your calendar, the Forecast Status Bar, and the forecast.';
     var FLICK_CAPTION_RADAR = 'a precise short-term rain forecast for the next 2 hours, in 5-minute frames. When rain’s on the way, the Watch Status Bar counts it down (“Rain in 15’”).';
 
     /**

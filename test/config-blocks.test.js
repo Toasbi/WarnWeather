@@ -358,9 +358,9 @@ test('contentBands renders each tier\'s band ordering', () => {
     assert.strictEqual(B.contentBands(null), null, 'a null/disabled slot has no bands');
 });
 
-// The weather status row IS the radar status line whenever the view shows radar (top band
+// The Forecast Status Bar becomes the Radar Status Bar whenever the view shows radar (top band
 // or body) — mirrors main_window.c's (top == TOP_RADAR || body == BODY_RADAR) ?
-// STATUS_LINE_RADAR : STATUS_LINE_FORECAST. A forecast-body view keeps "Weather status".
+// STATUS_LINE_RADAR : STATUS_LINE_FORECAST. A forecast-body view keeps "Forecast Status Bar".
 test('contentBands labels the configurable bar "Radar Status Bar" for a radar view', () => {
     const vc = require('../src/pkjs/view-cycle.js');
     const label = (spec) => B.contentBands(spec).map((b) => b.label);
@@ -369,14 +369,14 @@ test('contentBands labels the configurable bar "Radar Status Bar" for a radar vi
         'radar-body view reads Radar Status Bar');
     assert.ok(label(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_RADAR, vc.ST_W)).indexOf('Forecast Status Bar') < 0,
         'radar-body view has no Forecast Status Bar label');
-    // radar riding the top band with a weather status row present
+    // radar riding the top band with the configurable status bar present
     assert.ok(label(vc.spec(vc.TIER_FULL, vc.TOP_RADAR, vc.BODY_FC, vc.ST_W)).indexOf('Radar Status Bar') >= 0,
         'top-radar view with a status bar reads Radar Status Bar');
-    // dual status on a radar view: the weather half becomes Radar status, health unchanged
+    // dual status on a radar view: the forecast half becomes Radar Status Bar, health unchanged
     const dual = label(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_RADAR, vc.ST_D));
     assert.ok(dual.indexOf('Radar Status Bar') >= 0 && dual.indexOf('Health Status Bar') >= 0,
         'dual radar view: Radar Status Bar + Health Status Bar');
-    // a plain forecast view still reads Weather status
+    // a plain forecast view still reads Forecast Status Bar
     assert.ok(label(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.ST_W)).indexOf('Forecast Status Bar') >= 0,
         'forecast-body view keeps Forecast Status Bar');
 });
@@ -388,7 +388,7 @@ test('contentBands renders dual as two status rows', () => {
     assert.ok(labels.indexOf('Health Status Bar') >= 0 && labels.indexOf('Forecast Status Bar') >= 0);
 });
 
-// A status line occupies exactly the space freed by dropping the 3rd calendar row, so
+// A status bar occupies exactly the space freed by dropping the 3rd calendar row, so
 // the compact calendar + its status band read as tall as the full 3-row calendar.
 test('contentBands: Cal2 + gap + status = Cal3 (status = the freed calendar row)', () => {
     const vc = require('../src/pkjs/view-cycle.js');

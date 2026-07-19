@@ -408,11 +408,23 @@ test('renderSelectOptions renders explicit groups without heading indicators', (
     ['City', 'city']
   ] };
   const html = E.renderSelectOptions(item, 'temp', '');
-  assert.match(html, /class="ssel-group">\s*<span>Weather<\/span>/);
+  assert.match(html, /class="ssel-group" role="presentation">\s*<span>Weather<\/span>/);
   assert.doesNotMatch(html, /data-select-pick="__hdr_weather"/);
   assert.match(html, /class="ssel-opt group-child on"[^>]*data-select-pick="temp"/);
   assert.match(html, /class="ssel-opt group-child group-end"[^>]*data-select-pick="wind"/);
   assert.equal((html.match(/ssel-chk/g) || []).length, 1, 'indicator only on selected item');
+});
+
+test('renderSelectOptions omits group presentation classes and headings while filtering', () => {
+  const item = { messageKey: 'slot', options: [
+    ['Weather', '__hdr_weather', { disabled: true, groupHeader: true }],
+    ['Temperature', 'temp', { groupChild: true, groupEnd: false }],
+    ['Wind speed', 'wind', { groupChild: true, groupEnd: true }]
+  ] };
+  const html = E.renderSelectOptions(item, 'temp', 'wind');
+  assert.doesNotMatch(html, /ssel-group|Weather/);
+  assert.match(html, /class="ssel-opt"[^>]*data-select-pick="wind"/);
+  assert.doesNotMatch(html, /group-child|group-end/);
 });
 
 test('renderSelectOptions: case-insensitive label match', () => {
@@ -444,19 +456,27 @@ test('renderSelectOptions: label is HTML-escaped', () => {
   assert.ok(r.indexOf('&lt;b&gt;x&lt;/b&gt;') >= 0);
 });
 
-test('renderControl searchSelect: closed shows trigger with current label, no search input', () => {
-  const item = { type: 'searchSelect', messageKey: 'c', options: [['United States','US'],['Germany','DE']] };
+test('renderControl searchSelect: closed trigger is a labelled native listbox button', () => {
+  const item = { type: 'searchSelect', messageKey: 'c', label: 'Country', options: [['United States','US'],['Germany','DE']] };
   const html = E.renderControl(item, { value: 'DE', openSelect: null });
-  assert.ok(html.indexOf('class="sel-wrap" data-select="c"') >= 0, 'trigger present');
+  assert.match(html, /^<button type="button" class="sel-wrap" data-select="c"/);
+  assert.match(html, /aria-label="Country: Germany"/);
+  assert.match(html, /aria-haspopup="listbox" aria-expanded="false" aria-controls="ssel-list-c"/);
   assert.ok(html.indexOf('>Germany<') >= 0, 'shows current option label');
   assert.equal(html.indexOf('data-select-search'), -1, 'no search input when closed');
+  assert.doesNotMatch(html, /tabindex=|onkeydown=|role="button"/, 'native button supplies keyboard behavior and tab stop');
 });
 
-test('renderControl searchSelect: open shows search input + list of all options', () => {
-  const item = { type: 'searchSelect', messageKey: 'c', options: [['United States','US'],['Germany','DE']] };
+test('renderControl searchSelect: open trigger and controlled list expose expanded listbox semantics', () => {
+  const item = { type: 'searchSelect', messageKey: 'c', label: 'Country', options: [['United States','US'],['Germany','DE']] };
   const html = E.renderControl(item, { value: 'DE', openSelect: 'c', selectQuery: '' });
+  assert.match(html, /^<button type="button" class="sel-wrap" data-select="c"/);
+  assert.match(html, /aria-label="Country: Germany"/);
+  assert.match(html, /aria-haspopup="listbox" aria-expanded="true" aria-controls="ssel-list-c"/);
   assert.ok(html.indexOf('data-select-search="c"') >= 0, 'search input present');
-  assert.ok(html.indexOf('class="ssel-list" data-ssel-list="c"') >= 0, 'list container present');
+  assert.match(html, /id="ssel-list-c" class="ssel-list" role="listbox" aria-label="Country options" data-ssel-list="c"/);
+  assert.match(html, /role="option" aria-selected="true"[^>]*data-select-pick="DE"/);
+  assert.match(html, /role="option" aria-selected="false"[^>]*data-select-pick="US"/);
   assert.ok(html.indexOf('>United States<') >= 0 && html.indexOf('>Germany<') >= 0, 'all options listed');
 });
 
@@ -464,7 +484,7 @@ test('renderControl searchSelect: open list reflects the query', () => {
   const item = { type: 'searchSelect', messageKey: 'c', options: [['United States','US'],['Germany','DE']] };
   const html = E.renderControl(item, { value: 'US', openSelect: 'c', selectQuery: 'ger' });
   assert.ok(html.indexOf('>Germany<') >= 0, 'matching option shown');
-  assert.equal(html.indexOf('>United States<'), -1, 'non-matching option filtered');
+  assert.equal(html.indexOf('data-select-pick="US"'), -1, 'non-matching option filtered from the list');
   assert.ok(html.indexOf('value="ger"') >= 0, 'search box keeps the typed query');
 });
 

@@ -95,7 +95,7 @@ test('flickStops: layout-only cycle -> Default + Radar; radar copy is provider-a
   assert.equal(stops[0].label, 'Default');
   assert.equal(stops[0].shotGroup, 'layoutPreset');
   assert.equal(stops[0].shotVal, 'compactCal');
-  assert.equal(stops[0].caption, 'your calendar, Forecast Status Bar and forecast.');
+  assert.equal(stops[0].caption, 'your calendar, the Forecast Status Bar, and the forecast.');
   assert.equal(stops[1].label, 'Radar');
   assert.equal(stops[1].shotGroup, 'radar');
   assert.match(stops[1].caption, /short-term rain forecast/);
