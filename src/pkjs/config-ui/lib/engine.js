@@ -346,11 +346,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       || (item.type === 'color' && view.openColor === item.messageKey);
     var hintHtml = hint ? '<div class="hint">' + hint + '</div>' : '';
     var label = '<div class="lbl">' + esc(item.label) + '</div>';
-    // A compact (closed) searchSelect is a status-line slot; the .slot modifier tightens the
-    // vertical rhythm so the stacked slot rows sit closer together. The open (stacked) state
-    // keeps the normal row padding so its search box + option list aren't cramped.
+    // Status-line slot pickers are compact rows: the .slot modifier tightens the vertical
+    // rhythm so consecutive slot rows sit closer together. Status slots are plain selects
+    // (matched via the statusSlot resolver, since they carry no distinguishing type), while
+    // the Holiday searchSelects keep the same compact treatment. A stacked (open color/etc.)
+    // row keeps normal padding so its expanded content isn't cramped.
+    var isStatusSlot = item.optionsFrom && item.optionsFrom.resolver === 'statusSlot';
     var rowCls = 'row' + (stacked ? ' stack' : '') + (noDivider ? ' nb' : '')
-      + (item.type === 'searchSelect' && !stacked ? ' slot' : '');
+      + ((item.type === 'searchSelect' || isStatusSlot) && !stacked ? ' slot' : '');
     if (stacked) {
       return '<div class="' + rowCls + '">' + label + hintHtml + '<div>' + renderControl(item, view) + '</div></div>';
     }

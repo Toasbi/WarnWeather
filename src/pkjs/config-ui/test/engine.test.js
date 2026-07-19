@@ -553,6 +553,21 @@ test('renderRow: neither select nor searchSelect stacks (trigger stays inline)',
   assert.ok(selRow.indexOf('class="row"') >= 0 && selRow.indexOf('stack') === -1, 'select row is inline');
 });
 
+// Status slots are searchless selects but must keep the compact .slot spacing. They carry
+// no distinguishing type, so the row is matched by its statusSlot optionsFrom resolver.
+test('renderRow: a status-slot select gets the compact .slot class; a plain select does not', () => {
+  // renderRow renders an already-resolved item, so it carries materialized options
+  // alongside the statusSlot optionsFrom marker (as resolveRowItem produces).
+  const slot = { type: 'select', messageKey: 'statusTopMid', label: 'Middle slot',
+    options: [['Date', 'date'], ['City', 'city']],
+    optionsFrom: { resolver: 'statusSlot', args: { slotKey: 'statusTopMid', position: 'mid' } } };
+  const slotRow = E.renderRow(slot, { value: 'date', openSelect: null });
+  assert.ok(slotRow.indexOf('class="row slot"') >= 0, 'status-slot select row is tightened as a status-line slot');
+  const plain = { type: 'select', messageKey: 'm', label: 'Mode', options: [['A','a']] };
+  const plainRow = E.renderRow(plain, { value: 'a', openSelect: null });
+  assert.equal(plainRow.indexOf('slot'), -1, 'a non-status select row is not a slot');
+});
+
 test('renderBody: an open searchSelect renders only the trigger; the popup is the modal\'s job, not renderBody\'s', () => {
   const SCH = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [ { title: 'S', items: [
     { type: 'searchSelect', messageKey: 'c', label: 'Country', defaultValue: 'US', options: [['United States','US'],['Germany','DE']] }
