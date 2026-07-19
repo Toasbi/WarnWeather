@@ -332,7 +332,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   /**
    * Wrap a control in a row with label/hint chrome. Stacked for
-   * text/radio/open-color/open-searchSelect; otherwise inline (left/right).
+   * text/radio/open-color; otherwise inline (left/right).
    *
    * @param {Object} item Schema item.
    * @param {Object} view Render view state.
@@ -557,8 +557,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var activeTab = SCHEMA.tabs[0].id, openColor = null, openSelect = null, selectQuery = '', collapsed = initialCollapsed(SCHEMA);
     // Recover a schema item by messageKey so the input handler can re-filter its options in place.
     function findItem(key) { var f = null; eachItem(SCHEMA, function (it) { if (it.messageKey === key) { f = it; } }); return f; }
-    // The element to restore focus to when the modal closes (the trigger that opened it).
-    var lastTrigger = null;
+    // The messageKey of the trigger to restore focus to when the modal closes. Stored by key
+    // (not the DOM node) because render() replaces #scroll's innerHTML, detaching any node
+    // captured at open time; re-querying by key after render finds the fresh trigger.
+    var lastSelectKey = null;
     // On open, focus the search box (searchSelect) or the selected/first option (select).
     function focusModal() {
       var modal = document.getElementById('modal');
@@ -569,7 +571,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // Close the open modal and return focus to the trigger that opened it.
     function closeSelect() {
       openSelect = null; render();
-      if (lastTrigger) { lastTrigger.focus(); lastTrigger = null; }
+      if (lastSelectKey) {
+        var trg = document.querySelector('[data-select="' + lastSelectKey + '"]');
+        if (trg) { trg.focus(); }
+        lastSelectKey = null;
+      }
     }
     // evalCtx(): the {settings..., env} object showWhen predicates evaluate against.
     function evalCtx() { var c = Object.assign({}, S); c.env = ENV; return c; }
@@ -623,7 +629,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if ((t = e.target.closest('[data-select]'))) {
           var sk = t.getAttribute('data-select');
           if (openSelect === sk) { closeSelect(); return; }
-          openSelect = sk; selectQuery = ''; lastTrigger = t; render(); focusModal(); return;
+          openSelect = sk; selectQuery = ''; lastSelectKey = sk; render(); focusModal(); return;
         }
         if ((t = e.target.closest('[data-toggle]'))) { S[t.getAttribute('data-k')] = !S[t.getAttribute('data-k')]; render(); return; }
         if ((t = e.target.closest('[data-color-pick]'))) { S[t.getAttribute('data-k')] = t.getAttribute('data-color-pick'); openColor = null; render(); return; }

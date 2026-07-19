@@ -552,14 +552,26 @@ function bootWithCapturedListeners(schema, env) {
   const modalListeners = {};
   const scroll = { innerHTML: '', addEventListener: (type, fn) => { listeners[type] = fn; } };
   const modal = { innerHTML: '', addEventListener: (type, fn) => { modalListeners[type] = fn; } };
+  const sselList = { innerHTML: '', focus: () => {} };
   const generic = () => ({ innerHTML: '', textContent: '', addEventListener: () => {} });
   const ids = { scroll, modal, tabs: generic(), save: generic(), appTitle: generic(), toast: generic() };
-  const document = { getElementById: (id) => ids[id] || generic(), addEventListener: () => {} };
+  // Minimal querySelector: only the two selectors boot() actually issues against `document`
+  // (as opposed to a captured scroll/modal element) need real resolution here — the fresh
+  // trigger closeSelect() re-queries by key, and wireModal()'s live-search list rebuild.
+  const document = {
+    getElementById: (id) => ids[id] || generic(),
+    addEventListener: () => {},
+    querySelector: (sel) => {
+      var m = /^\[data-ssel-list="(.+)"\]$/.exec(sel);
+      if (m) { return sselList; }
+      return null;
+    }
+  };
   const fn = new Function('document', 'INJECTED_SCHEMA', 'INJECTED_ENV', 'INJECTED_CFG',
     'INJECTED_USERDATA', 'INJECTED_RETURN', 'module', BUNDLE);
   const mod = { exports: {} };
   fn(document, schema, env, {}, {}, 'pebblejs://close#', mod);
-  return { listeners, modalListeners, scroll, modal, onChange: mod.exports.onChange, loadEnv: mod.exports.loadEnv };
+  return { listeners, modalListeners, scroll, modal, sselList, onChange: mod.exports.onChange, loadEnv: mod.exports.loadEnv };
 }
 
 const THEME_SCHEMA = {
@@ -589,6 +601,22 @@ test('boot(): picking a modal option fires the item\'s registered onChange hook 
   assert.equal(captured.oldV, 'dark', 'old value captured before the change');
   assert.equal(captured.newV, 'light', 'new value passed through');
   assert.equal(captured.sTheme, 'light', 'S was updated before the hook ran');
+});
+
+test('boot(): modal live-search on an optionsFrom searchSelect resolves options without throwing (regression: raw item threw)', () => {
+  const schema = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{ title: 'S', items: [
+    { type: 'searchSelect', messageKey: 'country', label: 'Country', defaultValue: 'DE', options: [['Germany','DE']] },
+    { type: 'searchSelect', messageKey: 'region', label: 'Region', defaultValue: 'all',
+      optionsFrom: { byKey: 'country', map: { DE: [['Whole country','all'],['Bavaria','DE-BY']] } } }
+  ] }] }] };
+  const { modalListeners, sselList } = bootWithCapturedListeners(schema, { color: true, round: false, platform: 'basalt' });
+  assert.equal(typeof modalListeners.input, 'function', 'a modal input listener was wired');
+  const fakeSearch = { getAttribute: (a) => (a === 'data-select-search' ? 'region' : null), value: 'bav', closest: (sel) => (sel === '[data-select-search]' ? fakeSearch : null) };
+  assert.doesNotThrow(() => {
+    modalListeners.input({ target: { closest: (sel) => (sel === '[data-select-search]' ? fakeSearch : null) } });
+  });
+  assert.ok(sselList.innerHTML.indexOf('data-select-pick="DE-BY"') >= 0, 'derived optionsFrom option rendered');
+  assert.ok(sselList.innerHTML.indexOf('data-select-pick="all"') < 0, 'query "bav" filtered out the non-matching option');
 });
 
 test('resolveTheme: no themeKey -> dark', () => {
