@@ -42,11 +42,18 @@ test('isThemePolarityPlatform: only aplite lacks the light polarity; others (and
   assert.equal(platform.isThemePolarityPlatform(''), true);
 });
 
+test('isHrPlatform: emery + diorite only; unknown -> false', () => {
+  ['emery', 'diorite'].forEach((p) => assert.equal(platform.isHrPlatform(p), true, p));
+  ['basalt', 'chalk', 'aplite', 'flint', ''].forEach((p) => assert.equal(platform.isHrPlatform(p), false, p));
+});
+
 test('computeEnv from watchInfo', () => {
-  assert.deepEqual(platform.computeEnv({ platform: 'flint' }), { color: false, round: false, platform: 'flint', health: true, radar: true, themePolarity: true });
-  assert.deepEqual(platform.computeEnv({ platform: 'chalk' }), { color: true, round: true, platform: 'chalk', health: true, radar: true, themePolarity: true });
-  assert.deepEqual(platform.computeEnv({ platform: 'aplite' }), { color: false, round: false, platform: 'aplite', health: false, radar: false, themePolarity: false });
-  assert.deepEqual(platform.computeEnv(null), { color: true, round: false, platform: '', health: true, radar: true, themePolarity: true });
+  assert.deepEqual(platform.computeEnv({ platform: 'flint' }), { color: false, round: false, platform: 'flint', health: true, radar: true, themePolarity: true, hr: false });
+  assert.deepEqual(platform.computeEnv({ platform: 'chalk' }), { color: true, round: true, platform: 'chalk', health: true, radar: true, themePolarity: true, hr: false });
+  assert.deepEqual(platform.computeEnv({ platform: 'aplite' }), { color: false, round: false, platform: 'aplite', health: false, radar: false, themePolarity: false, hr: false });
+  assert.deepEqual(platform.computeEnv({ platform: 'emery' }), { color: true, round: false, platform: 'emery', health: true, radar: true, themePolarity: true, hr: true });
+  assert.deepEqual(platform.computeEnv({ platform: 'diorite' }), { color: false, round: false, platform: 'diorite', health: true, radar: true, themePolarity: true, hr: true });
+  assert.deepEqual(platform.computeEnv(null), { color: true, round: false, platform: '', health: true, radar: true, themePolarity: true, hr: false });
 });
 
 test('deriveDefaults/deriveColorKeys are schema-driven (colors as ints)', () => {

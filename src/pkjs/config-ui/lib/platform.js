@@ -19,6 +19,12 @@ var NO_RADAR_PLATFORMS = { aplite: true };
 // polarities. Keep in lockstep with the C `#if defined(WW_THEME_POLARITY)`
 // guard in theme.h (wscript defines the macro for every platform except aplite).
 var NO_THEME_POLARITY_PLATFORMS = { aplite: true };
+// Platforms whose hardware includes a heart-rate sensor: emery (Pebble Time 2)
+// and diorite (Pebble 2 — the non-SE model). The config UI can't tell a Pebble 2
+// from a Pebble 2 SE (both report 'diorite'), so diorite is treated as HR-capable;
+// a Pebble 2 SE renders the HR slot as "--". Unknown platforms are treated as
+// non-HR (conservative — don't offer a permanently-empty slot on an unknown watch).
+var HR_PLATFORMS = { emery: true, diorite: true };
 /**
  * Whether a Pebble platform has a color display (false for the B/W platforms).
  * @param {string} platform Platform name (e.g. 'basalt', 'aplite', 'chalk').
@@ -49,12 +55,20 @@ function isRadarPlatform(platform) { return !NO_RADAR_PLATFORMS[platform]; }
  */
 function isThemePolarityPlatform(platform) { return !NO_THEME_POLARITY_PLATFORMS[platform]; }
 /**
+ * Whether a Pebble platform includes a heart-rate sensor (emery / diorite).
+ * Unknown platforms are treated as non-HR (conservative — avoids offering a
+ * permanently-"--" slot on an unrecognized watch).
+ * @param {string} platform Platform name (e.g. 'emery', 'basalt').
+ * @returns {boolean} True if the platform can report heart rate.
+ */
+function isHrPlatform(platform) { return Boolean(HR_PLATFORMS[platform]); }
+/**
  * Derive the config-UI environment facts from a Pebble watchInfo object.
  * @param {Object} watchInfo Pebble watchInfo; its .platform names the model.
- * @returns {{color: boolean, round: boolean, platform: string, health: boolean, radar: boolean, themePolarity: boolean}} Env: color display, round (chalk), platform name, health support, radar support, and theme light-polarity support.
+ * @returns {{color: boolean, round: boolean, platform: string, health: boolean, radar: boolean, themePolarity: boolean, hr: boolean}} Env: color display, round (chalk), platform name, health support, radar support, theme light-polarity support, and heart-rate sensor support.
  */
 function computeEnv(watchInfo) {
   var p = watchInfo && watchInfo.platform ? watchInfo.platform : '';
-  return { color: isColorPlatform(p), round: p === 'chalk', platform: p, health: isHealthPlatform(p), radar: isRadarPlatform(p), themePolarity: isThemePolarityPlatform(p) };
+  return { color: isColorPlatform(p), round: p === 'chalk', platform: p, health: isHealthPlatform(p), radar: isRadarPlatform(p), themePolarity: isThemePolarityPlatform(p), hr: isHrPlatform(p) };
 }
-module.exports = { isColorPlatform: isColorPlatform, isHealthPlatform: isHealthPlatform, isRadarPlatform: isRadarPlatform, isThemePolarityPlatform: isThemePolarityPlatform, computeEnv: computeEnv };
+module.exports = { isColorPlatform: isColorPlatform, isHealthPlatform: isHealthPlatform, isRadarPlatform: isRadarPlatform, isThemePolarityPlatform: isThemePolarityPlatform, isHrPlatform: isHrPlatform, computeEnv: computeEnv };
