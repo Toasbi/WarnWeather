@@ -31,22 +31,51 @@ node "$here/scripts/gen-showcase-fixtures.js"
 # generator so they never drift from the fixtures. Collect the id/flick pairs FIRST, then
 # capture in a separate loop: running capture-screenshots.sh inside `while read < <(node …)`
 # let its pebble/mise children drain the process-substitution fd, so the loop ran only once.
-ids=(); flickss=()
-while IFS= read -r line; do
-  [[ -n "$line" ]] || continue
-  ids+=("${line%% *}"); flickss+=("${line##* }")
-done < <(node -e "require('$here/scripts/gen-showcase-fixtures.js').SCENES.forEach(function(s){console.log(s.id + ' ' + s.flicks);})")
+ids=(); flickss=(); hrs=()
+while IFS=' ' read -r id flicks hr; do
+  [[ -n "$id" ]] || continue
+  ids+=("$id"); flickss+=("$flicks"); hrs+=("$hr")
+done < <(node -e "require('$here/scripts/gen-showcase-fixtures.js').SCENES.forEach(function(s){console.log(s.id + ' ' + s.flicks + ' ' + (s.hrEmery ? 1 : 0));})")
 
-for i in "${!ids[@]}"; do
-  id="${ids[$i]}"; flicks="${flickss[$i]}"
-  printf '\n######## showcase scene %s (flicks=%s) ########\n' "$id" "$flicks"
-  FLICKS="$flicks" "$here/scripts/capture-screenshots.sh" "$version" "showcase-$id" </dev/null
-  for platform in $PLATFORMS; do
-    raw="$here/screenshot/$version/raw/$platform.png"
+# file_scene <id> <platform...> — copy each platform's raw/<platform>.png (from the capture
+# just run) into its scene_<id>.png frame.
+file_scene() {
+  local id="$1"; shift
+  local platform dest_dir
+  for platform in "$@"; do
     dest_dir="$here/screenshot/$version/showcase/frames/$platform"
     mkdir -p "$dest_dir"
-    cp "$raw" "$dest_dir/scene_$id.png"
+    cp "$here/screenshot/$version/raw/$platform.png" "$dest_dir/scene_$id.png"
   done
+}
+
+for i in "${!ids[@]}"; do
+  id="${ids[$i]}"; flicks="${flickss[$i]}"; hr="${hrs[$i]}"
+
+  # An hrEmery scene draws the health status row: emery (the sole HR platform here) must
+  # shoot the sleep+HR-pinned variant fixture so it shows heart rate, while the other
+  # platforms — which have no HR sensor — keep the base fixture's distance default. When
+  # emery isn't in PLATFORMS the split is moot; capture the base for everyone.
+  emery_split=0
+  case " $PLATFORMS " in *" emery "*) [[ "$hr" == "1" ]] && emery_split=1 ;; esac
+
+  if [[ "$emery_split" == "1" ]]; then
+    base_plats=""
+    for p in $PLATFORMS; do [[ "$p" == "emery" ]] || base_plats+="$p "; done
+    base_plats="${base_plats% }"
+    if [[ -n "$base_plats" ]]; then
+      printf '\n######## showcase scene %s (flicks=%s, base=%s) ########\n' "$id" "$flicks" "$base_plats"
+      FLICKS="$flicks" PLATFORMS="$base_plats" "$here/scripts/capture-screenshots.sh" "$version" "showcase-$id" </dev/null
+      file_scene "$id" $base_plats
+    fi
+    printf '\n######## showcase scene %s (flicks=%s, emery HR variant) ########\n' "$id" "$flicks"
+    FLICKS="$flicks" PLATFORMS="emery" "$here/scripts/capture-screenshots.sh" "$version" "showcase-$id-emery" </dev/null
+    file_scene "$id" emery
+  else
+    printf '\n######## showcase scene %s (flicks=%s) ########\n' "$id" "$flicks"
+    FLICKS="$flicks" "$here/scripts/capture-screenshots.sh" "$version" "showcase-$id" </dev/null
+    file_scene "$id" $PLATFORMS
+  fi
 done
 
 printf '\nShowcase frames captured under screenshot/%s/showcase/frames/<platform>/.\n' "$version"

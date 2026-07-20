@@ -14,8 +14,22 @@ function generateIntoTmp() {
   const written = generateShowcaseFixtures({ outDir });
   const byId = {};
   for (const p of written) {
-    const id = Number(/showcase-(\d+)\.json$/.exec(path.basename(p))[1]);
-    byId[id] = JSON.parse(fs.readFileSync(p, 'utf8'));
+    // Base scene fixtures only; the emery HR variants (showcase-N-emery.json) are asserted
+    // separately below.
+    const m = /^showcase-(\d+)\.json$/.exec(path.basename(p));
+    if (m) { byId[Number(m[1])] = JSON.parse(fs.readFileSync(p, 'utf8')); }
+  }
+  return byId;
+}
+
+/** Generate the scenes into a throwaway dir and return {id -> parsed emery variant fixture}. */
+function generateEmeryVariantsIntoTmp() {
+  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ww-showcase-emery-'));
+  const written = generateShowcaseFixtures({ outDir });
+  const byId = {};
+  for (const p of written) {
+    const m = /^showcase-(\d+)-emery\.json$/.exec(path.basename(p));
+    if (m) { byId[Number(m[1])] = JSON.parse(fs.readFileSync(p, 'utf8')); }
   }
   return byId;
 }
@@ -126,4 +140,31 @@ test('scenes 2 & 4 disable radar so the intended view is undisturbed', () => {
   const byId = generateIntoTmp();
   assert.strictEqual(byId[2].claySettings.radarProvider, 'disabled');
   assert.strictEqual(byId[4].claySettings.radarProvider, 'disabled');
+});
+
+test('health-status-row scenes (2, 4) get an emery HR variant; others do not', () => {
+  const variants = generateEmeryVariantsIntoTmp();
+  const hrScenes = SCENES.filter((s) => s.hrEmery).map((s) => s.id).sort();
+  assert.deepStrictEqual(Object.keys(variants).map(Number).sort(), hrScenes,
+    'exactly the hrEmery scenes have a showcase-<id>-emery.json');
+  assert.deepStrictEqual(hrScenes, [2, 4], 'the two health-status-row scenes are 2 and 4');
+});
+
+test('emery variants pin the sleep + HR health slots; base scenes leave them unpinned', () => {
+  const base = generateIntoTmp();
+  const variants = generateEmeryVariantsIntoTmp();
+  for (const scene of SCENES.filter((s) => s.hrEmery)) {
+    assert.strictEqual(variants[scene.id].claySettings.statusHealthMid, 'sleep',
+      'scene ' + scene.id + ' emery variant pins sleep');
+    assert.strictEqual(variants[scene.id].claySettings.statusHealthRight, 'hr',
+      'scene ' + scene.id + ' emery variant pins heart rate');
+    // The base fixture must NOT pin HR — the non-HR platforms render their own default.
+    assert.strictEqual(base[scene.id].claySettings.statusHealthRight, undefined,
+      'scene ' + scene.id + ' base fixture leaves the health-right slot unpinned');
+    // The variant otherwise matches the base scene (same layout/health mode).
+    assert.strictEqual(variants[scene.id].claySettings.layoutPreset,
+      base[scene.id].claySettings.layoutPreset, 'scene ' + scene.id + ' variant keeps the layout');
+    assert.strictEqual(variants[scene.id].claySettings.healthMode,
+      base[scene.id].claySettings.healthMode, 'scene ' + scene.id + ' variant keeps the health mode');
+  }
 });

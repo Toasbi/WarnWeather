@@ -35,6 +35,10 @@ fps="${5:-15}"
 # are still captured by capture-showcase.sh; this only trims what the GIF shows. Set
 # MAX_SCENES=0 to include every captured scene.
 max_scenes="${MAX_SCENES:-2}"
+# Drop specific scene ids from this platform's GIF (space- or comma-separated), applied
+# before the MAX_SCENES cap. aplite has no PBL_HEALTH, so its health scenes (2,3,4) render
+# degraded — exclude them there: EXCLUDE_SCENES="2 3 4" ... aplite.
+exclude_scenes="${EXCLUDE_SCENES:-}"
 
 frames_dir="screenshot/$version/showcase/frames/$platform"
 out_dir="screenshot/$version/showcase"
@@ -46,6 +50,22 @@ n=${#scenes[@]}
 if [[ $n -eq 0 ]]; then
   printf 'No scene frames in %s; run capture-showcase.sh first\n' "$frames_dir" >&2
   exit 1
+fi
+
+# Drop excluded scene ids (before the cap). scene_<id>.png → <id>; commas or spaces both work.
+if [[ -n "$exclude_scenes" ]]; then
+  excl=" ${exclude_scenes//,/ } "
+  kept=()
+  for s in "${scenes[@]}"; do
+    id="$(basename "$s" .png)"; id="${id#scene_}"
+    [[ "$excl" == *" $id "* ]] || kept+=("$s")
+  done
+  scenes=("${kept[@]}")
+  n=${#scenes[@]}
+  if [[ $n -eq 0 ]]; then
+    printf 'EXCLUDE_SCENES=%s dropped every scene in %s\n' "$exclude_scenes" "$frames_dir" >&2
+    exit 1
+  fi
 fi
 
 # Glob expands in sorted (scene id) order, so slicing keeps the first N scenes.

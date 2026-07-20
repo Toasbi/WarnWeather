@@ -47,6 +47,16 @@ const RAIN_APPROACH_AREA = segment(2, 6, 1.8);
 const RAIN_NOW_EXACT = segment(0, 4, 1.5);
 const RAIN_NOW_AREA = segment(0, 5, 1.8);
 
+// Health-status-row slot pins for the emery variant. emery (Pebble Time 2) is the only HR
+// platform in the showcase set; the others (aplite/basalt/flint) have no HR sensor. The
+// scenes don't pin status slots, so packLine bakes the *base* health-right default (walked
+// distance) on every platform — so a plain capture shows distance, not the heart rate a real
+// Pebble Time 2 renders. Scenes that draw the health status row get an emery-only variant
+// fixture (showcase-<id>-emery.json) pinning sleep+HR, and capture-showcase.sh shoots emery
+// from it while the other platforms use the base fixture. Mirrors the wizard split
+// (gen-wizard-fixtures.js: HEALTH_HR + statusHealthMid/Right).
+const HR_EMERY = { statusHealthMid: 'sleep', statusHealthRight: 'hr' };
+
 // Scene table. `clay` overrides the Berlin base claySettings; `flicks` is how many wrist
 // flicks capture-showcase.sh sends before the screenshot to reach the intended view;
 // `radar` (when set) replaces the base radar series so the rain countdown reads a
@@ -68,7 +78,7 @@ const SCENES = [
     // Compact-DENSE: weather & health status shown together by default (no flick needed),
     // with a different-looking forecast (wind + dotted gust). Radar off — the dense
     // preset's off-radar cycle is a single view, so there's nothing to flick to anyway.
-    id: 2, flicks: 0,
+    id: 2, flicks: 0, hrEmery: true,
     clay: {
       layoutPreset: 'compactDense', healthMode: 'status',
       secondaryLine: 'wind', thirdLine: 'gust', barSource: 'off',
@@ -94,7 +104,7 @@ const SCENES = [
     // sleep band, and the heart-rate line — with the health status line above. Radar off
     // so the single flick lands on the graph. The graph's numbers come from the
     // health_fixture.c twin.
-    id: 4, flicks: 1,
+    id: 4, flicks: 1, hrEmery: true,
     clay: {
       layoutPreset: 'noCal', healthMode: 'all',
       secondaryLine: 'precip_prob', barSource: 'off',
@@ -133,17 +143,19 @@ function generateShowcaseFixtures(opts = {}) {
 
   // Clear any showcase fixtures from a prior run so the on-disk set matches this run's
   // scene list (a shorter list would otherwise leave stale higher-numbered fixtures).
+  // Matches both the base `showcase-N.json` and the emery variant `showcase-N-emery.json`.
   for (const name of fs.readdirSync(outDir)) {
-    if (/^showcase-\d+\.json$/.test(name)) {
+    if (/^showcase-\d+(-emery)?\.json$/.test(name)) {
       fs.unlinkSync(path.join(outDir, name));
     }
   }
 
-  const written = [];
-  for (const scene of SCENES) {
+  // Build one scene frame: the Berlin base + minute-0 now + scene clay (with any extra clay
+  // overrides merged last) + the scene's radar series and build-only countdown block.
+  function buildFrame(scene, extraClay) {
     const frame = JSON.parse(JSON.stringify(base));
     frame.watch.now = { ...frame.watch.now, ...NOW_OVERRIDE };
-    frame.claySettings = { ...base.claySettings, ...scene.clay };
+    frame.claySettings = { ...base.claySettings, ...scene.clay, ...extraClay };
     if (scene.radar) {
       frame.weather.rainRadarExactMm = scene.radar.exact.slice();
       frame.weather.rainRadarAreaMm = scene.radar.area.slice();
@@ -153,9 +165,21 @@ function generateShowcaseFixtures(opts = {}) {
     if (scene.countdown) {
       frame.countdown = { ...scene.countdown };
     }
+    return frame;
+  }
+
+  const written = [];
+  for (const scene of SCENES) {
     const outPath = path.join(outDir, 'showcase-' + scene.id + '.json');
-    fs.writeFileSync(outPath, JSON.stringify(frame, null, 2) + '\n');
+    fs.writeFileSync(outPath, JSON.stringify(buildFrame(scene), null, 2) + '\n');
     written.push(outPath);
+    // Scenes that draw the health status row get an emery-only variant pinning the sleep+HR
+    // slots so the Pebble Time 2 capture shows heart rate, not the base distance default.
+    if (scene.hrEmery) {
+      const emeryPath = path.join(outDir, 'showcase-' + scene.id + '-emery.json');
+      fs.writeFileSync(emeryPath, JSON.stringify(buildFrame(scene, HR_EMERY), null, 2) + '\n');
+      written.push(emeryPath);
+    }
   }
   return written;
 }

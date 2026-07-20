@@ -301,11 +301,28 @@ and files each frame to `screenshot/<version>/showcase/frames/<platform>/scene_N
 fresh build runs per scene, so after changing watch C code just re-run — use `mise clean`
 first if a stale waf cache would skip the recompile.
 
+Scenes that draw the health status row (marked `hrEmery` in `gen-showcase-fixtures.js`)
+get an **emery HR variant** fixture (`showcase-N-emery.json`) that pins the sleep + heart-rate
+slots. The fixtures don't pin status slots, so `packLine` bakes the base health-right default
+(walked distance) on every platform; without the variant, emery — the only HR platform in the
+set — would show distance instead of the heart rate a real Pebble Time 2 renders. The wrapper
+shoots emery from the variant and the other (non-HR) platforms from the base fixture. Mirrors
+the wizard split (`gen-wizard-fixtures.js`).
+
 Assemble one platform's frames into the looping, cross-faded GIF
 (`screenshot/<version>/showcase/<platform>-showcase.gif`):
 ```bash
 scripts/assemble-showcase-gif.sh <version> <platform> [hold_secs] [fade_secs] [fps]
 # defaults: hold=1, fade=0.55, fps=15
+
+# MAX_SCENES=N  keep only the first N scenes (default 2; 0 = all captured scenes)
+# EXCLUDE_SCENES="2 3 4"  drop specific scene ids (applied before the MAX_SCENES cap)
+```
+aplite has no `PBL_HEALTH`, so scene 4 (the health graph, reached by a flick that lands on a
+view aplite doesn't have) is broken there — exclude it. Scenes 2 & 3 keep their weather
+layouts (the health status row is simply absent), so aplite ships scenes 1, 2, 3, 5:
+```bash
+EXCLUDE_SCENES="4" MAX_SCENES=0 scripts/assemble-showcase-gif.sh <version> aplite
 ```
 
 ### Package generation
