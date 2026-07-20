@@ -260,3 +260,25 @@ test('buildForecastSeries: bw-light theme flips the third-line white fallback to
   const out = buildForecastSeries(RAW, { secondaryLine: 'precip_prob', thirdLine: 'wind', barSource: 'off', theme: 'bw-light' }, { platform: 'diorite' });
   assert.equal(out.THIRD_LINE_COLOR, 0x000000, 'B&W hardware + bw-light theme: third-line white fallback flips to black');
 });
+
+// aplite has the light polarity compiled out (no WW_THEME_POLARITY — theme.h pins
+// theme_is_light() to false), so it renders the classic white-on-black regardless of
+// the stored theme byte. The phone must mirror that freeze: a light / bw-light theme
+// must NOT flip the line colors to black on aplite, or the secondary line + third-line
+// dots ride black-on-black (the reported bug). diorite/flint keep the flip (they ship
+// the polarity and render a real white background).
+test('buildForecastSeries: aplite + light theme does NOT flip the secondary line to black (polarity frozen to dark)', () => {
+  const out = buildForecastSeries(RAW, { secondaryLine: 'precip_prob', thirdLine: 'off', barSource: 'off', theme: 'light' }, { platform: 'aplite' });
+  assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFFFF, 'aplite renders white-on-black even in the light theme: secondary line stays white');
+});
+
+test('buildForecastSeries: aplite + light theme keeps the third-line dots white (the reported bug)', () => {
+  const out = buildForecastSeries(RAW, { secondaryLine: 'precip_prob', thirdLine: 'wind', barSource: 'off', theme: 'light' }, { platform: 'aplite' });
+  assert.equal(out.THIRD_LINE_COLOR, 0xFFFFFF, 'aplite third-line dots stay white in the light theme');
+});
+
+test('buildForecastSeries: aplite + bw-light theme also stays white (bw-light folds to bw on aplite)', () => {
+  const out = buildForecastSeries(RAW, { secondaryLine: 'precip_prob', thirdLine: 'wind', barSource: 'off', theme: 'bw-light' }, { platform: 'aplite' });
+  assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFFFF, 'aplite + bw-light: secondary line stays white');
+  assert.equal(out.THIRD_LINE_COLOR, 0xFFFFFF, 'aplite + bw-light: third-line dots stay white');
+});

@@ -86,6 +86,7 @@ function createConfig(cfg) {
 module.exports = {                                        // factory + reusable pure helpers
   createConfig: createConfig,
   isColorPlatform: platform.isColorPlatform, computeEnv: platform.computeEnv,
+  isThemePolarityPlatform: platform.isThemePolarityPlatform,
   intToHex: color.intToHex, hexToInt: color.hexToInt,
   deriveDefaults: defaults.deriveDefaults, deriveColorKeys: defaults.deriveColorKeys
 };

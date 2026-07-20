@@ -43,4 +43,29 @@ function resolveInk(color, theme) {
     return color;
 }
 
-module.exports = { resolveInk: resolveInk, isLightPolarity: isLightPolarity, isBwTheme: isBwTheme };
+/**
+ * The theme a target watch will actually render, given whether its platform ships
+ * the light polarity. Platforms without WW_THEME_POLARITY (aplite) have the light
+ * polarity compiled out — theme.h pins theme_is_light() to false, so a stored
+ * light / bw-light byte renders as the classic white-on-black. Mirror that freeze
+ * on the phone before deriving wire colors, or a light-polarity flip (white→black)
+ * would ship line/dot colors the watch draws black-on-black. Folds the polarity to
+ * dark: light→dark, bw-light→bw; dark/bw pass through. supportsPolarity true (every
+ * platform except aplite) returns the theme unchanged.
+ * @param {string} theme 'dark'|'light'|'bw'|'bw-light'.
+ * @param {boolean} supportsPolarity Whether the target platform ships the light polarity.
+ * @returns {string} The theme the target platform actually renders.
+ */
+function effectiveTheme(theme, supportsPolarity) {
+    if (supportsPolarity) { return theme; }
+    if (theme === 'light') { return 'dark'; }
+    if (theme === 'bw-light') { return 'bw'; }
+    return theme;
+}
+
+module.exports = {
+    resolveInk: resolveInk,
+    isLightPolarity: isLightPolarity,
+    isBwTheme: isBwTheme,
+    effectiveTheme: effectiveTheme
+};

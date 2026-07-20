@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const COLORS = require('../src/pkjs/pebble-colors.js');
-const { resolveInk, isLightPolarity, isBwTheme } = require('../src/pkjs/resolve-ink.js');
+const { resolveInk, isLightPolarity, isBwTheme, effectiveTheme } = require('../src/pkjs/resolve-ink.js');
 
 test('light theme: exact white flips to black', () => {
   assert.equal(resolveInk(COLORS.GColorWhite, 'light'), COLORS.GColorBlack);
@@ -34,4 +34,19 @@ test('isBwTheme: true for bw and bw-light, false for dark and light', () => {
   assert.equal(isBwTheme('bw-light'), true);
   assert.equal(isBwTheme('dark'), false);
   assert.equal(isBwTheme('light'), false);
+});
+
+test('effectiveTheme: polarity-capable platform leaves every theme unchanged', () => {
+  assert.equal(effectiveTheme('light', true), 'light');
+  assert.equal(effectiveTheme('bw-light', true), 'bw-light');
+  assert.equal(effectiveTheme('dark', true), 'dark');
+  assert.equal(effectiveTheme('bw', true), 'bw');
+});
+
+test('effectiveTheme: no-polarity platform (aplite) folds light-polarity themes to their dark twins', () => {
+  assert.equal(effectiveTheme('light', false), 'dark');
+  assert.equal(effectiveTheme('bw-light', false), 'bw');
+  // Dark-polarity themes already render as-is on aplite — untouched.
+  assert.equal(effectiveTheme('dark', false), 'dark');
+  assert.equal(effectiveTheme('bw', false), 'bw');
 });

@@ -7,6 +7,7 @@ var statusCatalog = require('./status-line-catalog.js');
 var resolveInk = resolveInkLib.resolveInk;
 var isBwTheme = resolveInkLib.isBwTheme;
 var isLightPolarity = resolveInkLib.isLightPolarity;
+var effectiveTheme = resolveInkLib.effectiveTheme;
 
 /**
  * Quantize a permille value (0..1000) to a 0..250 byte for the wire.
@@ -199,7 +200,15 @@ function metricPermille(metric, raw, settings) {
  * @returns {Object} Wire fields (see module interface).
  */
 function buildForecastSeries(raw, settings, watchInfo) {
-    var theme = settings.theme || 'dark';
+    // Fold the stored theme to what the target platform actually renders: aplite has
+    // the light polarity compiled out (theme.h pins theme_is_light() false), so a
+    // light / bw-light byte renders as the classic white-on-black there. Without this
+    // the light-polarity flip below would send black line/dot colors to aplite, which
+    // draws them black-on-black (the reported bug). Every other platform ships the
+    // polarity, so effectiveTheme returns the theme unchanged for them.
+    var platform = watchInfo && watchInfo.platform ? watchInfo.platform : 'basalt';
+    var theme = effectiveTheme(settings.theme || 'dark',
+                               configUi.isThemePolarityPlatform(platform));
     // Effective color: a color display renders as color only when the theme isn't
     // Black & White — a bw/bw-light theme reuses the exact color model B&W watches
     // get today (bw-light in its light-polarity form).
