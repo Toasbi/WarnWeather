@@ -22,66 +22,41 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 ## Features
 
-**Time**
-* Current time
-* 12- or 24-hour format, with an optional AM/PM indicator
-* Next sunrise or sunset time
-
 **Forecast**
-* 24 hour weather forecast with configurable update frequency
-* Current temperature
-* Temperature forecast line
-* Optional main metric (solid line) and optional second metric (drawn as bar-aligned square dots) — each independently shows precipitation %, wind speed, wind gusts, or UV index (the same metric can’t appear on both); any main-metric line can have a configurable fill, and wind/gust lines have a selectable graph scale
-* Optional hourly rain bars — multicolor or white on color watches
-* Optional day/night hatch shading on the graph
-* Selectable units — temperature (°C / °F), wind speed (kph / mph / knots), and walked distance (kilometres / miles)
-* Five weather providers: Weather Underground, OpenWeatherMap, Open-Meteo, Met.no/MET Norway (Nordics), and Deutscher Wetterdienst via Bright Sky (Germany)
-* Weather and radar data from MET Norway is used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — "Data from MET Norway"
-* GPS or manual location entry, with a configurable GPS cache
-* City where forecast was fetched
+* 24-hour forecast with a temperature line and configurable, battery-friendly updates
+* Configurable metrics such as precipitation, UV index, gusts, and wind
+* Optional day/night shading
+* Multiple weather providers, including regional and worldwide sources
 
-**Radar**
-* Rain radar showing a 2-hour precipitation nowcast in 5-minute frames
-* Three providers: DWD (Germany — rain at your exact location plus the strongest rain approaching from within 2 km), Met.no (Nordics — rain at your exact location), and Rainbow.ai (worldwide — rain at your exact location)
-* Switch between calendar and radar view (flick/tap)
-* Optional rain countdown: when rain is on the way, the top status line turns into "Drizzle / Rain / Downpour in X min" (and "… for X min" while it's raining) — with an outline raindrop intensity icon (one / two / three drops for drizzle / rain / downpour) colour-matched to the radar bars, and a configurable look-ahead (30 min / 60 min / 2 hours)
+**Rain radar**
+* 2-hour precipitation nowcast from regional and worldwide providers
+* Rain countdown telling you when rain starts (or stops)
 
 **Health view** *(requires a health-capable watch; heart rate needs a heart-rate sensor)*
-* Your day's activity on the watchface — today's step count, last night's sleep, and current heart rate — as a status line, or as an hourly graph with step bars, a sleep band (light / deep sleep), and a heart-rate line
+* Health status for steps, sleep, distance, and heart rate
+* Last-24h health chart with steps per hour, heart rate, and a sleep band
 
 **Calendar**
-* 3 week calendar
-* Selectable start of the week (Sunday or Monday)
-* Calendar shown as a **3-row** (**Full calendar**: prev + current + next week), **2-row** (**Compact calendar**: this week + next, with a larger status line and a taller forecast/health area; **Compact calendar (dense)**: the same 2-row calendar with health and weather status shown together), or hidden entirely (**No calendar**: full-date strip, bigger clock/status line, and a forecast that fills the screen) — set via the **Layout preset** (see **Customization**)
-* Highlight public holidays for your country — 150+ countries worldwide, with region/state granularity where holidays vary (Germany, Austria, Switzerland, Spain, UK, US)
-* Customize colors for Sundays, Saturdays, and holidays
-
-**Watch status**
-* Battery indicator
-* Bluetooth connection indicator
-* Vibrate on disconnect
-* Quiet time indicator
-* Sleep mode (battery-saving night pause)
+* Multi-week calendar with current-day highlight
+* Selectable start of week and customizable highlights for weekends and holidays (150+ countries)
 
 **Status lines**
-* Configurable status lines — for each view (forecast, radar, top strip, and health) choose what appears in the left and right slots, plus the middle slot on every view, from a catalog: current temperature, city, calendar week, sunrise/sunset, UV index, air quality index — from real monitoring stations (aqicn.org) or the Open-Meteo model, pollen — DWD forecasts only, showing the worst of all pollen species with native DWD values `0`, `0-1`, `1`, `1-2`, `2`, `2-3`, or `3`, wind speed, wind gusts, precipitation chance, steps, walked distance, sleep, heart rate, and battery
-* The forecast view keeps the city in its centre; the top strip defaults to the calendar week, date, and sunrise/sunset, all selectable. The battery indicator is shown by default only once your charge drops below 10% (*Show battery below 10%*, on by default), and remains selectable for the top-right slot at any charge level. Health items appear only on health-capable watches, and heart rate only where a heart-rate sensor is present
-* A temporarily missing weather value shows as "--" so the row never jumps
+* Configurable status slots on every view: fill each slot from a catalog of metrics — weather, air quality, pollen, wind, health, battery, and more
 
-**Customization**
-* **Watchface themes** — Dark (default) and Light, plus Black & White and B&W Inverted on color watches; set the theme in the General tab. Pebble Classic/Steel renders the classic dark look only (its 24 KB app budget can't afford the theme engine)
-* Customize time font and color
-* Adjustable layout — choose how much of the screen goes to the calendar vs. the forecast, radar, and health views
-* **Layout preset** — pick a calendar style (**Full calendar**, **Compact calendar**, **Compact calendar (dense)**, or **No calendar**); the wrist-flick cycle then builds itself from your health and radar settings — enable health or radar and a flick reveals them automatically, previewed live in settings
-* Optional auto-return to the default view a set time after flicking away (1–10 minutes, or never)
-* **Settings theme** — the settings page now follows your Pebble app's light or dark theme automatically, with a manual Auto / Light / Dark override (More tab → Advanced). The watchface itself is unaffected.
-* **First-run setup wizard** — a quick, skippable guide that infers your country to pick sensible weather and radar providers and holidays, then walks you through layout, radar, and health. Re-runnable any time from **More → Run setup again**.
-* **Redesigned settings pickers** — dropdowns (like the status-slot catalog) open in a grouped bottom-sheet, so long option lists are easier to browse.
-* **Reset watchface** — wipe all settings and cached data and start fresh from **More → Advanced**; the setup wizard then runs again on the next open.
+**Watchface themes**
+* Dark and Light, plus Black & White options on color watches
 
-**Updates**
-* **Update notifications** — when a newer version is available on the Pebble appstore, the watchface sends you a one-time notification so you know to update.
-* **News & feedback** — announcements from the developer appear in the settings page (with an unread badge), and you can reply privately, or answer quick one-tap questions, without leaving the page.
+**Watch**
+* Custom color, 12h/24h, optional AM/PM
+* Battery, Bluetooth, quiet time, and vibrate-on-disconnect indicators
+* Sleep mode (battery-saving night pause)
+
+**Layout customization**
+* Multiple layout presets, with flick-to-cycle between views and optional auto-return
+* Light/Dark settings page with grouped, easy-to-browse pickers
+* First-run setup wizard that picks sensible defaults for your country
+
+*Weather and radar data from [MET Norway](https://www.met.no/) is used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).*
 
 ## Forecast graph vs. rain radar
 
