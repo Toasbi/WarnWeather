@@ -20,10 +20,10 @@ static Config config_defaults(void) {
         .celsius = false,
         .time_lead_zero = false,
         .axis_12h = false,
-        .start_mon = false,
+        .start_mon = true,
         .prev_week = true,
         .show_qt = true,
-        .show_bt = true,
+        .show_bt = false,
         .show_bt_disconnect = true,
         .vibe = false,
         .show_am_pm = false,
@@ -45,7 +45,7 @@ static Config config_defaults(void) {
         // The phone re-sends the real cycle on connect; this only covers the first boot.
         .view_spec = { 0x90, 0x00, 0x00 },
         .theme = 0,   // dark — today's look, unchanged until the user picks otherwise
-        .battery_low_only = false
+        .battery_low_only = true
     };
 }
 

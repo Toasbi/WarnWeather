@@ -5,6 +5,7 @@
 // localStorage is the ambient PKJS global; tests inject a fake before require.
 
 var settings = require('./settings');
+var platformLib = require('./config-ui/lib/platform.js');   // isHrPlatform (emery + diorite)
 
 var STORAGE_KEY = 'clay-settings';
 
@@ -255,9 +256,9 @@ function migrateHolidayRegionKeys(isMigrationDone, markDone) {
 }
 
 /**
- * One-time upgrade of the seeded health-line defaults to the emery triple
- * (steps/sleep/hr). Only rewrites slots still holding the static defaults, so
- * a user's explicit choice is never clobbered.
+ * One-time upgrade of the seeded health-line defaults to the HR-capable
+ * triple (emery + diorite) (steps/sleep/hr). Only rewrites slots still
+ * holding the static defaults, so a user's explicit choice is never clobbered.
  * @param {string} platform watch platform name ('emery', 'basalt', ...)
  * @param {function(): boolean} isMigrationDone marker probe
  * @param {function()} markDone marker setter
@@ -265,14 +266,14 @@ function migrateHolidayRegionKeys(isMigrationDone, markDone) {
 function migrateStatusLineHealthDefaults(platform, isMigrationDone, markDone) {
     var persistClay = loadForMigration(isMigrationDone, 'status line health defaults');
     if (persistClay === null) { return; }
-    if (platform === 'emery'
+    if (platformLib.isHrPlatform(platform)
             && persistClay.statusHealthLeft === 'steps'
             && persistClay.statusHealthMid === 'empty'
             && persistClay.statusHealthRight === 'sleep') {
         persistClay.statusHealthMid = 'sleep';
         persistClay.statusHealthRight = 'hr';
         save(persistClay);
-        console.log('Migrated health status line to emery defaults');
+        console.log('Migrated health status line to HR-capable defaults');
     }
     markDone();
 }

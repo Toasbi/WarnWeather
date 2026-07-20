@@ -166,10 +166,11 @@ test('needsUv is true when any status slot selects uv', () => {
   assert.equal(needsUv({ secondaryLine: 'uv', thirdLine: 'off' }), true);
 });
 
-test('needsAqi is true only when a status slot selects aqi', () => {
+test('needsAqi is true when a status slot selects aqi; forecast-right defaults to aqi', () => {
   assert.equal(needsAqi(null), false);
-  assert.equal(needsAqi({}), false);
-  assert.equal(needsAqi({ secondaryLine: 'uv' }), false);
+  assert.equal(needsAqi({}), true, 'forecast-right now defaults to aqi');
+  assert.equal(needsAqi({ statusForecastRight: 'empty' }), false, 'no slot selects aqi');
+  assert.equal(needsAqi({ statusForecastRight: 'sun' }), false);
   assert.equal(needsAqi({ statusForecastLeft: 'aqi' }), true);
   assert.equal(needsAqi({ statusRadarMid: 'aqi' }), true);
 });

@@ -897,6 +897,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return statusLineCatalog.slotOptions(S, env, args);
     });
 
+    // Platform-aware slot default (Approach A single-source): a status slot's fresh-install
+    // default comes from the catalog, HR-aware. Consumed by engine.hydrate / resolveRowItem
+    // via item.defaultFrom. Mirrors the statusSlot options resolver above.
+    PConf.defaultsResolvers.register('statusSlotDefault', function (env, args) {
+        return statusLineCatalog.slotDefault(args.slotKey, env);
+    });
+
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
             forecastPreview: forecastPreview, radarPreview: radarPreview,

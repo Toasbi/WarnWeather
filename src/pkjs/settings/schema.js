@@ -476,7 +476,7 @@ module.exports = {
                     type: 'select',
                     messageKey: 'statusForecastLeft',
                     label: 'Left slot',
-                    defaultValue: 'temp',
+                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusForecastLeft'}},
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusForecastLeft', position: 'left'}}
@@ -485,7 +485,7 @@ module.exports = {
                     type: 'select',
                     messageKey: 'statusForecastMid',
                     label: 'Middle slot',
-                    defaultValue: 'city',
+                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusForecastMid'}},
                     joinPrevious: true,
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
@@ -495,7 +495,7 @@ module.exports = {
                     type: 'select',
                     messageKey: 'statusForecastRight',
                     label: 'Right slot',
-                    defaultValue: 'sun',
+                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusForecastRight'}},
                     joinPrevious: true,
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
@@ -508,7 +508,7 @@ module.exports = {
             items: [
                 {
                     type: 'select', messageKey: 'statusRadarLeft', label: 'Left slot',
-                    defaultValue: 'temp',
+                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusRadarLeft'}},
                     showWhen: {all: [{env: 'radar'}, {key: 'radarProvider', ne: 'disabled'}]},
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
@@ -516,7 +516,7 @@ module.exports = {
                 },
                 {
                     type: 'select', messageKey: 'statusRadarMid', label: 'Middle slot',
-                    defaultValue: 'city', joinPrevious: true,
+                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusRadarMid'}}, joinPrevious: true,
                     showWhen: {all: [{env: 'radar'}, {key: 'radarProvider', ne: 'disabled'}]},
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
@@ -524,7 +524,7 @@ module.exports = {
                 },
                 {
                     type: 'select', messageKey: 'statusRadarRight', label: 'Right slot',
-                    defaultValue: 'sun', joinPrevious: true,
+                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusRadarRight'}}, joinPrevious: true,
                     showWhen: {all: [{env: 'radar'}, {key: 'radarProvider', ne: 'disabled'}]},
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
@@ -537,7 +537,7 @@ module.exports = {
             items: [
                 {
                     type: 'select', messageKey: 'statusHealthLeft', label: 'Left slot',
-                    defaultValue: 'steps',
+                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusHealthLeft'}},
                     showWhen: {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}]},
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
@@ -545,7 +545,7 @@ module.exports = {
                 },
                 {
                     type: 'select', messageKey: 'statusHealthMid', label: 'Middle slot',
-                    defaultValue: 'empty', joinPrevious: true,
+                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusHealthMid'}}, joinPrevious: true,
                     showWhen: {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}]},
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
@@ -553,7 +553,7 @@ module.exports = {
                 },
                 {
                     type: 'select', messageKey: 'statusHealthRight', label: 'Right slot',
-                    defaultValue: 'sleep', joinPrevious: true,
+                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusHealthRight'}}, joinPrevious: true,
                     showWhen: {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}]},
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
@@ -576,28 +576,28 @@ module.exports = {
                     // the slots, so the Watch Status Bar note flows straight into its slots.
                     // On aplite the note is hidden, so this simply becomes the first item.
                     type: 'select', messageKey: 'statusTopLeft', label: 'Left slot',
-                    defaultValue: 'empty', joinPrevious: true,
+                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusTopLeft'}}, joinPrevious: true,
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusTopLeft', position: 'left'}}
                 },
                 {
                     type: 'select', messageKey: 'statusTopMid', label: 'Middle slot',
-                    defaultValue: 'date', joinPrevious: true,
+                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusTopMid'}}, joinPrevious: true,
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusTopMid', position: 'mid'}}
                 },
                 {
                     type: 'select', messageKey: 'statusTopRight', label: 'Right slot',
-                    defaultValue: 'battery', joinPrevious: true,
+                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusTopRight'}}, joinPrevious: true,
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusTopRight', position: 'right'}}
                 },
                 {
                     type: 'toggle', messageKey: 'batteryLowOnly', label: 'Show battery below 10%',
-                    defaultValue: false,
+                    defaultValue: true,
                     hint: 'Replaces the top-right slot when your battery drops below 10%.'
                 },
                 {type: 'toggle', messageKey: 'showQt', label: 'Show quiet time icon', defaultValue: true},
@@ -612,7 +612,7 @@ module.exports = {
                     type: 'select',
                     messageKey: 'btIcons',
                     label: 'Show icon for bluetooth',
-                    defaultValue: 'both',
+                    defaultValue: 'disconnected',
                     joinPrevious: true,
                     options: [['Disconnected', 'disconnected'], ['Connected', 'connected'], ['Both', 'both'], ['None', 'none']]
                 }
@@ -646,7 +646,7 @@ module.exports = {
                 type: 'segmented',
                 messageKey: 'weekStartDay',
                 label: 'Start week on',
-                defaultValue: 'sun',
+                defaultValue: 'mon',
                 options: [['Sun', 'sun'], ['Mon', 'mon']]
             }, {
                 type: 'segmented',

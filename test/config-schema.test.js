@@ -496,28 +496,32 @@ test('colorUSFederal splits into a dark-exclude-white / light-exclude-black pair
   });
 });
 
-test('status slot dropdowns: resolver, defaults, slot context args + dedupe onChange (no excludeKeys)', () => {
+test('status slot dropdowns: resolver, defaultFrom, slot context args + dedupe onChange (no excludeKeys)', () => {
   const cases = [
-    ['statusForecastLeft', 'temp', 'left'],
-    ['statusForecastMid', 'city', 'mid'],
-    ['statusForecastRight', 'sun', 'right'],
-    ['statusRadarLeft', 'temp', 'left'],
-    ['statusRadarMid', 'city', 'mid'],
-    ['statusRadarRight', 'sun', 'right'],
-    ['statusTopLeft', 'empty', 'left'],
-    ['statusTopMid', 'date', 'mid'],
-    ['statusTopRight', 'battery', 'right'],
-    ['statusHealthLeft', 'steps', 'left'],
-    ['statusHealthMid', 'empty', 'mid'],
-    ['statusHealthRight', 'sleep', 'right']
+    ['statusForecastLeft', 'left'],
+    ['statusForecastMid', 'mid'],
+    ['statusForecastRight', 'right'],
+    ['statusRadarLeft', 'left'],
+    ['statusRadarMid', 'mid'],
+    ['statusRadarRight', 'right'],
+    ['statusTopLeft', 'left'],
+    ['statusTopMid', 'mid'],
+    ['statusTopRight', 'right'],
+    ['statusHealthLeft', 'left'],
+    ['statusHealthMid', 'mid'],
+    ['statusHealthRight', 'right']
   ];
-  for (const [key, def, pos] of cases) {
+  for (const [key, pos] of cases) {
     const item = byKey(key);
     assert.ok(item, key);
     // Status slots are plain selects (no search box) — the option list is short and
     // grouped, so the modal opens without a search field, like normal options.
     assert.equal(item.type, 'select', key);
-    assert.equal(item.defaultValue, def, key + ' default');
+    // Defaults are HR/platform-aware, so each slot resolves its default at hydrate
+    // time via the statusSlotDefault resolver rather than a static defaultValue.
+    assert.equal(item.defaultFrom.resolver, 'statusSlotDefault', key + ' defaultFrom resolver');
+    assert.equal(item.defaultFrom.args.slotKey, key, key + ' defaultFrom slotKey');
+    assert.equal(item.defaultValue, undefined, key + ' no static defaultValue');
     assert.equal(item.optionsFrom.resolver, 'statusSlot', key);
     assert.equal(item.optionsFrom.args.excludeKeys, undefined, key + ' no excludeKeys');
     assert.equal(item.optionsFrom.args.slotKey, key, key + ' slotKey');
@@ -535,7 +539,8 @@ test('top-strip middle is a selectable Date slot; the fixed label is gone', () =
   const topMid = byKey('statusTopMid');
   assert.ok(topMid, 'statusTopMid exists');
   assert.equal(topMid.type, 'select');
-  assert.equal(topMid.defaultValue, 'date');
+  assert.equal(topMid.defaultFrom.resolver, 'statusSlotDefault');
+  assert.equal(topMid.defaultFrom.args.slotKey, 'statusTopMid');
 });
 
 test('Units section wording: the section title carries the noun, labels stay short', () => {
@@ -572,11 +577,11 @@ test('watch status-bar icon controls live in the Watch Status Bar section, not M
   assert.equal(byKey('btIcons').joinPrevious, true, 'btIcons joins vibe as one visual group');
 });
 
-test('batteryLowOnly toggle lives in Watch Status Bar, off by default', () => {
+test('batteryLowOnly toggle lives in Watch Status Bar, on by default', () => {
   const item = byKey('batteryLowOnly');
   assert.ok(item, 'batteryLowOnly exists');
   assert.equal(item.type, 'toggle');
-  assert.equal(item.defaultValue, false);
+  assert.equal(item.defaultValue, true);
   assert.equal(item.label, 'Show battery below 10%');
   assert.equal(item.hint, 'Replaces the top-right slot when your battery drops below 10%.');
   const strip = schema.tabs.find((t) => t.id === 'watch')

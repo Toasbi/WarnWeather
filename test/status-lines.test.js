@@ -123,18 +123,19 @@ test('buildStatusLines packs four lines with defaults', () => {
   assert.equal(forecast[0].text, '20'); // bare number; thermometer icon carries context
   assert.equal(forecast[1].icon, I.NONE);
   assert.equal(forecast[1].text, 'Saarbrücken'); // default mid = city
-  assert.equal(forecast[2].icon, I.DRAWN_SUN);
+  assert.equal(forecast[2].icon, I.AQI);
 
   const radar = decodeLine(p.STATUS_LINE_2_UINT8);
-  assert.equal(radar[1].text, 'Saarbrücken');
+  assert.equal(radar[1].icon, I.WIND);
+  assert.equal(radar[2].icon, I.GUST);
 
   const top = decodeLine(p.STATUS_LINE_3_UINT8);
-  assert.equal(top[0].kind, K.EMPTY);
+  assert.equal(top[0].kind, K.LIVE_WEEK); // default left = calendar week (available on basalt)
   assert.equal(top[1].kind, K.LIVE_DATE); // mid slot is selectable; defaults to date
-  assert.equal(top[2].kind, K.LIVE_BATTERY); // default right = battery
+  assert.equal(top[2].icon, I.DRAWN_SUN); // default right = sunrise/sunset (TEXT + sun glyph)
 
   const health = decodeLine(p.STATUS_LINE_4_UINT8);
-  assert.deepEqual(health.map(s => s.kind), [K.LIVE_STEPS, K.EMPTY, K.LIVE_SLEEP]);
+  assert.deepEqual(health.map(s => s.kind), [K.LIVE_STEPS, K.LIVE_SLEEP, K.LIVE_DISTANCE]);
   assert.deepEqual(health.map(s => s.len), [0, 0, 0]); // LIVE = no value bytes
 });
 
@@ -188,9 +189,9 @@ test('top line: mid defaults to live date; stored mid packs; date is rejected at
   const topLine = catalog.LINES.filter(l => l.id === 'top')[0];
   const env = basaltEnv();
   const p = basePayload();
-  // default: empty / date / battery
+  // default: week / date / sun
   let slots = decodeLine(statusLines.packLine(topLine, p, baseSettings(), env));
-  assert.deepEqual(slots.map(s => s.kind), [K.EMPTY, K.LIVE_DATE, K.LIVE_BATTERY]);
+  assert.deepEqual(slots.map(s => s.kind), [K.LIVE_WEEK, K.LIVE_DATE, K.TEXT]);
   // stored mid selection packs as TEXT
   slots = decodeLine(statusLines.packLine(topLine, p,
     baseSettings({ statusTopMid: 'city' }), env));

@@ -3,7 +3,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 global.PConf = {
   blocks: (function () { var m = {}; return { register: (id, fn) => { m[id] = fn; }, get: (id) => m[id] }; })(),
-  optionsResolvers: (function () { var m = {}; return { register: (id, fn) => { m[id] = fn; }, get: (id) => m[id] }; })()
+  optionsResolvers: (function () { var m = {}; return { register: (id, fn) => { m[id] = fn; }, get: (id) => m[id] }; })(),
+  defaultsResolvers: (function () { var m = {}; return { register: (id, fn) => { m[id] = fn; }, get: (id) => m[id] }; })()
 };
 const B = require('../src/pkjs/settings/blocks.js');
 
@@ -626,4 +627,13 @@ test('radarPreview (metno): point provider renders like rainbow — no nearby ba
   const rainbow = B.radarPreview({ radarProvider: 'rainbow', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
   assert.equal(metno, rainbow, 'metno and rainbow share the point-provider preview');
   assert.equal(metno.indexOf('>Nearby (2 km)<'), -1, 'metno drops the nearby legend');
+});
+
+test('statusSlotDefault resolver: HR-aware slot default sourced from the catalog', () => {
+  const fn = global.PConf.defaultsResolvers.get('statusSlotDefault');
+  assert.equal(typeof fn, 'function', 'resolver registered');
+  assert.equal(fn({ hr: true }, { slotKey: 'statusHealthRight' }), 'hr');
+  assert.equal(fn({ hr: false }, { slotKey: 'statusHealthRight' }), 'distance');
+  assert.equal(fn({}, { slotKey: 'statusForecastRight' }), 'aqi');
+  assert.equal(fn({}, { slotKey: 'statusTopLeft' }), 'week');
 });

@@ -101,10 +101,11 @@ STATUS LINES
   - sleep
   - heart rate
   - battery
-  The forecast view keeps the city centered; the top strip defaults to the date
-  centered with the battery top-right — both selectable. An optional 'Show battery
-  below 10%' setting keeps the battery visible on a low charge even when the
-  top-right slot holds something else. Health items need a health-capable watch
+  The forecast view keeps the city centered; the top strip defaults to the
+  calendar week, date, and sunrise/sunset — all selectable. The battery
+  indicator shows by default only once the charge drops below 10% ('Show
+  battery below 10%', on by default), and stays selectable for the top-right
+  slot at any charge level. Health items need a health-capable watch
   (heart rate needs a heart-rate sensor). A missing value shows as "--" so the row
   never jumps.
 

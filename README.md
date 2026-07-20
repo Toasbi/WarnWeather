@@ -65,7 +65,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 **Status lines**
 * Configurable status lines — for each view (forecast, radar, top strip, and health) choose what appears in the left and right slots, plus the middle slot on every view, from a catalog: current temperature, city, calendar week, sunrise/sunset, UV index, air quality index — from real monitoring stations (aqicn.org) or the Open-Meteo model, pollen — DWD forecasts only, showing the worst of all pollen species with native DWD values `0`, `0-1`, `1`, `1-2`, `2`, `2-3`, or `3`, wind speed, wind gusts, precipitation chance, steps, walked distance, sleep, heart rate, and battery
-* The forecast view keeps the city in its centre; the top strip defaults to the date in its centre and the battery top-right, both now selectable; an optional *Show battery below 10%* setting keeps the battery visible on a low charge even when you've put something else top-right. Health items appear only on health-capable watches, and heart rate only where a heart-rate sensor is present
+* The forecast view keeps the city in its centre; the top strip defaults to the calendar week, date, and sunrise/sunset, all selectable. The battery indicator is shown by default only once your charge drops below 10% (*Show battery below 10%*, on by default), and remains selectable for the top-right slot at any charge level. Health items appear only on health-capable watches, and heart rate only where a heart-rate sensor is present
 * A temporarily missing weather value shows as "--" so the row never jumps
 
 **Customization**

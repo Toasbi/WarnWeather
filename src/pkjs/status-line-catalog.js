@@ -33,7 +33,7 @@
     { code: 'city', label: 'City', kind: KINDS.TEXT, icon: ICONS.NONE, category: 'datelocation' },
     { code: 'steps', label: 'Steps', kind: KINDS.LIVE_STEPS, icon: ICONS.STEPS, needsHealth: true, category: 'health' },
     { code: 'distance', label: 'Walked distance', kind: KINDS.LIVE_DISTANCE, icon: ICONS.DISTANCE, needsHealth: true, category: 'health' },
-    { code: 'hr', label: 'Heart rate', kind: KINDS.LIVE_HR, icon: ICONS.HR, needsHealth: true, emeryOnly: true, category: 'health' },
+    { code: 'hr', label: 'Heart rate', kind: KINDS.LIVE_HR, icon: ICONS.HR, needsHealth: true, needsHr: true, category: 'health' },
     { code: 'sleep', label: 'Sleep', kind: KINDS.LIVE_SLEEP, icon: ICONS.SLEEP, needsHealth: true, category: 'health' },
     { code: 'battery', label: 'Battery', kind: KINDS.LIVE_BATTERY, icon: ICONS.NONE, topRightOnly: true, category: 'battery' }
   ];
@@ -49,17 +49,17 @@
   var LINES = [
     { id: 'forecast', wireKey: 'STATUS_LINE_1_UINT8',
       slots: ['statusForecastLeft', 'statusForecastMid', 'statusForecastRight'],
-      defaults: { statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'sun' } },
+      defaults: { statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'aqi' } },
     { id: 'radar', wireKey: 'STATUS_LINE_2_UINT8',
       slots: ['statusRadarLeft', 'statusRadarMid', 'statusRadarRight'],
-      defaults: { statusRadarLeft: 'temp', statusRadarMid: 'city', statusRadarRight: 'sun' } },
+      defaults: { statusRadarLeft: 'temp', statusRadarMid: 'wind', statusRadarRight: 'gust' } },
     { id: 'top', wireKey: 'STATUS_LINE_3_UINT8',
       slots: ['statusTopLeft', 'statusTopMid', 'statusTopRight'],
-      defaults: { statusTopLeft: 'empty', statusTopMid: 'date', statusTopRight: 'battery' } },
+      defaults: { statusTopLeft: 'week', statusTopMid: 'date', statusTopRight: 'sun' } },
     { id: 'health', wireKey: 'STATUS_LINE_4_UINT8',
       slots: ['statusHealthLeft', 'statusHealthMid', 'statusHealthRight'],
-      defaults: { statusHealthLeft: 'steps', statusHealthMid: 'empty', statusHealthRight: 'sleep' },
-      emeryDefaults: { statusHealthLeft: 'steps', statusHealthMid: 'sleep', statusHealthRight: 'hr' } }
+      defaults: { statusHealthLeft: 'steps', statusHealthMid: 'sleep', statusHealthRight: 'distance' },
+      hrDefaults: { statusHealthLeft: 'steps', statusHealthMid: 'sleep', statusHealthRight: 'hr' } }
   ];
 
   /**
@@ -77,7 +77,7 @@
    * Phone-side availability gate. The watch never gates.
    * @param {Object} item catalog entry
    * @param {Object} settings Clay settings blob
-   * @param {Object} env {color, round, platform, health, radar}
+   * @param {Object} env {color, round, platform, health, radar, hr}
    * @param {Object} [slotCtx] {slotKey, position: 'left'|'mid'|'right'} of the
    *   slot being resolved; position-gated items are unavailable without it
    * @returns {boolean}
@@ -90,7 +90,7 @@
       if (!env || !env.health) { return false; }
       if (settings && settings.healthMode === 'off') { return false; }
     }
-    if (item.emeryOnly && (!env || env.platform !== 'emery')) { return false; }
+    if (item.needsHr && (!env || !env.hr)) { return false; }
     // Mechanism for items whose watch-side C rendering is compiled out on
     // aplite (frozen image budget). No current item uses it: calendar-week
     // used to (the watch-side iso_week() is aplite-excluded), but the phone
@@ -190,11 +190,28 @@
     return out;
   }
 
+  /**
+   * The platform-aware default code for one slot: the HR flavor (hrDefaults) on a
+   * watch with a heart-rate sensor, else the line's base default.
+   * @param {string} slotKey slot settings key (e.g. 'statusHealthRight')
+   * @param {Object} [env] platform env; env.hr selects the flavor
+   * @returns {string|undefined} default item code, or undefined for an unknown slotKey
+   */
+  function slotDefault(slotKey, env) {
+    for (var l = 0; l < LINES.length; l++) {
+      var line = LINES[l];
+      if (line.slots.indexOf(slotKey) === -1) { continue; }
+      if (env && env.hr && line.hrDefaults) { return line.hrDefaults[slotKey]; }
+      return line.defaults[slotKey];
+    }
+    return undefined;
+  }
+
   var api = {
     KINDS: KINDS, ICONS: ICONS, CAPS: CAPS, LINES: LINES,
     byCode: byCode, itemAvailable: itemAvailable, slotOptions: slotOptions,
     selectedCodes: selectedCodes, resolveSelection: resolveSelection,
-    allSlotKeys: allSlotKeys
+    allSlotKeys: allSlotKeys, slotDefault: slotDefault
   };
 
   // Dual-context export - mirror the exact tail of src/pkjs/view-cycle.js.
