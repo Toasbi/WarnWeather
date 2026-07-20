@@ -34,6 +34,8 @@ bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
     Tuple *clay_theme_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_THEME);
     // Optional (older phone builds omit it); battery_low_only then stays false.
     Tuple *clay_battery_low_only_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_BATTERY_LOW_ONLY);
+    // Optional (older phone builds omit it); date_month_first then stays false = day-first.
+    Tuple *clay_date_month_first_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_DATE_MONTH_FIRST);
 
     // The core-key presence chain — see config_wire.h. New keys go in the
     // optional block above, never in here.
@@ -71,6 +73,9 @@ bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
     if (clay_theme_tuple) { out->theme = (uint8_t) clay_theme_tuple->value->int16; }
     if (clay_battery_low_only_tuple) {
         out->battery_low_only = (bool) (clay_battery_low_only_tuple->value->int16);
+    }
+    if (clay_date_month_first_tuple) {
+        out->date_month_first = (bool) (clay_date_month_first_tuple->value->int16);
     }
     out->time_font = clay_time_font_tuple->value->int16;
     out->color_today = GColorFromHEX(clay_color_today_tuple->value->int32);

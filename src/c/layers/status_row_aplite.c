@@ -8,6 +8,7 @@
 #include "status_row.h"
 #include "layer_util.h"
 #include "../appendix/persist.h"
+#include "../appendix/config.h"
 #include "../appendix/theme.h"
 #include "../services/watch_services.h"
 #include "../windows/layout.h"
@@ -57,21 +58,25 @@ static GFont row_font(uint8_t tier, uint8_t line_id) {
 static void format_status_date(bool full_date, char *buf, size_t cap) {
     struct tm tm_now = watch_services_localtime();
     if (!full_date) {
+        // Calendar views already show the day; the slot only needs month + year.
         strftime(buf, cap, "%b %Y", &tm_now);
         return;
     }
 
-    char mon[8];
-    strftime(mon, sizeof(mon), "%b", &tm_now);
+    // No-calendar view: numeric dd.mm.yy, or mm.dd.yy where the configured
+    // holiday country writes the month first (US). Order comes from the phone
+    // (config.date_month_first), not the watch system locale.
     int mday = tm_now.tm_mday;
     if (mday < 1) { mday = 1; } else if (mday > 31) { mday = 31; }
-    int year = tm_now.tm_year + 1900;
-    if (year < 0) { year = 0; } else if (year > 9999) { year = 9999; }
-    const char *loc = i18n_get_system_locale();
-    if (loc && strncmp(loc, "en_US", 5) == 0) {
-        snprintf(buf, cap, "%s %d. %d", mon, mday, year);
+    int mon = tm_now.tm_mon + 1;
+    if (mon < 1) { mon = 1; } else if (mon > 12) { mon = 12; }
+    int yy = (tm_now.tm_year + 1900) % 100;
+    if (yy < 0) { yy = 0; }
+    const Config *cfg = config_get();
+    if (cfg && cfg->date_month_first) {
+        snprintf(buf, cap, "%02d.%02d.%02d", mon, mday, yy);
     } else {
-        snprintf(buf, cap, "%d. %s %d", mday, mon, year);
+        snprintf(buf, cap, "%02d.%02d.%02d", mday, mon, yy);
     }
 }
 

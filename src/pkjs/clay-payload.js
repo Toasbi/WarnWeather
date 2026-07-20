@@ -40,6 +40,11 @@ function buildClayPayload(settings, watchInfo, now) {
         "CLAY_AXIS_12H": settings.axisTimeFormat === '12h',
         "CLAY_COLOR_TODAY": settings.hasOwnProperty('colorToday') ? settings.colorToday : DEFAULT_COLOR_WHITE,
         "CLAY_START_MON": settings.weekStartDay === 'mon',
+        // No-cal date slot order: US writes the month first (mm.dd.yy); everyone
+        // else is day-first (dd.mm.yy). Derived from the configured holiday
+        // country (defaults to US, matching the holiday-mask default below).
+        "CLAY_DATE_MONTH_FIRST": (settings.hasOwnProperty('holidayCountry')
+            ? settings.holidayCountry : 'US') === 'US',
         "CLAY_PREV_WEEK": settings.firstWeek === 'prev',
         "CLAY_TOP_VIEW_MODE": topViewIdx,
         "CLAY_THEME": ['dark', 'light', 'bw', 'bw-light'].indexOf(theme),

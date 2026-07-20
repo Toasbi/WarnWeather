@@ -75,6 +75,11 @@ typedef struct {
     // the top-right slot. Append-only; optional wire tuple (older phones omit it,
     // leaving the memset-zeroed default false). ---
     bool battery_low_only;
+    // --- date order (v1.8): the no-calendar date slot renders numeric
+    // dd.mm.yy by default, or mm.dd.yy when true. The phone derives it from the
+    // holiday country (US -> month-first). Append-only; optional wire tuple
+    // (older phones omit it, leaving the memset-zeroed default false = day-first). ---
+    bool date_month_first;
 } Config;
 
 // Read-only view of the loaded config. Non-NULL from config_load() until
