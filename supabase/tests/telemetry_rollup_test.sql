@@ -6,7 +6,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 set timezone = 'UTC';  -- make current_date / day-bucketing deterministic
-select plan(17);
+select plan(20);
 
 -- ── Schema ────────────────────────────────────────────────────────────────
 select has_table('public', 'telemetry_watch', 'telemetry_watch exists');
@@ -87,6 +87,36 @@ select is((select lifetime_events from telemetry_watch where watch_key = 'watchA
 select telemetry_rollup_and_prune(p_raw_retention_days => 14, p_prune => true);
 select is((select count(*)::int from rainbow_nowcast_cache), 1,
           'expired cache pruned, live cache kept');
+
+-- ── Prune boundary: day-aligned, not rolling-timestamp ──────────────────────
+-- The day that straddles the retention cutoff must be pruned as a WHOLE UTC day,
+-- never partially. A rolling-timestamp cutoff would drop only the early-in-day
+-- rows of the boundary day; the next rollup would then recount that day from the
+-- survivors and permanently undercount its fetch_count. watchBnd's boundary day
+-- (current_date - 3) sits exactly at retention 3: it must survive intact, while
+-- the day before it (current_date - 4) must be gone. Two runs, because the
+-- undercount only bites on the run after the first partial trim.
+insert into telemetry_weather_fetch
+  (received_at, account_token_hash, watch_token_hash, provider, success, app_version, build_profile)
+values
+  ((current_date - 3) + time '00:00', 'acctBnd', 'watchBnd', 'dwd', true, '1.8.0', 'release'),
+  ((current_date - 3) + time '23:59', 'acctBnd', 'watchBnd', 'dwd', true, '1.8.0', 'release'),
+  ((current_date - 4) + time '12:00', 'acctBnd', 'watchBnd', 'dwd', true, '1.7.2', 'release');
+
+select telemetry_rollup_and_prune(p_raw_retention_days => 3, p_prune => true);
+select telemetry_rollup_and_prune(p_raw_retention_days => 3, p_prune => true);
+
+select is((select count(*)::int from telemetry_weather_fetch
+             where watch_token_hash = 'watchBnd'
+               and (received_at at time zone 'UTC')::date = current_date - 3),
+          2, 'boundary day at the retention edge is kept whole, not partially pruned');
+select is((select fetch_count from telemetry_dau
+             where watch_key = 'watchBnd' and activity_date = current_date - 3),
+          2::int, 'boundary-day fetch_count stays full (2) across repeated rollup+prune');
+select is((select count(*)::int from telemetry_weather_fetch
+             where watch_token_hash = 'watchBnd'
+               and (received_at at time zone 'UTC')::date <= current_date - 4),
+          0, 'days older than the retention window are fully pruned');
 
 select * from finish();
 rollback;
