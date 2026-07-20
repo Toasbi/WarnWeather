@@ -25,6 +25,20 @@ test('hydrate: injected wins, defaults fill, color int default -> hex', () => {
   assert.equal(D.flag, false);
 });
 
+test('hydrate: defaultFrom resolves via the named defaults-resolver (env-aware); injected wins', () => {
+  global.PConf.defaultsResolvers.register('fakeSlot', function (env, args) {
+    return (env && env.hr) ? args.hi : args.lo;
+  });
+  const SCH = { tabs: [{ sections: [{ items: [
+    { type: 'select', messageKey: 'slot', defaultFrom: { resolver: 'fakeSlot', args: { hi: 'H', lo: 'L' } },
+      options: [['H', 'H'], ['L', 'L']] }
+  ] }] }] };
+  assert.equal(E.hydrate(SCH, {}, { hr: true }).slot, 'H');
+  assert.equal(E.hydrate(SCH, {}, { hr: false }).slot, 'L');
+  assert.equal(E.hydrate(SCH, {}, undefined).slot, 'L', 'no env -> base flavor');
+  assert.equal(E.hydrate(SCH, { slot: 'H' }, { hr: false }).slot, 'H', 'injected still wins');
+});
+
 test('serialize: every messageKey incl. showWhen-hidden; staticText skipped; colors stay hex', () => {
   const out = E.serialize(FIXTURE, E.hydrate(FIXTURE, {}));
   ['mode','flag','tint'].forEach((k) => assert.ok(Object.prototype.hasOwnProperty.call(out, k), 'dropped ' + k));

@@ -38,6 +38,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     get: function (name) { return optionsResolverMap[name]; }
   };
 
+  // --- defaults-resolver registry --- a select item opts into a platform-aware default
+  // by name (item.defaultFrom.resolver: id), resolved at hydrate + snap time. Separate
+  // from optionsResolvers because a defaults resolver returns a single value, not a list.
+  // fn(env, args) -> defaultValue; see resolveDefaultFrom below.
+  var defaultsResolverMap = {};
+  PConf.defaultsResolvers = {
+    register: function (name, fn) { defaultsResolverMap[name] = fn; },
+    get: function (name) { return defaultsResolverMap[name]; }
+  };
+
   // --- onChange registry --- a schema item opts into a post-change side effect by
   // name (item.onChange: id) without the engine knowing what that side effect is —
   // mirrors the block registry above. fn(S, oldValue, newValue, env) runs synchronously,
@@ -66,18 +76,36 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   PConf.actions = PConf.actions || {};
 
   /**
+   * The effective default for a schema item: a defaultFrom item resolves through the
+   * named defaults-resolver (env-aware); everything else uses its static defaultValue.
+   * @param {Object} item Schema item.
+   * @param {Object} [env] Platform env, passed to the resolver.
+   * @returns {*} The default value (undefined if the item has neither).
+   */
+  function resolveDefaultFrom(item, env) {
+    if (item.defaultFrom) {
+      var fn = PConf.defaultsResolvers.get(item.defaultFrom.resolver);
+      return fn ? fn(env, item.defaultFrom.args || {}) : undefined;
+    }
+    return item.defaultValue;
+  }
+
+  /**
    * Build the initial settings state from a schema's defaults, with injected
    * (saved) values taking precedence. Number color defaults become hex strings.
    *
    * @param {Object} schema Config schema.
    * @param {Object} [injected] Saved settings overriding the defaults.
+   * @param {Object} [env] Platform env, threaded to any defaultFrom resolver.
    * @returns {Object} Settings state keyed by messageKey.
    */
-  function hydrate(schema, injected) {
+  function hydrate(schema, injected, env) {
     var S = {};
     eachItem(schema, function (it) {
-      if (!it.messageKey || typeof it.defaultValue === 'undefined') { return; }
-      S[it.messageKey] = (it.type === 'color' && typeof it.defaultValue === 'number') ? intToHex(it.defaultValue) : it.defaultValue;
+      if (!it.messageKey) { return; }
+      var dv = resolveDefaultFrom(it, env);
+      if (typeof dv === 'undefined') { return; }
+      S[it.messageKey] = (it.type === 'color' && typeof dv === 'number') ? intToHex(dv) : dv;
     });
     return Object.assign(S, injected || {});
   }
@@ -385,8 +413,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     var derived = resolveOptionsFrom(item, cx.S, cx.ENV);
     if (derived.length && !optionHasValue(derived, view.value)) {
-      var snap = (item.defaultValue != null && optionHasValue(derived, item.defaultValue))
-        ? item.defaultValue : derived[0][1];
+      var dflt = resolveDefaultFrom(item, cx.ENV);
+      var snap = (dflt != null && optionHasValue(derived, dflt)) ? dflt : derived[0][1];
       view.value = snap;
       cx.S[item.messageKey] = snap;
     }
@@ -601,7 +629,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   function boot() {
     var SCHEMA = INJECTED_SCHEMA, ENV = INJECTED_ENV || { color: true, round: false, platform: '', health: true };
     var USERDATA = INJECTED_USERDATA || {}, RETURN_TO = INJECTED_RETURN || 'pebblejs://close#';
-    var S = hydrate(SCHEMA, INJECTED_CFG), INITIAL = Object.assign({}, S);
+    var S = hydrate(SCHEMA, INJECTED_CFG, ENV), INITIAL = Object.assign({}, S);
     var activeTab = SCHEMA.tabs[0].id, openColor = null, openSelect = null, selectQuery = '', collapsed = initialCollapsed(SCHEMA);
     // Recover a schema item by messageKey so the input handler can re-filter its options in place.
     function findItem(key) { var f = null; eachItem(SCHEMA, function (it) { if (it.messageKey === key) { f = it; } }); return f; }
@@ -864,6 +892,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     esc: esc, renderControl: renderControl, renderRow: renderRow, renderSelectOptions: renderSelectOptions,
     renderSelectModal: renderSelectModal,
     renderTabBar: renderTabBar, renderBody: renderBody, resolveOptionsFrom: resolveOptionsFrom,
+    resolveDefaultFrom: resolveDefaultFrom,
     resolveTheme: resolveTheme
   };
 })();
@@ -877,6 +906,7 @@ if (typeof module !== 'undefined' && module.exports) {
     renderSelectModal: PConf.engine.renderSelectModal,
     renderTabBar: PConf.engine.renderTabBar, renderBody: PConf.engine.renderBody,
     resolveOptionsFrom: PConf.engine.resolveOptionsFrom,
+    resolveDefaultFrom: PConf.engine.resolveDefaultFrom,
     resolveTheme: PConf.engine.resolveTheme
   };
 }
