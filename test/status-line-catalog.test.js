@@ -27,7 +27,7 @@ test('defaults + hrDefaults are the shipped status-bar set', () => {
   assert.deepEqual(catalog.LINES[2].defaults,
     { statusTopLeft: 'week', statusTopMid: 'date', statusTopRight: 'sun' });
   assert.deepEqual(catalog.LINES[3].defaults,
-    { statusHealthLeft: 'steps', statusHealthMid: 'sleep', statusHealthRight: 'distance' });
+    { statusHealthLeft: 'steps', statusHealthMid: 'empty', statusHealthRight: 'sleep' });
   assert.deepEqual(catalog.LINES[3].hrDefaults,
     { statusHealthLeft: 'steps', statusHealthMid: 'sleep', statusHealthRight: 'hr' });
 });
@@ -35,8 +35,8 @@ test('defaults + hrDefaults are the shipped status-bar set', () => {
 test('slotDefault is HR-aware for the health-right slot, platform-independent elsewhere', () => {
   assert.equal(catalog.slotDefault('statusHealthRight', ENV_EMERY), 'hr');
   assert.equal(catalog.slotDefault('statusHealthRight', ENV_DIORITE), 'hr');
-  assert.equal(catalog.slotDefault('statusHealthRight', ENV_BASALT), 'distance');
-  assert.equal(catalog.slotDefault('statusHealthRight', undefined), 'distance');
+  assert.equal(catalog.slotDefault('statusHealthRight', ENV_BASALT), 'sleep');
+  assert.equal(catalog.slotDefault('statusHealthRight', undefined), 'sleep');
   assert.equal(catalog.slotDefault('statusForecastRight', ENV_EMERY), 'aqi');
   assert.equal(catalog.slotDefault('statusTopLeft', ENV_BASALT), 'week');
   assert.equal(catalog.slotDefault('nope', ENV_BASALT), undefined);

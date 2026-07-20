@@ -633,7 +633,7 @@ test('statusSlotDefault resolver: HR-aware slot default sourced from the catalog
   const fn = global.PConf.defaultsResolvers.get('statusSlotDefault');
   assert.equal(typeof fn, 'function', 'resolver registered');
   assert.equal(fn({ hr: true }, { slotKey: 'statusHealthRight' }), 'hr');
-  assert.equal(fn({ hr: false }, { slotKey: 'statusHealthRight' }), 'distance');
+  assert.equal(fn({ hr: false }, { slotKey: 'statusHealthRight' }), 'sleep');
   assert.equal(fn({}, { slotKey: 'statusForecastRight' }), 'aqi');
   assert.equal(fn({}, { slotKey: 'statusTopLeft' }), 'week');
 });

@@ -29,7 +29,8 @@ test('real schema hydrates the HR-aware status-slot default set', () => {
   assert.equal(emery.statusHealthRight, 'hr', 'emery is HR-capable');
 
   const basalt = E.hydrate(SCHEMA, {}, ENV_BASALT);
-  assert.equal(basalt.statusHealthRight, 'distance', 'non-HR platform -> distance');
+  assert.equal(basalt.statusHealthMid, 'empty', 'non-HR platform -> empty middle');
+  assert.equal(basalt.statusHealthRight, 'sleep', 'non-HR platform -> sleep');
 });
 
 test('real schema battery/bluetooth/week base defaults', () => {

@@ -63,12 +63,12 @@ test('health re-enable restores hr on diorite (Pebble 2 is HR-capable)', () => {
   assert.equal(S.statusHealthRight, 'hr');
 });
 
-test('health re-enable restores distance on a non-HR platform', () => {
+test('health re-enable restores steps/empty/sleep on a non-HR platform', () => {
   const S = blob({ healthMode: 'all', statusHealthLeft: 'empty', statusHealthMid: 'empty', statusHealthRight: 'empty' });
   applyReset(S, 'health', 'off', 'all', ENV_BASALT);
   assert.equal(S.statusHealthLeft, 'steps');
-  assert.equal(S.statusHealthMid, 'sleep');
-  assert.equal(S.statusHealthRight, 'distance');
+  assert.equal(S.statusHealthMid, 'empty');
+  assert.equal(S.statusHealthRight, 'sleep');
 });
 
 test('status<->all is not a flip', () => {

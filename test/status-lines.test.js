@@ -135,8 +135,9 @@ test('buildStatusLines packs four lines with defaults', () => {
   assert.equal(top[2].icon, I.DRAWN_SUN); // default right = sunrise/sunset (TEXT + sun glyph)
 
   const health = decodeLine(p.STATUS_LINE_4_UINT8);
-  assert.deepEqual(health.map(s => s.kind), [K.LIVE_STEPS, K.LIVE_SLEEP, K.LIVE_DISTANCE]);
-  assert.deepEqual(health.map(s => s.len), [0, 0, 0]); // LIVE = no value bytes
+  // non-HR default (basalt): steps / empty / sleep
+  assert.deepEqual(health.map(s => s.kind), [K.LIVE_STEPS, K.EMPTY, K.LIVE_SLEEP]);
+  assert.deepEqual(health.map(s => s.len), [0, 0, 0]); // LIVE/empty = no value bytes
 });
 
 test('user selections and availability resolution', () => {
