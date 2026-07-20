@@ -901,7 +901,13 @@ function renderSignature(settings) {
         settings.barSource, settings.windScale, settings.theme,
         // Status-line bake inputs: value formatting...
         settings.temperatureUnits, settings.axisTimeFormat, settings.timeShowAmPm,
-        settings.timeLeadingZero, settings.healthMode];
+        settings.timeLeadingZero, settings.healthMode,
+        // ...the unit pickers (change baked/fetched values: wind & distance rebake,
+        // AQI source/scale refetch)...
+        settings.windUnits, settings.distanceUnits, settings.aqiScale, settings.aqiSource,
+        // ...and the night weather-pause window (a change flips whether fetching pauses
+        // and the IS_SLEEPING glyph the forced fetch pushes)...
+        settings.sleepNightEnabled, settings.sleepStartHour, settings.sleepEndHour];
     // ...and the twelve slot selections themselves.
     var slotKeys = statusCatalog.allSlotKeys();
     for (var i = 0; i < slotKeys.length; i++) {
