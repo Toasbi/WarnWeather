@@ -6,7 +6,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 set timezone = 'UTC';  -- make current_date / day-bucketing deterministic
-select plan(16);
+select plan(17);
 
 -- ── Schema ────────────────────────────────────────────────────────────────
 select has_table('public', 'telemetry_watch', 'telemetry_watch exists');
@@ -41,7 +41,11 @@ values
    '{"radarProvider":"disabled","statusForecastLeft":"temp"}', '1.7.2', 'release',
    '{"platform":"aplite","model":"pebble_steel","language":"de"}', 200, 1),
   ((current_date - 20) + time '09:00', 'acctA', 'watchA', 'dwd', true, null, 'DE',
-   '{}', '1.6.0', 'release', '{"platform":"basalt"}', 100, 1);
+   '{}', '1.6.0', 'release', '{"platform":"basalt"}', 100, 1),
+  -- watchT is active RIGHT NOW (today) on 1.8.1 with a status slot set.
+  (now(), 'acctT', 'watchT', 'openmeteo', true, null, 'AT',
+   '{"radarProvider":"openmeteo","statusForecastLeft":"uv"}', '1.8.1', 'release',
+   '{"platform":"chalk","model":"pebble_time_round","language":"fr"}', 180, 1);
 
 insert into rainbow_nowcast_cache (cache_key, payload, expires_at)
 values ('k-expired', '{}'::jsonb, now() - interval '1 hour'),
@@ -67,6 +71,9 @@ select is((select watch_language from telemetry_watch where watch_key = 'acctB')
           'de', 'watch_language extracted from watch_info');
 select is((select count(*)::int from telemetry_errors where watch_key = 'watchA'),
           1, 'one error row copied for watchA');
+select is((select fetch_count from telemetry_dau
+             where watch_key = 'watchT' and activity_date = current_date),
+          1::int, 'today is rolled up (live current day, e.g. release-day fleet)');
 
 -- Idempotency: a second identical run must not change counts.
 select telemetry_rollup_and_prune(p_prune => false);
