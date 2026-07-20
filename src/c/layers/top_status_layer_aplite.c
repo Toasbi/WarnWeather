@@ -7,8 +7,10 @@
 // --gc-sections'd out of the aplite image); hand-port bugfixes from
 // top_status_layer.c (see `git log fc8cf4d.. -- src/c/layers/top_status_layer.c`);
 // interface changes are forced by the aplite link error. The shared display-state
-// snooze fix is hand-ported here: aplite keeps the same two slots, reuses the existing
-// procedural glyph, and gains no bitmap/PDC feature. As of fc8cf4d the strip
+// snooze fix is hand-ported here: aplite keeps the same two slots but renders the
+// snooze indicator as cheap "zZ" text rather than the procedural vector glyph,
+// so --gc-sections reaps snooze.c from the frozen-lean image; it gains no
+// bitmap/PDC feature. As of fc8cf4d the strip
 // also embeds status_row (Task 12/15) for the configurable left/right slots around
 // the fixed date; status_row_icons_load() returns NULL on aplite, so the slots
 // render as plain text (no icon glyphs) here.
@@ -21,7 +23,6 @@
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
 #include "c/appendix/persist.h"
-#include "c/appendix/snooze.h"
 #include "c/appendix/status_line.h"
 #include "c/appendix/theme.h"
 #include "c/services/watch_services.h"
@@ -171,9 +172,19 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
                     draw_bitmap(ctx, s_bt_disconnect_bitmap, frame);
                 }
                 break;
-            case TOP_STATUS_INDICATOR_SNOOZE:
-                snooze_draw(ctx, frame, theme_fg());
+            case TOP_STATUS_INDICATOR_SNOOZE: {
+                // aplite: draw a cheap "zZ" text stand-in for the vector snooze
+                // glyph. The icon slot is only 10px wide, so span it plus the
+                // PADDING gap up to (but not into) the status text, and use the
+                // full band height so the smallest stock font sits centered.
+                graphics_context_set_text_color(ctx, theme_fg());
+                GRect text_frame = GRect(frame.origin.x, bounds.origin.y,
+                                         ICON_SLOT_1.size.w + PADDING, bounds.size.h);
+                graphics_draw_text(ctx, "zZ",
+                    fonts_get_system_font(FONT_KEY_GOTHIC_14), text_frame,
+                    GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
                 break;
+            }
             case TOP_STATUS_INDICATOR_NONE:
                 break;
         }
