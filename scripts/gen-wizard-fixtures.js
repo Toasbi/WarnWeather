@@ -22,12 +22,15 @@ const FORECAST = { secondaryLine: 'precip_prob', secondaryLineFill: true, thirdL
 // per fixture and by gen-wizard-screenshots.js to key the module). Facts from config-ui/lib/platform.js:
 //   basalt, emery — color, health, radar        flint — B&W, health, radar
 //   aplite — B&W, no health, no radar            (diorite ≈ flint; wizard maps diorite→flint, not captured)
-// Layout + dark/light theme show on every watch; health/radar only where the platform has them (not
-// aplite); bw / bw-light are color-watch-only theme options (flint + aplite are B&W → dark/light only).
+// Layout shows on every watch; health/radar only where the platform has them (not aplite). The theme
+// step is gated on env.themePolarity (wizard.js buildSteps): aplite compiles WW_THEME_POLARITY out and
+// renders classic white-on-black only, so it shows NO theme card at all — dark/light appear on the
+// polarity platforms, bw / bw-light on color watches only.
 const ALL = 'basalt flint emery aplite';
 const HEALTH_RADAR = 'basalt flint emery';   // exclude aplite (no PBL_HEALTH / no WW_RAIN_RADAR)
 const HEALTH_NONHR = 'basalt flint';         // health platforms WITHOUT an HR sensor → right slot bakes base `distance`
 const HEALTH_HR = 'emery';                   // HR platform (Pebble Time 2); wizard maps diorite→flint so emery is the only captured one
+const THEME = 'basalt flint emery';          // WW_THEME_POLARITY platforms (dark/light); aplite has no theme step
 const COLOR = 'basalt emery';                // flint + aplite are B&W → they never show bw/bw-light cards
 // slug → fixture; group/val/platforms are consumed by gen-wizard-screenshots.js to key the module.
 const SHOTS = [
@@ -52,11 +55,11 @@ const SHOTS = [
   { slug: 'health-all-emery',     group: 'healthMode', val: 'all',    flicks: 1, platforms: HEALTH_HR,    clay: Object.assign({ layoutPreset: 'noCal', healthMode: 'all',    radarProvider: 'disabled', statusHealthMid: 'sleep', statusHealthRight: 'hr' }, FORECAST) },
   { slug: 'radar',             group: 'radar',        val: '_',          flicks: 1, platforms: HEALTH_RADAR, clay: Object.assign({ layoutPreset: 'noCal', healthMode: 'off', radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, FORECAST),
     radar: { exact: RAIN_EXACT, area: RAIN_AREA }, countdown: { text: "Rain in 15'", tier: 3 } },
-  { slug: 'theme-dark',     group: 'theme', val: 'dark',     flicks: 0, platforms: ALL,   clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'dark' }, FORECAST) },
+  { slug: 'theme-dark',     group: 'theme', val: 'dark',     flicks: 0, platforms: THEME, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'dark' }, FORECAST) },
   // colorTime is normally flipped white→black by the config-UI 'themeConvert' hook on switching to
   // a light polarity; the fixture bypasses that, and clay-payload sends colorTime verbatim, so set it
   // black here — otherwise the default-white time is invisible on the light theme's white background.
-  { slug: 'theme-light',    group: 'theme', val: 'light',    flicks: 0, platforms: ALL,   clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'light', colorTime: '#000000' }, FORECAST) },
+  { slug: 'theme-light',    group: 'theme', val: 'light',    flicks: 0, platforms: THEME, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'light', colorTime: '#000000' }, FORECAST) },
   { slug: 'theme-bw',       group: 'theme', val: 'bw',       flicks: 0, platforms: COLOR, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'bw' }, FORECAST) },
   { slug: 'theme-bw-light', group: 'theme', val: 'bw-light', flicks: 0, platforms: COLOR, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'bw-light' }, FORECAST) }
 ];
