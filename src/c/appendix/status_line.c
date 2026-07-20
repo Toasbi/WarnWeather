@@ -99,9 +99,3 @@ bool status_line_slot(const uint8_t *blob, size_t len, int slot_index,
     }
     return true;
 }
-
-bool status_slot_is_frozen_weather(const StatusSlotView *slot) {
-    return slot && slot->kind == SLOT_TEXT
-        && slot->icon != STATUS_ICON_NONE
-        && slot->icon != STATUS_ICON_DRAWN_SUN;
-}

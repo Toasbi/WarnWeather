@@ -1,14 +1,13 @@
 // Lean aplite (Pebble Classic/Steel) twin of status_row.c.
 //
 // Frozen fork of status_row.c as of 5707b35. FEATURE-FROZEN, NOT CODE-FROZEN:
-// preserve aplite's text/date/sun/battery/snooze behavior and hand-port bug
+// preserve aplite's text/date/sun/battery behavior and hand-port bug
 // fixes, but do not add the evolving PDC glyph, health, week, theme-polarity,
 // or rain-alert pipeline. See docs/adr/0001-aplite-frozen-lean-fork.md.
 
 #include "status_row.h"
 #include "layer_util.h"
 #include "../appendix/persist.h"
-#include "../appendix/snooze.h"
 #include "../appendix/theme.h"
 #include "../services/watch_services.h"
 #include "../windows/layout.h"
@@ -19,7 +18,6 @@
 #include <string.h>
 
 #define STATUS_ROW_MARGIN 2
-#define SNOOZE_BOX_W 24
 #define COMPACT_ROW_FONT_KEY FONT_KEY_GOTHIC_18
 #define NONE_ROW_FONT_KEY FONT_KEY_GOTHIC_18
 #define ARROW_H 8
@@ -32,7 +30,6 @@ struct StatusRow {
     uint8_t line_id;
     uint8_t tier;
     GRect bounds;
-    bool sleeping;
     bool full_date;
     bool battery_override;
     uint16_t content_sig;
@@ -167,10 +164,6 @@ void status_row_apply(StatusRow *row, GRect bounds, uint8_t tier,
     row->line_id = line_id;
 }
 
-void status_row_set_sleeping(StatusRow *row, bool sleeping) {
-    if (row) { row->sleeping = sleeping; }
-}
-
 void status_row_set_full_date(StatusRow *row, bool full_date) {
     if (row) { row->full_date = full_date; }
 }
@@ -219,8 +212,7 @@ bool status_row_refresh(StatusRow *row) {
         uint8_t sun_type = (uint8_t)persist_get_sun_event_start_type();
         sig = sig_fold(sig, &sun_type, 1);
     }
-    uint8_t tail[2] = { row->tier, (uint8_t)row->sleeping };
-    sig = sig_fold(sig, tail, sizeof(tail));
+    sig = sig_fold(sig, &row->tier, 1);
     if (sig == row->content_sig) { return false; }
     row->content_sig = sig;
     return true;
@@ -295,8 +287,6 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
 
     StatusSlotView slots[STATUS_SLOT_COUNT];
     char texts[STATUS_SLOT_COUNT][STATUS_TEXT_MID_MAX + 1];
-    bool weather_line = row->line_id == STATUS_LINE_FORECAST
-                     || row->line_id == STATUS_LINE_RADAR;
 
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         if (!status_line_slot(s_blob_scratch, (size_t)len, i, &slots[i])) {
@@ -325,17 +315,14 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
 
     int16_t icon_w[STATUS_SLOT_COUNT];
     bool has_text[STATUS_SLOT_COUNT];
-    bool snoozing[STATUS_SLOT_COUNT];
     int group_w[STATUS_SLOT_COUNT];
     int min_w[STATUS_SLOT_COUNT];
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        snoozing[i] = row->sleeping && weather_line && i == 0;
-        has_text[i] = texts[i][0] != '\0' && !snoozing[i];
+        has_text[i] = texts[i][0] != '\0';
         const StatusMask *mask = (slots[i].kind != SLOT_EMPTY)
             ? status_mask_for(slots[i].icon) : NULL;
-        icon_w[i] = snoozing[i] ? SNOOZE_BOX_W
-            : (slots[i].icon == STATUS_ICON_DRAWN_SUN
-               && slots[i].kind != SLOT_EMPTY) ? ARROW_W
+        icon_w[i] = (slots[i].icon == STATUS_ICON_DRAWN_SUN
+                     && slots[i].kind != SLOT_EMPTY) ? ARROW_W
             : mask ? mask->w : 0;
         int tw = 0;
         if (has_text[i]) {
@@ -356,10 +343,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         if (draw_w[i] == 0) { continue; }   // empty, or dropped for lack of space
         int16_t gxs = (int16_t)(x0 + gx[i]);
-        if (snoozing[i]) {
-            snooze_draw(ctx, GRect(gxs, row->bounds.origin.y + 2,
-                                   SNOOZE_BOX_W, row->bounds.size.h - 4), theme_fg());
-        } else if (slots[i].icon == STATUS_ICON_DRAWN_SUN && icon_w[i] > 0) {
+        if (slots[i].icon == STATUS_ICON_DRAWN_SUN && icon_w[i] > 0) {
             draw_sun_arrow(ctx, gxs + ARROW_W / 2, glyph_cy,
                            persist_get_sun_event_start_type() == 0);
         } else {

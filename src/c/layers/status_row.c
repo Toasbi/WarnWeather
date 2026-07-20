@@ -6,7 +6,6 @@
 #include "../appendix/persist.h"
 #include "../appendix/theme.h"
 #include "../windows/layout.h"   // LayoutTier (row_font)
-#include "../appendix/snooze.h"
 #include "../services/watch_services.h"
 #if defined(PBL_HEALTH)
 #include "../services/health_summary.h"
@@ -18,7 +17,6 @@
 #include <string.h>
 
 #define STATUS_ROW_MARGIN 2
-#define SNOOZE_BOX_W 24
 // Icon height as a fraction of the status text's content height. Bumped 5/9 -> 6/9
 // (~2/3) so the glyphs read heftier at every tier (they were noticeably timid at 5/9);
 // still capped at the row band via ICON_BAND_MARGIN. One knob — tune for weight.
@@ -50,7 +48,6 @@ struct StatusRow {
     uint8_t line_id;
     uint8_t tier;
     GRect bounds;
-    bool sleeping;
     bool full_date;
     bool battery_override;
     bool suppress_edges;
@@ -60,9 +57,6 @@ struct StatusRow {
     GColor glyph_fg;
     uint16_t content_sig;
     bool uses_live_health;
-#if !defined(PBL_PLATFORM_APLITE)
-    GDrawCommandImage *sleep_glyph;   // pillow drawn over frozen weather slots while asleep
-#endif
 };
 
 // Main-app drawing and refresh callbacks are serialized, so all row instances can
@@ -271,9 +265,6 @@ void status_row_destroy(StatusRow *row) {
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         status_row_icons_destroy(row->glyphs[i]);
     }
-#if !defined(PBL_PLATFORM_APLITE)
-    status_row_icons_destroy(row->sleep_glyph);
-#endif
     free(row);
     s_row_count--;
 #ifndef PBL_PLATFORM_APLITE
@@ -289,10 +280,6 @@ void status_row_apply(StatusRow *row, GRect bounds, uint8_t tier, uint8_t line_i
     row->bounds = bounds;
     row->tier = tier;
     row->line_id = line_id;
-}
-
-void status_row_set_sleeping(StatusRow *row, bool sleeping) {
-    if (row) { row->sleeping = sleeping; }
 }
 
 void status_row_set_full_date(StatusRow *row, bool full_date) {
@@ -353,8 +340,7 @@ bool status_row_refresh(StatusRow *row) {
         uint8_t sun_event_start_type = (uint8_t)persist_get_sun_event_start_type();
         sig = sig_fold(sig, &sun_event_start_type, 1);
     }
-    uint8_t tail[2] = { row->tier, (uint8_t)row->sleeping };
-    sig = sig_fold(sig, tail, 2);
+    sig = sig_fold(sig, &row->tier, 1);
     if (sig == row->content_sig) { return false; }
     row->content_sig = sig;
     return true;
@@ -370,16 +356,10 @@ static void ensure_glyphs(StatusRow *row, int len, int content_h) {
 
     GColor fg = theme_fg();
     bool env_changed = target_h != row->glyph_h || !gcolor_equal(fg, row->glyph_fg);
-#if !defined(PBL_PLATFORM_APLITE)
-    bool any_frozen_weather = false;
-#endif
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         StatusSlotView slot;
         uint8_t wanted = STATUS_ICON_NONE;
         if (len > 0 && status_line_slot(s_blob_scratch, (size_t)len, i, &slot)) {
-#if !defined(PBL_PLATFORM_APLITE)
-            any_frozen_weather = any_frozen_weather || status_slot_is_frozen_weather(&slot);
-#endif
             if (slot.kind != SLOT_EMPTY
                     && slot.icon != STATUS_ICON_NONE
                     && slot.icon != STATUS_ICON_DRAWN_SUN) {
@@ -393,33 +373,13 @@ static void ensure_glyphs(StatusRow *row, int len, int content_h) {
             : NULL;
         row->glyph_icons[i] = wanted;
     }
-#if !defined(PBL_PLATFORM_APLITE)
-    // Sleep glyph (pillow) reused across all frozen weather slots while asleep.
-    // Invalidate on env change (size/theme) even while awake — otherwise a theme
-    // flip or tier change between two sleeps leaves the cached pillow the old
-    // colour/size (a wrong-colour pillow can be invisible under theme inversion).
-    // (Re)load lazily only when asleep AND at least one slot is actually a frozen
-    // weather slot, so weather-less rows (a pure health row, a weather-less top
-    // strip) don't allocate a pillow that's never drawn.
-    // aplite: frozen lean — no glyph pipeline, status_row_draw falls back to
-    // snooze_draw on slot 0 only.
-    if (env_changed) {
-        status_row_icons_destroy(row->sleep_glyph);
-        row->sleep_glyph = NULL;
-    }
-    if (row->sleeping && !row->sleep_glyph && any_frozen_weather) {
-        row->sleep_glyph = status_row_icons_load(STATUS_ICON_SLEEP, target_h);
-    }
-#endif
     row->glyph_h = target_h;
     row->glyph_fg = fg;
 }
 
 // Measured footprint of one slot: icon width (battery = fixed glyph, loaded PDC,
 // or the drawn-sun arrow) + text width. Shared by the draw pass and the
-// right-slot width query. Does not handle the sleeping pillow-glyph special
-// case (any frozen weather slot) — callers (the draw loop and the right-slot
-// width query) apply that override inline instead.
+// right-slot width query.
 static StatusSlotMeasure measure_slot(StatusRow *row, int i, GFont font,
                                       int16_t content_w, const StatusSlotView *slot,
                                       const char *text) {
@@ -461,13 +421,6 @@ int16_t status_row_right_slot_width(StatusRow *row) {
     apply_battery_override(row, i, &slot);
     char text[STATUS_TEXT_MID_MAX + 1];
     resolve_slot_text(row, &slot, text, sizeof(text));
-#if !defined(PBL_PLATFORM_APLITE)
-    if (row->sleeping && status_slot_is_frozen_weather(&slot)) {
-        return row->sleep_glyph
-            ? gdraw_command_image_get_bounds_size(row->sleep_glyph).w
-            : SNOOZE_BOX_W;
-    }
-#endif
     StatusSlotMeasure m = measure_slot(row, i, font, content_w, &slot, text);
     if (!m.present) { return 0; }
     int16_t w = m.icon_w + m.text_w;
@@ -492,11 +445,6 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     StatusSlotView slots[STATUS_SLOT_COUNT];
     char texts[STATUS_SLOT_COUNT][STATUS_TEXT_MID_MAX + 1];
 
-#if defined(PBL_PLATFORM_APLITE)
-    // aplite: frozen lean — slot-0-only "Zzz" on weather lines, no per-slot pillow.
-    bool weather_line = row->line_id == STATUS_LINE_FORECAST
-                     || row->line_id == STATUS_LINE_RADAR;
-#endif
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         if (!status_line_slot(s_blob_scratch, (size_t)len, i, &slots[i])) { return; }
         // Rain-alert takeover: hide left + mid so only the right slot (battery)
@@ -510,23 +458,6 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         }
         apply_battery_override(row, i, &slots[i]);
         resolve_slot_text(row, &slots[i], texts[i], sizeof(texts[i]));
-#if defined(PBL_PLATFORM_APLITE)
-        if (row->sleeping && weather_line && i == 0) {   // aplite: frozen lean — slot-0 only
-            measures[i].present = true;
-            measures[i].icon_w = SNOOZE_BOX_W;
-            measures[i].text_w = 0;
-            continue;
-        }
-#else
-        if (row->sleeping && status_slot_is_frozen_weather(&slots[i])) {
-            measures[i].present = true;
-            measures[i].icon_w = row->sleep_glyph
-                ? gdraw_command_image_get_bounds_size(row->sleep_glyph).w
-                : SNOOZE_BOX_W;
-            measures[i].text_w = 0;
-            continue;
-        }
-#endif
         measures[i] = measure_slot(row, i, font, content_w, &slots[i], texts[i]);
     }
 
@@ -546,25 +477,6 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         if (slots[i].kind == SLOT_LIVE_BATTERY) {
             battery_draw(ctx, GRect(icon_x, glyph_cy - BATTERY_GLYPH_H / 2,
                                     BATTERY_GLYPH_W, BATTERY_GLYPH_H), theme_fg());
-#if defined(PBL_PLATFORM_APLITE)
-        } else if (row->sleeping && weather_line && i == 0) {   // aplite: frozen lean — slot-0 only
-            snooze_draw(ctx,
-                        GRect(icon_x, row->bounds.origin.y + 2,
-                              SNOOZE_BOX_W, row->bounds.size.h - 4),
-                        theme_fg());
-#else
-        } else if (row->sleeping && status_slot_is_frozen_weather(&slots[i])) {
-            if (row->sleep_glyph) {
-                GSize gs = gdraw_command_image_get_bounds_size(row->sleep_glyph);
-                gdraw_command_image_draw(ctx, row->sleep_glyph,
-                    GPoint(icon_x, glyph_cy - gs.h / 2));
-            } else {
-                snooze_draw(ctx,
-                            GRect(icon_x, row->bounds.origin.y + 2,
-                                  SNOOZE_BOX_W, row->bounds.size.h - 4),
-                            theme_fg());
-            }
-#endif
         } else if (row->glyphs[i]) {
             GSize gs = gdraw_command_image_get_bounds_size(row->glyphs[i]);
             gdraw_command_image_draw(ctx, row->glyphs[i],

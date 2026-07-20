@@ -27,9 +27,7 @@ static int s_apply_count;
 static int s_refresh_count;
 static int s_dirty_count;
 static bool s_refresh_changed;
-static bool s_sleeping;
 static bool s_live_health;
-static bool s_last_sleeping;
 static GRect s_last_bounds;
 static uint8_t s_last_tier;
 static uint8_t s_last_line;
@@ -100,11 +98,6 @@ bool status_row_refresh(StatusRow *row) {
     return s_refresh_changed;
 }
 
-void status_row_set_sleeping(StatusRow *row, bool sleeping) {
-    (void)row;
-    s_last_sleeping = sleeping;
-}
-
 void status_row_set_full_date(StatusRow *row, bool full_date) {
     (void)row;
     (void)full_date;
@@ -117,10 +110,6 @@ bool status_row_uses_live_health(const StatusRow *row) {
 void status_row_draw(StatusRow *row, GContext *ctx) {
     (void)row;
     (void)ctx;
-}
-
-bool persist_get_is_sleeping(void) {
-    return s_sleeping;
 }
 
 static void owner_forwards_lifecycle_and_state(void) {
@@ -140,10 +129,8 @@ static void owner_forwards_lifecycle_and_state(void) {
     expect_int("create.tier", s_last_tier, LAYOUT_TIER_NONE);
     expect_int("create.line", s_last_line, STATUS_LINE_FORECAST);
 
-    s_sleeping = true;
     s_refresh_changed = false;
     weather_status_layer_refresh();
-    expect_int("refresh.sleeping", s_last_sleeping, true);
     expect_int("refresh.no_dirty", s_dirty_count, 1);
 
     int apply_before = s_apply_count;

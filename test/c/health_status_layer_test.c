@@ -26,7 +26,6 @@ static int s_row_refresh_count;
 static int s_dirty_count;
 static int s_draw_count;
 static bool s_refresh_changed;
-static bool s_sleeping;
 static GRect s_last_bounds;
 static uint8_t s_last_tier;
 static uint8_t s_last_line;
@@ -100,11 +99,6 @@ bool status_row_refresh(StatusRow *row) {
     return s_refresh_changed;
 }
 
-void status_row_set_sleeping(StatusRow *row, bool sleeping) {
-    (void)row;
-    s_sleeping = sleeping;
-}
-
 void status_row_draw(StatusRow *row, GContext *ctx) {
     if (row && ctx) { s_draw_count++; }
 }
@@ -112,10 +106,6 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
 void status_row_set_full_date(StatusRow *row, bool full_date) {
     (void)row;
     (void)full_date;
-}
-
-bool persist_get_is_sleeping(void) {
-    return s_sleeping;
 }
 
 static void owner_forwards_health_row_and_preserves_nudge(void) {

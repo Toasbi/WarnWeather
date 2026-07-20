@@ -2,7 +2,6 @@
 #include "weather_status_layer.h"
 #include "status_row.h"
 #include "../windows/layout.h"   // LayoutTier
-#include "../appendix/persist.h"
 #include "../appendix/status_line.h"
 
 static Layer *s_weather_status_layer;
@@ -41,7 +40,6 @@ void weather_status_layer_create(Layer *parent_layer, GRect frame) {
 
 void weather_status_layer_refresh() {
     if (!s_row) { return; }
-    status_row_set_sleeping(s_row, persist_get_is_sleeping());
     refresh_row();
 }
 

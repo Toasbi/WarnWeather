@@ -11,7 +11,6 @@ var PUBLIC_API = [
   ['void', 'status_row_destroy'],
   ['void', 'status_row_apply'],
   ['bool', 'status_row_refresh'],
-  ['void', 'status_row_set_sleeping'],
   ['void', 'status_row_set_full_date'],
   ['bool', 'status_row_uses_live_health'],
   ['void', 'status_row_set_battery_override'],
@@ -42,7 +41,9 @@ test('aplite status row is a complete frozen lean twin', function() {
     'StatusSlotMeasure',
     'PBL_HEALTH',
     'health_summary',
-    'iso_week'
+    'iso_week',
+    'snooze_draw',
+    'SNOOZE_BOX_W'
   ].forEach(function(forbidden) {
     assert.equal(source.indexOf(forbidden), -1,
       forbidden + ' does not belong in the frozen aplite twin');
