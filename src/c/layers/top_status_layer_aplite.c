@@ -31,6 +31,9 @@
 #define PADDING 4
 #define ICON_SLOT_1 GRect(PADDING, 0, 10, 10)
 #define ICON_SLOT_2 GRect(PADDING * 2 + 10, 0, 10, 10)
+// Gothic-14 top leading: lift the "zZ" snooze text this many px so its caps sit
+// on the top pixel row, matching the top-aligned battery/indicator icons.
+#define SNOOZE_TEXT_LIFT 3
 // emery: center icons in the taller status row.
 #ifdef PBL_PLATFORM_EMERY
 #define STATUS_ICON_Y(bounds_h, icon_h) (((bounds_h) - (icon_h)) / 2)
@@ -175,10 +178,11 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
             case TOP_STATUS_INDICATOR_SNOOZE: {
                 // aplite: draw a cheap "zZ" text stand-in for the vector snooze
                 // glyph. The icon slot is only 10px wide, so span it plus the
-                // PADDING gap up to (but not into) the status text, and use the
-                // full band height so the smallest stock font sits centered.
+                // PADDING gap up to (but not into) the status text. Lift the
+                // frame by the font's top leading so the caps sit on the first
+                // pixel row like the top-aligned battery/indicator icons.
                 graphics_context_set_text_color(ctx, theme_fg());
-                GRect text_frame = GRect(frame.origin.x, bounds.origin.y,
+                GRect text_frame = GRect(frame.origin.x, bounds.origin.y - SNOOZE_TEXT_LIFT,
                                          ICON_SLOT_1.size.w + PADDING, bounds.size.h);
                 graphics_draw_text(ctx, "zZ",
                     fonts_get_system_font(FONT_KEY_GOTHIC_14), text_frame,
