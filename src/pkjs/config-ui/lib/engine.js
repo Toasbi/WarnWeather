@@ -403,7 +403,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // value is no longer among them (e.g. the interval they depend on was raised, or a
   // preset was hidden for the current mode), snaps both view.value and cx.S into a valid
   // option so the rendered control and stored state stay in lockstep — preferring the
-  // item's defaultValue when it survived (e.g. Compact-dense → the default Compact when
+  // item's resolved default (via resolveDefaultFrom, which is env-aware and may be
+  // defaultFrom-derived) when it survived (e.g. Compact-dense → the default Compact when
   // health turns off), else the first (lowest = interval) option. This is the ONE place
   // that mutates cx.S during render — isolated here so renderItem stays a pure dispatcher.
   // Returns the row item to render (a derived-options clone, or the original unchanged).
