@@ -407,60 +407,6 @@ module.exports = {
             }]
         }]
     }, {
-        id: 'layout', label: 'Layout', sections: [{
-            intro: 'How the watchface is arranged, and what a wrist-flick reveals — shown side by side in the preview. What a metric means or how it\'s coloured lives in its own tab.',
-            items: [{
-                type: 'radio',
-                messageKey: 'layoutPreset',
-                label: 'Layout preset',
-                defaultValue: 'compactCal',
-                hintByValue: {
-                    fullCal: '3-row calendar. Health and radar appear on wrist-flicks.',
-                    compactCal: '2-row calendar. Flick to radar and health as you enable them.',
-                    compactDense: 'Compact calendar with the Health and Forecast Status Bars shown together.',
-                    noCal: 'No calendar — a big forecast. Flick to radar and health.'
-                },
-                // Compact-dense only differs from Compact when a health status row is shown;
-                // with health off the two produce identical cycles, so it's hidden then. A
-                // stored compactDense falls back to the default (compactCal) via the
-                // defaultValue-snap in engine.resolveRowItem. Order stays constant across
-                // modes so toggling health doesn't reshuffle the list.
-                optionsFrom: { byKey: 'healthMode', map: {
-                    off: [
-                        ['Full calendar', 'fullCal'],
-                        ['Compact calendar', 'compactCal'],
-                        ['No calendar', 'noCal']
-                    ],
-                    status: [
-                        ['Full calendar', 'fullCal'],
-                        ['Compact calendar', 'compactCal'],
-                        ['Compact calendar (dense)', 'compactDense'],
-                        ['No calendar', 'noCal']
-                    ],
-                    all: [
-                        ['Full calendar', 'fullCal'],
-                        ['Compact calendar', 'compactCal'],
-                        ['Compact calendar (dense)', 'compactDense'],
-                        ['No calendar', 'noCal']
-                    ]
-                } },
-                blockBefore: 'layoutPreviewCombined',
-                blockBeforeSticky: true
-            }, {
-                type: 'segmented',
-                messageKey: 'viewResetMin',
-                label: 'View reset time',
-                defaultValue: '2',
-                options: [['Never', '0'], ['1m', '1'], ['2m', '2'], ['5m', '5'], ['10m', '10']],
-                showWhen: {env: 'platform', ne: 'aplite'}
-            }, {
-                type: 'staticText',
-                joinPrevious: true,
-                text: 'Automatically return to the default view after the selected time has passed.',
-                showWhen: {env: 'platform', ne: 'aplite'}
-            }]
-        }]
-    }, {
         id: 'watch', label: 'Watch', sections: [{
             // The intro + the four status-bar sections share one groupCard so they render as a
             // single card (each title becomes an in-card sub-header). Time/Calendar below stay
@@ -718,6 +664,60 @@ module.exports = {
                         in: Object.keys(holidayData.REGION_OPTIONS)
                     }, {key: 'holidaysEnabled', eq: true}]
                 }
+            }]
+        }]
+    }, {
+        id: 'layout', label: 'Layout', sections: [{
+            intro: 'How the watchface is arranged, and what a wrist-flick reveals — shown side by side in the preview. What a metric means or how it\'s coloured lives in its own tab.',
+            items: [{
+                type: 'radio',
+                messageKey: 'layoutPreset',
+                label: 'Layout preset',
+                defaultValue: 'compactCal',
+                hintByValue: {
+                    fullCal: '3-row calendar. Health and radar appear on wrist-flicks.',
+                    compactCal: '2-row calendar. Flick to radar and health as you enable them.',
+                    compactDense: 'Compact calendar with the Health and Forecast Status Bars shown together.',
+                    noCal: 'No calendar — a big forecast. Flick to radar and health.'
+                },
+                // Compact-dense only differs from Compact when a health status row is shown;
+                // with health off the two produce identical cycles, so it's hidden then. A
+                // stored compactDense falls back to the default (compactCal) via the
+                // defaultValue-snap in engine.resolveRowItem. Order stays constant across
+                // modes so toggling health doesn't reshuffle the list.
+                optionsFrom: { byKey: 'healthMode', map: {
+                    off: [
+                        ['Full calendar', 'fullCal'],
+                        ['Compact calendar', 'compactCal'],
+                        ['No calendar', 'noCal']
+                    ],
+                    status: [
+                        ['Full calendar', 'fullCal'],
+                        ['Compact calendar', 'compactCal'],
+                        ['Compact calendar (dense)', 'compactDense'],
+                        ['No calendar', 'noCal']
+                    ],
+                    all: [
+                        ['Full calendar', 'fullCal'],
+                        ['Compact calendar', 'compactCal'],
+                        ['Compact calendar (dense)', 'compactDense'],
+                        ['No calendar', 'noCal']
+                    ]
+                } },
+                blockBefore: 'layoutPreviewCombined',
+                blockBeforeSticky: true
+            }, {
+                type: 'segmented',
+                messageKey: 'viewResetMin',
+                label: 'View reset time',
+                defaultValue: '2',
+                options: [['Never', '0'], ['1m', '1'], ['2m', '2'], ['5m', '5'], ['10m', '10']],
+                showWhen: {env: 'platform', ne: 'aplite'}
+            }, {
+                type: 'staticText',
+                joinPrevious: true,
+                text: 'Automatically return to the default view after the selected time has passed.',
+                showWhen: {env: 'platform', ne: 'aplite'}
             }]
         }]
     }, {
