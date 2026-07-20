@@ -81,10 +81,6 @@
   },
   "1.8.0": {
     "title": "Customizable status bars",
-    "body": "Every status bar — top, weather, radar and health — is now fully customizable: mix in calendar week, air quality, UV, wind or walking distance, and pick your units."
-  },
-  "1.9.0": {
-    "title": "DWD pollen status",
-    "body": "Added a DWD-only pollen status item that shows the worst forecast level across all pollen species using DWD's native scale."
+    "body": "Every status bar — top, weather, radar and health — is now fully customizable: mix in calendar week, air quality, UV, wind or walking distance."
   }
 }

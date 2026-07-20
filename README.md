@@ -76,6 +76,8 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Optional auto-return to the default view a set time after flicking away (1–10 minutes, or never)
 * **Settings theme** — the settings page now follows your Pebble app's light or dark theme automatically, with a manual Auto / Light / Dark override (More tab → Advanced). The watchface itself is unaffected.
 * **First-run setup wizard** — a quick, skippable guide that infers your country to pick sensible weather and radar providers and holidays, then walks you through layout, radar, and health. Re-runnable any time from **More → Run setup again**.
+* **Redesigned settings pickers** — dropdowns (like the status-slot catalog) open in a grouped bottom-sheet, so long option lists are easier to browse.
+* **Reset watchface** — wipe all settings and cached data and start fresh from **More → Advanced**; the setup wizard then runs again on the next open.
 
 **Updates**
 * **Update notifications** — when a newer version is available on the Pebble appstore, the watchface sends you a one-time notification so you know to update.

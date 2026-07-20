@@ -119,7 +119,9 @@ LAYOUT CUSTOMIZATION
   (1-10 minutes, or never)
 - Settings page now supports a light theme: follows your Pebble app theme
   automatically, with a manual Auto / Light / Dark override
+- Redesigned settings pickers: dropdowns open in a grouped bottom-sheet for easier browsing
 - First-run setup wizard: a quick, skippable guide that picks sensible defaults for your country and explains the watchface. Re-runnable any time from Settings.
+- Reset watchface: wipe all settings and cached data to start fresh (Settings → More → Advanced)
 
 UPDATES
 - Update notifications: get a one-time heads-up when a newer version is available in the appstore.
