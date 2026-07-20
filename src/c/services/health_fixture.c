@@ -22,6 +22,7 @@
 
 // Canned "today so far" totals shown in the health status bar.
 #define FIXTURE_STEPS_TODAY   8432
+#define FIXTURE_DISTANCE_M    6324                        // ~0.75 m/step over the canned steps
 #define FIXTURE_SLEEP_SECONDS (7 * HOUR_SECS + 12 * 60)   // 7 h 12 m
 #ifdef PBL_PLATFORM_EMERY
 #define FIXTURE_HR_CURRENT    72
@@ -45,6 +46,10 @@ bool health_available(void) {
 
 int health_steps_today(void) {
     return FIXTURE_STEPS_TODAY;
+}
+
+int health_distance_today_m(void) {
+    return FIXTURE_DISTANCE_M;   // always "available" here — never the live -1 path
 }
 
 int health_sleep_today_seconds(void) {
