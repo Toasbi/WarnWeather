@@ -6,6 +6,7 @@ require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 const E = require('../src/pkjs/config-ui/lib/engine.js');
+const { deriveDefaults } = require('../src/pkjs/config-ui/lib/defaults.js');
 require('../src/pkjs/settings/blocks.js');                 // registers statusSlotDefault
 const SCHEMA = require('../src/pkjs/settings/schema.js');
 
@@ -36,4 +37,21 @@ test('real schema battery/bluetooth/week base defaults', () => {
   assert.equal(s.batteryLowOnly, true);
   assert.equal(s.btIcons, 'disconnected');
   assert.equal(s.weekStartDay, 'mon');
+});
+
+test('deriveDefaults omits the 12 defaultFrom status-slot keys from the seed', () => {
+  const seeded = deriveDefaults(SCHEMA);
+  const slotKeys = [
+    'statusForecastLeft', 'statusForecastMid', 'statusForecastRight',
+    'statusRadarLeft', 'statusRadarMid', 'statusRadarRight',
+    'statusTopLeft', 'statusTopMid', 'statusTopRight',
+    'statusHealthLeft', 'statusHealthMid', 'statusHealthRight'
+  ];
+  slotKeys.forEach(function (key) {
+    assert.equal(seeded[key], undefined, key + ' must not be seeded (defaultFrom is resolved at hydrate time)');
+  });
+  // A known static-default key IS present, proving the omission above is specific
+  // to defaultFrom items rather than a broken/empty schema.
+  assert.equal(seeded.weekStartDay, 'mon');
+  assert.equal(seeded.batteryLowOnly, true);
 });
