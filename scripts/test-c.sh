@@ -35,6 +35,8 @@ cc $CFLAGS test/c/status_row_layout_test.c src/c/layers/status_row_layout.c -o b
 build/host/status_row_layout_test
 cc $CFLAGS test/c/status_row_alloc_test.c src/c/appendix/status_row_alloc.c -o build/host/status_row_alloc_test
 build/host/status_row_alloc_test
+cc $CFLAGS test/c/top_status_indicators_test.c -o build/host/top_status_indicators_test
+build/host/top_status_indicators_test
 cc $CFLAGS test/c/weather_status_layer_test.c src/c/layers/weather_status_layer.c -o build/host/weather_status_layer_test
 build/host/weather_status_layer_test
 cc $CFLAGS test/c/health_status_layer_test.c src/c/layers/health_status_layer.c -o build/host/health_status_layer_test
