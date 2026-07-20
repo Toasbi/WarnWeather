@@ -20,6 +20,7 @@
   "weather": {
     "city": "Berlin",
     "currentTemp": 84,
+    "aqi": 38,
     "startHour": 11,
     "startDayOffset": 0,
     "temps": [

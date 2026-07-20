@@ -33,6 +33,7 @@
   "weather": {
     "city": "Windy Ridge",
     "currentTemp": 16,
+    "aqi": 38,
     "startHour": 12,
     "temps": [
       16,

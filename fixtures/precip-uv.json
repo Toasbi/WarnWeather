@@ -32,6 +32,7 @@
  "weather": {
   "city": "Berlin",
   "currentTemp": 75,
+  "aqi": 38,
   "startHour": 15,
   "temps": [
    75,

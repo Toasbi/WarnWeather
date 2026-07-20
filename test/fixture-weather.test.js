@@ -81,6 +81,41 @@ test('payload emits TEMP_TREND_UINT8 byte array and TEMP_MIN/TEMP_MAX numbers', 
   assert.ok(!('TEMP_TREND_INT16' in payload), 'old int16 temp key is gone');
 });
 
+// Decode one packed status line into [{kind, icon, len, text}] (mirror status-lines.test.js).
+function decodeLine(bytes) {
+  const slots = [];
+  let off = 0;
+  for (let i = 0; i < 3; i++) {
+    const kind = bytes[off], icon = bytes[off + 1], len = bytes[off + 2];
+    off += 3;
+    const text = Buffer.from(bytes.slice(off, off + len)).toString('utf8');
+    off += len;
+    slots.push({ kind, icon, len, text });
+  }
+  return slots;
+}
+
+test('fixture aqi bakes into the AQI status slot (forecast-right default)', () => {
+  const fixture = makeFixture({ aqi: 38 });
+  // statusForecastRight defaults to 'aqi'; pin it explicitly so the test is
+  // independent of the catalog default, and give the other slots inert picks.
+  const out = getFixtureWeatherPayload(fixture, {
+    statusForecastRight: 'aqi', secondaryLine: 'wind', windScale: 'mid', barSource: 'off'
+  });
+  const right = decodeLine(out.STATUS_LINE_1_UINT8)[2];
+  assert.equal(right.text, '38', 'AQI slot renders the fixture value, not --');
+  assert.equal(right.icon, 11, 'AQI leaf icon (ICONS.AQI)');
+  assert.ok(!('AQI_TREND' in out), 'AQI_TREND is transient — consumed by status baking, never wired');
+});
+
+test('fixture without aqi leaves the AQI slot empty (renders --)', () => {
+  const out = getFixtureWeatherPayload(makeFixture({}), {
+    statusForecastRight: 'aqi', secondaryLine: 'wind', windScale: 'mid', barSource: 'off'
+  });
+  const right = decodeLine(out.STATUS_LINE_1_UINT8)[2];
+  assert.equal(right.text, '--', 'no fixture aqi -> slot shows --');
+});
+
 test('fixture uvIndex feeds the UV secondary line', () => {
   const fixture = makeFixture({
     uvIndex: [5.5, 5.5, 5.5]

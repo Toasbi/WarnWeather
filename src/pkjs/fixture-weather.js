@@ -55,6 +55,11 @@ function getFixtureWeatherPayload(fixture, settings, watchInfo) {
     provider.windTrend = Array.isArray(weather.windKmh) ? weather.windKmh.slice(0) : wireUnits.zeroFilledArray(provider.numEntries);
     provider.gustTrend = Array.isArray(weather.gustKmh) ? weather.gustKmh.slice(0) : wireUnits.zeroFilledArray(provider.numEntries);
     provider.uvTrend = Array.isArray(weather.uvIndex) ? weather.uvIndex.slice(0) : [];
+    // AQI is a status-slot value, not a forecast line: accept a scalar current
+    // index (weather.aqi) — wrapped as a one-element trend, like the WAQI source —
+    // or an explicit array. Absent -> [] and the slot renders '--'.
+    provider.aqiTrend = (typeof weather.aqi === 'number') ? [weather.aqi]
+        : (Array.isArray(weather.aqi) ? weather.aqi.slice(0) : []);
     provider.sunEvents = sunEvents;
 
     if (provider.numEntries <= 0 || sunEvents.length < 2 || !provider.hasValidData()) {
