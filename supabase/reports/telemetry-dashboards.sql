@@ -1,36 +1,45 @@
--- Telemetry dashboards for public.telemetry_weather_fetch
+-- Telemetry dashboards.
 --
--- Each section is one chart-ready query: paste it into a SQL block of a
--- Supabase custom report (Dashboard -> Reports -> New custom report) or run
--- it in the SQL editor. Queries return few, flat columns so Studio's chart
--- view can map them to x/y directly. All dates are UTC, matching the
--- telemetry_weather_fetch_dau_idx index.
+-- Source of truth is now the rollup tables written daily by
+-- public.telemetry_rollup_and_prune():
+--   telemetry_watch   — one row per watch (current snapshot; active-base flags)
+--   telemetry_dau     — one row per (watch, day) activity fact (full history)
+--   telemetry_errors  — slim failed-fetch log (~7 weeks)
+-- Raw telemetry_weather_fetch is retained only 14 days, so recent-ops queries
+-- (#2, #3, #5, #6) that still read it are bounded to that window.
+--
+-- "Active watch" = lifetime_events >= 20 AND last_seen >= now() - interval '1 day'.
+-- The watch is watch_key = coalesce(watch_token_hash, account_token_hash), baked
+-- into the rollup. All dates are UTC. Paste each section into a Supabase custom
+-- report (Dashboard -> Reports -> New custom report) or run it in the SQL editor.
 
 -- ============================================================
--- 1. Daily active users (distinct accounts per day, last 30 days)
+-- 1. Daily active users (last 30 days).
+-- count(*) = active watches; count(distinct account_token_hash) = active accounts.
 -- ============================================================
 select
-  (received_at at time zone 'UTC')::date as day,
-  count(distinct account_token_hash) as active_users
-from telemetry_weather_fetch
-where received_at >= now() - interval '30 days'
+  activity_date as day,
+  count(*) as active_watches,
+  count(distinct account_token_hash) as active_accounts
+from telemetry_dau
+where activity_date >= (now() at time zone 'UTC')::date - 30
 group by day
 order by day;
 
 -- ============================================================
--- 2. Fetches per day, split by outcome (last 30 days)
+-- 2. Fetches per day, split by outcome (raw; last 14 days)
 -- ============================================================
 select
   (received_at at time zone 'UTC')::date as day,
   count(*) filter (where success) as ok,
   count(*) filter (where not success) as failed
 from telemetry_weather_fetch
-where received_at >= now() - interval '30 days'
+where received_at >= now() - interval '14 days'
 group by day
 order by day;
 
 -- ============================================================
--- 3. Success rate by provider (last 7 days)
+-- 3. Success rate by provider (raw; last 7 days)
 -- ============================================================
 select
   provider,
@@ -42,21 +51,20 @@ group by provider
 order by fetches desc;
 
 -- ============================================================
--- 4. Top errors (last 7 days)
+-- 4. Top errors (telemetry_errors; last 7 days, up to 7 weeks retained)
 -- ============================================================
 select
   left(error, 80) as error,
   count(*) as occurrences,
-  count(distinct account_token_hash) as affected_users
-from telemetry_weather_fetch
-where not success
-  and received_at >= now() - interval '7 days'
+  count(distinct watch_key) as affected_watches
+from telemetry_errors
+where received_at >= now() - interval '7 days'
 group by left(error, 80)
 order by occurrences desc
 limit 20;
 
 -- ============================================================
--- 5. Fetch duration percentiles per day (ms, last 30 days)
+-- 5. Fetch duration percentiles per day (raw; ms, last 14 days)
 -- ============================================================
 select
   (received_at at time zone 'UTC')::date as day,
@@ -65,12 +73,12 @@ select
   percentile_cont(0.99) within group (order by duration_ms)::int as p99_ms
 from telemetry_weather_fetch
 where duration_ms is not null
-  and received_at >= now() - interval '30 days'
+  and received_at >= now() - interval '14 days'
 group by day
 order by day;
 
 -- ============================================================
--- 6. Retry pressure: attempts per fetch (last 7 days)
+-- 6. Retry pressure: attempts per fetch (raw; last 7 days)
 -- attempt = 1 means first try; higher buckets indicate flaky fetches.
 -- ============================================================
 select
@@ -81,43 +89,16 @@ where received_at >= now() - interval '7 days'
 group by attempt
 order by attempt;
 
--- ── Active install base (queries 7-9) ──────────────────────────────────────
--- These three count the CURRENTLY-ACTIVE fleet, not everyone who ever opened the
--- watchface. A watch is "active" when it (a) has at least 20 lifetime events — a
--- genuinely-used install, not someone who installed it, fired a few fetches
--- playing around, and removed it — and (b) fetched within the last day. Tune the
--- `events >= 20` floor per query. The unit is the WATCH: watch_token_hash, falling back to
--- account_token_hash when the watch token is null so null-watch rows don't
--- collapse into one bucket. The 1-day window is deliberately tight (the watchface
--- fetches every 30-60 min, so a day of silence means it's gone); widen the
--- `interval '1 day'` literal in each query to loosen it.
-
 -- ============================================================
--- 7. Feature adoption — active watches only, deduplicated per watch
--- Same enabled/reporting/% columns and NULL-drops-older-clients rule,
--- but restricted to the active install base (see the note above).
+-- 7. Feature adoption — active watches only
 -- ============================================================
-with watch_stats as (
-  select coalesce(watch_token_hash, account_token_hash) as watch_key,
-         count(*) as events,
-         max(received_at) as last_seen
-  from telemetry_weather_fetch
-  group by 1
-),
-active as (
-  select watch_key from watch_stats
-  where events >= 20 and last_seen >= now() - interval '1 day'
-),
-latest_per_watch as (
-  select distinct on (coalesce(t.watch_token_hash, t.account_token_hash))
-    t.settings_json
-  from telemetry_weather_fetch t
-  join active a on a.watch_key = coalesce(t.watch_token_hash, t.account_token_hash)
-  order by coalesce(t.watch_token_hash, t.account_token_hash), t.received_at desc
+with active as (
+  select settings_json from telemetry_watch
+  where lifetime_events >= 20 and last_seen >= now() - interval '1 day'
 ),
 flags as (
   select f.feature, f.enabled
-  from latest_per_watch l
+  from active l
   cross join lateral (values
     ('day_night_shading',  (l.settings_json ->> 'dayNightShading') = 'true'),
     ('forecast_secondary', (l.settings_json ->> 'secondaryLine') <> 'off'),
@@ -147,85 +128,44 @@ group by feature
 order by enabled_watches desc;
 
 -- ============================================================
--- 8. App version x watch platform — active watches only, at each watch's LATEST event
--- Version and platform grouped in one table over the active install base. Each
--- active watch appears once under its current version (never double-counted in a
--- version it moved off). app_version orders lexically (good enough for display;
--- not strict semver, so 1.10 would sort under 1.9).
+-- 8. App version x watch platform — active watches only, at each watch's
+-- latest event. app_version orders lexically (not strict semver).
 -- ============================================================
-with watch_stats as (
-  select coalesce(watch_token_hash, account_token_hash) as watch_key,
-         count(*) as events,
-         max(received_at) as last_seen
-  from telemetry_weather_fetch
-  group by 1
-),
-active as (
-  select watch_key from watch_stats
-  where events >= 20 and last_seen >= now() - interval '1 day'
-),
-latest_per_watch as (
-  select distinct on (coalesce(t.watch_token_hash, t.account_token_hash))
-    t.app_version,
-    coalesce(t.watch_info ->> 'platform', 'unknown') as platform
-  from telemetry_weather_fetch t
-  join active a on a.watch_key = coalesce(t.watch_token_hash, t.account_token_hash)
-  order by coalesce(t.watch_token_hash, t.account_token_hash), t.received_at desc
-)
 select
-  app_version,
-  platform,
+  last_app_version as app_version,
+  coalesce(watch_platform, 'unknown') as platform,
   count(*) as watches
-from latest_per_watch
-group by app_version, platform
+from telemetry_watch
+where lifetime_events >= 20 and last_seen >= now() - interval '1 day'
+group by last_app_version, platform
 order by app_version desc, watches desc;
 
 -- ============================================================
 -- 9. Lifecycle cohorts over the complete timeline
--- Every watch that ever sent data, split into a few cohorts:
 --   trial   — < 20 lifetime events (installed, played around, never stuck)
---   active  — >= 20 events AND fetched within the last day
---   churned — >= 20 events but last fetch is older (was a real user, now gone)
--- Per watch, same key/window as #7-8. Covers the whole install history, so the
--- three cohorts sum to every watch ever seen.
+--   active  — >= 20 events AND seen within the last day
+--   churned — >= 20 events but last seen is older (was a real user, now gone)
 -- ============================================================
-with watch_stats as (
-  select coalesce(watch_token_hash, account_token_hash) as watch_key,
-         count(*) as events,
-         max(received_at) as last_seen
-  from telemetry_weather_fetch
-  group by 1
-)
 select
   case
-    when events < 20                              then 'trial (<20 events)'
-    when last_seen >= now() - interval '1 day'    then 'active'
-    else                                               'churned'
+    when lifetime_events < 20                        then 'trial (<20 events)'
+    when last_seen >= now() - interval '1 day'       then 'active'
+    else                                                  'churned'
   end as cohort,
   count(*) as watches,
   round(100.0 * count(*) / sum(count(*)) over (), 1) as pct
-from watch_stats
+from telemetry_watch
 group by 1
 order by watches desc;
 
 -- ============================================================
--- 10. Churn tenure — after how many days did churned watches churn
--- For churned watches (>= 20 events, inactive > 1 day), how long they were around
--- before going silent: last_seen - first_seen. Answers "they used it for N days,
--- then churned." Buckets are prefixed 0-4 so they sort in order, not alphabetically.
+-- 10. Churn tenure — how long churned watches lasted (last_seen - first_seen).
+-- Buckets prefixed 0-6 so they sort in order.
 -- ============================================================
-with watch_stats as (
-  select coalesce(watch_token_hash, account_token_hash) as watch_key,
-         count(*) as events,
-         min(received_at) as first_seen,
-         max(received_at) as last_seen
-  from telemetry_weather_fetch
-  group by 1
-),
-churned as (
+with churned as (
   select extract(epoch from (last_seen - first_seen)) / 86400.0 as tenure_days
-  from watch_stats
-  where events >= 20 and last_seen < now() - interval '1 day'
+  from telemetry_watch
+  where lifetime_events >= 20 and last_seen < now() - interval '1 day'
 )
 select
   case
@@ -244,34 +184,18 @@ group by 1
 order by churned_after;
 
 -- ============================================================
--- 11. Settings profile of the ACTIVE users
--- Setting option distribution but restricted to the active install base
--- (>= 20 events + fetched in the last day), one row per active watch at its latest
--- event. Shows how people who actually use the app configure it.
+-- 11. Settings profile of the ACTIVE watches
+-- Option distribution over the active install base, one row per active watch.
 -- ============================================================
-with watch_stats as (
-  select coalesce(watch_token_hash, account_token_hash) as watch_key,
-         count(*) as events,
-         max(received_at) as last_seen
-  from telemetry_weather_fetch
-  group by 1
-),
-active as (
-  select watch_key from watch_stats
-  where events >= 20 and last_seen >= now() - interval '1 day'
-),
-latest_per_watch as (
-  select distinct on (coalesce(t.watch_token_hash, t.account_token_hash))
-    t.settings_json
-  from telemetry_weather_fetch t
-  join active a on a.watch_key = coalesce(t.watch_token_hash, t.account_token_hash)
-  order by coalesce(t.watch_token_hash, t.account_token_hash), t.received_at desc
+with active as (
+  select settings_json from telemetry_watch
+  where lifetime_events >= 20 and last_seen >= now() - interval '1 day'
 )
 select
   s.setting,
   s.option,
   count(*) as watches
-from latest_per_watch l
+from active l
 cross join lateral (values
   ('temperatureUnits',     l.settings_json ->> 'temperatureUnits'),
   ('provider',             l.settings_json ->> 'provider'),
@@ -284,7 +208,6 @@ cross join lateral (values
   ('radarColor',           l.settings_json ->> 'radarColor'),
   ('healthMode',           l.settings_json ->> 'healthMode'),
   ('rainCountdownHorizon', l.settings_json ->> 'rainCountdownHorizon'),
-  ('topViewMode',          l.settings_json ->> 'topViewMode'),
   ('layoutPreset',         l.settings_json ->> 'layoutPreset'),
   ('viewResetMin',         l.settings_json ->> 'viewResetMin'),
   ('btIcons',              l.settings_json ->> 'btIcons'),
@@ -295,50 +218,76 @@ cross join lateral (values
   ('theme',                l.settings_json ->> 'theme'),
   ('configTheme',          l.settings_json ->> 'configTheme'),
   ('aqiScale',             l.settings_json ->> 'aqiScale'),
-  ('statusForecastLeft',   l.settings_json ->> 'statusForecastLeft'),
-  ('statusForecastRight',  l.settings_json ->> 'statusForecastRight'),
-  ('statusRadarLeft',      l.settings_json ->> 'statusRadarLeft'),
-  ('statusRadarMid',       l.settings_json ->> 'statusRadarMid'),
-  ('statusRadarRight',     l.settings_json ->> 'statusRadarRight'),
-  ('statusTopLeft',        l.settings_json ->> 'statusTopLeft'),
-  ('statusTopRight',       l.settings_json ->> 'statusTopRight'),
-  ('statusHealthLeft',     l.settings_json ->> 'statusHealthLeft'),
-  ('statusHealthMid',      l.settings_json ->> 'statusHealthMid'),
-  ('statusHealthRight',    l.settings_json ->> 'statusHealthRight')
+  ('aqiSource',            l.settings_json ->> 'aqiSource')
 ) as s(setting, option)
 where s.option is not null
 group by s.setting, s.option
 order by s.setting, watches desc;
 
 -- ============================================================
--- 12. Weather provider by country — active users only
--- Which provider active watches use, grouped by country. Active install base
--- (>= 20 events + fetched in the last day; see the note above #7), one row per
--- active watch at its latest event. provider/country come from that event's row.
+-- 12. Weather provider by country — active watches only
 -- ============================================================
-with watch_stats as (
-  select coalesce(watch_token_hash, account_token_hash) as watch_key,
-         count(*) as events,
-         max(received_at) as last_seen
-  from telemetry_weather_fetch
-  group by 1
-),
-active as (
-  select watch_key from watch_stats
-  where events >= 20 and last_seen >= now() - interval '1 day'
-),
-latest_per_watch as (
-  select distinct on (coalesce(t.watch_token_hash, t.account_token_hash))
-    coalesce(t.country_code, 'unknown') as country,
-    t.provider
-  from telemetry_weather_fetch t
-  join active a on a.watch_key = coalesce(t.watch_token_hash, t.account_token_hash)
-  order by coalesce(t.watch_token_hash, t.account_token_hash), t.received_at desc
-)
 select
-  country,
+  coalesce(country_code, 'unknown') as country,
   provider,
   count(*) as watches
-from latest_per_watch
+from telemetry_watch
+where lifetime_events >= 20 and last_seen >= now() - interval '1 day'
 group by country, provider
 order by country, watches desc;
+
+-- ============================================================
+-- 13. Status usage overview — pool all 12 status slots across active watches,
+-- rank each status code by total uses ("what status is used how often").
+-- ============================================================
+with active as (
+  select settings_json from telemetry_watch
+  where lifetime_events >= 20 and last_seen >= now() - interval '1 day'
+)
+select
+  code,
+  count(*) as uses
+from active a
+cross join lateral (values
+  (a.settings_json ->> 'statusForecastLeft'), (a.settings_json ->> 'statusForecastMid'),
+  (a.settings_json ->> 'statusForecastRight'), (a.settings_json ->> 'statusRadarLeft'),
+  (a.settings_json ->> 'statusRadarMid'), (a.settings_json ->> 'statusRadarRight'),
+  (a.settings_json ->> 'statusTopLeft'), (a.settings_json ->> 'statusTopMid'),
+  (a.settings_json ->> 'statusTopRight'), (a.settings_json ->> 'statusHealthLeft'),
+  (a.settings_json ->> 'statusHealthMid'), (a.settings_json ->> 'statusHealthRight')
+) as s(code)
+where code is not null and code <> 'empty'
+group by code
+order by uses desc;
+
+-- ============================================================
+-- 14. Per-slot ranking — for each of the 12 slots, rank the codes chosen
+-- (`rnk` = popularity within that slot).
+-- ============================================================
+with active as (
+  select settings_json from telemetry_watch
+  where lifetime_events >= 20 and last_seen >= now() - interval '1 day'
+)
+select
+  slot,
+  code,
+  count(*) as watches,
+  rank() over (partition by slot order by count(*) desc) as rnk
+from active a
+cross join lateral (values
+  ('statusForecastLeft',  a.settings_json ->> 'statusForecastLeft'),
+  ('statusForecastMid',   a.settings_json ->> 'statusForecastMid'),
+  ('statusForecastRight', a.settings_json ->> 'statusForecastRight'),
+  ('statusRadarLeft',     a.settings_json ->> 'statusRadarLeft'),
+  ('statusRadarMid',      a.settings_json ->> 'statusRadarMid'),
+  ('statusRadarRight',    a.settings_json ->> 'statusRadarRight'),
+  ('statusTopLeft',       a.settings_json ->> 'statusTopLeft'),
+  ('statusTopMid',        a.settings_json ->> 'statusTopMid'),
+  ('statusTopRight',      a.settings_json ->> 'statusTopRight'),
+  ('statusHealthLeft',    a.settings_json ->> 'statusHealthLeft'),
+  ('statusHealthMid',     a.settings_json ->> 'statusHealthMid'),
+  ('statusHealthRight',   a.settings_json ->> 'statusHealthRight')
+) as s(slot, code)
+where code is not null
+group by slot, code
+order by slot, watches desc;
