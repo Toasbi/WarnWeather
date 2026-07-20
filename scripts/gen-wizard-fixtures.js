@@ -26,6 +26,8 @@ const FORECAST = { secondaryLine: 'precip_prob', secondaryLineFill: true, thirdL
 // aplite); bw / bw-light are color-watch-only theme options (flint + aplite are B&W → dark/light only).
 const ALL = 'basalt flint emery aplite';
 const HEALTH_RADAR = 'basalt flint emery';   // exclude aplite (no PBL_HEALTH / no WW_RAIN_RADAR)
+const HEALTH_NONHR = 'basalt flint';         // health platforms WITHOUT an HR sensor → right slot bakes base `distance`
+const HEALTH_HR = 'emery';                   // HR platform (Pebble Time 2); wizard maps diorite→flint so emery is the only captured one
 const COLOR = 'basalt emery';                // flint + aplite are B&W → they never show bw/bw-light cards
 // slug → fixture; group/val/platforms are consumed by gen-wizard-screenshots.js to key the module.
 const SHOTS = [
@@ -35,9 +37,19 @@ const SHOTS = [
   // Health + radar shots use noCal — the most common layout, and it carries both. In its cycle the
   // health status and graph sit one flick in ([NONE_FC_W, NONE_FC_H] / [NONE_FC_W, NONE_GRAPH_H]), so:
   // off=flick0 weather status, status=flick1 health status, all=flick1 health graph.
-  { slug: 'health-off',        group: 'healthMode',   val: 'off',        flicks: 0, platforms: HEALTH_RADAR, clay: Object.assign({ layoutPreset: 'noCal', healthMode: 'off', radarProvider: 'disabled' }, FORECAST) },
-  { slug: 'health-status',     group: 'healthMode',   val: 'status',     flicks: 1, platforms: HEALTH_RADAR, clay: Object.assign({ layoutPreset: 'noCal', healthMode: 'status', radarProvider: 'disabled' }, FORECAST) },
-  { slug: 'health-all',        group: 'healthMode',   val: 'all',        flicks: 1, platforms: HEALTH_RADAR, clay: Object.assign({ layoutPreset: 'noCal', healthMode: 'all', radarProvider: 'disabled' }, FORECAST) },
+  //
+  // Both the status stop (NONE_FC_H) and the graph stop (NONE_GRAPH_H) carry the HEALTH status row
+  // (ST_H), whose right slot defaults to `distance` but is heart rate on HR platforms. packLine bakes
+  // the *base* default (distance) on every platform when the slot is unpinned, so each health shot is
+  // split: basalt/flint capture the base distance; a parallel *-emery shot pins statusHealthRight:'hr'
+  // (same group/val, disjoint platform → keys the same S[emery][healthMode][val] slot) so the emery
+  // card matches a real emery watch (canned 72 bpm via WW_HEALTH_FIXTURE). Keying is unchanged, so the
+  // screenshots-guard's required (platform,group,val) matrix stays identical.
+  { slug: 'health-off',           group: 'healthMode', val: 'off',    flicks: 0, platforms: HEALTH_RADAR, clay: Object.assign({ layoutPreset: 'noCal', healthMode: 'off',    radarProvider: 'disabled' }, FORECAST) },
+  { slug: 'health-status',        group: 'healthMode', val: 'status', flicks: 1, platforms: HEALTH_NONHR, clay: Object.assign({ layoutPreset: 'noCal', healthMode: 'status', radarProvider: 'disabled' }, FORECAST) },
+  { slug: 'health-status-emery',  group: 'healthMode', val: 'status', flicks: 1, platforms: HEALTH_HR,    clay: Object.assign({ layoutPreset: 'noCal', healthMode: 'status', radarProvider: 'disabled', statusHealthRight: 'hr' }, FORECAST) },
+  { slug: 'health-all',           group: 'healthMode', val: 'all',    flicks: 1, platforms: HEALTH_NONHR, clay: Object.assign({ layoutPreset: 'noCal', healthMode: 'all',    radarProvider: 'disabled' }, FORECAST) },
+  { slug: 'health-all-emery',     group: 'healthMode', val: 'all',    flicks: 1, platforms: HEALTH_HR,    clay: Object.assign({ layoutPreset: 'noCal', healthMode: 'all',    radarProvider: 'disabled', statusHealthRight: 'hr' }, FORECAST) },
   { slug: 'radar',             group: 'radar',        val: '_',          flicks: 1, platforms: HEALTH_RADAR, clay: Object.assign({ layoutPreset: 'noCal', healthMode: 'off', radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, FORECAST),
     radar: { exact: RAIN_EXACT, area: RAIN_AREA }, countdown: { text: "Rain in 15'", tier: 3 } },
   { slug: 'theme-dark',     group: 'theme', val: 'dark',     flicks: 0, platforms: ALL,   clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'dark' }, FORECAST) },
