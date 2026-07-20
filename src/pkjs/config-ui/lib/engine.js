@@ -286,8 +286,19 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    */
   function renderSelectModal(schema, cx) {
     if (!cx.openSelect) { return ''; }
-    var found = null;
-    eachItem(schema, function (it) { if (it.messageKey === cx.openSelect) { found = it; } });
+    // Prefer the item that is actually VISIBLE for the current platform — two items can
+    // share a messageKey with mutually-exclusive showWhen (e.g. the color vs B/W `theme`
+    // blocks), and the open picker must mirror the same block whose trigger was tapped, not
+    // just the last match. Fall back to any match if none resolves visible (belt-and-braces:
+    // a hidden trigger can't be opened, so this only guards degenerate schemas).
+    var found = null, fallback = null;
+    eachItem(schema, function (it) {
+      if (it.messageKey === cx.openSelect) {
+        fallback = it;
+        if (PConf.showWhen.isVisible(it, cx.evalCtx)) { found = it; }
+      }
+    });
+    found = found || fallback;
     if (!found) { return ''; }
     var item = resolveRowItem(found, { value: cx.S[found.messageKey] }, cx);
     var key = esc(item.messageKey), value = cx.S[item.messageKey];

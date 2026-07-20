@@ -311,6 +311,31 @@ test('renderBody: a standalone (non-joined) staticText has no join class', () =>
   assert.equal(html.indexOf('join'), -1, 'no join modifier when not joined');
 });
 
+test('renderSelectModal: duplicate messageKey resolves the VISIBLE block (theme B&W regression)', () => {
+  // Two items share messageKey 'theme': a 4-option color block and a 2-option B/W block,
+  // mutually exclusive by showWhen (mirrors schema.js). The open picker must mirror whichever
+  // block's trigger is visible for the platform — not just the last match in schema order.
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [ { items: [
+    { type: 'select', messageKey: 'theme', label: 'Theme', defaultValue: 'dark',
+      options: [['Dark','dark'],['Light','light'],['B&W','bw'],['B&W Inverted','bw-light']],
+      showWhen: { env: 'color' } },
+    { type: 'select', messageKey: 'theme', label: 'Theme', defaultValue: 'dark',
+      options: [['Dark','dark'],['Light','light']],
+      showWhen: { all: [ { not: { env: 'color' } }, { env: 'themePolarity' } ] } }
+  ] } ] } ] };
+  function modalPicks(env) {
+    const S = E.hydrate(SCH, {}, env);
+    const cx = { S: S, ENV: env, USERDATA: {}, openSelect: 'theme', selectQuery: '',
+      collapsed: {}, evalCtx: Object.assign({}, S, { env: env }) };
+    const html = E.renderSelectModal(SCH, cx);
+    return (html.match(/data-select-pick="([^"]*)"/g) || []).map((s) => s.replace(/data-select-pick="|"/g, ''));
+  }
+  // Color platform (basalt/chalk/emery): the visible block is the 4-option one — B&W + B&W Inverted must appear.
+  assert.deepEqual(modalPicks({ color: true, themePolarity: true }), ['dark', 'light', 'bw', 'bw-light']);
+  // B/W platform with polarity (diorite/flint): the visible block is the 2-option one.
+  assert.deepEqual(modalPicks({ color: false, themePolarity: true }), ['dark', 'light']);
+});
+
 test('resolveOptionsFrom: lowest option = interval, ladder above it, deduped + labeled', () => {
   const item = { optionsFrom: { interval: 'iv', ladder: [30, 60, 120, 360, 720, 1440] } };
   assert.deepEqual(E.resolveOptionsFrom(item, { iv: '5' }),

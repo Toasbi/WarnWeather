@@ -82,5 +82,9 @@
   "1.8.0": {
     "title": "Customizable status bars",
     "body": "Every status bar — top, weather, radar and health — is now fully customizable: mix in calendar week, air quality, UV, wind or walking distance."
+  },
+  "1.8.1": {
+    "title": "Black & White themes are back",
+    "body": "Fixed the theme picker dropping the B&W and B&W Inverted options on colour watches. All four themes are selectable again."
   }
 }
