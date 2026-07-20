@@ -144,6 +144,13 @@ function sendFixtureWeather(fixture, deps) {
     // Bundle the rain palette too, so fixture bars honor rainBarColor.
     Object.assign(payload, paletteWire.buildPaletteTuples(deps.watchInfo, deps.settings));
 
+    // Dev: let a fixture exercise sleep mode (the snooze indicator + frozen
+    // weather slots). The live path derives IS_SLEEPING from the sleep window;
+    // fixtures set it explicitly since the emulator has no real schedule.
+    if (fixture.weather.isSleeping) {
+        payload.IS_SLEEPING = 1;
+    }
+
     console.log('[fixture] Sending weather fixture: ' + (fixture.name || '(unknown)'));
     Pebble.sendAppMessage(payload, function() {
         console.log('[fixture] Weather fixture sent successfully');
