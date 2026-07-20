@@ -2,12 +2,14 @@
 #include "top_status_layer.h"
 #include "battery_draw.h"
 #include "status_row.h"
+#include "top_status_indicators.h"
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
 #include "c/appendix/palette.h"
 #include "c/appendix/persist.h"
 #include "c/appendix/rain_countdown.h"
 #include "c/appendix/rain_tier.h"
+#include "c/appendix/snooze.h"
 #include "c/appendix/status_line.h"
 #include "c/appendix/theme.h"
 #include "c/services/watch_services.h"
@@ -224,8 +226,22 @@ static GColor bt_icon_fg(GColor hue) {
     return theme_is_light() ? theme_fg() : theme_pick(hue, theme_fg());
 }
 
-static void maybe_unload_top_status_bitmaps(bool show_qt, bool draw_bt, bool draw_bt_disconnect) {
-    if (!show_qt && s_mute_bitmap) {
+static TopStatusIndicators current_indicators(bool connected) {
+    const Config *config = config_get();
+    bool wants_bt = connected ? config->show_bt : config->show_bt_disconnect;
+    return top_status_indicators_resolve(
+        show_qt_icon(), wants_bt, persist_get_is_sleeping());
+}
+
+static GRect indicator_frame(GRect bounds, uint8_t slot) {
+    GRect frame = slot == 0 ? ICON_SLOT_1 : ICON_SLOT_2;
+    frame.origin.y = STATUS_ICON_Y(bounds.size.h, frame.size.h);
+    return frame;
+}
+
+static void maybe_unload_top_status_bitmaps(
+        bool draw_qt, bool draw_bt, bool draw_bt_disconnect) {
+    if (!draw_qt && s_mute_bitmap) {
         gbitmap_destroy(s_mute_bitmap);
         s_mute_bitmap = NULL;
     }
@@ -241,8 +257,8 @@ static void maybe_unload_top_status_bitmaps(bool show_qt, bool draw_bt, bool dra
 
 // Configurable slots (status_row's left slot / fixed date mid slot / right slot)
 // span from the left icon slot(s) to the right edge. Left inset clears whichever
-// icons are currently on screen (QT and/or BT), reusing the same booleans
-// top_status_update_proc computes. The right inset is flush (0) on emery so the
+// resolved Quiet Time/Bluetooth/snooze group is currently on screen. The right
+// inset is flush (0) on emery so the
 // top-right slot lines up exactly with the weather/health rows' right slots (those
 // rows pass their full bounds to status_row_apply — see weather_status_layer.c); on
 // the smaller-screen platforms a flush right slot clips the right-slot glyph at
@@ -252,17 +268,14 @@ static void maybe_unload_top_status_bitmaps(bool show_qt, bool draw_bt, bool dra
 // icon-suppression gate.
 static GRect content_rect(void) {
     GRect bounds = layer_get_bounds(s_top_status_layer);
-    bool show_qt = show_qt_icon();
     bool connected = connection_service_peek_pebble_app_connection();
-    bool wants_bt = connected && config_get()->show_bt;
-    bool wants_bt_disc = !connected && config_get()->show_bt_disconnect;
+    TopStatusIndicators indicators = current_indicators(connected);
 
-    int16_t left = ICON_SLOT_1.origin.x;   // no icons showing: clear just the padding
-    if (show_qt) {
-        // QT holds slot 1; BT (if any) holds slot 2 alongside it.
-        left = (int16_t)(ICON_SLOT_2.origin.x + ICON_SLOT_2.size.w + PADDING);
-    } else if (wants_bt || wants_bt_disc) {
+    int16_t left = ICON_SLOT_1.origin.x;
+    if (indicators.count == 1) {
         left = (int16_t)(ICON_SLOT_1.origin.x + ICON_SLOT_1.size.w + PADDING);
+    } else if (indicators.count == 2) {
+        left = (int16_t)(ICON_SLOT_2.origin.x + ICON_SLOT_2.size.w + PADDING);
     }
     // emery: the wider band clears the right-slot glyph at content_w, so the top-right
     // slot sits flush (aligned with the weather/health rows). The smaller-screen bands
@@ -279,24 +292,17 @@ static GRect content_rect(void) {
 
 static void top_status_update_proc(Layer *layer, GContext *ctx) {
     GRect bounds = layer_get_bounds(layer);
-    bool show_qt = show_qt_icon();
     bool connected = connection_service_peek_pebble_app_connection();
     bool alert = s_rain_alert_active;
-    int icon_x = show_qt ? ICON_SLOT_2.origin.x : ICON_SLOT_1.origin.x;
+    TopStatusIndicators indicators = current_indicators(connected);
     const GFont font = fonts_get_system_font(MONTH_FONT_KEY);
-
-    bool wants_bt = connected && config_get()->show_bt;
-    bool wants_bt_disc = !connected && config_get()->show_bt_disconnect;
+    bool draw_indicators = !alert;
 
     // Alert mode centers a glyph+text unit in place of the configurable slots;
     // non-alert mode defers the row to status_row after the icon draws.
     char shown[sizeof(s_rain_alert_text)];
     GRect text_rect = bounds;   // unused unless alert (overwritten below)
     GTextAlignment text_align = GTextAlignmentCenter;
-    bool draw_qt = show_qt;
-    bool draw_bt = !alert && wants_bt;
-    bool draw_bt_disc = !alert && wants_bt_disc;
-    int bt_x = icon_x;  // month-mode BT position
 
     // Square glyph slot that the PDC viewbox scales into (see ensure_rain_glyph_loaded).
     // The band is short on 144-px screens (~14 px), so it can spare only a small inset
@@ -316,7 +322,7 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
     const int glyph_y = bounds.size.h - glyph_side - 3;
 #endif
     const int glyph_gap = 2;
-    int glyph_x = icon_x;
+    int glyph_x = 0;  // assigned from start_x before use in alert mode
 
     if (alert) {
         // Keep the right slot (battery) visible during the alert: suppress the
@@ -346,33 +352,28 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
         text_rect.size.w = alert_w - text_rect.origin.x;
         text_align = GTextAlignmentLeft;
 
-        // Keep the left status icons (Quiet-Time, Bluetooth) only while the centered
-        // unit clears them; once the alert grows wide enough to reach their slots,
+        // Keep the left status indicators only while the centered unit clears them;
+        // once the alert grows wide enough to reach their resolved group,
         // hide the whole icon group so the glyph + text get the space instead.
         int icons_right = 0;
-        if (show_qt) {
+        if (indicators.count == 1) {
             icons_right = ICON_SLOT_1.origin.x + ICON_SLOT_1.size.w;
+        } else if (indicators.count == 2) {
+            icons_right = ICON_SLOT_2.origin.x + ICON_SLOT_2.size.w;
         }
-        if (wants_bt || wants_bt_disc) {
-            const int bt_right = icon_x + 10;   // BT sits in slot 2 when QT holds slot 1
-            if (bt_right > icons_right) { icons_right = bt_right; }
-        }
-        const bool icons_fit = (icons_right == 0) || (start_x >= icons_right + PADDING);
-        draw_qt = show_qt && icons_fit;
-        draw_bt = wants_bt && icons_fit;
-        draw_bt_disc = wants_bt_disc && icons_fit;
+        draw_indicators = icons_right == 0
+            || start_x >= icons_right + PADDING;
     }
 
-    maybe_unload_top_status_bitmaps(show_qt, draw_bt, draw_bt_disc);
+    bool has_qt = top_status_indicators_contains(
+        indicators, TOP_STATUS_INDICATOR_QUIET_TIME);
+    bool has_bt = top_status_indicators_contains(
+        indicators, TOP_STATUS_INDICATOR_BLUETOOTH);
+    bool draw_qt = draw_indicators && has_qt;
+    bool draw_bt = draw_indicators && has_bt && connected;
+    bool draw_bt_disc = draw_indicators && has_bt && !connected;
+    maybe_unload_top_status_bitmaps(draw_qt, draw_bt, draw_bt_disc);
     if (!alert) { rain_glyph_unload(); }
-
-    if (draw_qt) {
-        ensure_icon_loaded(&s_mute_bitmap, s_mute_palette, &s_mute_bitmap_fg,
-                           RESOURCE_ID_IMAGE_MUTE, theme_fg());
-        draw_bitmap(ctx, s_mute_bitmap,
-            GRect(ICON_SLOT_1.origin.x, STATUS_ICON_Y(bounds.size.h, ICON_SLOT_1.size.h),
-                  ICON_SLOT_1.size.w, ICON_SLOT_1.size.h));
-    }
 
     if (alert) {
         int bucket = rain_tier_to_bucket3(s_rain_alert_tier);
@@ -384,15 +385,36 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
         }
     }
 
-    if (draw_bt) {
-        ensure_icon_loaded(&s_bt_bitmap, s_bt_palette, &s_bt_bitmap_fg,
-                           RESOURCE_ID_IMAGE_BT_CONNECT, bt_icon_fg(GColorPictonBlue));
-        draw_bitmap(ctx, s_bt_bitmap, GRect(bt_x, STATUS_ICON_Y(bounds.size.h, 10), 10, 10));
-    } else if (draw_bt_disc) {
-        ensure_icon_loaded(&s_bt_disconnect_bitmap, s_bt_disconnect_palette,
-                           &s_bt_disconnect_bitmap_fg,
-                           RESOURCE_ID_IMAGE_BT_DISCONNECT, bt_icon_fg(GColorRed));
-        draw_bitmap(ctx, s_bt_disconnect_bitmap, GRect(bt_x, STATUS_ICON_Y(bounds.size.h, 10), 10, 10));
+    if (draw_indicators) {
+        for (uint8_t i = 0; i < indicators.count; i++) {
+            GRect frame = indicator_frame(bounds, i);
+            switch (indicators.slots[i]) {
+                case TOP_STATUS_INDICATOR_QUIET_TIME:
+                    ensure_icon_loaded(&s_mute_bitmap, s_mute_palette,
+                        &s_mute_bitmap_fg, RESOURCE_ID_IMAGE_MUTE, theme_fg());
+                    draw_bitmap(ctx, s_mute_bitmap, frame);
+                    break;
+                case TOP_STATUS_INDICATOR_BLUETOOTH:
+                    if (connected) {
+                        ensure_icon_loaded(&s_bt_bitmap, s_bt_palette,
+                            &s_bt_bitmap_fg, RESOURCE_ID_IMAGE_BT_CONNECT,
+                            bt_icon_fg(GColorPictonBlue));
+                        draw_bitmap(ctx, s_bt_bitmap, frame);
+                    } else {
+                        ensure_icon_loaded(&s_bt_disconnect_bitmap,
+                            s_bt_disconnect_palette, &s_bt_disconnect_bitmap_fg,
+                            RESOURCE_ID_IMAGE_BT_DISCONNECT,
+                            bt_icon_fg(GColorRed));
+                        draw_bitmap(ctx, s_bt_disconnect_bitmap, frame);
+                    }
+                    break;
+                case TOP_STATUS_INDICATOR_SNOOZE:
+                    snooze_draw(ctx, frame, theme_fg());
+                    break;
+                case TOP_STATUS_INDICATOR_NONE:
+                    break;
+            }
+        }
     }
 
     if (alert) {
@@ -529,7 +551,6 @@ void top_status_layer_refresh() {
     update_battery_override();   // config may have flipped battery_low_only
     recompute_rain_alert();
     status_icons_refresh();
-    status_row_set_sleeping(s_row, persist_get_is_sleeping());
     if (status_row_refresh(s_row)) {
         layer_mark_dirty(s_top_status_layer);
     }
