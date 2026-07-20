@@ -47,9 +47,9 @@ const SHOTS = [
   // screenshots-guard's required (platform,group,val) matrix stays identical.
   { slug: 'health-off',           group: 'healthMode', val: 'off',    flicks: 0, platforms: HEALTH_RADAR, clay: Object.assign({ layoutPreset: 'noCal', healthMode: 'off',    radarProvider: 'disabled' }, FORECAST) },
   { slug: 'health-status',        group: 'healthMode', val: 'status', flicks: 1, platforms: HEALTH_NONHR, clay: Object.assign({ layoutPreset: 'noCal', healthMode: 'status', radarProvider: 'disabled' }, FORECAST) },
-  { slug: 'health-status-emery',  group: 'healthMode', val: 'status', flicks: 1, platforms: HEALTH_HR,    clay: Object.assign({ layoutPreset: 'noCal', healthMode: 'status', radarProvider: 'disabled', statusHealthRight: 'hr' }, FORECAST) },
+  { slug: 'health-status-emery',  group: 'healthMode', val: 'status', flicks: 1, platforms: HEALTH_HR,    clay: Object.assign({ layoutPreset: 'noCal', healthMode: 'status', radarProvider: 'disabled', statusHealthMid: 'sleep', statusHealthRight: 'hr' }, FORECAST) },
   { slug: 'health-all',           group: 'healthMode', val: 'all',    flicks: 1, platforms: HEALTH_NONHR, clay: Object.assign({ layoutPreset: 'noCal', healthMode: 'all',    radarProvider: 'disabled' }, FORECAST) },
-  { slug: 'health-all-emery',     group: 'healthMode', val: 'all',    flicks: 1, platforms: HEALTH_HR,    clay: Object.assign({ layoutPreset: 'noCal', healthMode: 'all',    radarProvider: 'disabled', statusHealthRight: 'hr' }, FORECAST) },
+  { slug: 'health-all-emery',     group: 'healthMode', val: 'all',    flicks: 1, platforms: HEALTH_HR,    clay: Object.assign({ layoutPreset: 'noCal', healthMode: 'all',    radarProvider: 'disabled', statusHealthMid: 'sleep', statusHealthRight: 'hr' }, FORECAST) },
   { slug: 'radar',             group: 'radar',        val: '_',          flicks: 1, platforms: HEALTH_RADAR, clay: Object.assign({ layoutPreset: 'noCal', healthMode: 'off', radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, FORECAST),
     radar: { exact: RAIN_EXACT, area: RAIN_AREA }, countdown: { text: "Rain in 15'", tier: 3 } },
   { slug: 'theme-dark',     group: 'theme', val: 'dark',     flicks: 0, platforms: ALL,   clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'dark' }, FORECAST) },
