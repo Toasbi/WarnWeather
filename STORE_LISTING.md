@@ -6,133 +6,53 @@
 WarnWeather is a weather watchface for Pebble, based on the ForecasWatch2 watchface.
 Highly customizable with a modern settings UI and previews.
 
-
-If you like this watchface and want to support the development, 
-press the ❤️ button and consider buying me a coffee at
-https://www.buymeacoffee.com/toaster2.
-
-
 FORECAST
-- 24-hour weather forecast with configurable update frequency
-  Optimized for low battery consumption, messages are only sent if something changes
-- Selectable units: temperature (°C / °F), wind speed (kph / mph / knots), and walked distance (kilometres / miles)
-- Weather status with: 
-  - Current temperature
-  - City where the forecast was fetched
-  - Next sunrise or sunset time
-- Temperature forecast line
-- Configurable metrics:
-  - precipitation probability
-  - precipitation amount
-  - UV index
-  - wind speed
-  - wind gusts
-- Optional day/night hatch shading
-- Multiple weather providers: 
-  - Weather Underground
-  - OpenWeatherMap
-  - Open-Meteo
-  - Deutscher Wetterdienst (Germany)
-  - Met.no / MET Norway (Nordics)
-- GPS or manual location with configurable GPS cache
-
+- 24-hour forecast with a temperature line and configurable, battery-friendly updates
+- Configurable metrics such as precipitation, UV index, gusts and wind
+- Optional day/night shading
+- Multiple weather providers, including regional and worldwide sources
 
 RAIN RADAR
-- 2-hour precipitation nowcast in 5-minute frames
-- Providers: 
-  - Deutscher Wetterdienst (Germany)
-  - Met.no / MET Norway (Nordics)
-  - Rainbow.ai (worldwide)
-- Rain countdown: when rain is on the way, the top status line turns into 
-  "Drizzle / Rain / Downpour in X min",
-  and while it's raining, "… for X min".
-  Configurable look-ahead (30 min / 60 min / 2 hours)
+- 2-hour precipitation nowcast from regional and worldwide providers
+- Rain countdown telling you when rain starts (or stops)
 
 HEALTH VIEW (requires a health-capable watch; heart rate needs a heart-rate sensor)
-- Health status with:
-  - today's steps
-  - last night's sleep
-  - current heart rate
-- Optional last 24h chart with
-  - steps per hour
-  - sleep band at the bottom (light/deep)
-  - heart-rate line
+- Health status for steps, sleep, distance and heart rate
+- Last-24h health chart with steps per hour, heart rate, and a sleep band
 
 CALENDAR
-- 3/2-week calendar with current day highlight
-- Selectable start of week day (Sun/Mon)
-- Customizable highlight for
-  - Saturday
-  - Sunday
-  - Holidays (supporting 150+ countries worldwide and their region/state)
-
-WATCHFACE THEMES
-- Dark (default) and Light
-- Black & White and B&W Inverted on color watches
-- Pebble Classic/Steel: classic dark look only
-  Set the theme in the General tab
-
-TIME
-- Current time in custom color
-- 12h/24h format
-- Optional AM/PM format
-
-WATCH STATUS
-- Battery indicator
-- Bluetooth connection indicator
-- Vibrate on disconnect
-- Quiet time indicator
-- Sleep mode (battery-saving night pause)
+- Multi-week calendar with current-day highlight
+- Selectable start of week and customizable highlights for weekends and holidays (150+ countries)
 
 STATUS LINES
-- Configurable status lines: for each view (forecast, radar, top strip, and
-  health) choose what shows in the left and right slots — plus the middle slot
-  on every view — from a catalog:
-  - current temperature
-  - city
-  - calendar week
-  - sunrise/sunset
-  - UV index
-  - air quality index (AQI) — from real monitoring stations (aqicn.org) or the Open-Meteo model
-  - pollen — DWD forecasts only, showing the worst of all pollen species with native DWD values 0, 0-1, 1, 1-2, 2, 2-3, or 3
-  - wind speed and wind gusts
-  - precipitation chance
-  - steps and walked distance
-  - sleep
-  - heart rate
-  - battery
-  The forecast view keeps the city centered; the top strip defaults to the
-  calendar week, date, and sunrise/sunset — all selectable. The battery
-  indicator shows by default only once the charge drops below 10% ('Show
-  battery below 10%', on by default), and stays selectable for the top-right
-  slot at any charge level. Health items need a health-capable watch
-  (heart rate needs a heart-rate sensor). A missing value shows as "--" so the row
-  never jumps.
+- Configurable status slots on every view: fill each slot from a catalog of
+  metrics — weather, air quality, pollen, wind, health, battery, and more
+
+WATCHFACE THEMES
+- Dark and Light, plus Black & White options on color watches
+
+WATCH
+- Custom color, 12h/24h, optional AM/PM
+- Battery, Bluetooth, quiet time, and vibrate-on-disconnect indicators
+- Sleep mode (battery-saving night pause)
+
 
 LAYOUT CUSTOMIZATION
-- Layout presets: 
-  - Full calendar (3-row)
-  - Compact calendar (2-row)
-  - Compact calendar (dense)
-  - No calendar
-  Flick your wrist to cycle through different views
-- Optional auto-return to the default view a set time after flicking away
-  (1-10 minutes, or never)
-- Settings page now supports a light theme: follows your Pebble app theme
-  automatically, with a manual Auto / Light / Dark override
-- Redesigned settings pickers: dropdowns open in a grouped bottom-sheet for easier browsing
-- First-run setup wizard: a quick, skippable guide that picks sensible defaults for your country and explains the watchface. Re-runnable any time from Settings.
-- Reset watchface: wipe all settings and cached data to start fresh (Settings → More → Advanced)
-
-UPDATES
-- Update notifications: get a one-time heads-up when a newer version is available in the appstore.
-- News & feedback: announcements from the developer appear in the settings page (with an unread badge), and you can reply privately, or answer quick one-tap questions, without leaving the page.
+- Multiple layout presets, with flick-to-cycle between views and optional auto-return
+- Light/Dark settings page with grouped, easy-to-browse pickers
+- First-run setup wizard that picks sensible defaults for your country
 
 PLATFORMS
 - Pebble Classic, Pebble Steel, Pebble Time, Pebble Time Steel, Pebble 2, and
   Pebble Time 2
 
 Weather and radar data from MET Norway (CC BY 4.0).
+
+
+If you like this watchface and want to support the development, 
+press the ❤️ button and consider buying me a coffee at
+https://www.buymeacoffee.com/toaster2.
+
 ```
 
 ## Screenshots 
