@@ -234,7 +234,16 @@ test('migrateStatusLineHealthDefaults: emery upgrades the seeded triple once, wi
   assert.equal(s.statusHealthRight, 'sleep');
   assert.ok(done);
 
-  // non-emery: marked done, nothing changes
+  // diorite (Pebble 2) is HR-capable -> seeded triple upgrades to hr
+  claySettings.save({ statusHealthLeft: 'steps', statusHealthMid: 'empty', statusHealthRight: 'sleep' });
+  done = false;
+  claySettings.migrateStatusLineHealthDefaults('diorite', () => done, () => { done = true; });
+  s = claySettings.read();
+  assert.equal(s.statusHealthMid, 'sleep');
+  assert.equal(s.statusHealthRight, 'hr', 'diorite migrates to the HR triple');
+  assert.ok(done);
+
+  // non-emery/non-diorite: marked done, nothing changes
   claySettings.save({ statusHealthLeft: 'steps', statusHealthMid: 'empty', statusHealthRight: 'sleep' });
   done = false;
   claySettings.migrateStatusLineHealthDefaults('basalt', () => done, () => { done = true; });
