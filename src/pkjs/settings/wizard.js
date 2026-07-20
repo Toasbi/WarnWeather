@@ -30,6 +30,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // Countries that use Fahrenheit. Realistically the inference table only yields US here;
     // kept as a set so it's trivially extensible (Liberia, some Caribbean territories, …).
     var FAHRENHEIT_COUNTRIES = { US: true };
+    // Countries that start the week on Sunday. Parallel to FAHRENHEIT_COUNTRIES —
+    // US only for now, trivially extensible (CA, JP, IL, …). Everyone else: Monday.
+    var SUNDAY_START_COUNTRIES = { US: true };
 
     /**
      * Map an IANA timezone id to an ISO country code.
@@ -71,15 +74,22 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Derive the weather + radar provider AND temperature unit from a country code.
+     * Derive provider, radar provider, and locale units (temperature, wind, distance,
+     * week-start) from a country code.
      * @param {?string} cc ISO alpha-2 country code.
-     * @returns {{provider: string, radarProvider: string, temperatureUnits: string}} Derived settings.
+     * @returns {{provider: string, radarProvider: string, temperatureUnits: string, windUnits: string, distanceUnits: string, weekStartDay: string}} Derived settings.
      */
     function mapCountry(cc) {
-        var units = (cc && FAHRENHEIT_COUNTRIES[cc]) ? 'f' : 'c';
-        if (cc === 'DE') { return { provider: 'dwd', radarProvider: 'dwd', temperatureUnits: units }; }
-        if (cc && METNO_COUNTRIES[cc]) { return { provider: 'metno', radarProvider: 'metno', temperatureUnits: units }; }
-        return { provider: 'openmeteo', radarProvider: 'rainbow', temperatureUnits: units };
+        var imperial = Boolean(cc && FAHRENHEIT_COUNTRIES[cc]);
+        var units = {
+            temperatureUnits: imperial ? 'f' : 'c',
+            windUnits: imperial ? 'mph' : 'kph',
+            distanceUnits: imperial ? 'imperial' : 'metric',
+            weekStartDay: (cc && SUNDAY_START_COUNTRIES[cc]) ? 'sun' : 'mon'
+        };
+        if (cc === 'DE') { return Object.assign({ provider: 'dwd', radarProvider: 'dwd' }, units); }
+        if (cc && METNO_COUNTRIES[cc]) { return Object.assign({ provider: 'metno', radarProvider: 'metno' }, units); }
+        return Object.assign({ provider: 'openmeteo', radarProvider: 'rainbow' }, units);
     }
 
     /**
@@ -119,7 +129,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function healthStatusItems(hasHeartRate) {
         return hasHeartRate
             ? 'today’s steps, last night’s sleep and current heart rate'
-            : 'today’s steps and last night’s sleep';
+            : 'today’s steps, last night’s sleep and walked distance';
     }
     /**
      * Health-graph contents, with the heart-rate line only where the hardware has a
@@ -320,6 +330,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (cleanup) { cleanup(S, oldProvider, m.provider); }
         S.radarProvider = m.radarProvider;
         S.temperatureUnits = m.temperatureUnits;
+        S.windUnits = m.windUnits;
+        S.distanceUnits = m.distanceUnits;
+        S.weekStartDay = m.weekStartDay;
     }
 
     // --- screen 1: reuse the real settings searchSelect for country/region ---
@@ -343,11 +356,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var p = (W.ctx && W.ctx.ENV && W.ctx.ENV.platform) || 'basalt';
         return (p === 'diorite') ? 'flint' : p;
     }
-    // Heart rate is available on emery (Time 2) and diorite (Pebble 2); other platforms don't
-    // have the sensor, so the health copy (status line + graph) drops the heart-rate clause there.
+    // Heart rate is available on emery (Time 2) and diorite (Pebble 2); env.hr (platform.js)
+    // is the single source. Other platforms lack the sensor, so the health copy drops the
+    // heart-rate clause there.
     function hasHeartRate() {
-        var p = W.ctx && W.ctx.ENV && W.ctx.ENV.platform;
-        return Boolean(p === 'emery' || p === 'diorite');
+        return Boolean(W.ctx && W.ctx.ENV && W.ctx.ENV.hr);
     }
     function shotSet() { return SHOTS[shotPlatform()] || {}; }
     function shotFor(group, val) { var s = shotSet(); return (s[group] && s[group][val]) || ''; }
@@ -516,7 +529,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function stepLayout() {
         return carousel('layoutPreset', LAYOUT_OPTS, W.ctx.S.layoutPreset, LAYOUT_DESC)
             + '<div>'
-            + '<p><b>Forecast Status Bar</b> — shows your location, current conditions and sunset.</p>'
+            + '<p><b>Forecast Status Bar</b> — shows your location, current temperature and air quality.</p>'
             + '<p><b>Forecast</b> — a 24-hour graph: temperature, the precipitation-% line, UV dots and rain bars.</p></div>';
     }
     function stepHealth() {

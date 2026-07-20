@@ -28,13 +28,27 @@ test('countryFromLocale: region subtag or null', () => {
   assert.equal(W.countryFromLocale(null), null);
 });
 
-test('mapCountry: providers by country + temperature unit (US=f, else c)', () => {
-  assert.deepEqual(W.mapCountry('DE'), { provider: 'dwd', radarProvider: 'dwd', temperatureUnits: 'c' });
-  assert.deepEqual(W.mapCountry('NO'), { provider: 'metno', radarProvider: 'metno', temperatureUnits: 'c' });
-  assert.deepEqual(W.mapCountry('SE'), { provider: 'metno', radarProvider: 'metno', temperatureUnits: 'c' });
-  assert.deepEqual(W.mapCountry('US'), { provider: 'openmeteo', radarProvider: 'rainbow', temperatureUnits: 'f' });
-  assert.deepEqual(W.mapCountry('GB'), { provider: 'openmeteo', radarProvider: 'rainbow', temperatureUnits: 'c' });
-  assert.deepEqual(W.mapCountry(null), { provider: 'openmeteo', radarProvider: 'rainbow', temperatureUnits: 'c' });
+test('mapCountry: providers + units + week-start by country (US imperial, else metric)', () => {
+  assert.deepEqual(W.mapCountry('DE'), { provider: 'dwd', radarProvider: 'dwd', temperatureUnits: 'c', windUnits: 'kph', distanceUnits: 'metric', weekStartDay: 'mon' });
+  assert.deepEqual(W.mapCountry('NO'), { provider: 'metno', radarProvider: 'metno', temperatureUnits: 'c', windUnits: 'kph', distanceUnits: 'metric', weekStartDay: 'mon' });
+  assert.deepEqual(W.mapCountry('SE'), { provider: 'metno', radarProvider: 'metno', temperatureUnits: 'c', windUnits: 'kph', distanceUnits: 'metric', weekStartDay: 'mon' });
+  assert.deepEqual(W.mapCountry('US'), { provider: 'openmeteo', radarProvider: 'rainbow', temperatureUnits: 'f', windUnits: 'mph', distanceUnits: 'imperial', weekStartDay: 'sun' });
+  assert.deepEqual(W.mapCountry('GB'), { provider: 'openmeteo', radarProvider: 'rainbow', temperatureUnits: 'c', windUnits: 'kph', distanceUnits: 'metric', weekStartDay: 'mon' });
+  assert.deepEqual(W.mapCountry(null), { provider: 'openmeteo', radarProvider: 'rainbow', temperatureUnits: 'c', windUnits: 'kph', distanceUnits: 'metric', weekStartDay: 'mon' });
+});
+
+test('applyDerived sets wind/distance units and week-start from the country', () => {
+  const us = { holidayCountry: 'US', provider: 'openmeteo' };
+  W.applyDerived(us);
+  assert.equal(us.windUnits, 'mph');
+  assert.equal(us.distanceUnits, 'imperial');
+  assert.equal(us.weekStartDay, 'sun');
+  assert.equal(us.temperatureUnits, 'f');
+  const de = { holidayCountry: 'DE', provider: 'openmeteo' };
+  W.applyDerived(de);
+  assert.equal(de.windUnits, 'kph');
+  assert.equal(de.distanceUnits, 'metric');
+  assert.equal(de.weekStartDay, 'mon');
 });
 
 test('applyDerived clears pollen when the wizard derives a non-DWD provider', () => {
