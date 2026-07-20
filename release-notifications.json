@@ -80,8 +80,8 @@
     "body": "Now supporting timeline peek events. Skipping setup now opens Settings. Flicked views stay for the full return time."
   },
   "1.8.0": {
-    "title": "Choose your air-quality source",
-    "body": "Air quality can now come from real monitoring stations, with an automatic fallback to modelled data where no station is nearby. Pick your source under Units."
+    "title": "Customizable status bars",
+    "body": "Every status bar — top, weather, radar and health — is now fully customizable: mix in calendar week, air quality, UV, wind or walking distance, and pick your units."
   },
   "1.9.0": {
     "title": "DWD pollen status",
