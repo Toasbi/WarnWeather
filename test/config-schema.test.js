@@ -54,6 +54,11 @@ test('providers include openmeteo and metno as 4th/5th selectable options', () =
   assert.deepEqual(byKey('provider').options.map((o) => o[1]), ['wunderground','openweathermap','dwd','openmeteo','metno']);
 });
 
+test('weather provider label matches the AQI provider label style', () => {
+  assert.equal(byKey('provider').label, 'Weather provider');
+  assert.equal(byKey('aqiSource').label, 'AQI provider');
+});
+
 test('defaults match Clay/clay-settings (not the prototype drift)', () => {
   assert.equal(byKey('provider').defaultValue, 'wunderground');
   assert.equal(byKey('radarProvider').defaultValue, 'rainbow');
@@ -175,10 +180,24 @@ test('Units section groups temperature, AQI scale, wind + distance units in the 
   const unitsSection = general.sections.find((s) => s.title === 'Units');
   assert.ok(unitsSection, 'General tab has a titled "Units" section');
   assert.deepEqual(unitsSection.items.map((i) => i.messageKey).filter(Boolean),
-    ['temperatureUnits', 'aqiSource', 'aqiScale', 'windUnits', 'distanceUnits']);
+    ['temperatureUnits', 'aqiScale', 'windUnits', 'distanceUnits']);
   const first = general.sections[0];
   assert.ok(!first.items.some((i) => i.messageKey === 'temperatureUnits'), 'temperatureUnits relocated');
   assert.ok(!first.items.some((i) => i.messageKey === 'aqiScale'), 'aqiScale relocated');
+  assert.ok(!unitsSection.items.some((i) => i.messageKey === 'aqiSource'), 'aqiSource moved out of Units');
+});
+
+test('AQI provider selection sits below the weather provider selection, not in Units', () => {
+  const general = schema.tabs.find((t) => t.id === 'general');
+  const first = general.sections[0];
+  const keys = first.items.map((i) => i.messageKey).filter(Boolean);
+  assert.ok(keys.indexOf('aqiSource') !== -1, 'aqiSource lives in the first General section');
+  assert.ok(keys.indexOf('provider') < keys.indexOf('aqiSource'),
+    'weather provider selection comes before the AQI provider selection');
+  assert.ok(keys.indexOf('owmApiKey') < keys.indexOf('aqiSource'),
+    'the weather-provider block (including its API key field) precedes the AQI provider selection');
+  assert.ok(keys.indexOf('aqiSource') < keys.indexOf('locationMode'),
+    'AQI provider selection sits above the location settings');
 });
 
 test('windUnits is a segmented kph/mph/Knots picker defaulting to kph', () => {
@@ -545,7 +564,7 @@ test('top-strip middle is a selectable Date slot; the fixed label is gone', () =
 
 test('Units section wording: the section title carries the noun, labels stay short', () => {
   assert.equal(byKey('temperatureUnits').label, 'Temperature');
-  assert.equal(byKey('aqiSource').label, 'AQI source');
+  assert.equal(byKey('aqiSource').label, 'AQI provider');
   assert.equal(byKey('aqiScale').label, 'Air quality scale');
   assert.equal(byKey('aqiScale').hint,
     'Which air-quality index the Open-Meteo source reports. WAQI always uses the US EPA scale.');
@@ -593,17 +612,15 @@ test('batteryLowOnly toggle lives in Watch Status Bar, on by default', () => {
     'toggle sits above the quiet-time toggle');
 });
 
-test('AQI source is a dropdown with its explanation joined below the control', () => {
-  const general = schema.tabs.find((t) => t.id === 'general');
-  const units = general.sections.find((s) => s.title === 'Units');
+test('AQI provider is a dropdown whose explanation switches per selected value', () => {
   const src = byKey('aqiSource');
-  assert.equal(src.type, 'select', 'AQI source is a dropdown, like the radar provider');
-  assert.equal(src.hint, undefined, 'the long explanation is no longer an inline hint');
-  const idx = units.items.indexOf(src);
-  const note = units.items[idx + 1];
-  assert.equal(note.type, 'staticText', 'a note follows the AQI source control');
-  assert.equal(note.joinPrevious, true, 'the note is joined below the select box');
-  assert.ok(note.text.indexOf('WAQI (aqicn.org)') !== -1, 'note carries the AQI explanation');
+  assert.equal(src.type, 'select', 'AQI provider is a dropdown, like the radar provider');
+  assert.equal(src.hint, undefined, 'no single static hint — hintByValue drives the explanation instead');
+  assert.deepEqual(src.options.map((o) => o[1]), ['auto', 'waqi', 'openmeteo'],
+    'Auto is offered above WAQI and Open-Meteo');
+  assert.ok(src.hintByValue.auto.length > 0, 'Auto has its own hint');
+  assert.ok(src.hintByValue.waqi.indexOf('WAQI (aqicn.org)') !== -1, 'WAQI hint carries the station explanation');
+  assert.ok(src.hintByValue.openmeteo.length > 0, 'Open-Meteo has its own hint');
 });
 
 test('Watch tab opens with a general status-bar intro, then the four bars in forecast/radar/health/top order', () => {

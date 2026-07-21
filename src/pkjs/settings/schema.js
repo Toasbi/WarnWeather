@@ -162,7 +162,7 @@ module.exports = {
             }, {
                 type: 'radio',
                 messageKey: 'provider',
-                label: 'Provider',
+                label: 'Weather provider',
                 defaultValue: 'wunderground',
                 onChange: 'clearPollenForProvider',
                 hintByValue: {
@@ -183,6 +183,17 @@ module.exports = {
                 suffixLabel: 'Test',
                 hint: '<a href=\'https://openweathermap.org/\'>Register an OpenWeatherMap account</a> and paste your API key here, then Test it. The key must be subscribed to <a href=\'https://openweathermap.org/api/one-call-3\'>One Call API 3.0</a> (it has a free allowance) or fetches fail with a 401. Saving a changed key re-fetches automatically.',
                 showWhen: {key: 'provider', eq: 'openweathermap'}
+            }, {
+                type: 'select',
+                messageKey: 'aqiSource',
+                label: 'AQI provider',
+                defaultValue: 'waqi',
+                hintByValue: {
+                    auto: 'Prefers WAQI and falls back to Open-Meteo when no nearby station is available.',
+                    waqi: 'WAQI (aqicn.org) reads real monitoring stations — most accurate, but rural / under-monitored areas may have no nearby station and show "--".',
+                    openmeteo: 'Open-Meteo is a global model with coverage everywhere.'
+                },
+                options: [['Auto', 'auto'], ['WAQI', 'waqi'], ['Open-Meteo', 'openmeteo']]
             }, {
                 type: 'segmented', messageKey: 'locationMode', label: 'Location', defaultValue: 'gps', hintByValue: {
                     gps: 'Detect your location automatically via phone GPS.', manual: 'Enter a city or address below.'
@@ -212,16 +223,6 @@ module.exports = {
                 label: 'Temperature',
                 defaultValue: 'c',
                 options: [['°F', 'f'], ['°C', 'c']]
-            }, {
-                type: 'select',
-                messageKey: 'aqiSource',
-                label: 'AQI source',
-                defaultValue: 'waqi',
-                options: [['WAQI', 'waqi'], ['Auto', 'auto'], ['Open-Meteo', 'openmeteo']]
-            }, {
-                type: 'staticText',
-                joinPrevious: true,
-                text: 'WAQI (aqicn.org) reads real monitoring stations — most accurate, but rural / under-monitored areas may have no nearby station and show "--". Auto prefers WAQI and falls back to Open-Meteo. Open-Meteo is a global model with coverage everywhere.'
             }, {
                 type: 'segmented',
                 messageKey: 'aqiScale',
