@@ -16,6 +16,11 @@
 -- ============================================================
 -- 1. Daily active users (last 30 days).
 -- count(*) = active watches; count(distinct account_token_hash) = active accounts.
+-- telemetry_dau is only rebuilt by the nightly telemetry_rollup_and_prune() cron
+-- (~03:00 UTC), so its row for the current UTC day reflects only fetches seen as
+-- of that run and understates today until tonight's rollup catches up. Compute
+-- today live from the raw, real-time telemetry_weather_fetch table instead;
+-- history (finalized days) still comes from telemetry_dau.
 -- ============================================================
 select
   activity_date as day,
@@ -23,7 +28,18 @@ select
   count(distinct account_token_hash) as active_accounts
 from telemetry_dau
 where activity_date >= (now() at time zone 'UTC')::date - 30
+  and activity_date < (now() at time zone 'UTC')::date
 group by day
+
+union all
+
+select
+  (now() at time zone 'UTC')::date as day,
+  count(distinct coalesce(watch_token_hash, account_token_hash)) as active_watches,
+  count(distinct account_token_hash) as active_accounts
+from telemetry_weather_fetch
+where (received_at at time zone 'UTC')::date = (now() at time zone 'UTC')::date
+
 order by day;
 
 -- ============================================================
