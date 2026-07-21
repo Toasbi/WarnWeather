@@ -183,13 +183,56 @@ function generateReelFixtures(opts = {}) {
   return written;
 }
 
+// Intro scenes reused from the hero capture (showcase/frames/<platform>/scene_N.png).
+const INTRO_SCENES = [1, 2, 3, 5];
+
+const CHAPTER_ORDER = ['theme', 'graph', 'status'];
+const CARD_BY_GROUP = { theme: 'themes', graph: 'graph', status: 'status' };
+
+/**
+ * Ordered reel manifest for a platform.
+ * @param {string} platform
+ * @returns {Array<{kind:string, frame:string, group:string, hold:number, fade:number}>}
+ */
+function buildManifest(platform) {
+  const out = [];
+  for (const n of INTRO_SCENES) {
+    out.push({ kind: 'scene', frame: 'scene_' + n + '.png', group: 'intro', ...TIMING.intro });
+  }
+  for (const group of CHAPTER_ORDER) {
+    const segs = SEGMENTS.filter((s) => s.group === group && segmentPlatforms(s).includes(platform));
+    if (!segs.length) { continue; }
+    out.push({ kind: 'card', frame: 'card-' + CARD_BY_GROUP[group] + '.png', group, ...TIMING.card });
+    for (const seg of segs) {
+      out.push({ kind: 'scene', frame: seg.id + '.png', group, ...TIMING.chapter });
+    }
+  }
+  return out;
+}
+
+/** Print `<repo-relative-path>|<hold>|<fade>` lines for assemble-reel.sh. */
+function printManifest(platform, version) {
+  const showcase = path.join('screenshot', version, 'showcase', 'frames', platform);
+  const promo = path.join('screenshot', version, 'promo', 'frames', platform);
+  for (const seg of buildManifest(platform)) {
+    const dir = seg.group === 'intro' ? showcase : promo;
+    process.stdout.write(path.join(dir, seg.frame) + '|' + seg.hold + '|' + seg.fade + '\n');
+  }
+}
+
 module.exports = {
   PLATFORM_CAPS, ALL_PLATFORMS, TIMING, themesFor, SEGMENTS, CARDS,
   segmentPlatforms, fixtureFor, generateReelFixtures,
+  buildManifest, printManifest,
 };
 
 if (require.main === module) {
-  const written = generateReelFixtures();
-  console.log('Wrote ' + written.length + ' reel fixtures: '
-    + written.map((p) => path.basename(p)).join(', '));
+  const [cmd, platform, version] = process.argv.slice(2);
+  if (cmd === 'manifest') {
+    if (!platform || !version) { console.error('usage: gen-reel-fixtures.js manifest <platform> <version>'); process.exit(2); }
+    printManifest(platform, version);
+  } else {
+    const written = generateReelFixtures();
+    console.log('Wrote ' + written.length + ' reel fixtures: ' + written.map((p) => path.basename(p)).join(', '));
+  }
 }
