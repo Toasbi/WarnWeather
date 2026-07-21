@@ -325,6 +325,29 @@ layouts (the health status row is simply absent), so aplite ships scenes 1, 2, 3
 EXCLUDE_SCENES="4" MAX_SCENES=0 scripts/assemble-showcase-gif.sh <version> aplite
 ```
 
+#### Promo reel (Pebble-store asset)
+
+A separate, self-contained per-platform **reel** for manual app-store upload — the intro
+showcase scenes followed by three captioned chapters (Themes, Graph, Status), each
+filtered to the platform's capabilities. It never touches the README hero.
+
+- Chapters + text-card copy + the capability matrix live in `scripts/gen-reel-fixtures.js`
+  (guarded by `test/reel-fixtures.test.js`); text cards are rendered by
+  `scripts/gen-text-cards.py` (Pillow).
+- Intro frames are reused from the hero capture, so run `capture-showcase.sh <version>`
+  first.
+
+```bash
+scripts/capture-showcase.sh <version>   # once, for the intro frames
+scripts/capture-reel.sh <version>        # captures chapters + assembles per-platform reels
+```
+
+Output: `screenshot/<version>/promo/<platform>-reel.gif`. Per-platform differences are
+automatic: aplite has no themes chapter and no radar/health frames; flint shows 2 themes
+(dark/light) and no HR; emery shows 4 themes and heart rate. Reels are left on disk (not
+committed) for manual upload. Re-assemble a single reel without recapturing with
+`scripts/assemble-reel.sh <version> <platform> [fps]`.
+
 ### Package generation
 
 `package.json` is generated from `package.template.json` + profile in `profiles/`.
