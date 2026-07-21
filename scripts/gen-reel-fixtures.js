@@ -68,7 +68,7 @@ function themeSegments() {
     if (theme === 'light' || theme === 'bw-light') { clay.colorTime = '#000000'; }
     // flint places its two themes on the sweep ends.
     const variants = {};
-    if (colorPlats.includes('flint') && THEME_PRESET_2[theme]) {
+    if (colorPlats.includes('flint') && THEME_PRESET_2[theme] && THEME_PRESET_2[theme] !== THEME_PRESET[theme]) {
       variants.flint = { layoutPreset: THEME_PRESET_2[theme] };
     }
     segs.push({

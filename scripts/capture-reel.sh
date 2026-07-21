@@ -24,30 +24,47 @@ for platform in $PLATFORMS; do
 done
 
 # 1. (Re)generate reel fixtures + text cards.
-node "$here/scripts/gen-reel-fixtures.js"
+(cd "$here" && node scripts/gen-reel-fixtures.js)
 python3 "$here/scripts/gen-text-cards.py" "$version" $PLATFORMS
 
-# 2. Capture each segment per platform. A segment is captured per platform using its
-# variant fixture if it has one, else the base fixture; segments not applicable to a
-# platform are skipped. Collect (id|flicks|platform|fixture) rows first, then capture,
-# to keep pebble/mise children off this script's stdin (the showcase "only first shot" bug).
+# 2. Capture each segment's platforms grouped by shared fixture — platforms with no
+# variant for a segment share its base fixture and are captured together in one
+# capture-screenshots.sh call (mirroring capture-showcase.sh's batching); only genuine
+# per-platform variants get their own call. Collect rows first, then capture, to keep
+# pebble/mise children off this script's stdin (the showcase "only first shot" bug).
 rows=()
-while IFS='|' read -r id flicks plat fixture; do
+while IFS='|' read -r id flicks plats fixture; do
   [[ -n "$id" ]] || continue
-  case " $PLATFORMS " in *" $plat "*) rows+=("$id|$flicks|$plat|$fixture") ;; esac
-done < <(node -e '
-  const r = require("'"$here"'/scripts/gen-reel-fixtures.js");
-  for (const s of r.SEGMENTS) for (const p of r.segmentPlatforms(s))
-    console.log(s.id + "|" + s.flicks + "|" + p + "|" + r.fixtureFor(s, p));
+  group=""
+  for p in $plats; do
+    case " $PLATFORMS " in *" $p "*) group+="$p " ;; esac
+  done
+  group="${group% }"
+  [[ -n "$group" ]] || continue
+  rows+=("$id|$flicks|$group|$fixture")
+done < <(cd "$here" && node -e '
+  const r = require("./scripts/gen-reel-fixtures.js");
+  for (const s of r.SEGMENTS) {
+    const byFixture = {};
+    for (const p of r.segmentPlatforms(s)) {
+      const f = r.fixtureFor(s, p);
+      (byFixture[f] = byFixture[f] || []).push(p);
+    }
+    for (const [fixture, plats] of Object.entries(byFixture)) {
+      console.log(s.id + "|" + s.flicks + "|" + plats.join(" ") + "|" + fixture);
+    }
+  }
 ')
 
 for row in "${rows[@]}"; do
-  IFS='|' read -r id flicks plat fixture <<< "$row"
-  printf '\n######## reel %s → %s (fixture=%s, flicks=%s) ########\n' "$id" "$plat" "$fixture" "$flicks"
-  FLICKS="$flicks" PLATFORMS="$plat" "$here/scripts/capture-screenshots.sh" "$version" "$fixture" </dev/null
-  dest="$here/screenshot/$version/promo/frames/$plat"
-  mkdir -p "$dest"
-  cp "$here/screenshot/$version/raw/$plat.png" "$dest/$id.png"
+  IFS='|' read -r id flicks group fixture <<< "$row"
+  printf '\n######## reel %s → %s (fixture=%s, flicks=%s) ########\n' "$id" "$group" "$fixture" "$flicks"
+  FLICKS="$flicks" PLATFORMS="$group" "$here/scripts/capture-screenshots.sh" "$version" "$fixture" </dev/null
+  for plat in $group; do
+    dest="$here/screenshot/$version/promo/frames/$plat"
+    mkdir -p "$dest"
+    cp "$here/screenshot/$version/raw/$plat.png" "$dest/$id.png"
+  done
 done
 
 # 3. Assemble each platform's reel.
