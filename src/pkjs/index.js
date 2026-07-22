@@ -72,6 +72,7 @@ var UPDATE_CHECK_STORES = [
 var KEY_FETCH_ATTEMPT = storageKeys.FETCH_ATTEMPT_KEY;
 var KEY_LAST_FETCH_SUCCESS = storageKeys.LAST_FETCH_SUCCESS_KEY;
 var KEY_LAST_FETCH_ATTEMPT = storageKeys.LAST_FETCH_ATTEMPT_KEY;
+var KEY_NOTICES = storageKeys.NOTICES_KEY;
 var KEY_GEOCODE_CACHE = storageKeys.GEOCODE_CACHE_KEY;
 var KEY_GEOCODE_BACKOFF = storageKeys.GEOCODE_BACKOFF_KEY;
 var KEY_V1_34_0_WEEKEND_HOLIDAY_COLOR_MIGRATION = 'v1.34.0_weekend_holiday_color_migration';
@@ -108,6 +109,7 @@ var scheduler = createChannelScheduler({
     checkForUpdate: maybeCheckForUpdate,
     clearClayCache: outbox.clearClayCache,
     clearWeatherCaches: outbox.clearWeatherCaches,
+    clearNoticeOnWatch: function () { outbox.sendWeather({ NOTICE_TEXT: '' }); },
     // Wrap the native timer: deps.setTimeout(...) would otherwise invoke it
     // with the deps object as receiver — WebView runtimes (WebIDL receiver
     // check) throw "Illegal invocation" for that; a plain call stays safe.
@@ -151,6 +153,7 @@ Pebble.addEventListener('showConfiguration', function(e) {
     var userData = {
         lastFetchSuccess: localStorage.getItem(KEY_LAST_FETCH_SUCCESS),
         lastFetchAttempt: localStorage.getItem(KEY_LAST_FETCH_ATTEMPT),
+        notices: localStorage.getItem(KEY_NOTICES),
         devStats: JSON.stringify(devStats.read()),
         palette: previewPalette.buildPreviewPalette(),
         newsEndpoint: (pkg.news && pkg.news.endpoint) || '',
@@ -228,8 +231,24 @@ Pebble.addEventListener('webviewclosed', function(e) {
     // an immediate retry — even if the key STRING didn't change here (e.g. they
     // activated One Call by Call on OWM with the same key). A forced fetch clears the
     // backoff; without this they'd have to toggle Force weather fetch by hand.
-    var shouldForceFetch = app.settings.fetch === true || needsRefetch || authBackoff.isActive();
-    scheduler.onConfigClosed({ forceFetch: shouldForceFetch });
+    // "Understood": dismiss all shown notices. A pure ack (dismiss with no
+    // render-relevant change and no Force toggle) means "I saw it, I'm not fixing
+    // it now" — so DON'T let the backoff-active branch force a doomed retry that
+    // would just re-raise the notice. Instead push the overlay clear, sequenced
+    // after the Clay send by the scheduler so it never collides on the half-duplex
+    // channel. A real key/provider/location change still force-fetches (and a
+    // successful fetch clears errors + self-heals the overlay).
+    var acked = app.settings.fetchNoticeAck === true;
+    if (acked) {
+        notices.dismissAll();
+    }
+    var pureAck = acked && !needsRefetch && app.settings.fetch !== true;
+    var shouldForceFetch = app.settings.fetch === true || needsRefetch
+        || (authBackoff.isActive() && !pureAck);
+    scheduler.onConfigClosed({
+        forceFetch: shouldForceFetch,
+        clearNotice: acked && !shouldForceFetch
+    });
     refreshHolidays();
     // app.settings was just reloaded from storage above; log it rather than re-reading.
     console.log('Closing clay: ' + JSON.stringify(app.settings));

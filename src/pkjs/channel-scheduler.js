@@ -23,6 +23,7 @@ var storageKeys = require('./storage-keys.js');
  * @param {function():void} deps.checkForUpdate Once-per-day appstore update check.
  * @param {function():void} deps.clearClayCache Forget the last-sent Clay so the next send goes through.
  * @param {function():void} deps.clearWeatherCaches Forget the last-sent weather categories.
+ * @param {function():void} [deps.clearNoticeOnWatch] Push an empty NOTICE_TEXT to clear the watch overlay (used on a pure "Understood" dismiss).
  * @param {function(Function, number):*} deps.setTimeout Timer function (injected so tests drive a fake queue).
  * @param {function():Date} deps.now Current-time supplier (injected for a fake clock).
  * @returns {{onWatchStatus: Function, onReady: Function, onConfigClosed: Function, start: Function}} The scheduler.
@@ -159,14 +160,23 @@ function createChannelScheduler(deps) {
 
     /**
      * Handle a config-webview close: send Clay, then (when forceFetch) chain a
-     * deferred force-fetch into both callbacks.
+     * deferred force-fetch into both callbacks, or (when clearNotice, and no
+     * force-fetch) push the overlay clear from inside the Clay-send callback.
      *
-     * @param {{forceFetch: boolean}} opts Config-close options.
+     * @param {{forceFetch: boolean, clearNotice: boolean=}} opts Config-close options.
      * @returns {void}
      */
     function onConfigClosed(opts) {
-        var cb = opts.forceFetch ? scheduleConfigCloseFetch : undefined;
-        deps.sendClay(cb, cb);
+        var afterClay;
+        if (opts.forceFetch) {
+            afterClay = scheduleConfigCloseFetch;
+        } else if (opts.clearNotice && deps.clearNoticeOnWatch) {
+            // "Understood" with no refetch: push the overlay clear from inside the
+            // Clay-send callback so it never rides the channel back-to-back with
+            // the Clay message.
+            afterClay = function () { deps.clearNoticeOnWatch(); };
+        }
+        deps.sendClay(afterClay, afterClay);
     }
 
     /**
