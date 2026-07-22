@@ -118,9 +118,19 @@ var RADAR_WHY = {
 // same messageKeys (mutually-exclusive showWhen, like the theme color/B&W split).
 var TOMORROWIO_WEATHER_WHEN = {key: 'provider', eq: 'tomorrowio'};
 var TOMORROWIO_RADAR_ONLY_WHEN = {all: [{key: 'radarProvider', eq: 'tomorrowio'}, {key: 'provider', ne: 'tomorrowio'}]};
-// Links open in an external browser (target=_blank). The dashboard's Development > API Keys page
-// 404s on tomorrow.io's mobile site, so the hint tells users to open it on desktop.
-var TOMORROWIO_KEY_HINT = '<a target=\'_blank\' href=\'https://app.tomorrow.io/signup\'>Create a free tomorrow.io account</a> (no credit card needed), then copy your key from <a target=\'_blank\' href=\'https://app.tomorrow.io/development/keys\'>Development &gt; API Keys</a> in the dashboard and paste it here, then Test it. The free plan is plenty — see the call budget below.<br>On a phone, open the dashboard in your browser\'s desktop-site mode — tomorrow.io\'s mobile site 404s on the API-keys page.';
+// A tap-to-copy button (copy icon) for use inside hint HTML: copies `url` via the engine's delegated
+// [data-copy] handler and flashes a "Copied" toast. Used instead of a plain link where tapping is
+// useless — e.g. a page that 404s on the mobile site, so users copy the URL and open it on desktop.
+// `label` is the accessible name / tooltip; `url` is a trusted constant here (not user input).
+function copyBtn(url, label) {
+    return '<button type="button" class="copybtn" data-copy="' + url + '" title="' + label + '" aria-label="' + label + '">'
+        + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        + '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>';
+}
+// The signup link opens in an external browser (target=_blank). The Development > API Keys page 404s on
+// tomorrow.io's MOBILE site, so it gets a copy button instead of a (useless-on-mobile) link — users copy
+// the URL and open it in desktop-site mode. See copyBtn() + the engine's [data-copy] handler.
+var TOMORROWIO_KEY_HINT = '<a target=\'_blank\' href=\'https://app.tomorrow.io/signup\'>Create a free tomorrow.io account</a> (no credit card needed), then open the <b>Development &gt; API Keys</b> page' + copyBtn('https://app.tomorrow.io/development/keys', 'Copy the API-keys page link') + ' in the dashboard, copy your key and paste it here, then Test it. The free plan is plenty — see the call budget below.<br>On a phone, tomorrow.io\'s mobile site 404s on the API-keys page — tap the copy button, then open the link in your browser\'s desktop-site mode.';
 var TOMORROWIO_BUDGET_HINT = 'Only offer update intervals that fit the free plan. Turn off to pick any interval — over-budget calls are rejected by tomorrow.io until the limit resets, and the watch keeps its last data.';
 module.exports = {
     appName: 'WarnWeather',
@@ -159,16 +169,9 @@ module.exports = {
                 showWhen: {all: [{not: {env: 'color'}}, {env: 'themePolarity'}]},
                 onChange: 'themeConvert'
             }, {
-                type: 'select',
-                messageKey: 'fetchIntervalMin',
-                label: 'Update interval',
-                defaultValue: '15',
-                hint: 'Updates only send what actually changed (deltas), so short intervals like 5 min stay battery friendly.',
-                optionsFrom: {resolver: 'fetchIntervalBudget'}
-            }, {
                 type: 'toggle',
                 messageKey: 'sleepNightEnabled',
-                label: 'Pause weather at night',
+                label: 'Night battery saver',
                 defaultValue: true,
                 hint: 'Stop fetching weather between the hours below to save battery.'
             }, {
@@ -189,11 +192,44 @@ module.exports = {
                 inline: 'sleepHours',
                 showWhen: {key: 'sleepNightEnabled', eq: true}
             }, {
+                type: 'segmented', messageKey: 'locationMode', label: 'Location', defaultValue: 'gps', hintByValue: {
+                    gps: 'Detect your location automatically via phone GPS.', manual: 'Enter a city or address below.'
+                }, options: [['GPS', 'gps'], ['Manual', 'manual']]
+            }, {
+                type: 'text',
+                messageKey: 'location',
+                label: 'Manual location',
+                defaultValue: '',
+                attributes: {placeholder: 'e.g. Manhattan'},
+                hint: 'Example: "Manhattan" or "123 Oak St Plainsville KY".',
+                showWhen: {key: 'locationMode', eq: 'manual'}
+            }, {
+                type: 'select',
+                messageKey: 'gpsCacheMin',
+                label: 'GPS cache',
+                defaultValue: '30',
+                joinPrevious: true,
+                optionsFrom: {interval: 'fetchIntervalMin', ladder: [30, 60, 120, 360, 720, 1440]},
+                showWhen: {key: 'locationMode', eq: 'gps'},
+                hint: 'How long a GPS fix is reused before re-acquiring. Longer saves battery; shorter keeps your location fresher on the move. The lowest value matches your update interval.'
+            }]
+        }, {
+            title: 'Provider settings', items: [{
+                type: 'select',
+                messageKey: 'fetchIntervalMin',
+                label: 'Update interval',
+                defaultValue: '15',
+                hint: 'Updates only send what actually changed (deltas), so short intervals like 5 min stay battery friendly.',
+                optionsFrom: {resolver: 'fetchIntervalBudget'}
+            }, {
                 type: 'select',
                 messageKey: 'provider',
                 label: 'Weather provider',
                 defaultValue: 'wunderground',
                 onChange: 'clearPollenForProvider',
+                // Flags the country-matched option "(Recommended)" (DE→DWD, Nordics→Met.no, else→Open-Meteo),
+                // reading the same country→provider map the wizard uses. See blocks.js recommend resolvers.
+                recommendFrom: 'recommendedWeatherProvider',
                 // Options are alphabetical by name. The 3rd tuple slot's desc is the short "what it's
                 // best at" tag shown under each name in the dropdown; the selected provider's fuller
                 // rationale reads out full-width below via the PROVIDER_WHY showWhen-gated staticTexts
@@ -257,7 +293,7 @@ module.exports = {
             }, {
                 type: 'toggle',
                 messageKey: 'tomorrowioFitBudget',
-                label: 'Fit update interval to budget',
+                label: 'Fit update interval to rate limit',
                 defaultValue: true,
                 joinPrevious: true,
                 // Budget calc renders AFTER the toggle (block, not blockBefore) so the toggle sits
@@ -277,27 +313,6 @@ module.exports = {
                     openmeteo: 'Open-Meteo is a global model with coverage everywhere.'
                 },
                 options: [['Auto', 'auto'], ['WAQI', 'waqi'], ['Open-Meteo', 'openmeteo']]
-            }, {
-                type: 'segmented', messageKey: 'locationMode', label: 'Location', defaultValue: 'gps', hintByValue: {
-                    gps: 'Detect your location automatically via phone GPS.', manual: 'Enter a city or address below.'
-                }, options: [['GPS', 'gps'], ['Manual', 'manual']]
-            }, {
-                type: 'text',
-                messageKey: 'location',
-                label: 'Manual location',
-                defaultValue: '',
-                attributes: {placeholder: 'e.g. Manhattan'},
-                hint: 'Example: "Manhattan" or "123 Oak St Plainsville KY".',
-                showWhen: {key: 'locationMode', eq: 'manual'}
-            }, {
-                type: 'select',
-                messageKey: 'gpsCacheMin',
-                label: 'GPS cache',
-                defaultValue: '30',
-                joinPrevious: true,
-                optionsFrom: {interval: 'fetchIntervalMin', ladder: [30, 60, 120, 360, 720, 1440]},
-                showWhen: {key: 'locationMode', eq: 'gps'},
-                hint: 'How long a GPS fix is reused before re-acquiring. Longer saves battery; shorter keeps your location fresher on the move. The lowest value matches your update interval.'
             }]
         }, {
             title: 'Units', items: [{
@@ -418,6 +433,9 @@ module.exports = {
                 messageKey: 'radarProvider',
                 label: 'Radar provider',
                 defaultValue: 'rainbow',
+                // Flags the country-matched option "(Recommended)" (DE→DWD, Nordics→Met.no, else→Rainbow),
+                // the same map the wizard uses. See blocks.js recommend resolvers.
+                recommendFrom: 'recommendedRadarProvider',
                 // Rainbow is always offered. Builds without a proxy endpoint
                 // (dev/forks) still show it; selecting it there fails soft with
                 // the Task 2 warning. Production always sets RAINBOW_PROXY_ENDPOINT.
@@ -461,7 +479,7 @@ module.exports = {
             }, {
                 type: 'toggle',
                 messageKey: 'tomorrowioFitBudget',
-                label: 'Fit update interval to budget',
+                label: 'Fit update interval to rate limit',
                 defaultValue: true,
                 joinPrevious: true,
                 block: 'tomorrowioBudget',
@@ -474,12 +492,14 @@ module.exports = {
                 type: 'staticText',
                 blockBefore: 'radarPreview',
                 text: SCALE_NOTE,
+                hinted: true,
                 capabilities: ['COLOR'],
                 showWhen: {all: [{key: 'radarProvider', ne: 'disabled'}, {key: 'theme', nin: ['bw', 'bw-light']}]}
             }, {
                 type: 'staticText',
                 blockBefore: 'radarPreview',
                 text: BW_LEGEND,
+                hinted: true,
                 showWhen: {all: [
                     {not: {all: [{env: 'color'}, {key: 'theme', nin: ['bw', 'bw-light']}]}},
                     {key: 'radarProvider', ne: 'disabled'}

@@ -122,6 +122,24 @@ test('tomorrow.io key renders under whichever picker uses it: General (weather) 
   keys.forEach((k) => assert.equal(k.suffixAction, 'testTomorrowioKey'));
 });
 
+test('weather + radar provider dropdowns flag the country-recommended option via recommendFrom', () => {
+  assert.equal(byKey('provider').recommendFrom, 'recommendedWeatherProvider');
+  assert.equal(byKey('radarProvider').recommendFrom, 'recommendedRadarProvider');
+});
+
+test('tomorrow.io key hint offers the API-keys page as a copy button, not a (mobile-404) link', () => {
+  const hint = byKey('tomorrowioApiKey').hint;
+  // The keys URL is now a tap-to-copy control wired through the engine's [data-copy] handler...
+  assert.ok(/data-copy="https:\/\/app\.tomorrow\.io\/development\/keys"/.test(hint),
+    'API-keys page URL rides a data-copy button');
+  assert.ok(/class="copybtn"/.test(hint), 'the copy control uses the .copybtn chip');
+  // ...and is NOT a clickable <a href> anymore (tapping 404s on mobile).
+  assert.ok(!/href=['"]https:\/\/app\.tomorrow\.io\/development\/keys/.test(hint),
+    'the API-keys page is no longer a link');
+  // The signup link stays a normal external link.
+  assert.ok(/href=['"]https:\/\/app\.tomorrow\.io\/signup['"]/.test(hint), 'signup stays a link');
+});
+
 test('fetchIntervalMin derives its ladder from the budget resolver (no static options)', () => {
   const item = byKey('fetchIntervalMin');
   assert.equal(item.options, undefined);
@@ -134,6 +152,7 @@ test('budget toggle (both contexts) carries the info block below it', () => {
   assert.equal(toggles.length, 2, 'General (weather) + Radar (radar-only) instances');
   toggles.forEach((item) => {
     assert.equal(item.defaultValue, true);
+    assert.equal(item.label, 'Fit update interval to rate limit');
     // block (not blockBefore): the calc renders AFTER the toggle so the toggle hugs the key
     // field above it as part of the tomorrow.io group.
     assert.equal(item.block, 'tomorrowioBudget');
@@ -238,19 +257,40 @@ test('Units section groups temperature, AQI scale, wind + distance units in the 
   assert.ok(!unitsSection.items.some((i) => i.messageKey === 'aqiSource'), 'aqiSource moved out of Units');
 });
 
-test('AQI provider selection sits below the weather provider selection, not in Units', () => {
+test('Provider-settings section leads with Update interval, then weather provider, then AQI provider', () => {
   const general = schema.tabs.find((t) => t.id === 'general');
-  const first = general.sections[0];
-  const keys = first.items.map((i) => i.messageKey).filter(Boolean);
-  assert.ok(keys.indexOf('aqiSource') !== -1, 'aqiSource lives in the first General section');
+  const ps = general.sections.find((s) => s.title === 'Provider settings');
+  assert.ok(ps, 'General tab has a titled "Provider settings" section');
+  const keys = ps.items.map((i) => i.messageKey).filter(Boolean);
+  assert.equal(keys[0], 'fetchIntervalMin', 'update interval is the first setting in Provider settings');
+  assert.ok(keys.indexOf('fetchIntervalMin') < keys.indexOf('provider'),
+    'update interval precedes the weather provider selection');
   assert.ok(keys.indexOf('provider') < keys.indexOf('aqiSource'),
     'weather provider selection comes before the AQI provider selection');
   assert.ok(keys.indexOf('owmApiKey') < keys.indexOf('aqiSource'),
     'the weather-provider block (including its API key field) precedes the AQI provider selection');
   assert.ok(keys.indexOf('yandexApiKey') < keys.indexOf('aqiSource'),
     'the weather-provider block (including the Yandex API key field) precedes the AQI provider selection');
-  assert.ok(keys.indexOf('aqiSource') < keys.indexOf('locationMode'),
-    'AQI provider selection sits above the location settings');
+  // The night battery saver moved OUT of this section, up into the first (top) section.
+  assert.ok(keys.indexOf('sleepNightEnabled') === -1, 'night battery saver is not in Provider settings');
+  const unitsSection = general.sections.find((s) => s.title === 'Units');
+  assert.ok(!unitsSection.items.some((i) => i.messageKey === 'aqiSource'), 'aqiSource is not in Units');
+});
+
+test('night battery saver + From/To live in the first (top) General section, above Provider settings', () => {
+  const general = schema.tabs.find((t) => t.id === 'general');
+  const firstKeys = general.sections[0].items.map((i) => i.messageKey).filter(Boolean);
+  ['sleepNightEnabled', 'sleepStartHour', 'sleepEndHour'].forEach((k) =>
+    assert.ok(firstKeys.indexOf(k) !== -1, k + ' lives in the top General section'));
+  assert.ok(!firstKeys.some((k) => k === 'fetchIntervalMin'), 'update interval is not in the top section');
+  const psIndex = general.sections.findIndex((s) => s.title === 'Provider settings');
+  assert.ok(psIndex === 1, 'Provider settings is the section immediately below the top card');
+});
+
+test('night battery saver toggle is renamed and still gates the From/To sleep-hour selects', () => {
+  assert.equal(byKey('sleepNightEnabled').label, 'Night battery saver');
+  assert.deepEqual(byKey('sleepStartHour').showWhen, { key: 'sleepNightEnabled', eq: true });
+  assert.deepEqual(byKey('sleepEndHour').showWhen, { key: 'sleepNightEnabled', eq: true });
 });
 
 test('windUnits is a segmented kph/mph/Knots picker defaulting to kph', () => {

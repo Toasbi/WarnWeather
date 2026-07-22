@@ -48,6 +48,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     get: function (name) { return defaultsResolverMap[name]; }
   };
 
+  // --- recommend-resolver registry --- a select item flags its "best for you" option by name
+  // (item.recommendFrom: id); the resolver fn(S, env) returns the recommended option VALUE and the
+  // matching row in the open sheet gets a "(Recommended)" marker. Derived, like defaults, but read at
+  // render time (so it tracks another key, e.g. the country selector) and yields a value, not a list.
+  var recommendResolverMap = {};
+  PConf.recommendResolvers = {
+    register: function (name, fn) { recommendResolverMap[name] = fn; },
+    get: function (name) { return recommendResolverMap[name]; }
+  };
+
   // --- onChange registry --- a schema item opts into a post-change side effect by
   // name (item.onChange: id) without the engine knowing what that side effect is —
   // mirrors the block registry above. fn(S, oldValue, newValue, env) runs synchronously,
@@ -216,6 +226,21 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
+   * The recommended option value for a select whose item.recommendFrom names a recommend-resolver
+   * (fn(S, env) -> value). The matching option gets a "(Recommended)" marker in the sheet. Returns
+   * null when the item doesn't opt in or the resolver is missing.
+   * @param {Object} item Schema item.
+   * @param {Object} S Settings state.
+   * @param {Object} [env] Platform env.
+   * @returns {*} Recommended option value, or null.
+   */
+  function resolveRecommended(item, S, env) {
+    if (!item || !item.recommendFrom) { return null; }
+    var fn = PConf.recommendResolvers.get(item.recommendFrom);
+    return fn ? fn(S, env) : null;
+  }
+
+  /**
    * Filtered option rows for an open searchSelect list. Case-insensitive substring
    * match on the option label OR its value code; '' query -> all. The current value's
    * row gets .on + a check. Yields a muted "No matches" row when nothing matches.
@@ -225,8 +250,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @param {string} query Search query.
    * @returns {string} Option rows HTML.
    */
-  function renderSelectOptions(item, value, query) {
-    var q = String(query || '').toLowerCase(), h = '', i, o, lo, vo, meta, classes, labelCell, shown = 0;
+  function renderSelectOptions(item, value, query, recommended) {
+    var q = String(query || '').toLowerCase(), h = '', i, o, lo, vo, meta, classes, labelCell, rec, shown = 0;
     for (i = 0; i < item.options.length; i++) {
       o = item.options[i];
       lo = o[0].toLowerCase(); vo = o[1].toLowerCase();
@@ -240,13 +265,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       }
       classes = 'ssel-opt' + (!q && meta.groupChild ? ' group-child' : '')
         + (!q && meta.groupEnd ? ' group-end' : '') + (value === o[1] ? ' on' : '');
+      // A recommend-resolver may mark one option as best for the current context (e.g. the
+      // country-matched weather/radar provider) — appended in bold after the name (labels are
+      // esc()'d, so the marker can't ride in the option text itself).
+      rec = (recommended != null && o[1] === recommended) ? ' <b class="ssel-rec">(Recommended)</b>' : '';
       // An option may carry a one-line description (meta.desc) rendered under its name — the
       // weather-provider picker uses it to say what each provider is best at while choosing.
       // Options without a desc keep the original single-span layout untouched.
       labelCell = meta.desc
-        ? '<span class="ssel-opt-txt"><span class="ssel-opt-name">' + esc(o[0]) + '</span>'
+        ? '<span class="ssel-opt-txt"><span class="ssel-opt-name">' + esc(o[0]) + rec + '</span>'
           + '<span class="ssel-opt-desc">' + esc(meta.desc) + '</span></span>'
-        : '<span>' + esc(o[0]) + '</span>';
+        : '<span>' + esc(o[0]) + rec + '</span>';
       h += '<button type="button" class="' + classes + '" role="option" aria-selected="'
         + (value === o[1] ? 'true' : 'false') + '" data-select-pick="' + esc(o[1])
         + '" data-k="' + esc(item.messageKey) + '">' + labelCell
@@ -330,7 +359,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       + search
       + '<div id="' + listId + '" class="ssel-list" role="listbox" aria-label="' + title
       + ' options" data-ssel-list="' + key + '">'
-      + renderSelectOptions(item, value, cx.selectQuery) + '</div>';
+      + renderSelectOptions(item, value, cx.selectQuery, resolveRecommended(item, cx.S, cx.ENV)) + '</div>';
   }
   function renderText(item, v) {
     var ph = (item.attributes && item.attributes.placeholder) ? esc(item.attributes.placeholder) : '';
@@ -463,7 +492,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (item.type === 'staticText') {
       // a joinPrevious static acts as the control's description, so the join modifier tightens its
       // top spacing to hug the row above (like a hint) instead of standing off as a separate block.
-      var staticCls = 'static' + (item.joinPrevious ? ' join' : '') + (noDivider ? ' nb' : '');
+      // hinted: render in the dimmer/smaller hint style WITHOUT the pull-up — for a standalone note
+      // (e.g. below a preview block) that should still read as secondary, hint-coloured text.
+      var staticCls = 'static' + (item.joinPrevious ? ' join' : '') + (item.hinted ? ' hinted' : '') + (noDivider ? ' nb' : '');
       // A staticText may host preview blocks too (blockBefore/block) — e.g. the Layout tab's
       // after-flick preview rides a caption. renderBlock() no-ops when the id is absent.
       var staticHtml = renderBlock(item.blockBefore, cx.S, cx.ENV, cx.USERDATA, item.blockBeforeSticky)
@@ -843,6 +874,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           return;
         }
         if ((t = e.target.closest('[data-coll]'))) { var sid = t.getAttribute('data-coll'); collapsed[sid] = !collapsed[sid]; render(); return; }
+        if ((t = e.target.closest('[data-copy]'))) { copyText(t.getAttribute('data-copy')); return; }
         if ((t = e.target.closest('[data-action]'))) { var act = t.getAttribute('data-action'); if (PConf.actions[act]) { PConf.actions[act](); } return; }
       });
       scroll.addEventListener('input', function (e) {
@@ -883,7 +915,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         var list = document.querySelector('[data-ssel-list="' + sk + '"]');
         if (list) {
           var item = resolveRowItem(findItem(sk), { value: S[sk] }, { S: S, ENV: ENV });
-          list.innerHTML = renderSelectOptions(item, S[sk], selectQuery);
+          list.innerHTML = renderSelectOptions(item, S[sk], selectQuery, resolveRecommended(item, S, ENV));
         }
       });
       // Swipe-down-to-dismiss: only arms when the list is already at the top, so a downward
@@ -913,11 +945,50 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       }, { passive: true });
     }
 
+    // Flash the toast with a message for ~1.4s, then fade it out. The save toast is a special case
+    // (it navigates away instead of fading), so it sets its own text and .show directly below.
+    function flashToast(msg) {
+      var el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(flashToast._t);
+      flashToast._t = setTimeout(function () { el.classList.remove('show'); }, 1400);
+    }
+
+    // Copy `text` to the clipboard from a [data-copy] control. Prefer the async Clipboard API (works
+    // in the Core Devices app's WKWebView); fall back to a hidden-textarea execCommand for older
+    // webviews or when the promise rejects (e.g. no permission). Flash "Copied" on success.
+    function copyText(text) {
+      function ok() { flashToast('Copied ✓'); }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(ok, function () { if (legacyCopy(text)) { ok(); } });
+        return;
+      }
+      if (legacyCopy(text)) { ok(); }
+    }
+    function legacyCopy(text) {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text; ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed'; ta.style.top = '-1000px';
+        document.body.appendChild(ta);
+        ta.select(); ta.setSelectionRange(0, text.length);
+        var done = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return done;
+      } catch (e) { return false; }
+    }
+    // Expose the copy handler so overlays outside #scroll (the onboarding wizard) can wire their own
+    // [data-copy] clicks through the same clipboard + toast path.
+    PConf.copyText = copyText;
+
     // Save: run submit hooks, serialize, flash the toast, then return to the watch.
     function save() {
       PConf.hooks.runSubmit(hookCtx);
       var blob = serialize(SCHEMA, S);
-      document.getElementById('toast').classList.add('show');
+      var el = document.getElementById('toast');
+      el.textContent = 'Settings saved ✓';
+      el.classList.add('show');
       setTimeout(function () { location.href = RETURN_TO + encodeURIComponent(JSON.stringify(blob)); }, 300);
     }
     function wireSave() {

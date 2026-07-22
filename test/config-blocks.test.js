@@ -4,7 +4,8 @@ const assert = require('node:assert/strict');
 global.PConf = {
   blocks: (function () { var m = {}; return { register: (id, fn) => { m[id] = fn; }, get: (id) => m[id] }; })(),
   optionsResolvers: (function () { var m = {}; return { register: (id, fn) => { m[id] = fn; }, get: (id) => m[id] }; })(),
-  defaultsResolvers: (function () { var m = {}; return { register: (id, fn) => { m[id] = fn; }, get: (id) => m[id] }; })()
+  defaultsResolvers: (function () { var m = {}; return { register: (id, fn) => { m[id] = fn; }, get: (id) => m[id] }; })(),
+  recommendResolvers: (function () { var m = {}; return { register: (id, fn) => { m[id] = fn; }, get: (id) => m[id] }; })()
 };
 const B = require('../src/pkjs/settings/blocks.js');
 const budgetLib = require('../src/pkjs/settings/tomorrowio-budget.js');
@@ -704,4 +705,19 @@ test('fetchIntervalBudget resolver: filters when guard on, passes through when o
     ['5', '10', '15', '30', '60']);
   assert.deepEqual(resolver(budgetState({ provider: 'dwd', radarProvider: 'disabled', sleepNightEnabled: false }), {}, {}).map((o) => o[1]),
     ['5', '10', '15', '30', '60']);
+});
+
+test('recommend resolvers: country-matched weather + radar providers (DE→dwd, Nordics→metno, else→openmeteo/rainbow)', () => {
+  const wx = global.PConf.recommendResolvers.get('recommendedWeatherProvider');
+  const rad = global.PConf.recommendResolvers.get('recommendedRadarProvider');
+  assert.equal(typeof wx, 'function', 'weather recommend resolver registered');
+  assert.equal(typeof rad, 'function', 'radar recommend resolver registered');
+  assert.equal(wx({ holidayCountry: 'DE' }), 'dwd');
+  assert.equal(rad({ holidayCountry: 'DE' }), 'dwd');
+  assert.equal(wx({ holidayCountry: 'NO' }), 'metno');
+  assert.equal(rad({ holidayCountry: 'SE' }), 'metno');
+  assert.equal(wx({ holidayCountry: 'US' }), 'openmeteo');
+  assert.equal(rad({ holidayCountry: 'US' }), 'rainbow');
+  // Robust to a missing/none country selection (won't throw).
+  assert.equal(wx({}), 'openmeteo');
 });

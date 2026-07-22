@@ -1,6 +1,6 @@
 // src/pkjs/settings/blocks.js — ES5, WebView. Registers WarnWeather's custom blocks.
 // Each block: function(state, env, userData) -> htmlString
-/* global PConf, VIEW_CYCLE */
+/* global PConf, VIEW_CYCLE, COUNTRY_DEFAULTS */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf
     : (typeof PConf !== 'undefined' && PConf) ? PConf
@@ -21,6 +21,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // <script> in the webview where it registered itself on PConf.
     var tomorrowioBudget = (typeof require !== 'undefined')
         ? require('./tomorrowio-budget.js') : PConf.tomorrowioBudget;
+    // Same dual-context pattern: country → recommended-provider mapping (shared with the wizard).
+    var CD = (typeof require !== 'undefined') ? require('./country-defaults.js') : COUNTRY_DEFAULTS;
 
     function parseStoredJson(v) {
         if (v === null || typeof v === 'undefined') { return null; }
@@ -973,6 +975,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     PConf.optionsResolvers.register('fetchIntervalBudget', function (S, env, args) {
         if (!S || S.tomorrowioFitBudget === false) { return tomorrowioBudget.INTERVAL_LADDER.slice(); }
         return tomorrowioBudget.fittingOptions(S);
+    });
+
+    // "(Recommended)" markers on the weather + radar provider dropdowns: the option matching the
+    // country-derived best pick (holidayCountry, the wizard's own source) is flagged. Same mapping
+    // the wizard applies on a fresh install, so the dropdown hint and the wizard can't disagree.
+    PConf.recommendResolvers.register('recommendedWeatherProvider', function (S) {
+        return CD.mapCountry(S && S.holidayCountry).provider;
+    });
+    PConf.recommendResolvers.register('recommendedRadarProvider', function (S) {
+        return CD.mapCountry(S && S.holidayCountry).radarProvider;
     });
 
     if (typeof module !== 'undefined' && module.exports) {
