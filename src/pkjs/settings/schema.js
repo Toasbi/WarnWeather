@@ -93,6 +93,9 @@ var SCALE_NOTE = 'The bars don\'t scale linearly. They\'re divided into 5 parts,
 // B/W watches hide the color picker (no colors to choose), so this stands in for COLOR_LEGEND
 // there: text-only, since height is the only encoding (no color steps to show).
 var BW_LEGEND = 'The bars don\'t scale linearly. They\'re divided into 5 parts, standing for up to 0.1, 0.5, 2, 10 and 40 mm/h of downfall.';
+// The tomorrow.io key + budget rows show when EITHER the weather provider OR the
+// radar provider is tomorrow.io — the radar alone needs the key (and budget) too.
+var TOMORROWIO_WHEN = {any: [{key: 'provider', eq: 'tomorrowio'}, {key: 'radarProvider', eq: 'tomorrowio'}]};
 module.exports = {
     appName: 'WarnWeather',
     themeKey: 'configTheme',
@@ -193,6 +196,16 @@ module.exports = {
                 joinPrevious: true,
                 hint: 'Register a Yandex Weather API key at <a href=\'https://yandex.com/dev/weather/\'>yandex.com/dev/weather</a> and paste it here. Saving a changed key re-fetches automatically.',
                 showWhen: {key: 'provider', eq: 'yandex'}
+            }, {
+                type: 'text',
+                messageKey: 'tomorrowioApiKey',
+                label: 'Tomorrow.io API key',
+                defaultValue: '',
+                joinPrevious: true,
+                suffixAction: 'testTomorrowioKey',
+                suffixLabel: 'Test',
+                hint: '<a href=\'https://app.tomorrow.io/signup\'>Create a free tomorrow.io account</a> (no credit card needed), then copy your key from <a href=\'https://app.tomorrow.io/development/keys\'>Development &gt; API Keys</a> in the dashboard and paste it here, then Test it. The free plan is plenty — see the call budget below. Saving a changed key re-fetches automatically.',
+                showWhen: TOMORROWIO_WHEN
             }, {
                 type: 'select',
                 messageKey: 'aqiSource',

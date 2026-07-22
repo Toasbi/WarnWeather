@@ -18,7 +18,7 @@ const EXPECTED_KEYS = [
   'holidayCountry','holidayRegion',
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','locationMode','location',
   'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','secondaryLine','secondaryLineFill','windScale','thirdLine',
-  'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','radarProvider','radarColor','rainCountdownHorizon',
+  'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','radarProvider','radarColor','rainCountdownHorizon',
   'layoutPreset','viewResetMin','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear','reset',
   'statusForecastLeft','statusForecastMid','statusForecastRight','statusRadarLeft','statusRadarMid','statusRadarRight',
   'statusTopLeft','statusTopMid','statusTopRight','batteryLowOnly','statusHealthLeft','statusHealthMid','statusHealthRight'
@@ -105,6 +105,12 @@ test('COLOR-capability + showWhen wiring', () => {
   assert.equal(byKey('secondaryLineFill').showWhen, undefined); // fill now available for every metric
   assert.deepEqual(byKey('owmApiKey').showWhen, { key: 'provider', eq: 'openweathermap' });
   assert.deepEqual(byKey('devStatsClear').showWhen, { key: 'devStatsEnabled', eq: true });
+});
+
+test('tomorrowioApiKey shows for EITHER the weather provider or the radar provider', () => {
+  assert.deepEqual(byKey('tomorrowioApiKey').showWhen,
+    { any: [{ key: 'provider', eq: 'tomorrowio' }, { key: 'radarProvider', eq: 'tomorrowio' }] });
+  assert.equal(byKey('tomorrowioApiKey').suffixAction, 'testTomorrowioKey');
 });
 
 test('health tab is gated to health-capable platforms, with a 3-state mode radio', () => {
