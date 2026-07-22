@@ -83,6 +83,7 @@ test('maps healthMode to CLAY_HEALTH_MODE', () => {
     assert.strictEqual(buildClayPayload({ healthMode: 'status' }, null, new Date()).CLAY_HEALTH_MODE, 1);
     assert.strictEqual(buildClayPayload({ healthMode: 'off' }, null, new Date()).CLAY_HEALTH_MODE, 0);
     assert.strictEqual(buildClayPayload({}, null, new Date()).CLAY_HEALTH_MODE, 0); // default off when unset
+    assert.strictEqual(buildClayPayload({ healthMode: 'slot' }, null, new Date()).CLAY_HEALTH_MODE, 3);
 });
 
 test('CLAY_DUAL_STATUS is no longer emitted (dual/single now folded into the packed view cycle)', () => {

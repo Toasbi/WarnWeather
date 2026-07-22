@@ -72,7 +72,8 @@ function buildClayPayload(settings, watchInfo, now) {
         })(),
         "CLAY_COLOR_TIME": settings.hasOwnProperty('colorTime') ? settings.colorTime : resolveInk(DEFAULT_COLOR_WHITE, theme),
         "CLAY_DAY_NIGHT_SHADING": settings.hasOwnProperty('dayNightShading') ? settings.dayNightShading : true,
-        "CLAY_HEALTH_MODE": ['off', 'status', 'all'].indexOf(settings.healthMode || 'off'),
+        // Order IS the wire value; 'slot' appended as 3 (never reorder — persisted on the watch).
+        "CLAY_HEALTH_MODE": ['off', 'status', 'all', 'slot'].indexOf(settings.healthMode || 'off'),
         "CLAY_FETCH_INTERVAL_MIN": parseInt(settings.fetchIntervalMin, 10) || 30,
         "CLAY_RAIN_COUNTDOWN_HORIZON": (function() {
             var rc = parseInt(settings.rainCountdownHorizon, 10);
