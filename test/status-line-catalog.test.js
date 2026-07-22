@@ -244,3 +244,15 @@ test('slotOptions omits headers whose category has no available item', () => {
     ENV_APLITE, { slotKey: 'statusTopLeft', position: 'left' });
   assert.ok(apliteEdge.some(o => o[1] === '__hdr_datelocation'), 'Date and location header present');
 });
+
+test("'slot' health mode keeps health items selectable (no dedicated Health view needed)", () => {
+  const slot = { healthMode: 'slot' };
+  ['steps', 'distance', 'sleep'].forEach((code) => {
+    assert.ok(catalog.itemAvailable(catalog.byCode(code), slot, ENV_BASALT),
+      code + " must be available under healthMode 'slot'");
+  });
+  assert.ok(catalog.itemAvailable(catalog.byCode('hr'), slot, ENV_EMERY),
+    "hr must be available under 'slot' on a heart-rate watch");
+  // 'off' still hides them.
+  assert.ok(!catalog.itemAvailable(catalog.byCode('steps'), { healthMode: 'off' }, ENV_BASALT));
+});
