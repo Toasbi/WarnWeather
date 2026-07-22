@@ -74,6 +74,14 @@ test('onSubmit sets fetch=true when provider changes', function () {
     assert.equal(store.fetch, true);
 });
 
+test('onSubmit forces a refetch when tomorrowioApiKey changed', function () {
+    var store = { fetch: false, provider: 'wunderground', owmApiKey: '', tomorrowioApiKey: 'new', location: 'Berlin' };
+    var initial = { provider: 'wunderground', owmApiKey: '', tomorrowioApiKey: '', location: 'Berlin' };
+    var ctx = { get: function (k) { return store[k]; }, set: function (k, v) { store[k] = v; }, getInitial: function (k) { return initial[k]; } };
+    OB.onSubmit(ctx);
+    assert.equal(store.fetch, true);
+});
+
 test('registers into PConf.hooks', function () {
     assert.equal(_L.length, 1);
     assert.equal(_S.length, 1);

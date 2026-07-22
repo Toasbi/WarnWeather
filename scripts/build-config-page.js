@@ -12,12 +12,14 @@ var APP_FILES = [
   // not a Node module) read their declarations directly from this shared top-level scope.
   path.join(ROOT, 'src/pkjs/view-cycle.js'),
   path.join(ROOT, 'src/pkjs/status-line-catalog.js'),
+  path.join(ROOT, 'src/pkjs/settings/tomorrowio-budget.js'),
   path.join(ROOT, 'src/pkjs/settings/blocks.js'),
   // wizard-screenshots.generated.js assigns PConf.screenshots; must precede wizard.js, which reads it.
   path.join(ROOT, 'src/pkjs/settings/wizard-screenshots.generated.js'),
   path.join(ROOT, 'src/pkjs/settings/wizard.js'),
   path.join(ROOT, 'src/pkjs/settings/onbuild.js'),
   path.join(ROOT, 'src/pkjs/settings/owm-key-test.js'),
+  path.join(ROOT, 'src/pkjs/settings/tomorrowio-key-test.js'),
   path.join(ROOT, 'src/pkjs/settings/news.js'),
   path.join(ROOT, 'src/pkjs/settings/theme-convert.js'),
   path.join(ROOT, 'src/pkjs/settings/reset-status-defaults.js')

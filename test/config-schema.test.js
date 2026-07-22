@@ -18,7 +18,7 @@ const EXPECTED_KEYS = [
   'holidayCountry','holidayRegion',
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','locationMode','location',
   'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','secondaryLine','secondaryLineFill','windScale','thirdLine',
-  'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','radarProvider','radarColor','rainCountdownHorizon',
+  'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarProvider','radarColor','rainCountdownHorizon',
   'layoutPreset','viewResetMin','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear','reset',
   'statusForecastLeft','statusForecastMid','statusForecastRight','statusRadarLeft','statusRadarMid','statusRadarRight',
   'statusTopLeft','statusTopMid','statusTopRight','batteryLowOnly','statusHealthLeft','statusHealthMid','statusHealthRight'
@@ -50,8 +50,9 @@ test('location is a GPS/Manual picker; the text field is gated to Manual', () =>
   assert.deepEqual(byKey('location').showWhen, { key: 'locationMode', eq: 'manual' });
 });
 
-test('providers include openmeteo, metno and yandex as 4th/5th/6th selectable options', () => {
-  assert.deepEqual(byKey('provider').options.map((o) => o[1]), ['wunderground','openweathermap','dwd','openmeteo','metno','yandex']);
+test('providers include openmeteo, metno, yandex and tomorrowio as selectable options', () => {
+  assert.deepEqual(byKey('provider').options.map((o) => o[1]),
+    ['wunderground','openweathermap','dwd','openmeteo','metno','yandex','tomorrowio']);
 });
 
 test('weather provider label matches the AQI provider label style', () => {
@@ -104,6 +105,27 @@ test('COLOR-capability + showWhen wiring', () => {
   assert.equal(byKey('secondaryLineFill').showWhen, undefined); // fill now available for every metric
   assert.deepEqual(byKey('owmApiKey').showWhen, { key: 'provider', eq: 'openweathermap' });
   assert.deepEqual(byKey('devStatsClear').showWhen, { key: 'devStatsEnabled', eq: true });
+});
+
+test('tomorrowioApiKey shows for EITHER the weather provider or the radar provider', () => {
+  assert.deepEqual(byKey('tomorrowioApiKey').showWhen,
+    { any: [{ key: 'provider', eq: 'tomorrowio' }, { key: 'radarProvider', eq: 'tomorrowio' }] });
+  assert.equal(byKey('tomorrowioApiKey').suffixAction, 'testTomorrowioKey');
+});
+
+test('fetchIntervalMin derives its ladder from the budget resolver (no static options)', () => {
+  const item = byKey('fetchIntervalMin');
+  assert.equal(item.options, undefined);
+  assert.deepEqual(item.optionsFrom, { resolver: 'fetchIntervalBudget' });
+  assert.equal(item.defaultValue, '15');
+});
+
+test('budget toggle rides the tomorrow.io showWhen and carries the info block', () => {
+  const item = byKey('tomorrowioFitBudget');
+  assert.equal(item.defaultValue, true);
+  assert.equal(item.blockBefore, 'tomorrowioBudget');
+  assert.deepEqual(item.showWhen,
+    { any: [{ key: 'provider', eq: 'tomorrowio' }, { key: 'radarProvider', eq: 'tomorrowio' }] });
 });
 
 test('health tab is gated to health-capable platforms, with a 3-state mode radio', () => {
@@ -407,18 +429,20 @@ test('flick/positioning narrative lives only in the Layout tab, not Health/Radar
   assert.ok(!/wrist flick/i.test(radar.sections[0].intro), 'radar intro drops the wrist-flick line');
 });
 
-test('radarProvider is a dropdown offering DWD/Met.no/Rainbow/Off with scope in the label', () => {
+test('radarProvider is a dropdown offering DWD/Met.no/Rainbow/Tomorrow.io/Off with scope in the label', () => {
   const item = byKey('radarProvider');
-  assert.equal(item.type, 'select', 'dropdown — four options no longer fit a segmented row');
+  assert.equal(item.type, 'select', 'dropdown — five options no longer fit a segmented row');
   assert.deepEqual(item.options, [
     ['DWD (Germany only)', 'dwd'],
     ['Met.no (Nordics only)', 'metno'],
     ['Rainbow (Worldwide)', 'rainbow'],
+    ['Tomorrow.io (Worldwide)', 'tomorrowio'],
     ['Off', 'disabled']
   ]);
   assert.equal(item.hintByValue.dwd, 'Precise weather radar — rain at your exact spot and nearby (~2 km).');
   assert.equal(item.hintByValue.metno, 'Precise weather radar — rain at your exact spot.');
   assert.equal(item.hintByValue.rainbow, 'Model-based nowcast, works worldwide.');
+  assert.ok(item.hintByValue.tomorrowio, 'has a tomorrowio hint');
   assert.equal(item.defaultValue, 'rainbow');
 });
 

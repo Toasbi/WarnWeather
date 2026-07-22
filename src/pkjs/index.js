@@ -759,8 +759,12 @@ function withRainRadarTuplesAt(lat, lon, callback) {
     var source = radarFactory.createRadarSource(
         app.settings.radarProvider,
         // '' when the build carried no RAINBOW_PROXY_ENDPOINT — the rainbow
-        // adapter then fails soft (callback(null)).
-        { rainbowEndpoint: (pkg.rainbow && pkg.rainbow.endpoint) || '' }
+        // adapter then fails soft (callback(null)). tomorrowioApiKey is the
+        // user's key from settings; '' likewise fails soft in the adapter.
+        {
+            rainbowEndpoint: (pkg.rainbow && pkg.rainbow.endpoint) || '',
+            tomorrowioApiKey: (app.settings && app.settings.tomorrowioApiKey) || ''
+        }
     );
     source.fetchRadarTuplesAt(lat, lon, radarWire.slotZeroEpochFor(Date.now()), callback);
 }

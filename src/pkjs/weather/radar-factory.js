@@ -16,6 +16,7 @@
 var radar = require('./radar.js');
 var metnoRadar = require('./metno-radar.js');
 var rainbowRadar = require('./rainbow-radar.js');
+var tomorrowioRadar = require('./tomorrowio-radar.js');
 var radarWire = require('./radar-wire.js');
 
 var DEFAULT_RADAR_ID = 'disabled';
@@ -31,6 +32,13 @@ var RADAR_FACTORIES = {
         return {
             fetchRadarTuplesAt: function(lat, lon, slotZeroEpoch, cb) {
                 rainbowRadar.fetchRadarTuplesAt(cfg.rainbowEndpoint, lat, lon, slotZeroEpoch, cb);
+            }
+        };
+    },
+    tomorrowio: function(cfg) {
+        return {
+            fetchRadarTuplesAt: function(lat, lon, slotZeroEpoch, cb) {
+                tomorrowioRadar.fetchRadarTuplesAt(cfg.tomorrowioApiKey, lat, lon, slotZeroEpoch, cb);
             }
         };
     },
@@ -58,9 +66,10 @@ function isKnownRadarSource(radarId) {
  * fall back to the 'disabled' source (clears the watch's radar), matching the
  * legacy default-off behavior.
  *
- * @param {string} radarId Clay radarProvider id ('dwd', 'metno', 'rainbow', 'disabled').
+ * @param {string} radarId Clay radarProvider id ('dwd', 'metno', 'rainbow', 'tomorrowio', 'disabled').
  * @param {Object} cfg Per-source config.
  * @param {string} cfg.rainbowEndpoint Rainbow proxy URL ('' when the build carries none).
+ * @param {string} cfg.tomorrowioApiKey tomorrow.io API key ('' when unset; the adapter fails soft).
  * @returns {{fetchRadarTuplesAt: Function}} Radar-source adapter satisfying the seam.
  */
 function createRadarSource(radarId, cfg) {
