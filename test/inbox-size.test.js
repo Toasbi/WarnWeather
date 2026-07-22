@@ -133,20 +133,24 @@ function buildHeaviestBundle() {
   // Sleep state rides in the same bundle.
   payload.IS_SLEEPING = false;
 
-  // A notice never coexists with a full weather bundle (it's an out-of-band
-  // error signal, not forecast data) — but when one IS cleared it rides in
-  // the weather message as an empty string, so the worst case still models
-  // its key + 1-byte NUL.
-  payload.NOTICE_TEXT = '';
-
   // The transformed payload has baked all four packed lines and removed the
   // legacy temp/city transients before the outbox projects transmitted keys.
   return buildWeatherOutboxPayload(payload);
 }
 
+// A cleared notice can ride the weather message as an empty string; a real
+// notice never coexists with a full bundle (it's a failure-time signal), but
+// model the conservative "full bundle + cleared notice" combination against the
+// hard inbox ceiling so the NOTICE_TEXT key is proven to still fit.
+function buildHeaviestBundleWithNotice() {
+  const bundle = buildHeaviestBundle();
+  bundle.NOTICE_TEXT = '';
+  return bundle;
+}
+
 test('heaviest bundled payload (DWD + wind) fits the watch inbox', function() {
   const inbox = readInboxSize();
-  const size = dictSize(buildHeaviestBundle());
+  const size = dictSize(buildHeaviestBundleWithNotice());
   assert.ok(
     size <= inbox,
     'bundled DWD+wind payload is ' + size + ' B but inbox_size is only ' + inbox +
@@ -157,8 +161,8 @@ test('weather bundle keeps explicit headroom below the watch inbox', () => {
   const size = dictSize(buildHeaviestBundle());
   const inbox = readInboxSize();
   console.log(`heaviest weather bundle: ${size} B of ${inbox} B (headroom ${inbox - size})`);
-  assert.equal(size, 525, 'update the recorded realistic bundle size when its wire contract changes');
-  assert.ok(inbox - size >= 3, `headroom ${inbox - size} B is below the 3 B floor`);
+  assert.equal(size, 517, 'update the recorded realistic bundle size when its wire contract changes');
+  assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });
 
 /** The Clay settings message now carries the palette tuples too. */
