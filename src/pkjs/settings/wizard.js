@@ -202,7 +202,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // ---- DOM controller (webview only; exercised via `mise preview-config`, not Node) ----
     var LAYOUT_OPTS = [['Full calendar', 'fullCal'], ['Compact', 'compactCal'], ['No calendar', 'noCal']];
-    var HEALTH_OPTS = [['Off', 'off'], ['Health Status Bar', 'status'], ['Health Status Bar + Graph', 'all']];
+    var HEALTH_OPTS = [['Off', 'off'], ['Status slots only', 'slot'], ['Health Status Bar', 'status'], ['Health Status Bar + Graph', 'all']];
     var STEP_TITLES = {
         welcome: 'Welcome to WarnWeather', layout: 'Choose your layout',
         health: 'Health', flick: 'Flick to explore',
@@ -219,6 +219,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // heart-rate variant on emery (the only platform with a heart-rate sensor).
     var HEALTH_DESC = {
         off: 'no health information on the watchface.',
+        slot: 'health items you can add to any status bar, without a separate Health view.',
         status: healthStatusItems(false) + ' on the Health Status Bar.',
         all: 'Health Status Bar plus an hourly graph: ' + healthGraphItems(false) + '.'
     };

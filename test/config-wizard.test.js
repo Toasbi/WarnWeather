@@ -160,3 +160,9 @@ test('flickStops: disabled radar drops the radar stop; empty state resolves defa
   assert.equal(fresh[0].shotVal, 'compactCal');
   assert.deepEqual(fresh.map((s) => s.label), ['Default', 'Radar']);
 });
+
+test("flickStops: 'slot' health mode adds no health flick stop (matches off)", () => {
+  const off = W.flickStops({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'dwd' });
+  const slot = W.flickStops({ layoutPreset: 'compactCal', healthMode: 'slot', radarProvider: 'dwd' });
+  assert.deepEqual(slot.map((s) => s.label), off.map((s) => s.label));
+});
