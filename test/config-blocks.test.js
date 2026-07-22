@@ -667,10 +667,13 @@ test('tomorrowioBudget block derives the unlock rule and the hourly heads-up', (
   // 5 min is locked at a 2 h pause -> rule names 5 minutes and >= 4 h
   const html = block(budgetState({ sleepEndHour: '2', fetchIntervalMin: '10' }), {});
   assert.match(html, /5-minute/);
-  assert.match(html, /4 h|4 h/);
+  assert.match(html, /≥ 4 h/);
   // at 5 min + radar (24 of 25 calls/hour) the same-hour save note appears
   const busy = block(budgetState(), {});
-  assert.match(busy, /hour/i);
+  assert.match(busy, /may delay one cycle/);
+  // at 10 min (12 calls/hour) the same-hour save note must not appear
+  const quiet = block(budgetState({ fetchIntervalMin: '10' }), {});
+  assert.doesNotMatch(quiet, /may delay one cycle/);
 });
 
 test('fetchIntervalBudget resolver: filters when guard on, passes through when off or not tomorrow.io', () => {
