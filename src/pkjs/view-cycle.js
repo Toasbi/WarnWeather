@@ -92,13 +92,16 @@ var MATRIX = {
 /**
  * Compile a preset + health mode + radar availability to the 1–3 view cycle.
  * @param {string} presetKey 'fullCal'|'compactCal'|'compactDense'|'noCal'
- * @param {string} healthMode 'off'|'status'|'all'
+ * @param {string} healthMode 'off'|'slot'|'status'|'all'
  * @param {boolean} radarEnabled
  * @returns {Array<{tier:number,top:number,body:number,status:number}>}
  */
 function buildViewCycle(presetKey, healthMode, radarEnabled) {
   var byPreset = MATRIX[presetKey] || MATRIX.compactCal;
-  var byHealth = byPreset[healthMode] || byPreset.off;
+  // 'slot' shows health only in the regular status bars — it adds no dedicated
+  // Health view, so its flick cycle is identical to 'off'.
+  var mode = (healthMode === 'slot') ? 'off' : healthMode;
+  var byHealth = byPreset[mode] || byPreset.off;
   return byHealth[radarEnabled ? 'r' : 'n'];
 }
 

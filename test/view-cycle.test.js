@@ -60,6 +60,15 @@ test('noCal cycles (never a calendar)', () => {
   assert.deepStrictEqual(bytes('noCal', 'all', true),  [0x40, 0x45, 0x48]);
 });
 
+test("'slot' health mode uses the same cycle as 'off' (no dedicated Health view)", () => {
+  ['fullCal', 'compactCal', 'compactDense', 'noCal'].forEach((p) => {
+    [false, true].forEach((r) => {
+      assert.deepStrictEqual(bytes(p, 'slot', r), bytes(p, 'off', r),
+        p + ' radar=' + r + ": 'slot' must match 'off'");
+    });
+  });
+});
+
 test('unknown preset falls back to compactCal', () => {
   assert.deepStrictEqual(bytes('bogus', 'off', false), bytes('compactCal', 'off', false));
 });
