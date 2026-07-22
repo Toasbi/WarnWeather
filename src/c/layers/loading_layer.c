@@ -5,9 +5,11 @@
 #include "c/services/watch_services.h"
 
 #define FORECAST_MAX_AGE_S (SECONDS_PER_HOUR * 12)  // older than this => show "No data :("
+#define NOTICE_TEXT_MAX 48   // matches the phone-side ~32 B cap + NUL, with headroom
 
 static Layer *s_loading_layer;
 static TextLayer *s_loading_text_layer;
+static char s_notice_text[NOTICE_TEXT_MAX];
 
 bool loading_layer_data_is_fresh() {
     const time_t forecast_start = persist_get_forecast_start();
@@ -42,16 +44,25 @@ void loading_layer_create(Layer* parent_layer, GRect frame) {
     text_layer_set_text_color(s_loading_text_layer, theme_fg());
     text_layer_set_font(s_loading_text_layer, fonts_get_system_font(FONT_KEY_GOTHIC_18));
     text_layer_set_text_alignment(s_loading_text_layer, GTextAlignmentCenter);
-    text_layer_set_text(s_loading_text_layer, "No data :(");
-
     layer_set_update_proc(s_loading_layer, loading_update_proc);
     layer_add_child(s_loading_layer, text_layer_get_layer(s_loading_text_layer));
     layer_add_child(parent_layer, s_loading_layer);
+    loading_layer_refresh();   // pick notice vs "No data :(" vs hidden from persist
     MEMORY_LOG_HEAP("after_loading_layer_create");
 }
 
 void loading_layer_refresh() {
-    text_layer_set_text_color(s_loading_text_layer, theme_fg());  // re-apply: create-time value goes stale on a live theme flip
+    text_layer_set_text_color(s_loading_text_layer, theme_fg());  // re-apply after a live theme flip
+
+    int notice_len = persist_get_notice_text(s_notice_text, sizeof(s_notice_text));
+    if (notice_len > 0) {
+        // A pushed notice (e.g. "API key error") overrides the freshness fallback.
+        text_layer_set_text(s_loading_text_layer, s_notice_text);
+        layer_set_hidden(s_loading_layer, false);
+        return;
+    }
+
+    text_layer_set_text(s_loading_text_layer, "No data :(");
     layer_set_hidden(s_loading_layer, loading_layer_data_is_fresh());
 }
 
