@@ -283,8 +283,15 @@ static void main_window_load(Window *window) {
     // snapshot if we have one, so the graph doesn't reshow "Loading health data"
     // for a relaunch that changed little; otherwise a full build, as before.
     s_health_mode_prev = config_get()->health_mode;
-    if (config_get()->health_mode != HEALTH_OFF && !health_cache_restore()) {
-        health_cache_reset();
+    if (config_get()->health_mode != HEALTH_OFF) {
+        if (!health_cache_restore()) {
+            health_cache_reset();
+        }
+        // Prime the summary (steps/sleep/HR) immediately: it otherwise only refreshes
+        // from minute_handler's tick, so the first paint (before the first minute
+        // boundary) would show the INT_MIN-derived "0"/"--" sentinel values instead of
+        // real data.
+        health_summary_refresh();
     }
 #endif
 #if defined(WW_VIEW_CYCLE)
