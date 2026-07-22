@@ -358,7 +358,6 @@ module.exports = {
                 messageKey: 'thirdLine',
                 label: 'Second metric',
                 defaultValue: 'uv',
-                joinPrevious: true,
                 hintByValue: THIRD_LINE_HINTS,
                 optionsFrom: {byKey: 'secondaryLine', map: THIRD_LINE_OPTIONS}
             },
