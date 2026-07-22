@@ -6,6 +6,7 @@ require('./polyfills.js');
 var radarFactory = require('./weather/radar-factory.js');
 var radarWire = require('./weather/radar-wire.js');
 var runFetchCycle = require('./weather/fetch-orchestrator.js').runFetchCycle;
+var notices = require('./notices.js');
 var forecastSeries = require('./forecast-series.js');
 var WeatherProvider = require('./weather/provider.js');
 var createTelemetryClient = require('./telemetry.js');
@@ -843,6 +844,11 @@ function fetch(provider, force) {
         localStorage.setItem(KEY_LAST_FETCH_SUCCESS, JSON.stringify(fetchStatus));
         resetFetchAttemptCounter();
         authBackoff.clear();
+        // A successful fetch means the provider is working: drop error notices and
+        // reset the notice send-cache so a later identical error re-notifies. The
+        // watch clears its overlay on the forecast payload it just received.
+        notices.clearErrors();
+        outbox.clearNoticeCache();
         console.log('Successfully fetched weather!');
         var successEvent = baseTelemetryEvent(provider, attempt, fetchStart);
         successEvent.success = true;
@@ -857,6 +863,18 @@ function fetch(provider, force) {
         if (authBackoff.isAuthFailure(failure)) {
             console.log('[!] Auth failure — pausing auto-fetch until Force fetch or config change.');
             authBackoff.set(failure);
+        }
+        // Surface notice-worthy failures (401/403 → watch overlay + settings panel;
+        // 429 → settings panel only). Other failures raise nothing.
+        var notice = notices.noticeForFailure(failure, provider.name, Date.now());
+        if (notice) {
+            notices.add(notice);
+            if (notice.watch) {
+                // Error notices push a plain-text overlay; no weather data is
+                // available on failure, so this rides alone (change-detector skips
+                // absent categories).
+                outbox.sendWeather({ NOTICE_TEXT: notices.watchText() });
+            }
         }
         var attemptStatus = {
             time: fetchStatus.time,
