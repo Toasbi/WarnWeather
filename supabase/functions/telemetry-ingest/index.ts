@@ -12,6 +12,7 @@ const providerSchema = z.enum([
   "openmeteo",
   "metno",
   "yandex",
+  "tomorrowio",
 ]);
 const locationModeSchema = z.enum(["gps", "manual_coordinates", "manual_address"]);
 
