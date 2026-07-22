@@ -18,6 +18,7 @@ authoring.
 import math
 import os
 import struct
+import sys
 
 VIEWBOX = 25          # px
 SUBPX = 8             # precise-path units per px
@@ -83,6 +84,12 @@ def verify(blob, expected_cmds):
 
 
 def main():
+    # Regeneration DISABLED for now (hand-tuned PDCs are committed directly). Pass
+    # --force to regenerate anyway.
+    if "--force" not in sys.argv:
+        print("gen-rain-pdc: DISABLED (hand-tuned PDCs are committed directly). "
+              "Re-run with --force to regenerate.")
+        return
     out_dir = os.path.join(os.path.dirname(__file__), "..", "resources", "data")
     for name, drops in ARRANGEMENTS.items():
         blob = encode_pdc(drops)
