@@ -662,6 +662,26 @@ test('tomorrowioBudget block: empty without a tomorrow.io selection; states limi
   assert.match(over, /✗/);
 });
 
+test('tomorrowioBudget block never claims radar is off when radar runs on another provider', () => {
+  const block = global.PConf.blocks.get('tomorrowioBudget');
+  // Weather on tomorrow.io, radar on the default Rainbow provider (radar IS on,
+  // just not billed to tomorrow.io): the summary must not say "radar off".
+  const weatherOnly = block(budgetState({ radarProvider: 'rainbow' }), {});
+  assert.doesNotMatch(weatherOnly, /radar off/i);
+  assert.doesNotMatch(weatherOnly, /radar\b.*\bon\b/i, 'no blanket "radar on" claim either');
+  // When tomorrow.io radar actually adds calls, say so explicitly.
+  const withRadar = block(budgetState({ radarProvider: 'tomorrowio' }), {});
+  assert.match(withRadar, /incl\. radar/);
+});
+
+test('tomorrowioBudget block does not nest a bordered .static row inside the .blockrow', () => {
+  const block = global.PConf.blocks.get('tomorrowioBudget');
+  // .static carries its own border-bottom + padding; nesting it inside the
+  // engine's .blockrow wrapper paints a stray divider line. The block must
+  // return bare content and let .blockrow be the sole container.
+  assert.doesNotMatch(block(budgetState(), {}), /class="static"/);
+});
+
 test('tomorrowioBudget block derives the unlock rule and the hourly heads-up', () => {
   const block = global.PConf.blocks.get('tomorrowioBudget');
   // 5 min is locked at a 2 h pause -> rule names 5 minutes and >= 4 h

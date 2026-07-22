@@ -255,10 +255,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     return shown ? h : '<div class="ssel-none">No matches</div>';
   }
-  // Current option's display label for a searchSelect trigger; falls back to the raw value.
+  // Current option's display label for the collapsed trigger; falls back to the raw value.
+  // Honors an optional meta.short (o[2].short) so a long full name (shown in the bottom sheet)
+  // can collapse to a compact label in the trigger — e.g. "Deutscher Wetterdienst" -> "DWD" —
+  // without overlapping the row's field label on the left.
   function currentLabel(item, value) {
-    var i;
-    for (i = 0; i < item.options.length; i++) { if (item.options[i][1] === value) { return item.options[i][0]; } }
+    var i, o;
+    for (i = 0; i < item.options.length; i++) {
+      o = item.options[i];
+      if (o[1] === value) { return (o[2] && o[2].short) || o[0]; }
+    }
     return String(value == null ? '' : value);
   }
   /**

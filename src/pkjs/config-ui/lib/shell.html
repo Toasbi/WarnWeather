@@ -145,6 +145,9 @@
   .ssel-opt.group-child.group-end { border-bottom: 1px solid var(--row-line); }
   .ssel-opt + .ssel-group { border-top: none; }
   .ssel-opt.on { background: rgba(250,74,53,0.16); color: var(--fg); }
+  /* An option with a description stacks name over a muted one-liner (e.g. the weather-provider picker). */
+  .ssel-opt-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .ssel-opt-desc { font: 500 12px 'Inter', sans-serif; color: var(--hint); line-height: 1.35; }
   .ssel-chk { flex: none; color: var(--link); font-weight: 700; }
   .ssel-none { padding: 14px 13px; font: 600 13px 'Inter', sans-serif; color: var(--faint); }
   /* select/searchSelect popup — dim overlay + centered card, matching the News popup */

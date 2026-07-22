@@ -465,6 +465,26 @@ test('renderSelectOptions: empty query lists all; current value flagged on', () 
   assert.equal(/class="ssel-opt on"[^>]*data-select-pick="US"/.test(all), false, 'non-current row not .on');
 });
 
+test('renderSelectOptions renders meta.desc as a stacked description; plain options untouched', () => {
+  const item = { messageKey: 'p', options: [['Met.no', 'metno', { desc: 'Best in the Nordics' }], ['Plain', 'plain']] };
+  const html = E.renderSelectOptions(item, 'metno', '');
+  assert.ok(html.indexOf('<span class="ssel-opt-name">Met.no</span>') >= 0, 'name wrapped in ssel-opt-name');
+  assert.ok(html.indexOf('<span class="ssel-opt-desc">Best in the Nordics</span>') >= 0, 'desc line rendered under the name');
+  assert.ok(html.indexOf('<span>Plain</span>') >= 0, 'option without a desc keeps the plain single-span layout');
+  assert.equal(html.indexOf('ssel-opt-txt"><span class="ssel-opt-name">Plain'), -1, 'plain option is not wrapped in the desc layout');
+});
+
+test('select trigger uses meta.short for the collapsed label; the sheet keeps the full name', () => {
+  const item = { type: 'select', messageKey: 'p', label: 'Provider',
+    options: [['Deutscher Wetterdienst', 'dwd', { short: 'DWD' }], ['Met.no', 'metno']] };
+  const trigger = E.renderControl(item, { value: 'dwd', openSelect: null });
+  assert.ok(trigger.indexOf('<span>DWD</span>') >= 0, 'trigger shows the short label');
+  assert.equal(trigger.indexOf('Deutscher Wetterdienst'), -1, 'trigger does not show the long full name');
+  assert.ok(E.renderSelectOptions(item, 'dwd', '').indexOf('Deutscher Wetterdienst') >= 0, 'sheet keeps the full name');
+  // An option without meta.short falls back to its full label in the trigger.
+  assert.ok(E.renderControl(item, { value: 'metno', openSelect: null }).indexOf('<span>Met.no</span>') >= 0);
+});
+
 test('renderSelectOptions renders explicit groups without heading indicators', () => {
   const item = { messageKey: 'slot', options: [
     ['Empty', 'empty'],

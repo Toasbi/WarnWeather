@@ -929,10 +929,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var sleep = B.sleepHours(state);
         var daily = Math.round(B.dailyCalls(state, interval));
         var ok = B.fits(state, interval);
+        // radarOn is specifically "does tomorrow.io radar add calls" — NOT whether radar
+        // is enabled at all. A user can run weather on tomorrow.io while radar stays on
+        // another provider (Rainbow by default), so only mention radar when it actually
+        // counts against this budget; never print "radar off" (it reads as "radar disabled").
         var radarOn = state.radarProvider === 'tomorrowio';
         var settingsBits = 'every ' + interval + ' min, '
             + (sleep > 0 ? 'night pause ' + sleep + ' h' : 'no night pause')
-            + ', radar ' + (radarOn ? 'on' : 'off');
+            + (radarOn ? ', incl. radar' : '');
         var verdict = ok
             ? '<b>~' + daily + ' calls/day ✓</b>'
             : '<b style="color:#FF6A52">~' + daily + ' calls/day ✗ over budget</b>';
@@ -954,7 +958,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (B.hourlyCalls(state, interval) >= B.LIMIT_HOUR - 1) {
             html += '<br>At this rate a settings-save refetch in the same hour may delay one cycle — harmless.';
         }
-        return '<div class="static">' + html + '</div>';
+        // Return bare content: the engine's renderBlock wraps this in .blockrow, which
+        // already supplies padding, colour and its own bottom divider. Wrapping in .static
+        // here would nest a second bordered/padded row and paint a stray divider line.
+        return html;
     }
     PConf.blocks.register('tomorrowioBudget', tomorrowioBudgetBlock);
 

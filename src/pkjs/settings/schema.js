@@ -93,9 +93,35 @@ var SCALE_NOTE = 'The bars don\'t scale linearly. They\'re divided into 5 parts,
 // B/W watches hide the color picker (no colors to choose), so this stands in for COLOR_LEGEND
 // there: text-only, since height is the only encoding (no color steps to show).
 var BW_LEGEND = 'The bars don\'t scale linearly. They\'re divided into 5 parts, standing for up to 0.1, 0.5, 2, 10 and 40 mm/h of downfall.';
-// The tomorrow.io key + budget rows show when EITHER the weather provider OR the
-// radar provider is tomorrow.io — the radar alone needs the key (and budget) too.
-var TOMORROWIO_WHEN = {any: [{key: 'provider', eq: 'tomorrowio'}, {key: 'radarProvider', eq: 'tomorrowio'}]};
+// Per-provider "why it's best" note, shown full-width below the picker. Each provider gets its
+// own joinPrevious staticText gated by showWhen (only the selected one renders) — the short tags
+// live in the dropdown option descs; these give the fuller rationale, like SCALE_NOTE above.
+var PROVIDER_WHY = {
+    dwd: 'Germany\'s national weather service — the most accurate forecasts across Germany and Central Europe (ICON model). No API key needed.',
+    metno: 'The service behind yr.no — best across the Nordics with a 2.5 km model, and solid worldwide. No API key needed.',
+    openmeteo: 'Automatically picks the best national model for your location (DWD, NOAA, Météo-France, ECMWF…). Free, no API key.',
+    openweathermap: 'A popular general-purpose API with solid worldwide coverage. Needs a free API key on the One Call 3.0 plan.',
+    tomorrowio: 'Minute-by-minute hyperlocal forecasts worldwide, from proprietary ML models and satellites. Needs a free API key.',
+    wunderground: 'A huge crowd-sourced network of 250,000+ personal weather stations — dense local readings, strongest across the US and Europe. No API key needed.',
+    yandex: 'Best across Russia and the CIS, using the Meteum machine-learning forecast. Needs a free API key.'
+};
+var RADAR_WHY = {
+    dwd: 'Real, gauge-calibrated weather radar — rain at your exact spot and nearby (~2 km). Germany only.',
+    metno: 'Real weather radar — rain at your exact spot. Nordics only.',
+    rainbow: 'A model nowcast blending satellite and radar — works worldwide.',
+    tomorrowio: 'A precise ML rain nowcast, worldwide. Uses your tomorrow.io API key (nothing works without one) and counts against the same call budget.',
+    disabled: 'Rain radar is turned off.'
+};
+// The tomorrow.io key + budget guard render under whichever picker actually uses the key:
+// the General tab when it's the WEATHER provider, the Radar tab when it's radar-only (so the
+// key never sits in the weather section for a non-weather provider). Both contexts reuse the
+// same messageKeys (mutually-exclusive showWhen, like the theme color/B&W split).
+var TOMORROWIO_WEATHER_WHEN = {key: 'provider', eq: 'tomorrowio'};
+var TOMORROWIO_RADAR_ONLY_WHEN = {all: [{key: 'radarProvider', eq: 'tomorrowio'}, {key: 'provider', ne: 'tomorrowio'}]};
+// Links open in an external browser (target=_blank). The dashboard's Development > API Keys page
+// 404s on tomorrow.io's mobile site, so the hint tells users to open it on desktop.
+var TOMORROWIO_KEY_HINT = '<a target=\'_blank\' href=\'https://app.tomorrow.io/signup\'>Create a free tomorrow.io account</a> (no credit card needed), then copy your key from <a target=\'_blank\' href=\'https://app.tomorrow.io/development/keys\'>Development &gt; API Keys</a> in the dashboard and paste it here, then Test it. The free plan is plenty — see the call budget below.<br>On a phone, open the dashboard in your browser\'s desktop-site mode — tomorrow.io\'s mobile site 404s on the API-keys page.';
+var TOMORROWIO_BUDGET_HINT = 'Only offer update intervals that fit the free plan. Turn off to pick any interval — over-budget calls are rejected by tomorrow.io until the limit resets, and the watch keeps its last data.';
 module.exports = {
     appName: 'WarnWeather',
     themeKey: 'configTheme',
@@ -163,21 +189,41 @@ module.exports = {
                 inline: 'sleepHours',
                 showWhen: {key: 'sleepNightEnabled', eq: true}
             }, {
-                type: 'radio',
+                type: 'select',
                 messageKey: 'provider',
                 label: 'Weather provider',
                 defaultValue: 'wunderground',
                 onChange: 'clearPollenForProvider',
-                hintByValue: {
-                    wunderground: 'Global · no API key needed.',
-                    openweathermap: 'Global · enter API key below.',
-                    dwd: 'Germany only · no API key needed.',
-                    openmeteo: 'Global · no API key needed.',
-                    metno: 'Nordics · the service behind yr.no · 2.5 km model · no API key needed.',
-                    yandex: 'Best in Russia/CIS · enter API key below.',
-                    tomorrowio: 'Global · hyperlocal nowcasts · enter free API key below.'
-                },
-                options: [['Weather Underground', 'wunderground'], ['OpenWeatherMap', 'openweathermap'], ['Deutscher Wetterdienst (Germany only)', 'dwd'], ['Open-Meteo', 'openmeteo'], ['Met.no (Nordics only)', 'metno'], ['Yandex Weather', 'yandex'], ['Tomorrow.io', 'tomorrowio']]
+                // Options are alphabetical by name. The 3rd tuple slot's desc is the short "what it's
+                // best at" tag shown under each name in the dropdown; the selected provider's fuller
+                // rationale reads out full-width below via the PROVIDER_WHY showWhen-gated staticTexts
+                // (no cramped inline hint — that's why there's no hintByValue here).
+                // Scope (Germany/Nordics) lives in the desc + the "why" note below, not the label —
+                // the label stays short so the collapsed trigger doesn't overlap the field label.
+                // DWD carries a `short` so the trigger reads "DWD" while the sheet keeps the full name.
+                options: [
+                    ['Deutscher Wetterdienst', 'dwd', {desc: 'Best in Germany · no key', short: 'DWD'}],
+                    ['Met.no', 'metno', {desc: 'Best in the Nordics (behind yr.no) · no key'}],
+                    ['Open-Meteo', 'openmeteo', {desc: 'Good automatic national model selection · no key'}],
+                    ['OpenWeatherMap', 'openweathermap', {desc: 'Popular general-purpose API, worldwide · needs a free key'}],
+                    ['Tomorrow.io', 'tomorrowio', {desc: 'Precise hyperlocal forecasts, worldwide · needs a free key'}],
+                    ['Weather Underground', 'wunderground', {desc: 'Crowd-sourced network of 250,000+ local stations · no key'}],
+                    ['Yandex Weather', 'yandex', {desc: 'Best across Russia & CIS · needs a free key'}]
+                ]
+            }, {
+                type: 'staticText', joinPrevious: true, text: PROVIDER_WHY.dwd, showWhen: {key: 'provider', eq: 'dwd'}
+            }, {
+                type: 'staticText', joinPrevious: true, text: PROVIDER_WHY.metno, showWhen: {key: 'provider', eq: 'metno'}
+            }, {
+                type: 'staticText', joinPrevious: true, text: PROVIDER_WHY.openmeteo, showWhen: {key: 'provider', eq: 'openmeteo'}
+            }, {
+                type: 'staticText', joinPrevious: true, text: PROVIDER_WHY.openweathermap, showWhen: {key: 'provider', eq: 'openweathermap'}
+            }, {
+                type: 'staticText', joinPrevious: true, text: PROVIDER_WHY.tomorrowio, showWhen: {key: 'provider', eq: 'tomorrowio'}
+            }, {
+                type: 'staticText', joinPrevious: true, text: PROVIDER_WHY.wunderground, showWhen: {key: 'provider', eq: 'wunderground'}
+            }, {
+                type: 'staticText', joinPrevious: true, text: PROVIDER_WHY.yandex, showWhen: {key: 'provider', eq: 'yandex'}
             }, {
                 type: 'text',
                 messageKey: 'owmApiKey',
@@ -186,7 +232,7 @@ module.exports = {
                 joinPrevious: true,
                 suffixAction: 'testOwmKey',
                 suffixLabel: 'Test',
-                hint: '<a href=\'https://openweathermap.org/\'>Register an OpenWeatherMap account</a> and paste your API key here, then Test it. The key must be subscribed to <a href=\'https://openweathermap.org/api/one-call-3\'>One Call API 3.0</a> (it has a free allowance) or fetches fail with a 401. Saving a changed key re-fetches automatically.',
+                hint: '<a href=\'https://openweathermap.org/\'>Register an OpenWeatherMap account</a> and paste your API key here, then Test it. The key must be subscribed to <a href=\'https://openweathermap.org/api/one-call-3\'>One Call API 3.0</a> (it has a free allowance) or fetches fail with a 401.',
                 showWhen: {key: 'provider', eq: 'openweathermap'}
             }, {
                 type: 'text',
@@ -194,9 +240,11 @@ module.exports = {
                 label: 'Yandex Weather API key',
                 defaultValue: '',
                 joinPrevious: true,
-                hint: 'Register a Yandex Weather API key at <a href=\'https://yandex.com/dev/weather/\'>yandex.com/dev/weather</a> and paste it here. Saving a changed key re-fetches automatically.',
+                hint: 'Register a Yandex Weather API key at <a href=\'https://yandex.com/dev/weather/\'>yandex.com/dev/weather</a> and paste it here.',
                 showWhen: {key: 'provider', eq: 'yandex'}
             }, {
+                // Shown here only when tomorrow.io is the WEATHER provider; when it's radar-only the
+                // same key + budget guard render in the Radar tab instead (see TOMORROWIO_RADAR_ONLY_WHEN).
                 type: 'text',
                 messageKey: 'tomorrowioApiKey',
                 label: 'Tomorrow.io API key',
@@ -204,17 +252,20 @@ module.exports = {
                 joinPrevious: true,
                 suffixAction: 'testTomorrowioKey',
                 suffixLabel: 'Test',
-                hint: '<a href=\'https://app.tomorrow.io/signup\'>Create a free tomorrow.io account</a> (no credit card needed), then copy your key from <a href=\'https://app.tomorrow.io/development/keys\'>Development &gt; API Keys</a> in the dashboard and paste it here, then Test it. The free plan is plenty — see the call budget below. Saving a changed key re-fetches automatically.',
-                showWhen: TOMORROWIO_WHEN
+                hint: TOMORROWIO_KEY_HINT,
+                showWhen: TOMORROWIO_WEATHER_WHEN
             }, {
                 type: 'toggle',
                 messageKey: 'tomorrowioFitBudget',
-                label: 'Fit update rate to budget',
+                label: 'Fit update interval to budget',
                 defaultValue: true,
                 joinPrevious: true,
-                blockBefore: 'tomorrowioBudget',
-                hint: 'Only offer update intervals that fit the free plan. Turn off to pick any interval — over-budget calls are rejected by tomorrow.io until the limit resets, and the watch keeps its last data.',
-                showWhen: TOMORROWIO_WHEN
+                // Budget calc renders AFTER the toggle (block, not blockBefore) so the toggle sits
+                // flush under the API key field as part of the tomorrow.io group, with its usage
+                // read-out directly beneath it — instead of the block wedging a divider between them.
+                block: 'tomorrowioBudget',
+                hint: TOMORROWIO_BUDGET_HINT,
+                showWhen: TOMORROWIO_WEATHER_WHEN
             }, {
                 type: 'select',
                 messageKey: 'aqiSource',
@@ -368,28 +419,67 @@ module.exports = {
                 messageKey: 'radarProvider',
                 label: 'Radar provider',
                 defaultValue: 'rainbow',
-                hintByValue: {
-                    dwd: 'Precise weather radar — rain at your exact spot and nearby (~2 km).',
-                    metno: 'Precise weather radar — rain at your exact spot.',
-                    rainbow: 'Model-based nowcast, works worldwide.',
-                    tomorrowio: 'Model-based nowcast, works worldwide. Uses the tomorrow.io API key from the General tab (it does nothing without one) and counts against the same call budget.'
-                },
                 // Rainbow is always offered. Builds without a proxy endpoint
                 // (dev/forks) still show it; selecting it there fails soft with
                 // the Task 2 warning. Production always sets RAINBOW_PROXY_ENDPOINT.
-                options: [['DWD (Germany only)', 'dwd'], ['Met.no (Nordics only)', 'metno'], ['Rainbow (Worldwide)', 'rainbow'], ['Tomorrow.io (Worldwide)', 'tomorrowio'], ['Off', 'disabled']],
-                blockBefore: 'radarPreview',
-                blockBeforeSticky: true,
+                // desc (3rd tuple slot) = the short "what it's best at" tag under each name in the
+                // dropdown, mirroring the weather picker. DWD/Met.no are real radar; Rainbow/Tomorrow.io
+                // are model nowcasts (Tomorrow.io is the precise, worldwide one). "Off" stays plain.
+                // The selected provider's fuller rationale reads out below via the RADAR_WHY
+                // showWhen-gated staticTexts (mirroring the weather picker).
+                // Scope lives in the desc + "why" note below, not the label (keeps the trigger short).
+                options: [
+                    ['DWD', 'dwd', {desc: 'Best radar in Germany · exact spot + nearby'}],
+                    ['Met.no', 'metno', {desc: 'Best radar in the Nordics · exact spot'}],
+                    ['Rainbow', 'rainbow', {desc: 'Global satellite + radar rain nowcast'}],
+                    ['Tomorrow.io', 'tomorrowio', {desc: 'Precise ML rain nowcast, worldwide · uses your key'}],
+                    ['Off', 'disabled']
+                ],
                 onChange: 'resetStatusRadar'
             }, {
-                type: 'staticText',
+                type: 'staticText', joinPrevious: true, text: RADAR_WHY.dwd, showWhen: {key: 'radarProvider', eq: 'dwd'}
+            }, {
+                type: 'staticText', joinPrevious: true, text: RADAR_WHY.metno, showWhen: {key: 'radarProvider', eq: 'metno'}
+            }, {
+                type: 'staticText', joinPrevious: true, text: RADAR_WHY.rainbow, showWhen: {key: 'radarProvider', eq: 'rainbow'}
+            }, {
+                type: 'staticText', joinPrevious: true, text: RADAR_WHY.tomorrowio, showWhen: {key: 'radarProvider', eq: 'tomorrowio'}
+            }, {
+                type: 'staticText', joinPrevious: true, text: RADAR_WHY.disabled, showWhen: {key: 'radarProvider', eq: 'disabled'}
+            }, {
+                // Tomorrow.io key + budget guard, radar-only: shown here (under the radar picker) when
+                // tomorrow.io drives the radar but is NOT the weather provider, so the key isn't orphaned
+                // in the weather section. Same messageKeys as the General-tab pair (mutually exclusive).
+                type: 'text',
+                messageKey: 'tomorrowioApiKey',
+                label: 'Tomorrow.io API key',
+                defaultValue: '',
                 joinPrevious: true,
+                suffixAction: 'testTomorrowioKey',
+                suffixLabel: 'Test',
+                hint: TOMORROWIO_KEY_HINT,
+                showWhen: TOMORROWIO_RADAR_ONLY_WHEN
+            }, {
+                type: 'toggle',
+                messageKey: 'tomorrowioFitBudget',
+                label: 'Fit update interval to budget',
+                defaultValue: true,
+                joinPrevious: true,
+                block: 'tomorrowioBudget',
+                hint: TOMORROWIO_BUDGET_HINT,
+                showWhen: TOMORROWIO_RADAR_ONLY_WHEN
+            }, {
+                // Radar preview now rides the bar-scale note (blockBefore), so it sits BELOW the picker
+                // instead of stickied above it; the note stands as separate info text beneath the preview
+                // (no joinPrevious). One of SCALE_NOTE (color) / BW_LEGEND (B/W) shows when radar is on.
+                type: 'staticText',
+                blockBefore: 'radarPreview',
                 text: SCALE_NOTE,
                 capabilities: ['COLOR'],
                 showWhen: {all: [{key: 'radarProvider', ne: 'disabled'}, {key: 'theme', nin: ['bw', 'bw-light']}]}
             }, {
                 type: 'staticText',
-                joinPrevious: true,
+                blockBefore: 'radarPreview',
                 text: BW_LEGEND,
                 showWhen: {all: [
                     {not: {all: [{env: 'color'}, {key: 'theme', nin: ['bw', 'bw-light']}]}},
