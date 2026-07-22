@@ -41,6 +41,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (
             ctx.get('provider') !== ctx.getInitial('provider') ||
             ctx.get('owmApiKey') !== ctx.getInitial('owmApiKey') ||
+            ctx.get('yandexApiKey') !== ctx.getInitial('yandexApiKey') ||
             ctx.get('location') !== ctx.getInitial('location')
         ) {
             ctx.set('fetch', true);

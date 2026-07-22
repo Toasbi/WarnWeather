@@ -170,9 +170,10 @@ module.exports = {
                     openweathermap: 'Global · enter API key below.',
                     dwd: 'Germany only · no API key needed.',
                     openmeteo: 'Global · no API key needed.',
-                    metno: 'Nordics · the service behind yr.no · 2.5 km model · no API key needed.'
+                    metno: 'Nordics · the service behind yr.no · 2.5 km model · no API key needed.',
+                    yandex: 'Best in Russia/CIS · enter API key below.'
                 },
-                options: [['Weather Underground', 'wunderground'], ['OpenWeatherMap', 'openweathermap'], ['Deutscher Wetterdienst (Germany only)', 'dwd'], ['Open-Meteo', 'openmeteo'], ['Met.no (Nordics only)', 'metno']]
+                options: [['Weather Underground', 'wunderground'], ['OpenWeatherMap', 'openweathermap'], ['Deutscher Wetterdienst (Germany only)', 'dwd'], ['Open-Meteo', 'openmeteo'], ['Met.no (Nordics only)', 'metno'], ['Yandex Weather', 'yandex']]
             }, {
                 type: 'text',
                 messageKey: 'owmApiKey',
@@ -183,6 +184,14 @@ module.exports = {
                 suffixLabel: 'Test',
                 hint: '<a href=\'https://openweathermap.org/\'>Register an OpenWeatherMap account</a> and paste your API key here, then Test it. The key must be subscribed to <a href=\'https://openweathermap.org/api/one-call-3\'>One Call API 3.0</a> (it has a free allowance) or fetches fail with a 401. Saving a changed key re-fetches automatically.',
                 showWhen: {key: 'provider', eq: 'openweathermap'}
+            }, {
+                type: 'text',
+                messageKey: 'yandexApiKey',
+                label: 'Yandex Weather API key',
+                defaultValue: '',
+                joinPrevious: true,
+                hint: 'Register a Yandex Weather API key at <a href=\'https://yandex.com/dev/weather/\'>yandex.com/dev/weather</a> and paste it here. Saving a changed key re-fetches automatically.',
+                showWhen: {key: 'provider', eq: 'yandex'}
             }, {
                 type: 'select',
                 messageKey: 'aqiSource',
