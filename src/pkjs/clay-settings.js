@@ -72,7 +72,7 @@ function hasStored() {
 /**
  * Build the full Clay settings defaults needed to send a complete config payload.
  *
- * @param {{white: number, folly: number}} colors Default color constants.
+ * @param {{white: number, folly: number, holiday: number}} colors Default color constants.
  * @returns {Object} Default Clay-compatible settings.
  */
 function getDefaults(colors) {
@@ -80,7 +80,9 @@ function getDefaults(colors) {
     d.colorTime = colors.white;
     d.colorSunday = colors.folly;
     d.colorSaturday = colors.folly;
-    d.colorUSFederal = colors.folly;
+    // Holiday highlight is intentionally decoupled from the weekend accent:
+    // weekends stay Folly (red), holidays default to Blue Moon.
+    d.colorUSFederal = colors.holiday;
     return d;
 }
 
@@ -89,7 +91,7 @@ function getDefaults(colors) {
  * Clay only considers `defaultValue` on first startup, but we need defaults
  * set even if the user has not made a custom config.
  *
- * @param {{white: number, folly: number}} colors Default color constants.
+ * @param {{white: number, folly: number, holiday: number}} colors Default color constants.
  * @returns {void}
  */
 function seedDefaults(colors) {
@@ -152,7 +154,7 @@ function loadForMigration(isMigrationDone, label) {
  * Move existing installs from the old all-white weekend/holiday defaults to the
  * current highlighted default while preserving any customized color set.
  *
- * @param {{white: number, folly: number}} colors Default color constants.
+ * @param {{white: number, folly: number, holiday: number}} colors Default color constants.
  * @param {Function} isMigrationDone Returns true when the migration marker is set.
  * @param {Function} markDone Records the migration as complete.
  * @returns {boolean} True when the migrated settings should be sent to the watch.
@@ -171,16 +173,16 @@ function migrateWeekendHolidayColors(colors, isMigrationDone, markDone) {
     ) {
         persistClay.colorSunday = colors.folly;
         persistClay.colorSaturday = colors.folly;
-        persistClay.colorUSFederal = colors.folly;
+        persistClay.colorUSFederal = colors.holiday;
         save(persistClay);
-        console.log('Migrated weekend/holiday color defaults to Folly');
+        console.log('Migrated weekend/holiday color defaults to Folly/Blue Moon');
         return true;
     }
 
     if (
         persistClay.colorSunday === colors.folly &&
         persistClay.colorSaturday === colors.folly &&
-        persistClay.colorUSFederal === colors.folly
+        persistClay.colorUSFederal === colors.holiday
     ) {
         return true;
     }
@@ -197,7 +199,7 @@ function migrateWeekendHolidayColors(colors, isMigrationDone, markDone) {
  * Preserve that intent (holidaysEnabled = false) and reset the color to a
  * valid default for when they re-enable.
  *
- * @param {{white: number, folly: number}} colors Default color constants.
+ * @param {{white: number, folly: number, holiday: number}} colors Default color constants.
  * @param {Function} isMigrationDone Returns true when the migration marker is set.
  * @param {Function} markDone Records the migration as complete.
  * @returns {boolean} True when the migrated settings should be sent to the watch.
@@ -211,7 +213,7 @@ function migrateHolidayWhiteToToggle(colors, isMigrationDone, markDone) {
 
     if (persistClay.colorUSFederal === colors.white) {
         persistClay.holidaysEnabled = false;
-        persistClay.colorUSFederal = colors.folly;
+        persistClay.colorUSFederal = colors.holiday;
         save(persistClay);
         console.log('Migrated white holiday color to Holiday highlight toggle off');
         return true;

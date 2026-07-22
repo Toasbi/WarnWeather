@@ -661,7 +661,7 @@ module.exports = {
                 type: 'color',
                 messageKey: 'colorUSFederal',
                 label: 'Holiday color',
-                defaultValue: 0xFF0055,
+                defaultValue: 0x0055FF,
                 capabilities: ['COLOR'],
                 // White is the "no highlight" appearance in dark; the holidaysEnabled
                 // toggle owns on/off instead of a special color.
@@ -672,7 +672,7 @@ module.exports = {
                 type: 'color',
                 messageKey: 'colorUSFederal',
                 label: 'Holiday color',
-                defaultValue: 0xFF0055,
+                defaultValue: 0x0055FF,
                 capabilities: ['COLOR'],
                 // Black is the "no highlight" appearance in the light theme instead.
                 excludeColors: ['#000000'],

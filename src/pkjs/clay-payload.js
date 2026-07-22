@@ -10,6 +10,8 @@ var resolveInk = require('./resolve-ink.js').resolveInk;
 
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
 var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
+// Holiday highlight defaults to Blue Moon (weekends stay Folly/red).
+var DEFAULT_COLOR_BLUE_MOON = pebbleColors.GColorBlueMoon;
 
 /**
  * Build the Clay settings AppMessage payload.
@@ -57,7 +59,7 @@ function buildClayPayload(settings, watchInfo, now) {
         "CLAY_SHOW_AM_PM": settings.timeShowAmPm,
         "CLAY_COLOR_SUNDAY": settings.hasOwnProperty('colorSunday') ? settings.colorSunday : DEFAULT_COLOR_FOLLY,
         "CLAY_COLOR_SATURDAY": settings.hasOwnProperty('colorSaturday') ? settings.colorSaturday : DEFAULT_COLOR_FOLLY,
-        "CLAY_COLOR_US_FEDERAL": settings.hasOwnProperty('colorUSFederal') ? settings.colorUSFederal : DEFAULT_COLOR_FOLLY,
+        "CLAY_COLOR_US_FEDERAL": settings.hasOwnProperty('colorUSFederal') ? settings.colorUSFederal : DEFAULT_COLOR_BLUE_MOON,
         "HOLIDAYS": (function() {
             var country = settings.hasOwnProperty('holidayCountry') ? settings.holidayCountry : 'US';
             var region = settings.holidayRegion || 'all';

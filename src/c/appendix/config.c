@@ -31,7 +31,7 @@ static Config config_defaults(void) {
         .color_today = GColorBlack,
         .color_saturday = GColorFolly,
         .color_sunday = GColorFolly,
-        .color_us_federal = GColorFolly,
+        .color_us_federal = GColorBlueMoon,
         .color_time = GColorWhite,
         .day_night_shading = true,
         .health_mode = HEALTH_OFF,

@@ -14,7 +14,7 @@ function installFakeStorage() {
   return store;
 }
 
-const COLORS = { white: 0xFFFFFF, folly: 0xFF0055 };
+const COLORS = { white: 0xFFFFFF, folly: 0xFF0055, holiday: 0x0055FF };
 
 test('seedDefaults writes defaults when none stored', () => {
   installFakeStorage();
@@ -110,7 +110,7 @@ function makeMarker() {
   };
 }
 
-test('migrateHolidayWhiteToToggle: white holiday color -> toggle off + color reset to folly', () => {
+test('migrateHolidayWhiteToToggle: white holiday color -> toggle off + color reset to the holiday default', () => {
   const store = installFakeStorage();
   delete require.cache[require.resolve('../src/pkjs/clay-settings')];
   const claySettings = require('../src/pkjs/clay-settings');
@@ -119,7 +119,7 @@ test('migrateHolidayWhiteToToggle: white holiday color -> toggle off + color res
   const sent = claySettings.migrateHolidayWhiteToToggle(COLORS, m.isDone, m.mark);
   const read = claySettings.read();
   assert.equal(read.holidaysEnabled, false, 'white = old "off" must become toggle off');
-  assert.equal(read.colorUSFederal, COLORS.folly, 'white color must reset to a valid default');
+  assert.equal(read.colorUSFederal, COLORS.holiday, 'white color must reset to the holiday default (Blue Moon)');
   assert.equal(sent, true, 'migrated settings should be resent to the watch');
 });
 

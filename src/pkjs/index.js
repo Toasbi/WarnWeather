@@ -81,9 +81,12 @@ var KEY_STATUS_TOP_RIGHT_BATTERY_MIGRATION = 'v1.8.0_status_top_right_battery_mi
 var KEY_LAST_IS_SLEEPING = storageKeys.LAST_IS_SLEEPING_KEY;
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
 var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
+var DEFAULT_COLOR_BLUE_MOON = pebbleColors.GColorBlueMoon;
 // Default weekend/holiday color constants, passed to seedDefaults and the two
 // color migrations; hoisted so the literal isn't rebuilt at each call site.
-var DEFAULT_HOLIDAY_COLORS = { white: DEFAULT_COLOR_WHITE, folly: DEFAULT_COLOR_FOLLY };
+// Weekends (Sat/Sun) default to Folly (red); the holiday highlight defaults to
+// Blue Moon so it reads as distinct from the weekend accent.
+var DEFAULT_HOLIDAY_COLORS = { white: DEFAULT_COLOR_WHITE, folly: DEFAULT_COLOR_FOLLY, holiday: DEFAULT_COLOR_BLUE_MOON };
 
 app.fetchInProgress = false;
 
