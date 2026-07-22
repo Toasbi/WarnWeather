@@ -72,8 +72,8 @@ Two things that both involve rain over time, but answer different questions:
   Instead of a map it's drawn as bars: the provider's radar images for the next 2 hours are
   sampled at your location, and each 5-minute frame becomes one bar whose height is the rain
   amount — solid bars are rain at your exact spot; with DWD, the hatched outline behind
-  them is the strongest rain within 2 km. Available from DWD (Germany), Met.no (Nordics) and Rainbow.ai
-  (worldwide, exact location only). Good for *"is it about to rain on me right now?"*
+  them is the strongest rain within 2 km. Available from DWD (Germany), Met.no (Nordics), Rainbow.ai
+  (worldwide, exact location only) and Tomorrow.io (worldwide, needs a free API key). Good for *"is it about to rain on me right now?"*
 
 ## Platforms
 
