@@ -174,6 +174,27 @@ static void quick_view_on_change(void) {
 }
 #endif
 
+#if defined(PBL_HEALTH)
+// health_cache repaint hook. Fires for the loading frame, a rollover's
+// paint-first, and a sliced build's completion. The graph always repaints; once
+// the cache is ready, also recompute the summary and repaint any status row
+// carrying LIVE health slots — otherwise a finished build (fresh install,
+// stale restore) leaves the rows holding boot-primed values until the next
+// minute tick. Same read set as the minute handler's inline refresh, so it is
+// safe on the timer callback path.
+static void health_cache_repaint(void) {
+    health_graph_layer_refresh();
+    if (!health_cache_ready()) { return; }   // loading frame: no new data for the rows
+    if (health_summary_refresh()) {
+        ViewSpec spec = current_view_spec();
+        LayerVisibility v = layout_visibility(&spec);
+        if (v.health_status) { health_status_layer_refresh(); }
+        if (weather_status_layer_uses_live_health()) { weather_status_layer_refresh(); }
+        if (top_status_layer_uses_live_health()) { top_status_layer_refresh(); }
+    }
+}
+#endif
+
 #if defined(WW_VIEW_CYCLE)
 static void tap_handler(AccelAxisType axis, int32_t direction) {
     // accel_tap_service fires per-axis, so one physical tap commonly delivers
@@ -277,8 +298,9 @@ static void main_window_load(Window *window) {
 #endif
     render_active_view();
 #if defined(PBL_HEALTH)
-    // Repaint the health view when a deferred build finishes.
-    health_cache_set_repaint(health_graph_layer_refresh);
+    // Repaint the health view — graph AND any live-health status rows — when a
+    // deferred build finishes (see health_cache_repaint above).
+    health_cache_set_repaint(health_cache_repaint);
     // Warm the cache at boot when health is enabled — restoring a fresh-enough
     // snapshot if we have one, so the graph doesn't reshow "Loading health data"
     // for a relaunch that changed little; otherwise a full build, as before.
