@@ -60,6 +60,10 @@ function getFixtureWeatherPayload(fixture, settings, watchInfo) {
     // or an explicit array. Absent -> [] and the slot renders '--'.
     provider.aqiTrend = (typeof weather.aqi === 'number') ? [weather.aqi]
         : (Array.isArray(weather.aqi) ? weather.aqi.slice(0) : []);
+    // Pollen is a status-slot value, not a forecast line: accept the fixture's
+    // native DWD display string (weather.pollen, e.g. '1-2'), or leave null so
+    // the slot renders '--'.
+    provider.pollenToday = (typeof weather.pollen === 'string') ? weather.pollen : null;
     provider.sunEvents = sunEvents;
 
     if (provider.numEntries <= 0 || sunEvents.length < 2 || !provider.hasValidData()) {

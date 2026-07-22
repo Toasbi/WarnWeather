@@ -51,6 +51,124 @@ test('light / bw-light theme segments force colorTime black', () => {
   assert.strictEqual(byName['reel-theme-bwlight'].claySettings.colorTime, '#000000');
 });
 
+test('theme-bwlight and status-3 bake pollen data; other segments leave it unset', () => {
+  const byName = generateIntoTmp();
+  assert.strictEqual(byName['reel-theme-bwlight'].weather.pollen, '1-2');
+  assert.strictEqual(byName['reel-status-3'].weather.pollen, '1-2');
+  assert.strictEqual(byName['reel-theme-bwlight'].claySettings.radarProvider, 'dwd',
+    'bw-light pollen slot needs the DWD provider, like status-3');
+  assert.strictEqual(byName['reel-theme-dark'].weather.pollen, undefined,
+    'a theme without a pollen slot should not carry baked pollen data');
+});
+
+test('status-4 bakes pollen data alongside its health row', () => {
+  const byName = generateIntoTmp();
+  assert.strictEqual(byName['reel-status-4'].weather.pollen, '1-2');
+  assert.strictEqual(byName['reel-status-4'].claySettings.radarProvider, 'dwd');
+  assert.strictEqual(byName['reel-status-4'].claySettings.statusTopLeft, 'uv');
+  assert.strictEqual(byName['reel-status-4'].claySettings.statusTopMid, 'pollen');
+});
+
+test('theme sweep order is dark -> light -> bw -> bw-light; dark/light are compact, bw/bw-light progress denser/full', () => {
+  const themeIds = reel.SEGMENTS.filter((s) => s.group === 'theme').map((s) => s.id);
+  assert.deepStrictEqual(themeIds, ['theme-dark', 'theme-light', 'theme-bw', 'theme-bwlight']);
+  const byName = generateIntoTmp();
+  assert.strictEqual(byName['reel-theme-dark'].claySettings.layoutPreset, 'compactCal');
+  assert.strictEqual(byName['reel-theme-light'].claySettings.layoutPreset, 'compactCal');
+  assert.strictEqual(byName['reel-theme-bw'].claySettings.layoutPreset, 'compactDense');
+  assert.strictEqual(byName['reel-theme-bwlight'].claySettings.layoutPreset, 'fullCal');
+});
+
+test('each chapter pins one timeFont for the whole chapter (intro previews all three)', () => {
+  const byName = generateIntoTmp();
+  for (const seg of reel.SEGMENTS.filter((s) => s.group === 'graph')) {
+    assert.strictEqual(byName['reel-' + seg.id].claySettings.timeFont, 'leco', seg.id);
+  }
+  for (const seg of reel.SEGMENTS.filter((s) => s.group === 'theme')) {
+    assert.strictEqual(byName['reel-' + seg.id].claySettings.timeFont, 'bitham', seg.id);
+  }
+  for (const seg of reel.SEGMENTS.filter((s) => s.group === 'status')) {
+    assert.strictEqual(byName['reel-' + seg.id].claySettings.timeFont, 'roboto', seg.id);
+  }
+});
+
+test('graph-1 shows gust as a third (dotted) line alongside its new forecast/top slots', () => {
+  const byName = generateIntoTmp();
+  const clay = byName['reel-graph-1'].claySettings;
+  assert.strictEqual(clay.thirdLine, 'gust');
+  assert.strictEqual(clay.statusForecastRight, 'uv');
+  assert.strictEqual(clay.statusTopLeft, 'aqi');
+  assert.strictEqual(clay.statusTopRight, 'battery');
+});
+
+test('graph-3: aplite has no health, so its top-right slot falls back to a weather metric', () => {
+  const byName = generateIntoTmp();
+  assert.strictEqual(byName['reel-graph-3'].claySettings.statusTopRight, 'steps');
+  assert.strictEqual(byName['reel-graph-3-aplite'].claySettings.statusTopRight, 'wind');
+});
+
+test('graph-3: UV secondary line has no fill (overrides the base fixture default)', () => {
+  const byName = generateIntoTmp();
+  assert.strictEqual(byName['reel-graph-3'].claySettings.secondaryLineFill, false);
+});
+
+test('any segment carrying a LIVE health slot value pins healthMode so the summary cache ticks', () => {
+  // health_mode 'off' never refreshes health_summary (main_window.c minute_handler), so a
+  // live health slot (steps/sleep/hr/distance) placed anywhere while off renders blank/zero.
+  const byName = generateIntoTmp();
+  for (const id of ['reel-graph-3', 'reel-status-2', 'reel-status-3', 'reel-status-5']) {
+    assert.notStrictEqual(byName[id].claySettings.healthMode, 'off', id);
+  }
+});
+
+test('graph-5: emery-only top strip shows distance/empty/hr; base health-graph frame is untouched', () => {
+  const byName = generateIntoTmp();
+  const emery = byName['reel-graph-5-emery'].claySettings;
+  assert.strictEqual(emery.statusTopLeft, 'distance');
+  assert.strictEqual(emery.statusTopMid, 'empty');
+  assert.strictEqual(emery.statusTopRight, 'hr');
+  assert.strictEqual(byName['reel-graph-5'].claySettings.statusTopLeft, undefined);
+});
+
+test('status-1/2/3 use solid rain bars; status-3 also enables the bluetooth icon', () => {
+  const byName = generateIntoTmp();
+  assert.strictEqual(byName['reel-status-1'].claySettings.rainBarColor, 'solid');
+  assert.strictEqual(byName['reel-status-2'].claySettings.rainBarColor, 'solid');
+  assert.strictEqual(byName['reel-status-3'].claySettings.rainBarColor, 'solid');
+  assert.strictEqual(byName['reel-status-3'].claySettings.btIcons, 'connected');
+});
+
+test('status-1 top-right slot is battery', () => {
+  const byName = generateIntoTmp();
+  assert.strictEqual(byName['reel-status-1'].claySettings.statusTopRight, 'battery');
+});
+
+test('status-5 is compact mode; emery shows uv/date, non-emery leaves the mid slot empty', () => {
+  const byName = generateIntoTmp();
+  assert.strictEqual(byName['reel-status-5'].claySettings.layoutPreset, 'compactCal');
+  assert.strictEqual(byName['reel-status-5'].claySettings.statusTopLeft, 'distance');
+  assert.strictEqual(byName['reel-status-5'].claySettings.statusTopMid, 'empty');
+  assert.strictEqual(byName['reel-status-5-aplite'].claySettings.statusTopMid, 'empty');
+  assert.strictEqual(byName['reel-status-5-emery'].claySettings.statusTopLeft, 'uv');
+  assert.strictEqual(byName['reel-status-5-emery'].claySettings.statusTopMid, 'date');
+});
+
+test('status-2/3/5: heart rate only on emery; basalt/flint and aplite fall back off HR', () => {
+  const byName = generateIntoTmp();
+  assert.strictEqual(byName['reel-status-2'].claySettings.statusTopRight, 'sleep');
+  assert.strictEqual(byName['reel-status-2-emery'].claySettings.statusTopRight, 'hr');
+  assert.strictEqual(byName['reel-status-2-aplite'].claySettings.statusTopRight, 'battery');
+  assert.strictEqual(byName['reel-status-2-aplite'].claySettings.statusTopLeft, 'wind',
+    'aplite has no health -> steps is replaced too');
+
+  assert.strictEqual(byName['reel-status-3'].claySettings.statusTopRight, 'sleep');
+  assert.strictEqual(byName['reel-status-3-emery'].claySettings.statusTopRight, 'hr');
+  assert.strictEqual(byName['reel-status-3-aplite'].claySettings.statusTopRight, 'battery');
+
+  assert.strictEqual(byName['reel-status-5'].claySettings.statusForecastRight, 'wind');
+  assert.strictEqual(byName['reel-status-5-emery'].claySettings.statusForecastRight, 'hr');
+});
+
 test('fixture slugs are valid FIXTURE slugs', () => {
   for (const seg of reel.SEGMENTS) {
     assert.match(reel.fixtureFor(seg, 'emery'), /^[a-z0-9][a-z0-9-]*$/, seg.id);
@@ -92,4 +210,8 @@ test('manifest holds/fades come from TIMING by kind/group', () => {
   assert.strictEqual(intro.hold, reel.TIMING.intro.hold);
   assert.strictEqual(card.hold, reel.TIMING.card.hold);
   assert.strictEqual(chapter.hold, reel.TIMING.chapter.hold);
+});
+
+test('every screenshot (intro scenes + chapter frames) holds for the same length', () => {
+  assert.strictEqual(reel.TIMING.chapter.hold, reel.TIMING.intro.hold);
 });
