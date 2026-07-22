@@ -177,7 +177,20 @@ static void format_live_value(const StatusRow *row, uint8_t kind, char *buf, siz
             int steps = health_summary_steps();
             if (steps < 0) { steps = 0; }
             if (steps > 999999) { steps = 999999; }
-            snprintf(buf, cap, "%d", steps);
+            if (steps < 1000) {
+                snprintf(buf, cap, "%d", steps);
+            } else {
+                // Abbreviate to thousands with one decimal (integer math, no
+                // float): 1150 -> "1.1k", 12345 -> "12.3k". Whole thousands drop
+                // the ".0" ("5k"), matching the graph's step_mark_label. Truncates
+                // rather than rounds so a live count never overstates progress.
+                int tk = steps / 100;          // tenths of a thousand (max 9999)
+                if (tk % 10 == 0) {
+                    snprintf(buf, cap, "%dk", tk / 10);
+                } else {
+                    snprintf(buf, cap, "%d.%dk", tk / 10, tk % 10);
+                }
+            }
             return;
         }
         case SLOT_LIVE_SLEEP: {
