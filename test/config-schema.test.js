@@ -116,7 +116,19 @@ test('health tab is gated to health-capable platforms, with a 3-state mode radio
   const mode = byKey('healthMode');
   assert.equal(mode.type, 'radio');
   assert.equal(mode.defaultValue, 'all');
-  assert.deepEqual(mode.options.map((o) => o[1]), ['off', 'status', 'all']);
+  assert.deepEqual(mode.options.map((o) => o[1]), ['off', 'slot', 'status', 'all']);
+  assert.equal(mode.options[1][0], 'Status slots only');
+});
+
+test("Health Status Bar slots show only when a dedicated Health view is enabled", () => {
+  const env = { env: { health: true } };
+  ['statusHealthLeft', 'statusHealthMid', 'statusHealthRight'].forEach((k) => {
+    const item = byKey(k);
+    assert.equal(showWhen.isVisible(item, Object.assign({ healthMode: 'status' }, env)), true, k + ' visible for status');
+    assert.equal(showWhen.isVisible(item, Object.assign({ healthMode: 'all' }, env)), true, k + ' visible for all');
+    assert.equal(showWhen.isVisible(item, Object.assign({ healthMode: 'slot' }, env)), false, k + ' hidden for slot');
+    assert.equal(showWhen.isVisible(item, Object.assign({ healthMode: 'off' }, env)), false, k + ' hidden for off');
+  });
 });
 
 test('radar tab is gated to radar-capable platforms', () => {
@@ -667,7 +679,7 @@ test('radar and health status-line slots hide when the feature is off or the pla
   ['statusRadarLeft', 'statusRadarMid', 'statusRadarRight'].forEach((k) =>
     assert.deepEqual(byKey(k).showWhen, {all: [{env: 'radar'}, {key: 'radarProvider', ne: 'disabled'}]}, k));
   ['statusHealthLeft', 'statusHealthMid', 'statusHealthRight'].forEach((k) =>
-    assert.deepEqual(byKey(k).showWhen, {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}]}, k));
+    assert.deepEqual(byKey(k).showWhen, {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]}, k));
 });
 
 test('the radar rain-horizon control is labelled "Rain Alert"', () => {

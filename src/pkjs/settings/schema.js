@@ -409,10 +409,11 @@ module.exports = {
                 defaultValue: 'all',
                 hintByValue: {
                     off: 'Health is hidden.',
+                    slot: 'Lets you put health items (steps, sleep, heart rate, walked distance) in any status bar, without adding a separate Health view.',
                     status: 'Adds the Health Status Bar — today\'s steps, last night\'s sleep, and current heart rate. Heart rate needs a watch with a heart-rate sensor.',
                     all: 'Also adds a health graph (hourly step bars, a sleep band, and a heart-rate line). Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
                 },
-                options: [['Off', 'off'], ['Status bar', 'status'], ['Status + Graph (ALPHA)', 'all']],
+                options: [['Off', 'off'], ['Status slots only', 'slot'], ['Status bar', 'status'], ['Status + Graph (ALPHA)', 'all']],
                 onChange: 'resetStatusHealth'
             }]
         }]
@@ -494,7 +495,7 @@ module.exports = {
                 {
                     type: 'select', messageKey: 'statusHealthLeft', label: 'Left slot',
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusHealthLeft'}},
-                    showWhen: {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}]},
+                    showWhen: {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]},
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusHealthLeft', position: 'left'}}
@@ -502,7 +503,7 @@ module.exports = {
                 {
                     type: 'select', messageKey: 'statusHealthMid', label: 'Middle slot',
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusHealthMid'}}, joinPrevious: true,
-                    showWhen: {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}]},
+                    showWhen: {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]},
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusHealthMid', position: 'mid'}}
@@ -510,7 +511,7 @@ module.exports = {
                 {
                     type: 'select', messageKey: 'statusHealthRight', label: 'Right slot',
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusHealthRight'}}, joinPrevious: true,
-                    showWhen: {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}]},
+                    showWhen: {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]},
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusHealthRight', position: 'right'}}
@@ -697,6 +698,11 @@ module.exports = {
                 // modes so toggling health doesn't reshuffle the list.
                 optionsFrom: { byKey: 'healthMode', map: {
                     off: [
+                        ['Full calendar', 'fullCal'],
+                        ['Compact calendar', 'compactCal'],
+                        ['No calendar', 'noCal']
+                    ],
+                    slot: [
                         ['Full calendar', 'fullCal'],
                         ['Compact calendar', 'compactCal'],
                         ['No calendar', 'noCal']
