@@ -161,7 +161,7 @@ function createChannelScheduler(deps) {
     /**
      * Handle a config-webview close: send Clay, then (when forceFetch) chain a
      * deferred force-fetch into both callbacks, or (when clearNotice, and no
-     * force-fetch) push the overlay clear from inside the Clay-send callback.
+     * force-fetch) chain a deferred overlay clear into both callbacks.
      *
      * @param {{forceFetch: boolean, clearNotice: boolean=}} opts Config-close options.
      * @returns {void}
@@ -171,10 +171,13 @@ function createChannelScheduler(deps) {
         if (opts.forceFetch) {
             afterClay = scheduleConfigCloseFetch;
         } else if (opts.clearNotice && deps.clearNoticeOnWatch) {
-            // "Understood" with no refetch: push the overlay clear from inside the
-            // Clay-send callback so it never rides the channel back-to-back with
-            // the Clay message.
-            afterClay = function () { deps.clearNoticeOnWatch(); };
+            // Push the overlay clear one tick out, inside the Clay-send callback:
+            // the AppMessage channel is briefly unavailable during webview teardown,
+            // so (like scheduleConfigCloseFetch) being in the callback is necessary
+            // but not sufficient — the setTimeout(0) clears the teardown window.
+            afterClay = function () {
+                deps.setTimeout(function () { deps.clearNoticeOnWatch(); }, 0);
+            };
         }
         deps.sendClay(afterClay, afterClay);
     }

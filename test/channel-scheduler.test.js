@@ -24,7 +24,8 @@ function makeHarness() {
     var calls = {
         sendClay: [], startFetch: [],
         refreshHolidays: 0, checkForUpdate: 0,
-        clearClayCache: 0, clearWeatherCaches: 0
+        clearClayCache: 0, clearWeatherCaches: 0,
+        clearNoticeOnWatch: 0
     };
     var deps = {
         sendClay: function (onSuccess, onFailure) {
@@ -36,6 +37,7 @@ function makeHarness() {
         checkForUpdate: function () { calls.checkForUpdate++; },
         clearClayCache: function () { calls.clearClayCache++; },
         clearWeatherCaches: function () { calls.clearWeatherCaches++; },
+        clearNoticeOnWatch: function () { calls.clearNoticeOnWatch++; },
         setTimeout: function (fn, ms) { timers.push({ fn: fn, ms: ms }); return timers.length; },
         now: function () { return clock.value; }
     };
@@ -169,6 +171,74 @@ test('scenario 6b: config close without forceFetch -> Clay sent, no fetch ever',
     h.ackClay();
     assert.equal(h.timers.length, 0, 'no deferred fetch scheduled');
     assert.equal(h.calls.startFetch.length, 0, 'no fetch');
+});
+
+test('scenario 6c: config close with clearNotice, no force -> Clay sent, clear deferred via setTimeout(0)', function () {
+    resetStore();
+    var h = makeHarness();
+    h.scheduler.onConfigClosed({ forceFetch: false, clearNotice: true });
+    assert.equal(h.calls.sendClay.length, 1, 'exactly one Clay sent');
+    assert.equal(h.calls.clearNoticeOnWatch, 0, 'no synchronous clear');
+
+    h.ackClay();
+    assert.equal(h.calls.clearNoticeOnWatch, 0, 'still no synchronous clear inside the ACK callback');
+    assert.equal(h.timers.length, 1, 'ACK callback schedules a deferred clear');
+    assert.equal(h.timers[0].ms, 0, 'deferred with setTimeout(..., 0) to clear the webview teardown');
+
+    h.flushTimers();
+    assert.equal(h.calls.clearNoticeOnWatch, 1, 'deferred clear fires after the timer');
+    assert.equal(h.calls.startFetch.length, 0, 'clearNotice path never fetches');
+});
+
+test('scenario 6d: config close with forceFetch AND clearNotice -> forceFetch wins, clear never runs', function () {
+    resetStore();
+    var h = makeHarness();
+    h.scheduler.onConfigClosed({ forceFetch: true, clearNotice: true });
+    h.ackClay();
+    h.flushTimers();
+    assert.equal(h.calls.startFetch.length, 1, 'forced fetch fired once');
+    assert.equal(h.calls.startFetch[0], true, 'fetch is forced');
+    assert.equal(h.calls.clearNoticeOnWatch, 0, 'else-if means clearNotice never runs when forceFetch is set');
+});
+
+test('scenario 6e: config close with neither forceFetch nor clearNotice -> unchanged legacy behavior', function () {
+    resetStore();
+    var h = makeHarness();
+    h.scheduler.onConfigClosed({ forceFetch: false, clearNotice: false });
+    h.ackClay();
+    h.flushTimers();
+    assert.equal(h.calls.startFetch.length, 0, 'no fetch');
+    assert.equal(h.calls.clearNoticeOnWatch, 0, 'no clear');
+});
+
+test('scenario 6f: clearNotice with no clearNoticeOnWatch dep -> does not throw', function () {
+    resetStore();
+    var timers = [];
+    var deps = {
+        sendClay: function (onSuccess, onFailure) {
+            deps._last = { onSuccess: onSuccess, onFailure: onFailure };
+        },
+        startFetch: function () {},
+        shouldFetchNow: function () { return false; },
+        refreshHolidays: function () {},
+        checkForUpdate: function () {},
+        clearClayCache: function () {},
+        clearWeatherCaches: function () {},
+        // clearNoticeOnWatch intentionally omitted
+        setTimeout: function (fn, ms) { timers.push({ fn: fn, ms: ms }); },
+        now: function () { return new Date(2026, 6, 7, 12, 0, 0); }
+    };
+    var scheduler = createChannelScheduler(deps);
+    assert.doesNotThrow(function () {
+        scheduler.onConfigClosed({ clearNotice: true });
+        // Guard, like sendClay's real caller would: without the dep, onConfigClosed
+        // passes sendClay an undefined afterClay (the else-if never matches).
+        if (typeof deps._last.onSuccess === 'function') {
+            deps._last.onSuccess();
+        }
+        var pending = timers.splice(0, timers.length);
+        pending.forEach(function (t) { t.fn(); });
+    });
 });
 
 test('scenario 5: startup Clay stamps today; first tick suppresses resend; a rollover resends once', function () {
