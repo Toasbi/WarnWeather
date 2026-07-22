@@ -20,6 +20,7 @@ enum HealthMode {
     HEALTH_OFF = 0,     // health view off (default)
     HEALTH_STATUS = 1,  // flick swaps only the bottom status line to health
     HEALTH_ALL = 2,     // flick also swaps the forecast graph to the health graph (beta)
+    HEALTH_SLOT = 3,    // health selectable in the regular status bars; no dedicated Health view
 };
 
 // Legacy per-slot content enum, superseded by the packed ViewSpec wire byte (decoded
