@@ -20,7 +20,7 @@ MockXhr.prototype.setRequestHeader = function(name, value) {
   this.setAfterOpen = Boolean(this.opened);
   this.headers[name] = value;
 };
-MockXhr.prototype.send = function() { this.sent = true; };
+MockXhr.prototype.send = function(body) { this.sent = true; this.body = body; };
 
 global.XMLHttpRequest = MockXhr;
 const WeatherProvider = require('../src/pkjs/weather/provider.js');
@@ -62,4 +62,22 @@ test('onload success routing still works with headers present', () => {
   xhr.responseText = 'body';
   xhr.onload();
   assert.equal(got, 'body');
+});
+
+test('request forwards a POST body to send()', () => {
+  MockXhr.throwOn = {};
+  WeatherProvider.request('https://x.test/', 'POST', () => {}, () => {},
+    { 'Content-Type': 'application/json' }, '{"query":"x"}');
+  const xhr = MockXhr.last;
+  assert.equal(xhr.opened.type, 'POST');
+  assert.equal(xhr.body, '{"query":"x"}');
+  assert.equal(xhr.sent, true);
+});
+
+test('omitting the body sends undefined (existing GET callers unchanged)', () => {
+  MockXhr.throwOn = {};
+  WeatherProvider.request('https://x.test/', 'GET', () => {}, () => {});
+  const xhr = MockXhr.last;
+  assert.equal(xhr.body, undefined);
+  assert.equal(xhr.sent, true);
 });

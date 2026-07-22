@@ -25,9 +25,11 @@ var RATE_LIMIT_BACKOFF_KEY = storageKeys.GEOCODE_BACKOFF_KEY;
  * @param {Object} [headers] Optional request headers ({name: value}). Each one
  *   is set individually in try/catch: some runtimes forbid certain headers
  *   (e.g. User-Agent) and must not abort the request.
+ * @param {string} [body] Optional request body (e.g. a GraphQL POST payload).
+ *   Omitted/empty → sent as a bodyless request, identical to the prior behavior.
  * @returns {void}
  */
-function request(url, type, onSuccess, onFailure, headers) {
+function request(url, type, onSuccess, onFailure, headers, body) {
     var xhr = new XMLHttpRequest();
     xhr.timeout = XHR_TIMEOUT_MS;
     xhr.onload = function() {
@@ -65,7 +67,7 @@ function request(url, type, onSuccess, onFailure, headers) {
             }
         }
     }
-    xhr.send();
+    xhr.send(body || undefined);
 }
 
 /**

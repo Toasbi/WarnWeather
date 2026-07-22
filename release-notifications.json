@@ -90,5 +90,9 @@
   "1.8.2": {
     "title": "Clearer provider settings",
     "body": "The weather and air-quality provider pickers now have clearer labels, and each option shows a short hint that updates with your choice."
+  },
+  "1.9.0": {
+    "title": "Thanks for updating!",
+    "body": "This update adds Yandex Weather as a new forecast source. Pick it and paste your Yandex API key in the watchface settings."
   }
 }

@@ -12,11 +12,17 @@ test('createProvider builds each known provider by id', () => {
   assert.equal(providerFactory.createProvider('openmeteo', {}).id, 'openmeteo');
   assert.equal(providerFactory.createProvider('openweathermap', { owmApiKey: 'KEY' }).id, 'openweathermap');
   assert.equal(providerFactory.createProvider('metno', {}).id, 'metno');
+  assert.equal(providerFactory.createProvider('yandex', { yandexApiKey: 'KEY' }).id, 'yandex');
 });
 
 test('createProvider passes the OWM API key from settings', () => {
   const p = providerFactory.createProvider('openweathermap', { owmApiKey: 'abc123' });
   assert.equal(p.apiKey, 'abc123');
+});
+
+test('createProvider passes the Yandex API key from settings', () => {
+  const p = providerFactory.createProvider('yandex', { yandexApiKey: 'yk-999' });
+  assert.equal(p.apiKey, 'yk-999');
 });
 
 test('createProvider returns null for an unknown provider id', () => {
