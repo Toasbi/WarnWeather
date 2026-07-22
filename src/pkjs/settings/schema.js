@@ -171,9 +171,10 @@ module.exports = {
                     dwd: 'Germany only · no API key needed.',
                     openmeteo: 'Global · no API key needed.',
                     metno: 'Nordics · the service behind yr.no · 2.5 km model · no API key needed.',
-                    yandex: 'Best in Russia/CIS · enter API key below.'
+                    yandex: 'Best in Russia/CIS · enter API key below.',
+                    tomorrowio: 'Global · hyperlocal nowcasts · enter free API key below.'
                 },
-                options: [['Weather Underground', 'wunderground'], ['OpenWeatherMap', 'openweathermap'], ['Deutscher Wetterdienst (Germany only)', 'dwd'], ['Open-Meteo', 'openmeteo'], ['Met.no (Nordics only)', 'metno'], ['Yandex Weather', 'yandex']]
+                options: [['Weather Underground', 'wunderground'], ['OpenWeatherMap', 'openweathermap'], ['Deutscher Wetterdienst (Germany only)', 'dwd'], ['Open-Meteo', 'openmeteo'], ['Met.no (Nordics only)', 'metno'], ['Yandex Weather', 'yandex'], ['Tomorrow.io', 'tomorrowio']]
             }, {
                 type: 'text',
                 messageKey: 'owmApiKey',

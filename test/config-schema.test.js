@@ -50,8 +50,9 @@ test('location is a GPS/Manual picker; the text field is gated to Manual', () =>
   assert.deepEqual(byKey('location').showWhen, { key: 'locationMode', eq: 'manual' });
 });
 
-test('providers include openmeteo, metno and yandex as 4th/5th/6th selectable options', () => {
-  assert.deepEqual(byKey('provider').options.map((o) => o[1]), ['wunderground','openweathermap','dwd','openmeteo','metno','yandex']);
+test('providers include openmeteo, metno, yandex and tomorrowio as selectable options', () => {
+  assert.deepEqual(byKey('provider').options.map((o) => o[1]),
+    ['wunderground','openweathermap','dwd','openmeteo','metno','yandex','tomorrowio']);
 });
 
 test('weather provider label matches the AQI provider label style', () => {
