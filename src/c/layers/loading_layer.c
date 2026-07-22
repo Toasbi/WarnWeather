@@ -5,11 +5,15 @@
 #include "c/services/watch_services.h"
 
 #define FORECAST_MAX_AGE_S (SECONDS_PER_HOUR * 12)  // older than this => show "No data :("
+#if defined(WW_FETCH_NOTICE)
 #define NOTICE_TEXT_MAX 48   // matches the phone-side ~32 B cap + NUL, with headroom
+#endif
 
 static Layer *s_loading_layer;
 static TextLayer *s_loading_text_layer;
+#if defined(WW_FETCH_NOTICE)
 static char s_notice_text[NOTICE_TEXT_MAX];
+#endif
 
 bool loading_layer_data_is_fresh() {
     const time_t forecast_start = persist_get_forecast_start();
@@ -54,6 +58,7 @@ void loading_layer_create(Layer* parent_layer, GRect frame) {
 void loading_layer_refresh() {
     text_layer_set_text_color(s_loading_text_layer, theme_fg());  // re-apply after a live theme flip
 
+#if defined(WW_FETCH_NOTICE)
     int notice_len = persist_get_notice_text(s_notice_text, sizeof(s_notice_text));
     if (notice_len > 0) {
         // A pushed notice (e.g. "API key error") overrides the freshness fallback.
@@ -61,6 +66,7 @@ void loading_layer_refresh() {
         layer_set_hidden(s_loading_layer, false);
         return;
     }
+#endif
 
     text_layer_set_text(s_loading_text_layer, "No data :(");
     layer_set_hidden(s_loading_layer, loading_layer_data_is_fresh());

@@ -157,6 +157,7 @@ static bool handle_status_lines(DictionaryIterator *iterator, bool *status_dirty
     return any;
 }
 
+#if defined(WW_FETCH_NOTICE)
 static bool handle_notice(DictionaryIterator *iterator, bool *notice_dirty) {
     Tuple *notice_tuple = dict_find(iterator, MESSAGE_KEY_NOTICE_TEXT);
     if (!notice_tuple) {
@@ -168,6 +169,7 @@ static bool handle_notice(DictionaryIterator *iterator, bool *notice_dirty) {
     *notice_dirty |= persist_set_notice_text(text);
     return true;
 }
+#endif
 
 static bool handle_sun_events(DictionaryIterator *iterator, bool *forecast_dirty, bool *status_dirty) {
     Tuple *sun_events_tuple = dict_find(iterator, MESSAGE_KEY_SUN_EVENTS);
@@ -318,6 +320,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     bool calendar_dirty = false;  // calendar holiday highlights only
     bool forecast_present = handle_forecast(iterator, &forecast_dirty);
     handled |= forecast_present;
+#if defined(WW_FETCH_NOTICE)
     handled |= handle_notice(iterator, &notice_dirty);
     // A forecast only ever arrives from a successful fetch, so any forecast
     // payload clears a lingering error/info overlay (self-heal if a phone→watch
@@ -325,6 +328,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     if (forecast_present) {
         notice_dirty |= persist_set_notice_text("");
     }
+#endif
     handled |= handle_status(iterator, &status_dirty, &radar_dirty);
     handled |= handle_status_lines(iterator, &status_dirty);
     handled |= handle_sun_events(iterator, &forecast_dirty, &status_dirty);

@@ -127,6 +127,15 @@ def build(ctx):
         # docs/adr/0001; parallels PBL_HEALTH gating the health subsystem).
         if platform != 'aplite':
             ctx.env.CFLAGS += ['-DWW_RAIN_RADAR=1']
+        # The on-watch fetch-error/info notice overlay (loading_layer notice text +
+        # app_message handle_notice + persist_notice) is compiled out of aplite: the
+        # 2026-07 feature pushed the aplite image past its 21800 B guard. Every other
+        # platform defines WW_FETCH_NOTICE; aplite lacks it, so the guarded call sites
+        # drop out and --gc-sections reaps persist_set/get_notice_text. aplite keeps
+        # the phone-side Settings notice panel and its 12h "No data :(" overlay.
+        # Mirrors WW_RAIN_RADAR above.
+        if platform != 'aplite':
+            ctx.env.CFLAGS += ['-DWW_FETCH_NOTICE=1']
         # Timeline Quick View peek handling uses the firmware-4 Unobstructed Area API,
         # which the frozen-lean aplite variant (~1.5 KB peak heap) does not carry. Every
         # other platform defines WW_QUICK_VIEW; aplite lacks it, so the guarded call sites
