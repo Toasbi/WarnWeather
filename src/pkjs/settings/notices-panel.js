@@ -59,6 +59,22 @@
             + '</div>';
     }
 
+    /**
+     * Build the panel HTML for the config engine: '' when acknowledged this
+     * session or when there are no notices, else the rendered list.
+     * @param {Object} S engine settings state
+     * @param {Object} USERDATA injected userData ({notices: JSON string})
+     * @returns {string} panel HTML or ''
+     */
+    function buildNoticesPanel(S, USERDATA) {
+        if (S && S.fetchNoticeAck) { return ''; }
+        var list = [];
+        try {
+            list = JSON.parse((USERDATA && USERDATA.notices) || '[]') || [];
+        } catch (ex) { list = []; }
+        return renderNoticesPanelHtml(list);
+    }
+
     // Scoped styles injected once; scroll + fixed max-height + type differentiation.
     var NOTICE_CSS =
         '.notice-panel{border:1px solid #FF6A52;border-radius:8px;padding:8px;margin:4px 0}'
@@ -77,13 +93,7 @@
     if (PConf && PConf.blocks && typeof PConf.blocks.register === 'function') {
         var stylesInjected = false;
         PConf.blocks.register('noticesPanel', function (S, ENV, USERDATA) {
-            // Hidden once acknowledged this session (the toggle flips fetchNoticeAck).
-            if (S && S.fetchNoticeAck) { return ''; }
-            var list = [];
-            try {
-                list = JSON.parse((USERDATA && USERDATA.notices) || '[]') || [];
-            } catch (ex) { list = []; }
-            var html = renderNoticesPanelHtml(list);
+            var html = buildNoticesPanel(S, USERDATA);
             if (html && !stylesInjected && typeof document !== 'undefined') {
                 var style = document.createElement('style');
                 style.appendChild(document.createTextNode(NOTICE_CSS));
@@ -95,6 +105,10 @@
     }
 
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = { renderNoticesPanelHtml: renderNoticesPanelHtml, sinceLabel: sinceLabel };
+        module.exports = {
+            renderNoticesPanelHtml: renderNoticesPanelHtml,
+            sinceLabel: sinceLabel,
+            buildNoticesPanel: buildNoticesPanel
+        };
     }
 }());

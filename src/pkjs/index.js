@@ -239,6 +239,10 @@ Pebble.addEventListener('webviewclosed', function(e) {
     // channel. A real key/provider/location change still force-fetches (and a
     // successful fetch clears errors + self-heals the overlay).
     var acked = app.settings.fetchNoticeAck === true;
+    // Only an error notice puts text on the watch overlay; capture that BEFORE
+    // dismissAll() empties the list, so we push the watch clear only when there
+    // was an on-watch notice (an info-only dismiss needs no watch send).
+    var hadWatchNotice = acked && Boolean(notices.watchText());
     if (acked) {
         notices.dismissAll();
     }
@@ -247,7 +251,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
         || (authBackoff.isActive() && !pureAck);
     scheduler.onConfigClosed({
         forceFetch: shouldForceFetch,
-        clearNotice: acked && !shouldForceFetch
+        clearNotice: hadWatchNotice && !shouldForceFetch
     });
     refreshHolidays();
     // app.settings was just reloaded from storage above; log it rather than re-reading.
@@ -828,6 +832,12 @@ function fetch(provider, force) {
     // clears the backoff and retries; scheduled fetches are skipped meanwhile.
     if (force) {
         authBackoff.clear();
+        // A forced fetch is a genuine refresh: drop the last-sent weather caches so
+        // the resulting send re-transmits every category to the watch even when the
+        // data is byte-identical. Without this the outbox dedupe suppresses the
+        // resend (e.g. a same-hour Force after an auth error would leave the error
+        // overlay stuck over working weather until the forecast next changes).
+        outbox.clearWeatherCaches();
     }
     else if (authBackoff.isActive()) {
         console.log('Skipping weather fetch: auth failure backoff active (Force fetch to retry).');
