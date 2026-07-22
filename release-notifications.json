@@ -86,5 +86,9 @@
   "1.8.1": {
     "title": "Black & White themes are back",
     "body": "Fixed the theme picker dropping the B&W and B&W Inverted options on colour watches. All four themes are selectable again."
+  },
+  "1.8.2": {
+    "title": "Clearer provider settings",
+    "body": "The weather and air-quality provider pickers now have clearer labels, and each option shows a short hint that updates with your choice."
   }
 }
