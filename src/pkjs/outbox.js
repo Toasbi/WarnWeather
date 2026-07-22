@@ -50,6 +50,11 @@ var WEATHER_CATEGORIES = [
         name: 'sleep',
         cacheKey: KEYS.LAST_SENT_SLEEP_KEY,
         keys: ['IS_SLEEPING']
+    },
+    {
+        name: 'notice',
+        cacheKey: KEYS.LAST_SENT_NOTICE_KEY,
+        keys: ['NOTICE_TEXT']
     }
 ];
 
@@ -180,6 +185,16 @@ function clearClayCache() {
     localStorage.removeItem(KEYS.LAST_SENT_CLAY_KEY);
 }
 
+/**
+ * Forget the last-sent notice so the next notice send goes through even when its
+ * text is unchanged (a recurring identical error after a success must re-notify).
+ *
+ * @returns {void}
+ */
+function clearNoticeCache() {
+    localStorage.removeItem(KEYS.LAST_SENT_NOTICE_KEY);
+}
+
 module.exports = {
     // Read-only contract: shared by reference (change-detector + tests). Consumers
     // must not mutate the category descriptors. No defensive copy — nothing mutates
@@ -188,5 +203,6 @@ module.exports = {
     sendWeather: sendWeather,
     sendClay: sendClay,
     clearWeatherCaches: clearWeatherCaches,
-    clearClayCache: clearClayCache
+    clearClayCache: clearClayCache,
+    clearNoticeCache: clearNoticeCache
 };
