@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const radar = require('../src/pkjs/weather/radar.js');
 const metnoRadar = require('../src/pkjs/weather/metno-radar.js');
 const rainbowRadar = require('../src/pkjs/weather/rainbow-radar.js');
+const tomorrowioRadar = require('../src/pkjs/weather/tomorrowio-radar.js');
 const radarFactory = require('../src/pkjs/weather/radar-factory.js');
 const schema = require('../src/pkjs/settings/schema.js');
 
@@ -105,4 +106,30 @@ test('schema radarProvider options exactly match the registered factory ids', ()
   const registryIds = Object.keys(radarFactory.RADAR_FACTORIES).sort();
   assert.deepEqual(schemaIds, registryIds,
     'radarProvider schema options must equal the registered radar factory ids');
+});
+
+test("createRadarSource('tomorrowio') binds cfg.tomorrowioApiKey and routes to tomorrowioRadar", () => {
+  let seen = null;
+  const fetched = { RAIN_RADAR_TREND_UINT8: [1], RAIN_RADAR_TREND_AREA_UINT8: [0], RAIN_RADAR_START: 100 };
+  const orig = tomorrowioRadar.fetchRadarTuplesAt;
+  tomorrowioRadar.fetchRadarTuplesAt = function(apiKey, lat, lon, slot, cb) {
+    seen = { apiKey, lat, lon, slot }; cb(fetched);
+  };
+  try {
+    const source = radarFactory.createRadarSource('tomorrowio', { rainbowEndpoint: '', tomorrowioApiKey: 'tk-777' });
+    let result;
+    source.fetchRadarTuplesAt(52.5, 13.4, 100, function(t) { result = t; });
+    assert.deepEqual(seen, { apiKey: 'tk-777', lat: 52.5, lon: 13.4, slot: 100 });
+    assert.equal(result, fetched);
+  } finally {
+    tomorrowioRadar.fetchRadarTuplesAt = orig;
+  }
+});
+
+test('radar picker offers tomorrowio', () => {
+  const items = [];
+  schema.tabs.forEach((t) => t.sections.forEach((s) => s.items.forEach((i) => items.push(i))));
+  const radarItem = items.filter((i) => i.messageKey === 'radarProvider')[0];
+  assert.ok(radarItem.options.map((o) => o[1]).includes('tomorrowio'));
+  assert.ok(radarItem.hintByValue.tomorrowio, 'has a hint');
 });

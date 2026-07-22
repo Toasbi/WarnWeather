@@ -349,12 +349,13 @@ module.exports = {
                 hintByValue: {
                     dwd: 'Precise weather radar — rain at your exact spot and nearby (~2 km).',
                     metno: 'Precise weather radar — rain at your exact spot.',
-                    rainbow: 'Model-based nowcast, works worldwide.'
+                    rainbow: 'Model-based nowcast, works worldwide.',
+                    tomorrowio: 'Model-based nowcast, works worldwide. Uses the tomorrow.io API key from the General tab (it does nothing without one) and counts against the same call budget.'
                 },
                 // Rainbow is always offered. Builds without a proxy endpoint
                 // (dev/forks) still show it; selecting it there fails soft with
                 // the Task 2 warning. Production always sets RAINBOW_PROXY_ENDPOINT.
-                options: [['DWD (Germany only)', 'dwd'], ['Met.no (Nordics only)', 'metno'], ['Rainbow (Worldwide)', 'rainbow'], ['Off', 'disabled']],
+                options: [['DWD (Germany only)', 'dwd'], ['Met.no (Nordics only)', 'metno'], ['Rainbow (Worldwide)', 'rainbow'], ['Tomorrow.io (Worldwide)', 'tomorrowio'], ['Off', 'disabled']],
                 blockBefore: 'radarPreview',
                 blockBeforeSticky: true,
                 onChange: 'resetStatusRadar'
