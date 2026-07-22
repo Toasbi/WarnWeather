@@ -44,7 +44,8 @@ enum key {
     STATUS_LINE_2,                // 38 — radar
     STATUS_LINE_3,                // 39 — top
     STATUS_LINE_4,                // 40 — health
-    STATUS_LINE_ENCODING_VERSION  // 41
+    STATUS_LINE_ENCODING_VERSION, // 41
+    NOTICE_TEXT                   // 42 — phone-pushed overlay string (empty = no notice)
 };
 
 // Setters report whether the stored value actually changed so callers can
@@ -296,6 +297,29 @@ int persist_get_status_line(uint8_t line_id, uint8_t *buffer, size_t buffer_size
 bool persist_set_status_line(uint8_t line_id, const uint8_t *data, size_t len) {
     if (line_id >= STATUS_LINE_COUNT || len > STATUS_LINE_MAX_BYTES) { return false; }
     return write_sized_data_if_changed(STATUS_LINE_1 + line_id, data, len);
+}
+
+bool persist_set_notice_text(const char *text) {
+    size_t len = text ? strlen(text) : 0;
+    if (len == 0) {
+        // Empty = no notice. Delete the slot; report a change only when it existed.
+        if (persist_exists(NOTICE_TEXT)) {
+            persist_delete(NOTICE_TEXT);
+            return true;
+        }
+        return false;
+    }
+    return write_sized_data_if_changed(NOTICE_TEXT, text, len + 1); // include NUL
+}
+
+int persist_get_notice_text(char *buffer, size_t buffer_size) {
+    if (buffer_size == 0) { return 0; }
+    buffer[0] = '\0';
+    if (!persist_exists(NOTICE_TEXT)) { return 0; }
+    int n = persist_read_data(NOTICE_TEXT, buffer, buffer_size);
+    if (n <= 0) { buffer[0] = '\0'; return 0; }
+    buffer[buffer_size - 1] = '\0';  // guarantee termination
+    return (int) strlen(buffer);
 }
 
 time_t persist_get_rain_radar_start() {

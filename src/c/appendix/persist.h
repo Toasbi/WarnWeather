@@ -78,6 +78,9 @@ bool persist_set_radar_palette(uint8_t *data, const size_t size);
 int persist_get_status_line(uint8_t line_id, uint8_t *buffer, size_t buffer_size);
 bool persist_set_status_line(uint8_t line_id, const uint8_t *data, size_t len);
 
+bool persist_set_notice_text(const char *text);
+int  persist_get_notice_text(char *buffer, size_t buffer_size);
+
 bool persist_set_forecast_start(time_t val);
 
 bool persist_set_num_entries(int val);
