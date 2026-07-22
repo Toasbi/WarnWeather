@@ -157,6 +157,18 @@ static bool handle_status_lines(DictionaryIterator *iterator, bool *status_dirty
     return any;
 }
 
+static bool handle_notice(DictionaryIterator *iterator, bool *notice_dirty) {
+    Tuple *notice_tuple = dict_find(iterator, MESSAGE_KEY_NOTICE_TEXT);
+    if (!notice_tuple) {
+        return false;
+    }
+    // A CSTRING tuple; an empty string clears the overlay.
+    const char *text = (notice_tuple->type == TUPLE_CSTRING)
+        ? notice_tuple->value->cstring : "";
+    *notice_dirty |= persist_set_notice_text(text);
+    return true;
+}
+
 static bool handle_sun_events(DictionaryIterator *iterator, bool *forecast_dirty, bool *status_dirty) {
     Tuple *sun_events_tuple = dict_find(iterator, MESSAGE_KEY_SUN_EVENTS);
     if (!sun_events_tuple) {
@@ -299,11 +311,20 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
 
     bool handled = false;
     bool forecast_dirty = false;  // chart + loading overlay
+    bool notice_dirty = false;    // fetch-error / info overlay text
     bool status_dirty = false;    // status row
     bool radar_dirty = false;     // radar chart + top-view availability
     bool config_dirty = false;    // whole window (config feeds every layer)
     bool calendar_dirty = false;  // calendar holiday highlights only
-    handled |= handle_forecast(iterator, &forecast_dirty);
+    bool forecast_present = handle_forecast(iterator, &forecast_dirty);
+    handled |= forecast_present;
+    handled |= handle_notice(iterator, &notice_dirty);
+    // A forecast only ever arrives from a successful fetch, so any forecast
+    // payload clears a lingering error/info overlay (self-heal if a phone→watch
+    // clear was ever missed).
+    if (forecast_present) {
+        notice_dirty |= persist_set_notice_text("");
+    }
     handled |= handle_status(iterator, &status_dirty, &radar_dirty);
     handled |= handle_status_lines(iterator, &status_dirty);
     handled |= handle_sun_events(iterator, &forecast_dirty, &status_dirty);
@@ -339,8 +360,10 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
         // shown; re-apply the view so the watch falls back to forecast immediately.
         main_window_apply_top_view();
     }
-    if (forecast_dirty) {
+    if (forecast_dirty || notice_dirty) {
         loading_layer_refresh();
+    }
+    if (forecast_dirty) {
         forecast_layer_refresh();
     }
     if (status_dirty) {
