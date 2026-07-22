@@ -38,7 +38,7 @@ const settingsSchema = z
     distanceUnits: z.string().optional(),
     configTheme: z.enum(['auto', 'light', 'dark']).optional(),
     dayNightShading: z.boolean().optional(),
-    healthMode: z.enum(['off', 'status', 'all']).optional(),
+    healthMode: z.enum(['off', 'status', 'all', 'slot']).optional(),
     provider: providerSchema.optional(),
     fetchIntervalMin: z.number().int().positive().optional(),
     rainCountdownHorizon: z.number().int().min(0).optional(),

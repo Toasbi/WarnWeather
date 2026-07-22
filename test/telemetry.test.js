@@ -38,6 +38,7 @@ test('buildSettingsSnapshot coerces toggle settings to real booleans', () => {
 test('snapshot includes healthMode', () => {
     assert.strictEqual(buildSettingsSnapshot({ healthMode: 'all' }).healthMode, 'all');
     assert.strictEqual(buildSettingsSnapshot({ healthMode: 'status' }).healthMode, 'status');
+    assert.strictEqual(buildSettingsSnapshot({ healthMode: 'slot' }).healthMode, 'slot');
     assert.strictEqual(buildSettingsSnapshot({}).healthMode, 'off'); // defaults to off when unset
 });
 
