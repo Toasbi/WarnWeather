@@ -7,6 +7,15 @@ global.PConf = {
   defaultsResolvers: (function () { var m = {}; return { register: (id, fn) => { m[id] = fn; }, get: (id) => m[id] }; })()
 };
 const B = require('../src/pkjs/settings/blocks.js');
+const budgetLib = require('../src/pkjs/settings/tomorrowio-budget.js');
+
+function budgetState(over) {
+  return Object.assign({
+    provider: 'tomorrowio', radarProvider: 'tomorrowio', fetchIntervalMin: '5',
+    sleepNightEnabled: true, sleepStartHour: '0', sleepEndHour: '7',
+    tomorrowioFitBudget: true
+  }, over || {});
+}
 
 test('forecastPreview returns an SVG with the rain bars rendered', () => {
   const fc = B.forecastPreview({ dayNightShading: true, barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'precip_prob', secondaryLineFill: true, windScale: 'mid' }, { color: true });
@@ -636,4 +645,40 @@ test('statusSlotDefault resolver: HR-aware slot default sourced from the catalog
   assert.equal(fn({ hr: false }, { slotKey: 'statusHealthRight' }), 'sleep');
   assert.equal(fn({}, { slotKey: 'statusForecastRight' }), 'aqi');
   assert.equal(fn({}, { slotKey: 'statusTopLeft' }), 'week');
+});
+
+test('tomorrowioBudget block: empty without a tomorrow.io selection; states limits, usage and verdict', () => {
+  const block = global.PConf.blocks.get('tomorrowioBudget');
+  assert.equal(block(budgetState({ provider: 'dwd', radarProvider: 'disabled' }), {}), '');
+
+  const ok = block(budgetState(), {});           // 17 active h * 12 * 2 = 408
+  assert.match(ok, /500 calls\/day/);
+  assert.match(ok, /25\/hour/);
+  assert.match(ok, /408/);
+  assert.match(ok, /✓/);
+
+  const over = block(budgetState({ sleepNightEnabled: false }), {});  // 576
+  assert.match(over, /576/);
+  assert.match(over, /✗/);
+});
+
+test('tomorrowioBudget block derives the unlock rule and the hourly heads-up', () => {
+  const block = global.PConf.blocks.get('tomorrowioBudget');
+  // 5 min is locked at a 2 h pause -> rule names 5 minutes and >= 4 h
+  const html = block(budgetState({ sleepEndHour: '2', fetchIntervalMin: '10' }), {});
+  assert.match(html, /5-minute/);
+  assert.match(html, /4 h|4 h/);
+  // at 5 min + radar (24 of 25 calls/hour) the same-hour save note appears
+  const busy = block(budgetState(), {});
+  assert.match(busy, /hour/i);
+});
+
+test('fetchIntervalBudget resolver: filters when guard on, passes through when off or not tomorrow.io', () => {
+  const resolver = global.PConf.optionsResolvers.get('fetchIntervalBudget');
+  assert.deepEqual(resolver(budgetState({ sleepNightEnabled: false }), {}, {}).map((o) => o[1]),
+    ['10', '15', '30', '60']);
+  assert.deepEqual(resolver(budgetState({ sleepNightEnabled: false, tomorrowioFitBudget: false }), {}, {}).map((o) => o[1]),
+    ['5', '10', '15', '30', '60']);
+  assert.deepEqual(resolver(budgetState({ provider: 'dwd', radarProvider: 'disabled', sleepNightEnabled: false }), {}, {}).map((o) => o[1]),
+    ['5', '10', '15', '30', '60']);
 });

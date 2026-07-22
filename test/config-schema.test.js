@@ -18,7 +18,7 @@ const EXPECTED_KEYS = [
   'holidayCountry','holidayRegion',
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','locationMode','location',
   'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','secondaryLine','secondaryLineFill','windScale','thirdLine',
-  'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','radarProvider','radarColor','rainCountdownHorizon',
+  'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarProvider','radarColor','rainCountdownHorizon',
   'layoutPreset','viewResetMin','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear','reset',
   'statusForecastLeft','statusForecastMid','statusForecastRight','statusRadarLeft','statusRadarMid','statusRadarRight',
   'statusTopLeft','statusTopMid','statusTopRight','batteryLowOnly','statusHealthLeft','statusHealthMid','statusHealthRight'
@@ -111,6 +111,21 @@ test('tomorrowioApiKey shows for EITHER the weather provider or the radar provid
   assert.deepEqual(byKey('tomorrowioApiKey').showWhen,
     { any: [{ key: 'provider', eq: 'tomorrowio' }, { key: 'radarProvider', eq: 'tomorrowio' }] });
   assert.equal(byKey('tomorrowioApiKey').suffixAction, 'testTomorrowioKey');
+});
+
+test('fetchIntervalMin derives its ladder from the budget resolver (no static options)', () => {
+  const item = byKey('fetchIntervalMin');
+  assert.equal(item.options, undefined);
+  assert.deepEqual(item.optionsFrom, { resolver: 'fetchIntervalBudget' });
+  assert.equal(item.defaultValue, '15');
+});
+
+test('budget toggle rides the tomorrow.io showWhen and carries the info block', () => {
+  const item = byKey('tomorrowioFitBudget');
+  assert.equal(item.defaultValue, true);
+  assert.equal(item.blockBefore, 'tomorrowioBudget');
+  assert.deepEqual(item.showWhen,
+    { any: [{ key: 'provider', eq: 'tomorrowio' }, { key: 'radarProvider', eq: 'tomorrowio' }] });
 });
 
 test('health tab is gated to health-capable platforms, with a 3-state mode radio', () => {

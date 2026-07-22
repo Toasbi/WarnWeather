@@ -138,7 +138,7 @@ module.exports = {
                 label: 'Update interval',
                 defaultValue: '15',
                 hint: 'Updates only send what actually changed (deltas), so short intervals like 5 min stay battery friendly.',
-                options: [['5 minutes', '5'], ['10 minutes', '10'], ['15 minutes', '15'], ['30 minutes', '30'], ['1 hour', '60']]
+                optionsFrom: {resolver: 'fetchIntervalBudget'}
             }, {
                 type: 'toggle',
                 messageKey: 'sleepNightEnabled',
@@ -205,6 +205,15 @@ module.exports = {
                 suffixAction: 'testTomorrowioKey',
                 suffixLabel: 'Test',
                 hint: '<a href=\'https://app.tomorrow.io/signup\'>Create a free tomorrow.io account</a> (no credit card needed), then copy your key from <a href=\'https://app.tomorrow.io/development/keys\'>Development &gt; API Keys</a> in the dashboard and paste it here, then Test it. The free plan is plenty — see the call budget below. Saving a changed key re-fetches automatically.',
+                showWhen: TOMORROWIO_WHEN
+            }, {
+                type: 'toggle',
+                messageKey: 'tomorrowioFitBudget',
+                label: 'Fit update rate to budget',
+                defaultValue: true,
+                joinPrevious: true,
+                blockBefore: 'tomorrowioBudget',
+                hint: 'Only offer update intervals that fit the free plan. Turn off to pick any interval — over-budget calls are rejected by tomorrow.io until the limit resets, and the watch keeps its last data.',
                 showWhen: TOMORROWIO_WHEN
             }, {
                 type: 'select',

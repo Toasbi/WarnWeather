@@ -17,6 +17,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // scripts/build-config-page.js), where it exposes itself as window.StatusLineCatalog.
     var statusLineCatalog = (typeof require !== 'undefined')
         ? require('../status-line-catalog.js') : window.StatusLineCatalog;
+    // Same dual-context pattern: a CommonJS module under Node, a concatenated
+    // <script> in the webview where it registered itself on PConf.
+    var tomorrowioBudget = (typeof require !== 'undefined')
+        ? require('./tomorrowio-budget.js') : PConf.tomorrowioBudget;
 
     function parseStoredJson(v) {
         if (v === null || typeof v === 'undefined') { return null; }
@@ -904,6 +908,66 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return statusLineCatalog.slotDefault(args.slotKey, env);
     });
 
+    // ---- tomorrow.io rate-limit info block + budget-guard interval resolver ----
+
+    /**
+     * Rate-limit info block under the tomorrow.io key field: free-tier limits,
+     * the user's projected usage at the current settings, a ✓/✗ verdict, the
+     * derived sleep->cadence unlock rule, and (near the hourly ceiling) a
+     * same-hour-save heads-up. Recomputes on every render, so it reacts to
+     * fetchIntervalMin / sleep window / provider / radarProvider / guard changes.
+     *
+     * @param {Object} state Settings state.
+     * @param {Object} env Platform env (unused).
+     * @returns {string} Block HTML, or '' when no tomorrow.io budget is in play.
+     */
+    function tomorrowioBudgetBlock(state, env) {
+        var B = tomorrowioBudget;
+        var cpc = B.callsPerCycle(state);
+        if (cpc === 0) { return ''; }
+        var interval = parseInt(state.fetchIntervalMin, 10) || 15;
+        var sleep = B.sleepHours(state);
+        var daily = Math.round(B.dailyCalls(state, interval));
+        var ok = B.fits(state, interval);
+        var radarOn = state.radarProvider === 'tomorrowio';
+        var settingsBits = 'every ' + interval + ' min, '
+            + (sleep > 0 ? 'night pause ' + sleep + ' h' : 'no night pause')
+            + ', radar ' + (radarOn ? 'on' : 'off');
+        var verdict = ok
+            ? '<b>~' + daily + ' calls/day ✓</b>'
+            : '<b style="color:#FF6A52">~' + daily + ' calls/day ✗ over budget</b>';
+        var html = '<b>Free plan: ' + B.LIMIT_DAY + ' calls/day, ' + B.LIMIT_HOUR + '/hour.</b> '
+            + 'Your settings: ' + settingsBits + ' → ' + verdict + '.';
+        // Derived unlock rule: name the fastest ladder step that does NOT fit at
+        // the current pause, and the pause that would unlock it.
+        for (var i = 0; i < B.INTERVAL_LADDER.length; i += 1) {
+            var min = parseInt(B.INTERVAL_LADDER[i][1], 10);
+            if (!B.fits(state, min)) {
+                var need = B.minSleepHoursFor(state, min);
+                if (need !== null && need > sleep) {
+                    html += '<br>' + min + '-minute updates' + (radarOn ? ' with radar' : '')
+                        + ' need a night pause of ≥ ' + need + ' h — widen the pause to unlock faster updates.';
+                }
+                break;
+            }
+        }
+        if (B.hourlyCalls(state, interval) >= B.LIMIT_HOUR - 1) {
+            html += '<br>At this rate a settings-save refetch in the same hour may delay one cycle — harmless.';
+        }
+        return '<div class="static">' + html + '</div>';
+    }
+    PConf.blocks.register('tomorrowioBudget', tomorrowioBudgetBlock);
+
+    // Update-interval ladder for fetchIntervalMin: guard on -> only entries the
+    // tomorrow.io budget affords (full ladder when no tomorrow.io is selected);
+    // guard off -> full ladder (the info block shows the red warning instead).
+    // If the stored interval drops out, the engine's resolveRowItem snaps it to
+    // the item default ('15').
+    PConf.optionsResolvers.register('fetchIntervalBudget', function (S, env, args) {
+        if (!S || S.tomorrowioFitBudget === false) { return tomorrowioBudget.INTERVAL_LADDER.slice(); }
+        return tomorrowioBudget.fittingOptions(S);
+    });
+
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
             forecastPreview: forecastPreview, radarPreview: radarPreview,
@@ -912,7 +976,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             layoutPreviewCombined: layoutPreviewCombined,
             presetContents: presetContents, contentBands: contentBands,
             resolveBandHeights: resolveBandHeights,
-            barPermille: barPermille, previewPaletteFallback: FALLBACK_PALETTE
+            barPermille: barPermille, previewPaletteFallback: FALLBACK_PALETTE,
+            tomorrowioBudgetBlock: tomorrowioBudgetBlock
         };
     }
 })();
