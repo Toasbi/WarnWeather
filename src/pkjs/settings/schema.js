@@ -97,7 +97,7 @@ var BW_LEGEND = 'The bars don\'t scale linearly. They\'re divided into 5 parts, 
 // own joinPrevious staticText gated by showWhen (only the selected one renders) — the short tags
 // live in the dropdown option descs; these give the fuller rationale, like SCALE_NOTE above.
 var PROVIDER_WHY = {
-    dwd: 'Germany\'s national weather service — the most accurate forecasts across Germany and Central Europe (ICON model). No API key needed.',
+    dwd: 'Germany\'s national weather service — the most accurate forecasts across Germany and decent across Central Europe (ICON model). No API key needed.',
     metno: 'The service behind yr.no — best across the Nordics with a 2.5 km model, and solid worldwide. No API key needed.',
     openmeteo: 'Automatically picks the best national model for your location (DWD, NOAA, Météo-France, ECMWF…). Free, no API key.',
     openweathermap: 'A popular general-purpose API with solid worldwide coverage. Needs a free API key on the One Call 3.0 plan.',
@@ -106,8 +106,8 @@ var PROVIDER_WHY = {
     yandex: 'Best across Russia and the CIS, using the Meteum machine-learning forecast. Needs a free API key.'
 };
 var RADAR_WHY = {
-    dwd: 'Real, gauge-calibrated weather radar — rain at your exact spot and nearby (~2 km). Germany only.',
-    metno: 'Real weather radar — rain at your exact spot. Nordics only.',
+    dwd: 'Precise weather radar — rain at your exact spot and nearby (~2 km). Germany only.',
+    metno: 'Precise weather radar — rain at your exact spot. Nordics only.',
     rainbow: 'A model nowcast blending satellite and radar — works worldwide.',
     tomorrowio: 'A precise ML rain nowcast, worldwide. Uses your tomorrow.io API key (nothing works without one) and counts against the same call budget.',
     disabled: 'Rain radar is turned off.'
