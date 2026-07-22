@@ -102,6 +102,13 @@ module.exports = {
     versionLabel: versionLabel + ' <a href="https://github.com/Toasbi/WarnWeather">GitHub source</a>',
     tabs: [{
         id: 'general', label: 'General', sections: [{
+            block: 'noticesPanel',
+            items: [{
+                type: 'hidden',
+                messageKey: 'fetchNoticeAck',
+                defaultValue: false
+            }]
+        }, {
             items: [{
                 type: 'select',
                 messageKey: 'theme',

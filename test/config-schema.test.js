@@ -16,7 +16,7 @@ const EXPECTED_KEYS = [
   'timeLeadingZero','timeShowAmPm','axisTimeFormat','timeFont','colorTime',
   'weekStartDay','firstWeek','colorToday','colorSunday','colorSaturday','holidaysEnabled','colorUSFederal',
   'holidayCountry','holidayRegion',
-  'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','locationMode','location',
+  'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','fetchNoticeAck','locationMode','location',
   'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','secondaryLine','secondaryLineFill','windScale','thirdLine',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarProvider','radarColor','rainCountdownHorizon',
   'layoutPreset','viewResetMin','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear','reset',
@@ -215,7 +215,9 @@ test('Units section groups temperature, AQI scale, wind + distance units in the 
   assert.ok(unitsSection, 'General tab has a titled "Units" section');
   assert.deepEqual(unitsSection.items.map((i) => i.messageKey).filter(Boolean),
     ['temperatureUnits', 'aqiScale', 'windUnits', 'distanceUnits']);
-  const first = general.sections[0];
+  // sections[0] is the notices panel (block-only, ahead of the main section); the
+  // main section carrying theme/provider/etc. is sections[1].
+  const first = general.sections[1];
   assert.ok(!first.items.some((i) => i.messageKey === 'temperatureUnits'), 'temperatureUnits relocated');
   assert.ok(!first.items.some((i) => i.messageKey === 'aqiScale'), 'aqiScale relocated');
   assert.ok(!unitsSection.items.some((i) => i.messageKey === 'aqiSource'), 'aqiSource moved out of Units');
@@ -223,7 +225,8 @@ test('Units section groups temperature, AQI scale, wind + distance units in the 
 
 test('AQI provider selection sits below the weather provider selection, not in Units', () => {
   const general = schema.tabs.find((t) => t.id === 'general');
-  const first = general.sections[0];
+  // sections[0] is the notices panel (block-only); the main section is sections[1].
+  const first = general.sections[1];
   const keys = first.items.map((i) => i.messageKey).filter(Boolean);
   assert.ok(keys.indexOf('aqiSource') !== -1, 'aqiSource lives in the first General section');
   assert.ok(keys.indexOf('provider') < keys.indexOf('aqiSource'),

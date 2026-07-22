@@ -17,6 +17,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function onLoad(ctx) {
         ctx.set('fetch', false);
         ctx.set('devStatsClear', false);
+        // fetchNoticeAck is a one-shot dismiss signal consumed on webviewclosed;
+        // never let a stored true survive to the next open (would auto-dismiss).
+        ctx.set('fetchNoticeAck', false);
         // "Reset watchface" is one-shot and destructive: never let a prior save
         // leave it pre-checked on the next open.
         ctx.set('reset', false);
