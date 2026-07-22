@@ -19,5 +19,7 @@ module.exports = {
     UPDATE_NOTIFIED_VERSION_KEY: 'update_notified_version',
     LAST_UPDATE_CHECK_KEY: 'last_update_check',
     WU_HOURLY_CACHE_KEY: 'wuHourlyCache',
-    NEWS_CACHE_KEY: 'newsCache'
+    NEWS_CACHE_KEY: 'newsCache',
+    NOTICES_KEY: 'notices',
+    LAST_SENT_NOTICE_KEY: 'lastSentNotice'
 };
