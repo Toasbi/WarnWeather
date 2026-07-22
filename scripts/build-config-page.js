@@ -22,7 +22,8 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/tomorrowio-key-test.js'),
   path.join(ROOT, 'src/pkjs/settings/news.js'),
   path.join(ROOT, 'src/pkjs/settings/theme-convert.js'),
-  path.join(ROOT, 'src/pkjs/settings/reset-status-defaults.js')
+  path.join(ROOT, 'src/pkjs/settings/reset-status-defaults.js'),
+  path.join(ROOT, 'src/pkjs/settings/notices-panel.js')
 ];
 
 // Hard-fail if the wizard screenshots are missing/incomplete — the wizard has NO fallback. The
