@@ -226,7 +226,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @returns {string} Option rows HTML.
    */
   function renderSelectOptions(item, value, query) {
-    var q = String(query || '').toLowerCase(), h = '', i, o, lo, vo, meta, classes, shown = 0;
+    var q = String(query || '').toLowerCase(), h = '', i, o, lo, vo, meta, classes, labelCell, shown = 0;
     for (i = 0; i < item.options.length; i++) {
       o = item.options[i];
       lo = o[0].toLowerCase(); vo = o[1].toLowerCase();
@@ -240,9 +240,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       }
       classes = 'ssel-opt' + (!q && meta.groupChild ? ' group-child' : '')
         + (!q && meta.groupEnd ? ' group-end' : '') + (value === o[1] ? ' on' : '');
+      // An option may carry a one-line description (meta.desc) rendered under its name — the
+      // weather-provider picker uses it to say what each provider is best at while choosing.
+      // Options without a desc keep the original single-span layout untouched.
+      labelCell = meta.desc
+        ? '<span class="ssel-opt-txt"><span class="ssel-opt-name">' + esc(o[0]) + '</span>'
+          + '<span class="ssel-opt-desc">' + esc(meta.desc) + '</span></span>'
+        : '<span>' + esc(o[0]) + '</span>';
       h += '<button type="button" class="' + classes + '" role="option" aria-selected="'
         + (value === o[1] ? 'true' : 'false') + '" data-select-pick="' + esc(o[1])
-        + '" data-k="' + esc(item.messageKey) + '"><span>' + esc(o[0]) + '</span>'
+        + '" data-k="' + esc(item.messageKey) + '">' + labelCell
         + (value === o[1] ? '<span class="ssel-chk">&#10003;</span>' : '') + '</button>';
       shown++;
     }
@@ -672,7 +679,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         // searchSelect filters as you type; pin a fixed height so a shrinking list can't
         // resize the sheet and make it jump. Plain select stays content-sized.
         if (dlg.querySelector('[data-select-search]')) { dlg.classList.add('search'); }
-        else { dlg.classList.remove('search'); }
+        else { dlg.classList.remove('search'); scheduleSelectPeek(dlg); }
       } else if (!openSelect && dlg.open) {
         dlg.classList.remove('search');
         dlg.style.bottom = '';
@@ -706,6 +713,51 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         dlg.style.bottom = '';
         dlg.style.maxHeight = '';
       }
+    }
+    // Fraction of the peek row left visible below the fold. A bit over half: enough of the last
+    // item shows to read it, while the clipped remainder still advertises "there's more — scroll".
+    var PEEK_ROW_FRACTION = 0.66;
+    // Plain select is content-sized up to the 80dvh cap. When the option list overflows, the
+    // last visible row can land flush (or as a too-thin sliver) against the sheet's bottom edge,
+    // so nothing meaningful peeks out and the sheet reads as un-scrollable. Clamp the list so its
+    // bottom edge cuts a row partway down (PEEK_ROW_FRACTION), always leaving a partial-row peek
+    // that advertises the scroll. Rows vary in height (group headers vs options), so accumulate
+    // real heights and pick the deepest row whose cut point still fits under the cap — the tallest
+    // sheet that still shows a peek. Idempotent: resets its own clamp and re-measures the clean
+    // 80dvh-capped height each call, so it's safe to run repeatedly (see scheduleSelectPeek).
+    function fitSelectPeek(dlg) {
+      if (!dlg.open || dlg.classList.contains('search')) { return; }
+      var list = dlg.querySelector('.ssel-list');
+      if (!list) { return; }
+      list.style.maxHeight = '';                  // reset → measure the clean, capped height
+      var H = list.clientHeight;
+      // Bail until the dialog is actually laid out under its cap. On a mobile webview clientHeight
+      // reads a pre-layout value right after showModal() (the whole content height, not yet capped),
+      // so scrollHeight <= H and we'd wrongly no-op — scheduleSelectPeek re-runs us once layout
+      // settles (rAF + the sheet-up animationend), when H is the real capped height and overflows.
+      if (!H || list.scrollHeight <= H + 1) { return; }
+      var rows = list.children, top = 0, target = 0, i, h, cut;
+      for (i = 0; i < rows.length; i++) {
+        h = rows[i].offsetHeight;
+        cut = top + h * PEEK_ROW_FRACTION;        // bottom edge lands here → row shown at that fraction
+        if (cut > H) { break; }                   // past the fold — the previous row is the peek
+        target = cut;                             // deepest row whose cut point still fits so far
+        top += h;
+      }
+      if (target >= 24) { list.style.maxHeight = Math.round(target) + 'px'; }
+    }
+    // Run fitSelectPeek now and again after the sheet's open layout settles. The synchronous call
+    // covers desktop/no-animation; the double-rAF and sheet-up animationend cover mobile webviews
+    // that lay the capped dialog out a frame (or the animation) late. All runs are idempotent.
+    function scheduleSelectPeek(dlg) {
+      fitSelectPeek(dlg);
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(function () { requestAnimationFrame(function () { fitSelectPeek(dlg); }); });
+      }
+      dlg.addEventListener('animationend', function once() {
+        dlg.removeEventListener('animationend', once);
+        fitSelectPeek(dlg);
+      });
     }
     // Close the open modal and return focus to the trigger that opened it.
     function closeSelect() {
