@@ -196,6 +196,8 @@ test('AQI provider selection sits below the weather provider selection, not in U
     'weather provider selection comes before the AQI provider selection');
   assert.ok(keys.indexOf('owmApiKey') < keys.indexOf('aqiSource'),
     'the weather-provider block (including its API key field) precedes the AQI provider selection');
+  assert.ok(keys.indexOf('yandexApiKey') < keys.indexOf('aqiSource'),
+    'the weather-provider block (including the Yandex API key field) precedes the AQI provider selection');
   assert.ok(keys.indexOf('aqiSource') < keys.indexOf('locationMode'),
     'AQI provider selection sits above the location settings');
 });

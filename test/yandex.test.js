@@ -102,3 +102,76 @@ test('withProviderData fails fast without an API key and makes no request', () =
   assert.equal(failed.stage, 'provider_data');
   assert.equal(failed.code, 'yandex_missing_api_key');
 });
+
+// Minimal XHR mock, following the pattern in test/request-headers.test.js: records
+// open()'s method/url and setRequestHeader's names/values, and captures send()'s body
+// so onload() can be triggered manually to simulate a successful response.
+function MockXhr() {
+  this.headers = {};
+  MockXhr.last = this;
+}
+MockXhr.prototype.open = function(type, url) { this.opened = { type: type, url: url }; };
+MockXhr.prototype.setRequestHeader = function(name, value) { this.headers[name] = value; };
+MockXhr.prototype.send = function(body) { this.sent = true; this.body = body; };
+
+/**
+ * A weatherByPoint-shaped fixture with 48 hourly buckets spanning from 6h before
+ * "now" to 41h after it, so the >=24-future-buckets requirement holds regardless
+ * of wall-clock time at test-run. @returns {Object} A full GraphQL response envelope.
+ */
+function liveSampleResponse() {
+  const hourFloorSec = Math.floor(Date.now() / 3600000) * 3600;
+  const startSec = hourFloorSec - 6 * 3600;
+  const hours = [];
+  for (let i = 0; i < 48; i += 1) {
+    hours.push({
+      timestamp: String(startSec + i * 3600),
+      temperature: 50 + i,
+      precProbability: i / 100,
+      prec: i,
+      windSpeed: i,
+      windGust: i + 5,
+      uvIndex: i % 12
+    });
+  }
+  return {
+    data: {
+      weatherByPoint: {
+        now: { temperature: 71 },
+        forecast: { days: [{ hours: hours }] }
+      }
+    }
+  };
+}
+
+test('withProviderData POSTs the built query with auth headers, and onload populates fields', () => {
+  const prevXhr = global.XMLHttpRequest;
+  global.XMLHttpRequest = MockXhr;
+  try {
+    const p = new YandexProvider('KEY123');
+    let succeeded = false;
+    let failed = null;
+    p.withProviderData(52.52, 13.41, false, () => { succeeded = true; }, (f) => { failed = f; });
+
+    const xhr = MockXhr.last;
+    assert.equal(xhr.opened.type, 'POST');
+    assert.equal(xhr.opened.url, 'https://api.weather.yandex.ru/graphql/query');
+    assert.equal(xhr.body, JSON.stringify({ query: yandex.buildQuery(52.52, 13.41) }));
+    assert.equal(xhr.headers['Content-Type'], 'application/json');
+    assert.equal(xhr.headers['X-Yandex-Weather-Key'], 'KEY123');
+    assert.equal(succeeded, false, 'onSuccess must not fire before onload');
+
+    xhr.status = 200;
+    xhr.responseText = JSON.stringify(liveSampleResponse());
+    xhr.onload();
+
+    assert.equal(failed, null);
+    assert.equal(succeeded, true);
+    assert.equal(p.tempTrend.length, 24);
+    assert.equal(p.currentTemp, 71);
+    assert.equal(typeof p.startTime, 'number');
+  }
+  finally {
+    global.XMLHttpRequest = prevXhr;
+  }
+});
