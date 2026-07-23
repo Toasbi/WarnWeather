@@ -159,7 +159,8 @@ function parseCountdownDate(value, fallback) {
   var year = parseInt(parts[0], 10);
   var month = parseInt(parts[1], 10);
   var day = parseInt(parts[2], 10);
-  var parsed = new Date(year, month - 1, day);
+  var parsed = new Date(1970, 0, 1);
+  parsed.setFullYear(year, month - 1, day);
   if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1
       || parsed.getDate() !== day) {
     return fallback;

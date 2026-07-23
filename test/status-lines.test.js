@@ -97,6 +97,8 @@ test('countdown formats future, today, passed, missing, malformed, and leap date
   assert.equal(statusLines.formatCountdown('2028-03-01', now), '2d');
   assert.equal(statusLines.formatCountdown('2028-02-28', now), 'now');
   assert.equal(statusLines.formatCountdown('2028-02-27', now), '--');
+  assert.equal(statusLines.formatCountdown('0099-01-01', now), '--',
+    'four-digit years below 100 remain valid local calendar years');
   assert.equal(statusLines.formatCountdown(undefined, now), 'now');
   assert.equal(statusLines.formatCountdown('2028-02-31', now), 'now');
   assert.equal(statusLines.formatCountdown('2028-02-29', now), '1d',
