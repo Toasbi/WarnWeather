@@ -92,6 +92,37 @@ test('value formatting', () => {
   assert.equal(statusLines.formatValue('city', p, baseSettings()), 'Saarbrücken');
 });
 
+test('countdown formats future, today, passed, missing, malformed, and leap dates', () => {
+  const now = new Date(2028, 1, 28, 17, 45);
+  assert.equal(statusLines.formatCountdown('2028-03-01', now), '2d');
+  assert.equal(statusLines.formatCountdown('2028-02-28', now), 'now');
+  assert.equal(statusLines.formatCountdown('2028-02-27', now), '--');
+  assert.equal(statusLines.formatCountdown(undefined, now), 'now');
+  assert.equal(statusLines.formatCountdown('2028-02-31', now), 'now');
+  assert.equal(statusLines.formatCountdown('2028-02-29', now), '1d',
+    'leap day is a real local calendar day');
+});
+
+test('each countdown slot reads its own target-date key and packs as TEXT', () => {
+  const line = forecastLine();
+  const settings = baseSettings({
+    statusForecastLeft: 'countdown',
+    statusForecastMid: 'countdown',
+    statusForecastRight: 'countdown',
+    statusForecastLeftCountdown: '2099-01-01',
+    statusForecastMidCountdown: '2000-01-01'
+  });
+  const slots = decodeLine(statusLines.packLine(line, basePayload(), settings, basaltEnv()));
+  assert.deepEqual(slots.map((s) => s.kind), [K.TEXT, K.TEXT, K.TEXT]);
+  assert.deepEqual(slots.map((s) => s.icon),
+    [I.COUNTDOWN, I.COUNTDOWN, I.COUNTDOWN]);
+  assert.match(slots[0].text, /^\d+d$/);
+  assert.equal(slots[1].text, '--');
+  assert.equal(slots[2].text, 'now', 'missing date falls back to today');
+  slots.forEach((slot) => assert.ok(slot.len <= catalog.CAPS.EDGE_TEXT_MAX,
+    'every countdown output fits even the narrow edge cap'));
+});
+
 test('wind + gust format in the selected wind unit (default kph)', () => {
   const p = Object.assign(basePayload(), { WIND_TREND_UINT8: [50], GUST_TREND_UINT8: [50] });
   assert.equal(statusLines.formatValue('wind', p, baseSettings()), '50kph'); // default = kph
