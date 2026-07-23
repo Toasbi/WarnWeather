@@ -861,6 +861,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // Optional one-shot callback fired after the sheet closes, set by openSheet() so an external
     // caller (the onboarding wizard, which lives in its own overlay) can react to a pick/dismiss.
     var onSheetClose = null;
+    // One pending settled-scroll sample per date wheel part. Separate entries prevent activity
+    // in one wheel from canceling another wheel's still-pending selection.
+    var pendingDateScrolls = {};
     // On open, focus the search box (searchSelect) or the selected/first option (select).
     function focusModal() {
       var modal = document.getElementById('modal');
@@ -1013,10 +1016,81 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       });
     }
 
+    /**
+     * Find the wheel option nearest the visible center.
+     *
+     * @param {Object} wheel Date wheel element.
+     * @returns {?number} Nearest numeric option value.
+     */
+    function nearestDateWheelValue(wheel) {
+      var options = wheel.querySelectorAll('.date-opt');
+      var center = wheel.scrollTop + wheel.clientHeight / 2;
+      var nearest = null, distance = Infinity;
+      for (var i = 0; i < options.length; i++) {
+        var optionCenter = options[i].offsetTop + options[i].offsetHeight / 2;
+        var candidate = Math.abs(optionCenter - center);
+        if (candidate < distance) {
+          distance = candidate;
+          nearest = options[i];
+        }
+      }
+      return nearest
+        ? parseInt(nearest.getAttribute('data-date-value'), 10) : null;
+    }
+
+    /**
+     * Commit one settled date-wheel sample if it is still current.
+     *
+     * @param {string} part day|month|year.
+     * @param {Object} pending Pending wheel state.
+     * @returns {boolean} Whether the stored date changed.
+     */
+    function settlePendingDateScroll(part, pending) {
+      if (pendingDateScrolls[part] !== pending) { return false; }
+      delete pendingDateScrolls[part];
+      if (openDate !== pending.dateKey) { return false; }
+      var selected = nearestDateWheelValue(pending.wheel);
+      if (selected == null) { return false; }
+      var parts = parseDateParts(S[pending.dateKey]);
+      parts[part] = selected;
+      var value = dateValueFromParts(parts);
+      if (value === S[pending.dateKey]) { return false; }
+      S[pending.dateKey] = value;
+      return true;
+    }
+
+    /**
+     * Commit and cancel every pending date wheel before the sheet closes.
+     * All selected parts are combined before clamping so closeModal renders once.
+     *
+     * @returns {void}
+     */
+    function flushPendingDateScrolls() {
+      var dateKey = openDate;
+      var parts = dateKey ? parseDateParts(S[dateKey]) : null;
+      var names = ['day', 'month', 'year'];
+      var hasSelection = false;
+      for (var i = 0; i < names.length; i++) {
+        var part = names[i];
+        var pending = pendingDateScrolls[part];
+        if (!pending) { continue; }
+        clearTimeout(pending.timer);
+        delete pendingDateScrolls[part];
+        if (!parts || pending.dateKey !== dateKey) { continue; }
+        var selected = nearestDateWheelValue(pending.wheel);
+        if (selected != null) {
+          parts[part] = selected;
+          hasSelection = true;
+        }
+      }
+      if (hasSelection) { S[dateKey] = dateValueFromParts(parts); }
+    }
+
     // Close the shared modal and return focus to the fresh trigger rendered in its place.
     function closeModal() {
-      var selectKey = openSelect;
+      var selectKey = lastSelectKey;
       var dateKey = openDate;
+      flushPendingDateScrolls();
       openSelect = null;
       openDate = null;
       render();
@@ -1078,6 +1152,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       document.getElementById('tabs').addEventListener('click', function (e) {
         var b = e.target.closest('[data-tab]');
         if (b) {
+          flushPendingDateScrolls();
           activeTab = b.getAttribute('data-tab');
           openColor = null;
           openSelect = null;
@@ -1096,6 +1171,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if ((t = e.target.closest('[data-select]'))) {
           var sk = t.getAttribute('data-select');
           if (openSelect === sk) { closeModal(); return; }
+          flushPendingDateScrolls();
           openDate = null;
           openSelect = sk;
           selectQuery = '';
@@ -1106,8 +1182,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         }
         if ((t = e.target.closest('[data-date]'))) {
           var dk = t.getAttribute('data-date');
+          if (openDate === dk) { closeModal(); return; }
+          flushPendingDateScrolls();
           openSelect = null;
-          openDate = openDate === dk ? null : dk;
+          lastSelectKey = null;
+          openDate = dk;
           render();
           return;
         }
@@ -1182,35 +1261,18 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           list.innerHTML = renderSelectOptions(item, S[sk], selectQuery, resolveRecommended(item, S, ENV));
         }
       });
-      var dateScrollTimer = null;
       modal.addEventListener('scroll', function (e) {
         var wheel = e.target.closest && e.target.closest('[data-date-wheel]');
         if (!wheel || !openDate) { return; }
+        var part = wheel.getAttribute('data-date-wheel');
+        if (part !== 'day' && part !== 'month' && part !== 'year') { return; }
         var dateKey = openDate;
-        clearTimeout(dateScrollTimer);
-        dateScrollTimer = setTimeout(function () {
-          dateScrollTimer = null;
-          if (openDate !== dateKey) { return; }
-          var options = wheel.querySelectorAll('.date-opt');
-          var center = wheel.scrollTop + wheel.clientHeight / 2;
-          var nearest = null, distance = Infinity;
-          for (var i = 0; i < options.length; i++) {
-            var optionCenter = options[i].offsetTop + options[i].offsetHeight / 2;
-            var candidate = Math.abs(optionCenter - center);
-            if (candidate < distance) {
-              distance = candidate;
-              nearest = options[i];
-            }
-          }
-          if (!nearest) { return; }
-          var parts = parseDateParts(S[dateKey]);
-          parts[wheel.getAttribute('data-date-wheel')] =
-            parseInt(nearest.getAttribute('data-date-value'), 10);
-          var value = dateValueFromParts(parts);
-          if (value !== S[dateKey]) {
-            S[dateKey] = value;
-            render();
-          }
+        var previous = pendingDateScrolls[part];
+        if (previous) { clearTimeout(previous.timer); }
+        var pending = { dateKey: dateKey, wheel: wheel, timer: null };
+        pendingDateScrolls[part] = pending;
+        pending.timer = setTimeout(function () {
+          if (settlePendingDateScroll(part, pending)) { render(); }
         }, 120);
       }, true);
       // Swipe-down-to-dismiss: only arms when the list is already at the top, so a downward
@@ -1306,6 +1368,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // which lives in its own overlay: the sheet is a showModal() top-layer dialog, so it renders
       // above that overlay. The engine sets S[key] on pick; onClose fires after any close.
       openSheet: function (key, onClose) {
+        flushPendingDateScrolls();
         openDate = null;
         openSelect = key;
         selectQuery = '';
