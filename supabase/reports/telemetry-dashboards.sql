@@ -1,17 +1,21 @@
 -- Telemetry dashboards.
 --
--- Source of truth is now the rollup tables written daily by
--- public.telemetry_rollup_and_prune():
---   telemetry_watch   — one row per watch (current snapshot; active-base flags)
---   telemetry_dau     — one row per (watch, day) activity fact (full history)
---   telemetry_errors  — slim failed-fetch log (~7 weeks)
--- Raw telemetry_weather_fetch is retained only 14 days, so recent-ops queries
--- (#2, #3, #5, #6) that still read it are bounded to that window.
+-- Freshness is the priority: the "currently active" panels read the live raw
+-- table so they reflect today, not last night's rollup. Sources by query:
+--   • Active-base snapshots (#7, #8, #11, #12, #13, #14) and recent-ops
+--     (#2, #3, #5, #6): live from raw public.telemetry_weather_fetch. Raw is
+--     retained only 14 days, so these are bounded to that window.
+--   • Daily active users (#1) and lifecycle/churn (#9, #10): union — finalized
+--     history from the daily rollup (telemetry_dau + telemetry_watch, written by
+--     public.telemetry_rollup_and_prune() ~03:00 UTC) plus TODAY live from raw,
+--     so the current day is never stale. These never read lifetime_events; the
+--     event count is recomputed from telemetry_dau (days before today) + raw.
+--   • Top errors (#4): telemetry_errors (slim failed-fetch log, ~7 weeks).
 --
--- "Active watch" = lifetime_events >= 20 AND last_seen >= now() - interval '1 day'.
--- The watch is watch_key = coalesce(watch_token_hash, account_token_hash), baked
--- into the rollup. All dates are UTC. Paste each section into a Supabase custom
--- report (Dashboard -> Reports -> New custom report) or run it in the SQL editor.
+-- "Active watch" = >= 20 events in raw AND last_seen >= now() - interval '1 day'.
+-- The watch is watch_key = coalesce(watch_token_hash, account_token_hash). All
+-- dates are UTC. Paste each section into a Supabase custom report (Dashboard ->
+-- Reports -> New custom report) or run it in the SQL editor.
 
 -- ============================================================
 -- 1. Daily active users (last 30 days).
@@ -105,16 +109,43 @@ where received_at >= now() - interval '7 days'
 group by attempt
 order by attempt;
 
+-- ── Active install base (queries 7, 8, 11, 12, 13, 14) ──────────────────────
+-- These count the CURRENTLY-ACTIVE fleet live from raw telemetry_weather_fetch,
+-- not last night's rollup snapshot. A watch is "active" when it (a) has >= 20
+-- events in the retained raw window — a genuinely-used install, not someone who
+-- fired a few fetches and removed it — and (b) fetched within the last day. The
+-- unit is the WATCH: watch_token_hash, falling back to account_token_hash when
+-- the watch token is null. The 1-day window is deliberately tight (the watchface
+-- fetches every 30-60 min, so a day of silence means it's gone); widen the
+-- `interval '1 day'` literal to loosen it. Each report is pasted standalone, so
+-- the watch_stats / active / latest_per_watch preamble is repeated per query.
+
 -- ============================================================
--- 7. Feature adoption — active watches only
+-- 7. Feature adoption — active watches only, deduplicated per watch
+-- enabled_pct is over the reporting watches (a NULL enabled drops older clients
+-- that don't send that setting, so they don't skew the denominator).
 -- ============================================================
-with active as (
-  select settings_json from telemetry_watch
-  where lifetime_events >= 20 and last_seen >= now() - interval '1 day'
+with watch_stats as (
+  select coalesce(watch_token_hash, account_token_hash) as watch_key,
+         count(*) as events,
+         max(received_at) as last_seen
+  from telemetry_weather_fetch
+  group by 1
+),
+active as (
+  select watch_key from watch_stats
+  where events >= 20 and last_seen >= now() - interval '1 day'
+),
+latest_per_watch as (
+  select distinct on (coalesce(t.watch_token_hash, t.account_token_hash))
+    t.settings_json
+  from telemetry_weather_fetch t
+  join active a on a.watch_key = coalesce(t.watch_token_hash, t.account_token_hash)
+  order by coalesce(t.watch_token_hash, t.account_token_hash), t.received_at desc
 ),
 flags as (
   select f.feature, f.enabled
-  from active l
+  from latest_per_watch l
   cross join lateral (values
     ('day_night_shading',  (l.settings_json ->> 'dayNightShading') = 'true'),
     ('forecast_secondary', (l.settings_json ->> 'secondaryLine') <> 'off'),
@@ -126,7 +157,10 @@ flags as (
     ('rain_countdown',     (l.settings_json ->> 'rainCountdownHorizon') <> '0'),
     ('health',             (l.settings_json ->> 'healthMode') <> 'off'),
     ('night_sleep',        l.settings_json ? 'sleepStartHour'),
+    ('view_auto_reset',    (l.settings_json ->> 'viewResetMin') <> '0'),
     ('quiet_time_icon',    (l.settings_json ->> 'showQt') = 'true'),
+    ('battery_low_only',   (l.settings_json ->> 'batteryLowOnly') = 'true'),
+    ('bt_icons',           (l.settings_json ->> 'btIcons') <> 'none'),
     ('bt_vibrate',         (l.settings_json ->> 'vibe') = 'true'),
     ('time_leading_zero',  (l.settings_json ->> 'timeLeadingZero') = 'true'),
     ('time_am_pm',         (l.settings_json ->> 'timeShowAmPm') = 'true'),
@@ -147,41 +181,116 @@ order by enabled_watches desc;
 -- 8. App version x watch platform — active watches only, at each watch's
 -- latest event. app_version orders lexically (not strict semver).
 -- ============================================================
+with watch_stats as (
+  select coalesce(watch_token_hash, account_token_hash) as watch_key,
+         count(*) as events,
+         max(received_at) as last_seen
+  from telemetry_weather_fetch
+  group by 1
+),
+active as (
+  select watch_key from watch_stats
+  where events >= 20 and last_seen >= now() - interval '1 day'
+),
+latest_per_watch as (
+  select distinct on (coalesce(t.watch_token_hash, t.account_token_hash))
+    t.app_version,
+    coalesce(t.watch_info ->> 'platform', 'unknown') as platform
+  from telemetry_weather_fetch t
+  join active a on a.watch_key = coalesce(t.watch_token_hash, t.account_token_hash)
+  order by coalesce(t.watch_token_hash, t.account_token_hash), t.received_at desc
+)
 select
-  last_app_version as app_version,
-  coalesce(watch_platform, 'unknown') as platform,
+  app_version,
+  platform,
   count(*) as watches
-from telemetry_watch
-where lifetime_events >= 20 and last_seen >= now() - interval '1 day'
-group by last_app_version, platform
+from latest_per_watch
+group by app_version, platform
 order by app_version desc, watches desc;
 
 -- ============================================================
 -- 9. Lifecycle cohorts over the complete timeline
---   trial   — < 20 lifetime events (installed, played around, never stuck)
+--   trial   — < 20 events (installed, played around, never stuck)
 --   active  — >= 20 events AND seen within the last day
 --   churned — >= 20 events but last seen is older (was a real user, now gone)
+-- Union: finalized history from telemetry_dau + telemetry_watch (first/last_seen)
+-- plus TODAY live from raw, so the split reflects the current day. The event
+-- count is recomputed (telemetry_dau days before today + today's raw); it never
+-- reads lifetime_events. least()/greatest() ignore NULLs, so a watch missing
+-- from either side (e.g. brand-new today, or long-churned and pruned from raw)
+-- still gets correct first/last_seen.
 -- ============================================================
+with today as (
+  select coalesce(watch_token_hash, account_token_hash) as watch_key,
+         count(*) as events,
+         min(received_at) as first_seen,
+         max(received_at) as last_seen
+  from telemetry_weather_fetch
+  where (received_at at time zone 'UTC')::date = (now() at time zone 'UTC')::date
+  group by 1
+),
+hist as (
+  select watch_key, sum(fetch_count) as events
+  from telemetry_dau
+  where activity_date < (now() at time zone 'UTC')::date
+  group by watch_key
+),
+watch_stats as (
+  select
+    coalesce(w.watch_key, h.watch_key, t.watch_key) as watch_key,
+    coalesce(h.events, 0) + coalesce(t.events, 0)   as events,
+    least(w.first_seen, t.first_seen)               as first_seen,
+    greatest(w.last_seen, t.last_seen)              as last_seen
+  from telemetry_watch w
+  full outer join hist  h on h.watch_key = w.watch_key
+  full outer join today t on t.watch_key = coalesce(w.watch_key, h.watch_key)
+)
 select
   case
-    when lifetime_events < 20                        then 'trial (<20 events)'
-    when last_seen >= now() - interval '1 day'       then 'active'
-    else                                                  'churned'
+    when events < 20                              then 'trial (<20 events)'
+    when last_seen >= now() - interval '1 day'    then 'active'
+    else                                               'churned'
   end as cohort,
   count(*) as watches,
   round(100.0 * count(*) / sum(count(*)) over (), 1) as pct
-from telemetry_watch
+from watch_stats
 group by 1
 order by watches desc;
 
 -- ============================================================
 -- 10. Churn tenure — how long churned watches lasted (last_seen - first_seen).
--- Buckets prefixed 0-6 so they sort in order.
+-- Buckets prefixed 0-6 so they sort in order. Same union as #9 (finalized rollup
+-- history + today live from raw; the event count never uses lifetime_events).
 -- ============================================================
-with churned as (
+with today as (
+  select coalesce(watch_token_hash, account_token_hash) as watch_key,
+         count(*) as events,
+         min(received_at) as first_seen,
+         max(received_at) as last_seen
+  from telemetry_weather_fetch
+  where (received_at at time zone 'UTC')::date = (now() at time zone 'UTC')::date
+  group by 1
+),
+hist as (
+  select watch_key, sum(fetch_count) as events
+  from telemetry_dau
+  where activity_date < (now() at time zone 'UTC')::date
+  group by watch_key
+),
+watch_stats as (
+  select
+    coalesce(w.watch_key, h.watch_key, t.watch_key) as watch_key,
+    coalesce(h.events, 0) + coalesce(t.events, 0)   as events,
+    least(w.first_seen, t.first_seen)               as first_seen,
+    greatest(w.last_seen, t.last_seen)              as last_seen
+  from telemetry_watch w
+  full outer join hist  h on h.watch_key = w.watch_key
+  full outer join today t on t.watch_key = coalesce(w.watch_key, h.watch_key)
+),
+churned as (
   select extract(epoch from (last_seen - first_seen)) / 86400.0 as tenure_days
-  from telemetry_watch
-  where lifetime_events >= 20 and last_seen < now() - interval '1 day'
+  from watch_stats
+  where events >= 20 and last_seen < now() - interval '1 day'
 )
 select
   case
@@ -203,15 +312,29 @@ order by churned_after;
 -- 11. Settings profile of the ACTIVE watches
 -- Option distribution over the active install base, one row per active watch.
 -- ============================================================
-with active as (
-  select settings_json from telemetry_watch
-  where lifetime_events >= 20 and last_seen >= now() - interval '1 day'
+with watch_stats as (
+  select coalesce(watch_token_hash, account_token_hash) as watch_key,
+         count(*) as events,
+         max(received_at) as last_seen
+  from telemetry_weather_fetch
+  group by 1
+),
+active as (
+  select watch_key from watch_stats
+  where events >= 20 and last_seen >= now() - interval '1 day'
+),
+latest_per_watch as (
+  select distinct on (coalesce(t.watch_token_hash, t.account_token_hash))
+    t.settings_json
+  from telemetry_weather_fetch t
+  join active a on a.watch_key = coalesce(t.watch_token_hash, t.account_token_hash)
+  order by coalesce(t.watch_token_hash, t.account_token_hash), t.received_at desc
 )
 select
   s.setting,
   s.option,
   count(*) as watches
-from active l
+from latest_per_watch l
 cross join lateral (values
   ('temperatureUnits',     l.settings_json ->> 'temperatureUnits'),
   ('provider',             l.settings_json ->> 'provider'),
@@ -243,12 +366,30 @@ order by s.setting, watches desc;
 -- ============================================================
 -- 12. Weather provider by country — active watches only
 -- ============================================================
+with watch_stats as (
+  select coalesce(watch_token_hash, account_token_hash) as watch_key,
+         count(*) as events,
+         max(received_at) as last_seen
+  from telemetry_weather_fetch
+  group by 1
+),
+active as (
+  select watch_key from watch_stats
+  where events >= 20 and last_seen >= now() - interval '1 day'
+),
+latest_per_watch as (
+  select distinct on (coalesce(t.watch_token_hash, t.account_token_hash))
+    coalesce(t.country_code, 'unknown') as country,
+    t.provider
+  from telemetry_weather_fetch t
+  join active a on a.watch_key = coalesce(t.watch_token_hash, t.account_token_hash)
+  order by coalesce(t.watch_token_hash, t.account_token_hash), t.received_at desc
+)
 select
-  coalesce(country_code, 'unknown') as country,
+  country,
   provider,
   count(*) as watches
-from telemetry_watch
-where lifetime_events >= 20 and last_seen >= now() - interval '1 day'
+from latest_per_watch
 group by country, provider
 order by country, watches desc;
 
@@ -256,14 +397,28 @@ order by country, watches desc;
 -- 13. Status usage overview — pool all 12 status slots across active watches,
 -- rank each status code by total uses ("what status is used how often").
 -- ============================================================
-with active as (
-  select settings_json from telemetry_watch
-  where lifetime_events >= 20 and last_seen >= now() - interval '1 day'
+with watch_stats as (
+  select coalesce(watch_token_hash, account_token_hash) as watch_key,
+         count(*) as events,
+         max(received_at) as last_seen
+  from telemetry_weather_fetch
+  group by 1
+),
+active as (
+  select watch_key from watch_stats
+  where events >= 20 and last_seen >= now() - interval '1 day'
+),
+latest_per_watch as (
+  select distinct on (coalesce(t.watch_token_hash, t.account_token_hash))
+    t.settings_json
+  from telemetry_weather_fetch t
+  join active a on a.watch_key = coalesce(t.watch_token_hash, t.account_token_hash)
+  order by coalesce(t.watch_token_hash, t.account_token_hash), t.received_at desc
 )
 select
   code,
   count(*) as uses
-from active a
+from latest_per_watch a
 cross join lateral (values
   (a.settings_json ->> 'statusForecastLeft'), (a.settings_json ->> 'statusForecastMid'),
   (a.settings_json ->> 'statusForecastRight'), (a.settings_json ->> 'statusRadarLeft'),
@@ -280,16 +435,30 @@ order by uses desc;
 -- 14. Per-slot ranking — for each of the 12 slots, rank the codes chosen
 -- (`rnk` = popularity within that slot).
 -- ============================================================
-with active as (
-  select settings_json from telemetry_watch
-  where lifetime_events >= 20 and last_seen >= now() - interval '1 day'
+with watch_stats as (
+  select coalesce(watch_token_hash, account_token_hash) as watch_key,
+         count(*) as events,
+         max(received_at) as last_seen
+  from telemetry_weather_fetch
+  group by 1
+),
+active as (
+  select watch_key from watch_stats
+  where events >= 20 and last_seen >= now() - interval '1 day'
+),
+latest_per_watch as (
+  select distinct on (coalesce(t.watch_token_hash, t.account_token_hash))
+    t.settings_json
+  from telemetry_weather_fetch t
+  join active a on a.watch_key = coalesce(t.watch_token_hash, t.account_token_hash)
+  order by coalesce(t.watch_token_hash, t.account_token_hash), t.received_at desc
 )
 select
   slot,
   code,
   count(*) as watches,
   rank() over (partition by slot order by count(*) desc) as rnk
-from active a
+from latest_per_watch a
 cross join lateral (values
   ('statusForecastLeft',  a.settings_json ->> 'statusForecastLeft'),
   ('statusForecastMid',   a.settings_json ->> 'statusForecastMid'),

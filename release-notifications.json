@@ -97,6 +97,6 @@
   },
   "1.9.1": {
     "title": "Countdown slot & radar view modes",
-    "body": "A new Countdown status slot counts the days until any date you pick — place it in any status position. Radar gains tiered view modes too: Off, Countdown, Status or Graph, so you can keep the \"Rain in X\" alert and radar status line without the full radar chart."
+    "body": "A new Countdown slot counts the days to any date you pick. Radar gains view modes — keep just the rain countdown, add a status line, or the full chart."
   }
 }
