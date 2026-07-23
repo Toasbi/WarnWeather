@@ -31,6 +31,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 **Rain radar**
 * 2-hour precipitation nowcast from regional and worldwide providers
 * Rain countdown telling you when rain starts (or stops)
+* Choose how much radar you see — Off, a rain countdown, a radar status line, or the full radar graph — in the Radar tab
 
 **Health view** *(requires a health-capable watch; heart rate needs a heart-rate sensor)*
 * Health status for steps, sleep, distance, and heart rate
