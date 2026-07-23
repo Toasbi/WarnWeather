@@ -302,6 +302,35 @@ function migrateStatusTopRightBattery(isMigrationDone, markDone) {
 }
 
 /**
+ * One-time migration onto the radarMode tiered setting. Existing installs that
+ * disabled radar via radarProvider:'disabled' map to radarMode:'off' and get
+ * their now-invalid provider rewritten to a real default (the Off option was
+ * removed from the provider picker). Every other existing install that has no
+ * radarMode yet initializes to 'graph' (full radar — the prior default-on
+ * behavior). Marker-gated; only touches what needs correcting.
+ * @param {string} defaultRadarProvider Provider to adopt when clearing 'disabled' (e.g. 'rainbow').
+ * @param {function(): boolean} isMigrationDone marker probe
+ * @param {function()} markDone marker setter
+ * @returns {void}
+ */
+function migrateRadarProviderToMode(defaultRadarProvider, isMigrationDone, markDone) {
+    var persistClay = loadForMigration(isMigrationDone, 'radar view mode');
+    if (persistClay === null) { return; }
+    if (persistClay.radarProvider === 'disabled') {
+        persistClay.radarMode = 'off';
+        persistClay.radarProvider = defaultRadarProvider;
+        save(persistClay);
+        console.log('Migrated radarProvider=disabled -> radarMode=off');
+    }
+    else if (typeof persistClay.radarMode === 'undefined') {
+        persistClay.radarMode = 'graph';
+        save(persistClay);
+        console.log('Initialized radarMode=graph for existing radar install');
+    }
+    markDone();
+}
+
+/**
  * Apply values from a dev-config.js file to the stored Clay settings, skipping
  * the local-only dev keys that drive boot behavior rather than watch config.
  *
@@ -417,5 +446,6 @@ module.exports = {
     migrateHolidayWhiteToToggle: migrateHolidayWhiteToToggle,
     migrateHolidayRegionKeys: migrateHolidayRegionKeys,
     migrateStatusLineHealthDefaults: migrateStatusLineHealthDefaults,
-    migrateStatusTopRightBattery: migrateStatusTopRightBattery
+    migrateStatusTopRightBattery: migrateStatusTopRightBattery,
+    migrateRadarProviderToMode: migrateRadarProviderToMode
 };

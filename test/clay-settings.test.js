@@ -283,6 +283,56 @@ test('migrateStatusTopRightBattery: no-op when already migrated', () => {
   assert.equal(JSON.parse(localStorage.getItem('clay-settings')).statusTopRight, 'empty');
 });
 
+test('migrateRadarProviderToMode: disabled provider -> radarMode off + real provider', () => {
+  installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+
+  localStorage.setItem('clay-settings', JSON.stringify({ radarProvider: 'disabled' }));
+  let done = false;
+  claySettings.migrateRadarProviderToMode('rainbow', () => done, () => { done = true; });
+  const s = JSON.parse(localStorage.getItem('clay-settings'));
+  assert.strictEqual(s.radarMode, 'off');
+  assert.strictEqual(s.radarProvider, 'rainbow');
+  assert.strictEqual(done, true);
+});
+
+test('migrateRadarProviderToMode: real provider + no radarMode -> graph', () => {
+  installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+
+  localStorage.setItem('clay-settings', JSON.stringify({ radarProvider: 'dwd' }));
+  let done = false;
+  claySettings.migrateRadarProviderToMode('rainbow', () => done, () => { done = true; });
+  const s = JSON.parse(localStorage.getItem('clay-settings'));
+  assert.strictEqual(s.radarMode, 'graph');
+  assert.strictEqual(s.radarProvider, 'dwd');
+});
+
+test('migrateRadarProviderToMode: already-set radarMode is left alone', () => {
+  installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+
+  localStorage.setItem('clay-settings', JSON.stringify({ radarProvider: 'dwd', radarMode: 'countdown' }));
+  claySettings.migrateRadarProviderToMode('rainbow', () => false, () => {});
+  const s = JSON.parse(localStorage.getItem('clay-settings'));
+  assert.strictEqual(s.radarMode, 'countdown');
+});
+
+test('migrateRadarProviderToMode: skips when the marker is already set', () => {
+  installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+
+  localStorage.setItem('clay-settings', JSON.stringify({ radarProvider: 'disabled' }));
+  claySettings.migrateRadarProviderToMode('rainbow', () => true, () => {});
+  const s = JSON.parse(localStorage.getItem('clay-settings'));
+  assert.strictEqual(s.radarProvider, 'disabled');   // untouched — marker already done
+  assert.strictEqual(s.radarMode, undefined);
+});
+
 test('shouldReset triggers when the Reset toggle is exactly true', () => {
   installFakeStorage();
   delete require.cache[require.resolve('../src/pkjs/clay-settings')];
