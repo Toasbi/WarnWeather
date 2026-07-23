@@ -519,7 +519,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             + '</div>';
     }
     function stepDone() {
-        var upsell = (W.ctx.S.provider !== 'dwd' && W.ctx.S.provider !== 'metno') ? tomorrowioUpsell() : '';
+        // Show the tomorrow.io upsell only where DWD / Met.no don't apply — a REGION question, keyed off
+        // the selected country's recommended provider. NOT the current S.provider: that may not have been
+        // derived to dwd/metno yet (re-run wizard, undetected locale) and the upsell itself flips it to
+        // tomorrow.io once a key is entered, which must not change whether the upsell shows.
+        var countryProvider = mapCountry(W.ctx.S.holidayCountry).provider;
+        var upsell = (countryProvider !== 'dwd' && countryProvider !== 'metno') ? tomorrowioUpsell() : '';
         return '<p><b>You’re all set!</b> Everything is editable later in the settings tabs, and you can run this setup again any time from <b>More → Misc → Run setup again</b>.</p>'
             + upsell
             + '<p>If you enjoy WarnWeather, please ♥ it on the Pebble appstore — it really helps.</p>'
@@ -613,9 +618,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // A non-empty key makes tomorrow.io the weather provider (the upsell's whole point); clearing it
     // reverts to the country-derived provider. We don't re-render on keystrokes (would drop input
-    // focus), and it isn't needed: the upsell's visibility gate is "provider is not DWD/Met.no", which
-    // stays true whether the provider is tomorrow.io or the derived Open-Meteo. Runs the same pollen
-    // cleanup the provider picker + applyDerived do.
+    // focus), and it isn't needed: the upsell's visibility gate is the COUNTRY's recommended provider
+    // (see stepDone), so flipping S.provider here never changes whether the upsell shows. Runs the same
+    // pollen cleanup the provider picker + applyDerived do.
     function onTomorrowioKey(val) {
         var oldProvider = W.ctx.S.provider;
         var hasKey = Boolean(String(val || '').replace(/\s/g, ''));
