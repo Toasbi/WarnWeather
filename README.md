@@ -35,7 +35,6 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 **Health view** *(requires a health-capable watch; heart rate needs a heart-rate sensor)*
 * Health status for steps, sleep, distance, and heart rate
 * Last-24h health chart with steps per hour, heart rate, and a sleep band
-* Or show any of these in your existing status bars — pick "Status slots only" to add health metrics to a slot without the dedicated Health view
 
 **Calendar**
 * Multi-week calendar with current-day highlight
@@ -50,7 +49,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 **Watch**
 * Custom color, 12h/24h, optional AM/PM
 * Battery, Bluetooth, quiet time, and vibrate-on-disconnect indicators
-* Sleep mode (battery-saving night pause)
+* Night battery saver (battery-saving weather update pause)
 
 **Layout customization**
 * Multiple layout presets, with flick-to-cycle between views and optional auto-return

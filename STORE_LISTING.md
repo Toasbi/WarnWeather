@@ -19,7 +19,6 @@ RAIN RADAR
 HEALTH VIEW (requires a health-capable watch; heart rate needs a heart-rate sensor)
 - Health status for steps, sleep, distance and heart rate
 - Last-24h health chart with steps per hour, heart rate, and a sleep band
-- Or show any of these in your existing status bars — "Status slots only" adds health metrics to a slot without the dedicated Health view
 
 CALENDAR
 - Multi-week calendar with current-day highlight
@@ -35,7 +34,7 @@ WATCHFACE THEMES
 WATCH
 - Custom color, 12h/24h, optional AM/PM
 - Battery, Bluetooth, quiet time, and vibrate-on-disconnect indicators
-- Sleep mode (battery-saving night pause)
+- Night battery saver (battery-saving weather update pause)
 
 
 LAYOUT CUSTOMIZATION
