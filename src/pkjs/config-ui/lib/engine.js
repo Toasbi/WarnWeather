@@ -1220,7 +1220,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       modal.addEventListener('touchstart', function (e) {
         var list = modal.querySelector('.ssel-list');
         var wheel = e.target.closest && e.target.closest('[data-date-wheel]');
-        var canDragDate = Boolean(openDate && (!wheel || wheel.scrollTop <= 0));
+        var header = e.target.closest && e.target.closest('.ssel-modal-hdr');
+        var canDragDate = Boolean(openDate
+          && (header || (wheel && wheel.scrollTop <= 0)));
         var canDragSelect = Boolean(openSelect && list && list.scrollTop <= 0);
         dragY = (canDragDate || canDragSelect) ? e.touches[0].clientY : null;
         dragging = false;

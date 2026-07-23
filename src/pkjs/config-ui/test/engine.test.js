@@ -683,7 +683,12 @@ function bootWithCapturedListeners(schema, env) {
   const listeners = {};
   const modalListeners = {};
   const scroll = { innerHTML: '', addEventListener: (type, fn) => { listeners[type] = fn; } };
-  const modal = { innerHTML: '', addEventListener: (type, fn) => { modalListeners[type] = fn; } };
+  const modal = {
+    innerHTML: '',
+    style: {},
+    addEventListener: (type, fn) => { modalListeners[type] = fn; },
+    querySelector: () => null
+  };
   const sselList = { innerHTML: '', focus: () => {} };
   const generic = () => ({ innerHTML: '', textContent: '', addEventListener: () => {} });
   const ids = { scroll, modal, tabs: generic(), save: generic(), appTitle: generic(), toast: generic() };
@@ -772,6 +777,55 @@ test('boot(): date trigger opens the shared sheet and a tapped wheel value persi
   });
   assert.match(result.modal.innerHTML,
     /class="date-opt on" data-date-value="25"/);
+});
+
+test('boot(): date swipe-dismiss arms only from the header or a wheel already at its top', () => {
+  const schema = { appName: 'X', versionLabel: 'v0', tabs: [
+    { id: 't', label: 'T', sections: [{ items: [
+      { type: 'date', messageKey: 'trip', label: 'Target date',
+        defaultValue: '2026-12-24' }
+    ] }] }
+  ] };
+
+  function dragWasArmed(target) {
+    const result = bootWithCapturedListeners(schema, {});
+    const trigger = {
+      getAttribute: (name) => name === 'data-date' ? 'trip' : null
+    };
+    result.listeners.click({
+      target: { closest: (selector) => selector === '[data-date]' ? trigger : null }
+    });
+    let prevented = false;
+    result.modalListeners.touchstart({
+      target,
+      touches: [{ clientY: 100 }]
+    });
+    result.modalListeners.touchmove({
+      touches: [{ clientY: 120 }],
+      preventDefault: () => { prevented = true; }
+    });
+    return prevented;
+  }
+
+  const gap = { closest: () => null };
+  const header = {};
+  const headerTarget = {
+    closest: (selector) => selector === '.ssel-modal-hdr' ? header : null
+  };
+  const wheelAtTop = { scrollTop: 0 };
+  const topWheelTarget = {
+    closest: (selector) => selector === '[data-date-wheel]' ? wheelAtTop : null
+  };
+  const wheelBelowTop = { scrollTop: 20 };
+  const scrolledWheelTarget = {
+    closest: (selector) => selector === '[data-date-wheel]' ? wheelBelowTop : null
+  };
+
+  assert.equal(dragWasArmed(gap), false, 'picker gaps and padding do not arm dismissal');
+  assert.equal(dragWasArmed(headerTarget), true, 'the modal header arms dismissal');
+  assert.equal(dragWasArmed(topWheelTarget), true, 'a wheel at its top arms dismissal');
+  assert.equal(dragWasArmed(scrolledWheelTarget), false,
+    'a wheel below its top keeps scrolling normally');
 });
 
 const THEME_SCHEMA = {
