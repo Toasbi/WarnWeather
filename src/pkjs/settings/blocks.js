@@ -731,8 +731,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // Shares view-cycle.js with clay-payload.js — no manual sync.
     function presetContents(state) {
         state = state || {};
-        var radarEnabled = state.radarProvider !== 'disabled';
-        return VC.buildViewCycle(VC.resolvePresetKey(state), state.healthMode || 'off', radarEnabled);
+        var radarMode = state.radarMode || 'graph';
+        return VC.buildViewCycle(VC.resolvePresetKey(state), state.healthMode || 'off', radarMode);
     }
 
     // Schematic band-stack geometry (px). The calendar is modelled as rows of height ROW

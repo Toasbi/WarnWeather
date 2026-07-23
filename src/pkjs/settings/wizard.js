@@ -110,8 +110,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function flickStops(state, hasHeartRate) {
         state = state || {};
-        var radarEnabled = state.radarProvider !== 'disabled';
-        var cycle = VC.buildViewCycle(VC.resolvePresetKey(state), state.healthMode || 'off', radarEnabled);
+        var radarMode = state.radarMode || 'graph';
+        var cycle = VC.buildViewCycle(VC.resolvePresetKey(state), state.healthMode || 'off', radarMode);
         var stops = [], i;
         for (i = 0; i < cycle.length; i += 1) { stops.push(flickStop(cycle[i], i === 0, state, hasHeartRate)); }
         return stops;

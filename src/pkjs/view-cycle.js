@@ -8,7 +8,7 @@ var TOP_EMPTY = 0, TOP_CAL = 1, TOP_RADAR = 2;
 // Unlike `top` above (deliberately renumbered and translated by view_spec_unpack()),
 // these numberings must stay bit-for-bit identical to BodyContent/StatusRowContent in
 // src/c/windows/layout.h — the packed wire byte passes them through untranslated.
-var BODY_FC = 0, BODY_GRAPH = 1, BODY_RADAR = 2;
+var BODY_FC = 0, BODY_GRAPH = 1, BODY_RADAR = 2, BODY_RADAR_STATUS = 3;
 var ST_W = 0, ST_H = 1, ST_D = 2, ST_NONE = 3;
 
 /**
@@ -57,7 +57,7 @@ var NONE_FC_H    = spec(TIER_NONE, TOP_EMPTY, BODY_FC, ST_H);
 var NONE_GRAPH_H = spec(TIER_NONE, TOP_EMPTY, BODY_GRAPH, ST_H);
 var NONE_RDR_W   = spec(TIER_NONE, TOP_EMPTY, BODY_RADAR, ST_W);
 
-// preset -> healthMode -> radar-key ('r' = radar on, 'n' = off) -> cycle.
+// preset -> healthMode -> radar-key ('r' = radar flick view present, 'n' = none) -> cycle.
 var MATRIX = {
   fullCal: {
     off:    { n: [CAL3_FC_W],           r: [CAL3_FC_W, CAL3_RDR_W] },
@@ -90,19 +90,29 @@ var MATRIX = {
 };
 
 /**
- * Compile a preset + health mode + radar availability to the 1–3 view cycle.
+ * Compile a preset + health mode + radar mode to the 1–3 view cycle.
+ * 'status'/'graph' include a radar flick view; 'off'/'countdown' do not. In
+ * 'status', the radar body renders the forecast with a radar status line (chart
+ * suppressed), encoded as BODY_RADAR_STATUS so the packed ViewSpec stays
+ * self-describing. Only radar specs are cloned, so the shared MATRIX constants
+ * are never mutated.
  * @param {string} presetKey 'fullCal'|'compactCal'|'compactDense'|'noCal'
  * @param {string} healthMode 'off'|'slot'|'status'|'all'
- * @param {boolean} radarEnabled
+ * @param {string} radarMode 'off'|'countdown'|'status'|'graph'
  * @returns {Array<{tier:number,top:number,body:number,status:number}>}
  */
-function buildViewCycle(presetKey, healthMode, radarEnabled) {
+function buildViewCycle(presetKey, healthMode, radarMode) {
   var byPreset = MATRIX[presetKey] || MATRIX.compactCal;
   // 'slot' shows health only in the regular status bars — it adds no dedicated
   // Health view, so its flick cycle is identical to 'off'.
   var mode = (healthMode === 'slot') ? 'off' : healthMode;
   var byHealth = byPreset[mode] || byPreset.off;
-  return byHealth[radarEnabled ? 'r' : 'n'];
+  var radarShowsView = (radarMode === 'status' || radarMode === 'graph');
+  var cycle = byHealth[radarShowsView ? 'r' : 'n'];
+  if (radarMode !== 'status') { return cycle; }
+  return cycle.map(function (s) {
+    return s.body === BODY_RADAR ? spec(s.tier, s.top, BODY_RADAR_STATUS, s.status) : s;
+  });
 }
 
 var NEW_KEYS = { fullCal: 1, compactCal: 1, compactDense: 1, noCal: 1 };
@@ -135,7 +145,7 @@ function resolvePresetKey(state) {
 var VIEW_CYCLE = {
   TIER_OFF: TIER_OFF, TIER_NONE: TIER_NONE, TIER_COMPACT: TIER_COMPACT, TIER_FULL: TIER_FULL,
   TOP_EMPTY: TOP_EMPTY, TOP_CAL: TOP_CAL, TOP_RADAR: TOP_RADAR,
-  BODY_FC: BODY_FC, BODY_GRAPH: BODY_GRAPH, BODY_RADAR: BODY_RADAR,
+  BODY_FC: BODY_FC, BODY_GRAPH: BODY_GRAPH, BODY_RADAR: BODY_RADAR, BODY_RADAR_STATUS: BODY_RADAR_STATUS,
   ST_W: ST_W, ST_H: ST_H, ST_D: ST_D, ST_NONE: ST_NONE,
   spec: spec, packSpec: packSpec, unpackSpec: unpackSpec,
   buildViewCycle: buildViewCycle, resolvePresetKey: resolvePresetKey

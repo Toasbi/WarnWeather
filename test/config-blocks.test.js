@@ -315,43 +315,43 @@ test('precip line + fill go one step darker in the light theme (readability roun
 
 test('presetContents resolves each named preset directly (layoutPreset set)', () => {
     const vc = require('../src/pkjs/view-cycle.js');
-    assert.deepEqual(B.presetContents({ layoutPreset: 'fullCal', healthMode: 'off', radarProvider: 'disabled' }),
+    assert.deepEqual(B.presetContents({ layoutPreset: 'fullCal', healthMode: 'off', radarMode: 'off' }),
         [vc.spec(vc.TIER_FULL, vc.TOP_CAL, vc.BODY_FC, vc.ST_W)]);
-    assert.deepEqual(B.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled' }),
+    assert.deepEqual(B.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off' }),
         [vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.ST_W)]);
-    assert.deepEqual(B.presetContents({ layoutPreset: 'compactDense', healthMode: 'off', radarProvider: 'disabled' }),
+    assert.deepEqual(B.presetContents({ layoutPreset: 'compactDense', healthMode: 'off', radarMode: 'off' }),
         [vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.ST_W)]);
-    assert.deepEqual(B.presetContents({ layoutPreset: 'noCal', healthMode: 'off', radarProvider: 'disabled' }),
+    assert.deepEqual(B.presetContents({ layoutPreset: 'noCal', healthMode: 'off', radarMode: 'off' }),
         [vc.spec(vc.TIER_NONE, vc.TOP_EMPTY, vc.BODY_FC, vc.ST_W)]);
 });
 
 test('presetContents falls back to compactCal for an unrecognised preset key', () => {
-    assert.deepEqual(B.presetContents({ layoutPreset: 'bogus', healthMode: 'off', radarProvider: 'disabled' }),
-        B.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled' }));
+    assert.deepEqual(B.presetContents({ layoutPreset: 'bogus', healthMode: 'off', radarMode: 'off' }),
+        B.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off' }));
 });
 
 test('presetContents migrates legacy layoutPreset/topViewMode settings via view-cycle.js', () => {
     // classic/radarLast/healthFirst -> compactCal; forecast -> noCal; fullCal unchanged.
-    const compactCal = B.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled' });
-    assert.deepEqual(B.presetContents({ layoutPreset: 'classic', healthMode: 'off', radarProvider: 'disabled' }), compactCal);
-    assert.deepEqual(B.presetContents({ layoutPreset: 'radarLast', healthMode: 'off', radarProvider: 'disabled' }), compactCal);
-    assert.deepEqual(B.presetContents({ layoutPreset: 'healthFirst', healthMode: 'off', radarProvider: 'disabled' }), compactCal);
-    assert.deepEqual(B.presetContents({ layoutPreset: 'forecast', healthMode: 'off', radarProvider: 'disabled' }),
-        B.presetContents({ layoutPreset: 'noCal', healthMode: 'off', radarProvider: 'disabled' }));
-    assert.deepEqual(B.presetContents({ topViewMode: 'full', healthMode: 'off', radarProvider: 'disabled' }),
-        B.presetContents({ layoutPreset: 'fullCal', healthMode: 'off', radarProvider: 'disabled' }), 'topViewMode full -> fullCal');
-    assert.deepEqual(B.presetContents({ topViewMode: 'none', healthMode: 'off', radarProvider: 'disabled' }),
-        B.presetContents({ layoutPreset: 'noCal', healthMode: 'off', radarProvider: 'disabled' }), 'topViewMode none -> noCal');
-    assert.deepEqual(B.presetContents({ healthMode: 'off', radarProvider: 'disabled' }), compactCal, 'nothing set -> compactCal');
+    const compactCal = B.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off' });
+    assert.deepEqual(B.presetContents({ layoutPreset: 'classic', healthMode: 'off', radarMode: 'off' }), compactCal);
+    assert.deepEqual(B.presetContents({ layoutPreset: 'radarLast', healthMode: 'off', radarMode: 'off' }), compactCal);
+    assert.deepEqual(B.presetContents({ layoutPreset: 'healthFirst', healthMode: 'off', radarMode: 'off' }), compactCal);
+    assert.deepEqual(B.presetContents({ layoutPreset: 'forecast', healthMode: 'off', radarMode: 'off' }),
+        B.presetContents({ layoutPreset: 'noCal', healthMode: 'off', radarMode: 'off' }));
+    assert.deepEqual(B.presetContents({ topViewMode: 'full', healthMode: 'off', radarMode: 'off' }),
+        B.presetContents({ layoutPreset: 'fullCal', healthMode: 'off', radarMode: 'off' }), 'topViewMode full -> fullCal');
+    assert.deepEqual(B.presetContents({ topViewMode: 'none', healthMode: 'off', radarMode: 'off' }),
+        B.presetContents({ layoutPreset: 'noCal', healthMode: 'off', radarMode: 'off' }), 'topViewMode none -> noCal');
+    assert.deepEqual(B.presetContents({ healthMode: 'off', radarMode: 'off' }), compactCal, 'nothing set -> compactCal');
 });
 
-test('presetContents reads healthMode/radarProvider off state to grow/shrink the cycle', () => {
-    assert.equal(B.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled' }).length, 1);
-    assert.equal(B.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'dwd' }).length, 2, 'radar adds a slot');
-    assert.equal(B.presetContents({ layoutPreset: 'compactCal', healthMode: 'status', radarProvider: 'disabled' }).length, 2, 'health status adds a slot');
-    assert.equal(B.presetContents({ layoutPreset: 'compactCal', healthMode: 'status', radarProvider: 'dwd' }).length, 3, 'both add up to three');
-    // radarProvider unset (not explicitly 'disabled') is treated as enabled.
-    assert.equal(B.presetContents({ layoutPreset: 'compactCal', healthMode: 'off' }).length, 2, 'unset radarProvider counts as enabled');
+test('presetContents reads healthMode/radarMode off state to grow/shrink the cycle', () => {
+    assert.equal(B.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off' }).length, 1);
+    assert.equal(B.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'graph' }).length, 2, 'radar adds a slot');
+    assert.equal(B.presetContents({ layoutPreset: 'compactCal', healthMode: 'status', radarMode: 'off' }).length, 2, 'health status adds a slot');
+    assert.equal(B.presetContents({ layoutPreset: 'compactCal', healthMode: 'status', radarMode: 'graph' }).length, 3, 'both add up to three');
+    // radarMode unset (not explicitly 'off') is treated as enabled (defaults to 'graph').
+    assert.equal(B.presetContents({ layoutPreset: 'compactCal', healthMode: 'off' }).length, 2, 'unset radarMode counts as enabled');
 });
 
 test('contentBands renders each tier\'s band ordering', () => {
@@ -445,45 +445,45 @@ test('layoutPreview renders the resolved preset\'s default (slot 0) content', ()
 });
 
 test('layoutPreviewFlick renders the first flick slot, or nothing when the cycle has none', () => {
-    assert.ok(B.layoutPreviewFlick({ layoutPreset: 'compactCal', radarProvider: 'dwd', healthMode: 'off' }, {}, {}).indexOf('Radar') >= 0,
+    assert.ok(B.layoutPreviewFlick({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'off' }, {}, {}).indexOf('Radar') >= 0,
         'compactCal + radar flick 1 is radar');
-    assert.ok(B.layoutPreviewFlick({ layoutPreset: 'compactCal', radarProvider: 'dwd', healthMode: 'status' }, {}, {}).indexOf('Health Status') >= 0,
+    assert.ok(B.layoutPreviewFlick({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'status' }, {}, {}).indexOf('Health Status') >= 0,
         'compactCal + health status flick 1 shows health status');
-    assert.strictEqual(B.layoutPreviewFlick({ layoutPreset: 'compactCal', radarProvider: 'disabled', healthMode: 'off' }, {}, {}), '',
+    assert.strictEqual(B.layoutPreviewFlick({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off' }, {}, {}), '',
         'a single-slot cycle (no radar, no health) has no flick');
 });
 
 test('layoutPreviewCombined: one column per cycle slot, headers Default/Flick 1/Flick 2', () => {
-    const one = B.layoutPreviewCombined({ layoutPreset: 'compactCal', radarProvider: 'disabled', healthMode: 'off' }, {}, {});
+    const one = B.layoutPreviewCombined({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off' }, {}, {});
     assert.ok(one.indexOf('Default') >= 0, 'Default header present');
     assert.strictEqual(one.indexOf('Flick 1'), -1, 'no flick column for a single-slot cycle');
 
-    const two = B.layoutPreviewCombined({ layoutPreset: 'compactCal', radarProvider: 'dwd', healthMode: 'off' }, {}, {});
+    const two = B.layoutPreviewCombined({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'off' }, {}, {});
     assert.ok(two.indexOf('Default') >= 0 && two.indexOf('Flick 1') >= 0, 'Default + Flick 1 present');
     assert.ok(two.indexOf('Radar') >= 0, 'flick 1 column shows the Radar band');
     assert.strictEqual(two.indexOf('Flick 2'), -1, 'no third column for a two-slot cycle');
 
-    const three = B.layoutPreviewCombined({ layoutPreset: 'compactDense', radarProvider: 'dwd', healthMode: 'all' }, {}, {});
+    const three = B.layoutPreviewCombined({ layoutPreset: 'compactDense', radarMode: 'graph', healthMode: 'all' }, {}, {});
     assert.ok(three.indexOf('Default') >= 0 && three.indexOf('Flick 1') >= 0 && three.indexOf('Flick 2') >= 0,
         'all three column headers present for a three-slot cycle');
 });
 
 test('layoutPreviewCombined: toggling radar/health grows or shrinks the columns (no dimming, no notes)', () => {
-    const radarOff = B.layoutPreviewCombined({ layoutPreset: 'compactCal', radarProvider: 'disabled', healthMode: 'off' }, {}, {});
-    const radarOn = B.layoutPreviewCombined({ layoutPreset: 'compactCal', radarProvider: 'dwd', healthMode: 'off' }, {}, {});
+    const radarOff = B.layoutPreviewCombined({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off' }, {}, {});
+    const radarOn = B.layoutPreviewCombined({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'off' }, {}, {});
     assert.strictEqual(radarOff.indexOf('Radar'), -1, 'radar column absent when radar is disabled');
     assert.ok(radarOn.indexOf('Radar') >= 0, 'radar column present once radar is enabled');
     assert.strictEqual(radarOn.indexOf('needs radar'), -1, 'no availability note anywhere');
 
-    const healthOff = B.layoutPreviewCombined({ layoutPreset: 'compactCal', radarProvider: 'disabled', healthMode: 'off' }, {}, {});
-    const healthOn = B.layoutPreviewCombined({ layoutPreset: 'compactCal', radarProvider: 'disabled', healthMode: 'status' }, {}, {});
+    const healthOff = B.layoutPreviewCombined({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off' }, {}, {});
+    const healthOn = B.layoutPreviewCombined({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'status' }, {}, {});
     assert.strictEqual(healthOff.indexOf('Health Status'), -1, 'health column absent when health is off');
     assert.ok(healthOn.indexOf('Health Status') >= 0, 'health column present once health is on');
     assert.strictEqual(healthOn.indexOf('needs health'), -1, 'no availability note anywhere');
 });
 
 test('layoutPreviewCombined: columns span the full window width, flush left (no side padding)', () => {
-    const svg = B.layoutPreviewCombined({ layoutPreset: 'compactCal', radarProvider: 'dwd', healthMode: 'off' }, {}, {});
+    const svg = B.layoutPreviewCombined({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'off' }, {}, {});
     // Left (Default) column starts flush at x=0 (no black side padding inset).
     assert.ok(svg.indexOf('<rect x="0" y="16"') >= 0, 'left column band starts at x=0');
 });
@@ -595,13 +595,13 @@ test('forecastPreview: rainBarColor=Solid in the light theme uses DarkGray, not 
 });
 
 test('layoutPreview / layoutPreviewCombined: light theme flips the canvas background to white', () => {
-  const state = { layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'light' };
+  const state = { layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off', theme: 'light' };
   assert.ok(B.layoutPreview(state, {}).indexOf('fill="#FFFFFF"') >= 0);
   assert.ok(B.layoutPreviewCombined(state, {}).indexOf('fill="#FFFFFF"') >= 0);
 });
 
 test('layoutPreview / layoutPreviewCombined: bw-light theme also flips the canvas background to white', () => {
-  const state = { layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'bw-light' };
+  const state = { layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off', theme: 'bw-light' };
   assert.ok(B.layoutPreview(state, {}).indexOf('fill="#FFFFFF"') >= 0);
   assert.ok(B.layoutPreviewCombined(state, {}).indexOf('fill="#FFFFFF"') >= 0);
 });
@@ -612,7 +612,7 @@ test('layoutPreview / layoutPreviewCombined: bw-light theme also flips the canva
 // helper — the same theme-relative mechanism the other previews use for dividers/
 // gridlines — instead of a hardcoded color.
 test('layoutPreview / layoutPreviewFlick / layoutPreviewCombined: light theme themes the band chrome too, not just the canvas', () => {
-  const state = { layoutPreset: 'compactCal', healthMode: 'status', radarProvider: 'dwd', theme: 'light' };
+  const state = { layoutPreset: 'compactCal', healthMode: 'status', radarMode: 'graph', theme: 'light' };
   const preview = B.layoutPreview(state, {});
   const flick = B.layoutPreviewFlick(state, {});
   const combined = B.layoutPreviewCombined(state, {});
@@ -626,7 +626,7 @@ test('layoutPreview / layoutPreviewFlick / layoutPreviewCombined: light theme th
 });
 
 test('layoutPreview / layoutPreviewFlick / layoutPreviewCombined: dark theme keeps the light-on-black band wash', () => {
-  const state = { layoutPreset: 'compactCal', healthMode: 'status', radarProvider: 'dwd', theme: 'dark' };
+  const state = { layoutPreset: 'compactCal', healthMode: 'status', radarMode: 'graph', theme: 'dark' };
   assert.ok(B.layoutPreview(state, {}).indexOf('rgba(255,255,255,0.12)') >= 0);
   assert.ok(B.layoutPreviewFlick(state, {}).indexOf('rgba(255,255,255,0.12)') >= 0);
   assert.ok(B.layoutPreviewCombined(state, {}).indexOf('rgba(255,255,255,0.12)') >= 0);

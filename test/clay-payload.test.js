@@ -93,7 +93,7 @@ test('CLAY_DUAL_STATUS is no longer emitted (dual/single now folded into the pac
 
 test('maps rainCountdownHorizon to CLAY_RAIN_COUNTDOWN_HORIZON', () => {
   const base = baseSettings();
-  base.radarProvider = 'dwd';
+  base.radarMode = 'graph';
   // explicit value
   base.rainCountdownHorizon = '30';
   assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 30);
@@ -103,8 +103,8 @@ test('maps rainCountdownHorizon to CLAY_RAIN_COUNTDOWN_HORIZON', () => {
   // unset → default 60
   delete base.rainCountdownHorizon;
   assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 60);
-  // radar disabled forces 0 even if a horizon is set
-  base.radarProvider = 'disabled';
+  // radar off forces 0 even if a horizon is set
+  base.radarMode = 'off';
   base.rainCountdownHorizon = '120';
   assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 0);
 });
