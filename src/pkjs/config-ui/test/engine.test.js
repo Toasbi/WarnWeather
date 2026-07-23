@@ -706,6 +706,74 @@ function bootWithCapturedListeners(schema, env) {
   return { listeners, modalListeners, scroll, modal, sselList, onChange: mod.exports.onChange, loadEnv: mod.exports.loadEnv };
 }
 
+test('date helpers use local YYYY-MM-DD and clamp invalid days', () => {
+  assert.equal(E.formatDateValue(new Date(2028, 1, 29, 23, 30)), '2028-02-29');
+  assert.deepEqual(E.parseDateParts('2026-12-24', new Date(2026, 0, 1)),
+    { year: 2026, month: 12, day: 24 });
+  assert.deepEqual(E.parseDateParts('not-a-date', new Date(2026, 6, 4)),
+    { year: 2026, month: 7, day: 4 });
+  assert.equal(E.dateValueFromParts({ year: 2027, month: 2, day: 31 }),
+    '2027-02-28');
+});
+
+test('date control renders a whole-row calendar trigger with a real date', () => {
+  const item = { type: 'date', messageKey: 'trip', label: 'Target date' };
+  const view = { value: '2026-12-24', openDate: null };
+  const html = E.renderRow(item, view);
+  assert.match(html, /class="row date-row"/);
+  assert.match(html, /class="date-wrap"/);
+  assert.match(html, /data-date="trip"/);
+  assert.match(html, /24 Dec 2026/);
+  assert.match(html, /<svg[\s\S]*aria-hidden="true"/);
+  assert.doesNotMatch(html, /class="lft"/);
+  assert.doesNotMatch(html, /placeholder|unset/i);
+});
+
+test('date modal renders selected day, month, and year wheels', () => {
+  const schema = { tabs: [{ id: 't', sections: [{ items: [
+    { type: 'date', messageKey: 'trip', label: 'Target date' }
+  ] }]}]};
+  const cx = {
+    S: { trip: '2026-12-24' }, ENV: {}, openDate: 'trip', openSelect: null,
+    selectQuery: '', evalCtx: { trip: '2026-12-24', env: {} }
+  };
+  const html = E.renderDateModal(schema, cx);
+  assert.match(html, /data-date-wheel="day"[\s\S]*class="date-opt on" data-date-value="24"/);
+  assert.match(html, /data-date-wheel="month"[\s\S]*December/);
+  assert.match(html, /data-date-wheel="year"[\s\S]*2026/);
+  assert.doesNotMatch(html, /data-select-search/);
+});
+
+test('boot(): date trigger opens the shared sheet and a tapped wheel value persists', () => {
+  const schema = { appName: 'X', versionLabel: 'v0', tabs: [
+    { id: 't', label: 'T', sections: [{ items: [
+      { type: 'date', messageKey: 'trip', label: 'Target date',
+        defaultValue: '2026-12-24' }
+    ] }] }
+  ] };
+  const result = bootWithCapturedListeners(schema, {});
+  const trigger = {
+    getAttribute: (name) => name === 'data-date' ? 'trip' : null
+  };
+  result.listeners.click({
+    target: { closest: (selector) => selector === '[data-date]' ? trigger : null }
+  });
+  assert.match(result.modal.innerHTML, /data-date-picker="trip"/);
+
+  const wheel = {
+    getAttribute: (name) => name === 'data-date-wheel' ? 'day' : null
+  };
+  const option = {
+    getAttribute: (name) => name === 'data-date-value' ? '25' : null,
+    closest: (selector) => selector === '[data-date-wheel]' ? wheel : null
+  };
+  result.modalListeners.click({
+    target: { closest: (selector) => selector === '.date-opt' ? option : null }
+  });
+  assert.match(result.modal.innerHTML,
+    /class="date-opt on" data-date-value="25"/);
+});
+
 const THEME_SCHEMA = {
   appName: 'X', versionLabel: 'v0',
   tabs: [{ id: 't', label: 'T', sections: [{ title: 'S', items: [

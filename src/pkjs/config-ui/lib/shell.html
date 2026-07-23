@@ -145,6 +145,14 @@
   .sel-wrap { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; max-width: 100%; background: var(--ctl); border: 1px solid var(--ctl-line); border-radius: 9px; padding: 8px 12px; text-align: left; }
   .sel-wrap span { font: 600 13.5px 'Inter', sans-serif; color: var(--lbl); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sel-wrap .sel-chev { flex: none; width: 8px; height: 6px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 8 6'%3E%3Cpath d='M0 0l4 6 4-6z' fill='%23B6BAC2'/%3E%3C/svg%3E") no-repeat center; }
+  .date-wrap { display: inline-flex; align-items: center; gap: 9px; width: 100%;
+    cursor: pointer; border: 1px solid var(--ctl-line); border-radius: 9px;
+    padding: 8px 10px 8px 12px; background: var(--ctl); color: var(--lbl);
+    text-align: left; }
+  .date-wrap span { flex: 1; font: 600 13.5px 'Inter', sans-serif; white-space: nowrap; }
+  .date-wrap svg { flex: none; width: 18px; height: 18px; color: var(--muted); }
+  .row.date-row { padding-top: 8px; padding-bottom: 8px; }
+  .date-cell { width: 100%; }
   .ssel-list { margin-top: 8px; max-height: 240px; overflow-y: auto; background: var(--ctl); border: 1px solid var(--ctl-line-soft); border-radius: 10px; }
   .ssel-group { padding: 11px 13px 7px; border-top: 1px solid var(--row-line); font: 700 12px 'Inter', sans-serif; color: var(--ttl); }
   .ssel-opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; cursor: pointer; padding: 11px 13px; font: 600 13.5px 'Inter', sans-serif; border: none; border-bottom: 1px solid var(--row-line); background: transparent; color: var(--muted); }
@@ -170,6 +178,7 @@
   /* searchSelect: pin a fixed height so filtering the list can't shrink/resize the sheet
      (the keyboard-fit handler clamps this smaller via inline max-height when the keyboard is up). */
   dialog#modal.search { height: 80vh; height: 80dvh; }
+  dialog#modal.date { max-height: 360px; }
   dialog#modal::backdrop { background: transparent; }
   @media (prefers-reduced-motion: no-preference) {
     dialog#modal[open] { animation: sheet-up .22s ease-out; }
@@ -186,6 +195,21 @@
      isn't flush against the bottom / keyboard edge. A spacer box, since WebKit drops a scroll
      container's padding-bottom at the scroll end. */
   dialog#modal.search .ssel-list::after { content: ''; display: block; height: 36px; }
+  .date-picker { position: relative; display: grid; grid-template-columns: .75fr 1.5fr 1fr;
+    gap: 8px; height: 244px; padding: 0 16px 24px; overflow: hidden; }
+  .date-band { position: absolute; z-index: 0; left: 16px; right: 16px; top: 88px;
+    height: 44px; border-top: 1px solid var(--row-line);
+    border-bottom: 1px solid var(--row-line); background: rgba(250,74,53,.08);
+    pointer-events: none; border-radius: 8px; }
+  .date-wheel { position: relative; z-index: 1; height: 220px; overflow-y: auto;
+    overscroll-behavior: contain; scroll-snap-type: y mandatory; scrollbar-width: none;
+    padding: 88px 0; }
+  .date-wheel::-webkit-scrollbar { display: none; }
+  .date-opt { display: block; width: 100%; height: 44px; padding: 0 4px;
+    border: 0; background: transparent; color: var(--muted);
+    font: 600 14px 'Inter', sans-serif; text-align: center;
+    scroll-snap-align: center; cursor: pointer; }
+  .date-opt.on { color: var(--fg); font-weight: 800; }
   .scroll.locked { overflow: hidden; }
   .sw-wrap { display: flex; align-items: center; gap: 9px; cursor: pointer; background: var(--ctl); border: 1px solid var(--ctl-line); border-radius: 9px; padding: 5px 11px 5px 6px; }
   .sw-wrap b { width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--chip-line); }
