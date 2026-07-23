@@ -24,7 +24,7 @@ test('forecastPreview returns an SVG with the rain bars rendered', () => {
   assert.ok(fc.indexOf('fill="#00FF00"') > -1, 'multicolor rain bars actually render (not an empty frame)');
 });
 test('radarPreview: off message vs SVG', () => {
-  assert.ok(B.radarPreview({ radarProvider: 'disabled', radarColor: 'multicolor' }, { color: true }).indexOf('Radar off') >= 0);
+  assert.ok(B.radarPreview({ radarMode: 'off', radarColor: 'multicolor' }, { color: true }).indexOf('Radar off') >= 0);
   assert.ok(/^<svg/.test(B.radarPreview({ radarProvider: 'dwd', radarColor: 'white' }, { color: true })));
 });
 // A multicolor radar band fill (e.g. #00FF00) appears on a color watch but never on B/W,
@@ -234,9 +234,9 @@ test('legend shows the second metric as white dots on B&W (no hue)', () => {
 });
 
 test('radarPreview legend distinguishes exact-spot rain from nearby rain', () => {
-  const color = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
-  const bw = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: false });
-  assert.ok(color.indexOf('viewBox="0 0 200 118"') >= 0, 'frame sized to fit the legend snug under the chart');
+  const color = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor' }, { color: true });
+  const bw = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor' }, { color: false });
+  assert.ok(color.indexOf('viewBox="0 0 200 138"') >= 0, 'frame includes the countdown band, which now always accompanies a non-off, non-aplite preview');
   assert.ok(color.indexOf('>Rain at your exact spot<') >= 0, 'exact-spot label present');
   assert.ok(color.indexOf('>Nearby (2 km)<') >= 0, 'nearby label present');
   assert.ok(color.indexOf('fill="#00FF00"') >= 0, 'tier gradient (green) present on color');
@@ -251,10 +251,12 @@ test('radarPreview shows the countdown band ("Rain in 15\'") when the countdown 
   assert.ok(svg.indexOf('viewBox="0 0 200 138"') >= 0, 'frame grew by the 20px band height');
 });
 
-test('radarPreview hides the countdown band when the countdown is Off', () => {
+// rainCountdownHorizon no longer has an Off option — a stray/legacy '0' value must not
+// suppress the band (the only remaining gates are radarMode==='off' and aplite).
+test('radarPreview always shows the countdown band once radar is on, regardless of rainCountdownHorizon', () => {
   const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
-  assert.equal(svg.indexOf("Rain in 15'"), -1, 'no countdown text when Off');
-  assert.ok(svg.indexOf('viewBox="0 0 200 118"') >= 0, 'frame back to the no-band height');
+  assert.ok(svg.indexOf("Rain in 15'") >= 0, 'countdown text present despite a legacy rainCountdownHorizon of 0');
+  assert.ok(svg.indexOf('viewBox="0 0 200 138"') >= 0, 'frame grew by the band height');
 });
 
 test('radarPreview never shows the countdown band on aplite', () => {
@@ -453,6 +455,15 @@ test('layoutPreviewFlick renders the first flick slot, or nothing when the cycle
         'a single-slot cycle (no radar, no health) has no flick');
 });
 
+// radarMode: 'status' packs the radar flick stop as BODY_RADAR_STATUS — the forecast
+// body (chart suppressed) with the status line turned to radar, mirroring the watch.
+test('layoutPreviewFlick: radarMode "status" renders a Forecast body with a Radar Status band', () => {
+    const svg = B.layoutPreviewFlick({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'status' }, {}, {});
+    assert.ok(svg.indexOf('>Forecast<') >= 0, 'radar-status flick body renders as Forecast');
+    assert.ok(svg.indexOf('>Radar Status<') >= 0, 'status band reads Radar Status');
+    assert.equal(svg.indexOf('>Radar<'), -1, 'never labeled as a bare Radar body');
+});
+
 test('layoutPreviewCombined: one column per cycle slot, headers Default/Flick 1/Flick 2', () => {
     const one = B.layoutPreviewCombined({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off' }, {}, {});
     assert.ok(one.indexOf('Default') >= 0, 'Default header present');
@@ -578,9 +589,10 @@ test('forecastPreview: bw rain bars draw above (after) the dithered metric-area 
 });
 
 test('radarPreview: radarColor=Solid in the light theme uses DarkGray, not black', () => {
-  // rainCountdownHorizon: '0' — the countdown band's own text is theme_fg() (black in
-  // light polarity), unrelated to bar/legend fill; excluded here to isolate the bars.
-  const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'white', theme: 'light', rainCountdownHorizon: '0' }, { color: true });
+  // platform: 'aplite' — the countdown band's own text is theme_fg() (black in light
+  // polarity), unrelated to bar/legend fill; excluded here to isolate the bars. aplite is
+  // the only remaining band gate now that the horizon has no Off option.
+  const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'white', theme: 'light' }, { color: true, platform: 'aplite' });
   assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0, 'canvas background is white');
   assert.ok(svg.indexOf('fill="#555555"') >= 0, 'solid bars/legend render DarkGray');
   assert.equal(svg.indexOf('fill="#000000"'), -1, 'never a plain black bar/legend fill in the light theme');
