@@ -77,13 +77,16 @@
 
     // Scoped styles injected once; scroll + fixed max-height + type differentiation.
     var NOTICE_CSS =
-        '.notice-panel{border:1px solid #FF6A52;border-radius:8px;padding:8px;margin:4px 0}'
+        '.notice-panel{padding:2px 0;margin:4px 0}'
         + '.notice-list{max-height:180px;overflow-y:auto}'
         + '.notice-item{padding:6px 8px;border-radius:6px;margin-bottom:6px}'
         + '.notice-item.error{background:rgba(255,106,82,0.12);border-left:3px solid #FF6A52}'
         + '.notice-item.info{background:rgba(90,140,255,0.12);border-left:3px solid #5A8CFF}'
         + '.notice-since{font-size:11px;opacity:0.6;margin-top:2px}'
-        + '.notice-ack{margin-top:6px;width:100%}';
+        // Match the app's neutral button look (like the "Test" .txt-act-btn) instead of a raw browser button.
+        + '.notice-ack{margin-top:8px;width:100%;padding:9px 14px;border:1px solid var(--ctl-line);border-radius:9px;'
+        + 'background:var(--ctl);color:var(--lbl);font:600 13px \'Inter\',sans-serif;cursor:pointer;transition:background .15s,border-color .15s}'
+        + '.notice-ack:active{border-color:#FA4A35;background:rgba(250,74,53,0.12)}';
 
     var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         : (typeof window !== 'undefined' && window.PConf) ? window.PConf
