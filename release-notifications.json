@@ -94,5 +94,9 @@
   "1.9.0": {
     "title": "Two new weather sources",
     "body": "Tomorrow.io and Yandex join the forecast lineup, each with a free API key you paste in settings. Picking a provider is clearer now with per-country suggestions, and the watch tells you when a weather fetch fails. Plus, health stats — steps, sleep, heart rate — can now go straight into your regular status slots, no extra Health view or status bar needed."
+  },
+  "1.9.1": {
+    "title": "Countdown slot & radar view modes",
+    "body": "A new Countdown status slot counts the days until any date you pick — place it in any status position. Radar gains tiered view modes too: Off, Countdown, Status or Graph, so you can keep the \"Rain in X\" alert and radar status line without the full radar chart."
   }
 }
