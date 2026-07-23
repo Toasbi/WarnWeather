@@ -345,6 +345,17 @@
                 +   ' stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }'
                 + '#newsHint .news-badge { position: absolute; top: -2px; right: -9px; width: 7px; height: 7px;'
                 +   ' border-radius: 50%; background: #FA4A35; }'
+                // Unread nudge: a short wiggle every few seconds — the shake lives in
+                // the first ~10% of a long looping animation, the rest is rest.
+                + '@keyframes news-bell-shake {'
+                +   ' 0%, 12%, 100% { transform: rotate(0); }'
+                +   ' 2% { transform: rotate(14deg); } 4% { transform: rotate(-12deg); }'
+                +   ' 6% { transform: rotate(9deg); } 8% { transform: rotate(-6deg); }'
+                +   ' 10% { transform: rotate(3deg); } }'
+                + '#newsHint.has-unread .news-bell { transform-origin: 50% 15%;'
+                +   ' animation: news-bell-shake 6s ease-in-out 1.5s infinite; }'
+                + '@media (prefers-reduced-motion: reduce) {'
+                +   ' #newsHint.has-unread .news-bell { animation: none; } }'
                 + '.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;'
                 +   ' overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }'
                 + '.news-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 60;'
@@ -479,7 +490,9 @@
             newsPill.title = 'News & Feedback';
             var unread = countUnread(newsItems, newsLastSeenId);
             newsPill.innerHTML = renderNewsBellHtml(unread);
-            if (unread === 0) { newsPill.className = 'muted'; }
+            // has-unread arms the periodic shake; openNewsPopup() resets the
+            // class to 'muted', which disarms it along with removing the badge.
+            newsPill.className = (unread === 0) ? 'muted' : 'has-unread';
             newsPill.onclick = openNewsPopup;
             // Sit the bell just right of the title (padded): group the two so the
             // header's space-between keeps the pair on the left and Save right.

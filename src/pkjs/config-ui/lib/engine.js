@@ -843,10 +843,18 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
 
     // Tab bar: switch the active tab and close any open color/select overlays.
+    // Each tab keeps its own scroll offset (in-memory only, per page load) so
+    // switching away and back returns to where the user left off instead of
+    // wherever the previous tab's offset happened to clamp.
+    var tabScroll = {};
     function wireTabBar() {
       document.getElementById('tabs').addEventListener('click', function (e) {
         var b = e.target.closest('[data-tab]');
-        if (b) { activeTab = b.getAttribute('data-tab'); openColor = null; openSelect = null; render(); }
+        if (!b) { return; }
+        var scroll = document.getElementById('scroll');
+        tabScroll[activeTab] = scroll.scrollTop;
+        activeTab = b.getAttribute('data-tab'); openColor = null; openSelect = null; render();
+        scroll.scrollTop = tabScroll[activeTab] || 0;
       });
     }
 
