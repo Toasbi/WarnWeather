@@ -945,26 +945,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       }, { passive: true });
     }
 
-    // Flash the toast with a message for ~1.4s, then fade it out. The save toast is a special case
-    // (it navigates away instead of fading), so it sets its own text and .show directly below.
-    function flashToast(msg) {
-      var el = document.getElementById('toast');
-      el.textContent = msg;
-      el.classList.add('show');
-      clearTimeout(flashToast._t);
-      flashToast._t = setTimeout(function () { el.classList.remove('show'); }, 1400);
-    }
-
     // Copy `text` to the clipboard from a [data-copy] control. Prefer the async Clipboard API (works
     // in the Core Devices app's WKWebView); fall back to a hidden-textarea execCommand for older
-    // webviews or when the promise rejects (e.g. no permission). Flash "Copied" on success.
+    // webviews or when the promise rejects (e.g. no permission). No in-app confirmation toast — the
+    // phone shows its own "Copied" notification.
     function copyText(text) {
-      function ok() { flashToast('Copied ✓'); }
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(ok, function () { if (legacyCopy(text)) { ok(); } });
+        navigator.clipboard.writeText(text).then(function () {}, function () { legacyCopy(text); });
         return;
       }
-      if (legacyCopy(text)) { ok(); }
+      legacyCopy(text);
     }
     function legacyCopy(text) {
       try {
