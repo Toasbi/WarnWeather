@@ -134,7 +134,7 @@ static void render_active_view(void) {
 #endif
     weather_status_layer_set_render_tier(spec.status_tier);
     weather_status_layer_set_line(
-        (spec.top == TOP_BAND_RADAR || spec.body == BODY_RADAR)
+        (spec.top == TOP_BAND_RADAR || spec.body == BODY_RADAR || spec.body == BODY_RADAR_STATUS)
             ? STATUS_LINE_RADAR : STATUS_LINE_FORECAST);
 #if defined(PBL_HEALTH)
     layer_set_frame(weather_status_layer_get_root(),
@@ -266,7 +266,7 @@ static void main_window_load(Window *window) {
     weather_status_layer_set_render_tier(spec.status_tier);
     weather_status_layer_set_full_date(spec.calendar_rows == 0);
     weather_status_layer_set_line(
-        (spec.top == TOP_BAND_RADAR || spec.body == BODY_RADAR)
+        (spec.top == TOP_BAND_RADAR || spec.body == BODY_RADAR || spec.body == BODY_RADAR_STATUS)
             ? STATUS_LINE_RADAR : STATUS_LINE_FORECAST);
 #if defined(PBL_HEALTH)
     weather_status_layer_create(window_layer, (spec.status == STATUS_ROW_DUAL) ? L.status_lower : L.status);

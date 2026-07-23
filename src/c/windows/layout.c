@@ -198,7 +198,7 @@ ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health) {
     if (spec.top == TOP_BAND_RADAR && !has_radar) {
         spec.top = TOP_BAND_CALENDAR;   // radar-in-top implies full tier → 3-row calendar
     }
-    if (spec.body == BODY_RADAR && !has_radar) {
+    if ((spec.body == BODY_RADAR || spec.body == BODY_RADAR_STATUS) && !has_radar) {
         spec.body = BODY_FORECAST;
     }
     return spec;
@@ -208,7 +208,7 @@ LayerVisibility layout_visibility(const ViewSpec *spec) {
     LayerVisibility v;
     v.calendar = (spec->calendar_rows > 0) && (spec->top == TOP_BAND_CALENDAR);
     v.radar = (spec->top == TOP_BAND_RADAR) || (spec->body == BODY_RADAR);
-    v.forecast = (spec->body == BODY_FORECAST);
+    v.forecast = (spec->body == BODY_FORECAST) || (spec->body == BODY_RADAR_STATUS);
     v.health_graph = (spec->body == BODY_HEALTH_GRAPH);
     v.weather_status = (spec->status == STATUS_ROW_WEATHER) || (spec->status == STATUS_ROW_DUAL);
     v.health_status = (spec->status == STATUS_ROW_HEALTH) || (spec->status == STATUS_ROW_DUAL);
@@ -278,7 +278,8 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
 bool view_slot_available(uint8_t byte, bool has_radar, bool has_health) {
     if (byte == 0) { return false; }                 // tier=off → disabled slot
     ViewSpec spec = view_spec_unpack(byte);
-    bool needs_radar = (spec.top == TOP_BAND_RADAR) || (spec.body == BODY_RADAR);
+    bool needs_radar = (spec.top == TOP_BAND_RADAR) || (spec.body == BODY_RADAR)
+                    || (spec.body == BODY_RADAR_STATUS);
     bool needs_health = (spec.body == BODY_HEALTH_GRAPH)
                      || (spec.status == STATUS_ROW_HEALTH) || (spec.status == STATUS_ROW_DUAL);
     if (needs_radar && !has_radar) { return false; }

@@ -191,6 +191,19 @@ static void viewspec_tests(void) {
     // Radar-in-top without data falls back to a calendar top band.
     r = view_spec_resolve(view_spec_unpack(0xE0), false, true);            // RDR·FC·W
     expect("resolve.radar_top_fallback", r.top == TOP_BAND_CALENDAR, true);
+
+    // BODY_RADAR_STATUS (wire body 3): radar status line + forecast body, no chart.
+    ViewSpec rs = view_spec_unpack(0x9C);   // CAL2·RDR_STATUS·W
+    expect("rdrstat.body_is_radar_status", rs.body == BODY_RADAR_STATUS, true);
+    LayerVisibility vrs = layout_visibility(&rs);
+    expect("rdrstat.radar_hidden",   vrs.radar,    false);
+    expect("rdrstat.forecast_shown", vrs.forecast, true);
+    ViewSpec rsk = view_spec_resolve(rs, true, false);
+    expect("rdrstat.keep_with_data",   rsk.body == BODY_RADAR_STATUS, true);
+    ViewSpec rsn = view_spec_resolve(rs, false, false);
+    expect("rdrstat.fallback_no_data", rsn.body == BODY_FORECAST, true);
+    expect("rdrstat.slot_needs_radar", view_slot_available(0x9C, false, false), false);
+    expect("rdrstat.slot_ok_with_data", view_slot_available(0x9C, true, false), true);
 }
 
 static void peek_tests(void) {
