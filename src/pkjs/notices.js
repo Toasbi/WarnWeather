@@ -117,7 +117,7 @@ function noticeForFailure(failure, providerName, now) {
             type: 'error',
             watch: 'API key error',
             html: '<b>' + name + '</b> rejected the request (' + httpLabel(code)
-                + '). Your API key may be missing, wrong, or expired — check it in the Weather settings.',
+                + '). Your API key may be missing, wrong, or expired — check it in the Provider settings.',
             since: now
         };
     }
