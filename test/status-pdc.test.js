@@ -44,7 +44,7 @@ function walkPdc(file, viewbox, checkCmd) {
 const OUTLINE_24 = ['STATUS_TEMP.pdc', 'STATUS_UV.pdc', 'STATUS_WIND.pdc',
                     'STATUS_GUST.pdc', 'STATUS_POLLEN.pdc',
                     'STATUS_DISTANCE.pdc', 'STATUS_AQI.pdc',
-                    'STATUS_COUNTDOWN.pdc'];
+                    'STATUS_COUNTDOWN.pdc', 'SNOOZE.pdc'];
 
 for (const file of OUTLINE_24) {
   test(`${file} is a valid 24x24 outline PDCI`, () => {
