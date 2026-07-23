@@ -2,8 +2,8 @@
 // config-ui engine's provider/status onChange hooks (see engine.js's
 // PConf.onChange) on provider, radarProvider, and healthMode.
 //
-// When radar or health flips its enable state (radar: disabled <-> any
-// provider; health: off <-> status/all), two live resets keep the slot
+// When radar or health flips its enable state (radar: off <-> countdown/
+// status/graph; health: off <-> status/all), two live resets keep the slot
 // dropdowns coherent before the user saves:
 //   1. the toggled feature's own status line returns to its catalog defaults
 //      (hrDefaults on a heart-rate-capable watch), and
@@ -108,9 +108,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {boolean} true when the enable state flipped
      */
     function flipped(kind, oldValue, newValue) {
-        if (kind === 'radar') {
-            return (oldValue === 'disabled') !== (newValue === 'disabled');
-        }
+        // radar and health share the 'off' sentinel now (radar off = radarMode 'off').
         return (oldValue === 'off') !== (newValue === 'off');
     }
 

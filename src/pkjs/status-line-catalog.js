@@ -99,7 +99,7 @@
     // used to (the watch-side iso_week() is aplite-excluded), but the phone
     // now bakes that slot as phone-side TEXT for aplite instead (status-lines.js).
     if (item.notAplite && env && env.platform === 'aplite') { return false; }
-    if (item.needsRadarOff && (!settings || settings.radarProvider !== 'disabled')) {
+    if (item.needsRadarOff && (!settings || (settings.radarMode || 'graph') !== 'off')) {
       return false;
     }
     if (item.needsProvider && (!settings || settings.provider !== item.needsProvider)) {

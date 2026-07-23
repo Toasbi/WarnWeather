@@ -24,7 +24,13 @@ test('callsPerCycle counts weather and radar selections independently', () => {
   assert.equal(budget.callsPerCycle(S()), 2);
   assert.equal(budget.callsPerCycle(S({ radarProvider: 'rainbow' })), 1);
   assert.equal(budget.callsPerCycle(S({ provider: 'dwd' })), 1);
-  assert.equal(budget.callsPerCycle(S({ provider: 'dwd', radarProvider: 'disabled' })), 0);
+  assert.equal(budget.callsPerCycle(S({ provider: 'dwd', radarMode: 'off' })), 0);
+});
+
+test('callsPerCycle: radarMode off zeroes the radar call even with tomorrow.io selected; any other mode still costs it', () => {
+  // provider: 'dwd' isolates the radar contribution (weather call excluded).
+  assert.equal(budget.callsPerCycle(S({ provider: 'dwd', radarProvider: 'tomorrowio', radarMode: 'off' })), 0);
+  assert.equal(budget.callsPerCycle(S({ provider: 'dwd', radarProvider: 'tomorrowio', radarMode: 'countdown' })), 1);
 });
 
 test('fits() truth table from the spec', () => {
@@ -33,7 +39,7 @@ test('fits() truth table from the spec', () => {
   // 5 min + radar + 4 h pause: 20*12*2 = 480 <= 500, hourly 24 <= 25 -> yes
   assert.equal(budget.fits(S({ sleepNightEnabled: true, sleepStartHour: '0', sleepEndHour: '4' }), 5), true);
   // 5 min, weather only, no pause: 24*12*1 = 288 -> yes
-  assert.equal(budget.fits(S({ radarProvider: 'disabled' }), 5), true);
+  assert.equal(budget.fits(S({ radarMode: 'off' }), 5), true);
   // midnight-crossing 23->7 = 8 h: 16*12*2 = 384 -> yes
   assert.equal(budget.fits(S({ sleepNightEnabled: true, sleepStartHour: '23', sleepEndHour: '7' }), 5), true);
   // 10 min + radar + no pause: 24*6*2 = 288 -> yes
@@ -48,7 +54,7 @@ test('dailyCalls/hourlyCalls match the spec worked example (17 active hours, 5 m
 
 test('fittingOptions filters the ladder; full ladder when no tomorrow.io selection; never returns empty', () => {
   assert.deepEqual(budget.fittingOptions(S()).map((o) => o[1]), ['10', '15', '30', '60']);
-  assert.deepEqual(budget.fittingOptions(S({ provider: 'dwd', radarProvider: 'disabled' })).map((o) => o[1]),
+  assert.deepEqual(budget.fittingOptions(S({ provider: 'dwd', radarMode: 'off' })).map((o) => o[1]),
     ['5', '10', '15', '30', '60']);
   assert.deepEqual(
     budget.fittingOptions(S({ sleepNightEnabled: true, sleepStartHour: '0', sleepEndHour: '4' })).map((o) => o[1]),
@@ -58,7 +64,7 @@ test('fittingOptions filters the ladder; full ladder when no tomorrow.io selecti
 test('minSleepHoursFor derives the unlock rule (5 min + radar needs >= 4 h)', () => {
   assert.equal(budget.minSleepHoursFor(S(), 5), 4);
   // weather-only 5 min already fits with zero pause
-  assert.equal(budget.minSleepHoursFor(S({ radarProvider: 'disabled' }), 5), 0);
+  assert.equal(budget.minSleepHoursFor(S({ radarMode: 'off' }), 5), 0);
   // no tomorrow.io in play -> 0 (nothing to unlock)
-  assert.equal(budget.minSleepHoursFor(S({ provider: 'dwd', radarProvider: 'disabled' }), 5), 0);
+  assert.equal(budget.minSleepHoursFor(S({ provider: 'dwd', radarMode: 'off' }), 5), 0);
 });

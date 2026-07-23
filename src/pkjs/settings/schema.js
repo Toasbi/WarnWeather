@@ -445,7 +445,8 @@ module.exports = {
                     status: 'Adds a radar status line when you flick (the forecast graph stays).',
                     graph: 'Adds the full radar chart when you flick.'
                 },
-                options: [['Off', 'off'], ['Countdown', 'countdown'], ['Status', 'status'], ['Graph', 'graph']]
+                options: [['Off', 'off'], ['Countdown', 'countdown'], ['Status', 'status'], ['Graph', 'graph']],
+                onChange: 'resetStatusRadar'
             }, {
                 type: 'select',
                 messageKey: 'radarProvider',
@@ -468,8 +469,7 @@ module.exports = {
                     ['Met.no', 'metno', {desc: 'Best radar in the Nordics · exact spot'}],
                     ['Rainbow', 'rainbow', {desc: 'Global satellite + radar rain nowcast'}],
                     ['Tomorrow.io', 'tomorrowio', {desc: 'Precise ML rain nowcast, worldwide · uses your key'}]
-                ],
-                onChange: 'resetStatusRadar'
+                ]
             }, {
                 type: 'staticText', joinPrevious: true, text: RADAR_WHY.dwd, showWhen: {key: 'radarProvider', eq: 'dwd'}
             }, {

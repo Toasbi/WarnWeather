@@ -546,7 +546,10 @@ test('every radar provider carries a "best at" dropdown description', () => {
 
 test('provider/radar/health controls register their status cleanup handlers', () => {
   assert.equal(byKey('provider').onChange, 'clearPollenForProvider');
-  assert.equal(byKey('radarProvider').onChange, 'resetStatusRadar');
+  // The reset fires on the enable-state flip (radarMode off <-> any other
+  // mode), not on a provider-to-provider swap.
+  assert.equal(byKey('radarMode').onChange, 'resetStatusRadar');
+  assert.equal(byKey('radarProvider').onChange, undefined);
   assert.equal(byKey('healthMode').onChange, 'resetStatusHealth');
 });
 

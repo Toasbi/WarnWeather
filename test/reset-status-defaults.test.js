@@ -22,17 +22,23 @@ function blob(extra) {
 
 test('scan reset falls back to empty when the slot default is already a sibling pick', () => {
   const S = blob({
-    radarProvider: 'rainbow',
+    radarMode: 'graph',
     statusForecastLeft: 'precip_prob',
     statusForecastMid: 'temp'                    // sibling already holds forecast-left's default
   });
-  applyReset(S, 'radar', 'disabled', 'rainbow', ENV_BASALT);
+  applyReset(S, 'radar', 'off', 'graph', ENV_BASALT);
   assert.equal(S.statusForecastLeft, 'empty', 'default taken by sibling -> empty');
 });
 
 test('provider-to-provider change is not a flip: no reset', () => {
   const S = blob({ radarProvider: 'dwd', statusRadarLeft: 'uv' });
   applyReset(S, 'radar', 'rainbow', 'dwd', ENV_BASALT);
+  assert.equal(S.statusRadarLeft, 'uv', 'customization preserved');
+});
+
+test('mode-to-mode change (countdown <-> status <-> graph) is not a flip: no reset', () => {
+  const S = blob({ radarMode: 'status', statusRadarLeft: 'uv' });
+  applyReset(S, 'radar', 'countdown', 'status', ENV_BASALT);
   assert.equal(S.statusRadarLeft, 'uv', 'customization preserved');
 });
 
