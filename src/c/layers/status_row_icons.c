@@ -122,6 +122,7 @@ static uint32_t icon_resource(uint8_t icon_id) {
         case STATUS_ICON_GUST: return RESOURCE_ID_STATUS_GUST;
         case STATUS_ICON_AQI: return RESOURCE_ID_STATUS_AQI;   // weather metric, all providers
         case STATUS_ICON_POLLEN: return RESOURCE_ID_STATUS_POLLEN;
+        case STATUS_ICON_COUNTDOWN: return RESOURCE_ID_STATUS_COUNTDOWN;
 #if defined(PBL_HEALTH)
         // Distance is a HealthService metric (steps → distance), so it lives with the
         // other health glyphs: no health service means no steps and no distance.

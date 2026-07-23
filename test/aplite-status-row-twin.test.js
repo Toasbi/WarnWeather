@@ -50,10 +50,14 @@ test('aplite status row is a complete frozen lean twin', function() {
   });
 
   ['STATUS_ICON_TEMP', 'STATUS_ICON_WIND', 'STATUS_ICON_GUST',
-   'STATUS_ICON_UV', 'STATUS_ICON_AQI', 'STATUS_ICON_POLLEN'].forEach(function(id) {
+   'STATUS_ICON_UV', 'STATUS_ICON_AQI', 'STATUS_ICON_POLLEN',
+   'STATUS_ICON_COUNTDOWN'].forEach(function(id) {
     assert.ok(source.indexOf('case ' + id + ':') !== -1,
       'status_row_aplite must map a pictogram for ' + id);
   });
+  assert.match(source,
+    /MASK_COUNTDOWN\[\][\s\S]*0x108,0x7fe,0x909,0x909,0x801,0xfff,0x801,0x955,0x801,0x855,0x801,0x801,0x7fe/,
+    'aplite countdown mask stays in sync with the approved 12x13 glyph');
   assert.match(source, /status_mask_draw/,
     'status_row_aplite must draw masks via the run-length routine');
 });
