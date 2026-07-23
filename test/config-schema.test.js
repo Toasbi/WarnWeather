@@ -18,7 +18,7 @@ const EXPECTED_KEYS = [
   'holidayCountry','holidayRegion',
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','fetchNoticeAck','locationMode','location',
   'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','secondaryLine','secondaryLineFill','windScale','thirdLine',
-  'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarProvider','radarColor','rainCountdownHorizon',
+  'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','rainCountdownHorizon',
   'layoutPreset','viewResetMin','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear','reset',
   'statusForecastLeft','statusForecastMid','statusForecastRight','statusRadarLeft','statusRadarMid','statusRadarRight',
   'statusTopLeft','statusTopMid','statusTopRight','batteryLowOnly','statusHealthLeft','statusHealthMid','statusHealthRight'
@@ -87,7 +87,7 @@ test('B/W bar-scale hints are staticText, gated to effective non-color + the pic
   const isBwGated = (h, cond) =>
     JSON.stringify(h.showWhen.all) === JSON.stringify([{ not: { all: [{ env: 'color' }, { key: 'theme', nin: ['bw', 'bw-light'] }] } }, cond]);
   assert.ok(hints.some((h) => isBwGated(h, { key: 'barSource', eq: 'rain' })), 'forecast B/W hint missing');
-  assert.ok(hints.some((h) => isBwGated(h, { key: 'radarProvider', ne: 'disabled' })), 'radar B/W hint missing');
+  assert.ok(hints.some((h) => isBwGated(h, { key: 'radarMode', ne: 'off' })), 'radar B/W hint missing');
   // No messageKey, so they never serialize into the settings blob.
   hints.forEach((h) => assert.equal(h.messageKey, undefined));
 });
@@ -409,14 +409,14 @@ test('non-holiday selects stay plain select', () => {
   assert.equal(byKey('btIcons').type, 'select');
 });
 
-test('rainCountdownHorizon is a radar- and non-aplite-gated select with Off/30/60/120 and default 60', () => {
+test('rainCountdownHorizon is a radarMode- and non-aplite-gated select with 30/60/120 and default 60 (no Off — the radarMode tier owns on/off)', () => {
   const it = byKey('rainCountdownHorizon');
   assert.equal(it.type, 'select');
   assert.equal(it.defaultValue, '60');
-  assert.deepEqual(it.options.map((o) => o[1]), ['0', '30', '60', '120']);
-  // Shown only when a radar provider is enabled AND not on aplite (feature-frozen there).
+  assert.deepEqual(it.options.map((o) => o[1]), ['30', '60', '120']);
+  // Shown only when radar isn't off AND not on aplite (feature-frozen there).
   assert.deepEqual(it.showWhen, {
-    all: [{ key: 'radarProvider', ne: 'disabled' }, { env: 'platform', ne: 'aplite' }],
+    all: [{ key: 'radarMode', ne: 'off' }, { env: 'platform', ne: 'aplite' }],
   });
 });
 
@@ -491,18 +491,26 @@ test('flick/positioning narrative lives only in the Layout tab, not Health/Radar
   assert.ok(!/wrist flick/i.test(radar.sections[0].intro), 'radar intro drops the wrist-flick line');
 });
 
-test('radarProvider is a dropdown offering DWD/Met.no/Rainbow/Tomorrow.io/Off (short labels, scope in desc/why)', () => {
+test('radarProvider is a dropdown offering DWD/Met.no/Rainbow/Tomorrow.io (short labels, scope in desc/why; on/off now lives in radarMode)', () => {
   const item = byKey('radarProvider');
-  assert.equal(item.type, 'select', 'dropdown — five options no longer fit a segmented row');
+  assert.equal(item.type, 'select', 'dropdown — four options no longer fit a segmented row');
   assert.deepEqual(item.options.map((o) => [o[0], o[1]]), [
     ['DWD', 'dwd'],
     ['Met.no', 'metno'],
     ['Rainbow', 'rainbow'],
-    ['Tomorrow.io', 'tomorrowio'],
-    ['Off', 'disabled']
+    ['Tomorrow.io', 'tomorrowio']
   ]);
   assert.equal(item.hintByValue, undefined, 'per-provider "why" moved to showWhen-gated notes below the picker');
   assert.equal(item.defaultValue, 'rainbow');
+});
+
+test('radarMode is a radio with off/countdown/status/graph tiers, defaulting to graph, forced off (radio removed) on aplite via onbuild', () => {
+  const item = byKey('radarMode');
+  assert.equal(item.type, 'radio');
+  assert.equal(item.defaultValue, 'graph');
+  assert.deepEqual(item.options.map((o) => o[1]), ['off', 'countdown', 'status', 'graph']);
+  ['off', 'countdown', 'status', 'graph'].forEach((v) =>
+    assert.ok(typeof item.hintByValue[v] === 'string' && item.hintByValue[v].length > 0, v + ' hint'));
 });
 
 // Helper: the showWhen-gated "why" note text for a provider value (weather or radar picker).
@@ -516,7 +524,7 @@ test('each weather + radar provider has a showWhen-gated "why" note below its pi
   ['dwd', 'metno', 'openmeteo', 'openweathermap', 'tomorrowio', 'wunderground', 'yandex'].forEach((v) => {
     assert.ok(typeof whyNote('provider', v) === 'string' && whyNote('provider', v).length > 0, v + ' weather why note');
   });
-  ['dwd', 'metno', 'rainbow', 'tomorrowio', 'disabled'].forEach((v) => {
+  ['dwd', 'metno', 'rainbow', 'tomorrowio'].forEach((v) => {
     assert.ok(typeof whyNote('radarProvider', v) === 'string' && whyNote('radarProvider', v).length > 0, v + ' radar why note');
   });
   // Content spot-checks: the note carries the real "why".
@@ -525,7 +533,7 @@ test('each weather + radar provider has a showWhen-gated "why" note below its pi
   assert.match(whyNote('radarProvider', 'tomorrowio'), /budget/i, 'radar Tomorrow.io keeps the key/budget caveat');
 });
 
-test('every radar provider (except Off) carries a "best at" dropdown description', () => {
+test('every radar provider carries a "best at" dropdown description', () => {
   const item = byKey('radarProvider');
   const desc = (v) => { const o = item.options.find((x) => x[1] === v); return o[2] && o[2].desc; };
   ['dwd', 'metno', 'rainbow', 'tomorrowio'].forEach((v) => {
@@ -534,7 +542,6 @@ test('every radar provider (except Off) carries a "best at" dropdown description
   assert.match(desc('dwd'), /Germany/);
   assert.match(desc('metno'), /Nordics/);
   assert.match(desc('tomorrowio'), /precise/i, 'Tomorrow.io radar reads as precise');
-  assert.equal(item.options.find((o) => o[1] === 'disabled').length, 2, 'Off stays a plain 2-tuple (no desc)');
 });
 
 test('provider/radar/health controls register their status cleanup handlers', () => {
@@ -811,7 +818,7 @@ test('radar and health status-line slots hide when the feature is off or the pla
   // Moved to the always-shown Watch tab, so each slot carries the env guard the
   // Radar/Health tab used to provide, AND-ed with its feature-toggle check.
   ['statusRadarLeft', 'statusRadarMid', 'statusRadarRight'].forEach((k) =>
-    assert.deepEqual(byKey(k).showWhen, {all: [{env: 'radar'}, {key: 'radarProvider', ne: 'disabled'}]}, k));
+    assert.deepEqual(byKey(k).showWhen, {all: [{env: 'radar'}, {key: 'radarMode', ne: 'off'}]}, k));
   ['statusHealthLeft', 'statusHealthMid', 'statusHealthRight'].forEach((k) =>
     assert.deepEqual(byKey(k).showWhen, {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]}, k));
 });

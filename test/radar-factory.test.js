@@ -93,7 +93,11 @@ test('isKnownRadarSource recognizes registered ids only', () => {
   assert.equal(radarFactory.DEFAULT_RADAR_ID, 'disabled');
 });
 
-test('schema radarProvider options exactly match the registered factory ids', () => {
+test('schema radarProvider options are all registered factory ids; the registry also keeps the internal-only "disabled" fallback', () => {
+  // As of the radarMode tier, "disabled" is no longer a user-selectable radarProvider
+  // option (radarMode owns on/off) but the factory registry keeps it as the fallback
+  // for unknown/unset ids (see radar-factory.js DEFAULT_RADAR_ID) and as the id
+  // radar-fetch gating still routes to when radarMode is 'off'.
   const items = [];
   schema.tabs.forEach(function(t) {
     t.sections.forEach(function(sec) {
@@ -104,8 +108,13 @@ test('schema radarProvider options exactly match the registered factory ids', ()
   assert.ok(radarItem, 'radarProvider item exists in the schema');
   const schemaIds = radarItem.options.map(function(o) { return o[1]; }).sort();
   const registryIds = Object.keys(radarFactory.RADAR_FACTORIES).sort();
-  assert.deepEqual(schemaIds, registryIds,
-    'radarProvider schema options must equal the registered radar factory ids');
+  assert.deepEqual(schemaIds, ['dwd', 'metno', 'rainbow', 'tomorrowio'],
+    'radarProvider schema options no longer offer "disabled" — the radarMode radio owns on/off');
+  schemaIds.forEach(function(id) {
+    assert.ok(registryIds.indexOf(id) >= 0, id + ' schema option must be a registered radar factory id');
+  });
+  assert.ok(registryIds.indexOf('disabled') >= 0,
+    '"disabled" stays registered as the internal fallback factory');
 });
 
 test("createRadarSource('tomorrowio') binds cfg.tomorrowioApiKey and routes to tomorrowioRadar", () => {

@@ -109,8 +109,7 @@ var RADAR_WHY = {
     dwd: 'Precise weather radar — rain at your exact spot and nearby (~2 km). Germany only.',
     metno: 'Precise weather radar — rain at your exact spot. Nordics only.',
     rainbow: 'A model nowcast blending satellite and radar — works worldwide.',
-    tomorrowio: 'A precise ML rain nowcast, worldwide. Uses your tomorrow.io API key (nothing works without one) and counts against the same call budget.',
-    disabled: 'Rain radar is turned off.'
+    tomorrowio: 'A precise ML rain nowcast, worldwide. Uses your tomorrow.io API key (nothing works without one) and counts against the same call budget.'
 };
 // The tomorrow.io key + budget guard render under whichever picker actually uses the key:
 // the General tab when it's the WEATHER provider, the Radar tab when it's radar-only (so the
@@ -434,8 +433,20 @@ module.exports = {
         // budget can't afford it), so the whole tab is env-hidden there (tab-level
         // showWhen; see platform.js radar env flag). Mirrors the health tab.
         id: 'radar', label: 'Radar', showWhen: {env: 'radar'}, sections: [{
-            intro: 'Rain radar is a second view — a precise short-term rain forecast for your location. Set where it appears in the Layout tab.<br>',
+            intro: 'Rain radar is a second view — a precise short-term rain forecast for your location. Set where it appears in the Layout tab. Each mode below builds on the one above.<br>',
             items: [{
+                type: 'radio',
+                messageKey: 'radarMode',
+                label: 'Radar',
+                defaultValue: 'graph',
+                hintByValue: {
+                    off: 'No radar. No rain countdown.',
+                    countdown: "A “Rain in X′” alert in the top strip.",
+                    status: 'Adds a radar status line when you flick (the forecast graph stays).',
+                    graph: 'Adds the full radar chart when you flick.'
+                },
+                options: [['Off', 'off'], ['Countdown', 'countdown'], ['Status', 'status'], ['Graph', 'graph']]
+            }, {
                 type: 'select',
                 messageKey: 'radarProvider',
                 label: 'Radar provider',
@@ -448,7 +459,7 @@ module.exports = {
                 // the Task 2 warning. Production always sets RAINBOW_PROXY_ENDPOINT.
                 // desc (3rd tuple slot) = the short "what it's best at" tag under each name in the
                 // dropdown, mirroring the weather picker. DWD/Met.no are real radar; Rainbow/Tomorrow.io
-                // are model nowcasts (Tomorrow.io is the precise, worldwide one). "Off" stays plain.
+                // are model nowcasts (Tomorrow.io is the precise, worldwide one).
                 // The selected provider's fuller rationale reads out below via the RADAR_WHY
                 // showWhen-gated staticTexts (mirroring the weather picker).
                 // Scope lives in the desc + "why" note below, not the label (keeps the trigger short).
@@ -456,8 +467,7 @@ module.exports = {
                     ['DWD', 'dwd', {desc: 'Best radar in Germany · exact spot + nearby'}],
                     ['Met.no', 'metno', {desc: 'Best radar in the Nordics · exact spot'}],
                     ['Rainbow', 'rainbow', {desc: 'Global satellite + radar rain nowcast'}],
-                    ['Tomorrow.io', 'tomorrowio', {desc: 'Precise ML rain nowcast, worldwide · uses your key'}],
-                    ['Off', 'disabled']
+                    ['Tomorrow.io', 'tomorrowio', {desc: 'Precise ML rain nowcast, worldwide · uses your key'}]
                 ],
                 onChange: 'resetStatusRadar'
             }, {
@@ -468,8 +478,6 @@ module.exports = {
                 type: 'staticText', joinPrevious: true, text: RADAR_WHY.rainbow, showWhen: {key: 'radarProvider', eq: 'rainbow'}
             }, {
                 type: 'staticText', joinPrevious: true, text: RADAR_WHY.tomorrowio, showWhen: {key: 'radarProvider', eq: 'tomorrowio'}
-            }, {
-                type: 'staticText', joinPrevious: true, text: RADAR_WHY.disabled, showWhen: {key: 'radarProvider', eq: 'disabled'}
             }, {
                 // Tomorrow.io key + budget guard, radar-only: shown here (under the radar picker) when
                 // tomorrow.io drives the radar but is NOT the weather provider, so the key isn't orphaned
@@ -501,7 +509,7 @@ module.exports = {
                 text: SCALE_NOTE,
                 hinted: true,
                 capabilities: ['COLOR'],
-                showWhen: {all: [{key: 'radarProvider', ne: 'disabled'}, {key: 'theme', nin: ['bw', 'bw-light']}]}
+                showWhen: {all: [{key: 'radarMode', ne: 'off'}, {key: 'theme', nin: ['bw', 'bw-light']}]}
             }, {
                 type: 'staticText',
                 blockBefore: 'radarPreview',
@@ -509,7 +517,7 @@ module.exports = {
                 hinted: true,
                 showWhen: {all: [
                     {not: {all: [{env: 'color'}, {key: 'theme', nin: ['bw', 'bw-light']}]}},
-                    {key: 'radarProvider', ne: 'disabled'}
+                    {key: 'radarMode', ne: 'off'}
                 ]}
             }, {
                 type: 'segmented',
@@ -521,20 +529,20 @@ module.exports = {
                 // VALUE stays 'white' for wire compatibility (the watch resolves it to the
                 // right polarity color itself — see rain-tier.js); only the label changes.
                 options: [['Multicolor', 'multicolor'], ['Solid', 'white']],
-                showWhen: {all: [{key: 'radarProvider', ne: 'disabled'}, {key: 'theme', nin: ['bw', 'bw-light']}]}
+                showWhen: {all: [{key: 'radarMode', ne: 'off'}, {key: 'theme', nin: ['bw', 'bw-light']}]}
             }, {
                 type: 'select',
                 messageKey: 'rainCountdownHorizon',
                 label: 'Rain Alert',
                 defaultValue: '60',
                 hint: 'Show an incoming rain alert in the Watch Status Bar when there is rain at your location within the selected time frame.',
-                options: [['Off', '0'], ['Within 30 min', '30'], ['Within 60 min', '60'], ['Within 2 hours', '120']],
-                showWhen: {all: [{key: 'radarProvider', ne: 'disabled'}, {env: 'platform', ne: 'aplite'}]}
+                options: [['Within 30 min', '30'], ['Within 60 min', '60'], ['Within 2 hours', '120']],
+                showWhen: {all: [{key: 'radarMode', ne: 'off'}, {env: 'platform', ne: 'aplite'}]}
             }, {
                 type: 'staticText',
                 joinPrevious: true,
                 text: 'Because rain radar data is changing frequently, using a lower time window shows fewer false positives.',
-                showWhen: {key: 'radarProvider', ne: 'disabled'}
+                showWhen: {key: 'radarMode', ne: 'off'}
             }]
         }]
     }, {
@@ -606,7 +614,7 @@ module.exports = {
                 {
                     type: 'select', messageKey: 'statusRadarLeft', label: 'Left slot',
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusRadarLeft'}},
-                    showWhen: {all: [{env: 'radar'}, {key: 'radarProvider', ne: 'disabled'}]},
+                    showWhen: {all: [{env: 'radar'}, {key: 'radarMode', ne: 'off'}]},
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusRadarLeft', position: 'left'}}
@@ -614,7 +622,7 @@ module.exports = {
                 {
                     type: 'select', messageKey: 'statusRadarMid', label: 'Middle slot',
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusRadarMid'}}, joinPrevious: true,
-                    showWhen: {all: [{env: 'radar'}, {key: 'radarProvider', ne: 'disabled'}]},
+                    showWhen: {all: [{env: 'radar'}, {key: 'radarMode', ne: 'off'}]},
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusRadarMid', position: 'mid'}}
@@ -622,7 +630,7 @@ module.exports = {
                 {
                     type: 'select', messageKey: 'statusRadarRight', label: 'Right slot',
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusRadarRight'}}, joinPrevious: true,
-                    showWhen: {all: [{env: 'radar'}, {key: 'radarProvider', ne: 'disabled'}]},
+                    showWhen: {all: [{env: 'radar'}, {key: 'radarMode', ne: 'off'}]},
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusRadarRight', position: 'right'}}

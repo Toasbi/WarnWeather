@@ -68,7 +68,7 @@ test('generated page renders the Layout tab preview without require() (webview h
     vm.runInContext(src, sandbox, { filename: 'generated-page.js' });
     var fn = sandbox.PConf.blocks.get('layoutPreviewCombined');
     assert.ok(fn, 'layoutPreviewCombined is registered');
-    var out = fn({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled' }, {}, {});
+    var out = fn({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off' }, {}, {});
     assert.ok(out.indexOf('<svg') >= 0, 'renders real SVG content, not a thrown error');
 });
 

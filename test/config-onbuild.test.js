@@ -40,7 +40,6 @@ test('onLoad derives locationMode from the stored location', function () {
 test('onLoad forces radar and health off on aplite', function () {
     var store = { radarProvider: 'dwd', healthMode: 'all', radarMode: 'graph' };
     OB.onLoad(loadContext(store, 'aplite'));
-    assert.equal(store.radarProvider, 'disabled');
     assert.equal(store.healthMode, 'off');
     assert.equal(store.radarMode, 'off');
 });
