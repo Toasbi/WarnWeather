@@ -130,7 +130,7 @@ function copyBtn(url, label) {
 // The signup link opens in an external browser (target=_blank). The Development > API Keys page 404s on
 // tomorrow.io's MOBILE site, so it gets a copy button instead of a (useless-on-mobile) link — users copy
 // the URL and open it in desktop-site mode. See copyBtn() + the engine's [data-copy] handler.
-var TOMORROWIO_KEY_HINT = '<a target=\'_blank\' href=\'https://app.tomorrow.io/signup\'>Create a free tomorrow.io account</a> (no credit card needed), then open the <b>Development &gt; API Keys</b> page' + copyBtn('https://app.tomorrow.io/development/keys', 'Copy the API-keys page link') + ' in the dashboard, copy your key and paste it here, then Test it. The free plan is plenty — see the call budget below.<br>On a phone, tomorrow.io\'s mobile site 404s on the API-keys page — tap the copy button, then open the link in your browser\'s desktop-site mode.';
+var TOMORROWIO_KEY_HINT = '<a target=\'_blank\' href=\'https://app.tomorrow.io/signup\'>Create a free tomorrow.io account</a> (no credit card needed), then open <b>https://app.tomorrow.io/development/keys</b>' + copyBtn('https://app.tomorrow.io/development/keys', 'Copy the API-keys page link') + ', copy your key and paste it here, then Test it. The free plan is plenty — see the call budget below.<br><b>IMPORTANT: On a phone, tomorrow.io\'s mobile site shows an error (404) on the API-keys page — tap the copy button, then open the link in your browser\'s desktop-site mode.</b>';
 var TOMORROWIO_BUDGET_HINT = 'Only offer update intervals that fit the free plan. Turn off to pick any interval — over-budget calls are rejected by tomorrow.io until the limit resets, and the watch keeps its last data.';
 module.exports = {
     appName: 'WarnWeather',
