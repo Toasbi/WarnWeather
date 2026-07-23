@@ -34,6 +34,15 @@ test('buildClayPayload maps settings to CLAY_ keys', function() {
   assert.equal(p.CLAY_START_MON, true);
 });
 
+test('countdown target dates are phone-only and never ride the Clay AppMessage', () => {
+  const s = baseSettings();
+  s.statusForecastLeftCountdown = '2030-04-05';
+  const p = buildClayPayload(s, { platform: 'emery' }, NOW);
+  assert.equal(Object.prototype.hasOwnProperty.call(
+    p, 'statusForecastLeftCountdown'), false);
+  assert.equal(Object.keys(p).some((key) => /Countdown$/.test(key)), false);
+});
+
 test('buildClayPayload packs the holiday window as an 8-byte array', function() {
   const p = buildClayPayload(baseSettings(), { platform: 'emery' }, NOW);
   assert.ok(Array.isArray(p.HOLIDAYS));

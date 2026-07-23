@@ -1,12 +1,10 @@
 // test/config-blocks.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-global.PConf = {
-  blocks: (function () { var m = {}; return { register: (id, fn) => { m[id] = fn; }, get: (id) => m[id] }; })(),
-  optionsResolvers: (function () { var m = {}; return { register: (id, fn) => { m[id] = fn; }, get: (id) => m[id] }; })(),
-  defaultsResolvers: (function () { var m = {}; return { register: (id, fn) => { m[id] = fn; }, get: (id) => m[id] }; })(),
-  recommendResolvers: (function () { var m = {}; return { register: (id, fn) => { m[id] = fn; }, get: (id) => m[id] }; })()
-};
+require('../src/pkjs/config-ui/lib/schema-walk.js');
+require('../src/pkjs/config-ui/lib/color.js');
+require('../src/pkjs/config-ui/lib/show-when.js');
+require('../src/pkjs/config-ui/lib/engine.js');
 const B = require('../src/pkjs/settings/blocks.js');
 const budgetLib = require('../src/pkjs/settings/tomorrowio-budget.js');
 
@@ -646,6 +644,13 @@ test('statusSlotDefault resolver: HR-aware slot default sourced from the catalog
   assert.equal(fn({ hr: false }, { slotKey: 'statusHealthRight' }), 'sleep');
   assert.equal(fn({}, { slotKey: 'statusForecastRight' }), 'aqi');
   assert.equal(fn({}, { slotKey: 'statusTopLeft' }), 'week');
+});
+
+test('todayDate default resolver returns today in local YYYY-MM-DD form', () => {
+  const fn = global.PConf.defaultsResolvers.get('todayDate');
+  assert.equal(typeof fn, 'function');
+  assert.match(fn(), /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(fn(), global.PConf.engine.formatDateValue(new Date()));
 });
 
 test('tomorrowioBudget block: empty without a tomorrow.io selection; states limits, usage and verdict', () => {

@@ -910,6 +910,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return statusLineCatalog.slotDefault(args.slotKey, env);
     });
 
+    PConf.defaultsResolvers.register('todayDate', function () {
+        return PConf.engine.formatDateValue(new Date());
+    });
+
     // ---- tomorrow.io rate-limit info block + budget-guard interval resolver ----
 
     /**

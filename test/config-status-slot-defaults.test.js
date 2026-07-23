@@ -56,3 +56,23 @@ test('deriveDefaults omits the 12 defaultFrom status-slot keys from the seed', (
   assert.equal(seeded.weekStartDay, 'mon');
   assert.equal(seeded.batteryLowOnly, true);
 });
+
+test('all countdown dates hydrate to today and saved values win', () => {
+  const today = E.formatDateValue(new Date());
+  const hydrated = E.hydrate(SCHEMA, {}, ENV_BASALT);
+  const keys = [
+    'statusForecastLeftCountdown', 'statusForecastMidCountdown',
+    'statusForecastRightCountdown', 'statusRadarLeftCountdown',
+    'statusRadarMidCountdown', 'statusRadarRightCountdown',
+    'statusHealthLeftCountdown', 'statusHealthMidCountdown',
+    'statusHealthRightCountdown', 'statusTopLeftCountdown',
+    'statusTopMidCountdown', 'statusTopRightCountdown'
+  ];
+  keys.forEach((key) => assert.equal(hydrated[key], today, key));
+  const seeded = deriveDefaults(SCHEMA);
+  keys.forEach((key) => assert.equal(seeded[key], undefined,
+    key + ' is resolved at hydration, not baked into the static seed'));
+  assert.equal(E.hydrate(SCHEMA,
+    { statusForecastLeftCountdown: '2030-04-05' },
+    ENV_BASALT).statusForecastLeftCountdown, '2030-04-05');
+});
