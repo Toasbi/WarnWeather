@@ -113,6 +113,11 @@ test('snapshot includes batteryLowOnly as a real boolean', () => {
   assert.equal(buildSettingsSnapshot({}).batteryLowOnly, false);
 });
 
+test('buildSettingsSnapshot includes radarMode (default graph)', () => {
+  assert.strictEqual(buildSettingsSnapshot({ radarMode: 'status' }).radarMode, 'status');
+  assert.strictEqual(buildSettingsSnapshot({}).radarMode, 'graph');
+});
+
 test('settings snapshot keys match the Deno telemetry schema (lockstep)', () => {
   const fs = require('fs');
   const path = require('path');

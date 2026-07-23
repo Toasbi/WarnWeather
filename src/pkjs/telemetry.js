@@ -51,6 +51,7 @@ function buildSettingsSnapshot(settings) {
         barSource: safe.barSource,
         rainBarColor: safe.rainBarColor,
         radarProvider: safe.radarProvider,
+        radarMode: safe.radarMode || 'graph',
         radarColor: safe.radarColor,
         devStatsEnabled: Boolean(safe.devStatsEnabled),
         theme: safe.theme,
