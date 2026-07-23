@@ -107,6 +107,10 @@ test('maps rainCountdownHorizon to CLAY_RAIN_COUNTDOWN_HORIZON', () => {
   base.radarMode = 'off';
   base.rainCountdownHorizon = '120';
   assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 0);
+  // countdown mode keeps the horizon (only 'off' zeroes it)
+  base.radarMode = 'countdown';
+  base.rainCountdownHorizon = '120';
+  assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 120);
 });
 
 test('maps topViewMode to CLAY_TOP_VIEW_MODE int (full=0, compact=1, none=2), default compact', () => {
