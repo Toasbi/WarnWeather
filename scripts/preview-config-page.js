@@ -20,6 +20,8 @@ var APP_FILES = [
   // not a Node module) read their declarations directly from this shared top-level
   // scope. Keep in lockstep with build-config-page.js's APP_FILES — both build the
   // same page, from two separate entrypoints.
+  // country-defaults.js (COUNTRY_DEFAULTS global) must precede blocks.js + wizard.js.
+  path.join(ROOT, 'src/pkjs/settings/country-defaults.js'),
   path.join(ROOT, 'src/pkjs/view-cycle.js'),
   path.join(ROOT, 'src/pkjs/status-line-catalog.js'),
   path.join(ROOT, 'src/pkjs/settings/tomorrowio-budget.js'),

@@ -32,13 +32,16 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   const dups = Object.keys(counts).filter((k) => counts[k] > 1);
   // windScale: solid-line slot vs. dotted-line slot. theme: color-env (4 options) vs.
   // B&W-env (2 options). colorUSFederal: dark-exclude-white vs. light-exclude-black.
-  // rainBarColor/radarColor are single items again (Multicolor/Solid), gated to
-  // theme not in [bw, bw-light] — no more per-theme label split, so no duplicate.
-  assert.deepEqual(dups.sort(), ['colorUSFederal', 'theme', 'windScale'],
+  // tomorrowioApiKey/tomorrowioFitBudget: General tab (weather provider) vs. Radar tab
+  // (radar-only) — mutually-exclusive showWhen, so only one instance ever renders.
+  assert.deepEqual(dups.sort(),
+    ['colorUSFederal', 'theme', 'tomorrowioApiKey', 'tomorrowioFitBudget', 'windScale'],
     'unexpected duplicates: ' + dups.join(','));
   assert.equal(counts.windScale, 6, 'windScale appears in six slots (2 contexts × 3 units)');
   assert.equal(counts.theme, 2, 'theme appears in exactly two slots');
   assert.equal(counts.colorUSFederal, 2, 'colorUSFederal appears in exactly two slots');
+  assert.equal(counts.tomorrowioApiKey, 2, 'tomorrow.io key in the General + Radar tabs');
+  assert.equal(counts.tomorrowioFitBudget, 2, 'tomorrow.io budget guard in the General + Radar tabs');
   assert.deepEqual(Object.keys(counts).sort(), EXPECTED_KEYS.slice().sort());
 });
 
@@ -50,9 +53,9 @@ test('location is a GPS/Manual picker; the text field is gated to Manual', () =>
   assert.deepEqual(byKey('location').showWhen, { key: 'locationMode', eq: 'manual' });
 });
 
-test('providers include openmeteo, metno, yandex and tomorrowio as selectable options', () => {
+test('providers include openmeteo, metno, yandex and tomorrowio as selectable options (alphabetical by name)', () => {
   assert.deepEqual(byKey('provider').options.map((o) => o[1]),
-    ['wunderground','openweathermap','dwd','openmeteo','metno','yandex','tomorrowio']);
+    ['dwd','metno','openmeteo','openweathermap','tomorrowio','wunderground','yandex']);
 });
 
 test('weather provider label matches the AQI provider label style', () => {
@@ -107,10 +110,34 @@ test('COLOR-capability + showWhen wiring', () => {
   assert.deepEqual(byKey('devStatsClear').showWhen, { key: 'devStatsEnabled', eq: true });
 });
 
-test('tomorrowioApiKey shows for EITHER the weather provider or the radar provider', () => {
-  assert.deepEqual(byKey('tomorrowioApiKey').showWhen,
-    { any: [{ key: 'provider', eq: 'tomorrowio' }, { key: 'radarProvider', eq: 'tomorrowio' }] });
-  assert.equal(byKey('tomorrowioApiKey').suffixAction, 'testTomorrowioKey');
+test('tomorrow.io key renders under whichever picker uses it: General (weather) or Radar (radar-only)', () => {
+  const keys = items.filter((i) => i.messageKey === 'tomorrowioApiKey');
+  assert.equal(keys.length, 2, 'one instance per context (mutually exclusive)');
+  const whens = keys.map((k) => JSON.stringify(k.showWhen));
+  assert.ok(whens.includes(JSON.stringify({ key: 'provider', eq: 'tomorrowio' })),
+    'weather-provider instance (General tab)');
+  assert.ok(whens.includes(JSON.stringify(
+    { all: [{ key: 'radarProvider', eq: 'tomorrowio' }, { key: 'provider', ne: 'tomorrowio' }] })),
+    'radar-only instance (Radar tab)');
+  keys.forEach((k) => assert.equal(k.suffixAction, 'testTomorrowioKey'));
+});
+
+test('weather + radar provider dropdowns flag the country-recommended option via recommendFrom', () => {
+  assert.equal(byKey('provider').recommendFrom, 'recommendedWeatherProvider');
+  assert.equal(byKey('radarProvider').recommendFrom, 'recommendedRadarProvider');
+});
+
+test('tomorrow.io key hint offers the API-keys page as a copy button, not a (mobile-404) link', () => {
+  const hint = byKey('tomorrowioApiKey').hint;
+  // The keys URL is now a tap-to-copy control wired through the engine's [data-copy] handler...
+  assert.ok(/data-copy="https:\/\/app\.tomorrow\.io\/development\/keys"/.test(hint),
+    'API-keys page URL rides a data-copy button');
+  assert.ok(/class="copybtn"/.test(hint), 'the copy control uses the .copybtn chip');
+  // ...and is NOT a clickable <a href> anymore (tapping 404s on mobile).
+  assert.ok(!/href=['"]https:\/\/app\.tomorrow\.io\/development\/keys/.test(hint),
+    'the API-keys page is no longer a link');
+  // The signup link stays a normal external link.
+  assert.ok(/href=['"]https:\/\/app\.tomorrow\.io\/signup['"]/.test(hint), 'signup stays a link');
 });
 
 test('fetchIntervalMin derives its ladder from the budget resolver (no static options)', () => {
@@ -120,12 +147,21 @@ test('fetchIntervalMin derives its ladder from the budget resolver (no static op
   assert.equal(item.defaultValue, '15');
 });
 
-test('budget toggle rides the tomorrow.io showWhen and carries the info block', () => {
-  const item = byKey('tomorrowioFitBudget');
-  assert.equal(item.defaultValue, true);
-  assert.equal(item.blockBefore, 'tomorrowioBudget');
-  assert.deepEqual(item.showWhen,
-    { any: [{ key: 'provider', eq: 'tomorrowio' }, { key: 'radarProvider', eq: 'tomorrowio' }] });
+test('budget toggle (both contexts) carries the info block below it', () => {
+  const toggles = items.filter((i) => i.messageKey === 'tomorrowioFitBudget');
+  assert.equal(toggles.length, 2, 'General (weather) + Radar (radar-only) instances');
+  toggles.forEach((item) => {
+    assert.equal(item.defaultValue, true);
+    assert.equal(item.label, 'Fit update interval to rate limit');
+    // block (not blockBefore): the calc renders AFTER the toggle so the toggle hugs the key
+    // field above it as part of the tomorrow.io group.
+    assert.equal(item.block, 'tomorrowioBudget');
+    assert.equal(item.blockBefore, undefined);
+  });
+  const whens = toggles.map((t) => JSON.stringify(t.showWhen));
+  assert.ok(whens.includes(JSON.stringify({ key: 'provider', eq: 'tomorrowio' })));
+  assert.ok(whens.includes(JSON.stringify(
+    { all: [{ key: 'radarProvider', eq: 'tomorrowio' }, { key: 'provider', ne: 'tomorrowio' }] })));
 });
 
 test('health tab is gated to health-capable platforms, with a 3-state mode radio', () => {
@@ -223,20 +259,43 @@ test('Units section groups temperature, AQI scale, wind + distance units in the 
   assert.ok(!unitsSection.items.some((i) => i.messageKey === 'aqiSource'), 'aqiSource moved out of Units');
 });
 
-test('AQI provider selection sits below the weather provider selection, not in Units', () => {
+test('Provider-settings section leads with Update interval, then weather provider, then AQI provider', () => {
   const general = schema.tabs.find((t) => t.id === 'general');
-  // sections[0] is the notices panel (block-only); the main section is sections[1].
-  const first = general.sections[1];
-  const keys = first.items.map((i) => i.messageKey).filter(Boolean);
-  assert.ok(keys.indexOf('aqiSource') !== -1, 'aqiSource lives in the first General section');
+  const ps = general.sections.find((s) => s.title === 'Provider settings');
+  assert.ok(ps, 'General tab has a titled "Provider settings" section');
+  const keys = ps.items.map((i) => i.messageKey).filter(Boolean);
+  assert.equal(keys[0], 'fetchIntervalMin', 'update interval is the first setting in Provider settings');
+  assert.ok(keys.indexOf('fetchIntervalMin') < keys.indexOf('provider'),
+    'update interval precedes the weather provider selection');
   assert.ok(keys.indexOf('provider') < keys.indexOf('aqiSource'),
     'weather provider selection comes before the AQI provider selection');
   assert.ok(keys.indexOf('owmApiKey') < keys.indexOf('aqiSource'),
     'the weather-provider block (including its API key field) precedes the AQI provider selection');
   assert.ok(keys.indexOf('yandexApiKey') < keys.indexOf('aqiSource'),
     'the weather-provider block (including the Yandex API key field) precedes the AQI provider selection');
-  assert.ok(keys.indexOf('aqiSource') < keys.indexOf('locationMode'),
-    'AQI provider selection sits above the location settings');
+  // The night battery saver moved OUT of this section, up into the first (top) section.
+  assert.ok(keys.indexOf('sleepNightEnabled') === -1, 'night battery saver is not in Provider settings');
+  const unitsSection = general.sections.find((s) => s.title === 'Units');
+  assert.ok(!unitsSection.items.some((i) => i.messageKey === 'aqiSource'), 'aqiSource is not in Units');
+});
+
+test('night battery saver + From/To live in the top General card, above Provider settings', () => {
+  const general = schema.tabs.find((t) => t.id === 'general');
+  // sections[0] is the block-only notices panel; the top card (theme + night saver + location) is [1].
+  const topCard = general.sections[1];
+  const topKeys = topCard.items.map((i) => i.messageKey).filter(Boolean);
+  ['sleepNightEnabled', 'sleepStartHour', 'sleepEndHour'].forEach((k) =>
+    assert.ok(topKeys.indexOf(k) !== -1, k + ' lives in the top General card'));
+  assert.ok(!topKeys.some((k) => k === 'fetchIntervalMin'), 'update interval is not in the top card');
+  const psIndex = general.sections.findIndex((s) => s.title === 'Provider settings');
+  const topIndex = general.sections.indexOf(topCard);
+  assert.ok(psIndex === topIndex + 1, 'Provider settings is the section immediately below the top card');
+});
+
+test('night battery saver toggle is renamed and still gates the From/To sleep-hour selects', () => {
+  assert.equal(byKey('sleepNightEnabled').label, 'Night battery saver');
+  assert.deepEqual(byKey('sleepStartHour').showWhen, { key: 'sleepNightEnabled', eq: true });
+  assert.deepEqual(byKey('sleepEndHour').showWhen, { key: 'sleepNightEnabled', eq: true });
 });
 
 test('windUnits is a segmented kph/mph/Knots picker defaulting to kph', () => {
@@ -432,21 +491,50 @@ test('flick/positioning narrative lives only in the Layout tab, not Health/Radar
   assert.ok(!/wrist flick/i.test(radar.sections[0].intro), 'radar intro drops the wrist-flick line');
 });
 
-test('radarProvider is a dropdown offering DWD/Met.no/Rainbow/Tomorrow.io/Off with scope in the label', () => {
+test('radarProvider is a dropdown offering DWD/Met.no/Rainbow/Tomorrow.io/Off (short labels, scope in desc/why)', () => {
   const item = byKey('radarProvider');
   assert.equal(item.type, 'select', 'dropdown — five options no longer fit a segmented row');
-  assert.deepEqual(item.options, [
-    ['DWD (Germany only)', 'dwd'],
-    ['Met.no (Nordics only)', 'metno'],
-    ['Rainbow (Worldwide)', 'rainbow'],
-    ['Tomorrow.io (Worldwide)', 'tomorrowio'],
+  assert.deepEqual(item.options.map((o) => [o[0], o[1]]), [
+    ['DWD', 'dwd'],
+    ['Met.no', 'metno'],
+    ['Rainbow', 'rainbow'],
+    ['Tomorrow.io', 'tomorrowio'],
     ['Off', 'disabled']
   ]);
-  assert.equal(item.hintByValue.dwd, 'Precise weather radar — rain at your exact spot and nearby (~2 km).');
-  assert.equal(item.hintByValue.metno, 'Precise weather radar — rain at your exact spot.');
-  assert.equal(item.hintByValue.rainbow, 'Model-based nowcast, works worldwide.');
-  assert.ok(item.hintByValue.tomorrowio, 'has a tomorrowio hint');
+  assert.equal(item.hintByValue, undefined, 'per-provider "why" moved to showWhen-gated notes below the picker');
   assert.equal(item.defaultValue, 'rainbow');
+});
+
+// Helper: the showWhen-gated "why" note text for a provider value (weather or radar picker).
+function whyNote(key, value) {
+  const it = items.find((i) => i.type === 'staticText' && i.showWhen
+    && i.showWhen.key === key && i.showWhen.eq === value);
+  return it && it.text;
+}
+
+test('each weather + radar provider has a showWhen-gated "why" note below its picker', () => {
+  ['dwd', 'metno', 'openmeteo', 'openweathermap', 'tomorrowio', 'wunderground', 'yandex'].forEach((v) => {
+    assert.ok(typeof whyNote('provider', v) === 'string' && whyNote('provider', v).length > 0, v + ' weather why note');
+  });
+  ['dwd', 'metno', 'rainbow', 'tomorrowio', 'disabled'].forEach((v) => {
+    assert.ok(typeof whyNote('radarProvider', v) === 'string' && whyNote('radarProvider', v).length > 0, v + ' radar why note');
+  });
+  // Content spot-checks: the note carries the real "why".
+  assert.match(whyNote('provider', 'wunderground'), /crowd-sourced|250,000/i);
+  assert.match(whyNote('provider', 'dwd'), /Germany/);
+  assert.match(whyNote('radarProvider', 'tomorrowio'), /budget/i, 'radar Tomorrow.io keeps the key/budget caveat');
+});
+
+test('every radar provider (except Off) carries a "best at" dropdown description', () => {
+  const item = byKey('radarProvider');
+  const desc = (v) => { const o = item.options.find((x) => x[1] === v); return o[2] && o[2].desc; };
+  ['dwd', 'metno', 'rainbow', 'tomorrowio'].forEach((v) => {
+    assert.ok(typeof desc(v) === 'string' && desc(v).length > 0, v + ' radar option should carry a meta.desc');
+  });
+  assert.match(desc('dwd'), /Germany/);
+  assert.match(desc('metno'), /Nordics/);
+  assert.match(desc('tomorrowio'), /precise/i, 'Tomorrow.io radar reads as precise');
+  assert.equal(item.options.find((o) => o[1] === 'disabled').length, 2, 'Off stays a plain 2-tuple (no desc)');
 });
 
 test('provider/radar/health controls register their status cleanup handlers', () => {
@@ -455,10 +543,30 @@ test('provider/radar/health controls register their status cleanup handlers', ()
   assert.equal(byKey('healthMode').onChange, 'resetStatusHealth');
 });
 
-test('weather provider radio offers Met.no with scope in the label', () => {
+test('weather provider is a dropdown with short labels; DWD collapses to "DWD" in the trigger', () => {
   const item = byKey('provider');
-  assert.ok(item.options.some((o) => o[0] === 'Met.no (Nordics only)' && o[1] === 'metno'));
-  assert.equal(item.hintByValue.metno, 'Nordics · the service behind yr.no · 2.5 km model · no API key needed.');
+  assert.equal(item.type, 'select', 'provider picker is a dropdown (too many options for a radio)');
+  // Labels are short (no "(Nordics only)" scope) so the collapsed trigger doesn't overlap the field label.
+  assert.ok(item.options.some((o) => o[0] === 'Met.no' && o[1] === 'metno'));
+  const dwd = item.options.find((o) => o[1] === 'dwd');
+  assert.equal(dwd[0], 'Deutscher Wetterdienst', 'bottom sheet keeps the full name');
+  assert.equal(dwd[2].short, 'DWD', 'trigger collapses to a short label');
+  assert.equal(item.hintByValue, undefined, 'per-provider "why" moved to showWhen-gated notes below the picker');
+});
+
+test('every weather provider option carries a "best at" dropdown description', () => {
+  const item = byKey('provider');
+  item.options.forEach((o) => {
+    assert.ok(o[2] && typeof o[2].desc === 'string' && o[2].desc.length > 0,
+      o[1] + ' option should carry a meta.desc line for the dropdown');
+  });
+  const desc = (v) => item.options.find((o) => o[1] === v)[2].desc;
+  assert.match(desc('dwd'), /Best in Germany/);
+  assert.doesNotMatch(desc('dwd'), /radar/i, 'radar belongs in the radar dropdown, not the weather picker');
+  assert.match(desc('metno'), /Best in the Nordics/);
+  assert.match(desc('wunderground'), /250,000\+ local stations/, 'WU highlights its local-station network + count');
+  assert.match(desc('openmeteo'), /national model/i, 'Open-Meteo highlights automatic model selection');
+  assert.match(desc('tomorrowio'), /key/i, 'key-provider descs flag the API key');
 });
 
 test('radar intro drops mechanics; provider positioning lives in the per-provider hints', () => {
@@ -468,10 +576,9 @@ test('radar intro drops mechanics; provider positioning lives in the per-provide
   assert.ok(intro.indexOf('Layout tab') >= 0, 'placement pointer kept');
   assert.equal(intro.indexOf('radar images'), -1, 'mechanics dropped');
   assert.equal(intro.indexOf('5-minute frame'), -1, 'mechanics dropped');
-  // Provider positioning was de-duplicated out of the intro (b91a416) into the provider hints.
-  const hints = radarTab.sections[0].items.find((i) => i.messageKey === 'radarProvider').hintByValue;
-  assert.ok(hints.dwd.indexOf('2 km') >= 0, 'DWD nearby signal explained in its hint');
-  assert.ok(hints.rainbow.toLowerCase().indexOf('worldwide') >= 0, 'Rainbow positioned as worldwide in its hint');
+  // Provider positioning was de-duplicated out of the intro into the per-provider "why" notes.
+  assert.ok(whyNote('radarProvider', 'dwd').indexOf('2 km') >= 0, 'DWD nearby signal explained in its note');
+  assert.ok(whyNote('radarProvider', 'rainbow').toLowerCase().indexOf('worldwide') >= 0, 'Rainbow positioned as worldwide in its note');
 });
 
 test('theme is a two-slot select dropdown (color env: 4 options; B&W env: 2), like windScale', () => {

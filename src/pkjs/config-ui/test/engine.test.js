@@ -311,6 +311,16 @@ test('renderBody: a standalone (non-joined) staticText has no join class', () =>
   assert.equal(html.indexOf('join'), -1, 'no join modifier when not joined');
 });
 
+test('renderBody: a hinted staticText carries the hinted class (hint style) but not join (no pull-up)', () => {
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [ { title: 'S', items: [
+    { type: 'staticText', hinted: true, text: 'note' }
+  ] } ] } ] };
+  const cx = { S: {}, ENV: { color: true }, USERDATA: {}, openColor: null, collapsed: {}, evalCtx: { env: { color: true } } };
+  const html = E.renderBody(SCH, 't', cx);
+  assert.ok(html.indexOf('class="static hinted"') >= 0, 'hinted static carries the hinted class');
+  assert.equal(html.indexOf('join'), -1, 'hinted does not imply join (no spacing pull-up)');
+});
+
 test('renderSelectModal: duplicate messageKey resolves the VISIBLE block (theme B&W regression)', () => {
   // Two items share messageKey 'theme': a 4-option color block and a 2-option B/W block,
   // mutually exclusive by showWhen (mirrors schema.js). The open picker must mirror whichever
@@ -463,6 +473,39 @@ test('renderSelectOptions: empty query lists all; current value flagged on', () 
   assert.ok(all.indexOf('data-select-pick="DE"') >= 0 && all.indexOf('data-k="c"') >= 0, 'pick + key attrs');
   assert.ok(/class="ssel-opt on"[^>]*data-select-pick="DE"/.test(all), 'current value row is .on');
   assert.equal(/class="ssel-opt on"[^>]*data-select-pick="US"/.test(all), false, 'non-current row not .on');
+});
+
+test('renderSelectOptions renders meta.desc as a stacked description; plain options untouched', () => {
+  const item = { messageKey: 'p', options: [['Met.no', 'metno', { desc: 'Best in the Nordics' }], ['Plain', 'plain']] };
+  const html = E.renderSelectOptions(item, 'metno', '');
+  assert.ok(html.indexOf('<span class="ssel-opt-name">Met.no</span>') >= 0, 'name wrapped in ssel-opt-name');
+  assert.ok(html.indexOf('<span class="ssel-opt-desc">Best in the Nordics</span>') >= 0, 'desc line rendered under the name');
+  assert.ok(html.indexOf('<span>Plain</span>') >= 0, 'option without a desc keeps the plain single-span layout');
+  assert.equal(html.indexOf('ssel-opt-txt"><span class="ssel-opt-name">Plain'), -1, 'plain option is not wrapped in the desc layout');
+});
+
+test('select trigger uses meta.short for the collapsed label; the sheet keeps the full name', () => {
+  const item = { type: 'select', messageKey: 'p', label: 'Provider',
+    options: [['Deutscher Wetterdienst', 'dwd', { short: 'DWD' }], ['Met.no', 'metno']] };
+  const trigger = E.renderControl(item, { value: 'dwd', openSelect: null });
+  assert.ok(trigger.indexOf('<span>DWD</span>') >= 0, 'trigger shows the short label');
+  assert.equal(trigger.indexOf('Deutscher Wetterdienst'), -1, 'trigger does not show the long full name');
+  assert.ok(E.renderSelectOptions(item, 'dwd', '').indexOf('Deutscher Wetterdienst') >= 0, 'sheet keeps the full name');
+  // An option without meta.short falls back to its full label in the trigger.
+  assert.ok(E.renderControl(item, { value: 'metno', openSelect: null }).indexOf('<span>Met.no</span>') >= 0);
+});
+
+test('renderSelectOptions: a recommended value appends a bold (Recommended) marker to that option only', () => {
+  const desc = { messageKey: 'p', options: [['Met.no', 'metno', { desc: 'd' }], ['Open-Meteo', 'openmeteo', { desc: 'd2' }]] };
+  const hDesc = E.renderSelectOptions(desc, 'metno', '', 'openmeteo');
+  assert.ok(hDesc.indexOf('Open-Meteo <b class="ssel-rec">(Recommended)</b></span>') >= 0, 'marker rides the recommended option name');
+  assert.equal(hDesc.indexOf('Met.no <b class="ssel-rec">'), -1, 'non-recommended option gets no marker');
+  // Plain (no-desc) layout marks the name too.
+  const plain = { messageKey: 'p', options: [['DWD', 'dwd'], ['Off', 'disabled']] };
+  assert.ok(E.renderSelectOptions(plain, 'disabled', '', 'dwd').indexOf('<span>DWD <b class="ssel-rec">(Recommended)</b></span>') >= 0);
+  // No recommendation (or a value not in the list) → no marker anywhere.
+  assert.equal(E.renderSelectOptions(plain, 'dwd', '').indexOf('ssel-rec'), -1, 'omitted recommended value adds no marker');
+  assert.equal(E.renderSelectOptions(plain, 'dwd', '', 'nope').indexOf('ssel-rec'), -1, 'unmatched recommended value adds no marker');
 });
 
 test('renderSelectOptions renders explicit groups without heading indicators', () => {

@@ -112,6 +112,15 @@ test('switching to DWD leaves pollen selections and unrelated slots unchanged', 
   assert.equal(S.statusTopLeft, 'uv');
 });
 
+test('switching weather provider keeps the tomorrow.io API key (never cleared on provider change)', () => {
+  const S = blob({ provider: 'tomorrowio', tomorrowioApiKey: 'secret-key' });
+  clearPollenForProvider(S, 'wunderground');
+  assert.equal(S.tomorrowioApiKey, 'secret-key', 'the entered key survives switching to another provider');
+  // ...and back again — still there (the field just hides via showWhen when unused).
+  clearPollenForProvider(S, 'dwd');
+  assert.equal(S.tomorrowioApiKey, 'secret-key');
+});
+
 test('dedupeStatusSlot: a same-line sibling holding the new code reverts to empty', () => {
   const S = blob({ statusForecastLeft: 'temp', statusForecastMid: 'temp' }); // user just set Mid to temp
   dedupeStatusSlot(S, 'statusForecastMid');

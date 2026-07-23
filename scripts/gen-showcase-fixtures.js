@@ -64,12 +64,14 @@ const HR_EMERY = { statusHealthMid: 'sleep', statusHealthRight: 'hr' };
 const SCENES = [
   {
     // Full top view (classic 3-row calendar) with a "Rain in X" countdown up top.
+    // timeFont 'leco' — reel intro (scenes 1/2/3/5) is all leco.
     id: 1, flicks: 0,
     clay: {
       layoutPreset: 'fullCal', healthMode: 'off',
       secondaryLine: 'precip_prob', secondaryLineFill: true, thirdLine: 'uv',
       barSource: 'rain', rainBarColor: 'multicolor',
       radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60',
+      timeFont: 'leco',
     },
     radar: { exact: RAIN_APPROACH_EXACT, area: RAIN_APPROACH_AREA },
     countdown: { text: "Rain in 15'", tier: 3 },
@@ -78,22 +80,26 @@ const SCENES = [
     // Compact-DENSE: weather & health status shown together by default (no flick needed),
     // with a different-looking forecast (wind + dotted gust). Radar off — the dense
     // preset's off-radar cycle is a single view, so there's nothing to flick to anyway.
+    // timeFont 'leco' — reel intro (scenes 1/2/3/5) is all leco.
     id: 2, flicks: 0, hrEmery: true,
     clay: {
       layoutPreset: 'compactDense', healthMode: 'status',
       secondaryLine: 'wind', thirdLine: 'gust', barSource: 'off',
       radarProvider: 'disabled', rainCountdownHorizon: '0',
+      timeFont: 'leco',
     },
     radar: null,
   },
   {
     // Compact + single status showing the weather status, drizzle approaching in the top bar.
+    // timeFont 'leco' — reel intro (scenes 1/2/3/5) is all leco.
     id: 3, flicks: 0,
     clay: {
       layoutPreset: 'compactCal', healthMode: 'status',
       secondaryLine: 'precip_prob', secondaryLineFill: true, thirdLine: 'uv',
       barSource: 'rain', rainBarColor: 'multicolor',
       radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60',
+      timeFont: 'leco',
     },
     radar: { exact: DRIZZLE_EXACT, area: DRIZZLE_AREA },
     countdown: { text: "Drizzle in 15'", tier: 2 },
@@ -115,12 +121,14 @@ const SCENES = [
   {
     // NONE mode with a rain-now countdown ("Rain for X"): full-date strip, big clock,
     // full-screen forecast.
+    // timeFont 'leco' — reel intro (scenes 1/2/3/5) is all leco.
     id: 5, flicks: 0,
     clay: {
       layoutPreset: 'noCal', healthMode: 'off',
       secondaryLine: 'precip_prob', secondaryLineFill: true,
       barSource: 'rain', rainBarColor: 'multicolor',
       radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60',
+      timeFont: 'leco',
     },
     radar: { exact: RAIN_NOW_EXACT, area: RAIN_NOW_AREA },
     countdown: { text: "Rain for 20'", tier: 3 },

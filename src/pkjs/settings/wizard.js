@@ -1,7 +1,7 @@
 // src/pkjs/settings/wizard.js — ES5, WebView. First-run onboarding wizard.
 // Pure helpers (top) are unit-tested via module.exports; the DOM controller (added later)
 // registers onReady + PConf.actions.startWizard and is exercised via `mise preview-config`.
-/* global PConf, Intl, navigator, document, INJECTED_SCHEMA, VIEW_CYCLE */
+/* global PConf, Intl, navigator, document, INJECTED_SCHEMA, VIEW_CYCLE, COUNTRY_DEFAULTS */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf
     : (typeof PConf !== 'undefined' && PConf) ? PConf
@@ -12,85 +12,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // shares the top-level scope as VIEW_CYCLE. Same pattern as settings/blocks.js.
     var VC = (typeof require !== 'undefined') ? require('../view-cycle.js') : VIEW_CYCLE;
 
-    // Compact IANA-timezone -> ISO-3166-1 alpha-2 table. Covers DE + the Nordic metno
-    // zones (the countries that change the derived provider) plus common others; anything
-    // absent falls through to the navigator.language region subtag.
-    var TZ_COUNTRY = {
-        'Europe/Berlin': 'DE', 'Europe/Busingen': 'DE',
-        'Europe/Oslo': 'NO', 'Europe/Stockholm': 'SE', 'Europe/Copenhagen': 'DK',
-        'Europe/Helsinki': 'FI', 'Atlantic/Reykjavik': 'IS',
-        'Europe/Vienna': 'AT', 'Europe/Zurich': 'CH', 'Europe/Paris': 'FR',
-        'Europe/London': 'GB', 'Europe/Madrid': 'ES', 'Europe/Rome': 'IT',
-        'Europe/Amsterdam': 'NL', 'Europe/Brussels': 'BE', 'Europe/Warsaw': 'PL',
-        'America/New_York': 'US', 'America/Chicago': 'US', 'America/Denver': 'US',
-        'America/Los_Angeles': 'US', 'America/Toronto': 'CA', 'Australia/Sydney': 'AU'
-    };
-    // Countries served by the metno (MET Norway) 2.5 km model — the "Nordics only" set.
-    var METNO_COUNTRIES = { NO: true, SE: true, DK: true, FI: true, IS: true };
-    // Countries that use Fahrenheit. Realistically the inference table only yields US here;
-    // kept as a set so it's trivially extensible (Liberia, some Caribbean territories, …).
-    var FAHRENHEIT_COUNTRIES = { US: true };
-    // Countries that start the week on Sunday. Parallel to FAHRENHEIT_COUNTRIES —
-    // US only for now, trivially extensible (CA, JP, IL, …). Everyone else: Monday.
-    var SUNDAY_START_COUNTRIES = { US: true };
-
-    /**
-     * Map an IANA timezone id to an ISO country code.
-     * @param {?string} tz IANA timezone id (e.g. 'Europe/Berlin').
-     * @returns {?string} ISO alpha-2 code, or null if unknown.
-     */
-    function countryFromTimezone(tz) {
-        return (tz && TZ_COUNTRY[tz]) || null;
-    }
-
-    /**
-     * Extract the ISO country from a BCP-47 locale's region subtag.
-     * @param {?string} lang Locale tag (e.g. 'de-DE').
-     * @returns {?string} ISO alpha-2 code, or null if absent.
-     */
-    function countryFromLocale(lang) {
-        if (!lang) { return null; }
-        var parts = String(lang).split('-');
-        return (parts.length > 1 && parts[1].length === 2) ? parts[1].toUpperCase() : null;
-    }
-
-    /**
-     * Best-effort country inference: timezone first, then locale region subtag.
-     * @returns {?string} ISO alpha-2 code, or null if it can't be determined.
-     */
-    function inferCountry() {
-        var tz = null, lang = null;
-        try {
-            if (typeof Intl !== 'undefined' && Intl.DateTimeFormat) {
-                tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            }
-        } catch (e) { tz = null; }
-        var fromTz = countryFromTimezone(tz);
-        if (fromTz) { return fromTz; }
-        try {
-            lang = (typeof navigator !== 'undefined' && navigator.language) ? navigator.language : null;
-        } catch (e2) { lang = null; }
-        return countryFromLocale(lang);
-    }
-
-    /**
-     * Derive provider, radar provider, and locale units (temperature, wind, distance,
-     * week-start) from a country code.
-     * @param {?string} cc ISO alpha-2 country code.
-     * @returns {{provider: string, radarProvider: string, temperatureUnits: string, windUnits: string, distanceUnits: string, weekStartDay: string}} Derived settings.
-     */
-    function mapCountry(cc) {
-        var imperial = Boolean(cc && FAHRENHEIT_COUNTRIES[cc]);
-        var units = {
-            temperatureUnits: imperial ? 'f' : 'c',
-            windUnits: imperial ? 'mph' : 'kph',
-            distanceUnits: imperial ? 'imperial' : 'metric',
-            weekStartDay: (cc && SUNDAY_START_COUNTRIES[cc]) ? 'sun' : 'mon'
-        };
-        if (cc === 'DE') { return Object.assign({ provider: 'dwd', radarProvider: 'dwd' }, units); }
-        if (cc && METNO_COUNTRIES[cc]) { return Object.assign({ provider: 'metno', radarProvider: 'metno' }, units); }
-        return Object.assign({ provider: 'openmeteo', radarProvider: 'rainbow' }, units);
-    }
+    // Country → recommended providers + locale units. Extracted to settings/country-defaults.js so the
+    // wizard's fresh-install picks and the Provider-settings "(Recommended)" dropdown hints share ONE
+    // mapping (no drift). Node require()s it; the webview reads the concatenated COUNTRY_DEFAULTS global
+    // (same dual-mode pattern as VIEW_CYCLE above). The local aliases keep the rest of this file + the
+    // module.exports unchanged.
+    var CD = (typeof require !== 'undefined') ? require('./country-defaults.js') : COUNTRY_DEFAULTS;
+    var countryFromTimezone = CD.countryFromTimezone;
+    var countryFromLocale = CD.countryFromLocale;
+    var inferCountry = CD.inferCountry;
+    var mapCountry = CD.mapCountry;
 
     /**
      * Ordered wizard step ids, filtered by platform env: health only where the platform
@@ -202,7 +133,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // ---- DOM controller (webview only; exercised via `mise preview-config`, not Node) ----
     var LAYOUT_OPTS = [['Full calendar', 'fullCal'], ['Compact', 'compactCal'], ['No calendar', 'noCal']];
-    var HEALTH_OPTS = [['Off', 'off'], ['Status slots only', 'slot'], ['Health Status Bar', 'status'], ['Health Status Bar + Graph', 'all']];
+    // 'slot' (Status-slots-only) is intentionally NOT offered here: it's a main-settings-only mode with
+    // no dedicated Health view and no wizard screenshot, so the screenshot-driven onboarding carousel skips
+    // it. The full option set still lives on the Health tab (schema.js).
+    var HEALTH_OPTS = [['Off', 'off'], ['Health Status Bar', 'status'], ['Health Status Bar + Graph', 'all']];
     var STEP_TITLES = {
         welcome: 'Welcome to WarnWeather', layout: 'Choose your layout',
         health: 'Health', flick: 'Flick to explore',
@@ -219,7 +153,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // heart-rate variant on emery (the only platform with a heart-rate sensor).
     var HEALTH_DESC = {
         off: 'no health information on the watchface.',
-        slot: 'health items you can add to any status bar, without a separate Health view.',
         status: healthStatusItems(false) + ' on the Health Status Bar.',
         all: 'Health Status Bar plus an hourly graph: ' + healthGraphItems(false) + '.'
     };
@@ -249,6 +182,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '#wizard .wiz-foot{flex:none;display:flex;gap:10px;padding:12px 18px;border-top:1px solid var(--card-line)}'
         + '#wizard .wiz-head{font:700 12px Inter,sans-serif;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:6px 0 8px}'
         + '#wizard p{line-height:1.55}#wizard a{color:var(--link)}'
+        // tomorrow.io upsell callout on the "All set" step: a top-rule separates it from the intro
+        // paragraph; the embedded settings row renders full-width inside, as on the settings tab.
+        + '#wizard .wiz-tio{margin:12px 0 14px;padding-top:4px;border-top:1px solid var(--card-line)}'
+        + '#wizard .wiz-tio>p{margin:10px 0 6px}'
         + '#wizard .wiz-car{position:relative;display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;'
         + '-webkit-overflow-scrolling:touch;padding:6px calc(50% - 75px) 14px;scrollbar-width:none}'
         + '#wizard .wiz-car::-webkit-scrollbar{display:none}'
@@ -534,7 +471,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             + '<p><b>Forecast</b> — a 24-hour graph: temperature, the precipitation-% line, UV dots and rain bars.</p></div>';
     }
     function stepHealth() {
-        return carousel('healthMode', HEALTH_OPTS, W.ctx.S.healthMode, HEALTH_DESC);
+        // If the stored mode isn't offered here (e.g. 'slot', set later via the Health tab), highlight
+        // 'off' rather than leave the carousel unhighlighted — without mutating the stored value, which
+        // only changes if the user actually picks a card.
+        var sel = labelFor(HEALTH_OPTS, W.ctx.S.healthMode) ? W.ctx.S.healthMode : 'off';
+        return carousel('healthMode', HEALTH_OPTS, sel, HEALTH_DESC);
     }
     function stepFlick() {
         // Render always opens on stop 0 (the default view), so re-entering the step resets
@@ -563,8 +504,24 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return carousel('theme', optsFor('theme'), W.ctx.S.theme, THEME_DESC)
             + '<div><p>The theme sets your watchface’s colours. You can fine-tune individual colours later in Settings.</p></div>';
     }
+    // The tomorrow.io upsell, shown between the first two "All set" paragraphs when the resulting
+    // weather provider isn't DWD or Met.no (i.e. outside their strong regions): a free tomorrow.io key
+    // unlocks the precise worldwide nowcast. Reuses the real settings field (renderRow) so the signup
+    // instructions, key input and Test button match the Provider-settings tab exactly. Entering a key
+    // switches the weather provider to tomorrow.io (see onTomorrowioKey), wired in openWizard.
+    function tomorrowioUpsell() {
+        var item = findItem(W.ctx.schema, 'tomorrowioApiKey');
+        if (!item) { return ''; }
+        var field = PConf.engine.renderRow(item, { value: W.ctx.S.tomorrowioApiKey || '' });
+        return '<div class="wiz-tio">'
+            + '<p><b>Get the most precise forecast.</b> For your region, a free <b>Tomorrow.io</b> account unlocks a hyperlocal forecast anywhere in the world. Set it up below, or skip it to keep the auto-picked provider.</p>'
+            + field
+            + '</div>';
+    }
     function stepDone() {
+        var upsell = (W.ctx.S.provider !== 'dwd' && W.ctx.S.provider !== 'metno') ? tomorrowioUpsell() : '';
         return '<p><b>You’re all set!</b> Everything is editable later in the settings tabs, and you can run this setup again any time from <b>More → Misc → Run setup again</b>.</p>'
+            + upsell
             + '<p>If you enjoy WarnWeather, please ♥ it on the Pebble appstore — it really helps.</p>'
             + '<p>Need help or have feedback? Open an issue on <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>, or use the appstore’s “Message the developer” to reach me directly.</p>';
     }
@@ -636,6 +593,37 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             selectCar(group, indexOfCode(optsFor(group), t.getAttribute('data-wiz-idx-val')), true); return;
         }
         if ((t = e.target.closest('[data-wiz-flick]'))) { advanceFlick(); return; }
+        // Embedded settings-field controls (the tomorrow.io upsell on the "All set" step): the copy
+        // button in the key hint and the Test button both live in the overlay, outside #scroll, so
+        // the engine's own delegated handlers never see them — dispatch them here instead.
+        if ((t = e.target.closest('[data-copy]'))) { if (PConf.copyText) { PConf.copyText(t.getAttribute('data-copy')); } return; }
+        if ((t = e.target.closest('[data-action]'))) { var act = t.getAttribute('data-action'); if (PConf.actions[act]) { PConf.actions[act](); } return; }
+    }
+
+    // Text input inside the overlay (the tomorrow.io key field). Mirror the value into shared state
+    // like the engine's #scroll input handler does; the country searchSelect's search box lives in the
+    // top-layer #modal (engine-wired), not here, so this only ever sees embedded settings fields.
+    function onInput(e) {
+        var inp = e.target && e.target.closest && e.target.closest('input[type=text][data-k]');
+        if (!inp) { return; }
+        var k = inp.getAttribute('data-k');
+        W.ctx.S[k] = inp.value;
+        if (k === 'tomorrowioApiKey') { onTomorrowioKey(inp.value); }
+    }
+
+    // A non-empty key makes tomorrow.io the weather provider (the upsell's whole point); clearing it
+    // reverts to the country-derived provider. We don't re-render on keystrokes (would drop input
+    // focus), and it isn't needed: the upsell's visibility gate is "provider is not DWD/Met.no", which
+    // stays true whether the provider is tomorrow.io or the derived Open-Meteo. Runs the same pollen
+    // cleanup the provider picker + applyDerived do.
+    function onTomorrowioKey(val) {
+        var oldProvider = W.ctx.S.provider;
+        var hasKey = Boolean(String(val || '').replace(/\s/g, ''));
+        var next = hasKey ? 'tomorrowio' : mapCountry(W.ctx.S.holidayCountry).provider;
+        if (next === oldProvider) { return; }
+        W.ctx.S.provider = next;
+        var cleanup = PConf.onChange && PConf.onChange.get && PConf.onChange.get('clearPollenForProvider');
+        if (cleanup) { cleanup(W.ctx.S, oldProvider, next); }
     }
 
     function ensureStyle() {
@@ -671,6 +659,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         document.body.appendChild(overlay);
         W.overlay = overlay;
         overlay.addEventListener('click', onClick);
+        overlay.addEventListener('input', onInput);
         renderStep();
     }
 

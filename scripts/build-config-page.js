@@ -10,6 +10,9 @@ var APP_FILES = [
   // view-cycle.js and status-line-catalog.js must precede blocks.js: blocks.js's VC /
   // statusLineCatalog fallbacks (used when this page is a flat concatenated <script>,
   // not a Node module) read their declarations directly from this shared top-level scope.
+  // country-defaults.js is the same shape (COUNTRY_DEFAULTS global) and must precede its
+  // consumers blocks.js (recommend resolvers) and wizard.js (fresh-install derivation).
+  path.join(ROOT, 'src/pkjs/settings/country-defaults.js'),
   path.join(ROOT, 'src/pkjs/view-cycle.js'),
   path.join(ROOT, 'src/pkjs/status-line-catalog.js'),
   path.join(ROOT, 'src/pkjs/settings/tomorrowio-budget.js'),

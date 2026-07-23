@@ -1,6 +1,6 @@
 // src/pkjs/settings/blocks.js — ES5, WebView. Registers WarnWeather's custom blocks.
 // Each block: function(state, env, userData) -> htmlString
-/* global PConf, VIEW_CYCLE */
+/* global PConf, VIEW_CYCLE, COUNTRY_DEFAULTS */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf
     : (typeof PConf !== 'undefined' && PConf) ? PConf
@@ -21,6 +21,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // <script> in the webview where it registered itself on PConf.
     var tomorrowioBudget = (typeof require !== 'undefined')
         ? require('./tomorrowio-budget.js') : PConf.tomorrowioBudget;
+    // Same dual-context pattern: country → recommended-provider mapping (shared with the wizard).
+    var CD = (typeof require !== 'undefined') ? require('./country-defaults.js') : COUNTRY_DEFAULTS;
 
     function parseStoredJson(v) {
         if (v === null || typeof v === 'undefined') { return null; }
@@ -929,10 +931,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var sleep = B.sleepHours(state);
         var daily = Math.round(B.dailyCalls(state, interval));
         var ok = B.fits(state, interval);
+        // radarOn is specifically "does tomorrow.io radar add calls" — NOT whether radar
+        // is enabled at all. A user can run weather on tomorrow.io while radar stays on
+        // another provider (Rainbow by default), so only mention radar when it actually
+        // counts against this budget; never print "radar off" (it reads as "radar disabled").
         var radarOn = state.radarProvider === 'tomorrowio';
         var settingsBits = 'every ' + interval + ' min, '
             + (sleep > 0 ? 'night pause ' + sleep + ' h' : 'no night pause')
-            + ', radar ' + (radarOn ? 'on' : 'off');
+            + (radarOn ? ', incl. radar' : '');
         var verdict = ok
             ? '<b>~' + daily + ' calls/day ✓</b>'
             : '<b style="color:#FF6A52">~' + daily + ' calls/day ✗ over budget</b>';
@@ -954,7 +960,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (B.hourlyCalls(state, interval) >= B.LIMIT_HOUR - 1) {
             html += '<br>At this rate a settings-save refetch in the same hour may delay one cycle — harmless.';
         }
-        return '<div class="static">' + html + '</div>';
+        // Return bare content: the engine's renderBlock wraps this in .blockrow, which
+        // already supplies padding, colour and its own bottom divider. Wrapping in .static
+        // here would nest a second bordered/padded row and paint a stray divider line.
+        return html;
     }
     PConf.blocks.register('tomorrowioBudget', tomorrowioBudgetBlock);
 
@@ -966,6 +975,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     PConf.optionsResolvers.register('fetchIntervalBudget', function (S, env, args) {
         if (!S || S.tomorrowioFitBudget === false) { return tomorrowioBudget.INTERVAL_LADDER.slice(); }
         return tomorrowioBudget.fittingOptions(S);
+    });
+
+    // "(Recommended)" markers on the weather + radar provider dropdowns: the option matching the
+    // country-derived best pick (holidayCountry, the wizard's own source) is flagged. Same mapping
+    // the wizard applies on a fresh install, so the dropdown hint and the wizard can't disagree.
+    PConf.recommendResolvers.register('recommendedWeatherProvider', function (S) {
+        return CD.mapCountry(S && S.holidayCountry).provider;
+    });
+    PConf.recommendResolvers.register('recommendedRadarProvider', function (S) {
+        return CD.mapCountry(S && S.holidayCountry).radarProvider;
     });
 
     if (typeof module !== 'undefined' && module.exports) {

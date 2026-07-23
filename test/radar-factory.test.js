@@ -131,5 +131,6 @@ test('radar picker offers tomorrowio', () => {
   schema.tabs.forEach((t) => t.sections.forEach((s) => s.items.forEach((i) => items.push(i))));
   const radarItem = items.filter((i) => i.messageKey === 'radarProvider')[0];
   assert.ok(radarItem.options.map((o) => o[1]).includes('tomorrowio'));
-  assert.ok(radarItem.hintByValue.tomorrowio, 'has a hint');
+  const tio = radarItem.options.find((o) => o[1] === 'tomorrowio');
+  assert.ok(tio[2] && tio[2].desc, 'has a dropdown description');
 });

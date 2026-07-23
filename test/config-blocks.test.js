@@ -4,7 +4,8 @@ const assert = require('node:assert/strict');
 global.PConf = {
   blocks: (function () { var m = {}; return { register: (id, fn) => { m[id] = fn; }, get: (id) => m[id] }; })(),
   optionsResolvers: (function () { var m = {}; return { register: (id, fn) => { m[id] = fn; }, get: (id) => m[id] }; })(),
-  defaultsResolvers: (function () { var m = {}; return { register: (id, fn) => { m[id] = fn; }, get: (id) => m[id] }; })()
+  defaultsResolvers: (function () { var m = {}; return { register: (id, fn) => { m[id] = fn; }, get: (id) => m[id] }; })(),
+  recommendResolvers: (function () { var m = {}; return { register: (id, fn) => { m[id] = fn; }, get: (id) => m[id] }; })()
 };
 const B = require('../src/pkjs/settings/blocks.js');
 const budgetLib = require('../src/pkjs/settings/tomorrowio-budget.js');
@@ -662,6 +663,26 @@ test('tomorrowioBudget block: empty without a tomorrow.io selection; states limi
   assert.match(over, /✗/);
 });
 
+test('tomorrowioBudget block never claims radar is off when radar runs on another provider', () => {
+  const block = global.PConf.blocks.get('tomorrowioBudget');
+  // Weather on tomorrow.io, radar on the default Rainbow provider (radar IS on,
+  // just not billed to tomorrow.io): the summary must not say "radar off".
+  const weatherOnly = block(budgetState({ radarProvider: 'rainbow' }), {});
+  assert.doesNotMatch(weatherOnly, /radar off/i);
+  assert.doesNotMatch(weatherOnly, /radar\b.*\bon\b/i, 'no blanket "radar on" claim either');
+  // When tomorrow.io radar actually adds calls, say so explicitly.
+  const withRadar = block(budgetState({ radarProvider: 'tomorrowio' }), {});
+  assert.match(withRadar, /incl\. radar/);
+});
+
+test('tomorrowioBudget block does not nest a bordered .static row inside the .blockrow', () => {
+  const block = global.PConf.blocks.get('tomorrowioBudget');
+  // .static carries its own border-bottom + padding; nesting it inside the
+  // engine's .blockrow wrapper paints a stray divider line. The block must
+  // return bare content and let .blockrow be the sole container.
+  assert.doesNotMatch(block(budgetState(), {}), /class="static"/);
+});
+
 test('tomorrowioBudget block derives the unlock rule and the hourly heads-up', () => {
   const block = global.PConf.blocks.get('tomorrowioBudget');
   // 5 min is locked at a 2 h pause -> rule names 5 minutes and >= 4 h
@@ -684,4 +705,19 @@ test('fetchIntervalBudget resolver: filters when guard on, passes through when o
     ['5', '10', '15', '30', '60']);
   assert.deepEqual(resolver(budgetState({ provider: 'dwd', radarProvider: 'disabled', sleepNightEnabled: false }), {}, {}).map((o) => o[1]),
     ['5', '10', '15', '30', '60']);
+});
+
+test('recommend resolvers: country-matched weather + radar providers (DE→dwd, Nordics→metno, else→openmeteo/rainbow)', () => {
+  const wx = global.PConf.recommendResolvers.get('recommendedWeatherProvider');
+  const rad = global.PConf.recommendResolvers.get('recommendedRadarProvider');
+  assert.equal(typeof wx, 'function', 'weather recommend resolver registered');
+  assert.equal(typeof rad, 'function', 'radar recommend resolver registered');
+  assert.equal(wx({ holidayCountry: 'DE' }), 'dwd');
+  assert.equal(rad({ holidayCountry: 'DE' }), 'dwd');
+  assert.equal(wx({ holidayCountry: 'NO' }), 'metno');
+  assert.equal(rad({ holidayCountry: 'SE' }), 'metno');
+  assert.equal(wx({ holidayCountry: 'US' }), 'openmeteo');
+  assert.equal(rad({ holidayCountry: 'US' }), 'rainbow');
+  // Robust to a missing/none country selection (won't throw).
+  assert.equal(wx({}), 'openmeteo');
 });
