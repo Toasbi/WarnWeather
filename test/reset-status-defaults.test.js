@@ -140,6 +140,18 @@ test('dedupeStatusSlot: picking empty never clears a sibling', () => {
   assert.equal(S.statusForecastLeft, 'empty');
 });
 
+test('dedupeStatusSlot: countdown may appear more than once on the same bar', () => {
+  const S = blob({
+    statusForecastLeft: 'countdown',
+    statusForecastMid: 'countdown',
+    statusForecastRight: 'countdown'
+  });
+  dedupeStatusSlot(S, 'statusForecastMid');
+  assert.equal(S.statusForecastLeft, 'countdown');
+  assert.equal(S.statusForecastMid, 'countdown');
+  assert.equal(S.statusForecastRight, 'countdown');
+});
+
 test('dedupeStatusSlot: no sibling holds the code -> no change', () => {
   const S = blob({ statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'sun' });
   dedupeStatusSlot(S, 'statusForecastMid');

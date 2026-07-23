@@ -149,14 +149,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * When a slot is set to a code a same-line sibling already holds, clear that
      * sibling to 'empty' (the picked value moves to the changed slot). Per-line
-     * only — cross-bar duplicates are allowed. No-op for 'empty'/unset. Mutates S.
+     * only — cross-bar duplicates are allowed. No-op for 'empty'/unset/countdown.
+     * Mutates S.
      * @param {Object} S live settings state (changedKey already set to its new value)
      * @param {string} changedKey the slot messageKey the user just changed
      * @returns {void}
      */
     function dedupeStatusSlot(S, changedKey) {
         var code = S[changedKey];
-        if (!code || code === 'empty') { return; }
+        if (!code || code === 'empty' || code === 'countdown') { return; }
         for (var l = 0; l < catalog.LINES.length; l++) {
             var slots = catalog.LINES[l].slots;
             if (slots.indexOf(changedKey) === -1) { continue; }
