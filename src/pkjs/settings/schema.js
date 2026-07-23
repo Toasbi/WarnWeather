@@ -665,7 +665,7 @@ module.exports = {
                     // aplite compiles out rain radar (WW_RAIN_RADAR), so no incoming-rain
                     // alert can ever replace this bar there — hide the note on aplite.
                     type: 'staticText',
-                    text: 'An incoming-rain alert temporarily replaces this bar.',
+                    text: 'An incoming-rain alert temporarily replaces the left and middle slot.',
                     showWhen: {env: 'platform', ne: 'aplite'}
                 },
                 {
