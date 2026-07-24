@@ -42,7 +42,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Selectable start of week and customizable highlights for weekends and holidays (150+ countries)
 
 **Status lines**
-* Configurable status slots on every view: fill each slot from a catalog of metrics — countdowns, weather, air quality, pollen, wind, health, battery, and more
+* Configurable status slots on every view: fill each slot from a catalog of metrics — weather, air quality, pollen, wind, health, battery, a countdown to any date, and more
 
 **Watchface themes**
 * Dark and Light, plus Black & White options on color watches

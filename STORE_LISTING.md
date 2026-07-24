@@ -27,7 +27,8 @@ CALENDAR
 
 STATUS LINES
 - Configurable status slots on every view: fill each slot from a catalog of
-  metrics — countdowns, weather, air quality, pollen, wind, health, battery, and more
+  metrics — weather, air quality, pollen, wind, health, battery, a countdown
+  to any date, and more
 
 WATCHFACE THEMES
 - Dark and Light, plus Black & White options on color watches
