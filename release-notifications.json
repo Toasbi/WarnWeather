@@ -105,6 +105,6 @@
   },
   "1.9.3": {
     "title": "Swap clock & status, no flick",
-    "body": "Move the status row next to your forecast with the new swap toggle — or add a Radar or Health row in the dense layout. Both in the Layout tab."
+    "body": "Added swapping clock and status bar in the compact view so the forecast slots can stay close to graph."
   }
 }
