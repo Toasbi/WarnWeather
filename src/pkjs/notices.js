@@ -9,6 +9,7 @@
 var storageKeys = require('./storage-keys.js');
 var NOTICES_KEY = storageKeys.NOTICES_KEY;
 var MAX_NOTICES = 20;
+var GC_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * @returns {Array<Object>} Parsed notice list (oldest→newest); [] when absent/corrupt.
@@ -71,6 +72,25 @@ function clearErrors() {
  */
 function dismissAll() {
     writeList([]);
+}
+
+/**
+ * Boot-time GC: drop notices older than 7 days so undismissed ones don't sit
+ * in storage forever. A still-active condition re-adds its notice on the next
+ * failing fetch, so nothing current is lost.
+ * @param {number} now Epoch milliseconds.
+ * @returns {void}
+ */
+function gc(now) {
+    var list = readList();
+    if (!list.length) { return; }
+    var kept = [];
+    for (var i = 0; i < list.length; i++) {
+        if (typeof list[i].since === 'number' && now - list[i].since <= GC_MAX_AGE_MS) {
+            kept.push(list[i]);
+        }
+    }
+    if (kept.length !== list.length) { writeList(kept); }
 }
 
 /**
@@ -139,5 +159,6 @@ module.exports = {
     dismissAll: dismissAll,
     list: list,
     watchText: watchText,
-    noticeForFailure: noticeForFailure
+    noticeForFailure: noticeForFailure,
+    gc: gc
 };

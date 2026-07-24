@@ -20,6 +20,7 @@ var storageKeys = require('./storage-keys.js');
 var news = require('./settings/news.js');
 
 var MAX_AGE_MS = 60 * 60 * 1000;
+var GC_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * POST a JSON payload to the news edge function. A synchronous throw (e.g. a
@@ -163,9 +164,27 @@ function refreshIfStale(opts) {
     fetchList(opts, now);
 }
 
+/**
+ * Boot-time GC: drop the stored envelope when it is unreadable or older than
+ * 7 days, so a disabled news feature or dead endpoint doesn't leave a stale
+ * body in storage forever. seedIfAbsent refetches on the next boot when the
+ * feature is configured.
+ *
+ * @param {number} now Epoch milliseconds.
+ * @returns {void}
+ */
+function gc(now) {
+    if (localStorage.getItem(storageKeys.NEWS_CACHE_KEY) === null) { return; }
+    var env = readEnvelope();
+    if (!env || now - env.at > GC_MAX_AGE_MS) {
+        localStorage.removeItem(storageKeys.NEWS_CACHE_KEY);
+    }
+}
+
 module.exports = {
     readBody: readBody,
     seedIfAbsent: seedIfAbsent,
     refreshIfStale: refreshIfStale,
+    gc: gc,
     MAX_AGE_MS: MAX_AGE_MS
 };

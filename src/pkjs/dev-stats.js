@@ -141,9 +141,31 @@ function clear() {
     localStorage.removeItem(KEYS.DEV_STATS_KEY);
 }
 
+/**
+ * Boot-time GC: rewrite the stored log without out-of-window events. record()
+ * prunes only while recording is enabled, so a disabled toggle would otherwise
+ * leave the last recorded window in storage forever.
+ *
+ * @param {number} now Epoch milliseconds.
+ * @returns {void}
+ */
+function gc(now) {
+    var events = readEvents();
+    if (!events.length) { return; }
+    var kept = prune(events, now);
+    if (kept.length === events.length) { return; }
+    if (kept.length) {
+        localStorage.setItem(KEYS.DEV_STATS_KEY, JSON.stringify(kept));
+    }
+    else {
+        localStorage.removeItem(KEYS.DEV_STATS_KEY);
+    }
+}
+
 module.exports = {
     setEnabled: setEnabled,
     record: record,
     read: read,
-    clear: clear
+    clear: clear,
+    gc: gc
 };

@@ -93,3 +93,24 @@ test('clear() wipes the stored log and is a no-op on already-empty storage', () 
   devStats.clear();
   assert.deepEqual(devStats.read(), [], 'clear() on empty storage must be a no-op');
 });
+
+test('gc() prunes expired events even while recording is disabled', () => {
+  devStats.setEnabled(false);
+  const now = Date.now();
+  const fresh = { k: 'weather', t: now - 1 * DAY_MS, c: { forecast: 1 }, ok: 1 };
+  const expired = { k: 'weather', t: now - 8 * DAY_MS, c: { forecast: 1 }, ok: 1 };
+  store[KEYS.DEV_STATS_KEY] = JSON.stringify([expired, fresh]);
+  devStats.gc(now);
+  assert.deepEqual(JSON.parse(store[KEYS.DEV_STATS_KEY]), [fresh], 'expired events rewritten away');
+  devStats.gc(now);
+  assert.deepEqual(JSON.parse(store[KEYS.DEV_STATS_KEY]), [fresh], 'no-op when nothing expired');
+});
+
+test('gc() removes the key entirely when every event expired', () => {
+  const now = Date.now();
+  store[KEYS.DEV_STATS_KEY] = JSON.stringify([{ k: 'weather', t: now - 9 * DAY_MS, c: {}, ok: 1 }]);
+  devStats.gc(now);
+  assert.equal(store[KEYS.DEV_STATS_KEY], undefined, 'all-expired log removed');
+  devStats.gc(now);
+  assert.equal(store[KEYS.DEV_STATS_KEY], undefined, 'gc on empty storage is a no-op');
+});

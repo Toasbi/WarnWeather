@@ -186,3 +186,23 @@ test('news-cache calls survive a synchronous XHR throw', () => {
   withLocalStorage({ [KEY]: envelope(HOUR + 1, UNREAD_BODY) });
   assert.doesNotThrow(function () { newsCache.refreshIfStale(OPTS); });
 });
+
+// --- gc ---
+
+test('gc: drops an envelope older than 7 days, keeps a younger one', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const map = withLocalStorage({ [KEY]: envelope(8 * DAY, READ_BODY) });
+  newsCache.gc(NOW);
+  assert.ok(!(KEY in map), 'stale envelope removed');
+  map[KEY] = envelope(6 * DAY, READ_BODY);
+  newsCache.gc(NOW);
+  assert.ok(KEY in map, 'younger envelope kept');
+});
+
+test('gc: removes a corrupt envelope and no-ops when absent', () => {
+  const map = withLocalStorage({ [KEY]: 'not json' });
+  newsCache.gc(NOW);
+  assert.ok(!(KEY in map), 'corrupt envelope removed');
+  newsCache.gc(NOW);
+  assert.deepEqual(map, {}, 'gc on empty storage is a no-op');
+});

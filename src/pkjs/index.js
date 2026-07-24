@@ -332,6 +332,18 @@ Pebble.addEventListener('ready',
         }
         app.telemetry = createTelemetryClient(getRuntimeTelemetryConfig());
         refreshProvider();
+        // 7-day localStorage cache GC: caches are re-derivable, so entries older
+        // than a week are dropped instead of building up (stale notices, the
+        // devStats log while recording is off, an abandoned news envelope).
+        try {
+            var gcNow = Date.now();
+            devStats.gc(gcNow);
+            notices.gc(gcNow);
+            newsCache.gc(gcNow);
+        }
+        catch (ex2) {
+            console.log('cache gc failed: ' + ex2.message);
+        }
         // Seed the news cache once (fetch only while nothing usable is cached)
         // so the very first config open already has news; steady-state
         // refreshes happen on config close.

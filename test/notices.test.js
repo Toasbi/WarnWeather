@@ -66,3 +66,24 @@ test('noticeForFailure classifies auth/ratelimit/other', function () {
   assert.strictEqual(notices.noticeForFailure({ code: 'network_error' }, 'X', 1), null);
   assert.strictEqual(notices.noticeForFailure(null, 'X', 1), null);
 });
+
+test('gc drops notices older than 7 days, keeps fresh ones', function () {
+  global.localStorage.clear();
+  var DAY = 24 * 60 * 60 * 1000;
+  var now = 100 * DAY;
+  notices.add({ key: 'old', type: 'info', html: 'o', since: now - 8 * DAY });
+  notices.add({ key: 'fresh', type: 'error', watch: 'w', html: 'f', since: now - 6 * DAY });
+  notices.gc(now);
+  var l = notices.list();
+  assert.strictEqual(l.length, 1);
+  assert.strictEqual(l[0].key, 'fresh');
+  notices.gc(now);
+  assert.strictEqual(notices.list().length, 1, 'no-op when nothing expired');
+});
+
+test('gc drops entries with a missing or invalid since', function () {
+  global.localStorage.clear();
+  notices.add({ key: 'nosince', type: 'info', html: 'x' });
+  notices.gc(Date.now());
+  assert.deepStrictEqual(notices.list(), []);
+});
