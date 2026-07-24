@@ -34,16 +34,14 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   // B&W-env (2 options). colorUSFederal: dark-exclude-white vs. light-exclude-black.
   // tomorrowioApiKey/tomorrowioFitBudget: General tab (weather provider) vs. Radar tab
   // (radar-only) — mutually-exclusive showWhen, so only one instance ever renders.
-  // statusTopLeft: non-aplite copy carries the incoming-rain hint; the aplite twin omits it.
   assert.deepEqual(dups.sort(),
-    ['colorUSFederal', 'statusTopLeft', 'theme', 'tomorrowioApiKey', 'tomorrowioFitBudget', 'windScale'],
+    ['colorUSFederal', 'theme', 'tomorrowioApiKey', 'tomorrowioFitBudget', 'windScale'],
     'unexpected duplicates: ' + dups.join(','));
   assert.equal(counts.windScale, 6, 'windScale appears in six slots (2 contexts × 3 units)');
   assert.equal(counts.theme, 2, 'theme appears in exactly two slots');
   assert.equal(counts.colorUSFederal, 2, 'colorUSFederal appears in exactly two slots');
   assert.equal(counts.tomorrowioApiKey, 2, 'tomorrow.io key in the General + Radar tabs');
   assert.equal(counts.tomorrowioFitBudget, 2, 'tomorrow.io budget guard in the General + Radar tabs');
-  assert.equal(counts.statusTopLeft, 2, 'Left slot: non-aplite (incoming-rain hint) + aplite twin');
   assert.deepEqual(Object.keys(counts).sort(), EXPECTED_KEYS.slice().sort());
 });
 
@@ -784,17 +782,10 @@ test('Watch tab opens with a general status-bar intro, then the four bars in for
     'four status bars grouped at the top of the Watch tab in order');
   // Time and Calendar keep their spots below the bars.
   assert.deepEqual(titles.slice(4), ['Time', 'Calendar'], 'Time then Calendar follow the bars');
-  // The incoming-rain note rides the non-aplite Left-slot copy as its hint; the aplite
-  // twin drops it (rain radar is compiled out there). No staticText note remains.
+  assert.equal(byKey('statusTopLeft').hint, undefined, 'left-slot hint removed');
   const wsb = watch.sections.find((s) => s.title === 'Watch Status Bar').items;
-  const lefts = wsb.filter((i) => i.messageKey === 'statusTopLeft');
-  assert.equal(lefts.length, 2, 'two env-gated Left-slot copies');
-  assert.match(lefts[0].hint, /incoming-rain alert/);
-  assert.deepEqual(lefts[0].showWhen, { env: 'platform', ne: 'aplite' });
-  assert.equal(lefts[1].hint, undefined, 'aplite twin carries no note');
-  assert.deepEqual(lefts[1].showWhen, { env: 'platform', eq: 'aplite' });
-  assert.ok(!wsb.some((i) => i.type === 'staticText' && /incoming-rain alert/.test(i.text || '')),
-    'the staticText note is gone');
+  const note = wsb.find((i) => i.type === 'staticText' && /incoming-rain alert/.test(i.text || ''));
+  assert.ok(note, 'Watch bar keeps the incoming-rain alert note as a staticText');
   const rightIdx = wsb.findIndex((i) => i.messageKey === 'statusTopRight');
   const battIdx = wsb.findIndex((i) => i.messageKey === 'batteryLowOnly');
   assert.equal(battIdx, rightIdx + 1, 'battery toggle follows the slots directly');

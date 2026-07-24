@@ -635,24 +635,21 @@ module.exports = {
             title: 'Watch Status Bar',
             items: [
                 {
-                    // The incoming-rain note is the slot's hint. aplite compiles out rain
-                    // radar (WW_RAIN_RADAR), so no alert can ever replace the bar there —
-                    // the aplite twin below is the same slot without the note.
-                    type: 'select', messageKey: 'statusTopLeft', label: 'Left slot',
-                    hint: 'An incoming-rain alert temporarily replaces the left and middle slot.',
-                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusTopLeft'}},
-                    onChange: 'dedupeStatusSlot',
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {slotKey: 'statusTopLeft', position: 'left'}},
+                    // aplite compiles out rain radar (WW_RAIN_RADAR), so no incoming-rain
+                    // alert can ever replace this bar there — hide the note on aplite.
+                    type: 'staticText',
+                    text: 'An incoming-rain alert temporarily replaces the left and middle slot.',
                     showWhen: {env: 'platform', ne: 'aplite'}
                 },
                 {
+                    // joinPrevious drops the divider between the incoming-rain note above and
+                    // the slots, so the Watch Status Bar note flows straight into its slots.
+                    // On aplite the note is hidden, so this simply becomes the first item.
                     type: 'select', messageKey: 'statusTopLeft', label: 'Left slot',
-                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusTopLeft'}},
+                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusTopLeft'}}, joinPrevious: true,
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {slotKey: 'statusTopLeft', position: 'left'}},
-                    showWhen: {env: 'platform', eq: 'aplite'}
+                        args: {slotKey: 'statusTopLeft', position: 'left'}}
                 },
                 {
                     type: 'select', messageKey: 'statusTopMid', label: 'Middle slot',

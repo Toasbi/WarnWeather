@@ -116,11 +116,15 @@ test('renderControl color: excludeColors drops swatches from the open palette on
   assert.ok(filtered.indexOf('data-color-pick="#FF0055"') >= 0, 'other swatches remain');
 });
 
-test('renderRow: stacked for text/radio/open-color, wrap when hinted, inline otherwise; hintByValue wins', () => {
-  // Hinted inline rows use the wrap layout (control floated right, hint flows around it).
-  const wrapped = E.renderRow({ type: 'toggle', messageKey: 'flag', label: 'Flag', hint: 'h' }, { value: false });
+test('renderRow: stacked for text/radio/open-color, wrap when multi-line hinted, inline otherwise; hintByValue wins', () => {
+  // Rows with a multi-line (long) hint use the wrap layout (control floated right,
+  // hint flows around it).
+  const longHint = 'A hint long enough to span more than one row of text in the settings page.';
+  const wrapped = E.renderRow({ type: 'toggle', messageKey: 'flag', label: 'Flag', hint: longHint }, { value: false });
   assert.ok(wrapped.indexOf('class="row wrap"') >= 0 && wrapped.indexOf('lft') === -1);
-  // Un-hinted inline rows keep the two-column flex layout.
+  // Short one-line hints and un-hinted rows keep the two-column flex layout.
+  const shortHinted = E.renderRow({ type: 'toggle', messageKey: 'flag', label: 'Flag', hint: 'h' }, { value: false });
+  assert.ok(shortHinted.indexOf('class="row"') >= 0 && shortHinted.indexOf('lft') >= 0);
   const inline = E.renderRow({ type: 'toggle', messageKey: 'flag', label: 'Flag' }, { value: false });
   assert.ok(inline.indexOf('class="row"') >= 0 && inline.indexOf('lft') >= 0);
   const stacked = E.renderRow({ type: 'text', messageKey: 'q', label: 'Q' }, { value: '' });
