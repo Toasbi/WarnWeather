@@ -873,6 +873,28 @@ function dateWheel(part, value) {
   return wheel;
 }
 
+function tapDateOption(result, part, value) {
+  const wheel = {
+    getAttribute: (name) => name === 'data-date-wheel' ? part : null
+  };
+  const option = {
+    getAttribute: (name) => name === 'data-date-value' ? String(value) : null,
+    closest: (selector) => selector === '[data-date-wheel]' ? wheel : null
+  };
+  result.modalListeners.click({
+    target: { closest: (selector) => selector === '.date-opt' ? option : null }
+  });
+}
+
+function closeDateWithX(result) {
+  const closeButton = {};
+  result.modalListeners.click({
+    target: {
+      closest: (selector) => selector === '[data-date-close]' ? closeButton : null
+    }
+  });
+}
+
 test('boot(): every fast date close path flushes the pending wheel selection', () => {
   const closeCases = [
     ['X', (result) => {
@@ -918,6 +940,15 @@ test('boot(): every fast date close path flushes the pending wheel selection', (
   }
 });
 
+test('boot(): a tapped date option wins over a pending sample from the same wheel', () => {
+  const result = bootWithCapturedListeners(DATE_MODAL_SCHEMA, {});
+  openDateInHarness(result);
+  result.modalListeners.scroll({ target: dateWheel('day', 25) });
+  tapDateOption(result, 'day', 26);
+  closeDateWithX(result);
+  assert.equal(result.getValue('trip'), '2026-12-26');
+});
+
 test('boot(): rapid cross-wheel scrolls settle independently', async () => {
   const dayMonth = bootWithCapturedListeners(DATE_MODAL_SCHEMA, {});
   openDateInHarness(dayMonth);
@@ -934,6 +965,30 @@ test('boot(): rapid cross-wheel scrolls settle independently', async () => {
   await new Promise((resolve) => setTimeout(resolve, 160));
   assert.equal(monthYear.getValue('trip'), '2027-01-24',
     'year scroll does not cancel the pending month');
+});
+
+test('boot(): the first settling timer flushes siblings before alignment can replace them', async () => {
+  async function settleWithAlignment(firstPart, firstValue, secondPart, secondValue,
+    expected) {
+    const result = bootWithCapturedListeners(DATE_MODAL_SCHEMA, {});
+    openDateInHarness(result);
+    result.modalListeners.scroll({ target: dateWheel(firstPart, firstValue) });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    result.modalListeners.scroll({ target: dateWheel(secondPart, secondValue) });
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    const rendered = result.getValue('trip').split('-');
+    const indexes = { year: 0, month: 1, day: 2 };
+    const alignedValue = parseInt(rendered[indexes[secondPart]], 10);
+    result.modalListeners.scroll({
+      target: dateWheel(secondPart, alignedValue)
+    });
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.equal(result.getValue('trip'), expected);
+  }
+
+  await settleWithAlignment('day', 25, 'month', 2, '2026-02-25');
+  await settleWithAlignment('month', 1, 'year', 2027, '2027-01-24');
 });
 
 test('boot(): closing a date sheet restores focus to its date trigger', () => {

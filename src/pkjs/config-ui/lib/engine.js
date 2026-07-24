@@ -1039,29 +1039,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
 
     /**
-     * Commit one settled date-wheel sample if it is still current.
-     *
-     * @param {string} part day|month|year.
-     * @param {Object} pending Pending wheel state.
-     * @returns {boolean} Whether the stored date changed.
-     */
-    function settlePendingDateScroll(part, pending) {
-      if (pendingDateScrolls[part] !== pending) { return false; }
-      delete pendingDateScrolls[part];
-      if (openDate !== pending.dateKey) { return false; }
-      var selected = nearestDateWheelValue(pending.wheel);
-      if (selected == null) { return false; }
-      var parts = parseDateParts(S[pending.dateKey]);
-      parts[part] = selected;
-      var value = dateValueFromParts(parts);
-      if (value === S[pending.dateKey]) { return false; }
-      S[pending.dateKey] = value;
-      return true;
-    }
-
-    /**
-     * Commit and cancel every pending date wheel before the sheet closes.
-     * All selected parts are combined before clamping so closeModal renders once.
+     * Commit and cancel every pending date wheel before a date render or close.
+     * All selected parts are combined before clamping so the caller renders once.
      *
      * @returns {void}
      */
@@ -1230,10 +1209,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if (e.target.closest && (t = e.target.closest('.date-opt')) && openDate) {
           var wheel = t.closest('[data-date-wheel]');
           if (!wheel) { return; }
-          var parts = parseDateParts(S[openDate]);
+          var dateKey = openDate;
+          flushPendingDateScrolls();
+          var parts = parseDateParts(S[dateKey]);
           parts[wheel.getAttribute('data-date-wheel')] =
             parseInt(t.getAttribute('data-date-value'), 10);
-          S[openDate] = dateValueFromParts(parts);
+          S[dateKey] = dateValueFromParts(parts);
           render();
           return;
         }
@@ -1272,7 +1253,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         var pending = { dateKey: dateKey, wheel: wheel, timer: null };
         pendingDateScrolls[part] = pending;
         pending.timer = setTimeout(function () {
-          if (settlePendingDateScroll(part, pending)) { render(); }
+          if (pendingDateScrolls[part] !== pending
+              || openDate !== pending.dateKey) { return; }
+          flushPendingDateScrolls();
+          render();
         }, 120);
       }, true);
       // Swipe-down-to-dismiss: only arms when the list is already at the top, so a downward
