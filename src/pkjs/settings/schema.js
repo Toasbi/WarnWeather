@@ -104,7 +104,7 @@ var PROVIDER_WHY = {
     openweathermap: 'A popular general-purpose API with solid worldwide coverage. Needs a free API key on the One Call 3.0 plan.',
     tomorrowio: 'Minute-by-minute hyperlocal forecasts worldwide, from proprietary ML models and satellites. Needs a free API key.',
     wunderground: 'A huge crowd-sourced network of 250,000+ personal weather stations — dense local readings, strongest across the US and Europe. No API key needed.',
-    yandex: 'Best across Russia and the CIS, using the Meteum machine-learning forecast. Needs a free API key.'
+    yandex: 'Best across Russia and the CIS, using the Meteum machine-learning forecast. Needs an API key.'
 };
 var RADAR_WHY = {
     dwd: 'Precise weather radar — rain at your exact spot and nearby (~2 km). Germany only.',
@@ -270,7 +270,7 @@ module.exports = {
                     ['OpenWeatherMap', 'openweathermap', {desc: 'Popular general-purpose API, worldwide · needs a free key'}],
                     ['Tomorrow.io', 'tomorrowio', {desc: 'Precise hyperlocal forecasts, worldwide · needs a free key'}],
                     ['Weather Underground', 'wunderground', {desc: 'Crowd-sourced network of 250,000+ local stations · no key'}],
-                    ['Yandex Weather', 'yandex', {desc: 'Best across Russia & CIS · needs a free key'}]
+                    ['Yandex Weather', 'yandex', {desc: 'Best across Russia & CIS · needs a key'}]
                 ]
             }, {
                 type: 'text',
