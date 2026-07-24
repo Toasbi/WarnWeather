@@ -83,6 +83,11 @@
   .row.nb + .row, .static.nb + .row { padding-top: 5px; }
   .row.nb + .blockrow { border-bottom: none; padding-top: 5px; padding-bottom: 5px; }
   .row.nb + .blockrow + .row { padding-top: 5px; }
+  /* a "loose" join (joinPrevious: 'loose') drops the divider like .nb but keeps normal padding —
+     grouped rows with breathing room instead of the tight rhythm. No padding rules key on .nbl, so
+     the joined row/block inherit standard spacing; only the shared divider is removed. */
+  .row.nbl, .static.nbl { border-bottom: none; }
+  .row.nbl + .blockrow { border-bottom: none; }
   /* status-line slots (compact searchSelect rows) sit closer together than standard rows */
   .row.slot { padding-top: 8px; padding-bottom: 8px; }
   .row.indent { padding-left: 30px; }

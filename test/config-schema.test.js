@@ -149,6 +149,16 @@ test('tomorrow.io key renders under whichever picker uses it: General (weather) 
   keys.forEach((k) => assert.equal(k.suffixAction, 'testTomorrowioKey'));
 });
 
+test('provider API-key rows join their picker loosely (grouped, but normal spacing)', () => {
+  // The key/budget rows that hang off a provider picker use the roomy join (no divider, but
+  // full padding) rather than the tight `true` grouping, so they do not read as cramped.
+  ['owmApiKey', 'yandexApiKey', 'tomorrowioApiKey', 'tomorrowioFitBudget'].forEach((key) => {
+    const instances = items.filter((i) => i.messageKey === key);
+    assert.ok(instances.length >= 1, 'missing ' + key);
+    instances.forEach((item) => assert.equal(item.joinPrevious, 'loose', key + ' uses the loose join'));
+  });
+});
+
 test('weather + radar provider dropdowns flag the country-recommended option via recommendFrom', () => {
   assert.equal(byKey('provider').recommendFrom, 'recommendedWeatherProvider');
   assert.equal(byKey('radarProvider').recommendFrom, 'recommendedRadarProvider');
@@ -527,7 +537,7 @@ test('radarProvider is a dropdown offering DWD/Met.no/Rainbow/Tomorrow.io (short
   assert.equal(item.defaultValue, 'rainbow');
 });
 
-test('radarMode mirrors the cumulative Health-view copy pattern', () => {
+test('radarMode is a four-step radio with per-mode hint copy', () => {
   const item = byKey('radarMode');
   assert.equal(item.type, 'radio');
   assert.equal(item.label, 'Radar view');
@@ -544,12 +554,6 @@ test('radarMode mirrors the cumulative Health-view copy pattern', () => {
     status: 'Adds the Radar Status Bar while retaining the forecast graph.',
     graph: 'Also adds the full radar graph.'
   });
-
-  const radarItems = schema.tabs.find((t) => t.id === 'radar').sections[0].items;
-  const note = radarItems[radarItems.indexOf(item) + 1];
-  assert.equal(note.type, 'staticText');
-  assert.equal(note.joinPrevious, true);
-  assert.equal(note.text, 'Each mode includes all features from the modes above it.');
 });
 
 test('radar provider hides when off; preview and color require the graph mode', () => {

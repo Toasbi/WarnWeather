@@ -232,6 +232,31 @@ test('renderBody: a chain of consecutive joinPrevious rows collapses every divid
   assert.ok(/data-k="a"[\s\S]*data-k="b"[\s\S]*data-k="c"[\s\S]*data-k="d"/.test(html));
 });
 
+test("renderBody: a loose joinPrevious drops the divider via nbl, not the tight nb", () => {
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [ { title: 'S', items: [
+    { type: 'text',   messageKey: 'key', label: 'Key', defaultValue: '' },
+    { type: 'toggle', messageKey: 'opt', label: 'Opt', defaultValue: true, joinPrevious: 'loose' }
+  ] } ] } ] };
+  const cx = { S: E.hydrate(SCH, {}), ENV: { color: true }, USERDATA: {}, openColor: null, collapsed: {},
+    evalCtx: Object.assign({}, E.hydrate(SCH, {}), { env: { color: true } }) };
+  const html = E.renderBody(SCH, 't', cx);
+  // The Key row (stacked text) drops its divider with the roomy nbl class — never the tight nb.
+  assert.ok(/class="row stack nbl"/.test(html), 'preceding row uses the loose no-divider class');
+  assert.equal((html.match(/\bnb\b/g) || []).length, 0, 'a loose join emits no tight nb class');
+});
+
+test("renderBody: a loose joinPrevious staticText groups without the .join pull-up", () => {
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [ { title: 'S', items: [
+    { type: 'toggle', messageKey: 'a', label: 'A', defaultValue: true },
+    { type: 'staticText', joinPrevious: 'loose', text: 'note' }
+  ] } ] } ] };
+  const cx = { S: E.hydrate(SCH, {}), ENV: { color: true }, USERDATA: {}, openColor: null, collapsed: {},
+    evalCtx: Object.assign({}, E.hydrate(SCH, {}), { env: { color: true } }) };
+  const html = E.renderBody(SCH, 't', cx);
+  assert.ok(/class="row nbl"/.test(html), 'the control above drops its divider (loose)');
+  assert.equal(html.indexOf('static join'), -1, 'a loose static gets no tight pull-up (.join)');
+});
+
 test('renderBody: joinPrevious look-ahead skips hidden items (mutually-exclusive showWhen chain)', () => {
   const SCH = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [ { title: 'S', items: [
     { type: 'segmented', messageKey: 'mode', label: 'Mode', defaultValue: 'w', options: [['P','p'],['W','w']] },

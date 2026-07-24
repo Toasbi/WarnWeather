@@ -277,7 +277,7 @@ module.exports = {
                 messageKey: 'owmApiKey',
                 label: 'OpenWeatherMap API key',
                 defaultValue: '',
-                joinPrevious: true,
+                joinPrevious: 'loose',
                 suffixAction: 'testOwmKey',
                 suffixLabel: 'Test',
                 hint: '<a href=\'https://openweathermap.org/\'>Register an OpenWeatherMap account</a> and paste your API key here, then Test it. The key must be subscribed to <a href=\'https://openweathermap.org/api/one-call-3\'>One Call API 3.0</a> (it has a free allowance) or fetches fail with a 401.',
@@ -287,7 +287,7 @@ module.exports = {
                 messageKey: 'yandexApiKey',
                 label: 'Yandex Weather API key',
                 defaultValue: '',
-                joinPrevious: true,
+                joinPrevious: 'loose',
                 hint: 'Register a Yandex Weather API key at <a href=\'https://yandex.com/dev/weather/\'>yandex.com/dev/weather</a> and paste it here.',
                 showWhen: {key: 'provider', eq: 'yandex'}
             }, {
@@ -297,7 +297,7 @@ module.exports = {
                 messageKey: 'tomorrowioApiKey',
                 label: 'Tomorrow.io API key',
                 defaultValue: '',
-                joinPrevious: true,
+                joinPrevious: 'loose',
                 suffixAction: 'testTomorrowioKey',
                 suffixLabel: 'Test',
                 hint: TOMORROWIO_KEY_HINT,
@@ -307,7 +307,7 @@ module.exports = {
                 messageKey: 'tomorrowioFitBudget',
                 label: 'Fit update interval to rate limit',
                 defaultValue: true,
-                joinPrevious: true,
+                joinPrevious: 'loose',
                 // blockBefore: the usage read-out sits between the API key field and this
                 // toggle, joined into the same tomorrow.io group.
                 blockBefore: 'tomorrowioBudget',
@@ -453,10 +453,6 @@ module.exports = {
                 options: [['Off', 'off'], ['Countdown only', 'countdown'], ['Status bar', 'status'], ['Status + Graph', 'graph']],
                 onChange: 'resetStatusRadar'
             }, {
-                type: 'staticText',
-                joinPrevious: true,
-                text: 'Each mode includes all features from the modes above it.'
-            }, {
                 type: 'select',
                 messageKey: 'radarProvider',
                 label: 'Radar provider',
@@ -489,7 +485,7 @@ module.exports = {
                 messageKey: 'tomorrowioApiKey',
                 label: 'Tomorrow.io API key',
                 defaultValue: '',
-                joinPrevious: true,
+                joinPrevious: 'loose',
                 suffixAction: 'testTomorrowioKey',
                 suffixLabel: 'Test',
                 hint: TOMORROWIO_KEY_HINT,
@@ -499,7 +495,7 @@ module.exports = {
                 messageKey: 'tomorrowioFitBudget',
                 label: 'Fit update interval to rate limit',
                 defaultValue: true,
-                joinPrevious: true,
+                joinPrevious: 'loose',
                 blockBefore: 'tomorrowioBudget',
                 hint: TOMORROWIO_BUDGET_HINT,
                 showWhen: TOMORROWIO_RADAR_ONLY_WHEN
