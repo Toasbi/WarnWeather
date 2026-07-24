@@ -30,7 +30,7 @@ function buildClayPayload(settings, watchInfo, now) {
     var presetKey = viewCycle.resolvePresetKey(settings);
     var healthMode = settings.healthMode || 'off';
     var radarMode = settings.radarMode || 'graph';
-    var cycle = viewCycle.buildViewCycle(presetKey, healthMode, radarMode);
+    var cycle = viewCycle.buildViewCycle(presetKey, healthMode, radarMode, Boolean(settings.swapClockStatus));
     var defaultIsFull = cycle[0].tier === viewCycle.TIER_FULL;   // slot 0 is the 3-row calendar
     var compact = !defaultIsFull;
     // CLAY_TOP_VIEW_MODE (TopViewMode enum: 0=full,1=compact,2=none) is a boot-time hint the

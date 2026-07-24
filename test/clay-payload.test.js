@@ -11,6 +11,7 @@ global.localStorage = {
 
 const { buildClayPayload } = require('../src/pkjs/clay-payload');
 const holidayMask = require('../src/pkjs/holidays/holiday-mask');
+const viewCycle = require('../src/pkjs/view-cycle');
 
 const NOW = new Date('2026-06-26T00:00:00Z');
 
@@ -162,6 +163,18 @@ test('CLAY_COLOR_TIME default is theme-aware: white in dark/bw, black in light/b
 test('CLAY_COLOR_TIME an explicit colorTime setting is never overridden by theme', () => {
   const p = buildClayPayload({ theme: 'light', colorTime: 0xFF0000 }, null, NOW);
   assert.strictEqual(p.CLAY_COLOR_TIME, 0xFF0000);
+});
+
+test('swapClockStatus moves the compactCal forecast row to the lower slot in the packed cycle', () => {
+  const s = baseSettings();
+  s.layoutPreset = 'compactCal';
+  s.radarMode = 'off';
+  s.healthMode = 'off';
+  s.swapClockStatus = true;
+  const p = buildClayPayload(s, { platform: 'emery' }, NOW);
+  const s0 = viewCycle.unpackSpec(p.CLAY_VIEW_0);
+  assert.equal(s0.statusUpper, viewCycle.STATUS_SRC_NONE);
+  assert.equal(s0.statusLower, viewCycle.STATUS_SRC_FORECAST);
 });
 
 test('configTheme is a settings-only key and never rides the Clay AppMessage', function() {
