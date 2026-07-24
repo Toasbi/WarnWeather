@@ -34,14 +34,16 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   // B&W-env (2 options). colorUSFederal: dark-exclude-white vs. light-exclude-black.
   // tomorrowioApiKey/tomorrowioFitBudget: General tab (weather provider) vs. Radar tab
   // (radar-only) — mutually-exclusive showWhen, so only one instance ever renders.
+  // statusTopLeft: non-aplite copy carries the incoming-rain hint; the aplite twin omits it.
   assert.deepEqual(dups.sort(),
-    ['colorUSFederal', 'theme', 'tomorrowioApiKey', 'tomorrowioFitBudget', 'windScale'],
+    ['colorUSFederal', 'statusTopLeft', 'theme', 'tomorrowioApiKey', 'tomorrowioFitBudget', 'windScale'],
     'unexpected duplicates: ' + dups.join(','));
   assert.equal(counts.windScale, 6, 'windScale appears in six slots (2 contexts × 3 units)');
   assert.equal(counts.theme, 2, 'theme appears in exactly two slots');
   assert.equal(counts.colorUSFederal, 2, 'colorUSFederal appears in exactly two slots');
   assert.equal(counts.tomorrowioApiKey, 2, 'tomorrow.io key in the General + Radar tabs');
   assert.equal(counts.tomorrowioFitBudget, 2, 'tomorrow.io budget guard in the General + Radar tabs');
+  assert.equal(counts.statusTopLeft, 2, 'Left slot: non-aplite (incoming-rain hint) + aplite twin');
   assert.deepEqual(Object.keys(counts).sort(), EXPECTED_KEYS.slice().sort());
 });
 
@@ -147,16 +149,16 @@ test('fetchIntervalMin derives its ladder from the budget resolver (no static op
   assert.equal(item.defaultValue, '15');
 });
 
-test('budget toggle (both contexts) carries the info block below it', () => {
+test('budget toggle (both contexts) carries the info block above it', () => {
   const toggles = items.filter((i) => i.messageKey === 'tomorrowioFitBudget');
   assert.equal(toggles.length, 2, 'General (weather) + Radar (radar-only) instances');
   toggles.forEach((item) => {
     assert.equal(item.defaultValue, true);
     assert.equal(item.label, 'Fit update interval to rate limit');
-    // block (not blockBefore): the calc renders AFTER the toggle so the toggle hugs the key
-    // field above it as part of the tomorrow.io group.
-    assert.equal(item.block, 'tomorrowioBudget');
-    assert.equal(item.blockBefore, undefined);
+    // blockBefore: the usage read-out sits between the API key field and the toggle,
+    // joined into the same tomorrow.io group.
+    assert.equal(item.blockBefore, 'tomorrowioBudget');
+    assert.equal(item.block, undefined);
   });
   const whens = toggles.map((t) => JSON.stringify(t.showWhen));
   assert.ok(whens.includes(JSON.stringify({ key: 'provider', eq: 'tomorrowio' })));
@@ -450,12 +452,10 @@ test('layoutPreset offers the four adaptive presets', () => {
   assert.equal(byKey('firstWeek').showWhen, undefined);
 });
 
-test('viewResetMin is hidden with its explanation on aplite', () => {
+test('viewResetMin is hidden on aplite and carries its explanation as its own hint', () => {
   const layout = schema.tabs.find((t) => t.id === 'layout');
   const layoutItems = layout.sections[0].items;
-  const resetIdx = layoutItems.findIndex((i) => i.messageKey === 'viewResetMin');
-  const reset = layoutItems[resetIdx];
-  const explanation = layoutItems[resetIdx + 1];
+  const reset = layoutItems.find((i) => i.messageKey === 'viewResetMin');
   const nonAplite = { env: platform.computeEnv({ platform: 'basalt' }) };
   const aplite = { env: platform.computeEnv({ platform: 'aplite' }) };
 
@@ -463,11 +463,9 @@ test('viewResetMin is hidden with its explanation on aplite', () => {
   assert.equal(reset.defaultValue, '2');
   assert.deepEqual(reset.options.map((o) => o[1]), ['0', '1', '2', '5', '10']);
   assert.deepEqual(reset.showWhen, { env: 'platform', ne: 'aplite' });
-  assert.deepEqual(explanation.showWhen, { env: 'platform', ne: 'aplite' });
+  assert.match(reset.hint, /return to the default view/);
   assert.equal(showWhen.isVisible(reset, nonAplite), true);
-  assert.equal(showWhen.isVisible(explanation, nonAplite), true);
   assert.equal(showWhen.isVisible(reset, aplite), false);
-  assert.equal(showWhen.isVisible(explanation, aplite), false);
 });
 
 test('Layout tab is one section: combined preview above the preset radio, reset segmented directly below', () => {
@@ -501,18 +499,18 @@ test('radarProvider is a dropdown offering DWD/Met.no/Rainbow/Tomorrow.io/Off (s
     ['Tomorrow.io', 'tomorrowio'],
     ['Off', 'disabled']
   ]);
-  assert.equal(item.hintByValue, undefined, 'per-provider "why" moved to showWhen-gated notes below the picker');
+  assert.ok(item.hintByValue && item.hintByValue.rainbow, 'per-provider "why" lives in hintByValue on the picker');
   assert.equal(item.defaultValue, 'rainbow');
 });
 
-// Helper: the showWhen-gated "why" note text for a provider value (weather or radar picker).
+// Helper: the per-value "why" hint for a provider value (weather or radar picker) — the
+// picker's hintByValue, rendered wrapping around the trigger by the hinted-row layout.
 function whyNote(key, value) {
-  const it = items.find((i) => i.type === 'staticText' && i.showWhen
-    && i.showWhen.key === key && i.showWhen.eq === value);
-  return it && it.text;
+  const it = byKey(key);
+  return it && it.hintByValue && it.hintByValue[value];
 }
 
-test('each weather + radar provider has a showWhen-gated "why" note below its picker', () => {
+test('each weather + radar provider has a per-value "why" hint on its picker', () => {
   ['dwd', 'metno', 'openmeteo', 'openweathermap', 'tomorrowio', 'wunderground', 'yandex'].forEach((v) => {
     assert.ok(typeof whyNote('provider', v) === 'string' && whyNote('provider', v).length > 0, v + ' weather why note');
   });
@@ -523,6 +521,10 @@ test('each weather + radar provider has a showWhen-gated "why" note below its pi
   assert.match(whyNote('provider', 'wunderground'), /crowd-sourced|250,000/i);
   assert.match(whyNote('provider', 'dwd'), /Germany/);
   assert.match(whyNote('radarProvider', 'tomorrowio'), /budget/i, 'radar Tomorrow.io keeps the key/budget caveat');
+  // The old showWhen-gated staticText notes are gone — the hint is the only copy.
+  assert.ok(!items.some((i) => i.type === 'staticText' && i.showWhen
+    && (i.showWhen.key === 'provider' || i.showWhen.key === 'radarProvider')),
+    'no leftover per-provider staticText notes');
 });
 
 test('every radar provider (except Off) carries a "best at" dropdown description', () => {
@@ -551,7 +553,7 @@ test('weather provider is a dropdown with short labels; DWD collapses to "DWD" i
   const dwd = item.options.find((o) => o[1] === 'dwd');
   assert.equal(dwd[0], 'Deutscher Wetterdienst', 'bottom sheet keeps the full name');
   assert.equal(dwd[2].short, 'DWD', 'trigger collapses to a short label');
-  assert.equal(item.hintByValue, undefined, 'per-provider "why" moved to showWhen-gated notes below the picker');
+  assert.ok(item.hintByValue && item.hintByValue.dwd, 'per-provider "why" lives in hintByValue on the picker');
 });
 
 test('every weather provider option carries a "best at" dropdown description', () => {
@@ -782,10 +784,17 @@ test('Watch tab opens with a general status-bar intro, then the four bars in for
     'four status bars grouped at the top of the Watch tab in order');
   // Time and Calendar keep their spots below the bars.
   assert.deepEqual(titles.slice(4), ['Time', 'Calendar'], 'Time then Calendar follow the bars');
-  assert.equal(byKey('statusTopLeft').hint, undefined, 'left-slot hint removed');
+  // The incoming-rain note rides the non-aplite Left-slot copy as its hint; the aplite
+  // twin drops it (rain radar is compiled out there). No staticText note remains.
   const wsb = watch.sections.find((s) => s.title === 'Watch Status Bar').items;
-  const note = wsb.find((i) => i.type === 'staticText' && /incoming-rain alert/.test(i.text || ''));
-  assert.ok(note, 'Watch bar keeps the incoming-rain alert note as a staticText');
+  const lefts = wsb.filter((i) => i.messageKey === 'statusTopLeft');
+  assert.equal(lefts.length, 2, 'two env-gated Left-slot copies');
+  assert.match(lefts[0].hint, /incoming-rain alert/);
+  assert.deepEqual(lefts[0].showWhen, { env: 'platform', ne: 'aplite' });
+  assert.equal(lefts[1].hint, undefined, 'aplite twin carries no note');
+  assert.deepEqual(lefts[1].showWhen, { env: 'platform', eq: 'aplite' });
+  assert.ok(!wsb.some((i) => i.type === 'staticText' && /incoming-rain alert/.test(i.text || '')),
+    'the staticText note is gone');
   const rightIdx = wsb.findIndex((i) => i.messageKey === 'statusTopRight');
   const battIdx = wsb.findIndex((i) => i.messageKey === 'batteryLowOnly');
   assert.equal(battIdx, rightIdx + 1, 'battery toggle follows the slots directly');

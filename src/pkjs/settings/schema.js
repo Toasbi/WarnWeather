@@ -93,9 +93,10 @@ var SCALE_NOTE = 'The bars don\'t scale linearly. They\'re divided into 5 parts,
 // B/W watches hide the color picker (no colors to choose), so this stands in for COLOR_LEGEND
 // there: text-only, since height is the only encoding (no color steps to show).
 var BW_LEGEND = 'The bars don\'t scale linearly. They\'re divided into 5 parts, standing for up to 0.1, 0.5, 2, 10 and 40 mm/h of downfall.';
-// Per-provider "why it's best" note, shown full-width below the picker. Each provider gets its
-// own joinPrevious staticText gated by showWhen (only the selected one renders) — the short tags
-// live in the dropdown option descs; these give the fuller rationale, like SCALE_NOTE above.
+// Per-provider "why it's best" note — the picker's hintByValue, so only the selected provider's
+// rationale renders. The hinted-row wrap layout flows it around the trigger and gives it the
+// full row width below, so the fuller prose no longer needs its own staticText. The short
+// tags live in the dropdown option descs; these give the fuller rationale.
 var PROVIDER_WHY = {
     dwd: 'Germany\'s national weather service — the most accurate forecasts across Germany and decent across Central Europe (ICON model). No API key needed.',
     metno: 'The service behind yr.no — best across the Nordics with a 2.5 km model, and solid worldwide. No API key needed.',
@@ -239,11 +240,12 @@ module.exports = {
                 recommendFrom: 'recommendedWeatherProvider',
                 // Options are alphabetical by name. The 3rd tuple slot's desc is the short "what it's
                 // best at" tag shown under each name in the dropdown; the selected provider's fuller
-                // rationale reads out full-width below via the PROVIDER_WHY showWhen-gated staticTexts
-                // (no cramped inline hint — that's why there's no hintByValue here).
-                // Scope (Germany/Nordics) lives in the desc + the "why" note below, not the label —
+                // rationale renders via hintByValue (PROVIDER_WHY) — the wrap layout flows it around
+                // the trigger and full-width below it.
+                // Scope (Germany/Nordics) lives in the desc + the "why" note, not the label —
                 // the label stays short so the collapsed trigger doesn't overlap the field label.
                 // DWD carries a `short` so the trigger reads "DWD" while the sheet keeps the full name.
+                hintByValue: PROVIDER_WHY,
                 options: [
                     ['Deutscher Wetterdienst', 'dwd', {desc: 'Best in Germany · no key', short: 'DWD'}],
                     ['Met.no', 'metno', {desc: 'Best in the Nordics (behind yr.no) · no key'}],
@@ -253,20 +255,6 @@ module.exports = {
                     ['Weather Underground', 'wunderground', {desc: 'Crowd-sourced network of 250,000+ local stations · no key'}],
                     ['Yandex Weather', 'yandex', {desc: 'Best across Russia & CIS · needs a free key'}]
                 ]
-            }, {
-                type: 'staticText', joinPrevious: true, text: PROVIDER_WHY.dwd, showWhen: {key: 'provider', eq: 'dwd'}
-            }, {
-                type: 'staticText', joinPrevious: true, text: PROVIDER_WHY.metno, showWhen: {key: 'provider', eq: 'metno'}
-            }, {
-                type: 'staticText', joinPrevious: true, text: PROVIDER_WHY.openmeteo, showWhen: {key: 'provider', eq: 'openmeteo'}
-            }, {
-                type: 'staticText', joinPrevious: true, text: PROVIDER_WHY.openweathermap, showWhen: {key: 'provider', eq: 'openweathermap'}
-            }, {
-                type: 'staticText', joinPrevious: true, text: PROVIDER_WHY.tomorrowio, showWhen: {key: 'provider', eq: 'tomorrowio'}
-            }, {
-                type: 'staticText', joinPrevious: true, text: PROVIDER_WHY.wunderground, showWhen: {key: 'provider', eq: 'wunderground'}
-            }, {
-                type: 'staticText', joinPrevious: true, text: PROVIDER_WHY.yandex, showWhen: {key: 'provider', eq: 'yandex'}
             }, {
                 type: 'text',
                 messageKey: 'owmApiKey',
@@ -303,10 +291,9 @@ module.exports = {
                 label: 'Fit update interval to rate limit',
                 defaultValue: true,
                 joinPrevious: true,
-                // Budget calc renders AFTER the toggle (block, not blockBefore) so the toggle sits
-                // flush under the API key field as part of the tomorrow.io group, with its usage
-                // read-out directly beneath it — instead of the block wedging a divider between them.
-                block: 'tomorrowioBudget',
+                // blockBefore: the usage read-out sits between the API key field and this
+                // toggle, joined into the same tomorrow.io group.
+                blockBefore: 'tomorrowioBudget',
                 hint: TOMORROWIO_BUDGET_HINT,
                 showWhen: TOMORROWIO_WEATHER_WHEN
             }, {
@@ -449,9 +436,10 @@ module.exports = {
                 // desc (3rd tuple slot) = the short "what it's best at" tag under each name in the
                 // dropdown, mirroring the weather picker. DWD/Met.no are real radar; Rainbow/Tomorrow.io
                 // are model nowcasts (Tomorrow.io is the precise, worldwide one). "Off" stays plain.
-                // The selected provider's fuller rationale reads out below via the RADAR_WHY
-                // showWhen-gated staticTexts (mirroring the weather picker).
-                // Scope lives in the desc + "why" note below, not the label (keeps the trigger short).
+                // The selected provider's fuller rationale renders via hintByValue (RADAR_WHY),
+                // wrapping around the trigger — mirroring the weather picker.
+                // Scope lives in the desc + "why" note, not the label (keeps the trigger short).
+                hintByValue: RADAR_WHY,
                 options: [
                     ['DWD', 'dwd', {desc: 'Best radar in Germany · exact spot + nearby'}],
                     ['Met.no', 'metno', {desc: 'Best radar in the Nordics · exact spot'}],
@@ -460,16 +448,6 @@ module.exports = {
                     ['Off', 'disabled']
                 ],
                 onChange: 'resetStatusRadar'
-            }, {
-                type: 'staticText', joinPrevious: true, text: RADAR_WHY.dwd, showWhen: {key: 'radarProvider', eq: 'dwd'}
-            }, {
-                type: 'staticText', joinPrevious: true, text: RADAR_WHY.metno, showWhen: {key: 'radarProvider', eq: 'metno'}
-            }, {
-                type: 'staticText', joinPrevious: true, text: RADAR_WHY.rainbow, showWhen: {key: 'radarProvider', eq: 'rainbow'}
-            }, {
-                type: 'staticText', joinPrevious: true, text: RADAR_WHY.tomorrowio, showWhen: {key: 'radarProvider', eq: 'tomorrowio'}
-            }, {
-                type: 'staticText', joinPrevious: true, text: RADAR_WHY.disabled, showWhen: {key: 'radarProvider', eq: 'disabled'}
             }, {
                 // Tomorrow.io key + budget guard, radar-only: shown here (under the radar picker) when
                 // tomorrow.io drives the radar but is NOT the weather provider, so the key isn't orphaned
@@ -489,7 +467,7 @@ module.exports = {
                 label: 'Fit update interval to rate limit',
                 defaultValue: true,
                 joinPrevious: true,
-                block: 'tomorrowioBudget',
+                blockBefore: 'tomorrowioBudget',
                 hint: TOMORROWIO_BUDGET_HINT,
                 showWhen: TOMORROWIO_RADAR_ONLY_WHEN
             }, {
@@ -527,14 +505,9 @@ module.exports = {
                 messageKey: 'rainCountdownHorizon',
                 label: 'Rain Alert',
                 defaultValue: '60',
-                hint: 'Show an incoming rain alert in the Watch Status Bar when there is rain at your location within the selected time frame.',
+                hint: 'Show an incoming rain alert in the Watch Status Bar when there is rain at your location within the selected time frame.<br>Because rain radar data is changing frequently, using a lower time window shows fewer false positives.',
                 options: [['Off', '0'], ['Within 30 min', '30'], ['Within 60 min', '60'], ['Within 2 hours', '120']],
                 showWhen: {all: [{key: 'radarProvider', ne: 'disabled'}, {env: 'platform', ne: 'aplite'}]}
-            }, {
-                type: 'staticText',
-                joinPrevious: true,
-                text: 'Because rain radar data is changing frequently, using a lower time window shows fewer false positives.',
-                showWhen: {key: 'radarProvider', ne: 'disabled'}
             }]
         }]
     }, {
@@ -662,21 +635,24 @@ module.exports = {
             title: 'Watch Status Bar',
             items: [
                 {
-                    // aplite compiles out rain radar (WW_RAIN_RADAR), so no incoming-rain
-                    // alert can ever replace this bar there — hide the note on aplite.
-                    type: 'staticText',
-                    text: 'An incoming-rain alert temporarily replaces the left and middle slot.',
+                    // The incoming-rain note is the slot's hint. aplite compiles out rain
+                    // radar (WW_RAIN_RADAR), so no alert can ever replace the bar there —
+                    // the aplite twin below is the same slot without the note.
+                    type: 'select', messageKey: 'statusTopLeft', label: 'Left slot',
+                    hint: 'An incoming-rain alert temporarily replaces the left and middle slot.',
+                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusTopLeft'}},
+                    onChange: 'dedupeStatusSlot',
+                    optionsFrom: {resolver: 'statusSlot',
+                        args: {slotKey: 'statusTopLeft', position: 'left'}},
                     showWhen: {env: 'platform', ne: 'aplite'}
                 },
                 {
-                    // joinPrevious drops the divider between the incoming-rain note above and
-                    // the slots, so the Watch Status Bar note flows straight into its slots.
-                    // On aplite the note is hidden, so this simply becomes the first item.
                     type: 'select', messageKey: 'statusTopLeft', label: 'Left slot',
-                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusTopLeft'}}, joinPrevious: true,
+                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusTopLeft'}},
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
-                        args: {slotKey: 'statusTopLeft', position: 'left'}}
+                        args: {slotKey: 'statusTopLeft', position: 'left'}},
+                    showWhen: {env: 'platform', eq: 'aplite'}
                 },
                 {
                     type: 'select', messageKey: 'statusTopMid', label: 'Middle slot',
@@ -867,12 +843,8 @@ module.exports = {
                 messageKey: 'viewResetMin',
                 label: 'View reset time',
                 defaultValue: '2',
+                hint: 'Automatically return to the default view after the selected time has passed.',
                 options: [['Never', '0'], ['1m', '1'], ['2m', '2'], ['5m', '5'], ['10m', '10']],
-                showWhen: {env: 'platform', ne: 'aplite'}
-            }, {
-                type: 'staticText',
-                joinPrevious: true,
-                text: 'Automatically return to the default view after the selected time has passed.',
                 showWhen: {env: 'platform', ne: 'aplite'}
             }]
         }]

@@ -116,8 +116,12 @@ test('renderControl color: excludeColors drops swatches from the open palette on
   assert.ok(filtered.indexOf('data-color-pick="#FF0055"') >= 0, 'other swatches remain');
 });
 
-test('renderRow: stacked layout for text/radio/open-color, inline otherwise; hintByValue wins', () => {
-  const inline = E.renderRow({ type: 'toggle', messageKey: 'flag', label: 'Flag', hint: 'h' }, { value: false });
+test('renderRow: stacked for text/radio/open-color, wrap when hinted, inline otherwise; hintByValue wins', () => {
+  // Hinted inline rows use the wrap layout (control floated right, hint flows around it).
+  const wrapped = E.renderRow({ type: 'toggle', messageKey: 'flag', label: 'Flag', hint: 'h' }, { value: false });
+  assert.ok(wrapped.indexOf('class="row wrap"') >= 0 && wrapped.indexOf('lft') === -1);
+  // Un-hinted inline rows keep the two-column flex layout.
+  const inline = E.renderRow({ type: 'toggle', messageKey: 'flag', label: 'Flag' }, { value: false });
   assert.ok(inline.indexOf('class="row"') >= 0 && inline.indexOf('lft') >= 0);
   const stacked = E.renderRow({ type: 'text', messageKey: 'q', label: 'Q' }, { value: '' });
   assert.ok(stacked.indexOf('class="row stack"') >= 0);

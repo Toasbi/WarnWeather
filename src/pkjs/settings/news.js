@@ -345,8 +345,6 @@
                 +   ' stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }'
                 + '#newsHint .news-badge { position: absolute; top: -2px; right: -9px; width: 7px; height: 7px;'
                 +   ' border-radius: 50%; background: #FA4A35; }'
-                // Unread nudge: a short wiggle every few seconds — the shake lives in
-                // the first ~10% of a long looping animation, the rest is rest.
                 + '@keyframes news-bell-shake {'
                 +   ' 0%, 12%, 100% { transform: rotate(0); }'
                 +   ' 2% { transform: rotate(14deg); } 4% { transform: rotate(-12deg); }'
@@ -490,8 +488,6 @@
             newsPill.title = 'News & Feedback';
             var unread = countUnread(newsItems, newsLastSeenId);
             newsPill.innerHTML = renderNewsBellHtml(unread);
-            // has-unread arms the periodic shake; openNewsPopup() resets the
-            // class to 'muted', which disarms it along with removing the badge.
             newsPill.className = (unread === 0) ? 'muted' : 'has-unread';
             newsPill.onclick = openNewsPopup;
             // Sit the bell just right of the title (padded): group the two so the

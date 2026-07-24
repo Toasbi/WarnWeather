@@ -41,17 +41,21 @@
   /* accent — flat Pebble-app red (#FA4A35), matching the watchface store listing */
   /* header + tabs pinned together as one bar while the body scrolls */
   .topbar { position: sticky; top: 0; z-index: 20; background: var(--bg); flex: none; }
+  .topbar::after { content: ''; position: absolute; left: 16px; right: 16px; top: 100%; height: 7px; background: linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0)); opacity: 0; transition: opacity .18s; pointer-events: none; }
+  .topbar.scrolled::after { opacity: 1; }
+  body.light .topbar::after { background: linear-gradient(rgba(0,0,0,0.16), rgba(0,0,0,0)); }
   .hdr { flex: none; padding: 4px 18px 0; display: flex; align-items: center; justify-content: space-between; }
   .hdr h1 { font-size: 21px; font-weight: 800; letter-spacing: -.025em; margin: 0; color: #FA4A35; }
   .saveBtn { padding: 9px 20px; border: none; border-radius: 11px; background: linear-gradient(135deg, #FA4A35, #D93A24); color: #FFFFFF; font: 700 14px 'Inter', sans-serif; cursor: pointer; box-shadow: 0 4px 14px rgba(250,74,53,0.35); transition: transform .12s, box-shadow .15s; }
   .saveBtn:active { transform: translateY(1px); box-shadow: 0 2px 8px rgba(250,74,53,0.3); }
-  .tabs { flex: none; display: flex; gap: 8px; padding: 14px 18px 12px; overflow-x: auto; }
+  .tabs { flex: none; display: flex; gap: 8px; padding: 14px 18px 12px; overflow-x: auto; scrollbar-width: none; }
   .tabs::-webkit-scrollbar { display: none; }
   .tab { flex: none; padding: 8px 15px; border-radius: 11px; font: 700 13px 'Inter', sans-serif; cursor: pointer; white-space: nowrap; border: 1px solid var(--tab-line); background: var(--tab); color: var(--muted); transition: background .15s, color .15s, border-color .15s; }
   .tab.on { background: linear-gradient(135deg, #FA4A35, #D93A24); color: #FFFFFF; border-color: transparent; box-shadow: 0 3px 10px rgba(250,74,53,0.30); }
   /* no top padding: a sticky preview pins at top:0, and any top padding here would leave a band
      above it where rows scrolling up paint through (the "few px of content above the preview"). */
-  .scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 0 16px 40px; }
+  .scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 0 16px 40px; scrollbar-width: none; }
+  .scroll::-webkit-scrollbar { display: none; }
   /* overflow:clip clips like hidden but (unlike hidden) does NOT trap a descendant position:sticky;
      hidden stays as the fallback for webviews without clip support (they just lose the sticky preview) */
   .card { background: var(--card); border: 1px solid var(--card-line); border-radius: 16px; margin-bottom: 14px; overflow: hidden; overflow: clip; box-shadow: 0 1px 2px rgba(0,0,0,0.25); }
@@ -77,6 +81,11 @@
   .row.stack { flex-direction: column; align-items: stretch; gap: 0; }
   .row.stack > div:last-child { margin-top: 11px; }
   .row.nb { border-bottom: none; }
+  .card .row:last-child, .card .static:last-child, .card .blockrow:last-child { border-bottom: none; }
+  .row.nb, .static.nb { padding-bottom: 5px; }
+  .row.nb + .row, .static.nb + .row { padding-top: 5px; }
+  .row.nb + .blockrow { border-bottom: none; padding-top: 5px; padding-bottom: 5px; }
+  .row.nb + .blockrow + .row { padding-top: 5px; }
   /* status-line slots (compact searchSelect rows) sit closer together than standard rows */
   .row.slot { padding-top: 8px; padding-bottom: 8px; }
   .row.indent { padding-left: 30px; }
@@ -89,6 +98,9 @@
   .row .hint a { color: var(--link); }
   .row .lft { min-width: 0; flex: 1; }
   .row .rgt { flex: none; }
+  .row.wrap { display: block; }
+  .row.wrap::after { content: ''; display: block; clear: both; }
+  .row.wrap .rgt { float: right; margin: 2px 0 13px 14px; }
   /* free-form text rendered verbatim from a staticText schema item */
   .static { padding: 14px 16px; font-size: 13.5px; color: var(--static); line-height: 1.5; border-bottom: 1px solid var(--row-line); }
   .static a { color: var(--link); }
@@ -97,9 +109,7 @@
      note that stands on its own below a preview block but should still read as secondary text);
      the join variant reuses the same appearance and adds the pull-up spacing below. */
   .static.join, .static.hinted { color: var(--hint); font-size: 12.5px; line-height: 1.55; }
-  /* a joinPrevious static is the control's description: pull it up to sit ~4px under the row above
-     (its 14px top padding + the row's 14px bottom padding would otherwise read as a detached block). */
-  .static.join { margin-top: -10px; padding-top: 0; }
+  .static.join { margin-top: 0; padding-top: 0; }
   /* inline data block attached to a control (e.g. last-fetch under Force weather fetch) */
   .blockrow { padding: 12px 16px 14px; font-size: 12.5px; color: var(--hint); line-height: 1.55; border-bottom: 1px solid var(--row-line); }
   .blockrow a { color: var(--link); }

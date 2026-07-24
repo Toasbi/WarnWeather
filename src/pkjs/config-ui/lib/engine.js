@@ -439,6 +439,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (stacked) {
       return '<div class="' + rowCls + '">' + label + hintHtml + '<div>' + renderControl(item, view) + '</div></div>';
     }
+    // Hinted rows float the control right (label on top, .wrap layout) so the
+    // hint text flows around it and reclaims the full width below the control
+    // instead of staying confined to a narrow left column.
+    if (hintHtml) {
+      return '<div class="' + rowCls + ' wrap">' + label + '<div class="rgt">' + renderControl(item, view) + '</div>' + hintHtml + '</div>';
+    }
     return '<div class="' + rowCls + '"><div class="lft">' + label + hintHtml + '</div><div class="rgt">' + renderControl(item, view) + '</div></div>';
   }
 
@@ -993,12 +999,31 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       document.getElementById('save').addEventListener('click', save);
     }
 
+    // Cast a soft shadow under the pinned topbar while the body is scrolled, so
+    // content visibly slides beneath it; flat again at rest. Scroll events don't
+    // fire on programmatic scrollTop restores in every webview, so the tab-switch
+    // path can't be relied on to re-sync — the listener plus one initial call is.
+    function wireScrollShadow() {
+      var scroll = document.getElementById('scroll');
+      // Guarded for the pure-render test harness, whose document shim only has
+      // getElementById — real browser boot always has querySelector.
+      var topbar = document.querySelector ? document.querySelector('.topbar') : null;
+      if (!topbar) { return; }
+      var update = function () {
+        if (scroll.scrollTop > 0) { topbar.classList.add('scrolled'); }
+        else { topbar.classList.remove('scrolled'); }
+      };
+      scroll.addEventListener('scroll', update);
+      update();
+    }
+
     document.getElementById('appTitle').textContent = SCHEMA.appName;
     PConf.hooks.runLoad(hookCtx);
     wireTabBar();
     wireInputs();
     wireModal();
     wireSave();
+    wireScrollShadow();
     // Re-fit the sheet whenever the on-screen keyboard opens/closes or the viewport shifts.
     if (typeof window !== 'undefined' && window.visualViewport) {
       // Only react to keyboard open/close (resize). NOT visualViewport 'scroll' — that fires when
