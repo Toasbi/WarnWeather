@@ -570,7 +570,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    */
   function renderRow(item, view, noDivider) {
     if (item.type === 'date') {
-      return '<div class="row date-row' + (noDivider ? ' nb' : '')
+      return '<div class="row date-row' + nbClass(noDivider)
         + '"><div class="date-cell">' + renderControl(item, view)
         + '</div></div>';
     }
@@ -585,7 +585,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // the Holiday searchSelects keep the same compact treatment. A stacked (open color/etc.)
     // row keeps normal padding so its expanded content isn't cramped.
     var isStatusSlot = item.optionsFrom && item.optionsFrom.resolver === 'statusSlot';
-    var rowCls = 'row' + (stacked ? ' stack' : '') + (noDivider ? ' nb' : '')
+    var rowCls = 'row' + (stacked ? ' stack' : '') + nbClass(noDivider)
       + ((item.type === 'searchSelect' || isStatusSlot) && !stacked ? ' slot' : '');
     if (stacked) {
       return '<div class="' + rowCls + '">' + label + hintHtml + '<div>' + renderControl(item, view) + '</div></div>';
@@ -645,7 +645,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (item.type === 'button') {
       var bHint = item.hint ? '<div class="hint">' + item.hint + '</div>' : '';
       return { kind: 'control', html:
-        '<div class="row' + (noDivider ? ' nb' : '') + '" data-action="' + esc(item.action) + '" style="cursor:pointer">'
+        '<div class="row' + nbClass(noDivider) + '" data-action="' + esc(item.action) + '" style="cursor:pointer">'
         + '<div class="lft"><div class="lbl">' + esc(item.label) + '</div>' + bHint + '</div>'
         + '<div class="rgt"><span style="color:#FF6A52;font-size:16px;font-weight:700;line-height:1">&#9656;</span></div></div>' };
     }
@@ -654,7 +654,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // top spacing to hug the row above (like a hint) instead of standing off as a separate block.
       // hinted: render in the dimmer/smaller hint style WITHOUT the pull-up — for a standalone note
       // (e.g. below a preview block) that should still read as secondary, hint-coloured text.
-      var staticCls = 'static' + (item.joinPrevious ? ' join' : '') + (item.hinted ? ' hinted' : '') + (noDivider ? ' nb' : '');
+      // Only a tight join (joinPrevious: true) gets the .join pull-up that hugs the row above; a
+      // loose join keeps the static's normal standoff (the row above just drops its divider).
+      var staticCls = 'static' + (item.joinPrevious === true ? ' join' : '') + (item.hinted ? ' hinted' : '') + nbClass(noDivider);
       // A staticText may host preview blocks too (blockBefore/block) — e.g. the Layout tab's
       // after-flick preview rides a caption. renderBlock() no-ops when the id is absent.
       var staticHtml = renderBlock(item.blockBefore, cx.S, cx.ENV, cx.USERDATA, item.blockBeforeSticky)
@@ -689,19 +691,29 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       visible++;
     }
     if (!visible) { return { html: '', controlCount: 0 }; }
-    return { html: '<div class="row inline' + (noDivider ? ' nb' : '') + '">' + cells + '</div>', controlCount: visible };
+    return { html: '<div class="row inline' + nbClass(noDivider) + '">' + cells + '</div>', controlCount: visible };
   }
 
-  // Look-ahead from index "from": does the next *visible* item carry joinPrevious? Such an item
-  // wants no divider between it and the row above, so the preceding visible row drops its divider.
-  // Skips hidden items so the divider returns automatically when the joining group is hidden.
+  // Look-ahead from index "from": the join mode of the next *visible* item — '' when it doesn't
+  // join, 'loose' for a roomy join (joinPrevious: 'loose'), else 'tight' (joinPrevious: true). A
+  // joining item wants no divider between it and the row above, so the preceding visible row drops
+  // its divider; 'tight' also tightens the padding, 'loose' keeps the normal row spacing. Skips
+  // hidden items so the divider returns automatically when the joining group is hidden.
   function nextVisibleJoins(items, from, cx) {
-    var j;
+    var j, jp;
     for (j = from; j < items.length; j++) {
-      if (PConf.showWhen.isVisible(items[j], cx.evalCtx)) { return Boolean(items[j].joinPrevious); }
+      if (PConf.showWhen.isVisible(items[j], cx.evalCtx)) {
+        jp = items[j].joinPrevious;
+        return jp === 'loose' ? 'loose' : (jp ? 'tight' : '');
+      }
     }
-    return false;
+    return '';
   }
+
+  // Map a join mode from nextVisibleJoins() to the preceding row's no-divider class: '' for none,
+  // ' nb' for a tight join (drops the divider and tightens the padding), ' nbl' for a loose join
+  // (drops the divider but keeps normal padding). See the .nb / .nbl rules in shell.html.
+  function nbClass(mode) { return mode === 'loose' ? ' nbl' : (mode ? ' nb' : ''); }
 
   function renderCardHeader(sec, secId, isCollapsible, isOpen) {
     if (!(sec.title || isCollapsible)) { return ''; }
@@ -873,6 +885,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // One pending settled-scroll sample per date wheel part. Separate entries prevent activity
     // in one wheel from canceling another wheel's still-pending selection.
     var pendingDateScrolls = {};
+    // True while alignDateWheels() is programmatically writing wheel.scrollTop. Writing scrollTop
+    // dispatches a 'scroll' event, which the wheel scroll handler would otherwise mistake for a user
+    // scroll and answer with a settle -> render -> re-align, dispatching another scroll: an infinite
+    // flicker loop. The handler bails while this is set; alignDateWheels clears it once the scroll
+    // events its writes emit have flushed.
+    var suppressWheelScroll = false;
     // On open, focus the search box (searchSelect) or the selected/first option (select).
     function focusModal() {
       var modal = document.getElementById('modal');
@@ -996,12 +1014,21 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      */
     function alignDateWheels(dlg) {
       var wheels = dlg.querySelectorAll('[data-date-wheel]');
+      // Guard the scroll handler against the 'scroll' events these writes emit (see
+      // suppressWheelScroll). Programmatic scrolls dispatch their scroll events before the next
+      // animation frame, so clearing the flag one rAF later lets real user scrolls through again.
+      suppressWheelScroll = true;
       for (var i = 0; i < wheels.length; i++) {
         var selected = wheels[i].querySelector('.date-opt.on');
         if (selected) {
           wheels[i].scrollTop = selected.offsetTop
             - (wheels[i].clientHeight - selected.offsetHeight) / 2;
         }
+      }
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(function () { suppressWheelScroll = false; });
+      } else {
+        suppressWheelScroll = false;
       }
     }
 
@@ -1013,10 +1040,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      * @returns {void}
      */
     function scheduleDateWheelAlign(dlg, opening) {
+      // Center synchronously, before paint: render() rebuilds the wheels at scrollTop 0, and a
+      // deferred (rAF) align let them paint top-aligned for a frame or two and then jump — the
+      // reset "flash" seen on open and after every scroll settle. Reading offsetTop forces layout,
+      // so the wheels are measurable here even though showModal() just displayed the dialog.
+      alignDateWheels(dlg);
+      // One post-layout re-align as a safety net for webviews that lay the freshly shown dialog out
+      // a frame late; idempotent, so a no-op once the synchronous pass already landed.
       if (typeof requestAnimationFrame === 'function') {
-        requestAnimationFrame(function () {
-          requestAnimationFrame(function () { alignDateWheels(dlg); });
-        });
+        requestAnimationFrame(function () { alignDateWheels(dlg); });
       }
       if (!opening) { return; }
       dlg.addEventListener('animationend', function once() {
@@ -1258,6 +1290,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         }
       });
       modal.addEventListener('scroll', function (e) {
+        if (suppressWheelScroll) { return; }   // ignore our own alignment scrolls; see the flag's decl
         var wheel = e.target.closest && e.target.closest('[data-date-wheel]');
         if (!wheel || !openDate) { return; }
         var part = wheel.getAttribute('data-date-wheel');
