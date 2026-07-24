@@ -446,7 +446,7 @@ module.exports = {
                 defaultValue: 'graph',
                 hintByValue: {
                     off: 'Radar is hidden.',
-                    countdown: 'Shows a “Rain in X′” alert in the Watch Status Bar, without adding a separate Radar view.',
+                    countdown: 'Shows a “Rain in X′” countdown in the Watch Status Bar, without adding a separate Radar view.',
                     status: 'Adds the Radar Status Bar while retaining the forecast graph.',
                     graph: 'Also adds the full radar graph.'
                 },
@@ -532,9 +532,9 @@ module.exports = {
             }, {
                 type: 'select',
                 messageKey: 'rainCountdownHorizon',
-                label: 'Rain Alert',
+                label: 'Rain countdown',
                 defaultValue: '60',
-                hint: 'Show an incoming rain alert in the Watch Status Bar when there is rain at your location within the selected time frame.<br>Because rain radar data is changing frequently, using a lower time window shows fewer false positives.',
+                hint: 'Show a rain countdown in the Watch Status Bar when there is rain at your location within the selected time frame.<br>Because rain radar data is changing frequently, using a lower time window shows fewer false positives.',
                 options: [['Within 30 min', '30'], ['Within 60 min', '60'], ['Within 2 hours', '120']],
                 showWhen: {all: [{key: 'radarMode', ne: 'off'}, {env: 'platform', ne: 'aplite'}]}
             }]

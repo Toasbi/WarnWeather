@@ -550,7 +550,7 @@ test('radarMode is a four-step radio with per-mode hint copy', () => {
   ]);
   assert.deepEqual(item.hintByValue, {
     off: 'Radar is hidden.',
-    countdown: 'Shows a “Rain in X′” alert in the Watch Status Bar, without adding a separate Radar view.',
+    countdown: 'Shows a “Rain in X′” countdown in the Watch Status Bar, without adding a separate Radar view.',
     status: 'Adds the Radar Status Bar while retaining the forecast graph.',
     graph: 'Also adds the full radar graph.'
   });
@@ -892,6 +892,6 @@ test('radar and health status-line slots hide unless the feature shows their bar
     assert.deepEqual(byKey(k).showWhen, {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]}, k));
 });
 
-test('the radar rain-horizon control is labelled "Rain Alert"', () => {
-  assert.equal(byKey('rainCountdownHorizon').label, 'Rain Alert');
+test('the radar rain-horizon control is labelled "Rain countdown"', () => {
+  assert.equal(byKey('rainCountdownHorizon').label, 'Rain countdown');
 });
