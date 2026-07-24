@@ -31,7 +31,7 @@
     { code: 'date', label: 'Date', kind: KINDS.LIVE_DATE, icon: ICONS.NONE, middleOnly: true, category: 'datelocation' },
     { code: 'week', label: 'Calendar week', kind: KINDS.LIVE_WEEK, icon: ICONS.NONE, category: 'datelocation' },
     { code: 'city', label: 'City', kind: KINDS.TEXT, icon: ICONS.NONE, category: 'datelocation' },
-    { code: 'countdown', label: 'Countdown', kind: KINDS.TEXT,
+    { code: 'countdown', label: 'Date countdown', kind: KINDS.TEXT,
       icon: ICONS.COUNTDOWN, category: 'datelocation' },
     { code: 'steps', label: 'Steps', kind: KINDS.LIVE_STEPS, icon: ICONS.STEPS, needsHealth: true, category: 'health' },
     { code: 'distance', label: 'Walked distance', kind: KINDS.LIVE_DISTANCE, icon: ICONS.DISTANCE, needsHealth: true, category: 'health' },
