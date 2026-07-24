@@ -880,11 +880,14 @@ test('the four status sections live in the Watch tab with named headers and no p
   assert.equal(byKey('statusForecastLeft').hint, undefined, 'forecast left-slot hint removed');
 });
 
-test('radar and health status-line slots hide when the feature is off or the platform lacks it', () => {
+test('radar and health status-line slots hide unless the feature shows their bar (and the platform has it)', () => {
   // Moved to the always-shown Watch tab, so each slot carries the env guard the
-  // Radar/Health tab used to provide, AND-ed with its feature-toggle check.
+  // Radar/Health tab used to provide, AND-ed with its bar-visible check. The Radar
+  // Status Bar only exists in 'status'/'graph' modes — 'countdown' puts its alert in
+  // the Watch bar and adds no radar bar — so the slots gate on those modes, mirroring
+  // health's 'status'/'all' (not the mere on/off of the feature).
   ['statusRadarLeft', 'statusRadarMid', 'statusRadarRight'].forEach((k) =>
-    assert.deepEqual(byKey(k).showWhen, {all: [{env: 'radar'}, {key: 'radarMode', ne: 'off'}]}, k));
+    assert.deepEqual(byKey(k).showWhen, {all: [{env: 'radar'}, {key: 'radarMode', in: ['status', 'graph']}]}, k));
   ['statusHealthLeft', 'statusHealthMid', 'statusHealthRight'].forEach((k) =>
     assert.deepEqual(byKey(k).showWhen, {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]}, k));
 });

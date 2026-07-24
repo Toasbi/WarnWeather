@@ -611,33 +611,33 @@ module.exports = {
                 {
                     type: 'select', messageKey: 'statusRadarLeft', label: 'Left slot',
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusRadarLeft'}},
-                    showWhen: {all: [{env: 'radar'}, {key: 'radarMode', ne: 'off'}]},
+                    showWhen: {all: [{env: 'radar'}, {key: 'radarMode', in: ['status', 'graph']}]},
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusRadarLeft', position: 'left'}}
                 },
                 countdownDateItem('statusRadarLeft',
-                    {all: [{env: 'radar'}, {key: 'radarProvider', ne: 'disabled'}]}),
+                    {all: [{env: 'radar'}, {key: 'radarMode', in: ['status', 'graph']}]}),
                 {
                     type: 'select', messageKey: 'statusRadarMid', label: 'Middle slot',
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusRadarMid'}}, joinPrevious: true,
-                    showWhen: {all: [{env: 'radar'}, {key: 'radarMode', ne: 'off'}]},
+                    showWhen: {all: [{env: 'radar'}, {key: 'radarMode', in: ['status', 'graph']}]},
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusRadarMid', position: 'mid'}}
                 },
                 countdownDateItem('statusRadarMid',
-                    {all: [{env: 'radar'}, {key: 'radarProvider', ne: 'disabled'}]}),
+                    {all: [{env: 'radar'}, {key: 'radarMode', in: ['status', 'graph']}]}),
                 {
                     type: 'select', messageKey: 'statusRadarRight', label: 'Right slot',
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusRadarRight'}}, joinPrevious: true,
-                    showWhen: {all: [{env: 'radar'}, {key: 'radarMode', ne: 'off'}]},
+                    showWhen: {all: [{env: 'radar'}, {key: 'radarMode', in: ['status', 'graph']}]},
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusRadarRight', position: 'right'}}
                 },
                 countdownDateItem('statusRadarRight',
-                    {all: [{env: 'radar'}, {key: 'radarProvider', ne: 'disabled'}]})
+                    {all: [{env: 'radar'}, {key: 'radarMode', in: ['status', 'graph']}]})
             ]
         }, {
             groupCard: 'watchStatus',
