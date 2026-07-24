@@ -66,7 +66,10 @@ typedef struct {
     uint8_t view_content[3]; // RETIRED (superseded by view_spec); kept for persist offset stability
     uint8_t view_reset_min;  // minutes of no-flick before returning to the default view; 0 = Never
     // --- adaptive presets (v1.8): packed per-slot ViewSpec bytes (append-only) ---
-    uint8_t view_spec[3];    // [default, flick1, flick2] — packed byte (see view_spec_unpack); 0 = disabled slot
+    uint8_t view_spec[3];    // RETIRED (superseded by the 10-bit view_spec2 below); kept
+                             // for persist offset stability — the numeric persist-key
+                             // layout is append-only, so this slot must never be reordered
+                             // or removed. No C reader (see view_spec2).
     // --- theme (v1.8): dark=0 (default) / light=1 / bw=2 / bw-light=3 — append-only.
     // B&W hardware treats any value other than 1 or 3 as dark (see theme.h); a
     // stray 2 or 3 reaching a B&W watch from a phone previously paired with a
@@ -81,6 +84,14 @@ typedef struct {
     // holiday country (US -> month-first). Append-only; optional wire tuple
     // (older phones omit it, leaving the memset-zeroed default false = day-first). ---
     bool date_month_first;
+    // --- positional status (v1.9): 10-bit packed per-slot ViewSpec (append-only) ---
+    // [default, flick1, flick2]; 0 = disabled slot. Supersedes the retired uint8_t
+    // view_spec above — the packed value now spans 10 bits
+    // (statusLower(0-1) | statusUpper(2-3) | body(4-5) | top(6-7) | tier(8-9)), so it can
+    // no longer live in a byte. Appended at the END of the struct to honour the
+    // append-only persist offsets; older installs without it keep the seeded default.
+    // Decoded by view_spec_unpack().
+    uint16_t view_spec2[3];
 } Config;
 
 // Read-only view of the loaded config. Non-NULL from config_load() until

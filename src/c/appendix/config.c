@@ -41,9 +41,13 @@ static Config config_defaults(void) {
         // Retired; superseded by view_spec. Left initialised for determinism.
         .view_content = { VC_FORECAST_COMPACT, VC_RADAR, VC_OFF },
         .view_reset_min = 0,
-        // Default view cycle: compact calendar + forecast (0x90), flick slots disabled.
-        // The phone re-sends the real cycle on connect; this only covers the first boot.
+        // Retired view_spec seed, left for determinism (no C reader).
         .view_spec = { 0x90, 0x00, 0x00 },
+        // Default view cycle: compactCal + forecast in the upper status band, flick slots
+        // disabled. 0x244 = pack(compact, cal, forecast-body, forecast-upper, none) =
+        // (2<<8)|(1<<6)|(0<<4)|(1<<2)|0. The phone re-sends the real cycle on connect; this
+        // only covers the first boot / a phone that predates the view keys.
+        .view_spec2 = { 0x244, 0x000, 0x000 },
         .theme = 0,   // dark — today's look, unchanged until the user picks otherwise
         .battery_low_only = true,
         .date_month_first = false   // day-first (dd.mm.yy); phone overrides per holiday country

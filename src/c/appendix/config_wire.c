@@ -24,8 +24,8 @@ bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
     Tuple *clay_health_mode_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_HEALTH_MODE);
     Tuple *clay_rain_countdown_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_RAIN_COUNTDOWN_HORIZON);
     Tuple *clay_top_view_mode_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_TOP_VIEW_MODE);
-    // Optional (older phone builds omit these); view_spec then stays 0 (all slots
-    // disabled → producer renders the default view).
+    // Optional (older phone builds omit these); view_spec2 then keeps its seeded
+    // default (the phone re-sends the real cycle on connect).
     Tuple *clay_view_0_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_0);
     Tuple *clay_view_1_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_1);
     Tuple *clay_view_2_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_VIEW_2);
@@ -66,9 +66,11 @@ bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
     out->fetch_interval_min = clay_fetch_interval_tuple->value->int16;
     out->rain_countdown_horizon_min = clay_rain_countdown_tuple->value->int16;
     out->top_view_mode = (uint8_t) (clay_top_view_mode_tuple->value->int16);
-    if (clay_view_0_tuple) { out->view_spec[0] = (uint8_t) clay_view_0_tuple->value->int16; }
-    if (clay_view_1_tuple) { out->view_spec[1] = (uint8_t) clay_view_1_tuple->value->int16; }
-    if (clay_view_2_tuple) { out->view_spec[2] = (uint8_t) clay_view_2_tuple->value->int16; }
+    // 10-bit packed slots — read the full int16 tuple as uint16 (NOT truncated to a byte;
+    // the tier bits 8-9 live above the low byte). See config.h view_spec2 / view_spec_unpack.
+    if (clay_view_0_tuple) { out->view_spec2[0] = (uint16_t) clay_view_0_tuple->value->int16; }
+    if (clay_view_1_tuple) { out->view_spec2[1] = (uint16_t) clay_view_1_tuple->value->int16; }
+    if (clay_view_2_tuple) { out->view_spec2[2] = (uint16_t) clay_view_2_tuple->value->int16; }
     if (clay_view_reset_tuple) { out->view_reset_min = (uint8_t) clay_view_reset_tuple->value->int16; }
     if (clay_theme_tuple) { out->theme = (uint8_t) clay_theme_tuple->value->int16; }
     if (clay_battery_low_only_tuple) {
