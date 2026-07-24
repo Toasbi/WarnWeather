@@ -33,8 +33,9 @@ typedef enum { TOP_BAND_CALENDAR = 0, TOP_BAND_RADAR = 1, TOP_BAND_EMPTY = 2 } T
 // Unlike TopBand above (deliberately renumbered vs. the wire `top` field and translated
 // by view_spec_unpack()), BodyContent/StatusRowContent must stay bit-for-bit identical to
 // BODY_FC/GRAPH/RADAR and ST_W/H/D/NONE in src/pkjs/view-cycle.js — the packed wire byte
-// passes them through untranslated.
-typedef enum { BODY_FORECAST = 0, BODY_HEALTH_GRAPH = 1, BODY_RADAR = 2 } BodyContent;
+// passes them through untranslated. BODY_RADAR_STATUS (3) = forecast body + radar status
+// line (the 'status' radar tier; chart suppressed).
+typedef enum { BODY_FORECAST = 0, BODY_HEALTH_GRAPH = 1, BODY_RADAR = 2, BODY_RADAR_STATUS = 3 } BodyContent;
 typedef enum { STATUS_ROW_WEATHER = 0, STATUS_ROW_HEALTH = 1, STATUS_ROW_DUAL = 2, STATUS_ROW_NONE = 3 } StatusRowContent;
 
 typedef struct {
@@ -63,6 +64,7 @@ ViewSpec view_spec_unpack(uint8_t byte);
 // Data-availability downgrades, pure. Without health data (aplite, or health off):
 // health graph -> forecast, health/dual status -> weather. Without radar data: a radar
 // top band -> calendar, a radar body -> forecast. Radar-in-body is valid with a calendar.
+// A BODY_RADAR_STATUS body also -> forecast without radar data.
 ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health);
 
 LayerVisibility layout_visibility(const ViewSpec *spec);

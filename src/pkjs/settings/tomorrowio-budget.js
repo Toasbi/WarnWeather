@@ -36,13 +36,17 @@
     /**
      * tomorrow.io API calls per fetch cycle for the current provider choices.
      *
-     * @param {Object} S Settings state (provider/radarProvider).
+     * @param {Object} S Settings state (provider/radarProvider/radarMode).
      * @returns {number} 0, 1 or 2 calls per cycle.
      */
     function callsPerCycle(S) {
         var calls = 0;
         if (S && S.provider === 'tomorrowio') { calls += WEATHER_CALLS_PER_CYCLE; }
-        if (S && S.radarProvider === 'tomorrowio') { calls += RADAR_CALLS_PER_CYCLE; }
+        // The radar fetch runs for any non-off mode (countdown/status/graph all
+        // need the trend), so it consumes a call whenever tomorrow.io is the source.
+        if (S && S.radarProvider === 'tomorrowio' && (S.radarMode || 'graph') !== 'off') {
+            calls += RADAR_CALLS_PER_CYCLE;
+        }
         return calls;
     }
 

@@ -472,8 +472,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // Black & White — a bw/bw-light theme reuses the exact preview a B&W watch gets.
         var isColor = !(env && !env.color) && !isBwTheme(state.theme);
         var ink = previewInk(state.theme);
-        if (state.radarProvider === 'disabled') {
-            return svgFrame(rect(0, 0, 200, 120, ink.bg) + txt(100, 63, 10, '#566072', 'middle', 700, 'Radar off — enable a provider'));
+        var radarMode = state.radarMode || 'graph';
+        if (radarMode === 'off') {
+            return svgFrame(rect(0, 0, 200, 120, ink.bg) + txt(100, 63, 10, '#566072', 'middle', 700, 'Radar off'));
         }
         var local = [0, 0, 0, 0.2, 0.6, 1.5, 3, 7, 14, 10, 5, 2, 0.8, 0.3, 0.1, 0, 0.3, 1, 3, 8, 12, 6, 2, 0.5];
         var add = [0.4, 0.5, 0.7, 1, 1.5, 2, 3, 4, 3, 2, 1.5, 1, 0.8, 0.5, 0.4, 0.3, 0.5, 1.5, 3, 4, 3, 2, 1, 0.5];
@@ -537,9 +538,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // never shown on aplite (which lacks the feature). Only the glyph is coloured
         // (green tier when effectively color, theme-fg otherwise); the text stays
         // theme-fg and centred.
-        var countdownOff = String(state.rainCountdownHorizon) === '0';
+        // Countdown shows for every non-off tier; the horizon no longer has an Off option.
         var isAplite = Boolean(env && env.platform === 'aplite');
-        if (countdownOff || isAplite) {
+        if (isAplite) {
             return svgFrame(e, 118);
         }
         var glyphColor = isColor ? P.rainTiers[2].color : ink.fg;
@@ -731,8 +732,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // Shares view-cycle.js with clay-payload.js — no manual sync.
     function presetContents(state) {
         state = state || {};
-        var radarEnabled = state.radarProvider !== 'disabled';
-        return VC.buildViewCycle(VC.resolvePresetKey(state), state.healthMode || 'off', radarEnabled);
+        var radarMode = state.radarMode || 'graph';
+        return VC.buildViewCycle(VC.resolvePresetKey(state), state.healthMode || 'off', radarMode);
     }
 
     // Schematic band-stack geometry (px). The calendar is modelled as rows of height ROW
@@ -772,16 +773,21 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var topBand = null;
         if (spec.top === VC.TOP_RADAR) { topBand = { label: 'Radar', h: CAL3_H }; }
         else if (!isNone) { topBand = { label: isFull ? 'Calendar (3 rows)' : 'Calendar (2 rows)', h: isFull ? CAL3_H : CAL2_H }; }
+        // BODY_RADAR_STATUS renders the forecast body (chart suppressed) with a radar
+        // status line — mirrors the watch, where only the status line turns radar.
         var bodyLabel = spec.body === VC.BODY_GRAPH ? 'Health graph'
                       : spec.body === VC.BODY_RADAR ? 'Radar' : 'Forecast';
         // The body always takes the remaining space (flex); the fallback h only matters to a
         // consumer that doesn't resolve flex bands.
         var bodyBand = { label: bodyLabel, h: 20, flex: true };
         // The Forecast status bar becomes the Radar status bar when the view shows radar (top
-        // band or body) — mirrors main_window.c's (top == TOP_RADAR || body == BODY_RADAR)
-        // ? STATUS_LINE_RADAR : STATUS_LINE_FORECAST. A forecast-body view keeps "Forecast Status".
+        // band or body) — mirrors main_window.c's (top == TOP_RADAR || body == BODY_RADAR ||
+        // body == BODY_RADAR_STATUS) ? STATUS_LINE_RADAR : STATUS_LINE_FORECAST. The
+        // BODY_RADAR_STATUS tier is the exception to "forecast body keeps Forecast Status": it
+        // renders the forecast body but still takes the Radar Status line.
         // Labels drop the trailing "Bar" to stay compact in the narrow preview columns.
-        var isRadarView = spec.top === VC.TOP_RADAR || spec.body === VC.BODY_RADAR;
+        var isRadarView = spec.top === VC.TOP_RADAR || spec.body === VC.BODY_RADAR
+                        || spec.body === VC.BODY_RADAR_STATUS;
         var weather = { label: isRadarView ? 'Radar Status' : 'Forecast Status', h: STATUS_H };
         var health = { label: 'Health Status', h: STATUS_H };
         var clock = { label: 'Clock', h: isNone ? 30 : 22 };
@@ -939,7 +945,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // is enabled at all. A user can run weather on tomorrow.io while radar stays on
         // another provider (Rainbow by default), so only mention radar when it actually
         // counts against this budget; never print "radar off" (it reads as "radar disabled").
-        var radarOn = state.radarProvider === 'tomorrowio';
+        var radarOn = state.radarProvider === 'tomorrowio' && (state.radarMode || 'graph') !== 'off';
         var settingsBits = 'every ' + interval + ' min, '
             + (sleep > 0 ? 'night pause ' + sleep + ' h' : 'no night pause')
             + (radarOn ? ', incl. radar' : '');

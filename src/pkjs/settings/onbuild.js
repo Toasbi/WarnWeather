@@ -25,7 +25,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ctx.set('reset', false);
         ctx.set('locationMode', ctx.get('location') ? 'manual' : 'gps');
         if (ctx.env && ctx.env.platform === 'aplite') {
-            ctx.set('radarProvider', 'disabled');
+            ctx.set('radarMode', 'off');
             ctx.set('healthMode', 'off');
         }
     }

@@ -43,7 +43,7 @@ test('slotDefault is HR-aware for the health-right slot, platform-independent el
 });
 
 test('availability gating', () => {
-  const s = { healthMode: 'all', radarProvider: 'rainbow' };
+  const s = { healthMode: 'all', radarProvider: 'rainbow', radarMode: 'graph' };
   assert.ok(catalog.itemAvailable(catalog.byCode('temp'), s, ENV_BASALT));
   assert.ok(catalog.itemAvailable(catalog.byCode('steps'), s, ENV_BASALT));
   assert.ok(!catalog.itemAvailable(catalog.byCode('steps'), s, ENV_APLITE));
@@ -54,7 +54,7 @@ test('availability gating', () => {
 });
 
 test('date is middle-only: offered in mid slots of any line, nowhere else', () => {
-  const s = { healthMode: 'all', radarProvider: 'rainbow' };
+  const s = { healthMode: 'all', radarProvider: 'rainbow', radarMode: 'graph' };
   const date = catalog.byCode('date');
   assert.ok(!catalog.itemAvailable(date, s, ENV_BASALT), 'no slot context -> unavailable');
   assert.ok(!catalog.itemAvailable(date, s, ENV_BASALT, { slotKey: 'statusTopLeft', position: 'left' }));
@@ -77,7 +77,7 @@ test('resolveSelection honors the slot context', () => {
 
 test('slotOptions: empty first, excludeCodes removed, sibling selections now shown', () => {
   const s = {
-    healthMode: 'all', radarProvider: 'rainbow',
+    healthMode: 'all', radarProvider: 'rainbow', radarMode: 'graph',
     statusForecastLeft: 'temp', statusForecastRight: 'sun'
   };
   const opts = catalog.slotOptions(s, ENV_BASALT,
@@ -100,7 +100,7 @@ test('selectedCodes falls back to line defaults for missing keys', () => {
 });
 
 test('resolveSelection maps invalid/unavailable to empty without touching storage', () => {
-  const s = { healthMode: 'all', radarProvider: 'rainbow' };
+  const s = { healthMode: 'all', radarProvider: 'rainbow', radarMode: 'graph' };
   assert.equal(catalog.resolveSelection('hr', s, ENV_BASALT), 'empty');
   assert.equal(catalog.resolveSelection('hr', s, ENV_EMERY), 'hr');
   assert.equal(catalog.resolveSelection('nonsense', s, ENV_EMERY), 'empty');
@@ -210,7 +210,7 @@ test('walked distance is one catalog entry; the mi kind is pack-time only', () =
 });
 
 test('slotOptions marks multi-item groups and collapses single-item groups', () => {
-  const s = { healthMode: 'all', radarProvider: 'disabled' };
+  const s = { healthMode: 'all', radarMode: 'off' };
   const opts = catalog.slotOptions(s, ENV_EMERY,
     { slotKey: 'statusForecastMid', position: 'mid' });
   const weatherHeader = opts.find(o => o[1] === '__hdr_weather');
@@ -225,7 +225,7 @@ test('slotOptions marks multi-item groups and collapses single-item groups', () 
   // date (middleOnly) is gone but calendar-week is now available (phone-baked
   // text on aplite), so the group has {city, week} -> it gets a header and does
   // NOT collapse.
-  const edge = catalog.slotOptions({ healthMode: 'off', radarProvider: 'disabled' },
+  const edge = catalog.slotOptions({ healthMode: 'off', radarMode: 'off' },
     ENV_APLITE, { slotKey: 'statusTopLeft', position: 'left' });
   assert.ok(edge.some(o => o[1] === 'city'), 'city is offered');
   assert.ok(edge.some(o => o[1] === 'week'), 'week is offered on aplite too');
@@ -238,7 +238,7 @@ test('battery is a LIVE_BATTERY item offered only in the top-right slot', () => 
   assert.equal(item.kind, catalog.KINDS.LIVE_BATTERY);
   assert.equal(item.icon, catalog.ICONS.NONE);
   assert.equal(item.category, 'battery');
-  const s = { healthMode: 'all', radarProvider: 'rainbow' };
+  const s = { healthMode: 'all', radarProvider: 'rainbow', radarMode: 'graph' };
   const topRight = { slotKey: 'statusTopRight', position: 'right' };
   const topLeft = { slotKey: 'statusTopLeft', position: 'left' };
   assert.ok(catalog.itemAvailable(item, s, ENV_BASALT, topRight), 'available top-right');
@@ -254,13 +254,13 @@ test('battery is a LIVE_BATTERY item offered only in the top-right slot', () => 
 });
 
 test('slotOptions omits headers whose category has no available item', () => {
-  const healthOff = catalog.slotOptions({ healthMode: 'off', radarProvider: 'rainbow' },
+  const healthOff = catalog.slotOptions({ healthMode: 'off', radarProvider: 'rainbow', radarMode: 'graph' },
     ENV_BASALT, { slotKey: 'statusForecastLeft', position: 'left' });
   assert.ok(!healthOff.some(o => o[1] === '__hdr_health'), 'no orphan Health header');
   // aplite edge slot: date (middleOnly) is gone, but city and week (now available
   // on aplite as phone-baked text) remain, so the Date and location group DOES
   // get a header (it is not an orphan single-item collapse).
-  const apliteEdge = catalog.slotOptions({ healthMode: 'off', radarProvider: 'disabled' },
+  const apliteEdge = catalog.slotOptions({ healthMode: 'off', radarMode: 'off' },
     ENV_APLITE, { slotKey: 'statusTopLeft', position: 'left' });
   assert.ok(apliteEdge.some(o => o[1] === '__hdr_datelocation'), 'Date and location header present');
 });

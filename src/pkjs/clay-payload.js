@@ -29,8 +29,8 @@ function buildClayPayload(settings, watchInfo, now) {
     // calendar, to anchor prevWeek the same way the watch draws it.
     var presetKey = viewCycle.resolvePresetKey(settings);
     var healthMode = settings.healthMode || 'off';
-    var radarEnabled = settings.radarProvider !== 'disabled';
-    var cycle = viewCycle.buildViewCycle(presetKey, healthMode, radarEnabled);
+    var radarMode = settings.radarMode || 'graph';
+    var cycle = viewCycle.buildViewCycle(presetKey, healthMode, radarMode);
     var defaultIsFull = cycle[0].tier === viewCycle.TIER_FULL;   // slot 0 is the 3-row calendar
     var compact = !defaultIsFull;
     // CLAY_TOP_VIEW_MODE (TopViewMode enum: 0=full,1=compact,2=none) is a boot-time hint the
@@ -80,7 +80,7 @@ function buildClayPayload(settings, watchInfo, now) {
         "CLAY_RAIN_COUNTDOWN_HORIZON": (function() {
             var rc = parseInt(settings.rainCountdownHorizon, 10);
             if (isNaN(rc)) { rc = 60; }
-            if (settings.radarProvider === 'disabled') { rc = 0; }
+            if ((settings.radarMode || 'graph') === 'off') { rc = 0; }
             return rc;
         })()
     };

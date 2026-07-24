@@ -80,6 +80,7 @@ var KEY_HOLIDAY_WHITE_TO_TOGGLE_MIGRATION = 'v1.4.0_holiday_white_to_toggle_migr
 var KEY_V1_4_0_HOLIDAY_REGION_KEY_MIGRATION = 'v1.4.0_holiday_region_key_migration';
 var KEY_STATUS_LINE_HEALTH_DEFAULTS_MIGRATION = 'v1.8.0_status_line_health_defaults_migration';
 var KEY_STATUS_TOP_RIGHT_BATTERY_MIGRATION = 'v1.8.0_status_top_right_battery_migration';
+var KEY_RADAR_VIEW_MODE_MIGRATION = 'v1.10.0_radar_view_mode_migration';
 var KEY_LAST_IS_SLEEPING = storageKeys.LAST_IS_SLEEPING_KEY;
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
 var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
@@ -188,6 +189,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
     }
 
     var oldRadarProvider = app.settings ? app.settings.radarProvider : undefined;
+    var oldRadarMode = app.settings ? app.settings.radarMode : undefined;
     // Capture the render-affecting settings before they're overwritten below so we can
     // detect a change and force a resend. Rain/radar colors are NOT here: they ride the
     // Clay message and the watch persists them, so a color change needs no weather refetch.
@@ -211,7 +213,8 @@ Pebble.addEventListener('webviewclosed', function(e) {
     }
     app.telemetry = createTelemetryClient(getRuntimeTelemetryConfig());
     var providerOrLocationChanged = refreshProvider();
-    var radarProviderChanged = oldRadarProvider !== app.settings.radarProvider;
+    var radarProviderChanged = oldRadarProvider !== app.settings.radarProvider
+        || oldRadarMode !== app.settings.radarMode;
     var nextRender = renderSignature(app.settings);
     var renderSettingsChanged = prevRender !== nextRender;
     var needsRefetch = providerOrLocationChanged || radarProviderChanged || renderSettingsChanged;
@@ -318,6 +321,10 @@ Pebble.addEventListener('ready',
         claySettings.migrateStatusTopRightBattery(
             function() { return localStorage.getItem(KEY_STATUS_TOP_RIGHT_BATTERY_MIGRATION) !== null; },
             function() { localStorage.setItem(KEY_STATUS_TOP_RIGHT_BATTERY_MIGRATION, '1'); });
+        claySettings.migrateRadarProviderToMode(
+            'rainbow',
+            function() { return localStorage.getItem(KEY_RADAR_VIEW_MODE_MIGRATION) !== null; },
+            function() { localStorage.setItem(KEY_RADAR_VIEW_MODE_MIGRATION, '1'); });
         claySettings.applyDevConfig(app.devConfig);
         claySettings.applyFixtureSettings(activeFixture, pebbleColors);
         console.log('PebbleKit JS ready!');
@@ -796,7 +803,9 @@ function withRainRadarTuplesAt(lat, lon, callback) {
     // 5-min pinned slot-0 epoch (RAIN_RADAR_START on the wire) is computed here
     // at the clock edge, so the adapters stay deterministic (no clock injection).
     var source = radarFactory.createRadarSource(
-        app.settings.radarProvider,
+        // radarMode 'off' clears the watch's radar via the 'disabled' clearing
+        // adapter; any non-off mode fetches the full trend (countdown needs it).
+        (app.settings.radarMode || 'graph') === 'off' ? 'disabled' : app.settings.radarProvider,
         // '' when the build carried no RAINBOW_PROXY_ENDPOINT — the rainbow
         // adapter then fails soft (callback(null)). tomorrowioApiKey is the
         // user's key from settings; '' likewise fails soft in the adapter.

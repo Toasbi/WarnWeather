@@ -104,7 +104,7 @@ test('shouldShow: only on fresh, un-onboarded config', () => {
 });
 
 test('flickStops: layout-only cycle -> Default + Radar; radar copy is provider-agnostic', () => {
-  const stops = W.flickStops({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'dwd' });
+  const stops = W.flickStops({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'graph' });
   assert.equal(stops.length, 2);
   assert.equal(stops[0].label, 'Default');
   assert.equal(stops[0].shotGroup, 'layoutPreset');
@@ -118,43 +118,43 @@ test('flickStops: layout-only cycle -> Default + Radar; radar copy is provider-a
 });
 
 test('flickStops: health graph rides between default and radar; heart-rate line only with hasHeartRate', () => {
-  const withHR = W.flickStops({ layoutPreset: 'fullCal', healthMode: 'all', radarProvider: 'rainbow' }, true);
+  const withHR = W.flickStops({ layoutPreset: 'fullCal', healthMode: 'all', radarMode: 'graph' }, true);
   assert.deepEqual(withHR.map((s) => s.label), ['Default', 'Health graph', 'Radar']);
   assert.equal(withHR[0].shotVal, 'fullCal');
   assert.equal(withHR[1].shotGroup, 'healthMode');
   assert.equal(withHR[1].shotVal, 'all');
   assert.match(withHR[1].caption, /heart-rate line/);
-  const noHR = W.flickStops({ layoutPreset: 'fullCal', healthMode: 'all', radarProvider: 'rainbow' }, false);
+  const noHR = W.flickStops({ layoutPreset: 'fullCal', healthMode: 'all', radarMode: 'graph' }, false);
   assert.doesNotMatch(noHR[1].caption, /heart/);
   assert.match(noHR[1].caption, /step bars and a sleep band/);
 });
 
 test('flickStops: health-status flick maps to the healthMode.status shot; heart rate gated on hasHeartRate', () => {
-  const withHR = W.flickStops({ layoutPreset: 'noCal', healthMode: 'status', radarProvider: 'metno' }, true);
+  const withHR = W.flickStops({ layoutPreset: 'noCal', healthMode: 'status', radarMode: 'graph' }, true);
   assert.deepEqual(withHR.map((s) => s.label), ['Default', 'Health Status Bar', 'Radar']);
   assert.equal(withHR[1].shotGroup, 'healthMode');
   assert.equal(withHR[1].shotVal, 'status');
   assert.match(withHR[1].caption, /current heart rate/);
   assert.match(withHR[1].caption, /Health Status Bar/);
-  const noHR = W.flickStops({ layoutPreset: 'noCal', healthMode: 'status', radarProvider: 'metno' }, false);
+  const noHR = W.flickStops({ layoutPreset: 'noCal', healthMode: 'status', radarMode: 'graph' }, false);
   assert.doesNotMatch(noHR[1].caption, /heart/);
 });
 
 test('flickStops: fullCal/status dual-status middle stop (ST_D) also maps to healthMode.status', () => {
-  const stops = W.flickStops({ layoutPreset: 'fullCal', healthMode: 'status', radarProvider: 'dwd' });
+  const stops = W.flickStops({ layoutPreset: 'fullCal', healthMode: 'status', radarMode: 'graph' });
   assert.deepEqual(stops.map((s) => s.label), ['Default', 'Health Status Bar', 'Radar']);
   assert.equal(stops[1].shotVal, 'status');
 });
 
 test('flickStops: compactDense (no screenshot) maps the Default stop to the compactCal shot', () => {
-  const stops = W.flickStops({ layoutPreset: 'compactDense', healthMode: 'all', radarProvider: 'dwd' });
+  const stops = W.flickStops({ layoutPreset: 'compactDense', healthMode: 'all', radarMode: 'graph' });
   assert.equal(stops[0].label, 'Default');
   assert.equal(stops[0].shotGroup, 'layoutPreset');
   assert.equal(stops[0].shotVal, 'compactCal'); // clamped: compactDense has no captured shot
 });
 
 test('flickStops: disabled radar drops the radar stop; empty state resolves defaults', () => {
-  const noRadar = W.flickStops({ layoutPreset: 'compactCal', healthMode: 'all', radarProvider: 'disabled' });
+  const noRadar = W.flickStops({ layoutPreset: 'compactCal', healthMode: 'all', radarMode: 'off' });
   assert.deepEqual(noRadar.map((s) => s.label), ['Default', 'Health graph']);
   const fresh = W.flickStops({});
   assert.equal(fresh[0].shotVal, 'compactCal');
@@ -162,7 +162,7 @@ test('flickStops: disabled radar drops the radar stop; empty state resolves defa
 });
 
 test("flickStops: 'slot' health mode adds no health flick stop (matches off)", () => {
-  const off = W.flickStops({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'dwd' });
-  const slot = W.flickStops({ layoutPreset: 'compactCal', healthMode: 'slot', radarProvider: 'dwd' });
+  const off = W.flickStops({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'graph' });
+  const slot = W.flickStops({ layoutPreset: 'compactCal', healthMode: 'slot', radarMode: 'graph' });
   assert.deepEqual(slot.map((s) => s.label), off.map((s) => s.label));
 });

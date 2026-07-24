@@ -34,26 +34,26 @@ function layoutBody(overrides, platformName) {
 }
 
 test('compactCal + radar shows a Default and a Flick column (radar view present)', () => {
-  const body = layoutBody({ layoutPreset: 'compactCal', radarProvider: 'dwd', healthMode: 'off' });
+  const body = layoutBody({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'off' });
   assert.ok(body.indexOf('<svg') >= 0, 'preview SVG renders');
   assert.ok(body.indexOf('Default') >= 0 && body.indexOf('Flick 1') >= 0, 'two columns');
   assert.ok(body.indexOf('Radar') >= 0, 'radar view present in the cycle');
 });
 
 test('compactCal with radar disabled has no radar column', () => {
-  const body = layoutBody({ layoutPreset: 'compactCal', radarProvider: 'disabled', healthMode: 'off' });
+  const body = layoutBody({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off' });
   assert.ok(body.indexOf('Default') >= 0, 'default column renders');
   assert.strictEqual(body.indexOf('Radar'), -1, 'no radar column when radar is disabled');
 });
 
 test('compactDense all + radar shows three columns incl. Health graph', () => {
-  const body = layoutBody({ layoutPreset: 'compactDense', radarProvider: 'dwd', healthMode: 'all' });
+  const body = layoutBody({ layoutPreset: 'compactDense', radarMode: 'graph', healthMode: 'all' });
   assert.ok(body.indexOf('Flick 2') >= 0, 'three columns');
   assert.ok(body.indexOf('Health graph') >= 0, 'graph flick present');
 });
 
 test('aplite normalizes stale enabled settings to a single Default view', () => {
-  const body = layoutBody({ layoutPreset: 'compactDense', radarProvider: 'dwd', healthMode: 'all' }, 'aplite');
+  const body = layoutBody({ layoutPreset: 'compactDense', radarMode: 'graph', healthMode: 'all' }, 'aplite');
   assert.ok(body.indexOf('Default') >= 0, 'default column renders');
   assert.equal(body.indexOf('Flick 1'), -1, 'no first flick column');
   assert.equal(body.indexOf('Flick 2'), -1, 'no second flick column');
