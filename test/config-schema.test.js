@@ -114,7 +114,7 @@ test('B/W bar-scale hints are staticText, gated to effective non-color + the pic
   const isBwGated = (h, cond) =>
     JSON.stringify(h.showWhen.all) === JSON.stringify([{ not: { all: [{ env: 'color' }, { key: 'theme', nin: ['bw', 'bw-light'] }] } }, cond]);
   assert.ok(hints.some((h) => isBwGated(h, { key: 'barSource', eq: 'rain' })), 'forecast B/W hint missing');
-  assert.ok(hints.some((h) => isBwGated(h, { key: 'radarMode', ne: 'off' })), 'radar B/W hint missing');
+  assert.ok(hints.some((h) => isBwGated(h, { key: 'radarMode', eq: 'graph' })), 'radar B/W hint missing');
   // No messageKey, so they never serialize into the settings blob.
   hints.forEach((h) => assert.equal(h.messageKey, undefined));
 });
@@ -527,13 +527,43 @@ test('radarProvider is a dropdown offering DWD/Met.no/Rainbow/Tomorrow.io (short
   assert.equal(item.defaultValue, 'rainbow');
 });
 
-test('radarMode is a radio with off/countdown/status/graph tiers, defaulting to graph, with a hint for every value', () => {
+test('radarMode mirrors the cumulative Health-view copy pattern', () => {
   const item = byKey('radarMode');
   assert.equal(item.type, 'radio');
+  assert.equal(item.label, 'Radar view');
   assert.equal(item.defaultValue, 'graph');
-  assert.deepEqual(item.options.map((o) => o[1]), ['off', 'countdown', 'status', 'graph']);
-  ['off', 'countdown', 'status', 'graph'].forEach((v) =>
-    assert.ok(typeof item.hintByValue[v] === 'string' && item.hintByValue[v].length > 0, v + ' hint'));
+  assert.deepEqual(item.options, [
+    ['Off', 'off'],
+    ['Countdown only', 'countdown'],
+    ['Status bar', 'status'],
+    ['Status + Graph', 'graph']
+  ]);
+  assert.deepEqual(item.hintByValue, {
+    off: 'Radar is hidden.',
+    countdown: 'Shows a “Rain in X′” alert in the Watch Status Bar, without adding a separate Radar view.',
+    status: 'Adds the Radar Status Bar while retaining the forecast graph.',
+    graph: 'Also adds the full radar graph.'
+  });
+
+  const radarItems = schema.tabs.find((t) => t.id === 'radar').sections[0].items;
+  const note = radarItems[radarItems.indexOf(item) + 1];
+  assert.equal(note.type, 'staticText');
+  assert.equal(note.joinPrevious, true);
+  assert.equal(note.text, 'Each mode includes all features from the modes above it.');
+});
+
+test('radar provider hides when off; preview and color require the graph mode', () => {
+  assert.deepEqual(byKey('radarProvider').showWhen, { key: 'radarMode', ne: 'off' });
+
+  const previewHosts = items.filter((item) => item.blockBefore === 'radarPreview');
+  assert.equal(previewHosts.length, 2, 'color and B/W preview hosts');
+  previewHosts.forEach((item) => {
+    assert.ok(item.showWhen.all.some((condition) =>
+      condition.key === 'radarMode' && condition.eq === 'graph'));
+  });
+
+  assert.ok(byKey('radarColor').showWhen.all.some((condition) =>
+    condition.key === 'radarMode' && condition.eq === 'graph'));
 });
 
 // Helper: the per-value "why" hint for a provider value (weather or radar picker) — the

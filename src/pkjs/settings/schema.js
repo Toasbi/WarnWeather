@@ -438,25 +438,30 @@ module.exports = {
         // budget can't afford it), so the whole tab is env-hidden there (tab-level
         // showWhen; see platform.js radar env flag). Mirrors the health tab.
         id: 'radar', label: 'Radar', showWhen: {env: 'radar'}, sections: [{
-            intro: 'Rain radar is a second view — a precise short-term rain forecast for your location. Set where it appears in the Layout tab. Each mode below builds on the one above.<br>',
+            intro: 'Rain radar is a second view — a precise short-term rain forecast for your location. Set where it appears in the Layout tab.<br>',
             items: [{
                 type: 'radio',
                 messageKey: 'radarMode',
-                label: 'Radar',
+                label: 'Radar view',
                 defaultValue: 'graph',
                 hintByValue: {
-                    off: 'No radar. No rain countdown.',
-                    countdown: "A “Rain in X′” alert in the top strip.",
-                    status: 'Adds a radar status line when you flick (the forecast graph stays).',
-                    graph: 'Adds the full radar chart when you flick.'
+                    off: 'Radar is hidden.',
+                    countdown: 'Shows a “Rain in X′” alert in the Watch Status Bar, without adding a separate Radar view.',
+                    status: 'Adds the Radar Status Bar while retaining the forecast graph.',
+                    graph: 'Also adds the full radar graph.'
                 },
-                options: [['Off', 'off'], ['Countdown', 'countdown'], ['Status', 'status'], ['Graph', 'graph']],
+                options: [['Off', 'off'], ['Countdown only', 'countdown'], ['Status bar', 'status'], ['Status + Graph', 'graph']],
                 onChange: 'resetStatusRadar'
+            }, {
+                type: 'staticText',
+                joinPrevious: true,
+                text: 'Each mode includes all features from the modes above it.'
             }, {
                 type: 'select',
                 messageKey: 'radarProvider',
                 label: 'Radar provider',
                 defaultValue: 'rainbow',
+                showWhen: {key: 'radarMode', ne: 'off'},
                 // Flags the country-matched option "(Recommended)" (DE→DWD, Nordics→Met.no, else→Rainbow),
                 // the same map the wizard uses. See blocks.js recommend resolvers.
                 recommendFrom: 'recommendedRadarProvider',
@@ -501,13 +506,13 @@ module.exports = {
             }, {
                 // Radar preview now rides the bar-scale note (blockBefore), so it sits BELOW the picker
                 // instead of stickied above it; the note stands as separate info text beneath the preview
-                // (no joinPrevious). One of SCALE_NOTE (color) / BW_LEGEND (B/W) shows when radar is on.
+                // (no joinPrevious). One of SCALE_NOTE (color) / BW_LEGEND (B/W) shows in graph mode.
                 type: 'staticText',
                 blockBefore: 'radarPreview',
                 text: SCALE_NOTE,
                 hinted: true,
                 capabilities: ['COLOR'],
-                showWhen: {all: [{key: 'radarMode', ne: 'off'}, {key: 'theme', nin: ['bw', 'bw-light']}]}
+                showWhen: {all: [{key: 'radarMode', eq: 'graph'}, {key: 'theme', nin: ['bw', 'bw-light']}]}
             }, {
                 type: 'staticText',
                 blockBefore: 'radarPreview',
@@ -515,7 +520,7 @@ module.exports = {
                 hinted: true,
                 showWhen: {all: [
                     {not: {all: [{env: 'color'}, {key: 'theme', nin: ['bw', 'bw-light']}]}},
-                    {key: 'radarMode', ne: 'off'}
+                    {key: 'radarMode', eq: 'graph'}
                 ]}
             }, {
                 type: 'segmented',
@@ -527,7 +532,7 @@ module.exports = {
                 // VALUE stays 'white' for wire compatibility (the watch resolves it to the
                 // right polarity color itself — see rain-tier.js); only the label changes.
                 options: [['Multicolor', 'multicolor'], ['Solid', 'white']],
-                showWhen: {all: [{key: 'radarMode', ne: 'off'}, {key: 'theme', nin: ['bw', 'bw-light']}]}
+                showWhen: {all: [{key: 'radarMode', eq: 'graph'}, {key: 'theme', nin: ['bw', 'bw-light']}]}
             }, {
                 type: 'select',
                 messageKey: 'rainCountdownHorizon',
