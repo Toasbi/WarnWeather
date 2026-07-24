@@ -152,19 +152,13 @@ static int icon_scale_pct(uint8_t icon_id) {
     }
 }
 
-GDrawCommandImage *status_row_icons_load_resource(uint32_t resource_id,
-                                                  int target_h) {
-    if (resource_id == 0 || target_h <= 0) { return NULL; }
-    return icon_load(resource_id, target_h);
-}
-
 GDrawCommandImage *status_row_icons_load(uint8_t icon_id, int target_h) {
     if (target_h <= 0) { return NULL; }
     int h = (target_h * icon_scale_pct(icon_id)) / 100;
     if (h < 1) { h = 1; }
     uint32_t resource = icon_resource(icon_id);
     if (resource == 0) { return NULL; }
-    return status_row_icons_load_resource(resource, h);
+    return icon_load(resource, h);
 }
 
 void status_row_icons_destroy(GDrawCommandImage *image) {
@@ -176,13 +170,6 @@ void status_row_icons_destroy(GDrawCommandImage *image) {
 GDrawCommandImage *status_row_icons_load(uint8_t icon_id, int target_h) {
     (void) icon_id;
     (void) target_h;
-    return NULL;
-}
-
-GDrawCommandImage *status_row_icons_load_resource(uint32_t resource_id,
-                                                  int target_h) {
-    (void)resource_id;
-    (void)target_h;
     return NULL;
 }
 

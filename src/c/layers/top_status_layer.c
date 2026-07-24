@@ -2,7 +2,6 @@
 #include "top_status_layer.h"
 #include "battery_draw.h"
 #include "status_row.h"
-#include "status_row_icons.h"
 #include "top_status_indicators.h"
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
@@ -10,6 +9,7 @@
 #include "c/appendix/persist.h"
 #include "c/appendix/rain_countdown.h"
 #include "c/appendix/rain_tier.h"
+#include "c/appendix/snooze.h"
 #include "c/appendix/status_line.h"
 #include "c/appendix/theme.h"
 #include "c/services/watch_services.h"
@@ -39,8 +39,6 @@ static bool s_full_date;
 static GBitmap *s_mute_bitmap;
 static GBitmap *s_bt_bitmap;
 static GBitmap *s_bt_disconnect_bitmap;
-static GDrawCommandImage *s_snooze_glyph;
-static GColor s_snooze_glyph_fg;
 static GColor s_bt_palette[2];
 static GColor s_bt_disconnect_palette[2];
 static GColor s_mute_palette[2];
@@ -200,22 +198,6 @@ static void draw_bitmap(GContext *ctx, GBitmap *bitmap, GRect frame) {
 static GColor s_mute_bitmap_fg;
 static GColor s_bt_bitmap_fg;
 static GColor s_bt_disconnect_bitmap_fg;
-
-static void snooze_glyph_unload(void) {
-    status_row_icons_destroy(s_snooze_glyph);
-    s_snooze_glyph = NULL;
-}
-
-static void ensure_snooze_glyph_loaded(void) {
-    GColor fg = theme_fg();
-    if (s_snooze_glyph && gcolor_equal(s_snooze_glyph_fg, fg)) { return; }
-    snooze_glyph_unload();
-    s_snooze_glyph = status_row_icons_load_resource(
-        RESOURCE_ID_SNOOZE, ICON_SLOT_1.size.h);
-    s_snooze_glyph_fg = fg;
-}
-
-static void draw_snooze_glyph(GContext *ctx, GRect frame);
 
 // Lazy-load an icon bitmap and (re)tint its 2-color palette to fg. cached_fg
 // remembers the tint the palette was last built with, so a live theme change
@@ -427,7 +409,7 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
                     }
                     break;
                 case TOP_STATUS_INDICATOR_SNOOZE:
-                    draw_snooze_glyph(ctx, frame);
+                    snooze_draw(ctx, frame, theme_fg());
                     break;
                 case TOP_STATUS_INDICATOR_NONE:
                     break;
@@ -445,21 +427,11 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
     }
 }
 
-static void draw_snooze_glyph(GContext *ctx, GRect frame) {
-    ensure_snooze_glyph_loaded();
-    if (!s_snooze_glyph) { return; }
-    GSize size = gdraw_command_image_get_bounds_size(s_snooze_glyph);
-    gdraw_command_image_draw(ctx, s_snooze_glyph,
-        GPoint(frame.origin.x + (frame.size.w - size.w) / 2,
-               frame.origin.y + (frame.size.h - size.h) / 2));
-}
-
 void top_status_layer_create(Layer* parent_layer, GRect frame) {
     MemoryHeapProbe probe = MEMORY_HEAP_PROBE_START("top_status_layer_create");
 
     s_top_status_layer = layer_create(frame);
     MEMORY_HEAP_PROBE_SAMPLE("after_layer_create", &probe);
-    ensure_snooze_glyph_loaded();
 
     // Set up bluetooth handler
     connection_service_subscribe((ConnectionHandlers) {
@@ -608,7 +580,6 @@ void top_status_layer_destroy() {
         s_bt_disconnect_bitmap = NULL;
     }
     rain_glyph_unload();
-    snooze_glyph_unload();
     status_row_destroy(s_row);
     s_row = NULL;
     layer_destroy(s_top_status_layer);
