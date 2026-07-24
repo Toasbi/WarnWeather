@@ -3,6 +3,7 @@
 #include "c/layers/time_layer.h"
 #include "c/layers/forecast_layer.h"
 #include "c/layers/weather_status_layer.h"
+#include "c/layers/radar_status_layer.h"
 #include "c/layers/calendar_layer.h"
 #include "c/layers/rain_radar_layer.h"
 #include "c/layers/top_status_layer.h"
@@ -86,6 +87,23 @@ static uint8_t next_view_index(uint8_t from) {
 }
 #endif
 
+// Assign each status layer to the band its source occupies. The forecast/radar/health rows
+// are separate owners now; each rides the upper band (L.status) unless its source is the
+// lower (forecast-abutting) source, in which case it rides L.status_lower. Hidden rows are
+// still framed so a later un-hide lands them correctly.
+static void assign_status_bands(const ViewSpec *spec, const MainLayout *L) {
+    GRect fc_frame = (spec->status_lower == STATUS_SRC_FORECAST) ? L->status_lower : L->status;
+    layer_set_frame(weather_status_layer_get_root(), fc_frame);
+#if defined(WW_RAIN_RADAR)
+    GRect rd_frame = (spec->status_lower == STATUS_SRC_RADAR) ? L->status_lower : L->status;
+    layer_set_frame(radar_status_layer_get_root(), rd_frame);
+#endif
+#if defined(PBL_HEALTH)
+    GRect hl_frame = (spec->status_lower == STATUS_SRC_HEALTH) ? L->status_lower : L->status;
+    layer_set_frame(health_status_layer_get_root(), hl_frame);
+#endif
+}
+
 // Reframe every band and set layer visibility + status tiers for the active view.
 // Geometry can change on a flick (a view may be a different tier), so this recomputes
 // the layout each time rather than only toggling visibility. Layers are reframed, never
@@ -123,6 +141,9 @@ static void render_active_view(void) {
     calendar_layer_set_rows(spec.calendar_rows);
     top_status_layer_set_full_date(spec.calendar_rows == 0);
     weather_status_layer_set_full_date(spec.calendar_rows == 0);
+#if defined(WW_RAIN_RADAR)
+    radar_status_layer_set_full_date(spec.calendar_rows == 0);
+#endif
 #if defined(PBL_HEALTH)
     health_status_layer_set_full_date(spec.calendar_rows == 0);
     health_graph_layer_set_full_mode(spec.calendar_rows == 3);
@@ -132,19 +153,16 @@ static void render_active_view(void) {
 #if defined(WW_RAIN_RADAR)
     layer_set_frame(rain_radar_layer_get_root(), L.radar);
 #endif
+    // Push the render tier to every status owner, then frame each to its source's band.
     weather_status_layer_set_render_tier(spec.status_tier);
-    weather_status_layer_set_line(
-        (spec.top == TOP_BAND_RADAR || spec.body == BODY_RADAR || spec.body == BODY_RADAR_STATUS)
-            ? STATUS_LINE_RADAR : STATUS_LINE_FORECAST);
+#if defined(WW_RAIN_RADAR)
+    radar_status_layer_set_render_tier(spec.status_tier);
+#endif
 #if defined(PBL_HEALTH)
-    layer_set_frame(weather_status_layer_get_root(),
-                    (spec.status == STATUS_ROW_DUAL) ? L.status_lower : L.status);
     health_status_layer_set_render_tier(spec.status_tier);
     health_status_layer_set_full_mode(spec.calendar_rows == 3);
-    layer_set_frame(health_status_layer_get_root(), L.status);
-#else
-    layer_set_frame(weather_status_layer_get_root(), L.status);
 #endif
+    assign_status_bands(&spec, &L);
     layer_set_frame(forecast_layer_get_root(), L.bottom);
 #if defined(PBL_HEALTH)
     layer_set_frame(health_graph_layer_get_root(), L.bottom);
@@ -158,6 +176,9 @@ static void render_active_view(void) {
 #endif
     layer_set_hidden(forecast_layer_get_root(), !v.forecast);
     layer_set_hidden(weather_status_layer_get_root(), !v.weather_status);
+#if defined(WW_RAIN_RADAR)
+    layer_set_hidden(radar_status_layer_get_root(), !v.radar_status);
+#endif
 #if defined(PBL_HEALTH)
     layer_set_hidden(health_graph_layer_get_root(), !v.health_graph);
     layer_set_hidden(health_status_layer_get_root(), !v.health_status);
@@ -262,20 +283,25 @@ static void main_window_load(Window *window) {
 #if defined(PBL_HEALTH)
     health_graph_layer_create(window_layer, L.bottom);
 #endif
-    // Tell the status layers which tier to render at before they lay out their text.
+    // Tell the status layers which tier to render at before they lay out their text, then
+    // create each in the band its source occupies (render_active_view reframes on every
+    // apply/flick; the initial frame just needs to be its band).
     weather_status_layer_set_render_tier(spec.status_tier);
     weather_status_layer_set_full_date(spec.calendar_rows == 0);
-    weather_status_layer_set_line(
-        (spec.top == TOP_BAND_RADAR || spec.body == BODY_RADAR || spec.body == BODY_RADAR_STATUS)
-            ? STATUS_LINE_RADAR : STATUS_LINE_FORECAST);
+    weather_status_layer_create(window_layer,
+        (spec.status_lower == STATUS_SRC_FORECAST) ? L.status_lower : L.status);
+#if defined(WW_RAIN_RADAR)
+    radar_status_layer_set_render_tier(spec.status_tier);
+    radar_status_layer_set_full_date(spec.calendar_rows == 0);
+    radar_status_layer_create(window_layer,
+        (spec.status_lower == STATUS_SRC_RADAR) ? L.status_lower : L.status);
+#endif
 #if defined(PBL_HEALTH)
-    weather_status_layer_create(window_layer, (spec.status == STATUS_ROW_DUAL) ? L.status_lower : L.status);
     health_status_layer_set_render_tier(spec.status_tier);
     health_status_layer_set_full_date(spec.calendar_rows == 0);
     health_status_layer_set_full_mode(spec.calendar_rows == 3);
-    health_status_layer_create(window_layer, L.status);
-#else
-    weather_status_layer_create(window_layer, L.status);
+    health_status_layer_create(window_layer,
+        (spec.status_lower == STATUS_SRC_HEALTH) ? L.status_lower : L.status);
 #endif
     time_layer_create(window_layer, L.time);
     calendar_layer_create(window_layer, L.top);
@@ -348,6 +374,9 @@ static void main_window_unload(Window *window) {
     MEMORY_LOG_HEAP("before_window_unload");
     time_layer_destroy();
     weather_status_layer_destroy();
+#if defined(WW_RAIN_RADAR)
+    radar_status_layer_destroy();
+#endif
 #if defined(PBL_HEALTH)
     health_status_layer_destroy();
 #endif
@@ -485,6 +514,12 @@ void main_window_relayout(void) {
 void main_window_refresh() {
     time_layer_refresh();
     weather_status_layer_refresh();
+#if defined(WW_RAIN_RADAR)
+    // The radar status row ("Rain in X'") updates on the same weather-data / settings /
+    // flick checkpoints the forecast row does (this is the sole non-health refresh path,
+    // matching the pre-split single owner's cadence).
+    radar_status_layer_refresh();
+#endif
 #if defined(PBL_HEALTH)
     // Compact-top-view toggles change the status band's font/slot geometry;
     // health_status_layer_refresh() recomputes its module-static slot frames
