@@ -802,7 +802,7 @@ module.exports = {
                 // White is the "no highlight" appearance in dark; the holidaysEnabled
                 // toggle owns on/off instead of a special color.
                 excludeColors: ['#FFFFFF'],
-                joinPrevious: true,
+                joinPrevious: 'loose',
                 showWhen: {all: [{key: 'holidaysEnabled', eq: true}, {key: 'theme', eq: 'dark'}]}
             }, {
                 type: 'color',
