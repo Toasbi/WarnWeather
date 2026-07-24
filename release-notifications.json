@@ -104,7 +104,7 @@
     "body": "Small fixes and polish on the settings screen, including clearer weather-provider wording."
   },
   "1.9.3": {
-    "title": "See more without flicking",
-    "body": "The Compact calendar (dense) layout now shows a Radar or Health status row right alongside the forecast on your default view. Prefer the status line lower? Flip on Swap clock and status row to move it next to the forecast instead. Both live in the Layout tab."
+    "title": "Swap clock & status, no flick",
+    "body": "Move the status row next to your forecast with the new swap toggle — or add a Radar or Health row in the dense layout. Both in the Layout tab."
   }
 }
