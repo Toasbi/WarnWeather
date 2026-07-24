@@ -144,15 +144,20 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool upper,
             L.bottom.size.h -= NONE_STATUS_HEIGHT;
             L.radar = L.bottom;
         } else {
-            // compact/full: the lower row rides the forecast-abutting band, so the line lands
-            // identically whether the top view is full or compact. The forecast gives up
-            // WEATHER_STATUS_HEIGHT from its top while the taller fc_band_h band sits with its
-            // bottom on that forecast top.
-            int forecast_top = L.bottom.origin.y + WEATHER_STATUS_HEIGHT;
-            L.status_lower = GRect(L.bottom.origin.x, forecast_top - fc_band_h,
-                                   L.bottom.size.w, fc_band_h);
+            // compact/full: the lower row rides the forecast-abutting band. A DUAL lower row uses
+            // the squeezed full-tier band (fc_band_h) so two stacked rows fit. A LONE lower row
+            // (the compact swap layout — a single status moved below the clock) instead keeps the
+            // compact single-status band size (calendar_h / 3) and font, so swapping only changes
+            // position, not size (a true top/bottom swap). The forecast gives up the band height
+            // from its top; the band's bottom sits on that forecast top.
+            bool lone_lower_compact = compact && !two_rows;
+            int band_h  = lone_lower_compact ? (calendar_h / 3) : fc_band_h;
+            int reserve = lone_lower_compact ? (calendar_h / 3) : WEATHER_STATUS_HEIGHT;
+            int forecast_top = L.bottom.origin.y + reserve;
+            L.status_lower = GRect(L.bottom.origin.x, forecast_top - band_h,
+                                   L.bottom.size.w, band_h);
             L.bottom.origin.y = forecast_top;
-            L.bottom.size.h -= WEATHER_STATUS_HEIGHT;
+            L.bottom.size.h -= reserve;
         }
         L.loading = L.bottom;
     }
@@ -179,12 +184,12 @@ ViewSpec view_spec_unpack(uint16_t v) {
     spec.status_lower = sl;
     uint8_t layout_tier = (tier == 3) ? LAYOUT_TIER_FULL
                         : (tier == 2) ? LAYOUT_TIER_COMPACT : LAYOUT_TIER_NONE;
-    // Promote a compact top view to the full font when the full-height (fc_band_h)
-    // forecast-abutting LOWER band is occupied — two rows, or a lone lower row (both
-    // (upper&&lower) and (!upper&&lower) reduce to "lower present"). A lone UPPER row rides the
-    // small compact 3rd-calendar-row slot and keeps the compact font. Same rule as view_spec_resolve.
-    bool lower_present = (sl != STATUS_SRC_NONE);
-    spec.status_tier = (lower_present && layout_tier == LAYOUT_TIER_COMPACT)
+    // Only a DUAL (two rows stacked) squeezes to the smaller full-tier status font so both fit.
+    // A LONE status row keeps the larger compact font whether it rides the upper (freed
+    // 3rd-calendar-row) slot or the lower (swap) slot — swapping changes position, not size. So
+    // promote to FULL only for two rows. Same rule as view_spec_resolve.
+    bool two_rows = (su != STATUS_SRC_NONE) && (sl != STATUS_SRC_NONE);
+    spec.status_tier = (two_rows && layout_tier == LAYOUT_TIER_COMPACT)
                        ? LAYOUT_TIER_FULL : layout_tier;
     spec.weights[0] = WEIGHT_CALENDAR;
     spec.weights[1] = WEIGHT_TIME;
@@ -207,16 +212,13 @@ ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health) {
     if (spec.body == BODY_RADAR && !has_radar) { spec.body = BODY_FORECAST; }
     spec.status_upper = resolve_source(spec.status_upper, has_radar, has_health);
     spec.status_lower = resolve_source(spec.status_lower, has_radar, has_health);
-    // If the upper row collapsed but the lower survives, keep the lower where it is (it stays
-    // the full-height forecast-abutting band). Recompute the tier from what actually survives,
-    // mirroring view_spec_unpack: two rows OR a lone LOWER row occupy the fc_band_h band and
-    // render at the full font, so a compact top view promotes to FULL for them; a lone UPPER row
-    // rides the small compact 3rd-calendar-row slot and stays compact. Getting this wrong renders
-    // the text at the wrong font for its actual band size.
+    // Recompute the tier from what actually survives, mirroring view_spec_unpack: only two
+    // stacked rows squeeze to the smaller full-tier font; a lone surviving row (upper OR lower)
+    // keeps the larger compact font. Promote to FULL only for two rows.
     uint8_t layout_tier = (spec.calendar_rows == 3) ? LAYOUT_TIER_FULL
                         : (spec.calendar_rows == 2) ? LAYOUT_TIER_COMPACT : LAYOUT_TIER_NONE;
-    bool lower_present = (spec.status_lower != STATUS_SRC_NONE);
-    spec.status_tier = (lower_present && layout_tier == LAYOUT_TIER_COMPACT)
+    bool two_rows = (spec.status_upper != STATUS_SRC_NONE) && (spec.status_lower != STATUS_SRC_NONE);
+    spec.status_tier = (two_rows && layout_tier == LAYOUT_TIER_COMPACT)
                        ? LAYOUT_TIER_FULL : layout_tier;
     return spec;
 }

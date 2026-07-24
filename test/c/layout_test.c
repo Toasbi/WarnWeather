@@ -205,14 +205,14 @@ static void viewspec_tests(void) {
 
     expect("unpack.off_tier", view_spec_unpack(0).calendar_rows == 0, true);
 
-    // Availability resolve. A dropped upper leaves the lower where it is. The lone survivor
-    // occupies the full-height (fc_band_h) forecast-abutting band, so the tier stays FULL even
-    // under a compact calendar — a compact font would render short in that full-height band.
+    // Availability resolve. A dropped upper leaves the lower where it is. The lone survivor is a
+    // single status row, so it drops to the COMPACT (larger) status font under a compact calendar
+    // — only a DUAL squeezes to the full-tier (smaller) font.
     ViewSpec r = view_spec_resolve(view_spec_unpack(pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST)),
                                    true, false);
     expect("resolve.nohealth.upper_dropped", r.status_upper == STATUS_SRC_NONE, true);
     expect("resolve.nohealth.lower_kept", r.status_lower == STATUS_SRC_FORECAST, true);
-    expect("resolve.nohealth.tier_stays_full", r.status_tier == LAYOUT_TIER_FULL, true);
+    expect("resolve.nohealth.lone_lower_compact", r.status_tier == LAYOUT_TIER_COMPACT, true);
     r = view_spec_resolve(view_spec_unpack(pack(1, 0, 1, STATUS_SRC_HEALTH, STATUS_SRC_NONE)),
                           true, false);   // NONE tier, health graph body + health upper
     expect("resolve.nohealth.graph_to_forecast", r.body == BODY_FORECAST, true);
@@ -348,35 +348,48 @@ static void test_geometry_lower_only(void) {
     // 2-row calendar's bottom (no empty gap where the upper slot used to be).
     expect("geometry_lower_only.clock_reclaims_freed_row",
            L.time.origin.y == L.top.origin.y + L.top.size.h, true);
+    // Size-preserving swap: the lone lower status uses the SAME band height and COMPACT tier as a
+    // lone upper status — swapping changes position, not size (a 100% top/bottom size swap).
+    ViewSpec up = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE));  // normal upper
+    MainLayout Lu = layout_compute_spec(GRect(0, 0, 144, 168), &up, 14);
+    expect("geometry_lower_only.same_band_height_as_upper",
+           L.status_lower.size.h == Lu.status.size.h, true);
+    expect("geometry_lower_only.tier_compact", s.status_tier == LAYOUT_TIER_COMPACT, true);
+    expect("geometry_lower_only.upper_tier_compact", up.status_tier == LAYOUT_TIER_COMPACT, true);
     printf("geometry_lower_only OK\n");
 }
 
-// Part C: the lone-lower-row tier nuance. A compact two-row view whose UPPER source resolves
-// away leaves only the lower forecast row, which rides the full-height forecast-abutting band
-// — so status_tier must stay FULL (not drop to COMPACT). A configured lower-only compact view
-// resolves to the same. A lone UPPER row, by contrast, rides the small compact 3rd-cal-row
-// slot and keeps the compact tier.
+// The lone-status tier rule: only a DUAL (two stacked rows) squeezes to the smaller full-tier
+// status font so both fit. A LONE status row keeps the larger compact font whether it lands in
+// the upper (freed 3rd-cal-row) slot or the lower (swap) slot — so a lone lower row stays
+// COMPACT, making the clock/status swap a size-preserving position change (see the FULL<COMPACT
+// status-font sizes in layer_util.h / status_row.c).
 static void test_resolve_tier_lower_only(void) {
-    // Upper (health) resolves away, forecast lower survives, compact calendar → tier FULL.
+    // Upper (health) resolves away, lone forecast lower survives, compact calendar → COMPACT.
     ViewSpec r = view_spec_resolve(view_spec_unpack(pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST)),
                                    true, false);
     expect("resolve_tier_lower_only.upper_gone", r.status_upper == STATUS_SRC_NONE, true);
     expect("resolve_tier_lower_only.lower_survives", r.status_lower == STATUS_SRC_FORECAST, true);
-    expect("resolve_tier_lower_only.tier_full", r.status_tier == LAYOUT_TIER_FULL, true);
+    expect("resolve_tier_lower_only.lone_lower_compact", r.status_tier == LAYOUT_TIER_COMPACT, true);
 
-    // Configured lower-only compact view (no drop needed) resolves to the same full tier.
+    // Configured lone lower (the swap layout) stays compact too.
     ViewSpec c = view_spec_resolve(view_spec_unpack(pack(2, 1, 0, STATUS_SRC_NONE, STATUS_SRC_FORECAST)),
                                    true, true);
-    expect("resolve_tier_lower_only.configured_tier_full", c.status_tier == LAYOUT_TIER_FULL, true);
+    expect("resolve_tier_lower_only.swap_compact", c.status_tier == LAYOUT_TIER_COMPACT, true);
 
-    // A lone UPPER row under a compact calendar keeps the compact tier (small 3rd-row slot).
+    // A lone UPPER row under a compact calendar is compact as well.
     ViewSpec u = view_spec_resolve(view_spec_unpack(pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE)),
                                    true, true);
     expect("resolve_tier_lower_only.upper_only_compact", u.status_tier == LAYOUT_TIER_COMPACT, true);
 
-    // Unpack alone (before resolve) is consistent for a configured lower-only compact view.
+    // Only a DUAL (two rows) promotes to the squeezed full tier.
+    ViewSpec d = view_spec_resolve(view_spec_unpack(pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST)),
+                                   true, true);
+    expect("resolve_tier_lower_only.dual_full", d.status_tier == LAYOUT_TIER_FULL, true);
+
+    // Unpack alone (before resolve): lone lower stays compact.
     ViewSpec un = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_NONE, STATUS_SRC_FORECAST));
-    expect("resolve_tier_lower_only.unpack_tier_full", un.status_tier == LAYOUT_TIER_FULL, true);
+    expect("resolve_tier_lower_only.unpack_lone_lower_compact", un.status_tier == LAYOUT_TIER_COMPACT, true);
     printf("resolve_tier_lower_only OK\n");
 }
 
