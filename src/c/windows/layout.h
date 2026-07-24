@@ -98,20 +98,23 @@ MainLayout layout_compute_peek(GRect bounds, const ViewSpec *spec, int fc_band_h
 // cursor state and resolves availability from the SDK (radar data present? health
 // renderable?); these helpers keep the navigation rules pure and host-testable.
 
-// Is a configured slot byte renderable right now? Disabled (0) never; a radar band
+// Is a configured slot value renderable right now? Disabled (0) never; a radar band
 // needs radar data; a health band/row needs health. Availability is caller-supplied.
-bool view_slot_available(uint8_t byte, bool has_radar, bool has_health);
+// The slot is the full 10-bit packed value (see view_spec_unpack).
+bool view_slot_available(uint16_t value, bool has_radar, bool has_health);
 
 // Next enabled + available slot after `from`, wrapping. Index 0 (the default view) is
 // always a valid stop, so the cycle can never get stuck.
-uint8_t view_cursor_next(uint8_t from, const uint8_t spec[3], bool has_radar, bool has_health);
+uint8_t view_cursor_next(uint8_t from, const uint16_t spec[3], bool has_radar, bool has_health);
 
 // The cursor to keep after a settings apply. A settings change can redefine the cycle
 // (each slot may now hold a different view), which makes the old cursor position
 // meaningless — snap back to the default view (0). An unchanged cycle keeps the cursor
 // (a radar/health availability re-apply must not yank the user off their chosen view).
-uint8_t view_cursor_after_config(uint8_t cursor, const uint8_t old_spec[3],
-                                 const uint8_t new_spec[3]);
+// Slots are compared as full 10-bit values, so a change confined to the tier/top bits
+// (8-9 / 6-7) still reads as a redefined cycle.
+uint8_t view_cursor_after_config(uint8_t cursor, const uint16_t old_spec[3],
+                                 const uint16_t new_spec[3]);
 
 // Whether the auto-return-to-default timer is due. `now` and `flick_since` are epoch
 // seconds; reset_min is the configured window in minutes (0 = auto-return disabled).

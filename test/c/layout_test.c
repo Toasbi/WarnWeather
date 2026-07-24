@@ -205,13 +205,14 @@ static void viewspec_tests(void) {
 
     expect("unpack.off_tier", view_spec_unpack(0).calendar_rows == 0, true);
 
-    // Availability resolve. A dropped upper leaves the lower where it is, and the tier
-    // follows the surviving row count back down (a promoted compact dual -> plain compact).
+    // Availability resolve. A dropped upper leaves the lower where it is. The lone survivor
+    // occupies the full-height (fc_band_h) forecast-abutting band, so the tier stays FULL even
+    // under a compact calendar — a compact font would render short in that full-height band.
     ViewSpec r = view_spec_resolve(view_spec_unpack(pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST)),
                                    true, false);
     expect("resolve.nohealth.upper_dropped", r.status_upper == STATUS_SRC_NONE, true);
     expect("resolve.nohealth.lower_kept", r.status_lower == STATUS_SRC_FORECAST, true);
-    expect("resolve.nohealth.tier_downgraded", r.status_tier == LAYOUT_TIER_COMPACT, true);
+    expect("resolve.nohealth.tier_stays_full", r.status_tier == LAYOUT_TIER_FULL, true);
     r = view_spec_resolve(view_spec_unpack(pack(1, 0, 1, STATUS_SRC_HEALTH, STATUS_SRC_NONE)),
                           true, false);   // NONE tier, health graph body + health upper
     expect("resolve.nohealth.graph_to_forecast", r.body == BODY_FORECAST, true);
@@ -346,6 +347,35 @@ static void test_geometry_lower_only(void) {
     printf("geometry_lower_only OK\n");
 }
 
+// Part C: the lone-lower-row tier nuance. A compact two-row view whose UPPER source resolves
+// away leaves only the lower forecast row, which rides the full-height forecast-abutting band
+// — so status_tier must stay FULL (not drop to COMPACT). A configured lower-only compact view
+// resolves to the same. A lone UPPER row, by contrast, rides the small compact 3rd-cal-row
+// slot and keeps the compact tier.
+static void test_resolve_tier_lower_only(void) {
+    // Upper (health) resolves away, forecast lower survives, compact calendar → tier FULL.
+    ViewSpec r = view_spec_resolve(view_spec_unpack(pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST)),
+                                   true, false);
+    expect("resolve_tier_lower_only.upper_gone", r.status_upper == STATUS_SRC_NONE, true);
+    expect("resolve_tier_lower_only.lower_survives", r.status_lower == STATUS_SRC_FORECAST, true);
+    expect("resolve_tier_lower_only.tier_full", r.status_tier == LAYOUT_TIER_FULL, true);
+
+    // Configured lower-only compact view (no drop needed) resolves to the same full tier.
+    ViewSpec c = view_spec_resolve(view_spec_unpack(pack(2, 1, 0, STATUS_SRC_NONE, STATUS_SRC_FORECAST)),
+                                   true, true);
+    expect("resolve_tier_lower_only.configured_tier_full", c.status_tier == LAYOUT_TIER_FULL, true);
+
+    // A lone UPPER row under a compact calendar keeps the compact tier (small 3rd-row slot).
+    ViewSpec u = view_spec_resolve(view_spec_unpack(pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE)),
+                                   true, true);
+    expect("resolve_tier_lower_only.upper_only_compact", u.status_tier == LAYOUT_TIER_COMPACT, true);
+
+    // Unpack alone (before resolve) is consistent for a configured lower-only compact view.
+    ViewSpec un = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_NONE, STATUS_SRC_FORECAST));
+    expect("resolve_tier_lower_only.unpack_tier_full", un.status_tier == LAYOUT_TIER_FULL, true);
+    printf("resolve_tier_lower_only OK\n");
+}
+
 static void test_geometry_two_rows(void) {
     // radar upper + forecast lower.
     ViewSpec s = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_RADAR, STATUS_SRC_FORECAST));
@@ -356,34 +386,42 @@ static void test_geometry_two_rows(void) {
     printf("geometry_two_rows OK\n");
 }
 
-// Cursor cycle bytes. The cursor API (view_slot_available / view_cursor_*) still takes a
-// uint8_t slot while config.view_spec stays uint8_t (the wire/persist widening to the full
-// 10-bit value is the next task). Cursor availability depends only on top/body/statusUpper/
-// statusLower — all in the low 8 bits — so these low-byte encodings (tier bits, 8-9,
-// dropped) exercise the wrap + availability logic faithfully.
-// Low byte: top<<6 | body<<4 | statusUpper<<2 | statusLower (wire top: EMPTY0/CAL1/RADAR2).
-#define B_CAL3_FC_W   0x44   // calendar, forecast body, forecast-upper
-#define B_CAL3_RDR_W  0x68   // calendar, radar body, radar-upper
-#define B_CAL2_FC_W   0x44   // calendar, forecast body, forecast-upper (tier differs, low byte same)
-#define B_CAL2_FC_H   0x4C   // calendar, forecast body, health-upper
-#define B_CAL2_RDR_W  0x68   // calendar, radar body, radar-upper
-#define B_RDR_FC_NONE 0x80   // radar-top, forecast body, no status
-#define B_NONE_FC_W   0x04   // empty top, forecast body, forecast-upper
-#define B_NONE_GRAPH_H 0x1C  // empty top, health-graph body, health-upper
-#define B_NONE_RDR_W  0x28   // empty top, radar body, radar-upper
+// Cursor cycle slots, full 10-bit pack() encodings — the same value the phone packs and
+// persist/wire now carries end-to-end (config.view_spec2 is uint16_t; the cursor API takes
+// uint16_t slots). Encoding: statusLower(0-1) | statusUpper(2-3) | body(4-5) | top(6-7) |
+// tier(8-9). tier 3=full, 2=compact, 1=none; wire top EMPTY0/CAL1/RADAR2. The tier bits (8-9)
+// now ride along, so B_CAL2_* and B_CAL3_* differ (they shared a low byte before widening).
+#define B_CAL3_FC_W    pack(3, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE)  // full cal, forecast-upper
+#define B_CAL3_RDR_W   pack(3, 1, 2, STATUS_SRC_RADAR, STATUS_SRC_NONE)     // full cal, radar body+upper
+#define B_CAL2_FC_W    pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE)  // compact cal, forecast-upper
+#define B_CAL2_FC_H    pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_NONE)    // compact cal, health-upper
+#define B_CAL2_RDR_W   pack(2, 1, 2, STATUS_SRC_RADAR, STATUS_SRC_NONE)     // compact cal, radar body+upper
+#define B_RDR_FC_NONE  pack(3, 2, 0, STATUS_SRC_NONE, STATUS_SRC_NONE)      // radar-top forecast, no status
+#define B_NONE_FC_W    pack(1, 0, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE)  // no cal, forecast-upper
+#define B_NONE_GRAPH_H pack(1, 0, 1, STATUS_SRC_HEALTH, STATUS_SRC_NONE)    // no cal, health graph+upper
+#define B_NONE_RDR_W   pack(1, 0, 2, STATUS_SRC_RADAR, STATUS_SRC_NONE)     // no cal, radar body+upper
 
 static void view_cursor_tests(void) {
     // ── The reported bug: live settings change after a flick ──────────────────
     // User flicked to slot 1 under compactCal+status+radar, then switched preset to
     // fullCal+off+radar (a different cycle). The cursor must return to the default view;
     // leaving it on slot 1 is exactly "stuck at flick 1, default never shows".
-    uint8_t compactStatusRadar[3] = { B_CAL2_FC_W, B_CAL2_FC_H, B_RDR_FC_NONE };
-    uint8_t fullCalRadar[3]       = { B_CAL3_FC_W, B_CAL3_RDR_W, 0x00 };
+    uint16_t compactStatusRadar[3] = { B_CAL2_FC_W, B_CAL2_FC_H, B_RDR_FC_NONE };
+    uint16_t fullCalRadar[3]       = { B_CAL3_FC_W, B_CAL3_RDR_W, 0x000 };
     expect("cursor.preset_switch_resets_to_default",
            view_cursor_after_config(1, compactStatusRadar, fullCalRadar) == 0, true);
 
+    // Truncation guard (the reviewer's named risk): two cycles that differ ONLY in the tier
+    // bits (8-9) — identical low bytes — must still read as a redefined cycle. A uint8 cursor
+    // copy would collapse them to equal and wrongly KEEP the cursor; the full 10-bit
+    // comparison detects the change and resets to the default view.
+    uint16_t cycleCompact[3] = { B_CAL2_FC_W, 0x000, 0x000 };   // 0x244
+    uint16_t cycleFull[3]    = { B_CAL3_FC_W, 0x000, 0x000 };   // 0x344 — low byte identical
+    expect("cursor.tier_only_change_resets",
+           view_cursor_after_config(1, cycleCompact, cycleFull) == 0, true);
+
     // noCal+all+radar reached with a carried-over non-default cursor → back to default.
-    uint8_t noCalAllRadar[3] = { B_NONE_FC_W, B_NONE_GRAPH_H, B_NONE_RDR_W };
+    uint16_t noCalAllRadar[3] = { B_NONE_FC_W, B_NONE_GRAPH_H, B_NONE_RDR_W };
     expect("cursor.noCal_carryover_resets",
            view_cursor_after_config(2, compactStatusRadar, noCalAllRadar) == 0, true);
 
@@ -395,7 +433,7 @@ static void view_cursor_tests(void) {
            view_cursor_after_config(0, fullCalRadar, fullCalRadar) == 0, true);
 
     // Even a single-slot change redefines the cycle → reset (cursor could point anywhere).
-    uint8_t fullCalRadar2[3] = { B_CAL3_FC_W, B_CAL3_RDR_W, B_NONE_FC_W };
+    uint16_t fullCalRadar2[3] = { B_CAL3_FC_W, B_CAL3_RDR_W, B_NONE_FC_W };
     expect("cursor.single_slot_change_resets",
            view_cursor_after_config(1, fullCalRadar, fullCalRadar2) == 0, true);
 
@@ -404,9 +442,9 @@ static void view_cursor_tests(void) {
     // the OLD rule failed: it only reset when the current slot went disabled (byte 0), so
     // disabling BOTH health+radar returned to the forecast, but toggling to another
     // populated cycle left the cursor stranded off the forecast.
-    uint8_t compactAllRadar[3]  = { B_CAL3_FC_W, B_NONE_GRAPH_H, B_NONE_RDR_W }; // health all + radar
-    uint8_t compactOffNoRadar[3] = { B_CAL2_FC_W, 0x00, 0x00 };                  // both off (1 slot)
-    uint8_t compactOffRadar[3]   = { B_CAL2_FC_W, B_CAL2_RDR_W, 0x00 };          // health off, radar on
+    uint16_t compactAllRadar[3]   = { B_CAL3_FC_W, B_NONE_GRAPH_H, B_NONE_RDR_W }; // health all + radar
+    uint16_t compactOffNoRadar[3] = { B_CAL2_FC_W, 0x000, 0x000 };                 // both off (1 slot)
+    uint16_t compactOffRadar[3]   = { B_CAL2_FC_W, B_CAL2_RDR_W, 0x000 };          // health off, radar on
     expect("cursor.disable_all_returns_to_forecast",
            view_cursor_after_config(2, compactAllRadar, compactOffNoRadar) == 0, true);
     expect("cursor.health_off_radar_on_returns_to_forecast",
@@ -423,13 +461,14 @@ static void view_cursor_tests(void) {
     // 2-slot cycle toggles 0<->1; 1-slot cycle never leaves 0.
     expect("next.2slot.0to1", view_cursor_next(0, fullCalRadar, true, true) == 1, true);
     expect("next.2slot.1to0", view_cursor_next(1, fullCalRadar, true, true) == 0, true);
-    uint8_t oneSlot[3] = { B_CAL3_FC_W, 0x00, 0x00 };
+    uint16_t oneSlot[3] = { B_CAL3_FC_W, 0x000, 0x000 };
     expect("next.1slot.stays0", view_cursor_next(0, oneSlot, true, true) == 0, true);
 
     // A radar-status slot (radar row on a forecast body) needs radar data to be a stop.
-    // Low byte: calendar top | forecast body | radar-upper | forecast-lower = 0x49.
-    expect("slot.radar_status_needs_radar", view_slot_available(0x49, false, true), false);
-    expect("slot.radar_status_ok_with_data", view_slot_available(0x49, true, true), true);
+    // compact cal | forecast body | radar-upper | forecast-lower.
+    uint16_t radarStatusSlot = pack(2, 1, 0, STATUS_SRC_RADAR, STATUS_SRC_FORECAST);
+    expect("slot.radar_status_needs_radar", view_slot_available(radarStatusSlot, false, true), false);
+    expect("slot.radar_status_ok_with_data", view_slot_available(radarStatusSlot, true, true), true);
 }
 
 static void view_timer_tests(void) {
@@ -466,6 +505,7 @@ int main(int argc, char **argv) {
     if (!s_dump) view_timer_tests();
     if (!s_dump) radar_placement_tests();
     if (!s_dump) test_geometry_lower_only();
+    if (!s_dump) test_resolve_tier_lower_only();
     if (!s_dump) test_geometry_two_rows();
     if (s_dump) return 0;
     if (s_failures) { printf("%d golden-rect failure(s)\n", s_failures); return 1; }

@@ -31,10 +31,11 @@ static Window *s_main_window;
 // in main_window_load(). Beyond that window it boots to the DEFAULT view (index 0).
 static uint8_t s_view_index;
 #if defined(WW_VIEW_CYCLE)
-// The cycle definition (view_spec bytes) the cursor was last validated against, so
+// The cycle definition (10-bit view_spec2 values) the cursor was last validated against, so
 // main_window_apply_top_view can tell a real settings change (cycle redefined → return
 // to default) from a same-cycle re-apply (radar/health availability → keep the cursor).
-static uint8_t s_applied_view_spec[3];
+// uint16_t (not uint8_t) so a change confined to the tier/top bits (8-9) is still detected.
+static uint16_t s_applied_view_spec[3];
 // Epoch of the last flick (or relaunch-restore to a non-default view), seeding the
 // auto-return-to-default timer. 0 = on the default view / no timer running.
 static time_t s_flick_epoch;
@@ -66,24 +67,24 @@ static bool health_renderable(void) {
 #endif
 }
 
-// Decode a configured slot byte to a ViewSpec, then apply runtime availability
+// Decode a configured 10-bit slot value to a ViewSpec, then apply runtime availability
 // downgrades (radar data present? health renderable?). The SDK queries happen HERE;
 // layout.c stays pure.
-static ViewSpec unpack_slot_spec(uint8_t byte) {
-    ViewSpec spec = view_spec_unpack(byte);
+static ViewSpec unpack_slot_spec(uint16_t value) {
+    ViewSpec spec = view_spec_unpack(value);
     return view_spec_resolve(spec, radar_has_data(), health_renderable());
 }
 
 // The ViewSpec for the view currently on screen.
 static ViewSpec current_view_spec(void) {
-    return unpack_slot_spec(config_get()->view_spec[s_view_index]);
+    return unpack_slot_spec(config_get()->view_spec2[s_view_index]);
 }
 
 #if defined(WW_VIEW_CYCLE)
 // Next flick target after `from`. Resolves availability from the SDK here (radar data
 // present? health renderable?) and defers the pure wrap logic to layout.c.
 static uint8_t next_view_index(uint8_t from) {
-    return view_cursor_next(from, config_get()->view_spec, radar_has_data(), health_renderable());
+    return view_cursor_next(from, config_get()->view_spec2, radar_has_data(), health_renderable());
 }
 #endif
 
@@ -266,7 +267,7 @@ static void main_window_load(Window *window) {
     if (unload_epoch > 0 && time(NULL) - unload_epoch <= restore_window) {
         uint8_t restored = (uint8_t) persist_get_view_cursor();
         if (restored < 3
-                && view_slot_available(config_get()->view_spec[restored], radar_has_data(), health_renderable())) {
+                && view_slot_available(config_get()->view_spec2[restored], radar_has_data(), health_renderable())) {
             s_view_index = restored;
             s_flick_epoch = time(NULL);   // restored a non-default view → run its full window
         }
@@ -320,7 +321,7 @@ static void main_window_load(Window *window) {
     // Seed the applied-cycle snapshot with the boot config so the first same-cycle
     // re-apply (e.g. an incoming radar update) doesn't read it as a settings change
     // and reset a cursor the user has since flicked (or we just restored above).
-    memcpy(s_applied_view_spec, config_get()->view_spec, sizeof(s_applied_view_spec));
+    memcpy(s_applied_view_spec, config_get()->view_spec2, sizeof(s_applied_view_spec));
 #endif
     render_active_view();
 #if defined(PBL_HEALTH)
@@ -493,8 +494,8 @@ void main_window_apply_top_view() {
     // "default view never shows after changing settings" bug). A same-cycle re-apply (radar
     // availability flip) leaves the cursor where the user put it.
 #if defined(WW_VIEW_CYCLE)
-    s_view_index = view_cursor_after_config(s_view_index, s_applied_view_spec, config_get()->view_spec);
-    memcpy(s_applied_view_spec, config_get()->view_spec, sizeof(s_applied_view_spec));
+    s_view_index = view_cursor_after_config(s_view_index, s_applied_view_spec, config_get()->view_spec2);
+    memcpy(s_applied_view_spec, config_get()->view_spec2, sizeof(s_applied_view_spec));
 #endif
     render_active_view();
     main_window_refresh();

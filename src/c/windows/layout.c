@@ -172,10 +172,12 @@ ViewSpec view_spec_unpack(uint16_t v) {
     spec.status_lower = sl;
     uint8_t layout_tier = (tier == 3) ? LAYOUT_TIER_FULL
                         : (tier == 2) ? LAYOUT_TIER_COMPACT : LAYOUT_TIER_NONE;
-    // Two status rows in a compact top view render at the full font so they match; a lone
-    // row keeps its own tier. Mirrors the old dual-in-compact promotion.
-    bool two_rows = (su != STATUS_SRC_NONE) && (sl != STATUS_SRC_NONE);
-    spec.status_tier = (two_rows && layout_tier == LAYOUT_TIER_COMPACT)
+    // Promote a compact top view to the full font when the full-height (fc_band_h)
+    // forecast-abutting LOWER band is occupied — two rows, or a lone lower row (both
+    // (upper&&lower) and (!upper&&lower) reduce to "lower present"). A lone UPPER row rides the
+    // small compact 3rd-calendar-row slot and keeps the compact font. Same rule as view_spec_resolve.
+    bool lower_present = (sl != STATUS_SRC_NONE);
+    spec.status_tier = (lower_present && layout_tier == LAYOUT_TIER_COMPACT)
                        ? LAYOUT_TIER_FULL : layout_tier;
     spec.weights[0] = WEIGHT_CALENDAR;
     spec.weights[1] = WEIGHT_TIME;
@@ -198,15 +200,16 @@ ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health) {
     if (spec.body == BODY_RADAR && !has_radar) { spec.body = BODY_FORECAST; }
     spec.status_upper = resolve_source(spec.status_upper, has_radar, has_health);
     spec.status_lower = resolve_source(spec.status_lower, has_radar, has_health);
-    // If the upper row collapsed but the lower survives, keep the lower where it is (it
-    // stays the forecast-abutting band). Recompute the tier from the surviving row count:
-    // once a compact dual drops to a single row, the band geometry treats it as a plain
-    // compact band, so the tier must follow it back down or the text renders at the wrong
-    // font for its actual band size. Same tier-derivation rule as view_spec_unpack.
+    // If the upper row collapsed but the lower survives, keep the lower where it is (it stays
+    // the full-height forecast-abutting band). Recompute the tier from what actually survives,
+    // mirroring view_spec_unpack: two rows OR a lone LOWER row occupy the fc_band_h band and
+    // render at the full font, so a compact top view promotes to FULL for them; a lone UPPER row
+    // rides the small compact 3rd-calendar-row slot and stays compact. Getting this wrong renders
+    // the text at the wrong font for its actual band size.
     uint8_t layout_tier = (spec.calendar_rows == 3) ? LAYOUT_TIER_FULL
                         : (spec.calendar_rows == 2) ? LAYOUT_TIER_COMPACT : LAYOUT_TIER_NONE;
-    bool two_rows = (spec.status_upper != STATUS_SRC_NONE) && (spec.status_lower != STATUS_SRC_NONE);
-    spec.status_tier = (two_rows && layout_tier == LAYOUT_TIER_COMPACT)
+    bool lower_present = (spec.status_lower != STATUS_SRC_NONE);
+    spec.status_tier = (lower_present && layout_tier == LAYOUT_TIER_COMPACT)
                        ? LAYOUT_TIER_FULL : layout_tier;
     return spec;
 }
@@ -284,9 +287,9 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
 #if defined(WW_VIEW_CYCLE)
 // ── View-cycle cursor (pure) ─────────────────────────────────────────────────
 
-bool view_slot_available(uint8_t byte, bool has_radar, bool has_health) {
-    if (byte == 0) { return false; }                 // tier=off → disabled slot
-    ViewSpec spec = view_spec_unpack(byte);
+bool view_slot_available(uint16_t value, bool has_radar, bool has_health) {
+    if (value == 0) { return false; }                // tier=off → disabled slot
+    ViewSpec spec = view_spec_unpack(value);
     bool needs_radar = (spec.top == TOP_BAND_RADAR) || (spec.body == BODY_RADAR)
                     || (spec.status_upper == STATUS_SRC_RADAR) || (spec.status_lower == STATUS_SRC_RADAR);
     bool needs_health = (spec.body == BODY_HEALTH_GRAPH)
@@ -296,7 +299,7 @@ bool view_slot_available(uint8_t byte, bool has_radar, bool has_health) {
     return true;
 }
 
-uint8_t view_cursor_next(uint8_t from, const uint8_t spec[3], bool has_radar, bool has_health) {
+uint8_t view_cursor_next(uint8_t from, const uint16_t spec[3], bool has_radar, bool has_health) {
     for (int step = 1; step <= 3; step++) {
         uint8_t i = (uint8_t)((from + step) % 3);
         if (i == 0 || view_slot_available(spec[i], has_radar, has_health)) { return i; }
@@ -304,8 +307,8 @@ uint8_t view_cursor_next(uint8_t from, const uint8_t spec[3], bool has_radar, bo
     return 0;
 }
 
-uint8_t view_cursor_after_config(uint8_t cursor, const uint8_t old_spec[3],
-                                 const uint8_t new_spec[3]) {
+uint8_t view_cursor_after_config(uint8_t cursor, const uint16_t old_spec[3],
+                                 const uint16_t new_spec[3]) {
     // If the cycle definition changed at all, the cursor's old slot may now hold a
     // different view (or none) — snap back to the default. This also covers the current
     // slot being disabled. An identical cycle keeps the cursor untouched.
