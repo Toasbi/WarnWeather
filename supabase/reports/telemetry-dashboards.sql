@@ -3,14 +3,20 @@
 -- Freshness is the priority: the "currently active" panels read the live raw
 -- table so they reflect today, not last night's rollup. Sources by query:
 --   • Active-base snapshots (#7, #8, #11, #12, #13, #14) and recent-ops
---     (#2, #3, #5, #6): live from raw public.telemetry_weather_fetch. Raw is
+--     (#2, #3, #4, #5, #6): live from raw public.telemetry_weather_fetch. Raw is
 --     retained only 14 days, so these are bounded to that window.
 --   • Daily active users (#1) and lifecycle/churn (#9, #10): union — finalized
 --     history from the daily rollup (telemetry_dau + telemetry_watch, written by
---     public.telemetry_rollup_and_prune() ~03:00 UTC) plus TODAY live from raw,
---     so the current day is never stale. These never read lifetime_events; the
---     event count is recomputed from telemetry_dau (days before today) + raw.
---   • Top errors (#4): telemetry_errors (slim failed-fetch log, ~7 weeks).
+--     public.telemetry_rollup_and_prune() ~03:00 UTC) plus TODAY AND YESTERDAY
+--     live from raw, so neither is stale. telemetry_dau's row for a given UTC day
+--     is not finalized until the ~03:00 rollup of the *next* day, so between 00:00
+--     and 03:00 UTC yesterday's rollup row still holds only its first ~3 hours;
+--     reading yesterday from raw (retained 14 days) avoids that undercount. These
+--     never read lifetime_events; the event count is recomputed from telemetry_dau
+--     (days before yesterday) + raw.
+--   • Top errors (#4): live from raw within its 7-day window (raw keeps the error
+--     text 14 days). The telemetry_errors rollup (~7-week retention) is only for
+--     error history older than raw.
 --
 -- "Active watch" = >= 20 events in raw AND last_seen >= now() - interval '1 day'.
 -- The watch is watch_key = coalesce(watch_token_hash, account_token_hash). All
@@ -21,10 +27,13 @@
 -- 1. Daily active users (last 30 days).
 -- count(*) = active watches; count(distinct account_token_hash) = active accounts.
 -- telemetry_dau is only rebuilt by the nightly telemetry_rollup_and_prune() cron
--- (~03:00 UTC), so its row for the current UTC day reflects only fetches seen as
--- of that run and understates today until tonight's rollup catches up. Compute
--- today live from the raw, real-time telemetry_weather_fetch table instead;
--- history (finalized days) still comes from telemetry_dau.
+-- (~03:00 UTC), and it does not FINALIZE a given UTC day until the run of the
+-- *next* day: during the 03:00 run on day D it writes D's row from only the ~3
+-- hours seen so far, then finalizes it at 03:00 on D+1. So both the current day
+-- AND yesterday can be understated in telemetry_dau (yesterday until tonight's
+-- rollup catches up). Compute today and yesterday live from the raw, real-time
+-- telemetry_weather_fetch table (retained 14 days) instead; older finalized days
+-- still come from telemetry_dau.
 -- ============================================================
 select
   activity_date as day,
@@ -32,17 +41,18 @@ select
   count(distinct account_token_hash) as active_accounts
 from telemetry_dau
 where activity_date >= (now() at time zone 'UTC')::date - 30
-  and activity_date < (now() at time zone 'UTC')::date
+  and activity_date <  (now() at time zone 'UTC')::date - 1
 group by day
 
 union all
 
 select
-  (now() at time zone 'UTC')::date as day,
+  (received_at at time zone 'UTC')::date as day,
   count(distinct coalesce(watch_token_hash, account_token_hash)) as active_watches,
   count(distinct account_token_hash) as active_accounts
 from telemetry_weather_fetch
-where (received_at at time zone 'UTC')::date = (now() at time zone 'UTC')::date
+where (received_at at time zone 'UTC')::date >= (now() at time zone 'UTC')::date - 1
+group by day
 
 order by day;
 
@@ -71,14 +81,20 @@ group by provider
 order by fetches desc;
 
 -- ============================================================
--- 4. Top errors (telemetry_errors; last 7 days, up to 7 weeks retained)
+-- 4. Top errors (raw telemetry_weather_fetch; last 7 days)
+-- Reads raw, not the telemetry_errors rollup: raw carries the error text and is
+-- retained 14 days (> this 7-day window), so it is live and complete. The
+-- telemetry_errors rollup is only rebuilt at ~03:00 UTC, so it misses today's
+-- failures and (until tonight's rollup) most of yesterday's. Query telemetry_errors
+-- directly only when you need error history older than raw's 14-day retention.
 -- ============================================================
 select
   left(error, 80) as error,
   count(*) as occurrences,
-  count(distinct watch_key) as affected_watches
-from telemetry_errors
-where received_at >= now() - interval '7 days'
+  count(distinct coalesce(watch_token_hash, account_token_hash)) as affected_watches
+from telemetry_weather_fetch
+where not success
+  and received_at >= now() - interval '7 days'
 group by left(error, 80)
 order by occurrences desc
 limit 20;
@@ -214,25 +230,26 @@ order by app_version desc, watches desc;
 --   active  — >= 20 events AND seen within the last day
 --   churned — >= 20 events but last seen is older (was a real user, now gone)
 -- Union: finalized history from telemetry_dau + telemetry_watch (first/last_seen)
--- plus TODAY live from raw, so the split reflects the current day. The event
--- count is recomputed (telemetry_dau days before today + today's raw); it never
--- reads lifetime_events. least()/greatest() ignore NULLs, so a watch missing
--- from either side (e.g. brand-new today, or long-churned and pruned from raw)
--- still gets correct first/last_seen.
+-- plus TODAY AND YESTERDAY live from raw, so the split reflects the current day and
+-- isn't skewed by yesterday's not-yet-finalized rollup row (see #1). The event
+-- count is recomputed (telemetry_dau days before yesterday + raw for yesterday and
+-- today); it never reads lifetime_events. least()/greatest() ignore NULLs, so a
+-- watch missing from either side (e.g. brand-new today, or long-churned and pruned
+-- from raw) still gets correct first/last_seen.
 -- ============================================================
-with today as (
+with recent as (
   select coalesce(watch_token_hash, account_token_hash) as watch_key,
          count(*) as events,
          min(received_at) as first_seen,
          max(received_at) as last_seen
   from telemetry_weather_fetch
-  where (received_at at time zone 'UTC')::date = (now() at time zone 'UTC')::date
+  where (received_at at time zone 'UTC')::date >= (now() at time zone 'UTC')::date - 1
   group by 1
 ),
 hist as (
   select watch_key, sum(fetch_count) as events
   from telemetry_dau
-  where activity_date < (now() at time zone 'UTC')::date
+  where activity_date < (now() at time zone 'UTC')::date - 1
   group by watch_key
 ),
 watch_stats as (
@@ -242,8 +259,8 @@ watch_stats as (
     least(w.first_seen, t.first_seen)               as first_seen,
     greatest(w.last_seen, t.last_seen)              as last_seen
   from telemetry_watch w
-  full outer join hist  h on h.watch_key = w.watch_key
-  full outer join today t on t.watch_key = coalesce(w.watch_key, h.watch_key)
+  full outer join hist   h on h.watch_key = w.watch_key
+  full outer join recent t on t.watch_key = coalesce(w.watch_key, h.watch_key)
 )
 select
   case
@@ -260,21 +277,22 @@ order by watches desc;
 -- ============================================================
 -- 10. Churn tenure — how long churned watches lasted (last_seen - first_seen).
 -- Buckets prefixed 0-6 so they sort in order. Same union as #9 (finalized rollup
--- history + today live from raw; the event count never uses lifetime_events).
+-- history + today AND yesterday live from raw; the event count never uses
+-- lifetime_events).
 -- ============================================================
-with today as (
+with recent as (
   select coalesce(watch_token_hash, account_token_hash) as watch_key,
          count(*) as events,
          min(received_at) as first_seen,
          max(received_at) as last_seen
   from telemetry_weather_fetch
-  where (received_at at time zone 'UTC')::date = (now() at time zone 'UTC')::date
+  where (received_at at time zone 'UTC')::date >= (now() at time zone 'UTC')::date - 1
   group by 1
 ),
 hist as (
   select watch_key, sum(fetch_count) as events
   from telemetry_dau
-  where activity_date < (now() at time zone 'UTC')::date
+  where activity_date < (now() at time zone 'UTC')::date - 1
   group by watch_key
 ),
 watch_stats as (
@@ -284,8 +302,8 @@ watch_stats as (
     least(w.first_seen, t.first_seen)               as first_seen,
     greatest(w.last_seen, t.last_seen)              as last_seen
   from telemetry_watch w
-  full outer join hist  h on h.watch_key = w.watch_key
-  full outer join today t on t.watch_key = coalesce(w.watch_key, h.watch_key)
+  full outer join hist   h on h.watch_key = w.watch_key
+  full outer join recent t on t.watch_key = coalesce(w.watch_key, h.watch_key)
 ),
 churned as (
   select extract(epoch from (last_seen - first_seen)) / 86400.0 as tenure_days
