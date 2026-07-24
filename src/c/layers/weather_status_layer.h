@@ -26,8 +26,6 @@ void weather_status_layer_set_render_tier(uint8_t tier);
 // create forwards into the row and refreshes; identical value is a no-op.
 void weather_status_layer_set_full_date(bool full_date);
 
-// Select the packed weather line rendered by this owner.
-void weather_status_layer_set_line(uint8_t line_id);
-
-// Whether the active packed line contains a live health slot.
+// Whether the active packed line contains a live health slot. The forecast line can hold a
+// live-health slot (e.g. a steps/HR slot placed on the forecast status row).
 bool weather_status_layer_uses_live_health(void);

@@ -4,11 +4,12 @@
 #include "../windows/layout.h"   // LayoutTier
 #include "../appendix/status_line.h"
 
+// Forecast-only owner: its line is fixed to STATUS_LINE_FORECAST. The radar-flavored line
+// now lives in its own owner (radar_status_layer, WW_RAIN_RADAR leaf).
 static Layer *s_weather_status_layer;
 static StatusRow *s_row;
 static uint8_t s_render_tier = LAYOUT_TIER_COMPACT;
 static bool s_full_date;
-static uint8_t s_line_id = STATUS_LINE_FORECAST;
 
 static void weather_status_update_proc(Layer *layer, GContext *ctx) {
     (void)layer;
@@ -18,7 +19,7 @@ static void weather_status_update_proc(Layer *layer, GContext *ctx) {
 static void apply_row(void) {
     if (!s_row || !s_weather_status_layer) { return; }
     GRect bounds = layer_get_bounds(s_weather_status_layer);
-    status_row_apply(s_row, bounds, s_render_tier, s_line_id);
+    status_row_apply(s_row, bounds, s_render_tier, STATUS_LINE_FORECAST);
 }
 
 static void refresh_row(void) {
@@ -32,7 +33,7 @@ void weather_status_layer_create(Layer *parent_layer, GRect frame) {
     s_weather_status_layer = layer_create(frame);
     layer_set_update_proc(s_weather_status_layer, weather_status_update_proc);
     layer_add_child(parent_layer, s_weather_status_layer);
-    s_row = status_row_create(s_line_id);
+    s_row = status_row_create(STATUS_LINE_FORECAST);
     status_row_set_full_date(s_row, s_full_date);
     apply_row();
     weather_status_layer_refresh();
@@ -56,12 +57,6 @@ void weather_status_layer_set_full_date(bool full_date) {
         status_row_set_full_date(s_row, s_full_date);
         refresh_row();
     }
-}
-
-void weather_status_layer_set_line(uint8_t line_id) {
-    if (line_id == s_line_id) { return; }
-    s_line_id = line_id;
-    refresh_row();
 }
 
 bool weather_status_layer_uses_live_health(void) {
