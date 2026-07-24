@@ -851,35 +851,14 @@ module.exports = {
                     compactDense: 'Compact calendar with the Health and Forecast Status Bars shown together.',
                     noCal: 'No calendar — a big forecast. Flick to radar and health.'
                 },
-                // Compact-dense only differs from Compact when a health status row is shown;
-                // with health off the two produce identical cycles, so it's hidden then. A
-                // stored compactDense falls back to the default (compactCal) via the
-                // defaultValue-snap in engine.resolveRowItem. Order stays constant across
-                // modes so toggling health doesn't reshuffle the list.
-                optionsFrom: { byKey: 'healthMode', map: {
-                    off: [
-                        ['Full calendar', 'fullCal'],
-                        ['Compact calendar', 'compactCal'],
-                        ['No calendar', 'noCal']
-                    ],
-                    slot: [
-                        ['Full calendar', 'fullCal'],
-                        ['Compact calendar', 'compactCal'],
-                        ['No calendar', 'noCal']
-                    ],
-                    status: [
-                        ['Full calendar', 'fullCal'],
-                        ['Compact calendar', 'compactCal'],
-                        ['Compact calendar (dense)', 'compactDense'],
-                        ['No calendar', 'noCal']
-                    ],
-                    all: [
-                        ['Full calendar', 'fullCal'],
-                        ['Compact calendar', 'compactCal'],
-                        ['Compact calendar (dense)', 'compactDense'],
-                        ['No calendar', 'noCal']
-                    ]
-                } },
+                // Compact-dense only differs from Compact when a health status row OR the
+                // radar status row is shown; with both off the two produce identical cycles,
+                // so it's hidden then. A stored compactDense falls back to the default
+                // (compactCal) via the defaultValue-snap in engine.resolveRowItem. Order
+                // stays constant (compactDense between compactCal and noCal) so toggling
+                // health/radar doesn't reshuffle the list. See the layoutPresetOptions
+                // resolver in blocks.js.
+                optionsFrom: { resolver: 'layoutPresetOptions' },
                 blockBefore: 'layoutPreviewCombined',
                 blockBeforeSticky: true
             }, {
@@ -890,6 +869,18 @@ module.exports = {
                 hint: 'Automatically return to the default view after the selected time has passed.',
                 options: [['Never', '0'], ['1m', '1'], ['2m', '2'], ['5m', '5'], ['10m', '10']],
                 showWhen: {env: 'platform', ne: 'aplite'}
+            }, {
+                type: 'toggle',
+                messageKey: 'swapClockStatus',
+                label: 'Swap clock and status row',
+                defaultValue: false,
+                hint: 'Move the status row below the clock, next to the forecast.',
+                showWhen: {
+                    all: [
+                        {key: 'layoutPreset', eq: 'compactCal'},
+                        {env: 'platform', ne: 'aplite'}
+                    ]
+                }
             }]
         }]
     }, {

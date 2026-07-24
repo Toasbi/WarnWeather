@@ -5,6 +5,12 @@ const schema = require('../src/pkjs/settings/schema.js');
 const { REGION_OPTIONS } = require('../src/pkjs/settings/holiday-data.js');
 const showWhen = require('../src/pkjs/config-ui/lib/show-when.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
+// Pulled in so PConf.optionsResolvers is populated (blocks.js registers layoutPresetOptions
+// et al.) — needed to resolve layoutPreset's optionsFrom.resolver end-to-end below.
+require('../src/pkjs/config-ui/lib/schema-walk.js');
+require('../src/pkjs/config-ui/lib/color.js');
+require('../src/pkjs/config-ui/lib/engine.js');
+require('../src/pkjs/settings/blocks.js');
 
 function allItems(s) { const out = []; s.tabs.forEach((t) => t.sections.forEach((sec) => sec.items.forEach((it) => out.push(it)))); return out; }
 const items = allItems(schema);
@@ -19,7 +25,7 @@ const EXPECTED_KEYS = [
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','fetchNoticeAck','locationMode','location',
   'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','secondaryLine','secondaryLineFill','windScale','thirdLine',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','rainCountdownHorizon',
-  'layoutPreset','viewResetMin','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear','reset',
+  'layoutPreset','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear','reset',
   'statusForecastLeft','statusForecastLeftCountdown','statusForecastMid','statusForecastMidCountdown','statusForecastRight','statusForecastRightCountdown',
   'statusRadarLeft','statusRadarLeftCountdown','statusRadarMid','statusRadarMidCountdown','statusRadarRight','statusRadarRightCountdown',
   'statusTopLeft','statusTopLeftCountdown','statusTopMid','statusTopMidCountdown','statusTopRight','statusTopRightCountdown',
@@ -462,14 +468,21 @@ test('layoutPreset offers the four adaptive presets', () => {
   assert.ok(t, 'layoutPreset item exists');
   assert.equal(t.type, 'radio');
   assert.equal(t.defaultValue, 'compactCal');
-  // Options derive from healthMode: Compact-dense is hidden when health is off (it only
-  // differs from Compact when a status row shows), present otherwise. Order stays constant
-  // so toggling health doesn't reshuffle the list.
+  // Options derive from the layoutPresetOptions resolver (registered in blocks.js): Compact-dense
+  // is hidden unless health OR radar shows a status row (it only differs from Compact then),
+  // present otherwise. Order stays constant so toggling health/radar doesn't reshuffle the list.
   assert.equal(t.options, undefined, 'options must be derived, not static');
-  assert.equal(t.optionsFrom.byKey, 'healthMode');
-  assert.deepEqual(t.optionsFrom.map.off.map((o) => o[1]), ['fullCal', 'compactCal', 'noCal']);
-  assert.deepEqual(t.optionsFrom.map.status.map((o) => o[1]), ['fullCal', 'compactCal', 'compactDense', 'noCal']);
-  assert.deepEqual(t.optionsFrom.map.all.map((o) => o[1]), ['fullCal', 'compactCal', 'compactDense', 'noCal']);
+  assert.deepEqual(t.optionsFrom, { resolver: 'layoutPresetOptions' });
+  const resolver = global.PConf.optionsResolvers.get(t.optionsFrom.resolver);
+  assert.equal(typeof resolver, 'function', 'layoutPresetOptions resolver registered');
+  const codes = (S) => resolver(S).map((o) => o[1]);
+  assert.deepEqual(codes({ healthMode: 'off', radarMode: 'off' }), ['fullCal', 'compactCal', 'noCal']);
+  assert.deepEqual(codes({ healthMode: 'status', radarMode: 'off' }), ['fullCal', 'compactCal', 'compactDense', 'noCal']);
+  assert.deepEqual(codes({ healthMode: 'all', radarMode: 'off' }), ['fullCal', 'compactCal', 'compactDense', 'noCal']);
+  // compactDense must be reachable from radar alone — even with health off — since the
+  // radar-status row also warrants the dense fold (bug #1/#2 fix; Task 9's whole point).
+  assert.ok(codes({ healthMode: 'off', radarMode: 'status' }).indexOf('compactDense') >= 0,
+    'compactDense offered for radarMode=status even with health off');
   // Lives in the Layout tab, with a sticky combined preview block above it.
   const layout = schema.tabs.find((tab) => tab.id === 'layout');
   assert.ok(layout, 'layout tab exists');
@@ -503,16 +516,37 @@ test('viewResetMin is hidden on aplite and carries its explanation as its own hi
   assert.equal(showWhen.isVisible(reset, aplite), false);
 });
 
-test('Layout tab is one section: combined preview above the preset radio, reset segmented directly below', () => {
+test('swapClockStatus toggle exists, defaults false, and is shown only for compactCal on non-aplite', () => {
+  const it = byKey('swapClockStatus');
+  assert.ok(it, 'swapClockStatus item exists');
+  assert.equal(it.type, 'toggle');
+  assert.equal(it.defaultValue, false);
+  assert.match(it.hint, /status row below the clock/);
+  assert.deepEqual(it.showWhen, {
+    all: [{ key: 'layoutPreset', eq: 'compactCal' }, { env: 'platform', ne: 'aplite' }]
+  });
+  // aplite is forecast-upper-only (lower-band geometry compiled out for size budget) — the
+  // swap must never be offered there, even when layoutPreset happens to read 'compactCal'.
+  const aplite = { env: platform.computeEnv({ platform: 'aplite' }), layoutPreset: 'compactCal' };
+  const basalt = { env: platform.computeEnv({ platform: 'basalt' }), layoutPreset: 'compactCal' };
+  const basaltOtherPreset = { env: platform.computeEnv({ platform: 'basalt' }), layoutPreset: 'fullCal' };
+  assert.equal(showWhen.isVisible(it, aplite), false, 'hidden on aplite regardless of preset');
+  assert.equal(showWhen.isVisible(it, basalt), true, 'shown on basalt when preset is compactCal');
+  assert.equal(showWhen.isVisible(it, basaltOtherPreset), false, 'hidden on basalt for other presets');
+});
+
+test('Layout tab is one section: combined preview above the preset radio, reset segmented then swap toggle below', () => {
   const layout = schema.tabs.find((t) => t.id === 'layout');
   assert.equal(layout.sections.length, 1, 'single Layout section');
   const items = layout.sections[0].items;
   const presetIdx = items.findIndex((i) => i.messageKey === 'layoutPreset');
   const resetIdx = items.findIndex((i) => i.messageKey === 'viewResetMin');
+  const swapIdx = items.findIndex((i) => i.messageKey === 'swapClockStatus');
   assert.ok(presetIdx >= 0, 'layoutPreset present');
   assert.equal(items[presetIdx].blockBefore, 'layoutPreviewCombined', 'combined preview hosted on the preset radio');
   assert.equal(items[presetIdx].blockBeforeSticky, true, 'preview sticky');
   assert.equal(resetIdx, presetIdx + 1, 'viewResetMin sits directly below the preset radio');
+  assert.equal(swapIdx, resetIdx + 1, 'swapClockStatus sits directly below viewResetMin');
 });
 
 test('flick/positioning narrative lives only in the Layout tab, not Health/Radar copy', () => {
