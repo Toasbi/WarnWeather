@@ -43,8 +43,12 @@ ViewSpec view_spec_unpack(uint16_t v) {
     spec.status_lower = (sl == STATUS_SRC_FORECAST) ? STATUS_SRC_FORECAST : STATUS_SRC_NONE;
     uint8_t layout_tier = (tier == 3) ? LAYOUT_TIER_FULL
                         : (tier == 2) ? LAYOUT_TIER_COMPACT : LAYOUT_TIER_NONE;
-    bool two_rows = (spec.status_upper != STATUS_SRC_NONE) && (spec.status_lower != STATUS_SRC_NONE);
-    spec.status_tier = (two_rows && layout_tier == LAYOUT_TIER_COMPACT)
+    // Ported from layout.c: a compact top view promotes to the full font when the full-height
+    // forecast-abutting LOWER band is occupied (two rows, or a lone lower row — both reduce to
+    // "lower present"); a lone UPPER row keeps compact. On aplite view_spec_resolve is a no-op,
+    // so this unpack is the sole tier author.
+    bool lower_present = (spec.status_lower != STATUS_SRC_NONE);
+    spec.status_tier = (lower_present && layout_tier == LAYOUT_TIER_COMPACT)
                        ? LAYOUT_TIER_FULL : layout_tier;
     spec.weights[0] = WEIGHT_CALENDAR;
     spec.weights[1] = WEIGHT_TIME;

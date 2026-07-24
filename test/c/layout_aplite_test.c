@@ -99,6 +99,9 @@ static void geometry_lower_only(void) {
     check("lower_only.bottom",       L.bottom,       0, 117, 144, 51);
     check("lower_only.loading",      L.loading,      0, 117, 144, 51);
     expect("lower_only.weather_status_on", layout_visibility(&s).weather_status, true);
+    // The lone lower row rides the full-height band, so a compact top view renders it at the
+    // full font (tier promoted to FULL) — parity with layout.c's resolve/unpack rule.
+    expect("lower_only.tier_full", s.status_tier == LAYOUT_TIER_FULL, true);
 }
 
 int main(void) {
