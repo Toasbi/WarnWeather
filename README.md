@@ -54,6 +54,8 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 **Layout customization**
 * Multiple layout presets, with flick-to-cycle between views and optional auto-return
+* Dense compact layout shows a Radar or Health status row alongside the forecast on the default view, no flicking needed
+* Swap clock and status row option, moving the status line next to the forecast
 * Light/Dark settings page with grouped, easy-to-browse pickers
 * First-run setup wizard that picks sensible defaults for your country
 
