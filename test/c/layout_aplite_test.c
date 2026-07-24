@@ -65,12 +65,13 @@ static void golden_rects(void) {
 }
 
 static void downgrade_tests(void) {
-    // A dual health-upper + forecast-lower view: on aplite the health row folds to NONE,
-    // the forecast row survives (in the lower band), and the body stays forecast.
+    // A dual health-upper + forecast-lower view reaching the aplite twin (it shouldn't in
+    // practice — the swap toggle is hidden on aplite): health folds to NONE, and the surviving
+    // forecast collapses to the SINGLE upper band (no lower band on aplite). Body stays forecast.
     ViewSpec r = view_spec_resolve(view_spec_unpack(pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST)),
                                    false, false);
-    expect("dual.upper_health_dropped", r.status_upper == STATUS_SRC_NONE, true);
-    expect("dual.lower_forecast_kept", r.status_lower == STATUS_SRC_FORECAST, true);
+    expect("dual.collapses_to_upper_forecast", r.status_upper == STATUS_SRC_FORECAST, true);
+    expect("dual.no_lower_band", r.status_lower == STATUS_SRC_NONE, true);
     expect("dual.body_forecast", r.body == BODY_FORECAST, true);
     // A none-tier health-graph body + health status row -> forecast body, no status.
     r = view_spec_resolve(view_spec_unpack(pack(1, 0, 1, STATUS_SRC_HEALTH, STATUS_SRC_NONE)), false, false);
@@ -88,26 +89,23 @@ static void downgrade_tests(void) {
     expect("vis.none.calendar_off", layout_visibility(&none).calendar, false);
 }
 
-// A forecast-only lower row (no radar/health) — e.g. compactDense's swapped dense view
-// after health folds away on aplite. The upper band collapses; the lower band abuts the
-// forecast, carved off the top of the bottom band exactly as a full-tier dual weather band.
-static void geometry_lower_only(void) {
+// aplite is forecast-UPPER-only: a forecast arriving in the lower wire slot (which the phone
+// never sends to aplite) collapses to the single UPPER band — there is NO lower/forecast-abutting
+// band and NO compact->full tier promotion. Geometry matches the plain compact upper-status view.
+static void geometry_upper_only(void) {
     ViewSpec s = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_NONE, STATUS_SRC_FORECAST));
     MainLayout L = layout_compute_spec(BOUNDS, &s, FC_BAND_H);
-    check("lower_only.status_lower", L.status_lower, 0, 97, 144, 20);
-    check("lower_only.status_zero",  L.status,       0, 46, 144, 0);
-    check("lower_only.bottom",       L.bottom,       0, 117, 144, 51);
-    check("lower_only.loading",      L.loading,      0, 117, 144, 51);
-    expect("lower_only.weather_status_on", layout_visibility(&s).weather_status, true);
-    // The lone lower row rides the full-height band, so a compact top view renders it at the
-    // full font (tier promoted to FULL) — parity with layout.c's resolve/unpack rule.
-    expect("lower_only.tier_full", s.status_tier == LAYOUT_TIER_FULL, true);
+    check("upper_only.status",       L.status,       0, 46, 144, 15);   // == compact upper band
+    check("upper_only.status_lower", L.status_lower, 0, 46, 144, 15);   // mirrors status (no carve)
+    check("upper_only.bottom",       L.bottom,       0, 103, 144, 65);  // == compact bottom (no lower carve)
+    expect("upper_only.weather_status_on", layout_visibility(&s).weather_status, true);
+    expect("upper_only.tier_compact", s.status_tier == LAYOUT_TIER_COMPACT, true);   // no promotion
 }
 
 int main(void) {
     golden_rects();
     downgrade_tests();
-    geometry_lower_only();
+    geometry_upper_only();
     if (s_failures) { printf("%d FAILURES\n", s_failures); return 1; }
     printf("layout_aplite_test: OK\n");
     return 0;
