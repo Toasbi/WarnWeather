@@ -551,7 +551,7 @@ module.exports = {
             items: [{
                 type: 'radio',
                 messageKey: 'healthMode',
-                label: 'Health view (BETA)',
+                label: 'Health view',
                 defaultValue: 'all',
                 hintByValue: {
                     off: 'Health is hidden.',
@@ -559,7 +559,7 @@ module.exports = {
                     status: 'Adds the Health Status Bar — today\'s steps, last night\'s sleep, and current heart rate. Heart rate needs a watch with a heart-rate sensor.',
                     all: 'Also adds a health graph (hourly step bars, a sleep band, and a heart-rate line). Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
                 },
-                options: [['Off', 'off'], ['Status slots only', 'slot'], ['Status bar', 'status'], ['Status + Graph (ALPHA)', 'all']],
+                options: [['Off', 'off'], ['Status slots only', 'slot'], ['Status bar', 'status'], ['Status + Graph (BETA)', 'all']],
                 onChange: 'resetStatusHealth'
             }]
         }]
