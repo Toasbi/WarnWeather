@@ -233,7 +233,7 @@ module.exports = {
                 messageKey: 'gpsCacheMin',
                 label: 'GPS cache',
                 defaultValue: '30',
-                joinPrevious: true,
+                joinPrevious: 'loose',
                 optionsFrom: {interval: 'fetchIntervalMin', ladder: [30, 60, 120, 360, 720, 1440]},
                 showWhen: {key: 'locationMode', eq: 'gps'},
                 hint: 'How long a GPS fix is reused before re-acquiring. Longer saves battery; shorter keeps your location fresher on the move. The lowest value matches your update interval.'
@@ -730,7 +730,7 @@ module.exports = {
                     messageKey: 'btIcons',
                     label: 'Show icon for bluetooth',
                     defaultValue: 'disconnected',
-                    joinPrevious: true,
+                    joinPrevious: 'loose',
                     options: [['Disconnected', 'disconnected'], ['Connected', 'connected'], ['Both', 'both'], ['None', 'none']]
                 }
             ]
@@ -812,7 +812,7 @@ module.exports = {
                 capabilities: ['COLOR'],
                 // Black is the "no highlight" appearance in the light theme instead.
                 excludeColors: ['#000000'],
-                joinPrevious: true,
+                joinPrevious: 'loose',
                 showWhen: {all: [{key: 'holidaysEnabled', eq: true}, {key: 'theme', eq: 'light'}]}
             }, {
                 type: 'searchSelect',

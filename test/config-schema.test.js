@@ -809,10 +809,10 @@ test('watch status-bar icon controls live in the Watch Status Bar section, not M
     'vibe sits directly below showQt');
   assert.ok(stripKeys.indexOf('vibe') < stripKeys.indexOf('btIcons'),
     'btIcons comes last');
-  // The two bluetooth settings group together: btIcons joins vibe (no divider between them),
-  // while a divider stays between showQt and vibe.
+  // The two bluetooth settings group together: btIcons joins vibe loosely (no divider between
+  // them, but normal padding), while a divider stays between showQt and vibe.
   assert.ok(!byKey('vibe').joinPrevious, 'vibe keeps its divider under showQt');
-  assert.equal(byKey('btIcons').joinPrevious, true, 'btIcons joins vibe as one visual group');
+  assert.equal(byKey('btIcons').joinPrevious, 'loose', 'btIcons joins vibe as one visual group');
 });
 
 test('batteryLowOnly toggle lives in Watch Status Bar, on by default', () => {
