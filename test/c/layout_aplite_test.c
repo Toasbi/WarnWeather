@@ -88,9 +88,23 @@ static void downgrade_tests(void) {
     expect("vis.none.calendar_off", layout_visibility(&none).calendar, false);
 }
 
+// A forecast-only lower row (no radar/health) — e.g. compactDense's swapped dense view
+// after health folds away on aplite. The upper band collapses; the lower band abuts the
+// forecast, carved off the top of the bottom band exactly as a full-tier dual weather band.
+static void geometry_lower_only(void) {
+    ViewSpec s = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_NONE, STATUS_SRC_FORECAST));
+    MainLayout L = layout_compute_spec(BOUNDS, &s, FC_BAND_H);
+    check("lower_only.status_lower", L.status_lower, 0, 97, 144, 20);
+    check("lower_only.status_zero",  L.status,       0, 46, 144, 0);
+    check("lower_only.bottom",       L.bottom,       0, 117, 144, 51);
+    check("lower_only.loading",      L.loading,      0, 117, 144, 51);
+    expect("lower_only.weather_status_on", layout_visibility(&s).weather_status, true);
+}
+
 int main(void) {
     golden_rects();
     downgrade_tests();
+    geometry_lower_only();
     if (s_failures) { printf("%d FAILURES\n", s_failures); return 1; }
     printf("layout_aplite_test: OK\n");
     return 0;

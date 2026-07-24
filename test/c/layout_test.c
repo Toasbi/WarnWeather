@@ -329,6 +329,33 @@ static void radar_placement_tests(void) {
 #endif
 }
 
+// Brief Task 4: per-field band geometry. Relationship (not magic-pixel) assertions on a
+// fixed 144x168 reference with fc_band_h 14 (== WEATHER_STATUS_HEIGHT, so a carved lower
+// band exactly fills its reserved slot) — the relationships hold on both platform compiles.
+static void test_geometry_lower_only(void) {
+    // compactCal + swap: forecast in the lower band, upper empty.
+    ViewSpec s = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_NONE, STATUS_SRC_FORECAST));
+    MainLayout L = layout_compute_spec(GRect(0, 0, 144, 168), &s, 14 /*fc_band_h*/);
+    // lower band sits below the clock and abuts the forecast body top.
+    expect("geometry_lower_only.below_clock",
+           L.status_lower.origin.y >= L.time.origin.y + L.time.size.h, true);
+    expect("geometry_lower_only.abuts_forecast",
+           L.status_lower.origin.y + L.status_lower.size.h <= L.bottom.origin.y + 1, true);
+    expect("geometry_lower_only.has_height", L.status_lower.size.h > 0, true);
+    expect("geometry_lower_only.upper_collapsed", L.status.size.h == 0, true);
+    printf("geometry_lower_only OK\n");
+}
+
+static void test_geometry_two_rows(void) {
+    // radar upper + forecast lower.
+    ViewSpec s = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_RADAR, STATUS_SRC_FORECAST));
+    MainLayout L = layout_compute_spec(GRect(0, 0, 144, 168), &s, 14);
+    expect("geometry_two_rows.both_heights", L.status.size.h > 0 && L.status_lower.size.h > 0, true);
+    expect("geometry_two_rows.upper_above_clock", L.status.origin.y < L.time.origin.y, true);
+    expect("geometry_two_rows.lower_below_clock", L.status_lower.origin.y > L.time.origin.y, true);
+    printf("geometry_two_rows OK\n");
+}
+
 // Cursor cycle bytes. The cursor API (view_slot_available / view_cursor_*) still takes a
 // uint8_t slot while config.view_spec stays uint8_t (the wire/persist widening to the full
 // 10-bit value is the next task). Cursor availability depends only on top/body/statusUpper/
@@ -438,6 +465,8 @@ int main(int argc, char **argv) {
     if (!s_dump) view_cursor_tests();
     if (!s_dump) view_timer_tests();
     if (!s_dump) radar_placement_tests();
+    if (!s_dump) test_geometry_lower_only();
+    if (!s_dump) test_geometry_two_rows();
     if (s_dump) return 0;
     if (s_failures) { printf("%d golden-rect failure(s)\n", s_failures); return 1; }
     printf("layout golden rects OK%s\n",

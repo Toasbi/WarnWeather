@@ -76,8 +76,10 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
                  : (spec->calendar_rows == 2) ? LAYOUT_TIER_COMPACT
                  : LAYOUT_TIER_FULL;
     bool compact = (tier != LAYOUT_TIER_FULL);
-    bool has_status = (spec->status_upper != STATUS_SRC_NONE)
-                   || (spec->status_lower != STATUS_SRC_NONE);
+    bool upper = (spec->status_upper != STATUS_SRC_NONE);
+    bool lower = (spec->status_lower != STATUS_SRC_NONE);
+    bool two_rows = upper && lower;
+    bool has_status = upper || lower;
     int w = bounds.size.w;
     int h = bounds.size.h;
     MainLayout L;
@@ -113,8 +115,8 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
                                  : (time_y + time_h + (has_status ? WEATHER_STATUS_HEIGHT : 0));
         int status_h = compact ? (calendar_h / 3) : fc_band_h;
         int status_y = compact ? (calendar_y + cal_h) : (forecast_y - fc_band_h);
-        // aplite is never dual, so the single-status nudge always applies in compact.
-        if (compact) { status_y += COMPACT_SINGLE_STATUS_NUDGE; }
+        // Single upper-row compact: drop the lone band toward the clock below it.
+        if (compact && !two_rows) { status_y += COMPACT_SINGLE_STATUS_NUDGE; }
         L.top = GRect(content_x, calendar_y, content_w, cal_h);
         L.status = GRect(content_x, status_y, content_w, status_h);
         L.time = GRect(content_x, time_y, content_w, time_h);
@@ -126,6 +128,26 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
                     h - LAYOUT_PAD_BOTTOM - full_loading_top);
         L.radar = L.top;
     }
+    // The lower band is the forecast-abutting slot, carved from the top of the bottom band
+    // independently of the upper band (a forecast-only lower row, e.g. compactDense's swapped
+    // dense view after health folds away). Ported from layout.c; aplite has no health/radar.
     L.status_lower = L.status;
+    if (lower) {
+        if (tier == LAYOUT_TIER_NONE) {
+            L.status_lower = GRect(L.bottom.origin.x, L.bottom.origin.y,
+                                   L.bottom.size.w, NONE_STATUS_HEIGHT);
+            L.bottom.origin.y += NONE_STATUS_HEIGHT;
+            L.bottom.size.h -= NONE_STATUS_HEIGHT;
+            L.radar = L.bottom;
+        } else {
+            int forecast_top = L.bottom.origin.y + WEATHER_STATUS_HEIGHT;
+            L.status_lower = GRect(L.bottom.origin.x, forecast_top - fc_band_h,
+                                   L.bottom.size.w, fc_band_h);
+            L.bottom.origin.y = forecast_top;
+            L.bottom.size.h -= WEATHER_STATUS_HEIGHT;
+        }
+        L.loading = L.bottom;
+    }
+    if (!upper) { L.status.size.h = 0; }   // upper band absent: collapse it (origin kept)
     return L;
 }

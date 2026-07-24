@@ -48,15 +48,19 @@ static void split_content(int content_h, const uint8_t weights[3],
 }
 
 // Single source of truth for the vertical band geometry, both platforms, all modes.
-// Full: status band abuts the forecast, sized from the font (fc_band_h), bottom pinned
-// to the forecast top. Compact: calendar drops to 2 rows, the status band takes the
-// freed 3rd-row slot, the bottom band grows up to the fixed time band. None: no
-// calendar, time rises under the strip, a taller status band beneath it, the bottom
-// band (which also hosts the radar) fills the rest.
-static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool dual,
-                                       bool has_status, int fc_band_h,
+// Each status band is carved from its own field: `upper` (L.status) and `lower`
+// (L.status_lower). Full: the upper band abuts the forecast, sized from the font
+// (fc_band_h), bottom pinned to the forecast top. Compact: calendar drops to 2 rows, the
+// upper band takes the freed 3rd-row slot, the bottom band grows up to the fixed time band.
+// None: no calendar, time rises under the strip, a taller upper band beneath it, the bottom
+// band (which also hosts the radar) fills the rest. The lower band is carved from the top of
+// the bottom band (the forecast-abutting slot), independently of the upper band.
+static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool upper,
+                                       bool lower, int fc_band_h,
                                        const uint8_t weights[3]) {
     bool compact = (tier != LAYOUT_TIER_FULL);
+    bool two_rows = upper && lower;
+    bool has_status = upper || lower;
     int w = bounds.size.w;
     int h = bounds.size.h;
     MainLayout L;
@@ -101,8 +105,8 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool dual,
         // band drops into the freed 3rd calendar row and abuts the calendar.
         int status_h = compact ? (calendar_h / 3) : fc_band_h;
         int status_y = compact ? (calendar_y + cal_h) : (forecast_y - fc_band_h);
-        // Single-status compact: drop the lone band toward the clock just below it.
-        if (compact && !dual) { status_y += COMPACT_SINGLE_STATUS_NUDGE; }
+        // Single-status compact: drop the lone upper band toward the clock just below it.
+        if (compact && !two_rows) { status_y += COMPACT_SINGLE_STATUS_NUDGE; }
 
         L.top = GRect(content_x, calendar_y, content_w, cal_h);
         L.status = GRect(content_x, status_y, content_w, status_h);
@@ -119,25 +123,24 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool dual,
         L.radar = L.top;                                 // radar shares the calendar frame
     }
 
-    // Dual status: health keeps L.status; carve a weather band (L.status_lower) from
-    // the top of the bottom band and shrink it. dual is only ever true in compact/none
-    // (never full) — no named view pairs STATUS_ROW_DUAL with a full-tier calendar (see
-    // the preset matrix in src/pkjs/view-cycle.js).
+    // The lower band (L.status_lower) is the forecast-abutting slot, carved from the top of
+    // the bottom band independently of the upper band. Gated on `lower` (not health-specific)
+    // so a forecast-only lower row works on aplite too — health-source rows are gated at the
+    // layer level (main_window) behind PBL_HEALTH, so aplite never assigns a health row here.
     L.status_lower = L.status;
-#if defined(PBL_HEALTH)
-    if (dual) {
+    if (lower) {
         if (tier == LAYOUT_TIER_NONE) {
-            // none: carve a full-height weather band off the top of the bottom band.
+            // none: carve a full-height band off the top of the bottom band.
             L.status_lower = GRect(L.bottom.origin.x, L.bottom.origin.y,
                                    L.bottom.size.w, NONE_STATUS_HEIGHT);
             L.bottom.origin.y += NONE_STATUS_HEIGHT;
             L.bottom.size.h -= NONE_STATUS_HEIGHT;
             L.radar = L.bottom;
         } else {
-            // compact: the weather row rides the SAME forecast-abutting band as full mode,
-            // so the line lands identically whether the top view is full or compact. The
-            // forecast gives up WEATHER_STATUS_HEIGHT from its top while the taller
-            // fc_band_h band sits with its bottom on that forecast top.
+            // compact/full: the lower row rides the forecast-abutting band, so the line lands
+            // identically whether the top view is full or compact. The forecast gives up
+            // WEATHER_STATUS_HEIGHT from its top while the taller fc_band_h band sits with its
+            // bottom on that forecast top.
             int forecast_top = L.bottom.origin.y + WEATHER_STATUS_HEIGHT;
             L.status_lower = GRect(L.bottom.origin.x, forecast_top - fc_band_h,
                                    L.bottom.size.w, fc_band_h);
@@ -146,7 +149,7 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool dual,
         }
         L.loading = L.bottom;
     }
-#endif
+    if (!upper) { L.status.size.h = 0; }   // upper band absent: collapse it (origin kept)
     return L;
 }
 
@@ -267,8 +270,7 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
                  : LAYOUT_TIER_FULL;
     bool upper = (spec->status_upper != STATUS_SRC_NONE);
     bool lower = (spec->status_lower != STATUS_SRC_NONE);
-    MainLayout L = compute_with_weights(bounds, tier, upper && lower,
-                                        upper || lower, fc_band_h, spec->weights);
+    MainLayout L = compute_with_weights(bounds, tier, upper, lower, fc_band_h, spec->weights);
     // Radar rides wherever it's placed: the top band when it replaces the calendar,
     // otherwise the body band (under a retained calendar, or full-screen in none tier).
     if (spec->top == TOP_BAND_RADAR) {
