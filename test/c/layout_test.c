@@ -29,15 +29,23 @@ static void check(const char *name, GRect got, int x, int y, int w, int h) {
 #define FC_BAND_H 20
 #endif
 
-// Golden-test shim for the retired layout_compute() production wrapper: geometry
-// for a plain calendar+forecast view at the given tier, built from the packed
-// wire byte (tier<<6 | top<<4 | body<<2 | status) so the default weights and
-// has_status=true come from view_spec_unpack, exactly as the wrapper did.
-static MainLayout layout_compute(GRect bounds, uint8_t tier, bool dual, int fc_band_h) {
+// Pack a 10-bit wire value, mirroring view-cycle.js packSpec():
+// tier<<8 | top<<6 | body<<4 | statusUpper<<2 | statusLower.
+static uint16_t pack(int tier, int top, int body, int su, int sl) {
+    return (uint16_t)(((tier & 3) << 8) | ((top & 3) << 6) | ((body & 3) << 4)
+                    | ((su & 3) << 2) | (sl & 3));
+}
+
+// Golden-test shim for the retired layout_compute() production wrapper: geometry for a
+// plain calendar+forecast view at the given tier. `two_rows` picks a single upper forecast
+// row (default views) or the dual health-upper + forecast-lower stack, matching the named
+// view constants in src/pkjs/view-cycle.js.
+static MainLayout layout_compute(GRect bounds, uint8_t tier, bool two_rows, int fc_band_h) {
     uint8_t wire_tier = (tier == LAYOUT_TIER_FULL) ? 3
                       : (tier == LAYOUT_TIER_COMPACT) ? 2 : 1;
-    uint8_t status = dual ? 2 : 0;   // wire STATUS_ROW_DUAL / STATUS_ROW_WEATHER
-    ViewSpec spec = view_spec_unpack((uint8_t)((wire_tier << 6) | (1 << 4) | status));
+    int su = two_rows ? STATUS_SRC_HEALTH : STATUS_SRC_FORECAST;
+    int sl = two_rows ? STATUS_SRC_FORECAST : STATUS_SRC_NONE;
+    ViewSpec spec = view_spec_unpack(pack(wire_tier, 1, 0, su, sl));
     return layout_compute_spec(bounds, &spec, fc_band_h);
 }
 
@@ -141,69 +149,96 @@ static void expect(const char *name, bool got, bool want) {
     if (got != want) { printf("FAIL %s: got %d want %d\n", name, got, want); s_failures++; }
 }
 
+// Brief Task 3: positional unpack + visibility.
+static void test_unpack_positional(void) {
+    ViewSpec s = view_spec_unpack(pack(2 /*compact*/, 1 /*cal*/, 0 /*fc*/,
+                                       STATUS_SRC_RADAR, STATUS_SRC_FORECAST));
+    expect("unpack_positional.rows", s.calendar_rows == 2, true);
+    expect("unpack_positional.su", s.status_upper == STATUS_SRC_RADAR, true);
+    expect("unpack_positional.sl", s.status_lower == STATUS_SRC_FORECAST, true);
+    LayerVisibility v = layout_visibility(&s);
+    expect("unpack_positional.vis", v.radar_status && v.weather_status && !v.health_status, true);
+    printf("unpack_positional OK\n");
+}
+
+// Brief Task 3: per-band availability downgrades.
+static void test_resolve_no_health_no_radar(void) {
+    // health+forecast dense, but neither capability -> both fall back sanely.
+    ViewSpec s = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST));
+    ViewSpec r = view_spec_resolve(s, /*has_radar*/false, /*has_health*/false);
+    expect("resolve_nhnr.health_dropped", r.status_upper == STATUS_SRC_NONE, true);
+    expect("resolve_nhnr.forecast_kept", r.status_lower == STATUS_SRC_FORECAST, true);
+    // radar row without radar data collapses to none.
+    ViewSpec s2 = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_RADAR, STATUS_SRC_FORECAST));
+    ViewSpec r2 = view_spec_resolve(s2, false, true);
+    expect("resolve_nhnr.radar_dropped", r2.status_upper == STATUS_SRC_NONE, true);
+    expect("resolve_nhnr.radar_forecast_kept", r2.status_lower == STATUS_SRC_FORECAST, true);
+    printf("resolve_no_health_no_radar OK\n");
+}
+
 static void viewspec_tests(void) {
-    // Packed-byte decode. Byte format: tier<<6 | top<<4 | body<<2 | status. The wire
-    // `top` field uses EMPTY=0, CALENDAR=1, RADAR=2 (see src/pkjs/view-cycle.js);
-    // view_spec_unpack translates it to the C TopBand enum.
-    ViewSpec u = view_spec_unpack(0x90);   // CAL2·FC·W (wire tier=2,top=1(CAL),body=0,status=0)
+    // Packed 10-bit decode: tier<<8 | top<<6 | body<<4 | statusUpper<<2 | statusLower.
+    // The wire `top` field uses EMPTY=0, CALENDAR=1, RADAR=2 (see src/pkjs/view-cycle.js);
+    // view_spec_unpack translates it to the C TopBand enum. su/sl are StatusSource values.
+    ViewSpec u = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE)); // CAL2 forecast-upper
     expect("unpack.cal2.rows", u.calendar_rows == 2, true);
     expect("unpack.cal2.top", u.top == TOP_BAND_CALENDAR, true);
     expect("unpack.cal2.body", u.body == BODY_FORECAST, true);
-    expect("unpack.cal2.status", u.status == STATUS_ROW_WEATHER, true);
+    expect("unpack.cal2.su", u.status_upper == STATUS_SRC_FORECAST, true);
+    expect("unpack.cal2.sl", u.status_lower == STATUS_SRC_NONE, true);
 
-    u = view_spec_unpack(0xE3);            // RDR·FC·— : FULL, top=2(RADAR), body=0(FC), status=3(NONE)
+    u = view_spec_unpack(pack(3, 2, 0, STATUS_SRC_NONE, STATUS_SRC_NONE));  // radar-top, statusless
     expect("unpack.rdrtop.rows", u.calendar_rows == 3, true);
     expect("unpack.rdrtop.top", u.top == TOP_BAND_RADAR, true);
     expect("unpack.rdrtop.body", u.body == BODY_FORECAST, true);
-    expect("unpack.rdrtop.status", u.status == STATUS_ROW_NONE, true);
     LayerVisibility vn = layout_visibility(&u);
     expect("rdrtop.radar_visible", vn.radar, true);
     expect("rdrtop.calendar_hidden", vn.calendar, false);
     expect("rdrtop.forecast_visible", vn.forecast, true);
-    expect("rdrtop.no_status", vn.weather_status || vn.health_status, false);
+    expect("rdrtop.no_status", vn.weather_status || vn.radar_status || vn.health_status, false);
 
-    u = view_spec_unpack(0x92);            // CAL2·FC·D — dual promotes status tier to FULL
-    expect("unpack.dual.status", u.status == STATUS_ROW_DUAL, true);
+    // Dual (health upper + forecast lower) under a compact top view promotes the tier to FULL.
+    u = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST));
+    expect("unpack.dual.su", u.status_upper == STATUS_SRC_HEALTH, true);
+    expect("unpack.dual.sl", u.status_lower == STATUS_SRC_FORECAST, true);
     expect("unpack.dual.tier_full", u.status_tier == LAYOUT_TIER_FULL, true);
 
-    expect("unpack.off_tier", view_spec_unpack(0x00).calendar_rows == 0, true);
+    expect("unpack.off_tier", view_spec_unpack(0).calendar_rows == 0, true);
 
-    // Availability resolve. has_health=false must make aplite/health-off safe.
-    ViewSpec r = view_spec_resolve(view_spec_unpack(0x92), true, false);  // CAL2·FC·D
-    expect("resolve.nohealth.dual_to_weather", r.status == STATUS_ROW_WEATHER, true);
-    // The dual->weather downgrade must also recompute status_tier: the original 0x92
-    // unpack promotes to FULL (dual-in-compact), but once status is no longer dual the
-    // band geometry (layout_compute_spec) treats it as a plain compact single-status
-    // band, so status_tier must follow it back down to COMPACT or the status text
-    // renders with FULL-tier fonts inside a COMPACT-sized band.
-    ViewSpec r2 = view_spec_resolve(view_spec_unpack(0x92), true, false);  // CAL2·FC·D, no health
-    expect("resolve.nohealth.tier_downgraded", r2.status_tier == LAYOUT_TIER_COMPACT, true);
-    r = view_spec_resolve(view_spec_unpack(0x45), true, false);            // NONE·GRAPH·H
+    // Availability resolve. A dropped upper leaves the lower where it is, and the tier
+    // follows the surviving row count back down (a promoted compact dual -> plain compact).
+    ViewSpec r = view_spec_resolve(view_spec_unpack(pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST)),
+                                   true, false);
+    expect("resolve.nohealth.upper_dropped", r.status_upper == STATUS_SRC_NONE, true);
+    expect("resolve.nohealth.lower_kept", r.status_lower == STATUS_SRC_FORECAST, true);
+    expect("resolve.nohealth.tier_downgraded", r.status_tier == LAYOUT_TIER_COMPACT, true);
+    r = view_spec_resolve(view_spec_unpack(pack(1, 0, 1, STATUS_SRC_HEALTH, STATUS_SRC_NONE)),
+                          true, false);   // NONE tier, health graph body + health upper
     expect("resolve.nohealth.graph_to_forecast", r.body == BODY_FORECAST, true);
-    expect("resolve.nohealth.health_to_weather", r.status == STATUS_ROW_WEATHER, true);
+    expect("resolve.nohealth.health_status_dropped", r.status_upper == STATUS_SRC_NONE, true);
 
-    // Radar-in-body under a calendar stays radar WHEN data present (new behaviour).
-    r = view_spec_resolve(view_spec_unpack(0x98), true, true);             // CAL2·RDR·W
+    // Radar-in-body under a calendar stays radar WHEN data present.
+    r = view_spec_resolve(view_spec_unpack(pack(2, 1, 2, STATUS_SRC_RADAR, STATUS_SRC_NONE)), true, true);
     expect("resolve.radar_body_with_cal_ok", r.body == BODY_RADAR, true);
-    r = view_spec_resolve(view_spec_unpack(0x98), false, true);            // no radar data
+    r = view_spec_resolve(view_spec_unpack(pack(2, 1, 2, STATUS_SRC_RADAR, STATUS_SRC_NONE)), false, true);
     expect("resolve.radar_body_fallback", r.body == BODY_FORECAST, true);
+    expect("resolve.radar_body_status_dropped", r.status_upper == STATUS_SRC_NONE, true);
 
     // Radar-in-top without data falls back to a calendar top band.
-    r = view_spec_resolve(view_spec_unpack(0xE0), false, true);            // RDR·FC·W
+    r = view_spec_resolve(view_spec_unpack(pack(3, 2, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE)), false, true);
     expect("resolve.radar_top_fallback", r.top == TOP_BAND_CALENDAR, true);
 
-    // BODY_RADAR_STATUS (wire body 3): radar status line + forecast body, no chart.
-    ViewSpec rs = view_spec_unpack(0x9C);   // CAL2·RDR_STATUS·W
-    expect("rdrstat.body_is_radar_status", rs.body == BODY_RADAR_STATUS, true);
+    // Radar status row on a forecast body (the retired BODY_RADAR_STATUS, now positional):
+    // radar row upper + forecast row lower, forecast graph in the body.
+    ViewSpec rs = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_RADAR, STATUS_SRC_FORECAST));
     LayerVisibility vrs = layout_visibility(&rs);
-    expect("rdrstat.radar_hidden",   vrs.radar,    false);
+    expect("rdrstat.radar_body_hidden", vrs.radar, false);   // no radar top/body band
     expect("rdrstat.forecast_shown", vrs.forecast, true);
-    ViewSpec rsk = view_spec_resolve(rs, true, false);
-    expect("rdrstat.keep_with_data",   rsk.body == BODY_RADAR_STATUS, true);
-    ViewSpec rsn = view_spec_resolve(rs, false, false);
-    expect("rdrstat.fallback_no_data", rsn.body == BODY_FORECAST, true);
-    expect("rdrstat.slot_needs_radar", view_slot_available(0x9C, false, false), false);
-    expect("rdrstat.slot_ok_with_data", view_slot_available(0x9C, true, false), true);
+    expect("rdrstat.radar_status_on", vrs.radar_status, true);
+    expect("rdrstat.weather_status_on", vrs.weather_status, true);
+    ViewSpec rsn = view_spec_resolve(rs, false, false);      // no radar data
+    expect("rdrstat.no_radar_upper_none", rsn.status_upper == STATUS_SRC_NONE, true);
+    expect("rdrstat.no_radar_lower_fc", rsn.status_lower == STATUS_SRC_FORECAST, true);
 }
 
 static void peek_tests(void) {
@@ -211,7 +246,7 @@ static void peek_tests(void) {
     // a Timeline Quick View overlay. Date strip stays at top, then clock, status, body.
     // Start from a full-cal forecast+weather view; peek ignores top/calendar. Visibility:
     // calendar hidden (top emptied), forecast + weather status still on.
-    ViewSpec s = view_spec_unpack(0xD0);   // CAL3·FC·W
+    ViewSpec s = view_spec_unpack(pack(3, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE));   // CAL3 forecast
     s.top = TOP_BAND_EMPTY; s.calendar_rows = 0; s.status_tier = LAYOUT_TIER_FULL;
     LayerVisibility v = layout_visibility(&s);
     expect("peek.calendar_hidden",        v.calendar, false);
@@ -237,15 +272,16 @@ static void peek_tests(void) {
 #endif
 
     // A statusless view: clock + body only, status band collapses to zero height.
-    ViewSpec sn = view_spec_unpack(0xD0);
-    sn.top = TOP_BAND_EMPTY; sn.calendar_rows = 0; sn.status = STATUS_ROW_NONE;
+    ViewSpec sn = view_spec_unpack(pack(3, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE));
+    sn.top = TOP_BAND_EMPTY; sn.calendar_rows = 0;
+    sn.status_upper = STATUS_SRC_NONE; sn.status_lower = STATUS_SRC_NONE;
     MainLayout Ln = layout_compute_peek(clear, &sn, FC_BAND_H);
     expect("peekNone.status_zero_h", Ln.status.size.h == 0, true);
     expect("peekNone.body_fills",    Ln.bottom.size.h > L.bottom.size.h, true);
 
     // DUAL status stacks two bands between the clock and the body — health on L.status
     // (upper) above weather on L.status_lower (lower), the order render_active_view maps.
-    ViewSpec sd = view_spec_unpack(0x92);   // dual status
+    ViewSpec sd = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST));   // dual
     sd.top = TOP_BAND_EMPTY; sd.calendar_rows = 0; sd.status_tier = LAYOUT_TIER_FULL;
     LayerVisibility vd = layout_visibility(&sd);
     expect("peekDual.both_status", vd.weather_status && vd.health_status, true);
@@ -267,21 +303,25 @@ static void peek_tests(void) {
 
 static void radar_placement_tests(void) {
 #ifndef PBL_PLATFORM_EMERY
-    ViewSpec s = view_spec_unpack(0x98);   // CAL2·RDR·W — radar in body under 2-row cal
+    // radar in body under a 2-row calendar, radar status row (upper).
+    ViewSpec s = view_spec_unpack(pack(2, 1, 2, STATUS_SRC_RADAR, STATUS_SRC_NONE));
     MainLayout L = layout_compute_spec(BOUNDS, &s, FC_BAND_H);
     check("cal2radar.radar", L.radar, 0, 103, 144, 65);   // == compact L.bottom
     check("cal2radar.top",   L.top,   0, 13, 144, 30);    // 2-row calendar band intact
 
-    s = view_spec_unpack(0xD8);            // CAL3·RDR·W — radar in body under 3-row cal
+    // radar in body under a 3-row calendar.
+    s = view_spec_unpack(pack(3, 1, 2, STATUS_SRC_RADAR, STATUS_SRC_NONE));
     L = layout_compute_spec(BOUNDS, &s, FC_BAND_H);
     check("cal3radar.radar", L.radar, 0, 117, 144, 51);   // == full L.bottom
 
-    s = view_spec_unpack(0xE0);            // RDR·FC·W — radar in top, forecast in body
+    // radar in top, forecast in body, forecast status row (upper).
+    s = view_spec_unpack(pack(3, 2, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE));
     L = layout_compute_spec(BOUNDS, &s, FC_BAND_H);
     check("rdrtop.radar", L.radar, 0, 13, 144, 45);       // == full L.top
     check("rdrtop.bottom", L.bottom, 0, 117, 144, 51);    // status band present → squeezed forecast
 
-    s = view_spec_unpack(0xE3);            // RDR·FC·NONE — statusless radar-top forecast flick
+    // statusless radar-top forecast flick.
+    s = view_spec_unpack(pack(3, 2, 0, STATUS_SRC_NONE, STATUS_SRC_NONE));
     L = layout_compute_spec(BOUNDS, &s, FC_BAND_H);
     check("rdrtopNone.radar",  L.radar,  0, 13, 144, 45);   // radar keeps the full top band
     check("rdrtopNone.bottom", L.bottom, 0, 103, 144, 65);  // no status row → forecast == compact tier
@@ -289,16 +329,21 @@ static void radar_placement_tests(void) {
 #endif
 }
 
-// Packed cycle bytes (tier<<6 | top<<4 | body<<2 | status; wire top: EMPTY0/CAL1/RADAR2).
-#define B_CAL3_FC_W   0xD0   // full, calendar, forecast, weather
-#define B_CAL3_RDR_W  0xD8   // full, calendar, radar-body, weather
-#define B_CAL2_FC_W   0x90   // compact, calendar, forecast, weather
-#define B_CAL2_FC_H   0x91   // compact, calendar, forecast, health
-#define B_CAL2_RDR_W  0x98   // compact, calendar, radar-body, weather
-#define B_RDR_FC_NONE 0xE3   // full, radar-top, forecast, no status
-#define B_NONE_FC_W   0x40   // none, forecast, weather
-#define B_NONE_GRAPH_H 0x45  // none, health graph, health status
-#define B_NONE_RDR_W  0x48   // none, radar-body, weather
+// Cursor cycle bytes. The cursor API (view_slot_available / view_cursor_*) still takes a
+// uint8_t slot while config.view_spec stays uint8_t (the wire/persist widening to the full
+// 10-bit value is the next task). Cursor availability depends only on top/body/statusUpper/
+// statusLower — all in the low 8 bits — so these low-byte encodings (tier bits, 8-9,
+// dropped) exercise the wrap + availability logic faithfully.
+// Low byte: top<<6 | body<<4 | statusUpper<<2 | statusLower (wire top: EMPTY0/CAL1/RADAR2).
+#define B_CAL3_FC_W   0x44   // calendar, forecast body, forecast-upper
+#define B_CAL3_RDR_W  0x68   // calendar, radar body, radar-upper
+#define B_CAL2_FC_W   0x44   // calendar, forecast body, forecast-upper (tier differs, low byte same)
+#define B_CAL2_FC_H   0x4C   // calendar, forecast body, health-upper
+#define B_CAL2_RDR_W  0x68   // calendar, radar body, radar-upper
+#define B_RDR_FC_NONE 0x80   // radar-top, forecast body, no status
+#define B_NONE_FC_W   0x04   // empty top, forecast body, forecast-upper
+#define B_NONE_GRAPH_H 0x1C  // empty top, health-graph body, health-upper
+#define B_NONE_RDR_W  0x28   // empty top, radar body, radar-upper
 
 static void view_cursor_tests(void) {
     // ── The reported bug: live settings change after a flick ──────────────────
@@ -353,6 +398,11 @@ static void view_cursor_tests(void) {
     expect("next.2slot.1to0", view_cursor_next(1, fullCalRadar, true, true) == 0, true);
     uint8_t oneSlot[3] = { B_CAL3_FC_W, 0x00, 0x00 };
     expect("next.1slot.stays0", view_cursor_next(0, oneSlot, true, true) == 0, true);
+
+    // A radar-status slot (radar row on a forecast body) needs radar data to be a stop.
+    // Low byte: calendar top | forecast body | radar-upper | forecast-lower = 0x49.
+    expect("slot.radar_status_needs_radar", view_slot_available(0x49, false, true), false);
+    expect("slot.radar_status_ok_with_data", view_slot_available(0x49, true, true), true);
 }
 
 static void view_timer_tests(void) {
@@ -381,6 +431,8 @@ static void view_timer_tests(void) {
 int main(int argc, char **argv) {
     s_dump = (argc > 1 && strcmp(argv[1], "dump") == 0);
     golden_rects();
+    if (!s_dump) test_unpack_positional();
+    if (!s_dump) test_resolve_no_health_no_radar();
     if (!s_dump) viewspec_tests();
     if (!s_dump) peek_tests();
     if (!s_dump) view_cursor_tests();

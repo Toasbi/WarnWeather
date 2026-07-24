@@ -152,24 +152,27 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool dual,
 
 // ── ViewSpec producers/consumers ────────────────────────────────────────────
 
-ViewSpec view_spec_unpack(uint8_t byte) {
-    uint8_t tier   = (byte >> 6) & 3;   // 0=off,1=none,2=compact,3=full
-    uint8_t top    = (byte >> 4) & 3;   // TopBand
-    uint8_t body   = (byte >> 2) & 3;   // BodyContent
-    uint8_t status = byte & 3;          // StatusRowContent
+ViewSpec view_spec_unpack(uint16_t v) {
+    uint8_t tier = (v >> 8) & 3;   // 0=off,1=none,2=compact,3=full
+    uint8_t top  = (v >> 6) & 3;   // wire TopBand
+    uint8_t body = (v >> 4) & 3;   // BodyContent
+    uint8_t su   = (v >> 2) & 3;   // StatusSource (upper)
+    uint8_t sl   = v & 3;          // StatusSource (lower)
     ViewSpec spec;
     spec.calendar_rows = (tier == 3) ? 3 : (tier == 2) ? 2 : 0;
     // Wire `top` uses EMPTY=0, CALENDAR=1, RADAR=2 (see src/pkjs/view-cycle.js);
     // translate to the C TopBand enum (which numbers them differently). body/status
-    // fields happen to share the wire's numbering, so they pass through directly.
+    // fields share the wire's numbering, so they pass through directly.
     spec.top = (top == 1) ? TOP_BAND_CALENDAR : (top == 2) ? TOP_BAND_RADAR : TOP_BAND_EMPTY;
     spec.body = body;
-    spec.status = status;
-    // Dual under a compact top view renders both status rows at the full tier so they
-    // match; every other case renders at its own tier. Mirrors the old producer rule.
+    spec.status_upper = su;
+    spec.status_lower = sl;
     uint8_t layout_tier = (tier == 3) ? LAYOUT_TIER_FULL
                         : (tier == 2) ? LAYOUT_TIER_COMPACT : LAYOUT_TIER_NONE;
-    spec.status_tier = (status == STATUS_ROW_DUAL && layout_tier == LAYOUT_TIER_COMPACT)
+    // Two status rows in a compact top view render at the full font so they match; a lone
+    // row keeps its own tier. Mirrors the old dual-in-compact promotion.
+    bool two_rows = (su != STATUS_SRC_NONE) && (sl != STATUS_SRC_NONE);
+    spec.status_tier = (two_rows && layout_tier == LAYOUT_TIER_COMPACT)
                        ? LAYOUT_TIER_FULL : layout_tier;
     spec.weights[0] = WEIGHT_CALENDAR;
     spec.weights[1] = WEIGHT_TIME;
@@ -177,30 +180,31 @@ ViewSpec view_spec_unpack(uint8_t byte) {
     return spec;
 }
 
+// Downgrade one status source to NONE when its capability is missing.
+static uint8_t resolve_source(uint8_t src, bool has_radar, bool has_health) {
+    if (src == STATUS_SRC_HEALTH && !has_health) { return STATUS_SRC_NONE; }
+    if (src == STATUS_SRC_RADAR  && !has_radar)  { return STATUS_SRC_NONE; }
+    return src;
+}
+
 ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health) {
-    if (!has_health) {
-        if (spec.body == BODY_HEALTH_GRAPH) { spec.body = BODY_FORECAST; }
-        if (spec.status == STATUS_ROW_HEALTH || spec.status == STATUS_ROW_DUAL) {
-            spec.status = STATUS_ROW_WEATHER;
-            // Recompute status_tier from the FINAL status: view_spec_unpack promotes
-            // dual-in-compact to FULL so both rows share one font, but that no longer
-            // applies once status is downgraded to a single (weather) row — the band
-            // geometry (layout_compute_spec) now sees a plain compact status band, so
-            // the tier must follow it back down or the text renders at the wrong font
-            // for its actual band size. Same tier-derivation rule as view_spec_unpack.
-            uint8_t layout_tier = (spec.calendar_rows == 3) ? LAYOUT_TIER_FULL
-                                : (spec.calendar_rows == 2) ? LAYOUT_TIER_COMPACT
-                                : LAYOUT_TIER_NONE;
-            spec.status_tier = (spec.status == STATUS_ROW_DUAL && layout_tier == LAYOUT_TIER_COMPACT)
-                               ? LAYOUT_TIER_FULL : layout_tier;
-        }
-    }
+    if (!has_health && spec.body == BODY_HEALTH_GRAPH) { spec.body = BODY_FORECAST; }
     if (spec.top == TOP_BAND_RADAR && !has_radar) {
         spec.top = TOP_BAND_CALENDAR;   // radar-in-top implies full tier → 3-row calendar
     }
-    if ((spec.body == BODY_RADAR || spec.body == BODY_RADAR_STATUS) && !has_radar) {
-        spec.body = BODY_FORECAST;
-    }
+    if (spec.body == BODY_RADAR && !has_radar) { spec.body = BODY_FORECAST; }
+    spec.status_upper = resolve_source(spec.status_upper, has_radar, has_health);
+    spec.status_lower = resolve_source(spec.status_lower, has_radar, has_health);
+    // If the upper row collapsed but the lower survives, keep the lower where it is (it
+    // stays the forecast-abutting band). Recompute the tier from the surviving row count:
+    // once a compact dual drops to a single row, the band geometry treats it as a plain
+    // compact band, so the tier must follow it back down or the text renders at the wrong
+    // font for its actual band size. Same tier-derivation rule as view_spec_unpack.
+    uint8_t layout_tier = (spec.calendar_rows == 3) ? LAYOUT_TIER_FULL
+                        : (spec.calendar_rows == 2) ? LAYOUT_TIER_COMPACT : LAYOUT_TIER_NONE;
+    bool two_rows = (spec.status_upper != STATUS_SRC_NONE) && (spec.status_lower != STATUS_SRC_NONE);
+    spec.status_tier = (two_rows && layout_tier == LAYOUT_TIER_COMPACT)
+                       ? LAYOUT_TIER_FULL : layout_tier;
     return spec;
 }
 
@@ -208,10 +212,11 @@ LayerVisibility layout_visibility(const ViewSpec *spec) {
     LayerVisibility v;
     v.calendar = (spec->calendar_rows > 0) && (spec->top == TOP_BAND_CALENDAR);
     v.radar = (spec->top == TOP_BAND_RADAR) || (spec->body == BODY_RADAR);
-    v.forecast = (spec->body == BODY_FORECAST) || (spec->body == BODY_RADAR_STATUS);
+    v.forecast = (spec->body == BODY_FORECAST);
     v.health_graph = (spec->body == BODY_HEALTH_GRAPH);
-    v.weather_status = (spec->status == STATUS_ROW_WEATHER) || (spec->status == STATUS_ROW_DUAL);
-    v.health_status = (spec->status == STATUS_ROW_HEALTH) || (spec->status == STATUS_ROW_DUAL);
+    v.weather_status = (spec->status_upper == STATUS_SRC_FORECAST) || (spec->status_lower == STATUS_SRC_FORECAST);
+    v.radar_status   = (spec->status_upper == STATUS_SRC_RADAR)    || (spec->status_lower == STATUS_SRC_RADAR);
+    v.health_status  = (spec->status_upper == STATUS_SRC_HEALTH)   || (spec->status_lower == STATUS_SRC_HEALTH);
     return v;
 }
 
@@ -229,8 +234,8 @@ MainLayout layout_compute_peek(GRect bounds, const ViewSpec *spec, int fc_band_h
     L.top_status = GRect(x, y, w, strip_h);        // date strip stays at the top
     L.top = GRect(x, y + strip_h, w, 0);           // no calendar
 
-    int nbands = (spec->status == STATUS_ROW_NONE) ? 0
-               : (spec->status == STATUS_ROW_DUAL) ? 2 : 1;
+    int nbands = (spec->status_upper != STATUS_SRC_NONE ? 1 : 0)
+               + (spec->status_lower != STATUS_SRC_NONE ? 1 : 0);
     int status_total = nbands * fc_band_h;
     int available = h - strip_h - status_total;    // clock + body share this
     int clock_h = available * WEIGHT_TIME / (WEIGHT_TIME + WEIGHT_BOTTOM);
@@ -260,8 +265,10 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
     uint8_t tier = (spec->calendar_rows == 0) ? LAYOUT_TIER_NONE
                  : (spec->calendar_rows == 2) ? LAYOUT_TIER_COMPACT
                  : LAYOUT_TIER_FULL;
-    MainLayout L = compute_with_weights(bounds, tier, spec->status == STATUS_ROW_DUAL,
-                                        spec->status != STATUS_ROW_NONE, fc_band_h, spec->weights);
+    bool upper = (spec->status_upper != STATUS_SRC_NONE);
+    bool lower = (spec->status_lower != STATUS_SRC_NONE);
+    MainLayout L = compute_with_weights(bounds, tier, upper && lower,
+                                        upper || lower, fc_band_h, spec->weights);
     // Radar rides wherever it's placed: the top band when it replaces the calendar,
     // otherwise the body band (under a retained calendar, or full-screen in none tier).
     if (spec->top == TOP_BAND_RADAR) {
@@ -279,9 +286,9 @@ bool view_slot_available(uint8_t byte, bool has_radar, bool has_health) {
     if (byte == 0) { return false; }                 // tier=off → disabled slot
     ViewSpec spec = view_spec_unpack(byte);
     bool needs_radar = (spec.top == TOP_BAND_RADAR) || (spec.body == BODY_RADAR)
-                    || (spec.body == BODY_RADAR_STATUS);
+                    || (spec.status_upper == STATUS_SRC_RADAR) || (spec.status_lower == STATUS_SRC_RADAR);
     bool needs_health = (spec.body == BODY_HEALTH_GRAPH)
-                     || (spec.status == STATUS_ROW_HEALTH) || (spec.status == STATUS_ROW_DUAL);
+                     || (spec.status_upper == STATUS_SRC_HEALTH) || (spec.status_lower == STATUS_SRC_HEALTH);
     if (needs_radar && !has_radar) { return false; }
     if (needs_health && !has_health) { return false; }
     return true;

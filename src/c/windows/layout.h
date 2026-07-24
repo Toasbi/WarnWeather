@@ -16,8 +16,8 @@ typedef enum {
 typedef struct {
     GRect top_status;
     GRect top;           // TopView band: calendar / rain_radar (same frame)
-    GRect status;        // weather_status / health_status band
-    GRect status_lower;  // dual mode: the second (weather) status band; else == status
+    GRect status;        // upper status band (populated when status_upper != NONE)
+    GRect status_lower;  // lower / forecast-abutting status band (status_lower != NONE); else == status
     GRect time;
     GRect bottom;        // BottomView band: forecast / health_graph (same frame)
     GRect loading;
@@ -31,18 +31,24 @@ typedef struct {
 
 typedef enum { TOP_BAND_CALENDAR = 0, TOP_BAND_RADAR = 1, TOP_BAND_EMPTY = 2 } TopBand;
 // Unlike TopBand above (deliberately renumbered vs. the wire `top` field and translated
-// by view_spec_unpack()), BodyContent/StatusRowContent must stay bit-for-bit identical to
-// BODY_FC/GRAPH/RADAR and ST_W/H/D/NONE in src/pkjs/view-cycle.js — the packed wire byte
-// passes them through untranslated. BODY_RADAR_STATUS (3) = forecast body + radar status
-// line (the 'status' radar tier; chart suppressed).
-typedef enum { BODY_FORECAST = 0, BODY_HEALTH_GRAPH = 1, BODY_RADAR = 2, BODY_RADAR_STATUS = 3 } BodyContent;
-typedef enum { STATUS_ROW_WEATHER = 0, STATUS_ROW_HEALTH = 1, STATUS_ROW_DUAL = 2, STATUS_ROW_NONE = 3 } StatusRowContent;
+// by view_spec_unpack()), BodyContent must stay bit-for-bit identical to BODY_FC/GRAPH/RADAR
+// in src/pkjs/view-cycle.js — the packed wire value passes it through untranslated.
+typedef enum { BODY_FORECAST = 0, BODY_HEALTH_GRAPH = 1, BODY_RADAR = 2 } BodyContent;
+// Which content feeds a status row. Positional: each of the upper/lower status bands
+// carries one source. Values match STATUS_SRC_* in src/pkjs/view-cycle.js (wire contract).
+typedef enum {
+    STATUS_SRC_NONE = 0,
+    STATUS_SRC_FORECAST = 1,
+    STATUS_SRC_RADAR = 2,
+    STATUS_SRC_HEALTH = 3,
+} StatusSource;
 
 typedef struct {
     uint8_t top;            // TopBand
     uint8_t calendar_rows;  // 3 = full, 2 = compact, 0 = none
     uint8_t body;           // BodyContent
-    uint8_t status;         // StatusRowContent
+    uint8_t status_upper;   // StatusSource feeding the upper status band
+    uint8_t status_lower;   // StatusSource feeding the lower (forecast-abutting) band
     uint8_t status_tier;    // LayoutTier the status rows render at
     uint8_t weights[3];     // calendar/time/bottom band weights
 } ViewSpec;
@@ -53,18 +59,20 @@ typedef struct {
     bool forecast;
     bool health_graph;
     bool weather_status;
+    bool radar_status;
     bool health_status;
 } LayerVisibility;
 
-// Decode a packed wire byte (tier<<6 | top<<4 | body<<2 | status) to a ViewSpec.
-// Pure — the producer (main_window) supplies the byte; availability is resolved
-// separately by view_spec_resolve. Byte 0 (tier=off) decodes to a zeroed spec.
-ViewSpec view_spec_unpack(uint8_t byte);
+// Decode a packed 10-bit wire value (tier<<8 | top<<6 | body<<4 | statusUpper<<2 |
+// statusLower) to a ViewSpec. Pure — the producer (main_window) supplies the value;
+// availability is resolved separately by view_spec_resolve. Value 0 decodes to a zeroed spec.
+ViewSpec view_spec_unpack(uint16_t v);
 
-// Data-availability downgrades, pure. Without health data (aplite, or health off):
-// health graph -> forecast, health/dual status -> weather. Without radar data: a radar
-// top band -> calendar, a radar body -> forecast. Radar-in-body is valid with a calendar.
-// A BODY_RADAR_STATUS body also -> forecast without radar data.
+// Data-availability downgrades, pure. Each status source is downgraded to NONE when its
+// capability is missing (radar row without radar data, health row without health data);
+// the surviving row keeps its band. Without health data (aplite, or health off): a health
+// graph body -> forecast. Without radar data: a radar top band -> calendar, a radar body
+// -> forecast (radar-in-body is valid with a calendar).
 ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health);
 
 LayerVisibility layout_visibility(const ViewSpec *spec);

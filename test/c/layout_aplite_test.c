@@ -22,16 +22,23 @@ static void expect(const char *name, bool got, bool want) {
 #define BOUNDS GRect(0, 0, 144, 168)
 #define FC_BAND_H 20
 
-// Build a ViewSpec from a wire byte via the twin's unpack, as the watch does.
-static MainLayout compute(uint8_t wire_tier, uint8_t wire_status) {
-    ViewSpec spec = view_spec_unpack((uint8_t)((wire_tier << 6) | (1 << 4) | wire_status));
+// Pack a 10-bit wire value, mirroring view-cycle.js packSpec():
+// tier<<8 | top<<6 | body<<4 | statusUpper<<2 | statusLower.
+static uint16_t pack(int tier, int top, int body, int su, int sl) {
+    return (uint16_t)(((tier & 3) << 8) | ((top & 3) << 6) | ((body & 3) << 4)
+                    | ((su & 3) << 2) | (sl & 3));
+}
+
+// Build a ViewSpec from a wire value via the twin's unpack, as the watch does.
+static MainLayout compute(uint8_t wire_tier, int su, int sl) {
+    ViewSpec spec = view_spec_unpack(pack(wire_tier, 1, 0, su, sl));
     return layout_compute_spec(BOUNDS, &spec, FC_BAND_H);
 }
 
 static void golden_rects(void) {
     MainLayout L;
-    // FULL (wire tier 3), weather status (0)
-    L = compute(3, 0);
+    // FULL (wire tier 3), forecast status in the upper band
+    L = compute(3, STATUS_SRC_FORECAST, STATUS_SRC_NONE);
     check("full.top_status",   L.top_status,   0, 0, 144, 14);
     check("full.top",          L.top,          0, 13, 144, 45);
     check("full.status",       L.status,       0, 97, 144, 20);
@@ -40,16 +47,16 @@ static void golden_rects(void) {
     check("full.bottom",       L.bottom,       0, 117, 144, 51);
     check("full.loading",      L.loading,      0, 97, 144, 71);
 
-    // COMPACT (wire tier 2), weather status
-    L = compute(2, 0);
+    // COMPACT (wire tier 2), forecast status in the upper band
+    L = compute(2, STATUS_SRC_FORECAST, STATUS_SRC_NONE);
     check("compact.top",       L.top,          0, 13, 144, 30);
     check("compact.status",    L.status,       0, 46, 144, 15);
     check("compact.time",      L.time,         0, 58, 144, 45);
     check("compact.bottom",    L.bottom,       0, 103, 144, 65);
     check("compact.loading",   L.loading,      0, 103, 144, 65);
 
-    // NONE (wire tier 1), weather status
-    L = compute(1, 0);
+    // NONE (wire tier 1), forecast status in the upper band
+    L = compute(1, STATUS_SRC_FORECAST, STATUS_SRC_NONE);
     check("none.top",          L.top,          0, 13, 144, 0);
     check("none.time",         L.time,         0, 16, 144, 45);
     check("none.status",       L.status,       0, 59, 144, 22);
@@ -58,23 +65,26 @@ static void golden_rects(void) {
 }
 
 static void downgrade_tests(void) {
-    // A health/dual/radar byte must fold to forecast + weather on aplite.
-    // 0x92 = tier2(compact), top1(cal), body0(fc), status2(DUAL) -> weather.
-    ViewSpec r = view_spec_resolve(view_spec_unpack(0x92), false, false);
-    expect("dual->weather", r.status == STATUS_ROW_WEATHER, true);
-    expect("body.forecast", r.body == BODY_FORECAST, true);
-    // 0x45 = tier1(none), top0(empty), body1(GRAPH), status1(HEALTH) -> fc + weather.
-    r = view_spec_resolve(view_spec_unpack(0x45), false, false);
-    expect("graph->forecast", r.body == BODY_FORECAST, true);
-    expect("health->weather", r.status == STATUS_ROW_WEATHER, true);
+    // A dual health-upper + forecast-lower view: on aplite the health row folds to NONE,
+    // the forecast row survives (in the lower band), and the body stays forecast.
+    ViewSpec r = view_spec_resolve(view_spec_unpack(pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST)),
+                                   false, false);
+    expect("dual.upper_health_dropped", r.status_upper == STATUS_SRC_NONE, true);
+    expect("dual.lower_forecast_kept", r.status_lower == STATUS_SRC_FORECAST, true);
+    expect("dual.body_forecast", r.body == BODY_FORECAST, true);
+    // A none-tier health-graph body + health status row -> forecast body, no status.
+    r = view_spec_resolve(view_spec_unpack(pack(1, 0, 1, STATUS_SRC_HEALTH, STATUS_SRC_NONE)), false, false);
+    expect("graph.body_forecast", r.body == BODY_FORECAST, true);
+    expect("graph.health_status_dropped", r.status_upper == STATUS_SRC_NONE, true);
     // Visibility: forecast on, calendar tracks rows, radar/health off.
-    ViewSpec full = view_spec_unpack(0xD0);   // tier3, top1(cal)
+    ViewSpec full = view_spec_unpack(pack(3, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE));
     LayerVisibility v = layout_visibility(&full);
     expect("vis.forecast", v.forecast, true);
     expect("vis.calendar", v.calendar, true);
     expect("vis.radar", v.radar, false);
+    expect("vis.radar_status", v.radar_status, false);
     expect("vis.health_status", v.health_status, false);
-    ViewSpec none = view_spec_unpack(0x40);   // tier1(none)
+    ViewSpec none = view_spec_unpack(pack(1, 0, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE));
     expect("vis.none.calendar_off", layout_visibility(&none).calendar, false);
 }
 

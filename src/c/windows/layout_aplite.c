@@ -28,18 +28,24 @@ static void split_content(int content_h, const uint8_t weights[3],
     *bottom_h = content_h - *calendar_h - *time_h;
 }
 
-ViewSpec view_spec_unpack(uint8_t byte) {
-    uint8_t tier   = (byte >> 6) & 3;   // 0=off,1=none,2=compact,3=full
-    uint8_t status = byte & 3;          // StatusRowContent
+ViewSpec view_spec_unpack(uint16_t v) {
+    uint8_t tier = (v >> 8) & 3;   // 0=off,1=none,2=compact,3=full
+    uint8_t su   = (v >> 2) & 3;   // StatusSource (upper)
+    uint8_t sl   = v & 3;          // StatusSource (lower)
     ViewSpec spec;
     spec.calendar_rows = (tier == 3) ? 3 : (tier == 2) ? 2 : 0;
     // aplite: forecast body only; top is calendar when rows>0, else empty.
     spec.top  = (spec.calendar_rows > 0) ? TOP_BAND_CALENDAR : TOP_BAND_EMPTY;
     spec.body = BODY_FORECAST;
-    // No health/radar: any health/dual status folds to weather; keep an explicit NONE.
-    spec.status = (status == STATUS_ROW_NONE) ? STATUS_ROW_NONE : STATUS_ROW_WEATHER;
-    spec.status_tier = (tier == 3) ? LAYOUT_TIER_FULL
-                     : (tier == 2) ? LAYOUT_TIER_COMPACT : LAYOUT_TIER_NONE;
+    // No health/radar on aplite: only a FORECAST source survives in either band; radar
+    // and health sources fold to NONE (resolve is then a no-op).
+    spec.status_upper = (su == STATUS_SRC_FORECAST) ? STATUS_SRC_FORECAST : STATUS_SRC_NONE;
+    spec.status_lower = (sl == STATUS_SRC_FORECAST) ? STATUS_SRC_FORECAST : STATUS_SRC_NONE;
+    uint8_t layout_tier = (tier == 3) ? LAYOUT_TIER_FULL
+                        : (tier == 2) ? LAYOUT_TIER_COMPACT : LAYOUT_TIER_NONE;
+    bool two_rows = (spec.status_upper != STATUS_SRC_NONE) && (spec.status_lower != STATUS_SRC_NONE);
+    spec.status_tier = (two_rows && layout_tier == LAYOUT_TIER_COMPACT)
+                       ? LAYOUT_TIER_FULL : layout_tier;
     spec.weights[0] = WEIGHT_CALENDAR;
     spec.weights[1] = WEIGHT_TIME;
     spec.weights[2] = WEIGHT_BOTTOM;
@@ -58,7 +64,9 @@ LayerVisibility layout_visibility(const ViewSpec *spec) {
     v.radar          = false;
     v.forecast       = true;
     v.health_graph   = false;
-    v.weather_status = (spec->status != STATUS_ROW_NONE);
+    v.weather_status = (spec->status_upper == STATUS_SRC_FORECAST)
+                    || (spec->status_lower == STATUS_SRC_FORECAST);
+    v.radar_status   = false;
     v.health_status  = false;
     return v;
 }
@@ -68,7 +76,8 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
                  : (spec->calendar_rows == 2) ? LAYOUT_TIER_COMPACT
                  : LAYOUT_TIER_FULL;
     bool compact = (tier != LAYOUT_TIER_FULL);
-    bool has_status = (spec->status != STATUS_ROW_NONE);
+    bool has_status = (spec->status_upper != STATUS_SRC_NONE)
+                   || (spec->status_lower != STATUS_SRC_NONE);
     int w = bounds.size.w;
     int h = bounds.size.h;
     MainLayout L;
