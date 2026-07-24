@@ -203,6 +203,22 @@ and hosted-deploy commands are in `DEV.md` / `CONTRIBUTING.md`.
   (`scripts/check-release-notification.js`) fails the release PR without it.
   `prepare-package.sh` injects the matching entry into `package.json`; preview the copy
   locally with `forceShowReleaseNotificationOnBoot` in `dev-config.js`. See `RELEASE.md`.
+- **Every release also needs a detailed news entry in the `public.news` Supabase table**
+  (hosted news backend — the *News & Feedback* section of the settings screen, not the
+  boot toast above). Insert one row with `target_version` set to the **exact** new version
+  string (e.g. `'1.9.2'`) so it's shown only to watches on that build — never leave it
+  `NULL` (that broadcasts to everyone). The `release-notifications.json` toast is a one-line
+  summary; the news `body_md` is the longer changelog. Match the style of the existing
+  rows: a `"What's new in <version>"` title and `body_md` using the supported markdown
+  subset (`**bold**` section headers, `- ` bullets, `*italic*`, `[text](https://…)` links —
+  see `src/pkjs/settings/news.js`). Schema in `supabase/schemas/news.sql`.
+- **Write the changelog for users, not the diff** (both the toast and the news body). Call
+  out individually only what a user can act on: a feature they can use, or a bug that
+  affected the watchface itself. Group everything else — settings-screen polish, internal
+  refactors, small fixes — into one line ("small fixes and polish"), or omit it. A
+  polish-only patch gets one grouped line, not an itemized list of cosmetic tweaks.
+  Keep the tone factual and concise: no filler reassurances ("nothing you need to change
+  on your end") and no generic sign-offs ("more on the way", "message me anytime").
 - Brainstorming spec/plan files (e.g. under `docs/`, which is gitignored) stay untracked —
   don't `git add -f` them.
 
