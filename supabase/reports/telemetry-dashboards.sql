@@ -5,8 +5,9 @@
 --   • Active-base snapshots (#7, #8, #11, #12, #13, #14) and recent-ops
 --     (#2, #3, #4, #5, #6): live from raw public.telemetry_weather_fetch. Raw is
 --     retained only 14 days, so these are bounded to that window.
---   • Daily active users (#1) and lifecycle/churn (#9, #10): union — finalized
---     history from the daily rollup (telemetry_dau + telemetry_watch, written by
+--   • Daily active users (#1), daily trial watches (#15), lifecycle/churn (#9,
+--     #10), and today's active split (#16): union — finalized history from the
+--     daily rollup (telemetry_dau + telemetry_watch, written by
 --     public.telemetry_rollup_and_prune() ~03:00 UTC) plus TODAY AND YESTERDAY
 --     live from raw, so neither is stale. telemetry_dau's row for a given UTC day
 --     is not finalized until the ~03:00 rollup of the *next* day, so between 00:00
@@ -494,3 +495,75 @@ cross join lateral (values
 where code is not null
 group by slot, code
 order by slot, watches desc;
+
+-- ============================================================
+-- 15. Daily trial watches (last 30 days) — the trial parallel to #1 (DAU).
+-- active_watches = distinct watches active that day; active_trials = those whose
+-- CUMULATIVE events through that day are still < 20 (a point-in-time trial state,
+-- not a lifetime label). Freshness matches #1: finalized days from telemetry_dau
+-- (never age-pruned, so cumulative history is complete) + today AND yesterday live
+-- from raw. NOTE: "active" here is the loose "seen that day" test, NOT the
+-- events>=20 "active watch" of #7-#14 (that one excludes trials by construction).
+-- ============================================================
+with unified as (
+  select watch_key, activity_date, fetch_count
+  from telemetry_dau
+  where activity_date < (now() at time zone 'UTC')::date - 1
+  union all
+  select coalesce(watch_token_hash, account_token_hash) as watch_key,
+         (received_at at time zone 'UTC')::date as activity_date,
+         count(*) as fetch_count
+  from telemetry_weather_fetch
+  where (received_at at time zone 'UTC')::date >= (now() at time zone 'UTC')::date - 1
+  group by 1, 2
+),
+daily as (
+  select watch_key, activity_date, fetch_count,
+         sum(fetch_count) over (partition by watch_key order by activity_date) as cum_events
+  from unified
+)
+select
+  activity_date as day,
+  count(*) as active_watches,
+  count(*) filter (where cum_events < 20) as active_trials
+from daily
+where activity_date >= (now() at time zone 'UTC')::date - 30
+group by day
+order by day;
+
+-- ============================================================
+-- 16. Today's active split — trial vs converted (snapshot).
+-- Of the watches seen in the last day, how many are still trialing (< 20 cumulative
+-- events) vs already-active/converted (>= 20). Per-watch events = telemetry_dau
+-- history (before yesterday) + raw for today AND yesterday (same union as #9).
+-- Uses the loose "seen in last day" activity test (see #15's note).
+-- ============================================================
+with recent as (
+  select coalesce(watch_token_hash, account_token_hash) as watch_key,
+         count(*) as events,
+         max(received_at) as last_seen
+  from telemetry_weather_fetch
+  where (received_at at time zone 'UTC')::date >= (now() at time zone 'UTC')::date - 1
+  group by 1
+),
+hist as (
+  select watch_key, sum(fetch_count) as events
+  from telemetry_dau
+  where activity_date < (now() at time zone 'UTC')::date - 1
+  group by watch_key
+),
+active_today as (
+  select r.watch_key,
+         coalesce(h.events, 0) + r.events as events
+  from recent r
+  left join hist h on h.watch_key = r.watch_key
+  where r.last_seen >= now() - interval '1 day'
+)
+select
+  case when events < 20 then 'active trial (<20 events)'
+       else                   'active user (>=20 events)' end as cohort,
+  count(*) as watches,
+  round(100.0 * count(*) / sum(count(*)) over (), 1) as pct
+from active_today
+group by 1
+order by cohort;
