@@ -98,5 +98,9 @@
   "1.9.1": {
     "title": "Countdown slot & radar view modes",
     "body": "A new Countdown slot counts the days to any date you pick. Radar gains view modes — keep just the rain countdown, add a status line, or the full chart."
+  },
+  "1.9.2": {
+    "title": "Settings fixes",
+    "body": "Small fixes and polish on the settings screen, including clearer weather-provider wording."
   }
 }
