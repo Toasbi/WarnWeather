@@ -103,6 +103,13 @@
   .row.wrap { display: block; }
   .row.wrap::after { content: ''; display: block; clear: both; }
   .row.wrap .rgt { float: right; margin: 2px 0 8px 14px; }
+  /* wide segmented control: control keeps the label's line, the label wraps into the
+     leftover width, and the (long) hint drops to its own full-width line below. The label
+     needs flex-basis 0 (`flex: 1`, not `1 1 auto`) so its intrinsic text width doesn't
+     count toward line-breaking and push the control onto its own line below the label. */
+  .row.segwide { flex-wrap: wrap; column-gap: 14px; row-gap: 8px; }
+  .row.segwide .lft { flex: 1; min-width: 0; }
+  .row.segwide .hint { flex-basis: 100%; margin-top: 0; }
   /* free-form text rendered verbatim from a staticText schema item */
   .static { padding: 14px 16px; font-size: 13.5px; color: var(--static); line-height: 1.5; border-bottom: 1px solid var(--row-line); }
   .static a { color: var(--link); }

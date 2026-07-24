@@ -129,6 +129,16 @@ test('renderRow: stacked for text/radio/open-color, wrap when multi-line hinted,
   assert.ok(inline.indexOf('class="row"') >= 0 && inline.indexOf('lft') >= 0);
   const stacked = E.renderRow({ type: 'text', messageKey: 'q', label: 'Q' }, { value: '' });
   assert.ok(stacked.indexOf('class="row stack"') >= 0);
+  // A wide segmented control (4+ options) uses the .segwide layout: control stays on the
+  // label's line (label in .lft wraps into the leftover width), hint on its own line below.
+  const wideSeg = E.renderRow({ type: 'segmented', messageKey: 'reset', label: 'Reset',
+    hint: longHint, options: [['Never', '0'], ['1m', '1'], ['2m', '2'], ['5m', '5'], ['10m', '10']] }, { value: '2' });
+  assert.ok(wideSeg.indexOf('class="row segwide"') >= 0 && wideSeg.indexOf('wrap') === -1);
+  assert.ok(wideSeg.indexOf('<div class="lft">') >= 0 && wideSeg.indexOf('class="hint"') >= 0);
+  // A narrow segmented control (2-3 options) keeps the float/inline layouts.
+  const narrowSeg = E.renderRow({ type: 'segmented', messageKey: 'm', label: 'M',
+    hint: longHint, options: [['A', 'a'], ['B', 'b']] }, { value: 'a' });
+  assert.ok(narrowSeg.indexOf('class="row wrap"') >= 0 && narrowSeg.indexOf('segwide') === -1);
   const byVal = E.renderRow({ type: 'toggle', messageKey: 'flag', label: 'F', hint: 'base', hintByValue: { 'on': 'special' } }, { value: 'on' });
   assert.ok(byVal.indexOf('special') >= 0 && byVal.indexOf('base') === -1);
 });

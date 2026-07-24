@@ -575,6 +575,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         + '</div></div>';
     }
     var hint = item.hintByValue ? (item.hintByValue[view.value] || item.hint) : item.hint;
+    // A segmented control with many options is a wide pill row that can't float beside the
+    // label without stranding it above (2-3-option segmenteds stay narrow and keep the
+    // inline/float layouts). It gets its own flex row (.segwide): the control keeps the
+    // label's line and the label wraps into the width the control leaves, then the hint
+    // drops to a full-width line below.
+    var wideSegmented = item.type === 'segmented' && item.options && item.options.length > 3;
     var stacked = item.type === 'text' || item.type === 'radio'
       || (item.type === 'color' && view.openColor === item.messageKey);
     var hintHtml = hint ? '<div class="hint">' + hint + '</div>' : '';
@@ -585,10 +591,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // the Holiday searchSelects keep the same compact treatment. A stacked (open color/etc.)
     // row keeps normal padding so its expanded content isn't cramped.
     var isStatusSlot = item.optionsFrom && item.optionsFrom.resolver === 'statusSlot';
-    var rowCls = 'row' + (stacked ? ' stack' : '') + nbClass(noDivider)
+    var rowCls = 'row' + (stacked ? ' stack' : '') + (wideSegmented ? ' segwide' : '') + nbClass(noDivider)
       + ((item.type === 'searchSelect' || isStatusSlot) && !stacked ? ' slot' : '');
     if (stacked) {
       return '<div class="' + rowCls + '">' + label + hintHtml + '<div>' + renderControl(item, view) + '</div></div>';
+    }
+    // Wide segmented (.segwide): control on the label's line, label wraps into the leftover
+    // width (.lft flex), hint on its own full-width line below (.segwide .hint flex-basis).
+    if (wideSegmented) {
+      return '<div class="' + rowCls + '"><div class="lft">' + label + '</div><div class="rgt">' + renderControl(item, view) + '</div>' + hintHtml + '</div>';
     }
     // Rows with a multi-line hint float the control right (.wrap layout) so the
     // hint flows around it and reclaims the full width below the control instead
