@@ -4,8 +4,6 @@
   "packages": {
     ".": {
       "release-type": "go",
-      "versioning": "always-bump-minor",
-      "release-as": "1.9.2",
       "skip-changelog": true,
       "extra-files": [
         {
