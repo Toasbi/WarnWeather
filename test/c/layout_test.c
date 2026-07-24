@@ -344,6 +344,10 @@ static void test_geometry_lower_only(void) {
            L.status_lower.origin.y + L.status_lower.size.h <= L.bottom.origin.y + 1, true);
     expect("geometry_lower_only.has_height", L.status_lower.size.h > 0, true);
     expect("geometry_lower_only.upper_collapsed", L.status.size.h == 0, true);
+    // With no upper status the clock reclaims the freed 3rd-calendar-row: its top abuts the
+    // 2-row calendar's bottom (no empty gap where the upper slot used to be).
+    expect("geometry_lower_only.clock_reclaims_freed_row",
+           L.time.origin.y == L.top.origin.y + L.top.size.h, true);
     printf("geometry_lower_only OK\n");
 }
 

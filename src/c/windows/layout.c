@@ -94,6 +94,13 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool upper,
         L.radar = L.bottom;                              // radar rides the bottom band
     } else {
         int cal_h = compact ? (calendar_h - calendar_h / 3) : calendar_h;
+        // Compact with no UPPER status row (e.g. the swap-clock/status layout, which moves the
+        // lone status into the LOWER forecast-abutting band): the freed 3rd-calendar-row slot
+        // above the clock would otherwise sit empty. Reclaim it by pulling the clock up to abut
+        // the 2-row calendar, so the clock fills where the upper slot was instead of leaving a
+        // gap. (A compact view always has an upper status unless swapped, so this only fires for
+        // the swap layout.)
+        if (compact && !upper) { time_y = calendar_y + cal_h; }
         // full: reserve the abutting status band above the forecast — but only when a status
         // row is actually shown. A statusless full view (the radar-top forecast flick,
         // RDR_FC_NONE) reclaims that row so its forecast matches the compact tier's height.
