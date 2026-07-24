@@ -99,6 +99,18 @@ test('registers the statusSlot options resolver into PConf.optionsResolvers', ()
   assert.equal(typeof PConf.optionsResolvers.get('statusSlot'), 'function');
 });
 
+test('layoutPresetOptions resolver: compactDense offered once health OR radar shows a status row', () => {
+  const resolver = global.PConf.optionsResolvers.get('layoutPresetOptions');
+  assert.equal(typeof resolver, 'function', 'resolver registered');
+  const codes = (S) => resolver(S).map((o) => o[1]);
+  assert.deepEqual(codes({ healthMode: 'off', radarMode: 'off' }), ['fullCal', 'compactCal', 'noCal'],
+    'compactDense hidden when neither health nor radar shows a status row');
+  assert.ok(codes({ healthMode: 'status', radarMode: 'off' }).indexOf('compactDense') >= 0, 'health=status offers compactDense');
+  assert.ok(codes({ healthMode: 'all', radarMode: 'off' }).indexOf('compactDense') >= 0, 'health=all offers compactDense');
+  assert.ok(codes({ healthMode: 'off', radarMode: 'status' }).indexOf('compactDense') >= 0, 'radar=status offers compactDense');
+  assert.equal(codes({ healthMode: 'off', radarMode: 'graph' }).indexOf('compactDense'), -1, 'radar=graph alone does not');
+});
+
 test('blocks fallback palette equals buildPreviewPalette (no color drift)', () => {
   const { buildPreviewPalette } = require('../src/pkjs/settings/preview-palette.js');
   assert.deepEqual(B.previewPaletteFallback, buildPreviewPalette());
@@ -316,13 +328,13 @@ test('precip line + fill go one step darker in the light theme (readability roun
 test('presetContents resolves each named preset directly (layoutPreset set)', () => {
     const vc = require('../src/pkjs/view-cycle.js');
     assert.deepEqual(B.presetContents({ layoutPreset: 'fullCal', healthMode: 'off', radarMode: 'off' }),
-        [vc.spec(vc.TIER_FULL, vc.TOP_CAL, vc.BODY_FC, vc.ST_W)]);
+        [vc.spec(vc.TIER_FULL, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE)]);
     assert.deepEqual(B.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off' }),
-        [vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.ST_W)]);
+        [vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE)]);
     assert.deepEqual(B.presetContents({ layoutPreset: 'compactDense', healthMode: 'off', radarMode: 'off' }),
-        [vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.ST_W)]);
+        [vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE)]);
     assert.deepEqual(B.presetContents({ layoutPreset: 'noCal', healthMode: 'off', radarMode: 'off' }),
-        [vc.spec(vc.TIER_NONE, vc.TOP_EMPTY, vc.BODY_FC, vc.ST_W)]);
+        [vc.spec(vc.TIER_NONE, vc.TOP_EMPTY, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE)]);
 });
 
 test('presetContents falls back to compactCal for an unrecognised preset key', () => {
@@ -356,47 +368,54 @@ test('presetContents reads healthMode/radarMode off state to grow/shrink the cyc
 
 test('contentBands renders each tier\'s band ordering', () => {
     const vc = require('../src/pkjs/view-cycle.js');
-    assert.deepEqual(B.contentBands(vc.spec(vc.TIER_FULL, vc.TOP_CAL, vc.BODY_FC, vc.ST_W)).map((b) => b.label),
+    assert.deepEqual(B.contentBands(vc.spec(vc.TIER_FULL, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE)).map((b) => b.label),
         ['Watch Status', 'Calendar (3 rows)', 'Clock', 'Forecast Status', 'Forecast'], 'full tier: clock before status');
-    assert.deepEqual(B.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.ST_H)).map((b) => b.label),
-        ['Watch Status', 'Calendar (2 rows)', 'Health Status', 'Clock', 'Forecast'], 'compact tier: status before clock');
-    assert.deepEqual(B.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.ST_W)).map((b) => b.label),
-        ['Watch Status', 'Calendar (2 rows)', 'Forecast Status', 'Clock', 'Forecast'], 'compact tier: forecast status before clock (non-dual)');
-    assert.deepEqual(B.contentBands(vc.spec(vc.TIER_NONE, vc.TOP_EMPTY, vc.BODY_RADAR, vc.ST_W)).map((b) => b.label),
+    assert.deepEqual(B.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_HEALTH, vc.STATUS_SRC_NONE)).map((b) => b.label),
+        ['Watch Status', 'Calendar (2 rows)', 'Health Status', 'Clock', 'Forecast'], 'compact tier: upper status before clock');
+    assert.deepEqual(B.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE)).map((b) => b.label),
+        ['Watch Status', 'Calendar (2 rows)', 'Forecast Status', 'Clock', 'Forecast'], 'compact tier: forecast status before clock (single upper row)');
+    assert.deepEqual(B.contentBands(vc.spec(vc.TIER_NONE, vc.TOP_EMPTY, vc.BODY_RADAR, vc.STATUS_SRC_RADAR, vc.STATUS_SRC_NONE)).map((b) => b.label),
         ['Watch Status', 'Clock', 'Radar Status', 'Radar'], 'none tier: no top band, big body; radar view uses the Radar status bar');
-    assert.deepEqual(B.contentBands(vc.spec(vc.TIER_FULL, vc.TOP_RADAR, vc.BODY_FC, vc.ST_NONE)).map((b) => b.label),
-        ['Watch Status', 'Radar', 'Clock', 'Forecast'], 'radar rides the top band; ST_NONE hides both status bars');
+    assert.deepEqual(B.contentBands(vc.spec(vc.TIER_FULL, vc.TOP_RADAR, vc.BODY_FC, vc.STATUS_SRC_NONE, vc.STATUS_SRC_NONE)).map((b) => b.label),
+        ['Watch Status', 'Radar', 'Clock', 'Forecast'], 'radar rides the top band; NONE/NONE hides both status rows');
     assert.strictEqual(B.contentBands(null), null, 'a null/disabled slot has no bands');
 });
 
-// The Forecast status bar becomes the Radar status bar whenever the view shows radar (top band
-// or body) — mirrors main_window.c's (top == TOP_RADAR || body == BODY_RADAR) ?
-// STATUS_LINE_RADAR : STATUS_LINE_FORECAST. A forecast-body view keeps "Forecast Status".
+// The configurable bar reads "Radar Status" whenever the RADAR source occupies that slot —
+// a direct data-driven mapping (statusUpper/statusLower), not inferred from spec.top/spec.body
+// (mirrors main_window.c's per-source layer assignment). A top-radar view with an explicit
+// FORECAST status row is NOT auto-relabeled — that inference is gone from the new model.
 test('contentBands labels the configurable bar "Radar Status" for a radar view', () => {
     const vc = require('../src/pkjs/view-cycle.js');
     const label = (spec) => B.contentBands(spec).map((b) => b.label);
-    // radar as the body (the radar flick stop)
-    assert.ok(label(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_RADAR, vc.ST_W)).indexOf('Radar Status') >= 0,
+    // radar as the body (the radar-graph flick stop)
+    assert.ok(label(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_RADAR, vc.STATUS_SRC_RADAR, vc.STATUS_SRC_NONE)).indexOf('Radar Status') >= 0,
         'radar-body view reads Radar Status');
-    assert.ok(label(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_RADAR, vc.ST_W)).indexOf('Forecast Status') < 0,
+    assert.ok(label(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_RADAR, vc.STATUS_SRC_RADAR, vc.STATUS_SRC_NONE)).indexOf('Forecast Status') < 0,
         'radar-body view has no Forecast Status label');
-    // radar riding the top band with the configurable status bar present
-    assert.ok(label(vc.spec(vc.TIER_FULL, vc.TOP_RADAR, vc.BODY_FC, vc.ST_W)).indexOf('Radar Status') >= 0,
-        'top-radar view with a status bar reads Radar Status');
-    // dual status on a radar view: the forecast half becomes Radar Status, health unchanged
-    const dual = label(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_RADAR, vc.ST_D));
+    // radar riding the top band with an explicit RADAR status row present
+    assert.ok(label(vc.spec(vc.TIER_FULL, vc.TOP_RADAR, vc.BODY_FC, vc.STATUS_SRC_RADAR, vc.STATUS_SRC_NONE)).indexOf('Radar Status') >= 0,
+        'top-radar view with a RADAR status row reads Radar Status');
+    // top-radar with a FORECAST (not RADAR) status row is NOT relabeled — no top/body inference
+    const topRadarForecastStatus = label(vc.spec(vc.TIER_FULL, vc.TOP_RADAR, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE));
+    assert.ok(topRadarForecastStatus.indexOf('Forecast Status') >= 0 && topRadarForecastStatus.indexOf('Radar Status') < 0,
+        'top-radar view with an explicit FORECAST status row keeps Forecast Status (no inference from top)');
+    // two rows on a radar view: RADAR upper + HEALTH lower — each label comes from its own slot
+    const dual = label(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_RADAR, vc.STATUS_SRC_HEALTH, vc.STATUS_SRC_RADAR));
     assert.ok(dual.indexOf('Radar Status') >= 0 && dual.indexOf('Health Status') >= 0,
-        'dual radar view: Radar Status + Health Status');
+        'two-row radar view: Radar Status + Health Status');
     // a plain forecast view still reads Forecast Status
-    assert.ok(label(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.ST_W)).indexOf('Forecast Status') >= 0,
+    assert.ok(label(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE)).indexOf('Forecast Status') >= 0,
         'forecast-body view keeps Forecast Status');
 });
 
-test('contentBands renders dual as two status rows', () => {
+test('contentBands renders the health-dense pairing (upper=HEALTH, lower=FORECAST) as two status rows', () => {
     const vc = require('../src/pkjs/view-cycle.js');
-    const bands = B.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.ST_D));
+    const bands = B.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_HEALTH, vc.STATUS_SRC_FORECAST));
     const labels = bands.map((b) => b.label);
     assert.ok(labels.indexOf('Health Status') >= 0 && labels.indexOf('Forecast Status') >= 0);
+    assert.ok(labels.indexOf('Health Status') < labels.indexOf('Clock'), 'upper row (Health) rides above the clock');
+    assert.ok(labels.indexOf('Clock') < labels.indexOf('Forecast Status'), 'lower row (Forecast) sits below the clock');
 });
 
 // A status bar occupies exactly the space freed by dropping the 3rd calendar row, so
@@ -404,8 +423,8 @@ test('contentBands renders dual as two status rows', () => {
 test('contentBands: Cal2 + gap + status = Cal3 (status = the freed calendar row)', () => {
     const vc = require('../src/pkjs/view-cycle.js');
     const GAP = 2; // renderers stack bands with a 2px gap
-    const full = B.contentBands(vc.spec(vc.TIER_FULL, vc.TOP_CAL, vc.BODY_FC, vc.ST_W));
-    const compact = B.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.ST_W));
+    const full = B.contentBands(vc.spec(vc.TIER_FULL, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE));
+    const compact = B.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE));
     const cal3 = full.find((b) => b.label === 'Calendar (3 rows)').h;
     const cal2 = compact.find((b) => b.label === 'Calendar (2 rows)').h;
     const status = compact.find((b) => b.label === 'Forecast Status').h;
@@ -417,11 +436,26 @@ test('contentBands: Cal2 + gap + status = Cal3 (status = the freed calendar row)
 test('contentBands: the body band is the flex element, all others fixed', () => {
     const vc = require('../src/pkjs/view-cycle.js');
     [vc.BODY_FC, vc.BODY_GRAPH, vc.BODY_RADAR].forEach((body) => {
-        const bands = B.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, body, vc.ST_W));
+        const bands = B.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, body, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE));
         const last = bands[bands.length - 1];
         assert.equal(last.flex, true, 'the last (body) band is marked flex');
         bands.slice(0, -1).forEach((b) => assert.ok(!b.flex, b.label + ' is fixed-height'));
     });
+});
+
+test('presetContents: compactDense + radar=status folds radar into the single default (no flick)', () => {
+    const c = B.presetContents({ layoutPreset: 'compactDense', healthMode: 'off', radarMode: 'status' });
+    assert.equal(c.length, 1);
+    const labels = B.contentBands(c[0]).map((b) => b.label);
+    assert.ok(labels.indexOf('Radar Status') >= 0);
+    assert.ok(labels.indexOf('Forecast Status') >= 0);
+});
+
+test('contentBands orders radar-upper above the clock and forecast-lower below', () => {
+    const c = B.presetContents({ layoutPreset: 'compactDense', healthMode: 'off', radarMode: 'status' });
+    const labels = B.contentBands(c[0]).map((b) => b.label);
+    assert.ok(labels.indexOf('Radar Status') < labels.indexOf('Clock'));
+    assert.ok(labels.indexOf('Clock') < labels.indexOf('Forecast Status'));
 });
 
 test('resolveBandHeights: the flex band absorbs the slack so bands + gaps fill availH', () => {

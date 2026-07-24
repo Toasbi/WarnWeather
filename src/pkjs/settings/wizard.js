@@ -76,7 +76,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * Describe one cycle slot as a flick-demo stop: display label, caption, and the
      * SHOTS screenshot key. shotGroup 'radar' flags the string-typed radar shot
      * (SHOTS[platform].radar is a plain data URI, not a {val: uri} map).
-     * @param {{tier:number,top:number,body:number,status:number}} viewSpec One ViewSpec slot.
+     * @param {{tier:number,top:number,body:number,statusUpper:number,statusLower:number}} viewSpec One ViewSpec slot.
      * @param {boolean} isFirst True for cycle index 0 (the default view).
      * @param {Object} state Wizard/Clay settings state.
      * @param {boolean} hasHeartRate Whether the platform has a heart-rate sensor (emery).
@@ -90,9 +90,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (viewSpec.body === VC.BODY_RADAR) {
             return { label: 'Radar', caption: FLICK_CAPTION_RADAR, shotGroup: 'radar', shotVal: '' };
         }
-        if (!isFirst && (viewSpec.status === VC.ST_H || viewSpec.status === VC.ST_D)) {
-            // Health-status flick stop: BODY_FC carrying the health status row. ST_D is the
-            // fullCal/status dual-status variant — healthMode.status represents both.
+        if (!isFirst && (viewSpec.statusUpper === VC.STATUS_SRC_HEALTH || viewSpec.statusLower === VC.STATUS_SRC_HEALTH)) {
+            // Health-status flick stop: BODY_FC carrying a HEALTH status row, in either the
+            // upper (single-status) or lower (health-dense default's paired forecast row on
+            // top) slot — healthMode.status represents both.
             return { label: 'Health Status Bar', caption: healthStatusItems(hasHeartRate) + ' on the Health Status Bar.', shotGroup: 'healthMode', shotVal: 'status' };
         }
         var pk = VC.resolvePresetKey(state);

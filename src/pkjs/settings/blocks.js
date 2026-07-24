@@ -733,7 +733,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function presetContents(state) {
         state = state || {};
         var radarMode = state.radarMode || 'graph';
-        return VC.buildViewCycle(VC.resolvePresetKey(state), state.healthMode || 'off', radarMode);
+        return VC.buildViewCycle(VC.resolvePresetKey(state), state.healthMode || 'off', radarMode,
+            Boolean(state.swapClockStatus));
     }
 
     // Schematic band-stack geometry (px). The calendar is modelled as rows of height ROW
@@ -762,9 +763,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return out;
     }
 
+    // Status-source -> band label. Labels drop the trailing "Bar" to stay compact in the
+    // narrow preview columns. STATUS_SRC_NONE (0) has no entry, so a lookup for it is falsy
+    // (no band) — see upperRow/lowerRow below.
+    var STATUS_LABEL = {};
+    STATUS_LABEL[VC.STATUS_SRC_FORECAST] = 'Forecast Status';
+    STATUS_LABEL[VC.STATUS_SRC_RADAR] = 'Radar Status';
+    STATUS_LABEL[VC.STATUS_SRC_HEALTH] = 'Health Status';
+
     // Schematic band stack for one ViewSpec — proportional, not pixel-accurate. Mirrors
-    // layout.c band ordering: compact = cal, single status (whichever is on) before clock;
-    // dual = health before clock, forecast after; full/none = clock then status bar(s).
+    // layout.c band ordering: compact = cal, upper status row (freed cal row) before the
+    // clock, lower status row (forecast-abutting) after; full/none = clock, then upper row,
+    // then lower row. Reads spec.statusUpper/spec.statusLower directly — radar flavor is
+    // data (STATUS_SRC_RADAR), not inferred from spec.top/spec.body.
     function contentBands(spec) {
         if (!spec) { return null; }
         var bands = [{ label: 'Watch Status', h: 12 }];
@@ -773,42 +784,25 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var topBand = null;
         if (spec.top === VC.TOP_RADAR) { topBand = { label: 'Radar', h: CAL3_H }; }
         else if (!isNone) { topBand = { label: isFull ? 'Calendar (3 rows)' : 'Calendar (2 rows)', h: isFull ? CAL3_H : CAL2_H }; }
-        // BODY_RADAR_STATUS renders the forecast body (chart suppressed) with a radar
-        // status line — mirrors the watch, where only the status line turns radar.
         var bodyLabel = spec.body === VC.BODY_GRAPH ? 'Health graph'
                       : spec.body === VC.BODY_RADAR ? 'Radar' : 'Forecast';
         // The body always takes the remaining space (flex); the fallback h only matters to a
         // consumer that doesn't resolve flex bands.
         var bodyBand = { label: bodyLabel, h: 20, flex: true };
-        // The Forecast status bar becomes the Radar status bar when the view shows radar (top
-        // band or body) — mirrors main_window.c's (top == TOP_RADAR || body == BODY_RADAR ||
-        // body == BODY_RADAR_STATUS) ? STATUS_LINE_RADAR : STATUS_LINE_FORECAST. The
-        // BODY_RADAR_STATUS tier is the exception to "forecast body keeps Forecast Status": it
-        // renders the forecast body but still takes the Radar Status line.
-        // Labels drop the trailing "Bar" to stay compact in the narrow preview columns.
-        var isRadarView = spec.top === VC.TOP_RADAR || spec.body === VC.BODY_RADAR
-                        || spec.body === VC.BODY_RADAR_STATUS;
-        var weather = { label: isRadarView ? 'Radar Status' : 'Forecast Status', h: STATUS_H };
-        var health = { label: 'Health Status', h: STATUS_H };
+        var upperLabel = STATUS_LABEL[spec.statusUpper];
+        var lowerLabel = STATUS_LABEL[spec.statusLower];
+        var upperRow = upperLabel ? { label: upperLabel, h: STATUS_H } : null;
+        var lowerRow = lowerLabel ? { label: lowerLabel, h: STATUS_H } : null;
         var clock = { label: 'Clock', h: isNone ? 30 : 22 };
-        var dual = spec.status === VC.ST_D;
-        var showW = spec.status === VC.ST_W || dual;
-        var showH = spec.status === VC.ST_H || dual;
         if (topBand) { bands.push(topBand); }
-        if (!isNone && !isFull) {                 // compact: single status rides the freed cal row
-            if (dual) {
-                bands.push(health);               // freed row, above the clock
-                bands.push(clock);
-                bands.push(weather);              // carved band, below the clock (near the body)
-            } else {
-                if (showH) { bands.push(health); }
-                if (showW) { bands.push(weather); }
-                bands.push(clock);
-            }
-        } else {                                  // full / none: clock, then status bar(s)
+        if (!isNone && !isFull) {                 // compact: upper rides the freed cal row
+            if (upperRow) { bands.push(upperRow); }   // freed row, above the clock
             bands.push(clock);
-            if (showH) { bands.push(health); }
-            if (showW) { bands.push(weather); }
+            if (lowerRow) { bands.push(lowerRow); }   // carved band, below the clock (near the body)
+        } else {                                  // full / none: clock, then status row(s)
+            bands.push(clock);
+            if (upperRow) { bands.push(upperRow); }
+            if (lowerRow) { bands.push(lowerRow); }
         }
         bands.push(bodyBand);
         return bands;
@@ -907,6 +901,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // catalog (Tasks 2 + 17) — Empty first, availability-gated, sibling+excludeCodes filtered.
     PConf.optionsResolvers.register('statusSlot', function (S, env, args) {
         return statusLineCatalog.slotOptions(S, env, args);
+    });
+
+    // layoutPreset options resolver: compactDense is offered once EITHER health shows a
+    // status row (status/all) OR radar does (radarMode='status') — the radar-dense fold
+    // (bug #1/#2) needs compactDense reachable from radar alone, not just health.
+    PConf.optionsResolvers.register('layoutPresetOptions', function (S) {
+        var base = [['Full calendar', 'fullCal'], ['Compact calendar', 'compactCal']];
+        var dense = (S.radarMode === 'status' || S.healthMode === 'status' || S.healthMode === 'all');
+        if (dense) { base.push(['Compact calendar (dense)', 'compactDense']); }
+        base.push(['No calendar', 'noCal']);
+        return base;
     });
 
     // Platform-aware slot default (Approach A single-source): a status slot's fresh-install

@@ -140,7 +140,7 @@ test('flickStops: health-status flick maps to the healthMode.status shot; heart 
   assert.doesNotMatch(noHR[1].caption, /heart/);
 });
 
-test('flickStops: fullCal/status dual-status middle stop (ST_D) also maps to healthMode.status', () => {
+test('flickStops: fullCal/status health-dense middle stop (statusUpper=HEALTH) also maps to healthMode.status', () => {
   const stops = W.flickStops({ layoutPreset: 'fullCal', healthMode: 'status', radarMode: 'graph' });
   assert.deepEqual(stops.map((s) => s.label), ['Default', 'Health Status Bar', 'Radar']);
   assert.equal(stops[1].shotVal, 'status');
