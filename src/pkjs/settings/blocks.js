@@ -781,8 +781,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // consumer that doesn't resolve flex bands.
         var bodyBand = { label: bodyLabel, h: 20, flex: true };
         // The Forecast status bar becomes the Radar status bar when the view shows radar (top
-        // band or body) — mirrors main_window.c's (top == TOP_RADAR || body == BODY_RADAR)
-        // ? STATUS_LINE_RADAR : STATUS_LINE_FORECAST. A forecast-body view keeps "Forecast Status".
+        // band or body) — mirrors main_window.c's (top == TOP_RADAR || body == BODY_RADAR ||
+        // body == BODY_RADAR_STATUS) ? STATUS_LINE_RADAR : STATUS_LINE_FORECAST. The
+        // BODY_RADAR_STATUS tier is the exception to "forecast body keeps Forecast Status": it
+        // renders the forecast body but still takes the Radar Status line.
         // Labels drop the trailing "Bar" to stay compact in the narrow preview columns.
         var isRadarView = spec.top === VC.TOP_RADAR || spec.body === VC.BODY_RADAR
                         || spec.body === VC.BODY_RADAR_STATUS;
@@ -939,7 +941,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // is enabled at all. A user can run weather on tomorrow.io while radar stays on
         // another provider (Rainbow by default), so only mention radar when it actually
         // counts against this budget; never print "radar off" (it reads as "radar disabled").
-        var radarOn = state.radarProvider === 'tomorrowio';
+        var radarOn = state.radarProvider === 'tomorrowio' && (state.radarMode || 'graph') !== 'off';
         var settingsBits = 'every ' + interval + ' min, '
             + (sleep > 0 ? 'night pause ' + sleep + ' h' : 'no night pause')
             + (radarOn ? ', incl. radar' : '');

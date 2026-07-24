@@ -504,7 +504,7 @@ test('radarProvider is a dropdown offering DWD/Met.no/Rainbow/Tomorrow.io (short
   assert.equal(item.defaultValue, 'rainbow');
 });
 
-test('radarMode is a radio with off/countdown/status/graph tiers, defaulting to graph, forced off (radio removed) on aplite via onbuild', () => {
+test('radarMode is a radio with off/countdown/status/graph tiers, defaulting to graph, with a hint for every value', () => {
   const item = byKey('radarMode');
   assert.equal(item.type, 'radio');
   assert.equal(item.defaultValue, 'graph');

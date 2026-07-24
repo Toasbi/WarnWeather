@@ -308,6 +308,7 @@ test('migrateRadarProviderToMode: real provider + no radarMode -> graph', () => 
   const s = JSON.parse(localStorage.getItem('clay-settings'));
   assert.strictEqual(s.radarMode, 'graph');
   assert.strictEqual(s.radarProvider, 'dwd');
+  assert.strictEqual(done, true);
 });
 
 test('migrateRadarProviderToMode: already-set radarMode is left alone', () => {
@@ -316,9 +317,11 @@ test('migrateRadarProviderToMode: already-set radarMode is left alone', () => {
   const claySettings = require('../src/pkjs/clay-settings');
 
   localStorage.setItem('clay-settings', JSON.stringify({ radarProvider: 'dwd', radarMode: 'countdown' }));
-  claySettings.migrateRadarProviderToMode('rainbow', () => false, () => {});
+  let done = false;
+  claySettings.migrateRadarProviderToMode('rainbow', () => done, () => { done = true; });
   const s = JSON.parse(localStorage.getItem('clay-settings'));
   assert.strictEqual(s.radarMode, 'countdown');
+  assert.strictEqual(done, true);
 });
 
 test('migrateRadarProviderToMode: skips when the marker is already set', () => {

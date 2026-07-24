@@ -12,7 +12,7 @@ const ENV_DIORITE = { color: false, round: false, platform: 'diorite', health: t
 
 function blob(extra) {
   return Object.assign({
-    healthMode: 'all', radarProvider: 'disabled',
+    healthMode: 'all', radarProvider: 'disabled', radarMode: 'off',
     statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'aqi',
     statusRadarLeft: 'temp', statusRadarMid: 'wind', statusRadarRight: 'gust',
     statusTopLeft: 'week', statusTopMid: 'date', statusTopRight: 'sun',

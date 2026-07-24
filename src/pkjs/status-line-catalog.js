@@ -99,6 +99,7 @@
     // used to (the watch-side iso_week() is aplite-excluded), but the phone
     // now bakes that slot as phone-side TEXT for aplite instead (status-lines.js).
     if (item.notAplite && env && env.platform === 'aplite') { return false; }
+    // No catalog item sets needsRadarOff today; gate kept correct (radarMode-based) for when one does.
     if (item.needsRadarOff && (!settings || (settings.radarMode || 'graph') !== 'off')) {
       return false;
     }
