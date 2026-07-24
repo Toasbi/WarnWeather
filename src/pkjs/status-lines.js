@@ -144,14 +144,59 @@ function formatWind(v, settings) {
 }
 
 /**
+ * Parse YYYY-MM-DD at local midnight, returning fallback for malformed or
+ * normalized-away dates such as 2028-02-31.
+ * @param {*} value Stored settings value.
+ * @param {Date} fallback Valid local-midnight fallback.
+ * @returns {Date} Parsed local-midnight date or fallback.
+ */
+function parseCountdownDate(value, fallback) {
+  var parts = typeof value === 'string' ? value.split('-') : [];
+  if (parts.length !== 3 || !/^\d{4}$/.test(parts[0])
+      || !/^\d{2}$/.test(parts[1]) || !/^\d{2}$/.test(parts[2])) {
+    return fallback;
+  }
+  var year = parseInt(parts[0], 10);
+  var month = parseInt(parts[1], 10);
+  var day = parseInt(parts[2], 10);
+  var parsed = new Date(1970, 0, 1);
+  parsed.setFullYear(year, month - 1, day);
+  if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1
+      || parsed.getDate() !== day) {
+    return fallback;
+  }
+  return parsed;
+}
+
+/**
+ * Format whole local calendar days until a target date.
+ * @param {*} targetValue Stored YYYY-MM-DD target.
+ * @param {Date} [now] Current local time; injectable for tests.
+ * @returns {string} Nd for future, now for today, -- for passed.
+ */
+function formatCountdown(targetValue, now) {
+  var current = now || new Date();
+  var today = new Date(current.getFullYear(), current.getMonth(), current.getDate());
+  var target = parseCountdownDate(targetValue, today);
+  var days = Math.round((target.getTime() - today.getTime()) / 86400000);
+  if (days < 0) { return '--'; }
+  return days === 0 ? 'now' : days + 'd';
+}
+
+/**
  * Format one catalog item's display text from the payload.
  * @param {string} code catalog item code (TEXT kinds only)
  * @param {Object} payload weather payload (pre-transform)
  * @param {Object} settings Clay settings blob
+ * @param {string} slotKey Owning status-slot settings key.
  * @returns {string} display text, '--' when the value is unavailable
  */
-function formatValue(code, payload, settings) {
+function formatValue(code, payload, settings, slotKey) {
   var v;
+  if (code === 'countdown') {
+    return formatCountdown(settings && slotKey
+      ? settings[slotKey + 'Countdown'] : undefined);
+  }
   if (code === 'temp') {
     if (typeof payload.CURRENT_TEMP !== 'number') { return '--'; }
     var t = payload.CURRENT_TEMP;
@@ -227,8 +272,8 @@ function packLine(line, payload, settings, env) {
       bytes.push(catalog.KINDS.TEXT, item.icon, weekBytes.length);
       for (var wb = 0; wb < weekBytes.length; wb++) { bytes.push(weekBytes[wb]); }
     } else if (item.kind === catalog.KINDS.TEXT) {
-      var valueBytes = utf8Truncate(utf8Encode(formatValue(code, payload, settings)),
-                                    textCap(s));
+      var valueBytes = utf8Truncate(
+        utf8Encode(formatValue(code, payload, settings, key)), textCap(s));
       bytes.push(item.kind, item.icon, valueBytes.length);
       for (var b = 0; b < valueBytes.length; b++) { bytes.push(valueBytes[b]); }
     } else {
@@ -259,6 +304,7 @@ module.exports = {
   buildStatusLines: buildStatusLines,
   packLine: packLine,
   formatValue: formatValue,
+  formatCountdown: formatCountdown,
   utf8Encode: utf8Encode,
   utf8Truncate: utf8Truncate,
   isoWeek: isoWeek

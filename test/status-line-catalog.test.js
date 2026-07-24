@@ -180,6 +180,26 @@ test('city is offered in the forecast slot dropdowns', () => {
   assert.ok(codes.indexOf('city') !== -1);
 });
 
+test('countdown is a TEXT calendar item available in every slot and exempt from taken codes', () => {
+  const item = catalog.byCode('countdown');
+  assert.ok(item, 'countdown item exists');
+  assert.equal(item.kind, catalog.KINDS.TEXT);
+  assert.equal(item.icon, catalog.ICONS.COUNTDOWN);
+  assert.equal(item.category, 'datelocation');
+  [
+    { slotKey: 'statusForecastLeft', position: 'left' },
+    { slotKey: 'statusForecastMid', position: 'mid' },
+    { slotKey: 'statusTopRight', position: 'right' }
+  ].forEach((ctx) => {
+    assert.ok(catalog.itemAvailable(item, {}, ENV_APLITE, ctx));
+    const codes = catalog.slotOptions({}, ENV_APLITE, {
+      slotKey: ctx.slotKey, position: ctx.position, excludeCodes: ['countdown']
+    }).map((o) => o[1]);
+    assert.ok(codes.indexOf('countdown') !== -1,
+      'countdown remains selectable when a sibling already uses it');
+  });
+});
+
 test('walked distance is one catalog entry; the mi kind is pack-time only', () => {
   assert.ok(catalog.byCode('distance'), 'distance entry exists');
   assert.equal(catalog.byCode('distance').kind, catalog.KINDS.LIVE_DISTANCE);

@@ -233,6 +233,25 @@ static const uint16_t MASK_UV[]     = {0x040,0x842,0x404,0x0e0,0x110,0x1913,0x11
 static const uint16_t MASK_AQI[]    = {0x380,0xc40,0x1820,0x1810,0x1808,0xc04,0x622,0x192,0x0ca,0x03c,0x002,0x001};
 static const uint16_t MASK_POLLEN[] = {0x020,0x124,0x0f8,0x326,0x1fc,0x326,0x0f8,0x124,0x020,0x010,0x008,0x004,0x002};
 
+// Calendar glyph — hand-authored from docs/superpowers/svg/countdown.svg.
+// Box + top hangers + header bar + day-cell dots. bit x = column x.
+//
+// ...#....#...
+// .##########.
+// #..#....#..#
+// #..#....#..#
+// #..........#
+// ############
+// #..........#
+// #.#.#.#.#..#
+// #..........#
+// #.#.#.#....#
+// #..........#
+// #..........#
+// .##########.
+static const uint16_t MASK_COUNTDOWN[] =
+    {0x108,0x7fe,0x909,0x909,0x801,0xfff,0x801,0x955,0x801,0x855,0x801,0x801,0x7fe};
+
 typedef struct { const uint16_t *rows; uint8_t n, w; } StatusMask;
 
 // Returns the pictogram for a weather icon id, or NULL when the slot has none
@@ -244,13 +263,15 @@ static const StatusMask *status_mask_for(uint8_t icon_id) {
     static const StatusMask uv     = { MASK_UV,     11, 13 };
     static const StatusMask aqi    = { MASK_AQI,    12, 13 };
     static const StatusMask pollen = { MASK_POLLEN, 13, 11 };
+    static const StatusMask countdown = { MASK_COUNTDOWN, 13, 12 };
     switch (icon_id) {
-        case STATUS_ICON_TEMP:   return &temp;
-        case STATUS_ICON_WIND:   return &wind;
-        case STATUS_ICON_GUST:   return &gust;
-        case STATUS_ICON_UV:     return &uv;
-        case STATUS_ICON_AQI:    return &aqi;
-        case STATUS_ICON_POLLEN: return &pollen;
+        case STATUS_ICON_TEMP:      return &temp;
+        case STATUS_ICON_WIND:      return &wind;
+        case STATUS_ICON_GUST:      return &gust;
+        case STATUS_ICON_UV:        return &uv;
+        case STATUS_ICON_AQI:       return &aqi;
+        case STATUS_ICON_POLLEN:    return &pollen;
+        case STATUS_ICON_COUNTDOWN: return &countdown;
         default: return NULL;
     }
 }

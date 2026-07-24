@@ -361,6 +361,150 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       + ' options" data-ssel-list="' + key + '">'
       + renderSelectOptions(item, value, cx.selectQuery, resolveRecommended(item, cx.S, cx.ENV)) + '</div>';
   }
+
+  var MONTH_NAMES = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  var MONTH_SHORT = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  ];
+
+  /**
+   * @param {number} n Number to pad.
+   * @returns {string} Two digits.
+   */
+  function datePad2(n) {
+    return (n < 10 ? '0' : '') + n;
+  }
+
+  /**
+   * @param {Date} date Local date.
+   * @returns {string} Local YYYY-MM-DD.
+   */
+  function formatDateValue(date) {
+    return date.getFullYear() + '-' + datePad2(date.getMonth() + 1)
+      + '-' + datePad2(date.getDate());
+  }
+
+  /**
+   * @param {number} year Full year.
+   * @param {number} month One-based month.
+   * @returns {number} Real day count for the month.
+   */
+  function daysInMonth(year, month) {
+    return new Date(year, month, 0).getDate();
+  }
+
+  /**
+   * @param {*} value YYYY-MM-DD candidate.
+   * @param {Date} [now] Local fallback date.
+   * @returns {{year:number, month:number, day:number}} Valid parts.
+   */
+  function parseDateParts(value, now) {
+    var fallback = now || new Date();
+    var parts = typeof value === 'string' ? value.split('-') : [];
+    if (parts.length === 3 && /^\d{4}$/.test(parts[0])
+        && /^\d{2}$/.test(parts[1]) && /^\d{2}$/.test(parts[2])) {
+      var year = parseInt(parts[0], 10);
+      var month = parseInt(parts[1], 10);
+      var day = parseInt(parts[2], 10);
+      if (month >= 1 && month <= 12 && day >= 1
+          && day <= daysInMonth(year, month)) {
+        return { year: year, month: month, day: day };
+      }
+    }
+    return {
+      year: fallback.getFullYear(),
+      month: fallback.getMonth() + 1,
+      day: fallback.getDate()
+    };
+  }
+
+  /**
+   * Clamp a date-part object and serialize it.
+   *
+   * @param {{year:number, month:number, day:number}} parts Date parts.
+   * @returns {string} Valid YYYY-MM-DD.
+   */
+  function dateValueFromParts(parts) {
+    var month = Math.max(1, Math.min(12, parseInt(parts.month, 10) || 1));
+    var year = parseInt(parts.year, 10) || new Date().getFullYear();
+    var day = Math.max(1, parseInt(parts.day, 10) || 1);
+    day = Math.min(day, daysInMonth(year, month));
+    return year + '-' + datePad2(month) + '-' + datePad2(day);
+  }
+
+  /**
+   * @param {Object} item Date schema item.
+   * @param {{value:*, openDate:?string}} view Render state.
+   * @returns {string} Whole-row date trigger.
+   */
+  function renderDateTrigger(item, view) {
+    var p = parseDateParts(view.value);
+    var label = p.day + ' ' + MONTH_SHORT[p.month - 1] + ' ' + p.year;
+    var key = esc(item.messageKey);
+    return '<button type="button" class="date-wrap" data-date="' + key
+      + '" aria-label="' + esc(String(item.label || 'Date') + ': ' + label)
+      + '" aria-haspopup="dialog" aria-expanded="'
+      + (view.openDate === item.messageKey ? 'true' : 'false') + '"><span>'
+      + esc(label) + '</span><svg viewBox="0 0 24 24" fill="none"'
+      + ' stroke="currentColor" stroke-width="2" aria-hidden="true">'
+      + '<rect x="3" y="5" width="18" height="16" rx="2"/>'
+      + '<path d="M16 3v4M8 3v4M3 10h18"/></svg></button>';
+  }
+
+  /**
+   * @param {string} part day|month|year.
+   * @param {Array} values Numeric values.
+   * @param {number} selected Selected numeric value.
+   * @returns {string} One scroll-snap wheel.
+   */
+  function renderDateWheel(part, values, selected) {
+    var h = '<div class="date-wheel" data-date-wheel="' + part + '">';
+    for (var i = 0; i < values.length; i++) {
+      var value = values[i];
+      var label = part === 'month' ? MONTH_NAMES[value - 1] : String(value);
+      h += '<button type="button" class="date-opt'
+        + (value === selected ? ' on' : '') + '" data-date-value="' + value
+        + '">' + esc(label) + '</button>';
+    }
+    return h + '</div>';
+  }
+
+  /**
+   * @param {Object} schema Config schema.
+   * @param {{S:Object, openDate:?string}} cx Render context.
+   * @returns {string} Date sheet inner HTML or empty string.
+   */
+  function renderDateModal(schema, cx) {
+    if (!cx.openDate) { return ''; }
+    var found = null;
+    eachItem(schema, function (it) {
+      if (it.type === 'date' && it.messageKey === cx.openDate) { found = it; }
+    });
+    if (!found) { return ''; }
+    var p = parseDateParts(cx.S[found.messageKey]);
+    var days = [], months = [], years = [], i;
+    for (i = 1; i <= daysInMonth(p.year, p.month); i++) { days.push(i); }
+    for (i = 1; i <= 12; i++) { months.push(i); }
+    var currentYear = new Date().getFullYear();
+    var firstYear = Math.min(currentYear, p.year);
+    var lastYear = Math.max(currentYear + 10, p.year);
+    for (i = firstYear; i <= lastYear; i++) { years.push(i); }
+    var key = esc(found.messageKey);
+    var titleId = 'date-ttl-' + key;
+    return '<div class="ssel-modal-hdr"><span class="ssel-modal-ttl" id="'
+      + titleId + '">' + esc(found.label || 'Date') + '</span>'
+      + '<button type="button" class="ssel-modal-close" data-date-close'
+      + ' aria-label="Close">×</button></div><div class="date-picker"'
+      + ' data-date-picker="' + key + '"><div class="date-band"></div>'
+      + renderDateWheel('day', days, p.day)
+      + renderDateWheel('month', months, p.month)
+      + renderDateWheel('year', years, p.year) + '</div>';
+  }
+
   function renderText(item, v) {
     var ph = (item.attributes && item.attributes.placeholder) ? esc(item.attributes.placeholder) : '';
     var input = '<input type="text" data-k="' + item.messageKey + '" value="' + esc(v || '') + '" placeholder="' + ph + '">';
@@ -396,6 +540,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     segmented: function (item, view) { return renderSegmented(item, view.value); },
     radio: function (item, view) { return renderRadio(item, view.value); },
     select: function (item, view) { return renderSelectTrigger(item, view); },
+    date: function (item, view) { return renderDateTrigger(item, view); },
     text: function (item, view) { return renderText(item, view.value); },
     color: function (item, view) { return renderColor(item, view.value, view.openColor); },
     searchSelect: function (item, view) { return renderSelectTrigger(item, view); }
@@ -404,7 +549,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * Dispatch to the control renderer for item.type; '' for an unknown type.
    *
    * @param {Object} item Schema item.
-   * @param {{value: *, openColor: ?string, openSelect: ?string, selectQuery: ?string}} view Render view state.
+   * @param {{value: *, openColor: ?string, openSelect: ?string, openDate: ?string,
+   *   selectQuery: ?string}} view Render view state.
    * @returns {string} Control HTML.
    */
   function renderControl(item, view) {
@@ -423,6 +569,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @returns {string} Row HTML.
    */
   function renderRow(item, view, noDivider) {
+    if (item.type === 'date') {
+      return '<div class="row date-row' + (noDivider ? ' nb' : '')
+        + '"><div class="date-cell">' + renderControl(item, view)
+        + '</div></div>';
+    }
     var hint = item.hintByValue ? (item.hintByValue[view.value] || item.hint) : item.hint;
     var stacked = item.type === 'text' || item.type === 'radio'
       || (item.type === 'color' && view.openColor === item.messageKey);
@@ -527,7 +678,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     for (i = 0; i < items.length; i++) {
       item = items[i];
       if (!PConf.showWhen.isVisible(item, cx.evalCtx)) { continue; }
-      view = { value: cx.S[item.messageKey], openColor: cx.openColor, openSelect: cx.openSelect, selectQuery: cx.selectQuery };
+      view = {
+        value: cx.S[item.messageKey],
+        openColor: cx.openColor,
+        openSelect: cx.openSelect,
+        openDate: cx.openDate,
+        selectQuery: cx.selectQuery
+      };
       cells += '<div class="icell"><div class="lbl">' + esc(item.label) + '</div>' + renderControl(item, view) + '</div>';
       visible++;
     }
@@ -572,7 +729,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         body += g.html;
         continue;
       }
-      var view = { value: cx.S[item.messageKey], openColor: cx.openColor, openSelect: cx.openSelect, selectQuery: cx.selectQuery };
+      var view = {
+        value: cx.S[item.messageKey],
+        openColor: cx.openColor,
+        openSelect: cx.openSelect,
+        openDate: cx.openDate,
+        selectQuery: cx.selectQuery
+      };
       var r = renderItem(item, view, cx, nextVisibleJoins(sec.items, i + 1, cx));
       if (r.kind === 'control') { controlCount++; }
       else if (r.kind === 'static') { staticCount++; }
@@ -695,7 +858,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var SCHEMA = INJECTED_SCHEMA, ENV = INJECTED_ENV || { color: true, round: false, platform: '', health: true };
     var USERDATA = INJECTED_USERDATA || {}, RETURN_TO = INJECTED_RETURN || 'pebblejs://close#';
     var S = hydrate(SCHEMA, INJECTED_CFG, ENV), INITIAL = Object.assign({}, S);
-    var activeTab = SCHEMA.tabs[0].id, openColor = null, openSelect = null, selectQuery = '', collapsed = initialCollapsed(SCHEMA);
+    var activeTab = SCHEMA.tabs[0].id;
+    var openColor = null, openSelect = null, openDate = null;
+    var selectQuery = '', collapsed = initialCollapsed(SCHEMA);
     // Recover a schema item by messageKey so the input handler can re-filter its options in place.
     function findItem(key) { var f = null; eachItem(SCHEMA, function (it) { if (it.messageKey === key) { f = it; } }); return f; }
     // The messageKey of the trigger to restore focus to when the modal closes. Stored by key
@@ -705,6 +870,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // Optional one-shot callback fired after the sheet closes, set by openSheet() so an external
     // caller (the onboarding wizard, which lives in its own overlay) can react to a pick/dismiss.
     var onSheetClose = null;
+    // One pending settled-scroll sample per date wheel part. Separate entries prevent activity
+    // in one wheel from canceling another wheel's still-pending selection.
+    var pendingDateScrolls = {};
     // On open, focus the search box (searchSelect) or the selected/first option (select).
     function focusModal() {
       var modal = document.getElementById('modal');
@@ -712,22 +880,36 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         || modal.querySelector('.ssel-opt.on') || modal.querySelector('.ssel-opt');
       if (el) { el.focus(); }
     }
-    // Open/close the native <dialog> to match openSelect. showModal()/close() fire only on the
-    // state edges (calling showModal() on an already-open dialog throws), and no-op in the
-    // pure-render test harness, which shims a plain #modal element without the dialog methods.
+    // Open/close the native <dialog> to match the shared select/date sheet state.
+    // showModal()/close() fire only on the state edges (calling showModal() on an already-open
+    // dialog throws), and no-op in the pure-render test harness, which shims a plain #modal.
     function syncDialog() {
       var dlg = document.getElementById('modal');
       if (!dlg || !dlg.showModal) { return; }
-      if (openSelect && !dlg.open) {
-        dlg.showModal();
+      var sheetOpen = openSelect || openDate;
+      var opening = Boolean(sheetOpen && !dlg.open);
+      if (sheetOpen) {
+        if (opening) { dlg.showModal(); }
         var ttl = dlg.querySelector('.ssel-modal-ttl');
         if (ttl && ttl.id) { dlg.setAttribute('aria-labelledby', ttl.id); }
-        // searchSelect filters as you type; pin a fixed height so a shrinking list can't
-        // resize the sheet and make it jump. Plain select stays content-sized.
-        if (dlg.querySelector('[data-select-search]')) { dlg.classList.add('search'); }
-        else { dlg.classList.remove('search'); scheduleSelectPeek(dlg); }
-      } else if (!openSelect && dlg.open) {
+        if (openDate) {
+          dlg.classList.remove('search');
+          dlg.classList.add('date');
+          scheduleDateWheelAlign(dlg, opening);
+        } else {
+          dlg.classList.remove('date');
+          // searchSelect filters as you type; pin a fixed height so a shrinking list can't
+          // resize the sheet and make it jump. Plain select stays content-sized.
+          if (dlg.querySelector('[data-select-search]')) {
+            dlg.classList.add('search');
+          } else {
+            dlg.classList.remove('search');
+            if (opening) { scheduleSelectPeek(dlg); }
+          }
+        }
+      } else if (dlg.open) {
         dlg.classList.remove('search');
+        dlg.classList.remove('date');
         dlg.style.bottom = '';
         dlg.style.maxHeight = '';
         dlg.style.transform = '';
@@ -805,15 +987,111 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         fitSelectPeek(dlg);
       });
     }
-    // Close the open modal and return focus to the trigger that opened it.
-    function closeSelect() {
-      openSelect = null; render();
-      if (lastSelectKey) {
-        var trg = document.querySelector('[data-select="' + lastSelectKey + '"]');
-        if (trg) { trg.focus(); }
-        lastSelectKey = null;
+
+    /**
+     * Center each date wheel on its selected option.
+     *
+     * @param {Object} dlg Shared dialog element.
+     * @returns {void}
+     */
+    function alignDateWheels(dlg) {
+      var wheels = dlg.querySelectorAll('[data-date-wheel]');
+      for (var i = 0; i < wheels.length; i++) {
+        var selected = wheels[i].querySelector('.date-opt.on');
+        if (selected) {
+          wheels[i].scrollTop = selected.offsetTop
+            - (wheels[i].clientHeight - selected.offsetHeight) / 2;
+        }
       }
-      if (onSheetClose) { var cb = onSheetClose; onSheetClose = null; cb(); }
+    }
+
+    /**
+     * Align after layout, and once after the opening animation when first shown.
+     *
+     * @param {Object} dlg Shared dialog element.
+     * @param {boolean} opening Whether this render opened the dialog.
+     * @returns {void}
+     */
+    function scheduleDateWheelAlign(dlg, opening) {
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () { alignDateWheels(dlg); });
+        });
+      }
+      if (!opening) { return; }
+      dlg.addEventListener('animationend', function once() {
+        dlg.removeEventListener('animationend', once);
+        alignDateWheels(dlg);
+      });
+    }
+
+    /**
+     * Find the wheel option nearest the visible center.
+     *
+     * @param {Object} wheel Date wheel element.
+     * @returns {?number} Nearest numeric option value.
+     */
+    function nearestDateWheelValue(wheel) {
+      var options = wheel.querySelectorAll('.date-opt');
+      var center = wheel.scrollTop + wheel.clientHeight / 2;
+      var nearest = null, distance = Infinity;
+      for (var i = 0; i < options.length; i++) {
+        var optionCenter = options[i].offsetTop + options[i].offsetHeight / 2;
+        var candidate = Math.abs(optionCenter - center);
+        if (candidate < distance) {
+          distance = candidate;
+          nearest = options[i];
+        }
+      }
+      return nearest
+        ? parseInt(nearest.getAttribute('data-date-value'), 10) : null;
+    }
+
+    /**
+     * Commit and cancel every pending date wheel before a date render or close.
+     * All selected parts are combined before clamping so the caller renders once.
+     *
+     * @returns {void}
+     */
+    function flushPendingDateScrolls() {
+      var dateKey = openDate;
+      var parts = dateKey ? parseDateParts(S[dateKey]) : null;
+      var names = ['day', 'month', 'year'];
+      var hasSelection = false;
+      for (var i = 0; i < names.length; i++) {
+        var part = names[i];
+        var pending = pendingDateScrolls[part];
+        if (!pending) { continue; }
+        clearTimeout(pending.timer);
+        delete pendingDateScrolls[part];
+        if (!parts || pending.dateKey !== dateKey) { continue; }
+        var selected = nearestDateWheelValue(pending.wheel);
+        if (selected != null) {
+          parts[part] = selected;
+          hasSelection = true;
+        }
+      }
+      if (hasSelection) { S[dateKey] = dateValueFromParts(parts); }
+    }
+
+    // Close the shared modal and return focus to the fresh trigger rendered in its place.
+    function closeModal() {
+      var selectKey = lastSelectKey;
+      var dateKey = openDate;
+      flushPendingDateScrolls();
+      openSelect = null;
+      openDate = null;
+      render();
+      var selector = selectKey ? '[data-select="' + selectKey + '"]'
+        : dateKey ? '[data-date="' + dateKey + '"]' : null;
+      var trigger = selector ? document.querySelector(selector) : null;
+      if (trigger) { trigger.focus(); }
+      lastSelectKey = null;
+      if (onSheetClose) {
+        var cb = onSheetClose;
+        onSheetClose = null;
+        cb();
+      }
     }
     // evalCtx(): the {settings..., env} object showWhen predicates evaluate against.
     function evalCtx() { var c = Object.assign({}, S); c.env = ENV; return c; }
@@ -842,16 +1120,22 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
 
     function render() {
-      var cx = { S: S, ENV: ENV, USERDATA: USERDATA, openColor: openColor, openSelect: openSelect, selectQuery: selectQuery, collapsed: collapsed, evalCtx: evalCtx() };
+      var cx = {
+        S: S, ENV: ENV, USERDATA: USERDATA, openColor: openColor,
+        openSelect: openSelect, openDate: openDate, selectQuery: selectQuery,
+        collapsed: collapsed, evalCtx: evalCtx()
+      };
       document.getElementById('tabs').innerHTML = renderTabBar(SCHEMA, activeTab, cx);
       document.getElementById('scroll').innerHTML = renderBody(SCHEMA, activeTab, cx);
-      document.getElementById('modal').innerHTML = renderSelectModal(SCHEMA, cx);
+      document.getElementById('modal').innerHTML = openDate
+        ? renderDateModal(SCHEMA, cx) : renderSelectModal(SCHEMA, cx);
       syncDialog();
-      document.getElementById('scroll').className = 'scroll' + (openSelect ? ' locked' : '');
+      document.getElementById('scroll').className =
+        'scroll' + (openSelect || openDate ? ' locked' : '');
       applyTheme();
     }
 
-    // Tab bar: switch the active tab and close any open color/select overlays.
+    // Tab bar: switch the active tab and close any open color/shared-sheet overlays.
     // Each tab keeps its own scroll offset (in-memory only, per page load) so
     // switching away and back returns to where the user left off instead of
     // wherever the previous tab's offset happened to clamp.
@@ -860,9 +1144,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       document.getElementById('tabs').addEventListener('click', function (e) {
         var b = e.target.closest('[data-tab]');
         if (!b) { return; }
+        flushPendingDateScrolls();
         var scroll = document.getElementById('scroll');
         tabScroll[activeTab] = scroll.scrollTop;
-        activeTab = b.getAttribute('data-tab'); openColor = null; openSelect = null; render();
+        activeTab = b.getAttribute('data-tab');
+        openColor = null;
+        openSelect = null;
+        openDate = null;
+        render();
         scroll.scrollTop = tabScroll[activeTab] || 0;
       });
     }
@@ -875,8 +1164,25 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         var t;
         if ((t = e.target.closest('[data-select]'))) {
           var sk = t.getAttribute('data-select');
-          if (openSelect === sk) { closeSelect(); return; }
-          openSelect = sk; selectQuery = ''; lastSelectKey = sk; render(); focusModal(); return;
+          if (openSelect === sk) { closeModal(); return; }
+          flushPendingDateScrolls();
+          openDate = null;
+          openSelect = sk;
+          selectQuery = '';
+          lastSelectKey = sk;
+          render();
+          focusModal();
+          return;
+        }
+        if ((t = e.target.closest('[data-date]'))) {
+          var dk = t.getAttribute('data-date');
+          if (openDate === dk) { closeModal(); return; }
+          flushPendingDateScrolls();
+          openSelect = null;
+          lastSelectKey = null;
+          openDate = dk;
+          render();
+          return;
         }
         if ((t = e.target.closest('[data-toggle]'))) { S[t.getAttribute('data-k')] = !S[t.getAttribute('data-k')]; render(); return; }
         if ((t = e.target.closest('[data-color-pick]'))) { S[t.getAttribute('data-k')] = t.getAttribute('data-color-pick'); openColor = null; render(); return; }
@@ -907,23 +1213,39 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var modal = document.getElementById('modal');
       modal.addEventListener('click', function (e) {
         var t;
-        if ((t = e.target.closest('[data-select-pick]'))) {
+        if (e.target.closest && (t = e.target.closest('[data-select-pick]'))) {
           var k = t.getAttribute('data-k'), oldV = S[k], newV = t.getAttribute('data-select-pick');
           S[k] = newV;
           var it = findItem(k);
           var onChangeFn = it && it.onChange && PConf.onChange.get(it.onChange);
           if (onChangeFn) { onChangeFn(S, oldV, newV, ENV, k); }
-          closeSelect(); return;
+          closeModal(); return;
+        }
+        if (e.target.closest && (t = e.target.closest('.date-opt')) && openDate) {
+          var wheel = t.closest('[data-date-wheel]');
+          if (!wheel) { return; }
+          var dateKey = openDate;
+          flushPendingDateScrolls();
+          var parts = parseDateParts(S[dateKey]);
+          parts[wheel.getAttribute('data-date-wheel')] =
+            parseInt(t.getAttribute('data-date-value'), 10);
+          S[dateKey] = dateValueFromParts(parts);
+          render();
+          return;
+        }
+        if (e.target.closest && e.target.closest('[data-date-close]')) {
+          closeModal();
+          return;
         }
         // Backdrop light-dismiss: a ::backdrop click targets the dialog element itself.
-        if (e.target.closest('[data-select-close]') || e.target === modal) {
-          closeSelect(); return;
+        if ((e.target.closest && e.target.closest('[data-select-close]'))
+            || e.target === modal) {
+          closeModal(); return;
         }
       });
-      // Escape fires the dialog's native `cancel`; route it through closeSelect (the single
-      // close path via render → syncDialog) instead of letting the dialog self-close and
-      // desync openSelect.
-      modal.addEventListener('cancel', function (e) { e.preventDefault(); closeSelect(); });
+      // Escape fires the dialog's native `cancel`; route it through closeModal (the single
+      // close path via render → syncDialog) instead of letting the dialog self-close.
+      modal.addEventListener('cancel', function (e) { e.preventDefault(); closeModal(); });
       modal.addEventListener('input', function (e) {
         var sb = e.target.closest('[data-select-search]');
         if (!sb) { return; }
@@ -935,13 +1257,35 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           list.innerHTML = renderSelectOptions(item, S[sk], selectQuery, resolveRecommended(item, S, ENV));
         }
       });
+      modal.addEventListener('scroll', function (e) {
+        var wheel = e.target.closest && e.target.closest('[data-date-wheel]');
+        if (!wheel || !openDate) { return; }
+        var part = wheel.getAttribute('data-date-wheel');
+        if (part !== 'day' && part !== 'month' && part !== 'year') { return; }
+        var dateKey = openDate;
+        var previous = pendingDateScrolls[part];
+        if (previous) { clearTimeout(previous.timer); }
+        var pending = { dateKey: dateKey, wheel: wheel, timer: null };
+        pendingDateScrolls[part] = pending;
+        pending.timer = setTimeout(function () {
+          if (pendingDateScrolls[part] !== pending
+              || openDate !== pending.dateKey) { return; }
+          flushPendingDateScrolls();
+          render();
+        }, 120);
+      }, true);
       // Swipe-down-to-dismiss: only arms when the list is already at the top, so a downward
       // swipe mid-list still scrolls the list. Once armed, dragging down follows the finger
       // (translateY) and closes past a threshold; a shorter drag snaps back.
       var dragY = null, dragging = false;
       modal.addEventListener('touchstart', function (e) {
         var list = modal.querySelector('.ssel-list');
-        dragY = (list && list.scrollTop <= 0) ? e.touches[0].clientY : null;
+        var wheel = e.target.closest && e.target.closest('[data-date-wheel]');
+        var header = e.target.closest && e.target.closest('.ssel-modal-hdr');
+        var canDragDate = Boolean(openDate
+          && (header || (wheel && wheel.scrollTop <= 0)));
+        var canDragSelect = Boolean(openSelect && list && list.scrollTop <= 0);
+        dragY = (canDragDate || canDragSelect) ? e.touches[0].clientY : null;
         dragging = false;
         modal.style.transition = '';
       }, { passive: true });
@@ -955,7 +1299,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       }, { passive: false });
       modal.addEventListener('touchend', function (e) {
         if (dragY != null && dragging) {
-          if (e.changedTouches[0].clientY - dragY > 90) { closeSelect(); }
+          if (e.changedTouches[0].clientY - dragY > 90) { closeModal(); }
           else { modal.style.transition = 'transform .2s ease'; modal.style.transform = ''; }
         }
         dragY = null; dragging = false;
@@ -1023,7 +1367,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // which lives in its own overlay: the sheet is a showModal() top-layer dialog, so it renders
       // above that overlay. The engine sets S[key] on pick; onClose fires after any close.
       openSheet: function (key, onClose) {
-        openSelect = key; selectQuery = ''; lastSelectKey = null;
+        flushPendingDateScrolls();
+        openDate = null;
+        openSelect = key;
+        selectQuery = '';
+        lastSelectKey = null;
         onSheetClose = onClose || null;
         render(); focusModal();
       }
@@ -1038,7 +1386,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   PConf.engine = {
     serialize: serialize, hydrate: hydrate, boot: boot, initialCollapsed: initialCollapsed,
     esc: esc, renderControl: renderControl, renderRow: renderRow, renderSelectOptions: renderSelectOptions,
-    renderSelectModal: renderSelectModal,
+    renderSelectModal: renderSelectModal, renderDateModal: renderDateModal,
+    formatDateValue: formatDateValue, parseDateParts: parseDateParts,
+    dateValueFromParts: dateValueFromParts,
     renderTabBar: renderTabBar, renderBody: renderBody, resolveOptionsFrom: resolveOptionsFrom,
     resolveDefaultFrom: resolveDefaultFrom,
     resolveTheme: resolveTheme
@@ -1052,6 +1402,10 @@ if (typeof module !== 'undefined' && module.exports) {
     esc: PConf.engine.esc, renderControl: PConf.engine.renderControl, renderRow: PConf.engine.renderRow,
     renderSelectOptions: PConf.engine.renderSelectOptions,
     renderSelectModal: PConf.engine.renderSelectModal,
+    renderDateModal: PConf.engine.renderDateModal,
+    formatDateValue: PConf.engine.formatDateValue,
+    parseDateParts: PConf.engine.parseDateParts,
+    dateValueFromParts: PConf.engine.dateValueFromParts,
     renderTabBar: PConf.engine.renderTabBar, renderBody: PConf.engine.renderBody,
     resolveOptionsFrom: PConf.engine.resolveOptionsFrom,
     resolveDefaultFrom: PConf.engine.resolveDefaultFrom,

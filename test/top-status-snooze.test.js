@@ -11,14 +11,15 @@ var BASE = fs.readFileSync(
 var APLITE = fs.readFileSync(
   path.join(ROOT, 'src/c/layers/top_status_layer_aplite.c'), 'utf8');
 
-test('base top-status renderer resolves and draws the procedural snooze glyph', function() {
-  assert.match(BASE, /#include "top_status_indicators\.h"/);
-  assert.match(BASE, /#include "c\/appendix\/snooze\.h"/);
+test('base top-status renderer owns and draws the snooze PDC', function() {
+  assert.match(BASE, /#include "status_row_icons\.h"/);
+  assert.doesNotMatch(BASE, /appendix\/snooze\.h|snooze_draw/);
+  assert.match(BASE, /RESOURCE_ID_SNOOZE/);
+  assert.match(BASE, /status_row_icons_load_resource/);
   assert.match(BASE,
-    /top_status_indicators_resolve\([\s\S]*persist_get_is_sleeping\(\)/);
+    /TOP_STATUS_INDICATOR_SNOOZE[\s\S]*gdraw_command_image_draw/);
   assert.match(BASE,
-    /TOP_STATUS_INDICATOR_SNOOZE[\s\S]*snooze_draw\(/);
-  assert.doesNotMatch(BASE, /ICON_SLOT_3/);
+    /top_status_layer_destroy[\s\S]*snooze_glyph_unload\(\)/);
 });
 
 // aplite still resolves the snooze indicator but renders it as cheap "zZ" text

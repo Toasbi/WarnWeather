@@ -687,23 +687,37 @@ function bootWithCapturedListeners(schema, env) {
     + '\n' + fs.readFileSync(path.join(LIB, 'show-when.js'), 'utf8')
     + '\n' + fs.readFileSync(path.join(LIB, 'engine.js'), 'utf8')
     + '\nPConf.hooks.onLoad(function (ctx) { module.exports.loadEnv = ctx.env; });'
+    + '\nPConf.hooks.onReady(function (ctx) {'
+    + ' module.exports.openSheet = ctx.openSheet;'
+    + ' module.exports.getValue = ctx.get; });'
     + '\nPConf.engine.boot();';
   const listeners = {};
   const modalListeners = {};
+  const focusCounts = { select: {}, date: {} };
   const scroll = { innerHTML: '', addEventListener: (type, fn) => { listeners[type] = fn; } };
-  const modal = { innerHTML: '', addEventListener: (type, fn) => { modalListeners[type] = fn; } };
+  const modal = {
+    innerHTML: '',
+    style: {},
+    addEventListener: (type, fn) => { modalListeners[type] = fn; },
+    querySelector: () => null
+  };
   const sselList = { innerHTML: '', focus: () => {} };
   const generic = () => ({ innerHTML: '', textContent: '', addEventListener: () => {} });
   const ids = { scroll, modal, tabs: generic(), save: generic(), appTitle: generic(), toast: generic() };
-  // Minimal querySelector: only the two selectors boot() actually issues against `document`
-  // (as opposed to a captured scroll/modal element) need real resolution here — the fresh
-  // trigger closeSelect() re-queries by key, and wireModal()'s live-search list rebuild.
+  // Resolve the selectors boot() issues against `document`: live-search lists and the fresh
+  // select/date triggers that closeModal() may restore focus to after render.
   const document = {
     getElementById: (id) => ids[id] || generic(),
     addEventListener: () => {},
     querySelector: (sel) => {
       var m = /^\[data-ssel-list="(.+)"\]$/.exec(sel);
       if (m) { return sselList; }
+      m = /^\[data-(select|date)="(.+)"\]$/.exec(sel);
+      if (m) {
+        return { focus: () => {
+          focusCounts[m[1]][m[2]] = (focusCounts[m[1]][m[2]] || 0) + 1;
+        } };
+      }
       return null;
     }
   };
@@ -711,8 +725,291 @@ function bootWithCapturedListeners(schema, env) {
     'INJECTED_USERDATA', 'INJECTED_RETURN', 'module', BUNDLE);
   const mod = { exports: {} };
   fn(document, schema, env, {}, {}, 'pebblejs://close#', mod);
-  return { listeners, modalListeners, scroll, modal, sselList, onChange: mod.exports.onChange, loadEnv: mod.exports.loadEnv };
+  return {
+    listeners, modalListeners, scroll, modal, sselList, focusCounts,
+    onChange: mod.exports.onChange, loadEnv: mod.exports.loadEnv,
+    openSheet: mod.exports.openSheet, getValue: mod.exports.getValue
+  };
 }
+
+test('date helpers use local YYYY-MM-DD and clamp invalid days', () => {
+  assert.equal(E.formatDateValue(new Date(2028, 1, 29, 23, 30)), '2028-02-29');
+  assert.deepEqual(E.parseDateParts('2026-12-24', new Date(2026, 0, 1)),
+    { year: 2026, month: 12, day: 24 });
+  assert.deepEqual(E.parseDateParts('not-a-date', new Date(2026, 6, 4)),
+    { year: 2026, month: 7, day: 4 });
+  assert.equal(E.dateValueFromParts({ year: 2027, month: 2, day: 31 }),
+    '2027-02-28');
+});
+
+test('date control renders a whole-row calendar trigger with a real date', () => {
+  const item = { type: 'date', messageKey: 'trip', label: 'Target date' };
+  const view = { value: '2026-12-24', openDate: null };
+  const html = E.renderRow(item, view);
+  assert.match(html, /class="row date-row"/);
+  assert.match(html, /class="date-wrap"/);
+  assert.match(html, /data-date="trip"/);
+  assert.match(html, /24 Dec 2026/);
+  assert.match(html, /<svg[\s\S]*aria-hidden="true"/);
+  assert.doesNotMatch(html, /class="lft"/);
+  assert.doesNotMatch(html, /placeholder|unset/i);
+});
+
+test('date modal renders selected day, month, and year wheels', () => {
+  const schema = { tabs: [{ id: 't', sections: [{ items: [
+    { type: 'date', messageKey: 'trip', label: 'Target date' }
+  ] }]}]};
+  const cx = {
+    S: { trip: '2026-12-24' }, ENV: {}, openDate: 'trip', openSelect: null,
+    selectQuery: '', evalCtx: { trip: '2026-12-24', env: {} }
+  };
+  const html = E.renderDateModal(schema, cx);
+  assert.match(html, /data-date-wheel="day"[\s\S]*class="date-opt on" data-date-value="24"/);
+  assert.match(html, /data-date-wheel="month"[\s\S]*December/);
+  assert.match(html, /data-date-wheel="year"[\s\S]*2026/);
+  assert.doesNotMatch(html, /data-select-search/);
+});
+
+test('boot(): date trigger opens the shared sheet and a tapped wheel value persists', () => {
+  const schema = { appName: 'X', versionLabel: 'v0', tabs: [
+    { id: 't', label: 'T', sections: [{ items: [
+      { type: 'date', messageKey: 'trip', label: 'Target date',
+        defaultValue: '2026-12-24' }
+    ] }] }
+  ] };
+  const result = bootWithCapturedListeners(schema, {});
+  const trigger = {
+    getAttribute: (name) => name === 'data-date' ? 'trip' : null
+  };
+  result.listeners.click({
+    target: { closest: (selector) => selector === '[data-date]' ? trigger : null }
+  });
+  assert.match(result.modal.innerHTML, /data-date-picker="trip"/);
+
+  const wheel = {
+    getAttribute: (name) => name === 'data-date-wheel' ? 'day' : null
+  };
+  const option = {
+    getAttribute: (name) => name === 'data-date-value' ? '25' : null,
+    closest: (selector) => selector === '[data-date-wheel]' ? wheel : null
+  };
+  result.modalListeners.click({
+    target: { closest: (selector) => selector === '.date-opt' ? option : null }
+  });
+  assert.match(result.modal.innerHTML,
+    /class="date-opt on" data-date-value="25"/);
+});
+
+test('boot(): date swipe-dismiss arms only from the header or a wheel already at its top', () => {
+  const schema = { appName: 'X', versionLabel: 'v0', tabs: [
+    { id: 't', label: 'T', sections: [{ items: [
+      { type: 'date', messageKey: 'trip', label: 'Target date',
+        defaultValue: '2026-12-24' }
+    ] }] }
+  ] };
+
+  function dragWasArmed(target) {
+    const result = bootWithCapturedListeners(schema, {});
+    const trigger = {
+      getAttribute: (name) => name === 'data-date' ? 'trip' : null
+    };
+    result.listeners.click({
+      target: { closest: (selector) => selector === '[data-date]' ? trigger : null }
+    });
+    let prevented = false;
+    result.modalListeners.touchstart({
+      target,
+      touches: [{ clientY: 100 }]
+    });
+    result.modalListeners.touchmove({
+      touches: [{ clientY: 120 }],
+      preventDefault: () => { prevented = true; }
+    });
+    return prevented;
+  }
+
+  const gap = { closest: () => null };
+  const header = {};
+  const headerTarget = {
+    closest: (selector) => selector === '.ssel-modal-hdr' ? header : null
+  };
+  const wheelAtTop = { scrollTop: 0 };
+  const topWheelTarget = {
+    closest: (selector) => selector === '[data-date-wheel]' ? wheelAtTop : null
+  };
+  const wheelBelowTop = { scrollTop: 20 };
+  const scrolledWheelTarget = {
+    closest: (selector) => selector === '[data-date-wheel]' ? wheelBelowTop : null
+  };
+
+  assert.equal(dragWasArmed(gap), false, 'picker gaps and padding do not arm dismissal');
+  assert.equal(dragWasArmed(headerTarget), true, 'the modal header arms dismissal');
+  assert.equal(dragWasArmed(topWheelTarget), true, 'a wheel at its top arms dismissal');
+  assert.equal(dragWasArmed(scrolledWheelTarget), false,
+    'a wheel below its top keeps scrolling normally');
+});
+
+const DATE_MODAL_SCHEMA = { appName: 'X', versionLabel: 'v0', tabs: [
+  { id: 't', label: 'T', sections: [{ items: [
+    { type: 'date', messageKey: 'trip', label: 'Target date',
+      defaultValue: '2026-12-24' }
+  ] }] }
+] };
+
+function openDateInHarness(result) {
+  const trigger = {
+    getAttribute: (name) => name === 'data-date' ? 'trip' : null
+  };
+  result.listeners.click({
+    target: { closest: (selector) => selector === '[data-date]' ? trigger : null }
+  });
+}
+
+function dateWheel(part, value) {
+  const option = {
+    offsetTop: 0,
+    offsetHeight: 44,
+    getAttribute: (name) => name === 'data-date-value' ? String(value) : null
+  };
+  const wheel = {
+    scrollTop: 0,
+    clientHeight: 44,
+    closest: (selector) => selector === '[data-date-wheel]' ? wheel : null,
+    getAttribute: (name) => name === 'data-date-wheel' ? part : null,
+    querySelectorAll: (selector) => selector === '.date-opt' ? [option] : []
+  };
+  return wheel;
+}
+
+function tapDateOption(result, part, value) {
+  const wheel = {
+    getAttribute: (name) => name === 'data-date-wheel' ? part : null
+  };
+  const option = {
+    getAttribute: (name) => name === 'data-date-value' ? String(value) : null,
+    closest: (selector) => selector === '[data-date-wheel]' ? wheel : null
+  };
+  result.modalListeners.click({
+    target: { closest: (selector) => selector === '.date-opt' ? option : null }
+  });
+}
+
+function closeDateWithX(result) {
+  const closeButton = {};
+  result.modalListeners.click({
+    target: {
+      closest: (selector) => selector === '[data-date-close]' ? closeButton : null
+    }
+  });
+}
+
+test('boot(): every fast date close path flushes the pending wheel selection', () => {
+  const closeCases = [
+    ['X', (result) => {
+      const closeButton = {};
+      result.modalListeners.click({
+        target: {
+          closest: (selector) => selector === '[data-date-close]' ? closeButton : null
+        }
+      });
+    }],
+    ['backdrop', (result) => {
+      result.modalListeners.click({ target: result.modal });
+    }],
+    ['Escape', (result) => {
+      result.modalListeners.cancel({ preventDefault: () => {} });
+    }],
+    ['swipe', (result) => {
+      const header = {};
+      const headerTarget = {
+        closest: (selector) => selector === '.ssel-modal-hdr' ? header : null
+      };
+      result.modalListeners.touchstart({
+        target: headerTarget,
+        touches: [{ clientY: 100 }]
+      });
+      result.modalListeners.touchmove({
+        touches: [{ clientY: 200 }],
+        preventDefault: () => {}
+      });
+      result.modalListeners.touchend({
+        changedTouches: [{ clientY: 200 }]
+      });
+    }]
+  ];
+
+  for (const [name, close] of closeCases) {
+    const result = bootWithCapturedListeners(DATE_MODAL_SCHEMA, {});
+    openDateInHarness(result);
+    result.modalListeners.scroll({ target: dateWheel('day', 25) });
+    close(result);
+    assert.equal(result.getValue('trip'), '2026-12-25',
+      name + ' preserves the pending day');
+  }
+});
+
+test('boot(): a tapped date option wins over a pending sample from the same wheel', () => {
+  const result = bootWithCapturedListeners(DATE_MODAL_SCHEMA, {});
+  openDateInHarness(result);
+  result.modalListeners.scroll({ target: dateWheel('day', 25) });
+  tapDateOption(result, 'day', 26);
+  closeDateWithX(result);
+  assert.equal(result.getValue('trip'), '2026-12-26');
+});
+
+test('boot(): rapid cross-wheel scrolls settle independently', async () => {
+  const dayMonth = bootWithCapturedListeners(DATE_MODAL_SCHEMA, {});
+  openDateInHarness(dayMonth);
+  dayMonth.modalListeners.scroll({ target: dateWheel('day', 25) });
+  dayMonth.modalListeners.scroll({ target: dateWheel('month', 2) });
+  await new Promise((resolve) => setTimeout(resolve, 160));
+  assert.equal(dayMonth.getValue('trip'), '2026-02-25',
+    'month scroll does not cancel the pending day');
+
+  const monthYear = bootWithCapturedListeners(DATE_MODAL_SCHEMA, {});
+  openDateInHarness(monthYear);
+  monthYear.modalListeners.scroll({ target: dateWheel('month', 1) });
+  monthYear.modalListeners.scroll({ target: dateWheel('year', 2027) });
+  await new Promise((resolve) => setTimeout(resolve, 160));
+  assert.equal(monthYear.getValue('trip'), '2027-01-24',
+    'year scroll does not cancel the pending month');
+});
+
+test('boot(): the first settling timer flushes siblings before alignment can replace them', async () => {
+  async function settleWithAlignment(firstPart, firstValue, secondPart, secondValue,
+    expected) {
+    const result = bootWithCapturedListeners(DATE_MODAL_SCHEMA, {});
+    openDateInHarness(result);
+    result.modalListeners.scroll({ target: dateWheel(firstPart, firstValue) });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    result.modalListeners.scroll({ target: dateWheel(secondPart, secondValue) });
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    const rendered = result.getValue('trip').split('-');
+    const indexes = { year: 0, month: 1, day: 2 };
+    const alignedValue = parseInt(rendered[indexes[secondPart]], 10);
+    result.modalListeners.scroll({
+      target: dateWheel(secondPart, alignedValue)
+    });
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.equal(result.getValue('trip'), expected);
+  }
+
+  await settleWithAlignment('day', 25, 'month', 2, '2026-02-25');
+  await settleWithAlignment('month', 1, 'year', 2027, '2027-01-24');
+});
+
+test('boot(): closing a date sheet restores focus to its date trigger', () => {
+  const result = bootWithCapturedListeners(DATE_MODAL_SCHEMA, {});
+  openDateInHarness(result);
+  const closeButton = {};
+  result.modalListeners.click({
+    target: {
+      closest: (selector) => selector === '[data-date-close]' ? closeButton : null
+    }
+  });
+  assert.equal(result.focusCounts.date.trip, 1);
+});
 
 const THEME_SCHEMA = {
   appName: 'X', versionLabel: 'v0',
@@ -721,6 +1018,38 @@ const THEME_SCHEMA = {
       options: [['Dark', 'dark'], ['Light', 'light']] }
   ] }] }]
 };
+
+test('boot(): closing a directly opened select restores focus to its fresh trigger', () => {
+  const result = bootWithCapturedListeners(THEME_SCHEMA, {});
+  const trigger = {
+    getAttribute: (name) => name === 'data-select' ? 'theme' : null
+  };
+  result.listeners.click({
+    target: { closest: (selector) => selector === '[data-select]' ? trigger : null }
+  });
+  const closeButton = {};
+  result.modalListeners.click({
+    target: {
+      closest: (selector) => selector === '[data-select-close]' ? closeButton : null
+    }
+  });
+  assert.equal(result.focusCounts.select.theme, 1);
+});
+
+test('boot(): external openSheet close skips underlying trigger focus and calls onClose once', () => {
+  const result = bootWithCapturedListeners(THEME_SCHEMA, {});
+  let closed = 0;
+  result.openSheet('theme', () => { closed++; });
+  const closeButton = {};
+  result.modalListeners.click({
+    target: {
+      closest: (selector) => selector === '[data-select-close]' ? closeButton : null
+    }
+  });
+  result.modalListeners.cancel({ preventDefault: () => {} });
+  assert.equal(result.focusCounts.select.theme || 0, 0);
+  assert.equal(closed, 1);
+});
 
 test('boot(): onLoad hook context exposes the injected platform environment', () => {
   const env = { color: false, round: false, platform: 'aplite', health: false, radar: false, themePolarity: false };

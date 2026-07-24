@@ -15,7 +15,7 @@
   var ICONS = {
     NONE: 0, DRAWN_SUN: 1, TEMP: 2, UV: 3, WIND: 4, GUST: 5,
     STEPS: 7, SLEEP: 8, HR: 9, DISTANCE: 10, AQI: 11,
-    POLLEN: 12
+    POLLEN: 12, COUNTDOWN: 13
   };
   var CAPS = { LINE_MAX: 48, EDGE_TEXT_MAX: 8, MID_TEXT_MAX: 19 };
 
@@ -31,6 +31,8 @@
     { code: 'date', label: 'Date', kind: KINDS.LIVE_DATE, icon: ICONS.NONE, middleOnly: true, category: 'datelocation' },
     { code: 'week', label: 'Calendar week', kind: KINDS.LIVE_WEEK, icon: ICONS.NONE, category: 'datelocation' },
     { code: 'city', label: 'City', kind: KINDS.TEXT, icon: ICONS.NONE, category: 'datelocation' },
+    { code: 'countdown', label: 'Countdown', kind: KINDS.TEXT,
+      icon: ICONS.COUNTDOWN, category: 'datelocation' },
     { code: 'steps', label: 'Steps', kind: KINDS.LIVE_STEPS, icon: ICONS.STEPS, needsHealth: true, category: 'health' },
     { code: 'distance', label: 'Walked distance', kind: KINDS.LIVE_DISTANCE, icon: ICONS.DISTANCE, needsHealth: true, category: 'health' },
     { code: 'hr', label: 'Heart rate', kind: KINDS.LIVE_HR, icon: ICONS.HR, needsHealth: true, needsHr: true, category: 'health' },
@@ -132,7 +134,8 @@
       var children = [];
       for (i = 0; i < ITEMS.length; i++) {
         var item = ITEMS[i];
-        if (item.category !== CATEGORIES[c][0] || taken[item.code]) { continue; }
+        if (item.category !== CATEGORIES[c][0]
+            || (taken[item.code] && item.code !== 'countdown')) { continue; }
         if (!itemAvailable(item, settings, env, slotCtx)) { continue; }
         children.push([item.label, item.code]);
       }

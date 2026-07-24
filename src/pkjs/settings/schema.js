@@ -128,6 +128,24 @@ function copyBtn(url, label) {
         + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         + '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>';
 }
+
+/**
+ * Per-slot phone-only target date, shown only while its owning slot is Countdown.
+ * @param {string} slotKey Owning status-slot message key.
+ * @param {Object} [barWhen] Existing Radar/Health bar visibility predicate.
+ * @returns {Object} Date-control schema item.
+ */
+function countdownDateItem(slotKey, barWhen) {
+    var countdownWhen = {key: slotKey, eq: 'countdown'};
+    return {
+        type: 'date',
+        messageKey: slotKey + 'Countdown',
+        label: 'Countdown date',
+        defaultFrom: {resolver: 'todayDate'},
+        joinPrevious: true,
+        showWhen: barWhen ? {all: [barWhen, countdownWhen]} : countdownWhen
+    };
+}
 // The signup link opens in an external browser (target=_blank). The Development > API Keys page 404s on
 // tomorrow.io's MOBILE site, so it gets a copy button instead of a (useless-on-mobile) link — users copy
 // the URL and open it in desktop-site mode. See copyBtn() + the engine's [data-copy] handler.
@@ -551,6 +569,7 @@ module.exports = {
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusForecastLeft', position: 'left'}}
                 },
+                countdownDateItem('statusForecastLeft'),
                 {
                     type: 'select',
                     messageKey: 'statusForecastMid',
@@ -561,6 +580,7 @@ module.exports = {
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusForecastMid', position: 'mid'}}
                 },
+                countdownDateItem('statusForecastMid'),
                 {
                     type: 'select',
                     messageKey: 'statusForecastRight',
@@ -570,7 +590,8 @@ module.exports = {
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusForecastRight', position: 'right'}}
-                }
+                },
+                countdownDateItem('statusForecastRight')
             ]
         }, {
             groupCard: 'watchStatus',
@@ -584,6 +605,8 @@ module.exports = {
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusRadarLeft', position: 'left'}}
                 },
+                countdownDateItem('statusRadarLeft',
+                    {all: [{env: 'radar'}, {key: 'radarProvider', ne: 'disabled'}]}),
                 {
                     type: 'select', messageKey: 'statusRadarMid', label: 'Middle slot',
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusRadarMid'}}, joinPrevious: true,
@@ -592,6 +615,8 @@ module.exports = {
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusRadarMid', position: 'mid'}}
                 },
+                countdownDateItem('statusRadarMid',
+                    {all: [{env: 'radar'}, {key: 'radarProvider', ne: 'disabled'}]}),
                 {
                     type: 'select', messageKey: 'statusRadarRight', label: 'Right slot',
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusRadarRight'}}, joinPrevious: true,
@@ -599,7 +624,9 @@ module.exports = {
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusRadarRight', position: 'right'}}
-                }
+                },
+                countdownDateItem('statusRadarRight',
+                    {all: [{env: 'radar'}, {key: 'radarProvider', ne: 'disabled'}]})
             ]
         }, {
             groupCard: 'watchStatus',
@@ -613,6 +640,8 @@ module.exports = {
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusHealthLeft', position: 'left'}}
                 },
+                countdownDateItem('statusHealthLeft',
+                    {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]}),
                 {
                     type: 'select', messageKey: 'statusHealthMid', label: 'Middle slot',
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusHealthMid'}}, joinPrevious: true,
@@ -621,6 +650,8 @@ module.exports = {
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusHealthMid', position: 'mid'}}
                 },
+                countdownDateItem('statusHealthMid',
+                    {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]}),
                 {
                     type: 'select', messageKey: 'statusHealthRight', label: 'Right slot',
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusHealthRight'}}, joinPrevious: true,
@@ -628,7 +659,9 @@ module.exports = {
                     onChange: 'dedupeStatusSlot',
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusHealthRight', position: 'right'}}
-                }
+                },
+                countdownDateItem('statusHealthRight',
+                    {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]})
             ]
         }, {
             groupCard: 'watchStatus',
@@ -651,6 +684,7 @@ module.exports = {
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusTopLeft', position: 'left'}}
                 },
+                countdownDateItem('statusTopLeft'),
                 {
                     type: 'select', messageKey: 'statusTopMid', label: 'Middle slot',
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusTopMid'}}, joinPrevious: true,
@@ -658,6 +692,7 @@ module.exports = {
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusTopMid', position: 'mid'}}
                 },
+                countdownDateItem('statusTopMid'),
                 {
                     type: 'select', messageKey: 'statusTopRight', label: 'Right slot',
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusTopRight'}}, joinPrevious: true,
@@ -665,6 +700,7 @@ module.exports = {
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusTopRight', position: 'right'}}
                 },
+                countdownDateItem('statusTopRight'),
                 {
                     type: 'toggle', messageKey: 'batteryLowOnly', label: 'Show battery below 10%',
                     defaultValue: true,

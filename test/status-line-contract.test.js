@@ -51,6 +51,7 @@ test('icon ids are in lockstep with status_line.h', () => {
   assert.equal(catalog.ICONS.DISTANCE, cEnum('STATUS_ICON_DISTANCE'));
   assert.equal(catalog.ICONS.AQI, cEnum('STATUS_ICON_AQI'));
   assert.equal(catalog.ICONS.POLLEN, cEnum('STATUS_ICON_POLLEN'));
+  assert.equal(catalog.ICONS.COUNTDOWN, cEnum('STATUS_ICON_COUNTDOWN'));
 });
 
 test('every dropdown item maps kind+icon consistently', () => {
@@ -58,6 +59,7 @@ test('every dropdown item maps kind+icon consistently', () => {
     empty: [catalog.KINDS.EMPTY, catalog.ICONS.NONE],
     temp: [catalog.KINDS.TEXT, catalog.ICONS.TEMP],
     city: [catalog.KINDS.TEXT, catalog.ICONS.NONE],
+    countdown: [catalog.KINDS.TEXT, catalog.ICONS.COUNTDOWN],
     sun: [catalog.KINDS.TEXT, catalog.ICONS.DRAWN_SUN],
     uv: [catalog.KINDS.TEXT, catalog.ICONS.UV],
     wind: [catalog.KINDS.TEXT, catalog.ICONS.WIND],

@@ -40,8 +40,17 @@ test('obsolete frozen-weather classifier is removed', function() {
                       /status_slot_is_frozen_weather/);
 });
 
-test('the color top strip renders the procedural snooze glyph', function() {
-  assert.match(read('src/c/layers/top_status_layer.c'), /snooze_draw\(/);
+test('procedural snooze helper is removed and color snooze is confined to the top strip', function() {
+  assert.equal(fs.existsSync(path.join(ROOT, 'src/c/appendix/snooze.c')), false);
+  assert.equal(fs.existsSync(path.join(ROOT, 'src/c/appendix/snooze.h')), false);
+  assert.match(read('src/c/layers/top_status_layer.c'), /RESOURCE_ID_SNOOZE/);
+  [
+    'src/c/layers/status_row.c',
+    'src/c/layers/status_row_aplite.c',
+    'src/c/layers/rain_radar_layer.c'
+  ].forEach(function(file) {
+    assert.doesNotMatch(read(file), /RESOURCE_ID_SNOOZE|snooze_draw/);
+  });
 });
 
 test('the frozen-lean aplite top strip draws snooze as cheap text (reaps snooze_draw)', function() {

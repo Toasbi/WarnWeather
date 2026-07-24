@@ -20,8 +20,10 @@ const EXPECTED_KEYS = [
   'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','secondaryLine','secondaryLineFill','windScale','thirdLine',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarProvider','radarColor','rainCountdownHorizon',
   'layoutPreset','viewResetMin','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear','reset',
-  'statusForecastLeft','statusForecastMid','statusForecastRight','statusRadarLeft','statusRadarMid','statusRadarRight',
-  'statusTopLeft','statusTopMid','statusTopRight','batteryLowOnly','statusHealthLeft','statusHealthMid','statusHealthRight'
+  'statusForecastLeft','statusForecastLeftCountdown','statusForecastMid','statusForecastMidCountdown','statusForecastRight','statusForecastRightCountdown',
+  'statusRadarLeft','statusRadarLeftCountdown','statusRadarMid','statusRadarMidCountdown','statusRadarRight','statusRadarRightCountdown',
+  'statusTopLeft','statusTopLeftCountdown','statusTopMid','statusTopMidCountdown','statusTopRight','statusTopRightCountdown',
+  'batteryLowOnly','statusHealthLeft','statusHealthLeftCountdown','statusHealthMid','statusHealthMidCountdown','statusHealthRight','statusHealthRightCountdown'
 ];
 
 test('every Clay messageKey present; theme/windScale/colorUSFederal are the only duplicates (contextual slots)', () => {
@@ -43,6 +45,31 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   assert.equal(counts.tomorrowioApiKey, 2, 'tomorrow.io key in the General + Radar tabs');
   assert.equal(counts.tomorrowioFitBudget, 2, 'tomorrow.io budget guard in the General + Radar tabs');
   assert.deepEqual(Object.keys(counts).sort(), EXPECTED_KEYS.slice().sort());
+});
+
+test('every status slot is immediately followed by its own conditional date control', () => {
+  const slotKeys = [
+    'statusForecastLeft', 'statusForecastMid', 'statusForecastRight',
+    'statusRadarLeft', 'statusRadarMid', 'statusRadarRight',
+    'statusHealthLeft', 'statusHealthMid', 'statusHealthRight',
+    'statusTopLeft', 'statusTopMid', 'statusTopRight'
+  ];
+  slotKeys.forEach((slotKey) => {
+    const slot = byKey(slotKey);
+    const date = byKey(slotKey + 'Countdown');
+    assert.ok(date, slotKey + ' date exists');
+    assert.equal(date.type, 'date');
+    assert.equal(date.label, 'Countdown date');
+    assert.deepEqual(date.defaultFrom, { resolver: 'todayDate' });
+    assert.equal(date.joinPrevious, true);
+    const section = schema.tabs.find((tab) => tab.id === 'watch').sections
+      .find((sec) => sec.items.indexOf(slot) !== -1);
+    assert.equal(section.items[section.items.indexOf(slot) + 1], date,
+      slotKey + ' date follows its select');
+    assert.match(JSON.stringify(date.showWhen),
+      new RegExp('"' + slotKey + '".*"countdown"'));
+  });
+  assert.equal(items.filter((item) => item.type === 'date').length, 12);
 });
 
 test('location is a GPS/Manual picker; the text field is gated to Manual', () => {
@@ -787,8 +814,10 @@ test('Watch tab opens with a general status-bar intro, then the four bars in for
   const note = wsb.find((i) => i.type === 'staticText' && /incoming-rain alert/.test(i.text || ''));
   assert.ok(note, 'Watch bar keeps the incoming-rain alert note as a staticText');
   const rightIdx = wsb.findIndex((i) => i.messageKey === 'statusTopRight');
+  const countdownIdx = wsb.findIndex((i) => i.messageKey === 'statusTopRightCountdown');
   const battIdx = wsb.findIndex((i) => i.messageKey === 'batteryLowOnly');
-  assert.equal(battIdx, rightIdx + 1, 'battery toggle follows the slots directly');
+  assert.equal(countdownIdx, rightIdx + 1, 'top-right countdown date follows its slot');
+  assert.equal(battIdx, countdownIdx + 1, 'battery toggle follows the slot date directly');
 });
 
 test('the four status sections live in the Watch tab with named headers and no per-bar intros', () => {
