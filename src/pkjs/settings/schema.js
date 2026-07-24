@@ -875,12 +875,7 @@ module.exports = {
                 label: 'Swap clock and status row',
                 defaultValue: false,
                 hint: 'Move the status row below the clock, next to the forecast.',
-                showWhen: {
-                    all: [
-                        {key: 'layoutPreset', eq: 'compactCal'},
-                        {env: 'platform', ne: 'aplite'}
-                    ]
-                }
+                showWhen: {key: 'layoutPreset', eq: 'compactCal'}
             }]
         }]
     }, {

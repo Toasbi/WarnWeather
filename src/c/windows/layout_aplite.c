@@ -37,18 +37,21 @@ ViewSpec view_spec_unpack(uint16_t v) {
     // aplite: forecast body only; top is calendar when rows>0, else empty.
     spec.top  = (spec.calendar_rows > 0) ? TOP_BAND_CALENDAR : TOP_BAND_EMPTY;
     spec.body = BODY_FORECAST;
-    // aplite lean twin: a SINGLE forecast status row in the UPPER band only — no radar, no
-    // health, and NO lower/forecast-abutting band. The swap toggle is hidden on aplite (Task 9
-    // gates it on platform != aplite), so the phone never sends a statusLower row; the lower
-    // band is therefore feature-frozen out here. Any forecast source (whichever wire slot it
-    // arrives in) collapses to the upper band; radar/health sources fold to NONE. The full
-    // lower-band carve + the compact-two-row tier promotion live in layout.c (colour
-    // platforms) only. See docs/adr/0001-aplite-frozen-lean-fork.md.
-    bool has_forecast = (su == STATUS_SRC_FORECAST) || (sl == STATUS_SRC_FORECAST);
-    spec.status_upper = has_forecast ? STATUS_SRC_FORECAST : STATUS_SRC_NONE;
-    spec.status_lower = STATUS_SRC_NONE;
-    // Single upper row: the tier just tracks the calendar tier. The compact->full promotion
-    // only applies to the full-height lower band, which aplite doesn't have.
+    // aplite lean twin: a SINGLE forecast status row (no radar, no health, never two rows). The
+    // forecast keeps whichever slot the wire names — upper (normal) or lower (the swap-clock/
+    // status layout) — so the swap works on aplite too; radar/health sources fold to NONE. There
+    // is no DUAL, so no compact->full tier promotion (that only squeezes two stacked rows in
+    // layout.c). See docs/adr/0001-aplite-frozen-lean-fork.md.
+    // A genuine swap has the upper slot empty and the forecast in the lower slot → keep it there.
+    // A colour watch's dual/dense synced to aplite instead has a health/radar upper (dropped
+    // here); collapse its forecast to the UPPER slot for a clean single view, not an unrequested
+    // swap. Radar/health sources themselves fold to NONE (aplite has neither).
+    bool has_fc = (su == STATUS_SRC_FORECAST) || (sl == STATUS_SRC_FORECAST);
+    bool swap = has_fc && (su == STATUS_SRC_NONE) && (sl == STATUS_SRC_FORECAST);
+    spec.status_upper = (has_fc && !swap) ? STATUS_SRC_FORECAST : STATUS_SRC_NONE;
+    spec.status_lower = swap ? STATUS_SRC_FORECAST : STATUS_SRC_NONE;
+    // Lone row (upper or lower): the tier just tracks the calendar tier (the larger compact font
+    // under a compact calendar); only a DUAL would promote to the smaller full tier.
     spec.status_tier = (tier == 3) ? LAYOUT_TIER_FULL
                      : (tier == 2) ? LAYOUT_TIER_COMPACT : LAYOUT_TIER_NONE;
     spec.weights[0] = WEIGHT_CALENDAR;
@@ -69,7 +72,8 @@ LayerVisibility layout_visibility(const ViewSpec *spec) {
     v.radar          = false;
     v.forecast       = true;
     v.health_graph   = false;
-    v.weather_status = (spec->status_upper == STATUS_SRC_FORECAST);   // upper-only on aplite
+    v.weather_status = (spec->status_upper == STATUS_SRC_FORECAST)
+                    || (spec->status_lower == STATUS_SRC_FORECAST);   // upper OR swapped-lower
     v.radar_status   = false;
     v.health_status  = false;
     return v;
@@ -81,7 +85,8 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
                  : LAYOUT_TIER_FULL;
     bool compact = (tier != LAYOUT_TIER_FULL);
     bool upper = (spec->status_upper != STATUS_SRC_NONE);
-    bool has_status = upper;   // aplite has a single UPPER status row and no lower band
+    bool lower = (spec->status_lower != STATUS_SRC_NONE);   // the swap layout (forecast below clock)
+    bool has_status = upper || lower;
     int w = bounds.size.w;
     int h = bounds.size.h;
     MainLayout L;
@@ -113,6 +118,10 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
         L.radar = L.bottom;
     } else {
         int cal_h = compact ? (calendar_h - calendar_h / 3) : calendar_h;
+        // Swap layout: no upper status row, so pull the clock up to abut the 2-row calendar,
+        // reclaiming the freed 3rd-calendar-row slot (matches layout.c). Compact-only; aplite
+        // only reaches !upper via the swap.
+        if (compact && !upper) { time_y = calendar_y + cal_h; }
         int forecast_y = compact ? (time_y + time_h)
                                  : (time_y + time_h + (has_status ? WEATHER_STATUS_HEIGHT : 0));
         int status_h = compact ? (calendar_h / 3) : fc_band_h;
@@ -130,9 +139,19 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
                     h - LAYOUT_PAD_BOTTOM - full_loading_top);
         L.radar = L.top;
     }
-    // aplite has no lower/forecast-abutting band (feature-frozen out — see view_spec_unpack),
-    // so status_lower always mirrors the (single, upper) status band and is never carved.
+    // Swap layout only: a single forecast status moved below the clock. It uses the same compact
+    // single-status band size (calendar_h / 3) as the upper slot — a size-preserving position
+    // swap. aplite never has a DUAL/full lower band (no radar/health), so this is the only lower
+    // carve, and it's compact-only (swap is compactCal).
     L.status_lower = L.status;
+    if (lower) {
+        int band_h = calendar_h / 3;
+        int forecast_top = L.bottom.origin.y + band_h;
+        L.status_lower = GRect(L.bottom.origin.x, forecast_top - band_h, L.bottom.size.w, band_h);
+        L.bottom.origin.y = forecast_top;
+        L.bottom.size.h -= band_h;
+        L.loading = L.bottom;
+    }
     if (!upper) { L.status.size.h = 0; }   // upper band absent: collapse it (origin kept)
     return L;
 }

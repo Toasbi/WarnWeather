@@ -90,22 +90,46 @@ static void downgrade_tests(void) {
 }
 
 // aplite is forecast-UPPER-only: a forecast arriving in the lower wire slot (which the phone
-// never sends to aplite) collapses to the single UPPER band — there is NO lower/forecast-abutting
-// band and NO compact->full tier promotion. Geometry matches the plain compact upper-status view.
+// no promotion). A colour watch's dual/dense reaching aplite (upper = health/radar, dropped)
+// collapses its forecast to this same upper band — not an unrequested swap.
 static void geometry_upper_only(void) {
-    ViewSpec s = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_NONE, STATUS_SRC_FORECAST));
+    ViewSpec s = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE));
     MainLayout L = layout_compute_spec(BOUNDS, &s, FC_BAND_H);
     check("upper_only.status",       L.status,       0, 46, 144, 15);   // == compact upper band
     check("upper_only.status_lower", L.status_lower, 0, 46, 144, 15);   // mirrors status (no carve)
     check("upper_only.bottom",       L.bottom,       0, 103, 144, 65);  // == compact bottom (no lower carve)
     expect("upper_only.weather_status_on", layout_visibility(&s).weather_status, true);
     expect("upper_only.tier_compact", s.status_tier == LAYOUT_TIER_COMPACT, true);   // no promotion
+    // A colour-watch dual/dense (health upper + forecast lower) synced to aplite collapses its
+    // forecast to the upper slot — NOT a swap (upper slot was occupied on the source watch).
+    ViewSpec dense = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST));
+    expect("upper_only.dense_collapses_upper", dense.status_upper == STATUS_SRC_FORECAST, true);
+    expect("upper_only.dense_no_lower", dense.status_lower == STATUS_SRC_NONE, true);
+}
+
+// Swap layout on aplite (compactCal + swapClockStatus, upper slot empty): the lone forecast
+// moves below the clock at the SAME size as the upper slot (a true position swap), and the clock
+// reclaims the freed 3rd-calendar-row. aplite's only lower-band case (no radar/health/dual).
+static void geometry_swap(void) {
+    ViewSpec up = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE));  // upper ref
+    MainLayout Lu = layout_compute_spec(BOUNDS, &up, FC_BAND_H);
+    ViewSpec s = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_NONE, STATUS_SRC_FORECAST));   // swap
+    MainLayout L = layout_compute_spec(BOUNDS, &s, FC_BAND_H);
+    expect("swap.lower_forecast", s.status_lower == STATUS_SRC_FORECAST, true);
+    expect("swap.upper_none", s.status_upper == STATUS_SRC_NONE, true);
+    expect("swap.upper_collapsed", L.status.size.h == 0, true);
+    expect("swap.same_band_height_as_upper", L.status_lower.size.h == Lu.status.size.h, true);
+    expect("swap.below_clock", L.status_lower.origin.y >= L.time.origin.y + L.time.size.h, true);
+    expect("swap.clock_reclaims_freed_row", L.time.origin.y == L.top.origin.y + L.top.size.h, true);
+    expect("swap.tier_compact", s.status_tier == LAYOUT_TIER_COMPACT, true);
+    expect("swap.weather_status_on", layout_visibility(&s).weather_status, true);
 }
 
 int main(void) {
     golden_rects();
     downgrade_tests();
     geometry_upper_only();
+    geometry_swap();
     if (s_failures) { printf("%d FAILURES\n", s_failures); return 1; }
     printf("layout_aplite_test: OK\n");
     return 0;

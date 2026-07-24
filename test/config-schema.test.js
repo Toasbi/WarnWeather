@@ -516,23 +516,21 @@ test('viewResetMin is hidden on aplite and carries its explanation as its own hi
   assert.equal(showWhen.isVisible(reset, aplite), false);
 });
 
-test('swapClockStatus toggle exists, defaults false, and is shown only for compactCal on non-aplite', () => {
+test('swapClockStatus toggle exists, defaults false, and is shown for compactCal on all platforms', () => {
   const it = byKey('swapClockStatus');
   assert.ok(it, 'swapClockStatus item exists');
   assert.equal(it.type, 'toggle');
   assert.equal(it.defaultValue, false);
   assert.match(it.hint, /status row below the clock/);
-  assert.deepEqual(it.showWhen, {
-    all: [{ key: 'layoutPreset', eq: 'compactCal' }, { env: 'platform', ne: 'aplite' }]
-  });
-  // aplite is forecast-upper-only (lower-band geometry compiled out for size budget) — the
-  // swap must never be offered there, even when layoutPreset happens to read 'compactCal'.
+  assert.deepEqual(it.showWhen, { key: 'layoutPreset', eq: 'compactCal' });
+  // aplite supports the forecast-only swap too (its lean twin carries a single lower band), so
+  // the toggle is offered on every platform for the compactCal preset — and hidden otherwise.
   const aplite = { env: platform.computeEnv({ platform: 'aplite' }), layoutPreset: 'compactCal' };
   const basalt = { env: platform.computeEnv({ platform: 'basalt' }), layoutPreset: 'compactCal' };
   const basaltOtherPreset = { env: platform.computeEnv({ platform: 'basalt' }), layoutPreset: 'fullCal' };
-  assert.equal(showWhen.isVisible(it, aplite), false, 'hidden on aplite regardless of preset');
+  assert.equal(showWhen.isVisible(it, aplite), true, 'shown on aplite when preset is compactCal');
   assert.equal(showWhen.isVisible(it, basalt), true, 'shown on basalt when preset is compactCal');
-  assert.equal(showWhen.isVisible(it, basaltOtherPreset), false, 'hidden on basalt for other presets');
+  assert.equal(showWhen.isVisible(it, basaltOtherPreset), false, 'hidden for other presets');
 });
 
 test('Layout tab is one section: combined preview above the preset radio, reset segmented then swap toggle below', () => {
