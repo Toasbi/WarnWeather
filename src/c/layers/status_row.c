@@ -6,6 +6,7 @@
 #include "../appendix/persist.h"
 #include "../appendix/config.h"
 #include "../appendix/theme.h"
+#include "../appendix/status_threshold.h"
 #include "../windows/layout.h"   // LayoutTier (row_font)
 #include "../services/watch_services.h"
 #if defined(PBL_HEALTH)
@@ -64,6 +65,10 @@ struct StatusRow {
 // reuse these buffers without retaining expanded copies of their packed blobs.
 static uint8_t s_blob_scratch[STATUS_LINE_MAX_BYTES];
 static char s_text_scratch[STATUS_TEXT_MID_MAX + 1];
+// Threshold-highlight settings blob (CLAY_THRESHOLDS_UINT8), reloaded per
+// refresh/draw like the packed line blobs; len 0 = nothing configured yet.
+static uint8_t s_thresh_scratch[THRESH_SETTINGS_BYTES];
+static int s_thresh_len;
 
 #ifdef PBL_PLATFORM_APLITE
 // aplite: primitive lines avoid GPath's code and transient draw allocation.
@@ -260,6 +265,56 @@ static int load_blob(uint8_t line_id) {
     return len;
 }
 
+static void load_thresholds(void) {
+    s_thresh_len = persist_get_threshold_settings(s_thresh_scratch,
+                                                  sizeof(s_thresh_scratch));
+    if (s_thresh_len < 0) { s_thresh_len = 0; }
+}
+
+// Highlight level (ThreshLevel) for one resolved slot. Weather kinds read the
+// phone-computed packed byte (the watch has no raw AQI/wind ints); health
+// kinds compare live health_summary values against the Clay-sent thresholds
+// in their wire units (steps / minutes / 100 m).
+static uint8_t slot_level(const StatusSlotView *slot) {
+    int kind = status_threshold_kind_for_slot(slot->kind, slot->icon);
+    if (kind < 0
+        || !status_threshold_enabled(s_thresh_scratch, (size_t)s_thresh_len, kind)) {
+        return THRESH_LEVEL_NORMAL;
+    }
+    if (kind <= THRESH_WEATHER_KIND_MAX) {
+        return (uint8_t)status_threshold_weather_level(
+            (uint8_t)persist_get_status_levels(), kind);
+    }
+#if defined(PBL_HEALTH)
+    int value = status_threshold_health_value(kind,
+        health_summary_steps(), health_summary_sleep_seconds(),
+        health_summary_distance_m());
+    if (value < 0) { return THRESH_LEVEL_NORMAL; }   // unavailable: never highlight
+    return (uint8_t)status_threshold_level(value,
+        status_threshold_health_warn(s_thresh_scratch, (size_t)s_thresh_len, kind),
+        status_threshold_health_danger(s_thresh_scratch, (size_t)s_thresh_len, kind),
+        status_threshold_below_is_worse(kind));
+#else
+    return THRESH_LEVEL_NORMAL;
+#endif
+}
+
+// Warn/danger accent for a slot. On effective B&W (real hardware or the
+// bw/bw-light theme) the escalation is polarity, not hue: outline fg,
+// danger fill fg — the user hues only apply on the color path.
+static GColor highlight_color(const StatusSlotView *slot, uint8_t level) {
+#ifdef PBL_COLOR
+    int kind = status_threshold_kind_for_slot(slot->kind, slot->icon);
+    GColor user = (GColor){ .argb = status_threshold_color8(
+        s_thresh_scratch, (size_t)s_thresh_len, kind, level) };
+    return theme_pick(user, theme_fg());
+#else
+    (void)slot;
+    (void)level;
+    return theme_fg();
+#endif
+}
+
 StatusRow *status_row_create(uint8_t line_id) {
     StatusRow *row = malloc(sizeof(StatusRow));
     if (!row) { return NULL; }
@@ -328,6 +383,7 @@ bool status_row_refresh(StatusRow *row) {
     bool has_drawn_sun = false;
     row->uses_live_health = false;
     int len = load_blob(row->line_id);
+    load_thresholds();
     if (len > 0) {
         for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
             StatusSlotView slot;
@@ -338,6 +394,10 @@ bool status_row_refresh(StatusRow *row) {
             sig = sig_fold(sig, &slot.icon, 1);
             sig = sig_fold(sig, (const uint8_t *)s_text_scratch,
                            strlen(s_text_scratch));
+            // Fold the highlight level so a crossing (new levels byte, a health
+            // value moving, changed settings) is itself a content change.
+            uint8_t level = slot_level(&slot);
+            sig = sig_fold(sig, &level, 1);
             if (slot.kind != SLOT_EMPTY && slot.icon == STATUS_ICON_DRAWN_SUN) {
                 has_drawn_sun = true;
             }
@@ -446,10 +506,37 @@ int16_t status_row_right_slot_width(StatusRow *row) {
     return w;
 }
 
+// The slot's occupied box (icon through text), padded 2 px each side and
+// spanning the row band — the outline/fill target. Pure geometry from the
+// same places/measures the content draw uses.
+static GRect slot_highlight_box(const StatusRow *row, const StatusSlotPlace *place,
+                                const StatusSlotMeasure *m, int16_t x0) {
+    int16_t start = (int16_t)(x0 + (m->icon_w > 0 ? place->icon_x : place->text_x));
+    int16_t end = place->text_visible
+        ? (int16_t)(x0 + place->text_x + place->text_w)
+        : (int16_t)(x0 + place->icon_x + m->icon_w);
+    return GRect((int16_t)(start - 2), row->bounds.origin.y,
+                 (int16_t)((end - start) + 4), row->bounds.size.h);
+}
+
+static bool glyph_stroke_cb(GDrawCommand *command, uint32_t index, void *context) {
+    (void)index;
+    gdraw_command_set_stroke_color(command, *(GColor *)context);
+    return true;
+}
+
+// Restroke every command in a cached PDC glyph (fills are cleared at load —
+// see status_row_icons.c) so a danger-filled slot's icon stays legible.
+static void glyph_set_stroke(GDrawCommandImage *image, GColor color) {
+    gdraw_command_list_iterate(gdraw_command_image_get_command_list(image),
+                               glyph_stroke_cb, &color);
+}
+
 void status_row_draw(StatusRow *row, GContext *ctx) {
     if (!row || !ctx) { return; }
     int len = load_blob(row->line_id);
     if (len == 0) { return; }
+    load_thresholds();
 
     GFont font = row_font(row->tier, row->line_id);
     int content_h = graphics_text_layout_get_content_size(
@@ -462,9 +549,11 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     StatusSlotMeasure measures[STATUS_SLOT_COUNT];
     StatusSlotView slots[STATUS_SLOT_COUNT];
     char texts[STATUS_SLOT_COUNT][STATUS_TEXT_MID_MAX + 1];
+    uint8_t levels[STATUS_SLOT_COUNT];
 
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         if (!status_line_slot(s_blob_scratch, (size_t)len, i, &slots[i])) { return; }
+        levels[i] = THRESH_LEVEL_NORMAL;
         // Rain-alert takeover: hide left + mid so only the right slot (battery)
         // renders; the owner draws the alert glyph+text over the vacated region.
         if (row->suppress_edges && i != STATUS_SLOT_COUNT - 1) {
@@ -477,6 +566,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         apply_battery_override(row, i, &slots[i]);
         resolve_slot_text(row, &slots[i], texts[i], sizeof(texts[i]));
         measures[i] = measure_slot(row, i, font, content_w, &slots[i], texts[i]);
+        levels[i] = slot_level(&slots[i]);
     }
 
     StatusSlotPlace places[STATUS_SLOT_COUNT];
@@ -488,17 +578,42 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         + status_glyph_center_y(text_y_rel, content_h);
     int16_t x0 = (int16_t)(row->bounds.origin.x + STATUS_ROW_MARGIN);
 
-    graphics_context_set_text_color(ctx, theme_fg());
+    // Threshold-highlight pass: paint each crossed slot's outline (warn) or
+    // filled box + outline (danger) UNDER its icon + text (calendar today-box
+    // precedent). Paint-only — no allocations.
+    for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
+        if (!places[i].visible || levels[i] == THRESH_LEVEL_NORMAL) { continue; }
+        GRect box = slot_highlight_box(row, &places[i], &measures[i], x0);
+        GColor accent = highlight_color(&slots[i], levels[i]);
+        if (levels[i] == THRESH_LEVEL_DANGER) {
+            graphics_context_set_fill_color(ctx, accent);
+            graphics_fill_rect(ctx, box, 2, GCornersAll);
+        }
+        graphics_context_set_stroke_color(ctx, accent);
+        graphics_draw_round_rect(ctx, box, 2);
+    }
+
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         if (!places[i].visible) { continue; }
+        // Danger slots flip their ink legible over the fill (the calendar's
+        // today pattern); warn and normal keep the theme foreground.
+        GColor ink = levels[i] == THRESH_LEVEL_DANGER
+            ? gcolor_legible_over(highlight_color(&slots[i], levels[i]))
+            : theme_fg();
+        graphics_context_set_text_color(ctx, ink);
         int16_t icon_x = (int16_t)(x0 + places[i].icon_x);
         if (slots[i].kind == SLOT_LIVE_BATTERY) {
             battery_draw(ctx, GRect(icon_x, glyph_cy - BATTERY_GLYPH_H / 2,
-                                    BATTERY_GLYPH_W, BATTERY_GLYPH_H), theme_fg());
+                                    BATTERY_GLYPH_W, BATTERY_GLYPH_H), ink);
         } else if (row->glyphs[i]) {
             GSize gs = gdraw_command_image_get_bounds_size(row->glyphs[i]);
+            // Recolor the cached PDC for a danger fill, then restore — the
+            // glyph cache (ensure_glyphs) holds theme_fg between draws.
+            bool recolored = levels[i] == THRESH_LEVEL_DANGER;
+            if (recolored) { glyph_set_stroke(row->glyphs[i], ink); }
             gdraw_command_image_draw(ctx, row->glyphs[i],
                 GPoint(icon_x, glyph_cy - gs.h / 2));
+            if (recolored) { glyph_set_stroke(row->glyphs[i], theme_fg()); }
         } else if (slots[i].icon == STATUS_ICON_DRAWN_SUN && measures[i].icon_w > 0) {
             bool arrow_up = persist_get_sun_event_start_type() == 0;
             int arrow_x = icon_x + ARROW_W / 2;
@@ -509,8 +624,8 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
                 gpath_rotate_to(s_arrow_path, arrow_up ? TRIG_MAX_ANGLE / 2 : 0);
                 gpath_move_to(s_arrow_path, GPoint(arrow_x, glyph_cy));
                 graphics_context_set_stroke_color(ctx, theme_fg());
-                gpath_draw_outline_open(ctx, s_arrow_path);
                 graphics_context_set_fill_color(ctx, theme_fg());
+                gpath_draw_outline_open(ctx, s_arrow_path);
                 gpath_draw_filled(ctx, s_arrow_path);
             }
 #endif
