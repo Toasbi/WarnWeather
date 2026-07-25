@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const th = require('../src/pkjs/status-thresholds.js');
+const statusLines = require('../src/pkjs/status-lines.js');
 
 test('kind order is the wire order (index = ThreshKind)', () => {
   assert.deepEqual(th.KINDS.map(k => k.code),
@@ -119,7 +120,6 @@ test('belowIsWorse by settings-key stem', () => {
 });
 
 test('buildStatusLines bakes STATUS_LEVELS_UINT8 into the weather payload', () => {
-  const statusLines = require('../src/pkjs/status-lines.js');
   const payload = { AQI_TREND: [150] };
   statusLines.buildStatusLines(payload,
     { threshAqiWarn: '100', threshAqiDanger: '200' }, { platform: 'basalt' });
