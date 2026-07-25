@@ -17,6 +17,15 @@ const items = allItems(schema);
 const byKey = (k) => items.filter((i) => i.messageKey === k)[0];
 function forecastItems(s) { return s.tabs.find((t) => t.id === 'forecast').sections[0].items; }
 
+// Threshold highlighting adds four keys per kind (7 kinds), generated the same way
+// schema.js's thresholdSection() generates them — listing 28 literals would just
+// invite drift. THRESH_COLOR_KEYS is reused by the color-defaults assertion below.
+const THRESH_STEMS = ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance'];
+const threshKeys = (suffixes) => THRESH_STEMS.reduce((acc, stem) =>
+  acc.concat(suffixes.map((suffix) => 'thresh' + stem + suffix)), []);
+const THRESH_COLOR_KEYS = threshKeys(['WarnColor', 'DangerColor']);
+const THRESH_KEYS = threshKeys(['Warn', 'Danger']).concat(THRESH_COLOR_KEYS);
+
 const EXPECTED_KEYS = [
   'theme',
   'timeLeadingZero','timeShowAmPm','axisTimeFormat','timeFont','colorTime',
@@ -30,7 +39,7 @@ const EXPECTED_KEYS = [
   'statusRadarLeft','statusRadarLeftCountdown','statusRadarMid','statusRadarMidCountdown','statusRadarRight','statusRadarRightCountdown',
   'statusTopLeft','statusTopLeftCountdown','statusTopMid','statusTopMidCountdown','statusTopRight','statusTopRightCountdown',
   'batteryLowOnly','statusHealthLeft','statusHealthLeftCountdown','statusHealthMid','statusHealthMidCountdown','statusHealthRight','statusHealthRightCountdown'
-];
+].concat(THRESH_KEYS);
 
 test('every Clay messageKey present; theme/windScale/colorUSFederal are the only duplicates (contextual slots)', () => {
   EXPECTED_KEYS.forEach((k) => assert.ok(byKey(k), 'missing messageKey: ' + k));
@@ -111,7 +120,9 @@ test('color defaults are ints', () => {
   // colorUSFederal now has two contextual slots (dark-exclude-white / light-exclude-black),
   // like windScale/theme — dedupe by messageKey to assert the SET of color-typed controls.
   const colorTypeKeys = Array.from(new Set(items.filter((i) => i.type === 'color').map((i) => i.messageKey))).sort();
-  assert.deepEqual(colorTypeKeys, ['colorSaturday','colorSunday','colorTime','colorToday','colorUSFederal']);
+  assert.deepEqual(colorTypeKeys,
+    ['colorSaturday','colorSunday','colorTime','colorToday','colorUSFederal']
+      .concat(THRESH_COLOR_KEYS).sort());
 });
 
 test('B/W bar-scale hints are staticText, gated to effective non-color + the picker condition', () => {
@@ -883,8 +894,13 @@ test('Watch tab opens with a general status-bar intro, then the four bars in for
   assert.deepEqual(titles.slice(0, 4),
     ['Forecast Status Bar', 'Radar Status Bar', 'Health Status Bar', 'Watch Status Bar'],
     'four status bars grouped at the top of the Watch tab in order');
-  // Time and Calendar keep their spots below the bars.
-  assert.deepEqual(titles.slice(4), ['Time', 'Calendar'], 'Time then Calendar follow the bars');
+  // The threshold-highlight card sits between the bars and Time: one titleless intro
+  // section plus one titled sub-section per threshold kind (see thresholdSection).
+  assert.deepEqual(titles.slice(4, 11),
+    ['Air quality (AQI)', 'Pollen', 'Wind speed', 'Wind gusts', 'Steps', 'Sleep', 'Walked distance'],
+    'threshold sub-sections follow the four status bars, in kind order');
+  // Time and Calendar keep their spots below.
+  assert.deepEqual(titles.slice(11), ['Time', 'Calendar'], 'Time then Calendar come last');
   assert.equal(byKey('statusTopLeft').hint, undefined, 'left-slot hint removed');
   const wsb = watch.sections.find((s) => s.title === 'Watch Status Bar').items;
   const note = wsb.find((i) => i.type === 'staticText' && /incoming-rain alert/.test(i.text || ''));

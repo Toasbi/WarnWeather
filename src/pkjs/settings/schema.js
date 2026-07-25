@@ -2,6 +2,9 @@
 var meta = require('../../../package.json');
 var BMC_BADGE = require('./bmc-badge.js');
 var holidayData = require('./holiday-data.js');
+// Single source of the two threshold-highlight color defaults; the same module
+// reads these settings back when packing the wire blob (see clay-payload.js).
+var STATUS_THRESHOLDS = require('../status-thresholds.js');
 var versionLabel = 'v' + meta.version + (meta.buildProfile === 'dev' ? ' (dev)' : '');
 var HOURS = (function () {
     var o = [], h;
@@ -80,6 +83,60 @@ function windScaleCopy(context, unit, hints) {
         hintByValue: hints,
         options: [['Low', 'low'], ['Mid', 'mid'], ['High', 'high']],
         showWhen: {all: lineWhen.concat([{key: 'windUnits', eq: unit}])}
+    };
+}
+// One threshold-highlight sub-section (Watch tab 'thresholds' card): a kind's
+// warn/danger inputs + color pickers. Values are entered in the kind's
+// DISPLAYED unit (wind unit / km-mi / hours); blank = that kind disabled.
+// `gate` (optional showWhen) hides platform-inapplicable kinds (health on
+// aplite); color pickers additionally hide on B&W (capability + bw theme).
+// The two color defaults come from the contract module that reads them back at
+// pack time (status-thresholds.js), so the hex lives in exactly one place.
+function thresholdSection(title, keyStem, belowIsWorse, hint, gate) {
+    var dir = belowIsWorse ? 'below' : 'above';
+    function gated(item) {
+        if (gate) { item.showWhen = gate; }
+        return item;
+    }
+    var colorWhen = gate
+        ? {all: [gate, {key: 'theme', nin: ['bw', 'bw-light']}]}
+        : {key: 'theme', nin: ['bw', 'bw-light']};
+    return {
+        groupCard: 'thresholds',
+        title: title,
+        items: [gated({
+            type: 'text',
+            messageKey: 'thresh' + keyStem + 'Warn',
+            label: 'Warn ' + dir,
+            defaultValue: '',
+            attributes: {placeholder: 'off'},
+            onChange: 'validateThresholdPair'
+        }), gated({
+            type: 'text',
+            messageKey: 'thresh' + keyStem + 'Danger',
+            label: 'Danger ' + dir,
+            defaultValue: '',
+            joinPrevious: true,
+            attributes: {placeholder: 'off'},
+            hint: hint,
+            onChange: 'validateThresholdPair'
+        }), {
+            type: 'color',
+            messageKey: 'thresh' + keyStem + 'WarnColor',
+            label: 'Warn color',
+            defaultValue: STATUS_THRESHOLDS.DEFAULT_WARN_COLOR,
+            joinPrevious: true,
+            capabilities: ['COLOR'],
+            showWhen: colorWhen
+        }, {
+            type: 'color',
+            messageKey: 'thresh' + keyStem + 'DangerColor',
+            label: 'Danger color',
+            defaultValue: STATUS_THRESHOLDS.DEFAULT_DANGER_COLOR,
+            joinPrevious: true,
+            capabilities: ['COLOR'],
+            showWhen: colorWhen
+        }]
     };
 }
 // Color swatches (5 intensity bands) — shown only in the Multicolor hint.
@@ -735,6 +792,30 @@ module.exports = {
                 }
             ]
         }, {
+            groupCard: 'thresholds',
+            intro: 'Highlight a status slot when its value crosses your thresholds: ' +
+                'crossing the warn threshold draws an outline around the slot; crossing ' +
+                'the danger threshold fills it. Values are in the unit the slot displays. ' +
+                'Leave both fields blank to keep a value unhighlighted.',
+            items: []
+        },
+        thresholdSection('Air quality (AQI)', 'Aqi', false,
+            'In the AQI scale selected in the General tab.'),
+        thresholdSection('Pollen', 'Pollen', false,
+            'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.'),
+        thresholdSection('Wind speed', 'Wind', false,
+            'In your wind unit from the General tab.'),
+        thresholdSection('Wind gusts', 'Gust', false,
+            'In your wind unit from the General tab.'),
+        thresholdSection('Steps', 'Steps', true,
+            'Steps per day — warns when you are BELOW your goal.',
+            {env: 'health'}),
+        thresholdSection('Sleep', 'Sleep', true,
+            'Hours of sleep, e.g. 7.5.',
+            {env: 'health'}),
+        thresholdSection('Walked distance', 'Distance', true,
+            'In your distance unit from the General tab.',
+            {env: 'health'}), {
             title: 'Time', items: [{
                 type: 'toggle', messageKey: 'timeLeadingZero', label: 'Leading zero', defaultValue: false
             }, {type: 'toggle', messageKey: 'timeShowAmPm', label: 'Show AM / PM', defaultValue: false}, {

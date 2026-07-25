@@ -26,6 +26,10 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/news.js'),
   path.join(ROOT, 'src/pkjs/settings/theme-convert.js'),
   path.join(ROOT, 'src/pkjs/settings/reset-status-defaults.js'),
+  // status-thresholds.js must precede threshold-validate.js: the flat page has
+  // no require(), so the validator reads window.StatusThresholds from it.
+  path.join(ROOT, 'src/pkjs/status-thresholds.js'),
+  path.join(ROOT, 'src/pkjs/settings/threshold-validate.js'),
   path.join(ROOT, 'src/pkjs/settings/notices-panel.js')
 ];
 
