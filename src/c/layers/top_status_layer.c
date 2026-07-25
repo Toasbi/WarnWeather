@@ -19,19 +19,11 @@
 #define PADDING 4
 #define ICON_SLOT_1 GRect(PADDING, 0, 10, 10)
 #define ICON_SLOT_2 GRect(PADDING * 2 + 10, 0, 10, 10)
-// Centre the indicator icons in the band. This used to be a no-op (0) on the 144px watches,
-// which only looked right because their 14px band was too short and the descender clamp had
-// pushed the text flush against row 0.
-//
-// Note the band is NOT the strip text's cap centre any more: the strip's band is deliberately
-// STRIP_TOP_TRIM px shorter than clamp-free (windows/layout.c), so the clamp lifts the line off
-// the band centre and the two referents differ. Measured against the MEASURED cap (11 px at
-// Gothic 18, 14 at Gothic 24 — band-budget-study §A.2), band-centring is the better of the two
-// here and costs nothing: on the 144px watches either rule is 0.5 px out (band-centred a half
-// pixel low, cap-centred a half pixel high — a 10 px icon cannot centre on an 11 px cap), and on
-// emery band-centring lands exactly on the cap centre while cap-centring is 1.0 px high (the
-// STATUS_DIGIT_CAP fraction under-reports the Gothic-24 cap by 1 px — study §C.2). Co-centring
-// on status_glyph_cy() instead would also cost ~48 B of aplite image, which has none to spare.
+// Centre the indicator icons in the band, on the same row as the strip's text: with the band
+// sized from its font (status_min_band_h) the date's cap centre IS the band centre, so
+// (bounds_h - icon_h)/2 co-centres the icons with it on every platform. This used to be a
+// no-op (0) on the 144px watches, which only looked right because their 14px band was too
+// short and the descender clamp had pushed the text flush against row 0.
 #define STATUS_ICON_Y(bounds_h, icon_h) (((bounds_h) - (icon_h)) / 2)
 #ifdef PBL_PLATFORM_EMERY
 #define MONTH_FONT_KEY FONT_KEY_GOTHIC_24

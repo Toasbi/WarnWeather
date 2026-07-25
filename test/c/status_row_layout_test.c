@@ -235,21 +235,16 @@ static void highlight_extent_is_cap_centred(void) {
     expect_extent("hl.basalt.dense.lower", 40, 20, 50, 40, 20); // Gothic 14, offset band
     expect_extent("hl.emery.fullCal", 0, 20, 10, 0, 20);        // Gothic 18
 
-    // ODD bands — the lone compact row (17 = status_min_band_h(G18), 23 = status_min_band_h(G24)
-    // on emery) and the 15px dense upper row. The cap centre still IS band_h/2, but band_h/2
-    // truncates, so the box comes out 1 px shorter than the band, symmetric about the cap. These
-    // bands used to CLAMP (15 and 20 on emery), which lifted the cap 1.0 px and shrank the box by
-    // twice that.
+    // ODD bands — the top strip and the lone compact row (both 17 = status_min_band_h(G18),
+    // 23 = status_min_band_h(G24) on emery), plus the 15px dense upper row. The cap centre
+    // still IS band_h/2, but band_h/2 truncates, so the box comes out 1 px shorter than the
+    // band, symmetric about the cap. These bands used to CLAMP (14/15 and 20/21 on emery),
+    // which lifted the cap 1.0-1.5 px and shrank the box by twice that.
+    expect_extent("hl.basalt.strip", 0, 17, 8, 0, 16);           // Gothic 18, was 14 / cap 6
     expect_extent("hl.basalt.compactCal", 0, 17, 8, 0, 16);      // Gothic 18, was 15 / cap 6
     expect_extent("hl.basalt.dense.upper", 0, 15, 7, 0, 14);     // Gothic 14, unchanged band
+    expect_extent("hl.emery.strip", 0, 23, 11, 0, 22);           // Gothic 24, was 21 / cap 9
     expect_extent("hl.emery.compactCal", 0, 23, 11, 0, 22);      // Gothic 24, was 20 / cap 8
-    // The TOP STRIP is the one band deliberately trimmed BELOW clamp-free (STRIP_TOP_TRIM in
-    // windows/layout.c: 15 = 17 - 2, emery 21 = 23 - 2), so its clamp lifts the cap 2 px off the
-    // band's own centre and the box — which clamps symmetrically about the cap — comes out
-    // 2*trim px shorter than the band's height. Accepted: the box still centres exactly on the
-    // ink it frames, which is what it is for.
-    expect_extent("hl.basalt.strip", 0, 15, 6, 0, 12);           // Gothic 18: 17-2, cap 8-2
-    expect_extent("hl.emery.strip", 0, 21, 9, 0, 18);            // Gothic 24: 23-2, cap 11-2
     // Same cases in a band that does not start at 0 — geometry is band-relative.
     expect_extent("hl.compactCal.offset", 27, 17, 35, 27, 16);
     expect_extent("hl.emery.compactCal.offset", 31, 23, 42, 31, 22);

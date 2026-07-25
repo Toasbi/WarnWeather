@@ -36,29 +36,11 @@
 // compact band (15 / 20).
 #define STATUS_LARGE_BAND_H status_min_band_h(STATUS_LARGE_FONT_H)
 
-// The top strip is the ONE band deliberately shorter than clamp-free, and the only band whose
-// top edge IS the screen edge (LAYOUT_PAD_TOP is 0 on the 144px watches): nothing renders above
-// it, so it has no symmetry referent up there, while the gap DOWN to the calendar is visible.
-// Trimming the band re-arms status_seat_y()'s descender clamp, whose seat is
-// `band_h - content_h - descender_h` — linear in band_h — so the strip's whole line rides up 1:1
-// with the trim, sitting that much closer to the screen's top edge. The trimmed pixels are handed
-// to the calendar band below (see cal_band_h). Deliberate consequences: the cap is no longer centred in
-// the strip's band (it regains the ~1.5px lift), and the threshold-highlight box, which clamps
-// symmetrically about the cap, comes out correspondingly shorter.
-//
-// 2 is the largest trim the 144px watches can take. The cap's topmost row is
-// `band_h - descender_h - cap`, and Gothic 18 measures cap 11 / descender reserve 3 (see
-// status_metrics.h), so a 15px band seats the cap on row 1 and a trim of 3 would put it on row 0,
-// flush with the screen edge. emery has room to spare (2 + 21 - 4 - 14 = row 5), so one shared
-// constant keeps both platforms in step.
-#define STRIP_TOP_TRIM 2
-#define STRIP_BAND_H (STATUS_LARGE_BAND_H - STRIP_TOP_TRIM)
-
 // Per-platform band data — everything that differs between the 168px watches and emery.
 //
 // CALENDAR_STATUS_HEIGHT is the top strip's RESERVE, not its band: the space it takes out of
 // the content split, and the anchor every band BELOW it keeps. The strip's own band is sized
-// from its font (STRIP_BAND_H) and is taller than the reserve; that surplus grows
+// from its font (STATUS_LARGE_BAND_H) and is taller than the reserve; that surplus grows
 // DOWNWARD into the air below the strip — the calendar band slides down to abut the taller
 // strip, spending the calendar→clock gap — while the clock band, the status rows and the
 // forecast graph keep exactly the pixels they had. Before the strip's band became
@@ -117,7 +99,7 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool upper,
     int content_y = LAYOUT_PAD_TOP;
     int content_w = w - 2 * LAYOUT_PAD_X;
     int bottom_w = w - content_x;      // the bottom graph runs to the right edge
-    int strip_h = STRIP_BAND_H;   // font-sized minus the top trim; see STRIP_TOP_TRIM
+    int strip_h = STATUS_LARGE_BAND_H;   // font-sized; taller than CALENDAR_STATUS_HEIGHT
     int content_h = h - LAYOUT_PAD_TOP - LAYOUT_PAD_BOTTOM
                     - CALENDAR_STATUS_HEIGHT - WEATHER_STATUS_HEIGHT;
     int calendar_h, time_h, bottom_h;
@@ -129,9 +111,9 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool upper,
     // graph on exactly the pixels they had when the strip's band grew (CALENDAR_STATUS_HEIGHT
     // above). The strip's surplus height is paid for out of the air below it instead.
     int strip_anchor_y = content_y + CALENDAR_STATUS_HEIGHT;
-    // The calendar abuts the strip's real band, so its rows slide down out of the
-    // calendar→clock gap. Its bottom is pinned by cal_band_h below and overhangs the clock band's
-    // blank top margin by (STATUS_LARGE_BAND_H - reserve) px regardless of the strip's trim; that
+    // The calendar abuts the strip's real (taller) band, so its rows keep their height and
+    // simply slide down — the extra px come out of the calendar→clock gap. Its bottom
+    // therefore overhangs the clock band's blank top margin by (strip_h - reserve) px; that
     // band paints only text over a clear background, the same sibling overlap the compact
     // status row uses.
     int calendar_y = content_y + strip_h;
@@ -156,14 +138,6 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool upper,
         L.radar = L.bottom;                              // radar rides the bottom band
     } else {
         int cal_h = compact ? (calendar_h - calendar_h / 3) : calendar_h;
-        // Hand the strip's trim to the calendar BAND: its bottom edge stays exactly where the
-        // clamp-free strip put it (content_y + STATUS_LARGE_BAND_H + cal_h) while calendar_y rose
-        // by STRIP_TOP_TRIM, so the band grows UPWARD and the clock band below keeps every pixel.
-        // calendar_layer.c derives cell heights from bounds.size.h / rows, so the rows absorb the
-        // trim as extra pitch instead of sliding down into the clock. Kept separate from cal_h —
-        // that one is the weighted ROW allocation, which the swapped clock below anchors on and
-        // which must not move with the strip.
-        int cal_band_h = cal_h + STRIP_TOP_TRIM;
         // Compact with no UPPER status row (e.g. the swap-clock/status layout, which moves the
         // lone status into the LOWER forecast-abutting band): the freed 3rd-calendar-row slot
         // above the clock would otherwise sit empty. Reclaim it by pulling the clock up to abut
@@ -193,7 +167,7 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool upper,
             ? (time_y + (two_rows ? 0 : COMPACT_SINGLE_STATUS_NUDGE) - status_h)
             : (forecast_y - fc_band_h);
 
-        L.top = GRect(content_x, calendar_y, content_w, cal_band_h);
+        L.top = GRect(content_x, calendar_y, content_w, cal_h);
         L.status = GRect(content_x, status_y, content_w, status_h);
         L.time = GRect(content_x, time_y, content_w, time_h);
         L.bottom = GRect(content_x, forecast_y, bottom_w, h - LAYOUT_PAD_BOTTOM - forecast_y);
@@ -325,7 +299,7 @@ MainLayout layout_compute_peek(GRect bounds, const ViewSpec *spec, int fc_band_h
     // (health on L.status above weather on L.status_lower — the order the render maps).
     MainLayout L;
     int x = bounds.origin.x, y = bounds.origin.y, w = bounds.size.w, h = bounds.size.h;
-    int strip_h = STRIP_BAND_H;                    // == the created top_status band
+    int strip_h = STATUS_LARGE_BAND_H;             // == the created top_status band
     L.top_status = GRect(x, y, w, strip_h);        // date strip stays at the top
     L.top = GRect(x, y + strip_h, w, 0);           // no calendar
 
