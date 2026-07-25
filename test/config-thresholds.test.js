@@ -135,6 +135,38 @@ test('the generated page registers the validator hook without require()', () => 
   assert.equal(S.threshAqiDanger, '', 'inverted edit reverted inside the webview context');
 });
 
+// status-thresholds.js reaches rain-tier through a GUARDED require() that is null in the
+// flat concatenated page (no require() there), and buildSettingsBlob() dereferences it
+// unconditionally (rainTier.rgbToGColor8). A call from page code would therefore throw and
+// take down the ENTIRE settings page, not just the threshold rows — the blob is built
+// phone-side by clay-payload.js, never in the webview. Guard that at the source level:
+// every occurrence of the name in the page must be the module's own declaration/export,
+// never a call site.
+test('the generated page never references buildSettingsBlob outside its own module', () => {
+  const html = require('../src/pkjs/config-ui/scripts/build-page.js')
+    .buildPage({ appFiles: require('../scripts/build-config-page.js').APP_FILES });
+  // The builder concatenates each file verbatim behind a `/* app: <basename> */` marker;
+  // splitting on those isolates the one segment allowed to name the function (the contract
+  // module, which declares and exports it) from every other segment of the page.
+  const parts = html.split(/\/\* app: ([\w.-]+) \*\//);
+  const seen = [];
+  assert.equal(parts[0].indexOf('buildSettingsBlob'), -1,
+    'shell + config-ui library must not reference buildSettingsBlob');
+  for (let i = 1; i < parts.length; i += 2) {
+    const name = parts[i];
+    seen.push(name);
+    if (name === 'status-thresholds.js') {
+      assert.ok(parts[i + 1].indexOf('function buildSettingsBlob') !== -1,
+        'sanity: the declaring module really is bundled into the page');
+      continue;
+    }
+    assert.equal(parts[i + 1].indexOf('buildSettingsBlob'), -1,
+      name + ' must not call buildSettingsBlob — rainTier is null in the flat page (no '
+      + 'require()), so the call would throw and take down the whole settings screen');
+  }
+  assert.ok(seen.indexOf('status-thresholds.js') !== -1, 'sanity: app segments were split');
+});
+
 // --- end-to-end dispatch: the engine's text-field commit path ---------------
 // Registering the hook is only half the wiring — the engine has to CALL it when a
 // text field is committed. These tests boot the REAL generated page (same flat
@@ -256,9 +288,15 @@ test('a well-ordered commit is kept, and mid-typing keystrokes are never reverte
     page.scroll.dispatch('input', { target: inp });
     assert.equal(page.S.threshAqiDanger, step, 'keystroke "' + step + '" must not be reverted');
   });
+  const writesBefore = page.scroll.writes;
   page.scroll.dispatch('change', { target: inp });
   assert.equal(page.S.threshAqiDanger, '100', 'the ordered pair 50/100 survives the commit');
-  assert.match(page.inputHtml('threshAqiDanger'), /value="100"/);
+  // ...and the accepted commit must NOT repaint the body. In a webview focus moves on
+  // mousedown, so `change` fires before mouseup: replacing #scroll.innerHTML here would
+  // detach the control the user's next tap is landing on and swallow that tap. The field
+  // already shows the typed text, so there is nothing to repaint.
+  assert.equal(page.scroll.writes, writesBefore,
+    'an accepted value needs no repaint (a repaint would swallow the next tap)');
 });
 
 test('committing a hookless text field just keeps the typed value', () => {

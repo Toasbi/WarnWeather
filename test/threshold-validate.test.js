@@ -49,6 +49,26 @@ test('non-threshold keys are ignored', () => {
   assert.equal(S.provider, 'dwd');
 });
 
+// A negative health threshold used to be accepted here and then silently clamped to 0 by
+// healthWire() at pack time, so the STORED setting meant something other than what the
+// user typed. No health kind (steps / sleep hours / distance) has a legitimate negative
+// reading, so reject it at entry instead. The weather kinds are unaffected — they are
+// compared as plain numbers with no clamp.
+test('a negative HEALTH threshold is rejected; weather kinds still accept negatives', () => {
+  const S = { threshStepsWarn: '-5', threshStepsDanger: '' };
+  validateThresholdPair(S, '8000', 'threshStepsWarn');
+  assert.equal(S.threshStepsWarn, '8000', 'negative steps reverts (healthWire would clamp to 0)');
+  const S2 = { threshSleepWarn: '', threshSleepDanger: '-1' };
+  validateThresholdPair(S2, '5', 'threshSleepDanger');
+  assert.equal(S2.threshSleepDanger, '5', 'negative sleep hours revert');
+  const S3 = { threshDistanceWarn: '-0,5', threshDistanceDanger: '' };
+  validateThresholdPair(S3, '', 'threshDistanceWarn');
+  assert.equal(S3.threshDistanceWarn, '', 'negative distance (comma decimal) reverts to blank');
+  const S4 = { threshAqiWarn: '-2', threshAqiDanger: '' };
+  validateThresholdPair(S4, '', 'threshAqiWarn');
+  assert.equal(S4.threshAqiWarn, '-2', 'weather kinds keep accepting negative thresholds');
+});
+
 // 0 and negatives are legitimate thresholds, and an equal pair is valid — so
 // "unset" must never collapse into "zero" (parseThreshold returns null, not 0).
 test('zero and an equal pair are legitimate, not treated as unset', () => {

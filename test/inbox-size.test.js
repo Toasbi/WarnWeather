@@ -184,3 +184,14 @@ test('Clay settings message (with palette) fits the watch inbox', function() {
     size <= inbox,
     'Clay message is ' + size + ' B but inbox_size is only ' + inbox + ' B — bump inbox_size.');
 });
+
+test('Clay settings message keeps its recorded size (and headroom)', () => {
+  const size = dictSize(buildHeaviestClayMessage());
+  const inbox = readInboxSize();
+  console.log(`heaviest Clay message: ${size} B of ${inbox} B (headroom ${inbox - size})`);
+  // Recorded exactly, like the weather bundle above: the Clay message grows key by key
+  // (the palette, then the threshold blob), so the next task that adds one has to see the
+  // running total move instead of silently eating the remaining headroom.
+  assert.equal(size, 378, 'update the recorded Clay message size when its wire contract changes');
+  assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
+});
