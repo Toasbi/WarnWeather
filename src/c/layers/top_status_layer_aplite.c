@@ -34,11 +34,12 @@
 // Gothic-14 top leading: lift the "zZ" snooze text this many px so its caps sit
 // on the icon slot's top pixel row, matching the battery/indicator icons.
 #define SNOOZE_TEXT_LIFT 3
-// Centre the indicator icons in the band, on the same row as the strip's text: the band is
-// sized from its font (status_min_band_h), so the date's cap centre IS the band centre and
-// (bounds_h - icon_h)/2 co-centres the icons with it. Ported from top_status_layer.c, where
-// this used to be a no-op (0) that only looked right because the old 14px band was too short
-// and the descender clamp had pushed the text flush against row 0.
+// Centre the indicator icons in the band. Ported from top_status_layer.c, where this used to be
+// a no-op (0) that only looked right because the old 14px band was too short and the descender
+// clamp had pushed the text flush against row 0. The band is no longer the strip text's cap
+// centre (the strip band is trimmed STRIP_TOP_TRIM px below clamp-free — windows/layout.c), but
+// band-centring measures no worse than cap-centring here and costs no image bytes; see the base
+// file's comment for the measured comparison.
 #define STATUS_ICON_Y(bounds_h, icon_h) (((bounds_h) - (icon_h)) / 2)
 
 static bool show_qt_icon(void);

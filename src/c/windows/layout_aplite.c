@@ -18,7 +18,7 @@
 #define LAYOUT_PAD_TOP 0
 #define LAYOUT_PAD_BOTTOM 0
 // The top strip's RESERVE (see layout.c): the split's share and the anchor every band below
-// the strip keeps. The strip's own band is font-sized (STATUS_LARGE_BAND_H) and taller; the
+// the strip keeps. The strip's own band is font-sized (STRIP_BAND_H) and taller; the
 // surplus grows downward into the air below it, so the clock and the graph never move.
 #define CALENDAR_STATUS_HEIGHT 13
 #define NONE_STATUS_HEIGHT 22
@@ -28,6 +28,12 @@
 // clamp lifts the line off the band centre. Constant-folded — the argument is a literal.
 #define STATUS_LARGE_FONT_H 18
 #define STATUS_LARGE_BAND_H status_min_band_h(STATUS_LARGE_FONT_H)
+// The top strip alone is trimmed BELOW clamp-free (15): its top edge is the screen edge, so
+// nothing renders in the air above it, while the gap down to the calendar is visible. The clamp's
+// seat is linear in band_h, so the line rides up 1:1 with the trim and the trimmed px go to the
+// calendar band. See STRIP_TOP_TRIM in layout.c for the full derivation and the row-1 cap bound.
+#define STRIP_TOP_TRIM 2
+#define STRIP_BAND_H (STATUS_LARGE_BAND_H - STRIP_TOP_TRIM)
 
 static void split_content(int content_h, const uint8_t weights[3],
                           int *calendar_h, int *time_h, int *bottom_h) {
@@ -104,7 +110,7 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
     int content_y = LAYOUT_PAD_TOP;
     int content_w = w - 2 * LAYOUT_PAD_X;
     int bottom_w = w - content_x;
-    int strip_h = STATUS_LARGE_BAND_H;   // font-sized; taller than CALENDAR_STATUS_HEIGHT
+    int strip_h = STRIP_BAND_H;   // font-sized minus the top trim; see STRIP_TOP_TRIM
     int content_h = h - LAYOUT_PAD_TOP - LAYOUT_PAD_BOTTOM
                     - CALENDAR_STATUS_HEIGHT - WEATHER_STATUS_HEIGHT;
     int calendar_h, time_h, bottom_h;
@@ -130,6 +136,11 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
         L.radar = L.bottom;
     } else {
         int cal_h = compact ? (calendar_h - calendar_h / 3) : calendar_h;
+        // The strip's trim goes to the calendar BAND: its bottom edge stays where the clamp-free
+        // strip put it while calendar_y rose by STRIP_TOP_TRIM, so the band grows upward and the
+        // clock keeps every pixel. Separate from cal_h, the weighted ROW allocation the swapped
+        // clock anchors on (matches layout.c).
+        int cal_band_h = cal_h + STRIP_TOP_TRIM;
         // Swap layout: no upper status row, so pull the clock up to abut the 2-row calendar,
         // reclaiming the freed 3rd-calendar-row slot (matches layout.c). Compact-only; aplite
         // only reaches !upper via the swap. Anchored to the strip's reserve so the taller
@@ -145,7 +156,7 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
         int status_h = compact ? STATUS_LARGE_BAND_H : fc_band_h;
         int status_y = compact ? (time_y + COMPACT_SINGLE_STATUS_NUDGE - status_h)
                               : (forecast_y - fc_band_h);
-        L.top = GRect(content_x, calendar_y, content_w, cal_h);
+        L.top = GRect(content_x, calendar_y, content_w, cal_band_h);
         L.status = GRect(content_x, status_y, content_w, status_h);
         L.time = GRect(content_x, time_y, content_w, time_h);
         L.bottom = GRect(content_x, forecast_y, bottom_w, h - LAYOUT_PAD_BOTTOM - forecast_y);
