@@ -18,6 +18,7 @@
 
 #include "top_status_layer.h"
 #include "battery_draw.h"
+#include "status_metrics.h"   // STATUS_TOP_STRIP_LIFT — the strip's seating (STATUS_ICON_Y)
 #include "status_row.h"
 #include "top_status_indicators.h"
 #include "c/appendix/config.h"
@@ -34,12 +35,14 @@
 // Gothic-14 top leading: lift the "zZ" snooze text this many px so its caps sit
 // on the icon slot's top pixel row, matching the battery/indicator icons.
 #define SNOOZE_TEXT_LIFT 3
-// Centre the indicator icons in the band, on the same row as the strip's text: the band is
-// sized from its font (status_min_band_h), so the date's cap centre IS the band centre and
-// (bounds_h - icon_h)/2 co-centres the icons with it. Ported from top_status_layer.c, where
+// Seat the indicator icons on the same row as the strip's text. The band is sized from its font
+// (status_min_band_h), so (bounds_h - icon_h)/2 lands on the band centre — where the cap-centred
+// seat would put the date's cap — and the strip then lifts BOTH by STATUS_TOP_STRIP_LIFT so the
+// icons keep following the text up toward the screen edge. Ported from top_status_layer.c, where
 // this used to be a no-op (0) that only looked right because the old 14px band was too short
 // and the descender clamp had pushed the text flush against row 0.
-#define STATUS_ICON_Y(bounds_h, icon_h) (((bounds_h) - (icon_h)) / 2)
+#define STATUS_ICON_Y(bounds_h, icon_h) \
+    (((bounds_h) - (icon_h)) / 2 - STATUS_TOP_STRIP_LIFT)
 
 static bool show_qt_icon(void);
 static void bluetooth_callback(bool connected);

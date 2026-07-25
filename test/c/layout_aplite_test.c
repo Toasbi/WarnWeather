@@ -164,6 +164,36 @@ static void expect_no_lift(const char *view, const char *band, int band_h, int c
     }
 }
 
+// The top strip is the one line deliberately NOT cap-centred, so expect_no_lift() is the wrong
+// predicate for it (ported from layout_test.c, where the reasoning lives): its band stays
+// clamp-free — which is what keeps calendar_y == content_y + strip_h and every band below it
+// from moving — while its CONTENT seats STATUS_TOP_STRIP_LIFT rows higher inside that band,
+// because the strip's top edge IS the screen's top edge and only the gap below it is visible.
+static void expect_strip_lift(const char *view, int band_h, int content_h) {
+    int free_h = status_min_band_h(content_h);
+    if (band_h != free_h) {
+        printf("FAIL seating %s.top_status: band_h %d, expected the clamp-free %d"
+               " (the strip lifts its CONTENT, it must not resize its band)\n",
+               view, band_h, free_h);
+        s_failures++;
+        return;
+    }
+    int seat = status_strip_seat_y(band_h, content_h);
+    int cap = status_glyph_center_y(seat, content_h);
+    if (cap != band_h / 2 - STATUS_TOP_STRIP_LIFT) {
+        printf("FAIL seating %s.top_status: cap centre %d, expected %d (band centre %d - %d)\n",
+               view, cap, band_h / 2 - STATUS_TOP_STRIP_LIFT, band_h / 2,
+               STATUS_TOP_STRIP_LIFT);
+        s_failures++;
+    }
+    int tails = seat + content_h + status_descender_h(content_h);
+    if (tails > band_h) {
+        printf("FAIL seating %s.top_status: tails reach %d, past the %d band\n",
+               view, tails, band_h);
+        s_failures++;
+    }
+}
+
 static void seating_no_lift(void) {
     struct { const char *name; uint8_t tier; int su; int sl; int row_h; } views[] = {
         { "fullCal",     3, STATUS_SRC_FORECAST, STATUS_SRC_NONE,     FULL_ROW_H    },
@@ -174,7 +204,7 @@ static void seating_no_lift(void) {
     for (unsigned i = 0; i < sizeof(views) / sizeof(views[0]); i++) {
         ViewSpec spec = view_spec_unpack(pack(views[i].tier, 1, 0, views[i].su, views[i].sl));
         MainLayout L = layout_compute_spec(BOUNDS, &spec, FC_BAND_H_SHIPPING);
-        expect_no_lift(views[i].name, "top_status", L.top_status.size.h, TOP_ROW_H);
+        expect_strip_lift(views[i].name, L.top_status.size.h, TOP_ROW_H);
         expect_no_lift(views[i].name, "status", L.status.size.h, views[i].row_h);
         if (spec.status_lower != STATUS_SRC_NONE) {
             expect_no_lift(views[i].name, "status_lower", L.status_lower.size.h, views[i].row_h);

@@ -587,6 +587,49 @@ static void expect_no_lift(const char *view, const char *band, int band_h, int c
     }
 }
 
+// The top strip is the ONE line deliberately NOT cap-centred, so expect_no_lift() above is the
+// wrong predicate for it: its band stays clamp-free (which is what keeps calendar_y, defined as
+// content_y + strip_h, and every band below it from moving) but its CONTENT seats
+// STATUS_TOP_STRIP_LIFT rows higher inside that band. Exempt because the strip's top edge IS the
+// screen's top edge — the air a centred cap leaves above it is invisible, while the gap below,
+// down to the calendar's first row, is what the eye reads.
+//
+// Stronger than merely tolerating a lift: pinned in both directions.
+//   1. the band is still exactly the shortest clamp-free one (so no band below it moves),
+//   2. the cap sits exactly STATUS_TOP_STRIP_LIFT rows above the band centre — no less (the
+//      lift must actually move the line) and no more (the cap must stay clear of row 0), and
+//   3. the descender tails still fit inside the band, so nothing is shaved at the bottom.
+// Topmost row the cap-centred Gothic-18 strip line inks in its 17px band. MEASURED on a basalt
+// emulator capture at abe81ac (rows 3..13); the seating model's own cap fraction cannot be
+// inverted to a cap height, so the clipping bound is pinned against the measurement.
+#define STRIP_CAP_TOP_ROW_CENTRED 3
+
+static void expect_strip_lift(const char *view, int band_h, int content_h) {
+    int free_h = status_min_band_h(content_h);
+    if (band_h != free_h) {
+        printf("FAIL seating %s.top_status: band_h %d, expected the clamp-free %d"
+               " (the strip lifts its CONTENT, it must not resize its band)\n",
+               view, band_h, free_h);
+        s_failures++;
+        return;
+    }
+    int seat = status_strip_seat_y(band_h, content_h);
+    int cap = status_glyph_center_y(seat, content_h);
+    if (cap != band_h / 2 - STATUS_TOP_STRIP_LIFT) {
+        printf("FAIL seating %s.top_status: cap centre %d, expected %d"
+               " (band centre %d lifted by %d)\n",
+               view, cap, band_h / 2 - STATUS_TOP_STRIP_LIFT, band_h / 2,
+               STATUS_TOP_STRIP_LIFT);
+        s_failures++;
+    }
+    int tails = seat + content_h + status_descender_h(content_h);
+    if (tails > band_h) {
+        printf("FAIL seating %s.top_status: tails reach %d, past the %d band\n",
+               view, tails, band_h);
+        s_failures++;
+    }
+}
+
 static void seating_no_lift(void) {
     // status_min_band_h's own values, so a change to the font-metric fractions surfaces here
     // rather than as a silent 1px drift in every band.
@@ -603,6 +646,13 @@ static void seating_no_lift(void) {
            status_glyph_center_y(status_seat_y(21, 24), 24) != 21 / 2, true);
     expect("seating.old_emery_lone_compact_clamped",
            status_glyph_center_y(status_seat_y(20, 24), 24) != 20 / 2, true);
+    // Teeth for the strip's lift itself (expect_strip_lift would pass vacuously at 0): it has to
+    // be a real move, and it has to keep the cap clear of the screen's top edge. MEASURED on
+    // basalt at abe81ac: the cap-centred Gothic-18 line inks rows 3..13 in its 17px band, so the
+    // lift puts its topmost row on 3 - lift and a lift of 3 would sit it flush on row 0.
+    expect("seating.strip_lift_moves_the_line", STATUS_TOP_STRIP_LIFT > 0, true);
+    expect("seating.strip_lift_clears_row_0",
+           STRIP_CAP_TOP_ROW_CENTRED - STATUS_TOP_STRIP_LIFT >= 1, true);
 
     struct { const char *name; int tier; int su; int sl; } views[] = {
         { "fullCal",      3, STATUS_SRC_FORECAST, STATUS_SRC_NONE     },
@@ -617,7 +667,7 @@ static void seating_no_lift(void) {
         ViewSpec spec = view_spec_unpack(pack(views[i].tier, 1, 0, views[i].su, views[i].sl));
         MainLayout L = layout_compute_spec(BOUNDS, &spec, FC_BAND_H_SHIPPING);
         int row_h = status_row_content_h(spec.status_tier);
-        expect_no_lift(views[i].name, "top_status", L.top_status.size.h, TOP_ROW_H);
+        expect_strip_lift(views[i].name, L.top_status.size.h, TOP_ROW_H);
         if (spec.status_upper != STATUS_SRC_NONE) {
             expect_no_lift(views[i].name, "status", L.status.size.h, row_h);
         }
@@ -638,7 +688,7 @@ static void seating_no_lift(void) {
     ViewSpec pk = view_spec_unpack(pack(3, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE));
     pk.top = TOP_BAND_EMPTY; pk.calendar_rows = 0; pk.status_tier = LAYOUT_TIER_FULL;
     MainLayout Lp = layout_compute_peek(GRect(0, 0, 144, 117), &pk, FC_BAND_H_SHIPPING);
-    expect_no_lift("peek", "top_status", Lp.top_status.size.h, TOP_ROW_H);
+    expect_strip_lift("peek", Lp.top_status.size.h, TOP_ROW_H);
     expect_no_lift("peek", "status", Lp.status.size.h, FULL_ROW_H);
     printf("seating_no_lift OK\n");
 }

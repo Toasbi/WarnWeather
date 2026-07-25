@@ -89,3 +89,39 @@ static inline int status_min_band_h(int content_h) {
 static inline int status_glyph_center_y(int text_y, int content_h) {
     return text_y + content_h - status_glyph_below(content_h);
 }
+
+// Rows the TOP STRIP — and only the top strip — seats its content ABOVE the cap-centred
+// position status_seat_y() gives it. A taste knob, in the same family as
+// STATUS_FORECAST_CLEARANCE / MT_TIME: it buys visible air, it is not derived from the font.
+//
+// Why the strip alone is exempt from cap-centring: its top edge IS the screen's top edge
+// (LAYOUT_PAD_TOP is 0 on the 144px watches), so nothing renders in the air a centred cap
+// leaves above it — that air is simply wasted. The air BELOW the line is the gap the eye
+// reads, down to the calendar's first row. Moving the line up therefore converts invisible
+// margin into visible separation.
+//
+// Why the SEAT and not the band: windows/layout.c defines the calendar's origin as
+// `content_y + strip_h`, so shrinking the strip's band moves the calendar up by exactly as
+// much and the gap is conserved (measured: 2 -> 2 blank rows; see the reverted 7da5424).
+// Lifting inside an unchanged band is the only move that opens it — the band, and hence
+// calendar_y and every band below, stay put.
+//
+// Why 2: it is the largest lift the 144px watches can take. Gothic 18 seats its cap centre at
+// band_h/2 = 8 in the 17px band with a MEASURED cap of 11 px, so the cap occupies rows 3..13;
+// a lift of 2 puts it on rows 1..11 (1 px of margin) and a lift of 3 would put its first row
+// flush on row 0. emery has room to spare (rows 5..18 in its 23px band), so one shared
+// constant keeps both platforms in step. Descenders stay inside the band either way — the
+// clamp-free band holds cap + tails with 2 px of spare above the tails, which is what the lift
+// spends (verified in test/c/layout_test.c::seating_no_lift).
+//
+// Accepted consequences: the strip's cap is no longer centred in its band, and the
+// threshold-highlight box, which clamps symmetrically about the cap (status_highlight_extent),
+// comes out 2 * STATUS_TOP_STRIP_LIFT shorter. Both are deliberate.
+#define STATUS_TOP_STRIP_LIFT 2
+
+// Seat the top strip's line: status_seat_y() lifted by STATUS_TOP_STRIP_LIFT. Every element
+// the strip draws goes through this (its slot text via status_row, the rain-alert text and
+// glyph, the indicator icons), so the whole line moves together.
+static inline int status_strip_seat_y(int band_h, int content_h) {
+    return status_seat_y(band_h, content_h) - STATUS_TOP_STRIP_LIFT;
+}

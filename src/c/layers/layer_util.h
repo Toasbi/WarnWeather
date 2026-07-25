@@ -29,6 +29,13 @@ static inline int status_text_y(int band_h, GFont font) {
     return status_seat_y(band_h, status_content_h(font));
 }
 
+// Seat the TOP STRIP's line — status_text_y() lifted by STATUS_TOP_STRIP_LIFT (see there for
+// why the strip is the one band that does not cap-centre). Its band is unchanged, so only the
+// content moves; everything the strip draws seats through this so the line stays together.
+static inline int status_strip_text_y(int band_h, GFont font) {
+    return status_strip_seat_y(band_h, status_content_h(font));
+}
+
 // Height for the status band that rides DIRECTLY above the forecast — in full mode both the
 // weather and the health row, and in dual-status compact top view the weather row. Because
 // status_text_y centres the glyph at band_h/2 and the layout pins the band bottom to the

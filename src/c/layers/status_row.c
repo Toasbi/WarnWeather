@@ -107,6 +107,18 @@ static const GPathInfo ARROW_PATH_INFO = {
 
 static int s_row_count;
 
+// Seat this row's line in its band. Every row cap-centres (status_text_y) EXCEPT the top
+// strip, which rides STATUS_TOP_STRIP_LIFT rows higher inside an unchanged band — its top edge
+// is the screen edge, so the air above the line is invisible while the gap below, down to the
+// calendar, is what reads. Line-id-keyed like row_font() just below, for the same reason.
+// Written as one seat plus a conditional subtract rather than picking between status_text_y and
+// status_strip_text_y: both are inline, and branching between them duplicated the whole
+// measure-and-seat body in the image (measured ~100 B on aplite, which has none to spare).
+static int row_text_y(const StatusRow *row, GFont font) {
+    int y = status_text_y(row->bounds.size.h, font);
+    return (row->line_id == STATUS_LINE_TOP) ? y - STATUS_TOP_STRIP_LIFT : y;
+}
+
 static GFont row_font(uint8_t tier, uint8_t line_id) {
     // The top strip keeps its own (larger) font at all times; it always renders
     // the FULL tier but must not share the weather/health full-tier size.
@@ -584,7 +596,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     StatusSlotPlace places[STATUS_SLOT_COUNT];
     status_row_layout(content_w, measures, places);
 
-    int text_y_rel = status_text_y(row->bounds.size.h, font);
+    int text_y_rel = row_text_y(row, font);
     int text_y = row->bounds.origin.y + text_y_rel;
     int glyph_cy = row->bounds.origin.y
         + status_glyph_center_y(text_y_rel, content_h);

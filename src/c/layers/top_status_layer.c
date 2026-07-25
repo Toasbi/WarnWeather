@@ -19,12 +19,14 @@
 #define PADDING 4
 #define ICON_SLOT_1 GRect(PADDING, 0, 10, 10)
 #define ICON_SLOT_2 GRect(PADDING * 2 + 10, 0, 10, 10)
-// Centre the indicator icons in the band, on the same row as the strip's text: with the band
-// sized from its font (status_min_band_h) the date's cap centre IS the band centre, so
-// (bounds_h - icon_h)/2 co-centres the icons with it on every platform. This used to be a
-// no-op (0) on the 144px watches, which only looked right because their 14px band was too
-// short and the descender clamp had pushed the text flush against row 0.
-#define STATUS_ICON_Y(bounds_h, icon_h) (((bounds_h) - (icon_h)) / 2)
+// Seat the indicator icons on the same row as the strip's text. The band is sized from its font
+// (status_min_band_h), so (bounds_h - icon_h)/2 lands on the band centre — which is where the
+// cap-centred seat would put the date's cap — and the strip then lifts BOTH by
+// STATUS_TOP_STRIP_LIFT so the icons keep following the text up toward the screen edge. This
+// used to be a no-op (0) on the 144px watches, which only looked right because their 14px band
+// was too short and the descender clamp had pushed the text flush against row 0.
+#define STATUS_ICON_Y(bounds_h, icon_h) \
+    (((bounds_h) - (icon_h)) / 2 - STATUS_TOP_STRIP_LIFT)
 #ifdef PBL_PLATFORM_EMERY
 #define MONTH_FONT_KEY FONT_KEY_GOTHIC_24
 #else
@@ -62,7 +64,7 @@ static int s_rain_alert_tier;   // radar tier (1..5) of the active alert's peak;
 // replaced (a hardcoded -7 on the 144px watches, a measured centre -5 on emery) happened to
 // match the slots at the old 14/21px band heights and drifted 1-3px as soon as the band grew.
 static GRect month_text_rect(GRect bounds, GFont font) {
-    const int text_y = status_text_y(bounds.size.h, font);
+    const int text_y = status_strip_text_y(bounds.size.h, font);
     return GRect(0, text_y, bounds.size.w, bounds.size.h - text_y);
 }
 
@@ -307,18 +309,23 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
     // before the drops read as tiny; emery's taller band (~23 px) takes a larger inset so
     // the single drizzle drop isn't oversized. glyph_x is set only in alert mode.
     // (Tune visually.)
+    // Both branches carry STATUS_TOP_STRIP_LIFT, the same lift the alert text beside them takes
+    // (month_text_rect) — the drop has to ride with the line it sits on, not with the band.
 #ifdef PBL_PLATFORM_EMERY
     const int glyph_side = bounds.size.h - 6;   // emery: ~23 - 6 = 17
-    // emery: center in the taller band, matching the band-centred alert text beside it.
-    const int glyph_y = (bounds.size.h - glyph_side) / 2;
+    // emery: center in the taller band, matching the lifted alert text beside it.
+    const int glyph_y = (bounds.size.h - glyph_side) / 2 - STATUS_TOP_STRIP_LIFT;
 #else
-    const int glyph_side = bounds.size.h - 2;   // ~17 - 2 = 15
+    // The lift costs the drop its slot rather than its alignment: shrinking the square by the
+    // lift keeps glyph_y's inset at exactly -1 (below), so the drop still trims only its own
+    // empty top margin instead of being pushed off the screen's top edge.
+    const int glyph_side = bounds.size.h - 2 - STATUS_TOP_STRIP_LIFT;   // ~17 - 2 - 2 = 13
     // Bottom-align to the "Rain in X" baseline rather than centering in the band: the drop
     // should sit on the text line, not float above it. Both the drop and the seated Gothic-18
     // baseline scale with the band, so the 3px inset keeps the drop's last row exactly on the
-    // digits' last row at any band height (band_h - 4 either way); a slightly negative glyph_y
-    // only trims the drop's empty top margin, never the drop itself. (Tune visually.)
-    const int glyph_y = bounds.size.h - glyph_side - 3;
+    // digits' last row at any band height (band_h - 4 - lift either way); a slightly negative
+    // glyph_y only trims the drop's empty top margin, never the drop itself. (Tune visually.)
+    const int glyph_y = bounds.size.h - glyph_side - 3 - STATUS_TOP_STRIP_LIFT;
 #endif
     const int glyph_gap = 2;
     int glyph_x = 0;  // assigned from start_x before use in alert mode
