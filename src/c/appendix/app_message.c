@@ -471,8 +471,7 @@ void app_message_init() {
     // 19 text bytes where the fixed Date packed none (+19 B worst case, 517 B).
     // 536 (was 528): the threshold-highlight levels byte rides the weather
     // bundle as its own tuple — 1 value byte + the 7-byte tuple header
-    // (recorded heaviest bundle still 517 B until the phone starts sending it
-    // in a later task; headroom 19).
+    // (recorded heaviest bundle now 525 B; headroom 11).
     const int inbox_size = 536;
     const int outbox_size = dict_calc_buffer_size(2, sizeof(uint8_t), sizeof(uint8_t));
     APP_LOG(APP_LOG_LEVEL_INFO, "AppMessage buffer sizes: inbox=%d outbox=%d", inbox_size, outbox_size);

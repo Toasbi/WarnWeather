@@ -117,3 +117,11 @@ test('belowIsWorse by settings-key stem', () => {
   assert.equal(th.belowIsWorse('Steps'), true);
   assert.equal(th.belowIsWorse('Distance'), true);
 });
+
+test('buildStatusLines bakes STATUS_LEVELS_UINT8 into the weather payload', () => {
+  const statusLines = require('../src/pkjs/status-lines.js');
+  const payload = { AQI_TREND: [150] };
+  statusLines.buildStatusLines(payload,
+    { threshAqiWarn: '100', threshAqiDanger: '200' }, { platform: 'basalt' });
+  assert.deepEqual(payload.STATUS_LEVELS_UINT8, [1]);   // AQI warn in bits 0-1
+});

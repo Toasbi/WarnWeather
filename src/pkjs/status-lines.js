@@ -5,6 +5,7 @@
  */
 var catalog = require('./status-line-catalog.js');
 var platformLib = require('./config-ui/lib/platform.js');
+var thresholds = require('./status-thresholds.js');
 
 // Slot positions by index, the catalog's slot-context vocabulary.
 var POSITIONS = ['left', 'mid', 'right'];
@@ -297,6 +298,9 @@ function buildStatusLines(payload, settings, watchInfo) {
     var line = catalog.LINES[l];
     payload[line.wireKey] = packLine(line, payload, settings, env);
   }
+  // Packed weather-kind threshold levels: computed here because the raw
+  // AQI/pollen/wind/gust values exist only phone-side (the watch gets text).
+  payload.STATUS_LEVELS_UINT8 = thresholds.packWeatherLevels(payload, settings);
   return payload;
 }
 
