@@ -140,21 +140,22 @@ void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
 // GRect's origin.y, so a box spanning [y, y + h) is centred on it exactly when
 // y + h/2 == cap_cy.
 //
-// Why not the band: status_text_y() centres the cap at band_h/2 but then applies a
-// descender clamp, which on the compact tier LIFTS the line above the band centre.
-// A full-band box then sat up to 1.5 px low under its own text. Half-height is the
-// smaller of the two distances to the band edges, so the box is exactly symmetric
-// about the cap and still never bleeds into the calendar row above or the forecast
-// below (on the compact tier the cap sits only ~6 px below the band top, so simply
-// shifting a full-band box up would overflow).
+// Why not the band: status_text_y() centres the cap at band_h/2, but only ever lands
+// exactly there when the band is at least status_min_band_h() tall — a shorter band hits
+// the descender clamp, which LIFTS the line above the band centre, and a full-band box
+// then sat up to 1.5 px low under its own text. Every band windows/layout.c produces is
+// now clamp-free, so this is no longer load-bearing on the shipping geometry; it stays
+// because it is the correct rule for ANY band and it also absorbs the odd-band rounding
+// below. Half-height is the smaller of the two distances to the band edges, so the box is
+// exactly symmetric about the cap and never bleeds into the calendar row above or the
+// forecast below.
 //
-// No-op guarantee: on a band sized from the font (status_forecast_band_h and the
-// none-tier bands satisfy the clamp) the cap centre IS the band centre, and for the
-// even band heights those produce both distances equal band_h/2 — so y == band_top,
-// h == band_h and the box is bit-identical to the full-band one this replaces. On an
-// ODD band the truncating band_h/2 puts the cap 0.5 px above the band's own centre,
-// so the box comes out 1 px shorter than the band; that is the correction, not a
-// regression (it is what removes the measured -0.5 px error on the 15 px band).
+// No-op guarantee: whenever the cap centre IS the band centre and band_h is EVEN (the
+// full-tier and none-tier bands) both distances equal band_h/2 — so y == band_top,
+// h == band_h and the box is bit-identical to the full-band one this replaces. On an ODD
+// band (the 17px top strip / lone compact band, 23px on emery, the 15px dense upper band)
+// the truncating band_h/2 puts the cap 0.5 px above the band's own centre, so the box comes
+// out 1 px shorter than the band; that is the correction, not a regression.
 StatusHighlightExtent status_highlight_extent(int16_t band_top, int16_t band_h,
                                               int16_t cap_cy) {
     int band_bottom = band_top + band_h;         // exclusive edge

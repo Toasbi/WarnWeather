@@ -1,4 +1,5 @@
 #include "layout.h"
+#include "c/layers/status_metrics.h"   // status_min_band_h — integer font math, no SDK
 
 // Weights of the three content bands (calendar : time : bottom graph). On the 168px
 // watches content_h is exactly 141 = 45+45+51, so the proportional split reproduces the
@@ -9,13 +10,42 @@
 #define WEIGHT_BOTTOM 51
 
 #define WEATHER_STATUS_HEIGHT 14
-// Compact + single-status (dual off): the lone status band sits directly above the
-// clock, so nudge it down a couple px to close the gap and sit it snug under the
-// clock. Dual status keeps the health band where it is (weather rides a separate
-// lower band), and full/none aren't affected — see the guarded use below.
+// Compact + single-status (dual off): the lone status band's bottom overhangs the clock
+// band's blank top margin by this much, sitting it snug under the calendar and close to the
+// clock. Dual status keeps the health band flush with the clock band top (weather rides a
+// separate lower band) — see the guarded use below. Historically this was a downward nudge
+// added to a calendar-anchored top; it is now the band's bottom offset, which is what the
+// number always meant on screen and what keeps the row put when the band's height changes.
 #define COMPACT_SINGLE_STATUS_NUDGE 3
 
+// Content height of the LARGE status font — the one the top date strip and a LONE compact
+// status row render in (STATUS_TOP_TIER_FONT_KEY / COMPACT_ROW_FONT_KEY in
+// layers/layer_util.h + layers/status_row.c: Gothic 18 here, Gothic 24 on emery). Pebble's
+// measured content height for a Gothic font is exactly its nominal size (verified on device
+// at 14 / 18 / 24), so the band below can be sized from this number and layout.c stays free
+// of SDK font calls (see test/c/stub/pebble.h).
+#ifdef PBL_PLATFORM_EMERY
+#define STATUS_LARGE_FONT_H 24
+#else
+#define STATUS_LARGE_FONT_H 18
+#endif
+// The band those rows need: the shortest height at which status_seat_y()'s descender clamp
+// stops LIFTING the line off the band centre (17 here, 23 on emery — constant-folded, the
+// argument is a literal). Under it the row reads high and its gaps to the calendar above /
+// graph below go asymmetric; the clamp used to fire on the top strip (14) and on the lone
+// compact band (15 / 20).
+#define STATUS_LARGE_BAND_H status_min_band_h(STATUS_LARGE_FONT_H)
+
 // Per-platform band data — everything that differs between the 168px watches and emery.
+//
+// CALENDAR_STATUS_HEIGHT is the top strip's RESERVE, not its band: the space it takes out of
+// the content split, and the anchor every band BELOW it keeps. The strip's own band is sized
+// from its font (STATUS_LARGE_BAND_H) and is taller than the reserve; that surplus grows
+// DOWNWARD into the air below the strip — the calendar band slides down to abut the taller
+// strip, spending the calendar→clock gap — while the clock band, the status rows and the
+// forecast graph keep exactly the pixels they had. Before the strip's band became
+// font-derived the two numbers were one (strip_h was CALENDAR_STATUS_HEIGHT + 1, the +1 a
+// fudge for the descender tails that the font-derived height now covers properly).
 #ifdef PBL_PLATFORM_EMERY
 // emery: pad the window and give the taller screen a taller strip/status/none bands.
 #define LAYOUT_PAD_X 2
@@ -69,19 +99,33 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool upper,
     int content_y = LAYOUT_PAD_TOP;
     int content_w = w - 2 * LAYOUT_PAD_X;
     int bottom_w = w - content_x;      // the bottom graph runs to the right edge
-    int strip_h = CALENDAR_STATUS_HEIGHT + 1;
+    int strip_h = STATUS_LARGE_BAND_H;   // font-sized; taller than CALENDAR_STATUS_HEIGHT
     int content_h = h - LAYOUT_PAD_TOP - LAYOUT_PAD_BOTTOM
                     - CALENDAR_STATUS_HEIGHT - WEATHER_STATUS_HEIGHT;
     int calendar_h, time_h, bottom_h;
     split_content(content_h, weights, &calendar_h, &time_h, &bottom_h);
     (void)bottom_h;   // bottom bands derive from "fill to the pad" below
 
-    int calendar_y = content_y + CALENDAR_STATUS_HEIGHT;
-    int time_y = calendar_y + calendar_h;
+    // Where everything BELOW the strip is anchored: the strip's reserve, i.e. its pre-resize
+    // footprint. Holding this fixed is what keeps the clock, the status rows and the forecast
+    // graph on exactly the pixels they had when the strip's band grew (CALENDAR_STATUS_HEIGHT
+    // above). The strip's surplus height is paid for out of the air below it instead.
+    int strip_anchor_y = content_y + CALENDAR_STATUS_HEIGHT;
+    // The calendar abuts the strip's real (taller) band, so its rows keep their height and
+    // simply slide down — the extra px come out of the calendar→clock gap. Its bottom
+    // therefore overhangs the clock band's blank top margin by (strip_h - reserve) px; that
+    // band paints only text over a clear background, the same sibling overlap the compact
+    // status row uses.
+    int calendar_y = content_y + strip_h;
+    int time_y = strip_anchor_y + calendar_h;
 
     L.top_status = GRect(content_x, content_y, content_w, strip_h);
     if (tier == LAYOUT_TIER_NONE) {
-        int none_time_y = content_y + strip_h;          // time directly under the strip
+        // none: no calendar, so the clock rides directly under the strip — but it keeps the
+        // slot it had under the PRE-RESIZE strip, which was one px taller than the reserve
+        // (hence the +1). The taller band grows down into the strip→clock gap instead of
+        // pushing the clock, the status row and the graph down.
+        int none_time_y = strip_anchor_y + 1;
         int status_y = none_time_y + time_h;
         int forecast_y = status_y + NONE_STATUS_HEIGHT;
 
@@ -99,8 +143,9 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool upper,
         // above the clock would otherwise sit empty. Reclaim it by pulling the clock up to abut
         // the 2-row calendar, so the clock fills where the upper slot was instead of leaving a
         // gap. (A compact view always has an upper status unless swapped, so this only fires for
-        // the swap layout.)
-        if (compact && !upper) { time_y = calendar_y + cal_h; }
+        // the swap layout.) Anchored to the strip's reserve, not to calendar_y, so the taller
+        // font-sized strip cannot drag the swapped clock — and the graph below it — down.
+        if (compact && !upper) { time_y = strip_anchor_y + cal_h; }
         // full: reserve the abutting status band above the forecast — but only when a status
         // row is actually shown. A statusless full view (the radar-top forecast flick,
         // RDR_FC_NONE) reclaims that row so its forecast matches the compact tier's height.
@@ -108,12 +153,19 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool upper,
                                  : (time_y + time_h + (has_status ? WEATHER_STATUS_HEIGHT : 0));
         // full: the status band rides directly above the forecast — size it from the font
         // (fc_band_h) and pin its bottom to the forecast top so the centred line clears the
-        // graph by a constant margin, rising up into the clock band's slack. compact: the
-        // band drops into the freed 3rd calendar row and abuts the calendar.
-        int status_h = compact ? (calendar_h / 3) : fc_band_h;
-        int status_y = compact ? (calendar_y + cal_h) : (forecast_y - fc_band_h);
-        // Single-status compact: drop the lone upper band toward the clock just below it.
-        if (compact && !two_rows) { status_y += COMPACT_SINGLE_STATUS_NUDGE; }
+        // graph by a constant margin, rising up into the clock band's slack. compact: the band
+        // drops into the freed 3rd calendar row between the 2-row calendar and the clock, and
+        // is BOTTOM-anchored to the clock band (which never moves) rather than top-anchored to
+        // the calendar's bottom (which slides down with the font-sized strip): the row then
+        // stays put when the strip grows, and a taller band grows up into the calendar band's
+        // bottom air instead of down into the clock. A LONE row takes the clamp-free font-sized
+        // band — its old calendar_h/3 slot was 2px (emery 3px) short and clamped the line — and
+        // a DUAL keeps calendar_h/3, which is already clamp-free at the smaller full-tier font
+        // both rows squeeze to. `time_y - calendar_h/3` is exactly the old `calendar_y + cal_h`.
+        int status_h = compact ? (two_rows ? (calendar_h / 3) : STATUS_LARGE_BAND_H) : fc_band_h;
+        int status_y = compact
+            ? (time_y + (two_rows ? 0 : COMPACT_SINGLE_STATUS_NUDGE) - status_h)
+            : (forecast_y - fc_band_h);
 
         L.top = GRect(content_x, calendar_y, content_w, cal_h);
         L.status = GRect(content_x, status_y, content_w, status_h);
@@ -147,11 +199,13 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool upper,
             // compact/full: the lower row rides the forecast-abutting band. A DUAL lower row uses
             // the squeezed full-tier band (fc_band_h) so two stacked rows fit. A LONE lower row
             // (the compact swap layout — a single status moved below the clock) instead keeps the
-            // compact single-status band size (calendar_h / 3) and font, so swapping only changes
-            // position, not size (a true top/bottom swap). The forecast gives up the band height
-            // from its top; the band's bottom sits on that forecast top.
+            // compact single-status band size and font, so swapping only changes position, not
+            // size (a true top/bottom swap). The forecast gives up `reserve` from its top; the
+            // band's bottom sits on that forecast top. reserve stays the old calendar_h/3 SLOT
+            // even though the lone band is now the taller clamp-free height: the surplus grows
+            // upward into the clock band's slack, so the graph keeps every pixel it had.
             bool lone_lower_compact = compact && !two_rows;
-            int band_h  = lone_lower_compact ? (calendar_h / 3) : fc_band_h;
+            int band_h  = lone_lower_compact ? STATUS_LARGE_BAND_H : fc_band_h;
             int reserve = lone_lower_compact ? (calendar_h / 3) : WEATHER_STATUS_HEIGHT;
             int forecast_top = L.bottom.origin.y + reserve;
             L.status_lower = GRect(L.bottom.origin.x, forecast_top - band_h,
@@ -245,7 +299,7 @@ MainLayout layout_compute_peek(GRect bounds, const ViewSpec *spec, int fc_band_h
     // (health on L.status above weather on L.status_lower — the order the render maps).
     MainLayout L;
     int x = bounds.origin.x, y = bounds.origin.y, w = bounds.size.w, h = bounds.size.h;
-    int strip_h = CALENDAR_STATUS_HEIGHT + 1;      // == the created top_status band
+    int strip_h = STATUS_LARGE_BAND_H;             // == the created top_status band
     L.top_status = GRect(x, y, w, strip_h);        // date strip stays at the top
     L.top = GRect(x, y + strip_h, w, 0);           // no calendar
 

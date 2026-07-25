@@ -1,6 +1,7 @@
 #pragma once
 
 #include <pebble.h>
+#include "status_metrics.h"
 
 // Move a TextLayer's frame in one call (its layer is its only sized child).
 static inline void text_layer_move_frame(TextLayer *text_layer, GRect frame) {
@@ -9,72 +10,23 @@ static inline void text_layer_move_frame(TextLayer *text_layer, GRect frame) {
 
 // Status-bar glyph geometry, shared by the weather and health rows so a line of the same
 // font lands at the same height in a band of the same size — no per-bar, per-tier offsets.
-//
-// Pebble seats a digit LOW in its line box: the visible glyph (its cap box) sits at the
-// bottom of the measured content height, above the font descent. So for a line whose frame
-// top is `text_y` and measured height `content_h`:
-//     glyph bottom = text_y + content_h - descent
-//     glyph centre = glyph bottom - cap/2
-// Both descent and cap are taken as fractions of `content_h`, so everything tracks the font
-// size across tiers rather than a hardcoded pixel. Tune the two fractions here, once, for
-// both bars.
-#define STATUS_DIGIT_DESCENT_NUM 1
-#define STATUS_DIGIT_DESCENT_DEN 16
-#define STATUS_DIGIT_CAP_NUM 5
-#define STATUS_DIGIT_CAP_DEN 9
+// The arithmetic lives in status_metrics.h (SDK-free, so windows/layout.c and the host tests
+// share it); this file adds the wrappers that measure a live GFont.
 
-// descent + cap/2 — the distance from the content-box bottom up to the glyph's visual centre.
-// Folded into ONE rounded division over a common denominator rather than three truncating
-// integer divides, which collapse at small fonts: Gothic 14 (content_h 14) gave descent
-// 14/16 = 0 and cap/2 = (14*5/9)/2 = 3 (vs 3.9), losing ~2px and seating marks visibly low.
-static inline int status_glyph_below(int content_h) {
-    int num = STATUS_DIGIT_DESCENT_NUM * (2 * STATUS_DIGIT_CAP_DEN)
-            + STATUS_DIGIT_CAP_NUM * STATUS_DIGIT_DESCENT_DEN;
-    int den = STATUS_DIGIT_DESCENT_DEN * (2 * STATUS_DIGIT_CAP_DEN);
-    return (content_h * num + den / 2) / den;
-}
-
-// How far lowercase descenders ('g', 'y') paint BELOW the measured content box. Pebble's
-// content size excludes true descent — "0g" measures the same height as "0" — so a line
-// needs this much band below its content box or the tails cross the layer frame and are
-// clipped (no clip-rect inside the layer can reveal them). Rounded content_h/6: ~2px at
-// Gothic 14, ~3px at 18, ~4px at 24.
-#define STATUS_DESCENDER_NUM 1
-#define STATUS_DESCENDER_DEN 6
-static inline int status_descender_h(int content_h) {
-    return (content_h * STATUS_DESCENDER_NUM + STATUS_DESCENDER_DEN / 2) / STATUS_DESCENDER_DEN;
-}
-
-// Shared status-bar text positioning: seat the line so its visual glyph (cap box) is centred
-// in the band. Solving `glyph centre == band_h/2` (see status_glyph_center_y) for the frame top:
-//     text_y + content_h - below == band_h / 2   →   text_y = band_h/2 - content_h + below
-// Fully font-derived, so it holds at ANY band size and font with no per-tier tuning: the glyph
-// always centres, and its clearance above and below is (band_h - cap)/2. To change that
-// clearance — e.g. more padding above the forecast — resize the band, don't offset here.
-//
-// Descender clamp: a band shorter than its line (the compact tier's calendar_h/3 slot is 20px
-// under a 24px Gothic line on emery, 15px under 18px elsewhere) cannot both centre the cap box
-// and keep the descenders inside the layer frame — centring left ~2px under the content box
-// while the tails need status_descender_h(), so the city 'g'/'y' were shaved at the band
-// bottom. When centring would seat the line that low, lift it just enough that the descender
-// fits (the line rises toward the calendar above, which also reads better on-device). Bands
-// sized from the font (status_forecast_band_h, the none-tier bands) already satisfy the clamp,
-// so full/none seating is untouched.
-static inline int status_text_y(int band_h, GFont font) {
-    int content_h = graphics_text_layout_get_content_size(
+// Measured content height of a line rendered in `font` — the input every rule in
+// status_metrics.h takes. Pebble's Gothic content height is exactly the font's nominal size
+// (verified on device at 14 / 18 / 24), which is why layout.c can size a band from the number.
+static inline int status_content_h(GFont font) {
+    return graphics_text_layout_get_content_size(
         "0", font, GRect(0, 0, 100, 100),
         GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).h;
-    int y = band_h / 2 - content_h + status_glyph_below(content_h);
-    int y_fit = band_h - content_h - status_descender_h(content_h);
-    return (y < y_fit) ? y : y_fit;
 }
 
-// Vertical centre of the digits a status line actually renders, for marks drawn beside the
-// text (the health metric icons, the weather sun arrow) to co-centre on. Same font-metric
-// model as status_text_y, so with the seating above this lands at band_h/2 — marks centre in
-// the band too. `text_y` is the frame top from status_text_y(); `content_h` its measured height.
-static inline int status_glyph_center_y(int text_y, int content_h) {
-    return text_y + content_h - status_glyph_below(content_h);
+// Seat a status line in a band of `band_h` — see status_seat_y() for the model and the
+// descender clamp. Every band windows/layout.c produces is at or above
+// status_min_band_h(content_h), so the clamp is a no-op and the glyph centres on band_h/2.
+static inline int status_text_y(int band_h, GFont font) {
+    return status_seat_y(band_h, status_content_h(font));
 }
 
 // Height for the status band that rides DIRECTLY above the forecast — in full mode both the

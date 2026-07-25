@@ -1,6 +1,7 @@
 #include <string.h>
 #include "top_status_layer.h"
 #include "battery_draw.h"
+#include "layer_util.h"   // status_text_y — the shared band seating the slots use
 #include "status_row.h"
 #include "top_status_indicators.h"
 #include "c/appendix/config.h"
@@ -16,15 +17,17 @@
 #include "c/windows/layout.h"   // LayoutTier (status_row tier param)
 
 #define PADDING 4
-#define MONTH_FONT_OFFSET 7
 #define ICON_SLOT_1 GRect(PADDING, 0, 10, 10)
 #define ICON_SLOT_2 GRect(PADDING * 2 + 10, 0, 10, 10)
-// emery: center icons in the taller status row.
-#ifdef PBL_PLATFORM_EMERY
+// Centre the indicator icons in the band, on the same row as the strip's text: with the band
+// sized from its font (status_min_band_h) the date's cap centre IS the band centre, so
+// (bounds_h - icon_h)/2 co-centres the icons with it on every platform. This used to be a
+// no-op (0) on the 144px watches, which only looked right because their 14px band was too
+// short and the descender clamp had pushed the text flush against row 0.
 #define STATUS_ICON_Y(bounds_h, icon_h) (((bounds_h) - (icon_h)) / 2)
+#ifdef PBL_PLATFORM_EMERY
 #define MONTH_FONT_KEY FONT_KEY_GOTHIC_24
 #else
-#define STATUS_ICON_Y(bounds_h, icon_h) ((void)(bounds_h), (void)(icon_h), 0)
 #define MONTH_FONT_KEY FONT_KEY_GOTHIC_18
 #endif
 
@@ -53,19 +56,14 @@ static char s_rain_alert_text[20];   // "Downpour for +99'" = 17 chars + NUL
 static bool s_rain_alert_active;
 static int s_rain_alert_tier;   // radar tier (1..5) of the active alert's peak; drives glyph colour + density
 
-static GRect month_text_rect(GRect bounds, GFont font, const char *text) {
-#ifdef PBL_PLATFORM_EMERY
-    // emery: vertically center status text using measured height to match taller status bar.
-    const GRect measure_box = GRect(0, 0, bounds.size.w, bounds.size.h);
-    const GSize text_size = graphics_text_layout_get_content_size(
-        text, font, measure_box, GTextOverflowModeFill, GTextAlignmentCenter);
-    const int text_y = ((bounds.size.h - text_size.h) / 2) - 5;
-    return GRect(0, text_y, bounds.size.w, text_size.h + 3);
-#else
-    (void)font;
-    (void)text;
-    return GRect(0, -MONTH_FONT_OFFSET, bounds.size.w, 25);
-#endif
+// Frame for the rain-alert text, which replaces the strip's fixed mid (month) slot while an
+// alert is up. It seats through the SHARED band seating, exactly like the left/right slots
+// status_row keeps drawing beside it — no private offset. The two per-platform offsets this
+// replaced (a hardcoded -7 on the 144px watches, a measured centre -5 on emery) happened to
+// match the slots at the old 14/21px band heights and drifted 1-3px as soon as the band grew.
+static GRect month_text_rect(GRect bounds, GFont font) {
+    const int text_y = status_text_y(bounds.size.h, font);
+    return GRect(0, text_y, bounds.size.w, bounds.size.h - text_y);
 }
 
 // Rain-intensity glyph: PDC vector raindrops (drop count = intensity bucket),
@@ -305,20 +303,21 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
     GTextAlignment text_align = GTextAlignmentCenter;
 
     // Square glyph slot that the PDC viewbox scales into (see ensure_rain_glyph_loaded).
-    // The band is short on 144-px screens (~14 px), so it can spare only a small inset
-    // before the drops read as tiny; emery's taller band (~21 px) takes a larger inset so
+    // The band is short on 144-px screens (~17 px), so it can spare only a small inset
+    // before the drops read as tiny; emery's taller band (~23 px) takes a larger inset so
     // the single drizzle drop isn't oversized. glyph_x is set only in alert mode.
     // (Tune visually.)
 #ifdef PBL_PLATFORM_EMERY
-    const int glyph_side = bounds.size.h - 6;   // emery: ~21 - 6 = 15
-    // emery: center in the taller band (matches month_text_rect's centered text).
+    const int glyph_side = bounds.size.h - 6;   // emery: ~23 - 6 = 17
+    // emery: center in the taller band, matching the band-centred alert text beside it.
     const int glyph_y = (bounds.size.h - glyph_side) / 2;
 #else
-    const int glyph_side = bounds.size.h - 2;   // ~14 - 2 = 12
+    const int glyph_side = bounds.size.h - 2;   // ~17 - 2 = 15
     // Bottom-align to the "Rain in X" baseline rather than centering in the band: the drop
-    // should sit on the text line, not float above it. The 3px inset ≈ the GOTHIC-18
-    // baseline that month_text_rect's -MONTH_FONT_OFFSET produces; a slightly negative
-    // glyph_y only trims the drop's empty top margin, never the drop itself. (Tune visually.)
+    // should sit on the text line, not float above it. Both the drop and the seated Gothic-18
+    // baseline scale with the band, so the 3px inset keeps the drop's last row exactly on the
+    // digits' last row at any band height (band_h - 4 either way); a slightly negative glyph_y
+    // only trims the drop's empty top margin, never the drop itself. (Tune visually.)
     const int glyph_y = bounds.size.h - glyph_side - 3;
 #endif
     const int glyph_gap = 2;
@@ -337,7 +336,7 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
 
         strncpy(shown, s_rain_alert_text, sizeof(shown));
         shown[sizeof(shown) - 1] = '\0';
-        text_rect = month_text_rect(bounds, font, shown);
+        text_rect = month_text_rect(bounds, font);
 
         // Center glyph+gap+text as one block: measure the text, seat the glyph just
         // left of it, then left-align the text immediately after the glyph.
