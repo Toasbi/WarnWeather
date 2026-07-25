@@ -1108,6 +1108,72 @@ test('boot(): picking a modal option fires the item\'s registered onChange hook 
   assert.equal(captured.key, 'theme', 'the changed item messageKey is passed as the 5th onChange arg');
 });
 
+// A text item's onChange fires on COMMIT (change = blur / Enter), never per keystroke:
+// the `input` listener keeps S live while typing, and only `change` dispatches the hook.
+// A reverting hook (WarnWeather's validateThresholdPair) would otherwise be unable to let
+// the user type "999" past an invalid "9". oldValue comes from the focusin sample, because
+// `input` has already overwritten S[key] by commit time.
+const TEXT_SCHEMA = {
+  appName: 'X', versionLabel: 'v0',
+  tabs: [{ id: 't', label: 'T', sections: [{ title: 'S', items: [
+    { type: 'text', messageKey: 'limit', label: 'Limit', defaultValue: '10', onChange: 'clampLimit' },
+    { type: 'text', messageKey: 'note', label: 'Note', defaultValue: '' }
+  ] }] }]
+};
+/** One reusable synthetic text-field event (same node for focusin/input/change).
+ * @param {string} key messageKey (data-k)
+ * @param {string} value initial field text
+ * @returns {{target: Object, input: Object}} event whose .input is the field node
+ */
+function textFieldEvent(key, value) {
+  const inp = {
+    value,
+    getAttribute: (a) => (a === 'data-k' ? key : null),
+    closest: (sel) => (sel === 'input[type=text]' ? inp : null)
+  };
+  return { target: inp, input: inp };
+}
+
+test('boot(): a text item\'s onChange fires on commit (change), not on every keystroke', () => {
+  const { listeners, onChange, getValue, scroll } = bootWithCapturedListeners(TEXT_SCHEMA, {});
+  const calls = [];
+  onChange.register('clampLimit', (S, oldV, newV, env, key) => {
+    calls.push({ oldV, newV, key, sAtCall: S.limit });
+    if (Number(newV) > 100) { S[key] = oldV; }   // reject the edit by reverting it
+  });
+  assert.equal(typeof listeners.focusin, 'function', 'a focusin listener was wired on #scroll');
+  assert.equal(typeof listeners.change, 'function', 'a change listener was wired on #scroll');
+
+  const ev = textFieldEvent('limit', '10');
+  listeners.focusin(ev);
+  ev.input.value = '9';                      // interim keystroke while typing "999"
+  listeners.input(ev);
+  assert.equal(getValue('limit'), '9', 'the input path keeps S live while typing');
+  assert.equal(calls.length, 0, 'no hook dispatch per keystroke');
+  ev.input.value = '999';
+  listeners.input(ev);
+
+  listeners.change(ev);
+  assert.equal(calls.length, 1, 'the commit dispatched the hook exactly once');
+  assert.equal(calls[0].oldV, '10', 'oldValue is the pre-edit value sampled at focusin');
+  assert.equal(calls[0].newV, '999', 'newValue is the committed field text');
+  assert.equal(calls[0].key, 'limit', 'the messageKey is passed as the 5th arg');
+  assert.equal(calls[0].sAtCall, '999', 'S already carries the new value when the hook runs');
+  assert.equal(getValue('limit'), '10', 'the hook reverted the rejected commit');
+  assert.match(scroll.innerHTML, /data-k="limit" value="10"/,
+    'the body was re-rendered so the corrected value is visible again');
+});
+
+test('boot(): committing a text item with no onChange hook keeps the typed value', () => {
+  const { listeners, getValue } = bootWithCapturedListeners(TEXT_SCHEMA, {});
+  const ev = textFieldEvent('note', '');
+  listeners.focusin(ev);
+  ev.input.value = 'hello';
+  listeners.input(ev);
+  listeners.change(ev);
+  assert.equal(getValue('note'), 'hello');
+});
+
 test('boot(): modal live-search on an optionsFrom searchSelect resolves options without throwing (regression: raw item threw)', () => {
   const schema = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{ title: 'S', items: [
     { type: 'searchSelect', messageKey: 'country', label: 'Country', defaultValue: 'DE', options: [['Germany','DE']] },

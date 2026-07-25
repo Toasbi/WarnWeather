@@ -1247,6 +1247,34 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         var inp = e.target.closest('input[type=text]');
         if (inp) { S[inp.getAttribute('data-k')] = inp.value; }
       });
+      // A text item's onChange hook fires on COMMIT (change = blur / Enter), not on the
+      // per-keystroke `input` above: a hook that rejects a value by reverting it (e.g.
+      // validateThresholdPair) would otherwise fight the user mid-typing — "100" can't be
+      // typed if the interim "1" is momentarily invalid. The `input` listener still owns
+      // keeping S live for every text field; this handler only adds the hook dispatch.
+      // The pre-edit value has to be sampled on focusin, because `input` has already
+      // overwritten S[key] by the time `change` fires (so oldValue would be the new value).
+      var textPreEdit = {};
+      scroll.addEventListener('focusin', function (e) {
+        var inp = e.target.closest && e.target.closest('input[type=text]');
+        if (inp) { textPreEdit[inp.getAttribute('data-k')] = S[inp.getAttribute('data-k')]; }
+      });
+      scroll.addEventListener('change', function (e) {
+        var inp = e.target.closest && e.target.closest('input[type=text]');
+        if (!inp) { return; }
+        var tk = inp.getAttribute('data-k'), newV = inp.value;
+        S[tk] = newV;
+        var tItem = findItem(tk);
+        var onChangeFn = tItem && tItem.onChange && PConf.onChange.get(tItem.onChange);
+        if (!onChangeFn) { return; }
+        // No focusin seen (programmatic value + change): fall back to the new value so a
+        // revert is a no-op rather than restoring something that was never in the field.
+        var oldV = Object.prototype.hasOwnProperty.call(textPreEdit, tk)
+          ? textPreEdit[tk] : newV;
+        delete textPreEdit[tk];
+        onChangeFn(S, oldV, newV, ENV, tk);
+        render();   // a hook-corrected value has to become visible; focus has already left
+      });
     }
 
     // The #modal overlay lives outside #scroll, so it needs its own delegated handlers:

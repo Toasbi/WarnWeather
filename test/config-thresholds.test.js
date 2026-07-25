@@ -33,6 +33,19 @@ test('every threshold kind has warn/danger text fields wired to the validator', 
   });
 });
 
+// Collect every {key:'theme', ...} leaf in a showWhen tree, so the assertion below
+// pins the gate's SHAPE. A substring check for 'bw' would also pass for the
+// inverted gate {key:'theme', in:['bw','bw-light']} — pickers ONLY on B&W.
+function themeLeaves(pred, out) {
+  out = out || [];
+  if (!pred || typeof pred !== 'object') { return out; }
+  if (Array.isArray(pred)) { pred.forEach(p => themeLeaves(p, out)); return out; }
+  if (pred.key === 'theme') { out.push(pred); }
+  ['all', 'any'].forEach(comb => { if (pred[comb]) { themeLeaves(pred[comb], out); } });
+  if (pred.not) { themeLeaves(pred.not, out); }
+  return out;
+}
+
 test('threshold color pickers are COLOR-capability + bw-theme gated, int defaults', () => {
   const map = itemsByKey();
   STEMS.forEach(stem => {
@@ -41,22 +54,55 @@ test('threshold color pickers are COLOR-capability + bw-theme gated, int default
     [warn, danger].forEach(it => {
       assert.equal(it.type, 'color');
       assert.deepEqual(it.capabilities, ['COLOR']);
-      assert.ok(JSON.stringify(it.showWhen).includes('bw'),
-        'bw theme must hide the picker');
+      const leaves = themeLeaves(it.showWhen);
+      assert.equal(leaves.length, 1, it.messageKey + ' has exactly one theme gate');
+      // nin (not eq/in): the picker shows on every theme EXCEPT the two B&W ones.
+      assert.deepEqual(leaves[0], {key: 'theme', nin: ['bw', 'bw-light']},
+        it.messageKey + ' must be hidden on B&W themes only');
     });
     assert.equal(warn.defaultValue, thresholds.DEFAULT_WARN_COLOR);
     assert.equal(danger.defaultValue, thresholds.DEFAULT_DANGER_COLOR);
   });
 });
 
-test('health-kind threshold fields are hidden on health-less platforms', () => {
+// Health thresholds are inert wherever a health item can't reach a status slot:
+// no health sensors (aplite) or healthMode 'off'. 'slot' mode DOES put health in the
+// ordinary bars, so it must keep them — the same rule statusLineCatalog.itemAvailable
+// applies to the items themselves. Asserted behaviorally through the real evaluator.
+test('health-kind threshold fields are hidden on health-less platforms and with health off', () => {
   const map = itemsByKey();
+  const showWhen = require('../src/pkjs/config-ui/lib/show-when.js');
   HEALTH_STEMS.forEach(stem => {
     ['Warn', 'Danger'].forEach(which => {
       const it = map['thresh' + stem + which][0];
       assert.ok(JSON.stringify(it.showWhen).includes('"env":"health"'),
         'thresh' + stem + which + ' must be env-health gated');
+      const visibleIn = mode => showWhen.isVisible(it, {env: {health: true, color: true}, healthMode: mode});
+      assert.equal(visibleIn('off'), false, it.messageKey + ' hidden when health is off');
+      ['slot', 'status', 'all'].forEach(mode => {
+        assert.equal(visibleIn(mode), true, it.messageKey + ' shown in healthMode ' + mode);
+      });
+      assert.equal(showWhen.isVisible(it, {env: {health: false, color: true}, healthMode: 'all'}),
+        false, it.messageKey + ' hidden without health sensors');
     });
+  });
+});
+
+// Finding: the 'Warn above' / 'Warn below' labels must not re-encode the direction.
+// Iterate the CONTRACT's kind table (status-thresholds.js KINDS) — the same source the
+// schema derives from and the watch packs with — so a flipped direction fails here.
+test('warn/danger labels and the pair hint follow the contract direction', () => {
+  const map = itemsByKey();
+  thresholds.KINDS.forEach(kind => {
+    const dir = kind.belowIsWorse ? 'below' : 'above';
+    assert.equal(map['thresh' + kind.key + 'Warn'][0].label, 'Warn ' + dir);
+    assert.equal(map['thresh' + kind.key + 'Danger'][0].label, 'Danger ' + dir);
+    // The danger field's hint spells out the both-set + ordered requirement: a
+    // half-filled or inverted pair highlights nothing.
+    const hint = map['thresh' + kind.key + 'Danger'][0].hint;
+    assert.match(hint, /both fields/i, kind.key + ' hint must mention both fields');
+    assert.ok(hint.indexOf('at or ' + dir) >= 0,
+      kind.key + ' hint must name the required ordering (' + dir + ')');
   });
 });
 
@@ -87,6 +133,142 @@ test('the generated page registers the validator hook without require()', () => 
   const S = { threshAqiWarn: '200', threshAqiDanger: '100' };
   hook(S, '', '100', {}, 'threshAqiDanger');
   assert.equal(S.threshAqiDanger, '', 'inverted edit reverted inside the webview context');
+});
+
+// --- end-to-end dispatch: the engine's text-field commit path ---------------
+// Registering the hook is only half the wiring — the engine has to CALL it when a
+// text field is committed. These tests boot the REAL generated page (same flat
+// <script> the webview runs, real schema) against a fake DOM, then drive the real
+// delegated #scroll handlers with synthetic events. Without the engine's
+// change/focusin dispatch the revert never happens and they fail.
+const vm = require('vm');
+const platformLib = require('../src/pkjs/config-ui/lib/platform.js');
+
+/** A DOM-element stub for the handful of nodes boot() touches.
+ * @param {string} id element id
+ * @returns {Object} stub exposing addEventListener/dispatch + an innerHTML counter
+ */
+function makeEl(id) {
+  let raw = '';
+  const handlers = {};
+  const el = {
+    id, className: '', textContent: '', writes: 0,
+    addEventListener(type, fn) { (handlers[type] = handlers[type] || []).push(fn); },
+    dispatch(type, ev) { (handlers[type] || []).forEach(fn => fn(ev)); },
+    types() { return Object.keys(handlers); },
+    querySelector() { return null; },
+    querySelectorAll() { return []; },
+    classList: { add() {}, remove() {} },
+    focus() {}, getAttribute() { return null; }, setAttribute() {}
+  };
+  Object.defineProperty(el, 'innerHTML', {
+    get() { return raw; },
+    set(v) { raw = v; el.writes += 1; }
+  });
+  return el;
+}
+
+/** Boot the real generated page in a vm sandbox with a fake DOM.
+ * @param {Object} [cfg] stored settings to hydrate from
+ * @returns {{S: Object, scroll: Object, clickTab: function, inputHtml: function}}
+ */
+function bootGeneratedPage(cfg) {
+  const html = require('../src/pkjs/config-ui/scripts/build-page.js').previewPage({
+    appFiles: require('../scripts/build-config-page.js').APP_FILES,
+    schema, env: platformLib.computeEnv({ platform: 'basalt' }),
+    cfg: cfg || { provider: 'dwd' }, userData: {}, returnTo: '#'
+  });
+  const src = html.match(/<script>([\s\S]*)<\/script>/)[1]
+    .replace(/PConf\.engine\.boot\(\);\s*$/, '');   // boot explicitly, after wiring onReady
+  const els = {};
+  const sandbox = { console, setTimeout };
+  sandbox.window = sandbox;
+  sandbox.document = {
+    getElementById(id) { return (els[id] = els[id] || makeEl(id)); },
+    querySelector() { return null; }, querySelectorAll() { return []; },
+    addEventListener() {}
+  };
+  sandbox.navigator = {};
+  vm.createContext(sandbox);
+  vm.runInContext(src, sandbox, { filename: 'generated-page.js' });
+  let ready = null;
+  sandbox.PConf.hooks.onReady(ctx => { ready = ctx; });   // the only handle on the live S
+  sandbox.PConf.engine.boot();
+  assert.ok(ready, 'onReady ran (boot completed against the fake DOM)');
+  return {
+    S: ready.S,
+    scroll: els.scroll,
+    clickTab(tabId) {
+      const t = { getAttribute: n => (n === 'data-tab' ? tabId : null), closest: sel => (sel === '[data-tab]' ? t : null) };
+      els.tabs.dispatch('click', { target: t });
+    },
+    inputHtml(key) {
+      const m = els.scroll.innerHTML.match(new RegExp('<input[^>]*data-k="' + key + '"[^>]*>'));
+      assert.ok(m, key + ' is rendered in the active tab');
+      return m[0];
+    }
+  };
+}
+
+/** A text-input stub the engine's delegated handlers accept.
+ * @param {string} key messageKey (data-k)
+ * @param {string} value current field text
+ * @returns {Object} input stub
+ */
+function fakeInput(key, value) {
+  const el = {
+    value,
+    getAttribute: n => (n === 'data-k' ? key : null),
+    closest: sel => (sel === 'input[type=text]' ? el : null)
+  };
+  return el;
+}
+
+test('committing an inverted threshold through the engine reverts it and repaints the field', () => {
+  const page = bootGeneratedPage();
+  page.S.threshAqiWarn = '200';
+  page.S.threshAqiDanger = '300';
+  page.clickTab('watch');
+  assert.match(page.inputHtml('threshAqiWarn'), /value="200"/);
+  const inp = fakeInput('threshAqiWarn', '200');
+  page.scroll.dispatch('focusin', { target: inp });    // pre-edit value captured here
+  inp.value = '400';                                   // 400 warn vs 300 danger = inverted
+  page.scroll.dispatch('input', { target: inp });
+  assert.equal(page.S.threshAqiWarn, '400', 'the input path keeps S live while typing');
+  const writesBefore = page.scroll.writes;
+  page.scroll.dispatch('change', { target: inp });
+  assert.equal(page.S.threshAqiWarn, '200', 'the commit fired the hook, which reverted S');
+  assert.ok(page.scroll.writes > writesBefore, 'the commit repainted the body');
+  assert.match(page.inputHtml('threshAqiWarn'), /value="200"/);
+  assert.ok(page.inputHtml('threshAqiWarn').indexOf('value="400"') === -1,
+    'the rejected value is gone from the field');
+});
+
+test('a well-ordered commit is kept, and mid-typing keystrokes are never reverted', () => {
+  const page = bootGeneratedPage();
+  page.S.threshAqiWarn = '50';
+  page.clickTab('watch');
+  const inp = fakeInput('threshAqiDanger', '');
+  page.scroll.dispatch('focusin', { target: inp });
+  // Typing "100" passes through "1" and "10", both momentarily below warn=50 (inverted).
+  ['1', '10', '100'].forEach(step => {
+    inp.value = step;
+    page.scroll.dispatch('input', { target: inp });
+    assert.equal(page.S.threshAqiDanger, step, 'keystroke "' + step + '" must not be reverted');
+  });
+  page.scroll.dispatch('change', { target: inp });
+  assert.equal(page.S.threshAqiDanger, '100', 'the ordered pair 50/100 survives the commit');
+  assert.match(page.inputHtml('threshAqiDanger'), /value="100"/);
+});
+
+test('committing a hookless text field just keeps the typed value', () => {
+  const page = bootGeneratedPage();   // General tab is active; `location` lives there
+  const inp = fakeInput('location', '');
+  page.scroll.dispatch('focusin', { target: inp });
+  inp.value = 'Berlin';
+  page.scroll.dispatch('input', { target: inp });
+  page.scroll.dispatch('change', { target: inp });
+  assert.equal(page.S.location, 'Berlin', 'no onChange hook, nothing to revert');
 });
 
 // Defaults ship disabled: every kind starts with both thresholds blank, so

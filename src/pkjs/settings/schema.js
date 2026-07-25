@@ -85,15 +85,38 @@ function windScaleCopy(context, unit, hints) {
         showWhen: {all: lineWhen.concat([{key: 'windUnits', eq: unit}])}
     };
 }
+// "A health item can appear in some status slot" — the gate for settings that are
+// inert otherwise (the health threshold sub-sections). Mirrors the availability rule
+// the slot catalog itself applies (statusLineCatalog.itemAvailable: needsHealth items
+// are unavailable when env.health is false OR healthMode is 'off'). Deliberately NOT
+// the Health-Status-Bar pickers' {healthMode in [status, all]}: that gates the health
+// BAR's existence, while 'slot' mode puts health items in the ordinary bars, where
+// their thresholds are just as live.
+var HEALTH_SLOT_WHEN = {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}]};
 // One threshold-highlight sub-section (Watch tab 'thresholds' card): a kind's
 // warn/danger inputs + color pickers. Values are entered in the kind's
 // DISPLAYED unit (wind unit / km-mi / hours); blank = that kind disabled.
-// `gate` (optional showWhen) hides platform-inapplicable kinds (health on
-// aplite); color pickers additionally hide on B&W (capability + bw theme).
-// The two color defaults come from the contract module that reads them back at
-// pack time (status-thresholds.js), so the hex lives in exactly one place.
-function thresholdSection(title, keyStem, belowIsWorse, hint, gate) {
-    var dir = belowIsWorse ? 'below' : 'above';
+// `gate` (optional showWhen) hides kinds that can't appear in any slot (health
+// on aplite / with health off); color pickers additionally hide on B&W
+// (capability + bw theme).
+// Which way is worse is NOT a schema fact: it comes from the contract module
+// that also reads these settings back at pack time (status-thresholds.js), so
+// the labels can never disagree with the watch. Same single-source rule as the
+// two color defaults below.
+/**
+ * @param {string} title Sub-section title.
+ * @param {string} keyStem Kind key stem, e.g. 'Steps' (thresh<Stem>Warn/...).
+ * @param {string} hint Per-kind unit/scale hint (HTML allowed).
+ * @param {Object} [gate] Extra showWhen for the whole sub-section.
+ * @returns {Object} Schema section.
+ */
+function thresholdSection(title, keyStem, hint, gate) {
+    var dir = STATUS_THRESHOLDS.belowIsWorse(keyStem) ? 'below' : 'above';
+    // A kind highlights only once BOTH values are set and ordered (kindConfig's
+    // `enabled`), so a half-filled or inverted pair silently does nothing —
+    // say so where the pair is entered, not only in the section intro.
+    var pairHint = hint + ' Highlighting needs both fields filled in, with the '
+        + 'danger value at or ' + dir + ' the warn value.';
     function gated(item) {
         if (gate) { item.showWhen = gate; }
         return item;
@@ -118,7 +141,7 @@ function thresholdSection(title, keyStem, belowIsWorse, hint, gate) {
             defaultValue: '',
             joinPrevious: true,
             attributes: {placeholder: 'off'},
-            hint: hint,
+            hint: pairHint,
             onChange: 'validateThresholdPair'
         }), {
             type: 'color',
@@ -799,23 +822,20 @@ module.exports = {
                 'Leave both fields blank to keep a value unhighlighted.',
             items: []
         },
-        thresholdSection('Air quality (AQI)', 'Aqi', false,
+        thresholdSection('Air quality (AQI)', 'Aqi',
             'In the AQI scale selected in the General tab.'),
-        thresholdSection('Pollen', 'Pollen', false,
+        thresholdSection('Pollen', 'Pollen',
             'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.'),
-        thresholdSection('Wind speed', 'Wind', false,
+        thresholdSection('Wind speed', 'Wind',
             'In your wind unit from the General tab.'),
-        thresholdSection('Wind gusts', 'Gust', false,
+        thresholdSection('Wind gusts', 'Gust',
             'In your wind unit from the General tab.'),
-        thresholdSection('Steps', 'Steps', true,
-            'Steps per day — warns when you are BELOW your goal.',
-            {env: 'health'}),
-        thresholdSection('Sleep', 'Sleep', true,
-            'Hours of sleep, e.g. 7.5.',
-            {env: 'health'}),
-        thresholdSection('Walked distance', 'Distance', true,
-            'In your distance unit from the General tab.',
-            {env: 'health'}), {
+        thresholdSection('Steps', 'Steps',
+            'Steps per day — warns when you are BELOW your goal.', HEALTH_SLOT_WHEN),
+        thresholdSection('Sleep', 'Sleep',
+            'Hours of sleep, e.g. 7.5.', HEALTH_SLOT_WHEN),
+        thresholdSection('Walked distance', 'Distance',
+            'In your distance unit from the General tab.', HEALTH_SLOT_WHEN), {
             title: 'Time', items: [{
                 type: 'toggle', messageKey: 'timeLeadingZero', label: 'Leading zero', defaultValue: false
             }, {type: 'toggle', messageKey: 'timeShowAmPm', label: 'Show AM / PM', defaultValue: false}, {
