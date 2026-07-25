@@ -164,10 +164,12 @@ static bool handle_status_levels(DictionaryIterator *iterator, bool *status_dirt
     Tuple *tuple = dict_find(iterator, MESSAGE_KEY_STATUS_LEVELS_UINT8);
     if (!tuple) { return false; }
     if (tuple->type != TUPLE_BYTE_ARRAY || tuple->length < 1) {
-        APP_LOG(APP_LOG_LEVEL_WARNING, "Status levels tuple malformed — skipping");
+        APP_LOG(APP_LOG_LEVEL_WARNING,
+                "Status levels tuple malformed (%u bytes) — skipping",
+                (unsigned) tuple->length);
         return true;
     }
-    *status_dirty |= persist_set_status_levels(tuple->value->data[0]);
+    *status_dirty |= persist_set_status_levels(tuple->value->uint8);
     return true;
 }
 

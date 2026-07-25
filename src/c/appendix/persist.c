@@ -491,6 +491,7 @@ bool persist_set_status_levels(uint8_t levels) {
 }
 
 int persist_get_threshold_settings(uint8_t *buffer, size_t buffer_size) {
+    if (!persist_exists(THRESHOLD_SETTINGS)) { return 0; }
     return persist_read_data(THRESHOLD_SETTINGS, buffer, buffer_size);
 }
 
