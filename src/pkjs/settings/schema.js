@@ -2,6 +2,9 @@
 var meta = require('../../../package.json');
 var BMC_BADGE = require('./bmc-badge.js');
 var holidayData = require('./holiday-data.js');
+// Single source of the two threshold-highlight color defaults; the same module
+// reads these settings back when packing the wire blob (see clay-payload.js).
+var STATUS_THRESHOLDS = require('../status-thresholds.js');
 var versionLabel = 'v' + meta.version + (meta.buildProfile === 'dev' ? ' (dev)' : '');
 var HOURS = (function () {
     var o = [], h;
@@ -80,6 +83,83 @@ function windScaleCopy(context, unit, hints) {
         hintByValue: hints,
         options: [['Low', 'low'], ['Mid', 'mid'], ['High', 'high']],
         showWhen: {all: lineWhen.concat([{key: 'windUnits', eq: unit}])}
+    };
+}
+// "A health item can appear in some status slot" — the gate for settings that are
+// inert otherwise (the health threshold sub-sections). Mirrors the availability rule
+// the slot catalog itself applies (statusLineCatalog.itemAvailable: needsHealth items
+// are unavailable when env.health is false OR healthMode is 'off'). Deliberately NOT
+// the Health-Status-Bar pickers' {healthMode in [status, all]}: that gates the health
+// BAR's existence, while 'slot' mode puts health items in the ordinary bars, where
+// their thresholds are just as live.
+var HEALTH_SLOT_WHEN = {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}]};
+// One threshold-highlight sub-section (Watch tab 'thresholds' card): a kind's
+// warn/danger inputs + color pickers. Values are entered in the kind's
+// DISPLAYED unit (wind unit / km-mi / hours); blank = that kind disabled.
+// `gate` (optional showWhen) hides kinds that can't appear in any slot (health
+// on aplite / with health off); color pickers additionally hide on B&W
+// (capability + bw theme).
+// Which way is worse is NOT a schema fact: it comes from the contract module
+// that also reads these settings back at pack time (status-thresholds.js), so
+// the labels can never disagree with the watch. Same single-source rule as the
+// two color defaults below.
+/**
+ * @param {string} title Sub-section title.
+ * @param {string} keyStem Kind key stem, e.g. 'Steps' (thresh<Stem>Warn/...).
+ * @param {string} hint Per-kind unit/scale hint (HTML allowed).
+ * @param {Object} [gate] Extra showWhen for the whole sub-section.
+ * @returns {Object} Schema section.
+ */
+function thresholdSection(title, keyStem, hint, gate) {
+    var dir = STATUS_THRESHOLDS.belowIsWorse(keyStem) ? 'below' : 'above';
+    // A kind highlights only once BOTH values are set and ordered (kindConfig's
+    // `enabled`), so a half-filled or inverted pair silently does nothing —
+    // say so where the pair is entered, not only in the section intro.
+    var pairHint = hint + ' Highlighting needs both fields filled in, with the '
+        + 'danger value at or ' + dir + ' the warn value.';
+    function gated(item) {
+        if (gate) { item.showWhen = gate; }
+        return item;
+    }
+    var colorWhen = gate
+        ? {all: [gate, {key: 'theme', nin: ['bw', 'bw-light']}]}
+        : {key: 'theme', nin: ['bw', 'bw-light']};
+    return {
+        groupCard: 'thresholds',
+        title: title,
+        items: [gated({
+            type: 'text',
+            messageKey: 'thresh' + keyStem + 'Warn',
+            label: 'Warn ' + dir,
+            defaultValue: '',
+            attributes: {placeholder: 'off'},
+            onChange: 'validateThresholdPair'
+        }), gated({
+            type: 'text',
+            messageKey: 'thresh' + keyStem + 'Danger',
+            label: 'Danger ' + dir,
+            defaultValue: '',
+            joinPrevious: true,
+            attributes: {placeholder: 'off'},
+            hint: pairHint,
+            onChange: 'validateThresholdPair'
+        }), {
+            type: 'color',
+            messageKey: 'thresh' + keyStem + 'WarnColor',
+            label: 'Warn color',
+            defaultValue: STATUS_THRESHOLDS.DEFAULT_WARN_COLOR,
+            joinPrevious: true,
+            capabilities: ['COLOR'],
+            showWhen: colorWhen
+        }, {
+            type: 'color',
+            messageKey: 'thresh' + keyStem + 'DangerColor',
+            label: 'Danger color',
+            defaultValue: STATUS_THRESHOLDS.DEFAULT_DANGER_COLOR,
+            joinPrevious: true,
+            capabilities: ['COLOR'],
+            showWhen: colorWhen
+        }]
     };
 }
 // Color swatches (5 intensity bands) — shown only in the Multicolor hint.
@@ -735,6 +815,27 @@ module.exports = {
                 }
             ]
         }, {
+            groupCard: 'thresholds',
+            intro: 'Highlight a status slot when its value crosses your thresholds: ' +
+                'crossing the warn threshold draws an outline around the slot; crossing ' +
+                'the danger threshold fills it. Values are in the unit the slot displays. ' +
+                'Leave both fields blank to keep a value unhighlighted.',
+            items: []
+        },
+        thresholdSection('Air quality (AQI)', 'Aqi',
+            'In the AQI scale selected in the General tab.'),
+        thresholdSection('Pollen', 'Pollen',
+            'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.'),
+        thresholdSection('Wind speed', 'Wind',
+            'In your wind unit from the General tab.'),
+        thresholdSection('Wind gusts', 'Gust',
+            'In your wind unit from the General tab.'),
+        thresholdSection('Steps', 'Steps',
+            'Steps per day — warns when you are BELOW your goal.', HEALTH_SLOT_WHEN),
+        thresholdSection('Sleep', 'Sleep',
+            'Hours of sleep, e.g. 7.5.', HEALTH_SLOT_WHEN),
+        thresholdSection('Walked distance', 'Distance',
+            'In your distance unit from the General tab.', HEALTH_SLOT_WHEN), {
             title: 'Time', items: [{
                 type: 'toggle', messageKey: 'timeLeadingZero', label: 'Leading zero', defaultValue: false
             }, {type: 'toggle', messageKey: 'timeShowAmPm', label: 'Show AM / PM', defaultValue: false}, {

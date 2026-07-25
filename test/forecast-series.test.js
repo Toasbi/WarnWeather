@@ -207,6 +207,43 @@ test('applyForecastSeries deletes POLLEN_TODAY after baking the pollen status sl
   assert.equal(Buffer.from(payload.STATUS_LINE_1_UINT8.slice(3, 6)).toString('utf8'), '2-3');
 });
 
+// Ordering-invariant regression: buildStatusLines (called from inside
+// applyForecastSeries) must run WHILE AQI_TREND/WIND_TREND_UINT8/
+// GUST_TREND_UINT8/POLLEN_TODAY are still on the payload -- applyForecastSeries
+// deletes all four a few lines later. If that delete order were ever reversed,
+// status-thresholds.packWeatherLevels would see a stripped payload and would
+// silently pack all-Normal (STATUS_LEVELS_UINT8 = [0]) with no error anywhere,
+// permanently killing the threshold-highlight feature. This test drives the
+// REAL pipeline (applyForecastSeries), not the unit in isolation, so it pins
+// the ordering itself rather than merely re-checking packWeatherLevels' math.
+test('applyForecastSeries bakes a genuine non-zero STATUS_LEVELS_UINT8 from real trend data (pins the bake-before-delete ordering)', () => {
+  const payload = {
+    AQI_TREND: [150], POLLEN_TODAY: '3',
+    WIND_TREND_UINT8: [10], GUST_TREND_UINT8: [80],
+    PRECIP_TREND_UINT8: [0], RAIN_TREND_UINT8: [0],
+    CURRENT_TEMP: 68, CITY: 'X', SUN_EVENTS: [1]
+  };
+  const settings = {
+    provider: 'dwd', secondaryLine: 'off', thirdLine: 'off', barSource: 'off',
+    windUnits: 'kph',
+    threshAqiWarn: '100', threshAqiDanger: '200',     // 150 -> warn   (bits 0-1 = 01)
+    threshPollenWarn: '2', threshPollenDanger: '3',   // '3' -> danger (bits 2-3 = 10)
+    threshWindWarn: '40', threshWindDanger: '60',     // 10  -> normal (bits 4-5 = 00)
+    threshGustWarn: '70', threshGustDanger: '100'     // 80  -> warn   (bits 6-7 = 01)
+  };
+  const out = applyForecastSeries(payload, settings, { platform: 'basalt' });
+  // Same expected packing as the direct-unit test in status-thresholds.test.js
+  // (0x49): this is a genuine crossing computed from real per-kind data, not
+  // the [0]/all-Normal result a stripped payload would silently produce.
+  assert.deepEqual(out.STATUS_LEVELS_UINT8, [0x49]);
+  assert.notDeepEqual(out.STATUS_LEVELS_UINT8, [0]);
+  // The trend arrays really are gone by the time the caller sees the payload
+  // -- proving the bake above ran while they were still present.
+  ['AQI_TREND', 'POLLEN_TODAY', 'WIND_TREND_UINT8', 'GUST_TREND_UINT8'].forEach(function(k) {
+    assert.equal(k in out, false, k + ' should be deleted after the bake');
+  });
+});
+
 const { permilleToByte, tempTrendToBytes } = require('../src/pkjs/forecast-series');
 
 test('permilleToByte: 0/500/1000 permille → 0/125/250, clamped', () => {

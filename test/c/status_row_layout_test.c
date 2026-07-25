@@ -1,9 +1,18 @@
 #include <stdio.h>
 #include "c/layers/status_row_layout.h"
+// STATUS_TOP_STRIP_LIFT — the strip's cap sits that far above its band centre, which is what
+// makes its highlight box shorter than the identically-sized lone compact row's.
+#include "c/layers/status_metrics.h"
 
 static int s_failures = 0;
 static void expect(const char *name, long got, long want) {
     if (got != want) { printf("FAIL %s: got %ld want %ld\n", name, got, want); s_failures++; }
+}
+static void expect_named(const char *name, const char *field, long got, long want) {
+    if (got != want) {
+        printf("FAIL %s%s: got %ld want %ld\n", name, field, got, want);
+        s_failures++;
+    }
 }
 static void expect_hidden_zero(const char *name, const StatusSlotPlace *p) {
     expect(name, p->visible, 0);
@@ -194,6 +203,83 @@ static void lone_edge_glyph_too_wide_is_omitted(void) {
     expect_hidden_zero("omit.left", &p[0]);
 }
 
+// --- status_highlight_extent -------------------------------------------------
+// The threshold-highlight box is centred on the glyph cap centre, not on the raw
+// band. cap_cy below is status_glyph_center_y()'s value for the real shipping
+// (band_h, font) pairs; it is fed in rather than recomputed because status_row.c
+// derives it from a live GFont. Every shipping band is now at or above
+// status_min_band_h(), so no cap is clamp-lifted and every cap_cy here equals
+// band_h/2 — the only remaining offset is the truncating band_h/2 on ODD bands.
+// (test/c/layout_test.c::seating_no_lift pins that clamp-free property itself.)
+
+static void expect_extent(const char *name, int16_t band_top, int16_t band_h,
+                          int16_t cap_cy, int want_y, int want_h) {
+    StatusHighlightExtent e = status_highlight_extent(band_top, band_h, cap_cy);
+    expect_named(name, ".y", e.y, want_y);
+    expect_named(name, ".h", e.h, want_h);
+    // Centred on the cap: the box spans [y, y + h) in edge coordinates, so its
+    // centre is y + h/2 and h is even by construction. A cap outside the band is
+    // clamped to the nearest edge first (degenerate, never happens in practice).
+    int16_t clamped = cap_cy < band_top ? band_top
+        : (cap_cy > band_top + band_h ? (int16_t)(band_top + band_h) : cap_cy);
+    expect_named(name, ".h_even", e.h % 2, 0);
+    expect_named(name, ".centre", e.y + e.h / 2, clamped);
+    // Never bleeds out of the band (into the calendar above / forecast below).
+    expect_named(name, ".in_band_top", e.y >= band_top, 1);
+    expect_named(name, ".in_band_bottom", e.y + e.h <= band_top + band_h, 1);
+}
+
+static void highlight_extent_is_cap_centred(void) {
+    // EVEN font-derived bands: the cap centre is the band centre and both distances to the
+    // edges are band_h/2, so the box is bit-identical to the full-band rect this replaced
+    // (the cases that measured a 0.0 px error on the emulator must stay untouched).
+    expect_extent("hl.basalt.fullCal", 0, 20, 10, 0, 20);       // Gothic 14
+    expect_extent("hl.basalt.noCal", 0, 22, 11, 0, 22);         // Gothic 18
+    expect_extent("hl.basalt.dense.lower", 40, 20, 50, 40, 20); // Gothic 14, offset band
+    expect_extent("hl.emery.fullCal", 0, 20, 10, 0, 20);        // Gothic 18
+
+    // ODD bands — the top strip and the lone compact row (both 17 = status_min_band_h(G18),
+    // 23 = status_min_band_h(G24) on emery), plus the 15px dense upper row. The cap centre
+    // still IS band_h/2, but band_h/2 truncates, so the box comes out 1 px shorter than the
+    // band, symmetric about the cap. These bands used to CLAMP (14/15 and 20/21 on emery),
+    // which lifted the cap 1.0-1.5 px and shrank the box by twice that.
+    expect_extent("hl.basalt.compactCal", 0, 17, 8, 0, 16);      // Gothic 18, was 15 / cap 6
+    expect_extent("hl.basalt.dense.upper", 0, 15, 7, 0, 14);     // Gothic 14, unchanged band
+    expect_extent("hl.emery.compactCal", 0, 23, 11, 0, 22);      // Gothic 24, was 20 / cap 8
+
+    // The TOP STRIP: same 17 / 23 band as the lone compact row above, but its content seats
+    // STATUS_TOP_STRIP_LIFT rows higher inside it (status_metrics.h — the strip's top edge is
+    // the screen edge, so only the gap below it is visible). The box follows the cap, and
+    // because it clamps SYMMETRICALLY about the cap it loses 2 * lift of height: the distance
+    // up to the band top is now the binding one. Shorter by design — status_row.c must not
+    // floor it, or the box would stop framing the ink it belongs to.
+    expect_extent("hl.basalt.strip", 0, 17, 8 - STATUS_TOP_STRIP_LIFT, 0, 12);   // cap 6
+    expect_extent("hl.emery.strip", 0, 23, 11 - STATUS_TOP_STRIP_LIFT, 0, 18);   // cap 9
+    // Same cases in a band that does not start at 0 — geometry is band-relative.
+    expect_extent("hl.compactCal.offset", 27, 17, 35, 27, 16);
+    expect_extent("hl.emery.compactCal.offset", 31, 23, 42, 31, 22);
+
+    // Degenerate: a cap on or outside a band edge collapses instead of overflowing.
+    expect_extent("hl.cap_at_top", 10, 20, 10, 10, 0);
+    expect_extent("hl.cap_above", 10, 20, 4, 10, 0);
+    expect_extent("hl.cap_at_bottom", 10, 20, 30, 30, 0);
+
+    // Property sweep: centred and inside the band for every band/cap combination.
+    for (int16_t band_h = 1; band_h <= 40; band_h++) {
+        for (int16_t cap = 0; cap <= band_h; cap++) {
+            int16_t top = 7;
+            StatusHighlightExtent e = status_highlight_extent(top, band_h,
+                                                             (int16_t)(top + cap));
+            if (e.y + e.h / 2 != top + cap || e.y < top
+                || e.y + e.h > top + band_h || e.h % 2 != 0) {
+                printf("FAIL hl.sweep band_h=%d cap=%d -> y=%d h=%d\n",
+                       band_h, cap, e.y, e.h);
+                s_failures++;
+            }
+        }
+    }
+}
+
 int main(void) {
     empty_row();
     typical_row();
@@ -206,6 +292,7 @@ int main(void) {
     non_positive_and_narrow_content();
     negative_measures_normalize_to_zero();
     lone_edge_glyph_too_wide_is_omitted();
+    highlight_extent_is_cap_centred();
     if (s_failures) { printf("%d status_row_layout failure(s)\n", s_failures); return 1; }
     printf("status_row_layout OK\n");
     return 0;

@@ -298,7 +298,9 @@
       "STATUS_LINE_4_UINT8",
       "CLAY_BATTERY_LOW_ONLY",
       "CLAY_DATE_MONTH_FIRST",
-      "NOTICE_TEXT"
+      "NOTICE_TEXT",
+      "STATUS_LEVELS_UINT8",
+      "CLAY_THRESHOLDS_UINT8"
     ]
   }
 }

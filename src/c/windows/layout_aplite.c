@@ -6,6 +6,7 @@
 // shared band geometry (compute below) must be hand-ported from layout.c; the
 // check-aplite-twins CI prompts the review. See docs/adr/0001-aplite-frozen-lean-fork.md.
 #include "layout.h"
+#include "c/layers/status_metrics.h"   // status_min_band_h — integer font math, no SDK
 
 // Band weights + heights: the aplite-only (144x168, non-emery) values from layout.c.
 #define WEIGHT_CALENDAR 45
@@ -16,9 +17,17 @@
 #define LAYOUT_PAD_X 0
 #define LAYOUT_PAD_TOP 0
 #define LAYOUT_PAD_BOTTOM 0
+// The top strip's RESERVE (see layout.c): the split's share and the anchor every band below
+// the strip keeps. The strip's own band is font-sized (STATUS_LARGE_BAND_H) and taller; the
+// surplus grows downward into the air below it, so the clock and the graph never move.
 #define CALENDAR_STATUS_HEIGHT 13
 #define NONE_STATUS_HEIGHT 22
 #define NONE_TIME_DROP 2
+// Clamp-free band for the top strip and a lone compact status row (both Gothic 18 on aplite:
+// STATUS_TOP_TIER_FONT_KEY / COMPACT_ROW_FONT_KEY) = 17. Below it status_seat_y()'s descender
+// clamp lifts the line off the band centre. Constant-folded — the argument is a literal.
+#define STATUS_LARGE_FONT_H 18
+#define STATUS_LARGE_BAND_H status_min_band_h(STATUS_LARGE_FONT_H)
 
 static void split_content(int content_h, const uint8_t weights[3],
                           int *calendar_h, int *time_h, int *bottom_h) {
@@ -95,19 +104,22 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
     int content_y = LAYOUT_PAD_TOP;
     int content_w = w - 2 * LAYOUT_PAD_X;
     int bottom_w = w - content_x;
-    int strip_h = CALENDAR_STATUS_HEIGHT + 1;
+    int strip_h = STATUS_LARGE_BAND_H;   // font-sized; taller than CALENDAR_STATUS_HEIGHT
     int content_h = h - LAYOUT_PAD_TOP - LAYOUT_PAD_BOTTOM
                     - CALENDAR_STATUS_HEIGHT - WEATHER_STATUS_HEIGHT;
     int calendar_h, time_h, bottom_h;
     split_content(content_h, spec->weights, &calendar_h, &time_h, &bottom_h);
     (void) bottom_h;
 
-    int calendar_y = content_y + CALENDAR_STATUS_HEIGHT;
-    int time_y = calendar_y + calendar_h;
+    // The strip's reserve anchors everything below it (clock, status, graph keep their pixels);
+    // the calendar abuts the strip's real band, sliding down into the calendar→clock gap.
+    int strip_anchor_y = content_y + CALENDAR_STATUS_HEIGHT;
+    int calendar_y = content_y + strip_h;
+    int time_y = strip_anchor_y + calendar_h;
 
     L.top_status = GRect(content_x, content_y, content_w, strip_h);
     if (tier == LAYOUT_TIER_NONE) {
-        int none_time_y = content_y + strip_h;
+        int none_time_y = strip_anchor_y + 1;   // clock keeps its pre-resize slot
         int status_y = none_time_y + time_h;
         int forecast_y = status_y + NONE_STATUS_HEIGHT;
         L.top = GRect(content_x, calendar_y, content_w, 0);
@@ -120,14 +132,19 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
         int cal_h = compact ? (calendar_h - calendar_h / 3) : calendar_h;
         // Swap layout: no upper status row, so pull the clock up to abut the 2-row calendar,
         // reclaiming the freed 3rd-calendar-row slot (matches layout.c). Compact-only; aplite
-        // only reaches !upper via the swap.
-        if (compact && !upper) { time_y = calendar_y + cal_h; }
+        // only reaches !upper via the swap. Anchored to the strip's reserve so the taller
+        // font-sized strip cannot drag the swapped clock (and the graph) down.
+        if (compact && !upper) { time_y = strip_anchor_y + cal_h; }
         int forecast_y = compact ? (time_y + time_h)
                                  : (time_y + time_h + (has_status ? WEATHER_STATUS_HEIGHT : 0));
-        int status_h = compact ? (calendar_h / 3) : fc_band_h;
-        int status_y = compact ? (calendar_y + cal_h) : (forecast_y - fc_band_h);
-        // Single upper-row compact: drop the lone band toward the clock below it.
-        if (compact) { status_y += COMPACT_SINGLE_STATUS_NUDGE; }
+        // compact: the lone status band takes the clamp-free font-sized height (its old
+        // calendar_h/3 slot was 2px short and clamped the line) and is BOTTOM-anchored to the
+        // clock band, which never moves — so the row stays exactly where it was and the extra
+        // height grows up into the calendar band's bottom air. aplite is never DUAL, so this is
+        // always the lone case. `time_y - calendar_h/3` is the old `calendar_y + cal_h`.
+        int status_h = compact ? STATUS_LARGE_BAND_H : fc_band_h;
+        int status_y = compact ? (time_y + COMPACT_SINGLE_STATUS_NUDGE - status_h)
+                              : (forecast_y - fc_band_h);
         L.top = GRect(content_x, calendar_y, content_w, cal_h);
         L.status = GRect(content_x, status_y, content_w, status_h);
         L.time = GRect(content_x, time_y, content_w, time_h);
@@ -140,16 +157,19 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
         L.radar = L.top;
     }
     // Swap layout only: a single forecast status moved below the clock. It uses the same compact
-    // single-status band size (calendar_h / 3) as the upper slot — a size-preserving position
-    // swap. aplite never has a DUAL/full lower band (no radar/health), so this is the only lower
-    // carve, and it's compact-only (swap is compactCal).
+    // single-status band size as the upper slot — a size-preserving position swap. aplite never
+    // has a DUAL/full lower band (no radar/health), so this is the only lower carve, and it's
+    // compact-only (swap is compactCal). The forecast still gives up only the calendar_h/3 SLOT;
+    // the taller clamp-free band grows upward out of it into the clock band's slack, so the graph
+    // keeps every pixel it had.
     L.status_lower = L.status;
     if (lower) {
-        int band_h = calendar_h / 3;
-        int forecast_top = L.bottom.origin.y + band_h;
-        L.status_lower = GRect(L.bottom.origin.x, forecast_top - band_h, L.bottom.size.w, band_h);
+        int reserve = calendar_h / 3;
+        int forecast_top = L.bottom.origin.y + reserve;
+        L.status_lower = GRect(L.bottom.origin.x, forecast_top - STATUS_LARGE_BAND_H,
+                               L.bottom.size.w, STATUS_LARGE_BAND_H);
         L.bottom.origin.y = forecast_top;
-        L.bottom.size.h -= band_h;
+        L.bottom.size.h -= reserve;
         L.loading = L.bottom;
     }
     if (!upper) { L.status.size.h = 0; }   // upper band absent: collapse it (origin kept)

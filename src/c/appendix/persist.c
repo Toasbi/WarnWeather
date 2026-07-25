@@ -45,7 +45,10 @@ enum key {
     STATUS_LINE_3,                // 39 — top
     STATUS_LINE_4,                // 40 — health
     STATUS_LINE_ENCODING_VERSION, // 41
-    NOTICE_TEXT                   // 42 — phone-pushed overlay string (empty = no notice)
+    NOTICE_TEXT,                  // 42 — phone-pushed overlay string (empty = no notice)
+    // Appended: status-slot threshold highlighting (layouts in status_threshold.h).
+    STATUS_LEVELS,                // 43 — packed weather-kind levels byte
+    THRESHOLD_SETTINGS            // 44 — enabled bits + colors + health thresholds blob
 };
 
 // Setters report whether the stored value actually changed so callers can
@@ -476,4 +479,22 @@ bool persist_set_health_cache_end_hour(time_t val) {
 
 time_t persist_get_health_cache_end_hour(void) {
     return (time_t) persist_read_int(HEALTH_CACHE_END_HOUR);
+}
+
+int persist_get_status_levels(void) {
+    if (!persist_exists(STATUS_LEVELS)) { return 0; }
+    return persist_read_int(STATUS_LEVELS);
+}
+
+bool persist_set_status_levels(uint8_t levels) {
+    return write_int_if_changed(STATUS_LEVELS, levels);
+}
+
+int persist_get_threshold_settings(uint8_t *buffer, size_t buffer_size) {
+    if (!persist_exists(THRESHOLD_SETTINGS)) { return 0; }
+    return persist_read_data(THRESHOLD_SETTINGS, buffer, buffer_size);
+}
+
+bool persist_set_threshold_settings(const uint8_t *data, size_t len) {
+    return write_sized_data_if_changed(THRESHOLD_SETTINGS, data, len);
 }

@@ -130,3 +130,41 @@ void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
     if (mid_x > mid_hi) { mid_x = mid_hi; }
     place_group(&normalized[1], &mid, mid_x, &out[1]);
 }
+
+// Seat a threshold-highlight box on the glyph CAP CENTRE rather than on the raw
+// band, and clamp it to the band.
+//
+// `cap_cy` is status_glyph_center_y()'s value — the visual centre of the digits a
+// status line renders, which the slot icons and the sun arrow already co-centre on.
+// It is an EDGE coordinate (the boundary above row `cap_cy`), the same space as a
+// GRect's origin.y, so a box spanning [y, y + h) is centred on it exactly when
+// y + h/2 == cap_cy.
+//
+// Why not the band: status_text_y() centres the cap at band_h/2, but only ever lands
+// exactly there when the band is at least status_min_band_h() tall — a shorter band hits
+// the descender clamp, which LIFTS the line above the band centre, and a full-band box
+// then sat up to 1.5 px low under its own text. Every band windows/layout.c produces is
+// now clamp-free, so this is no longer load-bearing on the shipping geometry; it stays
+// because it is the correct rule for ANY band and it also absorbs the odd-band rounding
+// below. Half-height is the smaller of the two distances to the band edges, so the box is
+// exactly symmetric about the cap and never bleeds into the calendar row above or the
+// forecast below.
+//
+// No-op guarantee: whenever the cap centre IS the band centre and band_h is EVEN (the
+// full-tier and none-tier bands) both distances equal band_h/2 — so y == band_top,
+// h == band_h and the box is bit-identical to the full-band one this replaces. On an ODD
+// band (the 17px top strip / lone compact band, 23px on emery, the 15px dense upper band)
+// the truncating band_h/2 puts the cap 0.5 px above the band's own centre, so the box comes
+// out 1 px shorter than the band; that is the correction, not a regression.
+StatusHighlightExtent status_highlight_extent(int16_t band_top, int16_t band_h,
+                                              int16_t cap_cy) {
+    int band_bottom = band_top + band_h;         // exclusive edge
+    int cap = cap_cy;                            // defensive: a cap outside the
+    if (cap < band_top) { cap = band_top; }      // band collapses the box at the
+    if (cap > band_bottom) { cap = band_bottom; }// nearest edge, never overflows
+    int half = cap - band_top;
+    int below = band_bottom - cap;
+    if (below < half) { half = below; }
+    StatusHighlightExtent e = { (int16_t)(cap - half), (int16_t)(2 * half) };
+    return e;
+}

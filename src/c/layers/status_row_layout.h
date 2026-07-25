@@ -22,3 +22,12 @@ typedef struct {
 
 void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
                        StatusSlotPlace out[3]);
+
+// Vertical extent (top edge + height) of a slot's threshold-highlight box.
+typedef struct {
+    int16_t y;
+    int16_t h;
+} StatusHighlightExtent;
+
+StatusHighlightExtent status_highlight_extent(int16_t band_top, int16_t band_h,
+                                              int16_t cap_cy);

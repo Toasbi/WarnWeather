@@ -7,6 +7,7 @@ var holidayMask = require('./holidays/holiday-mask.js');
 var paletteWire = require('./weather/palette-wire.js');
 var viewCycle = require('./view-cycle.js');
 var resolveInk = require('./resolve-ink.js').resolveInk;
+var statusThresholds = require('./status-thresholds.js');
 
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
 var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
@@ -87,6 +88,10 @@ function buildClayPayload(settings, watchInfo, now) {
     var palette = paletteWire.buildPaletteTuples(watchInfo, settings);
     payload.BAR_PALETTE_UINT8 = palette.BAR_PALETTE_UINT8;
     payload.RADAR_PALETTE_UINT8 = palette.RADAR_PALETTE_UINT8;
+
+    // Threshold-highlight settings (enabled bits + colors + health-kind
+    // thresholds) — settings-derived, so they ride the Clay message.
+    payload.CLAY_THRESHOLDS_UINT8 = statusThresholds.buildSettingsBlob(settings);
 
     // Pack the cycle into the three wire bytes (unused slots → 0 = disabled).
     payload.CLAY_VIEW_0 = viewCycle.packSpec(cycle[0] || null);

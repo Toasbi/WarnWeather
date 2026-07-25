@@ -18,6 +18,7 @@
 
 #include "top_status_layer.h"
 #include "battery_draw.h"
+#include "status_metrics.h"   // STATUS_TOP_STRIP_LIFT — the strip's seating (STATUS_ICON_Y)
 #include "status_row.h"
 #include "top_status_indicators.h"
 #include "c/appendix/config.h"
@@ -32,14 +33,16 @@
 #define ICON_SLOT_1 GRect(PADDING, 0, 10, 10)
 #define ICON_SLOT_2 GRect(PADDING * 2 + 10, 0, 10, 10)
 // Gothic-14 top leading: lift the "zZ" snooze text this many px so its caps sit
-// on the top pixel row, matching the top-aligned battery/indicator icons.
+// on the icon slot's top pixel row, matching the battery/indicator icons.
 #define SNOOZE_TEXT_LIFT 3
-// emery: center icons in the taller status row.
-#ifdef PBL_PLATFORM_EMERY
-#define STATUS_ICON_Y(bounds_h, icon_h) (((bounds_h) - (icon_h)) / 2)
-#else
-#define STATUS_ICON_Y(bounds_h, icon_h) ((void)(bounds_h), (void)(icon_h), 0)
-#endif
+// Seat the indicator icons on the same row as the strip's text. The band is sized from its font
+// (status_min_band_h), so (bounds_h - icon_h)/2 lands on the band centre — where the cap-centred
+// seat would put the date's cap — and the strip then lifts BOTH by STATUS_TOP_STRIP_LIFT so the
+// icons keep following the text up toward the screen edge. Ported from top_status_layer.c, where
+// this used to be a no-op (0) that only looked right because the old 14px band was too short
+// and the descender clamp had pushed the text flush against row 0.
+#define STATUS_ICON_Y(bounds_h, icon_h) \
+    (((bounds_h) - (icon_h)) / 2 - STATUS_TOP_STRIP_LIFT)
 
 static bool show_qt_icon(void);
 static void bluetooth_callback(bool connected);
@@ -179,10 +182,12 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
                 // aplite: draw a cheap "zZ" text stand-in for the vector snooze
                 // glyph. The icon slot is only 10px wide, so span it plus the
                 // PADDING gap up to (but not into) the status text. Lift the
-                // frame by the font's top leading so the caps sit on the first
-                // pixel row like the top-aligned battery/indicator icons.
+                // frame by the font's top leading so the caps sit on the icon
+                // slot's first pixel row, i.e. level with the band-centred
+                // battery/indicator icons (frame.origin.y is STATUS_ICON_Y).
                 graphics_context_set_text_color(ctx, theme_fg());
-                GRect text_frame = GRect(frame.origin.x, bounds.origin.y - SNOOZE_TEXT_LIFT,
+                GRect text_frame = GRect(frame.origin.x,
+                                         bounds.origin.y + frame.origin.y - SNOOZE_TEXT_LIFT,
                                          ICON_SLOT_1.size.w + PADDING, bounds.size.h);
                 graphics_draw_text(ctx, "zZ",
                     fonts_get_system_font(FONT_KEY_GOTHIC_14), text_frame,

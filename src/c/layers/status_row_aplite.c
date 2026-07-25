@@ -41,6 +41,15 @@ struct StatusRow {
 static uint8_t s_blob_scratch[STATUS_LINE_MAX_BYTES];
 static char s_text_scratch[STATUS_TEXT_MID_MAX + 1];
 
+// Seat this row's line in its band. Ported from status_row.c: every row cap-centres EXCEPT
+// the top strip, which rides STATUS_TOP_STRIP_LIFT rows higher inside an unchanged band
+// (its top edge is the screen edge, so only the gap below it is visible). One seat plus a
+// conditional subtract, not a choice between two inline seaters — see the base file.
+static int row_text_y(const StatusRow *row, GFont font) {
+    int y = status_text_y(row->bounds.size.h, font);
+    return (row->line_id == STATUS_LINE_TOP) ? y - STATUS_TOP_STRIP_LIFT : y;
+}
+
 static GFont row_font(uint8_t tier, uint8_t line_id) {
     if (line_id == STATUS_LINE_TOP) {
         return fonts_get_system_font(STATUS_TOP_TIER_FONT_KEY);
@@ -322,7 +331,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         resolve_slot_text(row, &slots[i], texts[i], sizeof(texts[i]));
     }
 
-    int text_y_rel = status_text_y(row->bounds.size.h, font);
+    int text_y_rel = row_text_y(row, font);
     int text_y = row->bounds.origin.y + text_y_rel;
     int glyph_cy = row->bounds.origin.y
         + status_glyph_center_y(text_y_rel, content_h);
