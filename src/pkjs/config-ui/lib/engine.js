@@ -1273,7 +1273,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           ? textPreEdit[tk] : newV;
         delete textPreEdit[tk];
         onChangeFn(S, oldV, newV, ENV, tk);
-        render();   // a hook-corrected value has to become visible; focus has already left
+        // Repaint ONLY when the hook actually corrected the value: a correction has
+        // to become visible (focus has already left the field). On the common
+        // accepted-value path the input already shows what the user typed, and an
+        // unconditional render() here would swallow their next tap — in a webview
+        // focus moves on mousedown, so `change` fires BEFORE mouseup, and replacing
+        // #scroll.innerHTML detaches the node the click was about to land on.
+        if (S[tk] !== newV) { render(); }
       });
     }
 

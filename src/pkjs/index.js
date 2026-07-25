@@ -31,6 +31,7 @@ var previewPalette = require('./settings/preview-palette.js');
 var newsCache = require('./news-cache.js');
 var createChannelScheduler = require('./channel-scheduler.js');
 var statusCatalog = require('./status-line-catalog.js');
+var statusThresholds = require('./status-thresholds.js');
 
 /**
  * Full release-notification manifest (dev: force-show by version). Omitted from bundle if missing.
@@ -987,6 +988,19 @@ function renderSignature(settings) {
     var slotKeys = statusCatalog.allSlotKeys();
     for (var i = 0; i < slotKeys.length; i++) {
         parts.push(settings[slotKeys[i]]);
+    }
+    // The four WEATHER threshold kinds are evaluated phone-side at weather-bake
+    // time (STATUS_LEVELS_UINT8), so enabling one only shows up after a refetch —
+    // without this the highlight would first appear on the next scheduled fetch
+    // (15 min default, or after the overnight pause). Derived from the contract's
+    // kind table so a reordered/renamed kind can't silently drop out.
+    // Deliberately NOT the three health kinds (evaluated watch-side from the
+    // Clay-delivered blob — already immediate) and NOT the threshold colours
+    // (Clay-delivered, applied on the next paint): a refetch there is pure waste.
+    var weatherKinds = statusThresholds.KINDS.slice(0, 4);
+    for (var w = 0; w < weatherKinds.length; w++) {
+        parts.push(settings['thresh' + weatherKinds[w].key + 'Warn'],
+            settings['thresh' + weatherKinds[w].key + 'Danger']);
     }
     return parts.join('|');
 }

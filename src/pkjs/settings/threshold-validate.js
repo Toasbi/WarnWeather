@@ -20,12 +20,31 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var thresholds = (typeof require !== 'undefined')
         ? require('../status-thresholds.js') : window.StatusThresholds;
 
+    // Health kinds start at wire index 4 (steps/sleep/distance) — the same
+    // boundary status-thresholds.js packs on (kinds 0..3 are evaluated phone-side
+    // and ride the weather message; 4..6 ride the Clay blob).
+    var FIRST_HEALTH_KIND = 4;
+
+    /**
+     * @param {string} stem settings key stem, e.g. 'Steps'
+     * @returns {boolean} true when the stem names a health kind
+     */
+    function isHealthStem(stem) {
+        for (var i = FIRST_HEALTH_KIND; i < thresholds.KINDS.length; i++) {
+            if (thresholds.KINDS[i].key === stem) { return true; }
+        }
+        return false;
+    }
+
     /**
      * onChange core. Mutates S in place: reverts the just-edited field to
-     * oldValue when it is non-numeric or completes an inverted pair. Blank is
-     * always accepted (it disables the kind), and 0 / negative values are
-     * legitimate thresholds — parseThreshold distinguishes "unset" (null) from
-     * a numeric zero.
+     * oldValue when it is non-numeric, negative on a health kind, or completes an
+     * inverted pair. Blank is always accepted (it disables the kind), and 0 is a
+     * legitimate threshold — parseThreshold distinguishes "unset" (null) from a
+     * numeric zero. A negative value is rejected for the health kinds only:
+     * steps / sleep hours / distance have no meaningful negative reading, and
+     * healthWire() would silently clamp it to 0 (storing something other than
+     * what the user typed). The weather kinds keep accepting negatives.
      * @param {Object} S live settings state (key already set to its new value)
      * @param {*} oldValue the field's previous value
      * @param {string} key the messageKey just edited (thresh<Stem>(Warn|Danger))
@@ -36,8 +55,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!m) { return; }
         var raw = S[key];
         var isBlank = raw === '' || raw === null || typeof raw === 'undefined';
-        if (!isBlank && thresholds.parseThreshold(raw) === null) {
+        var parsed = isBlank ? null : thresholds.parseThreshold(raw);
+        if (!isBlank && parsed === null) {
             S[key] = oldValue;   // non-numeric: reject the edit
+            return;
+        }
+        if (parsed !== null && parsed < 0 && isHealthStem(m[1])) {
+            S[key] = oldValue;   // negative health threshold: reject the edit
             return;
         }
         var warn = thresholds.parseThreshold(S['thresh' + m[1] + 'Warn']);
