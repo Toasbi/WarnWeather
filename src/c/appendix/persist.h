@@ -78,6 +78,16 @@ bool persist_set_radar_palette(uint8_t *data, const size_t size);
 int persist_get_status_line(uint8_t line_id, uint8_t *buffer, size_t buffer_size);
 bool persist_set_status_line(uint8_t line_id, const uint8_t *data, size_t len);
 
+// Packed weather-kind threshold levels (STATUS_LEVELS_UINT8 tuple); 0 = all
+// Normal / never received. Layout in status_threshold.h.
+int persist_get_status_levels(void);
+bool persist_set_status_levels(uint8_t levels);
+
+// Threshold-highlight settings blob (CLAY_THRESHOLDS_UINT8 tuple; layout in
+// status_threshold.h). Get returns bytes read, <= 0 when absent.
+int persist_get_threshold_settings(uint8_t *buffer, size_t buffer_size);
+bool persist_set_threshold_settings(const uint8_t *data, size_t len);
+
 bool persist_set_notice_text(const char *text);
 int  persist_get_notice_text(char *buffer, size_t buffer_size);
 

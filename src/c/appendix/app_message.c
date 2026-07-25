@@ -16,6 +16,7 @@
 #include "rain_countdown.h"
 #include "memory_log.h"
 #include "status_line.h"
+#include "status_threshold.h"
 
 // Payloads arrive split into categories that map onto screen areas (forecast
 // chart, status row, radar). Each category is processed independently and the
@@ -155,6 +156,37 @@ static bool handle_status_lines(DictionaryIterator *iterator, bool *status_dirty
     }
     *status_dirty |= changed;
     return any;
+}
+
+// Packed weather-kind threshold levels — rides the weather message next to the
+// packed lines (the phone computes them; the watch has no raw AQI/wind ints).
+static bool handle_status_levels(DictionaryIterator *iterator, bool *status_dirty) {
+    Tuple *tuple = dict_find(iterator, MESSAGE_KEY_STATUS_LEVELS_UINT8);
+    if (!tuple) { return false; }
+    if (tuple->type != TUPLE_BYTE_ARRAY || tuple->length < 1) {
+        APP_LOG(APP_LOG_LEVEL_WARNING, "Status levels tuple malformed — skipping");
+        return true;
+    }
+    *status_dirty |= persist_set_status_levels(tuple->value->data[0]);
+    return true;
+}
+
+// Threshold settings blob — rides the Clay message (enabled bits, colors, and
+// the health-kind thresholds the watch compares live values against).
+static bool handle_thresholds(DictionaryIterator *iterator, bool *status_dirty) {
+    Tuple *tuple = dict_find(iterator, MESSAGE_KEY_CLAY_THRESHOLDS_UINT8);
+    if (!tuple) { return false; }
+    if (tuple->type != TUPLE_BYTE_ARRAY ||
+        !status_threshold_settings_validate(tuple->value->data, tuple->length)) {
+        // Reject atomically; the last good persisted blob stays intact.
+        APP_LOG(APP_LOG_LEVEL_WARNING,
+                "Threshold settings invalid (%u bytes) — skipping",
+                (unsigned) tuple->length);
+        return true;
+    }
+    *status_dirty |= persist_set_threshold_settings(tuple->value->data,
+                                                    tuple->length);
+    return true;
 }
 
 #if defined(WW_FETCH_NOTICE)
@@ -331,6 +363,8 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
 #endif
     handled |= handle_status(iterator, &status_dirty, &radar_dirty);
     handled |= handle_status_lines(iterator, &status_dirty);
+    handled |= handle_status_levels(iterator, &status_dirty);
+    handled |= handle_thresholds(iterator, &status_dirty);
     handled |= handle_sun_events(iterator, &forecast_dirty, &status_dirty);
 #if defined(WW_RAIN_RADAR)
     // aplite has no radar layer (--gc-sections reaps rain_radar_layer.c), so it
@@ -435,7 +469,11 @@ void app_message_init() {
     // test/inbox-size.test.js is the authoritative computation.
     // 528 (was 512): the selectable top-strip middle slot lets City pack up to
     // 19 text bytes where the fixed Date packed none (+19 B worst case, 517 B).
-    const int inbox_size = 528;
+    // 536 (was 528): the threshold-highlight levels byte rides the weather
+    // bundle as its own tuple — 1 value byte + the 7-byte tuple header
+    // (recorded heaviest bundle still 517 B until the phone starts sending it
+    // in a later task; headroom 19).
+    const int inbox_size = 536;
     const int outbox_size = dict_calc_buffer_size(2, sizeof(uint8_t), sizeof(uint8_t));
     APP_LOG(APP_LOG_LEVEL_INFO, "AppMessage buffer sizes: inbox=%d outbox=%d", inbox_size, outbox_size);
     app_message_open(inbox_size, outbox_size);
