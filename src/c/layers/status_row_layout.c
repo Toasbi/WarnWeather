@@ -130,3 +130,40 @@ void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
     if (mid_x > mid_hi) { mid_x = mid_hi; }
     place_group(&normalized[1], &mid, mid_x, &out[1]);
 }
+
+// Seat a threshold-highlight box on the glyph CAP CENTRE rather than on the raw
+// band, and clamp it to the band.
+//
+// `cap_cy` is status_glyph_center_y()'s value — the visual centre of the digits a
+// status line renders, which the slot icons and the sun arrow already co-centre on.
+// It is an EDGE coordinate (the boundary above row `cap_cy`), the same space as a
+// GRect's origin.y, so a box spanning [y, y + h) is centred on it exactly when
+// y + h/2 == cap_cy.
+//
+// Why not the band: status_text_y() centres the cap at band_h/2 but then applies a
+// descender clamp, which on the compact tier LIFTS the line above the band centre.
+// A full-band box then sat up to 1.5 px low under its own text. Half-height is the
+// smaller of the two distances to the band edges, so the box is exactly symmetric
+// about the cap and still never bleeds into the calendar row above or the forecast
+// below (on the compact tier the cap sits only ~6 px below the band top, so simply
+// shifting a full-band box up would overflow).
+//
+// No-op guarantee: on a band sized from the font (status_forecast_band_h and the
+// none-tier bands satisfy the clamp) the cap centre IS the band centre, and for the
+// even band heights those produce both distances equal band_h/2 — so y == band_top,
+// h == band_h and the box is bit-identical to the full-band one this replaces. On an
+// ODD band the truncating band_h/2 puts the cap 0.5 px above the band's own centre,
+// so the box comes out 1 px shorter than the band; that is the correction, not a
+// regression (it is what removes the measured -0.5 px error on the 15 px band).
+StatusHighlightExtent status_highlight_extent(int16_t band_top, int16_t band_h,
+                                              int16_t cap_cy) {
+    int band_bottom = band_top + band_h;         // exclusive edge
+    int cap = cap_cy;                            // defensive: a cap outside the
+    if (cap < band_top) { cap = band_top; }      // band collapses the box at the
+    if (cap > band_bottom) { cap = band_bottom; }// nearest edge, never overflows
+    int half = cap - band_top;
+    int below = band_bottom - cap;
+    if (below < half) { half = below; }
+    StatusHighlightExtent e = { (int16_t)(cap - half), (int16_t)(2 * half) };
+    return e;
+}
