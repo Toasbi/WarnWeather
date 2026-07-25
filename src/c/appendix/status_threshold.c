@@ -43,7 +43,7 @@ int status_threshold_weather_level(uint8_t packed, int kind) {
 int status_threshold_health_value(int kind, int steps, int sleep_seconds,
                                   int distance_m) {
     if (kind == THRESH_STEPS) {
-        return steps < 0 ? 0 : steps;
+        return steps < 0 ? -1 : steps;
     }
     if (kind == THRESH_SLEEP) {
         return sleep_seconds <= 0 ? -1 : sleep_seconds / 60;

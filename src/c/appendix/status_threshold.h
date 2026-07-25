@@ -62,9 +62,10 @@ int status_threshold_level(int value, int warn, int danger, bool below_is_worse)
 int status_threshold_weather_level(uint8_t packed, int kind);
 
 // Convert raw health readings to the blob's wire units for comparison: steps
-// as-is (negative clamps to 0, matching the display), sleep seconds ->
-// minutes, distance metres -> 100 m units. Returns -1 when the reading is
-// unavailable (never highlight) or kind is not a health kind.
+// as-is, sleep seconds -> minutes, distance metres -> 100 m units. Returns -1
+// when the reading is unavailable (never highlight; the display's own "0"/"--"
+// clamp for an absent reading is a separate, independent concern in
+// status_row.c) or kind is not a health kind.
 int status_threshold_health_value(int kind, int steps, int sleep_seconds,
                                   int distance_m);
 

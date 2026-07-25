@@ -96,7 +96,11 @@ static void health_value_tests(void) {
     // Wire-unit conversion for the watch-side comparison (spec: "C-side:
     // threshold comparison for steps/sleep/distance against health values").
     expect("hv.steps", status_threshold_health_value(THRESH_STEPS, 8421, 0, 0), 8421);
-    expect("hv.steps_neg", status_threshold_health_value(THRESH_STEPS, -3, 0, 0), 0);
+    // Unavailable (INT_MIN-derived negative from health_summary_steps()) must
+    // sentinel to -1 like sleep/distance below, NOT clamp to 0 — a clamp here
+    // would defeat the caller's "-1 = never highlight" guard (see the
+    // regression test right after this one).
+    expect("hv.steps_none", status_threshold_health_value(THRESH_STEPS, -3, 0, 0), -1);
     expect("hv.sleep", status_threshold_health_value(THRESH_SLEEP, 0, 27000, 0), 450);
     expect("hv.sleep_none", status_threshold_health_value(THRESH_SLEEP, 0, 0, 0), -1);
     expect("hv.dist", status_threshold_health_value(THRESH_DISTANCE, 0, 0, 5000), 50);
@@ -106,6 +110,22 @@ static void health_value_tests(void) {
     expect("hv.level", status_threshold_level(
         status_threshold_health_value(THRESH_SLEEP, 0, 27000, 0), 480, 300, true),
         THRESH_LEVEL_WARN);
+    // Regression pin: an unavailable steps reading must never paint Danger.
+    // status_threshold_level() itself has no -1 guard (a raw 0 legitimately
+    // reads Danger under below-is-worse — see "below.danger" above, and low
+    // steps early in the day is an accepted product quirk); the consumer
+    // (status_row.c's slot_level()) is responsible for intercepting a negative
+    // health_value() result before ever calling status_threshold_level(). This
+    // reproduces that exact two-step contract for steps: before the fix,
+    // health_value_tests's old "hv.steps_neg" clamped -3 to 0, and 0 fed
+    // straight into status_threshold_level(..., below_is_worse=true) below
+    // warn/danger thresholds of 8000/4000 came back DANGER — a false alarm on
+    // absent data. After the fix it sentinels to -1 and the guard below
+    // short-circuits to NORMAL instead.
+    int steps_value = status_threshold_health_value(THRESH_STEPS, -3, 0, 0);
+    int steps_level = steps_value < 0 ? THRESH_LEVEL_NORMAL
+        : status_threshold_level(steps_value, 8000, 4000, true);
+    expect("hv.steps_none_not_danger", steps_level, THRESH_LEVEL_NORMAL);
 }
 
 int main(void) {

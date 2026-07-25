@@ -69,6 +69,11 @@ static char s_text_scratch[STATUS_TEXT_MID_MAX + 1];
 // refresh/draw like the packed line blobs; len 0 = nothing configured yet.
 static uint8_t s_thresh_scratch[THRESH_SETTINGS_BYTES];
 static int s_thresh_len;
+// Packed weather threshold-levels byte (STATUS_LEVELS_UINT8), reloaded once
+// per refresh/draw pass alongside the blob above (persist_get_status_levels()
+// is persist_exists + persist_read_int; reading it once per pass instead of
+// once per weather slot avoids redundant flash-backed reads across a row).
+static uint8_t s_levels_byte;
 
 #ifdef PBL_PLATFORM_APLITE
 // aplite: primitive lines avoid GPath's code and transient draw allocation.
@@ -269,6 +274,7 @@ static void load_thresholds(void) {
     s_thresh_len = persist_get_threshold_settings(s_thresh_scratch,
                                                   sizeof(s_thresh_scratch));
     if (s_thresh_len < 0) { s_thresh_len = 0; }
+    s_levels_byte = (uint8_t)persist_get_status_levels();
 }
 
 // Highlight level (ThreshLevel) for one resolved slot. Weather kinds read the
@@ -282,8 +288,7 @@ static uint8_t slot_level(const StatusSlotView *slot) {
         return THRESH_LEVEL_NORMAL;
     }
     if (kind <= THRESH_WEATHER_KIND_MAX) {
-        return (uint8_t)status_threshold_weather_level(
-            (uint8_t)persist_get_status_levels(), kind);
+        return (uint8_t)status_threshold_weather_level(s_levels_byte, kind);
     }
 #if defined(PBL_HEALTH)
     int value = status_threshold_health_value(kind,
@@ -550,6 +555,10 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     StatusSlotView slots[STATUS_SLOT_COUNT];
     char texts[STATUS_SLOT_COUNT][STATUS_TEXT_MID_MAX + 1];
     uint8_t levels[STATUS_SLOT_COUNT];
+    // Cached alongside levels[] so a crossed slot's accent (kind lookup +
+    // blob color read) is resolved once per draw, not once for the
+    // outline/fill pass and again for the ink below (stack-only, no alloc).
+    GColor accents[STATUS_SLOT_COUNT];
 
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         if (!status_line_slot(s_blob_scratch, (size_t)len, i, &slots[i])) { return; }
@@ -585,6 +594,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         if (!places[i].visible || levels[i] == THRESH_LEVEL_NORMAL) { continue; }
         GRect box = slot_highlight_box(row, &places[i], &measures[i], x0);
         GColor accent = highlight_color(&slots[i], levels[i]);
+        accents[i] = accent;
         if (levels[i] == THRESH_LEVEL_DANGER) {
             graphics_context_set_fill_color(ctx, accent);
             graphics_fill_rect(ctx, box, 2, GCornersAll);
@@ -596,9 +606,12 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         if (!places[i].visible) { continue; }
         // Danger slots flip their ink legible over the fill (the calendar's
-        // today pattern); warn and normal keep the theme foreground.
+        // today pattern); warn and normal keep the theme foreground. accents[i]
+        // was already resolved by the highlight pass above for every non-normal
+        // (so also every danger) visible slot — reuse it instead of resolving
+        // the same kind + blob color lookup a second time.
         GColor ink = levels[i] == THRESH_LEVEL_DANGER
-            ? gcolor_legible_over(highlight_color(&slots[i], levels[i]))
+            ? gcolor_legible_over(accents[i])
             : theme_fg();
         graphics_context_set_text_color(ctx, ink);
         int16_t icon_x = (int16_t)(x0 + places[i].icon_x);
