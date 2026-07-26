@@ -77,23 +77,40 @@ int main(void) {
     expect("radar/168/noCal/color",      hatch_stride_scaled(BASE_COLOR, BASE_H_168, 75), 10);
     expect("radar/168/noCal/bw",         hatch_stride_scaled(BASE_BW,    BASE_H_168, 75), 12);
 
-    // --- shape invariants across the whole reachable height range ---
-    for (int base = BASE_COLOR; base <= BASE_BW; base++) {
-        int prev = base;
-        for (int h = 0; h <= 120; h++) {
-            int got = hatch_stride_scaled(base, BASE_H_168, h);
-            if (got < base) {
-                printf("FAIL monotonic/floor: base=%d h=%d got=%d\n", base, h, got);
-                s_failures++;
-                break;
+    // --- radar area bars, emery (bands 82 / 111 - RADAR_AXIS_H 12, no bottom pad
+    // → plots 70 / 99) ---
+    expect("radar/emery/compactCal/color", hatch_stride_scaled(BASE_COLOR, BASE_H_EMERY, 70), 8);
+    expect("radar/emery/compactCal/bw",    hatch_stride_scaled(BASE_BW,    BASE_H_EMERY, 70), 10);
+    expect("radar/emery/noCal/color",      hatch_stride_scaled(BASE_COLOR, BASE_H_EMERY, 99), 12);
+    expect("radar/emery/noCal/bw",         hatch_stride_scaled(BASE_BW,    BASE_H_EMERY, 99), 14);
+
+    // --- emery dual status band (dualn.bottom = 81, test/c/layout_test.c:163) → forecast
+    // plot 61. Worth pinning: it's the one height where B&W lands on 8 while the
+    // neighbouring 62 (fc/emery/compactCal above) lands on 9. ---
+    expect("fc/emery/dual/color", hatch_stride_scaled(BASE_COLOR, BASE_H_EMERY, 61), 7);
+    expect("fc/emery/dual/bw",    hatch_stride_scaled(BASE_BW,    BASE_H_EMERY, 61), 8);
+
+    // --- shape invariants across the whole reachable height range, both real baselines ---
+    for (int b = 0; b < 2; b++) {
+        int min_plot_h = (b == 0) ? BASE_H_168 : BASE_H_EMERY;
+        for (int base = BASE_COLOR; base <= BASE_BW; base++) {
+            int prev = base;
+            for (int h = 0; h <= 120; h++) {
+                int got = hatch_stride_scaled(base, min_plot_h, h);
+                if (got < base) {
+                    printf("FAIL monotonic/floor: min_plot_h=%d base=%d h=%d got=%d\n",
+                           min_plot_h, base, h, got);
+                    s_failures++;
+                    break;
+                }
+                if (got < prev) {
+                    printf("FAIL monotonic/decreasing: min_plot_h=%d base=%d h=%d got=%d prev=%d\n",
+                           min_plot_h, base, h, got, prev);
+                    s_failures++;
+                    break;
+                }
+                prev = got;
             }
-            if (got < prev) {
-                printf("FAIL monotonic/decreasing: base=%d h=%d got=%d prev=%d\n",
-                       base, h, got, prev);
-                s_failures++;
-                break;
-            }
-            prev = got;
         }
     }
 

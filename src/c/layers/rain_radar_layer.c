@@ -35,12 +35,13 @@
     #define RADAR_PAD   1
 #endif
 
-// Hatch line spacing for the 1km background bars. Matches the night-shading
-// stride for visual consistency.
-// Same base + height scaling as the forecast night hatch (see hatch.h). The radar's axis
-// is 12px at the TOP, so a radar plot is ~2px shorter than a forecast plot in the same
-// band and therefore scales marginally more gently off the shared baseline. That is
-// accepted: they are different plots, and the gap is under one stride step.
+// Hatch line spacing for the 1km background bars: same base + height scaling as the
+// forecast night hatch (see hatch.h), but NOT the same stride at a given band height —
+// the radar's axis is 12px at the TOP versus the forecast's 10px at the bottom (plus
+// emery's 10px bottom pad), so the radar plot is shorter than the forecast plot in the
+// same band and scales marginally more gently off the shared baseline. That is accepted:
+// they are different plots, and the gap is under one stride step (band 65 → forecast 8,
+// radar 7).
 #define RADAR_HATCH_SPACING(plot_h) \
     hatch_stride_scaled(theme_is_bw() ? 7 : 6, HATCH_BASE_PLOT_H, (plot_h))
 
