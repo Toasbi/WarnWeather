@@ -21,4 +21,13 @@ void main_window_relayout(void);
 // next full redraw.
 void main_window_apply_theme(void);
 
+#if defined(PBL_HEALTH)
+// Recompute + repaint the health graph if it is the view currently on screen;
+// a no-op otherwise. Call after a settings save that can change the graph's
+// compute (e.g. the HR scale) so it re-derives from the cache instead of
+// rendering stale statics until the next minute tick. Gated on visibility
+// because health_graph_layer_refresh() isn't free — it rescans the cache.
+void main_window_refresh_health_graph(void);
+#endif
+
 void main_window_destroy();

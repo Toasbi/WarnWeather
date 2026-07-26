@@ -534,6 +534,19 @@ void main_window_refresh() {
     top_status_layer_refresh();
 }
 
+#if defined(PBL_HEALTH)
+// See main_window.h. Reuses the same ViewSpec -> LayerVisibility derivation as the
+// minute handler's health_graph refresh (above) rather than a fresh check. Called once
+// from app_message.c's config_dirty block (not folded into main_window_refresh(), which
+// that same block already invokes twice per save via main_window_apply_top_view() — that
+// would double the (non-free) recompute on every settings save).
+void main_window_refresh_health_graph(void) {
+    ViewSpec spec = current_view_spec();
+    LayerVisibility v = layout_visibility(&spec);
+    if (v.health_graph) { health_graph_layer_refresh(); }
+}
+#endif
+
 void main_window_destroy() {
     tick_timer_service_unsubscribe();
     window_destroy(s_main_window);

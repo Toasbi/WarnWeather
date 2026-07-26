@@ -399,6 +399,13 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
         // health_mode may have been changed (e.g. to off) while the alternate view is
         // shown; re-apply the view so the watch falls back to forecast immediately.
         main_window_apply_top_view();
+#if defined(PBL_HEALTH)
+        // A changed HR scale (or other graph-affecting setting) must re-derive from the
+        // cache, not repaint the already-blanked/rescaled statics from before the save.
+        // Runs after main_window_apply_top_view() so the visibility check inside sees
+        // this save's final view (a config change can also move the cycle cursor).
+        main_window_refresh_health_graph();
+#endif
     }
     if (forecast_dirty || notice_dirty) {
         loading_layer_refresh();

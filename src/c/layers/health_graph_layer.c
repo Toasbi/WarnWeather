@@ -295,10 +295,11 @@ static void health_graph_compute(bool report_width) {
     // excursion instead of plotting it OUTSIDE the plot rect, and hr_clamp_draw
     // can dot the edge so a break can't be misread as a genuinely flat hour.
     //
-    // This belongs here, not in the update proc: a settings save already runs
-    // main_window_refresh() -> health_graph_layer_refresh() -> this function, so a
-    // new scale re-reads raw values from the cache and re-derives the flags.
-    // Clamping at render time would instead see already-blanked values on the
+    // This belongs here, not in the update proc: a settings save runs
+    // main_window_refresh_health_graph() -> health_graph_layer_refresh() -> this
+    // function whenever the graph is on screen (see app_message.c's config_dirty
+    // block), so a new scale re-reads raw values from the cache and re-derives the
+    // flags. Clamping at render time would instead see already-blanked values on the
     // second redraw and could never recover the original readings.
     hr_scale_resolve(config_get()->hr_scale, HEALTH_HR_LO, HEALTH_HR_HI,
                      &s_hr_lo, &s_hr_hi);
