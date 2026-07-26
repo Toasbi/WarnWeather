@@ -32,7 +32,7 @@ const EXPECTED_KEYS = [
   'weekStartDay','firstWeek','colorToday','colorSunday','colorSaturday','holidaysEnabled','colorUSFederal',
   'holidayCountry','holidayRegion',
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','fetchNoticeAck','locationMode','location',
-  'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','secondaryLine','secondaryLineFill','windScale','thirdLine',
+  'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','windScale','thirdLine',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','rainCountdownHorizon',
   'layoutPreset','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear','reset',
   'statusForecastLeft','statusForecastLeftCountdown','statusForecastMid','statusForecastMidCountdown','statusForecastRight','statusForecastRightCountdown',
@@ -241,6 +241,39 @@ test("Health Status Bar slots show only when a dedicated Health view is enabled"
     assert.equal(showWhen.isVisible(item, Object.assign({ healthMode: 'slot' }, env)), false, k + ' hidden for slot');
     assert.equal(showWhen.isVisible(item, Object.assign({ healthMode: 'off' }, env)), false, k + ' hidden for off');
   });
+});
+
+test('hrScale is a range slider gated to HR hardware and the graph mode', () => {
+  const it = byKey('hrScale');
+  assert.ok(it, 'hrScale item exists');
+  assert.equal(it.type, 'range');
+  // Default matches the watch's HEALTH_HR_LO/HEALTH_HR_HI, so an upgrade is a no-op.
+  assert.equal(it.defaultValue, '40-180');
+  assert.equal(it.min, 30);
+  assert.equal(it.max, 220);
+  assert.equal(it.step, 5);
+  assert.equal(it.minSpan, 50);
+  assert.equal(it.unit, 'BPM');
+  // The HR *line* only exists in the graph, and only sensor watches ever have data.
+  assert.deepEqual(it.showWhen, {
+    all: [{ env: 'hr' }, { key: 'healthMode', eq: 'all' }],
+  });
+});
+
+test('hrScale is hidden on aplite and on sensorless watches', () => {
+  const it = byKey('hrScale');
+  const S = { healthMode: 'all' };
+  const vis = (plat) => showWhen.isVisible(it, Object.assign({}, S, {
+    env: platform.computeEnv({ platform: plat }),
+  }));
+  assert.equal(vis('diorite'), true, 'Pebble 2 has an HR sensor');
+  assert.equal(vis('emery'), true, 'Pebble Time 2 has an HR sensor');
+  assert.equal(vis('aplite'), false, 'aplite has no health at all');
+  assert.equal(vis('basalt'), false, 'no HR sensor -> no scale to set');
+  // Right platform, wrong mode.
+  assert.equal(showWhen.isVisible(it, {
+    healthMode: 'status', env: platform.computeEnv({ platform: 'diorite' }),
+  }), false, 'no graph in status mode');
 });
 
 test('radar tab is gated to radar-capable platforms', () => {

@@ -637,6 +637,22 @@ module.exports = {
                 },
                 options: [['Off', 'off'], ['Status slots only', 'slot'], ['Status bar', 'status'], ['Status + Graph (BETA)', 'all']],
                 onChange: 'resetStatusHealth'
+            }, {
+                type: 'range',
+                messageKey: 'hrScale',
+                label: 'Heart-rate scale',
+                // Defaults to the watch's own HEALTH_HR_LO/HEALTH_HR_HI
+                // (src/c/layers/health_graph_layer.c) so an upgrade changes nothing;
+                // the watch treats an unset value as those same constants.
+                defaultValue: '40-180',
+                min: 30, max: 220, step: 5, minSpan: 50, unit: 'BPM',
+                hint: 'The top and bottom of the heart-rate line in the health graph. '
+                    + 'A narrower range makes small changes visible; hours outside it '
+                    + 'are drawn as dots on the edge.',
+                // The HR line lives only in the graph ('all'), and only emery/diorite
+                // have a sensor (platform.js HR_PLATFORMS) — on anything else the line
+                // is permanently absent, so a scale for it would be inert.
+                showWhen: {all: [{env: 'hr'}, {key: 'healthMode', eq: 'all'}]}
             }]
         }]
     }, {
