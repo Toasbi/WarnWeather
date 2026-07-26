@@ -33,6 +33,8 @@ cc $CFLAGS test/c/status_line_test.c src/c/appendix/status_line.c -o build/host/
 build/host/status_line_test
 cc $CFLAGS test/c/status_threshold_test.c src/c/appendix/status_threshold.c -o build/host/status_threshold_test
 build/host/status_threshold_test
+cc $CFLAGS test/c/hr_scale_test.c src/c/appendix/hr_scale.c -o build/host/hr_scale_test
+build/host/hr_scale_test
 cc $CFLAGS test/c/status_row_layout_test.c src/c/layers/status_row_layout.c -o build/host/status_row_layout_test
 build/host/status_row_layout_test
 cc $CFLAGS test/c/status_row_alloc_test.c src/c/appendix/status_row_alloc.c -o build/host/status_row_alloc_test
