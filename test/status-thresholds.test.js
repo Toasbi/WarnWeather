@@ -178,3 +178,21 @@ test('buildStatusLines bakes STATUS_LEVELS_UINT8 into the weather payload', () =
     { threshAqiWarn: '100', threshAqiDanger: '200' }, { platform: 'basalt' });
   assert.deepEqual(payload.STATUS_LEVELS_UINT8, [1]);   // AQI warn in bits 0-1
 });
+
+test('buildStatusLines omits STATUS_LEVELS_UINT8 on aplite (highlight compiled out)', () => {
+  // aplite has no WW_THRESHOLD_HIGHLIGHT, so its inbox handler for this tuple is
+  // gone: sending the byte would cost 8 B of its inbox bundle for nothing. The four
+  // status-line blobs (the 'status' dedupe category's other keys) still go out.
+  const payload = { AQI_TREND: [150] };
+  statusLines.buildStatusLines(payload,
+    { threshAqiWarn: '100', threshAqiDanger: '200' }, { platform: 'aplite' });
+  assert.equal(Object.prototype.hasOwnProperty.call(payload, 'STATUS_LEVELS_UINT8'), false);
+  assert.ok(Array.isArray(payload.STATUS_LINE_1_UINT8), 'status lines still packed');
+});
+
+test('buildStatusLines keeps STATUS_LEVELS_UINT8 for an unknown watchInfo', () => {
+  const payload = { AQI_TREND: [150] };
+  statusLines.buildStatusLines(payload,
+    { threshAqiWarn: '100', threshAqiDanger: '200' }, null);
+  assert.deepEqual(payload.STATUS_LEVELS_UINT8, [1]);
+});

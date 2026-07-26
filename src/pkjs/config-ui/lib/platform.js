@@ -19,6 +19,15 @@ var NO_RADAR_PLATFORMS = { aplite: true };
 // polarities. Keep in lockstep with the C `#if defined(WW_THEME_POLARITY)`
 // guard in theme.h (wscript defines the macro for every platform except aplite).
 var NO_THEME_POLARITY_PLATFORMS = { aplite: true };
+// Platforms where the watch compiles status-slot threshold highlighting out (no
+// WW_THRESHOLD_HIGHLIGHT): aplite (Pebble Classic/Steel). Its status rows are
+// painted by the frozen lean twin layers/status_row_aplite.c, which cannot draw a
+// warn outline or a danger fill, and the image had no room for the feature (21800 B
+// launch guard). The whole threshold card is hidden there, so aplite is never
+// offered thresholds that would silently do nothing. Keep in lockstep with the C
+// `#if defined(WW_THRESHOLD_HIGHLIGHT)` guards (wscript defines the macro for every
+// platform except aplite).
+var NO_THRESHOLD_PLATFORMS = { aplite: true };
 // Platforms whose hardware includes a heart-rate sensor: emery (Pebble Time 2)
 // and diorite (Pebble 2 — the non-SE model). The config UI can't tell a Pebble 2
 // from a Pebble 2 SE (both report 'diorite'), so diorite is treated as HR-capable;
@@ -55,6 +64,14 @@ function isRadarPlatform(platform) { return !NO_RADAR_PLATFORMS[platform]; }
  */
 function isThemePolarityPlatform(platform) { return !NO_THEME_POLARITY_PLATFORMS[platform]; }
 /**
+ * Whether a Pebble platform renders status-slot threshold highlighting
+ * (WW_THRESHOLD_HIGHLIGHT). Unknown platforms are treated as capable so a missing
+ * watchInfo never hides a real feature.
+ * @param {string} platform Platform name (e.g. 'basalt', 'aplite').
+ * @returns {boolean} True if the platform can draw the warn outline / danger fill.
+ */
+function isThresholdPlatform(platform) { return !NO_THRESHOLD_PLATFORMS[platform]; }
+/**
  * Whether a Pebble platform includes a heart-rate sensor (emery / diorite).
  * Unknown platforms are treated as non-HR (conservative — avoids offering a
  * permanently-"--" slot on an unrecognized watch).
@@ -65,10 +82,10 @@ function isHrPlatform(platform) { return Boolean(HR_PLATFORMS[platform]); }
 /**
  * Derive the config-UI environment facts from a Pebble watchInfo object.
  * @param {Object} watchInfo Pebble watchInfo; its .platform names the model.
- * @returns {{color: boolean, round: boolean, platform: string, health: boolean, radar: boolean, themePolarity: boolean, hr: boolean}} Env: color display, round (chalk), platform name, health support, radar support, theme light-polarity support, and heart-rate sensor support.
+ * @returns {{color: boolean, round: boolean, platform: string, health: boolean, radar: boolean, themePolarity: boolean, hr: boolean, thresholds: boolean}} Env: color display, round (chalk), platform name, health support, radar support, theme light-polarity support, heart-rate sensor support, and threshold-highlight support.
  */
 function computeEnv(watchInfo) {
   var p = watchInfo && watchInfo.platform ? watchInfo.platform : '';
-  return { color: isColorPlatform(p), round: p === 'chalk', platform: p, health: isHealthPlatform(p), radar: isRadarPlatform(p), themePolarity: isThemePolarityPlatform(p), hr: isHrPlatform(p) };
+  return { color: isColorPlatform(p), round: p === 'chalk', platform: p, health: isHealthPlatform(p), radar: isRadarPlatform(p), themePolarity: isThemePolarityPlatform(p), hr: isHrPlatform(p), thresholds: isThresholdPlatform(p) };
 }
-module.exports = { isColorPlatform: isColorPlatform, isHealthPlatform: isHealthPlatform, isRadarPlatform: isRadarPlatform, isThemePolarityPlatform: isThemePolarityPlatform, isHrPlatform: isHrPlatform, computeEnv: computeEnv };
+module.exports = { isColorPlatform: isColorPlatform, isHealthPlatform: isHealthPlatform, isRadarPlatform: isRadarPlatform, isThemePolarityPlatform: isThemePolarityPlatform, isHrPlatform: isHrPlatform, isThresholdPlatform: isThresholdPlatform, computeEnv: computeEnv };

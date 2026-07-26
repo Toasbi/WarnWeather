@@ -303,7 +303,14 @@ function buildStatusLines(payload, settings, watchInfo) {
   }
   // Packed weather-kind threshold levels: computed here because the raw
   // AQI/pollen/wind/gust values exist only phone-side (the watch gets text).
-  payload.STATUS_LEVELS_UINT8 = thresholds.packWeatherLevels(payload, settings);
+  // Skipped for a watch that compiles the highlight out (aplite — no
+  // WW_THRESHOLD_HIGHLIGHT, so its inbox handler for this tuple is gone too):
+  // sending it would only spend BLE bytes and inbox budget on a tuple that is
+  // read and discarded. The 'status' category still carries the four line blobs,
+  // so the change detector is unaffected.
+  if (env.thresholds) {
+    payload.STATUS_LEVELS_UINT8 = thresholds.packWeatherLevels(payload, settings);
+  }
   return payload;
 }
 

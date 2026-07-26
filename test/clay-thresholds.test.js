@@ -41,3 +41,21 @@ test('the blob matches buildSettingsBlob for configured settings', () => {
   assert.equal(payload.CLAY_THRESHOLDS_UINT8[0] & 1, 1);          // AQI enabled
   assert.equal(payload.CLAY_THRESHOLDS_UINT8[0] & (1 << 4), 16);  // Steps enabled
 });
+
+test('aplite gets no threshold blob at all (it compiles the highlight out)', () => {
+  // aplite has no WW_THRESHOLD_HIGHLIGHT: its status-row twin cannot draw the
+  // highlight and its inbox handler for this tuple is gone, so the 34 B (27-byte
+  // blob + tuple header) must not ride its Clay bundle.
+  const payload = buildClayPayload(BASE, { platform: 'aplite' },
+    new Date('2026-07-22T00:00:00Z'));
+  assert.equal(Object.prototype.hasOwnProperty.call(payload, 'CLAY_THRESHOLDS_UINT8'), false);
+  // The rest of the Clay payload is unchanged.
+  assert.equal(payload.CLAY_THEME, 0);
+});
+
+test('an unknown/absent watchInfo still gets the blob (never hide a real feature)', () => {
+  [null, undefined, {}].forEach((wi) => {
+    const payload = buildClayPayload(BASE, wi, new Date('2026-07-22T00:00:00Z'));
+    assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 27, String(wi));
+  });
+});

@@ -8,6 +8,7 @@ var paletteWire = require('./weather/palette-wire.js');
 var viewCycle = require('./view-cycle.js');
 var resolveInk = require('./resolve-ink.js').resolveInk;
 var statusThresholds = require('./status-thresholds.js');
+var platformLib = require('./config-ui/lib/platform.js');
 
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
 var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
@@ -90,8 +91,14 @@ function buildClayPayload(settings, watchInfo, now) {
     payload.RADAR_PALETTE_UINT8 = palette.RADAR_PALETTE_UINT8;
 
     // Threshold-highlight settings (enabled bits + colors + health-kind
-    // thresholds) — settings-derived, so they ride the Clay message.
-    payload.CLAY_THRESHOLDS_UINT8 = statusThresholds.buildSettingsBlob(settings);
+    // thresholds) — settings-derived, so they ride the Clay message. Omitted for a
+    // watch that compiles the highlight out (aplite): its settings screen hides the
+    // whole threshold card and its inbox handler for this tuple is gone, so the
+    // 34 B (27 blob + tuple header) stay out of its Clay bundle. An unknown platform
+    // is treated as capable (computeEnv), so a missing watchInfo never drops it.
+    if (platformLib.computeEnv(watchInfo).thresholds) {
+        payload.CLAY_THRESHOLDS_UINT8 = statusThresholds.buildSettingsBlob(settings);
+    }
 
     // Pack the cycle into the three wire bytes (unused slots → 0 = disabled).
     payload.CLAY_VIEW_0 = viewCycle.packSpec(cycle[0] || null);
