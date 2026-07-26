@@ -436,6 +436,112 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return year + '-' + datePad2(month) + '-' + datePad2(day);
   }
 
+  // ---- range (dual-thumb) value helpers ------------------------------------
+  // A range item stores BOTH values in ONE messageKey as "lo-hi" (the same
+  // one-key-composite-string shape type 'date' uses for "YYYY-MM-DD"), so
+  // hydration / serialization / showWhen stay untouched. Every numeric rule
+  // (step snapping, bounds, minimum span, no crossing) lives here so the DOM
+  // glue below can stay dumb and this stays unit-testable without a DOM.
+
+  /**
+   * Read an item's step, defaulting to 1.
+   * @param {Object} item Range schema item.
+   * @returns {number} Step size (>= 1).
+   */
+  function rangeStep(item) {
+    var s = (item && item.step) ? Number(item.step) : 1;
+    return (isFinite(s) && s > 0) ? s : 1;
+  }
+
+  /**
+   * Read an item's minimum span between the thumbs, defaulting to 1.
+   * @param {Object} item Range schema item.
+   * @returns {number} Minimum hi - lo.
+   */
+  function rangeMinSpan(item) {
+    var m = (item && item.minSpan) ? Number(item.minSpan) : 1;
+    return (isFinite(m) && m > 0) ? m : 1;
+  }
+
+  /**
+   * Snap a value to the item's step grid (measured from min) and clamp it to
+   * [min, max].
+   * @param {number} v Raw value.
+   * @param {number} min Lower bound.
+   * @param {number} max Upper bound.
+   * @param {number} step Step size.
+   * @returns {number} Snapped, bounded value.
+   */
+  function snapToStep(v, min, max, step) {
+    var st = (isFinite(step) && step > 0) ? step : 1;
+    var n = Math.round((Number(v) - min) / st);
+    var out = min + n * st;
+    if (out < min) { out = min; }
+    if (out > max) { out = max; }
+    return out;
+  }
+
+  /**
+   * Serialize a range to its stored form.
+   * @param {{lo:number, hi:number}} range Range.
+   * @returns {string} "lo-hi".
+   */
+  function formatRange(range) { return range.lo + '-' + range.hi; }
+
+  /**
+   * Parse a stored "lo-hi" string. An unparseable, inverted or too-narrow pair
+   * falls back to the item's defaultValue, then to its bounds — a stored value
+   * can predate a change to min/max/minSpan, and a control rendered from a
+   * broken pair would strand a thumb outside the track.
+   * @param {*} value Stored value.
+   * @param {Object} item Range schema item (min/max/minSpan/defaultValue).
+   * @returns {{lo:number, hi:number}} Valid range.
+   */
+  function parseRange(value, item) {
+    var min = Number(item.min), max = Number(item.max);
+    var span = rangeMinSpan(item);
+    var m = /^(-?\d+)-(-?\d+)$/.exec(String(value == null ? '' : value));
+    if (m) {
+      var lo = parseInt(m[1], 10), hi = parseInt(m[2], 10);
+      if (lo >= min && hi <= max && hi - lo >= span) { return { lo: lo, hi: hi }; }
+    }
+    // One level of fallback only: recursing on defaultValue would loop if the
+    // default itself is broken, so a bad default lands on the bounds.
+    if (item.defaultValue != null && String(item.defaultValue) !== String(value)) {
+      var d = /^(-?\d+)-(-?\d+)$/.exec(String(item.defaultValue));
+      if (d) {
+        var dlo = parseInt(d[1], 10), dhi = parseInt(d[2], 10);
+        if (dlo >= min && dhi <= max && dhi - dlo >= span) { return { lo: dlo, hi: dhi }; }
+      }
+    }
+    return { lo: min, hi: max };
+  }
+
+  /**
+   * Move one thumb. Snaps to the step grid, clamps to [min, max], and stops the
+   * moved thumb minSpan away from the other one instead of letting them cross.
+   * @param {{lo:number, hi:number}} range Current range (not mutated).
+   * @param {string} which 'lo' or 'hi'.
+   * @param {number} value Requested new value for that thumb.
+   * @param {Object} item Range schema item (min/max/step/minSpan).
+   * @returns {{lo:number, hi:number}} The new range.
+   */
+  function moveThumb(range, which, value, item) {
+    var min = Number(item.min), max = Number(item.max);
+    var step = rangeStep(item), span = rangeMinSpan(item);
+    var v = snapToStep(value, min, max, step);
+    if (which === 'lo') {
+      var loCap = range.hi - span;
+      if (v > loCap) { v = loCap; }
+      if (v < min) { v = min; }
+      return { lo: v, hi: range.hi };
+    }
+    var hiFloor = range.lo + span;
+    if (v < hiFloor) { v = hiFloor; }
+    if (v > max) { v = max; }
+    return { lo: range.lo, hi: v };
+  }
+
   /**
    * @param {Object} item Date schema item.
    * @param {{value:*, openDate:?string}} view Render state.
@@ -1467,6 +1573,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     renderSelectModal: renderSelectModal, renderDateModal: renderDateModal,
     formatDateValue: formatDateValue, parseDateParts: parseDateParts,
     dateValueFromParts: dateValueFromParts,
+    parseRange: parseRange, formatRange: formatRange,
+    snapToStep: snapToStep, moveThumb: moveThumb,
     renderTabBar: renderTabBar, renderBody: renderBody, resolveOptionsFrom: resolveOptionsFrom,
     resolveDefaultFrom: resolveDefaultFrom,
     resolveTheme: resolveTheme
@@ -1484,6 +1592,8 @@ if (typeof module !== 'undefined' && module.exports) {
     formatDateValue: PConf.engine.formatDateValue,
     parseDateParts: PConf.engine.parseDateParts,
     dateValueFromParts: PConf.engine.dateValueFromParts,
+    parseRange: PConf.engine.parseRange, formatRange: PConf.engine.formatRange,
+    snapToStep: PConf.engine.snapToStep, moveThumb: PConf.engine.moveThumb,
     renderTabBar: PConf.engine.renderTabBar, renderBody: PConf.engine.renderBody,
     resolveOptionsFrom: PConf.engine.resolveOptionsFrom,
     resolveDefaultFrom: PConf.engine.resolveDefaultFrom,
