@@ -106,5 +106,9 @@
   "1.9.3": {
     "title": "Swap clock & status, no flick",
     "body": "Added swapping clock and status bar in the compact view so the forecast slots can stay close to graph."
+  },
+  "1.10.0": {
+    "title": "Set your heart-rate scale",
+    "body": "The health graph's heart-rate line now uses a range you choose, so small changes are actually visible. Hours outside it show as dots on the edge."
   }
 }

@@ -19,7 +19,7 @@ RAIN RADAR
 
 HEALTH VIEW (requires a health-capable watch; heart rate needs a heart-rate sensor)
 - Health status for steps, sleep, distance and heart rate
-- Last-24h health chart with steps per hour, heart rate, and a sleep band
+- Last-24h health chart with steps per hour, heart rate on a scale you set, and a sleep band
 
 CALENDAR
 - Multi-week calendar with current-day highlight

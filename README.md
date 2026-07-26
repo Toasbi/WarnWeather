@@ -35,7 +35,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 **Health view** *(requires a health-capable watch; heart rate needs a heart-rate sensor)*
 * Health status for steps, sleep, distance, and heart rate
-* Last-24h health chart with steps per hour, heart rate, and a sleep band
+* Last-24h health chart with steps per hour, heart rate on a scale you set, and a sleep band
 
 **Calendar**
 * Multi-week calendar with current-day highlight
