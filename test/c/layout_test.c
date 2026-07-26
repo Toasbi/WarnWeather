@@ -111,34 +111,34 @@ static void golden_rects(void) {
     // ── emery (200x228), fc_band_h 24; pads x2/top2/bottom4; content 188 → 60/60/68 ──
     L = layout_compute(BOUNDS, LAYOUT_TIER_FULL, false, FC_BAND_H);
     if (s_dump) printf("  FULL !dual (emery)\n");
-    // top_status 23 = status_min_band_h(Gothic 24), the shortest clamp-free strip band; the
-    // calendar abuts it at y=25 (was 22) and keeps its 60px / 3 rows, so the 3px come out of
+    // top_status 21 = status_min_band_h(Gothic 24), the shortest clamp-free strip band; the
+    // calendar abuts it at y=23 (was 22) and keeps its 60px / 3 rows, so the 1px comes out of
     // the calendar->clock gap, which has room to spare on emery. Everything below the strip
     // (clock, status band, forecast) is anchored to CALENDAR_STATUS_HEIGHT and unchanged.
-    check("full.top_status",   L.top_status,   2, 2, 196, 23);
-    check("full.top",          L.top,          2, 25, 196, 60);
+    check("full.top_status",   L.top_status,   2, 2, 196, 21);
+    check("full.top",          L.top,          2, 23, 196, 60);
     check("full.status",       L.status,       2, 132, 196, 24);
     check("full.status_lower", L.status_lower, 2, 132, 196, 24);
     check("full.time",         L.time,         2, 82, 196, 60);
     check("full.bottom",       L.bottom,       2, 156, 198, 68);
     check("full.loading",      L.loading,      2, 132, 196, 92);  // was (2,142,196,82): unified rule = status top → bottom pad
-    check("full.radar",        L.radar,        2, 25, 196, 60);
+    check("full.radar",        L.radar,        2, 23, 196, 60);
 
     L = layout_compute(BOUNDS, LAYOUT_TIER_COMPACT, false, FC_BAND_H);
     if (s_dump) printf("  COMPACT !dual (emery)\n");
-    check("compact.top",     L.top,     2, 25, 196, 40);
-    // Lone status: 23 = status_min_band_h(Gothic 24) instead of the calendar_h/3 slot's 20,
-    // bottom-anchored 3px into the clock band (time_y 82 + 3 - 23). Its bottom row stays 84 as
-    // before, so the seated line does not move; the 3 extra px grow up into the calendar band.
-    check("compact.status",  L.status,  2, 62, 196, 23);
+    check("compact.top",     L.top,     2, 23, 196, 40);
+    // Lone status: 21 = status_min_band_h(Gothic 24) instead of the calendar_h/3 slot's 20,
+    // bottom-anchored 3px into the clock band (time_y 82 + 3 - 21). Its bottom row stays 84 as
+    // before, so the seated line does not move; the 1 extra px grows up into the calendar band.
+    check("compact.status",  L.status,  2, 64, 196, 21);
     check("compact.time",    L.time,    2, 82, 196, 60);
     check("compact.bottom",  L.bottom,  2, 142, 198, 82);
     check("compact.loading", L.loading, 2, 142, 196, 82);
-    check("compact.radar",   L.radar,   2, 25, 196, 40);
+    check("compact.radar",   L.radar,   2, 23, 196, 40);
 
     L = layout_compute(BOUNDS, LAYOUT_TIER_NONE, false, FC_BAND_H);
     if (s_dump) printf("  NONE !dual (emery)\n");
-    check("none.top",     L.top,     2, 25, 196, 0);
+    check("none.top",     L.top,     2, 23, 196, 0);
     check("none.time",    L.time,    2, 26, 196, 60);   // 23 + NONE_TIME_DROP 3
     check("none.status",  L.status,  2, 83, 196, 30);
     check("none.bottom",  L.bottom,  2, 113, 198, 111);
@@ -287,12 +287,12 @@ static void peek_tests(void) {
     check("peek.status",     L.status,     0, 54, 144, 20);
     check("peek.bottom",     L.bottom,     0, 74, 144, 43);
 #else
-    // strip 23; available 117-23-24=70; clock 70*45/96=32; status@55 h24; forecast@79 h38.
-    check("peek.top_status", L.top_status, 0, 0,  144, 23);
-    check("peek.top",        L.top,        0, 23, 144, 0);
-    check("peek.time",       L.time,       0, 23, 144, 32);
-    check("peek.status",     L.status,     0, 55, 144, 24);
-    check("peek.bottom",     L.bottom,     0, 79, 144, 38);
+    // strip 21; available 117-21-24=72; clock 72*45/96=33; status@54 h24; forecast@78 h39.
+    check("peek.top_status", L.top_status, 0, 0,  144, 21);
+    check("peek.top",        L.top,        0, 21, 144, 0);
+    check("peek.time",       L.time,       0, 21, 144, 33);
+    check("peek.status",     L.status,     0, 54, 144, 24);
+    check("peek.bottom",     L.bottom,     0, 78, 144, 39);
 #endif
 
     // A statusless view: clock + body only, status band collapses to zero height.
@@ -317,11 +317,11 @@ static void peek_tests(void) {
     check("peekDual.status_lower", Ld.status_lower, 0, 65, 144, 20);
     check("peekDual.bottom",       Ld.bottom,       0, 85, 144, 32);
 #else
-    // strip 23; available 117-23-48=46; clock 46*45/96=21; health@44 weather@68 (h24); fc@92 h25.
-    check("peekDual.time",         Ld.time,         0, 23, 144, 21);
-    check("peekDual.status",       Ld.status,       0, 44, 144, 24);
-    check("peekDual.status_lower", Ld.status_lower, 0, 68, 144, 24);
-    check("peekDual.bottom",       Ld.bottom,       0, 92, 144, 25);
+    // strip 21; available 117-21-48=48; clock 48*45/96=22; health@43 weather@67 (h24); fc@91 h26.
+    check("peekDual.time",         Ld.time,         0, 21, 144, 22);
+    check("peekDual.status",       Ld.status,       0, 43, 144, 24);
+    check("peekDual.status_lower", Ld.status_lower, 0, 67, 144, 24);
+    check("peekDual.bottom",       Ld.bottom,       0, 91, 144, 26);
 #endif
 }
 
@@ -635,17 +635,30 @@ static void seating_no_lift(void) {
     // rather than as a silent 1px drift in every band.
     expect("seating.min_band.gothic14", status_min_band_h(14) == 13, true);
     expect("seating.min_band.gothic18", status_min_band_h(18) == 17, true);
-    expect("seating.min_band.gothic24", status_min_band_h(24) == 23, true);
-    // Teeth check: the pre-resize heights really did clamp (top strip 14/21, lone compact
-    // 15/20). If these ever stop clamping the sweep below has become vacuous.
+    // 21, not 23: status_glyph_below(24) models the MEASURED Gothic-24 cap (14 px, centre on
+    // the content-box bottom minus 7) instead of the retired 5/9 fraction, which put the cap
+    // centre 1 px high and so over-stated the reserve emery's bands need by 1 px each side.
+    expect("seating.min_band.gothic24", status_min_band_h(24) == 21, true);
+    // Teeth check: the pre-resize heights really did clamp (top strip 14, lone compact 15 /
+    // 20). If these ever stop clamping the sweep below has become vacuous. emery's pre-resize
+    // STRIP band (21) is deliberately absent: under the measured cap metric it is exactly
+    // status_min_band_h(Gothic 24), i.e. it never actually clamped and abe81ac grew it on the
+    // strength of the old metric's error alone.
     expect("seating.old_strip_clamped",
            status_glyph_center_y(status_seat_y(14, 18), 18) != 14 / 2, true);
     expect("seating.old_lone_compact_clamped",
            status_glyph_center_y(status_seat_y(15, 18), 18) != 15 / 2, true);
-    expect("seating.old_emery_strip_clamped",
-           status_glyph_center_y(status_seat_y(21, 24), 24) != 21 / 2, true);
     expect("seating.old_emery_lone_compact_clamped",
            status_glyph_center_y(status_seat_y(20, 24), 24) != 20 / 2, true);
+    // …and the general form of that teeth check, independent of any historical band:
+    // status_min_band_h() is TIGHT, not merely sufficient — one pixel less clamps at every
+    // status font, so no band the layout derives from it carries a spare row it could lose.
+    const int fonts[] = { 14, 18, 24 };
+    for (unsigned f = 0; f < sizeof(fonts) / sizeof(fonts[0]); f++) {
+        int c = fonts[f], short_band = status_min_band_h(c) - 1;
+        expect("seating.min_band_is_tight",
+               status_glyph_center_y(status_seat_y(short_band, c), c) != short_band / 2, true);
+    }
     // Teeth for the strip's lift itself (expect_strip_lift would pass vacuously at 0): it has to
     // be a real move, and it has to keep the cap clear of the screen's top edge. MEASURED on
     // basalt at abe81ac: the cap-centred Gothic-18 line inks rows 3..13 in its 17px band, so the

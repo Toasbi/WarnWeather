@@ -30,7 +30,7 @@
 #define STATUS_LARGE_FONT_H 18
 #endif
 // The band those rows need: the shortest height at which status_seat_y()'s descender clamp
-// stops LIFTING the line off the band centre (17 here, 23 on emery — constant-folded, the
+// stops LIFTING the line off the band centre (17 here, 21 on emery — constant-folded, the
 // argument is a literal). Under it the row reads high and its gaps to the calendar above /
 // graph below go asymmetric; the clamp used to fire on the top strip (14) and on the lone
 // compact band (15 / 20).

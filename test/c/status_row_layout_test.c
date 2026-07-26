@@ -239,25 +239,25 @@ static void highlight_extent_is_cap_centred(void) {
     expect_extent("hl.emery.fullCal", 0, 20, 10, 0, 20);        // Gothic 18
 
     // ODD bands — the top strip and the lone compact row (both 17 = status_min_band_h(G18),
-    // 23 = status_min_band_h(G24) on emery), plus the 15px dense upper row. The cap centre
+    // 21 = status_min_band_h(G24) on emery), plus the 15px dense upper row. The cap centre
     // still IS band_h/2, but band_h/2 truncates, so the box comes out 1 px shorter than the
-    // band, symmetric about the cap. These bands used to CLAMP (14/15 and 20/21 on emery),
+    // band, symmetric about the cap. These bands used to CLAMP (14/15 and 20 on emery),
     // which lifted the cap 1.0-1.5 px and shrank the box by twice that.
     expect_extent("hl.basalt.compactCal", 0, 17, 8, 0, 16);      // Gothic 18, was 15 / cap 6
     expect_extent("hl.basalt.dense.upper", 0, 15, 7, 0, 14);     // Gothic 14, unchanged band
-    expect_extent("hl.emery.compactCal", 0, 23, 11, 0, 22);      // Gothic 24, was 20 / cap 8
+    expect_extent("hl.emery.compactCal", 0, 21, 10, 0, 20);      // Gothic 24, was 20 / cap 8
 
-    // The TOP STRIP: same 17 / 23 band as the lone compact row above, but its content seats
+    // The TOP STRIP: same 17 / 21 band as the lone compact row above, but its content seats
     // STATUS_TOP_STRIP_LIFT rows higher inside it (status_metrics.h — the strip's top edge is
     // the screen edge, so only the gap below it is visible). The box follows the cap, and
     // because it clamps SYMMETRICALLY about the cap it loses 2 * lift of height: the distance
     // up to the band top is now the binding one. Shorter by design — status_row.c must not
     // floor it, or the box would stop framing the ink it belongs to.
     expect_extent("hl.basalt.strip", 0, 17, 8 - STATUS_TOP_STRIP_LIFT, 0, 12);   // cap 6
-    expect_extent("hl.emery.strip", 0, 23, 11 - STATUS_TOP_STRIP_LIFT, 0, 18);   // cap 9
+    expect_extent("hl.emery.strip", 0, 21, 10 - STATUS_TOP_STRIP_LIFT, 0, 16);   // cap 8
     // Same cases in a band that does not start at 0 — geometry is band-relative.
     expect_extent("hl.compactCal.offset", 27, 17, 35, 27, 16);
-    expect_extent("hl.emery.compactCal.offset", 31, 23, 42, 31, 22);
+    expect_extent("hl.emery.compactCal.offset", 31, 21, 41, 31, 20);
 
     // Degenerate: a cap on or outside a band edge collapses instead of overflowing.
     expect_extent("hl.cap_at_top", 10, 20, 10, 10, 0);
