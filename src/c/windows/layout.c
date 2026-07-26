@@ -10,12 +10,22 @@
 #define WEIGHT_BOTTOM 51
 
 #define WEATHER_STATUS_HEIGHT 14
-// Compact + single-status (dual off): the lone status band's bottom overhangs the clock
-// band's blank top margin by this much, sitting it snug under the calendar and close to the
-// clock. Dual status keeps the health band flush with the clock band top (weather rides a
-// separate lower band) — see the guarded use below. Historically this was a downward nudge
-// added to a calendar-anchored top; it is now the band's bottom offset, which is what the
-// number always meant on screen and what keeps the row put when the band's height changes.
+// How far the REFERENCE compact status band's bottom overhangs the clock band's blank top
+// margin. The reference band is the clamp-free font-sized one (STATUS_LARGE_BAND_H), i.e. the
+// band a LONE compact row takes; COMPACT_STATUS_TOP_ABOVE_CLOCK below turns the pair into the
+// one row every compact preset seats its band's TOP on.
+//
+// This is the only taste knob on the clock side of the row and it cannot be derived: what it
+// spends is the clock's own air above its ink ((time_h - text_h)/2, at least 5px on the 144px
+// watches and 7px on emery — the binding font is Roboto), and time_layer.c measures that from
+// the SDK at render time, per time font. layout.c has no font calls (test/c/stub/pebble.h), so
+// the budget it may spend is a constant here rather than a computation. At 3 the reference band's
+// FLOOR — the deepest row a descender's tails can reach, since the clamp-free band holds cap +
+// tails exactly — still clears the clock's first inked row: floor 60 vs clock ink 63 on basalt,
+// 84 vs 89 on emery (clock rows MEASURED on the default Roboto, the tallest of the three time
+// fonts; the actual slot text in those captures inked no deeper than 58 / 81). See
+// .superpowers/sdd/dense-clearance-report.md. Deliberately NOT per preset: it used to be
+// applied to the lone row only, which is exactly the defect that report fixes.
 #define COMPACT_SINGLE_STATUS_NUDGE 3
 
 // Content height of the LARGE status font — the one the top date strip and a LONE compact
@@ -35,6 +45,28 @@
 // graph below go asymmetric; the clamp used to fire on the top strip (14) and on the lone
 // compact band (15 / 20).
 #define STATUS_LARGE_BAND_H status_min_band_h(STATUS_LARGE_FONT_H)
+
+// The row EVERY compact preset seats its upper status band's TOP on, as a distance above the
+// clock band's top edge (14 here, 18 on emery — constant-folded, both terms are literals).
+//
+// Why a shared TOP and not a shared bottom overhang: the band above it — the calendar — is
+// preset-independent (same cal_h, same rows, same font in every compact preset), so the
+// clearance the eye reads under the calendar is decided purely by where the status band's TOP
+// lands. Anchoring the BOTTOM instead made that clearance vary with the band's own height and
+// font: a LONE row takes STATUS_LARGE_BAND_H at the large font, a DUAL takes the shorter
+// calendar_h/3 at the smaller full-tier font, and only the lone case carried the nudge — so the
+// dual (compactDense) band top came out 1px higher on the 144px watches and 2px higher on emery,
+// putting its text and its threshold-highlight box that much closer to the calendar's last digit
+// row (MEASURED, both platforms). Anchoring the TOP makes the band's height and font irrelevant
+// to the gap: they now only decide how much of the row's own air sits BELOW its ink, which is
+// spent on the clock band's blank top margin where nothing is drawn.
+//
+// The value is the reference (lone) band's top expressed in the same terms it always had —
+// bottom at time_y + COMPACT_SINGLE_STATUS_NUDGE, height STATUS_LARGE_BAND_H — so the preset the
+// user signed off on does not move by a pixel, on either platform. STATUS_LARGE_BAND_H is fully
+// font-derived (status_min_band_h), which is what carries the number across Gothic 18 → 24
+// without a per-platform table; the nudge is the one taste term (see above).
+#define COMPACT_STATUS_TOP_ABOVE_CLOCK (STATUS_LARGE_BAND_H - COMPACT_SINGLE_STATUS_NUDGE)
 
 // Per-platform band data — everything that differs between the 168px watches and emery.
 //
@@ -170,18 +202,22 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool upper,
         // full: the status band rides directly above the forecast — size it from the font
         // (fc_band_h) and pin its bottom to the forecast top so the centred line clears the
         // graph by a constant margin, rising up into the clock band's slack. compact: the band
-        // drops into the freed 3rd calendar row between the 2-row calendar and the clock, and
-        // is BOTTOM-anchored to the clock band (which never moves) rather than top-anchored to
-        // the calendar's bottom (which slides down with the font-sized strip): the row then
-        // stays put when the strip grows, and a taller band grows up into the calendar band's
-        // bottom air instead of down into the clock. A LONE row takes the clamp-free font-sized
-        // band — its old calendar_h/3 slot was 2px (emery 3px) short and clamped the line — and
-        // a DUAL keeps calendar_h/3, which is already clamp-free at the smaller full-tier font
-        // both rows squeeze to. `time_y - calendar_h/3` is exactly the old `calendar_y + cal_h`.
+        // drops into the freed 3rd calendar row between the 2-row calendar and the clock, and is
+        // anchored to the clock band (which never moves) rather than to the calendar's bottom
+        // (which slides down with the font-sized strip), so the row stays put when the strip
+        // grows.
+        //
+        // HEIGHT and POSITION are independent here, and that is the point. A LONE row takes the
+        // clamp-free font-sized band — its old calendar_h/3 slot was 2px (emery 3px) short and
+        // clamped the line — and a DUAL keeps calendar_h/3, which is already clamp-free at the
+        // smaller full-tier font both rows squeeze to. But every compact preset seats that band's
+        // TOP on the same row (COMPACT_STATUS_TOP_ABOVE_CLOCK), so the clearance under the
+        // preset-independent calendar is the same whatever band and font the preset picked; the
+        // difference in height is absorbed at the BOTTOM, in the clock band's blank top margin.
+        // Anchoring the bottom instead made the gap vary per preset — the defect this fixes.
         int status_h = compact ? (two_rows ? (calendar_h / 3) : STATUS_LARGE_BAND_H) : fc_band_h;
-        int status_y = compact
-            ? (time_y + (two_rows ? 0 : COMPACT_SINGLE_STATUS_NUDGE) - status_h)
-            : (forecast_y - fc_band_h);
+        int status_y = compact ? (time_y - COMPACT_STATUS_TOP_ABOVE_CLOCK)
+                               : (forecast_y - fc_band_h);
 
         L.top = GRect(content_x, calendar_y, content_w, cal_h);
         L.status = GRect(content_x, status_y, content_w, status_h);

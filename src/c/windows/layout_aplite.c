@@ -28,6 +28,11 @@
 // clamp lifts the line off the band centre. Constant-folded — the argument is a literal.
 #define STATUS_LARGE_FONT_H 18
 #define STATUS_LARGE_BAND_H status_min_band_h(STATUS_LARGE_FONT_H)
+// The row every compact preset seats its upper status band's TOP on, as a distance above the
+// clock band's top edge (14 on aplite; see layout.c for the derivation and why the anchor is the
+// band's top rather than its bottom). aplite has a single compact band shape, so here this is
+// just the lone band's existing position restated — kept in lockstep with the base file.
+#define COMPACT_STATUS_TOP_ABOVE_CLOCK (STATUS_LARGE_BAND_H - COMPACT_SINGLE_STATUS_NUDGE)
 
 static void split_content(int content_h, const uint8_t weights[3],
                           int *calendar_h, int *time_h, int *bottom_h) {
@@ -147,12 +152,16 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
         int forecast_y = compact ? (time_y + time_h)
                                  : (time_y + time_h + (has_status ? WEATHER_STATUS_HEIGHT : 0));
         // compact: the lone status band takes the clamp-free font-sized height (its old
-        // calendar_h/3 slot was 2px short and clamped the line) and is BOTTOM-anchored to the
-        // clock band, which never moves — so the row stays exactly where it was and the extra
-        // height grows up into the calendar band's bottom air. aplite is never DUAL, so this is
-        // always the lone case. `time_y - calendar_h/3` is the old `calendar_y + cal_h`.
+        // calendar_h/3 slot was 2px short and clamped the line) and its TOP is anchored
+        // COMPACT_STATUS_TOP_ABOVE_CLOCK rows above the clock band, which never moves — so the
+        // row stays exactly where it was and the extra height grows up into the calendar band's
+        // bottom air. aplite is never DUAL, so this is always the lone case and the shared
+        // top-anchor is the same row the old bottom-anchor produced (time_y + 3 - 17 == time_y -
+        // 14): the preset-dependent crowding layout.c's version fixes cannot arise here, since
+        // there is no second compact band shape to diverge from. Spelled the same way as the base
+        // so the next hand-port lines up, and measured byte-identical on the aplite image.
         int status_h = compact ? STATUS_LARGE_BAND_H : fc_band_h;
-        int status_y = compact ? (time_y + COMPACT_SINGLE_STATUS_NUDGE - status_h)
+        int status_y = compact ? (time_y - COMPACT_STATUS_TOP_ABOVE_CLOCK)
                               : (forecast_y - fc_band_h);
         L.top = GRect(content_x, calendar_y, content_w, cal_h);
         L.status = GRect(content_x, status_y, content_w, status_h);
