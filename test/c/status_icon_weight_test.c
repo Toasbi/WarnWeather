@@ -142,34 +142,38 @@ static void sweep_is_monotonic(void) {
 // loudly, in two independent halves:
 //
 //   5a  the table read-back for THIS platform's build (guarded like the table);
-//   5b  the (weight, bounds_h) -> lift matrix, for BOTH platforms' values, since
-//       the arithmetic itself has no platform dependence. Lifts are hand-computed
-//       from round(off * (bounds_h + 1) / 100), halves away from zero.
+//   5b  the FULL (icon x tier) -> pixel-lift matrix, for BOTH platforms' values,
+//       since the arithmetic itself has no platform dependence — so the plain
+//       build checks emery's numbers too. Every lift is hand-computed from
+//       round(off * ink / 100), halves away from zero, and written out in the
+//       comment beside it.
 //
-// `bounds_h` per (icon, tier) is the measured tight bounds height from
-// .superpowers/sdd/icon-centring-analysis.md §4 ("bh" column, ink height − 1);
-// the four cells that table did not measure are marked `model` below and their
-// expected lift is the same for either candidate bh, so nothing here rides on
-// them.
+// The ink height per (icon, tier) is DEVICE-MEASURED — see the table in
+// status_icon_weight.h and .superpowers/sdd/icon-weight-remaining-report.md §1 —
+// and `bounds_h` is that ink height minus 1 (icon_load() paints one row more than
+// the bounds box). The four ink figures still carried over from
+// icon-centring-analysis.md rather than re-measured are AQI@t13, HR@t10 and
+// STEPS/AQI@t10; all four belong to icons at weight 50 on that platform, where the
+// lift is 0 for any ink whatsoever, so nothing here rides on them.
 static void shipped_weights_are_the_judged_ones(void) {
     // 5a — this build's table.
     struct { uint8_t id; int want; const char *name; } table[] = {
 #ifdef PBL_PLATFORM_EMERY
         {STATUS_ICON_TEMP, 50, "emery TEMP"},
-        {STATUS_ICON_UV, 50, "emery UV"},
-        {STATUS_ICON_WIND, 50, "emery WIND"},
+        {STATUS_ICON_UV, 53, "emery UV"},
+        {STATUS_ICON_WIND, 60, "emery WIND"},
         {STATUS_ICON_GUST, 53, "emery GUST"},
-        {STATUS_ICON_STEPS, 50, "emery STEPS"},
+        {STATUS_ICON_STEPS, 54, "emery STEPS"},
         {STATUS_ICON_SLEEP, 50, "emery SLEEP"},
         {STATUS_ICON_HR, 56, "emery HR"},
-        {STATUS_ICON_DISTANCE, 50, "emery DISTANCE"},
+        {STATUS_ICON_DISTANCE, 53, "emery DISTANCE"},
         {STATUS_ICON_AQI, 50, "emery AQI"},
         {STATUS_ICON_POLLEN, 56, "emery POLLEN"},
-        {STATUS_ICON_COUNTDOWN, 50, "emery COUNTDOWN"},
+        {STATUS_ICON_COUNTDOWN, 59, "emery COUNTDOWN"},
 #else
         {STATUS_ICON_TEMP, 50, "basalt TEMP"},
         {STATUS_ICON_UV, 50, "basalt UV"},
-        {STATUS_ICON_WIND, 50, "basalt WIND"},
+        {STATUS_ICON_WIND, 54, "basalt WIND"},
         {STATUS_ICON_GUST, 54, "basalt GUST"},
         {STATUS_ICON_STEPS, 50, "basalt STEPS"},
         {STATUS_ICON_SLEEP, 50, "basalt SLEEP"},
@@ -177,45 +181,130 @@ static void shipped_weights_are_the_judged_ones(void) {
         {STATUS_ICON_DISTANCE, 50, "basalt DISTANCE"},
         {STATUS_ICON_AQI, 50, "basalt AQI"},
         {STATUS_ICON_POLLEN, 54, "basalt POLLEN"},
-        {STATUS_ICON_COUNTDOWN, 50, "basalt COUNTDOWN"},
+        {STATUS_ICON_COUNTDOWN, 58, "basalt COUNTDOWN"},
 #endif
     };
     for (unsigned i = 0; i < sizeof(table) / sizeof(table[0]); i++) {
         expect(table[i].name, status_icon_weight_pct(table[i].id), table[i].want);
     }
 
-    // 5b — the lift matrix the user judged. Positive = the glyph moves UP.
-    struct { const char *cell; int weight, bounds_h, want_lift; } cells[] = {
-        // basalt/diorite/flint, weight 54 (GUST, POLLEN):
-        {"GUST w54 t9  (bh 8)",   54,  8, 0},   //  4*9  = 36  -> 0
-        {"GUST w54 t10 (bh 10)",  54, 10, 0},   //  4*11 = 44  -> 0   (tier not judged)
-        {"GUST w54 t12 (bh 12)",  54, 12, 1},   //  4*13 = 52  -> 1
-        {"POLLEN w54 t9  (bh 10)",54, 10, 0},   //  4*11 = 44  -> 0
-        {"POLLEN w54 t12 (bh 12)",54, 12, 1},   //  4*13 = 52  -> 1
-        // emery, weight 53 (GUST):
-        {"GUST w53 t12 (bh 12)",  53, 12, 0},   //  3*13 = 39  -> 0   (tier not judged)
-        {"GUST w53 t13 (bh 12m)", 53, 12, 0},   //  3*13 = 39  -> 0   model bh
-        {"GUST w53 t13 (bh 14)",  53, 14, 0},   //  3*15 = 45  -> 0   either bh: 0
-        {"GUST w53 t16 (bh 16)",  53, 16, 1},   //  3*17 = 51  -> 1
-        // emery, weight 56 (HR, POLLEN):
-        {"HR w56 t12 (bh 12)",    56, 12, 1},   //  6*13 = 78  -> 1   (tier not judged)
-        {"HR w56 t13 (bh 14m)",   56, 14, 1},   //  6*15 = 90  -> 1   model bh
-        {"HR w56 t13 (bh 12)",    56, 12, 1},   //  6*13 = 78  -> 1   either bh: 1
-        {"HR w56 t16 (bh 16)",    56, 16, 1},   //  6*17 = 102 -> 1
-        {"POLLEN w56 t13 (bh 14)",56, 14, 1},   //  6*15 = 90  -> 1
-        {"POLLEN w56 t16 (bh 16m)",56,16, 1},   //  6*17 = 102 -> 1   model bh
-        // and the six icons the user left alone must not move at ANY shipped bh.
-        {"w50 bh 8",  50,  8, 0},
-        {"w50 bh 10", 50, 10, 0},
-        {"w50 bh 12", 50, 12, 0},
-        {"w50 bh 14", 50, 14, 0},
-        {"w50 bh 16", 50, 16, 0},
+    // 5b — every icon at every tier its platform ships, both platforms. Positive
+    // want_lift = the glyph moves UP. `ink` is the measured painted height, so the
+    // bounds_h handed to the arithmetic is ink - 1.
+    //
+    // Tiers, in column order: basalt/diorite/flint = t9 (FULL rows) / t10 (top
+    // strip) / t12 (COMPACT + NONE rows); emery = t12 (FULL rows) / t13 (top strip)
+    // / t16 (COMPACT + NONE rows). A cell marked "(unjudged)" is a tier the user
+    // never saw on a comparison sheet — it is asserted so a future edit cannot
+    // change it silently, not because it was chosen.
+    struct { const char *cell; int weight, ink, want_lift; } cells[] = {
+        // ── basalt / diorite / flint ────────────────────────────────────────
+        {"b TEMP w50 t9",       50,  9, 0},
+        {"b TEMP w50 t10",      50, 11, 0},
+        {"b TEMP w50 t12",      50, 13, 0},
+        {"b UV w50 t9",         50,  9, 0},
+        {"b UV w50 t10",        50, 11, 0},
+        {"b UV w50 t12",        50, 13, 0},
+        {"b WIND w54 t9",       54,  9, 0},   //  4*9  = 36  -> 0
+        {"b WIND w54 t10",      54, 11, 0},   //  4*11 = 44  -> 0  (unjudged)
+        {"b WIND w54 t12",      54, 13, 1},   //  4*13 = 52  -> 1
+        {"b GUST w54 t9",       54,  9, 0},   //  4*9  = 36  -> 0
+        {"b GUST w54 t10",      54, 11, 0},   //  4*11 = 44  -> 0  (unjudged)
+        {"b GUST w54 t12",      54, 13, 1},   //  4*13 = 52  -> 1
+        {"b STEPS w50 t9",      50,  9, 0},
+        {"b STEPS w50 t10",     50,  9, 0},
+        {"b STEPS w50 t12",     50, 11, 0},
+        {"b SLEEP w50 t9",      50, 11, 0},
+        {"b SLEEP w50 t10",     50, 11, 0},
+        {"b SLEEP w50 t12",     50, 13, 0},
+        {"b HR w50 t9",         50, 11, 0},
+        {"b HR w50 t12",        50, 13, 0},
+        {"b DISTANCE w50 t9",   50,  9, 0},
+        {"b DISTANCE w50 t10",  50, 11, 0},
+        {"b DISTANCE w50 t12",  50, 13, 0},
+        {"b AQI w50 t9",        50,  9, 0},
+        {"b AQI w50 t10",       50,  9, 0},
+        {"b AQI w50 t12",       50, 11, 0},
+        {"b POLLEN w54 t9",     54, 11, 0},   //  4*11 = 44  -> 0
+        {"b POLLEN w54 t10",    54, 11, 0},   //  4*11 = 44  -> 0  (unjudged)
+        {"b POLLEN w54 t12",    54, 13, 1},   //  4*13 = 52  -> 1
+        {"b COUNTDOWN w58 t9",  58, 11, 1},   //  8*11 = 88  -> 1
+        {"b COUNTDOWN w58 t10", 58, 11, 1},   //  8*11 = 88  -> 1  (unjudged, forced:
+                                              //  t9 and t10 share ink 11)
+        {"b COUNTDOWN w58 t12", 58, 13, 1},   //  8*13 = 104 -> 1
+        // ── emery ───────────────────────────────────────────────────────────
+        {"e TEMP w50 t12",      50, 13, 0},   //  the one cell a single weight cannot
+        {"e TEMP w50 t13",      50, 13, 0},   //  express (0 at ink 13 AND 1 at ink
+        {"e TEMP w50 t16",      50, 15, 0},   //  15) — left at the no-op on purpose
+        {"e UV w53 t12",        53, 13, 0},   //  3*13 = 39  -> 0  (unjudged)
+        {"e UV w53 t13",        53, 13, 0},   //  3*13 = 39  -> 0
+        {"e UV w53 t16",        53, 17, 1},   //  3*17 = 51  -> 1
+        {"e WIND w60 t12",      60, 13, 1},   // 10*13 = 130 -> 1  (unjudged, forced:
+                                              //  t12 and t13 share ink 13)
+        {"e WIND w60 t13",      60, 13, 1},   // 10*13 = 130 -> 1
+        {"e WIND w60 t16",      60, 17, 2},   // 10*17 = 170 -> 2
+        {"e GUST w53 t12",      53, 13, 0},   //  3*13 = 39  -> 0  (unjudged)
+        {"e GUST w53 t13",      53, 13, 0},   //  3*13 = 39  -> 0
+        {"e GUST w53 t16",      53, 17, 1},   //  3*17 = 51  -> 1
+        {"e STEPS w54 t12",     54, 11, 0},   //  4*11 = 44  -> 0  (unjudged)
+        {"e STEPS w54 t13",     54, 11, 0},   //  4*11 = 44  -> 0
+        {"e STEPS w54 t16",     54, 13, 1},   //  4*13 = 52  -> 1
+        {"e SLEEP w50 t12",     50, 13, 0},
+        {"e SLEEP w50 t13",     50, 15, 0},
+        {"e SLEEP w50 t16",     50, 17, 0},
+        {"e HR w56 t12",        56, 13, 1},   //  6*13 = 78  -> 1  (unjudged)
+        {"e HR w56 t13",        56, 15, 1},   //  6*15 = 90  -> 1
+        {"e HR w56 t16",        56, 17, 1},   //  6*17 = 102 -> 1
+        {"e DISTANCE w53 t12",  53, 13, 0},   //  3*13 = 39  -> 0  (unjudged)
+        {"e DISTANCE w53 t13",  53, 13, 0},   //  3*13 = 39  -> 0
+        {"e DISTANCE w53 t16",  53, 17, 1},   //  3*17 = 51  -> 1
+        {"e AQI w50 t12",       50, 11, 0},
+        {"e AQI w50 t13",       50, 13, 0},
+        {"e AQI w50 t16",       50, 15, 0},
+        {"e POLLEN w56 t12",    56, 13, 1},   //  6*13 = 78  -> 1  (unjudged)
+        {"e POLLEN w56 t13",    56, 15, 1},   //  6*15 = 90  -> 1
+        {"e POLLEN w56 t16",    56, 17, 1},   //  6*17 = 102 -> 1
+        {"e COUNTDOWN w59 t12", 59, 13, 1},   //  9*13 = 117 -> 1  (unjudged, forced:
+                                              //  t16's 2 px needs off >= 9)
+        {"e COUNTDOWN w59 t13", 59, 15, 1},   //  9*15 = 135 -> 1
+        {"e COUNTDOWN w59 t16", 59, 17, 2},   //  9*17 = 153 -> 2
+        // ── the neutral point, at every shipped ink height ───────────────────
+        {"w50 ink 9",  50,  9, 0},
+        {"w50 ink 11", 50, 11, 0},
+        {"w50 ink 13", 50, 13, 0},
+        {"w50 ink 15", 50, 15, 0},
+        {"w50 ink 17", 50, 17, 0},
     };
     const int cap_cy = 74;
     for (unsigned i = 0; i < sizeof(cells) / sizeof(cells[0]); i++) {
-        int h = cells[i].bounds_h;
+        int h = cells[i].ink - 1;                 // bounds_h; icon_load() paints ink
         expect(cells[i].cell, status_icon_top_y(cap_cy, h, cells[i].weight),
                status_icon_top_y(cap_cy, h, 50) - cells[i].want_lift);
+        // No shipped weight may ask for a >=2 px lift on this branch of the table
+        // beyond the two that were device-checked; +-3 px is NOT clip-verified, so
+        // guard the ceiling here rather than discovering it on a watch.
+        char name[96];
+        snprintf(name, sizeof(name), "%s lift <= 2 px", cells[i].cell);
+        expect(name, cells[i].want_lift <= 2 && cells[i].want_lift >= -2, 1);
+    }
+
+    // 5c — the shipped table can only ask for lifts inside the device-verified
+    // +-2 px envelope, at every ink height its platform renders. Computed from the
+    // table rather than listed, so a new icon or a bumped weight is caught too.
+#ifdef PBL_PLATFORM_EMERY
+    static const int inks[] = {11, 13, 15, 17};        // emery: t12/t13/t16 glyphs
+#else
+    static const int inks[] = {9, 11, 13};             // basalt et al: t9/t10/t12
+#endif
+    for (uint8_t id = 0; id <= STATUS_ICON_MAX; id++) {
+        int w = status_icon_weight_pct(id);
+        for (unsigned k = 0; k < sizeof(inks) / sizeof(inks[0]); k++) {
+            int h = inks[k] - 1;
+            int lift = status_icon_top_y(74, h, 50) - status_icon_top_y(74, h, w);
+            char name[96];
+            snprintf(name, sizeof(name), "id=%u ink=%d lift within +-2", id, inks[k]);
+            expect(name, lift >= -2 && lift <= 2, 1);
+        }
     }
 }
 

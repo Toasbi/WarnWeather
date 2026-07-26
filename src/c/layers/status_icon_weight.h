@@ -62,35 +62,74 @@
 // depends on where the rounding plateaus fall — and the plateaus do NOT line up
 // across platforms, because the shipped tiers do not either: basalt/diorite/flint
 // render at target heights 9 (FULL rows), 10 (top strip) and 12 (COMPACT rows),
-// emery at 12 (FULL rows), 13 (top strip) and 16 (COMPACT rows). The user judged
-// GUST as wanting a 1 px lift at basalt's 12 but none at emery's 13 — ink heights
-// 13 and 15, which straddle a single weight's rounding step — and HEART the other
-// way round. One shared byte cannot express that pair, so the platform (a
-// compile-time constant) selects the initialiser and only ONE table is emitted.
+// emery at 12 (FULL rows), 13 (top strip) and 16 (COMPACT rows). Two judgements
+// make the split unavoidable rather than merely tidy:
+//
+//   GUST is judged as wanting a 1 px lift on basalt's t12 but NONE on emery's t13 —
+//   and its glyph is 13 px of ink at BOTH (measured). Identical input, opposite
+//   answer: no single weight can produce it.
+//   WIND is judged as wanting no lift at basalt's t9 (ink 9, so off <= 5) and a
+//   2 px lift at emery's t16 (ink 17, so off >= 9). The two ranges do not meet.
+//
+// So the platform (a compile-time constant) selects the initialiser and only ONE
+// table is emitted; the other branch is never compiled.
 //
 // emery: emery is the only platform on the second branch. Its extra screen height
 // buys the bigger fonts, so it is the only build whose glyphs reach ink 15/17,
-// where a lopsided glyph's sub-pixel error is largest — hence the larger HEART /
-// POLLEN weights and the smaller GUST one (54 would already lift at emery's 13).
+// where a lopsided glyph's sub-pixel error is largest — hence its generally larger
+// weights, and hence the pairs of *different* numbers (GUST 54/53, WIND 54/60,
+// COUNTDOWN 58/59) for what is the same judgement about the same glyph.
 //
 // EVERY NUMBER BELOW IS A TASTE VALUE the user picked by eye on a real device,
 // from the per-tier comparison sheets. None is computed, and none should be
 // "recalculated" from a glyph's ink centroid (see the header comment above).
+// THE MEASURED INK HEIGHTS EVERY VALUE BELOW WAS SOLVED AGAINST (device-measured,
+// .superpowers/sdd/icon-weight-remaining-report.md §1; ink height is a function of
+// the tier alone, identical on every platform that renders that tier):
+//
+//   icon        t9   t10   t12   t13   t16      tier -> where
+//   TEMP         9    11    13    13    15       9  basalt/diorite/flint FULL rows
+//   UV           9    11    13    13    17      10  basalt/diorite/flint top strip
+//   WIND         9    11    13    13    17      12  those platforms' COMPACT/NONE
+//   GUST         9    11    13    13    17          rows AND emery's FULL rows
+//   STEPS        9     9    11    11    13      13  emery top strip
+//   SLEEP       11    11    13    15    17      16  emery COMPACT/NONE rows
+//   HR          11     —    13    15    17
+//   DISTANCE     9    11    13    13    17
+//   AQI          9     9    11    13    15
+//   POLLEN      11    11    13    15    17
+//   COUNTDOWN   11    11    13    15    17
 #ifdef PBL_PLATFORM_EMERY
 // emery: tiers 12 / 13 / 16 (Gothic 18 rows, Gothic 24 strip, Gothic 24 rows).
 static const uint8_t s_status_icon_weight_pct[STATUS_ICON_MAX + 1] = {
-    [STATUS_ICON_TEMP]      = 50,   // thermometer     — 50 = ink-box centre
-    [STATUS_ICON_UV]        = 50,   // sun/UV          — 50 = ink-box centre
-    [STATUS_ICON_WIND]      = 50,   // wind flag       — 50 = ink-box centre
+    [STATUS_ICON_TEMP]      = 50,   // thermometer     — 50: see the TEMP note below
+    [STATUS_ICON_UV]        = 53,   // sun/UV          — lifts 1 px at t16 only
+    [STATUS_ICON_WIND]      = 60,   // wind flag       — 1 px at t12/t13, 2 px at t16
     [STATUS_ICON_GUST]      = 53,   // gust arrow      — lifts 1 px at t16 only
-    [STATUS_ICON_STEPS]     = 50,   // shoe/footprint  — 50 = ink-box centre
+    [STATUS_ICON_STEPS]     = 54,   // shoe/footprint  — lifts 1 px at t16 only
     [STATUS_ICON_SLEEP]     = 50,   // pillow + Z      — 50 = ink-box centre
     [STATUS_ICON_HR]        = 56,   // heart           — lifts 1 px at t12/t13/t16
-    [STATUS_ICON_DISTANCE]  = 50,   // route           — 50 = ink-box centre
+    [STATUS_ICON_DISTANCE]  = 53,   // route           — lifts 1 px at t16 only
     [STATUS_ICON_AQI]       = 50,   // air-quality leaf— 50 = ink-box centre
     [STATUS_ICON_POLLEN]    = 56,   // pollen flower   — lifts 1 px at t12/t13/t16
-    [STATUS_ICON_COUNTDOWN] = 50,   // hourglass       — 50 = ink-box centre
+    [STATUS_ICON_COUNTDOWN] = 59,   // hourglass       — 1 px at t12/t13, 2 px at t16
 };
+// TEMP ON EMERY IS THE ONE CELL A SINGLE WEIGHT CANNOT EXPRESS, so it stays at the
+// no-op 50 rather than being approximated. The judgement was "no lift at t13, 1 px
+// at t16", and TEMP's ink is 13 px at t13 but only 15 px at t16 (it is the shortest
+// glyph at t16 apart from AQI). No lift at ink 13 needs off <= 3 (3x13 = 39 -> 0);
+// a lift at ink 15 needs off >= 4 (3x15 = 45 -> 0, 4x15 = 60 -> 1). The two
+// half-open ranges do not overlap, so no integer percent satisfies both, and every
+// candidate is wrong in one of the two cells the user actually looked at.
+//
+// This is a PENDING DECISION, not a closed one — the three ways out, costed in
+// .superpowers/sdd/icon-weight-remaining-report.md §4:
+//   (a) accept 54 here: grants the judged 1 px at t16 but also adds an unwanted
+//       1 px at t13 AND at t12 (both ink 13) — a 2-cell regression for 1 cell;
+//   (b) per-tier storage (3 weights per icon instead of 1);
+//   (c) a finer weight unit — half-percent would express it exactly, at 53.5, with
+//       no extra bytes, but re-bases all 22 existing numbers and the sheet labels.
+// Until one is chosen, 50 keeps TEMP exactly where it renders today.
 #else
 // basalt / diorite / flint: tiers 9 / 10 / 12 (Gothic 14 rows, Gothic 18 strip,
 // Gothic 18 rows). aplite never sees this file — its lean twin status_row_aplite.c
@@ -98,7 +137,7 @@ static const uint8_t s_status_icon_weight_pct[STATUS_ICON_MAX + 1] = {
 static const uint8_t s_status_icon_weight_pct[STATUS_ICON_MAX + 1] = {
     [STATUS_ICON_TEMP]      = 50,   // thermometer     — 50 = ink-box centre
     [STATUS_ICON_UV]        = 50,   // sun/UV          — 50 = ink-box centre
-    [STATUS_ICON_WIND]      = 50,   // wind flag       — 50 = ink-box centre
+    [STATUS_ICON_WIND]      = 54,   // wind flag       — lifts 1 px at t12 only
     [STATUS_ICON_GUST]      = 54,   // gust arrow      — lifts 1 px at t12 only
     [STATUS_ICON_STEPS]     = 50,   // shoe/footprint  — 50 = ink-box centre
     [STATUS_ICON_SLEEP]     = 50,   // pillow + Z      — 50 = ink-box centre
@@ -106,8 +145,14 @@ static const uint8_t s_status_icon_weight_pct[STATUS_ICON_MAX + 1] = {
     [STATUS_ICON_DISTANCE]  = 50,   // route           — 50 = ink-box centre
     [STATUS_ICON_AQI]       = 50,   // air-quality leaf— 50 = ink-box centre
     [STATUS_ICON_POLLEN]    = 54,   // pollen flower   — lifts 1 px at t12 only
-    [STATUS_ICON_COUNTDOWN] = 50,   // hourglass       — 50 = ink-box centre
+    [STATUS_ICON_COUNTDOWN] = 58,   // hourglass       — lifts 1 px at t9/t10/t12
 };
+// WIND on this branch could equally be 55 (both satisfy "no lift at t9, 1 px at
+// t12"); 54 is the one that also leaves the UNJUDGED top strip (t10, ink 11) alone,
+// because 5x11 = 55 would round up to a 1 px lift there and 4x11 = 44 does not.
+// COUNTDOWN has no such escape: t9 and t10 render its hourglass at the SAME ink
+// height (11 px), so the 1 px lift the user asked for at t9 necessarily also
+// appears in the top strip. Any weight in 55..61 gives that pair; 58 is the middle.
 #endif
 
 // Divide a by b (b > 0) rounding to nearest, halves AWAY from zero — so a lift
