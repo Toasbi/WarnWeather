@@ -153,7 +153,7 @@ void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
 // No-op guarantee: whenever the cap centre IS the band centre and band_h is EVEN (the
 // full-tier and none-tier bands) both distances equal band_h/2 — so y == band_top,
 // h == band_h and the box is bit-identical to the full-band one this replaces. On an ODD
-// band (the 17px top strip / lone compact band, 23px on emery, the 15px dense upper band)
+// band (the 17px top strip / lone compact band, 21px on emery, the 15px dense upper band)
 // the truncating band_h/2 puts the cap 0.5 px above the band's own centre, so the box comes
 // out 1 px shorter than the band; that is the correction, not a regression.
 StatusHighlightExtent status_highlight_extent(int16_t band_top, int16_t band_h,

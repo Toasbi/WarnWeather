@@ -883,6 +883,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // standalone card) and renderSectionGroup (a section merged into a shared card), so the
   // "hide when everything is gated off" rule stays in one place.
   function buildSectionBody(sec, cx) {
+    // A section may carry its own showWhen, for a whole feature card that a platform
+    // cannot render (e.g. threshold highlighting on aplite). Reporting it as empty is
+    // enough for both callers to drop it — card, sub-header, intro and all — without
+    // duplicating the rule. Item-level showWhen/capabilities still apply inside.
+    if (sec.showWhen && !PConf.showWhen.isVisible(sec, cx.evalCtx)) {
+      return { body: '', isEmpty: true };
+    }
     var body = sec.intro ? '<div class="intro">' + sec.intro + '</div>' : '';
     var controlCount = 0, staticCount = 0, i;
     for (i = 0; i < sec.items.length; i++) {

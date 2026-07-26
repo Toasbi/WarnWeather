@@ -945,6 +945,80 @@ test('Watch tab opens with a general status-bar intro, then the four bars in for
   assert.equal(battIdx, countdownIdx + 1, 'battery toggle follows the slot date directly');
 });
 
+test('the whole threshold card is gated off on aplite (which compiles the highlight out)', () => {
+  // aplite paints its status rows from the lean status_row_aplite.c twin and has no
+  // WW_THRESHOLD_HIGHLIGHT, so a threshold card there would silently do nothing. The
+  // gate is section-level (the intro sub-section has no items to hide), and it composes
+  // with — not replaces — the per-item health gate and the color pickers'
+  // COLOR-capability + non-B&W-theme rules.
+  const watch = schema.tabs.find((t) => t.id === 'watch');
+  const threshSections = watch.sections.filter((s) => s.groupCard === 'thresholds');
+  assert.equal(threshSections.length, 8, 'one intro sub-section plus one per threshold kind');
+  threshSections.forEach((sec, i) =>
+    assert.deepEqual(sec.showWhen, { env: 'thresholds' },
+      'threshold sub-section ' + i + ' (' + (sec.title || 'intro') + ') carries the platform gate'));
+
+  const aplite = { env: platform.computeEnv({ platform: 'aplite' }) };
+  const basalt = { env: platform.computeEnv({ platform: 'basalt' }) };
+  const diorite = { env: platform.computeEnv({ platform: 'diorite' }) };
+  threshSections.forEach((sec) => {
+    assert.equal(showWhen.isVisible(sec, aplite), false,
+      (sec.title || 'intro') + ' hidden on aplite');
+    assert.equal(showWhen.isVisible(sec, basalt), true,
+      (sec.title || 'intro') + ' still shown on basalt');
+    assert.equal(showWhen.isVisible(sec, diorite), true,
+      (sec.title || 'intro') + ' still shown on diorite (B&W but capable)');
+  });
+
+  // Composition check: the warn/danger inputs of the health kinds keep their own
+  // health gate, and the color pickers keep COLOR + non-B&W-theme, unchanged.
+  assert.deepEqual(byKey('threshStepsWarn').showWhen,
+    { all: [{ env: 'health' }, { key: 'healthMode', ne: 'off' }] },
+    'health kinds keep the health/healthMode item gate');
+  assert.equal(byKey('threshAqiWarn').showWhen, undefined,
+    'weather kinds carry no item gate — the section gate is what hides them on aplite');
+  THRESH_COLOR_KEYS.forEach((k) => {
+    assert.deepEqual(byKey(k).capabilities, ['COLOR'], k + ' keeps the COLOR capability');
+    assert.equal(showWhen.isVisible(byKey(k), { env: platform.computeEnv({ platform: 'basalt' }), theme: 'bw', healthMode: 'status' }), false,
+      k + ' still hidden by a B&W theme');
+  });
+});
+
+test('the rendered Watch tab has no threshold card on aplite and a full one elsewhere', () => {
+  // End-to-end through the real renderer: a section-level showWhen has to drop the
+  // intro sub-section too, which the item-level emptiness rule alone cannot do.
+  const eng = require('../src/pkjs/config-ui/lib/engine.js');
+  function watchBody(platformName) {
+    const S = Object.assign(eng.hydrate(schema, {}), { healthMode: 'status' });
+    const ENV = platform.computeEnv({ platform: platformName });
+    return eng.renderBody(schema, 'watch', {
+      S: S, ENV: ENV, USERDATA: {}, openColor: null, openSelect: null,
+      selectQuery: '', collapsed: {}, evalCtx: Object.assign({}, S, { env: ENV }),
+    });
+  }
+  const apliteBody = watchBody('aplite');
+  const basaltBody = watchBody('basalt');
+  assert.ok(basaltBody.indexOf('crossing the warn threshold') !== -1,
+    'basalt keeps the threshold card intro');
+  assert.equal(apliteBody.indexOf('crossing the warn threshold'), -1,
+    'aplite has no threshold card intro');
+  // Match the sub-header markup, not the bare title: several titles ("Air quality
+  // (AQI)", "Pollen") also occur as status-slot option labels, which stay on aplite.
+  ['Air quality (AQI)', 'Pollen', 'Wind speed', 'Wind gusts', 'Steps', 'Sleep',
+    'Walked distance'].forEach((title) => {
+    const hdr = '<div class="subhdr">' + title + '</div>';
+    assert.ok(basaltBody.indexOf(hdr) !== -1, 'basalt keeps the ' + title + ' sub-header');
+    assert.equal(apliteBody.indexOf(hdr), -1, 'aplite has no ' + title + ' sub-header');
+  });
+  THRESH_KEYS.forEach((k) => assert.equal(apliteBody.indexOf('data-k="' + k + '"'), -1,
+    k + ' has no control on aplite'));
+  ['threshAqiWarn', 'threshAqiDanger', 'threshWindWarn'].forEach((k) =>
+    assert.ok(basaltBody.indexOf('data-k="' + k + '"') !== -1, k + ' still renders on basalt'));
+  // The rest of the Watch tab is untouched on aplite.
+  assert.ok(apliteBody.indexOf('data-k="timeLeadingZero"') !== -1,
+    'aplite keeps the Time section that follows the threshold card');
+});
+
 test('the four status sections live in the Watch tab with named headers and no per-bar intros', () => {
   const watch = schema.tabs.find((t) => t.id === 'watch');
   ['Forecast Status Bar', 'Radar Status Bar', 'Health Status Bar', 'Watch Status Bar'].forEach((title) => {

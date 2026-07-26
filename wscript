@@ -161,6 +161,20 @@ def build(ctx):
         # diorite/flint (also B&W) keep both polarities. Mirrors WW_RAIN_RADAR above.
         if platform != 'aplite':
             ctx.env.CFLAGS += ['-DWW_THEME_POLARITY=1']
+        # Status-slot threshold highlighting (warn outline / danger fill) is compiled
+        # out of aplite: aplite paints its status rows from the frozen lean twin
+        # layers/status_row_aplite.c, which carries no threshold code at all, so the
+        # shared contract module plus its persist/AppMessage plumbing linked in as pure
+        # dead weight — and the 2026-07 feature pushed the aplite image past its
+        # 21800 B launch guard (22148 B, +348). Every other platform defines
+        # WW_THRESHOLD_HIGHLIGHT; aplite lacks it, so the guarded call sites in
+        # app_message.c drop out and --gc-sections reaps appendix/status_threshold.c
+        # together with the two persist accessors. The persist key IDs themselves
+        # (STATUS_LEVELS = 43, THRESHOLD_SETTINGS = 44) stay in persist.c's enum on
+        # every platform — the slots are append-only on-flash IDs. Mirrors
+        # WW_FETCH_NOTICE above, which was excluded for the same trigger.
+        if platform != 'aplite':
+            ctx.env.CFLAGS += ['-DWW_THRESHOLD_HIGHLIGHT=1']
         if enable_memory_logging:
             ctx.env.CFLAGS += ['-DWW_ENABLE_MEMORY_LOGGING=1']
         if fixture_now:

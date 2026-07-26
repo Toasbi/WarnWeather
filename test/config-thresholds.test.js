@@ -202,12 +202,13 @@ function makeEl(id) {
 
 /** Boot the real generated page in a vm sandbox with a fake DOM.
  * @param {Object} [cfg] stored settings to hydrate from
+ * @param {string} [platformName] Pebble platform for the injected env (default basalt)
  * @returns {{S: Object, scroll: Object, clickTab: function, inputHtml: function}}
  */
-function bootGeneratedPage(cfg) {
+function bootGeneratedPage(cfg, platformName) {
   const html = require('../src/pkjs/config-ui/scripts/build-page.js').previewPage({
     appFiles: require('../scripts/build-config-page.js').APP_FILES,
-    schema, env: platformLib.computeEnv({ platform: 'basalt' }),
+    schema, env: platformLib.computeEnv({ platform: platformName || 'basalt' }),
     cfg: cfg || { provider: 'dwd' }, userData: {}, returnTo: '#'
   });
   const src = html.match(/<script>([\s\S]*)<\/script>/)[1]
@@ -322,4 +323,31 @@ test('shipped defaults leave every kind disabled', () => {
     assert.equal(thresholds.kindConfig(S, index).enabled, false,
       kind.key + ' must ship disabled');
   });
+});
+
+// The section-level platform gate has to survive into the FLAT generated page (the
+// concatenated <script> the webview really runs), not just the module-level engine:
+// aplite compiles the highlight out (no WW_THRESHOLD_HIGHLIGHT), so a threshold card
+// there would be a settings card that silently does nothing.
+test('the real generated page renders no threshold controls on aplite', () => {
+  const aplite = bootGeneratedPage({ provider: 'dwd' }, 'aplite');
+  aplite.clickTab('watch');
+  const apliteWatch = aplite.scroll.innerHTML;
+  assert.equal(apliteWatch.indexOf('crossing the warn threshold'), -1,
+    'no threshold intro on aplite');
+  assert.equal(apliteWatch.indexOf('<div class="subhdr">Air quality (AQI)</div>'), -1,
+    'no threshold sub-headers on aplite');
+  ['threshAqiWarn', 'threshAqiDanger', 'threshWindWarn', 'threshStepsWarn',
+    'threshAqiWarnColor'].forEach((k) =>
+    assert.equal(apliteWatch.indexOf('data-k="' + k + '"'), -1, k + ' absent on aplite'));
+  assert.ok(apliteWatch.indexOf('data-k="timeLeadingZero"') !== -1,
+    'the rest of the Watch tab still renders on aplite');
+
+  const basalt = bootGeneratedPage({ provider: 'dwd' }, 'basalt');
+  basalt.clickTab('watch');
+  const basaltWatch = basalt.scroll.innerHTML;
+  assert.ok(basaltWatch.indexOf('crossing the warn threshold') !== -1,
+    'basalt keeps the threshold intro');
+  assert.ok(basaltWatch.indexOf('data-k="threshAqiWarn"') !== -1,
+    'basalt keeps the threshold inputs');
 });

@@ -9,27 +9,45 @@
 // layer_util.h includes this and adds the SDK-facing wrappers that measure a GFont.
 
 // Pebble seats a digit LOW in its line box: the visible glyph (its cap box) sits at the
-// bottom of the measured content height, above the font descent. So for a line whose frame
-// top is `text_y` and measured height `content_h`:
-//     glyph bottom = text_y + content_h - descent
+// BOTTOM of the measured content height. So for a line whose frame top is `text_y` and
+// measured height `content_h`:
+//     glyph bottom = text_y + content_h
 //     glyph centre = glyph bottom - cap/2
-// Both descent and cap are taken as fractions of `content_h`, so everything tracks the font
-// size across tiers rather than a hardcoded pixel. Tune the two fractions here, once, for
-// both bars.
-#define STATUS_DIGIT_DESCENT_NUM 1
-#define STATUS_DIGIT_DESCENT_DEN 16
-#define STATUS_DIGIT_CAP_NUM 5
-#define STATUS_DIGIT_CAP_DEN 9
+// There is no descent term: `content_h` already excludes the font's true descent (see
+// status_descender_h below — "0g" measures the same height as "0"), so the baseline IS the
+// content-box bottom and the cap box sits directly on it. MEASURED on emulator captures of
+// the digits "20kph" / "38" in a status slot, all three status sizes, both platforms:
+//
+//   font       content_h   cap ink rows   cap   content-bottom -> cap bottom
+//   Gothic 14      14          9 rows      9              0
+//   Gothic 18      18         11 rows     11              0
+//   Gothic 24      24         14 rows     14              0
+//
+// The cap height is exactly content_h/2 + 2 at all three sizes (slope 1/2 through 9/11/14),
+// which is what the two knobs below encode. The retired model — descent content_h/16 plus
+// cap 5*content_h/9 — was wrong at every size (it predicted cap 7.8 / 10.0 / 13.3 and a
+// nonzero descent); the two errors cancelled to the half-pixel at 14/18 but left the
+// Gothic-24 centre a full pixel high, which is emery's only status size and showed up as a
+// visibly off-centre threshold-highlight box.
+#define STATUS_DIGIT_CAP_SLOPE_DEN 2   /* cap == content_h / SLOPE_DEN + CAP_ADD */
+#define STATUS_DIGIT_CAP_ADD 2
 
-// descent + cap/2 — the distance from the content-box bottom up to the glyph's visual centre.
-// Folded into ONE rounded division over a common denominator rather than three truncating
-// integer divides, which collapse at small fonts: Gothic 14 (content_h 14) gave descent
-// 14/16 = 0 and cap/2 = (14*5/9)/2 = 3 (vs 3.9), losing ~2px and seating marks visibly low.
+// cap/2 — the distance from the content-box bottom up to the glyph's visual centre.
+// == (content_h + 2*CAP_ADD) / (2*SLOPE_DEN), folded into ONE rounded division rather than
+// halving an already-truncated cap, which collapses at small fonts (Gothic 14 would give
+// cap 9 -> 9/2 = 4 instead of 4.5, seating marks visibly low).
+//
+// The rounding direction is LOAD-BEARING, not incidental. The exact value is a half-integer
+// at Gothic 14 (4.5) and Gothic 18 (5.5); rounding half-UP puts the modelled centre 0.5 px
+// ABOVE the true cap centre at those two sizes, and that 0.5 px is exactly cancelled by the
+// +0.5 px structural padding in the icon pipeline (icon_load re-phases the ink bbox), making
+// icon alignment exact in all 36 measured cases at 14/18 — see
+// .superpowers/sdd/icon-centring-analysis.md §3. Gothic 24's 7.0 is exact, so nothing there
+// depends on the rounding. Do not switch to truncation or round-half-down.
 static inline int status_glyph_below(int content_h) {
-    int num = STATUS_DIGIT_DESCENT_NUM * (2 * STATUS_DIGIT_CAP_DEN)
-            + STATUS_DIGIT_CAP_NUM * STATUS_DIGIT_DESCENT_DEN;
-    int den = STATUS_DIGIT_DESCENT_DEN * (2 * STATUS_DIGIT_CAP_DEN);
-    return (content_h * num + den / 2) / den;
+    int num = content_h + 2 * STATUS_DIGIT_CAP_ADD;
+    int den = 2 * STATUS_DIGIT_CAP_SLOPE_DEN;
+    return (num + den / 2) / den;
 }
 
 // How far lowercase descenders ('g', 'y') paint BELOW the measured content box. Pebble's
@@ -71,7 +89,7 @@ static inline int status_seat_y(int band_h, int content_h) {
 //     band_h/2 - content_h + below == band_h - content_h - res
 //         →  band_h - band_h/2 == below + res
 // and because band_h/2 truncates, an ODD band_h = 2*(below + res) - 1 already satisfies it
-// (band_h - band_h/2 == below + res exactly). Gothic 14 → 13, Gothic 18 → 17, Gothic 24 → 23.
+// (band_h - band_h/2 == below + res exactly). Gothic 14 → 13, Gothic 18 → 17, Gothic 24 → 21.
 //
 // At that exact height the clamped and centred y are the SAME row, so the clamp costs nothing
 // and the band holds cap + tails with zero spare — the condition three shipping bands already
@@ -100,19 +118,27 @@ static inline int status_glyph_center_y(int text_y, int content_h) {
 // reads, down to the calendar's first row. Moving the line up therefore converts invisible
 // margin into visible separation.
 //
-// Why the SEAT and not the band: windows/layout.c defines the calendar's origin as
-// `content_y + strip_h`, so shrinking the strip's band moves the calendar up by exactly as
-// much and the gap is conserved (measured: 2 -> 2 blank rows; see the reverted 7da5424).
-// Lifting inside an unchanged band is the only move that opens it — the band, and hence
-// calendar_y and every band below, stay put.
+// Why the SEAT and not the band: shrinking the strip's BAND moves everything anchored to it up
+// by exactly as much, so the gap is conserved and nothing is won (measured: 2 -> 2 blank rows;
+// see the reverted 7da5424). Lifting inside an unchanged band is the only move that opens it.
 //
-// Why 2: it is the largest lift the 144px watches can take. Gothic 18 seats its cap centre at
-// band_h/2 = 8 in the 17px band with a MEASURED cap of 11 px, so the cap occupies rows 3..13;
-// a lift of 2 puts it on rows 1..11 (1 px of margin) and a lift of 3 would put its first row
-// flush on row 0. emery has room to spare (rows 5..18 in its 23px band), so one shared
-// constant keeps both platforms in step. Descenders stay inside the band either way — the
-// clamp-free band holds cap + tails with 2 px of spare above the tails, which is what the lift
-// spends (verified in test/c/layout_test.c::seating_no_lift).
+// What the lift now also moves: windows/layout.c anchors the calendar band to the strip's INK
+// (status_strip_ink_h below), not to its band, so this constant is load-bearing for calendar_y
+// — a bigger lift raises the calendar with the line, keeping the calendar's first painted row on
+// the strip's first unpainted one. That is the point: the rows the lift frees at the band's
+// bottom are handed to the calendar→status gap instead of becoming dead air. Everything BELOW
+// the calendar (clock, status rows, forecast) anchors to CALENDAR_STATUS_HEIGHT and is untouched
+// by the lift either way.
+//
+// Why 2: it is the largest lift EITHER screen size can take, which is why one shared constant
+// serves both. Gothic 18 seats its cap centre at band_h/2 = 8 in the 17px band with a MEASURED
+// cap of 11 px, so the cap occupies rows 3..13; a lift of 2 puts it on rows 1..11 (1 px of
+// margin) and a lift of 3 would put its first row flush on row 0. emery lands on the same
+// bound: Gothic 24 centres a MEASURED 14px cap on rows 3..16 of its 21px band, so a lift of 2
+// gives rows 1..14 and 3 would again reach row 0. Descenders stay inside the band either way —
+// at the clamp-free height the centred line's tails exactly reach the band bottom, and the
+// lift carries them up with the line, leaving STATUS_TOP_STRIP_LIFT spare rows beneath them
+// (verified in test/c/layout_test.c::seating_no_lift).
 //
 // Accepted consequences: the strip's cap is no longer centred in its band, and the
 // threshold-highlight box, which clamps symmetrically about the cap (status_highlight_extent),
@@ -124,4 +150,29 @@ static inline int status_glyph_center_y(int text_y, int content_h) {
 // glyph, the indicator icons), so the whole line moves together.
 static inline int status_strip_seat_y(int band_h, int content_h) {
     return status_seat_y(band_h, content_h) - STATUS_TOP_STRIP_LIFT;
+}
+
+// Rows the top strip actually PAINTS inside its band, measured from the band's top edge: the
+// seated line's content box plus the descender tails beneath it (status_descender_h — the
+// tails are the strip's lowest ink, since content_h excludes true descent). Anything from
+// this row down is guaranteed blank, whatever the strip renders.
+//
+// Why it exists: windows/layout.c anchors the calendar band to the strip. Anchoring it to the
+// BAND (content_y + band_h) pays for rows the strip cannot reach, and after the strip's line
+// was lifted (STATUS_TOP_STRIP_LIFT) those rows became dead air ABOVE the calendar while the
+// gap BELOW it — down to the upper status row — closed to 1 px against that row's slot icons,
+// with its threshold-highlight box overlapping the calendar's last digit row (MEASURED on
+// basalt compactCal). This is the ink edge to anchor to instead, so the freed rows land where
+// the eye reads them.
+//
+// Fully font-derived, no per-mode pixel: substituting status_strip_seat_y() gives
+//     seat + content_h + descender_h
+// and on a band at the clamp-free height (every strip band the layout produces — see
+// status_min_band_h) status_seat_y()'s two branches coincide at band_h - content_h -
+// descender_h, so this collapses to exactly band_h - STATUS_TOP_STRIP_LIFT: the font terms
+// cancel and the strip's ink ends STATUS_TOP_STRIP_LIFT rows above its band bottom at ANY
+// Gothic size and on either screen. The general form is kept (rather than the folded
+// constant) so a strip band that ever stops being clamp-free still reports its true ink.
+static inline int status_strip_ink_h(int band_h, int content_h) {
+    return status_strip_seat_y(band_h, content_h) + content_h + status_descender_h(content_h);
 }

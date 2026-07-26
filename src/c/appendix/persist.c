@@ -47,6 +47,9 @@ enum key {
     STATUS_LINE_ENCODING_VERSION, // 41
     NOTICE_TEXT,                  // 42 — phone-pushed overlay string (empty = no notice)
     // Appended: status-slot threshold highlighting (layouts in status_threshold.h).
+    // aplite never reads or writes these two (WW_THRESHOLD_HIGHLIGHT is undefined
+    // there and the accessors below compile out), but the IDs stay listed on every
+    // platform: the enum is append-only because the numbers are the on-flash slots.
     STATUS_LEVELS,                // 43 — packed weather-kind levels byte
     THRESHOLD_SETTINGS            // 44 — enabled bits + colors + health thresholds blob
 };
@@ -481,6 +484,7 @@ time_t persist_get_health_cache_end_hour(void) {
     return (time_t) persist_read_int(HEALTH_CACHE_END_HOUR);
 }
 
+#if defined(WW_THRESHOLD_HIGHLIGHT)
 int persist_get_status_levels(void) {
     if (!persist_exists(STATUS_LEVELS)) { return 0; }
     return persist_read_int(STATUS_LEVELS);
@@ -498,3 +502,4 @@ int persist_get_threshold_settings(uint8_t *buffer, size_t buffer_size) {
 bool persist_set_threshold_settings(const uint8_t *data, size_t len) {
     return write_sized_data_if_changed(THRESHOLD_SETTINGS, data, len);
 }
+#endif  // WW_THRESHOLD_HIGHLIGHT

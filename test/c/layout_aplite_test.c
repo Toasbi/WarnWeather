@@ -41,11 +41,14 @@ static void golden_rects(void) {
     // FULL (wire tier 3), forecast status in the upper band
     L = compute(3, STATUS_SRC_FORECAST, STATUS_SRC_NONE);
     // top_status 17 = status_min_band_h(Gothic 18), the shortest clamp-free strip band; the
-    // calendar abuts it at y=17 (was 13) and keeps its 45px / 3 rows, so the 4px come out of the
+    // calendar follows the strip's INK at y=15 (status_strip_ink_h == 17 -
+    // STATUS_TOP_STRIP_LIFT) and keeps its 45px / 3 rows, so the px come out of the
     // calendar->clock gap. Clock, status band and forecast anchor to CALENDAR_STATUS_HEIGHT and
-    // are unchanged. Same numbers as layout_test.c's non-emery goldens.
+    // are unchanged. Same numbers as layout_test.c's non-emery goldens — aplite has the same
+    // 144x168 geometry and Gothic 18 strip/calendar/compact-status fonts, so it had the same
+    // crowded compact calendar->status gap and takes the same derived fix.
     check("full.top_status",   L.top_status,   0, 0, 144, 17);
-    check("full.top",          L.top,          0, 17, 144, 45);
+    check("full.top",          L.top,          0, 15, 144, 45);
     check("full.status",       L.status,       0, 97, 144, 20);
     check("full.status_lower", L.status_lower, 0, 97, 144, 20);
     check("full.time",         L.time,         0, 58, 144, 45);
@@ -54,7 +57,7 @@ static void golden_rects(void) {
 
     // COMPACT (wire tier 2), forecast status in the upper band
     L = compute(2, STATUS_SRC_FORECAST, STATUS_SRC_NONE);
-    check("compact.top",       L.top,          0, 17, 144, 30);
+    check("compact.top",       L.top,          0, 15, 144, 30);
     // Lone status: 17 instead of the calendar_h/3 slot's 15, bottom-anchored 3px into the clock
     // band (58 + 3 - 17). Its bottom row stays 60, so the seated line does not move.
     check("compact.status",    L.status,       0, 44, 144, 17);
@@ -64,7 +67,7 @@ static void golden_rects(void) {
 
     // NONE (wire tier 1), forecast status in the upper band
     L = compute(1, STATUS_SRC_FORECAST, STATUS_SRC_NONE);
-    check("none.top",          L.top,          0, 17, 144, 0);
+    check("none.top",          L.top,          0, 15, 144, 0);
     check("none.time",         L.time,         0, 16, 144, 45);
     check("none.status",       L.status,       0, 59, 144, 22);
     check("none.bottom",       L.bottom,       0, 81, 144, 87);
@@ -166,9 +169,10 @@ static void expect_no_lift(const char *view, const char *band, int band_h, int c
 
 // The top strip is the one line deliberately NOT cap-centred, so expect_no_lift() is the wrong
 // predicate for it (ported from layout_test.c, where the reasoning lives): its band stays
-// clamp-free — which is what keeps calendar_y == content_y + strip_h and every band below it
-// from moving — while its CONTENT seats STATUS_TOP_STRIP_LIFT rows higher inside that band,
-// because the strip's top edge IS the screen's top edge and only the gap below it is visible.
+// clamp-free — which is what keeps every band below it from moving, and what puts the strip's
+// ink end exactly STATUS_TOP_STRIP_LIFT rows above its band bottom, where calendar_y anchors
+// (status_strip_ink_h) — while its CONTENT seats STATUS_TOP_STRIP_LIFT rows higher inside that
+// band, because the strip's top edge IS the screen's top edge and only the gap below it reads.
 static void expect_strip_lift(const char *view, int band_h, int content_h) {
     int free_h = status_min_band_h(content_h);
     if (band_h != free_h) {

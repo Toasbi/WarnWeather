@@ -306,13 +306,13 @@ static void top_status_update_proc(Layer *layer, GContext *ctx) {
 
     // Square glyph slot that the PDC viewbox scales into (see ensure_rain_glyph_loaded).
     // The band is short on 144-px screens (~17 px), so it can spare only a small inset
-    // before the drops read as tiny; emery's taller band (~23 px) takes a larger inset so
+    // before the drops read as tiny; emery's taller band (~21 px) takes a larger inset so
     // the single drizzle drop isn't oversized. glyph_x is set only in alert mode.
     // (Tune visually.)
     // Both branches carry STATUS_TOP_STRIP_LIFT, the same lift the alert text beside them takes
     // (month_text_rect) — the drop has to ride with the line it sits on, not with the band.
 #ifdef PBL_PLATFORM_EMERY
-    const int glyph_side = bounds.size.h - 6;   // emery: ~23 - 6 = 17
+    const int glyph_side = bounds.size.h - 6;   // emery: ~21 - 6 = 15
     // emery: center in the taller band, matching the lifted alert text beside it.
     const int glyph_y = (bounds.size.h - glyph_side) / 2 - STATUS_TOP_STRIP_LIFT;
 #else

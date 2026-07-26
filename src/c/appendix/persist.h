@@ -78,6 +78,12 @@ bool persist_set_radar_palette(uint8_t *data, const size_t size);
 int persist_get_status_line(uint8_t line_id, uint8_t *buffer, size_t buffer_size);
 bool persist_set_status_line(uint8_t line_id, const uint8_t *data, size_t len);
 
+// Threshold highlighting is compiled out of aplite (WW_THRESHOLD_HIGHLIGHT,
+// wscript): its lean status-row twin cannot render a highlight, so the accessors
+// are declared away there too and any unguarded caller fails to compile rather
+// than silently re-linking the feature. The STATUS_LEVELS / THRESHOLD_SETTINGS
+// key IDs stay in persist.c's append-only enum on every platform.
+#if defined(WW_THRESHOLD_HIGHLIGHT)
 // Packed weather-kind threshold levels (STATUS_LEVELS_UINT8 tuple); 0 = all
 // Normal / never received. Layout in status_threshold.h.
 int persist_get_status_levels(void);
@@ -87,6 +93,7 @@ bool persist_set_status_levels(uint8_t levels);
 // status_threshold.h). Get returns bytes read, <= 0 when absent.
 int persist_get_threshold_settings(uint8_t *buffer, size_t buffer_size);
 bool persist_set_threshold_settings(const uint8_t *data, size_t len);
+#endif
 
 bool persist_set_notice_text(const char *text);
 int  persist_get_notice_text(char *buffer, size_t buffer_size);

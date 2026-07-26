@@ -37,6 +37,15 @@ cc $CFLAGS test/c/hr_scale_test.c src/c/appendix/hr_scale.c -o build/host/hr_sca
 build/host/hr_scale_test
 cc $CFLAGS test/c/status_row_layout_test.c src/c/layers/status_row_layout.c -o build/host/status_row_layout_test
 build/host/status_row_layout_test
+# status_icon_weight.h is header-only (a table + pure integer arithmetic), so the
+# test needs no companion .c — that is also why the weight math lives in a header
+# rather than inside the SDK-bound status_row.c. Built twice: the weight table is
+# selected by #ifdef PBL_PLATFORM_EMERY (the tiers, and so the rounding plateaus,
+# differ), so both initialisers need a run to be pinned.
+cc $CFLAGS test/c/status_icon_weight_test.c -o build/host/status_icon_weight_test
+build/host/status_icon_weight_test
+cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/status_icon_weight_test.c -o build/host/status_icon_weight_test_emery
+build/host/status_icon_weight_test_emery
 cc $CFLAGS test/c/status_row_alloc_test.c src/c/appendix/status_row_alloc.c -o build/host/status_row_alloc_test
 build/host/status_row_alloc_test
 cc $CFLAGS test/c/top_status_indicators_test.c -o build/host/top_status_indicators_test

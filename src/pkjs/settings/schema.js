@@ -93,6 +93,12 @@ function windScaleCopy(context, unit, hints) {
 // BAR's existence, while 'slot' mode puts health items in the ordinary bars, where
 // their thresholds are just as live.
 var HEALTH_SLOT_WHEN = {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}]};
+// "This watch can draw a threshold highlight at all" — a section-level gate on the
+// whole threshold card (intro + every kind sub-section). aplite compiles the feature
+// out (no WW_THRESHOLD_HIGHLIGHT: its lean status-row twin has no highlight code and
+// its image has no room), so offering the settings there would be a card that silently
+// does nothing. Platform fact lives in config-ui/lib/platform.js.
+var THRESHOLD_WHEN = {env: 'thresholds'};
 // One threshold-highlight sub-section (Watch tab 'thresholds' card): a kind's
 // warn/danger inputs + color pickers. Values are entered in the kind's
 // DISPLAYED unit (wind unit / km-mi / hours); blank = that kind disabled.
@@ -126,6 +132,10 @@ function thresholdSection(title, keyStem, hint, gate) {
         : {key: 'theme', nin: ['bw', 'bw-light']};
     return {
         groupCard: 'thresholds',
+        // Section-level gate: on a watch that can't render highlighting the whole
+        // sub-section disappears, so the per-item `gate`/color rules below only ever
+        // decide visibility among watches that CAN.
+        showWhen: THRESHOLD_WHEN,
         title: title,
         items: [gated({
             type: 'text',
@@ -832,6 +842,7 @@ module.exports = {
             ]
         }, {
             groupCard: 'thresholds',
+            showWhen: THRESHOLD_WHEN,
             intro: 'Highlight a status slot when its value crosses your thresholds: ' +
                 'crossing the warn threshold draws an outline around the slot; crossing ' +
                 'the danger threshold fills it. Values are in the unit the slot displays. ' +

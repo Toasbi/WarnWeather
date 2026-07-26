@@ -10,6 +10,11 @@
 // header to enforce it. Deliberately no <pebble.h> so the module host-compiles
 // (scripts/test-c.sh).
 //
+// NOT LINKED ON APLITE: aplite paints its status rows from the lean
+// layers/status_row_aplite.c twin, which carries no highlighting, so the whole
+// feature is compiled out there (WW_THRESHOLD_HIGHLIGHT in wscript) and
+// --gc-sections reaps this module. Keep every caller behind that macro.
+//
 // Wire formats:
 //  - STATUS_LEVELS_UINT8 (weather message, 1 byte): packed per-kind levels for
 //    the 4 weather kinds, 2 bits each — kind k occupies bits 2k..2k+1. Computed

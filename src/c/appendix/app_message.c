@@ -16,7 +16,9 @@
 #include "rain_countdown.h"
 #include "memory_log.h"
 #include "status_line.h"
+#if defined(WW_THRESHOLD_HIGHLIGHT)
 #include "status_threshold.h"
+#endif
 
 // Payloads arrive split into categories that map onto screen areas (forecast
 // chart, status row, radar). Each category is processed independently and the
@@ -158,6 +160,7 @@ static bool handle_status_lines(DictionaryIterator *iterator, bool *status_dirty
     return any;
 }
 
+#if defined(WW_THRESHOLD_HIGHLIGHT)
 // Packed weather-kind threshold levels — rides the weather message next to the
 // packed lines (the phone computes them; the watch has no raw AQI/wind ints).
 static bool handle_status_levels(DictionaryIterator *iterator, bool *status_dirty) {
@@ -190,6 +193,7 @@ static bool handle_thresholds(DictionaryIterator *iterator, bool *status_dirty) 
                                                     tuple->length);
     return true;
 }
+#endif  // WW_THRESHOLD_HIGHLIGHT
 
 #if defined(WW_FETCH_NOTICE)
 static bool handle_notice(DictionaryIterator *iterator, bool *notice_dirty) {
@@ -365,8 +369,14 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
 #endif
     handled |= handle_status(iterator, &status_dirty, &radar_dirty);
     handled |= handle_status_lines(iterator, &status_dirty);
+#if defined(WW_THRESHOLD_HIGHLIGHT)
+    // aplite renders its status rows from the lean status_row_aplite.c twin, which has
+    // no threshold highlighting, so it ignores both threshold tuples and the whole
+    // contract module + persist surface drops out (--gc-sections). Mirrors the radar
+    // handler below.
     handled |= handle_status_levels(iterator, &status_dirty);
     handled |= handle_thresholds(iterator, &status_dirty);
+#endif
     handled |= handle_sun_events(iterator, &forecast_dirty, &status_dirty);
 #if defined(WW_RAIN_RADAR)
     // aplite has no radar layer (--gc-sections reaps rain_radar_layer.c), so it
