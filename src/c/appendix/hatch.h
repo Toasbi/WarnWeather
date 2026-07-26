@@ -3,6 +3,63 @@
 
 #include <pebble.h>
 
+// ── Height-scaled stride ────────────────────────────────────────────────────
+// A 45° hatch line reads as a short slash in a band wider than it is tall, and the
+// horizontal gap between adjacent slashes is exactly `stride` px. The bottom band's
+// height varies ~1.7x across layout presets, so a fixed stride gives a taller graph MORE
+// equally-tight slashes. Scaling the stride with the plot height instead gives a bigger
+// graph FEWER, wider-spaced lines.
+//
+// The tuning knob. 100 = the stride grows in direct proportion to the plot height (a plot
+// twice the baseline height gets twice the stride). Lower values damp the effect; 0
+// disables it entirely (constant stride, the pre-scaling behaviour). Tuned visually on
+// the emulator — retuning it invalidates test/c/hatch_stride_test.c's goldens on purpose.
+//
+// What 100 actually buys: it holds the ABSOLUTE DOT COUNT roughly constant as the band
+// grows (ink fraction is 1/stride, so a ~1.9x taller band needs a ~1.9x wider stride to
+// match — ~526 dots at plot 41/stride 6 vs. ~539 at plot 77/stride 11, for a typical
+// 77px-wide night band). It does NOT hold the SLASH COUNT constant: slashes across a WxH
+// region number ~(W+H)/stride, so the tall preset ends up with ~14 slashes vs. ~20 in the
+// baseline preset — normalising by height alone overshoots "same number of lines" because
+// perceived count depends on W+H, not H alone. If visual sign-off says the tall presets
+// look too sparse, the slash-count-preserving value is ~100*H0/(W+H0) ≈ 35, not a small
+// nudge off 100.
+#define HATCH_GROWTH_PCT 100
+
+// The baseline plot height: the height AT WHICH scaling begins — at or below it the
+// stride is exactly its unscaled base value. This is the forecast band in the tightest
+// preset (fullCal / compactDense) minus its chrome — band 51 - BOTTOM_VIEW_AXIS_H 10 on
+// the 168px watches; band 68 - BOTTOM_VIEW_BOTTOM_PAD 10 - AXIS_H 10 on emery. The band
+// heights are the goldens pinned by test/c/layout_test.c (`full.bottom`); if those ever
+// change, these follow. Shorter plots do exist — the Timeline Quick View peek layout
+// (layout_compute_peek) draws forecast plots well below this baseline — they simply
+// clamp to the base stride like any other sub-baseline height (see
+// hatch_stride_scaled() below).
+#ifdef PBL_PLATFORM_EMERY
+#define HATCH_BASE_PLOT_H 48
+#else
+#define HATCH_BASE_PLOT_H 41
+#endif
+
+// Stride for a plot `plot_h` px tall, given the unscaled `base_stride` and the baseline
+// height `min_plot_h` at which that base applies.
+//
+// At or BELOW the baseline the base stride is returned untouched, so the tightest preset
+// stays bit-for-bit identical to the pre-scaling rendering, and a plot shorter than the
+// baseline (the radar riding the top band) never gets a stride finer than today's.
+//
+// Pure: no SDK calls, no theme/config reads, integer math only — the base stride (the
+// theme's 6 or 7) and the baseline are supplied by the caller. That is what lets
+// test/c/hatch_stride_test.c compile this header standalone against the geometry-only
+// stub, the same arrangement as layers/top_status_indicators.h.
+static inline int hatch_stride_scaled(int base_stride, int min_plot_h, int plot_h) {
+    if (plot_h <= min_plot_h || min_plot_h <= 0) {
+        return base_stride;
+    }
+    return base_stride
+         + (base_stride * (plot_h - min_plot_h) * HATCH_GROWTH_PCT) / (min_plot_h * 100);
+}
+
 // Bare hatch-dot emitter: no B&W backing, ever — see hatch_fill_rect() below for
 // the backing-aware wrapper most callers want. Draws the same 1-px diagonal hatch
 // (pixels at (x + y) % stride == 0), unconditionally.
@@ -22,10 +79,12 @@ void hatch_fill_rect_raw(GContext *ctx, GRect rect, GColor color, int stride);
 // continuous pattern because the parity check is based on absolute
 // layer coords, not rect-relative ones.
 //
-// 'stride' is the pixel spacing between hatch dots. The forecast
-// night-shading uses 6 on effectively-color builds, 7 on B&W (see
-// NIGHT_HATCH_SPACING); the radar area-bar background may use a different
-// value.
+// 'stride' is the pixel spacing between hatch dots. Both the forecast night-shading
+// (NIGHT_HATCH_SPACING) and the radar area-bar background (RADAR_HATCH_SPACING) derive
+// it from their live plot height via hatch_stride_scaled() above: a base of 6 on
+// effectively-color builds / 7 on B&W at the baseline height, growing for taller plots.
+// Exception: on aplite, NIGHT_HATCH_SPACING is frozen at the constant base stride instead
+// (no radar there to keep in step with) — see forecast_layer.c.
 //
 // In any B&W theme (theme_is_bw() — TRUE both for a color build's bw/bw-light theme
 // AND, constant-true, on real B&W hardware: see theme.h), each dot additionally gets

@@ -8,6 +8,7 @@
 #include "c/appendix/slot_geometry.h"
 #include "c/appendix/display_width.h"
 #include "c/appendix/chart.h"
+#include "c/appendix/hatch.h"
 #include "c/appendix/series.h"
 #include "c/appendix/forecast_grid.h"
 #include "c/appendix/bottom_view.h"
@@ -16,7 +17,21 @@
 #define TEMP_LABEL_PAD 2
 #define TEMP_LABEL_MEASURE_BOX_W 200
 #define TEMP_LABEL_MEASURE_BOX_H 40
-#define NIGHT_HATCH_SPACING (theme_is_bw() ? 7 : 6)
+// Base 6 on effectively-colour builds, 7 on B&W (a sparser dot pattern reads better
+// without hue to separate it), then scaled up for taller plots — see hatch.h.
+//
+// aplite: frozen at the unscaled base, so this feature costs the aplite image 0 bytes.
+// The image is already 356 B past the 21800 B launch-safety ceiling on main
+// (scripts/check-aplite-size.sh) and past the ~22058 B cliff where the firmware silently
+// refuses to launch, so aplite cannot afford the scaling arithmetic. Aplite therefore
+// keeps the tighter hatch in its taller presets; it has no rain radar, so the night hatch
+// is the only hatch it draws.
+#ifdef PBL_PLATFORM_APLITE
+#define NIGHT_HATCH_SPACING(plot_h) ((void)(plot_h), theme_is_bw() ? 7 : 6)
+#else
+#define NIGHT_HATCH_SPACING(plot_h) \
+    hatch_stride_scaled(theme_is_bw() ? 7 : 6, HATCH_BASE_PLOT_H, (plot_h))
+#endif
 #define NIGHT_HATCH_COLOR GColorDarkGray
 // bw-dark unchanged (GColorLightGray); bw-light swaps to GColorDarkGray — a
 // LightGray boundary line reads too faint against a white bw-light background.
@@ -376,6 +391,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     }
     const GColor axis_color = night_on ? FORECAST_AXIS_COLOR_NIGHT
                                        : BOTTOM_VIEW_AXIS_COLOR;
+    // One division per redraw, not per hatch layer: both night layers share the stride.
+    const int night_hatch_spacing = NIGHT_HATCH_SPACING(h - BOTTOM_VIEW_AXIS_H);
 
     int bar_num_stops = 0;
     const ChartColorStop *bar_stops = palette_bar_stops(&bar_num_stops);
@@ -419,7 +436,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .bands = night_bands, .num_bands = num_night_bands,
             .hatch_color    = theme_pick(np.hatch, theme_fg()),
             .boundary_color = theme_pick(np.boundary, theme_fg()),
-            .spacing        = NIGHT_HATCH_SPACING,
+            .spacing        = night_hatch_spacing,
             .underlay_color = np.base,
             .has_underlay   = !theme_is_bw(),
             .contour        = area_pts, .contour_count = ds.num_entries } };
@@ -430,7 +447,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .bands = night_bands, .num_bands = num_night_bands,
             .hatch_color    = theme_pick(NIGHT_HATCH_COLOR, theme_fg()),
             .boundary_color = NIGHT_BOUNDARY_COLOR,
-            .spacing        = NIGHT_HATCH_SPACING,
+            .spacing        = night_hatch_spacing,
             .contour        = NULL } };
     }
     // Attach the scaled rain-tier palette to the BARS series (computed above).
