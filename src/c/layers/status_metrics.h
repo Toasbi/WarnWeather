@@ -118,11 +118,17 @@ static inline int status_glyph_center_y(int text_y, int content_h) {
 // reads, down to the calendar's first row. Moving the line up therefore converts invisible
 // margin into visible separation.
 //
-// Why the SEAT and not the band: windows/layout.c defines the calendar's origin as
-// `content_y + strip_h`, so shrinking the strip's band moves the calendar up by exactly as
-// much and the gap is conserved (measured: 2 -> 2 blank rows; see the reverted 7da5424).
-// Lifting inside an unchanged band is the only move that opens it — the band, and hence
-// calendar_y and every band below, stay put.
+// Why the SEAT and not the band: shrinking the strip's BAND moves everything anchored to it up
+// by exactly as much, so the gap is conserved and nothing is won (measured: 2 -> 2 blank rows;
+// see the reverted 7da5424). Lifting inside an unchanged band is the only move that opens it.
+//
+// What the lift now also moves: windows/layout.c anchors the calendar band to the strip's INK
+// (status_strip_ink_h below), not to its band, so this constant is load-bearing for calendar_y
+// — a bigger lift raises the calendar with the line, keeping the calendar's first painted row on
+// the strip's first unpainted one. That is the point: the rows the lift frees at the band's
+// bottom are handed to the calendar→status gap instead of becoming dead air. Everything BELOW
+// the calendar (clock, status rows, forecast) anchors to CALENDAR_STATUS_HEIGHT and is untouched
+// by the lift either way.
 //
 // Why 2: it is the largest lift EITHER screen size can take, which is why one shared constant
 // serves both. Gothic 18 seats its cap centre at band_h/2 = 8 in the 17px band with a MEASURED
@@ -144,4 +150,29 @@ static inline int status_glyph_center_y(int text_y, int content_h) {
 // glyph, the indicator icons), so the whole line moves together.
 static inline int status_strip_seat_y(int band_h, int content_h) {
     return status_seat_y(band_h, content_h) - STATUS_TOP_STRIP_LIFT;
+}
+
+// Rows the top strip actually PAINTS inside its band, measured from the band's top edge: the
+// seated line's content box plus the descender tails beneath it (status_descender_h — the
+// tails are the strip's lowest ink, since content_h excludes true descent). Anything from
+// this row down is guaranteed blank, whatever the strip renders.
+//
+// Why it exists: windows/layout.c anchors the calendar band to the strip. Anchoring it to the
+// BAND (content_y + band_h) pays for rows the strip cannot reach, and after the strip's line
+// was lifted (STATUS_TOP_STRIP_LIFT) those rows became dead air ABOVE the calendar while the
+// gap BELOW it — down to the upper status row — closed to 1 px against that row's slot icons,
+// with its threshold-highlight box overlapping the calendar's last digit row (MEASURED on
+// basalt compactCal). This is the ink edge to anchor to instead, so the freed rows land where
+// the eye reads them.
+//
+// Fully font-derived, no per-mode pixel: substituting status_strip_seat_y() gives
+//     seat + content_h + descender_h
+// and on a band at the clamp-free height (every strip band the layout produces — see
+// status_min_band_h) status_seat_y()'s two branches coincide at band_h - content_h -
+// descender_h, so this collapses to exactly band_h - STATUS_TOP_STRIP_LIFT: the font terms
+// cancel and the strip's ink ends STATUS_TOP_STRIP_LIFT rows above its band bottom at ANY
+// Gothic size and on either screen. The general form is kept (rather than the folded
+// constant) so a strip band that ever stops being clamp-free still reports its true ink.
+static inline int status_strip_ink_h(int band_h, int content_h) {
+    return status_strip_seat_y(band_h, content_h) + content_h + status_descender_h(content_h);
 }

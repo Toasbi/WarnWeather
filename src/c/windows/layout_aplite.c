@@ -112,9 +112,18 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
     (void) bottom_h;
 
     // The strip's reserve anchors everything below it (clock, status, graph keep their pixels);
-    // the calendar abuts the strip's real band, sliding down into the calendar→clock gap.
+    // the calendar slides down under the strip's real band into the calendar→clock gap.
     int strip_anchor_y = content_y + CALENDAR_STATUS_HEIGHT;
-    int calendar_y = content_y + strip_h;
+    // Ported from layout.c: anchor the calendar to the first row the strip DOES NOT PAINT, not
+    // to the row below its band. aplite shows the same defect as basalt (identical 144x168
+    // geometry, Gothic 18 strip/calendar/compact-status fonts), so its compact calendar's last
+    // digit row sat 1 px off the status row's ink; the strip's lifted line leaves
+    // STATUS_TOP_STRIP_LIFT unreachable rows at its band bottom, and this hands them to that
+    // gap. Costs 4 B of image: the arguments are literals so the call itself folds away, but the
+    // band height (17) is still live for L.top_status, so the folded ink height (15) is a second
+    // constant to materialise. Spelling it `strip_h - STATUS_TOP_STRIP_LIFT` measures the same
+    // 4 B, so this keeps the base file's wording.
+    int calendar_y = content_y + status_strip_ink_h(strip_h, STATUS_LARGE_FONT_H);
     int time_y = strip_anchor_y + calendar_h;
 
     L.top_status = GRect(content_x, content_y, content_w, strip_h);

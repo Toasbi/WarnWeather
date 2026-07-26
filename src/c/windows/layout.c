@@ -41,7 +41,7 @@
 // CALENDAR_STATUS_HEIGHT is the top strip's RESERVE, not its band: the space it takes out of
 // the content split, and the anchor every band BELOW it keeps. The strip's own band is sized
 // from its font (STATUS_LARGE_BAND_H) and is taller than the reserve; that surplus grows
-// DOWNWARD into the air below the strip — the calendar band slides down to abut the taller
+// DOWNWARD into the air below the strip — the calendar band slides down under the taller
 // strip, spending the calendar→clock gap — while the clock band, the status rows and the
 // forecast graph keep exactly the pixels they had. Before the strip's band became
 // font-derived the two numbers were one (strip_h was CALENDAR_STATUS_HEIGHT + 1, the +1 a
@@ -111,12 +111,28 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool upper,
     // graph on exactly the pixels they had when the strip's band grew (CALENDAR_STATUS_HEIGHT
     // above). The strip's surplus height is paid for out of the air below it instead.
     int strip_anchor_y = content_y + CALENDAR_STATUS_HEIGHT;
-    // The calendar abuts the strip's real (taller) band, so its rows keep their height and
-    // simply slide down — the extra px come out of the calendar→clock gap. Its bottom
-    // therefore overhangs the clock band's blank top margin by (strip_h - reserve) px; that
-    // band paints only text over a clear background, the same sibling overlap the compact
-    // status row uses.
-    int calendar_y = content_y + strip_h;
+    // The calendar starts on the first row the strip DOES NOT PAINT (status_strip_ink_h), not
+    // on the first row below the strip's band. Its rows keep their height and simply slide
+    // down under the taller strip — the extra px come out of the calendar→clock gap — so its
+    // bottom overhangs the clock band's blank top margin; that band paints only text over a
+    // clear background, the same sibling overlap the compact status row uses.
+    //
+    // Why the strip's INK and not its band: the compact tier stacks the calendar directly on
+    // the upper status row's band, and every element between the screen's top edge and the
+    // clock is a fixed anchor, so the air up here is a fixed budget the two gaps share. The
+    // strip's line seats STATUS_TOP_STRIP_LIFT rows high inside an unchanged band, which
+    // leaves that many rows at the band's bottom the strip can never reach — dead air the
+    // eye reads as calendar→strip padding, while below the calendar the gap had closed to
+    // 1 px against the status row's slot icons (MEASURED on basalt compactCal: calendar
+    // digits inked rows 34..44, the row's leftmost icon row 46) and the threshold-highlight
+    // box, which spans its whole band from row 44, overlapped that last digit row outright.
+    // Anchoring to the ink hands those rows to the gap that needs them: the calendar's first
+    // painted row now sits directly under the strip's last painted row, and its last digit row
+    // clears the status row's cap by at least STATUS_FORECAST_CLEARANCE — the same ink
+    // clearance that row keeps above the forecast graph. Both edges are ink, so nothing here
+    // is a per-mode pixel: test/c/layout_test.c::calendar_status_clearance pins the resulting
+    // gap from the font metrics on both platforms.
+    int calendar_y = content_y + status_strip_ink_h(strip_h, STATUS_LARGE_FONT_H);
     int time_y = strip_anchor_y + calendar_h;
 
     L.top_status = GRect(content_x, content_y, content_w, strip_h);
