@@ -36,6 +36,11 @@ bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
     Tuple *clay_battery_low_only_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_BATTERY_LOW_ONLY);
     // Optional (older phone builds omit it); date_month_first then stays false = day-first.
     Tuple *clay_date_month_first_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_DATE_MONTH_FIRST);
+#if defined(PBL_HEALTH)
+    // Optional (older phone builds omit it); hr_scale then stays 0 = unset, and
+    // health_graph_layer falls back to its own HEALTH_HR_LO/HEALTH_HR_HI.
+    Tuple *clay_hr_scale_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_HR_SCALE);
+#endif
 
     // The core-key presence chain — see config_wire.h. New keys go in the
     // optional block above, never in here.
@@ -79,6 +84,13 @@ bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
     if (clay_date_month_first_tuple) {
         out->date_month_first = (bool) (clay_date_month_first_tuple->value->int16);
     }
+#if defined(PBL_HEALTH)
+    if (clay_hr_scale_tuple) {
+        // Read as int32 (like the colour tuples): PKJS sends numbers as 32-bit,
+        // and the packed value can exceed int16's range (hi 220 -> 56 3xx).
+        out->hr_scale = (uint16_t) clay_hr_scale_tuple->value->int32;
+    }
+#endif
     out->time_font = clay_time_font_tuple->value->int16;
     out->color_today = GColorFromHEX(clay_color_today_tuple->value->int32);
     out->color_saturday = GColorFromHEX(clay_color_saturday_tuple->value->int32);

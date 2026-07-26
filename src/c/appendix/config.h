@@ -92,6 +92,18 @@ typedef struct {
     // append-only persist offsets; older installs without it keep the seeded default.
     // Decoded by view_spec_unpack().
     uint16_t view_spec2[3];
+    // --- health HR scale (v1.10): the user-set BPM window the health graph's HR
+    // line is mapped onto, packed lo | (hi << 8). 0 = never set, which
+    // hr_scale_resolve() turns into HEALTH_HR_LO/HEALTH_HR_HI. Appended at the END
+    // to honour the append-only persist offsets.
+    //
+    // PBL_HEALTH-guarded: aplite has no sensors and compiles the health graph out
+    // entirely, so the field would be dead weight on the platform with the least
+    // room. That makes sizeof(Config) 2 B smaller there, which is safe — a config
+    // blob is written and read by one install on one platform, never shared.
+#if defined(PBL_HEALTH)
+    uint16_t hr_scale;
+#endif
 } Config;
 
 // Read-only view of the loaded config. Non-NULL from config_load() until
