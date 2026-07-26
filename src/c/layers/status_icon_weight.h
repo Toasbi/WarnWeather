@@ -51,24 +51,64 @@
 #define STATUS_ICON_WEIGHT_CENTRE 50
 
 // One byte per icon id, indexed by the StatusIconId enum. 50 = the ink box's
-// geometric centre (today's behaviour) for every icon; a bigger number lifts the
-// glyph, a smaller one drops it. Ids with no entry (the NONE / DRAWN_SUN
-// sentinels and the unassigned enum gap at 6) read back as 0 and are mapped to
+// geometric centre (today's behaviour); a bigger number lifts the glyph, a
+// smaller one drops it. Ids with no entry (the NONE / DRAWN_SUN sentinels and the
+// unassigned enum gap at 6) read back as 0 and are mapped to
 // STATUS_ICON_WEIGHT_CENTRE by status_icon_weight_pct(), so a future icon id
 // that nobody remembers to list here still lands on the box centre.
+//
+// WHY THE TABLE IS PER PLATFORM. The weight is a fraction of the glyph's ink
+// height and the lift is whole pixels, so which tiers a weight actually bites at
+// depends on where the rounding plateaus fall — and the plateaus do NOT line up
+// across platforms, because the shipped tiers do not either: basalt/diorite/flint
+// render at target heights 9 (FULL rows), 10 (top strip) and 12 (COMPACT rows),
+// emery at 12 (FULL rows), 13 (top strip) and 16 (COMPACT rows). The user judged
+// GUST as wanting a 1 px lift at basalt's 12 but none at emery's 13 — ink heights
+// 13 and 15, which straddle a single weight's rounding step — and HEART the other
+// way round. One shared byte cannot express that pair, so the platform (a
+// compile-time constant) selects the initialiser and only ONE table is emitted.
+//
+// emery: emery is the only platform on the second branch. Its extra screen height
+// buys the bigger fonts, so it is the only build whose glyphs reach ink 15/17,
+// where a lopsided glyph's sub-pixel error is largest — hence the larger HEART /
+// POLLEN weights and the smaller GUST one (54 would already lift at emery's 13).
+//
+// EVERY NUMBER BELOW IS A TASTE VALUE the user picked by eye on a real device,
+// from the per-tier comparison sheets. None is computed, and none should be
+// "recalculated" from a glyph's ink centroid (see the header comment above).
+#ifdef PBL_PLATFORM_EMERY
+// emery: tiers 12 / 13 / 16 (Gothic 18 rows, Gothic 24 strip, Gothic 24 rows).
 static const uint8_t s_status_icon_weight_pct[STATUS_ICON_MAX + 1] = {
     [STATUS_ICON_TEMP]      = 50,   // thermometer     — 50 = ink-box centre
     [STATUS_ICON_UV]        = 50,   // sun/UV          — 50 = ink-box centre
     [STATUS_ICON_WIND]      = 50,   // wind flag       — 50 = ink-box centre
-    [STATUS_ICON_GUST]      = 50,   // gust arrow      — 50 = ink-box centre
+    [STATUS_ICON_GUST]      = 53,   // gust arrow      — lifts 1 px at t16 only
+    [STATUS_ICON_STEPS]     = 50,   // shoe/footprint  — 50 = ink-box centre
+    [STATUS_ICON_SLEEP]     = 50,   // pillow + Z      — 50 = ink-box centre
+    [STATUS_ICON_HR]        = 56,   // heart           — lifts 1 px at t12/t13/t16
+    [STATUS_ICON_DISTANCE]  = 50,   // route           — 50 = ink-box centre
+    [STATUS_ICON_AQI]       = 50,   // air-quality leaf— 50 = ink-box centre
+    [STATUS_ICON_POLLEN]    = 56,   // pollen flower   — lifts 1 px at t12/t13/t16
+    [STATUS_ICON_COUNTDOWN] = 50,   // hourglass       — 50 = ink-box centre
+};
+#else
+// basalt / diorite / flint: tiers 9 / 10 / 12 (Gothic 14 rows, Gothic 18 strip,
+// Gothic 18 rows). aplite never sees this file — its lean twin status_row_aplite.c
+// draws hand-authored bit masks and includes nothing from here.
+static const uint8_t s_status_icon_weight_pct[STATUS_ICON_MAX + 1] = {
+    [STATUS_ICON_TEMP]      = 50,   // thermometer     — 50 = ink-box centre
+    [STATUS_ICON_UV]        = 50,   // sun/UV          — 50 = ink-box centre
+    [STATUS_ICON_WIND]      = 50,   // wind flag       — 50 = ink-box centre
+    [STATUS_ICON_GUST]      = 54,   // gust arrow      — lifts 1 px at t12 only
     [STATUS_ICON_STEPS]     = 50,   // shoe/footprint  — 50 = ink-box centre
     [STATUS_ICON_SLEEP]     = 50,   // pillow + Z      — 50 = ink-box centre
     [STATUS_ICON_HR]        = 50,   // heart           — 50 = ink-box centre
     [STATUS_ICON_DISTANCE]  = 50,   // route           — 50 = ink-box centre
     [STATUS_ICON_AQI]       = 50,   // air-quality leaf— 50 = ink-box centre
-    [STATUS_ICON_POLLEN]    = 50,   // pollen flower   — 50 = ink-box centre
+    [STATUS_ICON_POLLEN]    = 54,   // pollen flower   — lifts 1 px at t12 only
     [STATUS_ICON_COUNTDOWN] = 50,   // hourglass       — 50 = ink-box centre
 };
+#endif
 
 // Divide a by b (b > 0) rounding to nearest, halves AWAY from zero — so a lift
 // and its mirror come out equal in magnitude. Same idiom, and the same reason,
