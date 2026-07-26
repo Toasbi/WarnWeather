@@ -37,7 +37,12 @@
 
 // Hatch line spacing for the 1km background bars. Matches the night-shading
 // stride for visual consistency.
-#define RADAR_HATCH_SPACING (theme_is_bw() ? 7 : 6)
+// Same base + height scaling as the forecast night hatch (see hatch.h). The radar's axis
+// is 12px at the TOP, so a radar plot is ~2px shorter than a forecast plot in the same
+// band and therefore scales marginally more gently off the shared baseline. That is
+// accepted: they are different plots, and the gap is under one stride step.
+#define RADAR_HATCH_SPACING(plot_h) \
+    hatch_stride_scaled(theme_is_bw() ? 7 : 6, HATCH_BASE_PLOT_H, (plot_h))
 
 // Hatch fill colour for the 1km nearby-rain shape. Matches the
 // night-region hatch (DarkGray on colour, theme_fg() on B&W) so the fill
@@ -165,6 +170,10 @@ static void draw_radar_area_bars(GContext *ctx, GRect bar_plot_rect,
 
     graphics_context_set_stroke_width(ctx, 1);
 
+    // Hoisted out of the slot loop: one division per redraw, not one per bar. Every slot
+    // in the plot shares a stride so the hatch reads as one texture across the band.
+    const int hatch_spacing = RADAR_HATCH_SPACING(bar_h);
+
     int i = 0;
     while (i < slots.num_slots) {
         // Skip zero-area runs.
@@ -184,7 +193,7 @@ static void draw_radar_area_bars(GContext *ctx, GRect bar_plot_rect,
             const int16_t x_b = slot_geometry_tick_x(slots, s + 1, plot_x);
             const int16_t slot_w = x_b - x_a;
             const GRect r = GRect(x_a, plot_bottom - slot_h, slot_w, slot_h);
-            hatch_fill_rect(ctx, r, RADAR_AREA_HATCH_COLOR, RADAR_HATCH_SPACING);
+            hatch_fill_rect(ctx, r, RADAR_AREA_HATCH_COLOR, hatch_spacing);
         }
 
         // Left vertical outline at the run's left edge.
