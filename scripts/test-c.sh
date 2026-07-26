@@ -35,6 +35,11 @@ cc $CFLAGS test/c/status_threshold_test.c src/c/appendix/status_threshold.c -o b
 build/host/status_threshold_test
 cc $CFLAGS test/c/status_row_layout_test.c src/c/layers/status_row_layout.c -o build/host/status_row_layout_test
 build/host/status_row_layout_test
+# status_icon_weight.h is header-only (a table + pure integer arithmetic), so the
+# test needs no companion .c — that is also why the weight math lives in a header
+# rather than inside the SDK-bound status_row.c.
+cc $CFLAGS test/c/status_icon_weight_test.c -o build/host/status_icon_weight_test
+build/host/status_icon_weight_test
 cc $CFLAGS test/c/status_row_alloc_test.c src/c/appendix/status_row_alloc.c -o build/host/status_row_alloc_test
 build/host/status_row_alloc_test
 cc $CFLAGS test/c/top_status_indicators_test.c -o build/host/top_status_indicators_test

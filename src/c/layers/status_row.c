@@ -1,5 +1,6 @@
 #include "status_row.h"
 #include "status_row_icons.h"
+#include "status_icon_weight.h"
 #include "status_row_layout.h"
 #include "battery_draw.h"
 #include "layer_util.h"
@@ -639,8 +640,14 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
             // glyph cache (ensure_glyphs) holds theme_fg between draws.
             bool recolored = levels[i] == THRESH_LEVEL_DANGER;
             if (recolored) { glyph_set_stroke(row->glyphs[i], ink); }
+            // Seat the glyph on the cap centre at its per-icon optical-centre
+            // weight (status_icon_weight.h). Every weight ships at 50 today,
+            // which reduces this to the historical `glyph_cy - gs.h / 2`.
+            // glyph_icons[i] — not slots[i].icon — is the id whose PDC is in
+            // glyphs[i] (the battery override rewrites slots[i].icon).
             gdraw_command_image_draw(ctx, row->glyphs[i],
-                GPoint(icon_x, glyph_cy - gs.h / 2));
+                GPoint(icon_x, status_icon_top_y(glyph_cy, gs.h,
+                    status_icon_weight_pct(row->glyph_icons[i]))));
             if (recolored) { glyph_set_stroke(row->glyphs[i], theme_fg()); }
         } else if (slots[i].icon == STATUS_ICON_DRAWN_SUN && measures[i].icon_w > 0) {
             bool arrow_up = persist_get_sun_event_start_type() == 0;

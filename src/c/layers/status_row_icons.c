@@ -139,6 +139,11 @@ static uint32_t icon_resource(uint8_t icon_id) {
 // the slot, but a few read visually large at the shared target and get nudged down:
 // the route (distance) sprawls to its bbox corners and the steps footprint is wide.
 // 100 = no change; tune per icon.
+//
+// The vertical companion to this knob is the per-icon optical-centre weight in
+// status_icon_weight.h (50 = centre the ink box on the digits' cap centre, i.e.
+// what the draw site did before weights existed). Both are hand-tuned taste
+// values: this one decides how BIG a glyph reads, that one how HIGH it sits.
 static int icon_scale_pct(uint8_t icon_id) {
     switch (icon_id) {
         case STATUS_ICON_DISTANCE: return 95;
