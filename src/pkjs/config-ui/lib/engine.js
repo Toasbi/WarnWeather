@@ -1431,7 +1431,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // and only re-rendering on `change`. So: mutate the DOM directly for the
       // duration of the drag, then render() ONCE on release, which lets any
       // dependent showWhen/blocks catch up.
-      var drag = null;   // { root, thumb, which, item } while a thumb is held
+      var drag = null;   // { root, thumb, which, item, pointerId } while a thumb is held
       /**
        * Map a client x within the track to a value in the item's range.
        * @param {Element} track .rng-track element.
@@ -1474,15 +1474,25 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       scroll.addEventListener('pointerdown', function (e) {
         var th = e.target.closest && e.target.closest('[data-range-thumb]');
         if (!th) { return; }
+        // A drag is already in flight: a second finger landing on the other thumb of
+        // the same (or another) slider must not hijack it — ignore the second pointer
+        // entirely rather than clobbering `drag`.
+        if (drag) { return; }
         var root = th.closest('.rng');
         var item = findItem(root.getAttribute('data-range'));
         if (!item) { return; }
-        drag = { root: root, thumb: th, which: th.getAttribute('data-range-thumb'), item: item };
+        drag = { root: root, thumb: th, which: th.getAttribute('data-range-thumb'),
+          item: item, pointerId: e.pointerId };
         th.setPointerCapture(e.pointerId);
+        // preventDefault() (needed to stop text selection / page scroll mid-drag) also
+        // suppresses the browser's implicit focus-on-mousedown for the button in some
+        // browsers, which would otherwise silently break arrow-key nudging right after
+        // a drag — so take the focus back explicitly.
+        th.focus();
         e.preventDefault();
       });
       scroll.addEventListener('pointermove', function (e) {
-        if (!drag) { return; }
+        if (!drag || e.pointerId !== drag.pointerId) { return; }
         var track = drag.root.querySelector('.rng-track');
         var current = {
           lo: parseInt(drag.root.getAttribute('data-lo'), 10),
@@ -1505,9 +1515,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       }
       scroll.addEventListener('pointerup', endRangeDrag);
       scroll.addEventListener('pointercancel', endRangeDrag);
-      // Keyboard: arrows nudge the focused thumb one step. Re-renders per press
-      // (no gesture in flight, and focus is restored by the browser on the
-      // rebuilt DOM only if we re-focus — so nudge in place and skip render()).
+      // Keyboard: arrows nudge the focused thumb one step. This deliberately does NOT
+      // call render() — render() rebuilds #scroll's DOM, which would drop focus from
+      // the thumb the user is arrowing — so it paints the move in place instead, same
+      // as a drag frame.
       scroll.addEventListener('keydown', function (e) {
         var th = e.target.closest && e.target.closest('[data-range-thumb]');
         if (!th) { return; }
@@ -1523,8 +1534,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           lo: parseInt(root.getAttribute('data-lo'), 10),
           hi: parseInt(root.getAttribute('data-hi'), 10)
         };
-        var step = (item.step ? Number(item.step) : 1);
-        var next = moveThumb(current, which, current[which] + delta * step, item);
+        var next = moveThumb(current, which, current[which] + delta * rangeStep(item), item);
         paintRange(root, item, next);
         S[item.messageKey] = formatRange(next);
         e.preventDefault();
