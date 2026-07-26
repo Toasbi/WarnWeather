@@ -192,6 +192,6 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // Recorded exactly, like the weather bundle above: the Clay message grows key by key
   // (the palette, then the threshold blob), so the next task that adds one has to see the
   // running total move instead of silently eating the remaining headroom.
-  assert.equal(size, 378, 'update the recorded Clay message size when its wire contract changes');
+  assert.equal(size, 389, 'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });

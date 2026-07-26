@@ -83,6 +83,19 @@ function buildClayPayload(settings, watchInfo, now) {
             if (isNaN(rc)) { rc = 60; }
             if ((settings.radarMode || 'graph') === 'off') { rc = 0; }
             return rc;
+        })(),
+        // Health-graph HR line scale, packed lo | (hi << 8) — both ends are <= 220,
+        // so each fits a byte and the pair rides one key instead of two. The watch
+        // reads it as int32 and falls back to its own HEALTH_HR_LO/HI when it is 0
+        // (an older phone build that never sends the key).
+        "CLAY_HR_SCALE": (function() {
+            var lo = 40, hi = 180;            // == HEALTH_HR_LO / HEALTH_HR_HI
+            var m = /^(\d+)-(\d+)$/.exec(String(settings.hrScale || ''));
+            if (m) {
+                var plo = parseInt(m[1], 10), phi = parseInt(m[2], 10);
+                if (plo >= 1 && phi > plo && phi <= 255) { lo = plo; hi = phi; }
+            }
+            return lo | (hi << 8);
         })()
     };
     var palette = paletteWire.buildPaletteTuples(watchInfo, settings);

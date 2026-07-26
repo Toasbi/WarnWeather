@@ -300,7 +300,8 @@
       "CLAY_DATE_MONTH_FIRST",
       "NOTICE_TEXT",
       "STATUS_LEVELS_UINT8",
-      "CLAY_THRESHOLDS_UINT8"
+      "CLAY_THRESHOLDS_UINT8",
+      "CLAY_HR_SCALE"
     ]
   }
 }

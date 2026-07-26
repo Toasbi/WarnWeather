@@ -183,3 +183,30 @@ test('configTheme is a settings-only key and never rides the Clay AppMessage', f
   const p = buildClayPayload(s, { platform: 'emery' }, NOW);
   assert.equal(Object.prototype.hasOwnProperty.call(p, 'configTheme'), false);
 });
+
+test('CLAY_HR_SCALE packs the hrScale pair as lo | (hi << 8)', function() {
+  const s = baseSettings();
+  s.healthMode = 'all';
+  s.hrScale = '50-100';   // >= minSpan (50) apart, so the UI can actually produce it
+  const p = buildClayPayload(s, { platform: 'diorite' }, NOW);
+  assert.equal(p.CLAY_HR_SCALE, 50 | (100 << 8));
+  // Both operands must survive the round trip as bytes.
+  assert.equal(p.CLAY_HR_SCALE & 0xFF, 50);
+  assert.equal((p.CLAY_HR_SCALE >> 8) & 0xFF, 100);
+});
+
+test('CLAY_HR_SCALE falls back to 40-180 when unset or malformed', function() {
+  const expected = 40 | (180 << 8);
+  const s = baseSettings();
+  assert.equal(buildClayPayload(s, { platform: 'diorite' }, NOW).CLAY_HR_SCALE, expected,
+    'unset');
+  s.hrScale = 'nonsense';
+  assert.equal(buildClayPayload(s, { platform: 'diorite' }, NOW).CLAY_HR_SCALE, expected,
+    'malformed');
+  s.hrScale = '95-55';
+  assert.equal(buildClayPayload(s, { platform: 'diorite' }, NOW).CLAY_HR_SCALE, expected,
+    'inverted');
+  s.hrScale = '300-400';
+  assert.equal(buildClayPayload(s, { platform: 'diorite' }, NOW).CLAY_HR_SCALE, expected,
+    'out of byte range');
+});
