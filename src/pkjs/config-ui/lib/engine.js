@@ -641,6 +641,43 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     return h;
   }
+  /**
+   * Dual-thumb range track. Renders from the stored "lo-hi" string; the drag
+   * handler in wireInputs() moves the thumbs through moveThumb(). The current
+   * values ride on the root as data-lo/data-hi so the pointer handler can read
+   * them without re-parsing, and the thumbs are positioned as a percentage of
+   * the track so the control needs no measured width at render time.
+   * @param {Object} item Range schema item (min/max/step/minSpan/unit).
+   * @param {{value:*}} view Render state.
+   * @returns {string} Control HTML.
+   */
+  function renderRange(item, view) {
+    var r = parseRange(view.value, item);
+    var min = Number(item.min), max = Number(item.max);
+    var span = (max - min) || 1;
+    var unit = item.unit ? ' ' + esc(item.unit) : '';
+    /**
+     * @param {number} v Value.
+     * @returns {string} Track offset as a percentage, one decimal.
+     */
+    function pct(v) { return (Math.round(((v - min) * 1000) / span) / 10) + '%'; }
+    var key = esc(item.messageKey);
+    return '<div class="rng" data-range="' + key + '" data-lo="' + r.lo
+      + '" data-hi="' + r.hi + '">'
+      + '<div class="rng-val">' + r.lo + ' &ndash; ' + r.hi + unit + '</div>'
+      + '<div class="rng-track">'
+      + '<div class="rng-fill" style="left:' + pct(r.lo)
+      + ';right:' + (Math.round((1000 - ((r.hi - min) * 1000) / span)) / 10) + '%"></div>'
+      + '<button type="button" class="rng-th" data-range-thumb="lo" style="left:' + pct(r.lo)
+      + '" role="slider" aria-label="' + esc(String(item.label || 'Range') + ' minimum')
+      + '" aria-valuemin="' + min + '" aria-valuemax="' + max + '" aria-valuenow="' + r.lo + '"></button>'
+      + '<button type="button" class="rng-th" data-range-thumb="hi" style="left:' + pct(r.hi)
+      + '" role="slider" aria-label="' + esc(String(item.label || 'Range') + ' maximum')
+      + '" aria-valuemin="' + min + '" aria-valuemax="' + max + '" aria-valuenow="' + r.hi + '"></button>'
+      + '</div>'
+      + '<div class="rng-ends"><span>' + min + '</span><span>' + max + '</span></div>'
+      + '</div>';
+  }
   var CONTROLS = {
     toggle: function (item, view) { return renderToggle(item, view.value); },
     segmented: function (item, view) { return renderSegmented(item, view.value); },
@@ -649,7 +686,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     date: function (item, view) { return renderDateTrigger(item, view); },
     text: function (item, view) { return renderText(item, view.value); },
     color: function (item, view) { return renderColor(item, view.value, view.openColor); },
-    searchSelect: function (item, view) { return renderSelectTrigger(item, view); }
+    searchSelect: function (item, view) { return renderSelectTrigger(item, view); },
+    range: function (item, view) { return renderRange(item, view); }
   };
   /**
    * Dispatch to the control renderer for item.type; '' for an unknown type.
@@ -687,7 +725,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // label's line and the label wraps into the width the control leaves, then the hint
     // drops to a full-width line below.
     var wideSegmented = item.type === 'segmented' && item.options && item.options.length > 3;
-    var stacked = item.type === 'text' || item.type === 'radio'
+    var stacked = item.type === 'text' || item.type === 'radio' || item.type === 'range'
       || (item.type === 'color' && view.openColor === item.messageKey);
     var hintHtml = hint ? '<div class="hint">' + hint + '</div>' : '';
     var label = '<div class="lbl">' + esc(item.label) + '</div>';
@@ -1387,6 +1425,110 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         // #scroll.innerHTML detaches the node the click was about to land on.
         if (S[tk] !== newV) { render(); }
       });
+      // Range drag. render() replaces #scroll.innerHTML wholesale, so a re-render
+      // mid-gesture would destroy the element being dragged and drop pointer
+      // capture — the same hazard the text input avoids by writing S on `input`
+      // and only re-rendering on `change`. So: mutate the DOM directly for the
+      // duration of the drag, then render() ONCE on release, which lets any
+      // dependent showWhen/blocks catch up.
+      var drag = null;   // { root, thumb, which, item } while a thumb is held
+      /**
+       * Map a client x within the track to a value in the item's range.
+       * @param {Element} track .rng-track element.
+       * @param {Object} item Range schema item.
+       * @param {number} clientX Pointer x.
+       * @returns {number} Unsnapped value at that position.
+       */
+      function rangeValueAt(track, item, clientX) {
+        var box = track.getBoundingClientRect();
+        var frac = box.width > 0 ? (clientX - box.left) / box.width : 0;
+        if (frac < 0) { frac = 0; }
+        if (frac > 1) { frac = 1; }
+        return Number(item.min) + frac * (Number(item.max) - Number(item.min));
+      }
+      /**
+       * Repaint one range control in place (no re-render) from a new range.
+       * @param {Element} root .rng element.
+       * @param {Object} item Range schema item.
+       * @param {{lo:number, hi:number}} r New range.
+       * @returns {void}
+       */
+      function paintRange(root, item, r) {
+        var min = Number(item.min), max = Number(item.max);
+        var span = (max - min) || 1;
+        var loPct = ((r.lo - min) * 100) / span, hiPct = ((r.hi - min) * 100) / span;
+        root.setAttribute('data-lo', r.lo);
+        root.setAttribute('data-hi', r.hi);
+        root.querySelector('.rng-val').innerHTML = r.lo + ' &ndash; ' + r.hi
+          + (item.unit ? ' ' + esc(item.unit) : '');
+        var fill = root.querySelector('.rng-fill');
+        fill.style.left = loPct + '%';
+        fill.style.right = (100 - hiPct) + '%';
+        var lo = root.querySelector('[data-range-thumb=lo]');
+        var hi = root.querySelector('[data-range-thumb=hi]');
+        lo.style.left = loPct + '%';
+        hi.style.left = hiPct + '%';
+        lo.setAttribute('aria-valuenow', r.lo);
+        hi.setAttribute('aria-valuenow', r.hi);
+      }
+      scroll.addEventListener('pointerdown', function (e) {
+        var th = e.target.closest && e.target.closest('[data-range-thumb]');
+        if (!th) { return; }
+        var root = th.closest('.rng');
+        var item = findItem(root.getAttribute('data-range'));
+        if (!item) { return; }
+        drag = { root: root, thumb: th, which: th.getAttribute('data-range-thumb'), item: item };
+        th.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      });
+      scroll.addEventListener('pointermove', function (e) {
+        if (!drag) { return; }
+        var track = drag.root.querySelector('.rng-track');
+        var current = {
+          lo: parseInt(drag.root.getAttribute('data-lo'), 10),
+          hi: parseInt(drag.root.getAttribute('data-hi'), 10)
+        };
+        var next = moveThumb(current, drag.which,
+          rangeValueAt(track, drag.item, e.clientX), drag.item);
+        if (next.lo === current.lo && next.hi === current.hi) { return; }
+        paintRange(drag.root, drag.item, next);
+        S[drag.item.messageKey] = formatRange(next);
+      });
+      /**
+       * End a drag: one render() so dependent rows/blocks refresh.
+       * @returns {void}
+       */
+      function endRangeDrag() {
+        if (!drag) { return; }
+        drag = null;
+        render();
+      }
+      scroll.addEventListener('pointerup', endRangeDrag);
+      scroll.addEventListener('pointercancel', endRangeDrag);
+      // Keyboard: arrows nudge the focused thumb one step. Re-renders per press
+      // (no gesture in flight, and focus is restored by the browser on the
+      // rebuilt DOM only if we re-focus — so nudge in place and skip render()).
+      scroll.addEventListener('keydown', function (e) {
+        var th = e.target.closest && e.target.closest('[data-range-thumb]');
+        if (!th) { return; }
+        var delta = 0;
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { delta = -1; }
+        if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { delta = 1; }
+        if (!delta) { return; }
+        var root = th.closest('.rng');
+        var item = findItem(root.getAttribute('data-range'));
+        if (!item) { return; }
+        var which = th.getAttribute('data-range-thumb');
+        var current = {
+          lo: parseInt(root.getAttribute('data-lo'), 10),
+          hi: parseInt(root.getAttribute('data-hi'), 10)
+        };
+        var step = (item.step ? Number(item.step) : 1);
+        var next = moveThumb(current, which, current[which] + delta * step, item);
+        paintRange(root, item, next);
+        S[item.messageKey] = formatRange(next);
+        e.preventDefault();
+      });
     }
 
     // The #modal overlay lives outside #scroll, so it needs its own delegated handlers:
@@ -1574,7 +1716,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     formatDateValue: formatDateValue, parseDateParts: parseDateParts,
     dateValueFromParts: dateValueFromParts,
     parseRange: parseRange, formatRange: formatRange,
-    snapToStep: snapToStep, moveThumb: moveThumb,
+    snapToStep: snapToStep, moveThumb: moveThumb, renderRange: renderRange,
     renderTabBar: renderTabBar, renderBody: renderBody, resolveOptionsFrom: resolveOptionsFrom,
     resolveDefaultFrom: resolveDefaultFrom,
     resolveTheme: resolveTheme
@@ -1594,6 +1736,7 @@ if (typeof module !== 'undefined' && module.exports) {
     dateValueFromParts: PConf.engine.dateValueFromParts,
     parseRange: PConf.engine.parseRange, formatRange: PConf.engine.formatRange,
     snapToStep: PConf.engine.snapToStep, moveThumb: PConf.engine.moveThumb,
+    renderRange: PConf.engine.renderRange,
     renderTabBar: PConf.engine.renderTabBar, renderBody: PConf.engine.renderBody,
     resolveOptionsFrom: PConf.engine.resolveOptionsFrom,
     resolveDefaultFrom: PConf.engine.resolveDefaultFrom,

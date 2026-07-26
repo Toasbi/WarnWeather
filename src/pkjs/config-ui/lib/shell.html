@@ -144,6 +144,19 @@
   .radio .dot { flex: none; width: 18px; height: 18px; border-radius: 9px; border: 2px solid var(--line-strong); display: flex; align-items: center; justify-content: center; }
   .radio button.on .dot { border-color: #FF6A52; }
   .radio button.on .dot::after { content: ''; width: 8px; height: 8px; border-radius: 4px; background: #FF6A52; }
+  /* dual-thumb range (type: 'range'): a stacked, full-width control — readout above,
+     track with two draggable thumbs, bound labels below. Thumbs are positioned by
+     `left` percentage and pulled back half their width so they centre on their value;
+     touch-action:none on the track keeps a drag from scrolling the page instead. */
+  .rng { width: 100%; }
+  .rng-val { font: 700 14px 'Inter', sans-serif; color: var(--lbl); text-align: center; margin-bottom: 10px; }
+  .rng-track { position: relative; height: 28px; margin: 0 14px; touch-action: none; }
+  .rng-track::before { content: ''; position: absolute; left: 0; right: 0; top: 12px; height: 4px; border-radius: 2px; background: var(--sw-track); }
+  .rng-fill { position: absolute; top: 12px; height: 4px; border-radius: 2px; background: linear-gradient(135deg, #FA4A35, #D93A24); }
+  .rng-th { position: absolute; top: 0; width: 28px; height: 28px; margin-left: -14px; padding: 0; border: 2px solid #FFFFFF; border-radius: 14px; background: linear-gradient(135deg, #FA4A35, #D93A24); box-shadow: 0 2px 8px rgba(250,74,53,0.35); cursor: grab; touch-action: none; }
+  .rng-th:active { cursor: grabbing; transform: scale(1.08); }
+  .rng-th:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+  .rng-ends { display: flex; justify-content: space-between; margin: 6px 2px 0; font: 600 11.5px 'Inter', sans-serif; color: var(--faint); }
   select { -webkit-appearance: none; appearance: none; border: 1px solid var(--ctl-line); background: var(--ctl); color: var(--lbl); border-radius: 9px; padding: 8px 32px 8px 13px; font: 600 13.5px 'Inter', sans-serif; cursor: pointer; outline: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 8 6'%3E%3Cpath d='M0 0l4 6 4-6z' fill='%23B6BAC2'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; transition: border-color .15s; }
   select:focus { border-color: #FA4A35; }
   body.light select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 8 6'%3E%3Cpath d='M0 0l4 6 4-6z' fill='%235A5F6A'/%3E%3C/svg%3E"); }
