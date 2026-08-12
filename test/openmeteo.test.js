@@ -174,3 +174,26 @@ test('OpenMeteoProvider has the expected identity and inherits the base class', 
   // Sun events are inherited (no override), like dwd.js.
   assert.equal(p.withSunEvents, WeatherProvider.prototype.withSunEvents);
 });
+
+// ---- Sea-level pressure --------------------------------------------------
+test('open-meteo requests pressure_msl', () => {
+  assert.ok(openmeteo.buildForecastUrl(52.52, 13.41).includes('pressure_msl'),
+    'forecast URL must request pressure_msl');
+});
+
+test('open-meteo maps hourly pressure_msl into pressureTrend', () => {
+  const json = sampleResponse();
+  json.hourly.pressure_msl = json.hourly.time.map((_, i) => 1010 + i);
+  const mapped = mapResponse(json, BASE);
+  assert.equal(mapped.pressureTrend.length, 24);
+  assert.equal(mapped.pressureTrend[0], 1010);
+});
+
+// pressure_msl must NOT join the hard field guard: a response missing it should
+// still yield a usable forecast, with pressure degrading to line-off.
+test('open-meteo tolerates a response with no pressure_msl', () => {
+  const json = sampleResponse();
+  const mapped = mapResponse(json, BASE);
+  assert.notEqual(mapped, null);
+  assert.deepEqual(mapped.pressureTrend, []);
+});

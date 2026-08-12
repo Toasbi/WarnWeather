@@ -127,3 +127,32 @@ test('composeWeatherPayload works with no extras and no transform', () => {
   assert.equal(out.CITY, 'Town');
   assert.ok(Array.isArray(out.TEMP_TREND_UINT8));
 });
+
+// Pressure rides as a transient non-byte series (hPa 950..1050 doesn't fit a
+// uint8), mirroring AQI_TREND rather than the *_TREND_UINT8 keys.
+function pressureProvider(over) {
+  return makeProvider(Object.assign({
+    numEntries: 24,
+    tempTrend: new Array(24).fill(50),
+    precipTrend: new Array(24).fill(0),
+    rainTrend: new Array(24).fill(0),
+    startTime: 1000,
+    currentTemp: 60,
+    cityName: 'Testville',
+    sunEvents: [
+      { type: 'sunrise', date: new Date(1000 * 1000) },
+      { type: 'sunset', date: new Date(2000 * 1000) }
+    ]
+  }, over));
+}
+
+test('getPayload emits an empty PRESSURE_TREND when no provider sourced it', () => {
+  assert.deepEqual(pressureProvider().getPayload().PRESSURE_TREND, []);
+});
+
+test('getPayload emits sourced pressure verbatim, trimmed to numEntries', () => {
+  const p = pressureProvider({ pressureTrend: new Array(30).fill(1013.5) });
+  const out = p.getPayload().PRESSURE_TREND;
+  assert.equal(out.length, 24);
+  assert.equal(out[0], 1013.5); // no byte-scaling: hPa stay real numbers
+});

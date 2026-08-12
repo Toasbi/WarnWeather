@@ -199,6 +199,10 @@ var WeatherProvider = function() {
     // Pollen is opt-in and DWD-only; null renders as '--' unless the auxiliary
     // fetch fills it. Transient: consumed by formatValue, never wired.
     this.pollenToday = null;
+    // Pressure is sea-level (MSL) hPa and not every provider exposes it; empty →
+    // the pressure line stays off and the status slot shows '--'. Transient:
+    // consumed by forecast-series + formatValue, never wired.
+    this.pressureTrend = [];
 };
 
 /**
@@ -843,6 +847,7 @@ WeatherProvider.prototype.getPayload = function() {
         UV_TREND_UINT8: uvs, // Transient PKJS-only: UV tenths; forecast-series consumes + deletes before send
         AQI_TREND: (this.aqiTrend && this.aqiTrend.length) ? this.aqiTrend.slice(0, numEntries) : [], // Transient PKJS-only: current-window AQI ints; forecast-series consumes + deletes before send
         POLLEN_TODAY: this.pollenToday, // Transient PKJS-only: native DWD severity; forecast-series consumes + deletes before send
+        PRESSURE_TREND: (this.pressureTrend && this.pressureTrend.length) ? this.pressureTrend.slice(0, numEntries) : [], // Transient PKJS-only: sea-level hPa (no _UINT8 — 950..1050 doesn't fit a byte); forecast-series consumes + deletes before send
         FORECAST_START: this.startTime,
         NUM_ENTRIES: numEntries,
         CURRENT_TEMP: Math.round(this.currentTemp),
