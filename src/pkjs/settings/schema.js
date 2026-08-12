@@ -17,6 +17,7 @@ var LINE_HINTS = {
     wind: 'Wind speed each hour, scaled by the wind graph scale below.',
     gust: 'Wind gust peaks each hour, scaled by the wind graph scale below.',
     uv: 'UV index each hour<br>— half-height = UV 5.5<br>— full-height = UV 11 (extreme)',
+    pressure: 'Sea-level air pressure each hour, scaled by the pressure graph scale below.',
     off: 'No third line — temperature and the secondary line only.'
 };
 // The second metric renders as square dots aligned to the rain bars; its picker reuses the
@@ -29,16 +30,18 @@ var THIRD_LINE_HINTS = {
     wind: LINE_HINTS.wind + DOTS_NOTE,
     gust: LINE_HINTS.gust + DOTS_NOTE,
     uv: LINE_HINTS.uv + DOTS_NOTE,
+    pressure: LINE_HINTS.pressure + DOTS_NOTE,
     off: 'No second metric — temperature and the main metric only.'
 };
-// Third-line options derived from the secondary metric: Off plus the three metrics
+// Third-line options derived from the secondary metric: Off plus the four metrics
 // the secondary line is NOT using, so the same metric can't be picked on both lines.
 // The engine's display-snap resets thirdLine if it ever collides (see engine.js).
 var THIRD_LINE_OPTIONS = {
-    precip_prob: [['Off', 'off'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['UV Index', 'uv']],
-    wind: [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind gusts', 'gust'], ['UV Index', 'uv']],
-    gust: [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['UV Index', 'uv']],
-    uv: [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust']]
+    precip_prob: [['Off', 'off'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure']],
+    wind:        [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind gusts', 'gust'], ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure']],
+    gust:        [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure']],
+    uv:          [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['Air pressure (hPa)', 'pressure']],
+    pressure:    [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['UV Index', 'uv']]
 };
 // windScale ceilings pre-rendered per wind unit, chosen by showWhen on windUnits
 // (§2b). Same descriptive tails as the original single hint; only the ceiling +
@@ -80,6 +83,37 @@ function windScaleCopy(context, unit, hints) {
         hintByValue: hints,
         options: [['Low', 'low'], ['Mid', 'mid'], ['High', 'high']],
         showWhen: {all: lineWhen.concat([{key: 'windUnits', eq: unit}])}
+    };
+}
+// Pressure band ceilings/floors, pre-rendered per scale value. Mirrors
+// forecast-series.PRESSURE_SCALE_HPA — keep the numbers in sync.
+var PRESSURE_SCALE_HINTS = {
+    low:  'Covers 990–1030 hPa — emphasizes small movements; a deep low flattens against the bottom.',
+    mid:  'Covers 980–1040 hPa — general use; the whole ordinary range fits, mid-graph ≈ 1010 hPa.',
+    high: 'Covers 960–1050 hPa — keeps storm-depth lows on scale.'
+};
+/**
+ * One pressureScale control for a line-context. Unlike windScaleCopy this needs no
+ * per-unit duplication — pressure ships hPa only, so one copy per context is enough.
+ * @param {string} context 'secondary' | 'third'.
+ * @returns {Object} Schema item.
+ */
+function pressureScaleCopy(context) {
+    return {
+        type: 'segmented',
+        messageKey: 'pressureScale',
+        label: 'Pressure graph scale',
+        defaultValue: 'mid',
+        joinPrevious: true,
+        hintByValue: PRESSURE_SCALE_HINTS,
+        // Narrow/Mid/Wide rather than windScale's Low/Mid/High: "Low" next to a
+        // pressure graph reads as *low pressure*, not *narrow band*. The stored
+        // values stay low|mid|high so the code vocabulary matches windScale.
+        options: [['Narrow', 'low'], ['Mid', 'mid'], ['Wide', 'high']],
+        showWhen: context === 'secondary'
+            ? {key: 'secondaryLine', eq: 'pressure'}
+            : {all: [{key: 'thirdLine', eq: 'pressure'},
+                     {not: {key: 'secondaryLine', eq: 'pressure'}}]}
     };
 }
 // Color swatches (5 intensity bands) — shown only in the Multicolor hint.
@@ -358,14 +392,14 @@ module.exports = {
         }]
     }, {
         id: 'forecast', label: 'Forecast', sections: [{
-            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always shown; on top of it the main metric (a solid line) shows one of precipitation %, wind speed, wind gusts or UV index, and an optional second metric (drawn as bar-aligned square dots) adds another — plus optional bars for the hourly rain amount.',
+            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always shown; on top of it the main metric (a solid line) shows one of precipitation %, wind speed, wind gusts, UV index or air pressure, and an optional second metric (drawn as bar-aligned square dots) adds another — plus optional bars for the hourly rain amount.',
             items: [{
                 type: 'select',
                 messageKey: 'secondaryLine',
                 label: 'Main metric',
                 defaultValue: 'precip_prob',
                 hintByValue: LINE_HINTS,
-                options: [['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['UV Index', 'uv']],
+                options: [['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure']],
                 blockBefore: 'forecastPreview',
                 blockBeforeSticky: true
             }, {
@@ -379,6 +413,7 @@ module.exports = {
             windScaleCopy('secondary', 'kph', WIND_SCALE_HINTS_KPH),
             windScaleCopy('secondary', 'mph', WIND_SCALE_HINTS_MPH),
             windScaleCopy('secondary', 'knots', WIND_SCALE_HINTS_KNOTS),
+            pressureScaleCopy('secondary'),
             {
                 type: 'select',
                 messageKey: 'thirdLine',
@@ -390,6 +425,7 @@ module.exports = {
             windScaleCopy('third', 'kph', WIND_SCALE_HINTS_KPH),
             windScaleCopy('third', 'mph', WIND_SCALE_HINTS_MPH),
             windScaleCopy('third', 'knots', WIND_SCALE_HINTS_KNOTS),
+            pressureScaleCopy('third'),
             {
                 type: 'segmented',
                 messageKey: 'barSource',

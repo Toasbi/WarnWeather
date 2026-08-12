@@ -973,7 +973,7 @@ function fetch(provider, force) {
 function renderSignature(settings) {
     if (!settings) { return ''; }
     var parts = [settings.secondaryLine, settings.thirdLine, settings.secondaryLineFill,
-        settings.barSource, settings.windScale, settings.theme,
+        settings.barSource, settings.windScale, settings.pressureScale, settings.theme,
         // Status-line bake inputs: value formatting...
         settings.temperatureUnits, settings.axisTimeFormat, settings.timeShowAmPm,
         settings.timeLeadingZero, settings.healthMode,
