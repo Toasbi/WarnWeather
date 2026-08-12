@@ -106,5 +106,9 @@
   "1.9.3": {
     "title": "Swap clock & status, no flick",
     "body": "Move the status row next to your forecast with the new swap toggle — or add a Radar or Health row in the dense layout. Both in the Layout tab."
+  },
+  "1.10.0": {
+    "title": "Air pressure on the graph",
+    "body": "Pick air pressure as a graph line or dots in the Forecast tab, with a scale to widen or tighten the band, or drop it into any status slot. Also fixes settings changes sometimes not refreshing the forecast right away."
   }
 }
