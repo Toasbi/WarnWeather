@@ -4,6 +4,7 @@ var configUi = require('./config-ui');   // isColorPlatform — same helper rain
 var resolveInkLib = require('./resolve-ink.js');
 var statusLines = require('./status-lines.js');
 var statusCatalog = require('./status-line-catalog.js');
+var pressurePlausibility = require('./weather/pressure-plausibility.js');
 var resolveInk = resolveInkLib.resolveInk;
 var isBwTheme = resolveInkLib.isBwTheme;
 var isLightPolarity = resolveInkLib.isLightPolarity;
@@ -165,12 +166,18 @@ var PRESSURE_SCALE_HPA = {
     mid:  { min: 980, max: 1040 },   // Mid    — 60 hPa (default)
     high: { min: 960, max: 1050 }    // Wide   — 90 hPa
 };
-// Plausibility window for one sea-level reading. The world-record low is ~870 hPa, so
-// nothing legitimate falls outside this: it exists solely to catch nulls and the
-// zero-fill idiom. 0 hPa is physically impossible but is exactly what an absent value
-// coerces to, and it would otherwise draw a spike to the graph floor.
-var PRESSURE_MIN_VALID = 800;
-var PRESSURE_MAX_VALID = 1100;
+// Plausibility window for one sea-level reading -- shared with status-lines.js via
+// weather/pressure-plausibility.js (see that file's header for why it lives there
+// instead of being exported from here). 0 hPa is physically impossible but is
+// exactly what an absent value coerces to, and it would otherwise draw a spike to
+// the graph floor -- or, in the status slot, print as a bogus "0hPa" reading.
+var isPlausiblePressure = pressurePlausibility.isPlausiblePressure;
+
+// Smallest permille value that survives permilleToByte's /4-and-round quantization
+// to a non-zero byte (round(2/4) === 1; round(1/4) === 0). Used to float a
+// floor-clamped pressure reading off exactly byte 0, which chart.c's dot renderer
+// (chart.c:224, "values[i] <= lo") treats as "no data, skip" -- see pressurePermille.
+var PRESSURE_FLOOR_PERMILLE = 2;
 
 /**
  * Scale a km/h-style series to permille (0..1000) against a ceiling, clamped to the top.
@@ -211,6 +218,8 @@ function scaleToPermilleRange(arr, min, max) {
  * the WHOLE series before scaling: a single implausible entry rejects everything rather
  * than being interpolated away, which keeps the rule simple and never invents data. An
  * empty result renders as line-off — the same graceful degrade an absent series gets.
+ * A value at or below the band floor is real data (not "no data"), so its permille is
+ * floor-clamped to PRESSURE_FLOOR_PERMILLE rather than 0 -- see that constant's comment.
  * @param {Array.<number>} arr Per-hour sea-level pressure in hPa.
  * @param {string} scale pressureScale setting: low|mid|high.
  * @returns {number[]} Permille series, or [] when any entry is implausible.
@@ -220,12 +229,19 @@ function pressurePermille(arr, scale) {
     var v;
     for (var i = 0; i < arr.length; i += 1) {
         v = Number(arr[i]);
-        if (!isFinite(v) || v < PRESSURE_MIN_VALID || v > PRESSURE_MAX_VALID) {
+        if (!isPlausiblePressure(v)) {
+            // Diagnostic only -- the whole-series rejection rule above is intentional
+            // and must not change; this just makes an otherwise-silent blank line
+            // debuggable (provider zero-fill for an unreported station hour is the
+            // common cause).
+            console.log('[pressure] series rejected: implausible value ' + v + ' at hour ' + i);
             return [];
         }
     }
     var band = PRESSURE_SCALE_HPA[scale] || PRESSURE_SCALE_HPA.mid;
-    return scaleToPermilleRange(arr, band.min, band.max);
+    return scaleToPermilleRange(arr, band.min, band.max).map(function(pm) {
+        return pm === 0 ? PRESSURE_FLOOR_PERMILLE : pm;
+    });
 }
 
 /**

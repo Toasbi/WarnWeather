@@ -241,9 +241,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var rain   = [0, 0.5, 6, 12, 4, 1, 0.3, 0, 0, 0, 0, 0];
         var gust   = [22, 25, 30, 34, 32, 28, 25, 24, 27, 31, 36, 33];
         var uv     = [8, 6, 4, 2, 1, 0, 0, 0, 0, 0, 1, 3];
-        // Falls into the shower (slots 2-4), then recovers as it clears — the same
-        // weather story the other samples tell.
-        var pressure = [1016, 1012, 1007, 1003, 1002, 1004, 1007, 1010, 1012, 1013, 1014, 1015];
+        // Falls into the shower (slots 2-4), dips to a below-floor low at slot 4 (984 hPa,
+        // below the 'low' band's 990 floor — exercises the floor-clamp-not-skip dot
+        // behavior below), then recovers as it clears — the same weather story the other
+        // samples tell.
+        var pressure = [1016, 1012, 1007, 1003, 984, 1004, 1007, 1010, 1012, 1013, 1014, 1015];
 
         var n = temps.length, PX0 = 20, PX1 = 197, PT = 4, PB = 100;
         var plotW = PX1 - PX0, plotH = PB - PT;
@@ -392,7 +394,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         };
         /**
          * Second metric: bar-aligned squares centred in the hour column (same columns as the rain
-         * bars). A value of 0 sits on the baseline and is skipped (mirrors the watch's bar-dots).
+         * bars). For a zero-based metric (min defaults to 0) a value of 0 is genuinely "no data"
+         * and is skipped, mirroring the watch's bar-dots. Pressure is the one metric with a
+         * non-zero `min` (its band floor): a reading at or below it is real data (e.g. a deep
+         * low off the visible band), not an absent hour, so it's clamped to the baseline and
+         * drawn instead of skipped — mirrors forecast-series.pressurePermille's floor-clamp so
+         * the preview and the watch don't diverge.
          * @param {string} metric precip_prob|wind|gust|uv|pressure
          * @returns {string} SVG markup
          */
@@ -403,9 +410,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var dh = (isColor && col === ink.fg) ? 3 : 4, out = '';
             var min = m.min || 0;
             var span = m.max - min;
+            var hasFloor = Boolean(m.min);   // only pressure sets a non-zero min
             for (var i = 0; i < n - 1; i += 1) {
                 var v = Math.min(m.vals[i], m.max);
-                if (v <= min) { continue; }       // at the baseline: skipped, like the watch's bar-dots
+                if (!hasFloor && v <= min) { continue; }  // zero-based metric: genuine zero, skip
+                if (v < min) { v = min; }                  // floor-clamped metric: pin to the baseline
                 var cy = PB - (v - min) / span * (PB - PT - 3);
                 out += rect(gapCenter(i) - bw / 2, cy - dh / 2, bw, dh, col);
             }

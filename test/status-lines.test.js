@@ -384,3 +384,13 @@ test('pressure text fits the 8-byte edge cap at every plausible value', () => {
       `"${text}" exceeds EDGE_TEXT_MAX`);
   }
 });
+
+// Five of six providers (dwd/metno/openweathermap/tomorrowio/wunderground) zero-fill an
+// unreported hour rather than null-filling it, so PRESSURE_TREND[0] === 0 is a common
+// real-world case, not a hypothetical. The graph line already rejects 0 as implausible
+// (forecast-series.pressurePermille) and turns itself off; the status slot must agree,
+// not print a bogus "0hPa" as though it were a real reading.
+test('pressure slot shows -- for an implausible current-hour value (provider zero-fill), not "0hPa"', () => {
+  const text = statusLines.formatValue('pressure', { PRESSURE_TREND: [0, 1013] }, {}, 'statusRadarLeft');
+  assert.equal(text, '--');
+});

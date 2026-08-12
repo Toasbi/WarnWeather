@@ -778,6 +778,34 @@ test('preview bands match forecast-series (no drift)', () => {
   assert.deepEqual(B.pressureBands, PRESSURE_SCALE_HPA);
 });
 
+// The sample scenario's slot 4 is 984 hPa, below the 'low' band's 990 floor (a real
+// reading, e.g. a deep low) — every other metric's zero floor means "no data" and is
+// rightly skipped as a dot, but pressure's band floor is not a genuine zero, so this
+// slot must still draw a dot pinned to the baseline rather than vanishing like a
+// missing hour would.
+// The floor-clamp-not-skip change above is pressure-only (its METRIC entry is the only
+// one with a non-zero `min`): a genuine zero-based metric must still skip its dot at 0,
+// same as before. UV's sample scenario has 5 zero hours (indices 5-9 of 0-based slots).
+test('non-pressure dots still skip a genuine zero (no floor-clamp regression)', () => {
+  const svg = B.forecastPreview(
+    { dayNightShading: false, barSource: 'off', secondaryLine: 'precip_prob',
+      secondaryLineFill: false, thirdLine: 'uv' },
+    { color: true });
+  const dots = (svg.match(/width="9"[^>]*fill="#FF00FF"/g) || []).length;
+  assert.equal(dots, 6, '11 hour columns minus 5 genuine-zero hours (indices 5-9)');
+});
+
+test('pressure dots: a below-floor reading still draws (real data, not skipped like a zero)', () => {
+  const svg = B.forecastPreview(
+    { dayNightShading: false, barSource: 'off', secondaryLine: 'precip_prob',
+      secondaryLineFill: false, thirdLine: 'pressure', pressureScale: 'low' },
+    { color: true });
+  // Scope to width="9" (the dot's bar-aligned width, bw) so the count isn't polluted by
+  // the legend's width="3.2" color swatch, which also uses the pressure hue.
+  const dots = (svg.match(/width="9"[^>]*fill="#FF5500"/g) || []).length;
+  assert.equal(dots, 11, 'all 11 hour-column dots render, including the below-floor one');
+});
+
 test('pressure main metric renders a line inside the plot, not pinned to the top', () => {
   const svg = B.forecastPreview(
     { dayNightShading: false, barSource: 'off', secondaryLine: 'pressure',
@@ -799,5 +827,12 @@ test('a narrower band pushes the pressure line higher than a wider one', () => {
       { color: true });
     return Number([...svg.matchAll(/M(\d+(?:\.\d+)?),(\d+(?:\.\d+)?)/g)][0][2]);
   };
-  assert.ok(yFor('low') < yFor('high'), 'narrow band → higher on the plot (smaller y)');
+  // Exact y, not just an ordering check: an ordering-only assertion (low < high) also
+  // passes under a wrong formula -- e.g. one that ignores the band's non-zero floor and
+  // scales v/max from a zero baseline -- because a wider band still reads lower than a
+  // narrower one under that formula too, for this same sample value. First sample point
+  // is 1016 hPa (slot 0, untouched by the below-floor slot 4 added for the dots test
+  // above); PT=4, PB=100, so y = 100 - (1016-min)/(max-min)*93.
+  assert.equal(yFor('low'), 39.55);    // (1016-990)/40 * 93 = 60.45 → y = 39.55
+  assert.equal(yFor('high'), 42.13333333333333); // (1016-960)/90 * 93 ≈ 57.8667 → y ≈ 42.1333
 });

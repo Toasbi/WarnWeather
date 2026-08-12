@@ -292,7 +292,10 @@ test('secondary pressure: scaled against the mid band, orange line', () => {
   const out = buildForecastSeries(
     { pressures: [980, 1010, 1040] },
     { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid' }, null);
-  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]);
+  // Byte 1, not 0, at the exact floor (980): a reading AT the band floor is real data,
+  // not "no data" -- 0 is reserved for that distinction (see the dots test below and
+  // FIX 2's floor-clamp in pressurePermille).
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [1, 125, 250]);
   assert.equal(out.SECONDARY_LINE_COLOR, 0xFF5500);        // GColorOrange
   assert.equal(out.SECONDARY_LINE_FILL_COLOR, 0xAA5500);   // GColorWindsorTan
 });
@@ -301,7 +304,24 @@ test('pressure clamps at both ends of the band instead of going off-scale', () =
   const out = buildForecastSeries(
     { pressures: [900, 1099] },
     { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid' }, null);
-  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 250]);
+  // Byte 1, not 0: a below-floor reading is floor-clamped to a permille that
+  // survives quantization to a non-zero byte (see the dedicated dots test below) --
+  // it must not collapse to the same byte 0 the chart's dot renderer skips as "no
+  // data". The high end has no such floor concept and clamps to the top byte as before.
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [1, 250]);
+});
+
+// pressureScale: 'low' (990-1030 hPa) with a reading below the floor (984 hPa, e.g. a
+// deep low) must not quantize to byte 0 on the wire: chart.c's dot renderer
+// (chart.c:224, "values[i] <= lo") skips byte 0 as "no data", so six real hours of a
+// deep low would silently vanish from the third-line dots instead of reading as a
+// pressure crash sitting on the baseline.
+test('pressure dots: a below-floor reading is a non-zero byte, not the byte the dot renderer skips as no-data', () => {
+  const out = buildForecastSeries(
+    { precips: [50, 50], pressures: [1010, 984] },
+    { secondaryLine: 'precip_prob', thirdLine: 'pressure', pressureScale: 'low' }, null);
+  assert.ok(out.THIRD_LINE_TREND_UINT8[1] > 0,
+    'a floor-clamped pressure byte must be > 0 so the watch draws its dot');
 });
 
 test('pressure narrow + wide bands scale the same value differently', () => {
@@ -331,6 +351,30 @@ test('implausible pressure entries render the line off rather than a floor spike
     assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [],
       `expected line off for ${JSON.stringify(bad)}`);
   }
+});
+
+// The whole-series rejection rule above is intentional and stays -- but the user
+// otherwise gets a silently blank line with no way to tell why. Provider zero-fill
+// (Brightsky nulls a field its source station didn't report) makes this common enough
+// that it needs to be debuggable from the JS console.
+test('a rejected pressure series logs which hour and value tripped the plausibility check', () => {
+  const logs = [];
+  const origLog = console.log;
+  console.log = function(m) { logs.push(m); };
+  let out;
+  try {
+    out = buildForecastSeries(
+      { pressures: [1010, 1012, 0, 1012] },
+      { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid' }, null);
+  }
+  finally {
+    console.log = origLog;
+  }
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [], 'line still renders off (rule unchanged)');
+  assert.equal(logs.length, 1, 'exactly one diagnostic line');
+  assert.ok(logs[0].indexOf('pressure') >= 0, 'names the metric');
+  assert.ok(logs[0].indexOf('0') >= 0, 'names the offending value');
+  assert.ok(logs[0].indexOf('2') >= 0, 'names the offending hour index (2)');
 });
 
 test('absent pressure series renders the line off', () => {
