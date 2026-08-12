@@ -225,6 +225,19 @@ WeatherProvider.prototype.gpsOverride = function(location) {
 };
 
 /**
+ * Drop any armed geocode rate-limit backoff. Called for a user-initiated refresh
+ * (Force-fetch toggle, provider/key change) — the same contract authBackoff.clear()
+ * has: an explicit user action overrides a self-healing cooldown. Without this a
+ * manual location whose geocode 429'd would silently swallow every forced fetch for
+ * up to the 30-minute ceiling, with only a console line to show for it.
+ *
+ * @returns {void}
+ */
+WeatherProvider.prototype.clearGeocodeBackoff = function() {
+    localStorage.removeItem(RATE_LIMIT_BACKOFF_KEY);
+};
+
+/**
  * Determine whether the provider is currently rate-limited for geocoding.
  *
  * @returns {boolean} True when forward geocoding should be skipped.
