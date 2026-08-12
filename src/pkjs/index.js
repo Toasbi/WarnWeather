@@ -75,6 +75,10 @@ var KEY_LAST_FETCH_ATTEMPT = storageKeys.LAST_FETCH_ATTEMPT_KEY;
 var KEY_NOTICES = storageKeys.NOTICES_KEY;
 var KEY_GEOCODE_CACHE = storageKeys.GEOCODE_CACHE_KEY;
 var KEY_GEOCODE_BACKOFF = storageKeys.GEOCODE_BACKOFF_KEY;
+// How long a forced fetch waits out an in-flight fetch before retrying. Long
+// enough to clear the common case (a fetch already past its requests), short
+// enough that a settings change still feels immediate.
+var FORCED_RETRY_MS = 3000;
 var KEY_V1_34_0_WEEKEND_HOLIDAY_COLOR_MIGRATION = 'v1.34.0_weekend_holiday_color_migration';
 var KEY_HOLIDAY_WHITE_TO_TOGGLE_MIGRATION = 'v1.4.0_holiday_white_to_toggle_migration';
 var KEY_V1_4_0_HOLIDAY_REGION_KEY_MIGRATION = 'v1.4.0_holiday_region_key_migration';
@@ -838,12 +842,23 @@ function buildWeatherExtras(radarTuples) {
  */
 function fetch(provider, force) {
     if (!isWatchConnected()) {
+        // Nothing to retry against: with no watch there is nowhere to send. The
+        // watchface re-handshakes on reconnect and the startup path refetches a
+        // stale forecast, so this case already heals itself.
         console.log('Skipping weather fetch: no watch connected.');
         return;
     }
 
     if (app.fetchInProgress) {
         console.log('Skipping weather fetch: another fetch is already in progress.');
+        if (force) {
+            // Don't drop a forced fetch: the in-flight one closed over the PREVIOUS
+            // provider, so it can't satisfy a force triggered by a provider or
+            // location change — its result would be the old provider's data. The
+            // in-flight fetch is bounded by the XHR/GPS timeouts, so retry shortly
+            // rather than leaving the change until the next scheduled fetch.
+            setTimeout(function () { fetch(app.provider, true); }, FORCED_RETRY_MS);
+        }
         return;
     }
 
