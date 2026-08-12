@@ -24,7 +24,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 **Forecast**
 * 24-hour forecast with a temperature line and configurable, battery-friendly updates
-* Configurable metrics such as precipitation, UV index, gusts, and wind
+* Configurable metrics such as precipitation, UV index, gusts, wind, and air pressure
 * Optional day/night shading
 * Multiple weather providers, including regional and worldwide sources
 
@@ -67,8 +67,9 @@ Two things that both involve rain over time, but answer different questions:
 
 - **Forecast graph** — the hourly prediction, looking up to 24 hours ahead. Temperature is
   always shown; on top of it you choose what to add — precipitation %, wind speed, wind gusts,
-  or UV index as a main metric (solid line) and an optional second metric (drawn as bar-aligned square dots;
-  the same metric can't appear on both), plus optional bars for the hourly rain amount.
+  UV index, or air pressure (sea-level, in hPa, with a Narrow/Mid/Wide graph scale) as a main
+  metric (solid line) and an optional second metric (drawn as bar-aligned square dots; the same
+  metric can't appear on both), plus optional bars for the hourly rain amount.
 - **Rain radar** — unlike the forecast graph's model prediction, this is a short-term nowcast
   based on actual radar measurements moving toward you, refreshed often as new scans arrive.
   Instead of a map it's drawn as bars: the provider's radar images for the next 2 hours are

@@ -8,7 +8,7 @@ Highly customizable with a modern settings UI and previews.
 
 FORECAST
 - 24-hour forecast with a temperature line and configurable, battery-friendly updates
-- Configurable metrics such as precipitation, UV index, gusts and wind
+- Configurable metrics such as precipitation, UV index, gusts, wind and air pressure
 - Optional day/night shading
 - Multiple weather providers, including regional and worldwide sources
 
