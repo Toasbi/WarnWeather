@@ -55,6 +55,10 @@ function getFixtureWeatherPayload(fixture, settings, watchInfo) {
     provider.windTrend = Array.isArray(weather.windKmh) ? weather.windKmh.slice(0) : wireUnits.zeroFilledArray(provider.numEntries);
     provider.gustTrend = Array.isArray(weather.gustKmh) ? weather.gustKmh.slice(0) : wireUnits.zeroFilledArray(provider.numEntries);
     provider.uvTrend = Array.isArray(weather.uvIndex) ? weather.uvIndex.slice(0) : [];
+    // Sea-level pressure (hPa) is a status-slot value AND a forecast-line metric, not a
+    // scalar like AQI: accept the fixture's hourly array, or leave [] so the line/slot
+    // render as off/'--' (same graceful-degrade as the other transient trends above).
+    provider.pressureTrend = Array.isArray(weather.pressureHpa) ? weather.pressureHpa.slice(0) : [];
     // AQI is a status-slot value, not a forecast line: accept a scalar current
     // index (weather.aqi) — wrapped as a one-element trend, like the WAQI source —
     // or an explicit array. Absent -> [] and the slot renders '--'.
