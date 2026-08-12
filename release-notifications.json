@@ -110,5 +110,9 @@
   "1.10.0": {
     "title": "Air pressure on the graph",
     "body": "Pick air pressure as a graph line or dots in the Forecast tab, with a scale to widen or tighten the band, or drop it into any status slot. Also fixes settings changes sometimes not refreshing the forecast right away."
+  },
+  "1.10.1": {
+    "title": "Layout fix",
+    "body": "Fixes a layout bug in the Health and Radar views when the clock and status row are swapped."
   }
 }
