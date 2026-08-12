@@ -27,6 +27,15 @@ test('buildSettingsSnapshot includes forecast and radar display settings', () =>
   assert.equal(snapshot.devStatsEnabled, true);
 });
 
+// pressureScale is windScale's sibling (graph scale for the pressure line, added
+// alongside it); per this repo's rule a telemetry setting must be added in BOTH the
+// watch-side snapshot here AND the Deno .strip() schema
+// (supabase/functions/telemetry-ingest/index.ts) or it's silently dropped end to end.
+test('buildSettingsSnapshot includes pressureScale', () => {
+  const snapshot = buildSettingsSnapshot({ pressureScale: 'low' });
+  assert.equal(snapshot.pressureScale, 'low');
+});
+
 test('buildSettingsSnapshot coerces toggle settings to real booleans', () => {
   const snapshot = buildSettingsSnapshot({});
 

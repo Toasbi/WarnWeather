@@ -61,6 +61,7 @@ const settingsSchema = z
     secondaryLine: z.string().optional(),
     secondaryLineFill: z.boolean().optional(),
     windScale: z.string().optional(),
+    pressureScale: z.string().optional(),
     thirdLine: z.string().optional(),
     barSource: z.string().optional(),
     rainBarColor: z.string().optional(),
