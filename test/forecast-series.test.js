@@ -282,3 +282,91 @@ test('buildForecastSeries: aplite + bw-light theme also stays white (bw-light fo
   assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFFFF, 'aplite + bw-light: secondary line stays white');
   assert.equal(out.THIRD_LINE_COLOR, 0xFFFFFF, 'aplite + bw-light: third-line dots stay white');
 });
+
+// ---- Air pressure metric -------------------------------------------------
+// Bands (hPa): low 990..1030, mid 980..1040, high 960..1050. Always sea-level
+// (MSL) — station pressure falls ~12 hPa/100 m and would sit off-scale at altitude.
+const { PRESSURE_SCALE_HPA } = require('../src/pkjs/forecast-series');
+
+test('secondary pressure: scaled against the mid band, orange line', () => {
+  const out = buildForecastSeries(
+    { pressures: [980, 1010, 1040] },
+    { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid' }, null);
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]);
+  assert.equal(out.SECONDARY_LINE_COLOR, 0xFF5500);        // GColorOrange
+  assert.equal(out.SECONDARY_LINE_FILL_COLOR, 0xAA5500);   // GColorWindsorTan
+});
+
+test('pressure clamps at both ends of the band instead of going off-scale', () => {
+  const out = buildForecastSeries(
+    { pressures: [900, 1099] },
+    { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid' }, null);
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 250]);
+});
+
+test('pressure narrow + wide bands scale the same value differently', () => {
+  const at = (scale) => buildForecastSeries(
+    { pressures: [1010] },
+    { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: scale }, null
+  ).SECONDARY_LINE_TREND_UINT8[0];
+  assert.equal(at('low'), 125);   // 990..1030, centre
+  assert.equal(at('mid'), 125);   // 980..1040, centre
+  assert.equal(at('high'), 139);  // 960..1050 → (1010-960)/90 = .5556 → 556pm → 139
+});
+
+test('an unknown pressureScale falls back to the mid band', () => {
+  const out = buildForecastSeries(
+    { pressures: [1010] },
+    { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'bogus' }, null);
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [125]);
+});
+
+// Zero is the normal "no data" coercion but an impossible pressure: letting it
+// through would draw a spike to the graph floor that reads as a pressure crash.
+test('implausible pressure entries render the line off rather than a floor spike', () => {
+  for (const bad of [[1010, 0, 1012], [1010, null, 1012], [1010, 799, 1012], [1010, 1101, 1012]]) {
+    const out = buildForecastSeries(
+      { pressures: bad },
+      { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid' }, null);
+    assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [],
+      `expected line off for ${JSON.stringify(bad)}`);
+  }
+});
+
+test('absent pressure series renders the line off', () => {
+  const out = buildForecastSeries(
+    {}, { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid' }, null);
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, []);
+});
+
+test('pressure works as the third line (dots) over a precip main line', () => {
+  const out = buildForecastSeries(
+    { precips: [50, 50], pressures: [1010, 1040] },
+    { secondaryLine: 'precip_prob', thirdLine: 'pressure', pressureScale: 'mid' }, null);
+  assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [125, 250]);
+  assert.equal(out.THIRD_LINE_COLOR, 0xFF5500);
+});
+
+test('B&W watch: pressure line is white', () => {
+  const out = buildForecastSeries(
+    { pressures: [1010] },
+    { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid' },
+    { platform: 'aplite' });
+  assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFFFF);
+});
+
+test('PRESSURE_SCALE_HPA exposes the three bands', () => {
+  assert.deepEqual(PRESSURE_SCALE_HPA, {
+    low: { min: 990, max: 1030 },
+    mid: { min: 980, max: 1040 },
+    high: { min: 960, max: 1050 }
+  });
+});
+
+test('applyForecastSeries deletes the transient PRESSURE_TREND', () => {
+  const payload = { TEMP_TREND_UINT8: [], PRESSURE_TREND: [1010, 1011] };
+  applyForecastSeries(payload,
+    { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid' }, null);
+  assert.equal('PRESSURE_TREND' in payload, false);
+  assert.deepEqual(payload.SECONDARY_LINE_TREND_UINT8, [125, 129]);
+});

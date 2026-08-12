@@ -18,7 +18,7 @@ function hex(n) {
 
 // Hued metrics whose line + fill colours come straight from forecast-series. gust has no
 // fixed hue (resolved off the rain bars), so it is handled separately below.
-var HUED = ['precip_prob', 'wind', 'uv'];
+var HUED = ['precip_prob', 'wind', 'uv', 'pressure'];
 
 /**
  * Line stroke colours for one metric, for both display classes plus the light-theme

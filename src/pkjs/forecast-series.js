@@ -58,7 +58,11 @@ function tempTrendToBytes(temps) {
 var LINE_COLORS = {
     precip_prob: { color: COLORS.GColorPictonBlue, light: COLORS.GColorVividCerulean, bw: COLORS.GColorWhite },
     wind:        { color: COLORS.GColorYellow,     bw: COLORS.GColorWhite },
-    uv:          { color: COLORS.GColorMagenta,    bw: COLORS.GColorWhite }
+    uv:          { color: COLORS.GColorMagenta,    bw: COLORS.GColorWhite },
+    // Orange is the last unclaimed warm hue: precip owns blue, uv magenta, gust the
+    // grays. It reads close to wind's yellow at 1px — eyeball on hardware before
+    // treating it as final.
+    pressure:    { color: COLORS.GColorOrange,     bw: COLORS.GColorWhite }
 };
 // Metric → area-fill colour per platform class. Every metric can fill; colour-platform
 // fills are a darker shade of the line so the line always reads brighter (precip
@@ -76,7 +80,8 @@ var FILL_COLORS = {
     precip_prob: { color: COLORS.GColorCobaltBlue, light: COLORS.GColorElectricBlue, bw: COLORS.GColorLightGray },
     wind:        { color: COLORS.GColorArmyGreen,  light: COLORS.GColorInchworm,     bw: COLORS.GColorLightGray },
     uv:          { color: COLORS.GColorPurple,     light: COLORS.GColorShockingPink, bw: COLORS.GColorLightGray },
-    gust:        { color: COLORS.GColorDarkGray,   light: COLORS.GColorLightGray,    bw: COLORS.GColorLightGray }
+    gust:        { color: COLORS.GColorDarkGray,   light: COLORS.GColorLightGray,    bw: COLORS.GColorLightGray },
+    pressure:    { color: COLORS.GColorWindsorTan, light: COLORS.GColorChromeYellow, bw: COLORS.GColorLightGray }
 };
 
 /**
@@ -150,6 +155,22 @@ function fillColorFor(metric, isColor, theme) {
 var WIND_SCALE_KMH = { low: 30, mid: 50, high: 70 };
 // UV full-scale. Raw uv values are tenths (UV×10); UV 11.0 = 110 tenths maps to the graph top.
 var UV_FULL_SCALE_TENTHS = 110;
+// Sea-level pressure band (hPa) mapped to graph height, selected by the pressureScale
+// setting. Rounded to tens so the settings copy reads cleanly and the bands have room
+// to breathe: mid spans the whole ordinary range and high reaches storm-depth lows, so
+// neither clamps in normal weather. Always MSL — station pressure falls ~12 hPa per
+// 100 m, so at 1600 m it reads ~830 and would sit pinned to the graph floor.
+var PRESSURE_SCALE_HPA = {
+    low:  { min: 990, max: 1030 },   // Narrow — 40 hPa
+    mid:  { min: 980, max: 1040 },   // Mid    — 60 hPa (default)
+    high: { min: 960, max: 1050 }    // Wide   — 90 hPa
+};
+// Plausibility window for one sea-level reading. The world-record low is ~870 hPa, so
+// nothing legitimate falls outside this: it exists solely to catch nulls and the
+// zero-fill idiom. 0 hPa is physically impossible but is exactly what an absent value
+// coerces to, and it would otherwise draw a spike to the graph floor.
+var PRESSURE_MIN_VALID = 800;
+var PRESSURE_MAX_VALID = 1100;
 
 /**
  * Scale a km/h-style series to permille (0..1000) against a ceiling, clamped to the top.
@@ -167,9 +188,50 @@ function scaleToPermille(arr, max) {
 }
 
 /**
+ * Scale a series to permille (0..1000) against a [min, max] band, clamped at both
+ * ends. Unlike scaleToPermille this has a non-zero floor, so a value at or below min
+ * lands on the graph baseline rather than off-scale below it.
+ * @param {number[]} arr Per-hour values.
+ * @param {number} min Value mapped to permille 0.
+ * @param {number} max Value mapped to permille 1000.
+ * @returns {number[]} Permille values, each clamped to 0..1000.
+ */
+function scaleToPermilleRange(arr, min, max) {
+    var span = max - min;
+    return (arr || []).map(function(v) {
+        var permille = Math.round((Number(v) - min) / span * 1000);
+        if (permille < 0) { permille = 0; }
+        if (permille > 1000) { permille = 1000; }
+        return permille;
+    });
+}
+
+/**
+ * Permille series for the pressure metric, or [] when the data is unusable. Validates
+ * the WHOLE series before scaling: a single implausible entry rejects everything rather
+ * than being interpolated away, which keeps the rule simple and never invents data. An
+ * empty result renders as line-off — the same graceful degrade an absent series gets.
+ * @param {Array.<number>} arr Per-hour sea-level pressure in hPa.
+ * @param {string} scale pressureScale setting: low|mid|high.
+ * @returns {number[]} Permille series, or [] when any entry is implausible.
+ */
+function pressurePermille(arr, scale) {
+    if (!arr || !arr.length) { return []; }
+    var v;
+    for (var i = 0; i < arr.length; i += 1) {
+        v = Number(arr[i]);
+        if (!isFinite(v) || v < PRESSURE_MIN_VALID || v > PRESSURE_MAX_VALID) {
+            return [];
+        }
+    }
+    var band = PRESSURE_SCALE_HPA[scale] || PRESSURE_SCALE_HPA.mid;
+    return scaleToPermilleRange(arr, band.min, band.max);
+}
+
+/**
  * Permille (0..1000) series for one metric. Unknown metric → null. An absent/empty
  * raw series yields [] so the line renders as off (graceful degrade).
- * @param {string} metric One of precip_prob|wind|gust|uv.
+ * @param {string} metric One of precip_prob|wind|gust|uv|pressure.
  * @param {Object} raw Raw provider series.
  * @param {Object} settings Clay settings (windScale).
  * @returns {number[]|null} Permille series, or null for an unknown metric.
@@ -184,6 +246,9 @@ function metricPermille(metric, raw, settings) {
     }
     if (metric === 'uv') {
         return scaleToPermille(raw.uvs, UV_FULL_SCALE_TENTHS);
+    }
+    if (metric === 'pressure') {
+        return pressurePermille(raw.pressures, settings.pressureScale);
     }
     return null;
 }
@@ -255,7 +320,7 @@ function applyForecastSeries(payload, settings, watchInfo) {
     var series = buildForecastSeries(
         { precips: payload.PRECIP_TREND_UINT8, rains: payload.RAIN_TREND_UINT8,
           winds: payload.WIND_TREND_UINT8, gusts: payload.GUST_TREND_UINT8,
-          uvs: payload.UV_TREND_UINT8 },
+          uvs: payload.UV_TREND_UINT8, pressures: payload.PRESSURE_TREND },
         settings, watchInfo
     );
     delete payload.CURRENT_TEMP; // baked into the status lines; no longer a wire key
@@ -265,6 +330,7 @@ function applyForecastSeries(payload, settings, watchInfo) {
     delete payload.WIND_TREND_UINT8;  // transient PKJS-only; never over the wire
     delete payload.GUST_TREND_UINT8;  // transient PKJS-only; never over the wire
     delete payload.UV_TREND_UINT8;    // transient PKJS-only; never over the wire
+    delete payload.PRESSURE_TREND;    // transient PKJS-only; hPa never fit a byte, never wired
     delete payload.AQI_TREND;         // transient PKJS-only; baked into status text, never wired
     delete payload.POLLEN_TODAY;      // transient PKJS-only; baked into status text, never wired
     payload.SECONDARY_LINE_TREND_UINT8 = series.SECONDARY_LINE_TREND_UINT8;
@@ -321,6 +387,7 @@ module.exports = {
     tempTrendToBytes: tempTrendToBytes,
     LINE_COLORS: LINE_COLORS,
     FILL_COLORS: FILL_COLORS,
+    PRESSURE_SCALE_HPA: PRESSURE_SCALE_HPA,
     lineColorFor: lineColorFor,
     fillColorFor: fillColorFor
 };
