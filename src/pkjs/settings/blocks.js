@@ -63,6 +63,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ]
     };
 
+    // Mirrors forecast-series.PRESSURE_SCALE_HPA; a drift test keeps them equal.
+    // Duplicated rather than imported because blocks.js is bundled into the config
+    // page, which has no access to the watch modules (same reason windMax below
+    // restates WIND_SCALE_KMH).
+    var PRESSURE_BANDS = {
+        low:  { min: 990, max: 1030 },
+        mid:  { min: 980, max: 1040 },
+        high: { min: 960, max: 1050 }
+    };
+
     // Port of rain-tier.rainPermille (and its helpers). The watch builds bar heights with this
     // exact curve; the webview can't require() rain-tier, so it is mirrored here and guarded by
     // test/config-blocks.test.js ('barPermille matches rain-tier.rainPermille byte-for-byte').
@@ -231,6 +241,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var rain   = [0, 0.5, 6, 12, 4, 1, 0.3, 0, 0, 0, 0, 0];
         var gust   = [22, 25, 30, 34, 32, 28, 25, 24, 27, 31, 36, 33];
         var uv     = [8, 6, 4, 2, 1, 0, 0, 0, 0, 0, 1, 3];
+        // Falls into the shower (slots 2-4), then recovers as it clears — the same
+        // weather story the other samples tell.
+        var pressure = [1016, 1012, 1007, 1003, 1002, 1004, 1007, 1010, 1012, 1013, 1014, 1015];
 
         var n = temps.length, PX0 = 20, PX1 = 197, PT = 4, PB = 100;
         var plotW = PX1 - PX0, plotH = PB - PT;
@@ -248,12 +261,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var bw = 9;                                  // rain-bar / dot width
 
         var windMax = state.windScale === 'low' ? 30 : (state.windScale === 'high' ? 70 : 50);
+        var pBand = PRESSURE_BANDS[state.pressureScale] || PRESSURE_BANDS.mid;
         // metric -> { sample series, full-scale max, fill? }. Color resolves per render.
+        // Only pressure sets `min` (a non-zero floor); every other metric defaults to 0.
         var METRIC = {
             precip_prob: { vals: precip, max: 100, fill: true },
             wind: { vals: wind, max: windMax },
             gust: { vals: gust, max: windMax },
-            uv: { vals: uv, max: 11 }
+            uv: { vals: uv, max: 11 },
+            pressure: { vals: pressure, min: pBand.min, max: pBand.max }
         };
         /**
          * Per-metric stroke/dot color. White on B&W (series told apart by width/pattern). A
@@ -262,7 +278,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
          * metric without one keeps its dark-theme `color`. Gust has no hue: white over color
          * bars, light gray over white bars (matches forecast-series.lineColorFor) — no `light`
          * concept, so it's untouched by the swap.
-         * @param {string} metric precip_prob|wind|gust|uv
+         * @param {string} metric precip_prob|wind|gust|uv|pressure
          * @returns {string} #RRGGBB
          */
         function metricColor(metric) {
@@ -287,7 +303,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
          * a light-polarity theme swaps in the brighter `light` tint instead of the dark-theme
          * shade. Gated behind the `!isColor` check above, so bw/bw-light never reach this
          * branch — they resolve to e.bw instead (mirrors forecast-series.fillColorFor).
-         * @param {string} metric precip_prob|wind|gust|uv
+         * @param {string} metric precip_prob|wind|gust|uv|pressure
          * @returns {?string} #RRGGBB or null
          */
         function fillColor(metric) {
@@ -328,11 +344,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         function metricPoints(metric) {
             var m = METRIC[metric];
             if (!m) { return null; }
+            var min = m.min || 0;                 // only pressure has a non-zero floor
+            var span = m.max - min;
             var pts = [];
             for (var i = 0; i < m.vals.length; i += 1) {
                 var v = Math.min(m.vals[i], m.max);
-                if (v < 0) { v = 0; }
-                pts.push([tickX(i), PB - v / m.max * (PB - PT - 3)]);   // v == 0 lands on the baseline
+                if (v < min) { v = min; }
+                pts.push([tickX(i), PB - (v - min) / span * (PB - PT - 3)]);  // v == min lands on the baseline
             }
             return pts.length >= 2 ? pts : null;
         }
@@ -343,7 +361,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
          * so the caller can place it beneath the rain bars, matching chart.c's z-order
          * (CHART_LAYER_AREA before CHART_LAYER_BARS in forecast_layer.c) — the bars paint
          * over the fill, not the other way around.
-         * @param {string} metric precip_prob|wind|gust|uv
+         * @param {string} metric precip_prob|wind|gust|uv|pressure
          * @returns {string} SVG markup
          */
         function areaFillFor(metric) {
@@ -362,7 +380,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
          * Main metric: one continuous line whose vertices sit on the hour ticks, so it spans the
          * first tick to the last. The fill (if any) is drawn separately by areaFillFor() — see
          * its doc comment for why.
-         * @param {string} metric precip_prob|wind|gust|uv
+         * @param {string} metric precip_prob|wind|gust|uv|pressure
          * @returns {string} SVG markup
          */
         var lineFor = function (metric) {
@@ -375,7 +393,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         /**
          * Second metric: bar-aligned squares centred in the hour column (same columns as the rain
          * bars). A value of 0 sits on the baseline and is skipped (mirrors the watch's bar-dots).
-         * @param {string} metric precip_prob|wind|gust|uv
+         * @param {string} metric precip_prob|wind|gust|uv|pressure
          * @returns {string} SVG markup
          */
         var barDotsFor = function (metric) {
@@ -383,10 +401,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (!m) { return ''; }
             var col = metricColor(metric);
             var dh = (isColor && col === ink.fg) ? 3 : 4, out = '';
+            var min = m.min || 0;
+            var span = m.max - min;
             for (var i = 0; i < n - 1; i += 1) {
                 var v = Math.min(m.vals[i], m.max);
-                if (v <= 0) { continue; }
-                var cy = PB - v / m.max * (PB - PT - 3);
+                if (v <= min) { continue; }       // at the baseline: skipped, like the watch's bar-dots
+                var cy = PB - (v - min) / span * (PB - PT - 3);
                 out += rect(gapCenter(i) - bw / 2, cy - dh / 2, bw, dh, col);
             }
             return out;
@@ -399,7 +419,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
          * @returns {string} SVG markup
          */
         function drawLegend() {
-            var LABEL = { precip_prob: 'Precip %', wind: 'Wind', gust: 'Gust', uv: 'UV' };
+            var LABEL = { precip_prob: 'Precip %', wind: 'Wind', gust: 'Gust', uv: 'UV', pressure: 'Pressure' };
             var entries = [];
             entries.push({ kind: 'line', color: tempColor, w: tempW, label: 'Temp' });
             entries.push({ kind: 'line', color: metricColor(state.secondaryLine), w: mainW, label: LABEL[state.secondaryLine] || '' });
@@ -1013,6 +1033,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             presetContents: presetContents, contentBands: contentBands,
             resolveBandHeights: resolveBandHeights,
             barPermille: barPermille, previewPaletteFallback: FALLBACK_PALETTE,
+            pressureBands: PRESSURE_BANDS,
             tomorrowioBudgetBlock: tomorrowioBudgetBlock
         };
     }

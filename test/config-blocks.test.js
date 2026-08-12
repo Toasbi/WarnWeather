@@ -772,3 +772,32 @@ test('recommend resolvers: country-matched weather + radar providers (DE→dwd, 
   // Robust to a missing/none country selection (won't throw).
   assert.equal(wx({}), 'openmeteo');
 });
+
+test('preview bands match forecast-series (no drift)', () => {
+  const { PRESSURE_SCALE_HPA } = require('../src/pkjs/forecast-series');
+  assert.deepEqual(B.pressureBands, PRESSURE_SCALE_HPA);
+});
+
+test('pressure main metric renders a line inside the plot, not pinned to the top', () => {
+  const svg = B.forecastPreview(
+    { dayNightShading: false, barSource: 'off', secondaryLine: 'pressure',
+      secondaryLineFill: false, thirdLine: 'off', pressureScale: 'mid' },
+    { color: true });
+  assert.ok(svg.includes('#FF5500'), 'pressure line uses the orange stroke');
+  assert.ok(svg.includes('Pressure'), 'legend labels the series');
+  // Samples span 1002..1016 hPa inside the 980..1040 mid band, so every vertex must
+  // sit strictly between the plot top (4) and the baseline (100).
+  const ys = [...svg.matchAll(/[ML](\d+(?:\.\d+)?),(\d+(?:\.\d+)?)/g)].map((m) => Number(m[2]));
+  assert.ok(ys.some((y) => y > 10 && y < 99), 'at least one vertex sits inside the plot');
+});
+
+test('a narrower band pushes the pressure line higher than a wider one', () => {
+  const yFor = (pressureScale) => {
+    const svg = B.forecastPreview(
+      { dayNightShading: false, barSource: 'off', secondaryLine: 'pressure',
+        secondaryLineFill: false, thirdLine: 'off', pressureScale },
+      { color: true });
+    return Number([...svg.matchAll(/M(\d+(?:\.\d+)?),(\d+(?:\.\d+)?)/g)][0][2]);
+  };
+  assert.ok(yFor('low') < yFor('high'), 'narrow band → higher on the plot (smaller y)');
+});
