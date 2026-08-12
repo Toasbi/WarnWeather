@@ -159,6 +159,13 @@ WundergroundProvider.prototype.withProviderData = function(lat, lon, force, onSu
                 this.uvTrend = forecast.map(function(entry) {
                     return typeof entry.uv_index === 'number' ? entry.uv_index : 0;
                 });
+                this.pressureTrend = forecast.map(function(entry) {
+                    // WU reports mean sea level pressure in millibars, numerically
+                    // identical to hPa. Absent on some station feeds → 0, which
+                    // forecast-series rejects, so the line stays off rather than
+                    // drawing a spike to the graph floor.
+                    return typeof entry.mslp === 'number' ? entry.mslp : 0;
+                });
                 this.startTime = forecast[0].fcst_valid;
                 this.currentTemp = currentTemp;
                 onSuccess();

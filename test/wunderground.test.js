@@ -124,3 +124,17 @@ test('WU reuses the cached current-hour forecast across the hour boundary', () =
   assert.equal(p.tempTrend[0], 50, 'cached real current-hour temp, not the next-hour clone (61)');
   assert.equal(p.precipTrend[0], 0, 'cached real current-hour pop, not the next-hour clone (0.8)');
 });
+
+test('wunderground maps mslp (mean sea level pressure, mb == hPa) into pressureTrend', () => {
+  responder = respondWith([
+    { temp: 50, pop: 0, qpf: 0, wspd: 0, gust: 0, uv_index: 0, mslp: 1019, fcst_valid: NOW_HOUR },
+    // no mslp on this station feed -> 0, which forecast-series rejects (line off)
+    { temp: 52, pop: 0, qpf: 0, wspd: 0, gust: 0, uv_index: 0, fcst_valid: NOW_HOUR + HOUR }
+  ], 71);
+  const p = new WundergroundProvider();
+  withMockedNow(NOW_HOUR + 800, function() {
+    p.withProviderData(0, 0, false, function() {},
+      function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  });
+  assert.deepEqual(p.pressureTrend, [1019, 0]);
+});

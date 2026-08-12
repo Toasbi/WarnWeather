@@ -85,6 +85,7 @@ function mapResponse(json, nowEpoch) {
     var windTrend = [];
     var gustTrend = [];
     var uvTrend = [];
+    var pressureTrend = [];
     var entry;
     var instant;
     var next1;
@@ -100,6 +101,8 @@ function mapResponse(json, nowEpoch) {
         gustTrend.push(msToKmh(instant.wind_speed_of_gust || 0));
         uvTrend.push(typeof instant.ultraviolet_index_clear_sky === 'number'
             ? instant.ultraviolet_index_clear_sky : 0);
+        pressureTrend.push(typeof instant.air_pressure_at_sea_level === 'number'
+            ? instant.air_pressure_at_sea_level : 0);
         // next_1_hours holds the mm falling in this 1-h bucket — i.e. mm/h.
         rainTrend.push((next1 && typeof next1.precipitation_amount === 'number')
             ? next1.precipitation_amount : 0);
@@ -114,6 +117,7 @@ function mapResponse(json, nowEpoch) {
         windTrend: windTrend,
         gustTrend: gustTrend,
         uvTrend: uvTrend,
+        pressureTrend: pressureTrend,
         startTime: Math.round(Date.parse(timeseries[anchor].time) / 1000),
         currentTemp: celsiusToFahrenheit(timeseries[anchor].data.instant.details.air_temperature)
     };
@@ -150,6 +154,7 @@ MetnoProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, 
         this.rainTrend = mapped.rainTrend;
         this.windTrend = mapped.windTrend;
         this.gustTrend = mapped.gustTrend;
+        this.pressureTrend = mapped.pressureTrend;
         this.startTime = mapped.startTime;
         this.currentTemp = mapped.currentTemp;
         if (this.fetchUv) {

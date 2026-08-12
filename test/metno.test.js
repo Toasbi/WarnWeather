@@ -171,3 +171,12 @@ test('provider identity: id/name set, inherits the base provider', () => {
   assert.equal(p.name, 'Met.no');
   assert.ok(p instanceof WeatherProvider);
 });
+
+test('metno maps air_pressure_at_sea_level into pressureTrend', () => {
+  const body = forecastBody(26, HOUR0, { 0: { instant: { air_pressure_at_sea_level: 1008.3 } } });
+  const mapped = metno.mapResponse(body, NOW);
+  assert.equal(mapped.pressureTrend[0], 1008.3);
+  // The fixture's other hours omit the field -> 0, which forecast-series rejects.
+  assert.equal(mapped.pressureTrend[1], 0);
+  assert.equal(mapped.pressureTrend.length, 24);
+});

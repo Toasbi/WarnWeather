@@ -7,7 +7,7 @@ var HOUR_SECONDS = 60 * 60;
 var TIMELINES_ENDPOINT = 'https://api.tomorrow.io/v4/timelines';
 // Core-layer fields only. AQI/pollen are enterprise-gated (403 on a free key)
 // and nothing in the app consumes a condition code, so no weatherCode either.
-var FIELDS = 'temperature,precipitationProbability,precipitationIntensity,windSpeed,windGust,uvIndex';
+var FIELDS = 'temperature,precipitationProbability,precipitationIntensity,windSpeed,windGust,uvIndex,pressureSeaLevel';
 var MPS_TO_KMH = 3.6;
 
 /**
@@ -107,6 +107,7 @@ function mapResponse(json, nowEpoch) {
     var windTrend = [];
     var gustTrend = [];
     var uvTrend = [];
+    var pressureTrend = [];
     var i;
     var values;
     for (i = 0; i < FORECAST_HOURS; i += 1) {
@@ -117,6 +118,7 @@ function mapResponse(json, nowEpoch) {
         windTrend.push(num(values.windSpeed) * MPS_TO_KMH);
         gustTrend.push(num(values.windGust) * MPS_TO_KMH);
         uvTrend.push(num(values.uvIndex));
+        pressureTrend.push(num(values.pressureSeaLevel));   // sea-level, NOT pressureSurfaceLevel
     }
 
     return {
@@ -126,6 +128,7 @@ function mapResponse(json, nowEpoch) {
         windTrend: windTrend,
         gustTrend: gustTrend,
         uvTrend: uvTrend,
+        pressureTrend: pressureTrend,
         startTime: Math.round(Date.parse(intervals[anchor].startTime) / 1000),
         currentTemp: tempTrend[0]
     };
@@ -183,6 +186,7 @@ TomorrowIoProvider.prototype.withProviderData = function(lat, lon, force, onSucc
         this.rainTrend = mapped.rainTrend;
         this.windTrend = mapped.windTrend;
         this.gustTrend = mapped.gustTrend;
+        this.pressureTrend = mapped.pressureTrend;
         if (this.fetchUv) {
             this.uvTrend = mapped.uvTrend;
         }

@@ -135,6 +135,9 @@ OpenWeatherMapProvider.prototype.withProviderData = function(lat, lon, force, on
         this.uvTrend = weatherData.hourly.map(function(entry) {
             return typeof entry.uvi === 'number' ? entry.uvi : 0; // OWM One Call hourly UV index
         });
+        this.pressureTrend = weatherData.hourly.map(function(entry) {
+            return typeof entry.pressure === 'number' ? entry.pressure : 0; // One Call hourly pressure is sea-level hPa
+        });
         this.startTime = weatherData.hourly[0].dt;
         this.currentTemp = weatherData.current.temp;
         onSuccess();
