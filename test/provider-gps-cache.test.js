@@ -168,3 +168,35 @@ test('withGpsCoordinates reports failure when native GPS errors and no cache exi
   assert.ok(failureArg);
   assert.equal(p.gpsErrorCode, 1);
 });
+
+// ---- Forced-refresh must clear the geocode backoff -----------------------
+// A manual-address location whose geocode 429s arms a backoff that escalates to
+// 30 minutes. fetch() clears the AUTH backoff when force is set but historically
+// left this one armed, so a user-initiated refresh (Force toggle, provider
+// change, key change) was silently skipped for up to half an hour.
+const storageKeys = require('../src/pkjs/storage-keys.js');
+
+test('clearGeocodeBackoff drops an armed backoff so a forced fetch can proceed', () => {
+  const map = {};
+  withLocalStorage(map);
+  map[storageKeys.GEOCODE_BACKOFF_KEY] = JSON.stringify({
+    until: Date.now() + 30 * 60000, attempts: 4
+  });
+  const p = new WeatherProvider();
+  p.location = 'Berlin';                       // manual_address, not geocode-cached
+  assert.equal(p.isGeocodeBackoffActive(), true, 'backoff is armed to begin with');
+
+  p.clearGeocodeBackoff();
+
+  assert.equal(p.isGeocodeBackoffActive(), false, 'forced refresh is no longer blocked');
+  assert.equal(map[storageKeys.GEOCODE_BACKOFF_KEY], undefined);
+});
+
+test('clearGeocodeBackoff is a no-op when nothing is armed', () => {
+  const map = {};
+  withLocalStorage(map);
+  const p = new WeatherProvider();
+  p.location = 'Berlin';
+  p.clearGeocodeBackoff();                     // must not throw
+  assert.equal(p.isGeocodeBackoffActive(), false);
+});

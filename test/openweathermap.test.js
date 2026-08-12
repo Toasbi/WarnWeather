@@ -34,3 +34,20 @@ test('OWM maps One Call hourly into trends with imperial→metric conversions', 
   assert.equal(p.startTime, 1700000000, 'startTime = hourly[0].dt');
   assert.equal(p.currentTemp, 71, 'currentTemp = current.temp');
 });
+
+test('OWM maps One Call hourly pressure (sea-level hPa) into pressureTrend', () => {
+  responder = function(url, onSuccess) {
+    onSuccess(JSON.stringify({
+      current: { temp: 71 },
+      daily: [{}, {}],
+      hourly: [
+        { temp: 50, pop: 0, wind_speed: 0, wind_gust: 0, uvi: 0, pressure: 1015, dt: 1700000000 },
+        // no pressure key -> 0, which forecast-series rejects (line off)
+        { temp: 60, pop: 0, wind_speed: 0, wind_gust: 0, uvi: 0, dt: 1700003600 }
+      ]
+    }));
+  };
+  const p = new OpenWeatherMapProvider('test-key');
+  p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  assert.deepEqual(p.pressureTrend, [1015, 0]);
+});

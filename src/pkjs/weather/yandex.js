@@ -22,6 +22,11 @@ function buildQuery(lat, lon) {
     var lonNum = Number(lon);
     return '{ weatherByPoint(request: {lat: ' + latNum + ', lon: ' + lonNum + '}) {'
         + ' now { temperature(unit: FAHRENHEIT) }'
+        // No pressure field on purpose: Yandex exposes station-level pressure only,
+        // and a station reading at altitude is ~830 hPa where every other provider
+        // reports ~1013 MSL. Leaving pressureTrend empty degrades to a line-off and
+        // a '--' slot, rather than showing a number that means something different
+        // from the same slot on any other provider.
         + ' forecast { days(limit: 3) { hours {'
         + ' timestamp temperature(unit: FAHRENHEIT) precProbability prec'
         + ' windSpeed(unit: KILOMETERS_PER_HOUR) windGust(unit: KILOMETERS_PER_HOUR) uvIndex'

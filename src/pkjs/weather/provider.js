@@ -199,6 +199,10 @@ var WeatherProvider = function() {
     // Pollen is opt-in and DWD-only; null renders as '--' unless the auxiliary
     // fetch fills it. Transient: consumed by formatValue, never wired.
     this.pollenToday = null;
+    // Pressure is sea-level (MSL) hPa and not every provider exposes it; empty →
+    // the pressure line stays off and the status slot shows '--'. Transient:
+    // consumed by forecast-series + formatValue, never wired.
+    this.pressureTrend = [];
 };
 
 /**
@@ -218,6 +222,19 @@ WeatherProvider.prototype.gpsEnable = function() {
  */
 WeatherProvider.prototype.gpsOverride = function(location) {
     this.location = location;
+};
+
+/**
+ * Drop any armed geocode rate-limit backoff. Called for a user-initiated refresh
+ * (Force-fetch toggle, provider/key change) — the same contract authBackoff.clear()
+ * has: an explicit user action overrides a self-healing cooldown. Without this a
+ * manual location whose geocode 429'd would silently swallow every forced fetch for
+ * up to the 30-minute ceiling, with only a console line to show for it.
+ *
+ * @returns {void}
+ */
+WeatherProvider.prototype.clearGeocodeBackoff = function() {
+    localStorage.removeItem(RATE_LIMIT_BACKOFF_KEY);
 };
 
 /**
@@ -843,6 +860,7 @@ WeatherProvider.prototype.getPayload = function() {
         UV_TREND_UINT8: uvs, // Transient PKJS-only: UV tenths; forecast-series consumes + deletes before send
         AQI_TREND: (this.aqiTrend && this.aqiTrend.length) ? this.aqiTrend.slice(0, numEntries) : [], // Transient PKJS-only: current-window AQI ints; forecast-series consumes + deletes before send
         POLLEN_TODAY: this.pollenToday, // Transient PKJS-only: native DWD severity; forecast-series consumes + deletes before send
+        PRESSURE_TREND: (this.pressureTrend && this.pressureTrend.length) ? this.pressureTrend.slice(0, numEntries) : [], // Transient PKJS-only: sea-level hPa (no _UINT8 — 950..1050 doesn't fit a byte); forecast-series consumes + deletes before send
         FORECAST_START: this.startTime,
         NUM_ENTRIES: numEntries,
         CURRENT_TEMP: Math.round(this.currentTemp),

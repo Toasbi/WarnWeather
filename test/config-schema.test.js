@@ -23,7 +23,7 @@ const EXPECTED_KEYS = [
   'weekStartDay','firstWeek','colorToday','colorSunday','colorSaturday','holidaysEnabled','colorUSFederal',
   'holidayCountry','holidayRegion',
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','fetchNoticeAck','locationMode','location',
-  'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','secondaryLine','secondaryLineFill','windScale','thirdLine',
+  'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','secondaryLine','secondaryLineFill','windScale','pressureScale','thirdLine',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','rainCountdownHorizon',
   'layoutPreset','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear','reset',
   'statusForecastLeft','statusForecastLeftCountdown','statusForecastMid','statusForecastMidCountdown','statusForecastRight','statusForecastRightCountdown',
@@ -38,14 +38,16 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   const counts = {};
   seen.forEach((k) => { counts[k] = (counts[k] || 0) + 1; });
   const dups = Object.keys(counts).filter((k) => counts[k] > 1);
-  // windScale: solid-line slot vs. dotted-line slot. theme: color-env (4 options) vs.
-  // B&W-env (2 options). colorUSFederal: dark-exclude-white vs. light-exclude-black.
-  // tomorrowioApiKey/tomorrowioFitBudget: General tab (weather provider) vs. Radar tab
-  // (radar-only) — mutually-exclusive showWhen, so only one instance ever renders.
+  // windScale: solid-line slot vs. dotted-line slot. pressureScale: same split (secondary
+  // vs. third line context). theme: color-env (4 options) vs. B&W-env (2 options).
+  // colorUSFederal: dark-exclude-white vs. light-exclude-black. tomorrowioApiKey/
+  // tomorrowioFitBudget: General tab (weather provider) vs. Radar tab (radar-only) —
+  // mutually-exclusive showWhen, so only one instance ever renders.
   assert.deepEqual(dups.sort(),
-    ['colorUSFederal', 'theme', 'tomorrowioApiKey', 'tomorrowioFitBudget', 'windScale'],
+    ['colorUSFederal', 'pressureScale', 'theme', 'tomorrowioApiKey', 'tomorrowioFitBudget', 'windScale'],
     'unexpected duplicates: ' + dups.join(','));
   assert.equal(counts.windScale, 6, 'windScale appears in six slots (2 contexts × 3 units)');
+  assert.equal(counts.pressureScale, 2, 'pressureScale appears in two slots (secondary + third)');
   assert.equal(counts.theme, 2, 'theme appears in exactly two slots');
   assert.equal(counts.colorUSFederal, 2, 'colorUSFederal appears in exactly two slots');
   assert.equal(counts.tomorrowioApiKey, 2, 'tomorrow.io key in the General + Radar tabs');
@@ -241,10 +243,10 @@ test('radar tab is gated to radar-capable platforms', () => {
   assert.deepEqual(radarTab.showWhen, { env: 'radar' });
 });
 
-test('secondaryLine is a 4-metric dropdown with no Off', () => {
+test('secondaryLine is a 5-metric dropdown with no Off', () => {
   const sec = byKey('secondaryLine');
   assert.equal(sec.type, 'select');
-  assert.deepEqual(sec.options.map((o) => o[1]), ['precip_prob', 'wind', 'gust', 'uv']);
+  assert.deepEqual(sec.options.map((o) => o[1]), ['precip_prob', 'wind', 'gust', 'uv', 'pressure']);
   assert.equal(sec.defaultValue, 'precip_prob');
 });
 
@@ -254,12 +256,12 @@ test('thirdLine derives options from secondaryLine, excluding it, with Off + def
   assert.equal(third.defaultValue, 'uv');
   assert.equal(third.optionsFrom.byKey, 'secondaryLine');
   const map = third.optionsFrom.map;
-  // Every secondary metric maps to Off + the OTHER three (never itself).
-  ['precip_prob', 'wind', 'gust', 'uv'].forEach((sec) => {
+  // Every secondary metric maps to Off + the OTHER four (never itself).
+  ['precip_prob', 'wind', 'gust', 'uv', 'pressure'].forEach((sec) => {
     const vals = map[sec].map((o) => o[1]);
     assert.equal(vals[0], 'off', sec + ' third options must start with off');
     assert.ok(!vals.includes(sec), sec + ' must be excluded from its own third-line options');
-    assert.equal(vals.length, 4, sec + ' → off + 3 others');
+    assert.equal(vals.length, 5, sec + ' → off + 4 others');
   });
 });
 
@@ -408,7 +410,7 @@ test('forecast line pickers use the new metric-oriented labels', () => {
 
 test('metric options are spelled out fully on both pickers', () => {
   assert.deepEqual(byKey('secondaryLine').options, [
-    ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['UV Index', 'uv']
+    ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure']
   ]);
   const map = byKey('thirdLine').optionsFrom.map;
   const labelOf = (sec, val) => map[sec].find((o) => o[1] === val)[0];
@@ -926,4 +928,68 @@ test('radar and health status-line slots hide unless the feature shows their bar
 
 test('the radar rain-horizon control is labelled "Rain countdown"', () => {
   assert.equal(byKey('rainCountdownHorizon').label, 'Rain countdown');
+});
+
+test('secondaryLine offers pressure as a fifth metric', () => {
+  assert.deepEqual(byKey('secondaryLine').options, [
+    ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'],
+    ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure']
+  ]);
+});
+
+test('thirdLine offers the four metrics the main line is not using, for all five', () => {
+  const map = byKey('thirdLine').optionsFrom.map;
+  assert.deepEqual(Object.keys(map).sort(),
+    ['gust', 'precip_prob', 'pressure', 'uv', 'wind']);
+  for (const [metric, opts] of Object.entries(map)) {
+    assert.equal(opts.length, 5, `${metric} should offer Off + 4 metrics`);
+    assert.equal(opts[0][1], 'off');
+    assert.ok(!opts.some(([, v]) => v === metric), `${metric} must not offer itself`);
+  }
+});
+
+test('pressureScale is a Narrow/Mid/Wide control storing low/mid/high', () => {
+  const scales = items.filter((i) => i.messageKey === 'pressureScale');
+  assert.equal(scales.length, 2, 'one copy per line-context (secondary + third)');
+  for (const s of scales) {
+    assert.deepEqual(s.options, [['Narrow', 'low'], ['Mid', 'mid'], ['Wide', 'high']]);
+    assert.equal(s.defaultValue, 'mid');
+    assert.equal(s.label, 'Pressure graph scale');
+    assert.ok(s.hintByValue.mid.includes('980'));
+    assert.ok(s.hintByValue.mid.includes('1040'));
+  }
+});
+
+test('pressureScale shows for the main line, and for the second line only when the main line is not pressure', () => {
+  const scales = items.filter((i) => i.messageKey === 'pressureScale');
+  const sec = scales.find((s) => s.showWhen.key === 'secondaryLine');
+  assert.deepEqual(sec.showWhen, { key: 'secondaryLine', eq: 'pressure' });
+  const third = scales.find((s) => s.showWhen.all);
+  assert.deepEqual(third.showWhen, { all: [
+    { key: 'thirdLine', eq: 'pressure' },
+    { not: { key: 'secondaryLine', eq: 'pressure' } }
+  ]});
+});
+
+test('the pressure line hint names sea-level so an altitude reading makes sense', () => {
+  assert.ok(byKey('secondaryLine').hintByValue.pressure.includes('Sea-level'));
+});
+
+// A hardcoded copy of the band numbers here is the third copy (forecast-series.js and
+// blocks.js.PRESSURE_BANDS are the other two, and blocks.js's is drift-tested already —
+// see 'preview bands match forecast-series' in test/config-blocks.test.js). Assert
+// against forecast-series.PRESSURE_SCALE_HPA directly, not literal numbers, so a future
+// band change can't silently leave this copy stale even if someone re-hardcodes it.
+test('pressureScale hint copy matches forecast-series.PRESSURE_SCALE_HPA (no drift)', () => {
+  const { PRESSURE_SCALE_HPA } = require('../src/pkjs/forecast-series.js');
+  const scales = items.filter((i) => i.messageKey === 'pressureScale');
+  for (const s of scales) {
+    for (const scale of ['low', 'mid', 'high']) {
+      const band = PRESSURE_SCALE_HPA[scale];
+      assert.ok(s.hintByValue[scale].includes(String(band.min)),
+        `${scale} hint should mention its min (${band.min})`);
+      assert.ok(s.hintByValue[scale].includes(String(band.max)),
+        `${scale} hint should mention its max (${band.max})`);
+    }
+  }
 });

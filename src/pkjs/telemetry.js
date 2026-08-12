@@ -47,6 +47,7 @@ function buildSettingsSnapshot(settings) {
         secondaryLine: safe.secondaryLine,
         secondaryLineFill: Boolean(safe.secondaryLineFill),
         windScale: safe.windScale,
+        pressureScale: safe.pressureScale,
         thirdLine: safe.thirdLine,
         barSource: safe.barSource,
         rainBarColor: safe.rainBarColor,

@@ -354,3 +354,43 @@ test('isoWeek matches known ISO-8601 week numbers', () => {
   assert.equal(statusLines.isoWeek(new Date(2024, 0, 1)), 1);
   assert.equal(statusLines.isoWeek(new Date(2020, 11, 31)), 53);
 });
+
+test('pressure slot renders the rounded value with its unit (no icon)', () => {
+  const bytes = statusLines.packLine(
+    catalog.LINES[1],
+    { PRESSURE_TREND: [1013.4, 1014] },
+    { statusRadarLeft: 'pressure', statusRadarMid: 'empty', statusRadarRight: 'empty' },
+    { platform: 'basalt', color: true, health: true });
+  assert.equal(bytes[0], catalog.KINDS.TEXT);
+  assert.equal(bytes[1], catalog.ICONS.NONE);
+  assert.equal(bytes[2], 7);
+  assert.equal(Buffer.from(bytes.slice(3, 10)).toString('utf8'), '1013hPa');
+});
+
+test('pressure slot shows -- when PRESSURE_TREND is empty or absent', () => {
+  for (const payload of [{ PRESSURE_TREND: [] }, {}]) {
+    const bytes = statusLines.packLine(
+      catalog.LINES[1], payload,
+      { statusRadarLeft: 'pressure', statusRadarMid: 'empty', statusRadarRight: 'empty' },
+      { platform: 'basalt', color: true, health: true });
+    assert.equal(Buffer.from(bytes.slice(3, 3 + bytes[2])).toString('utf8'), '--');
+  }
+});
+
+test('pressure text fits the 8-byte edge cap at every plausible value', () => {
+  for (const hpa of [870, 999.6, 1013, 1050]) {
+    const text = statusLines.formatValue('pressure', { PRESSURE_TREND: [hpa] }, {}, 'statusRadarLeft');
+    assert.ok(statusLines.utf8Encode(text).length <= catalog.CAPS.EDGE_TEXT_MAX,
+      `"${text}" exceeds EDGE_TEXT_MAX`);
+  }
+});
+
+// Five of six providers (dwd/metno/openweathermap/tomorrowio/wunderground) zero-fill an
+// unreported hour rather than null-filling it, so PRESSURE_TREND[0] === 0 is a common
+// real-world case, not a hypothetical. The graph line already rejects 0 as implausible
+// (forecast-series.pressurePermille) and turns itself off; the status slot must agree,
+// not print a bogus "0hPa" as though it were a real reading.
+test('pressure slot shows -- for an implausible current-hour value (provider zero-fill), not "0hPa"', () => {
+  const text = statusLines.formatValue('pressure', { PRESSURE_TREND: [0, 1013] }, {}, 'statusRadarLeft');
+  assert.equal(text, '--');
+});
