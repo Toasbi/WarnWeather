@@ -974,3 +974,22 @@ test('pressureScale shows for the main line, and for the second line only when t
 test('the pressure line hint names sea-level so an altitude reading makes sense', () => {
   assert.ok(byKey('secondaryLine').hintByValue.pressure.includes('Sea-level'));
 });
+
+// A hardcoded copy of the band numbers here is the third copy (forecast-series.js and
+// blocks.js.PRESSURE_BANDS are the other two, and blocks.js's is drift-tested already —
+// see 'preview bands match forecast-series' in test/config-blocks.test.js). Assert
+// against forecast-series.PRESSURE_SCALE_HPA directly, not literal numbers, so a future
+// band change can't silently leave this copy stale even if someone re-hardcodes it.
+test('pressureScale hint copy matches forecast-series.PRESSURE_SCALE_HPA (no drift)', () => {
+  const { PRESSURE_SCALE_HPA } = require('../src/pkjs/forecast-series.js');
+  const scales = items.filter((i) => i.messageKey === 'pressureScale');
+  for (const s of scales) {
+    for (const scale of ['low', 'mid', 'high']) {
+      const band = PRESSURE_SCALE_HPA[scale];
+      assert.ok(s.hintByValue[scale].includes(String(band.min)),
+        `${scale} hint should mention its min (${band.min})`);
+      assert.ok(s.hintByValue[scale].includes(String(band.max)),
+        `${scale} hint should mention its max (${band.max})`);
+    }
+  }
+});

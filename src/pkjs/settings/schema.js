@@ -2,6 +2,7 @@
 var meta = require('../../../package.json');
 var BMC_BADGE = require('./bmc-badge.js');
 var holidayData = require('./holiday-data.js');
+var PRESSURE_SCALE_HPA = require('../forecast-series.js').PRESSURE_SCALE_HPA;
 var versionLabel = 'v' + meta.version + (meta.buildProfile === 'dev' ? ' (dev)' : '');
 var HOURS = (function () {
     var o = [], h;
@@ -85,12 +86,26 @@ function windScaleCopy(context, unit, hints) {
         showWhen: {all: lineWhen.concat([{key: 'windUnits', eq: unit}])}
     };
 }
-// Pressure band ceilings/floors, pre-rendered per scale value. Mirrors
-// forecast-series.PRESSURE_SCALE_HPA — keep the numbers in sync.
+// Pressure band ceilings/floors, pre-rendered per scale value. Derived from
+// forecast-series.PRESSURE_SCALE_HPA (the sole source of truth for the band numbers)
+// at module load, so the settings-screen copy can never drift from it the way a third
+// hand-copied set of numbers could (blocks.js's PRESSURE_BANDS is the second copy,
+// guarded by its own drift test — see test/config-blocks.test.js).
+/**
+ * Build one pressureScale hint line from the shared band bounds.
+ * @param {string} scale 'low'|'mid'|'high'.
+ * @param {string} tail Descriptive text appended after the "Covers X–Y hPa — " lead-in.
+ * @returns {string} Full hint string.
+ */
+function pressureHint(scale, tail) {
+    var band = PRESSURE_SCALE_HPA[scale];
+    return 'Covers ' + band.min + '–' + band.max + ' hPa — ' + tail;
+}
 var PRESSURE_SCALE_HINTS = {
-    low:  'Covers 990–1030 hPa — emphasizes small movements; a deep low flattens against the bottom.',
-    mid:  'Covers 980–1040 hPa — general use; the whole ordinary range fits, mid-graph ≈ 1010 hPa.',
-    high: 'Covers 960–1050 hPa — keeps storm-depth lows on scale.'
+    low:  pressureHint('low', 'emphasizes small movements; a deep low flattens against the bottom.'),
+    mid:  pressureHint('mid', 'general use; the whole ordinary range fits, mid-graph ≈ '
+        + Math.round((PRESSURE_SCALE_HPA.mid.min + PRESSURE_SCALE_HPA.mid.max) / 2) + ' hPa.'),
+    high: pressureHint('high', 'keeps storm-depth lows on scale.')
 };
 /**
  * One pressureScale control for a line-context. Unlike windScaleCopy this needs no
