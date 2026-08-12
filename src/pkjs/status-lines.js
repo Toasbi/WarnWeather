@@ -223,6 +223,12 @@ function formatValue(code, payload, settings, slotKey) {
     v = trendHead(payload.GUST_TREND_UINT8);
     return v === null ? '--' : formatWind(v, settings);
   }
+  if (code === 'pressure') {
+    v = trendHead(payload.PRESSURE_TREND);
+    // Value + unit, unlike temp/uv/aqi: those have an icon to carry their context
+    // and this deliberately ships without one, so the text says what it is.
+    return v === null ? '--' : String(Math.round(v)) + 'hPa';
+  }
   if (code === 'aqi') {
     v = trendHead(payload.AQI_TREND);
     // Bare index; the leaf icon carries the "air quality" context (UV-style).
