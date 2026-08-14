@@ -319,3 +319,135 @@ test('buildForecastSeries: aplite + bw-light theme also stays white (bw-light fo
   assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFFFF, 'aplite + bw-light: secondary line stays white');
   assert.equal(out.THIRD_LINE_COLOR, 0xFFFFFF, 'aplite + bw-light: third-line dots stay white');
 });
+
+// ---- Air pressure metric -------------------------------------------------
+// Bands (hPa): low 990..1030, mid 980..1040, high 960..1050. Always sea-level
+// (MSL) — station pressure falls ~12 hPa/100 m and would sit off-scale at altitude.
+const { PRESSURE_SCALE_HPA } = require('../src/pkjs/forecast-series');
+
+test('secondary pressure: scaled against the mid band, orange line', () => {
+  const out = buildForecastSeries(
+    { pressures: [980, 1010, 1040] },
+    { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid' }, null);
+  // Byte 1, not 0, at the exact floor (980): a reading AT the band floor is real data,
+  // not "no data" -- 0 is reserved for that distinction (see the dots test below and
+  // FIX 2's floor-clamp in pressurePermille).
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [1, 125, 250]);
+  assert.equal(out.SECONDARY_LINE_COLOR, 0xFF5500);        // GColorOrange
+  assert.equal(out.SECONDARY_LINE_FILL_COLOR, 0xAA5500);   // GColorWindsorTan
+});
+
+test('pressure clamps at both ends of the band instead of going off-scale', () => {
+  const out = buildForecastSeries(
+    { pressures: [900, 1099] },
+    { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid' }, null);
+  // Byte 1, not 0: a below-floor reading is floor-clamped to a permille that
+  // survives quantization to a non-zero byte (see the dedicated dots test below) --
+  // it must not collapse to the same byte 0 the chart's dot renderer skips as "no
+  // data". The high end has no such floor concept and clamps to the top byte as before.
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [1, 250]);
+});
+
+// pressureScale: 'low' (990-1030 hPa) with a reading below the floor (984 hPa, e.g. a
+// deep low) must not quantize to byte 0 on the wire: chart.c's dot renderer
+// (chart.c:224, "values[i] <= lo") skips byte 0 as "no data", so six real hours of a
+// deep low would silently vanish from the third-line dots instead of reading as a
+// pressure crash sitting on the baseline.
+test('pressure dots: a below-floor reading is a non-zero byte, not the byte the dot renderer skips as no-data', () => {
+  const out = buildForecastSeries(
+    { precips: [50, 50], pressures: [1010, 984] },
+    { secondaryLine: 'precip_prob', thirdLine: 'pressure', pressureScale: 'low' }, null);
+  assert.ok(out.THIRD_LINE_TREND_UINT8[1] > 0,
+    'a floor-clamped pressure byte must be > 0 so the watch draws its dot');
+});
+
+test('pressure narrow + wide bands scale the same value differently', () => {
+  const at = (scale) => buildForecastSeries(
+    { pressures: [1010] },
+    { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: scale }, null
+  ).SECONDARY_LINE_TREND_UINT8[0];
+  assert.equal(at('low'), 125);   // 990..1030, centre
+  assert.equal(at('mid'), 125);   // 980..1040, centre
+  assert.equal(at('high'), 139);  // 960..1050 → (1010-960)/90 = .5556 → 556pm → 139
+});
+
+test('an unknown pressureScale falls back to the mid band', () => {
+  const out = buildForecastSeries(
+    { pressures: [1010] },
+    { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'bogus' }, null);
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [125]);
+});
+
+// Zero is the normal "no data" coercion but an impossible pressure: letting it
+// through would draw a spike to the graph floor that reads as a pressure crash.
+test('implausible pressure entries render the line off rather than a floor spike', () => {
+  for (const bad of [[1010, 0, 1012], [1010, null, 1012], [1010, 799, 1012], [1010, 1101, 1012]]) {
+    const out = buildForecastSeries(
+      { pressures: bad },
+      { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid' }, null);
+    assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [],
+      `expected line off for ${JSON.stringify(bad)}`);
+  }
+});
+
+// The whole-series rejection rule above is intentional and stays -- but the user
+// otherwise gets a silently blank line with no way to tell why. Provider zero-fill
+// (Brightsky nulls a field its source station didn't report) makes this common enough
+// that it needs to be debuggable from the JS console.
+test('a rejected pressure series logs which hour and value tripped the plausibility check', () => {
+  const logs = [];
+  const origLog = console.log;
+  console.log = function(m) { logs.push(m); };
+  let out;
+  try {
+    out = buildForecastSeries(
+      { pressures: [1010, 1012, 0, 1012] },
+      { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid' }, null);
+  }
+  finally {
+    console.log = origLog;
+  }
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [], 'line still renders off (rule unchanged)');
+  assert.equal(logs.length, 1, 'exactly one diagnostic line');
+  assert.ok(logs[0].indexOf('pressure') >= 0, 'names the metric');
+  assert.ok(logs[0].indexOf('0') >= 0, 'names the offending value');
+  assert.ok(logs[0].indexOf('2') >= 0, 'names the offending hour index (2)');
+});
+
+test('absent pressure series renders the line off', () => {
+  const out = buildForecastSeries(
+    {}, { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid' }, null);
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, []);
+});
+
+test('pressure works as the third line (dots) over a precip main line', () => {
+  const out = buildForecastSeries(
+    { precips: [50, 50], pressures: [1010, 1040] },
+    { secondaryLine: 'precip_prob', thirdLine: 'pressure', pressureScale: 'mid' }, null);
+  assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [125, 250]);
+  assert.equal(out.THIRD_LINE_COLOR, 0xFF5500);
+});
+
+test('B&W watch: pressure line is white', () => {
+  const out = buildForecastSeries(
+    { pressures: [1010] },
+    { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid' },
+    { platform: 'aplite' });
+  assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFFFF);
+});
+
+test('PRESSURE_SCALE_HPA exposes the three bands', () => {
+  assert.deepEqual(PRESSURE_SCALE_HPA, {
+    low: { min: 990, max: 1030 },
+    mid: { min: 980, max: 1040 },
+    high: { min: 960, max: 1050 }
+  });
+});
+
+test('applyForecastSeries deletes the transient PRESSURE_TREND', () => {
+  const payload = { TEMP_TREND_UINT8: [], PRESSURE_TREND: [1010, 1011] };
+  applyForecastSeries(payload,
+    { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid' }, null);
+  assert.equal('PRESSURE_TREND' in payload, false);
+  assert.deepEqual(payload.SECONDARY_LINE_TREND_UINT8, [125, 129]);
+});

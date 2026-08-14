@@ -30,3 +30,20 @@ test('DWD maps Brightsky forecast/current with °C→°F and km/h passthrough', 
   assert.equal(p.currentTemp, 68, 'current 20°C → 68°F');
   assert.equal(p.startTime, Math.floor(Date.parse('2023-11-14T22:00:00+00:00') / 1000), 'startTime from hourly[0].timestamp');
 });
+
+test('DWD maps Brightsky pressure_msl into pressureTrend', () => {
+  responder = function(url, onSuccess) {
+    if (url.indexOf('/current_weather') !== -1) {
+      onSuccess(JSON.stringify({ weather: { temperature: 20 } }));
+      return;
+    }
+    onSuccess(JSON.stringify({ weather: [
+      { temperature: 0, precipitation_probability: 40, precipitation: 1.2, wind_speed: 18, wind_gust_speed: 30, pressure_msl: 1012.5, timestamp: '2023-11-14T22:00:00+00:00' },
+      // second hour omits pressure_msl -> 0, which forecast-series rejects (line off)
+      { temperature: 10, precipitation_probability: 0, precipitation: 0, wind_speed: 0, wind_gust_speed: 0, timestamp: '2023-11-14T23:00:00+00:00' }
+    ] }));
+  };
+  const p = new DwdProvider();
+  p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  assert.deepEqual(p.pressureTrend, [1012.5, 0], 'pressure_msl hPa passthrough, absent → 0');
+});

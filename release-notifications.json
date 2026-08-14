@@ -108,7 +108,15 @@
     "body": "Added swapping clock and status bar in the compact view so the forecast slots can stay close to graph."
   },
   "1.10.0": {
-    "title": "Set your heart-rate scale",
-    "body": "The health graph's heart-rate line now uses a range you choose, so small changes are actually visible. Hours outside it show as dots on the edge."
+    "title": "Air pressure on the graph",
+    "body": "Pick air pressure as a graph line or dots in the Forecast tab, with a scale to widen or tighten the band, or drop it into any status slot. Also fixes settings changes sometimes not refreshing the forecast right away."
+  },
+  "1.10.1": {
+    "title": "Layout fix",
+    "body": "Fixes a layout bug in the Health and Radar views when the clock and status row are swapped."
+  },
+  "1.11.0": {
+    "title": "Threshold highlights & HR scale",
+    "body": "Status slots can now warn you: set warn and danger thresholds per item in the Watch tab and the value lights up when crossed. The health graph's heart-rate line also uses a range you choose, so small changes are actually visible — hours outside it show as dots on the edge."
   }
 }

@@ -33,7 +33,7 @@ function anchorIndex(times, nowEpoch) {
  *
  * @param {Object} json Parsed Open-Meteo /v1/forecast response.
  * @param {number} nowEpoch Current time in epoch seconds.
- * @returns {{tempTrend: number[], precipTrend: number[], rainTrend: number[], windTrend: number[], gustTrend: number[], startTime: number, currentTemp: number}|null}
+ * @returns {{tempTrend: number[], precipTrend: number[], rainTrend: number[], windTrend: number[], gustTrend: number[], pressureTrend: number[], startTime: number, currentTemp: number}|null}
  *   Mapped fields, or null when the response is malformed or has fewer than
  *   FORECAST_HOURS buckets at/after the current hour.
  */
@@ -67,6 +67,12 @@ function mapResponse(json, nowEpoch) {
         rainTrend: hourly.precipitation.slice(anchor, end),
         windTrend: hourly.windspeed_10m.slice(anchor, end),
         gustTrend: hourly.windgusts_10m.slice(anchor, end),
+        // Optional, unlike the guarded fields above: an absent series degrades to
+        // line-off rather than failing the whole fetch. Verified 2026-08-12 that the
+        // pinned ecmwf_ifs025 model does emit pressure_msl (unlike windgusts_10m,
+        // which it returns all-null — hence the separate gust call below).
+        pressureTrend: Array.isArray(hourly.pressure_msl)
+            ? hourly.pressure_msl.slice(anchor, end) : [],
         startTime: times[anchor],
         currentTemp: current.temperature_2m
     };
@@ -104,7 +110,7 @@ function buildForecastUrl(lat, lon) {
     return OPEN_METEO_BASE
         + '?latitude=' + lat
         + '&longitude=' + lon
-        + '&hourly=temperature_2m,precipitation_probability,precipitation,windspeed_10m,windgusts_10m'
+        + '&hourly=temperature_2m,precipitation_probability,precipitation,windspeed_10m,windgusts_10m,pressure_msl'
         + '&current=temperature_2m'
         + '&temperature_unit=fahrenheit'
         + '&windspeed_unit=kmh'
@@ -269,6 +275,7 @@ OpenMeteoProvider.prototype.withProviderData = function(lat, lon, force, onSucce
         this.rainTrend = mapped.rainTrend;
         this.windTrend = mapped.windTrend;
         this.gustTrend = mapped.gustTrend; // ecmwf_ifs025 omits gusts (all null); the gust call below overrides when available
+        this.pressureTrend = mapped.pressureTrend;
         this.startTime = mapped.startTime;
         this.currentTemp = mapped.currentTemp;
         // ECMWF IFS (pinned for the rain bars) doesn't output 10m gusts, so fetch

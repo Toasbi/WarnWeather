@@ -6,6 +6,7 @@
 var catalog = require('./status-line-catalog.js');
 var platformLib = require('./config-ui/lib/platform.js');
 var thresholds = require('./status-thresholds.js');
+var pressurePlausibility = require('./weather/pressure-plausibility.js');
 
 // Slot positions by index, the catalog's slot-context vocabulary.
 var POSITIONS = ['left', 'mid', 'right'];
@@ -223,6 +224,17 @@ function formatValue(code, payload, settings, slotKey) {
   if (code === 'gust') {
     v = trendHead(payload.GUST_TREND_UINT8);
     return v === null ? '--' : formatWind(v, settings);
+  }
+  if (code === 'pressure') {
+    v = trendHead(payload.PRESSURE_TREND);
+    // Five of six providers zero-fill an unreported hour rather than null-filling
+    // it, so a v of 0 is not a real reading -- the same plausibility window the
+    // graph line uses (forecast-series.pressurePermille) applies here too, or a
+    // zero-filled current hour would print as the bogus "0hPa".
+    if (v === null || !pressurePlausibility.isPlausiblePressure(v)) { return '--'; }
+    // Value + unit, unlike temp/uv/aqi: those have an icon to carry their context
+    // and this deliberately ships without one, so the text says what it is.
+    return String(Math.round(v)) + 'hPa';
   }
   if (code === 'aqi') {
     v = trendHead(payload.AQI_TREND);

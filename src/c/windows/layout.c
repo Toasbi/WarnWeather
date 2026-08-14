@@ -175,7 +175,12 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool upper,
         // pushing the clock, the status row and the graph down.
         int none_time_y = strip_anchor_y + 1;
         int status_y = none_time_y + time_h;
-        int forecast_y = status_y + NONE_STATUS_HEIGHT;
+        // Reserve the band under the clock only when the UPPER row actually fills it. Without a
+        // calendar there is no 3rd-row slot to swap out of, so a lone LOWER row (the compact swap
+        // toggle also rewrites the NONE-tier flick views) is carved from the top of the body just
+        // below — reserving here too would strand an empty band between clock and row and shorten
+        // the graph/radar. Statusless NONE reclaims it as well, matching the full tier.
+        int forecast_y = status_y + (upper ? NONE_STATUS_HEIGHT : 0);
 
         L.top = GRect(content_x, calendar_y, content_w, 0);   // calendar hidden; zero-height band
         L.status = GRect(content_x, status_y, content_w, NONE_STATUS_HEIGHT);

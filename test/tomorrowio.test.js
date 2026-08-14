@@ -176,3 +176,18 @@ test('withProviderData maps HTTP 401 and 429 onto tomorrowio_status_* failure co
     global.XMLHttpRequest = prevXhr;
   }
 });
+
+test('tomorrow.io requests and maps pressureSeaLevel (not pressureSurfaceLevel)', () => {
+  assert.ok(tomorrowio.buildUrl(52.52, 13.41, 'KEY123', BASE + 1234).includes('pressureSeaLevel'),
+    'fields must request pressureSeaLevel');
+  const json = sampleResponse();
+  json.data.timelines[0].intervals.forEach((iv, i) => { iv.values.pressureSeaLevel = 1000 + i; });
+  const out = tomorrowio.mapResponse(json, BASE + 3 * 3600 + 600);
+  assert.equal(out.pressureTrend[0], 1003);
+  assert.equal(out.pressureTrend.length, 24);
+});
+
+test('tomorrow.io yields 0 for a missing pressureSeaLevel (forecast-series rejects it)', () => {
+  const out = tomorrowio.mapResponse(sampleResponse(), BASE + 3 * 3600 + 600);
+  assert.equal(out.pressureTrend[0], 0);
+});

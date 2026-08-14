@@ -149,3 +149,24 @@ test('fixture uvIndex feeds the UV secondary line', () => {
   // UV 5.5 → tenths 55 → permille 500 → byte 125
   assert.ok(payload.SECONDARY_LINE_TREND_UINT8.every(function(b) { return b === 125; }), 'all UV 5.5 → byte 125');
 });
+
+// fixture-weather.js reads currentTemp/precipPct/windKmh/etc from the fixture's weather
+// block onto the corresponding provider.*Trend field, but pressureHpa was never wired to
+// provider.pressureTrend — so PRESSURE_TREND stayed permanently empty on the fixture/dev
+// path (the emulator's FIXTURE=<name> flow), and neither the graph line nor the status
+// slot could ever be exercised there, unlike every other transient (aqi, pollen, uv, ...).
+test('fixture pressureHpa feeds the pressure secondary line (mid scale)', () => {
+  const fixture = makeFixture({ pressureHpa: [980, 1010, 1040] });
+  const out = getFixtureWeatherPayload(
+    fixture, { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid', barSource: 'off' });
+  // Byte 1, not 0, at the exact floor (980) -- see forecast-series.test.js's matching
+  // assertion for why (a floor reading is real data, not "no data").
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [1, 125, 250]);
+  assert.ok(!('PRESSURE_TREND' in out), 'PRESSURE_TREND is transient — consumed by forecast-series, never wired');
+});
+
+test('fixture without pressureHpa still produces a valid (empty/off) pressure line', () => {
+  const out = getFixtureWeatherPayload(
+    makeFixture({}), { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid', barSource: 'off' });
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, []);
+});

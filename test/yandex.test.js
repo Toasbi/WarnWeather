@@ -175,3 +175,13 @@ test('withProviderData POSTs the built query with auth headers, and onload popul
     global.XMLHttpRequest = prevXhr;
   }
 });
+
+// Yandex exposes station-level pressure only: at 1600 m that reads ~830 hPa where
+// every other provider reports ~1013 MSL. Shipping none is deliberate.
+test('yandex sources no pressure at all', () => {
+  const selection = yandex.buildQuery(52.52, 13.41).replace(/\/\/[^\n]*/g, '');
+  assert.ok(!selection.includes('pressure'),
+    'the GraphQL selection must not request pressure');
+  const p = new yandex.YandexProvider('key');
+  assert.deepEqual(p.pressureTrend, []);
+});

@@ -450,6 +450,40 @@ static void test_resolve_tier_lower_only(void) {
     printf("resolve_tier_lower_only OK\n");
 }
 
+// A lone status row in the NONE tier occupies the SAME band whether the wire names it upper
+// or lower. There is no calendar row to swap it out of there — the row already sits directly
+// under the clock — so a swapped (lower-only) NONE view must not leave the vacated upper slot
+// as dead space above it (reported bug: compactCal + swap compiles its health/radar flick views
+// as lower-only NONE views, which rendered clock / gap / status / short graph).
+static void test_geometry_none_lone_row(void) {
+    ViewSpec up = view_spec_unpack(pack(1, 0, 1, STATUS_SRC_HEALTH, STATUS_SRC_NONE));
+    ViewSpec lo = view_spec_unpack(pack(1, 0, 1, STATUS_SRC_NONE, STATUS_SRC_HEALTH));
+    MainLayout Lu = layout_compute_spec(BOUNDS, &up, FC_BAND_H);
+    MainLayout Ll = layout_compute_spec(BOUNDS, &lo, FC_BAND_H);
+    expect("geometry_none_lone_row.same_band_y", Ll.status_lower.origin.y == Lu.status.origin.y, true);
+    expect("geometry_none_lone_row.same_band_h", Ll.status_lower.size.h == Lu.status.size.h, true);
+    // The body (health graph / radar) keeps its full height — the swap moved nothing.
+    expect("geometry_none_lone_row.body_full_height", Ll.bottom.size.h == Lu.bottom.size.h, true);
+    expect("geometry_none_lone_row.body_y", Ll.bottom.origin.y == Lu.bottom.origin.y, true);
+    // The row sits under the clock, with the body directly below it. (Compared against the
+    // clock band's TOP: the NONE tier drops the clock by NONE_TIME_DROP into its own band, so
+    // its nominal bottom overhangs the status band's top by those few px — true of the upper
+    // row today as well.)
+    expect("geometry_none_lone_row.below_clock",
+           Ll.status_lower.origin.y > Ll.time.origin.y, true);
+    expect("geometry_none_lone_row.abuts_body",
+           Ll.status_lower.origin.y + Ll.status_lower.size.h == Ll.bottom.origin.y, true);
+    expect("geometry_none_lone_row.upper_collapsed", Ll.status.size.h == 0, true);
+    expect("geometry_none_lone_row.loading_covers_body",
+           Ll.loading.origin.y == Ll.bottom.origin.y && Ll.loading.size.h == Ll.bottom.size.h, true);
+    // A statusless NONE view reclaims the band too: the body starts right under the clock.
+    ViewSpec no = view_spec_unpack(pack(1, 0, 0, STATUS_SRC_NONE, STATUS_SRC_NONE));
+    MainLayout Ln = layout_compute_spec(BOUNDS, &no, FC_BAND_H);
+    expect("geometry_none_lone_row.statusless_reclaims",
+           Ln.bottom.origin.y == Lu.status.origin.y, true);
+    printf("geometry_none_lone_row OK\n");
+}
+
 static void test_geometry_two_rows(void) {
     // radar upper + forecast lower.
     ViewSpec s = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_RADAR, STATUS_SRC_FORECAST));
@@ -958,6 +992,7 @@ int main(int argc, char **argv) {
     if (!s_dump) radar_placement_tests();
     if (!s_dump) test_geometry_lower_only();
     if (!s_dump) test_resolve_tier_lower_only();
+    if (!s_dump) test_geometry_none_lone_row();
     if (!s_dump) test_geometry_two_rows();
     if (!s_dump) seating_no_lift();
     if (!s_dump) calendar_status_clearance();
