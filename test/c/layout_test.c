@@ -155,7 +155,7 @@ static void golden_rects(void) {
     L = layout_compute(BOUNDS, LAYOUT_TIER_NONE, false, FC_BAND_H);
     if (s_dump) printf("  NONE !dual (emery)\n");
     check("none.top",     L.top,     2, 21, 196, 0);
-    check("none.time",    L.time,    2, 26, 196, 60);   // 23 + NONE_TIME_DROP 3
+    check("none.time",    L.time,    2, 24, 196, 60);   // 23 + NONE_TIME_DROP 1
     check("none.status",  L.status,  2, 83, 196, 30);
     check("none.bottom",  L.bottom,  2, 113, 198, 111);
     check("none.loading", L.loading, 2, 113, 198, 111);

@@ -88,7 +88,12 @@
 #define NONE_STATUS_HEIGHT 30
 // none: drop the clock a few px so its gap to the date strip above matches its gap to
 // the status line below (tune visually; grows with the taller emery status band/fonts).
-#define NONE_TIME_DROP 3
+// Re-tuned 3 -> 1 after the top strip's line was lifted (STATUS_TOP_STRIP_LIFT) and the
+// Gothic-24 cap remodel moved emery's neighbours: MEASURED on the emulator (noCal fixture,
+// Roboto clock) the ink gaps were 16 above / 12 below; 1 balances them at 14 / 14. The
+// 144px watches stayed balanced (9 / 8) because their strip band grew 14 -> 17 in the same
+// era, compensating — their drop below is untouched.
+#define NONE_TIME_DROP 1
 #else
 #define LAYOUT_PAD_X 0
 #define LAYOUT_PAD_TOP 0
