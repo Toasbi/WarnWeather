@@ -227,6 +227,15 @@
      isn't flush against the bottom / keyboard edge. A spacer box, since WebKit drops a scroll
      container's padding-bottom at the scroll end. */
   dialog#modal.search .ssel-list::after { content: ''; display: block; height: 36px; }
+  /* edit sheet (sheetOnly section in the dialog): ordinary schema rows in the scroll body.
+     The rows carry their own 16px side padding and dividers; the container only scrolls. */
+  dialog#modal .esheet { background: transparent; padding-bottom: 8px; }
+  dialog#modal .esheet .intro { padding-top: 10px; }
+  dialog#modal .esheet .row:last-child { border-bottom: none; }
+  /* pencil trigger for a row's per-value edit sheet — sits left of the row's control */
+  .row .rgt.has-pen { display: inline-flex; align-items: center; gap: 5px; }
+  .edit-pen { flex: none; display: inline-flex; align-items: center; justify-content: center; border: none; background: none; color: var(--muted); cursor: pointer; padding: 6px; border-radius: 8px; line-height: 0; transition: color .15s, background .15s; }
+  .edit-pen:active { color: var(--link); background: rgba(250,74,53,0.12); }
   .date-picker { position: relative; display: grid; grid-template-columns: .75fr 1.5fr 1fr;
     gap: 8px; height: 244px; padding: 0 16px 24px; overflow: hidden; }
   .date-band { position: absolute; z-index: 0; left: 16px; right: 16px; top: 88px;

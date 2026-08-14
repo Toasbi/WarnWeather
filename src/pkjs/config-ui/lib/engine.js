@@ -58,6 +58,18 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     get: function (name) { return recommendResolverMap[name]; }
   };
 
+  // --- sheet-resolver registry --- a row opts into a per-value edit sheet by name
+  // (item.editSheetFrom: {resolver, args}); the resolver fn(S, env, args) returns the
+  // sheetId of a sheetOnly section to open for the row's CURRENT value, or null for
+  // "this value has nothing to edit" (no pencil). Read at render time, like recommend.
+  // args always carries the row's messageKey (schema args merge over it), so a resolver
+  // shared by many rows needs no per-row args at all.
+  var sheetResolverMap = {};
+  PConf.sheetResolvers = {
+    register: function (name, fn) { sheetResolverMap[name] = fn; },
+    get: function (name) { return sheetResolverMap[name]; }
+  };
+
   // --- onChange registry --- a schema item opts into a post-change side effect by
   // name (item.onChange: id) without the engine knowing what that side effect is —
   // mirrors the block registry above. fn(S, oldValue, newValue, env) runs synchronously,
@@ -297,6 +309,43 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return String(value == null ? '' : value);
   }
   /**
+   * The sheetId this row's current value offers for editing, via the item's named
+   * sheet resolver — null when the item opts out or the resolver offers nothing.
+   *
+   * @param {Object} item Schema item (editSheetFrom: {resolver, args}).
+   * @param {Object} S Live settings state.
+   * @param {Object} env Platform env.
+   * @returns {?string} sheetId of a sheetOnly section, or null.
+   */
+  function resolveEditSheet(item, S, env) {
+    if (!item.editSheetFrom) { return null; }
+    var fn = PConf.sheetResolvers.get(item.editSheetFrom.resolver);
+    if (!fn) { return null; }
+    var args = Object.assign({ messageKey: item.messageKey }, item.editSheetFrom.args || {});
+    var id = fn(S, env, args);
+    return id == null ? null : String(id);
+  }
+
+  // Pencil glyph for the edit-sheet trigger (stroke follows the button's color).
+  var PEN_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"'
+    + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    + '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+
+  /**
+   * The edit-sheet trigger button for a row whose value resolved a sheet, or ''.
+   *
+   * @param {Object} item Schema item (for the aria label).
+   * @param {{editSheet: ?string}} view Render view state.
+   * @returns {string} Pencil button HTML, or ''.
+   */
+  function editPenHtml(item, view) {
+    if (!view.editSheet) { return ''; }
+    return '<button type="button" class="edit-pen" data-edit-sheet="' + esc(view.editSheet)
+      + '" aria-label="Edit settings for the ' + esc(String(item.label || 'selected'))
+      + ' value">' + PEN_SVG + '</button>';
+  }
+
+  /**
    * Shared trigger for both `select` and `searchSelect`: a select-like button that opens
    * the modal popup. aria-controls points at the option list the modal renders into #modal.
    *
@@ -360,6 +409,36 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       + '<div id="' + listId + '" class="ssel-list" role="listbox" aria-label="' + title
       + ' options" data-ssel-list="' + key + '">'
       + renderSelectOptions(item, value, cx.selectQuery, resolveRecommended(item, cx.S, cx.ENV)) + '</div>';
+  }
+
+  /**
+   * The open edit sheet: a sheetOnly section rendered into the shared bottom-sheet
+   * dialog — header from the section title, then the section's rows (intro, text
+   * fields, color pickers …) through the same item renderer the tab body uses, so
+   * showWhen/joins/hints and the color-palette state all behave identically.
+   * '' when nothing is open, the sheetId is unknown, or the section is gated off.
+   *
+   * @param {Object} schema Config schema.
+   * @param {{S: Object, ENV: Object, openEdit: ?string}} cx Render context.
+   * @returns {string} Sheet header + body HTML, or ''.
+   */
+  function renderEditModal(schema, cx) {
+    if (!cx.openEdit) { return ''; }
+    var sec = null, ti, si, tabs = schema.tabs || [];
+    for (ti = 0; ti < tabs.length; ti++) {
+      var secs = tabs[ti].sections || [];
+      for (si = 0; si < secs.length; si++) {
+        if (secs[si].sheetOnly && secs[si].sheetId === cx.openEdit) { sec = secs[si]; }
+      }
+    }
+    if (!sec) { return ''; }
+    var built = buildSectionBody(sec, cx);
+    if (built.isEmpty) { return ''; }
+    var titleId = 'esheet-ttl-' + esc(String(cx.openEdit));
+    return '<div class="ssel-modal-hdr"><span class="ssel-modal-ttl" id="' + titleId + '">'
+      + esc(String(sec.title || 'Edit')) + '</span>'
+      + '<button type="button" class="ssel-modal-close" data-select-close aria-label="Close">×</button></div>'
+      + '<div class="ssel-list esheet">' + built.body + '</div>';
   }
 
   var MONTH_NAMES = [
@@ -740,10 +819,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (stacked) {
       return '<div class="' + rowCls + '">' + label + hintHtml + '<div>' + renderControl(item, view) + '</div></div>';
     }
+    // A resolved edit sheet puts its pencil trigger INSIDE the control cell, left of the
+    // control, so the pair reads as one unit ("edit this value" / "pick a value").
+    var rgtOpen = view.editSheet
+      ? '<div class="rgt has-pen">' + editPenHtml(item, view) : '<div class="rgt">';
     // Wide segmented (.segwide): control on the label's line, label wraps into the leftover
     // width (.lft flex), hint on its own full-width line below (.segwide .hint flex-basis).
     if (wideSegmented) {
-      return '<div class="' + rowCls + '"><div class="lft">' + label + '</div><div class="rgt">' + renderControl(item, view) + '</div>' + hintHtml + '</div>';
+      return '<div class="' + rowCls + '"><div class="lft">' + label + '</div>' + rgtOpen + renderControl(item, view) + '</div>' + hintHtml + '</div>';
     }
     // Rows with a multi-line hint float the control right (.wrap layout) so the
     // hint flows around it and reclaims the full width below the control instead
@@ -752,9 +835,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // isn't measurable at render time, so "multi-line" is a plain-text length
     // heuristic — short one-liners keep the centered two-column row.
     if (hintHtml && String(hint).replace(/<[^>]*>/g, '').length > 64) {
-      return '<div class="' + rowCls + ' wrap">' + label + '<div class="rgt">' + renderControl(item, view) + '</div>' + hintHtml + '</div>';
+      return '<div class="' + rowCls + ' wrap">' + label + rgtOpen + renderControl(item, view) + '</div>' + hintHtml + '</div>';
     }
-    return '<div class="' + rowCls + '"><div class="lft">' + label + hintHtml + '</div><div class="rgt">' + renderControl(item, view) + '</div></div>';
+    return '<div class="' + rowCls + '"><div class="lft">' + label + hintHtml + '</div>' + rgtOpen + renderControl(item, view) + '</div></div>';
   }
 
   // Render a registered block by id, wrapped in .blockrow ('.blockrow sticky' when sticky).
@@ -820,6 +903,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       return { html: staticHtml, kind: 'static' };
     }
     var rowItem = resolveRowItem(item, view, cx);
+    // After resolveRowItem: an invalid stored value has been snapped into cx.S, so the
+    // pencil reflects the value the row actually shows.
+    if (item.editSheetFrom) { view.editSheet = resolveEditSheet(item, cx.S, cx.ENV); }
     var html = renderBlock(item.blockBefore, cx.S, cx.ENV, cx.USERDATA, item.blockBeforeSticky)
       + renderRow(rowItem, view, noDivider)
       + renderBlock(item.block, cx.S, cx.ENV, cx.USERDATA);
@@ -1005,6 +1091,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       if (t.id !== activeTab) { continue; }
       for (si = 0; si < t.sections.length; si++) {
         var sec = t.sections[si];
+        // A sheetOnly section renders only inside the edit-sheet dialog (renderEditModal);
+        // its items still hydrate/serialize like any other, they just have no card.
+        if (sec.sheetOnly) { continue; }
         // Consecutive sections sharing a groupCard id render into one card (titles become
         // in-card sub-headers); everything else stays a card of its own.
         if (sec.groupCard) {
@@ -1033,7 +1122,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var USERDATA = INJECTED_USERDATA || {}, RETURN_TO = INJECTED_RETURN || 'pebblejs://close#';
     var S = hydrate(SCHEMA, INJECTED_CFG, ENV), INITIAL = Object.assign({}, S);
     var activeTab = SCHEMA.tabs[0].id;
-    var openColor = null, openSelect = null, openDate = null;
+    var openColor = null, openSelect = null, openDate = null, openEdit = null;
     var selectQuery = '', collapsed = initialCollapsed(SCHEMA);
     // Recover a schema item by messageKey so the input handler can re-filter its options in place.
     function findItem(key) { var f = null; eachItem(SCHEMA, function (it) { if (it.messageKey === key) { f = it; } }); return f; }
@@ -1041,6 +1130,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // (not the DOM node) because render() replaces #scroll's innerHTML, detaching any node
     // captured at open time; re-querying by key after render finds the fresh trigger.
     var lastSelectKey = null;
+    // Same, for an edit sheet: the sheetId whose pencil trigger regains focus on close.
+    var lastEditSheet = null;
     // Optional one-shot callback fired after the sheet closes, set by openSheet() so an external
     // caller (the onboarding wizard, which lives in its own overlay) can react to a pick/dismiss.
     var onSheetClose = null;
@@ -1066,12 +1157,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     function syncDialog() {
       var dlg = document.getElementById('modal');
       if (!dlg || !dlg.showModal) { return; }
-      var sheetOpen = openSelect || openDate;
+      var sheetOpen = openSelect || openDate || openEdit;
       var opening = Boolean(sheetOpen && !dlg.open);
       if (sheetOpen) {
         if (opening) { dlg.showModal(); }
         var ttl = dlg.querySelector('.ssel-modal-ttl');
         if (ttl && ttl.id) { dlg.setAttribute('aria-labelledby', ttl.id); }
+        if (openEdit) { dlg.classList.add('edit'); } else { dlg.classList.remove('edit'); }
         if (openDate) {
           dlg.classList.remove('search');
           dlg.classList.add('date');
@@ -1079,7 +1171,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         } else {
           dlg.classList.remove('date');
           // searchSelect filters as you type; pin a fixed height so a shrinking list can't
-          // resize the sheet and make it jump. Plain select stays content-sized.
+          // resize the sheet and make it jump. Plain select stays content-sized — as does
+          // the edit sheet, which shares the same peek clamp when its rows overflow.
           if (dlg.querySelector('[data-select-search]')) {
             dlg.classList.add('search');
           } else {
@@ -1090,6 +1183,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       } else if (dlg.open) {
         dlg.classList.remove('search');
         dlg.classList.remove('date');
+        dlg.classList.remove('edit');
         dlg.style.bottom = '';
         dlg.style.maxHeight = '';
         dlg.style.transform = '';
@@ -1272,15 +1366,19 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     function closeModal() {
       var selectKey = lastSelectKey;
       var dateKey = openDate;
+      var editKey = lastEditSheet;
       flushPendingDateScrolls();
       openSelect = null;
       openDate = null;
+      openEdit = null;
       render();
       var selector = selectKey ? '[data-select="' + selectKey + '"]'
-        : dateKey ? '[data-date="' + dateKey + '"]' : null;
+        : dateKey ? '[data-date="' + dateKey + '"]'
+        : editKey ? '[data-edit-sheet="' + editKey + '"]' : null;
       var trigger = selector ? document.querySelector(selector) : null;
       if (trigger) { trigger.focus(); }
       lastSelectKey = null;
+      lastEditSheet = null;
       if (onSheetClose) {
         var cb = onSheetClose;
         onSheetClose = null;
@@ -1316,16 +1414,18 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     function render() {
       var cx = {
         S: S, ENV: ENV, USERDATA: USERDATA, openColor: openColor,
-        openSelect: openSelect, openDate: openDate, selectQuery: selectQuery,
+        openSelect: openSelect, openDate: openDate, openEdit: openEdit,
+        selectQuery: selectQuery,
         collapsed: collapsed, evalCtx: evalCtx()
       };
       document.getElementById('tabs').innerHTML = renderTabBar(SCHEMA, activeTab, cx);
       document.getElementById('scroll').innerHTML = renderBody(SCHEMA, activeTab, cx);
       document.getElementById('modal').innerHTML = openDate
-        ? renderDateModal(SCHEMA, cx) : renderSelectModal(SCHEMA, cx);
+        ? renderDateModal(SCHEMA, cx)
+        : openEdit ? renderEditModal(SCHEMA, cx) : renderSelectModal(SCHEMA, cx);
       syncDialog();
       document.getElementById('scroll').className =
-        'scroll' + (openSelect || openDate ? ' locked' : '');
+        'scroll' + (openSelect || openDate || openEdit ? ' locked' : '');
       applyTheme();
     }
 
@@ -1345,9 +1445,57 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         openColor = null;
         openSelect = null;
         openDate = null;
+        openEdit = null;
+        lastEditSheet = null;
         render();
         scroll.scrollTop = tabScroll[activeTab] || 0;
       });
+    }
+
+    // --- shared text-field wiring --- one set of live-input / pre-edit-capture / commit
+    // handlers serves BOTH #scroll and #modal: the edit sheet renders ordinary text rows
+    // inside the dialog, and they must behave exactly like their old in-card selves
+    // (S live per keystroke; onChange only on commit; repaint only on a correction).
+    // Guarded on data-k so the searchSelect's search box (data-select-search, no data-k)
+    // never writes into S.
+    var textPreEdit = {};
+    function liveTextInput(e) {
+      var inp = e.target.closest && e.target.closest('input[type=text]');
+      if (inp && inp.getAttribute('data-k') != null) { S[inp.getAttribute('data-k')] = inp.value; }
+    }
+    // The pre-edit value has to be sampled on focusin, because `input` has already
+    // overwritten S[key] by the time `change` fires (so oldValue would be the new value).
+    function captureTextPreEdit(e) {
+      var inp = e.target.closest && e.target.closest('input[type=text]');
+      if (inp && inp.getAttribute('data-k') != null) {
+        textPreEdit[inp.getAttribute('data-k')] = S[inp.getAttribute('data-k')];
+      }
+    }
+    // A text item's onChange hook fires on COMMIT (change = blur / Enter), not on the
+    // per-keystroke `input` above: a hook that rejects a value by reverting it (e.g.
+    // validateThresholdPair) would otherwise fight the user mid-typing — "100" can't be
+    // typed if the interim "1" is momentarily invalid.
+    function commitTextChange(e) {
+      var inp = e.target.closest && e.target.closest('input[type=text]');
+      if (!inp || inp.getAttribute('data-k') == null) { return; }
+      var tk = inp.getAttribute('data-k'), newV = inp.value;
+      S[tk] = newV;
+      var tItem = findItem(tk);
+      var onChangeFn = tItem && tItem.onChange && PConf.onChange.get(tItem.onChange);
+      if (!onChangeFn) { return; }
+      // No focusin seen (programmatic value + change): fall back to the new value so a
+      // revert is a no-op rather than restoring something that was never in the field.
+      var oldV = Object.prototype.hasOwnProperty.call(textPreEdit, tk)
+        ? textPreEdit[tk] : newV;
+      delete textPreEdit[tk];
+      onChangeFn(S, oldV, newV, ENV, tk);
+      // Repaint ONLY when the hook actually corrected the value: a correction has
+      // to become visible (focus has already left the field). On the common
+      // accepted-value path the input already shows what the user typed, and an
+      // unconditional render() here would swallow their next tap — in a webview
+      // focus moves on mousedown, so `change` fires BEFORE mouseup, and replacing
+      // the subtree's innerHTML detaches the node the click was about to land on.
+      if (S[tk] !== newV) { render(); }
     }
 
     // Scroll body: click (control interactions incl. opening a select/searchSelect,
@@ -1356,6 +1504,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var scroll = document.getElementById('scroll');
       scroll.addEventListener('click', function (e) {
         var t;
+        if ((t = e.target.closest('[data-edit-sheet]'))) {
+          var ek = t.getAttribute('data-edit-sheet');
+          flushPendingDateScrolls();
+          openSelect = null;
+          openDate = null;
+          lastSelectKey = null;
+          openEdit = ek;
+          lastEditSheet = ek;
+          render();
+          return;
+        }
         if ((t = e.target.closest('[data-select]'))) {
           var sk = t.getAttribute('data-select');
           if (openSelect === sk) { closeModal(); return; }
@@ -1394,44 +1553,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if ((t = e.target.closest('[data-copy]'))) { copyText(t.getAttribute('data-copy')); return; }
         if ((t = e.target.closest('[data-action]'))) { var act = t.getAttribute('data-action'); if (PConf.actions[act]) { PConf.actions[act](); } return; }
       });
-      scroll.addEventListener('input', function (e) {
-        var inp = e.target.closest('input[type=text]');
-        if (inp) { S[inp.getAttribute('data-k')] = inp.value; }
-      });
-      // A text item's onChange hook fires on COMMIT (change = blur / Enter), not on the
-      // per-keystroke `input` above: a hook that rejects a value by reverting it (e.g.
-      // validateThresholdPair) would otherwise fight the user mid-typing — "100" can't be
-      // typed if the interim "1" is momentarily invalid. The `input` listener still owns
-      // keeping S live for every text field; this handler only adds the hook dispatch.
-      // The pre-edit value has to be sampled on focusin, because `input` has already
-      // overwritten S[key] by the time `change` fires (so oldValue would be the new value).
-      var textPreEdit = {};
-      scroll.addEventListener('focusin', function (e) {
-        var inp = e.target.closest && e.target.closest('input[type=text]');
-        if (inp) { textPreEdit[inp.getAttribute('data-k')] = S[inp.getAttribute('data-k')]; }
-      });
-      scroll.addEventListener('change', function (e) {
-        var inp = e.target.closest && e.target.closest('input[type=text]');
-        if (!inp) { return; }
-        var tk = inp.getAttribute('data-k'), newV = inp.value;
-        S[tk] = newV;
-        var tItem = findItem(tk);
-        var onChangeFn = tItem && tItem.onChange && PConf.onChange.get(tItem.onChange);
-        if (!onChangeFn) { return; }
-        // No focusin seen (programmatic value + change): fall back to the new value so a
-        // revert is a no-op rather than restoring something that was never in the field.
-        var oldV = Object.prototype.hasOwnProperty.call(textPreEdit, tk)
-          ? textPreEdit[tk] : newV;
-        delete textPreEdit[tk];
-        onChangeFn(S, oldV, newV, ENV, tk);
-        // Repaint ONLY when the hook actually corrected the value: a correction has
-        // to become visible (focus has already left the field). On the common
-        // accepted-value path the input already shows what the user typed, and an
-        // unconditional render() here would swallow their next tap — in a webview
-        // focus moves on mousedown, so `change` fires BEFORE mouseup, and replacing
-        // #scroll.innerHTML detaches the node the click was about to land on.
-        if (S[tk] !== newV) { render(); }
-      });
+      scroll.addEventListener('input', liveTextInput);
+      scroll.addEventListener('focusin', captureTextPreEdit);
+      scroll.addEventListener('change', commitTextChange);
       // Range drag. render() replaces #scroll.innerHTML wholesale, so a re-render
       // mid-gesture would destroy the element being dragged and drop pointer
       // capture — the same hazard the text input avoids by writing S on `input`
@@ -1563,6 +1687,28 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           if (onChangeFn) { onChangeFn(S, oldV, newV, ENV, k); }
           closeModal(); return;
         }
+        // Edit-sheet controls: the sheet renders ordinary rows inside the dialog, so the
+        // same delegated cases #scroll owns must work here. render() repaints the dialog's
+        // innerHTML in place (openEdit is unchanged), so the sheet stays open throughout.
+        if (openEdit && e.target.closest && (t = e.target.closest('[data-toggle]'))) {
+          S[t.getAttribute('data-k')] = !S[t.getAttribute('data-k')]; render(); return;
+        }
+        if (openEdit && e.target.closest && (t = e.target.closest('[data-color-pick]'))) {
+          S[t.getAttribute('data-k')] = t.getAttribute('data-color-pick');
+          openColor = null; render(); return;
+        }
+        if (openEdit && e.target.closest && (t = e.target.closest('[data-color]'))) {
+          var ck = t.getAttribute('data-color');
+          openColor = (openColor === ck ? null : ck); render(); return;
+        }
+        if (openEdit && e.target.closest && (t = e.target.closest('[data-v]'))) {
+          var vk = t.getAttribute('data-k'), oldVal = S[vk], newVal = t.getAttribute('data-v');
+          S[vk] = newVal;
+          var vItem = findItem(vk);
+          var vHook = vItem && vItem.onChange && PConf.onChange.get(vItem.onChange);
+          if (vHook) { vHook(S, oldVal, newVal, ENV, vk); }
+          render(); return;
+        }
         if (e.target.closest && (t = e.target.closest('.date-opt')) && openDate) {
           var wheel = t.closest('[data-date-wheel]');
           if (!wheel) { return; }
@@ -1588,6 +1734,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // Escape fires the dialog's native `cancel`; route it through closeModal (the single
       // close path via render → syncDialog) instead of letting the dialog self-close.
       modal.addEventListener('cancel', function (e) { e.preventDefault(); closeModal(); });
+      // Edit-sheet text fields (warn/danger thresholds …) get the same live-input /
+      // pre-edit / commit path as #scroll's text rows; liveTextInput's data-k guard
+      // keeps the searchSelect's search box out of S.
+      modal.addEventListener('input', liveTextInput);
+      modal.addEventListener('focusin', captureTextPreEdit);
+      modal.addEventListener('change', commitTextChange);
       modal.addEventListener('input', function (e) {
         var sb = e.target.closest('[data-select-search]');
         if (!sb) { return; }
@@ -1627,7 +1779,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         var header = e.target.closest && e.target.closest('.ssel-modal-hdr');
         var canDragDate = Boolean(openDate
           && (header || (wheel && wheel.scrollTop <= 0)));
-        var canDragSelect = Boolean(openSelect && list && list.scrollTop <= 0);
+        var canDragSelect = Boolean((openSelect || openEdit) && list && list.scrollTop <= 0);
         dragY = (canDragDate || canDragSelect) ? e.touches[0].clientY : null;
         dragging = false;
         modal.style.transition = '';
@@ -1730,6 +1882,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     serialize: serialize, hydrate: hydrate, boot: boot, initialCollapsed: initialCollapsed,
     esc: esc, renderControl: renderControl, renderRow: renderRow, renderSelectOptions: renderSelectOptions,
     renderSelectModal: renderSelectModal, renderDateModal: renderDateModal,
+    renderEditModal: renderEditModal,
     formatDateValue: formatDateValue, parseDateParts: parseDateParts,
     dateValueFromParts: dateValueFromParts,
     parseRange: parseRange, formatRange: formatRange,
@@ -1748,6 +1901,7 @@ if (typeof module !== 'undefined' && module.exports) {
     renderSelectOptions: PConf.engine.renderSelectOptions,
     renderSelectModal: PConf.engine.renderSelectModal,
     renderDateModal: PConf.engine.renderDateModal,
+    renderEditModal: PConf.engine.renderEditModal,
     formatDateValue: PConf.engine.formatDateValue,
     parseDateParts: PConf.engine.parseDateParts,
     dateValueFromParts: PConf.engine.dateValueFromParts,
