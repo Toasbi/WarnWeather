@@ -97,15 +97,23 @@ function windScaleCopy(context, unit, hints) {
 // BAR's existence, while 'slot' mode puts health items in the ordinary bars, where
 // their thresholds are just as live.
 var HEALTH_SLOT_WHEN = {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}]};
-// "This watch can draw a threshold highlight at all" — a section-level gate on the
-// whole threshold card (intro + every kind sub-section). aplite compiles the feature
-// out (no WW_THRESHOLD_HIGHLIGHT: its lean status-row twin has no highlight code and
-// its image has no room), so offering the settings there would be a card that silently
-// does nothing. Platform fact lives in config-ui/lib/platform.js.
+// "This watch can draw a threshold highlight at all" — a section-level gate on every
+// threshold edit sheet. aplite compiles the feature out (no WW_THRESHOLD_HIGHLIGHT:
+// its lean status-row twin has no highlight code and its image has no room), so
+// offering the settings there would be a sheet that silently does nothing. The
+// statusSlotEditSheet resolver (blocks.js) applies the same env gate to the pencil
+// trigger, so the sheet is unreachable there too. Platform fact lives in
+// config-ui/lib/platform.js.
 var THRESHOLD_WHEN = {env: 'thresholds'};
-// One threshold-highlight sub-section (Watch tab 'thresholds' card): a kind's
-// warn/danger inputs + color pickers. Values are entered in the kind's
-// DISPLAYED unit (wind unit / km-mi / hours); blank = that kind disabled.
+// Shared intro line at the top of every threshold edit sheet (the sheets are the only
+// place thresholds are explained now that the Watch-tab card is gone).
+var THRESHOLD_SHEET_INTRO = 'Highlight this value in its status slot: crossing the ' +
+    'warn threshold draws an outline around the slot; crossing the danger threshold ' +
+    'fills it. Leave both fields blank to keep it unhighlighted.';
+// One threshold-highlight edit sheet (sheetOnly — opened from a status slot's pencil,
+// never rendered as a card): a kind's warn/danger inputs + color pickers. Values are
+// entered in the kind's DISPLAYED unit (wind unit / km-mi / hours); blank = that kind
+// disabled.
 // `gate` (optional showWhen) hides kinds that can't appear in any slot (health
 // on aplite / with health off); color pickers additionally hide on B&W
 // (capability + bw theme).
@@ -135,12 +143,14 @@ function thresholdSection(title, keyStem, hint, gate) {
         ? {all: [gate, {key: 'theme', nin: ['bw', 'bw-light']}]}
         : {key: 'theme', nin: ['bw', 'bw-light']};
     return {
-        groupCard: 'thresholds',
-        // Section-level gate: on a watch that can't render highlighting the whole
-        // sub-section disappears, so the per-item `gate`/color rules below only ever
-        // decide visibility among watches that CAN.
+        sheetOnly: true,
+        sheetId: 'thresh' + keyStem,
+        // Section-level gate: on a watch that can't render highlighting the sheet body
+        // is empty (belt-and-braces behind the resolver's env gate), so the per-item
+        // `gate`/color rules below only ever decide visibility among watches that CAN.
         showWhen: THRESHOLD_WHEN,
-        title: title,
+        title: title + ' thresholds',
+        intro: THRESHOLD_SHEET_INTRO,
         items: [gated({
             type: 'text',
             messageKey: 'thresh' + keyStem + 'Warn',
@@ -734,6 +744,7 @@ module.exports = {
                     label: 'Left slot',
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusForecastLeft'}},
                     onChange: 'dedupeStatusSlot',
+                    editSheetFrom: {resolver: 'statusSlotEditSheet'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusForecastLeft', position: 'left'}}
                 },
@@ -745,6 +756,7 @@ module.exports = {
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusForecastMid'}},
                     joinPrevious: true,
                     onChange: 'dedupeStatusSlot',
+                    editSheetFrom: {resolver: 'statusSlotEditSheet'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusForecastMid', position: 'mid'}}
                 },
@@ -756,6 +768,7 @@ module.exports = {
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusForecastRight'}},
                     joinPrevious: true,
                     onChange: 'dedupeStatusSlot',
+                    editSheetFrom: {resolver: 'statusSlotEditSheet'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusForecastRight', position: 'right'}}
                 },
@@ -770,6 +783,7 @@ module.exports = {
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusRadarLeft'}},
                     showWhen: {all: [{env: 'radar'}, {key: 'radarMode', in: ['status', 'graph']}]},
                     onChange: 'dedupeStatusSlot',
+                    editSheetFrom: {resolver: 'statusSlotEditSheet'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusRadarLeft', position: 'left'}}
                 },
@@ -780,6 +794,7 @@ module.exports = {
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusRadarMid'}}, joinPrevious: true,
                     showWhen: {all: [{env: 'radar'}, {key: 'radarMode', in: ['status', 'graph']}]},
                     onChange: 'dedupeStatusSlot',
+                    editSheetFrom: {resolver: 'statusSlotEditSheet'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusRadarMid', position: 'mid'}}
                 },
@@ -790,6 +805,7 @@ module.exports = {
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusRadarRight'}}, joinPrevious: true,
                     showWhen: {all: [{env: 'radar'}, {key: 'radarMode', in: ['status', 'graph']}]},
                     onChange: 'dedupeStatusSlot',
+                    editSheetFrom: {resolver: 'statusSlotEditSheet'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusRadarRight', position: 'right'}}
                 },
@@ -805,6 +821,7 @@ module.exports = {
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusHealthLeft'}},
                     showWhen: {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]},
                     onChange: 'dedupeStatusSlot',
+                    editSheetFrom: {resolver: 'statusSlotEditSheet'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusHealthLeft', position: 'left'}}
                 },
@@ -815,6 +832,7 @@ module.exports = {
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusHealthMid'}}, joinPrevious: true,
                     showWhen: {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]},
                     onChange: 'dedupeStatusSlot',
+                    editSheetFrom: {resolver: 'statusSlotEditSheet'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusHealthMid', position: 'mid'}}
                 },
@@ -825,6 +843,7 @@ module.exports = {
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusHealthRight'}}, joinPrevious: true,
                     showWhen: {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]},
                     onChange: 'dedupeStatusSlot',
+                    editSheetFrom: {resolver: 'statusSlotEditSheet'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusHealthRight', position: 'right'}}
                 },
@@ -849,6 +868,7 @@ module.exports = {
                     type: 'select', messageKey: 'statusTopLeft', label: 'Left slot',
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusTopLeft'}}, joinPrevious: true,
                     onChange: 'dedupeStatusSlot',
+                    editSheetFrom: {resolver: 'statusSlotEditSheet'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusTopLeft', position: 'left'}}
                 },
@@ -857,6 +877,7 @@ module.exports = {
                     type: 'select', messageKey: 'statusTopMid', label: 'Middle slot',
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusTopMid'}}, joinPrevious: true,
                     onChange: 'dedupeStatusSlot',
+                    editSheetFrom: {resolver: 'statusSlotEditSheet'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusTopMid', position: 'mid'}}
                 },
@@ -865,6 +886,7 @@ module.exports = {
                     type: 'select', messageKey: 'statusTopRight', label: 'Right slot',
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusTopRight'}}, joinPrevious: true,
                     onChange: 'dedupeStatusSlot',
+                    editSheetFrom: {resolver: 'statusSlotEditSheet'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusTopRight', position: 'right'}}
                 },
@@ -891,15 +913,9 @@ module.exports = {
                     options: [['Disconnected', 'disconnected'], ['Connected', 'connected'], ['Both', 'both'], ['None', 'none']]
                 }
             ]
-        }, {
-            groupCard: 'thresholds',
-            showWhen: THRESHOLD_WHEN,
-            intro: 'Highlight a status slot when its value crosses your thresholds: ' +
-                'crossing the warn threshold draws an outline around the slot; crossing ' +
-                'the danger threshold fills it. Values are in the unit the slot displays. ' +
-                'Leave both fields blank to keep a value unhighlighted.',
-            items: []
         },
+        // Threshold edit sheets (sheetOnly): reachable only through the pencil next to a
+        // status slot whose selected value has thresholds — never rendered as cards here.
         thresholdSection('Air quality (AQI)', 'Aqi',
             'In the AQI scale selected in the General tab.'),
         thresholdSection('Pollen', 'Pollen',

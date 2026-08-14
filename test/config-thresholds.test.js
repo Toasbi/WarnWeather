@@ -231,13 +231,29 @@ function bootGeneratedPage(cfg, platformName) {
   return {
     S: ready.S,
     scroll: els.scroll,
+    modal: els.modal,
     clickTab(tabId) {
       const t = { getAttribute: n => (n === 'data-tab' ? tabId : null), closest: sel => (sel === '[data-tab]' ? t : null) };
       els.tabs.dispatch('click', { target: t });
     },
+    // Tap a slot row's pencil: opens that sheetId's edit sheet in #modal.
+    openEditSheet(sheetId) {
+      const t = {
+        getAttribute: n => (n === 'data-edit-sheet' ? sheetId : null),
+        closest: sel => (sel === '[data-edit-sheet]' ? t : null)
+      };
+      els.scroll.dispatch('click', { target: t });
+      assert.ok(els.modal.innerHTML.length > 0, 'the edit sheet rendered into #modal');
+    },
     inputHtml(key) {
       const m = els.scroll.innerHTML.match(new RegExp('<input[^>]*data-k="' + key + '"[^>]*>'));
       assert.ok(m, key + ' is rendered in the active tab');
+      return m[0];
+    },
+    // Same matcher for a field that lives in the open edit sheet (#modal).
+    modalInputHtml(key) {
+      const m = els.modal.innerHTML.match(new RegExp('<input[^>]*data-k="' + key + '"[^>]*>'));
+      assert.ok(m, key + ' is rendered in the open edit sheet');
       return m[0];
     }
   };
@@ -257,23 +273,30 @@ function fakeInput(key, value) {
   return el;
 }
 
-test('committing an inverted threshold through the engine reverts it and repaints the field', () => {
+test('committing an inverted threshold through the edit sheet reverts it and repaints the sheet', () => {
   const page = bootGeneratedPage();
   page.S.threshAqiWarn = '200';
   page.S.threshAqiDanger = '300';
   page.clickTab('watch');
-  assert.match(page.inputHtml('threshAqiWarn'), /value="200"/);
+  // Threshold fields render only inside the edit sheet now: absent from the tab body,
+  // present in #modal once the AQI slot's pencil is tapped.
+  assert.equal(page.scroll.innerHTML.indexOf('data-k="threshAqiWarn"'), -1,
+    'threshold fields are not in the tab body');
+  assert.ok(page.scroll.innerHTML.indexOf('data-edit-sheet="threshAqi"') !== -1,
+    'the default AQI forecast slot renders its pencil');
+  page.openEditSheet('threshAqi');
+  assert.match(page.modalInputHtml('threshAqiWarn'), /value="200"/);
   const inp = fakeInput('threshAqiWarn', '200');
-  page.scroll.dispatch('focusin', { target: inp });    // pre-edit value captured here
+  page.modal.dispatch('focusin', { target: inp });     // pre-edit value captured here
   inp.value = '400';                                   // 400 warn vs 300 danger = inverted
-  page.scroll.dispatch('input', { target: inp });
+  page.modal.dispatch('input', { target: inp });
   assert.equal(page.S.threshAqiWarn, '400', 'the input path keeps S live while typing');
-  const writesBefore = page.scroll.writes;
-  page.scroll.dispatch('change', { target: inp });
+  const writesBefore = page.modal.writes;
+  page.modal.dispatch('change', { target: inp });
   assert.equal(page.S.threshAqiWarn, '200', 'the commit fired the hook, which reverted S');
-  assert.ok(page.scroll.writes > writesBefore, 'the commit repainted the body');
-  assert.match(page.inputHtml('threshAqiWarn'), /value="200"/);
-  assert.ok(page.inputHtml('threshAqiWarn').indexOf('value="400"') === -1,
+  assert.ok(page.modal.writes > writesBefore, 'the commit repainted the sheet');
+  assert.match(page.modalInputHtml('threshAqiWarn'), /value="200"/);
+  assert.ok(page.modalInputHtml('threshAqiWarn').indexOf('value="400"') === -1,
     'the rejected value is gone from the field');
 });
 
@@ -281,22 +304,23 @@ test('a well-ordered commit is kept, and mid-typing keystrokes are never reverte
   const page = bootGeneratedPage();
   page.S.threshAqiWarn = '50';
   page.clickTab('watch');
+  page.openEditSheet('threshAqi');
   const inp = fakeInput('threshAqiDanger', '');
-  page.scroll.dispatch('focusin', { target: inp });
+  page.modal.dispatch('focusin', { target: inp });
   // Typing "100" passes through "1" and "10", both momentarily below warn=50 (inverted).
   ['1', '10', '100'].forEach(step => {
     inp.value = step;
-    page.scroll.dispatch('input', { target: inp });
+    page.modal.dispatch('input', { target: inp });
     assert.equal(page.S.threshAqiDanger, step, 'keystroke "' + step + '" must not be reverted');
   });
-  const writesBefore = page.scroll.writes;
-  page.scroll.dispatch('change', { target: inp });
+  const writesBefore = page.modal.writes;
+  page.modal.dispatch('change', { target: inp });
   assert.equal(page.S.threshAqiDanger, '100', 'the ordered pair 50/100 survives the commit');
-  // ...and the accepted commit must NOT repaint the body. In a webview focus moves on
-  // mousedown, so `change` fires before mouseup: replacing #scroll.innerHTML here would
-  // detach the control the user's next tap is landing on and swallow that tap. The field
-  // already shows the typed text, so there is nothing to repaint.
-  assert.equal(page.scroll.writes, writesBefore,
+  // ...and the accepted commit must NOT repaint the sheet. In a webview focus moves on
+  // mousedown, so `change` fires before mouseup: replacing the dialog's innerHTML here
+  // would detach the control the user's next tap is landing on and swallow that tap. The
+  // field already shows the typed text, so there is nothing to repaint.
+  assert.equal(page.modal.writes, writesBefore,
     'an accepted value needs no repaint (a repaint would swallow the next tap)');
 });
 
@@ -329,14 +353,12 @@ test('shipped defaults leave every kind disabled', () => {
 // concatenated <script> the webview really runs), not just the module-level engine:
 // aplite compiles the highlight out (no WW_THRESHOLD_HIGHLIGHT), so a threshold card
 // there would be a settings card that silently does nothing.
-test('the real generated page renders no threshold controls on aplite', () => {
+test('the real generated page: threshold pencils + sheet on basalt, nothing on aplite', () => {
   const aplite = bootGeneratedPage({ provider: 'dwd' }, 'aplite');
   aplite.clickTab('watch');
   const apliteWatch = aplite.scroll.innerHTML;
-  assert.equal(apliteWatch.indexOf('crossing the warn threshold'), -1,
-    'no threshold intro on aplite');
-  assert.equal(apliteWatch.indexOf('<div class="subhdr">Air quality (AQI)</div>'), -1,
-    'no threshold sub-headers on aplite');
+  assert.equal(apliteWatch.indexOf('data-edit-sheet'), -1,
+    'no threshold pencil on aplite (env.thresholds is false)');
   ['threshAqiWarn', 'threshAqiDanger', 'threshWindWarn', 'threshStepsWarn',
     'threshAqiWarnColor'].forEach((k) =>
     assert.equal(apliteWatch.indexOf('data-k="' + k + '"'), -1, k + ' absent on aplite'));
@@ -346,8 +368,13 @@ test('the real generated page renders no threshold controls on aplite', () => {
   const basalt = bootGeneratedPage({ provider: 'dwd' }, 'basalt');
   basalt.clickTab('watch');
   const basaltWatch = basalt.scroll.innerHTML;
-  assert.ok(basaltWatch.indexOf('crossing the warn threshold') !== -1,
-    'basalt keeps the threshold intro');
-  assert.ok(basaltWatch.indexOf('data-k="threshAqiWarn"') !== -1,
-    'basalt keeps the threshold inputs');
+  assert.equal(basaltWatch.indexOf('data-k="threshAqiWarn"'), -1,
+    'basalt keeps no in-body threshold inputs either (sheet-only)');
+  assert.ok(basaltWatch.indexOf('data-edit-sheet="threshAqi"') !== -1,
+    'basalt renders the AQI slot pencil');
+  basalt.openEditSheet('threshAqi');
+  assert.ok(basalt.modal.innerHTML.indexOf('crossing the warn threshold') !== -1,
+    'the sheet carries the threshold intro');
+  assert.ok(basalt.modal.innerHTML.indexOf('data-k="threshAqiWarn"') !== -1,
+    'the sheet carries the threshold inputs');
 });

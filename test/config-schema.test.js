@@ -929,11 +929,13 @@ test('Watch tab opens with a general status-bar intro, then the four bars in for
   assert.deepEqual(titles.slice(0, 4),
     ['Forecast Status Bar', 'Radar Status Bar', 'Health Status Bar', 'Watch Status Bar'],
     'four status bars grouped at the top of the Watch tab in order');
-  // The threshold-highlight card sits between the bars and Time: one titleless intro
-  // section plus one titled sub-section per threshold kind (see thresholdSection).
+  // The threshold edit sheets (sheetOnly, opened from a slot's pencil — never cards)
+  // sit between the bars and Time in the sections array (see thresholdSection).
   assert.deepEqual(titles.slice(4, 11),
-    ['Air quality (AQI)', 'Pollen', 'Wind speed', 'Wind gusts', 'Steps', 'Sleep', 'Walked distance'],
-    'threshold sub-sections follow the four status bars, in kind order');
+    ['Air quality (AQI) thresholds', 'Pollen thresholds', 'Wind speed thresholds',
+      'Wind gusts thresholds', 'Steps thresholds', 'Sleep thresholds',
+      'Walked distance thresholds'],
+    'threshold edit sheets follow the four status bars, in kind order');
   // Time and Calendar keep their spots below.
   assert.deepEqual(titles.slice(11), ['Time', 'Calendar'], 'Time then Calendar come last');
   assert.equal(byKey('statusTopLeft').hint, undefined, 'left-slot hint removed');
@@ -947,18 +949,21 @@ test('Watch tab opens with a general status-bar intro, then the four bars in for
   assert.equal(battIdx, countdownIdx + 1, 'battery toggle follows the slot date directly');
 });
 
-test('the whole threshold card is gated off on aplite (which compiles the highlight out)', () => {
+test('every threshold sheet is sheetOnly and gated off on aplite (which compiles the highlight out)', () => {
   // aplite paints its status rows from the lean status_row_aplite.c twin and has no
-  // WW_THRESHOLD_HIGHLIGHT, so a threshold card there would silently do nothing. The
-  // gate is section-level (the intro sub-section has no items to hide), and it composes
-  // with — not replaces — the per-item health gate and the color pickers'
-  // COLOR-capability + non-B&W-theme rules.
+  // WW_THRESHOLD_HIGHLIGHT, so a threshold sheet there would silently do nothing. The
+  // gate is section-level, and it composes with — not replaces — the per-item health
+  // gate and the color pickers' COLOR-capability + non-B&W-theme rules.
   const watch = schema.tabs.find((t) => t.id === 'watch');
-  const threshSections = watch.sections.filter((s) => s.groupCard === 'thresholds');
-  assert.equal(threshSections.length, 8, 'one intro sub-section plus one per threshold kind');
+  const threshSections = watch.sections.filter((s) => s.sheetOnly);
+  assert.equal(threshSections.length, 7, 'one edit sheet per threshold kind');
+  assert.deepEqual(threshSections.map((s) => s.sheetId),
+    ['threshAqi', 'threshPollen', 'threshWind', 'threshGust',
+      'threshSteps', 'threshSleep', 'threshDistance'],
+    'sheet ids follow the thresh<Stem> convention the slot resolver derives');
   threshSections.forEach((sec, i) =>
     assert.deepEqual(sec.showWhen, { env: 'thresholds' },
-      'threshold sub-section ' + i + ' (' + (sec.title || 'intro') + ') carries the platform gate'));
+      'threshold sheet ' + i + ' (' + sec.title + ') carries the platform gate'));
 
   const aplite = { env: platform.computeEnv({ platform: 'aplite' }) };
   const basalt = { env: platform.computeEnv({ platform: 'basalt' }) };
@@ -986,39 +991,49 @@ test('the whole threshold card is gated off on aplite (which compiles the highli
   });
 });
 
-test('the rendered Watch tab has no threshold card on aplite and a full one elsewhere', () => {
-  // End-to-end through the real renderer: a section-level showWhen has to drop the
-  // intro sub-section too, which the item-level emptiness rule alone cannot do.
+test('threshold config lives in per-slot edit sheets: pencils + sheet on basalt, nothing on aplite', () => {
+  // End-to-end through the real renderer: no platform renders threshold CARDS any more —
+  // capable platforms get a pencil next to slots holding a threshold value, which opens
+  // the sheetOnly section in the shared dialog; aplite gets neither pencil nor sheet.
   const eng = require('../src/pkjs/config-ui/lib/engine.js');
-  function watchBody(platformName) {
+  function watchCx(platformName, openEdit) {
+    // statusForecastRight defaults to 'aqi' (a threshold kind) on every platform.
     const S = Object.assign(eng.hydrate(schema, {}), { healthMode: 'status' });
     const ENV = platform.computeEnv({ platform: platformName });
-    return eng.renderBody(schema, 'watch', {
+    return {
       S: S, ENV: ENV, USERDATA: {}, openColor: null, openSelect: null,
-      selectQuery: '', collapsed: {}, evalCtx: Object.assign({}, S, { env: ENV }),
-    });
+      openEdit: openEdit || null, selectQuery: '', collapsed: {},
+      evalCtx: Object.assign({}, S, { env: ENV }),
+    };
+  }
+  function watchBody(platformName) {
+    return eng.renderBody(schema, 'watch', watchCx(platformName));
   }
   const apliteBody = watchBody('aplite');
   const basaltBody = watchBody('basalt');
-  assert.ok(basaltBody.indexOf('crossing the warn threshold') !== -1,
-    'basalt keeps the threshold card intro');
-  assert.equal(apliteBody.indexOf('crossing the warn threshold'), -1,
-    'aplite has no threshold card intro');
-  // Match the sub-header markup, not the bare title: several titles ("Air quality
-  // (AQI)", "Pollen") also occur as status-slot option labels, which stay on aplite.
-  ['Air quality (AQI)', 'Pollen', 'Wind speed', 'Wind gusts', 'Steps', 'Sleep',
-    'Walked distance'].forEach((title) => {
-    const hdr = '<div class="subhdr">' + title + '</div>';
-    assert.ok(basaltBody.indexOf(hdr) !== -1, 'basalt keeps the ' + title + ' sub-header');
-    assert.equal(apliteBody.indexOf(hdr), -1, 'aplite has no ' + title + ' sub-header');
+  // No threshold cards or controls in ANY tab body.
+  [apliteBody, basaltBody].forEach((body, i) => {
+    const who = i === 0 ? 'aplite' : 'basalt';
+    THRESH_KEYS.forEach((k) => assert.equal(body.indexOf('data-k="' + k + '"'), -1,
+      k + ' has no in-body control on ' + who + ' (sheet-only now)'));
+    assert.equal(body.indexOf('crossing the warn threshold'), -1,
+      who + ' body has no threshold intro (it moved into the sheets)');
   });
-  THRESH_KEYS.forEach((k) => assert.equal(apliteBody.indexOf('data-k="' + k + '"'), -1,
-    k + ' has no control on aplite'));
-  ['threshAqiWarn', 'threshAqiDanger', 'threshWindWarn'].forEach((k) =>
-    assert.ok(basaltBody.indexOf('data-k="' + k + '"') !== -1, k + ' still renders on basalt'));
+  // The pencil: basalt's default AQI forecast slot offers its sheet; aplite offers none.
+  assert.ok(basaltBody.indexOf('data-edit-sheet="threshAqi"') !== -1,
+    'basalt renders a pencil for the AQI forecast slot');
+  assert.equal(apliteBody.indexOf('data-edit-sheet'), -1,
+    'aplite renders no pencil anywhere (env.thresholds is false)');
+  // The sheet itself: full on basalt, empty on aplite even if forced open.
+  const basaltSheet = eng.renderEditModal(schema, watchCx('basalt', 'threshAqi'));
+  ['data-k="threshAqiWarn"', 'data-k="threshAqiDanger"', 'crossing the warn threshold',
+    'Air quality (AQI) thresholds'].forEach((frag) =>
+    assert.ok(basaltSheet.indexOf(frag) !== -1, 'basalt sheet carries ' + frag));
+  assert.equal(eng.renderEditModal(schema, watchCx('aplite', 'threshAqi')), '',
+    'aplite renders an empty sheet even when forced open');
   // The rest of the Watch tab is untouched on aplite.
   assert.ok(apliteBody.indexOf('data-k="timeLeadingZero"') !== -1,
-    'aplite keeps the Time section that follows the threshold card');
+    'aplite keeps the Time section');
 });
 
 test('the four status sections live in the Watch tab with named headers and no per-bar intros', () => {

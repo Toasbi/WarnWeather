@@ -934,6 +934,27 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return statusLineCatalog.slotOptions(S, env, args);
     });
 
+    // Per-slot edit sheet: the pencil left of a slot dropdown opens the threshold sheet
+    // for the slot's CURRENT value, when that value is a threshold kind. The catalog's
+    // slot codes and the threshold contract's KINDS codes are the same vocabulary
+    // ('wind', 'aqi', 'steps', ...), so the contract IS the mapping — no hand-copied
+    // list to drift. env gate mirrors the sheets' own showWhen (aplite compiles the
+    // highlight out). Resolved lazily: in the flat page status-thresholds.js is
+    // concatenated AFTER this file, so window.StatusThresholds only exists at render
+    // time, not at load time (same reason threshold-validate.js reads it lazily).
+    PConf.sheetResolvers.register('statusSlotEditSheet', function (S, env, args) {
+        if (!env || !env.thresholds) { return null; }
+        var contract = (typeof require !== 'undefined')
+            ? require('../status-thresholds.js')
+            : (typeof window !== 'undefined' ? window.StatusThresholds : null);
+        if (!contract) { return null; }
+        var code = S[args.messageKey];
+        for (var i = 0; i < contract.KINDS.length; i++) {
+            if (contract.KINDS[i].code === code) { return 'thresh' + contract.KINDS[i].key; }
+        }
+        return null;
+    });
+
     // layoutPreset options resolver: compactDense is offered once EITHER health shows a
     // status row (status/all) OR radar does (radarMode='status') — the radar-dense fold
     // (bug #1/#2) needs compactDense reachable from radar alone, not just health.
