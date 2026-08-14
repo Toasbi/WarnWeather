@@ -7,6 +7,44 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
 (function () {
     /**
+     * The "Highlight this value" toggles are DERIVED state, recomputed on every
+     * open: on = the stored warn/danger pair is complete and ordered — the exact
+     * rule kindConfig() applies at pack time — so the toggle can never disagree
+     * with what the watch actually highlights (locationMode pattern below).
+     * Flipping it live is the thresholdToggle onChange hook in blocks.js.
+     * @param {{ get: function, set: function }} ctx onLoad context
+     * @returns {void}
+     */
+    function deriveThresholdToggles(ctx) {
+        // Node (tests): CommonJS require. Webview: the flat page exposes
+        // window.StatusThresholds (resolved lazily at boot, after all scripts loaded).
+        var contract = (typeof require !== 'undefined')
+            ? require('../status-thresholds.js')
+            : (typeof window !== 'undefined' ? window.StatusThresholds : null);
+        if (!contract) { return; }
+        // Auto colors (see blocks.js thresholdAutoColor): a never-customized color
+        // tracks the current theme's text color, re-derived on every open so a theme
+        // switch updates it. blocks.js is bundled/required before this hook runs.
+        var auto = PConf.thresholdAutoColor;
+        var fg = auto ? auto.fgFor(ctx.get('theme')) : null;
+        for (var i = 0; i < contract.KINDS.length; i++) {
+            var kind = contract.KINDS[i];
+            var warn = contract.parseThreshold(ctx.get('thresh' + kind.key + 'Warn'));
+            var danger = contract.parseThreshold(ctx.get('thresh' + kind.key + 'Danger'));
+            ctx.set('thresh' + kind.key + 'On', warn !== null && danger !== null
+                && (kind.belowIsWorse ? danger <= warn : danger >= warn));
+            if (auto) {
+                if (auto.isAuto(ctx.get('thresh' + kind.key + 'WarnColor'))) {
+                    ctx.set('thresh' + kind.key + 'WarnColor', fg);
+                }
+                if (auto.isAuto(ctx.get('thresh' + kind.key + 'DangerColor'))) {
+                    ctx.set('thresh' + kind.key + 'DangerColor', fg);
+                }
+            }
+        }
+    }
+
+    /**
      * onLoad: reset transient toggles so they never persist across open/close, and
      * mirror the stored location into the GPS/Manual picker (locationMode has no
      * watch-side meaning — an empty vs set location is the real GPS/manual contract,
@@ -24,6 +62,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // leave it pre-checked on the next open.
         ctx.set('reset', false);
         ctx.set('locationMode', ctx.get('location') ? 'manual' : 'gps');
+        deriveThresholdToggles(ctx);
         if (ctx.env && ctx.env.platform === 'aplite') {
             ctx.set('radarMode', 'off');
             ctx.set('healthMode', 'off');

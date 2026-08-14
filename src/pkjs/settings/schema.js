@@ -109,18 +109,18 @@ var THRESHOLD_WHEN = {env: 'thresholds'};
 // place thresholds are explained now that the Watch-tab card is gone).
 var THRESHOLD_SHEET_INTRO = 'Highlight this value in its status slot: crossing the ' +
     'warn threshold draws an outline around the slot; crossing the danger threshold ' +
-    'fills it. Leave both fields blank to keep it unhighlighted.';
+    'fills it.';
 // One threshold-highlight edit sheet (sheetOnly — opened from a status slot's pencil,
-// never rendered as a card): a kind's warn/danger inputs + color pickers. Values are
-// entered in the kind's DISPLAYED unit (wind unit / km-mi / hours); blank = that kind
-// disabled.
+// never rendered as a card): a "Highlight this value" toggle, a zoned dual-thumb
+// slider for the warn/danger pair, and the two color pickers. Values live in the
+// kind's DISPLAYED unit (wind unit / km-mi / hours); toggling off stores both blank —
+// the same disabled-state wire contract the old text fields had. The slider's
+// geometry, direction and live colors come from the thresholdRange resolver
+// (blocks.js), which reads the contract module (status-thresholds.js) — the same
+// source the watch packs with, so the UI can never disagree about which way is worse.
 // `gate` (optional showWhen) hides kinds that can't appear in any slot (health
 // on aplite / with health off); color pickers additionally hide on B&W
 // (capability + bw theme).
-// Which way is worse is NOT a schema fact: it comes from the contract module
-// that also reads these settings back at pack time (status-thresholds.js), so
-// the labels can never disagree with the watch. Same single-source rule as the
-// two color defaults below.
 /**
  * @param {string} title Sub-section title.
  * @param {string} keyStem Kind key stem, e.g. 'Steps' (thresh<Stem>Warn/...).
@@ -129,19 +129,39 @@ var THRESHOLD_SHEET_INTRO = 'Highlight this value in its status slot: crossing t
  * @returns {Object} Schema section.
  */
 function thresholdSection(title, keyStem, hint, gate) {
-    var dir = STATUS_THRESHOLDS.belowIsWorse(keyStem) ? 'below' : 'above';
-    // A kind highlights only once BOTH values are set and ordered (kindConfig's
-    // `enabled`), so a half-filled or inverted pair silently does nothing —
-    // say so where the pair is entered, not only in the section intro.
-    var pairHint = hint + ' Highlighting needs both fields filled in, with the '
-        + 'danger value at or ' + dir + ' the warn value.';
-    function gated(item) {
-        if (gate) { item.showWhen = gate; }
-        return item;
-    }
+    var onKey = 'thresh' + keyStem + 'On';
+    // While the highlight is OFF the slider + colors stay VISIBLE but disabled
+    // (muted, inert — the sheet shows what turning it on offers; the blank pair
+    // renders the kind's seeds). The toggle itself is derived state (recomputed
+    // from the pair on every page open — see onbuild.js) and drives the pair
+    // through the thresholdToggle hook.
+    var offWhen = {not: {key: onKey}};
     var colorWhen = gate
         ? {all: [gate, {key: 'theme', nin: ['bw', 'bw-light']}]}
         : {key: 'theme', nin: ['bw', 'bw-light']};
+    var toggle = {
+        type: 'toggle',
+        messageKey: onKey,
+        label: 'Highlight this value',
+        defaultValue: false,
+        onChange: 'thresholdToggle'
+    };
+    if (gate) { toggle.showWhen = gate; }
+    var range = {
+        type: 'range',
+        messageKey: 'thresh' + keyStem + 'Warn',
+        dangerKey: 'thresh' + keyStem + 'Danger',
+        maxKey: 'thresh' + keyStem + 'Max',
+        label: 'Thresholds',
+        // Reverts pair + colors + scale max to the kind's defaults (blocks.js action).
+        labelAction: {action: 'resetThresholds', arg: keyStem, label: 'Reset to defaults'},
+        defaultValue: '',
+        hint: hint,
+        joinPrevious: true,
+        rangeFrom: {resolver: 'thresholdRange', args: {keyStem: keyStem}},
+        disabledWhen: offWhen
+    };
+    if (gate) { range.showWhen = gate; }
     return {
         sheetOnly: true,
         sheetId: 'thresh' + keyStem,
@@ -150,39 +170,42 @@ function thresholdSection(title, keyStem, hint, gate) {
         // `gate`/color rules below only ever decide visibility among watches that CAN.
         showWhen: THRESHOLD_WHEN,
         title: title + ' thresholds',
+        // The master toggle renders in the sheet's title row (renderEditModal), not
+        // as a body row — the body holds only the rows it gates.
+        headerToggleKey: onKey,
         intro: THRESHOLD_SHEET_INTRO,
-        items: [gated({
-            type: 'text',
-            messageKey: 'thresh' + keyStem + 'Warn',
-            label: 'Warn ' + dir,
-            defaultValue: '',
-            attributes: {placeholder: 'off'},
-            onChange: 'validateThresholdPair'
-        }), gated({
-            type: 'text',
+        items: [toggle, range, {
+            // Companion storage for the slider's second thumb and its editable scale
+            // max: hydrated + serialized but never drawn (the range row renders both).
+            type: 'hidden',
             messageKey: 'thresh' + keyStem + 'Danger',
-            label: 'Danger ' + dir,
-            defaultValue: '',
-            joinPrevious: true,
-            attributes: {placeholder: 'off'},
-            hint: pairHint,
-            onChange: 'validateThresholdPair'
-        }), {
+            defaultValue: ''
+        }, {
+            type: 'hidden',
+            messageKey: 'thresh' + keyStem + 'Max',
+            defaultValue: ''
+        }, {
+            // Colors hydrate UNSET (auto): onLoad derives the theme's text color on
+            // every open (blocks.js thresholdAutoColor), so the pickers/zones/knobs
+            // always show a concrete color — the contract's DEFAULT_*_COLOR ints are
+            // only the pack-time fallback for settings that never saw this page.
             type: 'color',
             messageKey: 'thresh' + keyStem + 'WarnColor',
             label: 'Warn color',
-            defaultValue: STATUS_THRESHOLDS.DEFAULT_WARN_COLOR,
+            defaultValue: '',
             joinPrevious: true,
             capabilities: ['COLOR'],
-            showWhen: colorWhen
+            showWhen: colorWhen,
+            disabledWhen: offWhen
         }, {
             type: 'color',
             messageKey: 'thresh' + keyStem + 'DangerColor',
             label: 'Danger color',
-            defaultValue: STATUS_THRESHOLDS.DEFAULT_DANGER_COLOR,
+            defaultValue: '',
             joinPrevious: true,
             capabilities: ['COLOR'],
-            showWhen: colorWhen
+            showWhen: colorWhen,
+            disabledWhen: offWhen
         }]
     };
 }
@@ -745,6 +768,7 @@ module.exports = {
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusForecastLeft'}},
                     onChange: 'dedupeStatusSlot',
                     editSheetFrom: {resolver: 'statusSlotEditSheet'},
+                    editBadgeFrom: {resolver: 'thresholdPenState'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusForecastLeft', position: 'left'}}
                 },
@@ -757,6 +781,7 @@ module.exports = {
                     joinPrevious: true,
                     onChange: 'dedupeStatusSlot',
                     editSheetFrom: {resolver: 'statusSlotEditSheet'},
+                    editBadgeFrom: {resolver: 'thresholdPenState'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusForecastMid', position: 'mid'}}
                 },
@@ -769,6 +794,7 @@ module.exports = {
                     joinPrevious: true,
                     onChange: 'dedupeStatusSlot',
                     editSheetFrom: {resolver: 'statusSlotEditSheet'},
+                    editBadgeFrom: {resolver: 'thresholdPenState'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusForecastRight', position: 'right'}}
                 },
@@ -784,6 +810,7 @@ module.exports = {
                     showWhen: {all: [{env: 'radar'}, {key: 'radarMode', in: ['status', 'graph']}]},
                     onChange: 'dedupeStatusSlot',
                     editSheetFrom: {resolver: 'statusSlotEditSheet'},
+                    editBadgeFrom: {resolver: 'thresholdPenState'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusRadarLeft', position: 'left'}}
                 },
@@ -795,6 +822,7 @@ module.exports = {
                     showWhen: {all: [{env: 'radar'}, {key: 'radarMode', in: ['status', 'graph']}]},
                     onChange: 'dedupeStatusSlot',
                     editSheetFrom: {resolver: 'statusSlotEditSheet'},
+                    editBadgeFrom: {resolver: 'thresholdPenState'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusRadarMid', position: 'mid'}}
                 },
@@ -806,6 +834,7 @@ module.exports = {
                     showWhen: {all: [{env: 'radar'}, {key: 'radarMode', in: ['status', 'graph']}]},
                     onChange: 'dedupeStatusSlot',
                     editSheetFrom: {resolver: 'statusSlotEditSheet'},
+                    editBadgeFrom: {resolver: 'thresholdPenState'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusRadarRight', position: 'right'}}
                 },
@@ -822,6 +851,7 @@ module.exports = {
                     showWhen: {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]},
                     onChange: 'dedupeStatusSlot',
                     editSheetFrom: {resolver: 'statusSlotEditSheet'},
+                    editBadgeFrom: {resolver: 'thresholdPenState'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusHealthLeft', position: 'left'}}
                 },
@@ -833,6 +863,7 @@ module.exports = {
                     showWhen: {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]},
                     onChange: 'dedupeStatusSlot',
                     editSheetFrom: {resolver: 'statusSlotEditSheet'},
+                    editBadgeFrom: {resolver: 'thresholdPenState'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusHealthMid', position: 'mid'}}
                 },
@@ -844,6 +875,7 @@ module.exports = {
                     showWhen: {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]},
                     onChange: 'dedupeStatusSlot',
                     editSheetFrom: {resolver: 'statusSlotEditSheet'},
+                    editBadgeFrom: {resolver: 'thresholdPenState'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusHealthRight', position: 'right'}}
                 },
@@ -869,6 +901,7 @@ module.exports = {
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusTopLeft'}}, joinPrevious: true,
                     onChange: 'dedupeStatusSlot',
                     editSheetFrom: {resolver: 'statusSlotEditSheet'},
+                    editBadgeFrom: {resolver: 'thresholdPenState'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusTopLeft', position: 'left'}}
                 },
@@ -878,6 +911,7 @@ module.exports = {
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusTopMid'}}, joinPrevious: true,
                     onChange: 'dedupeStatusSlot',
                     editSheetFrom: {resolver: 'statusSlotEditSheet'},
+                    editBadgeFrom: {resolver: 'thresholdPenState'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusTopMid', position: 'mid'}}
                 },
@@ -887,6 +921,7 @@ module.exports = {
                     defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusTopRight'}}, joinPrevious: true,
                     onChange: 'dedupeStatusSlot',
                     editSheetFrom: {resolver: 'statusSlotEditSheet'},
+                    editBadgeFrom: {resolver: 'thresholdPenState'},
                     optionsFrom: {resolver: 'statusSlot',
                         args: {slotKey: 'statusTopRight', position: 'right'}}
                 },

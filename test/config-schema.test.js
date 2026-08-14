@@ -17,14 +17,15 @@ const items = allItems(schema);
 const byKey = (k) => items.filter((i) => i.messageKey === k)[0];
 function forecastItems(s) { return s.tabs.find((t) => t.id === 'forecast').sections[0].items; }
 
-// Threshold highlighting adds four keys per kind (7 kinds), generated the same way
-// schema.js's thresholdSection() generates them — listing 28 literals would just
-// invite drift. THRESH_COLOR_KEYS is reused by the color-defaults assertion below.
+// Threshold highlighting adds six keys per kind (7 kinds: the toggle, the pair, the
+// scale max, two colors), generated the same way schema.js's thresholdSection()
+// generates them — listing 42 literals would just invite drift. THRESH_COLOR_KEYS is
+// reused by the color-defaults assertion below.
 const THRESH_STEMS = ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance'];
 const threshKeys = (suffixes) => THRESH_STEMS.reduce((acc, stem) =>
   acc.concat(suffixes.map((suffix) => 'thresh' + stem + suffix)), []);
 const THRESH_COLOR_KEYS = threshKeys(['WarnColor', 'DangerColor']);
-const THRESH_KEYS = threshKeys(['Warn', 'Danger']).concat(THRESH_COLOR_KEYS);
+const THRESH_KEYS = threshKeys(['On', 'Warn', 'Danger', 'Max']).concat(THRESH_COLOR_KEYS);
 
 const EXPECTED_KEYS = [
   'theme',
@@ -977,13 +978,16 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
       (sec.title || 'intro') + ' still shown on diorite (B&W but capable)');
   });
 
-  // Composition check: the warn/danger inputs of the health kinds keep their own
-  // health gate, and the color pickers keep COLOR + non-B&W-theme, unchanged.
+  // Composition check: the health kinds' slider keeps the health gate (showWhen);
+  // the off-state is a DISABLE (disabledWhen), not a hide — and the color pickers
+  // keep COLOR + non-B&W-theme, unchanged.
   assert.deepEqual(byKey('threshStepsWarn').showWhen,
     { all: [{ env: 'health' }, { key: 'healthMode', ne: 'off' }] },
     'health kinds keep the health/healthMode item gate');
   assert.equal(byKey('threshAqiWarn').showWhen, undefined,
     'weather kinds carry no item gate — the section gate is what hides them on aplite');
+  assert.deepEqual(byKey('threshAqiWarn').disabledWhen, { not: { key: 'threshAqiOn' } },
+    'the off-state mutes the slider instead of hiding it');
   THRESH_COLOR_KEYS.forEach((k) => {
     assert.deepEqual(byKey(k).capabilities, ['COLOR'], k + ' keeps the COLOR capability');
     assert.equal(showWhen.isVisible(byKey(k), { env: platform.computeEnv({ platform: 'basalt' }), theme: 'bw', healthMode: 'status' }), false,
@@ -1024,11 +1028,15 @@ test('threshold config lives in per-slot edit sheets: pencils + sheet on basalt,
     'basalt renders a pencil for the AQI forecast slot');
   assert.equal(apliteBody.indexOf('data-edit-sheet'), -1,
     'aplite renders no pencil anywhere (env.thresholds is false)');
-  // The sheet itself: full on basalt, empty on aplite even if forced open.
+  // The sheet itself: full on basalt (header toggle + intro + a DISABLED slider
+  // preview while the toggle is off — behavior covered in config-thresholds.test.js),
+  // empty on aplite even if forced open.
   const basaltSheet = eng.renderEditModal(schema, watchCx('basalt', 'threshAqi'));
-  ['data-k="threshAqiWarn"', 'data-k="threshAqiDanger"', 'crossing the warn threshold',
-    'Air quality (AQI) thresholds'].forEach((frag) =>
+  ['data-k="threshAqiOn"', 'crossing the warn threshold',
+    'Air quality (AQI) thresholds', 'data-range="threshAqiWarn"'].forEach((frag) =>
     assert.ok(basaltSheet.indexOf(frag) !== -1, 'basalt sheet carries ' + frag));
+  assert.ok(/class="row stack[^"]*\bdis\b/.test(basaltSheet),
+    'the slider renders disabled while the highlight toggle is off');
   assert.equal(eng.renderEditModal(schema, watchCx('aplite', 'threshAqi')), '',
     'aplite renders an empty sheet even when forced open');
   // The rest of the Watch tab is untouched on aplite.

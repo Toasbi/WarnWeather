@@ -941,16 +941,271 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // list to drift. env gate mirrors the sheets' own showWhen (aplite compiles the
     // highlight out). Resolved lazily: in the flat page status-thresholds.js is
     // concatenated AFTER this file, so window.StatusThresholds only exists at render
-    // time, not at load time (same reason threshold-validate.js reads it lazily).
+    // time, not at load time (thresholdContract() below wraps exactly that).
     PConf.sheetResolvers.register('statusSlotEditSheet', function (S, env, args) {
         if (!env || !env.thresholds) { return null; }
-        var contract = (typeof require !== 'undefined')
-            ? require('../status-thresholds.js')
-            : (typeof window !== 'undefined' ? window.StatusThresholds : null);
+        var contract = thresholdContract();
         if (!contract) { return null; }
         var code = S[args.messageKey];
         for (var i = 0; i < contract.KINDS.length; i++) {
             if (contract.KINDS[i].code === code) { return 'thresh' + contract.KINDS[i].key; }
+        }
+        return null;
+    });
+
+    // --- threshold sliders (the per-slot edit sheets' controls) ------------------
+
+    /**
+     * The threshold contract module, resolved lazily for the same concat-order
+     * reason statusSlotEditSheet documents above.
+     * @returns {?Object} status-thresholds API, or null when unavailable.
+     */
+    function thresholdContract() {
+        return (typeof require !== 'undefined')
+            ? require('../status-thresholds.js')
+            : (typeof window !== 'undefined' ? window.StatusThresholds : null);
+    }
+
+    /**
+     * Normalize a stored color (0xRRGGBB int or '#RRGGBB' string) to '#RRGGBB' —
+     * the inline-styled zones/chips/dots must never interpolate an unvetted
+     * string into HTML.
+     * @param {*} v Stored color value.
+     * @param {number} fallbackInt Default 0xRRGGBB when v is unset/garbage.
+     * @returns {string} '#RRGGBB' (uppercase).
+     */
+    function colorHexOf(v, fallbackInt) {
+        if (typeof v === 'number' && isFinite(v)) {
+            return '#' + ('00000' + (v & 0xFFFFFF).toString(16)).slice(-6).toUpperCase();
+        }
+        if (typeof v === 'string' && /^#?[0-9A-Fa-f]{6}$/.test(v)) {
+            return '#' + v.replace('#', '').toUpperCase();
+        }
+        return colorHexOf(fallbackInt, 0xFF0000);
+    }
+
+    /**
+     * @param {string} hex '#RRGGBB'.
+     * @returns {{r: number, g: number, b: number}} Channel values.
+     */
+    function hexRgb(hex) {
+        return {
+            r: parseInt(hex.slice(1, 3), 16),
+            g: parseInt(hex.slice(3, 5), 16),
+            b: parseInt(hex.slice(5, 7), 16)
+        };
+    }
+
+    /**
+     * Soft glow tint for a knob's shadow (the same .35 alpha the brand knobs use
+     * in shell.html).
+     * @param {string} hex '#RRGGBB'.
+     * @returns {string} rgba() string.
+     */
+    function glowOf(hex) {
+        var c = hexRgb(hex);
+        return 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0.35)';
+    }
+
+    /**
+     * Readable text color on a chip filled with the given color.
+     * @param {string} hex '#RRGGBB'.
+     * @returns {string} Dark ink on light fills, white on dark fills.
+     */
+    function chipTextOn(hex) {
+        var c = hexRgb(hex);
+        return (c.r * 299 + c.g * 587 + c.b * 114) / 1000 > 150 ? '#20232A' : '#FFFFFF';
+    }
+
+    /**
+     * Ceil a value onto a step grid, guarding float-division noise (3 / 0.5
+     * landing on 5.999…).
+     * @param {number} v Value.
+     * @param {number} step Step size (> 0).
+     * @returns {number} Smallest step multiple >= v.
+     */
+    function ceilToStep(v, step) {
+        return Math.ceil(Math.round((v / step) * 1e6) / 1e6) * step;
+    }
+
+    // Per-kind slider geometry + seeds, in the kind's DISPLAY unit (the unit
+    // status-thresholds.js compares against at bake/pack time). Resolved per render
+    // so the General-tab unit pickers reshape the scales live. fixedMax marks the
+    // naturally-bounded kinds (no inline scale-max editor).
+    var THRESHOLD_RANGES = {
+        Wind: function (S) {
+            if (S.windUnits === 'mph') { return {min: 0, max: 75, step: 5, seedWarn: 25, seedDanger: 40, unit: 'mph'}; }
+            if (S.windUnits === 'knots') { return {min: 0, max: 65, step: 5, seedWarn: 20, seedDanger: 30, unit: 'kn'}; }
+            return {min: 0, max: 120, step: 5, seedWarn: 40, seedDanger: 60, unit: 'kph'};
+        },
+        Gust: function (S) {
+            if (S.windUnits === 'mph') { return {min: 0, max: 100, step: 5, seedWarn: 40, seedDanger: 55, unit: 'mph'}; }
+            if (S.windUnits === 'knots') { return {min: 0, max: 85, step: 5, seedWarn: 30, seedDanger: 50, unit: 'kn'}; }
+            return {min: 0, max: 160, step: 5, seedWarn: 60, seedDanger: 90, unit: 'kph'};
+        },
+        Aqi: function (S) {
+            // The European scale applies only when Open-Meteo is the AQI source AND the
+            // scale picker says so; WAQI (and auto, which prefers it) reports US-style AQI.
+            var eu = S.aqiSource === 'openmeteo' && S.aqiScale !== 'us';
+            return eu
+                ? {min: 0, max: 150, step: 5, seedWarn: 60, seedDanger: 80, unit: ''}
+                : {min: 0, max: 300, step: 10, seedWarn: 100, seedDanger: 150, unit: ''};
+        },
+        Pollen: function () {
+            return {min: 0, max: 3, step: 0.5, seedWarn: 2, seedDanger: 3, unit: '', fixedMax: true};
+        },
+        Steps: function () {
+            return {min: 0, max: 20000, step: 250, seedWarn: 5000, seedDanger: 2500, unit: ''};
+        },
+        Sleep: function () {
+            return {min: 0, max: 12, step: 0.5, seedWarn: 7, seedDanger: 6, unit: 'h', fixedMax: true};
+        },
+        Distance: function (S) {
+            return S.distanceUnits === 'imperial'
+                ? {min: 0, max: 12, step: 0.5, seedWarn: 3, seedDanger: 1.5, unit: 'mi'}
+                : {min: 0, max: 20, step: 0.5, seedWarn: 5, seedDanger: 2.5, unit: 'km'};
+        }
+    };
+
+    /**
+     * Range resolver for the threshold sliders (engine item.rangeFrom): per-kind
+     * geometry + fixed direction + live colors. The scale max honors the stored
+     * per-kind override and always grows to fit the stored thresholds, so a pair
+     * entered under another unit (or by the old text UI) can never strand a thumb
+     * off the track.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @param {{keyStem: string}} args Kind key stem, e.g. 'Steps'.
+     * @returns {Object} Config the engine merges over the schema item.
+     */
+    function thresholdRangeCfg(S, env, args) {
+        var stem = args.keyStem;
+        var contract = thresholdContract();
+        var base = THRESHOLD_RANGES[stem](S || {});
+        var max = base.max;
+        if (contract && !base.fixedMax) {
+            var override = contract.parseThreshold(S['thresh' + stem + 'Max']);
+            if (override !== null && override > base.min) { max = ceilToStep(override, base.step); }
+            var warn = contract.parseThreshold(S['thresh' + stem + 'Warn']);
+            var danger = contract.parseThreshold(S['thresh' + stem + 'Danger']);
+            if (warn !== null && warn > max) { max = ceilToStep(warn, base.step); }
+            if (danger !== null && danger > max) { max = ceilToStep(danger, base.step); }
+        }
+        var warnColor = thresholdDisplayColor(S, stem, 'Warn');
+        var dangerColor = thresholdDisplayColor(S, stem, 'Danger');
+        return {
+            min: base.min, max: max, step: base.step, minSpan: base.step,
+            dir: contract && contract.belowIsWorse(stem) ? 'below' : 'above',
+            unit: base.unit,
+            seedWarn: base.seedWarn, seedDanger: base.seedDanger,
+            maxEditable: !base.fixedMax,
+            warnColor: warnColor, dangerColor: dangerColor,
+            warnGlow: glowOf(warnColor), dangerGlow: glowOf(dangerColor),
+            dangerText: chipTextOn(dangerColor)
+        };
+    }
+    PConf.rangeResolvers.register('thresholdRange', thresholdRangeCfg);
+
+    // Flipping "Highlight this value": OFF blanks the pair — a stored blank IS the
+    // disabled state, the exact wire contract the old text fields had, so nothing
+    // changes watch-side. ON reseeds the kind's defaults unless a valid ordered
+    // pair is already stored (the derived toggle landing on an upgraded install).
+    PConf.onChange.register('thresholdToggle', function (S, oldValue, newValue, env, key) {
+        var m = /^thresh([A-Za-z]+)On$/.exec(key || '');
+        if (!m) { return; }
+        var stem = m[1];
+        if (!newValue) {
+            S['thresh' + stem + 'Warn'] = '';
+            S['thresh' + stem + 'Danger'] = '';
+            return;
+        }
+        var contract = thresholdContract();
+        if (!contract) { return; }
+        var warn = contract.parseThreshold(S['thresh' + stem + 'Warn']);
+        var danger = contract.parseThreshold(S['thresh' + stem + 'Danger']);
+        var ordered = warn !== null && danger !== null
+            && (contract.belowIsWorse(stem) ? danger <= warn : danger >= warn);
+        if (ordered) { return; }
+        var cfg = thresholdRangeCfg(S, env, {keyStem: stem});
+        S['thresh' + stem + 'Warn'] = String(cfg.seedWarn);
+        S['thresh' + stem + 'Danger'] = String(cfg.seedDanger);
+    });
+
+    // "Auto" threshold colors: a color the user never customized tracks the THEME's
+    // text color — outline-vs-fill already carries the warn/danger distinction, and
+    // the fg color beats a fixed hue for contrast on the page and the watch
+    // (watch-side rendering gets its own calibration pass later). ONLY an unset
+    // value or one of the two fg values counts as auto (re-derived on every page
+    // open — onbuild.js onLoad); every other color, the contract's orange/red
+    // included, is a user pick and is left alone. The contract DEFAULT_*_COLOR
+    // constants remain solely the pack-time fallback for a blob built from settings
+    // that never passed through this page. Exposed on PConf because the flat page
+    // has no require().
+    var AUTO_FG_DARK = '#FFFFFF', AUTO_FG_LIGHT = '#000000';
+    /**
+     * @param {*} theme stored theme setting ('dark'|'light'|'bw'|'bw-light')
+     * @returns {string} the theme's text color as '#RRGGBB'
+     */
+    function thresholdAutoFg(theme) {
+        return (theme === 'light' || theme === 'bw-light') ? AUTO_FG_LIGHT : AUTO_FG_DARK;
+    }
+    /**
+     * @param {*} value stored color setting
+     * @returns {boolean} true when the value should keep tracking the theme fg
+     */
+    function thresholdColorIsAuto(value) {
+        if (value === null || typeof value === 'undefined' || value === '') { return true; }
+        var v = colorHexOf(value, 0x000000);   // garbage normalizes to a pool value
+        return v === AUTO_FG_DARK || v === AUTO_FG_LIGHT;
+    }
+    /**
+     * The color the page should DRAW for a kind's warn/danger pieces: the theme fg
+     * while the stored value is auto, the user's pick otherwise.
+     * @param {Object} S Live settings state.
+     * @param {string} stem Kind key stem, e.g. 'Steps'.
+     * @param {string} which 'Warn' | 'Danger'.
+     * @returns {string} '#RRGGBB'.
+     */
+    function thresholdDisplayColor(S, stem, which) {
+        var raw = S['thresh' + stem + which + 'Color'];
+        if (thresholdColorIsAuto(raw)) { return thresholdAutoFg(S.theme); }
+        return colorHexOf(raw, 0x000000);
+    }
+    PConf.thresholdAutoColor = { fgFor: thresholdAutoFg, isAuto: thresholdColorIsAuto };
+
+    // Reset-to-defaults for one threshold kind (the small button beside the slider's
+    // label): clears the scale-max override, restores the auto (theme-fg) colors,
+    // then reseeds the pair — seeds resolved AFTER the clears so they land on the
+    // default scale in the user's current unit. Returns true so the engine re-renders.
+    PConf.actions = PConf.actions || {};
+    PConf.actions.resetThresholds = function (stem, S, env) {
+        if (!stem || !S || !THRESHOLD_RANGES[stem]) { return false; }
+        var fg = thresholdAutoFg(S.theme);
+        S['thresh' + stem + 'Max'] = '';
+        S['thresh' + stem + 'WarnColor'] = fg;
+        S['thresh' + stem + 'DangerColor'] = fg;
+        var cfg = thresholdRangeCfg(S, env, {keyStem: stem});
+        S['thresh' + stem + 'Warn'] = String(cfg.seedWarn);
+        S['thresh' + stem + 'Danger'] = String(cfg.seedDanger);
+        return true;
+    };
+
+    // Pencil badge (engine item.editBadgeFrom): when the slot's current value is an
+    // ENABLED threshold kind, the pencil gains a warn-color ring + danger-color dot.
+    // Same env gate + code→kind mapping as the sheet resolver above; enabled comes
+    // from the contract's kindConfig — the rule the watch actually packs with.
+    PConf.badgeResolvers.register('thresholdPenState', function (S, env, args) {
+        if (!env || !env.thresholds) { return null; }
+        var contract = thresholdContract();
+        if (!contract) { return null; }
+        var code = S[args.messageKey];
+        for (var i = 0; i < contract.KINDS.length; i++) {
+            if (contract.KINDS[i].code !== code) { continue; }
+            if (!contract.kindConfig(S, i).enabled) { return null; }
+            return {
+                warnColor: thresholdDisplayColor(S, contract.KINDS[i].key, 'Warn'),
+                dangerColor: thresholdDisplayColor(S, contract.KINDS[i].key, 'Danger')
+            };
         }
         return null;
     });
@@ -1064,7 +1319,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             resolveBandHeights: resolveBandHeights,
             barPermille: barPermille, previewPaletteFallback: FALLBACK_PALETTE,
             pressureBands: PRESSURE_BANDS,
-            tomorrowioBudgetBlock: tomorrowioBudgetBlock
+            tomorrowioBudgetBlock: tomorrowioBudgetBlock,
+            thresholdRangeCfg: thresholdRangeCfg
         };
     }
 })();

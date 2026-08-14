@@ -7,6 +7,12 @@ const { eachItem } = require('../src/pkjs/config-ui/lib/schema-walk.js');
 // which also reads these settings back at pack time — assert against the exported
 // constants rather than re-inlining the hex a third time.
 const thresholds = require('../src/pkjs/status-thresholds.js');
+require('../src/pkjs/config-ui/lib/color.js');
+require('../src/pkjs/config-ui/lib/show-when.js');
+require('../src/pkjs/config-ui/lib/engine.js');
+const B = require('../src/pkjs/settings/blocks.js');
+const onbuild = require('../src/pkjs/settings/onbuild.js');
+const PC = global.PConf;
 
 function itemsByKey() {
   const map = {};
@@ -19,16 +25,38 @@ function itemsByKey() {
 
 const STEMS = ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance'];
 const HEALTH_STEMS = ['Steps', 'Sleep', 'Distance'];
+const ENV = { thresholds: true, color: true, health: true };
 
-test('every threshold kind has warn/danger text fields wired to the validator', () => {
+test('every threshold kind has toggle + slider + hidden companions wired up', () => {
   const map = itemsByKey();
   STEMS.forEach(stem => {
-    ['Warn', 'Danger'].forEach(which => {
-      const items = map['thresh' + stem + which];
-      assert.ok(items && items.length === 1, 'thresh' + stem + which + ' missing');
-      assert.equal(items[0].type, 'text');
-      assert.equal(items[0].defaultValue, '');
-      assert.equal(items[0].onChange, 'validateThresholdPair');
+    const on = map['thresh' + stem + 'On'];
+    assert.ok(on && on.length === 1, 'thresh' + stem + 'On missing');
+    assert.equal(on[0].type, 'toggle');
+    assert.equal(on[0].defaultValue, false);
+    assert.equal(on[0].onChange, 'thresholdToggle');
+
+    const warn = map['thresh' + stem + 'Warn'];
+    assert.ok(warn && warn.length === 1, 'thresh' + stem + 'Warn missing');
+    assert.equal(warn[0].type, 'range');
+    assert.equal(warn[0].defaultValue, '');
+    assert.equal(warn[0].dangerKey, 'thresh' + stem + 'Danger');
+    assert.equal(warn[0].maxKey, 'thresh' + stem + 'Max');
+    assert.deepEqual(warn[0].rangeFrom,
+      { resolver: 'thresholdRange', args: { keyStem: stem } });
+    // The slider stays VISIBLE while the highlight is off — muted + inert, not hidden.
+    assert.deepEqual(warn[0].disabledWhen, { not: { key: 'thresh' + stem + 'On' } },
+      'thresh' + stem + 'Warn slider must disable (not hide) on its toggle');
+    assert.deepEqual(warn[0].labelAction,
+      { action: 'resetThresholds', arg: stem, label: 'Reset to defaults' },
+      'thresh' + stem + 'Warn carries the reset-to-defaults label button');
+
+    // Companion storage rows: hydrated + serialized, never drawn.
+    ['Danger', 'Max'].forEach(which => {
+      const it = map['thresh' + stem + which];
+      assert.ok(it && it.length === 1, 'thresh' + stem + which + ' missing');
+      assert.equal(it[0].type, 'hidden');
+      assert.equal(it[0].defaultValue, '');
     });
   });
 });
@@ -46,7 +74,7 @@ function themeLeaves(pred, out) {
   return out;
 }
 
-test('threshold color pickers are COLOR-capability + bw-theme gated, int defaults', () => {
+test('threshold color pickers are COLOR + bw-theme + toggle gated, auto (unset) defaults', () => {
   const map = itemsByKey();
   STEMS.forEach(stem => {
     const warn = map['thresh' + stem + 'WarnColor'][0];
@@ -59,9 +87,12 @@ test('threshold color pickers are COLOR-capability + bw-theme gated, int default
       // nin (not eq/in): the picker shows on every theme EXCEPT the two B&W ones.
       assert.deepEqual(leaves[0], {key: 'theme', nin: ['bw', 'bw-light']},
         it.messageKey + ' must be hidden on B&W themes only');
+      assert.deepEqual(it.disabledWhen, { not: { key: 'thresh' + stem + 'On' } },
+        it.messageKey + ' must disable (not hide) while the highlight is off');
+      // Auto default: unset hydrates '' and onLoad derives the theme fg — a seeded
+      // orange/red would falsely register as a user pick under the new auto rule.
+      assert.equal(it.defaultValue, '', it.messageKey + ' hydrates unset (auto)');
     });
-    assert.equal(warn.defaultValue, thresholds.DEFAULT_WARN_COLOR);
-    assert.equal(danger.defaultValue, thresholds.DEFAULT_DANGER_COLOR);
   });
 });
 
@@ -69,79 +100,246 @@ test('threshold color pickers are COLOR-capability + bw-theme gated, int default
 // no health sensors (aplite) or healthMode 'off'. 'slot' mode DOES put health in the
 // ordinary bars, so it must keep them — the same rule statusLineCatalog.itemAvailable
 // applies to the items themselves. Asserted behaviorally through the real evaluator.
-test('health-kind threshold fields are hidden on health-less platforms and with health off', () => {
+test('health-kind threshold rows are hidden on health-less platforms and with health off', () => {
   const map = itemsByKey();
   const showWhen = require('../src/pkjs/config-ui/lib/show-when.js');
   HEALTH_STEMS.forEach(stem => {
-    ['Warn', 'Danger'].forEach(which => {
+    ['On', 'Warn'].forEach(which => {
       const it = map['thresh' + stem + which][0];
       assert.ok(JSON.stringify(it.showWhen).includes('"env":"health"'),
         'thresh' + stem + which + ' must be env-health gated');
-      const visibleIn = mode => showWhen.isVisible(it, {env: {health: true, color: true}, healthMode: mode});
-      assert.equal(visibleIn('off'), false, it.messageKey + ' hidden when health is off');
+      // threshXOn: true so the slider's own toggle gate can't mask the health gate.
+      const ctx = mode => Object.assign(
+        { env: { health: true, color: true } },
+        { healthMode: mode, ['thresh' + stem + 'On']: true });
+      assert.equal(showWhen.isVisible(it, ctx('off')), false,
+        it.messageKey + ' hidden when health is off');
       ['slot', 'status', 'all'].forEach(mode => {
-        assert.equal(visibleIn(mode), true, it.messageKey + ' shown in healthMode ' + mode);
+        assert.equal(showWhen.isVisible(it, ctx(mode)), true,
+          it.messageKey + ' shown in healthMode ' + mode);
       });
-      assert.equal(showWhen.isVisible(it, {env: {health: false, color: true}, healthMode: 'all'}),
-        false, it.messageKey + ' hidden without health sensors');
+      const noSensors = Object.assign({ env: { health: false, color: true } },
+        { healthMode: 'all', ['thresh' + stem + 'On']: true });
+      assert.equal(showWhen.isVisible(it, noSensors), false,
+        it.messageKey + ' hidden without health sensors');
     });
   });
 });
 
-// Finding: the 'Warn above' / 'Warn below' labels must not re-encode the direction.
-// Iterate the CONTRACT's kind table (status-thresholds.js KINDS) — the same source the
-// schema derives from and the watch packs with — so a flipped direction fails here.
-test('warn/danger labels and the pair hint follow the contract direction', () => {
+// Defaults ship disabled: every kind starts with both thresholds blank, so
+// kindConfig() reports it disabled until the user opts in (no invented numbers).
+test('shipped defaults leave every kind disabled', () => {
   const map = itemsByKey();
-  thresholds.KINDS.forEach(kind => {
-    const dir = kind.belowIsWorse ? 'below' : 'above';
-    assert.equal(map['thresh' + kind.key + 'Warn'][0].label, 'Warn ' + dir);
-    assert.equal(map['thresh' + kind.key + 'Danger'][0].label, 'Danger ' + dir);
-    // The danger field's hint spells out the both-set + ordered requirement: a
-    // half-filled or inverted pair highlights nothing.
-    const hint = map['thresh' + kind.key + 'Danger'][0].hint;
-    assert.match(hint, /both fields/i, kind.key + ' hint must mention both fields');
-    assert.ok(hint.indexOf('at or ' + dir) >= 0,
-      kind.key + ' hint must name the required ordering (' + dir + ')');
+  const S = {};
+  STEMS.forEach(stem => {
+    S['thresh' + stem + 'Warn'] = map['thresh' + stem + 'Warn'][0].defaultValue;
+    S['thresh' + stem + 'Danger'] = map['thresh' + stem + 'Danger'][0].defaultValue;
+  });
+  thresholds.KINDS.forEach((kind, index) => {
+    assert.equal(thresholds.kindConfig(S, index).enabled, false,
+      kind.key + ' must ship disabled');
   });
 });
 
-// The built page is ONE flat <script> with no require() (see build-page.js), so
-// threshold-validate.js reaches the contract module through window.StatusThresholds —
-// which only exists if status-thresholds.js is bundled BEFORE it. Execute the real
-// generated script the way the webview does: dropping either file from APP_FILES, or
-// ordering them the other way round, breaks the hook here instead of silently in the
-// phone webview.
-test('the generated page registers the validator hook without require()', () => {
-  const vm = require('vm');
-  const html = require('../src/pkjs/config-ui/scripts/build-page.js')
-    .buildPage({ appFiles: require('../scripts/build-config-page.js').APP_FILES });
-  const scriptMatch = html.match(/<script>([\s\S]*)<\/script>/);
-  assert.ok(scriptMatch, 'page contains a <script> block');
-  // boot() reaches into live DOM APIs this sandbox does not stub.
-  const src = scriptMatch[1].replace(/PConf\.engine\.boot\(\);\s*$/, '');
-  const sandbox = { console };
-  sandbox.window = sandbox;
-  sandbox.document = { getElementById: () => ({ addEventListener() {} }), addEventListener() {} };
-  sandbox.navigator = {};
-  vm.createContext(sandbox);
-  vm.runInContext(src, sandbox, { filename: 'generated-page.js' });
-  assert.equal(typeof sandbox.window.StatusThresholds, 'object', 'contract module exposed on window');
-  const hook = sandbox.PConf.onChange.get('validateThresholdPair');
-  assert.equal(typeof hook, 'function', 'validateThresholdPair hook registered');
-  // And it validates for real in that context (not just registered).
-  const S = { threshAqiWarn: '200', threshAqiDanger: '100' };
-  hook(S, '', '100', {}, 'threshAqiDanger');
-  assert.equal(S.threshAqiDanger, '', 'inverted edit reverted inside the webview context');
+// --- the range resolver (blocks.js thresholdRange) --------------------------
+
+test('resolver direction comes from the contract for every kind', () => {
+  thresholds.KINDS.forEach(kind => {
+    const cfg = B.thresholdRangeCfg({}, ENV, { keyStem: kind.key });
+    assert.equal(cfg.dir, kind.belowIsWorse ? 'below' : 'above',
+      kind.key + ' direction must mirror the contract');
+    // Seeds must form a valid ordered pair — enabling a kind must highlight
+    // immediately, not silently store an unordered pair.
+    assert.ok(kind.belowIsWorse
+      ? cfg.seedDanger <= cfg.seedWarn : cfg.seedDanger >= cfg.seedWarn,
+      kind.key + ' seeds must be ordered for its direction');
+    assert.ok(cfg.seedWarn >= cfg.min && cfg.seedWarn <= cfg.max
+      && cfg.seedDanger >= cfg.min && cfg.seedDanger <= cfg.max,
+      kind.key + ' seeds must sit inside the track');
+    // The two thumbs must be separable on the step grid.
+    assert.equal(cfg.minSpan, cfg.step, kind.key + ' minSpan pins to the step');
+  });
 });
 
+test('wind/gust/distance scales follow the General-tab unit pickers', () => {
+  const kph = B.thresholdRangeCfg({}, ENV, { keyStem: 'Wind' });
+  assert.deepEqual([kph.max, kph.seedWarn, kph.seedDanger, kph.unit], [120, 40, 60, 'kph']);
+  const mph = B.thresholdRangeCfg({ windUnits: 'mph' }, ENV, { keyStem: 'Wind' });
+  assert.deepEqual([mph.max, mph.seedWarn, mph.seedDanger, mph.unit], [75, 25, 40, 'mph']);
+  const kn = B.thresholdRangeCfg({ windUnits: 'knots' }, ENV, { keyStem: 'Gust' });
+  assert.deepEqual([kn.max, kn.seedWarn, kn.seedDanger, kn.unit], [85, 30, 50, 'kn']);
+  const km = B.thresholdRangeCfg({}, ENV, { keyStem: 'Distance' });
+  assert.deepEqual([km.max, km.seedWarn, km.seedDanger, km.unit], [20, 5, 2.5, 'km']);
+  const mi = B.thresholdRangeCfg({ distanceUnits: 'imperial' }, ENV, { keyStem: 'Distance' });
+  assert.deepEqual([mi.max, mi.seedWarn, mi.seedDanger, mi.unit], [12, 3, 1.5, 'mi']);
+});
+
+test('AQI scale: European only when Open-Meteo is the source and the picker says so', () => {
+  const eu = B.thresholdRangeCfg({ aqiSource: 'openmeteo', aqiScale: 'european' }, ENV, { keyStem: 'Aqi' });
+  assert.deepEqual([eu.max, eu.seedWarn, eu.seedDanger], [150, 60, 80]);
+  const us = B.thresholdRangeCfg({ aqiSource: 'openmeteo', aqiScale: 'us' }, ENV, { keyStem: 'Aqi' });
+  assert.deepEqual([us.max, us.seedWarn, us.seedDanger], [300, 100, 150]);
+  // WAQI (and auto, which prefers it) reports US-style AQI regardless of the picker.
+  ['waqi', 'auto'].forEach(src => {
+    const cfg = B.thresholdRangeCfg({ aqiSource: src, aqiScale: 'european' }, ENV, { keyStem: 'Aqi' });
+    assert.equal(cfg.max, 300, src + ' uses the US-style scale');
+  });
+});
+
+test('bounded kinds have no scale-max editor; unbounded kinds do', () => {
+  ['Pollen', 'Sleep'].forEach(stem => {
+    assert.equal(B.thresholdRangeCfg({}, ENV, { keyStem: stem }).maxEditable, false, stem);
+  });
+  ['Aqi', 'Wind', 'Gust', 'Steps', 'Distance'].forEach(stem => {
+    assert.equal(B.thresholdRangeCfg({}, ENV, { keyStem: stem }).maxEditable, true, stem);
+  });
+});
+
+test('scale max: override honored, garbage ignored, always grows to fit stored values', () => {
+  const overridden = B.thresholdRangeCfg({ threshStepsMax: '30000' }, ENV, { keyStem: 'Steps' });
+  assert.equal(overridden.max, 30000);
+  const garbage = B.thresholdRangeCfg({ threshStepsMax: 'abc' }, ENV, { keyStem: 'Steps' });
+  assert.equal(garbage.max, 20000);
+  const blank = B.thresholdRangeCfg({ threshStepsMax: '' }, ENV, { keyStem: 'Steps' });
+  assert.equal(blank.max, 20000);
+  // A stored pair beyond the (default or overridden) max stretches the track —
+  // a pair typed under the old text UI must never strand a thumb off the track.
+  const grown = B.thresholdRangeCfg({ threshStepsWarn: '25100' }, ENV, { keyStem: 'Steps' });
+  assert.equal(grown.max, 25250, 'grows to the next step multiple');
+  const shrunk = B.thresholdRangeCfg(
+    { threshStepsMax: '10000', threshStepsWarn: '15000' }, ENV, { keyStem: 'Steps' });
+  assert.equal(shrunk.max, 15000, 'an override below a stored threshold loses');
+  // Bounded kinds ignore stray max keys entirely.
+  const sleep = B.thresholdRangeCfg({ threshSleepMax: '40' }, ENV, { keyStem: 'Sleep' });
+  assert.equal(sleep.max, 12);
+});
+
+test('resolver colors: auto tracks the theme fg, picks stick, garbage sanitized', () => {
+  // Unset = auto: theme fg (dark default → white, light → black).
+  const dflt = B.thresholdRangeCfg({}, ENV, { keyStem: 'Wind' });
+  assert.equal(dflt.warnColor, '#FFFFFF');
+  assert.equal(dflt.dangerColor, '#FFFFFF');
+  assert.equal(dflt.dangerText, '#20232A', 'white auto fill takes dark ink');
+  const light = B.thresholdRangeCfg({ theme: 'light' }, ENV, { keyStem: 'Wind' });
+  assert.equal(light.warnColor, '#000000');
+  assert.equal(light.dangerText, '#FFFFFF', 'black auto fill takes white ink');
+  // User picks — the old orange/red defaults included — are ordinary colors now.
+  const picked = B.thresholdRangeCfg(
+    { threshWindWarnColor: '#00aaff', threshWindDangerColor: '#FFFF00' }, ENV, { keyStem: 'Wind' });
+  assert.equal(picked.warnColor, '#00AAFF');
+  assert.equal(picked.warnGlow, 'rgba(0,170,255,0.35)');
+  assert.equal(picked.dangerText, '#20232A', 'light fill takes dark ink');
+  const orange = B.thresholdRangeCfg({ threshWindWarnColor: '#FFAA00' }, ENV, { keyStem: 'Wind' });
+  assert.equal(orange.warnColor, '#FFAA00', 'orange is a pick, not auto');
+  // A hostile stored string must never reach the inline styles (normalizes to auto).
+  const evil = B.thresholdRangeCfg(
+    { threshWindWarnColor: '"><script>x</script>' }, ENV, { keyStem: 'Wind' });
+  assert.equal(evil.warnColor, '#FFFFFF');
+});
+
+// --- the toggle hook (blocks.js thresholdToggle) ----------------------------
+
+test('toggling on seeds an ordered pair in the current unit; off blanks it', () => {
+  const hook = PC.onChange.get('thresholdToggle');
+  assert.equal(typeof hook, 'function');
+  const S = { windUnits: 'mph', threshWindWarn: '', threshWindDanger: '' };
+  hook(S, false, true, ENV, 'threshWindOn');
+  assert.equal(S.threshWindWarn, '25');
+  assert.equal(S.threshWindDanger, '40');
+  hook(S, true, false, ENV, 'threshWindOn');
+  assert.equal(S.threshWindWarn, '');
+  assert.equal(S.threshWindDanger, '');
+});
+
+test('toggling on preserves a stored ordered pair, reseeds a broken one', () => {
+  const hook = PC.onChange.get('thresholdToggle');
+  const kept = { threshStepsWarn: '8000', threshStepsDanger: '4000' };
+  hook(kept, false, true, ENV, 'threshStepsOn');
+  assert.equal(kept.threshStepsWarn, '8000', 'valid pair untouched');
+  // Inverted for a below-is-worse kind (danger above warn) → reseed.
+  const broken = { threshStepsWarn: '4000', threshStepsDanger: '8000' };
+  hook(broken, false, true, ENV, 'threshStepsOn');
+  assert.equal(broken.threshStepsWarn, '5000');
+  assert.equal(broken.threshStepsDanger, '2500');
+});
+
+// --- derived toggle state (onbuild.js onLoad) -------------------------------
+
+test('onLoad derives each toggle from its stored pair (the kindConfig rule)', () => {
+  const S = {
+    threshStepsWarn: '5000', threshStepsDanger: '2500',   // ordered (below-worse) → on
+    threshWindWarn: '60', threshWindDanger: '40',         // inverted (above-worse) → off
+    threshSleepWarn: '7', threshSleepDanger: '',          // half pair → off
+    location: ''
+  };
+  onbuild.onLoad({
+    env: { platform: 'basalt' },
+    get: k => S[k],
+    set: (k, v) => { S[k] = v; },
+    getInitial: k => S[k]
+  });
+  assert.equal(S.threshStepsOn, true);
+  assert.equal(S.threshWindOn, false);
+  assert.equal(S.threshSleepOn, false);
+  assert.equal(S.threshAqiOn, false, 'unset pair derives off');
+});
+
+test('onLoad derives auto colors from the theme; user picks survive', () => {
+  /**
+   * @param {Object} S settings state to run onLoad against (mutated)
+   * @returns {Object} the same S, after the hook
+   */
+  function loaded(S) {
+    onbuild.onLoad({
+      env: { platform: 'basalt' },
+      get: k => S[k],
+      set: (k, v) => { S[k] = v; },
+      getInitial: k => S[k]
+    });
+    return S;
+  }
+  // Fresh install, dark (default) theme: both colors land on white.
+  const dark = loaded({});
+  assert.equal(dark.threshAqiWarnColor, '#FFFFFF');
+  assert.equal(dark.threshStepsDangerColor, '#FFFFFF');
+  // Light theme: black — and a STALE dark auto value re-derives on open.
+  const light = loaded({ theme: 'light', threshAqiWarnColor: '#FFFFFF' });
+  assert.equal(light.threshAqiWarnColor, '#000000');
+  // A user pick is never touched — the contract's orange/red included (nobody
+  // shipped with them as page defaults, so they are ordinary picks).
+  const custom = loaded({ theme: 'light', threshAqiWarnColor: '#00AAFF' });
+  assert.equal(custom.threshAqiWarnColor, '#00AAFF');
+  const orange = loaded({ threshAqiWarnColor: '#FFAA00', threshAqiDangerColor: '#FF0000' });
+  assert.equal(orange.threshAqiWarnColor, '#FFAA00');
+  assert.equal(orange.threshAqiDangerColor, '#FF0000');
+});
+
+// --- the engine's role/zone mapping -----------------------------------------
+
+test('thresholdValues maps roles to track order by direction and clamps strays', () => {
+  const E = PC.engine;
+  const below = { min: 0, max: 20000, dir: 'below', seedWarn: 5000, seedDanger: 2500 };
+  assert.deepEqual(E.thresholdValues(below, '5000', '2500'),
+    { lo: 2500, hi: 5000, warn: 5000, danger: 2500 });
+  const above = { min: 0, max: 120, dir: 'above', seedWarn: 40, seedDanger: 60 };
+  assert.deepEqual(E.thresholdValues(above, '40', '60'),
+    { lo: 40, hi: 60, warn: 40, danger: 60 });
+  // Blanks fall back to the seeds; decimals and comma decimals both parse.
+  assert.deepEqual(E.thresholdValues(above, '', ''),
+    { lo: 40, hi: 60, warn: 40, danger: 60 });
+  const sleep = { min: 0, max: 12, dir: 'below', seedWarn: 7, seedDanger: 6 };
+  assert.equal(E.thresholdValues(sleep, '7,5', '6').warn, 7.5);
+  // A stored value beyond the track pins to the bound instead of stranding a thumb.
+  assert.equal(E.thresholdValues(above, '40', '500').danger, 120);
+});
+
+// The built page is ONE flat <script> with no require() (see build-page.js), so
 // status-thresholds.js reaches rain-tier through a GUARDED require() that is null in the
-// flat concatenated page (no require() there), and buildSettingsBlob() dereferences it
-// unconditionally (rainTier.rgbToGColor8). A call from page code would therefore throw and
-// take down the ENTIRE settings page, not just the threshold rows — the blob is built
-// phone-side by clay-payload.js, never in the webview. Guard that at the source level:
-// every occurrence of the name in the page must be the module's own declaration/export,
-// never a call site.
+// flat concatenated page, and buildSettingsBlob() dereferences it unconditionally
+// (rainTier.rgbToGColor8). A call from page code would therefore throw and take down the
+// ENTIRE settings page, not just the threshold rows — the blob is built phone-side by
+// clay-payload.js, never in the webview. Guard that at the source level: every occurrence
+// of the name in the page must be the module's own declaration/export, never a call site.
 test('the generated page never references buildSettingsBlob outside its own module', () => {
   const html = require('../src/pkjs/config-ui/scripts/build-page.js')
     .buildPage({ appFiles: require('../scripts/build-config-page.js').APP_FILES });
@@ -167,12 +365,7 @@ test('the generated page never references buildSettingsBlob outside its own modu
   assert.ok(seen.indexOf('status-thresholds.js') !== -1, 'sanity: app segments were split');
 });
 
-// --- end-to-end dispatch: the engine's text-field commit path ---------------
-// Registering the hook is only half the wiring — the engine has to CALL it when a
-// text field is committed. These tests boot the REAL generated page (same flat
-// <script> the webview runs, real schema) against a fake DOM, then drive the real
-// delegated #scroll handlers with synthetic events. Without the engine's
-// change/focusin dispatch the revert never happens and they fail.
+// --- end-to-end: the real generated page against a fake DOM ------------------
 const vm = require('vm');
 const platformLib = require('../src/pkjs/config-ui/lib/platform.js');
 
@@ -203,7 +396,7 @@ function makeEl(id) {
 /** Boot the real generated page in a vm sandbox with a fake DOM.
  * @param {Object} [cfg] stored settings to hydrate from
  * @param {string} [platformName] Pebble platform for the injected env (default basalt)
- * @returns {{S: Object, scroll: Object, clickTab: function, inputHtml: function}}
+ * @returns {{S: Object, scroll: Object, modal: Object, clickTab: function}}
  */
 function bootGeneratedPage(cfg, platformName) {
   const html = require('../src/pkjs/config-ui/scripts/build-page.js').previewPage({
@@ -245,108 +438,296 @@ function bootGeneratedPage(cfg, platformName) {
       els.scroll.dispatch('click', { target: t });
       assert.ok(els.modal.innerHTML.length > 0, 'the edit sheet rendered into #modal');
     },
-    inputHtml(key) {
-      const m = els.scroll.innerHTML.match(new RegExp('<input[^>]*data-k="' + key + '"[^>]*>'));
-      assert.ok(m, key + ' is rendered in the active tab');
-      return m[0];
-    },
-    // Same matcher for a field that lives in the open edit sheet (#modal).
-    modalInputHtml(key) {
-      const m = els.modal.innerHTML.match(new RegExp('<input[^>]*data-k="' + key + '"[^>]*>'));
-      assert.ok(m, key + ' is rendered in the open edit sheet');
-      return m[0];
+    // Flip a toggle rendered in the open edit sheet.
+    clickModalToggle(key) {
+      assert.ok(els.modal.innerHTML.indexOf('data-k="' + key + '"') !== -1,
+        key + ' toggle is rendered in the open sheet');
+      const t = {
+        getAttribute: n => (n === 'data-k' ? key : null),
+        closest: sel => (sel === '[data-toggle]' ? t : null)
+      };
+      els.modal.dispatch('click', { target: t });
     }
   };
 }
 
-/** A text-input stub the engine's delegated handlers accept.
- * @param {string} key messageKey (data-k)
- * @param {string} value current field text
- * @returns {Object} input stub
- */
-function fakeInput(key, value) {
-  const el = {
-    value,
-    getAttribute: n => (n === 'data-k' ? key : null),
-    closest: sel => (sel === 'input[type=text]' ? el : null)
-  };
-  return el;
-}
-
-test('committing an inverted threshold through the edit sheet reverts it and repaints the sheet', () => {
+test('the sheet: toggle off shows a disabled seeded slider; on enables and seeds it', () => {
   const page = bootGeneratedPage();
-  page.S.threshAqiWarn = '200';
-  page.S.threshAqiDanger = '300';
   page.clickTab('watch');
-  // Threshold fields render only inside the edit sheet now: absent from the tab body,
-  // present in #modal once the AQI slot's pencil is tapped.
-  assert.equal(page.scroll.innerHTML.indexOf('data-k="threshAqiWarn"'), -1,
-    'threshold fields are not in the tab body');
   assert.ok(page.scroll.innerHTML.indexOf('data-edit-sheet="threshAqi"') !== -1,
     'the default AQI forecast slot renders its pencil');
   page.openEditSheet('threshAqi');
-  assert.match(page.modalInputHtml('threshAqiWarn'), /value="200"/);
-  const inp = fakeInput('threshAqiWarn', '200');
-  page.modal.dispatch('focusin', { target: inp });     // pre-edit value captured here
-  inp.value = '400';                                   // 400 warn vs 300 danger = inverted
-  page.modal.dispatch('input', { target: inp });
-  assert.equal(page.S.threshAqiWarn, '400', 'the input path keeps S live while typing');
-  const writesBefore = page.modal.writes;
-  page.modal.dispatch('change', { target: inp });
-  assert.equal(page.S.threshAqiWarn, '200', 'the commit fired the hook, which reverted S');
-  assert.ok(page.modal.writes > writesBefore, 'the commit repainted the sheet');
-  assert.match(page.modalInputHtml('threshAqiWarn'), /value="200"/);
-  assert.ok(page.modalInputHtml('threshAqiWarn').indexOf('value="400"') === -1,
-    'the rejected value is gone from the field');
+  assert.ok(page.modal.innerHTML.indexOf('data-k="threshAqiOn"') !== -1,
+    'the sheet carries the highlight toggle');
+  // The master toggle lives in the sheet's TITLE row, not the body.
+  assert.ok(page.modal.innerHTML.indexOf('data-k="threshAqiOn"')
+    < page.modal.innerHTML.indexOf('ssel-list'),
+    'the toggle renders in the header, before the scroll body');
+  // Off = visible but disabled, previewing the seeds (default cfg is WAQI → US AQI).
+  assert.ok(page.modal.innerHTML.indexOf('data-range="threshAqiWarn"') !== -1,
+    'the slider renders even while the highlight is off');
+  assert.ok(/class="row stack[^"]*\bdis\b/.test(page.modal.innerHTML),
+    'the off-state slider row is disabled');
+  assert.ok(page.modal.innerHTML.indexOf('Warn 100') !== -1,
+    'the disabled slider previews the seed values');
+  assert.ok(page.modal.innerHTML.indexOf('crossing the warn threshold') !== -1,
+    'the sheet carries the threshold intro');
+
+  page.clickModalToggle('threshAqiOn');
+  assert.equal(page.S.threshAqiOn, true);
+  assert.equal(page.S.threshAqiWarn, '100');
+  assert.equal(page.S.threshAqiDanger, '150');
+  const sheet = page.modal.innerHTML;
+  assert.ok(!/class="row stack[^"]*\bdis\b/.test(sheet),
+    'the enabled slider row is no longer disabled');
+  assert.ok(sheet.indexOf('data-zone="warn"') !== -1 && sheet.indexOf('data-zone="danger"') !== -1,
+    'semantic zones rendered');
+  assert.ok(sheet.indexOf('th-warn') !== -1 && sheet.indexOf('th-danger') !== -1,
+    'role-styled thumbs rendered');
+  assert.ok(sheet.indexOf('Example:') !== -1, 'the chip readout is labeled as an example');
+  assert.ok(sheet.indexOf('Warn 100') !== -1 && sheet.indexOf('Danger 150') !== -1,
+    'readout chips carry the values');
+  assert.ok(sheet.indexOf('data-max-edit="threshAqiMax"') !== -1,
+    'AQI is unbounded → scale-max editor present');
+  assert.ok(sheet.indexOf('data-action="resetThresholds"') !== -1
+    && sheet.indexOf('data-action-arg="Aqi"') !== -1,
+    'the reset-to-defaults button rides the slider label');
+
+  page.clickModalToggle('threshAqiOn');
+  assert.equal(page.S.threshAqiWarn, '', 'toggling off blanks the pair');
+  assert.ok(/class="row stack[^"]*\bdis\b/.test(page.modal.innerHTML),
+    'the slider is back to its disabled preview');
 });
 
-test('a well-ordered commit is kept, and mid-typing keystrokes are never reverted', () => {
-  const page = bootGeneratedPage();
-  page.S.threshAqiWarn = '50';
+test('the reset button restores seeds, default colors, and clears the scale max', () => {
+  const page = bootGeneratedPage({
+    provider: 'dwd',
+    threshAqiWarn: '42', threshAqiDanger: '77',
+    threshAqiWarnColor: '#00AAFF', threshAqiDangerColor: '#5500FF',
+    threshAqiMax: '900'
+  });
+  page.openEditSheet('threshAqi');
+  const t = {
+    getAttribute: n => (n === 'data-action' ? 'resetThresholds'
+      : n === 'data-action-arg' ? 'Aqi' : null),
+    closest: sel => (sel === '[data-action]' ? t : null)
+  };
+  const writesBefore = page.modal.writes;
+  page.modal.dispatch('click', { target: t });
+  assert.equal(page.S.threshAqiWarn, '100', 'warn back to its seed');
+  assert.equal(page.S.threshAqiDanger, '150', 'danger back to its seed');
+  assert.equal(page.S.threshAqiWarnColor, '#FFFFFF', 'warn color back to the auto theme fg');
+  assert.equal(page.S.threshAqiDangerColor, '#FFFFFF', 'danger color back to the auto theme fg');
+  assert.equal(page.S.threshAqiMax, '', 'scale-max override cleared');
+  assert.ok(page.modal.writes > writesBefore, 'the reset re-rendered the sheet');
+});
+
+test('an enabled kind shows the ring+dot badge on its slot pencil', () => {
+  const page = bootGeneratedPage({
+    provider: 'dwd',
+    threshAqiWarn: '50', threshAqiDanger: '100'
+  });
+  page.clickTab('watch');
+  const html = page.scroll.innerHTML;
+  const pen = html.slice(html.indexOf('data-edit-sheet="threshAqi"') - 400,
+    html.indexOf('data-edit-sheet="threshAqi"') + 900);
+  assert.ok(pen.indexOf('pen-dot warn') !== -1, 'warn ring rendered');
+  assert.ok(pen.indexOf('pen-dot danger') !== -1, 'danger dot rendered');
+  // Never-customized colors are auto: they track the theme fg (dark default → white).
+  assert.ok(pen.indexOf('--th-c:#FFFFFF') !== -1, 'auto colors resolve to the theme fg');
+  assert.ok(pen.indexOf('highlighting on') !== -1, 'aria-label says the state');
+
+  const off = bootGeneratedPage();
+  off.clickTab('watch');
+  assert.equal(off.scroll.innerHTML.indexOf('pen-dot'), -1,
+    'no badge while every kind is disabled');
+});
+
+test('the derived toggle is on after hydrating a stored ordered pair', () => {
+  const page = bootGeneratedPage({
+    provider: 'dwd',
+    threshAqiWarn: '50', threshAqiDanger: '100'
+  });
+  assert.equal(page.S.threshAqiOn, true, 'onLoad derived the toggle from the pair');
   page.clickTab('watch');
   page.openEditSheet('threshAqi');
-  const inp = fakeInput('threshAqiDanger', '');
-  page.modal.dispatch('focusin', { target: inp });
-  // Typing "100" passes through "1" and "10", both momentarily below warn=50 (inverted).
-  ['1', '10', '100'].forEach(step => {
-    inp.value = step;
-    page.modal.dispatch('input', { target: inp });
-    assert.equal(page.S.threshAqiDanger, step, 'keystroke "' + step + '" must not be reverted');
-  });
-  const writesBefore = page.modal.writes;
-  page.modal.dispatch('change', { target: inp });
-  assert.equal(page.S.threshAqiDanger, '100', 'the ordered pair 50/100 survives the commit');
-  // ...and the accepted commit must NOT repaint the sheet. In a webview focus moves on
-  // mousedown, so `change` fires before mouseup: replacing the dialog's innerHTML here
-  // would detach the control the user's next tap is landing on and swallow that tap. The
-  // field already shows the typed text, so there is nothing to repaint.
-  assert.equal(page.modal.writes, writesBefore,
-    'an accepted value needs no repaint (a repaint would swallow the next tap)');
+  assert.ok(page.modal.innerHTML.indexOf('data-range="threshAqiWarn"') !== -1,
+    'the slider renders immediately with the stored values');
+  assert.ok(page.modal.innerHTML.indexOf('Warn 50') !== -1, 'stored warn on the chip');
 });
 
-test('committing a hookless text field just keeps the typed value', () => {
-  const page = bootGeneratedPage();   // General tab is active; `location` lives there
-  const inp = fakeInput('location', '');
-  page.scroll.dispatch('focusin', { target: inp });
-  inp.value = 'Berlin';
-  page.scroll.dispatch('input', { target: inp });
-  page.scroll.dispatch('change', { target: inp });
-  assert.equal(page.S.location, 'Berlin', 'no onChange hook, nothing to revert');
+// --- serialize/hydrate round-trip of the hidden companions ------------------
+// The type:'hidden' Danger/Max rows are the ONLY thing keeping those keys in the
+// save blob (serialize walks schema items); dropping them from the walk would
+// silently discard the second thumb + scale max on every save.
+test('hidden Danger/Max companions survive hydrate → serialize', () => {
+  const stored = { threshStepsWarn: '8000', threshStepsDanger: '4000', threshStepsMax: '30000' };
+  const S = PC.engine.hydrate(schema, stored, ENV);
+  const blob = PC.engine.serialize(schema, S);
+  assert.equal(blob.threshStepsWarn, '8000');
+  assert.equal(blob.threshStepsDanger, '4000', 'the hidden danger key rides the save blob');
+  assert.equal(blob.threshStepsMax, '30000', 'the hidden scale-max key rides the save blob');
+  const fresh = PC.engine.serialize(schema, PC.engine.hydrate(schema, {}, ENV));
+  assert.equal(fresh.threshStepsDanger, '', 'hidden keys hydrate their blank defaults');
+  assert.equal(fresh.threshStepsMax, '');
 });
 
-// Defaults ship disabled: every kind starts with both thresholds blank, so
-// kindConfig() reports it disabled until the user opts in (no invented numbers).
-test('shipped defaults leave every kind disabled', () => {
-  const map = itemsByKey();
-  const S = {};
-  STEMS.forEach(stem => {
-    S['thresh' + stem + 'Warn'] = map['thresh' + stem + 'Warn'][0].defaultValue;
-    S['thresh' + stem + 'Danger'] = map['thresh' + stem + 'Danger'][0].defaultValue;
-  });
-  thresholds.KINDS.forEach((kind, index) => {
-    assert.equal(thresholds.kindConfig(S, index).enabled, false,
-      kind.key + ' must ship disabled');
-  });
+// --- thresholdValues minSpan repair -----------------------------------------
+// The old text UI accepted warn == danger; a stacked pair puts the danger thumb on
+// top and, pinned at a track end, could never be separated by touch again. The
+// resolve step separates the pair by one span, keeping the danger thumb's stored
+// position wherever possible.
+test('an equal legacy pair renders separated, even pinned at a track end', () => {
+  const E = PC.engine;
+  const above = { min: 0, max: 300, dir: 'above', step: 10, minSpan: 10, seedWarn: 100, seedDanger: 150 };
+  assert.deepEqual(E.thresholdValues(above, '300', '300'),
+    { lo: 290, hi: 300, warn: 290, danger: 300 }, 'above-kind at max: warn pushed down');
+  assert.deepEqual(E.thresholdValues(above, '0', '0'),
+    { lo: 0, hi: 10, warn: 0, danger: 10 }, 'above-kind at min: danger pushed up');
+  const below = { min: 0, max: 20000, dir: 'below', step: 250, minSpan: 250, seedWarn: 5000, seedDanger: 2500 };
+  assert.deepEqual(E.thresholdValues(below, '20000', '20000'),
+    { lo: 19750, hi: 20000, warn: 20000, danger: 19750 }, 'below-kind at max: danger pushed down');
+  assert.deepEqual(E.thresholdValues(below, '0', '0'),
+    { lo: 0, hi: 250, warn: 250, danger: 0 }, 'below-kind at min: warn pushed up');
+});
+
+// --- badge resolver: env gate + picked colors --------------------------------
+test('thresholdPenState honors its env gate and the color pickers', () => {
+  const resolver = PC.badgeResolvers.get('thresholdPenState');
+  const S = { statusForecastRight: 'aqi', threshAqiWarn: '50', threshAqiDanger: '100' };
+  const args = { messageKey: 'statusForecastRight' };
+  assert.equal(resolver(S, { thresholds: false }, args), null, 'gated off without env.thresholds');
+  assert.deepEqual(resolver(S, ENV, args), { warnColor: '#FFFFFF', dangerColor: '#FFFFFF' },
+    'auto colors resolve to the theme fg');
+  const picked = Object.assign({}, S, { threshAqiWarnColor: '#00AAFF', threshAqiDangerColor: '#5500FF' });
+  assert.deepEqual(resolver(picked, ENV, args), { warnColor: '#00AAFF', dangerColor: '#5500FF' });
+  assert.equal(resolver(Object.assign({}, S, { threshAqiDanger: '' }), ENV, args), null,
+    'a half pair (disabled kind) shows no badge');
+});
+
+// --- interaction stubs: drive the shared range machinery on the booted page ---
+
+/** A .rng root stub the drag/keyboard handlers and paint fns accept.
+ * @param {string} key data-range messageKey
+ * @param {number|string} lo data-lo
+ * @param {number|string} hi data-hi
+ * @returns {Object} root stub
+ */
+function makeRngRoot(key, lo, hi) {
+  const attrs = { 'data-range': key, 'data-lo': String(lo), 'data-hi': String(hi) };
+  const styled = () => ({ style: {}, setAttribute() {}, innerHTML: '' });
+  const nodes = {
+    '[data-zone="warn"]': styled(),
+    '[data-zone="danger"]': styled(),
+    '[data-range-thumb=lo]': styled(),
+    '[data-range-thumb=hi]': styled(),
+    '.rng-val': styled(),
+    '.rng-fill': styled(),
+    '.rng-track': { getBoundingClientRect: () => ({ left: 0, width: 100 }) }
+  };
+  const root = {
+    isConnected: true,
+    getAttribute: n => (attrs[n] == null ? null : attrs[n]),
+    setAttribute(n, v) { attrs[n] = String(v); },
+    querySelector: sel => nodes[sel] || null,
+    querySelectorAll: () => [],
+    closest: sel => (sel === '.rng' ? root : null)
+  };
+  return root;
+}
+
+/** A thumb-button stub inside a root stub.
+ * @param {Object} root rng root stub
+ * @param {string} which 'lo' | 'hi'
+ * @returns {Object} thumb stub
+ */
+function thumbOn(root, which) {
+  const th = {
+    getAttribute: n => (n === 'data-range-thumb' ? which : null),
+    closest: sel => (sel === '[data-range-thumb]' ? th : (sel === '.rng' ? root : null)),
+    focus() {}, setPointerCapture() {}, style: {}, setAttribute() {}
+  };
+  return th;
+}
+const NO_TARGET = { closest: () => null };
+
+test('a pointer drag in the sheet commits both wire keys through the role mapping', () => {
+  const page = bootGeneratedPage();   // healthMode defaults allow the Steps kind
+  page.S.threshStepsWarn = '5000';
+  page.S.threshStepsDanger = '2500';
+  // Steps is below-is-worse: lo = danger thumb. Track stub is 100px over 0..20000.
+  const root = makeRngRoot('threshStepsWarn', 2500, 5000);
+  const th = thumbOn(root, 'lo');
+  page.modal.dispatch('pointerdown', { target: th, pointerId: 7, preventDefault() {} });
+  page.modal.dispatch('pointermove', { target: NO_TARGET, pointerId: 7, clientX: 10 });
+  // 10% of 20000 = 2000, on the 250 grid.
+  assert.equal(page.S.threshStepsDanger, '2000', 'the lo thumb wrote the DANGER key');
+  assert.equal(page.S.threshStepsWarn, '5000', 'the warn key kept its value');
+  page.modal.dispatch('pointerup', { target: NO_TARGET, pointerId: 7 });
+  // After release the drag is over: further moves must not write.
+  page.modal.dispatch('pointermove', { target: NO_TARGET, pointerId: 7, clientX: 90 });
+  assert.equal(page.S.threshStepsDanger, '2000', 'no writes after pointerup');
+});
+
+test('keyboard nudge steps half-units and keeps the untouched decimal thumb intact', () => {
+  const page = bootGeneratedPage();
+  page.S.threshSleepWarn = '7.5';
+  page.S.threshSleepDanger = '6.5';
+  // Sleep is below-is-worse: hi = warn thumb; step 0.5. parseInt on data-lo would
+  // silently turn the untouched danger 6.5 into 6 — the float regression this pins.
+  const root = makeRngRoot('threshSleepWarn', 6.5, 7.5);
+  const th = thumbOn(root, 'hi');
+  page.modal.dispatch('keydown', { target: th, key: 'ArrowRight', preventDefault() {} });
+  assert.equal(page.S.threshSleepWarn, '8', 'warn nudged one 0.5 step up');
+  assert.equal(page.S.threshSleepDanger, '6.5', 'danger kept its stored half-unit');
+});
+
+test('the pre-existing plain slider (hrScale) still commits its lo-hi string', () => {
+  const page = bootGeneratedPage();
+  page.S.hrScale = '40-180';
+  const root = makeRngRoot('hrScale', 40, 180);
+  const th = thumbOn(root, 'lo');
+  page.scroll.dispatch('keydown', { target: th, key: 'ArrowLeft', preventDefault() {} });
+  assert.equal(page.S.hrScale, '35-180', 'the shared path still writes the "lo-hi" contract');
+});
+
+test('the inline scale-max editor: open, sanitize, and untouched-blur writes nothing', () => {
+  const page = bootGeneratedPage();
+  page.openEditSheet('threshAqi');
+  page.clickModalToggle('threshAqiOn');
+  // openMaxEdit: the click swaps the wrap's markup for a seeded numeric field.
+  const wrap = { innerHTML: '', querySelector: () => ({ focus() {}, select() {} }) };
+  const btn = {
+    getAttribute: n => (n === 'data-max-edit' ? 'threshAqiMax'
+      : n === 'data-max-current' ? '300' : null),
+    closest: sel => (sel === '[data-max-edit]' ? btn : (sel === '.rng-max' ? wrap : null))
+  };
+  page.modal.dispatch('click', { target: btn });
+  assert.ok(wrap.innerHTML.indexOf('data-max-input="threshAqiMax"') !== -1,
+    'the max label swapped for the inline field');
+  assert.ok(wrap.innerHTML.indexOf('data-max-seed="300"') !== -1,
+    'the field carries its seed for the untouched-blur check');
+  /**
+   * @param {string} value field text at blur
+   * @returns {Object} focusout event stub
+   */
+  function blurWith(value) {
+    const inp = {
+      value,
+      getAttribute: n => (n === 'data-max-input' ? 'threshAqiMax'
+        : n === 'data-max-seed' ? '300' : null),
+      closest: sel => (sel === '[data-max-input]' ? inp : null)
+    };
+    return { target: inp };
+  }
+  page.modal.dispatch('focusout', blurWith('300'));
+  assert.equal(page.S.threshAqiMax, '', 'blurring the untouched field stores no override');
+  page.modal.dispatch('focusout', blurWith('500'));
+  assert.equal(page.S.threshAqiMax, '500', 'an edited value is stored raw');
+  assert.ok(page.modal.innerHTML.indexOf('data-max-current="500"') !== -1,
+    'the re-render shows the grown scale');
+  page.modal.dispatch('focusout', blurWith('abc'));
+  assert.equal(page.S.threshAqiMax, '', 'garbage clears the override instead of storing it');
 });
 
 // The section-level platform gate has to survive into the FLAT generated page (the
@@ -359,22 +740,9 @@ test('the real generated page: threshold pencils + sheet on basalt, nothing on a
   const apliteWatch = aplite.scroll.innerHTML;
   assert.equal(apliteWatch.indexOf('data-edit-sheet'), -1,
     'no threshold pencil on aplite (env.thresholds is false)');
-  ['threshAqiWarn', 'threshAqiDanger', 'threshWindWarn', 'threshStepsWarn',
+  ['threshAqiOn', 'threshAqiWarn', 'threshWindOn', 'threshStepsOn',
     'threshAqiWarnColor'].forEach((k) =>
     assert.equal(apliteWatch.indexOf('data-k="' + k + '"'), -1, k + ' absent on aplite'));
   assert.ok(apliteWatch.indexOf('data-k="timeLeadingZero"') !== -1,
     'the rest of the Watch tab still renders on aplite');
-
-  const basalt = bootGeneratedPage({ provider: 'dwd' }, 'basalt');
-  basalt.clickTab('watch');
-  const basaltWatch = basalt.scroll.innerHTML;
-  assert.equal(basaltWatch.indexOf('data-k="threshAqiWarn"'), -1,
-    'basalt keeps no in-body threshold inputs either (sheet-only)');
-  assert.ok(basaltWatch.indexOf('data-edit-sheet="threshAqi"') !== -1,
-    'basalt renders the AQI slot pencil');
-  basalt.openEditSheet('threshAqi');
-  assert.ok(basalt.modal.innerHTML.indexOf('crossing the warn threshold') !== -1,
-    'the sheet carries the threshold intro');
-  assert.ok(basalt.modal.innerHTML.indexOf('data-k="threshAqiWarn"') !== -1,
-    'the sheet carries the threshold inputs');
 });
