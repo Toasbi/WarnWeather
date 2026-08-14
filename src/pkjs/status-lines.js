@@ -300,8 +300,8 @@ function packLine(line, payload, settings, env) {
  * Add STATUS_LINE_1..4_UINT8 AND the packed STATUS_LEVELS_UINT8 threshold
  * byte to the weather payload. Must run BEFORE applyForecastSeries deletes
  * the transient trend arrays (AQI_TREND, WIND_TREND_UINT8, GUST_TREND_UINT8,
- * POLLEN_TODAY) -- both the status text and the threshold levels are read
- * from them.
+ * PRESSURE_TREND, POLLEN_TODAY) -- both the status text and the threshold
+ * levels are read from them.
  * @param {Object} payload weather payload (mutated)
  * @param {Object} settings Clay settings blob
  * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result
