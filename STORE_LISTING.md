@@ -30,11 +30,11 @@ STATUS LINES
   metrics — weather, air quality, pollen, wind, health, battery, a countdown
   to any date, and more
 - Threshold highlighting: outline or fill a status slot when air quality,
-  pollen, wind, gusts, steps, sleep, or distance crosses a warn or danger
-  level you set
+  pollen, wind, gusts, UV index, steps, sleep, or distance crosses a warn or
+  danger level you set
 
 WATCHFACE THEMES
-- Dark and Light, plus Black & White options on color watches
+- Dark and Light, plus Black & White and Black & White Inverted options on color watches
 
 WATCH
 - Custom color, 12h/24h, optional AM/PM
@@ -51,8 +51,8 @@ LAYOUT CUSTOMIZATION
 - First-run setup wizard that picks sensible defaults for your country
 
 PLATFORMS
-- Pebble Classic, Pebble Steel, Pebble Time, Pebble Time Steel, Pebble 2, and
-  Pebble Time 2
+- Pebble Classic, Pebble Steel, Pebble Time, Pebble Time Steel, Pebble 2,
+  Pebble Time 2, and Pebble 2 Duo
 
 Weather and radar data from MET Norway (CC BY 4.0).
 
@@ -65,9 +65,9 @@ https://www.buymeacoffee.com/toaster2.
 
 ## Screenshots 
 
-The store wants at least one screenshot per supported platform, so we capture all four
-configs on **every** platform (aplite, basalt, diorite, emery, flint) — 4 shots × 5
-platforms = 20 files, grouped per platform for upload.
+The store wants at least one screenshot per supported platform, so we capture all five
+configs on **every** platform (aplite, basalt, diorite, emery, flint) — 5 shots × 5
+platforms = 25 files, grouped per platform for upload.
 
 Each config is a fixture bundling its own settings + weather/radar data:
 
@@ -77,10 +77,11 @@ Each config is a fixture bundling its own settings + weather/radar data:
 | `2-radar-multicolor` | Radar view, multicolor radar + rain bars | `berlin` |
 | `3-wind-gust` | Wind speed line with dotted gust line | `windy` |
 | `4-radar-white-wind` | Radar view (white radar) + yellow wind line with dotted gust | `store-wind-radar` |
+| `5-precip-uv` | Precipitation line (filled) with dotted UV index line, multicolor rain bars | `precip-uv` |
 
 `berlin` and `store-wind-radar` auto-tap into the radar view; the others stay on the
-calendar/forecast view. On the black-and-white platforms (aplite, diorite) the multicolor/
-yellow settings render in B&W — expected.
+calendar/forecast view. On the black-and-white platforms (aplite, diorite, flint) the
+multicolor/yellow settings render in B&W — expected.
 
 Capture everything in one go:
 
@@ -89,5 +90,5 @@ scripts/capture-store-shots.sh v1.0.0
 ```
 
 Output lands in `screenshot/v1.0.0/store/<platform>/<label>.png` — e.g.
-`store/emery/1-calendar.png`. Upload each platform's four files to that platform in the
+`store/emery/1-calendar.png`. Upload each platform's five files to that platform in the
 store listing.
