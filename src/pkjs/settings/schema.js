@@ -661,9 +661,9 @@ module.exports = {
                 defaultValue: 'graph',
                 hintByValue: {
                     off: 'Radar is hidden.',
-                    countdown: 'Shows a “Rain in X′” countdown in the Watch Status Bar, without adding a separate Radar view.',
-                    status: 'Adds a Radar view showing the Radar Status Bar above the regular forecast graph.',
-                    graph: 'Adds a Radar view showing both the Radar Status Bar and the full radar rain graph.'
+                    countdown: 'Shows a “Rain in X′” countdown in the Watch Status Bar.',
+                    status: 'Adds the Radar Status Bar.',
+                    graph: 'Adds the Radar Status Bar and the full radar rain graph.'
                 },
                 options: [['Off', 'off'], ['Countdown only', 'countdown'], ['Status bar', 'status'], ['Status + Graph', 'graph']],
                 onChange: 'resetStatusRadar'
@@ -766,9 +766,9 @@ module.exports = {
                 defaultValue: 'all',
                 hintByValue: {
                     off: 'Health is hidden.',
-                    slot: 'Lets you put health items (steps, sleep, heart rate, walked distance) in any status bar, without adding a separate Health view.',
-                    status: 'Adds a Health view showing the Health Status Bar — today\'s steps, last night\'s sleep, and current heart rate — above the regular forecast graph. Heart rate needs a watch with a heart-rate sensor.',
-                    all: 'Adds a Health view showing both the Health Status Bar and a health graph — hourly step bars, a sleep band, and a heart-rate line. Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
+                    slot: 'Lets you put health items (steps, sleep, heart rate, walked distance) in any status bar.',
+                    status: 'Adds the Health Status Bar — today\'s steps, last night\'s sleep, and current heart rate. Heart rate needs a watch with a heart-rate sensor.',
+                    all: 'Adds the Health Status Bar and a health graph — hourly step bars, a sleep band, and a heart-rate line. Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
                 },
                 options: [['Off', 'off'], ['Status slots only', 'slot'], ['Status bar', 'status'], ['Status + Graph (BETA)', 'all']],
                 onChange: 'resetStatusHealth'
@@ -1117,17 +1117,20 @@ module.exports = {
                 hintByValue: {
                     fullCal: '3-row calendar. Health and radar appear on wrist-flicks.',
                     compactCal: '2-row calendar. Flick to radar and health as you enable them.',
-                    compactDense: 'Compact calendar with the Health and Forecast Status Bars shown together.',
+                    compactDense: 'Compact calendar with two status bars at once — health or radar above the clock, forecast below.',
                     noCal: 'No calendar — a big forecast. Flick to radar and health.'
                 },
                 // Compact-dense only differs from Compact when a health status row OR the
                 // radar status row is shown; with both off the two produce identical cycles,
-                // so it's hidden then. A stored compactDense falls back to the default
-                // (compactCal) via the defaultValue-snap in engine.resolveRowItem. Order
-                // stays constant (compactDense between compactCal and noCal) so toggling
-                // health/radar doesn't reshuffle the list. See the layoutPresetOptions
-                // resolver in blocks.js.
+                // so it's hidden then. A stored compactDense lies DORMANT while hidden
+                // (dormantValues): the radio displays the compactCal fallback but the
+                // stored choice is kept, so it returns when a status row re-enables it —
+                // the wire compiles hidden-dense to the identical compactCal cycle, so the
+                // watch always matches the display. Order stays constant (compactDense
+                // between compactCal and noCal) so toggling health/radar doesn't reshuffle
+                // the list. See layoutPresetOptions in blocks.js + engine.resolveRowItem.
                 optionsFrom: { resolver: 'layoutPresetOptions' },
+                dormantValues: ['compactDense'],
                 blockBefore: 'layoutPreviewCombined',
                 blockBeforeSticky: true
             }, {

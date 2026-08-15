@@ -60,10 +60,15 @@ var CAL2_HF_D    = spec(TIER_COMPACT, TOP_CAL,   BODY_FC,    STATUS_SRC_HEALTH, 
 var CAL2_RF_D    = spec(TIER_COMPACT, TOP_CAL,   BODY_FC,    STATUS_SRC_RADAR,    STATUS_SRC_FORECAST);
 var CAL2_RDR_W   = spec(TIER_COMPACT, TOP_CAL,   BODY_RADAR, STATUS_SRC_RADAR,    STATUS_SRC_NONE);
 var CAL2_GRAPH_D = spec(TIER_COMPACT, TOP_CAL,   BODY_GRAPH, STATUS_SRC_HEALTH,   STATUS_SRC_FORECAST);
-// compactDense radar flick: the dense preset stays DENSE on the radar view too —
-// health upper + radar lower over the radar chart (radarMode='status' demotes the
-// chart to the forecast graph via demoteRadarBody, keeping both rows).
+// compactDense radar flicks: the dense preset stays DENSE on the radar view too
+// (radarMode='status' demotes the chart to the forecast graph via demoteRadarBody,
+// keeping both rows). With a health bar: health upper + radar lower over the chart.
+// Without one (health off/slot): the default's radar-upper + forecast-lower pair
+// carries over onto the chart. CAL2_HR_D also serves as fullCal's radar flick when
+// health=status — once that cycle's health flick drops to the 2-row calendar, the
+// radar flick keeps the same tier instead of bouncing back to 3 rows.
 var CAL2_HR_D    = spec(TIER_COMPACT, TOP_CAL,   BODY_RADAR, STATUS_SRC_HEALTH,   STATUS_SRC_RADAR);
+var CAL2_RDR_D   = spec(TIER_COMPACT, TOP_CAL,   BODY_RADAR, STATUS_SRC_RADAR,    STATUS_SRC_FORECAST);
 var NONE_FC_W    = spec(TIER_NONE,    TOP_EMPTY, BODY_FC,    STATUS_SRC_FORECAST, STATUS_SRC_NONE);
 var NONE_FC_H    = spec(TIER_NONE,    TOP_EMPTY, BODY_FC,    STATUS_SRC_HEALTH,   STATUS_SRC_NONE);
 var NONE_GRAPH_H = spec(TIER_NONE,    TOP_EMPTY, BODY_GRAPH, STATUS_SRC_HEALTH,   STATUS_SRC_NONE);
@@ -76,7 +81,9 @@ var NONE_RDR_W   = spec(TIER_NONE,    TOP_EMPTY, BODY_RADAR, STATUS_SRC_RADAR,  
 var MATRIX = {
   fullCal: {
     off:    { n: [CAL3_FC_W],              r: [CAL3_FC_W, CAL3_RDR_W] },
-    status: { n: [CAL3_FC_W, CAL2_HF_D],   r: [CAL3_FC_W, CAL2_HF_D, CAL3_RDR_W] },
+    // status: the health flick drops to the 2-row dense view, so the radar flick rides
+    // the SAME 2-row tier (dense health+radar) — flicks never bounce back to 3 rows.
+    status: { n: [CAL3_FC_W, CAL2_HF_D],   r: [CAL3_FC_W, CAL2_HF_D, CAL2_HR_D] },
     all:    { n: [CAL3_FC_W, NONE_GRAPH_H],r: [CAL3_FC_W, NONE_GRAPH_H, NONE_RDR_W] }
   },
   compactCal: {
@@ -86,9 +93,10 @@ var MATRIX = {
   },
   compactDense: {
     // off/slot + radar: dense still shows up — radar upper + weather lower (the same
-    // default the radarMode='status' special case below builds); health-and-radar-less
-    // dense has only ONE weather status line, so it degrades to the single-row view.
-    off:    { n: [CAL2_FC_W],              r: [CAL2_RF_D, CAL2_RDR_W] },
+    // default the radarMode='status' special case below builds), and the radar flick
+    // keeps that dense pair over the chart; health-and-radar-less dense has only ONE
+    // weather status line, so it degrades to the single-row view.
+    off:    { n: [CAL2_FC_W],              r: [CAL2_RF_D, CAL2_RDR_D] },
     status: { n: [CAL2_HF_D],              r: [CAL2_HF_D, CAL2_HR_D] },
     all:    { n: [CAL2_HF_D, CAL2_GRAPH_D],r: [CAL2_HF_D, CAL2_GRAPH_D, CAL2_HR_D] }
   },

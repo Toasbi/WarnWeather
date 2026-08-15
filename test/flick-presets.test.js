@@ -31,7 +31,13 @@ test('compactDense status → health-dense default, single flick', () => {
 
 test('fullCal status + radar', () => {
   assert.deepStrictEqual(views({ layoutPreset: 'fullCal', healthMode: 'status', radarMode: 'graph' }),
-    [0x344, 0x24D, 0x368]);   // radar flick = CAL3·RDR (radar chart body, RADAR status row)
+    [0x344, 0x24D, 0x26E]);   // radar flick = CAL2·RDR dense (health upper, radar lower) —
+                              // same 2-row tier as the health flick, never back to 3 rows
+});
+
+test('compactDense off + radar graph → dense default AND dense radar flick', () => {
+  assert.deepStrictEqual(views({ layoutPreset: 'compactDense', healthMode: 'off', radarMode: 'graph' }),
+    [0x249, 0x269, 0]);   // flick keeps the dense pair: radar upper, forecast lower, chart body
 });
 
 test('legacy layoutPreset migrates (classic → compactCal)', () => {

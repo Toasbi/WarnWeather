@@ -365,8 +365,21 @@ ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health) {
         spec.top = TOP_BAND_CALENDAR;   // radar-in-top implies full tier → 3-row calendar
     }
     if (spec.body == BODY_RADAR && !has_radar) { spec.body = BODY_FORECAST; }
+    uint8_t upper_before = spec.status_upper;
     spec.status_upper = resolve_source(spec.status_upper, has_radar, has_health);
     spec.status_lower = resolve_source(spec.status_lower, has_radar, has_health);
+    // A STRIPPED upper promotes the surviving lower row into its slot: a degraded dense
+    // view (e.g. compactDense's radar-upper + forecast-lower default before the first
+    // radar frame arrives) renders as the plain compact layout, not as the unrequested
+    // swap-clock/status layout — the clock keeps its seat, so nothing jumps when the
+    // capability comes back. A CONFIGURED lone lower (the swap toggle's layout) has
+    // upper_before == NONE and is left where the user put it. Mirrors the aplite twin's
+    // unpack collapse ("a clean single view, not an unrequested swap", layout_aplite.c).
+    if (upper_before != STATUS_SRC_NONE && spec.status_upper == STATUS_SRC_NONE
+        && spec.status_lower != STATUS_SRC_NONE) {
+        spec.status_upper = spec.status_lower;
+        spec.status_lower = STATUS_SRC_NONE;
+    }
     // Recompute the tier from what actually survives, mirroring view_spec_unpack: only two
     // stacked rows squeeze to the smaller full-tier font; a lone surviving row (upper OR lower)
     // keeps the larger compact font. Promote to FULL only for two rows.

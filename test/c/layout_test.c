@@ -215,18 +215,20 @@ static void test_unpack_positional(void) {
     printf("unpack_positional OK\n");
 }
 
-// Brief Task 3: per-band availability downgrades.
+// Brief Task 3: per-band availability downgrades. A stripped UPPER promotes the surviving
+// lower row into the upper slot (see test_resolve_strip_promotes_upper) — the forecast row
+// lands where a lone row normally sits, not in the swap layout's lower band.
 static void test_resolve_no_health_no_radar(void) {
     // health+forecast dense, but neither capability -> both fall back sanely.
     ViewSpec s = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST));
     ViewSpec r = view_spec_resolve(s, /*has_radar*/false, /*has_health*/false);
-    expect("resolve_nhnr.health_dropped", r.status_upper == STATUS_SRC_NONE, true);
-    expect("resolve_nhnr.forecast_kept", r.status_lower == STATUS_SRC_FORECAST, true);
-    // radar row without radar data collapses to none.
+    expect("resolve_nhnr.health_dropped_fc_promoted", r.status_upper == STATUS_SRC_FORECAST, true);
+    expect("resolve_nhnr.lower_vacated", r.status_lower == STATUS_SRC_NONE, true);
+    // radar row without radar data collapses; the forecast row takes the upper slot.
     ViewSpec s2 = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_RADAR, STATUS_SRC_FORECAST));
     ViewSpec r2 = view_spec_resolve(s2, false, true);
-    expect("resolve_nhnr.radar_dropped", r2.status_upper == STATUS_SRC_NONE, true);
-    expect("resolve_nhnr.radar_forecast_kept", r2.status_lower == STATUS_SRC_FORECAST, true);
+    expect("resolve_nhnr.radar_dropped_fc_promoted", r2.status_upper == STATUS_SRC_FORECAST, true);
+    expect("resolve_nhnr.radar_lower_vacated", r2.status_lower == STATUS_SRC_NONE, true);
     printf("resolve_no_health_no_radar OK\n");
 }
 
@@ -259,14 +261,15 @@ static void viewspec_tests(void) {
 
     expect("unpack.off_tier", view_spec_unpack(0).calendar_rows == 0, true);
 
-    // Availability resolve. A dropped upper leaves the lower where it is. The lone survivor is a
-    // single status row, so it drops to the COMPACT (larger) status font under a compact calendar
-    // — only a DUAL squeezes to the full-tier (smaller) font.
+    // Availability resolve. A dropped upper PROMOTES the surviving lower into the upper slot
+    // (a stripped dense view renders as the plain compact layout, not the swap layout). The
+    // lone survivor is a single status row, so it keeps the COMPACT (larger) status font
+    // under a compact calendar — only a DUAL squeezes to the full-tier (smaller) font.
     ViewSpec r = view_spec_resolve(view_spec_unpack(pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST)),
                                    true, false);
-    expect("resolve.nohealth.upper_dropped", r.status_upper == STATUS_SRC_NONE, true);
-    expect("resolve.nohealth.lower_kept", r.status_lower == STATUS_SRC_FORECAST, true);
-    expect("resolve.nohealth.lone_lower_compact", r.status_tier == LAYOUT_TIER_COMPACT, true);
+    expect("resolve.nohealth.survivor_promoted", r.status_upper == STATUS_SRC_FORECAST, true);
+    expect("resolve.nohealth.lower_vacated", r.status_lower == STATUS_SRC_NONE, true);
+    expect("resolve.nohealth.lone_upper_compact", r.status_tier == LAYOUT_TIER_COMPACT, true);
     r = view_spec_resolve(view_spec_unpack(pack(1, 0, 1, STATUS_SRC_HEALTH, STATUS_SRC_NONE)),
                           true, false);   // NONE tier, health graph body + health upper
     expect("resolve.nohealth.graph_to_forecast", r.body == BODY_FORECAST, true);
@@ -292,8 +295,8 @@ static void viewspec_tests(void) {
     expect("rdrstat.radar_status_on", vrs.radar_status, true);
     expect("rdrstat.weather_status_on", vrs.weather_status, true);
     ViewSpec rsn = view_spec_resolve(rs, false, false);      // no radar data
-    expect("rdrstat.no_radar_upper_none", rsn.status_upper == STATUS_SRC_NONE, true);
-    expect("rdrstat.no_radar_lower_fc", rsn.status_lower == STATUS_SRC_FORECAST, true);
+    expect("rdrstat.no_radar_fc_promoted", rsn.status_upper == STATUS_SRC_FORECAST, true);
+    expect("rdrstat.no_radar_lower_vacated", rsn.status_lower == STATUS_SRC_NONE, true);
 }
 
 static void peek_tests(void) {
@@ -448,12 +451,13 @@ static void test_geometry_lower_only(void) {
 // COMPACT, making the clock/status swap a size-preserving position change (see the FULL<COMPACT
 // status-font sizes in layer_util.h / status_row.c).
 static void test_resolve_tier_lower_only(void) {
-    // Upper (health) resolves away, lone forecast lower survives, compact calendar → COMPACT.
+    // Upper (health) resolves away → the lone forecast survivor is PROMOTED to the upper
+    // slot (see test_resolve_strip_promotes_upper); as a lone row it stays COMPACT.
     ViewSpec r = view_spec_resolve(view_spec_unpack(pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST)),
                                    true, false);
-    expect("resolve_tier_lower_only.upper_gone", r.status_upper == STATUS_SRC_NONE, true);
-    expect("resolve_tier_lower_only.lower_survives", r.status_lower == STATUS_SRC_FORECAST, true);
-    expect("resolve_tier_lower_only.lone_lower_compact", r.status_tier == LAYOUT_TIER_COMPACT, true);
+    expect("resolve_tier_lower_only.survivor_promoted", r.status_upper == STATUS_SRC_FORECAST, true);
+    expect("resolve_tier_lower_only.lower_vacated", r.status_lower == STATUS_SRC_NONE, true);
+    expect("resolve_tier_lower_only.lone_upper_compact", r.status_tier == LAYOUT_TIER_COMPACT, true);
 
     // Configured lone lower (the swap layout) stays compact too.
     ViewSpec c = view_spec_resolve(view_spec_unpack(pack(2, 1, 0, STATUS_SRC_NONE, STATUS_SRC_FORECAST)),
@@ -474,6 +478,49 @@ static void test_resolve_tier_lower_only(void) {
     ViewSpec un = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_NONE, STATUS_SRC_FORECAST));
     expect("resolve_tier_lower_only.unpack_lone_lower_compact", un.status_tier == LAYOUT_TIER_COMPACT, true);
     printf("resolve_tier_lower_only OK\n");
+}
+
+// A capability-stripped UPPER must not leave a lone LOWER row behind: the survivor is
+// promoted to the upper slot, so a degraded dense view renders as the plain compact
+// layout — not as the (unrequested) swap-clock/status layout. Concretely: compactDense's
+// slot-0 default [CAL2_RF_D] with no cached radar frame yet must look like compactCal,
+// and must not jump the clock when radar data lands. A CONFIGURED lone lower (the swap
+// toggle) has nothing stripped and stays below. Mirrors the aplite twin's unpack
+// collapse ("a clean single view, not an unrequested swap", layout_aplite.c).
+static void test_resolve_strip_promotes_upper(void) {
+    // compactDense default (radar upper + forecast lower), radar data missing.
+    ViewSpec r = view_spec_resolve(view_spec_unpack(pack(2, 1, 0, STATUS_SRC_RADAR, STATUS_SRC_FORECAST)),
+                                   false, true);
+    expect("strip_promote.upper_forecast", r.status_upper == STATUS_SRC_FORECAST, true);
+    expect("strip_promote.lower_vacated", r.status_lower == STATUS_SRC_NONE, true);
+    expect("strip_promote.tier_compact", r.status_tier == LAYOUT_TIER_COMPACT, true);
+
+    // The promoted spec renders EXACTLY like the plain lone-upper view — the clock keeps
+    // its seat, so nothing moves when radar data arrives and the dense pair comes back.
+    ViewSpec plain = view_spec_resolve(view_spec_unpack(pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE)),
+                                       true, true);
+    MainLayout Lp = layout_compute_spec(BOUNDS, &r, FC_BAND_H);
+    MainLayout Lu = layout_compute_spec(BOUNDS, &plain, FC_BAND_H);
+    expect("strip_promote.same_clock", Lp.time.origin.y == Lu.time.origin.y, true);
+    expect("strip_promote.same_status_band",
+           Lp.status.origin.y == Lu.status.origin.y && Lp.status.size.h == Lu.status.size.h, true);
+    expect("strip_promote.same_body", Lp.bottom.origin.y == Lu.bottom.origin.y
+                                   && Lp.bottom.size.h == Lu.bottom.size.h, true);
+
+    // A configured lone lower (the swap layout) has nothing stripped — stays below.
+    ViewSpec c = view_spec_resolve(view_spec_unpack(pack(2, 1, 0, STATUS_SRC_NONE, STATUS_SRC_FORECAST)),
+                                   true, true);
+    expect("strip_promote.swap_untouched",
+           c.status_upper == STATUS_SRC_NONE && c.status_lower == STATUS_SRC_FORECAST, true);
+
+    // A stripped LOWER with a surviving upper needs no promotion (dense health+radar view,
+    // radar data missing): the health row keeps its seat, the chart body demotes.
+    ViewSpec hu = view_spec_resolve(view_spec_unpack(pack(2, 1, 2, STATUS_SRC_HEALTH, STATUS_SRC_RADAR)),
+                                    false, true);
+    expect("strip_promote.upper_kept", hu.status_upper == STATUS_SRC_HEALTH, true);
+    expect("strip_promote.lower_dropped", hu.status_lower == STATUS_SRC_NONE, true);
+    expect("strip_promote.body_fc", hu.body == BODY_FORECAST, true);
+    printf("resolve_strip_promotes_upper OK\n");
 }
 
 // A lone status row in the NONE tier occupies the SAME band whether the wire names it upper
@@ -1033,6 +1080,7 @@ int main(int argc, char **argv) {
     if (!s_dump) radar_placement_tests();
     if (!s_dump) test_geometry_lower_only();
     if (!s_dump) test_resolve_tier_lower_only();
+    if (!s_dump) test_resolve_strip_promotes_upper();
     if (!s_dump) test_geometry_none_lone_row();
     if (!s_dump) test_geometry_two_rows();
     if (!s_dump) seating_no_lift();

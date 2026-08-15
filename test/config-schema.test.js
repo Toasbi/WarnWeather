@@ -547,6 +547,32 @@ test('layoutPreset offers the four adaptive presets', () => {
   assert.equal(byKey('firstWeek').showWhen, undefined);
 });
 
+// A hidden compactDense must lie DORMANT, not be migrated away: rendering the Layout tab
+// while neither health nor radar shows a status row displays the compactCal fallback but
+// leaves the stored choice untouched, so briefly disabling health+radar and saving does
+// not lose the dense preset — it comes back when a status row re-enables it. (The wire
+// compiles stored-dense-with-nothing-enabled to the identical compactCal cycle, so the
+// watch always matches what the radio shows.) A truly invalid value still hard-snaps.
+test('hidden compactDense renders the compactCal fallback but stays in state', () => {
+  const eng = require('../src/pkjs/config-ui/lib/engine.js');
+  const ENV = platform.computeEnv({ platform: 'basalt' });
+  const cx = (S) => ({ S, ENV, USERDATA: {}, evalCtx: Object.assign({}, S, { env: ENV }) });
+
+  const S = eng.hydrate(schema, {});
+  S.layoutPreset = 'compactDense';
+  S.healthMode = 'off';
+  S.radarMode = 'off';   // dense hidden in this mode
+  const html = eng.renderBody(schema, 'layout', cx(S));
+  assert.equal(S.layoutPreset, 'compactDense', 'stored dense choice survives the render');
+  assert.match(html, /class="on" data-k="layoutPreset" data-v="compactCal"/,
+    'the radio shows compactCal selected as the display fallback');
+
+  // The generic lockstep rule is untouched: an unknown value still snaps into state.
+  S.layoutPreset = 'bogus';
+  eng.renderBody(schema, 'layout', cx(S));
+  assert.equal(S.layoutPreset, 'compactCal', 'invalid values still hard-snap');
+});
+
 test('viewResetMin is hidden on aplite and carries its explanation as its own hint', () => {
   const layout = schema.tabs.find((t) => t.id === 'layout');
   const layoutItems = layout.sections[0].items;
@@ -631,10 +657,36 @@ test('radarMode is a four-step radio with per-mode hint copy', () => {
   // rather than "also adds" deltas relative to the option above (user request).
   assert.deepEqual(item.hintByValue, {
     off: 'Radar is hidden.',
-    countdown: 'Shows a “Rain in X′” countdown in the Watch Status Bar, without adding a separate Radar view.',
-    status: 'Adds a Radar view showing the Radar Status Bar above the regular forecast graph.',
-    graph: 'Adds a Radar view showing both the Radar Status Bar and the full radar rain graph in place of the forecast graph.'
+    countdown: 'Shows a “Rain in X′” countdown in the Watch Status Bar.',
+    status: 'Adds the Radar Status Bar.',
+    graph: 'Adds the Radar Status Bar and the full radar rain graph.'
   });
+});
+
+// Mode hints talk about the STATUS BAR and the GRAPH, never about views (where a status
+// bar lands depends on the layout preset — flick view on most, folded into compactDense's
+// default — so naming a view or a position would lie somewhere; user request). The
+// status modes say the bar is added without saying where.
+test('mode hints mention bar/graph only — no view claims, no positions', () => {
+  const radar = byKey('radarMode').hintByValue;
+  const health = byKey('healthMode').hintByValue;
+  [radar, health].forEach((hints) => Object.keys(hints).forEach((k) => {
+    assert.ok(!/\bview\b/i.test(hints[k]), k + ' hint must not mention a view');
+  }));
+  assert.ok(!/above the/i.test(radar.status) && !/above the/i.test(health.status),
+    'status hints say the bar is added, not where');
+  assert.equal(radar.status, 'Adds the Radar Status Bar.');
+  assert.match(health.status, /^Adds the Health Status Bar/);
+  assert.equal(radar.graph, 'Adds the Radar Status Bar and the full radar rain graph.');
+  assert.match(health.all, /^Adds the Health Status Bar and a health graph/);
+});
+
+test('compactDense hint holds for every pairing (health OR radar), not just health', () => {
+  const hint = byKey('layoutPreset').hintByValue.compactDense;
+  // With health off/slot the dense pair is Radar + Forecast — the hint must not
+  // promise the Health bar specifically.
+  assert.ok(!/health and forecast/i.test(hint), 'must not hard-code the health pairing');
+  assert.match(hint, /two status bars/i);
 });
 
 test('radar provider hides when off; preview and color require the graph mode', () => {

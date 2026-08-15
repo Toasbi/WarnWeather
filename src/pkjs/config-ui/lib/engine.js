@@ -1162,7 +1162,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var dflt = resolveDefaultFrom(item, cx.ENV);
       var snap = (dflt != null && optionHasValue(derived, dflt)) ? dflt : derived[0][1];
       view.value = snap;
-      cx.S[item.messageKey] = snap;
+      // A DORMANT value (declared in item.dormantValues) is a valid choice the current
+      // mode merely hides — e.g. compactDense while neither health nor radar shows a
+      // status row: render the fallback but leave cx.S untouched, so the stored choice
+      // returns when the mode re-enables it. Anything else is truly invalid and snaps
+      // into state so the control and state stay in lockstep.
+      var stored = cx.S[item.messageKey];
+      if (!(item.dormantValues && item.dormantValues.indexOf(stored) >= 0)) {
+        cx.S[item.messageKey] = snap;
+      }
     }
     return Object.assign({}, item, { options: derived });
   }

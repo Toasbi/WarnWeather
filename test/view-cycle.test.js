@@ -36,13 +36,36 @@ test('compactDense + both radar=status and health=status: health-dense default, 
   assert.ok(c.slice(1).some((s) => up(s) === vc.STATUS_SRC_RADAR || lo(s) === vc.STATUS_SRC_RADAR));
 });
 
-test('compactDense + radar=graph + health=off: dense default (radar upper, weather lower), radar chart flick', () => {
+test('compactDense + radar=graph + health=off: dense default (radar upper, weather lower), radar chart flick stays dense', () => {
   const c = vc.buildViewCycle('compactDense', 'off', 'graph');
   assert.equal(up(c[0]), vc.STATUS_SRC_RADAR, 'dense still shows up with health off');
   assert.equal(lo(c[0]), vc.STATUS_SRC_FORECAST);
   assert.equal(c[0].body, vc.BODY_FC);
   assert.equal(c.length, 2);
   assert.equal(c[1].body, vc.BODY_RADAR);
+  // The flick keeps the dense pair: radar row above the clock, forecast row above the chart.
+  assert.equal(up(c[1]), vc.STATUS_SRC_RADAR, 'flick keeps the radar upper row');
+  assert.equal(lo(c[1]), vc.STATUS_SRC_FORECAST, 'flick keeps the forecast lower row');
+});
+
+// fullCal's flick-tier consistency: the default view is ALWAYS the 3-row calendar; once a
+// flick drops to the 2-row calendar (the dense health view), every flick does — the radar
+// flick must not bounce back to 3 rows between two 2-row neighbours (user report).
+test('fullCal + health=status + radar: the radar flick drops to the 2-row dense health+radar view', () => {
+  const c = vc.buildViewCycle('fullCal', 'status', 'graph');
+  assert.equal(c.length, 3);
+  assert.equal(c[0].tier, vc.TIER_FULL, 'default keeps the 3-row calendar');
+  assert.equal(c[1].tier, vc.TIER_COMPACT);
+  assert.equal(c[2].tier, vc.TIER_COMPACT, 'radar flick matches the health flick tier');
+  assert.equal(up(c[2]), vc.STATUS_SRC_HEALTH, 'radar flick keeps the health upper row');
+  assert.equal(lo(c[2]), vc.STATUS_SRC_RADAR, 'radar flick carries the radar lower row');
+  assert.equal(c[2].body, vc.BODY_RADAR);
+  // radarMode=status demotes only the body — rows and tier stay.
+  const st = vc.buildViewCycle('fullCal', 'status', 'status');
+  assert.equal(st[2].tier, vc.TIER_COMPACT);
+  assert.equal(up(st[2]), vc.STATUS_SRC_HEALTH);
+  assert.equal(lo(st[2]), vc.STATUS_SRC_RADAR);
+  assert.equal(st[2].body, vc.BODY_FC);
 });
 
 test('compactDense + radar=graph + health=status: the radar flick stays dense (health upper, radar lower)', () => {
