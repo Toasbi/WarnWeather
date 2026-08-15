@@ -484,7 +484,8 @@ test('the sheet: toggle off shows a disabled seeded slider; on enables and seeds
     'semantic zones rendered');
   assert.ok(sheet.indexOf('th-warn') !== -1 && sheet.indexOf('th-danger') !== -1,
     'role-styled thumbs rendered');
-  assert.ok(sheet.indexOf('Example:') !== -1, 'the chip readout is labeled as an example');
+  assert.ok(sheet.indexOf('Example:') === -1,
+    'no "Example:" label on the chip readout (dropped by user request)');
   assert.ok(sheet.indexOf('Warn 100') !== -1 && sheet.indexOf('Danger 150') !== -1,
     'readout chips carry the values');
   assert.ok(sheet.indexOf('data-max-edit="threshAqiMax"') !== -1,

@@ -873,7 +873,6 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   function thresholdChipsHtml(item, r) {
     var unit = item.unit ? ' ' + esc(item.unit) : '';
     return '<div class="rng-chips">'
-      + '<span class="rng-chips-lbl">Example:</span>'
       + '<span class="rng-chip warn" style="--th-c:' + esc(item.warnColor)
       + '">Warn ' + r.warn + unit + '</span>'
       + '<span class="rng-chip danger" style="--th-c:' + esc(item.dangerColor)
