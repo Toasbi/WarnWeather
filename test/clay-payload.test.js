@@ -9,7 +9,7 @@ global.localStorage = {
   removeItem: function(k) {}
 };
 
-const { buildClayPayload } = require('../src/pkjs/clay-payload');
+const { buildClayPayload, truncateUtf8Bytes } = require('../src/pkjs/clay-payload');
 const holidayMask = require('../src/pkjs/holidays/holiday-mask');
 const viewCycle = require('../src/pkjs/view-cycle');
 
@@ -193,6 +193,66 @@ test('CLAY_HR_SCALE packs the hrScale pair as lo | (hi << 8)', function() {
   // Both operands must survive the round trip as bytes.
   assert.equal(p.CLAY_HR_SCALE & 0xFF, 50);
   assert.equal((p.CLAY_HR_SCALE >> 8) & 0xFF, 100);
+});
+
+test('CLAY_NORAIN_TEXT packs the trimmed radarNoRainText', function() {
+  const s = baseSettings();
+  s.radarNoRainText = '  Dry skies today  ';
+  const p = buildClayPayload(s, { platform: 'basalt' }, NOW);
+  assert.equal(p.CLAY_NORAIN_TEXT, 'Dry skies today');
+});
+
+test('CLAY_NORAIN_TEXT sends an empty string for unset or whitespace-only text (watch falls back to its built-in)', function() {
+  // Unset (pre-seed upgrade blob): the key must still ride so the watch can
+  // clear a previously-stored custom text.
+  assert.equal(buildClayPayload(baseSettings(), { platform: 'basalt' }, NOW).CLAY_NORAIN_TEXT, '');
+  const s = baseSettings();
+  s.radarNoRainText = '   ';
+  assert.equal(buildClayPayload(s, { platform: 'basalt' }, NOW).CLAY_NORAIN_TEXT, '');
+});
+
+test('CLAY_NORAIN_TEXT truncates to 24 UTF-8 bytes, not 24 chars', function() {
+  const s = baseSettings();
+  s.radarNoRainText = 'ÄÄÄÄÄÄÄÄÄÄÄÄÄ';   // 13 chars x 2 bytes = 26 bytes
+  const p = buildClayPayload(s, { platform: 'basalt' }, NOW);
+  assert.equal(p.CLAY_NORAIN_TEXT, 'ÄÄÄÄÄÄÄÄÄÄÄÄ');   // 12 chars = 24 bytes
+  assert.equal(Buffer.byteLength(p.CLAY_NORAIN_TEXT, 'utf8'), 24);
+});
+
+test('CLAY_NORAIN_TEXT never splits a multi-byte sequence at the 24-byte boundary', function() {
+  const s = baseSettings();
+  // 23 ASCII bytes + a 2-byte umlaut would land on 25 — the umlaut must be
+  // dropped whole, never emitted as half a sequence.
+  s.radarNoRainText = 'aaaaaaaaaaaaaaaaaaaaaaaü';
+  const p = buildClayPayload(s, { platform: 'basalt' }, NOW);
+  assert.equal(p.CLAY_NORAIN_TEXT, 'aaaaaaaaaaaaaaaaaaaaaaa');
+  assert.equal(Buffer.byteLength(p.CLAY_NORAIN_TEXT, 'utf8'), 23);
+});
+
+test('CLAY_NORAIN_TEXT is omitted for a radar-less watch (aplite) but kept for unknown platforms', function() {
+  const s = baseSettings();
+  s.radarNoRainText = 'Dry';
+  const aplite = buildClayPayload(s, { platform: 'aplite' }, NOW);
+  assert.equal(Object.prototype.hasOwnProperty.call(aplite, 'CLAY_NORAIN_TEXT'), false);
+  // Unknown watchInfo must never drop a real feature (computeEnv convention).
+  const unknown = buildClayPayload(s, null, NOW);
+  assert.equal(unknown.CLAY_NORAIN_TEXT, 'Dry');
+});
+
+test('truncateUtf8Bytes keeps or drops a surrogate pair whole (4-byte emoji)', function() {
+  // 21 ASCII bytes + a 4-byte emoji = 25 bytes -> the emoji is dropped whole.
+  const emoji = '🌧';   // 🌧 (U+1F327), 4 UTF-8 bytes
+  const over = 'aaaaaaaaaaaaaaaaaaaaa' + emoji;
+  assert.equal(truncateUtf8Bytes(over, 24), 'aaaaaaaaaaaaaaaaaaaaa');
+  // 20 ASCII bytes + the emoji = 24 bytes -> fits exactly, pair intact.
+  const fits = 'aaaaaaaaaaaaaaaaaaaa' + emoji;
+  assert.equal(truncateUtf8Bytes(fits, 24), fits);
+  assert.equal(Buffer.byteLength(truncateUtf8Bytes(fits, 24), 'utf8'), 24);
+});
+
+test('truncateUtf8Bytes passes short strings through untouched', function() {
+  assert.equal(truncateUtf8Bytes('No rain ahead', 24), 'No rain ahead');
+  assert.equal(truncateUtf8Bytes('', 24), '');
 });
 
 test('CLAY_HR_SCALE falls back to 40-180 when unset or malformed', function() {

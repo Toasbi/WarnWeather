@@ -311,11 +311,36 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
         GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_18);
         const int text_h = 18;
 #endif
+        // A configured text (CLAY_NORAIN_TEXT, Radar settings) replaces the
+        // built-in line; persist absent (never set, or cleared) = the default.
+        char custom[NORAIN_TEXT_BUF_BYTES];
+        const char *text = (persist_get_norain_text(custom, sizeof(custom)) > 0)
+            ? custom : "No rain ahead";
+        // A custom text can run to 24 UTF-8 bytes — wider than a 144 px plot at
+        // this font — so the box grows to TWO lines when the plot affords them
+        // (the dense/none radar bands; the compact top band's plot is exactly
+        // one 18 px line tall, so it keeps the old single-line box).
+        // TrailingEllipsis word-wraps inside the box and ellipsizes only the
+        // last visible line: short text renders exactly as before, a long one
+        // wraps, an overlong second line still ellipsizes. The box centres on
+        // the MEASURED height so one line keeps its old seat; -text_h/4
+        // optically lifts over Gothic's blank top padding, clamped so a full
+        // two-line block never rises into the axis strip.
+        int content_h = text_h;
+        if (outer.size.h >= 2 * text_h) {
+            content_h = graphics_text_layout_get_content_size(text, font,
+                GRect(0, 0, outer.size.w, 2 * text_h + 4),
+                GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter).h;
+            if (content_h < text_h)     { content_h = text_h; }
+            if (content_h > 2 * text_h) { content_h = 2 * text_h; }
+        }
+        int text_y = outer.origin.y + (outer.size.h - content_h) / 2 - text_h / 4;
+        if (content_h > text_h && text_y < outer.origin.y) {
+            text_y = outer.origin.y;   // keep a wrapped block below the axis strip
+        }
         graphics_context_set_text_color(ctx, theme_fg());
-        graphics_draw_text(ctx, "No rain ahead", font,
-            GRect(outer.origin.x,
-                  outer.origin.y + (outer.size.h - text_h) / 2 - text_h / 4,
-                  outer.size.w, text_h + 4),
+        graphics_draw_text(ctx, text, font,
+            GRect(outer.origin.x, text_y, outer.size.w, content_h + 4),
             GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
     }
 

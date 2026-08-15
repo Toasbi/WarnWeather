@@ -63,6 +63,16 @@ test('getDefaults includes thirdLine defaulting to uv', () => {
   assert.equal(claySettings.getDefaults(COLORS).thirdLine, 'uv');
 });
 
+test('getDefaults seeds radarNoRainText with the visible built-in text', () => {
+  // The config field shows the watch's actual message (defaultValue, not a
+  // placeholder), so the seeded settings blob must carry it too — clay-payload
+  // then packs it under CLAY_NORAIN_TEXT (24-UTF-8-byte cap at pack time).
+  installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  assert.equal(claySettings.getDefaults(COLORS).radarNoRainText, 'No rain ahead');
+});
+
 test('getDefaults includes gpsCacheMin defaulting to 30 minutes', () => {
   installFakeStorage();
   delete require.cache[require.resolve('../src/pkjs/clay-settings')];

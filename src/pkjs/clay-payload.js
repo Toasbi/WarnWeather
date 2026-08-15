@@ -16,6 +16,42 @@ var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
 var DEFAULT_COLOR_BLUE_MOON = pebbleColors.GColorBlueMoon;
 
 /**
+ * Truncate a string to at most maxBytes bytes of UTF-8 without splitting a
+ * multi-byte sequence. Byte counts follow the UTF-8 encoding of each code
+ * point (1–4 bytes); a surrogate pair is treated as one 4-byte code point and
+ * is kept or dropped whole, never halved. A lone (unpaired) surrogate counts
+ * as 3 bytes, matching how it would be encoded.
+ * @param {string} str Input string.
+ * @param {number} maxBytes Maximum UTF-8 byte budget.
+ * @returns {string} The longest prefix of str that encodes to <= maxBytes bytes.
+ */
+function truncateUtf8Bytes(str, maxBytes) {
+    var bytes = 0;
+    var i = 0;
+    var code;
+    var units;   // UTF-16 code units consumed by this code point
+    var n;       // UTF-8 bytes this code point encodes to
+    while (i < str.length) {
+        code = str.charCodeAt(i);
+        units = 1;
+        if (code < 0x80) { n = 1; }
+        else if (code < 0x800) { n = 2; }
+        else if (code >= 0xD800 && code <= 0xDBFF
+                 && i + 1 < str.length
+                 && str.charCodeAt(i + 1) >= 0xDC00
+                 && str.charCodeAt(i + 1) <= 0xDFFF) {
+            n = 4;       // surrogate pair — one astral code point
+            units = 2;
+        }
+        else { n = 3; }
+        if (bytes + n > maxBytes) { break; }
+        bytes += n;
+        i += units;
+    }
+    return str.slice(0, i);
+}
+
+/**
  * Build the Clay settings AppMessage payload.
  * @param {Object} settings Clay settings (claySettings.read() shape).
  * @param {Object|null} watchInfo Active watch info (platform read for palette packing).
@@ -109,8 +145,22 @@ function buildClayPayload(settings, watchInfo, now) {
     // whole threshold card and its inbox handler for this tuple is gone, so the
     // 34 B (27 blob + tuple header) stay out of its Clay bundle. An unknown platform
     // is treated as capable (computeEnv), so a missing watchInfo never drops it.
-    if (platformLib.computeEnv(watchInfo).thresholds) {
+    var env = platformLib.computeEnv(watchInfo);
+    if (env.thresholds) {
         payload.CLAY_THRESHOLDS_UINT8 = statusThresholds.buildSettingsBlob(settings);
+    }
+
+    // Custom radar empty-state text — settings-derived, so it rides the Clay
+    // message. Trimmed, then truncated to 24 UTF-8 BYTES (the watch persists it
+    // in a 25 B buffer incl. NUL). An empty result still rides the wire: the
+    // watch clears its stored text and falls back to the built-in string.
+    // Omitted for a watch that compiles the radar out (aplite): its inbox
+    // handler for this tuple is gone (WW_RAIN_RADAR), so the bytes stay out of
+    // its Clay bundle. An unknown platform is treated as radar-capable
+    // (computeEnv), so a missing watchInfo never drops it.
+    if (env.radar) {
+        payload.CLAY_NORAIN_TEXT = truncateUtf8Bytes(
+            String(settings.radarNoRainText || '').trim(), 24);
     }
 
     // Pack the cycle into the three wire bytes (unused slots → 0 = disabled).
@@ -123,5 +173,8 @@ function buildClayPayload(settings, watchInfo, now) {
 }
 
 module.exports = {
-    buildClayPayload: buildClayPayload
+    buildClayPayload: buildClayPayload,
+    // Exported for tests (multi-byte boundary cases); production callers go
+    // through buildClayPayload.
+    truncateUtf8Bytes: truncateUtf8Bytes
 };

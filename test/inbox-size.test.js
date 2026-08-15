@@ -177,6 +177,9 @@ function buildHeaviestClayMessage() {
     fetchIntervalMin: '30', holidayCountry: 'US', holidaysEnabled: true,
     rainBarColor: 'multicolor', radarColor: 'multicolor', rainCountdownHorizon: '120',
     healthMode: 'all', theme: 'bw',
+    // Worst-case custom no-rain text: the full 24-byte UTF-8 cap (CLAY_NORAIN_TEXT
+    // packs it + NUL; clay-payload truncates anything longer at pack time).
+    radarNoRainText: 'Kein Regen in Sichtweite',
   }, { platform: 'emery' }, new Date('2026-06-26T00:00:00Z'));
 }
 
@@ -198,6 +201,8 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // 389 -> 391 when the threshold blob widened 27 -> 29 (UV color pair).
   // 391 -> 395 when it widened 29 -> 33 (the four per-kind bold-mode bytes:
   // 16 kinds x 2 bits, bold-only kinds 8..15 included).
-  assert.equal(size, 395, 'update the recorded Clay message size when its wire contract changes');
+  // 395 -> 427 when the custom radar no-rain text joined (CLAY_NORAIN_TEXT:
+  // 7 B tuple header + 24 B text cap + 1 B NUL = 32 B).
+  assert.equal(size, 427, 'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });

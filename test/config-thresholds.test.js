@@ -785,8 +785,10 @@ test('the real generated page: threshold pencils + sheet on basalt, nothing on a
   ['threshAqiOn', 'threshAqiWarn', 'threshWindOn', 'threshStepsOn',
     'threshAqiWarnColor', 'statusBoldAll'].forEach((k) =>
     assert.equal(apliteWatch.indexOf('data-k="' + k + '"'), -1, k + ' absent on aplite'));
-  assert.ok(apliteWatch.indexOf('data-k="timeLeadingZero"') !== -1,
-    'the rest of the Watch tab still renders on aplite');
+  // Time/Calendar moved to the Layout tab, so probe an always-shown
+  // Watch-Status-Bar toggle instead.
+  assert.ok(apliteWatch.indexOf('data-k="showQt"') !== -1,
+    'the rest of the Status-slots tab still renders on aplite');
 });
 
 // --- the slot sheet's shape: Bold row above its own thresholds/goals group ----

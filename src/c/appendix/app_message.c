@@ -282,6 +282,21 @@ static bool handle_rain_radar(DictionaryIterator *iterator, bool *radar_dirty) {
     *radar_dirty |= changed;
     return true;
 }
+
+// Custom radar empty-state text — settings-derived, so it rides the Clay
+// message (see clay-payload.js). Empty clears the stored text and the radar
+// falls back to its built-in string; persist_set_norain_text also bounds the
+// bytes to its 25 B buffer, so a skewed sender can't overrun it.
+static bool handle_norain_text(DictionaryIterator *iterator, bool *radar_dirty) {
+    Tuple *tuple = dict_find(iterator, MESSAGE_KEY_CLAY_NORAIN_TEXT);
+    if (!tuple) {
+        return false;
+    }
+    // A CSTRING tuple; anything else clears back to the built-in default.
+    const char *text = (tuple->type == TUPLE_CSTRING) ? tuple->value->cstring : "";
+    *radar_dirty |= persist_set_norain_text(text);
+    return true;
+}
 #endif  // WW_RAIN_RADAR
 
 static bool handle_palette(DictionaryIterator *iterator, bool *forecast_dirty,
@@ -387,6 +402,9 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     // aplite has no radar layer (--gc-sections reaps rain_radar_layer.c), so it
     // ignores inbound radar payloads; the whole radar persist surface drops too.
     handled |= handle_rain_radar(iterator, &radar_dirty);
+    // The no-rain text repaints via the same radar_dirty checkpoint below
+    // (rain_radar_layer_refresh), so an open radar view redraws on save.
+    handled |= handle_norain_text(iterator, &radar_dirty);
 #endif
     handled |= handle_palette(iterator, &forecast_dirty, &radar_dirty);
     handled |= handle_clay_config(iterator, &config_dirty);

@@ -864,7 +864,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   function renderText(item, v) {
     var ph = (item.attributes && item.attributes.placeholder) ? esc(item.attributes.placeholder) : '';
-    var input = '<input type="text" data-k="' + item.messageKey + '" value="' + esc(v || '') + '" placeholder="' + ph + '">';
+    // attributes.maxlength lands verbatim on the <input>. Note the browser counts
+    // UTF-16 code units, not bytes — byte-capped keys (e.g. radarNoRainText) are
+    // re-truncated UTF-8-safely phone-side at pack time; this is the soft UI cap.
+    var ml = (item.attributes && item.attributes.maxlength)
+      ? ' maxlength="' + esc(String(item.attributes.maxlength)) + '"' : '';
+    var input = '<input type="text" data-k="' + item.messageKey + '" value="' + esc(v || '') + '" placeholder="' + ph + '"' + ml + '>';
     if (!item.suffixAction) { return input; }
     // Optional inline action button to the RIGHT of the input (e.g. "Test" a key),
     // plus an empty result line the action fills — targeted by

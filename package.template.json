@@ -312,7 +312,8 @@
       "NOTICE_TEXT",
       "STATUS_LEVELS_UINT8",
       "CLAY_THRESHOLDS_UINT8",
-      "CLAY_HR_SCALE"
+      "CLAY_HR_SCALE",
+      "CLAY_NORAIN_TEXT"
     ]
   }
 }

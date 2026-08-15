@@ -838,6 +838,20 @@ module.exports = {
                 options: [['Multicolor', 'multicolor'], ['Solid', 'white']],
                 showWhen: {all: [{key: 'radarMode', eq: 'graph'}, {key: 'theme', nin: ['bw', 'bw-light']}]}
             }, {
+                // Custom quiet-state text: drawn in the radar view when the nowcast
+                // finds no rain in the whole window. Ships visibly with the watch's
+                // built-in default so users override the actual message. The UI
+                // maxlength is a soft character cap; the phone re-truncates to 24
+                // UTF-8 BYTES at pack time, and empty/whitespace-only text makes the
+                // watch fall back to its built-in string. No extra gate: the tab's
+                // env-radar showWhen already covers it.
+                type: 'text',
+                messageKey: 'radarNoRainText',
+                label: 'No-rain message',
+                defaultValue: 'No rain ahead',
+                attributes: {maxlength: 24},
+                hint: 'Shown in the radar view when no rain is coming. Up to 24 characters; clear the field to use the default.'
+            }, {
                 type: 'select',
                 messageKey: 'rainCountdownHorizon',
                 label: 'Rain countdown',
@@ -884,7 +898,9 @@ module.exports = {
             }]
         }]
     }, {
-        id: 'watch', label: 'Watch', sections: [{
+        // Label renamed 'Watch' → 'Status slots' when Time/Calendar moved to the
+        // Layout tab; the id stays 'watch' — deep links and tests key on it.
+        id: 'watch', label: 'Status slots', sections: [{
             // The intro + the four status-bar sections share one groupCard so they render as a
             // single card (each title becomes an in-card sub-header). Time/Calendar below stay
             // their own cards.
@@ -1135,7 +1151,54 @@ module.exports = {
         boldSection('Calendar week', 'Week'),
         boldSection('City', 'City'),
         boldSection('Date countdown', 'Countdown'),
-        boldSection('Heart rate', 'Hr', HR_SLOT_WHEN), {
+        boldSection('Heart rate', 'Hr', HR_SLOT_WHEN)]
+    }, {
+        id: 'layout', label: 'Layout', sections: [{
+            intro: 'How the watchface is arranged, and what a wrist-flick reveals — shown side by side in the preview. What a metric means or how it\'s coloured lives in its own tab.',
+            items: [{
+                type: 'radio',
+                messageKey: 'layoutPreset',
+                label: 'Layout preset',
+                defaultValue: 'compactCal',
+                hintByValue: {
+                    fullCal: '3-row calendar. Health and radar appear on wrist-flicks.',
+                    compactCal: '2-row calendar. Flick to radar and health as you enable them.',
+                    compactDense: 'Compact calendar with two status bars at once — health or radar above the clock, forecast below.',
+                    noCal: 'No calendar — a big forecast. Flick to radar and health.'
+                },
+                // Compact-dense only differs from Compact when a health status row OR the
+                // radar status row is shown; with both off the two produce identical cycles,
+                // so it's hidden then. A stored compactDense lies DORMANT while hidden
+                // (dormantValues): the radio displays the compactCal fallback but the
+                // stored choice is kept, so it returns when a status row re-enables it —
+                // the wire compiles hidden-dense to the identical compactCal cycle, so the
+                // watch always matches the display. Order stays constant (compactDense
+                // between compactCal and noCal) so toggling health/radar doesn't reshuffle
+                // the list. See layoutPresetOptions in blocks.js + engine.resolveRowItem.
+                optionsFrom: { resolver: 'layoutPresetOptions' },
+                dormantValues: ['compactDense'],
+                blockBefore: 'layoutPreviewCombined',
+                blockBeforeSticky: true
+            }, {
+                type: 'segmented',
+                messageKey: 'viewResetMin',
+                label: 'View reset time',
+                defaultValue: '2',
+                hint: 'Automatically return to the default view after the selected time has passed.',
+                options: [['Never', '0'], ['1m', '1'], ['2m', '2'], ['5m', '5'], ['10m', '10']],
+                showWhen: {env: 'platform', ne: 'aplite'}
+            }, {
+                type: 'toggle',
+                messageKey: 'swapClockStatus',
+                label: 'Swap clock and status row',
+                defaultValue: false,
+                hint: 'Move the status row below the clock, next to the forecast.',
+                showWhen: {key: 'layoutPreset', eq: 'compactCal'}
+            }]
+        }, {
+            // Time and Calendar moved here from the Watch tab (now 'Status slots'):
+            // they shape fixed watchface areas, so they read as layout concerns.
+            // Items are verbatim — gates and hooks unchanged by the move.
             title: 'Time', items: [{
                 type: 'toggle', messageKey: 'timeLeadingZero', label: 'Leading zero', defaultValue: false
             }, {type: 'toggle', messageKey: 'timeShowAmPm', label: 'Show AM / PM', defaultValue: false}, {
@@ -1236,50 +1299,6 @@ module.exports = {
                         in: Object.keys(holidayData.REGION_OPTIONS)
                     }, {key: 'holidaysEnabled', eq: true}]
                 }
-            }]
-        }]
-    }, {
-        id: 'layout', label: 'Layout', sections: [{
-            intro: 'How the watchface is arranged, and what a wrist-flick reveals — shown side by side in the preview. What a metric means or how it\'s coloured lives in its own tab.',
-            items: [{
-                type: 'radio',
-                messageKey: 'layoutPreset',
-                label: 'Layout preset',
-                defaultValue: 'compactCal',
-                hintByValue: {
-                    fullCal: '3-row calendar. Health and radar appear on wrist-flicks.',
-                    compactCal: '2-row calendar. Flick to radar and health as you enable them.',
-                    compactDense: 'Compact calendar with two status bars at once — health or radar above the clock, forecast below.',
-                    noCal: 'No calendar — a big forecast. Flick to radar and health.'
-                },
-                // Compact-dense only differs from Compact when a health status row OR the
-                // radar status row is shown; with both off the two produce identical cycles,
-                // so it's hidden then. A stored compactDense lies DORMANT while hidden
-                // (dormantValues): the radio displays the compactCal fallback but the
-                // stored choice is kept, so it returns when a status row re-enables it —
-                // the wire compiles hidden-dense to the identical compactCal cycle, so the
-                // watch always matches the display. Order stays constant (compactDense
-                // between compactCal and noCal) so toggling health/radar doesn't reshuffle
-                // the list. See layoutPresetOptions in blocks.js + engine.resolveRowItem.
-                optionsFrom: { resolver: 'layoutPresetOptions' },
-                dormantValues: ['compactDense'],
-                blockBefore: 'layoutPreviewCombined',
-                blockBeforeSticky: true
-            }, {
-                type: 'segmented',
-                messageKey: 'viewResetMin',
-                label: 'View reset time',
-                defaultValue: '2',
-                hint: 'Automatically return to the default view after the selected time has passed.',
-                options: [['Never', '0'], ['1m', '1'], ['2m', '2'], ['5m', '5'], ['10m', '10']],
-                showWhen: {env: 'platform', ne: 'aplite'}
-            }, {
-                type: 'toggle',
-                messageKey: 'swapClockStatus',
-                label: 'Swap clock and status row',
-                defaultValue: false,
-                hint: 'Move the status row below the clock, next to the forecast.',
-                showWhen: {key: 'layoutPreset', eq: 'compactCal'}
             }]
         }]
     }, {

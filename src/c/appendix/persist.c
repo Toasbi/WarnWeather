@@ -51,7 +51,14 @@ enum key {
     // there and the accessors below compile out), but the IDs stay listed on every
     // platform: the enum is append-only because the numbers are the on-flash slots.
     STATUS_LEVELS,                // 43 — packed weather-kind levels byte
-    THRESHOLD_SETTINGS            // 44 — enabled bits + colors + health thresholds blob
+    THRESHOLD_SETTINGS,           // 44 — enabled bits + colors + health thresholds blob
+    // Appended: custom radar empty-state text (CLAY_NORAIN_TEXT; absent =
+    // built-in default). aplite never reads or writes it — its only callers
+    // (the WW_RAIN_RADAR-guarded app_message handler and the unreferenced
+    // rain_radar_layer.c) drop out there and --gc-sections reaps the
+    // accessors — but the ID stays listed on every platform: the enum is
+    // append-only because the numbers are the on-flash slots.
+    NORAIN_TEXT                   // 45 — radar no-rain text, <= 24 B UTF-8 + NUL
 };
 
 // Setters report whether the stored value actually changed so callers can
@@ -323,6 +330,46 @@ int persist_get_notice_text(char *buffer, size_t buffer_size) {
     buffer[0] = '\0';
     if (!persist_exists(NOTICE_TEXT)) { return 0; }
     int n = persist_read_data(NOTICE_TEXT, buffer, buffer_size);
+    if (n <= 0) { buffer[0] = '\0'; return 0; }
+    buffer[buffer_size - 1] = '\0';  // guarantee termination
+    return (int) strlen(buffer);
+}
+
+// Unguarded on purpose (see persist.h): rain_radar_layer.c compiles on every
+// platform, so the getter must exist everywhere; on aplite both accessors are
+// unreferenced and --gc-sections reaps them (the notice-text pattern).
+bool persist_set_norain_text(const char *text) {
+    // NORAIN_TEXT_BUF_BYTES bound: the phone pack already truncates to 24
+    // UTF-8 bytes; this is a defensive clamp for a skewed/rogue sender. The
+    // back-off loop drops any UTF-8 continuation bytes (10xxxxxx) left at the
+    // clamp point so a split multi-byte sequence is never persisted.
+    char bounded[NORAIN_TEXT_BUF_BYTES];
+    size_t len = text ? strlen(text) : 0;
+    if (len > sizeof(bounded) - 1) {
+        len = sizeof(bounded) - 1;
+        while (len > 0 && (((const uint8_t *) text)[len] & 0xC0) == 0x80) {
+            len--;
+        }
+    }
+    if (len == 0) {
+        // Empty = use the built-in default. Delete the slot; report a change
+        // only when it existed (mirrors persist_set_notice_text).
+        if (persist_exists(NORAIN_TEXT)) {
+            persist_delete(NORAIN_TEXT);
+            return true;
+        }
+        return false;
+    }
+    memcpy(bounded, text, len);
+    bounded[len] = '\0';
+    return write_sized_data_if_changed(NORAIN_TEXT, bounded, len + 1); // include NUL
+}
+
+int persist_get_norain_text(char *buffer, size_t buffer_size) {
+    if (buffer_size == 0) { return 0; }
+    buffer[0] = '\0';
+    if (!persist_exists(NORAIN_TEXT)) { return 0; }
+    int n = persist_read_data(NORAIN_TEXT, buffer, buffer_size);
     if (n <= 0) { buffer[0] = '\0'; return 0; }
     buffer[buffer_size - 1] = '\0';  // guarantee termination
     return (int) strlen(buffer);

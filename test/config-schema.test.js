@@ -41,7 +41,7 @@ const EXPECTED_KEYS = [
   'holidayCountry','holidayRegion',
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','fetchNoticeAck','locationMode','location',
   'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','windScale','pressureScale','thirdLine',
-  'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','rainCountdownHorizon',
+  'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','radarNoRainText','rainCountdownHorizon',
   'layoutPreset','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear','reset',
   'statusBoldAll',
   'statusForecastLeft','statusForecastLeftCountdown','statusForecastMid','statusForecastMidCountdown','statusForecastRight','statusForecastRightCountdown',
@@ -294,6 +294,37 @@ test('radar tab is gated to radar-capable platforms', () => {
   const radarTab = schema.tabs.find((t) => t.id === 'radar');
   assert.ok(radarTab, 'radar tab exists');
   assert.deepEqual(radarTab.showWhen, { env: 'radar' });
+});
+
+test('radarNoRainText: visible default, 24-char UI cap, ungated in the Radar tab', () => {
+  const item = byKey('radarNoRainText');
+  assert.ok(item, 'radarNoRainText item exists');
+  assert.equal(item.type, 'text');
+  // The watch's built-in string ships as a VISIBLE defaultValue (not a
+  // placeholder) so users see and override the actual message; clearing the
+  // field falls back to the built-in string watch-side.
+  assert.equal(item.defaultValue, 'No rain ahead');
+  // Soft UI cap; the real limit is 24 UTF-8 BYTES, enforced phone-side at pack
+  // time. Rides only the tab-level env-radar gate — no showWhen of its own.
+  assert.equal(item.attributes.maxlength, 24);
+  assert.equal(item.showWhen, undefined, 'no extra gate beyond the radar tab');
+  const radarItems = schema.tabs.find((t) => t.id === 'radar').sections[0].items;
+  const idx = radarItems.indexOf(item);
+  assert.ok(idx !== -1, 'lives in the Radar tab');
+  assert.equal(radarItems[idx - 1].messageKey, 'radarColor',
+    'follows the radar appearance settings, not mid-provider-config');
+  // End-to-end through the real renderer: the maxlength attribute and the
+  // visible default both land on the <input>.
+  const eng = require('../src/pkjs/config-ui/lib/engine.js');
+  const S = eng.hydrate(schema, {});
+  const ENV = platform.computeEnv({ platform: 'basalt' });
+  const body = eng.renderBody(schema, 'radar', {
+    S: S, ENV: ENV, USERDATA: {}, openColor: null, openSelect: null,
+    openEdit: null, selectQuery: '', collapsed: {},
+    evalCtx: Object.assign({}, S, { env: ENV }),
+  });
+  assert.match(body, /data-k="radarNoRainText" value="No rain ahead" placeholder="" maxlength="24"/,
+    'the rendered input carries the visible default and the 24 cap');
 });
 
 test('secondaryLine is a 5-metric dropdown with no Off', () => {
@@ -614,9 +645,10 @@ test('swapClockStatus toggle exists, defaults false, and is shown for compactCal
   assert.equal(showWhen.isVisible(it, basaltOtherPreset), false, 'hidden for other presets');
 });
 
-test('Layout tab is one section: combined preview above the preset radio, reset segmented then swap toggle below', () => {
+test('Layout tab leads with the arrangement section: combined preview above the preset radio, reset segmented then swap toggle below', () => {
   const layout = schema.tabs.find((t) => t.id === 'layout');
-  assert.equal(layout.sections.length, 1, 'single Layout section');
+  // Time and Calendar (moved from the Watch tab) follow the arrangement section.
+  assert.equal(layout.sections.length, 3, 'arrangement + Time + Calendar');
   const items = layout.sections[0].items;
   const presetIdx = items.findIndex((i) => i.messageKey === 'layoutPreset');
   const resetIdx = items.findIndex((i) => i.messageKey === 'viewResetMin');
@@ -983,10 +1015,13 @@ test('AQI provider is a dropdown whose explanation switches per selected value',
   assert.ok(src.hintByValue.openmeteo.length > 0, 'Open-Meteo has its own hint');
 });
 
-test('Watch tab opens with a general status-bar intro, then the four bars in forecast/radar/health/top order', () => {
+test('Status-slots tab (id watch) opens with a general status-bar intro, then the four bars in forecast/radar/health/top order', () => {
   const watch = schema.tabs.find((t) => t.id === 'watch');
+  // The label was renamed with the Time/Calendar move; the id stays 'watch' —
+  // deep links and this very lookup key on it.
+  assert.equal(watch.label, 'Status slots', 'tab label renamed, id kept');
   const intro = watch.sections[0];
-  assert.equal(intro.title, undefined, 'first Watch section is a titleless intro');
+  assert.equal(intro.title, undefined, 'first Status-slots section is a titleless intro');
   assert.ok(/status bar/i.test(intro.intro), 'general intro describes status bars once');
   const titles = watch.sections.map((s) => s.title).filter(Boolean);
   assert.deepEqual(titles.slice(0, 4),
@@ -1009,8 +1044,13 @@ test('Watch tab opens with a general status-bar intro, then the four bars in for
       'Date slot', 'Calendar week slot', 'City slot', 'Date countdown slot',
       'Heart rate slot'],
     'bold-only slot sheets follow the threshold sheets, in wire-id order');
-  // Time and Calendar keep their spots below.
-  assert.deepEqual(titles.slice(20), ['Time', 'Calendar'], 'Time then Calendar come last');
+  // Time and Calendar moved to the END of the Layout tab (order Time, Calendar) —
+  // the Status-slots tab holds nothing but slot config now.
+  assert.deepEqual(titles.slice(20), [], 'no sections after the bold-only sheets');
+  const layoutTitles = schema.tabs.find((t) => t.id === 'layout')
+    .sections.map((s) => s.title).filter(Boolean);
+  assert.deepEqual(layoutTitles.slice(-2), ['Time', 'Calendar'],
+    'the Layout tab ends with Time then Calendar');
   assert.equal(byKey('statusTopLeft').hint, undefined, 'left-slot hint removed');
   const wsb = watch.sections.find((s) => s.title === 'Watch Status Bar').items;
   const note = wsb.find((i) => i.type === 'staticText' && /incoming-rain alert/.test(i.text || ''));
@@ -1128,9 +1168,10 @@ test('threshold config lives in per-slot edit sheets: pencils + sheet on basalt,
     'the slider renders disabled while the highlight toggle is off');
   assert.equal(eng.renderEditModal(schema, watchCx('aplite', 'threshAqi')), '',
     'aplite renders an empty sheet even when forced open');
-  // The rest of the Watch tab is untouched on aplite.
-  assert.ok(apliteBody.indexOf('data-k="timeLeadingZero"') !== -1,
-    'aplite keeps the Time section');
+  // The rest of the Status-slots tab is untouched on aplite. (Time/Calendar live
+  // in the Layout tab now, so probe an always-shown Watch-Status-Bar toggle.)
+  assert.ok(apliteBody.indexOf('data-k="showQt"') !== -1,
+    'aplite keeps the Watch Status Bar toggles');
 });
 
 test('the four status sections live in the Watch tab with named headers and no per-bar intros', () => {

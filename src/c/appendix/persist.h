@@ -99,6 +99,23 @@ bool persist_set_threshold_settings(const uint8_t *data, size_t len);
 bool persist_set_notice_text(const char *text);
 int  persist_get_notice_text(char *buffer, size_t buffer_size);
 
+// Custom radar empty-state text (CLAY_NORAIN_TEXT tuple; drawn by
+// rain_radar_layer.c's no-rain branch). Deliberately NOT guarded by
+// WW_RAIN_RADAR: rain_radar_layer.c compiles on aplite too (only *_aplite.c
+// twins are filtered by wscript) and must see these declarations; on aplite
+// nothing references them — the app_message handler is WW_RAIN_RADAR-guarded
+// and the radar layer itself is unreferenced — so --gc-sections reaps both
+// accessors, exactly like the notice-text pair above (WW_FETCH_NOTICE).
+//
+// Storage cap: 24 bytes of UTF-8 + NUL. The phone pack (clay-payload.js)
+// truncates to the same 24-byte budget UTF-8-safely; size read buffers with
+// this. Set: empty/NULL deletes the slot (watch falls back to its built-in
+// string); returns whether the stored value actually changed. Get: returns
+// the text length in bytes, 0 when unset.
+#define NORAIN_TEXT_BUF_BYTES 25
+bool persist_set_norain_text(const char *text);
+int  persist_get_norain_text(char *buffer, size_t buffer_size);
+
 bool persist_set_forecast_start(time_t val);
 
 bool persist_set_num_entries(int val);
