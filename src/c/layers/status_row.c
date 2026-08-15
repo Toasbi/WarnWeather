@@ -465,7 +465,7 @@ static void ensure_glyphs(StatusRow *row, int len, int content_h) {
         if (!env_changed && wanted == row->glyph_icons[i]) { continue; }
         status_row_icons_destroy(row->glyphs[i]);
         row->glyphs[i] = wanted != STATUS_ICON_NONE
-            ? status_row_icons_load(wanted, target_h)
+            ? status_row_icons_load(wanted, target_h, top)
             : NULL;
         row->glyph_icons[i] = wanted;
     }
@@ -526,17 +526,21 @@ int16_t status_row_right_slot_width(StatusRow *row) {
 
 // The slot's occupied box (icon through text), padded 2 px each side — the
 // outline/fill target. Pure geometry from the same places/measures the content
-// draw uses. Vertically it is centred on `cap_cy`, the glyph cap centre the
-// icons and the sun arrow already co-centre on, and clamped to the row band;
-// status_highlight_extent() owns that arithmetic (and is host-tested).
+// draw uses. Vertically it is seated on `cap_cy`, the glyph cap centre the
+// icons and the sun arrow already co-centre on, sized from the row's font and
+// clamped to the row band; status_highlight_extent() owns that arithmetic (and
+// is host-tested).
 static GRect slot_highlight_box(const StatusRow *row, const StatusSlotPlace *place,
-                                const StatusSlotMeasure *m, int16_t x0, int cap_cy) {
+                                const StatusSlotMeasure *m, int16_t x0, int cap_cy,
+                                int content_h, const char *text) {
     int16_t start = (int16_t)(x0 + (m->icon_w > 0 ? place->icon_x : place->text_x));
     int16_t end = place->text_visible
         ? (int16_t)(x0 + place->text_x + place->text_w)
         : (int16_t)(x0 + place->icon_x + m->icon_w);
     StatusHighlightExtent v = status_highlight_extent(
-        row->bounds.origin.y, row->bounds.size.h, (int16_t)cap_cy);
+        row->bounds.origin.y, row->bounds.size.h, (int16_t)cap_cy,
+        (int16_t)content_h, row->line_id == STATUS_LINE_TOP,
+        place->text_visible && status_text_has_descender(text));
     return GRect((int16_t)(start - 2), v.y, (int16_t)((end - start) + 4), v.h);
 }
 
@@ -608,7 +612,8 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     // precedent). Paint-only — no allocations.
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         if (!places[i].visible || levels[i] == THRESH_LEVEL_NORMAL) { continue; }
-        GRect box = slot_highlight_box(row, &places[i], &measures[i], x0, glyph_cy);
+        GRect box = slot_highlight_box(row, &places[i], &measures[i], x0, glyph_cy,
+                                       content_h, texts[i]);
         GColor accent = highlight_color(&slots[i], levels[i]);
         accents[i] = accent;
         if (levels[i] == THRESH_LEVEL_DANGER) {

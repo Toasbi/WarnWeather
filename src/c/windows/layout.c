@@ -94,6 +94,26 @@
 // 144px watches stayed balanced (9 / 8) because their strip band grew 14 -> 17 in the same
 // era, compensating — their drop below is untouched.
 #define NONE_TIME_DROP 1
+// Ink-centring lifts (px, positive = up): shift ONE seat so its MEASURED ink centres
+// between its ink neighbours above and below. The bands are anchored to fixed reserves,
+// so the blank gaps the eye reads are residuals — whatever air is left over lands where
+// the fonts happen to end, and emery's taller bands pooled it in the wrong seats
+// (emulator ink audit 2026-08-15, wizard-layout fixtures, blank rows above/below):
+//   full-tier clock          11 / 5  ->  8 / 8   (calendar ink -> clock -> status)
+//   swapped compact clock    11 / 9  -> 10 / 10  (calendar -> clock -> lower row)
+//   compact lone upper row    9 / 7  ->  8 / 8   (calendar -> row -> clock)
+//   dense upper row          11 / 7  ->  9 / 9   (its Gothic-18 ink is shorter, so it
+//                                                 floats lower in the same slot)
+// Each lift is that audit's value MINUS 1: STATUS_STRIP_CAL_GAP has since moved the
+// calendar's ink 2 rows closer to every one of these seats, so re-centring costs one
+// row back — the pairs above land one notch tighter (7/7, 9/9, 7/7, 8/8), all still
+// symmetric, and the strip->calendar seam grows 4 -> 6 to match the family.
+// The clock lifts move ONLY the clock's rect: forecast_y and the status anchors derive
+// from the unlifted time_y, so nothing below moves (same trick as NONE_TIME_DROP).
+#define FULL_TIME_INK_LIFT 2
+#define SWAP_TIME_INK_LIFT 0
+#define COMPACT_LONE_ROW_INK_LIFT 0
+#define COMPACT_DENSE_ROW_INK_LIFT 1
 #else
 #define LAYOUT_PAD_X 0
 #define LAYOUT_PAD_TOP 0
@@ -102,6 +122,13 @@
 // none: status band sized for the one-notch-larger Gothic-24 line (tune visually).
 #define NONE_STATUS_HEIGHT 22
 #define NONE_TIME_DROP 2
+// 144px: the same audit measured fullCal 5/5, swap 5/5 and compactCal 3/4 — already
+// centred, so no lifts. Only the dense upper row sat high (3 above / 6 below its
+// Gothic-14 ink); a negative lift drops it to 4 / 5.
+#define FULL_TIME_INK_LIFT 0
+#define SWAP_TIME_INK_LIFT 0
+#define COMPACT_LONE_ROW_INK_LIFT 0
+#define COMPACT_DENSE_ROW_INK_LIFT (-1)
 #endif
 
 // Partition the content height by the three band weights; the bottom band absorbs
@@ -169,7 +196,12 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool upper,
     // clearance that row keeps above the forecast graph. Both edges are ink, so nothing here
     // is a per-mode pixel: test/c/layout_test.c::calendar_status_clearance pins the resulting
     // gap from the font metrics on both platforms.
-    int calendar_y = content_y + status_strip_ink_h(strip_h, STATUS_LARGE_FONT_H);
+    // + STATUS_STRIP_CAL_GAP (emery 2, else 0): blank rows between the strip's ink floor
+    // and the calendar's first painted row, spent on the strip's threshold-highlight box —
+    // its tail room and its clearance to the calendar highlight (see status_metrics.h).
+    // The emery ink lifts below each shave 1 to re-centre against the lowered calendar ink.
+    int calendar_y = content_y + status_strip_ink_h(strip_h, STATUS_LARGE_FONT_H)
+                     + STATUS_STRIP_CAL_GAP;
     int time_y = strip_anchor_y + calendar_h;
 
     L.top_status = GRect(content_x, content_y, content_w, strip_h);
@@ -226,12 +258,19 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool upper,
         // difference in height is absorbed at the BOTTOM, in the clock band's blank top margin.
         // Anchoring the bottom instead made the gap vary per preset — the defect this fixes.
         int status_h = compact ? (two_rows ? (calendar_h / 3) : STATUS_LARGE_BAND_H) : fc_band_h;
-        int status_y = compact ? (time_y - COMPACT_STATUS_TOP_ABOVE_CLOCK)
+        // The compact band top adds the per-preset ink-centring lift to the shared anchor:
+        // the anchor equalizes where the band STARTS, the lift centres where its INK lands
+        // (a dense row's smaller font floats lower in the same slot than the lone row's).
+        int row_lift = two_rows ? COMPACT_DENSE_ROW_INK_LIFT : COMPACT_LONE_ROW_INK_LIFT;
+        int status_y = compact ? (time_y - COMPACT_STATUS_TOP_ABOVE_CLOCK - row_lift)
                                : (forecast_y - fc_band_h);
+        // Clock ink-centring (see the lift constants above): shift only the rect — time_y
+        // still anchors forecast_y and the status bands, so nothing below the clock moves.
+        int time_lift = compact ? (upper ? 0 : SWAP_TIME_INK_LIFT) : FULL_TIME_INK_LIFT;
 
         L.top = GRect(content_x, calendar_y, content_w, cal_h);
         L.status = GRect(content_x, status_y, content_w, status_h);
-        L.time = GRect(content_x, time_y, content_w, time_h);
+        L.time = GRect(content_x, time_y - time_lift, content_w, time_h);
         L.bottom = GRect(content_x, forecast_y, bottom_w, h - LAYOUT_PAD_BOTTOM - forecast_y);
         // Unified loading rule: from the status band's top to the bottom pad. In compact
         // the status band sits inside the calendar band, so loading covers just the graph;

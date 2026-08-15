@@ -204,77 +204,107 @@ static void lone_edge_glyph_too_wide_is_omitted(void) {
 }
 
 // --- status_highlight_extent -------------------------------------------------
-// The threshold-highlight box is centred on the glyph cap centre, not on the raw
-// band. cap_cy below is status_glyph_center_y()'s value for the real shipping
-// (band_h, font) pairs; it is fed in rather than recomputed because status_row.c
-// derives it from a live GFont. Every shipping band is now at or above
-// status_min_band_h(), so no cap is clamp-lifted and every cap_cy here equals
-// band_h/2 — the only remaining offset is the truncating band_h/2 on ODD bands.
+// The threshold-highlight box is seated on the glyph cap centre and sized from the
+// FONT, not the band (status_row_layout.c has the full derivation). Above the cap it
+// reserves reach = glyph_below + descender_h; below the cap it depends on the TEXT:
+// a slot with a descender glyph keeps `reach` below so the tail's last row lands ON
+// the bottom stroke (touching, no air — user-tuned), a plain-digit slot mirrors its
+// clamped top half instead — a symmetric badge. In an unclamped band the two coincide
+// (above == reach), so tail and no-tail boxes are the same height there. Clamps
+// are per side; the top strip's bottom floor is its ink floor + STATUS_STRIP_CAL_GAP
+// - 1, one guaranteed blank row above the calendar's first painted row. cap_cy below
+// is status_glyph_center_y()'s value for the real shipping (band_h, font) pairs;
+// every shipping band is clamp-free, so cap_cy == band_h/2 (truncating on odd bands).
 // (test/c/layout_test.c::seating_no_lift pins that clamp-free property itself.)
 
 static void expect_extent(const char *name, int16_t band_top, int16_t band_h,
-                          int16_t cap_cy, int want_y, int want_h) {
-    StatusHighlightExtent e = status_highlight_extent(band_top, band_h, cap_cy);
+                          int16_t cap_cy, int16_t content_h, bool strip, bool tail,
+                          int want_y, int want_h) {
+    StatusHighlightExtent e = status_highlight_extent(band_top, band_h, cap_cy,
+                                                      content_h, strip, tail);
     expect_named(name, ".y", e.y, want_y);
     expect_named(name, ".h", e.h, want_h);
-    // Centred on the cap: the box spans [y, y + h) in edge coordinates, so its
-    // centre is y + h/2 and h is even by construction. A cap outside the band is
-    // clamped to the nearest edge first (degenerate, never happens in practice).
-    int16_t clamped = cap_cy < band_top ? band_top
-        : (cap_cy > band_top + band_h ? (int16_t)(band_top + band_h) : cap_cy);
-    expect_named(name, ".h_even", e.h % 2, 0);
-    expect_named(name, ".centre", e.y + e.h / 2, clamped);
-    // Never bleeds out of the band (into the calendar above / forecast below).
-    expect_named(name, ".in_band_top", e.y >= band_top, 1);
-    expect_named(name, ".in_band_bottom", e.y + e.h <= band_top + band_h, 1);
 }
 
-static void highlight_extent_is_cap_centred(void) {
-    // EVEN font-derived bands: the cap centre is the band centre and both distances to the
-    // edges are band_h/2, so the box is bit-identical to the full-band rect this replaced
-    // (the cases that measured a 0.0 px error on the emulator must stay untouched).
-    expect_extent("hl.basalt.fullCal", 0, 20, 10, 0, 20);       // Gothic 14
-    expect_extent("hl.basalt.noCal", 0, 22, 11, 0, 22);         // Gothic 18
-    expect_extent("hl.basalt.dense.lower", 40, 20, 50, 40, 20); // Gothic 14, offset band
-    expect_extent("hl.emery.fullCal", 0, 20, 10, 0, 20);        // Gothic 18
+static void highlight_extent_is_font_sized(void) {
+    // Shipping bands, no-tail (symmetric) and tail (descender reserve) per row. reach =
+    // 7 / 9 / 11 at Gothic 14 / 18 / 24. The retired band-sized box handed the
+    // none-tier boxes their full 22 / 30 px (~8 px of padding around an 11 / 14 px cap
+    // — the original complaint).
+    expect_extent("hl.basalt.fullCal", 0, 20, 10, 14, false, false, 3, 14);
+    expect_extent("hl.basalt.fullCal.tail", 0, 20, 10, 14, false, true, 3, 14);
+    expect_extent("hl.emery.fullCal", 0, 20, 10, 18, false, false, 1, 18);
+    expect_extent("hl.emery.fullCal.tail", 0, 20, 10, 18, false, true, 1, 18);
+    expect_extent("hl.basalt.noCal", 0, 22, 11, 18, false, false, 2, 18);
+    expect_extent("hl.basalt.noCal.tail", 0, 22, 11, 18, false, true, 2, 18);
+    expect_extent("hl.emery.noCal", 0, 30, 15, 24, false, false, 4, 22);
+    expect_extent("hl.emery.noCal.tail", 0, 30, 15, 24, false, true, 4, 22);
+    expect_extent("hl.basalt.compactCal", 0, 17, 8, 18, false, false, 0, 16);
+    expect_extent("hl.basalt.compactCal.tail", 0, 17, 8, 18, false, true, 0, 17);
+    expect_extent("hl.emery.compactCal", 0, 21, 10, 24, false, false, 0, 20);
+    expect_extent("hl.emery.compactCal.tail", 0, 21, 10, 24, false, true, 0, 21);
+    expect_extent("hl.basalt.dense.upper", 0, 15, 7, 14, false, false, 0, 14);
+    expect_extent("hl.basalt.dense.upper.tail", 0, 15, 7, 14, false, true, 0, 14);
+    expect_extent("hl.emery.dense.upper", 0, 20, 10, 18, false, false, 1, 18);
+    expect_extent("hl.emery.dense.upper.tail", 0, 20, 10, 18, false, true, 1, 18);
+    // Offset band — geometry is band-relative.
+    expect_extent("hl.dense.lower.offset", 40, 20, 50, 14, false, true, 43, 14);
 
-    // ODD bands — the top strip and the lone compact row (both 17 = status_min_band_h(G18),
-    // 21 = status_min_band_h(G24) on emery), plus the 15px dense upper row. The cap centre
-    // still IS band_h/2, but band_h/2 truncates, so the box comes out 1 px shorter than the
-    // band, symmetric about the cap. These bands used to CLAMP (14/15 and 20 on emery),
-    // which lifted the cap 1.0-1.5 px and shrank the box by twice that.
-    expect_extent("hl.basalt.compactCal", 0, 17, 8, 0, 16);      // Gothic 18, was 15 / cap 6
-    expect_extent("hl.basalt.dense.upper", 0, 15, 7, 0, 14);     // Gothic 14, unchanged band
-    expect_extent("hl.emery.compactCal", 0, 21, 10, 0, 20);      // Gothic 24, was 20 / cap 8
+    // TOP STRIP: cap lifted STATUS_TOP_STRIP_LIFT; bottom floor = ink floor +
+    // STATUS_STRIP_CAL_GAP - 1. The floor is platform-compiled (test-c.sh builds this
+    // test for both), so the strip cases are per-platform: emery's 2-row gap houses
+    // the tail with 1 px of air; the 168px floor is 1 short — the tail tip overlaps
+    // the bottom stroke (still 2 px better than the old symmetric clamp's overshoot).
+#ifdef PBL_PLATFORM_EMERY
+    expect_extent("hl.strip", 0, 21, 10 - STATUS_TOP_STRIP_LIFT, 24, true, false, 0, 16);
+    expect_extent("hl.strip.tail", 0, 21, 10 - STATUS_TOP_STRIP_LIFT, 24, true, true, 0, 19);
+#else
+    expect_extent("hl.strip", 0, 17, 8 - STATUS_TOP_STRIP_LIFT, 18, true, false, 0, 12);
+    expect_extent("hl.strip.tail", 0, 17, 8 - STATUS_TOP_STRIP_LIFT, 18, true, true, 0, 14);
+#endif
 
-    // The TOP STRIP: same 17 / 21 band as the lone compact row above, but its content seats
-    // STATUS_TOP_STRIP_LIFT rows higher inside it (status_metrics.h — the strip's top edge is
-    // the screen edge, so only the gap below it is visible). The box follows the cap, and
-    // because it clamps SYMMETRICALLY about the cap it loses 2 * lift of height: the distance
-    // up to the band top is now the binding one. Shorter by design — status_row.c must not
-    // floor it, or the box would stop framing the ink it belongs to.
-    expect_extent("hl.basalt.strip", 0, 17, 8 - STATUS_TOP_STRIP_LIFT, 0, 12);   // cap 6
-    expect_extent("hl.emery.strip", 0, 21, 10 - STATUS_TOP_STRIP_LIFT, 0, 16);   // cap 8
-    // Same cases in a band that does not start at 0 — geometry is band-relative.
-    expect_extent("hl.compactCal.offset", 27, 17, 35, 27, 16);
-    expect_extent("hl.emery.compactCal.offset", 31, 21, 41, 31, 20);
+    // Degenerate: a cap outside the band clamps to the nearest edge and the box keeps
+    // only the side with room (never overflows the band). No-tail mirrors the clamped
+    // top, so a cap on the band top collapses to nothing.
+    expect_extent("hl.cap_at_top", 10, 20, 10, 18, false, true, 10, 9);
+    expect_extent("hl.cap_at_top.notail", 10, 20, 10, 18, false, false, 10, 0);
+    expect_extent("hl.cap_above", 10, 20, 4, 18, false, true, 10, 9);
+    expect_extent("hl.cap_at_bottom", 10, 20, 30, 18, false, true, 21, 9);
 
-    // Degenerate: a cap on or outside a band edge collapses instead of overflowing.
-    expect_extent("hl.cap_at_top", 10, 20, 10, 10, 0);
-    expect_extent("hl.cap_above", 10, 20, 4, 10, 0);
-    expect_extent("hl.cap_at_bottom", 10, 20, 30, 30, 0);
+    // status_text_has_descender: the five Gothic descender glyphs, nothing else.
+    expect("tail.kph", status_text_has_descender("20kph"), 1);
+    expect("tail.city", status_text_has_descender("Brooklyn"), 1);
+    expect("tail.digits", status_text_has_descender("2.5k"), 0);
+    expect("tail.sleep", status_text_has_descender("7h37"), 0);
+    expect("tail.empty", status_text_has_descender(""), 0);
+    expect("tail.null", status_text_has_descender(0), 0);
 
-    // Property sweep: centred and inside the band for every band/cap combination.
-    for (int16_t band_h = 1; band_h <= 40; band_h++) {
-        for (int16_t cap = 0; cap <= band_h; cap++) {
-            int16_t top = 7;
-            StatusHighlightExtent e = status_highlight_extent(top, band_h,
-                                                             (int16_t)(top + cap));
-            if (e.y + e.h / 2 != top + cap || e.y < top
-                || e.y + e.h > top + band_h || e.h % 2 != 0) {
-                printf("FAIL hl.sweep band_h=%d cap=%d -> y=%d h=%d\n",
-                       band_h, cap, e.y, e.h);
-                s_failures++;
+    // Property sweep: contained in the band, never taller than the font target, a
+    // no-tail box never deeper below the cap than above it, and the strip's box never
+    // crosses its floor (when the cap itself is above that floor).
+    for (int c = 14; c <= 24; c += (c == 14 ? 4 : 6)) {   // Gothic 14, 18, 24
+        int reach = status_glyph_below(c) + status_descender_h(c);
+        for (int16_t band_h = 1; band_h <= 40; band_h++) {
+            for (int16_t cap = 0; cap <= band_h; cap++) {
+                for (int mode = 0; mode < 4; mode++) {
+                    bool strip = (mode & 1) != 0;
+                    bool tail = (mode & 2) != 0;
+                    int16_t top = 7;
+                    StatusHighlightExtent e = status_highlight_extent(
+                        top, band_h, (int16_t)(top + cap), (int16_t)c, strip, tail);
+                    int limit = top + band_h
+                        - (strip ? STATUS_TOP_STRIP_LIFT - STATUS_STRIP_CAL_GAP + 1 : 0);
+                    bool in_band = e.y >= top && e.y + e.h <= top + band_h;
+                    bool sized = e.h <= 2 * reach;
+                    bool balanced = tail
+                        || (e.y + e.h) - (top + cap) <= (top + cap) - e.y;
+                    bool floor_ok = (top + cap > limit) || (e.y + e.h <= limit);
+                    if (!in_band || !sized || !balanced || !floor_ok) {
+                        printf("FAIL hl.sweep c=%d band_h=%d cap=%d strip=%d tail=%d"
+                               " -> y=%d h=%d\n", c, band_h, cap, strip, tail, e.y, e.h);
+                        s_failures++;
+                    }
+                }
             }
         }
     }
@@ -292,7 +322,7 @@ int main(void) {
     non_positive_and_narrow_content();
     negative_measures_normalize_to_zero();
     lone_edge_glyph_too_wide_is_omitted();
-    highlight_extent_is_cap_centred();
+    highlight_extent_is_font_sized();
     if (s_failures) { printf("%d status_row_layout failure(s)\n", s_failures); return 1; }
     printf("status_row_layout OK\n");
     return 0;

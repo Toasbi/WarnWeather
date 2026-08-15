@@ -145,6 +145,21 @@ static inline int status_glyph_center_y(int text_y, int content_h) {
 // comes out 2 * STATUS_TOP_STRIP_LIFT shorter. Both are deliberate.
 #define STATUS_TOP_STRIP_LIFT 2
 
+// Blank rows layout.c leaves between the strip's ink floor and the calendar's first
+// painted row. The 168px watches have no rows to spare (their calendar-view gaps run
+// 3-5 px) so the calendar keeps sitting directly ON the ink floor; emery's audit showed
+// 7-9 px gaps everywhere else, so it spends 2 of them here — giving the strip's
+// threshold-highlight box room to house a descender tail INSIDE its outline and
+// guaranteeing a filled danger slot never merges with the calendar's weekend/today
+// highlight (both MEASURED complaints, 2026-08-15). Shared here because TWO consumers
+// must agree on it: windows/layout.c anchors calendar_y with it, and
+// status_row_layout.c's box floor extends by it — one constant so they cannot drift.
+#ifdef PBL_PLATFORM_EMERY
+#define STATUS_STRIP_CAL_GAP 2
+#else
+#define STATUS_STRIP_CAL_GAP 0
+#endif
+
 // Seat the top strip's line: status_seat_y() lifted by STATUS_TOP_STRIP_LIFT. Every element
 // the strip draws goes through this (its slot text via status_row, the rain-alert text and
 // glyph, the indicator icons), so the whole line moves together.

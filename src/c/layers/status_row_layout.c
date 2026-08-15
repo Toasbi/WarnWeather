@@ -1,4 +1,5 @@
 #include "status_row_layout.h"
+#include "status_metrics.h"
 
 typedef struct {
     bool visible;
@@ -131,40 +132,85 @@ void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
     place_group(&normalized[1], &mid, mid_x, &out[1]);
 }
 
-// Seat a threshold-highlight box on the glyph CAP CENTRE rather than on the raw
-// band, and clamp it to the band.
+// Seat a threshold-highlight box on the glyph CAP CENTRE, sized from the FONT, and
+// clamp it to the band per side.
 //
 // `cap_cy` is status_glyph_center_y()'s value — the visual centre of the digits a
 // status line renders, which the slot icons and the sun arrow already co-centre on.
 // It is an EDGE coordinate (the boundary above row `cap_cy`), the same space as a
-// GRect's origin.y, so a box spanning [y, y + h) is centred on it exactly when
-// y + h/2 == cap_cy.
+// GRect's origin.y. `content_h` is the line's measured content height — the same
+// number the seat/centre math runs on — so the box height is font-derived here with
+// no per-tier table.
 //
-// Why not the band: status_text_y() centres the cap at band_h/2, but only ever lands
-// exactly there when the band is at least status_min_band_h() tall — a shorter band hits
-// the descender clamp, which LIFTS the line above the band centre, and a full-band box
-// then sat up to 1.5 px low under its own text. Every band windows/layout.c produces is
-// now clamp-free, so this is no longer load-bearing on the shipping geometry; it stays
-// because it is the correct rule for ANY band and it also absorbs the odd-band rounding
-// below. Half-height is the smaller of the two distances to the band edges, so the box is
-// exactly symmetric about the cap and never bleeds into the calendar row above or the
-// forecast below.
+// Why not the band (the retired rule): a band-sized box balloons wherever the layout
+// gives a row extra air — the none-tier bands are 22/30 px around an 11/14 px cap, so
+// the box read as ~8 px of padding while the calendar-view boxes sat text-tight
+// (MEASURED, the complaint this fixes). Font-derived targets instead:
 //
-// No-op guarantee: whenever the cap centre IS the band centre and band_h is EVEN (the
-// full-tier and none-tier bands) both distances equal band_h/2 — so y == band_top,
-// h == band_h and the box is bit-identical to the full-band one this replaces. On an ODD
-// band (the 17px top strip / lone compact band, 21px on emery, the 15px dense upper band)
-// the truncating band_h/2 puts the cap 0.5 px above the band's own centre, so the box comes
-// out 1 px shorter than the band; that is the correction, not a regression.
+//   above the cap:  reach = glyph_below + descender_h  (half a cap + tail depth as air)
+//   below the cap:  reach again — cap_cy + reach is exactly the deepest tail row, so a
+//                   tail's last row lands ON the bottom stroke (touching, no air row —
+//                   air under the tail read as the box hanging low; user-tuned)
+//
+// On the clamp-free bands this gives one box per font — 14 / 18 / 22 px for Gothic
+// 14 / 18 / 24, tail or no tail — whatever band the row rides, which is the whole
+// point: noCal, full and compact now frame their text identically.
+//
+// Clamps are PER SIDE, so a short band shaves only the side that lacks room instead of
+// shrinking both symmetrically (the old rule cost the top strip 2*lift):
+//   - top/bottom never cross the band (calendar above, forecast below);
+//   - the TOP STRIP's bottom additionally stops at its ink floor, band_h -
+//     STATUS_TOP_STRIP_LIFT: windows/layout.c anchors the calendar to that row
+//     (status_strip_ink_h), so box ink below it would sit under the calendar's first
+//     painted row. Its lifted line leaves the strip 1 px of cap air above and a
+//     tail-touching bottom — the best a screen-edge band can do.
+// The descender reserve is CONDITIONAL on the text actually having a tail
+// (`has_tail`, from status_text_has_descender on the slot's rendered text): a slot of
+// plain digits mirrors its clamped top half below the cap instead — a perfectly
+// symmetric badge — because a reserve under text that has no tail reads as the box
+// hanging heavy at the bottom (MEASURED complaint on the strip, whose top half is
+// clamped to 1 px of cap air by the screen edge while the reserve kept 4 px below).
+//
+// The strip's bottom floor: its ink floor (band_h - STATUS_TOP_STRIP_LIFT) plus the
+// STATUS_STRIP_CAL_GAP rows layout.c now leaves above the calendar, minus 1 so box and
+// fill always keep one blank row to the calendar's first painted row (a filled danger
+// slot used to merge with the calendar's weekend highlight). On emery (gap 2) a strip
+// tail therefore sits inside the outline with 1 px of air; on the 168px watches
+// (gap 0) the floor is 1 short of the tail's last row — the tip overlaps the bottom
+// stroke by 1 px, the best a screen-edge band with an ink-anchored calendar can do.
 StatusHighlightExtent status_highlight_extent(int16_t band_top, int16_t band_h,
-                                              int16_t cap_cy) {
+                                              int16_t cap_cy, int16_t content_h,
+                                              bool top_strip, bool has_tail) {
     int band_bottom = band_top + band_h;         // exclusive edge
+    int bottom_limit = top_strip
+        ? band_bottom - STATUS_TOP_STRIP_LIFT + STATUS_STRIP_CAL_GAP - 1 : band_bottom;
     int cap = cap_cy;                            // defensive: a cap outside the
     if (cap < band_top) { cap = band_top; }      // band collapses the box at the
     if (cap > band_bottom) { cap = band_bottom; }// nearest edge, never overflows
-    int half = cap - band_top;
-    int below = band_bottom - cap;
-    if (below < half) { half = below; }
-    StatusHighlightExtent e = { (int16_t)(cap - half), (int16_t)(2 * half) };
+    int reach = status_glyph_below(content_h) + status_descender_h(content_h);
+    int above = reach;
+    if (above > cap - band_top) { above = cap - band_top; }
+    // Tail text reaches exactly `reach` below the cap centre, so `below = reach` puts the
+    // tail's last row ON the outline's bottom stroke — deliberately touching, no air: the
+    // user-preferred look (an air row under the tail read as the box hanging low). In an
+    // unclamped band `above == reach` too, so tail and no-tail boxes come out the SAME
+    // height there; they only differ where the top is clamped (the strip), where the
+    // no-tail box mirrors its tight top and the tail box keeps the rows the tail needs.
+    int below = has_tail ? reach : above;
+    if (below > bottom_limit - cap) { below = bottom_limit - cap; }
+    if (below < 0) { below = 0; }                // lifted cap under a tiny band
+    StatusHighlightExtent e = { (int16_t)(cap - above), (int16_t)(above + below) };
     return e;
+}
+
+// Does the rendered slot text reach below the baseline? The Gothic lowercase
+// descenders are g j p q y — the only glyphs a status slot can render that ink below
+// the content box (digits, units, city names; icons never descend).
+bool status_text_has_descender(const char *text) {
+    if (!text) { return false; }
+    for (; *text; text++) {
+        char c = *text;
+        if (c == 'g' || c == 'j' || c == 'p' || c == 'q' || c == 'y') { return true; }
+    }
+    return false;
 }

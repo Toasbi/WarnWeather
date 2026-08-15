@@ -30,4 +30,9 @@ typedef struct {
 } StatusHighlightExtent;
 
 StatusHighlightExtent status_highlight_extent(int16_t band_top, int16_t band_h,
-                                              int16_t cap_cy);
+                                              int16_t cap_cy, int16_t content_h,
+                                              bool top_strip, bool has_tail);
+
+// True when the rendered slot text contains a descender glyph (g j p q y) — drives
+// the box's conditional descender reserve.
+bool status_text_has_descender(const char *text);

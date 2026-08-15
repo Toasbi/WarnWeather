@@ -109,7 +109,10 @@ static void golden_rects(void) {
     // on 42, i.e. touching. Both now match compactCal exactly. The 1px comes out of the row's
     // own air BELOW its ink (its tails ended 6 blank rows above the clock's ink, now 5); the
     // clock, the lower band and the forecast are untouched, as the goldens below pin.
-    check("dualc.status",       L.status,       0, 44, 144, 15);
+    // 45 = shared anchor 44 + dense ink lift -1 (COMPACT_DENSE_ROW_INK_LIFT): the dense
+    // row's Gothic-14 ink sat high in its slot (ink gaps 3 above / 6 below, emulator
+    // audit 2026-08-15); dropping the band 1px centres it at 4 / 5.
+    check("dualc.status",       L.status,       0, 45, 144, 15);
     check("dualc.status_lower", L.status_lower, 0, 97, 144, 20);   // == full-mode weather band
     check("dualc.bottom",       L.bottom,       0, 117, 144, 51);  // == full-mode forecast
     check("dualc.loading",      L.loading,      0, 117, 144, 51);
@@ -132,29 +135,35 @@ static void golden_rects(void) {
     // crowding basalt did (its ink gap was already 7px, see calendar_status_clearance); the
     // same derived anchor simply widens it, and nothing below the calendar moves.
     check("full.top_status",   L.top_status,   2, 2, 196, 21);
-    check("full.top",          L.top,          2, 21, 196, 60);
+    check("full.top",          L.top,          2, 23, 196, 60);   // strip ink 21 + STATUS_STRIP_CAL_GAP 2
     check("full.status",       L.status,       2, 132, 196, 24);
     check("full.status_lower", L.status_lower, 2, 132, 196, 24);
-    check("full.time",         L.time,         2, 82, 196, 60);
+    // 80 = time_y 82 - FULL_TIME_INK_LIFT 2: the audit measured the clock 11 blank rows
+    // from the calendar above vs 5 to the status row below; the lift plus the calendar's
+    // STATUS_STRIP_CAL_GAP drop centre it at 7 / 7 while forecast_y and the status bands
+    // keep deriving from the unlifted time_y.
+    check("full.time",         L.time,         2, 80, 196, 60);
     check("full.bottom",       L.bottom,       2, 156, 198, 68);
     check("full.loading",      L.loading,      2, 132, 196, 92);  // was (2,142,196,82): unified rule = status top → bottom pad
-    check("full.radar",        L.radar,        2, 21, 196, 60);
+    check("full.radar",        L.radar,        2, 23, 196, 60);
 
     L = layout_compute(BOUNDS, LAYOUT_TIER_COMPACT, false, FC_BAND_H);
     if (s_dump) printf("  COMPACT !dual (emery)\n");
-    check("compact.top",     L.top,     2, 21, 196, 40);
+    check("compact.top",     L.top,     2, 23, 196, 40);   // strip ink 21 + STATUS_STRIP_CAL_GAP 2
     // Lone status: 21 = status_min_band_h(Gothic 24) instead of the calendar_h/3 slot's 20,
     // bottom-anchored 3px into the clock band (time_y 82 + 3 - 21). Its bottom row stays 84 as
     // before, so the seated line does not move; the 1 extra px grows up into the calendar band.
+    // 64 = the shared anchor, lone ink lift 0: the audit's 9 above / 7 below is centred
+    // at 7 / 7 by the calendar's STATUS_STRIP_CAL_GAP drop alone.
     check("compact.status",  L.status,  2, 64, 196, 21);
     check("compact.time",    L.time,    2, 82, 196, 60);
     check("compact.bottom",  L.bottom,  2, 142, 198, 82);
     check("compact.loading", L.loading, 2, 142, 196, 82);
-    check("compact.radar",   L.radar,   2, 21, 196, 40);
+    check("compact.radar",   L.radar,   2, 23, 196, 40);
 
     L = layout_compute(BOUNDS, LAYOUT_TIER_NONE, false, FC_BAND_H);
     if (s_dump) printf("  NONE !dual (emery)\n");
-    check("none.top",     L.top,     2, 21, 196, 0);
+    check("none.top",     L.top,     2, 23, 196, 0);
     check("none.time",    L.time,    2, 24, 196, 60);   // 23 + NONE_TIME_DROP 1
     check("none.status",  L.status,  2, 83, 196, 30);
     check("none.bottom",  L.bottom,  2, 113, 198, 111);
@@ -164,16 +173,17 @@ static void golden_rects(void) {
     L = layout_compute(BOUNDS, LAYOUT_TIER_COMPACT, true, FC_BAND_H);
     if (s_dump) printf("  COMPACT dual (emery)\n");
     // Dense upper band: HEIGHT unchanged at 20 (the calendar_h/3 slot is already clamp-free at
-    // the full-tier Gothic 18 both rows squeeze to). POSITION 62 -> 64, the shared compact band
-    // top (time_y 82 - COMPACT_STATUS_TOP_ABOVE_CLOCK 18 == compactCal's 64). emery's spread was
-    // twice basalt's because both terms of the old bottom anchor differ more here — band 20 vs
-    // the lone 21, and Gothic 18 vs 24 — so the dense band top came out 2px high. MEASURED
-    // before: the calendar's last digit row ended on 57, the dense row's topmost ink (its mid
-    // slot's wind arrow) started on 65 and its highlight box on 62, against compactCal's 67 and
-    // 64. Both now match. emery's dense TEXT gains 2px of clearance rather than matching to the
-    // pixel (its cap sits 5 rows into its band where Gothic 24's sits 3) — more air than the
-    // reference, never less, which is the invariant calendar_status_clearance pins.
-    check("dualc.status",       L.status,       2, 64, 196, 20);
+    // the full-tier Gothic 18 both rows squeeze to). POSITION 63 = the shared anchor 64
+    // (time_y 82 - COMPACT_STATUS_TOP_ABOVE_CLOCK 18) + dense ink lift 2
+    // (COMPACT_DENSE_ROW_INK_LIFT 1): the dense row's Gothic-18 ink floated low in its
+    // slot — gaps 11 above / 7 below (emulator audit 2026-08-15) — and the lift plus the
+    // calendar's STATUS_STRIP_CAL_GAP drop centre it at 8 / 8.
+    // The band top numerically returns to the pre-shared-anchor 62, but the defect that
+    // position had — its full-band highlight box starting AT the band top, over the
+    // calendar's clearance — is gone: the box is now font-sized and seated on the cap
+    // (status_highlight_extent), so its top sits below the band top and still clears the
+    // calendar by at least the compactCal reference (calendar_status_clearance pins both).
+    check("dualc.status",       L.status,       2, 63, 196, 20);
     check("dualc.status_lower", L.status_lower, 2, 132, 198, 24);  // width copies L.bottom.size.w
                                                                     // (== forecast_w = w - PAD_X, not
                                                                     // content_w) at carve time
@@ -381,6 +391,20 @@ static void radar_placement_tests(void) {
 // Brief Task 4: per-field band geometry. Relationship (not magic-pixel) assertions on a
 // fixed 144x168 reference with fc_band_h 14 (== WEATHER_STATUS_HEIGHT, so a carved lower
 // band exactly fills its reserved slot) — the relationships hold on both platform compiles.
+// Ink-centring lifts — mirrors the *_INK_LIFT constants in src/c/windows/layout.c (same
+// mirroring convention as the font table in the seating section below). Each compact preset
+// lifts its upper band off the shared anchor by its own correction; the swapped view's
+// clock rect lifts too.
+#ifdef PBL_PLATFORM_EMERY
+#define LONE_ROW_LIFT 0     // COMPACT_LONE_ROW_INK_LIFT
+#define DENSE_ROW_LIFT 1    // COMPACT_DENSE_ROW_INK_LIFT
+#define SWAP_TIME_LIFT 0    // SWAP_TIME_INK_LIFT
+#else
+#define LONE_ROW_LIFT 0
+#define DENSE_ROW_LIFT (-1)
+#define SWAP_TIME_LIFT 0
+#endif
+
 static void test_geometry_lower_only(void) {
     // compactCal + swap: forecast in the lower band, upper empty.
     ViewSpec s = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_NONE, STATUS_SRC_FORECAST));
@@ -394,9 +418,11 @@ static void test_geometry_lower_only(void) {
     // margin (the seated line and the forecast both keep exactly the pixels they had).
     expect("geometry_lower_only.below_clock_top",
            L.status_lower.origin.y > L.time.origin.y, true);
+    // The swapped clock's rect carries SWAP_TIME_INK_LIFT (emery), so the overhang into
+    // its band is measured from the lifted rect.
     expect("geometry_lower_only.overhangs_clock_slack",
            (L.time.origin.y + L.time.size.h) - L.status_lower.origin.y
-               == L.status_lower.size.h - freed_row, true);
+               == L.status_lower.size.h - freed_row - SWAP_TIME_LIFT, true);
     expect("geometry_lower_only.abuts_forecast",
            L.status_lower.origin.y + L.status_lower.size.h <= L.bottom.origin.y + 1, true);
     expect("geometry_lower_only.has_height", L.status_lower.size.h > 0, true);
@@ -406,7 +432,7 @@ static void test_geometry_lower_only(void) {
     // L.top's bottom" — the calendar band now slides down under the font-sized strip while the
     // clock stays anchored to the strip's reserve, so L.top overhangs the clock band's top).
     expect("geometry_lower_only.clock_reclaims_freed_row",
-           L.time.origin.y == Lu.time.origin.y - freed_row, true);
+           L.time.origin.y == Lu.time.origin.y - freed_row - SWAP_TIME_LIFT, true);
     // Size-preserving swap: the lone lower status uses the SAME band height and COMPACT tier as a
     // lone upper status — swapping changes position, not size (a 100% top/bottom size swap).
     expect("geometry_lower_only.same_band_height_as_upper",
@@ -825,7 +851,18 @@ static void expect_at_least(const char *name, int got, int least) {
 }
 
 // Per-preset clearance figures, so the reference (compactCal) can be compared against.
-typedef struct { int cal_ink_end; int band_top; int cap_top; bool has_cal_and_row; } Clearance;
+typedef struct { int cal_ink_end; int box_top; int cap_top; bool has_cal_and_row; } Clearance;
+
+// Topmost row of the row's threshold-highlight box: the cap centre minus the box's font
+// reach (glyph_below + descender_h), clamped to the band top — MIRRORS the `above` side
+// of status_highlight_extent() in src/c/layers/status_row_layout.c, the same way
+// status_cap_top above mirrors the seat.
+static int status_box_top(int band_y, int band_h, int content_h) {
+    int cap_cy = band_y + status_glyph_center_y(status_seat_y(band_h, content_h), content_h);
+    int above = status_glyph_below(content_h) + status_descender_h(content_h);
+    if (above > cap_cy - band_y) { above = cap_cy - band_y; }
+    return cap_cy - above;
+}
 
 static void calendar_status_clearance(void) {
     int content_y = BOUNDS.origin.y + (BOUNDS.size.w == 200 ? 2 : 0);   // LAYOUT_PAD_TOP
@@ -853,24 +890,29 @@ static void calendar_status_clearance(void) {
         // 1. The anchor itself: the calendar's first painted row IS the strip's first
         //    unpainted one — no gap paid for, none stolen.
         int strip_ink_end = content_y + status_strip_ink_h(L.top_status.size.h, TOP_ROW_H);
-        if (L.top.origin.y != strip_ink_end) {
-            printf("FAIL clearance %s.anchor: calendar_y %d, strip ink ends at %d\n",
-                   views[i].name, L.top.origin.y, strip_ink_end);
+        if (L.top.origin.y != strip_ink_end + STATUS_STRIP_CAL_GAP) {
+            printf("FAIL clearance %s.anchor: calendar_y %d, strip ink + gap ends at %d\n",
+                   views[i].name, L.top.origin.y, strip_ink_end + STATUS_STRIP_CAL_GAP);
             s_failures++;
         }
 
         // 2. The compact anchor, which is what makes the clearance preset-independent: EVERY
-        //    compact preset seats its upper band's TOP the same distance above the clock band's
-        //    top, whatever height and font that preset's band has. This is the whole fix — the
-        //    old rule hung the band's BOTTOM off the clock, so a shorter band (the dual's
-        //    calendar_h/3) started higher and crowded the calendar above it.
+        //    compact preset seats its upper band's TOP on ONE shared anchor row above the
+        //    clock band, plus its own documented ink-centring lift (the LIFT mirrors above) —
+        //    the anchor equalizes where the bands start, the lift centres where each font's
+        //    ink lands. Subtracting the lift back out must recover the same shared anchor for
+        //    every preset; anything else is an undocumented drift. (The swapped view's clock
+        //    rect lifts too, so its drop carries -SWAP_TIME_LIFT.)
         if (compact) {
-            int drop = L.time.origin.y - L.status.origin.y;
+            int lift = (strcmp(views[i].name, "compactDense") == 0) ? DENSE_ROW_LIFT
+                                                                    : LONE_ROW_LIFT;
+            if (strcmp(views[i].name, "compactSwap") == 0) { lift -= SWAP_TIME_LIFT; }
+            int drop = (L.time.origin.y - L.status.origin.y) - lift;
             if (compact_drop < 0) {
                 compact_drop = drop;
             } else if (drop != compact_drop) {
                 printf("FAIL clearance %s.compact_anchor: band top sits %d rows above the clock"
-                       " band, the other compact presets use %d\n",
+                       " band net of its ink lift, the other compact presets use %d\n",
                        views[i].name, drop, compact_drop);
                 s_failures++;
             }
@@ -888,7 +930,8 @@ static void calendar_status_clearance(void) {
         int cap_top = status_cap_top(L.status.origin.y, L.status.size.h,
                                      status_row_content_h(spec.status_tier));
         got[i].cal_ink_end = cal_ink_end;
-        got[i].band_top = L.status.origin.y;
+        got[i].box_top = status_box_top(L.status.origin.y, L.status.size.h,
+                                        status_row_content_h(spec.status_tier));
         got[i].cap_top = cap_top;
         got[i].has_cal_and_row = has_cal_and_row;
         if (strcmp(views[i].name, "compactCal") == 0) { ref = (int)i; }
@@ -899,16 +942,15 @@ static void calendar_status_clearance(void) {
         }
         expect_at_least(views[i].name, cap_top - cal_ink_end, FC_CLEARANCE);
 
-        // 4. …and the threshold-highlight box, which spans the row's whole band (it is
-        //    symmetric about a cap that sits at band_h/2 on every clamp-free band, so
-        //    status_highlight_extent's top IS the band top), must not reach the calendar's ink
+        // 4. …and the threshold-highlight box (font-sized, seated on the cap — its top is
+        //    status_box_top above, no longer the band top) must not reach the calendar's ink
         //    at all. This is the edge that actually overlapped before.
-        expect_at_least("box", L.status.origin.y - cal_ink_end, 0);
+        expect_at_least("box", got[i].box_top - cal_ink_end, 0);
 
-        printf("  clearance %-13s cal ink ends %3d | status band %3d cap %3d"
+        printf("  clearance %-13s cal ink ends %3d | box top %3d cap %3d"
                " -> gap %d (box %d)\n",
-               views[i].name, cal_ink_end, L.status.origin.y, cap_top,
-               cap_top - cal_ink_end, L.status.origin.y - cal_ink_end);
+               views[i].name, cal_ink_end, got[i].box_top, cap_top,
+               cap_top - cal_ink_end, got[i].box_top - cal_ink_end);
     }
 
     // 5. No preset may come CLOSER to the calendar than compactCal, the one the user signed off
@@ -922,38 +964,37 @@ static void calendar_status_clearance(void) {
         return;
     }
     int ref_cap = got[ref].cap_top - got[ref].cal_ink_end;
-    int ref_box = got[ref].band_top - got[ref].cal_ink_end;
+    int ref_box = got[ref].box_top - got[ref].cal_ink_end;
     for (unsigned i = 0; i < nviews; i++) {
         if (!got[i].has_cal_and_row) { continue; }
         expect_at_least("vs_reference.cap", got[i].cap_top - got[i].cal_ink_end, ref_cap);
-        expect_at_least("vs_reference.box", got[i].band_top - got[i].cal_ink_end, ref_box);
+        expect_at_least("vs_reference.box", got[i].box_top - got[i].cal_ink_end, ref_box);
     }
     printf("  clearance reference (compactCal): cap %d, box %d\n", ref_cap, ref_box);
 
-    // Teeth for assertions 2 and 5: the OLD compact rule hung the band's BOTTOM off the clock
-    // band's top (no nudge for a dual), i.e. band top = L.time.origin.y - band_h. Reconstruct
-    // that for the dual and check it really was closer to the calendar than the reference — so
-    // neither the shared anchor nor the ">= reference" comparison is vacuous.
+    // Teeth for assertions 4 and 5: the OLD compact rule hung the band's BOTTOM off the clock
+    // band's top AND gave the box the whole band, i.e. box top = band top =
+    // L.time.origin.y - band_h. Reconstruct that for the dual and check it really was closer
+    // to the calendar than today's font-sized box on the ink-lifted band — so the ">="
+    // comparisons are not vacuous. (The ink lifts put the emery dense BAND top back on the
+    // old row; that is fine now precisely because the box no longer spans the band — the box
+    // is what overlapped, and the box is what moved down.)
     {
         ViewSpec dn = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST));
         MainLayout Ld = layout_compute_spec(BOUNDS, &dn, FC_BAND_H_SHIPPING);
         int old_top = Ld.time.origin.y - Ld.status.size.h;
         int dense_cal_ink_end = Ld.top.origin.y + calendar_ink_h(Ld.top.size.h, 2);
         int content_h = status_row_content_h(dn.status_tier);
-        int old_cap = status_cap_top(old_top, Ld.status.size.h, content_h);
-        expect("clearance.old_dual_anchor_was_higher", old_top < Ld.status.origin.y, true);
-        // The box (the row's topmost possible ink) was closer to the calendar than the reference
-        // on BOTH platforms — that is the defect, and it is what assertion 5 now forbids.
+        int new_box_top = status_box_top(Ld.status.origin.y, Ld.status.size.h, content_h);
+        expect("clearance.old_box_was_higher_than_new", old_top < new_box_top, true);
         expect("clearance.old_dual_box_was_closer_than_reference",
                old_top - dense_cal_ink_end < ref_box, true);
-        // The CAP was closer only on the 144px watches (3 vs the reference's 4 — MEASURED). On
-        // emery the old dual cap already sat exactly on the reference's 9, because the dual's
-        // Gothic 18 seats its cap 5 rows into its band where the lone Gothic 24 seats its 3, and
-        // those 2 rows happened to cancel the 2-row anchor error. So emery's text was fine and
-        // only its box was crowded — assert the weaker "no better than the reference" there.
-        expect("clearance.old_dual_cap_was_not_better_than_reference",
-               old_cap - dense_cal_ink_end <= ref_cap, true);
 #ifndef PBL_PLATFORM_EMERY
+        // The CAP was closer only on the 144px watches (3 vs the reference's 4 — MEASURED).
+        // On emery the old dual cap already sat on the reference row (its Gothic 18 seats 5
+        // rows into the band where Gothic 24 seats 3, cancelling the anchor error), and the
+        // ink lifts have since re-tuned both caps — so only the box teeth above apply there.
+        int old_cap = status_cap_top(old_top, Ld.status.size.h, content_h);
         expect("clearance.old_dual_cap_was_closer_than_reference",
                old_cap - dense_cal_ink_end < ref_cap, true);
 #endif
