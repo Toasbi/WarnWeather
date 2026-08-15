@@ -635,7 +635,14 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         apply_battery_override(row, i, &slots[i]);
         resolve_slot_text(row, &slots[i], texts[i], sizeof(texts[i]));
         levels[i] = slot_level(&slots[i]);
-        if (levels[i] != THRESH_LEVEL_NORMAL) {
+        // Bold is its own per-kind setting, NOT a function of the level alone:
+        // danger always prints bold, "warn" adds the warn level (the shipped
+        // default), "always" bolds the normal zone too — even for a kind whose
+        // thresholds are switched off entirely, so slot_level()'s NORMAL says
+        // nothing here. Predicate + wire layout live in status_threshold.c.
+        if (status_threshold_is_bold(s_thresh_scratch, (size_t)s_thresh_len,
+                status_threshold_kind_for_slot(slots[i].kind, slots[i].icon),
+                levels[i])) {
             slot_fonts[i] = row_font_bold(row->tier, row->line_id);
         }
         measures[i] = measure_slot(row, i, slot_fonts[i], content_w, &slots[i], texts[i]);
