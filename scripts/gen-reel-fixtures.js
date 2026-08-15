@@ -130,7 +130,7 @@ const GRAPH_SEGMENTS = [
   { id: 'graph-5', group: 'graph', flicks: 1, platforms: 'emery basalt flint',
     clay: { layoutPreset: 'noCal', theme: 'dark', timeFont: 'leco', healthMode: 'all', radarProvider: 'disabled' },
     // emery only: HR needs the sensor; base (basalt/flint) keeps the plain health-graph frame.
-    variants: { emery: { statusTopLeft: 'distance', statusTopMid: 'empty', statusTopRight: 'hr' } } },
+    variants: { emery: { statusTopLeft: 'distance', statusTopMid: 'date', statusTopRight: 'hr' } } },
 ];
 
 // timeFont pinned to roboto across the whole status chapter (see GRAPH_SEGMENTS comment).
@@ -154,7 +154,7 @@ const STATUS_SEGMENTS = [
       // as well and recreate the crowding. Same stored formats as the settings
       // page (string values, '#RRGGBB'). Aplite keeps its plain frames.
       statusForecastLeft: 'temp', statusForecastMid: 'wind', statusForecastRight: 'uv',
-      statusTopLeft: 'gust', statusTopMid: 'empty', statusTopRight: 'sleep',
+      statusTopLeft: 'gust', statusTopMid: 'steps', statusTopRight: 'sleep',
       threshWindOn: true, threshWindWarn: '15', threshWindDanger: '40',
       threshWindWarnOutlineOn: true, threshWindWarnColor: '#FFAA00',
       threshGustOn: true, threshGustWarn: '20', threshGustDanger: '30',
@@ -162,7 +162,7 @@ const STATUS_SEGMENTS = [
     // emery has the HR sensor; aplite has no health at all -> weather-only top strip.
     variants: {
       emery:  { statusTopRight: 'hr' },
-      aplite: { statusTopLeft: 'wind', statusTopRight: 'battery' },
+      aplite: { statusTopLeft: 'wind', statusTopMid: 'empty', statusTopRight: 'battery' },
     } },
   { id: 'status-3', group: 'status', flicks: 0, platforms: 'emery basalt flint aplite',
     // healthMode 'status' (not 'off'): statusTopRight below is a LIVE health value
