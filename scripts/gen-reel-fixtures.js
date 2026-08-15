@@ -56,6 +56,17 @@ const THEME_SLOTS = {
   light:      { statusForecastLeft: 'temp',   statusForecastMid: 'uv',   statusForecastRight: 'aqi' },
   'bw-light': { statusForecastLeft: 'pollen', statusForecastMid: 'date', statusForecastRight: 'aqi' },
 };
+// TOP-strip slots per theme step: every frame's upper bar shows a DIFFERENT tuple
+// (no theme repeats another's, and none repeats its own frame's forecast bar) so
+// the sweep advertises top-strip variety instead of four identical week/date/sun
+// strips. dark keeps the catalog default as the classic look; the overridden mids
+// stay 'empty' (the segment idiom for cross-platform-safe top strips, see status-5).
+const THEME_TOPS = {
+  dark:       {},   // catalog default: week / date / sun
+  light:      { statusTopLeft: 'wind', statusTopMid: 'empty', statusTopRight: 'battery' },
+  bw:         { statusTopLeft: 'uv',   statusTopMid: 'empty', statusTopRight: 'week' },
+  'bw-light': { statusTopLeft: 'temp', statusTopMid: 'empty', statusTopRight: 'sun' },
+};
 
 // Build the theme SEGMENTS from themesFor(), so each theme is one segment with the right
 // preset, colorTime, and platform set.
@@ -70,6 +81,7 @@ function themeSegments() {
       // variable (leco previews in the intro, roboto in the status chapter).
       { theme, radarProvider: 'disabled', healthMode: 'off', timeFont: 'bitham' },
       THEME_SLOTS[theme],
+      THEME_TOPS[theme],
       { layoutPreset: THEME_PRESET[theme] },
     );
     if (theme === 'light' || theme === 'bw-light') { clay.colorTime = '#000000'; }
@@ -132,12 +144,16 @@ const STATUS_SEGMENTS = [
     // (steps/sleep/hr) that render blank/zero while the health summary cache is off.
     clay: { layoutPreset: 'compactCal', theme: 'dark', timeFont: 'roboto', radarProvider: 'disabled', healthMode: 'status',
       rainBarColor: 'solid',
-      statusForecastLeft: 'temp', statusForecastMid: 'wind', statusForecastRight: 'gust',
-      statusTopLeft: 'steps', statusTopMid: 'empty', statusTopRight: 'sleep',
-      // Threshold showcase (mirrors showcase scene 2): berlin's current wind is
-      // 20 km/h and gusts 34, so wind crosses warn (outlined orange) and gust
-      // crosses danger (filled red). Same stored formats as the settings page
-      // (string values, '#RRGGBB'). Aplite keeps its plain frame.
+      // Threshold showcase, split across the two bars so the states don't crowd
+      // one row: the FORECAST bar carries the outlined warn slot (wind, 20 km/h
+      // over warn 15, outline on) and the TOP strip carries the danger-filled
+      // slot (gust top-left, 34 over danger 30 -> red fill; the top strip renders
+      // via status_row_draw, so highlights apply there too). Gust is deliberately
+      // NOT in the forecast bar — thresholds are per-kind, so it would fill there
+      // as well and recreate the crowding. Same stored formats as the settings
+      // page (string values, '#RRGGBB'). Aplite keeps its plain frames.
+      statusForecastLeft: 'temp', statusForecastMid: 'wind', statusForecastRight: 'uv',
+      statusTopLeft: 'gust', statusTopMid: 'empty', statusTopRight: 'sleep',
       threshWindOn: true, threshWindWarn: '15', threshWindDanger: '40',
       threshWindWarnOutlineOn: true, threshWindWarnColor: '#FFAA00',
       threshGustOn: true, threshGustWarn: '20', threshGustDanger: '30',
