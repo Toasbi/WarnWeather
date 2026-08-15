@@ -280,7 +280,7 @@
   /**
    * Build the CLAY_THRESHOLDS_UINT8 settings blob (layout: status_threshold.h).
    * @param {Object} settings Clay settings blob
-   * @returns {number[]} 27-byte array
+   * @returns {number[]} SETTINGS_BYTES-long array (currently 31 bytes)
    */
   function buildSettingsBlob(settings) {
     var blob = [];

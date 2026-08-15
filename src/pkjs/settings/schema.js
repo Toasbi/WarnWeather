@@ -165,7 +165,6 @@ function thresholdSection(title, keyStem, hint, gate) {
         defaultValue: false,
         onChange: 'thresholdToggle'
     };
-    if (gate) { toggle.showWhen = gate; }
     var range = {
         type: 'range',
         messageKey: 'thresh' + keyStem + 'Warn',
@@ -180,7 +179,6 @@ function thresholdSection(title, keyStem, hint, gate) {
         rangeFrom: {resolver: 'thresholdRange', args: {keyStem: keyStem}},
         disabledWhen: offWhen
     };
-    if (gate) { range.showWhen = gate; }
     // Slot-level, above the group: how boldly the slot prints. The ladder is
     // monotone — danger is always bold, the middle option adds the warn/close
     // level, "Always" adds the normal zone too (status_threshold.h ThreshBold).
@@ -195,7 +193,6 @@ function thresholdSection(title, keyStem, hint, gate) {
         options: [['Off', 'off'], [goal ? 'Close' : 'Warn', 'warn'], ['Always', 'always']],
         optionDisabledWhen: {warn: {not: {key: onKey}}}
     };
-    if (gate) { bold.showWhen = gate; }
     // The group header: title, reset-to-defaults, and the master on/off switch
     // that used to ride the sheet's title row. The intro hangs off it because it
     // describes the THRESHOLDS, not the Bold row above them.
@@ -208,7 +205,15 @@ function thresholdSection(title, keyStem, hint, gate) {
         // action) — deliberately NOT the Bold row, which is not part of the group.
         labelAction: {action: 'resetThresholds', arg: keyStem, label: 'Reset to defaults'}
     };
-    if (gate) { header.showWhen = gate; }
+    // Every plain item in the sheet carries the same sub-section gate; applying it
+    // in one pass means an item added above cannot forget its gate line. (The
+    // outline toggle and color pickers below set showWhen inline instead — they
+    // layer the B&W/outline rules on top of the gate.)
+    if (gate) {
+        [toggle, range, bold, header].forEach(function (item) {
+            item.showWhen = gate;
+        });
+    }
     return {
         sheetOnly: true,
         sheetId: 'thresh' + keyStem,
