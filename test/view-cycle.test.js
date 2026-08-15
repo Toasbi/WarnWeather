@@ -36,6 +36,40 @@ test('compactDense + both radar=status and health=status: health-dense default, 
   assert.ok(c.slice(1).some((s) => up(s) === vc.STATUS_SRC_RADAR || lo(s) === vc.STATUS_SRC_RADAR));
 });
 
+test('compactDense + radar=graph + health=off: dense default (radar upper, weather lower), radar chart flick', () => {
+  const c = vc.buildViewCycle('compactDense', 'off', 'graph');
+  assert.equal(up(c[0]), vc.STATUS_SRC_RADAR, 'dense still shows up with health off');
+  assert.equal(lo(c[0]), vc.STATUS_SRC_FORECAST);
+  assert.equal(c[0].body, vc.BODY_FC);
+  assert.equal(c.length, 2);
+  assert.equal(c[1].body, vc.BODY_RADAR);
+});
+
+test('compactDense + radar=graph + health=status: the radar flick stays dense (health upper, radar lower)', () => {
+  const c = vc.buildViewCycle('compactDense', 'status', 'graph');
+  assert.equal(c.length, 2);
+  assert.equal(up(c[1]), vc.STATUS_SRC_HEALTH, 'flick 2 keeps the health upper row');
+  assert.equal(lo(c[1]), vc.STATUS_SRC_RADAR, 'flick 2 carries the radar lower row');
+  assert.equal(c[1].body, vc.BODY_RADAR, 'graph mode keeps the radar chart body');
+  // radarMode=status demotes only the body — the dense rows stay.
+  const st = vc.buildViewCycle('compactDense', 'status', 'status');
+  assert.equal(up(st[1]), vc.STATUS_SRC_HEALTH);
+  assert.equal(lo(st[1]), vc.STATUS_SRC_RADAR);
+  assert.equal(st[1].body, vc.BODY_FC);
+});
+
+test('compactDense with radar off keeps the no-radar dense cycles intact (health on)', () => {
+  const st = vc.buildViewCycle('compactDense', 'status', 'off');
+  assert.equal(st.length, 1);
+  assert.equal(up(st[0]), vc.STATUS_SRC_HEALTH);
+  assert.equal(lo(st[0]), vc.STATUS_SRC_FORECAST);
+  const all = vc.buildViewCycle('compactDense', 'all', 'off');
+  assert.equal(all.length, 2);
+  assert.equal(all[1].body, vc.BODY_GRAPH);
+  assert.equal(up(all[1]), vc.STATUS_SRC_HEALTH);
+  assert.equal(lo(all[1]), vc.STATUS_SRC_FORECAST);
+});
+
 test('compactCal single forecast: default upper; swapClockStatus moves it to lower', () => {
   const normal = vc.buildViewCycle('compactCal', 'off', 'off');
   assert.equal(up(normal[0]), vc.STATUS_SRC_FORECAST);

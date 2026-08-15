@@ -60,6 +60,10 @@ var CAL2_HF_D    = spec(TIER_COMPACT, TOP_CAL,   BODY_FC,    STATUS_SRC_HEALTH, 
 var CAL2_RF_D    = spec(TIER_COMPACT, TOP_CAL,   BODY_FC,    STATUS_SRC_RADAR,    STATUS_SRC_FORECAST);
 var CAL2_RDR_W   = spec(TIER_COMPACT, TOP_CAL,   BODY_RADAR, STATUS_SRC_RADAR,    STATUS_SRC_NONE);
 var CAL2_GRAPH_D = spec(TIER_COMPACT, TOP_CAL,   BODY_GRAPH, STATUS_SRC_HEALTH,   STATUS_SRC_FORECAST);
+// compactDense radar flick: the dense preset stays DENSE on the radar view too —
+// health upper + radar lower over the radar chart (radarMode='status' demotes the
+// chart to the forecast graph via demoteRadarBody, keeping both rows).
+var CAL2_HR_D    = spec(TIER_COMPACT, TOP_CAL,   BODY_RADAR, STATUS_SRC_HEALTH,   STATUS_SRC_RADAR);
 var NONE_FC_W    = spec(TIER_NONE,    TOP_EMPTY, BODY_FC,    STATUS_SRC_FORECAST, STATUS_SRC_NONE);
 var NONE_FC_H    = spec(TIER_NONE,    TOP_EMPTY, BODY_FC,    STATUS_SRC_HEALTH,   STATUS_SRC_NONE);
 var NONE_GRAPH_H = spec(TIER_NONE,    TOP_EMPTY, BODY_GRAPH, STATUS_SRC_HEALTH,   STATUS_SRC_NONE);
@@ -81,9 +85,12 @@ var MATRIX = {
     all:    { n: [CAL2_FC_W, NONE_GRAPH_H],r: [CAL2_FC_W, NONE_GRAPH_H, NONE_RDR_W] }
   },
   compactDense: {
-    off:    { n: [CAL2_FC_W],              r: [CAL2_FC_W, CAL2_RDR_W] },
-    status: { n: [CAL2_HF_D],              r: [CAL2_HF_D, CAL2_RDR_W] },
-    all:    { n: [CAL2_HF_D, CAL2_GRAPH_D],r: [CAL2_HF_D, CAL2_GRAPH_D, CAL2_RDR_W] }
+    // off/slot + radar: dense still shows up — radar upper + weather lower (the same
+    // default the radarMode='status' special case below builds); health-and-radar-less
+    // dense has only ONE weather status line, so it degrades to the single-row view.
+    off:    { n: [CAL2_FC_W],              r: [CAL2_RF_D, CAL2_RDR_W] },
+    status: { n: [CAL2_HF_D],              r: [CAL2_HF_D, CAL2_HR_D] },
+    all:    { n: [CAL2_HF_D, CAL2_GRAPH_D],r: [CAL2_HF_D, CAL2_GRAPH_D, CAL2_HR_D] }
   },
   noCal: {
     off:    { n: [NONE_FC_W],              r: [NONE_FC_W, NONE_RDR_W] },
