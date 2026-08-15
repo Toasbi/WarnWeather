@@ -3,8 +3,9 @@ set -euo pipefail
 
 # Capture the promo-reel chapter frames per platform and assemble each platform's reel.
 # Thin wrapper over capture-screenshots.sh (same pattern as capture-showcase.sh). Intro
-# frames are REUSED from a prior `capture-showcase.sh <version>` run
-# (showcase/frames/<platform>/scene_{1,2,3,5}.png) — run that first. RUN ON THE MAC
+# frames are REUSED from a prior `capture-showcase.sh <version>` run — run that first.
+# Which scenes, and in what order, comes from the showcase table (scenes not flagged
+# reelIntro: false), via INTRO_SCENES in gen-reel-fixtures.js. RUN ON THE MAC
 # (needs the Pebble SDK + emulator).
 #
 # Usage:   scripts/capture-reel.sh <version>
@@ -15,9 +16,11 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export WW_HEALTH_FIXTURE=1
 export PLATFORMS="${PLATFORMS:-emery basalt flint aplite}"
 
-# 0. Intro frames must already exist (from capture-showcase.sh).
+# 0. Intro frames must already exist (from capture-showcase.sh). The scene list comes
+# from the showcase table via the reel module (single source of the intro order).
+intro_scenes="$(cd "$here" && node -e 'process.stdout.write(require("./scripts/gen-reel-fixtures.js").INTRO_SCENES.join(" "))')"
 for platform in $PLATFORMS; do
-  for n in 1 2 3 5; do
+  for n in $intro_scenes; do
     f="$here/screenshot/$version/showcase/frames/$platform/scene_$n.png"
     [[ -e "$f" ]] || { printf 'Missing intro frame %s — run scripts/capture-showcase.sh %s first.\n' "$f" "$version" >&2; exit 1; }
   done

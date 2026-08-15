@@ -121,11 +121,11 @@ test('any segment carrying a LIVE health slot value pins healthMode so the summa
   }
 });
 
-test('graph-5: emery-only top strip shows distance/empty/hr; base health-graph frame is untouched', () => {
+test('graph-5: emery-only top strip shows distance/date/hr; base health-graph frame is untouched', () => {
   const byName = generateIntoTmp();
   const emery = byName['reel-graph-5-emery'].claySettings;
   assert.strictEqual(emery.statusTopLeft, 'distance');
-  assert.strictEqual(emery.statusTopMid, 'empty');
+  assert.strictEqual(emery.statusTopMid, 'date');
   assert.strictEqual(emery.statusTopRight, 'hr');
   assert.strictEqual(byName['reel-graph-5'].claySettings.statusTopLeft, undefined);
 });
@@ -151,6 +151,20 @@ test('status-5 is compact mode; emery shows uv/date, non-emery leaves the mid sl
   assert.strictEqual(byName['reel-status-5-aplite'].claySettings.statusTopMid, 'empty');
   assert.strictEqual(byName['reel-status-5-emery'].claySettings.statusTopLeft, 'uv');
   assert.strictEqual(byName['reel-status-5-emery'].claySettings.statusTopMid, 'date');
+});
+
+test('status-5 shows every slot value bold on all platforms (Bold values master)', () => {
+  const byName = generateIntoTmp();
+  for (const name of ['reel-status-5', 'reel-status-5-emery', 'reel-status-5-aplite']) {
+    assert.strictEqual(byName[name].claySettings.statusBoldAll, 'all', name);
+  }
+});
+
+test('theme top strips: light and bw-light carry the date in the top-mid, bw carries gust', () => {
+  const byName = generateIntoTmp();
+  assert.strictEqual(byName['reel-theme-light'].claySettings.statusTopMid, 'date');
+  assert.strictEqual(byName['reel-theme-bwlight'].claySettings.statusTopMid, 'date');
+  assert.strictEqual(byName['reel-theme-bw'].claySettings.statusTopMid, 'gust');
 });
 
 test('status-2/3/5: heart rate only on emery; basalt/flint and aplite fall back off HR', () => {
@@ -180,7 +194,7 @@ test('emery manifest: intro + all three captioned chapters in order', () => {
   const cards = m.filter((s) => s.kind === 'card').map((s) => s.frame);
   assert.deepStrictEqual(cards, ['card-themes.png', 'card-graph.png', 'card-status.png']);
   const introCount = m.filter((s) => s.group === 'intro').length;
-  assert.strictEqual(introCount, 4, 'four intro scenes (1,2,3,5)');
+  assert.strictEqual(introCount, 5, 'five intro scenes (1,2,3,4,6)');
   const themeFrames = m.filter((s) => s.group === 'theme' && s.kind === 'scene').map((s) => s.frame);
   assert.strictEqual(themeFrames.length, 4, 'emery has 4 theme segments');
 });
@@ -214,4 +228,13 @@ test('manifest holds/fades come from TIMING by kind/group', () => {
 
 test('every screenshot (intro scenes + chapter frames) holds for the same length', () => {
   assert.strictEqual(reel.TIMING.chapter.hold, reel.TIMING.intro.hold);
+});
+
+test('the reel intro derives from the showcase table: its order, minus reelIntro:false scenes', () => {
+  const showcase = require('../scripts/gen-showcase-fixtures');
+  const expected = showcase.SCENES.filter((s) => s.reelIntro !== false).map((s) => s.id);
+  assert.deepStrictEqual(reel.INTRO_SCENES, expected,
+    'INTRO_SCENES follows the showcase scene order with no local copy');
+  assert.ok(showcase.SCENES.some((s) => s.reelIntro === false),
+    'the flick-gated health-graph scene stays flagged out of the intro');
 });

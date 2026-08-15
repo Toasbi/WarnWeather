@@ -57,16 +57,17 @@ const THEME_SLOTS = {
   'bw-light': { statusForecastLeft: 'pollen', statusForecastMid: 'city', statusForecastRight: 'aqi' },
 };
 // TOP-strip slots per theme step: every frame's upper bar shows a DIFFERENT tuple
-// (no theme repeats another's, and none repeats its own frame's forecast bar) so
-// the sweep advertises top-strip variety instead of four identical week/date/sun
-// strips. dark keeps the catalog default as the classic look; b&w and inverted keep the date
-// in the top-mid slot (user call: the date matters); light keeps its mid empty.
+// (no theme repeats another's) so the sweep advertises top-strip variety instead of
+// four identical week/date/sun strips. dark keeps the catalog default as the classic
+// look; light and inverted keep the date in the top-mid slot (user call: the date
+// matters); b&w's top-mid shows gust instead (user call — even though its forecast
+// bar carries gust too, the b&w frame is the gust showcase).
 // bw-light's FORECAST mid moves date->city so the date never shows twice in one frame.
 const THEME_TOPS = {
   dark:       {},   // catalog default: week / date / sun
-  light:      { statusTopLeft: 'wind', statusTopMid: 'empty', statusTopRight: 'battery' },
-  bw:         { statusTopLeft: 'uv',   statusTopMid: 'date',  statusTopRight: 'week' },
-  'bw-light': { statusTopLeft: 'temp', statusTopMid: 'date',  statusTopRight: 'sun' },
+  light:      { statusTopLeft: 'wind', statusTopMid: 'date', statusTopRight: 'battery' },
+  bw:         { statusTopLeft: 'uv',   statusTopMid: 'gust', statusTopRight: 'week' },
+  'bw-light': { statusTopLeft: 'temp', statusTopMid: 'date', statusTopRight: 'sun' },
 };
 
 // Build the theme SEGMENTS from themesFor(), so each theme is one segment with the right
@@ -194,6 +195,9 @@ const STATUS_SEGMENTS = [
   { id: 'status-5', group: 'status', flicks: 0, platforms: 'basalt flint',
     clay: { layoutPreset: 'compactCal', theme: 'dark', timeFont: 'roboto', radarProvider: 'disabled', healthMode: 'status',
       statusTopLeft: 'distance', statusTopMid: 'empty', statusTopRight: 'steps',
+      // All slot values bold via the Bold values master (user call: the closing
+      // status frame doubles as the bold showcase, like status-3).
+      statusBoldAll: 'all',
       statusForecastRight: 'wind' },
     variants: {
       emery:  { statusTopLeft: 'uv',   statusTopMid: 'date', statusTopRight: 'steps', statusForecastRight: 'hr' },
@@ -263,8 +267,13 @@ function generateReelFixtures(opts = {}) {
   return written;
 }
 
-// Intro scenes reused from the hero capture (showcase/frames/<platform>/scene_N.png).
-const INTRO_SCENES = [1, 2, 3, 5];
+// Intro scenes reused from the hero capture (showcase/frames/<platform>/scene_N.png),
+// in the showcase table's order — gen-showcase-fixtures.js owns the scene set and
+// ordering; scenes it flags `reelIntro: false` (the flick-gated health graph) are
+// skipped here. Reordering the showcase reorders the reel intro with zero edits.
+const INTRO_SCENES = require('./gen-showcase-fixtures').SCENES
+  .filter((s) => s.reelIntro !== false)
+  .map((s) => s.id);
 
 const CHAPTER_ORDER = ['theme', 'graph', 'status'];
 const CARD_BY_GROUP = { theme: 'themes', graph: 'graph', status: 'status' };
@@ -301,7 +310,7 @@ function printManifest(platform, version) {
 }
 
 module.exports = {
-  PLATFORM_CAPS, ALL_PLATFORMS, TIMING, themesFor, SEGMENTS, CARDS,
+  PLATFORM_CAPS, ALL_PLATFORMS, TIMING, themesFor, SEGMENTS, CARDS, INTRO_SCENES,
   segmentPlatforms, fixtureFor, generateReelFixtures,
   buildManifest, printManifest,
 };

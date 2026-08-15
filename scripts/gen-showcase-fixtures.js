@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
-// Showcase fixtures: four static scenes (no scrolling) demonstrating different layouts
+// Showcase fixtures: six static scenes (no scrolling) demonstrating different layouts
 // and functions, all on the Berlin base. Duplicated in spirit from
 // gen-timelapse-fixtures.js but far simpler — each scene is one frame, defined by
 // claySettings overrides + a crafted rain-radar segment (for the countdown scenes) +
@@ -49,13 +49,26 @@ const RAIN_NOW_AREA = segment(0, 5, 1.8);
 
 // Health-status-row slot pins for the emery variant. emery (Pebble Time 2) is the only HR
 // platform in the showcase set; the others (aplite/basalt/flint) have no HR sensor. The
-// scenes don't pin status slots, so packLine bakes the *base* health-right default (walked
-// distance) on every platform — so a plain capture shows distance, not the heart rate a real
-// Pebble Time 2 renders. Scenes that draw the health status row get an emery-only variant
-// fixture (showcase-<id>-emery.json) pinning sleep+HR, and capture-showcase.sh shoots emery
-// from it while the other platforms use the base fixture. Mirrors the wizard split
-// (gen-wizard-fixtures.js: HEALTH_HR + statusHealthMid/Right).
+// scenes don't pin the health-row slots, so packLine bakes the *base* health-right default
+// (walked distance) on every platform — so a plain capture shows distance, not the heart
+// rate a real Pebble Time 2 renders. Scenes needing per-platform slots declare a
+// `variants: {<platform>: clayOverrides}` map (mirroring gen-reel-fixtures.js): each
+// variant writes its own showcase-<id>-<platform>.json layered on the scene clay, and
+// capture-showcase.sh shoots that platform from it while the rest use the base fixture.
 const HR_EMERY = { statusHealthMid: 'sleep', statusHealthRight: 'hr' };
+
+/**
+ * Target date for scene 4's date-countdown slot, 21 days out from TODAY.
+ * The countdown TEXT is formatted phone-side against the real clock (status-lines.js
+ * packLine → formatCountdown(new Date())), not the fixture's watch.now — so the target
+ * has to move with the generation day for the capture to render "21d".
+ * @returns {string} YYYY-MM-DD
+ */
+function countdownTarget() {
+  const t = new Date(Date.now() + 21 * 86400000);
+  const p = (n) => String(n).padStart(2, '0');
+  return t.getFullYear() + '-' + p(t.getMonth() + 1) + '-' + p(t.getDate());
+}
 
 // Scene table. `clay` overrides the Berlin base claySettings; `flicks` is how many wrist
 // flicks capture-showcase.sh sends before the screenshot to reach the intended view;
@@ -64,7 +77,7 @@ const HR_EMERY = { statusHealthMid: 'sleep', statusHealthRight: 'hr' };
 const SCENES = [
   {
     // Full top view (classic 3-row calendar) with a "Rain in X" countdown up top.
-    // timeFont 'leco' — reel intro (scenes 1/2/3/5) is all leco.
+    // timeFont 'leco' — reel intro (scenes 1/2/3/4/6) is all leco.
     id: 1, flicks: 0,
     clay: {
       layoutPreset: 'fullCal', healthMode: 'off',
@@ -80,44 +93,77 @@ const SCENES = [
     // Compact-DENSE: weather & health status shown together by default (no flick needed),
     // with a different-looking forecast (wind + dotted gust). Radar off — the dense
     // preset's off-radar cycle is a single view, so there's nothing to flick to anyway.
-    // timeFont 'leco' — reel intro (scenes 1/2/3/5) is all leco.
-    id: 2, flicks: 0, hrEmery: true,
+    // timeFont 'leco' — reel intro (scenes 1/2/3/4/6) is all leco.
+    // No threshold highlighting here (user call: too busy for the intro scenes);
+    // the left slot stays wind to match the scene's wind+gust graph.
+    id: 2, flicks: 0, variants: { emery: HR_EMERY },
     clay: {
       layoutPreset: 'compactDense', healthMode: 'status',
       secondaryLine: 'wind', thirdLine: 'gust', barSource: 'off',
       radarProvider: 'disabled', rainCountdownHorizon: '0',
       timeFont: 'leco',
-      // Threshold showcase (store GIF frame 2): the weather status row carries an
-      // OUTLINED warn slot and a DANGER-filled slot. Left slot becomes wind so two
-      // threshold kinds sit in the bar (temp is bold-only); berlin's current wind is
-      // 20 km/h and AQI 38, so warn 15/danger 40 outlines wind and warn 20/danger 35
-      // fills AQI. Values are strings and colors '#RRGGBB' — the exact formats the
-      // settings store holds (see blocks.js resetThresholds). Aplite compiles
-      // thresholds out and keeps its plain frame.
       statusForecastLeft: 'wind',
-      threshWindOn: true, threshWindWarn: '15', threshWindDanger: '40',
-      threshWindWarnOutlineOn: true, threshWindWarnColor: '#FFAA00',
-      threshAqiOn: true, threshAqiWarn: '20', threshAqiDanger: '35',
-      threshAqiDangerColor: '#FF0000',
     },
     radar: null,
   },
   {
-    // Compact + single status showing the weather status, drizzle approaching in the top bar.
-    // timeFont 'leco' — reel intro (scenes 1/2/3/5) is all leco.
+    // Compact + single status showing the weather status, with a health-flavoured top
+    // strip — heart rate (emery) / date / steps, every value bold (user call: no drizzle
+    // countdown up top; this frame is the bold + health-top-slot showcase). The
+    // drizzle radar series stays for the graph's rain bar, but the countdown is off
+    // (horizon '0', no baked strip) so the top strip shows the slots.
+    // timeFont 'leco' — reel intro (scenes 1/2/3/4/6) is all leco.
     id: 3, flicks: 0,
     clay: {
       layoutPreset: 'compactCal', healthMode: 'status',
       secondaryLine: 'precip_prob', secondaryLineFill: true, thirdLine: 'uv',
       barSource: 'rain', rainBarColor: 'multicolor',
-      radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60',
+      radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '0',
       timeFont: 'leco',
-      // All-bold showcase (store GIF frame 3): the master Bold values override
-      // packs every slot kind's bold cell as always at blob-build time.
+      // All-bold showcase: the master Bold values override packs every slot kind's
+      // bold cell as always at blob-build time.
       statusBoldAll: 'all',
+      // Base = basalt/flint: their 144px strip can't fit bold side values next to
+      // the bold date (user call) — leave left/right empty. emery pins the full
+      // hr/date/steps look; aplite keeps its classic week/date/sun strip (its
+      // narrower B/W font fits).
+      statusTopLeft: 'empty', statusTopMid: 'date', statusTopRight: 'empty',
+    },
+    variants: {
+      emery:  { statusTopLeft: 'hr', statusTopRight: 'steps' },
+      aplite: { statusTopLeft: 'week', statusTopRight: 'sun' },
     },
     radar: { exact: DRIZZLE_EXACT, area: DRIZZLE_AREA },
-    countdown: { text: "Drizzle in 15'", tier: 2 },
+  },
+  {
+    // Compact 2-row calendar with every status slot bold (mirrors the user's real-watch
+    // look): a bold date in the top-mid — flanked by a date-countdown ("21d") and steps
+    // on emery, narrow week/UV elsewhere — over the classic temp / city / AQI forecast
+    // bar. The radar series feeds the graph's rain bar, but the rain countdown stays off
+    // (horizon '0') so the top strip shows its slots.
+    // timeFont 'leco' — reel intro (scenes 1/2/3/4/6) is all leco.
+    id: 4, flicks: 0,
+    clay: {
+      layoutPreset: 'compactCal', healthMode: 'status',
+      secondaryLine: 'precip_prob', secondaryLineFill: true, thirdLine: 'uv',
+      barSource: 'rain', rainBarColor: 'multicolor',
+      radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '0',
+      timeFont: 'leco',
+      // Clock directly under the calendar, weather status row between clock and
+      // graph (user call, matches the real-watch photo): cal → clock → status → graph.
+      swapClockStatus: true,
+      statusBoldAll: 'all',
+      statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'aqi',
+      // Base = the 144px platforms (aplite/basalt/flint): the bold date needs narrow
+      // side slots or it gets cut off (user call) — calendar week left, UV right.
+      statusTopLeft: 'week', statusTopMid: 'date', statusTopRight: 'uv',
+    },
+    // emery's wider strip carries the real-watch look: date-countdown / date / steps.
+    variants: {
+      emery: { statusTopLeft: 'countdown', statusTopLeftCountdown: countdownTarget(),
+               statusTopRight: 'steps' },
+    },
+    radar: { exact: RAIN_APPROACH_EXACT, area: RAIN_APPROACH_AREA },
   },
   {
     // No-calendar layout with the HEALTH graph (healthMode 'all'): a flick swaps the
@@ -125,7 +171,10 @@ const SCENES = [
     // sleep band, and the heart-rate line — with the health status line above. Radar off
     // so the single flick lands on the graph. The graph's numbers come from the
     // health_fixture.c twin.
-    id: 4, flicks: 1, hrEmery: true,
+    // reelIntro: false — the reel intro reuses the showcase scenes in THIS table's
+    // order (gen-reel-fixtures.js derives its INTRO_SCENES from here); this one is
+    // skipped there (flick-gated, and degraded on aplite).
+    id: 5, flicks: 1, reelIntro: false, variants: { emery: HR_EMERY },
     clay: {
       layoutPreset: 'noCal', healthMode: 'all',
       secondaryLine: 'precip_prob', barSource: 'off',
@@ -136,8 +185,8 @@ const SCENES = [
   {
     // NONE mode with a rain-now countdown ("Rain for X"): full-date strip, big clock,
     // full-screen forecast.
-    // timeFont 'leco' — reel intro (scenes 1/2/3/5) is all leco.
-    id: 5, flicks: 0,
+    // timeFont 'leco' — reel intro (scenes 1/2/3/4/6) is all leco.
+    id: 6, flicks: 0,
     clay: {
       layoutPreset: 'noCal', healthMode: 'off',
       secondaryLine: 'precip_prob', secondaryLineFill: true,
@@ -166,9 +215,9 @@ function generateShowcaseFixtures(opts = {}) {
 
   // Clear any showcase fixtures from a prior run so the on-disk set matches this run's
   // scene list (a shorter list would otherwise leave stale higher-numbered fixtures).
-  // Matches both the base `showcase-N.json` and the emery variant `showcase-N-emery.json`.
+  // Matches both the base `showcase-N.json` and platform variants `showcase-N-<platform>.json`.
   for (const name of fs.readdirSync(outDir)) {
-    if (/^showcase-\d+(-emery)?\.json$/.test(name)) {
+    if (/^showcase-\d+(-[a-z]+)?\.json$/.test(name)) {
       fs.unlinkSync(path.join(outDir, name));
     }
   }
@@ -196,12 +245,12 @@ function generateShowcaseFixtures(opts = {}) {
     const outPath = path.join(outDir, 'showcase-' + scene.id + '.json');
     fs.writeFileSync(outPath, JSON.stringify(buildFrame(scene), null, 2) + '\n');
     written.push(outPath);
-    // Scenes that draw the health status row get an emery-only variant pinning the sleep+HR
-    // slots so the Pebble Time 2 capture shows heart rate, not the base distance default.
-    if (scene.hrEmery) {
-      const emeryPath = path.join(outDir, 'showcase-' + scene.id + '-emery.json');
-      fs.writeFileSync(emeryPath, JSON.stringify(buildFrame(scene, HR_EMERY), null, 2) + '\n');
-      written.push(emeryPath);
+    // Per-platform variants (e.g. emery pinning the HR slot it alone can render, aplite
+    // falling back off health slots) layer their overrides on the scene clay.
+    for (const plat of Object.keys(scene.variants || {})) {
+      const vPath = path.join(outDir, 'showcase-' + scene.id + '-' + plat + '.json');
+      fs.writeFileSync(vPath, JSON.stringify(buildFrame(scene, scene.variants[plat]), null, 2) + '\n');
+      written.push(vPath);
     }
   }
   return written;

@@ -26,16 +26,17 @@ export PLATFORMS="${PLATFORMS:-aplite basalt flint emery}"
 # (Re)generate the scene fixtures so the on-disk set matches the scene table.
 node "$here/scripts/gen-showcase-fixtures.js"
 
-# One capture-screenshots run per scene, filing raw/<platform>.png into the scene frame
-# before the next scene overwrites raw/. Scene id + flick count are read from the
-# generator so they never drift from the fixtures. Collect the id/flick pairs FIRST, then
-# capture in a separate loop: running capture-screenshots.sh inside `while read < <(node …)`
-# let its pebble/mise children drain the process-substitution fd, so the loop ran only once.
-ids=(); flickss=(); hrs=()
-while IFS=' ' read -r id flicks hr; do
+# One capture-screenshots run per scene fixture, filing raw/<platform>.png into the scene
+# frame before the next scene overwrites raw/. Scene id + flick count + variant platforms
+# are read from the generator so they never drift from the fixtures. Collect the rows
+# FIRST, then capture in a separate loop: running capture-screenshots.sh inside
+# `while read < <(node …)` let its pebble/mise children drain the process-substitution fd,
+# so the loop ran only once.
+ids=(); flickss=(); variantss=()
+while IFS='|' read -r id flicks variants; do
   [[ -n "$id" ]] || continue
-  ids+=("$id"); flickss+=("$flicks"); hrs+=("$hr")
-done < <(node -e "require('$here/scripts/gen-showcase-fixtures.js').SCENES.forEach(function(s){console.log(s.id + ' ' + s.flicks + ' ' + (s.hrEmery ? 1 : 0));})")
+  ids+=("$id"); flickss+=("$flicks"); variantss+=("$variants")
+done < <(node -e "require('$here/scripts/gen-showcase-fixtures.js').SCENES.forEach(function(s){console.log(s.id + '|' + s.flicks + '|' + Object.keys(s.variants || {}).join(' '));})")
 
 # file_scene <id> <platform...> — copy each platform's raw/<platform>.png (from the capture
 # just run) into its scene_<id>.png frame.
@@ -50,32 +51,29 @@ file_scene() {
 }
 
 for i in "${!ids[@]}"; do
-  id="${ids[$i]}"; flicks="${flickss[$i]}"; hr="${hrs[$i]}"
+  id="${ids[$i]}"; flicks="${flickss[$i]}"; variants="${variantss[$i]}"
 
-  # An hrEmery scene draws the health status row: emery (the sole HR platform here) must
-  # shoot the sleep+HR-pinned variant fixture so it shows heart rate, while the other
-  # platforms — which have no HR sensor — keep the base fixture's distance default. When
-  # emery isn't in PLATFORMS the split is moot; capture the base for everyone.
-  emery_split=0
-  case " $PLATFORMS " in *" emery "*) [[ "$hr" == "1" ]] && emery_split=1 ;; esac
+  # A scene with per-platform variants (emery pinning HR, aplite falling back off health
+  # slots) shoots each variant platform from its own fixture; every other platform in
+  # PLATFORMS shares the base fixture in one capture run. Variant platforms not in
+  # PLATFORMS are simply skipped.
+  base_plats=""
+  for p in $PLATFORMS; do
+    case " $variants " in *" $p "*) ;; *) base_plats+="$p " ;; esac
+  done
+  base_plats="${base_plats% }"
 
-  if [[ "$emery_split" == "1" ]]; then
-    base_plats=""
-    for p in $PLATFORMS; do [[ "$p" == "emery" ]] || base_plats+="$p "; done
-    base_plats="${base_plats% }"
-    if [[ -n "$base_plats" ]]; then
-      printf '\n######## showcase scene %s (flicks=%s, base=%s) ########\n' "$id" "$flicks" "$base_plats"
-      FLICKS="$flicks" PLATFORMS="$base_plats" "$here/scripts/capture-screenshots.sh" "$version" "showcase-$id" </dev/null
-      file_scene "$id" $base_plats
-    fi
-    printf '\n######## showcase scene %s (flicks=%s, emery HR variant) ########\n' "$id" "$flicks"
-    FLICKS="$flicks" PLATFORMS="emery" "$here/scripts/capture-screenshots.sh" "$version" "showcase-$id-emery" </dev/null
-    file_scene "$id" emery
-  else
-    printf '\n######## showcase scene %s (flicks=%s) ########\n' "$id" "$flicks"
-    FLICKS="$flicks" "$here/scripts/capture-screenshots.sh" "$version" "showcase-$id" </dev/null
-    file_scene "$id" $PLATFORMS
+  if [[ -n "$base_plats" ]]; then
+    printf '\n######## showcase scene %s (flicks=%s, base=%s) ########\n' "$id" "$flicks" "$base_plats"
+    FLICKS="$flicks" PLATFORMS="$base_plats" "$here/scripts/capture-screenshots.sh" "$version" "showcase-$id" </dev/null
+    file_scene "$id" $base_plats
   fi
+  for plat in $variants; do
+    case " $PLATFORMS " in *" $plat "*) ;; *) continue ;; esac
+    printf '\n######## showcase scene %s (flicks=%s, %s variant) ########\n' "$id" "$flicks" "$plat"
+    FLICKS="$flicks" PLATFORMS="$plat" "$here/scripts/capture-screenshots.sh" "$version" "showcase-$id-$plat" </dev/null
+    file_scene "$id" "$plat"
+  done
 done
 
 printf '\nShowcase frames captured under screenshot/%s/showcase/frames/<platform>/.\n' "$version"

@@ -18,7 +18,7 @@ set -euo pipefail
 #
 # Usage:   scripts/assemble-showcase-gif.sh <version> <platform> [hold_secs] [fade_secs] [fps]
 # Example: scripts/assemble-showcase-gif.sh v1.6.0 basalt 1 0.35 15
-# Env:     MAX_SCENES=N  include only the first N captured scenes in the GIF (default 3;
+# Env:     MAX_SCENES=N  include only the first N captured scenes in the GIF (default 2;
 #                        0 = all captured scenes).
 
 if [[ $# -lt 2 ]]; then
@@ -36,8 +36,8 @@ fps="${5:-15}"
 # MAX_SCENES=0 to include every captured scene.
 max_scenes="${MAX_SCENES:-2}"
 # Drop specific scene ids from this platform's GIF (space- or comma-separated), applied
-# before the MAX_SCENES cap. aplite has no PBL_HEALTH, so its health scenes (2,3,4) render
-# degraded — exclude them there: EXCLUDE_SCENES="2 3 4" ... aplite.
+# before the MAX_SCENES cap. aplite has no PBL_HEALTH, so the health-graph scene (5)
+# renders degraded — exclude it there: EXCLUDE_SCENES="5" ... aplite.
 exclude_scenes="${EXCLUDE_SCENES:-}"
 
 frames_dir="screenshot/$version/showcase/frames/$platform"
