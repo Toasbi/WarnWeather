@@ -663,7 +663,7 @@ module.exports = {
                     off: 'Radar is hidden.',
                     countdown: 'Shows a “Rain in X′” countdown in the Watch Status Bar, without adding a separate Radar view.',
                     status: 'Adds a Radar view showing the Radar Status Bar above the regular forecast graph.',
-                    graph: 'Adds a Radar view showing both the Radar Status Bar and the full radar rain graph in place of the forecast graph.'
+                    graph: 'Adds a Radar view showing both the Radar Status Bar and the full radar rain graph.'
                 },
                 options: [['Off', 'off'], ['Countdown only', 'countdown'], ['Status bar', 'status'], ['Status + Graph', 'graph']],
                 onChange: 'resetStatusRadar'
@@ -768,7 +768,7 @@ module.exports = {
                     off: 'Health is hidden.',
                     slot: 'Lets you put health items (steps, sleep, heart rate, walked distance) in any status bar, without adding a separate Health view.',
                     status: 'Adds a Health view showing the Health Status Bar — today\'s steps, last night\'s sleep, and current heart rate — above the regular forecast graph. Heart rate needs a watch with a heart-rate sensor.',
-                    all: 'Adds a Health view showing both the Health Status Bar and a health graph — hourly step bars, a sleep band, and a heart-rate line — in place of the forecast graph. Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
+                    all: 'Adds a Health view showing both the Health Status Bar and a health graph — hourly step bars, a sleep band, and a heart-rate line. Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
                 },
                 options: [['Off', 'off'], ['Status slots only', 'slot'], ['Status bar', 'status'], ['Status + Graph (BETA)', 'all']],
                 onChange: 'resetStatusHealth'
