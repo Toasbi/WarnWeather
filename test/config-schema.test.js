@@ -296,7 +296,7 @@ test('radar tab is gated to radar-capable platforms', () => {
   assert.deepEqual(radarTab.showWhen, { env: 'radar' });
 });
 
-test('radarNoRainText: visible default, 24-char UI cap, ungated in the Radar tab', () => {
+test('radarNoRainText: visible default, 24-char UI cap, hidden with radar off', () => {
   const item = byKey('radarNoRainText');
   assert.ok(item, 'radarNoRainText item exists');
   assert.equal(item.type, 'text');
@@ -305,9 +305,12 @@ test('radarNoRainText: visible default, 24-char UI cap, ungated in the Radar tab
   // field falls back to the built-in string watch-side.
   assert.equal(item.defaultValue, 'No rain ahead');
   // Soft UI cap; the real limit is 24 UTF-8 BYTES, enforced phone-side at pack
-  // time. Rides only the tab-level env-radar gate — no showWhen of its own.
+  // time.
   assert.equal(item.attributes.maxlength, 24);
-  assert.equal(item.showWhen, undefined, 'no extra gate beyond the radar tab');
+  // The message only renders in the radar view, so the field hides with the
+  // radar itself — same idiom as the rain-countdown row below it.
+  assert.deepEqual(item.showWhen, {key: 'radarMode', ne: 'off'},
+    'hidden while radarMode is off');
   const radarItems = schema.tabs.find((t) => t.id === 'radar').sections[0].items;
   const idx = radarItems.indexOf(item);
   assert.ok(idx !== -1, 'lives in the Radar tab');

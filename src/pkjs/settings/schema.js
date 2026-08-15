@@ -850,7 +850,8 @@ module.exports = {
                 label: 'No-rain message',
                 defaultValue: 'No rain ahead',
                 attributes: {maxlength: 24},
-                hint: 'Shown in the radar view when no rain is coming. Up to 24 characters; clear the field to use the default.'
+                hint: 'Shown in the radar view when no rain is coming. Up to 24 characters; clear the field to use the default.',
+                showWhen: {key: 'radarMode', ne: 'off'}
             }, {
                 type: 'select',
                 messageKey: 'rainCountdownHorizon',
