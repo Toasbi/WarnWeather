@@ -633,7 +633,7 @@ test('radarMode is a four-step radio with per-mode hint copy', () => {
     off: 'Radar is hidden.',
     countdown: 'Shows a “Rain in X′” countdown in the Watch Status Bar, without adding a separate Radar view.',
     status: 'Adds a Radar view showing the Radar Status Bar above the regular forecast graph.',
-    graph: 'Adds a Radar view showing both the Radar Status Bar and the full radar rain graph in place of the forecast graph.'
+    graph: 'Adds a Radar view showing both the Radar Status Bar and the full radar rain graph.'
   });
 });
 
