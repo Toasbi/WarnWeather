@@ -76,7 +76,11 @@
      optional reset action hugging the title's right, and ONLY the master switch
      pushed to the right edge. The push is the switch's own auto margin, so a
      header without a labelAction still right-aligns its switch. */
-  .subhdr.grp { display: flex; align-items: center; gap: 8px; padding-top: 18px; }
+  /* A .grp sub-header HOSTS the group's master switch, so its title reads as that
+     toggle's label: it wears the row-label treatment (.row .lbl — 14.5px/600,
+     var(--lbl), sentence case), not the muted uppercase section-title gray. */
+  .subhdr.grp { display: flex; align-items: center; gap: 8px; padding-top: 18px;
+    font-size: 14.5px; font-weight: 600; letter-spacing: normal; text-transform: none; color: var(--lbl); }
   .subhdr.grp > span:first-child { min-width: 0; }
   .subhdr.grp .sw { flex: none; margin-left: auto; }
   .subhdr.grp .lbl-act { flex: none; }
