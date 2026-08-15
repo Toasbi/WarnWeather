@@ -23,7 +23,7 @@ function itemsByKey() {
   return map;
 }
 
-const STEMS = ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance'];
+const STEMS = ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance', 'Uv'];
 const HEALTH_STEMS = ['Steps', 'Sleep', 'Distance'];
 const ENV = { thresholds: true, color: true, health: true };
 
@@ -89,9 +89,14 @@ test('threshold color pickers are COLOR + bw-theme + toggle gated, auto (unset) 
         it.messageKey + ' must be hidden on B&W themes only');
       assert.deepEqual(it.disabledWhen, { not: { key: 'thresh' + stem + 'On' } },
         it.messageKey + ' must disable (not hide) while the highlight is off');
-      // Auto default: unset hydrates '' and onLoad derives the theme fg — a seeded
-      // orange/red would falsely register as a user pick under the new auto rule.
-      assert.equal(it.defaultValue, '', it.messageKey + ' hydrates unset (auto)');
+      // Weather kinds hydrate '' (warn: the no-outline sentinel; danger: auto ->
+      // onLoad derives the theme fg). Goal kinds hydrate the green celebration
+      // default — '' would read as outline-off in the seeded store, which is
+      // exactly the bug that shipped the first cut of the rework (MEASURED:
+      // bold-but-no-outline on the emulator).
+      const goal = ['Steps', 'Sleep', 'Distance'].indexOf(stem) >= 0;
+      assert.equal(it.defaultValue, goal ? '#55FF00' : '',
+        it.messageKey + ' default');
     });
   });
 });
@@ -168,10 +173,11 @@ test('wind/gust/distance scales follow the General-tab unit pickers', () => {
   assert.deepEqual([mph.max, mph.seedWarn, mph.seedDanger, mph.unit], [75, 25, 40, 'mph']);
   const kn = B.thresholdRangeCfg({ windUnits: 'knots' }, ENV, { keyStem: 'Gust' });
   assert.deepEqual([kn.max, kn.seedWarn, kn.seedDanger, kn.unit], [85, 30, 50, 'kn']);
+  // Distance seeds order upward since the goal rework (close, then the goal).
   const km = B.thresholdRangeCfg({}, ENV, { keyStem: 'Distance' });
-  assert.deepEqual([km.max, km.seedWarn, km.seedDanger, km.unit], [20, 5, 2.5, 'km']);
+  assert.deepEqual([km.max, km.seedWarn, km.seedDanger, km.unit], [20, 4, 5, 'km']);
   const mi = B.thresholdRangeCfg({ distanceUnits: 'imperial' }, ENV, { keyStem: 'Distance' });
-  assert.deepEqual([mi.max, mi.seedWarn, mi.seedDanger, mi.unit], [12, 3, 1.5, 'mi']);
+  assert.deepEqual([mi.max, mi.seedWarn, mi.seedDanger, mi.unit], [12, 2.5, 3, 'mi']);
 });
 
 test('AQI scale: European only when Open-Meteo is the source and the picker says so', () => {
@@ -255,21 +261,22 @@ test('toggling on seeds an ordered pair in the current unit; off blanks it', () 
 
 test('toggling on preserves a stored ordered pair, reseeds a broken one', () => {
   const hook = PC.onChange.get('thresholdToggle');
-  const kept = { threshStepsWarn: '8000', threshStepsDanger: '4000' };
+  // Goal kinds order upward since the celebration rework: close <= goal.
+  const kept = { threshStepsWarn: '4000', threshStepsDanger: '8000' };
   hook(kept, false, true, ENV, 'threshStepsOn');
-  assert.equal(kept.threshStepsWarn, '8000', 'valid pair untouched');
-  // Inverted for a below-is-worse kind (danger above warn) → reseed.
-  const broken = { threshStepsWarn: '4000', threshStepsDanger: '8000' };
+  assert.equal(kept.threshStepsWarn, '4000', 'valid pair untouched');
+  // A legacy below-ordered pair (goal under close) is broken now → reseed.
+  const broken = { threshStepsWarn: '8000', threshStepsDanger: '4000' };
   hook(broken, false, true, ENV, 'threshStepsOn');
-  assert.equal(broken.threshStepsWarn, '5000');
-  assert.equal(broken.threshStepsDanger, '2500');
+  assert.equal(broken.threshStepsWarn, '8000');
+  assert.equal(broken.threshStepsDanger, '10000');
 });
 
 // --- derived toggle state (onbuild.js onLoad) -------------------------------
 
 test('onLoad derives each toggle from its stored pair (the kindConfig rule)', () => {
   const S = {
-    threshStepsWarn: '5000', threshStepsDanger: '2500',   // ordered (below-worse) → on
+    threshStepsWarn: '2500', threshStepsDanger: '5000',   // ordered upward (goal) → on
     threshWindWarn: '60', threshWindDanger: '40',         // inverted (above-worse) → off
     threshSleepWarn: '7', threshSleepDanger: '',          // half pair → off
     location: ''
@@ -306,7 +313,10 @@ test('onLoad derives auto colors from the theme; user picks survive', () => {
   const dark = loaded({});
   assert.equal(dark.threshAqiWarnColor, '');
   assert.equal(dark.threshAqiWarnOutlineOn, false);
-  assert.equal(dark.threshStepsDangerColor, '#FFFFFF');
+  // Goal kinds seed the green celebration colors (outline on) instead.
+  assert.equal(dark.threshStepsWarnColor, '#55FF00');
+  assert.equal(dark.threshStepsWarnOutlineOn, true);
+  assert.equal(dark.threshStepsDangerColor, '#55FF00');
   // A STALE pre-outline-toggle auto value (theme fg) converts to blank — those
   // installs get the new bold-only default; danger still re-derives per theme.
   const light = loaded({ theme: 'light', threshAqiWarnColor: '#FFFFFF' });
@@ -608,12 +618,21 @@ test('thresholdPenState honors its env gate and the color pickers', () => {
   const S = { statusForecastRight: 'aqi', threshAqiWarn: '50', threshAqiDanger: '100' };
   const args = { messageKey: 'statusForecastRight' };
   assert.equal(resolver(S, { thresholds: false }, args), null, 'gated off without env.thresholds');
-  assert.deepEqual(resolver(S, ENV, args), { warnColor: '#8A8E97', dangerColor: '#FFFFFF' },
-    'no-outline warn shows the neutral ring; auto danger resolves to the theme fg');
+  assert.deepEqual(resolver(S, ENV, args),
+    { label: 'Warn', enabled: true, warnColor: '#8A8E97', dangerColor: '#FFFFFF' },
+    'weather kind labels its button Warn; no-outline warn shows the neutral ring');
   const picked = Object.assign({}, S, { threshAqiWarnColor: '#00AAFF', threshAqiDangerColor: '#5500FF' });
-  assert.deepEqual(resolver(picked, ENV, args), { warnColor: '#00AAFF', dangerColor: '#5500FF' });
-  assert.equal(resolver(Object.assign({}, S, { threshAqiDanger: '' }), ENV, args), null,
-    'a half pair (disabled kind) shows no badge');
+  assert.deepEqual(resolver(picked, ENV, args),
+    { label: 'Warn', enabled: true, warnColor: '#00AAFF', dangerColor: '#5500FF' });
+  // A half pair (disabled kind) still gets its labeled button — just without the
+  // enabled state dots (the button must exist to configure the kind at all).
+  assert.deepEqual(resolver(Object.assign({}, S, { threshAqiDanger: '' }), ENV, args).enabled, false);
+  // Goal kinds label their button Goal.
+  const goalArgs = { messageKey: 'statusHealthLeft' };
+  const goalS = { statusHealthLeft: 'steps', threshStepsWarn: '4000', threshStepsDanger: '8000' };
+  const goalBadge = resolver(goalS, ENV, goalArgs);
+  assert.equal(goalBadge.label, 'Goal');
+  assert.equal(goalBadge.enabled, true);
 });
 
 // --- interaction stubs: drive the shared range machinery on the booted page ---
@@ -664,33 +683,35 @@ const NO_TARGET = { closest: () => null };
 
 test('a pointer drag in the sheet commits both wire keys through the role mapping', () => {
   const page = bootGeneratedPage();   // healthMode defaults allow the Steps kind
-  page.S.threshStepsWarn = '5000';
-  page.S.threshStepsDanger = '2500';
-  // Steps is below-is-worse: lo = danger thumb. Track stub is 100px over 0..20000.
+  page.S.threshStepsWarn = '2500';
+  page.S.threshStepsDanger = '5000';
+  // Steps orders upward since the goal rework: lo = warn ("close") thumb. Track
+  // stub is 100px over 0..20000.
   const root = makeRngRoot('threshStepsWarn', 2500, 5000);
   const th = thumbOn(root, 'lo');
   page.modal.dispatch('pointerdown', { target: th, pointerId: 7, preventDefault() {} });
   page.modal.dispatch('pointermove', { target: NO_TARGET, pointerId: 7, clientX: 10 });
   // 10% of 20000 = 2000, on the 250 grid.
-  assert.equal(page.S.threshStepsDanger, '2000', 'the lo thumb wrote the DANGER key');
-  assert.equal(page.S.threshStepsWarn, '5000', 'the warn key kept its value');
+  assert.equal(page.S.threshStepsWarn, '2000', 'the lo thumb wrote the WARN (close) key');
+  assert.equal(page.S.threshStepsDanger, '5000', 'the goal key kept its value');
   page.modal.dispatch('pointerup', { target: NO_TARGET, pointerId: 7 });
   // After release the drag is over: further moves must not write.
   page.modal.dispatch('pointermove', { target: NO_TARGET, pointerId: 7, clientX: 90 });
-  assert.equal(page.S.threshStepsDanger, '2000', 'no writes after pointerup');
+  assert.equal(page.S.threshStepsWarn, '2000', 'no writes after pointerup');
 });
 
 test('keyboard nudge steps half-units and keeps the untouched decimal thumb intact', () => {
   const page = bootGeneratedPage();
-  page.S.threshSleepWarn = '7.5';
-  page.S.threshSleepDanger = '6.5';
-  // Sleep is below-is-worse: hi = warn thumb; step 0.5. parseInt on data-lo would
-  // silently turn the untouched danger 6.5 into 6 — the float regression this pins.
+  page.S.threshSleepWarn = '6.5';
+  page.S.threshSleepDanger = '7.5';
+  // Sleep orders upward since the goal rework: hi = danger ("goal") thumb; step
+  // 0.5. parseInt on data-lo would silently turn the untouched close 6.5 into 6 —
+  // the float regression this pins.
   const root = makeRngRoot('threshSleepWarn', 6.5, 7.5);
   const th = thumbOn(root, 'hi');
   page.modal.dispatch('keydown', { target: th, key: 'ArrowRight', preventDefault() {} });
-  assert.equal(page.S.threshSleepWarn, '8', 'warn nudged one 0.5 step up');
-  assert.equal(page.S.threshSleepDanger, '6.5', 'danger kept its stored half-unit');
+  assert.equal(page.S.threshSleepDanger, '8', 'goal nudged one 0.5 step up');
+  assert.equal(page.S.threshSleepWarn, '6.5', 'close kept its stored half-unit');
 });
 
 test('the pre-existing plain slider (hrScale) still commits its lo-hi string', () => {

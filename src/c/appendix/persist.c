@@ -490,7 +490,7 @@ int persist_get_status_levels(void) {
     return persist_read_int(STATUS_LEVELS);
 }
 
-bool persist_set_status_levels(uint8_t levels) {
+bool persist_set_status_levels(int levels) {
     return write_int_if_changed(STATUS_LEVELS, levels);
 }
 

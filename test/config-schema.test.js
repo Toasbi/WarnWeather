@@ -21,7 +21,7 @@ function forecastItems(s) { return s.tabs.find((t) => t.id === 'forecast').secti
 // scale max, two colors), generated the same way schema.js's thresholdSection()
 // generates them — listing 42 literals would just invite drift. THRESH_COLOR_KEYS is
 // reused by the color-defaults assertion below.
-const THRESH_STEMS = ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance'];
+const THRESH_STEMS = ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance', 'Uv'];
 const threshKeys = (suffixes) => THRESH_STEMS.reduce((acc, stem) =>
   acc.concat(suffixes.map((suffix) => 'thresh' + stem + suffix)), []);
 const THRESH_COLOR_KEYS = threshKeys(['WarnColor', 'DangerColor']);
@@ -936,13 +936,13 @@ test('Watch tab opens with a general status-bar intro, then the four bars in for
   // sit between the bars and Time in the sections array (see thresholdSection).
   // The below-is-worse health kinds read as GOALS you fall short of (contract
   // belowIsWorse drives the wording), the weather kinds stay thresholds.
-  assert.deepEqual(titles.slice(4, 11),
+  assert.deepEqual(titles.slice(4, 12),
     ['Air quality (AQI) thresholds', 'Pollen thresholds', 'Wind speed thresholds',
-      'Wind gusts thresholds', 'Steps goal', 'Sleep goal',
+      'Wind gusts thresholds', 'UV index thresholds', 'Steps goal', 'Sleep goal',
       'Walked distance goal'],
     'threshold edit sheets follow the four status bars, in kind order');
   // Time and Calendar keep their spots below.
-  assert.deepEqual(titles.slice(11), ['Time', 'Calendar'], 'Time then Calendar come last');
+  assert.deepEqual(titles.slice(12), ['Time', 'Calendar'], 'Time then Calendar come last');
   assert.equal(byKey('statusTopLeft').hint, undefined, 'left-slot hint removed');
   const wsb = watch.sections.find((s) => s.title === 'Watch Status Bar').items;
   const note = wsb.find((i) => i.type === 'staticText' && /incoming-rain alert/.test(i.text || ''));
@@ -961,9 +961,9 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
   // gate and the color pickers' COLOR-capability + non-B&W-theme rules.
   const watch = schema.tabs.find((t) => t.id === 'watch');
   const threshSections = watch.sections.filter((s) => s.sheetOnly);
-  assert.equal(threshSections.length, 7, 'one edit sheet per threshold kind');
+  assert.equal(threshSections.length, 8, 'one edit sheet per threshold kind');
   assert.deepEqual(threshSections.map((s) => s.sheetId),
-    ['threshAqi', 'threshPollen', 'threshWind', 'threshGust',
+    ['threshAqi', 'threshPollen', 'threshWind', 'threshGust', 'threshUv',
       'threshSteps', 'threshSleep', 'threshDistance'],
     'sheet ids follow the thresh<Stem> convention the slot resolver derives');
   threshSections.forEach((sec, i) =>

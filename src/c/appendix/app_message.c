@@ -172,7 +172,11 @@ static bool handle_status_levels(DictionaryIterator *iterator, bool *status_dirt
                 (unsigned) tuple->length);
         return true;
     }
-    *status_dirty |= persist_set_status_levels(tuple->value->uint8);
+    // 2 LE bytes since UV joined the weather kinds (bits 8-9); a 1-byte value
+    // (older phone JS) still reads correctly as the low byte.
+    int levels = tuple->value->data[0];
+    if (tuple->length >= 2) { levels |= tuple->value->data[1] << 8; }
+    *status_dirty |= persist_set_status_levels(levels);
     return true;
 }
 

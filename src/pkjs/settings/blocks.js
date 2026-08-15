@@ -1080,16 +1080,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         Pollen: function () {
             return {min: 0, max: 3, step: 0.5, seedWarn: 2, seedDanger: 3, unit: '', fixedMax: true};
         },
+        Uv: function () {
+            // The slot displays the rounded integer index, so whole steps; 12 covers
+            // every real-world reading (extremes clamp against the top like any kind).
+            return {min: 0, max: 12, step: 1, seedWarn: 6, seedDanger: 8, unit: '', fixedMax: true};
+        },
+        // Goal kinds: seedWarn = "close" (~80% of the goal), seedDanger = the goal —
+        // ordered upward like the weather kinds since the celebration rework.
         Steps: function () {
-            return {min: 0, max: 20000, step: 250, seedWarn: 5000, seedDanger: 2500, unit: ''};
+            return {min: 0, max: 20000, step: 250, seedWarn: 8000, seedDanger: 10000, unit: ''};
         },
         Sleep: function () {
-            return {min: 0, max: 12, step: 0.5, seedWarn: 7, seedDanger: 6, unit: 'h', fixedMax: true};
+            return {min: 0, max: 12, step: 0.5, seedWarn: 6.5, seedDanger: 7.5, unit: 'h', fixedMax: true};
         },
         Distance: function (S) {
             return S.distanceUnits === 'imperial'
-                ? {min: 0, max: 12, step: 0.5, seedWarn: 3, seedDanger: 1.5, unit: 'mi'}
-                : {min: 0, max: 20, step: 0.5, seedWarn: 5, seedDanger: 2.5, unit: 'km'};
+                ? {min: 0, max: 12, step: 0.5, seedWarn: 2.5, seedDanger: 3, unit: 'mi'}
+                : {min: 0, max: 20, step: 0.5, seedWarn: 4, seedDanger: 5, unit: 'km'};
         }
     };
 
@@ -1123,6 +1130,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var warnDisplay = thresholdDisplayColor(S, stem, 'Warn');
         var warnColor = warnDisplay === null ? '#8A8E97' : warnDisplay;
         var dangerColor = thresholdDisplayColor(S, stem, 'Danger');
+        var contractMod = thresholdContract();
+        var isGoal = Boolean(contractMod && contractMod.isGoalKind
+            && contractMod.isGoalKind(stem));
         return {
             min: base.min, max: max, step: base.step, minSpan: base.step,
             dir: contract && contract.belowIsWorse(stem) ? 'below' : 'above',
@@ -1131,7 +1141,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             maxEditable: !base.fixedMax,
             warnColor: warnColor, dangerColor: dangerColor,
             warnGlow: glowOf(warnColor), dangerGlow: glowOf(dangerColor),
-            dangerText: chipTextOn(dangerColor)
+            dangerText: chipTextOn(dangerColor),
+            // Chip/aria wording: goal kinds celebrate (Close / Goal), weather warns.
+            warnLabel: isGoal ? 'Close' : 'Warn',
+            dangerLabel: isGoal ? 'Goal' : 'Danger'
         };
     }
     PConf.rangeResolvers.register('thresholdRange', thresholdRangeCfg);
@@ -1169,7 +1182,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     PConf.onChange.register('thresholdOutlineToggle', function (S, oldValue, newValue, env, key) {
         var m = /^thresh([A-Za-z]+)WarnOutlineOn$/.exec(key || '');
         if (!m) { return; }
-        S['thresh' + m[1] + 'WarnColor'] = newValue ? thresholdAutoFg(S.theme) : '';
+        var contractMod = thresholdContract();
+        var goal = Boolean(contractMod && contractMod.isGoalKind && contractMod.isGoalKind(m[1]));
+        S['thresh' + m[1] + 'WarnColor'] = newValue
+            ? (goal ? '#55FF00' : thresholdAutoFg(S.theme)) : '';
     });
 
     // "Auto" threshold colors: a color the user never customized tracks the THEME's
@@ -1227,10 +1243,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     PConf.actions.resetThresholds = function (stem, S, env) {
         if (!stem || !S || !THRESHOLD_RANGES[stem]) { return false; }
         var fg = thresholdAutoFg(S.theme);
+        var contractMod = thresholdContract();
+        var goal = Boolean(contractMod && contractMod.isGoalKind && contractMod.isGoalKind(stem));
         S['thresh' + stem + 'Max'] = '';
-        S['thresh' + stem + 'WarnColor'] = '';   // default = no outline (bold only)
-        S['thresh' + stem + 'WarnOutlineOn'] = false;
-        S['thresh' + stem + 'DangerColor'] = fg;
+        // Weather default = no outline (bold only); goal default = the green
+        // "close" outline, on.
+        S['thresh' + stem + 'WarnColor'] = goal ? '#55FF00' : '';
+        S['thresh' + stem + 'WarnOutlineOn'] = goal;
+        S['thresh' + stem + 'DangerColor'] = goal ? '#55FF00' : fg;
         var cfg = thresholdRangeCfg(S, env, {keyStem: stem});
         S['thresh' + stem + 'Warn'] = String(cfg.seedWarn);
         S['thresh' + stem + 'Danger'] = String(cfg.seedDanger);
@@ -1248,9 +1268,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var code = S[args.messageKey];
         for (var i = 0; i < contract.KINDS.length; i++) {
             if (contract.KINDS[i].code !== code) { continue; }
-            if (!contract.kindConfig(S, i).enabled) { return null; }
+            var goal = Boolean(contract.KINDS[i].goal);
+            var enabled = contract.kindConfig(S, i).enabled;
             var penWarn = thresholdDisplayColor(S, contract.KINDS[i].key, 'Warn');
             return {
+                // The slot's sheet-trigger BUTTON label: goal kinds open a Goal
+                // sheet, weather kinds a Warn sheet. `enabled` drives the state
+                // dots; a disabled kind still gets the labeled button.
+                label: goal ? 'Goal' : 'Warn',
+                enabled: enabled,
                 // No warn outline configured -> neutral gray ring (the enabled badge
                 // still reads; the ring hue just carries no color meaning then).
                 warnColor: penWarn === null ? '#8A8E97' : penWarn,

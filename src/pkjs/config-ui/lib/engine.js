@@ -384,6 +384,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   // Pencil glyph for the edit-sheet trigger (stroke follows the button's color).
+  // Pencil glyph — still used by the slider's inline scale-max editor (rng-max-edit);
+  // the status-slot sheet trigger is a labeled .thr-btn button since the goal rework.
   var PEN_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"'
     + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
     + '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
@@ -394,24 +396,30 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     + '<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>';
 
   /**
-   * The edit-sheet trigger button for a row whose value resolved a sheet, or ''.
-   * A resolved badge (view.editBadge) appends the warn ring + danger dot pair so the
-   * row shows at a glance that highlighting is on, and in which colors.
+   * The edit-sheet trigger for a row whose value resolved a sheet, or ''. A proper
+   * outlined text button (was a pencil icon): the badge resolver supplies its label
+   * — "Goal" for the celebratory kinds, "Warn" for the weather kinds — and, when the
+   * kind is enabled, the warn ring + danger dot pair prefix the label so the row
+   * shows at a glance that highlighting is on, and in which colors.
    *
    * @param {Object} item Schema item (for the aria label).
    * @param {{editSheet: ?string, editBadge: ?Object}} view Render view state.
-   * @returns {string} Pencil button HTML, or ''.
+   * @returns {string} Trigger button HTML, or ''.
    */
   function editPenHtml(item, view) {
     if (!view.editSheet) { return ''; }
     var badge = view.editBadge;
-    var dots = badge
+    var label = (badge && badge.label) || 'Edit';
+    var on = Boolean(badge && badge.enabled);
+    var dots = on
       ? '<span class="pen-dot warn" style="--th-c:' + esc(badge.warnColor) + '" aria-hidden="true"></span>'
         + '<span class="pen-dot danger" style="--th-c:' + esc(badge.dangerColor) + '" aria-hidden="true"></span>'
       : '';
-    return '<button type="button" class="edit-pen" data-edit-sheet="' + esc(view.editSheet)
-      + '" aria-label="Edit settings for the ' + esc(String(item.label || 'selected'))
-      + ' value' + (badge ? ' (highlighting on)' : '') + '">' + dots + PEN_SVG + '</button>';
+    return '<button type="button" class="thr-btn" data-edit-sheet="' + esc(view.editSheet)
+      + '" aria-label="Edit ' + esc(label.toLowerCase()) + ' settings for the '
+      + esc(String(item.label || 'selected'))
+      + ' value' + (on ? ' (highlighting on)' : '') + '">' + dots
+      + '<span>' + esc(label) + '</span></button>';
   }
 
   /**
@@ -872,11 +880,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    */
   function thresholdChipsHtml(item, r) {
     var unit = item.unit ? ' ' + esc(item.unit) : '';
+    // Role wording rides the resolved range item: Warn/Danger for the weather
+    // kinds, Close/Goal for the celebratory goal kinds.
     return '<div class="rng-chips">'
       + '<span class="rng-chip warn" style="--th-c:' + esc(item.warnColor)
-      + '">Warn ' + r.warn + unit + '</span>'
+      + '">' + esc(item.warnLabel || 'Warn') + ' ' + r.warn + unit + '</span>'
       + '<span class="rng-chip danger" style="--th-c:' + esc(item.dangerColor)
-      + ';--th-tx:' + esc(item.dangerText) + '">Danger ' + r.danger + unit + '</span>'
+      + ';--th-tx:' + esc(item.dangerText) + '">' + esc(item.dangerLabel || 'Danger')
+      + ' ' + r.danger + unit + '</span>'
       + '</div>';
   }
 
@@ -924,7 +935,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var glow = role === 'warn' ? item.warnGlow : item.dangerGlow;
       return '<button type="button" class="rng-th th-' + role + '" data-range-thumb="' + which
         + '" style="left:' + pct(value) + ';--th-c:' + esc(color) + ';--th-glow:' + esc(glow)
-        + '" role="slider" aria-label="' + (role === 'warn' ? 'Warn' : 'Danger') + ' threshold'
+        + '" role="slider" aria-label="' + (role === 'warn'
+            ? (item.warnLabel || 'Warn') : (item.dangerLabel || 'Danger')) + ' threshold'
         + '" aria-valuemin="' + min + '" aria-valuemax="' + max
         + '" aria-valuenow="' + (role === 'warn' ? r.warn : r.danger) + '"></button>';
     }

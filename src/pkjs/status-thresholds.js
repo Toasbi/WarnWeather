@@ -14,9 +14,9 @@
   var rainTier = (typeof require !== 'undefined')
     ? require('./weather/rain-tier.js') : null;
 
-  var SETTINGS_BYTES = 27;
+  var SETTINGS_BYTES = 29;   // widened 27 -> 29 when UV became kind 7 (2 more color bytes)
   var COLORS_OFFSET = 1;
-  var HEALTH_OFFSET = 15;
+  var HEALTH_OFFSET = 17;    // shifted 15 -> 17 with the UV color pair (append-only kinds)
 
   // DWD pollen reaches the phone as one of these display BANDS (a string, see
   // src/pkjs/weather/pollen.js), NOT a 0-3 number — Number('2-3') is NaN. Map
@@ -28,18 +28,30 @@
   // values as its defaultValue for the warn/danger color pickers.
   var DEFAULT_WARN_COLOR = 0xFFAA00;
   var DEFAULT_DANGER_COLOR = 0xFF0000;
+  // Goal kinds celebrate instead of warn: crossing "close" (the warn slot) outlines
+  // in this green, reaching the goal (the danger slot) fills with it. 0x55FF00 =
+  // GColorBrightGreen. Their pack-time color fallback AND their page default.
+  var DEFAULT_GOAL_COLOR = 0x55FF00;
 
   // Index in this array IS the wire kind id (ThreshKind). key is the settings
   // key stem: thresh<key>Warn / thresh<key>Danger / thresh<key>WarnColor /
-  // thresh<key>DangerColor.
+  // thresh<key>DangerColor. `goal` kinds (the health trio) use the SAME
+  // above-direction machinery as the weather kinds — value rises toward the pair —
+  // but with celebratory semantics: warn-slot = "close" (outline), danger-slot =
+  // "goal reached" (fill). belowIsWorse survives as machinery for any future kind
+  // that genuinely warns downward; no shipped kind uses it since the goal rework.
   var KINDS = [
     { code: 'aqi',      key: 'Aqi',      belowIsWorse: false },
     { code: 'pollen',   key: 'Pollen',   belowIsWorse: false },
     { code: 'wind',     key: 'Wind',     belowIsWorse: false },
     { code: 'gust',     key: 'Gust',     belowIsWorse: false },
-    { code: 'steps',    key: 'Steps',    belowIsWorse: true },
-    { code: 'sleep',    key: 'Sleep',    belowIsWorse: true },
-    { code: 'distance', key: 'Distance', belowIsWorse: true }
+    { code: 'steps',    key: 'Steps',    belowIsWorse: false, goal: true },
+    { code: 'sleep',    key: 'Sleep',    belowIsWorse: false, goal: true },
+    { code: 'distance', key: 'Distance', belowIsWorse: false, goal: true },
+    // UV is a WEATHER kind appended after the health trio (wire ids are
+    // append-only): its level packs phone-side at bits 8-9 of the levels wire
+    // value, and it carries NO health-threshold blob entry.
+    { code: 'uv',       key: 'Uv',       belowIsWorse: false }
   ];
 
   /**
@@ -58,6 +70,17 @@
    * @param {string} keyStem settings key stem, e.g. 'Steps'
    * @returns {boolean} the kind's fixed direction; false for unknown stems
    */
+  /**
+   * @param {string} keyStem Kind key stem, e.g. 'Steps'.
+   * @returns {boolean} true for the celebratory goal kinds (health trio)
+   */
+  function isGoalKind(keyStem) {
+    for (var i = 0; i < KINDS.length; i += 1) {
+      if (KINDS[i].key === keyStem) { return Boolean(KINDS[i].goal); }
+    }
+    return false;
+  }
+
   function belowIsWorse(keyStem) {
     for (var i = 0; i < KINDS.length; i++) {
       if (KINDS[i].key === keyStem) { return KINDS[i].belowIsWorse; }
@@ -95,18 +118,29 @@
     var danger = parseThreshold(settings && settings['thresh' + k.key + 'Danger']);
     var ordered = warn !== null && danger !== null
       && (k.belowIsWorse ? danger <= warn : danger >= warn);
-    // warnColor null = NO OUTLINE (the default): warn renders as bold text only,
-    // and the blob carries the 0x00 none-sentinel. Only an explicitly stored color
-    // (the sheet's "Warn outline" toggle seeds one) draws the warn box.
+    // warnColor null = NO OUTLINE: warn renders as bold text only and the blob
+    // carries the 0x00 none-sentinel. Weather kinds DEFAULT to none (only the
+    // sheet's outline toggle stores a color); GOAL kinds default to the green
+    // outline — for them only an explicit '' (toggle turned off) means none, while
+    // never-touched settings fall back to DEFAULT_GOAL_COLOR, matching the page's
+    // outline-on-by-default. Danger falls back green for goals, red for weather.
     var rawWarn = settings && settings['thresh' + k.key + 'WarnColor'];
+    var warnUnset = rawWarn === null || typeof rawWarn === 'undefined';
+    var warnColor;
+    if (rawWarn === '' || (warnUnset && !k.goal)) {
+      warnColor = null;
+    } else if (warnUnset) {
+      warnColor = DEFAULT_GOAL_COLOR;
+    } else {
+      warnColor = colorInt(rawWarn, k.goal ? DEFAULT_GOAL_COLOR : DEFAULT_WARN_COLOR);
+    }
     return {
       enabled: ordered,
       warn: warn,
       danger: danger,
-      warnColor: (rawWarn === '' || rawWarn === null || typeof rawWarn === 'undefined')
-        ? null : colorInt(rawWarn, DEFAULT_WARN_COLOR),
+      warnColor: warnColor,
       dangerColor: colorInt(settings && settings['thresh' + k.key + 'DangerColor'],
-                            DEFAULT_DANGER_COLOR)
+                            k.goal ? DEFAULT_GOAL_COLOR : DEFAULT_DANGER_COLOR)
     };
   }
 
@@ -169,26 +203,41 @@
       if (unit === 'knots') { return Math.round(v / 1.852); }
       return v;
     }
+    if (code === 'uv') {
+      // UV_TREND_UINT8 carries tenths; the slot displays the rounded index
+      // (status-lines.js) and thresholds compare the DISPLAYED number.
+      v = trendHead(payload.UV_TREND_UINT8);
+      return v === null ? null : Math.round(v / 10);
+    }
     return null;
   }
 
+  // Bit position of a weather kind's 2-bit level in the packed levels value:
+  // the original four sit at bits 2k, UV (appended as kind 7) at bits 8-9.
+  function weatherLevelShift(k) {
+    return k <= 3 ? 2 * k : 8;
+  }
+
   /**
-   * Pack the 4 weather-kind levels into the STATUS_LEVELS_UINT8 wire byte
-   * (kind k at bits 2k..2k+1). Disabled kinds and missing data stay Normal.
+   * Pack the weather-kind levels into the STATUS_LEVELS_UINT8 wire bytes, LE
+   * (kinds 0..3 in byte 0 at bits 2k; UV in byte 1 at bits 0-1). Disabled kinds
+   * and missing data stay Normal.
    * @param {Object} payload weather payload (pre-transform)
    * @param {Object} settings Clay settings blob
-   * @returns {number[]} single-element byte array (1 wire byte)
+   * @returns {number[]} two-element byte array (2 wire bytes)
    */
   function packWeatherLevels(payload, settings) {
     var packed = 0;
-    for (var k = 0; k < 4; k++) {
+    for (var k = 0; k < KINDS.length; k++) {
+      if (KINDS[k].goal) { continue; }   // health kinds level on the watch
       var cfg = kindConfig(settings, k);
       if (!cfg.enabled) { continue; }
       var v = displayValue(KINDS[k].code, payload, settings);
       if (v === null) { continue; }
-      packed |= computeLevel(v, cfg.warn, cfg.danger, KINDS[k].belowIsWorse) << (2 * k);
+      packed |= computeLevel(v, cfg.warn, cfg.danger, KINDS[k].belowIsWorse)
+        << weatherLevelShift(k);
     }
-    return [packed];
+    return [packed & 0xFF, (packed >> 8) & 0xFF];
   }
 
   /**
@@ -230,7 +279,7 @@
       blob[COLORS_OFFSET + 2 * k] = cfg.warnColor === null
         ? 0 : rainTier.rgbToGColor8(cfg.warnColor);   // 0x00 = no-outline sentinel
       blob[COLORS_OFFSET + 2 * k + 1] = rainTier.rgbToGColor8(cfg.dangerColor);
-      if (k >= 4) {
+      if (k >= 4 && k <= 6) {   // the health trio only — UV (7) has no blob entry
         var off = HEALTH_OFFSET + 4 * (k - 4);
         var warn = cfg.enabled ? healthWire(k, cfg.warn, settings) : 0;
         var danger = cfg.enabled ? healthWire(k, cfg.danger, settings) : 0;
@@ -250,6 +299,8 @@
     HEALTH_OFFSET: HEALTH_OFFSET,
     parseThreshold: parseThreshold,
     belowIsWorse: belowIsWorse,
+    isGoalKind: isGoalKind,
+    DEFAULT_GOAL_COLOR: DEFAULT_GOAL_COLOR,
     kindConfig: kindConfig,
     computeLevel: computeLevel,
     displayValue: displayValue,

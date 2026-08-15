@@ -84,10 +84,11 @@ bool persist_set_status_line(uint8_t line_id, const uint8_t *data, size_t len);
 // than silently re-linking the feature. The STATUS_LEVELS / THRESHOLD_SETTINGS
 // key IDs stay in persist.c's append-only enum on every platform.
 #if defined(WW_THRESHOLD_HIGHLIGHT)
-// Packed weather-kind threshold levels (STATUS_LEVELS_UINT8 tuple); 0 = all
-// Normal / never received. Layout in status_threshold.h.
+// Packed weather-kind threshold levels (STATUS_LEVELS_UINT8 tuple, 2 wire
+// bytes — UV rides bits 8-9, so int, never uint8_t); 0 = all Normal / never
+// received. Layout in status_threshold.h.
 int persist_get_status_levels(void);
-bool persist_set_status_levels(uint8_t levels);
+bool persist_set_status_levels(int levels);
 
 // Threshold-highlight settings blob (CLAY_THRESHOLDS_UINT8 tuple; layout in
 // status_threshold.h). Get returns bytes read, <= 0 when absent.

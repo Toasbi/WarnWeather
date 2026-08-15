@@ -113,9 +113,9 @@ var THRESHOLD_WHEN = {env: 'thresholds'};
 var THRESHOLD_SHEET_INTRO = 'Highlight this value in its status slot: crossing the ' +
     'warn threshold shows it in bold; crossing the danger threshold also fills the ' +
     'slot. The warn outline is optional — enable it below.';
-var GOAL_SHEET_INTRO = 'Highlight this value in its status slot: falling short of ' +
-    'the warn goal shows it in bold; falling to the danger goal also fills the ' +
-    'slot. The warn outline is optional — enable it below.';
+var GOAL_SHEET_INTRO = 'Celebrate this goal in its status slot: getting close ' +
+    'shows the value in bold with a green outline; reaching the goal fills the ' +
+    'slot. Colors are yours to change below.';
 // One threshold-highlight edit sheet (sheetOnly — opened from a status slot's pencil,
 // never rendered as a card): a "Highlight this value" toggle, a zoned dual-thumb
 // slider for the warn/danger pair, and the two color pickers. Values live in the
@@ -136,10 +136,10 @@ var GOAL_SHEET_INTRO = 'Highlight this value in its status slot: falling short o
  */
 function thresholdSection(title, keyStem, hint, gate) {
     var onKey = 'thresh' + keyStem + 'On';
-    // The below-is-worse kinds (steps/sleep/distance) read as GOALS you fall short
-    // of, not thresholds you cross — derived from the contract so the wording can
-    // never disagree with the packing direction.
-    var goal = STATUS_THRESHOLDS.belowIsWorse(keyStem);
+    // The health trio reads as GOALS you reach (celebration: green outline when
+    // close, fill when reached) — the contract's goal flag drives the wording so it
+    // can never disagree with the packing.
+    var goal = STATUS_THRESHOLDS.isGoalKind(keyStem);
     // While the highlight is OFF the slider + colors stay VISIBLE but disabled
     // (muted, inert — the sheet shows what turning it on offers; the blank pair
     // renders the kind's seeds). The toggle itself is derived state (recomputed
@@ -203,9 +203,15 @@ function thresholdSection(title, keyStem, hint, gate) {
             // outline vs no outline is meaningful without color choice.
             type: 'toggle',
             messageKey: 'thresh' + keyStem + 'WarnOutlineOn',
-            label: 'Warn outline',
-            hint: 'The warn value is always bold; this adds a box around the slot.',
-            defaultValue: false,
+            label: goal ? 'Outline when close' : 'Warn outline',
+            hint: goal
+                ? 'Getting close always bolds the value; this adds the outline too.'
+                : 'The warn value is always bold; this adds a box around the slot.',
+            // Goal kinds celebrate with the outline ON out of the box; weather warn
+            // ships bold-only. (Derived state either way — onLoad recomputes it from
+            // the stored color — but the seeded store must agree with the color
+            // defaults below, which clay-settings hydrates for the WATCH blob too.)
+            defaultValue: goal,
             joinPrevious: true,
             onChange: 'thresholdOutlineToggle',
             showWhen: gate || undefined,
@@ -218,8 +224,11 @@ function thresholdSection(title, keyStem, hint, gate) {
             // never saw this page.
             type: 'color',
             messageKey: 'thresh' + keyStem + 'WarnColor',
-            label: 'Warn outline color',
-            defaultValue: '',
+            label: goal ? 'Close outline color' : 'Warn outline color',
+            // '' = the no-outline wire sentinel, so goal kinds must NOT default to it:
+            // seedDefaults hydrates these values into the phone store verbatim, and
+            // the watch blob packs whatever is stored. Green = the celebration look.
+            defaultValue: goal ? '#55FF00' : '',
             joinPrevious: true,
             capabilities: ['COLOR'],
             showWhen: gate
@@ -231,8 +240,8 @@ function thresholdSection(title, keyStem, hint, gate) {
         }, {
             type: 'color',
             messageKey: 'thresh' + keyStem + 'DangerColor',
-            label: 'Danger color',
-            defaultValue: '',
+            label: goal ? 'Goal fill color' : 'Danger color',
+            defaultValue: goal ? '#55FF00' : '',
             joinPrevious: true,
             capabilities: ['COLOR'],
             showWhen: colorWhen,
@@ -983,20 +992,18 @@ module.exports = {
         },
         // Threshold edit sheets (sheetOnly): reachable only through the pencil next to a
         // status slot whose selected value has thresholds — never rendered as cards here.
-        thresholdSection('Air quality (AQI)', 'Aqi',
-            'In the AQI scale selected in the General tab.'),
+        thresholdSection('Air quality (AQI)', 'Aqi', ''),
         thresholdSection('Pollen', 'Pollen',
             'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.'),
-        thresholdSection('Wind speed', 'Wind',
-            'In your wind unit from the General tab.'),
-        thresholdSection('Wind gusts', 'Gust',
-            'In your wind unit from the General tab.'),
+        thresholdSection('Wind speed', 'Wind', ''),
+        thresholdSection('Wind gusts', 'Gust', ''),
+        thresholdSection('UV index', 'Uv', ''),
         thresholdSection('Steps', 'Steps',
-            'Steps per day — warns when you are BELOW your goal.', HEALTH_SLOT_WHEN),
+            'Steps per day.', HEALTH_SLOT_WHEN),
         thresholdSection('Sleep', 'Sleep',
             'Hours of sleep, e.g. 7.5.', HEALTH_SLOT_WHEN),
         thresholdSection('Walked distance', 'Distance',
-            'In your distance unit from the General tab.', HEALTH_SLOT_WHEN), {
+            'Distance walked per day.', HEALTH_SLOT_WHEN), {
             title: 'Time', items: [{
                 type: 'toggle', messageKey: 'timeLeadingZero', label: 'Leading zero', defaultValue: false
             }, {type: 'toggle', messageKey: 'timeShowAmPm', label: 'Show AM / PM', defaultValue: false}, {

@@ -34,19 +34,28 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             ctx.set('thresh' + kind.key + 'On', warn !== null && danger !== null
                 && (kind.belowIsWorse ? danger <= warn : danger >= warn));
             if (auto) {
-                // WARN: the default is NO outline (bold text only) — an unset color
-                // stays '' and a legacy auto-fg value (the pre-outline-toggle default)
-                // is converted back to '', so those installs get the new bold-only
-                // look. Only a user-picked color survives, and it means "outline on".
+                // WARN, weather kinds: the default is NO outline (bold text only) — an
+                // unset color stays '' and a legacy auto-fg value converts back to ''.
+                // GOAL kinds: the green "close" outline is the default — never-touched
+                // and legacy-fg values seed DEFAULT_GOAL_COLOR; only an explicit ''
+                // (their outline toggle turned off) stays off. A user pick survives
+                // either way and means "outline on".
+                var goalHex = '#55FF00';   // contract DEFAULT_GOAL_COLOR
                 var rawWarn = ctx.get('thresh' + kind.key + 'WarnColor');
-                if (auto.isAuto(rawWarn)) {
+                if (kind.goal) {
+                    if (rawWarn !== '' && auto.isAuto(rawWarn)) {
+                        ctx.set('thresh' + kind.key + 'WarnColor', goalHex);
+                        rawWarn = goalHex;
+                    }
+                } else if (auto.isAuto(rawWarn)) {
                     ctx.set('thresh' + kind.key + 'WarnColor', '');
                     rawWarn = '';
                 }
                 ctx.set('thresh' + kind.key + 'WarnOutlineOn',
                         rawWarn !== '' && rawWarn !== null && typeof rawWarn !== 'undefined');
-                if (auto.isAuto(ctx.get('thresh' + kind.key + 'DangerColor'))) {
-                    ctx.set('thresh' + kind.key + 'DangerColor', fg);
+                var rawDanger = ctx.get('thresh' + kind.key + 'DangerColor');
+                if (auto.isAuto(rawDanger)) {
+                    ctx.set('thresh' + kind.key + 'DangerColor', kind.goal ? goalHex : fg);
                 }
             }
         }

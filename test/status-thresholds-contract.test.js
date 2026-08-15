@@ -30,14 +30,35 @@ test('kind count and blob layout are in lockstep with status_threshold.h', () =>
 test('kind indices are in lockstep with the ThreshKind enum', () => {
   const names = { aqi: 'THRESH_AQI', pollen: 'THRESH_POLLEN', wind: 'THRESH_WIND',
     gust: 'THRESH_GUST', steps: 'THRESH_STEPS', sleep: 'THRESH_SLEEP',
-    distance: 'THRESH_DISTANCE' };
+    distance: 'THRESH_DISTANCE', uv: 'THRESH_UV' };
   th.KINDS.forEach((k, i) => {
     assert.equal(i, cEnum(names[k.code]), k.code + ' wire index');
   });
 });
 
-test('directions match the C module: health kinds are below-is-worse', () => {
+test('persist boundary carries the full levels word (UV rides bits 8-9)', () => {
+  // STATUS_LEVELS_UINT8 widened to 2 wire bytes when UV became kind 7. The
+  // persist accessors sit between app_message (writer) and status_row (reader);
+  // a uint8_t parameter there silently truncates the high byte and kills UV
+  // highlighting while the low-byte kinds keep working (2026-08-15 bug).
+  const persistHeader = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'c', 'appendix', 'persist.h'), 'utf8');
+  assert.match(persistHeader, /int\s+persist_get_status_levels\s*\(/,
+    'persist_get_status_levels must return int');
+  assert.match(persistHeader, /persist_set_status_levels\s*\(\s*int\s+/,
+    'persist_set_status_levels must take int — uint8_t truncates the UV bits');
+});
+
+test('directions match the C module: no kind is below-is-worse since the goal rework', () => {
+  th.KINDS.forEach((k) => {
+    assert.equal(k.belowIsWorse, false, k.code);
+  });
+  // The goal flag covers exactly the health trio (the C module returns false for
+  // every kind — see status_threshold_below_is_worse); UV (appended after them)
+  // is a plain weather kind.
   th.KINDS.forEach((k, i) => {
-    assert.equal(k.belowIsWorse, i >= cEnum('THRESH_STEPS'), k.code);
+    assert.equal(Boolean(k.goal),
+      i >= cEnum('THRESH_STEPS') && i <= cEnum('THRESH_DISTANCE'),
+      k.code + ' goal flag');
   });
 });

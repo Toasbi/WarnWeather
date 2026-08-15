@@ -277,14 +277,13 @@
      row's dropdown; align-items: stretch keeps the (invisible) hit area the dropdown's
      full height without dressing the icon up as a chip */
   .row .rgt.has-pen { display: inline-flex; align-items: stretch; gap: 6px; }
-  .edit-pen { flex: none; display: inline-flex; align-items: center; justify-content: center; border: none; background: none; color: var(--muted); cursor: pointer; padding: 0 6px; border-radius: 9px; line-height: 0; transition: color .15s, background .15s; }
-  .edit-pen svg { width: 17px; height: 17px; }
-  .edit-pen:active { color: var(--link); background: rgba(250,74,53,0.12); }
+  .thr-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 1px; border: 1px solid var(--ctl-line); background: var(--ctl); color: var(--lbl); cursor: pointer; padding: 0 10px; border-radius: 9px; font: 600 12px 'Inter', sans-serif; transition: color .15s, background .15s, border-color .15s; }
+  .thr-btn:active { color: var(--link); border-color: var(--link); background: rgba(250,74,53,0.12); }
   /* enabled-threshold badge inside the pencil trigger, LEFT of the glyph: a hollow
      warn-color ring + filled danger-color dot — the watch's outline/fill language */
-  .edit-pen .pen-dot { flex: none; width: 9px; height: 9px; border-radius: 5px; margin-right: 4px; }
-  .edit-pen .pen-dot.warn { border: 2px solid var(--th-c); box-shadow: 0 0 0 1px var(--swatch-line); }
-  .edit-pen .pen-dot.danger { background: var(--th-c); box-shadow: inset 0 0 0 1px var(--swatch-line); margin-right: 5px; }
+  .thr-btn .pen-dot { flex: none; width: 9px; height: 9px; border-radius: 5px; margin-right: 4px; }
+  .thr-btn .pen-dot.warn { border: 2px solid var(--th-c); box-shadow: 0 0 0 1px var(--swatch-line); }
+  .thr-btn .pen-dot.danger { background: var(--th-c); box-shadow: inset 0 0 0 1px var(--swatch-line); margin-right: 5px; }
   .date-picker { position: relative; display: grid; grid-template-columns: .75fr 1.5fr 1fr;
     gap: 8px; height: 244px; padding: 0 16px 24px; overflow: hidden; }
   .date-band { position: absolute; z-index: 0; left: 16px; right: 16px; top: 88px;

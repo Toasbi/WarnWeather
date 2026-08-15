@@ -16,24 +16,28 @@
 // --gc-sections reaps this module. Keep every caller behind that macro.
 //
 // Wire formats:
-//  - STATUS_LEVELS_UINT8 (weather message, 1 byte): packed per-kind levels for
-//    the 4 weather kinds, 2 bits each — kind k occupies bits 2k..2k+1. Computed
-//    phone-side (the watch has no raw ints for AQI/pollen/wind/gust).
+//  - STATUS_LEVELS_UINT8 (weather message, 2 bytes LE): packed per-kind levels
+//    for the weather kinds, 2 bits each — kinds 0..3 at bits 2k..2k+1, UV
+//    (appended as kind 7) at bits 8..9. Computed phone-side (the watch has no
+//    raw ints for AQI/pollen/wind/gust/UV).
 //  - CLAY_THRESHOLDS_UINT8 (Clay message, THRESH_SETTINGS_BYTES):
 //      [0]              enabled bitmask (bit k = kind k enabled)
-//      [1 + 2k]         warn color,   GColor8 byte, k = 0..6 — 0x00 (alpha 00,
+//      [1 + 2k]         warn color,   GColor8 byte, k = 0..7 — 0x00 (alpha 00,
 //                       impossible for an opaque GColor8) = NO OUTLINE: warn
-//                       renders as bold text only, the shipping default
-//      [2 + 2k]         danger color, GColor8 byte, k = 0..6
-//      [15 + 4h + 0..1] warn threshold,   LE uint16, h = kind - THRESH_STEPS
-//      [15 + 4h + 2..3] danger threshold, LE uint16
+//                       renders as bold text only, the weather-kind default
+//      [2 + 2k]         danger color, GColor8 byte, k = 0..7
+//      [17 + 4h + 0..1] warn threshold,   LE uint16, h = kind - THRESH_STEPS,
+//                       health trio only (UV levels are phone-computed)
+//      [17 + 4h + 2..3] danger threshold, LE uint16
+//    Widened 27 -> 29 bytes when UV became kind 7; the length is validated
+//    EXACTLY, so a stale pre-UV blob reads as absent until the phone resends.
 //    Health threshold wire units: steps = steps, sleep = MINUTES,
 //    distance = 100 m units (the status row's own display resolution).
 
-#define THRESH_KIND_COUNT 7
-#define THRESH_SETTINGS_BYTES 27
+#define THRESH_KIND_COUNT 8
+#define THRESH_SETTINGS_BYTES 29
 #define THRESH_COLORS_OFFSET 1
-#define THRESH_HEALTH_OFFSET 15
+#define THRESH_HEALTH_OFFSET 17
 
 typedef enum {
     THRESH_AQI = 0,
@@ -43,8 +47,15 @@ typedef enum {
     THRESH_STEPS = 4,
     THRESH_SLEEP = 5,
     THRESH_DISTANCE = 6,
+    THRESH_UV = 7,   // weather kind, appended after the health trio (ids are append-only)
 } ThreshKind;
 #define THRESH_WEATHER_KIND_MAX THRESH_GUST
+
+// The health trio computes its levels ON the watch from live health values; every
+// other kind (0..3 and UV) is phone-computed via the packed levels wire value.
+static inline bool status_threshold_is_health_kind(int kind) {
+    return kind >= THRESH_STEPS && kind <= THRESH_DISTANCE;
+}
 
 typedef enum {
     THRESH_LEVEL_NORMAL = 0,
@@ -66,7 +77,7 @@ int status_threshold_level(int value, int warn, int danger, bool below_is_worse)
 
 // 2-bit level for a weather kind (0..THRESH_WEATHER_KIND_MAX) from the packed
 // levels byte; the reserved wire value 3 clamps to danger.
-int status_threshold_weather_level(uint8_t packed, int kind);
+int status_threshold_weather_level(int packed, int kind);
 
 // Convert raw health readings to the blob's wire units for comparison: steps
 // as-is, sleep seconds -> minutes, distance metres -> 100 m units. Returns -1

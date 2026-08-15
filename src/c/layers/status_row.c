@@ -70,11 +70,12 @@ static char s_text_scratch[STATUS_TEXT_MID_MAX + 1];
 // refresh/draw like the packed line blobs; len 0 = nothing configured yet.
 static uint8_t s_thresh_scratch[THRESH_SETTINGS_BYTES];
 static int s_thresh_len;
-// Packed weather threshold-levels byte (STATUS_LEVELS_UINT8), reloaded once
-// per refresh/draw pass alongside the blob above (persist_get_status_levels()
-// is persist_exists + persist_read_int; reading it once per pass instead of
-// once per weather slot avoids redundant flash-backed reads across a row).
-static uint8_t s_levels_byte;
+// Packed weather threshold-levels value (STATUS_LEVELS_UINT8, 2 wire bytes LE —
+// UV rides bits 8-9), reloaded once per refresh/draw pass alongside the blob
+// above (persist_get_status_levels() is persist_exists + persist_read_int;
+// reading it once per pass instead of once per weather slot avoids redundant
+// flash-backed reads across a row).
+static int s_levels_word;
 
 #ifdef PBL_PLATFORM_APLITE
 // aplite: primitive lines avoid GPath's code and transient draw allocation.
@@ -320,7 +321,7 @@ static void load_thresholds(void) {
     s_thresh_len = persist_get_threshold_settings(s_thresh_scratch,
                                                   sizeof(s_thresh_scratch));
     if (s_thresh_len < 0) { s_thresh_len = 0; }
-    s_levels_byte = (uint8_t)persist_get_status_levels();
+    s_levels_word = persist_get_status_levels();
 }
 
 // Highlight level (ThreshLevel) for one resolved slot. Weather kinds read the
@@ -333,8 +334,8 @@ static uint8_t slot_level(const StatusSlotView *slot) {
         || !status_threshold_enabled(s_thresh_scratch, (size_t)s_thresh_len, kind)) {
         return THRESH_LEVEL_NORMAL;
     }
-    if (kind <= THRESH_WEATHER_KIND_MAX) {
-        return (uint8_t)status_threshold_weather_level(s_levels_byte, kind);
+    if (!status_threshold_is_health_kind(kind)) {
+        return (uint8_t)status_threshold_weather_level(s_levels_word, kind);
     }
 #if defined(PBL_HEALTH)
     int value = status_threshold_health_value(kind,

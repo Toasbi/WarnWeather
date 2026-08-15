@@ -40,17 +40,19 @@ static void kind_tests(void) {
     expect("kind.dist_mi", status_threshold_kind_for_slot(SLOT_LIVE_DISTANCE_MI, STATUS_ICON_DISTANCE), THRESH_DISTANCE);
     // Out of scope for v1: temperature, UV, HR, battery, text-only kinds.
     expect("kind.temp", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_TEMP), -1);
-    expect("kind.uv", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_UV), -1);
+    expect("kind.uv", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_UV), THRESH_UV);
     expect("kind.city", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_NONE), -1);
     expect("kind.date", status_threshold_kind_for_slot(SLOT_LIVE_DATE, STATUS_ICON_NONE), -1);
     expect("kind.hr", status_threshold_kind_for_slot(SLOT_LIVE_HR, STATUS_ICON_HR), -1);
     expect("kind.battery", status_threshold_kind_for_slot(SLOT_LIVE_BATTERY, STATUS_ICON_NONE), -1);
     expect("kind.empty", status_threshold_kind_for_slot(SLOT_EMPTY, STATUS_ICON_NONE), -1);
-    // Direction is a fixed property of the kind.
+    // Direction is a fixed property of the kind — and since the goal rework the
+    // health trio celebrates upward like the weather kinds (close -> goal), so no
+    // shipped kind is below-is-worse anymore.
     expect("dir.aqi", status_threshold_below_is_worse(THRESH_AQI), 0);
     expect("dir.gust", status_threshold_below_is_worse(THRESH_GUST), 0);
-    expect("dir.steps", status_threshold_below_is_worse(THRESH_STEPS), 1);
-    expect("dir.distance", status_threshold_below_is_worse(THRESH_DISTANCE), 1);
+    expect("dir.steps", status_threshold_below_is_worse(THRESH_STEPS), 0);
+    expect("dir.distance", status_threshold_below_is_worse(THRESH_DISTANCE), 0);
 }
 
 static void weather_byte_tests(void) {

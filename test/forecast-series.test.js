@@ -235,8 +235,8 @@ test('applyForecastSeries bakes a genuine non-zero STATUS_LEVELS_UINT8 from real
   // Same expected packing as the direct-unit test in status-thresholds.test.js
   // (0x49): this is a genuine crossing computed from real per-kind data, not
   // the [0]/all-Normal result a stripped payload would silently produce.
-  assert.deepEqual(out.STATUS_LEVELS_UINT8, [0x49]);
-  assert.notDeepEqual(out.STATUS_LEVELS_UINT8, [0]);
+  assert.deepEqual(out.STATUS_LEVELS_UINT8, [0x49, 0]);   // 2 wire bytes since UV
+  assert.notDeepEqual(out.STATUS_LEVELS_UINT8, [0, 0]);
   // The trend arrays really are gone by the time the caller sees the payload
   // -- proving the bake above ran while they were still present.
   ['AQI_TREND', 'POLLEN_TODAY', 'WIND_TREND_UINT8', 'GUST_TREND_UINT8'].forEach(function(k) {

@@ -161,7 +161,10 @@ test('weather bundle keeps explicit headroom below the watch inbox', () => {
   const size = dictSize(buildHeaviestBundle());
   const inbox = readInboxSize();
   console.log(`heaviest weather bundle: ${size} B of ${inbox} B (headroom ${inbox - size})`);
-  assert.equal(size, 525, 'update the recorded realistic bundle size when its wire contract changes');
+  // 525 -> 526 when STATUS_LEVELS_UINT8 widened to 2 bytes (UV thresholds).
+  // Headroom now sits EXACTLY on the 10 B floor — the next weather-message byte
+  // must find savings elsewhere or argue the floor down.
+  assert.equal(size, 526, 'update the recorded realistic bundle size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });
 
@@ -192,6 +195,7 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // Recorded exactly, like the weather bundle above: the Clay message grows key by key
   // (the palette, then the threshold blob), so the next task that adds one has to see the
   // running total move instead of silently eating the remaining headroom.
-  assert.equal(size, 389, 'update the recorded Clay message size when its wire contract changes');
+  // 389 -> 391 when the threshold blob widened 27 -> 29 (UV color pair).
+  assert.equal(size, 391, 'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });

@@ -7,6 +7,7 @@ int status_threshold_kind_for_slot(uint8_t slot_kind, uint8_t icon) {
             case STATUS_ICON_POLLEN: return THRESH_POLLEN;
             case STATUS_ICON_WIND:   return THRESH_WIND;
             case STATUS_ICON_GUST:   return THRESH_GUST;
+            case STATUS_ICON_UV:     return THRESH_UV;
             default: return -1;
         }
     }
@@ -20,7 +21,12 @@ int status_threshold_kind_for_slot(uint8_t slot_kind, uint8_t icon) {
 }
 
 bool status_threshold_below_is_worse(int kind) {
-    return kind >= THRESH_STEPS;
+    // The health trio celebrates GOALS since the goal rework: their value rises
+    // toward the pair like the weather kinds (warn-slot = close -> outline,
+    // danger-slot = goal reached -> fill), so no shipped kind warns downward.
+    // The machinery stays for a future kind that does.
+    (void)kind;
+    return false;
 }
 
 int status_threshold_level(int value, int warn, int danger, bool below_is_worse) {
@@ -34,9 +40,16 @@ int status_threshold_level(int value, int warn, int danger, bool below_is_worse)
     return THRESH_LEVEL_NORMAL;
 }
 
-int status_threshold_weather_level(uint8_t packed, int kind) {
-    if (kind < 0 || kind > THRESH_WEATHER_KIND_MAX) { return THRESH_LEVEL_NORMAL; }
-    int level = (packed >> (2 * kind)) & 3;
+int status_threshold_weather_level(int packed, int kind) {
+    int shift;
+    if (kind >= 0 && kind <= THRESH_WEATHER_KIND_MAX) {
+        shift = 2 * kind;             // the original four, byte 0
+    } else if (kind == THRESH_UV) {
+        shift = 8;                    // appended kind 7, byte 1 bits 0-1
+    } else {
+        return THRESH_LEVEL_NORMAL;
+    }
+    int level = (packed >> shift) & 3;
     return level > THRESH_LEVEL_DANGER ? THRESH_LEVEL_DANGER : level;
 }
 
@@ -77,7 +90,7 @@ uint8_t status_threshold_color8(const uint8_t *blob, size_t len, int kind, int l
 
 static uint16_t health_u16(const uint8_t *blob, size_t len, int kind, int danger) {
     if (!status_threshold_settings_validate(blob, len)
-        || kind < THRESH_STEPS || kind >= THRESH_KIND_COUNT) { return 0; }
+        || !status_threshold_is_health_kind(kind)) { return 0; }
     size_t off = THRESH_HEALTH_OFFSET
         + 4 * (size_t)(kind - THRESH_STEPS) + 2 * (size_t)danger;
     return (uint16_t)(blob[off] | (blob[off + 1] << 8));
