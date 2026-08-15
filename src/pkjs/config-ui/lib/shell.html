@@ -225,6 +225,13 @@
   .txt-act > input[type=text] { flex: 1 1 auto; min-width: 0; }
   .txt-act-btn { flex: 0 0 auto; cursor: pointer; padding: 0 15px; border-radius: 9px; border: 1px solid var(--ctl-line); background: var(--ctl); color: var(--lbl); font: 600 13px 'Inter', sans-serif; white-space: nowrap; transition: background .15s, border-color .15s; }
   .txt-act-btn:active { border-color: #FA4A35; background: rgba(250,74,53,0.12); }
+  /* the same chip standalone inside a card intro (the Watch tab's reset-status-bars
+     button rides the intro HTML): block keeps a button shrink-wrapped while forcing
+     its own line under the text (inline-block would flow after the last intro line),
+     and the vertical padding replaces the height the .txt-act row's
+     align-items:stretch provides in the suffixAction context (the chip's flex-basis
+     is inert outside that flex row). */
+  .intro .txt-act-btn { display: block; margin-top: 8px; padding: 6px 15px; }
   .txt-act-result:empty { display: none; }
   /* inline tap-to-copy button embedded in hint/static HTML (data-copy) — a small icon chip */
   .copybtn { display: inline-flex; align-items: center; justify-content: center; vertical-align: -3px; margin-left: 5px; padding: 3px; border: 1px solid var(--ctl-line); border-radius: 6px; background: var(--ctl); color: var(--link); cursor: pointer; line-height: 0; transition: background .15s, border-color .15s; }

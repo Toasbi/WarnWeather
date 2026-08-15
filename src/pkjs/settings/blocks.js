@@ -1257,6 +1257,39 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return true;
     };
 
+    // Reset-to-defaults for the whole status-bar card (the text button in the Watch
+    // tab's intro — schema.js watchStatus): every slot of every bar back to its
+    // platform-aware default (the same statusSlotDefault seed a fresh install gets,
+    // hrDefaults flavor included) and the bold settings back to their shipped
+    // defaults — the master row to 'perSlot', each kind's mode to its sheet default
+    // ('warn'; bold-only kinds 'off'). Deliberately untouched: thresholds, colors,
+    // outline toggles and scale maxes (every sheet has its own reset button), and
+    // the countdown companion dates (inert once a slot leaves 'countdown').
+    // Silent beyond the re-render, like resetThresholds above — the engine has no
+    // shared toast for [data-action] buttons.
+    /**
+     * @param {*} arg Unused (the engine passes the button's data-action-arg).
+     * @param {Object} S Live settings state (mutated in place).
+     * @param {Object} env Platform env (env.hr picks the health-bar flavor).
+     * @returns {boolean} true so the engine re-renders with the restored state.
+     */
+    PConf.actions.resetStatusSlots = function (arg, S, env) {
+        if (!S) { return false; }
+        var slotKeys = statusLineCatalog.allSlotKeys();
+        for (var i = 0; i < slotKeys.length; i++) {
+            S[slotKeys[i]] = statusLineCatalog.slotDefault(slotKeys[i], env);
+        }
+        S.statusBoldAll = 'perSlot';
+        var contractMod = thresholdContract();
+        if (contractMod) {
+            for (var k = 0; k < contractMod.KINDS.length; k++) {
+                var kind = contractMod.KINDS[k];
+                S['thresh' + kind.key + 'BoldMode'] = kind.boldOnly ? 'off' : 'warn';
+            }
+        }
+        return true;
+    };
+
     // Pencil badge (engine item.editBadgeFrom): when the slot's current value is an
     // ENABLED threshold kind, the pencil gains a warn-color ring + danger-color dot.
     // Same env gate + code→kind mapping as the sheet resolver above; enabled comes

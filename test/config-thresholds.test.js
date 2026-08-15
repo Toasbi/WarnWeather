@@ -7,6 +7,7 @@ const { eachItem } = require('../src/pkjs/config-ui/lib/schema-walk.js');
 // which also reads these settings back at pack time — assert against the exported
 // constants rather than re-inlining the hex a third time.
 const thresholds = require('../src/pkjs/status-thresholds.js');
+const catalog = require('../src/pkjs/status-line-catalog.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 require('../src/pkjs/config-ui/lib/engine.js');
@@ -1110,4 +1111,77 @@ test('the sheets gray their Bold row out while the master is "all"', () => {
   perSlot.openEditSheet('threshAqi');
   assert.doesNotMatch(rowClassFor(perSlot.modal.innerHTML, 'threshAqiBoldMode'), /\bdis\b/,
     'the default perSlot leaves the Bold row live');
+});
+
+// --- the status-card reset button (blocks.js resetStatusSlots) ---------------
+// One text button in the Watch tab's intro puts every slot of every bar back to
+// its platform-aware default and the bold settings back to their shipped
+// defaults. Thresholds, colors, outlines, and scale maxes stay put — each sheet
+// carries its own reset for those.
+
+/** @returns {Object} A settings state with nothing at its default. */
+function scrambledSlotState() {
+  const S = { statusBoldAll: 'all' };
+  // 'uv' is not the default of any of the 12 slots.
+  catalog.allSlotKeys().forEach(k => { S[k] = 'uv'; });
+  thresholds.KINDS.forEach((kind, i) => {
+    S['thresh' + kind.key + 'BoldMode'] = (i % 2 === 0) ? 'always' : 'off';
+  });
+  S.threshWindOn = true;
+  S.threshWindWarn = '10'; S.threshWindDanger = '20'; S.threshWindMax = '200';
+  S.threshWindWarnColor = '#00AAFF'; S.threshWindDangerColor = '#5500FF';
+  return S;
+}
+
+test('resetStatusSlots restores every slot default (hr and non-hr) and the bold defaults', () => {
+  const hrEnv = Object.assign({}, ENV, { hr: true });
+  // Sanity: the two envs really differ (the health bar's hrDefaults flavor).
+  assert.notEqual(catalog.slotDefault('statusHealthRight', ENV),
+    catalog.slotDefault('statusHealthRight', hrEnv));
+  [{ env: ENV, name: 'non-hr' }, { env: hrEnv, name: 'hr' }].forEach(({ env, name }) => {
+    const S = scrambledSlotState();
+    assert.equal(PC.actions.resetStatusSlots(null, S, env), true,
+      name + ': returns true so the engine re-renders');
+    catalog.allSlotKeys().forEach(k => {
+      assert.equal(S[k], catalog.slotDefault(k, env),
+        name + ': ' + k + ' back to its platform-aware default');
+    });
+    assert.equal(S.statusBoldAll, 'perSlot', name + ': master Bold row back to perSlot');
+    thresholds.KINDS.forEach(kind => {
+      assert.equal(S['thresh' + kind.key + 'BoldMode'], kind.boldOnly ? 'off' : 'warn',
+        name + ': ' + kind.key + ' BoldMode back to its sheet default');
+    });
+    // Thresholds/colors/outline/max belong to the per-sheet reset — untouched here.
+    assert.equal(S.threshWindOn, true, name + ': highlight toggle untouched');
+    assert.equal(S.threshWindWarn, '10', name + ': warn threshold untouched');
+    assert.equal(S.threshWindDanger, '20', name + ': danger threshold untouched');
+    assert.equal(S.threshWindMax, '200', name + ': scale max untouched');
+    assert.equal(S.threshWindWarnColor, '#00AAFF', name + ': warn color untouched');
+    assert.equal(S.threshWindDangerColor, '#5500FF', name + ': danger color untouched');
+  });
+});
+
+test('the intro reset button resets a live page (slots + bold) on click', () => {
+  const page = bootGeneratedPage({
+    provider: 'dwd',
+    statusForecastLeft: 'uv', statusTopMid: 'week', statusHealthRight: 'steps',
+    statusBoldAll: 'all', threshCityBoldMode: 'always', threshWindBoldMode: 'off'
+  });
+  page.clickTab('watch');
+  assert.ok(page.scroll.innerHTML.indexOf('data-action="resetStatusSlots"') !== -1,
+    'the Watch-tab intro renders the reset button');
+  const t = {
+    getAttribute: n => (n === 'data-action' ? 'resetStatusSlots' : null),
+    closest: sel => (sel === '[data-action]' ? t : null)
+  };
+  const writesBefore = page.scroll.writes;
+  page.scroll.dispatch('click', { target: t });
+  assert.equal(page.S.statusForecastLeft, 'temp', 'forecast left back to its default');
+  assert.equal(page.S.statusTopMid, 'date', 'top mid back to its default');
+  // The harness boots basalt (no HR sensor) → the non-hr health flavor.
+  assert.equal(page.S.statusHealthRight, 'sleep', 'health right back to the non-hr default');
+  assert.equal(page.S.statusBoldAll, 'perSlot', 'master Bold row back to perSlot');
+  assert.equal(page.S.threshCityBoldMode, 'off', 'bold-only kind back to off');
+  assert.equal(page.S.threshWindBoldMode, 'warn', 'threshold kind back to warn');
+  assert.ok(page.scroll.writes > writesBefore, 'the reset re-rendered the page');
 });

@@ -889,7 +889,13 @@ module.exports = {
             // single card (each title becomes an in-card sub-header). Time/Calendar below stay
             // their own cards.
             groupCard: 'watchStatus',
-            intro: 'Every view has its own status bar — one row with a left, middle, and right slot you can fill with weather, time, health, and more. Choose what each view shows below.',
+            // The intro's reset chip reverts every slot AND the bold settings in one
+            // tap (blocks.js resetStatusSlots — the engine injects section intros as
+            // raw HTML and dispatches [data-action] clicks globally). Deliberately
+            // NOT thresholds-gated: aplite has slots but no bold machinery, and
+            // "status bars" stays truthful there either way.
+            intro: 'Every view has its own status bar — one row with a left, middle, and right slot you can fill with weather, time, health, and more. Choose what each view shows below.'
+                + ' <button type="button" class="txt-act-btn" data-action="resetStatusSlots">Reset status bars to defaults</button>',
             items: [
                 // Master bold switch over EVERY slot kind. It lives in the card's
                 // title-less intro section — ABOVE the per-bar sub-headers — because

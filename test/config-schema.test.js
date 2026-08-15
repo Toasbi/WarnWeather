@@ -1022,6 +1022,20 @@ test('Watch tab opens with a general status-bar intro, then the four bars in for
   assert.equal(battIdx, countdownIdx + 1, 'battery toggle follows the slot date directly');
 });
 
+test('the Watch intro carries the reset-status-bars button, ungated', () => {
+  const watch = schema.tabs.find((t) => t.id === 'watch');
+  const intro = watch.sections[0];
+  assert.ok(intro.intro.indexOf('data-action="resetStatusSlots"') !== -1,
+    'the intro embeds the [data-action] button (blocks.js resetStatusSlots)');
+  assert.ok(intro.intro.indexOf('class="txt-act-btn"') !== -1,
+    'the button reuses the shared text-action chip style');
+  assert.ok(intro.intro.indexOf('Reset status bars to defaults') !== -1,
+    'the label covers slots + Bold and stays truthful on aplite');
+  // The button resets slots too, which every platform has — so unlike the Bold
+  // machinery it must NOT be thresholds-gated (the intro section stays ungated).
+  assert.equal(intro.showWhen, undefined, 'the intro section carries no platform gate');
+});
+
 test('every threshold sheet is sheetOnly and gated off on aplite (which compiles the highlight out)', () => {
   // aplite paints its status rows from the lean status_row_aplite.c twin and has no
   // WW_THRESHOLD_HIGHLIGHT, so a threshold sheet there would silently do nothing. The
