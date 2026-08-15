@@ -124,7 +124,7 @@ test('buildSettingsBlob: enabled mask, GColor8 colors, LE uint16 health threshol
     threshSleepWarn: '5', threshSleepDanger: '7.5',
     threshDistanceWarn: '2', threshDistanceDanger: '5'
   });
-  assert.equal(blob.length, 29);
+  assert.equal(blob.length, 31);
   assert.equal(blob[0], (1 << 0) | (1 << 4) | (1 << 5) | (1 << 6));
   assert.equal(blob[1], 0xF8);   // rgbToGColor8(0xFFAA00)
   assert.equal(blob[2], 0xF0);   // rgbToGColor8(0xFF0000)
@@ -149,7 +149,8 @@ test('buildSettingsBlob: imperial distance thresholds convert mi -> 100 m units'
 test('buildSettingsBlob: nothing configured -> all disabled, zeroed thresholds', () => {
   const blob = th.buildSettingsBlob({});
   assert.equal(blob[0], 0);
-  assert.deepEqual(blob.slice(17), [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  // 12 health-threshold bytes, then the two bold bytes (0 = the default warn mode).
+  assert.deepEqual(blob.slice(17), [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 });
 
 // "0 and negative thresholds are legitimate; unset must stay distinguishable from zero" —
@@ -178,6 +179,45 @@ test('a 0 threshold is SET (enables the kind) and packs as zero, unlike unset', 
   const unsetBlob = th.buildSettingsBlob({});
   assert.equal(unsetBlob[0] & (1 << 5), 0, 'unset sleep must stay disabled');
   assert.deepEqual(unsetBlob.slice(21, 25), [0, 0, 0, 0]);
+});
+
+// thresh<Kind>BoldMode: 2 bits per kind in the two bold bytes. 'warn' packs to 0
+// so a never-configured kind reproduces the shipped bold-from-warn behaviour.
+test('buildSettingsBlob: unset bold modes pack as warn (all-zero bold bytes)', () => {
+  const blob = th.buildSettingsBlob({});
+  assert.equal(blob.length, 31);
+  assert.deepEqual(blob.slice(th.BOLD_OFFSET), [0, 0]);
+});
+
+test('buildSettingsBlob: bold modes pack 2 bits per kind, kinds 0-3 then 4-7', () => {
+  const blob = th.buildSettingsBlob({
+    threshAqiBoldMode: 'always',      // kind 0 -> byte 29 bits 0-1
+    threshGustBoldMode: 'off',        // kind 3 -> byte 29 bits 6-7
+    threshStepsBoldMode: 'off',       // kind 4 -> byte 30 bits 0-1
+    threshUvBoldMode: 'always'        // kind 7 -> byte 30 bits 6-7
+  });
+  assert.equal(blob[th.BOLD_OFFSET], (2 << 0) | (1 << 6), 'aqi always, gust off');
+  assert.equal(blob[th.BOLD_OFFSET + 1], (1 << 0) | (2 << 6), 'steps off, uv always');
+});
+
+test('buildSettingsBlob: bold mode is independent of the enabled bitmask', () => {
+  // "Always" must bold a slot whose kind has no thresholds configured at all —
+  // the bold row is live even while the sheet's threshold switch is off.
+  const blob = th.buildSettingsBlob({ threshWindBoldMode: 'always' });
+  assert.equal(blob[0], 0, 'no kind is enabled');
+  assert.equal(blob[th.BOLD_OFFSET], 2 << (2 * 2), 'wind still packs always');
+});
+
+test('buildSettingsBlob: an unknown bold mode falls back to warn', () => {
+  const blob = th.buildSettingsBlob({ threshWindBoldMode: 'bogus' });
+  assert.equal(blob[th.BOLD_OFFSET], 0);
+});
+
+test('kindConfig exposes the kind bold mode, defaulting to warn', () => {
+  assert.equal(th.kindConfig({}, 2).boldMode, 'warn');
+  assert.equal(th.kindConfig({ threshWindBoldMode: 'always' }, 2).boldMode, 'always');
+  assert.equal(th.kindConfig({ threshWindBoldMode: 'off' }, 2).boldMode, 'off');
+  assert.equal(th.kindConfig({ threshWindBoldMode: 'nonsense' }, 2).boldMode, 'warn');
 });
 
 test('belowIsWorse by settings-key stem — no shipped kind warns downward anymore', () => {

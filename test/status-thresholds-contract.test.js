@@ -25,6 +25,21 @@ test('kind count and blob layout are in lockstep with status_threshold.h', () =>
   assert.equal(th.SETTINGS_BYTES, cDefine('THRESH_SETTINGS_BYTES'));
   assert.equal(th.COLORS_OFFSET, cDefine('THRESH_COLORS_OFFSET'));
   assert.equal(th.HEALTH_OFFSET, cDefine('THRESH_HEALTH_OFFSET'));
+  assert.equal(th.BOLD_OFFSET, cDefine('THRESH_BOLD_OFFSET'));
+});
+
+test('bold modes are in lockstep with the ThreshBold enum', () => {
+  assert.equal(th.BOLD_MODES.warn, cEnum('THRESH_BOLD_WARN'));
+  assert.equal(th.BOLD_MODES.off, cEnum('THRESH_BOLD_OFF'));
+  assert.equal(th.BOLD_MODES.always, cEnum('THRESH_BOLD_ALWAYS'));
+  // 'warn' must stay the zero value: an all-zero (or never-configured) blob has
+  // to reproduce the shipped bold-from-warn behaviour, watch and phone alike.
+  assert.equal(th.BOLD_MODES[th.DEFAULT_BOLD_MODE], 0);
+});
+
+test('the two bold bytes cover every kind at 2 bits each', () => {
+  const boldBytes = th.SETTINGS_BYTES - th.BOLD_OFFSET;
+  assert.equal(boldBytes, Math.ceil((th.KINDS.length * 2) / 8));
 });
 
 test('kind indices are in lockstep with the ThreshKind enum', () => {

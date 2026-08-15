@@ -103,3 +103,18 @@ uint16_t status_threshold_health_warn(const uint8_t *blob, size_t len, int kind)
 uint16_t status_threshold_health_danger(const uint8_t *blob, size_t len, int kind) {
     return health_u16(blob, len, kind, 1);
 }
+
+int status_threshold_bold_mode(const uint8_t *blob, size_t len, int kind) {
+    if (!status_threshold_settings_validate(blob, len)
+        || kind < 0 || kind >= THRESH_KIND_COUNT) { return THRESH_BOLD_WARN; }
+    int mode = (blob[THRESH_BOLD_OFFSET + (kind >> 2)] >> (2 * (kind & 3))) & 3;
+    return mode == 3 ? THRESH_BOLD_WARN : mode;   // 3 is reserved
+}
+
+bool status_threshold_is_bold(const uint8_t *blob, size_t len, int kind, int level) {
+    if (kind < 0) { return false; }
+    if (level == THRESH_LEVEL_DANGER) { return true; }   // danger always wins
+    int mode = status_threshold_bold_mode(blob, len, kind);
+    if (mode == THRESH_BOLD_ALWAYS) { return true; }
+    return mode == THRESH_BOLD_WARN && level == THRESH_LEVEL_WARN;
+}

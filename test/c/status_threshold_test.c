@@ -94,6 +94,63 @@ static void blob_tests(void) {
     expect("blob.bad_len_enabled", status_threshold_enabled(blob, 5, THRESH_AQI), 0);
 }
 
+// Per-kind bold mode: a monotone ladder over the level. DANGER always prints
+// bold (the fill's ink is bold whatever the setting says), WARN adds the warn
+// level, ALWAYS adds the normal zone too.
+static void bold_tests(void) {
+    uint8_t blob[THRESH_SETTINGS_BYTES];
+    memset(blob, 0, sizeof(blob));
+    size_t n = sizeof(blob);
+
+    // An all-zero blob is the shipped behaviour: bold from warn up.
+    expect("bold.default_mode", status_threshold_bold_mode(blob, n, THRESH_WIND), THRESH_BOLD_WARN);
+    expect("bold.warn_normal", status_threshold_is_bold(blob, n, THRESH_WIND, THRESH_LEVEL_NORMAL), 0);
+    expect("bold.warn_warn", status_threshold_is_bold(blob, n, THRESH_WIND, THRESH_LEVEL_WARN), 1);
+    expect("bold.warn_danger", status_threshold_is_bold(blob, n, THRESH_WIND, THRESH_LEVEL_DANGER), 1);
+
+    // OFF drops the warn level; danger still wins.
+    blob[THRESH_BOLD_OFFSET] = (uint8_t)(THRESH_BOLD_OFF << (2 * THRESH_WIND));
+    expect("bold.off_mode", status_threshold_bold_mode(blob, n, THRESH_WIND), THRESH_BOLD_OFF);
+    expect("bold.off_normal", status_threshold_is_bold(blob, n, THRESH_WIND, THRESH_LEVEL_NORMAL), 0);
+    expect("bold.off_warn", status_threshold_is_bold(blob, n, THRESH_WIND, THRESH_LEVEL_WARN), 0);
+    expect("bold.off_danger", status_threshold_is_bold(blob, n, THRESH_WIND, THRESH_LEVEL_DANGER), 1);
+
+    // ALWAYS adds the normal zone — and needs no enabled bit (blob[0] is 0 here),
+    // so a kind with no thresholds configured still prints bold.
+    blob[THRESH_BOLD_OFFSET] = (uint8_t)(THRESH_BOLD_ALWAYS << (2 * THRESH_WIND));
+    expect("bold.always_mode", status_threshold_bold_mode(blob, n, THRESH_WIND), THRESH_BOLD_ALWAYS);
+    expect("bold.always_disabled_kind", status_threshold_enabled(blob, n, THRESH_WIND), 0);
+    expect("bold.always_normal", status_threshold_is_bold(blob, n, THRESH_WIND, THRESH_LEVEL_NORMAL), 1);
+    expect("bold.always_danger", status_threshold_is_bold(blob, n, THRESH_WIND, THRESH_LEVEL_DANGER), 1);
+
+    // Neighbouring kinds share the byte without bleeding into each other.
+    memset(blob, 0, sizeof(blob));
+    blob[THRESH_BOLD_OFFSET] = (uint8_t)((THRESH_BOLD_ALWAYS << (2 * THRESH_AQI))
+                                         | (THRESH_BOLD_OFF << (2 * THRESH_GUST)));
+    expect("bold.pack_aqi", status_threshold_bold_mode(blob, n, THRESH_AQI), THRESH_BOLD_ALWAYS);
+    expect("bold.pack_pollen", status_threshold_bold_mode(blob, n, THRESH_POLLEN), THRESH_BOLD_WARN);
+    expect("bold.pack_gust", status_threshold_bold_mode(blob, n, THRESH_GUST), THRESH_BOLD_OFF);
+
+    // Kinds 4..7 live in the second bold byte.
+    blob[THRESH_BOLD_OFFSET + 1] = (uint8_t)((THRESH_BOLD_OFF << (2 * (THRESH_STEPS & 3)))
+                                             | (THRESH_BOLD_ALWAYS << (2 * (THRESH_UV & 3))));
+    expect("bold.pack_steps", status_threshold_bold_mode(blob, n, THRESH_STEPS), THRESH_BOLD_OFF);
+    expect("bold.pack_sleep", status_threshold_bold_mode(blob, n, THRESH_SLEEP), THRESH_BOLD_WARN);
+    expect("bold.pack_uv", status_threshold_bold_mode(blob, n, THRESH_UV), THRESH_BOLD_ALWAYS);
+    expect("bold.pack_wind_untouched", status_threshold_bold_mode(blob, n, THRESH_WIND), THRESH_BOLD_WARN);
+
+    // Degrade safely: the reserved wire value, a bad blob and a slot with no
+    // threshold kind all fall back to the shipped behaviour.
+    memset(blob, 0xFF, sizeof(blob));
+    expect("bold.reserved_mode", status_threshold_bold_mode(blob, n, THRESH_WIND), THRESH_BOLD_WARN);
+    expect("bold.reserved_normal", status_threshold_is_bold(blob, n, THRESH_WIND, THRESH_LEVEL_NORMAL), 0);
+    expect("bold.reserved_warn", status_threshold_is_bold(blob, n, THRESH_WIND, THRESH_LEVEL_WARN), 1);
+    expect("bold.bad_len", status_threshold_bold_mode(blob, 5, THRESH_WIND), THRESH_BOLD_WARN);
+    expect("bold.null_blob", status_threshold_bold_mode(NULL, n, THRESH_WIND), THRESH_BOLD_WARN);
+    expect("bold.oob_kind", status_threshold_bold_mode(blob, n, THRESH_KIND_COUNT), THRESH_BOLD_WARN);
+    expect("bold.no_kind", status_threshold_is_bold(blob, n, -1, THRESH_LEVEL_DANGER), 0);
+}
+
 static void health_value_tests(void) {
     // Wire-unit conversion for the watch-side comparison (spec: "C-side:
     // threshold comparison for steps/sleep/distance against health values").
@@ -135,6 +192,7 @@ int main(void) {
     kind_tests();
     weather_byte_tests();
     blob_tests();
+    bold_tests();
     health_value_tests();
     if (s_failures) { printf("%d failure(s)\n", s_failures); return 1; }
     printf("status_threshold_test OK\n");

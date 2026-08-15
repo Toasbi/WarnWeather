@@ -14,9 +14,17 @@
   var rainTier = (typeof require !== 'undefined')
     ? require('./weather/rain-tier.js') : null;
 
-  var SETTINGS_BYTES = 29;   // widened 27 -> 29 when UV became kind 7 (2 more color bytes)
+  var SETTINGS_BYTES = 31;   // 27 -> 29 when UV became kind 7; 29 -> 31 for the bold modes
   var COLORS_OFFSET = 1;
   var HEALTH_OFFSET = 17;    // shifted 15 -> 17 with the UV color pair (append-only kinds)
+  var BOLD_OFFSET = 29;      // 2 bits per kind: byte 29 + (k >> 2), bits 2 * (k & 3)
+
+  // thresh<Kind>BoldMode -> ThreshBold (src/c/appendix/status_threshold.h). The
+  // ladder is monotone over the level: danger is bold under every mode, 'warn'
+  // adds the warn level, 'always' adds the normal zone too. 'warn' is 0 so a
+  // never-configured kind packs as the shipped behaviour.
+  var BOLD_MODES = {warn: 0, off: 1, always: 2};
+  var DEFAULT_BOLD_MODE = 'warn';
 
   // DWD pollen reaches the phone as one of these display BANDS (a string, see
   // src/pkjs/weather/pollen.js), NOT a 0-3 number — Number('2-3') is NaN. Map
@@ -110,7 +118,7 @@
    * @param {Object} settings Clay settings blob
    * @param {number} kindIndex wire kind id (0..6)
    * @returns {{enabled: boolean, warn: ?number, danger: ?number,
-   *            warnColor: number, dangerColor: number}}
+   *            warnColor: number, dangerColor: number, boldMode: string}}
    */
   function kindConfig(settings, kindIndex) {
     var k = KINDS[kindIndex];
@@ -134,13 +142,18 @@
     } else {
       warnColor = colorInt(rawWarn, k.goal ? DEFAULT_GOAL_COLOR : DEFAULT_WARN_COLOR);
     }
+    // Bold mode is deliberately NOT gated on `ordered`: 'always' bolds a slot
+    // whose kind has no thresholds configured at all.
+    var rawBold = settings && settings['thresh' + k.key + 'BoldMode'];
     return {
       enabled: ordered,
       warn: warn,
       danger: danger,
       warnColor: warnColor,
       dangerColor: colorInt(settings && settings['thresh' + k.key + 'DangerColor'],
-                            k.goal ? DEFAULT_GOAL_COLOR : DEFAULT_DANGER_COLOR)
+                            k.goal ? DEFAULT_GOAL_COLOR : DEFAULT_DANGER_COLOR),
+      boldMode: Object.prototype.hasOwnProperty.call(BOLD_MODES, rawBold)
+        ? rawBold : DEFAULT_BOLD_MODE
     };
   }
 
@@ -276,6 +289,7 @@
     for (var k = 0; k < KINDS.length; k++) {
       var cfg = kindConfig(settings, k);
       if (cfg.enabled) { blob[0] |= (1 << k); }
+      blob[BOLD_OFFSET + (k >> 2)] |= BOLD_MODES[cfg.boldMode] << (2 * (k & 3));
       blob[COLORS_OFFSET + 2 * k] = cfg.warnColor === null
         ? 0 : rainTier.rgbToGColor8(cfg.warnColor);   // 0x00 = no-outline sentinel
       blob[COLORS_OFFSET + 2 * k + 1] = rainTier.rgbToGColor8(cfg.dangerColor);
@@ -297,6 +311,9 @@
     SETTINGS_BYTES: SETTINGS_BYTES,
     COLORS_OFFSET: COLORS_OFFSET,
     HEALTH_OFFSET: HEALTH_OFFSET,
+    BOLD_OFFSET: BOLD_OFFSET,
+    BOLD_MODES: BOLD_MODES,
+    DEFAULT_BOLD_MODE: DEFAULT_BOLD_MODE,
     parseThreshold: parseThreshold,
     belowIsWorse: belowIsWorse,
     isGoalKind: isGoalKind,
