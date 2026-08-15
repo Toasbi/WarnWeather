@@ -59,6 +59,26 @@ test('pencil trigger: rendered only when the sheet resolver returns a sheet id',
   assert.equal(noPen.indexOf('data-edit-sheet'), -1, 'time value has no pencil');
 });
 
+test('pencil trigger aria-label: the button label leads the sentence, no stutter', () => {
+  // Without a badge the label falls back to 'Edit' — the announced text must be
+  // 'Edit settings for the <slot> value', not 'Edit edit settings …'.
+  const S = E.hydrate(SCHEMA, {});
+  const html = E.renderBody(SCHEMA, 't', cxFor(S));
+  assert.ok(html.indexOf('aria-label="Edit settings for the Left slot value"') !== -1,
+    'announced as "Edit settings for the <slot> value"');
+  assert.equal(html.indexOf('Edit edit'), -1, 'no stuttered wording');
+  // An enabled badge keeps the same lead label and appends the highlighting state.
+  const BADGED = JSON.parse(JSON.stringify(SCHEMA));
+  BADGED.tabs[0].sections[0].items[0].editBadgeFrom = { resolver: 'penBadge' };
+  global.PConf.badgeResolvers.register('penBadge', function () {
+    return { label: 'Edit', enabled: true, warnColor: '#00AAFF', dangerColor: '#5500FF' };
+  });
+  const badged = E.renderBody(BADGED, 't', cxFor(E.hydrate(BADGED, {})));
+  assert.ok(
+    badged.indexOf('aria-label="Edit settings for the Left slot value (highlighting on)"') !== -1,
+    'enabled badge announces the highlighting state after the same sentence');
+});
+
 test('renderEditModal: header + intro + fields for the open sheet; \'\' otherwise', () => {
   const S = E.hydrate(SCHEMA, {});
   const html = E.renderEditModal(SCHEMA, cxFor(S, { openEdit: 'sheetWind' }));
@@ -154,4 +174,39 @@ test('a hidden subheader leaves no orphan header behind', () => {
   const S = E.hydrate(gated, {});
   const html = E.renderEditModal(gated, subCx(S));
   assert.equal(html.indexOf('Thresholds'), -1);
+});
+
+// --- hosted-row rule on the other render paths: the main loop, the inline-run
+// gatherer and the divider look-ahead all share one predicate (isHostedRow) ---
+
+test('a hosted toggle caught in an inline run renders no duplicate switch', () => {
+  const HOSTED_INLINE = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
+    { sheetOnly: true, sheetId: 'sheetHost', title: 'Host', items: [
+      { type: 'subheader', text: 'Grp', toggleKey: 'hostedOn' },
+      { type: 'toggle', messageKey: 'other', label: 'Other', defaultValue: false, inline: 'pair' },
+      { type: 'toggle', messageKey: 'hostedOn', label: 'Hosted', defaultValue: true, inline: 'pair' }
+    ] }
+  ] }] };
+  const S = E.hydrate(HOSTED_INLINE, {});
+  const html = E.renderEditModal(HOSTED_INLINE, cxFor(S, { openEdit: 'sheetHost' }));
+  assert.equal(html.split('data-k="hostedOn"').length - 1, 1,
+    'the switch renders once, on the subheader — not again in the inline row');
+  assert.ok(html.indexOf('data-k="other"') !== -1, 'the non-hosted inline member still renders');
+});
+
+test('the row before a hosted toggle takes its divider from the row actually rendered next', () => {
+  const DIV = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
+    { sheetOnly: true, sheetId: 'sheetDiv', title: 'Div', items: [
+      { type: 'subheader', text: 'Grp', toggleKey: 'hostedOn' },
+      { type: 'toggle', messageKey: 'before', label: 'Before', defaultValue: false },
+      { type: 'toggle', messageKey: 'hostedOn', label: 'Hosted', defaultValue: true, joinPrevious: true },
+      { type: 'toggle', messageKey: 'after', label: 'After', defaultValue: false }
+    ] }
+  ] }] };
+  const S = E.hydrate(DIV, {});
+  const html = E.renderEditModal(DIV, cxFor(S, { openEdit: 'sheetDiv' }));
+  assert.ok(html.indexOf('<div class="row"><div class="lft"><div class="lbl">Before</div>') !== -1,
+    'Before keeps its plain row class');
+  assert.equal(html.indexOf('class="row nb"'), -1,
+    'the suppressed toggle\'s joinPrevious must not strip the divider above it');
 });

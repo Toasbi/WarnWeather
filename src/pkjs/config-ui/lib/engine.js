@@ -225,8 +225,20 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     return out;
   }
-  function renderToggle(item, v) {
-    return '<button class="sw' + (v ? ' on' : '') + '" data-k="' + item.messageKey + '" data-toggle="1"><i></i></button>';
+  /**
+   * The .sw switch control — the ONLY producer of the switch markup; row toggles
+   * and subheader-hosted toggles both render through here.
+   * @param {Object} item Toggle schema item.
+   * @param {*} v Current value (truthy renders the switch on).
+   * @param {string} [ariaLabel] Accessible name for a switch rendered away from
+   *   its text label (a subheader-hosted toggle); omitted for row toggles, whose
+   *   row label names them.
+   * @returns {string} Switch button HTML.
+   */
+  function renderToggle(item, v, ariaLabel) {
+    return '<button class="sw' + (v ? ' on' : '') + '" data-k="' + esc(item.messageKey)
+      + '" data-toggle="1"' + (ariaLabel ? ' aria-label="' + esc(ariaLabel) + '"' : '')
+      + '><i></i></button>';
   }
   function renderSegmented(item, v, off) { return '<div class="seg">' + optionButtons(item, v, false, off) + '</div>'; }
   function renderRadio(item, v, off) { return '<div class="radio">' + optionButtons(item, v, true, off) + '</div>'; }
@@ -441,8 +453,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * title row.
    *
    * The hosted toggle keeps its normal place in sec.items (hydrate, serialize,
-   * findItem and its onChange hook all still see it); only its row is suppressed,
-   * exactly as the old headerToggleKey did.
+   * findItem and its onChange hook all still see it); only its row is suppressed
+   * (the isHostedRow predicate, consulted by every row-emitting path).
    *
    * @param {Object} item The subheader item ({text, toggleKey?, labelAction?}).
    * @param {Object} sec The section holding it (searched for the toggle item).
@@ -458,11 +470,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         }
       }
       // A gated-off toggle leaves the header bare rather than drawing a switch
-      // the platform can't honour.
+      // the platform can't honour. The toggle's text label stays behind in the
+      // body, so the accessible name must ride the switch itself.
       if (it && PConf.showWhen.isVisible(it, cx.evalCtx)) {
-        toggle = '<button class="sw' + (cx.S[it.messageKey] ? ' on' : '')
-          + '" data-k="' + esc(it.messageKey) + '" data-toggle="1" aria-label="'
-          + esc(String(it.label || 'Enable')) + '"><i></i></button>';
+        toggle = renderToggle(it, cx.S[it.messageKey], String(it.label || 'Enable'));
       }
     }
     // item.intro is the group's own explanatory copy — the section-level `intro`
@@ -476,9 +487,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   /**
    * The edit-sheet trigger for a row whose value resolved a sheet, or ''. A proper
    * outlined text button (was a pencil icon): the badge resolver supplies its label
-   * — "Goal" for the celebratory kinds, "Warn" for the weather kinds — and, when the
-   * kind is enabled, the warn ring + danger dot pair prefix the label so the row
-   * shows at a glance that highlighting is on, and in which colors.
+   * — "Edit" for every kind now, since the sheet configures the whole slot (bold +
+   * thresholds) rather than one section — and, when the kind is enabled, the warn
+   * ring + danger dot pair prefix the label so the row shows at a glance that
+   * highlighting is on, and in which colors. The same label LEADS the aria-label
+   * ("Edit settings for the … value"), so the announced text tracks the visible
+   * button without repeating it.
    *
    * @param {Object} item Schema item (for the aria label).
    * @param {{editSheet: ?string, editBadge: ?Object}} view Render view state.
@@ -494,7 +508,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         + '<span class="pen-dot danger" style="--th-c:' + esc(badge.dangerColor) + '" aria-hidden="true"></span>'
       : '';
     return '<button type="button" class="thr-btn" data-edit-sheet="' + esc(view.editSheet)
-      + '" aria-label="Edit ' + esc(label.toLowerCase()) + ' settings for the '
+      + '" aria-label="' + esc(label) + ' settings for the '
       + esc(String(item.label || 'selected'))
       + ' value' + (on ? ' (highlighting on)' : '') + '">' + dots
       + '<span>' + esc(label) + '</span></button>';
@@ -588,37 +602,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     if (!sec) { return ''; }
     // The sheet honors its section gate even when forced open — on aplite
-    // (env.thresholds false) it must stay empty regardless of a header toggle.
+    // (env.thresholds false) it must stay empty regardless of how it was opened.
     if (sec.showWhen && !PConf.showWhen.isVisible(sec, cx.evalCtx)) { return ''; }
-    // headerToggleKey: the section's master on/off toggle rides the sheet HEADER
-    // (title row) instead of the body — the body then carries only the dependent
-    // rows (intro, slider, colors), which hide while the toggle is off. The item
-    // stays in sec.items (hydrate/serialize/findItem all still see it); it is only
-    // rendered out of place here.
-    var headerItem = null;
-    var bodySec = sec;
-    if (sec.headerToggleKey) {
-      var rest = [], hi, hit;
-      for (hi = 0; hi < (sec.items || []).length; hi++) {
-        hit = sec.items[hi];
-        if (hit.messageKey === sec.headerToggleKey && hit.type === 'toggle') { headerItem = hit; }
-        else { rest.push(hit); }
-      }
-      bodySec = Object.assign({}, sec, { items: rest });
-    }
-    var headerVisible = Boolean(headerItem && PConf.showWhen.isVisible(headerItem, cx.evalCtx));
-    var built = buildSectionBody(bodySec, cx);
-    if (built.isEmpty && !headerVisible) { return ''; }
+    var built = buildSectionBody(sec, cx);
+    if (built.isEmpty) { return ''; }
     var titleId = 'esheet-ttl-' + esc(String(cx.openEdit));
-    // Same .sw markup renderToggle emits, plus an aria-label — the toggle's text
-    // label stays behind in the body, so the name must ride the control itself.
-    var headerToggle = headerVisible
-      ? '<button class="sw' + (cx.S[headerItem.messageKey] ? ' on' : '')
-        + '" data-k="' + esc(headerItem.messageKey) + '" data-toggle="1" aria-label="'
-        + esc(String(headerItem.label || 'Enable')) + '"><i></i></button>'
-      : '';
     return '<div class="ssel-modal-hdr"><span class="ssel-modal-ttl" id="' + titleId + '">'
-      + esc(String(sec.title || 'Edit')) + '</span>' + headerToggle
+      + esc(String(sec.title || 'Edit')) + '</span>'
       + '<button type="button" class="ssel-modal-close" data-select-close aria-label="Close">×</button></div>'
       + '<div class="ssel-list esheet">' + built.body + '</div>';
   }
@@ -967,21 +957,32 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
+   * The role wording for one threshold level: the resolved range item's
+   * warnLabel/dangerLabel — Close/Goal on the celebratory goal kinds — with the
+   * weather-kind fallback Warn/Danger. The SINGLE source of that fallback,
+   * shared by the readout chips and the slider-thumb aria-labels so they cannot
+   * drift.
+   * @param {Object} item Resolved range item (labels).
+   * @param {string} which 'warn' | 'danger'.
+   * @returns {string} Role label, e.g. 'Warn' or 'Close'.
+   */
+  function thresholdRoleLabel(item, which) {
+    return which === 'warn'
+      ? (item.warnLabel || 'Warn') : (item.dangerLabel || 'Danger');
+  }
+
+  /**
    * One threshold chip's text. The SINGLE source of the chip wording: the
    * initial render and the drag repaint both go through here, so they cannot
    * drift (they did — the repaint hardcoded Warn/Danger and the first drag on a
    * goal kind relabelled its Close/Goal chips).
-   * Role wording rides the resolved range item: Warn/Danger for the weather
-   * kinds, Close/Goal for the celebratory goal kinds.
    * @param {Object} item Resolved range item (labels + unit).
    * @param {string} which 'warn' | 'danger'.
    * @param {number} value The value to show.
    * @returns {string} Chip text, e.g. 'Close 8000' or 'Warn 40 kph'.
    */
   function thresholdChipText(item, which, value) {
-    var label = which === 'warn'
-      ? (item.warnLabel || 'Warn') : (item.dangerLabel || 'Danger');
-    return label + ' ' + value + (item.unit ? ' ' + item.unit : '');
+    return thresholdRoleLabel(item, which) + ' ' + value + (item.unit ? ' ' + item.unit : '');
   }
 
   /**
@@ -1028,8 +1029,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var glow = role === 'warn' ? item.warnGlow : item.dangerGlow;
       return '<button type="button" class="rng-th th-' + role + '" data-range-thumb="' + which
         + '" style="left:' + pct(value) + ';--th-c:' + esc(color) + ';--th-glow:' + esc(glow)
-        + '" role="slider" aria-label="' + (role === 'warn'
-            ? (item.warnLabel || 'Warn') : (item.dangerLabel || 'Danger')) + ' threshold'
+        + '" role="slider" aria-label="' + esc(thresholdRoleLabel(item, role)) + ' threshold'
         + '" aria-valuemin="' + min + '" aria-valuemax="' + max
         + '" aria-valuenow="' + (role === 'warn' ? r.warn : r.danger) + '"></button>';
     }
@@ -1321,15 +1321,48 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return { html: html, kind: 'control' };
   }
 
+  /**
+   * Map of this section's toggle messageKeys hosted by a VISIBLE subheader
+   * (subheader.toggleKey): their switches render on that header, so their own
+   * rows must not. Collected up front because the subheader may sit after the
+   * toggle in the item list.
+   * @param {Object} sec Section whose items to scan.
+   * @param {Object} cx Render context.
+   * @returns {Object} messageKey -> true map.
+   */
+  function hostedToggleKeys(sec, cx) {
+    var hosted = {}, i;
+    for (i = 0; i < sec.items.length; i++) {
+      if (sec.items[i].type === 'subheader' && sec.items[i].toggleKey
+        && PConf.showWhen.isVisible(sec.items[i], cx.evalCtx)) {
+        hosted[sec.items[i].toggleKey] = true;
+      }
+    }
+    return hosted;
+  }
+
+  /**
+   * True when this item's own row is suppressed because a subheader hosts its
+   * toggle. THE predicate for the hosted-row rule: the main item loop, the
+   * inline-group renderer and the join look-ahead all consult it, so the rule
+   * cannot drift between render paths.
+   * @param {Object} item Schema item.
+   * @param {Object} hosted hostedToggleKeys() map for the item's section.
+   * @returns {boolean} Whether to suppress the item's row.
+   */
+  function isHostedRow(item, hosted) {
+    return item.type === 'toggle' && Boolean(hosted && hosted[item.messageKey]);
+  }
+
   // Render a run of consecutive items sharing the same inline group id as a single side-by-side
   // row (one bottom divider, no internal dividers). Each visible member becomes a compact
   // label+control cell. Inline members don't carry hints/blocks. Returns { html, controlCount };
   // controlCount is the number of visible cells (0 -> nothing rendered, group hidden).
-  function renderInlineGroup(items, cx, noDivider) {
+  function renderInlineGroup(items, cx, noDivider, hosted) {
     var cells = '', visible = 0, i, item, view;
     for (i = 0; i < items.length; i++) {
       item = items[i];
-      if (!PConf.showWhen.isVisible(item, cx.evalCtx)) { continue; }
+      if (isHostedRow(item, hosted) || !PConf.showWhen.isVisible(item, cx.evalCtx)) { continue; }
       view = {
         value: cx.S[item.messageKey],
         openColor: cx.openColor,
@@ -1344,14 +1377,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return { html: '<div class="row inline' + nbClass(noDivider) + '">' + cells + '</div>', controlCount: visible };
   }
 
-  // Look-ahead from index "from": the join mode of the next *visible* item — '' when it doesn't
+  // Look-ahead from index "from": the join mode of the next *rendered* item — '' when it doesn't
   // join, 'loose' for a roomy join (joinPrevious: 'loose'), else 'tight' (joinPrevious: true). A
   // joining item wants no divider between it and the row above, so the preceding visible row drops
   // its divider; 'tight' also tightens the padding, 'loose' keeps the normal row spacing. Skips
-  // hidden items so the divider returns automatically when the joining group is hidden.
-  function nextVisibleJoins(items, from, cx) {
+  // hidden items — so the divider returns automatically when the joining group is hidden — and
+  // hosted-suppressed toggles (isHostedRow), whose rows never render at all.
+  function nextVisibleJoins(items, from, cx, hosted) {
     var j, jp;
     for (j = from; j < items.length; j++) {
+      if (isHostedRow(items[j], hosted)) { continue; }
       if (PConf.showWhen.isVisible(items[j], cx.evalCtx)) {
         jp = items[j].joinPrevious;
         return jp === 'loose' ? 'loose' : (jp ? 'tight' : '');
@@ -1387,16 +1422,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     var body = sec.intro ? '<div class="intro">' + sec.intro + '</div>' : '';
     var controlCount = 0, staticCount = 0, i;
-    // Toggles hosted by a VISIBLE subheader render on that header instead of as a
-    // row of their own. Collected up front because the subheader may sit after
-    // the toggle in the item list.
-    var hosted = {};
-    for (i = 0; i < sec.items.length; i++) {
-      if (sec.items[i].type === 'subheader' && sec.items[i].toggleKey
-        && PConf.showWhen.isVisible(sec.items[i], cx.evalCtx)) {
-        hosted[sec.items[i].toggleKey] = true;
-      }
-    }
+    var hosted = hostedToggleKeys(sec, cx);
     for (i = 0; i < sec.items.length; i++) {
       var item = sec.items[i];
       if (item.type === 'subheader') {
@@ -1405,12 +1431,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         staticCount++;
         continue;
       }
-      if (item.type === 'toggle' && hosted[item.messageKey]) { continue; }
+      if (isHostedRow(item, hosted)) { continue; }
       if (item.inline) {
         // gather the consecutive run sharing this inline group id, render it as one row
         var run = [item];
         while (i + 1 < sec.items.length && sec.items[i + 1].inline === item.inline) { run.push(sec.items[i + 1]); i++; }
-        var g = renderInlineGroup(run, cx, nextVisibleJoins(sec.items, i + 1, cx));
+        var g = renderInlineGroup(run, cx, nextVisibleJoins(sec.items, i + 1, cx, hosted), hosted);
         controlCount += g.controlCount;
         body += g.html;
         continue;
@@ -1422,7 +1448,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         openDate: cx.openDate,
         selectQuery: cx.selectQuery
       };
-      var r = renderItem(item, view, cx, nextVisibleJoins(sec.items, i + 1, cx));
+      var r = renderItem(item, view, cx, nextVisibleJoins(sec.items, i + 1, cx, hosted));
       if (r.kind === 'control') { controlCount++; }
       else if (r.kind === 'static') { staticCount++; }
       body += r.html;
