@@ -54,18 +54,19 @@ const THEME_SLOTS = {
   dark:       { statusForecastLeft: 'temp',   statusForecastMid: 'city', statusForecastRight: 'uv' },
   bw:         { statusForecastLeft: 'temp',   statusForecastMid: 'wind', statusForecastRight: 'gust' },
   light:      { statusForecastLeft: 'temp',   statusForecastMid: 'uv',   statusForecastRight: 'aqi' },
-  'bw-light': { statusForecastLeft: 'pollen', statusForecastMid: 'date', statusForecastRight: 'aqi' },
+  'bw-light': { statusForecastLeft: 'pollen', statusForecastMid: 'city', statusForecastRight: 'aqi' },
 };
 // TOP-strip slots per theme step: every frame's upper bar shows a DIFFERENT tuple
 // (no theme repeats another's, and none repeats its own frame's forecast bar) so
 // the sweep advertises top-strip variety instead of four identical week/date/sun
-// strips. dark keeps the catalog default as the classic look; the overridden mids
-// stay 'empty' (the segment idiom for cross-platform-safe top strips, see status-5).
+// strips. dark keeps the catalog default as the classic look; b&w and inverted keep the date
+// in the top-mid slot (user call: the date matters); light keeps its mid empty.
+// bw-light's FORECAST mid moves date->city so the date never shows twice in one frame.
 const THEME_TOPS = {
   dark:       {},   // catalog default: week / date / sun
   light:      { statusTopLeft: 'wind', statusTopMid: 'empty', statusTopRight: 'battery' },
-  bw:         { statusTopLeft: 'uv',   statusTopMid: 'empty', statusTopRight: 'week' },
-  'bw-light': { statusTopLeft: 'temp', statusTopMid: 'empty', statusTopRight: 'sun' },
+  bw:         { statusTopLeft: 'uv',   statusTopMid: 'date',  statusTopRight: 'week' },
+  'bw-light': { statusTopLeft: 'temp', statusTopMid: 'date',  statusTopRight: 'sun' },
 };
 
 // Build the theme SEGMENTS from themesFor(), so each theme is one segment with the right
