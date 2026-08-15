@@ -3,11 +3,19 @@
 int status_threshold_kind_for_slot(uint8_t slot_kind, uint8_t icon) {
     if (slot_kind == SLOT_TEXT) {
         switch (icon) {
-            case STATUS_ICON_AQI:    return THRESH_AQI;
-            case STATUS_ICON_POLLEN: return THRESH_POLLEN;
-            case STATUS_ICON_WIND:   return THRESH_WIND;
-            case STATUS_ICON_GUST:   return THRESH_GUST;
-            case STATUS_ICON_UV:     return THRESH_UV;
+            case STATUS_ICON_AQI:       return THRESH_AQI;
+            case STATUS_ICON_POLLEN:    return THRESH_POLLEN;
+            case STATUS_ICON_WIND:      return THRESH_WIND;
+            case STATUS_ICON_GUST:      return THRESH_GUST;
+            case STATUS_ICON_UV:        return THRESH_UV;
+            case STATUS_ICON_TEMP:      return THRESH_TEMP;
+            case STATUS_ICON_PRESSURE:  return THRESH_PRESSURE;
+            case STATUS_ICON_DRAWN_SUN: return THRESH_SUN;
+            case STATUS_ICON_COUNTDOWN: return THRESH_COUNTDOWN;
+            // City is the only remaining TEXT+NONE catalog option (a pre-icon
+            // pressure slot also lands here until the phone re-sends its slots
+            // — see status_threshold.h).
+            case STATUS_ICON_NONE:      return THRESH_CITY;
             default: return -1;
         }
     }
@@ -16,6 +24,11 @@ int status_threshold_kind_for_slot(uint8_t slot_kind, uint8_t icon) {
         case SLOT_LIVE_SLEEP: return THRESH_SLEEP;
         case SLOT_LIVE_DISTANCE:
         case SLOT_LIVE_DISTANCE_MI: return THRESH_DISTANCE;
+        case SLOT_LIVE_DATE: return THRESH_DATE;
+        case SLOT_LIVE_WEEK: return THRESH_WEEK;
+        case SLOT_LIVE_HR:   return THRESH_HR;
+        // SLOT_LIVE_BATTERY stays -1: the battery slot draws a glyph, no text
+        // run, so a bold mode could never render. SLOT_EMPTY likewise.
         default: return -1;
     }
 }
@@ -75,14 +88,18 @@ bool status_threshold_settings_validate(const uint8_t *blob, size_t len) {
 }
 
 bool status_threshold_enabled(const uint8_t *blob, size_t len, int kind) {
+    // Paired kinds only: byte 0 has exactly 8 enable bits, and a bold-only
+    // kind (8..15) is never "enabled" — it has no threshold pair to enable.
     if (!status_threshold_settings_validate(blob, len)
-        || kind < 0 || kind >= THRESH_KIND_COUNT) { return false; }
+        || kind < 0 || kind >= THRESH_PAIRED_KIND_COUNT) { return false; }
     return (blob[0] >> kind) & 1;
 }
 
 uint8_t status_threshold_color8(const uint8_t *blob, size_t len, int kind, int level) {
+    // Paired kinds only: the color offsets collide with the health u16s past
+    // kind 7, so the bound is correctness, not tidiness.
     if (!status_threshold_settings_validate(blob, len)
-        || kind < 0 || kind >= THRESH_KIND_COUNT
+        || kind < 0 || kind >= THRESH_PAIRED_KIND_COUNT
         || (level != THRESH_LEVEL_WARN && level != THRESH_LEVEL_DANGER)) {
         return 0xFF;   // opaque white — safe fallback, never an out-of-bounds read
     }
@@ -92,6 +109,8 @@ uint8_t status_threshold_color8(const uint8_t *blob, size_t len, int kind, int l
 }
 
 static uint16_t health_u16(const uint8_t *blob, size_t len, int kind, int danger) {
+    // The health-kind check (4..6) is strictly inside THRESH_PAIRED_KIND_COUNT,
+    // so no bold-only kind (8..15) can ever reach the u16 offsets.
     if (!status_threshold_settings_validate(blob, len)
         || !status_threshold_is_health_kind(kind)) { return 0; }
     size_t off = THRESH_HEALTH_OFFSET

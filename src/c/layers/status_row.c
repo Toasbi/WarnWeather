@@ -507,7 +507,10 @@ static void ensure_glyphs(StatusRow *row, int len, int content_h) {
         if (len > 0 && status_line_slot(s_blob_scratch, (size_t)len, i, &slot)) {
             if (slot.kind != SLOT_EMPTY
                     && slot.icon != STATUS_ICON_NONE
-                    && slot.icon != STATUS_ICON_DRAWN_SUN) {
+                    && slot.icon != STATUS_ICON_DRAWN_SUN
+                    // PRESSURE is text-only by contract (status_line.h): no PDC
+                    // exists, so never attempt a load and reserve no icon width.
+                    && slot.icon != STATUS_ICON_PRESSURE) {
                 wanted = slot.icon;
             }
         }

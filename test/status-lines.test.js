@@ -355,14 +355,16 @@ test('isoWeek matches known ISO-8601 week numbers', () => {
   assert.equal(statusLines.isoWeek(new Date(2020, 11, 31)), 53);
 });
 
-test('pressure slot renders the rounded value with its unit (no icon)', () => {
+test('pressure slot renders the rounded value with its unit (text-only icon id)', () => {
   const bytes = statusLines.packLine(
     catalog.LINES[1],
     { PRESSURE_TREND: [1013.4, 1014] },
     { statusRadarLeft: 'pressure', statusRadarMid: 'empty', statusRadarRight: 'empty' },
     { platform: 'basalt', color: true, health: true });
   assert.equal(bytes[0], catalog.KINDS.TEXT);
-  assert.equal(bytes[1], catalog.ICONS.NONE);
+  // PRESSURE discriminates the slot from city on the wire (per-kind bold mode);
+  // the watch never loads a glyph for it, so the slot still renders text-only.
+  assert.equal(bytes[1], catalog.ICONS.PRESSURE);
   assert.equal(bytes[2], 7);
   assert.equal(Buffer.from(bytes.slice(3, 10)).toString('utf8'), '1013hPa');
 });

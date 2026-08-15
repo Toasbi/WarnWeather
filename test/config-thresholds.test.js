@@ -140,7 +140,9 @@ test('shipped defaults leave every kind disabled', () => {
     S['thresh' + stem + 'Danger'] = map['thresh' + stem + 'Danger'][0].defaultValue;
   });
   thresholds.KINDS.forEach((kind, index) => {
-    assert.equal(thresholds.kindConfig(S, index).enabled, false,
+    // boldOnly kinds have no pair at all — kindConfig only owes them a boldMode,
+    // so 'disabled' is asserted as falsy rather than strictly false.
+    assert.ok(!thresholds.kindConfig(S, index).enabled,
       kind.key + ' must ship disabled');
   });
 });
@@ -149,6 +151,7 @@ test('shipped defaults leave every kind disabled', () => {
 
 test('resolver direction comes from the contract for every kind', () => {
   thresholds.KINDS.forEach(kind => {
+    if (kind.boldOnly) { return; }   // level-less kinds have no slider to configure
     const cfg = B.thresholdRangeCfg({}, ENV, { keyStem: kind.key });
     assert.equal(cfg.dir, kind.belowIsWorse ? 'below' : 'above',
       kind.key + ' direction must mirror the contract');
@@ -827,7 +830,10 @@ test('each sheet is titled "<kind> slot", not "<kind> thresholds/goal"', () => {
 test('the master toggle moved off the sheet title row onto the group header', () => {
   sheetSections().forEach(s => {
     assert.equal(s.headerToggleKey, undefined, s.sheetId + ' still has headerToggleKey');
-    const stem = s.sheetId.replace(/^thresh/, '');
+  });
+  // Only the threshold sheets have a group header; the bold-only sheets carry no
+  // subheader at all (their single Bold row IS the sheet).
+  STEMS.forEach(stem => {
     assert.equal(headerFor(stem).toggleKey, 'thresh' + stem + 'On');
   });
 });
@@ -850,8 +856,9 @@ test('the slider no longer carries the group title or the reset action', () => {
 test('the intro describes the group, so it hangs off the header, not the sheet', () => {
   sheetSections().forEach(s => {
     assert.equal(s.intro, undefined, s.sheetId + ' still has a sheet-level intro');
-    const stem = s.sheetId.replace(/^thresh/, '');
-    assert.match(String(headerFor(stem).intro), /\S/, s.sheetId + ' header carries no intro');
+  });
+  STEMS.forEach(stem => {
+    assert.match(String(headerFor(stem).intro), /\S/, stem + ' header carries no intro');
   });
   assert.match(headerFor('Wind').intro, /threshold/i);
   assert.match(headerFor('Steps').intro, /goal/i);
@@ -931,4 +938,105 @@ test('the slot button is labelled Edit for every kind', () => {
     threshStepsWarn: '8000', threshStepsDanger: '10000' };
   assert.equal(PC.badgeResolvers.get('thresholdPenState')(
     goalS, ENV, { messageKey: 'statusLine1Left' }).label, 'Edit');
+  // Bold-only kinds get the same button; with no pair there is no enabled
+  // highlight state to badge.
+  const boldBadge = PC.badgeResolvers.get('thresholdPenState')(
+    { theme: 'dark', statusLine1Left: 'city' }, ENV, { messageKey: 'statusLine1Left' });
+  assert.ok(boldBadge, 'a city slot offers the Edit button');
+  assert.equal(boldBadge.label, 'Edit');
+  assert.ok(!boldBadge.enabled, 'a bold-only kind never badges as enabled');
+});
+
+// --- bold-only slot sheets: every level-less kind, one Bold row each ---------
+// (wire ids 8..15 in status-thresholds.js; battery deliberately absent — its slot
+// draws a glyph, not text, so a Bold option would be a no-op lie.)
+
+const BOLD_STEMS = ['Temp', 'Pressure', 'Sun', 'Date', 'Week', 'City', 'Countdown', 'Hr'];
+const BOLD_CODES = {
+  temp: 'Temp', pressure: 'Pressure', sun: 'Sun', date: 'Date',
+  week: 'Week', city: 'City', countdown: 'Countdown', hr: 'Hr'
+};
+
+test('every bold-only kind gets a sheet holding exactly the Bold row', () => {
+  const titles = {
+    Temp: 'Current temperature slot', Pressure: 'Air pressure (hPa) slot',
+    Sun: 'Sunrise/sunset slot', Date: 'Date slot', Week: 'Calendar week slot',
+    City: 'City slot', Countdown: 'Date countdown slot', Hr: 'Heart rate slot'
+  };
+  BOLD_STEMS.forEach(stem => {
+    const s = sheetFor(stem);
+    assert.equal(s.title, titles[stem], stem + ' sheet title');
+    assert.deepEqual(s.showWhen, { env: 'thresholds' },
+      stem + ' sheet carries the platform gate');
+    assert.equal(s.items.length, 1, stem + ' sheet must hold exactly one row');
+    const bold = boldFor(stem);
+    assert.equal(bold.type, 'segmented');
+    assert.equal(bold.label, 'Bold value');
+    assert.equal(bold.defaultValue, 'off', stem + ' defaults to off');
+    assert.equal(bold.hint, 'Show this value in heavier text.', stem + ' hint');
+    assert.equal(bold.disabledWhen, undefined, stem + ' row is never muted');
+  });
+});
+
+test('bold-only sheets offer Off/Always only — no level, no Warn pill', () => {
+  BOLD_STEMS.forEach(stem => {
+    assert.deepEqual(boldFor(stem).options,
+      [['Off', 'off'], ['Always', 'always']], stem);
+    assert.equal(boldFor(stem).optionDisabledWhen, undefined,
+      stem + ' has no threshold toggle to go inert on');
+  });
+});
+
+test('the Hr sheet row mirrors the hr slot availability (health + sensor)', () => {
+  const showWhen = require('../src/pkjs/config-ui/lib/show-when.js');
+  const it = boldFor('Hr');
+  // HEALTH_SLOT_WHEN plus env.hr — the rule statusLineCatalog.itemAvailable
+  // applies to the hr item itself (needsHealth AND needsHr).
+  assert.deepEqual(it.showWhen,
+    { all: [{ env: 'health' }, { key: 'healthMode', ne: 'off' }, { env: 'hr' }] });
+  const ctx = (health, hr, mode) =>
+    Object.assign({ env: { health, hr, color: true } }, { healthMode: mode });
+  assert.equal(showWhen.isVisible(it, ctx(true, false, 'all')), false,
+    'hidden without a heart-rate sensor');
+  assert.equal(showWhen.isVisible(it, ctx(false, true, 'all')), false,
+    'hidden without health sensors');
+  assert.equal(showWhen.isVisible(it, ctx(true, true, 'off')), false,
+    'hidden with health off');
+  ['slot', 'status', 'all'].forEach(mode => {
+    assert.equal(showWhen.isVisible(it, ctx(true, true, mode)), true,
+      'shown in healthMode ' + mode);
+  });
+  // The other bold-only kinds need no availability gate at all.
+  BOLD_STEMS.filter(stem => stem !== 'Hr').forEach(stem => {
+    assert.equal(boldFor(stem).showWhen, undefined, stem + ' needs no gate');
+  });
+});
+
+test('battery has NO sheet: its slot draws a glyph, not text', () => {
+  assert.equal(sheetSections().find(s => s.sheetId === 'threshBattery'), undefined,
+    'no threshBattery sheet exists');
+  const resolve = PC.sheetResolvers.get('statusSlotEditSheet');
+  assert.equal(resolve({ statusTopRight: 'battery' }, ENV, { messageKey: 'statusTopRight' }),
+    null, 'no pencil on a battery slot');
+});
+
+test('the slot pencil resolves the bold-only sheet for every new kind', () => {
+  const resolve = PC.sheetResolvers.get('statusSlotEditSheet');
+  Object.keys(BOLD_CODES).forEach(code => {
+    assert.equal(resolve({ statusLine1Left: code }, ENV, { messageKey: 'statusLine1Left' }),
+      'thresh' + BOLD_CODES[code], code + ' resolves its sheet');
+  });
+  assert.equal(resolve({ statusLine1Left: 'wind' }, ENV, { messageKey: 'statusLine1Left' }),
+    'threshWind', 'threshold kinds keep their sheets');
+  assert.equal(resolve({ statusLine1Left: 'city' }, { thresholds: false },
+    { messageKey: 'statusLine1Left' }), null, 'the env gate still applies');
+});
+
+test('bold-only BoldMode keys hydrate their default and ride the save blob', () => {
+  const S = PC.engine.hydrate(schema, {}, ENV);
+  const blob = PC.engine.serialize(schema, S);
+  BOLD_STEMS.forEach(stem => {
+    assert.equal(blob['thresh' + stem + 'BoldMode'], 'off',
+      stem + ' BoldMode must survive hydrate → serialize');
+  });
 });

@@ -31,7 +31,7 @@ STATUS LINES
   to any date, and more
 - Threshold highlighting: bold, outline, or fill a status slot when air
   quality, pollen, wind, gusts, UV index, steps, sleep, or distance crosses a
-  warn or danger level you set — or keep a slot bold at all times
+  warn or danger level you set — or keep any slot's value bold at all times
 
 WATCHFACE THEMES
 - Dark and Light, plus Black & White and Black & White Inverted options on color watches

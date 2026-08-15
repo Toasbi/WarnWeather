@@ -21,7 +21,8 @@
 //    (appended as kind 7) at bits 8..9. Computed phone-side (the watch has no
 //    raw ints for AQI/pollen/wind/gust/UV).
 //  - CLAY_THRESHOLDS_UINT8 (Clay message, THRESH_SETTINGS_BYTES):
-//      [0]              enabled bitmask (bit k = kind k enabled)
+//      [0]              enabled bitmask (bit k = kind k enabled) — exactly the
+//                       8 PAIRED kinds; bold-only kinds (8..15) have no bit
 //      [1 + 2k]         warn color,   GColor8 byte, k = 0..7 — 0x00 (alpha 00,
 //                       impossible for an opaque GColor8) = NO OUTLINE: warn
 //                       renders as bold text only, the weather-kind default
@@ -30,10 +31,12 @@
 //                       health trio only (UV levels are phone-computed)
 //      [17 + 4h + 2..3] danger threshold, LE uint16
 //      [29 + (k >> 2)]  bold mode (ThreshBold), 2 bits per kind at bits
-//                       2 * (k & 3) — kinds 0..3 in byte 29, 4..7 in byte 30.
+//                       2 * (k & 3) — 16 kinds x 2 bits = bytes 29..32.
 //                       INDEPENDENT of the enabled bitmask: THRESH_BOLD_ALWAYS
 //                       bolds a slot whose kind has no thresholds configured.
-//    Widened 27 -> 29 bytes when UV became kind 7, 29 -> 31 for the bold modes.
+//    Widened 27 -> 29 bytes when UV became kind 7, 29 -> 33 when the bold-only
+//    kinds (8..15) grew the bold area to 16 kinds. (An interim 31-byte 8-kind
+//    bold format never shipped, so it validates as garbage, not as legacy.)
 //    Exactly two lengths are accepted: the current one and the pre-bold 29. The
 //    UV step SHIFTED the health offsets, so a 27-byte blob would be misread and
 //    is rejected; the bold step only APPENDS, so a 29-byte blob still describes
@@ -44,8 +47,14 @@
 //    Health threshold wire units: steps = steps, sleep = MINUTES,
 //    distance = 100 m units (the status row's own display resolution).
 
-#define THRESH_KIND_COUNT 8
-#define THRESH_SETTINGS_BYTES 31
+#define THRESH_KIND_COUNT 16
+// Kinds that OWN a blob pair — an enable bit in byte 0, a color pair, and (for
+// the health trio) a u16 threshold pair. Byte 0 has exactly 8 enable bits and
+// the color/health offsets collide with later fields past kind 7, so bounding
+// the paired accessors by this is correctness, not tidiness; only the bold
+// cells run to THRESH_KIND_COUNT.
+#define THRESH_PAIRED_KIND_COUNT 8
+#define THRESH_SETTINGS_BYTES 33
 #define THRESH_COLORS_OFFSET 1
 #define THRESH_HEALTH_OFFSET 17
 #define THRESH_BOLD_OFFSET 29
@@ -62,6 +71,19 @@ typedef enum {
     THRESH_SLEEP = 5,
     THRESH_DISTANCE = 6,
     THRESH_UV = 7,   // weather kind, appended after the health trio (ids are append-only)
+    // Bold-only kinds: every remaining selectable slot option except battery
+    // (a drawn glyph with no text run, so bold would be a no-op). They own only
+    // their 2-bit bold cell — no enable bit, colors, or health pair — and being
+    // level-less they only ever resolve THRESH_LEVEL_NORMAL, so THRESH_BOLD_WARN
+    // (the unset default) renders non-bold and THRESH_BOLD_ALWAYS renders bold.
+    THRESH_TEMP = 8,
+    THRESH_PRESSURE = 9,
+    THRESH_SUN = 10,
+    THRESH_DATE = 11,
+    THRESH_WEEK = 12,
+    THRESH_CITY = 13,
+    THRESH_COUNTDOWN = 14,
+    THRESH_HR = 15,
 } ThreshKind;
 #define THRESH_WEATHER_KIND_MAX THRESH_GUST
 
@@ -89,8 +111,12 @@ typedef enum {
 } ThreshBold;
 
 // ThreshKind for a packed slot (kind + icon pair), or -1 when the slot has no
-// threshold-capable content (temperature/UV/HR/battery/date/city/week/sun are
-// out of scope by design).
+// threshold-capable content (battery — a drawn glyph, no text — and empty).
+// SLOT_TEXT + STATUS_ICON_NONE maps to THRESH_CITY: city is the only remaining
+// TEXT+NONE catalog option (pressure got its own text-only STATUS_ICON_PRESSURE
+// to discriminate it). A pressure slot persisted BEFORE that icon existed still
+// arrives as TEXT+NONE and reads as THRESH_CITY until the phone re-sends its
+// slots — visually identical while no bold is configured for either kind.
 int status_threshold_kind_for_slot(uint8_t slot_kind, uint8_t icon);
 
 // Fixed severity direction: the goal-style health kinds are below-is-worse.
@@ -114,6 +140,9 @@ int status_threshold_health_value(int kind, int steps, int sleep_seconds,
 
 // Settings blob (CLAY_THRESHOLDS_UINT8 wire / THRESHOLD_SETTINGS persist).
 // Accessors take (blob, len) and degrade to disabled/0 on any invalid input.
+// enabled/color8 (and the health u16s, via the health-kind check) answer only
+// the paired kinds (< THRESH_PAIRED_KIND_COUNT); bold_mode alone spans all
+// THRESH_KIND_COUNT kinds.
 bool status_threshold_settings_validate(const uint8_t *blob, size_t len);
 bool status_threshold_enabled(const uint8_t *blob, size_t len, int kind);
 uint8_t status_threshold_color8(const uint8_t *blob, size_t len, int kind, int level);

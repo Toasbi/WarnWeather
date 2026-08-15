@@ -6,9 +6,16 @@ const statusLines = require('../src/pkjs/status-lines.js');
 
 test('kind order is the wire order (index = ThreshKind)', () => {
   assert.deepEqual(th.KINDS.map(k => k.code),
-    ['aqi', 'pollen', 'wind', 'gust', 'steps', 'sleep', 'distance', 'uv']);
+    ['aqi', 'pollen', 'wind', 'gust', 'steps', 'sleep', 'distance', 'uv',
+     'temp', 'pressure', 'sun', 'date', 'week', 'city', 'countdown', 'hr']);
   assert.deepEqual(th.KINDS.map(k => k.key),
-    ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance', 'Uv']);
+    ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance', 'Uv',
+     'Temp', 'Pressure', 'Sun', 'Date', 'Week', 'City', 'Countdown', 'Hr']);
+  // The bold-only flag covers exactly the appended kinds 8..15 (battery is
+  // deliberately absent: a drawn glyph with no text run has nothing to bold).
+  assert.deepEqual(th.KINDS.map(k => Boolean(k.boldOnly)),
+    [false, false, false, false, false, false, false, false,
+     true, true, true, true, true, true, true, true]);
 });
 
 test('computeLevel: above-is-worse boundaries are inclusive', () => {
@@ -124,7 +131,7 @@ test('buildSettingsBlob: enabled mask, GColor8 colors, LE uint16 health threshol
     threshSleepWarn: '5', threshSleepDanger: '7.5',
     threshDistanceWarn: '2', threshDistanceDanger: '5'
   });
-  assert.equal(blob.length, 31);
+  assert.equal(blob.length, 33);
   assert.equal(blob[0], (1 << 0) | (1 << 4) | (1 << 5) | (1 << 6));
   assert.equal(blob[1], 0xF8);   // rgbToGColor8(0xFFAA00)
   assert.equal(blob[2], 0xF0);   // rgbToGColor8(0xFF0000)
@@ -149,8 +156,9 @@ test('buildSettingsBlob: imperial distance thresholds convert mi -> 100 m units'
 test('buildSettingsBlob: nothing configured -> all disabled, zeroed thresholds', () => {
   const blob = th.buildSettingsBlob({});
   assert.equal(blob[0], 0);
-  // 12 health-threshold bytes, then the two bold bytes (0 = the default warn mode).
-  assert.deepEqual(blob.slice(17), [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  // 12 health-threshold bytes, then the four bold bytes (0 = the default warn mode).
+  assert.deepEqual(blob.slice(17),
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 });
 
 // "0 and negative thresholds are legitimate; unset must stay distinguishable from zero" —
@@ -185,8 +193,8 @@ test('a 0 threshold is SET (enables the kind) and packs as zero, unlike unset', 
 // so a never-configured kind reproduces the shipped bold-from-warn behaviour.
 test('buildSettingsBlob: unset bold modes pack as warn (all-zero bold bytes)', () => {
   const blob = th.buildSettingsBlob({});
-  assert.equal(blob.length, 31);
-  assert.deepEqual(blob.slice(th.BOLD_OFFSET), [0, 0]);
+  assert.equal(blob.length, 33);
+  assert.deepEqual(blob.slice(th.BOLD_OFFSET), [0, 0, 0, 0]);
 });
 
 test('buildSettingsBlob: bold modes pack 2 bits per kind, kinds 0-3 then 4-7', () => {
@@ -211,6 +219,61 @@ test('buildSettingsBlob: bold mode is independent of the enabled bitmask', () =>
 test('buildSettingsBlob: an unknown bold mode falls back to warn', () => {
   const blob = th.buildSettingsBlob({ threshWindBoldMode: 'bogus' });
   assert.equal(blob[th.BOLD_OFFSET], 0);
+});
+
+// The bold-only kinds (wire ids 8..15) live in the third and fourth bold bytes
+// (blob bytes 31/32), byte 29 + (k >> 2) at bits 2 * (k & 3).
+test('buildSettingsBlob: bold-only kinds pack their cells in bytes 31/32', () => {
+  const blob = th.buildSettingsBlob({
+    threshTempBoldMode: 'always',       // kind 8  -> byte 31 bits 0-1
+    threshDateBoldMode: 'off',          // kind 11 -> byte 31 bits 6-7
+    threshWeekBoldMode: 'off',          // kind 12 -> byte 32 bits 0-1
+    threshHrBoldMode: 'always'          // kind 15 -> byte 32 bits 6-7
+  });
+  assert.equal(blob[31], (2 << 0) | (1 << 6), 'temp always, date off');
+  assert.equal(blob[32], (1 << 0) | (2 << 6), 'week off, hr always');
+});
+
+test('bold-only kinds contribute no enable bit, colors, or health bytes', () => {
+  const blob = th.buildSettingsBlob({
+    threshPressureBoldMode: 'always', threshCityBoldMode: 'always',
+    threshSunBoldMode: 'always', threshCountdownBoldMode: 'always',
+    // Threshold-shaped settings for a bold-only kind must be inert: no kind 9
+    // enable bit exists (byte 0 covers kinds 0..7 only) and no color pair may
+    // be written — kind 9's would collide with the health u16 area.
+    threshPressureWarn: '990', threshPressureDanger: '1040',
+    threshPressureWarnColor: 0xFFAA00, threshPressureDangerColor: 0xFF0000
+  });
+  assert.equal(blob[0], 0, 'no enable bit for any bold-only kind');
+  // Everything before the bold area must be byte-identical to an unconfigured
+  // blob (the paired kinds' default danger colors and zeroed u16s): a bold-only
+  // kind writes nothing there.
+  const base = th.buildSettingsBlob({});
+  assert.deepEqual(blob.slice(0, th.BOLD_OFFSET), base.slice(0, th.BOLD_OFFSET));
+  assert.equal(blob[31], (2 << 2) | (2 << 4), 'pressure + sun bold cells');
+  assert.equal(blob[32], (2 << 2) | (2 << 4), 'city + countdown bold cells');
+});
+
+test('kindConfig for a bold-only kind: only boldMode is meaningful', () => {
+  const pressure = th.KINDS.findIndex(k => k.code === 'pressure');
+  assert.equal(th.kindConfig({}, pressure).boldMode, 'warn',
+    'unset falls back to the default (packs 0, renders non-bold on a level-less kind)');
+  assert.equal(th.kindConfig({ threshPressureBoldMode: 'always' }, pressure).boldMode, 'always');
+  const cfg = th.kindConfig({ threshPressureWarn: '990', threshPressureDanger: '1040' }, pressure);
+  assert.equal(cfg.enabled, false, 'never enabled — there is no pair to enable');
+  assert.equal(cfg.warn, null);
+  assert.equal(cfg.danger, null);
+  assert.equal(cfg.warnColor, null);
+  assert.equal(cfg.dangerColor, null);
+});
+
+test('packWeatherLevels ignores bold-only kinds entirely', () => {
+  // Threshold-shaped settings for temp (bold-only kind 8) must not disturb the
+  // packed levels word — only the paired weather kinds (0..3, 7) may level.
+  const packed = th.packWeatherLevels(
+    { TEMP_TREND_UINT8: [250] },
+    { threshTempWarn: '10', threshTempDanger: '20', threshTempBoldMode: 'always' });
+  assert.deepEqual(packed, [0, 0]);
 });
 
 test('kindConfig exposes the kind bold mode, defaulting to warn', () => {

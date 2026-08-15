@@ -52,12 +52,17 @@ test('icon ids are in lockstep with status_line.h', () => {
   assert.equal(catalog.ICONS.AQI, cEnum('STATUS_ICON_AQI'));
   assert.equal(catalog.ICONS.POLLEN, cEnum('STATUS_ICON_POLLEN'));
   assert.equal(catalog.ICONS.COUNTDOWN, cEnum('STATUS_ICON_COUNTDOWN'));
+  // PRESSURE is a text-only id (no glyph is ever loaded): it exists to
+  // discriminate pressure from city (both TEXT) on the wire, so each can carry
+  // its own per-kind bold mode.
+  assert.equal(catalog.ICONS.PRESSURE, cEnum('STATUS_ICON_PRESSURE'));
 });
 
 test('every dropdown item maps kind+icon consistently', () => {
   const expected = {
     empty: [catalog.KINDS.EMPTY, catalog.ICONS.NONE],
     temp: [catalog.KINDS.TEXT, catalog.ICONS.TEMP],
+    pressure: [catalog.KINDS.TEXT, catalog.ICONS.PRESSURE],
     city: [catalog.KINDS.TEXT, catalog.ICONS.NONE],
     countdown: [catalog.KINDS.TEXT, catalog.ICONS.COUNTDOWN],
     sun: [catalog.KINDS.TEXT, catalog.ICONS.DRAWN_SUN],

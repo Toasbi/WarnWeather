@@ -196,7 +196,8 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // (the palette, then the threshold blob), so the next task that adds one has to see the
   // running total move instead of silently eating the remaining headroom.
   // 389 -> 391 when the threshold blob widened 27 -> 29 (UV color pair).
-  // 391 -> 393 when it widened 29 -> 31 (the two per-kind bold-mode bytes).
-  assert.equal(size, 393, 'update the recorded Clay message size when its wire contract changes');
+  // 391 -> 395 when it widened 29 -> 33 (the four per-kind bold-mode bytes:
+  // 16 kinds x 2 bits, bold-only kinds 8..15 included).
+  assert.equal(size, 395, 'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });

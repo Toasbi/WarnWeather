@@ -97,6 +97,11 @@ function windScaleCopy(context, unit, hints) {
 // BAR's existence, while 'slot' mode puts health items in the ordinary bars, where
 // their thresholds are just as live.
 var HEALTH_SLOT_WHEN = {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}]};
+// "The heart-rate item can appear in some status slot" — HEALTH_SLOT_WHEN plus the
+// sensor itself, mirroring the catalog's availability rule for the hr item
+// (statusLineCatalog.itemAvailable: needsHealth AND needsHr — env.hr is false on
+// health-capable watches without a heart-rate sensor).
+var HR_SLOT_WHEN = {all: HEALTH_SLOT_WHEN.all.concat([{env: 'hr'}])};
 // "This watch can draw a threshold highlight at all" — a section-level gate on every
 // threshold edit sheet. aplite compiles the feature out (no WW_THRESHOLD_HIGHLIGHT:
 // its lean status-row twin has no highlight code and its image has no room), so
@@ -288,6 +293,41 @@ function thresholdSection(title, keyStem, hint, gate) {
             capabilities: ['COLOR'],
             showWhen: colorWhen,
             disabledWhen: offWhen
+        }]
+    };
+}
+// Bold-only edit sheet for a slot kind WITHOUT thresholds (temp, date, city, …):
+// the same pencil machinery — the contract's KINDS maps the slot code to this
+// sheetId — but the Bold row is the sheet's only control: no group header, no
+// slider, no colors. Two pills only: these kinds have no warn level, so the
+// threshold sheets' middle option would promise a trigger that can never fire.
+// 'off' (packs 1) and the unset default 'warn' (packs 0) both render non-bold on
+// a level-less kind — it resolves THRESH_LEVEL_NORMAL — so the options-snapping
+// of an unset store to 'off' is benign. Battery deliberately gets NO sheet: its
+// slot draws a glyph, not text, so a Bold option would be a no-op lie (no KINDS
+// entry, hence no pencil either).
+/**
+ * @param {string} title Catalog label of the slot kind, e.g. 'City'.
+ * @param {string} keyStem Kind key stem, e.g. 'City' (thresh<Stem>BoldMode).
+ * @param {Object} [gate] Extra showWhen mirroring the slot's own availability.
+ * @returns {Object} Schema section (sheetOnly).
+ */
+function boldSection(title, keyStem, gate) {
+    return {
+        sheetOnly: true,
+        sheetId: 'thresh' + keyStem,
+        // Same section-level platform gate as thresholdSection: aplite compiles the
+        // highlight machinery out, so the sheet must not exist there.
+        showWhen: THRESHOLD_WHEN,
+        title: title + ' slot',
+        items: [{
+            type: 'segmented',
+            messageKey: 'thresh' + keyStem + 'BoldMode',
+            label: 'Bold value',
+            hint: 'Show this value in heavier text.',
+            defaultValue: 'off',
+            options: [['Off', 'off'], ['Always', 'always']],
+            showWhen: gate || undefined
         }]
     };
 }
@@ -1045,7 +1085,18 @@ module.exports = {
         thresholdSection('Sleep', 'Sleep',
             'Hours of sleep, e.g. 7.5.', HEALTH_SLOT_WHEN),
         thresholdSection('Walked distance', 'Distance',
-            'Distance walked per day.', HEALTH_SLOT_WHEN), {
+            'Distance walked per day.', HEALTH_SLOT_WHEN),
+        // Bold-only sheets for the level-less slot kinds (same pencil, one row).
+        // Order and labels mirror the contract's KINDS appendix (wire ids 8..15);
+        // battery is deliberately absent — see boldSection.
+        boldSection('Current temperature', 'Temp'),
+        boldSection('Air pressure (hPa)', 'Pressure'),
+        boldSection('Sunrise/sunset', 'Sun'),
+        boldSection('Date', 'Date'),
+        boldSection('Calendar week', 'Week'),
+        boldSection('City', 'City'),
+        boldSection('Date countdown', 'Countdown'),
+        boldSection('Heart rate', 'Hr', HR_SLOT_WHEN), {
             title: 'Time', items: [{
                 type: 'toggle', messageKey: 'timeLeadingZero', label: 'Leading zero', defaultValue: false
             }, {type: 'toggle', messageKey: 'timeShowAmPm', label: 'Show AM / PM', defaultValue: false}, {

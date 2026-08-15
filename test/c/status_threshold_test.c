@@ -38,12 +38,21 @@ static void kind_tests(void) {
     expect("kind.sleep", status_threshold_kind_for_slot(SLOT_LIVE_SLEEP, STATUS_ICON_SLEEP), THRESH_SLEEP);
     expect("kind.dist_km", status_threshold_kind_for_slot(SLOT_LIVE_DISTANCE, STATUS_ICON_DISTANCE), THRESH_DISTANCE);
     expect("kind.dist_mi", status_threshold_kind_for_slot(SLOT_LIVE_DISTANCE_MI, STATUS_ICON_DISTANCE), THRESH_DISTANCE);
-    // Out of scope for v1: temperature, UV, HR, battery, text-only kinds.
-    expect("kind.temp", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_TEMP), -1);
     expect("kind.uv", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_UV), THRESH_UV);
-    expect("kind.city", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_NONE), -1);
-    expect("kind.date", status_threshold_kind_for_slot(SLOT_LIVE_DATE, STATUS_ICON_NONE), -1);
-    expect("kind.hr", status_threshold_kind_for_slot(SLOT_LIVE_HR, STATUS_ICON_HR), -1);
+    // Bold-only kinds (8..15): every remaining option maps to a kind now, so a
+    // per-slot bold mode can reach it. TEXT+NONE is city — the only remaining
+    // TEXT+NONE catalog option (a pre-icon pressure slot also lands there until
+    // the phone re-sends its slots).
+    expect("kind.temp", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_TEMP), THRESH_TEMP);
+    expect("kind.pressure", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_PRESSURE), THRESH_PRESSURE);
+    expect("kind.sun", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_DRAWN_SUN), THRESH_SUN);
+    expect("kind.countdown", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_COUNTDOWN), THRESH_COUNTDOWN);
+    expect("kind.city", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_NONE), THRESH_CITY);
+    expect("kind.date", status_threshold_kind_for_slot(SLOT_LIVE_DATE, STATUS_ICON_NONE), THRESH_DATE);
+    expect("kind.week", status_threshold_kind_for_slot(SLOT_LIVE_WEEK, STATUS_ICON_NONE), THRESH_WEEK);
+    expect("kind.hr", status_threshold_kind_for_slot(SLOT_LIVE_HR, STATUS_ICON_HR), THRESH_HR);
+    // Still out of scope: battery draws a glyph (no text run, nothing to bold)
+    // and empty has no content at all.
     expect("kind.battery", status_threshold_kind_for_slot(SLOT_LIVE_BATTERY, STATUS_ICON_NONE), -1);
     expect("kind.empty", status_threshold_kind_for_slot(SLOT_EMPTY, STATUS_ICON_NONE), -1);
     // Direction is a fixed property of the kind — and since the goal rework the
@@ -94,6 +103,35 @@ static void blob_tests(void) {
     expect("blob.bad_len_enabled", status_threshold_enabled(blob, 5, THRESH_AQI), 0);
 }
 
+// The paired accessors are bounded by THRESH_PAIRED_KIND_COUNT: byte 0 has
+// exactly 8 enable bits, and a bold-only kind's would-be color/health offsets
+// collide with later fields — so kinds 8..15 must degrade, not read.
+static void paired_bound_tests(void) {
+    uint8_t blob[THRESH_SETTINGS_BYTES];
+    memset(blob, 0xFF, sizeof(blob));   // every bit set, valid length
+
+    expect("paired.count_inside_kinds",
+           THRESH_PAIRED_KIND_COUNT <= THRESH_KIND_COUNT, 1);
+    expect("paired.enabled_uv", status_threshold_enabled(blob, sizeof(blob), THRESH_UV), 1);
+    expect("paired.enabled_temp", status_threshold_enabled(blob, sizeof(blob), THRESH_TEMP), 0);
+    expect("paired.enabled_pressure", status_threshold_enabled(blob, sizeof(blob), THRESH_PRESSURE), 0);
+    expect("paired.enabled_hr", status_threshold_enabled(blob, sizeof(blob), THRESH_HR), 0);
+    // color8 for a bold-only kind would land inside the health-u16 area
+    // (1 + 2*9 = 19 >= THRESH_HEALTH_OFFSET); it must return the fallback, not
+    // that byte. Prove it with a distinctive byte at the colliding offset.
+    memset(blob, 0, sizeof(blob));
+    blob[THRESH_COLORS_OFFSET + 2 * THRESH_PRESSURE] = 0x12;
+    blob[THRESH_COLORS_OFFSET + 2 * THRESH_PRESSURE + 1] = 0x34;
+    expect("paired.color_pressure_warn",
+           status_threshold_color8(blob, sizeof(blob), THRESH_PRESSURE, THRESH_LEVEL_WARN), 0xFF);
+    expect("paired.color_pressure_danger",
+           status_threshold_color8(blob, sizeof(blob), THRESH_PRESSURE, THRESH_LEVEL_DANGER), 0xFF);
+    expect("paired.color_uv_still_reads",
+           status_threshold_color8(blob, sizeof(blob), THRESH_UV, THRESH_LEVEL_WARN), 0);
+    expect("paired.health_bold_only",
+           status_threshold_health_warn(blob, sizeof(blob), THRESH_PRESSURE), 0);
+}
+
 // Per-kind bold mode: a monotone ladder over the level. DANGER always prints
 // bold (the fill's ink is bold whatever the setting says), WARN adds the warn
 // level, ALWAYS adds the normal zone too.
@@ -138,6 +176,25 @@ static void bold_tests(void) {
     expect("bold.pack_sleep", status_threshold_bold_mode(blob, n, THRESH_SLEEP), THRESH_BOLD_WARN);
     expect("bold.pack_uv", status_threshold_bold_mode(blob, n, THRESH_UV), THRESH_BOLD_ALWAYS);
     expect("bold.pack_wind_untouched", status_threshold_bold_mode(blob, n, THRESH_WIND), THRESH_BOLD_WARN);
+
+    // The bold-only kinds (8..15) live in the third and fourth bold bytes
+    // (blob bytes 31/32), same 2-bit formula: byte 29 + (k >> 2), bits 2*(k & 3).
+    blob[THRESH_BOLD_OFFSET + 2] = (uint8_t)((THRESH_BOLD_ALWAYS << (2 * (THRESH_TEMP & 3)))
+                                             | (THRESH_BOLD_OFF << (2 * (THRESH_DATE & 3))));
+    blob[THRESH_BOLD_OFFSET + 3] = (uint8_t)((THRESH_BOLD_OFF << (2 * (THRESH_WEEK & 3)))
+                                             | (THRESH_BOLD_ALWAYS << (2 * (THRESH_HR & 3))));
+    expect("bold.pack_temp", status_threshold_bold_mode(blob, n, THRESH_TEMP), THRESH_BOLD_ALWAYS);
+    expect("bold.pack_pressure_default", status_threshold_bold_mode(blob, n, THRESH_PRESSURE), THRESH_BOLD_WARN);
+    expect("bold.pack_date", status_threshold_bold_mode(blob, n, THRESH_DATE), THRESH_BOLD_OFF);
+    expect("bold.pack_week", status_threshold_bold_mode(blob, n, THRESH_WEEK), THRESH_BOLD_OFF);
+    expect("bold.pack_hr", status_threshold_bold_mode(blob, n, THRESH_HR), THRESH_BOLD_ALWAYS);
+    expect("bold.pack_uv_untouched", status_threshold_bold_mode(blob, n, THRESH_UV), THRESH_BOLD_ALWAYS);
+    // A level-less kind only ever resolves THRESH_LEVEL_NORMAL, so its unset
+    // default ('warn') renders NON-bold and ALWAYS is the only mode that bolds.
+    expect("bold.levelless_default",
+           status_threshold_is_bold(blob, n, THRESH_PRESSURE, THRESH_LEVEL_NORMAL), 0);
+    expect("bold.levelless_always",
+           status_threshold_is_bold(blob, n, THRESH_TEMP, THRESH_LEVEL_NORMAL), 1);
 
     // Degrade safely: the reserved wire value, a bad blob and a slot with no
     // threshold kind all fall back to the shipped behaviour.
@@ -189,6 +246,11 @@ static void legacy_blob_tests(void) {
     expect("legacy.reject_30", status_threshold_settings_validate(blob, legacy + 1), 0);
     expect("legacy.reject_28", status_threshold_settings_validate(blob, legacy - 1), 0);
     expect("legacy.reject_27", status_threshold_settings_validate(blob, 27), 0);
+    // The interim 31-byte format (8-kind bold area) never shipped — it existed
+    // only on an unmerged branch — so it is garbage, not legacy: a stored 31-B
+    // blob reads invalid until the phone re-syncs the 33-B one.
+    expect("legacy.reject_31", status_threshold_settings_validate(blob, 31), 0);
+    expect("legacy.reject_32", status_threshold_settings_validate(blob, 32), 0);
 }
 
 static void health_value_tests(void) {
@@ -232,6 +294,7 @@ int main(void) {
     kind_tests();
     weather_byte_tests();
     blob_tests();
+    paired_bound_tests();
     bold_tests();
     legacy_blob_tests();
     health_value_tests();

@@ -14,10 +14,14 @@
   var rainTier = (typeof require !== 'undefined')
     ? require('./weather/rain-tier.js') : null;
 
-  var SETTINGS_BYTES = 31;   // 27 -> 29 when UV became kind 7; 29 -> 31 for the bold modes
+  // 27 -> 29 when UV became kind 7; 29 -> 33 when the bold-only kinds (8..15)
+  // widened the bold area to 16 kinds. (The interim 31-byte, 8-kind-bold format
+  // never shipped — it existed only on an unmerged branch — so exactly {33, 29}
+  // are accepted; see status_threshold.h.)
+  var SETTINGS_BYTES = 33;
   var COLORS_OFFSET = 1;
   var HEALTH_OFFSET = 17;    // shifted 15 -> 17 with the UV color pair (append-only kinds)
-  var BOLD_OFFSET = 29;      // 2 bits per kind: byte 29 + (k >> 2), bits 2 * (k & 3)
+  var BOLD_OFFSET = 29;      // 2 bits per kind: byte 29 + (k >> 2), bits 2 * (k & 3) — bytes 29..32
 
   // thresh<Kind>BoldMode -> ThreshBold (src/c/appendix/status_threshold.h). The
   // ladder is monotone over the level: danger is bold under every mode, 'warn'
@@ -59,7 +63,20 @@
     // UV is a WEATHER kind appended after the health trio (wire ids are
     // append-only): its level packs phone-side at bits 8-9 of the levels wire
     // value, and it carries NO health-threshold blob entry.
-    { code: 'uv',       key: 'Uv',       belowIsWorse: false }
+    { code: 'uv',       key: 'Uv',       belowIsWorse: false },
+    // Bold-only kinds (appended, wire ids 8..15): every remaining selectable
+    // slot option except battery, which renders a drawn glyph with no text run
+    // so a Bold option would be a no-op lie. They own NO enable bit (blob[0]
+    // covers the 8 paired kinds only), no color pair, and no health u16 — only
+    // their 2-bit bold cell in bytes 29..32.
+    { code: 'temp',      key: 'Temp',      belowIsWorse: false, boldOnly: true },
+    { code: 'pressure',  key: 'Pressure',  belowIsWorse: false, boldOnly: true },
+    { code: 'sun',       key: 'Sun',       belowIsWorse: false, boldOnly: true },
+    { code: 'date',      key: 'Date',      belowIsWorse: false, boldOnly: true },
+    { code: 'week',      key: 'Week',      belowIsWorse: false, boldOnly: true },
+    { code: 'city',      key: 'City',      belowIsWorse: false, boldOnly: true },
+    { code: 'countdown', key: 'Countdown', belowIsWorse: false, boldOnly: true },
+    { code: 'hr',        key: 'Hr',        belowIsWorse: false, boldOnly: true }
   ];
 
   /**
@@ -112,16 +129,39 @@
   }
 
   /**
+   * @param {Object} settings Clay settings blob
+   * @param {Object} k KINDS entry
+   * @returns {string} the kind's stored bold mode, DEFAULT_BOLD_MODE when unset
+   */
+  function boldModeFor(settings, k) {
+    var rawBold = settings && settings['thresh' + k.key + 'BoldMode'];
+    return Object.prototype.hasOwnProperty.call(BOLD_MODES, rawBold)
+      ? rawBold : DEFAULT_BOLD_MODE;
+  }
+
+  /**
    * Resolve one kind's stored settings. enabled requires BOTH thresholds set
    * AND ordered for the kind's direction (pack-time defense in depth — the
    * config UI also rejects inverted pairs on entry).
    * @param {Object} settings Clay settings blob
-   * @param {number} kindIndex wire kind id (0..6)
+   * @param {number} kindIndex wire kind id (0..15)
    * @returns {{enabled: boolean, warn: ?number, danger: ?number,
-   *            warnColor: number, dangerColor: number, boldMode: string}}
+   *            warnColor: ?number, dangerColor: ?number, boldMode: string}}
    */
   function kindConfig(settings, kindIndex) {
     var k = KINDS[kindIndex];
+    if (k.boldOnly) {
+      // Bold-only kinds own no thresholds, colors, or health pair — boldMode is
+      // the only meaningful field. The DEFAULT_BOLD_MODE 'warn' packs 0, and a
+      // level-less kind only ever resolves THRESH_LEVEL_NORMAL on the watch, so
+      // unset renders non-bold: unset == 'off' visually, only 'always' changes
+      // anything.
+      return {
+        enabled: false, warn: null, danger: null,
+        warnColor: null, dangerColor: null,
+        boldMode: boldModeFor(settings, k)
+      };
+    }
     var warn = parseThreshold(settings && settings['thresh' + k.key + 'Warn']);
     var danger = parseThreshold(settings && settings['thresh' + k.key + 'Danger']);
     var ordered = warn !== null && danger !== null
@@ -144,7 +184,6 @@
     }
     // Bold mode is deliberately NOT gated on `ordered`: 'always' bolds a slot
     // whose kind has no thresholds configured at all.
-    var rawBold = settings && settings['thresh' + k.key + 'BoldMode'];
     return {
       enabled: ordered,
       warn: warn,
@@ -152,8 +191,7 @@
       warnColor: warnColor,
       dangerColor: colorInt(settings && settings['thresh' + k.key + 'DangerColor'],
                             k.goal ? DEFAULT_GOAL_COLOR : DEFAULT_DANGER_COLOR),
-      boldMode: Object.prototype.hasOwnProperty.call(BOLD_MODES, rawBold)
-        ? rawBold : DEFAULT_BOLD_MODE
+      boldMode: boldModeFor(settings, k)
     };
   }
 
@@ -242,7 +280,8 @@
   function packWeatherLevels(payload, settings) {
     var packed = 0;
     for (var k = 0; k < KINDS.length; k++) {
-      if (KINDS[k].goal) { continue; }   // health kinds level on the watch
+      // Health kinds level on the watch; bold-only kinds have no pair to level.
+      if (KINDS[k].goal || KINDS[k].boldOnly) { continue; }
       var cfg = kindConfig(settings, k);
       if (!cfg.enabled) { continue; }
       var v = displayValue(KINDS[k].code, payload, settings);
@@ -280,7 +319,7 @@
   /**
    * Build the CLAY_THRESHOLDS_UINT8 settings blob (layout: status_threshold.h).
    * @param {Object} settings Clay settings blob
-   * @returns {number[]} SETTINGS_BYTES-long array (currently 31 bytes)
+   * @returns {number[]} SETTINGS_BYTES-long array (currently 33 bytes)
    */
   function buildSettingsBlob(settings) {
     var blob = [];
@@ -288,8 +327,11 @@
     for (i = 0; i < SETTINGS_BYTES; i++) { blob.push(0); }
     for (var k = 0; k < KINDS.length; k++) {
       var cfg = kindConfig(settings, k);
-      if (cfg.enabled) { blob[0] |= (1 << k); }
       blob[BOLD_OFFSET + (k >> 2)] |= BOLD_MODES[cfg.boldMode] << (2 * (k & 3));
+      // Bold-only kinds pack ONLY their bold cell: blob[0]'s 8 enable bits and
+      // the color/health offsets belong to the paired kinds (0..7) alone.
+      if (KINDS[k].boldOnly) { continue; }
+      if (cfg.enabled) { blob[0] |= (1 << k); }
       blob[COLORS_OFFSET + 2 * k] = cfg.warnColor === null
         ? 0 : rainTier.rgbToGColor8(cfg.warnColor);   // 0x00 = no-outline sentinel
       blob[COLORS_OFFSET + 2 * k + 1] = rainTier.rgbToGColor8(cfg.dangerColor);

@@ -49,8 +49,12 @@ typedef enum {
     STATUS_ICON_AQI = 11,       // air quality (leaf); weather metric, not health-gated
     STATUS_ICON_POLLEN = 12,
     STATUS_ICON_COUNTDOWN = 13,
+    STATUS_ICON_PRESSURE = 14,  // TEXT-ONLY: no PDC/bit-mask glyph exists and none
+                                // may load — the id only discriminates pressure
+                                // from city (both SLOT_TEXT) on the wire, for the
+                                // per-kind bold mode (status_threshold.h)
 } StatusIconId;
-#define STATUS_ICON_MAX STATUS_ICON_COUNTDOWN
+#define STATUS_ICON_MAX STATUS_ICON_PRESSURE
 
 typedef struct {
     uint8_t kind;
