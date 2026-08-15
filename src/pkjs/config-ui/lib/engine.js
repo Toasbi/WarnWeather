@@ -193,20 +193,43 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   // ---- control renderers: each takes (item, value[, openColor]) -> HTML string.
   // options are [label, value] pairs; read o[0]=label, o[1]=value.
-  function optionButtons(item, v, isRadio) {
+  // `off` (optional) lists option VALUES to render inert. Disabling rather than
+  // dropping an option keeps the stored value intact: an option removed from the
+  // list is snapped away by resolveOptionsFrom, which would silently rewrite a
+  // setting the user never touched.
+  function optionButtons(item, v, isRadio, off) {
     var h = '', i, o;
     for (i = 0; i < item.options.length; i++) {
       o = item.options[i];
       var inner = isRadio ? '<span>' + esc(o[0]) + '</span><span class="dot"></span>' : esc(o[0]);
-      h += '<button class="' + (v === o[1] ? 'on' : '') + '" data-k="' + item.messageKey + '" data-v="' + esc(o[1]) + '">' + inner + '</button>';
+      var isOff = Boolean(off) && off.indexOf(o[1]) !== -1;
+      h += '<button class="' + (v === o[1] ? 'on' : '') + '" data-k="' + item.messageKey
+        + '" data-v="' + esc(o[1]) + '"' + (isOff ? ' disabled' : '') + '>' + inner + '</button>';
     }
     return h;
+  }
+
+  /**
+   * Option values to render inert, from item.optionDisabledWhen: a map of option
+   * value -> showWhen-style condition. [] when the item declares none.
+   * @param {Object} item Schema item.
+   * @param {Object} evalCtx showWhen evaluation context.
+   * @returns {string[]} Disabled option values.
+   */
+  function disabledOptionValues(item, evalCtx) {
+    var map = item.optionDisabledWhen, out = [], k;
+    if (!map) { return out; }
+    for (k in map) {
+      if (Object.prototype.hasOwnProperty.call(map, k)
+        && PConf.showWhen.evaluate(map[k], evalCtx)) { out.push(k); }
+    }
+    return out;
   }
   function renderToggle(item, v) {
     return '<button class="sw' + (v ? ' on' : '') + '" data-k="' + item.messageKey + '" data-toggle="1"><i></i></button>';
   }
-  function renderSegmented(item, v) { return '<div class="seg">' + optionButtons(item, v, false) + '</div>'; }
-  function renderRadio(item, v) { return '<div class="radio">' + optionButtons(item, v, true) + '</div>'; }
+  function renderSegmented(item, v, off) { return '<div class="seg">' + optionButtons(item, v, false, off) + '</div>'; }
+  function renderRadio(item, v, off) { return '<div class="radio">' + optionButtons(item, v, true, off) + '</div>'; }
   // Format a minute count as a human label for interval-derived option lists.
   // 1440 is checked first because it is also a multiple of 60.
   function formatMinutesLabel(min) {
@@ -394,6 +417,57 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   var RESET_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"'
     + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
     + '<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>';
+
+  /**
+   * The small icon button beside a label or sub-header (item.labelAction:
+   * {action, arg, label}), dispatching through the shared [data-action] path —
+   * e.g. the threshold group's reset-to-defaults. '' when the item has none.
+   * @param {Object} item Schema item.
+   * @returns {string} Button HTML, or ''.
+   */
+  function labelActionHtml(item) {
+    if (!item.labelAction) { return ''; }
+    return '<button type="button" class="lbl-act" data-action="' + esc(item.labelAction.action)
+      + '" data-action-arg="' + esc(item.labelAction.arg == null ? '' : item.labelAction.arg)
+      + '" aria-label="' + esc(item.labelAction.label || 'Reset') + '">' + RESET_SVG + '</button>';
+  }
+
+  /**
+   * A `subheader` item: an in-body group header (the .subhdr the grouped cards
+   * already use) that can host the group's master toggle and a labelAction. It
+   * lets ONE section hold more than one group — the threshold sheets keep a
+   * slot-level Bold row outside the threshold group, so the group needs a header
+   * of its own and the master switch belongs on it rather than in the sheet's
+   * title row.
+   *
+   * The hosted toggle keeps its normal place in sec.items (hydrate, serialize,
+   * findItem and its onChange hook all still see it); only its row is suppressed,
+   * exactly as the old headerToggleKey did.
+   *
+   * @param {Object} item The subheader item ({text, toggleKey?, labelAction?}).
+   * @param {Object} sec The section holding it (searched for the toggle item).
+   * @param {Object} cx Render context.
+   * @returns {string} Sub-header HTML.
+   */
+  function renderSubheader(item, sec, cx) {
+    var toggle = '', i, it = null;
+    if (item.toggleKey) {
+      for (i = 0; i < (sec.items || []).length; i++) {
+        if (sec.items[i].messageKey === item.toggleKey && sec.items[i].type === 'toggle') {
+          it = sec.items[i];
+        }
+      }
+      // A gated-off toggle leaves the header bare rather than drawing a switch
+      // the platform can't honour.
+      if (it && PConf.showWhen.isVisible(it, cx.evalCtx)) {
+        toggle = '<button class="sw' + (cx.S[it.messageKey] ? ' on' : '')
+          + '" data-k="' + esc(it.messageKey) + '" data-toggle="1" aria-label="'
+          + esc(String(it.label || 'Enable')) + '"><i></i></button>';
+      }
+    }
+    return '<div class="subhdr grp"><span>' + esc(item.text || '') + '</span>'
+      + labelActionHtml(item) + toggle + '</div>';
+  }
 
   /**
    * The edit-sheet trigger for a row whose value resolved a sheet, or ''. A proper
@@ -1048,8 +1122,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
   var CONTROLS = {
     toggle: function (item, view) { return renderToggle(item, view.value); },
-    segmented: function (item, view) { return renderSegmented(item, view.value); },
-    radio: function (item, view) { return renderRadio(item, view.value); },
+    segmented: function (item, view) { return renderSegmented(item, view.value, view.disabledOptions); },
+    radio: function (item, view) { return renderRadio(item, view.value, view.disabledOptions); },
     select: function (item, view) { return renderSelectTrigger(item, view); },
     date: function (item, view) { return renderDateTrigger(item, view); },
     text: function (item, view) { return renderText(item, view.value); },
@@ -1099,11 +1173,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // An optional small icon button beside the label (item.labelAction: {action, arg,
     // label}) dispatching through the shared [data-action] path — e.g. the threshold
     // slider's reset-to-defaults.
-    var labelAct = item.labelAction
-      ? '<button type="button" class="lbl-act" data-action="' + esc(item.labelAction.action)
-        + '" data-action-arg="' + esc(item.labelAction.arg == null ? '' : item.labelAction.arg)
-        + '" aria-label="' + esc(item.labelAction.label || 'Reset') + '">' + RESET_SVG + '</button>'
-      : '';
+    var labelAct = labelActionHtml(item);
     var label = '<div class="lbl">' + esc(item.label) + labelAct + '</div>';
     // Status-line slot pickers are compact rows: the .slot modifier tightens the vertical
     // rhythm so consecutive slot rows sit closer together. Status slots are plain selects
@@ -1230,6 +1300,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (item.disabledWhen) {
       view.disabled = PConf.showWhen.evaluate(item.disabledWhen, cx.evalCtx);
     }
+    // optionDisabledWhen: individual options go inert while the row stays live —
+    // e.g. "bold on warn" is unreachable until the slot's thresholds are on.
+    if (item.optionDisabledWhen) {
+      view.disabledOptions = disabledOptionValues(item, cx.evalCtx);
+    }
     var html = renderBlock(item.blockBefore, cx.S, cx.ENV, cx.USERDATA, item.blockBeforeSticky)
       + renderRow(rowItem, view, noDivider)
       + renderBlock(item.block, cx.S, cx.ENV, cx.USERDATA);
@@ -1302,8 +1377,25 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     var body = sec.intro ? '<div class="intro">' + sec.intro + '</div>' : '';
     var controlCount = 0, staticCount = 0, i;
+    // Toggles hosted by a VISIBLE subheader render on that header instead of as a
+    // row of their own. Collected up front because the subheader may sit after
+    // the toggle in the item list.
+    var hosted = {};
+    for (i = 0; i < sec.items.length; i++) {
+      if (sec.items[i].type === 'subheader' && sec.items[i].toggleKey
+        && PConf.showWhen.isVisible(sec.items[i], cx.evalCtx)) {
+        hosted[sec.items[i].toggleKey] = true;
+      }
+    }
     for (i = 0; i < sec.items.length; i++) {
       var item = sec.items[i];
+      if (item.type === 'subheader') {
+        if (!PConf.showWhen.isVisible(item, cx.evalCtx)) { continue; }
+        body += renderSubheader(item, sec, cx);
+        staticCount++;
+        continue;
+      }
+      if (item.type === 'toggle' && hosted[item.messageKey]) { continue; }
       if (item.inline) {
         // gather the consecutive run sharing this inline group id, render it as one row
         var run = [item];

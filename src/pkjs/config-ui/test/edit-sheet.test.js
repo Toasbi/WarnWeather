@@ -82,3 +82,76 @@ test('a gated sheetOnly section renders an empty modal (and no pencil can reach 
   assert.ok(E.renderEditModal(GATED, cx).indexOf('data-k="windWarn"') !== -1,
     'capable env renders the sheet');
 });
+
+// --- subheader item: an in-body section header that can host the master toggle ---
+// The threshold sheets grew a slot-level row (Bold) that must sit OUTSIDE the
+// threshold group, so the group needs its own header — and the master on/off
+// switch moves from the sheet's title row down onto that header.
+const SUB_SCHEMA = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
+  { sheetOnly: true, sheetId: 'sheetSub', title: 'Wind speed slot', items: [
+    { type: 'segmented', messageKey: 'bold', label: 'Bold', defaultValue: 'warn',
+      options: [['Off', 'off'], ['Warn', 'warn'], ['Always', 'always']] },
+    { type: 'subheader', text: 'Thresholds', toggleKey: 'windOn',
+      labelAction: { action: 'resetIt', arg: 'Wind', label: 'Reset to defaults' } },
+    { type: 'toggle', messageKey: 'windOn', label: 'Highlight this value', defaultValue: false },
+    { type: 'text', messageKey: 'windWarn', label: 'Warn above', defaultValue: '' }
+  ] }
+] }] };
+
+function subCx(S, extra) {
+  return Object.assign({
+    S: S, ENV: {}, USERDATA: {}, openColor: null, openSelect: null, openDate: null,
+    openEdit: 'sheetSub', selectQuery: '', collapsed: {},
+    evalCtx: Object.assign({}, S, { env: {} })
+  }, extra || {});
+}
+
+test('subheader renders its text as an in-body .subhdr', () => {
+  const S = E.hydrate(SUB_SCHEMA, {});
+  const html = E.renderEditModal(SUB_SCHEMA, subCx(S));
+  assert.match(html, /class="subhdr[^"]*"[^>]*>[\s\S]*?Thresholds/);
+});
+
+test('subheader hosts the referenced toggle, which no longer renders its own row', () => {
+  const S = E.hydrate(SUB_SCHEMA, { windOn: true });
+  const html = E.renderEditModal(SUB_SCHEMA, subCx(S));
+  const sw = html.match(/<button class="sw on"[^>]*data-k="windOn"[^>]*data-toggle="1"[^>]*>/);
+  assert.ok(sw, 'the switch rides the subheader in its on state');
+  assert.match(sw[0], /aria-label="Highlight this value"/, 'named from the toggle item');
+  assert.equal(html.split('data-k="windOn"').length - 1, 1, 'exactly one switch, not two');
+  assert.equal(html.indexOf('Highlight this value</div>'), -1, 'no separate label row');
+});
+
+test('subheader toggle reflects the off state', () => {
+  const S = E.hydrate(SUB_SCHEMA, { windOn: false });
+  const html = E.renderEditModal(SUB_SCHEMA, subCx(S));
+  assert.match(html, /<button class="sw"[^>]*data-k="windOn"/);
+});
+
+test('the sheet title row keeps only the close button now', () => {
+  const S = E.hydrate(SUB_SCHEMA, { windOn: true });
+  const html = E.renderEditModal(SUB_SCHEMA, subCx(S));
+  const hdr = html.slice(0, html.indexOf('</div>'));
+  assert.match(hdr, /Wind speed slot/);
+  assert.equal(hdr.indexOf('data-toggle'), -1, 'master switch is no longer in the title row');
+});
+
+test('subheader carries a labelAction button', () => {
+  const S = E.hydrate(SUB_SCHEMA, {});
+  const html = E.renderEditModal(SUB_SCHEMA, subCx(S));
+  assert.match(html, /data-action="resetIt"[^>]*data-action-arg="Wind"/);
+});
+
+test('a toggle hosted by a subheader still hydrates and serializes', () => {
+  const S = E.hydrate(SUB_SCHEMA, { windOn: true });
+  assert.equal(S.windOn, true);
+  assert.equal(E.serialize(SUB_SCHEMA, S).windOn, true);
+});
+
+test('a hidden subheader leaves no orphan header behind', () => {
+  const gated = JSON.parse(JSON.stringify(SUB_SCHEMA));
+  gated.tabs[0].sections[0].items[1].showWhen = { key: 'never' };
+  const S = E.hydrate(gated, {});
+  const html = E.renderEditModal(gated, subCx(S));
+  assert.equal(html.indexOf('Thresholds'), -1);
+});

@@ -1244,3 +1244,55 @@ test('renderBody: button renders data-action row; hidden renders nothing', () =>
   assert.match(html, /Run setup again/);
   assert.doesNotMatch(html, /onboardingDone/);
 });
+
+// --- segmented: per-option disable ------------------------------------------
+// item.optionDisabledWhen maps an option VALUE to a showWhen-style condition.
+// A matching option renders inert instead of vanishing, so a stored value can
+// never be silently rewritten by the options-snapping path (which would, e.g.,
+// turn a slot's stored "bold on warn" into "never bold" the moment its
+// thresholds were switched off).
+const SEG_ITEM = {
+  type: 'segmented', messageKey: 'bold', label: 'Bold', defaultValue: 'warn',
+  options: [['Off', 'off'], ['Warn', 'warn'], ['Always', 'always']],
+  optionDisabledWhen: { warn: { not: { key: 'threshOn' } } }
+};
+
+const SEG_SCHEMA = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T',
+  sections: [{ title: 'S', items: [SEG_ITEM] }] }] };
+
+function segBody(S) {
+  return E.renderBody(SEG_SCHEMA, 't', {
+    S: S, ENV: {}, USERDATA: {}, openColor: null, openSelect: null,
+    openDate: null, selectQuery: '', collapsed: {},
+    evalCtx: Object.assign({}, S, { env: {} })
+  });
+}
+
+test('segmented: an option whose condition holds renders disabled, not removed', () => {
+  const html = segBody({ bold: 'warn', threshOn: false });
+  assert.match(html, /data-v="warn"[^>]*disabled/, 'warn pill is inert');
+  assert.match(html, />Warn</, 'warn pill is still shown');
+  assert.match(html, /data-v="always"(?![^>]*disabled)/, 'always stays live');
+  assert.match(html, /data-v="off"(?![^>]*disabled)/, 'off stays live');
+});
+
+test('segmented: no option is disabled once the condition is false', () => {
+  const html = segBody({ bold: 'warn', threshOn: true });
+  assert.equal(html.indexOf('disabled'), -1, 'every pill is live');
+});
+
+test('segmented: a disabled option keeps its stored value selected', () => {
+  // The whole point of disabling rather than removing: 'warn' survives the
+  // round-trip and lights up again when the gate reopens.
+  const S = { bold: 'warn', threshOn: false };
+  const html = segBody(S);
+  assert.match(html, /class="on"[^>]*data-v="warn"/, 'warn is still the selection');
+  assert.equal(S.bold, 'warn', 'stored value untouched');
+});
+
+test('segmented without optionDisabledWhen is unchanged', () => {
+  const plain = E.renderControl(
+    { type: 'segmented', messageKey: 'm', options: [['A', 'a'], ['B', 'b']] },
+    { value: 'a' });
+  assert.equal(plain.indexOf('disabled'), -1);
+});
