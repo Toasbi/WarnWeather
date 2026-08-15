@@ -29,9 +29,9 @@ STATUS LINES
 - Configurable status slots on every view: fill each slot from a catalog of
   metrics — weather, air quality, pollen, wind, health, battery, a countdown
   to any date, and more
-- Threshold highlighting: outline or fill a status slot when air quality,
-  pollen, wind, gusts, UV index, steps, sleep, or distance crosses a warn or
-  danger level you set
+- Threshold highlighting: bold, outline, or fill a status slot when air
+  quality, pollen, wind, gusts, UV index, steps, sleep, or distance crosses a
+  warn or danger level you set — or keep a slot bold at all times
 
 WATCHFACE THEMES
 - Dark and Light, plus Black & White and Black & White Inverted options on color watches

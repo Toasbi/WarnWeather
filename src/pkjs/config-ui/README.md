@@ -245,10 +245,19 @@ Schema
 | `date` | Date-wheel sheet (day/month/year) | `"YYYY-MM-DD"` string | — |
 | `hidden` | none — never rendered | any (serialized like any keyed item) | — |
 | `button` | Tappable action row; no key | — (not serialized) | — |
+| `subheader` | In-section group header; no key | — (not serialized) | — |
 
-The twelve types above are the complete built-in set. Anything bespoke belongs in a custom block
+The thirteen types above are the complete built-in set. Anything bespoke belongs in a custom block
 registered via `PConf.blocks.register` — the control-type dispatch itself is not pluggable from
 app code.
+
+`subheader` items split ONE section into several visually-titled groups — use them when a
+section holds rows that answer to different scopes (the threshold sheets keep a slot-level
+`Bold` row outside the thresholds group). Fields: `text` (the heading), optional `intro`
+(HTML shown under the heading, like a section `intro`), optional `labelAction`, and optional
+`toggleKey`. `toggleKey` names a `toggle` item **in the same section**, which then renders as a
+switch on the header instead of as a row of its own — while keeping its normal place in
+`items`, so hydrate/serialize/`onChange` are unaffected.
 
 `staticText` items carry their HTML in a `text` field and are emitted verbatim without control
 chrome. They are not serialized (no `messageKey`).
@@ -269,10 +278,11 @@ chrome. They are not serialized (no `messageKey`).
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `type` | string | One of the twelve types above |
+| `type` | string | One of the thirteen types above |
 | `messageKey` | string | Serialization key — must match the AppMessage/C key |
 | `defaultValue` | any | Default value. Color defaults are ints (e.g. `0xFFFFFF`). |
 | `options` | `[label, value][]` | Choices for `select`, `segmented`, `radio` |
+| `optionDisabledWhen` | `{ value: showWhen }` | Renders individual `segmented`/`radio` options inert while their condition holds. Prefer this over gating the list itself with `optionsFrom`: an option that disappears is snapped away, silently rewriting a stored value the user never touched. |
 | `description` | string | HTML description rendered below the label |
 | `hint` | string | HTML hint rendered below the control |
 | `hintByValue` | `{ value: string }` | Per-value hints; overrides `hint` for the current value |
