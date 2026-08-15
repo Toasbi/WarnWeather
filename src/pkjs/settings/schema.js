@@ -110,12 +110,14 @@ var THRESHOLD_WHEN = {env: 'thresholds'};
 // weather kinds cross THRESHOLDS upward; the health kinds fall short of GOALS
 // (belowIsWorse in the contract) — same machinery, friendlier words. Both state the
 // always-bold rule: warn = bold text (outline only if enabled below), danger = filled.
+// Neither intro claims the warn level bolds the value any more — Bold is its own
+// setting above, so saying so here could simply be false.
 var THRESHOLD_SHEET_INTRO = 'Highlight this value in its status slot: crossing the ' +
-    'warn threshold shows it in bold; crossing the danger threshold also fills the ' +
+    'warn threshold can add an outline; crossing the danger threshold fills the ' +
     'slot. The warn outline is optional — enable it below.';
 var GOAL_SHEET_INTRO = 'Celebrate this goal in its status slot: getting close ' +
-    'shows the value in bold with a green outline; reaching the goal fills the ' +
-    'slot. Colors are yours to change below.';
+    'adds the green outline; reaching the goal fills the slot. Colors are yours ' +
+    'to change below.';
 // The Bold row is a SLOT-level setting, not a threshold one: it sits above the
 // threshold group and stays live while that group is switched off, because
 // "Always" needs no thresholds to mean something. Only the middle option does —

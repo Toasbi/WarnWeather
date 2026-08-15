@@ -1178,7 +1178,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // label}) dispatching through the shared [data-action] path — e.g. the threshold
     // slider's reset-to-defaults.
     var labelAct = labelActionHtml(item);
-    var label = '<div class="lbl">' + esc(item.label) + labelAct + '</div>';
+    // A row may legitimately carry no label — the threshold slider's title lives
+    // on its group sub-header instead, and repeating it here read as a stutter.
+    // Drop the whole box then (esc(undefined) used to print "undefined"), unless
+    // a labelAction still needs somewhere to sit.
+    var label = (item.label || labelAct)
+      ? '<div class="lbl">' + (item.label ? esc(item.label) : '') + labelAct + '</div>'
+      : '';
     // Status-line slot pickers are compact rows: the .slot modifier tightens the vertical
     // rhythm so consecutive slot rows sit closer together. Status slots are plain selects
     // (matched via the statusSlot resolver, since they carry no distinguishing type), while

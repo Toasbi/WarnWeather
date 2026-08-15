@@ -1296,3 +1296,29 @@ test('segmented without optionDisabledWhen is unchanged', () => {
     { value: 'a' });
   assert.equal(plain.indexOf('disabled'), -1);
 });
+
+// A row may legitimately carry no label — the threshold slider's title moved onto
+// its group sub-header, and repeating it on the row read as a stutter. Rendering
+// esc(undefined) put the literal string "undefined" on the page.
+test('a row without a label renders no label text at all', () => {
+  const html = E.renderRow(
+    { type: 'range', messageKey: 'r', min: 0, max: 10, step: 1, minSpan: 1 },
+    { value: '2-8' });
+  assert.equal(html.indexOf('undefined'), -1, 'no literal "undefined" on the page');
+  assert.equal(html.indexOf('class="lbl"'), -1, 'no empty label box either');
+});
+
+test('a row without a label still renders its labelAction', () => {
+  const html = E.renderRow(
+    { type: 'toggle', messageKey: 't',
+      labelAction: { action: 'doIt', arg: 'X', label: 'Reset' } },
+    { value: false });
+  assert.equal(html.indexOf('undefined'), -1);
+  assert.match(html, /data-action="doIt"/);
+});
+
+test('a labelled row is unchanged', () => {
+  const html = E.renderRow({ type: 'toggle', messageKey: 't', label: 'Vibrate' },
+    { value: false });
+  assert.match(html, /<div class="lbl">Vibrate<\/div>/);
+});
