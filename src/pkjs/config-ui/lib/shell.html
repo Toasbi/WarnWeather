@@ -205,8 +205,13 @@
      on would offer — but muted and inert */
   .row.dis { opacity: .45; pointer-events: none; }
   /* small icon button beside a row label (item.labelAction — reset to defaults) */
-  .lbl .lbl-act { display: inline-flex; vertical-align: -3px; border: none; background: none; color: var(--muted); cursor: pointer; padding: 3px; margin: -3px 0 -3px 5px; border-radius: 6px; line-height: 0; transition: color .15s, background .15s; }
-  .lbl .lbl-act:active { color: var(--link); background: rgba(250,74,53,0.12); }
+  /* .lbl-act appears inline in labels AND on group sub-headers (.subhdr.grp), so the
+     chrome reset must be unscoped — a `.lbl .lbl-act` scope leaves the sub-header copy
+     with the webview's default (white) button background. Only the inline alignment
+     nudges are label-specific. */
+  .lbl-act { display: inline-flex; border: none; background: none; color: var(--muted); cursor: pointer; padding: 3px; border-radius: 6px; line-height: 0; transition: color .15s, background .15s; }
+  .lbl .lbl-act { vertical-align: -3px; margin: -3px 0 -3px 5px; }
+  .lbl-act:active { color: var(--link); background: rgba(250,74,53,0.12); }
   select { -webkit-appearance: none; appearance: none; border: 1px solid var(--ctl-line); background: var(--ctl); color: var(--lbl); border-radius: 9px; padding: 8px 32px 8px 13px; font: 600 13.5px 'Inter', sans-serif; cursor: pointer; outline: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 8 6'%3E%3Cpath d='M0 0l4 6 4-6z' fill='%23B6BAC2'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; transition: border-color .15s; }
   select:focus { border-color: #FA4A35; }
   body.light select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 8 6'%3E%3Cpath d='M0 0l4 6 4-6z' fill='%235A5F6A'/%3E%3C/svg%3E"); }

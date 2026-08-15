@@ -865,7 +865,7 @@ test('Bold sits above the group and is never gated by the master toggle', () => 
     assert.ok(boldIdx < hdrIdx, stem + ' bold row is not above the group header');
     const bold = boldFor(stem);
     assert.equal(bold.type, 'segmented');
-    assert.equal(bold.label, 'Bold');
+    assert.equal(bold.label, 'Bold value');
     assert.equal(bold.defaultValue, 'warn');
     assert.equal(bold.disabledWhen, undefined,
       stem + ' bold row must stay live while thresholds are off (Always needs none)');

@@ -123,8 +123,12 @@ var GOAL_SHEET_INTRO = 'Celebrate this goal in its status slot: getting close ' 
 // "Always" needs no thresholds to mean something. Only the middle option does —
 // it goes inert (not away: removing it would let the options-snapping path
 // rewrite a stored 'warn' to 'off') until the kind's thresholds are on.
-// The hint deliberately does NOT recite Off/Warn/Always — the pills say that.
-var BOLD_HINT = 'Bold is the lightest highlight: heavier text, no box or fill.';
+// The hint spells out what each step does — bare pills alone read as "bold
+// what?" — in the sheet's two voices (thresholds crossed vs goals reached).
+var BOLD_HINT = 'Show this value in heavier text — never, from the warn ' +
+    'threshold on, or always. Danger is always bold.';
+var GOAL_BOLD_HINT = 'Show this value in heavier text — never, from close to ' +
+    'the goal on, or always. A reached goal is always bold.';
 // One threshold-highlight edit sheet (sheetOnly — opened from a status slot's pencil,
 // never rendered as a card): a "Highlight this value" toggle, a zoned dual-thumb
 // slider for the warn/danger pair, and the two color pickers. Values live in the
@@ -187,8 +191,8 @@ function thresholdSection(title, keyStem, hint, gate) {
     var bold = {
         type: 'segmented',
         messageKey: 'thresh' + keyStem + 'BoldMode',
-        label: 'Bold',
-        hint: BOLD_HINT,
+        label: 'Bold value',
+        hint: goal ? GOAL_BOLD_HINT : BOLD_HINT,
         defaultValue: 'warn',
         options: [['Off', 'off'], [goal ? 'Close' : 'Warn', 'warn'], ['Always', 'always']],
         optionDisabledWhen: {warn: {not: {key: onKey}}}
