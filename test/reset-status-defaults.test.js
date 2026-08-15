@@ -3,8 +3,15 @@ const assert = require('node:assert/strict');
 const {
   applyReset,
   clearPollenForProvider,
-  dedupeStatusSlot
+  dedupeStatusSlot,
+  resetCountdownDate
 } = require('../src/pkjs/settings/reset-status-defaults.js');
+
+function todayValue() {
+  const d = new Date();
+  const pad2 = n => (n < 10 ? '0' : '') + n;
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+}
 
 const ENV_BASALT = { color: true, round: false, platform: 'basalt', health: true, radar: true, hr: false };
 const ENV_EMERY = { color: true, round: false, platform: 'emery', health: true, radar: true, hr: true };
@@ -163,4 +170,34 @@ test('dedupeStatusSlot: no sibling holds the code -> no change', () => {
   dedupeStatusSlot(S, 'statusForecastMid');
   assert.equal(S.statusForecastLeft, 'temp');
   assert.equal(S.statusForecastRight, 'sun');
+});
+
+test('resetCountdownDate: selecting countdown over a stale stored date resets it to today', () => {
+  const S = blob({ statusForecastLeft: 'countdown', statusForecastLeftCountdown: '2020-01-01' });
+  resetCountdownDate(S, 'statusForecastLeft', 'temp', 'countdown');
+  assert.equal(S.statusForecastLeftCountdown, todayValue());
+});
+
+test('resetCountdownDate: selecting countdown with no prior stored date sets today', () => {
+  const S = blob({ statusForecastLeft: 'countdown' });
+  resetCountdownDate(S, 'statusForecastLeft', 'temp', 'countdown');
+  assert.equal(S.statusForecastLeftCountdown, todayValue());
+});
+
+test('resetCountdownDate: switching a slot away from countdown leaves its date field alone', () => {
+  const S = blob({ statusForecastLeft: 'temp', statusForecastLeftCountdown: '2020-01-01' });
+  resetCountdownDate(S, 'statusForecastLeft', 'countdown', 'temp');
+  assert.equal(S.statusForecastLeftCountdown, '2020-01-01');
+});
+
+test('resetCountdownDate: switching between two non-countdown codes touches nothing', () => {
+  const S = blob({ statusForecastLeft: 'city', statusForecastLeftCountdown: '2020-01-01' });
+  resetCountdownDate(S, 'statusForecastLeft', 'temp', 'city');
+  assert.equal(S.statusForecastLeftCountdown, '2020-01-01');
+});
+
+test('resetCountdownDate: already-countdown-to-countdown (no-op transition) leaves the date alone', () => {
+  const S = blob({ statusForecastLeft: 'countdown', statusForecastLeftCountdown: '2020-01-01' });
+  resetCountdownDate(S, 'statusForecastLeft', 'countdown', 'countdown');
+  assert.equal(S.statusForecastLeftCountdown, '2020-01-01');
 });

@@ -168,6 +168,31 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
     }
 
+    /**
+     * @param {Date} date local date
+     * @returns {string} local YYYY-MM-DD, matching the config-ui engine's date fields
+     */
+    function todayDateValue(date) {
+        function pad2(n) { return (n < 10 ? '0' : '') + n; }
+        return date.getFullYear() + '-' + pad2(date.getMonth() + 1) + '-' + pad2(date.getDate());
+    }
+
+    /**
+     * A slot's paired `<key>Countdown` target date persists even while the slot shows
+     * something else, so re-selecting Date countdown for a slot that held one before
+     * resurfaces its old (possibly long-past) target. Reset it to today whenever a slot
+     * newly becomes countdown. Mutates S.
+     * @param {Object} S live settings state (changedKey already set to newValue)
+     * @param {string} changedKey the slot messageKey the user just changed
+     * @param {*} oldValue previous slot value
+     * @param {*} newValue new slot value
+     * @returns {void}
+     */
+    function resetCountdownDate(S, changedKey, oldValue, newValue) {
+        if (newValue !== 'countdown' || oldValue === 'countdown') { return; }
+        S[changedKey + 'Countdown'] = todayDateValue(new Date());
+    }
+
     PConf.onChange.register('clearPollenForProvider', function (S, oldValue, newValue) {
         clearPollenForProvider(S, newValue);
     });
@@ -179,6 +204,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         applyReset(S, 'health', oldValue, newValue, env);
     });
     PConf.onChange.register('dedupeStatusSlot', function (S, oldValue, newValue, env, key) {
+        resetCountdownDate(S, key, oldValue, newValue);
         dedupeStatusSlot(S, key);
     });
 
@@ -186,7 +212,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         module.exports = {
             applyReset: applyReset,
             clearPollenForProvider: clearPollenForProvider,
-            dedupeStatusSlot: dedupeStatusSlot
+            dedupeStatusSlot: dedupeStatusSlot,
+            resetCountdownDate: resetCountdownDate
         };
     }
 })();
