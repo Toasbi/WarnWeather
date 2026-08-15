@@ -5,7 +5,7 @@ var holidayData = require('./holiday-data.js');
 // Single source of the two threshold-highlight color defaults; the same module
 // reads these settings back when packing the wire blob (see clay-payload.js).
 var STATUS_THRESHOLDS = require('../status-thresholds.js');
-var PRESSURE_SCALE_HPA = require('../forecast-series.js').PRESSURE_SCALE_HPA;
+var PRESSURE_SCALE_CURVE_HPA = require('../forecast-series.js').PRESSURE_SCALE_CURVE_HPA;
 var versionLabel = 'v' + meta.version + (meta.buildProfile === 'dev' ? ' (dev)' : '');
 var HOURS = (function () {
     var o = [], h;
@@ -209,26 +209,27 @@ function thresholdSection(title, keyStem, hint, gate) {
         }]
     };
 }
-// Pressure band ceilings/floors, pre-rendered per scale value. Derived from
-// forecast-series.PRESSURE_SCALE_HPA (the sole source of truth for the band numbers)
+// Pressure curve copy, pre-rendered per scale value. Derived from
+// forecast-series.PRESSURE_SCALE_CURVE_HPA (the sole source of truth for the numbers)
 // at module load, so the settings-screen copy can never drift from it the way a third
-// hand-copied set of numbers could (blocks.js's PRESSURE_BANDS is the second copy,
-// guarded by its own drift test — see test/config-blocks.test.js).
+// hand-copied set of numbers could (blocks.js's PRESSURE_CURVES is the second copy,
+// guarded by its own drift test — see test/config-blocks.test.js). The scale is fixed
+// and absolute but piecewise (rain-bar style): the copy quotes the full-detail core;
+// readings outside it compress toward 940/1060 instead of clipping.
 /**
- * Build one pressureScale hint line from the shared band bounds.
+ * Build one pressureScale hint line from the shared curve table.
  * @param {string} scale 'low'|'mid'|'high'.
- * @param {string} tail Descriptive text appended after the "Covers X–Y hPa — " lead-in.
+ * @param {string} tail Descriptive text appended after the core lead-in.
  * @returns {string} Full hint string.
  */
 function pressureHint(scale, tail) {
-    var band = PRESSURE_SCALE_HPA[scale];
-    return 'Covers ' + band.min + '–' + band.max + ' hPa — ' + tail;
+    var pts = PRESSURE_SCALE_CURVE_HPA[scale];
+    return 'Full detail ' + pts[1][0] + '\u2013' + pts[2][0] + ' hPa, extremes compressed instead of cut off — ' + tail;
 }
 var PRESSURE_SCALE_HINTS = {
-    low:  pressureHint('low', 'emphasizes small movements; a deep low flattens against the bottom.'),
-    mid:  pressureHint('mid', 'general use; the whole ordinary range fits, mid-graph ≈ '
-        + Math.round((PRESSURE_SCALE_HPA.mid.min + PRESSURE_SCALE_HPA.mid.max) / 2) + ' hPa.'),
-    high: pressureHint('high', 'keeps storm-depth lows on scale.')
+    low:  pressureHint('low', 'magnifies the smallest movements.'),
+    mid:  pressureHint('mid', 'a typical day\'s swing reads clearly.'),
+    high: pressureHint('high', 'keeps storm-depth swings in the detailed range.')
 };
 /**
  * One pressureScale control for a line-context. Unlike windScaleCopy this needs no
@@ -621,8 +622,8 @@ module.exports = {
                 hintByValue: {
                     off: 'Radar is hidden.',
                     countdown: 'Shows a “Rain in X′” countdown in the Watch Status Bar, without adding a separate Radar view.',
-                    status: 'Adds the Radar Status Bar while retaining the forecast graph.',
-                    graph: 'Also adds the full radar graph.'
+                    status: 'Adds a Radar view showing the Radar Status Bar above the regular forecast graph.',
+                    graph: 'Adds a Radar view showing both the Radar Status Bar and the full radar rain graph in place of the forecast graph.'
                 },
                 options: [['Off', 'off'], ['Countdown only', 'countdown'], ['Status bar', 'status'], ['Status + Graph', 'graph']],
                 onChange: 'resetStatusRadar'
@@ -726,8 +727,8 @@ module.exports = {
                 hintByValue: {
                     off: 'Health is hidden.',
                     slot: 'Lets you put health items (steps, sleep, heart rate, walked distance) in any status bar, without adding a separate Health view.',
-                    status: 'Adds the Health Status Bar — today\'s steps, last night\'s sleep, and current heart rate. Heart rate needs a watch with a heart-rate sensor.',
-                    all: 'Also adds a health graph (hourly step bars, a sleep band, and a heart-rate line). Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
+                    status: 'Adds a Health view showing the Health Status Bar — today\'s steps, last night\'s sleep, and current heart rate — above the regular forecast graph. Heart rate needs a watch with a heart-rate sensor.',
+                    all: 'Adds a Health view showing both the Health Status Bar and a health graph — hourly step bars, a sleep band, and a heart-rate line — in place of the forecast graph. Feedback very welcome via <a href="https://github.com/Toasbi/WarnWeather/issues">GitHub</a>.'
                 },
                 options: [['Off', 'off'], ['Status slots only', 'slot'], ['Status bar', 'status'], ['Status + Graph (BETA)', 'all']],
                 onChange: 'resetStatusHealth'

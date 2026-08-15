@@ -267,12 +267,15 @@ typedef struct { GColor base, hatch, boundary; } NightAreaPalette;
 
 // Night base/hatch/boundary for the filled area, keyed on the day fill colour PKJS sent.
 // Used only on colour platforms (B&W draws White via the has_underlay/hatch gates). The
-// eight dark- and light-theme day fills (4 metrics x 2 polarities) are distinct GColor8
-// values, so equality keys them; precip (dark) is the default.
+// dark- and light-theme day fills (5 metrics x 2 polarities) are distinct GColor8
+// values, so equality keys them; precip (dark) is the default — which is why every
+// non-precip metric MUST have a case here, or its night area turns precip blue
+// (pressure shipped that way; MEASURED on emery).
 static NightAreaPalette night_area_palette_for_fill(GColor fill) {
     if (gcolor_equal(fill, GColorArmyGreen)) { return (NightAreaPalette){ GColorArmyGreen, GColorLimerick, GColorLimerick }; }      // wind (dark)
     if (gcolor_equal(fill, GColorPurple))    { return (NightAreaPalette){ GColorImperialPurple, GColorPurple, GColorVividViolet }; } // uv (dark)
     if (gcolor_equal(fill, GColorDarkGray))  { return (NightAreaPalette){ GColorDarkGray, GColorLightGray, GColorLightGray }; }      // gust (dark)
+    if (gcolor_equal(fill, GColorWindsorTan)) { return (NightAreaPalette){ GColorWindsorTan, GColorOrange, GColorOrange }; }         // pressure (dark) — wind's recipe: base = day fill, brighter family hatch
     // Light-theme fills (Celeste/Inchworm/ShockingPink/LightGray) never reach this
     // table: light (color) polarity skips the night_under layer entirely — the fill
     // keeps its day color under the night overlay (see the call site).

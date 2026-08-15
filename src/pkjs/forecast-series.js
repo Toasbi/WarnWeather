@@ -156,16 +156,37 @@ function fillColorFor(metric, isColor, theme) {
 var WIND_SCALE_KMH = { low: 30, mid: 50, high: 70 };
 // UV full-scale. Raw uv values are tenths (UV×10); UV 11.0 = 110 tenths maps to the graph top.
 var UV_FULL_SCALE_TENTHS = 110;
-// Sea-level pressure band (hPa) mapped to graph height, selected by the pressureScale
-// setting. Rounded to tens so the settings copy reads cleanly and the bands have room
-// to breathe: mid spans the whole ordinary range and high reaches storm-depth lows, so
-// neither clamps in normal weather. Always MSL — station pressure falls ~12 hPa per
-// 100 m, so at 1600 m it reads ~830 and would sit pinned to the graph floor.
-var PRESSURE_SCALE_HPA = {
-    low:  { min: 990, max: 1030 },   // Narrow — 40 hPa
-    mid:  { min: 980, max: 1040 },   // Mid    — 60 hPa (default)
-    high: { min: 960, max: 1050 }    // Wide   — 90 hPa
+// Sea-level pressure curve mapped to graph height, selected by the pressureScale
+// setting: FIXED and ABSOLUTE (the same reading always lands on the same row — a
+// self-centring band was tried and rejected: with no printed axis the absolute level
+// became unreadable), but PIECEWISE like the rain-bar tiers so nothing ever clamps.
+// Each curve is [hPa, permille] breakpoints: the normal-weather core gets 70% of the
+// plot height at full resolution, and the deep-low / high shoulders compress the
+// remaining 940..1060 hPa into the outer 30% — a storm still dives visibly, just not
+// in the core's proportion. Always MSL — station pressure falls ~12 hPa per 100 m
+// and the plausibility gate below would reject it at altitude anyway.
+var PRESSURE_SCALE_CURVE_HPA = {
+    low:  [[940, 0], [1010, 150], [1020, 850], [1060, 1000]],   // Narrow — core 1010..1020
+    mid:  [[940, 0], [1005, 150], [1025, 850], [1060, 1000]],   // Mid    — core 1005..1025 (default)
+    high: [[940, 0], [995, 200], [1035, 900], [1060, 1000]]     // Wide   — core 995..1035
 };
+
+/**
+ * Piecewise-linear interpolation over [x, y] breakpoints, clamped at both ends.
+ * @param {number} v Input value.
+ * @param {Array.<Array.<number>>} pts Breakpoints, ascending in x.
+ * @returns {number} Interpolated y, rounded to an integer.
+ */
+function curvePermille(v, pts) {
+    if (v <= pts[0][0]) { return pts[0][1]; }
+    for (var i = 1; i < pts.length; i += 1) {
+        if (v <= pts[i][0]) {
+            var x0 = pts[i - 1][0], y0 = pts[i - 1][1];
+            return Math.round(y0 + (v - x0) * (pts[i][1] - y0) / (pts[i][0] - x0));
+        }
+    }
+    return pts[pts.length - 1][1];
+}
 // Plausibility window for one sea-level reading -- shared with status-lines.js via
 // weather/pressure-plausibility.js (see that file's header for why it lives there
 // instead of being exported from here). 0 hPa is physically impossible but is
@@ -238,8 +259,9 @@ function pressurePermille(arr, scale) {
             return [];
         }
     }
-    var band = PRESSURE_SCALE_HPA[scale] || PRESSURE_SCALE_HPA.mid;
-    return scaleToPermilleRange(arr, band.min, band.max).map(function(pm) {
+    var curve = PRESSURE_SCALE_CURVE_HPA[scale] || PRESSURE_SCALE_CURVE_HPA.mid;
+    return arr.map(function(reading) {
+        var pm = curvePermille(Number(reading), curve);
         return pm === 0 ? PRESSURE_FLOOR_PERMILLE : pm;
     });
 }
@@ -403,7 +425,7 @@ module.exports = {
     tempTrendToBytes: tempTrendToBytes,
     LINE_COLORS: LINE_COLORS,
     FILL_COLORS: FILL_COLORS,
-    PRESSURE_SCALE_HPA: PRESSURE_SCALE_HPA,
+    PRESSURE_SCALE_CURVE_HPA: PRESSURE_SCALE_CURVE_HPA,
     lineColorFor: lineColorFor,
     fillColorFor: fillColorFor
 };

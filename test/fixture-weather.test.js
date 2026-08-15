@@ -159,9 +159,9 @@ test('fixture pressureHpa feeds the pressure secondary line (mid scale)', () => 
   const fixture = makeFixture({ pressureHpa: [980, 1010, 1040] });
   const out = getFixtureWeatherPayload(
     fixture, { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid', barSource: 'off' });
-  // Byte 1, not 0, at the exact floor (980) -- see forecast-series.test.js's matching
-  // assertion for why (a floor reading is real data, not "no data").
-  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [1, 125, 250]);
+  // Mid piecewise curve: 980 shoulder (byte 23), 1010 core (81), 1040 shoulder (229)
+  // -- see forecast-series.test.js's matching assertion.
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [23, 81, 229]);
   assert.ok(!('PRESSURE_TREND' in out), 'PRESSURE_TREND is transient — consumed by forecast-series, never wired');
 });
 

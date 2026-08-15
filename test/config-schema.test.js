@@ -627,11 +627,13 @@ test('radarMode is a four-step radio with per-mode hint copy', () => {
     ['Status bar', 'status'],
     ['Status + Graph', 'graph']
   ]);
+  // Each mode's hint is SELF-CONTAINED — it states everything that mode shows,
+  // rather than "also adds" deltas relative to the option above (user request).
   assert.deepEqual(item.hintByValue, {
     off: 'Radar is hidden.',
     countdown: 'Shows a “Rain in X′” countdown in the Watch Status Bar, without adding a separate Radar view.',
-    status: 'Adds the Radar Status Bar while retaining the forecast graph.',
-    graph: 'Also adds the full radar graph.'
+    status: 'Adds a Radar view showing the Radar Status Bar above the regular forecast graph.',
+    graph: 'Adds a Radar view showing both the Radar Status Bar and the full radar rain graph in place of the forecast graph.'
   });
 });
 
@@ -1101,8 +1103,7 @@ test('pressureScale is a Narrow/Mid/Wide control storing low/mid/high', () => {
     assert.deepEqual(s.options, [['Narrow', 'low'], ['Mid', 'mid'], ['Wide', 'high']]);
     assert.equal(s.defaultValue, 'mid');
     assert.equal(s.label, 'Pressure graph scale');
-    assert.ok(s.hintByValue.mid.includes('980'));
-    assert.ok(s.hintByValue.mid.includes('1040'));
+    assert.ok(s.hintByValue.mid.includes('1005\u20131025 hPa'));
   }
 });
 
@@ -1121,21 +1122,19 @@ test('the pressure line hint names sea-level so an altitude reading makes sense'
   assert.ok(byKey('secondaryLine').hintByValue.pressure.includes('Sea-level'));
 });
 
-// A hardcoded copy of the band numbers here is the third copy (forecast-series.js and
-// blocks.js.PRESSURE_BANDS are the other two, and blocks.js's is drift-tested already —
+// A hardcoded copy of the curve numbers here is the third copy (forecast-series.js and
+// blocks.js.PRESSURE_CURVES are the other two, and blocks.js's is drift-tested already —
 // see 'preview bands match forecast-series' in test/config-blocks.test.js). Assert
-// against forecast-series.PRESSURE_SCALE_HPA directly, not literal numbers, so a future
-// band change can't silently leave this copy stale even if someone re-hardcodes it.
-test('pressureScale hint copy matches forecast-series.PRESSURE_SCALE_HPA (no drift)', () => {
-  const { PRESSURE_SCALE_HPA } = require('../src/pkjs/forecast-series.js');
+// against forecast-series.PRESSURE_SCALE_CURVE_HPA directly, not literal numbers, so a
+// future curve change can't silently leave this copy stale even if someone re-hardcodes it.
+test('pressureScale hint copy quotes the curve core (no drift)', () => {
+  const { PRESSURE_SCALE_CURVE_HPA } = require('../src/pkjs/forecast-series.js');
   const scales = items.filter((i) => i.messageKey === 'pressureScale');
   for (const s of scales) {
     for (const scale of ['low', 'mid', 'high']) {
-      const band = PRESSURE_SCALE_HPA[scale];
-      assert.ok(s.hintByValue[scale].includes(String(band.min)),
-        `${scale} hint should mention its min (${band.min})`);
-      assert.ok(s.hintByValue[scale].includes(String(band.max)),
-        `${scale} hint should mention its max (${band.max})`);
+      const pts = PRESSURE_SCALE_CURVE_HPA[scale];
+      assert.ok(s.hintByValue[scale].includes(pts[1][0] + '\u2013' + pts[2][0] + ' hPa'),
+        `${scale} hint should quote its core (${pts[1][0]}-${pts[2][0]} hPa)`);
     }
   }
 });

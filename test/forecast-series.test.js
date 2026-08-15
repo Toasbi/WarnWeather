@@ -321,35 +321,39 @@ test('buildForecastSeries: aplite + bw-light theme also stays white (bw-light fo
 });
 
 // ---- Air pressure metric -------------------------------------------------
-// Bands (hPa): low 990..1030, mid 980..1040, high 960..1050. Always sea-level
+// Fixed ABSOLUTE piecewise curves (rain-bar style): the full-detail core (Narrow
+// 1010-1020, Mid 1005-1025, Wide 995-1035) takes 70% of plot height; readings out
+// to 940/1060 compress into the shoulders instead of clamping. Always sea-level
 // (MSL) — station pressure falls ~12 hPa/100 m and would sit off-scale at altitude.
-const { PRESSURE_SCALE_HPA } = require('../src/pkjs/forecast-series');
+const { PRESSURE_SCALE_CURVE_HPA } = require('../src/pkjs/forecast-series');
 
 test('secondary pressure: scaled against the mid band, orange line', () => {
   const out = buildForecastSeries(
     { pressures: [980, 1010, 1040] },
     { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid' }, null);
-  // Byte 1, not 0, at the exact floor (980): a reading AT the band floor is real data,
-  // not "no data" -- 0 is reserved for that distinction (see the dots test below and
-  // FIX 2's floor-clamp in pressurePermille).
-  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [1, 125, 250]);
+  // Mid curve [[940,0],[1005,150],[1025,850],[1060,1000]]: 980 sits in the deep-low
+  // shoulder (150*40/65 = 92pm -> byte 23), 1010 in the core (150 + 5*35 = 325pm ->
+  // byte 81), 1040 in the high shoulder (850 + 15*150/35 = 914pm -> byte 229). No
+  // clamping anywhere -- that is the point of the piecewise curve.
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [23, 81, 229]);
   assert.equal(out.SECONDARY_LINE_COLOR, 0xFF5500);        // GColorOrange
   assert.equal(out.SECONDARY_LINE_FILL_COLOR, 0xAA5500);   // GColorWindsorTan
 });
 
-test('pressure clamps at both ends of the band instead of going off-scale', () => {
+test('pressure clamps only past the curve ends (940/1060), floor as a non-zero byte', () => {
   const out = buildForecastSeries(
     { pressures: [900, 1099] },
     { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid' }, null);
-  // Byte 1, not 0: a below-floor reading is floor-clamped to a permille that
+  // Byte 1, not 0: a below-curve reading is floor-clamped to a permille that
   // survives quantization to a non-zero byte (see the dedicated dots test below) --
   // it must not collapse to the same byte 0 the chart's dot renderer skips as "no
-  // data". The high end has no such floor concept and clamps to the top byte as before.
+  // data". The high end has no such floor concept and clamps to the top byte.
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [1, 250]);
 });
 
-// pressureScale: 'low' (990-1030 hPa) with a reading below the floor (984 hPa, e.g. a
-// deep low) must not quantize to byte 0 on the wire: chart.c's dot renderer
+// pressureScale: 'low' with a deep-low reading (984 hPa, well under the 1010..1020
+// core) lands in the compressed shoulder — still a real byte on the wire, never the
+// byte 0 that chart.c's dot renderer
 // (chart.c:224, "values[i] <= lo") skips byte 0 as "no data", so six real hours of a
 // deep low would silently vanish from the third-line dots instead of reading as a
 // pressure crash sitting on the baseline.
@@ -361,21 +365,23 @@ test('pressure dots: a below-floor reading is a non-zero byte, not the byte the 
     'a floor-clamped pressure byte must be > 0 so the watch draws its dot');
 });
 
-test('pressure narrow + wide bands scale the same value differently', () => {
+test('pressure narrow + wide curves scale the same swing differently', () => {
   const at = (scale) => buildForecastSeries(
-    { pressures: [1010] },
+    { pressures: [1004, 1016] },
     { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: scale }, null
-  ).SECONDARY_LINE_TREND_UINT8[0];
-  assert.equal(at('low'), 125);   // 990..1030, centre
-  assert.equal(at('mid'), 125);   // 980..1040, centre
-  assert.equal(at('high'), 139);  // 960..1050 → (1010-960)/90 = .5556 → 556pm → 139
+  ).SECONDARY_LINE_TREND_UINT8;
+  // 1004 sits under every core (shoulder), 1016 inside every core; the narrower the
+  // core, the steeper the spread between the two.
+  assert.deepEqual(at('low'), [34, 143]);   // shoulder 137pm / core 150+6*70 = 570pm
+  assert.deepEqual(at('mid'), [37, 134]);   // shoulder 148pm / core 150+11*35 = 535pm
+  assert.deepEqual(at('high'), [90, 142]);  // core 200+9*17.5 = 358pm / 200+21*17.5 = 568pm
 });
 
-test('an unknown pressureScale falls back to the mid band', () => {
+test('an unknown pressureScale falls back to the mid curve', () => {
   const out = buildForecastSeries(
     { pressures: [1010] },
     { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'bogus' }, null);
-  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [125]);
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [81]);   // mid core: 325pm
 });
 
 // Zero is the normal "no data" coercion but an impossible pressure: letting it
@@ -424,7 +430,8 @@ test('pressure works as the third line (dots) over a precip main line', () => {
   const out = buildForecastSeries(
     { precips: [50, 50], pressures: [1010, 1040] },
     { secondaryLine: 'precip_prob', thirdLine: 'pressure', pressureScale: 'mid' }, null);
-  assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [125, 250]);
+  // Mid curve: 1010 -> 325pm (byte 81), 1040 -> 914pm (byte 229) — see the secondary test.
+  assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [81, 229]);
   assert.equal(out.THIRD_LINE_COLOR, 0xFF5500);
 });
 
@@ -436,11 +443,11 @@ test('B&W watch: pressure line is white', () => {
   assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFFFF);
 });
 
-test('PRESSURE_SCALE_HPA exposes the three bands', () => {
-  assert.deepEqual(PRESSURE_SCALE_HPA, {
-    low: { min: 990, max: 1030 },
-    mid: { min: 980, max: 1040 },
-    high: { min: 960, max: 1050 }
+test('PRESSURE_SCALE_CURVE_HPA exposes the three curves', () => {
+  assert.deepEqual(PRESSURE_SCALE_CURVE_HPA, {
+    low:  [[940, 0], [1010, 150], [1020, 850], [1060, 1000]],
+    mid:  [[940, 0], [1005, 150], [1025, 850], [1060, 1000]],
+    high: [[940, 0], [995, 200], [1035, 900], [1060, 1000]]
   });
 });
 
@@ -449,5 +456,6 @@ test('applyForecastSeries deletes the transient PRESSURE_TREND', () => {
   applyForecastSeries(payload,
     { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid' }, null);
   assert.equal('PRESSURE_TREND' in payload, false);
-  assert.deepEqual(payload.SECONDARY_LINE_TREND_UINT8, [125, 129]);
+  // Mid curve core (35pm per hPa): 1010 -> 325pm (byte 81), 1011 -> 360pm (byte 90).
+  assert.deepEqual(payload.SECONDARY_LINE_TREND_UINT8, [81, 90]);
 });

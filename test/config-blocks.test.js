@@ -774,8 +774,8 @@ test('recommend resolvers: country-matched weather + radar providers (DE→dwd, 
 });
 
 test('preview bands match forecast-series (no drift)', () => {
-  const { PRESSURE_SCALE_HPA } = require('../src/pkjs/forecast-series');
-  assert.deepEqual(B.pressureBands, PRESSURE_SCALE_HPA);
+  const { PRESSURE_SCALE_CURVE_HPA } = require('../src/pkjs/forecast-series');
+  assert.deepEqual(B.pressureCurves, PRESSURE_SCALE_CURVE_HPA);
 });
 
 // The sample scenario's slot 4 is 984 hPa, below the 'low' band's 990 floor (a real
@@ -813,13 +813,17 @@ test('pressure main metric renders a line inside the plot, not pinned to the top
     { color: true });
   assert.ok(svg.includes('#FF5500'), 'pressure line uses the orange stroke');
   assert.ok(svg.includes('Pressure'), 'legend labels the series');
-  // Samples span 1002..1016 hPa inside the 980..1040 mid band, so every vertex must
-  // sit strictly between the plot top (4) and the baseline (100).
-  const ys = [...svg.matchAll(/[ML](\d+(?:\.\d+)?),(\d+(?:\.\d+)?)/g)].map((m) => Number(m[2]));
+  // The self-centring 20 hPa mid window (sample centre 1000 -> band 990..1010) clamps
+  // the stormy sample's extremes at both edges, but the readings in between must land
+  // strictly inside the plot: read EVERY coordinate pair of the pressure path (the old
+  // M/L-only extraction saw just the path start, which legitimately clamps now).
+  const path = [...svg.matchAll(/<path d="([^"]+)"[^>]*stroke="#FF5500"/g)].map((m) => m[1]).join(' ');
+  const ys = [...path.matchAll(/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g)].map((m) => Number(m[2]));
+  assert.ok(ys.length > 0, 'pressure path has vertices');
   assert.ok(ys.some((y) => y > 10 && y < 99), 'at least one vertex sits inside the plot');
 });
 
-test('a narrower band pushes the pressure line higher than a wider one', () => {
+test('each pressure curve places the same reading at its own pinned height', () => {
   const yFor = (pressureScale) => {
     const svg = B.forecastPreview(
       { dayNightShading: false, barSource: 'off', secondaryLine: 'pressure',
@@ -827,12 +831,14 @@ test('a narrower band pushes the pressure line higher than a wider one', () => {
       { color: true });
     return Number([...svg.matchAll(/M(\d+(?:\.\d+)?),(\d+(?:\.\d+)?)/g)][0][2]);
   };
-  // Exact y, not just an ordering check: an ordering-only assertion (low < high) also
-  // passes under a wrong formula -- e.g. one that ignores the band's non-zero floor and
-  // scales v/max from a zero baseline -- because a wider band still reads lower than a
-  // narrower one under that formula too, for this same sample value. First sample point
-  // is 1016 hPa (slot 0, untouched by the below-floor slot 4 added for the dots test
-  // above); PT=4, PB=100, so y = 100 - (1016-min)/(max-min)*93.
-  assert.equal(yFor('low'), 39.55);    // (1016-990)/40 * 93 = 60.45 → y = 39.55
-  assert.equal(yFor('high'), 42.13333333333333); // (1016-960)/90 * 93 ≈ 57.8667 → y ≈ 42.1333
+  // Exact y, not just an ordering check, so a wrong formula can't slip through. First
+  // sample point is 1016 hPa: inside every curve's span, so nothing clamps — each
+  // curve just places it differently. low: past its 1010..1020 core start -> 570pm.
+  // mid: 11 hPa into the 1005..1025 core at 35pm/hPa -> 535pm. high: 21 hPa into the
+  // 995..1035 core at 17.5pm/hPa -> 567.5 -> 568pm. y = 100 - pm/1000 * 93; PT=4,
+  // PB=100. (The narrowest curve reads highest for a core-upper value; the wide
+  // curve's y for THIS value happens to land between them — curve geometry, not a bug.)
+  assert.equal(yFor('low'), 46.99);
+  assert.equal(yFor('mid'), 50.245);
+  assert.equal(yFor('high'), 47.176);
 });

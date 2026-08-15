@@ -63,15 +63,32 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ]
     };
 
-    // Mirrors forecast-series.PRESSURE_SCALE_HPA; a drift test keeps them equal.
-    // Duplicated rather than imported because blocks.js is bundled into the config
-    // page, which has no access to the watch modules (same reason windMax below
-    // restates WIND_SCALE_KMH).
-    var PRESSURE_BANDS = {
-        low:  { min: 990, max: 1030 },
-        mid:  { min: 980, max: 1040 },
-        high: { min: 960, max: 1050 }
+    // Mirrors forecast-series.PRESSURE_SCALE_CURVE_HPA (+ curvePermille); a drift
+    // test keeps the curves equal. Duplicated rather than imported because blocks.js
+    // is bundled into the config page, which has no access to the watch modules
+    // (same reason windMax below restates WIND_SCALE_KMH).
+    var PRESSURE_CURVES = {
+        low:  [[940, 0], [1010, 150], [1020, 850], [1060, 1000]],
+        mid:  [[940, 0], [1005, 150], [1025, 850], [1060, 1000]],
+        high: [[940, 0], [995, 200], [1035, 900], [1060, 1000]]
     };
+    /**
+     * Piecewise-linear interpolation over [x, y] breakpoints, clamped at both ends —
+     * the pressurePermille mapping, mirrored.
+     * @param {number} v Input value.
+     * @param {Array.<Array.<number>>} pts Breakpoints, ascending in x.
+     * @returns {number} Interpolated y (permille), rounded.
+     */
+    function pressureCurvePermille(v, pts) {
+        if (v <= pts[0][0]) { return pts[0][1]; }
+        for (var i = 1; i < pts.length; i += 1) {
+            if (v <= pts[i][0]) {
+                var x0 = pts[i - 1][0], y0 = pts[i - 1][1];
+                return Math.round(y0 + (v - x0) * (pts[i][1] - y0) / (pts[i][0] - x0));
+            }
+        }
+        return pts[pts.length - 1][1];
+    }
 
     // Port of rain-tier.rainPermille (and its helpers). The watch builds bar heights with this
     // exact curve; the webview can't require() rain-tier, so it is mirrored here and guarded by
@@ -263,7 +280,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var bw = 9;                                  // rain-bar / dot width
 
         var windMax = state.windScale === 'low' ? 30 : (state.windScale === 'high' ? 70 : 50);
-        var pBand = PRESSURE_BANDS[state.pressureScale] || PRESSURE_BANDS.mid;
+        var pCurve = PRESSURE_CURVES[state.pressureScale] || PRESSURE_CURVES.mid;
         // metric -> { sample series, full-scale max, fill? }. Color resolves per render.
         // Only pressure sets `min` (a non-zero floor); every other metric defaults to 0.
         var METRIC = {
@@ -271,7 +288,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             wind: { vals: wind, max: windMax },
             gust: { vals: gust, max: windMax },
             uv: { vals: uv, max: 11 },
-            pressure: { vals: pressure, min: pBand.min, max: pBand.max }
+            pressure: { vals: pressure, curve: pCurve }
         };
         /**
          * Per-metric stroke/dot color. White on B&W (series told apart by width/pattern). A
@@ -346,13 +363,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         function metricPoints(metric) {
             var m = METRIC[metric];
             if (!m) { return null; }
-            var min = m.min || 0;                 // only pressure has a non-zero floor
-            var span = m.max - min;
             var pts = [];
             for (var i = 0; i < m.vals.length; i += 1) {
-                var v = Math.min(m.vals[i], m.max);
-                if (v < min) { v = min; }
-                pts.push([tickX(i), PB - (v - min) / span * (PB - PT - 3)]);  // v == min lands on the baseline
+                var pm;
+                if (m.curve) {
+                    // Pressure: the piecewise absolute curve (mirrors pressurePermille).
+                    pm = pressureCurvePermille(m.vals[i], m.curve) / 1000;
+                } else {
+                    var v = Math.min(m.vals[i], m.max);
+                    if (v < 0) { v = 0; }
+                    pm = v / m.max;
+                }
+                pts.push([tickX(i), PB - pm * (PB - PT - 3)]);
             }
             return pts.length >= 2 ? pts : null;
         }
@@ -408,14 +430,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (!m) { return ''; }
             var col = metricColor(metric);
             var dh = (isColor && col === ink.fg) ? 3 : 4, out = '';
-            var min = m.min || 0;
-            var span = m.max - min;
-            var hasFloor = Boolean(m.min);   // only pressure sets a non-zero min
             for (var i = 0; i < n - 1; i += 1) {
-                var v = Math.min(m.vals[i], m.max);
-                if (!hasFloor && v <= min) { continue; }  // zero-based metric: genuine zero, skip
-                if (v < min) { v = min; }                  // floor-clamped metric: pin to the baseline
-                var cy = PB - (v - min) / span * (PB - PT - 3);
+                var pm;
+                if (m.curve) {
+                    // Pressure: the piecewise absolute curve draws EVERY reading (a
+                    // deep low is real data, never a skippable zero).
+                    pm = pressureCurvePermille(m.vals[i], m.curve) / 1000;
+                } else {
+                    var v = Math.min(m.vals[i], m.max);
+                    if (v <= 0) { continue; }   // zero-based metric: genuine zero, skip
+                    pm = v / m.max;
+                }
+                var cy = PB - pm * (PB - PT - 3);
                 out += rect(gapCenter(i) - bw / 2, cy - dh / 2, bw, dh, col);
             }
             return out;
@@ -1318,7 +1344,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             presetContents: presetContents, contentBands: contentBands,
             resolveBandHeights: resolveBandHeights,
             barPermille: barPermille, previewPaletteFallback: FALLBACK_PALETTE,
-            pressureBands: PRESSURE_BANDS,
+            pressureCurves: PRESSURE_CURVES,
             tomorrowioBudgetBlock: tomorrowioBudgetBlock,
             thresholdRangeCfg: thresholdRangeCfg
         };
