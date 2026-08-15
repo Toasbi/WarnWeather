@@ -133,7 +133,15 @@ const STATUS_SEGMENTS = [
     clay: { layoutPreset: 'compactCal', theme: 'dark', timeFont: 'roboto', radarProvider: 'disabled', healthMode: 'status',
       rainBarColor: 'solid',
       statusForecastLeft: 'temp', statusForecastMid: 'wind', statusForecastRight: 'gust',
-      statusTopLeft: 'steps', statusTopMid: 'empty', statusTopRight: 'sleep' },
+      statusTopLeft: 'steps', statusTopMid: 'empty', statusTopRight: 'sleep',
+      // Threshold showcase (mirrors showcase scene 2): berlin's current wind is
+      // 20 km/h and gusts 34, so wind crosses warn (outlined orange) and gust
+      // crosses danger (filled red). Same stored formats as the settings page
+      // (string values, '#RRGGBB'). Aplite keeps its plain frame.
+      threshWindOn: true, threshWindWarn: '15', threshWindDanger: '40',
+      threshWindWarnOutlineOn: true, threshWindWarnColor: '#FFAA00',
+      threshGustOn: true, threshGustWarn: '20', threshGustDanger: '30',
+      threshGustDangerColor: '#FF0000' },
     // emery has the HR sensor; aplite has no health at all -> weather-only top strip.
     variants: {
       emery:  { statusTopRight: 'hr' },
@@ -145,7 +153,10 @@ const STATUS_SEGMENTS = [
     clay: { layoutPreset: 'compactCal', theme: 'dark', timeFont: 'roboto', radarProvider: 'dwd', healthMode: 'status',
       rainBarColor: 'solid', btIcons: 'connected',
       statusForecastLeft: 'pollen', statusForecastMid: 'city', statusForecastRight: 'aqi',
-      statusTopLeft: 'empty', statusTopRight: 'sleep' },
+      statusTopLeft: 'empty', statusTopRight: 'sleep',
+      // All-bold showcase (mirrors showcase scene 3): the chapter's third frame
+      // shows every slot value bold via the Bold values master.
+      statusBoldAll: 'all' },
     pollen: POLLEN_BAKED,
     variants: {
       emery:  { statusTopRight: 'hr' },
