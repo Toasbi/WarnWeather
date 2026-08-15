@@ -18,7 +18,7 @@ test('real schema hydrates the HR-aware status-slot default set', () => {
   assert.equal(emery.statusForecastLeft, 'temp');
   assert.equal(emery.statusForecastMid, 'city');
   assert.equal(emery.statusForecastRight, 'aqi');
-  assert.equal(emery.statusRadarLeft, 'temp');
+  assert.equal(emery.statusRadarLeft, 'uv');
   assert.equal(emery.statusRadarMid, 'wind');
   assert.equal(emery.statusRadarRight, 'gust');
   assert.equal(emery.statusTopLeft, 'week');

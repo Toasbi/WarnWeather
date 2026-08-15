@@ -59,7 +59,7 @@
       defaults: { statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'aqi' } },
     { id: 'radar', wireKey: 'STATUS_LINE_2_UINT8',
       slots: ['statusRadarLeft', 'statusRadarMid', 'statusRadarRight'],
-      defaults: { statusRadarLeft: 'temp', statusRadarMid: 'wind', statusRadarRight: 'gust' } },
+      defaults: { statusRadarLeft: 'uv', statusRadarMid: 'wind', statusRadarRight: 'gust' } },
     { id: 'top', wireKey: 'STATUS_LINE_3_UINT8',
       slots: ['statusTopLeft', 'statusTopMid', 'statusTopRight'],
       defaults: { statusTopLeft: 'week', statusTopMid: 'date', statusTopRight: 'sun' } },

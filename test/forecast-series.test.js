@@ -152,17 +152,22 @@ test('applyForecastSeries clears a stale THIRD_LINE_COLOR when the third line tu
   assert.equal('THIRD_LINE_COLOR' in out, false);
 });
 
-test('needsUv: true iff uv is on either line', () => {
+test('needsUv: line selections; radar-left defaults to uv', () => {
   assert.equal(needsUv({ secondaryLine: 'uv', thirdLine: 'off' }), true);
   assert.equal(needsUv({ secondaryLine: 'wind', thirdLine: 'uv' }), true);
-  assert.equal(needsUv({ secondaryLine: 'wind', thirdLine: 'gust' }), false);
+  assert.equal(needsUv({ secondaryLine: 'wind', thirdLine: 'gust' }), true,
+    'radar-left now defaults to uv');
+  assert.equal(needsUv({ secondaryLine: 'wind', thirdLine: 'gust',
+                         statusRadarLeft: 'temp' }), false,
+    'no line or slot selects uv');
   assert.equal(needsUv(null), false);
 });
 
 test('needsUv is true when any status slot selects uv', () => {
-  assert.equal(needsUv({ secondaryLine: 'wind', thirdLine: 'off' }), false);
   assert.equal(needsUv({ secondaryLine: 'wind', thirdLine: 'off',
-                         statusTopLeft: 'uv' }), true);
+                         statusRadarLeft: 'temp' }), false);
+  assert.equal(needsUv({ secondaryLine: 'wind', thirdLine: 'off',
+                         statusRadarLeft: 'temp', statusTopLeft: 'uv' }), true);
   assert.equal(needsUv({ secondaryLine: 'uv', thirdLine: 'off' }), true);
 });
 

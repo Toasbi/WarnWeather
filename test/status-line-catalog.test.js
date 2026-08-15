@@ -23,7 +23,7 @@ test('defaults + hrDefaults are the shipped status-bar set', () => {
   assert.deepEqual(catalog.LINES[0].defaults,
     { statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'aqi' });
   assert.deepEqual(catalog.LINES[1].defaults,
-    { statusRadarLeft: 'temp', statusRadarMid: 'wind', statusRadarRight: 'gust' });
+    { statusRadarLeft: 'uv', statusRadarMid: 'wind', statusRadarRight: 'gust' });
   assert.deepEqual(catalog.LINES[2].defaults,
     { statusTopLeft: 'week', statusTopMid: 'date', statusTopRight: 'sun' });
   assert.deepEqual(catalog.LINES[3].defaults,
