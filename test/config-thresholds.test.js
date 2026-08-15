@@ -215,13 +215,14 @@ test('scale max: override honored, garbage ignored, always grows to fit stored v
 });
 
 test('resolver colors: auto tracks the theme fg, picks stick, garbage sanitized', () => {
-  // Unset = auto: theme fg (dark default → white, light → black).
+  // Unset WARN = no outline: the slider draws its warn pieces in the neutral gray
+  // (the zone still shows where warn spans). Unset DANGER = auto theme fg.
   const dflt = B.thresholdRangeCfg({}, ENV, { keyStem: 'Wind' });
-  assert.equal(dflt.warnColor, '#FFFFFF');
+  assert.equal(dflt.warnColor, '#8A8E97');
   assert.equal(dflt.dangerColor, '#FFFFFF');
   assert.equal(dflt.dangerText, '#20232A', 'white auto fill takes dark ink');
   const light = B.thresholdRangeCfg({ theme: 'light' }, ENV, { keyStem: 'Wind' });
-  assert.equal(light.warnColor, '#000000');
+  assert.equal(light.warnColor, '#8A8E97', 'no-outline neutral is theme-independent');
   assert.equal(light.dangerText, '#FFFFFF', 'black auto fill takes white ink');
   // User picks — the old orange/red defaults included — are ordinary colors now.
   const picked = B.thresholdRangeCfg(
@@ -231,7 +232,8 @@ test('resolver colors: auto tracks the theme fg, picks stick, garbage sanitized'
   assert.equal(picked.dangerText, '#20232A', 'light fill takes dark ink');
   const orange = B.thresholdRangeCfg({ threshWindWarnColor: '#FFAA00' }, ENV, { keyStem: 'Wind' });
   assert.equal(orange.warnColor, '#FFAA00', 'orange is a pick, not auto');
-  // A hostile stored string must never reach the inline styles (normalizes to auto).
+  // A hostile stored string must never reach the inline styles (normalizes to auto
+  // -> theme fg; it is a non-empty value, so it does not read as "no outline").
   const evil = B.thresholdRangeCfg(
     { threshWindWarnColor: '"><script>x</script>' }, ENV, { keyStem: 'Wind' });
   assert.equal(evil.warnColor, '#FFFFFF');
@@ -298,17 +300,24 @@ test('onLoad derives auto colors from the theme; user picks survive', () => {
     });
     return S;
   }
-  // Fresh install, dark (default) theme: both colors land on white.
+  // Fresh install, dark (default) theme: DANGER lands on the theme fg; WARN stays
+  // blank — no outline is the warn default (bold text only) — and the derived
+  // outline toggle reads off.
   const dark = loaded({});
-  assert.equal(dark.threshAqiWarnColor, '#FFFFFF');
+  assert.equal(dark.threshAqiWarnColor, '');
+  assert.equal(dark.threshAqiWarnOutlineOn, false);
   assert.equal(dark.threshStepsDangerColor, '#FFFFFF');
-  // Light theme: black — and a STALE dark auto value re-derives on open.
+  // A STALE pre-outline-toggle auto value (theme fg) converts to blank — those
+  // installs get the new bold-only default; danger still re-derives per theme.
   const light = loaded({ theme: 'light', threshAqiWarnColor: '#FFFFFF' });
-  assert.equal(light.threshAqiWarnColor, '#000000');
+  assert.equal(light.threshAqiWarnColor, '');
+  assert.equal(light.threshAqiWarnOutlineOn, false);
   // A user pick is never touched — the contract's orange/red included (nobody
-  // shipped with them as page defaults, so they are ordinary picks).
+  // shipped with them as page defaults, so they are ordinary picks) — and it means
+  // the outline toggle reads ON.
   const custom = loaded({ theme: 'light', threshAqiWarnColor: '#00AAFF' });
   assert.equal(custom.threshAqiWarnColor, '#00AAFF');
+  assert.equal(custom.threshAqiWarnOutlineOn, true);
   const orange = loaded({ threshAqiWarnColor: '#FFAA00', threshAqiDangerColor: '#FF0000' });
   assert.equal(orange.threshAqiWarnColor, '#FFAA00');
   assert.equal(orange.threshAqiDangerColor, '#FF0000');
@@ -517,7 +526,8 @@ test('the reset button restores seeds, default colors, and clears the scale max'
   page.modal.dispatch('click', { target: t });
   assert.equal(page.S.threshAqiWarn, '100', 'warn back to its seed');
   assert.equal(page.S.threshAqiDanger, '150', 'danger back to its seed');
-  assert.equal(page.S.threshAqiWarnColor, '#FFFFFF', 'warn color back to the auto theme fg');
+  assert.equal(page.S.threshAqiWarnColor, '', 'warn back to no outline (bold only)');
+  assert.equal(page.S.threshAqiWarnOutlineOn, false, 'outline toggle back off');
   assert.equal(page.S.threshAqiDangerColor, '#FFFFFF', 'danger color back to the auto theme fg');
   assert.equal(page.S.threshAqiMax, '', 'scale-max override cleared');
   assert.ok(page.modal.writes > writesBefore, 'the reset re-rendered the sheet');
@@ -598,8 +608,8 @@ test('thresholdPenState honors its env gate and the color pickers', () => {
   const S = { statusForecastRight: 'aqi', threshAqiWarn: '50', threshAqiDanger: '100' };
   const args = { messageKey: 'statusForecastRight' };
   assert.equal(resolver(S, { thresholds: false }, args), null, 'gated off without env.thresholds');
-  assert.deepEqual(resolver(S, ENV, args), { warnColor: '#FFFFFF', dangerColor: '#FFFFFF' },
-    'auto colors resolve to the theme fg');
+  assert.deepEqual(resolver(S, ENV, args), { warnColor: '#8A8E97', dangerColor: '#FFFFFF' },
+    'no-outline warn shows the neutral ring; auto danger resolves to the theme fg');
   const picked = Object.assign({}, S, { threshAqiWarnColor: '#00AAFF', threshAqiDangerColor: '#5500FF' });
   assert.deepEqual(resolver(picked, ENV, args), { warnColor: '#00AAFF', dangerColor: '#5500FF' });
   assert.equal(resolver(Object.assign({}, S, { threshAqiDanger: '' }), ENV, args), null,

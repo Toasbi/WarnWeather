@@ -25,7 +25,7 @@ const THRESH_STEMS = ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distan
 const threshKeys = (suffixes) => THRESH_STEMS.reduce((acc, stem) =>
   acc.concat(suffixes.map((suffix) => 'thresh' + stem + suffix)), []);
 const THRESH_COLOR_KEYS = threshKeys(['WarnColor', 'DangerColor']);
-const THRESH_KEYS = threshKeys(['On', 'Warn', 'Danger', 'Max']).concat(THRESH_COLOR_KEYS);
+const THRESH_KEYS = threshKeys(['On', 'WarnOutlineOn', 'Warn', 'Danger', 'Max']).concat(THRESH_COLOR_KEYS);
 
 const EXPECTED_KEYS = [
   'theme',
@@ -934,10 +934,12 @@ test('Watch tab opens with a general status-bar intro, then the four bars in for
     'four status bars grouped at the top of the Watch tab in order');
   // The threshold edit sheets (sheetOnly, opened from a slot's pencil — never cards)
   // sit between the bars and Time in the sections array (see thresholdSection).
+  // The below-is-worse health kinds read as GOALS you fall short of (contract
+  // belowIsWorse drives the wording), the weather kinds stay thresholds.
   assert.deepEqual(titles.slice(4, 11),
     ['Air quality (AQI) thresholds', 'Pollen thresholds', 'Wind speed thresholds',
-      'Wind gusts thresholds', 'Steps thresholds', 'Sleep thresholds',
-      'Walked distance thresholds'],
+      'Wind gusts thresholds', 'Steps goal', 'Sleep goal',
+      'Walked distance goal'],
     'threshold edit sheets follow the four status bars, in kind order');
   // Time and Calendar keep their spots below.
   assert.deepEqual(titles.slice(11), ['Time', 'Calendar'], 'Time then Calendar come last');

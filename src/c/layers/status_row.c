@@ -658,6 +658,16 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
                                        content_h, texts[i]);
         GColor accent = highlight_color(&slots[i], levels[i]);
         accents[i] = accent;
+        // WARN with the 0x00 no-outline sentinel (the default — see
+        // status_threshold.h): the bold text IS the highlight; draw no box. The
+        // sentinel is read from the blob directly (not highlight_color, which
+        // theme-picks a drawable color) so B/W builds honor it too.
+        if (levels[i] == THRESH_LEVEL_WARN
+            && status_threshold_color8(s_thresh_scratch, (size_t)s_thresh_len,
+                   status_threshold_kind_for_slot(slots[i].kind, slots[i].icon),
+                   levels[i]) == 0) {
+            continue;
+        }
         if (levels[i] == THRESH_LEVEL_DANGER) {
             graphics_context_set_fill_color(ctx, accent);
             graphics_fill_rect(ctx, box, 2, GCornersAll);

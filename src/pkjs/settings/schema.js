@@ -105,11 +105,17 @@ var HEALTH_SLOT_WHEN = {all: [{env: 'health'}, {key: 'healthMode', ne: 'off'}]};
 // trigger, so the sheet is unreachable there too. Platform fact lives in
 // config-ui/lib/platform.js.
 var THRESHOLD_WHEN = {env: 'thresholds'};
-// Shared intro line at the top of every threshold edit sheet (the sheets are the only
-// place thresholds are explained now that the Watch-tab card is gone).
+// Shared intro lines at the top of every threshold edit sheet (the sheets are the only
+// place thresholds are explained now that the Watch-tab card is gone). Two voices: the
+// weather kinds cross THRESHOLDS upward; the health kinds fall short of GOALS
+// (belowIsWorse in the contract) — same machinery, friendlier words. Both state the
+// always-bold rule: warn = bold text (outline only if enabled below), danger = filled.
 var THRESHOLD_SHEET_INTRO = 'Highlight this value in its status slot: crossing the ' +
-    'warn threshold draws an outline around the slot; crossing the danger threshold ' +
-    'fills it.';
+    'warn threshold shows it in bold; crossing the danger threshold also fills the ' +
+    'slot. The warn outline is optional — enable it below.';
+var GOAL_SHEET_INTRO = 'Highlight this value in its status slot: falling short of ' +
+    'the warn goal shows it in bold; falling to the danger goal also fills the ' +
+    'slot. The warn outline is optional — enable it below.';
 // One threshold-highlight edit sheet (sheetOnly — opened from a status slot's pencil,
 // never rendered as a card): a "Highlight this value" toggle, a zoned dual-thumb
 // slider for the warn/danger pair, and the two color pickers. Values live in the
@@ -130,6 +136,10 @@ var THRESHOLD_SHEET_INTRO = 'Highlight this value in its status slot: crossing t
  */
 function thresholdSection(title, keyStem, hint, gate) {
     var onKey = 'thresh' + keyStem + 'On';
+    // The below-is-worse kinds (steps/sleep/distance) read as GOALS you fall short
+    // of, not thresholds you cross — derived from the contract so the wording can
+    // never disagree with the packing direction.
+    var goal = STATUS_THRESHOLDS.belowIsWorse(keyStem);
     // While the highlight is OFF the slider + colors stay VISIBLE but disabled
     // (muted, inert — the sheet shows what turning it on offers; the blank pair
     // renders the kind's seeds). The toggle itself is derived state (recomputed
@@ -152,7 +162,7 @@ function thresholdSection(title, keyStem, hint, gate) {
         messageKey: 'thresh' + keyStem + 'Warn',
         dangerKey: 'thresh' + keyStem + 'Danger',
         maxKey: 'thresh' + keyStem + 'Max',
-        label: 'Thresholds',
+        label: goal ? 'Goals' : 'Thresholds',
         // Reverts pair + colors + scale max to the kind's defaults (blocks.js action).
         labelAction: {action: 'resetThresholds', arg: keyStem, label: 'Reset to defaults'},
         defaultValue: '',
@@ -169,11 +179,11 @@ function thresholdSection(title, keyStem, hint, gate) {
         // is empty (belt-and-braces behind the resolver's env gate), so the per-item
         // `gate`/color rules below only ever decide visibility among watches that CAN.
         showWhen: THRESHOLD_WHEN,
-        title: title + ' thresholds',
+        title: title + (goal ? ' goal' : ' thresholds'),
         // The master toggle renders in the sheet's title row (renderEditModal), not
         // as a body row — the body holds only the rows it gates.
         headerToggleKey: onKey,
-        intro: THRESHOLD_SHEET_INTRO,
+        intro: goal ? GOAL_SHEET_INTRO : THRESHOLD_SHEET_INTRO,
         items: [toggle, range, {
             // Companion storage for the slider's second thumb and its editable scale
             // max: hydrated + serialized but never drawn (the range row renders both).
@@ -185,17 +195,38 @@ function thresholdSection(title, keyStem, hint, gate) {
             messageKey: 'thresh' + keyStem + 'Max',
             defaultValue: ''
         }, {
-            // Colors hydrate UNSET (auto): onLoad derives the theme's text color on
-            // every open (blocks.js thresholdAutoColor), so the pickers/zones/knobs
-            // always show a concrete color — the contract's DEFAULT_*_COLOR ints are
-            // only the pack-time fallback for settings that never saw this page.
+            // Warn is ALWAYS bold when crossed; the outline is the opt-in extra. The
+            // toggle is derived state (recomputed each open from whether a warn color
+            // is stored — onbuild.js) and writes the color through the
+            // thresholdOutlineToggle hook: ON seeds the theme fg, OFF blanks it, and a
+            // blank warn color is the wire's no-outline sentinel. Shown on B&W too —
+            // outline vs no outline is meaningful without color choice.
+            type: 'toggle',
+            messageKey: 'thresh' + keyStem + 'WarnOutlineOn',
+            label: 'Warn outline',
+            hint: 'The warn value is always bold; this adds a box around the slot.',
+            defaultValue: false,
+            joinPrevious: true,
+            onChange: 'thresholdOutlineToggle',
+            showWhen: gate || undefined,
+            disabledWhen: offWhen
+        }, {
+            // Colors hydrate UNSET: the DANGER color auto-tracks the theme fg until
+            // customized (onLoad, blocks.js thresholdAutoColor); the WARN color exists
+            // only while the outline toggle above is on. The contract's
+            // DEFAULT_*_COLOR ints are only the pack-time fallback for settings that
+            // never saw this page.
             type: 'color',
             messageKey: 'thresh' + keyStem + 'WarnColor',
-            label: 'Warn color',
+            label: 'Warn outline color',
             defaultValue: '',
             joinPrevious: true,
             capabilities: ['COLOR'],
-            showWhen: colorWhen,
+            showWhen: gate
+                ? {all: [gate, {key: 'theme', nin: ['bw', 'bw-light']},
+                         {key: 'thresh' + keyStem + 'WarnOutlineOn'}]}
+                : {all: [{key: 'theme', nin: ['bw', 'bw-light']},
+                         {key: 'thresh' + keyStem + 'WarnOutlineOn'}]},
             disabledWhen: offWhen
         }, {
             type: 'color',

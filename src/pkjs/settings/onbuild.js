@@ -34,9 +34,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             ctx.set('thresh' + kind.key + 'On', warn !== null && danger !== null
                 && (kind.belowIsWorse ? danger <= warn : danger >= warn));
             if (auto) {
-                if (auto.isAuto(ctx.get('thresh' + kind.key + 'WarnColor'))) {
-                    ctx.set('thresh' + kind.key + 'WarnColor', fg);
+                // WARN: the default is NO outline (bold text only) — an unset color
+                // stays '' and a legacy auto-fg value (the pre-outline-toggle default)
+                // is converted back to '', so those installs get the new bold-only
+                // look. Only a user-picked color survives, and it means "outline on".
+                var rawWarn = ctx.get('thresh' + kind.key + 'WarnColor');
+                if (auto.isAuto(rawWarn)) {
+                    ctx.set('thresh' + kind.key + 'WarnColor', '');
+                    rawWarn = '';
                 }
+                ctx.set('thresh' + kind.key + 'WarnOutlineOn',
+                        rawWarn !== '' && rawWarn !== null && typeof rawWarn !== 'undefined');
                 if (auto.isAuto(ctx.get('thresh' + kind.key + 'DangerColor'))) {
                     ctx.set('thresh' + kind.key + 'DangerColor', fg);
                 }

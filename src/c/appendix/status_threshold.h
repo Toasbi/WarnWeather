@@ -21,7 +21,9 @@
 //    phone-side (the watch has no raw ints for AQI/pollen/wind/gust).
 //  - CLAY_THRESHOLDS_UINT8 (Clay message, THRESH_SETTINGS_BYTES):
 //      [0]              enabled bitmask (bit k = kind k enabled)
-//      [1 + 2k]         warn color,   GColor8 byte, k = 0..6
+//      [1 + 2k]         warn color,   GColor8 byte, k = 0..6 — 0x00 (alpha 00,
+//                       impossible for an opaque GColor8) = NO OUTLINE: warn
+//                       renders as bold text only, the shipping default
 //      [2 + 2k]         danger color, GColor8 byte, k = 0..6
 //      [15 + 4h + 0..1] warn threshold,   LE uint16, h = kind - THRESH_STEPS
 //      [15 + 4h + 2..3] danger threshold, LE uint16

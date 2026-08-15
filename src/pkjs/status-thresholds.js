@@ -95,12 +95,16 @@
     var danger = parseThreshold(settings && settings['thresh' + k.key + 'Danger']);
     var ordered = warn !== null && danger !== null
       && (k.belowIsWorse ? danger <= warn : danger >= warn);
+    // warnColor null = NO OUTLINE (the default): warn renders as bold text only,
+    // and the blob carries the 0x00 none-sentinel. Only an explicitly stored color
+    // (the sheet's "Warn outline" toggle seeds one) draws the warn box.
+    var rawWarn = settings && settings['thresh' + k.key + 'WarnColor'];
     return {
       enabled: ordered,
       warn: warn,
       danger: danger,
-      warnColor: colorInt(settings && settings['thresh' + k.key + 'WarnColor'],
-                          DEFAULT_WARN_COLOR),
+      warnColor: (rawWarn === '' || rawWarn === null || typeof rawWarn === 'undefined')
+        ? null : colorInt(rawWarn, DEFAULT_WARN_COLOR),
       dangerColor: colorInt(settings && settings['thresh' + k.key + 'DangerColor'],
                             DEFAULT_DANGER_COLOR)
     };
@@ -223,7 +227,8 @@
     for (var k = 0; k < KINDS.length; k++) {
       var cfg = kindConfig(settings, k);
       if (cfg.enabled) { blob[0] |= (1 << k); }
-      blob[COLORS_OFFSET + 2 * k] = rainTier.rgbToGColor8(cfg.warnColor);
+      blob[COLORS_OFFSET + 2 * k] = cfg.warnColor === null
+        ? 0 : rainTier.rgbToGColor8(cfg.warnColor);   // 0x00 = no-outline sentinel
       blob[COLORS_OFFSET + 2 * k + 1] = rainTier.rgbToGColor8(cfg.dangerColor);
       if (k >= 4) {
         var off = HEALTH_OFFSET + 4 * (k - 4);

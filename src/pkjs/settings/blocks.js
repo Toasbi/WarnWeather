@@ -1117,7 +1117,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (warn !== null && warn > max) { max = ceilToStep(warn, base.step); }
             if (danger !== null && danger > max) { max = ceilToStep(danger, base.step); }
         }
-        var warnColor = thresholdDisplayColor(S, stem, 'Warn');
+        // A null warn color (no outline configured) draws the slider's warn pieces
+        // in a neutral gray: the zone still shows WHERE warn spans, while the copy +
+        // outline toggle make clear the watch renders bold text only there.
+        var warnDisplay = thresholdDisplayColor(S, stem, 'Warn');
+        var warnColor = warnDisplay === null ? '#8A8E97' : warnDisplay;
         var dangerColor = thresholdDisplayColor(S, stem, 'Danger');
         return {
             min: base.min, max: max, step: base.step, minSpan: base.step,
@@ -1157,6 +1161,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         S['thresh' + stem + 'Danger'] = String(cfg.seedDanger);
     });
 
+    // "Warn outline" toggle (thresh<K>WarnOutlineOn — derived state, recomputed on
+    // every page open from whether a warn color is stored; see onbuild.js): ON seeds
+    // the theme's text color so the outline is immediately visible and editable, OFF
+    // blanks the color — a blank warn color IS the no-outline wire state (the blob's
+    // 0x00 sentinel; the watch then renders warn as bold text only).
+    PConf.onChange.register('thresholdOutlineToggle', function (S, oldValue, newValue, env, key) {
+        var m = /^thresh([A-Za-z]+)WarnOutlineOn$/.exec(key || '');
+        if (!m) { return; }
+        S['thresh' + m[1] + 'WarnColor'] = newValue ? thresholdAutoFg(S.theme) : '';
+    });
+
     // "Auto" threshold colors: a color the user never customized tracks the THEME's
     // text color — outline-vs-fill already carries the warn/danger distinction, and
     // the fg color beats a fixed hue for contrast on the page and the watch
@@ -1194,6 +1209,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function thresholdDisplayColor(S, stem, which) {
         var raw = S['thresh' + stem + which + 'Color'];
+        // WARN: unset means NO OUTLINE (bold only) — report null so callers render
+        // their neutral no-outline state instead of a color.
+        if (which === 'Warn' && (raw === '' || raw === null || typeof raw === 'undefined')) {
+            return null;
+        }
         if (thresholdColorIsAuto(raw)) { return thresholdAutoFg(S.theme); }
         return colorHexOf(raw, 0x000000);
     }
@@ -1208,7 +1228,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!stem || !S || !THRESHOLD_RANGES[stem]) { return false; }
         var fg = thresholdAutoFg(S.theme);
         S['thresh' + stem + 'Max'] = '';
-        S['thresh' + stem + 'WarnColor'] = fg;
+        S['thresh' + stem + 'WarnColor'] = '';   // default = no outline (bold only)
+        S['thresh' + stem + 'WarnOutlineOn'] = false;
         S['thresh' + stem + 'DangerColor'] = fg;
         var cfg = thresholdRangeCfg(S, env, {keyStem: stem});
         S['thresh' + stem + 'Warn'] = String(cfg.seedWarn);
@@ -1228,8 +1249,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         for (var i = 0; i < contract.KINDS.length; i++) {
             if (contract.KINDS[i].code !== code) { continue; }
             if (!contract.kindConfig(S, i).enabled) { return null; }
+            var penWarn = thresholdDisplayColor(S, contract.KINDS[i].key, 'Warn');
             return {
-                warnColor: thresholdDisplayColor(S, contract.KINDS[i].key, 'Warn'),
+                // No warn outline configured -> neutral gray ring (the enabled badge
+                // still reads; the ring hue just carries no color meaning then).
+                warnColor: penWarn === null ? '#8A8E97' : penWarn,
                 dangerColor: thresholdDisplayColor(S, contract.KINDS[i].key, 'Danger')
             };
         }
@@ -1237,11 +1261,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     });
 
     // layoutPreset options resolver: compactDense is offered once EITHER health shows a
-    // status row (status/all) OR radar does (radarMode='status') — the radar-dense fold
-    // (bug #1/#2) needs compactDense reachable from radar alone, not just health.
+    // status row (status/all) OR radar shows ANY radar view (radarMode status OR graph —
+    // both build dense radar cycles since the CAL2_RF_D/CAL2_HR_D fold).
     PConf.optionsResolvers.register('layoutPresetOptions', function (S) {
         var base = [['Full calendar', 'fullCal'], ['Compact calendar', 'compactCal']];
-        var dense = (S.radarMode === 'status' || S.healthMode === 'status' || S.healthMode === 'all');
+        var dense = (S.radarMode === 'status' || S.radarMode === 'graph'
+            || S.healthMode === 'status' || S.healthMode === 'all');
         if (dense) { base.push(['Compact calendar (dense)', 'compactDense']); }
         base.push(['No calendar', 'noCal']);
         return base;

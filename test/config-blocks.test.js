@@ -108,7 +108,10 @@ test('layoutPresetOptions resolver: compactDense offered once health OR radar sh
   assert.ok(codes({ healthMode: 'status', radarMode: 'off' }).indexOf('compactDense') >= 0, 'health=status offers compactDense');
   assert.ok(codes({ healthMode: 'all', radarMode: 'off' }).indexOf('compactDense') >= 0, 'health=all offers compactDense');
   assert.ok(codes({ healthMode: 'off', radarMode: 'status' }).indexOf('compactDense') >= 0, 'radar=status offers compactDense');
-  assert.equal(codes({ healthMode: 'off', radarMode: 'graph' }).indexOf('compactDense'), -1, 'radar=graph alone does not');
+  // radar=graph builds dense radar cycles too (CAL2_RF_D default + CAL2_HR_D flick),
+  // so the option must be reachable from it — it was not, and that hid the preset
+  // for health-off + radar="Status + Graph" users (reported on-watch).
+  assert.ok(codes({ healthMode: 'off', radarMode: 'graph' }).indexOf('compactDense') >= 0, 'radar=graph offers compactDense');
 });
 
 test('blocks fallback palette equals buildPreviewPalette (no color drift)', () => {
