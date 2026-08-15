@@ -33,9 +33,14 @@
 //                       2 * (k & 3) — kinds 0..3 in byte 29, 4..7 in byte 30.
 //                       INDEPENDENT of the enabled bitmask: THRESH_BOLD_ALWAYS
 //                       bolds a slot whose kind has no thresholds configured.
-//    Widened 27 -> 29 bytes when UV became kind 7, 29 -> 31 for the bold modes;
-//    the length is validated EXACTLY, so a stale shorter blob reads as absent
-//    until the phone resends.
+//    Widened 27 -> 29 bytes when UV became kind 7, 29 -> 31 for the bold modes.
+//    Exactly two lengths are accepted: the current one and the pre-bold 29. The
+//    UV step SHIFTED the health offsets, so a 27-byte blob would be misread and
+//    is rejected; the bold step only APPENDS, so a 29-byte blob still describes
+//    every field before it and is read with the default bold mode. That matters
+//    on upgrade: the phone only force-resends its settings when the watch reports
+//    NO config at all, so rejecting the old length would blank an existing user's
+//    highlighting until they happened to open the settings page.
 //    Health threshold wire units: steps = steps, sleep = MINUTES,
 //    distance = 100 m units (the status row's own display resolution).
 
@@ -44,6 +49,9 @@
 #define THRESH_COLORS_OFFSET 1
 #define THRESH_HEALTH_OFFSET 17
 #define THRESH_BOLD_OFFSET 29
+// The blob length before the bold bytes were appended — still accepted, and by
+// construction equal to the offset the bold bytes start at.
+#define THRESH_SETTINGS_BYTES_PRE_BOLD THRESH_BOLD_OFFSET
 
 typedef enum {
     THRESH_AQI = 0,

@@ -68,7 +68,10 @@ int status_threshold_health_value(int kind, int steps, int sleep_seconds,
 }
 
 bool status_threshold_settings_validate(const uint8_t *blob, size_t len) {
-    return blob != NULL && len == THRESH_SETTINGS_BYTES;
+    // Two exact lengths, never a range: the pre-bold 29 is readable because the
+    // bold bytes were appended (see status_threshold.h).
+    return blob != NULL
+        && (len == THRESH_SETTINGS_BYTES || len == THRESH_SETTINGS_BYTES_PRE_BOLD);
 }
 
 bool status_threshold_enabled(const uint8_t *blob, size_t len, int kind) {
@@ -105,7 +108,10 @@ uint16_t status_threshold_health_danger(const uint8_t *blob, size_t len, int kin
 }
 
 int status_threshold_bold_mode(const uint8_t *blob, size_t len, int kind) {
+    // len is checked against the FULL length, not just validate(): a pre-bold
+    // blob has no bold bytes to read, and its kinds take the shipped default.
     if (!status_threshold_settings_validate(blob, len)
+        || len < THRESH_SETTINGS_BYTES
         || kind < 0 || kind >= THRESH_KIND_COUNT) { return THRESH_BOLD_WARN; }
     int mode = (blob[THRESH_BOLD_OFFSET + (kind >> 2)] >> (2 * (kind & 3))) & 3;
     return mode == 3 ? THRESH_BOLD_WARN : mode;   // 3 is reserved

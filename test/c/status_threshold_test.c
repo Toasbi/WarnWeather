@@ -151,6 +151,46 @@ static void bold_tests(void) {
     expect("bold.no_kind", status_threshold_is_bold(blob, n, -1, THRESH_LEVEL_DANGER), 0);
 }
 
+// A blob from before the bold bytes existed (29 B) must still work: the widening
+// only APPENDS, unlike the 27 -> 29 UV step which shifted the health offsets. If
+// this length were rejected, every upgrading watch would silently lose its
+// threshold highlighting until the phone happened to resend its settings — the
+// phone only force-resends when the watch reports NO config at all.
+static void legacy_blob_tests(void) {
+    uint8_t blob[THRESH_SETTINGS_BYTES];
+    memset(blob, 0, sizeof(blob));
+    blob[0] = (uint8_t)((1 << THRESH_AQI) | (1 << THRESH_STEPS));
+    blob[THRESH_COLORS_OFFSET + 2 * THRESH_AQI] = 0xE4;
+    blob[THRESH_COLORS_OFFSET + 2 * THRESH_AQI + 1] = 0xF0;
+    blob[THRESH_HEALTH_OFFSET] = 0x40;      // steps warn 8000 (LE)
+    blob[THRESH_HEALTH_OFFSET + 1] = 0x1F;
+    blob[THRESH_HEALTH_OFFSET + 2] = 0xA0;  // steps danger 4000 (LE)
+    blob[THRESH_HEALTH_OFFSET + 3] = 0x0F;
+    size_t legacy = THRESH_SETTINGS_BYTES_PRE_BOLD;
+
+    expect("legacy.valid", status_threshold_settings_validate(blob, legacy), 1);
+    expect("legacy.aqi_on", status_threshold_enabled(blob, legacy, THRESH_AQI), 1);
+    expect("legacy.wind_off", status_threshold_enabled(blob, legacy, THRESH_WIND), 0);
+    expect("legacy.warn_color",
+           status_threshold_color8(blob, legacy, THRESH_AQI, THRESH_LEVEL_WARN), 0xE4);
+    expect("legacy.danger_color",
+           status_threshold_color8(blob, legacy, THRESH_AQI, THRESH_LEVEL_DANGER), 0xF0);
+    expect("legacy.steps_warn", status_threshold_health_warn(blob, legacy, THRESH_STEPS), 8000);
+    expect("legacy.steps_danger", status_threshold_health_danger(blob, legacy, THRESH_STEPS), 4000);
+    // No bold bytes to read: every kind reports the shipped bold-from-warn ladder.
+    expect("legacy.bold_mode", status_threshold_bold_mode(blob, legacy, THRESH_WIND), THRESH_BOLD_WARN);
+    expect("legacy.bold_normal",
+           status_threshold_is_bold(blob, legacy, THRESH_WIND, THRESH_LEVEL_NORMAL), 0);
+    expect("legacy.bold_warn",
+           status_threshold_is_bold(blob, legacy, THRESH_WIND, THRESH_LEVEL_WARN), 1);
+    expect("legacy.bold_danger",
+           status_threshold_is_bold(blob, legacy, THRESH_WIND, THRESH_LEVEL_DANGER), 1);
+    // Only the two known lengths are accepted — no partial bold byte, no slack.
+    expect("legacy.reject_30", status_threshold_settings_validate(blob, legacy + 1), 0);
+    expect("legacy.reject_28", status_threshold_settings_validate(blob, legacy - 1), 0);
+    expect("legacy.reject_27", status_threshold_settings_validate(blob, 27), 0);
+}
+
 static void health_value_tests(void) {
     // Wire-unit conversion for the watch-side comparison (spec: "C-side:
     // threshold comparison for steps/sleep/distance against health values").
@@ -193,6 +233,7 @@ int main(void) {
     weather_byte_tests();
     blob_tests();
     bold_tests();
+    legacy_blob_tests();
     health_value_tests();
     if (s_failures) { printf("%d failure(s)\n", s_failures); return 1; }
     printf("status_threshold_test OK\n");
