@@ -53,3 +53,61 @@ test('a range row is stacked (full width), like text and radio', () => {
   const row = E.renderRow(ITEM, { value: '50-100' });
   assert.match(row, /class="row stack"/);
 });
+
+// --- threshold slider: the drag repaint must keep the kind's own vocabulary ---
+// Regression: paintThresholdRange() rebuilt the chip text from hardcoded
+// 'Warn'/'Danger' while the initial render used item.warnLabel/dangerLabel, so
+// the first drag on a GOAL kind flipped "Close 8000 / Goal 10000" to
+// "Warn 8000 / Danger 10000" and it never came back until a full re-render.
+
+const GOAL_ITEM = {
+  type: 'range', messageKey: 'threshStepsWarn', dangerKey: 'threshStepsDanger',
+  min: 0, max: 20000, step: 250, minSpan: 250, dir: 'above', unit: '',
+  seedWarn: 8000, seedDanger: 10000,
+  warnColor: '#55FF00', dangerColor: '#55FF00',
+  warnGlow: 'rgba(85,255,0,0.35)', dangerGlow: 'rgba(85,255,0,0.35)',
+  dangerText: '#20232A', warnLabel: 'Close', dangerLabel: 'Goal',
+  rangeFrom: { resolver: 'x' }
+};
+
+/** Minimal stand-in for the .rng element paintThresholdRange mutates. */
+function fakeRangeRoot() {
+  const el = () => ({ style: {}, attrs: {}, setAttribute(k, v) { this.attrs[k] = v; } });
+  const chips = [el(), el()];
+  const nodes = {
+    '[data-zone="warn"]': el(), '[data-zone="danger"]': el(),
+    '[data-range-thumb=lo]': el(), '[data-range-thumb=hi]': el()
+  };
+  return {
+    attrs: {}, chips, nodes,
+    setAttribute(k, v) { this.attrs[k] = v; },
+    querySelectorAll(sel) { return sel === '.rng-chip' ? chips : []; },
+    querySelector(sel) { return nodes[sel]; }
+  };
+}
+
+test('the drag repaint keeps the goal kind\'s Close/Goal chip wording', () => {
+  const root = fakeRangeRoot();
+  E.paintThresholdRange(root, GOAL_ITEM, { lo: 8000, hi: 10000 });
+  assert.equal(root.chips[0].textContent, 'Close 8000');
+  assert.equal(root.chips[1].textContent, 'Goal 10000');
+});
+
+test('the drag repaint keeps Warn/Danger for the weather kinds, with the unit', () => {
+  const root = fakeRangeRoot();
+  const windItem = Object.assign({}, GOAL_ITEM, {
+    unit: 'kph', warnLabel: 'Warn', dangerLabel: 'Danger'
+  });
+  E.paintThresholdRange(root, windItem, { lo: 40, hi: 60 });
+  assert.equal(root.chips[0].textContent, 'Warn 40 kph');
+  assert.equal(root.chips[1].textContent, 'Danger 60 kph');
+});
+
+test('the drag repaint agrees with the initial render, chip for chip', () => {
+  // The bug was a second, drifting copy of the chip wording — pin them together.
+  const root = fakeRangeRoot();
+  E.paintThresholdRange(root, GOAL_ITEM, { lo: 8000, hi: 10000 });
+  const html = E.renderControl(GOAL_ITEM, { value: '8000', dangerValue: '10000' });
+  assert.match(html, new RegExp('>' + root.chips[0].textContent + '<'));
+  assert.match(html, new RegExp('>' + root.chips[1].textContent + '<'));
+});

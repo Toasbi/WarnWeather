@@ -879,16 +879,31 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @returns {string} Chips row HTML.
    */
   function thresholdChipsHtml(item, r) {
-    var unit = item.unit ? ' ' + esc(item.unit) : '';
-    // Role wording rides the resolved range item: Warn/Danger for the weather
-    // kinds, Close/Goal for the celebratory goal kinds.
     return '<div class="rng-chips">'
       + '<span class="rng-chip warn" style="--th-c:' + esc(item.warnColor)
-      + '">' + esc(item.warnLabel || 'Warn') + ' ' + r.warn + unit + '</span>'
+      + '">' + esc(thresholdChipText(item, 'warn', r.warn)) + '</span>'
       + '<span class="rng-chip danger" style="--th-c:' + esc(item.dangerColor)
-      + ';--th-tx:' + esc(item.dangerText) + '">' + esc(item.dangerLabel || 'Danger')
-      + ' ' + r.danger + unit + '</span>'
+      + ';--th-tx:' + esc(item.dangerText) + '">'
+      + esc(thresholdChipText(item, 'danger', r.danger)) + '</span>'
       + '</div>';
+  }
+
+  /**
+   * One threshold chip's text. The SINGLE source of the chip wording: the
+   * initial render and the drag repaint both go through here, so they cannot
+   * drift (they did — the repaint hardcoded Warn/Danger and the first drag on a
+   * goal kind relabelled its Close/Goal chips).
+   * Role wording rides the resolved range item: Warn/Danger for the weather
+   * kinds, Close/Goal for the celebratory goal kinds.
+   * @param {Object} item Resolved range item (labels + unit).
+   * @param {string} which 'warn' | 'danger'.
+   * @param {number} value The value to show.
+   * @returns {string} Chip text, e.g. 'Close 8000' or 'Warn 40 kph'.
+   */
+  function thresholdChipText(item, which, value) {
+    var label = which === 'warn'
+      ? (item.warnLabel || 'Warn') : (item.dangerLabel || 'Danger');
+    return label + ' ' + value + (item.unit ? ' ' + item.unit : '');
   }
 
   /**
@@ -971,13 +986,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var loPct = ((r.lo - min) * 100) / span, hiPct = ((r.hi - min) * 100) / span;
     var below = item.dir === 'below';
     var warn = below ? r.hi : r.lo, danger = below ? r.lo : r.hi;
-    var unit = item.unit ? ' ' + item.unit : '';
     root.setAttribute('data-lo', r.lo);
     root.setAttribute('data-hi', r.hi);
     var chips = root.querySelectorAll('.rng-chip');
     if (chips.length === 2) {
-      chips[0].textContent = 'Warn ' + warn + unit;
-      chips[1].textContent = 'Danger ' + danger + unit;
+      chips[0].textContent = thresholdChipText(item, 'warn', warn);
+      chips[1].textContent = thresholdChipText(item, 'danger', danger);
     }
     var wz = root.querySelector('[data-zone="warn"]');
     var dz = root.querySelector('[data-zone="danger"]');
@@ -2352,6 +2366,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     parseRange: parseRange, formatRange: formatRange,
     snapToStep: snapToStep, moveThumb: moveThumb, renderRange: renderRange,
     thresholdValues: thresholdValues, resolveRangeItem: resolveRangeItem,
+    paintThresholdRange: paintThresholdRange,
     renderTabBar: renderTabBar, renderBody: renderBody, resolveOptionsFrom: resolveOptionsFrom,
     resolveDefaultFrom: resolveDefaultFrom,
     resolveTheme: resolveTheme
@@ -2375,6 +2390,7 @@ if (typeof module !== 'undefined' && module.exports) {
     renderRange: PConf.engine.renderRange,
     thresholdValues: PConf.engine.thresholdValues,
     resolveRangeItem: PConf.engine.resolveRangeItem,
+    paintThresholdRange: PConf.engine.paintThresholdRange,
     rangeResolvers: PConf.rangeResolvers, badgeResolvers: PConf.badgeResolvers,
     renderTabBar: PConf.engine.renderTabBar, renderBody: PConf.engine.renderBody,
     resolveOptionsFrom: PConf.engine.resolveOptionsFrom,
