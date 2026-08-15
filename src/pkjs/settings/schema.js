@@ -110,6 +110,13 @@ var HR_SLOT_WHEN = {all: HEALTH_SLOT_WHEN.all.concat([{env: 'hr'}])};
 // trigger, so the sheet is unreachable there too. Platform fact lives in
 // config-ui/lib/platform.js.
 var THRESHOLD_WHEN = {env: 'thresholds'};
+// "The Watch-tab master Bold row overrides every slot" — statusBoldAll 'all' packs
+// the bold cell of EVERY kind as always-bold at blob-build time
+// (status-thresholds.js buildSettingsBlob) WITHOUT touching the stored per-kind
+// thresh<Stem>BoldMode values, so the per-slot Bold rows go inert (disabledWhen —
+// muted, not hidden) rather than lying about being in charge; flipping the master
+// back to 'perSlot' restores their stored choices.
+var BOLD_ALL_WHEN = {key: 'statusBoldAll', eq: 'all'};
 // Shared intro lines at the top of every threshold edit sheet (the sheets are the only
 // place thresholds are explained now that the Watch-tab card is gone). Two voices: the
 // weather kinds cross THRESHOLDS upward; the health kinds fall short of GOALS
@@ -192,7 +199,9 @@ function thresholdSection(title, keyStem, hint, gate) {
     // monotone — danger is always bold, the middle option adds the warn/close
     // level, "Always" adds the normal zone too (status_threshold.h ThreshBold).
     // Goal kinds relabel the middle option only; the stored value stays 'warn' so
-    // the wire keeps one vocabulary.
+    // the wire keeps one vocabulary. The row stays live while the kind's
+    // thresholds are off ("Always" needs none); it mutes wholesale only under the
+    // Watch-tab master row (BOLD_ALL_WHEN), which overrides it at pack time.
     var bold = {
         type: 'segmented',
         messageKey: 'thresh' + keyStem + 'BoldMode',
@@ -200,6 +209,7 @@ function thresholdSection(title, keyStem, hint, gate) {
         hint: goal ? GOAL_BOLD_HINT : BOLD_HINT,
         defaultValue: 'warn',
         options: [['Off', 'off'], [goal ? 'Close' : 'Warn', 'warn'], ['Always', 'always']],
+        disabledWhen: BOLD_ALL_WHEN,
         optionDisabledWhen: {warn: {not: {key: onKey}}}
     };
     // The group header: title, reset-to-defaults, and the master on/off switch
@@ -327,6 +337,7 @@ function boldSection(title, keyStem, gate) {
             hint: 'Show this value in heavier text.',
             defaultValue: 'off',
             options: [['Off', 'off'], ['Always', 'always']],
+            disabledWhen: BOLD_ALL_WHEN,
             showWhen: gate || undefined
         }]
     };
@@ -879,7 +890,29 @@ module.exports = {
             // their own cards.
             groupCard: 'watchStatus',
             intro: 'Every view has its own status bar — one row with a left, middle, and right slot you can fill with weather, time, health, and more. Choose what each view shows below.',
-            items: []
+            items: [
+                // Master bold switch over EVERY slot kind. It lives in the card's
+                // title-less intro section — ABOVE the per-bar sub-headers — because
+                // it governs all bars, not just the forecast one: 'all' packs each
+                // kind's bold cell as always-bold when the threshold blob is built
+                // (status-thresholds.js) and leaves the stored per-kind modes
+                // untouched — the per-slot Bold rows mute via BOLD_ALL_WHEN
+                // meanwhile. A settings-store key only: it rides the packed blob,
+                // never an AppMessage key of its own. Same platform gate as the
+                // edit sheets — aplite compiles the bold machinery out.
+                {
+                    type: 'segmented',
+                    messageKey: 'statusBoldAll',
+                    label: 'Bold values',
+                    // "have", not "let": the ES5 guardrail (test/config-es5.test.js)
+                    // greps for \blet\s in shipped pkjs source and cannot tell a
+                    // string literal from a declaration.
+                    hint: 'Show every slot value in heavier text, or have each slot choose with its own Bold value setting.',
+                    defaultValue: 'perSlot',
+                    options: [['Per slot', 'perSlot'], ['All', 'all']],
+                    showWhen: THRESHOLD_WHEN
+                }
+            ]
         }, {
             groupCard: 'watchStatus',
             title: 'Forecast Status Bar',

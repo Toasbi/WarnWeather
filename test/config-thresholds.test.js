@@ -782,7 +782,7 @@ test('the real generated page: threshold pencils + sheet on basalt, nothing on a
   assert.equal(apliteWatch.indexOf('data-edit-sheet'), -1,
     'no threshold pencil on aplite (env.thresholds is false)');
   ['threshAqiOn', 'threshAqiWarn', 'threshWindOn', 'threshStepsOn',
-    'threshAqiWarnColor'].forEach((k) =>
+    'threshAqiWarnColor', 'statusBoldAll'].forEach((k) =>
     assert.equal(apliteWatch.indexOf('data-k="' + k + '"'), -1, k + ' absent on aplite'));
   assert.ok(apliteWatch.indexOf('data-k="timeLeadingZero"') !== -1,
     'the rest of the Watch tab still renders on aplite');
@@ -874,8 +874,10 @@ test('Bold sits above the group and is never gated by the master toggle', () => 
     assert.equal(bold.type, 'segmented');
     assert.equal(bold.label, 'Bold value');
     assert.equal(bold.defaultValue, 'warn');
-    assert.equal(bold.disabledWhen, undefined,
-      stem + ' bold row must stay live while thresholds are off (Always needs none)');
+    // The row must stay live while the kind's thresholds are off (Always needs
+    // none) — its only mute is the Watch-tab master row's override.
+    assert.deepEqual(bold.disabledWhen, { key: 'statusBoldAll', eq: 'all' },
+      stem + ' bold row must mute only under the master Bold values row');
   });
 });
 
@@ -974,7 +976,8 @@ test('every bold-only kind gets a sheet holding exactly the Bold row', () => {
     assert.equal(bold.label, 'Bold value');
     assert.equal(bold.defaultValue, 'off', stem + ' defaults to off');
     assert.equal(bold.hint, 'Show this value in heavier text.', stem + ' hint');
-    assert.equal(bold.disabledWhen, undefined, stem + ' row is never muted');
+    assert.deepEqual(bold.disabledWhen, { key: 'statusBoldAll', eq: 'all' },
+      stem + ' row mutes only under the master Bold values row');
   });
 });
 
@@ -1039,4 +1042,72 @@ test('bold-only BoldMode keys hydrate their default and ride the save blob', () 
     assert.equal(blob['thresh' + stem + 'BoldMode'], 'off',
       stem + ' BoldMode must survive hydrate → serialize');
   });
+});
+
+// --- the Watch-tab master Bold row (statusBoldAll) ---------------------------
+// A settings-store key only — it has no AppMessage key of its own: 'all'
+// overrides the PACKED bold cell of every kind at blob-build time
+// (status-thresholds.js buildSettingsBlob), the stored per-kind modes stay
+// untouched, and the Clay change-detector resends because the blob content
+// changes.
+
+test('the master Bold values row leads the slot selects, thresholds-gated', () => {
+  const watch = schema.tabs.find(t => t.id === 'watch');
+  // The master governs EVERY bar, so it lives in the watchStatus card's
+  // title-less intro section — ABOVE the per-bar sub-headers ("Forecast
+  // Status Bar", ...), not inside the first bar's own group.
+  const sections = watch.sections.filter(s => s.groupCard === 'watchStatus');
+  const masterIdx = sections.findIndex(s =>
+    (s.items || []).some(it => it.messageKey === 'statusBoldAll'));
+  const slotsIdx = sections.findIndex(s =>
+    (s.items || []).some(it => it.messageKey === 'statusForecastLeft'));
+  assert.ok(masterIdx !== -1, 'master row exists in the watchStatus card');
+  assert.ok(masterIdx < slotsIdx,
+    'master row renders above the first status-bar group');
+  assert.equal(sections[masterIdx].title, undefined,
+    'master row lives in the title-less intro section, not under a bar header');
+  const master = sections[masterIdx].items
+    .find(it => it.messageKey === 'statusBoldAll');
+  assert.equal(master.type, 'segmented');
+  assert.equal(master.label, 'Bold values');
+  assert.equal(master.defaultValue, 'perSlot');
+  assert.deepEqual(master.options, [['Per slot', 'perSlot'], ['All', 'all']]);
+  // Same platform gate as the sheets: aplite compiles the bold machinery out.
+  assert.deepEqual(master.showWhen, { env: 'thresholds' },
+    'the master row must be hidden on aplite');
+  assert.match(String(master.hint), /heavier text/, 'master row explains itself');
+});
+
+test('every per-slot Bold row carries the master-disable predicate', () => {
+  STEMS.concat(BOLD_STEMS).forEach(stem => {
+    assert.deepEqual(boldFor(stem).disabledWhen, { key: 'statusBoldAll', eq: 'all' },
+      stem + ' bold row must mute while the master is "all"');
+  });
+});
+
+/** Class attribute of the row div holding the given data-k control.
+ * @param {string} html rendered body/sheet HTML
+ * @param {string} key messageKey to locate
+ * @returns {string} the row div's opening tag up to (not including) '>'
+ */
+function rowClassFor(html, key) {
+  const at = html.indexOf('data-k="' + key + '"');
+  assert.ok(at !== -1, key + ' rendered');
+  const open = html.lastIndexOf('<div class="row', at);
+  return html.slice(open, html.indexOf('>', open));
+}
+
+test('the sheets gray their Bold row out while the master is "all"', () => {
+  const page = bootGeneratedPage({ provider: 'dwd', statusBoldAll: 'all' });
+  page.clickTab('watch');
+  assert.ok(page.scroll.innerHTML.indexOf('data-k="statusBoldAll"') !== -1,
+    'the master row renders in the Watch tab');
+  page.openEditSheet('threshAqi');
+  assert.match(rowClassFor(page.modal.innerHTML, 'threshAqiBoldMode'), /\bdis\b/,
+    'the sheet Bold row is muted under the master override');
+  const perSlot = bootGeneratedPage({ provider: 'dwd' });
+  perSlot.clickTab('watch');
+  perSlot.openEditSheet('threshAqi');
+  assert.doesNotMatch(rowClassFor(perSlot.modal.innerHTML, 'threshAqiBoldMode'), /\bdis\b/,
+    'the default perSlot leaves the Bold row live');
 });

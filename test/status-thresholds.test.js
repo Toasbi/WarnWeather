@@ -221,6 +221,61 @@ test('buildSettingsBlob: an unknown bold mode falls back to warn', () => {
   assert.equal(blob[th.BOLD_OFFSET], 0);
 });
 
+// statusBoldAll master row: 'all' overrides the PACKED bold cells only — every
+// kind packs 'always' regardless of its stored mode, and nothing outside the
+// bold area is the master's business.
+test('buildSettingsBlob: statusBoldAll "all" packs always into all 16 bold cells', () => {
+  const blob = th.buildSettingsBlob({
+    statusBoldAll: 'all',
+    // Stored modes that would otherwise pack off (1) / warn (0) lanes.
+    threshAqiBoldMode: 'off', threshStepsBoldMode: 'warn', threshHrBoldMode: 'off'
+  });
+  // 2 ('always') in every 2-bit lane of a byte = 0b10101010 = 0xAA.
+  assert.deepEqual(blob.slice(th.BOLD_OFFSET), [0xAA, 0xAA, 0xAA, 0xAA]);
+});
+
+test('statusBoldAll "all" leaves everything below the bold area byte-identical', () => {
+  const settings = {
+    threshAqiWarn: '100', threshAqiDanger: '200',
+    threshAqiWarnColor: 0xFFAA00,
+    threshStepsWarn: '4000', threshStepsDanger: '8000'
+  };
+  const base = th.buildSettingsBlob(settings);
+  const overridden = th.buildSettingsBlob(Object.assign({ statusBoldAll: 'all' }, settings));
+  assert.deepEqual(overridden.slice(0, th.BOLD_OFFSET), base.slice(0, th.BOLD_OFFSET),
+    'enable bits, colors, and health u16s are untouched by the master');
+});
+
+test('statusBoldAll "perSlot" (and absent) defer to the stored per-kind modes', () => {
+  const mixed = {
+    threshAqiBoldMode: 'always',   // kind 0  -> byte 29 bits 0-1
+    threshGustBoldMode: 'off',     // kind 3  -> byte 29 bits 6-7
+    threshUvBoldMode: 'always',    // kind 7  -> byte 30 bits 6-7
+    threshTempBoldMode: 'off',     // kind 8  -> byte 31 bits 0-1
+    threshHrBoldMode: 'always'     // kind 15 -> byte 32 bits 6-7
+  };
+  const expected = [(2 << 0) | (1 << 6), 2 << 6, 1 << 0, 2 << 6];
+  assert.deepEqual(th.buildSettingsBlob(mixed).slice(th.BOLD_OFFSET), expected);
+  assert.deepEqual(
+    th.buildSettingsBlob(Object.assign({ statusBoldAll: 'perSlot' }, mixed)).slice(th.BOLD_OFFSET),
+    expected);
+});
+
+test('packing with statusBoldAll "all" does not mutate the stored per-kind modes', () => {
+  const settings = {
+    statusBoldAll: 'all',
+    threshWindBoldMode: 'off', threshCityBoldMode: 'warn'
+  };
+  th.buildSettingsBlob(settings);
+  assert.equal(settings.threshWindBoldMode, 'off');
+  assert.equal(settings.threshCityBoldMode, 'warn');
+  // Flipping back to 'perSlot' therefore re-packs the stored modes as-is.
+  settings.statusBoldAll = 'perSlot';
+  const blob = th.buildSettingsBlob(settings);
+  assert.equal(blob[th.BOLD_OFFSET], 1 << (2 * 2), 'wind off restored');
+  assert.equal(blob[32], 0, 'city warn restored (packs 0)');
+});
+
 // The bold-only kinds (wire ids 8..15) live in the third and fourth bold bytes
 // (blob bytes 31/32), byte 29 + (k >> 2) at bits 2 * (k & 3).
 test('buildSettingsBlob: bold-only kinds pack their cells in bytes 31/32', () => {

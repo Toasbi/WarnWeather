@@ -318,16 +318,23 @@
 
   /**
    * Build the CLAY_THRESHOLDS_UINT8 settings blob (layout: status_threshold.h).
+   * The statusBoldAll master row ('all') overrides the PACKED bold cell of
+   * every kind to BOLD_MODES.always at build time only — the stored
+   * thresh<Kind>BoldMode values are never modified, so 'perSlot' restores
+   * them on the next build. Enable bits, colors, and health u16s are
+   * untouched by the master.
    * @param {Object} settings Clay settings blob
    * @returns {number[]} SETTINGS_BYTES-long array (currently 33 bytes)
    */
   function buildSettingsBlob(settings) {
     var blob = [];
     var i;
+    var boldAll = Boolean(settings && settings.statusBoldAll === 'all');
     for (i = 0; i < SETTINGS_BYTES; i++) { blob.push(0); }
     for (var k = 0; k < KINDS.length; k++) {
       var cfg = kindConfig(settings, k);
-      blob[BOLD_OFFSET + (k >> 2)] |= BOLD_MODES[cfg.boldMode] << (2 * (k & 3));
+      blob[BOLD_OFFSET + (k >> 2)] |=
+        (boldAll ? BOLD_MODES.always : BOLD_MODES[cfg.boldMode]) << (2 * (k & 3));
       // Bold-only kinds pack ONLY their bold cell: blob[0]'s 8 enable bits and
       // the color/health offsets belong to the paired kinds (0..7) alone.
       if (KINDS[k].boldOnly) { continue; }

@@ -72,11 +72,13 @@
      reads just like a section header. The preceding group's last-row divider carries the
      separating line, so this stays borderless. */
   .subhdr { padding: 15px 16px 8px; font-size: 11.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--ttl); }
-  /* A `subheader` ITEM (.grp) also carries the group's controls: title, an
-     optional reset action, then the master switch pushed to the right edge. */
+  /* A `subheader` ITEM (.grp) also carries the group's controls: title, then an
+     optional reset action hugging the title's right, and ONLY the master switch
+     pushed to the right edge. The push is the switch's own auto margin, so a
+     header without a labelAction still right-aligns its switch. */
   .subhdr.grp { display: flex; align-items: center; gap: 8px; padding-top: 18px; }
-  .subhdr.grp > span:first-child { margin-right: auto; min-width: 0; }
-  .subhdr.grp .sw { flex: none; }
+  .subhdr.grp > span:first-child { min-width: 0; }
+  .subhdr.grp .sw { flex: none; margin-left: auto; }
   .subhdr.grp .lbl-act { flex: none; }
   .row { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 16px; border-bottom: 1px solid var(--row-line); }
   /* stacked rows are a column, so the .row flex `gap` would space label/hint/control far apart;
