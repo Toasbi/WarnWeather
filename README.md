@@ -32,7 +32,6 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * 2-hour precipitation nowcast from regional and worldwide providers
 * Rain countdown telling you when rain starts (or stops)
 * Choose how much radar you see — Off, a rain countdown, a radar status line, or the full radar graph — in the Radar tab
-* Custom no-rain text — write your own message for when the radar sees no rain coming
 
 **Health view** *(requires a health-capable watch; heart rate needs a heart-rate sensor)*
 * Health status for steps, sleep, distance, and heart rate
@@ -44,7 +43,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 **Status lines**
 * Configurable status slots on every view: fill each slot from a catalog of metrics — weather, air quality, pollen, wind, health, battery, a countdown to any date, and more
-* Threshold highlighting: bold, outline, or fill a status slot when air quality, pollen, wind, gusts, UV index, steps, sleep, or distance crosses a warn or danger level you set — or keep any slot's value bold at all times
+* Threshold highlighting: bold, outline, or fill a status slot when air quality, pollen, wind, gusts, UV index, steps, sleep, or distance crosses a warn or danger level you set
 
 **Watchface themes**
 * Dark and Light, plus Black & White options on color watches
@@ -56,8 +55,6 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 **Layout customization**
 * Multiple layout presets, with flick-to-cycle between views and optional auto-return
-* Dense compact layout shows a Radar or Health status row alongside the forecast on the default view, no flicking needed
-* Swap clock and status row option, moving the status line next to the forecast
 * Light/Dark settings page with grouped, easy-to-browse pickers
 * First-run setup wizard that picks sensible defaults for your country
 
