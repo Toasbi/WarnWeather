@@ -16,6 +16,10 @@ contributor tool working in this repo. (Claude Code reads it through `CLAUDE.md`
 - After any change, run `mise build` to verify it builds.
 - For runtime logs, `mise install-emulator --logs` runs it in an emulator and prints
   logs to the terminal. The process stays alive until the emulator is closed.
+- **Shut emulators down when you're done with them** — `pebble kill`, then verify with
+  `ps aux | grep qemu-pebble`: repeated installs can accumulate qemu processes that
+  `pebble kill` misses; `pkill -f qemu-pebble; pkill -f pypkjs` clears the stragglers.
+  Booted emulators linger indefinitely otherwise and keep eating CPU/RAM.
 - For config-UI (settings page) work, `mise preview-config` renders the live page —
   real schema, blocks, and onBuild hooks injected — to
   `build/config-ui-preview.html`. Open it in a desktop
