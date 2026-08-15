@@ -294,6 +294,31 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
     chart_draw(ctx, &RADAR_DEF, outer, layers,
                (int)(sizeof(layers) / sizeof(layers[0])));
 
+    // Empty-state text: a RECEIVED radar window (start > 0 — never the blank
+    // fresh-install state) whose slots are all dry would otherwise render as a bare
+    // axis over nothing. Say so instead, centred in the plot under the axis. The
+    // wording deliberately claims only what ~90 minutes of radar can know.
+    bool any_rain = false;
+    for (int i = 0; i < RADAR_NUM_SLOTS; i++) {
+        if (exact_tenths[i] > 0 || area_tenths[i] > 0) { any_rain = true; break; }
+    }
+    if (!any_rain && persist_get_rain_radar_start() > 0) {
+#ifdef PBL_PLATFORM_EMERY
+        // emery: the taller plot swallows 18px text — step up a font tier.
+        GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_24);
+        const int text_h = 24;
+#else
+        GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_18);
+        const int text_h = 18;
+#endif
+        graphics_context_set_text_color(ctx, theme_fg());
+        graphics_draw_text(ctx, "No rain ahead", font,
+            GRect(outer.origin.x,
+                  outer.origin.y + (outer.size.h - text_h) / 2 - text_h / 4,
+                  outer.size.w, text_h + 4),
+            GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+    }
+
     MEMORY_LOG_HEAP("radar_update:exit");
 }
 
