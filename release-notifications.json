@@ -116,7 +116,7 @@
     "body": "Fixes a layout bug in the Health and Radar views when the clock and status row are swapped."
   },
   "1.11.0": {
-    "title": "Threshold highlights & HR scale",
-    "body": "Status slots can now warn you: set warn and danger thresholds per item in the Watch tab and the value lights up when crossed. The health graph's heart-rate line also uses a range you choose, so small changes are actually visible — hours outside it show as dots on the edge."
+    "title": "Goals & Warnings, HR Scale and UI updates",
+    "body": "Status slots support goals & warnings - set them in the Status slots tab. Also new: a Bold option for every slot, a custom no-rain radar message, a heart-rate graph scale, and a refined settings UI and view layout."
   }
 }
