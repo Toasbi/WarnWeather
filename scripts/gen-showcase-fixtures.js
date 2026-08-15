@@ -87,6 +87,18 @@ const SCENES = [
       secondaryLine: 'wind', thirdLine: 'gust', barSource: 'off',
       radarProvider: 'disabled', rainCountdownHorizon: '0',
       timeFont: 'leco',
+      // Threshold showcase (store GIF frame 2): the weather status row carries an
+      // OUTLINED warn slot and a DANGER-filled slot. Left slot becomes wind so two
+      // threshold kinds sit in the bar (temp is bold-only); berlin's current wind is
+      // 20 km/h and AQI 38, so warn 15/danger 40 outlines wind and warn 20/danger 35
+      // fills AQI. Values are strings and colors '#RRGGBB' — the exact formats the
+      // settings store holds (see blocks.js resetThresholds). Aplite compiles
+      // thresholds out and keeps its plain frame.
+      statusForecastLeft: 'wind',
+      threshWindOn: true, threshWindWarn: '15', threshWindDanger: '40',
+      threshWindWarnOutlineOn: true, threshWindWarnColor: '#FFAA00',
+      threshAqiOn: true, threshAqiWarn: '20', threshAqiDanger: '35',
+      threshAqiDangerColor: '#FF0000',
     },
     radar: null,
   },
@@ -100,6 +112,9 @@ const SCENES = [
       barSource: 'rain', rainBarColor: 'multicolor',
       radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60',
       timeFont: 'leco',
+      // All-bold showcase (store GIF frame 3): the master Bold values override
+      // packs every slot kind's bold cell as always at blob-build time.
+      statusBoldAll: 'all',
     },
     radar: { exact: DRIZZLE_EXACT, area: DRIZZLE_AREA },
     countdown: { text: "Drizzle in 15'", tier: 2 },
