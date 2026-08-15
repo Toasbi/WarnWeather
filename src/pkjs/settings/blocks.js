@@ -1268,14 +1268,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var code = S[args.messageKey];
         for (var i = 0; i < contract.KINDS.length; i++) {
             if (contract.KINDS[i].code !== code) { continue; }
-            var goal = Boolean(contract.KINDS[i].goal);
             var enabled = contract.kindConfig(S, i).enabled;
             var penWarn = thresholdDisplayColor(S, contract.KINDS[i].key, 'Warn');
             return {
-                // The slot's sheet-trigger BUTTON label: goal kinds open a Goal
-                // sheet, weather kinds a Warn sheet. `enabled` drives the state
-                // dots; a disabled kind still gets the labeled button.
-                label: goal ? 'Goal' : 'Warn',
+                // The slot's sheet-trigger BUTTON label. The sheet configures the
+                // whole slot now (bold + thresholds), not just the warn/goal pair,
+                // so the button says what it does rather than naming one section.
+                // `enabled` drives the state dots; a disabled kind still gets the
+                // labeled button.
+                label: 'Edit',
                 enabled: enabled,
                 // No warn outline configured -> neutral gray ring (the enabled badge
                 // still reads; the ring hue just carries no color meaning then).

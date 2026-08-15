@@ -465,8 +465,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           + esc(String(it.label || 'Enable')) + '"><i></i></button>';
       }
     }
+    // item.intro is the group's own explanatory copy — the section-level `intro`
+    // moved down here for the threshold sheets, where it describes the group
+    // rather than the whole sheet. HTML, like every other intro/hint.
     return '<div class="subhdr grp"><span>' + esc(item.text || '') + '</span>'
-      + labelActionHtml(item) + toggle + '</div>';
+      + labelActionHtml(item) + toggle + '</div>'
+      + (item.intro ? '<div class="intro">' + item.intro + '</div>' : '');
   }
 
   /**

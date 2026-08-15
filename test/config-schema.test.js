@@ -25,7 +25,8 @@ const THRESH_STEMS = ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distan
 const threshKeys = (suffixes) => THRESH_STEMS.reduce((acc, stem) =>
   acc.concat(suffixes.map((suffix) => 'thresh' + stem + suffix)), []);
 const THRESH_COLOR_KEYS = threshKeys(['WarnColor', 'DangerColor']);
-const THRESH_KEYS = threshKeys(['On', 'WarnOutlineOn', 'Warn', 'Danger', 'Max']).concat(THRESH_COLOR_KEYS);
+const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnOutlineOn', 'Warn', 'Danger', 'Max'])
+  .concat(THRESH_COLOR_KEYS);
 
 const EXPECTED_KEYS = [
   'theme',
@@ -984,15 +985,16 @@ test('Watch tab opens with a general status-bar intro, then the four bars in for
   assert.deepEqual(titles.slice(0, 4),
     ['Forecast Status Bar', 'Radar Status Bar', 'Health Status Bar', 'Watch Status Bar'],
     'four status bars grouped at the top of the Watch tab in order');
-  // The threshold edit sheets (sheetOnly, opened from a slot's pencil — never cards)
-  // sit between the bars and Time in the sections array (see thresholdSection).
-  // The below-is-worse health kinds read as GOALS you fall short of (contract
-  // belowIsWorse drives the wording), the weather kinds stay thresholds.
+  // The per-slot edit sheets (sheetOnly, opened from a slot's Edit button — never
+  // cards) sit between the bars and Time in the sections array (see
+  // thresholdSection). Each is titled after the SLOT: it configures the slot's
+  // bold mode as well as its thresholds/goals, so the goal-vs-threshold split
+  // lives on the group header inside, not in the sheet title.
   assert.deepEqual(titles.slice(4, 12),
-    ['Air quality (AQI) thresholds', 'Pollen thresholds', 'Wind speed thresholds',
-      'Wind gusts thresholds', 'UV index thresholds', 'Steps goal', 'Sleep goal',
-      'Walked distance goal'],
-    'threshold edit sheets follow the four status bars, in kind order');
+    ['Air quality (AQI) slot', 'Pollen slot', 'Wind speed slot',
+      'Wind gusts slot', 'UV index slot', 'Steps slot', 'Sleep slot',
+      'Walked distance slot'],
+    'per-slot edit sheets follow the four status bars, in kind order');
   // Time and Calendar keep their spots below.
   assert.deepEqual(titles.slice(12), ['Time', 'Calendar'], 'Time then Calendar come last');
   assert.equal(byKey('statusTopLeft').hint, undefined, 'left-slot hint removed');
@@ -1084,12 +1086,12 @@ test('threshold config lives in per-slot edit sheets: pencils + sheet on basalt,
     'basalt renders a pencil for the AQI forecast slot');
   assert.equal(apliteBody.indexOf('data-edit-sheet'), -1,
     'aplite renders no pencil anywhere (env.thresholds is false)');
-  // The sheet itself: full on basalt (header toggle + intro + a DISABLED slider
-  // preview while the toggle is off — behavior covered in config-thresholds.test.js),
-  // empty on aplite even if forced open.
+  // The sheet itself: full on basalt (Bold row + group header toggle + intro + a
+  // DISABLED slider preview while the toggle is off — behavior covered in
+  // config-thresholds.test.js), empty on aplite even if forced open.
   const basaltSheet = eng.renderEditModal(schema, watchCx('basalt', 'threshAqi'));
-  ['data-k="threshAqiOn"', 'crossing the warn threshold',
-    'Air quality (AQI) thresholds', 'data-range="threshAqiWarn"'].forEach((frag) =>
+  ['data-k="threshAqiOn"', 'data-k="threshAqiBoldMode"', 'crossing the warn threshold',
+    'Air quality (AQI) slot', 'data-range="threshAqiWarn"'].forEach((frag) =>
     assert.ok(basaltSheet.indexOf(frag) !== -1, 'basalt sheet carries ' + frag));
   assert.ok(/class="row stack[^"]*\bdis\b/.test(basaltSheet),
     'the slider renders disabled while the highlight toggle is off');

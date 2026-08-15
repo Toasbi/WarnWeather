@@ -47,9 +47,8 @@ test('every threshold kind has toggle + slider + hidden companions wired up', ()
     // The slider stays VISIBLE while the highlight is off — muted + inert, not hidden.
     assert.deepEqual(warn[0].disabledWhen, { not: { key: 'thresh' + stem + 'On' } },
       'thresh' + stem + 'Warn slider must disable (not hide) on its toggle');
-    assert.deepEqual(warn[0].labelAction,
-      { action: 'resetThresholds', arg: stem, label: 'Reset to defaults' },
-      'thresh' + stem + 'Warn carries the reset-to-defaults label button');
+    // The reset button moved onto the group's sub-header — see "the group header
+    // owns the title and the reset action" below.
 
     // Companion storage rows: hydrated + serialized, never drawn.
     ['Danger', 'Max'].forEach(which => {
@@ -478,10 +477,16 @@ test('the sheet: toggle off shows a disabled seeded slider; on enables and seeds
   page.openEditSheet('threshAqi');
   assert.ok(page.modal.innerHTML.indexOf('data-k="threshAqiOn"') !== -1,
     'the sheet carries the highlight toggle');
-  // The master toggle lives in the sheet's TITLE row, not the body.
+  // The master toggle moved OUT of the sheet's title row and onto the threshold
+  // group's sub-header, inside the scroll body — below the slot-level Bold row.
   assert.ok(page.modal.innerHTML.indexOf('data-k="threshAqiOn"')
-    < page.modal.innerHTML.indexOf('ssel-list'),
-    'the toggle renders in the header, before the scroll body');
+    > page.modal.innerHTML.indexOf('ssel-list'),
+    'the toggle renders inside the scroll body, not the title row');
+  assert.ok(page.modal.innerHTML.indexOf('data-k="threshAqiBoldMode"')
+    < page.modal.innerHTML.indexOf('subhdr grp'),
+    'the Bold row sits above the threshold group header');
+  assert.ok(/<div class="subhdr grp">[\s\S]*?data-k="threshAqiOn"/.test(page.modal.innerHTML),
+    'the master toggle rides the group sub-header');
   // Off = visible but disabled, previewing the seeds (default cfg is WAQI → US AQI).
   assert.ok(page.modal.innerHTML.indexOf('data-range="threshAqiWarn"') !== -1,
     'the slider renders even while the highlight is off');
@@ -511,7 +516,7 @@ test('the sheet: toggle off shows a disabled seeded slider; on enables and seeds
     'AQI is unbounded → scale-max editor present');
   assert.ok(sheet.indexOf('data-action="resetThresholds"') !== -1
     && sheet.indexOf('data-action-arg="Aqi"') !== -1,
-    'the reset-to-defaults button rides the slider label');
+    'the reset-to-defaults button rides the group sub-header');
 
   page.clickModalToggle('threshAqiOn');
   assert.equal(page.S.threshAqiWarn, '', 'toggling off blanks the pair');
@@ -618,20 +623,21 @@ test('thresholdPenState honors its env gate and the color pickers', () => {
   const S = { statusForecastRight: 'aqi', threshAqiWarn: '50', threshAqiDanger: '100' };
   const args = { messageKey: 'statusForecastRight' };
   assert.equal(resolver(S, { thresholds: false }, args), null, 'gated off without env.thresholds');
+  // The sheet configures the whole slot now, so the button says "Edit" for every
+  // kind instead of naming one of its sections.
   assert.deepEqual(resolver(S, ENV, args),
-    { label: 'Warn', enabled: true, warnColor: '#8A8E97', dangerColor: '#FFFFFF' },
-    'weather kind labels its button Warn; no-outline warn shows the neutral ring');
+    { label: 'Edit', enabled: true, warnColor: '#8A8E97', dangerColor: '#FFFFFF' },
+    'no-outline warn shows the neutral ring');
   const picked = Object.assign({}, S, { threshAqiWarnColor: '#00AAFF', threshAqiDangerColor: '#5500FF' });
   assert.deepEqual(resolver(picked, ENV, args),
-    { label: 'Warn', enabled: true, warnColor: '#00AAFF', dangerColor: '#5500FF' });
+    { label: 'Edit', enabled: true, warnColor: '#00AAFF', dangerColor: '#5500FF' });
   // A half pair (disabled kind) still gets its labeled button — just without the
   // enabled state dots (the button must exist to configure the kind at all).
   assert.deepEqual(resolver(Object.assign({}, S, { threshAqiDanger: '' }), ENV, args).enabled, false);
-  // Goal kinds label their button Goal.
   const goalArgs = { messageKey: 'statusHealthLeft' };
   const goalS = { statusHealthLeft: 'steps', threshStepsWarn: '4000', threshStepsDanger: '8000' };
   const goalBadge = resolver(goalS, ENV, goalArgs);
-  assert.equal(goalBadge.label, 'Goal');
+  assert.equal(goalBadge.label, 'Edit', 'goal kinds get the same button label');
   assert.equal(goalBadge.enabled, true);
 });
 
@@ -777,4 +783,152 @@ test('the real generated page: threshold pencils + sheet on basalt, nothing on a
     assert.equal(apliteWatch.indexOf('data-k="' + k + '"'), -1, k + ' absent on aplite'));
   assert.ok(apliteWatch.indexOf('data-k="timeLeadingZero"') !== -1,
     'the rest of the Watch tab still renders on aplite');
+});
+
+// --- the slot sheet's shape: Bold row above its own thresholds/goals group ----
+
+/** @returns {Object[]} Every threshold sheet section, in schema order. */
+function sheetSections() {
+  const out = [];
+  schema.tabs.forEach(t => (t.sections || []).forEach(s => {
+    if (s.sheetOnly && /^thresh/.test(s.sheetId || '')) { out.push(s); }
+  }));
+  return out;
+}
+/** @param {string} stem Kind key stem. @returns {Object} That kind's sheet. */
+function sheetFor(stem) {
+  const s = sheetSections().find(x => x.sheetId === 'thresh' + stem);
+  assert.ok(s, 'no sheet for ' + stem);
+  return s;
+}
+/** @param {string} stem Kind key stem. @returns {Object} Its subheader item. */
+function headerFor(stem) {
+  const hdr = sheetFor(stem).items.find(it => it.type === 'subheader');
+  assert.ok(hdr, stem + ' has no subheader');
+  return hdr;
+}
+/** @param {string} stem Kind key stem. @returns {Object} Its Bold row. */
+function boldFor(stem) {
+  const b = sheetFor(stem).items.find(it => it.messageKey === 'thresh' + stem + 'BoldMode');
+  assert.ok(b, stem + ' has no bold row');
+  return b;
+}
+
+test('each sheet is titled "<kind> slot", not "<kind> thresholds/goal"', () => {
+  assert.equal(sheetFor('Wind').title, 'Wind speed slot');
+  assert.equal(sheetFor('Gust').title, 'Wind gusts slot');
+  assert.equal(sheetFor('Steps').title, 'Steps slot');
+  assert.equal(sheetFor('Distance').title, 'Walked distance slot');
+  sheetSections().forEach(s => {
+    assert.match(s.title, / slot$/, s.sheetId + ' title');
+  });
+});
+
+test('the master toggle moved off the sheet title row onto the group header', () => {
+  sheetSections().forEach(s => {
+    assert.equal(s.headerToggleKey, undefined, s.sheetId + ' still has headerToggleKey');
+    const stem = s.sheetId.replace(/^thresh/, '');
+    assert.equal(headerFor(stem).toggleKey, 'thresh' + stem + 'On');
+  });
+});
+
+test('the group header owns the title and the reset action', () => {
+  assert.equal(headerFor('Wind').text, 'Thresholds');
+  assert.deepEqual(headerFor('Wind').labelAction,
+    { action: 'resetThresholds', arg: 'Wind', label: 'Reset to defaults' });
+  assert.equal(headerFor('Steps').text, 'Goals');
+});
+
+test('the slider no longer carries the group title or the reset action', () => {
+  STEMS.forEach(stem => {
+    const range = sheetFor(stem).items.find(it => it.type === 'range');
+    assert.equal(range.labelAction, undefined, stem + ' slider still has the reset button');
+    assert.ok(!range.label, stem + ' slider still has a label duplicating the header');
+  });
+});
+
+test('the intro describes the group, so it hangs off the header, not the sheet', () => {
+  sheetSections().forEach(s => {
+    assert.equal(s.intro, undefined, s.sheetId + ' still has a sheet-level intro');
+    const stem = s.sheetId.replace(/^thresh/, '');
+    assert.match(String(headerFor(stem).intro), /\S/, s.sheetId + ' header carries no intro');
+  });
+  assert.match(headerFor('Wind').intro, /threshold/i);
+  assert.match(headerFor('Steps').intro, /goal/i);
+});
+
+test('Bold sits above the group and is never gated by the master toggle', () => {
+  STEMS.forEach(stem => {
+    const items = sheetFor(stem).items;
+    const boldIdx = items.indexOf(boldFor(stem));
+    const hdrIdx = items.indexOf(headerFor(stem));
+    assert.ok(boldIdx < hdrIdx, stem + ' bold row is not above the group header');
+    const bold = boldFor(stem);
+    assert.equal(bold.type, 'segmented');
+    assert.equal(bold.label, 'Bold');
+    assert.equal(bold.defaultValue, 'warn');
+    assert.equal(bold.disabledWhen, undefined,
+      stem + ' bold row must stay live while thresholds are off (Always needs none)');
+  });
+});
+
+test('the Bold middle option speaks the kind vocabulary, over one stored value', () => {
+  // Only the LABEL differs — the stored value stays 'warn' for both, so the blob
+  // keeps a single bold vocabulary (status-thresholds.js BOLD_MODES).
+  assert.deepEqual(boldFor('Wind').options,
+    [['Off', 'off'], ['Warn', 'warn'], ['Always', 'always']]);
+  assert.deepEqual(boldFor('Steps').options,
+    [['Off', 'off'], ['Close', 'warn'], ['Always', 'always']]);
+  STEMS.forEach(stem => {
+    assert.deepEqual(boldFor(stem).options.map(o => o[1]), ['off', 'warn', 'always'], stem);
+  });
+});
+
+test('the Bold hint adds information instead of restating the options', () => {
+  const bold = boldFor('Wind');
+  assert.match(String(bold.hint), /\S/, 'bold row has no hint');
+  ['Off', 'Always'].forEach(word => {
+    assert.equal(bold.hint.indexOf(word), -1, 'hint restates the "' + word + '" option');
+  });
+});
+
+test('the middle Bold option goes inert while the kind thresholds are off', () => {
+  STEMS.forEach(stem => {
+    assert.deepEqual(boldFor(stem).optionDisabledWhen,
+      { warn: { not: { key: 'thresh' + stem + 'On' } } }, stem);
+  });
+});
+
+test('the outline toggle says what it does to the slot', () => {
+  const wind = sheetFor('Wind').items.find(
+    it => it.messageKey === 'threshWindWarnOutlineOn');
+  assert.equal(wind.label, 'Outline on warn');
+  assert.equal(wind.hint,
+    'Adds an outline to the slot when the warn threshold is reached.');
+  const steps = sheetFor('Steps').items.find(
+    it => it.messageKey === 'threshStepsWarnOutlineOn');
+  assert.equal(steps.label, 'Outline on close');
+  assert.equal(steps.hint,
+    'Adds an outline to the slot when you get close to the goal.');
+});
+
+test('the reset button leaves the Bold setting alone', () => {
+  const S = { theme: 'dark', threshWindBoldMode: 'always', threshWindOn: true,
+    threshWindWarn: '10', threshWindDanger: '20', threshWindMax: '200' };
+  PC.actions.resetThresholds('Wind', S, ENV);
+  assert.equal(S.threshWindBoldMode, 'always', 'reset must not touch Bold');
+  assert.equal(S.threshWindMax, '', 'reset still clears the scale max');
+  assert.equal(S.threshWindWarn, '40', 'reset still reseeds the pair');
+});
+
+test('the slot button is labelled Edit for every kind', () => {
+  const S = { theme: 'dark', statusLine1Left: 'wind', threshWindOn: true,
+    threshWindWarn: '40', threshWindDanger: '60' };
+  const badge = PC.badgeResolvers.get('thresholdPenState')(
+    S, ENV, { messageKey: 'statusLine1Left' });
+  assert.equal(badge.label, 'Edit');
+  const goalS = { theme: 'dark', statusLine1Left: 'steps', threshStepsOn: true,
+    threshStepsWarn: '8000', threshStepsDanger: '10000' };
+  assert.equal(PC.badgeResolvers.get('thresholdPenState')(
+    goalS, ENV, { messageKey: 'statusLine1Left' }).label, 'Edit');
 });

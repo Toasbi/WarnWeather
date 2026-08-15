@@ -116,6 +116,13 @@ var THRESHOLD_SHEET_INTRO = 'Highlight this value in its status slot: crossing t
 var GOAL_SHEET_INTRO = 'Celebrate this goal in its status slot: getting close ' +
     'shows the value in bold with a green outline; reaching the goal fills the ' +
     'slot. Colors are yours to change below.';
+// The Bold row is a SLOT-level setting, not a threshold one: it sits above the
+// threshold group and stays live while that group is switched off, because
+// "Always" needs no thresholds to mean something. Only the middle option does —
+// it goes inert (not away: removing it would let the options-snapping path
+// rewrite a stored 'warn' to 'off') until the kind's thresholds are on.
+// The hint deliberately does NOT recite Off/Warn/Always — the pills say that.
+var BOLD_HINT = 'Bold is the lightest highlight: heavier text, no box or fill.';
 // One threshold-highlight edit sheet (sheetOnly — opened from a status slot's pencil,
 // never rendered as a card): a "Highlight this value" toggle, a zoned dual-thumb
 // slider for the warn/danger pair, and the two color pickers. Values live in the
@@ -162,9 +169,9 @@ function thresholdSection(title, keyStem, hint, gate) {
         messageKey: 'thresh' + keyStem + 'Warn',
         dangerKey: 'thresh' + keyStem + 'Danger',
         maxKey: 'thresh' + keyStem + 'Max',
-        label: goal ? 'Goals' : 'Thresholds',
-        // Reverts pair + colors + scale max to the kind's defaults (blocks.js action).
-        labelAction: {action: 'resetThresholds', arg: keyStem, label: 'Reset to defaults'},
+        // Title + reset live on the group's sub-header now, so the row itself is
+        // label-less: repeating "Thresholds" directly under the header read as a
+        // stutter.
         defaultValue: '',
         hint: hint,
         joinPrevious: true,
@@ -172,6 +179,34 @@ function thresholdSection(title, keyStem, hint, gate) {
         disabledWhen: offWhen
     };
     if (gate) { range.showWhen = gate; }
+    // Slot-level, above the group: how boldly the slot prints. The ladder is
+    // monotone — danger is always bold, the middle option adds the warn/close
+    // level, "Always" adds the normal zone too (status_threshold.h ThreshBold).
+    // Goal kinds relabel the middle option only; the stored value stays 'warn' so
+    // the wire keeps one vocabulary.
+    var bold = {
+        type: 'segmented',
+        messageKey: 'thresh' + keyStem + 'BoldMode',
+        label: 'Bold',
+        hint: BOLD_HINT,
+        defaultValue: 'warn',
+        options: [['Off', 'off'], [goal ? 'Close' : 'Warn', 'warn'], ['Always', 'always']],
+        optionDisabledWhen: {warn: {not: {key: onKey}}}
+    };
+    if (gate) { bold.showWhen = gate; }
+    // The group header: title, reset-to-defaults, and the master on/off switch
+    // that used to ride the sheet's title row. The intro hangs off it because it
+    // describes the THRESHOLDS, not the Bold row above them.
+    var header = {
+        type: 'subheader',
+        text: goal ? 'Goals' : 'Thresholds',
+        toggleKey: onKey,
+        intro: goal ? GOAL_SHEET_INTRO : THRESHOLD_SHEET_INTRO,
+        // Reverts pair + colors + scale max to the kind's defaults (blocks.js
+        // action) — deliberately NOT the Bold row, which is not part of the group.
+        labelAction: {action: 'resetThresholds', arg: keyStem, label: 'Reset to defaults'}
+    };
+    if (gate) { header.showWhen = gate; }
     return {
         sheetOnly: true,
         sheetId: 'thresh' + keyStem,
@@ -179,12 +214,8 @@ function thresholdSection(title, keyStem, hint, gate) {
         // is empty (belt-and-braces behind the resolver's env gate), so the per-item
         // `gate`/color rules below only ever decide visibility among watches that CAN.
         showWhen: THRESHOLD_WHEN,
-        title: title + (goal ? ' goal' : ' thresholds'),
-        // The master toggle renders in the sheet's title row (renderEditModal), not
-        // as a body row — the body holds only the rows it gates.
-        headerToggleKey: onKey,
-        intro: goal ? GOAL_SHEET_INTRO : THRESHOLD_SHEET_INTRO,
-        items: [toggle, range, {
+        title: title + ' slot',
+        items: [bold, header, toggle, range, {
             // Companion storage for the slider's second thumb and its editable scale
             // max: hydrated + serialized but never drawn (the range row renders both).
             type: 'hidden',
@@ -203,10 +234,10 @@ function thresholdSection(title, keyStem, hint, gate) {
             // outline vs no outline is meaningful without color choice.
             type: 'toggle',
             messageKey: 'thresh' + keyStem + 'WarnOutlineOn',
-            label: goal ? 'Outline when close' : 'Warn outline',
+            label: goal ? 'Outline on close' : 'Outline on warn',
             hint: goal
-                ? 'Getting close always bolds the value; this adds the outline too.'
-                : 'The warn value is always bold; this adds a box around the slot.',
+                ? 'Adds an outline to the slot when you get close to the goal.'
+                : 'Adds an outline to the slot when the warn threshold is reached.',
             // Goal kinds celebrate with the outline ON out of the box; weather warn
             // ships bold-only. (Derived state either way — onLoad recomputes it from
             // the stored color — but the seeded store must agree with the color
