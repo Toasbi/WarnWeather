@@ -157,11 +157,26 @@ static int icon_scale_pct(uint8_t icon_id) {
     }
 }
 
-GDrawCommandImage *status_row_icons_load(uint8_t icon_id, int target_h) {
+GDrawCommandImage *status_row_icons_load(uint8_t icon_id, int target_h, bool top_strip) {
     if (target_h <= 0) { return NULL; }
     int h = (target_h * icon_scale_pct(icon_id)) / 100;
     if (h < 1) { h = 1; }
     uint32_t resource = icon_resource(icon_id);
+    // Under ~10px the detailed thermometer's tube walls + mercury merge into a solid
+    // stick (the 144px watches' full/dense rows render it at 8px — MEASURED on basalt
+    // dense). In the regular rows, swap in the small aplite-style silhouette and draw
+    // it at its NATIVE 10px (h 9 = the authored ink bbox height, so the 1:1 scale
+    // lands every vertex on its authored pixel row — crisp like aplite's bit mask,
+    // and near aplite's icon-as-tall-as-the-digits proportions; the taller glyph
+    // still clears the dense band, 15 - ICON_BAND_MARGIN). NOT in the top strip: its
+    // deliberately smaller icon tier exists to protect the strip->calendar seam, so a
+    // 10px glyph there would spend exactly the rows STATUS_STRIP_CAL_GAP just freed.
+    // Every tier from 10px up (all of emery, the 144px compact row) keeps the
+    // detailed liquid glyph.
+    if (icon_id == STATUS_ICON_TEMP && h < 10 && !top_strip) {
+        resource = RESOURCE_ID_STATUS_TEMP_SMALL;
+        h = 9;
+    }
     if (resource == 0) { return NULL; }
     return icon_load(resource, h);
 }
@@ -172,9 +187,10 @@ void status_row_icons_destroy(GDrawCommandImage *image) {
 
 #else  // aplite: frozen lean fork, no PDC resources — every id is text-only.
 
-GDrawCommandImage *status_row_icons_load(uint8_t icon_id, int target_h) {
+GDrawCommandImage *status_row_icons_load(uint8_t icon_id, int target_h, bool top_strip) {
     (void) icon_id;
     (void) target_h;
+    (void) top_strip;
     return NULL;
 }
 

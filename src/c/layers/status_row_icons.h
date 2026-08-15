@@ -4,5 +4,8 @@
 // Icon id → recolored, size-normalized PDC image, or NULL when the id has no
 // bundled glyph (NONE, DRAWN_* sentinels, unknown id, load failure, aplite).
 // A NULL degrades the slot to text-only — never suppress the value for it.
-GDrawCommandImage *status_row_icons_load(uint8_t icon_id, int target_h);
+// `top_strip` gates the small-tier size substitutions: the strip's icon tier is
+// deliberately smaller (calendar clearance), so tall small-size variants are
+// rows-only.
+GDrawCommandImage *status_row_icons_load(uint8_t icon_id, int target_h, bool top_strip);
 void status_row_icons_destroy(GDrawCommandImage *image);
