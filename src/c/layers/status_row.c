@@ -136,6 +136,39 @@ static GFont row_font(uint8_t tier, uint8_t line_id) {
     }
 }
 
+#if defined(WW_THRESHOLD_HIGHLIGHT)
+// The bold companion of row_font(), for slots whose threshold is crossed — the
+// calendar's today-highlight pattern (CALENDAR_FONT_KEY_BOLD) applied to slots. The
+// Gothic bolds share their regular siblings' metrics (MEASURED for 18 in
+// weather_status_layer.c; nominal size == content height family-wide), so the seat,
+// cap-centre and box math are untouched — only glyph WIDTHS change, which is why a
+// crossed slot must measure with the same font it draws.
+static GFont row_font_bold(uint8_t tier, uint8_t line_id) {
+    if (line_id == STATUS_LINE_TOP) {
+#ifdef PBL_PLATFORM_EMERY
+        return fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
+#else
+        return fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
+#endif
+    }
+    switch (tier) {
+        case LAYOUT_TIER_NONE:
+        case LAYOUT_TIER_COMPACT:
+#ifdef PBL_PLATFORM_EMERY
+            return fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
+#else
+            return fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
+#endif
+        default:
+#ifdef PBL_PLATFORM_EMERY
+            return fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
+#else
+            return fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD);
+#endif
+    }
+}
+#endif
+
 static void format_status_date(bool full_date, char *buf, size_t cap) {
     struct tm tm_now = watch_services_localtime();
     if (!full_date) {
@@ -575,6 +608,11 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     StatusSlotView slots[STATUS_SLOT_COUNT];
     char texts[STATUS_SLOT_COUNT][STATUS_TEXT_MID_MAX + 1];
     uint8_t levels[STATUS_SLOT_COUNT];
+    // A crossed slot renders BOLD — the calendar's today-highlight pattern applied to
+    // slots. The bold Gothic shares its regular sibling's metrics, so only widths
+    // change: each slot must MEASURE with the same font it draws, hence the per-slot
+    // font resolved here, before measure_slot.
+    GFont slot_fonts[STATUS_SLOT_COUNT];
     // Cached alongside levels[] so a crossed slot's accent (kind lookup +
     // blob color read) is resolved once per draw, not once for the
     // outline/fill pass and again for the ink below (stack-only, no alloc).
@@ -583,6 +621,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         if (!status_line_slot(s_blob_scratch, (size_t)len, i, &slots[i])) { return; }
         levels[i] = THRESH_LEVEL_NORMAL;
+        slot_fonts[i] = font;
         // Rain-alert takeover: hide left + mid so only the right slot (battery)
         // renders; the owner draws the alert glyph+text over the vacated region.
         if (row->suppress_edges && i != STATUS_SLOT_COUNT - 1) {
@@ -594,8 +633,11 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         }
         apply_battery_override(row, i, &slots[i]);
         resolve_slot_text(row, &slots[i], texts[i], sizeof(texts[i]));
-        measures[i] = measure_slot(row, i, font, content_w, &slots[i], texts[i]);
         levels[i] = slot_level(&slots[i]);
+        if (levels[i] != THRESH_LEVEL_NORMAL) {
+            slot_fonts[i] = row_font_bold(row->tier, row->line_id);
+        }
+        measures[i] = measure_slot(row, i, slot_fonts[i], content_w, &slots[i], texts[i]);
     }
 
     StatusSlotPlace places[STATUS_SLOT_COUNT];
@@ -671,7 +713,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
 #endif
         }
         if (places[i].text_visible) {
-            graphics_draw_text(ctx, texts[i], font,
+            graphics_draw_text(ctx, texts[i], slot_fonts[i],
                 GRect(x0 + places[i].text_x, text_y, places[i].text_w,
                       row->bounds.size.h - text_y_rel),
                 GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
