@@ -65,6 +65,12 @@ Open the running emulator app's config (settings) page in a browser (default: ba
 mise config-emulator
 ```
 
+Render a static preview of the config (settings) page to `build/` without an emulator
+(default: basalt):
+```bash
+mise preview-config
+```
+
 Stop running emulator and phone simulator:
 ```bash
 mise kill-emulator
@@ -85,9 +91,24 @@ Capture screenshots for all platforms (replace `v1.4.1` with version):
 mise capture-screenshots v1.4.1
 ```
 
-Capture the curated store configs on every platform (4 configs × 5 platforms):
+Capture per-option wizard screenshots (basalt) and inline them (run on the Mac):
+```bash
+mise capture-wizard-screenshots
+```
+
+Capture the curated store configs on every platform (5 configs × 5 platforms):
 ```bash
 scripts/capture-store-shots.sh v1.4.1
+```
+
+Capture two-phase (forecast + radar/wind) time-lapse frames on all five platforms:
+```bash
+mise capture-timelapse v1.4.1
+```
+
+Assemble a time-lapse GIF from captured frames (args: version platform [fps]):
+```bash
+mise gif v1.4.1 basalt
 ```
 
 Composite the README hero shots (from the store captures) into framed PNGs:
@@ -110,6 +131,23 @@ mise gen-banner v1.6.2 3 "resources/app screenshot.jpeg"
 Serve `telemetry-ingest` edge function locally:
 ```bash
 mise telemetry-serve
+```
+
+Run the Edge Functions' Deno test suites (rainbow-nowcast + news; separate runner
+from `mise test`):
+```bash
+mise test-deno
+```
+
+Build and print aplite image footprint (text+data+bss; heap leading indicator):
+```bash
+mise aplite-size
+```
+
+Fail when the aplite image exceeds the launch-safety ceiling (~22.06 KB) — run
+before shipping aplite changes:
+```bash
+mise check-aplite-size
 ```
 
 ### Build
@@ -153,7 +191,7 @@ mise install-phone --logs
 
 ### Install on emulator
 
-Platforms: `basalt` · `diorite` · `emery` · `flint`
+Platforms: `aplite` · `basalt` · `diorite` · `emery` · `flint`
 
 Dev build, basalt (defaults):
 ```bash
@@ -205,6 +243,30 @@ PEBBLE_EMULATOR=aplite mise config-emulator
 Unlike `mise preview-config`, which renders a *static* HTML snapshot of the config UI to
 `build/` without the emulator, this opens the live page the running app serves.
 
+### Config UI preview (no emulator)
+
+Renders a *static* HTML snapshot of the config UI to `build/config-ui-preview.html` —
+real schema, blocks, and onBuild hooks injected — so you can eyeball/interact with the
+settings UI (tabs, toggles, color picker) in a desktop browser without the emulator. It
+reads source (`shell.html`/`blocks.js`) fresh each run. Args are `[out] [platform]`,
+parsed order-independently: a bare platform name picks the platform and keeps the
+default output path. Alias: `mise preview`.
+
+Default (`build/config-ui-preview.html`, basalt):
+```bash
+mise preview-config
+```
+
+Choose platform, default output path:
+```bash
+mise preview-config -- aplite
+```
+
+Explicit output path and platform:
+```bash
+mise preview-config -- preview.html aplite
+```
+
 ### Kill emulator
 
 Stop running emulator and phone simulator:
@@ -251,7 +313,7 @@ mise capture-screenshots v1.4.1 berlin
 
 #### Store screenshots
 
-Capture all four curated store configs on every platform and file them per platform
+Capture all five curated store configs on every platform and file them per platform
 under `screenshot/<version>/store/<platform>/<config>.png` (the appstore wants ≥1
 screenshot per supported platform):
 ```bash
@@ -263,9 +325,10 @@ Resume from a given round if a run crashed mid-way (e.g. round 4):
 scripts/capture-store-shots.sh v1.4.1 4
 ```
 
-The four configs come from fixtures — `1-calendar` (`store-calendar`),
+The five configs come from fixtures — `1-calendar` (`store-calendar`),
 `2-radar-multicolor` (`berlin`), `3-wind-gust` (`windy`), `4-radar-white-wind`
-(`store-wind-radar`). Upload each platform's four raw frames to the store as-is.
+(`store-wind-radar`), `5-precip-uv` (`precip-uv`). Upload each platform's five raw
+frames to the store as-is.
 
 Composite the README hero shots from the store captures into framed PNGs
 (`screenshot/v1.4.1/composite/`) — Pebble Time←flint/calendar,
@@ -372,7 +435,9 @@ mise prepare-package release
 | `PEBBLE_EMULATOR` | Default emulator platform (e.g. `basalt`) |
 | `TELEMETRY_ENDPOINT` | Telemetry function URL (set for release/CI builds) |
 | `TELEMETRY_HASH_SECRET` | Secret for server-side HMAC hashing of IDs |
-| `RAINBOW_PROXY_ENDPOINT` | Rainbow nowcast proxy URL baked into the bundle (set for release/CI builds via the `RAINBOW_PROXY_ENDPOINT_RELEASE`/`_PREVIEW` repo secrets; empty hides the Rainbow radar option) |
+| `RAINBOW_PROXY_ENDPOINT` | Rainbow nowcast proxy URL baked into the bundle (set for release/CI builds via the `RAINBOW_PROXY_ENDPOINT_RELEASE`/`_PREVIEW` repo secrets; a release build hard-fails if this is empty — Rainbow is the default radar provider, and an empty endpoint doesn't hide the option, it makes every Rainbow radar fetch fail soft with no radar reaching the watch; dev/fork builds may leave it empty on purpose) |
+| `NEWS_ENDPOINT` | News edge-function URL baked into the bundle (set for release/CI builds via the `NEWS_ENDPOINT_RELEASE`/`_PREVIEW` repo secrets; a release build hard-fails if this is empty — the config-page news pill would otherwise be silently disabled for every user) |
+| `AQICN_TOKEN` | Shared WAQI (aqicn.org) token baked into the bundle (set for release/CI builds via the `AQICN_TOKEN_RELEASE`/`_PREVIEW` repo secrets; a release build hard-fails if this is empty — WAQI is the default AQI source, so every device would otherwise silently fall back to Open-Meteo) |
 
 ## Fixtures
 
@@ -403,6 +468,8 @@ Fields supported in `fixtures/<name>.json`:
 | `owmApiKey` | `'abc123'` | Preloads OpenWeatherMap API key |
 | `maxNotifiedVersion` | `'1.26.0'` | Seeds the release-notification "max notified version" marker (simulate skipped-version upgrades) |
 | `resetV134WeekendHolidayColorMigration` | `true/false` | Clears the v1.34.0 weekend/holiday color migration marker so it re-runs on next boot |
+| `resetV140HolidayRegionKeyMigration` | `true/false` | Clears the v1.4.0 holiday-region-key migration marker so it re-runs on next boot |
+| `resetUpdateNotifiedVersion` | `true/false` | Clears the update-notification "already notified" version marker and the last-check timestamp, so the daily update check re-runs on next boot |
 
 These are local-only; not committed or written to Clay settings.
 
@@ -448,6 +515,12 @@ supabase db diff -f <label>
 ```
 
 ### Deploy (hosted)
+
+`.github/workflows/supabase-deploy.yml` already automates this on every push to `main`
+that touches `supabase/**`: it runs `supabase db push --yes` and a bare
+`supabase functions deploy` (which, given no function name, deploys *all* edge
+functions — telemetry-ingest, rainbow-nowcast, and news). The commands below are for
+manual/local deploys.
 
 Authenticate with Supabase:
 ```bash
@@ -496,6 +569,11 @@ Deploy the rainbow-nowcast edge function:
 supabase functions deploy rainbow-nowcast
 ```
 
+Deploy the news edge function:
+```bash
+supabase functions deploy news
+```
+
 ## Upgrading pebble-tool
 
 Bump the pinned version in `mise.toml`:
@@ -522,5 +600,5 @@ mise install
 | `supabase/schemas/` | Declarative DB schemas (source of truth) |
 | `supabase/functions/` | Edge functions |
 | `screenshot/<version>/raw/` | Raw platform screenshots (last capture run) |
-| `screenshot/<version>/store/` | Per-platform store screenshots (4 configs each) |
+| `screenshot/<version>/store/` | Per-platform store screenshots (5 configs each) |
 | `screenshot/<version>/composite/` | Composited README hero screenshots |

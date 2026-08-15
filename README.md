@@ -43,7 +43,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 **Status lines**
 * Configurable status slots on every view: fill each slot from a catalog of metrics — weather, air quality, pollen, wind, health, battery, a countdown to any date, and more
-* Threshold highlighting: outline or fill a status slot when air quality, pollen, wind, gusts, steps, sleep, or distance crosses a warn or danger level you set
+* Threshold highlighting: outline or fill a status slot when air quality, pollen, wind, gusts, UV index, steps, sleep, or distance crosses a warn or danger level you set
 
 **Watchface themes**
 * Dark and Light, plus Black & White options on color watches
@@ -81,7 +81,7 @@ Two things that both involve rain over time, but answer different questions:
 
 ## Platforms
 
-Pebble Classic, Pebble Steel, Pebble Time, Pebble Time Steel, Pebble 2, and Pebble Time 2 are supported.
+Pebble Classic, Pebble Steel, Pebble Time, Pebble Time Steel, Pebble 2, Pebble 2 Duo, and Pebble Time 2 are supported.
 
 ## Installation
 

@@ -53,7 +53,9 @@ Foundation/
   Dictionary/
   Event_Service/
     AccelerometerService/
+    AlarmService/
     AppFocusService/
+    BacklightService/
     BatteryStateService/
     CompassService/
     ConnectionService/
@@ -69,7 +71,6 @@ Foundation/
   Platform/
   Resources/
     File_Formats/
-  Rocky/
   Storage/
   Timer/
   Wakeup/
@@ -91,6 +92,7 @@ User_Interface/
   Animation/
     PropertyAnimation/
   Clicks/
+  Gesture_Recognizers/
   Layers/
     ActionBarLayer/
     BitmapLayer/
@@ -163,10 +165,17 @@ PebbleKit JS (phone-side JS):
 
 ## Important caveats
 
-- The Pebble C SDK targets a constrained ARM Cortex-M device. Heap is ~24KB.
-  Avoid dynamic allocation patterns that would be fine on normal systems.
+- The Pebble C SDK targets a constrained ARM Cortex-M device. The SDK docs don't
+  publish an official per-platform heap figure — the ~24KB sometimes quoted is
+  aplite's combined image+heap flash budget (see this repo's
+  `docs/adr/0001-aplite-frozen-lean-fork.md`), not a heap-only number. For this
+  codebase, treat the measured real peak free heap on aplite, ≈1.5 KB (see
+  AGENTS.md), as the binding constraint. Avoid dynamic allocation patterns that
+  would be fine on normal systems.
 - `APP_LOG` is the debug logger, not printf.
 - All UI must run on the main app task. AppWorker is a separate background task.
-- Platform differences exist between Aplite (B&W), Basalt (color), Chalk
-  (round), and Diorite. Use PBL_IF_* macros and check /docs/c/Foundation/Platform/.
+- This project's actual build targets are Aplite (B&W), Basalt (color),
+  Diorite, Emery, and Flint. (The general Pebble SDK platform lineup also
+  includes Chalk (round).) Use PBL_IF_* macros and check
+  /docs/c/Foundation/Platform/.
 - PebbleKit JS supports only ECMAScript 5.1

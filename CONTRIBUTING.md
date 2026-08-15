@@ -20,6 +20,8 @@ mise build release
 
 This builds the project with the Pebble SDK version pinned in `pebble-sdk-version` and provisioned by the repo scripts. The `.pbw` output can be found in the `build` directory.
 
+`mise build release` requires `RAINBOW_PROXY_ENDPOINT` to be set in the environment — the release profile hard-fails without it (see the env var table in [DEV.md](DEV.md#environment-variables-env)).
+
 ## Supabase (telemetry)
 
 Telemetry uses Supabase Edge Functions + Postgres.
@@ -52,6 +54,8 @@ Copy `.env.example` to `.env`, then populate the telemetry keys there:
 ```bash
 cp .env.example .env
 ```
+
+Uncomment `TELEMETRY_ENDPOINT` in `.env` and set it to `http://127.0.0.1:54321/functions/v1/telemetry-ingest` — it ships commented out, and telemetry is disabled without it.
 
 Serve the telemetry edge function locally (from repo root):
 
@@ -98,7 +102,8 @@ supabase functions deploy telemetry-ingest
 
 Wire release and preview builds to hosted telemetry by setting repository secret(s) used by CI workflows:
 
-- `TELEMETRY_ENDPOINT=https://<your-project-ref>.supabase.co/functions/v1/telemetry-ingest`
+- `TELEMETRY_ENDPOINT_RELEASE=https://<your-project-ref>.supabase.co/functions/v1/telemetry-ingest`
+- `TELEMETRY_ENDPOINT_PREVIEW=https://<your-project-ref>.supabase.co/functions/v1/telemetry-ingest`
 
 ### Optional: Supabase GitHub integration
 
@@ -111,7 +116,7 @@ If you use Supabase GitHub sync/branching, Supabase can auto-apply migrations an
 
 `mise build` and `mise build release` automatically generate `package.json` from the template/profile before building.
 
-If you want the extra Pebble heap debug logs, set `ENABLE_MEMORY_LOGGING=1` in your `.env` before building or installing. This is independent of the dev/release package profile.
+If you want the extra Pebble heap debug logs, set `ENABLE_MEMORY_LOGGING=1` in your `.env` before building or installing. This is independent of the dev/release package profile. This does not build on aplite (the `MEM|` logging overflows `.bss`) — capture heap logs on diorite or another platform instead.
 
 For deterministic emulator UI, set `FIXTURE=<name>` in `.env` before building or installing. Fixture files live in `fixtures/<name>.json` and define the watch facts and weather payload used by local builds.
 

@@ -9,6 +9,19 @@ Flow:
 3. Merge the release PR.
 4. The workflow creates a GitHub release and uploads `build/warnweather.pbw`.
 
+## Release notification requirements
+
+Every release needs two things beyond the code, or the release PR fails CI:
+
+- A `release-notifications.json` entry keyed by the exact new version string, with
+  non-empty `title` + `body` — the upgrade "what's new" toast. The *Release
+  Notification Required* workflow (`.github/workflows/release-notification-required.yml`,
+  running `scripts/check-release-notification.js`) fails the release PR without it.
+- A row in the `public.news` Supabase table with `target_version` set to the exact
+  new version string — the longer changelog shown in the settings screen's News &
+  Feedback section. See `AGENTS.md`'s "Commits & releases" section for the full
+  requirements and style guide for both.
+
 ## Developer portals
 
 - [Rebble Developer Portal](https://dev-portal.rebble.io/
@@ -21,16 +34,16 @@ Store listing copy lives in [STORE_LISTING.md](STORE_LISTING.md).
 
 ### Capture the store screenshots
 
-Capture the four curated configs on every platform, filed per platform under
+Capture the five curated configs on every platform, filed per platform under
 `screenshot/<version>/store/<platform>/<config>.png`:
 
 ```sh
-scripts/capture-store-shots.sh <version>        # all four rounds
-scripts/capture-store-shots.sh <version> 4      # resume from round 4 (after a crash)
+scripts/capture-store-shots.sh <version>        # all five rounds
+scripts/capture-store-shots.sh <version> 5      # resume from round 5 (after a crash)
 ```
 
 The appstore wants at least one screenshot per supported platform, so upload each
-platform's four raw PNGs from `screenshot/<version>/store/<platform>/` to that platform.
+platform's five raw PNGs from `screenshot/<version>/store/<platform>/` to that platform.
 
 ### Composite the README hero shots
 

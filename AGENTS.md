@@ -34,8 +34,10 @@ contributor tool working in this repo. (Claude Code reads it through `CLAUDE.md`
 ## Tests
 
 - `mise test` regenerates `page.generated.js` first (a gitignored build artifact the
-  tests depend on transitively), then runs the suite with Node's native runner
-  (`node --test` / `node:test` — not Jest or Mocha). Test files are `test/*.test.js`.
+  tests depend on transitively), then runs two Node test globs with Node's native runner
+  (`node --test` / `node:test` — not Jest or Mocha): `test/**/*.test.js` and
+  `src/pkjs/config-ui/test/**/*.test.js`, then `scripts/test-c.sh` (host-compiled C layout
+  tests).
 - Tests that touch storage must install a `global.localStorage` mock before the watch
   modules load (see `test/change-detector.test.js` for the pattern).
 
@@ -75,8 +77,11 @@ Write watch-runtime PKJS as ES5: `var` + `function`, no arrow/template-literal s
 and avoid ES6 built-ins. Already polyfilled and safe to call: `Object.assign` and
 `Array.prototype.find`/`findIndex`/`includes` (see `src/pkjs/polyfills.js`, required
 first in `index.js`). Need another ES6 method? Add a guarded polyfill there instead of
-calling it directly. Exempt: `src/pkjs/clay/` is vendored and runs in the phone webview
-(modern JS), so its ES6 usage doesn't reach the watch.
+calling it directly. No exemption for webview-only files: `src/pkjs/config-ui/`
+(the settings UI on all platforms) requires ES5 even in files that only run in the phone
+webview (e.g. `lib/show-when.js`, `lib/engine.js`) to protect ancient Android WebViews,
+enforced by an automated regex guardrail in the test suite — see its own README.md's
+"ES5 constraint" section.
 
 ### Module conventions
 
@@ -93,7 +98,7 @@ calling it directly. Exempt: `src/pkjs/clay/` is vendored and runs in the phone 
   is allocated from aplite's already-tiny heap, so 536 B is effectively a hard ceiling —
   you can't just bump it. An overflow is dropped silently (`APP_MSG_BUFFER_OVERFLOW` →
   "Message dropped!"). Worst realistic case is DWD + wind with City in every status slot
-  = 525 B, leaving only 11 B of headroom (see `test/inbox-size.test.js` — the authoritative
+  = 526 B, leaving only 10 B of headroom (see `test/inbox-size.test.js` — the authoritative
   computation, which records both bundle sizes exactly; keep them in sync). The palette now rides the Clay/settings message instead. `test/inbox-size.test.js`
   guards both the weather and Clay bundles; when
   you grow the worst-case bundle, update its `buildHeaviestBundle()`, and treat bumping

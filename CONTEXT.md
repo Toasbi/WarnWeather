@@ -40,8 +40,10 @@ compiler + flick state; later the à-la-carte settings); the layout module
 consumes them.
 
 **Preset (layout)**:
-A named built-in view spec — Full, Compact, None (± dual status). Presets are
-compiled to view specs; they are not a separate code path.
+A named built-in view spec, keyed by the `layoutPreset` setting: `fullCal`,
+`compactCal`, `compactDense` (stays dense — health/radar status paired — even
+without a body), or `noCal`. Presets are compiled to view specs; they are not
+a separate code path.
 
 **Stop (flick)**:
 One position in the wrist-flick cycle: a view spec shown when the user flicks.
@@ -61,12 +63,6 @@ The settings AppMessage as it rides the wire: all watch-bound settings keys
 (`CLAY_*` + packed holidays + palettes) sent atomically in one message —
 `sendClay` never splits it. Distinct from the *weather* message, which is
 split per category.
-
-**Wire manifest**:
-The single description of the Clay bundle's contract: every watch-bound key
-with its wire kind (bool/int16/color/blob) and C config field. The manifest is
-what the drift tests check the payload builder, `messageKeys`, and the C
-parser against.
 
 **Guarded key (of the Clay bundle)**:
 A key in `config_parse_wire`'s all-or-nothing presence chain
@@ -92,9 +88,11 @@ _Avoid_: send queue.
 ## Radar
 
 **Radar source**:
-The user-selected origin of the short-term rain nowcast — DWD (exact spot +
-nearby area, Germany-only) or Rainbow (exact spot only, worldwide) — chosen
-independently of the weather provider. Every source answers the same
+The user-selected origin of the short-term rain nowcast — DWD (best radar in
+Germany, exact spot + nearby area), Met.no (best radar in the Nordics, exact
+spot), Rainbow (global satellite + radar nowcast, exact spot, worldwide), or
+Tomorrow.io (ML nowcast on the user's own key, exact spot, worldwide) —
+chosen independently of the weather provider. Every source answers the same
 interface; "off" is itself a source whose tuples clear the radar.
 _Avoid_: radar provider in prose (the wire key `radarProvider` keeps its name).
 
