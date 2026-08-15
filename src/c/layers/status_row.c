@@ -320,16 +320,25 @@ static int load_blob(uint8_t line_id) {
 static void load_thresholds(void) {
     s_thresh_len = persist_get_threshold_settings(s_thresh_scratch,
                                                   sizeof(s_thresh_scratch));
-    if (s_thresh_len < 0) { s_thresh_len = 0; }
+    // Judge the blob ONCE per refresh/draw pass: an invalid length collapses to
+    // 0 ("nothing configured") here, so the per-slot accessor calls below all
+    // see an already-normalized (blob, len) pair.
+    if (s_thresh_len < 0
+        || !status_threshold_settings_validate(s_thresh_scratch,
+                                               (size_t)s_thresh_len)) {
+        s_thresh_len = 0;
+    }
     s_levels_word = persist_get_status_levels();
 }
 
-// Highlight level (ThreshLevel) for one resolved slot. Weather kinds read the
-// phone-computed packed byte (the watch has no raw AQI/wind ints); health
-// kinds compare live health_summary values against the Clay-sent thresholds
-// in their wire units (steps / minutes / 100 m).
-static uint8_t slot_level(const StatusSlotView *slot) {
-    int kind = status_threshold_kind_for_slot(slot->kind, slot->icon);
+// Highlight level (ThreshLevel) for one resolved slot, keyed by its ThreshKind
+// (-1 = no threshold-capable content). Callers resolve the kind via
+// status_threshold_kind_for_slot ONCE per slot and hand it to this, the bold
+// predicate, and the accessor reads — the lookup sits on the per-draw hot
+// path. Weather kinds read the phone-computed packed byte (the watch has no
+// raw AQI/wind ints); health kinds compare live health_summary values against
+// the Clay-sent thresholds in their wire units (steps / minutes / 100 m).
+static uint8_t slot_level(int kind) {
     if (kind < 0
         || !status_threshold_enabled(s_thresh_scratch, (size_t)s_thresh_len, kind)) {
         return THRESH_LEVEL_NORMAL;
@@ -351,17 +360,16 @@ static uint8_t slot_level(const StatusSlotView *slot) {
 #endif
 }
 
-// Warn/danger accent for a slot. On effective B&W (real hardware or the
-// bw/bw-light theme) the escalation is polarity, not hue: outline fg,
-// danger fill fg — the user hues only apply on the color path.
-static GColor highlight_color(const StatusSlotView *slot, uint8_t level) {
+// Warn/danger accent for a slot's resolved ThreshKind. On effective B&W (real
+// hardware or the bw/bw-light theme) the escalation is polarity, not hue:
+// outline fg, danger fill fg — the user hues only apply on the color path.
+static GColor highlight_color(int kind, uint8_t level) {
 #ifdef PBL_COLOR
-    int kind = status_threshold_kind_for_slot(slot->kind, slot->icon);
     GColor user = (GColor){ .argb = status_threshold_color8(
         s_thresh_scratch, (size_t)s_thresh_len, kind, level) };
     return theme_pick(user, theme_fg());
 #else
-    (void)slot;
+    (void)kind;
     (void)level;
     return theme_fg();
 #endif
@@ -447,9 +455,16 @@ bool status_row_refresh(StatusRow *row) {
             sig = sig_fold(sig, (const uint8_t *)s_text_scratch,
                            strlen(s_text_scratch));
             // Fold the highlight level so a crossing (new levels byte, a health
-            // value moving, changed settings) is itself a content change.
-            uint8_t level = slot_level(&slot);
+            // value moving, changed settings) is itself a content change, and
+            // the RESOLVED bold bit so a bold-mode-only settings change (e.g.
+            // Always on a kind whose thresholds are off — no level moves)
+            // repaints now instead of riding the next minute tick.
+            int kind = status_threshold_kind_for_slot(slot.kind, slot.icon);
+            uint8_t level = slot_level(kind);
             sig = sig_fold(sig, &level, 1);
+            uint8_t bold = (uint8_t)status_threshold_is_bold(
+                s_thresh_scratch, (size_t)s_thresh_len, kind, level);
+            sig = sig_fold(sig, &bold, 1);
             if (slot.kind != SLOT_EMPTY && slot.icon == STATUS_ICON_DRAWN_SUN) {
                 has_drawn_sun = true;
             }
@@ -614,14 +629,19 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     // change: each slot must MEASURE with the same font it draws, hence the per-slot
     // font resolved here, before measure_slot.
     GFont slot_fonts[STATUS_SLOT_COUNT];
-    // Cached alongside levels[] so a crossed slot's accent (kind lookup +
-    // blob color read) is resolved once per draw, not once for the
-    // outline/fill pass and again for the ink below (stack-only, no alloc).
+    // ThreshKind per slot (-1 = none), resolved ONCE here and shared by the
+    // level/bold checks and both paint passes below — the slot->kind switch
+    // otherwise re-runs per pass (stack-only, no alloc).
+    int8_t kinds[STATUS_SLOT_COUNT];
+    // Cached alongside levels[] so a crossed slot's accent (blob color read +
+    // theme pick) is resolved once per draw, not once for the outline/fill
+    // pass and again for the ink below (stack-only, no alloc).
     GColor accents[STATUS_SLOT_COUNT];
 
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         if (!status_line_slot(s_blob_scratch, (size_t)len, i, &slots[i])) { return; }
         levels[i] = THRESH_LEVEL_NORMAL;
+        kinds[i] = -1;
         slot_fonts[i] = font;
         // Rain-alert takeover: hide left + mid so only the right slot (battery)
         // renders; the owner draws the alert glyph+text over the vacated region.
@@ -634,15 +654,17 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         }
         apply_battery_override(row, i, &slots[i]);
         resolve_slot_text(row, &slots[i], texts[i], sizeof(texts[i]));
-        levels[i] = slot_level(&slots[i]);
+        // AFTER the battery override, which rewrites the slot's kind/icon.
+        kinds[i] = (int8_t)status_threshold_kind_for_slot(slots[i].kind,
+                                                          slots[i].icon);
+        levels[i] = slot_level(kinds[i]);
         // Bold is its own per-kind setting, NOT a function of the level alone:
         // danger always prints bold, "warn" adds the warn level (the shipped
         // default), "always" bolds the normal zone too — even for a kind whose
         // thresholds are switched off entirely, so slot_level()'s NORMAL says
         // nothing here. Predicate + wire layout live in status_threshold.c.
         if (status_threshold_is_bold(s_thresh_scratch, (size_t)s_thresh_len,
-                status_threshold_kind_for_slot(slots[i].kind, slots[i].icon),
-                levels[i])) {
+                kinds[i], levels[i])) {
             slot_fonts[i] = row_font_bold(row->tier, row->line_id);
         }
         measures[i] = measure_slot(row, i, slot_fonts[i], content_w, &slots[i], texts[i]);
@@ -664,7 +686,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         if (!places[i].visible || levels[i] == THRESH_LEVEL_NORMAL) { continue; }
         GRect box = slot_highlight_box(row, &places[i], &measures[i], x0, glyph_cy,
                                        content_h, texts[i]);
-        GColor accent = highlight_color(&slots[i], levels[i]);
+        GColor accent = highlight_color(kinds[i], levels[i]);
         accents[i] = accent;
         // WARN with the 0x00 no-outline sentinel (the default — see
         // status_threshold.h): the bold text IS the highlight; draw no box. The
@@ -672,8 +694,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         // theme-picks a drawable color) so B/W builds honor it too.
         if (levels[i] == THRESH_LEVEL_WARN
             && status_threshold_color8(s_thresh_scratch, (size_t)s_thresh_len,
-                   status_threshold_kind_for_slot(slots[i].kind, slots[i].icon),
-                   levels[i]) == 0) {
+                   kinds[i], levels[i]) == 0) {
             continue;
         }
         if (levels[i] == THRESH_LEVEL_DANGER) {
