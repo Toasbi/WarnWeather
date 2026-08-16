@@ -318,8 +318,9 @@ function thresholdSection(title, keyStem, hint, gate) {
  * @param {string} title Catalog label of the slot kind, e.g. 'City'.
  * @param {string} keyStem Kind key stem, e.g. 'City' (thresh<Stem>BoldMode).
  * @param {Object} [gate] Extra showWhen mirroring the slot's own availability.
- * @param {Object[]} [extraItems] Kind-specific rows rendered ABOVE the Bold row
- *     (what the slot shows before how it's styled), e.g. Temp's display mode.
+ * @param {Object[]} [extraItems] Kind-specific rows rendered BELOW the Bold row,
+ *     e.g. Temp's display mode. Bold is the row every bold-only sheet has, so it
+ *     leads and the kind-specific extras follow.
  * @returns {Object} Schema section (sheetOnly).
  */
 function boldSection(title, keyStem, gate, extraItems) {
@@ -332,7 +333,10 @@ function boldSection(title, keyStem, gate, extraItems) {
         options: [['Off', 'off'], ['Always', 'always']],
         disabledWhen: BOLD_ALL_WHEN
     };
-    var items = (extraItems || []).concat([bold]);
+    // Bold leads. In every other bold-only sheet it is the only control, so a Temp
+    // sheet that opened with its display-mode row put the one row all these sheets
+    // share in a different place on the one sheet that has company.
+    var items = [bold].concat(extraItems || []);
     // Same one-pass gate application as thresholdSection: an extra item cannot
     // forget its gate line (items with their own showWhen keep it).
     if (gate) {
@@ -1175,7 +1179,7 @@ module.exports = {
             // actual temp alone.
             type: 'segmented',
             messageKey: 'tempSlotDisplay',
-            label: 'Show',
+            label: 'Temperature selection',
             hint: 'Show the measured temperature, what it feels like, or both as actual/feels-like.',
             defaultValue: 'actual',
             options: [['Temp', 'actual'], ['Feels like', 'feels'], ['Both', 'both']]

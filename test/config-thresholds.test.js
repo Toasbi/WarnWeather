@@ -965,7 +965,23 @@ const BOLD_CODES = {
   batteryPct: 'BatteryPct'
 };
 
-test('every bold-only kind gets a sheet whose Bold row is its last control', () => {
+// Bold value opens EVERY slot sheet — the bold-only ones, where it is the sole
+// control, and the threshold ones, where it sits above the Thresholds subheader.
+// Asserted across all of them at once rather than per kind, so a sheet added later
+// cannot quietly become the second exception (the Temp sheet was the first).
+test('Bold value is the first row of every slot sheet, threshold and bold-only alike', () => {
+  const sheets = sheetSections();
+  assert.ok(sheets.length >= 17, 'found ' + sheets.length + ' slot sheets');
+  sheets.forEach((s) => {
+    const first = s.items[0];
+    assert.ok(first, s.title + ' has no rows');
+    assert.match(String(first.messageKey), /BoldMode$/,
+      s.title + ' must open with its Bold row, got ' + (first.label || first.messageKey));
+    assert.equal(first.label, 'Bold value', s.title + ' Bold row label');
+  });
+});
+
+test('every bold-only kind gets a sheet whose Bold row is its FIRST control', () => {
   const titles = {
     Temp: 'Temperature slot', Pressure: 'Air pressure (hPa) slot',
     Sun: 'Sunrise/sunset slot', Date: 'Date slot', Week: 'Calendar week slot',
@@ -977,13 +993,13 @@ test('every bold-only kind gets a sheet whose Bold row is its last control', () 
     assert.equal(s.title, titles[stem], stem + ' sheet title');
     assert.deepEqual(s.showWhen, { env: 'thresholds' },
       stem + ' sheet carries the platform gate');
-    // Temp carries its extra display-mode row ABOVE the Bold row; every other
-    // bold-only sheet is exactly the Bold row.
+    // Bold is the row all of these sheets share, so it leads everywhere; Temp then
+    // adds its display-mode row below. Every other bold-only sheet is just Bold.
     assert.equal(s.items.length, stem === 'Temp' ? 2 : 1,
       stem + ' sheet row count');
     const bold = boldFor(stem);
-    assert.equal(s.items[s.items.length - 1], bold,
-      stem + ' Bold row must close the sheet');
+    assert.equal(s.items[0], bold,
+      stem + ' Bold row must open the sheet');
     assert.equal(bold.type, 'segmented');
     assert.equal(bold.label, 'Bold value');
     assert.equal(bold.defaultValue, 'off', stem + ' defaults to off');
@@ -1040,11 +1056,14 @@ test('battery GLYPH has NO sheet (draws a glyph, not text); battery % has one', 
     'threshBatteryPct', 'the battery-% slot resolves its bold sheet');
 });
 
-test('the Temp sheet leads with the display-mode pills above its Bold row', () => {
-  const disp = sheetFor('Temp').items[0];
+test('the Temp sheet puts its display-mode pills below the Bold row', () => {
+  const items = sheetFor('Temp').items;
+  assert.equal(items[0].messageKey, 'threshTempBoldMode', 'Bold leads, as in every sibling sheet');
+  const disp = items[1];
   assert.equal(disp.messageKey, 'tempSlotDisplay');
   assert.equal(disp.type, 'segmented');
   assert.equal(disp.defaultValue, 'actual', 'shipped behaviour: the actual temp');
+  assert.equal(disp.label, 'Temperature selection');
   assert.deepEqual(disp.options,
     [['Temp', 'actual'], ['Feels like', 'feels'], ['Both', 'both']]);
   assert.match(String(disp.hint), /both/i, 'hint explains the Both mode');
