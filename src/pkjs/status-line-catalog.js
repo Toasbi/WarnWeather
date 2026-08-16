@@ -43,13 +43,14 @@
     { code: 'hr', label: 'Heart rate', kind: KINDS.LIVE_HR, icon: ICONS.HR, needsHealth: true, needsHr: true, category: 'health' },
     { code: 'sleep', label: 'Sleep', kind: KINDS.LIVE_SLEEP, icon: ICONS.SLEEP, needsHealth: true, category: 'health' },
     { code: 'battery', label: 'Battery', kind: KINDS.LIVE_BATTERY, icon: ICONS.NONE, topRightOnly: true, category: 'battery' },
-    { code: 'batteryPct', label: 'Battery percentage', kind: KINDS.LIVE_BATTERY_PCT, icon: ICONS.NONE, notAplite: true, category: 'battery' }
+    { code: 'batteryPct', label: 'Battery percentage', kind: KINDS.LIVE_BATTERY_PCT, icon: ICONS.NONE, topRightOnly: true, notAplite: true, category: 'battery' }
   ];
 
   // Dropdown grouping order + header labels (Part F). A category with no
   // available item for a slot emits no header, so gated items never leave an
-  // orphan heading. 'battery' holds the glyph item (top-right only) and the
-  // "NN%" text item (any slot, not aplite) — both only in the top-right slot.
+  // orphan heading. 'battery' holds the glyph item and the "NN%" text item —
+  // both top-right only (battery belongs in the corner the watch already reads
+  // as the battery's); the "NN%" one is additionally absent on aplite.
   var CATEGORIES = [
     ['weather', 'Weather'], ['datelocation', 'Date and location'],
     ['health', 'Health'], ['battery', 'Battery']

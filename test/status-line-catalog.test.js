@@ -269,33 +269,43 @@ test('battery is a LIVE_BATTERY item offered only in the top-right slot', () => 
   assert.ok(glyph && glyph[2].groupChild, 'battery offered top-right as a group child');
   const leftOpts = catalog.slotOptions(s, ENV_BASALT, topLeft);
   assert.ok(!leftOpts.some(o => o[1] === '__hdr_battery'),
-    'single-item Battery group (batteryPct only) collapses elsewhere');
+    'both Battery items are top-right only, so the category emits no header elsewhere');
   assert.ok(!leftOpts.some(o => o[1] === 'battery'), 'no glyph battery elsewhere');
+  assert.ok(!leftOpts.some(o => o[1] === 'batteryPct'), 'no battery % elsewhere either');
 });
 
-test('batteryPct is a LIVE_BATTERY_PCT text item gated off aplite (notAplite)', () => {
+test('batteryPct is a LIVE_BATTERY_PCT text item, top-right only, gated off aplite', () => {
   const item = catalog.byCode('batteryPct');
   assert.ok(item, 'batteryPct item exists');
   assert.equal(item.kind, catalog.KINDS.LIVE_BATTERY_PCT);
   assert.equal(item.icon, catalog.ICONS.NONE);
   assert.equal(item.category, 'battery');
   assert.equal(item.notAplite, true);
+  // Both battery items live in the top-right slot — the corner the watch already
+  // reads as the battery's — so the glyph and the "NN%" text are two renderings of
+  // the same thing in the same place rather than one of them roaming the other rows.
+  assert.equal(item.topRightOnly, true);
+  const topRight = { slotKey: 'statusTopRight', position: 'right' };
   const ctx = { slotKey: 'statusForecastLeft', position: 'left' };
-  assert.ok(catalog.itemAvailable(item, {}, ENV_BASALT, ctx), 'available on basalt');
-  assert.ok(catalog.itemAvailable(item, {}, ENV_EMERY, ctx), 'available on emery');
-  assert.ok(catalog.itemAvailable(item, {}, ENV_DIORITE, ctx), 'available on diorite');
-  assert.ok(!catalog.itemAvailable(item, {}, ENV_APLITE, ctx),
+  assert.ok(catalog.itemAvailable(item, {}, ENV_BASALT, topRight), 'available on basalt');
+  assert.ok(catalog.itemAvailable(item, {}, ENV_EMERY, topRight), 'available on emery');
+  assert.ok(catalog.itemAvailable(item, {}, ENV_DIORITE, topRight), 'available on diorite');
+  assert.ok(!catalog.itemAvailable(item, {}, ENV_BASALT, ctx), 'not in a non-top-right slot');
+  assert.ok(!catalog.itemAvailable(item, {}, ENV_APLITE, topRight),
     'absent on aplite — its glyph battery slot already renders "NN%" text');
-  const basalt = catalog.slotOptions({}, ENV_BASALT, ctx).map(o => o[1]);
-  assert.ok(basalt.indexOf('batteryPct') !== -1, 'offered on a basalt dropdown');
-  const aplite = catalog.slotOptions({}, ENV_APLITE, ctx).map(o => o[1]);
+  const basalt = catalog.slotOptions({}, ENV_BASALT, topRight).map(o => o[1]);
+  assert.ok(basalt.indexOf('batteryPct') !== -1, 'offered on a basalt top-right dropdown');
+  const basaltLeft = catalog.slotOptions({}, ENV_BASALT, ctx).map(o => o[1]);
+  assert.equal(basaltLeft.indexOf('batteryPct'), -1, 'not offered on a non-top-right dropdown');
+  const aplite = catalog.slotOptions({}, ENV_APLITE, topRight).map(o => o[1]);
   assert.equal(aplite.indexOf('batteryPct'), -1, 'not offered on an aplite dropdown');
-  // Defensive resolve mirrors the gate (a synced non-aplite selection).
-  assert.equal(catalog.resolveSelection('batteryPct', {}, ENV_BASALT, ctx), 'batteryPct');
-  assert.equal(catalog.resolveSelection('batteryPct', {}, ENV_APLITE, ctx), 'empty');
+  // Defensive resolve mirrors the gate (a synced non-aplite top-right selection).
+  assert.equal(catalog.resolveSelection('batteryPct', {}, ENV_BASALT, topRight), 'batteryPct');
+  assert.equal(catalog.resolveSelection('batteryPct', {}, ENV_BASALT, ctx), 'empty');
+  assert.equal(catalog.resolveSelection('batteryPct', {}, ENV_APLITE, topRight), 'empty');
 });
 
-test('the Battery category offers both items top-right and only batteryPct elsewhere', () => {
+test('the Battery category is top-right only — both items there, neither anywhere else', () => {
   const s = { healthMode: 'all', radarProvider: 'rainbow', radarMode: 'graph' };
   const trCodes = catalog.slotOptions(s, ENV_BASALT,
     { slotKey: 'statusTopRight', position: 'right' }).map(o => o[1]);
@@ -308,7 +318,8 @@ test('the Battery category offers both items top-right and only batteryPct elsew
   ].forEach((ctx) => {
     const codes = catalog.slotOptions(s, ENV_BASALT, ctx).map(o => o[1]);
     assert.ok(!codes.includes('battery'), ctx.slotKey + ': no glyph battery');
-    assert.ok(codes.includes('batteryPct'), ctx.slotKey + ': batteryPct offered');
+    assert.ok(!codes.includes('batteryPct'), ctx.slotKey + ': no battery %');
+    assert.ok(!codes.includes('__hdr_battery'), ctx.slotKey + ': no orphan Battery header');
   });
 });
 
