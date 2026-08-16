@@ -14,7 +14,6 @@ var HOURS = (function () {
     }
     return o;
 })();
-// Curve-offset ladder for the forecast graph's temp + feels-like curves: the
 // Per-metric hints, shared by the secondary + third line pickers. Each explains how
 // the metric maps to graph height; UV mirrors the precip-percentage phrasing.
 var LINE_HINTS = {
