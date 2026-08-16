@@ -118,5 +118,9 @@
   "1.11.0": {
     "title": "Goals & Warnings, HR Scale and UI updates",
     "body": "Status slots support goals & warnings - set them in the Status slots tab. Also new: a Bold option for every slot, a custom no-rain radar message, a heart-rate graph scale, and a refined settings UI and view layout."
+  },
+  "1.12.0": {
+    "title": "Feels-like temperature & battery slot",
+    "body": "Pick feels-like as a graph line or dots in the Forecast tab, or set the temperature slot to show it instead — or both as 12/10. Also new: a battery percentage slot for the top-right. Fixes the air pressure line not drawing on Weather Underground."
   }
 }
