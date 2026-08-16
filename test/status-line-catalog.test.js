@@ -234,7 +234,7 @@ test('slotOptions marks multi-item groups and collapses single-item groups', () 
   assert.deepEqual(weatherHeader[2], { disabled: true, groupHeader: true });
   const weatherChildren = opts.filter(o => o[2] && o[2].groupChild
     && ['temp', 'wind', 'gust', 'uv', 'aqi', 'sun'].indexOf(o[1]) >= 0);
-  assert.equal(weatherChildren[0][0], 'Current temperature', 'no label-space indentation');
+  assert.equal(weatherChildren[0][0], 'Temperature/feels like', 'no label-space indentation');
   assert.equal(weatherChildren[0][2].groupEnd, false);
   assert.equal(weatherChildren[weatherChildren.length - 1][2].groupEnd, true);
 

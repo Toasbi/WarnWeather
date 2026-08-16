@@ -1093,7 +1093,7 @@ test('Status-slots tab (id watch) opens with a general status-bar intro, then th
   // The bold-only slot sheets (level-less kinds, one Bold row each) follow, in
   // the contract's wire-id order (KINDS 8..16).
   assert.deepEqual(titles.slice(12, 21),
-    ['Current temperature slot', 'Air pressure (hPa) slot', 'Sunrise/sunset slot',
+    ['Temperature slot', 'Air pressure (hPa) slot', 'Sunrise/sunset slot',
       'Date slot', 'Calendar week slot', 'City slot', 'Date countdown slot',
       'Heart rate slot', 'Battery percentage slot'],
     'bold-only slot sheets follow the threshold sheets, in wire-id order');

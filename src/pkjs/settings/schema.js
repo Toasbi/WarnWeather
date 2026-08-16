@@ -1163,7 +1163,10 @@ module.exports = {
         // plus Temp's display-mode row). Order and labels mirror the contract's
         // KINDS appendix (wire ids 8..16); the battery GLYPH item is deliberately
         // absent — see boldSection (the battery PERCENTAGE kind sits at the end).
-        boldSection('Current temperature', 'Temp', null, [{
+        // "Temperature slot", not the catalog's "Temperature (actual/feels like)":
+        // the parenthetical exists to advertise the choice from the dropdown, and
+        // repeating it on the sheet that MAKES the choice is noise.
+        boldSection('Temperature', 'Temp', null, [{
             // Global per-kind, like the bold modes: one choice covers every slot
             // showing temp. The phone bakes the slot text from it (status-lines.js
             // formatValue) and it rides renderSignature(), so a change re-bakes

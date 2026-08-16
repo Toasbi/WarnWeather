@@ -25,7 +25,13 @@
 
   var ITEMS = [
     { code: 'empty', label: 'Empty', kind: KINDS.EMPTY, icon: ICONS.NONE },
-    { code: 'temp', label: 'Current temperature', kind: KINDS.TEXT, icon: ICONS.TEMP, category: 'weather' },
+    // Slashed like its neighbour 'Sunrise/sunset': one slot, two readings. It is the
+    // only hint in the dropdown that this slot has a choice behind it — its edit sheet
+    // picks actual, feels-like, or both — and without it the row reads as a fixed
+    // reading and those modes go unfound. Reserved forms are out: the catalog's
+    // parentheses mean a unit or source ('Air pressure (hPa)', 'Pollen (DWD)'), not a
+    // list of modes.
+    { code: 'temp', label: 'Temperature/feels like', kind: KINDS.TEXT, icon: ICONS.TEMP, category: 'weather' },
     { code: 'wind', label: 'Wind speed', kind: KINDS.TEXT, icon: ICONS.WIND, category: 'weather' },
     { code: 'gust', label: 'Wind gusts', kind: KINDS.TEXT, icon: ICONS.GUST, category: 'weather' },
     { code: 'pressure', label: 'Air pressure (hPa)', kind: KINDS.TEXT, icon: ICONS.PRESSURE, category: 'weather' },

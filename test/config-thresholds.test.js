@@ -967,7 +967,7 @@ const BOLD_CODES = {
 
 test('every bold-only kind gets a sheet whose Bold row is its last control', () => {
   const titles = {
-    Temp: 'Current temperature slot', Pressure: 'Air pressure (hPa) slot',
+    Temp: 'Temperature slot', Pressure: 'Air pressure (hPa) slot',
     Sun: 'Sunrise/sunset slot', Date: 'Date slot', Week: 'Calendar week slot',
     City: 'City slot', Countdown: 'Date countdown slot', Hr: 'Heart rate slot',
     BatteryPct: 'Battery percentage slot'
