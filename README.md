@@ -24,7 +24,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 **Forecast**
 * 24-hour forecast with a temperature line and configurable, battery-friendly updates
-* Configurable metrics such as precipitation, UV index, gusts, wind, and air pressure
+* Configurable metrics such as precipitation, UV index, gusts, wind, air pressure, and feels-like temperature (drawn grey on the temperature scale)
 * Optional day/night shading
 * Multiple weather providers, including regional and worldwide sources
 
@@ -42,7 +42,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Selectable start of week and customizable highlights for weekends and holidays (150+ countries)
 
 **Status lines**
-* Configurable status slots on every view: fill each slot from a catalog of metrics — weather, air quality, pollen, wind, health, battery, a countdown to any date, and more
+* Configurable status slots on every view: fill each slot from a catalog of metrics — weather, air quality, pollen, wind, health, battery (glyph or percentage), a countdown to any date, and more
 * Threshold highlighting: bold, outline, or fill a status slot when air quality, pollen, wind, gusts, UV index, steps, sleep, or distance crosses a warn or danger level you set
 
 **Watchface themes**
@@ -66,9 +66,11 @@ Two things that both involve rain over time, but answer different questions:
 
 - **Forecast graph** — the hourly prediction, looking up to 24 hours ahead. Temperature is
   always shown; on top of it you choose what to add — precipitation %, wind speed, wind gusts,
-  UV index, or air pressure (sea-level, in hPa, with a Narrow/Mid/Wide graph scale) as a main
+  UV index, air pressure (sea-level, in hPa, with a Narrow/Mid/Wide graph scale), or feels-like
+  temperature (drawn grey on the same scale as the temperature curve) as a main
   metric (solid line) and an optional second metric (drawn as bar-aligned square dots; the same
-  metric can't appear on both), plus optional bars for the hourly rain amount.
+  metric can't appear on both), plus optional bars for the hourly rain amount. The temperature
+  status slot can also show the feels-like value, or both as `12/10`.
 - **Rain radar** — unlike the forecast graph's model prediction, this is a short-term nowcast
   based on actual radar measurements moving toward you, refreshed often as new scans arrive.
   Instead of a map it's drawn as bars: the provider's radar images for the next 2 hours are

@@ -8,7 +8,8 @@ Highly customizable with a modern settings UI and previews.
 
 FORECAST
 - 24-hour forecast with a temperature line and configurable, battery-friendly updates
-- Configurable metrics such as precipitation, UV index, gusts, wind and air pressure
+- Configurable metrics such as precipitation, UV index, gusts, wind, air
+  pressure and feels-like temperature (drawn grey on the temperature scale)
 - Optional day/night shading
 - Multiple weather providers, including regional and worldwide sources
 
@@ -27,8 +28,8 @@ CALENDAR
 
 STATUS LINES
 - Configurable status slots on every view: fill each slot from a catalog of
-  metrics — weather, air quality, pollen, wind, health, battery, a countdown
-  to any date, and more
+  metrics — weather, air quality, pollen, wind, health, battery (glyph or
+  percentage), a countdown to any date, and more
 - Threshold highlighting: bold, outline, or fill a status slot when air
   quality, pollen, wind, gusts, UV index, steps, sleep, or distance crosses a
   warn or danger level you set
