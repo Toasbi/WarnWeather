@@ -202,8 +202,10 @@ TomorrowIoProvider.prototype.withProviderData = function(lat, lon, force, onSucc
         this.pressureTrend = mapped.pressureTrend;
         // Feels rides the same call (temperatureApparent is a core field) —
         // adopted unconditionally, no fetch gate to honor.
-        this.feelsTrend = mapped.feelsTrend;
-        this.currentFeels = mapped.currentFeels;
+        // Parsed from the same response (no extra request); gated for consistency
+        // so "no feels selection" means no feels data anywhere.
+        this.feelsTrend = this.fetchFeels ? mapped.feelsTrend : [];
+        this.currentFeels = this.fetchFeels ? mapped.currentFeels : null;
         if (this.fetchUv) {
             this.uvTrend = mapped.uvTrend;
         }

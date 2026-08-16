@@ -174,10 +174,10 @@ MetnoProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, 
         this.windTrend = mapped.windTrend;
         this.gustTrend = mapped.gustTrend;
         this.pressureTrend = mapped.pressureTrend;
-        // Computed from the same response — adopted unconditionally, no fetch
-        // gate to honor.
-        this.feelsTrend = mapped.feelsTrend;
-        this.currentFeels = mapped.currentFeels;
+        // Computed from the same response (no extra request), but Steadman costs
+        // an exp() per hour — skip it when nothing renders a feels value.
+        this.feelsTrend = this.fetchFeels ? mapped.feelsTrend : [];
+        this.currentFeels = this.fetchFeels ? mapped.currentFeels : null;
         this.startTime = mapped.startTime;
         this.currentTemp = mapped.currentTemp;
         if (this.fetchUv) {

@@ -194,8 +194,10 @@ YandexProvider.prototype.withProviderData = function(lat, lon, force, onSuccess,
         this.gustTrend = mapped.gustTrend;
         // Feels rides the same GraphQL response — adopted unconditionally,
         // no fetch gate to honor.
-        this.feelsTrend = mapped.feelsTrend;
-        this.currentFeels = mapped.currentFeels;
+        // Parsed from the same response (no extra request); gated for consistency
+        // so "no feels selection" means no feels data anywhere.
+        this.feelsTrend = this.fetchFeels ? mapped.feelsTrend : [];
+        this.currentFeels = this.fetchFeels ? mapped.currentFeels : null;
         if (this.fetchUv) {
             this.uvTrend = mapped.uvTrend;
         }

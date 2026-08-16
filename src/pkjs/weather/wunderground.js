@@ -170,15 +170,17 @@ WundergroundProvider.prototype.withProviderData = function(lat, lon, force, onSu
                     // drawing a spike to the graph floor.
                     return typeof entry.mslp === 'number' ? entry.mslp : 0;
                 });
-                this.feelsTrend = forecast.map(function(entry) {
+                // API-sourced (no extra request); gated for consistency so "no
+                // feels selection" means no feels data anywhere.
+                this.feelsTrend = this.fetchFeels ? forecast.map(function(entry) {
                     // v1 hourly feels_like, °F (units=e); the anchored current-hour
                     // bucket carries it too (wu-current-hour-cache picks it). Absent
                     // on a station feed → fall back to that hour's temp.
                     return typeof entry.feels_like === 'number' ? entry.feels_like : entry.temp;
-                });
+                }) : [];
                 this.startTime = forecast[0].fcst_valid;
                 this.currentTemp = currentTemp;
-                this.currentFeels = currentFeels;
+                this.currentFeels = this.fetchFeels ? currentFeels : null;
                 onSuccess();
             }).bind(this), onFailure);
         }).bind(this), onFailure);

@@ -900,6 +900,12 @@ function fetch(provider, force) {
     provider.fetchUv = forecastSeries.needsUv(app.settings);
     provider.fetchAqi = forecastSeries.needsAqi(app.settings);
     provider.fetchPollen = forecastSeries.needsPollen(app.settings);
+    // Apparent temperature: no provider spends an extra REQUEST on it (it always
+    // rides a response already being fetched), but DWD and Met.no compute Steadman
+    // per hour and the rest map a series — all wasted when nothing renders it.
+    // Every input of needsFeels is in renderSignature, so flipping a feels
+    // selection forces a refetch and this gate is re-evaluated immediately.
+    provider.fetchFeels = forecastSeries.needsFeels(app.settings);
     provider.aqiScale = (app.settings && app.settings.aqiScale) || 'european';
     provider.aqiSource = (app.settings && app.settings.aqiSource) || 'waqi';
     provider.aqicnToken = (pkg.waqi && pkg.waqi.token) || '';

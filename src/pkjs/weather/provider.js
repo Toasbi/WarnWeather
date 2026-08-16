@@ -209,6 +209,13 @@ var WeatherProvider = function() {
     // formatValue, never wired.
     this.feelsTrend = [];
     this.currentFeels = null;
+    // Whether to do the apparent-temperature work at all (index.js sets it from
+    // forecastSeries.needsFeels before each fetch). Unlike fetchUv/fetchAqi/
+    // fetchPollen this defaults to TRUE, because it gates no request — only
+    // per-hour arithmetic on a response already in hand. Fail-safe direction:
+    // a caller that forgets to set it wastes a few hundred multiplications,
+    // where the fail-closed default would silently blank the feels curve.
+    this.fetchFeels = true;
 };
 
 /**

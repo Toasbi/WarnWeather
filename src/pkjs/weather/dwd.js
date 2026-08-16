@@ -147,10 +147,12 @@ DwdProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, on
             this.windTrend = hourly.map(function(e) { return e.wind_speed || 0; }); // Brightsky wind_speed is km/h
             this.gustTrend = hourly.map(function(e) { return e.wind_gust_speed || 0; }); // Brightsky wind_gust_speed is km/h
             this.pressureTrend = hourly.map(function(e) { return e.pressure_msl || 0; }); // Brightsky pressure_msl is sea-level hPa; 0 → forecast-series rejects the series
-            this.feelsTrend = hourly.map(hourFeels); // Steadman-computed (no Brightsky feels field)
+            // Steadman-computed (no Brightsky feels field), and the most expensive
+            // feels path of any provider — an exp() per hour — so it honours the gate.
+            this.feelsTrend = this.fetchFeels ? hourly.map(hourFeels) : [];
             this.startTime = Math.floor(Date.parse(hourly[0].timestamp) / 1000);
             this.currentTemp = currentTempF;
-            this.currentFeels = currentFeelsF;
+            this.currentFeels = this.fetchFeels ? currentFeelsF : null;
             openmeteo.fetchUvInto(this, lat, lon, onSuccess);
         }).bind(this), onFailure);
     }).bind(this), onFailure);

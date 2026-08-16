@@ -225,6 +225,10 @@ function mapFeels(json, startTime) {
  * @returns {void}
  */
 function adoptFeels(provider, json) {
+    // The request happens regardless (it carries the gusts), so the gate saves only
+    // the timestamp-indexed remap — but it keeps "no feels selection" meaning no
+    // feels data on every provider, so the temp slot degrades identically.
+    if (!provider.fetchFeels) { return; }
     var feels = json ? mapFeels(json, provider.startTime) : null;
     var h;
     if (feels) {
