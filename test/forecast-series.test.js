@@ -74,6 +74,28 @@ test('third line gust over secondary wind: both present, gust dots white with co
   assert.equal(out.THIRD_LINE_COLOR, 0xFFFFFF);                  // colored bars → white gust
 });
 
+test('gust over white bars darkens on a light theme so it stays visible', () => {
+  // LightGray on a white background all but disappears, so light polarity drops a
+  // step to DarkGray — the same swap the LINE_COLORS entries express via `light`,
+  // which gust cannot use because its colour is settings-dependent.
+  const settings = (theme) => ({ secondaryLine: 'gust', thirdLine: 'off', windScale: 'mid',
+    barSource: 'rain', rainBarColor: 'white', theme });
+  const basalt = { platform: 'basalt' };
+  assert.equal(buildForecastSeries(RAW, settings('dark'), basalt).SECONDARY_LINE_COLOR,
+    0xAAAAAA, 'dark keeps LightGray');
+  assert.equal(buildForecastSeries(RAW, settings('light'), basalt).SECONDARY_LINE_COLOR,
+    0x555555, 'light drops to DarkGray');
+  // Multicolor bars are unaffected: white on dark, and resolveInk flips it to black
+  // on light, which is the theme foreground either way.
+  const multi = (theme) => Object.assign(settings(theme), { rainBarColor: 'multicolor' });
+  assert.equal(buildForecastSeries(RAW, multi('dark'), basalt).SECONDARY_LINE_COLOR, 0xFFFFFF);
+  assert.equal(buildForecastSeries(RAW, multi('light'), basalt).SECONDARY_LINE_COLOR, 0x000000);
+  // Same on the dotted third-line path.
+  assert.equal(buildForecastSeries(RAW,
+    { secondaryLine: 'wind', thirdLine: 'gust', windScale: 'mid', barSource: 'rain',
+      rainBarColor: 'white', theme: 'light' }, basalt).THIRD_LINE_COLOR, 0x555555);
+});
+
 test('gust dots go light gray when the rain bars are white (third-line path)', () => {
   const out = buildForecastSeries(RAW, { secondaryLine: 'wind', thirdLine: 'gust', windScale: 'mid', barSource: 'rain', rainBarColor: 'white' });
   assert.equal(out.THIRD_LINE_COLOR, 0xAAAAAA);                 // white bars → GColorLightGray

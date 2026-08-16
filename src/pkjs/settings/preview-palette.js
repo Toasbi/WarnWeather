@@ -76,7 +76,10 @@ function buildPreviewPalette() {
     }
     line.gust = {
         colorMulti: hex(series.lineColorFor('gust', { rainBarColor: 'multicolor' }, true)),
-        colorWhiteBars: hex(series.lineColorFor('gust', { rainBarColor: 'white' }, true)),
+        colorWhiteBars: hex(series.lineColorFor('gust', { rainBarColor: 'white' }, true, 'dark')),
+        // Over white bars the light theme drops LightGray -> DarkGray (LightGray is
+        // near-invisible on a white background), so the preview needs both.
+        lightWhiteBars: hex(series.lineColorFor('gust', { rainBarColor: 'white' }, true, 'light')),
         bw: hex(series.lineColorFor('gust', {}, false))
     };
     fill.gust = fillEntry('gust');

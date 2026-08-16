@@ -212,13 +212,29 @@ static void chart_draw_bar_dots(const ChartRender *r, const ChartLineLayer *l) {
     const int   inner_h     = c.size.h - l->inset_top - l->inset_bottom;
     const int   range       = l->hi - l->lo;
     const int   w           = l->width;
-    // Height is hardcoded (not derived from width). On color a white dot is the dominant case
-    // (gust over colored bars) so it gets a shorter 2px cap; a dimmed gray dot (gust over white
-    // bars, where gray needs more presence) gets a 4px cap. 4 not 3: the top edge is cy - dot_h/2,
-    // and 2/2 and 3/2 both round to 1 — so a 3px cap shared the white cap's top and only grew 1px
-    // downward, reading as the same height. 4/2 = 2 raises the top a pixel too, so the taller gray
-    // cap actually shows. B&W is a fixed 3px.
-    const int   dot_h       = theme_is_bw() ? 3 : (gcolor_equal(l->color, theme_fg()) ? 2 : 4);
+    // Height is hardcoded (not derived from width), and keyed on how loud the dot's
+    // COLOR is — the watch is metric-agnostic, it only ever receives a color.
+    //
+    // ACHROMATIC (the theme foreground, or either gray) reads heavier than a hue at
+    // the same size, so it takes the short 2px cap: gust over colored bars, gust over
+    // white bars, and the feels-like shadow line all land here. HUED (uv magenta,
+    // wind yellow, pressure orange) needs the taller 4px cap to register.
+    //
+    // 4 not 3: the top edge is cy - dot_h/2, and 2/2 and 3/2 both round to 1 — so a
+    // 3px cap would share the short cap's top and grow only 1px downward, reading as
+    // the same height. 4/2 = 2 raises the top a pixel too, so the taller cap shows.
+    //
+    // B&W is a fixed 3px, and the color arm is compiled out rather than merely
+    // constant-folded: theme_pick/theme_is_bw exist so that no color GColor8 constant
+    // is referenced in a B&W image at all (theme.h).
+#ifdef PBL_COLOR
+    const bool  achromatic  = gcolor_equal(l->color, theme_fg())
+                              || gcolor_equal(l->color, GColorLightGray)
+                              || gcolor_equal(l->color, GColorDarkGray);
+    const int   dot_h       = theme_is_bw() ? 3 : (achromatic ? 2 : 4);
+#else
+    const int   dot_h       = 3;
+#endif
     graphics_context_set_fill_color(r->ctx, l->color);
     for (int i = 0; i < count; ++i) {
         if (l->values[i] <= l->lo) continue;           // value 0 → on the baseline, skip

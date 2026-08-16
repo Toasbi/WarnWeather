@@ -153,7 +153,14 @@ function lineColorFor(metric, settings, isColor, theme) {
     if (!isColor) {
         result = COLORS.GColorWhite;
     } else if (metric === 'gust') {
-        result = settings.rainBarColor === 'white' ? COLORS.GColorLightGray : COLORS.GColorWhite;
+        // Gust takes the grays so it never reads as one of the rain bars. Over white
+        // bars that means LightGray — but on a light-polarity theme LightGray sits on
+        // a white background and all but disappears, so the light theme drops a step
+        // to DarkGray (the same swap a LINE_COLORS entry expresses via its `light`
+        // key; gust can't use that table because its colour is settings-dependent).
+        result = settings.rainBarColor === 'white'
+            ? (isLightPolarity(theme) ? COLORS.GColorDarkGray : COLORS.GColorLightGray)
+            : COLORS.GColorWhite;
     } else {
         var entry = LINE_COLORS[metric];
         if (!entry) {

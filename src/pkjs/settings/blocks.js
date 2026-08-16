@@ -46,7 +46,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             uv:          { color: '#FF00FF', light: '#FF00FF', bw: '#FFFFFF' },
             pressure:    { color: '#FF5500', light: '#FF5500', bw: '#FFFFFF' },
             feels:       { color: '#AAAAAA', light: '#555555', bw: '#FFFFFF' },
-            gust:        { colorMulti: '#FFFFFF', colorWhiteBars: '#AAAAAA', bw: '#FFFFFF' }
+            gust:        { colorMulti: '#FFFFFF', colorWhiteBars: '#AAAAAA', lightWhiteBars: '#555555', bw: '#FFFFFF' }
         },
         fill: {
             precip_prob: { color: '#0055AA', light: '#55FFFF', bw: '#AAAAAA' },
@@ -338,7 +338,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (metric === 'gust') {
                 var g = P.line.gust;
                 if (!isColor) { result = g.bw; }
-                else { result = state.rainBarColor === 'white' ? g.colorWhiteBars : g.colorMulti; }
+                else if (state.rainBarColor === 'white') {
+                    // Light polarity drops the gray a step so it stays visible on white.
+                    result = (isLightPolarity(state.theme) && g.lightWhiteBars)
+                        ? g.lightWhiteBars : g.colorWhiteBars;
+                } else { result = g.colorMulti; }
             } else {
                 var e = P.line[metric];
                 if (!e) { result = P.white; }
@@ -472,7 +476,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var m = METRIC[metric];
             if (!m) { return ''; }
             var col = metricColor(metric);
-            var dh = (isColor && col === ink.fg) ? 3 : 4, out = '';
+            // Mirrors chart.c's dot cap: achromatic dots (theme foreground or either
+            // gray) read heavier than a hue at the same size, so they get the short
+            // cap; hued dots keep the tall one. Preview units, not watch px.
+            var dh = (isColor && (col === ink.fg || col === '#AAAAAA' || col === '#555555'))
+                ? 3 : 4;
+            var out = '';
             for (var i = 0; i < n - 1; i += 1) {
                 var pm, cy;
                 if (m.tempAxis) {
