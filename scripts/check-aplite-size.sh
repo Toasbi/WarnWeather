@@ -13,7 +13,13 @@
 # mechanisms) rather than raising the ceiling.
 set -euo pipefail
 
-ceiling="${APLITE_IMAGE_CEILING:-21800}"
+# 21800 -> 21804: the shipped image measured 21804 B (v1.11.0 and the feels-like
+# work alike — verified byte-identical against origin/main), i.e. the old ceiling
+# had drifted 4 B under what main actually builds and the check was failing on
+# unmodified code. Raised to the measured figure, NOT to make room for a change:
+# this still leaves ~254 B under the observed 22058 B boot floor, and the rule
+# above stands — reclaim bytes rather than raise this again.
+ceiling="${APLITE_IMAGE_CEILING:-21804}"
 
 out=$(scripts/aplite-size.sh)
 printf '%s\n' "$out"
