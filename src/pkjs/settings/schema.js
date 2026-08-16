@@ -681,6 +681,7 @@ module.exports = {
                 defaultValue: 'precip_prob',
                 hintByValue: LINE_HINTS,
                 optionsFrom: {resolver: 'forecastMetric'},
+                onChange: 'forecastMetricFill',
                 blockBefore: 'forecastPreview',
                 blockBeforeSticky: true
             }, {
@@ -689,7 +690,14 @@ module.exports = {
                 label: 'Fill area below the line',
                 defaultValue: true,
                 joinPrevious: true,
-                hint: 'Fills the area beneath the line.'
+                hint: 'Fills the area beneath the line.',
+                // Feels-like rides the temperature axis rather than a 0..max scale, so
+                // "below the line" is not the area between the curve and a meaningful
+                // zero — a fill there would flood the plot up to an arbitrary band
+                // floor. The row is hidden for it and the 'forecastMetricFill' hook
+                // above clears the stored value; forecast-series.js re-forces false at
+                // bake time so a settings blob written before this gate still can't fill.
+                showWhen: {key: 'secondaryLine', ne: 'feels'}
             },
             windScaleCopy('secondary', 'kph', WIND_SCALE_HINTS_KPH),
             windScaleCopy('secondary', 'mph', WIND_SCALE_HINTS_MPH),

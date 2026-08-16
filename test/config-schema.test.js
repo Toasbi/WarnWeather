@@ -162,9 +162,22 @@ test('B/W bar-scale hints actually show for bw-light (not just bw) via the show-
 
 test('COLOR-capability + showWhen wiring', () => {
   ['rainBarColor','radarColor','colorTime'].forEach((k) => assert.ok(byKey(k).capabilities.indexOf('COLOR') >= 0));
-  assert.equal(byKey('secondaryLineFill').showWhen, undefined); // fill now available for every metric
+  // Fill is available for every metric EXCEPT feels-like, which rides the temperature
+  // axis and so has no meaningful zero to fill down to.
+  assert.deepEqual(byKey('secondaryLineFill').showWhen, { key: 'secondaryLine', ne: 'feels' });
   assert.deepEqual(byKey('owmApiKey').showWhen, { key: 'provider', eq: 'openweathermap' });
   assert.deepEqual(byKey('devStatsClear').showWhen, { key: 'devStatsEnabled', eq: true });
+});
+
+test('the fill toggle hides for feels-like and stays visible for every other metric', () => {
+  const fill = byKey('secondaryLineFill');
+  ['precip_prob', 'wind', 'gust', 'uv', 'pressure'].forEach((m) => {
+    assert.equal(showWhen.isVisible(fill, { secondaryLine: m, env: {} }), true, m + ' keeps the fill row');
+  });
+  assert.equal(showWhen.isVisible(fill, { secondaryLine: 'feels', env: {} }), false,
+    'feels-like hides the fill row');
+  // The metric picker carries the hook that clears the stored value on the way in.
+  assert.equal(byKey('secondaryLine').onChange, 'forecastMetricFill');
 });
 
 test('tomorrow.io key renders under whichever picker uses it: General (weather) or Radar (radar-only)', () => {

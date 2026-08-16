@@ -417,7 +417,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
          */
         function areaFillFor(metric) {
             var fc = fillColor(metric);
-            var doFill = Boolean(state.secondaryLineFill) && Boolean(fc);
+            // Mirrors forecast-series.buildForecastSeries: feels-like never fills (it
+            // rides the temperature axis, so "below the line" has no meaningful zero),
+            // and the toggle is hidden for it — so the preview must not draw one either,
+            // including for a settings blob still carrying a stale `true`.
+            var doFill = Boolean(state.secondaryLineFill) && Boolean(fc) && metric !== 'feels';
             if (!doFill) { return ''; }
             var pts = metricPoints(metric);
             if (!pts) { return ''; }
@@ -1202,6 +1206,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         };
     }
     PConf.rangeResolvers.register('thresholdRange', thresholdRangeCfg);
+
+    // Picking feels-like as the main metric clears "Fill area below the line": feels
+    // maps against the temperature axis, not a 0..max scale, so its "below the line"
+    // is the arbitrary joint-band floor rather than a zero the fill can mean anything
+    // against. The toggle's showWhen hides the row for feels; this writes the stored
+    // value false so the settings blob agrees with what the watch renders (and with
+    // the preview). Switching to any other metric leaves the value alone — the user
+    // re-enables the fill themselves, the same as any other toggle.
+    PConf.onChange.register('forecastMetricFill', function (S, oldValue, newValue) {
+        if (newValue === 'feels') { S.secondaryLineFill = false; }
+    });
 
     // Flipping "Highlight this value": OFF blanks the pair — a stored blank IS the
     // disabled state, the exact wire contract the old text fields had, so nothing

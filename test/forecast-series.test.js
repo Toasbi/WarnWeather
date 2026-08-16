@@ -581,6 +581,38 @@ test('feels colors: LightGray line (DarkGray in light theme, white on B&W), Ligh
   assert.equal(bw.SECONDARY_LINE_FILL_COLOR, 0xAAAAAA);
 });
 
+// Feels-like maps against the temp∪feels band, not 0..max, so "the area below the
+// line" would be the area above the coldest value on the plot — an arbitrary floor
+// that floods the plot and hides the temp curve it exists to be compared against.
+// The config UI hides the toggle and clears the stored value; the bake is the
+// authoritative gate, so a blob written before that still cannot fill.
+test('feels never fills, even with secondaryLineFill stored true', () => {
+  const raw = { feels: [50, 60], tempBand: { min: 50, max: 60 } };
+  const out = buildForecastSeries(raw,
+    { secondaryLine: 'feels', thirdLine: 'off', secondaryLineFill: true, barSource: 'off' });
+  assert.equal(out.SECONDARY_LINE_FILL, false, 'stale stored true must not reach the watch');
+  // The colour key still rides along (the wire shape is unchanged); only the flag is forced.
+  assert.equal(out.SECONDARY_LINE_FILL_COLOR, 0xAAAAAA);
+});
+
+test('feels fill gate is metric-scoped: every other metric still honours the toggle', () => {
+  const base = { thirdLine: 'off', windScale: 'mid', secondaryLineFill: true, barSource: 'off' };
+  ['precip_prob', 'wind', 'gust', 'uv'].forEach(function (m) {
+    assert.equal(buildForecastSeries(RAW, Object.assign({ secondaryLine: m }, base)).SECONDARY_LINE_FILL,
+      true, m + ' still fills');
+  });
+  assert.equal(buildForecastSeries({ feels: [50, 60], tempBand: { min: 50, max: 60 } },
+    Object.assign({ secondaryLine: 'feels' }, base)).SECONDARY_LINE_FILL, false);
+});
+
+test('feels as the THIRD line does not disturb the secondary metric fill', () => {
+  // The third line is never filled anyway; the gate keys on the SECONDARY metric only.
+  const out = buildForecastSeries(
+    Object.assign({ feels: [50, 60, 70], tempBand: { min: 50, max: 70 } }, RAW),
+    { secondaryLine: 'precip_prob', thirdLine: 'feels', secondaryLineFill: true, barSource: 'off' });
+  assert.equal(out.SECONDARY_LINE_FILL, true, 'precip keeps its fill while feels rides the third line');
+});
+
 test('needsFeels: line selections and temp slot display modes', () => {
   assert.equal(needsFeels(null), false);
   assert.equal(needsFeels({}), false);

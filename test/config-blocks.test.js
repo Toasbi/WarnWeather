@@ -117,6 +117,33 @@ test('forecastPreview: the feels curve rides the temp axis (same fixed margin)',
   assert.equal(tempCurveTopY(svg), 19);
 });
 
+// Feels-like has no meaningful zero to fill down to (it rides the temp∪feels band),
+// so the fill toggle is hidden for it, the 'forecastMetricFill' hook clears the stored
+// value, and both the bake (forecast-series) and this preview force it off regardless.
+test('forecastPreview: feels-like draws no area fill even with secondaryLineFill true', () => {
+  const feels = B.forecastPreview(
+    Object.assign({}, CURVE_BASE, { secondaryLine: 'feels', secondaryLineFill: true }), { color: true });
+  assert.ok(/stroke="#AAAAAA"/.test(feels), 'the feels curve itself still renders');
+  assert.equal(/fill-opacity="0.25"/.test(feels), false, 'no filled area under the feels curve');
+  // Control: the same settings with a normal metric DO produce the fill, so the
+  // assertion above is about feels and not about the fixture being fill-less.
+  const precip = B.forecastPreview(
+    Object.assign({}, CURVE_BASE, { secondaryLine: 'precip_prob', secondaryLineFill: true }), { color: true });
+  assert.ok(/fill-opacity="0.25"/.test(precip), 'precip still fills');
+});
+
+test('forecastMetricFill hook clears the stored fill when feels-like is picked', () => {
+  const fn = PConf.onChange.get('forecastMetricFill');
+  assert.equal(typeof fn, 'function', 'hook registered');
+  const S = { secondaryLine: 'feels', secondaryLineFill: true };
+  fn(S, 'precip_prob', 'feels', {}, 'secondaryLine');
+  assert.equal(S.secondaryLineFill, false, 'picking feels clears the fill');
+  // Switching to another metric leaves the toggle where the user left it.
+  const T = { secondaryLine: 'wind', secondaryLineFill: true };
+  fn(T, 'feels', 'wind', {}, 'secondaryLine');
+  assert.equal(T.secondaryLineFill, true, 'other metrics keep the stored preference');
+});
+
 test('forecastPreview draws the second metric as bar-aligned squares in its metric color, gated on thirdLine', () => {
   const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'precip_prob' };
   // uv = #FF00FF is unique to the second-metric squares (not used by text/background/bars).

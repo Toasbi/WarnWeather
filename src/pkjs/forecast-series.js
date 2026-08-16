@@ -111,10 +111,13 @@ var FILL_COLORS = {
     uv:          { color: COLORS.GColorPurple,     light: COLORS.GColorShockingPink, bw: COLORS.GColorLightGray },
     gust:        { color: COLORS.GColorDarkGray,   light: COLORS.GColorLightGray,    bw: COLORS.GColorLightGray },
     pressure:    { color: COLORS.GColorWindsorTan, light: COLORS.GColorChromeYellow, bw: COLORS.GColorLightGray },
-    // The dark fill MUST stay LightGray: forecast_layer.c's night_area_palette_for_fill
-    // keys the feels night palette on GColorLightGray (a mismatched fill renders the
-    // night area precip-blue — the documented pressure bug). Unambiguous vs gust's
-    // LightGray light tint because light-polarity fills never reach that C table.
+    // Kept for the wire's shape only: buildForecastSeries forces SECONDARY_LINE_FILL
+    // false for feels (it has no meaningful zero to fill down to), so no AREA layer is
+    // ever built and forecast_layer.c's night_area_palette_for_fill never sees this
+    // colour. Still LightGray so that if the fill is ever re-enabled it keys the feels
+    // night palette correctly rather than rendering the night area precip-blue (the
+    // documented pressure bug). Unambiguous vs gust's LightGray light tint because
+    // light-polarity fills never reach that C table.
     feels:       { color: COLORS.GColorLightGray,  light: COLORS.GColorLightGray,    bw: COLORS.GColorLightGray }
 };
 
@@ -411,7 +414,14 @@ function buildForecastSeries(raw, settings, watchInfo) {
     var secPm = metricPermille(secMetric, raw, settings);
     out.SECONDARY_LINE_TREND_UINT8 = secPm ? secPm.map(permilleToByte) : [];
     out.SECONDARY_LINE_COLOR = lineColorFor(secMetric, settings, isColor, theme) || COLORS.GColorBlack;
-    out.SECONDARY_LINE_FILL = Boolean(settings.secondaryLineFill);
+    // Feels-like never fills. Every other metric maps 0..max, so the area under the
+    // line is the area above a real zero; feels rides the temp∪feels band, whose floor
+    // is just the coldest value on the plot — a fill there would flood the plot to an
+    // arbitrary line and swallow the temp curve it is meant to be compared against.
+    // The config UI hides the toggle (schema.js) and clears it (blocks.js'
+    // 'forecastMetricFill'); this is the authoritative gate, so a settings blob stored
+    // before those landed — or any future caller — still cannot turn the fill on.
+    out.SECONDARY_LINE_FILL = Boolean(settings.secondaryLineFill) && secMetric !== 'feels';
     out.SECONDARY_LINE_FILL_COLOR = fillColorFor(secMetric, isColor, theme) || out.SECONDARY_LINE_COLOR;
 
     // Third line: optional; off, or a metric distinct from the secondary one.
