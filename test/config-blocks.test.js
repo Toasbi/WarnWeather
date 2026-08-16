@@ -80,7 +80,9 @@ test('forecastPreview draws feels-like grey, and the hi/lo labels stay the ACTUA
   assert.ok(plain.indexOf('>14°<') > -1, 'and they are the same labels without feels');
   // Light theme darkens the grey (LightGray is illegible on white); B&W goes white.
   const light = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'feels', theme: 'light' }), { color: true });
-  assert.ok(light.indexOf('stroke="#555555"') > -1, 'light theme: dark grey stroke');
+  assert.ok(light.indexOf('stroke="#000000"') > -1,
+    'light theme: black stroke — a grey is invisible at 1px on white, and DarkGray is '
+    + 'what the white-bar mode paints its bars in a light theme');
   const bw = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'feels' }), { color: false });
   assert.ok(bw.indexOf('stroke="#FFFFFF"') > -1, 'B&W: white stroke');
 });

@@ -74,26 +74,49 @@ test('third line gust over secondary wind: both present, gust dots white with co
   assert.equal(out.THIRD_LINE_COLOR, 0xFFFFFF);                  // colored bars → white gust
 });
 
-test('gust over white bars darkens on a light theme so it stays visible', () => {
-  // LightGray on a white background all but disappears, so light polarity drops a
-  // step to DarkGray — the same swap the LINE_COLORS entries express via `light`,
-  // which gust cannot use because its colour is settings-dependent.
-  const settings = (theme) => ({ secondaryLine: 'gust', thirdLine: 'off', windScale: 'mid',
-    barSource: 'rain', rainBarColor: 'white', theme });
+test('achromatic lines go black on a light theme, and never match the rain bars', () => {
   const basalt = { platform: 'basalt' };
-  assert.equal(buildForecastSeries(RAW, settings('dark'), basalt).SECONDARY_LINE_COLOR,
-    0xAAAAAA, 'dark keeps LightGray');
-  assert.equal(buildForecastSeries(RAW, settings('light'), basalt).SECONDARY_LINE_COLOR,
-    0x555555, 'light drops to DarkGray');
-  // Multicolor bars are unaffected: white on dark, and resolveInk flips it to black
-  // on light, which is the theme foreground either way.
-  const multi = (theme) => Object.assign(settings(theme), { rainBarColor: 'multicolor' });
-  assert.equal(buildForecastSeries(RAW, multi('dark'), basalt).SECONDARY_LINE_COLOR, 0xFFFFFF);
-  assert.equal(buildForecastSeries(RAW, multi('light'), basalt).SECONDARY_LINE_COLOR, 0x000000);
-  // Same on the dotted third-line path.
+  const line = (metric, theme, bars) => buildForecastSeries(RAW,
+    { secondaryLine: metric, thirdLine: 'off', windScale: 'mid', barSource: 'rain',
+      rainBarColor: bars, theme }, basalt).SECONDARY_LINE_COLOR;
+  // Dark: gust is white over coloured bars, LightGray over white ones so it never
+  // reads as a bar; feels is LightGray against the temp curve.
+  assert.equal(line('gust', 'dark', 'multicolor'), 0xFFFFFF);
+  assert.equal(line('gust', 'dark', 'white'), 0xAAAAAA);
+  assert.equal(line('feels', 'dark', 'multicolor'), 0xAAAAAA);
+  // Light: both go BLACK. A gray at 1px on white barely registers, and DarkGray is
+  // exactly what the white-bar mode paints its BARS in a light theme — a DarkGray
+  // line would vanish into them.
+  assert.equal(line('gust', 'light', 'multicolor'), 0x000000);
+  assert.equal(line('gust', 'light', 'white'), 0x000000);
+  assert.equal(line('feels', 'light', 'multicolor'), 0x000000);
+  assert.equal(line('feels', 'light', 'white'), 0x000000);
+  // GUST's whole colour rule is "never read as one of the rain bars", so state that
+  // as an invariant over every theme x bar-mode. (Not feels: it is allowed to share
+  // LightGray with the lightest rain tier on dark — its job is to shadow the temp
+  // curve, and a filled bar at the baseline never reads as a curve.)
+  const rainTier = require('../src/pkjs/weather/rain-tier.js');
+  ['dark', 'light'].forEach((theme) => ['white', 'multicolor'].forEach((bars) => {
+    const barColors = rainTier.buildPalette('basalt', bars, theme).rgb;
+    assert.equal(barColors.indexOf(line('gust', theme, bars)), -1,
+      `gust on ${theme}/${bars} is the same colour as a rain bar`);
+  }));
+  // Same resolution on the dotted third-line path.
   assert.equal(buildForecastSeries(RAW,
     { secondaryLine: 'wind', thirdLine: 'gust', windScale: 'mid', barSource: 'rain',
-      rainBarColor: 'white', theme: 'light' }, basalt).THIRD_LINE_COLOR, 0x555555);
+      rainBarColor: 'white', theme: 'light' }, basalt).THIRD_LINE_COLOR, 0x000000);
+});
+
+test('a BLACK light-variant is honoured (0x000000 is falsy — presence, not truthiness)', () => {
+  // Regression: lineColorFor tested `entry.light && isLightPolarity(theme)`, so a
+  // light variant of GColorBlack (0x000000) failed the guard and the metric silently
+  // fell back to its DARK colour. feels-like is the first metric with a black one.
+  const { LINE_COLORS } = require('../src/pkjs/forecast-series');
+  assert.equal(LINE_COLORS.feels.light, 0x000000, 'the fixture for this bug');
+  assert.equal(buildForecastSeries(RAW,
+    { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off', theme: 'light' },
+    { platform: 'basalt' }).SECONDARY_LINE_COLOR, 0x000000,
+    'must be black, not the dark-theme LightGray');
 });
 
 test('gust dots go light gray when the rain bars are white (third-line path)', () => {
@@ -620,11 +643,11 @@ test('flat joint band (all temps and feels equal): feels sits mid-plot like the 
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [125, 125]);
 });
 
-test('feels colors: LightGray line (DarkGray in light theme, white on B&W), LightGray dark fill', () => {
+test('feels colors: LightGray line (BLACK in light theme, white on B&W), LightGray dark fill', () => {
   // The dark fill must stay LightGray: forecast_layer.c's night_area_palette_for_fill
   // keys the feels night palette on GColorLightGray.
   assert.equal(LINE_COLORS.feels.color, 0xAAAAAA);  // GColorLightGray
-  assert.equal(LINE_COLORS.feels.light, 0x555555);  // GColorDarkGray
+  assert.equal(LINE_COLORS.feels.light, 0x000000);  // GColorBlack — a gray is invisible at 1px on white
   assert.equal(LINE_COLORS.feels.bw, 0xFFFFFF);     // GColorWhite
   assert.equal(FILL_COLORS.feels.color, 0xAAAAAA);  // GColorLightGray — the C key
   const raw = { feels: [50, 60], tempBand: { min: 50, max: 60 } };
@@ -634,7 +657,7 @@ test('feels colors: LightGray line (DarkGray in light theme, white on B&W), Ligh
   assert.equal(dark.SECONDARY_LINE_FILL_COLOR, 0xAAAAAA);
   const light = buildForecastSeries(raw,
     { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off', theme: 'light' }, { platform: 'basalt' });
-  assert.equal(light.SECONDARY_LINE_COLOR, 0x555555, 'light theme darkens the line for the white background');
+  assert.equal(light.SECONDARY_LINE_COLOR, 0x000000, 'light theme goes black for the white background');
   const bw = buildForecastSeries(raw,
     { secondaryLine: 'feels', thirdLine: 'off', secondaryLineFill: true, barSource: 'off' }, { platform: 'diorite' });
   assert.equal(bw.SECONDARY_LINE_COLOR, 0xFFFFFF);

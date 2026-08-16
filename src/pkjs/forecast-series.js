@@ -89,9 +89,12 @@ var LINE_COLORS = {
     // treating it as final.
     pressure:    { color: COLORS.GColorOrange,     bw: COLORS.GColorWhite },
     // Feels-like shadows the 3px temp curve, so it stays achromatic and dimmer than
-    // any hue: LightGray next to temp's white line, darkened for the light theme. On
-    // B&W the width/pattern (1px solid or dots vs the 3px temp curve) tells it apart.
-    feels:       { color: COLORS.GColorLightGray,  light: COLORS.GColorDarkGray,      bw: COLORS.GColorWhite }
+    // any hue: LightGray next to temp's white line on dark. On light it goes BLACK,
+    // not a gray — at 1px on a white background DarkGray reads as barely-there, and
+    // it would also collide with the light theme's white-bar rain colour. Black still
+    // separates from the temp curve, which stays red on colour displays. On B&W the
+    // width/pattern (1px solid or dots vs the 3px temp curve) tells it apart.
+    feels:       { color: COLORS.GColorLightGray,  light: COLORS.GColorBlack,         bw: COLORS.GColorWhite }
 };
 // Metric → area-fill colour per platform class. Every metric can fill; colour-platform
 // fills are a darker shade of the line so the line always reads brighter (precip
@@ -153,19 +156,23 @@ function lineColorFor(metric, settings, isColor, theme) {
     if (!isColor) {
         result = COLORS.GColorWhite;
     } else if (metric === 'gust') {
-        // Gust takes the grays so it never reads as one of the rain bars. Over white
-        // bars that means LightGray — but on a light-polarity theme LightGray sits on
-        // a white background and all but disappears, so the light theme drops a step
-        // to DarkGray (the same swap a LINE_COLORS entry expresses via its `light`
-        // key; gust can't use that table because its colour is settings-dependent).
-        result = settings.rainBarColor === 'white'
-            ? (isLightPolarity(theme) ? COLORS.GColorDarkGray : COLORS.GColorLightGray)
+        // Gust takes the achromatic slot so it never reads as one of the rain bars.
+        // Dark polarity: LightGray over white bars (which are white there), white
+        // otherwise. Light polarity: black either way — LightGray is invisible on a
+        // white background, and DarkGray is the exact colour the white-bar mode
+        // paints its BARS in a light theme (rain-tier.buildPalette), so a DarkGray
+        // line would vanish into them. White falls through to resolveInk, which
+        // flips it to black on light polarity.
+        result = (!isLightPolarity(theme) && settings.rainBarColor === 'white')
+            ? COLORS.GColorLightGray
             : COLORS.GColorWhite;
     } else {
         var entry = LINE_COLORS[metric];
         if (!entry) {
             result = COLORS.GColorBlack;
-        } else if (entry.light && isLightPolarity(theme)) {
+        } else if (isLightPolarity(theme) && entry.hasOwnProperty('light')) {
+            // Presence, not truthiness: GColorBlack is 0x000000, so `entry.light &&`
+            // silently drops a black light-variant back to the dark colour.
             result = entry.light;
         } else {
             result = entry.color;

@@ -45,8 +45,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             wind:        { color: '#FFFF00', light: '#FFFF00', bw: '#FFFFFF' },
             uv:          { color: '#FF00FF', light: '#FF00FF', bw: '#FFFFFF' },
             pressure:    { color: '#FF5500', light: '#FF5500', bw: '#FFFFFF' },
-            feels:       { color: '#AAAAAA', light: '#555555', bw: '#FFFFFF' },
-            gust:        { colorMulti: '#FFFFFF', colorWhiteBars: '#AAAAAA', lightWhiteBars: '#555555', bw: '#FFFFFF' }
+            feels:       { color: '#AAAAAA', light: '#000000', bw: '#FFFFFF' },
+            gust:        { colorMulti: '#FFFFFF', colorWhiteBars: '#AAAAAA', lightWhiteBars: '#000000', bw: '#FFFFFF' }
         },
         fill: {
             precip_prob: { color: '#0055AA', light: '#55FFFF', bw: '#AAAAAA' },
