@@ -47,3 +47,40 @@ test('DWD maps Brightsky pressure_msl into pressureTrend', () => {
   p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
   assert.deepEqual(p.pressureTrend, [1012.5, 0], 'pressure_msl hPa passthrough, absent → 0');
 });
+
+const feelsLikeF = require('../src/pkjs/weather/feels-like.js').feelsLikeF;
+
+test('DWD computes feelsTrend via Steadman from temperature/relative_humidity/wind_speed', () => {
+  responder = function(url, onSuccess) {
+    if (url.indexOf('/current_weather') !== -1) {
+      // current_weather has no plain wind_speed — 10/30/60-minute means only.
+      onSuccess(JSON.stringify({ weather: { temperature: 20, relative_humidity: 57, wind_speed_10: 8.3 } }));
+      return;
+    }
+    onSuccess(JSON.stringify({ weather: [
+      { temperature: 20, relative_humidity: 50, precipitation_probability: 0, precipitation: 0, wind_speed: 20, wind_gust_speed: 0, timestamp: '2023-11-14T22:00:00+00:00' },
+      // no relative_humidity -> the hour falls back to the plain temp (°F)
+      { temperature: 10, precipitation_probability: 0, precipitation: 0, wind_speed: 0, wind_gust_speed: 0, timestamp: '2023-11-14T23:00:00+00:00' }
+    ] }));
+  };
+  const p = new DwdProvider();
+  p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  assert.equal(p.feelsTrend[0], feelsLikeF(68, 50, 20), 'Steadman on the internal °F/km/h units');
+  assert.equal(p.feelsTrend[1], 50, 'missing humidity → the hour reads the actual 10 °C → 50 °F');
+  assert.equal(p.currentFeels, feelsLikeF(68, 57, 8.3), 'current uses the 10-minute wind mean');
+});
+
+test('DWD leaves currentFeels null when current_weather lacks the Steadman inputs', () => {
+  responder = function(url, onSuccess) {
+    if (url.indexOf('/current_weather') !== -1) {
+      onSuccess(JSON.stringify({ weather: { temperature: 20 } }));   // no rh/wind
+      return;
+    }
+    onSuccess(JSON.stringify({ weather: [
+      { temperature: 0, precipitation_probability: 0, precipitation: 0, wind_speed: 0, wind_gust_speed: 0, timestamp: '2023-11-14T22:00:00+00:00' }
+    ] }));
+  };
+  const p = new DwdProvider();
+  p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  assert.equal(p.currentFeels, null, 'null → FEELS_CURRENT omitted, temp slot degrades');
+});

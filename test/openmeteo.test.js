@@ -85,15 +85,19 @@ test('buildForecastUrl pins the ecmwf_ifs025 model for region-robust precipitati
   assert.match(url, /&models=ecmwf_ifs025(&|$)/);
 });
 
-test('buildGustUrl requests only gusts and avoids the gust-less ECMWF pin', () => {
-  // ECMWF IFS (the main forecast's pinned model) returns windgusts_10m as
-  // all-null, so the dedicated gust call must NOT pin an ecmwf_* model.
+test('buildGustUrl requests gusts + feels and avoids the derived-field-less ECMWF pin', () => {
+  // ECMWF IFS (the main forecast's pinned model) returns windgusts_10m and
+  // apparent_temperature as all-null, so the aux call must NOT pin an ecmwf_*
+  // model — both derived fields ride this always-fetched best_match call.
   const url = openmeteo.buildGustUrl(52.52, 13.41);
-  assert.match(url, /[?&]hourly=windgusts_10m(&|$)/);
+  assert.match(url, /[?&]hourly=windgusts_10m,apparent_temperature(&|$)/);
+  assert.match(url, /&current=apparent_temperature(&|$)/);
   assert.doesNotMatch(url, /models=ecmwf/);
   assert.match(url, /&forecast_days=2(&|$)/);
   assert.match(url, /&timeformat=unixtime(&|$)/);
   assert.match(url, /&windspeed_unit=kmh(&|$)/);
+  // temperature_unit applies per-request — without it the feels come back °C.
+  assert.match(url, /&temperature_unit=fahrenheit(&|$)/);
 });
 
 test('mapGusts aligns gusts to the forecast start time by timestamp', () => {
@@ -196,4 +200,51 @@ test('open-meteo tolerates a response with no pressure_msl', () => {
   const mapped = mapResponse(json, BASE);
   assert.notEqual(mapped, null);
   assert.deepEqual(mapped.pressureTrend, []);
+});
+
+// ---- Feels-like (apparent temperature) -----------------------------------
+test('mapFeels aligns apparent_temperature to the forecast start by timestamp', () => {
+  const time = [], apparent_temperature = [];
+  for (let i = 0; i < 26; i += 1) { time.push(BASE + i * 3600); apparent_temperature.push(60 + i); }
+  const out = openmeteo.mapFeels({ hourly: { time, apparent_temperature } }, BASE + 3600);
+  assert.equal(out.length, 24);
+  assert.equal(out[0], 61);   // bucket at start
+  assert.equal(out[23], 84);
+});
+
+test('mapFeels: missing/non-numeric buckets become null; malformed → null', () => {
+  const out = openmeteo.mapFeels({ hourly: { time: [BASE, BASE + 3600], apparent_temperature: [null, 55] } }, BASE);
+  assert.equal(out[0], null);
+  assert.equal(out[1], 55);
+  assert.equal(out[2], null); // beyond the feed
+  assert.equal(openmeteo.mapFeels({ hourly: { time: [BASE] } }, BASE), null); // no series
+  assert.equal(openmeteo.mapFeels(null, BASE), null);
+});
+
+test('adoptFeels fills feelsTrend/currentFeels, temp-backfilling null buckets', () => {
+  const p = new OpenMeteoProvider();
+  p.startTime = BASE;
+  p.tempTrend = new Array(24).fill(0).map((_, i) => 50 + i);
+  const time = [], apparent_temperature = [];
+  for (let i = 0; i < 26; i += 1) { time.push(BASE + i * 3600); apparent_temperature.push(i === 2 ? null : 40 + i); }
+  openmeteo.adoptFeels(p, {
+    hourly: { time, apparent_temperature },
+    current: { apparent_temperature: 41.5 }
+  });
+  assert.equal(p.feelsTrend.length, 24);
+  assert.equal(p.feelsTrend[0], 40);
+  assert.equal(p.feelsTrend[2], 52, 'null bucket backfills from tempTrend (50 + 2)');
+  assert.equal(p.currentFeels, 41.5);
+});
+
+test('adoptFeels leaves the defaults on a malformed/absent response', () => {
+  const p = new OpenMeteoProvider();
+  p.startTime = BASE;
+  p.tempTrend = new Array(24).fill(50);
+  openmeteo.adoptFeels(p, null);                    // parse failure upstream
+  assert.deepEqual(p.feelsTrend, []);
+  assert.equal(p.currentFeels, null);
+  openmeteo.adoptFeels(p, { hourly: { time: [BASE] } }); // no apparent_temperature
+  assert.deepEqual(p.feelsTrend, []);
+  assert.equal(p.currentFeels, null);
 });

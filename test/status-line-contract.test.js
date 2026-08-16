@@ -36,6 +36,7 @@ test('slot kinds are in lockstep with status_line.h', () => {
   assert.equal(catalog.KINDS.LIVE_WEEK, cEnum('SLOT_LIVE_WEEK'));
   assert.equal(catalog.KINDS.LIVE_DISTANCE_MI, cEnum('SLOT_LIVE_DISTANCE_MI'));
   assert.equal(catalog.KINDS.LIVE_BATTERY, cEnum('SLOT_LIVE_BATTERY'));
+  assert.equal(catalog.KINDS.LIVE_BATTERY_PCT, cEnum('SLOT_LIVE_BATTERY_PCT'));
 });
 
 test('icon ids are in lockstep with status_line.h', () => {
@@ -77,7 +78,8 @@ test('every dropdown item maps kind+icon consistently', () => {
     sleep: [catalog.KINDS.LIVE_SLEEP, catalog.ICONS.SLEEP],
     date: [catalog.KINDS.LIVE_DATE, catalog.ICONS.NONE],
     week: [catalog.KINDS.LIVE_WEEK, catalog.ICONS.NONE],
-    battery: [catalog.KINDS.LIVE_BATTERY, catalog.ICONS.NONE]
+    battery: [catalog.KINDS.LIVE_BATTERY, catalog.ICONS.NONE],
+    batteryPct: [catalog.KINDS.LIVE_BATTERY_PCT, catalog.ICONS.NONE]
   };
   Object.keys(expected).forEach(code => {
     const item = catalog.byCode(code);

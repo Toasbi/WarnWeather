@@ -21,14 +21,14 @@ function buildQuery(lat, lon) {
     var latNum = Number(lat);
     var lonNum = Number(lon);
     return '{ weatherByPoint(request: {lat: ' + latNum + ', lon: ' + lonNum + '}) {'
-        + ' now { temperature(unit: FAHRENHEIT) }'
+        + ' now { temperature(unit: FAHRENHEIT) feelsLike(unit: FAHRENHEIT) }'
         // No pressure field on purpose: Yandex exposes station-level pressure only,
         // and a station reading at altitude is ~830 hPa where every other provider
         // reports ~1013 MSL. Leaving pressureTrend empty degrades to a line-off and
         // a '--' slot, rather than showing a number that means something different
         // from the same slot on any other provider.
         + ' forecast { days(limit: 3) { hours {'
-        + ' timestamp temperature(unit: FAHRENHEIT) precProbability prec'
+        + ' timestamp temperature(unit: FAHRENHEIT) feelsLike(unit: FAHRENHEIT) precProbability prec'
         + ' windSpeed(unit: KILOMETERS_PER_HOUR) windGust(unit: KILOMETERS_PER_HOUR) uvIndex'
         + ' } } } } }';
 }
@@ -108,6 +108,7 @@ function mapResponse(json, nowEpoch) {
     var windTrend = [];
     var gustTrend = [];
     var uvTrend = [];
+    var feelsTrend = [];
     var i;
     var hr;
     for (i = 0; i < FORECAST_HOURS; i += 1) {
@@ -118,6 +119,9 @@ function mapResponse(json, nowEpoch) {
         windTrend.push(typeof hr.windSpeed === 'number' ? hr.windSpeed : 0);
         gustTrend.push(typeof hr.windGust === 'number' ? hr.windGust : 0);
         uvTrend.push(typeof hr.uvIndex === 'number' ? hr.uvIndex : 0);
+        // Server-side °F like temperature; a missing hour falls back to the
+        // mapped temp so the series stays numeric.
+        feelsTrend.push(typeof hr.feelsLike === 'number' ? hr.feelsLike : tempTrend[i]);
     }
 
     return {
@@ -127,8 +131,11 @@ function mapResponse(json, nowEpoch) {
         windTrend: windTrend,
         gustTrend: gustTrend,
         uvTrend: uvTrend,
+        feelsTrend: feelsTrend,
         startTime: parseInt(hours[anchor].timestamp, 10),
-        currentTemp: now.temperature
+        currentTemp: now.temperature,
+        // Missing → null so FEELS_CURRENT is omitted rather than echoing the temp.
+        currentFeels: typeof now.feelsLike === 'number' ? now.feelsLike : null
     };
 }
 
@@ -185,6 +192,10 @@ YandexProvider.prototype.withProviderData = function(lat, lon, force, onSuccess,
         this.rainTrend = mapped.rainTrend;
         this.windTrend = mapped.windTrend;
         this.gustTrend = mapped.gustTrend;
+        // Feels rides the same GraphQL response — adopted unconditionally,
+        // no fetch gate to honor.
+        this.feelsTrend = mapped.feelsTrend;
+        this.currentFeels = mapped.currentFeels;
         if (this.fetchUv) {
             this.uvTrend = mapped.uvTrend;
         }

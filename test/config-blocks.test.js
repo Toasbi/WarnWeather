@@ -66,6 +66,31 @@ test('forecastPreview draws the secondary line per metric (solid, per-metric col
   assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'uv' }), { color: true }).indexOf('stroke="#FF00FF"') > -1, 'uv = magenta');
 });
 
+test('forecastPreview draws feels-like grey on the shared temp axis (joint-band labels)', () => {
+  const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', thirdLine: 'off', secondaryLineFill: false };
+  const svg = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'feels' }), { color: true });
+  assert.ok(svg.indexOf('stroke="#AAAAAA"') > -1, 'feels = light grey line (dark theme)');
+  // The feels sample dips to 11° under the 14° temp min: with feels selected the
+  // axis rescales to the joint temp∪feels band (mirrors applyForecastSeries).
+  assert.ok(svg.indexOf('>11°<') > -1, 'axis min widens to the joint band');
+  assert.ok(svg.indexOf('>Feels<') > -1, 'legend lists the feels series');
+  const plain = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'precip_prob' }), { color: true });
+  assert.ok(plain.indexOf('>14°<') > -1 && plain.indexOf('>11°<') === -1,
+    'without feels the axis keeps the temp-only band');
+  // Light theme darkens the grey (LightGray is illegible on white); B&W goes white.
+  const light = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'feels', theme: 'light' }), { color: true });
+  assert.ok(light.indexOf('stroke="#555555"') > -1, 'light theme: dark grey stroke');
+  const bw = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'feels' }), { color: false });
+  assert.ok(bw.indexOf('stroke="#FFFFFF"') > -1, 'B&W: white stroke');
+});
+
+test('feels-like as the second metric draws grey squares and still widens the axis', () => {
+  const svg = B.forecastPreview({ dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'precip_prob', thirdLine: 'feels', secondaryLineFill: false }, { color: true });
+  assert.ok(svg.indexOf('<rect') > -1 && svg.indexOf('fill="#AAAAAA"') > -1,
+    'feels renders as filled grey squares');
+  assert.ok(svg.indexOf('>11°<') > -1, 'joint band applies from the second line too');
+});
+
 test('forecastPreview draws the second metric as bar-aligned squares in its metric color, gated on thirdLine', () => {
   const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'precip_prob' };
   // uv = #FF00FF is unique to the second-metric squares (not used by text/background/bars).

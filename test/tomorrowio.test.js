@@ -191,3 +191,25 @@ test('tomorrow.io yields 0 for a missing pressureSeaLevel (forecast-series rejec
   const out = tomorrowio.mapResponse(sampleResponse(), BASE + 3 * 3600 + 600);
   assert.equal(out.pressureTrend[0], 0);
 });
+
+test('tomorrow.io requests temperatureApparent and maps it °C→°F into feelsTrend', () => {
+  assert.ok(tomorrowio.buildUrl(52.52, 13.41, 'KEY123', BASE + 1234).includes('temperatureApparent'),
+    'fields must request temperatureApparent');
+  const json = sampleResponse();
+  json.data.timelines[0].intervals.forEach((iv, i) => { iv.values.temperatureApparent = 5 + i; });
+  const out = tomorrowio.mapResponse(json, BASE + 3 * 3600 + 600); // anchor at bucket 3
+  assert.equal(out.feelsTrend.length, 24);
+  assert.equal(out.feelsTrend[0], 8 * 9 / 5 + 32);   // 8 °C -> 46.4 °F
+  assert.equal(out.currentFeels, 8 * 9 / 5 + 32, 'anchor bucket doubles as "now"');
+});
+
+test('tomorrow.io feels: missing hour falls back to the mapped temp; missing anchor → null current', () => {
+  const json = sampleResponse();
+  json.data.timelines[0].intervals.forEach((iv, i) => {
+    if (i !== 3) { iv.values.temperatureApparent = 5 + i; } // anchor bucket has no feels
+  });
+  const out = tomorrowio.mapResponse(json, BASE + 3 * 3600 + 600);
+  assert.equal(out.feelsTrend[0], out.tempTrend[0], 'missing hour backfills from temp');
+  assert.equal(out.feelsTrend[1], 9 * 9 / 5 + 32);
+  assert.equal(out.currentFeels, null, 'null → FEELS_CURRENT omitted, temp slot degrades');
+});

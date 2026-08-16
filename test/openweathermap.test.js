@@ -51,3 +51,34 @@ test('OWM maps One Call hourly pressure (sea-level hPa) into pressureTrend', () 
   p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
   assert.deepEqual(p.pressureTrend, [1015, 0]);
 });
+
+test('OWM maps One Call feels_like (already °F) into feelsTrend/currentFeels', () => {
+  responder = function(url, onSuccess) {
+    onSuccess(JSON.stringify({
+      current: { temp: 71, feels_like: 68.2 },
+      daily: [{}, {}],
+      hourly: [
+        { temp: 50, feels_like: 45.5, pop: 0, wind_speed: 0, wind_gust: 0, uvi: 0, dt: 1700000000 },
+        // no feels_like -> falls back to the hour's temp (numeric series, no 0 °F spike)
+        { temp: 60, pop: 0, wind_speed: 0, wind_gust: 0, uvi: 0, dt: 1700003600 }
+      ]
+    }));
+  };
+  const p = new OpenWeatherMapProvider('test-key');
+  p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  assert.deepEqual(p.feelsTrend, [45.5, 60]);
+  assert.equal(p.currentFeels, 68.2);
+});
+
+test('OWM leaves currentFeels null when current.feels_like is missing', () => {
+  responder = function(url, onSuccess) {
+    onSuccess(JSON.stringify({
+      current: { temp: 71 },
+      daily: [{}, {}],
+      hourly: [{ temp: 50, pop: 0, wind_speed: 0, wind_gust: 0, uvi: 0, dt: 1700000000 }]
+    }));
+  };
+  const p = new OpenWeatherMapProvider('test-key');
+  p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  assert.equal(p.currentFeels, null, 'null → FEELS_CURRENT omitted, temp slot degrades');
+});

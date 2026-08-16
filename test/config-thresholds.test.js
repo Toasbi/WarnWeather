@@ -953,28 +953,37 @@ test('the slot button is labelled Edit for every kind', () => {
 });
 
 // --- bold-only slot sheets: every level-less kind, one Bold row each ---------
-// (wire ids 8..15 in status-thresholds.js; battery deliberately absent — its slot
-// draws a glyph, not text, so a Bold option would be a no-op lie.)
+// (wire ids 8..16 in status-thresholds.js; the battery GLYPH item deliberately
+// absent — its slot draws a glyph, not text, so a Bold option would be a no-op
+// lie. The battery PERCENTAGE kind renders text, so it gets a normal sheet.
+// Temp's sheet additionally carries the tempSlotDisplay row — see below.)
 
-const BOLD_STEMS = ['Temp', 'Pressure', 'Sun', 'Date', 'Week', 'City', 'Countdown', 'Hr'];
+const BOLD_STEMS = ['Temp', 'Pressure', 'Sun', 'Date', 'Week', 'City', 'Countdown', 'Hr', 'BatteryPct'];
 const BOLD_CODES = {
   temp: 'Temp', pressure: 'Pressure', sun: 'Sun', date: 'Date',
-  week: 'Week', city: 'City', countdown: 'Countdown', hr: 'Hr'
+  week: 'Week', city: 'City', countdown: 'Countdown', hr: 'Hr',
+  batteryPct: 'BatteryPct'
 };
 
-test('every bold-only kind gets a sheet holding exactly the Bold row', () => {
+test('every bold-only kind gets a sheet whose Bold row is its last control', () => {
   const titles = {
     Temp: 'Current temperature slot', Pressure: 'Air pressure (hPa) slot',
     Sun: 'Sunrise/sunset slot', Date: 'Date slot', Week: 'Calendar week slot',
-    City: 'City slot', Countdown: 'Date countdown slot', Hr: 'Heart rate slot'
+    City: 'City slot', Countdown: 'Date countdown slot', Hr: 'Heart rate slot',
+    BatteryPct: 'Battery percentage slot'
   };
   BOLD_STEMS.forEach(stem => {
     const s = sheetFor(stem);
     assert.equal(s.title, titles[stem], stem + ' sheet title');
     assert.deepEqual(s.showWhen, { env: 'thresholds' },
       stem + ' sheet carries the platform gate');
-    assert.equal(s.items.length, 1, stem + ' sheet must hold exactly one row');
+    // Temp carries its extra display-mode row ABOVE the Bold row; every other
+    // bold-only sheet is exactly the Bold row.
+    assert.equal(s.items.length, stem === 'Temp' ? 2 : 1,
+      stem + ' sheet row count');
     const bold = boldFor(stem);
+    assert.equal(s.items[s.items.length - 1], bold,
+      stem + ' Bold row must close the sheet');
     assert.equal(bold.type, 'segmented');
     assert.equal(bold.label, 'Bold value');
     assert.equal(bold.defaultValue, 'off', stem + ' defaults to off');
@@ -1018,12 +1027,34 @@ test('the Hr sheet row mirrors the hr slot availability (health + sensor)', () =
   });
 });
 
-test('battery has NO sheet: its slot draws a glyph, not text', () => {
+test('battery GLYPH has NO sheet (draws a glyph, not text); battery % has one', () => {
   assert.equal(sheetSections().find(s => s.sheetId === 'threshBattery'), undefined,
     'no threshBattery sheet exists');
   const resolve = PC.sheetResolvers.get('statusSlotEditSheet');
   assert.equal(resolve({ statusTopRight: 'battery' }, ENV, { messageKey: 'statusTopRight' }),
-    null, 'no pencil on a battery slot');
+    null, 'no pencil on a battery-glyph slot');
+  // The battery PERCENTAGE kind renders text (a real bold cell, wire id 16), so
+  // the same machinery gives it a sheet and a pencil.
+  assert.ok(sheetFor('BatteryPct'), 'threshBatteryPct sheet exists');
+  assert.equal(resolve({ statusTopRight: 'batteryPct' }, ENV, { messageKey: 'statusTopRight' }),
+    'threshBatteryPct', 'the battery-% slot resolves its bold sheet');
+});
+
+test('the Temp sheet leads with the display-mode pills above its Bold row', () => {
+  const disp = sheetFor('Temp').items[0];
+  assert.equal(disp.messageKey, 'tempSlotDisplay');
+  assert.equal(disp.type, 'segmented');
+  assert.equal(disp.defaultValue, 'actual', 'shipped behaviour: the actual temp');
+  assert.deepEqual(disp.options,
+    [['Temp', 'actual'], ['Feels like', 'feels'], ['Both', 'both']]);
+  assert.match(String(disp.hint), /both/i, 'hint explains the Both mode');
+  assert.match(String(disp.hint), /feels/i, 'hint names the feels-like value');
+  // No gate of its own: it inherits the sheet's THRESHOLD_WHEN, so aplite (which
+  // has no Edit sheets) deliberately never reaches it — feels-like is left out
+  // there entirely (slot mode AND graph metric, see the forecastMetric resolver).
+  assert.equal(disp.showWhen, undefined);
+  // NOT muted by the master Bold row: display mode is not a bold setting.
+  assert.equal(disp.disabledWhen, undefined);
 });
 
 test('the slot pencil resolves the bold-only sheet for every new kind', () => {
@@ -1045,6 +1076,8 @@ test('bold-only BoldMode keys hydrate their default and ride the save blob', () 
     assert.equal(blob['thresh' + stem + 'BoldMode'], 'off',
       stem + ' BoldMode must survive hydrate → serialize');
   });
+  assert.equal(blob.tempSlotDisplay, 'actual',
+    'tempSlotDisplay must survive hydrate → serialize');
 });
 
 // --- the Watch-tab master Bold row (statusBoldAll) ---------------------------
@@ -1115,6 +1148,19 @@ test('the sheets gray their Bold row out while the master is "all"', () => {
     'the default perSlot leaves the Bold row live');
 });
 
+test('the generated page renders the Temp display pills and the battery-% sheet', () => {
+  const page = bootGeneratedPage({ provider: 'dwd' });
+  page.clickTab('watch');
+  page.openEditSheet('threshTemp');
+  assert.ok(page.modal.innerHTML.indexOf('data-k="tempSlotDisplay"') !== -1,
+    'the Temp sheet renders the display-mode control');
+  assert.ok(page.modal.innerHTML.indexOf('data-k="threshTempBoldMode"') !== -1,
+    'the Temp sheet still renders its Bold row');
+  page.openEditSheet('threshBatteryPct');
+  assert.ok(page.modal.innerHTML.indexOf('data-k="threshBatteryPctBoldMode"') !== -1,
+    'the battery-% sheet renders its Bold row');
+});
+
 // --- the status-card reset button (blocks.js resetStatusSlots) ---------------
 // One text button in the Watch tab's intro puts every slot of every bar back to
 // its platform-aware default and the bold settings back to their shipped
@@ -1123,7 +1169,7 @@ test('the sheets gray their Bold row out while the master is "all"', () => {
 
 /** @returns {Object} A settings state with nothing at its default. */
 function scrambledSlotState() {
-  const S = { statusBoldAll: 'all' };
+  const S = { statusBoldAll: 'all', tempSlotDisplay: 'both' };
   // 'uv' is not the default of any of the 12 slots.
   catalog.allSlotKeys().forEach(k => { S[k] = 'uv'; });
   thresholds.KINDS.forEach((kind, i) => {
@@ -1149,6 +1195,8 @@ test('resetStatusSlots restores every slot default (hr and non-hr) and the bold 
         name + ': ' + k + ' back to its platform-aware default');
     });
     assert.equal(S.statusBoldAll, 'perSlot', name + ': master Bold row back to perSlot');
+    assert.equal(S.tempSlotDisplay, 'actual',
+      name + ': temp display pills back to Temp (same sheet, no reset path of its own)');
     thresholds.KINDS.forEach(kind => {
       assert.equal(S['thresh' + kind.key + 'BoldMode'], kind.boldOnly ? 'off' : 'warn',
         name + ': ' + kind.key + ' BoldMode back to its sheet default');

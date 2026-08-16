@@ -23,18 +23,26 @@ function permilleToByte(pm) {
 }
 
 /**
- * Scale a temperature series to 0..250 bytes across its own min..max, and
- * report the real min/max (for the watch's hi/lo labels).
+ * Scale a temperature series to 0..250 bytes across its own min..max — or, when a
+ * band is supplied, across the union of that band and the series — and report the
+ * band actually used (for the watch's hi/lo labels). Callers without a band get
+ * today's behaviour unchanged; the band arm exists for the joint temp∪feels axis
+ * (see applyForecastSeries).
  * @param {number[]} temps Whole-degree temperatures.
- * @returns {{bytes: number[], min: number, max: number}} Scaled bytes + real range.
+ * @param {{min: number, max: number}} [band] Optional wider scaling band.
+ * @returns {{bytes: number[], min: number, max: number}} Scaled bytes + used range.
  */
-function tempTrendToBytes(temps) {
+function tempTrendToBytes(temps, band) {
     var min = Infinity, max = -Infinity, i;
     for (i = 0; i < temps.length; i += 1) {
         if (temps[i] < min) { min = temps[i]; }
         if (temps[i] > max) { max = temps[i]; }
     }
     if (!isFinite(min)) { return { bytes: [], min: 0, max: 0 }; }
+    if (band) {
+        if (band.min < min) { min = band.min; }
+        if (band.max > max) { max = band.max; }
+    }
     var span = max - min;
     var bytes = [];
     for (i = 0; i < temps.length; i += 1) {
@@ -47,15 +55,31 @@ function tempTrendToBytes(temps) {
     return { bytes: bytes, min: min, max: max };
 }
 
+/**
+ * Invert tempTrendToBytes: recover the whole-degree series from its wire bytes and
+ * band. Exact while the band span stays under 250 (the 0.5-byte quantization error
+ * stays under half a degree) — always true for a 24 h °F window.
+ * @param {number[]} bytes TEMP_TREND_UINT8 wire bytes (0..250).
+ * @param {number} min Band floor (TEMP_MIN).
+ * @param {number} max Band ceiling (TEMP_MAX).
+ * @returns {number[]} Whole-degree temperatures.
+ */
+function tempsFromBytes(bytes, min, max) {
+    var span = max - min;
+    return bytes.map(function(b) {
+        return Math.round(min + b * span / 250);
+    });
+}
+
 // Metric → line stroke colour per platform class. Gust is settings-dependent on colour
 // displays, so it is resolved in lineColorFor(), not from this table. `light` is an
 // optional light-theme override, consulted by lineColorFor() when the theme is
 // light-polarity and the display is effectively colour; a metric without one keeps its
 // `color` value in every color-capable theme (see fillColorFor's identical `light`
-// convention below). precip is the only metric with one so far (readability feedback
-// round: PictonBlue read too bright against the light-theme's white background —
-// VividCerulean is one Pebble-palette step darker, same R-channel notch as the fill
-// below).
+// convention below). precip has one from the readability feedback round (PictonBlue
+// read too bright against the light-theme's white background — VividCerulean is one
+// Pebble-palette step darker, same R-channel notch as the fill below); feels has one
+// because LightGray is illegible on white.
 var LINE_COLORS = {
     precip_prob: { color: COLORS.GColorPictonBlue, light: COLORS.GColorVividCerulean, bw: COLORS.GColorWhite },
     wind:        { color: COLORS.GColorYellow,     bw: COLORS.GColorWhite },
@@ -63,7 +87,11 @@ var LINE_COLORS = {
     // Orange is the last unclaimed warm hue: precip owns blue, uv magenta, gust the
     // grays. It reads close to wind's yellow at 1px — eyeball on hardware before
     // treating it as final.
-    pressure:    { color: COLORS.GColorOrange,     bw: COLORS.GColorWhite }
+    pressure:    { color: COLORS.GColorOrange,     bw: COLORS.GColorWhite },
+    // Feels-like shadows the 3px temp curve, so it stays achromatic and dimmer than
+    // any hue: LightGray next to temp's white line, darkened for the light theme. On
+    // B&W the width/pattern (1px solid or dots vs the 3px temp curve) tells it apart.
+    feels:       { color: COLORS.GColorLightGray,  light: COLORS.GColorDarkGray,      bw: COLORS.GColorWhite }
 };
 // Metric → area-fill colour per platform class. Every metric can fill; colour-platform
 // fills are a darker shade of the line so the line always reads brighter (precip
@@ -82,7 +110,12 @@ var FILL_COLORS = {
     wind:        { color: COLORS.GColorArmyGreen,  light: COLORS.GColorInchworm,     bw: COLORS.GColorLightGray },
     uv:          { color: COLORS.GColorPurple,     light: COLORS.GColorShockingPink, bw: COLORS.GColorLightGray },
     gust:        { color: COLORS.GColorDarkGray,   light: COLORS.GColorLightGray,    bw: COLORS.GColorLightGray },
-    pressure:    { color: COLORS.GColorWindsorTan, light: COLORS.GColorChromeYellow, bw: COLORS.GColorLightGray }
+    pressure:    { color: COLORS.GColorWindsorTan, light: COLORS.GColorChromeYellow, bw: COLORS.GColorLightGray },
+    // The dark fill MUST stay LightGray: forecast_layer.c's night_area_palette_for_fill
+    // keys the feels night palette on GColorLightGray (a mismatched fill renders the
+    // night area precip-blue — the documented pressure bug). Unambiguous vs gust's
+    // LightGray light tint because light-polarity fills never reach that C table.
+    feels:       { color: COLORS.GColorLightGray,  light: COLORS.GColorLightGray,    bw: COLORS.GColorLightGray }
 };
 
 /**
@@ -267,10 +300,62 @@ function pressurePermille(arr, scale) {
 }
 
 /**
+ * Whether the feels-like metric occupies either forecast line channel.
+ * @param {Object} settings Clay settings.
+ * @returns {boolean} True when secondary or third line is 'feels'.
+ */
+function feelsLineSelected(settings) {
+    return settings.secondaryLine === 'feels' || settings.thirdLine === 'feels';
+}
+
+/**
+ * Widen a temperature band to also cover a feels-like series. Idempotent: feeding
+ * back an already-joint band returns it unchanged.
+ * @param {number} tempMin Band floor (°F).
+ * @param {number} tempMax Band ceiling (°F).
+ * @param {number[]} feels Feels-like series (°F).
+ * @returns {{min: number, max: number}} Joint band.
+ */
+function jointTempFeelsBand(tempMin, tempMax, feels) {
+    var min = tempMin, max = tempMax, i, v;
+    for (i = 0; i < feels.length; i += 1) {
+        v = Number(feels[i]);
+        if (v < min) { min = v; }
+        if (v > max) { max = v; }
+    }
+    // Whole degrees, widening outward: the band lands in the int32 TEMP_MIN/
+    // TEMP_MAX wire keys, and a fractional edge (fixture data, future float
+    // source) must still cover both series after truncation.
+    return { min: Math.floor(min), max: Math.ceil(max) };
+}
+
+/**
+ * Permille series for the feels-like metric, mapped against the shared temperature
+ * axis: the temp∪feels joint band (applyForecastSeries has already widened
+ * TEMP_MIN/TEMP_MAX to it, so both curves land pixel-aligned in the same value
+ * space and the gap between them is real). No band (a direct buildForecastSeries
+ * caller) → the series scales against its own min/max. Empty/absent series → []
+ * (line off, same graceful degrade as the other metrics).
+ * @param {number[]} feels Feels-like series (°F).
+ * @param {{min: number, max: number}|null} band Temperature axis band, or null.
+ * @returns {number[]} Permille series.
+ */
+function feelsPermille(feels, band) {
+    if (!feels || !feels.length) { return []; }
+    var joint = band ? jointTempFeelsBand(band.min, band.max, feels)
+                     : jointTempFeelsBand(Infinity, -Infinity, feels);
+    if (joint.max === joint.min) {
+        // Flat joint band: mid of the plot, mirroring tempTrendToBytes' byte 125.
+        return feels.map(function() { return 500; });
+    }
+    return scaleToPermilleRange(feels, joint.min, joint.max);
+}
+
+/**
  * Permille (0..1000) series for one metric. Unknown metric → null. An absent/empty
  * raw series yields [] so the line renders as off (graceful degrade).
- * @param {string} metric One of precip_prob|wind|gust|uv|pressure.
- * @param {Object} raw Raw provider series.
+ * @param {string} metric One of precip_prob|wind|gust|uv|pressure|feels.
+ * @param {Object} raw Raw provider series (feels also reads raw.tempBand).
  * @param {Object} settings Clay settings (windScale).
  * @returns {number[]|null} Permille series, or null for an unknown metric.
  */
@@ -288,6 +373,9 @@ function metricPermille(metric, raw, settings) {
     if (metric === 'pressure') {
         return pressurePermille(raw.pressures, settings.pressureScale);
     }
+    if (metric === 'feels') {
+        return feelsPermille(raw.feels, raw.tempBand);
+    }
     return null;
 }
 
@@ -297,7 +385,7 @@ function metricPermille(metric, raw, settings) {
  * (the config UI prevents duplicates; this also defends against a duplicate).
  * Fill works for every metric on the solid main line; the third line is always dashed
  * and never filled.
- * @param {{precips:number[], rains:number[], winds:number[], gusts:number[], uvs:number[]}} raw Raw series.
+ * @param {{precips:number[], rains:number[], winds:number[], gusts:number[], uvs:number[], pressures:number[], feels:number[], tempBand:Object}} raw Raw series (+ the temp axis band the feels metric shares).
  * @param {{secondaryLine:string, thirdLine:string, secondaryLineFill:boolean, windScale:string, barSource:string}} settings Settings.
  * @param {Object} watchInfo getActiveWatchInfo() result, or null/undefined (treated as colour).
  * @returns {Object} Wire fields (see module interface).
@@ -355,10 +443,31 @@ function applyForecastSeries(payload, settings, watchInfo) {
     // Bake the packed status lines while the transient trend arrays are
     // still on the payload (they die a few lines below).
     statusLines.buildStatusLines(payload, settings, watchInfo);
+    // Joint temp∪feels axis: with the feels line selected, the temp curve rescales
+    // against min/max over BOTH series and TEMP_MIN/TEMP_MAX carry the joint band so
+    // the axis labels stay honest (feelsPermille maps feels against the same widened
+    // band via raw.tempBand below). getPayload() baked the bytes against temp's own
+    // band without settings in hand, so the whole degrees are recovered from the
+    // bytes here — exact for any realistic span (see tempsFromBytes). Feels not
+    // selected, or FEELS_TREND absent/empty (provider gap): untouched, byte-identical
+    // to today — the band falls back to temp-only.
+    var feels = feelsLineSelected(settings) ? (payload.FEELS_TREND || []) : [];
+    if (feels.length && payload.TEMP_TREND_UINT8 && payload.TEMP_TREND_UINT8.length) {
+        var jointEnc = tempTrendToBytes(
+            tempsFromBytes(payload.TEMP_TREND_UINT8, payload.TEMP_MIN, payload.TEMP_MAX),
+            jointTempFeelsBand(payload.TEMP_MIN, payload.TEMP_MAX, feels)
+        );
+        payload.TEMP_TREND_UINT8 = jointEnc.bytes;
+        payload.TEMP_MIN = jointEnc.min;
+        payload.TEMP_MAX = jointEnc.max;
+    }
+    var tempBand = (typeof payload.TEMP_MIN === 'number' && typeof payload.TEMP_MAX === 'number')
+        ? { min: payload.TEMP_MIN, max: payload.TEMP_MAX } : null;
     var series = buildForecastSeries(
         { precips: payload.PRECIP_TREND_UINT8, rains: payload.RAIN_TREND_UINT8,
           winds: payload.WIND_TREND_UINT8, gusts: payload.GUST_TREND_UINT8,
-          uvs: payload.UV_TREND_UINT8, pressures: payload.PRESSURE_TREND },
+          uvs: payload.UV_TREND_UINT8, pressures: payload.PRESSURE_TREND,
+          feels: feels, tempBand: tempBand },
         settings, watchInfo
     );
     delete payload.CURRENT_TEMP; // baked into the status lines; no longer a wire key
@@ -371,6 +480,8 @@ function applyForecastSeries(payload, settings, watchInfo) {
     delete payload.PRESSURE_TREND;    // transient PKJS-only; hPa never fit a byte, never wired
     delete payload.AQI_TREND;         // transient PKJS-only; baked into status text, never wired
     delete payload.POLLEN_TODAY;      // transient PKJS-only; baked into status text, never wired
+    delete payload.FEELS_TREND;       // transient PKJS-only; consumed by the joint band + feels line above, never wired
+    delete payload.FEELS_CURRENT;     // baked into the status lines by buildStatusLines above (same ordering contract as CURRENT_TEMP)
     payload.SECONDARY_LINE_TREND_UINT8 = series.SECONDARY_LINE_TREND_UINT8;
     payload.SECONDARY_LINE_COLOR = series.SECONDARY_LINE_COLOR;
     payload.SECONDARY_LINE_FILL = series.SECONDARY_LINE_FILL;
@@ -406,6 +517,19 @@ function needsAqi(settings) {
 }
 
 /**
+ * Whether feels-like data is needed: on a forecast line, or because the temp slot's
+ * display mode shows the feels value ('feels'/'both'). Providers gate the (sometimes
+ * Steadman-computed) apparent-temperature work on this so non-users pay nothing.
+ * @param {Object} settings Clay settings.
+ * @returns {boolean} True when any rendered selection needs feels-like data.
+ */
+function needsFeels(settings) {
+    if (!settings) { return false; }
+    if (feelsLineSelected(settings)) { return true; }
+    return Boolean(settings.tempSlotDisplay) && settings.tempSlotDisplay !== 'actual';
+}
+
+/**
  * Whether a DWD status slot selects pollen. Pollen is DWD-only and status-only.
  * @param {Object} settings Clay settings.
  * @returns {boolean} True when the effective provider and slot selection need pollen.
@@ -420,6 +544,7 @@ module.exports = {
     applyForecastSeries: applyForecastSeries,
     needsUv: needsUv,
     needsAqi: needsAqi,
+    needsFeels: needsFeels,
     needsPollen: needsPollen,
     permilleToByte: permilleToByte,
     tempTrendToBytes: tempTrendToBytes,

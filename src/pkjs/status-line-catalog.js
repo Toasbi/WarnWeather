@@ -10,7 +10,7 @@
   var KINDS = {
     EMPTY: 0, TEXT: 1, LIVE_DATE: 2,
     LIVE_STEPS: 3, LIVE_HR: 4, LIVE_SLEEP: 5, LIVE_DISTANCE: 6, LIVE_WEEK: 7,
-    LIVE_DISTANCE_MI: 8, LIVE_BATTERY: 9
+    LIVE_DISTANCE_MI: 8, LIVE_BATTERY: 9, LIVE_BATTERY_PCT: 10
   };
   var ICONS = {
     NONE: 0, DRAWN_SUN: 1, TEMP: 2, UV: 3, WIND: 4, GUST: 5,
@@ -31,7 +31,7 @@
     { code: 'pressure', label: 'Air pressure (hPa)', kind: KINDS.TEXT, icon: ICONS.PRESSURE, category: 'weather' },
     { code: 'uv', label: 'UV index', kind: KINDS.TEXT, icon: ICONS.UV, category: 'weather' },
     { code: 'aqi', label: 'Air quality (AQI)', kind: KINDS.TEXT, icon: ICONS.AQI, category: 'weather' },
-    { code: 'pollen', label: 'Pollen', kind: KINDS.TEXT, icon: ICONS.POLLEN, needsProvider: 'dwd', category: 'weather' },
+    { code: 'pollen', label: 'Pollen (DWD)', kind: KINDS.TEXT, icon: ICONS.POLLEN, needsProvider: 'dwd', category: 'weather' },
     { code: 'sun', label: 'Sunrise/sunset', kind: KINDS.TEXT, icon: ICONS.DRAWN_SUN, category: 'weather' },
     { code: 'date', label: 'Date', kind: KINDS.LIVE_DATE, icon: ICONS.NONE, middleOnly: true, category: 'datelocation' },
     { code: 'week', label: 'Calendar week', kind: KINDS.LIVE_WEEK, icon: ICONS.NONE, category: 'datelocation' },
@@ -42,12 +42,14 @@
     { code: 'distance', label: 'Walked distance', kind: KINDS.LIVE_DISTANCE, icon: ICONS.DISTANCE, needsHealth: true, category: 'health' },
     { code: 'hr', label: 'Heart rate', kind: KINDS.LIVE_HR, icon: ICONS.HR, needsHealth: true, needsHr: true, category: 'health' },
     { code: 'sleep', label: 'Sleep', kind: KINDS.LIVE_SLEEP, icon: ICONS.SLEEP, needsHealth: true, category: 'health' },
-    { code: 'battery', label: 'Battery', kind: KINDS.LIVE_BATTERY, icon: ICONS.NONE, topRightOnly: true, category: 'battery' }
+    { code: 'battery', label: 'Battery', kind: KINDS.LIVE_BATTERY, icon: ICONS.NONE, topRightOnly: true, category: 'battery' },
+    { code: 'batteryPct', label: 'Battery percentage', kind: KINDS.LIVE_BATTERY_PCT, icon: ICONS.NONE, notAplite: true, category: 'battery' }
   ];
 
   // Dropdown grouping order + header labels (Part F). A category with no
   // available item for a slot emits no header, so gated items never leave an
-  // orphan heading. 'battery' is populated by the battery item (top-right only).
+  // orphan heading. 'battery' holds the glyph item (top-right only) and the
+  // "NN%" text item (any slot, not aplite) — both only in the top-right slot.
   var CATEGORIES = [
     ['weather', 'Weather'], ['datelocation', 'Date and location'],
     ['health', 'Health'], ['battery', 'Battery']
@@ -101,10 +103,12 @@
       if (settings && settings.healthMode === 'off') { return false; }
     }
     if (item.needsHr && (!env || !env.hr)) { return false; }
-    // Mechanism for items whose watch-side C rendering is compiled out on
-    // aplite (frozen image budget). No current item uses it: calendar-week
-    // used to (the watch-side iso_week() is aplite-excluded), but the phone
-    // now bakes that slot as phone-side TEXT for aplite instead (status-lines.js).
+    // Items whose watch-side C rendering is compiled out on aplite (frozen
+    // image budget): batteryPct — the lean status-row twin never learned kind
+    // 10, and aplite's glyph battery slot already renders as "NN%" text anyway.
+    // (Calendar-week used this gate once — the watch-side iso_week() is
+    // aplite-excluded — but the phone now bakes that slot as phone-side TEXT
+    // for aplite instead; status-lines.js.)
     if (item.notAplite && env && env.platform === 'aplite') { return false; }
     // No catalog item sets needsRadarOff today; gate kept correct (radarMode-based) for when one does.
     if (item.needsRadarOff && (!settings || (settings.radarMode || 'graph') !== 'off')) {
@@ -117,8 +121,28 @@
   }
 
   /**
+   * True when the ONLY gate an item fails is needsProvider — i.e. itemAvailable
+   * would answer true if the selected weather provider matched. slotOptions
+   * keeps such an item visible as a DISABLED row (so the user learns the option
+   * exists, e.g. "Pollen (DWD)" under another provider) instead of omitting it.
+   * Selection-side callers (resolveSelection & co.) keep using itemAvailable,
+   * which still treats a provider-mismatched code as unavailable.
+   * @param {Object} item catalog entry
+   * @param {Object} settings Clay settings blob
+   * @param {Object} env platform env
+   * @param {Object} [slotCtx] {slotKey, position} of the slot being resolved
+   * @returns {boolean}
+   */
+  function itemAvailableExceptProvider(item, settings, env, slotCtx) {
+    if (!item || !item.needsProvider) { return false; }
+    var relaxed = Object.assign({}, settings || {}, { provider: item.needsProvider });
+    return itemAvailable(item, relaxed, env, slotCtx);
+  }
+
+  /**
    * Option list for one slot dropdown: 'Empty' first, then available items per
-   * category, minus args.excludeCodes.
+   * category, minus args.excludeCodes. An item gated ONLY by the weather
+   * provider stays in the list as a non-selectable row with {disabled: true}.
    * Multi-item categories emit a non-selectable header with
    * {disabled: true, groupHeader: true}; each child has
    * {groupChild: true, groupEnd: boolean}. Single-item categories collapse to
@@ -142,7 +166,11 @@
         var item = ITEMS[i];
         if (item.category !== CATEGORIES[c][0]
             || (taken[item.code] && item.code !== 'countdown')) { continue; }
-        if (!itemAvailable(item, settings, env, slotCtx)) { continue; }
+        if (!itemAvailable(item, settings, env, slotCtx)) {
+          if (!itemAvailableExceptProvider(item, settings, env, slotCtx)) { continue; }
+          children.push([item.label, item.code, { disabled: true }]);
+          continue;
+        }
         children.push([item.label, item.code]);
       }
       if (!children.length) { continue; }
@@ -153,7 +181,12 @@
       out.push([CATEGORIES[c][1], '__hdr_' + CATEGORIES[c][0],
         { disabled: true, groupHeader: true }]);
       for (i = 0; i < children.length; i++) {
-        children[i][2] = { groupChild: true, groupEnd: i === children.length - 1 };
+        // Merge into any existing meta (a disabled provider-gated child) rather
+        // than replacing it.
+        var meta = children[i][2] || {};
+        meta.groupChild = true;
+        meta.groupEnd = i === children.length - 1;
+        children[i][2] = meta;
         out.push(children[i]);
       }
     }

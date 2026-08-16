@@ -7,7 +7,7 @@ var HOUR_SECONDS = 60 * 60;
 var TIMELINES_ENDPOINT = 'https://api.tomorrow.io/v4/timelines';
 // Core-layer fields only. AQI/pollen are enterprise-gated (403 on a free key)
 // and nothing in the app consumes a condition code, so no weatherCode either.
-var FIELDS = 'temperature,precipitationProbability,precipitationIntensity,windSpeed,windGust,uvIndex,pressureSeaLevel';
+var FIELDS = 'temperature,precipitationProbability,precipitationIntensity,windSpeed,windGust,uvIndex,pressureSeaLevel,temperatureApparent';
 var MPS_TO_KMH = 3.6;
 
 /**
@@ -108,6 +108,8 @@ function mapResponse(json, nowEpoch) {
     var gustTrend = [];
     var uvTrend = [];
     var pressureTrend = [];
+    var feelsTrend = [];
+    var currentFeels = null;
     var i;
     var values;
     for (i = 0; i < FORECAST_HOURS; i += 1) {
@@ -119,6 +121,15 @@ function mapResponse(json, nowEpoch) {
         gustTrend.push(num(values.windGust) * MPS_TO_KMH);
         uvTrend.push(num(values.uvIndex));
         pressureTrend.push(num(values.pressureSeaLevel));   // sea-level, NOT pressureSurfaceLevel
+        // °C→°F like temperature; a missing hour falls back to the mapped temp
+        // so the series stays numeric (0 would be a real 0 °F feels).
+        feelsTrend.push(typeof values.temperatureApparent === 'number'
+            ? celsiusToFahrenheit(values.temperatureApparent) : tempTrend[i]);
+        if (i === 0 && typeof values.temperatureApparent === 'number') {
+            // Anchor bucket doubles as "now" (currentTemp precedent); missing →
+            // null so FEELS_CURRENT is omitted rather than echoing the temp.
+            currentFeels = feelsTrend[0];
+        }
     }
 
     return {
@@ -129,8 +140,10 @@ function mapResponse(json, nowEpoch) {
         gustTrend: gustTrend,
         uvTrend: uvTrend,
         pressureTrend: pressureTrend,
+        feelsTrend: feelsTrend,
         startTime: Math.round(Date.parse(intervals[anchor].startTime) / 1000),
-        currentTemp: tempTrend[0]
+        currentTemp: tempTrend[0],
+        currentFeels: currentFeels
     };
 }
 
@@ -187,6 +200,10 @@ TomorrowIoProvider.prototype.withProviderData = function(lat, lon, force, onSucc
         this.windTrend = mapped.windTrend;
         this.gustTrend = mapped.gustTrend;
         this.pressureTrend = mapped.pressureTrend;
+        // Feels rides the same call (temperatureApparent is a core field) —
+        // adopted unconditionally, no fetch gate to honor.
+        this.feelsTrend = mapped.feelsTrend;
+        this.currentFeels = mapped.currentFeels;
         if (this.fetchUv) {
             this.uvTrend = mapped.uvTrend;
         }

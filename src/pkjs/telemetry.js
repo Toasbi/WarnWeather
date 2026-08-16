@@ -19,6 +19,7 @@ function buildSettingsSnapshot(settings) {
     var safe = settings || {};
     return {
         temperatureUnits: safe.temperatureUnits,
+        tempSlotDisplay: safe.tempSlotDisplay,
         aqiScale: safe.aqiScale,
         aqiSource: safe.aqiSource,
         windUnits: safe.windUnits,

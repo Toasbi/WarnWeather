@@ -2,6 +2,7 @@ var WeatherProvider = require('./provider.js');
 var request = WeatherProvider.request;
 var failure = WeatherProvider.failure;
 var openmeteo = require('./openmeteo.js');
+var feelsLikeF = require('./feels-like.js').feelsLikeF;
 
 var BRIGHTSKY_BASE = require('./brightsky.js').BASE_URL;
 var MAX_DIST_METERS = 500000;
@@ -10,6 +11,40 @@ var HOUR_MS = 60 * 60 * 1000;
 
 function celsiusToFahrenheit(celsius) {
     return celsius * 9 / 5 + 32;
+}
+
+/**
+ * Steadman feels-like °F for one Brightsky hourly record (temperature °C,
+ * relative_humidity %, wind_speed km/h — no API feels-like field). Missing
+ * humidity → fall back to the plain temp so the series stays numeric; missing
+ * wind reads 0 (the windTrend convention).
+ *
+ * @param {Object} e Brightsky hourly weather record.
+ * @returns {number} Feels-like (or actual, as fallback) temperature in °F.
+ */
+function hourFeels(e) {
+    var tempF = celsiusToFahrenheit(e.temperature);
+    var feels = feelsLikeF(tempF, e.relative_humidity, e.wind_speed || 0);
+    return feels === null ? tempF : feels;
+}
+
+/**
+ * Feels-like °F from the Brightsky /current_weather record, or null when the
+ * inputs are missing (→ FEELS_CURRENT omitted, temp slot degrades). Unlike the
+ * hourly feed, current_weather reports wind only as 10/30/60-minute means —
+ * take the shortest window present (verified live 2026-08-16).
+ *
+ * @param {Object} current Brightsky current_weather `weather` record.
+ * @returns {number|null} Feels-like temperature in °F, or null.
+ */
+function currentFeelsFrom(current) {
+    if (typeof current.temperature !== 'number') {
+        return null;
+    }
+    var windKmh = typeof current.wind_speed_10 === 'number' ? current.wind_speed_10
+        : (typeof current.wind_speed_30 === 'number' ? current.wind_speed_30
+            : current.wind_speed_60);
+    return feelsLikeF(celsiusToFahrenheit(current.temperature), current.relative_humidity, windKmh);
 }
 
 /**
@@ -65,8 +100,10 @@ DwdProvider.prototype.withDwdCurrent = function(lat, lon, callback, onFailure) {
         + '&lon=' + lon
         + '&max_dist=' + MAX_DIST_METERS;
     request(url, 'GET', function(response) {
+        var current;
         try {
-            callback(celsiusToFahrenheit(JSON.parse(response).weather.temperature));
+            current = JSON.parse(response).weather;
+            callback(celsiusToFahrenheit(current.temperature), currentFeelsFrom(current));
         }
         catch (ex) {
             onFailure(failure('provider_data', 'dwd_current_parse_error'));
@@ -86,15 +123,17 @@ DwdProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, on
             onFailure(failure('provider_data', 'dwd_forecast_empty'));
             return;
         }
-        this.withDwdCurrent(lat, lon, (function(currentTempF) {
+        this.withDwdCurrent(lat, lon, (function(currentTempF, currentFeelsF) {
             this.tempTrend = hourly.map(function(e) { return celsiusToFahrenheit(e.temperature); });
             this.precipTrend = hourly.map(function(e) { return e.precipitation_probability / 100; });
             this.rainTrend = hourly.map(function(e) { return e.precipitation; });
             this.windTrend = hourly.map(function(e) { return e.wind_speed || 0; }); // Brightsky wind_speed is km/h
             this.gustTrend = hourly.map(function(e) { return e.wind_gust_speed || 0; }); // Brightsky wind_gust_speed is km/h
             this.pressureTrend = hourly.map(function(e) { return e.pressure_msl || 0; }); // Brightsky pressure_msl is sea-level hPa; 0 → forecast-series rejects the series
+            this.feelsTrend = hourly.map(hourFeels); // Steadman-computed (no Brightsky feels field)
             this.startTime = Math.floor(Date.parse(hourly[0].timestamp) / 1000);
             this.currentTemp = currentTempF;
+            this.currentFeels = currentFeelsF;
             openmeteo.fetchUvInto(this, lat, lon, onSuccess);
         }).bind(this), onFailure);
     }).bind(this), onFailure);

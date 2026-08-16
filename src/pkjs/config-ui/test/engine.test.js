@@ -579,6 +579,32 @@ test('renderSelectOptions omits group presentation classes and headings while fi
   assert.doesNotMatch(html, /group-child|group-end/);
 });
 
+test('renderSelectOptions: a non-header disabled option renders visible but inert', () => {
+  // A provider-gated slot item (e.g. "Pollen (DWD)" under another provider)
+  // rides the list as {disabled: true} without groupHeader: it must stay
+  // visible, but carry no data-select-pick (the delegated pick handler must
+  // never match it) and be disabled against taps/keyboard.
+  const item = { messageKey: 'slot', options: [
+    ['Empty', 'empty'],
+    ['Pollen (DWD)', 'pollen', { disabled: true }]
+  ] };
+  const html = E.renderSelectOptions(item, 'empty', '');
+  assert.match(html, /class="ssel-opt"[^>]*aria-selected="false" disabled aria-disabled="true"[^>]*><span>Pollen \(DWD\)<\/span>/,
+    'disabled row rendered inert with its label');
+  const rows = html.split('<button');
+  const pollenRow = rows.find(r => r.indexOf('Pollen') >= 0);
+  assert.equal(pollenRow.indexOf('data-select-pick'), -1, 'no pick attribute on the disabled row');
+  assert.match(rows.find(r => r.indexOf('Empty') >= 0), /data-select-pick="empty"/,
+    'sibling enabled row still pickable');
+  // A disabled GROUP CHILD keeps its indentation classes.
+  const grouped = { messageKey: 'slot', options: [
+    ['Weather', '__hdr_weather', { disabled: true, groupHeader: true }],
+    ['Pollen (DWD)', 'pollen', { disabled: true, groupChild: true, groupEnd: true }]
+  ] };
+  assert.match(E.renderSelectOptions(grouped, 'empty', ''),
+    /class="ssel-opt group-child group-end"[^>]*disabled aria-disabled="true"/);
+});
+
 test('renderSelectOptions: case-insensitive label match', () => {
   const item = { messageKey: 'c', options: [['United States','US'],['Germany','DE'],['Spain','ES']] };
   const r = E.renderSelectOptions(item, 'US', 'ger');

@@ -45,6 +45,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             wind:        { color: '#FFFF00', light: '#FFFF00', bw: '#FFFFFF' },
             uv:          { color: '#FF00FF', light: '#FF00FF', bw: '#FFFFFF' },
             pressure:    { color: '#FF5500', light: '#FF5500', bw: '#FFFFFF' },
+            feels:       { color: '#AAAAAA', light: '#555555', bw: '#FFFFFF' },
             gust:        { colorMulti: '#FFFFFF', colorWhiteBars: '#AAAAAA', bw: '#FFFFFF' }
         },
         fill: {
@@ -52,6 +53,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             wind:        { color: '#555500', light: '#AAFF55', bw: '#AAAAAA' },
             uv:          { color: '#AA00AA', light: '#FF55FF', bw: '#AAAAAA' },
             pressure:    { color: '#AA5500', light: '#FFAA00', bw: '#AAAAAA' },
+            feels:       { color: '#AAAAAA', light: '#AAAAAA', bw: '#AAAAAA' },
             gust:        { color: '#555555', light: '#AAAAAA', bw: '#AAAAAA' }
         },
         rainTiers: [
@@ -258,6 +260,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var rain   = [0, 0.5, 6, 12, 4, 1, 0.3, 0, 0, 0, 0, 0];
         var gust   = [22, 25, 30, 34, 32, 28, 25, 24, 27, 31, 36, 33];
         var uv     = [8, 6, 4, 2, 1, 0, 0, 0, 0, 0, 1, 3];
+        // Tracks temps a few degrees under (wind chill through the shower + the
+        // breezy night) — the gap between the two curves is the story it tells.
+        var feels  = [21, 21, 19, 17, 15, 13, 12, 11, 11, 12, 15, 17];
         // Falls into the shower (slots 2-4), dips to a below-floor low at slot 4 (984 hPa,
         // below the 'low' band's 990 floor — exercises the floor-clamp-not-skip dot
         // behavior below), then recovers as it clears — the same weather story the other
@@ -273,7 +278,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var pitch = plotW / (n - 1);
         var tickX = function (i) { return PX0 + i * pitch; };              // line vertex / hour tick x
         var gapCenter = function (i) { return PX0 + (i + 0.5) * pitch; };  // bar / dot column centre
-        var tmin = Math.min.apply(null, temps), tmax = Math.max.apply(null, temps);
+        // Joint temp∪feels axis (mirrors forecast-series.applyForecastSeries): with
+        // feels on either line the temp curve rescales against the widened band and
+        // the min/max axis labels follow, so the gap between the curves is real.
+        var feelsOn = state.secondaryLine === 'feels' || state.thirdLine === 'feels';
+        var tempAxisVals = feelsOn ? temps.concat(feels) : temps;
+        var tmin = Math.min.apply(null, tempAxisVals), tmax = Math.max.apply(null, tempAxisVals);
         var ytop = PT + 3, ybot = PB - 12;
         var yT = function (t) { return ybot - (t - tmin) / (tmax - tmin || 1) * (ybot - ytop); };
         var n0 = tickX(9), n1 = tickX(n - 1);       // night band: sunset 21:00 (slot 9) -> right edge
@@ -283,12 +293,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var pCurve = PRESSURE_CURVES[state.pressureScale] || PRESSURE_CURVES.mid;
         // metric -> { sample series, full-scale max, fill? }. Color resolves per render.
         // Only pressure sets `min` (a non-zero floor); every other metric defaults to 0.
+        // feels has neither: it rides the shared temperature axis (tempAxis), so it
+        // maps through yT like the temp curve instead of a 0..max scale.
         var METRIC = {
             precip_prob: { vals: precip, max: 100, fill: true },
             wind: { vals: wind, max: windMax },
             gust: { vals: gust, max: windMax },
             uv: { vals: uv, max: 11 },
-            pressure: { vals: pressure, curve: pCurve }
+            pressure: { vals: pressure, curve: pCurve },
+            feels: { vals: feels, tempAxis: true }
         };
         /**
          * Per-metric stroke/dot color. White on B&W (series told apart by width/pattern). A
@@ -297,7 +310,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
          * metric without one keeps its dark-theme `color`. Gust has no hue: white over color
          * bars, light gray over white bars (matches forecast-series.lineColorFor) — no `light`
          * concept, so it's untouched by the swap.
-         * @param {string} metric precip_prob|wind|gust|uv|pressure
+         * @param {string} metric precip_prob|wind|gust|uv|pressure|feels
          * @returns {string} #RRGGBB
          */
         function metricColor(metric) {
@@ -322,7 +335,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
          * a light-polarity theme swaps in the brighter `light` tint instead of the dark-theme
          * shade. Gated behind the `!isColor` check above, so bw/bw-light never reach this
          * branch — they resolve to e.bw instead (mirrors forecast-series.fillColorFor).
-         * @param {string} metric precip_prob|wind|gust|uv|pressure
+         * @param {string} metric precip_prob|wind|gust|uv|pressure|feels
          * @returns {?string} #RRGGBB or null
          */
         function fillColor(metric) {
@@ -366,6 +379,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var pts = [];
             for (var i = 0; i < m.vals.length; i += 1) {
                 var pm;
+                if (m.tempAxis) {
+                    // Feels-like: the shared temperature axis (joint band via yT),
+                    // pixel-aligned with the temp curve — never a 0..max scale.
+                    pts.push([tickX(i), yT(m.vals[i])]);
+                    continue;
+                }
                 if (m.curve) {
                     // Pressure: the piecewise absolute curve (mirrors pressurePermille).
                     pm = pressureCurvePermille(m.vals[i], m.curve) / 1000;
@@ -385,7 +404,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
          * so the caller can place it beneath the rain bars, matching chart.c's z-order
          * (CHART_LAYER_AREA before CHART_LAYER_BARS in forecast_layer.c) — the bars paint
          * over the fill, not the other way around.
-         * @param {string} metric precip_prob|wind|gust|uv|pressure
+         * @param {string} metric precip_prob|wind|gust|uv|pressure|feels
          * @returns {string} SVG markup
          */
         function areaFillFor(metric) {
@@ -404,7 +423,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
          * Main metric: one continuous line whose vertices sit on the hour ticks, so it spans the
          * first tick to the last. The fill (if any) is drawn separately by areaFillFor() — see
          * its doc comment for why.
-         * @param {string} metric precip_prob|wind|gust|uv|pressure
+         * @param {string} metric precip_prob|wind|gust|uv|pressure|feels
          * @returns {string} SVG markup
          */
         var lineFor = function (metric) {
@@ -422,7 +441,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
          * low off the visible band), not an absent hour, so it's clamped to the baseline and
          * drawn instead of skipped — mirrors forecast-series.pressurePermille's floor-clamp so
          * the preview and the watch don't diverge.
-         * @param {string} metric precip_prob|wind|gust|uv|pressure
+         * @param {string} metric precip_prob|wind|gust|uv|pressure|feels
          * @returns {string} SVG markup
          */
         var barDotsFor = function (metric) {
@@ -431,17 +450,22 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var col = metricColor(metric);
             var dh = (isColor && col === ink.fg) ? 3 : 4, out = '';
             for (var i = 0; i < n - 1; i += 1) {
-                var pm;
-                if (m.curve) {
+                var pm, cy;
+                if (m.tempAxis) {
+                    // Feels-like: every reading is real data on the shared temp axis
+                    // (a temperature has no skippable zero), mapped through yT.
+                    cy = yT(m.vals[i]);
+                } else if (m.curve) {
                     // Pressure: the piecewise absolute curve draws EVERY reading (a
                     // deep low is real data, never a skippable zero).
                     pm = pressureCurvePermille(m.vals[i], m.curve) / 1000;
+                    cy = PB - pm * (PB - PT - 3);
                 } else {
                     var v = Math.min(m.vals[i], m.max);
                     if (v <= 0) { continue; }   // zero-based metric: genuine zero, skip
                     pm = v / m.max;
+                    cy = PB - pm * (PB - PT - 3);
                 }
-                var cy = PB - pm * (PB - PT - 3);
                 out += rect(gapCenter(i) - bw / 2, cy - dh / 2, bw, dh, col);
             }
             return out;
@@ -454,7 +478,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
          * @returns {string} SVG markup
          */
         function drawLegend() {
-            var LABEL = { precip_prob: 'Precip %', wind: 'Wind', gust: 'Gust', uv: 'UV', pressure: 'Pressure' };
+            var LABEL = { precip_prob: 'Precip %', wind: 'Wind', gust: 'Gust', uv: 'UV', pressure: 'Pressure', feels: 'Feels' };
             var entries = [];
             entries.push({ kind: 'line', color: tempColor, w: tempW, label: 'Temp' });
             entries.push({ kind: 'line', color: metricColor(state.secondaryLine), w: mainW, label: LABEL[state.secondaryLine] || '' });
@@ -960,6 +984,28 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return statusLineCatalog.slotOptions(S, env, args);
     });
 
+    // The six graph metrics in picker order — one list feeds both forecast pickers.
+    var FORECAST_METRICS = [
+        ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'],
+        ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels']
+    ];
+    // Main/Second metric options. The third line gets Off plus the metrics the
+    // secondary line is not using (a collision is display-snapped by the engine).
+    // Feels-like is dropped on aplite: the temp-axis line inset is not compiled
+    // there and the temp slot's Feels/Both control is threshold-gated off aplite,
+    // so the metric would render misaligned with no companion feature.
+    PConf.optionsResolvers.register('forecastMetric', function (S, env, args) {
+        var third = Boolean(args && args.third);
+        var out = third ? [['Off', 'off']] : [];
+        for (var i = 0; i < FORECAST_METRICS.length; i += 1) {
+            var opt = FORECAST_METRICS[i];
+            if (opt[1] === 'feels' && env && env.platform === 'aplite') { continue; }
+            if (third && S && opt[1] === S.secondaryLine) { continue; }
+            out.push(opt);
+        }
+        return out;
+    });
+
     // Per-slot edit sheet: the pencil left of a slot dropdown opens the threshold sheet
     // for the slot's CURRENT value, when that value is a threshold kind. The catalog's
     // slot codes and the threshold contract's KINDS codes are the same vocabulary
@@ -1280,6 +1326,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             S[slotKeys[i]] = statusLineCatalog.slotDefault(slotKeys[i], env);
         }
         S.statusBoldAll = 'perSlot';
+        // Per-kind display state alongside the bold modes: the temp slot's
+        // Temp/Feels/Both pills live in the same sheet and have no other reset path
+        // (bold-only sheets carry no reset button of their own).
+        S.tempSlotDisplay = 'actual';
         var contractMod = thresholdContract();
         if (contractMod) {
             for (var k = 0; k < contractMod.KINDS.length; k++) {

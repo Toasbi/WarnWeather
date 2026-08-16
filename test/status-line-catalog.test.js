@@ -127,21 +127,38 @@ test('aqi is a TEXT item (leaf icon) available on every platform and in slot opt
   assert.ok(codes.indexOf('aqi') !== -1, 'aqi offered in slot dropdown');
 });
 
-test('pollen is a DWD-only TEXT item offered only for the DWD weather provider', () => {
+test('pollen is a DWD-only TEXT item: selectable for DWD, visible-but-disabled elsewhere', () => {
   const item = catalog.byCode('pollen');
   assert.ok(item, 'pollen item exists');
   assert.equal(item.kind, catalog.KINDS.TEXT);
   assert.equal(item.icon, catalog.ICONS.POLLEN);
   assert.equal(catalog.ICONS.POLLEN, 12);
   assert.equal(item.needsProvider, 'dwd');
+  assert.equal(item.label, 'Pollen (DWD)', 'the label names the providing service');
 
+  // An item failing ONLY the provider gate stays in the dropdown as a disabled
+  // row (the user learns the option exists) instead of vanishing.
   const providerCodes = ['wunderground', 'openweathermap', 'dwd', 'openmeteo', 'metno'];
   providerCodes.forEach(provider => {
-    const settings = { provider };
-    const codes = catalog.slotOptions(settings, ENV_BASALT,
-      { slotKey: 'statusForecastLeft', position: 'left' }).map(o => o[1]);
-    assert.equal(codes.indexOf('pollen') !== -1, provider === 'dwd', provider);
+    const opts = catalog.slotOptions({ provider }, ENV_BASALT,
+      { slotKey: 'statusForecastLeft', position: 'left' });
+    const row = opts.find(o => o[1] === 'pollen');
+    assert.ok(row, 'pollen row present under ' + provider);
+    assert.equal(row[0], 'Pollen (DWD)', provider);
+    assert.equal(Boolean(row[2] && row[2].disabled), provider !== 'dwd',
+      provider + ' disabled flag');
   });
+});
+
+test('a disabled provider-gated row still carries its group-child metadata', () => {
+  // The weather category has several items, so pollen rides inside the group:
+  // the disabled flag must merge with (not replace) the child indentation meta.
+  const opts = catalog.slotOptions({ provider: 'openmeteo' }, ENV_BASALT,
+    { slotKey: 'statusForecastLeft', position: 'left' });
+  const row = opts.find(o => o[1] === 'pollen');
+  assert.equal(row[2].disabled, true);
+  assert.equal(row[2].groupChild, true);
+  assert.equal(typeof row[2].groupEnd, 'boolean');
 });
 
 test('pollen defensively resolves to empty unless the weather provider is DWD', () => {
@@ -246,11 +263,53 @@ test('battery is a LIVE_BATTERY item offered only in the top-right slot', () => 
   assert.ok(!catalog.itemAvailable(item, s, ENV_BASALT,
     { slotKey: 'statusForecastRight', position: 'right' }), 'not in other lines');
   const opts = catalog.slotOptions(s, ENV_BASALT, topRight);
-  assert.ok(!opts.some(o => o[1] === '__hdr_battery'), 'single Battery group is collapsed');
-  assert.equal(opts.find(o => o[1] === 'battery').length, 2,
-    'battery is offered top-right as an ordinary option');
+  assert.ok(opts.some(o => o[1] === '__hdr_battery'),
+    'the two-item Battery group (glyph + %) gets a header top-right');
+  const glyph = opts.find(o => o[1] === 'battery');
+  assert.ok(glyph && glyph[2].groupChild, 'battery offered top-right as a group child');
   const leftOpts = catalog.slotOptions(s, ENV_BASALT, topLeft);
-  assert.ok(!leftOpts.some(o => o[1] === '__hdr_battery'), 'no Battery header elsewhere');
+  assert.ok(!leftOpts.some(o => o[1] === '__hdr_battery'),
+    'single-item Battery group (batteryPct only) collapses elsewhere');
+  assert.ok(!leftOpts.some(o => o[1] === 'battery'), 'no glyph battery elsewhere');
+});
+
+test('batteryPct is a LIVE_BATTERY_PCT text item gated off aplite (notAplite)', () => {
+  const item = catalog.byCode('batteryPct');
+  assert.ok(item, 'batteryPct item exists');
+  assert.equal(item.kind, catalog.KINDS.LIVE_BATTERY_PCT);
+  assert.equal(item.icon, catalog.ICONS.NONE);
+  assert.equal(item.category, 'battery');
+  assert.equal(item.notAplite, true);
+  const ctx = { slotKey: 'statusForecastLeft', position: 'left' };
+  assert.ok(catalog.itemAvailable(item, {}, ENV_BASALT, ctx), 'available on basalt');
+  assert.ok(catalog.itemAvailable(item, {}, ENV_EMERY, ctx), 'available on emery');
+  assert.ok(catalog.itemAvailable(item, {}, ENV_DIORITE, ctx), 'available on diorite');
+  assert.ok(!catalog.itemAvailable(item, {}, ENV_APLITE, ctx),
+    'absent on aplite — its glyph battery slot already renders "NN%" text');
+  const basalt = catalog.slotOptions({}, ENV_BASALT, ctx).map(o => o[1]);
+  assert.ok(basalt.indexOf('batteryPct') !== -1, 'offered on a basalt dropdown');
+  const aplite = catalog.slotOptions({}, ENV_APLITE, ctx).map(o => o[1]);
+  assert.equal(aplite.indexOf('batteryPct'), -1, 'not offered on an aplite dropdown');
+  // Defensive resolve mirrors the gate (a synced non-aplite selection).
+  assert.equal(catalog.resolveSelection('batteryPct', {}, ENV_BASALT, ctx), 'batteryPct');
+  assert.equal(catalog.resolveSelection('batteryPct', {}, ENV_APLITE, ctx), 'empty');
+});
+
+test('the Battery category offers both items top-right and only batteryPct elsewhere', () => {
+  const s = { healthMode: 'all', radarProvider: 'rainbow', radarMode: 'graph' };
+  const trCodes = catalog.slotOptions(s, ENV_BASALT,
+    { slotKey: 'statusTopRight', position: 'right' }).map(o => o[1]);
+  assert.ok(trCodes.includes('battery'), 'top-right offers the glyph item');
+  assert.ok(trCodes.includes('batteryPct'), 'top-right offers the % item');
+  [
+    { slotKey: 'statusTopLeft', position: 'left' },
+    { slotKey: 'statusForecastMid', position: 'mid' },
+    { slotKey: 'statusHealthRight', position: 'right' }
+  ].forEach((ctx) => {
+    const codes = catalog.slotOptions(s, ENV_BASALT, ctx).map(o => o[1]);
+    assert.ok(!codes.includes('battery'), ctx.slotKey + ': no glyph battery');
+    assert.ok(codes.includes('batteryPct'), ctx.slotKey + ': batteryPct offered');
+  });
 });
 
 test('slotOptions omits headers whose category has no available item', () => {

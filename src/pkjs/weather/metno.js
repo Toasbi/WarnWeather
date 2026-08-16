@@ -2,6 +2,7 @@ var WeatherProvider = require('./provider.js');
 var request = WeatherProvider.request;
 var failure = WeatherProvider.failure;
 var metnoHeaders = require('./metno-headers.js');
+var feelsLikeF = require('./feels-like.js').feelsLikeF;
 
 var FORECAST_HOURS = 24;
 var HOUR_SECONDS = 60 * 60;
@@ -86,9 +87,13 @@ function mapResponse(json, nowEpoch) {
     var gustTrend = [];
     var uvTrend = [];
     var pressureTrend = [];
+    var feelsTrend = [];
+    var currentFeels = null;
     var entry;
     var instant;
     var next1;
+    var tempF;
+    var feels;
     for (i = anchor; i < anchor + FORECAST_HOURS; i += 1) {
         entry = timeseries[i];
         instant = entry.data && entry.data.instant && entry.data.instant.details;
@@ -96,7 +101,19 @@ function mapResponse(json, nowEpoch) {
         if (!instant || typeof instant.air_temperature !== 'number') {
             return null;
         }
-        tempTrend.push(celsiusToFahrenheit(instant.air_temperature));
+        tempF = celsiusToFahrenheit(instant.air_temperature);
+        tempTrend.push(tempF);
+        // Steadman-computed (no Met.no feels field). Wind converts unrounded
+        // (m/s × 3.6, not msToKmh's integer round); missing wind reads 0 like
+        // windTrend, missing humidity → fall back to the plain temp so the
+        // series stays numeric.
+        feels = feelsLikeF(tempF, instant.relative_humidity, (instant.wind_speed || 0) * 3.6);
+        if (i === anchor) {
+            // Anchor bucket doubles as "now" (currentTemp precedent); missing →
+            // null so FEELS_CURRENT is omitted rather than echoing the temp.
+            currentFeels = feels;
+        }
+        feelsTrend.push(feels === null ? tempF : feels);
         windTrend.push(msToKmh(instant.wind_speed || 0));
         gustTrend.push(msToKmh(instant.wind_speed_of_gust || 0));
         uvTrend.push(typeof instant.ultraviolet_index_clear_sky === 'number'
@@ -118,8 +135,10 @@ function mapResponse(json, nowEpoch) {
         gustTrend: gustTrend,
         uvTrend: uvTrend,
         pressureTrend: pressureTrend,
+        feelsTrend: feelsTrend,
         startTime: Math.round(Date.parse(timeseries[anchor].time) / 1000),
-        currentTemp: celsiusToFahrenheit(timeseries[anchor].data.instant.details.air_temperature)
+        currentTemp: celsiusToFahrenheit(timeseries[anchor].data.instant.details.air_temperature),
+        currentFeels: currentFeels
     };
 }
 
@@ -155,6 +174,10 @@ MetnoProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, 
         this.windTrend = mapped.windTrend;
         this.gustTrend = mapped.gustTrend;
         this.pressureTrend = mapped.pressureTrend;
+        // Computed from the same response — adopted unconditionally, no fetch
+        // gate to honor.
+        this.feelsTrend = mapped.feelsTrend;
+        this.currentFeels = mapped.currentFeels;
         this.startTime = mapped.startTime;
         this.currentTemp = mapped.currentTemp;
         if (this.fetchUv) {

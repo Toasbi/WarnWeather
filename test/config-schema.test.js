@@ -25,10 +25,12 @@ const THRESH_STEMS = ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distan
 const threshKeys = (suffixes) => THRESH_STEMS.reduce((acc, stem) =>
   acc.concat(suffixes.map((suffix) => 'thresh' + stem + suffix)), []);
 const THRESH_COLOR_KEYS = threshKeys(['WarnColor', 'DangerColor']);
-// The bold-only slot kinds (wire ids 8..15 in status-thresholds.js) add ONE key
-// each: a Bold row is their whole sheet. Battery is deliberately absent — its slot
-// draws a glyph, not text, so it has no sheet and no key.
-const BOLD_ONLY_STEMS = ['Temp', 'Pressure', 'Sun', 'Date', 'Week', 'City', 'Countdown', 'Hr'];
+// The bold-only slot kinds (wire ids 8..16 in status-thresholds.js) add ONE key
+// each: a Bold row is their whole sheet (Temp additionally carries the
+// tempSlotDisplay row — listed with the plain keys below). The battery GLYPH item
+// is deliberately absent — its slot draws a glyph, not text, so it has no sheet
+// and no key; the battery PERCENTAGE kind (BatteryPct) renders text and has both.
+const BOLD_ONLY_STEMS = ['Temp', 'Pressure', 'Sun', 'Date', 'Week', 'City', 'Countdown', 'Hr', 'BatteryPct'];
 const BOLD_ONLY_KEYS = BOLD_ONLY_STEMS.map((stem) => 'thresh' + stem + 'BoldMode');
 const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnOutlineOn', 'Warn', 'Danger', 'Max'])
   .concat(THRESH_COLOR_KEYS)
@@ -40,7 +42,7 @@ const EXPECTED_KEYS = [
   'weekStartDay','firstWeek','colorToday','colorSunday','colorSaturday','holidaysEnabled','colorUSFederal',
   'holidayCountry','holidayRegion',
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','fetchNoticeAck','locationMode','location',
-  'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','windScale','pressureScale','thirdLine',
+  'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','windScale','pressureScale','thirdLine','tempSlotDisplay',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','radarNoRainText','rainCountdownHorizon',
   'layoutPreset','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear','reset',
   'statusBoldAll',
@@ -344,10 +346,15 @@ test('radarNoRainText: visible default, 24-char UI cap, graph-only', () => {
   });
 });
 
-test('secondaryLine is a 5-metric dropdown with no Off', () => {
+const metricOptions = (S, env, args) =>
+  global.PConf.optionsResolvers.get('forecastMetric')(S, env, args);
+
+test('secondaryLine is a 6-metric dropdown with no Off (resolver-derived)', () => {
   const sec = byKey('secondaryLine');
   assert.equal(sec.type, 'select');
-  assert.deepEqual(sec.options.map((o) => o[1]), ['precip_prob', 'wind', 'gust', 'uv', 'pressure']);
+  assert.equal(sec.optionsFrom.resolver, 'forecastMetric');
+  const vals = metricOptions({}, { platform: 'basalt' }).map((o) => o[1]);
+  assert.deepEqual(vals, ['precip_prob', 'wind', 'gust', 'uv', 'pressure', 'feels']);
   assert.equal(sec.defaultValue, 'precip_prob');
 });
 
@@ -355,15 +362,24 @@ test('thirdLine derives options from secondaryLine, excluding it, with Off + def
   const third = byKey('thirdLine');
   assert.equal(third.type, 'select');
   assert.equal(third.defaultValue, 'uv');
-  assert.equal(third.optionsFrom.byKey, 'secondaryLine');
-  const map = third.optionsFrom.map;
-  // Every secondary metric maps to Off + the OTHER four (never itself).
-  ['precip_prob', 'wind', 'gust', 'uv', 'pressure'].forEach((sec) => {
-    const vals = map[sec].map((o) => o[1]);
+  assert.equal(third.optionsFrom.resolver, 'forecastMetric');
+  assert.equal(third.optionsFrom.args.third, true);
+  // Every secondary metric yields Off + the OTHER five (never itself).
+  ['precip_prob', 'wind', 'gust', 'uv', 'pressure', 'feels'].forEach((sec) => {
+    const vals = metricOptions({ secondaryLine: sec }, { platform: 'basalt' }, { third: true })
+      .map((o) => o[1]);
     assert.equal(vals[0], 'off', sec + ' third options must start with off');
     assert.ok(!vals.includes(sec), sec + ' must be excluded from its own third-line options');
-    assert.equal(vals.length, 5, sec + ' → off + 4 others');
+    assert.equal(vals.length, 6, sec + ' → off + 5 others');
   });
+});
+
+test('feels-like is left out of both metric pickers on aplite', () => {
+  const sec = metricOptions({}, { platform: 'aplite' }).map((o) => o[1]);
+  assert.deepEqual(sec, ['precip_prob', 'wind', 'gust', 'uv', 'pressure']);
+  const third = metricOptions({ secondaryLine: 'precip_prob' }, { platform: 'aplite' }, { third: true })
+    .map((o) => o[1]);
+  assert.deepEqual(third, ['off', 'wind', 'gust', 'uv', 'pressure']);
 });
 
 test('UV hint explains the fixed 0-11 scale (parallel to precip percentage)', () => {
@@ -510,24 +526,31 @@ test('forecast line pickers use the new metric-oriented labels', () => {
 });
 
 test('metric options are spelled out fully on both pickers', () => {
-  assert.deepEqual(byKey('secondaryLine').options, [
-    ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure']
+  assert.deepEqual(metricOptions({}, { platform: 'basalt' }), [
+    ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels']
   ]);
-  const map = byKey('thirdLine').optionsFrom.map;
-  const labelOf = (sec, val) => map[sec].find((o) => o[1] === val)[0];
-  assert.equal(map.precip_prob[0][0], 'Off');
+  const thirdOf = (sec) => metricOptions({ secondaryLine: sec }, { platform: 'basalt' }, { third: true });
+  const labelOf = (sec, val) => thirdOf(sec).find((o) => o[1] === val)[0];
+  assert.equal(thirdOf('precip_prob')[0][0], 'Off');
   assert.equal(labelOf('wind', 'precip_prob'), 'Precipitation %');
   assert.equal(labelOf('precip_prob', 'gust'), 'Wind gusts');
   assert.equal(labelOf('precip_prob', 'uv'), 'UV Index');
   assert.equal(labelOf('gust', 'wind'), 'Wind speed');
+  assert.equal(labelOf('precip_prob', 'feels'), 'Feels-like temperature');
+  assert.equal(labelOf('feels', 'pressure'), 'Air pressure (hPa)');
 });
 
 test('Second metric picker hints note that it is drawn as bar-aligned square dots', () => {
   const hints = byKey('thirdLine').hintByValue;
-  ['precip_prob', 'wind', 'gust', 'uv'].forEach((m) => {
+  ['precip_prob', 'wind', 'gust', 'uv', 'pressure', 'feels'].forEach((m) => {
     assert.match(hints[m], /square dots.*rain bars/i, m + ' hint should mention bar-aligned square dots');
   });
   assert.match(hints.off, /No second metric/i);
+});
+
+test('feels-like hint says it shares the temperature scale, on both pickers', () => {
+  assert.match(byKey('secondaryLine').hintByValue.feels, /same scale as the temperature curve/i);
+  assert.match(byKey('thirdLine').hintByValue.feels, /same scale as the temperature curve/i);
 });
 
 test('forecast tab nests fill and wind scale under the line that enables them', () => {
@@ -1055,15 +1078,15 @@ test('Status-slots tab (id watch) opens with a general status-bar intro, then th
       'Walked distance slot'],
     'per-slot edit sheets follow the four status bars, in kind order');
   // The bold-only slot sheets (level-less kinds, one Bold row each) follow, in
-  // the contract's wire-id order (KINDS 8..15).
-  assert.deepEqual(titles.slice(12, 20),
+  // the contract's wire-id order (KINDS 8..16).
+  assert.deepEqual(titles.slice(12, 21),
     ['Current temperature slot', 'Air pressure (hPa) slot', 'Sunrise/sunset slot',
       'Date slot', 'Calendar week slot', 'City slot', 'Date countdown slot',
-      'Heart rate slot'],
+      'Heart rate slot', 'Battery percentage slot'],
     'bold-only slot sheets follow the threshold sheets, in wire-id order');
   // Time and Calendar moved to the END of the Layout tab (order Time, Calendar) —
   // the Status-slots tab holds nothing but slot config now.
-  assert.deepEqual(titles.slice(20), [], 'no sections after the bold-only sheets');
+  assert.deepEqual(titles.slice(21), [], 'no sections after the bold-only sheets');
   const layoutTitles = schema.tabs.find((t) => t.id === 'layout')
     .sections.map((s) => s.title).filter(Boolean);
   assert.deepEqual(layoutTitles.slice(-2), ['Time', 'Calendar'],
@@ -1100,13 +1123,13 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
   // gate and the color pickers' COLOR-capability + non-B&W-theme rules.
   const watch = schema.tabs.find((t) => t.id === 'watch');
   const threshSections = watch.sections.filter((s) => s.sheetOnly);
-  assert.equal(threshSections.length, 16,
-    'one edit sheet per boldable slot kind (8 threshold + 8 bold-only)');
+  assert.equal(threshSections.length, 17,
+    'one edit sheet per boldable slot kind (8 threshold + 9 bold-only)');
   assert.deepEqual(threshSections.map((s) => s.sheetId),
     ['threshAqi', 'threshPollen', 'threshWind', 'threshGust', 'threshUv',
       'threshSteps', 'threshSleep', 'threshDistance',
       'threshTemp', 'threshPressure', 'threshSun', 'threshDate', 'threshWeek',
-      'threshCity', 'threshCountdown', 'threshHr'],
+      'threshCity', 'threshCountdown', 'threshHr', 'threshBatteryPct'],
     'sheet ids follow the thresh<Stem> convention the slot resolver derives');
   threshSections.forEach((sec, i) =>
     assert.deepEqual(sec.showWhen, { env: 'thresholds' },
@@ -1223,19 +1246,17 @@ test('the radar rain-horizon control is labelled "Rain countdown"', () => {
   assert.equal(byKey('rainCountdownHorizon').label, 'Rain countdown');
 });
 
-test('secondaryLine offers pressure as a fifth metric', () => {
-  assert.deepEqual(byKey('secondaryLine').options, [
+test('secondaryLine offers pressure and feels-like as the fifth and sixth metrics', () => {
+  assert.deepEqual(metricOptions({}, { platform: 'basalt' }), [
     ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'],
-    ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure']
+    ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels']
   ]);
 });
 
-test('thirdLine offers the four metrics the main line is not using, for all five', () => {
-  const map = byKey('thirdLine').optionsFrom.map;
-  assert.deepEqual(Object.keys(map).sort(),
-    ['gust', 'precip_prob', 'pressure', 'uv', 'wind']);
-  for (const [metric, opts] of Object.entries(map)) {
-    assert.equal(opts.length, 5, `${metric} should offer Off + 4 metrics`);
+test('thirdLine offers the five metrics the main line is not using, for all six', () => {
+  for (const metric of ['feels', 'gust', 'precip_prob', 'pressure', 'uv', 'wind']) {
+    const opts = metricOptions({ secondaryLine: metric }, { platform: 'basalt' }, { third: true });
+    assert.equal(opts.length, 6, `${metric} should offer Off + 5 metrics`);
     assert.equal(opts[0][1], 'off');
     assert.ok(!opts.some(([, v]) => v === metric), `${metric} must not offer itself`);
   }

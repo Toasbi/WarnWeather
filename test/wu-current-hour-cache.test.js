@@ -79,14 +79,27 @@ test('corrupt cache JSON does not throw and falls back to clone', () => {
   assert.equal(out[0].temp, 60, 'cloned from the soonest bucket');
 });
 
-test('stored bucket holds exactly the seven consumed fields', () => {
+test('stored bucket holds exactly the nine consumed fields', () => {
   resetStore();
-  var entry = { fcst_valid: H16, temp: 60, pop: 80, qpf: 0.2, wspd: 10, gust: 20, uv_index: 3, wxPhrase: 'Rain', extra: 1 };
+  var entry = { fcst_valid: H16, temp: 60, pop: 80, qpf: 0.2, wspd: 10, gust: 20, uv_index: 3,
+    feels_like: 55, mslp: 1013.2, wxPhrase: 'Rain', extra: 1 };
   wuCache.anchorForecast([entry, bucket(H17, 62, 90)], H15);
   var cache = JSON.parse(store[CACHE_KEY]);
   var stored = cache[String(H16)];
   assert.deepEqual(
     Object.keys(stored).sort(),
-    ['fcst_valid', 'gust', 'pop', 'qpf', 'temp', 'uv_index', 'wspd']
+    ['fcst_valid', 'feels_like', 'gust', 'mslp', 'pop', 'qpf', 'temp', 'uv_index', 'wspd']
   );
+});
+
+test('anchor bucket carries feels_like and mslp so the first trend point stays real', () => {
+  resetStore();
+  // Regression: pickBucket used to drop feels_like/mslp, so the prepended
+  // current-hour bucket degraded feels to temp (and pressure to 0) every fetch.
+  var entry = { fcst_valid: H16, temp: 60, pop: 80, qpf: 0, wspd: 10, gust: 20, uv_index: 3,
+    feels_like: 51, mslp: 1008 };
+  var out = wuCache.anchorForecast([entry, bucket(H17, 62, 90)], H15);
+  assert.equal(out[0].fcst_valid, H15);
+  assert.equal(out[0].feels_like, 51, 'clone keeps the captured feels_like');
+  assert.equal(out[0].mslp, 1008, 'clone keeps the captured mslp');
 });

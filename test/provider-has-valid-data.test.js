@@ -156,3 +156,27 @@ test('getPayload emits sourced pressure verbatim, trimmed to numEntries', () => 
   assert.equal(out.length, 24);
   assert.equal(out[0], 1013.5); // no byte-scaling: hPa stay real numbers
 });
+
+// Feels-like rides as transient keys, but unlike PRESSURE_TREND they are
+// emitted only when sourced — a feels-less payload has no keys to strip.
+test('getPayload omits FEELS_TREND/FEELS_CURRENT when no provider sourced them', () => {
+  const payload = pressureProvider().getPayload();
+  assert.equal('FEELS_TREND' in payload, false);
+  assert.equal('FEELS_CURRENT' in payload, false);
+});
+
+test('getPayload emits sourced feelsTrend as whole °F, trimmed to numEntries', () => {
+  const p = pressureProvider({ feelsTrend: new Array(30).fill(47.3) });
+  const out = p.getPayload();
+  assert.equal(out.FEELS_TREND.length, 24);
+  // Rounded at the source: fractional Steadman/apparent values would otherwise
+  // widen the joint band into the int32 TEMP_MIN/TEMP_MAX wire keys.
+  assert.equal(out.FEELS_TREND[0], 47);
+  assert.equal('FEELS_CURRENT' in out, false, 'current is independent of the trend');
+});
+
+test('getPayload rounds FEELS_CURRENT like CURRENT_TEMP (0 °F is a real value)', () => {
+  const p = pressureProvider({ currentFeels: 46.6 });
+  assert.equal(p.getPayload().FEELS_CURRENT, 47);
+  assert.equal(pressureProvider({ currentFeels: 0 }).getPayload().FEELS_CURRENT, 0);
+});

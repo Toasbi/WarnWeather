@@ -138,3 +138,36 @@ test('wunderground maps mslp (mean sea level pressure, mb == hPa) into pressureT
   });
   assert.deepEqual(p.pressureTrend, [1019, 0]);
 });
+
+test('WU maps v1 hourly feels_like and v3 current temperatureFeelsLike (both °F, units=e)', () => {
+  responder = function(url, onSuccess) {
+    if (url.indexOf('/wx/observations/current') !== -1) {
+      onSuccess(JSON.stringify({ temperature: 71, temperatureFeelsLike: 66.4 }));
+      return;
+    }
+    onSuccess(JSON.stringify({ forecasts: [
+      { temp: 50, feels_like: 44, pop: 0, qpf: 0, wspd: 0, gust: 0, uv_index: 0, fcst_valid: NOW_HOUR },
+      // no feels_like (e.g. the cache-cloned current-hour bucket) -> temp fallback
+      { temp: 60, pop: 0, qpf: 0, wspd: 0, gust: 0, uv_index: 0, fcst_valid: NOW_HOUR + HOUR }
+    ] }));
+  };
+  const p = new WundergroundProvider();
+  withMockedNow(NOW_HOUR + 800, function() {
+    p.withProviderData(0, 0, false, function() {},
+      function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  });
+  assert.deepEqual(p.feelsTrend, [44, 60]);
+  assert.equal(p.currentFeels, 66.4);
+});
+
+test('WU leaves currentFeels null when the observation has no temperatureFeelsLike', () => {
+  responder = respondWith([
+    { temp: 50, pop: 0, qpf: 0, wspd: 0, gust: 0, uv_index: 0, fcst_valid: NOW_HOUR }
+  ], 71); // respondWith's current observation carries only `temperature`
+  const p = new WundergroundProvider();
+  withMockedNow(NOW_HOUR + 800, function() {
+    p.withProviderData(0, 0, false, function() {},
+      function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  });
+  assert.equal(p.currentFeels, null, 'null → FEELS_CURRENT omitted, temp slot degrades');
+});

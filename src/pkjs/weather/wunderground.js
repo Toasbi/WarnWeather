@@ -68,7 +68,11 @@ WundergroundProvider.prototype.withWundergroundCurrent = function(lat, lon, apiK
                 return;
             }
 
-            callback(weatherData.temperature);
+            // units=e → both °F. temperatureFeelsLike may be null on some
+            // station feeds; null → FEELS_CURRENT omitted, temp slot degrades.
+            callback(weatherData.temperature,
+                typeof weatherData.temperatureFeelsLike === 'number'
+                    ? weatherData.temperatureFeelsLike : null);
         }).bind(this),
         function(error) {
             onFailure(failure('provider_data', 'wu_current_' + error.code));
@@ -127,7 +131,7 @@ WundergroundProvider.prototype.withProviderData = function(lat, lon, force, onSu
     }
 
     this.withApiKey((function(apiKey) {
-        this.withWundergroundCurrent(lat, lon, apiKey, (function(currentTemp) {
+        this.withWundergroundCurrent(lat, lon, apiKey, (function(currentTemp, currentFeels) {
             this.withWundergroundForecast(lat, lon, apiKey, (function(rawForecast) {
                 // WU's hourly feed rounds up and drops the in-progress hour;
                 // anchor it to the current wall-clock hour, reusing the real
@@ -166,8 +170,15 @@ WundergroundProvider.prototype.withProviderData = function(lat, lon, force, onSu
                     // drawing a spike to the graph floor.
                     return typeof entry.mslp === 'number' ? entry.mslp : 0;
                 });
+                this.feelsTrend = forecast.map(function(entry) {
+                    // v1 hourly feels_like, °F (units=e); the anchored current-hour
+                    // bucket carries it too (wu-current-hour-cache picks it). Absent
+                    // on a station feed → fall back to that hour's temp.
+                    return typeof entry.feels_like === 'number' ? entry.feels_like : entry.temp;
+                });
                 this.startTime = forecast[0].fcst_valid;
                 this.currentTemp = currentTemp;
+                this.currentFeels = currentFeels;
                 onSuccess();
             }).bind(this), onFailure);
         }).bind(this), onFailure);

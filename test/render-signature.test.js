@@ -32,6 +32,16 @@ test('renderSignature is empty for falsy settings and stable for equal settings'
   assert.notEqual(renderSignature({ windUnits: 'mph' }), renderSignature({ windUnits: 'kph' }));
 });
 
+// tempSlotDisplay changes the phone-side temp-slot bake (formatValue), so per the
+// force-fetch rule it must be part of the signature or switching Temp/Feels like/Both
+// would not show until the next scheduled fetch.
+test('tempSlotDisplay changes the render signature (forces a rebake)', () => {
+  const base = renderSignature({});
+  assert.notEqual(renderSignature({ tempSlotDisplay: 'feels' }), base);
+  assert.notEqual(renderSignature({ tempSlotDisplay: 'both' }),
+    renderSignature({ tempSlotDisplay: 'feels' }));
+});
+
 // The four weather kinds are evaluated phone-side at weather-bake time, so enabling one
 // only reaches the watch through a refetch. Without these keys in the signature,
 // shouldForceFetch stays false for a threshold-only edit and the user sees nothing until

@@ -172,6 +172,24 @@ test('provider identity: id/name set, inherits the base provider', () => {
   assert.ok(p instanceof WeatherProvider);
 });
 
+const feelsLikeF = require('../src/pkjs/weather/feels-like.js').feelsLikeF;
+
+test('metno computes feelsTrend via Steadman from instant.details (unrounded m/s→km/h)', () => {
+  const body = forecastBody(26, HOUR0, { 0: { instant: { relative_humidity: 70 } } });
+  const mapped = metno.mapResponse(body, NOW);
+  // 10 °C → 50 °F, 70 % RH, 5 m/s → 18 km/h (exact ×3.6, not msToKmh's round).
+  assert.equal(mapped.feelsTrend[0], feelsLikeF(50, 70, 18));
+  assert.equal(mapped.currentFeels, mapped.feelsTrend[0], 'anchor bucket doubles as "now"');
+  assert.equal(mapped.feelsTrend[1], 50, 'no relative_humidity → the hour reads the actual temp');
+  assert.equal(mapped.feelsTrend.length, 24);
+});
+
+test('metno leaves currentFeels null when the anchor bucket lacks relative_humidity', () => {
+  const mapped = metno.mapResponse(forecastBody(26, HOUR0), NOW); // fixture default has no rh
+  assert.equal(mapped.currentFeels, null, 'null → FEELS_CURRENT omitted, temp slot degrades');
+  assert.deepEqual(mapped.feelsTrend, mapped.tempTrend, 'trend degrades to the temp series');
+});
+
 test('metno maps air_pressure_at_sea_level into pressureTrend', () => {
   const body = forecastBody(26, HOUR0, { 0: { instant: { air_pressure_at_sea_level: 1008.3 } } });
   const mapped = metno.mapResponse(body, NOW);

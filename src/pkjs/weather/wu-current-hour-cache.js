@@ -53,7 +53,7 @@ function prunePast(cache, hourFloor) {
 /**
  * Copy only the fields the trend mapping consumes, so cached buckets stay small.
  * @param {Object} entry A WU hourly forecast entry.
- * @returns {{fcst_valid: number, temp: *, pop: *, qpf: *, wspd: *, gust: *, uv_index: *}} Picked bucket.
+ * @returns {{fcst_valid: number, temp: *, pop: *, qpf: *, wspd: *, gust: *, uv_index: *, feels_like: *, mslp: *}} Picked bucket.
  */
 function pickBucket(entry) {
     return {
@@ -63,12 +63,14 @@ function pickBucket(entry) {
         qpf: entry.qpf,
         wspd: entry.wspd,
         gust: entry.gust,
-        uv_index: entry.uv_index
+        uv_index: entry.uv_index,
+        feels_like: entry.feels_like,
+        mslp: entry.mslp
     };
 }
 
 /**
- * Build a current-hour bucket: the seven consumed fields of `source`, stamped
+ * Build a current-hour bucket: the consumed fields of `source`, stamped
  * with the current hour.
  * @param {Object} source Bucket to clone.
  * @param {number} hourFloor Current wall-clock hour, epoch seconds.

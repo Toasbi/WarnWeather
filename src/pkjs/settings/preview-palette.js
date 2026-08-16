@@ -16,16 +16,17 @@ function hex(n) {
     return '#' + s;
 }
 
-// Hued metrics whose line + fill colours come straight from forecast-series. gust has no
-// fixed hue (resolved off the rain bars), so it is handled separately below.
-var HUED = ['precip_prob', 'wind', 'uv', 'pressure'];
+// Fixed-colour metrics whose line + fill colours come straight from forecast-series
+// (feels is achromatic grey, not hued, but resolves through the same table). gust has
+// no fixed colour (resolved off the rain bars), so it is handled separately below.
+var HUED = ['precip_prob', 'wind', 'uv', 'pressure', 'feels'];
 
 /**
  * Line stroke colours for one metric, for both display classes plus the light-theme
  * variant, via forecast-series.lineColorFor. Mirrors fillEntry's shape: a metric with no
  * light-theme override in LINE_COLORS resolves `light` to the same value as `color`
  * (lineColorFor falls back to the dark-theme colour), so this is safe to call uniformly.
- * @param {string} metric precip_prob|wind|uv
+ * @param {string} metric precip_prob|wind|uv|pressure|feels
  * @returns {{color:string, light:string, bw:string}} Colour-display (dark theme), light-theme, and B&W strokes.
  */
 function lineEntry(metric) {
@@ -39,7 +40,7 @@ function lineEntry(metric) {
 /**
  * Area-fill colours for one metric, for both display classes plus the light-theme
  * variant, via forecast-series.fillColorFor.
- * @param {string} metric precip_prob|wind|uv|gust
+ * @param {string} metric precip_prob|wind|uv|gust|pressure|feels
  * @returns {{color:string, light:string, bw:string}} Colour-display (dark theme), light-theme, and B&W fills.
  */
 function fillEntry(metric) {

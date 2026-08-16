@@ -80,6 +80,12 @@ test('buildQuery requests server-side units and embeds unquoted numeric coordina
   assert.doesNotMatch(q, /lat: "/); // GraphQL Float literal must be unquoted
 });
 
+test('buildQuery selects feelsLike with the temperature unit arg in now{} and hours{}', () => {
+  const q = yandex.buildQuery(52.52, 13.41);
+  assert.match(q, /now \{[^}]*feelsLike\(unit: FAHRENHEIT\)/);
+  assert.match(q, /hours \{[^}]*feelsLike\(unit: FAHRENHEIT\)/);
+});
+
 const WeatherProvider = require('../src/pkjs/weather/provider.js');
 const YandexProvider = yandex.YandexProvider;
 
@@ -174,6 +180,24 @@ test('withProviderData POSTs the built query with auth headers, and onload popul
   finally {
     global.XMLHttpRequest = prevXhr;
   }
+});
+
+test('mapResponse maps feelsLike (server-side °F) with temp fallback and null current', () => {
+  const r = sampleResponse();
+  r.data.weatherByPoint.now.feelsLike = 65.5;
+  const hours = r.data.weatherByPoint.forecast.days[0].hours;
+  hours.forEach((h, i) => { if (i !== 1) { h.feelsLike = h.temperature - 4; } }); // hour 1 has none
+  const out = mapResponse(r, BASE); // anchor at bucket 0
+  assert.equal(out.feelsTrend.length, 24);
+  assert.equal(out.feelsTrend[0], 46);                  // 50 − 4
+  assert.equal(out.feelsTrend[1], out.tempTrend[1], 'missing hour backfills from temp');
+  assert.equal(out.currentFeels, 65.5);
+});
+
+test('mapResponse leaves currentFeels null when now.feelsLike is missing', () => {
+  const out = mapResponse(sampleResponse(), BASE); // fixture has no feelsLike anywhere
+  assert.equal(out.currentFeels, null, 'null → FEELS_CURRENT omitted, temp slot degrades');
+  assert.deepEqual(out.feelsTrend, out.tempTrend, 'trend degrades to the temp series');
 });
 
 // Yandex exposes station-level pressure only: at 1600 m that reads ~830 hPa where

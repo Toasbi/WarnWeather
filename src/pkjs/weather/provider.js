@@ -203,6 +203,12 @@ var WeatherProvider = function() {
     // the pressure line stays off and the status slot shows '--'. Transient:
     // consumed by forecast-series + formatValue, never wired.
     this.pressureTrend = [];
+    // Feels-like (apparent temperature, °F) — API-sourced or Steadman-computed
+    // (feels-like.js). Empty/null → the feels line stays off and the temp slot
+    // renders the actual temp alone. Transient: consumed by forecast-series +
+    // formatValue, never wired.
+    this.feelsTrend = [];
+    this.currentFeels = null;
 };
 
 /**
@@ -849,7 +855,7 @@ WeatherProvider.prototype.getPayload = function() {
         ? scaleTrendToBytes(this.uvTrend, numEntries, 10) // UV index ×10 (tenths); forecast-series scales vs UV 11.0
         : [];
     var tempEnc = forecastSeries.tempTrendToBytes(temps);
-    return {
+    var payload = {
         TEMP_TREND_UINT8: tempEnc.bytes,
         TEMP_MIN: tempEnc.min,
         TEMP_MAX: tempEnc.max,
@@ -868,6 +874,20 @@ WeatherProvider.prototype.getPayload = function() {
         // First byte flags whether the event list starts on a sunrise (0) or sunset (1).
         SUN_EVENTS: encodeSunEvents(this.sunEvents)
     };
+    // Feels-like keys are emitted only when sourced (unlike PRESSURE_TREND's
+    // always-present empty array) so a feels-less payload has no keys to strip.
+    // Transient PKJS-only: forecast-series/formatValue consume + delete before send.
+    if (this.feelsTrend && this.feelsTrend.length) {
+        // °F, whole degrees: Steadman/apparent values are fractional, but the joint
+        // band they widen lands in the int32 TEMP_MIN/TEMP_MAX wire keys.
+        payload.FEELS_TREND = this.feelsTrend.slice(0, numEntries).map(function (v) {
+            return Math.round(v);
+        });
+    }
+    if (typeof this.currentFeels === 'number') {
+        payload.FEELS_CURRENT = Math.round(this.currentFeels); // °F, rounded like CURRENT_TEMP
+    }
+    return payload;
 };
 
 WeatherProvider.request = request;

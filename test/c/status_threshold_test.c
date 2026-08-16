@@ -51,8 +51,11 @@ static void kind_tests(void) {
     expect("kind.date", status_threshold_kind_for_slot(SLOT_LIVE_DATE, STATUS_ICON_NONE), THRESH_DATE);
     expect("kind.week", status_threshold_kind_for_slot(SLOT_LIVE_WEEK, STATUS_ICON_NONE), THRESH_WEEK);
     expect("kind.hr", status_threshold_kind_for_slot(SLOT_LIVE_HR, STATUS_ICON_HR), THRESH_HR);
-    // Still out of scope: battery draws a glyph (no text run, nothing to bold)
+    // The battery PERCENTAGE slot is a text run, so it gets a bold-only kind;
+    // the battery GLYPH slot stays out of scope (no text run, nothing to bold)
     // and empty has no content at all.
+    expect("kind.battery_pct",
+           status_threshold_kind_for_slot(SLOT_LIVE_BATTERY_PCT, STATUS_ICON_NONE), THRESH_BATTERY_PCT);
     expect("kind.battery", status_threshold_kind_for_slot(SLOT_LIVE_BATTERY, STATUS_ICON_NONE), -1);
     expect("kind.empty", status_threshold_kind_for_slot(SLOT_EMPTY, STATUS_ICON_NONE), -1);
     // Direction is a fixed property of the kind — and since the goal rework the
@@ -88,7 +91,9 @@ static void blob_tests(void) {
     blob[THRESH_HEALTH_OFFSET + 3] = 0x0F;
 
     expect("blob.valid", status_threshold_settings_validate(blob, sizeof(blob)), 1);
-    expect("blob.short", status_threshold_settings_validate(blob, sizeof(blob) - 1), 0);
+    // sizeof - 1 = 33 is the accepted 16-kind legacy length, not a truncation
+    // (see legacy_blob_tests); the nearest genuinely short length is 32.
+    expect("blob.short", status_threshold_settings_validate(blob, sizeof(blob) - 2), 0);
     expect("blob.null", status_threshold_settings_validate(NULL, sizeof(blob)), 0);
     expect("blob.aqi_on", status_threshold_enabled(blob, sizeof(blob), THRESH_AQI), 1);
     expect("blob.wind_off", status_threshold_enabled(blob, sizeof(blob), THRESH_WIND), 0);
@@ -116,6 +121,8 @@ static void paired_bound_tests(void) {
     expect("paired.enabled_temp", status_threshold_enabled(blob, sizeof(blob), THRESH_TEMP), 0);
     expect("paired.enabled_pressure", status_threshold_enabled(blob, sizeof(blob), THRESH_PRESSURE), 0);
     expect("paired.enabled_hr", status_threshold_enabled(blob, sizeof(blob), THRESH_HR), 0);
+    expect("paired.enabled_battery_pct",
+           status_threshold_enabled(blob, sizeof(blob), THRESH_BATTERY_PCT), 0);
     // color8 for a bold-only kind would land inside the health-u16 area
     // (1 + 2*9 = 19 >= THRESH_HEALTH_OFFSET); it must return the fallback, not
     // that byte. Prove it with a distinctive byte at the colliding offset.
@@ -196,6 +203,14 @@ static void bold_tests(void) {
     expect("bold.levelless_always",
            status_threshold_is_bold(blob, n, THRESH_TEMP, THRESH_LEVEL_NORMAL), 1);
 
+    // Kind 16 (battery %) lives alone in the fifth bold byte (blob byte 33).
+    blob[THRESH_BOLD_OFFSET + 4] = (uint8_t)(THRESH_BOLD_ALWAYS << (2 * (THRESH_BATTERY_PCT & 3)));
+    expect("bold.pack_battery_pct",
+           status_threshold_bold_mode(blob, n, THRESH_BATTERY_PCT), THRESH_BOLD_ALWAYS);
+    expect("bold.battery_pct_bolds",
+           status_threshold_is_bold(blob, n, THRESH_BATTERY_PCT, THRESH_LEVEL_NORMAL), 1);
+    expect("bold.pack_hr_untouched", status_threshold_bold_mode(blob, n, THRESH_HR), THRESH_BOLD_ALWAYS);
+
     // Degrade safely: the reserved wire value, a bad blob and a slot with no
     // threshold kind all fall back to the shipped behaviour.
     memset(blob, 0xFF, sizeof(blob));
@@ -242,7 +257,7 @@ static void legacy_blob_tests(void) {
            status_threshold_is_bold(blob, legacy, THRESH_WIND, THRESH_LEVEL_WARN), 1);
     expect("legacy.bold_danger",
            status_threshold_is_bold(blob, legacy, THRESH_WIND, THRESH_LEVEL_DANGER), 1);
-    // Only the two known lengths are accepted — no partial bold byte, no slack.
+    // Only the three known lengths are accepted — no partial bold byte, no slack.
     expect("legacy.reject_30", status_threshold_settings_validate(blob, legacy + 1), 0);
     expect("legacy.reject_28", status_threshold_settings_validate(blob, legacy - 1), 0);
     expect("legacy.reject_27", status_threshold_settings_validate(blob, 27), 0);
@@ -251,6 +266,19 @@ static void legacy_blob_tests(void) {
     // blob reads invalid until the phone re-syncs the 33-B one.
     expect("legacy.reject_31", status_threshold_settings_validate(blob, 31), 0);
     expect("legacy.reject_32", status_threshold_settings_validate(blob, 32), 0);
+
+    // A 33-byte blob (16-kind bold era, every current install at upgrade time)
+    // keeps kinds 0..15's bold settings and reads kind 16 as the default.
+    size_t pre16 = THRESH_SETTINGS_BYTES_PRE_KIND16;
+    blob[THRESH_BOLD_OFFSET] = (uint8_t)(THRESH_BOLD_ALWAYS << (2 * THRESH_AQI));
+    blob[THRESH_BOLD_OFFSET + 2] = (uint8_t)(THRESH_BOLD_OFF << (2 * (THRESH_TEMP & 3)));
+    expect("legacy33.valid", status_threshold_settings_validate(blob, pre16), 1);
+    expect("legacy33.bold_aqi", status_threshold_bold_mode(blob, pre16, THRESH_AQI), THRESH_BOLD_ALWAYS);
+    expect("legacy33.bold_temp", status_threshold_bold_mode(blob, pre16, THRESH_TEMP), THRESH_BOLD_OFF);
+    expect("legacy33.battery_pct_default",
+           status_threshold_bold_mode(blob, pre16, THRESH_BATTERY_PCT), THRESH_BOLD_WARN);
+    expect("legacy33.aqi_on", status_threshold_enabled(blob, pre16, THRESH_AQI), 1);
+    expect("legacy33.steps_warn", status_threshold_health_warn(blob, pre16, THRESH_STEPS), 8000);
 }
 
 static void health_value_tests(void) {

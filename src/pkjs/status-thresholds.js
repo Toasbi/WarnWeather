@@ -15,13 +15,14 @@
     ? require('./weather/rain-tier.js') : null;
 
   // 27 -> 29 when UV became kind 7; 29 -> 33 when the bold-only kinds (8..15)
-  // widened the bold area to 16 kinds. (The interim 31-byte, 8-kind-bold format
-  // never shipped — it existed only on an unmerged branch — so exactly {33, 29}
-  // are accepted; see status_threshold.h.)
-  var SETTINGS_BYTES = 33;
+  // widened the bold area to 16 kinds; 33 -> 34 when battery % (kind 16) opened
+  // byte 33. (The interim 31-byte, 8-kind-bold format never shipped — it
+  // existed only on an unmerged branch — so exactly {34, 33, 29} are accepted;
+  // see status_threshold.h.)
+  var SETTINGS_BYTES = 34;
   var COLORS_OFFSET = 1;
   var HEALTH_OFFSET = 17;    // shifted 15 -> 17 with the UV color pair (append-only kinds)
-  var BOLD_OFFSET = 29;      // 2 bits per kind: byte 29 + (k >> 2), bits 2 * (k & 3) — bytes 29..32
+  var BOLD_OFFSET = 29;      // 2 bits per kind: byte 29 + (k >> 2), bits 2 * (k & 3) — bytes 29..33
 
   // thresh<Kind>BoldMode -> ThreshBold (src/c/appendix/status_threshold.h). The
   // ladder is monotone over the level: danger is bold under every mode, 'warn'
@@ -68,7 +69,7 @@
     // slot option except battery, which renders a drawn glyph with no text run
     // so a Bold option would be a no-op lie. They own NO enable bit (blob[0]
     // covers the 8 paired kinds only), no color pair, and no health u16 — only
-    // their 2-bit bold cell in bytes 29..32.
+    // their 2-bit bold cell in the bold area (bytes 29..33).
     { code: 'temp',      key: 'Temp',      belowIsWorse: false, boldOnly: true },
     { code: 'pressure',  key: 'Pressure',  belowIsWorse: false, boldOnly: true },
     { code: 'sun',       key: 'Sun',       belowIsWorse: false, boldOnly: true },
@@ -76,7 +77,11 @@
     { code: 'week',      key: 'Week',      belowIsWorse: false, boldOnly: true },
     { code: 'city',      key: 'City',      belowIsWorse: false, boldOnly: true },
     { code: 'countdown', key: 'Countdown', belowIsWorse: false, boldOnly: true },
-    { code: 'hr',        key: 'Hr',        belowIsWorse: false, boldOnly: true }
+    { code: 'hr',        key: 'Hr',        belowIsWorse: false, boldOnly: true },
+    // Battery % (kind 16, appended): unlike the GLYPH battery slot — still
+    // kind-less, a drawn glyph has no text run to bold — the % slot renders
+    // text, so it owns a bold cell: the first one in byte 33.
+    { code: 'batteryPct', key: 'BatteryPct', belowIsWorse: false, boldOnly: true }
   ];
 
   /**
@@ -144,7 +149,7 @@
    * AND ordered for the kind's direction (pack-time defense in depth — the
    * config UI also rejects inverted pairs on entry).
    * @param {Object} settings Clay settings blob
-   * @param {number} kindIndex wire kind id (0..15)
+   * @param {number} kindIndex wire kind id (0..16)
    * @returns {{enabled: boolean, warn: ?number, danger: ?number,
    *            warnColor: ?number, dangerColor: ?number, boldMode: string}}
    */
@@ -324,7 +329,7 @@
    * them on the next build. Enable bits, colors, and health u16s are
    * untouched by the master.
    * @param {Object} settings Clay settings blob
-   * @returns {number[]} SETTINGS_BYTES-long array (currently 33 bytes)
+   * @returns {number[]} SETTINGS_BYTES-long array (currently 34 bytes)
    */
   function buildSettingsBlob(settings) {
     var blob = [];

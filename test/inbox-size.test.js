@@ -203,6 +203,8 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // 16 kinds x 2 bits, bold-only kinds 8..15 included).
   // 395 -> 427 when the custom radar no-rain text joined (CLAY_NORAIN_TEXT:
   // 7 B tuple header + 24 B text cap + 1 B NUL = 32 B).
-  assert.equal(size, 427, 'update the recorded Clay message size when its wire contract changes');
+  // 427 -> 428 when the threshold blob widened 33 -> 34 (the battery-% bold
+  // cell, kind 16, opened byte 33).
+  assert.equal(size, 428, 'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });

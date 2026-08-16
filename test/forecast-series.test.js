@@ -464,3 +464,153 @@ test('applyForecastSeries deletes the transient PRESSURE_TREND', () => {
   // Mid curve core (35pm per hPa): 1010 -> 325pm (byte 81), 1011 -> 360pm (byte 90).
   assert.deepEqual(payload.SECONDARY_LINE_TREND_UINT8, [81, 90]);
 });
+
+// ---- Feels-like metric ---------------------------------------------------
+// 'feels' rides the SECONDARY/THIRD channels like pressure, but maps against the
+// TEMPERATURE axis: applyForecastSeries widens TEMP_MIN/TEMP_MAX to the joint
+// temp∪feels band and rescales the temp bytes against it, so both curves share
+// one scale and the vertical gap between them is real.
+const { needsFeels, LINE_COLORS, FILL_COLORS } = require('../src/pkjs/forecast-series');
+
+// °F temps 10/20/30 baked by getPayload against their own band [10, 30].
+const feelsPayload = (extra) => Object.assign({
+  TEMP_TREND_UINT8: [0, 125, 250], TEMP_MIN: 10, TEMP_MAX: 30,
+  PRECIP_TREND_UINT8: [0, 50, 100], RAIN_TREND_UINT8: [0, 0, 0],
+  CURRENT_TEMP: 10, CITY: 'X', SUN_EVENTS: [1]
+}, extra);
+
+test('feels selected: temp bytes rescale against the joint temp∪feels band, TEMP_MIN/MAX widen', () => {
+  const payload = feelsPayload({ FEELS_TREND: [5, 15, 25], FEELS_CURRENT: 8 });
+  const out = applyForecastSeries(payload,
+    { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' });
+  // Joint band [5, 30] (span 25): temps 10/20/30 -> bytes 50/150/250.
+  assert.deepEqual(out.TEMP_TREND_UINT8, [50, 150, 250]);
+  assert.equal(out.TEMP_MIN, 5);
+  assert.equal(out.TEMP_MAX, 30);
+  // Feels 5/15/25 against the SAME band -> permille 0/400/800 -> bytes 0/100/200.
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 100, 200]);
+  assert.equal(out.SECONDARY_LINE_COLOR, 0xAAAAAA); // GColorLightGray
+});
+
+test('fractional feels widen the band to whole degrees outward (int32 TEMP_MIN/MAX wire keys)', () => {
+  // Regression: Steadman/apparent values are fractional; the joint band lands in
+  // the int32 TEMP_MIN/TEMP_MAX message keys, so it must floor/ceil, never leak
+  // floats or truncate inward past a feels extremum.
+  const payload = feelsPayload({ FEELS_TREND: [4.6, 15, 31.2], FEELS_CURRENT: 8 });
+  const out = applyForecastSeries(payload,
+    { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' });
+  assert.equal(out.TEMP_MIN, 4, 'floor(4.6) — covers the feels minimum');
+  assert.equal(out.TEMP_MAX, 32, 'ceil(31.2) — covers the feels maximum');
+  assert.ok(Number.isInteger(out.TEMP_MIN) && Number.isInteger(out.TEMP_MAX));
+});
+
+test('feels NOT selected: temp bytes/band byte-identical even with FEELS_TREND present (regression pin)', () => {
+  const payload = feelsPayload({ FEELS_TREND: [5, 15, 25], FEELS_CURRENT: 8 });
+  const out = applyForecastSeries(payload,
+    { secondaryLine: 'precip_prob', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' });
+  assert.deepEqual(out.TEMP_TREND_UINT8, [0, 125, 250]);
+  assert.equal(out.TEMP_MIN, 10);
+  assert.equal(out.TEMP_MAX, 30);
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]); // precip, untouched by feels data
+  assert.equal('FEELS_TREND' in out, false, 'transient still stripped when not selected');
+  assert.equal('FEELS_CURRENT' in out, false);
+});
+
+test('feels inside the temp band: temp bytes stay identical, feels maps within the unwidened band', () => {
+  const payload = feelsPayload({ FEELS_TREND: [12, 18, 25] });
+  const out = applyForecastSeries(payload,
+    { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' });
+  assert.deepEqual(out.TEMP_TREND_UINT8, [0, 125, 250]); // reconstruct + re-encode round-trips exactly
+  assert.equal(out.TEMP_MIN, 10);
+  assert.equal(out.TEMP_MAX, 30);
+  // Band [10, 30] (span 20): 12 -> 100pm (byte 25), 18 -> 400pm (100), 25 -> 750pm (188).
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [25, 100, 188]);
+});
+
+test('feels as the third line: dots ride the temp axis, light gray, joint band still applies', () => {
+  const payload = feelsPayload({ FEELS_TREND: [5, 15, 25] });
+  const out = applyForecastSeries(payload,
+    { secondaryLine: 'precip_prob', thirdLine: 'feels', barSource: 'off' }, { platform: 'basalt' });
+  assert.deepEqual(out.TEMP_TREND_UINT8, [50, 150, 250]);
+  assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [0, 100, 200]);
+  assert.equal(out.THIRD_LINE_COLOR, 0xAAAAAA); // GColorLightGray
+});
+
+test('feels selected but FEELS_TREND absent/empty: line off, band falls back to temp-only, no throw', () => {
+  for (const feels of [undefined, []]) {
+    const payload = feelsPayload(feels ? { FEELS_TREND: feels } : {});
+    const out = applyForecastSeries(payload,
+      { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' });
+    assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [], 'line renders off');
+    assert.deepEqual(out.TEMP_TREND_UINT8, [0, 125, 250], 'temp untouched');
+    assert.equal(out.TEMP_MIN, 10);
+    assert.equal(out.TEMP_MAX, 30);
+  }
+});
+
+test('buildForecastSeries without a tempBand: feels scales against its own min/max (self-band degrade)', () => {
+  const out = buildForecastSeries({ feels: [50, 60, 70] },
+    { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' });
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]);
+});
+
+test('flat joint band (all temps and feels equal): feels sits mid-plot like the temp curve', () => {
+  const out = buildForecastSeries({ feels: [70, 70], tempBand: { min: 70, max: 70 } },
+    { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' });
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [125, 125]);
+});
+
+test('feels colors: LightGray line (DarkGray in light theme, white on B&W), LightGray dark fill', () => {
+  // The dark fill must stay LightGray: forecast_layer.c's night_area_palette_for_fill
+  // keys the feels night palette on GColorLightGray.
+  assert.equal(LINE_COLORS.feels.color, 0xAAAAAA);  // GColorLightGray
+  assert.equal(LINE_COLORS.feels.light, 0x555555);  // GColorDarkGray
+  assert.equal(LINE_COLORS.feels.bw, 0xFFFFFF);     // GColorWhite
+  assert.equal(FILL_COLORS.feels.color, 0xAAAAAA);  // GColorLightGray — the C key
+  const raw = { feels: [50, 60], tempBand: { min: 50, max: 60 } };
+  const dark = buildForecastSeries(raw,
+    { secondaryLine: 'feels', thirdLine: 'off', secondaryLineFill: true, barSource: 'off' });
+  assert.equal(dark.SECONDARY_LINE_COLOR, 0xAAAAAA);
+  assert.equal(dark.SECONDARY_LINE_FILL_COLOR, 0xAAAAAA);
+  const light = buildForecastSeries(raw,
+    { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off', theme: 'light' }, { platform: 'basalt' });
+  assert.equal(light.SECONDARY_LINE_COLOR, 0x555555, 'light theme darkens the line for the white background');
+  const bw = buildForecastSeries(raw,
+    { secondaryLine: 'feels', thirdLine: 'off', secondaryLineFill: true, barSource: 'off' }, { platform: 'diorite' });
+  assert.equal(bw.SECONDARY_LINE_COLOR, 0xFFFFFF);
+  assert.equal(bw.SECONDARY_LINE_FILL_COLOR, 0xAAAAAA);
+});
+
+test('needsFeels: line selections and temp slot display modes', () => {
+  assert.equal(needsFeels(null), false);
+  assert.equal(needsFeels({}), false);
+  assert.equal(needsFeels({ secondaryLine: 'feels' }), true);
+  assert.equal(needsFeels({ secondaryLine: 'wind', thirdLine: 'feels' }), true);
+  assert.equal(needsFeels({ secondaryLine: 'wind', thirdLine: 'off', tempSlotDisplay: 'actual' }), false);
+  assert.equal(needsFeels({ secondaryLine: 'wind', thirdLine: 'off', tempSlotDisplay: 'feels' }), true);
+  assert.equal(needsFeels({ tempSlotDisplay: 'both' }), true);
+});
+
+// Ordering pin, same contract as CURRENT_TEMP: buildStatusLines (which bakes the
+// temp slot's feels/both display) must see FEELS_CURRENT/FEELS_TREND before
+// applyForecastSeries strips them. Pinned structurally (via a wrapped
+// buildStatusLines) so it holds regardless of which slot kinds are selected.
+test('FEELS_CURRENT/FEELS_TREND survive until buildStatusLines has run, then are deleted', () => {
+  const statusLines = require('../src/pkjs/status-lines.js');
+  const orig = statusLines.buildStatusLines;
+  let present;
+  statusLines.buildStatusLines = function(payload) {
+    present = ('FEELS_CURRENT' in payload) && ('FEELS_TREND' in payload);
+    return orig.apply(this, arguments);
+  };
+  const payload = feelsPayload({ FEELS_TREND: [5, 15, 25], FEELS_CURRENT: 8 });
+  try {
+    applyForecastSeries(payload,
+      { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' });
+  } finally {
+    statusLines.buildStatusLines = orig;
+  }
+  assert.equal(present, true, 'transients must still be on the payload when the status bake runs');
+  assert.equal('FEELS_TREND' in payload, false);
+  assert.equal('FEELS_CURRENT' in payload, false);
+});

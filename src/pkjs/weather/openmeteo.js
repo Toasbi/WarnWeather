@@ -122,22 +122,26 @@ function buildForecastUrl(lat, lon) {
 }
 
 /**
- * Build a minimal Open-Meteo request for 10m wind gusts only. The main forecast
- * pins models=ecmwf_ifs025 for the rain bars, but ECMWF IFS doesn't output wind
- * gusts (windgusts_10m comes back all-null), so gusts are sourced separately
- * from Open-Meteo's default best_match model, which provides them worldwide.
- * Mirrors the main request's unixtime/GMT/km-h conventions and forecast_days so
- * the hourly buckets line up with the main window by timestamp.
+ * Build a minimal Open-Meteo request for 10m wind gusts plus apparent
+ * temperature (feels-like). The main forecast pins models=ecmwf_ifs025 for the
+ * rain bars, but ECMWF IFS doesn't output derived fields (windgusts_10m and
+ * apparent_temperature come back all-null), so both ride this always-fetched
+ * best_match call instead — feels costs no extra request. temperature_unit is
+ * per-request, so the °F ask must repeat here. Mirrors the main request's
+ * unixtime/GMT/km-h conventions and forecast_days so the hourly buckets line
+ * up with the main window by timestamp.
  *
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
- * @returns {string} Fully-formed gust request URL.
+ * @returns {string} Fully-formed gust/feels request URL.
  */
 function buildGustUrl(lat, lon) {
     return OPEN_METEO_BASE
         + '?latitude=' + lat
         + '&longitude=' + lon
-        + '&hourly=windgusts_10m'
+        + '&hourly=windgusts_10m,apparent_temperature'
+        + '&current=apparent_temperature'
+        + '&temperature_unit=fahrenheit'
         + '&windspeed_unit=kmh'
         + '&timeformat=unixtime'
         + '&timezone=GMT'
@@ -178,6 +182,62 @@ function mapGusts(json, startTime) {
         out.push(typeof value === 'number' ? value : null);
     }
     return out;
+}
+
+/**
+ * Extract a FORECAST_HOURS apparent-temperature window aligned to a forecast
+ * start time, indexing the response's hourly apparent_temperature by timestamp
+ * (mapGusts convention). Missing/non-numeric buckets become null.
+ *
+ * @param {Object} json Parsed Open-Meteo response carrying hourly.apparent_temperature.
+ * @param {number} startTime Window start in epoch seconds.
+ * @returns {Array.<(number|null)>|null} Feels values in °F, or null when malformed.
+ */
+function mapFeels(json, startTime) {
+    var hourly = json && json.hourly;
+    var times = hourly && hourly.time;
+    var feels = hourly && hourly.apparent_temperature;
+    if (!hourly || !Array.isArray(times) || !Array.isArray(feels)) {
+        return null;
+    }
+    var byTime = {};
+    var i;
+    for (i = 0; i < times.length; i += 1) { byTime[times[i]] = feels[i]; }
+    var out = [];
+    var h;
+    var value;
+    for (h = 0; h < FORECAST_HOURS; h += 1) {
+        value = byTime[startTime + h * HOUR_SECONDS];
+        out.push(typeof value === 'number' ? value : null);
+    }
+    return out;
+}
+
+/**
+ * Adopt apparent temperature from the parsed gust-call response into
+ * provider.feelsTrend/currentFeels. Always parsed, no fetch gate: the call runs
+ * for gusts anyway, so feels is free. Missing hourly buckets fall back to the
+ * provider's (already-°F) tempTrend so the series stays numeric; a malformed
+ * series or missing current leaves the defaults (line off, slot degrades).
+ *
+ * @param {Object} provider Active provider (reads .startTime/.tempTrend, writes .feelsTrend/.currentFeels).
+ * @param {Object|null} json Parsed gust-call response, or null on parse failure.
+ * @returns {void}
+ */
+function adoptFeels(provider, json) {
+    var feels = json ? mapFeels(json, provider.startTime) : null;
+    var h;
+    if (feels) {
+        for (h = 0; h < feels.length; h += 1) {
+            if (feels[h] === null) {
+                feels[h] = provider.tempTrend[h];
+            }
+        }
+        provider.feelsTrend = feels;
+    }
+    if (json && json.current && typeof json.current.apparent_temperature === 'number') {
+        provider.currentFeels = json.current.apparent_temperature;
+    }
 }
 
 /**
@@ -278,15 +338,23 @@ OpenMeteoProvider.prototype.withProviderData = function(lat, lon, force, onSucce
         this.pressureTrend = mapped.pressureTrend;
         this.startTime = mapped.startTime;
         this.currentTemp = mapped.currentTemp;
-        // ECMWF IFS (pinned for the rain bars) doesn't output 10m gusts, so fetch
-        // them from best_match and align by timestamp. Non-fatal: a failed or
-        // empty gust call just leaves the null placeholder, so the gust line
-        // stays hidden rather than failing the whole forecast.
+        // Feels rides the aux call below; reset per cycle so an aux failure on a
+        // reused provider instance degrades to line-off instead of shipping the
+        // previous window's values against the new startTime.
+        this.feelsTrend = [];
+        this.currentFeels = null;
+        // ECMWF IFS (pinned for the rain bars) doesn't output 10m gusts or
+        // apparent temperature, so fetch both from best_match and align by
+        // timestamp. Non-fatal: a failed or empty call just leaves the
+        // defaults, so the gust/feels lines stay hidden rather than failing
+        // the whole forecast.
         var gustUrl = buildGustUrl(lat, lon);
         request(gustUrl, 'GET', (function(gustResponse) {
+            var aux = null;
             var gusts = null;
             try {
-                gusts = mapGusts(JSON.parse(gustResponse), this.startTime);
+                aux = JSON.parse(gustResponse);
+                gusts = mapGusts(aux, this.startTime);
             }
             catch (gustEx) {
                 gusts = null;
@@ -294,6 +362,7 @@ OpenMeteoProvider.prototype.withProviderData = function(lat, lon, force, onSucce
             if (gusts) {
                 this.gustTrend = gusts;
             }
+            adoptFeels(this, aux);
             fetchUvInto(this, lat, lon, onSuccess);
         }).bind(this), (function(gustError) {
             console.log('[!] Open-Meteo gust request failed: ' + JSON.stringify(gustError));
@@ -310,6 +379,8 @@ module.exports = {
     buildForecastUrl: buildForecastUrl,
     buildGustUrl: buildGustUrl,
     mapGusts: mapGusts,
+    mapFeels: mapFeels,
+    adoptFeels: adoptFeels,
     buildUvUrl: buildUvUrl,
     mapUv: mapUv,
     fetchUvInto: fetchUvInto,

@@ -34,6 +34,9 @@ test('kind count and blob layout are in lockstep with status_threshold.h', () =>
   th.KINDS.forEach((k, i) => {
     assert.equal(Boolean(k.boldOnly), i >= paired, k.code + ' paired/bold-only split');
   });
+  // Battery % (kind 16) opened byte 33 — the widening that took the blob 33 -> 34.
+  assert.equal(th.BOLD_OFFSET + (cEnum('THRESH_BATTERY_PCT') >> 2), 33,
+    'the battery-% bold cell lives in byte 33');
 });
 
 test('bold modes are in lockstep with the ThreshBold enum', () => {
@@ -56,7 +59,7 @@ test('kind indices are in lockstep with the ThreshKind enum', () => {
     distance: 'THRESH_DISTANCE', uv: 'THRESH_UV',
     temp: 'THRESH_TEMP', pressure: 'THRESH_PRESSURE', sun: 'THRESH_SUN',
     date: 'THRESH_DATE', week: 'THRESH_WEEK', city: 'THRESH_CITY',
-    countdown: 'THRESH_COUNTDOWN', hr: 'THRESH_HR' };
+    countdown: 'THRESH_COUNTDOWN', hr: 'THRESH_HR', batteryPct: 'THRESH_BATTERY_PCT' };
   th.KINDS.forEach((k, i) => {
     assert.equal(i, cEnum(names[k.code]), k.code + ' wire index');
   });

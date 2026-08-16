@@ -22,6 +22,7 @@ var LINE_HINTS = {
     gust: 'Wind gust peaks each hour, scaled by the wind graph scale below.',
     uv: 'UV index each hour<br>— half-height = UV 5.5<br>— full-height = UV 11 (extreme)',
     pressure: 'Sea-level air pressure each hour, scaled by the pressure graph scale below.',
+    feels: 'Feels-like temperature each hour, drawn grey on the same scale as the temperature curve.',
     off: 'No third line — temperature and the secondary line only.'
 };
 // The second metric renders as square dots aligned to the rain bars; its picker reuses the
@@ -35,18 +36,14 @@ var THIRD_LINE_HINTS = {
     gust: LINE_HINTS.gust + DOTS_NOTE,
     uv: LINE_HINTS.uv + DOTS_NOTE,
     pressure: LINE_HINTS.pressure + DOTS_NOTE,
+    feels: LINE_HINTS.feels + DOTS_NOTE,
     off: 'No second metric — temperature and the main metric only.'
 };
-// Third-line options derived from the secondary metric: Off plus the four metrics
-// the secondary line is NOT using, so the same metric can't be picked on both lines.
-// The engine's display-snap resets thirdLine if it ever collides (see engine.js).
-var THIRD_LINE_OPTIONS = {
-    precip_prob: [['Off', 'off'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure']],
-    wind:        [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind gusts', 'gust'], ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure']],
-    gust:        [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure']],
-    uv:          [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['Air pressure (hPa)', 'pressure']],
-    pressure:    [['Off', 'off'], ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['UV Index', 'uv']]
-};
+// Both metric pickers resolve through blocks.js' 'forecastMetric' options resolver:
+// the third line gets Off plus the metrics the secondary line is NOT using (the
+// engine's display-snap resets thirdLine if it ever collides — see engine.js), and
+// feels-like is dropped on aplite (no temp-axis inset compiled there, and the temp
+// slot's Feels/Both control is threshold-gated off aplite too).
 // windScale ceilings pre-rendered per wind unit, chosen by showWhen on windUnits
 // (§2b). Same descriptive tails as the original single hint; only the ceiling +
 // unit change. Ceilings: kph 30/50/70 · mph 19/31/43 · kn 16/27/38.
@@ -308,21 +305,41 @@ function thresholdSection(title, keyStem, hint, gate) {
 }
 // Bold-only edit sheet for a slot kind WITHOUT thresholds (temp, date, city, …):
 // the same pencil machinery — the contract's KINDS maps the slot code to this
-// sheetId — but the Bold row is the sheet's only control: no group header, no
-// slider, no colors. Two pills only: these kinds have no warn level, so the
-// threshold sheets' middle option would promise a trigger that can never fire.
-// 'off' (packs 1) and the unset default 'warn' (packs 0) both render non-bold on
-// a level-less kind — it resolves THRESH_LEVEL_NORMAL — so the options-snapping
-// of an unset store to 'off' is benign. Battery deliberately gets NO sheet: its
-// slot draws a glyph, not text, so a Bold option would be a no-op lie (no KINDS
-// entry, hence no pencil either).
+// sheetId — but the Bold row is the sheet's only standing control: no group
+// header, no slider, no colors. Two pills only: these kinds have no warn level,
+// so the threshold sheets' middle option would promise a trigger that can never
+// fire. 'off' (packs 1) and the unset default 'warn' (packs 0) both render
+// non-bold on a level-less kind — it resolves THRESH_LEVEL_NORMAL — so the
+// options-snapping of an unset store to 'off' is benign. The battery GLYPH item
+// deliberately gets NO sheet: its slot draws a glyph, not text, so a Bold option
+// would be a no-op lie (no KINDS entry, hence no pencil either) — the battery
+// PERCENTAGE item is a separate text kind and gets a normal bold sheet below.
 /**
  * @param {string} title Catalog label of the slot kind, e.g. 'City'.
  * @param {string} keyStem Kind key stem, e.g. 'City' (thresh<Stem>BoldMode).
  * @param {Object} [gate] Extra showWhen mirroring the slot's own availability.
+ * @param {Object[]} [extraItems] Kind-specific rows rendered ABOVE the Bold row
+ *     (what the slot shows before how it's styled), e.g. Temp's display mode.
  * @returns {Object} Schema section (sheetOnly).
  */
-function boldSection(title, keyStem, gate) {
+function boldSection(title, keyStem, gate, extraItems) {
+    var bold = {
+        type: 'segmented',
+        messageKey: 'thresh' + keyStem + 'BoldMode',
+        label: 'Bold value',
+        hint: 'Show this value in heavier text.',
+        defaultValue: 'off',
+        options: [['Off', 'off'], ['Always', 'always']],
+        disabledWhen: BOLD_ALL_WHEN
+    };
+    var items = (extraItems || []).concat([bold]);
+    // Same one-pass gate application as thresholdSection: an extra item cannot
+    // forget its gate line (items with their own showWhen keep it).
+    if (gate) {
+        items.forEach(function (item) {
+            item.showWhen = item.showWhen || gate;
+        });
+    }
     return {
         sheetOnly: true,
         sheetId: 'thresh' + keyStem,
@@ -330,16 +347,7 @@ function boldSection(title, keyStem, gate) {
         // highlight machinery out, so the sheet must not exist there.
         showWhen: THRESHOLD_WHEN,
         title: title + ' slot',
-        items: [{
-            type: 'segmented',
-            messageKey: 'thresh' + keyStem + 'BoldMode',
-            label: 'Bold value',
-            hint: 'Show this value in heavier text.',
-            defaultValue: 'off',
-            options: [['Off', 'off'], ['Always', 'always']],
-            disabledWhen: BOLD_ALL_WHEN,
-            showWhen: gate || undefined
-        }]
+        items: items
     };
 }
 // Pressure curve copy, pre-rendered per scale value. Derived from
@@ -664,14 +672,14 @@ module.exports = {
         }]
     }, {
         id: 'forecast', label: 'Forecast', sections: [{
-            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always shown; on top of it the main metric (a solid line) shows one of precipitation %, wind speed, wind gusts, UV index or air pressure, and an optional second metric (drawn as bar-aligned square dots) adds another — plus optional bars for the hourly rain amount.',
+            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always shown; on top of it the main metric (a solid line) shows one of precipitation %, wind speed, wind gusts, UV index, air pressure or feels-like temperature, and an optional second metric (drawn as bar-aligned square dots) adds another — plus optional bars for the hourly rain amount.',
             items: [{
                 type: 'select',
                 messageKey: 'secondaryLine',
                 label: 'Main metric',
                 defaultValue: 'precip_prob',
                 hintByValue: LINE_HINTS,
-                options: [['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure']],
+                optionsFrom: {resolver: 'forecastMetric'},
                 blockBefore: 'forecastPreview',
                 blockBeforeSticky: true
             }, {
@@ -692,7 +700,7 @@ module.exports = {
                 label: 'Second metric',
                 defaultValue: 'uv',
                 hintByValue: THIRD_LINE_HINTS,
-                optionsFrom: {byKey: 'secondaryLine', map: THIRD_LINE_OPTIONS}
+                optionsFrom: {resolver: 'forecastMetric', args: {third: true}}
             },
             windScaleCopy('third', 'kph', WIND_SCALE_HINTS_KPH),
             windScaleCopy('third', 'mph', WIND_SCALE_HINTS_MPH),
@@ -1143,17 +1151,32 @@ module.exports = {
             'Hours of sleep, e.g. 7.5.', HEALTH_SLOT_WHEN),
         thresholdSection('Walked distance', 'Distance',
             'Distance walked per day.', HEALTH_SLOT_WHEN),
-        // Bold-only sheets for the level-less slot kinds (same pencil, one row).
-        // Order and labels mirror the contract's KINDS appendix (wire ids 8..15);
-        // battery is deliberately absent — see boldSection.
-        boldSection('Current temperature', 'Temp'),
+        // Bold-only sheets for the level-less slot kinds (same pencil, one row —
+        // plus Temp's display-mode row). Order and labels mirror the contract's
+        // KINDS appendix (wire ids 8..16); the battery GLYPH item is deliberately
+        // absent — see boldSection (the battery PERCENTAGE kind sits at the end).
+        boldSection('Current temperature', 'Temp', null, [{
+            // Global per-kind, like the bold modes: one choice covers every slot
+            // showing temp. The phone bakes the slot text from it (status-lines.js
+            // formatValue) and it rides renderSignature(), so a change re-bakes
+            // without waiting for the next fetch. 'both' renders slash-separated,
+            // actual first: 12/10; a missing feels-like value falls back to the
+            // actual temp alone.
+            type: 'segmented',
+            messageKey: 'tempSlotDisplay',
+            label: 'Show',
+            hint: 'Show the measured temperature, what it feels like, or both as actual/feels-like.',
+            defaultValue: 'actual',
+            options: [['Temp', 'actual'], ['Feels like', 'feels'], ['Both', 'both']]
+        }]),
         boldSection('Air pressure (hPa)', 'Pressure'),
         boldSection('Sunrise/sunset', 'Sun'),
         boldSection('Date', 'Date'),
         boldSection('Calendar week', 'Week'),
         boldSection('City', 'City'),
         boldSection('Date countdown', 'Countdown'),
-        boldSection('Heart rate', 'Hr', HR_SLOT_WHEN)]
+        boldSection('Heart rate', 'Hr', HR_SLOT_WHEN),
+        boldSection('Battery percentage', 'BatteryPct')]
     }, {
         id: 'layout', label: 'Layout', sections: [{
             intro: 'How the watchface is arranged, and what a wrist-flick reveals — shown side by side in the preview. What a metric means or how it\'s coloured lives in its own tab.',

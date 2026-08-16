@@ -7,15 +7,18 @@ const statusLines = require('../src/pkjs/status-lines.js');
 test('kind order is the wire order (index = ThreshKind)', () => {
   assert.deepEqual(th.KINDS.map(k => k.code),
     ['aqi', 'pollen', 'wind', 'gust', 'steps', 'sleep', 'distance', 'uv',
-     'temp', 'pressure', 'sun', 'date', 'week', 'city', 'countdown', 'hr']);
+     'temp', 'pressure', 'sun', 'date', 'week', 'city', 'countdown', 'hr',
+     'batteryPct']);
   assert.deepEqual(th.KINDS.map(k => k.key),
     ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance', 'Uv',
-     'Temp', 'Pressure', 'Sun', 'Date', 'Week', 'City', 'Countdown', 'Hr']);
-  // The bold-only flag covers exactly the appended kinds 8..15 (battery is
-  // deliberately absent: a drawn glyph with no text run has nothing to bold).
+     'Temp', 'Pressure', 'Sun', 'Date', 'Week', 'City', 'Countdown', 'Hr',
+     'BatteryPct']);
+  // The bold-only flag covers exactly the appended kinds 8..16 (the GLYPH
+  // battery is deliberately absent: a drawn glyph with no text run has nothing
+  // to bold; the battery-% TEXT slot is kind 16).
   assert.deepEqual(th.KINDS.map(k => Boolean(k.boldOnly)),
     [false, false, false, false, false, false, false, false,
-     true, true, true, true, true, true, true, true]);
+     true, true, true, true, true, true, true, true, true]);
 });
 
 test('computeLevel: above-is-worse boundaries are inclusive', () => {
@@ -131,7 +134,7 @@ test('buildSettingsBlob: enabled mask, GColor8 colors, LE uint16 health threshol
     threshSleepWarn: '5', threshSleepDanger: '7.5',
     threshDistanceWarn: '2', threshDistanceDanger: '5'
   });
-  assert.equal(blob.length, 33);
+  assert.equal(blob.length, 34);
   assert.equal(blob[0], (1 << 0) | (1 << 4) | (1 << 5) | (1 << 6));
   assert.equal(blob[1], 0xF8);   // rgbToGColor8(0xFFAA00)
   assert.equal(blob[2], 0xF0);   // rgbToGColor8(0xFF0000)
@@ -156,9 +159,9 @@ test('buildSettingsBlob: imperial distance thresholds convert mi -> 100 m units'
 test('buildSettingsBlob: nothing configured -> all disabled, zeroed thresholds', () => {
   const blob = th.buildSettingsBlob({});
   assert.equal(blob[0], 0);
-  // 12 health-threshold bytes, then the four bold bytes (0 = the default warn mode).
+  // 12 health-threshold bytes, then the five bold bytes (0 = the default warn mode).
   assert.deepEqual(blob.slice(17),
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 });
 
 // "0 and negative thresholds are legitimate; unset must stay distinguishable from zero" —
@@ -193,8 +196,8 @@ test('a 0 threshold is SET (enables the kind) and packs as zero, unlike unset', 
 // so a never-configured kind reproduces the shipped bold-from-warn behaviour.
 test('buildSettingsBlob: unset bold modes pack as warn (all-zero bold bytes)', () => {
   const blob = th.buildSettingsBlob({});
-  assert.equal(blob.length, 33);
-  assert.deepEqual(blob.slice(th.BOLD_OFFSET), [0, 0, 0, 0]);
+  assert.equal(blob.length, 34);
+  assert.deepEqual(blob.slice(th.BOLD_OFFSET), [0, 0, 0, 0, 0]);
 });
 
 test('buildSettingsBlob: bold modes pack 2 bits per kind, kinds 0-3 then 4-7', () => {
@@ -224,14 +227,15 @@ test('buildSettingsBlob: an unknown bold mode falls back to warn', () => {
 // statusBoldAll master row: 'all' overrides the PACKED bold cells only — every
 // kind packs 'always' regardless of its stored mode, and nothing outside the
 // bold area is the master's business.
-test('buildSettingsBlob: statusBoldAll "all" packs always into all 16 bold cells', () => {
+test('buildSettingsBlob: statusBoldAll "all" packs always into all 17 bold cells', () => {
   const blob = th.buildSettingsBlob({
     statusBoldAll: 'all',
     // Stored modes that would otherwise pack off (1) / warn (0) lanes.
     threshAqiBoldMode: 'off', threshStepsBoldMode: 'warn', threshHrBoldMode: 'off'
   });
-  // 2 ('always') in every 2-bit lane of a byte = 0b10101010 = 0xAA.
-  assert.deepEqual(blob.slice(th.BOLD_OFFSET), [0xAA, 0xAA, 0xAA, 0xAA]);
+  // 2 ('always') in every 2-bit lane of a byte = 0b10101010 = 0xAA; byte 33
+  // holds only kind 16 (batteryPct) so far, so just its bits 0-1 pack.
+  assert.deepEqual(blob.slice(th.BOLD_OFFSET), [0xAA, 0xAA, 0xAA, 0xAA, 0x02]);
 });
 
 test('statusBoldAll "all" leaves everything below the bold area byte-identical', () => {
@@ -254,7 +258,7 @@ test('statusBoldAll "perSlot" (and absent) defer to the stored per-kind modes', 
     threshTempBoldMode: 'off',     // kind 8  -> byte 31 bits 0-1
     threshHrBoldMode: 'always'     // kind 15 -> byte 32 bits 6-7
   };
-  const expected = [(2 << 0) | (1 << 6), 2 << 6, 1 << 0, 2 << 6];
+  const expected = [(2 << 0) | (1 << 6), 2 << 6, 1 << 0, 2 << 6, 0];
   assert.deepEqual(th.buildSettingsBlob(mixed).slice(th.BOLD_OFFSET), expected);
   assert.deepEqual(
     th.buildSettingsBlob(Object.assign({ statusBoldAll: 'perSlot' }, mixed)).slice(th.BOLD_OFFSET),
@@ -278,6 +282,14 @@ test('packing with statusBoldAll "all" does not mutate the stored per-kind modes
 
 // The bold-only kinds (wire ids 8..15) live in the third and fourth bold bytes
 // (blob bytes 31/32), byte 29 + (k >> 2) at bits 2 * (k & 3).
+test('buildSettingsBlob: battery % (kind 16) packs its bold cell into byte 33', () => {
+  const blob = th.buildSettingsBlob({ threshBatteryPctBoldMode: 'always' });
+  assert.equal(blob.length, 34);
+  assert.equal(blob[33], 2 << 0, 'batteryPct always in byte 33 bits 0-1');
+  assert.deepEqual(blob.slice(th.BOLD_OFFSET, 33), [0, 0, 0, 0],
+    'the other bold bytes stay at the warn default');
+});
+
 test('buildSettingsBlob: bold-only kinds pack their cells in bytes 31/32', () => {
   const blob = th.buildSettingsBlob({
     threshTempBoldMode: 'always',       // kind 8  -> byte 31 bits 0-1

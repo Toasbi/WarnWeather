@@ -138,8 +138,15 @@ OpenWeatherMapProvider.prototype.withProviderData = function(lat, lon, force, on
         this.pressureTrend = weatherData.hourly.map(function(entry) {
             return typeof entry.pressure === 'number' ? entry.pressure : 0; // One Call hourly pressure is sea-level hPa
         });
+        this.feelsTrend = weatherData.hourly.map(function(entry) {
+            // units=imperial → already °F; a missing hour falls back to the
+            // actual temp so the series stays numeric (a feels of 0 °F is real).
+            return typeof entry.feels_like === 'number' ? entry.feels_like : entry.temp;
+        });
         this.startTime = weatherData.hourly[0].dt;
         this.currentTemp = weatherData.current.temp;
+        this.currentFeels = typeof weatherData.current.feels_like === 'number'
+            ? weatherData.current.feels_like : null; // null → FEELS_CURRENT omitted, temp slot degrades
         onSuccess();
     }).bind(this), onFailure);
 };

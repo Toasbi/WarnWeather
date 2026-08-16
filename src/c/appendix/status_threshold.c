@@ -27,7 +27,8 @@ int status_threshold_kind_for_slot(uint8_t slot_kind, uint8_t icon) {
         case SLOT_LIVE_DATE: return THRESH_DATE;
         case SLOT_LIVE_WEEK: return THRESH_WEEK;
         case SLOT_LIVE_HR:   return THRESH_HR;
-        // SLOT_LIVE_BATTERY stays -1: the battery slot draws a glyph, no text
+        case SLOT_LIVE_BATTERY_PCT: return THRESH_BATTERY_PCT;
+        // SLOT_LIVE_BATTERY stays -1: the glyph battery slot draws, no text
         // run, so a bold mode could never render. SLOT_EMPTY likewise.
         default: return -1;
     }
@@ -81,10 +82,12 @@ int status_threshold_health_value(int kind, int steps, int sleep_seconds,
 }
 
 bool status_threshold_settings_validate(const uint8_t *blob, size_t len) {
-    // Two exact lengths, never a range: the pre-bold 29 is readable because the
-    // bold bytes were appended (see status_threshold.h).
+    // Three exact lengths, never a range: the pre-bold 29 and the 16-kind 33
+    // are readable because the bold bytes were appended (see status_threshold.h).
     return blob != NULL
-        && (len == THRESH_SETTINGS_BYTES || len == THRESH_SETTINGS_BYTES_PRE_BOLD);
+        && (len == THRESH_SETTINGS_BYTES
+            || len == THRESH_SETTINGS_BYTES_PRE_KIND16
+            || len == THRESH_SETTINGS_BYTES_PRE_BOLD);
 }
 
 bool status_threshold_enabled(const uint8_t *blob, size_t len, int kind) {
@@ -127,12 +130,13 @@ uint16_t status_threshold_health_danger(const uint8_t *blob, size_t len, int kin
 }
 
 int status_threshold_bold_mode(const uint8_t *blob, size_t len, int kind) {
-    // len is checked against the FULL length, not just validate(): a pre-bold
-    // blob has no bold bytes to read, and its kinds take the shipped default.
     if (!status_threshold_settings_validate(blob, len)
-        || len < THRESH_SETTINGS_BYTES
         || kind < 0 || kind >= THRESH_KIND_COUNT) { return THRESH_BOLD_WARN; }
-    int mode = (blob[THRESH_BOLD_OFFSET + (kind >> 2)] >> (2 * (kind & 3))) & 3;
+    // Append-only widening: a shorter accepted blob (pre-bold 29, 16-kind 33)
+    // simply lacks this kind's bold byte — take the shipped default.
+    size_t off = THRESH_BOLD_OFFSET + (size_t)(kind >> 2);
+    if (off >= len) { return THRESH_BOLD_WARN; }
+    int mode = (blob[off] >> (2 * (kind & 3))) & 3;
     return mode == 3 ? THRESH_BOLD_WARN : mode;   // 3 is reserved
 }
 

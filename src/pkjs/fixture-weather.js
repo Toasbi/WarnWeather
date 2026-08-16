@@ -59,6 +59,12 @@ function getFixtureWeatherPayload(fixture, settings, watchInfo) {
     // scalar like AQI: accept the fixture's hourly array, or leave [] so the line/slot
     // render as off/'--' (same graceful-degrade as the other transient trends above).
     provider.pressureTrend = Array.isArray(weather.pressureHpa) ? weather.pressureHpa.slice(0) : [];
+    // Feels-like (°F, same internal unit as temps) is a forecast-line metric AND the
+    // temp slot's feels/both display source: accept an hourly array + scalar current,
+    // or leave the provider defaults ([] / null) so the line stays off and the temp
+    // slot renders the actual temp alone (same graceful-degrade as a live provider gap).
+    provider.feelsTrend = Array.isArray(weather.feelsTemps) ? weather.feelsTemps.slice(0) : [];
+    provider.currentFeels = (typeof weather.currentFeels === 'number') ? weather.currentFeels : null;
     // AQI is a status-slot value, not a forecast line: accept a scalar current
     // index (weather.aqi) — wrapped as a one-element trend, like the WAQI source —
     // or an explicit array. Absent -> [] and the slot renders '--'.

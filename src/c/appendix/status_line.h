@@ -32,8 +32,9 @@ typedef enum {
     SLOT_LIVE_WEEK = 7,     // watch formats the current ISO-8601 calendar week
     SLOT_LIVE_DISTANCE_MI = 8,  // walked distance in miles (imperial); unit chosen by the phone
     SLOT_LIVE_BATTERY = 9,      // watch draws the battery glyph; state read on-device
+    SLOT_LIVE_BATTERY_PCT = 10, // watch formats the charge as "NN%" text; icon NONE
 } StatusSlotKind;
-#define STATUS_SLOT_KIND_MAX SLOT_LIVE_BATTERY
+#define STATUS_SLOT_KIND_MAX SLOT_LIVE_BATTERY_PCT
 
 typedef enum {
     STATUS_ICON_NONE = 0,

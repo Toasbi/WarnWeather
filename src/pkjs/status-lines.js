@@ -146,6 +146,22 @@ function formatWind(v, settings) {
 }
 
 /**
+ * Convert an internal °F temperature to the display unit as a bare number.
+ * Shared by the actual and feels-like halves of the temp slot so both ride
+ * the identical conversion/rounding path.
+ * @param {number} vF temperature in °F
+ * @param {Object} settings Clay settings blob (reads temperatureUnits)
+ * @returns {string} e.g. "20" or "-12"
+ */
+function formatTemp(vF, settings) {
+  var t = vF;
+  if (settings.temperatureUnits !== 'f') {
+    t = Math.round((t - 32) * 5 / 9);
+  }
+  return String(t);
+}
+
+/**
  * Parse YYYY-MM-DD at local midnight, returning fallback for malformed or
  * normalized-away dates such as 2028-02-31.
  * @param {*} value Stored settings value.
@@ -201,12 +217,21 @@ function formatValue(code, payload, settings, slotKey) {
   }
   if (code === 'temp') {
     if (typeof payload.CURRENT_TEMP !== 'number') { return '--'; }
-    var t = payload.CURRENT_TEMP;
-    if (settings.temperatureUnits !== 'f') {
-      t = Math.round((t - 32) * 5 / 9);
+    var actual = formatTemp(payload.CURRENT_TEMP, settings);
+    // Global per-kind display mode (temp slot's Edit sheet); absent = 'actual'.
+    var mode = settings.tempSlotDisplay;
+    if (mode === 'feels' || mode === 'both') {
+      // Missing/null FEELS_CURRENT (stale pre-upgrade cache, provider gap):
+      // every mode falls back to the actual temp alone -- never '--/--' or '12/--'.
+      if (typeof payload.FEELS_CURRENT === 'number') {
+        var feels = formatTemp(payload.FEELS_CURRENT, settings);
+        // 'both' is slash-separated, actual first; worst realistic case
+        // "-12/-10" is 7 bytes, inside the 8 B edge-slot cap.
+        return mode === 'feels' ? feels : actual + '/' + feels;
+      }
     }
     // Bare number; the thermometer icon carries the "temperature" context (UV/AQI-style).
-    return String(t);
+    return actual;
   }
   if (code === 'city') { return payload.CITY || '--'; }
   if (code === 'sun') {

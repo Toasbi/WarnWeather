@@ -92,6 +92,50 @@ test('value formatting', () => {
   assert.equal(statusLines.formatValue('city', p, baseSettings()), 'Saarbrücken');
 });
 
+test('temp slot display modes: actual, feels, and slash-separated both', () => {
+  const p = Object.assign(basePayload(), { FEELS_CURRENT: 50 }); // 68F/50F = 20C/10C
+  assert.equal(statusLines.formatValue('temp', p, baseSettings()), '20',
+    'absent tempSlotDisplay defaults to actual');
+  assert.equal(statusLines.formatValue('temp', p,
+    baseSettings({ tempSlotDisplay: 'actual' })), '20');
+  assert.equal(statusLines.formatValue('temp', p,
+    baseSettings({ tempSlotDisplay: 'feels' })), '10');
+  assert.equal(statusLines.formatValue('temp', p,
+    baseSettings({ tempSlotDisplay: 'both' })), '20/10', 'actual first');
+});
+
+test('temp display modes convert both halves with temperatureUnits', () => {
+  const p = Object.assign(basePayload(), { FEELS_CURRENT: 50 });
+  assert.equal(statusLines.formatValue('temp', p,
+    baseSettings({ tempSlotDisplay: 'both', temperatureUnits: 'f' })), '68/50');
+  assert.equal(statusLines.formatValue('temp', p,
+    baseSettings({ tempSlotDisplay: 'feels', temperatureUnits: 'f' })), '50');
+});
+
+test('missing or null FEELS_CURRENT renders the actual temp alone in every mode', () => {
+  const missing = basePayload(); // no FEELS_CURRENT at all (stale pre-upgrade cache)
+  const nulled = Object.assign(basePayload(), { FEELS_CURRENT: null });
+  ['actual', 'feels', 'both'].forEach((mode) => {
+    assert.equal(statusLines.formatValue('temp', missing,
+      baseSettings({ tempSlotDisplay: mode })), '20', mode + ': never --/-- or 12/--');
+    assert.equal(statusLines.formatValue('temp', nulled,
+      baseSettings({ tempSlotDisplay: mode })), '20', mode + ': null feels = absent');
+  });
+  // And a missing actual temp still bakes as -- regardless of mode.
+  const noTemp = basePayload(); delete noTemp.CURRENT_TEMP;
+  assert.equal(statusLines.formatValue('temp', noTemp,
+    baseSettings({ tempSlotDisplay: 'both' })), '--');
+});
+
+test('worst realistic both-mode text fits the edge-slot byte cap untruncated', () => {
+  // 10F = -12C, 14F = -10C -> "-12/-10", 7 bytes vs EDGE_TEXT_MAX = 8.
+  const p = Object.assign(basePayload(), { CURRENT_TEMP: 10, FEELS_CURRENT: 14 });
+  const text = statusLines.formatValue('temp', p, baseSettings({ tempSlotDisplay: 'both' }));
+  assert.equal(text, '-12/-10');
+  assert.ok(statusLines.utf8Encode(text).length <= catalog.CAPS.EDGE_TEXT_MAX,
+    'both-mode worst case must survive the edge slot without truncation');
+});
+
 test('countdown formats future, today, passed, missing, malformed, and leap dates', () => {
   const now = new Date(2028, 1, 28, 17, 45);
   assert.equal(statusLines.formatCountdown('2028-03-01', now), '2d');

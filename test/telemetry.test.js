@@ -97,6 +97,11 @@ test('snapshot includes aqiSource', () => {
   assert.strictEqual(buildSettingsSnapshot({}).aqiSource, undefined);
 });
 
+test('snapshot includes tempSlotDisplay as a string', () => {
+  assert.strictEqual(buildSettingsSnapshot({ tempSlotDisplay: 'both' }).tempSlotDisplay, 'both');
+  assert.strictEqual(buildSettingsSnapshot({}).tempSlotDisplay, undefined);
+});
+
 test('snapshot includes windUnits and distanceUnits', () => {
   assert.equal(buildSettingsSnapshot({ windUnits: 'mph' }).windUnits, 'mph');
   assert.equal(buildSettingsSnapshot({ distanceUnits: 'imperial' }).distanceUnits, 'imperial');

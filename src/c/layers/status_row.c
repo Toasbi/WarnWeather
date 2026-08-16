@@ -229,6 +229,11 @@ static void format_live_value(const StatusRow *row, uint8_t kind, char *buf, siz
             return;
         }
 #endif
+        // Not health data: state read on-device like the glyph battery slot
+        // (SLOT_LIVE_BATTERY), which renders icon-only; this kind renders text.
+        case SLOT_LIVE_BATTERY_PCT:
+            snprintf(buf, cap, "%d%%", watch_services_battery_state().charge_percent);
+            return;
 #if defined(PBL_HEALTH)
         case SLOT_LIVE_STEPS: {
             int steps = health_summary_steps();
@@ -298,6 +303,8 @@ static void resolve_slot_text(const StatusRow *row, const StatusSlotView *slot, 
         memcpy(buf, slot->value, n);
         buf[n] = '\0';
     } else if (slot->kind == SLOT_EMPTY || slot->kind == SLOT_LIVE_BATTERY) {
+        // Glyph battery is icon-only; SLOT_LIVE_BATTERY_PCT must NOT join this
+        // arm — it renders its charge as text via format_live_value below.
         buf[0] = '\0';
     } else {
         format_live_value(row, slot->kind, buf, cap);
@@ -468,15 +475,16 @@ bool status_row_refresh(StatusRow *row) {
             if (slot.kind != SLOT_EMPTY && slot.icon == STATUS_ICON_DRAWN_SUN) {
                 has_drawn_sun = true;
             }
-            if (slot.kind == SLOT_LIVE_BATTERY) {
+            if (slot.kind == SLOT_LIVE_BATTERY || slot.kind == SLOT_LIVE_BATTERY_PCT) {
                 BatteryChargeState bs = watch_services_battery_state();
                 uint8_t bt[2] = { (uint8_t) bs.charge_percent,
                                   (uint8_t) (bs.is_charging || bs.is_plugged) };
                 sig = sig_fold(sig, bt, 2);
             }
             // battery has its own event source (battery_state_service) and is not
-            // health — keep it out of the live-health refresh gate.
-            if (slot.kind >= SLOT_LIVE_STEPS && slot.kind != SLOT_LIVE_BATTERY) {
+            // health — keep both battery kinds out of the live-health refresh gate.
+            if (slot.kind >= SLOT_LIVE_STEPS && slot.kind != SLOT_LIVE_BATTERY
+                && slot.kind != SLOT_LIVE_BATTERY_PCT) {
                 row->uses_live_health = true;
             }
         }

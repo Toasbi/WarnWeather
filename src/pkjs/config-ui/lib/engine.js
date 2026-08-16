@@ -344,9 +344,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         ? '<span class="ssel-opt-txt"><span class="ssel-opt-name">' + esc(o[0]) + rec + '</span>'
           + '<span class="ssel-opt-desc">' + esc(meta.desc) + '</span></span>'
         : '<span>' + esc(o[0]) + rec + '</span>';
+      // A non-header meta.disabled option (a provider-gated slot item, e.g.
+      // "Pollen (DWD)" under another provider) stays visible but inert: no
+      // data-select-pick, so the delegated pick handler can never match, plus
+      // the disabled attribute against taps/keyboard. Muted inline — .ssel-opt
+      // has no [disabled] rule of its own — mirroring .seg button[disabled].
       h += '<button type="button" class="' + classes + '" role="option" aria-selected="'
-        + (value === o[1] ? 'true' : 'false') + '" data-select-pick="' + esc(o[1])
-        + '" data-k="' + esc(item.messageKey) + '">' + labelCell
+        + (value === o[1] ? 'true' : 'false') + '"'
+        + (meta.disabled
+          ? ' disabled aria-disabled="true" style="opacity:.38;cursor:not-allowed"'
+          : ' data-select-pick="' + esc(o[1]) + '" data-k="' + esc(item.messageKey) + '"')
+        + '>' + labelCell
         + (value === o[1] ? '<span class="ssel-chk">&#10003;</span>' : '') + '</button>';
       shown++;
     }

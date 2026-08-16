@@ -31,36 +31,43 @@
 //                       health trio only (UV levels are phone-computed)
 //      [17 + 4h + 2..3] danger threshold, LE uint16
 //      [29 + (k >> 2)]  bold mode (ThreshBold), 2 bits per kind at bits
-//                       2 * (k & 3) — 16 kinds x 2 bits = bytes 29..32.
+//                       2 * (k & 3) — 17 kinds x 2 bits = bytes 29..33 (byte 33
+//                       carries kinds 16..19; only 16 is assigned so far).
 //                       INDEPENDENT of the enabled bitmask: THRESH_BOLD_ALWAYS
 //                       bolds a slot whose kind has no thresholds configured.
 //    Widened 27 -> 29 bytes when UV became kind 7, 29 -> 33 when the bold-only
-//    kinds (8..15) grew the bold area to 16 kinds. (An interim 31-byte 8-kind
-//    bold format never shipped, so it validates as garbage, not as legacy.)
-//    Exactly two lengths are accepted: the current one and the pre-bold 29. The
-//    UV step SHIFTED the health offsets, so a 27-byte blob would be misread and
-//    is rejected; the bold step only APPENDS, so a 29-byte blob still describes
-//    every field before it and is read with the default bold mode. That matters
-//    on upgrade: the phone only force-resends its settings when the watch reports
-//    NO config at all, so rejecting the old length would blank an existing user's
-//    highlighting until they happened to open the settings page.
+//    kinds (8..15) grew the bold area to 16 kinds, 33 -> 34 when battery %
+//    (kind 16) opened byte 33. (An interim 31-byte 8-kind bold format never
+//    shipped, so it validates as garbage, not as legacy.)
+//    Exactly three lengths are accepted: the current 34, the 16-kind 33, and
+//    the pre-bold 29. The UV step SHIFTED the health offsets, so a 27-byte blob
+//    would be misread and is rejected; the bold steps only APPEND, so a shorter
+//    accepted blob still describes every field before it and is read with the
+//    default bold mode for the kinds it lacks (a 33-byte blob reads kind 16 as
+//    the default). That matters on upgrade: the phone only force-resends its
+//    settings when the watch reports NO config at all, so rejecting an old
+//    length would blank an existing user's highlighting until they happened to
+//    open the settings page.
 //    Health threshold wire units: steps = steps, sleep = MINUTES,
 //    distance = 100 m units (the status row's own display resolution).
 
-#define THRESH_KIND_COUNT 16
+#define THRESH_KIND_COUNT 17
 // Kinds that OWN a blob pair — an enable bit in byte 0, a color pair, and (for
 // the health trio) a u16 threshold pair. Byte 0 has exactly 8 enable bits and
 // the color/health offsets collide with later fields past kind 7, so bounding
 // the paired accessors by this is correctness, not tidiness; only the bold
 // cells run to THRESH_KIND_COUNT.
 #define THRESH_PAIRED_KIND_COUNT 8
-#define THRESH_SETTINGS_BYTES 33
+#define THRESH_SETTINGS_BYTES 34
 #define THRESH_COLORS_OFFSET 1
 #define THRESH_HEALTH_OFFSET 17
 #define THRESH_BOLD_OFFSET 29
 // The blob length before the bold bytes were appended — still accepted, and by
 // construction equal to the offset the bold bytes start at.
 #define THRESH_SETTINGS_BYTES_PRE_BOLD THRESH_BOLD_OFFSET
+// The 16-kind length before byte 33 (kinds 16..19) was appended — still
+// accepted; kinds 16+ read the default bold mode.
+#define THRESH_SETTINGS_BYTES_PRE_KIND16 33
 
 typedef enum {
     THRESH_AQI = 0,
@@ -84,6 +91,9 @@ typedef enum {
     THRESH_CITY = 13,
     THRESH_COUNTDOWN = 14,
     THRESH_HR = 15,
+    // Battery % (SLOT_LIVE_BATTERY_PCT) renders text, so unlike the glyph
+    // battery slot (which stays kind-less) it owns a bold cell — in byte 33.
+    THRESH_BATTERY_PCT = 16,
 } ThreshKind;
 #define THRESH_WEATHER_KIND_MAX THRESH_GUST
 
@@ -111,7 +121,7 @@ typedef enum {
 } ThreshBold;
 
 // ThreshKind for a packed slot (kind + icon pair), or -1 when the slot has no
-// threshold-capable content (battery — a drawn glyph, no text — and empty).
+// threshold-capable content (the glyph battery — drawn, no text — and empty).
 // SLOT_TEXT + STATUS_ICON_NONE maps to THRESH_CITY: city is the only remaining
 // TEXT+NONE catalog option (pressure got its own text-only STATUS_ICON_PRESSURE
 // to discriminate it). A pressure slot persisted BEFORE that icon existed still

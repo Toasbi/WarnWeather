@@ -999,8 +999,8 @@ function renderSignature(settings) {
     var parts = [settings.secondaryLine, settings.thirdLine, settings.secondaryLineFill,
         settings.barSource, settings.windScale, settings.pressureScale, settings.theme,
         // Status-line bake inputs: value formatting...
-        settings.temperatureUnits, settings.axisTimeFormat, settings.timeShowAmPm,
-        settings.timeLeadingZero, settings.healthMode,
+        settings.temperatureUnits, settings.tempSlotDisplay, settings.axisTimeFormat,
+        settings.timeShowAmPm, settings.timeLeadingZero, settings.healthMode,
         // ...the unit pickers (change baked/fetched values: wind & distance rebake,
         // AQI source/scale refetch)...
         settings.windUnits, settings.distanceUnits, settings.aqiScale, settings.aqiSource,
