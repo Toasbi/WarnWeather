@@ -84,16 +84,33 @@ static void load_dataset(ForecastDataset *ds) {
     ds->num_entries = n;
     ds->forecast_start = persist_get_forecast_start();
 
+    // The temp axis owns the vertical inset: feels-like shares the temp curve's
+    // (configurable) offset so the two series scaled against one band land
+    // pixel-aligned, while every other metric keeps the full-height mapping.
+    // The watch stays metric-agnostic — the phone decides, sending three
+    // render-ready per-series px values (CLAY_CURVE_INSET_UINT8 → persist).
+#if defined(WW_CURVE_INSET)
+    uint8_t curve_insets[CURVE_INSET_BYTES];
+    persist_get_curve_insets(curve_insets);
+#else
+    // aplite: frozen constants — temp keeps its fixed 7 px inset, the metric
+    // channels map full-height (the exact pre-feature rendering); feels-like
+    // is not offered there. Plain const (not static) so the constant-indexed
+    // reads fold to immediates and the array itself is elided.
+    const uint8_t curve_insets[3] = { BOTTOM_VIEW_PRIMARY_LINE_INSET_Y, 0, 0 };
+#endif
+
     ds->series[SERIES_FIRST] = (Series){
         .id = SERIES_FIRST, .kind = SERIES_KIND_LINE, .present = (n > 0),
         .line = { .color = theme_pick(GColorRed, theme_fg()),
-                  .width = 3, .inset_y = BOTTOM_VIEW_PRIMARY_LINE_INSET_Y } };
+                  .width = 3, .inset_y = curve_insets[SERIES_FIRST] } };
 
     ds->series[SERIES_SECOND] = (Series){
         .id = SERIES_SECOND, .kind = SERIES_KIND_LINE,
         .present = persist_series_present(SERIES_SECOND),
         .line = { .color      = persist_get_line_color(),   // raw stroke — SDK reduces on B&W
                   .width      = 1,
+                  .inset_y    = curve_insets[SERIES_SECOND],
                   .fill_on    = persist_get_line_fill(),
                   .fill_color = persist_get_fill_color() } };  // raw per-metric fill — SDK reduces on B&W
 
@@ -102,16 +119,8 @@ static void load_dataset(ForecastDataset *ds) {
         .present = persist_series_present(SERIES_THIRD),
         .line = { .color  = persist_get_third_line_color(),   // raw per-metric — SDK reduces on B&W
                   .width  = FORECAST_GRID_BAR_W,   // dots match the rain-bar columns
+                  .inset_y = curve_insets[SERIES_THIRD],
                   .dotted = true } };
-
-#ifndef PBL_PLATFORM_APLITE
-    // Every value-mapped line shares the primary curve's vertical inset, so two
-    // series scaled against one band (temperature + feels-like) land pixel-aligned
-    // — without this, equal values render up to inset_y apart at the band edges.
-    // aplite keeps its frozen full-height mapping: feels-like is not offered there.
-    ds->series[SERIES_SECOND].line.inset_y = BOTTOM_VIEW_PRIMARY_LINE_INSET_Y;
-    ds->series[SERIES_THIRD].line.inset_y = BOTTOM_VIEW_PRIMARY_LINE_INSET_Y;
-#endif
 
     ds->series[SERIES_BARS] = (Series){
         .id = SERIES_BARS, .kind = SERIES_KIND_BARS,
@@ -440,6 +449,14 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         layers[n++] = (ChartLayer){ CHART_LAYER_AREA, .area = {
             .values = second->line.values, .export_points = area_pts,
             .count = ds.num_entries, .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
+#if defined(WW_CURVE_INSET)
+            // The fill's contour must share the line's inset mapping (feels-like
+            // as Main metric can now draw filled AND inset); the line-over-fill
+            // and the night re-hatch reuse these exported points, so all three
+            // follow. aplite: insets are compile-time constants there and the
+            // area engine skips the inset math, so nothing to pass.
+            .inset_top = second->line.inset_y, .inset_bottom = second->line.inset_y,
+#endif
             .fill_color = second->line.fill_color } };
     }
     // night_under re-shades the filled area, so it needs the AREA layer's

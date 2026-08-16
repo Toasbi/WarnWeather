@@ -205,6 +205,8 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // 7 B tuple header + 24 B text cap + 1 B NUL = 32 B).
   // 427 -> 428 when the threshold blob widened 33 -> 34 (the battery-% bold
   // cell, kind 16, opened byte 33).
-  assert.equal(size, 428, 'update the recorded Clay message size when its wire contract changes');
+  // 428 -> 438 when the per-series curve insets joined (CLAY_CURVE_INSET_UINT8:
+  // 7 B tuple header + 3 B data).
+  assert.equal(size, 438, 'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });

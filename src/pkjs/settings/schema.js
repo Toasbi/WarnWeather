@@ -14,6 +14,24 @@ var HOURS = (function () {
     }
     return o;
 })();
+// Curve-offset ladder for the forecast graph's temp + feels-like curves: the
+// wire clamp range 0..14 px in 1 px steps (values ARE the px, stored as strings
+// like every select; clay-payload parses them defensively and packs the
+// render-ready CLAY_CURVE_INSET_UINT8 triple). 7 px is the watch's pre-feature
+// BOTTOM_VIEW_PRIMARY_LINE_INSET_Y, so the default changes nothing on upgrade.
+// A select rather than a slider: the engine's range control is a dual-thumb
+// "lo-hi" pair (hrScale) and this is a single scalar.
+var CURVE_INSET_OPTIONS = (function () {
+    var o = [], px;
+    for (px = 0; px <= 14; px += 1) {
+        o.push([
+            px === 0 ? '0 px — full height'
+                : (px === 7 ? '7 px — default' : px + ' px'),
+            String(px)
+        ]);
+    }
+    return o;
+})();
 // Per-metric hints, shared by the secondary + third line pickers. Each explains how
 // the metric maps to graph height; UV mirrors the precip-percentage phrasing.
 var LINE_HINTS = {
@@ -706,6 +724,20 @@ module.exports = {
             windScaleCopy('third', 'mph', WIND_SCALE_HINTS_MPH),
             windScaleCopy('third', 'knots', WIND_SCALE_HINTS_KNOTS),
             pressureScaleCopy('third'),
+            {
+                // Rides the Clay message as the CLAY_CURVE_INSET_UINT8 triple
+                // (temp always; feels inherits it on whichever line shows it).
+                // Hidden on aplite: the watch compiles the configurable inset out
+                // (WW_CURVE_INSET) and keeps its frozen 7 px temp inset, so the
+                // row would silently do nothing there — mirrors rainCountdownHorizon.
+                type: 'select',
+                messageKey: 'curveInset',
+                label: 'Curve offset',
+                defaultValue: '7',
+                options: CURVE_INSET_OPTIONS,
+                hint: 'Vertical margin the temperature and feels-like curves keep from the graph’s top and bottom. Other metrics use the full height.',
+                showWhen: {env: 'platform', ne: 'aplite'}
+            },
             {
                 type: 'segmented',
                 messageKey: 'barSource',

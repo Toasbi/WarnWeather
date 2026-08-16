@@ -175,6 +175,16 @@ def build(ctx):
         # WW_FETCH_NOTICE above, which was excluded for the same trigger.
         if platform != 'aplite':
             ctx.env.CFLAGS += ['-DWW_THRESHOLD_HIGHLIGHT=1']
+        # Configurable forecast curve insets (CLAY_CURVE_INSET_UINT8): the phone
+        # sends render-ready per-series vertical insets so temperature and a
+        # feels-like metric line share one pixel mapping. aplite keeps its frozen
+        # constant insets (temp 7 px, metric channels full-height) — feels-like is
+        # not offered there — so the persist accessors and the app_message handler
+        # are guarded away and --gc-sections reaps the rest. The CURVE_INSETS
+        # persist key ID stays in persist.c's enum on every platform — the slots
+        # are append-only on-flash IDs. Mirrors WW_THRESHOLD_HIGHLIGHT above.
+        if platform != 'aplite':
+            ctx.env.CFLAGS += ['-DWW_CURVE_INSET=1']
         if enable_memory_logging:
             ctx.env.CFLAGS += ['-DWW_ENABLE_MEMORY_LOGGING=1']
         if fixture_now:

@@ -52,6 +52,22 @@ function truncateUtf8Bytes(str, maxBytes) {
 }
 
 /**
+ * Parse the curveInset setting into a px value the watch can apply directly.
+ * Settings store it as a string (like the threshold sliders), so parse
+ * defensively: absent/garbage falls back to 7 (the watch's pre-feature
+ * BOTTOM_VIEW_PRIMARY_LINE_INSET_Y), everything clamps into 0..14.
+ * @param {*} value Stored curveInset setting.
+ * @returns {number} Vertical inset in px, 0..14.
+ */
+function parseCurveInset(value) {
+    var n = parseInt(value, 10);
+    if (isNaN(n)) { n = 7; }
+    if (n < 0) { n = 0; }
+    if (n > 14) { n = 14; }
+    return n;
+}
+
+/**
  * Build the Clay settings AppMessage payload.
  * @param {Object} settings Clay settings (claySettings.read() shape).
  * @param {Object|null} watchInfo Active watch info (platform read for palette packing).
@@ -161,6 +177,26 @@ function buildClayPayload(settings, watchInfo, now) {
     if (env.radar) {
         payload.CLAY_NORAIN_TEXT = truncateUtf8Bytes(
             String(settings.radarNoRainText || '').trim(), 24);
+    }
+
+    // Per-series vertical insets for the forecast graph's value-mapped lines,
+    // render-ready in px: [SERIES_FIRST (temp), SERIES_SECOND (main metric),
+    // SERIES_THIRD (second metric)]. The watch stays metric-agnostic — the
+    // phone decides here that feels-like shares the temp curve's configurable
+    // offset (so the two land pixel-aligned on their joint band) while every
+    // other metric keeps the full-height mapping. Settings-derived, so it rides
+    // the Clay message. Omitted for a watch that compiles the configurable
+    // inset out (aplite, no WW_CURVE_INSET): its inbox handler for this tuple
+    // is gone and it keeps the frozen 7/0/0 constants, so the 10 B stay out of
+    // its Clay bundle. An unknown platform is treated as capable (computeEnv's
+    // platform is '' then), so a missing watchInfo never drops it.
+    if (env.platform !== 'aplite') {
+        var curveInset = parseCurveInset(settings.curveInset);
+        payload.CLAY_CURVE_INSET_UINT8 = [
+            curveInset,
+            settings.secondaryLine === 'feels' ? curveInset : 0,
+            settings.thirdLine === 'feels' ? curveInset : 0
+        ];
     }
 
     // Pack the cycle into the three wire bytes (unused slots → 0 = disabled).

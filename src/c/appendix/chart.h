@@ -140,6 +140,14 @@ typedef struct {
     GPoint        *export_points;     // optional out: count + 2 points (closing pts)
     int            count;
     int            lo, hi;
+#if defined(WW_CURVE_INSET)
+    int            inset_top;         // contour margins, matching ChartLineLayer's
+    int            inset_bottom;      // mapping — so a fill under an inset line hugs
+                                      // it exactly. The fill itself still drops to
+                                      // the plot bottom (the axis closes it).
+                                      // aplite compiles them out entirely: no curve
+                                      // insets there, and the union must not grow.
+#endif
     GColor         fill_color;
 } ChartAreaLayer;
 

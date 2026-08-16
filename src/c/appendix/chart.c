@@ -421,11 +421,25 @@ static void chart_render_area(const ChartRender *r, const ChartAreaLayer *a) {
     GPoint *pts = a->export_points ? a->export_points : s_pts_scratch;
     const GRect c          = r->geo.content;
     const int  plot_bottom = c.origin.y + c.size.h;
+    // The contour shares CHART_LAYER_LINE's inset mapping (value==lo lands at
+    // plot_bottom - inset_bottom, value==hi at plot_top + inset_top) so a fill
+    // under an inset line hugs that line exactly; the fill itself still drops
+    // to the plot bottom below — the axis closes it, inset or not.
+#if defined(WW_CURVE_INSET)
+    const int  inset_bottom = a->inset_bottom;
+    const int  inner_h      = c.size.h - a->inset_top - inset_bottom;
+#else
+    // aplite: curve insets are compiled out (WW_CURVE_INSET, wscript) and no
+    // caller passes a nonzero area inset there — constant-fold the inset math
+    // away (every image byte counts against the aplite launch guard).
+    const int  inset_bottom = 0;
+    const int  inner_h      = c.size.h;
+#endif
     const int  range       = a->hi - a->lo;
     const int  range_safe  = range > 0 ? range : 1;
     for (int i = 0; i < count; ++i) {
-        const int h = (int)(((int32_t)(a->values[i] - a->lo) * c.size.h) / range_safe);
-        pts[i] = GPoint(chart_slot_tick_x(&r->geo, i), plot_bottom - h);
+        const int h = (int)(((int32_t)(a->values[i] - a->lo) * inner_h) / range_safe);
+        pts[i] = GPoint(chart_slot_tick_x(&r->geo, i), plot_bottom - h - inset_bottom);
     }
 
 #ifdef PBL_COLOR

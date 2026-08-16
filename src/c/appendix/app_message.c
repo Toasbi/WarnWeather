@@ -325,6 +325,35 @@ static bool handle_palette(DictionaryIterator *iterator, bool *forecast_dirty,
     return true;
 }
 
+#if defined(WW_CURVE_INSET)
+// Per-series forecast curve insets — settings-derived, so the tuple rides the
+// Clay message (see clay-payload.js). The phone sends three render-ready px
+// values ([FIRST, SECOND, THIRD]: temp's configurable inset, feels-like shares
+// it, every other metric 0); the watch stays metric-agnostic and just persists
+// them for load_dataset. aplite keeps its frozen constant insets, so the
+// handler compiles out there (mirrors the threshold handlers above).
+static bool handle_curve_insets(DictionaryIterator *iterator, bool *forecast_dirty) {
+    Tuple *tuple = dict_find(iterator, MESSAGE_KEY_CLAY_CURVE_INSET_UINT8);
+    if (!tuple) { return false; }
+    if (tuple->type != TUPLE_BYTE_ARRAY || tuple->length != CURVE_INSET_BYTES) {
+        // Reject atomically; the last good persisted tuple stays intact.
+        APP_LOG(APP_LOG_LEVEL_WARNING,
+                "Curve-inset tuple malformed (%u bytes) — skipping",
+                (unsigned) tuple->length);
+        return true;
+    }
+    // Defensive clamp to the slider's 0..14 px range so a skewed sender can
+    // never push a curve's mapping outside the plot.
+    uint8_t insets[CURVE_INSET_BYTES];
+    for (int i = 0; i < CURVE_INSET_BYTES; i++) {
+        const uint8_t v = tuple->value->data[i];
+        insets[i] = v > CURVE_INSET_MAX ? CURVE_INSET_MAX : v;
+    }
+    *forecast_dirty |= persist_set_curve_insets(insets);
+    return true;
+}
+#endif  // WW_CURVE_INSET
+
 // Parse (bytes→Config, config_wire.c) is separate from apply (Config→persist +
 // cache reload + dirty bit, here). config_parse_wire returning false means the
 // message carries no config — normal for weather messages.
@@ -407,6 +436,11 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     handled |= handle_norain_text(iterator, &radar_dirty);
 #endif
     handled |= handle_palette(iterator, &forecast_dirty, &radar_dirty);
+#if defined(WW_CURVE_INSET)
+    // aplite keeps its frozen constant curve insets (load_dataset's #else arm),
+    // so it ignores the inset tuple and the persist surface drops out.
+    handled |= handle_curve_insets(iterator, &forecast_dirty);
+#endif
     handled |= handle_clay_config(iterator, &config_dirty);
     handled |= handle_holidays(iterator, &calendar_dirty);
 

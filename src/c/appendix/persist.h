@@ -96,6 +96,22 @@ int persist_get_threshold_settings(uint8_t *buffer, size_t buffer_size);
 bool persist_set_threshold_settings(const uint8_t *data, size_t len);
 #endif
 
+// Forecast curve insets are compiled out of aplite (WW_CURVE_INSET, wscript):
+// it keeps the frozen constant insets (temp 7 px, metric channels full-height),
+// so the accessors are declared away there and any unguarded caller fails to
+// compile rather than silently re-linking the feature. The CURVE_INSETS key ID
+// stays in persist.c's append-only enum on every platform.
+#if defined(WW_CURVE_INSET)
+// Render-ready per-series vertical insets for the forecast graph's value-mapped
+// lines (CLAY_CURVE_INSET_UINT8 tuple: [FIRST, SECOND, THIRD] px — the phone
+// computes them; the watch stays metric-agnostic). Get always fills out[],
+// defaulting to {7, 0, 0} — exactly the pre-feature look — when unset/short.
+#define CURVE_INSET_BYTES 3
+#define CURVE_INSET_MAX  14
+bool persist_set_curve_insets(const uint8_t insets[3]);
+void persist_get_curve_insets(uint8_t out[3]);
+#endif
+
 bool persist_set_notice_text(const char *text);
 int  persist_get_notice_text(char *buffer, size_t buffer_size);
 

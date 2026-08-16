@@ -91,6 +91,50 @@ test('feels-like as the second metric draws grey squares and still widens the ax
   assert.ok(svg.indexOf('>11°<') > -1, 'joint band applies from the second line too');
 });
 
+// The temp curve is the only #FF0000 stroke in the color preview; its path starts at
+// the first tick (x=20) with temps[0]=24=tmax, i.e. exactly at the temp band's top —
+// so this y IS ytop = PT+3 + the scaled curve inset (12/7 preview units per watch px).
+function tempCurveTopY(svg) {
+  const m = /<path d="M20,([\d.]+)[^"]*" fill="none" stroke="#FF0000"/.exec(svg);
+  assert.ok(m, 'temp curve path found');
+  return Number(m[1]);
+}
+const CURVE_BASE = { dayNightShading: false, barSource: 'off', windScale: 'mid', thirdLine: 'off', secondaryLine: 'precip_prob', secondaryLineFill: false };
+
+test('forecastPreview: the temp curve reacts to curveInset; other metrics keep the full-height mapping', () => {
+  const at = (inset) => B.forecastPreview(Object.assign({}, CURVE_BASE, inset === undefined ? {} : { curveInset: inset }), { color: true });
+  // 0 px = the shared full-height band's top (PT+3=7); default 7 px scales to 12
+  // preview units (19); 14 px doubles it (31).
+  assert.equal(tempCurveTopY(at('0')), 7, 'inset 0: temp spans the full band like the metrics');
+  assert.equal(tempCurveTopY(at(undefined)), 19, 'absent: the default 7 px look');
+  assert.equal(tempCurveTopY(at('7')), 19, 'explicit default matches absent');
+  assert.equal(tempCurveTopY(at('14')), 31, 'max inset doubles the default margin');
+  // The main metric's mapping must not move with the offset.
+  const precipPath = (svg) => /<path d="([^"]+)" fill="none" stroke="#55AAFF"/.exec(svg)[1];
+  assert.equal(precipPath(at('0')), precipPath(at('14')), 'precip line unchanged by curveInset');
+});
+
+test('forecastPreview: curveInset parses defensively (garbage → default, clamped to 0..14)', () => {
+  const at = (inset) => B.forecastPreview(Object.assign({}, CURVE_BASE, { curveInset: inset }), { color: true });
+  assert.equal(tempCurveTopY(at('nonsense')), 19, 'garbage falls back to the default 7');
+  assert.equal(tempCurveTopY(at('99')), 31, 'clamps high to 14');
+  assert.equal(tempCurveTopY(at('-3')), 7, 'clamps low to 0');
+});
+
+test('forecastPreview: the feels curve follows the configured offset (shared temp axis)', () => {
+  const at = (inset) => B.forecastPreview(Object.assign({}, CURVE_BASE, { secondaryLine: 'feels', curveInset: inset }), { color: true });
+  const feelsPath = (svg) => {
+    const m = /<path d="([^"]+)" fill="none" stroke="#AAAAAA"/.exec(svg);
+    assert.ok(m, 'feels curve path found');
+    return m[1];
+  };
+  assert.notEqual(feelsPath(at('0')), feelsPath(at('14')),
+    'feels rides the temp axis, so it moves with the offset too');
+  // Both curves stay pinned to the same joint band: temp's top still tracks the inset.
+  assert.equal(tempCurveTopY(at('0')), 7);
+  assert.equal(tempCurveTopY(at('14')), 31);
+});
+
 test('forecastPreview draws the second metric as bar-aligned squares in its metric color, gated on thirdLine', () => {
   const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'precip_prob' };
   // uv = #FF00FF is unique to the second-metric squares (not used by text/background/bars).

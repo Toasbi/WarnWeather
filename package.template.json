@@ -313,7 +313,8 @@
       "STATUS_LEVELS_UINT8",
       "CLAY_THRESHOLDS_UINT8",
       "CLAY_HR_SCALE",
-      "CLAY_NORAIN_TEXT"
+      "CLAY_NORAIN_TEXT",
+      "CLAY_CURVE_INSET_UINT8"
     ]
   }
 }

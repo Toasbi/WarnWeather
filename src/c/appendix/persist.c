@@ -58,7 +58,13 @@ enum key {
     // rain_radar_layer.c) drop out there and --gc-sections reaps the
     // accessors — but the ID stays listed on every platform: the enum is
     // append-only because the numbers are the on-flash slots.
-    NORAIN_TEXT                   // 45 — radar no-rain text, <= 24 B UTF-8 + NUL
+    NORAIN_TEXT,                  // 45 — radar no-rain text, <= 24 B UTF-8 + NUL
+    // Appended: per-series forecast curve insets (CLAY_CURVE_INSET_UINT8 tuple,
+    // [FIRST, SECOND, THIRD] px). aplite never reads or writes it
+    // (WW_CURVE_INSET is undefined there and the accessors below compile out),
+    // but the ID stays listed on every platform: the enum is append-only
+    // because the numbers are the on-flash slots.
+    CURVE_INSETS                  // 46 — 3 render-ready inset bytes, absent = {7, 0, 0}
 };
 
 // Setters report whether the stored value actually changed so callers can
@@ -550,3 +556,25 @@ bool persist_set_threshold_settings(const uint8_t *data, size_t len) {
     return write_sized_data_if_changed(THRESHOLD_SETTINGS, data, len);
 }
 #endif  // WW_THRESHOLD_HIGHLIGHT
+
+#if defined(WW_CURVE_INSET)
+bool persist_set_curve_insets(const uint8_t insets[3]) {
+    return write_data_if_changed(CURVE_INSETS, insets, CURVE_INSET_BYTES);
+}
+
+void persist_get_curve_insets(uint8_t out[3]) {
+    // Default = the pre-feature look: the temp curve keeps its fixed inset and
+    // the metric channels map full-height.
+    out[0] = BOTTOM_VIEW_PRIMARY_LINE_INSET_Y;
+    out[1] = 0;
+    out[2] = 0;
+    if (!persist_exists(CURVE_INSETS)) { return; }
+    // Read into a scratch first: a short read must not scribble on the
+    // already-defaulted out[] bytes.
+    uint8_t stored[CURVE_INSET_BYTES];
+    if (persist_read_data(CURVE_INSETS, stored, sizeof(stored)) < (int) sizeof(stored)) {
+        return;  // short/corrupt — keep the defaults
+    }
+    memcpy(out, stored, sizeof(stored));
+}
+#endif  // WW_CURVE_INSET
