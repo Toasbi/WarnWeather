@@ -9,7 +9,10 @@ Highly customizable with a modern settings UI and previews.
 FORECAST
 - 24-hour forecast with a temperature line and configurable, battery-friendly updates
 - Configurable metrics such as precipitation, UV index, gusts, wind, air
-  pressure and feels-like temperature (drawn grey on the temperature scale)
+  pressure and feels-like temperature (drawn as a muted second line on the
+  temperature scale)
+- The temperature status slot can show the measured temperature, what it feels
+  like, or both as 12/10
 - Optional day/night shading
 - Multiple weather providers, including regional and worldwide sources
 
