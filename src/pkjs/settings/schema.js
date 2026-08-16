@@ -838,20 +838,21 @@ module.exports = {
                 options: [['Multicolor', 'multicolor'], ['Solid', 'white']],
                 showWhen: {all: [{key: 'radarMode', eq: 'graph'}, {key: 'theme', nin: ['bw', 'bw-light']}]}
             }, {
-                // Custom quiet-state text: drawn in the radar view when the nowcast
+                // Custom quiet-state text: drawn in the radar GRAPH when the nowcast
                 // finds no rain in the whole window. Ships visibly with the watch's
                 // built-in default so users override the actual message. The UI
                 // maxlength is a soft character cap; the phone re-truncates to 24
                 // UTF-8 BYTES at pack time, and empty/whitespace-only text makes the
-                // watch fall back to its built-in string. No extra gate: the tab's
-                // env-radar showWhen already covers it.
+                // watch fall back to its built-in string. Only rain_radar_layer.c
+                // draws it, so the field follows the graph ('graph'), not the radar
+                // as a whole — in 'status'/'countdown' there is no plot to write on.
                 type: 'text',
                 messageKey: 'radarNoRainText',
                 label: 'No-rain message',
                 defaultValue: 'No rain ahead',
                 attributes: {maxlength: 24},
-                hint: 'Shown in the radar view when no rain is coming. Up to 24 characters; clear the field to use the default.',
-                showWhen: {key: 'radarMode', ne: 'off'}
+                hint: 'Shown in the radar graph when no rain is coming. Up to 24 characters; clear the field to use the default.',
+                showWhen: {key: 'radarMode', eq: 'graph'}
             }, {
                 type: 'select',
                 messageKey: 'rainCountdownHorizon',

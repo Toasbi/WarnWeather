@@ -296,7 +296,7 @@ test('radar tab is gated to radar-capable platforms', () => {
   assert.deepEqual(radarTab.showWhen, { env: 'radar' });
 });
 
-test('radarNoRainText: visible default, 24-char UI cap, hidden with radar off', () => {
+test('radarNoRainText: visible default, 24-char UI cap, graph-only', () => {
   const item = byKey('radarNoRainText');
   assert.ok(item, 'radarNoRainText item exists');
   assert.equal(item.type, 'text');
@@ -307,10 +307,11 @@ test('radarNoRainText: visible default, 24-char UI cap, hidden with radar off', 
   // Soft UI cap; the real limit is 24 UTF-8 BYTES, enforced phone-side at pack
   // time.
   assert.equal(item.attributes.maxlength, 24);
-  // The message only renders in the radar view, so the field hides with the
-  // radar itself — same idiom as the rain-countdown row below it.
-  assert.deepEqual(item.showWhen, {key: 'radarMode', ne: 'off'},
-    'hidden while radarMode is off');
+  // Only the radar GRAPH (rain_radar_layer.c) ever draws the message — the
+  // status bar and the countdown have no plot to write it on — so the field
+  // follows the graph, not the radar as a whole.
+  assert.deepEqual(item.showWhen, {key: 'radarMode', eq: 'graph'},
+    'shown only in Status + Graph mode');
   const radarItems = schema.tabs.find((t) => t.id === 'radar').sections[0].items;
   const idx = radarItems.indexOf(item);
   assert.ok(idx !== -1, 'lives in the Radar tab');
@@ -328,6 +329,19 @@ test('radarNoRainText: visible default, 24-char UI cap, hidden with radar off', 
   });
   assert.match(body, /data-k="radarNoRainText" value="No rain ahead" placeholder="" maxlength="24"/,
     'the rendered input carries the visible default and the 24 cap');
+
+  // ...and it disappears in the modes with no graph to draw it in.
+  ['status', 'countdown', 'off'].forEach((mode) => {
+    const S2 = eng.hydrate(schema, {});
+    S2.radarMode = mode;
+    const html = eng.renderBody(schema, 'radar', {
+      S: S2, ENV: ENV, USERDATA: {}, openColor: null, openSelect: null,
+      openEdit: null, selectQuery: '', collapsed: {},
+      evalCtx: Object.assign({}, S2, { env: ENV }),
+    });
+    assert.ok(html.indexOf('data-k="radarNoRainText"') === -1,
+      'no-rain field hidden in radarMode=' + mode);
+  });
 });
 
 test('secondaryLine is a 5-metric dropdown with no Off', () => {
