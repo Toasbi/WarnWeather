@@ -2,7 +2,9 @@ var WeatherProvider = require('./provider.js');
 var request = WeatherProvider.request;
 var failure = WeatherProvider.failure;
 var openmeteo = require('./openmeteo.js');
-var feelsLikeF = require('./feels-like.js').feelsLikeF;
+var feelsLike = require('./feels-like.js');
+var feelsLikeF = feelsLike.feelsLikeF;
+var feelsLikeFromDewF = feelsLike.feelsLikeFromDewF;
 
 var BRIGHTSKY_BASE = require('./brightsky.js').BASE_URL;
 var MAX_DIST_METERS = 500000;
@@ -15,16 +17,24 @@ function celsiusToFahrenheit(celsius) {
 
 /**
  * Steadman feels-like °F for one Brightsky hourly record (temperature °C,
- * relative_humidity %, wind_speed km/h — no API feels-like field). Missing
- * humidity → fall back to the plain temp so the series stays numeric; missing
- * wind reads 0 (the windTrend convention).
+ * wind_speed km/h — no API feels-like field). Moisture comes from
+ * relative_humidity when present, else dew_point: Brightsky FORECAST (MOSMIX)
+ * records return relative_humidity null on every hour but always carry
+ * dew_point (verified live 2026-08-16) — without the dew route the whole
+ * series silently fell back to the plain temp and the feels curve rendered
+ * invisibly underneath the temp curve. No moisture data at all → plain temp
+ * so the series stays numeric; missing wind reads 0 (the windTrend convention).
  *
  * @param {Object} e Brightsky hourly weather record.
  * @returns {number} Feels-like (or actual, as fallback) temperature in °F.
  */
 function hourFeels(e) {
     var tempF = celsiusToFahrenheit(e.temperature);
-    var feels = feelsLikeF(tempF, e.relative_humidity, e.wind_speed || 0);
+    var windKmh = e.wind_speed || 0;
+    var feels = feelsLikeF(tempF, e.relative_humidity, windKmh);
+    if (feels === null && typeof e.dew_point === 'number') {
+        feels = feelsLikeFromDewF(tempF, celsiusToFahrenheit(e.dew_point), windKmh);
+    }
     return feels === null ? tempF : feels;
 }
 
@@ -44,7 +54,14 @@ function currentFeelsFrom(current) {
     var windKmh = typeof current.wind_speed_10 === 'number' ? current.wind_speed_10
         : (typeof current.wind_speed_30 === 'number' ? current.wind_speed_30
             : current.wind_speed_60);
-    return feelsLikeF(celsiusToFahrenheit(current.temperature), current.relative_humidity, windKmh);
+    var tempF = celsiusToFahrenheit(current.temperature);
+    var feels = feelsLikeF(tempF, current.relative_humidity, windKmh);
+    if (feels === null && typeof current.dew_point === 'number') {
+        // Observation records usually carry RH, but degrade the same way the
+        // hourly feed does when a station omits it.
+        feels = feelsLikeFromDewF(tempF, celsiusToFahrenheit(current.dew_point), windKmh);
+    }
+    return feels;
 }
 
 /**
