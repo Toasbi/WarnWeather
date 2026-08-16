@@ -279,11 +279,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var tickX = function (i) { return PX0 + i * pitch; };              // line vertex / hour tick x
         var gapCenter = function (i) { return PX0 + (i + 0.5) * pitch; };  // bar / dot column centre
         // Joint temp∪feels axis (mirrors forecast-series.applyForecastSeries): with
-        // feels on either line the temp curve rescales against the widened band and
-        // the min/max axis labels follow, so the gap between the curves is real.
+        // feels on either line both curves rescale against the union band so the gap
+        // between them is real, and the band is padded on whichever side feels
+        // overshoots the temperature so that curve lands clear of the plot edge
+        // instead of flat against it (FEELS_EDGE_CLEARANCE_PERMILLE = 40 ‰ there —
+        // pad = ceil(span * 40/960)). The hi/lo LABELS are not this band: they stay
+        // the actual temperature range, which is why tmin/tmax and tLabelMin/Max part
+        // company here.
         var feelsOn = state.secondaryLine === 'feels' || state.thirdLine === 'feels';
-        var tempAxisVals = feelsOn ? temps.concat(feels) : temps;
-        var tmin = Math.min.apply(null, tempAxisVals), tmax = Math.max.apply(null, tempAxisVals);
+        var tLabelMin = Math.min.apply(null, temps), tLabelMax = Math.max.apply(null, temps);
+        var tmin = tLabelMin, tmax = tLabelMax;
+        if (feelsOn) {
+            var jMin = Math.min(tmin, Math.min.apply(null, feels));
+            var jMax = Math.max(tmax, Math.max.apply(null, feels));
+            var jPad = Math.max(1, Math.ceil((jMax - jMin) * 40 / 960));
+            tmin = jMin < tLabelMin ? jMin - jPad : jMin;
+            tmax = jMax > tLabelMax ? jMax + jPad : jMax;
+        }
         // Configurable curve offset: the temp axis (temp + feels via tempAxis
         // below) is inset symmetrically from the shared full-height band
         // ([PT+3 .. PB], the mapping every other metric uses), mirroring the
@@ -553,7 +565,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
         e += drawTempCurve();
         // No status chrome (location / sunset / current-temp pill): the preview doesn't model it.
-        e += txt(3, PT + 11, 8, '#AEB4BD', 'start', 600, tmax + '°') + txt(3, PB - 1, 8, '#AEB4BD', 'start', 600, tmin + '°');
+        // Hi/lo labels are the ACTUAL temperature range (TEMP_MIN/TEMP_MAX on the
+        // wire), never the padded scaling band — the watch prints them as text
+        // (forecast_layer.c text_labels_refresh) and a low the air never reached
+        // would be a lie. With feels off the two are identical.
+        e += txt(3, PT + 11, 8, '#AEB4BD', 'start', 600, tLabelMax + '°') + txt(3, PB - 1, 8, '#AEB4BD', 'start', 600, tLabelMin + '°');
         e += drawAxis();
         e += drawLegend();
         return svgFrame(e, 124);

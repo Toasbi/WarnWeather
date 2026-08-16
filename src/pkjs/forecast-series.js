@@ -231,10 +231,57 @@ function curvePermille(v, pts) {
 var isPlausiblePressure = pressurePlausibility.isPlausiblePressure;
 
 // Smallest permille value that survives permilleToByte's /4-and-round quantization
-// to a non-zero byte (round(2/4) === 1; round(1/4) === 0). Used to float a
-// floor-clamped pressure reading off exactly byte 0, which chart.c's dot renderer
-// (chart.c:224, "values[i] <= lo") treats as "no data, skip" -- see pressurePermille.
-var PRESSURE_FLOOR_PERMILLE = 2;
+// to a non-zero byte (round(2/4) === 1; round(1/4) === 0).
+var BAND_FLOOR_PERMILLE = 2;
+
+// WIRE INVARIANT — byte 0 is a sentinel, not a value.
+//
+// chart.c's dot renderer skips any sample at or below the layer's floor
+// ("if (l->values[i] <= l->lo) continue;", chart.c:224) because a mark sitting on
+// the x-axis "reads as data where there is none". With lo = 0 that makes wire byte
+// 0 mean ABSENT, so a metric may only emit it where zero genuinely means "nothing".
+//
+// That splits the metrics in two:
+//
+//   ZERO-BASED  (precip_prob, wind, gust, uv) — scaled 0..max against a fixed
+//     ceiling. A zero is a real, meaningful zero (no rain, no wind), and skipping
+//     its dot is the DESIRED rendering. These must NOT be floored.
+//
+//   BAND-SCALED (pressure, feels) — scaled against a band whose floor is just the
+//     lowest value on the plot, not a physical zero. Their minimum sample is a real
+//     reading that has to render, so it must be floated off byte 0.
+//
+// Both go through metricBytes() below, which is the ONLY place a permille series
+// becomes wire bytes. Adding a metric here rather than hand-clamping inside its
+// own permille function is what stops this from recurring — see the
+// "no band-scaled metric ever emits wire byte 0" test.
+var BAND_SCALED_METRICS = ['pressure', 'feels'];
+
+/**
+ * Whether a metric is scaled against a value band (floor = lowest reading) rather
+ * than a physical zero. See BAND_SCALED_METRICS.
+ * @param {string} metric Metric code.
+ * @returns {boolean} True for band-scaled metrics.
+ */
+function isBandScaledMetric(metric) {
+    return BAND_SCALED_METRICS.indexOf(metric) !== -1;
+}
+
+/**
+ * The single permille -> wire-bytes conversion for a metric line. Applies the
+ * byte-0 floor for band-scaled metrics and leaves zero-based metrics alone, so the
+ * wire invariant above holds for every metric by construction.
+ * @param {string} metric Metric code.
+ * @param {number[]|null} permille Permille series, or null for an unknown metric.
+ * @returns {number[]} Wire bytes (0..250).
+ */
+function metricBytes(metric, permille) {
+    if (!permille) { return []; }
+    var floorPm = isBandScaledMetric(metric) ? BAND_FLOOR_PERMILLE : 0;
+    return permille.map(function (pm) {
+        return permilleToByte(pm < floorPm ? floorPm : pm);
+    });
+}
 
 /**
  * Scale a km/h-style series to permille (0..1000) against a ceiling, clamped to the top.
@@ -275,8 +322,9 @@ function scaleToPermilleRange(arr, min, max) {
  * the WHOLE series before scaling: a single implausible entry rejects everything rather
  * than being interpolated away, which keeps the rule simple and never invents data. An
  * empty result renders as line-off — the same graceful degrade an absent series gets.
- * A value at or below the band floor is real data (not "no data"), so its permille is
- * floor-clamped to PRESSURE_FLOOR_PERMILLE rather than 0 -- see that constant's comment.
+ * A reading at or below the band floor is real data, not "no data": pressure is in
+ * BAND_SCALED_METRICS, so metricBytes() floats it off wire byte 0 on the way out.
+ * (This used to be clamped here by hand; the shared gate covers feels-like too.)
  * @param {Array.<number>} arr Per-hour sea-level pressure in hPa.
  * @param {string} scale pressureScale setting: low|mid|high.
  * @returns {number[]} Permille series, or [] when any entry is implausible.
@@ -297,8 +345,7 @@ function pressurePermille(arr, scale) {
     }
     var curve = PRESSURE_SCALE_CURVE_HPA[scale] || PRESSURE_SCALE_CURVE_HPA.mid;
     return arr.map(function(reading) {
-        var pm = curvePermille(Number(reading), curve);
-        return pm === 0 ? PRESSURE_FLOOR_PERMILLE : pm;
+        return curvePermille(Number(reading), curve);
     });
 }
 
@@ -326,10 +373,48 @@ function jointTempFeelsBand(tempMin, tempMax, feels) {
         if (v < min) { min = v; }
         if (v > max) { max = v; }
     }
-    // Whole degrees, widening outward: the band lands in the int32 TEMP_MIN/
-    // TEMP_MAX wire keys, and a fractional edge (fixture data, future float
-    // source) must still cover both series after truncation.
+    // Whole degrees, widening outward: a fractional edge (Steadman output, fixture
+    // data) must still cover both series after truncation.
     return { min: Math.floor(min), max: Math.ceil(max) };
+}
+
+// How far the feels curve keeps clear of the plot's inset edge, in permille of the
+// plot band (40 ‰ ≈ wire byte 10), whenever it ranges beyond the temperature.
+var FEELS_EDGE_CLEARANCE_PERMILLE = 40;
+
+/**
+ * Widen the joint band on whichever side the FEELS series overshoots the temperature,
+ * so that curve lands clear of the plot edge instead of flat against it.
+ *
+ * The clearance has to come from the band, not from the curve inset: the watch maps
+ * every line's bytes 0..250 over the same inset plot band, so two series are
+ * pixel-aligned only while they share BOTH a band and an inset — and the inset rides
+ * the Clay (settings) message, which cannot know how far today's feels-like ran from
+ * today's temperature. Padding the band is the same visual effect (more empty plot
+ * between the curve and the edge) computed where the weather data actually is.
+ *
+ * Only the overshooting side is padded. Where the TEMPERATURE defines the extreme,
+ * its curve is supposed to reach the inset edge — that edge is what the hi/lo labels
+ * name, and the temp curve is a solid line, which the watch never skips.
+ *
+ * @param {{min: number, max: number}} tempBand Actual temperature band.
+ * @param {{min: number, max: number}} jointBand Union of tempBand and the feels series.
+ * @returns {{min: number, max: number}} Joint band padded away from the overshot edges.
+ */
+function padJointBandForFeels(tempBand, jointBand) {
+    var below = tempBand.min - jointBand.min;   // feels reaches below the temp low
+    var above = jointBand.max - tempBand.max;   // feels reaches above the temp high
+    var span = jointBand.max - jointBand.min;
+    if (span <= 0 || (below <= 0 && above <= 0)) { return jointBand; }
+    // pad / (span + pad) = clearance  ->  pad = span * c / (1000 - c). Rounded up, and
+    // at least 1 whole degree so a narrow band still visibly clears the edge. (Padding
+    // both sides dilutes each to ~1000c/(1000+c) ‰ — still ~38 ‰, ~byte 10.)
+    var pad = Math.max(1, Math.ceil(
+        span * FEELS_EDGE_CLEARANCE_PERMILLE / (1000 - FEELS_EDGE_CLEARANCE_PERMILLE)));
+    return {
+        min: below > 0 ? jointBand.min - pad : jointBand.min,
+        max: above > 0 ? jointBand.max + pad : jointBand.max
+    };
 }
 
 /**
@@ -412,7 +497,7 @@ function buildForecastSeries(raw, settings, watchInfo) {
     // Secondary line: always present (one of the four metrics).
     var secMetric = settings.secondaryLine;
     var secPm = metricPermille(secMetric, raw, settings);
-    out.SECONDARY_LINE_TREND_UINT8 = secPm ? secPm.map(permilleToByte) : [];
+    out.SECONDARY_LINE_TREND_UINT8 = metricBytes(secMetric, secPm);
     out.SECONDARY_LINE_COLOR = lineColorFor(secMetric, settings, isColor, theme) || COLORS.GColorBlack;
     // Feels-like never fills. Every other metric maps 0..max, so the area under the
     // line is the area above a real zero; feels rides the temp∪feels band, whose floor
@@ -428,7 +513,7 @@ function buildForecastSeries(raw, settings, watchInfo) {
     var thirdMetric = settings.thirdLine;
     var thirdPm = (thirdMetric && thirdMetric !== 'off' && thirdMetric !== secMetric)
         ? metricPermille(thirdMetric, raw, settings) : null;
-    var thirdBytes = thirdPm ? thirdPm.map(permilleToByte) : [];
+    var thirdBytes = metricBytes(thirdMetric, thirdPm);
     out.THIRD_LINE_TREND_UINT8 = thirdBytes;
     if (thirdBytes.length > 0) {
         out.THIRD_LINE_COLOR = lineColorFor(thirdMetric, settings, isColor, theme) || resolveInk(COLORS.GColorWhite, theme);
@@ -453,26 +538,37 @@ function applyForecastSeries(payload, settings, watchInfo) {
     // Bake the packed status lines while the transient trend arrays are
     // still on the payload (they die a few lines below).
     statusLines.buildStatusLines(payload, settings, watchInfo);
-    // Joint temp∪feels axis: with the feels line selected, the temp curve rescales
-    // against min/max over BOTH series and TEMP_MIN/TEMP_MAX carry the joint band so
-    // the axis labels stay honest (feelsPermille maps feels against the same widened
-    // band via raw.tempBand below). getPayload() baked the bytes against temp's own
-    // band without settings in hand, so the whole degrees are recovered from the
-    // bytes here — exact for any realistic span (see tempsFromBytes). Feels not
-    // selected, or FEELS_TREND absent/empty (provider gap): untouched, byte-identical
-    // to today — the band falls back to temp-only.
+    // Joint temp∪feels axis. Two curves only read as one graph if they share a
+    // scaling band AND a pixel inset — the watch maps every line's bytes 0..250 over
+    // the same inset plot band, and the phone cannot compute anything finer because
+    // it never learns the plot's pixel height. So with feels selected the temp bytes
+    // are re-encoded against the joint band (getPayload baked them against temp's own
+    // band, without settings in hand; the whole degrees round-trip exactly — see
+    // tempsFromBytes) and feelsPermille maps feels against that same band via
+    // raw.tempBand below.
+    //
+    // TEMP_MIN/TEMP_MAX are NOT the scaling band: the watch scales purely from the
+    // bytes (forecast_layer.c passes lo=0, hi=250) and reads these two only to print
+    // the hi/lo labels (text_labels_refresh). So they keep carrying the ACTUAL air
+    // temperature range — a "lo" of 52 on a day whose air never dropped below 60
+    // would be a plain lie, however honest it is about the plot's floor. The feels
+    // curve's own extremes are unlabelled, which is what the grey shadow line means.
+    //
+    // Feels not selected, or FEELS_TREND absent/empty (provider gap): untouched and
+    // byte-identical to a build without the feature.
     var feels = feelsLineSelected(settings) ? (payload.FEELS_TREND || []) : [];
-    if (feels.length && payload.TEMP_TREND_UINT8 && payload.TEMP_TREND_UINT8.length) {
-        var jointEnc = tempTrendToBytes(
-            tempsFromBytes(payload.TEMP_TREND_UINT8, payload.TEMP_MIN, payload.TEMP_MAX),
-            jointTempFeelsBand(payload.TEMP_MIN, payload.TEMP_MAX, feels)
-        );
-        payload.TEMP_TREND_UINT8 = jointEnc.bytes;
-        payload.TEMP_MIN = jointEnc.min;
-        payload.TEMP_MAX = jointEnc.max;
-    }
     var tempBand = (typeof payload.TEMP_MIN === 'number' && typeof payload.TEMP_MAX === 'number')
         ? { min: payload.TEMP_MIN, max: payload.TEMP_MAX } : null;
+    if (feels.length && tempBand && payload.TEMP_TREND_UINT8 && payload.TEMP_TREND_UINT8.length) {
+        var jointBand = padJointBandForFeels(tempBand,
+            jointTempFeelsBand(tempBand.min, tempBand.max, feels));
+        payload.TEMP_TREND_UINT8 = tempTrendToBytes(
+            tempsFromBytes(payload.TEMP_TREND_UINT8, tempBand.min, tempBand.max),
+            jointBand
+        ).bytes;
+        // The scaling band the metric channels must share; TEMP_MIN/TEMP_MAX stay put.
+        tempBand = jointBand;
+    }
     var series = buildForecastSeries(
         { precips: payload.PRECIP_TREND_UINT8, rains: payload.RAIN_TREND_UINT8,
           winds: payload.WIND_TREND_UINT8, gusts: payload.GUST_TREND_UINT8,
@@ -562,5 +658,7 @@ module.exports = {
     FILL_COLORS: FILL_COLORS,
     PRESSURE_SCALE_CURVE_HPA: PRESSURE_SCALE_CURVE_HPA,
     lineColorFor: lineColorFor,
-    fillColorFor: fillColorFor
+    fillColorFor: fillColorFor,
+    isBandScaledMetric: isBandScaledMetric,
+    BAND_SCALED_METRICS: BAND_SCALED_METRICS
 };

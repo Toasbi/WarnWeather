@@ -479,17 +479,42 @@ const feelsPayload = (extra) => Object.assign({
   CURRENT_TEMP: 10, CITY: 'X', SUN_EVENTS: [1]
 }, extra);
 
-test('feels selected: temp bytes rescale against the joint temp∪feels band, TEMP_MIN/MAX widen', () => {
+test('feels selected: temp bytes rescale against the joint band, but TEMP_MIN/MAX stay the ACTUAL temps', () => {
   const payload = feelsPayload({ FEELS_TREND: [5, 15, 25], FEELS_CURRENT: 8 });
   const out = applyForecastSeries(payload,
     { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' });
-  // Joint band [5, 30] (span 25): temps 10/20/30 -> bytes 50/150/250.
-  assert.deepEqual(out.TEMP_TREND_UINT8, [50, 150, 250]);
-  assert.equal(out.TEMP_MIN, 5);
-  assert.equal(out.TEMP_MAX, 30);
-  // Feels 5/15/25 against the SAME band -> permille 0/400/800 -> bytes 0/100/200.
-  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 100, 200]);
+  // Joint band [5, 30], padded below (where feels overshoots) by
+  // ceil(25 * 40/960) = 2 -> [3, 30], span 27.
+  // Temps 10/20/30 -> round((t-3)*250/27) = 65/157/250.
+  assert.deepEqual(out.TEMP_TREND_UINT8, [65, 157, 250]);
+  // The hi/lo labels name the AIR temperature, never the plot floor: the air never
+  // got to 5 °F here, so a "lo" of 5 would be a lie. The feels curve's own extremes
+  // are deliberately unlabelled — that is what the grey shadow line means.
+  assert.equal(out.TEMP_MIN, 10, 'lo label is the actual temperature low');
+  assert.equal(out.TEMP_MAX, 30, 'hi label is the actual temperature high');
+  // Feels 5/15/25 against the SAME padded band -> permille 74/444/815 -> 19/111/204.
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [19, 111, 204]);
   assert.equal(out.SECONDARY_LINE_COLOR, 0xAAAAAA); // GColorLightGray
+});
+
+test('the feels curve keeps clear of both plot edges when it overshoots the temp band', () => {
+  // Overshooting BOTH ways: feels 2..38 against temps 10..30.
+  const out = applyForecastSeries(feelsPayload({ FEELS_TREND: [2, 20, 38] }),
+    { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' });
+  const bytes = out.SECONDARY_LINE_TREND_UINT8;
+  assert.ok(Math.min.apply(null, bytes) > 0, 'never flat against the plot floor');
+  assert.ok(Math.max.apply(null, bytes) < 250, 'never flat against the plot ceiling');
+  assert.deepEqual(bytes, [13, 125, 238]);
+  assert.equal(out.TEMP_MIN, 10);
+  assert.equal(out.TEMP_MAX, 30);
+});
+
+test('no padding when feels stays inside the temp band — the temp curve still spans the plot', () => {
+  // The temperature defines both extremes here, so its curve is supposed to reach the
+  // inset edges: that edge is exactly what the hi/lo labels name.
+  const out = applyForecastSeries(feelsPayload({ FEELS_TREND: [12, 18, 25] }),
+    { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' });
+  assert.deepEqual(out.TEMP_TREND_UINT8, [0, 125, 250], 'unpadded, full-span, byte-identical');
 });
 
 test('fractional feels widen the band to whole degrees outward (int32 TEMP_MIN/MAX wire keys)', () => {
@@ -499,9 +524,15 @@ test('fractional feels widen the band to whole degrees outward (int32 TEMP_MIN/M
   const payload = feelsPayload({ FEELS_TREND: [4.6, 15, 31.2], FEELS_CURRENT: 8 });
   const out = applyForecastSeries(payload,
     { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' });
-  assert.equal(out.TEMP_MIN, 4, 'floor(4.6) — covers the feels minimum');
-  assert.equal(out.TEMP_MAX, 32, 'ceil(31.2) — covers the feels maximum');
+  // The LABELS are the actual temps regardless of what feels did.
+  assert.equal(out.TEMP_MIN, 10);
+  assert.equal(out.TEMP_MAX, 30);
   assert.ok(Number.isInteger(out.TEMP_MIN) && Number.isInteger(out.TEMP_MAX));
+  // The fractional feels extremes still land inside the plot: the band floors/ceils
+  // outward before padding, so neither curve is clipped or pinned to an edge.
+  const bytes = out.SECONDARY_LINE_TREND_UINT8;
+  assert.ok(Math.min.apply(null, bytes) > 0 && Math.max.apply(null, bytes) < 250);
+  assert.ok(bytes.every(Number.isInteger), 'no floats leak into the wire bytes');
 });
 
 test('feels NOT selected: temp bytes/band byte-identical even with FEELS_TREND present (regression pin)', () => {
@@ -527,13 +558,17 @@ test('feels inside the temp band: temp bytes stay identical, feels maps within t
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [25, 100, 188]);
 });
 
-test('feels as the third line: dots ride the temp axis, light gray, joint band still applies', () => {
+test('feels as the third line: dots ride the temp axis, light gray, none lost to byte 0', () => {
   const payload = feelsPayload({ FEELS_TREND: [5, 15, 25] });
   const out = applyForecastSeries(payload,
     { secondaryLine: 'precip_prob', thirdLine: 'feels', barSource: 'off' }, { platform: 'basalt' });
-  assert.deepEqual(out.TEMP_TREND_UINT8, [50, 150, 250]);
-  assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [0, 100, 200]);
+  assert.deepEqual(out.TEMP_TREND_UINT8, [65, 157, 250]);
+  assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [19, 111, 204]);
   assert.equal(out.THIRD_LINE_COLOR, 0xAAAAAA); // GColorLightGray
+  // Regression: the third line is DOTS, and chart.c skips any dot at byte 0
+  // ("values[i] <= lo"). The coldest feels hour defines the joint band's floor, so
+  // it landed on exactly byte 0 and its dot silently vanished on every windy day.
+  assert.ok(out.THIRD_LINE_TREND_UINT8.every((b) => b > 0), 'every hour keeps its dot');
 });
 
 test('feels selected but FEELS_TREND absent/empty: line off, band falls back to temp-only, no throw', () => {
@@ -549,9 +584,12 @@ test('feels selected but FEELS_TREND absent/empty: line off, band falls back to 
 });
 
 test('buildForecastSeries without a tempBand: feels scales against its own min/max (self-band degrade)', () => {
+  // No band (a direct caller, not the applyForecastSeries path): feels scales against
+  // itself, so there is no overshoot to pad. Its floor is still floated off byte 0 by
+  // metricBytes — feels is band-scaled, so its minimum is a reading, not an absence.
   const out = buildForecastSeries({ feels: [50, 60, 70] },
     { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' });
-  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]);
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [1, 125, 250]);
 });
 
 test('flat joint band (all temps and feels equal): feels sits mid-plot like the temp curve', () => {
@@ -611,6 +649,58 @@ test('feels as the THIRD line does not disturb the secondary metric fill', () =>
     Object.assign({ feels: [50, 60, 70], tempBand: { min: 50, max: 70 } }, RAW),
     { secondaryLine: 'precip_prob', thirdLine: 'feels', secondaryLineFill: true, barSource: 'off' });
   assert.equal(out.SECONDARY_LINE_FILL, true, 'precip keeps its fill while feels rides the third line');
+});
+
+// --- the byte-0 wire invariant ------------------------------------------------
+// chart.c:224 skips any dot at or below the layer floor ("values[i] <= lo", lo=0),
+// so wire byte 0 means ABSENT. Zero-based metrics (precip/wind/gust/uv) rely on
+// that — a 0 % hour SHOULD have no dot. Band-scaled ones (pressure, feels) must
+// never emit it: their minimum is a real reading. metricBytes() is the single gate;
+// these tests are what stop a future band-scaled metric from repeating the bug.
+const { isBandScaledMetric, BAND_SCALED_METRICS } = require('../src/pkjs/forecast-series');
+
+test('BAND_SCALED_METRICS is the declared list and isBandScaledMetric agrees with it', () => {
+  assert.deepEqual(BAND_SCALED_METRICS.slice().sort(), ['feels', 'pressure']);
+  ['pressure', 'feels'].forEach((m) => assert.equal(isBandScaledMetric(m), true, m));
+  ['precip_prob', 'wind', 'gust', 'uv', 'off', 'nonsense'].forEach(
+    (m) => assert.equal(isBandScaledMetric(m), false, m));
+});
+
+test('no band-scaled metric ever emits wire byte 0, on either line channel', () => {
+  // Each case puts the metric at the very bottom of its band — the exact input that
+  // used to quantize to byte 0 and lose its dot.
+  const cases = {
+    // 984 hPa sits below the 'low' scale's floor, so it clamps to the band bottom.
+    pressure: { raw: { pressures: [984, 1013, 1040] }, settings: { pressureScale: 'low' } },
+    // Feels flat against its own band floor (no tempBand → self-scaled).
+    feels: { raw: { feels: [40, 55, 70] }, settings: {} }
+  };
+  BAND_SCALED_METRICS.forEach((metric) => {
+    const c = cases[metric];
+    assert.ok(c, metric + ' has no coverage here — add a case when adding a metric');
+    ['secondary', 'third'].forEach((channel) => {
+      const settings = Object.assign({ barSource: 'off' }, c.settings,
+        channel === 'secondary'
+          ? { secondaryLine: metric, thirdLine: 'off' }
+          : { secondaryLine: 'precip_prob', thirdLine: metric });
+      const out = buildForecastSeries(Object.assign({}, RAW, c.raw), settings);
+      const bytes = channel === 'secondary'
+        ? out.SECONDARY_LINE_TREND_UINT8 : out.THIRD_LINE_TREND_UINT8;
+      assert.ok(bytes.length, metric + '/' + channel + ': series present');
+      bytes.forEach((b, i) => assert.ok(b > 0,
+        metric + '/' + channel + ': hour ' + i + ' quantized to byte ' + b
+        + ' — chart.c would skip its dot'));
+    });
+  });
+});
+
+test('zero-based metrics still emit byte 0, so a genuine zero keeps drawing no dot', () => {
+  // The other half of the invariant: flooring everything would put a dot on the
+  // x-axis for "0 % chance of rain", which reads as data where there is none.
+  const out = buildForecastSeries(RAW,
+    { secondaryLine: 'wind', thirdLine: 'precip_prob', windScale: 'mid', barSource: 'off' });
+  assert.equal(out.SECONDARY_LINE_TREND_UINT8[0], 0, 'wind 0 km/h stays byte 0');
+  assert.equal(out.THIRD_LINE_TREND_UINT8[0], 0, 'precip 0 % stays byte 0');
 });
 
 test('needsFeels: line selections and temp slot display modes', () => {

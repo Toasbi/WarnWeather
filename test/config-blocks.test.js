@@ -66,17 +66,18 @@ test('forecastPreview draws the secondary line per metric (solid, per-metric col
   assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'uv' }), { color: true }).indexOf('stroke="#FF00FF"') > -1, 'uv = magenta');
 });
 
-test('forecastPreview draws feels-like grey on the shared temp axis (joint-band labels)', () => {
+test('forecastPreview draws feels-like grey, and the hi/lo labels stay the ACTUAL temps', () => {
   const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', thirdLine: 'off', secondaryLineFill: false };
   const svg = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'feels' }), { color: true });
   assert.ok(svg.indexOf('stroke="#AAAAAA"') > -1, 'feels = light grey line (dark theme)');
-  // The feels sample dips to 11° under the 14° temp min: with feels selected the
-  // axis rescales to the joint temp∪feels band (mirrors applyForecastSeries).
-  assert.ok(svg.indexOf('>11°<') > -1, 'axis min widens to the joint band');
+  // The feels sample dips to 11° under the 14° temp min. The SCALING band widens (and
+  // pads) to fit it, but the labels name the air temperature — the watch prints
+  // TEMP_MIN/TEMP_MAX as text, so a low the air never reached would be a lie.
+  assert.ok(svg.indexOf('>14°<') > -1, 'lo label stays the actual temperature low');
+  assert.equal(svg.indexOf('>11°<'), -1, 'the feels minimum is never labelled');
   assert.ok(svg.indexOf('>Feels<') > -1, 'legend lists the feels series');
   const plain = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'precip_prob' }), { color: true });
-  assert.ok(plain.indexOf('>14°<') > -1 && plain.indexOf('>11°<') === -1,
-    'without feels the axis keeps the temp-only band');
+  assert.ok(plain.indexOf('>14°<') > -1, 'and they are the same labels without feels');
   // Light theme darkens the grey (LightGray is illegible on white); B&W goes white.
   const light = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'feels', theme: 'light' }), { color: true });
   assert.ok(light.indexOf('stroke="#555555"') > -1, 'light theme: dark grey stroke');
@@ -84,11 +85,31 @@ test('forecastPreview draws feels-like grey on the shared temp axis (joint-band 
   assert.ok(bw.indexOf('stroke="#FFFFFF"') > -1, 'B&W: white stroke');
 });
 
-test('feels-like as the second metric draws grey squares and still widens the axis', () => {
+test('feels-like as the second metric draws grey squares, labels still the actual temps', () => {
   const svg = B.forecastPreview({ dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'precip_prob', thirdLine: 'feels', secondaryLineFill: false }, { color: true });
   assert.ok(svg.indexOf('<rect') > -1 && svg.indexOf('fill="#AAAAAA"') > -1,
     'feels renders as filled grey squares');
-  assert.ok(svg.indexOf('>11°<') > -1, 'joint band applies from the second line too');
+  assert.ok(svg.indexOf('>14°<') > -1, 'lo label unchanged by the second line too');
+  assert.equal(svg.indexOf('>11°<'), -1);
+});
+
+test('the preview keeps the feels curve clear of the plot floor (band padding)', () => {
+  // Mirrors forecast-series.padJointBandForFeels. The sample feels series dips to 11°
+  // under a 14° temp low, so the joint band [11, 24] is padded below by
+  // max(1, ceil(13 * 40/960)) = 1 -> [10, 24]. That leaves the grey curve's lowest
+  // point one band-degree above ybot instead of sitting flat on it.
+  //
+  // ybot = 89.0 in preview units, so an UNPADDED band would put the feels minimum at
+  // exactly 89.0; the padded band puts it at 83.9. The assertion is tight on purpose:
+  // a loose "is it on the plot" bound would pass either way and pin nothing.
+  const svg = B.forecastPreview({ dayNightShading: false, barSource: 'off', windScale: 'mid',
+    secondaryLine: 'feels', thirdLine: 'off', secondaryLineFill: false }, { color: true });
+  const m = /<path d="([^"]+)" fill="none" stroke="#AAAAAA"/.exec(svg);
+  assert.ok(m, 'feels curve path found');
+  const ys = m[1].match(/[\d.]+(?=[,\s]|$)/g).filter((_, i) => i % 2 === 1).map(Number);
+  const lowest = Math.max.apply(null, ys);   // SVG y grows downward
+  assert.ok(Math.abs(lowest - 83.9) < 0.5,
+    'feels bottom should sit at ~83.9 (padded); 89.0 would mean the padding was lost. Got ' + lowest);
 });
 
 // The temp curve is the only #FF0000 stroke in the color preview; its path starts at
