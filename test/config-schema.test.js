@@ -42,7 +42,7 @@ const EXPECTED_KEYS = [
   'weekStartDay','firstWeek','colorToday','colorSunday','colorSaturday','holidaysEnabled','colorUSFederal',
   'holidayCountry','holidayRegion',
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','fetchNoticeAck','locationMode','location',
-  'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','windScale','pressureScale','thirdLine','curveInset','tempSlotDisplay',
+  'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','windScale','pressureScale','thirdLine','tempSlotDisplay',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','radarNoRainText','rainCountdownHorizon',
   'layoutPreset','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear','reset',
   'statusBoldAll',
@@ -566,43 +566,6 @@ test('forecast tab nests fill and wind scale under the line that enables them', 
     'secondary-line wind-scale copies sit under the solid line');
   assert.ok(windIdxs.slice(3).every((i) => i > iThird),
     'third-line wind-scale copies sit under the dotted line');
-});
-
-test('curveInset offers the full 0..14 px ladder with default 7, between the metric scale rows and Bars', () => {
-  const it = byKey('curveInset');
-  assert.ok(it, 'curveInset item exists');
-  // A select rather than a slider: the value is a single scalar px string and
-  // the engine's range control is a dual-thumb "lo-hi" pair (see schema.js).
-  assert.equal(it.type, 'select');
-  assert.equal(it.label, 'Curve offset');
-  // Default matches the watch's BOTTOM_VIEW_PRIMARY_LINE_INSET_Y (7), so an
-  // upgrade is a no-op; values are the wire px, stored as strings.
-  assert.equal(it.defaultValue, '7');
-  const values = it.options.map((o) => o[1]);
-  assert.deepEqual(values, Array.from({ length: 15 }, (_, px) => String(px)),
-    'the ladder covers 0..14 in 1 px steps');
-  assert.match(it.hint, /temperature and feels-like/i);
-  assert.match(it.hint, /full height/i);
-  // Placement: after the Second metric's scale rows, before the Bars control.
-  const forecastKeys = forecastItems(schema).map((i) => i.messageKey);
-  const iCurve = forecastKeys.indexOf('curveInset');
-  const iThird = forecastKeys.indexOf('thirdLine');
-  const iBars = forecastKeys.indexOf('barSource');
-  assert.ok(iCurve > iThird, 'curveInset sits below the Second metric picker');
-  assert.equal(iBars, iCurve + 1, 'the Bars control immediately follows curveInset');
-  const lastPressure = forecastKeys.lastIndexOf('pressureScale');
-  assert.ok(iCurve > lastPressure, 'curveInset sits after the last metric scale row');
-});
-
-test('curveInset is hidden on aplite (frozen 7 px inset there), shown everywhere else', () => {
-  const it = byKey('curveInset');
-  assert.deepEqual(it.showWhen, { env: 'platform', ne: 'aplite' });
-  const vis = (plat) => showWhen.isVisible(it, { env: platform.computeEnv({ platform: plat }) });
-  assert.equal(vis('aplite'), false, 'aplite compiles the configurable inset out (WW_CURVE_INSET)');
-  assert.equal(vis('basalt'), true);
-  assert.equal(vis('diorite'), true, 'B&W is fine — the offset is geometry, not color');
-  // Unknown watchInfo must never hide a real feature (computeEnv convention).
-  assert.equal(showWhen.isVisible(it, { env: platform.computeEnv(null) }), true);
 });
 
 test('onboardingDone is a hidden key and a startWizard button exists', () => {

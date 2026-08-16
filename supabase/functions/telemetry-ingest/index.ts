@@ -64,7 +64,6 @@ const settingsSchema = z
     windScale: z.string().optional(),
     pressureScale: z.string().optional(),
     thirdLine: z.string().optional(),
-    curveInset: z.string().optional(),
     barSource: z.string().optional(),
     rainBarColor: z.string().optional(),
     radarProvider: z.string().optional(),

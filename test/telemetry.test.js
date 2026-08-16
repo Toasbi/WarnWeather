@@ -102,16 +102,6 @@ test('snapshot includes tempSlotDisplay as a string', () => {
   assert.strictEqual(buildSettingsSnapshot({}).tempSlotDisplay, undefined);
 });
 
-// curveInset is a forecast-graph display setting (temp/feels vertical offset);
-// per this repo's rule it must be added in BOTH the watch-side snapshot here AND
-// the Deno .strip() schema (supabase/functions/telemetry-ingest/index.ts) or
-// it's silently dropped end to end. Kept a raw string — that's how the settings
-// store it (the payload parse lives in clay-payload.js, not here).
-test('snapshot includes curveInset as a string', () => {
-  assert.strictEqual(buildSettingsSnapshot({ curveInset: '5' }).curveInset, '5');
-  assert.strictEqual(buildSettingsSnapshot({}).curveInset, undefined);
-});
-
 test('snapshot includes windUnits and distanceUnits', () => {
   assert.equal(buildSettingsSnapshot({ windUnits: 'mph' }).windUnits, 'mph');
   assert.equal(buildSettingsSnapshot({ distanceUnits: 'imperial' }).distanceUnits, 'imperial');

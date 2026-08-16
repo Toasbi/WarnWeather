@@ -101,38 +101,20 @@ function tempCurveTopY(svg) {
 }
 const CURVE_BASE = { dayNightShading: false, barSource: 'off', windScale: 'mid', thirdLine: 'off', secondaryLine: 'precip_prob', secondaryLineFill: false };
 
-test('forecastPreview: the temp curve reacts to curveInset; other metrics keep the full-height mapping', () => {
-  const at = (inset) => B.forecastPreview(Object.assign({}, CURVE_BASE, inset === undefined ? {} : { curveInset: inset }), { color: true });
-  // 0 px = the shared full-height band's top (PT+3=7); default 7 px scales to 12
-  // preview units (19); 14 px doubles it (31).
-  assert.equal(tempCurveTopY(at('0')), 7, 'inset 0: temp spans the full band like the metrics');
-  assert.equal(tempCurveTopY(at(undefined)), 19, 'absent: the default 7 px look');
-  assert.equal(tempCurveTopY(at('7')), 19, 'explicit default matches absent');
-  assert.equal(tempCurveTopY(at('14')), 31, 'max inset doubles the default margin');
-  // The main metric's mapping must not move with the offset.
-  const precipPath = (svg) => /<path d="([^"]+)" fill="none" stroke="#55AAFF"/.exec(svg)[1];
-  assert.equal(precipPath(at('0')), precipPath(at('14')), 'precip line unchanged by curveInset');
+test('forecastPreview: the temp curve keeps the fixed 7 px margin (12 preview units)', () => {
+  const svg = B.forecastPreview(Object.assign({}, CURVE_BASE), { color: true });
+  // The inset is not configurable: temp always draws with the watch's fixed
+  // 7 px inset, which the preview scales to 12 units (PT+3+12 = 19).
+  assert.equal(tempCurveTopY(svg), 19, 'the fixed 7 px look');
 });
 
-test('forecastPreview: curveInset parses defensively (garbage → default, clamped to 0..14)', () => {
-  const at = (inset) => B.forecastPreview(Object.assign({}, CURVE_BASE, { curveInset: inset }), { color: true });
-  assert.equal(tempCurveTopY(at('nonsense')), 19, 'garbage falls back to the default 7');
-  assert.equal(tempCurveTopY(at('99')), 31, 'clamps high to 14');
-  assert.equal(tempCurveTopY(at('-3')), 7, 'clamps low to 0');
-});
-
-test('forecastPreview: the feels curve follows the configured offset (shared temp axis)', () => {
-  const at = (inset) => B.forecastPreview(Object.assign({}, CURVE_BASE, { secondaryLine: 'feels', curveInset: inset }), { color: true });
-  const feelsPath = (svg) => {
-    const m = /<path d="([^"]+)" fill="none" stroke="#AAAAAA"/.exec(svg);
-    assert.ok(m, 'feels curve path found');
-    return m[1];
-  };
-  assert.notEqual(feelsPath(at('0')), feelsPath(at('14')),
-    'feels rides the temp axis, so it moves with the offset too');
-  // Both curves stay pinned to the same joint band: temp's top still tracks the inset.
-  assert.equal(tempCurveTopY(at('0')), 7);
-  assert.equal(tempCurveTopY(at('14')), 31);
+test('forecastPreview: the feels curve rides the temp axis (same fixed margin)', () => {
+  const svg = B.forecastPreview(Object.assign({}, CURVE_BASE, { secondaryLine: 'feels' }), { color: true });
+  const m = /<path d="([^"]+)" fill="none" stroke="#AAAAAA"/.exec(svg);
+  assert.ok(m, 'feels curve path found');
+  // Same band and same inset as the temp curve: temp's top stays at the fixed
+  // margin with feels selected.
+  assert.equal(tempCurveTopY(svg), 19);
 });
 
 test('forecastPreview draws the second metric as bar-aligned squares in its metric color, gated on thirdLine', () => {

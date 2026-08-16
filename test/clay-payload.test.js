@@ -255,53 +255,37 @@ test('truncateUtf8Bytes passes short strings through untouched', function() {
   assert.equal(truncateUtf8Bytes('', 24), '');
 });
 
-test('CLAY_CURVE_INSET_UINT8 defaults to [7,0,0] (the exact pre-feature look)', function() {
+test('CLAY_CURVE_INSET_UINT8 sends the fixed [7,0,0] when feels is not selected', function() {
+  // The inset is deliberately NOT a user setting — a fixed 7 px (the watch's
+  // BOTTOM_VIEW_PRIMARY_LINE_INSET_Y), with the per-series triple only marking
+  // which metric channel carries feels-like.
   const p = buildClayPayload(baseSettings(), { platform: 'emery' }, NOW);
   assert.deepEqual(p.CLAY_CURVE_INSET_UINT8, [7, 0, 0]);
 });
 
 test('CLAY_CURVE_INSET_UINT8: feels on the secondary line shares the temp inset', function() {
   const s = baseSettings();
-  s.curveInset = '5';                   // range values store as strings
   s.secondaryLine = 'feels';
   s.thirdLine = 'uv';
   const p = buildClayPayload(s, { platform: 'basalt' }, NOW);
-  assert.deepEqual(p.CLAY_CURVE_INSET_UINT8, [5, 5, 0]);
+  assert.deepEqual(p.CLAY_CURVE_INSET_UINT8, [7, 7, 0]);
 });
 
 test('CLAY_CURVE_INSET_UINT8: feels on the third line shares the temp inset', function() {
   const s = baseSettings();
-  s.curveInset = '9';
   s.secondaryLine = 'precip_prob';
   s.thirdLine = 'feels';
   const p = buildClayPayload(s, { platform: 'basalt' }, NOW);
-  assert.deepEqual(p.CLAY_CURVE_INSET_UINT8, [9, 0, 9]);
-});
-
-test('CLAY_CURVE_INSET_UINT8 parses the stored string defensively and clamps to 0..14', function() {
-  const insetOf = (raw) => {
-    const s = baseSettings();
-    if (typeof raw !== 'undefined') { s.curveInset = raw; }
-    return buildClayPayload(s, { platform: 'basalt' }, NOW).CLAY_CURVE_INSET_UINT8[0];
-  };
-  assert.equal(insetOf('0'), 0, 'zero survives (not coerced to the default)');
-  assert.equal(insetOf('12'), 12, 'plain string parses');
-  assert.equal(insetOf(3), 3, 'a numeric value parses too');
-  assert.equal(insetOf('99'), 14, 'clamps high to 14');
-  assert.equal(insetOf('-3'), 0, 'clamps low to 0');
-  assert.equal(insetOf('nonsense'), 7, 'garbage falls back to the default 7');
-  assert.equal(insetOf(''), 7, 'empty string falls back to the default 7');
-  assert.equal(insetOf(undefined), 7, 'absent falls back to the default 7');
+  assert.deepEqual(p.CLAY_CURVE_INSET_UINT8, [7, 0, 7]);
 });
 
 test('CLAY_CURVE_INSET_UINT8 is omitted for aplite (WW_CURVE_INSET compiled out) but kept for unknown platforms', function() {
   const s = baseSettings();
-  s.curveInset = '5';
   const aplite = buildClayPayload(s, { platform: 'aplite' }, NOW);
   assert.equal(Object.prototype.hasOwnProperty.call(aplite, 'CLAY_CURVE_INSET_UINT8'), false);
   // Unknown watchInfo must never drop a real feature (computeEnv convention).
   const unknown = buildClayPayload(s, null, NOW);
-  assert.deepEqual(unknown.CLAY_CURVE_INSET_UINT8, [5, 0, 0]);
+  assert.deepEqual(unknown.CLAY_CURVE_INSET_UINT8, [7, 0, 0]);
 });
 
 test('CLAY_HR_SCALE falls back to 40-180 when unset or malformed', function() {

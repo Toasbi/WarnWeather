@@ -51,21 +51,10 @@ function truncateUtf8Bytes(str, maxBytes) {
     return str.slice(0, i);
 }
 
-/**
- * Parse the curveInset setting into a px value the watch can apply directly.
- * Settings store it as a string (like the threshold sliders), so parse
- * defensively: absent/garbage falls back to 7 (the watch's pre-feature
- * BOTTOM_VIEW_PRIMARY_LINE_INSET_Y), everything clamps into 0..14.
- * @param {*} value Stored curveInset setting.
- * @returns {number} Vertical inset in px, 0..14.
- */
-function parseCurveInset(value) {
-    var n = parseInt(value, 10);
-    if (isNaN(n)) { n = 7; }
-    if (n < 0) { n = 0; }
-    if (n > 14) { n = 14; }
-    return n;
-}
+// Fixed vertical inset for the temperature axis (px) — the watch's
+// BOTTOM_VIEW_PRIMARY_LINE_INSET_Y. Deliberately NOT a user setting; the wire
+// stays a per-series triple so feels-like inherits it only where selected.
+var CURVE_INSET_PX = 7;
 
 /**
  * Build the Clay settings AppMessage payload.
@@ -191,11 +180,10 @@ function buildClayPayload(settings, watchInfo, now) {
     // its Clay bundle. An unknown platform is treated as capable (computeEnv's
     // platform is '' then), so a missing watchInfo never drops it.
     if (env.platform !== 'aplite') {
-        var curveInset = parseCurveInset(settings.curveInset);
         payload.CLAY_CURVE_INSET_UINT8 = [
-            curveInset,
-            settings.secondaryLine === 'feels' ? curveInset : 0,
-            settings.thirdLine === 'feels' ? curveInset : 0
+            CURVE_INSET_PX,
+            settings.secondaryLine === 'feels' ? CURVE_INSET_PX : 0,
+            settings.thirdLine === 'feels' ? CURVE_INSET_PX : 0
         ];
     }
 

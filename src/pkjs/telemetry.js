@@ -50,7 +50,6 @@ function buildSettingsSnapshot(settings) {
         windScale: safe.windScale,
         pressureScale: safe.pressureScale,
         thirdLine: safe.thirdLine,
-        curveInset: safe.curveInset,
         barSource: safe.barSource,
         rainBarColor: safe.rainBarColor,
         radarProvider: safe.radarProvider,

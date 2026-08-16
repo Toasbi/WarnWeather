@@ -287,20 +287,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // Configurable curve offset: the temp axis (temp + feels via tempAxis
         // below) is inset symmetrically from the shared full-height band
         // ([PT+3 .. PB], the mapping every other metric uses), mirroring the
-        // watch's per-series inset_y. Parse mirrors clay-payload.parseCurveInset
-        // (string, default 7, clamp 0..14). Scale: the preview band (93 units)
-        // is taller than the watch plot, so watch px scale by 12/7 — pinned so
-        // the DEFAULT (7 px) keeps this preview's long-standing 12-unit bottom
-        // clearance over the axis row (the top gains the same symmetric margin
-        // the watch actually draws).
-        var curveInsetPx = (function () {
-            var v = parseInt(state.curveInset, 10);
-            if (isNaN(v)) { v = 7; }
-            if (v < 0) { v = 0; }
-            if (v > 14) { v = 14; }
-            return v;
-        })();
-        var curveInsetPrev = Math.round(curveInsetPx * 120 / 7) / 10;
+        // watch's per-series inset_y (fixed 7 px — not a user setting). Scale:
+        // the preview band (93 units) is taller than the watch plot; 7 watch px
+        // = the preview's long-standing 12-unit bottom clearance over the axis
+        // row (the top gains the same symmetric margin the watch actually draws).
+        var curveInsetPrev = 12;
         var ytop = PT + 3 + curveInsetPrev, ybot = PB - curveInsetPrev;
         var yT = function (t) { return ybot - (t - tmin) / (tmax - tmin || 1) * (ybot - ytop); };
         var n0 = tickX(9), n1 = tickX(n - 1);       // night band: sunset 21:00 (slot 9) -> right edge
