@@ -97,6 +97,127 @@ test('DWD computes feels from dew_point when relative_humidity is null (live MOS
   assert.equal(p.currentFeels, feelsLikeF(24.4 * 9 / 5 + 32, 48, 16.6), 'RH keeps priority when present');
 });
 
+// --- dew point + wind bearing -------------------------------------------------
+// Brightsky returns the full field set (no selector), so both values are already
+// in the parsed JSON: dew_point (°C) was parsed for Steadman and thrown away,
+// wind_direction was never read. Neither reaches the wire — both are transients
+// consumed by the status-slot bake.
+
+/**
+ * Build a full 24-hour Brightsky forecast response so the mapped trends can be
+ * asserted against provider.numEntries (24) rather than a short stub.
+ * @param {function(number): Object} overrides per-hour extra fields
+ * @returns {Object[]} Brightsky `weather` records
+ */
+function hours24(overrides) {
+  return Array.from({ length: 24 }, (_, i) => Object.assign({
+    temperature: 10,
+    precipitation_probability: 0,
+    precipitation: 0,
+    wind_speed: 5,
+    wind_gust_speed: 8,
+    timestamp: new Date(Date.UTC(2023, 10, 14, 22) + i * 3600000).toISOString()
+  }, overrides ? overrides(i) : {}));
+}
+
+/**
+ * Drive a DwdProvider over a canned forecast + current_weather pair.
+ * @param {Object[]} hourly Brightsky forecast records
+ * @param {Object} current Brightsky current_weather record
+ * @returns {Object} the settled provider
+ */
+function runDwd(hourly, current) {
+  responder = function(url, onSuccess) {
+    if (url.indexOf('/current_weather') !== -1) {
+      onSuccess(JSON.stringify({ weather: current || { temperature: 20 } }));
+      return;
+    }
+    onSuccess(JSON.stringify({ weather: hourly }));
+  };
+  const p = new DwdProvider();
+  p.withProviderData(0, 0, false, function() {}, function(f) {
+    throw new Error('unexpected failure ' + JSON.stringify(f));
+  });
+  return p;
+}
+
+test('DWD keeps the dew point it already parses, one °F entry per hour', () => {
+  const p = runDwd(hours24((i) => ({ dew_point: 5 + i * 0.5 })));
+  assert.equal(p.dewTrend.length, p.numEntries, 'one entry per hourly slot');
+  p.dewTrend.forEach((v, i) => {
+    assert.equal(typeof v, 'number', `hour ${i} is not a number`);
+    assert.ok(v > -80 && v < 140, `${v} is not a plausible °F dew point`);
+  });
+  assert.equal(p.dewTrend[0], 41, '5 °C → 41 °F');
+  assert.equal(p.dewTrend[2], 6 * 9 / 5 + 32, '°C→°F, unrounded');
+});
+
+test('DWD sources dew point even when the feels-like gate is off', () => {
+  // dewTrend has no fetch gate: it costs no request and no per-hour arithmetic,
+  // so fetchFeels must not silently blank the dew slot.
+  responder = function(url, onSuccess) {
+    if (url.indexOf('/current_weather') !== -1) {
+      onSuccess(JSON.stringify({ weather: { temperature: 20 } }));
+      return;
+    }
+    onSuccess(JSON.stringify({ weather: hours24(() => ({ dew_point: 5 })) }));
+  };
+  const p = new DwdProvider();
+  p.fetchFeels = false;
+  p.withProviderData(0, 0, false, function() {}, function(f) {
+    throw new Error('unexpected failure ' + JSON.stringify(f));
+  });
+  assert.deepEqual(p.feelsTrend, [], 'the feels gate still holds');
+  assert.equal(p.dewTrend.length, p.numEntries, 'dew is ungated');
+  assert.equal(p.dewTrend[0], 41);
+});
+
+test('DWD degrades a missing dew point to null, not NaN', () => {
+  const p = runDwd(hours24((i) => (i === 0 ? {} : { dew_point: 5 })));
+  assert.equal(p.dewTrend.length, p.numEntries);
+  assert.equal(p.dewTrend[0], null, 'null → the dew slot renders --');
+  assert.equal(p.dewTrend[1], 41);
+});
+
+test('DWD maps wind_direction into windDirTrend, degrees 0-359 "comes from"', () => {
+  const p = runDwd(hours24((i) => ({ wind_direction: i * 15 })));
+  assert.equal(p.windDirTrend.length, p.numEntries, 'one entry per hourly slot');
+  p.windDirTrend.forEach((v, i) => {
+    assert.equal(typeof v, 'number', `hour ${i} is not a number`);
+    assert.ok(v >= 0 && v < 360, `${v} is outside [0, 360)`);
+  });
+  assert.equal(p.windDirTrend[0], 0);
+  assert.equal(p.windDirTrend[18], 270, 'a westerly is kept as 270, not flipped downwind here');
+});
+
+test('DWD normalizes an out-of-range bearing into [0, 360)', () => {
+  const p = runDwd(hours24((i) => ({ wind_direction: [360, 450, -90, 720][i % 4] })));
+  assert.deepEqual(p.windDirTrend.slice(0, 4), [0, 90, 270, 0]);
+  p.windDirTrend.forEach((v) => assert.ok(v >= 0 && v < 360, `${v} is outside [0, 360)`));
+});
+
+test('DWD degrades a missing bearing to null, not NaN', () => {
+  const p = runDwd(hours24((i) => (i === 0 ? {} : { wind_direction: 180 })));
+  assert.equal(p.windDirTrend[0], null, 'null → no arrow, the slot renders as it does today');
+  assert.equal(p.windDirTrend[1], 180);
+});
+
+test('DWD falls back to the current observation for a missing first-hour bearing', () => {
+  // current_weather reports no plain wind_direction — only 10/30/60-minute
+  // means, the same ladder currentFeelsFrom walks for the wind speed.
+  const p = runDwd(hours24((i) => (i === 0 ? {} : { wind_direction: 180 })),
+                   { temperature: 20, wind_direction_30: 200, wind_direction_60: 210 });
+  assert.equal(p.windDirTrend[0], 200, 'shortest window present wins');
+});
+
+test('DWD prefers the forecast bearing over the observation when both exist', () => {
+  // The arrow annotates windTrend[0], which is the MOSMIX forecast, so the two
+  // must come from the same record.
+  const p = runDwd(hours24(() => ({ wind_direction: 180 })),
+                   { temperature: 20, wind_direction_10: 20 });
+  assert.equal(p.windDirTrend[0], 180);
+});
+
 test('DWD leaves currentFeels null when current_weather lacks the Steadman inputs', () => {
   responder = function(url, onSuccess) {
     if (url.indexOf('/current_weather') !== -1) {

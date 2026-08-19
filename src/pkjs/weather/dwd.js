@@ -39,6 +39,61 @@ function hourFeels(e) {
 }
 
 /**
+ * Dew point in °F for one Brightsky record, or null when the record omits it.
+ * Brightsky reports dew_point in °C; °F is the repo's internal temperature unit
+ * (currentTemp/feelsTrend), so convert at this boundary. The value is already in
+ * hand — hourFeels leans on it whenever relative_humidity is null — so sourcing
+ * the dew slot costs no request and no extra parsing. Null (not NaN) on a record
+ * without it, so the slot degrades to '--' instead of rendering garbage.
+ *
+ * @param {Object} e Brightsky hourly weather record.
+ * @returns {number|null} Dew point in °F, or null when unsourced.
+ */
+function hourDewF(e) {
+    return typeof e.dew_point === 'number' ? celsiusToFahrenheit(e.dew_point) : null;
+}
+
+/**
+ * Normalize a wind bearing to degrees 0-359, the meteorological "comes from"
+ * convention Brightsky reports. Kept upwind here: the downwind flip the arrow
+ * draws happens once, later, at bake time. 360 (due north) folds to 0.
+ *
+ * @param {*} degrees Raw bearing from the API, possibly absent or out of range.
+ * @returns {number|null} Bearing in [0, 360), or null when unsourced.
+ */
+function normalizeBearing(degrees) {
+    if (typeof degrees !== 'number' || isNaN(degrees)) {
+        return null;
+    }
+    return ((degrees % 360) + 360) % 360;
+}
+
+/**
+ * Wind bearing for one Brightsky hourly record.
+ *
+ * @param {Object} e Brightsky hourly weather record.
+ * @returns {number|null} Bearing in [0, 360), or null when unsourced.
+ */
+function hourBearing(e) {
+    return normalizeBearing(e.wind_direction);
+}
+
+/**
+ * Wind bearing from the /current_weather record. Like the wind speed, the
+ * observation reports no plain `wind_direction` — only 10/30/60-minute means —
+ * so walk the same shortest-window-present ladder currentFeelsFrom uses.
+ *
+ * @param {Object} current Brightsky current_weather `weather` record.
+ * @returns {number|null} Bearing in [0, 360), or null when unsourced.
+ */
+function currentBearingFrom(current) {
+    var degrees = typeof current.wind_direction_10 === 'number' ? current.wind_direction_10
+        : (typeof current.wind_direction_30 === 'number' ? current.wind_direction_30
+            : current.wind_direction_60);
+    return normalizeBearing(degrees);
+}
+
+/**
  * Feels-like °F from the Brightsky /current_weather record, or null when the
  * inputs are missing (→ FEELS_CURRENT omitted, temp slot degrades). Unlike the
  * hourly feed, current_weather reports wind only as 10/30/60-minute means —
@@ -120,7 +175,8 @@ DwdProvider.prototype.withDwdCurrent = function(lat, lon, callback, onFailure) {
         var current;
         try {
             current = JSON.parse(response).weather;
-            callback(celsiusToFahrenheit(current.temperature), currentFeelsFrom(current));
+            callback(celsiusToFahrenheit(current.temperature), currentFeelsFrom(current),
+                     currentBearingFrom(current));
         }
         catch (ex) {
             onFailure(failure('provider_data', 'dwd_current_parse_error'));
@@ -140,13 +196,26 @@ DwdProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, on
             onFailure(failure('provider_data', 'dwd_forecast_empty'));
             return;
         }
-        this.withDwdCurrent(lat, lon, (function(currentTempF, currentFeelsF) {
+        this.withDwdCurrent(lat, lon, (function(currentTempF, currentFeelsF, currentBearing) {
             this.tempTrend = hourly.map(function(e) { return celsiusToFahrenheit(e.temperature); });
             this.precipTrend = hourly.map(function(e) { return e.precipitation_probability / 100; });
             this.rainTrend = hourly.map(function(e) { return e.precipitation; });
             this.windTrend = hourly.map(function(e) { return e.wind_speed || 0; }); // Brightsky wind_speed is km/h
             this.gustTrend = hourly.map(function(e) { return e.wind_gust_speed || 0; }); // Brightsky wind_gust_speed is km/h
             this.pressureTrend = hourly.map(function(e) { return e.pressure_msl || 0; }); // Brightsky pressure_msl is sea-level hPa; 0 → forecast-series rejects the series
+            // Dew point rides along free: Brightsky returns the full field set, so
+            // this is the same value hourFeels already reads. Ungated by fetchFeels
+            // — the dew slot is independent of the feels curve and costs no math.
+            this.dewTrend = hourly.map(hourDewF); // °F, null where unsourced
+            this.windDirTrend = hourly.map(hourBearing); // degrees 0-359, "comes from"
+            // MOSMIX can omit the bearing on the hour we are inside (it already
+            // omits relative_humidity there); the live observation carries it, so
+            // fill just that gap. The forecast wins whenever it has a value: the
+            // arrow annotates windTrend[0], which is the forecast, so the speed and
+            // the direction it points must come from the same record.
+            if (this.windDirTrend[0] === null && typeof currentBearing === 'number') {
+                this.windDirTrend[0] = currentBearing;
+            }
             // Steadman-computed (no Brightsky feels field), and the most expensive
             // feels path of any provider — an exp() per hour — so it honours the gate.
             this.feelsTrend = this.fetchFeels ? hourly.map(hourFeels) : [];

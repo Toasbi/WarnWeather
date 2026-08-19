@@ -27,6 +27,15 @@ function buildQuery(lat, lon) {
         // reports ~1013 MSL. Leaving pressureTrend empty degrades to a line-off and
         // a '--' slot, rather than showing a number that means something different
         // from the same slot on any other provider.
+        // No dew-point or wind-direction field either, and for a different reason:
+        // this is GraphQL, so a field name that does not exist fails the ENTIRE
+        // query rather than returning null for that one field — and production
+        // telemetry shows Yandex has logged a single event in its lifetime, so the
+        // change cannot be verified against live traffic. Guessing wrong costs
+        // Yandex users their weather altogether to gain a reading for effectively
+        // nobody. Both degrade exactly as pressure does: dewTrend/windDirTrend stay
+        // empty, the dew slot shows '--' and the wind slots draw no arrow. Revisit
+        // if Yandex traffic ever appears.
         + ' forecast { days(limit: 3) { hours {'
         + ' timestamp temperature(unit: FAHRENHEIT) feelsLike(unit: FAHRENHEIT) precProbability prec'
         + ' windSpeed(unit: KILOMETERS_PER_HOUR) windGust(unit: KILOMETERS_PER_HOUR) uvIndex'

@@ -7,7 +7,10 @@ var HOUR_SECONDS = 60 * 60;
 var TIMELINES_ENDPOINT = 'https://api.tomorrow.io/v4/timelines';
 // Core-layer fields only. AQI/pollen are enterprise-gated (403 on a free key)
 // and nothing in the app consumes a condition code, so no weatherCode either.
-var FIELDS = 'temperature,precipitationProbability,precipitationIntensity,windSpeed,windGust,uvIndex,pressureSeaLevel,temperatureApparent';
+// dewPoint and windDirection are free Core-tier fields and cost nothing extra:
+// the budget guard bills per CALL, not per field (settings/tomorrowio-budget.js
+// WEATHER_CALLS_PER_CYCLE), and this is still the same single Timelines GET.
+var FIELDS = 'temperature,precipitationProbability,precipitationIntensity,windSpeed,windGust,uvIndex,pressureSeaLevel,temperatureApparent,dewPoint,windDirection';
 var MPS_TO_KMH = 3.6;
 
 /**
@@ -60,6 +63,18 @@ function num(value) {
 }
 
 /**
+ * Normalize a wind bearing into [0, 360). Providers report 360 for due north
+ * often enough (and, rarely, a small negative) that the half-open range the
+ * arrow's sector arithmetic assumes has to be enforced at the boundary.
+ *
+ * @param {number} degrees Bearing in degrees, meteorological "comes from".
+ * @returns {number} The same bearing in [0, 360).
+ */
+function normalizeBearing(degrees) {
+    return ((degrees % 360) + 360) % 360;
+}
+
+/**
  * Index of the first interval at or after the current wall-clock hour.
  *
  * @param {Object[]} intervals Timelines intervals (ISO startTime each).
@@ -79,7 +94,8 @@ function anchorIndex(intervals, nowEpoch) {
 /**
  * Map a Timelines response into provider trend fields. Anchors the 24-hour
  * window at the current wall-clock hour. Conversions: °C->°F, m/s->km/h,
- * probability %->[0,1]; rain (mm/h) and UV pass through (getPayload scales).
+ * probability %->[0,1]; rain (mm/h) and UV pass through (getPayload scales);
+ * dew point °C->°F; the bearing is already degrees and only gets normalized.
  * The anchor bucket's temperature doubles as currentTemp (metno.js precedent —
  * no separate "current conditions" call, keeping the cycle at one API call).
  *
@@ -110,6 +126,14 @@ function mapResponse(json, nowEpoch) {
     var pressureTrend = [];
     var feelsTrend = [];
     var currentFeels = null;
+    // Dew point and bearing skip num()'s 0-collapse: 0 °F and 0° are both real
+    // readings, so a missing value must never be flattened into one. A missing
+    // hour becomes null and the series still runs the full length — the same
+    // convention the other five adapters use, so a future consumer that reads
+    // past index 0 (a dew forecast line, a per-hour arrow) sees one shape from
+    // every provider. A null head renders '--' / draws no arrow.
+    var dewTrend = [];
+    var windDirTrend = [];
     var i;
     var values;
     for (i = 0; i < FORECAST_HOURS; i += 1) {
@@ -125,6 +149,10 @@ function mapResponse(json, nowEpoch) {
         // so the series stays numeric (0 would be a real 0 °F feels).
         feelsTrend.push(typeof values.temperatureApparent === 'number'
             ? celsiusToFahrenheit(values.temperatureApparent) : tempTrend[i]);
+        dewTrend.push(typeof values.dewPoint === 'number'
+            ? celsiusToFahrenheit(values.dewPoint) : null);
+        windDirTrend.push(typeof values.windDirection === 'number'
+            ? normalizeBearing(values.windDirection) : null);
         if (i === 0 && typeof values.temperatureApparent === 'number') {
             // Anchor bucket doubles as "now" (currentTemp precedent); missing →
             // null so FEELS_CURRENT is omitted rather than echoing the temp.
@@ -141,6 +169,8 @@ function mapResponse(json, nowEpoch) {
         uvTrend: uvTrend,
         pressureTrend: pressureTrend,
         feelsTrend: feelsTrend,
+        dewTrend: dewTrend,             // °F, unrounded (formatValue rounds per unit)
+        windDirTrend: windDirTrend,     // degrees 0-359, "comes from"
         startTime: Math.round(Date.parse(intervals[anchor].startTime) / 1000),
         currentTemp: tempTrend[0],
         currentFeels: currentFeels
@@ -200,6 +230,11 @@ TomorrowIoProvider.prototype.withProviderData = function(lat, lon, force, onSucc
         this.windTrend = mapped.windTrend;
         this.gustTrend = mapped.gustTrend;
         this.pressureTrend = mapped.pressureTrend;
+        // Dew point and bearing ride the same single call (both Core-tier), so
+        // there is no fetch gate to honor — adopted unconditionally, empty when
+        // the response did not carry them.
+        this.dewTrend = mapped.dewTrend;
+        this.windDirTrend = mapped.windDirTrend;
         // Feels rides the same call (temperatureApparent is a core field) —
         // adopted unconditionally, no fetch gate to honor.
         // Parsed from the same response (no extra request); gated for consistency

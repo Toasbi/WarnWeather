@@ -66,6 +66,13 @@ function getFixtureWeatherPayload(fixture, settings, watchInfo) {
     // slot renders the actual temp alone (same graceful-degrade as a live provider gap).
     provider.feelsTrend = Array.isArray(weather.feelsTemps) ? weather.feelsTemps.slice(0) : [];
     provider.currentFeels = (typeof weather.currentFeels === 'number') ? weather.currentFeels : null;
+    // Dew point (°F, same internal unit as temps) and the wind bearing (degrees the
+    // wind comes FROM) are status-slot values, not forecast lines: accept an hourly
+    // array each, or leave the provider defaults ([]) so the dew slot renders '--'
+    // and the wind/gust slots draw no arrow (the same graceful-degrade a provider
+    // that does not source them gets).
+    provider.dewTrend = Array.isArray(weather.dewPoint) ? weather.dewPoint.slice(0) : [];
+    provider.windDirTrend = Array.isArray(weather.windDirection) ? weather.windDirection.slice(0) : [];
     // AQI is a status-slot value, not a forecast line: accept a scalar current
     // index (weather.aqi) — wrapped as a one-element trend, like the WAQI source —
     // or an explicit array. Absent -> [] and the slot renders '--'.

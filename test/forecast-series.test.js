@@ -826,3 +826,49 @@ test('FEELS_CURRENT/FEELS_TREND survive until buildStatusLines has run, then are
   assert.equal('FEELS_TREND' in payload, false);
   assert.equal('FEELS_CURRENT' in payload, false);
 });
+
+// ---- Dew point + wind bearing transients ---------------------------------
+// DEW_TREND (°F) and WIND_DIR_TREND (degrees, "comes from") are PKJS-only, like
+// PRESSURE_TREND/FEELS_TREND: buildStatusLines bakes them into slot text (the dew
+// slot's number, the wind/gust arrow sentinel) and applyForecastSeries strips them,
+// so neither ever costs a wire byte. Both halves are pinned here because they fail
+// differently: a missed delete silently inflates the bundle past the 536 B inbox,
+// while a delete that ran too early would bake an empty slot with no error anywhere.
+test('DEW_TREND/WIND_DIR_TREND survive until buildStatusLines has run, then are deleted', () => {
+  const statusLines = require('../src/pkjs/status-lines.js');
+  const orig = statusLines.buildStatusLines;
+  let present;
+  statusLines.buildStatusLines = function(payload) {
+    present = ('DEW_TREND' in payload) && ('WIND_DIR_TREND' in payload);
+    return orig.apply(this, arguments);
+  };
+  const payload = {
+    TEMP_TREND_UINT8: [1, 2, 3], NUM_ENTRIES: 3,
+    DEW_TREND: [53.6, 54, 55], WIND_DIR_TREND: [270, 0, 359],
+    PRECIP_TREND_UINT8: [0], RAIN_TREND_UINT8: [0],
+    WIND_TREND_UINT8: [17], GUST_TREND_UINT8: [48], UV_TREND_UINT8: [64],
+    CURRENT_TEMP: 68, CITY: 'X', SUN_EVENTS: [1]
+  };
+  try {
+    applyForecastSeries(payload,
+      { secondaryLine: 'off', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' });
+  } finally {
+    statusLines.buildStatusLines = orig;
+  }
+  assert.equal(present, true, 'transients must still be on the payload when the status bake runs');
+  assert.equal('DEW_TREND' in payload, false, 'DEW_TREND must never reach the wire');
+  assert.equal('WIND_DIR_TREND' in payload, false, 'WIND_DIR_TREND must never reach the wire');
+});
+
+// Belt and braces on the delete above: even if one survived, the outbox only
+// bundles keys its categories name, so an unlisted key is dropped silently rather
+// than caught. Asserting both layers means neither can quietly become the wire.
+test('the outbox projection has no category for either transient', () => {
+  const outbox = require('../src/pkjs/outbox.js');
+  const wired = outbox.WEATHER_CATEGORIES.reduce(function(acc, category) {
+    return acc.concat(category.keys);
+  }, []);
+  ['DEW_TREND', 'WIND_DIR_TREND'].forEach(function(key) {
+    assert.equal(wired.includes(key), false, key + ' is transient — it must not be an outbox key');
+  });
+});

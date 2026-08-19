@@ -450,6 +450,8 @@ function applyForecastSeries(payload, settings, watchInfo) {
     delete payload.POLLEN_TODAY;      // transient PKJS-only; baked into status text, never wired
     delete payload.FEELS_TREND;       // transient PKJS-only; consumed by the joint band + feels line above, never wired
     delete payload.FEELS_CURRENT;     // baked into the status lines by buildStatusLines above (same ordering contract as CURRENT_TEMP)
+    delete payload.DEW_TREND;         // transient PKJS-only; baked into the dew slot's text, never wired
+    delete payload.WIND_DIR_TREND;    // transient PKJS-only; baked into the wind/gust arrow sentinel, never wired
     // Values only — the line colours and the fill flag ride the Clay settings
     // message now (CLAY_LINE_STYLE_UINT8), so the weather send carries no styling.
     payload.SECONDARY_LINE_TREND_UINT8 = series.SECONDARY_LINE_TREND_UINT8;

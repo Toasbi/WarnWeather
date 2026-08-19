@@ -123,7 +123,7 @@ function liveSampleResponse() {
     intervals.push({
       startTime: new Date((hourFloorSec + i * 3600) * 1000).toISOString(),
       values: { temperature: 20, precipitationProbability: 10, precipitationIntensity: 0,
-        windSpeed: 2, windGust: 4, uvIndex: 1 }
+        windSpeed: 2, windGust: 4, uvIndex: 1, dewPoint: 12, windDirection: 250 }
     });
   }
   return { data: { timelines: [{ timestep: '1h', intervals }] } };
@@ -212,4 +212,105 @@ test('tomorrow.io feels: missing hour falls back to the mapped temp; missing anc
   assert.equal(out.feelsTrend[0], out.tempTrend[0], 'missing hour backfills from temp');
   assert.equal(out.feelsTrend[1], 9 * 9 / 5 + 32);
   assert.equal(out.currentFeels, null, 'null → FEELS_CURRENT omitted, temp slot degrades');
+});
+
+/**
+ * Decorate the 30-interval fixture with dew point (°C) and wind bearing (degrees).
+ * @param {Object} json A sampleResponse() result, mutated in place.
+ * @param {Function} dew i => dew point in °C, or undefined to omit the field.
+ * @param {Function} dir i => bearing in degrees, or undefined to omit the field.
+ * @returns {Object} The same response object.
+ */
+function withDewAndDirection(json, dew, dir) {
+  json.data.timelines[0].intervals.forEach((iv, i) => {
+    const d = dew(i);
+    const b = dir(i);
+    if (d !== undefined) { iv.values.dewPoint = d; }
+    if (b !== undefined) { iv.values.windDirection = b; }
+  });
+  return json;
+}
+
+test('tomorrow.io requests dewPoint and windDirection (both free Core-tier fields)', () => {
+  const url = tomorrowio.buildUrl(52.52, 13.41, 'KEY123', BASE + 1234);
+  assert.ok(url.includes('dewPoint'), 'fields must request dewPoint');
+  assert.ok(url.includes('windDirection'), 'fields must request windDirection');
+  // Still one call, one timestep: the budget guard bills per call, not per field.
+  assert.match(url, /timesteps=1h/);
+});
+
+test('tomorrow.io maps dewPoint °C→°F into dewTrend, one entry per hour', () => {
+  const out = tomorrowio.mapResponse(
+    withDewAndDirection(sampleResponse(), (i) => i - 5, (i) => (i * 37) % 360),
+    BASE + 3 * 3600 + 600);                              // anchor at bucket 3
+  assert.equal(out.dewTrend.length, 24);
+  assert.equal(out.dewTrend[0], -2 * 9 / 5 + 32);        // -2 °C -> 28.4 °F
+  assert.equal(out.dewTrend[23], 21 * 9 / 5 + 32);       // 21 °C -> 69.8 °F
+  out.dewTrend.forEach((v) => {
+    assert.equal(typeof v, 'number');
+    assert.ok(v > -100 && v < 150, `${v} is not a plausible °F dew point`);
+  });
+});
+
+test('tomorrow.io maps windDirection into windDirTrend, every bearing in [0, 360)', () => {
+  const out = tomorrowio.mapResponse(
+    withDewAndDirection(sampleResponse(), (i) => i - 5, (i) => (i * 37) % 360),
+    BASE + 3 * 3600 + 600);
+  assert.equal(out.windDirTrend.length, 24);
+  assert.equal(out.windDirTrend[0], 111);                // bucket 3: 3 * 37
+  out.windDirTrend.forEach((v) => {
+    assert.equal(typeof v, 'number');
+    assert.ok(v >= 0 && v < 360, `${v} is outside [0, 360)`);
+  });
+});
+
+test('tomorrow.io normalizes an out-of-range bearing into [0, 360)', () => {
+  const out = tomorrowio.mapResponse(
+    withDewAndDirection(sampleResponse(), (i) => 5, (i) => [360, 405, -10, 720][i % 4]),
+    BASE);                                               // anchor at bucket 0
+  assert.deepEqual(out.windDirTrend.slice(0, 4), [0, 45, 350, 0]);
+  out.windDirTrend.forEach((v) => assert.ok(v >= 0 && v < 360));
+});
+
+test('tomorrow.io nulls both trends when the fields are absent (degrade, not 0 °F / due north)', () => {
+  const out = tomorrowio.mapResponse(sampleResponse(), BASE + 3 * 3600 + 600);
+  assert.ok(out.dewTrend.every((v) => v === null), 'unsourced dew must render -- , not -18 °C');
+  assert.ok(out.windDirTrend.every((v) => v === null),
+    'unsourced bearing must draw no arrow, not a north one');
+});
+
+test('tomorrow.io nulls a mid-series hole rather than reporting 0 °F / due north', () => {
+  const out = tomorrowio.mapResponse(
+    withDewAndDirection(sampleResponse(),
+      (i) => (i === 5 ? undefined : i - 5),
+      (i) => (i === 5 ? undefined : (i * 37) % 360)),
+    BASE + 3 * 3600 + 600);                              // hole lands on entry 2
+  // Full-length series with a null hole, matching the other five adapters: a
+  // consumer reading past index 0 sees one shape from every provider.
+  assert.equal(out.dewTrend[2], null, 'a missing dew hour is null, never 0 °F');
+  assert.equal(out.windDirTrend[2], null, 'a missing bearing is null, never due north');
+  assert.ok(typeof out.dewTrend[1] === 'number', 'neighbouring hours still carry values');
+  assert.equal(out.dewTrend.length, 24);
+  assert.equal(out.windDirTrend.length, 24);
+});
+
+test('withProviderData populates dewTrend and windDirTrend, numEntries long', () => {
+  const prevXhr = global.XMLHttpRequest;
+  global.XMLHttpRequest = MockXhr;
+  try {
+    const p = new TomorrowIoProvider('KEY123');
+    p.withProviderData(52.52, 13.41, false, () => {}, (f) => { throw new Error(f.code); });
+    const xhr = MockXhr.last;
+    xhr.status = 200;
+    xhr.responseText = JSON.stringify(liveSampleResponse());
+    xhr.onload();
+
+    assert.equal(p.dewTrend.length, p.numEntries);
+    assert.equal(p.dewTrend[0], 12 * 9 / 5 + 32);        // 12 °C -> 53.6 °F
+    assert.equal(p.windDirTrend.length, p.numEntries);
+    p.windDirTrend.forEach((v) => assert.ok(v >= 0 && v < 360, `${v} is outside [0, 360)`));
+    assert.equal(p.windDirTrend[0], 250);
+  } finally {
+    global.XMLHttpRequest = prevXhr;
+  }
 });

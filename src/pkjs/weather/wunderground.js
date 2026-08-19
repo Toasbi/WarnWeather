@@ -4,6 +4,20 @@ var wuCache = require('./wu-current-hour-cache.js');
 var request = WeatherProvider.request;
 var failure = WeatherProvider.failure;
 
+/**
+ * Normalize a WU `wdir` reading to a bearing in [0, 360). WU reports the
+ * meteorological "comes from" direction and uses 360 for due north on some
+ * station feeds; the downwind flip happens later, at bake time.
+ * @param {*} wdir Raw `wdir` value from a v1 hourly bucket (null on calm hours).
+ * @returns {number|null} Bearing 0-359, or null when the feed omits it.
+ */
+function normalizeBearing(wdir) {
+    if (typeof wdir !== 'number' || !isFinite(wdir)) {
+        return null;
+    }
+    return ((wdir % 360) + 360) % 360;
+}
+
 var WundergroundProvider = function() {
     this._super.call(this);
     this.name = 'Weather Underground';
@@ -169,6 +183,18 @@ WundergroundProvider.prototype.withProviderData = function(lat, lon, force, onSu
                     // forecast-series rejects, so the line stays off rather than
                     // drawing a spike to the graph floor.
                     return typeof entry.mslp === 'number' ? entry.mslp : 0;
+                });
+                this.dewTrend = forecast.map(function(entry) {
+                    // v1 hourly dewpt, already °F (the forecast call carries no
+                    // units param, so it defaults to units=e, same as temp).
+                    // Absent on a station feed → null, not 0: 0 °F is a real
+                    // reading, and the dew slot degrades to '--' on null.
+                    return typeof entry.dewpt === 'number' ? entry.dewpt : null;
+                });
+                this.windDirTrend = forecast.map(function(entry) {
+                    // v1 hourly wdir, degrees the wind comes FROM. null on calm
+                    // hours → no arrow for that hour, rather than a bogus north.
+                    return normalizeBearing(entry.wdir);
                 });
                 // API-sourced (no extra request); gated for consistency so "no
                 // feels selection" means no feels data anywhere.

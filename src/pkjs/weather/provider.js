@@ -209,6 +209,18 @@ var WeatherProvider = function() {
     // formatValue, never wired.
     this.feelsTrend = [];
     this.currentFeels = null;
+    // Dew point in °F — the same internal temperature unit as currentTemp and
+    // feelsTrend, so each adapter converts at its own boundary. One entry per
+    // hourly slot. Empty → degrade: the dew slot renders '--', as it does on
+    // Yandex, which does not source it. Transient: consumed by formatValue,
+    // never wired.
+    this.dewTrend = [];
+    // Wind bearing in degrees 0-359, the meteorological "comes from" convention
+    // every provider reports; the downwind flip the arrow draws happens once, at
+    // bake time, in status-lines.js. One entry per hourly slot. Empty → degrade:
+    // the wind and gust slots simply draw no arrow. Transient: consumed by
+    // formatValue/packLine, never wired.
+    this.windDirTrend = [];
     // Whether to do the apparent-temperature work at all (index.js sets it from
     // forecastSeries.needsFeels before each fetch). Unlike fetchUv/fetchAqi/
     // fetchPollen this defaults to TRUE, because it gates no request — only
@@ -893,6 +905,16 @@ WeatherProvider.prototype.getPayload = function() {
     }
     if (typeof this.currentFeels === 'number') {
         payload.FEELS_CURRENT = Math.round(this.currentFeels); // °F, rounded like CURRENT_TEMP
+    }
+    // Dew point and wind bearing follow the same conditional-emit rule as the
+    // feels-like keys: absent rather than empty, so a provider that does not
+    // source them leaves no key to strip. Transient PKJS-only — buildStatusLines
+    // bakes both into slot text and forecast-series deletes them before send.
+    if (this.dewTrend && this.dewTrend.length) {
+        payload.DEW_TREND = this.dewTrend.slice(0, numEntries); // °F, unrounded: formatTemp rounds per unit
+    }
+    if (this.windDirTrend && this.windDirTrend.length) {
+        payload.WIND_DIR_TREND = this.windDirTrend.slice(0, numEntries); // degrees 0-359, "comes from"
     }
     return payload;
 };

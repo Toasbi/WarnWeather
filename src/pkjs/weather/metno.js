@@ -29,6 +29,20 @@ function msToKmh(metersPerSecond) {
 }
 
 /**
+ * Normalize a wind bearing into [0, 360). Met.no reports the meteorological
+ * "comes from" direction; 360 (due north) is folded onto 0 so the sector
+ * arithmetic downstream never sees a 16th-and-a-bit compass point. The single
+ * modulo keeps an in-range value bit-identical (no float drift).
+ *
+ * @param {number} degrees Bearing in degrees, as reported.
+ * @returns {number} Equivalent bearing in [0, 360).
+ */
+function normalizeBearing(degrees) {
+    var wrapped = degrees % 360;
+    return wrapped < 0 ? wrapped + 360 : wrapped;
+}
+
+/**
  * Build the Met.no locationforecast request URL. Coordinates are limited to
  * 4 decimals (api.met.no rejects more with 403).
  *
@@ -48,17 +62,20 @@ function buildForecastUrl(lat, lon) {
  * Anchors the 24-hour window at the current wall-clock hour (the series
  * starts at the last full hour, so the anchor scan only guards against a
  * stale response) and converts to the provider unit convention: °F, km/h,
- * mm/h, probability as a 0..1 fraction. probability_of_precipitation and
- * wind_speed_of_gust exist in the Nordics only — missing values read 0, they
- * are not a failure (the "(Nordics only)" label documents the scope).
+ * mm/h, probability as a 0..1 fraction, wind bearing in "comes from" degrees.
+ * probability_of_precipitation and wind_speed_of_gust exist in the Nordics only
+ * — missing values read 0, they are not a failure (the "(Nordics only)" label
+ * documents the scope).
  *
  * @param {Object} json Parsed locationforecast/2.0/complete response.
  * @param {number} nowEpoch Current time in epoch seconds.
  * @returns {{tempTrend: number[], precipTrend: number[], rainTrend: number[],
  *   windTrend: number[], gustTrend: number[], uvTrend: number[],
- *   startTime: number, currentTemp: number}|null} Mapped fields, or null when
- *   the response is malformed or has fewer than FORECAST_HOURS hourly buckets
- *   at/after the current hour.
+ *   pressureTrend: number[], feelsTrend: number[], dewTrend: Array.<?number>,
+ *   windDirTrend: Array.<?number>, startTime: number, currentTemp: number,
+ *   currentFeels: ?number}|null} Mapped fields, or null when the response is
+ *   malformed or has fewer than FORECAST_HOURS hourly buckets at/after the
+ *   current hour.
  */
 function mapResponse(json, nowEpoch) {
     var timeseries = json && json.properties && json.properties.timeseries;
@@ -88,6 +105,8 @@ function mapResponse(json, nowEpoch) {
     var uvTrend = [];
     var pressureTrend = [];
     var feelsTrend = [];
+    var dewTrend = [];
+    var windDirTrend = [];
     var currentFeels = null;
     var entry;
     var instant;
@@ -120,6 +139,16 @@ function mapResponse(json, nowEpoch) {
             ? instant.ultraviolet_index_clear_sky : 0);
         pressureTrend.push(typeof instant.air_pressure_at_sea_level === 'number'
             ? instant.air_pressure_at_sea_level : 0);
+        // Dew point and bearing degrade to null, not 0, and keep their slot so the
+        // series stays hour-aligned: 0 is a valid bearing (due north) and 0 °F a
+        // plausible dew point, so a fabricated zero would render as a lie. A null
+        // head reads as '--' in the dew slot / no arrow on the wind slot.
+        dewTrend.push(typeof instant.dew_point_temperature === 'number'
+            ? celsiusToFahrenheit(instant.dew_point_temperature) : null);
+        // Meteorological "comes from" degrees, as reported; the downwind flip the
+        // arrow draws happens once, later, at bake time.
+        windDirTrend.push(typeof instant.wind_from_direction === 'number'
+            ? normalizeBearing(instant.wind_from_direction) : null);
         // next_1_hours holds the mm falling in this 1-h bucket — i.e. mm/h.
         rainTrend.push((next1 && typeof next1.precipitation_amount === 'number')
             ? next1.precipitation_amount : 0);
@@ -136,6 +165,8 @@ function mapResponse(json, nowEpoch) {
         uvTrend: uvTrend,
         pressureTrend: pressureTrend,
         feelsTrend: feelsTrend,
+        dewTrend: dewTrend,
+        windDirTrend: windDirTrend,
         startTime: Math.round(Date.parse(timeseries[anchor].time) / 1000),
         currentTemp: celsiusToFahrenheit(timeseries[anchor].data.instant.details.air_temperature),
         currentFeels: currentFeels
@@ -174,6 +205,10 @@ MetnoProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, 
         this.windTrend = mapped.windTrend;
         this.gustTrend = mapped.gustTrend;
         this.pressureTrend = mapped.pressureTrend;
+        // Both come free with the /complete response already in hand — no extra
+        // request and no per-hour arithmetic worth gating, so neither is opt-in.
+        this.dewTrend = mapped.dewTrend;
+        this.windDirTrend = mapped.windDirTrend;
         // Computed from the same response (no extra request), but Steadman costs
         // an exp() per hour — skip it when nothing renders a feels value.
         this.feelsTrend = this.fetchFeels ? mapped.feelsTrend : [];

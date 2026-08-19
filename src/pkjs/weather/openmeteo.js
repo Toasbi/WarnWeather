@@ -122,24 +122,26 @@ function buildForecastUrl(lat, lon) {
 }
 
 /**
- * Build a minimal Open-Meteo request for 10m wind gusts plus apparent
- * temperature (feels-like). The main forecast pins models=ecmwf_ifs025 for the
- * rain bars, but ECMWF IFS doesn't output derived fields (windgusts_10m and
- * apparent_temperature come back all-null), so both ride this always-fetched
- * best_match call instead — feels costs no extra request. temperature_unit is
- * per-request, so the °F ask must repeat here. Mirrors the main request's
- * unixtime/GMT/km-h conventions and forecast_days so the hourly buckets line
- * up with the main window by timestamp.
+ * Build a minimal Open-Meteo request for the derived hourly fields: 10m wind
+ * gusts, apparent temperature (feels-like), dew point and 10m wind bearing. The
+ * main forecast pins models=ecmwf_ifs025 for the rain bars, but ECMWF IFS
+ * doesn't output derived fields (they come back all-null), so all four ride this
+ * always-fetched best_match call instead — dew point and the bearing cost no
+ * extra request, which is why neither needs a fetch gate. temperature_unit is
+ * per-request, so the °F ask must repeat here (it governs dew point too, so the
+ * dew mapper converts nothing). Mirrors the main request's unixtime/GMT/km-h
+ * conventions and forecast_days so the hourly buckets line up with the main
+ * window by timestamp.
  *
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
- * @returns {string} Fully-formed gust/feels request URL.
+ * @returns {string} Fully-formed aux (gust/feels/dew/bearing) request URL.
  */
 function buildGustUrl(lat, lon) {
     return OPEN_METEO_BASE
         + '?latitude=' + lat
         + '&longitude=' + lon
-        + '&hourly=windgusts_10m,apparent_temperature'
+        + '&hourly=windgusts_10m,apparent_temperature,dew_point_2m,wind_direction_10m'
         + '&current=apparent_temperature'
         + '&temperature_unit=fahrenheit'
         + '&windspeed_unit=kmh'
@@ -149,29 +151,30 @@ function buildGustUrl(lat, lon) {
 }
 
 /**
- * Extract a FORECAST_HOURS gust window aligned to a forecast start time. Indexes
- * the response's hourly gusts by timestamp and reads forward from startTime hour
- * by hour, so a gust feed whose array offset differs from the main (ecmwf)
- * forecast still lines up. Missing or non-numeric buckets become null, which
- * getPayload coerces to 0 — i.e. rendered as no gust for that hour.
+ * Extract a FORECAST_HOURS window of one hourly series, aligned to a forecast
+ * start time. Indexes the series by timestamp and reads forward from startTime
+ * hour by hour, so an auxiliary feed whose array offset differs from the main
+ * (ecmwf) forecast still lines up. Missing or non-numeric buckets become null;
+ * each caller documents what its own null means.
  *
- * @param {Object} json Parsed Open-Meteo /v1/forecast response carrying windgusts_10m.
+ * @param {Object} json Parsed Open-Meteo /v1/forecast response.
+ * @param {string} field Name of the hourly series to read (e.g. 'dew_point_2m').
  * @param {number} startTime Window start in epoch seconds (the main forecast's startTime).
- * @returns {Array.<(number|null)>|null} FORECAST_HOURS gust values in km/h (null where
- *   absent), or null when the response is malformed.
+ * @returns {Array.<(number|null)>|null} FORECAST_HOURS values, or null when the
+ *   response carries no usable hourly.time / hourly[field] arrays.
  */
-function mapGusts(json, startTime) {
+function alignHourly(json, field, startTime) {
     var hourly = json && json.hourly;
     var times = hourly && hourly.time;
-    var gusts = hourly && hourly.windgusts_10m;
-    if (!hourly || !Array.isArray(times) || !Array.isArray(gusts)) {
+    var series = hourly && hourly[field];
+    if (!hourly || !Array.isArray(times) || !Array.isArray(series)) {
         return null;
     }
 
     var byTime = {};
     var i;
     for (i = 0; i < times.length; i += 1) {
-        byTime[times[i]] = gusts[i];
+        byTime[times[i]] = series[i];
     }
 
     var out = [];
@@ -185,32 +188,84 @@ function mapGusts(json, startTime) {
 }
 
 /**
+ * Extract a FORECAST_HOURS gust window aligned to a forecast start time.
+ * Missing or non-numeric buckets become null, which getPayload coerces to 0 —
+ * i.e. rendered as no gust for that hour.
+ *
+ * @param {Object} json Parsed Open-Meteo /v1/forecast response carrying windgusts_10m.
+ * @param {number} startTime Window start in epoch seconds (the main forecast's startTime).
+ * @returns {Array.<(number|null)>|null} FORECAST_HOURS gust values in km/h (null where
+ *   absent), or null when the response is malformed.
+ */
+function mapGusts(json, startTime) {
+    return alignHourly(json, 'windgusts_10m', startTime);
+}
+
+/**
  * Extract a FORECAST_HOURS apparent-temperature window aligned to a forecast
- * start time, indexing the response's hourly apparent_temperature by timestamp
- * (mapGusts convention). Missing/non-numeric buckets become null.
+ * start time. Missing/non-numeric buckets become null (adoptFeels backfills
+ * those from the actual temperature).
  *
  * @param {Object} json Parsed Open-Meteo response carrying hourly.apparent_temperature.
  * @param {number} startTime Window start in epoch seconds.
  * @returns {Array.<(number|null)>|null} Feels values in °F, or null when malformed.
  */
 function mapFeels(json, startTime) {
-    var hourly = json && json.hourly;
-    var times = hourly && hourly.time;
-    var feels = hourly && hourly.apparent_temperature;
-    if (!hourly || !Array.isArray(times) || !Array.isArray(feels)) {
-        return null;
-    }
-    var byTime = {};
-    var i;
-    for (i = 0; i < times.length; i += 1) { byTime[times[i]] = feels[i]; }
-    var out = [];
-    var h;
-    var value;
-    for (h = 0; h < FORECAST_HOURS; h += 1) {
-        value = byTime[startTime + h * HOUR_SECONDS];
-        out.push(typeof value === 'number' ? value : null);
-    }
-    return out;
+    return alignHourly(json, 'apparent_temperature', startTime);
+}
+
+/**
+ * Extract a FORECAST_HOURS dew-point window aligned to a forecast start time.
+ * No conversion: the aux request asks for temperature_unit=fahrenheit, and °F is
+ * the repo's internal temperature unit. Missing/non-numeric buckets stay null —
+ * a null head renders the dew slot as '--' rather than lying with a 0.
+ *
+ * @param {Object} json Parsed Open-Meteo response carrying hourly.dew_point_2m.
+ * @param {number} startTime Window start in epoch seconds.
+ * @returns {Array.<(number|null)>|null} Dew points in °F, or null when malformed.
+ */
+function mapDew(json, startTime) {
+    return alignHourly(json, 'dew_point_2m', startTime);
+}
+
+/**
+ * Extract a FORECAST_HOURS wind-bearing window aligned to a forecast start time,
+ * normalized into [0, 360). Open-Meteo reports the meteorological "comes from"
+ * convention, which is exactly what windDirTrend carries — the downwind flip the
+ * arrow draws happens once, later, at bake time. Normalizing here keeps a feed
+ * that reports 360 for north out of the sector arithmetic's 17th sector.
+ *
+ * @param {Object} json Parsed Open-Meteo response carrying hourly.wind_direction_10m.
+ * @param {number} startTime Window start in epoch seconds.
+ * @returns {Array.<(number|null)>|null} Bearings in degrees 0-359 (null where
+ *   absent), or null when malformed.
+ */
+function mapWindDirection(json, startTime) {
+    var raw = alignHourly(json, 'wind_direction_10m', startTime);
+    if (!raw) { return null; }
+    return raw.map(function(value) {
+        return value === null ? null : ((value % 360) + 360) % 360;
+    });
+}
+
+/**
+ * Adopt dew point and wind bearing from the parsed aux (gust/feels) response.
+ * Both ride that always-fetched call, so neither costs a request and neither
+ * has a fetch gate — the work is one timestamp remap each. A malformed or absent
+ * series leaves the provider's empty defaults, so the dew slot degrades to '--'
+ * and the wind/gust slots simply draw no arrow. The two series are adopted
+ * independently: a feed carrying only one must not block the other.
+ *
+ * @param {Object} provider Active provider (reads .startTime, writes .dewTrend/.windDirTrend).
+ * @param {Object|null} json Parsed aux response, or null on parse failure.
+ * @returns {void}
+ */
+function adoptDewAndDirection(provider, json) {
+    if (!json) { return; }
+    var dew = mapDew(json, provider.startTime);
+    if (dew) { provider.dewTrend = dew; }
+    var bearings = mapWindDirection(json, provider.startTime);
+    if (bearings) { provider.windDirTrend = bearings; }
 }
 
 /**
@@ -272,23 +327,7 @@ function buildUvUrl(lat, lon) {
  * @returns {Array.<(number|null)>|null} UV values, or null when malformed.
  */
 function mapUv(json, startTime) {
-    var hourly = json && json.hourly;
-    var times = hourly && hourly.time;
-    var uv = hourly && hourly.uv_index;
-    if (!hourly || !Array.isArray(times) || !Array.isArray(uv)) {
-        return null;
-    }
-    var byTime = {};
-    var i;
-    for (i = 0; i < times.length; i += 1) { byTime[times[i]] = uv[i]; }
-    var out = [];
-    var h;
-    var value;
-    for (h = 0; h < FORECAST_HOURS; h += 1) {
-        value = byTime[startTime + h * HOUR_SECONDS];
-        out.push(typeof value === 'number' ? value : null);
-    }
-    return out;
+    return alignHourly(json, 'uv_index', startTime);
 }
 
 /**
@@ -347,11 +386,17 @@ OpenMeteoProvider.prototype.withProviderData = function(lat, lon, force, onSucce
         // previous window's values against the new startTime.
         this.feelsTrend = [];
         this.currentFeels = null;
-        // ECMWF IFS (pinned for the rain bars) doesn't output 10m gusts or
-        // apparent temperature, so fetch both from best_match and align by
-        // timestamp. Non-fatal: a failed or empty call just leaves the
-        // defaults, so the gust/feels lines stay hidden rather than failing
-        // the whole forecast.
+        // Dew point and the wind bearing ride the same aux call, so they need
+        // the same per-cycle reset: on a reused provider instance a stale window
+        // would otherwise sit against the new startTime.
+        this.dewTrend = [];
+        this.windDirTrend = [];
+        // ECMWF IFS (pinned for the rain bars) doesn't output 10m gusts,
+        // apparent temperature, dew point or the wind bearing, so fetch them all
+        // from best_match and align by timestamp. Non-fatal: a failed or empty
+        // call just leaves the defaults, so the gust/feels lines stay hidden,
+        // the dew slot shows '--' and the wind arrow is omitted rather than
+        // failing the whole forecast.
         var gustUrl = buildGustUrl(lat, lon);
         request(gustUrl, 'GET', (function(gustResponse) {
             var aux = null;
@@ -367,6 +412,7 @@ OpenMeteoProvider.prototype.withProviderData = function(lat, lon, force, onSucce
                 this.gustTrend = gusts;
             }
             adoptFeels(this, aux);
+            adoptDewAndDirection(this, aux);
             fetchUvInto(this, lat, lon, onSuccess);
         }).bind(this), (function(gustError) {
             console.log('[!] Open-Meteo gust request failed: ' + JSON.stringify(gustError));
@@ -385,6 +431,9 @@ module.exports = {
     mapGusts: mapGusts,
     mapFeels: mapFeels,
     adoptFeels: adoptFeels,
+    mapDew: mapDew,
+    mapWindDirection: mapWindDirection,
+    adoptDewAndDirection: adoptDewAndDirection,
     buildUvUrl: buildUvUrl,
     mapUv: mapUv,
     fetchUvInto: fetchUvInto,

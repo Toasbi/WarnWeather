@@ -186,3 +186,54 @@ test('fixture without pressureHpa still produces a valid (empty/off) pressure li
     makeFixture({}), { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid', barSource: 'off' });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, []);
 });
+
+// Dew point and the wind bearing are transient: applyForecastSeries strips both
+// before the payload is returned, so the fixture path's mapping is unobservable
+// from the finished payload. Capture it at the hand-off instead — the point of the
+// mapping is that a fixture can drive the dew slot and the wind arrow at all, and a
+// missing line here would leave both permanently blank on the FIXTURE=<name> flow
+// (exactly the gap pressureHpa had above), with no test able to see it.
+/**
+ * Run a fixture through getFixtureWeatherPayload and capture the raw provider
+ * payload as it enters applyForecastSeries, before the transients are deleted.
+ * @param {Object} fixture Fixture object, as makeFixture builds one.
+ * @returns {Object} The pre-transform weather payload.
+ */
+function capturePreTransform(fixture) {
+  const forecastSeries = require('../src/pkjs/forecast-series.js');
+  const orig = forecastSeries.applyForecastSeries;
+  let raw;
+  forecastSeries.applyForecastSeries = function(payload) {
+    raw = Object.assign({}, payload);
+    return orig.apply(this, arguments);
+  };
+  try {
+    getFixtureWeatherPayload(fixture, { secondaryLine: 'off', thirdLine: 'off', barSource: 'off' });
+  } finally {
+    forecastSeries.applyForecastSeries = orig;
+  }
+  return raw;
+}
+
+test('fixture dewPoint and windDirection reach the provider trends', () => {
+  const raw = capturePreTransform(makeFixture({
+    dewPoint: [53.6, 54, 55],       // °F, the repo's internal temperature unit
+    windDirection: [270, 0, 359]    // degrees the wind comes FROM
+  }));
+  assert.deepEqual(raw.DEW_TREND, [53.6, 54, 55]);
+  assert.deepEqual(raw.WIND_DIR_TREND, [270, 0, 359]);
+});
+
+test('a fixture without them degrades: no dew or bearing keys at all', () => {
+  const raw = capturePreTransform(makeFixture({}));
+  assert.equal('DEW_TREND' in raw, false, 'unsourced dew emits no key (the pressure/feels convention)');
+  assert.equal('WIND_DIR_TREND' in raw, false, 'unsourced bearing emits no key');
+});
+
+test('the transients never survive into the fixture payload', () => {
+  const out = getFixtureWeatherPayload(
+    makeFixture({ dewPoint: [53.6, 54, 55], windDirection: [270, 0, 359] }),
+    { secondaryLine: 'off', thirdLine: 'off', barSource: 'off' });
+  assert.ok(!('DEW_TREND' in out), 'DEW_TREND is transient — baked into status text, never wired');
+  assert.ok(!('WIND_DIR_TREND' in out), 'WIND_DIR_TREND is transient — baked into status text, never wired');
+});
