@@ -1,14 +1,8 @@
 var rainTier = require('./weather/rain-tier');
-var COLORS = require('./pebble-colors');
-var configUi = require('./config-ui');   // isColorPlatform — same helper rain-tier/palette-wire use
-var resolveInkLib = require('./resolve-ink.js');
+var lineStyle = require('./line-style.js');   // LINE_COLORS/FILL_COLORS + the resolved line styling
 var statusLines = require('./status-lines.js');
 var statusCatalog = require('./status-line-catalog.js');
 var pressurePlausibility = require('./weather/pressure-plausibility.js');
-var resolveInk = resolveInkLib.resolveInk;
-var isBwTheme = resolveInkLib.isBwTheme;
-var isLightPolarity = resolveInkLib.isLightPolarity;
-var effectiveTheme = resolveInkLib.effectiveTheme;
 
 /**
  * Quantize a permille value (0..1000) to a 0..250 byte for the wire.
@@ -71,135 +65,10 @@ function tempsFromBytes(bytes, min, max) {
     });
 }
 
-// Metric → line stroke colour per platform class. Gust is settings-dependent on colour
-// displays, so it is resolved in lineColorFor(), not from this table. `light` is an
-// optional light-theme override, consulted by lineColorFor() when the theme is
-// light-polarity and the display is effectively colour; a metric without one keeps its
-// `color` value in every color-capable theme (see fillColorFor's identical `light`
-// convention below). precip has one from the readability feedback round (PictonBlue
-// read too bright against the light-theme's white background — VividCerulean is one
-// Pebble-palette step darker, same R-channel notch as the fill below); feels has one
-// because LightGray is illegible on white.
-var LINE_COLORS = {
-    precip_prob: { color: COLORS.GColorPictonBlue, light: COLORS.GColorVividCerulean, bw: COLORS.GColorWhite },
-    wind:        { color: COLORS.GColorYellow,     bw: COLORS.GColorWhite },
-    uv:          { color: COLORS.GColorMagenta,    bw: COLORS.GColorWhite },
-    // Orange is the last unclaimed warm hue: precip owns blue, uv magenta, gust the
-    // grays. It reads close to wind's yellow at 1px — eyeball on hardware before
-    // treating it as final.
-    pressure:    { color: COLORS.GColorOrange,     bw: COLORS.GColorWhite },
-    // Feels-like shadows the 3px temp curve, so it stays achromatic and dimmer than
-    // any hue: LightGray next to temp's white line on dark. On light it goes BLACK,
-    // not a gray — at 1px on a white background DarkGray reads as barely-there, and
-    // it would also collide with the light theme's white-bar rain colour. Black still
-    // separates from the temp curve, which stays red on colour displays. On B&W the
-    // width/pattern (1px solid or dots vs the 3px temp curve) tells it apart.
-    feels:       { color: COLORS.GColorLightGray,  light: COLORS.GColorBlack,         bw: COLORS.GColorWhite }
-};
-// Metric → area-fill colour per platform class. Every metric can fill; colour-platform
-// fills are a darker shade of the line so the line always reads brighter (precip
-// PictonBlue→CobaltBlue, wind→ArmyGreen, uv→Purple, gust→DarkGray). B&W has no range,
-// so all fills are LightGray. `light` is the light-theme fill: the dark-theme shades read
-// too heavy against a white background, so light theme gets a brighter tint of the same
-// hue instead (precip→ElectricBlue, wind→Inchworm, uv→ShockingPink, gust→LightGray).
-// precip's light tint was Celeste (0xAAFFFF) until the readability feedback round: it
-// read too washed-out, so it moved one Pebble-palette step darker to ElectricBlue
-// (0x55FFFF — the R channel steps 0xAA -> 0x55, matching the line's PictonBlue ->
-// VividCerulean step above). NOTE: 0x55FFFF has no "Cyan"-named constant in
-// pebble-colors.js — the real GColorCyan is 0x00FFFF — GColorElectricBlue is the
-// correct name for this hex. First pass — the user will tune these further.
-var FILL_COLORS = {
-    precip_prob: { color: COLORS.GColorCobaltBlue, light: COLORS.GColorElectricBlue, bw: COLORS.GColorLightGray },
-    wind:        { color: COLORS.GColorArmyGreen,  light: COLORS.GColorInchworm,     bw: COLORS.GColorLightGray },
-    uv:          { color: COLORS.GColorPurple,     light: COLORS.GColorShockingPink, bw: COLORS.GColorLightGray },
-    gust:        { color: COLORS.GColorDarkGray,   light: COLORS.GColorLightGray,    bw: COLORS.GColorLightGray },
-    pressure:    { color: COLORS.GColorWindsorTan, light: COLORS.GColorChromeYellow, bw: COLORS.GColorLightGray },
-    // Kept for the wire's shape only: buildForecastSeries forces SECONDARY_LINE_FILL
-    // false for feels (it has no meaningful zero to fill down to), so no AREA layer is
-    // ever built and forecast_layer.c's night_area_palette_for_fill never sees this
-    // colour. Still LightGray so that if the fill is ever re-enabled it keys the feels
-    // night palette correctly rather than rendering the night area precip-blue (the
-    // documented pressure bug). Unambiguous vs gust's LightGray light tint because
-    // light-polarity fills never reach that C table.
-    feels:       { color: COLORS.GColorLightGray,  light: COLORS.GColorLightGray,    bw: COLORS.GColorLightGray }
-};
-
-/**
- * Whether the watch has a colour display.
- * @param {Object} watchInfo getActiveWatchInfo() result, or null.
- * @returns {boolean} True on colour platforms; defaults to colour when watchInfo is absent.
- */
-function isColorWatch(watchInfo) {
-    return configUi.isColorPlatform(watchInfo ? watchInfo.platform : 'basalt');
-}
-
-/**
- * Line/dot colour for a metric, resolved for the platform + theme. isColor should
- * already be the EFFECTIVE color flag (isColorWatch(watchInfo) && !isBwTheme(theme)) —
- * see buildForecastSeries. On B&W (or bw/bw-light theme) every line is the theme
- * foreground; gust on colour is settings-dependent so it never matches the rain bars.
- * On a colour display, a light-polarity theme (light or bw-light) swaps in the metric's
- * `light` variant (see LINE_COLORS) when one is defined — mirrors fillColorFor's `light`
- * convention below; a metric without one keeps its dark-theme `color`. isColor is
- * already the EFFECTIVE color flag, so bw/bw-light never reach the light-variant branch
- * — they resolve via the `!isColor` guard above instead. resolveInk flips an exact white
- * to black in light-polarity themes; hues and grays pass through.
- * @param {string} metric precip_prob|wind|gust|uv.
- * @param {Object} settings Clay settings (reads rainBarColor for gust).
- * @param {boolean} isColor Effective colour display?
- * @param {string} [theme] 'dark'|'light'|'bw'|'bw-light'; defaults to 'dark' (no flip) when omitted.
- * @returns {number} 0xRRGGBB colour.
- */
-function lineColorFor(metric, settings, isColor, theme) {
-    theme = theme || 'dark';
-    var result;
-    if (!isColor) {
-        result = COLORS.GColorWhite;
-    } else if (metric === 'gust') {
-        // Gust takes the achromatic slot so it never reads as one of the rain bars.
-        // Dark polarity: LightGray over white bars (which are white there), white
-        // otherwise. Light polarity: black either way — LightGray is invisible on a
-        // white background, and DarkGray is the exact colour the white-bar mode
-        // paints its BARS in a light theme (rain-tier.buildPalette), so a DarkGray
-        // line would vanish into them. White falls through to resolveInk, which
-        // flips it to black on light polarity.
-        result = (!isLightPolarity(theme) && settings.rainBarColor === 'white')
-            ? COLORS.GColorLightGray
-            : COLORS.GColorWhite;
-    } else {
-        var entry = LINE_COLORS[metric];
-        if (!entry) {
-            result = COLORS.GColorBlack;
-        } else if (isLightPolarity(theme) && entry.hasOwnProperty('light')) {
-            // Presence, not truthiness: GColorBlack is 0x000000, so `entry.light &&`
-            // silently drops a black light-variant back to the dark colour.
-            result = entry.light;
-        } else {
-            result = entry.color;
-        }
-    }
-    return resolveInk(result, theme);
-}
-
-/**
- * Area-fill colour for a metric, resolved for the platform + theme. On a colour display,
- * a light-polarity theme (light or bw-light) swaps in the metric's brighter `light` tint
- * (see FILL_COLORS) instead of the dark-theme shade so the fill reads against a white
- * background; B&W ignores theme (always LightGray). isColor is already the EFFECTIVE
- * color flag, so bw/bw-light never reach the light-tint branch — they resolve via the
- * `!isColor` guard above instead.
- * @param {string} metric precip_prob|wind|gust|uv.
- * @param {boolean} isColor Colour display?
- * @param {string} [theme] 'dark'|'light'|'bw'|'bw-light'; defaults to 'dark' (no light variant) when omitted.
- * @returns {number|undefined} 0xRRGGBB colour, or undefined for an unknown metric.
- */
-function fillColorFor(metric, isColor, theme) {
-    theme = theme || 'dark';
-    var entry = FILL_COLORS[metric];
-    if (!entry) { return undefined; }
-    if (!isColor) { return entry.bw; }
-    return isLightPolarity(theme) ? entry.light : entry.color;
-}
+// LINE_COLORS / FILL_COLORS, lineColorFor() and fillColorFor() now live in
+// line-style.js -- the graph's line styling is derived from settings alone, so it
+// belongs on the Clay settings message rather than on every weather send. They stay
+// re-exported below so existing consumers (settings/preview-palette.js) keep working.
 
 // windScale → km/h ceiling at the top of the graph. Wind and gust share it so a
 // gust line always reads as >= the wind line.
@@ -485,53 +354,30 @@ function metricPermille(metric, raw, settings) {
  * Map raw provider series + settings to the render-ready forecast wire fields.
  * Secondary line is always one metric; third line is off or a different metric
  * (the config UI prevents duplicates; this also defends against a duplicate).
- * Fill works for every metric on the solid main line; the third line is always dashed
- * and never filled.
+ * The third line is always dashed and never filled.
+ *
+ * Values only: the lines' COLOURS (and the fill flag) are settings-derived, so they
+ * ride the Clay settings message instead — see line-style.js and clay-payload.js's
+ * CLAY_LINE_STYLE_UINT8. That leaves nothing here that depends on the watch's
+ * platform, which is why this no longer takes watchInfo.
+ *
  * @param {{precips:number[], rains:number[], winds:number[], gusts:number[], uvs:number[], pressures:number[], feels:number[], tempBand:Object}} raw Raw series (+ the temp axis band the feels metric shares).
- * @param {{secondaryLine:string, thirdLine:string, secondaryLineFill:boolean, windScale:string, barSource:string}} settings Settings.
- * @param {Object} watchInfo getActiveWatchInfo() result, or null/undefined (treated as colour).
+ * @param {{secondaryLine:string, thirdLine:string, windScale:string, barSource:string}} settings Settings.
  * @returns {Object} Wire fields (see module interface).
  */
-function buildForecastSeries(raw, settings, watchInfo) {
-    // Fold the stored theme to what the target platform actually renders: aplite has
-    // the light polarity compiled out (theme.h pins theme_is_light() false), so a
-    // light / bw-light byte renders as the classic white-on-black there. Without this
-    // the light-polarity flip below would send black line/dot colors to aplite, which
-    // draws them black-on-black (the reported bug). Every other platform ships the
-    // polarity, so effectiveTheme returns the theme unchanged for them.
-    var platform = watchInfo && watchInfo.platform ? watchInfo.platform : 'basalt';
-    var theme = effectiveTheme(settings.theme || 'dark',
-                               configUi.isThemePolarityPlatform(platform));
-    // Effective color: a color display renders as color only when the theme isn't
-    // Black & White — a bw/bw-light theme reuses the exact color model B&W watches
-    // get today (bw-light in its light-polarity form).
-    var isColor = isColorWatch(watchInfo) && !isBwTheme(theme);
+function buildForecastSeries(raw, settings) {
     var out = {};
 
     // Secondary line: always present (one of the four metrics).
     var secMetric = settings.secondaryLine;
     var secPm = metricPermille(secMetric, raw, settings);
     out.SECONDARY_LINE_TREND_UINT8 = metricBytes(secMetric, secPm);
-    out.SECONDARY_LINE_COLOR = lineColorFor(secMetric, settings, isColor, theme) || COLORS.GColorBlack;
-    // Feels-like never fills. Every other metric maps 0..max, so the area under the
-    // line is the area above a real zero; feels rides the temp∪feels band, whose floor
-    // is just the coldest value on the plot — a fill there would flood the plot to an
-    // arbitrary line and swallow the temp curve it is meant to be compared against.
-    // The config UI hides the toggle (schema.js) and clears it (blocks.js'
-    // 'forecastMetricFill'); this is the authoritative gate, so a settings blob stored
-    // before those landed — or any future caller — still cannot turn the fill on.
-    out.SECONDARY_LINE_FILL = Boolean(settings.secondaryLineFill) && secMetric !== 'feels';
-    out.SECONDARY_LINE_FILL_COLOR = fillColorFor(secMetric, isColor, theme) || out.SECONDARY_LINE_COLOR;
 
     // Third line: optional; off, or a metric distinct from the secondary one.
     var thirdMetric = settings.thirdLine;
     var thirdPm = (thirdMetric && thirdMetric !== 'off' && thirdMetric !== secMetric)
         ? metricPermille(thirdMetric, raw, settings) : null;
-    var thirdBytes = metricBytes(thirdMetric, thirdPm);
-    out.THIRD_LINE_TREND_UINT8 = thirdBytes;
-    if (thirdBytes.length > 0) {
-        out.THIRD_LINE_COLOR = lineColorFor(thirdMetric, settings, isColor, theme) || resolveInk(COLORS.GColorWhite, theme);
-    }
+    out.THIRD_LINE_TREND_UINT8 = metricBytes(thirdMetric, thirdPm);
 
     // Rain bars: independent of the metric lines.
     out.BAR_TREND_UINT8 = settings.barSource === 'rain'
@@ -545,7 +391,9 @@ function buildForecastSeries(raw, settings, watchInfo) {
  * live-fetch and fixture send paths call this so the two can't drift.
  * @param {Object} payload Weather payload with PRECIP_/RAIN_/WIND_/GUST_/UV_TREND_UINT8.
  * @param {Object} settings Clay settings.
- * @param {Object} watchInfo getActiveWatchInfo() result, or null/undefined (treated as colour).
+ * @param {Object} watchInfo getActiveWatchInfo() result, or null/undefined; threaded
+ *   through to the status-line bake for its platform env (the series themselves are
+ *   platform-independent now that the line styling rides the Clay message).
  * @returns {Object} The same payload, raw keys removed and wire keys set.
  */
 function applyForecastSeries(payload, settings, watchInfo) {
@@ -588,7 +436,7 @@ function applyForecastSeries(payload, settings, watchInfo) {
           winds: payload.WIND_TREND_UINT8, gusts: payload.GUST_TREND_UINT8,
           uvs: payload.UV_TREND_UINT8, pressures: payload.PRESSURE_TREND,
           feels: feels, tempBand: tempBand },
-        settings, watchInfo
+        settings
     );
     delete payload.CURRENT_TEMP; // baked into the status lines; no longer a wire key
     delete payload.CITY;         // baked into the status lines; no longer a wire key
@@ -602,13 +450,10 @@ function applyForecastSeries(payload, settings, watchInfo) {
     delete payload.POLLEN_TODAY;      // transient PKJS-only; baked into status text, never wired
     delete payload.FEELS_TREND;       // transient PKJS-only; consumed by the joint band + feels line above, never wired
     delete payload.FEELS_CURRENT;     // baked into the status lines by buildStatusLines above (same ordering contract as CURRENT_TEMP)
+    // Values only — the line colours and the fill flag ride the Clay settings
+    // message now (CLAY_LINE_STYLE_UINT8), so the weather send carries no styling.
     payload.SECONDARY_LINE_TREND_UINT8 = series.SECONDARY_LINE_TREND_UINT8;
-    payload.SECONDARY_LINE_COLOR = series.SECONDARY_LINE_COLOR;
-    payload.SECONDARY_LINE_FILL = series.SECONDARY_LINE_FILL;
-    payload.SECONDARY_LINE_FILL_COLOR = series.SECONDARY_LINE_FILL_COLOR;
     payload.THIRD_LINE_TREND_UINT8 = series.THIRD_LINE_TREND_UINT8;
-    if ('THIRD_LINE_COLOR' in series) { payload.THIRD_LINE_COLOR = series.THIRD_LINE_COLOR; }
-    else { delete payload.THIRD_LINE_COLOR; }
     payload.BAR_TREND_UINT8 = series.BAR_TREND_UINT8;
     return payload;
 }
@@ -668,11 +513,13 @@ module.exports = {
     needsPollen: needsPollen,
     permilleToByte: permilleToByte,
     tempTrendToBytes: tempTrendToBytes,
-    LINE_COLORS: LINE_COLORS,
-    FILL_COLORS: FILL_COLORS,
+    // Re-exported from line-style.js, which owns them now: settings/preview-palette.js
+    // and the colour tests read them through this module.
+    LINE_COLORS: lineStyle.LINE_COLORS,
+    FILL_COLORS: lineStyle.FILL_COLORS,
     PRESSURE_SCALE_CURVE_HPA: PRESSURE_SCALE_CURVE_HPA,
-    lineColorFor: lineColorFor,
-    fillColorFor: fillColorFor,
+    lineColorFor: lineStyle.lineColorFor,
+    fillColorFor: lineStyle.fillColorFor,
     isBandScaledMetric: isBandScaledMetric,
     BAND_SCALED_METRICS: BAND_SCALED_METRICS
 };

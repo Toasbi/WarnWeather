@@ -12,6 +12,7 @@ global.localStorage = {
 const { buildClayPayload, truncateUtf8Bytes } = require('../src/pkjs/clay-payload');
 const holidayMask = require('../src/pkjs/holidays/holiday-mask');
 const viewCycle = require('../src/pkjs/view-cycle');
+const lineStyle = require('../src/pkjs/line-style');
 
 const NOW = new Date('2026-06-26T00:00:00Z');
 
@@ -286,6 +287,31 @@ test('CLAY_CURVE_INSET_UINT8 is omitted for aplite (WW_CURVE_INSET compiled out)
   // Unknown watchInfo must never drop a real feature (computeEnv convention).
   const unknown = buildClayPayload(s, null, NOW);
   assert.deepEqual(unknown.CLAY_CURVE_INSET_UINT8, [7, 0, 0]);
+});
+
+test('the Clay message carries the graph line styling', function() {
+  const s = Object.assign(baseSettings(), {
+    secondaryLine: 'wind', thirdLine: 'gust', theme: 'dark'
+  });
+  const p = buildClayPayload(s, { platform: 'emery' }, NOW);
+  assert.ok(Array.isArray(p.CLAY_LINE_STYLE_UINT8));
+  assert.equal(p.CLAY_LINE_STYLE_UINT8.length, 4);
+  // Packed by the one resolver both the wire and the render read (line-style.js),
+  // so the Clay tuple can't drift from what the graph builder assumes.
+  assert.deepEqual(p.CLAY_LINE_STYLE_UINT8,
+    lineStyle.buildLineStyleBytes(s, { platform: 'emery' }));
+});
+
+test('aplite gets the line styling too (it has the forecast graph)', function() {
+  // Unlike the threshold blob / no-rain text / curve insets, nothing about the
+  // graph's line colours is compiled out on aplite — it draws the same two metric
+  // lines — so this tuple is NOT platform-gated.
+  const s = Object.assign(baseSettings(), {
+    secondaryLine: 'wind', thirdLine: 'off', theme: 'dark'
+  });
+  assert.equal(buildClayPayload(s, { platform: 'aplite' }, NOW).CLAY_LINE_STYLE_UINT8.length, 4);
+  // ... and an unknown watchInfo never drops it either.
+  assert.equal(buildClayPayload(s, null, NOW).CLAY_LINE_STYLE_UINT8.length, 4);
 });
 
 test('CLAY_HR_SCALE falls back to 40-180 when unset or malformed', function() {

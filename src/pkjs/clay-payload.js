@@ -9,6 +9,7 @@ var viewCycle = require('./view-cycle.js');
 var resolveInk = require('./resolve-ink.js').resolveInk;
 var statusThresholds = require('./status-thresholds.js');
 var platformLib = require('./config-ui/lib/platform.js');
+var lineStyle = require('./line-style.js');
 
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
 var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
@@ -143,6 +144,15 @@ function buildClayPayload(settings, watchInfo, now) {
     var palette = paletteWire.buildPaletteTuples(watchInfo, settings);
     payload.BAR_PALETTE_UINT8 = palette.BAR_PALETTE_UINT8;
     payload.RADAR_PALETTE_UINT8 = palette.RADAR_PALETTE_UINT8;
+
+    // Graph line styling (the two metric line colours, the area-fill colour and the
+    // fill flag) — derived from the settings blob plus the platform's colour/polarity
+    // capabilities alone, never from weather data, so it rides the Clay message. It
+    // replaces the four scalar tuples that used to travel on EVERY weather send
+    // (44 B there for 11 B here). Deliberately NOT platform-gated, unlike the
+    // threshold blob / no-rain text / curve insets above: aplite renders the same
+    // two metric lines, so it needs the colours too.
+    payload.CLAY_LINE_STYLE_UINT8 = lineStyle.buildLineStyleBytes(settings, watchInfo);
 
     // Threshold-highlight settings (enabled bits + colors + health-kind
     // thresholds) — settings-derived, so they ride the Clay message. Omitted for a

@@ -21,8 +21,8 @@ const { WEATHER_CATEGORIES } = require('../src/pkjs/outbox');
 // half-duplex — see outbox.js), so the watch's inbox must hold the heaviest
 // bundle the phone can emit in a single fetch. The worst realistic case is the
 // DWD provider with secondary + third metric lines both active: two 24-byte
-// trends + THIRD_LINE_COLOR + rain bars + radar — so forecast + status + sun +
-// radar all bundle together.
+// trends + rain bars + radar — so forecast + status + sun + radar all bundle
+// together. (The lines' colours are settings-derived and ride the Clay message.)
 //
 // This guard caught the gust-third-line overflow: the inbox was sized for
 // bundled forecast+radar before the 24-byte gust series existed, so DWD+wind
@@ -107,7 +107,7 @@ function buildHeaviestBundle() {
   };
 
   // PKJS resolves the render-ready series; worst case = secondary line + a
-  // distinct third line (two 24-byte trends + THIRD_LINE_COLOR) + rain bars.
+  // distinct third line (two 24-byte trends) + rain bars.
   applyForecastSeries(payload, {
     secondaryLine: 'wind', thirdLine: 'gust', secondaryLineFill: false, barSource: 'rain', windScale: 'high',
     temperatureUnits: 'c', axisTimeFormat: '12h', timeShowAmPm: true,
@@ -162,9 +162,11 @@ test('weather bundle keeps explicit headroom below the watch inbox', () => {
   const inbox = readInboxSize();
   console.log(`heaviest weather bundle: ${size} B of ${inbox} B (headroom ${inbox - size})`);
   // 525 -> 526 when STATUS_LEVELS_UINT8 widened to 2 bytes (UV thresholds).
-  // Headroom now sits EXACTLY on the 10 B floor — the next weather-message byte
-  // must find savings elsewhere or argue the floor down.
-  assert.equal(size, 526, 'update the recorded realistic bundle size when its wire contract changes');
+  // Headroom then sat EXACTLY on the 10 B floor.
+  // 526 -> 482 when the four settings-derived line-style tuples moved to the
+  // Clay message (SECONDARY_LINE_COLOR / _FILL / _FILL_COLOR / THIRD_LINE_COLOR,
+  // 4 x 11 B = 7 B tuple header + 4 B int32/bool each). Headroom 10 -> 54 B.
+  assert.equal(size, 482, 'update the recorded realistic bundle size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });
 
@@ -207,6 +209,8 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // cell, kind 16, opened byte 33).
   // 428 -> 438 when the per-series curve insets joined (CLAY_CURVE_INSET_UINT8:
   // 7 B tuple header + 3 B data).
-  assert.equal(size, 438, 'update the recorded Clay message size when its wire contract changes');
+  // 438 -> 449 when the graph line styling joined (CLAY_LINE_STYLE_UINT8:
+  // 7 B tuple header + 4 B data). It replaces 44 B on the weather message.
+  assert.equal(size, 449, 'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });

@@ -27,7 +27,9 @@ var WEATHER_CATEGORIES = [
     {
         name: 'forecast',
         cacheKey: KEYS.LAST_SENT_FORECAST_KEY,
-        keys: ['TEMP_TREND_UINT8','TEMP_MIN','TEMP_MAX','SECONDARY_LINE_TREND_UINT8','SECONDARY_LINE_COLOR','SECONDARY_LINE_FILL','SECONDARY_LINE_FILL_COLOR','BAR_TREND_UINT8','THIRD_LINE_TREND_UINT8','THIRD_LINE_COLOR','FORECAST_START','NUM_ENTRIES']
+        // Values only: the line colours + fill flag are settings-derived and ride the
+        // Clay message (CLAY_LINE_STYLE_UINT8), not this one.
+        keys: ['TEMP_TREND_UINT8','TEMP_MIN','TEMP_MAX','SECONDARY_LINE_TREND_UINT8','BAR_TREND_UINT8','THIRD_LINE_TREND_UINT8','FORECAST_START','NUM_ENTRIES']
     },
     {
         name: 'status',

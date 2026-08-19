@@ -9,6 +9,7 @@ var WeatherProvider = require('./weather/provider.js');
 var forecastSeries = require('./forecast-series.js');
 var wireUnits = require('./wire-units.js');
 var paletteWire = require('./weather/palette-wire.js');
+var lineStyle = require('./line-style.js');
 
 /**
  * Convert a fixture weather object into the real watch weather AppMessage payload.
@@ -157,6 +158,15 @@ function sendFixtureWeather(fixture, deps) {
 
     // Bundle the rain palette too, so fixture bars honor rainBarColor.
     Object.assign(payload, paletteWire.buildPaletteTuples(deps.watchInfo, deps.settings));
+
+    // Same reason, same trick for the graph's line styling: it rides the Clay
+    // settings message in production, and a fixture send bypasses that path
+    // entirely, so bundle it here or the fixture renders its lines in whatever
+    // colours the last real settings send happened to leave on the watch. The
+    // inbox handlers each dict_find their own key, so a Clay tuple is read just
+    // as happily off the weather message.
+    payload.CLAY_LINE_STYLE_UINT8 = lineStyle.buildLineStyleBytes(
+        deps.settings, deps.watchInfo);
 
     // Dev: let a fixture exercise sleep mode (the snooze indicator + frozen
     // weather slots). The live path derives IS_SLEEPING from the sleep window;

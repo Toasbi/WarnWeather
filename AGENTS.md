@@ -98,16 +98,25 @@ enforced by an automated regex guardrail in the test suite — see its own READM
   is allocated from aplite's already-tiny heap, so 536 B is effectively a hard ceiling —
   you can't just bump it. An overflow is dropped silently (`APP_MSG_BUFFER_OVERFLOW` →
   "Message dropped!"). Worst realistic case is DWD + wind with City in every status slot
-  = 526 B, leaving only 10 B of headroom (see `test/inbox-size.test.js` — the authoritative
-  computation, which records both bundle sizes exactly; keep them in sync). The palette now rides the Clay/settings message instead. `test/inbox-size.test.js`
-  guards both the weather and Clay bundles; when
-  you grow the worst-case bundle, update its `buildHeaviestBundle()`, and treat bumping
-  `inbox_size` as a last resort.
+  = 482 B, leaving 54 B of headroom (see `test/inbox-size.test.js` — the authoritative
+  computation, which records both bundle sizes exactly; keep them in sync). That headroom
+  was 10 B until the settings-derived tuples were moved off this message: the rain-bar and
+  radar palettes first, then the forecast line styling (colours + fill flag, 4 × 11 B of
+  scalars → one 4 B `CLAY_LINE_STYLE_UINT8` array), both of which now ride the
+  Clay/settings message. `test/inbox-size.test.js` guards both the weather and Clay
+  bundles; when you grow the worst-case bundle, update its `buildHeaviestBundle()`, and
+  treat bumping `inbox_size` as a last resort. Before spending weather-message bytes, ask
+  whether the value is settings-derived — if it is, it belongs on the Clay message, which
+  has far more room (449 B of 536 B used).
 - **Message boundary: settings ride the settings (Clay) message; weather data rides the
   weather message.** Config-derived values — colour palettes, formatting/display toggles,
   the holiday mask — belong in `sendClaySettings` (`outbox.sendClay`). The weather payload
   carries only forecast/status/sun/radar/sleep. (The rain-bar/radar palette rides the Clay
-  message as of v1.4; `clay-payload.js` builds and sends it alongside the other settings.)
+  message as of v1.4, and the forecast line styling — `CLAY_LINE_STYLE_UINT8`, built by
+  `line-style.js` — joined it later; `clay-payload.js` builds and sends both alongside the
+  other settings. Colours pack as single `GColor8` argb bytes, not int32 hex: an array
+  tuple costs 7 B + N, a scalar costs 7 B + 4, so packing several into one array is the
+  cheap shape.)
 - **A new telemetry setting must be added in two places or it's silently dropped:** the
   watch-side snapshot in `src/pkjs/telemetry.js` AND the Deno `.strip()` schema in
   `supabase/functions/telemetry-ingest/index.ts`.

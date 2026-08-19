@@ -1,7 +1,7 @@
 // test/fixture-weather.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { getFixtureWeatherPayload, getFixtureRadarTuples } = require('../src/pkjs/fixture-weather');
+const { getFixtureWeatherPayload, getFixtureRadarTuples, sendFixtureWeather } = require('../src/pkjs/fixture-weather');
 
 // A minimal-but-valid 3-hour fixture: temps/precipPct present, 2 sun events.
 function makeFixture(over) {
@@ -21,20 +21,36 @@ function makeFixture(over) {
   };
 }
 
-test('fixture windKmh feeds the wind secondary line (mid scale), now fillable', () => {
+test('fixture windKmh feeds the wind secondary line (mid scale)', () => {
   const fixture = makeFixture({ windKmh: [0, 25, 50] });
   const out = getFixtureWeatherPayload(fixture, { secondaryLine: 'wind', windScale: 'mid', secondaryLineFill: true, barSource: 'off' });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]);
-  assert.equal(out.SECONDARY_LINE_FILL, true);            // fill now works for wind, not just precip
-  assert.equal(out.SECONDARY_LINE_FILL_COLOR, 0x555500);  // GColorArmyGreen (resolved as colour: no watchInfo)
   assert.ok(!('WIND_TREND_UINT8' in out));                // transient key never survives
 });
 
-test('fixture path threads watchInfo: a B&W watch resolves the wind line white + fill light gray', () => {
-  const fixture = makeFixture({ windKmh: [0, 25, 50] });
-  const out = getFixtureWeatherPayload(fixture, { secondaryLine: 'wind', windScale: 'mid', secondaryLineFill: true, barSource: 'off' }, { platform: 'diorite' });
-  assert.equal(out.SECONDARY_LINE_COLOR, 0xFFFFFF);       // GColorWhite on B&W — proves watchInfo reached the resolver
-  assert.equal(out.SECONDARY_LINE_FILL_COLOR, 0xAAAAAA);  // GColorLightGray on B&W
+// The line colours + fill flag are settings-derived, so they ride the Clay settings
+// message — which a fixture send bypasses entirely. sendFixtureWeather therefore has
+// to bundle the packed tuple with the weather send (exactly as it already does for
+// the rain palette), or a fixture renders in whatever colours the last real settings
+// send left on the watch.
+test('the fixture send bundles the line styling, threaded with watchInfo', () => {
+  const sent = [];
+  const origPebble = global.Pebble;
+  global.Pebble = { sendAppMessage: function(payload) { sent.push(payload); } };
+  try {
+    sendFixtureWeather(makeFixture({ windKmh: [0, 25, 50] }), {
+      settings: { secondaryLine: 'wind', windScale: 'mid', secondaryLineFill: true, barSource: 'off' },
+      watchInfo: { platform: 'diorite' }
+    });
+  } finally {
+    global.Pebble = origPebble;
+  }
+  assert.equal(sent.length, 1);
+  const style = sent[0].CLAY_LINE_STYLE_UINT8;
+  assert.equal(style.length, 4);
+  assert.equal(style[0], 0xFF);   // GColorWhite line on B&W — proves watchInfo reached the resolver
+  assert.equal(style[1], 0xEA);   // GColorLightGray fill on B&W
+  assert.equal(style[3] & 0x01, 1, 'secondaryLineFill rides the flag byte');
 });
 
 test('fixture without windKmh still produces a valid (flat) wind line', () => {

@@ -1,6 +1,32 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildForecastSeries, applyForecastSeries, needsUv, needsAqi, needsPollen } = require('../src/pkjs/forecast-series');
+const { buildForecastSeries: buildSeriesValues, applyForecastSeries, needsUv, needsAqi, needsPollen } = require('../src/pkjs/forecast-series');
+const lineStyle = require('../src/pkjs/line-style');
+
+// The graph's line COLOURS and its fill flag moved off the weather message onto the
+// Clay settings message, so buildForecastSeries returns the VALUES only now: the
+// styling lives in line-style.js and is packed by clay-payload.js. The colour rules
+// themselves are unchanged, and the cases below are still their coverage — this
+// helper resolves them through the real resolver, from the same settings + watchInfo
+// the series builder is handed, and returns both halves in one object the way the
+// wire used to carry them. Where a case is about the WIRE rather than the rules
+// (which keys reach the payload), it drives applyForecastSeries directly instead.
+/**
+ * Series values + the styling that used to travel with them.
+ * @param {Object} raw Raw provider series.
+ * @param {Object} settings Clay settings.
+ * @param {Object} [watchInfo] getActiveWatchInfo() result, or null/undefined.
+ * @returns {Object} Wire series fields plus SECONDARY_/THIRD_LINE colour fields.
+ */
+function buildForecastSeries(raw, settings, watchInfo) {
+  const style = lineStyle.resolveLineStyle(settings, watchInfo);
+  return Object.assign(buildSeriesValues(raw, settings), {
+    SECONDARY_LINE_COLOR: style.secondary,
+    SECONDARY_LINE_FILL: style.fillOn,
+    SECONDARY_LINE_FILL_COLOR: style.fill,
+    THIRD_LINE_COLOR: style.third
+  });
+}
 
 // precip % + rain wire tenths + winds/gusts km/h + uv tenths (UV×10)
 const RAW = { precips: [0, 50, 100], rains: [0, 5, 20], winds: [0, 25, 50], gusts: [0, 50, 100], uvs: [0, 55, 110] };
@@ -61,10 +87,9 @@ test('secondary uv: scaled against UV 11.0 (110 tenths), magenta', () => {
   assert.equal(out.SECONDARY_LINE_COLOR, 0xFF00FF);                // GColorMagenta
 });
 
-test('third line off: empty third trend, no third color emitted', () => {
+test('third line off: empty third trend', () => {
   const out = buildForecastSeries(RAW, { secondaryLine: 'precip_prob', thirdLine: 'off', barSource: 'off' });
   assert.deepEqual(out.THIRD_LINE_TREND_UINT8, []);
-  assert.equal('THIRD_LINE_COLOR' in out, false);
 });
 
 test('third line gust over secondary wind: both present, gust dots white with colored rain bars', () => {
@@ -134,7 +159,6 @@ test('third line uv over secondary precip: independent scales', () => {
 test('third line equal to secondary is treated as off (defensive: engine excludes it)', () => {
   const out = buildForecastSeries(RAW, { secondaryLine: 'wind', thirdLine: 'wind', windScale: 'mid', barSource: 'off' });
   assert.deepEqual(out.THIRD_LINE_TREND_UINT8, []);
-  assert.equal('THIRD_LINE_COLOR' in out, false);
 });
 
 test('absent metric data → that line renders off (empty), no throw (UV via DWD fallback failure)', () => {
@@ -162,7 +186,6 @@ test('applyForecastSeries swaps raw keys for render-ready series in place, delet
   });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]); // uv
   assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [0, 125, 250]);    // wind
-  assert.equal(out.THIRD_LINE_COLOR, 0xFFFF00);                   // GColorYellow (wind per-metric color)
   assert.deepEqual(out.TEMP_TREND_UINT8, [1, 2, 3]);
   assert.equal(out.NUM_ENTRIES, 3);
 });
@@ -191,10 +214,26 @@ test('applyForecastSeries bakes all status lines before deleting trends and lega
   assert.equal(out.STATUS_LINE_1_UINT8[2], 5); // "17kph" (5 bytes; was 6 for "17km/h" pre-kph label)
 });
 
-test('applyForecastSeries clears a stale THIRD_LINE_COLOR when the third line turns off', () => {
-  const payload = { PRECIP_TREND_UINT8: [0], RAIN_TREND_UINT8: [0], THIRD_LINE_COLOR: 0xFF00FF };
-  const out = applyForecastSeries(payload, { secondaryLine: 'precip_prob', thirdLine: 'off', barSource: 'off' });
-  assert.equal('THIRD_LINE_COLOR' in out, false);
+// The four settings-derived styling keys moved to the Clay settings message
+// (line-style.js -> clay-payload.js's CLAY_LINE_STYLE_UINT8), recovering 44 B on
+// every weather send. Nothing about them depends on the weather data, so a weather
+// payload that still carried them would be paying 44 B a fetch to re-send settings.
+test('line colours no longer ride the weather message', () => {
+  const payload = {
+    TEMP_TREND_UINT8: [1, 2, 3], NUM_ENTRIES: 3,
+    PRECIP_TREND_UINT8: [0, 50, 100], RAIN_TREND_UINT8: [0, 5, 20],
+    WIND_TREND_UINT8: [0, 25, 50], GUST_TREND_UINT8: [0, 50, 100]
+  };
+  applyForecastSeries(payload,
+    { secondaryLine: 'wind', thirdLine: 'gust', secondaryLineFill: true,
+      windScale: 'mid', barSource: 'rain', theme: 'dark' },
+    { platform: 'emery' });
+  ['SECONDARY_LINE_COLOR', 'SECONDARY_LINE_FILL', 'SECONDARY_LINE_FILL_COLOR',
+   'THIRD_LINE_COLOR'].forEach((k) =>
+    assert.ok(!(k in payload), k + ' must ride the Clay message now'));
+  // The series themselves are untouched — only the styling left.
+  assert.deepEqual(payload.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]);
+  assert.deepEqual(payload.THIRD_LINE_TREND_UINT8, [0, 250, 250]);
 });
 
 test('needsUv: line selections; radar-left defaults to uv', () => {
@@ -539,7 +578,10 @@ test('feels selected: temp bytes rescale against the joint band, but TEMP_MIN/MA
   assert.equal(out.TEMP_MAX, 30, 'hi label is the actual temperature high');
   // Feels 5/15/25 against the SAME padded band -> permille 74/444/815 -> 19/111/204.
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [19, 111, 204]);
-  assert.equal(out.SECONDARY_LINE_COLOR, 0xAAAAAA); // GColorLightGray
+  // Its colour rides the Clay message now, not this payload.
+  assert.equal(lineStyle.resolveLineStyle(
+    { secondaryLine: 'feels', thirdLine: 'off' }, { platform: 'basalt' }).secondary,
+    0xAAAAAA); // GColorLightGray
 });
 
 test('the feels curve keeps clear of both plot edges when it overshoots the temp band', () => {
@@ -609,7 +651,10 @@ test('feels as the third line: dots ride the temp axis, light gray, none lost to
     { secondaryLine: 'precip_prob', thirdLine: 'feels', barSource: 'off' }, { platform: 'basalt' });
   assert.deepEqual(out.TEMP_TREND_UINT8, [65, 157, 250]);
   assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [19, 111, 204]);
-  assert.equal(out.THIRD_LINE_COLOR, 0xAAAAAA); // GColorLightGray
+  // Its colour rides the Clay message now, not this payload.
+  assert.equal(lineStyle.resolveLineStyle(
+    { secondaryLine: 'precip_prob', thirdLine: 'feels' }, { platform: 'basalt' }).third,
+    0xAAAAAA); // GColorLightGray
   // Regression: the third line is DOTS, and chart.c skips any dot at byte 0
   // ("values[i] <= lo"). The coldest feels hour defines the joint band's floor, so
   // it landed on exactly byte 0 and its dot silently vanished on every windy day.
