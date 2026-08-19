@@ -44,7 +44,7 @@ function walkPdc(file, viewbox, checkCmd) {
 const OUTLINE_24 = ['STATUS_TEMP.pdc', 'STATUS_TEMP_SMALL.pdc', 'STATUS_UV.pdc',
                     'STATUS_WIND.pdc', 'STATUS_GUST.pdc', 'STATUS_POLLEN.pdc',
                     'STATUS_DISTANCE.pdc', 'STATUS_AQI.pdc',
-                    'STATUS_COUNTDOWN.pdc'];
+                    'STATUS_COUNTDOWN.pdc', 'STATUS_DEW.pdc'];
 
 for (const file of OUTLINE_24) {
   test(`${file} is a valid 24x24 outline PDCI`, () => {
@@ -66,5 +66,26 @@ const HEALTH_25 = ['HEALTH_HEART.pdc', 'HEALTH_SLEEP.pdc', 'HEALTH_STEPS.pdc'];
 for (const file of HEALTH_25) {
   test(`${file} is a valid 25x25 health PDCI`, () => {
     walkPdc(file, 25, null);
+  });
+}
+
+// A PDC on disk that nothing declares never reaches the watch, and the failure is
+// silent: RESOURCE_ID_<NAME> simply does not exist and the C build breaks, or worse
+// the glyph is declared for aplite and quietly eats the frozen image's last bytes.
+// aplite is excluded from EVERY PDC in this project — that exclusion is what keeps
+// the aplite image at its ceiling — so the platform list is pinned exactly, not
+// merely checked for aplite's absence.
+const PDC_PLATFORMS = ['basalt', 'diorite', 'emery', 'flint'];
+const MEDIA = require('../package.template.json').pebble.resources.media;
+
+for (const file of [...OUTLINE_24, ...HEALTH_25]) {
+  test(`${file} is declared in package.template.json, aplite excluded`, () => {
+    const name = file.replace(/\.pdc$/, '');
+    const entry = MEDIA.find((m) => m.name === name);
+    assert.ok(entry, `${name} is not declared in package.template.json's media`);
+    assert.strictEqual(entry.type, 'raw', 'PDCs ship as raw resources');
+    assert.strictEqual(entry.file, `data/${file}`, 'file path');
+    assert.deepStrictEqual(entry.targetPlatforms, PDC_PLATFORMS,
+                           'aplite must stay excluded from every PDC');
   });
 }

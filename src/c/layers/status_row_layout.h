@@ -10,6 +10,11 @@ typedef struct {
     bool present;
     int16_t icon_w;
     int16_t text_w;
+    // Trailing glyph drawn AFTER the text (the wind-direction arrow); 0 = none. It
+    // gets its own lane — icon | gap | text | gap | suffix — reserved off the budget
+    // BEFORE the text is shrunk, so a squeezed slot ellipsizes its number and keeps
+    // the glyph (an ellipsized reading still reads; a dropped arrow loses the point).
+    int16_t suffix_w;
 } StatusSlotMeasure;
 
 typedef struct {
@@ -18,6 +23,10 @@ typedef struct {
     int16_t icon_x;
     int16_t text_x;
     int16_t text_w;
+    // Left edge of the suffix glyph. 0 when the slot has no suffix (never "the spot an
+    // arrow would take"), so a caller can tell absent from placed without a second
+    // lookup — a highlight box that reaches to the suffix must not widen plain slots.
+    int16_t suffix_x;
 } StatusSlotPlace;
 
 void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],

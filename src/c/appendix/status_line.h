@@ -54,8 +54,15 @@ typedef enum {
                                 // may load — the id only discriminates pressure
                                 // from city (both SLOT_TEXT) on the wire, for the
                                 // per-kind bold mode (status_threshold.h)
+    STATUS_ICON_DEWPOINT = 15,  // droplets; dew point is a temperature, so the
+                                // glyph is what separates it from the temp slot.
+                                // An id of its own is required even where the
+                                // glyph is absent (aplite): a SLOT_TEXT slot with
+                                // STATUS_ICON_NONE inherits THRESH_CITY's bold mode
 } StatusIconId;
-#define STATUS_ICON_MAX STATUS_ICON_PRESSURE
+// Id 6 (STATUS_ICON_PRECIP, removed in 3dae9f4) is a retired hole: never reuse it —
+// a pre-3dae9f4 install can still hold a persisted blob referencing it.
+#define STATUS_ICON_MAX STATUS_ICON_DEWPOINT
 
 typedef struct {
     uint8_t kind;

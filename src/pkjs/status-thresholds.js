@@ -18,7 +18,9 @@
   // widened the bold area to 16 kinds; 33 -> 34 when battery % (kind 16) opened
   // byte 33. (The interim 31-byte, 8-kind-bold format never shipped — it
   // existed only on an unmerged branch — so exactly {34, 33, 29} are accepted;
-  // see status_threshold.h.)
+  // see status_threshold.h.) Byte 33 holds FOUR 2-bit cells (kinds 16..19), so
+  // dew point (17) appended for free and 18/19 still would: this stays 34 until
+  // a twentieth kind, which would widen every Clay send.
   var SETTINGS_BYTES = 34;
   var COLORS_OFFSET = 1;
   var HEALTH_OFFSET = 17;    // shifted 15 -> 17 with the UV color pair (append-only kinds)
@@ -81,7 +83,12 @@
     // Battery % (kind 16, appended): unlike the GLYPH battery slot — still
     // kind-less, a drawn glyph has no text run to bold — the % slot renders
     // text, so it owns a bold cell: the first one in byte 33.
-    { code: 'batteryPct', key: 'BatteryPct', belowIsWorse: false, boldOnly: true }
+    { code: 'batteryPct', key: 'BatteryPct', belowIsWorse: false, boldOnly: true },
+    // Dew point (kind 17, appended): byte 33's SECOND cell, so SETTINGS_BYTES
+    // stays 34 and the Clay message does not grow. Dew is a temperature, and the
+    // temp slot already has its own kind, so it needs one too — otherwise its
+    // Bold row would have no cell to write.
+    { code: 'dew', key: 'Dew', belowIsWorse: false, boldOnly: true }
   ];
 
   /**

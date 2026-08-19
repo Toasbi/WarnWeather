@@ -25,12 +25,12 @@ const THRESH_STEMS = ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distan
 const threshKeys = (suffixes) => THRESH_STEMS.reduce((acc, stem) =>
   acc.concat(suffixes.map((suffix) => 'thresh' + stem + suffix)), []);
 const THRESH_COLOR_KEYS = threshKeys(['WarnColor', 'DangerColor']);
-// The bold-only slot kinds (wire ids 8..16 in status-thresholds.js) add ONE key
+// The bold-only slot kinds (wire ids 8..17 in status-thresholds.js) add ONE key
 // each: a Bold row is their whole sheet (Temp additionally carries the
 // tempSlotDisplay row — listed with the plain keys below). The battery GLYPH item
 // is deliberately absent — its slot draws a glyph, not text, so it has no sheet
 // and no key; the battery PERCENTAGE kind (BatteryPct) renders text and has both.
-const BOLD_ONLY_STEMS = ['Temp', 'Pressure', 'Sun', 'Date', 'Week', 'City', 'Countdown', 'Hr', 'BatteryPct'];
+const BOLD_ONLY_STEMS = ['Temp', 'Pressure', 'Sun', 'Date', 'Week', 'City', 'Countdown', 'Hr', 'BatteryPct', 'Dew'];
 const BOLD_ONLY_KEYS = BOLD_ONLY_STEMS.map((stem) => 'thresh' + stem + 'BoldMode');
 const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnOutlineOn', 'Warn', 'Danger', 'Max'])
   .concat(THRESH_COLOR_KEYS)
@@ -1091,15 +1091,15 @@ test('Status-slots tab (id watch) opens with a general status-bar intro, then th
       'Walked distance slot'],
     'per-slot edit sheets follow the four status bars, in kind order');
   // The bold-only slot sheets (level-less kinds, one Bold row each) follow, in
-  // the contract's wire-id order (KINDS 8..16).
-  assert.deepEqual(titles.slice(12, 21),
+  // the contract's wire-id order (KINDS 8..17).
+  assert.deepEqual(titles.slice(12, 22),
     ['Temperature slot', 'Air pressure (hPa) slot', 'Sunrise/sunset slot',
       'Date slot', 'Calendar week slot', 'City slot', 'Date countdown slot',
-      'Heart rate slot', 'Battery percentage slot'],
+      'Heart rate slot', 'Battery percentage slot', 'Dew point slot'],
     'bold-only slot sheets follow the threshold sheets, in wire-id order');
   // Time and Calendar moved to the END of the Layout tab (order Time, Calendar) —
   // the Status-slots tab holds nothing but slot config now.
-  assert.deepEqual(titles.slice(21), [], 'no sections after the bold-only sheets');
+  assert.deepEqual(titles.slice(22), [], 'no sections after the bold-only sheets');
   const layoutTitles = schema.tabs.find((t) => t.id === 'layout')
     .sections.map((s) => s.title).filter(Boolean);
   assert.deepEqual(layoutTitles.slice(-2), ['Time', 'Calendar'],
@@ -1136,13 +1136,14 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
   // gate and the color pickers' COLOR-capability + non-B&W-theme rules.
   const watch = schema.tabs.find((t) => t.id === 'watch');
   const threshSections = watch.sections.filter((s) => s.sheetOnly);
-  assert.equal(threshSections.length, 17,
-    'one edit sheet per boldable slot kind (8 threshold + 9 bold-only)');
+  assert.equal(threshSections.length, 18,
+    'one edit sheet per boldable slot kind (8 threshold + 10 bold-only)');
   assert.deepEqual(threshSections.map((s) => s.sheetId),
     ['threshAqi', 'threshPollen', 'threshWind', 'threshGust', 'threshUv',
       'threshSteps', 'threshSleep', 'threshDistance',
       'threshTemp', 'threshPressure', 'threshSun', 'threshDate', 'threshWeek',
-      'threshCity', 'threshCountdown', 'threshHr', 'threshBatteryPct'],
+      'threshCity', 'threshCountdown', 'threshHr', 'threshBatteryPct',
+      'threshDew'],
     'sheet ids follow the thresh<Stem> convention the slot resolver derives');
   threshSections.forEach((sec, i) =>
     assert.deepEqual(sec.showWhen, { env: 'thresholds' },

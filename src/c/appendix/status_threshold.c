@@ -7,6 +7,7 @@ int status_threshold_kind_for_slot(uint8_t slot_kind, uint8_t icon) {
             case STATUS_ICON_POLLEN:    return THRESH_POLLEN;
             case STATUS_ICON_WIND:      return THRESH_WIND;
             case STATUS_ICON_GUST:      return THRESH_GUST;
+            case STATUS_ICON_DEWPOINT:  return THRESH_DEW;
             case STATUS_ICON_UV:        return THRESH_UV;
             case STATUS_ICON_TEMP:      return THRESH_TEMP;
             case STATUS_ICON_PRESSURE:  return THRESH_PRESSURE;

@@ -19,7 +19,11 @@
     // Text-only: no glyph exists for PRESSURE and the watch never loads one —
     // the id only discriminates pressure from city (both TEXT) on the wire so
     // each can carry its own bold mode (status_threshold.h).
-    PRESSURE: 14
+    PRESSURE: 14,
+    // Droplets. The glyph is optional (aplite ships none), but the id is not:
+    // without one the dew slot would be TEXT + NONE and inherit city's bold mode.
+    // Id 6 is a retired hole (STATUS_ICON_PRECIP, 3dae9f4) — never reuse it.
+    DEWPOINT: 15
   };
   var CAPS = { LINE_MAX: 48, EDGE_TEXT_MAX: 8, MID_TEXT_MAX: 19 };
 
@@ -35,6 +39,10 @@
     { code: 'wind', label: 'Wind speed', kind: KINDS.TEXT, icon: ICONS.WIND, category: 'weather' },
     { code: 'gust', label: 'Wind gusts', kind: KINDS.TEXT, icon: ICONS.GUST, category: 'weather' },
     { code: 'pressure', label: 'Air pressure (hPa)', kind: KINDS.TEXT, icon: ICONS.PRESSURE, category: 'weather' },
+    // No notAplite gate: the slot is plain phone-baked text everywhere, and the
+    // lean aplite status-row twin returns NULL for an unknown icon id (reserving
+    // zero width), so it simply renders without the droplets glyph.
+    { code: 'dew', label: 'Dew point', kind: KINDS.TEXT, icon: ICONS.DEWPOINT, category: 'weather' },
     { code: 'uv', label: 'UV index', kind: KINDS.TEXT, icon: ICONS.UV, category: 'weather' },
     { code: 'aqi', label: 'Air quality (AQI)', kind: KINDS.TEXT, icon: ICONS.AQI, category: 'weather' },
     { code: 'pollen', label: 'Pollen (DWD)', kind: KINDS.TEXT, icon: ICONS.POLLEN, needsProvider: 'dwd', category: 'weather' },

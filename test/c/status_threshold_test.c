@@ -56,6 +56,15 @@ static void kind_tests(void) {
     // and empty has no content at all.
     expect("kind.battery_pct",
            status_threshold_kind_for_slot(SLOT_LIVE_BATTERY_PCT, STATUS_ICON_NONE), THRESH_BATTERY_PCT);
+    // Dew point (kind 17) is a TEXT slot discriminated by its own icon. The icon
+    // is what keeps it OUT of the TEXT+NONE city bucket; the switch case here is
+    // what keeps it out of the -1 "nothing to bold" bucket. Miss either and the
+    // slot's Bold setting silently does nothing, so pin both.
+    expect("kind.dew", status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_DEWPOINT), THRESH_DEW);
+    expect("kind.dew_not_city",
+           status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_DEWPOINT) == THRESH_CITY, 0);
+    expect("kind.dew_not_kindless",
+           status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_DEWPOINT) < 0, 0);
     expect("kind.battery", status_threshold_kind_for_slot(SLOT_LIVE_BATTERY, STATUS_ICON_NONE), -1);
     expect("kind.empty", status_threshold_kind_for_slot(SLOT_EMPTY, STATUS_ICON_NONE), -1);
     // Direction is a fixed property of the kind — and since the goal rework the
@@ -123,6 +132,8 @@ static void paired_bound_tests(void) {
     expect("paired.enabled_hr", status_threshold_enabled(blob, sizeof(blob), THRESH_HR), 0);
     expect("paired.enabled_battery_pct",
            status_threshold_enabled(blob, sizeof(blob), THRESH_BATTERY_PCT), 0);
+    expect("paired.enabled_dew",
+           status_threshold_enabled(blob, sizeof(blob), THRESH_DEW), 0);
     // color8 for a bold-only kind would land inside the health-u16 area
     // (1 + 2*9 = 19 >= THRESH_HEALTH_OFFSET); it must return the fallback, not
     // that byte. Prove it with a distinctive byte at the colliding offset.
@@ -203,13 +214,33 @@ static void bold_tests(void) {
     expect("bold.levelless_always",
            status_threshold_is_bold(blob, n, THRESH_TEMP, THRESH_LEVEL_NORMAL), 1);
 
-    // Kind 16 (battery %) lives alone in the fifth bold byte (blob byte 33).
-    blob[THRESH_BOLD_OFFSET + 4] = (uint8_t)(THRESH_BOLD_ALWAYS << (2 * (THRESH_BATTERY_PCT & 3)));
+    // Kinds 16 (battery %) and 17 (dew point) share the fifth bold byte (blob
+    // byte 33), which holds four 2-bit cells — so appending dew costs the wire
+    // nothing and the two must not bleed into each other.
+    blob[THRESH_BOLD_OFFSET + 4] = (uint8_t)((THRESH_BOLD_ALWAYS << (2 * (THRESH_BATTERY_PCT & 3)))
+                                             | (THRESH_BOLD_OFF << (2 * (THRESH_DEW & 3))));
     expect("bold.pack_battery_pct",
            status_threshold_bold_mode(blob, n, THRESH_BATTERY_PCT), THRESH_BOLD_ALWAYS);
     expect("bold.battery_pct_bolds",
            status_threshold_is_bold(blob, n, THRESH_BATTERY_PCT, THRESH_LEVEL_NORMAL), 1);
+    expect("bold.pack_dew", status_threshold_bold_mode(blob, n, THRESH_DEW), THRESH_BOLD_OFF);
+    blob[THRESH_BOLD_OFFSET + 4] = (uint8_t)(THRESH_BOLD_ALWAYS << (2 * (THRESH_DEW & 3)));
+    expect("bold.pack_dew_always", status_threshold_bold_mode(blob, n, THRESH_DEW), THRESH_BOLD_ALWAYS);
+    expect("bold.dew_bolds",
+           status_threshold_is_bold(blob, n, THRESH_DEW, THRESH_LEVEL_NORMAL), 1);
+    expect("bold.battery_pct_untouched_by_dew",
+           status_threshold_bold_mode(blob, n, THRESH_BATTERY_PCT), THRESH_BOLD_WARN);
+    // Dew is level-less like its byte-mates: its unset default ('warn') renders
+    // NON-bold, so only ALWAYS ever changes anything.
+    expect("bold.dew_default_non_bold",
+           status_threshold_is_bold(blob, n, THRESH_BATTERY_PCT, THRESH_LEVEL_NORMAL), 0);
     expect("bold.pack_hr_untouched", status_threshold_bold_mode(blob, n, THRESH_HR), THRESH_BOLD_ALWAYS);
+    // The blob width is pinned: byte 33's four cells cover kinds 16..19, so
+    // appending 17 must not have moved THRESH_SETTINGS_BYTES (every extra byte
+    // rides the Clay message on every settings send — see test/inbox-size.test.js).
+    expect("bold.blob_width_pinned", THRESH_SETTINGS_BYTES, 34);
+    expect("bold.top_kind_inside_bold_area",
+           THRESH_BOLD_OFFSET + ((THRESH_KIND_COUNT - 1) >> 2) < THRESH_SETTINGS_BYTES, 1);
 
     // Degrade safely: the reserved wire value, a bad blob and a slot with no
     // threshold kind all fall back to the shipped behaviour.
@@ -277,6 +308,8 @@ static void legacy_blob_tests(void) {
     expect("legacy33.bold_temp", status_threshold_bold_mode(blob, pre16, THRESH_TEMP), THRESH_BOLD_OFF);
     expect("legacy33.battery_pct_default",
            status_threshold_bold_mode(blob, pre16, THRESH_BATTERY_PCT), THRESH_BOLD_WARN);
+    expect("legacy33.dew_default",
+           status_threshold_bold_mode(blob, pre16, THRESH_DEW), THRESH_BOLD_WARN);
     expect("legacy33.aqi_on", status_threshold_enabled(blob, pre16, THRESH_AQI), 1);
     expect("legacy33.steps_warn", status_threshold_health_warn(blob, pre16, THRESH_STEPS), 8000);
 }

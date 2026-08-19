@@ -8,21 +8,34 @@ typedef struct {
     int16_t group_w;
 } GroupFit;
 
-// Fit one slot group (glyph + gap + text) into max_w. Text shrinks first;
-// the glyph is kept; a glyph that alone exceeds max_w omits the slot.
+// Width the suffix lane costs a group: the glyph plus the gap that separates it from
+// the text. An empty text lane collapses that gap, so the suffix abuts the icon —
+// which is what place_group's suffix_x works out to, keeping the two in step.
+static int16_t suffix_lane_w(int16_t suffix_w, int16_t text_w) {
+    if (suffix_w <= 0) { return 0; }
+    return (int16_t)(suffix_w + (text_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0));
+}
+
+// Fit one slot group (glyph + gap + text + gap + suffix) into max_w. Text shrinks
+// first — the suffix reserve comes off the budget BEFORE the shrink, so the trailing
+// glyph survives a squeeze intact; the icon is kept; an icon and suffix that alone
+// exceed max_w omit the slot. A suffix never renders alone: once the text lane has
+// collapsed and there is no icon either, the slot goes (the arrow is a modifier on a
+// reading, meaningless without one).
 static GroupFit fit_group(const StatusSlotMeasure *m, int16_t max_w) {
     GroupFit fit = { false, false, 0, 0 };
     if (!m->present || max_w <= 0) {
         return fit;
     }
-    if (m->icon_w > max_w) {
+    if (m->icon_w + m->suffix_w > max_w) {
         return fit;
     }
 
     int16_t text_w = m->text_w;
     int16_t gap = (m->icon_w > 0 && text_w > 0) ? STATUS_ROW_ICON_TEXT_GAP : 0;
-    if (m->icon_w + gap + text_w > max_w) {
-        text_w = max_w - m->icon_w - gap;
+    int16_t suffix = suffix_lane_w(m->suffix_w, text_w);
+    if (m->icon_w + gap + text_w + suffix > max_w) {
+        text_w = max_w - m->icon_w - gap - suffix;
         if (text_w < 0) {
             text_w = 0;
         }
@@ -36,7 +49,7 @@ static GroupFit fit_group(const StatusSlotMeasure *m, int16_t max_w) {
     fit.text_w = text_w;
     fit.group_w = m->icon_w + ((text_w > 0)
         ? (STATUS_ROW_ICON_TEXT_GAP * (m->icon_w > 0)) + text_w
-        : 0);
+        : 0) + suffix_lane_w(m->suffix_w, text_w);
     return fit;
 }
 
@@ -53,27 +66,33 @@ static void place_group(const StatusSlotMeasure *m, const GroupFit *fit,
         ? STATUS_ROW_ICON_TEXT_GAP
         : 0);
     out->text_w = fit->text_w;
+    out->suffix_x = (m->suffix_w > 0)
+        ? (int16_t)(out->text_x + fit->text_w
+                    + (fit->text_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0))
+        : 0;
 }
 
-// Desired group width (icon + gap + text) for a normalized (non-negative) measure.
+// Desired group width (icon + gap + text + gap + suffix) for a normalized
+// (non-negative) measure.
 static int16_t desired_group_w(const StatusSlotMeasure *m) {
     if (!m->present) { return 0; }
     int16_t icon = m->icon_w;
     int16_t text = m->text_w;
     if (icon <= 0 && text <= 0) { return 0; }
     int16_t gap = (icon > 0 && text > 0) ? STATUS_ROW_ICON_TEXT_GAP : 0;
-    return (int16_t)(icon + gap + text);
+    return (int16_t)(icon + gap + text + suffix_lane_w(m->suffix_w, text));
 }
 
 void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
                        StatusSlotPlace out[3]) {
     StatusSlotMeasure normalized[3];
     for (int i = 0; i < 3; i++) {
-        out[i] = (StatusSlotPlace) { false, false, 0, 0, 0 };
+        out[i] = (StatusSlotPlace) { false, false, 0, 0, 0, 0 };
         normalized[i] = (StatusSlotMeasure) {
             m[i].present,
             m[i].icon_w > 0 ? m[i].icon_w : 0,
-            m[i].text_w > 0 ? m[i].text_w : 0
+            m[i].text_w > 0 ? m[i].text_w : 0,
+            m[i].suffix_w > 0 ? m[i].suffix_w : 0
         };
     }
     if (content_w <= 0) {

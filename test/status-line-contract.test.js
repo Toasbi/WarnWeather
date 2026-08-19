@@ -57,6 +57,19 @@ test('icon ids are in lockstep with status_line.h', () => {
   // discriminate pressure from city (both TEXT) on the wire, so each can carry
   // its own per-kind bold mode.
   assert.equal(catalog.ICONS.PRESSURE, cEnum('STATUS_ICON_PRESSURE'));
+  // DEWPOINT needs an id of its own even though its glyph is optional: a TEXT
+  // slot with ICON_NONE inherits THRESH_CITY's bold mode.
+  assert.equal(catalog.ICONS.DEWPOINT, cEnum('STATUS_ICON_DEWPOINT'));
+});
+
+test('STATUS_ICON_MAX names the highest icon id in the enum', () => {
+  const ids = [...header.matchAll(/(STATUS_ICON_[A-Z_]+)\s*=\s*(\d+)/g)]
+    .map(m => ({ name: m[1], value: Number(m[2]) }));
+  assert.ok(ids.length, 'no STATUS_ICON_* enumerators found');
+  const highest = ids.reduce((a, b) => (b.value > a.value ? b : a));
+  const m = header.match(/#define\s+STATUS_ICON_MAX\s+(STATUS_ICON_[A-Z_]+)/);
+  assert.ok(m, 'STATUS_ICON_MAX missing from status_line.h');
+  assert.equal(m[1], highest.name, 'STATUS_ICON_MAX was not bumped with the new id');
 });
 
 test('every dropdown item maps kind+icon consistently', () => {
@@ -64,6 +77,7 @@ test('every dropdown item maps kind+icon consistently', () => {
     empty: [catalog.KINDS.EMPTY, catalog.ICONS.NONE],
     temp: [catalog.KINDS.TEXT, catalog.ICONS.TEMP],
     pressure: [catalog.KINDS.TEXT, catalog.ICONS.PRESSURE],
+    dew: [catalog.KINDS.TEXT, catalog.ICONS.DEWPOINT],
     city: [catalog.KINDS.TEXT, catalog.ICONS.NONE],
     countdown: [catalog.KINDS.TEXT, catalog.ICONS.COUNTDOWN],
     sun: [catalog.KINDS.TEXT, catalog.ICONS.DRAWN_SUN],

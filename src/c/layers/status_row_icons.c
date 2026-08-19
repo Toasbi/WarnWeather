@@ -123,6 +123,9 @@ static uint32_t icon_resource(uint8_t icon_id) {
         case STATUS_ICON_AQI: return RESOURCE_ID_STATUS_AQI;   // weather metric, all providers
         case STATUS_ICON_POLLEN: return RESOURCE_ID_STATUS_POLLEN;
         case STATUS_ICON_COUNTDOWN: return RESOURCE_ID_STATUS_COUNTDOWN;
+        // Dew point is a temperature, so the droplets glyph is the only thing that
+        // tells it apart from the temperature slot beside it.
+        case STATUS_ICON_DEWPOINT: return RESOURCE_ID_STATUS_DEW;
         // PRESSURE is text-only by contract (status_line.h) — no PDC resource
         // exists. Belt and braces: the draw site (status_row.c ensure_glyphs)
         // never asks for it in the first place.

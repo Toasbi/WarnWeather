@@ -127,6 +127,51 @@ test('aqi is a TEXT item (leaf icon) available on every platform and in slot opt
   assert.ok(codes.indexOf('aqi') !== -1, 'aqi offered in slot dropdown');
 });
 
+test('dew point is a TEXT weather item with an icon id of its own', () => {
+  const item = catalog.byCode('dew');
+  assert.ok(item, 'dew item exists');
+  assert.equal(item.kind, catalog.KINDS.TEXT);
+  assert.equal(item.label, 'Dew point');
+  assert.equal(item.category, 'weather');
+  assert.equal(catalog.ICONS.DEWPOINT, 15);
+  assert.equal(item.icon, catalog.ICONS.DEWPOINT);
+  // Not ICON_NONE: a TEXT slot without its own icon id inherits City's bold mode.
+  assert.notEqual(item.icon, catalog.ICONS.NONE);
+});
+
+test('dew point works on aplite as plain text (no glyph, so no notAplite gate)', () => {
+  const item = catalog.byCode('dew');
+  assert.equal(item.notAplite, undefined,
+    'the aplite status-row twin reserves zero width for an unknown icon id');
+  assert.ok(catalog.itemAvailable(item, {}, ENV_APLITE), 'available on aplite');
+  assert.ok(catalog.itemAvailable(item, {}, ENV_BASALT), 'available on basalt');
+  const aplite = catalog.slotOptions({}, ENV_APLITE,
+    { slotKey: 'statusRadarLeft', position: 'left' }).map(o => o[1]);
+  assert.ok(aplite.indexOf('dew') !== -1, 'dew offered in an aplite dropdown');
+  const basalt = catalog.slotOptions({}, ENV_BASALT,
+    { slotKey: 'statusRadarLeft', position: 'left' }).map(o => o[1]);
+  assert.ok(basalt.indexOf('dew') !== -1, 'dew offered in a basalt dropdown');
+});
+
+test('dew point follows air pressure in the weather dropdown group', () => {
+  const codes = catalog.slotOptions({}, ENV_BASALT,
+    { slotKey: 'statusRadarLeft', position: 'left' }).map(o => o[1]);
+  assert.equal(codes.indexOf('dew'), codes.indexOf('pressure') + 1);
+});
+
+test('no two catalog icon ids collide (a shared id merges two slots\' bold modes)', () => {
+  const seen = {};
+  Object.keys(catalog.ICONS).forEach((name) => {
+    const id = catalog.ICONS[name];
+    assert.equal(seen[id], undefined, name + ' reuses icon id ' + id + ' (' + seen[id] + ')');
+    seen[id] = name;
+  });
+  // Id 6 is a retired hole (STATUS_ICON_PRECIP, removed in 3dae9f4): a
+  // pre-3dae9f4 install can still hold a persisted blob referencing it.
+  assert.ok(Object.keys(catalog.ICONS).every(n => catalog.ICONS[n] !== 6),
+    'icon id 6 is retired and must stay unused');
+});
+
 test('pollen is a DWD-only TEXT item: selectable for DWD, visible-but-disabled elsewhere', () => {
   const item = catalog.byCode('pollen');
   assert.ok(item, 'pollen item exists');

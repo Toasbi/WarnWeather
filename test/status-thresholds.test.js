@@ -8,17 +8,17 @@ test('kind order is the wire order (index = ThreshKind)', () => {
   assert.deepEqual(th.KINDS.map(k => k.code),
     ['aqi', 'pollen', 'wind', 'gust', 'steps', 'sleep', 'distance', 'uv',
      'temp', 'pressure', 'sun', 'date', 'week', 'city', 'countdown', 'hr',
-     'batteryPct']);
+     'batteryPct', 'dew']);
   assert.deepEqual(th.KINDS.map(k => k.key),
     ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance', 'Uv',
      'Temp', 'Pressure', 'Sun', 'Date', 'Week', 'City', 'Countdown', 'Hr',
-     'BatteryPct']);
-  // The bold-only flag covers exactly the appended kinds 8..16 (the GLYPH
+     'BatteryPct', 'Dew']);
+  // The bold-only flag covers exactly the appended kinds 8..17 (the GLYPH
   // battery is deliberately absent: a drawn glyph with no text run has nothing
-  // to bold; the battery-% TEXT slot is kind 16).
+  // to bold; the battery-% TEXT slot is kind 16, dew point kind 17).
   assert.deepEqual(th.KINDS.map(k => Boolean(k.boldOnly)),
     [false, false, false, false, false, false, false, false,
-     true, true, true, true, true, true, true, true, true]);
+     true, true, true, true, true, true, true, true, true, true]);
 });
 
 test('computeLevel: above-is-worse boundaries are inclusive', () => {
@@ -227,15 +227,30 @@ test('buildSettingsBlob: an unknown bold mode falls back to warn', () => {
 // statusBoldAll master row: 'all' overrides the PACKED bold cells only — every
 // kind packs 'always' regardless of its stored mode, and nothing outside the
 // bold area is the master's business.
-test('buildSettingsBlob: statusBoldAll "all" packs always into all 17 bold cells', () => {
+test('buildSettingsBlob: statusBoldAll "all" packs always into every bold cell', () => {
   const blob = th.buildSettingsBlob({
     statusBoldAll: 'all',
     // Stored modes that would otherwise pack off (1) / warn (0) lanes.
     threshAqiBoldMode: 'off', threshStepsBoldMode: 'warn', threshHrBoldMode: 'off'
   });
-  // 2 ('always') in every 2-bit lane of a byte = 0b10101010 = 0xAA; byte 33
-  // holds only kind 16 (batteryPct) so far, so just its bits 0-1 pack.
-  assert.deepEqual(blob.slice(th.BOLD_OFFSET), [0xAA, 0xAA, 0xAA, 0xAA, 0x02]);
+  // 2 ('always') in every 2-bit lane of a byte = 0b10101010 = 0xAA. The LAST
+  // bold byte is partial — byte 33 holds four cells (kinds 16..19) and only the
+  // ones a kind actually claims get packed — so derive it from KINDS rather than
+  // hard-coding it: appending a kind into a byte the blob already pays for is a
+  // free, wire-neutral change and should not read here as a regression. The
+  // kind COUNT itself is pinned by status-thresholds-contract.test.js.
+  const cellsPerByte = 4;
+  const fullBytes = Math.floor(th.KINDS.length / cellsPerByte);
+  const tailCells = th.KINDS.length % cellsPerByte;
+  const expected = new Array(fullBytes).fill(0xAA);
+  if (tailCells) {
+    let tail = 0;
+    for (let c = 0; c < tailCells; c += 1) { tail |= th.BOLD_MODES.always << (2 * c); }
+    expected.push(tail);
+  }
+  assert.deepEqual(blob.slice(th.BOLD_OFFSET), expected);
+  // The bold area itself must not shrink, or the assertion above goes vacuous.
+  assert.equal(th.SETTINGS_BYTES - th.BOLD_OFFSET, 5, 'bold area is bytes 29..33');
 });
 
 test('statusBoldAll "all" leaves everything below the bold area byte-identical', () => {

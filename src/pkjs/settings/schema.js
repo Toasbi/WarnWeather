@@ -1165,7 +1165,7 @@ module.exports = {
             'Distance walked per day.', HEALTH_SLOT_WHEN),
         // Bold-only sheets for the level-less slot kinds (same pencil, one row —
         // plus Temp's display-mode row). Order and labels mirror the contract's
-        // KINDS appendix (wire ids 8..16); the battery GLYPH item is deliberately
+        // KINDS appendix (wire ids 8..17); the battery GLYPH item is deliberately
         // absent — see boldSection (the battery PERCENTAGE kind sits at the end).
         // "Temperature slot", not the catalog's "Temperature (actual/feels like)":
         // the parenthetical exists to advertise the choice from the dropdown, and
@@ -1191,7 +1191,8 @@ module.exports = {
         boldSection('City', 'City'),
         boldSection('Date countdown', 'Countdown'),
         boldSection('Heart rate', 'Hr', HR_SLOT_WHEN),
-        boldSection('Battery percentage', 'BatteryPct')]
+        boldSection('Battery percentage', 'BatteryPct'),
+        boldSection('Dew point', 'Dew')]
     }, {
         id: 'layout', label: 'Layout', sections: [{
             intro: 'How the watchface is arranged, and what a wrist-flick reveals — shown side by side in the preview. What a metric means or how it\'s coloured lives in its own tab.',

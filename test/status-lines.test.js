@@ -440,3 +440,56 @@ test('pressure slot shows -- for an implausible current-hour value (provider zer
   const text = statusLines.formatValue('pressure', { PRESSURE_TREND: [0, 1013] }, {}, 'statusRadarLeft');
   assert.equal(text, '--');
 });
+
+// DEW_TREND carries the provider's UNROUNDED °F value (Part 1 keeps full precision
+// so the °C conversion rounds once, not twice), so the °F path has to round too --
+// a raw 53.6 would otherwise render as the nonsense "53.6" in an 8-byte slot.
+test('dew point renders as a bare rounded number in both units', () => {
+  const p = { DEW_TREND: [53.6] }; // 53.6F = 12.0C
+  assert.equal(statusLines.formatValue('dew', p, { temperatureUnits: 'c' }, 'statusRadarLeft'), '12');
+  assert.equal(statusLines.formatValue('dew', p, { temperatureUnits: 'f' }, 'statusRadarLeft'), '54');
+  // Negative readings keep their sign and stay bare (the droplets icon carries context).
+  const cold = { DEW_TREND: [-4.3] }; // -4.3F = -20.2C
+  assert.equal(statusLines.formatValue('dew', cold, { temperatureUnits: 'c' }, 'statusRadarLeft'), '-20');
+  assert.equal(statusLines.formatValue('dew', cold, { temperatureUnits: 'f' }, 'statusRadarLeft'), '-4');
+});
+
+test('dew point degrades to -- when unsourced', () => {
+  for (const payload of [{}, { DEW_TREND: [] }, { DEW_TREND: [null] }]) {
+    assert.equal(statusLines.formatValue('dew', payload, { temperatureUnits: 'c' },
+      'statusRadarLeft'), '--', JSON.stringify(payload));
+    assert.equal(statusLines.formatValue('dew', payload, { temperatureUnits: 'f' },
+      'statusRadarLeft'), '--', JSON.stringify(payload));
+  }
+});
+
+test('dew point text fits the 8-byte edge cap at every plausible value', () => {
+  // -60..100 °F spans every dew point the planet produces, in both units.
+  for (let f = -60; f <= 100; f += 1) {
+    for (const units of ['c', 'f']) {
+      const text = statusLines.formatValue('dew', { DEW_TREND: [f] },
+        { temperatureUnits: units }, 'statusRadarLeft');
+      assert.ok(statusLines.utf8Encode(text).length <= catalog.CAPS.EDGE_TEXT_MAX,
+        `"${text}" exceeds EDGE_TEXT_MAX (${f}F as ${units})`);
+      assert.match(text, /^-?\d+$/, `"${text}" is not a bare number (${f}F as ${units})`);
+    }
+  }
+});
+
+test('dew point packs as TEXT under its own icon id, on aplite too', () => {
+  const settings = {
+    statusRadarLeft: 'dew', statusRadarMid: 'empty', statusRadarRight: 'empty',
+    temperatureUnits: 'c'
+  };
+  for (const env of [{ platform: 'basalt', color: true, health: true },
+                     { platform: 'aplite', color: false, health: false }]) {
+    const bytes = statusLines.packLine(catalog.LINES[1], { DEW_TREND: [53.6] }, settings, env);
+    assert.equal(bytes[0], K.TEXT, env.platform + ' kind');
+    // Its own icon id even though the glyph is optional: a TEXT slot with
+    // ICON_NONE would inherit City's bold mode (status_threshold.h).
+    assert.equal(bytes[1], I.DEWPOINT, env.platform + ' icon');
+    assert.notEqual(bytes[1], I.NONE, env.platform + ' must not share City\'s id');
+    assert.equal(Buffer.from(bytes.slice(3, 3 + bytes[2])).toString('utf8'), '12',
+      env.platform + ' text');
+  }
+});

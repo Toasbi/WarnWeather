@@ -39,6 +39,25 @@ test('kind count and blob layout are in lockstep with status_threshold.h', () =>
     'the battery-% bold cell lives in byte 33');
 });
 
+// Byte 33 is a whole byte holding four 2-bit cells (kinds 16..19), and battery %
+// only claimed the first. Every kind appended into the remaining three is free:
+// it must not move THRESH_SETTINGS_BYTES, because the blob's width is paid for on
+// the Clay message (7 B tuple header + SETTINGS_BYTES, recorded in
+// test/inbox-size.test.js) and widening it would also add a fourth accepted
+// length for upgrading watches to read.
+test('the bold-only kinds sharing byte 33 never widen the blob', () => {
+  assert.equal(cEnum('THRESH_DEW'), 17, 'dew is the second cell of byte 33');
+  assert.equal(th.BOLD_OFFSET + (cEnum('THRESH_DEW') >> 2), 33,
+    'the dew bold cell shares byte 33 with battery %');
+  assert.equal(th.SETTINGS_BYTES, 34, 'appending kinds 17..19 must not widen the blob');
+  assert.equal(cDefine('THRESH_SETTINGS_BYTES'), 34);
+  assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_KIND16'), 33);
+  // Capacity, stated once: the bold area runs to the end of byte 33, so kinds
+  // 18 and 19 still fit; kind 20 is the first that would cost a byte.
+  assert.ok(th.KINDS.length <= 20,
+    'kind 20 would need a sixth bold byte — that is a wire widening, not an append');
+});
+
 test('bold modes are in lockstep with the ThreshBold enum', () => {
   assert.equal(th.BOLD_MODES.warn, cEnum('THRESH_BOLD_WARN'));
   assert.equal(th.BOLD_MODES.off, cEnum('THRESH_BOLD_OFF'));
@@ -59,7 +78,8 @@ test('kind indices are in lockstep with the ThreshKind enum', () => {
     distance: 'THRESH_DISTANCE', uv: 'THRESH_UV',
     temp: 'THRESH_TEMP', pressure: 'THRESH_PRESSURE', sun: 'THRESH_SUN',
     date: 'THRESH_DATE', week: 'THRESH_WEEK', city: 'THRESH_CITY',
-    countdown: 'THRESH_COUNTDOWN', hr: 'THRESH_HR', batteryPct: 'THRESH_BATTERY_PCT' };
+    countdown: 'THRESH_COUNTDOWN', hr: 'THRESH_HR', batteryPct: 'THRESH_BATTERY_PCT',
+    dew: 'THRESH_DEW' };
   th.KINDS.forEach((k, i) => {
     assert.equal(i, cEnum(names[k.code]), k.code + ' wire index');
   });

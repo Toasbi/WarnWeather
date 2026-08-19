@@ -147,8 +147,12 @@ function formatWind(v, settings) {
 
 /**
  * Convert an internal °F temperature to the display unit as a bare number.
- * Shared by the actual and feels-like halves of the temp slot so both ride
- * the identical conversion/rounding path.
+ * Shared by the actual and feels-like halves of the temp slot and by the dew
+ * point slot, so all three ride the identical conversion/rounding path.
+ * Rounds LAST, in both units: the temp/feels callers already pass whole °F, but
+ * DEW_TREND carries the provider's unrounded reading (kept unrounded so the °C
+ * conversion rounds once rather than twice), and an unrounded °F would render as
+ * "53.6" — four characters of nonsense in an 8-byte slot.
  * @param {number} vF temperature in °F
  * @param {Object} settings Clay settings blob (reads temperatureUnits)
  * @returns {string} e.g. "20" or "-12"
@@ -156,9 +160,9 @@ function formatWind(v, settings) {
 function formatTemp(vF, settings) {
   var t = vF;
   if (settings.temperatureUnits !== 'f') {
-    t = Math.round((t - 32) * 5 / 9);
+    t = (t - 32) * 5 / 9;
   }
-  return String(t);
+  return String(Math.round(t));
 }
 
 /**
@@ -260,6 +264,14 @@ function formatValue(code, payload, settings, slotKey) {
     // Value + unit, unlike temp/uv/aqi: those have an icon to carry their context
     // and this deliberately ships without one, so the text says what it is.
     return String(Math.round(v)) + 'hPa';
+  }
+  if (code === 'dew') {
+    v = trendHead(payload.DEW_TREND);
+    // Bare number: the droplets icon carries the "dew point" context, the temp /
+    // UV / AQI convention. formatTemp is the temperature slot's own converter, so
+    // both slots follow temperatureUnits through identical rounding. Unsourced
+    // (a provider that omits it, e.g. Yandex) degrades to '--' like pressure.
+    return v === null ? '--' : formatTemp(v, settings);
   }
   if (code === 'aqi') {
     v = trendHead(payload.AQI_TREND);

@@ -31,14 +31,19 @@
 //                       health trio only (UV levels are phone-computed)
 //      [17 + 4h + 2..3] danger threshold, LE uint16
 //      [29 + (k >> 2)]  bold mode (ThreshBold), 2 bits per kind at bits
-//                       2 * (k & 3) — 17 kinds x 2 bits = bytes 29..33 (byte 33
-//                       carries kinds 16..19; only 16 is assigned so far).
+//                       2 * (k & 3) — 18 kinds x 2 bits = bytes 29..33 (byte 33
+//                       carries kinds 16..19; 16 and 17 are assigned so far, so
+//                       two more kinds still append for free).
 //                       INDEPENDENT of the enabled bitmask: THRESH_BOLD_ALWAYS
 //                       bolds a slot whose kind has no thresholds configured.
 //    Widened 27 -> 29 bytes when UV became kind 7, 29 -> 33 when the bold-only
 //    kinds (8..15) grew the bold area to 16 kinds, 33 -> 34 when battery %
 //    (kind 16) opened byte 33. (An interim 31-byte 8-kind bold format never
-//    shipped, so it validates as garbage, not as legacy.)
+//    shipped, so it validates as garbage, not as legacy.) Dew point (kind 17)
+//    appended into byte 33's second cell and cost NOTHING: the byte was already
+//    paid for, so THRESH_SETTINGS_BYTES and the accepted-length set below are
+//    unchanged. Kinds 18 and 19 are free the same way; kind 20 is the first that
+//    would widen the blob — and with it every Clay send.
 //    Exactly three lengths are accepted: the current 34, the 16-kind 33, and
 //    the pre-bold 29. The UV step SHIFTED the health offsets, so a 27-byte blob
 //    would be misread and is rejected; the bold steps only APPEND, so a shorter
@@ -51,7 +56,7 @@
 //    Health threshold wire units: steps = steps, sleep = MINUTES,
 //    distance = 100 m units (the status row's own display resolution).
 
-#define THRESH_KIND_COUNT 17
+#define THRESH_KIND_COUNT 18
 // Kinds that OWN a blob pair — an enable bit in byte 0, a color pair, and (for
 // the health trio) a u16 threshold pair. Byte 0 has exactly 8 enable bits and
 // the color/health offsets collide with later fields past kind 7, so bounding
@@ -94,6 +99,12 @@ typedef enum {
     // Battery % (SLOT_LIVE_BATTERY_PCT) renders text, so unlike the glyph
     // battery slot (which stays kind-less) it owns a bold cell — in byte 33.
     THRESH_BATTERY_PCT = 16,
+    // Dew point (kind 17, appended): bold-only, like every kind since 8. It
+    // lands in byte 33's SECOND 2-bit cell, so THRESH_SETTINGS_BYTES stays 34.
+    // Without a kind of its own the dew slot would arrive as SLOT_TEXT +
+    // STATUS_ICON_DEWPOINT, miss every case in status_threshold_kind_for_slot()
+    // and fall through to -1 — never boldable at all.
+    THRESH_DEW = 17,
 } ThreshKind;
 #define THRESH_WEATHER_KIND_MAX THRESH_GUST
 

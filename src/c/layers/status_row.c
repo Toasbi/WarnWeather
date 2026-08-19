@@ -539,7 +539,10 @@ static void ensure_glyphs(StatusRow *row, int len, int content_h) {
 static StatusSlotMeasure measure_slot(StatusRow *row, int i, GFont font,
                                       int16_t content_w, const StatusSlotView *slot,
                                       const char *text) {
-    StatusSlotMeasure m;
+    // Zero-init, not field-by-field: the struct carries a suffix lane this
+    // function does not set yet, and an unassigned field here is indeterminate
+    // stack memory that status_row_layout would read as a real reserve.
+    StatusSlotMeasure m = {0};
     int16_t icon_w = 0;
     if (slot->kind == SLOT_LIVE_BATTERY) {
         icon_w = BATTERY_GLYPH_W;
@@ -657,9 +660,10 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         // Rain-alert takeover: hide left + mid so only the right slot (battery)
         // renders; the owner draws the alert glyph+text over the vacated region.
         if (row->suppress_edges && i != STATUS_SLOT_COUNT - 1) {
-            measures[i].present = false;
-            measures[i].icon_w = 0;
-            measures[i].text_w = 0;
+            // Whole-struct clear: present=false already short-circuits the
+            // layout, but zeroing every field keeps this from becoming the
+            // pattern that reintroduces an unset lane when one is added.
+            measures[i] = (StatusSlotMeasure){0};
             texts[i][0] = '\0';
             continue;
         }
