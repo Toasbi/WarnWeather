@@ -1,6 +1,7 @@
 #include "status_row.h"
 #include "status_row_icons.h"
 #include "status_icon_weight.h"
+#include "status_row_direction.h"
 #include "status_row_layout.h"
 #include "battery_draw.h"
 #include "layer_util.h"
@@ -295,13 +296,25 @@ static void apply_battery_override(const StatusRow *row, int slot_index, StatusS
     }
 }
 
-static void resolve_slot_text(const StatusRow *row, const StatusSlotView *slot, char *buf, size_t cap) {
-    if (cap == 0) { return; }
+// Materialise one slot's display text, and report the wind-direction sector
+// (0..15, -1 = none) the phone baked into its trailing byte.
+//
+// This is the ONE place a slot's text is materialised, which is exactly why the
+// sentinel is stripped here: shortening the copy by a byte at the single source
+// means the control byte can never reach a measurement, graphics_draw_text, or the
+// content signature. Every caller gets the sector back instead — it is content
+// (the arrow's heading), not decoration, so refresh folds it and draw paints it.
+static int8_t resolve_slot_text(const StatusRow *row, const StatusSlotView *slot,
+                                char *buf, size_t cap) {
+    if (cap == 0) { return -1; }
     if (slot->kind == SLOT_TEXT) {
+        int8_t dir = status_slot_direction(slot);
         size_t n = slot->value_len;
+        if (dir >= 0) { n--; }   // drop the sentinel; see status_row_direction.h
         if (n > cap - 1) { n = cap - 1; }
         memcpy(buf, slot->value, n);
         buf[n] = '\0';
+        return dir;
     } else if (slot->kind == SLOT_EMPTY || slot->kind == SLOT_LIVE_BATTERY) {
         // Glyph battery is icon-only; SLOT_LIVE_BATTERY_PCT must NOT join this
         // arm — it renders its charge as text via format_live_value below.
@@ -309,6 +322,7 @@ static void resolve_slot_text(const StatusRow *row, const StatusSlotView *slot, 
     } else {
         format_live_value(row, slot->kind, buf, cap);
     }
+    return -1;
 }
 
 static uint16_t sig_fold(uint16_t sig, const uint8_t *data, size_t len) {
@@ -456,11 +470,18 @@ bool status_row_refresh(StatusRow *row) {
             StatusSlotView slot;
             if (!status_line_slot(s_blob_scratch, (size_t)len, i, &slot)) { break; }
             apply_battery_override(row, i, &slot);
-            resolve_slot_text(row, &slot, s_text_scratch, sizeof(s_text_scratch));
+            int8_t dir = resolve_slot_text(row, &slot, s_text_scratch,
+                                           sizeof(s_text_scratch));
             sig = sig_fold(sig, &slot.kind, 1);
             sig = sig_fold(sig, &slot.icon, 1);
             sig = sig_fold(sig, (const uint8_t *)s_text_scratch,
                            strlen(s_text_scratch));
+            // The signature folds the RESOLVED text, and resolve_slot_text has just
+            // stripped the direction sentinel out of it — so the sector has to be
+            // folded on its own or a wind that veers without changing speed would
+            // leave a stale arrow on screen until some other slot moved.
+            uint8_t dir_byte = (uint8_t)dir;
+            sig = sig_fold(sig, &dir_byte, 1);
             // Fold the highlight level so a crossing (new levels byte, a health
             // value moving, changed settings) is itself a content change, and
             // the RESOLVED bold bit so a bold-mode-only settings change (e.g.
@@ -534,13 +555,13 @@ static void ensure_glyphs(StatusRow *row, int len, int content_h) {
 }
 
 // Measured footprint of one slot: icon width (battery = fixed glyph, loaded PDC,
-// or the drawn-sun arrow) + text width. Shared by the draw pass and the
-// right-slot width query.
+// or the drawn-sun arrow) + text width + the trailing wind-direction arrow's lane.
+// Shared by the draw pass and the right-slot width query. `dir` is
+// resolve_slot_text's sector (-1 = no arrow).
 static StatusSlotMeasure measure_slot(StatusRow *row, int i, GFont font,
                                       int16_t content_w, const StatusSlotView *slot,
-                                      const char *text) {
-    // Zero-init, not field-by-field: the struct carries a suffix lane this
-    // function does not set yet, and an unassigned field here is indeterminate
+                                      const char *text, int8_t dir) {
+    // Zero-init, not field-by-field: an unassigned field here is indeterminate
     // stack memory that status_row_layout would read as a real reserve.
     StatusSlotMeasure m = {0};
     int16_t icon_w = 0;
@@ -560,6 +581,12 @@ static StatusSlotMeasure measure_slot(StatusRow *row, int i, GFont font,
     m.present = icon_w > 0 || text_w > 0;
     m.icon_w = icon_w;
     m.text_w = text_w;
+    // Reserve ARROW_H, not ARROW_W. ARROW_W (6, emery 8) is the arrow's width in
+    // the only two headings the sun slot ever draws — straight up and straight
+    // down — and this arrow turns to any of 16. At 45 degrees the shape's extent
+    // across x is its LONG axis, so the lane is an ARROW_H square: the box a
+    // rotation can never push the path out of.
+    m.suffix_w = (dir >= 0) ? ARROW_H : 0;
     return m;
 }
 
@@ -579,11 +606,21 @@ int16_t status_row_right_slot_width(StatusRow *row) {
     if (!status_line_slot(s_blob_scratch, (size_t)len, i, &slot)) { return 0; }
     apply_battery_override(row, i, &slot);
     char text[STATUS_TEXT_MID_MAX + 1];
-    resolve_slot_text(row, &slot, text, sizeof(text));
-    StatusSlotMeasure m = measure_slot(row, i, font, content_w, &slot, text);
+    int8_t dir = resolve_slot_text(row, &slot, text, sizeof(text));
+    StatusSlotMeasure m = measure_slot(row, i, font, content_w, &slot, text, dir);
     if (!m.present) { return 0; }
     int16_t w = m.icon_w + m.text_w;
     if (m.icon_w > 0 && m.text_w > 0) { w += STATUS_ROW_ICON_TEXT_GAP; }
+    // The arrow's lane is part of the slot's footprint. This width is what
+    // top_status_layer.c reserves for the right slot when the rain alert takes the
+    // strip over, so omitting the lane would size the alert ~ARROW_H + GAP too wide
+    // and let it draw straight over the arrow. Nothing in the test suites reaches
+    // top_status_layer, so this line is the only thing standing between that and a
+    // silent visual bug. The gap collapses when there is no text, mirroring
+    // suffix_lane_w() in status_row_layout.c so the two can't drift.
+    if (m.suffix_w > 0) {
+        w += m.suffix_w + (m.text_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0);
+    }
     return w;
 }
 
@@ -600,6 +637,15 @@ static GRect slot_highlight_box(const StatusRow *row, const StatusSlotPlace *pla
     int16_t end = place->text_visible
         ? (int16_t)(x0 + place->text_x + place->text_w)
         : (int16_t)(x0 + place->icon_x + m->icon_w);
+    // The wind arrow is the slot's LAST ink, past the text — a box that stopped at
+    // the text would let a danger fill clip it. Gated on text_visible for exactly
+    // the condition the arrow itself draws under, so the box never reserves room
+    // for ink that isn't there; suffix_w is 0 on every other slot, so no plain slot
+    // widens by so much as a pixel.
+    if (m->suffix_w > 0 && place->text_visible) {
+        int16_t suffix_end = (int16_t)(x0 + place->suffix_x + m->suffix_w);
+        if (suffix_end > end) { end = suffix_end; }
+    }
     StatusHighlightExtent v = status_highlight_extent(
         row->bounds.origin.y, row->bounds.size.h, (int16_t)cap_cy,
         (int16_t)content_h, row->line_id == STATUS_LINE_TOP,
@@ -647,6 +693,11 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     // level/bold checks and both paint passes below — the slot->kind switch
     // otherwise re-runs per pass (stack-only, no alloc).
     int8_t kinds[STATUS_SLOT_COUNT];
+    // Wind-direction sector per slot (-1 = none), reported by resolve_slot_text as
+    // it strips the sentinel out of the text. Carried here because the text no
+    // longer holds it: measure reserves the lane from this, and the paint pass
+    // rotates the arrow by it (stack-only, no alloc).
+    int8_t dirs[STATUS_SLOT_COUNT];
     // Cached alongside levels[] so a crossed slot's accent (blob color read +
     // theme pick) is resolved once per draw, not once for the outline/fill
     // pass and again for the ink below (stack-only, no alloc).
@@ -656,6 +707,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         if (!status_line_slot(s_blob_scratch, (size_t)len, i, &slots[i])) { return; }
         levels[i] = THRESH_LEVEL_NORMAL;
         kinds[i] = -1;
+        dirs[i] = -1;
         slot_fonts[i] = font;
         // Rain-alert takeover: hide left + mid so only the right slot (battery)
         // renders; the owner draws the alert glyph+text over the vacated region.
@@ -668,7 +720,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
             continue;
         }
         apply_battery_override(row, i, &slots[i]);
-        resolve_slot_text(row, &slots[i], texts[i], sizeof(texts[i]));
+        dirs[i] = resolve_slot_text(row, &slots[i], texts[i], sizeof(texts[i]));
         // AFTER the battery override, which rewrites the slot's kind/icon.
         kinds[i] = (int8_t)status_threshold_kind_for_slot(slots[i].kind,
                                                           slots[i].icon);
@@ -682,7 +734,8 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
                 kinds[i], levels[i])) {
             slot_fonts[i] = row_font_bold(row->tier, row->line_id);
         }
-        measures[i] = measure_slot(row, i, slot_fonts[i], content_w, &slots[i], texts[i]);
+        measures[i] = measure_slot(row, i, slot_fonts[i], content_w, &slots[i],
+                                   texts[i], dirs[i]);
     }
 
     StatusSlotPlace places[STATUS_SLOT_COUNT];
@@ -772,5 +825,30 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
                       row->bounds.size.h - text_y_rel),
                 GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
         }
+#ifndef PBL_PLATFORM_APLITE
+        // The wind-direction arrow — the first ink this watchface draws AFTER a
+        // slot's text, which is the point: it reads as a modifier on the speed
+        // rather than a second icon. The shape is the sunrise/sunset arrow's shared
+        // GPath, turned; only a heading distinguishes the two uses.
+        //
+        // Gated on text_visible so the arrow follows its reading: a slot squeezed
+        // until its number is gone would otherwise show a bare heading with nothing
+        // to modify. (The phone applies the same rule at bake time — no number, no
+        // sentinel.) `ink`, not theme_fg(): a danger-highlighted wind slot draws its
+        // text and its glyph legible OVER the fill, and an arrow in the foreground
+        // colour would disappear into it.
+        if (places[i].text_visible && dirs[i] >= 0 && s_arrow_path) {
+            gpath_rotate_to(s_arrow_path,
+                (int32_t)((TRIG_MAX_ANGLE * status_dir_turn_sixteenths(dirs[i])) / 16));
+            // Centred in its ARROW_H-square lane, seated on the same cap centre the
+            // icons, the battery glyph and the sun arrow all co-centre on.
+            gpath_move_to(s_arrow_path,
+                GPoint(x0 + places[i].suffix_x + ARROW_H / 2, glyph_cy));
+            graphics_context_set_stroke_color(ctx, ink);
+            graphics_context_set_fill_color(ctx, ink);
+            gpath_draw_outline_open(ctx, s_arrow_path);
+            gpath_draw_filled(ctx, s_arrow_path);
+        }
+#endif
     }
 }

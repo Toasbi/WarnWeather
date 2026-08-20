@@ -294,6 +294,46 @@ function textCap(slotIndex) {
 }
 
 /**
+ * The trailing wind-direction sentinel byte for a wind or gust slot, if any.
+ *
+ * Wire contract: 0x01 + sector, sector 0..15 = 16 compass points of 22.5 deg,
+ * sector 0 = the arrow points north (screen up), counted clockwise. The sector
+ * is ALREADY the downwind direction: providers report the bearing the wind comes
+ * FROM, and the flip happens here so the watch never sees the meteorological
+ * convention -- a future "point where it comes from" setting stays a one-line
+ * change with no wire or watch impact.
+ *
+ * @param {string} code catalog item code
+ * @param {Object} payload weather payload (pre-transform)
+ * @param {Object} settings Clay settings blob
+ * @param {Object} env platform environment
+ * @param {string} text the slot's already-formatted display text
+ * @returns {number} 0x01..0x10, or 0 when no arrow should be drawn
+ */
+function directionSentinel(code, payload, settings, env, text) {
+  // Never on aplite: its lean status-row twin has no arrow and would draw the
+  // control byte as a glyph box.
+  if (!settings || !env || env.platform === 'aplite') { return 0; }
+  if (code !== 'wind' && code !== 'gust') { return 0; }
+  var on = code === 'wind' ? settings.windSlotDirection : settings.gustSlotDirection;
+  if (!on) { return 0; }
+  // The speed and the bearing fail INDEPENDENTLY -- a provider can report a
+  // bearing for an hour whose speed is missing. An arrow beside a dead reading
+  // reads as live data next to nothing, so the arrow follows the value: no
+  // number, no arrow. (The caller passes the already-formatted text so this
+  // check can never disagree with what the slot actually shows.)
+  if (text === '--') { return 0; }
+  var from = trendHead(payload && payload.WIND_DIR_TREND);
+  if (typeof from !== 'number' || !isFinite(from)) { return 0; }
+  // Normalize into [0,360) before the flip so no input can push the byte outside
+  // 0x01..0x10 -- exactly the range the watch strips. Math.round can carry a
+  // downwind of 348.75..359.99 up to 16, which the mod folds back to sector 0.
+  var downwind = ((from % 360) + 360 + 180) % 360;
+  var sector = Math.round(downwind / 22.5) % 16;
+  return 0x01 + sector;
+}
+
+/**
  * @param {Object} line catalog line definition
  * @param {Object} payload weather payload
  * @param {Object} settings Clay settings blob
@@ -322,8 +362,16 @@ function packLine(line, payload, settings, env) {
       bytes.push(catalog.KINDS.TEXT, item.icon, weekBytes.length);
       for (var wb = 0; wb < weekBytes.length; wb++) { bytes.push(weekBytes[wb]); }
     } else if (item.kind === catalog.KINDS.TEXT) {
-      var valueBytes = utf8Truncate(
-        utf8Encode(formatValue(code, payload, settings, key)), textCap(s));
+      var text = formatValue(code, payload, settings, key);
+      var valueBytes = utf8Truncate(utf8Encode(text), textCap(s));
+      // Wind-direction arrow: one trailing sentinel byte, appended AFTER the
+      // truncation so it can never be split or push the slot past its cap, and
+      // only when a byte is actually free. Bytes < 0x80 are valid UTF-8, so the
+      // watch's blob validator needs no change and the arrow rides inside the
+      // slot's already-paid-for text bytes -- zero wire cost. The watch strips
+      // the byte before measuring or drawing the text.
+      var dirByte = directionSentinel(code, payload, settings, env, text);
+      if (dirByte && valueBytes.length < textCap(s)) { valueBytes.push(dirByte); }
       bytes.push(item.kind, item.icon, valueBytes.length);
       for (var b = 0; b < valueBytes.length; b++) { bytes.push(valueBytes[b]); }
     } else {

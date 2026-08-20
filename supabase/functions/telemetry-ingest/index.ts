@@ -38,6 +38,8 @@ const settingsSchema = z
     aqiSource: z.enum(['waqi', 'auto', 'openmeteo']).optional(),
     windUnits: z.string().optional(),
     distanceUnits: z.string().optional(),
+    windSlotDirection: z.boolean().optional(),
+    gustSlotDirection: z.boolean().optional(),
     configTheme: z.enum(['auto', 'light', 'dark']).optional(),
     dayNightShading: z.boolean().optional(),
     healthMode: z.enum(['off', 'status', 'all', 'slot']).optional(),

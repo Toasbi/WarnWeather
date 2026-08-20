@@ -24,6 +24,8 @@ function buildSettingsSnapshot(settings) {
         aqiSource: safe.aqiSource,
         windUnits: safe.windUnits,
         distanceUnits: safe.distanceUnits,
+        windSlotDirection: Boolean(safe.windSlotDirection),
+        gustSlotDirection: Boolean(safe.gustSlotDirection),
         configTheme: safe.configTheme,
         dayNightShading: !!safe.dayNightShading,
         healthMode: safe.healthMode || 'off',

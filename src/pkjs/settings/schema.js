@@ -138,6 +138,12 @@ var BOLD_HINT = 'Show this value in heavier text — never, from the warn ' +
     'threshold on, or always. Danger is always bold.';
 var GOAL_BOLD_HINT = 'Show this value in heavier text — never, from close to ' +
     'the goal on, or always. A reached goal is always bold.';
+// The wind/gust slots' direction arrow. The arrow flies DOWNWIND (the way the wind is
+// blowing), not the meteorological "comes from" bearing the providers report — the
+// phone flips it before baking — so the copy has to say which way it points, or half
+// the readers will read it backwards. Shared by both slots: one arrow, two kinds.
+var WIND_DIRECTION_HINT = 'Draws an arrow after the speed, pointing the way the ' +
+    'wind is blowing.';
 // One threshold-highlight edit sheet (sheetOnly — opened from a status slot's pencil,
 // never rendered as a card): a "Highlight this value" toggle, a zoned dual-thumb
 // slider for the warn/danger pair, and the two color pickers. Values live in the
@@ -154,9 +160,13 @@ var GOAL_BOLD_HINT = 'Show this value in heavier text — never, from close to '
  * @param {string} keyStem Kind key stem, e.g. 'Steps' (thresh<Stem>Warn/...).
  * @param {string} hint Per-kind unit/scale hint (HTML allowed).
  * @param {Object} [gate] Extra showWhen for the whole sub-section.
+ * @param {Object[]} [extraItems] Kind-specific display rows rendered between the Bold
+ *     row and the Thresholds group, e.g. the wind slots' direction arrow. They
+ *     configure the SLOT, not the highlight, so they sit above the group header —
+ *     boldSection's extras play the same role on the level-less kinds.
  * @returns {Object} Schema section.
  */
-function thresholdSection(title, keyStem, hint, gate) {
+function thresholdSection(title, keyStem, hint, gate, extraItems) {
     var onKey = 'thresh' + keyStem + 'On';
     // The health trio reads as GOALS you reach (celebration: green outline when
     // close, fill when reached) — the contract's goal flag drives the wording so it
@@ -221,13 +231,16 @@ function thresholdSection(title, keyStem, hint, gate) {
         // action) — deliberately NOT the Bold row, which is not part of the group.
         labelAction: {action: 'resetThresholds', arg: keyStem, label: 'Reset to defaults'}
     };
+    var extras = extraItems || [];
     // Every plain item in the sheet carries the same sub-section gate; applying it
     // in one pass means an item added above cannot forget its gate line. (The
     // outline toggle and color pickers below set showWhen inline instead — they
-    // layer the B&W/outline rules on top of the gate.)
+    // layer the B&W/outline rules on top of the gate.) The extras join the pass with
+    // boldSection's non-clobbering idiom: a caller-supplied row may bring its own
+    // showWhen, and the gate must not overwrite it.
     if (gate) {
-        [toggle, range, bold, header].forEach(function (item) {
-            item.showWhen = gate;
+        [toggle, range, bold, header].concat(extras).forEach(function (item) {
+            item.showWhen = item.showWhen || gate;
         });
     }
     return {
@@ -238,7 +251,9 @@ function thresholdSection(title, keyStem, hint, gate) {
         // `gate`/color rules below only ever decide visibility among watches that CAN.
         showWhen: THRESHOLD_WHEN,
         title: title + ' slot',
-        items: [bold, header, toggle, range, {
+        // Bold leads every slot sheet; the kind's own display rows follow it, and the
+        // Thresholds group (header + toggle + slider + colors) closes the sheet.
+        items: [bold].concat(extras, [header, toggle, range, {
             // Companion storage for the slider's second thumb and its editable scale
             // max: hydrated + serialized but never drawn (the range row renders both).
             type: 'hidden',
@@ -300,7 +315,7 @@ function thresholdSection(title, keyStem, hint, gate) {
             capabilities: ['COLOR'],
             showWhen: colorWhen,
             disabledWhen: offWhen
-        }]
+        }])
     };
 }
 // Bold-only edit sheet for a slot kind WITHOUT thresholds (temp, date, city, …):
@@ -1154,8 +1169,25 @@ module.exports = {
         thresholdSection('Air quality (AQI)', 'Aqi', ''),
         thresholdSection('Pollen', 'Pollen',
             'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.'),
-        thresholdSection('Wind speed', 'Wind', ''),
-        thresholdSection('Wind gusts', 'Gust', ''),
+        // Wind and gust each carry their own direction arrow: the two slots often sit
+        // side by side, and one arrow drawn twice is noise — so the choice is per kind,
+        // not global. The phone bakes the arrow into the slot text (status-lines.js
+        // appends a trailing sentinel byte), and both keys ride renderSignature(), so
+        // flipping one re-bakes without waiting for the next fetch.
+        thresholdSection('Wind speed', 'Wind', '', null, [{
+            type: 'toggle',
+            messageKey: 'windSlotDirection',
+            label: 'Show wind direction',
+            defaultValue: false,
+            hint: WIND_DIRECTION_HINT
+        }]),
+        thresholdSection('Wind gusts', 'Gust', '', null, [{
+            type: 'toggle',
+            messageKey: 'gustSlotDirection',
+            label: 'Show wind direction',
+            defaultValue: false,
+            hint: WIND_DIRECTION_HINT
+        }]),
         thresholdSection('UV index', 'Uv', ''),
         thresholdSection('Steps', 'Steps',
             'Steps per day.', HEALTH_SLOT_WHEN),

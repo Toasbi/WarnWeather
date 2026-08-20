@@ -34,7 +34,10 @@ const BOLD_ONLY_STEMS = ['Temp', 'Pressure', 'Sun', 'Date', 'Week', 'City', 'Cou
 const BOLD_ONLY_KEYS = BOLD_ONLY_STEMS.map((stem) => 'thresh' + stem + 'BoldMode');
 const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnOutlineOn', 'Warn', 'Danger', 'Max'])
   .concat(THRESH_COLOR_KEYS)
-  .concat(BOLD_ONLY_KEYS);
+  .concat(BOLD_ONLY_KEYS)
+  // Per-kind display rows that ride a threshold sheet: the wind/gust direction arrows
+  // (Temp's tempSlotDisplay is listed with the plain keys below).
+  .concat(['windSlotDirection', 'gustSlotDirection']);
 
 const EXPECTED_KEYS = [
   'theme',
@@ -1229,6 +1232,65 @@ test('threshold config lives in per-slot edit sheets: pencils + sheet on basalt,
   // in the Layout tab now, so probe an always-shown Watch-Status-Bar toggle.)
   assert.ok(apliteBody.indexOf('data-k="showQt"') !== -1,
     'aplite keeps the Watch Status Bar toggles');
+});
+
+// The wind-direction arrow is a per-kind display option of the wind/gust slots (the
+// phone bakes a trailing sentinel byte into the slot text), so it belongs on those two
+// slots' own edit sheets — the same place Temp's display-mode row lives.
+test('the wind and gust sheets carry the direction toggle', () => {
+  const sheets = schema.tabs.find((t) => t.id === 'watch').sections.filter((s) => s.sheetOnly);
+  ['threshWind', 'threshGust'].forEach((id) => {
+    const sheet = sheets.find((s) => s.sheetId === id);
+    assert.ok(sheet, 'no sheet ' + id);
+    const key = id === 'threshWind' ? 'windSlotDirection' : 'gustSlotDirection';
+    const item = sheet.items.find((i) => i.messageKey === key);
+    assert.ok(item, id + ' is missing ' + key);
+    assert.equal(item.type, 'toggle');
+    assert.equal(item.defaultValue, false, key + ' must ship off');
+    assert.equal(item.label, 'Show wind direction');
+    // The description is the engine's `hint` (item.description renders nowhere), and it
+    // must name the direction: the arrow flies downwind, not along the reported bearing.
+    assert.match(String(item.hint), /arrow/i, key + ' explains what it draws');
+    assert.match(String(item.hint), /blowing/i, key + ' says which way the arrow points');
+    // Bold still leads the sheet, and the extra row sits above the Thresholds group:
+    // it configures the slot, not the highlight.
+    assert.match(String(sheet.items[0].messageKey), /BoldMode$/, id + ' must open with Bold');
+    const hdr = sheet.items.findIndex((i) => i.type === 'subheader');
+    assert.ok(sheet.items.indexOf(item) < hdr,
+      key + ' must sit above the Thresholds group header');
+  });
+});
+
+test('no other slot sheet carries a direction toggle', () => {
+  schema.tabs.find((t) => t.id === 'watch').sections
+    .filter((s) => s.sheetOnly && s.sheetId !== 'threshWind' && s.sheetId !== 'threshGust')
+    .forEach((s) => assert.ok(!s.items.some((i) => /SlotDirection$/.test(i.messageKey || '')),
+      s.sheetId + ' must not offer a wind-direction toggle'));
+});
+
+// thresholdSection applies its sub-section gate in one pass so a row added later cannot
+// forget its gate line — but an extra row may bring its OWN showWhen, and the pass must
+// not clobber it (boldSection's idiom). Only the gated sheets (the health kinds) have a
+// gate to apply, and none of them carries an extra row today, so the guarantee is not
+// observable from the built schema: guard the idiom at the source instead.
+test('thresholdSection gates its extra rows without clobbering their own showWhen', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const src = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'pkjs', 'settings', 'schema.js'), 'utf8');
+  const body = src.slice(src.indexOf('function thresholdSection('),
+    src.indexOf('function boldSection('));
+  assert.ok(body.indexOf('item.showWhen = item.showWhen || gate') !== -1,
+    'thresholdSection must use boldSection\'s non-clobbering gate idiom');
+  assert.equal(/item\.showWhen\s*=\s*gate\s*;/.test(body), false,
+    'thresholdSection must not overwrite an item\'s own showWhen with the gate');
+  // The shipped gated sheet still ends up gated: every VISIBLE row carries the health
+  // gate (the two hidden companion rows are never drawn, so they never had one).
+  const health = schema.tabs.find((t) => t.id === 'watch').sections
+    .find((s) => s.sheetId === 'threshSteps');
+  health.items.filter((i) => i.type !== 'hidden').forEach((i) =>
+    assert.match(JSON.stringify(i.showWhen), /"env":"health"/,
+      (i.messageKey || i.type) + ' lost the health gate'));
 });
 
 test('the four status sections live in the Watch tab with named headers and no per-bar intros', () => {

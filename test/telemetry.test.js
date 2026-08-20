@@ -102,6 +102,15 @@ test('snapshot includes tempSlotDisplay as a string', () => {
   assert.strictEqual(buildSettingsSnapshot({}).tempSlotDisplay, undefined);
 });
 
+// The two per-kind wind-direction toggles. Same lockstep rule as pressureScale above:
+// watch-side snapshot AND the Deno .strip() schema, or ingest silently drops them.
+test('snapshot includes the wind and gust direction toggles as real booleans', () => {
+  assert.strictEqual(buildSettingsSnapshot({ windSlotDirection: true }).windSlotDirection, true);
+  assert.strictEqual(buildSettingsSnapshot({ gustSlotDirection: true }).gustSlotDirection, true);
+  assert.strictEqual(buildSettingsSnapshot({}).windSlotDirection, false);
+  assert.strictEqual(buildSettingsSnapshot({}).gustSlotDirection, false);
+});
+
 test('snapshot includes windUnits and distanceUnits', () => {
   assert.equal(buildSettingsSnapshot({ windUnits: 'mph' }).windUnits, 'mph');
   assert.equal(buildSettingsSnapshot({ distanceUnits: 'imperial' }).distanceUnits, 'imperial');

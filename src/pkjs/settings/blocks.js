@@ -1376,8 +1376,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         S.statusBoldAll = 'perSlot';
         // Per-kind display state alongside the bold modes: the temp slot's
         // Temp/Feels/Both pills live in the same sheet and have no other reset path
-        // (bold-only sheets carry no reset button of their own).
+        // (bold-only sheets carry no reset button of their own). The wind/gust
+        // direction arrows are the same kind of row on the two threshold sheets —
+        // their group's "Reset to defaults" deliberately covers only the thresholds.
         S.tempSlotDisplay = 'actual';
+        S.windSlotDirection = false;
+        S.gustSlotDirection = false;
         var contractMod = thresholdContract();
         if (contractMod) {
             for (var k = 0; k < contractMod.KINDS.length; k++) {

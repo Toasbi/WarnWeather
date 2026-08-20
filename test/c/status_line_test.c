@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "c/appendix/status_line.h"
+#include "c/layers/status_row_direction.h"
 
 static int s_failures = 0;
 
@@ -195,6 +196,100 @@ static void slot_tests(void) {
            status_line_slot(b, STATUS_LINE_MAX_BYTES + 1, 0, &v), 0);
 }
 
+// --- wind-direction sentinel -------------------------------------------------
+//
+// The arrow on a wind/gust slot rides as ONE trailing byte inside the slot's
+// already-paid-for text bytes (0x01 + sector, 16 compass points of 22.5 deg;
+// src/pkjs/status-lines.js bakes it, src/c/layers/status_row.c strips and draws
+// it). These pin the two halves the phone and the watch have to agree on: that
+// the byte is wire-legal with NO validator change, and that the watch reads back
+// exactly the sector the phone encoded.
+
+// Lay `text` plus one trailing sentinel byte into `buf` and describe it as a
+// SLOT_TEXT view. The byte is written numerically, not as a "\xNN" escape, so a
+// following digit can never be swallowed into the escape.
+static void put_dir(char *buf, const char *text, unsigned sentinel,
+                    StatusSlotView *v) {
+    size_t len = strlen(text);
+    memcpy(buf, text, len);
+    buf[len] = (char)(unsigned char) sentinel;
+    v->kind = SLOT_TEXT;
+    v->icon = STATUS_ICON_WIND;
+    v->value_len = (uint8_t)(len + 1);
+    v->value = buf;
+}
+
+static void direction_tests(void) {
+    uint8_t b[64];
+    char t[32];
+    size_t n;
+    StatusSlotView v;
+
+    // Wire-legality: every sentinel is below 0x80, so status_line_validate takes a
+    // slot carrying one exactly as it takes plain ASCII. This is the whole reason
+    // the arrow costs the AppMessage zero extra bytes.
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_WIND, "12kph\x01");
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("dir.blob.valid", status_line_validate(b, n), 1);
+    expect("dir.blob.slot", status_line_slot(b, n, 0, &v), 1);
+    expect("dir.blob.sector", status_slot_direction(&v), 0);
+    expect("dir.blob.len-with-sentinel", v.value_len, 6);
+
+    // Both ends of the range, and one step past each.
+    put_dir(t, "12kph", 0x01, &v);
+    expect("dir.min", status_slot_direction(&v), 0);
+    put_dir(t, "12kph", 0x10, &v);
+    expect("dir.max", status_slot_direction(&v), 15);
+    put_dir(t, "12kph", 0x00, &v);
+    expect("dir.below-min", status_slot_direction(&v), -1);
+    put_dir(t, "12kph", 0x11, &v);
+    expect("dir.above-max", status_slot_direction(&v), -1);
+
+    // Ordinary text is never mistaken for a sentinel -- including text whose last
+    // byte is a UTF-8 CONTINUATION byte, the case that would break a naive
+    // "is the tail small?" test: "-12" + U+00B0 ends in 0xB0.
+    v.kind = SLOT_TEXT; v.icon = STATUS_ICON_WIND;
+    v.value = "12kph"; v.value_len = 5;
+    expect("dir.plain-text", status_slot_direction(&v), -1);
+    v.value = "-12\xC2\xB0"; v.value_len = 5;
+    expect("dir.utf8-tail", status_slot_direction(&v), -1);
+
+    // Non-TEXT kinds carry no bytes at all: the watch formats them itself, so
+    // there is nothing to strip and nothing to mistake for a sentinel.
+    v.kind = SLOT_LIVE_STEPS; v.icon = STATUS_ICON_STEPS;
+    v.value = NULL; v.value_len = 0;
+    expect("dir.live-kind", status_slot_direction(&v), -1);
+    v.kind = SLOT_EMPTY; v.icon = STATUS_ICON_NONE;
+    expect("dir.empty-kind", status_slot_direction(&v), -1);
+    // A SLOT_TEXT that somehow declares zero bytes must not read buf[-1].
+    v.kind = SLOT_TEXT; v.value = "12kph"; v.value_len = 0;
+    expect("dir.zero-len", status_slot_direction(&v), -1);
+
+    // Degenerate but well-defined: a value that is ONLY a sentinel decodes, and
+    // strips to empty text. The phone never bakes this (no number, no arrow), so
+    // this pins the watch's behaviour rather than a shipped case.
+    put_dir(t, "", 0x05, &v);
+    expect("dir.sentinel-only", status_slot_direction(&v), 4);
+
+    // Sector -> rotation. ARROW_PATH_INFO's head sits at +y and +y is screen-DOWN,
+    // so the unrotated arrow points down = compass south = sector 8; the turn is
+    // therefore (sector - 8), i.e. (sector + 8) & 15 in unsigned sector units.
+    // North and south are PROVEN by shipped code: the sunrise/sunset arrow turns by
+    // TRIG_MAX_ANGLE/2 (= 8/16) to point up and by 0 to point down. The 14 sectors
+    // in between depend on which way a positive gpath angle turns, which the SDK
+    // does not document. Measured instead: a westerly (blowing east, sector 4)
+    // rendered on a basalt emulator draws a RIGHT-pointing arrow, so positive turns
+    // clockwise. If that ever reverses, this block and the one-line formula in
+    // status_row_direction.h change together (to (8 - sector) & 15, which leaves the
+    // two vertical rows alone).
+    expect("dir.turn.north", status_dir_turn_sixteenths(0), 8);
+    expect("dir.turn.south", status_dir_turn_sixteenths(8), 0);
+    expect("dir.turn.east", status_dir_turn_sixteenths(4), 12);
+    expect("dir.turn.west", status_dir_turn_sixteenths(12), 4);
+    expect("dir.turn.nnw", status_dir_turn_sixteenths(15), 7);
+}
+
 // iso_week(year, yday(0-based), wday(0=Sun..6=Sat)) -> ISO-8601 week (1..53).
 static void iso_week_tests(void) {
     expect("isoweek.2024-01-01(Mon)", iso_week(2024, 0, 1), 1);    // -> W1
@@ -208,6 +303,7 @@ static void iso_week_tests(void) {
 int main(void) {
     validate_tests();
     slot_tests();
+    direction_tests();
     iso_week_tests();
     if (s_failures) { printf("%d status_line failure(s)\n", s_failures); return 1; }
     printf("status_line OK\n");

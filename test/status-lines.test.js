@@ -493,3 +493,148 @@ test('dew point packs as TEXT under its own icon id, on aplite too', () => {
       env.platform + ' text');
   }
 });
+
+// --- Wind-direction sentinel -------------------------------------------------
+// Wire contract: ONE trailing byte, 0x01 + sector, sector 0..15 = 16 compass
+// points of 22.5°, sector 0 = the arrow points NORTH (screen up), counted
+// CLOCKWISE, and ALREADY flipped downwind by the phone -- the watch never sees
+// the meteorological "comes from" convention. Bytes < 0x80 are valid UTF-8, so
+// the arrow rides inside the slot's already-paid-for text bytes for 0 wire cost.
+const SENTINEL_BASE = 0x01;
+
+// The raw value bytes of one slot, walking the [kind, icon, len, ...value]
+// triples the way status_line.c does. decodeLine() cannot serve here: the
+// sentinel is a control byte, not text.
+function sliceSlot(bytes, index) {
+  let off = 0;
+  for (let i = 0; i < index; i++) { off += 3 + bytes[off + 2]; }
+  return bytes.slice(off + 3, off + 3 + bytes[off + 2]);
+}
+
+function tailByte(slotBytes) { return slotBytes[slotBytes.length - 1]; }
+
+function radarLine() {
+  return catalog.LINES.filter(l => l.id === 'radar')[0];
+}
+
+// Pack the radar line with one item in the LEFT slot and read that slot back raw.
+function slotBytesFor(code, payload, settings, env) {
+  const s = Object.assign({
+    statusRadarLeft: code, statusRadarMid: 'empty', statusRadarRight: 'empty',
+    windUnits: 'kph', temperatureUnits: 'c'
+  }, settings || {});
+  return sliceSlot(statusLines.packLine(radarLine(), payload, s, env || basaltEnv()), 0);
+}
+
+function assertPlainText(slotBytes, expected, message) {
+  assert.equal(Buffer.from(slotBytes).toString('utf8'), expected, message);
+  slotBytes.forEach((b) => assert.ok(b >= 0x20,
+    (message || '') + ' — unexpected control byte ' + b));
+}
+
+test('a westerly (from 270) points east: sector 4', () => {
+  const slot = slotBytesFor('wind', { WIND_TREND_UINT8: [17], WIND_DIR_TREND: [270] },
+    { windSlotDirection: true });
+  assert.equal(Buffer.from(slot.slice(0, slot.length - 1)).toString('utf8'), '17kph');
+  assert.equal(tailByte(slot), SENTINEL_BASE + 4);
+});
+
+test('a north wind (from 0) points south: sector 8', () => {
+  const slot = slotBytesFor('wind', { WIND_TREND_UINT8: [17], WIND_DIR_TREND: [0] },
+    { windSlotDirection: true });
+  assert.equal(tailByte(slot), SENTINEL_BASE + 8);
+});
+
+test('every bearing yields a byte inside 0x01..0x10 — round() never wraps to 16', () => {
+  // 350 is the case the reviewer flagged: it must not round out of the sector
+  // range. The real wrap lives at downwind >= 348.75, i.e. a "from" in
+  // [168.75, 180) -- 170 flips to 350 and must come back as sector 0, not 16.
+  assert.equal(tailByte(slotBytesFor('wind',
+    { WIND_TREND_UINT8: [17], WIND_DIR_TREND: [350] }, { windSlotDirection: true })),
+    SENTINEL_BASE + 8, 'from 350 flips to 170 -> sector 8');
+  assert.equal(tailByte(slotBytesFor('wind',
+    { WIND_TREND_UINT8: [17], WIND_DIR_TREND: [170] }, { windSlotDirection: true })),
+    SENTINEL_BASE, 'from 170 flips to 350 -> sector 0, never 16');
+  // Met.no reports one decimal, so non-integer bearings are real traffic.
+  for (let from = 0; from < 360; from += 0.1) {
+    const b = tailByte(slotBytesFor('wind',
+      { WIND_TREND_UINT8: [17], WIND_DIR_TREND: [Math.round(from * 10) / 10] },
+      { windSlotDirection: true }));
+    assert.ok(b >= 0x01 && b <= 0x10, `bearing ${from} produced byte ${b}`);
+  }
+});
+
+test('no sentinel when the toggle is off', () => {
+  assertPlainText(slotBytesFor('wind',
+    { WIND_TREND_UINT8: [17], WIND_DIR_TREND: [270] }, {}), '17kph', 'absent toggle');
+  assertPlainText(slotBytesFor('wind',
+    { WIND_TREND_UINT8: [17], WIND_DIR_TREND: [270] }, { windSlotDirection: false }),
+    '17kph', 'toggle off');
+});
+
+test('no sentinel when the bearing is unsourced', () => {
+  for (const trend of [undefined, [], [null]]) {
+    const payload = { WIND_TREND_UINT8: [17] };
+    if (trend !== undefined) { payload.WIND_DIR_TREND = trend; }
+    assertPlainText(slotBytesFor('wind', payload, { windSlotDirection: true }),
+      '17kph', JSON.stringify(trend));
+  }
+});
+
+// The speed and the bearing fail INDEPENDENTLY: a provider can report a bearing
+// for an hour whose speed is missing. An arrow beside a dead reading would read
+// as live data next to nothing.
+test('no sentinel when the slot text is --', () => {
+  assertPlainText(slotBytesFor('wind', { WIND_DIR_TREND: [270] },
+    { windSlotDirection: true }), '--', 'speed missing, bearing present');
+  assertPlainText(slotBytesFor('gust', { WIND_DIR_TREND: [270] },
+    { gustSlotDirection: true }), '--', 'gust speed missing');
+});
+
+test('never sent to aplite (its lean status-row twin would draw a glyph box)', () => {
+  assertPlainText(slotBytesFor('wind',
+    { WIND_TREND_UINT8: [17], WIND_DIR_TREND: [270] }, { windSlotDirection: true },
+    { platform: 'aplite', color: false, health: false }), '17kph');
+});
+
+test('the gust slot obeys gustSlotDirection, not windSlotDirection', () => {
+  const payload = { GUST_TREND_UINT8: [48], WIND_DIR_TREND: [270] };
+  assert.equal(tailByte(slotBytesFor('gust', payload, { gustSlotDirection: true })),
+    SENTINEL_BASE + 4, 'own toggle on');
+  assertPlainText(slotBytesFor('gust', payload,
+    { windSlotDirection: true, gustSlotDirection: false }), '48kph',
+    'the wind toggle must not reach the gust slot');
+  // ...and the reverse: the gust toggle must not reach the wind slot.
+  assertPlainText(slotBytesFor('wind',
+    { WIND_TREND_UINT8: [17], WIND_DIR_TREND: [270] },
+    { gustSlotDirection: true, windSlotDirection: false }), '17kph');
+});
+
+test('no other slot kind ever gets a sentinel', () => {
+  const both = { windSlotDirection: true, gustSlotDirection: true };
+  const payload = {
+    CURRENT_TEMP: 68, CITY: 'Berlin', UV_TREND_UINT8: [64],
+    PRESSURE_TREND: [1013], DEW_TREND: [53.6], AQI_TREND: [42],
+    WIND_DIR_TREND: [270]
+  };
+  const expected = {
+    temp: '20', city: 'Berlin', uv: '6', pressure: '1013hPa', dew: '12', aqi: '42'
+  };
+  Object.keys(expected).forEach((code) => {
+    assertPlainText(slotBytesFor(code, payload, both), expected[code], code);
+  });
+});
+
+test('the sentinel never pushes a slot past its 8-byte edge cap', () => {
+  for (const unit of ['kph', 'mph', 'knots']) {
+    for (let v = 0; v <= 255; v += 1) {
+      const slot = slotBytesFor('wind', { WIND_TREND_UINT8: [v], WIND_DIR_TREND: [180] },
+        { windUnits: unit, windSlotDirection: true });
+      assert.ok(slot.length <= catalog.CAPS.EDGE_TEXT_MAX,
+        `${v} ${unit} overflows the 8-byte edge cap (${slot.length} B)`);
+      // from 180 flips to downwind 0 -> sector 0 -> 0x01, and it must survive
+      // every speed: the guard only drops it if the text already fills the cap.
+      assert.equal(tailByte(slot), SENTINEL_BASE, `${v} ${unit} lost its arrow`);
+    }
+  }
+});

@@ -42,6 +42,20 @@ test('tempSlotDisplay changes the render signature (forces a rebake)', () => {
     renderSignature({ tempSlotDisplay: 'feels' }));
 });
 
+// The wind/gust direction arrows are baked phone-side into the slot text (a trailing
+// sentinel byte appended in status-lines.js), so per the force-fetch rule both toggles
+// must be part of the signature — otherwise the arrow appears only after the next
+// scheduled fetch.
+test('the wind-direction toggles change the render signature', () => {
+  assert.notEqual(renderSignature({ windSlotDirection: false }),
+    renderSignature({ windSlotDirection: true }));
+  assert.notEqual(renderSignature({ gustSlotDirection: false }),
+    renderSignature({ gustSlotDirection: true }));
+  // The two are independent: flipping one must not read as flipping the other.
+  assert.notEqual(renderSignature({ windSlotDirection: true }),
+    renderSignature({ gustSlotDirection: true }));
+});
+
 // The four weather kinds are evaluated phone-side at weather-bake time, so enabling one
 // only reaches the watch through a refetch. Without these keys in the signature,
 // shouldForceFetch stays false for a threshold-only edit and the user sees nothing until
