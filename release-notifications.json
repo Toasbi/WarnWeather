@@ -125,6 +125,6 @@
   },
   "1.13.0": {
     "title": "Dew point & wind direction",
-    "body": "Dew point is a new status slot — the best single read on how muggy it feels, since it does not move with the temperature the way humidity does. Wind speed and gust slots can now show an arrow pointing the way the wind is blowing; turn it on in either slot’s settings. New watches also start with the clock and status row swapped on the compact layout."
+    "body": "Dew point is a new status slot — the best single read on how muggy it feels, since unlike humidity it does not move with the temperature. Wind slots now show an arrow pointing the way the wind is blowing, and any slot can hide or show its unit. Also fixes a reset that quietly undid itself, and no longer erases your API keys."
   }
 }

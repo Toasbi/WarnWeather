@@ -31,7 +31,9 @@ STATUS LINES
   metrics — weather, dew point, air quality, pollen, wind, health, battery
   (glyph or percentage), a countdown to any date, and more
 - Wind direction as an arrow after the speed, pointing the way the wind is
-  blowing — switch it on in the Wind speed or Wind gusts slot settings
+  blowing — on for the wind slot, and available for gusts in its slot settings
+- Show or hide the unit on a status slot — drop the kph or hPa when the bar is
+  crowded, or add a degree sign to temperature and dew point
 - Threshold highlighting: bold, outline, or fill a status slot when air
   quality, pollen, wind, gusts, UV index, steps, sleep, or distance crosses a
   warn or danger level you set
