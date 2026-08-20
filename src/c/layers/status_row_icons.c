@@ -159,6 +159,9 @@ static int icon_scale_pct(uint8_t icon_id) {
         case STATUS_ICON_UV:       return 95;
         case STATUS_ICON_AQI:      return 85;
         case STATUS_ICON_TEMP:     return 93;
+        case STATUS_ICON_DEWPOINT: return 88;   // the two-drop pair spans nearly the
+                                                // whole viewbox, so it reads taller
+                                                // than the thermometer beside it
         case STATUS_ICON_STEPS:    return 80;   // the 25x25 footprint glyph is wide
         default:                   return 100;
     }

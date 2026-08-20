@@ -113,7 +113,13 @@ static const uint8_t s_status_icon_weight_pct[STATUS_ICON_MAX + 1] = {
     [STATUS_ICON_AQI]       = 50,   // air-quality leaf— 50 = ink-box centre
     [STATUS_ICON_POLLEN]    = 56,   // pollen flower   — lifts 1 px at t12/t13/t16
     [STATUS_ICON_COUNTDOWN] = 59,   // hourglass       — 1 px at t12/t13, 2 px at t16
+    [STATUS_ICON_DEWPOINT]  = 56,   // two drops       — lifts 1 px at t12/t13/t16
 };
+// DEWPOINT: both drops are bulbous at the bottom and taper to a point, so their
+// mass sits below the ink box's centre and the glyph reads low against the
+// digits. 56 lifts 1 px at every emery tier — judged correct by eye here, and
+// judged WRONG on basalt, whose branch keeps the no-op 50 (see the note there).
+// Its measured ink heights are not in the tier table above.
 // TEMP ON EMERY IS THE ONE CELL A SINGLE WEIGHT CANNOT EXPRESS, so it stays at the
 // no-op 50 rather than being approximated. The judgement was "no lift at t13, 1 px
 // at t16", and TEMP's ink is 13 px at t13 but only 15 px at t16 (it is the shortest
@@ -146,7 +152,15 @@ static const uint8_t s_status_icon_weight_pct[STATUS_ICON_MAX + 1] = {
     [STATUS_ICON_AQI]       = 50,   // air-quality leaf— 50 = ink-box centre
     [STATUS_ICON_POLLEN]    = 54,   // pollen flower   — lifts 1 px at t12 only
     [STATUS_ICON_COUNTDOWN] = 58,   // hourglass       — lifts 1 px at t9/t10/t12
+    [STATUS_ICON_DEWPOINT]  = 50,   // two drops       — 50 = ink-box centre
 };
+// DEWPOINT reads correctly box-centred on this branch — judged by eye at 4x on
+// basalt. It was briefly given the 56 its emery twin carries, which lifts 1 px at
+// all three tiers here, and that sat the drops a pixel high. The two branches
+// genuinely disagree: emery renders the glyph at ink 13/15/17 where the drops'
+// low mass is worth a pixel, and 9/11/13 here is too short for the same
+// correction to help. Same shape, opposite answer — the reason this table is
+// per platform in the first place.
 // WIND on this branch could equally be 55 (both satisfy "no lift at t9, 1 px at
 // t12"); 54 is the one that also leaves the UNJUDGED top strip (t10, ink 11) alone,
 // because 5x11 = 55 would round up to a 1 px lift there and 4x11 = 44 does not.
