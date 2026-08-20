@@ -52,8 +52,13 @@ test('pencil trigger: rendered only when the sheet resolver returns a sheet id',
   const withPen = E.renderBody(SCHEMA, 't', cxFor(S));
   assert.ok(withPen.indexOf('data-edit-sheet="sheetWind"') !== -1,
     'wind value offers its edit sheet');
-  assert.ok(/<div class="rgt has-pen"><button[^>]*data-edit-sheet="sheetWind"[\s\S]*?data-select="slot"/.test(withPen),
-    'pencil sits in the control cell, LEFT of the select trigger');
+  // The Edit button TRAILS the control: .rgt is right-aligned and the button is one
+  // fixed width, so it lands on the same right edge in every row instead of being
+  // pushed around by the dropdown's current value. The colour swatch leads instead.
+  assert.ok(/data-select="slot"[\s\S]*?data-edit-sheet="sheetWind"/.test(withPen),
+    'Edit sits in the control cell, RIGHT of the select trigger');
+  assert.ok(!/data-edit-sheet="sheetWind"[\s\S]*?data-select="slot"/.test(withPen),
+    'Edit must not precede the select trigger');
   const S2 = E.hydrate(SCHEMA, { slot: 'time' });
   const noPen = E.renderBody(SCHEMA, 't', cxFor(S2));
   assert.equal(noPen.indexOf('data-edit-sheet'), -1, 'time value has no pencil');

@@ -511,15 +511,31 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var badge = view.editBadge;
     var label = (badge && badge.label) || 'Edit';
     var on = Boolean(badge && badge.enabled);
-    var dots = on
-      ? '<span class="pen-dot warn" style="--th-c:' + esc(badge.warnColor) + '" aria-hidden="true"></span>'
-        + '<span class="pen-dot danger" style="--th-c:' + esc(badge.dangerColor) + '" aria-hidden="true"></span>'
-      : '';
     return '<button type="button" class="thr-btn" data-edit-sheet="' + esc(view.editSheet)
       + '" aria-label="' + esc(label) + ' settings for the '
       + esc(String(item.label || 'selected'))
-      + ' value' + (on ? ' (highlighting on)' : '') + '">' + dots
+      + ' value' + (on ? ' (highlighting on)' : '') + '">'
       + '<span>' + esc(label) + '</span></button>';
+  }
+
+  /**
+   * The warn-ring + danger-dot pair for a row whose kind has highlighting configured,
+   * or ''. It sits BEFORE the control as a passive preview, not inside the edit button:
+   * carried inside, the two swatches widened the button by ~29px exactly on the rows
+   * that had them, so the Edit buttons could never line up down the right edge. Out
+   * here the button is one fixed width and the swatch reads as what it is — a preview
+   * of the colors, with nothing to press.
+   *
+   * @param {{editSheet: ?string, editBadge: ?Object}} view Render view state.
+   * @returns {string} Swatch HTML, or ''.
+   */
+  function editSwatchHtml(view) {
+    var badge = view.editBadge;
+    if (!view.editSheet || !badge || !badge.enabled) { return ''; }
+    return '<span class="thr-swatch" aria-hidden="true">'
+      + '<span class="pen-dot warn" style="--th-c:' + esc(badge.warnColor) + '"></span>'
+      + '<span class="pen-dot danger" style="--th-c:' + esc(badge.dangerColor) + '"></span>'
+      + '</span>';
   }
 
   /**
@@ -1213,14 +1229,19 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (stacked) {
       return '<div class="' + rowCls + '">' + label + hintHtml + '<div>' + renderControl(item, view) + '</div></div>';
     }
-    // A resolved edit sheet puts its pencil trigger INSIDE the control cell, left of the
-    // control, so the pair reads as one unit ("edit this value" / "pick a value").
+    // A resolved edit sheet splits its two affordances around the control: the passive
+    // colour swatch leads, the Edit button trails. The control cell is right-aligned and
+    // the button is one fixed width, so every row's Edit lands on the same right edge
+    // however wide its dropdown's current value happens to be — which is the whole point
+    // of the arrangement. rgtClose is what closes .rgt, so all three row shapes below
+    // pick the button up without repeating it.
     var rgtOpen = view.editSheet
-      ? '<div class="rgt has-pen">' + editPenHtml(item, view) : '<div class="rgt">';
+      ? '<div class="rgt has-pen">' + editSwatchHtml(view) : '<div class="rgt">';
+    var rgtClose = (view.editSheet ? editPenHtml(item, view) : '') + '</div>';
     // Wide segmented (.segwide): control on the label's line, label wraps into the leftover
     // width (.lft flex), hint on its own full-width line below (.segwide .hint flex-basis).
     if (wideSegmented) {
-      return '<div class="' + rowCls + '"><div class="lft">' + label + '</div>' + rgtOpen + renderControl(item, view) + '</div>' + hintHtml + '</div>';
+      return '<div class="' + rowCls + '"><div class="lft">' + label + '</div>' + rgtOpen + renderControl(item, view) + rgtClose + hintHtml + '</div>';
     }
     // Rows with a multi-line hint float the control right (.wrap layout) so the
     // hint flows around it and reclaims the full width below the control instead
@@ -1229,9 +1250,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // isn't measurable at render time, so "multi-line" is a plain-text length
     // heuristic — short one-liners keep the centered two-column row.
     if (hintHtml && String(hint).replace(/<[^>]*>/g, '').length > 64) {
-      return '<div class="' + rowCls + ' wrap">' + label + rgtOpen + renderControl(item, view) + '</div>' + hintHtml + '</div>';
+      return '<div class="' + rowCls + ' wrap">' + label + rgtOpen + renderControl(item, view) + rgtClose + hintHtml + '</div>';
     }
-    return '<div class="' + rowCls + '"><div class="lft">' + label + hintHtml + '</div>' + rgtOpen + renderControl(item, view) + '</div></div>';
+    return '<div class="' + rowCls + '"><div class="lft">' + label + hintHtml + '</div>' + rgtOpen + renderControl(item, view) + rgtClose + '</div>';
   }
 
   // Render a registered block by id, wrapped in .blockrow ('.blockrow sticky' when sticky).
