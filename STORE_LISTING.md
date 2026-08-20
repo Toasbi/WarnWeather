@@ -50,7 +50,11 @@ WATCH
 LAYOUT CUSTOMIZATION
 - Multiple layout presets, with flick-to-cycle between views and optional auto-return
 - Light/Dark settings page with grouped, easy-to-browse pickers
-- First-run setup wizard that picks sensible defaults for your country
+- First-run setup wizard that picks sensible defaults for your country and
+  watch — it bolds the rows you read first, gives air quality a warn outline,
+  and puts steps on the top row when your watch has health
+- New watches start the compact layout with the status row below the clock —
+  flip it with "Swap clock and status row" in the Layout tab
 
 PLATFORMS
 - Pebble Classic, Pebble Steel, Pebble Time, Pebble Time Steel, Pebble 2,

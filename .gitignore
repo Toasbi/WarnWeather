@@ -42,3 +42,7 @@ package.json
 /docs/*
 # …except tracked architecture decision records.
 !/docs/adr/
+
+# Python bytecode from scripts/ (svg2pdc and friends)
+__pycache__/
+*.pyc

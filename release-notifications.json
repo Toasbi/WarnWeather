@@ -125,6 +125,6 @@
   },
   "1.13.0": {
     "title": "Dew point & wind direction",
-    "body": "Dew point is a new status slot — the best single read on how muggy it feels, since unlike humidity it does not move with the temperature. Wind slots now show an arrow pointing the way the wind is blowing, and any slot can hide or show its unit. Also fixes a reset that quietly undid itself, and no longer erases your API keys."
+    "body": "Dew point is a new status slot — the best single read on how muggy it feels, since unlike humidity it does not move with the temperature. The wind slot now draws an arrow pointing the way the wind is blowing, and several slots can hide or show their unit. Reset watchface keeps your API keys and no longer reverts a minute later."
   }
 }
