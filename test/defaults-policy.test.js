@@ -45,7 +45,11 @@ const BOLD_ALWAYS = {
   threshSunBoldMode: 'always'
 };
 const AQI_HIGHLIGHT = { threshAqiOn: true, threshAqiWarnOutlineOn: true };
-const HEALTH_SLOTS = { statusTopRight: 'steps', statusHealthLeft: 'distance' };
+// Steps rides into the top row, so it is bolded with the rest of that row — the
+// bold rule above names the row's DEFAULT kinds, and this rule is what changes one.
+const HEALTH_SLOTS = {
+  statusTopRight: 'steps', statusHealthLeft: 'distance', threshStepsBoldMode: 'always'
+};
 
 // --- ruleApplies: the `when` predicate -------------------------------------
 
@@ -237,9 +241,14 @@ test('the bolded kinds are exactly the default kinds of the Watch + Forecast row
     const line = catalog.LINES.filter((l) => l.id === id)[0];
     return line.slots.map((s) => line.defaults[s]);
   };
+  // Health OFF is the case where the rows still hold their shipped defaults, so it
+  // is the one that pins "the bold rule tracks the row defaults". With health ON the
+  // health rule swaps steps into the top row and bolds it too, which the sibling test
+  // 'every kind the wizard puts in the top or forecast row ends up bold' covers.
   const expected = lineDefaults('forecast').concat(lineDefaults('top'))
     .map((code) => 'thresh' + stemOf[code] + 'BoldMode').sort();
-  const bolded = Object.keys(policy.resolveDefaults(ctx({ wizard: true })))
+  const bolded = Object.keys(
+    policy.resolveDefaults(ctx({ wizard: true, choices: { healthMode: 'off' } })))
     .filter((k) => /BoldMode$/.test(k)).sort();
   assert.deepEqual(bolded, expected,
     'the bold rule must track the Watch/Forecast row defaults — if a row default changes, this rule follows');
@@ -282,4 +291,42 @@ test('the step and sleep goals stay off — no rule may switch them on', () => {
 test('the schema still ships the step and sleep goals off', () => {
   assert.equal(SCHEMA_ITEM.threshStepsOn.defaultValue, false);
   assert.equal(SCHEMA_ITEM.threshSleepOn.defaultValue, false);
+});
+
+test('every kind the wizard puts in the top or forecast row ends up bold', () => {
+  // The bold rule names the kinds those rows show BY DEFAULT, and the health rule
+  // then swaps one of them out. Asserting the two rules agree — rather than listing
+  // six key names again — is what stops the next slot swap re-opening this hole:
+  // the promoted slot kept steps' own 'warn' default and sat unbolded between two
+  // bold neighbours.
+  const KIND_BOLD_KEY = {
+    temp: 'threshTempBoldMode', city: 'threshCityBoldMode', aqi: 'threshAqiBoldMode',
+    week: 'threshWeekBoldMode', date: 'threshDateBoldMode', sun: 'threshSunBoldMode',
+    steps: 'threshStepsBoldMode', distance: 'threshDistanceBoldMode',
+    sleep: 'threshSleepBoldMode', hr: 'threshHrBoldMode'
+  };
+  const TOP_AND_FORECAST = ['statusTopLeft', 'statusTopMid', 'statusTopRight',
+    'statusForecastLeft', 'statusForecastMid', 'statusForecastRight'];
+  const catalog = require('../src/pkjs/status-line-catalog.js');
+  const lineDefault = (slotKey) => {
+    const line = catalog.LINES.find((l) => l.slots.indexOf(slotKey) !== -1);
+    return line.defaults[slotKey];
+  };
+
+  [{ healthMode: 'all' }, { healthMode: 'off' }].forEach((choices) => {
+    const applied = policy.resolveDefaults({
+      wizard: true,
+      env: { platform: 'emery', health: true, hr: true, radar: true, thresholds: true },
+      choices
+    });
+    TOP_AND_FORECAST.forEach((slotKey) => {
+      const kind = applied[slotKey] || lineDefault(slotKey);
+      const boldKey = KIND_BOLD_KEY[kind];
+      if (!boldKey) { return; }   // a kind with no bold cell of its own
+      const bold = applied[boldKey];
+      assert.equal(bold, 'always',
+        `${slotKey} shows "${kind}" after the wizard (healthMode ${choices.healthMode}), ` +
+        `so ${boldKey} must be 'always' — got ${bold === undefined ? 'nothing' : bold}`);
+    });
+  });
 });

@@ -100,8 +100,16 @@
             why: 'Steps is the health number people glance at most, and the top row is '
                 + 'on screen in every view, so setup promotes steps into its right-hand '
                 + 'corner and sunrise/sunset gives up the spot. Walked distance takes '
-                + 'the place steps left in the health row, so no reading is lost.',
-            set: {statusTopRight: 'steps', statusHealthLeft: 'distance'}
+                + 'the place steps left in the health row, so no reading is lost. Steps '
+                + 'is bolded with the rest of that row: the row above bolds the kinds '
+                + 'the top row shows BY DEFAULT, and this rule is what changes one of '
+                + 'them — without it the promoted slot keeps its own default of "warn" '
+                + 'and sits unbolded between two bold neighbours.',
+            set: {
+                statusTopRight: 'steps',
+                statusHealthLeft: 'distance',
+                threshStepsBoldMode: 'always'
+            }
         }
         // Deliberately NOT here: the step, sleep and distance GOALS. They stay off
         // until the wearer sets one — a goal nobody chose is a number nobody meant,

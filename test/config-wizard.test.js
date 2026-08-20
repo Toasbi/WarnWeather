@@ -200,8 +200,12 @@ test('finishing the wizard bolds the Watch + Forecast rows and hands AQI back a 
   BOLD_KEYS.forEach((k) => assert.equal(ctx.S[k], 'always', k));
   assert.equal(ctx.S.threshAqiOn, true, 'AQI highlighting on');
   assert.equal(ctx.S.threshAqiWarnOutlineOn, true, 'AQI warn outline on');
+  // threshStepsBoldMode rides with the slot swap: steps replaces sunrise/sunset in
+  // the top row, so it has to be bold like the rest of that row.
+  assert.equal(ctx.S.threshStepsBoldMode, 'always', 'the promoted steps slot is bold too');
   assert.deepEqual(Object.keys(written).sort(),
-    BOLD_KEYS.concat(['threshAqiOn', 'threshAqiWarnOutlineOn', 'statusTopRight', 'statusHealthLeft']).sort(),
+    BOLD_KEYS.concat(['threshAqiOn', 'threshAqiWarnOutlineOn', 'statusTopRight',
+      'statusHealthLeft', 'threshStepsBoldMode']).sort(),
     'the report names exactly the keys it wrote');
 });
 
