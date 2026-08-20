@@ -110,6 +110,18 @@
                 statusHealthLeft: 'distance',
                 threshStepsBoldMode: 'always'
             }
+        },
+        {
+            id: 'wizard-wind-direction',
+            when: {wizard: true},
+            // Wind only, not gusts: they sit side by side in the Radar row's defaults
+            // and share one bearing, so arrowing both would print the same arrow twice
+            // on one line.
+            why: 'A wind speed on its own answers half the question. The arrow costs no '
+                + 'wire bytes and no extra width worth minding, so setup turns it on for '
+                + 'the wind slot — a reading nobody would have gone looking for in a '
+                + 'slot Edit sheet.',
+            set: {windSlotDirection: true}
         }
         // Deliberately NOT here: the step, sleep and distance GOALS. They stay off
         // until the wearer sets one — a goal nobody chose is a number nobody meant,

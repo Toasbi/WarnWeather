@@ -203,9 +203,11 @@ test('finishing the wizard bolds the Watch + Forecast rows and hands AQI back a 
   // threshStepsBoldMode rides with the slot swap: steps replaces sunrise/sunset in
   // the top row, so it has to be bold like the rest of that row.
   assert.equal(ctx.S.threshStepsBoldMode, 'always', 'the promoted steps slot is bold too');
+  assert.equal(ctx.S.windSlotDirection, true, 'the wind slot gets its direction arrow');
+  assert.notEqual(ctx.S.gustSlotDirection, true, 'the gust slot beside it does not');
   assert.deepEqual(Object.keys(written).sort(),
     BOLD_KEYS.concat(['threshAqiOn', 'threshAqiWarnOutlineOn', 'statusTopRight',
-      'statusHealthLeft', 'threshStepsBoldMode']).sort(),
+      'statusHealthLeft', 'threshStepsBoldMode', 'windSlotDirection']).sort(),
     'the report names exactly the keys it wrote');
 });
 
