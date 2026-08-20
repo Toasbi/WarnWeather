@@ -314,8 +314,8 @@ test('aplite gets the line styling too (it has the forecast graph)', function() 
   assert.equal(buildClayPayload(s, null, NOW).CLAY_LINE_STYLE_UINT8.length, 4);
 });
 
-test('CLAY_HR_SCALE falls back to 40-180 when unset or malformed', function() {
-  const expected = 40 | (180 << 8);
+test('CLAY_HR_SCALE falls back to 40-150 when unset or malformed', function() {
+  const expected = 40 | (150 << 8);
   const s = baseSettings();
   assert.equal(buildClayPayload(s, { platform: 'diorite' }, NOW).CLAY_HR_SCALE, expected,
     'unset');

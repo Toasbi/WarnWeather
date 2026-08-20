@@ -281,8 +281,18 @@ test('hrScale is a range slider gated to HR hardware and the graph mode', () => 
   const it = byKey('hrScale');
   assert.ok(it, 'hrScale item exists');
   assert.equal(it.type, 'range');
-  // Default matches the watch's HEALTH_HR_LO/HEALTH_HR_HI, so an upgrade is a no-op.
-  assert.equal(it.defaultValue, '40-180');
+  // The default, the clay-payload fallback and the watch's HEALTH_HR_LO/HEALTH_HR_HI
+  // are one number in three places: a watch that never received the key must draw the
+  // same scale as one that did. Assert against the C header rather than a literal, so
+  // moving one of the three without the others fails here.
+  assert.equal(it.defaultValue, '40-150');
+  const graphC = require('fs').readFileSync(
+    require('path').join(__dirname, '../src/c/layers/health_graph_layer.c'), 'utf8');
+  const lo = /#define\s+HEALTH_HR_LO\s+(\d+)/.exec(graphC);
+  const hi = /#define\s+HEALTH_HR_HI\s+(\d+)/.exec(graphC);
+  assert.ok(lo && hi, 'HEALTH_HR_LO/HI found in health_graph_layer.c');
+  assert.equal(it.defaultValue, lo[1] + '-' + hi[1],
+    'the schema default and the watch constants must stay in lockstep');
   assert.equal(it.min, 30);
   assert.equal(it.max, 220);
   assert.equal(it.step, 5);

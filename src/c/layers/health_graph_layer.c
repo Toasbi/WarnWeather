@@ -31,7 +31,7 @@
 // per install (Health tab -> "Heart-rate scale", packed into config.hr_scale); these
 // are what an unset value resolves to, and the phone-side default mirrors them.
 #define HEALTH_HR_LO              40
-#define HEALTH_HR_HI             180
+#define HEALTH_HR_HI             150
 
 // Gray axis frame, matching the forecast's night axis (GColorDarkGray); theme_fg()
 // on B&W. theme_furniture() flattens the gray to black in the light theme.

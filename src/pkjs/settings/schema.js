@@ -956,10 +956,13 @@ module.exports = {
                 type: 'range',
                 messageKey: 'hrScale',
                 label: 'Heart-rate scale',
-                // Defaults to the watch's own HEALTH_HR_LO/HEALTH_HR_HI
-                // (src/c/layers/health_graph_layer.c) so an upgrade changes nothing;
-                // the watch treats an unset value as those same constants.
-                defaultValue: '40-180',
+                // Kept in lockstep with the watch's own HEALTH_HR_LO/HEALTH_HR_HI
+                // (src/c/layers/health_graph_layer.c) and the clay-payload fallback:
+                // all three are the same number, so a watch that never received the
+                // key draws the same scale as one that did. 180 was the old top; 150
+                // keeps a resting-to-brisk-walk day filling the plot instead of
+                // hugging the floor, and anything above it still shows as edge dots.
+                defaultValue: '40-150',
                 min: 30, max: 220, step: 5, minSpan: 50, unit: 'BPM',
                 hint: 'The top and bottom of the heart-rate line in the health graph. '
                     + 'A narrower range makes small changes visible; hours outside it '

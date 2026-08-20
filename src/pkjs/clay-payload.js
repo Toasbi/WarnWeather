@@ -132,7 +132,7 @@ function buildClayPayload(settings, watchInfo, now) {
         // reads it as int32 and falls back to its own HEALTH_HR_LO/HI when it is 0
         // (an older phone build that never sends the key).
         "CLAY_HR_SCALE": (function() {
-            var lo = 40, hi = 180;            // == HEALTH_HR_LO / HEALTH_HR_HI
+            var lo = 40, hi = 150;            // == HEALTH_HR_LO / HEALTH_HR_HI
             var m = /^(\d+)-(\d+)$/.exec(String(settings.hrScale || ''));
             if (m) {
                 var plo = parseInt(m[1], 10), phi = parseInt(m[2], 10);
