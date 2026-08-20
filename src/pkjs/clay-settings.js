@@ -72,7 +72,12 @@ function restorePreserved(target) {
         return false;
     }
     for (prop in keep) {
-        if (Object.prototype.hasOwnProperty.call(keep, prop) && keep[prop]) {
+        // FILL ONLY — never overwrite. Between the reset and this boot the user may
+        // well have typed a NEW key (that is the likeliest thing to do right after a
+        // reset), and clobbering it with the parked one is invisible: the settings
+        // page's Test button passes against what they typed, then the next boot
+        // restores the old key underneath them and every fetch is rejected.
+        if (Object.prototype.hasOwnProperty.call(keep, prop) && keep[prop] && !target[prop]) {
             target[prop] = keep[prop];
             restored = true;
         }

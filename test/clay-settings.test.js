@@ -459,3 +459,39 @@ test('a malformed parking slot is discarded rather than throwing', () => {
   assert.ok(claySettings.read().provider, 'seeding still completes');
   assert.equal(store['preservedApiKeys'], undefined, 'the bad slot is cleared');
 });
+
+test('a key entered AFTER the reset is never clobbered by the parked one', () => {
+  // The likeliest thing to do right after a reset is to type a fresh key. The
+  // parked copy must fill a gap, never overwrite a choice — the failure was
+  // invisible: the settings page's Test button passed against the newly typed key,
+  // then the next boot restored the old one underneath and every fetch was rejected.
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+
+  store['clay-settings'] = JSON.stringify({ tomorrowioApiKey: 'OLD-KEY', owmApiKey: 'OLD-OWM' });
+  claySettings.resetAll();
+  assert.ok(store['preservedApiKeys'], 'both keys parked');
+
+  // The user reopens settings and types a new tomorrow.io key; the page saves.
+  claySettings.save({ tomorrowioApiKey: 'NEW-KEY', provider: 'tomorrowio' });
+
+  // Next boot.
+  claySettings.seedDefaults(COLORS);
+  const read = claySettings.read();
+  assert.equal(read.tomorrowioApiKey, 'NEW-KEY', 'the key the user just entered must win');
+  assert.equal(read.owmApiKey, 'OLD-OWM', 'a key they did NOT re-enter is still restored');
+  assert.equal(store['preservedApiKeys'], undefined, 'the parking slot is cleared either way');
+});
+
+test('an empty string does not count as a value worth keeping', () => {
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  store['clay-settings'] = JSON.stringify({ owmApiKey: 'KEEP-ME' });
+  claySettings.resetAll();
+  // A blob whose field exists but is blank (the schema default) is still a gap.
+  claySettings.save({ owmApiKey: '' });
+  claySettings.seedDefaults(COLORS);
+  assert.equal(claySettings.read().owmApiKey, 'KEEP-ME');
+});
