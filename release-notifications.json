@@ -122,5 +122,9 @@
   "1.12.0": {
     "title": "Feels-like temperature & battery slot",
     "body": "Pick feels-like as a graph line or dots in the Forecast tab, or set the temperature slot to show it instead — or both as 12/10. Also new: a battery percentage slot for the top-right. Fixes the air pressure line not drawing on Weather Underground, and the wind-gust line being hard to see on the Light theme."
+  },
+  "1.13.0": {
+    "title": "Dew point & wind direction",
+    "body": "Dew point is a new status slot — the best single read on how muggy it feels, since it does not move with the temperature the way humidity does. Wind speed and gust slots can now show an arrow pointing the way the wind is blowing; turn it on in either slot’s settings. New watches also start with the clock and status row swapped on the compact layout."
   }
 }

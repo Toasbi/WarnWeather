@@ -28,8 +28,10 @@ CALENDAR
 
 STATUS LINES
 - Configurable status slots on every view: fill each slot from a catalog of
-  metrics — weather, air quality, pollen, wind, health, battery (glyph or
-  percentage), a countdown to any date, and more
+  metrics — weather, dew point, air quality, pollen, wind, health, battery
+  (glyph or percentage), a countdown to any date, and more
+- Wind direction as an arrow after the speed, pointing the way the wind is
+  blowing — switch it on in the Wind speed or Wind gusts slot settings
 - Threshold highlighting: bold, outline, or fill a status slot when air
   quality, pollen, wind, gusts, UV index, steps, sleep, or distance crosses a
   warn or danger level you set
