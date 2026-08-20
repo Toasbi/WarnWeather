@@ -401,3 +401,61 @@ test('after a reset the defaults are available WITHOUT repopulating storage', ()
   assert.notEqual(defaults.timeFont, 'bitham', 'the erased choice is gone');
   assert.equal(claySettings.read(), null, 'getDefaults must not write storage back');
 });
+
+test('reset keeps the credentials the user typed, and nothing else', () => {
+  // "Reset watchface" is about the FACE. Making someone dig out an API key again --
+  // one they may have paid for or waited on activation for -- is a different and
+  // far more annoying reset than the one they asked for.
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+
+  store['clay-settings'] = JSON.stringify({
+    owmApiKey: 'owm-secret', yandexApiKey: 'ya-secret', tomorrowioApiKey: 'tio-secret',
+    timeFont: 'bitham', provider: 'dwd'
+  });
+  store['wundergroundApiKey'] = 'wu-scraped';
+  store['lastSentClaySettings'] = 'stale';
+
+  const kept = claySettings.resetAll();
+
+  // The blob is gone, so the wizard still reopens.
+  assert.equal(claySettings.read(), null, 'settings blob must stay absent');
+  assert.equal(store['lastSentClaySettings'], undefined, 'caches are still wiped');
+  // The WU key never lived in the blob and simply stays put.
+  assert.equal(store['wundergroundApiKey'], 'wu-scraped');
+  // The typed keys are handed back for the live session AND parked for the next boot.
+  assert.deepEqual(kept, {
+    owmApiKey: 'owm-secret', yandexApiKey: 'ya-secret', tomorrowioApiKey: 'tio-secret'
+  });
+  assert.ok(store['preservedApiKeys'], 'credentials are parked for the next boot');
+
+  // Next boot: they come back, and non-credential settings do NOT.
+  claySettings.seedDefaults(COLORS);
+  const read = claySettings.read();
+  assert.equal(read.owmApiKey, 'owm-secret');
+  assert.equal(read.yandexApiKey, 'ya-secret');
+  assert.equal(read.tomorrowioApiKey, 'tio-secret');
+  assert.notEqual(read.timeFont, 'bitham', 'the erased font must NOT come back');
+  assert.notEqual(read.provider, 'dwd', 'the erased provider must NOT come back');
+  assert.equal(store['preservedApiKeys'], undefined, 'the parking slot is cleared after use');
+});
+
+test('reset parks nothing when the user had no keys', () => {
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  store['clay-settings'] = JSON.stringify({ timeFont: 'bitham', owmApiKey: '' });
+  assert.deepEqual(claySettings.resetAll(), {});
+  assert.equal(store['preservedApiKeys'], undefined, 'no empty parking slot left behind');
+});
+
+test('a malformed parking slot is discarded rather than throwing', () => {
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  store['preservedApiKeys'] = '{not json';
+  claySettings.seedDefaults(COLORS);
+  assert.ok(claySettings.read().provider, 'seeding still completes');
+  assert.equal(store['preservedApiKeys'], undefined, 'the bad slot is cleared');
+});

@@ -6,19 +6,79 @@
 
 var settings = require('./settings');
 var platformLib = require('./config-ui/lib/platform.js');   // isHrPlatform (emery + diorite)
+var KEYS = require('./storage-keys');
 
 var STORAGE_KEY = 'clay-settings';
 
+// Credentials "Reset watchface" deliberately KEEPS. The reset is about the face;
+// making someone dig out an API key again — one they may have paid for, or waited
+// on an activation email for — is a different and far more annoying kind of reset
+// than the one they asked for. The Weather Underground key is scraped rather than
+// typed and already lives outside the blob (KEYS.WU_API_KEY), so it is preserved
+// separately below.
+var PRESERVED_SETTING_KEYS = ['owmApiKey', 'yandexApiKey', 'tomorrowioApiKey'];
+
 /**
- * Wipe ALL phone-side PKJS localStorage — the settings blob and every cache /
- * migration-marker key — for a full "Reset watchface" fresh start. The next
- * boot then follows the first-install path (defaults seeded, migrations run
- * once, wizard reopens), so there is nothing pre-migrated to double-apply.
+ * Wipe phone-side PKJS localStorage — the settings blob and every cache /
+ * migration-marker key — for a "Reset watchface" fresh start. The next boot then
+ * follows the first-install path (defaults seeded, migrations run once, wizard
+ * reopens), so there is nothing pre-migrated to double-apply.
  *
- * @returns {void}
+ * The exception is PRESERVED_SETTING_KEYS plus the scraped Weather Underground
+ * key: see the note there for why credentials survive a reset.
+ *
+ * @returns {Object} The preserved credentials, so the caller can keep the live
+ *   in-memory settings usable until the next boot re-seeds them.
  */
 function resetAll() {
+    var blob = read() || {};
+    var keep = {};
+    var kept = false;
+    var wuKey = localStorage.getItem(KEYS.WU_API_KEY);
+    var i;
+    var k;
+    for (i = 0; i < PRESERVED_SETTING_KEYS.length; i++) {
+        k = PRESERVED_SETTING_KEYS[i];
+        if (blob[k]) { keep[k] = blob[k]; kept = true; }
+    }
     localStorage.clear();
+    // The settings blob itself must stay ABSENT: the wizard only reopens for a
+    // config with no keys at all, so putting the kept credentials straight back
+    // would silently skip the first-time setup this reset promises. They wait in
+    // their own entry instead, and seedDefaults folds them into the fresh blob on
+    // the next boot. The WU key never lived in the blob, so it just goes back.
+    if (kept) { localStorage.setItem(KEYS.PRESERVED_KEYS_KEY, JSON.stringify(keep)); }
+    if (wuKey) { localStorage.setItem(KEYS.WU_API_KEY, wuKey); }
+    return keep;
+}
+
+/**
+ * Fold any credentials parked by resetAll() into a settings object, and drop the
+ * parking slot once they are safely in. Missing/!malformed parking is a no-op.
+ *
+ * @param {Object} target Settings object to merge into (mutated).
+ * @returns {boolean} True when something was restored.
+ */
+function restorePreserved(target) {
+    var raw = localStorage.getItem(KEYS.PRESERVED_KEYS_KEY);
+    var keep;
+    var restored = false;
+    var prop;
+    if (!raw) { return false; }
+    try {
+        keep = JSON.parse(raw);
+    } catch (ex) {
+        localStorage.removeItem(KEYS.PRESERVED_KEYS_KEY);
+        return false;
+    }
+    for (prop in keep) {
+        if (Object.prototype.hasOwnProperty.call(keep, prop) && keep[prop]) {
+            target[prop] = keep[prop];
+            restored = true;
+        }
+    }
+    localStorage.removeItem(KEYS.PRESERVED_KEYS_KEY);
+    return restored;
 }
 
 /**
@@ -101,6 +161,9 @@ function seedDefaults(colors) {
     var prop;
     if (persistClayString === null) {
         console.log('No clay settings found, setting defaults');
+        // Credentials a reset deliberately kept ride back in here, on the first
+        // boot after the wipe -- this is the branch that boot takes.
+        restorePreserved(defaults);
         save(defaults);
         return;
     }
@@ -110,6 +173,7 @@ function seedDefaults(colors) {
     }
     catch (ex) {
         console.log('Malformed clay settings found, resetting defaults');
+        restorePreserved(defaults);
         save(defaults);
         return;
     }
@@ -122,6 +186,9 @@ function seedDefaults(colors) {
             persistClay[prop] = defaults[prop];
         }
     }
+    // A settings save between the reset and this boot leaves a non-empty blob, so
+    // the branch above never ran; the credentials are still parked and belong here.
+    restorePreserved(persistClay);
     save(persistClay);
 }
 

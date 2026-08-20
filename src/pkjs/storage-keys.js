@@ -21,5 +21,11 @@ module.exports = {
     WU_HOURLY_CACHE_KEY: 'wuHourlyCache',
     NEWS_CACHE_KEY: 'newsCache',
     NOTICES_KEY: 'notices',
-    LAST_SENT_NOTICE_KEY: 'lastSentNotice'
+    LAST_SENT_NOTICE_KEY: 'lastSentNotice',
+    // The Weather Underground key is scraped rather than typed, and has always
+    // lived outside the settings blob under this literal name (wunderground.js).
+    WU_API_KEY: 'wundergroundApiKey',
+    // Where "Reset watchface" parks the credentials it deliberately keeps, until
+    // the next boot's seedDefaults folds them back into a fresh blob.
+    PRESERVED_KEYS_KEY: 'preservedApiKeys'
 };

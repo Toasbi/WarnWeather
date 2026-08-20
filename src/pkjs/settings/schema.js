@@ -1488,7 +1488,7 @@ module.exports = {
                 messageKey: 'reset',
                 label: 'Reset watchface',
                 defaultValue: false,
-                hint: 'When you save, this erases all settings and cached data and re-runs first-time setup. This cannot be undone.'
+                hint: 'When you save, this erases all settings and cached data and re-runs first-time setup. Your API keys are kept. This cannot be undone.'
             }]
         }, {
             title: 'Connection stats', collapsible: true, block: 'devStats', items: [{

@@ -1,4 +1,5 @@
 var WeatherProvider = require('./provider.js');
+var KEYS = require('../storage-keys');
 var mphToKmh = require('../wire-units.js').mphToKmh;
 var wuCache = require('./wu-current-hour-cache.js');
 var request = WeatherProvider.request;
@@ -95,14 +96,14 @@ WundergroundProvider.prototype.withWundergroundCurrent = function(lat, lon, apiK
 };
 
 WundergroundProvider.prototype.clearApiKey = function() {
-    localStorage.removeItem('wundergroundApiKey');
+    localStorage.removeItem(KEYS.WU_API_KEY);
     console.log('Cleared API key');
 };
 
 WundergroundProvider.prototype.withApiKey = function(callback, onFailure) {
     // callback(apiKey)
 
-    var apiKey = localStorage.getItem('wundergroundApiKey');
+    var apiKey = localStorage.getItem(KEYS.WU_API_KEY);
     var url = 'https://www.wunderground.com/';
 
     if (apiKey === null) {
@@ -119,7 +120,7 @@ WundergroundProvider.prototype.withApiKey = function(callback, onFailure) {
                 }
 
                 apiKey = match[1];
-                localStorage.setItem('wundergroundApiKey', apiKey);
+                localStorage.setItem(KEYS.WU_API_KEY, apiKey);
                 console.log('Fetched Weather Underground API key: ' + apiKey);
                 callback(apiKey);
             },
