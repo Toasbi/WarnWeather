@@ -28,6 +28,9 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/blocks.js'),
   // wizard-screenshots.generated.js assigns PConf.screenshots; must precede wizard.js, which reads it.
   path.join(ROOT, 'src/pkjs/settings/wizard-screenshots.generated.js'),
+  // defaults-policy.js assigns window.DefaultsPolicy and must precede wizard.js, which
+  // resolves the rule table on the wizard's finish button.
+  path.join(ROOT, 'src/pkjs/settings/defaults-policy.js'),
   path.join(ROOT, 'src/pkjs/settings/wizard.js'),
   path.join(ROOT, 'src/pkjs/settings/onbuild.js'),
   path.join(ROOT, 'src/pkjs/settings/owm-key-test.js'),

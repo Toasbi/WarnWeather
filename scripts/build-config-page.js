@@ -19,6 +19,13 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/blocks.js'),
   // wizard-screenshots.generated.js assigns PConf.screenshots; must precede wizard.js, which reads it.
   path.join(ROOT, 'src/pkjs/settings/wizard-screenshots.generated.js'),
+  // defaults-policy.js assigns window.DefaultsPolicy and must precede wizard.js, which
+  // resolves the rule table on the wizard's finish button. Omitting it does not throw --
+  // the wizard degrades to applying nothing -- so the whole feature would silently be a
+  // no-op on a real phone while every Node test passed (those take the require() branch).
+  // test/config-page-bundle.test.js pins every rule id into the generated page for exactly
+  // that reason.
+  path.join(ROOT, 'src/pkjs/settings/defaults-policy.js'),
   path.join(ROOT, 'src/pkjs/settings/wizard.js'),
   path.join(ROOT, 'src/pkjs/settings/onbuild.js'),
   path.join(ROOT, 'src/pkjs/settings/owm-key-test.js'),

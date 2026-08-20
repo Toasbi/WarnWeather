@@ -113,6 +113,10 @@ run = "scripts/assemble-gif.sh"
 description = "Capture two-phase (forecast + radar/wind) time-lapse frames on all five platforms (args: version)"
 run = "scripts/capture-timelapse.sh"
 
+[tasks.defaults]
+description = "Print the settings-defaults overview: the situational rules (defaults-policy.js), what each watch ends up with fresh vs after the wizard, and the keys nothing seeds"
+run = "node scripts/print-defaults.js"
+
 [tasks.test]
 description = "Run the Node test suite"
 # Regenerate page.generated.js first: it's a gitignored build artifact, and

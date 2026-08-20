@@ -681,11 +681,14 @@ test('viewResetMin is hidden on aplite and carries its explanation as its own hi
   assert.equal(showWhen.isVisible(reset, aplite), false);
 });
 
-test('swapClockStatus toggle exists, defaults false, and is shown for compactCal on all platforms', () => {
+test('swapClockStatus toggle exists, defaults ON, and is shown for compactCal on all platforms', () => {
   const it = byKey('swapClockStatus');
   assert.ok(it, 'swapClockStatus item exists');
   assert.equal(it.type, 'toggle');
-  assert.equal(it.defaultValue, false);
+  // A fresh install gets the swapped Compact layout: the status row reads better beside
+  // the forecast than above the clock. Existing installs already store an explicit value,
+  // so this only ever moves a NEW install (deliberately no migration).
+  assert.equal(it.defaultValue, true);
   assert.match(it.hint, /status row below the clock/);
   assert.deepEqual(it.showWhen, { key: 'layoutPreset', eq: 'compactCal' });
   // aplite supports the forecast-only swap too (its lean twin carries a single lower band), so

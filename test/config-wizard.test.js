@@ -1,15 +1,19 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const onChangeHandlers = {};
-global.PConf = {
-  onChange: {
-    register: function (name, fn) { onChangeHandlers[name] = fn; },
-    get: function (name) { return onChangeHandlers[name]; }
-  },
-  actions: {}
-};
+
+// The wizard's completion path reads each key's schema default through the engine and seeds
+// AQI through the settings page's own onChange hooks, so this suite boots the REAL registries
+// (same require order as test/config-schema.test.js) rather than a stub PConf.
+global.PConf = {};
+require('../src/pkjs/config-ui/lib/schema-walk.js');
+require('../src/pkjs/config-ui/lib/color.js');
+require('../src/pkjs/config-ui/lib/engine.js');
+require('../src/pkjs/settings/blocks.js');
 require('../src/pkjs/settings/reset-status-defaults.js');
+const schema = require('../src/pkjs/settings/schema.js');
+const eng = require('../src/pkjs/config-ui/lib/engine.js');
+const platform = require('../src/pkjs/config-ui/lib/platform.js');
 const W = require('../src/pkjs/settings/wizard.js');
 
 test('countryFromTimezone: known zones map, unknown -> null', () => {
@@ -165,4 +169,116 @@ test("flickStops: 'slot' health mode adds no health flick stop (matches off)", (
   const off = W.flickStops({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'graph' });
   const slot = W.flickStops({ layoutPreset: 'compactCal', healthMode: 'slot', radarMode: 'graph' });
   assert.deepEqual(slot.map((s) => s.label), off.map((s) => s.label));
+});
+
+// --- finishing the wizard applies the situational defaults (settings/defaults-policy.js) ---
+//
+// The table itself is tested in test/defaults-policy.test.js; these tests cover the WIRING:
+// which navigations count as finishing, what lands on the live state, and the two clauses
+// that keep the policy off a value the user placed themselves.
+
+const BOLD_KEYS = ['threshTempBoldMode', 'threshCityBoldMode', 'threshAqiBoldMode',
+  'threshWeekBoldMode', 'threshDateBoldMode', 'threshSunBoldMode'];
+
+/**
+ * A stand-in for the engine's onReady ctx: the real schema, hydrated the way boot() does.
+ * @param {Object} [over] {platform: string, saved: Object} — watch platform and stored settings.
+ * @returns {{S: Object, ENV: Object, schema: Object}} Wizard context.
+ */
+function wizCtx(over) {
+  const o = over || {};
+  const ENV = platform.computeEnv({ platform: o.platform || 'basalt' });
+  return { S: eng.hydrate(schema, o.saved || {}, ENV), ENV, schema };
+}
+
+test('finishing the wizard bolds the Watch + Forecast rows and hands AQI back a warn signal', () => {
+  const ctx = wizCtx();
+  BOLD_KEYS.forEach((k) => assert.notEqual(ctx.S[k], 'always', k + ' starts at its schema default'));
+
+  const written = W.applyWizardDefaults(ctx, 'save');
+
+  BOLD_KEYS.forEach((k) => assert.equal(ctx.S[k], 'always', k));
+  assert.equal(ctx.S.threshAqiOn, true, 'AQI highlighting on');
+  assert.equal(ctx.S.threshAqiWarnOutlineOn, true, 'AQI warn outline on');
+  assert.deepEqual(Object.keys(written).sort(),
+    BOLD_KEYS.concat(['threshAqiOn', 'threshAqiWarnOutlineOn', 'statusTopRight', 'statusHealthLeft']).sort(),
+    'the report names exactly the keys it wrote');
+});
+
+test('the AQI seeding runs through the settings page\'s own hooks, not hand-picked numbers', () => {
+  const ctx = wizCtx();
+  W.applyWizardDefaults(ctx, 'save');
+
+  // What flipping the two toggles by hand on the settings page produces.
+  const hand = wizCtx();
+  hand.S.threshAqiOn = true;
+  PConf.onChange.get('thresholdToggle')(hand.S, false, true, hand.ENV, 'threshAqiOn');
+  hand.S.threshAqiWarnOutlineOn = true;
+  PConf.onChange.get('thresholdOutlineToggle')(hand.S, false, true, hand.ENV, 'threshAqiWarnOutlineOn');
+
+  assert.notEqual(hand.S.threshAqiWarn, '', 'guard: the hook really seeds a pair');
+  assert.notEqual(hand.S.threshAqiWarnColor, '', 'guard: the hook really seeds an outline color');
+  assert.equal(ctx.S.threshAqiWarn, hand.S.threshAqiWarn);
+  assert.equal(ctx.S.threshAqiDanger, hand.S.threshAqiDanger);
+  assert.equal(ctx.S.threshAqiWarnColor, hand.S.threshAqiWarnColor);
+});
+
+test('the health slots move only where health can actually report', () => {
+  ['all', 'status', 'slot'].forEach((mode) => {
+    const ctx = wizCtx({ saved: { healthMode: mode } });
+    W.applyWizardDefaults(ctx, 'save');
+    assert.equal(ctx.S.statusTopRight, 'steps', mode);
+    assert.equal(ctx.S.statusHealthLeft, 'distance', mode);
+  });
+
+  const off = wizCtx({ saved: { healthMode: 'off' } });
+  W.applyWizardDefaults(off, 'save');
+  assert.equal(off.S.statusTopRight, 'sun', 'health off leaves the top row alone');
+  assert.equal(off.S.statusHealthLeft, 'steps', 'health off leaves the health row alone');
+  assert.equal(off.S.threshTempBoldMode, 'always', 'the bold rules still apply with health off');
+
+  // aplite has no health at all; the bold/AQI keys are still written (inert there by design).
+  const aplite = wizCtx({ platform: 'aplite' });
+  W.applyWizardDefaults(aplite, 'save');
+  assert.equal(aplite.S.statusTopRight, 'sun');
+  assert.equal(aplite.S.statusHealthLeft, 'steps');
+  assert.equal(aplite.S.threshAqiBoldMode, 'always');
+});
+
+test('"Continue tweaking" finishes the wizard too — Skip and the step buttons do not', () => {
+  const tweak = wizCtx();
+  assert.notEqual(Object.keys(W.applyWizardDefaults(tweak, 'tweak')).length, 0);
+  assert.equal(tweak.S.threshTempBoldMode, 'always');
+
+  ['skip', 'next', 'back'].forEach((nav) => {
+    const ctx = wizCtx();
+    const before = JSON.stringify(ctx.S);
+    assert.deepEqual(W.applyWizardDefaults(ctx, nav), {}, nav + ' writes nothing');
+    assert.equal(JSON.stringify(ctx.S), before, nav + ' leaves the state untouched');
+  });
+});
+
+test('a key the user changed by hand survives the policy', () => {
+  // threshAqiBoldMode ships 'warn' and statusTopRight ships 'sun'; both values below are
+  // therefore a real choice, not a default that happens to match.
+  const ctx = wizCtx({ saved: { threshAqiBoldMode: 'off', statusTopRight: 'battery' } });
+
+  const written = W.applyWizardDefaults(ctx, 'save');
+
+  assert.equal(ctx.S.threshAqiBoldMode, 'off', 'an explicit Bold choice is not overwritten');
+  assert.equal(ctx.S.statusTopRight, 'battery', 'an explicit slot choice is not overwritten');
+  assert.ok(!Object.prototype.hasOwnProperty.call(written, 'threshAqiBoldMode'));
+  assert.ok(!Object.prototype.hasOwnProperty.call(written, 'statusTopRight'));
+  assert.equal(ctx.S.threshCityBoldMode, 'always', 'the untouched keys still get their default');
+  assert.equal(ctx.S.threshAqiOn, true, 'a sibling key of the same rule is unaffected');
+  assert.equal(ctx.S.statusHealthLeft, 'distance');
+});
+
+test('the policy never duplicates a code the user already placed in that row', () => {
+  const ctx = wizCtx({ saved: { statusTopMid: 'steps' } });
+
+  W.applyWizardDefaults(ctx, 'save');
+
+  assert.equal(ctx.S.statusTopMid, 'steps', 'the slot the user filled stays filled');
+  assert.equal(ctx.S.statusTopRight, 'sun', 'steps is already in that row, so the slot is left alone');
 });

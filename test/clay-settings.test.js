@@ -41,6 +41,14 @@ test('seedDefaults backfills missing keys without clobbering set ones', () => {
   assert.equal(read.temperatureUnits, 'c');     // backfilled
 });
 
+test('a fresh install gets the new swapClockStatus default', () => {
+  installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  claySettings.seedDefaults(COLORS);
+  assert.equal(claySettings.read().swapClockStatus, true);
+});
+
 test('save round-trips through read', () => {
   installFakeStorage();
   delete require.cache[require.resolve('../src/pkjs/clay-settings')];

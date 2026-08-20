@@ -1,7 +1,7 @@
 // src/pkjs/settings/wizard.js — ES5, WebView. First-run onboarding wizard.
 // Pure helpers (top) are unit-tested via module.exports; the DOM controller (added later)
 // registers onReady + PConf.actions.startWizard and is exercised via `mise preview-config`.
-/* global PConf, Intl, navigator, document, INJECTED_SCHEMA, VIEW_CYCLE, COUNTRY_DEFAULTS */
+/* global PConf, Intl, navigator, document, console, INJECTED_SCHEMA, VIEW_CYCLE, COUNTRY_DEFAULTS */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf
     : (typeof PConf !== 'undefined' && PConf) ? PConf
@@ -559,6 +559,171 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         centerCar();
     }
 
+    // --- finishing: the situational defaults (settings/defaults-policy.js) ---
+    //
+    // applyDerived above answers "what suits this COUNTRY"; this answers "what suits a watch
+    // whose owner just finished setup". The rules — which slots, which bold modes and why —
+    // live in the policy table, not here; this code only decides whether a value may land on
+    // the live state, and writes it the way the settings page would.
+
+    // "Save & close" and "Continue tweaking" are the two buttons of the LAST step, so both
+    // mean the wizard was walked to the end. "Skip" (welcome step) means the user answered
+    // nothing, so nothing is derived for them.
+    var COMPLETING_NAVS = {save: true, tweak: true};
+
+    /**
+     * The conditional-defaults table. Resolved lazily so the flat settings page's file order
+     * never matters (same dual-context pattern as blocks.js's status-thresholds lookup).
+     * WEBVIEW REQUIREMENT: the flat page has no require(), so settings/defaults-policy.js must
+     * be listed in scripts/build-config-page.js's APP_FILES for window.DefaultsPolicy to exist
+     * at all. Without it the wizard simply derives nothing — Node tests take the require()
+     * branch and would not notice, hence the log line in applyWizardDefaults.
+     * @returns {?Object} The defaults-policy module, or null when it isn't on the page.
+     */
+    function defaultsPolicy() {
+        return (typeof require !== 'undefined')
+            ? require('./defaults-policy.js')
+            : (typeof window !== 'undefined' ? window.DefaultsPolicy : null);
+    }
+    /**
+     * The status-line catalog, resolved the same lazy dual-context way.
+     * @returns {?Object} The catalog module, or null when it isn't on the page.
+     */
+    function statusCatalog() {
+        return (typeof require !== 'undefined')
+            ? require('../status-line-catalog.js')
+            : (typeof window !== 'undefined' ? window.StatusLineCatalog : null);
+    }
+
+    /**
+     * Whether another slot of `key`'s own status row already shows `value`. Non-slot keys
+     * belong to no row and always answer false.
+     * @param {Object} S Live settings state.
+     * @param {string} key Setting messageKey.
+     * @param {*} value The value the policy wants to write.
+     * @returns {boolean} True when a sibling slot of the same row already holds it.
+     */
+    function rowSiblingHolds(S, key, value) {
+        var cat = statusCatalog();
+        var lines = (cat && cat.LINES) || [];
+        var i, s, slots;
+        for (i = 0; i < lines.length; i += 1) {
+            slots = lines[i].slots;
+            if (slots.indexOf(key) === -1) { continue; }
+            for (s = 0; s < slots.length; s += 1) {
+                if (slots[s] !== key && S[slots[s]] === value) { return true; }
+            }
+            return false;
+        }
+        return false;
+    }
+
+    /**
+     * Whether the policy may write `key` — two conservative clauses, both spelling out
+     * "the user has not spoken here":
+     *   1. the stored value is still the one a fresh install of THIS watch resolves (the
+     *      schema's defaultValue, or its env-aware defaultFrom resolver). Anything else is
+     *      a deliberate choice — made in the wizard, or in Settings before re-running it —
+     *      and a first-run default must never overrule it.
+     *   2. for a status slot, no sibling slot of the same row already shows the value. The
+     *      row already carries what the rule wanted to put there, so writing it would either
+     *      duplicate the reading or (through the page's dedupe hook) blank the slot the user
+     *      chose. Skipping is both safe and what the rule was after.
+     * @param {Object} ctx onReady ctx ({S, ENV, schema}).
+     * @param {string} key Setting messageKey.
+     * @param {*} value The value the policy wants to write.
+     * @returns {boolean} True when writing is safe.
+     */
+    function policyMayWrite(ctx, key, value) {
+        var item = findItem(ctx.schema, key);
+        if (!item) { return false; }   // not a setting on this page — never invent one
+        if (ctx.S[key] !== resolvedDefaultAsStored(item, ctx.ENV)) { return false; }
+        return !rowSiblingHolds(ctx.S, key, value);
+    }
+
+    /**
+     * A schema item's default in the SAME representation hydrate() stores it in. Colour items
+     * declare a number but are stored as '#RRGGBB', so comparing the raw default against the
+     * stored value would report "the user changed this" on a completely untouched install --
+     * and a policy rule setting a colour would then silently never fire, with no test failing
+     * (no rule writes a colour today). Normalising here keeps the guard honest for the rules
+     * this table is meant to grow.
+     * @param {Object} item Schema item.
+     * @param {Object} env Platform env.
+     * @returns {*} The default, as it would be stored.
+     */
+    function resolvedDefaultAsStored(item, env) {
+        var dv = PConf.engine.resolveDefaultFrom(item, env);
+        return (item.type === 'color' && typeof dv === 'number') ? PConf.color.intToHex(dv) : dv;
+    }
+
+    /**
+     * Flatten the policy rules matching a context into one key -> {value, seedVia} map, with
+     * later rules winning (the precedence resolveDefaults documents) and first-seen key order
+     * preserved so a rule's own `set` order still decides who seeds first.
+     * @param {Object} policy The defaults-policy module.
+     * @param {Object} pctx Resolver context ({wizard, env, choices}).
+     * @returns {{keys: Array.<string>, by: Object}} Ordered keys + their {value, seedVia}.
+     */
+    function pendingDefaults(policy, pctx) {
+        var rules = policy.rulesFor(pctx);
+        var keys = [], by = {}, i, k, set, via, names;
+        for (i = 0; i < rules.length; i += 1) {
+            set = rules[i].set || {};
+            via = rules[i].seedVia || {};
+            names = Object.keys(set);
+            for (k = 0; k < names.length; k += 1) {
+                if (!Object.prototype.hasOwnProperty.call(by, names[k])) { keys.push(names[k]); }
+                by[names[k]] = {value: set[names[k]], seedVia: via[names[k]] || null};
+            }
+        }
+        return {keys: keys, by: by};
+    }
+
+    /**
+     * Write the situational defaults a FINISHED wizard earns onto the live state, so the
+     * existing save path persists them alongside everything else the wizard derived. A nav
+     * that doesn't finish the wizard (Skip, Back, Next) writes nothing.
+     *
+     * A key the rule marks `seedVia` is written THROUGH that same onChange hook the settings
+     * page uses, so its companions — a threshold pair, an outline colour — come out identical
+     * to flipping the control by hand. No threshold numbers are picked here.
+     *
+     * @param {Object} ctx onReady ctx ({S, ENV, schema}).
+     * @param {string} nav The footer button pressed ('save'|'tweak'|'skip'|'next'|'back').
+     * @returns {Object} The messageKey -> value pairs actually written (empty when none).
+     */
+    function applyWizardDefaults(ctx, nav) {
+        var written = {};
+        if (!COMPLETING_NAVS[nav] || !ctx) { return written; }
+        var policy = defaultsPolicy();
+        if (!policy) {
+            // Guarded: no other settings-page file assumes a console, and a missing one must
+            // not turn "no defaults derived" into a thrown error on the finish button.
+            if (typeof console !== 'undefined' && console.log) {
+                console.log('wizard: defaults-policy missing from the page — no setup defaults derived');
+            }
+            return written;
+        }
+        // The whole live state doubles as `choices`: every wizard pick and every stored
+        // setting is already in it, so a future rule keyed on any of them just works.
+        var pending = pendingDefaults(policy, {wizard: true, env: ctx.ENV, choices: ctx.S});
+        var i, key, value, hookName, hook, before;
+        for (i = 0; i < pending.keys.length; i += 1) {
+            key = pending.keys[i];
+            value = pending.by[key].value;
+            if (!policyMayWrite(ctx, key, value)) { continue; }
+            before = ctx.S[key];
+            ctx.S[key] = value;
+            hookName = pending.by[key].seedVia;
+            hook = hookName && PConf.onChange && PConf.onChange.get
+                ? PConf.onChange.get(hookName) : null;
+            if (hook) { hook(ctx.S, before, value, ctx.ENV, key); }
+            written[key] = value;
+        }
+        return written;
+    }
+
     function closeWizard() {
         if (W.overlay && W.overlay.parentNode) { W.overlay.parentNode.removeChild(W.overlay); }
         W.overlay = null;
@@ -569,6 +734,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function finishTweak() { W.ctx.set('onboardingDone', true); closeWizard(); W.ctx.render(); }
 
     function onNav(nav) {
+        // Every exit runs the situational defaults first — applyWizardDefaults itself decides
+        // which navs count as finishing the wizard, so the rule lives in one place — and does
+        // it BEFORE the exit, so the values ride the save (or show up on the settings page the
+        // user is dropped onto).
+        applyWizardDefaults(W.ctx, nav);
         if (nav === 'back') { W.idx = Math.max(0, W.idx - 1); renderStep(); }
         else if (nav === 'next') { W.idx = Math.min(W.steps.length - 1, W.idx + 1); renderStep(); }
         else if (nav === 'save') { finishSave(); }
@@ -683,6 +853,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         module.exports = {
             countryFromTimezone: countryFromTimezone, countryFromLocale: countryFromLocale,
             inferCountry: inferCountry, mapCountry: mapCountry, applyDerived: applyDerived,
+            applyWizardDefaults: applyWizardDefaults,
             buildSteps: buildSteps, shouldShow: shouldShow,
             flickStops: flickStops
         };

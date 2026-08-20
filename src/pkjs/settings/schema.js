@@ -1232,7 +1232,12 @@ module.exports = {
                 type: 'toggle',
                 messageKey: 'swapClockStatus',
                 label: 'Swap clock and status row',
-                defaultValue: false,
+                // ON out of the box: beside the forecast the status row reads as part of the
+                // graph, and the clock keeps the top of the screen to itself. Only a FRESH
+                // install lands here — an existing one already stores its own value, so this
+                // is deliberately not migrated. Still gated to compactCal (showWhen below and
+                // view-cycle.js's bake); the other presets ignore it.
+                defaultValue: true,
                 hint: 'Move the status row below the clock, next to the forecast.',
                 showWhen: {key: 'layoutPreset', eq: 'compactCal'}
             }]
