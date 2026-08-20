@@ -1261,7 +1261,10 @@ test('the wind and gust sheets carry the direction toggle', () => {
     const item = sheet.items.find((i) => i.messageKey === key);
     assert.ok(item, id + ' is missing ' + key);
     assert.equal(item.type, 'toggle');
-    assert.equal(item.defaultValue, false, key + ' must ship off');
+    // Wind ships ON, gusts OFF — the pair sits side by side in the Radar row's
+    // defaults and shares one bearing, so arrowing both would draw it twice.
+    assert.equal(item.defaultValue, id === 'threshWind',
+      key + (id === 'threshWind' ? ' must ship on' : ' must ship off'));
     assert.equal(item.label, 'Show wind direction');
     // The description is the engine's `hint` (item.description renders nowhere), and it
     // must name the direction: the arrow flies downwind, not along the reported bearing.
@@ -1514,4 +1517,12 @@ test('pressureScale hint copy quotes the curve core (no drift)', () => {
         `${scale} hint should quote its core (${pts[1][0]}-${pts[2][0]} hPa)`);
     }
   }
+});
+
+test('the wind slot arrows by default, the gust slot beside it does not', () => {
+  // Both sit in the Radar row's defaults and share one bearing, so arrowing both
+  // would print the same arrow twice on one line. Fresh installs only: an existing
+  // watch stores an explicit value and is untouched.
+  assert.equal(byKey('windSlotDirection').defaultValue, true);
+  assert.equal(byKey('gustSlotDirection').defaultValue, false);
 });

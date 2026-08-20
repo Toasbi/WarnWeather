@@ -45,7 +45,6 @@ const BOLD_ALWAYS = {
   threshSunBoldMode: 'always'
 };
 const AQI_HIGHLIGHT = { threshAqiOn: true, threshAqiWarnOutlineOn: true };
-const WIND_ARROW = { windSlotDirection: true };
 // Steps rides into the top row, so it is bolded with the rest of that row — the
 // bold rule above names the row's DEFAULT kinds, and this rule is what changes one.
 const HEALTH_SLOTS = {
@@ -139,11 +138,11 @@ test('nothing is overridden outside the wizard', () => {
 
 test('the wizard on a health watch applies the whole matrix', () => {
   assert.deepEqual(policy.resolveDefaults(ctx({ wizard: true })),
-    Object.assign({}, BOLD_ALWAYS, AQI_HIGHLIGHT, HEALTH_SLOTS, WIND_ARROW));
+    Object.assign({}, BOLD_ALWAYS, AQI_HIGHLIGHT, HEALTH_SLOTS));
 });
 
 test('the wizard with health off applies the bold/AQI rules only', () => {
-  const expected = Object.assign({}, BOLD_ALWAYS, AQI_HIGHLIGHT, WIND_ARROW);
+  const expected = Object.assign({}, BOLD_ALWAYS, AQI_HIGHLIGHT);
   assert.deepEqual(policy.resolveDefaults(ctx({ wizard: true, choices: { healthMode: 'off' } })), expected);
   assert.deepEqual(policy.resolveDefaults(ctx({ wizard: true, env: ENV_APLITE })), expected);
   assert.deepEqual(policy.resolveDefaults({ wizard: true }), expected, 'a bare context must not throw');
@@ -332,14 +331,11 @@ test('every kind the wizard puts in the top or forecast row ends up bold', () =>
   });
 });
 
-test('the wizard arrows the wind slot but NOT the gust slot beside it', () => {
-  // Both sit in the Radar row's defaults and share one bearing, so arrowing both
-  // would print the same arrow twice on one line.
-  const applied = policy.resolveDefaults(ctx({ wizard: true }));
-  assert.equal(applied.windSlotDirection, true);
-  assert.equal(applied.gustSlotDirection, undefined, 'gusts stay off');
-});
-
-test('the wind arrow is wizard-only, like the bold rules', () => {
-  assert.equal(policy.resolveDefaults(ctx({ wizard: false })).windSlotDirection, undefined);
+test('the wind arrow is a plain schema default, not a rule in this table', () => {
+  // It applies to every fresh install, so it belongs on the schema item rather than
+  // here — this table is only for defaults that depend on a situation.
+  Object.keys(policy.resolveDefaults(ctx({ wizard: true }))).forEach((k) => {
+    assert.notEqual(k, 'windSlotDirection',
+      'windSlotDirection is a schema defaultValue; a rule here would be a second home for it');
+  });
 });

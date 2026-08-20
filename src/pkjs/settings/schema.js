@@ -1217,7 +1217,13 @@ module.exports = {
             type: 'toggle',
             messageKey: 'windSlotDirection',
             label: 'Show wind direction',
-            defaultValue: false,
+            // ON by default, unlike its gust twin below: a wind speed on its own
+            // answers half the question, and the arrow costs no wire bytes. Gusts
+            // stay off because the two slots sit side by side in the Radar row's
+            // defaults and share one bearing — the same arrow twice on one line.
+            // Fresh installs only; an existing watch stores an explicit value and
+            // is not rearranged under its owner.
+            defaultValue: true,
             hint: WIND_DIRECTION_HINT
         }, unitRow('windSlotUnit', true, null, null)]),
         thresholdSection('Wind gusts', 'Gust', '', null, [{
