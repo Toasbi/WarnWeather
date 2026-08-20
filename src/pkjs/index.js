@@ -208,6 +208,23 @@ Pebble.addEventListener('webviewclosed', function(e) {
         // seeded, migrations run once against those defaults, wizard reopens.
         console.log('Reset watchface requested — clearing all PKJS storage');
         claySettings.resetAll();
+        // Storage stays EMPTY on purpose: the wizard only reopens for a config with
+        // no keys at all (wizard.js shouldShow), so seeding here would silently skip
+        // the first-time setup this reset promises. The next boot's seedDefaults
+        // fills it in, and until then the page's defaultValue hydration shows the
+        // same defaults.
+        //
+        // But the IN-MEMORY copy must not keep the settings we just erased. The
+        // 60-second scheduler tick is still armed, and clearing storage also cleared
+        // the day stamp and the last-fetch marker that gate it — so on its very next
+        // pass it pushed app.settings to the watch and cached them as last-sent,
+        // re-writing exactly what the user had just wiped. Reset appeared to work on
+        // the phone while the watch quietly reverted a minute later. Hand the
+        // scheduler the defaults instead, and push them now rather than waiting for
+        // the tick, so the watch drops to a default face immediately.
+        app.settings = claySettings.getDefaults(DEFAULT_HOLIDAY_COLORS);
+        outbox.clearWeatherCaches();
+        scheduler.onConfigClosed({ forceFetch: true, clearNotice: false });
         return;
     }
     devStats.setEnabled(Boolean(app.settings.devStatsEnabled));

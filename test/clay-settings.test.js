@@ -380,3 +380,24 @@ test('resetAll wipes the settings blob and every cache key for a fresh start', (
   assert.equal(localStorage.getItem('newsCache'), null, 'news cache gone');
   assert.equal(localStorage.getItem('lastSentForecast'), null, 'resend cache gone');
 });
+
+test('after a reset the defaults are available WITHOUT repopulating storage', () => {
+  // The reset path hands these to the in-memory settings so the still-armed
+  // scheduler tick pushes DEFAULTS to the watch instead of the settings the user
+  // just erased — while storage stays empty so the wizard still reopens.
+  // Regression: the tick used to re-send the stale in-memory copy about a minute
+  // after the wipe, so reset looked right on the phone and silently reverted on
+  // the watch.
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+
+  store['clay-settings'] = JSON.stringify({ timeFont: 'bitham', reset: true });
+  claySettings.resetAll();
+  assert.equal(claySettings.read(), null, 'storage is empty so the wizard reopens');
+
+  const defaults = claySettings.getDefaults(COLORS);
+  assert.ok(defaults && Object.keys(defaults).length > 20, 'defaults are a full blob');
+  assert.notEqual(defaults.timeFont, 'bitham', 'the erased choice is gone');
+  assert.equal(claySettings.read(), null, 'getDefaults must not write storage back');
+});
