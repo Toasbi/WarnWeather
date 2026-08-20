@@ -16,7 +16,7 @@ FORECAST
 RAIN RADAR
 - 2-hour precipitation nowcast from regional and worldwide providers
 - Rain countdown telling you when rain starts (or stops)
-- Choose how much radar you see — Off, a rain countdown, a radar status line, or the full radar graph — in the Radar tab
+- Choose how much radar you see — Off, a rain countdown, a radar status line, or the full radar graph
 
 HEALTH VIEW (requires a health-capable watch; heart rate needs a heart-rate sensor)
 - Health status for steps, sleep, distance and heart rate
@@ -27,15 +27,33 @@ CALENDAR
 - Selectable start of week and customizable highlights for weekends and holidays (150+ countries)
 
 STATUS LINES
-- Configurable status slots on every view: fill each slot from a catalog of
-  metrics — weather, dew point, air quality, pollen, wind, health, battery
-  (glyph or percentage), a countdown to any date, and more
-- Wind direction as an arrow after the speed, pointing the way the wind is
-  blowing — on for the wind slot, and available for gusts in its slot settings
-- Show or hide the unit on a status slot — drop the kph or hPa when the bar is
-  crowded, or add a degree sign to temperature and dew point
-- Threshold highlighting: bold, outline, or fill a status slot when air
-  quality, pollen, wind, gusts, UV index, steps, sleep, or distance crosses a
+- Configurable status slots on every view: 
+   - Weather:
+      - feels like temperatur
+      - dew point
+      - air quality
+      - air pressure
+      - pollen
+      - wind
+      - gusts
+      - UV index
+      - sunrise/sunset
+   - Date and location:
+      - Calender week  
+      - date
+      - weather fetch location
+      - countdown to any date
+   - Health:
+      - steps
+      - distance
+      - heart rate
+      - sleep
+   - Battery:
+      - battery icon
+      - battery percentage
+- Bold status values to make them stand out or to make it easier to read
+- Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set
+- Threshold highlighting: bold, outline, or fill a status slot when a status slot crosses a
   warn or danger level you set
 
 WATCHFACE THEMES
@@ -50,11 +68,7 @@ WATCH
 LAYOUT CUSTOMIZATION
 - Multiple layout presets, with flick-to-cycle between views and optional auto-return
 - Light/Dark settings page with grouped, easy-to-browse pickers
-- First-run setup wizard that picks sensible defaults for your country and
-  watch — it bolds the rows you read first, gives air quality a warn outline,
-  and puts steps on the top row when your watch has health
-- New watches start the compact layout with the status row below the clock —
-  flip it with "Swap clock and status row" in the Layout tab
+- First-run setup wizard that picks sensible defaults for your country and watch
 
 PLATFORMS
 - Pebble Classic, Pebble Steel, Pebble Time, Pebble Time Steel, Pebble 2,
