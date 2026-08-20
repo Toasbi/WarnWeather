@@ -528,7 +528,7 @@ test('the sheet: toggle off shows a disabled seeded slider; on enables and seeds
     'the slider is back to its disabled preview');
 });
 
-test('the reset button restores seeds, default colors, and clears the scale max', () => {
+test('the reset button blanks the pair, restores default colors, clears the scale max', () => {
   const page = bootGeneratedPage({
     provider: 'dwd',
     threshAqiWarn: '42', threshAqiDanger: '77',
@@ -543,8 +543,11 @@ test('the reset button restores seeds, default colors, and clears the scale max'
   };
   const writesBefore = page.modal.writes;
   page.modal.dispatch('click', { target: t });
-  assert.equal(page.S.threshAqiWarn, '100', 'warn back to its seed');
-  assert.equal(page.S.threshAqiDanger, '150', 'danger back to its seed');
+  // Blank, not seeded: the highlight toggle is derived from "is there a complete
+  // ordered pair?", so seeding real numbers would switch highlighting ON — the one
+  // thing a button labelled "Reset to defaults" must not do.
+  assert.equal(page.S.threshAqiWarn, '', 'warn blanked');
+  assert.equal(page.S.threshAqiDanger, '', 'danger blanked');
   assert.equal(page.S.threshAqiWarnColor, '', 'warn back to no outline (bold only)');
   assert.equal(page.S.threshAqiWarnOutlineOn, false, 'outline toggle back off');
   assert.equal(page.S.threshAqiDangerColor, '#FFFFFF', 'danger color back to the auto theme fg');
@@ -936,7 +939,29 @@ test('the reset button leaves the Bold setting alone', () => {
   PC.actions.resetThresholds('Wind', S, ENV);
   assert.equal(S.threshWindBoldMode, 'always', 'reset must not touch Bold');
   assert.equal(S.threshWindMax, '', 'reset still clears the scale max');
-  assert.equal(S.threshWindWarn, '40', 'reset still reseeds the pair');
+  assert.equal(S.threshWindWarn, '', 'reset blanks the pair — that IS the off state');
+});
+
+test('reset lands on exactly what a fresh install has, highlight included', () => {
+  // "Reset to defaults" has to mean the shipped defaults. Seeding real numbers made
+  // the highlight switch itself ON, because the toggle is derived from "is there a
+  // complete ordered pair?" — so a user who had highlighting off got their slot
+  // outlined on the watch after pressing a button that promised defaults.
+  const parse = (v) => (v === '' || v === undefined || v === null ? null : Number(v));
+  const derivedOn = (S, stem) =>
+    parse(S['thresh' + stem + 'Warn']) !== null && parse(S['thresh' + stem + 'Danger']) !== null;
+
+  ['Wind', 'Aqi', 'Steps'].forEach((stem) => {
+    const S = { theme: 'dark' };
+    S['thresh' + stem + 'On'] = true;
+    S['thresh' + stem + 'Warn'] = '10';
+    S['thresh' + stem + 'Danger'] = '20';
+    S['thresh' + stem + 'Max'] = '200';
+    PC.actions.resetThresholds(stem, S, ENV);
+    assert.equal(derivedOn(S, stem), false,
+      stem + ': the highlight must be OFF after a reset, as on a fresh install');
+    assert.equal(S['thresh' + stem + 'Max'], '', stem + ': scale max cleared');
+  });
 });
 
 test('the slot button is labelled Edit for every kind', () => {

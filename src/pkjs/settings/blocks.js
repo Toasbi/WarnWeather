@@ -1359,9 +1359,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         S['thresh' + stem + 'WarnColor'] = goal ? '#55FF00' : '';
         S['thresh' + stem + 'WarnOutlineOn'] = goal;
         S['thresh' + stem + 'DangerColor'] = goal ? '#55FF00' : fg;
-        var cfg = thresholdRangeCfg(S, env, {keyStem: stem});
-        S['thresh' + stem + 'Warn'] = String(cfg.seedWarn);
-        S['thresh' + stem + 'Danger'] = String(cfg.seedDanger);
+        // A BLANK pair, not the kind's seeds — this has to land on what a fresh
+        // install actually looks like, and there the highlight is off. Seeding real
+        // numbers here switched it ON instead: "Highlight this value" is derived on
+        // every page open from "is there a complete, ordered pair?" (onbuild.js), so
+        // a seeded pair IS the on state, and writing the toggle false alongside would
+        // just be recomputed back to true. Blanking is the same thing turning the
+        // toggle off already does, and the slider stays visible-but-disabled showing
+        // these seeds as a preview — again, exactly a fresh install.
+        S['thresh' + stem + 'Warn'] = '';
+        S['thresh' + stem + 'Danger'] = '';
         return true;
     };
 
