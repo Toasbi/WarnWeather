@@ -144,6 +144,42 @@ var GOAL_BOLD_HINT = 'Show this value in heavier text — never, from close to '
 // the readers will read it backwards. Shared by both slots: one arrow, two kinds.
 var WIND_DIRECTION_HINT = 'Draws an arrow after the speed, pointing the way the ' +
     'wind is blowing.';
+/**
+ * Build a slot kind's "Show unit" row — whether its status slot prints the unit after
+ * the number. Only the kinds the PHONE bakes can offer it (status-lines.js formats the
+ * text); the watch-formatted kinds — distance, heart rate, sleep, battery % — would
+ * need the flag on the wire, so they have no such row.
+ *
+ * The defaults are per kind and deliberately NOT uniform: a kind that prints its unit
+ * today ships ON and one that never did ships OFF, so an upgrade changes nothing on
+ * screen until someone flips a switch. All six keys ride renderSignature() (index.js),
+ * so a flip re-bakes instead of waiting for the next fetch.
+ *
+ * @param {string} key messageKey, e.g. 'windSlotUnit'.
+ * @param {boolean} defaultOn Shipped state — true iff the kind already shows a unit.
+ * @param {string} withUnit How the slot reads with the unit, e.g. '12kph'.
+ * @param {string} without How the same slot reads without it, e.g. '12'.
+ * @returns {Object} Toggle item for the kind's edit sheet.
+ */
+function unitRow(key, defaultOn, withUnit, without) {
+    return {
+        type: 'toggle',
+        messageKey: key,
+        label: 'Show unit',
+        defaultValue: defaultOn,
+        // Naming both renderings is the whole hint: "show the unit" alone leaves the
+        // reader guessing what the slot ends up looking like, and these slots are
+        // narrow enough that the difference is the reason to care. Pass withUnit
+        // null for a kind whose unit the Units tab can change (wind, gusts): naming
+        // kph there would read as though this toggle also PICKS the unit, and the
+        // engine's only value-dependent hint keys off the item's own value, so the
+        // example cannot follow windUnits.
+        hint: withUnit
+            ? 'Prints the unit after the value: ' + withUnit + ' instead of ' +
+                without + '.'
+            : 'Prints the unit after the value, not just the number.'
+    };
+}
 // One threshold-highlight edit sheet (sheetOnly — opened from a status slot's pencil,
 // never rendered as a card): a "Highlight this value" toggle, a zoned dual-thumb
 // slider for the warn/danger pair, and the two color pickers. Values live in the
@@ -1180,14 +1216,14 @@ module.exports = {
             label: 'Show wind direction',
             defaultValue: false,
             hint: WIND_DIRECTION_HINT
-        }]),
+        }, unitRow('windSlotUnit', true, null, null)]),
         thresholdSection('Wind gusts', 'Gust', '', null, [{
             type: 'toggle',
             messageKey: 'gustSlotDirection',
             label: 'Show wind direction',
             defaultValue: false,
             hint: WIND_DIRECTION_HINT
-        }]),
+        }, unitRow('gustSlotUnit', true, null, null)]),
         thresholdSection('UV index', 'Uv', ''),
         thresholdSection('Steps', 'Steps',
             'Steps per day.', HEALTH_SLOT_WHEN),
@@ -1214,17 +1250,34 @@ module.exports = {
             label: 'Temperature selection',
             hint: 'Show the measured temperature, what it feels like, or both as actual/feels-like.',
             defaultValue: 'actual',
-            options: [['Temp', 'actual'], ['Feels like', 'feels'], ['Both', 'both']]
-        }]),
-        boldSection('Air pressure (hPa)', 'Pressure'),
+            options: [['Temp', 'actual'], ['Feels like', 'feels'], ['Both', 'both']],
+            // Picking Both clears the degree: "-12/-10" is already 7 of an edge
+            // slot's 8 bytes and the sign is two more, so the pair cannot fit.
+            // Clearing it here is the fill-vs-feels pattern (forecastMetricFill).
+            onChange: 'tempUnitExclusive'
+            // The degree sign alone, never °C/°F: the unit is already the Units tab's
+            // temperatureUnits choice, and restating it in a three-character slot
+            // spends the width on something the user picked once. Off by default —
+            // temp slots have never printed a degree sign. Turning it ON while the
+            // mode is Both drops the mode back to Temp, the mirror of the hook above;
+            // status-lines.js holds the authoritative gate for a blob that predates
+            // either.
+        }, Object.assign(unitRow('tempSlotUnit', false, '12°', '12'),
+            { onChange: 'tempUnitExclusive' })]),
+        boldSection('Air pressure (hPa)', 'Pressure', null,
+            [unitRow('pressureSlotUnit', true, '1013hPa', '1013')]),
         boldSection('Sunrise/sunset', 'Sun'),
         boldSection('Date', 'Date'),
         boldSection('Calendar week', 'Week'),
         boldSection('City', 'City'),
-        boldSection('Date countdown', 'Countdown'),
+        // 'd' is a unit like any other here — the countdown reads '5d' today, and
+        // dropping it buys a character back on a crowded bar.
+        boldSection('Date countdown', 'Countdown', null,
+            [unitRow('countdownSlotUnit', true, '5d', '5')]),
         boldSection('Heart rate', 'Hr', HR_SLOT_WHEN),
         boldSection('Battery percentage', 'BatteryPct'),
-        boldSection('Dew point', 'Dew')]
+        // Dew point shares temperature's degree sign and its reasoning.
+        boldSection('Dew point', 'Dew', null, [unitRow('dewSlotUnit', false, '12°', '12')])]
     }, {
         id: 'layout', label: 'Layout', sections: [{
             intro: 'How the watchface is arranged, and what a wrist-flick reveals — shown side by side in the preview. What a metric means or how it\'s coloured lives in its own tab.',

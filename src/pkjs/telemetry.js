@@ -10,6 +10,20 @@ function toIntOrUndefined(value) {
 }
 
 /**
+ * Read a boolean setting that ships ON, reporting the shipped state when the key is
+ * absent. The four unit toggles below default to true (settings/schema.js), and
+ * `Boolean(undefined)` would read as a deliberate "off" — a whole fleet of installs
+ * looking like they turned kph off. seedDefaults backfills these keys at boot, so the
+ * absent case should never reach here; this keeps the column honest if it ever does.
+ *
+ * @param {*} value Raw setting value.
+ * @returns {boolean} The stored boolean, or true when the setting is absent.
+ */
+function boolDefaultOn(value) {
+    return value === undefined || value === null ? true : Boolean(value);
+}
+
+/**
  * Build a compact, allowlisted settings snapshot for telemetry.
  *
  * @param {Object} settings Clay settings object.
@@ -26,6 +40,15 @@ function buildSettingsSnapshot(settings) {
         distanceUnits: safe.distanceUnits,
         windSlotDirection: Boolean(safe.windSlotDirection),
         gustSlotDirection: Boolean(safe.gustSlotDirection),
+        // The per-kind "Show unit" toggles. Four ship on, two ship off — the fallbacks
+        // mirror settings/schema.js's defaults (pinned by test/telemetry.test.js) so an
+        // unseeded install cannot report the opposite of what it renders.
+        windSlotUnit: boolDefaultOn(safe.windSlotUnit),
+        gustSlotUnit: boolDefaultOn(safe.gustSlotUnit),
+        pressureSlotUnit: boolDefaultOn(safe.pressureSlotUnit),
+        countdownSlotUnit: boolDefaultOn(safe.countdownSlotUnit),
+        tempSlotUnit: Boolean(safe.tempSlotUnit),
+        dewSlotUnit: Boolean(safe.dewSlotUnit),
         configTheme: safe.configTheme,
         dayNightShading: !!safe.dayNightShading,
         healthMode: safe.healthMode || 'off',

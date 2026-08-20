@@ -36,8 +36,13 @@ const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnOutlineOn', 'Warn', 'Dang
   .concat(THRESH_COLOR_KEYS)
   .concat(BOLD_ONLY_KEYS)
   // Per-kind display rows that ride a threshold sheet: the wind/gust direction arrows
-  // (Temp's tempSlotDisplay is listed with the plain keys below).
-  .concat(['windSlotDirection', 'gustSlotDirection']);
+  // and their "Show unit" toggles (Temp's tempSlotDisplay is listed with the plain keys
+  // below, next to the other three "Show unit" keys on bold-only sheets).
+  .concat(['windSlotDirection', 'gustSlotDirection', 'windSlotUnit', 'gustSlotUnit']);
+// The "Show unit" toggles on the BOLD-ONLY sheets. Six kinds have one — the six whose
+// slot text the phone bakes; the watch-formatted kinds (distance, heart rate, sleep,
+// battery %) would need the flag on the wire and are deliberately absent.
+const UNIT_KEYS = ['tempSlotUnit', 'pressureSlotUnit', 'countdownSlotUnit', 'dewSlotUnit'];
 
 const EXPECTED_KEYS = [
   'theme',
@@ -53,7 +58,7 @@ const EXPECTED_KEYS = [
   'statusRadarLeft','statusRadarLeftCountdown','statusRadarMid','statusRadarMidCountdown','statusRadarRight','statusRadarRightCountdown',
   'statusTopLeft','statusTopLeftCountdown','statusTopMid','statusTopMidCountdown','statusTopRight','statusTopRightCountdown',
   'batteryLowOnly','statusHealthLeft','statusHealthLeftCountdown','statusHealthMid','statusHealthMidCountdown','statusHealthRight','statusHealthRightCountdown'
-].concat(THRESH_KEYS);
+].concat(THRESH_KEYS).concat(UNIT_KEYS);
 
 test('every Clay messageKey present; theme/windScale/colorUSFederal are the only duplicates (contextual slots)', () => {
   EXPECTED_KEYS.forEach((k) => assert.ok(byKey(k), 'missing messageKey: ' + k));
@@ -1266,6 +1271,123 @@ test('no other slot sheet carries a direction toggle', () => {
     .filter((s) => s.sheetOnly && s.sheetId !== 'threshWind' && s.sheetId !== 'threshGust')
     .forEach((s) => assert.ok(!s.items.some((i) => /SlotDirection$/.test(i.messageKey || '')),
       s.sheetId + ' must not offer a wind-direction toggle'));
+});
+
+// "Show unit": whether the slot prints its unit after the number. Only the six kinds
+// whose text the PHONE bakes can offer it — the watch-formatted kinds (distance, heart
+// rate, sleep, battery %) would need the flag on the wire. Each row lives on its kind's
+// own edit sheet, beside the other per-kind display rows.
+// `on`/`off` are the two renderings the hint has to name; `def` is the shipped state.
+// `on`/`off` null = the kind's unit follows the Units tab (wind, gusts), so its hint
+// deliberately names no example: quoting kph there reads as though the toggle also
+// PICKS the unit, and the engine's value-dependent hint keys off the item's own value.
+const UNIT_ROWS = [
+  { sheetId: 'threshWind', key: 'windSlotUnit', on: null, off: null, def: true },
+  { sheetId: 'threshGust', key: 'gustSlotUnit', on: null, off: null, def: true },
+  { sheetId: 'threshPressure', key: 'pressureSlotUnit', on: '1013hPa', off: '1013', def: true },
+  { sheetId: 'threshCountdown', key: 'countdownSlotUnit', on: '5d', off: '5', def: true },
+  { sheetId: 'threshTemp', key: 'tempSlotUnit', on: '12°', off: '12', def: false },
+  { sheetId: 'threshDew', key: 'dewSlotUnit', on: '12°', off: '12', def: false }
+];
+const sheetById = (id) => schema.tabs.find((t) => t.id === 'watch').sections
+  .filter((s) => s.sheetOnly).find((s) => s.sheetId === id);
+
+test('the six phone-baked slot kinds each carry a Show unit toggle', () => {
+  UNIT_ROWS.forEach((row) => {
+    const sheet = sheetById(row.sheetId);
+    assert.ok(sheet, 'no sheet ' + row.sheetId);
+    const item = sheet.items.find((i) => i.messageKey === row.key);
+    assert.ok(item, row.sheetId + ' is missing ' + row.key);
+    assert.equal(item.type, 'toggle');
+    assert.equal(item.label, 'Show unit');
+    // The hint has to name the concrete effect for THIS kind — "shows the unit" alone
+    // leaves the reader guessing what the slot will look like afterwards.
+    if (row.on) {
+      assert.ok(String(item.hint).indexOf(row.on) !== -1,
+        row.key + ' hint must show the unit rendering (' + row.on + ')');
+      assert.ok(new RegExp('instead of ' + row.off + '\\.').test(String(item.hint)),
+        row.key + ' hint must show the bare rendering (' + row.off + ')');
+    } else {
+      assert.ok(!/kph|mph|\bkn\b/.test(String(item.hint)),
+        row.key + ' hint must not name a wind unit the Units tab controls');
+      assert.ok(String(item.hint).length > 20, row.key + ' still needs a real hint');
+    }
+    // Bold leads every slot sheet (see the sheet-shape tests above), so the extras
+    // cannot lead — and on the two threshold sheets the row configures the SLOT, not
+    // the highlight, so it stays above the Thresholds group header.
+    assert.match(String(sheet.items[0].messageKey), /BoldMode$/,
+      row.sheetId + ' must open with Bold');
+    const hdr = sheet.items.findIndex((i) => i.type === 'subheader');
+    if (hdr !== -1) {
+      assert.ok(sheet.items.indexOf(item) < hdr,
+        row.key + ' must sit above the Thresholds group header');
+    }
+  });
+  // Temp is the one sheet with two display rows: the unit toggle follows the
+  // Temp/Feels/Both picker rather than splitting it from Bold.
+  const temp = sheetById('threshTemp');
+  assert.ok(temp.items.findIndex((i) => i.messageKey === 'tempSlotUnit') >
+    temp.items.findIndex((i) => i.messageKey === 'tempSlotDisplay'),
+    'tempSlotUnit follows the temperature-selection row');
+});
+
+// The load-bearing part of this feature: an upgrade must not move a single pixel. The
+// four kinds that print a unit today ship ON, the two that never did ship OFF — so the
+// defaults are deliberately NOT uniform, and a blanket true/false would be a regression
+// for one half or the other.
+test('the Show unit defaults keep every existing watchface looking the same', () => {
+  UNIT_ROWS.forEach((row) => {
+    assert.strictEqual(byKey(row.key).defaultValue, row.def,
+      row.key + ' must ship ' + (row.def ? 'on (it prints a unit today)'
+        : 'off (that kind has never printed one)'));
+  });
+  assert.deepEqual(UNIT_ROWS.filter((r) => r.def).map((r) => r.key),
+    ['windSlotUnit', 'gustSlotUnit', 'pressureSlotUnit', 'countdownSlotUnit'],
+    'exactly the four kinds that already show a unit default on');
+  assert.deepEqual(UNIT_ROWS.filter((r) => !r.def).map((r) => r.key),
+    ['tempSlotUnit', 'dewSlotUnit'],
+    'the two degree kinds, which show no unit today, default off');
+});
+
+// The Watch tab's "Reset status bars to defaults" button covers the per-kind display
+// rows too (their sheets carry no reset of their own — the threshold group's button is
+// scoped to the thresholds). Because the six defaults are NOT uniform, a blanket
+// reset-to-false would strip kph, hPa and the countdown's d from a bar the user only
+// asked to put back to stock — so pin the reset against the schema, not against a
+// hand-copied list.
+test('resetStatusSlots restores each Show unit toggle to its schema default', () => {
+  const PConf = global.PConf;
+  const env = { thresholds: true, color: true, health: true };
+  const S = {};
+  // Start from the opposite of every default, so a reset that skipped a key or wrote a
+  // blanket value would show up either way.
+  UNIT_ROWS.forEach((row) => { S[row.key] = !row.def; });
+  assert.equal(PConf.actions.resetStatusSlots(null, S, env), true,
+    'the action returns true so the engine re-renders');
+  UNIT_ROWS.forEach((row) => {
+    assert.strictEqual(S[row.key], byKey(row.key).defaultValue,
+      row.key + ' must come back as the schema ships it');
+  });
+});
+
+// Temperature and dew point get the DEGREE SIGN ALONE. '°C'/'°F' would restate the
+// global temperature-unit setting in every slot — and on a 3-slot status bar that is
+// two wasted characters saying something the user already chose once.
+test('the degree kinds offer the bare degree sign, not °C or °F', () => {
+  ['tempSlotUnit', 'dewSlotUnit'].forEach((key) => {
+    const hint = String(byKey(key).hint);
+    assert.ok(hint.indexOf('°') !== -1, key + ' names the degree sign');
+    assert.equal(hint.indexOf('°C'), -1, key + ' must not promise °C (the units row owns that)');
+    assert.equal(hint.indexOf('°F'), -1, key + ' must not promise °F (the units row owns that)');
+  });
+});
+
+test('no other slot sheet carries a Show unit toggle', () => {
+  const owners = UNIT_ROWS.map((r) => r.sheetId);
+  schema.tabs.find((t) => t.id === 'watch').sections
+    .filter((s) => s.sheetOnly && owners.indexOf(s.sheetId) === -1)
+    .forEach((s) => assert.ok(!s.items.some((i) => /SlotUnit$/.test(i.messageKey || '')),
+      s.sheetId + ' must not offer a unit toggle (the watch formats that kind)'));
 });
 
 // thresholdSection applies its sub-section gate in one pass so a row added later cannot

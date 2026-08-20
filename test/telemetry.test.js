@@ -111,6 +111,36 @@ test('snapshot includes the wind and gust direction toggles as real booleans', (
   assert.strictEqual(buildSettingsSnapshot({}).gustSlotDirection, false);
 });
 
+// The six per-kind "Show unit" toggles, same lockstep rule again. Four of them ship ON,
+// so an absent key must report the SHIPPED state and not a spurious "off" — otherwise
+// the fleet reads as having turned kph off en masse. seedDefaults backfills the keys at
+// boot, so this is belt and braces, but a telemetry column that can lie about a default
+// is worse than no column.
+test('snapshot includes the six Show unit toggles as real booleans', () => {
+  ['windSlotUnit', 'gustSlotUnit', 'pressureSlotUnit', 'countdownSlotUnit',
+    'tempSlotUnit', 'dewSlotUnit'].forEach((key) => {
+    assert.strictEqual(buildSettingsSnapshot({ [key]: true })[key], true, key + ' reports on');
+    assert.strictEqual(buildSettingsSnapshot({ [key]: false })[key], false, key + ' reports off');
+  });
+});
+
+// Drift guard for the fallbacks above: the snapshot's absent-key value is a SECOND copy
+// of each toggle's shipped default, and the settings schema owns the first. Pin them
+// together so flipping a default in schema.js can never leave telemetry reporting the
+// old one.
+test('an absent Show unit key reports the schema default, not false', () => {
+  const schema = require('../src/pkjs/settings/schema.js');
+  const items = [];
+  schema.tabs.forEach((t) => t.sections.forEach((s) => s.items.forEach((i) => items.push(i))));
+  const snap = buildSettingsSnapshot({});
+  const unitItems = items.filter((i) => /SlotUnit$/.test(i.messageKey || ''));
+  assert.equal(unitItems.length, 6, 'expected six Show unit rows in the schema');
+  unitItems.forEach((item) => {
+    assert.strictEqual(snap[item.messageKey], item.defaultValue,
+      item.messageKey + ' must fall back to its schema default');
+  });
+});
+
 test('snapshot includes windUnits and distanceUnits', () => {
   assert.equal(buildSettingsSnapshot({ windUnits: 'mph' }).windUnits, 'mph');
   assert.equal(buildSettingsSnapshot({ distanceUnits: 'imperial' }).distanceUnits, 'imperial');

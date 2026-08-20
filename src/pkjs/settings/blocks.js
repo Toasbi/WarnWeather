@@ -1243,6 +1243,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (newValue === 'feels') { S.secondaryLineFill = false; }
     });
 
+    // The temp slot's "Both" mode and its degree sign are mutually exclusive:
+    // "-12/-10" is already 7 of an edge slot's 8 bytes and the sign is two more.
+    // Whichever the user just picked wins, so neither choice is ever refused --
+    // the other simply steps aside. Both rows share this hook; the key says which
+    // one moved. status-lines.js gates the pair independently, for a settings blob
+    // written before this existed.
+    PConf.onChange.register('tempUnitExclusive', function (S, oldValue, newValue, env, key) {
+        if (key === 'tempSlotDisplay') {
+            if (newValue === 'both') { S.tempSlotUnit = false; }
+        } else if (newValue) {
+            if (S.tempSlotDisplay === 'both') { S.tempSlotDisplay = 'actual'; }
+        }
+    });
+
     // Flipping "Highlight this value": OFF blanks the pair — a stored blank IS the
     // disabled state, the exact wire contract the old text fields had, so nothing
     // changes watch-side. ON reseeds the kind's defaults unless a valid ordered
@@ -1382,6 +1396,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         S.tempSlotDisplay = 'actual';
         S.windSlotDirection = false;
         S.gustSlotDirection = false;
+        // The six "Show unit" toggles. Their defaults are NOT uniform — the four kinds
+        // that print a unit today ship on, the two degree kinds ship off (schema.js's
+        // unitRow) — so a blanket reset-to-false here would silently strip kph, hPa and
+        // the countdown's d from a bar the user only asked to put back to stock.
+        S.windSlotUnit = true;
+        S.gustSlotUnit = true;
+        S.pressureSlotUnit = true;
+        S.countdownSlotUnit = true;
+        S.tempSlotUnit = false;
+        S.dewSlotUnit = false;
         var contractMod = thresholdContract();
         if (contractMod) {
             for (var k = 0; k < contractMod.KINDS.length; k++) {

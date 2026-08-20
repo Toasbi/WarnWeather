@@ -552,20 +552,26 @@ test('the reset button restores seeds, default colors, and clears the scale max'
   assert.ok(page.modal.writes > writesBefore, 'the reset re-rendered the sheet');
 });
 
-test('an enabled kind shows the ring+dot badge on its slot pencil', () => {
+test('an enabled kind shows the ring+dot swatch beside its slot control', () => {
   const page = bootGeneratedPage({
     provider: 'dwd',
     threshAqiWarn: '50', threshAqiDanger: '100'
   });
   page.clickTab('watch');
   const html = page.scroll.innerHTML;
-  const pen = html.slice(html.indexOf('data-edit-sheet="threshAqi"') - 400,
-    html.indexOf('data-edit-sheet="threshAqi"') + 900);
-  assert.ok(pen.indexOf('pen-dot warn') !== -1, 'warn ring rendered');
-  assert.ok(pen.indexOf('pen-dot danger') !== -1, 'danger dot rendered');
+  // Slice the whole control cell rather than a window around the Edit button: the
+  // swatch LEADS the control and the button TRAILS it, so a window anchored on the
+  // button would have to reach backwards past the dropdown to find the dots.
+  const at = html.indexOf('data-edit-sheet="threshAqi"');
+  const cell = html.slice(html.lastIndexOf('<div class="rgt has-pen">', at), at + 300);
+  assert.ok(cell.indexOf('pen-dot warn') !== -1, 'warn ring rendered');
+  assert.ok(cell.indexOf('pen-dot danger') !== -1, 'danger dot rendered');
   // Never-customized colors are auto: they track the theme fg (dark default → white).
-  assert.ok(pen.indexOf('--th-c:#FFFFFF') !== -1, 'auto colors resolve to the theme fg');
-  assert.ok(pen.indexOf('highlighting on') !== -1, 'aria-label says the state');
+  assert.ok(cell.indexOf('--th-c:#FFFFFF') !== -1, 'auto colors resolve to the theme fg');
+  assert.ok(cell.indexOf('highlighting on') !== -1, 'aria-label says the state');
+  // The swatch is a preview, not a control: outside the button, nothing to press.
+  assert.ok(/thr-swatch[\s\S]*?data-select=/.test(cell), 'swatch leads the dropdown');
+  assert.ok(!/thr-btn[^>]*>[\s\S]*?pen-dot/.test(cell), 'dots must not sit inside the button');
 
   const off = bootGeneratedPage();
   off.clickTab('watch');
@@ -964,6 +970,14 @@ const BOLD_CODES = {
   week: 'Week', city: 'City', countdown: 'Countdown', hr: 'Hr',
   batteryPct: 'BatteryPct'
 };
+// Rows a bold-only sheet carries BELOW its Bold row, in order. Absent stem = Bold
+// alone. The unit toggles exist only for the kinds the phone bakes the text for
+// (status-lines.js); the watch-formatted ones — Hr, BatteryPct — have no such row.
+const BOLD_SHEET_EXTRA_ROWS = {
+  Temp: ['tempSlotDisplay', 'tempSlotUnit'],
+  Pressure: ['pressureSlotUnit'],
+  Countdown: ['countdownSlotUnit']
+};
 
 // Bold value opens EVERY slot sheet — the bold-only ones, where it is the sole
 // control, and the threshold ones, where it sits above the Thresholds subheader.
@@ -993,10 +1007,13 @@ test('every bold-only kind gets a sheet whose Bold row is its FIRST control', ()
     assert.equal(s.title, titles[stem], stem + ' sheet title');
     assert.deepEqual(s.showWhen, { env: 'thresholds' },
       stem + ' sheet carries the platform gate');
-    // Bold is the row all of these sheets share, so it leads everywhere; Temp then
-    // adds its display-mode row below. Every other bold-only sheet is just Bold.
-    assert.equal(s.items.length, stem === 'Temp' ? 2 : 1,
-      stem + ' sheet row count');
+    // Bold is the row all of these sheets share, so it leads everywhere; a few kinds
+    // add their own controls below it — Temp its display mode, and the phone-baked
+    // unit kinds their "Show unit" toggle. Naming the extra rows per stem rather than
+    // counting them keeps this a real guard: a row added later has to be declared
+    // here, and it cannot be declared in the wrong sheet or above the Bold row.
+    assert.deepEqual(s.items.slice(1).map(it => it.messageKey),
+      BOLD_SHEET_EXTRA_ROWS[stem] || [], stem + ' rows below Bold');
     const bold = boldFor(stem);
     assert.equal(s.items[0], bold,
       stem + ' Bold row must open the sheet');
@@ -1253,4 +1270,33 @@ test('the intro reset button resets a live page (slots + bold) on click', () => 
   assert.equal(page.S.threshCityBoldMode, 'off', 'bold-only kind back to off');
   assert.equal(page.S.threshWindBoldMode, 'warn', 'threshold kind back to warn');
   assert.ok(page.scroll.writes > writesBefore, 'the reset re-rendered the page');
+});
+
+test('the temp slot keeps Both and the degree sign apart, in both directions', () => {
+  // "-12/-10" is 7 of an edge slot's 8 bytes and the degree is 2 more, so the two
+  // cannot coexist. Whichever the user just picked wins; the other steps aside.
+  const hook = PConf.onChange.get('tempUnitExclusive');
+  assert.ok(hook, 'tempUnitExclusive hook is registered');
+
+  // Choosing Both while the degree is on clears the degree.
+  const a = { tempSlotDisplay: 'actual', tempSlotUnit: true };
+  a.tempSlotDisplay = 'both';
+  hook(a, 'actual', 'both', {}, 'tempSlotDisplay');
+  assert.equal(a.tempSlotUnit, false);
+
+  // Turning the degree on while in Both drops the mode back to Temp.
+  const b = { tempSlotDisplay: 'both', tempSlotUnit: false };
+  b.tempSlotUnit = true;
+  hook(b, false, true, {}, 'tempSlotUnit');
+  assert.equal(b.tempSlotDisplay, 'actual');
+
+  // Turning the degree OFF never touches the mode.
+  const c = { tempSlotDisplay: 'both', tempSlotUnit: true };
+  hook(c, true, false, {}, 'tempSlotUnit');
+  assert.equal(c.tempSlotDisplay, 'both');
+
+  // Choosing a non-Both mode never touches the degree.
+  const d = { tempSlotDisplay: 'both', tempSlotUnit: true };
+  hook(d, 'both', 'feels', {}, 'tempSlotDisplay');
+  assert.equal(d.tempSlotUnit, true);
 });

@@ -56,6 +56,29 @@ test('the wind-direction toggles change the render signature', () => {
     renderSignature({ gustSlotDirection: true }));
 });
 
+// The six per-kind "Show unit" toggles decide whether the phone bakes the unit into the
+// slot text at all, so the same force-fetch rule applies: without them in the signature
+// a flip sits invisible until the next scheduled fetch. All six, not just the ones that
+// ship off — a user turning kph OFF has exactly the same right to see it now.
+const UNIT_KEYS = ['windSlotUnit', 'gustSlotUnit', 'pressureSlotUnit',
+  'countdownSlotUnit', 'tempSlotUnit', 'dewSlotUnit'];
+
+test('every Show unit toggle changes the render signature (forces a rebake)', () => {
+  UNIT_KEYS.forEach((key) => {
+    assert.notEqual(renderSignature({ [key]: false }), renderSignature({ [key]: true }),
+      key + ' must be part of the render signature');
+  });
+});
+
+test('the Show unit toggles are independent of each other', () => {
+  // Each key must occupy its own position: flipping one may not read as flipping any
+  // other (a single shared slot would make wind's unit hide the countdown's).
+  const seen = UNIT_KEYS.map((key) => renderSignature({ [key]: true }));
+  seen.forEach((sig, i) => seen.slice(i + 1).forEach((other, j) =>
+    assert.notEqual(sig, other,
+      UNIT_KEYS[i] + ' and ' + UNIT_KEYS[i + 1 + j] + ' share a signature slot')));
+});
+
 // The four weather kinds are evaluated phone-side at weather-bake time, so enabling one
 // only reaches the watch through a refetch. Without these keys in the signature,
 // shouldForceFetch stays false for a threshold-only edit and the user sees nothing until

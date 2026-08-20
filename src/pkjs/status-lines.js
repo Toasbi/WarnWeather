@@ -132,17 +132,77 @@ function isoWeek(d) {
   return 1 + Math.round((t - firstThursday) / 604800000); // 7*24*3600*1000
 }
 
+// The DEGREE SIGN ALONE for the temperature and dew-point slots -- never '°C' /
+// '°F'. The letter would only repeat the global temperature-unit setting, and
+// these are the two units that cost TWO UTF-8 bytes instead of one, which is what
+// makes the edge-slot cap a real constraint (see withUnit).
+var DEGREE = '°';
+
+/**
+ * Whether one slot's per-kind "Show unit" toggle is on.
+ * An ABSENT key means the kind's default: the four slots that show a unit today
+ * (wind, gust, pressure, countdown) default on and the two bare ones (temp, dew)
+ * default off, so a settings blob written before this feature renders exactly as
+ * it always did.
+ * @param {Object} settings Clay settings blob
+ * @param {string} key the toggle's settings key, e.g. 'windSlotUnit'
+ * @param {boolean} dflt the kind's default when the key is absent
+ * @returns {boolean}
+ */
+function unitEnabled(settings, key, dflt) {
+  var v = settings ? settings[key] : undefined;
+  return (typeof v === 'undefined' || v === null) ? dflt : Boolean(v);
+}
+
+/**
+ * Append a unit to a slot value, but only when the result still fits the slot.
+ *
+ * The cap guard lives HERE rather than in packLine because the unit is part of
+ * the value's presentation and this module is the only place that knows which
+ * unit each kind carries. packLine's utf8Truncate would otherwise chop an
+ * overlong unit back off at the code-point boundary -- the two-byte degree would
+ * VANISH whole, so an over-cap slot would look untouched while silently ignoring
+ * the user's setting. Dropping the unit deliberately makes that the same visible
+ * outcome, arrived at on purpose and testable.
+ *
+ * @param {string} value the bare formatted value
+ * @param {string} unit the unit to append; '' when the toggle is off
+ * @param {number} [cap] the slot's byte cap; defaults to the narrow edge cap
+ * @returns {string} value + unit when it fits the cap, else value alone
+ */
+function withUnit(value, unit, cap) {
+  if (!unit) { return value; }
+  var limit = typeof cap === 'number' ? cap : catalog.CAPS.EDGE_TEXT_MAX;
+  var combined = value + unit;
+  return utf8Encode(combined).length <= limit ? combined : value;
+}
+
+/**
+ * Convert an internal km/h wind value to the display unit, value and label apart
+ * so the caller can drop the label. One switch, not two, keeps the conversion
+ * and its label from ever disagreeing.
+ * @param {number} v wind/gust value in km/h
+ * @param {Object} settings Clay settings blob (reads windUnits)
+ * @returns {{value: string, unit: string}} e.g. {value: "50", unit: "kph"}
+ */
+function windParts(v, settings) {
+  var unit = settings && settings.windUnits;
+  if (unit === 'mph') { return { value: String(Math.round(v / 1.60934)), unit: 'mph' }; }
+  if (unit === 'knots') { return { value: String(Math.round(v / 1.852)), unit: 'kn' }; }
+  return { value: String(v), unit: 'kph' };
+}
+
 /**
  * Convert an internal km/h wind value to the display unit and label.
  * @param {number} v wind/gust value in km/h
  * @param {Object} settings Clay settings blob (reads windUnits)
- * @returns {string} e.g. "50kph", "31mph", "27kn"
+ * @param {boolean} showUnit whether this slot's "Show unit" toggle is on
+ * @param {number} [cap] the slot's byte cap
+ * @returns {string} e.g. "50kph", "31mph", "27kn", or a bare "50"
  */
-function formatWind(v, settings) {
-  var unit = settings && settings.windUnits;
-  if (unit === 'mph') { return Math.round(v / 1.60934) + 'mph'; }
-  if (unit === 'knots') { return Math.round(v / 1.852) + 'kn'; }
-  return v + 'kph';
+function formatWind(v, settings, showUnit, cap) {
+  var parts = windParts(v, settings);
+  return withUnit(parts.value, showUnit ? parts.unit : '', cap);
 }
 
 /**
@@ -192,17 +252,21 @@ function parseCountdownDate(value, fallback) {
 
 /**
  * Format whole local calendar days until a target date.
+ * 'now' and '--' never take the unit: neither is a count of days.
  * @param {*} targetValue Stored YYYY-MM-DD target.
  * @param {Date} [now] Current local time; injectable for tests.
+ * @param {boolean} [showUnit] Whether countdownSlotUnit is on; absent = its default (on).
+ * @param {number} [cap] The slot's byte cap.
  * @returns {string} Nd for future, now for today, -- for passed.
  */
-function formatCountdown(targetValue, now) {
+function formatCountdown(targetValue, now, showUnit, cap) {
   var current = now || new Date();
   var today = new Date(current.getFullYear(), current.getMonth(), current.getDate());
   var target = parseCountdownDate(targetValue, today);
   var days = Math.round((target.getTime() - today.getTime()) / 86400000);
   if (days < 0) { return '--'; }
-  return days === 0 ? 'now' : days + 'd';
+  if (days === 0) { return 'now'; }
+  return withUnit(String(days), showUnit === false ? '' : 'd', cap);
 }
 
 /**
@@ -211,31 +275,44 @@ function formatCountdown(targetValue, now) {
  * @param {Object} payload weather payload (pre-transform)
  * @param {Object} settings Clay settings blob
  * @param {string} slotKey Owning status-slot settings key.
+ * @param {number} [cap] The slot's byte cap; defaults to the narrow edge cap.
+ *   Only the per-kind unit consults it -- the value itself is still truncated by
+ *   the caller, which owns the wire.
  * @returns {string} display text, '--' when the value is unavailable
  */
-function formatValue(code, payload, settings, slotKey) {
+function formatValue(code, payload, settings, slotKey, cap) {
   var v;
   if (code === 'countdown') {
     return formatCountdown(settings && slotKey
-      ? settings[slotKey + 'Countdown'] : undefined);
+      ? settings[slotKey + 'Countdown'] : undefined, undefined,
+      unitEnabled(settings, 'countdownSlotUnit', true), cap);
   }
   if (code === 'temp') {
     if (typeof payload.CURRENT_TEMP !== 'number') { return '--'; }
-    var actual = formatTemp(payload.CURRENT_TEMP, settings);
     // Global per-kind display mode (temp slot's Edit sheet); absent = 'actual'.
     var mode = settings.tempSlotDisplay;
+    // Off by default: the thermometer icon already says "temperature", so the
+    // degree is opt-in and today's bare number stays the default rendering.
+    // 'both' never takes one: "-12/-10" is already 7 of an edge slot's 8 bytes,
+    // so the degree would appear or vanish with the digit count. The settings
+    // page keeps the two apart (blocks.js' tempUnitExclusive hook), and this is
+    // the authoritative gate -- a blob stored before that hook existed, or any
+    // future caller, still cannot combine them. Same shape and same reason as
+    // buildForecastSeries' `secMetric !== 'feels'` fill guard.
+    var degree = (mode !== 'both' && unitEnabled(settings, 'tempSlotUnit', false))
+      ? DEGREE : '';
+    var actual = formatTemp(payload.CURRENT_TEMP, settings);
     if (mode === 'feels' || mode === 'both') {
       // Missing/null FEELS_CURRENT (stale pre-upgrade cache, provider gap):
       // every mode falls back to the actual temp alone -- never '--/--' or '12/--'.
       if (typeof payload.FEELS_CURRENT === 'number') {
         var feels = formatTemp(payload.FEELS_CURRENT, settings);
-        // 'both' is slash-separated, actual first; worst realistic case
-        // "-12/-10" is 7 bytes, inside the 8 B edge-slot cap.
-        return mode === 'feels' ? feels : actual + '/' + feels;
+        // 'both' is slash-separated, actual first. It carries no degree at all
+        // (see above); 'feels' takes one like the plain reading does.
+        return withUnit(mode === 'feels' ? feels : actual + '/' + feels, degree, cap);
       }
     }
-    // Bare number; the thermometer icon carries the "temperature" context (UV/AQI-style).
-    return actual;
+    return withUnit(actual, degree, cap);
   }
   if (code === 'city') { return payload.CITY || '--'; }
   if (code === 'sun') {
@@ -248,11 +325,13 @@ function formatValue(code, payload, settings, slotKey) {
   }
   if (code === 'wind') {
     v = trendHead(payload.WIND_TREND_UINT8);
-    return v === null ? '--' : formatWind(v, settings);
+    return v === null ? '--'
+      : formatWind(v, settings, unitEnabled(settings, 'windSlotUnit', true), cap);
   }
   if (code === 'gust') {
     v = trendHead(payload.GUST_TREND_UINT8);
-    return v === null ? '--' : formatWind(v, settings);
+    return v === null ? '--'
+      : formatWind(v, settings, unitEnabled(settings, 'gustSlotUnit', true), cap);
   }
   if (code === 'pressure') {
     v = trendHead(payload.PRESSURE_TREND);
@@ -261,17 +340,20 @@ function formatValue(code, payload, settings, slotKey) {
     // graph line uses (forecast-series.pressurePermille) applies here too, or a
     // zero-filled current hour would print as the bogus "0hPa".
     if (v === null || !pressurePlausibility.isPlausiblePressure(v)) { return '--'; }
-    // Value + unit, unlike temp/uv/aqi: those have an icon to carry their context
-    // and this deliberately ships without one, so the text says what it is.
-    return String(Math.round(v)) + 'hPa';
+    // Unit on by default, unlike temp/uv/aqi: those have an icon to carry their
+    // context and this deliberately ships without one, so the text says what it is.
+    return withUnit(String(Math.round(v)),
+      unitEnabled(settings, 'pressureSlotUnit', true) ? 'hPa' : '', cap);
   }
   if (code === 'dew') {
     v = trendHead(payload.DEW_TREND);
-    // Bare number: the droplets icon carries the "dew point" context, the temp /
-    // UV / AQI convention. formatTemp is the temperature slot's own converter, so
-    // both slots follow temperatureUnits through identical rounding. Unsourced
-    // (a provider that omits it, e.g. Yandex) degrades to '--' like pressure.
-    return v === null ? '--' : formatTemp(v, settings);
+    // Bare by default: the droplets icon carries the "dew point" context, the
+    // temp / UV / AQI convention. formatTemp is the temperature slot's own
+    // converter, so both slots follow temperatureUnits through identical
+    // rounding -- and both take the same opt-in degree. Unsourced (a provider
+    // that omits it, e.g. Yandex) degrades to '--' like pressure.
+    return v === null ? '--' : withUnit(formatTemp(v, settings),
+      unitEnabled(settings, 'dewSlotUnit', false) ? DEGREE : '', cap);
   }
   if (code === 'aqi') {
     v = trendHead(payload.AQI_TREND);
@@ -362,7 +444,10 @@ function packLine(line, payload, settings, env) {
       bytes.push(catalog.KINDS.TEXT, item.icon, weekBytes.length);
       for (var wb = 0; wb < weekBytes.length; wb++) { bytes.push(weekBytes[wb]); }
     } else if (item.kind === catalog.KINDS.TEXT) {
-      var text = formatValue(code, payload, settings, key);
+      // The cap goes DOWN into formatValue so a per-kind unit can decline to
+      // append itself rather than be silently chopped off again by utf8Truncate
+      // below (see withUnit). The truncation still guards the value itself.
+      var text = formatValue(code, payload, settings, key, textCap(s));
       var valueBytes = utf8Truncate(utf8Encode(text), textCap(s));
       // Wind-direction arrow: one trailing sentinel byte, appended AFTER the
       // truncation so it can never be split or push the slot past its cap, and

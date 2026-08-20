@@ -526,6 +526,15 @@ function slotBytesFor(code, payload, settings, env) {
   return sliceSlot(statusLines.packLine(radarLine(), payload, s, env || basaltEnv()), 0);
 }
 
+// The same, in the MID slot — the roomy 19-byte cap rather than the 8-byte edge.
+function midSlotBytesFor(code, payload, settings, env) {
+  const s = Object.assign({
+    statusRadarLeft: 'empty', statusRadarMid: code, statusRadarRight: 'empty',
+    windUnits: 'kph', temperatureUnits: 'c'
+  }, settings || {});
+  return sliceSlot(statusLines.packLine(radarLine(), payload, s, env || basaltEnv()), 1);
+}
+
 function assertPlainText(slotBytes, expected, message) {
   assert.equal(Buffer.from(slotBytes).toString('utf8'), expected, message);
   slotBytes.forEach((b) => assert.ok(b >= 0x20,
@@ -635,6 +644,209 @@ test('the sentinel never pushes a slot past its 8-byte edge cap', () => {
       // from 180 flips to downwind 0 -> sector 0 -> 0x01, and it must survive
       // every speed: the guard only drops it if the text already fills the cap.
       assert.equal(tailByte(slot), SENTINEL_BASE, `${v} ${unit} lost its arrow`);
+    }
+  }
+});
+
+// --- Per-kind "Show unit" toggles --------------------------------------------
+// Six slots whose text the PHONE bakes each carry their own unit switch. The
+// four watch-formatted slots (distance, heart rate, sleep, battery %) are out of
+// scope: their flag would have to ride the wire.
+//
+// The DEFAULTS are chosen so nothing changes appearance until a user flips a
+// switch — the four slots that show a unit today default ON, the two bare ones
+// default OFF — and the "absent setting" test below is what pins that.
+//
+// Temperature and dew point get the DEGREE SIGN ALONE (U+00B0, TWO UTF-8 bytes),
+// never '°C'/'°F': the letter would duplicate the global temperature-unit
+// setting, and those two bytes are what makes the 8-byte edge cap interesting.
+const DEG = '°';
+
+// A YYYY-MM-DD target n whole local days from today. formatValue() reaches for
+// the real clock (no injectable now), so the fixture has to move with it.
+function daysAheadDate(n) {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  const p2 = (x) => String(x).padStart(2, '0');
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+}
+
+const UNIT_CASES = [
+  { code: 'wind', key: 'windSlotUnit', on: true,
+    payload: { WIND_TREND_UINT8: [12] }, withUnit: '12kph', bare: '12' },
+  { code: 'gust', key: 'gustSlotUnit', on: true,
+    payload: { GUST_TREND_UINT8: [24] }, withUnit: '24kph', bare: '24' },
+  { code: 'pressure', key: 'pressureSlotUnit', on: true,
+    payload: { PRESSURE_TREND: [1013] }, withUnit: '1013hPa', bare: '1013' },
+  { code: 'countdown', key: 'countdownSlotUnit', on: true,
+    payload: {}, extra: () => ({ statusRadarLeftCountdown: daysAheadDate(5) }),
+    withUnit: '5d', bare: '5' },
+  { code: 'temp', key: 'tempSlotUnit', on: false,
+    payload: { CURRENT_TEMP: 53.6 }, withUnit: '12' + DEG, bare: '12' },
+  { code: 'dew', key: 'dewSlotUnit', on: false,
+    payload: { DEW_TREND: [53.6] }, withUnit: '12' + DEG, bare: '12' }
+];
+
+// One case's slot text, with `override` merged over the case's own settings.
+function unitText(c, override) {
+  const settings = Object.assign(baseSettings(),
+    c.extra ? c.extra() : {}, override || {});
+  return statusLines.formatValue(c.code, c.payload, settings, 'statusRadarLeft');
+}
+
+test('every unit-bearing slot appends its unit only when its own toggle is on', () => {
+  UNIT_CASES.forEach((c) => {
+    assert.equal(unitText(c, { [c.key]: true }), c.withUnit, c.code + ' on');
+    assert.equal(unitText(c, { [c.key]: false }), c.bare, c.code + ' off');
+  });
+});
+
+test('an ABSENT unit setting renders exactly what this build renders today', () => {
+  // A settings blob written before the feature has none of these keys. Each slot
+  // must fall back to its own default: wind/gust/pressure/countdown keep their
+  // unit, temp/dew stay bare. Anything else is a silent appearance change on
+  // upgrade for every existing user.
+  UNIT_CASES.forEach((c) => {
+    assert.equal(unitText(c, {}), c.on ? c.withUnit : c.bare,
+      c.code + ': absent must mean ' + c.on);
+    assert.equal(unitText(c, { [c.key]: undefined }), c.on ? c.withUnit : c.bare,
+      c.code + ': explicit undefined is still absent');
+  });
+});
+
+test('one slot\'s unit toggle never reaches another slot', () => {
+  // All six keys forced the WRONG way round: every default-on slot off, every
+  // default-off slot on. Each case must follow its own key, not a neighbour's.
+  const crossed = {};
+  UNIT_CASES.forEach((c) => { crossed[c.key] = !c.on; });
+  UNIT_CASES.forEach((c) => {
+    assert.equal(unitText(c, crossed), c.on ? c.bare : c.withUnit, c.code);
+  });
+});
+
+test('countdown "now" and "--" carry no unit in either toggle state', () => {
+  const now = new Date(2028, 1, 28, 17, 45);
+  [true, false, undefined].forEach((flag) => {
+    assert.equal(statusLines.formatCountdown('2028-02-28', now, flag), 'now',
+      'today, showUnit=' + flag);
+    assert.equal(statusLines.formatCountdown('2028-02-27', now, flag), '--',
+      'passed, showUnit=' + flag);
+  });
+  // ...and through formatValue, where the target date is today by default.
+  const s = baseSettings({ countdownSlotUnit: true });
+  assert.equal(statusLines.formatValue('countdown', {}, s, 'statusRadarLeft'), 'now');
+});
+
+test('an unavailable reading stays "--" with the unit on', () => {
+  // '--' is the absence marker, not a value: '--kph' or '--°' would read as a
+  // measurement of nothing.
+  const on = {
+    windSlotUnit: true, gustSlotUnit: true, pressureSlotUnit: true,
+    tempSlotUnit: true, dewSlotUnit: true
+  };
+  const empty = {};
+  ['wind', 'gust', 'pressure', 'temp', 'dew'].forEach((code) => {
+    assert.equal(statusLines.formatValue(code, empty, baseSettings(on),
+      'statusRadarLeft'), '--', code);
+  });
+});
+
+// THE HARD CASE. '-12/-10' is 7 bytes and the degree sign is 2, so the edge
+// slot's 8-byte cap cannot hold both. utf8Truncate would chop the degree back
+// off at the code-point boundary — the slot would look untouched while silently
+// ignoring the setting — so the unit is appended only when it actually fits.
+test('both-mode never takes a degree, whatever is stored or however wide it is', () => {
+  // The two are mutually exclusive: the settings page keeps them apart, and this
+  // is the authoritative gate for a blob that predates that. Deciding by WIDTH
+  // instead would make the degree appear and vanish with the digit count as the
+  // day warmed up, and differ between an edge slot and a mid slot.
+  const wide = Object.assign(basePayload(), { CURRENT_TEMP: 10, FEELS_CURRENT: 14 });
+  const narrow = Object.assign(basePayload(), { CURRENT_TEMP: 68, FEELS_CURRENT: 50 });
+  const s = baseSettings({ tempSlotDisplay: 'both', tempSlotUnit: true });
+
+  assert.equal(statusLines.formatValue('temp', wide, s, 'statusRadarLeft',
+    catalog.CAPS.EDGE_TEXT_MAX), '-12/-10');
+  assertPlainText(slotBytesFor('temp', wide, s), '-12/-10', 'packed edge slot');
+  // A mid slot has 19 bytes to spare and still gets no degree — the rule is the
+  // mode, not the room.
+  assert.equal(statusLines.formatValue('temp', wide, s, 'statusForecastMid',
+    catalog.CAPS.MID_TEXT_MAX), '-12/-10');
+  // And a value that would comfortably fit one still does not get it.
+  assert.equal(statusLines.formatValue('temp', narrow, s, 'statusRadarLeft'), '20/10');
+});
+
+test('the other two temp modes still take the degree when it is switched on', () => {
+  const p = Object.assign(basePayload(), { CURRENT_TEMP: 68, FEELS_CURRENT: 50 });
+  assert.equal(statusLines.formatValue('temp', p,
+    baseSettings({ tempSlotDisplay: 'actual', tempSlotUnit: true }), 'statusRadarLeft'),
+    '20' + DEG);
+  assert.equal(statusLines.formatValue('temp', p,
+    baseSettings({ tempSlotDisplay: 'feels', tempSlotUnit: true }), 'statusRadarLeft'),
+    '10' + DEG);
+});
+
+test('no unit ever pushes a slot past its 8-byte edge cap', () => {
+  const fits = (text, what) => assert.ok(
+    statusLines.utf8Encode(text).length <= catalog.CAPS.EDGE_TEXT_MAX,
+    `"${text}" exceeds EDGE_TEXT_MAX (${what})`);
+
+  // Wind + gust: the whole uint8 wire range in all three units.
+  for (const unit of ['kph', 'mph', 'knots']) {
+    for (let v = 0; v <= 255; v += 1) {
+      fits(statusLines.formatValue('wind', { WIND_TREND_UINT8: [v] },
+        baseSettings({ windUnits: unit, windSlotUnit: true }), 'statusRadarLeft'),
+        `wind ${v} ${unit}`);
+      fits(statusLines.formatValue('gust', { GUST_TREND_UINT8: [v] },
+        baseSettings({ windUnits: unit, gustSlotUnit: true }), 'statusRadarLeft'),
+        `gust ${v} ${unit}`);
+    }
+  }
+  // Pressure: the full plausibility window (800..1100 hPa).
+  for (let hpa = 800; hpa <= 1100; hpa += 1) {
+    fits(statusLines.formatValue('pressure', { PRESSURE_TREND: [hpa] },
+      baseSettings({ pressureSlotUnit: true }), 'statusRadarLeft'), `${hpa} hPa`);
+  }
+  // Temperature + dew: -80..140 °F covers the planet, in both display units,
+  // and the temp slot in all three display modes.
+  for (let f = -80; f <= 140; f += 1) {
+    for (const units of ['c', 'f']) {
+      for (const mode of ['actual', 'feels', 'both']) {
+        fits(statusLines.formatValue('temp',
+          { CURRENT_TEMP: f, FEELS_CURRENT: f - 8 },
+          baseSettings({ temperatureUnits: units, tempSlotDisplay: mode,
+                         tempSlotUnit: true }), 'statusRadarLeft'),
+          `temp ${f}F ${units} ${mode}`);
+      }
+      fits(statusLines.formatValue('dew', { DEW_TREND: [f] },
+        baseSettings({ temperatureUnits: units, dewSlotUnit: true }),
+        'statusRadarLeft'), `dew ${f}F ${units}`);
+    }
+  }
+  // Countdown: today out to the far end of the four-digit year the picker allows.
+  const now = new Date(2026, 0, 1);
+  for (const target of ['2026-01-02', '2026-04-11', '2029-01-01', '9999-12-31']) {
+    fits(statusLines.formatCountdown(target, now, true), 'countdown ' + target);
+  }
+});
+
+test('the direction arrow still rides along when the wind unit is off', () => {
+  const slot = slotBytesFor('wind', { WIND_TREND_UINT8: [12], WIND_DIR_TREND: [270] },
+    { windSlotDirection: true, windSlotUnit: false });
+  assert.equal(Buffer.from(slot.slice(0, slot.length - 1)).toString('utf8'), '12',
+    'bare number, arrow byte stripped');
+  assert.equal(tailByte(slot), SENTINEL_BASE + 4, 'westerly still points east');
+  // Both toggles, every speed and unit: the arrow survives with the unit either way.
+  for (const unit of ['kph', 'mph', 'knots']) {
+    for (const showUnit of [true, false]) {
+      for (let v = 0; v <= 255; v += 1) {
+        const s = slotBytesFor('wind',
+          { WIND_TREND_UINT8: [v], WIND_DIR_TREND: [180] },
+          { windUnits: unit, windSlotDirection: true, windSlotUnit: showUnit });
+        assert.ok(s.length <= catalog.CAPS.EDGE_TEXT_MAX,
+          `${v} ${unit} unit=${showUnit} overflows (${s.length} B)`);
+        assert.equal(tailByte(s), SENTINEL_BASE,
+          `${v} ${unit} unit=${showUnit} lost its arrow`);
+      }
     }
   }
 });
