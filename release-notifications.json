@@ -129,6 +129,6 @@
   },
   "1.13.1": {
     "title": "Phone battery slot",
-    "body": "Your phone's battery can go in any status slot now, with a phone glyph or as a bare percentage, and a charging icon while it's plugged in. Android phones only — iOS gives the watchface no way to read the phone's battery."
+    "body": "Your phone's battery can go in any status slot, with or without a phone glyph. Android phones only."
   }
 }
