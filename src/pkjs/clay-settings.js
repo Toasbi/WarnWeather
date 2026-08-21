@@ -41,6 +41,19 @@ function resetAll() {
         k = PRESERVED_SETTING_KEYS[i];
         if (blob[k]) { keep[k] = blob[k]; kept = true; }
     }
+    // A slot parked by an EARLIER reset this session may still hold keys the blob
+    // no longer does: post-reset the blob is deliberately absent, so the reopened
+    // page hydrates every key field to '' and a second Reset save has nothing to
+    // park — clearing storage below would then destroy the only remaining copy.
+    // Fill-only merge: a key typed between the two resets wins over its parked
+    // predecessor (the same precedence restorePreserved applies at boot).
+    var parked = readParked();
+    if (parked) {
+        for (i = 0; i < PRESERVED_SETTING_KEYS.length; i++) {
+            k = PRESERVED_SETTING_KEYS[i];
+            if (parked[k] && !keep[k]) { keep[k] = parked[k]; kept = true; }
+        }
+    }
     localStorage.clear();
     // The settings blob itself must stay ABSENT: the wizard only reopens for a
     // config with no keys at all, so putting the kept credentials straight back
@@ -50,6 +63,57 @@ function resetAll() {
     if (kept) { localStorage.setItem(KEYS.PRESERVED_KEYS_KEY, JSON.stringify(keep)); }
     if (wuKey) { localStorage.setItem(KEYS.WU_API_KEY, wuKey); }
     return keep;
+}
+
+/**
+ * The credentials parked by resetAll(), or null when none/malformed. Read-only:
+ * dropping the slot (good parking after a restore, malformed parking always) is
+ * restorePreserved's job.
+ *
+ * @returns {?Object} Parked key -> value map.
+ */
+function readParked() {
+    var raw = localStorage.getItem(KEYS.PRESERVED_KEYS_KEY);
+    var parsed;
+    if (!raw) { return null; }
+    try {
+        parsed = JSON.parse(raw);
+    } catch (ex) {
+        return null;
+    }
+    // Only a plain object is a parking slot the app could have written; a
+    // JSON-valid string/array (storage corruption) would otherwise be for-in
+    // iterated into junk index keys downstream.
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) { return null; }
+    return parsed;
+}
+
+/**
+ * Fill a settings blob's EMPTY credential fields from the parked slot — the live
+ * session's counterpart to the boot-time restore below. Between a reset and the
+ * next boot the page hydrates from an absent blob, so a save from it carries ''
+ * for every key the user did not retype; persisting that '' would leave fetches
+ * failing on an empty key until the next PKJS boot folds the parked copy back.
+ * Fill-only (a typed key always wins), and the slot is CONSUMED: from this save
+ * on the blob holds the keys and the reopened page shows them, so an '' arriving
+ * later is the user deliberately clearing a field — a still-live slot would
+ * refill it and permanently reinstate a removed credential. (A reset-save is
+ * safe with that: resetAll parks from the just-filled blob afterwards.)
+ *
+ * @param {Object} blob Parsed settings response (mutated and returned).
+ * @returns {Object} The same blob, empty credential fields filled.
+ */
+function fillFromPreserved(blob) {
+    var parked = readParked();
+    var i;
+    var k;
+    if (!parked || !blob) { return blob; }
+    for (i = 0; i < PRESERVED_SETTING_KEYS.length; i++) {
+        k = PRESERVED_SETTING_KEYS[i];
+        if (parked[k] && !blob[k]) { blob[k] = parked[k]; }
+    }
+    localStorage.removeItem(KEYS.PRESERVED_KEYS_KEY);
+    return blob;
 }
 
 /**
@@ -508,6 +572,7 @@ module.exports = {
     read: read,
     save: save,
     resetAll: resetAll,
+    fillFromPreserved: fillFromPreserved,
     shouldReset: shouldReset,
     hasStored: hasStored,
     getDefaults: getDefaults,

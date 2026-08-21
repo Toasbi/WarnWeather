@@ -495,3 +495,112 @@ test('an empty string does not count as a value worth keeping', () => {
   claySettings.seedDefaults(COLORS);
   assert.equal(claySettings.read().owmApiKey, 'KEEP-ME');
 });
+
+test('a second reset in one session must not destroy the keys the first one parked', () => {
+  // Between a reset and the next boot the parked slot is the ONLY copy of the
+  // keys. Reopening settings in the same PKJS session hydrates the page from
+  // read()=null — every key field is '' — so a second Reset save finds nothing
+  // in the blob to park and used to localStorage.clear() the parking slot away,
+  // permanently, while the toggle's hint promises "Your API keys are kept."
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+
+  store['clay-settings'] = JSON.stringify({ owmApiKey: 'owm-secret', tomorrowioApiKey: 'tio-secret' });
+  claySettings.resetAll();
+  assert.ok(store['preservedApiKeys'], 'reset #1 parks the keys');
+
+  // Same session: the page saves a reset response whose key fields are all ''.
+  claySettings.save({ reset: true, owmApiKey: '', tomorrowioApiKey: '' });
+  const kept = claySettings.resetAll();
+
+  assert.deepEqual(kept, { owmApiKey: 'owm-secret', tomorrowioApiKey: 'tio-secret' },
+    'reset #2 hands the parked keys back for the live session');
+  claySettings.seedDefaults(COLORS);
+  const read = claySettings.read();
+  assert.equal(read.owmApiKey, 'owm-secret', 'the next boot still restores them');
+  assert.equal(read.tomorrowioApiKey, 'tio-secret');
+});
+
+test('a key typed between two resets wins over its parked predecessor', () => {
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+
+  store['clay-settings'] = JSON.stringify({ owmApiKey: 'OLD-OWM', tomorrowioApiKey: 'OLD-TIO' });
+  claySettings.resetAll();
+  // The user types a fresh tomorrow.io key and resets again.
+  claySettings.save({ reset: true, tomorrowioApiKey: 'NEW-TIO', owmApiKey: '' });
+  const kept = claySettings.resetAll();
+
+  assert.equal(kept.tomorrowioApiKey, 'NEW-TIO', 'the key just typed wins');
+  assert.equal(kept.owmApiKey, 'OLD-OWM', 'a key not retyped still survives from reset #1');
+});
+
+test('fillFromPreserved fills empty key fields from the parked slot, never overwrites', () => {
+  // The live session's counterpart to seedDefaults' boot-time restore: a save that
+  // arrives between the reset and the next boot carries '' for every key the user
+  // did not retype (the page hydrated from an absent blob), and persisting that ''
+  // would leave fetches running against an empty key until the next PKJS boot.
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+
+  store['clay-settings'] = JSON.stringify({ owmApiKey: 'owm-secret', yandexApiKey: 'ya-secret' });
+  claySettings.resetAll();
+
+  const blob = claySettings.fillFromPreserved(
+    { provider: 'owm', owmApiKey: 'NEW-KEY', yandexApiKey: '', tomorrowioApiKey: '' });
+  assert.equal(blob.owmApiKey, 'NEW-KEY', 'a typed key is never overwritten');
+  assert.equal(blob.yandexApiKey, 'ya-secret', 'the empty field is filled from the parked copy');
+  assert.equal(blob.tomorrowioApiKey, '', 'a key that was never parked stays as it came');
+  assert.equal(blob.provider, 'owm', 'non-credential fields pass through untouched');
+  // CONSUMED, not left parked: from this save on, the blob owns the keys and the
+  // page shows them — a still-live slot would refill a key the user then
+  // deliberately cleared, permanently reinstating a removed credential.
+  assert.equal(store['preservedApiKeys'], undefined, 'the parking slot is consumed by the fill');
+});
+
+test('a deliberate key clear after the post-reset save sticks', () => {
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+
+  store['clay-settings'] = JSON.stringify({ owmApiKey: 'owm-secret' });
+  claySettings.resetAll();
+  // Save #1 (e.g. finishing the reopened wizard): the '' field is refilled.
+  claySettings.save(claySettings.fillFromPreserved({ owmApiKey: '' }));
+  assert.equal(claySettings.read().owmApiKey, 'owm-secret');
+  // The user reopens settings — the key is visible now — deletes it, and saves.
+  claySettings.save(claySettings.fillFromPreserved({ owmApiKey: '' }));
+  assert.equal(claySettings.read().owmApiKey, '', 'the explicit clear must not be undone');
+  // And the next boot must not resurrect it either.
+  claySettings.seedDefaults(COLORS);
+  assert.equal(claySettings.read().owmApiKey, '', 'nor may the boot restore');
+});
+
+test('a non-object parking slot is discarded, not laundered into junk keys', () => {
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  // JSON-valid but not an object — only external corruption produces this; a
+  // for-in over it would iterate string indices into {"0":"s","1":"n",...}.
+  store['preservedApiKeys'] = JSON.stringify('sneaky-string');
+  const blob = claySettings.fillFromPreserved({ owmApiKey: '' });
+  assert.deepEqual(blob, { owmApiKey: '' }, 'a junk slot fills nothing');
+
+  store['preservedApiKeys'] = JSON.stringify(['a', 'b']);
+  store['clay-settings'] = JSON.stringify({ owmApiKey: 'KEEP-ME' });
+  const kept = claySettings.resetAll();
+  assert.deepEqual(kept, { owmApiKey: 'KEEP-ME' },
+    'only real credentials are parked — no laundered index keys');
+});
+
+test('fillFromPreserved is a pass-through when nothing is parked', () => {
+  installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  const blob = { provider: 'dwd', owmApiKey: '' };
+  assert.equal(claySettings.fillFromPreserved(blob), blob);
+  assert.equal(blob.owmApiKey, '');
+});

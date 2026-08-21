@@ -34,3 +34,12 @@ test('library imports nothing app-specific (lift-out boundary)', () => {
     assert.equal(src.toLowerCase().indexOf('warnweather'), -1, f + ' must not reference WarnWeather');
   });
 });
+
+test('webviewclosed fills empty credential fields from the parked slot before saving', () => {
+  // The wiring half of clay-settings' fillFromPreserved (its behavior is unit-tested
+  // there): the save path must run the parsed response through it, or a post-reset
+  // save persists '' keys and fetches fail until the next PKJS boot.
+  const src = fs.readFileSync('src/pkjs/index.js', 'utf8');
+  assert.ok(src.indexOf('claySettings.fillFromPreserved(settings.parseResponse(') !== -1,
+    'the parsed config response must pass through fillFromPreserved before save');
+});

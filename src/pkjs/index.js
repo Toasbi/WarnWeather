@@ -213,7 +213,11 @@ Pebble.addEventListener('webviewclosed', function(e) {
     // detect a change and force a resend. Rain/radar colors are NOT here: they ride the
     // Clay message and the watch persists them, so a color change needs no weather refetch.
     var prevRender = renderSignature(app.settings);
-    claySettings.save(settings.parseResponse(e.response));  // This triggers the update in localStorage
+    // fillFromPreserved: between a "Reset watchface" and the next boot the page
+    // hydrates from an absent blob, so this response carries '' for every API key
+    // the user did not retype — fill those from the parked copies (fill-only; a
+    // typed key wins) or the session fetches on an empty key until the relaunch.
+    claySettings.save(claySettings.fillFromPreserved(settings.parseResponse(e.response)));
     app.settings = claySettings.read();  // This reads from localStorage in sensible format
     if (claySettings.shouldReset(app.settings)) {
         // "Reset watchface" (gated behind its confirm toggle): wipe ALL phone-side
