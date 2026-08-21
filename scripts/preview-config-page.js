@@ -68,8 +68,17 @@ function parseArgs(args) {
 
 // Delegate to the platform SoT (platform.js) so color/round/health env-gates
 // render exactly as they would on-watch — no duplicated platform table here.
+//
+// computeEnv() answers only what the PLATFORM determines. Phone-runtime
+// capabilities are overlaid by index.js at generateUrl() time (env:
+// {phoneBattery: ...}), which this script bypasses — so without this overlay the
+// preview silently omits every phone-gated item and cannot be used to review them.
+// Default on, because the preview exists to eyeball items that exist; set
+// PREVIEW_PHONE_BATTERY=0 to see what an iPhone user's slot dropdown looks like.
 function envFor(platform) {
-  return platformLib.computeEnv({ platform: platform });
+  var env = platformLib.computeEnv({ platform: platform });
+  env.phoneBattery = process.env.PREVIEW_PHONE_BATTERY !== '0';
+  return env;
 }
 
 function run(opts) {
