@@ -529,16 +529,19 @@ test('the sheet: toggle off shows a disabled seeded slider; on enables and seeds
 });
 
 test('the reset button blanks the pair, restores default colors, clears the scale max', () => {
+  // Wind, not Aqi: the wizard seeds no wind row, so its fresh-install state is the
+  // plain schema one — blank pair, highlight off. Aqi's wizard-seeded landing has
+  // its own test ('Aqi reset lands on the wizard-seeded fresh-install state').
   const page = bootGeneratedPage({
     provider: 'dwd',
-    threshAqiWarn: '42', threshAqiDanger: '77',
-    threshAqiWarnColor: '#00AAFF', threshAqiDangerColor: '#5500FF',
-    threshAqiMax: '900'
+    threshWindWarn: '42', threshWindDanger: '77',
+    threshWindWarnColor: '#00AAFF', threshWindDangerColor: '#5500FF',
+    threshWindMax: '900'
   });
-  page.openEditSheet('threshAqi');
+  page.openEditSheet('threshWind');
   const t = {
     getAttribute: n => (n === 'data-action' ? 'resetThresholds'
-      : n === 'data-action-arg' ? 'Aqi' : null),
+      : n === 'data-action-arg' ? 'Wind' : null),
     closest: sel => (sel === '[data-action]' ? t : null)
   };
   const writesBefore = page.modal.writes;
@@ -546,12 +549,12 @@ test('the reset button blanks the pair, restores default colors, clears the scal
   // Blank, not seeded: the highlight toggle is derived from "is there a complete
   // ordered pair?", so seeding real numbers would switch highlighting ON — the one
   // thing a button labelled "Reset to defaults" must not do.
-  assert.equal(page.S.threshAqiWarn, '', 'warn blanked');
-  assert.equal(page.S.threshAqiDanger, '', 'danger blanked');
-  assert.equal(page.S.threshAqiWarnColor, '', 'warn back to no outline (bold only)');
-  assert.equal(page.S.threshAqiWarnOutlineOn, false, 'outline toggle back off');
-  assert.equal(page.S.threshAqiDangerColor, '#FFFFFF', 'danger color back to the auto theme fg');
-  assert.equal(page.S.threshAqiMax, '', 'scale-max override cleared');
+  assert.equal(page.S.threshWindWarn, '', 'warn blanked');
+  assert.equal(page.S.threshWindDanger, '', 'danger blanked');
+  assert.equal(page.S.threshWindWarnColor, '', 'warn back to no outline (bold only)');
+  assert.equal(page.S.threshWindWarnOutlineOn, false, 'outline toggle back off');
+  assert.equal(page.S.threshWindDangerColor, '#FFFFFF', 'danger color back to the auto theme fg');
+  assert.equal(page.S.threshWindMax, '', 'scale-max override cleared');
   assert.ok(page.modal.writes > writesBefore, 'the reset re-rendered the sheet');
 });
 
@@ -951,7 +954,10 @@ test('reset lands on exactly what a fresh install has, highlight included', () =
   const derivedOn = (S, stem) =>
     parse(S['thresh' + stem + 'Warn']) !== null && parse(S['thresh' + stem + 'Danger']) !== null;
 
-  ['Wind', 'Aqi', 'Steps'].forEach((stem) => {
+  // Aqi is deliberately NOT in this list: its fresh-install state is highlight ON
+  // — the first-run wizard seeds it (defaults-policy 'wizard-aqi-keeps-a-warn-signal')
+  // — so its reset landing is pinned by its own test below.
+  ['Wind', 'Gust', 'Steps'].forEach((stem) => {
     const S = { theme: 'dark' };
     S['thresh' + stem + 'On'] = true;
     S['thresh' + stem + 'Warn'] = '10';
@@ -962,6 +968,78 @@ test('reset lands on exactly what a fresh install has, highlight included', () =
       stem + ': the highlight must be OFF after a reset, as on a fresh install');
     assert.equal(S['thresh' + stem + 'Max'], '', stem + ': scale max cleared');
   });
+});
+
+test('reset flips the rendered highlight toggle off in the same render', () => {
+  // The On toggle is derived state, recomputed from the pair only on the NEXT page
+  // open (onbuild.js onLoad). Reset blanks the pair — the real off state — so it
+  // must also write the toggle, or the re-rendered sheet keeps showing "Highlight
+  // this value" ON with an enabled slider while what actually saves is highlight
+  // off: the exact silent-flip-on-next-open failure the reset fix was for, inverted.
+  const S = { theme: 'dark', threshWindOn: true,
+    threshWindWarn: '40', threshWindDanger: '60' };
+  PC.actions.resetThresholds('Wind', S, ENV);
+  assert.strictEqual(S.threshWindOn, false,
+    'the rendered toggle must agree with the blanked pair immediately');
+});
+
+test('Aqi reset lands on the wizard-seeded fresh-install state, not schema-off', () => {
+  // Every install that finishes the first-run wizard gets AQI highlighting ON with
+  // the warn outline (defaults-policy 'wizard-aqi-keeps-a-warn-signal') — that IS
+  // the out-of-box state. A reset that lands on highlight-off instead produces
+  // always-bold-with-no-warn-signal, the state that rule's why-text forbids.
+  const S = { theme: 'dark', threshAqiOn: true,
+    threshAqiWarn: '42', threshAqiDanger: '77', threshAqiMax: '400' };
+  PC.actions.resetThresholds('Aqi', S, ENV);
+  assert.strictEqual(S.threshAqiOn, true, 'AQI highlighting is on out of the box');
+  const warn = Number(S.threshAqiWarn), danger = Number(S.threshAqiDanger);
+  assert.ok(warn > 0 && danger > warn,
+    'the pair is reseeded ordered (' + S.threshAqiWarn + '/' + S.threshAqiDanger + ')');
+  assert.strictEqual(S.threshAqiWarnOutlineOn, true, 'the warn outline is on out of the box');
+  assert.equal(S.threshAqiWarnColor, '#FFFFFF',
+    'the outline color is the theme fg, as the toggle hook seeds it');
+  assert.equal(S.threshAqiMax, '', 'the scale max is still cleared');
+  // Bold stays out of it — the reset deliberately leaves Bold alone (pinned above),
+  // so the wizard's threshAqiBoldMode row must NOT be applied here.
+  assert.ok(!('threshAqiBoldMode' in S), 'reset must not write the Bold mode');
+});
+
+test('a weather-kind outline survives the next page open (stored toggle disambiguates)', () => {
+  // thresholdOutlineToggle ON seeds the theme fg — but the fg is also what a LEGACY
+  // auto warn color looks like, and onLoad converts auto colors back to '' (no
+  // outline) for weather kinds. The stored outline toggle rides the save, so it is
+  // what tells "the user turned this on" apart from "pre-toggle residue": with it
+  // true the outline must survive the reopen (and keep tracking the theme fg);
+  // without it the auto color still converts to ''. On B&W there is no color picker
+  // at all, so fg-seeded is the ONLY on-state — losing it loses the feature there.
+  const outlineHook = PC.onChange.get('thresholdOutlineToggle');
+  const S = { theme: 'dark', threshWindOn: true,
+    threshWindWarn: '40', threshWindDanger: '60' };
+  outlineHook(S, false, true, ENV, 'threshWindWarnOutlineOn');
+  S.threshWindWarnOutlineOn = true;   // the engine stores the toggle value itself
+  assert.equal(S.threshWindWarnColor, '#FFFFFF', 'precondition: ON seeds the dark fg');
+
+  // Simulate the next settings open over the saved state.
+  const ctx = { env: { platform: 'basalt' },
+    get: (k) => S[k], set: (k, v) => { S[k] = v; }, getInitial: (k) => S[k] };
+  onbuild.onLoad(ctx);
+  assert.strictEqual(S.threshWindWarnOutlineOn, true,
+    'the outline the user turned on must still be on');
+  assert.equal(S.threshWindWarnColor, '#FFFFFF', 'the auto color keeps tracking the fg');
+
+  // Theme switched between opens: the auto color follows the new theme's fg.
+  S.theme = 'light';
+  onbuild.onLoad(ctx);
+  assert.strictEqual(S.threshWindWarnOutlineOn, true);
+  assert.equal(S.threshWindWarnColor, '#000000', 'auto fg re-derives for the light theme');
+
+  // And WITHOUT the stored toggle, a legacy auto color still converts to no-outline.
+  const legacy = { theme: 'dark', threshWindWarn: '40', threshWindDanger: '60',
+    threshWindWarnColor: '#FFFFFF' };
+  onbuild.onLoad({ env: { platform: 'basalt' },
+    get: (k) => legacy[k], set: (k, v) => { legacy[k] = v; }, getInitial: (k) => legacy[k] });
+  assert.equal(legacy.threshWindWarnColor, '', 'legacy residue still reads as no outline');
+  assert.strictEqual(legacy.threshWindWarnOutlineOn, false);
 });
 
 test('the slot button is labelled Edit for every kind', () => {

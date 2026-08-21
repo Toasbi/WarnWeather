@@ -1282,11 +1282,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         S['thresh' + stem + 'Danger'] = String(cfg.seedDanger);
     });
 
-    // "Warn outline" toggle (thresh<K>WarnOutlineOn — derived state, recomputed on
-    // every page open from whether a warn color is stored; see onbuild.js): ON seeds
-    // the theme's text color so the outline is immediately visible and editable, OFF
-    // blanks the color — a blank warn color IS the no-outline wire state (the blob's
-    // 0x00 sentinel; the watch then renders warn as bold text only).
+    // "Warn outline" toggle (thresh<K>WarnOutlineOn — recomputed on every page open
+    // from the stored warn color, with the STORED toggle value as the tie-breaker
+    // for weather kinds' fg-valued colors; see onbuild.js): ON seeds the theme's
+    // text color so the outline is immediately visible and editable, OFF blanks the
+    // color — a blank warn color IS the no-outline wire state (the blob's 0x00
+    // sentinel; the watch then renders warn as bold text only).
     PConf.onChange.register('thresholdOutlineToggle', function (S, oldValue, newValue, env, key) {
         var m = /^thresh([A-Za-z]+)WarnOutlineOn$/.exec(key || '');
         if (!m) { return; }
@@ -1363,12 +1364,48 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // install actually looks like, and there the highlight is off. Seeding real
         // numbers here switched it ON instead: "Highlight this value" is derived on
         // every page open from "is there a complete, ordered pair?" (onbuild.js), so
-        // a seeded pair IS the on state, and writing the toggle false alongside would
-        // just be recomputed back to true. Blanking is the same thing turning the
+        // a seeded pair IS the on state. Blanking is the same thing turning the
         // toggle off already does, and the slider stays visible-but-disabled showing
         // these seeds as a preview — again, exactly a fresh install.
         S['thresh' + stem + 'Warn'] = '';
         S['thresh' + stem + 'Danger'] = '';
+        // The toggle itself is only re-derived from the pair on the NEXT page open,
+        // so write it too — otherwise the re-rendered sheet keeps showing the
+        // highlight ON (enabled slider at the seed preview) while what saves is off.
+        S['thresh' + stem + 'On'] = false;
+        // "Fresh install" is more than the schema: finishing the first-run wizard
+        // applies the defaults-policy table, so the reset lands on those rows too —
+        // AQI's highlight-on-with-warn-outline, seeded through the very hooks
+        // flipping the controls by hand would run. (A wizard-SKIPPED install never
+        // got them; converging its reset on the intended out-of-box state is the
+        // deliberate choice here.) Only THIS kind's threshold-family keys apply;
+        // Bold is deliberately excluded (the reset leaves Bold alone — its row sits
+        // outside the Thresholds group). Unlike the wizard, no policyMayWrite guard:
+        // reset IS the user discarding their choices for this kind. dependsOn is
+        // still honored so a future coupled row cannot half-apply from here.
+        var policy = (typeof require !== 'undefined')
+            ? require('./defaults-policy.js')
+            : (typeof window !== 'undefined' ? window.DefaultsPolicy : null);
+        if (policy) {
+            var rules = policy.rulesFor({wizard: true, env: env, choices: S});
+            for (var r = 0; r < rules.length; r++) {
+                var set = rules[r].set || {};
+                var via = rules[r].seedVia || {};
+                var dep = rules[r].dependsOn || {};
+                var names = Object.keys(set);
+                for (var n = 0; n < names.length; n++) {
+                    var name = names[n];
+                    if (name.indexOf('thresh' + stem) !== 0
+                        || name === 'thresh' + stem + 'BoldMode') { continue; }
+                    if (dep[name] && S[dep[name]] !== set[dep[name]]) { continue; }
+                    var prev = S[name];
+                    S[name] = set[name];
+                    var hook = via[name] && PConf.onChange && PConf.onChange.get
+                        ? PConf.onChange.get(via[name]) : null;
+                    if (hook) { hook(S, prev, set[name], env, name); }
+                }
+            }
+        }
         return true;
     };
 
@@ -1401,7 +1438,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // direction arrows are the same kind of row on the two threshold sheets —
         // their group's "Reset to defaults" deliberately covers only the thresholds.
         S.tempSlotDisplay = 'actual';
-        S.windSlotDirection = false;
+        // NOT uniform, like the unit toggles below: the wind arrow ships on, the
+        // gust arrow ships off (schema.js). Pinned against the schema by a test.
+        S.windSlotDirection = true;
         S.gustSlotDirection = false;
         // The six "Show unit" toggles. Their defaults are NOT uniform — the four kinds
         // that print a unit today ship on, the two degree kinds ship off (schema.js's

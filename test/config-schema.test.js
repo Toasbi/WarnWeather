@@ -1442,6 +1442,22 @@ test('resetStatusSlots restores each Show unit toggle to its schema default', ()
   });
 });
 
+// Same drift guard for the two direction arrows: their defaults are NOT uniform
+// either (wind ships on, gust ships off), and the reset once hardcoded false for
+// both — written when false WAS wind's default, then left behind when the schema
+// flipped it, so "back to stock" silently disabled a shipped-on arrow.
+test('resetStatusSlots restores each direction arrow to its schema default', () => {
+  const PConf = global.PConf;
+  const env = { thresholds: true, color: true, health: true };
+  const S = { windSlotDirection: !byKey('windSlotDirection').defaultValue,
+    gustSlotDirection: !byKey('gustSlotDirection').defaultValue };
+  PConf.actions.resetStatusSlots(null, S, env);
+  ['windSlotDirection', 'gustSlotDirection'].forEach((key) => {
+    assert.strictEqual(S[key], byKey(key).defaultValue,
+      key + ' must come back as the schema ships it');
+  });
+});
+
 // Temperature and dew point get the DEGREE SIGN ALONE. '°C'/'°F' would restate the
 // global temperature-unit setting in every slot — and on a 3-slot status bar that is
 // two wasted characters saying something the user already chose once.
