@@ -40,7 +40,11 @@
 //                        an unset choice matches nothing (except via `health`,
 //                        which knows healthMode's schema default).
 //
-// A row may also carry `seedVia` — see the wizard AQI row for what it is for.
+// A row may also carry `seedVia` — see the wizard AQI row for what it is for —
+// and `dependsOn` (dependent key -> anchor key of the same set), which couples
+// writes that only make sense together — see the health-slots row. A test pins
+// that every dependsOn name references the same rule's set, so a typo fails
+// loudly instead of silently stranding the dependents.
 (function () {
     // healthMode's schema default (schema.js). Repeated here because an unset
     // healthMode means "the user never touched it", which is health ON, and a
@@ -109,6 +113,19 @@
                 statusTopRight: 'steps',
                 statusHealthLeft: 'distance',
                 threshStepsBoldMode: 'always'
+            },
+            // These three writes are ONE move, not three: evicting steps from the
+            // health row is only safe while the top row actually shows it, and the
+            // bold exists to match the promoted slot to its row. Each key is still
+            // permission-checked on its own (policyMayWrite), so without this the
+            // eviction could run while the promotion was blocked by a customized
+            // top-right slot — deleting the steps reading from the face, the exact
+            // loss the why-text above forbids. dependsOn: a key applies only while
+            // the named sibling HOLDS this rule's value for it when its turn comes
+            // (written this run, or already there from an earlier one).
+            dependsOn: {
+                statusHealthLeft: 'statusTopRight',
+                threshStepsBoldMode: 'statusTopRight'
             }
         }
 

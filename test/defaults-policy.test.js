@@ -339,3 +339,35 @@ test('the wind arrow is a plain schema default, not a rule in this table', () =>
       'windSlotDirection is a schema defaultValue; a rule here would be a second home for it');
   });
 });
+
+test('dependsOn always names a key of the same rule\'s set — a typo must not silently strand its dependents', () => {
+  // The consumer (wizard.js applyWizardDefaults) skips a dependent key whenever its
+  // anchor does not hold the rule's value; an anchor name that matches nothing would
+  // make the dependents unconditionally dead with no error anywhere. Same philosophy
+  // as ruleApplies throwing on an unknown `when` condition.
+  policy.RULES.forEach((rule) => {
+    const dep = rule.dependsOn || {};
+    Object.keys(dep).forEach((key) => {
+      assert.ok(Object.prototype.hasOwnProperty.call(rule.set || {}, key),
+        rule.id + ': dependsOn key "' + key + '" is not in the rule\'s set');
+      assert.ok(Object.prototype.hasOwnProperty.call(rule.set || {}, dep[key]),
+        rule.id + ': dependsOn anchor "' + dep[key] + '" is not in the rule\'s set');
+      assert.notEqual(dep[key], key, rule.id + ': "' + key + '" cannot depend on itself');
+      // The wizard applies a rule's keys in ONE pass, in set order — an anchor
+      // listed after its dependent would not hold the rule's value when the
+      // dependent's turn comes, silently skipping it on a fresh install.
+      const order = Object.keys(rule.set);
+      assert.ok(order.indexOf(dep[key]) < order.indexOf(key),
+        rule.id + ': anchor "' + dep[key] + '" must precede "' + key + '" in set order');
+    });
+  });
+});
+
+test('the health-slot swap declares its coupling: eviction and bold depend on the promotion', () => {
+  const rule = policy.RULES.find((r) => r.id === 'wizard-health-slots');
+  assert.ok(rule, 'the rule exists');
+  assert.deepEqual(rule.dependsOn, {
+    statusHealthLeft: 'statusTopRight',
+    threshStepsBoldMode: 'statusTopRight'
+  }, 'both companion writes hang off the steps promotion');
+});

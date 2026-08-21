@@ -275,7 +275,33 @@ test('a key the user changed by hand survives the policy', () => {
   assert.ok(!Object.prototype.hasOwnProperty.call(written, 'statusTopRight'));
   assert.equal(ctx.S.threshCityBoldMode, 'always', 'the untouched keys still get their default');
   assert.equal(ctx.S.threshAqiOn, true, 'a sibling key of the same rule is unaffected');
-  assert.equal(ctx.S.statusHealthLeft, 'distance');
+  // The health-row half of the swap must NOT run alone: with the promotion blocked,
+  // evicting steps from the health row would remove the reading from the face
+  // entirely — the exact loss the rule's "so no reading is lost" why-text forbids.
+  assert.equal(ctx.S.statusHealthLeft, 'steps',
+    'the eviction half of the blocked swap must not run');
+  assert.ok(!Object.prototype.hasOwnProperty.call(written, 'statusHealthLeft'));
+  assert.ok(!Object.prototype.hasOwnProperty.call(written, 'threshStepsBoldMode'),
+    'the bold-the-promoted-slot write depends on the promotion too');
+});
+
+test('the whole health-slot swap is skipped when steps does not reach the top row', () => {
+  // statusTopMid='steps' is the user doing the promotion themselves — the rule's
+  // anchor slot stays 'sun' (dedupe guard), steps is NOT in statusTopRight, and the
+  // dependent writes stand down with it.
+  const ctx = wizCtx({ saved: { statusTopMid: 'steps' } });
+  const written = W.applyWizardDefaults(ctx, 'save');
+  assert.equal(ctx.S.statusTopRight, 'sun');
+  assert.equal(ctx.S.statusHealthLeft, 'steps', 'no eviction without the promotion');
+  assert.ok(!Object.prototype.hasOwnProperty.call(written, 'statusHealthLeft'));
+
+  // And when the promotion DOES land (default install), the swap completes —
+  // pinned here as the counterpart so the dependency cannot overshoot.
+  const clean = wizCtx();
+  W.applyWizardDefaults(clean, 'save');
+  assert.equal(clean.S.statusTopRight, 'steps');
+  assert.equal(clean.S.statusHealthLeft, 'distance');
+  assert.equal(clean.S.threshStepsBoldMode, 'always');
 });
 
 test('the policy never duplicates a code the user already placed in that row', () => {

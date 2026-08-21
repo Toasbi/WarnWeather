@@ -667,14 +667,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function pendingDefaults(policy, pctx) {
         var rules = policy.rulesFor(pctx);
-        var keys = [], by = {}, i, k, set, via, names;
+        var keys = [], by = {}, i, k, set, via, dep, names;
         for (i = 0; i < rules.length; i += 1) {
             set = rules[i].set || {};
             via = rules[i].seedVia || {};
+            dep = rules[i].dependsOn || {};
             names = Object.keys(set);
             for (k = 0; k < names.length; k += 1) {
                 if (!Object.prototype.hasOwnProperty.call(by, names[k])) { keys.push(names[k]); }
-                by[names[k]] = {value: set[names[k]], seedVia: via[names[k]] || null};
+                by[names[k]] = {value: set[names[k]], seedVia: via[names[k]] || null,
+                    dependsOn: dep[names[k]] || null};
             }
         }
         return {keys: keys, by: by};
@@ -708,10 +710,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // The whole live state doubles as `choices`: every wizard pick and every stored
         // setting is already in it, so a future rule keyed on any of them just works.
         var pending = pendingDefaults(policy, {wizard: true, env: ctx.ENV, choices: ctx.S});
-        var i, key, value, hookName, hook, before;
+        var i, key, value, anchor, hookName, hook, before;
         for (i = 0; i < pending.keys.length; i += 1) {
             key = pending.keys[i];
             value = pending.by[key].value;
+            // dependsOn (the rule's coupling, e.g. the health-slot swap): a
+            // dependent key stands down unless its anchor HOLDS the rule's value
+            // by now — written above (set order puts anchors first) or already in
+            // place from an earlier run. A blocked promotion must not leave the
+            // eviction half of a swap running alone.
+            anchor = pending.by[key].dependsOn;
+            if (anchor && (!Object.prototype.hasOwnProperty.call(pending.by, anchor)
+                || ctx.S[anchor] !== pending.by[anchor].value)) { continue; }
             if (!policyMayWrite(ctx, key, value)) { continue; }
             before = ctx.S[key];
             ctx.S[key] = value;
