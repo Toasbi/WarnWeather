@@ -43,13 +43,31 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 var goalHex = '#55FF00';   // contract DEFAULT_GOAL_COLOR
                 var rawWarn = ctx.get('thresh' + kind.key + 'WarnColor');
                 if (kind.goal) {
-                    if (rawWarn !== '' && auto.isAuto(rawWarn)) {
+                    if (rawWarn === null) {
+                        // The old parseResponse bug's footprint for an explicitly
+                        // turned-off outline (hexToInt('') = NaN, persisted as
+                        // null; never-touched keys are absent, not null — see
+                        // status-thresholds.js). Heal to the off-sentinel the
+                        // user meant, so the next save stores a durable ''.
+                        ctx.set('thresh' + kind.key + 'WarnColor', '');
+                        rawWarn = '';
+                    } else if (rawWarn !== '' && auto.isAuto(rawWarn)) {
                         ctx.set('thresh' + kind.key + 'WarnColor', goalHex);
                         rawWarn = goalHex;
                     }
                 } else if (auto.isAuto(rawWarn)) {
-                    ctx.set('thresh' + kind.key + 'WarnColor', '');
-                    rawWarn = '';
+                    // An fg-valued warn color is ambiguous: the outline toggle
+                    // seeds exactly the fg when turned ON, and a legacy pre-toggle
+                    // auto left the same value behind. The STORED toggle rides the
+                    // save and settles it — with it on, a real color means "outline
+                    // deliberately on" and keeps tracking the theme fg (on B&W the
+                    // fg seed is the only on-state there is); otherwise the auto
+                    // value converts back to '' = no outline, as before.
+                    var deliberate = Boolean(ctx.get('thresh' + kind.key + 'WarnOutlineOn'))
+                        && rawWarn !== '' && rawWarn !== null
+                        && typeof rawWarn !== 'undefined';
+                    ctx.set('thresh' + kind.key + 'WarnColor', deliberate ? fg : '');
+                    rawWarn = deliberate ? fg : '';
                 }
                 ctx.set('thresh' + kind.key + 'WarnOutlineOn',
                         rawWarn !== '' && rawWarn !== null && typeof rawWarn !== 'undefined');

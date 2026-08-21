@@ -24,6 +24,14 @@ test('createConfig instance: defaults, isColorKey, parseResponse', () => {
   assert.equal(blob.tint, 0x0055AA);
 });
 
+test("parseResponse: a blank color value survives as the '' sentinel, not NaN/null", () => {
+  const inst = configUi.createConfig({ schema: SCHEMA, page: PAGE });
+  const blob = inst.parseResponse(encodeURIComponent(JSON.stringify({ provider: 'owm', tint: '' })));
+  assert.equal(blob.tint, '');
+  // NaN would JSON-stringify to null in the stored settings blob
+  assert.equal(JSON.parse(JSON.stringify(blob)).tint, '');
+});
+
 test('generateUrl: data URL, colors int->hex, env from watchInfo, markers handled', () => {
   const inst = configUi.createConfig({ schema: SCHEMA, page: PAGE });
   const url = inst.generateUrl({ values: inst.getDefaults(), watchInfo: { platform: 'basalt' }, userData: {} });

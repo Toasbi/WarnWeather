@@ -1325,3 +1325,23 @@ test('the temp slot keeps Both and the degree sign apart, in both directions', (
   hook(d, 'both', 'feels', {}, 'tempSlotDisplay');
   assert.equal(d.tempSlotUnit, true);
 });
+
+test("a goal kind's legacy null warn color heals to outline-off on page open", () => {
+  // The old parseResponse stored hexToInt('') = NaN -> JSON null for an
+  // explicitly turned-off goal outline. Never-touched keys are absent, not null,
+  // so null can only be that bug's footprint: it must land on the off state the
+  // user chose, not reseed the default green.
+  const healed = { theme: 'dark', threshSleepWarn: '360', threshSleepDanger: '480',
+    threshSleepWarnColor: null };
+  onbuild.onLoad({ env: { platform: 'basalt' },
+    get: (k) => healed[k], set: (k, v) => { healed[k] = v; }, getInitial: (k) => healed[k] });
+  assert.equal(healed.threshSleepWarnColor, '', 'null normalizes to the explicit-off sentinel');
+  assert.strictEqual(healed.threshSleepWarnOutlineOn, false);
+
+  // An ABSENT color is a genuinely never-touched install: default green, outline on.
+  const fresh = { theme: 'dark', threshSleepWarn: '360', threshSleepDanger: '480' };
+  onbuild.onLoad({ env: { platform: 'basalt' },
+    get: (k) => fresh[k], set: (k, v) => { fresh[k] = v; }, getInitial: (k) => fresh[k] });
+  assert.equal(fresh.threshSleepWarnColor, '#55FF00', 'absent still seeds the goal default');
+  assert.strictEqual(fresh.threshSleepWarnOutlineOn, true);
+});

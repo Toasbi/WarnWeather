@@ -23,7 +23,9 @@ function createConfig(cfg) {
   function parseResponse(responseStr) {                  // raw response -> blob (colors hex->int)
     var raw = JSON.parse(decodeURIComponent(responseStr)), out = {}, k;
     for (k in raw) { if (Object.prototype.hasOwnProperty.call(raw, k)) {
-      out[k] = isColorKey(k) ? color.hexToInt(raw[k]) : raw[k]; } }
+      // '' passes through: it is an app-level "no color" sentinel, and
+      // hexToInt('') is NaN — which JSON persistence would turn into null.
+      out[k] = isColorKey(k) && raw[k] !== '' ? color.hexToInt(raw[k]) : raw[k]; } }
     return out;
   }
 

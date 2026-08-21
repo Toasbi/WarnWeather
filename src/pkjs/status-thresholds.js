@@ -193,15 +193,18 @@
     // warnColor null = NO OUTLINE: warn renders as bold text only and the blob
     // carries the 0x00 none-sentinel. Weather kinds DEFAULT to none (only the
     // sheet's outline toggle stores a color); GOAL kinds default to the green
-    // outline — for them only an explicit '' (toggle turned off) means none, while
-    // never-touched settings fall back to DEFAULT_GOAL_COLOR, matching the page's
-    // outline-on-by-default. Danger falls back green for goals, red for weather.
+    // outline — for them '' (toggle turned off) means none, while never-touched
+    // settings fall back to DEFAULT_GOAL_COLOR, matching the page's
+    // outline-on-by-default. A stored NULL counts as off too: it is the old
+    // parseResponse bug's footprint for exactly that '' (hexToInt('') = NaN,
+    // persisted as null) — a never-touched key is ABSENT from the blob, never
+    // null. Danger falls back green for goals, red for weather.
     var rawWarn = settings && settings['thresh' + k.key + 'WarnColor'];
-    var warnUnset = rawWarn === null || typeof rawWarn === 'undefined';
     var warnColor;
-    if (rawWarn === '' || (warnUnset && !k.goal)) {
+    if (rawWarn === '' || rawWarn === null
+        || (typeof rawWarn === 'undefined' && !k.goal)) {
       warnColor = null;
-    } else if (warnUnset) {
+    } else if (typeof rawWarn === 'undefined') {
       warnColor = DEFAULT_GOAL_COLOR;
     } else {
       warnColor = colorInt(rawWarn, k.goal ? DEFAULT_GOAL_COLOR : DEFAULT_WARN_COLOR);

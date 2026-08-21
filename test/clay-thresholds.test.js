@@ -133,3 +133,42 @@ test('an unknown/absent watchInfo still gets the blob (never hide a real feature
     assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 34, String(wi));
   });
 });
+
+test("a goal kind's outline-off sentinel ('') survives the settings save round-trip", () => {
+  // Turning a goal kind's outline toggle OFF stores '' as its warn color — the
+  // explicit no-outline sentinel, distinct from null/undefined ("never touched",
+  // which reseeds the default green outline). The page response passes through
+  // parseResponse (colors hex->int) and JSON persistence on its way to storage;
+  // if '' comes out as anything else (hexToInt('') is NaN, which JSON turns into
+  // null), the watch keeps outlining and the settings page re-enables the toggle.
+  const configUi = require('../src/pkjs/config-ui');
+  const schema = require('../src/pkjs/settings/schema.js');
+  const inst = configUi.createConfig({ schema, page: '' });
+  const fromPage = { threshSleepWarn: '360', threshSleepDanger: '480', threshSleepWarnColor: '' };
+  const stored = JSON.parse(JSON.stringify(
+    inst.parseResponse(encodeURIComponent(JSON.stringify(fromPage)))));
+  assert.equal(stored.threshSleepWarnColor, '', "the '' sentinel must reach storage unchanged");
+  assert.deepEqual(
+    thresholds.buildSettingsBlob(Object.assign({}, BASE, stored)),
+    thresholds.buildSettingsBlob(Object.assign({}, BASE, fromPage)),
+    'the save round-trip must not change what the watch is told');
+});
+
+test("a goal kind's legacy null warn color (the old NaN bug's footprint) packs as outline-off", () => {
+  // Before the '' sentinel fix, turning a goal outline off stored
+  // hexToInt('') = NaN, which JSON persisted as null. A never-touched key is
+  // ABSENT from the blob (JSON drops undefined), never null — so a stored null
+  // can only mean "the user turned this off under the old code" and must heal
+  // to the explicit-off state, not fall back to the default green.
+  const off = Object.assign({}, BASE,
+    { threshSleepWarn: '360', threshSleepDanger: '480', threshSleepWarnColor: null });
+  const explicit = Object.assign({}, BASE,
+    { threshSleepWarn: '360', threshSleepDanger: '480', threshSleepWarnColor: '' });
+  assert.deepEqual(thresholds.buildSettingsBlob(off), thresholds.buildSettingsBlob(explicit),
+    'null must pack exactly like the explicit off-sentinel');
+  // An ABSENT goal warn color still means never-touched: the default green.
+  const untouched = Object.assign({}, BASE,
+    { threshSleepWarn: '360', threshSleepDanger: '480' });
+  assert.notDeepEqual(thresholds.buildSettingsBlob(untouched), thresholds.buildSettingsBlob(off),
+    'absent still falls back to the default goal outline');
+});
