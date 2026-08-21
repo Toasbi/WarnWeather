@@ -233,9 +233,11 @@ and hosted-deploy commands are in `DEV.md` / `CONTRIBUTING.md`.
 - **Every release — patches included — needs a detailed news entry in the `public.news`
   Supabase table** (hosted news backend — the *News & Feedback* section of the settings
   screen, not the boot toast above). Unlike that toast, this one has no feature/patch
-  exemption and **nothing in CI enforces it**, so it is on you at release time. Insert one row with `target_version` set to the **exact** new version
-  string (e.g. `'1.9.2'`) so it's shown only to watches on that build — never leave it
-  `NULL` (that broadcasts to everyone). The `release-notifications.json` toast is a one-line
+  exemption and **nothing in CI enforces it**, so it is on you at release time. Insert one row with `target_version` left **`NULL`** so every watch
+  sees it, whatever version it runs — release news doubles as the nudge to update.
+  (An exact version string like `'1.9.2'` limits a row to watches on that build;
+  reserve that for version-specific notices, e.g. "this build broke X, update".)
+  The `release-notifications.json` toast is a one-line
   summary; the news `body_md` is the longer changelog. Match the style of the existing
   rows: a `"What's new in <version>"` title and `body_md` using the supported markdown
   subset (`**bold**` section headers, `- ` bullets, `*italic*`, `[text](https://…)` links —
