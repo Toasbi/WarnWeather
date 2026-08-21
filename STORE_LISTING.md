@@ -51,9 +51,7 @@ STATUS LINES
    - Battery:
       - watch battery icon
       - watch battery percentage
-      - phone battery, with or without a phone glyph, and a charging icon while
-        it charges — Android phones only, because iOS gives the watchface no way
-        to read the phone's battery; it shows -- while the phone is disconnected
+      - phone battery
 - Bold status values to make them stand out or to make it easier to read
 - Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set
 - Threshold highlighting: bold, outline, or fill a status slot when a status slot crosses a
