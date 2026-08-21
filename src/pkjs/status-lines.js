@@ -600,8 +600,37 @@ function buildStatusLines(payload, settings, watchInfo) {
   return payload;
 }
 
+/**
+ * Every weather-payload key this module's bake actually READS — formatValue's
+ * per-code arms plus directionSentinel — and, by inclusion, the only ones
+ * status-thresholds' packWeatherLevels needs (its displayValue reads a subset).
+ * STATUS_LINE_n_UINT8 and STATUS_LEVELS_UINT8 are deliberately absent: the bake
+ * WRITES those.
+ *
+ * Exported because phone-battery.js persists exactly this slice of the payload
+ * so a charging event can re-bake after a PKJS restart. It lives HERE, next to
+ * the code that reads the keys, so a new slot cannot add a read without the
+ * list moving with it — test/status-lines.test.js pins the two together by
+ * scanning this file's payload.* accesses.
+ */
+var SOURCE_KEYS = [
+  'CITY',
+  'CURRENT_TEMP',
+  'FEELS_CURRENT',
+  'SUN_EVENTS',
+  'UV_TREND_UINT8',
+  'WIND_TREND_UINT8',
+  'GUST_TREND_UINT8',
+  'WIND_DIR_TREND',
+  'PRESSURE_TREND',
+  'DEW_TREND',
+  'AQI_TREND',
+  'POLLEN_TODAY'
+];
+
 module.exports = {
   buildStatusLines: buildStatusLines,
+  SOURCE_KEYS: SOURCE_KEYS,
   packLine: packLine,
   formatValue: formatValue,
   formatCountdown: formatCountdown,

@@ -1014,3 +1014,42 @@ test('buildStatusLines derives env.phoneBattery from the persisted detector verd
   assert.equal(slot.kind, catalog.KINDS.EMPTY);
   assert.equal(slot.text, '');
 });
+
+// ── SOURCE_KEYS is the snapshot contract ──────────────────────────────────────
+//
+// phone-battery.js persists exactly the payload slice named by SOURCE_KEYS so a
+// charging event can re-bake after a PKJS restart. If a new slot starts reading a
+// payload key that is not on the list, the key is absent from the restored blob
+// and that slot silently re-bakes as '--' -- no throw, no failing assertion, just
+// a wrong watchface after every relaunch. So pin the list to the code: scan both
+// baking modules for payload.<KEY> accesses and require the list to match.
+//
+// Deliberately an exact set equality, not a subset check: an EXTRA key on the list
+// is dead weight persisted to flash on every fetch, which is worth catching too.
+test('SOURCE_KEYS matches every payload key the bake reads', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const SRC = path.join(__dirname, '..', 'src', 'pkjs');
+  const read = (f) => fs.readFileSync(path.join(SRC, f), 'utf8');
+
+  // Written by the bake, never read from an incoming payload — so not snapshot input.
+  const WRITTEN = new Set(['STATUS_LEVELS_UINT8']);
+
+  const seen = new Set();
+  for (const file of ['status-lines.js', 'status-thresholds.js']) {
+    for (const m of read(file).matchAll(/payload\.([A-Z][A-Z_0-9]*)/g)) {
+      if (!WRITTEN.has(m[1])) { seen.add(m[1]); }
+    }
+  }
+
+  const declared = new Set(statusLines.SOURCE_KEYS);
+  const missing = [...seen].filter((k) => !declared.has(k)).sort();
+  const extra = [...declared].filter((k) => !seen.has(k)).sort();
+
+  assert.deepEqual(missing, [], 'payload keys read by the bake but absent from '
+    + 'status-lines.js SOURCE_KEYS -- they would restore as undefined after a PKJS '
+    + 'restart and re-bake as "--". Add them and bump SNAPSHOT_VERSION in phone-battery.js.');
+  assert.deepEqual(extra, [], 'keys on SOURCE_KEYS that the bake never reads -- '
+    + 'dead weight persisted to flash on every fetch.');
+  assert.ok(declared.size > 0);
+});

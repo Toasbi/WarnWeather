@@ -111,7 +111,8 @@ var STATUS_KEYS = [
 var BUCKET_STEP = 5;
 
 /**
- * Version stamp on the persisted snapshot. BUMP IT whenever SNAPSHOT_KEYS or the
+ * Version stamp on the persisted snapshot. BUMP IT whenever status-lines.js's
+ * SOURCE_KEYS or the
  * stored shape changes: a blob written by an older build is then rejected on
  * restore (and dropped) rather than fed to the baker as a payload missing keys
  * it now expects.
@@ -119,29 +120,24 @@ var BUCKET_STEP = 5;
 var SNAPSHOT_VERSION = 1;
 
 /**
- * The payload keys buildStatusLines() actually reads. These ARE the persisted
- * payload — nothing else off the (much larger) weather payload rides along, so
- * the blob stays around a kilobyte however big a fetch was. Enumerated from
- * status-lines.js: formatValue (CITY, CURRENT_TEMP, FEELS_CURRENT,
- * SUN_EVENTS, UV/WIND/GUST/PRESSURE/DEW/AQI trends, POLLEN_TODAY),
- * directionSentinel (WIND_DIR_TREND), and status-thresholds' packWeatherLevels,
- * whose displayValue() reads only keys already in this list. Keep it in lockstep
- * with those two modules and bump SNAPSHOT_VERSION when it changes.
+ * The payload keys buildStatusLines() actually reads, and therefore exactly what
+ * gets persisted — nothing else off the (much larger) weather payload rides
+ * along, so the blob stays around a kilobyte however big a fetch was.
+ *
+ * NOT duplicated here: status-lines.js owns the list as SOURCE_KEYS, next to the
+ * formatValue arms that read them, and a test pins the two together. A local copy
+ * would rot silently — a new slot reading a new payload key would re-bake as '--'
+ * after a restart with nothing failing.
+ *
+ * Required LAZILY for the same reason resend() does it: status-lines.js requires
+ * THIS module back (formatValue needs the cached reading), so a top-level require
+ * here would close the cycle.
+ *
+ * @returns {string[]} The payload keys to persist.
  */
-var SNAPSHOT_KEYS = [
-    'CITY',
-    'CURRENT_TEMP',
-    'FEELS_CURRENT',
-    'SUN_EVENTS',
-    'UV_TREND_UINT8',
-    'WIND_TREND_UINT8',
-    'GUST_TREND_UINT8',
-    'WIND_DIR_TREND',
-    'PRESSURE_TREND',
-    'DEW_TREND',
-    'AQI_TREND',
-    'POLLEN_TODAY'
-];
+function snapshotKeys() {
+    return require('./status-lines.js').SOURCE_KEYS;
+}
 
 var deps = {};        // injected environment (see init)
 var manager = null;   // the live BatteryManager, once one was found
@@ -309,20 +305,21 @@ function read() {
 }
 
 /**
- * The bake-relevant slice of a weather payload: the SNAPSHOT_KEYS that are
+ * The bake-relevant slice of a weather payload: the source keys that are
  * actually present, and nothing else. The full payload carries the whole
  * forecast series (temps, precip, the two radar series) — none of which the
  * status bake reads, and all of which would be dead weight on flash.
  *
  * @param {Object} payload Weather payload, pre-transform.
- * @returns {Object} A new object with the present SNAPSHOT_KEYS only.
+ * @returns {Object} A new object with the present source keys only.
  */
 function snapshotPayload(payload) {
+    var keys = snapshotKeys();
     var out = {};
     var i;
     var key;
-    for (i = 0; i < SNAPSHOT_KEYS.length; i += 1) {
-        key = SNAPSHOT_KEYS[i];
+    for (i = 0; i < keys.length; i += 1) {
+        key = keys[i];
         if (Object.prototype.hasOwnProperty.call(payload, key)) {
             out[key] = payload[key];
         }
