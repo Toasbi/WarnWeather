@@ -255,13 +255,71 @@ function drop(key) {
 }
 
 /**
+ * The navigator to probe: the injected one when init() was given a `navigator`
+ * key (tests), else the ambient global, else null. Resolved through one helper
+ * so a lazy probe and init()'s own detect() can never disagree about what they
+ * are looking at.
+ *
+ * @returns {Object|null} The navigator, or null where there is none.
+ */
+function currentNavigator() {
+    if (Object.prototype.hasOwnProperty.call(deps, 'navigator')) { return deps.navigator; }
+    return typeof navigator !== 'undefined' ? navigator : null;
+}
+
+/**
+ * The capability test itself, with no side effects and no subscription — the one
+ * definition of "this runtime can report a battery", shared by detect() and by
+ * isSupported()'s lazy probe so the two can never drift apart.
+ *
+ * @param {Object|null} nav The navigator to probe.
+ * @returns {boolean} True when some battery API is exposed.
+ */
+function probe(nav) {
+    if (!nav) { return false; }
+    if (typeof nav.getBattery === 'function') { return true; }
+    return Boolean(nav.battery && typeof nav.battery === 'object');
+}
+
+/**
  * Whether this phone's runtime exposes a battery API at all. Persisted, so the
  * config page's env can omit the slot items before any reading has landed.
+ *
+ * SELF-HEALING when NO verdict is stored, because the stored one can legitimately
+ * be missing at the moment this is read. detect() runs from init(), and init()
+ * runs from the 'ready' handler -- but 'showConfiguration' does NOT reliably
+ * follow a 'ready' in the Core Devices Android app (observed live: a config open
+ * logged the env verdict with no detect() line before it), and "Reset watchface"
+ * wipes the verdict outright via localStorage.clear() (clay-settings.js
+ * resetAll). Either way the next config open would read a missing key as false
+ * and silently OMIT both phone-battery items from all twelve slot dropdowns --
+ * leaving only the top-right slot's Battery group, which is made of the two WATCH
+ * items and reads as "the phone item only works there".
+ *
+ * A stored 'false' is NEVER re-probed: that is a real verdict, including the one
+ * detect() writes when getBattery() exists but REJECTS, and re-probing would
+ * flip it back to true on the strength of the method merely existing.
+ *
+ * The probe is capability-only -- no getBattery() call, no subscription -- so it
+ * is safe on this path, which runs outside init() and therefore without deps.
+ * The real detect() still runs at the next 'ready' and can still overrule it.
  *
  * @returns {boolean} True when the API was detected on this phone.
  */
 function isSupported() {
-    return load(KEYS.PHONE_BATTERY_SUPPORTED) === 'true';
+    var stored = load(KEYS.PHONE_BATTERY_SUPPORTED);
+    var found;
+    if (stored !== null) { return stored === 'true'; }
+    found = probe(currentNavigator());
+    // Only remembered -- and only announced -- where there IS a store. The baker
+    // calls in on every status-line build, so a host without storage (Node, in
+    // tests) would otherwise re-probe and log on every one.
+    if (store()) {
+        console.log('phone-battery: no stored verdict (fresh install, or a "Reset'
+            + ' watchface" before the next ready); probed ' + found + '.');
+        setSupported(found);
+    }
+    return found;
 }
 
 /**
@@ -655,6 +713,7 @@ function installDevFake(devConfig) {
  */
 function detect(nav) {
     if (!nav) {
+        console.log('phone-battery: no navigator in this runtime; slot items off.');
         setSupported(false);
         return;
     }
@@ -665,6 +724,7 @@ function detect(nav) {
         setSupported(true);
         try {
             nav.getBattery().then(function (mgr) {
+                console.log('phone-battery: BatteryManager acquired.');
                 subscribe(mgr);
             }, function (err) {
                 console.log('phone-battery: getBattery rejected: ' + (err && err.message));
@@ -677,13 +737,25 @@ function detect(nav) {
         }
         return;
     }
-    if (nav.battery && typeof nav.battery === 'object') {
-        // Legacy navigator.battery, kept because the reference implementation
-        // handles it and it costs three lines.
+    if (probe(nav)) {
+        // Legacy navigator.battery -- probe() has already ruled out getBattery
+        // above, so reaching here means this is the branch it matched. Kept
+        // because the reference implementation handles it and it costs three lines.
+        console.log('phone-battery: legacy navigator.battery in use.');
         setSupported(true);
         subscribe(nav.battery);
         return;
     }
+    // The one verdict with no visible cause anywhere: a navigator that exposes no
+    // battery API at all. It makes BOTH slot items vanish from EVERY slot dropdown
+    // (needsPhoneBattery omits rather than disables), and the only trace on screen
+    // is that the Battery group survives in the top-right slot alone -- where the
+    // two WATCH items still live -- which reads as "the phone item only works
+    // top-right". Name what the navigator actually had, and which runtime it was:
+    // the user agent is the Android-WebView / iOS-JavaScriptCore discriminator.
+    console.log('phone-battery: no battery API on this navigator (getBattery='
+        + (typeof nav.getBattery) + ', battery=' + (typeof nav.battery)
+        + ', ua=' + (nav.userAgent || 'none') + '); slot items off.');
     setSupported(false);
 }
 
@@ -718,9 +790,7 @@ function init(options) {
     // for still finds nothing to re-bake.
     restored = restoreSnapshot();
     if (installDevFake(deps.devConfig)) { return; }
-    detect(Object.prototype.hasOwnProperty.call(deps, 'navigator')
-        ? deps.navigator
-        : (typeof navigator !== 'undefined' ? navigator : null));
+    detect(currentNavigator());
 }
 
 /**

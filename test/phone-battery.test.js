@@ -190,6 +190,71 @@ test('the dev-config fake supplies a reading with no navigator at all', () => {
   assert.deepEqual(phoneBattery.read(), { available: true, level: 62, charging: true });
 });
 
+// --- The verdict has to outlive the session that took it -------------------
+// isSupported() is read by the config page -- which gates BOTH slot items on it
+// -- and by every bake. detect() runs only from init(), i.e. only from 'ready',
+// so by the time those readers ask, the stored verdict can be missing.
+
+test('"Reset watchface" wipes the verdict, and the next read re-probes it', () => {
+  // clay-settings.js resetAll() calls localStorage.clear(), which takes the
+  // detector verdict with it. Nothing re-runs detect() until the next 'ready',
+  // and 'showConfiguration' does not reliably follow one in the Core Devices
+  // Android app -- so without the lazy probe the very next config open omits both
+  // phone-battery items from all twelve dropdowns on a phone that plainly
+  // supports them, which is the bug this test exists for.
+  boot({ navigator: modernNavigator(fakeManager(0.62, false)) });
+  assert.equal(phoneBattery.isSupported(), true);
+  storage = {};                              // <- localStorage.clear()
+  assert.equal(phoneBattery.isSupported(), true, 'the capability survived the wipe');
+  assert.equal(storage[KEYS.PHONE_BATTERY_SUPPORTED], 'true',
+    're-probed AND re-persisted, so the baker and the config env agree');
+});
+
+test('the legacy navigator.battery shape is re-probed too', () => {
+  boot({ navigator: legacyNavigator(fakeManager(0.41, false)) });
+  storage = {};
+  assert.equal(phoneBattery.isSupported(), true);
+});
+
+test('a phone with no battery API re-probes to a persisted false', () => {
+  boot({ navigator: { userAgent: 'PKJS', geolocation: {}, language: 'de' } });
+  storage = {};
+  assert.equal(phoneBattery.isSupported(), false);
+  assert.equal(storage[KEYS.PHONE_BATTERY_SUPPORTED], 'false',
+    'written once, so the baker does not re-probe on every status-line build');
+});
+
+test('a stored false is a real verdict and is never re-probed', () => {
+  // getBattery() EXISTS here but REJECTS, so detect() wrote false. The lazy probe
+  // only tests for the method, so re-probing would flip that back to true and
+  // offer a slot this phone cannot actually fill.
+  boot({ navigator: { getBattery: function () {
+    return { then: function (onOk, onErr) { onErr(new Error('denied')); } };
+  } } });
+  assert.equal(storage[KEYS.PHONE_BATTERY_SUPPORTED], 'false');
+  assert.equal(phoneBattery.isSupported(), false, 'the rejection sticks');
+  assert.equal(phoneBattery.isSupported(), false, 'and keeps sticking');
+});
+
+test('after a wipe the items are still offered in EVERY slot, not just top-right', () => {
+  // The user-visible shape of the bug: needsPhoneBattery OMITS rather than
+  // disables, so a false verdict strips both items from all twelve dropdowns and
+  // leaves the top-right slot's Battery group -- made of the two WATCH items --
+  // as the only trace, which reads as "the phone item only works top-right".
+  boot({ navigator: modernNavigator(fakeManager(0.62, false)) });
+  storage = {};
+  const env = { color: true, round: false, platform: 'basalt', health: true,
+                hr: false, phoneBattery: phoneBattery.isSupported() };
+  catalog.LINES.forEach((line) => {
+    line.slots.forEach((slotKey, i) => {
+      const codes = catalog.slotOptions({}, env,
+        { slotKey: slotKey, position: ['left', 'mid', 'right'][i] }).map((o) => o[1]);
+      assert.ok(codes.includes('phoneBattery'), slotKey + ' offers Phone battery');
+      assert.ok(codes.includes('phoneBatteryPlain'), slotKey + ' offers the no-icon variant');
+    });
+  });
+});
+
 // --- Bucketing: the SEND TRIGGER only --------------------------------------
 // The 5-point bucket decides WHEN a resend fires; it never decides what the
 // watch displays. That is the exact percentage (levelPercent), cached on every

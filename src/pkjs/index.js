@@ -171,6 +171,12 @@ Pebble.addEventListener('showConfiguration', function(e) {
         newsCache: newsCache.readBody() || ''
     };
     var values = claySettings.read();
+    // Logged, not just passed: false here silently OMITS both phone-battery slot
+    // items from all twelve slot dropdowns, and nothing on the page says why. This
+    // is the only place that verdict is read, so it is the only place it can be
+    // observed at the moment it decides what the user is offered.
+    var phoneBatteryEnv = phoneBattery.isSupported();
+    console.log('Config env: phoneBattery=' + phoneBatteryEnv);
     // Let the library pick the return target: pebblejs://close# on device, or the
     // $$RETURN_TO$$ helper placeholder in the emulator (see settings/index.js options).
     Pebble.openURL(settings.generateUrl({
@@ -182,7 +188,7 @@ Pebble.addEventListener('showConfiguration', function(e) {
         // the emulator never can. The catalog's needsPhoneBattery gate omits the
         // phone-battery slot items wherever this is false. Merged over the derived env
         // by createConfig, so this stays a single key.
-        env: { phoneBattery: phoneBattery.isSupported() },
+        env: { phoneBattery: phoneBatteryEnv },
         userData: userData
     }));
     console.log('Showing clay: ' + JSON.stringify(values));
