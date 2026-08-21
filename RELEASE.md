@@ -11,16 +11,41 @@ Flow:
 
 ## Release notification requirements
 
-Every release needs two things beyond the code, or the release PR fails CI:
+### Boot toast — feature releases only
 
-- A `release-notifications.json` entry keyed by the exact new version string, with
-  non-empty `title` + `body` — the upgrade "what's new" toast. The *Release
-  Notification Required* workflow (`.github/workflows/release-notification-required.yml`,
-  running `scripts/check-release-notification.js`) fails the release PR without it.
-- A row in the `public.news` Supabase table with `target_version` set to the exact
-  new version string — the longer changelog shown in the settings screen's News &
-  Feedback section. See `AGENTS.md`'s "Commits & releases" section for the full
-  requirements and style guide for both.
+A `release-notifications.json` entry keyed by the exact new version string, with
+non-empty `title` + `body`. The toast interrupts the user on first launch after an
+upgrade, so it is spent on releases that give them something to do:
+
+| Release | Version shape | Toast entry |
+|---------|---------------|-------------|
+| Feature (`feat:`) | `x.y.0` | **Required** — the release PR fails CI without one |
+| Fix-only (`fix:`) | `x.y.z`, z > 0 | **Optional** — omit it and nothing shows |
+
+The *Release Notification Required* workflow
+(`.github/workflows/release-notification-required.yml`, running
+`scripts/check-release-notification.js`) enforces exactly that. An entry that IS
+present is validated at any version — a half-filled one still fails, because
+`prepare-package.sh` throws on it.
+
+Skipping it on a patch is safe by construction: `prepare-package.sh` injects
+`pkg.releaseNotification` only when the manifest holds the version being built, and
+the watch shows the newest *unseen* entry at or below the running version. So
+1.13.1 → 1.13.2 shows nothing, while 1.13.0 → 1.13.2 still shows the 1.13.1 toast
+that user never saw.
+
+**Watch for `Release-As:`** pinning a *feature* to a patch version (1.13.1 did
+exactly this). The check reads the version, not the commits, so it will not ask for a
+toast on the release that most wants one — add it by hand in that case.
+
+### News row — every release
+
+A row in the `public.news` Supabase table with `target_version` set to the exact new
+version string — the longer changelog shown in the settings screen's News & Feedback
+section. This has **no feature/patch exemption**, and **nothing in CI enforces it**,
+so it is on you at release time.
+
+See `AGENTS.md`'s "Commits & releases" section for the style guide for both.
 
 ## Developer portals
 

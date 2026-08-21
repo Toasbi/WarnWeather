@@ -215,15 +215,25 @@ and hosted-deploy commands are in `DEV.md` / `CONTRIBUTING.md`.
   conventional commits to `main` opens/updates a release PR that bumps the version in
   `package.template.json` (`$.version`); merging that PR tags the release and uploads
   `build/warnweather.pbw`. The commit prefixes drive the version bump, so they matter.
-- **Every release needs a `release-notifications.json` entry.** Add one keyed by the exact
-  new version string (e.g. `"1.4.0"`) with non-empty `title` + `body` — the upgrade
-  "what's new" toast. The *Release Notification Required* CI check
-  (`scripts/check-release-notification.js`) fails the release PR without it.
-  `prepare-package.sh` injects the matching entry into `package.json`; preview the copy
-  locally with `forceShowReleaseNotificationOnBoot` in `dev-config.js`. See `RELEASE.md`.
-- **Every release also needs a detailed news entry in the `public.news` Supabase table**
-  (hosted news backend — the *News & Feedback* section of the settings screen, not the
-  boot toast above). Insert one row with `target_version` set to the **exact** new version
+- **A FEATURE release needs a `release-notifications.json` entry; a fix-only patch does
+  not.** The entry is keyed by the exact new version string (e.g. `"1.4.0"`) with
+  non-empty `title` + `body` — the upgrade "what's new" toast. It interrupts the user on
+  first launch after an upgrade, so it is spent on releases that give them something to
+  do: **required for `x.y.0`, optional for `x.y.z` (z > 0)**. The *Release Notification
+  Required* CI check (`scripts/check-release-notification.js`) enforces exactly that, and
+  still rejects a half-filled entry at ANY version — `prepare-package.sh` throws on one.
+  Omitting it is safe by construction: `prepare-package.sh` injects
+  `pkg.releaseNotification` only when the manifest holds the built version, and the watch
+  shows the newest *unseen* entry at or below the running version — so 1.13.1 → 1.13.2
+  shows nothing while 1.13.0 → 1.13.2 still shows the 1.13.1 toast it never saw. Watch for
+  `Release-As:` pinning a FEATURE to a patch version (1.13.1 did): the check reads the
+  version, not the commits, so it won't ask for a toast on the release that most wants
+  one — add it by hand there. Preview the copy locally with
+  `forceShowReleaseNotificationOnBoot` in `dev-config.js`. See `RELEASE.md`.
+- **Every release — patches included — needs a detailed news entry in the `public.news`
+  Supabase table** (hosted news backend — the *News & Feedback* section of the settings
+  screen, not the boot toast above). Unlike that toast, this one has no feature/patch
+  exemption and **nothing in CI enforces it**, so it is on you at release time. Insert one row with `target_version` set to the **exact** new version
   string (e.g. `'1.9.2'`) so it's shown only to watches on that build — never leave it
   `NULL` (that broadcasts to everyone). The `release-notifications.json` toast is a one-line
   summary; the news `body_md` is the longer changelog. Match the style of the existing

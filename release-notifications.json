@@ -130,9 +130,5 @@
   "1.13.1": {
     "title": "Phone battery slot",
     "body": "Your phone's battery can go in any status slot, with or without a phone glyph. Android phones only."
-  },
-  "1.13.2": {
-    "title": "Phone battery slot fix",
-    "body": "Reset watchface no longer makes the phone battery options disappear from the status slot pickers. Android phones only."
   }
 }
