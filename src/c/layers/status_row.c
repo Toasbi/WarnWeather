@@ -296,6 +296,18 @@ static void apply_battery_override(const StatusRow *row, int slot_index, StatusS
     }
 }
 
+// The phone-battery slots. Three icon ids mark a slot whose text the PHONE baked
+// from its OWN charge; there is no kind-level marker, the kind is plain SLOT_TEXT
+// exactly like a city name, so the icon id is the only discriminator. Ids 16/17 are
+// the same catalog item (the phone picks the charging glyph at bake time, which is
+// why charging costs no wire field); id 18 is the no-icon variant.
+static bool is_phone_battery_slot(const StatusSlotView *slot) {
+    return slot->kind == SLOT_TEXT
+        && (slot->icon == STATUS_ICON_PHONE_BATTERY
+            || slot->icon == STATUS_ICON_PHONE_BATTERY_CHG
+            || slot->icon == STATUS_ICON_PHONE_BATTERY_PLAIN);
+}
+
 // Materialise one slot's display text, and report the wind-direction sector
 // (0..15, -1 = none) the phone baked into its trailing byte.
 //
@@ -308,6 +320,21 @@ static int8_t resolve_slot_text(const StatusRow *row, const StatusSlotView *slot
                                 char *buf, size_t cap) {
     if (cap == 0) { return -1; }
     if (slot->kind == SLOT_TEXT) {
+        // The Bluetooth freshness rule: the link IS the phone-battery reading's
+        // timestamp. Every other slot's text is either read live on-device or
+        // refreshed by a phone that is, by definition, still alive to send it —
+        // this one is neither. Its text is already on flash
+        // (persist_set_status_line) and re-renders every minute forever, surviving
+        // a watch relaunch, so a phone that DIED would leave the face confidently
+        // showing "8%" indefinitely. A dead phone drops the link, so no link means
+        // the charge is unknowable: render "--" and ignore what was persisted.
+        // Costs no wire byte, no timestamp and no age arithmetic. The peek is
+        // reached only by a phone-battery slot, so no other slot pays for it.
+        if (is_phone_battery_slot(slot)
+                && !connection_service_peek_pebble_app_connection()) {
+            snprintf(buf, cap, "--");
+            return -1;   // a phone-battery slot never carries a wind sentinel
+        }
         int8_t dir = status_slot_direction(slot);
         size_t n = slot->value_len;
         if (dir >= 0) { n--; }   // drop the sentinel; see status_row_direction.h
@@ -502,6 +529,27 @@ bool status_row_refresh(StatusRow *row) {
                                   (uint8_t) (bs.is_charging || bs.is_plugged) };
                 sig = sig_fold(sig, bt, 2);
             }
+            // The phone-battery slots' companion fold, the same treatment the
+            // watch battery gets just above. resolve_slot_text has already folded
+            // "--" in place of the persisted text while the link is down, so the
+            // common case is covered by the text alone — but a slot whose baked
+            // text IS "--" (no reading yet, or the user moved to a phone without
+            // the API) folds identically connected or not, and would sit there
+            // unrepainted through a transition. Fold the state itself and the row
+            // cannot miss one.
+            //
+            // Deliberately NO connection_service_subscribe() here: the SDK keeps a
+            // single app-wide ConnectionHandlers struct, so a second subscribe
+            // would silently replace top_status_layer.c's handler (the BT icon and
+            // the disconnect vibe) — and a row is a multi-instance object whose
+            // destroy would then unsubscribe on the others' behalf. The strip's
+            // existing callback repaints the strip, and every other row picks the
+            // change up on the next minute tick.
+            if (is_phone_battery_slot(&slot)) {
+                uint8_t connected =
+                    (uint8_t)connection_service_peek_pebble_app_connection();
+                sig = sig_fold(sig, &connected, 1);
+            }
             // battery has its own event source (battery_state_service) and is not
             // health — keep both battery kinds out of the live-health refresh gate.
             if (slot.kind >= SLOT_LIVE_STEPS && slot.kind != SLOT_LIVE_BATTERY
@@ -539,7 +587,11 @@ static void ensure_glyphs(StatusRow *row, int len, int content_h) {
                     && slot.icon != STATUS_ICON_DRAWN_SUN
                     // PRESSURE is text-only by contract (status_line.h): no PDC
                     // exists, so never attempt a load and reserve no icon width.
-                    && slot.icon != STATUS_ICON_PRESSURE) {
+                    && slot.icon != STATUS_ICON_PRESSURE
+                    // Same contract for the no-icon phone-battery variant: the id
+                    // exists only to keep it off THRESH_CITY's bold row, and no
+                    // glyph may load for it.
+                    && slot.icon != STATUS_ICON_PHONE_BATTERY_PLAIN) {
                 wanted = slot.icon;
             }
         }

@@ -567,7 +567,7 @@ module.exports = {
                 messageKey: 'sleepNightEnabled',
                 label: 'Night battery saver',
                 defaultValue: true,
-                hint: 'Stop fetching weather between the hours below to save battery.'
+                hint: 'Stop sending updates to your watch between the hours below to save battery.'
             }, {
                 type: 'select',
                 messageKey: 'sleepStartHour',
@@ -1242,8 +1242,8 @@ module.exports = {
             'Distance walked per day.', HEALTH_SLOT_WHEN),
         // Bold-only sheets for the level-less slot kinds (same pencil, one row —
         // plus Temp's display-mode row). Order and labels mirror the contract's
-        // KINDS appendix (wire ids 8..17); the battery GLYPH item is deliberately
-        // absent — see boldSection (the battery PERCENTAGE kind sits at the end).
+        // KINDS appendix (wire ids 8..19); the battery GLYPH item is deliberately
+        // absent — see boldSection (the battery PERCENTAGE kind sits near the end).
         // "Temperature slot", not the catalog's "Temperature (actual/feels like)":
         // the parenthetical exists to advertise the choice from the dropdown, and
         // repeating it on the sheet that MAKES the choice is noise.
@@ -1286,7 +1286,15 @@ module.exports = {
         boldSection('Heart rate', 'Hr', HR_SLOT_WHEN),
         boldSection('Battery percentage', 'BatteryPct'),
         // Dew point shares temperature's degree sign and its reasoning.
-        boldSection('Dew point', 'Dew', null, [unitRow('dewSlotUnit', false, '12°', '12')])]
+        boldSection('Dew point', 'Dew', null, [unitRow('dewSlotUnit', false, '12°', '12')]),
+        // ONE sheet for TWO catalog items: 'phoneBattery' (icon + NN%) and
+        // 'phoneBatteryPlain' (NN%, no icon) are separate wire kinds (18/19) so the
+        // no-icon variant can't drive City's bold row, but both KINDS entries share
+        // key 'PhoneBattery' — and the sheet resolver returns 'thresh' + key
+        // (blocks.js statusSlotEditSheet), so both pencils open this sheet and the
+        // one mode packs into both cells. Android-only on the slot side; the sheet
+        // needs no extra gate, because a slot that can't be chosen never opens it.
+        boldSection('Phone battery', 'PhoneBattery')]
     }, {
         id: 'layout', label: 'Layout', sections: [{
             intro: 'How the watchface is arranged, and what a wrist-flick reveals — shown side by side in the preview. What a metric means or how it\'s coloured lives in its own tab.',

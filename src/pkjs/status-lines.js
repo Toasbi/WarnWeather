@@ -270,6 +270,41 @@ function formatCountdown(targetValue, now, showUnit, cap) {
 }
 
 /**
+ * The phone's cached battery reading, or null when there is none.
+ *
+ * Required LAZILY, not at the top of this module, because phone-battery.js
+ * requires THIS module back: a battery event re-runs buildStatusLines over the
+ * stashed bake inputs so the new value reaches the watch without a fetch. A pair
+ * of top-level requires would hand whichever module loaded second the other's
+ * still-empty exports. Same shape, and the same reason, as
+ * weather/air-quality.js requiring provider.js inside its functions.
+ *
+ * The typeof guard is deliberate rather than paranoid: this runs inside the bake
+ * for ALL FOUR status lines, so a phone-battery module that cannot answer has to
+ * degrade this ONE slot to '--' instead of throwing and taking the whole status
+ * bar down with it.
+ *
+ * @returns {{available: boolean, level: (number|null), charging: boolean}|null}
+ *   the cached EXACT percentage and charging flag; `available` is false until a
+ *   real reading has landed, and null only if the module cannot answer at all
+ */
+function phoneBatteryReading() {
+  var mod = require('./phone-battery.js');
+  return typeof mod.read === 'function' ? mod.read() : null;
+}
+
+/**
+ * Whether this PKJS host can read the phone's battery at all -- the persisted
+ * PHONE_BATTERY_SUPPORTED detector result, true only inside Android's Chromium
+ * WebView. See phoneBatteryReading for why the require is lazy and guarded.
+ * @returns {boolean}
+ */
+function phoneBatterySupported() {
+  var mod = require('./phone-battery.js');
+  return typeof mod.isSupported === 'function' ? Boolean(mod.isSupported()) : false;
+}
+
+/**
  * Format one catalog item's display text from the payload.
  * @param {string} code catalog item code (TEXT kinds only)
  * @param {Object} payload weather payload (pre-transform)
@@ -364,6 +399,37 @@ function formatValue(code, payload, settings, slotKey, cap) {
     return payload.POLLEN_TODAY === null || typeof payload.POLLEN_TODAY === 'undefined'
       ? '--' : String(payload.POLLEN_TODAY);
   }
+  // Both phone-battery items render the same text; they differ only in the icon
+  // id they pack (see iconFor). The value is baked here from the phone's own
+  // cached reading rather than sourced from the payload -- it is the one status
+  // item that has nothing to do with the weather fetch, which is exactly what
+  // lets a battery event re-send it while a provider key is expired.
+  if (code === 'phoneBattery' || code === 'phoneBatteryPlain') {
+    var pb = phoneBatteryReading();
+    // '--' covers both "this phone has no battery API" and "Android, but no
+    // event has landed yet". It is also what the watch substitutes whenever
+    // Bluetooth is down (status_row.c's freshness rule), so the two paths agree
+    // by construction and a dead phone never leaves a stale percentage on flash.
+    if (!pb || !pb.available || typeof pb.level !== 'number') { return '--'; }
+    // The EXACT percentage, never phone-battery.js's 5-point bucket: the bucket
+    // is that module's SEND TRIGGER (a BLE-wake-up budget) and has no business
+    // deciding what the slot says. A phone at 31% that gets plugged in shows
+    // '31%', not the '30%' the trigger happens to be named after.
+    //
+    // Intended consequence, and it is the good half of the trade: this bake runs
+    // on EVERY weather fetch (applyForecastSeries -> buildStatusLines, default
+    // every 15 min), so the displayed number now also refreshes on those fetches
+    // rather than only when the bucket moves. Max staleness drops from "until the
+    // next 5-point step" to about one fetch interval. The cost is that the
+    // outbox's all-or-nothing 'status' category goes dirty more often, so a
+    // cycle that would have skipped its send entirely may now send it -- paid
+    // only on Android, and only when a slot actually holds this item.
+    //
+    // '%' is part of the value, not a per-kind unit: there is no bare-number
+    // reading of a battery charge, so it takes no unitEnabled toggle and no
+    // withUnit cap check. '100%' is 4 of the edge slot's 8 bytes at worst.
+    return String(pb.level) + '%';
+  }
   return '--';
 }
 
@@ -416,6 +482,32 @@ function directionSentinel(code, payload, settings, env, text) {
 }
 
 /**
+ * The icon id to pack for one resolved item.
+ *
+ * Every other item packs the static `icon` off its catalog entry. 'phoneBattery'
+ * is the single item whose icon is chosen PER BAKE: the phone swaps in the
+ * charging glyph while it charges, so charging state reaches the watch as a
+ * different id inside a byte the slot already pays for -- no wire field, no
+ * watch-side logic, no C plumbing. 'phoneBatteryPlain' draws nothing in either
+ * state, so its id never varies; it exists only so the no-icon variant does not
+ * arrive as TEXT + NONE and inherit City's bold mode (status_threshold.h).
+ *
+ * Resolved into a local exactly like `kind` is for the imperial distance slot --
+ * the catalog entry itself is shared and must never be mutated.
+ *
+ * @param {string} code catalog item code
+ * @param {Object} item the resolved catalog entry
+ * @returns {number} STATUS_ICON_* id to pack
+ */
+function iconFor(code, item) {
+  if (code === 'phoneBattery') {
+    var pb = phoneBatteryReading();
+    if (pb && pb.charging) { return catalog.ICONS.PHONE_BATTERY_CHG; }
+  }
+  return item.icon;
+}
+
+/**
  * @param {Object} line catalog line definition
  * @param {Object} payload weather payload
  * @param {Object} settings Clay settings blob
@@ -437,11 +529,14 @@ function packLine(line, payload, settings, env) {
     if (code === 'distance' && settings && settings.distanceUnits === 'imperial') {
       kind = catalog.KINDS.LIVE_DISTANCE_MI;
     }
+    // Likewise resolved per bake rather than read straight off the entry: today
+    // only the charging phone-battery glyph varies (see iconFor).
+    var icon = iconFor(code, item);
     if (env.platform === 'aplite' && item.kind === catalog.KINDS.LIVE_WEEK) {
       // aplite has no watch-side iso_week() (reaped for image budget), so the
       // phone bakes the ISO week as an ordinary TEXT slot instead.
       var weekBytes = utf8Truncate(utf8Encode('W' + isoWeek(new Date())), textCap(s));
-      bytes.push(catalog.KINDS.TEXT, item.icon, weekBytes.length);
+      bytes.push(catalog.KINDS.TEXT, icon, weekBytes.length);
       for (var wb = 0; wb < weekBytes.length; wb++) { bytes.push(weekBytes[wb]); }
     } else if (item.kind === catalog.KINDS.TEXT) {
       // The cap goes DOWN into formatValue so a per-kind unit can decline to
@@ -457,10 +552,10 @@ function packLine(line, payload, settings, env) {
       // the byte before measuring or drawing the text.
       var dirByte = directionSentinel(code, payload, settings, env, text);
       if (dirByte && valueBytes.length < textCap(s)) { valueBytes.push(dirByte); }
-      bytes.push(item.kind, item.icon, valueBytes.length);
+      bytes.push(item.kind, icon, valueBytes.length);
       for (var b = 0; b < valueBytes.length; b++) { bytes.push(valueBytes[b]); }
     } else {
-      bytes.push(kind, item.icon, 0);
+      bytes.push(kind, icon, 0);
     }
   }
   return bytes;
@@ -479,6 +574,15 @@ function packLine(line, payload, settings, env) {
  */
 function buildStatusLines(payload, settings, watchInfo) {
   var env = platformLib.computeEnv(watchInfo);
+  // computeEnv derives WATCH facts from watchInfo and nothing else, but the two
+  // phone-battery items are gated on a PHONE fact: whether this PKJS host
+  // exposes the Battery Status API (Android's Chromium WebView only). The flag
+  // has to be added here or itemAvailable() fails the gate and resolveSelection()
+  // collapses every configured phone-battery slot to 'empty' -- the slot would
+  // silently disappear even on a phone that CAN read its battery. The config
+  // page threads the same flag into its own env through config-ui/index.js'
+  // opts.env, so both sides answer from the one PHONE_BATTERY_SUPPORTED key.
+  env.phoneBattery = phoneBatterySupported();
   for (var l = 0; l < catalog.LINES.length; l++) {
     var line = catalog.LINES[l];
     payload[line.wireKey] = packLine(line, payload, settings, env);

@@ -32,6 +32,7 @@ var newsCache = require('./news-cache.js');
 var createChannelScheduler = require('./channel-scheduler.js');
 var statusCatalog = require('./status-line-catalog.js');
 var statusThresholds = require('./status-thresholds.js');
+var phoneBattery = require('./phone-battery.js');
 
 /**
  * Full release-notification manifest (dev: force-show by version). Omitted from bundle if missing.
@@ -112,7 +113,7 @@ var scheduler = createChannelScheduler({
     startFetch: function (force) { fetch(app.provider, force); },
     shouldFetchNow: function () { return needRefresh(); },
     refreshHolidays: refreshHolidays,
-    checkForUpdate: maybeCheckForUpdate,
+    checkForUpdate: onSchedulerTick,
     clearClayCache: outbox.clearClayCache,
     clearWeatherCaches: outbox.clearWeatherCaches,
     clearNoticeOnWatch: function () { outbox.sendWeather({ NOTICE_TEXT: '' }); },
@@ -175,6 +176,13 @@ Pebble.addEventListener('showConfiguration', function(e) {
     Pebble.openURL(settings.generateUrl({
         values: values,
         watchInfo: app.watchInfo,
+        // Env facts the config-UI library can't derive from watchInfo because they
+        // describe the PHONE, not the watch. Whether this PKJS host exposes a battery
+        // API at all is one: Android's Chromium WebView does, iOS's JavaScriptCore and
+        // the emulator never can. The catalog's needsPhoneBattery gate omits the
+        // phone-battery slot items wherever this is false. Merged over the derived env
+        // by createConfig, so this stays a single key.
+        env: { phoneBattery: phoneBattery.isSupported() },
         userData: userData
     }));
     console.log('Showing clay: ' + JSON.stringify(values));
@@ -364,6 +372,15 @@ Pebble.addEventListener('ready',
             console.log('Unable to read watch info: ' + ex.message);
         }
         app.telemetry = createTelemetryClient(getRuntimeTelemetryConfig());
+        // Phone battery: detect + subscribe once. Inert on iOS and in the
+        // emulator (no battery API there at all), so this is safe to run before
+        // the fixture branch below — which is deliberate, so the dev-config
+        // fake also populates the cache for fixture screenshots.
+        phoneBattery.init({
+            devConfig: app.devConfig,
+            getSettings: function () { return app.settings; },
+            now: function () { return new Date(); }
+        });
         refreshProvider();
         // 7-day localStorage cache GC: caches are re-derivable, so entries older
         // than a week are dropped instead of building up (stale notices, the
@@ -549,6 +566,22 @@ function finishUpdateCheck(storeVersions) {
         localStorage.setItem(KEY_UPDATE_NOTIFIED_VERSION, decision.version);
         console.log('[update-check] notified version=' + decision.version);
     }
+}
+
+/**
+ * Everything index.js owns that must happen on every 60 s scheduler tick.
+ *
+ * The scheduler calls this as its `checkForUpdate` dep, which it invokes once
+ * per tick unconditionally — so it is the tick hook, and hanging the
+ * phone-battery post-saver-window push here keeps this at ONE timer instead of
+ * arming a second one. The update check is itself throttled to once a day
+ * internally, so the extra work per tick is a flag test.
+ *
+ * @returns {void}
+ */
+function onSchedulerTick() {
+    phoneBattery.onTick();
+    maybeCheckForUpdate();
 }
 
 /**

@@ -59,10 +59,23 @@ typedef enum {
                                 // An id of its own is required even where the
                                 // glyph is absent (aplite): a SLOT_TEXT slot with
                                 // STATUS_ICON_NONE inherits THRESH_CITY's bold mode
+    STATUS_ICON_PHONE_BATTERY = 16,      // phone glyph; the PHONE's charge, baked
+                                         // as "NN%" text by the phone (SLOT_TEXT)
+    STATUS_ICON_PHONE_BATTERY_CHG = 17,  // phone-charging glyph; the phone picks
+                                         // it over id 16 at bake time, so charging
+                                         // costs no wire field and no watch logic
+    STATUS_ICON_PHONE_BATTERY_PLAIN = 18,
+                                // TEXT-ONLY: the no-icon phone-battery item, for
+                                // which no PDC/bit-mask glyph exists and none may
+                                // load — exactly like STATUS_ICON_PRESSURE above.
+                                // The id is what stops the no-icon variant from
+                                // arriving as SLOT_TEXT + STATUS_ICON_NONE, falling
+                                // through to THRESH_CITY and silently driving
+                                // City's Bold row (status_threshold.h)
 } StatusIconId;
 // Id 6 (STATUS_ICON_PRECIP, removed in 3dae9f4) is a retired hole: never reuse it —
 // a pre-3dae9f4 install can still hold a persisted blob referencing it.
-#define STATUS_ICON_MAX STATUS_ICON_DEWPOINT
+#define STATUS_ICON_MAX STATUS_ICON_PHONE_BATTERY_PLAIN
 
 typedef struct {
     uint8_t kind;

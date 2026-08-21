@@ -49,8 +49,11 @@ STATUS LINES
       - heart rate
       - sleep
    - Battery:
-      - battery icon
-      - battery percentage
+      - watch battery icon
+      - watch battery percentage
+      - phone battery, with or without a phone glyph, and a charging icon while
+        it charges — Android phones only, because iOS gives the watchface no way
+        to read the phone's battery; it shows -- while the phone is disconnected
 - Bold status values to make them stand out or to make it easier to read
 - Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set
 - Threshold highlighting: bold, outline, or fill a status slot when a status slot crosses a
@@ -62,7 +65,7 @@ WATCHFACE THEMES
 WATCH
 - Custom color, 12h/24h, optional AM/PM
 - Battery, Bluetooth, quiet time, and vibrate-on-disconnect indicators
-- Night battery saver (battery-saving weather update pause)
+- Night battery saver (pause updates to the watch overnight to save battery)
 
 
 LAYOUT CUSTOMIZATION

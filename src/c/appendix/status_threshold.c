@@ -8,6 +8,13 @@ int status_threshold_kind_for_slot(uint8_t slot_kind, uint8_t icon) {
             case STATUS_ICON_WIND:      return THRESH_WIND;
             case STATUS_ICON_GUST:      return THRESH_GUST;
             case STATUS_ICON_DEWPOINT:  return THRESH_DEW;
+            // One item, two glyphs: the phone picks _CHG at bake time, so both
+            // icons carry the SAME kind and one Bold row covers charging or not.
+            case STATUS_ICON_PHONE_BATTERY:
+            case STATUS_ICON_PHONE_BATTERY_CHG: return THRESH_PHONE_BATTERY;
+            // The no-icon phone-battery item: its own kind exists precisely so
+            // it does not land on STATUS_ICON_NONE below and drive City's bold.
+            case STATUS_ICON_PHONE_BATTERY_PLAIN: return THRESH_PHONE_BATTERY_PLAIN;
             case STATUS_ICON_UV:        return THRESH_UV;
             case STATUS_ICON_TEMP:      return THRESH_TEMP;
             case STATUS_ICON_PRESSURE:  return THRESH_PRESSURE;

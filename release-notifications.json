@@ -126,5 +126,9 @@
   "1.13.0": {
     "title": "Dew point & wind direction",
     "body": "Status slots: dew point is a new slot, the wind slots can show a wind direction arrow, and slots that print a unit can now hide it. Reset watchface no longer wipes saved API keys or reverts a minute later."
+  },
+  "1.13.1": {
+    "title": "Phone battery slot",
+    "body": "Your phone's battery can go in any status slot now, with a phone glyph or as a bare percentage, and a charging icon while it's plugged in. Android phones only — iOS gives the watchface no way to read the phone's battery."
   }
 }

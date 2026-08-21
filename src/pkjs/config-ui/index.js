@@ -57,7 +57,14 @@ function createConfig(cfg) {
       : (useEmulatorHelper ? '$$RETURN_TO$$' : 'pebblejs://close#');
     var html = injectIntoPage(cfg.page, {
       values:   typeof opts.values !== 'undefined' ? opts.values : readStore(),
-      env:      opts.env || platform.computeEnv(watchInfo),
+      // opts.env is an OVERLAY, not a replacement: the library owns every fact it can
+      // derive from watchInfo, and the app contributes the ones it can't. Some env
+      // facts are properties of the PHONE, not of the watch -- e.g. whether this PKJS
+      // host exposes the Battery Status API (Android's Chromium WebView only) -- and
+      // the library must not go looking for them itself (no inbound app coupling; see
+      // README "Packaging"). Merging keeps the app's line to a single key instead of a
+      // hand-assembled full env that would silently rot as platform.js grows facts.
+      env:      Object.assign(platform.computeEnv(watchInfo), opts.env || {}),
       userData: typeof opts.userData !== 'undefined' ? opts.userData : instance.meta.userData,
       returnTo: returnTo });
     if (useEmulatorHelper) {

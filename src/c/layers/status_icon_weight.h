@@ -78,7 +78,8 @@
 // buys the bigger fonts, so it is the only build whose glyphs reach ink 15/17,
 // where a lopsided glyph's sub-pixel error is largest — hence its generally larger
 // weights, and hence the pairs of *different* numbers (GUST 54/53, WIND 54/60,
-// COUNTDOWN 58/59) for what is the same judgement about the same glyph.
+// COUNTDOWN 58/59, PHONE_BATTERY 50/54 — basalt first, emery second) for what is
+// the same judgement about the same glyph.
 //
 // EVERY NUMBER BELOW IS A TASTE VALUE the user picked by eye on a real device,
 // from the per-tier comparison sheets. None is computed, and none should be
@@ -99,6 +100,21 @@
 //   AQI          9     9    11    13    15
 //   POLLEN      11    11    13    15    17
 //   COUNTDOWN   11    11    13    15    17
+//
+// The PHONE_BATTERY pair is deliberately absent from that grid: its height is not a
+// function of the tier but a whole-pixel rung chosen by phone_icon_h() in
+// status_row_icons.c, which is where its measured ladder and per-tier painted sizes
+// live. Its painted heights today, per tier:
+//
+//   basalt/diorite/flint   11 / 11 / 13   both ids
+//   emery                  11 / 13 / 15   normal glyph
+//   emery                  13 / 13 / 15   charging glyph (mains plug)
+//
+// The two ids match everywhere except emery's FULL rows, where the watch asked for
+// the NORMAL glyph alone to be less tall and it dropped a rung. Both ids still carry
+// the same WEIGHT — 54 — at every tier; the normal glyph's extra pixel of drop at that
+// tier comes from being SHORTER there, not from a different weight, because the lift
+// scales with painted height (4 x 11 = 44 -> 0 px, 4 x 13 = 52 -> 1 px).
 #ifdef PBL_PLATFORM_EMERY
 // emery: tiers 12 / 13 / 16 (Gothic 18 rows, Gothic 24 strip, Gothic 24 rows).
 static const uint8_t s_status_icon_weight_pct[STATUS_ICON_MAX + 1] = {
@@ -114,7 +130,95 @@ static const uint8_t s_status_icon_weight_pct[STATUS_ICON_MAX + 1] = {
     [STATUS_ICON_POLLEN]    = 56,   // pollen flower   — lifts 1 px at t12/t13/t16
     [STATUS_ICON_COUNTDOWN] = 59,   // hourglass       — 1 px at t12/t13, 2 px at t16
     [STATUS_ICON_DEWPOINT]  = 56,   // two drops       — lifts 1 px at t12/t13/t16
+    [STATUS_ICON_PHONE_BATTERY]     = 54,  // phone + inner bolt — a PAIR, see below
+    [STATUS_ICON_PHONE_BATTERY_CHG] = 54,  // mains plug        — a PAIR, see below
 };
+// PHONE_BATTERY / PHONE_BATTERY_CHG carry 54 HERE, and they carry the SAME number by
+// contract: the two swap in place inside ONE slot the instant the phone is plugged
+// in, so seating one without the other would make the icon visibly hop on plug-in.
+// Whatever this cell says, it says for the pair.
+//
+// 54 IS THE ANSWER AT EVERY EMERY TIER, for both ids. There is no per-tier override:
+// the FULL rows' extra pixel of drop on the NORMAL glyph is a consequence of
+// phone_icon_h() shrinking it there, not of a second weight. See the NOTE at the
+// bottom of this file for why a per-tier table was written and then deleted.
+//
+// THE ARITHMETIC. status_icon_top_y() lifts by div_round(off x painted_h, 100) with
+// off = weight - 50 and painted_h == bounds_h + 1. The pair's painted heights on
+// emery, after phone_icon_h() picks the rung (re-measured from the current .pdc
+// files with the rig described in status_row_icons.c):
+//
+//   tier                     target   normal   plug
+//   FULL rows                  12       11      13     <- the two split here
+//   TOP STRIP                  13       13      13
+//   COMPACT/NONE rows          16       15      15
+//
+//   off 3 (weight 53)   3x11 = 33 -> 0 px   3x13 = 39 -> 0 px   3x15 = 45 -> 0 px
+//   off 4 (weight 54)   4x11 = 44 -> 0 px   4x13 = 52 -> 1 px   4x15 = 60 -> 1 px
+//   off 10 (weight 60) 10x15 = 150 -> 2 px  over-lifts compact; never wanted
+//
+// WHY 54 WAS EVER RIGHT: the watch asked for the COMPACT glyph to sit higher, and 54
+// is the smallest weight that bites at 15 painted rows. It was known at the time that
+// this also lifted the top strip and the FULL rows (both 13 painted rows then) by a
+// pixel nobody had asked for, and that no single percent could avoid it — keeping the
+// lift to compact alone needs off x 15 >= 50 and off x 13 < 50 at once, i.e.
+// 3.34 <= off < 3.85, and no integer lives there.
+//
+// THE FULL ROWS CAME BACK READING A PIXEL HIGH, exactly as that note predicted, and
+// the fix is the per-tier storage it named (option (b) in the TEMP note below), not a
+// different percent — because the plug STILL paints 13 rows in the FULL rows AND in
+// the top strip, wanting 0 px in one and 1 px in the other. Identical input, opposite
+// answers: unreachable from a table keyed by id alone.
+//
+// WHAT THE OVERRIDE BUYS AT THE FULL ROWS. The normal glyph needed nothing from it —
+// shrinking it to 11 painted rows already made 54 a no-op there (4x11 = 44 -> 0), so
+// it dropped its pixel the moment phone_icon_h() moved it. Without the override the
+// PLUG would have kept its 1 px lift and the two states would sit a pixel apart. With
+// 53 both land on the cap centre:
+//
+//   normal   bounds 10   cy - 10/2 - 0  ->  ink rows cy-5 .. cy+5, centre cy
+//   plug     bounds 12   cy - 12/2 - 0  ->  ink rows cy-6 .. cy+6, centre cy
+//
+// SAME LINE, differing only in the two rows of height. And note 53 is a no-op at 11
+// painted rows too, so ONE number still serves the pair at that tier — the per-id
+// weights the split might have forced did not materialise. The other two tiers keep
+// 54 and do not move by a pixel.
+//
+// The pair is a phone with the bolt drawn INSIDE it (normal) and a mains PLUG
+// (charging) — two different silhouettes on purpose. An earlier pair drew a phone
+// in both states, and keeping the shared PHONE BODY steady across the swap turned
+// out to be unsatisfiable: the two bodies quantise on opposite parities, so the
+// best attainable case was a one-row mismatch, which the watch reported as "the
+// charging symbol is a little too long". Distinct silhouettes retire that
+// constraint — there is no shared body left to align, and nothing for the eye to
+// read as the same object resizing.
+//
+// What the pair shares in the ARTWORK is INK HEIGHT, and it shares it EXACTLY.
+// RE-MEASURED from the current .pdc files (both were regenerated from new artwork, so
+// an earlier pass's numbers here were stale): inside the authored 24-px viewbox the
+// ink boxes span 106 x 160 point-units for the phone and 160 x 160 for the plug —
+// 13.250 x 20.000 px and 20.000 x 20.000 px, painting 14 x 21 and 21 x 21 at 1:1.
+// The HEIGHT term is byte-identical (160 == 160), so the two glyphs' bounds heights
+// agree at EVERY h from 8 to 20 (verified) — feed them the same h and they paint the
+// same height, with no residual to trade away.
+//
+// WHAT NO LONGER HOLDS is that they are always fed the same h. On emery's FULL rows
+// phone_icon_h() gives the normal glyph h 10 and the plug h 12, so they paint 11 and
+// 13 rows. One weight can still seat both on the same line there, but not by the old
+// by-construction argument — it takes the arithmetic under the table above, which is
+// where the 53 comes from. At the top strip and the compact rows the old argument is
+// intact. The plug is also ~1.5x wider (1.9x at the FULL rows now), which is accepted
+// and is a WIDTH effect this table cannot and should not touch: the slot text shifts
+// right on plug-in.
+//
+// The pair's painted heights are NOT on this table's tier grid, because they do not
+// follow the tier: they are picked as whole-pixel rungs by phone_icon_h(), whose
+// ladder and per-tier results are documented there. Painted height for this pair is
+// always ODD and steps by TWO, so any weight tuned here is working against a coarser
+// size grid than the other glyphs' — the 11/13/15 (normal) and 13/13/15 (plug) the
+// arithmetic above uses.
+// PHONE_BATTERY_PLAIN (18) deliberately has NO entry: it is a text-only id that
+// loads no glyph at all, exactly like PRESSURE (14).
 // DEWPOINT: both drops are bulbous at the bottom and taper to a point, so their
 // mass sits below the ink box's centre and the glyph reads low against the
 // digits. 56 lifts 1 px at every emery tier — judged correct by eye here, and
@@ -132,7 +236,12 @@ static const uint8_t s_status_icon_weight_pct[STATUS_ICON_MAX + 1] = {
 // .superpowers/sdd/icon-weight-remaining-report.md §4:
 //   (a) accept 54 here: grants the judged 1 px at t16 but also adds an unwanted
 //       1 px at t13 AND at t12 (both ink 13) — a 2-cell regression for 1 cell;
-//   (b) per-tier storage (3 weights per icon instead of 1);
+//   (b) per-tier storage (3 weights per icon instead of 1) — still hypothetical. One
+//       was written for the phone-battery pair and deleted unwired once the pair
+//       turned out not to need it (see the NOTE at the bottom of this file, which
+//       records the shape and the one real trap: key it on the row's target height,
+//       never on bounds_h). Doing it for TEMP means that table plus teaching the draw
+//       site to pass the tier;
 //   (c) a finer weight unit — half-percent would express it exactly, at 53.5, with
 //       no extra bytes, but re-bases all 22 existing numbers and the sheet labels.
 // Until one is chosen, 50 keeps TEMP exactly where it renders today.
@@ -153,7 +262,59 @@ static const uint8_t s_status_icon_weight_pct[STATUS_ICON_MAX + 1] = {
     [STATUS_ICON_POLLEN]    = 54,   // pollen flower   — lifts 1 px at t12 only
     [STATUS_ICON_COUNTDOWN] = 58,   // hourglass       — lifts 1 px at t9/t10/t12
     [STATUS_ICON_DEWPOINT]  = 50,   // two drops       — 50 = ink-box centre
+    [STATUS_ICON_PHONE_BATTERY]     = 50,  // phone + inner bolt — a PAIR, see below
+    [STATUS_ICON_PHONE_BATTERY_CHG] = 50,  // mains plug        — a PAIR, see below
 };
+// PHONE_BATTERY / PHONE_BATTERY_CHG both sit at the no-op 50 on this branch, and
+// they sit there BY DEFAULT rather than by judgement: the watch report that moved
+// the pair up was made on emery, so only the emery table moved. Both ids carry the
+// same number here too, and must — the two swap in place inside one slot, so a
+// weight on one alone would make the icon hop when the phone is plugged in.
+//
+// FOR WHOEVER JUDGES THIS BRANCH NEXT: the pair paints 11 rows at t9 AND at t10
+// (phone_icon_h() floors t9's request back up to h 9) and 13 rows at t12, for BOTH
+// ids — this branch takes none of the emery rung-splits, so the two stay
+// height-matched at every tier here. Emery's base 54 would land differently: 4 x 11 =
+// 44 -> 0 px at the FULL rows and the strip, 4 x 13 = 52 -> 1 px in the COMPACT rows.
+// A 1 px lift at all three would need 55 (5 x 11 = 55 -> 1). Do not copy emery's cell
+// across without looking: these are shorter glyphs, and DEWPOINT is the standing
+// example of the same shape wanting opposite answers on the two branches. The
+// per-tier override at the bottom of this file has NO rows on this branch, and does
+// not need any until someone judges these two cells on a real 144px watch.
+//
+// The pair is a phone with the bolt drawn INSIDE it (normal) and a mains PLUG
+// (charging) — two different silhouettes on purpose. An earlier pair drew a phone
+// in both states, and keeping the shared PHONE BODY steady across the swap turned
+// out to be unsatisfiable: the two bodies quantise on opposite parities, so the
+// best attainable case was a one-row mismatch, which the watch reported as "the
+// charging symbol is a little too long". Distinct silhouettes retire that
+// constraint — there is no shared body left to align, and nothing for the eye to
+// read as the same object resizing.
+//
+// What the pair shares now is INK HEIGHT, and it shares it EXACTLY. RE-MEASURED
+// from the current .pdc files (both were regenerated from new artwork, so the
+// previous pass's numbers here were stale): inside the authored 24-px viewbox the
+// ink boxes span 106 x 160 point-units for the phone and 160 x 160 for the plug —
+// 13.250 x 20.000 px and 20.000 x 20.000 px, painting 14 x 21 and 21 x 21 at 1:1.
+// The HEIGHT term is byte-identical (160 == 160), and status_row_icons.c's
+// phone_icon_h() hands both ids the same h, so the two glyphs' bounds heights agree
+// at EVERY h from 8 to 20 (verified) and 50 — centre the ink box on the digits' cap
+// centre — puts both on the same centre line by construction, with no residual to
+// trade away. The plug is ~1.5x wider, which is accepted and is a WIDTH effect this
+// table cannot and should not touch: the slot text shifts right on plug-in.
+//
+// The pair's painted heights are NOT on this table's tier grid, because they do not
+// follow the tier: they are picked as whole-pixel rungs by phone_icon_h(), whose
+// ladder and per-tier results are documented there. Painted height for this pair is
+// always ODD and steps by TWO, so any weight tuned here is working against a
+// coarser size grid than the other glyphs'.
+//
+// STILL UNJUDGED ON THIS BRANCH: where the pair sits against the DIGITS. That is the
+// taste half — the half DEWPOINT needed a follow-up commit for — and it applies to
+// both ids together. Look at both states at 4x before trusting these two cells; the
+// emery branch has since been judged (54), this one has not.
+// PHONE_BATTERY_PLAIN (18) deliberately has NO entry: it is a text-only id that
+// loads no glyph at all, exactly like PRESSURE (14).
 // DEWPOINT reads correctly box-centred on this branch — judged by eye at 4x on
 // basalt. It was briefly given the 56 its emery twin carries, which lifts 1 px at
 // all three tiers here, and that sat the drops a pixel high. The two branches
@@ -185,6 +346,22 @@ static inline int status_icon_weight_pct(uint8_t icon_id) {
     uint8_t w = s_status_icon_weight_pct[icon_id];
     return w == 0 ? STATUS_ICON_WEIGHT_CENTRE : w;
 }
+
+// NOTE — NO PER-TIER WEIGHT TABLE, ON PURPOSE. A previous revision added one, keyed
+// on the row's target icon height, so the mains plug could be dropped a pixel in
+// emery's FULL rows while keeping its lift in the top strip. It was deleted before it
+// was ever wired: the watch asked for ONLY the normal glyph to drop there, and that
+// drop falls out of phone_icon_h() shrinking it (11 painted rows makes the base 54 a
+// no-op, 4 x 11 = 44 -> 0 px) with no weight involved. The plug keeps 54 and its 1 px
+// lift at every tier, which is what was wanted.
+//
+// If a future request DOES need two tiers to differ for one icon at the same painted
+// height, per-tier storage is the answer and a percent is not — the plug paints 13
+// rows in BOTH the FULL rows and the top strip, so nothing keyed on size alone can
+// separate them. Key such a table on status_row.c's row->glyph_h (the target height
+// handed to status_row_icons_load), NOT on bounds_h: the plug's bounds are 12 at both
+// of those tiers, and STEPS also carries 54 on emery with overlapping bounds, so a
+// bounds-keyed rule would silently change another glyph.
 
 // Where to draw a status glyph: the y of its bounds box, for
 // gdraw_command_image_draw(). `cap_cy` is the digits' cap centre

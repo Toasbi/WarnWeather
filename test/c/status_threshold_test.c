@@ -65,6 +65,53 @@ static void kind_tests(void) {
            status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_DEWPOINT) == THRESH_CITY, 0);
     expect("kind.dew_not_kindless",
            status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_DEWPOINT) < 0, 0);
+    // Phone battery (kinds 18/19). ONE catalog item stands behind TWO icon ids:
+    // the phone substitutes _CHG for the plain phone glyph at bake time, so
+    // "charging" rides the icon byte instead of a new wire field — which only
+    // works if BOTH ids resolve to the SAME kind, or plugging in would swap the
+    // slot onto a different Bold row.
+    expect("kind.phone_battery",
+           status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_PHONE_BATTERY),
+           THRESH_PHONE_BATTERY);
+    expect("kind.phone_battery_chg",
+           status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_PHONE_BATTERY_CHG),
+           THRESH_PHONE_BATTERY);
+    expect("kind.phone_battery_icons_agree",
+           status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_PHONE_BATTERY)
+           == status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_PHONE_BATTERY_CHG), 1);
+    // The no-icon variant. THIS is the regression the design calls out:
+    // STATUS_ICON_PHONE_BATTERY_PLAIN loads no glyph and draws nothing, so
+    // without an id and a case of its own the slot would arrive as
+    // SLOT_TEXT + STATUS_ICON_NONE, fall through to THRESH_CITY, and silently
+    // drive the CITY slot's Bold row. That exact bug shipped once on the
+    // pressure slot (d22581f, retrofitted in 0a05a7a) — pin all three ways it
+    // can go wrong: right kind, not city, not kind-less.
+    expect("kind.phone_battery_plain",
+           status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_PHONE_BATTERY_PLAIN),
+           THRESH_PHONE_BATTERY_PLAIN);
+    expect("kind.phone_battery_plain_not_city",
+           status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_PHONE_BATTERY_PLAIN)
+           == THRESH_CITY, 0);
+    expect("kind.phone_battery_plain_not_kindless",
+           status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_PHONE_BATTERY_PLAIN) < 0, 0);
+    // The two variants share ONE Bold sheet on the phone but own SEPARATE wire
+    // cells, so the kinds must differ here.
+    expect("kind.phone_battery_plain_distinct",
+           status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_PHONE_BATTERY_PLAIN)
+           == status_threshold_kind_for_slot(SLOT_TEXT, STATUS_ICON_PHONE_BATTERY), 0);
+    // No new slot kind was added: the phone bakes "NN%" into a SLOT_TEXT slot,
+    // so a phone-battery icon anywhere else is nonsense and must stay kind-less.
+    expect("kind.phone_battery_needs_text",
+           status_threshold_kind_for_slot(SLOT_EMPTY, STATUS_ICON_PHONE_BATTERY), -1);
+    expect("kind.phone_battery_plain_needs_text",
+           status_threshold_kind_for_slot(SLOT_LIVE_BATTERY, STATUS_ICON_PHONE_BATTERY_PLAIN), -1);
+    // Icon ids are append-only wire values (a persisted slot blob outlives the
+    // upgrade), so pin the literals as well as the mapping.
+    expect("kind.phone_battery_icon_ids",
+           STATUS_ICON_PHONE_BATTERY == 16 && STATUS_ICON_PHONE_BATTERY_CHG == 17
+           && STATUS_ICON_PHONE_BATTERY_PLAIN == 18, 1);
+    expect("kind.phone_battery_kind_ids",
+           THRESH_PHONE_BATTERY == 18 && THRESH_PHONE_BATTERY_PLAIN == 19, 1);
     expect("kind.battery", status_threshold_kind_for_slot(SLOT_LIVE_BATTERY, STATUS_ICON_NONE), -1);
     expect("kind.empty", status_threshold_kind_for_slot(SLOT_EMPTY, STATUS_ICON_NONE), -1);
     // Direction is a fixed property of the kind — and since the goal rework the
@@ -134,6 +181,10 @@ static void paired_bound_tests(void) {
            status_threshold_enabled(blob, sizeof(blob), THRESH_BATTERY_PCT), 0);
     expect("paired.enabled_dew",
            status_threshold_enabled(blob, sizeof(blob), THRESH_DEW), 0);
+    expect("paired.enabled_phone_battery",
+           status_threshold_enabled(blob, sizeof(blob), THRESH_PHONE_BATTERY), 0);
+    expect("paired.enabled_phone_battery_plain",
+           status_threshold_enabled(blob, sizeof(blob), THRESH_PHONE_BATTERY_PLAIN), 0);
     // color8 for a bold-only kind would land inside the health-u16 area
     // (1 + 2*9 = 19 >= THRESH_HEALTH_OFFSET); it must return the fallback, not
     // that byte. Prove it with a distinctive byte at the colliding offset.
@@ -235,12 +286,63 @@ static void bold_tests(void) {
     expect("bold.dew_default_non_bold",
            status_threshold_is_bold(blob, n, THRESH_BATTERY_PCT, THRESH_LEVEL_NORMAL), 0);
     expect("bold.pack_hr_untouched", status_threshold_bold_mode(blob, n, THRESH_HR), THRESH_BOLD_ALWAYS);
+
+    // Kinds 18/19 (phone battery, iconed and no-icon) take byte 33's LAST two
+    // cells, which is why the whole feature costs the wire nothing. All four
+    // cells of the byte are exercised at once so a mis-shifted cell shows up as
+    // a neighbour reading the wrong mode rather than as a silent pass.
+    blob[THRESH_BOLD_OFFSET + 4] =
+        (uint8_t)((THRESH_BOLD_ALWAYS << (2 * (THRESH_BATTERY_PCT & 3)))
+                  | (THRESH_BOLD_OFF << (2 * (THRESH_DEW & 3)))
+                  | (THRESH_BOLD_ALWAYS << (2 * (THRESH_PHONE_BATTERY & 3)))
+                  | (THRESH_BOLD_OFF << (2 * (THRESH_PHONE_BATTERY_PLAIN & 3))));
+    expect("bold.pack_phone_battery",
+           status_threshold_bold_mode(blob, n, THRESH_PHONE_BATTERY), THRESH_BOLD_ALWAYS);
+    expect("bold.pack_phone_battery_plain",
+           status_threshold_bold_mode(blob, n, THRESH_PHONE_BATTERY_PLAIN), THRESH_BOLD_OFF);
+    expect("bold.phone_battery_mate_battery_pct",
+           status_threshold_bold_mode(blob, n, THRESH_BATTERY_PCT), THRESH_BOLD_ALWAYS);
+    expect("bold.phone_battery_mate_dew",
+           status_threshold_bold_mode(blob, n, THRESH_DEW), THRESH_BOLD_OFF);
+    expect("bold.phone_battery_bolds",
+           status_threshold_is_bold(blob, n, THRESH_PHONE_BATTERY, THRESH_LEVEL_NORMAL), 1);
+    // Level-less like every byte-33 kind: OFF and the unset 'warn' default both
+    // render non-bold, so ALWAYS is the only mode that changes anything.
+    expect("bold.phone_battery_plain_off_non_bold",
+           status_threshold_is_bold(blob, n, THRESH_PHONE_BATTERY_PLAIN, THRESH_LEVEL_NORMAL), 0);
+
+    // The phone writes ONE mode into BOTH cells (the two catalog items share the
+    // settings key 'PhoneBattery', so they share one Bold sheet). Reproduce that
+    // wire shape exactly: byte 33 = 0b10100000, both variants ALWAYS, byte-mates
+    // back at their unset default.
+    blob[THRESH_BOLD_OFFSET + 4] =
+        (uint8_t)((THRESH_BOLD_ALWAYS << (2 * (THRESH_PHONE_BATTERY & 3)))
+                  | (THRESH_BOLD_ALWAYS << (2 * (THRESH_PHONE_BATTERY_PLAIN & 3))));
+    expect("bold.phone_battery_pair_byte", blob[THRESH_BOLD_OFFSET + 4], 0xA0);
+    expect("bold.phone_battery_pair_iconed",
+           status_threshold_bold_mode(blob, n, THRESH_PHONE_BATTERY), THRESH_BOLD_ALWAYS);
+    expect("bold.phone_battery_pair_plain",
+           status_threshold_bold_mode(blob, n, THRESH_PHONE_BATTERY_PLAIN), THRESH_BOLD_ALWAYS);
+    expect("bold.phone_battery_pair_leaves_battery_pct",
+           status_threshold_bold_mode(blob, n, THRESH_BATTERY_PCT), THRESH_BOLD_WARN);
+    expect("bold.phone_battery_pair_leaves_dew",
+           status_threshold_bold_mode(blob, n, THRESH_DEW), THRESH_BOLD_WARN);
+    expect("bold.phone_battery_plain_bolds",
+           status_threshold_is_bold(blob, n, THRESH_PHONE_BATTERY_PLAIN, THRESH_LEVEL_NORMAL), 1);
+
     // The blob width is pinned: byte 33's four cells cover kinds 16..19, so
-    // appending 17 must not have moved THRESH_SETTINGS_BYTES (every extra byte
-    // rides the Clay message on every settings send — see test/inbox-size.test.js).
+    // appending 17, 18 and 19 must not have moved THRESH_SETTINGS_BYTES (every
+    // extra byte rides the Clay message on every settings send — see
+    // test/inbox-size.test.js).
     expect("bold.blob_width_pinned", THRESH_SETTINGS_BYTES, 34);
+    expect("bold.kind_count_pinned", THRESH_KIND_COUNT, 20);
     expect("bold.top_kind_inside_bold_area",
            THRESH_BOLD_OFFSET + ((THRESH_KIND_COUNT - 1) >> 2) < THRESH_SETTINGS_BYTES, 1);
+    // Byte 33 is now FULL — kinds 16..19 claim all four cells — so kind 20 is
+    // the first that widens the blob 34 -> 35 and adds a fourth accepted length.
+    expect("bold.byte33_is_the_last_bold_byte",
+           THRESH_BOLD_OFFSET + ((THRESH_KIND_COUNT - 1) >> 2), THRESH_SETTINGS_BYTES - 1);
+    expect("bold.byte33_full", THRESH_KIND_COUNT % 4, 0);
 
     // Degrade safely: the reserved wire value, a bad blob and a slot with no
     // threshold kind all fall back to the shipped behaviour.
@@ -288,6 +390,10 @@ static void legacy_blob_tests(void) {
            status_threshold_is_bold(blob, legacy, THRESH_WIND, THRESH_LEVEL_WARN), 1);
     expect("legacy.bold_danger",
            status_threshold_is_bold(blob, legacy, THRESH_WIND, THRESH_LEVEL_DANGER), 1);
+    expect("legacy.phone_battery_default",
+           status_threshold_bold_mode(blob, legacy, THRESH_PHONE_BATTERY), THRESH_BOLD_WARN);
+    expect("legacy.phone_battery_plain_default",
+           status_threshold_bold_mode(blob, legacy, THRESH_PHONE_BATTERY_PLAIN), THRESH_BOLD_WARN);
     // Only the three known lengths are accepted — no partial bold byte, no slack.
     expect("legacy.reject_30", status_threshold_settings_validate(blob, legacy + 1), 0);
     expect("legacy.reject_28", status_threshold_settings_validate(blob, legacy - 1), 0);
@@ -297,6 +403,10 @@ static void legacy_blob_tests(void) {
     // blob reads invalid until the phone re-syncs the 33-B one.
     expect("legacy.reject_31", status_threshold_settings_validate(blob, 31), 0);
     expect("legacy.reject_32", status_threshold_settings_validate(blob, 32), 0);
+    // Kinds 18/19 fit byte 33, so the accepted set is still exactly {34, 33, 29}
+    // — no fourth entry. A 35-byte blob is a blob from a FUTURE, wider format:
+    // reject it until the widening actually happens (see status_threshold.h).
+    expect("legacy.reject_35", status_threshold_settings_validate(blob, 35), 0);
 
     // A 33-byte blob (16-kind bold era, every current install at upgrade time)
     // keeps kinds 0..15's bold settings and reads kind 16 as the default.
@@ -310,6 +420,14 @@ static void legacy_blob_tests(void) {
            status_threshold_bold_mode(blob, pre16, THRESH_BATTERY_PCT), THRESH_BOLD_WARN);
     expect("legacy33.dew_default",
            status_threshold_bold_mode(blob, pre16, THRESH_DEW), THRESH_BOLD_WARN);
+    // Byte 33 does not exist in a 33-byte blob, so both phone-battery cells read
+    // as the shipped default rather than off the end of the buffer.
+    expect("legacy33.phone_battery_default",
+           status_threshold_bold_mode(blob, pre16, THRESH_PHONE_BATTERY), THRESH_BOLD_WARN);
+    expect("legacy33.phone_battery_plain_default",
+           status_threshold_bold_mode(blob, pre16, THRESH_PHONE_BATTERY_PLAIN), THRESH_BOLD_WARN);
+    expect("legacy33.phone_battery_non_bold",
+           status_threshold_is_bold(blob, pre16, THRESH_PHONE_BATTERY, THRESH_LEVEL_NORMAL), 0);
     expect("legacy33.aqi_on", status_threshold_enabled(blob, pre16, THRESH_AQI), 1);
     expect("legacy33.steps_warn", status_threshold_health_warn(blob, pre16, THRESH_STEPS), 8000);
 }

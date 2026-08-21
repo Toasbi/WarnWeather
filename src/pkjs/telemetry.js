@@ -49,6 +49,12 @@ function buildSettingsSnapshot(settings) {
         countdownSlotUnit: boolDefaultOn(safe.countdownSlotUnit),
         tempSlotUnit: Boolean(safe.tempSlotUnit),
         dewSlotUnit: Boolean(safe.dewSlotUnit),
+        // The one per-kind Bold mode in the snapshot. The phone-battery slot is
+        // Android-only (its reading comes from a host API that exists nowhere else),
+        // so how the handful of phones that can have it configure it is worth seeing;
+        // the other bold modes stay out. Passed through raw like tempSlotDisplay --
+        // an unseeded install reports undefined, which the column reads as "default".
+        threshPhoneBatteryBoldMode: safe.threshPhoneBatteryBoldMode,
         configTheme: safe.configTheme,
         dayNightShading: !!safe.dayNightShading,
         healthMode: safe.healthMode || 'off',

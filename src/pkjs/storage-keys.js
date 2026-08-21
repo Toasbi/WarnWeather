@@ -27,5 +27,23 @@ module.exports = {
     WU_API_KEY: 'wundergroundApiKey',
     // Where "Reset watchface" parks the credentials it deliberately keeps, until
     // the next boot's seedDefaults folds them back into a fresh blob.
-    PRESERVED_KEYS_KEY: 'preservedApiKeys'
+    PRESERVED_KEYS_KEY: 'preservedApiKeys',
+    // Phone battery (Android only — the Battery Status API exists solely in the
+    // Chromium WebView PKJS runs in there). SUPPORTED is the persisted detector
+    // result, so the config page's env can omit the slot items before any
+    // reading has landed; LEVEL is the EXACT percentage (0..100, rounded) and
+    // CHARGING the charging flag, both read back by the baker. LEVEL is NOT the
+    // 5-point bucket: the bucket is the send trigger and lives in memory only
+    // (phone-battery.js), so the watch always shows the phone's real charge.
+    PHONE_BATTERY_SUPPORTED: 'phoneBatterySupported',
+    PHONE_BATTERY_LEVEL: 'phoneBatteryLevel',
+    PHONE_BATTERY_CHARGING: 'phoneBatteryCharging',
+    // The re-bake snapshot: the handful of payload keys buildStatusLines reads,
+    // plus the watchInfo its platform env is derived from, version-stamped as
+    // one JSON blob. PKJS is torn down whenever the user leaves the watchface,
+    // and without this a battery event after a restart had nothing to re-bake
+    // and reached the watch not at all until the next completed fetch. Settings
+    // are deliberately NOT in here -- the re-bake pairs this with the live blob
+    // (phone-battery.js explains why).
+    PHONE_BATTERY_SNAPSHOT: 'phoneBatterySnapshot'
 };

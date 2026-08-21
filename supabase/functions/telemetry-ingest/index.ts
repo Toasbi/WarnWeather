@@ -46,6 +46,11 @@ const settingsSchema = z
     countdownSlotUnit: z.boolean().optional(),
     tempSlotUnit: z.boolean().optional(),
     dewSlotUnit: z.boolean().optional(),
+    // Lockstep with buildSettingsSnapshot in src/pkjs/telemetry.js (a field missing
+    // here is stripped and silently lost). z.string(), not z.enum: an old or migrated
+    // blob can hold a bold mode this build's picker no longer offers, and a stricter
+    // type would reject the whole event over one cosmetic setting.
+    threshPhoneBatteryBoldMode: z.string().optional(),
     configTheme: z.enum(['auto', 'light', 'dark']).optional(),
     dayNightShading: z.boolean().optional(),
     healthMode: z.enum(['off', 'status', 'all', 'slot']).optional(),

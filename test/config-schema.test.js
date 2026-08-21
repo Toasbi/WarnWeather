@@ -25,12 +25,15 @@ const THRESH_STEMS = ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distan
 const threshKeys = (suffixes) => THRESH_STEMS.reduce((acc, stem) =>
   acc.concat(suffixes.map((suffix) => 'thresh' + stem + suffix)), []);
 const THRESH_COLOR_KEYS = threshKeys(['WarnColor', 'DangerColor']);
-// The bold-only slot kinds (wire ids 8..17 in status-thresholds.js) add ONE key
+// The bold-only slot kinds (wire ids 8..19 in status-thresholds.js) add ONE key
 // each: a Bold row is their whole sheet (Temp additionally carries the
 // tempSlotDisplay row — listed with the plain keys below). The battery GLYPH item
 // is deliberately absent — its slot draws a glyph, not text, so it has no sheet
 // and no key; the battery PERCENTAGE kind (BatteryPct) renders text and has both.
-const BOLD_ONLY_STEMS = ['Temp', 'Pressure', 'Sun', 'Date', 'Week', 'City', 'Countdown', 'Hr', 'BatteryPct', 'Dew'];
+// PhoneBattery is ONE stem for TWO wire kinds (18 phoneBattery, 19 phoneBatteryPlain):
+// both KINDS entries share key 'PhoneBattery', so they share one sheet and one key.
+const BOLD_ONLY_STEMS = ['Temp', 'Pressure', 'Sun', 'Date', 'Week', 'City', 'Countdown', 'Hr', 'BatteryPct', 'Dew',
+  'PhoneBattery'];
 const BOLD_ONLY_KEYS = BOLD_ONLY_STEMS.map((stem) => 'thresh' + stem + 'BoldMode');
 const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnOutlineOn', 'Warn', 'Danger', 'Max'])
   .concat(THRESH_COLOR_KEYS)
@@ -489,6 +492,17 @@ test('night battery saver toggle is renamed and still gates the From/To sleep-ho
   assert.equal(byKey('sleepNightEnabled').label, 'Night battery saver');
   assert.deepEqual(byKey('sleepStartHour').showWhen, { key: 'sleepNightEnabled', eq: true });
   assert.deepEqual(byKey('sleepEndHour').showWhen, { key: 'sleepNightEnabled', eq: true });
+});
+
+// The saver no longer only stops weather FETCHES: with the phone-battery slot it also
+// suppresses the status micro-send (level changes and charging transitions alike), so
+// the hint has to describe sending rather than fetching or it under-promises what the
+// toggle now turns off. Pinned verbatim — this is user-facing copy, and the wording was
+// dictated by the design (docs/superpowers/specs/2026-08-20-phone-battery-slot-design.md
+// §3), not derived.
+test('the night battery saver hint is about SENDING updates, not fetching weather', () => {
+  assert.equal(byKey('sleepNightEnabled').hint,
+    'Stop sending updates to your watch between the hours below to save battery.');
 });
 
 test('windUnits is a segmented kph/mph/Knots picker defaulting to kph', () => {
@@ -1112,15 +1126,18 @@ test('Status-slots tab (id watch) opens with a general status-bar intro, then th
       'Walked distance slot'],
     'per-slot edit sheets follow the four status bars, in kind order');
   // The bold-only slot sheets (level-less kinds, one Bold row each) follow, in
-  // the contract's wire-id order (KINDS 8..17).
-  assert.deepEqual(titles.slice(12, 22),
+  // the contract's wire-id order (KINDS 8..19). 'Phone battery slot' is last and
+  // serves BOTH phone-battery kinds (18 and 19) — they share key 'PhoneBattery',
+  // so there are eleven sheets for twelve bold-only kinds.
+  assert.deepEqual(titles.slice(12, 23),
     ['Temperature slot', 'Air pressure (hPa) slot', 'Sunrise/sunset slot',
       'Date slot', 'Calendar week slot', 'City slot', 'Date countdown slot',
-      'Heart rate slot', 'Battery percentage slot', 'Dew point slot'],
+      'Heart rate slot', 'Battery percentage slot', 'Dew point slot',
+      'Phone battery slot'],
     'bold-only slot sheets follow the threshold sheets, in wire-id order');
   // Time and Calendar moved to the END of the Layout tab (order Time, Calendar) —
   // the Status-slots tab holds nothing but slot config now.
-  assert.deepEqual(titles.slice(22), [], 'no sections after the bold-only sheets');
+  assert.deepEqual(titles.slice(23), [], 'no sections after the bold-only sheets');
   const layoutTitles = schema.tabs.find((t) => t.id === 'layout')
     .sections.map((s) => s.title).filter(Boolean);
   assert.deepEqual(layoutTitles.slice(-2), ['Time', 'Calendar'],
@@ -1157,14 +1174,14 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
   // gate and the color pickers' COLOR-capability + non-B&W-theme rules.
   const watch = schema.tabs.find((t) => t.id === 'watch');
   const threshSections = watch.sections.filter((s) => s.sheetOnly);
-  assert.equal(threshSections.length, 18,
-    'one edit sheet per boldable slot kind (8 threshold + 10 bold-only)');
+  assert.equal(threshSections.length, 19,
+    'one edit sheet per boldable slot kind (8 threshold + 11 bold-only)');
   assert.deepEqual(threshSections.map((s) => s.sheetId),
     ['threshAqi', 'threshPollen', 'threshWind', 'threshGust', 'threshUv',
       'threshSteps', 'threshSleep', 'threshDistance',
       'threshTemp', 'threshPressure', 'threshSun', 'threshDate', 'threshWeek',
       'threshCity', 'threshCountdown', 'threshHr', 'threshBatteryPct',
-      'threshDew'],
+      'threshDew', 'threshPhoneBattery'],
     'sheet ids follow the thresh<Stem> convention the slot resolver derives');
   threshSections.forEach((sec, i) =>
     assert.deepEqual(sec.showWhen, { env: 'thresholds' },
@@ -1197,6 +1214,48 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
     assert.equal(showWhen.isVisible(byKey(k), { env: platform.computeEnv({ platform: 'basalt' }), theme: 'bw', healthMode: 'status' }), false,
       k + ' still hidden by a B&W theme');
   });
+});
+
+// The phone-battery slot's Bold sheet. Unlike every other bold-only sheet this ONE
+// section serves TWO catalog items and TWO wire kinds: 'phoneBattery' (icon + NN%,
+// kind 18) and 'phoneBatteryPlain' (NN%, no icon, kind 19). The no-icon variant needs
+// its own wire kind so it can't fall through to City's bold row (the pressure-slot bug,
+// d22581f/0a05a7a), but both KINDS entries carry key 'PhoneBattery', so the resolver
+// lands both pencils on this one sheet and the packer writes the one mode into both
+// cells. If someone ever splits them into two keys, this test is what says the sheet
+// list has to grow with them.
+test('the Phone battery sheet exists once and BOTH phone-battery slot codes resolve to it', () => {
+  const watch = schema.tabs.find((t) => t.id === 'watch');
+  const sheets = watch.sections.filter((s) => s.sheetId === 'threshPhoneBattery');
+  assert.equal(sheets.length, 1, 'exactly one Phone battery sheet, shared by both kinds');
+  const sheet = sheets[0];
+  assert.equal(sheet.title, 'Phone battery slot');
+  assert.equal(sheet.sheetOnly, true, 'opened from a slot pencil, never rendered as a card');
+  assert.deepEqual(sheet.showWhen, { env: 'thresholds' },
+    'aplite compiles the highlight machinery out, so the sheet must not exist there');
+  // Bold is its whole sheet: no thresholds, no levels, no extra rows.
+  assert.deepEqual(sheet.items.map((i) => i.messageKey), ['threshPhoneBatteryBoldMode'],
+    'one Bold row and nothing else — the slot has no levels to threshold');
+  const bold = sheet.items[0];
+  assert.equal(bold.type, 'segmented');
+  assert.equal(bold.defaultValue, 'off');
+  assert.deepEqual(bold.options, [['Off', 'off'], ['Always', 'always']]);
+
+  // ...and the pencil actually gets here. The slot resolver walks the threshold
+  // contract's KINDS and returns 'thresh' + key, so this is the end-to-end proof that
+  // the shared key really does collapse two codes onto one sheet.
+  const resolve = PConf.sheetResolvers.get('statusSlotEditSheet');
+  assert.ok(resolve, 'blocks.js registered statusSlotEditSheet');
+  ['phoneBattery', 'phoneBatteryPlain'].forEach((code) => {
+    assert.equal(
+      resolve({ statusForecastLeft: code }, { thresholds: true }, { messageKey: 'statusForecastLeft' }),
+      'threshPhoneBattery', code + ' opens the shared Phone battery sheet');
+  });
+  // The gate is the same env flag the section carries — no pencil on aplite.
+  assert.equal(
+    resolve({ statusForecastLeft: 'phoneBattery' },
+      platform.computeEnv({ platform: 'aplite' }), { messageKey: 'statusForecastLeft' }),
+    null, 'no edit pencil on aplite, which has no threshold machinery');
 });
 
 test('threshold config lives in per-slot edit sheets: pencils + sheet on basalt, nothing on aplite', () => {

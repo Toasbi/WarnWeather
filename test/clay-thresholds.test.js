@@ -85,6 +85,48 @@ test('the dew slot packs its own cell, not the city cell it would otherwise shar
   assert.equal(city[33], 0, 'city lives in an earlier bold byte, not byte 33');
 });
 
+test('the two phone-battery cells fill byte 33 without widening the Clay blob', () => {
+  // Kinds 18/19 take byte 33's LAST two cells. One setting
+  // (threshPhoneBatteryBoldMode) feeds BOTH, because the two catalog items share
+  // the key 'PhoneBattery' and therefore one Bold sheet. Assert on the REAL
+  // payload, not just buildSettingsBlob: what test/inbox-size.test.js records is
+  // the tuple that actually rides the Clay message.
+  const s = Object.assign({}, BASE, { threshPhoneBatteryBoldMode: 'always' });
+  const payload = buildClayPayload(s, { platform: 'basalt' },
+    new Date('2026-07-22T00:00:00Z'));
+  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 34,
+    'the phone battery must not grow the Clay bundle by a byte');
+  assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8, thresholds.buildSettingsBlob(s));
+  const byte33 = payload.CLAY_THRESHOLDS_UINT8[33];
+  assert.equal((byte33 >> 4) & 3, thresholds.BOLD_MODES.always, 'phoneBattery cell (kind 18)');
+  assert.equal((byte33 >> 6) & 3, thresholds.BOLD_MODES.always, 'phoneBatteryPlain cell (kind 19)');
+  // Its byte-mates (battery % and dew) keep the warn default.
+  assert.equal(byte33 & 0x0F, 0, 'kinds 16/17 untouched by their new neighbours');
+  // Byte 33 is now full: every one of its four cells is claimed, so the NEXT
+  // threshold kind is the one that widens the blob 34 -> 35.
+  const full = Object.assign({}, BASE, {
+    threshBatteryPctBoldMode: 'always', threshDewBoldMode: 'always',
+    threshPhoneBatteryBoldMode: 'always'
+  });
+  const fullPayload = buildClayPayload(full, { platform: 'basalt' },
+    new Date('2026-07-22T00:00:00Z'));
+  assert.equal(fullPayload.CLAY_THRESHOLDS_UINT8.length, 34);
+  assert.equal(fullPayload.CLAY_THRESHOLDS_UINT8[33], 0xAA, 'all four cells = always');
+});
+
+test('the phone-battery slots pack their own cells, not the city cell they resemble', () => {
+  // Both are SLOT_TEXT; the no-icon variant is one icon id away from being
+  // TEXT + ICON_NONE, which is City's shape on the watch. That is the exact bug
+  // that shipped on the pressure slot, so pin that the blobs differ.
+  const phone = thresholds.buildSettingsBlob(
+    Object.assign({}, BASE, { threshPhoneBatteryBoldMode: 'always' }));
+  const city = thresholds.buildSettingsBlob(
+    Object.assign({}, BASE, { threshCityBoldMode: 'always' }));
+  assert.notDeepEqual(phone, city, 'phone battery and city must pack into different cells');
+  assert.equal(city[33], 0, 'city lives in an earlier bold byte, not byte 33');
+  assert.equal(phone[32], 0, 'phone battery writes nothing into city\'s byte');
+});
+
 test('an unknown/absent watchInfo still gets the blob (never hide a real feature)', () => {
   [null, undefined, {}].forEach((wi) => {
     const payload = buildClayPayload(BASE, wi, new Date('2026-07-22T00:00:00Z'));

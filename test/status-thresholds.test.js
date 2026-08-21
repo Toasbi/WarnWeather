@@ -8,17 +8,76 @@ test('kind order is the wire order (index = ThreshKind)', () => {
   assert.deepEqual(th.KINDS.map(k => k.code),
     ['aqi', 'pollen', 'wind', 'gust', 'steps', 'sleep', 'distance', 'uv',
      'temp', 'pressure', 'sun', 'date', 'week', 'city', 'countdown', 'hr',
-     'batteryPct', 'dew']);
+     'batteryPct', 'dew', 'phoneBattery', 'phoneBatteryPlain']);
+  // Two kinds, ONE settings key. The sheet resolver maps a catalog code to
+  // 'thresh' + KINDS[i].key, so both phone-battery codes land on the single
+  // threshPhoneBattery* sheet — one Bold row covering the iconed and the no-icon
+  // variant. The duplicate is deliberate; see the packer test below.
   assert.deepEqual(th.KINDS.map(k => k.key),
     ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance', 'Uv',
      'Temp', 'Pressure', 'Sun', 'Date', 'Week', 'City', 'Countdown', 'Hr',
-     'BatteryPct', 'Dew']);
-  // The bold-only flag covers exactly the appended kinds 8..17 (the GLYPH
+     'BatteryPct', 'Dew', 'PhoneBattery', 'PhoneBattery']);
+  // The bold-only flag covers exactly the appended kinds 8..19 (the GLYPH
   // battery is deliberately absent: a drawn glyph with no text run has nothing
-  // to bold; the battery-% TEXT slot is kind 16, dew point kind 17).
+  // to bold; the battery-% TEXT slot is kind 16, dew point kind 17, and the two
+  // phone-battery TEXT slots are kinds 18/19).
   assert.deepEqual(th.KINDS.map(k => Boolean(k.boldOnly)),
     [false, false, false, false, false, false, false, false,
-     true, true, true, true, true, true, true, true, true, true]);
+     true, true, true, true, true, true, true, true, true, true, true, true]);
+});
+
+// 'PhoneBattery' is the ONLY duplicated settings key in the table. buildSettingsBlob
+// walks KINDS by index and looks up settings['thresh' + k.key + 'BoldMode'] per
+// entry, so a shared key is a plain double lookup — but nothing in the module says
+// so, and a future "keys are unique" assumption (a key -> index map, say) would
+// silently drop one of the two cells. Pin the behaviour end to end.
+test('the duplicated PhoneBattery key writes ONE bold mode into BOTH cells', () => {
+  // kind 18 -> byte 29 + (18 >> 2) = 33, bits 2 * (18 & 3) = 4-5
+  // kind 19 -> byte 33, bits 2 * (19 & 3) = 6-7
+  Object.keys(th.BOLD_MODES).forEach((mode) => {
+    const blob = th.buildSettingsBlob({ threshPhoneBatteryBoldMode: mode });
+    assert.equal(blob.length, 34, mode + ': the duplicate must not widen the blob');
+    assert.equal((blob[33] >> 4) & 3, th.BOLD_MODES[mode], mode + ': phoneBattery cell (kind 18)');
+    assert.equal((blob[33] >> 6) & 3, th.BOLD_MODES[mode], mode + ': phoneBatteryPlain cell (kind 19)');
+    // The byte-mates (battery % and dew) keep the warn default.
+    assert.equal(blob[33] & 0x0F, 0, mode + ': kinds 16/17 untouched');
+  });
+  // 'always' is the only mode that visibly changes anything on a level-less kind.
+  assert.equal(th.buildSettingsBlob({ threshPhoneBatteryBoldMode: 'always' })[33], 0xA0);
+  // There is no per-variant setting: a plain-only key is not a thing the schema
+  // emits, and writing one must change nothing.
+  assert.equal(th.buildSettingsBlob({ threshPhoneBatteryPlainBoldMode: 'always' })[33], 0);
+  // The duplicate key must not confuse the key-keyed helpers either — both
+  // return on the first match, and 'PhoneBattery' is neither downward nor a goal.
+  assert.equal(th.belowIsWorse('PhoneBattery'), false);
+  assert.equal(th.isGoalKind('PhoneBattery'), false);
+});
+
+test('the phone-battery cells share byte 33 with battery % and dew without bleeding', () => {
+  const blob = th.buildSettingsBlob({
+    threshBatteryPctBoldMode: 'always',   // kind 16 -> bits 0-1
+    threshDewBoldMode: 'off',             // kind 17 -> bits 2-3
+    threshPhoneBatteryBoldMode: 'off'     // kinds 18 AND 19 -> bits 4-5, 6-7
+  });
+  assert.equal(blob.length, 34, 'byte 33 was already paid for — no widening');
+  assert.equal(blob[33], (2 << 0) | (1 << 2) | (1 << 4) | (1 << 6));
+  assert.deepEqual(blob.slice(th.BOLD_OFFSET, 33), [0, 0, 0, 0],
+    'the earlier bold bytes stay at the warn default');
+});
+
+// The regression the design calls out: a no-icon TEXT slot that has no kind of
+// its own falls through to City on the watch, so its Bold row silently drives
+// City's. Its JS twin is the packed cell — pin that the phone-battery modes and
+// City's land in different cells.
+test('the phone-battery bold cells are not City\'s (the pressure-slot bug, JS side)', () => {
+  const phone = th.buildSettingsBlob({ threshPhoneBatteryBoldMode: 'always' });
+  const city = th.buildSettingsBlob({ threshCityBoldMode: 'always' });
+  assert.notDeepEqual(phone, city, 'phone battery and city must pack into different cells');
+  assert.equal(phone[32], 0, 'phone battery writes nothing into city\'s byte');
+  assert.equal(city[33], 0, 'city writes nothing into byte 33');
+  // ...and neither shares a cell with the other no-icon TEXT items in byte 33.
+  const dew = th.buildSettingsBlob({ threshDewBoldMode: 'always' });
+  assert.notDeepEqual(phone, dew);
 });
 
 test('computeLevel: above-is-worse boundaries are inclusive', () => {

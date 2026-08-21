@@ -23,7 +23,15 @@
     // Droplets. The glyph is optional (aplite ships none), but the id is not:
     // without one the dew slot would be TEXT + NONE and inherit city's bold mode.
     // Id 6 is a retired hole (STATUS_ICON_PRECIP, 3dae9f4) — never reuse it.
-    DEWPOINT: 15
+    DEWPOINT: 15,
+    // The PHONE's battery, baked phone-side as "NN%" TEXT. One catalog item,
+    // two glyphs: the baker swaps in PHONE_BATTERY_CHG while the phone charges,
+    // so charging costs no wire field and no watch-side logic.
+    PHONE_BATTERY: 16, PHONE_BATTERY_CHG: 17,
+    // Text-only, exactly like PRESSURE: the no-icon phone-battery item never
+    // loads a glyph, and the id exists so it does not arrive as TEXT + NONE and
+    // inherit city's bold mode.
+    PHONE_BATTERY_PLAIN: 18
   };
   var CAPS = { LINE_MAX: 48, EDGE_TEXT_MAX: 8, MID_TEXT_MAX: 19 };
 
@@ -56,15 +64,27 @@
     { code: 'distance', label: 'Walked distance', kind: KINDS.LIVE_DISTANCE, icon: ICONS.DISTANCE, needsHealth: true, category: 'health' },
     { code: 'hr', label: 'Heart rate', kind: KINDS.LIVE_HR, icon: ICONS.HR, needsHealth: true, needsHr: true, category: 'health' },
     { code: 'sleep', label: 'Sleep', kind: KINDS.LIVE_SLEEP, icon: ICONS.SLEEP, needsHealth: true, category: 'health' },
-    { code: 'battery', label: 'Battery', kind: KINDS.LIVE_BATTERY, icon: ICONS.NONE, topRightOnly: true, category: 'battery' },
-    { code: 'batteryPct', label: 'Battery percentage', kind: KINDS.LIVE_BATTERY_PCT, icon: ICONS.NONE, topRightOnly: true, notAplite: true, category: 'battery' }
+    { code: 'battery', label: 'Watch battery', kind: KINDS.LIVE_BATTERY, icon: ICONS.NONE, topRightOnly: true, category: 'battery' },
+    { code: 'batteryPct', label: 'Watch battery percentage', kind: KINDS.LIVE_BATTERY_PCT, icon: ICONS.NONE, topRightOnly: true, notAplite: true, category: 'battery' },
+    // The PHONE's battery: phone-baked TEXT, so unlike the watch items above it
+    // is NOT corner-pinned — those sit top-right because that corner already
+    // reads as the watch's battery, while these carry their own icon (or, for
+    // the plain variant, deliberately none) and fit any slot.
+    { code: 'phoneBattery', label: 'Phone battery', kind: KINDS.TEXT,
+      icon: ICONS.PHONE_BATTERY, needsPhoneBattery: true, notAplite: true, category: 'battery' },
+    { code: 'phoneBatteryPlain', label: 'Phone battery (no icon)', kind: KINDS.TEXT,
+      icon: ICONS.PHONE_BATTERY_PLAIN, needsPhoneBattery: true, notAplite: true, category: 'battery' }
   ];
 
   // Dropdown grouping order + header labels (Part F). A category with no
   // available item for a slot emits no header, so gated items never leave an
-  // orphan heading. 'battery' holds the glyph item and the "NN%" text item —
-  // both top-right only (battery belongs in the corner the watch already reads
-  // as the battery's); the "NN%" one is additionally absent on aplite.
+  // orphan heading. 'battery' holds four items: the WATCH glyph item and the
+  // watch "NN%" text item — both top-right only (the watch battery belongs in
+  // the corner already read as its own), the "NN%" one additionally absent on
+  // aplite — plus the two PHONE-battery items, which are selectable in any slot
+  // but exist only where the phone can report its charge (needsPhoneBattery,
+  // Android-only) and never on aplite. The labels carry the Watch/Phone
+  // qualifier because all four otherwise read as "battery".
   var CATEGORIES = [
     ['weather', 'Weather'], ['datelocation', 'Date and location'],
     ['health', 'Health'], ['battery', 'Battery']
@@ -104,7 +124,7 @@
    * Phone-side availability gate. The watch never gates.
    * @param {Object} item catalog entry
    * @param {Object} settings Clay settings blob
-   * @param {Object} env {color, round, platform, health, radar, hr}
+   * @param {Object} env {color, round, platform, health, radar, hr, phoneBattery}
    * @param {Object} [slotCtx] {slotKey, position: 'left'|'mid'|'right'} of the
    *   slot being resolved; position-gated items are unavailable without it
    * @returns {boolean}
@@ -118,9 +138,17 @@
       if (settings && settings.healthMode === 'off') { return false; }
     }
     if (item.needsHr && (!env || !env.hr)) { return false; }
+    // The phone's battery is readable only where the PKJS host exposes the
+    // Battery Status API — Android's Chromium WebView, never iOS's
+    // JavaScriptCore and never the emulator. env.phoneBattery carries that
+    // answer (from the PHONE_BATTERY_SUPPORTED storage key). Like notAplite and
+    // UNLIKE needsProvider, a false gate OMITS the item rather than showing a
+    // disabled row: there is no setting the user could change to earn it.
+    if (item.needsPhoneBattery && (!env || !env.phoneBattery)) { return false; }
     // Items whose watch-side C rendering is compiled out on aplite (frozen
     // image budget): batteryPct — the lean status-row twin never learned kind
-    // 10, and aplite's glyph battery slot already renders as "NN%" text anyway.
+    // 10, and aplite's glyph battery slot already renders as "NN%" text anyway
+    // — and the two phone-battery items, which ship no aplite glyph at all.
     // (Calendar-week used this gate once — the watch-side iso_week() is
     // aplite-excluded — but the phone now bakes that slot as phone-side TEXT
     // for aplite instead; status-lines.js.)

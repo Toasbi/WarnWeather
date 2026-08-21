@@ -41,10 +41,18 @@ function walkPdc(file, viewbox, checkCmd) {
 // theme_fg() and clears the fill, so the authored stroke *colour* is irrelevant; each
 // just needs a non-clear stroke and a clear fill. STATUS_POLLEN is wired as a status-row
 // resource and is validated here with the rest of the outline family.
+//
+// The phone-battery pair is TWO glyphs for ONE catalog item: status-lines.js picks
+// STATUS_PHONE_BATTERY_CHG over STATUS_PHONE_BATTERY at bake time while the phone is
+// charging (icon ids 17 vs 16). The third phone-battery icon id (18,
+// STATUS_ICON_PHONE_BATTERY_PLAIN) deliberately has NO resource — it exists only so the
+// no-icon variant gets its own threshold kind instead of falling through to City's — so
+// there is no third file to validate here.
 const OUTLINE_24 = ['STATUS_TEMP.pdc', 'STATUS_TEMP_SMALL.pdc', 'STATUS_UV.pdc',
                     'STATUS_WIND.pdc', 'STATUS_GUST.pdc', 'STATUS_POLLEN.pdc',
                     'STATUS_DISTANCE.pdc', 'STATUS_AQI.pdc',
-                    'STATUS_COUNTDOWN.pdc', 'STATUS_DEW.pdc'];
+                    'STATUS_COUNTDOWN.pdc', 'STATUS_DEW.pdc',
+                    'STATUS_PHONE_BATTERY.pdc', 'STATUS_PHONE_BATTERY_CHG.pdc'];
 
 for (const file of OUTLINE_24) {
   test(`${file} is a valid 24x24 outline PDCI`, () => {
@@ -87,5 +95,33 @@ for (const file of [...OUTLINE_24, ...HEALTH_25]) {
     assert.strictEqual(entry.file, `data/${file}`, 'file path');
     assert.deepStrictEqual(entry.targetPlatforms, PDC_PLATFORMS,
                            'aplite must stay excluded from every PDC');
+  });
+}
+
+// Corruption guard. PDCs are binary, and the one way this project has actually broken
+// them is a text round-trip: an editor (or any tool that opens the file as UTF-8 and
+// saves it back) rewrites every byte >= 0x80 — a PDC is full of them, since a stroke
+// colour is 0xFF and any coordinate past 15.875 puts a high byte in its fixed-point
+// int16. The damage is invisible in review and does not break the build: waf happily
+// packs the mangled bytes and the watch draws garbage. Three cheap invariants catch
+// every shape of it, and none of them pins the ART, so regenerating a glyph from its
+// SVG (or swapping which SVG feeds which name) needs no edit here.
+for (const file of [...OUTLINE_24, ...HEALTH_25]) {
+  test(`${file} is byte-intact (survived no UTF-8 round-trip)`, () => {
+    const buf = fs.readFileSync(path.join(DATA, file));
+    // 1. The replacement character: what a decode-as-UTF-8 turns an invalid high byte
+    //    into. Its presence is proof, not suspicion.
+    assert.strictEqual(buf.indexOf(Buffer.from([0xEF, 0xBF, 0xBD])), -1,
+                       'U+FFFD present — this file was saved through a text editor');
+    // 2. The header's own checksum-of-sorts. A latin1->UTF-8 re-encode produces valid
+    //    two-byte sequences instead of U+FFFD, so it slips past (1) — but it grows the
+    //    file, and the payload size field written at authoring time does not follow.
+    assert.strictEqual(buf.readUInt32LE(4), buf.length - 8,
+                       'declared payload size no longer matches the bytes on disk');
+    // 3. Belt and braces for a mangling that somehow balanced out: every glyph in this
+    //    project has high bytes, so zero of them means the file is no longer binary.
+    let high = 0;
+    for (const b of buf) { if (b >= 0x80) { high += 1; } }
+    assert.ok(high > 0, 'no bytes >= 0x80 left — this is not the authored binary');
   });
 }

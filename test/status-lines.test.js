@@ -1,7 +1,51 @@
 const test = require('node:test');
 const assert = require('node:assert');
+
+// The bake now asks phone-battery.js for the phone's cached charge (and whether
+// this host can read one at all), and that module answers out of localStorage.
+// AGENTS.md: install the mock BEFORE the watch modules load. Node 26 does define
+// an implicit global `localStorage`, but it is undefined on first access, so a
+// suite that leans on it passes or fails at random.
+const phoneBatteryStore = {};
+global.localStorage = {
+  getItem(k) { return Object.prototype.hasOwnProperty.call(phoneBatteryStore, k) ? phoneBatteryStore[k] : null; },
+  setItem(k, v) { phoneBatteryStore[k] = String(v); },
+  removeItem(k) { delete phoneBatteryStore[k]; }
+};
+
 const statusLines = require('../src/pkjs/status-lines.js');
 const catalog = require('../src/pkjs/status-line-catalog.js');
+const STORAGE_KEYS = require('../src/pkjs/storage-keys.js');
+
+/**
+ * Put a phone-battery reading in the cache the baker reads, or clear it.
+ *
+ * The cached level is the phone's EXACT percentage — phone-battery.js's 5-point
+ * bucket is its send trigger and never reaches this cache — so the values here
+ * are deliberately not multiples of 5.
+ *
+ * @param {number|null} pct Exact charge percentage 0..100, or null for "no reading".
+ * @param {boolean} [charging] Whether the phone is plugged in.
+ * @returns {void}
+ */
+function setPhoneBattery(pct, charging) {
+  global.localStorage.setItem(STORAGE_KEYS.PHONE_BATTERY_SUPPORTED, 'true');
+  if (pct === null) {
+    global.localStorage.removeItem(STORAGE_KEYS.PHONE_BATTERY_LEVEL);
+    global.localStorage.removeItem(STORAGE_KEYS.PHONE_BATTERY_CHARGING);
+    return;
+  }
+  global.localStorage.setItem(STORAGE_KEYS.PHONE_BATTERY_LEVEL, String(pct));
+  global.localStorage.setItem(STORAGE_KEYS.PHONE_BATTERY_CHARGING, charging ? 'true' : 'false');
+}
+
+/**
+ * Forget both the reading and the detector verdict (an iPhone, or the emulator).
+ * @returns {void}
+ */
+function clearPhoneBattery() {
+  Object.keys(phoneBatteryStore).forEach((k) => { delete phoneBatteryStore[k]; });
+}
 
 const K = catalog.KINDS, I = catalog.ICONS;
 const WATCH_BASALT = { platform: 'basalt' };
@@ -849,4 +893,124 @@ test('the direction arrow still rides along when the wind unit is off', () => {
       }
     }
   }
+});
+
+// --- Phone battery ---------------------------------------------------------
+// The one status item with nothing to do with the weather fetch: the phone bakes
+// its OWN charge into the slot's text, and picks the icon id per bake so charging
+// reaches the watch inside a byte the slot already pays for (no wire field, no C
+// plumbing). Android only — see phone-battery.js and test/phone-battery.test.js.
+//
+// The text is the EXACT percentage. phone-battery.js's 5-point bucket decides
+// only WHEN a resend fires; baking it would show a phone at 31% as "30%", which
+// is precisely the on-device bug this pair of jobs was split to fix.
+
+test('phone battery renders the cached percentage as NN%, both codes alike', () => {
+  setPhoneBattery(87, false);
+  assert.equal(statusLines.formatValue('phoneBattery', {}, {}, 'statusForecastLeft'), '87%');
+  assert.equal(statusLines.formatValue('phoneBatteryPlain', {}, {}, 'statusForecastLeft'), '87%');
+  // The two items differ only in the icon they pack; the text is identical.
+  setPhoneBattery(0, false);
+  assert.equal(statusLines.formatValue('phoneBattery', {}, {}, 'statusForecastLeft'), '0%');
+  setPhoneBattery(100, true);
+  assert.equal(statusLines.formatValue('phoneBattery', {}, {}, 'statusForecastLeft'), '100%',
+    'charging changes the icon, never the text');
+  assert.equal(statusLines.formatValue('phoneBatteryPlain', {}, {}, 'statusForecastLeft'), '100%');
+});
+
+test('the reported percentage is never rounded to a 5-point step', () => {
+  // "it 31% on my phone but shows 30% when plugging in" — the send trigger may
+  // quantize, the display must not. Every value the phone can report survives
+  // the bake intact.
+  [31, 30, 1, 7, 49, 63, 99].forEach((pct) => {
+    setPhoneBattery(pct, false);
+    assert.equal(statusLines.formatValue('phoneBattery', {}, {}, 'statusForecastLeft'), pct + '%');
+    assert.equal(statusLines.formatValue('phoneBatteryPlain', {}, {}, 'statusForecastLeft'), pct + '%');
+  });
+});
+
+test('phone battery is -- with no reading, and on a phone that cannot report one', () => {
+  // '--' covers "Android, but no event has landed yet" and "no battery API at
+  // all". It is also what the watch substitutes while Bluetooth is down
+  // (status_row.c's freshness rule), so the two paths agree by construction.
+  setPhoneBattery(null);
+  assert.equal(statusLines.formatValue('phoneBattery', {}, {}, 'statusForecastLeft'), '--');
+  assert.equal(statusLines.formatValue('phoneBatteryPlain', {}, {}, 'statusForecastLeft'), '--');
+  clearPhoneBattery();
+  assert.equal(statusLines.formatValue('phoneBattery', {}, {}, 'statusForecastLeft'), '--');
+  assert.equal(statusLines.formatValue('phoneBatteryPlain', {}, {}, 'statusForecastLeft'), '--');
+});
+
+test('phone battery text fits the narrow edge cap at every whole percentage', () => {
+  // Every value 0..100 now, not just the 5-point steps: any of them can be baked.
+  for (let pct = 0; pct <= 100; pct += 1) {
+    for (const charging of [false, true]) {
+      setPhoneBattery(pct, charging);
+      const text = statusLines.formatValue('phoneBattery', {}, {}, 'statusForecastLeft');
+      assert.ok(statusLines.utf8Encode(text).length <= catalog.CAPS.EDGE_TEXT_MAX,
+        `${pct}% overflows the edge slot`);
+    }
+  }
+});
+
+test('charging swaps the packed icon id, and only for the icon-bearing item', () => {
+  const env = Object.assign(basaltEnv(), { phoneBattery: true });
+  const line = forecastLine();
+  const sel = (code) => ({ statusForecastLeft: code, statusForecastMid: 'empty',
+                           statusForecastRight: 'empty' });
+
+  setPhoneBattery(63, false);
+  let slot = decodeLine(statusLines.packLine(line, {}, sel('phoneBattery'), env))[0];
+  assert.equal(slot.kind, catalog.KINDS.TEXT);
+  assert.equal(slot.icon, catalog.ICONS.PHONE_BATTERY);
+  assert.equal(slot.text, '63%');
+
+  setPhoneBattery(63, true);
+  slot = decodeLine(statusLines.packLine(line, {}, sel('phoneBattery'), env))[0];
+  assert.equal(slot.icon, catalog.ICONS.PHONE_BATTERY_CHG, 'charging glyph, same text');
+  assert.equal(slot.text, '63%');
+
+  // The no-icon variant draws nothing in either state, so its id never varies.
+  // It still needs an id of its own: TEXT + ICON_NONE maps to THRESH_CITY on the
+  // watch, so without one its Bold row would silently drive City.
+  for (const charging of [false, true]) {
+    setPhoneBattery(63, charging);
+    slot = decodeLine(statusLines.packLine(line, {}, sel('phoneBatteryPlain'), env))[0];
+    assert.equal(slot.icon, catalog.ICONS.PHONE_BATTERY_PLAIN, `plain, charging=${charging}`);
+    assert.equal(slot.text, '63%');
+  }
+});
+
+test('an unreadable phone battery still packs its slot, as --', () => {
+  const env = Object.assign(basaltEnv(), { phoneBattery: true });
+  setPhoneBattery(null);
+  const slot = decodeLine(statusLines.packLine(forecastLine(), {},
+    { statusForecastLeft: 'phoneBattery', statusForecastMid: 'empty',
+      statusForecastRight: 'empty' }, env))[0];
+  assert.equal(slot.icon, catalog.ICONS.PHONE_BATTERY, 'not the charging glyph');
+  assert.equal(slot.text, '--');
+});
+
+test('buildStatusLines derives env.phoneBattery from the persisted detector verdict', () => {
+  // computeEnv() knows only WATCH facts; the gate is a PHONE fact. Without the
+  // flag being added inside buildStatusLines, itemAvailable() fails and the slot
+  // silently collapses to empty even on a phone that CAN read its battery.
+  const settings = baseSettings({ statusForecastLeft: 'phoneBattery',
+    statusForecastMid: 'empty', statusForecastRight: 'empty' });
+
+  setPhoneBattery(47, false);
+  let p = basePayload();
+  statusLines.buildStatusLines(p, settings, WATCH_BASALT);
+  let slot = decodeLine(p.STATUS_LINE_1_UINT8)[0];
+  assert.equal(slot.icon, catalog.ICONS.PHONE_BATTERY);
+  assert.equal(slot.text, '47%');
+
+  // No battery API on this phone: the item is not available, so the slot
+  // resolves to 'empty' rather than baking a made-up value.
+  clearPhoneBattery();
+  p = basePayload();
+  statusLines.buildStatusLines(p, settings, WATCH_BASALT);
+  slot = decodeLine(p.STATUS_LINE_1_UINT8)[0];
+  assert.equal(slot.kind, catalog.KINDS.EMPTY);
+  assert.equal(slot.text, '');
 });

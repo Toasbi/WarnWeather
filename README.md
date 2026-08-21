@@ -42,7 +42,8 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Selectable start of week and customizable highlights for weekends and holidays (150+ countries)
 
 **Status lines**
-* Configurable status slots on every view: fill each slot from a catalog of metrics — weather, dew point, air quality, pollen, wind, health, battery (glyph or percentage), a countdown to any date, and more
+* Configurable status slots on every view: fill each slot from a catalog of metrics — weather, dew point, air quality, pollen, wind, health, watch battery (glyph or percentage), phone battery, a countdown to any date, and more
+* Your phone's battery in any status slot, with a phone glyph or as a bare percentage, and a charging icon while it's plugged in — Android phones only, because iOS gives the watchface no way to read the phone's battery. It refreshes with your weather updates and whenever it moves 5% or you plug in, and shows `--` while the watch and phone aren't connected
 * Wind direction as an arrow after the speed, pointing the way the wind is blowing — on for the wind slot, and available for gusts in its slot settings
 * Show or hide the unit on a status slot — drop the `kph`/`hPa` when the bar is crowded, or add a degree sign to temperature and dew point
 * Threshold highlighting: bold, outline, or fill a status slot when air quality, pollen, wind, gusts, UV index, steps, sleep, or distance crosses a warn or danger level you set
@@ -53,7 +54,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 **Watch**
 * Custom color, 12h/24h, optional AM/PM
 * Battery, Bluetooth, quiet time, and vibrate-on-disconnect indicators
-* Night battery saver (battery-saving weather update pause)
+* Night battery saver (pause updates to the watch overnight to save battery)
 
 **Layout customization**
 * Multiple layout presets, with flick-to-cycle between views and optional auto-return

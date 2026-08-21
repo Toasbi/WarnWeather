@@ -241,6 +241,28 @@
           ]
         },
         {
+          "type": "raw",
+          "name": "STATUS_PHONE_BATTERY",
+          "file": "data/STATUS_PHONE_BATTERY.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "STATUS_PHONE_BATTERY_CHG",
+          "file": "data/STATUS_PHONE_BATTERY_CHG.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
           "type": "font",
           "name": "FONT_ROBOTO_BOLD_62",
           "file": "fonts/Roboto-Bold.ttf",

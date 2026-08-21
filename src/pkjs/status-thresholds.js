@@ -18,9 +18,10 @@
   // widened the bold area to 16 kinds; 33 -> 34 when battery % (kind 16) opened
   // byte 33. (The interim 31-byte, 8-kind-bold format never shipped — it
   // existed only on an unmerged branch — so exactly {34, 33, 29} are accepted;
-  // see status_threshold.h.) Byte 33 holds FOUR 2-bit cells (kinds 16..19), so
-  // dew point (17) appended for free and 18/19 still would: this stays 34 until
-  // a twentieth kind, which would widen every Clay send.
+  // see status_threshold.h.) Byte 33 holds FOUR 2-bit cells (kinds 16..19): dew
+  // point (17) and the two phone-battery kinds (18, 19) all appended into it for
+  // free, so this stays 34 — but the byte is now FULL, and a twenty-first kind
+  // (index 20) is the first that widens the blob and every Clay send with it.
   var SETTINGS_BYTES = 34;
   var COLORS_OFFSET = 1;
   var HEALTH_OFFSET = 17;    // shifted 15 -> 17 with the UV color pair (append-only kinds)
@@ -88,7 +89,18 @@
     // stays 34 and the Clay message does not grow. Dew is a temperature, and the
     // temp slot already has its own kind, so it needs one too — otherwise its
     // Bold row would have no cell to write.
-    { code: 'dew', key: 'Dew', belowIsWorse: false, boldOnly: true }
+    { code: 'dew', key: 'Dew', belowIsWorse: false, boldOnly: true },
+    // Phone battery (kinds 18/19, appended): byte 33's THIRD and FOURTH cells —
+    // the last two, so SETTINGS_BYTES still stays 34. TWO wire kinds because the
+    // watch must tell the no-icon variant apart from a plain TEXT+ICON_NONE city
+    // slot (status_threshold.h), but ONE settings key on purpose: both entries
+    // carry key 'PhoneBattery', so the sheet resolver hands both catalog codes
+    // the same Bold sheet and buildSettingsBlob reads the one
+    // threshPhoneBatteryBoldMode setting twice, writing the SAME mode into both
+    // cells. Nothing in the packer keys off `key` being unique — boldModeFor()
+    // is a plain per-entry lookup — so the duplicate is a share, not a clash.
+    { code: 'phoneBattery', key: 'PhoneBattery', belowIsWorse: false, boldOnly: true },
+    { code: 'phoneBatteryPlain', key: 'PhoneBattery', belowIsWorse: false, boldOnly: true }
   ];
 
   /**
@@ -156,7 +168,7 @@
    * AND ordered for the kind's direction (pack-time defense in depth — the
    * config UI also rejects inverted pairs on entry).
    * @param {Object} settings Clay settings blob
-   * @param {number} kindIndex wire kind id (0..16)
+   * @param {number} kindIndex wire kind id (0..THRESH_KIND_COUNT - 1)
    * @returns {{enabled: boolean, warn: ?number, danger: ?number,
    *            warnColor: ?number, dangerColor: ?number, boldMode: string}}
    */

@@ -171,6 +171,39 @@ test('buildSettingsSnapshot includes radarMode (default graph)', () => {
   assert.strictEqual(buildSettingsSnapshot({}).radarMode, 'graph');
 });
 
+// The phone-battery slot's Bold mode — the ONLY per-kind bold mode telemetry reports.
+// It earns the column because the slot is Android-only (its reading comes from a host
+// API that exists on no other phone), so how the small subset of phones that can have
+// it actually configure it is worth seeing. Passed through RAW, like tempSlotDisplay:
+// an install that has never opened the sheet reports undefined, which reads as "left at
+// the default" rather than as a deliberate "off".
+test('snapshot includes threshPhoneBatteryBoldMode, raw', () => {
+  assert.strictEqual(buildSettingsSnapshot({ threshPhoneBatteryBoldMode: 'always' }).threshPhoneBatteryBoldMode, 'always');
+  assert.strictEqual(buildSettingsSnapshot({ threshPhoneBatteryBoldMode: 'off' }).threshPhoneBatteryBoldMode, 'off');
+  assert.strictEqual(buildSettingsSnapshot({}).threshPhoneBatteryBoldMode, undefined,
+    'unset stays undefined — do not coerce it to a boolean or to "off"');
+  // The lockstep test below compares key SETS, and a key whose value is undefined is
+  // still a key — so pin that the property exists at all, since dropping it is exactly
+  // how a snapshot field goes missing without the set comparison noticing a shape change.
+  assert.ok(Object.prototype.hasOwnProperty.call(buildSettingsSnapshot({}), 'threshPhoneBatteryBoldMode'),
+    'the key must be emitted even when unset');
+});
+
+// Targeted half of the lockstep for the newest field. The set-equality test below would
+// also catch a one-sided edit, but it fails as a 90-key diff; this one names the key and
+// the file, which is what a reader needs when the two-place rule gets broken.
+test('threshPhoneBatteryBoldMode is declared in the Deno .strip() schema too', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const ts = fs.readFileSync(
+    path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'index.ts'), 'utf8');
+  const start = ts.indexOf('const settingsSchema');
+  assert.ok(start !== -1, 'settingsSchema not found in telemetry-ingest/index.ts');
+  const slice = ts.slice(start, ts.indexOf('.strip()', start));
+  assert.match(slice, /^\s*threshPhoneBatteryBoldMode:\s*z\.string\(\)\.optional\(\)/m,
+    'ingest must accept it as an optional string, or .strip() drops it silently');
+});
+
 test('settings snapshot keys match the Deno telemetry schema (lockstep)', () => {
   const fs = require('fs');
   const path = require('path');

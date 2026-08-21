@@ -165,7 +165,7 @@ var instance = configUi.createConfig({ schema, page, options });
 | `watchInfo` | `Pebble.getActiveWatchInfo()` | Raw watch info; the library computes `env` from it. |
 | `userData` | `instance.meta.userData` | Passed to block renderers and hooks. |
 | `returnTo` | `'pebblejs://close#'` | URL the page navigates to on save. |
-| `env` | computed from `watchInfo` | Override the computed env (testing only). |
+| `env` | computed from `watchInfo` | Extra env facts, **merged over** the computed env. For facts the library cannot derive from `watchInfo` (phone-runtime capabilities), and for test overrides. |
 
 Color conversion (`int ↔ hex`) is handled internally. The app always works in int-valued blobs;
 the page always works in hex strings; the library converts at the boundary.
@@ -335,6 +335,12 @@ env = {
 // { color: true, round: false, platform: '', health: true, radar: true,
 //   themePolarity: true, hr: false, thresholds: true }
 ```
+
+The host app may contribute additional facts by passing them as `generateUrl`'s `env`: the
+value is merged **over** the computed env, so the app supplies only the keys the library cannot
+know. That is the seam for *phone*-runtime capabilities — WarnWeather passes `phoneBattery`
+(whether this PKJS host exposes the Battery Status API, which only Android's Chromium WebView
+does) — because the library derives env from `watchInfo` alone and never reads app storage.
 
 The set of known 1-bit platforms (`aplite`, `diorite`, `flint`), the no-health/no-radar/
 no-theme-polarity/no-threshold platform (`aplite`), and the heart-rate-capable platforms
