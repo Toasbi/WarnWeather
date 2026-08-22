@@ -634,15 +634,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      *      overrules exemption — a duplicate reading is never what a rule was after.
      * @param {Object} ctx onReady ctx ({S, ENV, schema}).
      * @param {string} key Setting messageKey.
-     * @param {*} value The value the policy wants to write.
-     * @param {boolean} overrules Whether the rule exempts this key from clause 1.
+     * @param {Object} meta The key's flattened rule meta from applyDefaults
+     *     ({value, seedVia, dependsOn, overrules}).
      * @returns {boolean} True when writing is safe.
      */
-    function policyMayWrite(ctx, key, value, overrules) {
+    function policyMayWrite(ctx, key, meta) {
         var item = findItem(ctx.schema, key);
         if (!item) { return false; }   // not a setting on this page — never invent one
-        if (!overrules && ctx.S[key] !== resolvedDefaultAsStored(item, ctx.ENV)) { return false; }
-        return !rowSiblingHolds(ctx.S, key, value);
+        if (!meta.overrules && ctx.S[key] !== resolvedDefaultAsStored(item, ctx.ENV)) { return false; }
+        return !rowSiblingHolds(ctx.S, key, meta.value);
     }
 
     /**
@@ -662,35 +662,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Flatten the policy rules matching a context into one key -> {value, seedVia,
-     * dependsOn, overrules} map, with later rules winning (the precedence resolveDefaults
-     * documents) and first-seen key order preserved so a rule's own `set` order still
-     * decides who seeds first.
-     * @param {Object} policy The defaults-policy module.
-     * @param {Object} pctx Resolver context ({wizard, env, choices}).
-     * @returns {{keys: Array.<string>, by: Object}} Ordered keys + their
-     *     {value, seedVia, dependsOn, overrules}.
-     */
-    function pendingDefaults(policy, pctx) {
-        var rules = policy.rulesFor(pctx);
-        var keys = [], by = {}, i, k, set, via, dep, ov, names;
-        for (i = 0; i < rules.length; i += 1) {
-            set = rules[i].set || {};
-            via = rules[i].seedVia || {};
-            dep = rules[i].dependsOn || {};
-            ov = rules[i].overrules || [];
-            names = Object.keys(set);
-            for (k = 0; k < names.length; k += 1) {
-                if (!Object.prototype.hasOwnProperty.call(by, names[k])) { keys.push(names[k]); }
-                by[names[k]] = {value: set[names[k]], seedVia: via[names[k]] || null,
-                    dependsOn: dep[names[k]] || null,
-                    overrules: ov.indexOf(names[k]) !== -1};
-            }
-        }
-        return {keys: keys, by: by};
-    }
-
-    /**
      * Write the situational defaults a FINISHED wizard earns onto the live state, so the
      * existing save path persists them alongside everything else the wizard derived. A nav
      * that doesn't finish the wizard (Skip, Back, Next) writes nothing.
@@ -699,13 +670,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * page uses, so its companions — a threshold pair, an outline colour — come out identical
      * to flipping the control by hand. No threshold numbers are picked here.
      *
+     * The execution semantics — flattening, `set` order, dependsOn anchoring, the seedVia
+     * write-through — live in the policy module's applyDefaults, its one interpreter; this
+     * caller only contributes the guard deciding whether a value may land (policyMayWrite).
+     *
      * @param {Object} ctx onReady ctx ({S, ENV, schema}).
      * @param {string} nav The footer button pressed ('save'|'tweak'|'skip'|'next'|'back').
      * @returns {Object} The messageKey -> value pairs actually written (empty when none).
      */
     function applyWizardDefaults(ctx, nav) {
-        var written = {};
-        if (!COMPLETING_NAVS[nav] || !ctx) { return written; }
+        if (!COMPLETING_NAVS[nav] || !ctx) { return {}; }
         var policy = defaultsPolicy();
         if (!policy) {
             // Guarded: no other settings-page file assumes a console, and a missing one must
@@ -713,33 +687,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (typeof console !== 'undefined' && console.log) {
                 console.log('wizard: defaults-policy missing from the page — no setup defaults derived');
             }
-            return written;
+            return {};
         }
         // The whole live state doubles as `choices`: every wizard pick and every stored
         // setting is already in it, so a future rule keyed on any of them just works.
-        var pending = pendingDefaults(policy, {wizard: true, env: ctx.ENV, choices: ctx.S});
-        var i, key, value, anchor, hookName, hook, before;
-        for (i = 0; i < pending.keys.length; i += 1) {
-            key = pending.keys[i];
-            value = pending.by[key].value;
-            // dependsOn (the rule's coupling, e.g. the health-slot swap): a
-            // dependent key stands down unless its anchor HOLDS the rule's value
-            // by now — written above (set order puts anchors first) or already in
-            // place from an earlier run. A blocked promotion must not leave the
-            // eviction half of a swap running alone.
-            anchor = pending.by[key].dependsOn;
-            if (anchor && (!Object.prototype.hasOwnProperty.call(pending.by, anchor)
-                || ctx.S[anchor] !== pending.by[anchor].value)) { continue; }
-            if (!policyMayWrite(ctx, key, value, pending.by[key].overrules)) { continue; }
-            before = ctx.S[key];
-            ctx.S[key] = value;
-            hookName = pending.by[key].seedVia;
-            hook = hookName && PConf.onChange && PConf.onChange.get
-                ? PConf.onChange.get(hookName) : null;
-            if (hook) { hook(ctx.S, before, value, ctx.ENV, key); }
-            written[key] = value;
-        }
-        return written;
+        return policy.applyDefaults({wizard: true, env: ctx.ENV, choices: ctx.S}, {
+            mayWrite: function (key, meta) { return policyMayWrite(ctx, key, meta); },
+            getHook: function (name) {
+                return PConf.onChange && PConf.onChange.get ? PConf.onChange.get(name) : null;
+            }
+        });
     }
 
     function closeWizard() {

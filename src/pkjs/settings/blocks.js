@@ -1378,33 +1378,27 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // AQI's highlight-on-with-warn-outline, seeded through the very hooks
         // flipping the controls by hand would run. (A wizard-SKIPPED install never
         // got them; converging its reset on the intended out-of-box state is the
-        // deliberate choice here.) Only THIS kind's threshold-family keys apply;
-        // Bold is deliberately excluded (the reset leaves Bold alone — its row sits
-        // outside the Thresholds group). Unlike the wizard, no policyMayWrite guard:
-        // reset IS the user discarding their choices for this kind. dependsOn is
-        // still honored so a future coupled row cannot half-apply from here.
+        // deliberate choice here.) applyDefaults is the policy module's one
+        // interpreter (set order, dependsOn anchoring, seedVia write-through —
+        // shared with the wizard finish); this caller contributes only the veto
+        // scoping it to THIS kind's threshold-family keys, Bold deliberately
+        // excluded (the reset leaves Bold alone — its row sits outside the
+        // Thresholds group). Unlike the wizard, no not-still-default guard:
+        // reset IS the user discarding their choices for this kind.
         var policy = (typeof require !== 'undefined')
             ? require('./defaults-policy.js')
             : (typeof window !== 'undefined' ? window.DefaultsPolicy : null);
         if (policy) {
-            var rules = policy.rulesFor({wizard: true, env: env, choices: S});
-            for (var r = 0; r < rules.length; r++) {
-                var set = rules[r].set || {};
-                var via = rules[r].seedVia || {};
-                var dep = rules[r].dependsOn || {};
-                var names = Object.keys(set);
-                for (var n = 0; n < names.length; n++) {
-                    var name = names[n];
-                    if (name.indexOf('thresh' + stem) !== 0
-                        || name === 'thresh' + stem + 'BoldMode') { continue; }
-                    if (dep[name] && S[dep[name]] !== set[dep[name]]) { continue; }
-                    var prev = S[name];
-                    S[name] = set[name];
-                    var hook = via[name] && PConf.onChange && PConf.onChange.get
-                        ? PConf.onChange.get(via[name]) : null;
-                    if (hook) { hook(S, prev, set[name], env, name); }
+            policy.applyDefaults({wizard: true, env: env, choices: S}, {
+                mayWrite: function (name) {
+                    return name.indexOf('thresh' + stem) === 0
+                        && name !== 'thresh' + stem + 'BoldMode';
+                },
+                getHook: function (name) {
+                    return PConf.onChange && PConf.onChange.get
+                        ? PConf.onChange.get(name) : null;
                 }
-            }
+            });
         }
         return true;
     };

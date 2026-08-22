@@ -1004,6 +1004,20 @@ test('Aqi reset lands on the wizard-seeded fresh-install state, not schema-off',
   assert.ok(!('threshAqiBoldMode' in S), 'reset must not write the Bold mode');
 });
 
+test("a kind's reset never reaches outside that kind (the policy veto's scope)", () => {
+  // The defaults-policy table also carries rows for OTHER kinds and for the
+  // status-bar layout (the health-slot swap); resetThresholds' mayWrite veto is
+  // all that keeps a Wind-sheet reset from applying them through applyDefaults.
+  // Foreign keys must stay ABSENT, not merely unchanged.
+  const S = { theme: 'dark', threshWindOn: true,
+    threshWindWarn: '40', threshWindDanger: '60' };
+  PC.actions.resetThresholds('Wind', S, ENV);
+  ['statusTopRight', 'statusHealthLeft', 'threshAqiOn', 'threshAqiWarnOutlineOn',
+    'threshStepsBoldMode', 'threshWindBoldMode', 'threshTempBoldMode'].forEach((key) => {
+    assert.ok(!(key in S), key + ' must not be written by a Wind reset');
+  });
+});
+
 test('a weather-kind outline survives the next page open (stored toggle disambiguates)', () => {
   // thresholdOutlineToggle ON seeds the theme fg — but the fg is also what a LEGACY
   // auto warn color looks like, and onLoad converts auto colors back to '' (no

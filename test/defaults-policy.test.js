@@ -392,3 +392,76 @@ test('the health-slot swap declares exactly the promotion an overrule', () => {
   const rule = policy.RULES.find((r) => r.id === 'wizard-health-slots');
   assert.deepEqual(rule.overrules, ['statusTopRight']);
 });
+
+// --- applyDefaults: the ONE interpreter of the execution vocabulary ---------
+// Custom tables via the third param, so these pin the interpreter's semantics
+// independent of the live rules — which the wizard-finish and threshold-reset
+// integration tests already exercise end-to-end.
+
+test('applyDefaults writes matching rules onto the live state and reports what it wrote', () => {
+  const rules = [
+    { id: 'a', when: {}, set: { one: 1, two: 2 } },
+    { id: 'b', when: { wizard: true }, set: { three: 3 } }
+  ];
+  const S = {};
+  const written = policy.applyDefaults(ctx({ wizard: false, choices: S }), {}, rules);
+  assert.deepEqual(written, { one: 1, two: 2 }, 'the non-matching rule stays out');
+  assert.deepEqual(S, { one: 1, two: 2 }, 'values land on the live state');
+});
+
+test('applyDefaults flattens later-rules-win: one write, one hook fire per key', () => {
+  // The pre-extraction blocks.js loop applied rule-by-rule, so a key two rules set
+  // would have been written (and its hook fired) twice — the exact dialect drift
+  // the shared interpreter exists to prevent.
+  const rules = [
+    { id: 'general', when: {}, set: { key: 'general' }, seedVia: { key: 'hook' } },
+    { id: 'specific', when: {}, set: { key: 'specific' }, seedVia: { key: 'hook' } }
+  ];
+  const calls = [];
+  const S = {};
+  policy.applyDefaults(ctx({ choices: S }), {
+    getHook: () => (state, before, value, env, key) => calls.push([key, before, value])
+  }, rules);
+  assert.equal(S.key, 'specific', 'the later row wins');
+  assert.deepEqual(calls, [['key', undefined, 'specific']],
+    'exactly one hook fire — flattening, not per-rule application');
+});
+
+test('applyDefaults: a dependent stands down unless its anchor holds the rule value', () => {
+  const rules = [{ id: 'swap', when: {},
+    set: { anchor: 'promoted', dependent: 'evicted' },
+    dependsOn: { dependent: 'anchor' } }];
+  // Anchor vetoed (e.g. a customized slot under policyMayWrite) -> the dependent
+  // must not run alone.
+  const vetoed = {};
+  const w1 = policy.applyDefaults(ctx({ choices: vetoed }),
+    { mayWrite: (key) => key !== 'anchor' }, rules);
+  assert.deepEqual(w1, {}, 'no half-applied swap');
+  assert.deepEqual(vetoed, {}, 'the live state is untouched');
+  // Anchor already in place from an earlier run -> the dependent may proceed.
+  const held = { anchor: 'promoted' };
+  const w2 = policy.applyDefaults(ctx({ choices: held }),
+    { mayWrite: (key) => key !== 'anchor' }, rules);
+  assert.deepEqual(w2, { dependent: 'evicted' });
+});
+
+test('applyDefaults hands mayWrite the flattened meta, overrules included', () => {
+  const rules = [{ id: 'r', when: {}, set: { a: 1, b: 2 }, overrules: ['b'] }];
+  const seen = {};
+  policy.applyDefaults(ctx({ choices: {} }), {
+    mayWrite: (key, meta) => { seen[key] = meta.overrules; return true; }
+  }, rules);
+  assert.deepEqual(seen, { a: false, b: true });
+});
+
+test('applyDefaults writes seedVia keys through the resolved hook, against the live state', () => {
+  const rules = [{ id: 'r', when: {}, set: { toggleKey: true },
+    seedVia: { toggleKey: 'seedCompanion' } }];
+  const S = { existing: 'kept' };
+  policy.applyDefaults(ctx({ choices: S }), {
+    getHook: (name) => name === 'seedCompanion'
+      ? (state, before, value, env, key) => { state.companion = key + ':' + value; }
+      : null
+  }, rules);
+  assert.deepEqual(S, { existing: 'kept', toggleKey: true, companion: 'toggleKey:true' });
+});

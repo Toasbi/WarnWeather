@@ -18,8 +18,10 @@
 // The table is data, not logic. Every row says WHEN it applies, WHAT it sets, and
 // — the part that makes the file worth opening — WHY, in a sentence you can
 // disagree with. Adding a conditional default is adding a row, never adding an
-// `if` somewhere else. Nothing here is applied on its own: a caller resolves the
-// table for its context and writes the result (see resolveDefaults).
+// `if` somewhere else. Nothing here is applied on its own: a caller reads its
+// context's values (resolveDefaults) or has them written onto live state through
+// applyDefaults — the ONE interpreter of the execution vocabulary below, shared
+// by the wizard finish and the threshold reset so the semantics cannot fork.
 //
 // THE `when` VOCABULARY (an unlisted key throws — a typo must not read as a
 // condition that quietly never matches):
@@ -45,9 +47,10 @@
 // writes that only make sense together — see the health-slots row — and
 // `overrules` (a list of the rule's own set keys), which exempts a key from the
 // consumer's "the user has not spoken here" guard: the rule's value replaces
-// even a hand-customized stored one. Tests pin that every dependsOn/overrules
-// name references the same rule's set, so a typo fails loudly instead of
-// silently stranding a dependent or protecting nothing.
+// even a hand-customized stored one. applyDefaults below is the one interpreter
+// of all three. Tests pin that every dependsOn/overrules name references the
+// same rule's set, so a typo fails loudly instead of silently stranding a
+// dependent or protecting nothing.
 (function () {
     // healthMode's schema default (schema.js). Repeated here because an unset
     // healthMode means "the user never touched it", which is health ON, and a
@@ -280,12 +283,97 @@
         return out;
     }
 
+    /**
+     * Flatten the rules matching a context into one key -> meta map, with later
+     * rules winning (the precedence resolveDefaults documents) and first-seen key
+     * order preserved so a rule's own `set` order still decides who seeds first.
+     *
+     * @param {Object} ctx {wizard, env, choices}.
+     * @param {Object[]} [rules] Table to resolve; defaults to RULES.
+     * @returns {{keys: Array.<string>, by: Object}} Ordered keys + their
+     *     {value, seedVia, dependsOn, overrules}.
+     */
+    function pendingDefaults(ctx, rules) {
+        var matching = rulesFor(ctx, rules);
+        var keys = [], by = {}, i, k, set, via, dep, ov, names;
+        for (i = 0; i < matching.length; i += 1) {
+            set = matching[i].set || {};
+            via = matching[i].seedVia || {};
+            dep = matching[i].dependsOn || {};
+            ov = matching[i].overrules || [];
+            names = Object.keys(set);
+            for (k = 0; k < names.length; k += 1) {
+                if (!Object.prototype.hasOwnProperty.call(by, names[k])) { keys.push(names[k]); }
+                by[names[k]] = {value: set[names[k]], seedVia: via[names[k]] || null,
+                    dependsOn: dep[names[k]] || null,
+                    overrules: ov.indexOf(names[k]) !== -1};
+            }
+        }
+        return {keys: keys, by: by};
+    }
+
+    /**
+     * Write the matching rules' values onto a live settings state — THE one
+     * interpreter of the table's execution vocabulary (later-rules-win
+     * flattening, `set`-order application, dependsOn anchoring, seedVia
+     * write-through, per-key veto). Both consumers go through here — the
+     * wizard's finish (wizard.js applyWizardDefaults) and the per-kind
+     * threshold reset (blocks.js resetThresholds) — so the vocabulary cannot
+     * drift into two dialects.
+     *
+     * ctx.choices doubles as the live state: values are written into it and
+     * seedVia hooks run against it. Both consumers already work that way —
+     * every stored setting (and wizard pick) is in it, so a rule keyed on any
+     * of them just works.
+     *
+     * @param {Object} ctx Resolver context ({wizard, env, choices}); `choices`
+     *     is mutated.
+     * @param {Object} [opts]
+     * @param {function(string, Object): boolean} [opts.mayWrite] Per-key veto,
+     *     called as (key, meta) with meta = {value, seedVia, dependsOn,
+     *     overrules}; omitted allows every key. A vetoed ANCHOR still blocks
+     *     its dependents — they check the live state, not the veto.
+     * @param {function(string): ?Function} [opts.getHook] Resolves a seedVia
+     *     hook name to the onChange hook to write through, invoked as
+     *     (S, before, value, env, key); omitted writes values directly.
+     * @param {Object[]} [rules] Table to apply; defaults to RULES.
+     * @returns {Object} The key -> value pairs actually written (empty when none).
+     */
+    function applyDefaults(ctx, opts, rules) {
+        var S = (ctx && ctx.choices) || {};
+        var mayWrite = (opts && opts.mayWrite) || null;
+        var getHook = (opts && opts.getHook) || null;
+        var pending = pendingDefaults(ctx, rules);
+        var written = {};
+        var i, key, meta, anchor, hook, before;
+        for (i = 0; i < pending.keys.length; i += 1) {
+            key = pending.keys[i];
+            meta = pending.by[key];
+            // dependsOn (a rule's coupling, e.g. the health-slot swap): a
+            // dependent key stands down unless its anchor HOLDS the rule's value
+            // by now — written earlier this pass (set order puts anchors first)
+            // or already in place from an earlier run. A blocked promotion must
+            // not leave the eviction half of a swap running alone.
+            anchor = meta.dependsOn;
+            if (anchor && (!Object.prototype.hasOwnProperty.call(pending.by, anchor)
+                || S[anchor] !== pending.by[anchor].value)) { continue; }
+            if (mayWrite && !mayWrite(key, meta)) { continue; }
+            before = S[key];
+            S[key] = meta.value;
+            hook = meta.seedVia && getHook ? getHook(meta.seedVia) : null;
+            if (hook) { hook(S, before, meta.value, ctx.env, key); }
+            written[key] = meta.value;
+        }
+        return written;
+    }
+
     var api = {
         RULES: RULES,
         CONDITIONS: CONDITIONS,
         ruleApplies: ruleApplies,
         rulesFor: rulesFor,
-        resolveDefaults: resolveDefaults
+        resolveDefaults: resolveDefaults,
+        applyDefaults: applyDefaults
     };
 
     // Dual-context export — mirrors status-line-catalog.js: Node (tests, and the
