@@ -35,6 +35,7 @@ var statusThresholds = require('./status-thresholds.js');
 // The render-affecting-settings signature (the force-fetch rule) lives in its own
 // module so the invariant is testable; see the header there.
 var renderSignature = require('./render-signature.js').renderSignature;
+var decideConfigClose = require('./config-close.js').decideConfigClose;
 var phoneBattery = require('./phone-battery.js');
 
 /**
@@ -260,34 +261,6 @@ Pebble.addEventListener('webviewclosed', function(e) {
     }
     app.telemetry = createTelemetryClient(getRuntimeTelemetryConfig());
     var providerOrLocationChanged = refreshProvider();
-    var radarProviderChanged = oldRadarProvider !== app.settings.radarProvider
-        || oldRadarMode !== app.settings.radarMode;
-    var nextRender = renderSignature(app.settings);
-    var renderSettingsChanged = prevRender !== nextRender;
-    var needsRefetch = providerOrLocationChanged || radarProviderChanged || renderSettingsChanged;
-    if (needsRefetch) {
-        // Location/provider/radar-provider/render-setting change makes the watch's
-        // current data (or chart) wrong; drop the last-sent caches (including radar)
-        // so the next fetch resends every category.
-        outbox.clearWeatherCaches();
-    }
-
-    // Send Clay settings, then (when a refetch is needed) force-fetch after that
-    // send settles. The scheduler chains the fetch into the Clay-send callbacks
-    // and defers it past the webview teardown, so it never rides the half-duplex
-    // channel back-to-back with the Clay send.
-    // Also force when an auth backoff is active: closing the config is an explicit
-    // user action (they likely just fixed the key/subscription), so give the provider
-    // an immediate retry — even if the key STRING didn't change here (e.g. they
-    // activated One Call by Call on OWM with the same key). A forced fetch clears the
-    // backoff; without this they'd have to toggle Force weather fetch by hand.
-    // "Understood": dismiss all shown notices. A pure ack (dismiss with no
-    // render-relevant change and no Force toggle) means "I saw it, I'm not fixing
-    // it now" — so DON'T let the backoff-active branch force a doomed retry that
-    // would just re-raise the notice. Instead push the overlay clear, sequenced
-    // after the Clay send by the scheduler so it never collides on the half-duplex
-    // channel. A real key/provider/location change still force-fetches (and a
-    // successful fetch clears errors + self-heals the overlay).
     var acked = app.settings.fetchNoticeAck === true;
     // Only an error notice puts text on the watch overlay; capture that BEFORE
     // dismissAll() empties the list, so we push the watch clear only when there
@@ -296,12 +269,31 @@ Pebble.addEventListener('webviewclosed', function(e) {
     if (acked) {
         notices.dismissAll();
     }
-    var pureAck = acked && !needsRefetch && app.settings.fetch !== true;
-    var shouldForceFetch = app.settings.fetch === true || needsRefetch
-        || (authBackoff.isActive() && !pureAck);
+    // The WHY of every rule below lives with the decision (config-close.js);
+    // this handler only captures the facts and performs the effects.
+    var decision = decideConfigClose({
+        providerOrLocationChanged: providerOrLocationChanged,
+        radarProviderChanged: oldRadarProvider !== app.settings.radarProvider
+            || oldRadarMode !== app.settings.radarMode,
+        renderSettingsChanged: prevRender !== renderSignature(app.settings),
+        fetchToggle: app.settings.fetch === true,
+        acked: acked,
+        hadWatchNotice: hadWatchNotice,
+        authBackoffActive: authBackoff.isActive()
+    });
+    if (decision.needsRefetch) {
+        // The watch's current data (or chart) is wrong; drop the last-sent caches
+        // (including radar) so the next fetch resends every category.
+        outbox.clearWeatherCaches();
+    }
+    // Send Clay settings, then (when forced) fetch after that send settles. The
+    // scheduler chains the fetch into the Clay-send callbacks and defers it past
+    // the webview teardown, so it never rides the half-duplex channel
+    // back-to-back with the Clay send; it also runs the overlay clear only when
+    // no fetch is forced.
     scheduler.onConfigClosed({
-        forceFetch: shouldForceFetch,
-        clearNotice: hadWatchNotice && !shouldForceFetch
+        forceFetch: decision.forceFetch,
+        clearNotice: decision.clearNotice
     });
     refreshHolidays();
     // app.settings was just reloaded from storage above; log it rather than re-reading.
