@@ -554,6 +554,12 @@ void health_graph_layer_refresh(void) {
     layer_mark_dirty(s_health_graph_layer);
 }
 
+// See health_graph_layer.h.
+void health_graph_layer_remeasure(void) {
+    if (!health_cache_ready()) { return; }
+    health_graph_compute(true);   // report the strip width only -- no layer_mark_dirty
+}
+
 void health_graph_layer_destroy(void) {
     layer_destroy(s_health_graph_layer);
     s_health_graph_layer = NULL;

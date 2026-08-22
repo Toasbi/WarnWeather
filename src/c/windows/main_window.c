@@ -543,7 +543,18 @@ void main_window_refresh() {
 void main_window_refresh_health_graph(void) {
     ViewSpec spec = current_view_spec();
     LayerVisibility v = layout_visibility(&spec);
-    if (v.health_graph) { health_graph_layer_refresh(); }
+    if (v.health_graph) {
+        health_graph_layer_refresh();
+    } else if (health_renderable()) {
+        // Hidden health view: no repaint, but its left-axis labels still feed the SHARED
+        // strip width (bottom_view.h, "wider of both"). A settings apply that changed the
+        // label font has to re-measure here, or the VISIBLE forecast keeps the old gutter
+        // until the next flick into health. Gated on health_renderable() so a HEALTH_OFF
+        // or no-sensor install never reports a phantom width. This runs synchronously
+        // inside app_message.c's config_dirty block while the repaints around it are
+        // deferred layer_mark_dirty()s, so BOTH widths land before the next frame.
+        health_graph_layer_remeasure();
+    }
 }
 #endif
 
