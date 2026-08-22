@@ -274,6 +274,59 @@ function loadForMigration(isMigrationDone, label) {
 }
 
 /**
+ * Run every marker-gated migration, in ship order — the ONE place a migration's
+ * body, marker key (storage-keys.js) and gating live together; index.js's ready
+ * handler used to thread twelve getItem/setItem closures through six calls.
+ *
+ * The two Clay-COLOR migrations defer their marker to the Clay ACK: a migrated
+ * blob is only safe once the watch has it, and a NACK must leave the marker
+ * unset so the migration retries next boot. Their migrate* functions return
+ * true for "the Clay resend must carry this" (marking themselves only on their
+ * no-op branches — e.g. already-migrated values return true WITHOUT marking);
+ * the caller passes commitDeferredMarkers as the scheduler's onClayAck.
+ * Everything else marks synchronously inside its migrate* function.
+ *
+ * @param {{platform: string, colors: Object, defaultRadarProvider: string}} opts
+ *   platform: watch platform for the status-line health defaults; colors: the
+ *   DEFAULT_HOLIDAY_COLORS bundle; defaultRadarProvider: radarMode migration
+ *   fallback.
+ * @returns {{clayRequired: boolean, commitDeferredMarkers: Function}}
+ */
+function runMigrations(opts) {
+    function isDone(key) {
+        return function () { return localStorage.getItem(key) !== null; };
+    }
+    function mark(key) {
+        return function () { localStorage.setItem(key, '1'); };
+    }
+    var wantsClayColors = migrateWeekendHolidayColors(opts.colors,
+        isDone(KEYS.WEEKEND_HOLIDAY_COLOR_MIGRATION_KEY),
+        mark(KEYS.WEEKEND_HOLIDAY_COLOR_MIGRATION_KEY));
+    var wantsClayToggle = migrateHolidayWhiteToToggle(opts.colors,
+        isDone(KEYS.HOLIDAY_WHITE_TO_TOGGLE_MIGRATION_KEY),
+        mark(KEYS.HOLIDAY_WHITE_TO_TOGGLE_MIGRATION_KEY));
+    migrateHolidayRegionKeys(
+        isDone(KEYS.HOLIDAY_REGION_KEY_MIGRATION_KEY),
+        mark(KEYS.HOLIDAY_REGION_KEY_MIGRATION_KEY));
+    migrateStatusLineHealthDefaults(opts.platform,
+        isDone(KEYS.STATUS_LINE_HEALTH_DEFAULTS_MIGRATION_KEY),
+        mark(KEYS.STATUS_LINE_HEALTH_DEFAULTS_MIGRATION_KEY));
+    migrateStatusTopRightBattery(
+        isDone(KEYS.STATUS_TOP_RIGHT_BATTERY_MIGRATION_KEY),
+        mark(KEYS.STATUS_TOP_RIGHT_BATTERY_MIGRATION_KEY));
+    migrateRadarProviderToMode(opts.defaultRadarProvider,
+        isDone(KEYS.RADAR_VIEW_MODE_MIGRATION_KEY),
+        mark(KEYS.RADAR_VIEW_MODE_MIGRATION_KEY));
+    return {
+        clayRequired: Boolean(wantsClayColors || wantsClayToggle),
+        commitDeferredMarkers: function () {
+            if (wantsClayColors) { mark(KEYS.WEEKEND_HOLIDAY_COLOR_MIGRATION_KEY)(); }
+            if (wantsClayToggle) { mark(KEYS.HOLIDAY_WHITE_TO_TOGGLE_MIGRATION_KEY)(); }
+        }
+    };
+}
+
+/**
  * Move existing installs from the old all-white weekend/holiday defaults to the
  * current highlighted default while preserving any customized color set.
  *
@@ -559,6 +612,7 @@ module.exports = {
     read: read,
     save: save,
     resetAll: resetAll,
+    runMigrations: runMigrations,
     fillFromPreserved: fillFromPreserved,
     shouldReset: shouldReset,
     hasStored: hasStored,

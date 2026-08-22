@@ -85,12 +85,6 @@ var KEY_GEOCODE_BACKOFF = storageKeys.GEOCODE_BACKOFF_KEY;
 // enough to clear the common case (a fetch already past its requests), short
 // enough that a settings change still feels immediate.
 var FORCED_RETRY_MS = 3000;
-var KEY_V1_34_0_WEEKEND_HOLIDAY_COLOR_MIGRATION = 'v1.34.0_weekend_holiday_color_migration';
-var KEY_HOLIDAY_WHITE_TO_TOGGLE_MIGRATION = 'v1.4.0_holiday_white_to_toggle_migration';
-var KEY_V1_4_0_HOLIDAY_REGION_KEY_MIGRATION = 'v1.4.0_holiday_region_key_migration';
-var KEY_STATUS_LINE_HEALTH_DEFAULTS_MIGRATION = 'v1.8.0_status_line_health_defaults_migration';
-var KEY_STATUS_TOP_RIGHT_BATTERY_MIGRATION = 'v1.8.0_status_top_right_battery_migration';
-var KEY_RADAR_VIEW_MODE_MIGRATION = 'v1.10.0_radar_view_mode_migration';
 var KEY_LAST_IS_SLEEPING = storageKeys.LAST_IS_SLEEPING_KEY;
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
 var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
@@ -322,9 +316,6 @@ function newsCacheOpts() {
 // Listen for when the watchface is opened
 Pebble.addEventListener('ready',
     function (e) {
-        var migratedWeekendHolidayColors;
-        var migratedHolidayWhiteToToggle;
-
         app.devConfig = getDevConfig();
         maybeHandleDevStorageReset(app.devConfig);
         var hadExistingInstall = claySettings.hasStored();
@@ -333,37 +324,20 @@ Pebble.addEventListener('ready',
             app.devConfig.forceShowReleaseNotificationOnBoot
         );
         claySettings.seedDefaults(DEFAULT_HOLIDAY_COLORS);
-        migratedWeekendHolidayColors = claySettings.migrateWeekendHolidayColors(
-            DEFAULT_HOLIDAY_COLORS,
-            function() { return localStorage.getItem(KEY_V1_34_0_WEEKEND_HOLIDAY_COLOR_MIGRATION) !== null; },
-            markWeekendHolidayColorMigrationComplete
-        );
-        migratedHolidayWhiteToToggle = claySettings.migrateHolidayWhiteToToggle(
-            DEFAULT_HOLIDAY_COLORS,
-            function() { return localStorage.getItem(KEY_HOLIDAY_WHITE_TO_TOGGLE_MIGRATION) !== null; },
-            markHolidayWhiteToToggleMigrationComplete
-        );
-        claySettings.migrateHolidayRegionKeys(
-            function() { return localStorage.getItem(KEY_V1_4_0_HOLIDAY_REGION_KEY_MIGRATION) !== null; },
-            function() { localStorage.setItem(KEY_V1_4_0_HOLIDAY_REGION_KEY_MIGRATION, '1'); }
-        );
         var statusMigrationPlatform = 'basalt';
         try {
             var wi = Pebble.getActiveWatchInfo();
             if (wi && wi.platform) { statusMigrationPlatform = wi.platform; }
         }
         catch (ex) { /* keep the safe default */ }
-        claySettings.migrateStatusLineHealthDefaults(
-            statusMigrationPlatform,
-            function() { return localStorage.getItem(KEY_STATUS_LINE_HEALTH_DEFAULTS_MIGRATION) !== null; },
-            function() { localStorage.setItem(KEY_STATUS_LINE_HEALTH_DEFAULTS_MIGRATION, '1'); });
-        claySettings.migrateStatusTopRightBattery(
-            function() { return localStorage.getItem(KEY_STATUS_TOP_RIGHT_BATTERY_MIGRATION) !== null; },
-            function() { localStorage.setItem(KEY_STATUS_TOP_RIGHT_BATTERY_MIGRATION, '1'); });
-        claySettings.migrateRadarProviderToMode(
-            'rainbow',
-            function() { return localStorage.getItem(KEY_RADAR_VIEW_MODE_MIGRATION) !== null; },
-            function() { localStorage.setItem(KEY_RADAR_VIEW_MODE_MIGRATION, '1'); });
+        // Every marker-gated migration runs inside clay-settings.runMigrations
+        // (bodies, marker keys and gating live together there); the two
+        // Clay-color ones commit their markers only on the Clay ACK below.
+        var migrations = claySettings.runMigrations({
+            platform: statusMigrationPlatform,
+            colors: DEFAULT_HOLIDAY_COLORS,
+            defaultRadarProvider: 'rainbow'
+        });
         claySettings.applyDevConfig(app.devConfig);
         claySettings.applyFixtureSettings(activeFixture, pebbleColors);
         console.log('PebbleKit JS ready!');
@@ -415,14 +389,10 @@ Pebble.addEventListener('ready',
             return;
         }
         scheduler.onReady({
-            migrationClayRequired: Boolean(migratedWeekendHolidayColors || migratedHolidayWhiteToToggle),
-            onClayAck: function() {
-                // Runs on ACK only, so a NACK leaves the migration markers unset
-                // and the migration retries next boot (matches the original
-                // failure path, which never marked complete on NACK).
-                if (migratedWeekendHolidayColors) { markWeekendHolidayColorMigrationComplete(); }
-                if (migratedHolidayWhiteToToggle) { markHolidayWhiteToToggleMigrationComplete(); }
-            }
+            migrationClayRequired: migrations.clayRequired,
+            // Runs on ACK only, so a NACK leaves the deferred migration markers
+            // unset and the migration retries next boot.
+            onClayAck: migrations.commitDeferredMarkers
         });
         refreshHolidays();
         scheduler.start();
@@ -655,12 +625,12 @@ function maybeHandleDevStorageReset(devConfig) {
 
     if (shouldResetV134WeekendHolidayColorMigration) {
         console.log('[dev] resetV134WeekendHolidayColorMigration=true, clearing migration marker');
-        localStorage.removeItem(KEY_V1_34_0_WEEKEND_HOLIDAY_COLOR_MIGRATION);
+        localStorage.removeItem(storageKeys.WEEKEND_HOLIDAY_COLOR_MIGRATION_KEY);
     }
 
     if (Boolean(devConfig && devConfig.resetV140HolidayRegionKeyMigration)) {
         console.log('[dev] resetV140HolidayRegionKeyMigration=true, clearing migration marker');
-        localStorage.removeItem(KEY_V1_4_0_HOLIDAY_REGION_KEY_MIGRATION);
+        localStorage.removeItem(storageKeys.HOLIDAY_REGION_KEY_MIGRATION_KEY);
     }
 
     if (Boolean(devConfig && devConfig.resetUpdateNotifiedVersion)) {
@@ -801,24 +771,6 @@ function setProvider(providerId) {
     }
     app.provider = provider;
     console.log('Set provider: ' + app.provider.name);
-}
-
-/**
- * Mark the v1.34.0 weekend/holiday color migration as complete.
- *
- * @returns {void}
- */
-function markWeekendHolidayColorMigrationComplete() {
-    localStorage.setItem(KEY_V1_34_0_WEEKEND_HOLIDAY_COLOR_MIGRATION, '1');
-}
-
-/**
- * Mark the white-holiday-color -> Holiday highlight toggle migration as complete.
- *
- * @returns {void}
- */
-function markHolidayWhiteToToggleMigrationComplete() {
-    localStorage.setItem(KEY_HOLIDAY_WHITE_TO_TOGGLE_MIGRATION, '1');
 }
 
 /**

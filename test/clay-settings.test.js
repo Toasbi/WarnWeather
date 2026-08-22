@@ -633,3 +633,25 @@ test('the boot restore discards a non-object parking slot too, not laundered int
   assert.ok(!('0' in blob), 'no laundered index keys in the seeded blob');
   assert.equal(store['preservedApiKeys'], undefined, 'the junk slot is dropped');
 });
+
+test('runMigrations gates by marker and defers the Clay-color marks to the ACK', () => {
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  // An old blob still on all-white weekend/holiday colors -> the color migration
+  // fires, and its marker must wait for the Clay ACK (a NACK retries next boot).
+  store['clay-settings'] = JSON.stringify({
+    colorSunday: COLORS.white, colorSaturday: COLORS.white, colorUSFederal: COLORS.white });
+  const res = claySettings.runMigrations({
+    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  assert.equal(res.clayRequired, true, 'the migrated blob must ride a Clay send');
+  assert.equal(store['v1.34.0_weekend_holiday_color_migration'], undefined,
+    'deferred until the Clay ACK');
+  assert.equal(store['v1.4.0_holiday_region_key_migration'], '1',
+    'sync migrations mark themselves');
+  res.commitDeferredMarkers();
+  assert.equal(store['v1.34.0_weekend_holiday_color_migration'], '1', 'the ACK commits it');
+  const again = claySettings.runMigrations({
+    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  assert.equal(again.clayRequired, false, 'a marked migration never re-fires');
+});
