@@ -1972,6 +1972,62 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         textPreEdit[inp.getAttribute('data-k')] = S[inp.getAttribute('data-k')];
       }
     }
+    // THE value-mutation ritual every control shares: write S, then dispatch the
+    // item's onChange as (S, old, new, ENV, key). This used to be copy-pasted at
+    // six sites across the #scroll and #modal handlers — a changed onChange
+    // contract needed six synchronized edits.
+    function setValue(key, newV, optOldV) {
+      var oldV = arguments.length > 2 ? optOldV : S[key];
+      S[key] = newV;
+      var item = findItem(key);
+      var fn = item && item.onChange && PConf.onChange.get(item.onChange);
+      if (fn) { fn(S, oldV, newV, ENV, key); }
+    }
+
+    // The delegated control cases #scroll and the edit sheet share — ONE matcher,
+    // so "which controls work inside the sheet" stops being an implicit
+    // hand-curated duplicate of #scroll's list. Returns true when handled.
+    // (The two hosts used to check these in different orders; no element matches
+    // two of the selectors — data-action rides button rows, .lbl-act and
+    // .txt-act-btn, none nested in toggle/data-v/color controls — so one
+    // canonical order serves both.)
+    function controlClick(e) {
+      var t;
+      if ((t = e.target.closest('[data-max-edit]'))) { openMaxEdit(t); return true; }
+      if ((t = e.target.closest('[data-toggle]'))) {
+        // Toggles fire their onChange like any other control (e.g. thresholdToggle
+        // seeding/blanking a kind's warn+danger pair).
+        var tgK = t.getAttribute('data-k');
+        setValue(tgK, !S[tgK]);
+        render(); return true;
+      }
+      if ((t = e.target.closest('[data-color-pick]'))) {
+        // Color swatches carry no onChange today — a plain write, no dispatch.
+        S[t.getAttribute('data-k')] = t.getAttribute('data-color-pick');
+        openColor = null; render(); return true;
+      }
+      if ((t = e.target.closest('[data-color]'))) {
+        var ck = t.getAttribute('data-color');
+        openColor = (openColor === ck ? null : ck); render(); return true;
+      }
+      if ((t = e.target.closest('[data-v]'))) {
+        setValue(t.getAttribute('data-k'), t.getAttribute('data-v'));
+        render(); return true;
+      }
+      if ((t = e.target.closest('[data-action]'))) {
+        var act = t.getAttribute('data-action');
+        // Actions receive (arg, S, ENV, defaultAsStored); returning true asks for
+        // a re-render (e.g. resetThresholds rewrites several keys). Legacy
+        // actions ignore all of it.
+        if (PConf.actions[act]
+            && PConf.actions[act](t.getAttribute('data-action-arg'), S, ENV, defaultAsStored) === true) {
+          render();
+        }
+        return true;
+      }
+      return false;
+    }
+
     // A text item's onChange hook fires on COMMIT (change = blur / Enter), not on the
     // per-keystroke `input` above: a hook that rejects a value by reverting it (e.g.
     // validateThresholdPair) would otherwise fight the user mid-typing — "100" can't be
@@ -1980,16 +2036,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var inp = e.target.closest && e.target.closest('input[type=text]');
       if (!inp || inp.getAttribute('data-k') == null) { return; }
       var tk = inp.getAttribute('data-k'), newV = inp.value;
-      S[tk] = newV;
       var tItem = findItem(tk);
       var onChangeFn = tItem && tItem.onChange && PConf.onChange.get(tItem.onChange);
-      if (!onChangeFn) { return; }
+      if (!onChangeFn) { S[tk] = newV; return; }
       // No focusin seen (programmatic value + change): fall back to the new value so a
       // revert is a no-op rather than restoring something that was never in the field.
       var oldV = Object.prototype.hasOwnProperty.call(textPreEdit, tk)
         ? textPreEdit[tk] : newV;
       delete textPreEdit[tk];
-      onChangeFn(S, oldV, newV, ENV, tk);
+      setValue(tk, newV, oldV);
       // Repaint ONLY when the hook actually corrected the value: a correction has
       // to become visible (focus has already left the field). On the common
       // accepted-value path the input already shows what the user typed, and an
@@ -2255,41 +2310,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           render();
           return;
         }
-        if ((t = e.target.closest('[data-max-edit]'))) { openMaxEdit(t); return; }
-        if ((t = e.target.closest('[data-toggle]'))) {
-          var tgK = t.getAttribute('data-k'), tgOld = S[tgK];
-          S[tgK] = !tgOld;
-          // Toggles fire their onChange like any other control (e.g. thresholdToggle
-          // seeding/blanking a kind's warn+danger pair).
-          var tgItem = findItem(tgK);
-          var tgFn = tgItem && tgItem.onChange && PConf.onChange.get(tgItem.onChange);
-          if (tgFn) { tgFn(S, tgOld, S[tgK], ENV, tgK); }
-          render(); return;
-        }
-        if ((t = e.target.closest('[data-color-pick]'))) { S[t.getAttribute('data-k')] = t.getAttribute('data-color-pick'); openColor = null; render(); return; }
-        if ((t = e.target.closest('[data-color]'))) { var k = t.getAttribute('data-color'); openColor = (openColor === k ? null : k); render(); return; }
-        if ((t = e.target.closest('[data-v]'))) {
-          var vk = t.getAttribute('data-k'), oldV = S[vk], newV = t.getAttribute('data-v');
-          S[vk] = newV;
-          var vItem = findItem(vk);
-          var onChangeFn = vItem && vItem.onChange && PConf.onChange.get(vItem.onChange);
-          if (onChangeFn) { onChangeFn(S, oldV, newV, ENV, vk); }
-          render();
-          return;
-        }
         if ((t = e.target.closest('[data-coll]'))) { var sid = t.getAttribute('data-coll'); collapsed[sid] = !collapsed[sid]; render(); return; }
         if ((t = e.target.closest('[data-copy]'))) { copyText(t.getAttribute('data-copy')); return; }
-        if ((t = e.target.closest('[data-action]'))) {
-          var act = t.getAttribute('data-action');
-          // Actions receive (arg, S, ENV, defaultAsStored); returning true asks for a
-          // re-render (e.g. resetThresholds rewrites several keys). Legacy actions
-          // ignore all of it.
-          if (PConf.actions[act]
-              && PConf.actions[act](t.getAttribute('data-action-arg'), S, ENV, defaultAsStored) === true) {
-            render();
-          }
-          return;
-        }
+        // Everything else a tab body can host is a shared control case.
+        controlClick(e);
       });
       scroll.addEventListener('input', liveTextInput);
       scroll.addEventListener('focusin', captureTextPreEdit);
@@ -2313,47 +2337,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           if (onChangeFn) { onChangeFn(S, oldV, newV, ENV, k); }
           closeModal(); return;
         }
-        // Edit-sheet controls: the sheet renders ordinary rows inside the dialog, so the
-        // same delegated cases #scroll owns must work here. render() repaints the dialog's
-        // innerHTML in place (openEdit is unchanged), so the sheet stays open throughout.
-        if (openEdit && e.target.closest && (t = e.target.closest('[data-max-edit]'))) {
-          openMaxEdit(t); return;
-        }
-        // Sheet-hosted [data-action] buttons (e.g. a threshold row's reset-to-defaults)
-        // dispatch exactly like #scroll's case above.
-        if (openEdit && e.target.closest && (t = e.target.closest('[data-action]'))) {
-          var mAct = t.getAttribute('data-action');
-          if (PConf.actions[mAct]
-              && PConf.actions[mAct](t.getAttribute('data-action-arg'), S, ENV, defaultAsStored) === true) {
-            render();
-          }
-          return;
-        }
-        if (openEdit && e.target.closest && (t = e.target.closest('[data-toggle]'))) {
-          var mtK = t.getAttribute('data-k'), mtOld = S[mtK];
-          S[mtK] = !mtOld;
-          // Same onChange dispatch as #scroll's toggle case (thresholdToggle & co).
-          var mtItem = findItem(mtK);
-          var mtFn = mtItem && mtItem.onChange && PConf.onChange.get(mtItem.onChange);
-          if (mtFn) { mtFn(S, mtOld, S[mtK], ENV, mtK); }
-          render(); return;
-        }
-        if (openEdit && e.target.closest && (t = e.target.closest('[data-color-pick]'))) {
-          S[t.getAttribute('data-k')] = t.getAttribute('data-color-pick');
-          openColor = null; render(); return;
-        }
-        if (openEdit && e.target.closest && (t = e.target.closest('[data-color]'))) {
-          var ck = t.getAttribute('data-color');
-          openColor = (openColor === ck ? null : ck); render(); return;
-        }
-        if (openEdit && e.target.closest && (t = e.target.closest('[data-v]'))) {
-          var vk = t.getAttribute('data-k'), oldVal = S[vk], newVal = t.getAttribute('data-v');
-          S[vk] = newVal;
-          var vItem = findItem(vk);
-          var vHook = vItem && vItem.onChange && PConf.onChange.get(vItem.onChange);
-          if (vHook) { vHook(S, oldVal, newVal, ENV, vk); }
-          render(); return;
-        }
+        // Edit-sheet controls: the sheet renders ordinary rows inside the dialog,
+        // so the SAME shared control cases #scroll dispatches must work here —
+        // one matcher (controlClick) instead of a hand-curated duplicate list.
+        // render() repaints the dialog's innerHTML in place (openEdit is
+        // unchanged), so the sheet stays open throughout. The openEdit gate keeps
+        // clicks inside date/select sheets out of the control cases.
+        if (openEdit && e.target.closest && controlClick(e)) { return; }
         if (e.target.closest && (t = e.target.closest('.date-opt')) && openDate) {
           var wheel = t.closest('[data-date-wheel]');
           if (!wheel) { return; }
