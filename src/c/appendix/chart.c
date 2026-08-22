@@ -1,4 +1,5 @@
 #include "chart.h"
+#include "config.h"
 #include "hatch.h"
 #include "theme.h"
 
@@ -64,6 +65,14 @@ static inline int chart_clamp_count(const ChartRender *r, int count) {
     #define CHART_LABEL_BOTTOM_DY   6
     #define CHART_LABEL_BOTTOM_H   14
     #define CHART_LABEL_NUDGE_X     0   // wide pitch: centered digit already sits on its column
+    // emery + "Larger graph fonts": GOTHIC_18 digits in the SAME 20 px strip
+    // (BOTTOM_VIEW_AXIS_H 10 + BOTTOM_VIEW_BOTTOM_PAD 10) -- the box moves up and grows
+    // rather than the strip growing. Two constraints pin these: DY must clear the 6 px
+    // TICK_BIG that emery draws under every LABELED slot (forecast_grid.c) using the
+    // font's own top whitespace, and DY + H must stay <= 21 so the digits are not
+    // clipped at the layer bottom.
+    #define CHART_LABEL_BOTTOM_DY_LARGE   2
+    #define CHART_LABEL_BOTTOM_H_LARGE   18
 #else
     #define CHART_LABEL_BOTTOM_DY  (-4)  // GOTHIC_14 top-whitespace pull-up
     #define CHART_LABEL_BOTTOM_H   10
@@ -74,6 +83,50 @@ static inline int chart_clamp_count(const ChartRender *r, int count) {
 #endif
 #define CHART_LABEL_TOP_RAISE 15
 #define CHART_LABEL_TOP_H     14
+#ifdef PBL_PLATFORM_EMERY
+// emery + "Larger graph fonts": the radar's 12 px RADAR_AXIS_H band, with GOTHIC_18.
+// Hour digits REPLACE the tick on their slot there (RADAR_AXIS_HOUR_LABEL, radar_axis.c),
+// so only the band edges constrain this pair.
+#define CHART_LABEL_TOP_RAISE_LARGE 17
+#define CHART_LABEL_TOP_H_LARGE     18
+#endif
+
+// Axis-label typography, resolved fresh on every axis render. On emery the "Larger
+// graph fonts" setting steps the hour digits up one tier and retunes the label box so
+// the taller glyphs stay inside the same reserved band. It flips at runtime from a
+// settings apply with no relaunch, and config_get() is only valid after config_load()
+// -- so this must never be hoisted into a file-scope static or computed once at init.
+// On every other platform it constant-folds to today's values.
+typedef struct {
+    GFont font;
+    int   bottom_dy;
+    int   bottom_h;
+    int   top_raise;
+    int   top_h;
+} ChartAxisLabel;
+
+static ChartAxisLabel chart_axis_label(void) {
+#ifdef PBL_PLATFORM_EMERY
+    // emery: the only platform that offers the toggle (schema.js gates the row on
+    // platform == 'emery') and the only one with a strip tall enough for GOTHIC_18.
+    if (config_get()->large_graph_font) {
+        return (ChartAxisLabel){
+            .font      = fonts_get_system_font(FONT_KEY_GOTHIC_18),
+            .bottom_dy = CHART_LABEL_BOTTOM_DY_LARGE,
+            .bottom_h  = CHART_LABEL_BOTTOM_H_LARGE,
+            .top_raise = CHART_LABEL_TOP_RAISE_LARGE,
+            .top_h     = CHART_LABEL_TOP_H_LARGE,
+        };
+    }
+#endif
+    return (ChartAxisLabel){
+        .font      = fonts_get_system_font(FONT_KEY_GOTHIC_14),
+        .bottom_dy = CHART_LABEL_BOTTOM_DY,
+        .bottom_h  = CHART_LABEL_BOTTOM_H,
+        .top_raise = CHART_LABEL_TOP_RAISE,
+        .top_h     = CHART_LABEL_TOP_H,
+    };
+}
 
 static void chart_draw_tick(const ChartRender *r, GraphSide side,
                             int len, GColor color, int x) {
@@ -90,23 +143,24 @@ static void chart_draw_tick(const ChartRender *r, GraphSide side,
 }
 
 static void chart_draw_axis_label(const ChartRender *r, GraphSide side,
-                                  const char *text, GFont font, int x) {
+                                  const char *text, const ChartAxisLabel *lbl, int x) {
     GRect box;
     if (side == GRAPH_SIDE_BOTTOM) {
         const int axis_y = r->outer.origin.y + r->outer.size.h - 1;
         box = GRect(x - 20 + CHART_LABEL_NUDGE_X,
-                    axis_y + CHART_LABEL_BOTTOM_DY, 40, CHART_LABEL_BOTTOM_H);
+                    axis_y + lbl->bottom_dy, 40, lbl->bottom_h);
     } else {
-        box = GRect(x - 20, r->outer.origin.y - CHART_LABEL_TOP_RAISE,
-                    40, CHART_LABEL_TOP_H);
+        box = GRect(x - 20, r->outer.origin.y - lbl->top_raise,
+                    40, lbl->top_h);
     }
-    graphics_draw_text(r->ctx, text, font, box,
+    graphics_draw_text(r->ctx, text, lbl->font, box,
                        GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
 }
 
 static void chart_render_axis(const ChartRender *r, const ChartAxisLayer *a) {
     graphics_context_set_text_color(r->ctx, theme_fg());
-    const GFont font     = fonts_get_system_font(FONT_KEY_GOTHIC_14);
+    const ChartAxisLabel lbl = chart_axis_label();   // per draw call -- the emery
+                                                     // toggle flips without a relaunch
     const int  mid_shift = r->geo.slots.pitch / 2;
     for (int i = 0; i < r->def->num_slots; ++i) {
         const ChartAxisSlot *s = &a->slots[i];
@@ -119,7 +173,7 @@ static void chart_render_axis(const ChartRender *r, const ChartAxisLayer *a) {
                             base + (a->tick_align == ALIGN_MIDDLE ? mid_shift : 0));
         }
         if (s->label[0] != '\0') {
-            chart_draw_axis_label(r, a->side, s->label, font,
+            chart_draw_axis_label(r, a->side, s->label, &lbl,
                                   base + (a->label_align == ALIGN_MIDDLE ? mid_shift : 0));
         }
     }
