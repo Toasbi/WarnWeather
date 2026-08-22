@@ -987,7 +987,7 @@ function needRefresh() {
         return true;
     }
     var intervalMs = app.settings.fetchIntervalMin * 60 * 1000;
-    if (!sleepWindow.isPastRefreshSlot(lastTimeMs, Date.now(), intervalMs)) { return false; }
+    if (!createChannelScheduler.isPastRefreshSlot(lastTimeMs, Date.now(), intervalMs)) { return false; }
     if (isSleepingNow() && app.lastIsSleeping === true) { return false; }
     return true;
 }
