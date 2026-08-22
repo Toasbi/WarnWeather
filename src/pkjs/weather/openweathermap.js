@@ -79,13 +79,22 @@ OpenWeatherMapProvider.prototype.withOwmResponse = function(lat, lon, callback, 
 };
 
 OpenWeatherMapProvider.prototype.withWeatherData = function(lat, lon, callback, onFailure) {
-    if (this.weatherDataCache === null) {
+    // CONSUME-ONCE: withSunEvents populates the cache each cycle (one metered
+    // One Call XHR serves both consumers) and this read nulls it, so a chain
+    // reorder or a standalone withProviderData call can never serve a PREVIOUS
+    // cycle's forecast — the provider instance persists across fetches, and the
+    // old serve-whenever-non-null cache was fresh only by base-chain call-order
+    // accident. The empty-cache arm re-fetches; on the shipped path it never
+    // fires.
+    var cached = this.weatherDataCache;
+    this.weatherDataCache = null;
+    if (cached === null) {
         this.withOwmResponse(lat, lon, function(owmResponse) {
             callback(owmResponse);
         }, onFailure);
     }
     else {
-        callback(this.weatherDataCache);
+        callback(cached);
     }
 };
 

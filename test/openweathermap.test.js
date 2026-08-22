@@ -166,3 +166,20 @@ test('OWM leaves currentFeels null when current.feels_like is missing', () => {
   p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
   assert.equal(p.currentFeels, null, 'null → FEELS_CURRENT omitted, temp slot degrades');
 });
+
+test('withWeatherData is consume-once: a reused instance never serves a stale cycle', () => {
+  // withSunEvents populates the cache (one metered One Call XHR serves both
+  // consumers) and withWeatherData consumes it — so freshness no longer depends
+  // on the base chain's call order, and a standalone withProviderData on a
+  // persisted provider instance re-fetches instead of serving last cycle.
+  const p = new OpenWeatherMapProvider('test-key');
+  p.weatherDataCache = { marker: 'cycle-1' };
+  let served = null;
+  p.withWeatherData(0, 0, (data) => { served = data; }, () => { throw new Error('unexpected failure'); });
+  assert.equal(served.marker, 'cycle-1', 'the cached response is served once');
+  assert.equal(p.weatherDataCache, null, 'and consumed');
+
+  p.withOwmResponse = (lat, lon, cb) => cb({ marker: 'cycle-2-fresh' });
+  p.withWeatherData(0, 0, (data) => { served = data; }, () => { throw new Error('unexpected failure'); });
+  assert.equal(served.marker, 'cycle-2-fresh', 'an empty cache re-fetches, never replays');
+});
