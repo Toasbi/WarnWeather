@@ -1605,3 +1605,20 @@ test('the wind slot arrows by default, the gust slot beside it does not', () => 
   assert.equal(byKey('windSlotDirection').defaultValue, true);
   assert.equal(byKey('gustSlotDirection').defaultValue, false);
 });
+
+// The wind-scale hints are DERIVED from forecast-series' WIND_SCALE_KMH through
+// wire-units' display conversion; pin the rendered strings so a rounding change
+// in either dependency cannot silently rewrite user-facing copy.
+test('windScale hints derive from the graph ceilings, strings pinned', () => {
+  const winds = items.filter((i) => i.messageKey === 'windScale');
+  assert.equal(winds.length, 6, 'three units x two line-contexts');
+  const hintFor = (unit) => winds.find((i) =>
+    JSON.stringify(i.showWhen).indexOf('"' + unit + '"') >= 0).hintByValue;
+  assert.equal(hintFor('kph').low, 'Tops out at 30 kph — emphasizes light, gentle winds.');
+  assert.equal(hintFor('mph').low, 'Tops out at 19 mph — emphasizes light, gentle winds.');
+  assert.equal(hintFor('mph').mid, 'Tops out at 31 mph — general use; gusts visible, typical winds sit mid-graph.');
+  assert.equal(hintFor('mph').high, 'Tops out at 43 mph — keeps strong gusts from flattening against the top.');
+  assert.equal(hintFor('knots').low, 'Tops out at 16 kn — emphasizes light, gentle winds.');
+  assert.equal(hintFor('knots').mid, 'Tops out at 27 kn — general use; gusts visible, typical winds sit mid-graph.');
+  assert.equal(hintFor('knots').high, 'Tops out at 38 kn — keeps strong gusts from flattening against the top.');
+});

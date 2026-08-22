@@ -47,21 +47,33 @@ var THIRD_LINE_HINTS = {
 // windScale ceilings pre-rendered per wind unit, chosen by showWhen on windUnits
 // (§2b). Same descriptive tails as the original single hint; only the ceiling +
 // unit change. Ceilings: kph 30/50/70 · mph 19/31/43 · kn 16/27/38.
-var WIND_SCALE_HINTS_KPH = {
-    low: 'Tops out at 30 kph — emphasizes light, gentle winds.',
-    mid: 'Tops out at 50 kph — general use; gusts visible, typical winds sit mid-graph.',
-    high: 'Tops out at 70 kph — keeps strong gusts from flattening against the top.'
-};
-var WIND_SCALE_HINTS_MPH = {
-    low: 'Tops out at 19 mph — emphasizes light, gentle winds.',
-    mid: 'Tops out at 31 mph — general use; gusts visible, typical winds sit mid-graph.',
-    high: 'Tops out at 43 mph — keeps strong gusts from flattening against the top.'
-};
-var WIND_SCALE_HINTS_KNOTS = {
-    low: 'Tops out at 16 kn — emphasizes light, gentle winds.',
-    mid: 'Tops out at 27 kn — general use; gusts visible, typical winds sit mid-graph.',
-    high: 'Tops out at 38 kn — keeps strong gusts from flattening against the top.'
-};
+// The wind ceilings come from THE table the graph scales with (forecast-series'
+// WIND_SCALE_KMH) through the same conversion the wind slots display with
+// (wire-units kmhToDisplay) — so the hints can no longer drift from the axis
+// the way a hand-copied ceiling could. Derived strings pinned by test.
+// (blocks.js's preview keeps its own windMax mirror: it runs in the flat
+// webview with no require(), documented at its declaration.)
+var WIND_SCALE_KMH = require('../forecast-series.js').WIND_SCALE_KMH;
+var kmhToDisplay = require('../wire-units.js').kmhToDisplay;
+/**
+ * @param {string} windUnits 'kph'|'mph'|'knots' (the stored windUnits value).
+ * @param {string} unitLabel The label the hint prints, e.g. 'kn'.
+ * @returns {{low: string, mid: string, high: string}} Per-scale hint lines.
+ */
+function windScaleHints(windUnits, unitLabel) {
+    function tops(scale, tail) {
+        return 'Tops out at ' + kmhToDisplay(WIND_SCALE_KMH[scale], windUnits)
+            + ' ' + unitLabel + ' — ' + tail;
+    }
+    return {
+        low: tops('low', 'emphasizes light, gentle winds.'),
+        mid: tops('mid', 'general use; gusts visible, typical winds sit mid-graph.'),
+        high: tops('high', 'keeps strong gusts from flattening against the top.')
+    };
+}
+var WIND_SCALE_HINTS_KPH = windScaleHints('kph', 'kph');
+var WIND_SCALE_HINTS_MPH = windScaleHints('mph', 'mph');
+var WIND_SCALE_HINTS_KNOTS = windScaleHints('knots', 'kn');
 // The two line-contexts each windScale copy is gated on (secondary vs. third line),
 // combined per-copy with a windUnits equality below.
 var WIND_SCALE_WHEN_SECONDARY = {key: 'secondaryLine', in: ['wind', 'gust']};

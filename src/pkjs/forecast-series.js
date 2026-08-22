@@ -493,6 +493,7 @@ function needsPollen(settings) {
 }
 
 module.exports = {
+    WIND_SCALE_KMH: WIND_SCALE_KMH,
     buildForecastSeries: buildForecastSeries,
     applyForecastSeries: applyForecastSeries,
     needsUv: needsUv,
