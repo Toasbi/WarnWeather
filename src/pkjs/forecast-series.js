@@ -50,22 +50,6 @@ function tempTrendToBytes(temps, band) {
     return { bytes: bytes, min: min, max: max };
 }
 
-/**
- * Invert tempTrendToBytes: recover the whole-degree series from its wire bytes and
- * band. Exact while the band span stays under 250 (the 0.5-byte quantization error
- * stays under half a degree) — always true for a 24 h °F window.
- * @param {number[]} bytes TEMP_TREND_UINT8 wire bytes (0..250).
- * @param {number} min Band floor (TEMP_MIN).
- * @param {number} max Band ceiling (TEMP_MAX).
- * @returns {number[]} Whole-degree temperatures.
- */
-function tempsFromBytes(bytes, min, max) {
-    var span = max - min;
-    return bytes.map(function(b) {
-        return Math.round(min + b * span / 250);
-    });
-}
-
 // LINE_COLORS / FILL_COLORS, lineColorFor() and fillColorFor() now live in
 // line-style.js -- the graph's line styling is derived from settings alone, so it
 // belongs on the Clay settings message rather than on every weather send. They stay
@@ -406,37 +390,32 @@ function applyForecastSeries(payload, settings, watchInfo) {
     // Bake the packed status lines while the transient trend arrays are
     // still on the payload (they die a few lines below).
     statusLines.buildStatusLines(payload, settings, watchInfo);
-    // Joint temp∪feels axis. Two curves only read as one graph if they share a
-    // scaling band AND a pixel inset — the watch maps every line's bytes 0..250 over
-    // the same inset plot band, and the phone cannot compute anything finer because
-    // it never learns the plot's pixel height. So with feels selected the temp bytes
-    // are re-encoded against the joint band (getPayload baked them against temp's own
-    // band, without settings in hand; the whole degrees round-trip exactly — see
-    // tempsFromBytes) and feelsPermille maps feels against that same band via
-    // raw.tempBand below.
+    // THE one temp encode: getPayload ships whole-degree temps (TEMP_RAW_TREND,
+    // transient) and this is where they become wire bytes — with settings in
+    // hand. Joint temp∪feels axis: two curves only read as one graph if they
+    // share a scaling band AND a pixel inset — the watch maps every line's
+    // bytes 0..250 over the same inset plot band, and the phone cannot compute
+    // anything finer because it never learns the plot's pixel height. So with
+    // the feels line selected the temps encode against the padded joint band,
+    // and feelsPermille maps feels against that same band via raw.tempBand.
     //
-    // TEMP_MIN/TEMP_MAX are NOT the scaling band: the watch scales purely from the
-    // bytes (forecast_layer.c passes lo=0, hi=250) and reads these two only to print
-    // the hi/lo labels (text_labels_refresh). So they keep carrying the ACTUAL air
-    // temperature range — a "lo" of 52 on a day whose air never dropped below 60
-    // would be a plain lie, however honest it is about the plot's floor. The feels
-    // curve's own extremes are unlabelled, which is what the grey shadow line means.
-    //
-    // Feels not selected, or FEELS_TREND absent/empty (provider gap): untouched and
-    // byte-identical to a build without the feature.
+    // TEMP_MIN/TEMP_MAX are NOT the scaling band: the watch scales purely from
+    // the bytes (forecast_layer.c passes lo=0, hi=250) and reads these two only
+    // to print the hi/lo labels (text_labels_refresh). So they keep carrying
+    // the ACTUAL air temperature range — a "lo" of 52 on a day whose air never
+    // dropped below 60 would be a plain lie, however honest it is about the
+    // plot's floor. The feels curve's own extremes are unlabelled, which is
+    // what the grey shadow line means.
     var feels = feelsLineSelected(settings) ? (payload.FEELS_TREND || []) : [];
+    var rawTemps = payload.TEMP_RAW_TREND || [];
     var tempBand = (typeof payload.TEMP_MIN === 'number' && typeof payload.TEMP_MAX === 'number')
         ? { min: payload.TEMP_MIN, max: payload.TEMP_MAX } : null;
-    if (feels.length && tempBand && payload.TEMP_TREND_UINT8 && payload.TEMP_TREND_UINT8.length) {
-        var jointBand = padJointBandForFeels(tempBand,
-            jointTempFeelsBand(tempBand.min, tempBand.max, feels));
-        payload.TEMP_TREND_UINT8 = tempTrendToBytes(
-            tempsFromBytes(payload.TEMP_TREND_UINT8, tempBand.min, tempBand.max),
-            jointBand
-        ).bytes;
+    if (feels.length && tempBand && rawTemps.length) {
         // The scaling band the metric channels must share; TEMP_MIN/TEMP_MAX stay put.
-        tempBand = jointBand;
+        tempBand = padJointBandForFeels(tempBand,
+            jointTempFeelsBand(tempBand.min, tempBand.max, feels));
     }
+    payload.TEMP_TREND_UINT8 = tempTrendToBytes(rawTemps, tempBand || undefined).bytes;
     var series = buildForecastSeries(
         { precips: payload.PRECIP_TREND_UINT8, rains: payload.RAIN_TREND_UINT8,
           winds: payload.WIND_TREND_UINT8, gusts: payload.GUST_TREND_UINT8,
@@ -444,6 +423,7 @@ function applyForecastSeries(payload, settings, watchInfo) {
           feels: feels, tempBand: tempBand },
         settings
     );
+    delete payload.TEMP_RAW_TREND; // transient PKJS-only; encoded into TEMP_TREND_UINT8 above, never wired
     delete payload.CURRENT_TEMP; // baked into the status lines; no longer a wire key
     delete payload.CITY;         // baked into the status lines; no longer a wire key
     delete payload.PRECIP_TREND_UINT8;

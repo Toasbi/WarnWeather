@@ -5,7 +5,6 @@ var outbox = require('../outbox.js');
 var wireUnits = require('../wire-units.js');
 var clampByte = wireUnits.clampByte;
 var zeroFilledArray = wireUnits.zeroFilledArray;
-var forecastSeries = require('../forecast-series');
 var airQuality = require('./air-quality.js');
 var pollen = require('./pollen.js');
 
@@ -851,11 +850,22 @@ WeatherProvider.prototype.getPayload = function() {
     var uvs = (this.uvTrend && this.uvTrend.length)
         ? scaleTrendToBytes(this.uvTrend, numEntries, 10) // UV index ×10 (tenths); forecast-series scales vs UV 11.0
         : [];
-    var tempEnc = forecastSeries.tempTrendToBytes(temps);
+    // Whole-degree temps ride as a TRANSIENT series: applyForecastSeries encodes
+    // them ONCE, where settings are in hand — against temp's own band, or the
+    // padded joint temp-and-feels band when the feels line is selected. (An
+    // early encode here forced a decode-and-re-encode round trip downstream.)
+    // TEMP_MIN/TEMP_MAX carry the ACTUAL air range either way: the watch reads
+    // them only for the hi/lo labels; the scaling band travels in the bytes.
+    var tempMin = Infinity, tempMax = -Infinity, ti;
+    for (ti = 0; ti < temps.length; ti += 1) {
+        if (temps[ti] < tempMin) { tempMin = temps[ti]; }
+        if (temps[ti] > tempMax) { tempMax = temps[ti]; }
+    }
+    if (!isFinite(tempMin)) { tempMin = 0; tempMax = 0; }
     var payload = {
-        TEMP_TREND_UINT8: tempEnc.bytes,
-        TEMP_MIN: tempEnc.min,
-        TEMP_MAX: tempEnc.max,
+        TEMP_RAW_TREND: temps, // Transient PKJS-only: whole-degree temps; forecast-series encodes + deletes before send
+        TEMP_MIN: tempMin,
+        TEMP_MAX: tempMax,
         PRECIP_TREND_UINT8: precips, // Holds values within [0,100]
         RAIN_TREND_UINT8: rains, // Holds values within [0,255], representing 0.0..25.5 mm/h (5 mm cap on the watch; >5 mm signals overflow)
         WIND_TREND_UINT8: winds, // Transient PKJS-only: km/h integers; forecast-series consumes + deletes this before send

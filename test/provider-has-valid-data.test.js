@@ -125,7 +125,9 @@ test('composeWeatherPayload works with no extras and no transform', () => {
   });
   const out = p.composeWeatherPayload(null, undefined);
   assert.equal(out.CITY, 'Town');
-  assert.ok(Array.isArray(out.TEMP_TREND_UINT8));
+  // Raw whole-degree temps: the transform (applyForecastSeries) owns the ONE
+  // encode into TEMP_TREND_UINT8; with no transform the raw series rides out.
+  assert.deepEqual(out.TEMP_RAW_TREND, [50, 51, 52]);
 });
 
 // Pressure rides as a transient non-byte series (hPa 950..1050 doesn't fit a

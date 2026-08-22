@@ -189,7 +189,7 @@ test('every secondary/third/bar wire byte is within 0..250', () => {
 
 test('applyForecastSeries swaps raw keys for render-ready series in place, deletes transients incl UV', () => {
   const payload = {
-    TEMP_TREND_UINT8: [1, 2, 3], NUM_ENTRIES: 3,
+    TEMP_RAW_TREND: [10, 20, 30], TEMP_MIN: 10, TEMP_MAX: 30, NUM_ENTRIES: 3,
     PRECIP_TREND_UINT8: [0, 50, 100], RAIN_TREND_UINT8: [0, 5, 20],
     WIND_TREND_UINT8: [0, 25, 50], GUST_TREND_UINT8: [0, 50, 100], UV_TREND_UINT8: [0, 55, 110]
   };
@@ -200,7 +200,8 @@ test('applyForecastSeries swaps raw keys for render-ready series in place, delet
   });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]); // uv
   assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [0, 125, 250]);    // wind
-  assert.deepEqual(out.TEMP_TREND_UINT8, [1, 2, 3]);
+  assert.deepEqual(out.TEMP_TREND_UINT8, [0, 125, 250]); // encoded from TEMP_RAW_TREND
+  assert.ok(!('TEMP_RAW_TREND' in out), 'raw temps are transient, never wired');
   assert.equal(out.NUM_ENTRIES, 3);
 });
 
@@ -210,7 +211,7 @@ test('applyForecastSeries bakes all status lines before deleting trends and lega
     SUN_EVENTS: [0, 0x10, 0x20, 0x30, 0x40],
     PRECIP_TREND_UINT8: [70], RAIN_TREND_UINT8: [0],
     WIND_TREND_UINT8: [17], GUST_TREND_UINT8: [48], UV_TREND_UINT8: [64],
-    TEMP_TREND_UINT8: [100], TEMP_MIN: 0, TEMP_MAX: 30,
+    TEMP_RAW_TREND: [12], TEMP_MIN: 0, TEMP_MAX: 30,
     FORECAST_START: 1700000000, NUM_ENTRIES: 1
   };
   const settings = {
@@ -234,7 +235,7 @@ test('applyForecastSeries bakes all status lines before deleting trends and lega
 // payload that still carried them would be paying 44 B a fetch to re-send settings.
 test('line colours no longer ride the weather message', () => {
   const payload = {
-    TEMP_TREND_UINT8: [1, 2, 3], NUM_ENTRIES: 3,
+    TEMP_RAW_TREND: [10, 20, 30], TEMP_MIN: 10, TEMP_MAX: 30, NUM_ENTRIES: 3,
     PRECIP_TREND_UINT8: [0, 50, 100], RAIN_TREND_UINT8: [0, 5, 20],
     WIND_TREND_UINT8: [0, 25, 50], GUST_TREND_UINT8: [0, 50, 100]
   };
@@ -446,7 +447,7 @@ test('a phone-battery event re-bakes from the stash after the payload has been p
       CURRENT_TEMP: 68, CITY: 'Bonn', SUN_EVENTS: [1, 0, 0, 0, 0],
       PRECIP_TREND_UINT8: [70], RAIN_TREND_UINT8: [0],
       WIND_TREND_UINT8: [17], GUST_TREND_UINT8: [48], UV_TREND_UINT8: [64],
-      TEMP_TREND_UINT8: [100], TEMP_MIN: 0, TEMP_MAX: 30,
+      TEMP_RAW_TREND: [12], TEMP_MIN: 0, TEMP_MAX: 30,
       FORECAST_START: 1700000000, NUM_ENTRIES: 1
     };
     const out = applyForecastSeries(payload, settings, { platform: 'basalt' });
@@ -679,7 +680,7 @@ test('PRESSURE_SCALE_CURVE_HPA exposes the three curves', () => {
 });
 
 test('applyForecastSeries deletes the transient PRESSURE_TREND', () => {
-  const payload = { TEMP_TREND_UINT8: [], PRESSURE_TREND: [1010, 1011] };
+  const payload = { TEMP_RAW_TREND: [], PRESSURE_TREND: [1010, 1011] };
   applyForecastSeries(payload,
     { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid' }, null);
   assert.equal('PRESSURE_TREND' in payload, false);
@@ -694,9 +695,10 @@ test('applyForecastSeries deletes the transient PRESSURE_TREND', () => {
 // one scale and the vertical gap between them is real.
 const { needsFeels, LINE_COLORS, FILL_COLORS } = require('../src/pkjs/forecast-series');
 
-// °F temps 10/20/30 baked by getPayload against their own band [10, 30].
+// °F temps 10/20/30, raw off getPayload; applyForecastSeries encodes them
+// against [10, 30] (temp-only) or the padded joint band (feels selected).
 const feelsPayload = (extra) => Object.assign({
-  TEMP_TREND_UINT8: [0, 125, 250], TEMP_MIN: 10, TEMP_MAX: 30,
+  TEMP_RAW_TREND: [10, 20, 30], TEMP_MIN: 10, TEMP_MAX: 30,
   PRECIP_TREND_UINT8: [0, 50, 100], RAIN_TREND_UINT8: [0, 0, 0],
   CURRENT_TEMP: 10, CITY: 'X', SUN_EVENTS: [1]
 }, extra);
@@ -776,7 +778,7 @@ test('feels inside the temp band: temp bytes stay identical, feels maps within t
   const payload = feelsPayload({ FEELS_TREND: [12, 18, 25] });
   const out = applyForecastSeries(payload,
     { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' });
-  assert.deepEqual(out.TEMP_TREND_UINT8, [0, 125, 250]); // reconstruct + re-encode round-trips exactly
+  assert.deepEqual(out.TEMP_TREND_UINT8, [0, 125, 250]); // encoded once against the unwidened band
   assert.equal(out.TEMP_MIN, 10);
   assert.equal(out.TEMP_MAX, 30);
   // Band [10, 30] (span 20): 12 -> 100pm (byte 25), 18 -> 400pm (100), 25 -> 750pm (188).
@@ -981,7 +983,7 @@ test('DEW_TREND/WIND_DIR_TREND survive until buildStatusLines has run, then are 
     return orig.apply(this, arguments);
   };
   const payload = {
-    TEMP_TREND_UINT8: [1, 2, 3], NUM_ENTRIES: 3,
+    TEMP_RAW_TREND: [10, 20, 30], TEMP_MIN: 10, TEMP_MAX: 30, NUM_ENTRIES: 3,
     DEW_TREND: [53.6, 54, 55], WIND_DIR_TREND: [270, 0, 359],
     PRECIP_TREND_UINT8: [0], RAIN_TREND_UINT8: [0],
     WIND_TREND_UINT8: [17], GUST_TREND_UINT8: [48], UV_TREND_UINT8: [64],

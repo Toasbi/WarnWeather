@@ -87,9 +87,10 @@ function buildWeatherOutboxPayload(payload) {
 function buildHeaviestBundle() {
   const range = Array.from({ length: N }, function(_, i) { return i; });
 
-  // Base forecast payload as provider.getPayload emits it (pre-series).
+  // Base forecast payload as provider.getPayload emits it (pre-series): raw
+  // whole-degree temps; applyForecastSeries encodes them to the 24 wire bytes.
   const payload = {
-    TEMP_TREND_UINT8: range.map(function() { return 200; }), // 24 bytes
+    TEMP_RAW_TREND: range.map(function() { return 25; }), // -> 24 TEMP_TREND_UINT8 bytes
     TEMP_MIN: -10,
     TEMP_MAX: 35,
     PRECIP_TREND_UINT8: range.map(function() { return 100; }),
