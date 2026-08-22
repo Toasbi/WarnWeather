@@ -103,11 +103,7 @@ function fetchRadarTuplesAt(apiKey, lat, lon, slotZeroEpoch, callback) {
                 callback(null);
                 return;
             }
-            callback({
-                RAIN_RADAR_TREND_UINT8: mapFrames(intervals),
-                RAIN_RADAR_TREND_AREA_UINT8: zeroFilledArray(NUM_BARS),
-                RAIN_RADAR_START: startEpoch
-            });
+            callback(radarWire.pointRadarTuples(mapFrames(intervals), startEpoch));
         },
         function(error) {
             console.log('[!] Tomorrow.io radar fetch failed: ' + JSON.stringify(error));

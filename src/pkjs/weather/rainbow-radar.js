@@ -113,11 +113,8 @@ function fetchRadarTuplesAt(endpoint, lat, lon, slotZeroEpoch, callback) {
             // ship 24 zeros (flat signal), matching DWD's out-of-coverage
             // semantics, rather than failing the fetch.
             var forecast = (body && Array.isArray(body.forecast)) ? body.forecast : [];
-            callback({
-                RAIN_RADAR_TREND_UINT8: resampleForecast(forecast, slotZeroEpoch),
-                RAIN_RADAR_TREND_AREA_UINT8: zeroFilledArray(NUM_BARS),
-                RAIN_RADAR_START: slotZeroEpoch
-            });
+            callback(radarWire.pointRadarTuples(
+                resampleForecast(forecast, slotZeroEpoch), slotZeroEpoch));
         },
         function(error) {
             console.log('[!] Rainbow radar fetch failed: ' + JSON.stringify(error));

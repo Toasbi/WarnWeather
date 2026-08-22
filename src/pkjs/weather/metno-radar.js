@@ -4,8 +4,9 @@ var wireUnits = require('../wire-units.js');
 var clampByte = wireUnits.clampByte;
 var zeroFilledArray = wireUnits.zeroFilledArray;
 var metnoHeaders = require('./metno-headers.js');
+var radarWire = require('./radar-wire.js');
+var NUM_BARS = radarWire.NUM_BARS;         // shared wire invariant (24 frames)
 
-var NUM_BARS = 24;             // 24 frames * 5 min = 120 min (same wire as the other radars)
 var NOWCAST_BASE = 'https://api.met.no/weatherapi/nowcast/2.0/complete';
 
 /**
@@ -47,21 +48,6 @@ function mapFrames(timeseries) {
 }
 
 /**
- * Out-of-coverage tuples: a flat 24-zero signal (matches the DWD/Rainbow
- * out-of-coverage semantics), anchored at the passed slot-0 epoch.
- *
- * @param {number} slotZeroEpoch The 5-min pinned slot-0 epoch.
- * @returns {Object} Radar AppMessage tuples.
- */
-function clearedTuples(slotZeroEpoch) {
-    return {
-        RAIN_RADAR_TREND_UINT8: zeroFilledArray(NUM_BARS),
-        RAIN_RADAR_TREND_AREA_UINT8: zeroFilledArray(NUM_BARS),
-        RAIN_RADAR_START: slotZeroEpoch
-    };
-}
-
-/**
  * Fetch 2-hour Met.no rain-radar tuples for pre-resolved coordinates. Met.no
  * nowcast is a single-point product, so the area ("nearby") array is always
  * 24 zeros — same convention as Rainbow.
@@ -100,7 +86,7 @@ function fetchRadarTuplesAt(lat, lon, slotZeroEpoch, callback) {
             if (coverage !== 'ok' || timeseries.length === 0) {
                 // 'no coverage' (or an unknown coverage value): permanently
                 // outside the radar composite — ship a flat clear signal.
-                callback(clearedTuples(slotZeroEpoch));
+                callback(radarWire.flatRadarTuples(slotZeroEpoch));
                 return;
             }
             // The frames self-describe their start (the endpoint takes no start
@@ -111,16 +97,12 @@ function fetchRadarTuplesAt(lat, lon, slotZeroEpoch, callback) {
                 callback(null);
                 return;
             }
-            callback({
-                RAIN_RADAR_TREND_UINT8: mapFrames(timeseries),
-                RAIN_RADAR_TREND_AREA_UINT8: zeroFilledArray(NUM_BARS),
-                RAIN_RADAR_START: startEpoch
-            });
+            callback(radarWire.pointRadarTuples(mapFrames(timeseries), startEpoch));
         },
         function(error) {
             if (error && error.code === 'status_422') {
                 // Outside the Nordic product area — out of coverage, not a failure.
-                callback(clearedTuples(slotZeroEpoch));
+                callback(radarWire.flatRadarTuples(slotZeroEpoch));
                 return;
             }
             console.log('[!] Met.no radar fetch failed: ' + JSON.stringify(error));
