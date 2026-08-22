@@ -329,3 +329,18 @@ test('CLAY_HR_SCALE falls back to 40-150 when unset or malformed', function() {
   assert.equal(buildClayPayload(s, { platform: 'diorite' }, NOW).CLAY_HR_SCALE, expected,
     'out of byte range');
 });
+
+test('CLAY_LARGE_GRAPH_FONT reflects the largeGraphFont setting (default false)', () => {
+  assert.equal(buildClayPayload(baseSettings(), { platform: 'emery' }, NOW).CLAY_LARGE_GRAPH_FONT, false);
+  const on = baseSettings();
+  on.largeGraphFont = true;
+  assert.equal(buildClayPayload(on, { platform: 'emery' }, NOW).CLAY_LARGE_GRAPH_FONT, true);
+});
+
+test('CLAY_LARGE_GRAPH_FONT rides every platform (config_wire.c parses it unconditionally)', () => {
+  // Unlike CLAY_NORAIN_TEXT / CLAY_CURVE_INSET_UINT8 / CLAY_THRESHOLDS_UINT8, this key is
+  // NOT platform-gated: config_wire.c is a contract file that is never forked, so every
+  // watch decodes the tuple (and non-emery simply never reads the field).
+  const p = buildClayPayload(baseSettings(), { platform: 'aplite' }, NOW);
+  assert.equal(Object.prototype.hasOwnProperty.call(p, 'CLAY_LARGE_GRAPH_FONT'), true);
+});

@@ -348,7 +348,8 @@
       "CLAY_HR_SCALE",
       "CLAY_NORAIN_TEXT",
       "CLAY_CURVE_INSET_UINT8",
-      "CLAY_LINE_STYLE_UINT8"
+      "CLAY_LINE_STYLE_UINT8",
+      "CLAY_LARGE_GRAPH_FONT"
     ]
   }
 }

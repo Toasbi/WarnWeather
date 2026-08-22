@@ -224,3 +224,8 @@ test('settings snapshot keys match the Deno telemetry schema (lockstep)', () => 
   assert.deepEqual(snapshotKeys.slice().sort(), denoKeys.slice().sort(),
     'buildSettingsSnapshot (telemetry.js) and the Deno settingsSchema must declare the same fields');
 });
+
+test('snapshot includes largeGraphFont as a real boolean', () => {
+  assert.strictEqual(buildSettingsSnapshot({ largeGraphFont: true }).largeGraphFont, true);
+  assert.strictEqual(buildSettingsSnapshot({}).largeGraphFont, false);
+});

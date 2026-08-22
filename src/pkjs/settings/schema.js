@@ -1260,6 +1260,18 @@ module.exports = {
                 blockBefore: 'layoutPreviewCombined',
                 blockBeforeSticky: true
             }, {
+                type: 'toggle',
+                messageKey: 'largeGraphFont',
+                label: 'Larger graph fonts',
+                defaultValue: false,
+                hint: 'Draw the graph axis labels in bigger type.',
+                // Emery only: the 200 px screen is the only one with room for a font
+                // tier up, and on a 144 px watch the graph left axis is ALREADY drawn
+                // at the calendar size (both GOTHIC_18), so there is nothing to step.
+                // An unavailable watchInfo leaves env.platform '' and hides the row --
+                // fail-closed is right for an emery-only cosmetic toggle.
+                showWhen: {env: 'platform', eq: 'emery'}
+            }, {
                 type: 'segmented',
                 messageKey: 'viewResetMin',
                 label: 'View reset time',

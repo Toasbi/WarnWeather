@@ -67,6 +67,7 @@ function buildSettingsSnapshot(settings) {
         topViewMode: safe.topViewMode,
         layoutPreset: safe.layoutPreset,
         viewResetMin: toIntOrUndefined(safe.viewResetMin),
+        largeGraphFont: Boolean(safe.largeGraphFont),
         vibe: !!safe.vibe,
         btIcons: safe.btIcons,
         secondaryLine: safe.secondaryLine,

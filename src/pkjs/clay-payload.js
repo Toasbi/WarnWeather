@@ -198,6 +198,15 @@ function buildClayPayload(settings, watchInfo, now) {
     payload.CLAY_VIEW_2 = viewCycle.packSpec(cycle[2] || null);
     payload.CLAY_VIEW_RESET_MIN = parseInt(settings.viewResetMin, 10) || 0;
 
+    // emery-only axis-font step-up (Layout tab). The simple Boolean() is provably safe
+    // here: engine.js seeds toggles from defaultValue and flips them with !S[key], so a
+    // stored value is a strict boolean or absent -- and absent collapsing to false IS
+    // the default. A default-TRUE toggle would need the hasOwnProperty ternary
+    // dayNightShading uses above. Deliberately NOT platform-gated (unlike the threshold
+    // blob / no-rain text / curve insets): config_wire.c is a contract file that is
+    // never forked, so every watch decodes the tuple and non-emery just never reads it.
+    payload.CLAY_LARGE_GRAPH_FONT = Boolean(settings.largeGraphFont);
+
     return payload;
 }
 

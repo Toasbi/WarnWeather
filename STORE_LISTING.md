@@ -70,6 +70,7 @@ LAYOUT CUSTOMIZATION
 - Multiple layout presets, with flick-to-cycle between views and optional auto-return
 - Light/Dark settings page with grouped, easy-to-browse pickers
 - First-run setup wizard that picks sensible defaults for your country and watch
+- Larger graph fonts on Pebble Time 2 - draw the forecast, health and radar axis labels in bigger type
 
 PLATFORMS
 - Pebble Classic, Pebble Steel, Pebble Time, Pebble Time Steel, Pebble 2,

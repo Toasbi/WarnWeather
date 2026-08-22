@@ -179,7 +179,7 @@ function buildHeaviestClayMessage() {
     btIcons: 'both', vibe: true, timeShowAmPm: true, dayNightShading: true,
     fetchIntervalMin: '30', holidayCountry: 'US', holidaysEnabled: true,
     rainBarColor: 'multicolor', radarColor: 'multicolor', rainCountdownHorizon: '120',
-    healthMode: 'all', theme: 'bw',
+    healthMode: 'all', theme: 'bw', largeGraphFont: true,
     // Worst-case custom no-rain text: the full 24-byte UTF-8 cap (CLAY_NORAIN_TEXT
     // packs it + NUL; clay-payload truncates anything longer at pack time).
     radarNoRainText: 'Kein Regen in Sichtweite',
@@ -212,6 +212,8 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // 7 B tuple header + 3 B data).
   // 438 -> 449 when the graph line styling joined (CLAY_LINE_STYLE_UINT8:
   // 7 B tuple header + 4 B data). It replaces 44 B on the weather message.
-  assert.equal(size, 449, 'update the recorded Clay message size when its wire contract changes');
+  // 449 -> 460 when the emery "Larger graph fonts" toggle joined
+  // (CLAY_LARGE_GRAPH_FONT: 7 B tuple header + 4 B boolean-packed-as-int).
+  assert.equal(size, 460, 'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });

@@ -55,7 +55,7 @@ const EXPECTED_KEYS = [
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','fetchNoticeAck','locationMode','location',
   'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','windScale','pressureScale','thirdLine','tempSlotDisplay',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','radarNoRainText','rainCountdownHorizon',
-  'layoutPreset','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear','reset',
+  'layoutPreset','largeGraphFont','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear','reset',
   'statusBoldAll',
   'statusForecastLeft','statusForecastLeftCountdown','statusForecastMid','statusForecastMidCountdown','statusForecastRight','statusForecastRightCountdown',
   'statusRadarLeft','statusRadarLeftCountdown','statusRadarMid','statusRadarMidCountdown','statusRadarRight','statusRadarRightCountdown',
@@ -733,19 +733,38 @@ test('swapClockStatus toggle exists, defaults ON, and is shown for compactCal on
   assert.equal(showWhen.isVisible(it, basaltOtherPreset), false, 'hidden for other presets');
 });
 
-test('Layout tab leads with the arrangement section: combined preview above the preset radio, reset segmented then swap toggle below', () => {
+test('Layout tab leads with the arrangement section: combined preview above the preset radio, then the font toggle, reset segmented and swap toggle below', () => {
   const layout = schema.tabs.find((t) => t.id === 'layout');
   // Time and Calendar (moved from the Watch tab) follow the arrangement section.
   assert.equal(layout.sections.length, 3, 'arrangement + Time + Calendar');
   const items = layout.sections[0].items;
   const presetIdx = items.findIndex((i) => i.messageKey === 'layoutPreset');
+  const fontIdx = items.findIndex((i) => i.messageKey === 'largeGraphFont');
   const resetIdx = items.findIndex((i) => i.messageKey === 'viewResetMin');
   const swapIdx = items.findIndex((i) => i.messageKey === 'swapClockStatus');
   assert.ok(presetIdx >= 0, 'layoutPreset present');
   assert.equal(items[presetIdx].blockBefore, 'layoutPreviewCombined', 'combined preview hosted on the preset radio');
   assert.equal(items[presetIdx].blockBeforeSticky, true, 'preview sticky');
-  assert.equal(resetIdx, presetIdx + 1, 'viewResetMin sits directly below the preset radio');
+  assert.equal(fontIdx, presetIdx + 1, 'largeGraphFont sits directly below the preset radio');
+  assert.equal(resetIdx, fontIdx + 1, 'viewResetMin sits directly below largeGraphFont');
   assert.equal(swapIdx, resetIdx + 1, 'swapClockStatus sits directly below viewResetMin');
+});
+
+test('largeGraphFont is offered on emery only, and hidden when watchInfo is unavailable', () => {
+  const it = byKey('largeGraphFont');
+  assert.equal(it.type, 'toggle');
+  assert.equal(it.defaultValue, false);
+  assert.equal(it.label, 'Larger graph fonts');
+  assert.deepEqual(it.showWhen, { env: 'platform', eq: 'emery' });
+  const emery = { env: platform.computeEnv({ platform: 'emery' }) };
+  const basalt = { env: platform.computeEnv({ platform: 'basalt' }) };
+  const aplite = { env: platform.computeEnv({ platform: 'aplite' }) };
+  // computeEnv(null).platform is '' - an emery-only cosmetic toggle fails closed.
+  const unknown = { env: platform.computeEnv(null) };
+  assert.equal(showWhen.isVisible(it, emery), true, 'shown on emery');
+  assert.equal(showWhen.isVisible(it, basalt), false, 'hidden on basalt (no room; its left axis is already calendar-sized)');
+  assert.equal(showWhen.isVisible(it, aplite), false, 'hidden on aplite');
+  assert.equal(showWhen.isVisible(it, unknown), false, 'hidden without watchInfo');
 });
 
 test('flick/positioning narrative lives only in the Layout tab, not Health/Radar copy', () => {

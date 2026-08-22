@@ -70,6 +70,7 @@ const settingsSchema = z
     topViewMode: z.enum(['full', 'compact', 'none']).optional(),
     layoutPreset: z.enum(['classic', 'radarLast', 'forecast', 'fullCal', 'healthFirst', 'compactCal', 'compactDense', 'noCal']).optional(),
     viewResetMin: z.number().int().min(0).optional(),
+    largeGraphFont: z.boolean().optional(),
     vibe: z.boolean().optional(),
     btIcons: z.string().optional(),
     secondaryLine: z.string().optional(),
