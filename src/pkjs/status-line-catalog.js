@@ -295,11 +295,42 @@
     return undefined;
   }
 
+  /**
+   * @param {string} slotKey Slot messageKey.
+   * @returns {?Object} The LINES entry owning the slot, or null for non-slot keys.
+   */
+  function lineOf(slotKey) {
+    for (var l = 0; l < LINES.length; l++) {
+      if (LINES[l].slots.indexOf(slotKey) !== -1) { return LINES[l]; }
+    }
+    return null;
+  }
+
+  /**
+   * Whether another slot of slotKey's own line already shows `code`. Non-slot
+   * keys belong to no line and always answer false. THE row-sibling scan: the
+   * wizard's policy guard, the availability resets and the pick-dedupe hook
+   * all ask this instead of re-walking LINES themselves.
+   * @param {Object} S Live settings state.
+   * @param {string} slotKey Slot messageKey.
+   * @param {*} code Candidate item code.
+   * @returns {boolean} True when a same-line sibling holds it.
+   */
+  function siblingHolds(S, slotKey, code) {
+    var line = lineOf(slotKey);
+    if (!line) { return false; }
+    for (var s = 0; s < line.slots.length; s++) {
+      if (line.slots[s] !== slotKey && S[line.slots[s]] === code) { return true; }
+    }
+    return false;
+  }
+
   var api = {
     KINDS: KINDS, ICONS: ICONS, CAPS: CAPS, LINES: LINES,
     byCode: byCode, itemAvailable: itemAvailable, slotOptions: slotOptions,
     selectedCodes: selectedCodes, resolveSelection: resolveSelection,
-    allSlotKeys: allSlotKeys, slotDefault: slotDefault
+    allSlotKeys: allSlotKeys, slotDefault: slotDefault,
+    lineOf: lineOf, siblingHolds: siblingHolds
   };
 
   // Dual-context export - mirror the exact tail of src/pkjs/view-cycle.js.

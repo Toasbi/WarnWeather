@@ -28,30 +28,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var POSITIONS = ['left', 'mid', 'right'];
 
     /**
-     * @param {Object} line catalog line definition
-     * @param {Object} env platform env
-     * @returns {Object} the line's defaults map (hrDefaults flavor when present)
-     */
-    function lineDefaults(line, env) {
-        return (env && env.hr && line.hrDefaults)
-            ? line.hrDefaults : line.defaults;
-    }
-
-    /**
-     * @param {Object} S live settings state
-     * @param {Object} line catalog line definition
-     * @param {number} slotIndex slot being reset
-     * @param {string} code candidate code
-     * @returns {boolean} true when a sibling slot of the line holds code
-     */
-    function siblingHolds(S, line, slotIndex, code) {
-        for (var s = 0; s < line.slots.length; s++) {
-            if (s !== slotIndex && S[line.slots[s]] === code) { return true; }
-        }
-        return false;
-    }
-
-    /**
      * Reset one line's slots to its catalog defaults. Mutates S.
      * @param {Object} S live settings state
      * @param {string} lineId 'radar' | 'health'
@@ -62,9 +38,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         for (var l = 0; l < catalog.LINES.length; l++) {
             var line = catalog.LINES[l];
             if (line.id !== lineId) { continue; }
-            var defaults = lineDefaults(line, env);
             for (var s = 0; s < line.slots.length; s++) {
-                S[line.slots[s]] = defaults[line.slots[s]];
+                // slotDefault owns the hrDefaults flavor — the same resolver a
+                // fresh install and resetStatusSlots go through.
+                S[line.slots[s]] = catalog.slotDefault(line.slots[s], env);
             }
         }
     }
@@ -80,20 +57,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function resetUnavailable(S, env) {
         for (var l = 0; l < catalog.LINES.length; l++) {
             var line = catalog.LINES[l];
-            var defaults = lineDefaults(line, env);
             for (var s = 0; s < line.slots.length; s++) {
                 var key = line.slots[s];
                 var slotCtx = { slotKey: key, position: POSITIONS[s] };
-                var code = S[key] || defaults[key];
+                var def = catalog.slotDefault(key, env);
+                var code = S[key] || def;
                 if (code === 'empty') { continue; }
                 var item = catalog.byCode(code);
                 if (item && catalog.itemAvailable(item, S, env, slotCtx)) { continue; }
-                var def = defaults[key];
                 var defItem = catalog.byCode(def);
                 if (def !== 'empty'
                         && (!defItem
                             || !catalog.itemAvailable(defItem, S, env, slotCtx)
-                            || siblingHolds(S, line, s, def))) {
+                            || catalog.siblingHolds(S, key, def))) {
                     def = 'empty';
                 }
                 S[key] = def;
@@ -156,15 +132,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function dedupeStatusSlot(S, changedKey) {
         var code = S[changedKey];
         if (!code || code === 'empty' || code === 'countdown') { return; }
-        for (var l = 0; l < catalog.LINES.length; l++) {
-            var slots = catalog.LINES[l].slots;
-            if (slots.indexOf(changedKey) === -1) { continue; }
-            for (var s = 0; s < slots.length; s++) {
-                if (slots[s] !== changedKey && S[slots[s]] === code) {
-                    S[slots[s]] = 'empty';
-                }
+        var line = catalog.lineOf(changedKey);
+        if (!line) { return; }
+        for (var s = 0; s < line.slots.length; s++) {
+            if (line.slots[s] !== changedKey && S[line.slots[s]] === code) {
+                S[line.slots[s]] = 'empty';
             }
-            return;
         }
     }
 

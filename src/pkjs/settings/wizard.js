@@ -613,8 +613,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Whether another slot of `key`'s own status row already shows `value`. Non-slot keys
-     * belong to no row and always answer false.
+     * Whether another slot of `key`'s own status row already shows `value` —
+     * the catalog's canonical siblingHolds, resolved dual-context.
      * @param {Object} S Live settings state.
      * @param {string} key Setting messageKey.
      * @param {*} value The value the policy wants to write.
@@ -622,17 +622,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function rowSiblingHolds(S, key, value) {
         var cat = statusCatalog();
-        var lines = (cat && cat.LINES) || [];
-        var i, s, slots;
-        for (i = 0; i < lines.length; i += 1) {
-            slots = lines[i].slots;
-            if (slots.indexOf(key) === -1) { continue; }
-            for (s = 0; s < slots.length; s += 1) {
-                if (slots[s] !== key && S[slots[s]] === value) { return true; }
-            }
-            return false;
-        }
-        return false;
+        return Boolean(cat && cat.siblingHolds && cat.siblingHolds(S, key, value));
     }
 
     /**
