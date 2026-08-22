@@ -371,3 +371,24 @@ test('the health-slot swap declares its coupling: eviction and bold depend on th
     threshStepsBoldMode: 'statusTopRight'
   }, 'both companion writes hang off the steps promotion');
 });
+
+test('overrules always names keys of the same rule\'s set — a typo must not silently protect nothing', () => {
+  // The consumer (wizard.js policyMayWrite) skips the not-still-default guard for
+  // a key the rule declares in `overrules`; a name that matches nothing in `set`
+  // would be dead with no error anywhere. Same philosophy as the dependsOn pin.
+  policy.RULES.forEach((rule) => {
+    (rule.overrules || []).forEach((key) => {
+      assert.ok(Object.prototype.hasOwnProperty.call(rule.set || {}, key),
+        rule.id + ': overrules names "' + key + '", which the rule does not set');
+    });
+  });
+});
+
+test('the health-slot swap declares exactly the promotion an overrule', () => {
+  // Completing setup with health on is consent to the promised layout, so the
+  // promotion may replace even a hand-picked top-right slot. The eviction and
+  // bold are NOT listed: they keep the normal protection, and the row-sibling
+  // dedupe guard still stands for the promotion itself.
+  const rule = policy.RULES.find((r) => r.id === 'wizard-health-slots');
+  assert.deepEqual(rule.overrules, ['statusTopRight']);
+});

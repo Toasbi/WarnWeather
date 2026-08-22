@@ -263,26 +263,48 @@ test('"Continue tweaking" finishes the wizard too — Skip and the step buttons 
 });
 
 test('a key the user changed by hand survives the policy', () => {
-  // threshAqiBoldMode ships 'warn' and statusTopRight ships 'sun'; both values below are
-  // therefore a real choice, not a default that happens to match.
-  const ctx = wizCtx({ saved: { threshAqiBoldMode: 'off', statusTopRight: 'battery' } });
+  // threshAqiBoldMode ships 'warn'; 'off' below is therefore a real choice, not a
+  // default that happens to match. (The steps promotion is the ONE declared
+  // exception to this clause — the next test.)
+  const ctx = wizCtx({ saved: { threshAqiBoldMode: 'off' } });
 
   const written = W.applyWizardDefaults(ctx, 'save');
 
   assert.equal(ctx.S.threshAqiBoldMode, 'off', 'an explicit Bold choice is not overwritten');
-  assert.equal(ctx.S.statusTopRight, 'battery', 'an explicit slot choice is not overwritten');
   assert.ok(!Object.prototype.hasOwnProperty.call(written, 'threshAqiBoldMode'));
-  assert.ok(!Object.prototype.hasOwnProperty.call(written, 'statusTopRight'));
   assert.equal(ctx.S.threshCityBoldMode, 'always', 'the untouched keys still get their default');
   assert.equal(ctx.S.threshAqiOn, true, 'a sibling key of the same rule is unaffected');
-  // The health-row half of the swap must NOT run alone: with the promotion blocked,
-  // evicting steps from the health row would remove the reading from the face
-  // entirely — the exact loss the rule's "so no reading is lost" why-text forbids.
-  assert.equal(ctx.S.statusHealthLeft, 'steps',
-    'the eviction half of the blocked swap must not run');
+});
+
+test('the steps promotion overrules even a hand-picked top-right slot', () => {
+  // statusTopRight ships 'sun', so 'battery' is a real choice — a user parked
+  // another slot top-right, then completed setup with health on. Completing
+  // setup IS the consent to the promised health layout (the rule declares the
+  // promotion in `overrules`), so steps takes the slot anyway, and the eviction
+  // and bold ride along — the swap stays all-or-nothing.
+  const ctx = wizCtx({ saved: { statusTopRight: 'battery' } });
+
+  const written = W.applyWizardDefaults(ctx, 'save');
+
+  assert.equal(ctx.S.statusTopRight, 'steps', 'the promotion wins over the custom slot');
+  assert.equal(written.statusTopRight, 'steps');
+  assert.equal(ctx.S.statusHealthLeft, 'distance', 'the eviction rides along');
+  assert.equal(ctx.S.threshStepsBoldMode, 'always', 'so does the promoted slot\'s bold');
+});
+
+test('the overrule stops at the promotion: a customized health row still survives', () => {
+  // Only the promotion is declared an overrule. A hand-emptied health-left slot
+  // stays as the user left it; steps simply lives in the top row now, and no
+  // reading is lost — it was not in the health row to begin with.
+  const ctx = wizCtx({ saved: { statusTopRight: 'battery', statusHealthLeft: 'empty' } });
+
+  const written = W.applyWizardDefaults(ctx, 'save');
+
+  assert.equal(ctx.S.statusTopRight, 'steps');
+  assert.equal(ctx.S.statusHealthLeft, 'empty', 'the hand-picked health slot survives');
   assert.ok(!Object.prototype.hasOwnProperty.call(written, 'statusHealthLeft'));
-  assert.ok(!Object.prototype.hasOwnProperty.call(written, 'threshStepsBoldMode'),
-    'the bold-the-promoted-slot write depends on the promotion too');
+  assert.equal(ctx.S.threshStepsBoldMode, 'always',
+    'the bold hangs off the promotion, not the eviction');
 });
 
 test('the whole health-slot swap is skipped when steps does not reach the top row', () => {

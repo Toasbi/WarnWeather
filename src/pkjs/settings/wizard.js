@@ -624,20 +624,24 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      *   1. the stored value is still the one a fresh install of THIS watch resolves (the
      *      schema's defaultValue, or its env-aware defaultFrom resolver). Anything else is
      *      a deliberate choice — made in the wizard, or in Settings before re-running it —
-     *      and a first-run default must never overrule it.
+     *      and a first-run default must never overrule it. EXCEPT a key its rule declares
+     *      in `overrules`: there, finishing the wizard is itself the consent (the
+     *      health-slot promotion — see the rule), so the customized value gives way.
      *   2. for a status slot, no sibling slot of the same row already shows the value. The
      *      row already carries what the rule wanted to put there, so writing it would either
      *      duplicate the reading or (through the page's dedupe hook) blank the slot the user
-     *      chose. Skipping is both safe and what the rule was after.
+     *      chose. Skipping is both safe and what the rule was after. This clause has no
+     *      overrules exemption — a duplicate reading is never what a rule was after.
      * @param {Object} ctx onReady ctx ({S, ENV, schema}).
      * @param {string} key Setting messageKey.
      * @param {*} value The value the policy wants to write.
+     * @param {boolean} overrules Whether the rule exempts this key from clause 1.
      * @returns {boolean} True when writing is safe.
      */
-    function policyMayWrite(ctx, key, value) {
+    function policyMayWrite(ctx, key, value, overrules) {
         var item = findItem(ctx.schema, key);
         if (!item) { return false; }   // not a setting on this page — never invent one
-        if (ctx.S[key] !== resolvedDefaultAsStored(item, ctx.ENV)) { return false; }
+        if (!overrules && ctx.S[key] !== resolvedDefaultAsStored(item, ctx.ENV)) { return false; }
         return !rowSiblingHolds(ctx.S, key, value);
     }
 
@@ -658,25 +662,29 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Flatten the policy rules matching a context into one key -> {value, seedVia} map, with
-     * later rules winning (the precedence resolveDefaults documents) and first-seen key order
-     * preserved so a rule's own `set` order still decides who seeds first.
+     * Flatten the policy rules matching a context into one key -> {value, seedVia,
+     * dependsOn, overrules} map, with later rules winning (the precedence resolveDefaults
+     * documents) and first-seen key order preserved so a rule's own `set` order still
+     * decides who seeds first.
      * @param {Object} policy The defaults-policy module.
      * @param {Object} pctx Resolver context ({wizard, env, choices}).
-     * @returns {{keys: Array.<string>, by: Object}} Ordered keys + their {value, seedVia}.
+     * @returns {{keys: Array.<string>, by: Object}} Ordered keys + their
+     *     {value, seedVia, dependsOn, overrules}.
      */
     function pendingDefaults(policy, pctx) {
         var rules = policy.rulesFor(pctx);
-        var keys = [], by = {}, i, k, set, via, dep, names;
+        var keys = [], by = {}, i, k, set, via, dep, ov, names;
         for (i = 0; i < rules.length; i += 1) {
             set = rules[i].set || {};
             via = rules[i].seedVia || {};
             dep = rules[i].dependsOn || {};
+            ov = rules[i].overrules || [];
             names = Object.keys(set);
             for (k = 0; k < names.length; k += 1) {
                 if (!Object.prototype.hasOwnProperty.call(by, names[k])) { keys.push(names[k]); }
                 by[names[k]] = {value: set[names[k]], seedVia: via[names[k]] || null,
-                    dependsOn: dep[names[k]] || null};
+                    dependsOn: dep[names[k]] || null,
+                    overrules: ov.indexOf(names[k]) !== -1};
             }
         }
         return {keys: keys, by: by};
@@ -722,7 +730,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             anchor = pending.by[key].dependsOn;
             if (anchor && (!Object.prototype.hasOwnProperty.call(pending.by, anchor)
                 || ctx.S[anchor] !== pending.by[anchor].value)) { continue; }
-            if (!policyMayWrite(ctx, key, value)) { continue; }
+            if (!policyMayWrite(ctx, key, value, pending.by[key].overrules)) { continue; }
             before = ctx.S[key];
             ctx.S[key] = value;
             hookName = pending.by[key].seedVia;
