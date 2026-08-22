@@ -272,6 +272,20 @@ static void compute_step_marks(int peak) {
 // path) it also feeds the widest mark label into bottom_view so the shared left strip
 // widens to fit; create passes false so a paint while hidden never perturbs forecast's
 // strip before the health view is ever shown.
+// Left-axis (step-mark) font -- the health twin of forecast_layer.c's
+// temp_label_font(). emery's "Larger graph fonts" steps it up one tier; every other
+// platform is frozen at GOTHIC_18. BOTH the draw and the width measurement go through
+// here: the two bottom views feed ONE shared strip (bottom_view.h, "wider of both"),
+// so a draw/measure mismatch would size the gutter for the wrong font in both.
+static GFont step_label_font(void) {
+#ifdef PBL_PLATFORM_EMERY
+    if (config_get()->large_graph_font) {
+        return fonts_get_system_font(FONT_KEY_GOTHIC_24);
+    }
+#endif
+    return fonts_get_system_font(FONT_KEY_GOTHIC_18);
+}
+
 static void health_graph_compute(bool report_width) {
     const GRect    bounds     = layer_get_bounds(s_health_graph_layer);
     const ChartDef def        = health_grid_def();
@@ -325,7 +339,7 @@ static void health_graph_compute(bool report_width) {
     s_end_hour      = end_hour;
 
     if (report_width) {
-        const GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_18);
+        const GFont font = step_label_font();
         const GRect box  = GRect(0, 0, 200, 40);
         int max_w = 0;
         for (int i = 0; i < s_step_mark_n; ++i) {
@@ -355,18 +369,30 @@ static void draw_left_axis(GContext *ctx, int h, int hi) {
     if (axis_y <= 0 || hi <= 0) { return; }
 
     graphics_context_set_text_color(ctx, theme_fg());
-    const GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_18);
+    const GFont font = step_label_font();
+    // Single-row label centered on the gridline y. graphics_draw_text seats text at the
+    // TOP of its box, so the lift is what centres the ink: half the font's line height
+    // plus the 2 px that lands the digit ink on the line (GOTHIC_18: 9 + 2 = 11). The
+    // box must be at least the line height or the row is dropped entirely.
+#ifdef PBL_PLATFORM_EMERY
+    // emery: GOTHIC_24 keeps the same relationship -- 12 + 2 = 14, box 24 + 2 = 26.
+    const bool large   = config_get()->large_graph_font;
+    const int  ty_lift = large ? 14 : 11;
+    const int  box_h   = large ? 26 : 20;
+#else
+    const int  ty_lift = 11;
+    const int  box_h   = 20;
+#endif
     for (int i = 0; i < s_step_mark_n; ++i) {
         const int v = s_step_marks[i];
         if (v <= 0 || v > hi) { continue; }
         const int y = axis_y - (int)(((int32_t)v * axis_y) / hi);
 
-        // Single-row label centered on the gridline y (box top ≈ y - 11).
         char label[6];
         step_mark_label(v, label, sizeof label);
-        int ty = y - 11;
+        int ty = y - ty_lift;
         if (ty < 0) { ty = 0; }
-        graphics_draw_text(ctx, label, font, GRect(0, ty, strip_w, 20),
+        graphics_draw_text(ctx, label, font, GRect(0, ty, strip_w, box_h),
                            GTextOverflowModeFill, GTextAlignmentRight, NULL);
     }
 }
