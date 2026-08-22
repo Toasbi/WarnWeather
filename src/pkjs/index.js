@@ -37,6 +37,7 @@ var statusThresholds = require('./status-thresholds.js');
 var renderSignature = require('./render-signature.js').renderSignature;
 var decideConfigClose = require('./config-close.js').decideConfigClose;
 var phoneBattery = require('./phone-battery.js');
+var statusRebake = require('./status-rebake.js');
 
 /**
  * Full release-notification manifest (dev: force-show by version). Omitted from bundle if missing.
@@ -354,6 +355,11 @@ Pebble.addEventListener('ready',
         // emulator (no battery API there at all), so this is safe to run before
         // the fixture branch below — which is deliberate, so the dev-config
         // fake also populates the cache for fixture screenshots.
+        // The rebaker restores its flash backstop FIRST: phoneBattery.init's
+        // subscribe can fire a micro-send synchronously (see status-rebake.js).
+        statusRebake.init({
+            getSettings: function () { return app.settings; }
+        });
         phoneBattery.init({
             devConfig: app.devConfig,
             getSettings: function () { return app.settings; },

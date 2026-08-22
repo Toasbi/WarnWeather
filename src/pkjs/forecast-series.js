@@ -1,7 +1,7 @@
 var rainTier = require('./weather/rain-tier');
 var lineStyle = require('./line-style.js');   // LINE_COLORS/FILL_COLORS + the resolved line styling
 var statusLines = require('./status-lines.js');
-var phoneBattery = require('./phone-battery.js');
+var statusRebake = require('./status-rebake.js');
 var statusCatalog = require('./status-line-catalog.js');
 var pressurePlausibility = require('./weather/pressure-plausibility.js');
 
@@ -382,11 +382,12 @@ function buildForecastSeries(raw, settings) {
  * @returns {Object} The same payload, raw keys removed and wire keys set.
  */
 function applyForecastSeries(payload, settings, watchInfo) {
-    // Hand the bake INPUTS to phone-battery before anything touches them: a
-    // phone-battery event re-bakes the status lines without a fetch, and by
+    // Hand the bake INPUTS to the rebaker before anything touches them: a
+    // later trigger (a phone-battery event) re-bakes the status lines without
+    // a fetch, and by
     // then both the bake's own mutations and the transient-key deletions below
     // have happened. Order matters — this must precede buildStatusLines.
-    phoneBattery.rememberBakeInputs(payload, settings, watchInfo);
+    statusRebake.rememberBakeInputs(payload, settings, watchInfo);
     // Bake the packed status lines while the transient trend arrays are
     // still on the payload (they die a few lines below).
     statusLines.buildStatusLines(payload, settings, watchInfo);

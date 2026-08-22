@@ -17,6 +17,7 @@ global.localStorage = {
 };
 
 const phoneBattery = require('../src/pkjs/phone-battery.js');
+const statusRebake = require('../src/pkjs/status-rebake.js');
 const KEYS = require('../src/pkjs/storage-keys.js');
 const catalog = require('../src/pkjs/status-line-catalog.js');
 
@@ -82,11 +83,11 @@ function boot(opts) {
     sends: [],
     bakes: []
   };
-  phoneBattery.init({
-    navigator: opts.navigator,
-    devConfig: opts.devConfig,
+  // The rebaker restores its flash backstop FIRST — phoneBattery.init's
+  // subscribe can fire a micro-send synchronously (the shipped ready-handler
+  // order; see status-rebake.js init).
+  statusRebake.init({
     getSettings: function () { return h.settings; },
-    now: function () { return h.clock; },
     sendWeather: function (p) { h.sends.push(p); },
     // undefined falls through to the real status-lines baker.
     buildStatusLines: opts.realBake ? undefined : function (payload, settings, watchInfo) {
@@ -101,6 +102,12 @@ function boot(opts) {
       payload.NOT_A_STATUS_KEY = 99;
       return payload;
     }
+  });
+  phoneBattery.init({
+    navigator: opts.navigator,
+    devConfig: opts.devConfig,
+    getSettings: function () { return h.settings; },
+    now: function () { return h.clock; }
   });
   return h;
 }
@@ -145,7 +152,7 @@ test('detects the legacy navigator.battery object', () => {
 test('the legacy object is still subscribed to, not just read once', () => {
   const mgr = fakeManager(0.41, false);
   const h = boot({ navigator: legacyNavigator(mgr) });
-  phoneBattery.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
   mgr.setLevel(0.34);
   assert.equal(h.sends.length, 1, 'levelchange on the legacy manager triggers a send');
   assert.equal(phoneBattery.read().level, 34);
@@ -163,7 +170,7 @@ test('no battery API at all: inert, unsupported, no reading, nothing thrown', ()
     assert.deepEqual(phoneBattery.read(), { available: false, level: null, charging: false });
     // Every downstream entry point stays callable on such a phone.
     assert.doesNotThrow(() => phoneBattery.onTick());
-    assert.doesNotThrow(() => phoneBattery.rememberBakeInputs({ CITY: 'X' }, {}, null));
+    assert.doesNotThrow(() => statusRebake.rememberBakeInputs({ CITY: 'X' }, {}, null));
     assert.doesNotThrow(() => phoneBattery.onTick());
     assert.equal(h.sends.length, 0);
   });
@@ -276,7 +283,7 @@ test('a real battery event after the heal still sends normally', () => {
   const h = boot({ navigator: modernNavigator(mgr) });
   // The last pre-reset fetch left an in-memory bake snapshot; the wipe takes the
   // flash copy but not this one, exactly as on a real reset.
-  phoneBattery.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
   storage = {};
   phoneBattery.read();                       // heals (and re-baselines) silently
   mgr.setLevel(0.55);                        // 60 bucket -> 55 bucket
@@ -340,7 +347,7 @@ test('83% -> 77% skips the exact multiple 75 but crosses a bucket, so it MUST se
   const mgr = fakeManager(0.83, false);
   const h = boot({ navigator: modernNavigator(mgr) });
   assert.equal(phoneBattery.read().level, 83);
-  phoneBattery.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
 
   mgr.setLevel(0.77);
   assert.equal(h.sends.length, 1, 'the bucket moved 80 -> 75: one micro-send');
@@ -352,7 +359,7 @@ test('83% -> 77% skips the exact multiple 75 but crosses a bucket, so it MUST se
 test('a level move inside one bucket sends nothing but still updates the cache', () => {
   const mgr = fakeManager(0.83, false);
   const h = boot({ navigator: modernNavigator(mgr) });
-  phoneBattery.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
   [[0.82, 82], [0.81, 81], [0.80, 80]].forEach(([level, pct]) => {
     mgr.setLevel(level);
     // The send trigger is untouched by this change: no bucket move, no send.
@@ -392,7 +399,7 @@ test('the trigger baseline is never persisted: only the three phone-battery keys
 test('a charging flip sends immediately, without waiting for a bucket move', () => {
   const mgr = fakeManager(0.62, false);
   const h = boot({ navigator: modernNavigator(mgr) });
-  phoneBattery.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
 
   mgr.setCharging(true);
   assert.equal(h.sends.length, 1, 'plugging in is the event a user looks at the watch to confirm');
@@ -406,7 +413,7 @@ test('a charging flip sends immediately, without waiting for a bucket move', () 
 test('a chargingchange that does not change the flag sends nothing', () => {
   const mgr = fakeManager(0.62, true);
   const h = boot({ navigator: modernNavigator(mgr) });
-  phoneBattery.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
   mgr.fire('chargingchange');
   mgr.fire('levelchange');
   assert.equal(h.sends.length, 0, 'no bucket move and no flip: nothing to say');
@@ -421,7 +428,7 @@ test('the saver window suppresses a level update but still caches it', () => {
   const mgr = fakeManager(0.62, false);
   const h = boot({ navigator: modernNavigator(mgr), settings: SAVER_ON,
                    clock: new Date(2026, 0, 1, 3, 0, 0) });
-  phoneBattery.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
 
   mgr.setLevel(0.42);
   assert.equal(h.sends.length, 0, 'no BLE wake-up for a battery readout overnight');
@@ -432,7 +439,7 @@ test('the saver window suppresses a charging flip too', () => {
   const mgr = fakeManager(0.62, false);
   const h = boot({ navigator: modernNavigator(mgr), settings: SAVER_ON,
                    clock: new Date(2026, 0, 1, 3, 0, 0) });
-  phoneBattery.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
 
   mgr.setCharging(true);
   assert.equal(h.sends.length, 0, 'plugging in at 03:00 waits for the window to close');
@@ -443,7 +450,7 @@ test('the saver is off unless the user enabled it', () => {
   const mgr = fakeManager(0.62, false);
   const h = boot({ navigator: modernNavigator(mgr), settings: { sleepNightEnabled: false },
                    clock: new Date(2026, 0, 1, 3, 0, 0) });
-  phoneBattery.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
   mgr.setLevel(0.42);
   assert.equal(h.sends.length, 1, '03:00 with the saver off is an ordinary minute');
 });
@@ -452,7 +459,7 @@ test('the first tick after the window closes pushes exactly once', () => {
   const mgr = fakeManager(0.62, false);
   const h = boot({ navigator: modernNavigator(mgr), settings: SAVER_ON,
                    clock: new Date(2026, 0, 1, 3, 0, 0) });
-  phoneBattery.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
   mgr.setLevel(0.42);
   mgr.setCharging(true);
   assert.equal(h.sends.length, 0);
@@ -472,7 +479,7 @@ test('a tick inside the window pushes nothing', () => {
   const mgr = fakeManager(0.62, false);
   const h = boot({ navigator: modernNavigator(mgr), settings: SAVER_ON,
                    clock: new Date(2026, 0, 1, 3, 0, 0) });
-  phoneBattery.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
   mgr.setLevel(0.42);
   h.clock = new Date(2026, 0, 1, 6, 59, 0);
   phoneBattery.onTick();
@@ -482,7 +489,7 @@ test('a tick inside the window pushes nothing', () => {
 test('a tick owing nothing sends nothing', () => {
   const mgr = fakeManager(0.62, false);
   const h = boot({ navigator: modernNavigator(mgr) });
-  phoneBattery.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
   phoneBattery.onTick();
   phoneBattery.onTick();
   assert.equal(h.sends.length, 0, 'the per-minute hook is free when nothing was swallowed');
@@ -505,8 +512,8 @@ test('no bake snapshot yet: every trigger is a silent no-op', () => {
 test('rememberBakeInputs(null) is ignored rather than clobbering the snapshot', () => {
   const mgr = fakeManager(0.62, false);
   const h = boot({ navigator: modernNavigator(mgr) });
-  phoneBattery.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
-  assert.doesNotThrow(() => phoneBattery.rememberBakeInputs(null, {}, null));
+  statusRebake.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
+  assert.doesNotThrow(() => statusRebake.rememberBakeInputs(null, {}, null));
   mgr.setLevel(0.42);
   assert.equal(h.sends.length, 1, 'the earlier snapshot still stands');
 });
@@ -524,15 +531,15 @@ test('STATUS_KEYS is exactly the outbox status category', () => {
   // real guard is the micro-send integration tests below; this pins only that
   // the derivation found the right category.
   const outbox = require('../src/pkjs/outbox.js');
-  assert.deepEqual(phoneBattery.STATUS_KEYS,
+  assert.deepEqual(statusRebake.STATUS_KEYS,
     outbox.WEATHER_CATEGORIES.find((c) => c.name === 'status').keys);
-  assert.ok(phoneBattery.STATUS_KEYS.indexOf('STATUS_LEVELS_UINT8') !== -1);
+  assert.ok(statusRebake.STATUS_KEYS.indexOf('STATUS_LEVELS_UINT8') !== -1);
 });
 
 test('the micro-send carries the five status keys and nothing else', () => {
   const mgr = fakeManager(0.62, false);
   const h = boot({ navigator: modernNavigator(mgr) });
-  phoneBattery.rememberBakeInputs(
+  statusRebake.rememberBakeInputs(
     { CITY: 'Bonn', CURRENT_TEMP: 68, TEMP_TREND_UINT8: [1, 2, 3], NUM_ENTRIES: 3,
       FORECAST_START: 1700000000, SUN_EVENTS: [1, 0, 0, 0, 0] },
     { temperatureUnits: 'c' }, { platform: 'basalt' });
@@ -540,7 +547,7 @@ test('the micro-send carries the five status keys and nothing else', () => {
   mgr.setLevel(0.42);
   assert.equal(h.sends.length, 1);
   const sent = h.sends[0];
-  assert.deepEqual(Object.keys(sent).sort(), phoneBattery.STATUS_KEYS.slice().sort(),
+  assert.deepEqual(Object.keys(sent).sort(), statusRebake.STATUS_KEYS.slice().sort(),
     'nothing outside the status category rides along');
   // Neither the snapshot's own weather keys nor a stray key the bake added.
   ['CITY', 'CURRENT_TEMP', 'TEMP_TREND_UINT8', 'NUM_ENTRIES', 'FORECAST_START',
@@ -558,7 +565,7 @@ test('the re-bake runs against a CLONE of the snapshot, not the pruned payload',
                     WIND_TREND_UINT8: [17], GUST_TREND_UINT8: [48], UV_TREND_UINT8: [64] };
   const settings = { temperatureUnits: 'c', axisTimeFormat: '24h',
                      statusForecastLeft: 'phoneBattery' };
-  phoneBattery.rememberBakeInputs(payload, settings, { platform: 'basalt' });
+  statusRebake.rememberBakeInputs(payload, settings, { platform: 'basalt' });
   // Exactly what applyForecastSeries does next.
   ['CITY', 'CURRENT_TEMP', 'WIND_TREND_UINT8', 'GUST_TREND_UINT8', 'UV_TREND_UINT8']
     .forEach((k) => { delete payload[k]; });
@@ -573,13 +580,13 @@ test('the re-bake runs against a CLONE of the snapshot, not the pruned payload',
 test('the re-bake renders the live reading through the real status-line pipeline', () => {
   const mgr = fakeManager(0.62, false);
   const h = boot({ navigator: modernNavigator(mgr), realBake: true });
-  phoneBattery.rememberBakeInputs(
+  statusRebake.rememberBakeInputs(
     { CITY: 'Bonn', CURRENT_TEMP: 68, SUN_EVENTS: [1, 0, 0, 0, 0] },
     { temperatureUnits: 'c', axisTimeFormat: '24h', statusForecastLeft: 'phoneBattery' },
     { platform: 'basalt' });
 
   mgr.setLevel(0.42);
-  assert.deepEqual(Object.keys(h.sends[0]).sort(), phoneBattery.STATUS_KEYS.slice().sort());
+  assert.deepEqual(Object.keys(h.sends[0]).sort(), statusRebake.STATUS_KEYS.slice().sort());
   let slot = decodeLine(h.sends[0].STATUS_LINE_1_UINT8)[0];
   assert.deepEqual(slot, { kind: catalog.KINDS.TEXT, icon: catalog.ICONS.PHONE_BATTERY, text: '42%' },
     'the send was triggered by the 40 bucket, but it carries 42%');
@@ -600,7 +607,7 @@ test('the re-bake renders the live reading through the real status-line pipeline
 test('31% and plugged in: the charging send carries 31%, not the 30 bucket', () => {
   const mgr = fakeManager(0.31, false);
   const h = boot({ navigator: modernNavigator(mgr), realBake: true });
-  phoneBattery.rememberBakeInputs(
+  statusRebake.rememberBakeInputs(
     { CITY: 'Bonn', CURRENT_TEMP: 68, SUN_EVENTS: [1, 0, 0, 0, 0] },
     { temperatureUnits: 'c', axisTimeFormat: '24h', statusForecastLeft: 'phoneBattery' },
     { platform: 'basalt' });
@@ -620,7 +627,7 @@ test('a 31% -> 30% drop inside one bucket does not send, and the next bake shows
   // field usually just the next 15-minute weather fetch — carries the truth.
   const mgr = fakeManager(0.31, false);
   const h = boot({ navigator: modernNavigator(mgr), realBake: true });
-  phoneBattery.rememberBakeInputs(
+  statusRebake.rememberBakeInputs(
     { CITY: 'Bonn', CURRENT_TEMP: 68, SUN_EVENTS: [1, 0, 0, 0, 0] },
     { temperatureUnits: 'c', axisTimeFormat: '24h', statusForecastLeft: 'phoneBattery' },
     { platform: 'basalt' });
@@ -684,7 +691,7 @@ test('a charging event after a PKJS restart still reaches the watch', () => {
   // state and must re-bake from flash.
   const mgr = fakeManager(0.62, false);
   boot({ navigator: modernNavigator(mgr), realBake: true, settings: SLOT_SETTINGS });
-  phoneBattery.rememberBakeInputs(bakePayload(), SLOT_SETTINGS, { platform: 'basalt' });
+  statusRebake.rememberBakeInputs(bakePayload(), SLOT_SETTINGS, { platform: 'basalt' });
   assert.ok(storage[KEYS.PHONE_BATTERY_SNAPSHOT], 'the bake wrote the backstop');
 
   const mgr2 = fakeManager(0.62, false);
@@ -707,7 +714,7 @@ test('the re-bake changes the battery slot and reproduces every other slot exact
   // re-bakes byte-identically and only the battery one moves.
   const mgr = fakeManager(0.62, false);
   const h = boot({ navigator: modernNavigator(mgr), realBake: true, settings: SLOT_SETTINGS });
-  phoneBattery.rememberBakeInputs(bakePayload(), SLOT_SETTINGS, { platform: 'basalt' });
+  statusRebake.rememberBakeInputs(bakePayload(), SLOT_SETTINGS, { platform: 'basalt' });
   mgr.setLevel(0.42);                       // a send from the LIVE snapshot
   const before = h.sends[h.sends.length - 1];
 
@@ -733,7 +740,7 @@ test('the stored blob holds only the payload keys the bake reads', () => {
   // the payload have no business on flash. Enumerated from status-lines.js
   // (formatValue + directionSentinel) and status-thresholds.js (displayValue).
   boot({ navigator: modernNavigator(fakeManager(0.62, false)), settings: SLOT_SETTINGS });
-  phoneBattery.rememberBakeInputs(bakePayload(), SLOT_SETTINGS, { platform: 'basalt' });
+  statusRebake.rememberBakeInputs(bakePayload(), SLOT_SETTINGS, { platform: 'basalt' });
   const blob = JSON.parse(storage[KEYS.PHONE_BATTERY_SNAPSHOT]);
   assert.deepEqual(Object.keys(blob).sort(), ['payload', 'v', 'watchInfo']);
   assert.deepEqual(Object.keys(blob.payload).sort(),
@@ -753,7 +760,7 @@ test('the platform env survives the restart: aplite still gets its lean bake', (
   const settings = { temperatureUnits: 'c', axisTimeFormat: '24h',
                      statusForecastLeft: 'phoneBattery', statusForecastRight: 'week' };
   boot({ navigator: modernNavigator(mgr), realBake: true, settings: settings });
-  phoneBattery.rememberBakeInputs(bakePayload(), settings, { platform: 'aplite' });
+  statusRebake.rememberBakeInputs(bakePayload(), settings, { platform: 'aplite' });
 
   const mgr2 = fakeManager(0.62, false);
   const h2 = boot({ navigator: modernNavigator(mgr2), realBake: true,
@@ -771,7 +778,7 @@ test('the restored payload is paired with the LIVE settings, not stored ones', (
   // is what the next fetch would bake with.
   const mgr = fakeManager(0.62, false);
   boot({ navigator: modernNavigator(mgr), realBake: true, settings: SLOT_SETTINGS });
-  phoneBattery.rememberBakeInputs(bakePayload(), SLOT_SETTINGS, { platform: 'basalt' });
+  statusRebake.rememberBakeInputs(bakePayload(), SLOT_SETTINGS, { platform: 'basalt' });
 
   const mgr2 = fakeManager(0.62, false);
   const h2 = boot({ navigator: modernNavigator(mgr2), realBake: true, keepStorage: true,
@@ -791,7 +798,7 @@ test('a restart does not turn its seed reading into a send', () => {
   // (the next fetch's bake carries it), and the first real event after it sends.
   const mgr = fakeManager(0.62, false);
   boot({ navigator: modernNavigator(mgr), realBake: true, settings: SLOT_SETTINGS });
-  phoneBattery.rememberBakeInputs(bakePayload(), SLOT_SETTINGS, { platform: 'basalt' });
+  statusRebake.rememberBakeInputs(bakePayload(), SLOT_SETTINGS, { platform: 'basalt' });
 
   const mgr2 = fakeManager(0.55, false);  // drained while PKJS was down
   const h2 = boot({ navigator: modernNavigator(mgr2), realBake: true,
@@ -808,7 +815,7 @@ test('a restart does not turn its seed reading into a send', () => {
 test('re-baking a restored snapshot never writes back to the stored blob', () => {
   const mgr = fakeManager(0.62, false);
   boot({ navigator: modernNavigator(mgr), realBake: true, settings: SLOT_SETTINGS });
-  phoneBattery.rememberBakeInputs(bakePayload(), SLOT_SETTINGS, { platform: 'basalt' });
+  statusRebake.rememberBakeInputs(bakePayload(), SLOT_SETTINGS, { platform: 'basalt' });
   const stored = storage[KEYS.PHONE_BATTERY_SNAPSHOT];
 
   const mgr2 = fakeManager(0.62, false);
@@ -824,8 +831,8 @@ test('a re-bake from the LIVE snapshot is preferred over the stored one', () => 
   const h = boot({ navigator: modernNavigator(mgr), realBake: true, settings: SLOT_SETTINGS });
   const stale = bakePayload();
   stale.CITY = 'Köln';
-  phoneBattery.rememberBakeInputs(stale, SLOT_SETTINGS, { platform: 'basalt' });
-  phoneBattery.rememberBakeInputs(bakePayload(), SLOT_SETTINGS, { platform: 'basalt' });
+  statusRebake.rememberBakeInputs(stale, SLOT_SETTINGS, { platform: 'basalt' });
+  statusRebake.rememberBakeInputs(bakePayload(), SLOT_SETTINGS, { platform: 'basalt' });
   mgr.setCharging(true);
   assert.equal(decodeLine(h.sends[0].STATUS_LINE_1_UINT8)[1].text, 'Bonn',
     'the newest bake wins, in memory and on flash');
@@ -873,7 +880,7 @@ test('a restored snapshot with no settings supplier degrades to no snapshot', ()
   // matching neither the watch nor the user's config.
   const mgr = fakeManager(0.62, false);
   boot({ navigator: modernNavigator(mgr), realBake: true, settings: SLOT_SETTINGS });
-  phoneBattery.rememberBakeInputs(bakePayload(), SLOT_SETTINGS, { platform: 'basalt' });
+  statusRebake.rememberBakeInputs(bakePayload(), SLOT_SETTINGS, { platform: 'basalt' });
 
   const sends = [];
   const mgr2 = fakeManager(0.62, false);

@@ -89,19 +89,11 @@
 
 var KEYS = require('./storage-keys.js');
 var sleepWindow = require('./sleep-window.js');
-// Top-level on purpose: outbox's dependency tree has no path back here, so the
-// require is cycle-free — unlike status-lines', which stays lazy (see below).
-var outbox = require('./outbox.js');
-
-/**
- * The AppMessage keys a micro-send may carry — the outbox's 'status' category,
- * DERIVED rather than copied: the set must be identical to what a full weather
- * send emits or the change-detector's cached serializations diverge and the
- * two paths perpetually invalidate each other's cache slot.
- */
-var STATUS_KEYS = outbox.WEATHER_CATEGORIES.find(function (category) {
-    return category.name === 'status';
-}).keys;
+// The bake-snapshot/micro-send subsystem lives in status-rebake.js now: this
+// module keeps detection, subscription, the reading cache and the send
+// TRIGGERS, and asks the rebaker to push. Cycle-free: status-rebake's own
+// requires (status-lines, outbox) have no load-time path back here.
+var statusRebake = require('./status-rebake.js');
 
 /**
  * The resend TRIGGER quantizes charge into 5-point buckets; triggering on every
@@ -110,63 +102,13 @@ var STATUS_KEYS = outbox.WEATHER_CATEGORIES.find(function (category) {
  */
 var BUCKET_STEP = 5;
 
-/**
- * Version stamp on the persisted snapshot. BUMP IT whenever status-lines.js's
- * SOURCE_KEYS or the
- * stored shape changes: a blob written by an older build is then rejected on
- * restore (and dropped) rather than fed to the baker as a payload missing keys
- * it now expects.
- */
-var SNAPSHOT_VERSION = 1;
-
-/**
- * The payload keys buildStatusLines() actually reads, and therefore exactly what
- * gets persisted — nothing else off the (much larger) weather payload rides
- * along, so the blob stays around a kilobyte however big a fetch was.
- *
- * NOT duplicated here: status-lines.js owns the list as SOURCE_KEYS, next to the
- * formatValue arms that read them, and a test pins the two together. A local copy
- * would rot silently — a new slot reading a new payload key would re-bake as '--'
- * after a restart with nothing failing.
- *
- * Required LAZILY for the same reason resend() does it: status-lines.js requires
- * THIS module back (formatValue needs the cached reading), so a top-level require
- * here would close the cycle.
- *
- * @returns {string[]} The payload keys to persist.
- */
-function snapshotKeys() {
-    return require('./status-lines.js').SOURCE_KEYS;
-}
-
 var deps = {};        // injected environment (see init)
 var manager = null;   // the live BatteryManager, once one was found
-var snapshot = null;  // last bake inputs ({payload, settings, watchInfo}) from THIS PKJS life
-var restored = null;  // ({payload, watchInfo}) read back from flash at init, the restart backstop
-var lastWritten = null;     // last serialized snapshot, to skip no-op flash writes
 var seeding = false;        // the subscribe-time first reading: baseline it, never send
 var lastBucket = null;      // trigger baseline only, in memory by design (see ingest)
 var lastCharging = null;
 var pendingPush = false;    // an update the saver window swallowed, owed to the watch
 
-/**
- * Copy an object's own enumerable properties one level deep. Shallow is
- * sufficient here: the bake writes new top-level keys and forecast-series
- * deletes top-level keys, and neither rewrites the nested arrays in place.
- *
- * @param {Object} source Object to copy.
- * @returns {Object} A new object with the same own properties.
- */
-function shallowClone(source) {
-    var out = {};
-    var key;
-    for (key in source) {
-        if (Object.prototype.hasOwnProperty.call(source, key)) {
-            out[key] = source[key];
-        }
-    }
-    return out;
-}
 
 /**
  * Quantize a 0..1 charge level to its 5-point bucket, clamped to 0..100.
@@ -362,7 +304,7 @@ function read() {
     var raw = load(KEYS.PHONE_BATTERY_LEVEL);
     var level;
     if (raw === null && manager) {
-        lastWritten = null;
+        statusRebake.invalidatePersisted();
         seed(manager);
         raw = load(KEYS.PHONE_BATTERY_LEVEL);
     }
@@ -378,159 +320,6 @@ function read() {
         level: level,
         charging: load(KEYS.PHONE_BATTERY_CHARGING) === 'true'
     };
-}
-
-/**
- * The bake-relevant slice of a weather payload: the source keys that are
- * actually present, and nothing else. The full payload carries the whole
- * forecast series (temps, precip, the two radar series) — none of which the
- * status bake reads, and all of which would be dead weight on flash.
- *
- * @param {Object} payload Weather payload, pre-transform.
- * @returns {Object} A new object with the present source keys only.
- */
-function snapshotPayload(payload) {
-    var keys = snapshotKeys();
-    var out = {};
-    var i;
-    var key;
-    for (i = 0; i < keys.length; i += 1) {
-        key = keys[i];
-        if (Object.prototype.hasOwnProperty.call(payload, key)) {
-            out[key] = payload[key];
-        }
-    }
-    return out;
-}
-
-/**
- * Write the restart backstop: the bake-relevant payload slice plus the watchInfo
- * the bake's platform env comes from, version-stamped as one JSON blob.
- *
- * A no-op when the serialization is unchanged — this runs on every fetch, and
- * the same write-only-when-it-changed discipline the watch side applies to
- * persist and the outbox applies to sends applies here too.
- *
- * Nothing here may throw into applyForecastSeries: a payload with a circular
- * reference (there is none today) or a full storage quota must cost the backstop,
- * not the fetch.
- *
- * @param {Object} payload Weather payload, pre-transform.
- * @param {Object|null} watchInfo getActiveWatchInfo() result, or null.
- * @returns {void}
- */
-function persistSnapshot(payload, watchInfo) {
-    var serialized;
-    try {
-        serialized = JSON.stringify({
-            v: SNAPSHOT_VERSION,
-            payload: snapshotPayload(payload),
-            // Small and whole rather than trimmed to computeEnv's one field:
-            // ~100 bytes buys immunity from the bake reading more of it later.
-            watchInfo: watchInfo || null
-        });
-    }
-    catch (ex) {
-        console.log('phone-battery: snapshot not serializable: ' + ex.message);
-        return;
-    }
-    if (serialized === lastWritten) { return; }
-    try {
-        save(KEYS.PHONE_BATTERY_SNAPSHOT, serialized);
-        lastWritten = serialized;
-    }
-    catch (ex2) {
-        console.log('phone-battery: snapshot not stored: ' + ex2.message);
-    }
-}
-
-/**
- * Read the backstop back, tolerating every way a stored blob can be unusable:
- * absent, truncated/garbage, or written by a build whose snapshot shape differs
- * (SNAPSHOT_VERSION). Anything unusable is DROPPED and reported as "no
- * snapshot", so the failure surfaces as the pre-existing skip-the-send path
- * rather than as a throw inside a battery event handler.
- *
- * @returns {{payload: Object, watchInfo: (Object|null)}|null} Restored inputs, or null.
- */
-function restoreSnapshot() {
-    var raw = load(KEYS.PHONE_BATTERY_SNAPSHOT);
-    var parsed;
-    if (!raw) { return null; }
-    try {
-        parsed = JSON.parse(raw);
-    }
-    catch (ex) {
-        console.log('phone-battery: stored snapshot unreadable, dropping it.');
-        drop(KEYS.PHONE_BATTERY_SNAPSHOT);
-        return null;
-    }
-    // typeof null is 'object' and an array passes it too, hence all three checks.
-    if (!parsed || typeof parsed !== 'object' || parsed.v !== SNAPSHOT_VERSION
-            || !parsed.payload || typeof parsed.payload !== 'object') {
-        console.log('phone-battery: stored snapshot has a stale shape, dropping it.');
-        drop(KEYS.PHONE_BATTERY_SNAPSHOT);
-        return null;
-    }
-    lastWritten = raw;
-    return {
-        payload: parsed.payload,
-        watchInfo: (parsed.watchInfo && typeof parsed.watchInfo === 'object')
-            ? parsed.watchInfo : null
-    };
-}
-
-/**
- * The inputs a micro-send re-bakes from: this PKJS life's own snapshot when a
- * fetch has already baked, else the one restored from flash at init().
- *
- * The restored half deliberately carries no settings of its own — it pairs the
- * stored payload with the LIVE settings blob (see the file header). Without a
- * settings supplier there is nothing safe to bake against, and re-baking against
- * defaults would push text that matches neither the watch nor the user's config,
- * so that degrades to "no snapshot" as well.
- *
- * @returns {{payload: Object, settings: Object, watchInfo: (Object|null)}|null} Bake inputs, or null.
- */
-function bakeInputs() {
-    var settings;
-    if (snapshot) { return snapshot; }
-    if (!restored) { return null; }
-    settings = currentSettings();
-    if (!settings) { return null; }
-    return {
-        payload: restored.payload,
-        settings: settings,
-        watchInfo: restored.watchInfo
-    };
-}
-
-/**
- * Stash the inputs of the forecast bake so a battery event can re-bake without
- * a fetch. Called from forecast-series.js immediately BEFORE buildStatusLines,
- * so the clone predates both the bake's own mutations and the transient-key
- * deletions that follow it.
- *
- * The payload is cloned because it is about to be mutated and pruned; settings
- * and watchInfo are held by reference — the bake only reads them, and every
- * settings change forces a fetch, which refreshes this snapshot anyway.
- *
- * The same inputs also go to flash (minus the settings) so a battery event that
- * lands after the next PKJS restart still has something to re-bake.
- *
- * @param {Object} payload Weather payload, still carrying its transient bake keys.
- * @param {Object} settings Clay settings.
- * @param {Object|null} watchInfo getActiveWatchInfo() result, or null.
- * @returns {void}
- */
-function rememberBakeInputs(payload, settings, watchInfo) {
-    if (!payload) { return; }
-    snapshot = {
-        payload: shallowClone(payload),
-        settings: settings,
-        watchInfo: watchInfo
-    };
-    persistSnapshot(payload, watchInfo);
 }
 
 /**
@@ -553,40 +342,6 @@ function currentSettings() {
 function isSuppressed() {
     var now = typeof deps.now === 'function' ? deps.now() : new Date();
     return sleepWindow.isWithinSleepWindow(now, currentSettings());
-}
-
-/**
- * Re-bake the stored snapshot with the current battery reading and push only
- * the status keys.
- *
- * @param {string} reason Log label for why the resend fired.
- * @returns {boolean} True when a send was attempted.
- */
-function resend(reason) {
-    var inputs = bakeInputs();
-    var payload;
-    var build;
-    var outgoing = {};
-    var i;
-
-    if (!inputs) {
-        // Nothing has ever been baked on this phone (no fetch has completed
-        // since install, or the stored blob was unusable): there is nothing to
-        // re-bake, and the next fetch carries the value anyway.
-        console.log('phone-battery: no bake snapshot yet, skipping ' + reason + ' send.');
-        return false;
-    }
-    payload = shallowClone(inputs.payload);
-    build = deps.buildStatusLines || require('./status-lines.js').buildStatusLines;
-    build(payload, inputs.settings, inputs.watchInfo);
-    for (i = 0; i < STATUS_KEYS.length; i += 1) {
-        if (Object.prototype.hasOwnProperty.call(payload, STATUS_KEYS[i])) {
-            outgoing[STATUS_KEYS[i]] = payload[STATUS_KEYS[i]];
-        }
-    }
-    console.log('phone-battery: status micro-send (' + reason + ').');
-    (deps.sendWeather || outbox.sendWeather)(outgoing);
-    return true;
 }
 
 /**
@@ -658,7 +413,7 @@ function ingest(reading) {
         return;
     }
     pendingPush = false;
-    resend(bucketMoved ? 'level' : 'charging');
+    statusRebake.resendStatus(bucketMoved ? 'level' : 'charging');
 }
 
 /**
@@ -786,27 +541,21 @@ function detect(nav) {
  * @param {Object} [options.devConfig] Parsed dev-config, for the local fake.
  * @param {function():Object} [options.getSettings] Current Clay settings supplier.
  * @param {function():Date} [options.now] Clock, for the saver-window check.
- * @param {function(Object):void} [options.sendWeather] Outbox send (default: outbox.sendWeather).
- * @param {function(Object, Object, Object):Object} [options.buildStatusLines] Baker (default: status-lines).
  * @returns {void}
  */
 function init(options) {
     deps = options || {};
     manager = null;
-    snapshot = null;
     seeding = false;
-    restored = null;
-    lastWritten = null;
     lastBucket = null;
     lastCharging = null;
     pendingPush = false;
     drop(KEYS.PHONE_BATTERY_LEVEL);
     drop(KEYS.PHONE_BATTERY_CHARGING);
-    // BEFORE any detection: subscribe() ingests the manager's current reading
-    // synchronously, and that first reading can already fire a micro-send. The
-    // restart backstop has to be in hand by then or the very event this exists
-    // for still finds nothing to re-bake.
-    restored = restoreSnapshot();
+    // ORDERING CONTRACT: statusRebake.init() must have run BEFORE this —
+    // subscribe() below ingests the manager's current reading synchronously,
+    // and that first reading can already fire a micro-send, which needs the
+    // restart backstop in hand (see status-rebake.js init).
     if (installDevFake(deps.devConfig)) { return; }
     detect(currentNavigator());
 }
@@ -826,7 +575,7 @@ function init(options) {
 function onTick() {
     if (!pendingPush || isSuppressed()) { return; }
     pendingPush = false;
-    resend('post-saver-window');
+    statusRebake.resendStatus('post-saver-window');
 }
 
 module.exports = {
@@ -834,8 +583,6 @@ module.exports = {
     onTick: onTick,
     read: read,
     isSupported: isSupported,
-    rememberBakeInputs: rememberBakeInputs,
     levelBucket: levelBucket,
-    levelPercent: levelPercent,
-    STATUS_KEYS: STATUS_KEYS
+    levelPercent: levelPercent
 };

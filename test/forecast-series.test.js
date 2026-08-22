@@ -15,7 +15,8 @@ global.localStorage = {
 
 const { buildForecastSeries: buildSeriesValues, applyForecastSeries, needsUv, needsAqi, needsPollen } = require('../src/pkjs/forecast-series');
 const lineStyle = require('../src/pkjs/line-style');
-const phoneBattery = require('../src/pkjs/phone-battery');
+const statusRebake = require('../src/pkjs/status-rebake.js');
+const phoneBattery = require('../src/pkjs/phone-battery.js');
 
 // The graph's line COLOURS and its fill flag moved off the weather message onto the
 // Clay settings message, so buildForecastSeries returns the VALUES only now: the
@@ -370,9 +371,9 @@ function decodeStatusLine(bytes) {
 }
 
 test('applyForecastSeries stashes the bake inputs BEFORE the bake and before the transient deletes', () => {
-  const realRemember = phoneBattery.rememberBakeInputs;
+  const realRemember = statusRebake.rememberBakeInputs;
   const seen = [];
-  phoneBattery.rememberBakeInputs = function(payload, settings, watchInfo) {
+  statusRebake.rememberBakeInputs = function(payload, settings, watchInfo) {
     // Snapshot the argument as it looked AT THE CALL: the real module clones it,
     // and the payload it is handed is mutated and pruned moments later.
     seen.push({ payload: Object.assign({}, payload), settings, watchInfo });
@@ -394,7 +395,7 @@ test('applyForecastSeries stashes the bake inputs BEFORE the bake and before the
     out = applyForecastSeries(payload, settings, watchInfo);
   }
   finally {
-    phoneBattery.rememberBakeInputs = realRemember;
+    statusRebake.rememberBakeInputs = realRemember;
   }
 
   assert.equal(seen.length, 1, 'stashed exactly once per bake');
@@ -437,11 +438,14 @@ test('a phone-battery event re-bakes from the stash after the payload has been p
   const origLog = console.log;
   console.log = function() {};
   try {
+    statusRebake.init({
+      getSettings: function() { return settings; },
+      sendWeather: function(p) { sends.push(p); }
+    });
     phoneBattery.init({
       navigator: { getBattery: function() { return { then: function(ok) { ok(mgr); } }; } },
       getSettings: function() { return settings; },
-      now: function() { return new Date(2026, 0, 1, 12, 0, 0); },  // saver window shut
-      sendWeather: function(p) { sends.push(p); }
+      now: function() { return new Date(2026, 0, 1, 12, 0, 0); }  // saver window shut
     });
     const payload = {
       CURRENT_TEMP: 68, CITY: 'Bonn', SUN_EVENTS: [1, 0, 0, 0, 0],
