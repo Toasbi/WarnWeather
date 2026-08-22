@@ -89,19 +89,19 @@
 
 var KEYS = require('./storage-keys.js');
 var sleepWindow = require('./sleep-window.js');
+// Top-level on purpose: outbox's dependency tree has no path back here, so the
+// require is cycle-free — unlike status-lines', which stays lazy (see below).
+var outbox = require('./outbox.js');
 
 /**
- * The AppMessage keys a micro-send may carry — exactly the outbox's 'status'
- * category. Keeping the set identical to what a full weather send emits keeps
- * the change-detector's cached serialization comparable across both paths.
+ * The AppMessage keys a micro-send may carry — the outbox's 'status' category,
+ * DERIVED rather than copied: the set must be identical to what a full weather
+ * send emits or the change-detector's cached serializations diverge and the
+ * two paths perpetually invalidate each other's cache slot.
  */
-var STATUS_KEYS = [
-    'STATUS_LINE_1_UINT8',
-    'STATUS_LINE_2_UINT8',
-    'STATUS_LINE_3_UINT8',
-    'STATUS_LINE_4_UINT8',
-    'STATUS_LEVELS_UINT8'
-];
+var STATUS_KEYS = outbox.WEATHER_CATEGORIES.find(function (category) {
+    return category.name === 'status';
+}).keys;
 
 /**
  * The resend TRIGGER quantizes charge into 5-point buckets; triggering on every
@@ -585,7 +585,7 @@ function resend(reason) {
         }
     }
     console.log('phone-battery: status micro-send (' + reason + ').');
-    (deps.sendWeather || require('./outbox.js').sendWeather)(outgoing);
+    (deps.sendWeather || outbox.sendWeather)(outgoing);
     return true;
 }
 

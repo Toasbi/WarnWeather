@@ -520,10 +520,13 @@ test('rememberBakeInputs(null) is ignored rather than clobbering the snapshot', 
 // reading.
 
 test('STATUS_KEYS is exactly the outbox status category', () => {
-  assert.deepEqual(phoneBattery.STATUS_KEYS, [
-    'STATUS_LINE_1_UINT8', 'STATUS_LINE_2_UINT8', 'STATUS_LINE_3_UINT8',
-    'STATUS_LINE_4_UINT8', 'STATUS_LEVELS_UINT8'
-  ]);
+  // Near-tautological since STATUS_KEYS is now DERIVED from the category — the
+  // real guard is the micro-send integration tests below; this pins only that
+  // the derivation found the right category.
+  const outbox = require('../src/pkjs/outbox.js');
+  assert.deepEqual(phoneBattery.STATUS_KEYS,
+    outbox.WEATHER_CATEGORIES.find((c) => c.name === 'status').keys);
+  assert.ok(phoneBattery.STATUS_KEYS.indexOf('STATUS_LEVELS_UINT8') !== -1);
 });
 
 test('the micro-send carries the five status keys and nothing else', () => {
