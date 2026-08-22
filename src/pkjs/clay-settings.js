@@ -41,19 +41,14 @@ function resetAll() {
         k = PRESERVED_SETTING_KEYS[i];
         if (blob[k]) { keep[k] = blob[k]; kept = true; }
     }
-    // A slot parked by an EARLIER reset this session may still hold keys the blob
-    // no longer does: post-reset the blob is deliberately absent, so the reopened
-    // page hydrates every key field to '' and a second Reset save has nothing to
-    // park — clearing storage below would then destroy the only remaining copy.
-    // Fill-only merge: a key typed between the two resets wins over its parked
-    // predecessor (the same precedence restorePreserved applies at boot).
-    var parked = readParked();
-    if (parked) {
-        for (i = 0; i < PRESERVED_SETTING_KEYS.length; i++) {
-            k = PRESERVED_SETTING_KEYS[i];
-            if (parked[k] && !keep[k]) { keep[k] = parked[k]; kept = true; }
-        }
-    }
+    // Backstop, not the primary path: every wired save runs fillFromPreserved
+    // first (index.js webviewclosed), which consumes any parked slot into the
+    // blob — so this normally finds nothing. It stands so resetAll ALONE upholds
+    // "a reset never destroys the parked keys" for any save path that skips the
+    // fill: a second reset in one session would otherwise localStorage.clear()
+    // the only remaining copy. Fill-only, so a key in the blob (typed, or filled
+    // by the save) wins over its parked predecessor.
+    if (restorePreserved(keep)) { kept = true; }
     localStorage.clear();
     // The settings blob itself must stay ABSENT: the wizard only reopens for a
     // config with no keys at all, so putting the kept credentials straight back
@@ -68,7 +63,7 @@ function resetAll() {
 /**
  * The credentials parked by resetAll(), or null when none/malformed. Read-only:
  * dropping the slot (good parking after a restore, malformed parking always) is
- * restorePreserved's job.
+ * restorePreserved's job — every consumer of the slot goes through it.
  *
  * @returns {?Object} Parked key -> value map.
  */
@@ -104,46 +99,38 @@ function readParked() {
  * @returns {Object} The same blob, empty credential fields filled.
  */
 function fillFromPreserved(blob) {
-    var parked = readParked();
-    var i;
-    var k;
-    if (!parked || !blob) { return blob; }
-    for (i = 0; i < PRESERVED_SETTING_KEYS.length; i++) {
-        k = PRESERVED_SETTING_KEYS[i];
-        if (parked[k] && !blob[k]) { blob[k] = parked[k]; }
-    }
-    localStorage.removeItem(KEYS.PRESERVED_KEYS_KEY);
+    if (blob) { restorePreserved(blob); }
     return blob;
 }
 
 /**
  * Fold any credentials parked by resetAll() into a settings object, and drop the
- * parking slot once they are safely in. Missing/!malformed parking is a no-op.
+ * parking slot once they are safely in — THE consumer of the slot: the boot-time
+ * seedDefaults restore, the live-session fillFromPreserved, and resetAll's
+ * backstop all merge through here. Missing/malformed parking restores nothing
+ * (and the malformed slot is dropped).
  *
  * @param {Object} target Settings object to merge into (mutated).
  * @returns {boolean} True when something was restored.
  */
 function restorePreserved(target) {
-    var raw = localStorage.getItem(KEYS.PRESERVED_KEYS_KEY);
-    var keep;
+    var parked = readParked();
     var restored = false;
-    var prop;
-    if (!raw) { return false; }
-    try {
-        keep = JSON.parse(raw);
-    } catch (ex) {
-        localStorage.removeItem(KEYS.PRESERVED_KEYS_KEY);
-        return false;
-    }
-    for (prop in keep) {
-        // FILL ONLY — never overwrite. Between the reset and this boot the user may
-        // well have typed a NEW key (that is the likeliest thing to do right after a
-        // reset), and clobbering it with the parked one is invisible: the settings
-        // page's Test button passes against what they typed, then the next boot
-        // restores the old key underneath them and every fetch is rejected.
-        if (Object.prototype.hasOwnProperty.call(keep, prop) && keep[prop] && !target[prop]) {
-            target[prop] = keep[prop];
-            restored = true;
+    var i;
+    var k;
+    if (parked) {
+        for (i = 0; i < PRESERVED_SETTING_KEYS.length; i++) {
+            k = PRESERVED_SETTING_KEYS[i];
+            // FILL ONLY — never overwrite. Between the reset and this merge the user
+            // may well have typed a NEW key (that is the likeliest thing to do right
+            // after a reset), and clobbering it with the parked one is invisible: the
+            // settings page's Test button passes against what they typed, then the
+            // next boot restores the old key underneath them and every fetch is
+            // rejected.
+            if (parked[k] && !target[k]) {
+                target[k] = parked[k];
+                restored = true;
+            }
         }
     }
     localStorage.removeItem(KEYS.PRESERVED_KEYS_KEY);

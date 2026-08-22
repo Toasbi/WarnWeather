@@ -604,3 +604,32 @@ test('fillFromPreserved is a pass-through when nothing is parked', () => {
   assert.equal(claySettings.fillFromPreserved(blob), blob);
   assert.equal(blob.owmApiKey, '');
 });
+
+test('the restore is whitelist-only: a foreign key in the parking slot never lands', () => {
+  // Only PRESERVED_SETTING_KEYS are ever parked, so anything else in the slot is
+  // corruption or tampering — it must not ride the restore into the blob (the
+  // old for-in restore would have folded it over the fresh defaults).
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  store['preservedApiKeys'] = JSON.stringify({ owmApiKey: 'KEEP-ME', provider: 'evil' });
+  claySettings.seedDefaults(COLORS);
+  const blob = claySettings.read();
+  assert.equal(blob.owmApiKey, 'KEEP-ME', 'the whitelisted credential restores');
+  assert.equal(blob.provider, 'wunderground', 'the foreign key must not override the default');
+});
+
+test('the boot restore discards a non-object parking slot too, not laundered into junk keys', () => {
+  // Same corruption as the fill/reset guards above, through the third reader: a
+  // JSON-valid string slot for-in iterates its character indices, so an unguarded
+  // boot restore would fold {"0":"s","1":"n",...} into the fresh blob — junk keys
+  // that then persist and ride every future save.
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  store['preservedApiKeys'] = JSON.stringify('sneaky-string');
+  claySettings.seedDefaults(COLORS);
+  const blob = claySettings.read();
+  assert.ok(!('0' in blob), 'no laundered index keys in the seeded blob');
+  assert.equal(store['preservedApiKeys'], undefined, 'the junk slot is dropped');
+});
