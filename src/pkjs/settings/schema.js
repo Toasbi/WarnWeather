@@ -114,6 +114,11 @@ var THRESHOLD_WHEN = {env: 'thresholds'};
 // muted, not hidden) rather than lying about being in charge; flipping the master
 // back to 'perSlot' restores their stored choices.
 var BOLD_ALL_WHEN = {key: 'statusBoldAll', eq: 'all'};
+// The two capability gates the Radar/Health status bars share — named once
+// (the THRESHOLD_WHEN precedent) so a bar's visibility rule lives in one
+// constant instead of six inline copies across its slots and countdown rows.
+var RADAR_BAR_WHEN = {all: [{env: 'radar'}, {key: 'radarMode', in: ['status', 'graph']}]};
+var HEALTH_BAR_WHEN = {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]};
 // Shared intro lines at the top of every threshold edit sheet (the sheets are the only
 // place thresholds are explained now that the Watch-tab card is gone). Two voices: the
 // weather kinds cross THRESHOLDS upward; the health kinds fall short of GOALS
@@ -519,6 +524,54 @@ function countdownDateItem(slotKey, barWhen) {
         joinPrevious: true,
         showWhen: barWhen ? {all: [barWhen, countdownWhen]} : countdownWhen
     };
+}
+
+/**
+ * One status-bar slot select: the identical five-resolver wiring every slot
+ * carries (platform-aware default, row dedupe on pick, edit sheet, pencil
+ * badge, catalog options) — hand-copied twelve times before this helper.
+ * @param {string} slotKey Slot messageKey, e.g. 'statusForecastLeft'.
+ * @param {string} position 'left' | 'mid' | 'right'.
+ * @param {?Object} barWhen The bar's shared visibility gate (null = always).
+ * @param {boolean} joins Whether the row joins the previous one (no divider).
+ * @returns {Object} Select item.
+ */
+function slotItem(slotKey, position, barWhen, joins) {
+    var labels = {left: 'Left slot', mid: 'Middle slot', right: 'Right slot'};
+    var item = {
+        type: 'select',
+        messageKey: slotKey,
+        label: labels[position],
+        defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: slotKey}},
+        onChange: 'dedupeStatusSlot',
+        editSheetFrom: {resolver: 'statusSlotEditSheet'},
+        editBadgeFrom: {resolver: 'thresholdPenState'},
+        optionsFrom: {resolver: 'statusSlot', args: {slotKey: slotKey, position: position}}
+    };
+    if (barWhen) { item.showWhen = barWhen; }
+    if (joins) { item.joinPrevious = true; }
+    return item;
+}
+
+/**
+ * A status bar's six interleaved items — left/mid/right selects, each followed
+ * by its countdown companion date row — all sharing the bar's gate. Mid and
+ * right always join the row above; the left slot joins only when the bar opens
+ * with its own intro row (the Watch bar's aplite-hidden incoming-rain note).
+ * @param {string} prefix Slot-key prefix, e.g. 'statusForecast'.
+ * @param {?Object} barWhen The bar's shared visibility gate (null = always).
+ * @param {boolean} [leftJoins] The left slot joins the previous row too.
+ * @returns {Object[]} Six schema items in render order.
+ */
+function barSlots(prefix, barWhen, leftJoins) {
+    return [
+        slotItem(prefix + 'Left', 'left', barWhen, Boolean(leftJoins)),
+        countdownDateItem(prefix + 'Left', barWhen),
+        slotItem(prefix + 'Mid', 'mid', barWhen, true),
+        countdownDateItem(prefix + 'Mid', barWhen),
+        slotItem(prefix + 'Right', 'right', barWhen, true),
+        countdownDateItem(prefix + 'Right', barWhen)
+    ];
 }
 // The signup link opens in an external browser (target=_blank). The Development > API Keys page 404s on
 // tomorrow.io's MOBILE site, so it gets a copy button instead of a (useless-on-mobile) link — users copy
@@ -1020,128 +1073,15 @@ module.exports = {
         }, {
             groupCard: 'watchStatus',
             title: 'Forecast Status Bar',
-            items: [
-                {
-                    type: 'select',
-                    messageKey: 'statusForecastLeft',
-                    label: 'Left slot',
-                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusForecastLeft'}},
-                    onChange: 'dedupeStatusSlot',
-                    editSheetFrom: {resolver: 'statusSlotEditSheet'},
-                    editBadgeFrom: {resolver: 'thresholdPenState'},
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {slotKey: 'statusForecastLeft', position: 'left'}}
-                },
-                countdownDateItem('statusForecastLeft'),
-                {
-                    type: 'select',
-                    messageKey: 'statusForecastMid',
-                    label: 'Middle slot',
-                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusForecastMid'}},
-                    joinPrevious: true,
-                    onChange: 'dedupeStatusSlot',
-                    editSheetFrom: {resolver: 'statusSlotEditSheet'},
-                    editBadgeFrom: {resolver: 'thresholdPenState'},
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {slotKey: 'statusForecastMid', position: 'mid'}}
-                },
-                countdownDateItem('statusForecastMid'),
-                {
-                    type: 'select',
-                    messageKey: 'statusForecastRight',
-                    label: 'Right slot',
-                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusForecastRight'}},
-                    joinPrevious: true,
-                    onChange: 'dedupeStatusSlot',
-                    editSheetFrom: {resolver: 'statusSlotEditSheet'},
-                    editBadgeFrom: {resolver: 'thresholdPenState'},
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {slotKey: 'statusForecastRight', position: 'right'}}
-                },
-                countdownDateItem('statusForecastRight')
-            ]
+            items: barSlots('statusForecast', null)
         }, {
             groupCard: 'watchStatus',
             title: 'Radar Status Bar',
-            items: [
-                {
-                    type: 'select', messageKey: 'statusRadarLeft', label: 'Left slot',
-                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusRadarLeft'}},
-                    showWhen: {all: [{env: 'radar'}, {key: 'radarMode', in: ['status', 'graph']}]},
-                    onChange: 'dedupeStatusSlot',
-                    editSheetFrom: {resolver: 'statusSlotEditSheet'},
-                    editBadgeFrom: {resolver: 'thresholdPenState'},
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {slotKey: 'statusRadarLeft', position: 'left'}}
-                },
-                countdownDateItem('statusRadarLeft',
-                    {all: [{env: 'radar'}, {key: 'radarMode', in: ['status', 'graph']}]}),
-                {
-                    type: 'select', messageKey: 'statusRadarMid', label: 'Middle slot',
-                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusRadarMid'}}, joinPrevious: true,
-                    showWhen: {all: [{env: 'radar'}, {key: 'radarMode', in: ['status', 'graph']}]},
-                    onChange: 'dedupeStatusSlot',
-                    editSheetFrom: {resolver: 'statusSlotEditSheet'},
-                    editBadgeFrom: {resolver: 'thresholdPenState'},
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {slotKey: 'statusRadarMid', position: 'mid'}}
-                },
-                countdownDateItem('statusRadarMid',
-                    {all: [{env: 'radar'}, {key: 'radarMode', in: ['status', 'graph']}]}),
-                {
-                    type: 'select', messageKey: 'statusRadarRight', label: 'Right slot',
-                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusRadarRight'}}, joinPrevious: true,
-                    showWhen: {all: [{env: 'radar'}, {key: 'radarMode', in: ['status', 'graph']}]},
-                    onChange: 'dedupeStatusSlot',
-                    editSheetFrom: {resolver: 'statusSlotEditSheet'},
-                    editBadgeFrom: {resolver: 'thresholdPenState'},
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {slotKey: 'statusRadarRight', position: 'right'}}
-                },
-                countdownDateItem('statusRadarRight',
-                    {all: [{env: 'radar'}, {key: 'radarMode', in: ['status', 'graph']}]})
-            ]
+            items: barSlots('statusRadar', RADAR_BAR_WHEN)
         }, {
             groupCard: 'watchStatus',
             title: 'Health Status Bar',
-            items: [
-                {
-                    type: 'select', messageKey: 'statusHealthLeft', label: 'Left slot',
-                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusHealthLeft'}},
-                    showWhen: {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]},
-                    onChange: 'dedupeStatusSlot',
-                    editSheetFrom: {resolver: 'statusSlotEditSheet'},
-                    editBadgeFrom: {resolver: 'thresholdPenState'},
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {slotKey: 'statusHealthLeft', position: 'left'}}
-                },
-                countdownDateItem('statusHealthLeft',
-                    {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]}),
-                {
-                    type: 'select', messageKey: 'statusHealthMid', label: 'Middle slot',
-                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusHealthMid'}}, joinPrevious: true,
-                    showWhen: {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]},
-                    onChange: 'dedupeStatusSlot',
-                    editSheetFrom: {resolver: 'statusSlotEditSheet'},
-                    editBadgeFrom: {resolver: 'thresholdPenState'},
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {slotKey: 'statusHealthMid', position: 'mid'}}
-                },
-                countdownDateItem('statusHealthMid',
-                    {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]}),
-                {
-                    type: 'select', messageKey: 'statusHealthRight', label: 'Right slot',
-                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusHealthRight'}}, joinPrevious: true,
-                    showWhen: {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]},
-                    onChange: 'dedupeStatusSlot',
-                    editSheetFrom: {resolver: 'statusSlotEditSheet'},
-                    editBadgeFrom: {resolver: 'thresholdPenState'},
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {slotKey: 'statusHealthRight', position: 'right'}}
-                },
-                countdownDateItem('statusHealthRight',
-                    {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]})
-            ]
+            items: barSlots('statusHealth', HEALTH_BAR_WHEN)
         }, {
             groupCard: 'watchStatus',
             title: 'Watch Status Bar',
@@ -1152,40 +1092,8 @@ module.exports = {
                     type: 'staticText',
                     text: 'An incoming-rain alert temporarily replaces the left and middle slot.',
                     showWhen: {env: 'platform', ne: 'aplite'}
-                },
-                {
-                    // joinPrevious drops the divider between the incoming-rain note above and
-                    // the slots, so the Watch Status Bar note flows straight into its slots.
-                    // On aplite the note is hidden, so this simply becomes the first item.
-                    type: 'select', messageKey: 'statusTopLeft', label: 'Left slot',
-                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusTopLeft'}}, joinPrevious: true,
-                    onChange: 'dedupeStatusSlot',
-                    editSheetFrom: {resolver: 'statusSlotEditSheet'},
-                    editBadgeFrom: {resolver: 'thresholdPenState'},
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {slotKey: 'statusTopLeft', position: 'left'}}
-                },
-                countdownDateItem('statusTopLeft'),
-                {
-                    type: 'select', messageKey: 'statusTopMid', label: 'Middle slot',
-                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusTopMid'}}, joinPrevious: true,
-                    onChange: 'dedupeStatusSlot',
-                    editSheetFrom: {resolver: 'statusSlotEditSheet'},
-                    editBadgeFrom: {resolver: 'thresholdPenState'},
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {slotKey: 'statusTopMid', position: 'mid'}}
-                },
-                countdownDateItem('statusTopMid'),
-                {
-                    type: 'select', messageKey: 'statusTopRight', label: 'Right slot',
-                    defaultFrom: {resolver: 'statusSlotDefault', args: {slotKey: 'statusTopRight'}}, joinPrevious: true,
-                    onChange: 'dedupeStatusSlot',
-                    editSheetFrom: {resolver: 'statusSlotEditSheet'},
-                    editBadgeFrom: {resolver: 'thresholdPenState'},
-                    optionsFrom: {resolver: 'statusSlot',
-                        args: {slotKey: 'statusTopRight', position: 'right'}}
-                },
-                countdownDateItem('statusTopRight'),
+                }
+            ].concat(barSlots('statusTop', null, true), [
                 {
                     type: 'toggle', messageKey: 'batteryLowOnly', label: 'Show battery below 10%',
                     defaultValue: true,
@@ -1207,7 +1115,7 @@ module.exports = {
                     joinPrevious: 'loose',
                     options: [['Disconnected', 'disconnected'], ['Connected', 'connected'], ['Both', 'both'], ['None', 'none']]
                 }
-            ]
+            ])
         },
         // Threshold edit sheets (sheetOnly): reachable only through the pencil next to a
         // status slot whose selected value has thresholds — never rendered as cards here.
