@@ -332,10 +332,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return THEME_DESC;   // 'theme'
     }
     // Scroll the selected card to the horizontal center (offsetParent is the position:relative .wiz-car).
+    // The programmatic scroll must not COMMIT a selection: wireCar's snap handler would
+    // otherwise write the highlighted card's value into state on mere render — and when
+    // the highlight is only the carousel's nearest approximation of the stored value
+    // (compactDense -> compactCal), that silently replaces the user's setting. One-shot
+    // flag, armed only when the assignment will actually fire a scroll event; a real
+    // swipe fires a stream of events, so consuming one changes nothing for user scrolls.
     function centerCar() {
         var car = W.overlay.querySelector('.wiz-car'); if (!car) { return; }
         var on = car.querySelector('.wiz-card.on'); if (!on) { return; }
-        car.scrollLeft = on.offsetLeft + on.offsetWidth / 2 - car.clientWidth / 2;
+        var target = on.offsetLeft + on.offsetWidth / 2 - car.clientWidth / 2;
+        W.suppressCarSnap = (target !== car.scrollLeft);
+        car.scrollLeft = target;
     }
     // Commit a carousel selection: update state, the .on highlight, and the description text in place
     // (no full re-render, so a swipe isn't interrupted). recenter=true also scrolls it to center.
@@ -372,6 +380,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var car = W.overlay.querySelector('.wiz-car'); if (!car) { return; }
         var group = car.getAttribute('data-wiz-car'), pending = false;
         car.addEventListener('scroll', function () {
+            // centerCar's render-time centering is not a user selection — see there.
+            if (W.suppressCarSnap) { W.suppressCarSnap = false; return; }
             if (pending) { return; }
             pending = true;
             setTimeout(function () { pending = false; selectCar(group, nearestCard(car), false); }, 90);
@@ -466,7 +476,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return h;
     }
     function stepLayout() {
-        return carousel('layoutPreset', LAYOUT_OPTS, W.ctx.S.layoutPreset, LAYOUT_DESC)
+        // compactDense isn't offered in this carousel (LAYOUT_OPTS) — a persisted
+        // compactDense (set in full Settings) can't be represented here, so highlight
+        // compactCal (the nearest, same 2-row calendar) WITHOUT mutating the stored
+        // value (stepHealth's pattern below): the preset changes only on a real pick,
+        // and the flick demo clamps compactDense to the compactCal screenshot itself
+        // (flickStop), so the demo works against the untouched stored value too.
+        var sel = labelFor(LAYOUT_OPTS, W.ctx.S.layoutPreset) ? W.ctx.S.layoutPreset : 'compactCal';
+        return carousel('layoutPreset', LAYOUT_OPTS, sel, LAYOUT_DESC)
             + '<div>'
             + '<p><b>Forecast Status Bar</b> — shows your location, current temperature and air quality.</p>'
             + '<p><b>Forecast</b> — a 24-hour graph: temperature, the precipitation-% line, UV dots and rain bars.</p></div>';
@@ -787,10 +804,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     function openWizard(ctx, fresh) {
         W.ctx = ctx; W.steps = buildSteps(ctx.ENV); W.idx = 0;
-        // compactDense isn't offered in the wizard's layout carousel (LAYOUT_OPTS) — a persisted
-        // compactDense (set in full Settings) can't be represented here, so fall back to compactCal
-        // (the nearest, same 2-row calendar) for the carousel selection and the flick demo alike.
-        if (ctx.S.layoutPreset === 'compactDense') { ctx.S.layoutPreset = 'compactCal'; }
         // Heart rate exists on emery + diorite; upgrade the health copy to the HR variant there.
         HEALTH_DESC.status = healthStatusItems(hasHeartRate()) + ' on the Health Status Bar.';
         HEALTH_DESC.all = 'Health Status Bar plus an hourly graph: ' + healthGraphItems(hasHeartRate()) + '.';

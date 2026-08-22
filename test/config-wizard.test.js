@@ -334,3 +334,105 @@ test('the policy never duplicates a code the user already placed in that row', (
   assert.equal(ctx.S.statusTopMid, 'steps', 'the slot the user filled stays filled');
   assert.equal(ctx.S.statusTopRight, 'sun', 'steps is already in that row, so the slot is left alone');
 });
+
+// --- the wizard DOM controller: opening must never rewrite stored settings ------------
+// A minimal fake DOM: just enough surface for openWizard/renderStep/wireCar/centerCar.
+// scrollLeft assignment fires 'scroll' listeners synchronously here (real browsers fire
+// async, which only makes the shipped debounce MORE likely to commit).
+function fakeWizardDom() {
+  const listeners = { click: [] };
+  let car = null;
+
+  function makeCar(html) {
+    const cards = [];
+    const re = /class="wiz-card( on)?" data-wiz-idx-val="([^"]+)"/g;
+    let m;
+    while ((m = re.exec(html))) {
+      cards.push({ className: 'wiz-card' + (m[1] || ''), offsetLeft: cards.length * 162, offsetWidth: 150, val: m[2] });
+    }
+    const scrollFns = [];
+    let scrollLeft = 0;
+    const el = {
+      cards,
+      clientWidth: 178,
+      getAttribute: (n) => (n === 'data-wiz-car' ? 'layoutPreset' : null),
+      addEventListener: (ev, fn) => { if (ev === 'scroll') { scrollFns.push(fn); } },
+      querySelector: (sel) => (sel === '.wiz-card.on'
+        ? cards.find((c) => c.className.indexOf(' on') >= 0) || null : null),
+      querySelectorAll: (sel) => (sel === '.wiz-card' ? cards : []),
+      parentNode: { querySelector: () => null }
+    };
+    Object.defineProperty(el, 'scrollLeft', {
+      get: () => scrollLeft,
+      set: (v) => { const moved = v !== scrollLeft; scrollLeft = v; if (moved) { scrollFns.forEach((fn) => fn()); } }
+    });
+    return el;
+  }
+
+  const title = { textContent: '' };
+  const foot = { innerHTML: '' };
+  const body = {};
+  let bodyHtml = '';
+  Object.defineProperty(body, 'innerHTML', {
+    get: () => bodyHtml,
+    set: (h) => { bodyHtml = h; car = h.indexOf('data-wiz-car="') >= 0 ? makeCar(h) : null; }
+  });
+
+  const overlay = {
+    id: '',
+    innerHTML: '',
+    addEventListener: (ev, fn) => { (listeners[ev] = listeners[ev] || []).push(fn); },
+    querySelector: (sel) => {
+      if (sel === '[data-wiz-title]') { return title; }
+      if (sel === '[data-wiz-body]') { return body; }
+      if (sel === '[data-wiz-foot]') { return foot; }
+      if (sel === '.wiz-car' || sel.indexOf('data-wiz-car=') >= 0) { return car; }
+      return null;
+    },
+    querySelectorAll: () => [],
+    parentNode: null,
+    click: (closest) => (listeners.click || []).forEach((fn) => fn({ target: { closest } }))
+  };
+
+  global.document = {
+    getElementById: () => null,
+    createElement: (tag) => (tag === 'div' ? overlay : { id: '', textContent: '' }),
+    head: { appendChild: () => {} },
+    body: { appendChild: () => {} }
+  };
+  return { overlay, getCar: () => car };
+}
+
+test('opening the wizard never rewrites a stored compactDense preset', async () => {
+  // compactDense isn't offered in the wizard's layout carousel; re-running setup (the
+  // only way an existing preset meets the wizard) must highlight the nearest card
+  // WITHOUT mutating stored state — the value changes only on a real pick. Regression:
+  // openWizard used to rewrite S.layoutPreset on entry, and the carousel's programmatic
+  // centering scroll used to commit the coerced card through the snap handler.
+  const dom = fakeWizardDom();
+  const ctx = Object.assign(wizCtx({ saved: { layoutPreset: 'compactDense', onboardingDone: true } }),
+    { cfg: { onboardingDone: true } });
+  PConf.hooks.runReady(ctx);          // seeds the wizard's ctx; onboardingDone stops auto-open
+  assert.equal(ctx.S.layoutPreset, 'compactDense', 'precondition');
+
+  PConf.actions.startWizard();        // "Run setup again"
+  assert.equal(ctx.S.layoutPreset, 'compactDense',
+    'opening the wizard must not rewrite the stored preset');
+
+  // Step forward to the layout carousel: its render centers the highlighted card, and
+  // that programmatic scroll must not commit a selection either.
+  dom.overlay.click((sel) => (sel === '[data-wiz-nav]' ? { getAttribute: () => 'next' } : null));
+  const car = dom.getCar();
+  assert.ok(car, 'the layout carousel rendered');
+  assert.equal((car.querySelector('.wiz-card.on') || {}).val, 'compactCal',
+    'the carousel highlights the nearest offered card');
+  await new Promise((r) => setTimeout(r, 150));   // ride out the snap debounce (90ms)
+  assert.equal(ctx.S.layoutPreset, 'compactDense',
+    'the centering scroll must not commit the coerced card');
+
+  // A real pick still lands: tap the fullCal card.
+  dom.overlay.click((sel) => (sel === '[data-wiz-idx-val]'
+    ? { getAttribute: () => 'fullCal', parentNode: { getAttribute: () => 'layoutPreset' } } : null));
+  assert.equal(ctx.S.layoutPreset, 'fullCal', 'an actual card tap commits normally');
+  await new Promise((r) => setTimeout(r, 150));   // let the recenter scroll's debounce drain
+});
