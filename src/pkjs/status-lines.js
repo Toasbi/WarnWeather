@@ -119,9 +119,13 @@ var DEGREE = '°';
  * @param {boolean} dflt the kind's default when the key is absent
  * @returns {boolean}
  */
-function unitEnabled(settings, key, dflt) {
+function unitEnabled(settings, key) {
   var v = settings ? settings[key] : undefined;
-  return (typeof v === 'undefined' || v === null) ? dflt : Boolean(v);
+  // The shipped default comes from the catalog's UNIT_TOGGLES table — the one
+  // home for key+default, shared with schema.js's rows, resetStatusSlots and
+  // renderSignature, so the page's claim and the bake can never desynchronize.
+  return (typeof v === 'undefined' || v === null)
+    ? catalog.unitToggleDefault(key) : Boolean(v);
 }
 
 /**
@@ -294,7 +298,7 @@ function formatValue(code, payload, settings, slotKey, cap) {
   if (code === 'countdown') {
     return formatCountdown(settings && slotKey
       ? settings[slotKey + 'Countdown'] : undefined, undefined,
-      unitEnabled(settings, 'countdownSlotUnit', true), cap);
+      unitEnabled(settings, 'countdownSlotUnit'), cap);
   }
   if (code === 'temp') {
     if (typeof payload.CURRENT_TEMP !== 'number') { return '--'; }
@@ -308,7 +312,7 @@ function formatValue(code, payload, settings, slotKey, cap) {
     // the authoritative gate -- a blob stored before that hook existed, or any
     // future caller, still cannot combine them. Same shape and same reason as
     // buildForecastSeries' `secMetric !== 'feels'` fill guard.
-    var degree = (mode !== 'both' && unitEnabled(settings, 'tempSlotUnit', false))
+    var degree = (mode !== 'both' && unitEnabled(settings, 'tempSlotUnit'))
       ? DEGREE : '';
     var actual = formatTemp(payload.CURRENT_TEMP, settings);
     if (mode === 'feels' || mode === 'both') {
@@ -335,12 +339,12 @@ function formatValue(code, payload, settings, slotKey, cap) {
   if (code === 'wind') {
     v = trendHead(payload.WIND_TREND_UINT8);
     return v === null ? '--'
-      : formatWind(v, settings, unitEnabled(settings, 'windSlotUnit', true), cap);
+      : formatWind(v, settings, unitEnabled(settings, 'windSlotUnit'), cap);
   }
   if (code === 'gust') {
     v = trendHead(payload.GUST_TREND_UINT8);
     return v === null ? '--'
-      : formatWind(v, settings, unitEnabled(settings, 'gustSlotUnit', true), cap);
+      : formatWind(v, settings, unitEnabled(settings, 'gustSlotUnit'), cap);
   }
   if (code === 'pressure') {
     v = trendHead(payload.PRESSURE_TREND);
@@ -352,7 +356,7 @@ function formatValue(code, payload, settings, slotKey, cap) {
     // Unit on by default, unlike temp/uv/aqi: those have an icon to carry their
     // context and this deliberately ships without one, so the text says what it is.
     return withUnit(String(Math.round(v)),
-      unitEnabled(settings, 'pressureSlotUnit', true) ? 'hPa' : '', cap);
+      unitEnabled(settings, 'pressureSlotUnit') ? 'hPa' : '', cap);
   }
   if (code === 'dew') {
     v = trendHead(payload.DEW_TREND);
@@ -362,7 +366,7 @@ function formatValue(code, payload, settings, slotKey, cap) {
     // rounding -- and both take the same opt-in degree. Unsourced (a provider
     // that omits it, e.g. Yandex) degrades to '--' like pressure.
     return v === null ? '--' : withUnit(formatTemp(v, settings),
-      unitEnabled(settings, 'dewSlotUnit', false) ? DEGREE : '', cap);
+      unitEnabled(settings, 'dewSlotUnit') ? DEGREE : '', cap);
   }
   if (code === 'aqi') {
     v = trendHead(payload.AQI_TREND);

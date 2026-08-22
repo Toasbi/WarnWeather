@@ -5,6 +5,9 @@ var holidayData = require('./holiday-data.js');
 // Single source of the two threshold-highlight color defaults; the same module
 // reads these settings back when packing the wire blob (see clay-payload.js).
 var STATUS_THRESHOLDS = require('../status-thresholds.js');
+// The per-kind "Show unit" defaults come from the catalog's UNIT_TOGGLES
+// table (shared with the baker, the reset, and renderSignature).
+var STATUS_LINE_CATALOG = require('../status-line-catalog.js');
 var PRESSURE_SCALE_CURVE_HPA = require('../forecast-series.js').PRESSURE_SCALE_CURVE_HPA;
 var versionLabel = 'v' + meta.version + (meta.buildProfile === 'dev' ? ' (dev)' : '');
 var HOURS = (function () {
@@ -213,12 +216,12 @@ var WIND_DIRECTION_HINT = 'Draws an arrow after the speed, pointing the way the 
  * so a flip re-bakes instead of waiting for the next fetch.
  *
  * @param {string} key messageKey, e.g. 'windSlotUnit'.
- * @param {boolean} defaultOn Shipped state — true iff the kind already shows a unit.
  * @param {string} withUnit How the slot reads with the unit, e.g. '12kph'.
  * @param {string} without How the same slot reads without it, e.g. '12'.
  * @returns {Object} Toggle item for the kind's edit sheet.
  */
-function unitRow(key, defaultOn, withUnit, without) {
+function unitRow(key, withUnit, without) {
+    var defaultOn = STATUS_LINE_CATALOG.unitToggleDefault(key);
     return {
         type: 'toggle',
         messageKey: key,
@@ -1159,14 +1162,14 @@ module.exports = {
             // is not rearranged under its owner.
             defaultValue: true,
             hint: WIND_DIRECTION_HINT
-        }, unitRow('windSlotUnit', true, null, null)]),
+        }, unitRow('windSlotUnit', null, null)]),
         thresholdSection('Wind gusts', 'Gust', '', null, [{
             type: 'toggle',
             messageKey: 'gustSlotDirection',
             label: 'Show wind direction',
             defaultValue: false,
             hint: WIND_DIRECTION_HINT
-        }, unitRow('gustSlotUnit', true, null, null)]),
+        }, unitRow('gustSlotUnit', null, null)]),
         thresholdSection('UV index', 'Uv', ''),
         thresholdSection('Steps', 'Steps',
             'Steps per day.', HEALTH_SLOT_WHEN),
@@ -1205,10 +1208,10 @@ module.exports = {
             // mode is Both drops the mode back to Temp, the mirror of the hook above;
             // status-lines.js holds the authoritative gate for a blob that predates
             // either.
-        }, Object.assign(unitRow('tempSlotUnit', false, '12°', '12'),
+        }, Object.assign(unitRow('tempSlotUnit', '12°', '12'),
             { onChange: 'tempUnitExclusive' })]),
         boldSection('Air pressure (hPa)', 'Pressure', null,
-            [unitRow('pressureSlotUnit', true, '1013hPa', '1013')]),
+            [unitRow('pressureSlotUnit', '1013hPa', '1013')]),
         boldSection('Sunrise/sunset', 'Sun'),
         boldSection('Date', 'Date'),
         boldSection('Calendar week', 'Week'),
@@ -1216,11 +1219,11 @@ module.exports = {
         // 'd' is a unit like any other here — the countdown reads '5d' today, and
         // dropping it buys a character back on a crowded bar.
         boldSection('Date countdown', 'Countdown', null,
-            [unitRow('countdownSlotUnit', true, '5d', '5')]),
+            [unitRow('countdownSlotUnit', '5d', '5')]),
         boldSection('Heart rate', 'Hr', HR_SLOT_WHEN),
         boldSection('Battery percentage', 'BatteryPct'),
         // Dew point shares temperature's degree sign and its reasoning.
-        boldSection('Dew point', 'Dew', null, [unitRow('dewSlotUnit', false, '12°', '12')]),
+        boldSection('Dew point', 'Dew', null, [unitRow('dewSlotUnit', '12°', '12')]),
         // ONE sheet for TWO catalog items: 'phoneBattery' (icon + NN%) and
         // 'phoneBatteryPlain' (NN%, no icon) are separate wire kinds (18/19) so the
         // no-icon variant can't drive City's bold row, but both KINDS entries share

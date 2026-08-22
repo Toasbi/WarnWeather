@@ -438,9 +438,12 @@ if (typeof require !== 'undefined') { require('./preview-blocks.js'); }
             S[slotKeys[i]] = statusLineCatalog.slotDefault(slotKeys[i], env);
         }
         var schemaKeys = ['statusBoldAll', 'tempSlotDisplay',
-            'windSlotDirection', 'gustSlotDirection',
-            'windSlotUnit', 'gustSlotUnit', 'pressureSlotUnit', 'countdownSlotUnit',
-            'tempSlotUnit', 'dewSlotUnit'];
+            'windSlotDirection', 'gustSlotDirection'];
+        // The six "Show unit" keys come from the catalog's table — the same
+        // list the baker and renderSignature derive from.
+        for (var u = 0; u < statusLineCatalog.UNIT_TOGGLES.length; u++) {
+            schemaKeys.push(statusLineCatalog.UNIT_TOGGLES[u].key);
+        }
         var contractMod = thresholdContract();
         if (contractMod) {
             for (var k = 0; k < contractMod.KINDS.length; k++) {

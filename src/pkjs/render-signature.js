@@ -30,14 +30,17 @@ function renderSignature(settings) {
         // ...the per-kind wind-direction arrows (baked into the wind/gust slot text as a
         // trailing sentinel byte, so a flip only shows after a re-bake)...
         settings.windSlotDirection, settings.gustSlotDirection,
-        // ...the per-kind "Show unit" toggles, which decide whether the phone bakes the
-        // unit into the slot text at all (kph/hPa/d/°) — same rule: without them here a
-        // flip sits invisible until the next scheduled fetch...
-        settings.windSlotUnit, settings.gustSlotUnit, settings.pressureSlotUnit,
-        settings.countdownSlotUnit, settings.tempSlotUnit, settings.dewSlotUnit,
         // ...and the night weather-pause window (a change flips whether fetching pauses
         // and the IS_SLEEPING glyph the forced fetch pushes)...
         settings.sleepNightEnabled, settings.sleepStartHour, settings.sleepEndHour];
+    // ...the per-kind "Show unit" toggles (whether the phone bakes the unit
+    // into the slot text at all — kph/hPa/d/°; same rule: without them here a
+    // flip sits invisible until the next scheduled fetch), derived from the
+    // catalog's table so a new unit-bearing kind can never be omitted...
+    var unitToggles = statusCatalog.UNIT_TOGGLES;
+    for (var u = 0; u < unitToggles.length; u++) {
+        parts.push(settings[unitToggles[u].key]);
+    }
     // ...and the twelve slot selections themselves.
     var slotKeys = statusCatalog.allSlotKeys();
     for (var i = 0; i < slotKeys.length; i++) {

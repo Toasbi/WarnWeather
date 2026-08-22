@@ -325,12 +325,43 @@
     return false;
   }
 
+  /**
+   * The per-kind "Show unit" toggles: settings key + shipped default, in ONE
+   * table. Four consumers used to restate these pairs independently — the
+   * baker's formatValue arms, schema.js's unitRow calls, resetStatusSlots'
+   * key list, and renderSignature's — with nothing pinning the schema default
+   * to the baker default. The six kinds are exactly the ones whose slot text
+   * the PHONE bakes (the watch-formatted kinds would need the flag on the
+   * wire); defaults are non-uniform on purpose: a kind that already printed
+   // its unit ships ON, one that never did ships OFF.
+   */
+  var UNIT_TOGGLES = [
+    { key: 'windSlotUnit', dflt: true },
+    { key: 'gustSlotUnit', dflt: true },
+    { key: 'pressureSlotUnit', dflt: true },
+    { key: 'countdownSlotUnit', dflt: true },
+    { key: 'tempSlotUnit', dflt: false },
+    { key: 'dewSlotUnit', dflt: false }
+  ];
+
+  /**
+   * @param {string} key A UNIT_TOGGLES settings key.
+   * @returns {boolean} The toggle's shipped default (false for unknown keys).
+   */
+  function unitToggleDefault(key) {
+    for (var i = 0; i < UNIT_TOGGLES.length; i++) {
+      if (UNIT_TOGGLES[i].key === key) { return UNIT_TOGGLES[i].dflt; }
+    }
+    return false;
+  }
+
   var api = {
     KINDS: KINDS, ICONS: ICONS, CAPS: CAPS, LINES: LINES,
     byCode: byCode, itemAvailable: itemAvailable, slotOptions: slotOptions,
     selectedCodes: selectedCodes, resolveSelection: resolveSelection,
     allSlotKeys: allSlotKeys, slotDefault: slotDefault,
-    lineOf: lineOf, siblingHolds: siblingHolds
+    lineOf: lineOf, siblingHolds: siblingHolds,
+    UNIT_TOGGLES: UNIT_TOGGLES, unitToggleDefault: unitToggleDefault
   };
 
   // Dual-context export - mirror the exact tail of src/pkjs/view-cycle.js.
