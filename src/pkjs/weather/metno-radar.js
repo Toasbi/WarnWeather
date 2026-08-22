@@ -1,11 +1,6 @@
-var WeatherProvider = require('./provider.js');
-var request = WeatherProvider.request;
-var wireUnits = require('../wire-units.js');
-var clampByte = wireUnits.clampByte;
-var zeroFilledArray = wireUnits.zeroFilledArray;
 var metnoHeaders = require('./metno-headers.js');
 var radarWire = require('./radar-wire.js');
-var NUM_BARS = radarWire.NUM_BARS;         // shared wire invariant (24 frames)
+var radarFetch = require('./radar-fetch.js');
 
 var NOWCAST_BASE = 'https://api.met.no/weatherapi/nowcast/2.0/complete';
 
@@ -23,28 +18,12 @@ function buildNowcastUrl(lat, lon) {
         + '&lon=' + metnoHeaders.trunc4(lon);
 }
 
-/**
- * Copy nowcast frames 1:1 by index into the 24 five-minute wire bytes (uint8,
- * mm/h * 10). The API delivers strictly contiguous 5-min frames whose first
- * frame is the current 5-min boundary, so no timestamp math or gap filling is
- * needed; with the usual 23 frames only slot 23 stays 0.
- *
- * @param {Array} timeseries Nowcast timeseries entries.
- * @returns {number[]} 24-entry uint8 array (mm/h * 10, saturating at 255).
- */
+// radar-fetch owns the 1:1 frame copy; only the per-frame accessor is ours.
 function mapFrames(timeseries) {
-    var out = zeroFilledArray(NUM_BARS);
-    var i;
-    var details;
-    var rate;
-    for (i = 0; i < NUM_BARS && i < timeseries.length; i += 1) {
-        details = timeseries[i].data && timeseries[i].data.instant
-            && timeseries[i].data.instant.details;
-        rate = (details && typeof details.precipitation_rate === 'number')
-            ? details.precipitation_rate : 0;
-        out[i] = clampByte(rate * 10);
-    }
-    return out;
+    return radarFetch.mapFrames(timeseries, function (entry) {
+        var details = entry.data && entry.data.instant && entry.data.instant.details;
+        return details && details.precipitation_rate;
+    });
 }
 
 /**
@@ -60,56 +39,42 @@ function mapFrames(timeseries) {
  * @returns {void}
  */
 function fetchRadarTuplesAt(lat, lon, slotZeroEpoch, callback) {
-    request(
-        buildNowcastUrl(lat, lon),
-        'GET',
-        function(response) {
-            var body;
-            try {
-                body = JSON.parse(response);
-            }
-            catch (ex) {
-                console.log('[!] Met.no radar: response parse error');
-                callback(null);
-                return;
-            }
-            var props = body && body.properties;
-            var coverage = props && props.meta && props.meta.radar_coverage;
-            var timeseries = (props && Array.isArray(props.timeseries))
-                ? props.timeseries : [];
-            if (coverage === 'temporarily unavailable') {
-                // Radar outage is transient — preserve the watch's existing radar.
-                console.log('[!] Met.no radar temporarily unavailable');
-                callback(null);
-                return;
-            }
-            if (coverage !== 'ok' || timeseries.length === 0) {
-                // 'no coverage' (or an unknown coverage value): permanently
-                // outside the radar composite — ship a flat clear signal.
-                callback(radarWire.flatRadarTuples(slotZeroEpoch));
-                return;
-            }
-            // The frames self-describe their start (the endpoint takes no start
-            // parameter), so the 1:1 index copy is correct by construction.
-            var startEpoch = Math.round(Date.parse(timeseries[0].time) / 1000);
-            if (!isFinite(startEpoch)) {
-                console.log('[!] Met.no radar: unparsable frame time');
-                callback(null);
-                return;
-            }
-            callback(radarWire.pointRadarTuples(mapFrames(timeseries), startEpoch));
-        },
-        function(error) {
+    radarFetch.fetchRadarJson({
+        url: buildNowcastUrl(lat, lon),
+        label: 'Met.no',
+        headers: metnoHeaders.HEADERS,
+        onTransportError: function (error, cb) {
             if (error && error.code === 'status_422') {
                 // Outside the Nordic product area — out of coverage, not a failure.
-                callback(radarWire.flatRadarTuples(slotZeroEpoch));
-                return;
+                cb(radarWire.flatRadarTuples(slotZeroEpoch));
+                return true;
             }
-            console.log('[!] Met.no radar fetch failed: ' + JSON.stringify(error));
-            callback(null);
-        },
-        metnoHeaders.HEADERS
-    );
+            return false;
+        }
+    }, function (body) {
+        var props = body && body.properties;
+        var coverage = props && props.meta && props.meta.radar_coverage;
+        var timeseries = (props && Array.isArray(props.timeseries))
+            ? props.timeseries : [];
+        if (coverage === 'temporarily unavailable') {
+            // Radar outage is transient — preserve the watch's existing radar.
+            console.log('[!] Met.no radar temporarily unavailable');
+            return null;
+        }
+        if (coverage !== 'ok' || timeseries.length === 0) {
+            // 'no coverage' (or an unknown coverage value): permanently
+            // outside the radar composite — ship a flat clear signal.
+            return radarWire.flatRadarTuples(slotZeroEpoch);
+        }
+        // The frames self-describe their start (the endpoint takes no start
+        // parameter), so the 1:1 index copy is correct by construction.
+        var startEpoch = Math.round(Date.parse(timeseries[0].time) / 1000);
+        if (!isFinite(startEpoch)) {
+            console.log('[!] Met.no radar: unparsable frame time');
+            return null;
+        }
+        return radarWire.pointRadarTuples(mapFrames(timeseries), startEpoch);
+    }, callback);
 }
 
 module.exports = {

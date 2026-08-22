@@ -1,9 +1,5 @@
-var WeatherProvider = require('./provider.js');
-var request = WeatherProvider.request;
-var wireUnits = require('../wire-units.js');
-var clampByte = wireUnits.clampByte;
-var zeroFilledArray = wireUnits.zeroFilledArray;
 var radarWire = require('./radar-wire.js');
+var radarFetch = require('./radar-fetch.js');
 var NUM_BARS = radarWire.NUM_BARS;         // shared wire invariant (24 frames)
 var SLOT_SECONDS = radarWire.SLOT_SECONDS; // shared wire invariant (300 s/slot)
 
@@ -42,16 +38,10 @@ function buildNowcastUrl(apiKey, lat, lon, slotZeroEpoch) {
  * @returns {number[]} 24-entry uint8 array.
  */
 function mapFrames(intervals) {
-    var out = zeroFilledArray(NUM_BARS);
-    var values;
-    var rate;
-    for (var i = 0; i < NUM_BARS && i < intervals.length; i += 1) {
-        values = intervals[i] && intervals[i].values;
-        rate = (values && typeof values.precipitationIntensity === 'number')
-            ? values.precipitationIntensity : 0;
-        out[i] = clampByte(rate * 10);
-    }
-    return out;
+    // radar-fetch owns the 1:1 frame copy; only the per-frame accessor is ours.
+    return radarFetch.mapFrames(intervals, function (interval) {
+        return interval && interval.values && interval.values.precipitationIntensity;
+    });
 }
 
 /**
@@ -75,41 +65,25 @@ function fetchRadarTuplesAt(apiKey, lat, lon, slotZeroEpoch, callback) {
         callback(null);
         return;
     }
-    request(
-        buildNowcastUrl(apiKey, lat, lon, slotZeroEpoch),
-        'GET',
-        function(response) {
-            var body;
-            try {
-                body = JSON.parse(response);
-            }
-            catch (ex) {
-                console.log('[!] Tomorrow.io radar: response parse error');
-                callback(null);
-                return;
-            }
-            var timelines = body && body.data && body.data.timelines;
-            var intervals = (Array.isArray(timelines) && timelines[0] && Array.isArray(timelines[0].intervals))
-                ? timelines[0].intervals : [];
-            if (intervals.length === 0) {
-                callback(null);
-                return;
-            }
-            // The frames self-describe their start (metno-radar.js precedent);
-            // it equals slotZeroEpoch when the API honors our startTime.
-            var startEpoch = Math.round(Date.parse(intervals[0].startTime) / 1000);
-            if (!isFinite(startEpoch)) {
-                console.log('[!] Tomorrow.io radar: unparsable frame time');
-                callback(null);
-                return;
-            }
-            callback(radarWire.pointRadarTuples(mapFrames(intervals), startEpoch));
-        },
-        function(error) {
-            console.log('[!] Tomorrow.io radar fetch failed: ' + JSON.stringify(error));
-            callback(null);
+    radarFetch.fetchRadarJson({
+        url: buildNowcastUrl(apiKey, lat, lon, slotZeroEpoch),
+        label: 'Tomorrow.io'
+    }, function (body) {
+        var timelines = body && body.data && body.data.timelines;
+        var intervals = (Array.isArray(timelines) && timelines[0] && Array.isArray(timelines[0].intervals))
+            ? timelines[0].intervals : [];
+        if (intervals.length === 0) {
+            return null;
         }
-    );
+        // The frames self-describe their start (metno-radar.js precedent);
+        // it equals slotZeroEpoch when the API honors our startTime.
+        var startEpoch = Math.round(Date.parse(intervals[0].startTime) / 1000);
+        if (!isFinite(startEpoch)) {
+            console.log('[!] Tomorrow.io radar: unparsable frame time');
+            return null;
+        }
+        return radarWire.pointRadarTuples(mapFrames(intervals), startEpoch);
+    }, callback);
 }
 
 module.exports = {

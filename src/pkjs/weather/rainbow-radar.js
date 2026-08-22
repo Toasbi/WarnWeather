@@ -1,10 +1,9 @@
-var WeatherProvider = require('./provider.js');
-var request = WeatherProvider.request;
 var wireUnits = require('../wire-units.js');
 var clampByte = wireUnits.clampByte;
 var zeroFilledArray = wireUnits.zeroFilledArray;
 
 var radarWire = require('./radar-wire.js');
+var radarFetch = require('./radar-fetch.js');
 var NUM_BARS = radarWire.NUM_BARS;         // shared wire invariant (24 frames)
 var SLOT_SECONDS = radarWire.SLOT_SECONDS; // shared wire invariant (300 s/slot)
 
@@ -96,32 +95,17 @@ function fetchRadarTuplesAt(endpoint, lat, lon, slotZeroEpoch, callback) {
         callback(null);
         return;
     }
-    request(
-        buildProxyUrl(endpoint, lat, lon, slotZeroEpoch),
-        'GET',
-        function(response) {
-            var body;
-            try {
-                body = JSON.parse(response);
-            }
-            catch (ex) {
-                console.log('[!] Rainbow radar: response parse error');
-                callback(null);
-                return;
-            }
-            // An empty/missing forecast is the proxy's out-of-coverage clear —
-            // ship 24 zeros (flat signal), matching DWD's out-of-coverage
-            // semantics, rather than failing the fetch.
-            var forecast = (body && Array.isArray(body.forecast)) ? body.forecast : [];
-            callback(radarWire.pointRadarTuples(
-                resampleForecast(forecast, slotZeroEpoch), slotZeroEpoch));
-        },
-        function(error) {
-            console.log('[!] Rainbow radar fetch failed: ' + JSON.stringify(error));
-            // null preserves the watch's existing radar (matches the DWD failure path).
-            callback(null);
-        }
-    );
+    radarFetch.fetchRadarJson({
+        url: buildProxyUrl(endpoint, lat, lon, slotZeroEpoch),
+        label: 'Rainbow'
+    }, function (body) {
+        // An empty/missing forecast is the proxy's out-of-coverage clear —
+        // ship 24 zeros (flat signal), matching DWD's out-of-coverage
+        // semantics, rather than failing the fetch.
+        var forecast = (body && Array.isArray(body.forecast)) ? body.forecast : [];
+        return radarWire.pointRadarTuples(
+            resampleForecast(forecast, slotZeroEpoch), slotZeroEpoch);
+    }, callback);
 }
 
 module.exports = {
