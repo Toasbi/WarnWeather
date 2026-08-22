@@ -19,7 +19,7 @@ var pkg = require('../../package.json');
 var activeFixture = require('./active-fixture.generated.js');
 var pebbleColors = require('./pebble-colors.js');
 var releaseNotifications = require('./release-notifications.js');
-var updateCheck = require('./update-check.js');
+var updateCheckRunner = require('./update-check-runner.js');
 var sleepWindow = require('./sleep-window.js');
 var claySettings = require('./clay-settings.js');
 var fixtureWeather = require('./fixture-weather.js');
@@ -68,7 +68,6 @@ var app = {};  // Namespace for global app variables
 var KEY_MAX_NOTIFIED_VERSION = 'max_notified_version';
 var KEY_UPDATE_NOTIFIED_VERSION = storageKeys.UPDATE_NOTIFIED_VERSION_KEY;
 var KEY_LAST_UPDATE_CHECK = storageKeys.LAST_UPDATE_CHECK_KEY;
-var UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 // Public appstore APIs; latest version lives at data[0].latest_release.version.
 // Announce the min across stores so the target is installable from either one.
 var UPDATE_CHECK_STORES = [
@@ -462,138 +461,26 @@ function maybeShowReleaseNotification(hadExistingInstall, forceVersionSpec) {
 }
 
 /**
- * GET each store's latest version sequentially (ES5, no Promise). Calls
- * callback(versions) only when EVERY store returned a parseable version;
- * calls callback(null) on the first network error, non-2xx, or unparseable
- * body so the caller can skip notifying when "available in both" is unconfirmed.
- *
- * @param {string[]} urls Store API URLs.
- * @param {Function} callback Receives string[] of versions, or null on any failure.
- * @returns {void}
- */
-var XHR_TIMEOUT_MS = 5000;
-
-function fetchStoreVersions(urls, callback) {
-    var versions = [];
-
-    function next(i) {
-        var xhr;
-        if (i >= urls.length) {
-            callback(versions);
-            return;
-        }
-        xhr = new XMLHttpRequest();
-        xhr.open('GET', urls[i]);
-        xhr.timeout = XHR_TIMEOUT_MS;
-        xhr.onload = function() {
-            var version;
-            if (xhr.status < 200 || xhr.status >= 300) {
-                console.log('[update-check] store ' + i + ' non-2xx status=' + xhr.status);
-                callback(null);
-                return;
-            }
-            version = updateCheck.parseLatestVersion(xhr.responseText);
-            if (version === null) {
-                console.log('[update-check] store ' + i + ' unparseable response');
-                callback(null);
-                return;
-            }
-            versions.push(version);
-            next(i + 1);
-        };
-        xhr.onerror = function() {
-            console.log('[update-check] store ' + i + ' request error');
-            callback(null);
-        };
-        xhr.ontimeout = function() {
-            console.log('[update-check] store ' + i + ' request timeout');
-            callback(null);
-        };
-        xhr.send();
-    }
-
-    next(0);
-}
-
-/**
- * Decide on the fetched store versions and notify once per newer version.
- *
- * @param {Array<string|null>|null} storeVersions Versions, or null when a fetch failed.
- * @returns {void}
- */
-function finishUpdateCheck(storeVersions) {
-    var decision;
-    if (storeVersions === null) {
-        console.log('[update-check] skipped: a store request failed');
-        return;
-    }
-    decision = updateCheck.decideUpdateNotification({
-        storeVersions: storeVersions,
-        appVersion: pkg.version,
-        updateNotifiedVersion: localStorage.getItem(KEY_UPDATE_NOTIFIED_VERSION) || '0.0.0'
-    });
-    console.log(decision.logLine);
-    if (decision.shouldNotify) {
-        Pebble.showSimpleNotificationOnPebble(
-            'WarnWeather update',
-            'A new version is available. Open the Pebble app on your phone to install it.'
-        );
-        localStorage.setItem(KEY_UPDATE_NOTIFIED_VERSION, decision.version);
-        console.log('[update-check] notified version=' + decision.version);
-    }
-}
-
-/**
  * Everything index.js owns that must happen on every 60 s scheduler tick.
  *
  * The scheduler calls this as its `checkForUpdate` dep, which it invokes once
  * per tick unconditionally — so it is the tick hook, and hanging the
  * phone-battery post-saver-window push here keeps this at ONE timer instead of
- * arming a second one. The update check is itself throttled to once a day
- * internally, so the extra work per tick is a flag test.
+ * arming a second one. The update check throttles itself to once a day
+ * (update-check-runner.js — the XHR/notify half; update-check.js stays the
+ * pure decision), so the extra work per tick is a flag test.
  *
  * @returns {void}
  */
 function onSchedulerTick() {
     phoneBattery.onTick();
-    maybeCheckForUpdate();
-}
-
-/**
- * Once per day (while a watch is connected), check both appstores for a newer
- * version and notify. The throttle slot is claimed BEFORE fetching, so a
- * persistently failing store cannot trigger a retry every tick. dev-config can
- * force a run and/or inject synthetic store versions for offline testing.
- *
- * @returns {void}
- */
-function maybeCheckForUpdate() {
-    var dev = app.devConfig || {};
-    var force = Boolean(dev.forceUpdateCheckOnBoot);
-    var lastRaw;
-    var last;
-
-    if (!force) {
-        if (!isWatchConnected()) {
-            return;
-        }
-        lastRaw = localStorage.getItem(KEY_LAST_UPDATE_CHECK);
-        last = Number(lastRaw);
-        if (isFinite(last) && last > 0 && (Date.now() - last) < UPDATE_CHECK_INTERVAL_MS) {
-            return;
-        }
-    }
-
-    // Claim the daily slot up front so failures don't retry every tick.
-    localStorage.setItem(KEY_LAST_UPDATE_CHECK, String(Date.now()));
-
-    if (dev.overrideLatestStoreVersions) {
-        console.log('[update-check] using dev override store versions');
-        finishUpdateCheck(dev.overrideLatestStoreVersions);
-        return;
-    }
-
-    fetchStoreVersions(UPDATE_CHECK_STORES, finishUpdateCheck);
+    updateCheckRunner.runDailyUpdateCheck({
+        stores: UPDATE_CHECK_STORES,
+        appVersion: pkg.version,
+        devConfig: app.devConfig,
+        isWatchConnected: isWatchConnected,
+        notify: function (title, body) { Pebble.showSimpleNotificationOnPebble(title, body); }
+    });
 }
 
 /**
