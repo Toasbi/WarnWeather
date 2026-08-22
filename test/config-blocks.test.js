@@ -6,6 +6,9 @@ require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
 require('../src/pkjs/config-ui/lib/engine.js');
 const B = require('../src/pkjs/settings/blocks.js');
+// The block renderers moved to preview-blocks.js; blocks.js keeps the
+// threshold machinery + small resolvers (and still registers everything).
+const PB = require('../src/pkjs/settings/preview-blocks.js');
 const budgetLib = require('../src/pkjs/settings/tomorrowio-budget.js');
 
 function budgetState(over) {
@@ -17,43 +20,43 @@ function budgetState(over) {
 }
 
 test('forecastPreview returns an SVG with the rain bars rendered', () => {
-  const fc = B.forecastPreview({ dayNightShading: true, barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'precip_prob', secondaryLineFill: true, windScale: 'mid' }, { color: true });
+  const fc = PB.forecastPreview({ dayNightShading: true, barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'precip_prob', secondaryLineFill: true, windScale: 'mid' }, { color: true });
   assert.ok(/^<svg/.test(fc) && fc.indexOf('</svg>') > 0, 'is an SVG document');
   assert.ok(fc.indexOf('fill="#00FF00"') > -1, 'multicolor rain bars actually render (not an empty frame)');
 });
 test('radarPreview: off message vs SVG', () => {
-  assert.ok(B.radarPreview({ radarMode: 'off', radarColor: 'multicolor' }, { color: true }).indexOf('Radar off') >= 0);
-  assert.ok(/^<svg/.test(B.radarPreview({ radarProvider: 'dwd', radarColor: 'white' }, { color: true })));
+  assert.ok(PB.radarPreview({ radarMode: 'off', radarColor: 'multicolor' }, { color: true }).indexOf('Radar off') >= 0);
+  assert.ok(/^<svg/.test(PB.radarPreview({ radarProvider: 'dwd', radarColor: 'white' }, { color: true })));
 });
 // A multicolor radar band fill (e.g. #00FF00) appears on a color watch but never on B/W,
 // where the bars are always solid white regardless of the (hidden) radarColor setting.
 const GREEN_BAND = 'fill="#00FF00"';
 test('radarPreview forces white bars on B/W even when setting says multicolor', () => {
-  const color = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor' }, { color: true });
-  const bw    = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor' }, { color: false });
+  const color = PB.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor' }, { color: true });
+  const bw    = PB.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor' }, { color: false });
   assert.ok(color.indexOf(GREEN_BAND) >= 0, 'color watch keeps multicolor bands');
   assert.equal(bw.indexOf(GREEN_BAND), -1, 'B/W watch draws no color bands');
   assert.ok(bw.indexOf('fill="#FFFFFF"') >= 0, 'B/W watch draws white bars');
 });
 test('forecastPreview forces white rain bars on B/W even when setting says multicolor', () => {
   const state = { dayNightShading: true, barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'off' };
-  const color = B.forecastPreview(state, { color: true });
-  const bw    = B.forecastPreview(state, { color: false });
+  const color = PB.forecastPreview(state, { color: true });
+  const bw    = PB.forecastPreview(state, { color: false });
   assert.ok(color.indexOf(GREEN_BAND) >= 0, 'color watch keeps multicolor rain bands');
   assert.equal(bw.indexOf(GREEN_BAND), -1, 'B/W watch draws no color rain bands');
 });
 test('devStats: table only, no clear button; empty when disabled', () => {
-  const ds = B.devStats({ devStatsEnabled: true }, {}, { devStats: JSON.stringify([{ t: Date.now(), k: 'weather', ok: 1, c: { forecast: 1 } }]) });
+  const ds = PB.devStats({ devStatsEnabled: true }, {}, { devStats: JSON.stringify([{ t: Date.now(), k: 'weather', ok: 1, c: { forecast: 1 } }]) });
   assert.ok(ds.indexOf('Daily summary') >= 0);
   assert.equal(ds.indexOf('devStatsClearBtn'), -1, 'no live Clear button (now a toggle)');
-  assert.equal(B.devStats({ devStatsEnabled: false }, {}, { devStats: '[]' }), '');
+  assert.equal(PB.devStats({ devStatsEnabled: false }, {}, { devStats: '[]' }), '');
 });
 test('lastFetch formats success / Never / failed-attempt-with-error', () => {
-  const lf = B.lastFetch({}, {}, { lastFetchSuccess: JSON.stringify({ time: Date.now(), name: 'Berlin' }), lastFetchAttempt: null });
+  const lf = PB.lastFetch({}, {}, { lastFetchSuccess: JSON.stringify({ time: Date.now(), name: 'Berlin' }), lastFetchAttempt: null });
   assert.ok(lf.indexOf('Berlin') >= 0);
-  assert.ok(B.lastFetch({}, {}, {}).indexOf('Never') >= 0);
+  assert.ok(PB.lastFetch({}, {}, {}).indexOf('Never') >= 0);
   // failed attempt newer than last success -> shows the attempt + error stage:code (inject.js:321-332)
-  const failed = B.lastFetch({}, {}, {
+  const failed = PB.lastFetch({}, {}, {
     lastFetchSuccess: JSON.stringify({ time: 1000, name: 'Berlin' }),
     lastFetchAttempt: JSON.stringify({ time: Date.now(), name: 'Berlin', error: { stage: 'geocode', code: 401 } })
   });
@@ -61,14 +64,14 @@ test('lastFetch formats success / Never / failed-attempt-with-error', () => {
 });
 test('forecastPreview draws the secondary line per metric (solid, per-metric color)', () => {
   const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', thirdLine: 'off' };
-  assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind' }), { color: true }).indexOf('stroke="#FFFF00"') > -1, 'wind = yellow');
-  assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'gust' }), { color: true }).indexOf('stroke="#FFFFFF"') > -1, 'gust = white');
-  assert.ok(B.forecastPreview(Object.assign({}, base, { secondaryLine: 'uv' }), { color: true }).indexOf('stroke="#FF00FF"') > -1, 'uv = magenta');
+  assert.ok(PB.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind' }), { color: true }).indexOf('stroke="#FFFF00"') > -1, 'wind = yellow');
+  assert.ok(PB.forecastPreview(Object.assign({}, base, { secondaryLine: 'gust' }), { color: true }).indexOf('stroke="#FFFFFF"') > -1, 'gust = white');
+  assert.ok(PB.forecastPreview(Object.assign({}, base, { secondaryLine: 'uv' }), { color: true }).indexOf('stroke="#FF00FF"') > -1, 'uv = magenta');
 });
 
 test('forecastPreview draws feels-like grey, and the hi/lo labels stay the ACTUAL temps', () => {
   const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', thirdLine: 'off', secondaryLineFill: false };
-  const svg = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'feels' }), { color: true });
+  const svg = PB.forecastPreview(Object.assign({}, base, { secondaryLine: 'feels' }), { color: true });
   assert.ok(svg.indexOf('stroke="#AAAAAA"') > -1, 'feels = light grey line (dark theme)');
   // The feels sample dips to 11° under the 14° temp min. The SCALING band widens (and
   // pads) to fit it, but the labels name the air temperature — the watch prints
@@ -76,19 +79,19 @@ test('forecastPreview draws feels-like grey, and the hi/lo labels stay the ACTUA
   assert.ok(svg.indexOf('>14°<') > -1, 'lo label stays the actual temperature low');
   assert.equal(svg.indexOf('>11°<'), -1, 'the feels minimum is never labelled');
   assert.ok(svg.indexOf('>Feels<') > -1, 'legend lists the feels series');
-  const plain = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'precip_prob' }), { color: true });
+  const plain = PB.forecastPreview(Object.assign({}, base, { secondaryLine: 'precip_prob' }), { color: true });
   assert.ok(plain.indexOf('>14°<') > -1, 'and they are the same labels without feels');
   // Light theme darkens the grey (LightGray is illegible on white); B&W goes white.
-  const light = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'feels', theme: 'light' }), { color: true });
+  const light = PB.forecastPreview(Object.assign({}, base, { secondaryLine: 'feels', theme: 'light' }), { color: true });
   assert.ok(light.indexOf('stroke="#000000"') > -1,
     'light theme: black stroke — a grey is invisible at 1px on white, and DarkGray is '
     + 'what the white-bar mode paints its bars in a light theme');
-  const bw = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'feels' }), { color: false });
+  const bw = PB.forecastPreview(Object.assign({}, base, { secondaryLine: 'feels' }), { color: false });
   assert.ok(bw.indexOf('stroke="#FFFFFF"') > -1, 'B&W: white stroke');
 });
 
 test('feels-like as the second metric draws grey squares, labels still the actual temps', () => {
-  const svg = B.forecastPreview({ dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'precip_prob', thirdLine: 'feels', secondaryLineFill: false }, { color: true });
+  const svg = PB.forecastPreview({ dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'precip_prob', thirdLine: 'feels', secondaryLineFill: false }, { color: true });
   assert.ok(svg.indexOf('<rect') > -1 && svg.indexOf('fill="#AAAAAA"') > -1,
     'feels renders as filled grey squares');
   assert.ok(svg.indexOf('>14°<') > -1, 'lo label unchanged by the second line too');
@@ -104,7 +107,7 @@ test('the preview keeps the feels curve clear of the plot floor (band padding)',
   // ybot = 89.0 in preview units, so an UNPADDED band would put the feels minimum at
   // exactly 89.0; the padded band puts it at 83.9. The assertion is tight on purpose:
   // a loose "is it on the plot" bound would pass either way and pin nothing.
-  const svg = B.forecastPreview({ dayNightShading: false, barSource: 'off', windScale: 'mid',
+  const svg = PB.forecastPreview({ dayNightShading: false, barSource: 'off', windScale: 'mid',
     secondaryLine: 'feels', thirdLine: 'off', secondaryLineFill: false }, { color: true });
   const m = /<path d="([^"]+)" fill="none" stroke="#AAAAAA"/.exec(svg);
   assert.ok(m, 'feels curve path found');
@@ -125,14 +128,14 @@ function tempCurveTopY(svg) {
 const CURVE_BASE = { dayNightShading: false, barSource: 'off', windScale: 'mid', thirdLine: 'off', secondaryLine: 'precip_prob', secondaryLineFill: false };
 
 test('forecastPreview: the temp curve keeps the fixed 7 px margin (12 preview units)', () => {
-  const svg = B.forecastPreview(Object.assign({}, CURVE_BASE), { color: true });
+  const svg = PB.forecastPreview(Object.assign({}, CURVE_BASE), { color: true });
   // The inset is not configurable: temp always draws with the watch's fixed
   // 7 px inset, which the preview scales to 12 units (PT+3+12 = 19).
   assert.equal(tempCurveTopY(svg), 19, 'the fixed 7 px look');
 });
 
 test('forecastPreview: the feels curve rides the temp axis (same fixed margin)', () => {
-  const svg = B.forecastPreview(Object.assign({}, CURVE_BASE, { secondaryLine: 'feels' }), { color: true });
+  const svg = PB.forecastPreview(Object.assign({}, CURVE_BASE, { secondaryLine: 'feels' }), { color: true });
   const m = /<path d="([^"]+)" fill="none" stroke="#AAAAAA"/.exec(svg);
   assert.ok(m, 'feels curve path found');
   // Same band and same inset as the temp curve: temp's top stays at the fixed
@@ -144,13 +147,13 @@ test('forecastPreview: the feels curve rides the temp axis (same fixed margin)',
 // so the fill toggle is hidden for it, the 'forecastMetricFill' hook clears the stored
 // value, and both the bake (forecast-series) and this preview force it off regardless.
 test('forecastPreview: feels-like draws no area fill even with secondaryLineFill true', () => {
-  const feels = B.forecastPreview(
+  const feels = PB.forecastPreview(
     Object.assign({}, CURVE_BASE, { secondaryLine: 'feels', secondaryLineFill: true }), { color: true });
   assert.ok(/stroke="#AAAAAA"/.test(feels), 'the feels curve itself still renders');
   assert.equal(/fill-opacity="0.25"/.test(feels), false, 'no filled area under the feels curve');
   // Control: the same settings with a normal metric DO produce the fill, so the
   // assertion above is about feels and not about the fixture being fill-less.
-  const precip = B.forecastPreview(
+  const precip = PB.forecastPreview(
     Object.assign({}, CURVE_BASE, { secondaryLine: 'precip_prob', secondaryLineFill: true }), { color: true });
   assert.ok(/fill-opacity="0.25"/.test(precip), 'precip still fills');
 });
@@ -170,8 +173,8 @@ test('forecastMetricFill hook clears the stored fill when feels-like is picked',
 test('forecastPreview draws the second metric as bar-aligned squares in its metric color, gated on thirdLine', () => {
   const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'precip_prob' };
   // uv = #FF00FF is unique to the second-metric squares (not used by text/background/bars).
-  const withThird = B.forecastPreview(Object.assign({}, base, { thirdLine: 'uv' }), { color: true });
-  const noThird   = B.forecastPreview(Object.assign({}, base, { thirdLine: 'off' }), { color: true });
+  const withThird = PB.forecastPreview(Object.assign({}, base, { thirdLine: 'uv' }), { color: true });
+  const noThird   = PB.forecastPreview(Object.assign({}, base, { thirdLine: 'off' }), { color: true });
   assert.ok(withThird.indexOf('<rect') > -1 && withThird.indexOf('fill="#FF00FF"') > -1,
     'second metric (uv) renders as filled magenta squares');
   assert.equal(withThird.indexOf('stroke-dasharray'), -1, 'no dotted-line styling anymore');
@@ -181,15 +184,15 @@ test('forecastPreview draws the second metric as bar-aligned squares in its metr
 test('forecastPreview gust dots take a color distinct from the rain bars', () => {
   // barSource off isolates the dot color (#AAAAAA is also a multicolor bar band when bars are on).
   const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'precip_prob', thirdLine: 'gust' };
-  const whiteBars = B.forecastPreview(Object.assign({}, base, { rainBarColor: 'white' }), { color: true });
-  const multiBars = B.forecastPreview(Object.assign({}, base, { rainBarColor: 'multicolor' }), { color: true });
+  const whiteBars = PB.forecastPreview(Object.assign({}, base, { rainBarColor: 'white' }), { color: true });
+  const multiBars = PB.forecastPreview(Object.assign({}, base, { rainBarColor: 'multicolor' }), { color: true });
   assert.ok(whiteBars.indexOf('fill="#AAAAAA"') > -1, 'white bars → light gray gust dots');
   assert.equal(multiBars.indexOf('fill="#AAAAAA"'), -1, 'multicolor bars → white gust dots (not gray)');
 });
 
 test('forecastPreview never draws the second metric as the same metric as the main', () => {
   // duplicate metric → no second-metric squares; wind = #FFFF00 is only a fill for those squares.
-  const svg = B.forecastPreview({ dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'wind', thirdLine: 'wind' }, { color: true });
+  const svg = PB.forecastPreview({ dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'wind', thirdLine: 'wind' }, { color: true });
   assert.equal(svg.indexOf('fill="#FFFF00"'), -1, 'duplicate metric → no second-metric squares');
 });
 test('registers all preview/util blocks into PConf.blocks', () => {
@@ -217,17 +220,17 @@ test('layoutPresetOptions resolver: compactDense offered once health OR radar sh
 
 test('blocks fallback palette equals buildPreviewPalette (no color drift)', () => {
   const { buildPreviewPalette } = require('../src/pkjs/settings/preview-palette.js');
-  assert.deepEqual(B.previewPaletteFallback, buildPreviewPalette());
+  assert.deepEqual(PB.previewPaletteFallback, buildPreviewPalette());
 });
 
 test('blocks barPermille matches rain-tier.rainPermille byte-for-byte', () => {
   const rt = require('../src/pkjs/weather/rain-tier.js');
   [0, 1, 2, 3, 5, 6, 20, 21, 50, 100, 101, 200, 255, 500, 1000].forEach((t) =>
-    assert.equal(B.barPermille(t), rt.rainPermille(t), 'tenths=' + t));
+    assert.equal(PB.barPermille(t), rt.rainPermille(t), 'tenths=' + t));
 });
 
 test('the second metric (dots) spans the full plot width (no early stop)', () => {
-  const svg = B.forecastPreview(
+  const svg = PB.forecastPreview(
     { barSource: 'off', secondaryLine: 'precip_prob', thirdLine: 'gust', windScale: 'mid', dayNightShading: false },
     { color: true });
   const xs = (svg.match(/<rect x="([\d.]+)"/g) || []).map((m) => parseFloat(m.replace(/[^\d.]/g, '')));
@@ -235,7 +238,7 @@ test('the second metric (dots) spans the full plot width (no early stop)', () =>
 });
 
 test('UV line is continuous through zeros (single path that reaches the baseline)', () => {
-  const svg = B.forecastPreview(
+  const svg = PB.forecastPreview(
     { barSource: 'off', secondaryLine: 'uv', windScale: 'mid', dayNightShading: false },
     { color: true });
   const segs = svg.match(/fill="none" stroke="#FF00FF"/g) || [];
@@ -247,8 +250,8 @@ test('UV line is continuous through zeros (single path that reaches the baseline
 
 test('forecastPreview honors rainBarColor=white in color mode (solid white bars, no tier bands)', () => {
   const base = { dayNightShading: false, barSource: 'rain', secondaryLine: 'off', windScale: 'mid' };
-  const white = B.forecastPreview(Object.assign({}, base, { rainBarColor: 'white' }), { color: true });
-  const multi = B.forecastPreview(Object.assign({}, base, { rainBarColor: 'multicolor' }), { color: true });
+  const white = PB.forecastPreview(Object.assign({}, base, { rainBarColor: 'white' }), { color: true });
+  const multi = PB.forecastPreview(Object.assign({}, base, { rainBarColor: 'multicolor' }), { color: true });
   // Rain-bar bands are width-9 rects; the legend gradient uses width-2.4, so scope to width="9".
   assert.ok(/width="9"[^>]*fill="#00FF00"/.test(multi), 'multicolor: a green tier band on a bar');
   assert.ok(!/width="9"[^>]*fill="#00FF00"/.test(white), 'white: no green tier band on a bar');
@@ -256,7 +259,7 @@ test('forecastPreview honors rainBarColor=white in color mode (solid white bars,
 });
 
 test('forecast grid: temp line spans the first tick to the last tick (edge to edge)', () => {
-  const svg = B.forecastPreview(
+  const svg = PB.forecastPreview(
     { dayNightShading: false, barSource: 'off', secondaryLine: 'off', windScale: 'mid' },
     { color: true });
   const m = svg.match(/d="(M[^"]+)" fill="none" stroke="#FF0000"/);
@@ -269,7 +272,7 @@ test('forecast grid: temp line spans the first tick to the last tick (edge to ed
 });
 
 test('forecast grid: rain bars sit centered in the hour gaps between ticks', () => {
-  const svg = B.forecastPreview(
+  const svg = PB.forecastPreview(
     { dayNightShading: false, barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'off', windScale: 'mid' },
     { color: true });
   const PX0 = 20, PX1 = 197, N = 12, pitch = (PX1 - PX0) / (N - 1), bw = 9;
@@ -284,7 +287,7 @@ test('forecast grid: rain bars sit centered in the hour gaps between ticks', () 
 });
 
 test('legend rain glyph follows white bars (white swatch, no tier gradient) when rainBarColor=white', () => {
-  const svg = B.forecastPreview(
+  const svg = PB.forecastPreview(
     { barSource: 'rain', rainBarColor: 'white', secondaryLine: 'off', windScale: 'mid', dayNightShading: false },
     { color: true });
   assert.ok(svg.indexOf('>Rain<') >= 0, 'Rain legend present');
@@ -293,7 +296,7 @@ test('legend rain glyph follows white bars (white swatch, no tier gradient) when
 });
 
 test('forecastPreview has no status bar (no location, sunset, or current-temp pill)', () => {
-  const svg = B.forecastPreview(
+  const svg = PB.forecastPreview(
     { dayNightShading: false, barSource: 'off', secondaryLine: 'off', windScale: 'mid' },
     { color: true });
   assert.equal(svg.indexOf('Berlin'), -1, 'no location label');
@@ -302,7 +305,7 @@ test('forecastPreview has no status bar (no location, sunset, or current-temp pi
 });
 
 test('B&W: series are white, temp thick (3) vs main thin (1), no hues', () => {
-  const bw = B.forecastPreview(
+  const bw = PB.forecastPreview(
     { barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'wind', windScale: 'mid', dayNightShading: false },
     { color: false });
   assert.equal(bw.indexOf('fill="#00FF00"'), -1, 'no color rain bands on B&W');
@@ -312,7 +315,7 @@ test('B&W: series are white, temp thick (3) vs main thin (1), no hues', () => {
 });
 
 test('legend lists the shown series with palette colors (color watch)', () => {
-  const svg = B.forecastPreview(
+  const svg = PB.forecastPreview(
     { barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'precip_prob', thirdLine: 'wind', windScale: 'mid', dayNightShading: false },
     { color: true });
   assert.ok(svg.indexOf('viewBox="0 0 200 124"') >= 0, 'compact frame');
@@ -323,7 +326,7 @@ test('legend lists the shown series with palette colors (color watch)', () => {
 });
 
 test('legend omits the second metric when thirdLine is off, and Rain when bars are off', () => {
-  const svg = B.forecastPreview(
+  const svg = PB.forecastPreview(
     { barSource: 'off', secondaryLine: 'uv', thirdLine: 'off', windScale: 'mid', dayNightShading: false },
     { color: true });
   assert.ok(svg.indexOf('>UV<') >= 0, 'main metric entry (UV)');
@@ -331,7 +334,7 @@ test('legend omits the second metric when thirdLine is off, and Rain when bars a
 });
 
 test('legend uses white style glyphs on B&W (no hues)', () => {
-  const svg = B.forecastPreview(
+  const svg = PB.forecastPreview(
     { barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'wind', thirdLine: 'off', windScale: 'mid', dayNightShading: false },
     { color: false });
   assert.ok(svg.indexOf('>Temp<') >= 0 && svg.indexOf('>Wind<') >= 0 && svg.indexOf('>Rain<') >= 0);
@@ -339,7 +342,7 @@ test('legend uses white style glyphs on B&W (no hues)', () => {
 });
 
 test('legend shows the second metric as white dots on B&W (no hue)', () => {
-  const svg = B.forecastPreview(
+  const svg = PB.forecastPreview(
     { barSource: 'off', secondaryLine: 'wind', thirdLine: 'gust', windScale: 'mid', dayNightShading: false },
     { color: false });
   assert.ok(svg.indexOf('>Gust<') >= 0, 'second-metric legend entry (Gust) present');
@@ -348,8 +351,8 @@ test('legend shows the second metric as white dots on B&W (no hue)', () => {
 });
 
 test('radarPreview legend distinguishes exact-spot rain from nearby rain', () => {
-  const color = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor' }, { color: true });
-  const bw = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor' }, { color: false });
+  const color = PB.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor' }, { color: true });
+  const bw = PB.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor' }, { color: false });
   assert.ok(color.indexOf('viewBox="0 0 200 138"') >= 0, 'frame includes the countdown band, which now always accompanies a non-off, non-aplite preview');
   assert.ok(color.indexOf('>Rain at your exact spot<') >= 0, 'exact-spot label present');
   assert.ok(color.indexOf('>Nearby (2 km)<') >= 0, 'nearby label present');
@@ -360,7 +363,7 @@ test('radarPreview legend distinguishes exact-spot rain from nearby rain', () =>
 });
 
 test('radarPreview shows the countdown band ("Rain in 15\'") when the countdown is on', () => {
-  const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: true });
+  const svg = PB.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: true });
   assert.ok(svg.indexOf("Rain in 15'") >= 0, 'countdown text present');
   assert.ok(svg.indexOf('viewBox="0 0 200 138"') >= 0, 'frame grew by the 20px band height');
 });
@@ -368,20 +371,20 @@ test('radarPreview shows the countdown band ("Rain in 15\'") when the countdown 
 // rainCountdownHorizon no longer has an Off option — a stray/legacy '0' value must not
 // suppress the band (the only remaining gates are radarMode==='off' and aplite).
 test('radarPreview always shows the countdown band once radar is on, regardless of rainCountdownHorizon', () => {
-  const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
+  const svg = PB.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
   assert.ok(svg.indexOf("Rain in 15'") >= 0, 'countdown text present despite a legacy rainCountdownHorizon of 0');
   assert.ok(svg.indexOf('viewBox="0 0 200 138"') >= 0, 'frame grew by the band height');
 });
 
 test('radarPreview never shows the countdown band on aplite', () => {
-  const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: false, platform: 'aplite' });
+  const svg = PB.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: false, platform: 'aplite' });
   assert.equal(svg.indexOf("Rain in 15'"), -1, 'no band on aplite even with a horizon set');
   assert.ok(svg.indexOf('viewBox="0 0 200 118"') >= 0, 'aplite frame stays at the no-band height');
 });
 
 test('countdown glyph is tier-coloured on color, white on B&W; text stays white', () => {
-  const color = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: true });
-  const bw = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: false });
+  const color = PB.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: true });
+  const bw = PB.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: false });
   assert.ok(/stroke="#00FF00"/.test(color), 'glyph uses the green tier stroke on color');
   assert.equal(/stroke="#00FF00"/.test(bw), false, 'no green glyph stroke on B&W');
   assert.ok(color.indexOf('fill="#FFFFFF"') >= 0, 'white band text present on color');
@@ -389,10 +392,10 @@ test('countdown glyph is tier-coloured on color, white on B&W; text stays white'
 
 test('precip secondary line draws the cobalt fill on color and a dither on B&W', () => {
   const base = { barSource: 'off', secondaryLine: 'precip_prob', secondaryLineFill: true, windScale: 'mid', dayNightShading: false };
-  const color = B.forecastPreview(base, { color: true });
+  const color = PB.forecastPreview(base, { color: true });
   assert.ok(color.indexOf('fill="#0055AA"') >= 0 && color.indexOf('fill-opacity="0.25"') >= 0,
     'color: translucent cobalt precip fill present');
-  const bw = B.forecastPreview(base, { color: false });
+  const bw = PB.forecastPreview(base, { color: false });
   assert.ok(bw.indexOf('fill="url(#fillhatch)"') >= 0, 'B&W: precip fill uses the dither stipple pattern');
   assert.equal(bw.indexOf('fill="#0055AA"'), -1, 'B&W: no solid cobalt fill');
 });
@@ -400,20 +403,20 @@ test('precip secondary line draws the cobalt fill on color and a dither on B&W',
 test('area fill works for every main metric, in its palette fill color', () => {
   // Fill colors are sourced from forecast-series.FILL_COLORS: wind=ArmyGreen, gust=DarkGray, uv=Purple.
   const base = { barSource: 'off', windScale: 'mid', dayNightShading: false };
-  const wind = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind', secondaryLineFill: true }), { color: true });
-  const gust = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'gust', secondaryLineFill: true }), { color: true });
-  const uv = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'uv', secondaryLineFill: true }), { color: true });
+  const wind = PB.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind', secondaryLineFill: true }), { color: true });
+  const gust = PB.forecastPreview(Object.assign({}, base, { secondaryLine: 'gust', secondaryLineFill: true }), { color: true });
+  const uv = PB.forecastPreview(Object.assign({}, base, { secondaryLine: 'uv', secondaryLineFill: true }), { color: true });
   assert.ok(wind.indexOf('fill="#555500"') >= 0, 'wind fill = ArmyGreen');
   assert.ok(gust.indexOf('fill="#555555"') >= 0, 'gust fill = DarkGray');
   assert.ok(uv.indexOf('fill="#AA00AA"') >= 0, 'uv fill = Purple');
-  const off = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind', secondaryLineFill: false }), { color: true });
+  const off = PB.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind', secondaryLineFill: false }), { color: true });
   assert.equal(off.indexOf('fill="#555500"'), -1, 'no fill when the toggle is off');
 });
 
 test('area fill uses the brighter light-theme variant when theme is light', () => {
   const base = { barSource: 'off', windScale: 'mid', dayNightShading: false, theme: 'light' };
-  const wind = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind', secondaryLineFill: true }), { color: true });
-  const uv = B.forecastPreview(Object.assign({}, base, { secondaryLine: 'uv', secondaryLineFill: true }), { color: true });
+  const wind = PB.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind', secondaryLineFill: true }), { color: true });
+  const uv = PB.forecastPreview(Object.assign({}, base, { secondaryLine: 'uv', secondaryLineFill: true }), { color: true });
   assert.ok(wind.indexOf('fill="#AAFF55"') >= 0, 'wind light fill = Inchworm');
   assert.equal(wind.indexOf('fill="#555500"'), -1, 'not the dark-theme ArmyGreen fill');
   assert.ok(uv.indexOf('fill="#FF55FF"') >= 0, 'uv light fill = ShockingPink');
@@ -421,68 +424,68 @@ test('area fill uses the brighter light-theme variant when theme is light', () =
 
 test('precip line + fill go one step darker in the light theme (readability round)', () => {
   const base = { barSource: 'off', windScale: 'mid', dayNightShading: false, secondaryLine: 'precip_prob', theme: 'light' };
-  const line = B.forecastPreview(base, { color: true });
+  const line = PB.forecastPreview(base, { color: true });
   assert.ok(line.indexOf('stroke="#00AAFF"') >= 0, 'precip light line = VividCerulean');
   assert.equal(line.indexOf('stroke="#55AAFF"'), -1, 'not the dark-theme PictonBlue line');
-  const filled = B.forecastPreview(Object.assign({}, base, { secondaryLineFill: true }), { color: true });
+  const filled = PB.forecastPreview(Object.assign({}, base, { secondaryLineFill: true }), { color: true });
   assert.ok(filled.indexOf('fill="#55FFFF"') >= 0, 'precip light fill = ElectricBlue (one step darker than Celeste)');
   assert.equal(filled.indexOf('fill="#AAFFFF"'), -1, 'not the pre-fix Celeste fill');
 });
 
 test('presetContents resolves each named preset directly (layoutPreset set)', () => {
     const vc = require('../src/pkjs/view-cycle.js');
-    assert.deepEqual(B.presetContents({ layoutPreset: 'fullCal', healthMode: 'off', radarMode: 'off' }),
+    assert.deepEqual(PB.presetContents({ layoutPreset: 'fullCal', healthMode: 'off', radarMode: 'off' }),
         [vc.spec(vc.TIER_FULL, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE)]);
-    assert.deepEqual(B.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off' }),
+    assert.deepEqual(PB.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off' }),
         [vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE)]);
-    assert.deepEqual(B.presetContents({ layoutPreset: 'compactDense', healthMode: 'off', radarMode: 'off' }),
+    assert.deepEqual(PB.presetContents({ layoutPreset: 'compactDense', healthMode: 'off', radarMode: 'off' }),
         [vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE)]);
-    assert.deepEqual(B.presetContents({ layoutPreset: 'noCal', healthMode: 'off', radarMode: 'off' }),
+    assert.deepEqual(PB.presetContents({ layoutPreset: 'noCal', healthMode: 'off', radarMode: 'off' }),
         [vc.spec(vc.TIER_NONE, vc.TOP_EMPTY, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE)]);
 });
 
 test('presetContents falls back to compactCal for an unrecognised preset key', () => {
-    assert.deepEqual(B.presetContents({ layoutPreset: 'bogus', healthMode: 'off', radarMode: 'off' }),
-        B.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off' }));
+    assert.deepEqual(PB.presetContents({ layoutPreset: 'bogus', healthMode: 'off', radarMode: 'off' }),
+        PB.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off' }));
 });
 
 test('presetContents migrates legacy layoutPreset/topViewMode settings via view-cycle.js', () => {
     // classic/radarLast/healthFirst -> compactCal; forecast -> noCal; fullCal unchanged.
-    const compactCal = B.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off' });
-    assert.deepEqual(B.presetContents({ layoutPreset: 'classic', healthMode: 'off', radarMode: 'off' }), compactCal);
-    assert.deepEqual(B.presetContents({ layoutPreset: 'radarLast', healthMode: 'off', radarMode: 'off' }), compactCal);
-    assert.deepEqual(B.presetContents({ layoutPreset: 'healthFirst', healthMode: 'off', radarMode: 'off' }), compactCal);
-    assert.deepEqual(B.presetContents({ layoutPreset: 'forecast', healthMode: 'off', radarMode: 'off' }),
-        B.presetContents({ layoutPreset: 'noCal', healthMode: 'off', radarMode: 'off' }));
-    assert.deepEqual(B.presetContents({ topViewMode: 'full', healthMode: 'off', radarMode: 'off' }),
-        B.presetContents({ layoutPreset: 'fullCal', healthMode: 'off', radarMode: 'off' }), 'topViewMode full -> fullCal');
-    assert.deepEqual(B.presetContents({ topViewMode: 'none', healthMode: 'off', radarMode: 'off' }),
-        B.presetContents({ layoutPreset: 'noCal', healthMode: 'off', radarMode: 'off' }), 'topViewMode none -> noCal');
-    assert.deepEqual(B.presetContents({ healthMode: 'off', radarMode: 'off' }), compactCal, 'nothing set -> compactCal');
+    const compactCal = PB.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off' });
+    assert.deepEqual(PB.presetContents({ layoutPreset: 'classic', healthMode: 'off', radarMode: 'off' }), compactCal);
+    assert.deepEqual(PB.presetContents({ layoutPreset: 'radarLast', healthMode: 'off', radarMode: 'off' }), compactCal);
+    assert.deepEqual(PB.presetContents({ layoutPreset: 'healthFirst', healthMode: 'off', radarMode: 'off' }), compactCal);
+    assert.deepEqual(PB.presetContents({ layoutPreset: 'forecast', healthMode: 'off', radarMode: 'off' }),
+        PB.presetContents({ layoutPreset: 'noCal', healthMode: 'off', radarMode: 'off' }));
+    assert.deepEqual(PB.presetContents({ topViewMode: 'full', healthMode: 'off', radarMode: 'off' }),
+        PB.presetContents({ layoutPreset: 'fullCal', healthMode: 'off', radarMode: 'off' }), 'topViewMode full -> fullCal');
+    assert.deepEqual(PB.presetContents({ topViewMode: 'none', healthMode: 'off', radarMode: 'off' }),
+        PB.presetContents({ layoutPreset: 'noCal', healthMode: 'off', radarMode: 'off' }), 'topViewMode none -> noCal');
+    assert.deepEqual(PB.presetContents({ healthMode: 'off', radarMode: 'off' }), compactCal, 'nothing set -> compactCal');
 });
 
 test('presetContents reads healthMode/radarMode off state to grow/shrink the cycle', () => {
-    assert.equal(B.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off' }).length, 1);
-    assert.equal(B.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'graph' }).length, 2, 'radar adds a slot');
-    assert.equal(B.presetContents({ layoutPreset: 'compactCal', healthMode: 'status', radarMode: 'off' }).length, 2, 'health status adds a slot');
-    assert.equal(B.presetContents({ layoutPreset: 'compactCal', healthMode: 'status', radarMode: 'graph' }).length, 3, 'both add up to three');
+    assert.equal(PB.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off' }).length, 1);
+    assert.equal(PB.presetContents({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'graph' }).length, 2, 'radar adds a slot');
+    assert.equal(PB.presetContents({ layoutPreset: 'compactCal', healthMode: 'status', radarMode: 'off' }).length, 2, 'health status adds a slot');
+    assert.equal(PB.presetContents({ layoutPreset: 'compactCal', healthMode: 'status', radarMode: 'graph' }).length, 3, 'both add up to three');
     // radarMode unset (not explicitly 'off') is treated as enabled (defaults to 'graph').
-    assert.equal(B.presetContents({ layoutPreset: 'compactCal', healthMode: 'off' }).length, 2, 'unset radarMode counts as enabled');
+    assert.equal(PB.presetContents({ layoutPreset: 'compactCal', healthMode: 'off' }).length, 2, 'unset radarMode counts as enabled');
 });
 
 test('contentBands renders each tier\'s band ordering', () => {
     const vc = require('../src/pkjs/view-cycle.js');
-    assert.deepEqual(B.contentBands(vc.spec(vc.TIER_FULL, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE)).map((b) => b.label),
+    assert.deepEqual(PB.contentBands(vc.spec(vc.TIER_FULL, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE)).map((b) => b.label),
         ['Watch Status', 'Calendar (3 rows)', 'Clock', 'Forecast Status', 'Forecast'], 'full tier: clock before status');
-    assert.deepEqual(B.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_HEALTH, vc.STATUS_SRC_NONE)).map((b) => b.label),
+    assert.deepEqual(PB.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_HEALTH, vc.STATUS_SRC_NONE)).map((b) => b.label),
         ['Watch Status', 'Calendar (2 rows)', 'Health Status', 'Clock', 'Forecast'], 'compact tier: upper status before clock');
-    assert.deepEqual(B.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE)).map((b) => b.label),
+    assert.deepEqual(PB.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE)).map((b) => b.label),
         ['Watch Status', 'Calendar (2 rows)', 'Forecast Status', 'Clock', 'Forecast'], 'compact tier: forecast status before clock (single upper row)');
-    assert.deepEqual(B.contentBands(vc.spec(vc.TIER_NONE, vc.TOP_EMPTY, vc.BODY_RADAR, vc.STATUS_SRC_RADAR, vc.STATUS_SRC_NONE)).map((b) => b.label),
+    assert.deepEqual(PB.contentBands(vc.spec(vc.TIER_NONE, vc.TOP_EMPTY, vc.BODY_RADAR, vc.STATUS_SRC_RADAR, vc.STATUS_SRC_NONE)).map((b) => b.label),
         ['Watch Status', 'Clock', 'Radar Status', 'Radar'], 'none tier: no top band, big body; radar view uses the Radar status bar');
-    assert.deepEqual(B.contentBands(vc.spec(vc.TIER_FULL, vc.TOP_RADAR, vc.BODY_FC, vc.STATUS_SRC_NONE, vc.STATUS_SRC_NONE)).map((b) => b.label),
+    assert.deepEqual(PB.contentBands(vc.spec(vc.TIER_FULL, vc.TOP_RADAR, vc.BODY_FC, vc.STATUS_SRC_NONE, vc.STATUS_SRC_NONE)).map((b) => b.label),
         ['Watch Status', 'Radar', 'Clock', 'Forecast'], 'radar rides the top band; NONE/NONE hides both status rows');
-    assert.strictEqual(B.contentBands(null), null, 'a null/disabled slot has no bands');
+    assert.strictEqual(PB.contentBands(null), null, 'a null/disabled slot has no bands');
 });
 
 // The configurable bar reads "Radar Status" whenever the RADAR source occupies that slot —
@@ -491,7 +494,7 @@ test('contentBands renders each tier\'s band ordering', () => {
 // FORECAST status row is NOT auto-relabeled — that inference is gone from the new model.
 test('contentBands labels the configurable bar "Radar Status" for a radar view', () => {
     const vc = require('../src/pkjs/view-cycle.js');
-    const label = (spec) => B.contentBands(spec).map((b) => b.label);
+    const label = (spec) => PB.contentBands(spec).map((b) => b.label);
     // radar as the body (the radar-graph flick stop)
     assert.ok(label(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_RADAR, vc.STATUS_SRC_RADAR, vc.STATUS_SRC_NONE)).indexOf('Radar Status') >= 0,
         'radar-body view reads Radar Status');
@@ -515,7 +518,7 @@ test('contentBands labels the configurable bar "Radar Status" for a radar view',
 
 test('contentBands renders the health-dense pairing (upper=HEALTH, lower=FORECAST) as two status rows', () => {
     const vc = require('../src/pkjs/view-cycle.js');
-    const bands = B.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_HEALTH, vc.STATUS_SRC_FORECAST));
+    const bands = PB.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_HEALTH, vc.STATUS_SRC_FORECAST));
     const labels = bands.map((b) => b.label);
     assert.ok(labels.indexOf('Health Status') >= 0 && labels.indexOf('Forecast Status') >= 0);
     assert.ok(labels.indexOf('Health Status') < labels.indexOf('Clock'), 'upper row (Health) rides above the clock');
@@ -527,8 +530,8 @@ test('contentBands renders the health-dense pairing (upper=HEALTH, lower=FORECAS
 test('contentBands: Cal2 + gap + status = Cal3 (status = the freed calendar row)', () => {
     const vc = require('../src/pkjs/view-cycle.js');
     const GAP = 2; // renderers stack bands with a 2px gap
-    const full = B.contentBands(vc.spec(vc.TIER_FULL, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE));
-    const compact = B.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE));
+    const full = PB.contentBands(vc.spec(vc.TIER_FULL, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE));
+    const compact = PB.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE));
     const cal3 = full.find((b) => b.label === 'Calendar (3 rows)').h;
     const cal2 = compact.find((b) => b.label === 'Calendar (2 rows)').h;
     const status = compact.find((b) => b.label === 'Forecast Status').h;
@@ -540,7 +543,7 @@ test('contentBands: Cal2 + gap + status = Cal3 (status = the freed calendar row)
 test('contentBands: the body band is the flex element, all others fixed', () => {
     const vc = require('../src/pkjs/view-cycle.js');
     [vc.BODY_FC, vc.BODY_GRAPH, vc.BODY_RADAR].forEach((body) => {
-        const bands = B.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, body, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE));
+        const bands = PB.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, body, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE));
         const last = bands[bands.length - 1];
         assert.equal(last.flex, true, 'the last (body) band is marked flex');
         bands.slice(0, -1).forEach((b) => assert.ok(!b.flex, b.label + ' is fixed-height'));
@@ -548,30 +551,30 @@ test('contentBands: the body band is the flex element, all others fixed', () => 
 });
 
 test('presetContents: compactDense + radar=status folds radar into the single default (no flick)', () => {
-    const c = B.presetContents({ layoutPreset: 'compactDense', healthMode: 'off', radarMode: 'status' });
+    const c = PB.presetContents({ layoutPreset: 'compactDense', healthMode: 'off', radarMode: 'status' });
     assert.equal(c.length, 1);
-    const labels = B.contentBands(c[0]).map((b) => b.label);
+    const labels = PB.contentBands(c[0]).map((b) => b.label);
     assert.ok(labels.indexOf('Radar Status') >= 0);
     assert.ok(labels.indexOf('Forecast Status') >= 0);
 });
 
 test('contentBands orders radar-upper above the clock and forecast-lower below', () => {
-    const c = B.presetContents({ layoutPreset: 'compactDense', healthMode: 'off', radarMode: 'status' });
-    const labels = B.contentBands(c[0]).map((b) => b.label);
+    const c = PB.presetContents({ layoutPreset: 'compactDense', healthMode: 'off', radarMode: 'status' });
+    const labels = PB.contentBands(c[0]).map((b) => b.label);
     assert.ok(labels.indexOf('Radar Status') < labels.indexOf('Clock'));
     assert.ok(labels.indexOf('Clock') < labels.indexOf('Forecast Status'));
 });
 
 test('resolveBandHeights: the flex band absorbs the slack so bands + gaps fill availH', () => {
     const bands = [{ h: 12 }, { h: 20 }, { h: 20, flex: true }];
-    const heights = B.resolveBandHeights(bands, 100, 2);
+    const heights = PB.resolveBandHeights(bands, 100, 2);
     const total = heights.reduce((s, h) => s + h, 0) + (bands.length - 1) * 2;
     assert.equal(total, 100, 'bands + gaps exactly fill the available height');
     assert.equal(heights[2], 100 - 12 - 20 - 2 * 2, 'flex band = remaining space after fixed bands + gaps');
 });
 
 test('resolveBandHeights: the flex band never collapses below a visible minimum', () => {
-    const heights = B.resolveBandHeights([{ h: 90 }, { h: 20, flex: true }], 50, 2);
+    const heights = PB.resolveBandHeights([{ h: 90 }, { h: 20, flex: true }], 50, 2);
     assert.ok(heights[1] >= 12, 'flex band clamped to a visible minimum instead of going negative');
 });
 
@@ -579,49 +582,49 @@ test('resolveBandHeights: the flex band never collapses below a visible minimum'
 // (chart suppressed) with the status line turned to radar, mirroring the watch.
 // (The band labeling itself is pinned by the contentBands tests above.)
 test('layoutPreviewCombined: radarMode "status" renders the flick column as Forecast + Radar Status', () => {
-    const svg = B.layoutPreviewCombined({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'status' }, {}, {});
+    const svg = PB.layoutPreviewCombined({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'status' }, {}, {});
     assert.ok(svg.indexOf('>Forecast<') >= 0, 'radar-status flick body renders as Forecast');
     assert.ok(svg.indexOf('>Radar Status<') >= 0, 'status band reads Radar Status');
 });
 
 test('layoutPreviewCombined: one column per cycle slot, headers Default/Flick 1/Flick 2', () => {
-    const one = B.layoutPreviewCombined({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off' }, {}, {});
+    const one = PB.layoutPreviewCombined({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off' }, {}, {});
     assert.ok(one.indexOf('Default') >= 0, 'Default header present');
     assert.strictEqual(one.indexOf('Flick 1'), -1, 'no flick column for a single-slot cycle');
 
-    const two = B.layoutPreviewCombined({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'off' }, {}, {});
+    const two = PB.layoutPreviewCombined({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'off' }, {}, {});
     assert.ok(two.indexOf('Default') >= 0 && two.indexOf('Flick 1') >= 0, 'Default + Flick 1 present');
     assert.ok(two.indexOf('Radar') >= 0, 'flick 1 column shows the Radar band');
     assert.strictEqual(two.indexOf('Flick 2'), -1, 'no third column for a two-slot cycle');
 
-    const three = B.layoutPreviewCombined({ layoutPreset: 'compactDense', radarMode: 'graph', healthMode: 'all' }, {}, {});
+    const three = PB.layoutPreviewCombined({ layoutPreset: 'compactDense', radarMode: 'graph', healthMode: 'all' }, {}, {});
     assert.ok(three.indexOf('Default') >= 0 && three.indexOf('Flick 1') >= 0 && three.indexOf('Flick 2') >= 0,
         'all three column headers present for a three-slot cycle');
 });
 
 test('layoutPreviewCombined: toggling radar/health grows or shrinks the columns (no dimming, no notes)', () => {
-    const radarOff = B.layoutPreviewCombined({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off' }, {}, {});
-    const radarOn = B.layoutPreviewCombined({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'off' }, {}, {});
+    const radarOff = PB.layoutPreviewCombined({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off' }, {}, {});
+    const radarOn = PB.layoutPreviewCombined({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'off' }, {}, {});
     assert.strictEqual(radarOff.indexOf('Radar'), -1, 'radar column absent when radar is disabled');
     assert.ok(radarOn.indexOf('Radar') >= 0, 'radar column present once radar is enabled');
     assert.strictEqual(radarOn.indexOf('needs radar'), -1, 'no availability note anywhere');
 
-    const healthOff = B.layoutPreviewCombined({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off' }, {}, {});
-    const healthOn = B.layoutPreviewCombined({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'status' }, {}, {});
+    const healthOff = PB.layoutPreviewCombined({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off' }, {}, {});
+    const healthOn = PB.layoutPreviewCombined({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'status' }, {}, {});
     assert.strictEqual(healthOff.indexOf('Health Status'), -1, 'health column absent when health is off');
     assert.ok(healthOn.indexOf('Health Status') >= 0, 'health column present once health is on');
     assert.strictEqual(healthOn.indexOf('needs health'), -1, 'no availability note anywhere');
 });
 
 test('layoutPreviewCombined: columns span the full window width, flush left (no side padding)', () => {
-    const svg = B.layoutPreviewCombined({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'off' }, {}, {});
+    const svg = PB.layoutPreviewCombined({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'off' }, {}, {});
     // Left (Default) column starts flush at x=0 (no black side padding inset).
     assert.ok(svg.indexOf('<rect x="0" y="16"') >= 0, 'left column band starts at x=0');
 });
 
 test('radarPreview (rainbow): no nearby outline bars and no "Nearby (2 km)" legend', () => {
-  const dwd = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
-  const rainbow = B.radarPreview({ radarProvider: 'rainbow', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
+  const dwd = PB.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
+  const rainbow = PB.radarPreview({ radarProvider: 'rainbow', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
   assert.ok(dwd.indexOf('>Nearby (2 km)<') >= 0, 'dwd keeps the nearby legend');
   assert.equal(rainbow.indexOf('>Nearby (2 km)<'), -1, 'rainbow drops the nearby legend');
   assert.ok(rainbow.indexOf('>Rain at your exact spot<') >= 0, 'exact-spot legend stays');
@@ -630,34 +633,34 @@ test('radarPreview (rainbow): no nearby outline bars and no "Nearby (2 km)" lege
 });
 
 test('radarPreview (rainbow) still renders exact bars and the countdown band', () => {
-  const svg = B.radarPreview({ radarProvider: 'rainbow', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: true });
+  const svg = PB.radarPreview({ radarProvider: 'rainbow', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: true });
   assert.ok(/^<svg/.test(svg), 'renders an SVG, not the off message');
   assert.ok(svg.indexOf("Rain in 15'") >= 0, 'countdown band applies to rainbow too');
 });
 
 test('forecastPreview: light theme flips the canvas background to white', () => {
   const state = { dayNightShading: true, barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'off', theme: 'light' };
-  const svg = B.forecastPreview(state, { color: true });
+  const svg = PB.forecastPreview(state, { color: true });
   assert.ok(svg.indexOf('fill="#FFFFFF"') >= 0, 'canvas background is now white');
 });
 
 test('forecastPreview: bw theme on a color env renders the B&W path, not multicolor', () => {
   const state = { dayNightShading: true, barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'off', theme: 'bw' };
-  const color = B.forecastPreview({ ...state, theme: 'dark' }, { color: true });
-  const bw = B.forecastPreview(state, { color: true });
+  const color = PB.forecastPreview({ ...state, theme: 'dark' }, { color: true });
+  const bw = PB.forecastPreview(state, { color: true });
   assert.ok(color.indexOf('fill="#00FF00"') >= 0, 'sanity: dark theme on a color env keeps multicolor bands');
   assert.equal(bw.indexOf('fill="#00FF00"'), -1, 'bw theme drops multicolor rain bands even though env.color is true');
 });
 
 test('forecastPreview: bw-light theme on a color env renders the B&W path with a white canvas (light polarity)', () => {
   const state = { dayNightShading: true, barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'off', theme: 'bw-light' };
-  const svg = B.forecastPreview(state, { color: true });
+  const svg = PB.forecastPreview(state, { color: true });
   assert.equal(svg.indexOf('fill="#00FF00"'), -1, 'bw-light theme drops multicolor rain bands even though env.color is true');
   assert.ok(svg.indexOf('fill="#FFFFFF"') >= 0, 'canvas background is white (light polarity)');
 });
 
 test('radarPreview: light theme flips the canvas background to white', () => {
-  const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'light' }, { color: true });
+  const svg = PB.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'light' }, { color: true });
   assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0);
 });
 
@@ -671,14 +674,14 @@ test('radarPreview: light theme flips the canvas background to white', () => {
 const OUTLINE_MARK = 'fill="#FFFFFF" stroke="#000000" stroke-width="1"';
 
 test('radarPreview: bw theme on a color env outlines the exact bars in white, filled opaque black (not a solid white fill, not hollow)', () => {
-  const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'bw' }, { color: true });
+  const svg = PB.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'bw' }, { color: true });
   assert.equal(svg.indexOf('fill="#00FF00"'), -1, 'no multicolor bands');
   assert.ok(svg.indexOf('fill="#000000" stroke="#FFFFFF" stroke-width="1"') >= 0,
     'exact bars are opaque black-filled with a white outline (mirrors the watch\'s theme_bg()-filled + theme_fg()-outlined bar)');
 });
 
 test('radarPreview: bw-light theme on a color env outlines the exact bars in black, filled opaque white (light polarity)', () => {
-  const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'bw-light' }, { color: true });
+  const svg = PB.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', theme: 'bw-light' }, { color: true });
   assert.equal(svg.indexOf('fill="#00FF00"'), -1, 'no multicolor bands');
   assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0, 'canvas background is white');
   assert.ok(svg.indexOf(OUTLINE_MARK) >= 0,
@@ -687,10 +690,10 @@ test('radarPreview: bw-light theme on a color env outlines the exact bars in bla
 
 test('forecastPreview: bw/bw-light rain bars are opaque (filled with the polarity background), not hollow outlines', () => {
   const base = { barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'off', windScale: 'mid', dayNightShading: false };
-  const bw = B.forecastPreview(Object.assign({}, base, { theme: 'bw' }), { color: true });
+  const bw = PB.forecastPreview(Object.assign({}, base, { theme: 'bw' }), { color: true });
   assert.ok(bw.indexOf('fill="#000000" stroke="#FFFFFF" stroke-width="1"') >= 0,
     'bw rain bars are opaque black-filled with a white outline');
-  const bwLight = B.forecastPreview(Object.assign({}, base, { theme: 'bw-light' }), { color: true });
+  const bwLight = PB.forecastPreview(Object.assign({}, base, { theme: 'bw-light' }), { color: true });
   assert.ok(bwLight.indexOf(OUTLINE_MARK) >= 0,
     'bw-light rain bars are opaque white-filled with a black outline');
 });
@@ -700,7 +703,7 @@ test('forecastPreview: bw rain bars draw above (after) the dithered metric-area 
     barSource: 'rain', rainBarColor: 'multicolor', windScale: 'mid', dayNightShading: false, theme: 'bw',
     secondaryLine: 'precip_prob', secondaryLineFill: true
   };
-  const svg = B.forecastPreview(state, { color: true });
+  const svg = PB.forecastPreview(state, { color: true });
   const fillIdx = svg.indexOf('fill="url(#fillhatch)"');
   const barIdx = svg.indexOf('fill="#000000" stroke="#FFFFFF" stroke-width="1"');
   assert.ok(fillIdx >= 0, 'the dithered metric-area fill is present');
@@ -712,7 +715,7 @@ test('radarPreview: radarColor=Solid in the light theme uses DarkGray, not black
   // platform: 'aplite' — the countdown band's own text is theme_fg() (black in light
   // polarity), unrelated to bar/legend fill; excluded here to isolate the bars. aplite is
   // the only remaining band gate now that the horizon has no Off option.
-  const svg = B.radarPreview({ radarProvider: 'dwd', radarColor: 'white', theme: 'light' }, { color: true, platform: 'aplite' });
+  const svg = PB.radarPreview({ radarProvider: 'dwd', radarColor: 'white', theme: 'light' }, { color: true, platform: 'aplite' });
   assert.ok(svg.indexOf('width="200" height="118" fill="#FFFFFF"') >= 0, 'canvas background is white');
   assert.ok(svg.indexOf('fill="#555555"') >= 0, 'solid bars/legend render DarkGray');
   assert.equal(svg.indexOf('fill="#000000"'), -1, 'never a plain black bar/legend fill in the light theme');
@@ -720,7 +723,7 @@ test('radarPreview: radarColor=Solid in the light theme uses DarkGray, not black
 
 test('forecastPreview: rainBarColor=Solid in the light theme uses DarkGray, not black', () => {
   const state = { barSource: 'rain', rainBarColor: 'white', secondaryLine: 'off', windScale: 'mid', dayNightShading: false, theme: 'light' };
-  const svg = B.forecastPreview(state, { color: true });
+  const svg = PB.forecastPreview(state, { color: true });
   assert.ok(/width="9"[^>]*fill="#555555"/.test(svg), 'a DarkGray solid rain bar');
   assert.ok(/width="12"[^>]*fill="#555555"/.test(svg), 'the Rain legend swatch is DarkGray too');
   assert.equal(svg.indexOf('fill="#000000"'), -1, 'never a plain black fill in the light theme');
@@ -728,12 +731,12 @@ test('forecastPreview: rainBarColor=Solid in the light theme uses DarkGray, not 
 
 test('layoutPreviewCombined: light theme flips the canvas background to white', () => {
   const state = { layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off', theme: 'light' };
-  assert.ok(B.layoutPreviewCombined(state, {}).indexOf('fill="#FFFFFF"') >= 0);
+  assert.ok(PB.layoutPreviewCombined(state, {}).indexOf('fill="#FFFFFF"') >= 0);
 });
 
 test('layoutPreviewCombined: bw-light theme also flips the canvas background to white', () => {
   const state = { layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off', theme: 'bw-light' };
-  assert.ok(B.layoutPreviewCombined(state, {}).indexOf('fill="#FFFFFF"') >= 0);
+  assert.ok(PB.layoutPreviewCombined(state, {}).indexOf('fill="#FFFFFF"') >= 0);
 });
 
 // The band-stack chrome (renderBandColumn's band fill + empty-column placeholder)
@@ -742,7 +745,7 @@ test('layoutPreviewCombined: bw-light theme also flips the canvas background to 
 // theme-relative mechanism the other previews use for dividers/gridlines.
 test('layoutPreviewCombined: light theme themes the band chrome too, not just the canvas', () => {
   const state = { layoutPreset: 'compactCal', healthMode: 'status', radarMode: 'graph', theme: 'light' };
-  const combined = B.layoutPreviewCombined(state, {});
+  const combined = PB.layoutPreviewCombined(state, {});
   assert.equal(combined.indexOf('#1B1F27'), -1, 'band fill is no longer hardcoded dark');
   assert.equal(combined.indexOf('#12151C'), -1, 'placeholder fill is no longer hardcoded dark');
   assert.ok(combined.indexOf('rgba(0,0,0,0.12)') >= 0, 'band fill washes black-on-white in light theme');
@@ -750,12 +753,12 @@ test('layoutPreviewCombined: light theme themes the band chrome too, not just th
 
 test('layoutPreviewCombined: dark theme keeps the light-on-black band wash', () => {
   const state = { layoutPreset: 'compactCal', healthMode: 'status', radarMode: 'graph', theme: 'dark' };
-  assert.ok(B.layoutPreviewCombined(state, {}).indexOf('rgba(255,255,255,0.12)') >= 0);
+  assert.ok(PB.layoutPreviewCombined(state, {}).indexOf('rgba(255,255,255,0.12)') >= 0);
 });
 
 test('radarPreview (metno): point provider renders like rainbow — no nearby bars or legend', () => {
-  const metno = B.radarPreview({ radarProvider: 'metno', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
-  const rainbow = B.radarPreview({ radarProvider: 'rainbow', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
+  const metno = PB.radarPreview({ radarProvider: 'metno', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
+  const rainbow = PB.radarPreview({ radarProvider: 'rainbow', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
   assert.equal(metno, rainbow, 'metno and rainbow share the point-provider preview');
   assert.equal(metno.indexOf('>Nearby (2 km)<'), -1, 'metno drops the nearby legend');
 });
@@ -852,7 +855,7 @@ test('recommend resolvers: country-matched weather + radar providers (DE→dwd, 
 
 test('preview bands match forecast-series (no drift)', () => {
   const { PRESSURE_SCALE_CURVE_HPA } = require('../src/pkjs/forecast-series');
-  assert.deepEqual(B.pressureCurves, PRESSURE_SCALE_CURVE_HPA);
+  assert.deepEqual(PB.pressureCurves, PRESSURE_SCALE_CURVE_HPA);
 });
 
 // The sample scenario's slot 4 is 984 hPa, below the 'low' band's 990 floor (a real
@@ -864,7 +867,7 @@ test('preview bands match forecast-series (no drift)', () => {
 // one with a non-zero `min`): a genuine zero-based metric must still skip its dot at 0,
 // same as before. UV's sample scenario has 5 zero hours (indices 5-9 of 0-based slots).
 test('non-pressure dots still skip a genuine zero (no floor-clamp regression)', () => {
-  const svg = B.forecastPreview(
+  const svg = PB.forecastPreview(
     { dayNightShading: false, barSource: 'off', secondaryLine: 'precip_prob',
       secondaryLineFill: false, thirdLine: 'uv' },
     { color: true });
@@ -873,7 +876,7 @@ test('non-pressure dots still skip a genuine zero (no floor-clamp regression)', 
 });
 
 test('pressure dots: a below-floor reading still draws (real data, not skipped like a zero)', () => {
-  const svg = B.forecastPreview(
+  const svg = PB.forecastPreview(
     { dayNightShading: false, barSource: 'off', secondaryLine: 'precip_prob',
       secondaryLineFill: false, thirdLine: 'pressure', pressureScale: 'low' },
     { color: true });
@@ -884,7 +887,7 @@ test('pressure dots: a below-floor reading still draws (real data, not skipped l
 });
 
 test('pressure main metric renders a line inside the plot, not pinned to the top', () => {
-  const svg = B.forecastPreview(
+  const svg = PB.forecastPreview(
     { dayNightShading: false, barSource: 'off', secondaryLine: 'pressure',
       secondaryLineFill: false, thirdLine: 'off', pressureScale: 'mid' },
     { color: true });
@@ -902,7 +905,7 @@ test('pressure main metric renders a line inside the plot, not pinned to the top
 
 test('each pressure curve places the same reading at its own pinned height', () => {
   const yFor = (pressureScale) => {
-    const svg = B.forecastPreview(
+    const svg = PB.forecastPreview(
       { dayNightShading: false, barSource: 'off', secondaryLine: 'pressure',
         secondaryLineFill: false, thirdLine: 'off', pressureScale },
       { color: true });

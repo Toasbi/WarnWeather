@@ -16,6 +16,7 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/view-cycle.js'),
   path.join(ROOT, 'src/pkjs/status-line-catalog.js'),
   path.join(ROOT, 'src/pkjs/settings/tomorrowio-budget.js'),
+  path.join(ROOT, 'src/pkjs/settings/preview-blocks.js'),
   path.join(ROOT, 'src/pkjs/settings/blocks.js'),
   // wizard-screenshots.generated.js assigns PConf.screenshots; must precede wizard.js, which reads it.
   path.join(ROOT, 'src/pkjs/settings/wizard-screenshots.generated.js'),
