@@ -28,6 +28,14 @@ const STEMS = ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance', 'U
 const HEALTH_STEMS = ['Steps', 'Sleep', 'Distance'];
 const ENV = { thresholds: true, color: true, health: true };
 
+// The engine hands actions its stored-shape schema-default resolver as the 4th
+// argument (defaultAsStored); direct calls here rebuild the same thing from the
+// real schema so the assertions stay end-to-end honest.
+const SCHEMA_DEFAULT_OF = (key) => {
+  const its = itemsByKey()[key];
+  return its ? PC.engine.resolveDefaultFrom(its[0], ENV) : undefined;
+};
+
 test('every threshold kind has toggle + slider + hidden companions wired up', () => {
   const map = itemsByKey();
   STEMS.forEach(stem => {
@@ -939,7 +947,7 @@ test('the outline toggle says what it does to the slot', () => {
 test('the reset button leaves the Bold setting alone', () => {
   const S = { theme: 'dark', threshWindBoldMode: 'always', threshWindOn: true,
     threshWindWarn: '10', threshWindDanger: '20', threshWindMax: '200' };
-  PC.actions.resetThresholds('Wind', S, ENV);
+  PC.actions.resetThresholds('Wind', S, ENV, SCHEMA_DEFAULT_OF);
   assert.equal(S.threshWindBoldMode, 'always', 'reset must not touch Bold');
   assert.equal(S.threshWindMax, '', 'reset still clears the scale max');
   assert.equal(S.threshWindWarn, '', 'reset blanks the pair — that IS the off state');
@@ -963,7 +971,7 @@ test('reset lands on exactly what a fresh install has, highlight included', () =
     S['thresh' + stem + 'Warn'] = '10';
     S['thresh' + stem + 'Danger'] = '20';
     S['thresh' + stem + 'Max'] = '200';
-    PC.actions.resetThresholds(stem, S, ENV);
+    PC.actions.resetThresholds(stem, S, ENV, SCHEMA_DEFAULT_OF);
     assert.equal(derivedOn(S, stem), false,
       stem + ': the highlight must be OFF after a reset, as on a fresh install');
     assert.equal(S['thresh' + stem + 'Max'], '', stem + ': scale max cleared');
@@ -978,7 +986,7 @@ test('reset flips the rendered highlight toggle off in the same render', () => {
   // off: the exact silent-flip-on-next-open failure the reset fix was for, inverted.
   const S = { theme: 'dark', threshWindOn: true,
     threshWindWarn: '40', threshWindDanger: '60' };
-  PC.actions.resetThresholds('Wind', S, ENV);
+  PC.actions.resetThresholds('Wind', S, ENV, SCHEMA_DEFAULT_OF);
   assert.strictEqual(S.threshWindOn, false,
     'the rendered toggle must agree with the blanked pair immediately');
 });
@@ -990,7 +998,7 @@ test('Aqi reset lands on the wizard-seeded fresh-install state, not schema-off',
   // always-bold-with-no-warn-signal, the state that rule's why-text forbids.
   const S = { theme: 'dark', threshAqiOn: true,
     threshAqiWarn: '42', threshAqiDanger: '77', threshAqiMax: '400' };
-  PC.actions.resetThresholds('Aqi', S, ENV);
+  PC.actions.resetThresholds('Aqi', S, ENV, SCHEMA_DEFAULT_OF);
   assert.strictEqual(S.threshAqiOn, true, 'AQI highlighting is on out of the box');
   const warn = Number(S.threshAqiWarn), danger = Number(S.threshAqiDanger);
   assert.ok(warn > 0 && danger > warn,
@@ -1011,7 +1019,7 @@ test("a kind's reset never reaches outside that kind (the policy veto's scope)",
   // Foreign keys must stay ABSENT, not merely unchanged.
   const S = { theme: 'dark', threshWindOn: true,
     threshWindWarn: '40', threshWindDanger: '60' };
-  PC.actions.resetThresholds('Wind', S, ENV);
+  PC.actions.resetThresholds('Wind', S, ENV, SCHEMA_DEFAULT_OF);
   ['statusTopRight', 'statusHealthLeft', 'threshAqiOn', 'threshAqiWarnOutlineOn',
     'threshStepsBoldMode', 'threshWindBoldMode', 'threshTempBoldMode'].forEach((key) => {
     assert.ok(!(key in S), key + ' must not be written by a Wind reset');

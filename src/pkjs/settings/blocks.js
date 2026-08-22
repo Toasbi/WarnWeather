@@ -1345,34 +1345,30 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     PConf.thresholdAutoColor = { fgFor: thresholdAutoFg, isAuto: thresholdColorIsAuto };
 
     // Reset-to-defaults for one threshold kind (the small button beside the slider's
-    // label): clears the scale-max override, restores the auto (theme-fg) colors,
-    // then reseeds the pair — seeds resolved AFTER the clears so they land on the
-    // default scale in the user's current unit. Returns true so the engine re-renders.
+    // label). Returns true so the engine re-renders.
     PConf.actions = PConf.actions || {};
-    PConf.actions.resetThresholds = function (stem, S, env) {
-        if (!stem || !S || !THRESHOLD_RANGES[stem]) { return false; }
+    PConf.actions.resetThresholds = function (stem, S, env, defaultOf) {
+        if (!stem || !S || !THRESHOLD_RANGES[stem] || !defaultOf) { return false; }
         var fg = thresholdAutoFg(S.theme);
         var contractMod = thresholdContract();
         var goal = Boolean(contractMod && contractMod.isGoalKind && contractMod.isGoalKind(stem));
-        S['thresh' + stem + 'Max'] = '';
-        // Weather default = no outline (bold only); goal default = the green
-        // "close" outline, on.
-        S['thresh' + stem + 'WarnColor'] = goal ? contractMod.DEFAULT_GOAL_HEX : '';
-        S['thresh' + stem + 'WarnOutlineOn'] = goal;
+        // Every key with a schema default lands on it THROUGH the engine's resolver —
+        // mirrored literals drift when the schema changes (see resetStatusSlots
+        // below). The blank pair (highlight OFF, exactly a fresh install: seeding
+        // real numbers would derive the toggle back ON), the cleared Max, and the
+        // goal-vs-weather outline color/toggle are all schema defaults; the On
+        // toggle rides along because onLoad re-derives it only on the NEXT open,
+        // and the re-rendered sheet must agree with the blanked pair immediately.
+        var keys = ['On', 'Warn', 'Danger', 'Max', 'WarnColor', 'WarnOutlineOn'];
+        for (var d = 0; d < keys.length; d++) {
+            S['thresh' + stem + keys[d]] = defaultOf('thresh' + stem + keys[d]);
+        }
+        // The ONE deliberate divergence from the schema: DangerColor's stored
+        // default is '' (= auto, re-derived to the theme fg on every page open by
+        // onbuild), but the PACK-time fallback for '' is the contract's red — so a
+        // reset-then-save would flash red until the next open. Write eagerly what
+        // the next onLoad would derive anyway: theme fg for weather, green for goal.
         S['thresh' + stem + 'DangerColor'] = goal ? contractMod.DEFAULT_GOAL_HEX : fg;
-        // A BLANK pair, not the kind's seeds — this has to land on what a fresh
-        // install actually looks like, and there the highlight is off. Seeding real
-        // numbers here switched it ON instead: "Highlight this value" is derived on
-        // every page open from "is there a complete, ordered pair?" (onbuild.js), so
-        // a seeded pair IS the on state. Blanking is the same thing turning the
-        // toggle off already does, and the slider stays visible-but-disabled showing
-        // these seeds as a preview — again, exactly a fresh install.
-        S['thresh' + stem + 'Warn'] = '';
-        S['thresh' + stem + 'Danger'] = '';
-        // The toggle itself is only re-derived from the pair on the NEXT page open,
-        // so write it too — otherwise the re-rendered sheet keeps showing the
-        // highlight ON (enabled slider at the seed preview) while what saves is off.
-        S['thresh' + stem + 'On'] = false;
         // "Fresh install" is more than the schema: finishing the first-run wizard
         // applies the defaults-policy table, so the reset lands on those rows too —
         // AQI's highlight-on-with-warn-outline, seeded through the very hooks
