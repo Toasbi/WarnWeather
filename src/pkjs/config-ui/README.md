@@ -403,8 +403,12 @@ A `button` item dispatches to the registered action by its `action` id when tapp
 assigned directly (no `.register()` helper):
 
 ```js
-// Receives (arg, state, env). Return true to trigger a re-render; anything else no-ops.
-PConf.actions.resetThresholds = function (arg, state, env) {
+// Receives (arg, state, env, defaultOf). Return true to trigger a re-render; anything
+// else no-ops. `defaultOf(key)` is the engine's stored-shape schema-default resolver
+// (env-aware defaultFrom resolution, number color defaults as '#RRGGBB'; undefined for
+// a key with no schema item) — use it for reset-style actions instead of mirroring
+// schema defaults as literals, which drift when the schema changes.
+PConf.actions.resetThresholds = function (arg, state, env, defaultOf) {
   // mutate state …
   return true;
 };

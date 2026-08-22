@@ -1430,11 +1430,14 @@ test('the Show unit defaults keep every existing watchface looking the same', ()
 test('resetStatusSlots restores each Show unit toggle to its schema default', () => {
   const PConf = global.PConf;
   const env = { thresholds: true, color: true, health: true };
+  // The engine hands actions its defaultAsStored resolver; the tests rebuild the
+  // same thing from the real schema, so the assertions stay end-to-end honest.
+  const defaultOf = (key) => PConf.engine.resolveDefaultFrom(byKey(key), env);
   const S = {};
   // Start from the opposite of every default, so a reset that skipped a key or wrote a
   // blanket value would show up either way.
   UNIT_ROWS.forEach((row) => { S[row.key] = !row.def; });
-  assert.equal(PConf.actions.resetStatusSlots(null, S, env), true,
+  assert.equal(PConf.actions.resetStatusSlots(null, S, env, defaultOf), true,
     'the action returns true so the engine re-renders');
   UNIT_ROWS.forEach((row) => {
     assert.strictEqual(S[row.key], byKey(row.key).defaultValue,
@@ -1449,9 +1452,10 @@ test('resetStatusSlots restores each Show unit toggle to its schema default', ()
 test('resetStatusSlots restores each direction arrow to its schema default', () => {
   const PConf = global.PConf;
   const env = { thresholds: true, color: true, health: true };
+  const defaultOf = (key) => PConf.engine.resolveDefaultFrom(byKey(key), env);
   const S = { windSlotDirection: !byKey('windSlotDirection').defaultValue,
     gustSlotDirection: !byKey('gustSlotDirection').defaultValue };
-  PConf.actions.resetStatusSlots(null, S, env);
+  PConf.actions.resetStatusSlots(null, S, env, defaultOf);
   ['windSlotDirection', 'gustSlotDirection'].forEach((key) => {
     assert.strictEqual(S[key], byKey(key).defaultValue,
       key + ' must come back as the schema ships it');

@@ -1406,52 +1406,45 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // Reset-to-defaults for the whole status-bar card (the text button in the Watch
     // tab's intro — schema.js watchStatus): every slot of every bar back to its
     // platform-aware default (the same statusSlotDefault seed a fresh install gets,
-    // hrDefaults flavor included) and the bold settings back to their shipped
-    // defaults — the master row to 'perSlot', each kind's mode to its sheet default
-    // ('warn'; bold-only kinds 'off'). Deliberately untouched: thresholds, colors,
-    // outline toggles and scale maxes (every sheet has its own reset button), and
-    // the countdown companion dates (inert once a slot leaves 'countdown').
-    // Silent beyond the re-render, like resetThresholds above — the engine has no
-    // shared toast for [data-action] buttons.
+    // hrDefaults flavor included), and every other covered key back to ITS SCHEMA
+    // DEFAULT, resolved through the engine — no value is mirrored here, because
+    // mirrored literals drift when the schema changes: the wind arrow's hardcoded
+    // false outlived the schema flipping it to true, and the non-uniform "Show
+    // unit" defaults only ever escaped the same fate because a test pinned them.
+    // Covered alongside the slots: the master Bold row, each kind's Bold mode
+    // (their sheets carry no reset of their own), the temp slot's Temp/Feels/Both
+    // pills, and the wind/gust direction arrows (the threshold sheets' own reset
+    // deliberately covers only the thresholds). Deliberately untouched:
+    // thresholds, colors, outline toggles and scale maxes (every sheet has its own
+    // reset button), and the countdown companion dates (inert once a slot leaves
+    // 'countdown'). Silent beyond the re-render, like resetThresholds above — the
+    // engine has no shared toast for [data-action] buttons.
     /**
      * @param {*} arg Unused (the engine passes the button's data-action-arg).
      * @param {Object} S Live settings state (mutated in place).
      * @param {Object} env Platform env (env.hr picks the health-bar flavor).
+     * @param {function(string): *} defaultOf The engine's stored-shape schema
+     *     default resolver (defaultAsStored).
      * @returns {boolean} true so the engine re-renders with the restored state.
      */
-    PConf.actions.resetStatusSlots = function (arg, S, env) {
-        if (!S) { return false; }
+    PConf.actions.resetStatusSlots = function (arg, S, env, defaultOf) {
+        if (!S || !defaultOf) { return false; }
         var slotKeys = statusLineCatalog.allSlotKeys();
         for (var i = 0; i < slotKeys.length; i++) {
             S[slotKeys[i]] = statusLineCatalog.slotDefault(slotKeys[i], env);
         }
-        S.statusBoldAll = 'perSlot';
-        // Per-kind display state alongside the bold modes: the temp slot's
-        // Temp/Feels/Both pills live in the same sheet and have no other reset path
-        // (bold-only sheets carry no reset button of their own). The wind/gust
-        // direction arrows are the same kind of row on the two threshold sheets —
-        // their group's "Reset to defaults" deliberately covers only the thresholds.
-        S.tempSlotDisplay = 'actual';
-        // NOT uniform, like the unit toggles below: the wind arrow ships on, the
-        // gust arrow ships off (schema.js). Pinned against the schema by a test.
-        S.windSlotDirection = true;
-        S.gustSlotDirection = false;
-        // The six "Show unit" toggles. Their defaults are NOT uniform — the four kinds
-        // that print a unit today ship on, the two degree kinds ship off (schema.js's
-        // unitRow) — so a blanket reset-to-false here would silently strip kph, hPa and
-        // the countdown's d from a bar the user only asked to put back to stock.
-        S.windSlotUnit = true;
-        S.gustSlotUnit = true;
-        S.pressureSlotUnit = true;
-        S.countdownSlotUnit = true;
-        S.tempSlotUnit = false;
-        S.dewSlotUnit = false;
+        var schemaKeys = ['statusBoldAll', 'tempSlotDisplay',
+            'windSlotDirection', 'gustSlotDirection',
+            'windSlotUnit', 'gustSlotUnit', 'pressureSlotUnit', 'countdownSlotUnit',
+            'tempSlotUnit', 'dewSlotUnit'];
         var contractMod = thresholdContract();
         if (contractMod) {
             for (var k = 0; k < contractMod.KINDS.length; k++) {
-                var kind = contractMod.KINDS[k];
-                S['thresh' + kind.key + 'BoldMode'] = kind.boldOnly ? 'off' : 'warn';
+                schemaKeys.push('thresh' + contractMod.KINDS[k].key + 'BoldMode');
             }
+        }
+        for (var n = 0; n < schemaKeys.length; n++) {
+            S[schemaKeys[n]] = defaultOf(schemaKeys[n]);
         }
         return true;
     };

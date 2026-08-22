@@ -1339,9 +1339,13 @@ test('resetStatusSlots restores every slot default (hr and non-hr) and the bold 
   // Sanity: the two envs really differ (the health bar's hrDefaults flavor).
   assert.notEqual(catalog.slotDefault('statusHealthRight', ENV),
     catalog.slotDefault('statusHealthRight', hrEnv));
+  const map = itemsByKey();
   [{ env: ENV, name: 'non-hr' }, { env: hrEnv, name: 'hr' }].forEach(({ env, name }) => {
     const S = scrambledSlotState();
-    assert.equal(PC.actions.resetStatusSlots(null, S, env), true,
+    // The same stored-shape resolver the engine hands actions (defaultAsStored),
+    // rebuilt from the real schema so the assertions stay end-to-end honest.
+    const defaultOf = (key) => PC.engine.resolveDefaultFrom(map[key][0], env);
+    assert.equal(PC.actions.resetStatusSlots(null, S, env, defaultOf), true,
       name + ': returns true so the engine re-renders');
     catalog.allSlotKeys().forEach(k => {
       assert.equal(S[k], catalog.slotDefault(k, env),

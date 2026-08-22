@@ -1612,6 +1612,21 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var selectQuery = '', collapsed = initialCollapsed(SCHEMA);
     // Recover a schema item by messageKey so the input handler can re-filter its options in place.
     function findItem(key) { var f = null; eachItem(SCHEMA, function (it) { if (it.messageKey === key) { f = it; } }); return f; }
+    /**
+     * A key's schema default in the SAME shape hydrate() stores it (env-aware
+     * defaultFrom resolution; number color defaults as '#RRGGBB'). Handed to
+     * [data-action] handlers so a reset can land on what a fresh install actually
+     * resolves instead of hand-mirroring schema defaults — mirrored literals
+     * drift when the schema changes.
+     * @param {string} key Schema item messageKey.
+     * @returns {*} The stored-shape default, or undefined for a key with no schema item.
+     */
+    function defaultAsStored(key) {
+      var item = findItem(key);
+      if (!item) { return undefined; }
+      var dv = resolveDefaultFrom(item, ENV);
+      return (item.type === 'color' && typeof dv === 'number') ? intToHex(dv) : dv;
+    }
     // The messageKey of the trigger to restore focus to when the modal closes. Stored by key
     // (not the DOM node) because render() replaces #scroll's innerHTML, detaching any node
     // captured at open time; re-querying by key after render finds the fresh trigger.
@@ -2266,10 +2281,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if ((t = e.target.closest('[data-copy]'))) { copyText(t.getAttribute('data-copy')); return; }
         if ((t = e.target.closest('[data-action]'))) {
           var act = t.getAttribute('data-action');
-          // Actions receive (arg, S, ENV); returning true asks for a re-render (e.g.
-          // resetThresholds rewrites several keys). Legacy actions ignore all of it.
+          // Actions receive (arg, S, ENV, defaultAsStored); returning true asks for a
+          // re-render (e.g. resetThresholds rewrites several keys). Legacy actions
+          // ignore all of it.
           if (PConf.actions[act]
-              && PConf.actions[act](t.getAttribute('data-action-arg'), S, ENV) === true) {
+              && PConf.actions[act](t.getAttribute('data-action-arg'), S, ENV, defaultAsStored) === true) {
             render();
           }
           return;
@@ -2308,7 +2324,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if (openEdit && e.target.closest && (t = e.target.closest('[data-action]'))) {
           var mAct = t.getAttribute('data-action');
           if (PConf.actions[mAct]
-              && PConf.actions[mAct](t.getAttribute('data-action-arg'), S, ENV) === true) {
+              && PConf.actions[mAct](t.getAttribute('data-action-arg'), S, ENV, defaultAsStored) === true) {
             render();
           }
           return;
