@@ -5,6 +5,9 @@
  * openmeteo.js (unixtime/GMT + timestamp alignment). ES5 only (aplite PKJS).
  */
 
+// Leaf http helper (no provider cycle): call through the module object so
+// tests can stub http.request at runtime.
+var http = require('./http.js');
 var AIR_QUALITY_BASE = 'https://air-quality-api.open-meteo.com/v1/air-quality';
 var WAQI_BASE = 'https://api.waqi.info';
 var alignHourly = require('./hourly-window.js').alignHourly;
@@ -89,9 +92,8 @@ function mapWaqi(json) {
  * @returns {void}
  */
 function fetchOpenMeteoInto(provider, lat, lon, scale, done) {
-    var request = require('./provider.js').request;
     var url = buildAqiUrl(lat, lon, scale);
-    request(url, 'GET', function(resp) {
+    http.request(url, 'GET', function(resp) {
         var aqi = null;
         try { aqi = mapAqi(JSON.parse(resp), provider.startTime, scale); }
         catch (ex) { aqi = null; }
@@ -115,9 +117,8 @@ function fetchOpenMeteoInto(provider, lat, lon, scale, done) {
  * @returns {void}
  */
 function fetchWaqiInto(provider, lat, lon, done, notFound) {
-    var request = require('./provider.js').request;
     var url = buildWaqiUrl(lat, lon, provider.aqicnToken);
-    request(url, 'GET', function(resp) {
+    http.request(url, 'GET', function(resp) {
         var aqi = null;
         try { aqi = mapWaqi(JSON.parse(resp)); }
         catch (ex) { aqi = null; }

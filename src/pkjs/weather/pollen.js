@@ -1,3 +1,7 @@
+// Leaf http helper (no provider cycle): call through the module object so
+// tests can stub http.request at runtime.
+var http = require('./http.js');
+
 var WFS_URL = 'https://maps.dwd.de/geoserver/dwd/Pollenflug/wfs';
 var POLLEN_DISPLAYS = ['0', '0-1', '1', '1-2', '2', '2-3', '3'];
 
@@ -76,7 +80,6 @@ function worstToday(json, dateKey) {
 function fetchPollenInto(provider, lat, lon, done) {
     if (!provider.fetchPollen) { done(); return; }
 
-    var request = require('./provider.js').request;
     var completed = false;
     function complete() {
         if (completed) { return; }
@@ -85,7 +88,7 @@ function fetchPollenInto(provider, lat, lon, done) {
     }
 
     try {
-        request(buildUrl(lat, lon), 'GET', function(response) {
+        http.request(buildUrl(lat, lon), 'GET', function(response) {
             if (completed) { return; }
             var severity = null;
             try {

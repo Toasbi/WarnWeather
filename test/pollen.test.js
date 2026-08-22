@@ -1,4 +1,7 @@
 const test = require('node:test');
+// The aux fetches call http.request through the module object, so stubbing
+// the property here intercepts them (the old seam was WeatherProvider.request).
+const http = require('../src/pkjs/weather/http.js');
 const assert = require('node:assert/strict');
 
 const pollen = require('../src/pkjs/weather/pollen.js');
@@ -102,14 +105,14 @@ test('worstToday returns null for malformed envelopes or no valid today data', (
 
 test('fetchPollenInto skips the request when pollen fetching is disabled', () => {
   const WeatherProvider = require('../src/pkjs/weather/provider.js');
-  const originalRequest = WeatherProvider.request;
+  const originalRequest = http.request;
   let requests = 0;
   let doneCalls = 0;
-  WeatherProvider.request = function() { requests += 1; };
+  http.request = function() { requests += 1; };
   try {
     pollen.fetchPollenInto({ fetchPollen: false }, 52.52, 13.405, function() { doneCalls += 1; });
   } finally {
-    WeatherProvider.request = originalRequest;
+    http.request = originalRequest;
   }
   assert.equal(requests, 0);
   assert.equal(doneCalls, 1);
@@ -117,13 +120,13 @@ test('fetchPollenInto skips the request when pollen fetching is disabled', () =>
 
 test('fetchPollenInto writes valid today data and calls done exactly once', () => {
   const WeatherProvider = require('../src/pkjs/weather/provider.js');
-  const originalRequest = WeatherProvider.request;
+  const originalRequest = http.request;
   const today = pollen.localDateKey(new Date());
   const provider = { fetchPollen: true, pollenToday: null };
   let requestedUrl;
   let requestedMethod;
   let doneCalls = 0;
-  WeatherProvider.request = function(url, method, onSuccess) {
+  http.request = function(url, method, onSuccess) {
     requestedUrl = url;
     requestedMethod = method;
     onSuccess(JSON.stringify({ features: [feature(today + 'T00:00:00Z', 1), feature(today + 'T00:00:00Z', 6)] }));
@@ -131,7 +134,7 @@ test('fetchPollenInto writes valid today data and calls done exactly once', () =
   try {
     pollen.fetchPollenInto(provider, 52.52, 13.405, function() { doneCalls += 1; });
   } finally {
-    WeatherProvider.request = originalRequest;
+    http.request = originalRequest;
   }
   assert.equal(requestedUrl, pollen.buildUrl(52.52, 13.405));
   assert.equal(requestedMethod, 'GET');
@@ -141,16 +144,16 @@ test('fetchPollenInto writes valid today data and calls done exactly once', () =
 
 test('fetchPollenInto leaves pollen unchanged when the response has no today data', () => {
   const WeatherProvider = require('../src/pkjs/weather/provider.js');
-  const originalRequest = WeatherProvider.request;
+  const originalRequest = http.request;
   const provider = { fetchPollen: true, pollenToday: 'existing' };
   let doneCalls = 0;
-  WeatherProvider.request = function(url, method, onSuccess) {
+  http.request = function(url, method, onSuccess) {
     onSuccess(JSON.stringify({ features: [feature('1999-01-01', 6)] }));
   };
   try {
     pollen.fetchPollenInto(provider, 52.52, 13.405, function() { doneCalls += 1; });
   } finally {
-    WeatherProvider.request = originalRequest;
+    http.request = originalRequest;
   }
   assert.equal(provider.pollenToday, 'existing');
   assert.equal(doneCalls, 1);
@@ -158,14 +161,14 @@ test('fetchPollenInto leaves pollen unchanged when the response has no today dat
 
 test('fetchPollenInto treats parse failures as non-fatal and calls done once', () => {
   const WeatherProvider = require('../src/pkjs/weather/provider.js');
-  const originalRequest = WeatherProvider.request;
+  const originalRequest = http.request;
   const provider = { fetchPollen: true, pollenToday: 'existing' };
   let doneCalls = 0;
-  WeatherProvider.request = function(url, method, onSuccess) { onSuccess('{invalid'); };
+  http.request = function(url, method, onSuccess) { onSuccess('{invalid'); };
   try {
     pollen.fetchPollenInto(provider, 52.52, 13.405, function() { doneCalls += 1; });
   } finally {
-    WeatherProvider.request = originalRequest;
+    http.request = originalRequest;
   }
   assert.equal(provider.pollenToday, 'existing');
   assert.equal(doneCalls, 1);
@@ -173,16 +176,16 @@ test('fetchPollenInto treats parse failures as non-fatal and calls done once', (
 
 test('fetchPollenInto treats transport failures as non-fatal and calls done once', () => {
   const WeatherProvider = require('../src/pkjs/weather/provider.js');
-  const originalRequest = WeatherProvider.request;
+  const originalRequest = http.request;
   const provider = { fetchPollen: true, pollenToday: 'existing' };
   let doneCalls = 0;
-  WeatherProvider.request = function(url, method, onSuccess, onError) {
+  http.request = function(url, method, onSuccess, onError) {
     onError({ code: 500 });
   };
   try {
     pollen.fetchPollenInto(provider, 52.52, 13.405, function() { doneCalls += 1; });
   } finally {
-    WeatherProvider.request = originalRequest;
+    http.request = originalRequest;
   }
   assert.equal(provider.pollenToday, 'existing');
   assert.equal(doneCalls, 1);
@@ -190,18 +193,18 @@ test('fetchPollenInto treats transport failures as non-fatal and calls done once
 
 test('fetchPollenInto ignores duplicate success callbacks after completing once', () => {
   const WeatherProvider = require('../src/pkjs/weather/provider.js');
-  const originalRequest = WeatherProvider.request;
+  const originalRequest = http.request;
   const today = pollen.localDateKey(new Date()) + 'T00:00:00Z';
   const provider = { fetchPollen: true, pollenToday: null };
   let doneCalls = 0;
-  WeatherProvider.request = function(url, method, onSuccess) {
+  http.request = function(url, method, onSuccess) {
     onSuccess(JSON.stringify({ features: [feature(today, 2)] }));
     onSuccess(JSON.stringify({ features: [feature(today, 6)] }));
   };
   try {
     pollen.fetchPollenInto(provider, 52.52, 13.405, function() { doneCalls += 1; });
   } finally {
-    WeatherProvider.request = originalRequest;
+    http.request = originalRequest;
   }
   assert.equal(provider.pollenToday, '1', 'late callback cannot mutate completed state');
   assert.equal(doneCalls, 1);
@@ -209,18 +212,18 @@ test('fetchPollenInto ignores duplicate success callbacks after completing once'
 
 test('fetchPollenInto ignores an error callback after success', () => {
   const WeatherProvider = require('../src/pkjs/weather/provider.js');
-  const originalRequest = WeatherProvider.request;
+  const originalRequest = http.request;
   const today = pollen.localDateKey(new Date()) + 'T00:00:00Z';
   const provider = { fetchPollen: true, pollenToday: null };
   let doneCalls = 0;
-  WeatherProvider.request = function(url, method, onSuccess, onError) {
+  http.request = function(url, method, onSuccess, onError) {
     onSuccess(JSON.stringify({ features: [feature(today, 4)] }));
     onError({ code: 500 });
   };
   try {
     pollen.fetchPollenInto(provider, 52.52, 13.405, function() { doneCalls += 1; });
   } finally {
-    WeatherProvider.request = originalRequest;
+    http.request = originalRequest;
   }
   assert.equal(provider.pollenToday, '2');
   assert.equal(doneCalls, 1);
@@ -228,16 +231,16 @@ test('fetchPollenInto ignores an error callback after success', () => {
 
 test('fetchPollenInto treats a synchronous request throw as non-fatal', () => {
   const WeatherProvider = require('../src/pkjs/weather/provider.js');
-  const originalRequest = WeatherProvider.request;
+  const originalRequest = http.request;
   const provider = { fetchPollen: true, pollenToday: 'existing' };
   let doneCalls = 0;
-  WeatherProvider.request = function() { throw new Error('open failed'); };
+  http.request = function() { throw new Error('open failed'); };
   try {
     assert.doesNotThrow(() => {
       pollen.fetchPollenInto(provider, 52.52, 13.405, function() { doneCalls += 1; });
     });
   } finally {
-    WeatherProvider.request = originalRequest;
+    http.request = originalRequest;
   }
   assert.equal(provider.pollenToday, 'existing');
   assert.equal(doneCalls, 1);

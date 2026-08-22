@@ -8,174 +8,25 @@ var zeroFilledArray = wireUnits.zeroFilledArray;
 var airQuality = require('./air-quality.js');
 var pollen = require('./pollen.js');
 
-var XHR_TIMEOUT_MS = 5000;
-var GPS_CACHE_KEY = 'gpsCache';
-var GPS_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-var GEOCODE_CACHE_KEY = storageKeys.GEOCODE_CACHE_KEY;
-var RATE_LIMIT_BACKOFF_KEY = storageKeys.GEOCODE_BACKOFF_KEY;
+// The XHR helper + failure shape live in http.js (a leaf, so the auxiliary
+// fetches can require them without the old provider-cycle lazy-require hack);
+// the WeatherProvider.request/.failure statics below stay the adapters' (and
+// the tests') seam.
+var http = require('./http.js');
+var request = http.request;
+var failure = http.failure;
+// Location storage/parse helpers (GPS cache, geocode cache + backoff, override
+// parser) live in location.js; the orchestration below keeps their names.
+var locationLib = require('./location.js');
+var readStoredJson = locationLib.readStoredJson;
+var parseLocationOverride = locationLib.parseLocationOverride;
+var readGeocodeCache = locationLib.readGeocodeCache;
+var writeGeocodeCache = locationLib.writeGeocodeCache;
+var writeGeocodeBackoff = locationLib.writeGeocodeBackoff;
+var readGpsCache = locationLib.readGpsCache;
+var GPS_CACHE_MAX_AGE_MS = locationLib.GPS_CACHE_MAX_AGE_MS;
 
-/**
- * Perform an HTTP request and return response text.
- *
- * @param {string} url Request URL.
- * @param {string} type HTTP method.
- * @param {Function} onSuccess Callback with response text.
- * @param {Function} onFailure Callback with error details.
- * @param {Object} [headers] Optional request headers ({name: value}). Each one
- *   is set individually in try/catch: some runtimes forbid certain headers
- *   (e.g. User-Agent) and must not abort the request.
- * @param {string} [body] Optional request body (e.g. a GraphQL POST payload).
- *   Omitted/empty → sent as a bodyless request, identical to the prior behavior.
- * @returns {void}
- */
-function request(url, type, onSuccess, onFailure, headers, body) {
-    var xhr = new XMLHttpRequest();
-    xhr.timeout = XHR_TIMEOUT_MS;
-    xhr.onload = function() {
-        if (xhr.status >= 200 && xhr.status < 300) {
-            onSuccess(this.responseText);
-            return;
-        }
-        onFailure({
-            code: 'status_' + xhr.status,
-            detail: 'http_status'
-        });
-    };
-    xhr.onerror = function() {
-        onFailure({
-            code: 'network_error',
-            detail: 'xhr_error'
-        });
-    };
-    xhr.ontimeout = function() {
-        onFailure({
-            code: 'timeout',
-            detail: 'xhr_timeout'
-        });
-    };
-    xhr.open(type, url);
-    if (headers) {
-        for (var name in headers) {
-            if (Object.prototype.hasOwnProperty.call(headers, name)) {
-                try {
-                    xhr.setRequestHeader(name, headers[name]);
-                }
-                catch (ex) {
-                    // Runtime forbids this header — the others still identify us.
-                }
-            }
-        }
-    }
-    xhr.send(body || undefined);
-}
 
-/**
- * Build a normalized fetch failure payload.
- *
- * @param {string} stage Failure stage identifier.
- * @param {string} code Failure code identifier.
- * @returns {{stage: string, code: string}} Normalized failure object.
- */
-function failure(stage, code) {
-    return {
-        stage: stage,
-        code: code
-    };
-}
-
-/**
- * Parse stored JSON and clear invalid values.
- *
- * @param {string} key localStorage key.
- * @returns {*} Parsed value or null when missing/invalid.
- */
-function readStoredJson(key) {
-    var raw = localStorage.getItem(key);
-
-    if (raw === null) {
-        return null;
-    }
-
-    try {
-        return JSON.parse(raw);
-    }
-    catch (ex) {
-        localStorage.removeItem(key);
-        return null;
-    }
-}
-
-/**
- * Normalize a location query for cache lookups.
- *
- * @param {string} location Query string.
- * @returns {string} Normalized query string.
- */
-function normalizeLocationQuery(location) {
-    return location.trim();
-}
-
-/**
- * Read the cached geocode result for the active location.
- *
- * @param {string} location Query string.
- * @returns {{query: string, lat: string, lon: string, time: number}|null}
- */
-function readGeocodeCache(location) {
-    var cachedGeocode = readStoredJson(GEOCODE_CACHE_KEY);
-    var normalizedLocation = normalizeLocationQuery(location);
-    var cachedQuery;
-
-    if (cachedGeocode && typeof cachedGeocode.query === 'string') {
-        cachedQuery = normalizeLocationQuery(cachedGeocode.query);
-        if (cachedQuery === normalizedLocation) {
-            return cachedGeocode;
-        }
-    }
-
-    if (cachedGeocode && typeof cachedGeocode.query !== 'string') {
-        localStorage.removeItem(GEOCODE_CACHE_KEY);
-    }
-
-    return null;
-}
-
-/**
- * Persist a successful geocode lookup.
- *
- * @param {string} location Query string.
- * @param {string} lat Latitude.
- * @param {string} lon Longitude.
- * @returns {void}
- */
-function writeGeocodeCache(location, lat, lon) {
-    localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify({
-        query: normalizeLocationQuery(location),
-        lat: lat,
-        lon: lon,
-        time: Date.now()
-    }));
-}
-
-/**
- * Record a LocationIQ 429 backoff window.
- *
- * @returns {number} Backoff duration in milliseconds.
- */
-function writeGeocodeBackoff() {
-    var currentBackoff = readStoredJson(RATE_LIMIT_BACKOFF_KEY);
-    var attempts = currentBackoff && currentBackoff.attempts ? currentBackoff.attempts : 0;
-    var backoffMs = attempts > 0
-        ? Math.min(30000 * Math.pow(2, attempts), 1800000)
-        : 60000;
-
-    localStorage.setItem(RATE_LIMIT_BACKOFF_KEY, JSON.stringify({
-        until: Date.now() + backoffMs,
-        attempts: attempts + 1
-    }));
-
-    return backoffMs;
-}
 
 var WeatherProvider = function() {
     this.numEntries = 24;
@@ -258,7 +109,7 @@ WeatherProvider.prototype.gpsOverride = function(location) {
  * @returns {void}
  */
 WeatherProvider.prototype.clearGeocodeBackoff = function() {
-    localStorage.removeItem(RATE_LIMIT_BACKOFF_KEY);
+    locationLib.clearGeocodeBackoff();
 };
 
 /**
@@ -278,7 +129,7 @@ WeatherProvider.prototype.isGeocodeBackoffActive = function() {
         return false;
     }
 
-    backoffData = readStoredJson(RATE_LIMIT_BACKOFF_KEY);
+    backoffData = locationLib.readGeocodeBackoff();
     if (!backoffData) {
         return false;
     }
@@ -287,7 +138,7 @@ WeatherProvider.prototype.isGeocodeBackoffActive = function() {
         return true;
     }
 
-    localStorage.removeItem(RATE_LIMIT_BACKOFF_KEY);
+    locationLib.clearGeocodeBackoff();
     return false;
 };
 
@@ -343,6 +194,8 @@ WeatherProvider.prototype.withSunEvents = function(lat, lon, callback, onFailure
     callback(next24HourSunEvents);
 };
 
+
+
 /**
  * Reverse-geocode coordinates to a display city name + country code via ArcGIS.
  *
@@ -386,45 +239,6 @@ WeatherProvider.prototype.withCityName = function(lat, lon, callback, onFailure)
 };
 
 // https://github.com/Toasbi/WarnWeather/issues/59#issue-1317582743
-var LAT_LON_PATTERN = /^([-+]?\d*\.?\d+)\s*,\s*([-+]?\d*\.?\d+)$/;
-
-/**
- * Parse a location override into GPS, manual coordinates, or an address.
- *
- * @param {*} location Location override value.
- * @returns {{ type: 'gps'|'manual_coordinates'|'manual_address', query: string|null, latitude: string|null, longitude: string|null }} Parsed override state.
- */
-function parseLocationOverride(location) {
-    var trimmedLocation;
-    var match;
-
-    trimmedLocation = typeof location === 'string' ? normalizeLocationQuery(location) : null;
-    if (trimmedLocation === null || trimmedLocation.length === 0) {
-        return {
-            type: 'gps',
-            query: null,
-            latitude: null,
-            longitude: null
-        };
-    }
-
-    match = trimmedLocation.match(LAT_LON_PATTERN);
-    if (match !== null) {
-        return {
-            type: 'manual_coordinates',
-            query: trimmedLocation,
-            latitude: match[1],
-            longitude: match[2]
-        };
-    }
-
-    return {
-        type: 'manual_address',
-        query: trimmedLocation,
-        latitude: null,
-        longitude: null
-    };
-}
 
 /**
  * Resolve coordinates from the location override: pass through manual lat/lon,
@@ -517,41 +331,14 @@ WeatherProvider.prototype.withGeocodeCoordinates = function(callback, onFailure)
             }
             else {
                 // Clear backoff on non-429 errors (e.g. network issues)
-                localStorage.removeItem(RATE_LIMIT_BACKOFF_KEY);
+                locationLib.clearGeocodeBackoff();
             }
             onFailure(failure('forward_geocode', error.code));
         }).bind(this)
     );
 };
 
-/**
- * Read and validate the cached GPS fix from localStorage.
- *
- * @returns {?{lat: number, lon: number, time: number}} The parsed fix, or null
- *   when it is absent, corrupt, or missing a required numeric field.
- */
-function readGpsCache() {
-    var raw = localStorage.getItem(GPS_CACHE_KEY);
-    var parsed;
-    if (raw === null) {
-        return null;
-    }
-    try {
-        parsed = JSON.parse(raw);
-    }
-    catch (ex) {
-        return null;
-    }
-    if (
-        parsed &&
-        typeof parsed.lat === 'number' &&
-        typeof parsed.lon === 'number' &&
-        typeof parsed.time === 'number'
-    ) {
-        return parsed;
-    }
-    return null;
-}
+
 
 /**
  * Resolve coordinates from device GPS, falling back to a fresh-enough cached
@@ -593,11 +380,7 @@ WeatherProvider.prototype.withGpsCoordinates = function(callback, onFailure) {
         var lat = pos.coords.latitude;
         var lon = pos.coords.longitude;
         console.log('FOUND LOCATION: lat= ' + lat + ' lon= ' + lon);
-        localStorage.setItem(GPS_CACHE_KEY, JSON.stringify({
-            lat: lat,
-            lon: lon,
-            time: Date.now()
-        }));
+        locationLib.writeGpsCache(lat, lon);
         provider.usedGpsCache = false;
         provider.gpsErrorCode = null;
         callback(lat, lon);
