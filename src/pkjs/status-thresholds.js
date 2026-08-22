@@ -48,6 +48,12 @@
   // in this green, reaching the goal (the danger slot) fills with it. 0x55FF00 =
   // GColorBrightGreen. Their pack-time color fallback AND their page default.
   var DEFAULT_GOAL_COLOR = 0x55FF00;
+  // The same green in the page's stored '#RRGGBB' shape — derived, so the two can
+  // never disagree. Every settings-page site that seeds or resets the goal color
+  // (schema defaults, the outline/reset hooks, onbuild's reseed) reads THIS
+  // instead of restating the hex.
+  var DEFAULT_GOAL_HEX =
+    '#' + ('00000' + DEFAULT_GOAL_COLOR.toString(16).toUpperCase()).slice(-6);
 
   // Index in this array IS the wire kind id (ThreshKind). key is the settings
   // key stem: thresh<key>Warn / thresh<key>Danger / thresh<key>WarnColor /
@@ -394,6 +400,7 @@
     belowIsWorse: belowIsWorse,
     isGoalKind: isGoalKind,
     DEFAULT_GOAL_COLOR: DEFAULT_GOAL_COLOR,
+    DEFAULT_GOAL_HEX: DEFAULT_GOAL_HEX,
     kindConfig: kindConfig,
     computeLevel: computeLevel,
     displayValue: displayValue,

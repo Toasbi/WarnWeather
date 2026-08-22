@@ -181,3 +181,10 @@ test('directions match the C module: no kind is below-is-worse since the goal re
       k.code + ' goal flag');
   });
 });
+
+test('DEFAULT_GOAL_HEX is the stored-shape twin of DEFAULT_GOAL_COLOR', () => {
+  // Every settings-page site that seeds/resets the goal green reads this export;
+  // the derivation pins the two representations to one value forever.
+  assert.equal(th.DEFAULT_GOAL_HEX, '#55FF00');
+  assert.equal(parseInt(th.DEFAULT_GOAL_HEX.slice(1), 16), th.DEFAULT_GOAL_COLOR);
+});

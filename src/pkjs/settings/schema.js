@@ -338,7 +338,7 @@ function thresholdSection(title, keyStem, hint, gate, extraItems) {
             // '' = the no-outline wire sentinel, so goal kinds must NOT default to it:
             // seedDefaults hydrates these values into the phone store verbatim, and
             // the watch blob packs whatever is stored. Green = the celebration look.
-            defaultValue: goal ? '#55FF00' : '',
+            defaultValue: goal ? STATUS_THRESHOLDS.DEFAULT_GOAL_HEX : '',
             joinPrevious: true,
             capabilities: ['COLOR'],
             showWhen: gate
@@ -351,7 +351,7 @@ function thresholdSection(title, keyStem, hint, gate, extraItems) {
             type: 'color',
             messageKey: 'thresh' + keyStem + 'DangerColor',
             label: goal ? 'Goal fill color' : 'Danger color',
-            defaultValue: goal ? '#55FF00' : '',
+            defaultValue: goal ? STATUS_THRESHOLDS.DEFAULT_GOAL_HEX : '',
             joinPrevious: true,
             capabilities: ['COLOR'],
             showWhen: colorWhen,

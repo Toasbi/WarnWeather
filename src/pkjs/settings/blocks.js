@@ -1294,7 +1294,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var contractMod = thresholdContract();
         var goal = Boolean(contractMod && contractMod.isGoalKind && contractMod.isGoalKind(m[1]));
         S['thresh' + m[1] + 'WarnColor'] = newValue
-            ? (goal ? '#55FF00' : thresholdAutoFg(S.theme)) : '';
+            ? (goal ? contractMod.DEFAULT_GOAL_HEX : thresholdAutoFg(S.theme)) : '';
     });
 
     // "Auto" threshold colors: a color the user never customized tracks the THEME's
@@ -1357,9 +1357,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         S['thresh' + stem + 'Max'] = '';
         // Weather default = no outline (bold only); goal default = the green
         // "close" outline, on.
-        S['thresh' + stem + 'WarnColor'] = goal ? '#55FF00' : '';
+        S['thresh' + stem + 'WarnColor'] = goal ? contractMod.DEFAULT_GOAL_HEX : '';
         S['thresh' + stem + 'WarnOutlineOn'] = goal;
-        S['thresh' + stem + 'DangerColor'] = goal ? '#55FF00' : fg;
+        S['thresh' + stem + 'DangerColor'] = goal ? contractMod.DEFAULT_GOAL_HEX : fg;
         // A BLANK pair, not the kind's seeds — this has to land on what a fresh
         // install actually looks like, and there the highlight is off. Seeding real
         // numbers here switched it ON instead: "Highlight this value" is derived on

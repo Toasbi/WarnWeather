@@ -40,7 +40,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 // and legacy-fg values seed DEFAULT_GOAL_COLOR; only an explicit ''
                 // (their outline toggle turned off) stays off. A user pick survives
                 // either way and means "outline on".
-                var goalHex = '#55FF00';   // contract DEFAULT_GOAL_COLOR
+                var goalHex = contract.DEFAULT_GOAL_HEX;
                 var rawWarn = ctx.get('thresh' + kind.key + 'WarnColor');
                 if (kind.goal) {
                     if (rawWarn === null) {
