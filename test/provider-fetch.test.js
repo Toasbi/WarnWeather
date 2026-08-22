@@ -17,32 +17,6 @@ test('fetchWithCoordinates drives the chain from the passed coords, never resolv
   assert.equal(resolvedAgain, false);
 });
 
-test('fetch resolves coordinates once, then delegates to fetchWithCoordinates', () => {
-  var p = new WeatherProvider();
-  var delegated = null;
-  p.withCoordinates = function (ok, fail) { ok(1, 2); };
-  p.fetchWithCoordinates = function (lat, lon, onSuccess, onFailure, force, extra, transform) {
-    delegated = { lat: lat, lon: lon, force: force, extra: extra, transform: transform };
-  };
-
-  var ok = function () {};
-  var fail = function () {};
-  var xform = function (x) { return x; };
-  p.fetch(ok, fail, true, { A: 1 }, xform);
-
-  assert.deepEqual({ lat: delegated.lat, lon: delegated.lon, force: delegated.force }, { lat: 1, lon: 2, force: true });
-  assert.deepEqual(delegated.extra, { A: 1 });
-  assert.equal(delegated.transform, xform);
-});
-
-test('fetch reports coordinate failure through onFailure', () => {
-  var p = new WeatherProvider();
-  p.withCoordinates = function (ok, fail) { fail({ category: 'coordinates', code: 'gps_1' }); };
-  var failed = null;
-  p.fetch(function () {}, function (f) { failed = f; }, false, {}, null);
-  assert.deepEqual(failed, { category: 'coordinates', code: 'gps_1' });
-});
-
 test('withCoordinates resets countryCode to null even when coordinate resolution fails', () => {
   // Simulates a stale countryCode from a previous successful fetch that should
   // be cleared at the start of each cycle so coord-failure telemetry is not stale.

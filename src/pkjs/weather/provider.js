@@ -702,28 +702,6 @@ WeatherProvider.prototype.composeWeatherPayload = function(extraPayload, payload
 };
 
 /**
- * Orchestrate a full weather fetch: resolve coordinates, reverse-geocode the
- * city, compute sun events, populate provider data, then compose and send the
- * payload via the deduping outbox. Each stage routes its own failure to
- * onFailure with a stage-appropriate code.
- *
- * @param {Function} onSuccess Called after the payload is ACKed (or no-op send).
- * @param {Function} onFailure Called with a failure object on any stage error.
- * @param {boolean} force Whether this is a forced refresh.
- * @param {Object} extraPayload Extra AppMessage tuples (radar/sleep) to merge.
- * @param {Function} [payloadTransform] Optional PKJS render transform.
- * @returns {void}
- */
-WeatherProvider.prototype.fetch = function(onSuccess, onFailure, force, extraPayload, payloadTransform) {
-    var self = this;
-    this.withCoordinates(function(lat, lon) {
-        self.fetchWithCoordinates(lat, lon, onSuccess, onFailure, force, extraPayload, payloadTransform);
-    }, function(coordinateFailure) {
-        onFailure(coordinateFailure || failure('coordinates', 'unknown_error'));
-    });
-};
-
-/**
  * Run the weather-fetch chain for already-resolved coordinates: reverse-geocode
  * the city, compute sun events, fetch provider data, then send the composed
  * payload via the deduping outbox. Callers MUST resolve coordinates via
