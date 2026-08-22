@@ -307,6 +307,24 @@ static NightAreaPalette night_area_palette_for_fill(GColor fill) {
     return (NightAreaPalette){ GColorDukeBlue, GColorBlue, GColorVividCerulean };                                                    // precip (dark) / default
 }
 
+// Left-axis (hi/lo temp) font. emery's "Larger graph fonts" steps it up to the
+// calendar's tier (CALENDAR_FONT_KEY, calendar_layer.c); every other platform is
+// frozen at GOTHIC_18 -- on a 144 px screen the left axis is ALREADY calendar-sized.
+// Regular weight: the calendar's bold variant is per-cell state, not part of the size.
+//
+// Read fresh at each draw AND at each measure. The strip width is derived from the
+// measured labels, so the two must never disagree (bottom_view.h, "wider of both") --
+// a draw/measure mismatch would size the gutter wrong in BOTH bottom views.
+static GFont temp_label_font(void) {
+#ifdef PBL_PLATFORM_EMERY
+    // emery: the only platform offering the toggle (schema.js gates it on platform).
+    if (config_get()->large_graph_font) {
+        return fonts_get_system_font(FONT_KEY_GOTHIC_24);
+    }
+#endif
+    return fonts_get_system_font(FONT_KEY_GOTHIC_18);
+}
+
 static GSize temp_label_string_size(const char *text);
 
 static void draw_left_axis(GContext *ctx, int h) {
@@ -319,25 +337,34 @@ static void draw_left_axis(GContext *ctx, int h) {
     graphics_fill_rect(ctx, GRect(0, 0, inset_w, h - BOTTOM_VIEW_AXIS_H), 0, GCornerNone);
 
     graphics_context_set_text_color(ctx, theme_fg());
+    const GFont font = temp_label_font();
     GSize hi_size = temp_label_string_size(s_buffer_hi);
     GSize lo_size = temp_label_string_size(s_buffer_lo);
     const int16_t axis_y = h - BOTTOM_VIEW_AXIS_H;
 #ifdef PBL_PLATFORM_EMERY
-    // emery: top label sits flush at the strip top.
-    const int hi_y = 0;
+    // emery: top label sits flush at the strip top. GOTHIC_24 carries ~2 px more top
+    // whitespace than GOTHIC_18, so the large variant pulls up to match -- which also
+    // clears the 2 px hi/lo BOX overlap in the tightest band. That band is 68 px and is
+    // NOT an edge case: it is the fullCal DEFAULT view and every compactDense view
+    // (test/c/layout_test.c emery goldens). At 68: h = 58, axis_y = 48, hi box -2..21,
+    // lo_y = 48 - 24 - 2 = 22 -> lo box 22..45, so the boxes no longer touch (and the
+    // INK never came close -- GOTHIC_24 digit ink ends ~row 19 in the hi box, lo ink
+    // starts ~row 28). Deliberately NO band-height font fallback: 68 px is the default
+    // view, so dropping back to GOTHIC_18 there would erase the feature exactly where
+    // it is most seen.
+    const int hi_y = config_get()->large_graph_font ? -2 : 0;
 #else
     const int hi_y = -3;  // GOTHIC_18 top-whitespace pull-up
 #endif
     // Min label is bottom-anchored (just above the x-axis baseline) so it tracks
     // the forecast band height across every top-view mode (full/compact/none)
-    // instead of floating at a fixed offset.
+    // instead of floating at a fixed offset. It adapts to the font by itself --
+    // lo_size.h is measured with the same font that draws it.
     const int lo_y = axis_y - lo_size.h - 2;
-    graphics_draw_text(ctx, s_buffer_hi,
-                       fonts_get_system_font(FONT_KEY_GOTHIC_18),
+    graphics_draw_text(ctx, s_buffer_hi, font,
                        GRect(0, hi_y, strip_w, hi_size.h),
                        GTextOverflowModeFill, GTextAlignmentRight, NULL);
-    graphics_draw_text(ctx, s_buffer_lo,
-                       fonts_get_system_font(FONT_KEY_GOTHIC_18),
+    graphics_draw_text(ctx, s_buffer_lo, font,
                        GRect(0, lo_y, strip_w, lo_size.h),
                        GTextOverflowModeFill, GTextAlignmentRight, NULL);
 }
@@ -548,7 +575,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 
 static GSize temp_label_string_size(const char *text)
 {
-    const GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_18);
+    const GFont font = temp_label_font();
     const GRect box = GRect(0, 0, TEMP_LABEL_MEASURE_BOX_W, TEMP_LABEL_MEASURE_BOX_H);
     return graphics_text_layout_get_content_size(text, font, box, GTextOverflowModeFill,
                                                  GTextAlignmentRight);
