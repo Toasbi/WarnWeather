@@ -4,8 +4,11 @@ const assert = require('node:assert/strict');
 const thresholds = require('../src/pkjs/status-thresholds.js');
 
 const renderSignature = require('../src/pkjs/render-signature.js').renderSignature;
-const WEATHER_KINDS = thresholds.KINDS.slice(0, 4);   // aqi, pollen, wind, gust
-const HEALTH_KINDS = thresholds.KINDS.slice(4);       // steps, sleep, distance
+// The same predicate packWeatherLevels packs by: phone-leveled weather kinds
+// (aqi, pollen, wind, gust, uv). slice(0, 4) here once mirrored the shipped
+// bug of dropping UV (kind 7, after the health kinds) from the signature.
+const WEATHER_KINDS = thresholds.KINDS.filter(k => !k.goal && !k.boldOnly);
+const HEALTH_KINDS = thresholds.KINDS.filter(k => k.goal);  // steps, sleep, distance
 
 test('renderSignature is empty for falsy settings and stable for equal settings', () => {
   assert.equal(renderSignature(null), '');
@@ -61,7 +64,7 @@ test('the Show unit toggles are independent of each other', () => {
       UNIT_KEYS[i] + ' and ' + UNIT_KEYS[i + 1 + j] + ' share a signature slot')));
 });
 
-// The four weather kinds are evaluated phone-side at weather-bake time, so enabling one
+// The weather kinds are evaluated phone-side at weather-bake time, so enabling one
 // only reaches the watch through a refetch. Without these keys in the signature,
 // shouldForceFetch stays false for a threshold-only edit and the user sees nothing until
 // the next scheduled fetch (fetchIntervalMin, 15 min default — or after the night pause).

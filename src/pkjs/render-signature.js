@@ -46,18 +46,21 @@ function renderSignature(settings) {
     for (var i = 0; i < slotKeys.length; i++) {
         parts.push(settings[slotKeys[i]]);
     }
-    // The four WEATHER threshold kinds are evaluated phone-side at weather-bake
+    // The WEATHER threshold kinds are evaluated phone-side at weather-bake
     // time (STATUS_LEVELS_UINT8), so enabling one only shows up after a refetch —
     // without this the highlight would first appear on the next scheduled fetch
-    // (15 min default, or after the overnight pause). Derived from the contract's
-    // kind table so a reordered/renamed kind can't silently drop out.
-    // Deliberately NOT the three health kinds (evaluated watch-side from the
-    // Clay-delivered blob — already immediate) and NOT the threshold colours
+    // (15 min default, or after the overnight pause). Selected by the SAME
+    // predicate packWeatherLevels packs by (neither goal nor boldOnly), so a
+    // kind the phone levels can never be omitted here — KINDS.slice(0, 4)
+    // silently dropped UV when it joined as kind 7.
+    // Deliberately NOT the health kinds (goal: true — evaluated watch-side from
+    // the Clay-delivered blob, already immediate) and NOT the threshold colours
     // (Clay-delivered, applied on the next paint): a refetch there is pure waste.
-    var weatherKinds = statusThresholds.KINDS.slice(0, 4);
-    for (var w = 0; w < weatherKinds.length; w++) {
-        parts.push(settings['thresh' + weatherKinds[w].key + 'Warn'],
-            settings['thresh' + weatherKinds[w].key + 'Danger']);
+    var kinds = statusThresholds.KINDS;
+    for (var w = 0; w < kinds.length; w++) {
+        if (kinds[w].goal || kinds[w].boldOnly) { continue; }
+        parts.push(settings['thresh' + kinds[w].key + 'Warn'],
+            settings['thresh' + kinds[w].key + 'Danger']);
     }
     return parts.join('|');
 }
