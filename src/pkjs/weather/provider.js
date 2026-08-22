@@ -901,6 +901,75 @@ WeatherProvider.request = request;
 WeatherProvider.failure = failure;
 
 /**
+ * Shared request -> parse -> map skeleton for a provider's withProviderData:
+ * one XHR, JSON.parse guarded as '<id>_parse_error', a null map result as
+ * '<id>_missing_fields', and a transport error as '<id>_<code>' — THE
+ * failure-code grammar every provider speaks, structural instead of
+ * conventional. Providers keep only their URL/body/precheck and mapResponse.
+ *
+ * @param {Object} opts {url, method ('GET'), headers, body, id (failure-code
+ *   prefix), label (log name), map (parsed json -> mapped object or null)}.
+ * @param {Function} onMapped Receives the non-null mapped object.
+ * @param {Function} onFailure Receives a failure() object.
+ * @returns {void}
+ */
+WeatherProvider.requestMapped = function(opts, onMapped, onFailure) {
+    // Through the STATIC, not the local closure: tests stub
+    // WeatherProvider.request at runtime, and that seam must keep working.
+    WeatherProvider.request(opts.url, opts.method || 'GET', function(response) {
+        var json;
+        var mapped;
+        try {
+            json = JSON.parse(response);
+        }
+        catch (ex) {
+            onFailure(failure('provider_data', opts.id + '_parse_error'));
+            return;
+        }
+        mapped = opts.map(json);
+        if (mapped === null) {
+            onFailure(failure('provider_data', opts.id + '_missing_fields'));
+            return;
+        }
+        onMapped(mapped);
+    }, function(error) {
+        console.log('[!] ' + (opts.label || opts.id) + ' request failed: ' + JSON.stringify(error));
+        onFailure(failure('provider_data', opts.id + '_' + error.code));
+    }, opts.headers, opts.body);
+};
+
+/**
+ * Adopt a mapped forecast onto the provider: assigns only the keys PRESENT on
+ * `mapped` (providers differ in which optional series their API carries), and
+ * applies the two aux gates in ONE place — with two deliberately different
+ * semantics. feels RESETS to []/null when fetchFeels is off: the value is
+ * parsed from the main response, and on a reused provider instance a stale
+ * window must never ship against a new startTime. uv is adopted only when
+ * fetchUv is on and left UNTOUCHED otherwise: for providers whose uv rides a
+ * separate aux fetch (Open-Meteo), that fetch owns the field.
+ *
+ * @param {Object} mapped mapResponse result.
+ * @returns {void}
+ */
+WeatherProvider.prototype.adoptMapped = function(mapped) {
+    var direct = ['tempTrend', 'precipTrend', 'rainTrend', 'windTrend',
+        'gustTrend', 'pressureTrend', 'dewTrend', 'windDirTrend',
+        'startTime', 'currentTemp'];
+    for (var i = 0; i < direct.length; i++) {
+        if (Object.prototype.hasOwnProperty.call(mapped, direct[i])) {
+            this[direct[i]] = mapped[direct[i]];
+        }
+    }
+    if (Object.prototype.hasOwnProperty.call(mapped, 'feelsTrend')) {
+        this.feelsTrend = this.fetchFeels ? mapped.feelsTrend : [];
+        this.currentFeels = this.fetchFeels ? mapped.currentFeels : null;
+    }
+    if (this.fetchUv && Object.prototype.hasOwnProperty.call(mapped, 'uvTrend')) {
+        this.uvTrend = mapped.uvTrend;
+    }
+};
+
+/**
  * Compute the geolocation maximumAge (ms) from the GPS-cache and update-interval settings.
  * The reuse window never drops below the interval — re-acquiring GPS more often than we fetch
  * wastes battery. Missing/garbage values parse to 0 so the caller's `|| 10000` floor applies.

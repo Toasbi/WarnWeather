@@ -176,47 +176,22 @@ YandexProvider.prototype.withProviderData = function(lat, lon, force, onSuccess,
         onFailure(failure('provider_data', 'yandex_missing_api_key'));
         return;
     }
-    var body = JSON.stringify({ query: buildQuery(lat, lon) });
-    var headers = {
-        'Content-Type': 'application/json',
-        'X-Yandex-Weather-Key': this.apiKey
-    };
-    request(YANDEX_ENDPOINT, 'POST', (function(response) {
-        var json;
-        var mapped;
-        try {
-            json = JSON.parse(response);
-        }
-        catch (ex) {
-            onFailure(failure('provider_data', 'yandex_parse_error'));
-            return;
-        }
-        mapped = mapResponse(json, Math.floor(Date.now() / 1000));
-        if (mapped === null) {
-            onFailure(failure('provider_data', 'yandex_missing_fields'));
-            return;
-        }
-        this.tempTrend = mapped.tempTrend;
-        this.precipTrend = mapped.precipTrend;
-        this.rainTrend = mapped.rainTrend;
-        this.windTrend = mapped.windTrend;
-        this.gustTrend = mapped.gustTrend;
-        // Feels rides the same GraphQL response — adopted unconditionally,
-        // no fetch gate to honor.
-        // Parsed from the same response (no extra request); gated for consistency
-        // so "no feels selection" means no feels data anywhere.
-        this.feelsTrend = this.fetchFeels ? mapped.feelsTrend : [];
-        this.currentFeels = this.fetchFeels ? mapped.currentFeels : null;
-        if (this.fetchUv) {
-            this.uvTrend = mapped.uvTrend;
-        }
-        this.startTime = mapped.startTime;
-        this.currentTemp = mapped.currentTemp;
+    // requestMapped owns the parse/missing-fields/error-code grammar; adoptMapped
+    // owns the field adoption and the feels/uv gates. The GraphQL response has no
+    // pressure, dew or bearing series — mapped simply lacks those keys, and
+    // adoptMapped assigns only what is present.
+    WeatherProvider.requestMapped({
+        url: YANDEX_ENDPOINT, method: 'POST', id: 'yandex', label: 'Yandex',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Yandex-Weather-Key': this.apiKey
+        },
+        body: JSON.stringify({ query: buildQuery(lat, lon) }),
+        map: function(json) { return mapResponse(json, Math.floor(Date.now() / 1000)); }
+    }, (function(mapped) {
+        this.adoptMapped(mapped);
         onSuccess();
-    }).bind(this), function(error) {
-        console.log('[!] Yandex request failed: ' + JSON.stringify(error));
-        onFailure(failure('provider_data', 'yandex_' + error.code));
-    }, headers, body);
+    }).bind(this), onFailure);
 };
 
 module.exports = {

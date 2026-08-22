@@ -184,46 +184,20 @@ MetnoProvider.prototype.constructor = MetnoProvider;
 MetnoProvider.prototype._super = WeatherProvider;
 
 MetnoProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, onFailure) {
-    request(buildForecastUrl(lat, lon), 'GET', (function(response) {
-        var json;
-        var mapped;
-        try {
-            json = JSON.parse(response);
-        }
-        catch (ex) {
-            onFailure(failure('provider_data', 'metno_parse_error'));
-            return;
-        }
-        mapped = mapResponse(json, Math.floor(Date.now() / 1000));
-        if (mapped === null) {
-            onFailure(failure('provider_data', 'metno_missing_fields'));
-            return;
-        }
-        this.tempTrend = mapped.tempTrend;
-        this.precipTrend = mapped.precipTrend;
-        this.rainTrend = mapped.rainTrend;
-        this.windTrend = mapped.windTrend;
-        this.gustTrend = mapped.gustTrend;
-        this.pressureTrend = mapped.pressureTrend;
-        // Both come free with the /complete response already in hand — no extra
-        // request and no per-hour arithmetic worth gating, so neither is opt-in.
-        this.dewTrend = mapped.dewTrend;
-        this.windDirTrend = mapped.windDirTrend;
-        // Computed from the same response (no extra request), but Steadman costs
-        // an exp() per hour — skip it when nothing renders a feels value.
-        this.feelsTrend = this.fetchFeels ? mapped.feelsTrend : [];
-        this.currentFeels = this.fetchFeels ? mapped.currentFeels : null;
-        this.startTime = mapped.startTime;
-        this.currentTemp = mapped.currentTemp;
-        if (this.fetchUv) {
-            // Clear-sky UV from the same response — no second fetch needed.
-            this.uvTrend = mapped.uvTrend;
-        }
+    // requestMapped owns the parse/missing-fields/error-code grammar; adoptMapped
+    // owns the field adoption and both aux gates. Everything in the mapped shape
+    // rides the one /complete response: dew point and bearing come free (no
+    // per-hour arithmetic worth gating), feels costs a Steadman exp() per hour so
+    // mapResponse computes it but the gate decides whether it lands, and
+    // clear-sky uv is adopted only when something renders it.
+    WeatherProvider.requestMapped({
+        url: buildForecastUrl(lat, lon), id: 'metno', label: 'Met.no',
+        headers: metnoHeaders.HEADERS,
+        map: function(json) { return mapResponse(json, Math.floor(Date.now() / 1000)); }
+    }, (function(mapped) {
+        this.adoptMapped(mapped);
         onSuccess();
-    }).bind(this), function(error) {
-        console.log('[!] Met.no request failed: ' + JSON.stringify(error));
-        onFailure(failure('provider_data', 'metno_' + error.code));
-    }, metnoHeaders.HEADERS);
+    }).bind(this), onFailure);
 };
 
 module.exports = {

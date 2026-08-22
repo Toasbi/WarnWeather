@@ -208,49 +208,18 @@ TomorrowIoProvider.prototype.withProviderData = function(lat, lon, force, onSucc
         onFailure(failure('provider_data', 'tomorrowio_missing_api_key'));
         return;
     }
-    var url = buildUrl(lat, lon, this.apiKey, Math.floor(Date.now() / 1000));
-    request(url, 'GET', (function(response) {
-        var json;
-        var mapped;
-        try {
-            json = JSON.parse(response);
-        }
-        catch (ex) {
-            onFailure(failure('provider_data', 'tomorrowio_parse_error'));
-            return;
-        }
-        mapped = mapResponse(json, Math.floor(Date.now() / 1000));
-        if (mapped === null) {
-            onFailure(failure('provider_data', 'tomorrowio_missing_fields'));
-            return;
-        }
-        this.tempTrend = mapped.tempTrend;
-        this.precipTrend = mapped.precipTrend;
-        this.rainTrend = mapped.rainTrend;
-        this.windTrend = mapped.windTrend;
-        this.gustTrend = mapped.gustTrend;
-        this.pressureTrend = mapped.pressureTrend;
-        // Dew point and bearing ride the same single call (both Core-tier), so
-        // there is no fetch gate to honor — adopted unconditionally, empty when
-        // the response did not carry them.
-        this.dewTrend = mapped.dewTrend;
-        this.windDirTrend = mapped.windDirTrend;
-        // Feels rides the same call (temperatureApparent is a core field) —
-        // adopted unconditionally, no fetch gate to honor.
-        // Parsed from the same response (no extra request); gated for consistency
-        // so "no feels selection" means no feels data anywhere.
-        this.feelsTrend = this.fetchFeels ? mapped.feelsTrend : [];
-        this.currentFeels = this.fetchFeels ? mapped.currentFeels : null;
-        if (this.fetchUv) {
-            this.uvTrend = mapped.uvTrend;
-        }
-        this.startTime = mapped.startTime;
-        this.currentTemp = mapped.currentTemp;
+    // requestMapped owns the parse/missing-fields/error-code grammar; adoptMapped
+    // owns the field adoption and the feels/uv gates. Everything rides the one
+    // Timelines call (dew point, bearing and temperatureApparent are Core-tier
+    // fields), so mapped carries the full shape and the gates decide what lands.
+    WeatherProvider.requestMapped({
+        url: buildUrl(lat, lon, this.apiKey, Math.floor(Date.now() / 1000)),
+        id: 'tomorrowio', label: 'Tomorrow.io',
+        map: function(json) { return mapResponse(json, Math.floor(Date.now() / 1000)); }
+    }, (function(mapped) {
+        this.adoptMapped(mapped);
         onSuccess();
-    }).bind(this), function(error) {
-        console.log('[!] Tomorrow.io request failed: ' + JSON.stringify(error));
-        onFailure(failure('provider_data', 'tomorrowio_' + error.code));
-    });
+    }).bind(this), onFailure);
 };
 
 module.exports = {

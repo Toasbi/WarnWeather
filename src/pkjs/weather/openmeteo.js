@@ -357,38 +357,21 @@ function fetchUvInto(provider, lat, lon, done) {
 }
 
 OpenMeteoProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, onFailure) {
-    var url = buildForecastUrl(lat, lon);
-    request(url, 'GET', (function(response) {
-        var json;
-        var mapped;
-        try {
-            json = JSON.parse(response);
-        }
-        catch (ex) {
-            onFailure(failure('provider_data', 'openmeteo_parse_error'));
-            return;
-        }
-        mapped = mapResponse(json, Math.floor(Date.now() / 1000));
-        if (mapped === null) {
-            onFailure(failure('provider_data', 'openmeteo_missing_fields'));
-            return;
-        }
-        this.tempTrend = mapped.tempTrend;
-        this.precipTrend = mapped.precipTrend;
-        this.rainTrend = mapped.rainTrend;
-        this.windTrend = mapped.windTrend;
-        this.gustTrend = mapped.gustTrend; // ecmwf_ifs025 omits gusts (all null); the gust call below overrides when available
-        this.pressureTrend = mapped.pressureTrend;
-        this.startTime = mapped.startTime;
-        this.currentTemp = mapped.currentTemp;
-        // Feels rides the aux call below; reset per cycle so an aux failure on a
-        // reused provider instance degrades to line-off instead of shipping the
-        // previous window's values against the new startTime.
+    // requestMapped owns the parse/missing-fields/error-code grammar; adoptMapped
+    // assigns the mapped forecast (gustTrend included — ecmwf_ifs025 returns
+    // all-null gusts, so the aux call below overrides when available).
+    WeatherProvider.requestMapped({
+        url: buildForecastUrl(lat, lon), id: 'openmeteo', label: 'Open-Meteo',
+        map: function(json) { return mapResponse(json, Math.floor(Date.now() / 1000)); }
+    }, (function(mapped) {
+        this.adoptMapped(mapped);
+        // Feels, dew point and the wind bearing ride the aux call below — the
+        // mapped shape lacks their keys, so reset them per cycle here: on a
+        // reused provider instance an aux failure must degrade to line-off /
+        // '--' / no arrow instead of shipping the previous window's values
+        // against the new startTime.
         this.feelsTrend = [];
         this.currentFeels = null;
-        // Dew point and the wind bearing ride the same aux call, so they need
-        // the same per-cycle reset: on a reused provider instance a stale window
-        // would otherwise sit against the new startTime.
         this.dewTrend = [];
         this.windDirTrend = [];
         // ECMWF IFS (pinned for the rain bars) doesn't output 10m gusts,
@@ -418,10 +401,7 @@ OpenMeteoProvider.prototype.withProviderData = function(lat, lon, force, onSucce
             console.log('[!] Open-Meteo gust request failed: ' + JSON.stringify(gustError));
             fetchUvInto(this, lat, lon, onSuccess);
         }).bind(this));
-    }).bind(this), function(error) {
-        console.log('[!] Open-Meteo request failed: ' + JSON.stringify(error));
-        onFailure(failure('provider_data', 'openmeteo_' + error.code));
-    });
+    }).bind(this), onFailure);
 };
 
 module.exports = {
