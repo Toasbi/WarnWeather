@@ -1,5 +1,5 @@
 
-// ES5-safe polyfills (Object.assign, Array find/findIndex/includes) MUST load
+// ES5-safe polyfills (Object.assign, Math.trunc, Array find/findIndex/includes) MUST load
 // before anything else so the aplite JavaScriptCore runtime can run the bundle.
 require('./polyfills.js');
 

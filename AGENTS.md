@@ -74,7 +74,7 @@ platforms and in the build:
   v1.1.0 weather-fetch crash via `Object.assign`).
 
 Write watch-runtime PKJS as ES5: `var` + `function`, no arrow/template-literal syntax,
-and avoid ES6 built-ins. Already polyfilled and safe to call: `Object.assign` and
+and avoid ES6 built-ins. Already polyfilled and safe to call: `Object.assign`, `Math.trunc`, and
 `Array.prototype.find`/`findIndex`/`includes` (see `src/pkjs/polyfills.js`, required
 first in `index.js`). Need another ES6 method? Add a guarded polyfill there instead of
 calling it directly. No exemption for webview-only files: `src/pkjs/config-ui/`

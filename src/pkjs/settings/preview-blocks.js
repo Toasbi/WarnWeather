@@ -6,6 +6,12 @@
 // deps are the two concatenated globals below plus PConf itself.
 // Each block: function(state, env, userData) -> htmlString
 /* global PConf, VIEW_CYCLE */
+// The rain-tier mirror below calls Math.trunc (ES2015); polyfills.js never
+// loads in the flat concatenated page, so guard it here for pre-ES6 WebViews
+// (same body as the polyfills.js one).
+if (!Math.trunc) {
+    Math.trunc = function (v) { return v < 0 ? Math.ceil(v) : Math.floor(v); };
+}
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf
     : (typeof PConf !== 'undefined' && PConf) ? PConf

@@ -97,6 +97,24 @@ test('polyfilled Array.prototype methods are non-enumerable', () => {
   });
 });
 
+test('Math.trunc polyfill drops the fraction toward zero for both signs', () => {
+  withoutOwn(Math, 'trunc', () => {
+    installPolyfills();
+    assert.equal(typeof Math.trunc, 'function');
+
+    // rain-tier.js divides non-negative scaled integers; the negative arm
+    // matters because trunc(-0.5) is -0 where floor would give -1.
+    assert.equal(Math.trunc(4.7), 4);
+    assert.equal(Math.trunc(-4.7), -4);
+    assert.equal(Math.trunc(0.9), 0);
+    assert.equal(Math.trunc(-0.9), -0);
+    assert.equal(Math.trunc(8), 8);
+    assert.ok(Number.isNaN(Math.trunc(NaN)));
+    assert.equal(Math.trunc(Infinity), Infinity);
+    assert.equal(Math.trunc(-Infinity), -Infinity);
+  });
+});
+
 test('does not clobber native implementations when they already exist', () => {
   const nativeAssign = Object.assign;
   const nativeFind = Array.prototype.find;
