@@ -20,10 +20,13 @@ test('ready boots and the 60 s tick loop survives its first ticks', (t) => {
     setItem: (k, v) => { store[k] = String(v); },
     removeItem: (k) => { delete store[k]; },
   };
-  // Seed a fresh fetch-success marker so the first tick walks the
-  // refresh-slot check instead of fetching, and a fresh update-check stamp
-  // so the daily update check stays throttled (no XHR).
-  store.lastFetchSuccess = JSON.stringify({ time: new Date().toISOString() });
+  // Seed a fetch-success marker so the first tick walks the refresh-slot
+  // check instead of fetching, and a fresh update-check stamp so the daily
+  // update check stays throttled (no XHR). The marker sits an hour in the
+  // FUTURE: seeded at real now, a UTC-aligned interval boundary falling into
+  // the test's few-ms run window would flip needRefresh true and send a tick
+  // down the real (geolocation-requiring) fetch path — a rare spurious red.
+  store.lastFetchSuccess = JSON.stringify({ time: new Date(Date.now() + 60 * 60 * 1000).toISOString() });
   store.last_update_check = String(Date.now());
 
   const listeners = {};
@@ -50,6 +53,13 @@ test('ready boots and the 60 s tick loop survives its first ticks', (t) => {
       id: devConfigPath, filename: devConfigPath, loaded: true, exports: {},
     };
   } catch (e) { /* absent: getDevConfig() already falls back to {} */ }
+  // Same for the fixture artifact: an armed fixture (FIXTURE=<x> in .env, which
+  // mise test does NOT reset) makes ready take the fixture branch and skip
+  // scheduler.start() entirely — this test is about the REAL boot path.
+  const fixturePath = require.resolve('../src/pkjs/active-fixture.generated.js');
+  require.cache[fixturePath] = {
+    id: fixturePath, filename: fixturePath, loaded: true, exports: null,
+  };
 
   t.after(() => {
     delete global.localStorage;
