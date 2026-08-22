@@ -117,7 +117,8 @@ var BOLD_ALL_WHEN = {key: 'statusBoldAll', eq: 'all'};
 // Shared intro lines at the top of every threshold edit sheet (the sheets are the only
 // place thresholds are explained now that the Watch-tab card is gone). Two voices: the
 // weather kinds cross THRESHOLDS upward; the health kinds fall short of GOALS
-// (belowIsWorse in the contract) — same machinery, friendlier words. Both state the
+// (`goal` in the contract) — same rises-toward-the-pair machinery, friendlier
+// words. Both state the
 // always-bold rule: warn = bold text (outline only if enabled below), danger = filled.
 // Neither intro claims the warn level bolds the value any more — Bold is its own
 // setting above, so saying so here could simply be false.

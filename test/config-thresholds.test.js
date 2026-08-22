@@ -158,17 +158,14 @@ test('shipped defaults leave every kind disabled', () => {
 
 // --- the range resolver (blocks.js thresholdRange) --------------------------
 
-test('resolver direction comes from the contract for every kind', () => {
+test('resolver direction is above for every kind (the axis is retired)', () => {
   thresholds.KINDS.forEach(kind => {
     if (kind.boldOnly) { return; }   // level-less kinds have no slider to configure
     const cfg = B.thresholdRangeCfg({}, ENV, { keyStem: kind.key });
-    assert.equal(cfg.dir, kind.belowIsWorse ? 'below' : 'above',
-      kind.key + ' direction must mirror the contract');
+    assert.equal(cfg.dir, 'above', kind.key + ': every value rises toward its pair');
     // Seeds must form a valid ordered pair — enabling a kind must highlight
     // immediately, not silently store an unordered pair.
-    assert.ok(kind.belowIsWorse
-      ? cfg.seedDanger <= cfg.seedWarn : cfg.seedDanger >= cfg.seedWarn,
-      kind.key + ' seeds must be ordered for its direction');
+    assert.ok(cfg.seedDanger >= cfg.seedWarn, kind.key + ' seeds must be ordered');
     assert.ok(cfg.seedWarn >= cfg.min && cfg.seedWarn <= cfg.max
       && cfg.seedDanger >= cfg.min && cfg.seedDanger <= cfg.max,
       kind.key + ' seeds must sit inside the track');

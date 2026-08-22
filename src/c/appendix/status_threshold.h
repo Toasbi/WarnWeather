@@ -156,7 +156,12 @@ typedef enum {
 // slots — visually identical while no bold is configured for either kind.
 int status_threshold_kind_for_slot(uint8_t slot_kind, uint8_t icon);
 
-// Fixed severity direction: the goal-style health kinds are below-is-worse.
+// Fixed severity direction. No shipped kind warns downward since the goal
+// rework (the goal kinds use the same rises-toward-the-pair machinery with
+// celebratory semantics), so the implementation returns false unconditionally;
+// the hook stays for a future genuinely downward-warning kind. The JS contract
+// (status-thresholds.js) retired its side of the axis entirely — pairOrdered/
+// computeLevel are above-only there.
 bool status_threshold_below_is_worse(int kind);
 
 // Level for a value against an ordered threshold pair. Crossing is inclusive:

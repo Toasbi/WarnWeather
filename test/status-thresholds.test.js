@@ -47,9 +47,8 @@ test('the duplicated PhoneBattery key writes ONE bold mode into BOTH cells', () 
   // There is no per-variant setting: a plain-only key is not a thing the schema
   // emits, and writing one must change nothing.
   assert.equal(th.buildSettingsBlob({ threshPhoneBatteryPlainBoldMode: 'always' })[33], 0);
-  // The duplicate key must not confuse the key-keyed helpers either — both
-  // return on the first match, and 'PhoneBattery' is neither downward nor a goal.
-  assert.equal(th.belowIsWorse('PhoneBattery'), false);
+  // The duplicate key must not confuse the key-keyed helpers either — they
+  // return on the first match, and 'PhoneBattery' is not a goal kind.
   assert.equal(th.isGoalKind('PhoneBattery'), false);
 });
 
@@ -81,17 +80,10 @@ test('the phone-battery bold cells are not City\'s (the pressure-slot bug, JS si
 });
 
 test('computeLevel: above-is-worse boundaries are inclusive', () => {
-  assert.equal(th.computeLevel(99, 100, 200, false), 0);
-  assert.equal(th.computeLevel(100, 100, 200, false), 1);
-  assert.equal(th.computeLevel(199, 100, 200, false), 1);
-  assert.equal(th.computeLevel(200, 100, 200, false), 2);
-});
-
-test('computeLevel: below-is-worse boundaries are inclusive', () => {
-  assert.equal(th.computeLevel(9000, 8000, 4000, true), 0);
-  assert.equal(th.computeLevel(8000, 8000, 4000, true), 1);
-  assert.equal(th.computeLevel(4000, 8000, 4000, true), 2);
-  assert.equal(th.computeLevel(0, 8000, 4000, true), 2);
+  assert.equal(th.computeLevel(99, 100, 200), 0);
+  assert.equal(th.computeLevel(100, 100, 200), 1);
+  assert.equal(th.computeLevel(199, 100, 200), 1);
+  assert.equal(th.computeLevel(200, 100, 200), 2);
 });
 
 test('parseThreshold: blank/junk are null; comma decimals, 0 and negatives parse', () => {
@@ -424,11 +416,16 @@ test('kindConfig exposes the kind bold mode, defaulting to warn', () => {
   assert.equal(th.kindConfig({ threshWindBoldMode: 'nonsense' }, 2).boldMode, 'warn');
 });
 
-test('belowIsWorse by settings-key stem — no shipped kind warns downward anymore', () => {
-  assert.equal(th.belowIsWorse('Aqi'), false);
-  assert.equal(th.belowIsWorse('Gust'), false);
-  assert.equal(th.belowIsWorse('Steps'), false);
-  assert.equal(th.belowIsWorse('Distance'), false);
+test('pairOrdered: THE enable rule — both set and danger at or above warn', () => {
+  assert.equal(th.pairOrdered(10, 20), true);
+  assert.equal(th.pairOrdered(10, 10), true, 'equal pair is ordered (inclusive)');
+  assert.equal(th.pairOrdered(20, 10), false, 'reversed pair never enables');
+  assert.equal(th.pairOrdered(null, 20), false);
+  assert.equal(th.pairOrdered(10, null), false);
+  // The direction axis is retired: no per-kind belowIsWorse field or export —
+  // every value rises toward its pair, matching the C stub's unconditional false.
+  assert.equal(typeof th.belowIsWorse, 'undefined');
+  th.KINDS.forEach((k) => assert.ok(!('belowIsWorse' in k), k.code));
 });
 
 test('isGoalKind flags the celebratory health trio', () => {

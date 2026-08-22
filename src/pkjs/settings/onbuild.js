@@ -31,8 +31,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var kind = contract.KINDS[i];
             var warn = contract.parseThreshold(ctx.get('thresh' + kind.key + 'Warn'));
             var danger = contract.parseThreshold(ctx.get('thresh' + kind.key + 'Danger'));
-            ctx.set('thresh' + kind.key + 'On', warn !== null && danger !== null
-                && (kind.belowIsWorse ? danger <= warn : danger >= warn));
+            ctx.set('thresh' + kind.key + 'On', contract.pairOrdered(warn, danger));
             if (auto) {
                 // WARN, weather kinds: the default is NO outline (bold text only) — an
                 // unset color stays '' and a legacy auto-fg value converts back to ''.

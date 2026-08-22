@@ -1183,7 +1183,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             && contractMod.isGoalKind(stem));
         return {
             min: base.min, max: max, step: base.step, minSpan: base.step,
-            dir: contract && contract.belowIsWorse(stem) ? 'below' : 'above',
+            // Direction axis retired (status-thresholds.js): every kind's value
+            // rises toward the pair. The engine's 'below' rendering stays a
+            // dormant library feature no item sets.
+            dir: 'above',
             unit: base.unit,
             seedWarn: base.seedWarn, seedDanger: base.seedDanger,
             maxEditable: !base.fixedMax,
@@ -1239,8 +1242,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!contract) { return; }
         var warn = contract.parseThreshold(S['thresh' + stem + 'Warn']);
         var danger = contract.parseThreshold(S['thresh' + stem + 'Danger']);
-        var ordered = warn !== null && danger !== null
-            && (contract.belowIsWorse(stem) ? danger <= warn : danger >= warn);
+        var ordered = contract.pairOrdered(warn, danger);
         if (ordered) { return; }
         var cfg = thresholdRangeCfg(S, env, {keyStem: stem});
         S['thresh' + stem + 'Warn'] = String(cfg.seedWarn);

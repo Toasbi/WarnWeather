@@ -60,42 +60,44 @@
   // thresh<key>DangerColor. `goal` kinds (the health trio) use the SAME
   // above-direction machinery as the weather kinds — value rises toward the pair —
   // but with celebratory semantics: warn-slot = "close" (outline), danger-slot =
-  // "goal reached" (fill). belowIsWorse survives as machinery for any future kind
-  // that genuinely warns downward; no shipped kind uses it since the goal rework.
+  // "goal reached" (fill). A per-kind direction axis (below-is-worse) existed
+  // once; no shipped kind used it since the goal rework, direction never rides
+  // the wire, and the C mirror hardcodes false — so it is retired here, and
+  // re-adding it for a genuinely downward-warning kind is purely additive.
   var KINDS = [
-    { code: 'aqi',      key: 'Aqi',      belowIsWorse: false },
-    { code: 'pollen',   key: 'Pollen',   belowIsWorse: false },
-    { code: 'wind',     key: 'Wind',     belowIsWorse: false },
-    { code: 'gust',     key: 'Gust',     belowIsWorse: false },
-    { code: 'steps',    key: 'Steps',    belowIsWorse: false, goal: true },
-    { code: 'sleep',    key: 'Sleep',    belowIsWorse: false, goal: true },
-    { code: 'distance', key: 'Distance', belowIsWorse: false, goal: true },
+    { code: 'aqi',      key: 'Aqi' },
+    { code: 'pollen',   key: 'Pollen' },
+    { code: 'wind',     key: 'Wind' },
+    { code: 'gust',     key: 'Gust' },
+    { code: 'steps',    key: 'Steps', goal: true },
+    { code: 'sleep',    key: 'Sleep', goal: true },
+    { code: 'distance', key: 'Distance', goal: true },
     // UV is a WEATHER kind appended after the health trio (wire ids are
     // append-only): its level packs phone-side at bits 8-9 of the levels wire
     // value, and it carries NO health-threshold blob entry.
-    { code: 'uv',       key: 'Uv',       belowIsWorse: false },
+    { code: 'uv',       key: 'Uv' },
     // Bold-only kinds (appended, wire ids 8..15): every remaining selectable
     // slot option except battery, which renders a drawn glyph with no text run
     // so a Bold option would be a no-op lie. They own NO enable bit (blob[0]
     // covers the 8 paired kinds only), no color pair, and no health u16 — only
     // their 2-bit bold cell in the bold area (bytes 29..33).
-    { code: 'temp',      key: 'Temp',      belowIsWorse: false, boldOnly: true },
-    { code: 'pressure',  key: 'Pressure',  belowIsWorse: false, boldOnly: true },
-    { code: 'sun',       key: 'Sun',       belowIsWorse: false, boldOnly: true },
-    { code: 'date',      key: 'Date',      belowIsWorse: false, boldOnly: true },
-    { code: 'week',      key: 'Week',      belowIsWorse: false, boldOnly: true },
-    { code: 'city',      key: 'City',      belowIsWorse: false, boldOnly: true },
-    { code: 'countdown', key: 'Countdown', belowIsWorse: false, boldOnly: true },
-    { code: 'hr',        key: 'Hr',        belowIsWorse: false, boldOnly: true },
+    { code: 'temp',      key: 'Temp', boldOnly: true },
+    { code: 'pressure',  key: 'Pressure', boldOnly: true },
+    { code: 'sun',       key: 'Sun', boldOnly: true },
+    { code: 'date',      key: 'Date', boldOnly: true },
+    { code: 'week',      key: 'Week', boldOnly: true },
+    { code: 'city',      key: 'City', boldOnly: true },
+    { code: 'countdown', key: 'Countdown', boldOnly: true },
+    { code: 'hr',        key: 'Hr', boldOnly: true },
     // Battery % (kind 16, appended): unlike the GLYPH battery slot — still
     // kind-less, a drawn glyph has no text run to bold — the % slot renders
     // text, so it owns a bold cell: the first one in byte 33.
-    { code: 'batteryPct', key: 'BatteryPct', belowIsWorse: false, boldOnly: true },
+    { code: 'batteryPct', key: 'BatteryPct', boldOnly: true },
     // Dew point (kind 17, appended): byte 33's SECOND cell, so SETTINGS_BYTES
     // stays 34 and the Clay message does not grow. Dew is a temperature, and the
     // temp slot already has its own kind, so it needs one too — otherwise its
     // Bold row would have no cell to write.
-    { code: 'dew', key: 'Dew', belowIsWorse: false, boldOnly: true },
+    { code: 'dew', key: 'Dew', boldOnly: true },
     // Phone battery (kinds 18/19, appended): byte 33's THIRD and FOURTH cells —
     // the last two, so SETTINGS_BYTES still stays 34. TWO wire kinds because the
     // watch must tell the no-icon variant apart from a plain TEXT+ICON_NONE city
@@ -105,8 +107,8 @@
     // threshPhoneBatteryBoldMode setting twice, writing the SAME mode into both
     // cells. Nothing in the packer keys off `key` being unique — boldModeFor()
     // is a plain per-entry lookup — so the duplicate is a share, not a clash.
-    { code: 'phoneBattery', key: 'PhoneBattery', belowIsWorse: false, boldOnly: true },
-    { code: 'phoneBatteryPlain', key: 'PhoneBattery', belowIsWorse: false, boldOnly: true }
+    { code: 'phoneBattery', key: 'PhoneBattery', boldOnly: true },
+    { code: 'phoneBatteryPlain', key: 'PhoneBattery', boldOnly: true }
   ];
 
   /**
@@ -122,10 +124,6 @@
   }
 
   /**
-   * @param {string} keyStem settings key stem, e.g. 'Steps'
-   * @returns {boolean} the kind's fixed direction; false for unknown stems
-   */
-  /**
    * @param {string} keyStem Kind key stem, e.g. 'Steps'.
    * @returns {boolean} true for the celebratory goal kinds (health trio)
    */
@@ -136,11 +134,18 @@
     return false;
   }
 
-  function belowIsWorse(keyStem) {
-    for (var i = 0; i < KINDS.length; i++) {
-      if (KINDS[i].key === keyStem) { return KINDS[i].belowIsWorse; }
-    }
-    return false;
+  /**
+   * Whether a warn/danger pair ENABLES a kind: both set and ordered — the value
+   * rises toward the pair (danger at or above warn). THE one definition of the
+   * rule: kindConfig packs with it, and the settings page's toggle hook
+   * (blocks.js thresholdToggle) and onLoad derivation (onbuild.js) call it, so
+   * the UI can never disagree with what the watch packs.
+   * @param {?number} warn Parsed warn threshold (parseThreshold).
+   * @param {?number} danger Parsed danger threshold.
+   * @returns {boolean} True when the pair is complete and ordered.
+   */
+  function pairOrdered(warn, danger) {
+    return warn !== null && danger !== null && danger >= warn;
   }
 
   /**
@@ -194,8 +199,7 @@
     }
     var warn = parseThreshold(settings && settings['thresh' + k.key + 'Warn']);
     var danger = parseThreshold(settings && settings['thresh' + k.key + 'Danger']);
-    var ordered = warn !== null && danger !== null
-      && (k.belowIsWorse ? danger <= warn : danger >= warn);
+    var ordered = pairOrdered(warn, danger);
     // warnColor null = NO OUTLINE: warn renders as bold text only and the blob
     // carries the 0x00 none-sentinel. Weather kinds DEFAULT to none (only the
     // sheet's outline toggle stores a color); GOAL kinds default to the green
@@ -234,15 +238,9 @@
    * @param {number} value the DISPLAYED number for the kind
    * @param {number} warn warn threshold
    * @param {number} danger danger threshold
-   * @param {boolean} isBelowWorse the kind's fixed direction
    * @returns {number} 0 normal / 1 warn / 2 danger
    */
-  function computeLevel(value, warn, danger, isBelowWorse) {
-    if (isBelowWorse) {
-      if (value <= danger) { return 2; }
-      if (value <= warn) { return 1; }
-      return 0;
-    }
+  function computeLevel(value, warn, danger) {
     if (value >= danger) { return 2; }
     if (value >= warn) { return 1; }
     return 0;
@@ -319,7 +317,7 @@
       if (!cfg.enabled) { continue; }
       var v = displayValue(KINDS[k].code, payload, settings);
       if (v === null) { continue; }
-      packed |= computeLevel(v, cfg.warn, cfg.danger, KINDS[k].belowIsWorse)
+      packed |= computeLevel(v, cfg.warn, cfg.danger)
         << weatherLevelShift(k);
     }
     return [packed & 0xFF, (packed >> 8) & 0xFF];
@@ -397,7 +395,7 @@
     BOLD_MODES: BOLD_MODES,
     DEFAULT_BOLD_MODE: DEFAULT_BOLD_MODE,
     parseThreshold: parseThreshold,
-    belowIsWorse: belowIsWorse,
+    pairOrdered: pairOrdered,
     isGoalKind: isGoalKind,
     DEFAULT_GOAL_COLOR: DEFAULT_GOAL_COLOR,
     DEFAULT_GOAL_HEX: DEFAULT_GOAL_HEX,
