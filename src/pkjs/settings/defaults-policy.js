@@ -41,10 +41,13 @@
 //                        which knows healthMode's schema default).
 //
 // A row may also carry `seedVia` — see the wizard AQI row for what it is for —
-// and `dependsOn` (dependent key -> anchor key of the same set), which couples
-// writes that only make sense together — see the health-slots row. A test pins
-// that every dependsOn name references the same rule's set, so a typo fails
-// loudly instead of silently stranding the dependents.
+// `dependsOn` (dependent key -> anchor key of the same set), which couples
+// writes that only make sense together — see the health-slots row — and
+// `overrules` (a list of the rule's own set keys), which exempts a key from the
+// consumer's "the user has not spoken here" guard: the rule's value replaces
+// even a hand-customized stored one. Tests pin that every dependsOn/overrules
+// name references the same rule's set, so a typo fails loudly instead of
+// silently stranding a dependent or protecting nothing.
 (function () {
     // healthMode's schema default (schema.js). Repeated here because an unset
     // healthMode means "the user never touched it", which is health ON, and a
@@ -126,7 +129,17 @@
             dependsOn: {
                 statusHealthLeft: 'statusTopRight',
                 threshStepsBoldMode: 'statusTopRight'
-            }
+            },
+            // The promotion alone is exempt from the not-still-default guard:
+            // completing setup with health on IS the consent to the layout this
+            // rule promises, so steps takes the top-right slot even from a slot
+            // the user picked by hand (observed live: a phone-battery slot
+            // parked top-right silently blocked the whole swap). The row-sibling
+            // dedupe guard still stands — steps already placed elsewhere in the
+            // top row stops the promotion, and the dependents with it — and the
+            // eviction and bold keep the normal protection: a customized health
+            // row or bold choice survives.
+            overrules: ['statusTopRight']
         }
 
         // Deliberately NOT here: the step, sleep and distance GOALS. They stay off
