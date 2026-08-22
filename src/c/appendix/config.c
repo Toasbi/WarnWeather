@@ -50,7 +50,12 @@ static Config config_defaults(void) {
         .view_spec2 = { 0x244, 0x000, 0x000 },
         .theme = 0,   // dark — today's look, unchanged until the user picks otherwise
         .battery_low_only = true,
-        .date_month_first = false   // day-first (dd.mm.yy); phone overrides per holiday country
+        .date_month_first = false,  // day-first (dd.mm.yy); phone overrides per holiday country
+#if defined(PBL_PLATFORM_EMERY)
+        // emery: off out of the box -- an upgrade must look byte-identical until the
+        // user opts in. Guarded because the field itself is (see config.h).
+        .large_graph_font = false,
+#endif
     };
 }
 

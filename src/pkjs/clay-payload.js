@@ -203,8 +203,11 @@ function buildClayPayload(settings, watchInfo, now) {
     // stored value is a strict boolean or absent -- and absent collapsing to false IS
     // the default. A default-TRUE toggle would need the hasOwnProperty ternary
     // dayNightShading uses above. Deliberately NOT platform-gated (unlike the threshold
-    // blob / no-rain text / curve insets): config_wire.c is a contract file that is
-    // never forked, so every watch decodes the tuple and non-emery just never reads it.
+    // blob / no-rain text / curve insets, which are omitted for watches that compile the
+    // feature out): the tuple is 11 B, every non-emery Clay bundle has ample headroom, and
+    // sending it unconditionally means an emery watch can't be starved of the setting by a
+    // watchInfo hiccup. The WATCH does the skipping -- config_wire.c only spends a
+    // dict_find on it under PBL_PLATFORM_EMERY (config.h's field carries the same guard).
     payload.CLAY_LARGE_GRAPH_FONT = Boolean(settings.largeGraphFont);
 
     return payload;

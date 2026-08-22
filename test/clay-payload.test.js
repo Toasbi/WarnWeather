@@ -337,10 +337,12 @@ test('CLAY_LARGE_GRAPH_FONT reflects the largeGraphFont setting (default false)'
   assert.equal(buildClayPayload(on, { platform: 'emery' }, NOW).CLAY_LARGE_GRAPH_FONT, true);
 });
 
-test('CLAY_LARGE_GRAPH_FONT rides every platform (config_wire.c parses it unconditionally)', () => {
+test('CLAY_LARGE_GRAPH_FONT rides every platform (only the WATCH gates it)', () => {
   // Unlike CLAY_NORAIN_TEXT / CLAY_CURVE_INSET_UINT8 / CLAY_THRESHOLDS_UINT8, this key is
-  // NOT platform-gated: config_wire.c is a contract file that is never forked, so every
-  // watch decodes the tuple (and non-emery simply never reads the field).
+  // NOT platform-gated on the phone: it is 11 B, every non-emery Clay bundle has room, and
+  // sending it unconditionally means an emery watch can't be starved of the setting by a
+  // watchInfo hiccup. The watch does the skipping -- config_wire.c only spends a dict_find
+  // on it under PBL_PLATFORM_EMERY (config.h's field carries the same guard).
   const p = buildClayPayload(baseSettings(), { platform: 'aplite' }, NOW);
   assert.equal(Object.prototype.hasOwnProperty.call(p, 'CLAY_LARGE_GRAPH_FONT'), true);
 });

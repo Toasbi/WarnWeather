@@ -104,6 +104,24 @@ typedef struct {
 #if defined(PBL_HEALTH)
     uint16_t hr_scale;
 #endif
+    // --- larger graph fonts (emery only): step every graph axis label up one Gothic
+    // tier (left axes 18 -> 24, hour labels 14 -> 18). Appended at the END to honour
+    // the append-only persist offsets -- an upgrader's shorter stored blob does not
+    // reach this byte, so config_read_or_default()'s seeded default (false) survives
+    // and existing installs render unchanged until they opt in.
+    //
+    // PBL_PLATFORM_EMERY-guarded, for the same reason hr_scale above is PBL_HEALTH-
+    // guarded: no other platform can ever read it (every render-side branch is inside
+    // the same #ifdef -- 144 px screens have no room, and their graph left axis is
+    // already calendar-sized), so elsewhere the field and its dict_find would be dead
+    // weight. That is not academic on aplite: the field plus its wire parse measured
+    // +48 B of image there, and main builds 21788 B against a 21804 B launch-safety
+    // ceiling (scripts/check-aplite-size.sh). Guarding costs every non-emery platform
+    // exactly 0 B. A config blob is written and read by one install on one platform,
+    // never shared, so a per-platform sizeof(Config) is safe.
+#if defined(PBL_PLATFORM_EMERY)
+    bool large_graph_font;
+#endif
 } Config;
 
 // Read-only view of the loaded config. Non-NULL from config_load() until

@@ -36,6 +36,12 @@ bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
     Tuple *clay_battery_low_only_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_BATTERY_LOW_ONLY);
     // Optional (older phone builds omit it); date_month_first then stays false = day-first.
     Tuple *clay_date_month_first_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_DATE_MONTH_FIRST);
+#if defined(PBL_PLATFORM_EMERY)
+    // Optional (older phone builds omit it); large_graph_font then stays false.
+    // emery-only, like the field (config.h): the tuple still RIDES to every platform,
+    // but only emery pays the dict_find to look it up.
+    Tuple *clay_large_graph_font_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_LARGE_GRAPH_FONT);
+#endif
 #if defined(PBL_HEALTH)
     // Optional (older phone builds omit it); hr_scale then stays 0 = unset, and
     // health_graph_layer falls back to its own HEALTH_HR_LO/HEALTH_HR_HI.
@@ -84,6 +90,13 @@ bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
     if (clay_date_month_first_tuple) {
         out->date_month_first = (bool) (clay_date_month_first_tuple->value->int16);
     }
+#if defined(PBL_PLATFORM_EMERY)
+    if (clay_large_graph_font_tuple) {
+        // Booleans arrive as int16 (like every other CLAY_ toggle above) -- NOT int32,
+        // which is the colour / hr_scale idiom.
+        out->large_graph_font = (bool) (clay_large_graph_font_tuple->value->int16);
+    }
+#endif
 #if defined(PBL_HEALTH)
     if (clay_hr_scale_tuple) {
         // Read as int32 (like the colour tuples): PKJS sends numbers as 32-bit,
