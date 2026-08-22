@@ -21,42 +21,54 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
-  // --- block registry ---
-  var blockMap = {};
-  PConf.blocks = {
-    register: function (id, fn) { blockMap[id] = fn; },
-    get: function (id) { return blockMap[id]; }
-  };
+  /**
+   * The shared sheet-header chrome: title span + the ONE close button, always
+   * data-select-close (three modals used to hand-roll this, and the date modal
+   * minted its own data-date-close attribute for a branch that routed to the
+   * same closeModal anyway).
+   * @param {string} titleId DOM id for the title span (aria-labelledby target).
+   * @param {string} titleHtml Escaped/HTML title content.
+   * @returns {string} Header markup.
+   */
+  function sheetHeader(titleId, titleHtml) {
+    return '<div class="ssel-modal-hdr"><span class="ssel-modal-ttl" id="' + titleId + '">'
+      + titleHtml + '</span>'
+      + '<button type="button" class="ssel-modal-close" data-select-close aria-label="Close">×</button></div>';
+  }
+
+  /**
+   * One register/get pair backed by a private map — the shape every extension
+   * registry below shares. Eight hand-copied closures used to spell it out.
+   * @returns {{register: Function, get: Function}} A fresh registry.
+   */
+  function makeRegistry() {
+    var map = {};
+    return {
+      register: function (id, fn) { map[id] = fn; },
+      get: function (id) { return map[id]; }
+    };
+  }
+
+  // --- block registry --- fn(S, env, userData) -> htmlString for a schema block.
+  PConf.blocks = makeRegistry();
 
   // --- options-resolver registry --- a select/searchSelect/radio item opts into a
   // multi-key derived option list by name (item.optionsFrom.resolver: id) without the
-  // engine knowing what the derivation logic is — mirrors the block registry above.
+  // engine knowing what the derivation logic is.
   // fn(S, env, args) returns [[label, value], ...]; see resolveOptionsFrom below.
-  var optionsResolverMap = {};
-  PConf.optionsResolvers = {
-    register: function (name, fn) { optionsResolverMap[name] = fn; },
-    get: function (name) { return optionsResolverMap[name]; }
-  };
+  PConf.optionsResolvers = makeRegistry();
 
   // --- defaults-resolver registry --- a select item opts into a platform-aware default
   // by name (item.defaultFrom.resolver: id), resolved at hydrate + snap time. Separate
   // from optionsResolvers because a defaults resolver returns a single value, not a list.
   // fn(env, args) -> defaultValue; see resolveDefaultFrom below.
-  var defaultsResolverMap = {};
-  PConf.defaultsResolvers = {
-    register: function (name, fn) { defaultsResolverMap[name] = fn; },
-    get: function (name) { return defaultsResolverMap[name]; }
-  };
+  PConf.defaultsResolvers = makeRegistry();
 
   // --- recommend-resolver registry --- a select item flags its "best for you" option by name
   // (item.recommendFrom: id); the resolver fn(S, env) returns the recommended option VALUE and the
   // matching row in the open sheet gets a "(Recommended)" marker. Derived, like defaults, but read at
   // render time (so it tracks another key, e.g. the country selector) and yields a value, not a list.
-  var recommendResolverMap = {};
-  PConf.recommendResolvers = {
-    register: function (name, fn) { recommendResolverMap[name] = fn; },
-    get: function (name) { return recommendResolverMap[name]; }
-  };
+  PConf.recommendResolvers = makeRegistry();
 
   // --- sheet-resolver registry --- a row opts into a per-value edit sheet by name
   // (item.editSheetFrom: {resolver, args}); the resolver fn(S, env, args) returns the
@@ -64,42 +76,26 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // "this value has nothing to edit" (no pencil). Read at render time, like recommend.
   // args always carries the row's messageKey (schema args merge over it), so a resolver
   // shared by many rows needs no per-row args at all.
-  var sheetResolverMap = {};
-  PConf.sheetResolvers = {
-    register: function (name, fn) { sheetResolverMap[name] = fn; },
-    get: function (name) { return sheetResolverMap[name]; }
-  };
+  PConf.sheetResolvers = makeRegistry();
 
   // --- range-resolver registry --- a range item opts into settings-derived geometry and
   // zone styling by name (item.rangeFrom: {resolver, args}); the resolver fn(S, env, args)
   // returns the effective config (min/max/step/minSpan, dir, zone colors, seeds — see
   // thresholdRange in blocks.js), merged over the item at render AND drag time so unit
   // switches, a stored scale-max override and live color edits all take effect immediately.
-  var rangeResolverMap = {};
-  PConf.rangeResolvers = {
-    register: function (name, fn) { rangeResolverMap[name] = fn; },
-    get: function (name) { return rangeResolverMap[name]; }
-  };
+  PConf.rangeResolvers = makeRegistry();
 
   // --- badge-resolver registry --- a row with an edit-sheet pencil opts into a state badge
   // (item.editBadgeFrom: {resolver, args}); fn(S, env, args) returns null (no badge) or
   // {warnColor, dangerColor} hex strings for the ring+dot pair inside the trigger. Read at
   // render time like the sheet resolver, and only consulted when a sheet actually resolved.
-  var badgeResolverMap = {};
-  PConf.badgeResolvers = {
-    register: function (name, fn) { badgeResolverMap[name] = fn; },
-    get: function (name) { return badgeResolverMap[name]; }
-  };
+  PConf.badgeResolvers = makeRegistry();
 
   // --- onChange registry --- a schema item opts into a post-change side effect by
-  // name (item.onChange: id) without the engine knowing what that side effect is —
-  // mirrors the block registry above. fn(S, oldValue, newValue, env) runs synchronously,
-  // right after the click handler sets the new value and before the next render(). env is the platform env (INJECTED_ENV).
-  var onChangeMap = {};
-  PConf.onChange = {
-    register: function (id, fn) { onChangeMap[id] = fn; },
-    get: function (id) { return onChangeMap[id]; }
-  };
+  // name (item.onChange: id) without the engine knowing what that side effect is.
+  // fn(S, oldValue, newValue, env) runs synchronously, right after the click handler
+  // sets the new value and before the next render(). env is the platform env (INJECTED_ENV).
+  PConf.onChange = makeRegistry();
 
   // --- hook registry ---
   var loadFns = [], submitFns = [], readyFns = [];
@@ -596,8 +592,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // Inner content only — the host <dialog id="modal"> is the sheet, and its ::backdrop
     // replaces the old dim overlay. The dialog carries role/modal semantics natively;
     // boot() copies titleId onto the dialog's aria-labelledby when it opens.
-    return '<div class="ssel-modal-hdr"><span class="ssel-modal-ttl" id="' + titleId + '">' + title + '</span>'
-      + '<button type="button" class="ssel-modal-close" data-select-close aria-label="Close">×</button></div>'
+    return sheetHeader(titleId, title)
       + search
       + '<div id="' + listId + '" class="ssel-list" role="listbox" aria-label="' + title
       + ' options" data-ssel-list="' + key + '">'
@@ -631,9 +626,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var built = buildSectionBody(sec, cx);
     if (built.isEmpty) { return ''; }
     var titleId = 'esheet-ttl-' + esc(String(cx.openEdit));
-    return '<div class="ssel-modal-hdr"><span class="ssel-modal-ttl" id="' + titleId + '">'
-      + esc(String(sec.title || 'Edit')) + '</span>'
-      + '<button type="button" class="ssel-modal-close" data-select-close aria-label="Close">×</button></div>'
+    return sheetHeader(titleId, esc(String(sec.title || 'Edit')))
       + '<div class="ssel-list esheet">' + built.body + '</div>';
   }
 
@@ -876,10 +869,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     for (i = firstYear; i <= lastYear; i++) { years.push(i); }
     var key = esc(found.messageKey);
     var titleId = 'date-ttl-' + key;
-    return '<div class="ssel-modal-hdr"><span class="ssel-modal-ttl" id="'
-      + titleId + '">' + esc(found.label || 'Date') + '</span>'
-      + '<button type="button" class="ssel-modal-close" data-date-close'
-      + ' aria-label="Close">×</button></div><div class="date-picker"'
+    return sheetHeader(titleId, esc(found.label || 'Date'))
+      + '<div class="date-picker"'
       + ' data-date-picker="' + key + '"><div class="date-band"></div>'
       + renderDateWheel('day', days, p.day)
       + renderDateWheel('month', months, p.month)
@@ -2354,10 +2345,6 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
             parseInt(t.getAttribute('data-date-value'), 10);
           S[dateKey] = dateValueFromParts(parts);
           render();
-          return;
-        }
-        if (e.target.closest && e.target.closest('[data-date-close]')) {
-          closeModal();
           return;
         }
         // Backdrop light-dismiss: a ::backdrop click targets the dialog element itself.

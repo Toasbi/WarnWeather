@@ -959,7 +959,7 @@ function closeDateWithX(result) {
   const closeButton = {};
   result.modalListeners.click({
     target: {
-      closest: (selector) => selector === '[data-date-close]' ? closeButton : null
+      closest: (selector) => selector === '[data-select-close]' ? closeButton : null
     }
   });
 }
@@ -970,7 +970,7 @@ test('boot(): every fast date close path flushes the pending wheel selection', (
       const closeButton = {};
       result.modalListeners.click({
         target: {
-          closest: (selector) => selector === '[data-date-close]' ? closeButton : null
+          closest: (selector) => selector === '[data-select-close]' ? closeButton : null
         }
       });
     }],
@@ -1066,7 +1066,7 @@ test('boot(): closing a date sheet restores focus to its date trigger', () => {
   const closeButton = {};
   result.modalListeners.click({
     target: {
-      closest: (selector) => selector === '[data-date-close]' ? closeButton : null
+      closest: (selector) => selector === '[data-select-close]' ? closeButton : null
     }
   });
   assert.equal(result.focusCounts.date.trip, 1);

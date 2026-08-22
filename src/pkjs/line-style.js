@@ -117,7 +117,12 @@ function lineColorFor(metric, settings, isColor, theme) {
     } else {
         var entry = LINE_COLORS[metric];
         if (!entry) {
-            result = COLORS.GColorBlack;
+            // TOTAL: an unknown metric (today only thirdLine's 'off') resolves
+            // to the theme foreground instead of GColorBlack. Black is 0x00 and
+            // therefore falsy, which used to make resolveLineStyle's `||`
+            // fallbacks accident-dependent — this file already had to warn
+            // itself about that trap once (the light-variant note below).
+            result = COLORS.GColorWhite;
         } else if (isLightPolarity(theme) && entry.hasOwnProperty('light')) {
             // Presence, not truthiness: GColorBlack is 0x000000, so `entry.light &&`
             // silently drops a black light-variant back to the dark colour.
@@ -176,12 +181,17 @@ function resolveLineStyle(settings, watchInfo) {
     var isColor = isColorWatch(watchInfo) && !isBwTheme(theme);
     var secMetric = settings.secondaryLine;
     var thirdMetric = settings.thirdLine;
-    var secondary = lineColorFor(secMetric, settings, isColor, theme) || COLORS.GColorBlack;
+    // lineColorFor is TOTAL (unknown metrics resolve to the theme fg), so no
+    // `||` fallback — GColorBlack is 0x00/falsy, and the old `|| GColorBlack`
+    // was literally `x || 0` (a no-op) while the third line's `||` silently
+    // replaced every legitimately-black resolved colour.
+    var secondary = lineColorFor(secMetric, settings, isColor, theme);
     return {
         secondary: secondary,
+        // fillColorFor genuinely returns undefined for unknown metrics, so its
+        // fallback is real and stays.
         fill: fillColorFor(secMetric, isColor, theme) || secondary,
-        third: lineColorFor(thirdMetric, settings, isColor, theme)
-            || resolveInk(COLORS.GColorWhite, theme),
+        third: lineColorFor(thirdMetric, settings, isColor, theme),
         // Feels-like never fills. Every other metric maps 0..max, so the area under the
         // line is the area above a real zero; feels rides the temp∪feels band, whose floor
         // is just the coldest value on the plot — a fill there would flood the plot to an
