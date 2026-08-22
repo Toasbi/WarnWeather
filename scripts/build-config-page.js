@@ -7,9 +7,10 @@ var build = require('../src/pkjs/config-ui/scripts/build-page.js');
 var ROOT = path.join(__dirname, '..');
 var OUT  = path.join(ROOT, 'src/pkjs/settings/page.generated.js');
 var APP_FILES = [
-  // view-cycle.js and status-line-catalog.js must precede blocks.js: blocks.js's VC /
-  // statusLineCatalog fallbacks (used when this page is a flat concatenated <script>,
-  // not a Node module) read their declarations directly from this shared top-level scope.
+  // view-cycle.js and status-line-catalog.js must precede preview-blocks.js and
+  // blocks.js: their VC / statusLineCatalog fallbacks (used when this page is a flat
+  // concatenated <script>, not a Node module) read their declarations directly from
+  // this shared top-level scope.
   // country-defaults.js is the same shape (COUNTRY_DEFAULTS global) and must precede its
   // consumers blocks.js (recommend resolvers) and wizard.js (fresh-install derivation).
   path.join(ROOT, 'src/pkjs/settings/country-defaults.js'),

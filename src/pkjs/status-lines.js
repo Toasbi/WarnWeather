@@ -253,9 +253,11 @@ function formatCountdown(targetValue, now, showUnit, cap) {
  * Required LAZILY, not at the top of this module, because the require chain
  * loops back here: phone-battery.js requires status-rebake.js, which requires
  * THIS module (a battery event re-runs buildStatusLines over the stashed bake
- * inputs so the new value reaches the watch without a fetch). status-rebake
- * assigns its module.exports at file end, so a top-level require here would
- * hand phone-battery a still-empty exports object in the boot load order.
+ * inputs so the new value reaches the watch without a fetch). THIS module is
+ * the one mid-load when that chain would close (forecast-series requires it
+ * before status-rebake), so a top-level require here would make status-rebake
+ * capture status-lines' still-empty exports — killing every battery re-bake
+ * with a TypeError inside resendStatus.
  *
  * The typeof guard is deliberate rather than paranoid: this runs inside the bake
  * for ALL FOUR status lines, so a phone-battery module that cannot answer has to
