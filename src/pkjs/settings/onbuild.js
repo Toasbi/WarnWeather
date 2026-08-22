@@ -56,21 +56,22 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                         rawWarn = goalHex;
                     }
                 } else if (auto.isAuto(rawWarn)) {
-                    // An fg-valued warn color is ambiguous: the outline toggle
-                    // seeds exactly the fg when turned ON, and a legacy pre-toggle
-                    // auto left the same value behind. The STORED toggle rides the
-                    // save and settles it — with it on, a real color means "outline
-                    // deliberately on" and keeps tracking the theme fg (on B&W the
-                    // fg seed is the only on-state there is); otherwise the auto
-                    // value converts back to '' = no outline, as before.
-                    var deliberate = Boolean(ctx.get('thresh' + kind.key + 'WarnOutlineOn'))
-                        && rawWarn !== '' && rawWarn !== null
-                        && typeof rawWarn !== 'undefined';
-                    ctx.set('thresh' + kind.key + 'WarnColor', deliberate ? fg : '');
-                    rawWarn = deliberate ? fg : '';
+                    // WEATHER kinds: the STORED toggle owns the on/off state and
+                    // rides every save; the color is its detail. A custom pick
+                    // survives untouched (this branch not taken — outline on in
+                    // that color); an auto-valued color — blank, the old NaN
+                    // bug's null, or an fg seed/legacy residue — resolves by the
+                    // toggle: stored ON keeps tracking the theme fg (re-derived
+                    // each open, and on B&W the fg seed is the only on-state
+                    // there is), stored OFF or a pre-toggle legacy blob with no
+                    // stored toggle reads as no outline.
+                    var storedOn = ctx.get('thresh' + kind.key + 'WarnOutlineOn') === true;
+                    ctx.set('thresh' + kind.key + 'WarnColor', storedOn ? fg : '');
+                    rawWarn = storedOn ? fg : '';
                 }
-                ctx.set('thresh' + kind.key + 'WarnOutlineOn',
-                        rawWarn !== '' && rawWarn !== null && typeof rawWarn !== 'undefined');
+                // Both branches above normalize null/undefined away, so blank is
+                // the one remaining off-state.
+                ctx.set('thresh' + kind.key + 'WarnOutlineOn', rawWarn !== '');
                 var rawDanger = ctx.get('thresh' + kind.key + 'DangerColor');
                 if (auto.isAuto(rawDanger)) {
                     ctx.set('thresh' + kind.key + 'DangerColor', kind.goal ? goalHex : fg);

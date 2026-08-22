@@ -1282,12 +1282,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         S['thresh' + stem + 'Danger'] = String(cfg.seedDanger);
     });
 
-    // "Warn outline" toggle (thresh<K>WarnOutlineOn — recomputed on every page open
-    // from the stored warn color, with the STORED toggle value as the tie-breaker
-    // for weather kinds' fg-valued colors; see onbuild.js): ON seeds the theme's
-    // text color so the outline is immediately visible and editable, OFF blanks the
+    // "Warn outline" toggle (thresh<K>WarnOutlineOn): ON seeds the theme's text
+    // color so the outline is immediately visible and editable, OFF blanks the
     // color — a blank warn color IS the no-outline wire state (the blob's 0x00
-    // sentinel; the watch then renders warn as bold text only).
+    // sentinel; the watch then renders warn as bold text only). Goal kinds derive
+    // the toggle from the stored color on every open; weather kinds' STORED toggle
+    // owns the state, with auto colors following it — see onbuild.js.
     PConf.onChange.register('thresholdOutlineToggle', function (S, oldValue, newValue, env, key) {
         var m = /^thresh([A-Za-z]+)WarnOutlineOn$/.exec(key || '');
         if (!m) { return; }

@@ -1054,6 +1054,32 @@ test('a weather-kind outline survives the next page open (stored toggle disambig
     get: (k) => legacy[k], set: (k, v) => { legacy[k] = v; }, getInitial: (k) => legacy[k] });
   assert.equal(legacy.threshWindWarnColor, '', 'legacy residue still reads as no outline');
   assert.strictEqual(legacy.threshWindWarnOutlineOn, false);
+
+  // A STORED false behaves the same: the toggle owns the weather-kind state, so
+  // auto residue next to an explicit off reads as off, never as a pick.
+  const off = { theme: 'dark', threshWindWarnOutlineOn: false,
+    threshWindWarn: '40', threshWindDanger: '60', threshWindWarnColor: '#FFFFFF' };
+  onbuild.onLoad({ env: { platform: 'basalt' },
+    get: (k) => off[k], set: (k, v) => { off[k] = v; }, getInitial: (k) => off[k] });
+  assert.equal(off.threshWindWarnColor, '', 'stored-off + auto residue stays no-outline');
+  assert.strictEqual(off.threshWindWarnOutlineOn, false);
+});
+
+test('a stored-ON weather toggle heals a blank or null warn color back to the fg', () => {
+  // The toggle owns the state, so ON beside an empty-ish color — a state no UI
+  // flow produces, but a hand-edited or partially-healed blob could — re-seeds
+  // the fg and keeps the outline, rather than silently flipping the user's
+  // deliberate ON back off.
+  ['', null].forEach((rawColor) => {
+    const S = { theme: 'dark', threshWindWarnOutlineOn: true,
+      threshWindWarn: '40', threshWindDanger: '60', threshWindWarnColor: rawColor };
+    onbuild.onLoad({ env: { platform: 'basalt' },
+      get: (k) => S[k], set: (k, v) => { S[k] = v; }, getInitial: (k) => S[k] });
+    assert.equal(S.threshWindWarnColor, '#FFFFFF',
+      JSON.stringify(rawColor) + ': the fg is re-seeded');
+    assert.strictEqual(S.threshWindWarnOutlineOn, true,
+      JSON.stringify(rawColor) + ': the outline stays on');
+  });
 });
 
 test('the slot button is labelled Edit for every kind', () => {

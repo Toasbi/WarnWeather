@@ -300,15 +300,16 @@ function thresholdSection(title, keyStem, hint, gate, extraItems) {
             messageKey: 'thresh' + keyStem + 'Max',
             defaultValue: ''
         }, {
-            // Warn is ALWAYS bold when crossed; the outline is the opt-in extra. The
-            // toggle is recomputed each open from the stored warn color (onbuild.js)
-            // and writes the color through the thresholdOutlineToggle hook: ON seeds
-            // the theme fg, OFF blanks it, and a blank warn color is the wire's
-            // no-outline sentinel. NOT purely derived, though: for weather kinds the
-            // STORED toggle value is what tells a deliberately-ON fg color apart from
-            // legacy auto residue on reopen (onbuild.js), so it must keep riding the
-            // save. Shown on B&W too — outline vs no outline is meaningful without
-            // color choice, and there the fg seed is the only on-state.
+            // Warn is ALWAYS bold when crossed; the outline is the opt-in extra.
+            // Ownership splits by kind (onbuild.js): GOAL kinds derive the toggle
+            // from the stored warn color on every open; WEATHER kinds' STORED toggle
+            // owns the on/off state and rides every save — onbuild re-derives only
+            // to heal legacy colors and keep an auto color tracking the theme fg (a
+            // custom pick reads as outline-on either way). Writes go through the
+            // thresholdOutlineToggle hook: ON seeds the theme fg, OFF blanks it, and
+            // a blank warn color is the wire's no-outline sentinel. Shown on B&W too
+            // — outline vs no outline is meaningful without color choice, and there
+            // the fg seed is the only on-state.
             type: 'toggle',
             messageKey: 'thresh' + keyStem + 'WarnOutlineOn',
             label: goal ? 'Outline on close' : 'Outline on warn',
@@ -316,10 +317,10 @@ function thresholdSection(title, keyStem, hint, gate, extraItems) {
                 ? 'Adds an outline to the slot when you get close to the goal.'
                 : 'Adds an outline to the slot when the warn threshold is reached.',
             // Goal kinds celebrate with the outline ON out of the box; weather warn
-            // ships bold-only. (onLoad recomputes the toggle from the stored color —
-            // consulting the stored toggle itself for weather kinds, see above — and
-            // the seeded store must agree with the color defaults below, which
-            // clay-settings hydrates for the WATCH blob too.)
+            // ships bold-only. (onLoad recomputes goal toggles from the stored color
+            // and weather colors from the stored toggle — see above — and the seeded
+            // store must agree with the color defaults below, which clay-settings
+            // hydrates for the WATCH blob too.)
             defaultValue: goal,
             joinPrevious: true,
             onChange: 'thresholdOutlineToggle',
