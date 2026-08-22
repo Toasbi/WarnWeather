@@ -24,58 +24,10 @@
 // bucket for both jobs is what shipped first, and it threw away accuracy the
 // phone already had in hand for no saving whatsoever.
 //
-// The resend is a status-only micro-send. `buildStatusLines()` runs inside the
-// forecast bake and consumes transient payload keys that are deleted right
-// after, so a re-bake needs the bake *inputs*: forecast-series.js hands them
-// over via rememberBakeInputs() immediately before the bake. On a battery
-// event we re-bake a fresh clone of that snapshot and push only the five
-// status keys through the normal outbox. change-detector's categorySubset()
-// returns null for a category whose keys are all absent and ChangeDetector
-// skips those outright, so a partial payload sends the 'status' category alone
-// — no new outbox API, and no fetch, which is the point: a user with an
-// expired provider key still gets a live reading.
-//
-// The snapshot lives in memory AND on flash. Memory is the fast path;
-// localStorage is the restart backstop, and the backstop is not optional. PKJS
-// is torn down every time the user leaves the watchface, so an in-memory-only
-// snapshot left this slot dead from every restart until the next COMPLETED
-// fetch -- up to fetchIntervalMin (default 15, max 60 minutes), longer when
-// fetches fail. Every charging event inside that window logged "no bake
-// snapshot yet" and reached the watch not at all, which is exactly the event a
-// user looks at the watch to confirm.
-//
-// Why re-baking a RESTORED snapshot is safe -- verified against
-// forecast-series.js (applyForecastSeries) and status-lines.js:
-//
-//   * The snapshot is rewritten at EVERY bake (rememberBakeInputs runs
-//     immediately before buildStatusLines), and the status lines the watch has
-//     on flash came from the send that carried that same bake. So a re-bake
-//     reproduces the text the watch is ALREADY displaying for every slot but
-//     the battery one.
-//   * Every weather-derived slot (temp/feels, city, uv, wind, gust, pressure,
-//     dew, aqi, pollen, plus the wind-direction sentinel byte) and the packed
-//     STATUS_LEVELS_UINT8 threshold byte read frozen payload values, so they
-//     re-bake byte-identically however old the snapshot is.
-//   * The `sun` slot formats the epoch frozen in SUN_EVENTS, not the clock, so
-//     an old snapshot re-renders the identical string -- stale in precisely the
-//     way the watch is already stale, never differently stale.
-//   * Three things DO read the clock during a bake, and all three re-derive
-//     FORWARD rather than going stale: the countdown slot (formatCountdown
-//     defaults `now` to new Date()), aplite's phone-baked ISO week ('W' +
-//     isoWeek(new Date())), and the LIVE_* kinds (date, week, hr, steps,
-//     distance), which carry no baked text at all -- the watch draws them
-//     itself from the kind byte. A snapshot restored across midnight therefore
-//     pushes "3d" where the watch still shows "4d": the value the next fetch
-//     would have pushed anyway, a correction and never stale text.
-//   * Settings are deliberately NOT part of the stored blob. The restored
-//     payload is paired with the LIVE settings (deps.getSettings) at re-bake
-//     time, which is both smaller and more correct: saving settings forces a
-//     fetch, so in the steady state the two agree, and in the brief window where
-//     they don't, the live blob is what the next fetch would bake with.
-//
-// The blob is version-stamped and shape-checked on the way back in, so one
-// written by an older build (different key set) degrades to "no snapshot"
-// instead of throwing inside a battery event handler.
+// The resend itself is status-rebake.js's job: forecast-series hands it the
+// bake inputs before every bake, and this module only pulls the trigger
+// (statusRebake.resendStatus). The full why-a-restored-re-bake-is-byte-safe
+// rationale lives in that module's header now.
 //
 // One deliberate consequence of the backstop: the FIRST reading after a restart
 // can now send, because the trigger baseline is still in-memory only and so
