@@ -32,6 +32,31 @@ function trendHead(arr) {
 }
 
 /**
+ * @param {number} celsius Temperature in degrees Celsius.
+ * @returns {number} Temperature in degrees Fahrenheit.
+ */
+function celsiusToFahrenheit(celsius) {
+    return celsius * 9 / 5 + 32;
+}
+
+/**
+ * Fold a wind bearing into [0, 360), null-tolerant: a missing or non-finite
+ * feed value returns null ("unsourced"), matching every call site's degrade
+ * path. The single modulo keeps an in-range fractional bearing bit-identical
+ * (the ((d % 360) + 360) % 360 form can drift by an ULP), and 360 (due
+ * north) folds onto 0 so downstream sector arithmetic never sees a
+ * 16th-and-a-bit compass point.
+ *
+ * @param {*} degrees Raw bearing from a provider feed.
+ * @returns {number|null} Bearing in [0, 360), or null when unsourced.
+ */
+function normalizeBearing(degrees) {
+    if (typeof degrees !== 'number' || !isFinite(degrees)) { return null; }
+    var wrapped = degrees % 360;
+    return wrapped < 0 ? wrapped + 360 : wrapped;
+}
+
+/**
  * Round a value and clamp it to the watch's uint8 wire range [0, 255].
  * Non-finite input (NaN/undefined) collapses to 0. Shared by every path
  * that packs mm/h-scaled rain into a single wire byte.
@@ -78,5 +103,7 @@ module.exports = {
     mphToKmh: mphToKmh,
     kmhToDisplay: kmhToDisplay,
     trendHead: trendHead,
+    celsiusToFahrenheit: celsiusToFahrenheit,
+    normalizeBearing: normalizeBearing,
     zeroFilledArray: zeroFilledArray
 };

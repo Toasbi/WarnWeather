@@ -2,8 +2,8 @@ var WeatherProvider = require('./provider.js');
 var request = WeatherProvider.request;
 var failure = WeatherProvider.failure;
 
-var FORECAST_HOURS = 24;
-var HOUR_SECONDS = 60 * 60;
+var hourlyWindow = require('./hourly-window.js');
+var FORECAST_HOURS = hourlyWindow.FORECAST_HOURS;
 var YANDEX_ENDPOINT = 'https://api.weather.yandex.ru/graphql/query';
 
 /**
@@ -68,21 +68,11 @@ function flattenHours(weatherByPoint) {
     return hours;
 }
 
-/**
- * Index of the first hourly bucket at or after the current wall-clock hour.
- * @param {Object[]} hours Flattened hours (each with a unix-seconds string timestamp).
- * @param {number} nowEpoch Current time in epoch seconds.
- * @returns {number} Index of the first bucket >= the floored current hour, or -1.
- */
+// hourly-window owns the anchor rule; Yandex hours carry unix-second strings.
 function anchorIndex(hours, nowEpoch) {
-    var hourFloor = Math.floor(nowEpoch / HOUR_SECONDS) * HOUR_SECONDS;
-    var i;
-    for (i = 0; i < hours.length; i += 1) {
-        if (parseInt(hours[i].timestamp, 10) >= hourFloor) {
-            return i;
-        }
-    }
-    return -1;
+    return hourlyWindow.anchorIndex(hours, nowEpoch, function(hour) {
+        return parseInt(hour.timestamp, 10);
+    });
 }
 
 /**

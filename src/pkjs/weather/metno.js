@@ -4,19 +4,12 @@ var failure = WeatherProvider.failure;
 var metnoHeaders = require('./metno-headers.js');
 var feelsLikeF = require('./feels-like.js').feelsLikeF;
 
-var FORECAST_HOURS = 24;
-var HOUR_SECONDS = 60 * 60;
+var hourlyWindow = require('./hourly-window.js');
+var FORECAST_HOURS = hourlyWindow.FORECAST_HOURS;
+// Shared unit helpers (wire-units.js owns them; local aliases keep call sites).
+var celsiusToFahrenheit = require('../wire-units.js').celsiusToFahrenheit;
+var normalizeBearing = require('../wire-units.js').normalizeBearing;
 var LOCATIONFORECAST_BASE = 'https://api.met.no/weatherapi/locationforecast/2.0/complete';
-
-/**
- * Convert Celsius to Fahrenheit.
- *
- * @param {number} celsius Temperature in degrees Celsius.
- * @returns {number} Temperature in degrees Fahrenheit.
- */
-function celsiusToFahrenheit(celsius) {
-    return celsius * 9 / 5 + 32;
-}
 
 /**
  * Convert metres/second to kilometres/hour, rounded to the nearest integer.
@@ -26,20 +19,6 @@ function celsiusToFahrenheit(celsius) {
  */
 function msToKmh(metersPerSecond) {
     return Math.round(metersPerSecond * 3.6);
-}
-
-/**
- * Normalize a wind bearing into [0, 360). Met.no reports the meteorological
- * "comes from" direction; 360 (due north) is folded onto 0 so the sector
- * arithmetic downstream never sees a 16th-and-a-bit compass point. The single
- * modulo keeps an in-range value bit-identical (no float drift).
- *
- * @param {number} degrees Bearing in degrees, as reported.
- * @returns {number} Equivalent bearing in [0, 360).
- */
-function normalizeBearing(degrees) {
-    var wrapped = degrees % 360;
-    return wrapped < 0 ? wrapped + 360 : wrapped;
 }
 
 /**
@@ -82,17 +61,12 @@ function mapResponse(json, nowEpoch) {
     if (!Array.isArray(timeseries)) {
         return null;
     }
-    var hourFloor = Math.floor(nowEpoch / HOUR_SECONDS) * HOUR_SECONDS;
-    var anchor = -1;
+    // hourly-window owns the anchor rule; an unparsable time yields NaN, which
+    // never anchors — the same skip the old inline isFinite check performed.
+    var anchor = hourlyWindow.anchorIndex(timeseries, nowEpoch, function(entry) {
+        return Math.round(Date.parse(entry.time) / 1000);
+    });
     var i;
-    var epoch;
-    for (i = 0; i < timeseries.length; i += 1) {
-        epoch = Math.round(Date.parse(timeseries[i].time) / 1000);
-        if (isFinite(epoch) && epoch >= hourFloor) {
-            anchor = i;
-            break;
-        }
-    }
     if (anchor < 0 || timeseries.length - anchor < FORECAST_HOURS) {
         return null;
     }

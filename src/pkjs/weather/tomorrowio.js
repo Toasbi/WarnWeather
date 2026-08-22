@@ -2,8 +2,12 @@ var WeatherProvider = require('./provider.js');
 var request = WeatherProvider.request;
 var failure = WeatherProvider.failure;
 
-var FORECAST_HOURS = 24;
-var HOUR_SECONDS = 60 * 60;
+var hourlyWindow = require('./hourly-window.js');
+var FORECAST_HOURS = hourlyWindow.FORECAST_HOURS;
+var HOUR_SECONDS = hourlyWindow.HOUR_SECONDS;
+// Shared unit helpers (wire-units.js owns them; local aliases keep call sites).
+var celsiusToFahrenheit = require('../wire-units.js').celsiusToFahrenheit;
+var normalizeBearing = require('../wire-units.js').normalizeBearing;
 var TIMELINES_ENDPOINT = 'https://api.tomorrow.io/v4/timelines';
 // Core-layer fields only. AQI/pollen are enterprise-gated (403 on a free key)
 // and nothing in the app consumes a condition code, so no weatherCode either.
@@ -12,17 +16,6 @@ var TIMELINES_ENDPOINT = 'https://api.tomorrow.io/v4/timelines';
 // WEATHER_CALLS_PER_CYCLE), and this is still the same single Timelines GET.
 var FIELDS = 'temperature,precipitationProbability,precipitationIntensity,windSpeed,windGust,uvIndex,pressureSeaLevel,temperatureApparent,dewPoint,windDirection';
 var MPS_TO_KMH = 3.6;
-
-/**
- * Convert Celsius to Fahrenheit (the provider tempTrend contract — see
- * metno.js/dwd.js; getPayload rounds raw °F values).
- *
- * @param {number} celsius Temperature in degrees Celsius.
- * @returns {number} Temperature in degrees Fahrenheit.
- */
-function celsiusToFahrenheit(celsius) {
-    return celsius * 9 / 5 + 32;
-}
 
 /**
  * Build the Timelines request URL. startTime is the floored current wall-clock
@@ -62,33 +55,11 @@ function num(value) {
     return typeof value === 'number' ? value : 0;
 }
 
-/**
- * Normalize a wind bearing into [0, 360). Providers report 360 for due north
- * often enough (and, rarely, a small negative) that the half-open range the
- * arrow's sector arithmetic assumes has to be enforced at the boundary.
- *
- * @param {number} degrees Bearing in degrees, meteorological "comes from".
- * @returns {number} The same bearing in [0, 360).
- */
-function normalizeBearing(degrees) {
-    return ((degrees % 360) + 360) % 360;
-}
-
-/**
- * Index of the first interval at or after the current wall-clock hour.
- *
- * @param {Object[]} intervals Timelines intervals (ISO startTime each).
- * @param {number} nowEpoch Current time in epoch seconds.
- * @returns {number} Index of the first bucket >= the floored hour, or -1.
- */
+// hourly-window owns the anchor rule; Timelines intervals carry ISO startTimes.
 function anchorIndex(intervals, nowEpoch) {
-    var hourFloor = Math.floor(nowEpoch / HOUR_SECONDS) * HOUR_SECONDS;
-    for (var i = 0; i < intervals.length; i += 1) {
-        if (Math.round(Date.parse(intervals[i].startTime) / 1000) >= hourFloor) {
-            return i;
-        }
-    }
-    return -1;
+    return hourlyWindow.anchorIndex(intervals, nowEpoch, function(interval) {
+        return Math.round(Date.parse(interval.startTime) / 1000);
+    });
 }
 
 /**
@@ -225,6 +196,5 @@ TomorrowIoProvider.prototype.withProviderData = function(lat, lon, force, onSucc
 module.exports = {
     buildUrl: buildUrl,
     mapResponse: mapResponse,
-    celsiusToFahrenheit: celsiusToFahrenheit,
     TomorrowIoProvider: TomorrowIoProvider
 };

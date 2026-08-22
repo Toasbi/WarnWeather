@@ -31,16 +31,8 @@ function hourlyTrend(hourly, field, transform) {
     return sourced ? trend : [];
 }
 
-/**
- * Fold a bearing into the 0-359 range the normalized field promises. OWM
- * documents `wind_deg` as 0-359 but has been seen to report a bare 360.
- *
- * @param {number} degrees Raw bearing in degrees.
- * @returns {number} Bearing in [0, 360).
- */
-function normalizeBearing(degrees) {
-    return ((degrees % 360) + 360) % 360;
-}
+// Shared bearing fold (wire-units.js): null-tolerant, [0, 360).
+var normalizeBearing = require('../wire-units.js').normalizeBearing;
 
 var OpenWeatherMapProvider = function(apiKey) {
     this._super.call(this);

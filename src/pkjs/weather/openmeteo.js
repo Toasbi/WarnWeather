@@ -2,25 +2,13 @@ var WeatherProvider = require('./provider.js');
 var request = WeatherProvider.request;
 var failure = WeatherProvider.failure;
 
-var FORECAST_HOURS = 24;
-var HOUR_SECONDS = 60 * 60;
+var hourlyWindow = require('./hourly-window.js');
+var FORECAST_HOURS = hourlyWindow.FORECAST_HOURS;
+var HOUR_SECONDS = hourlyWindow.HOUR_SECONDS;
 
-/**
- * Find the index of the hourly bucket at or after the current wall-clock hour.
- *
- * @param {number[]} times Hourly timestamps in epoch seconds (ascending).
- * @param {number} nowEpoch Current time in epoch seconds.
- * @returns {number} Index of the first bucket >= the floored current hour, or -1.
- */
+// hourly-window owns the anchor rule; Open-Meteo times are plain epoch arrays.
 function anchorIndex(times, nowEpoch) {
-    var hourFloor = Math.floor(nowEpoch / HOUR_SECONDS) * HOUR_SECONDS;
-    var i;
-    for (i = 0; i < times.length; i += 1) {
-        if (times[i] >= hourFloor) {
-            return i;
-        }
-    }
-    return -1;
+    return hourlyWindow.anchorIndex(times, nowEpoch);
 }
 
 /**
@@ -150,42 +138,9 @@ function buildGustUrl(lat, lon) {
         + '&forecast_days=2';
 }
 
-/**
- * Extract a FORECAST_HOURS window of one hourly series, aligned to a forecast
- * start time. Indexes the series by timestamp and reads forward from startTime
- * hour by hour, so an auxiliary feed whose array offset differs from the main
- * (ecmwf) forecast still lines up. Missing or non-numeric buckets become null;
- * each caller documents what its own null means.
- *
- * @param {Object} json Parsed Open-Meteo /v1/forecast response.
- * @param {string} field Name of the hourly series to read (e.g. 'dew_point_2m').
- * @param {number} startTime Window start in epoch seconds (the main forecast's startTime).
- * @returns {Array.<(number|null)>|null} FORECAST_HOURS values, or null when the
- *   response carries no usable hourly.time / hourly[field] arrays.
- */
-function alignHourly(json, field, startTime) {
-    var hourly = json && json.hourly;
-    var times = hourly && hourly.time;
-    var series = hourly && hourly[field];
-    if (!hourly || !Array.isArray(times) || !Array.isArray(series)) {
-        return null;
-    }
-
-    var byTime = {};
-    var i;
-    for (i = 0; i < times.length; i += 1) {
-        byTime[times[i]] = series[i];
-    }
-
-    var out = [];
-    var h;
-    var value;
-    for (h = 0; h < FORECAST_HOURS; h += 1) {
-        value = byTime[startTime + h * HOUR_SECONDS];
-        out.push(typeof value === 'number' ? value : null);
-    }
-    return out;
-}
+// hourly-window owns the timestamp-indexed remap (air-quality.js shares it —
+// its mapAqi used to be a byte-identical copy of this function).
+var alignHourly = hourlyWindow.alignHourly;
 
 /**
  * Extract a FORECAST_HOURS gust window aligned to a forecast start time.

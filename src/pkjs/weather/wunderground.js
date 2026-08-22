@@ -5,19 +5,8 @@ var wuCache = require('./wu-current-hour-cache.js');
 var request = WeatherProvider.request;
 var failure = WeatherProvider.failure;
 
-/**
- * Normalize a WU `wdir` reading to a bearing in [0, 360). WU reports the
- * meteorological "comes from" direction and uses 360 for due north on some
- * station feeds; the downwind flip happens later, at bake time.
- * @param {*} wdir Raw `wdir` value from a v1 hourly bucket (null on calm hours).
- * @returns {number|null} Bearing 0-359, or null when the feed omits it.
- */
-function normalizeBearing(wdir) {
-    if (typeof wdir !== 'number' || !isFinite(wdir)) {
-        return null;
-    }
-    return ((wdir % 360) + 360) % 360;
-}
+// Shared bearing fold (wire-units.js): null-tolerant, [0, 360).
+var normalizeBearing = require('../wire-units.js').normalizeBearing;
 
 var WundergroundProvider = function() {
     this._super.call(this);

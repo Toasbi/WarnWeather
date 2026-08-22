@@ -8,12 +8,11 @@ var feelsLikeFromDewF = feelsLike.feelsLikeFromDewF;
 
 var BRIGHTSKY_BASE = require('./brightsky.js').BASE_URL;
 var MAX_DIST_METERS = 500000;
-var FORECAST_HOURS = 24;
+var FORECAST_HOURS = require('./hourly-window.js').FORECAST_HOURS;
 var HOUR_MS = 60 * 60 * 1000;
-
-function celsiusToFahrenheit(celsius) {
-    return celsius * 9 / 5 + 32;
-}
+// Shared unit helpers (wire-units.js owns them; local aliases keep call sites).
+var celsiusToFahrenheit = require('../wire-units.js').celsiusToFahrenheit;
+var normalizeBearing = require('../wire-units.js').normalizeBearing;
 
 /**
  * Steadman feels-like °F for one Brightsky hourly record (temperature °C,
@@ -51,21 +50,6 @@ function hourFeels(e) {
  */
 function hourDewF(e) {
     return typeof e.dew_point === 'number' ? celsiusToFahrenheit(e.dew_point) : null;
-}
-
-/**
- * Normalize a wind bearing to degrees 0-359, the meteorological "comes from"
- * convention Brightsky reports. Kept upwind here: the downwind flip the arrow
- * draws happens once, later, at bake time. 360 (due north) folds to 0.
- *
- * @param {*} degrees Raw bearing from the API, possibly absent or out of range.
- * @returns {number|null} Bearing in [0, 360), or null when unsourced.
- */
-function normalizeBearing(degrees) {
-    if (typeof degrees !== 'number' || isNaN(degrees)) {
-        return null;
-    }
-    return ((degrees % 360) + 360) % 360;
 }
 
 /**
