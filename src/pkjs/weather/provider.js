@@ -1,6 +1,5 @@
 var SunCalc = require('suncalc');
 var pickNext24hSunEvents = require('./sun-events.js').pickNext24hSunEvents;
-var storageKeys = require('../storage-keys.js');
 var outbox = require('../outbox.js');
 var wireUnits = require('../wire-units.js');
 var clampByte = wireUnits.clampByte;
@@ -25,7 +24,6 @@ var writeGeocodeCache = locationLib.writeGeocodeCache;
 var writeGeocodeBackoff = locationLib.writeGeocodeBackoff;
 var readGpsCache = locationLib.readGpsCache;
 var GPS_CACHE_MAX_AGE_MS = locationLib.GPS_CACHE_MAX_AGE_MS;
-
 
 
 var WeatherProvider = function() {
@@ -195,7 +193,6 @@ WeatherProvider.prototype.withSunEvents = function(lat, lon, callback, onFailure
 };
 
 
-
 /**
  * Reverse-geocode coordinates to a display city name + country code via ArcGIS.
  *
@@ -337,7 +334,6 @@ WeatherProvider.prototype.withGeocodeCoordinates = function(callback, onFailure)
         }).bind(this)
     );
 };
-
 
 
 /**

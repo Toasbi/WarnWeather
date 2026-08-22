@@ -1,6 +1,4 @@
 var WeatherProvider = require('./provider.js');
-var request = WeatherProvider.request;
-var failure = WeatherProvider.failure;
 var metnoHeaders = require('./metno-headers.js');
 var feelsLikeF = require('./feels-like.js').feelsLikeF;
 

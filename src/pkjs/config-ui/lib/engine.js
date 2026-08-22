@@ -16,13 +16,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // The range/threshold slider (numeric rules + renderers + drag wiring) lives
   // in lib/range-control.js; same alias discipline as the date picker above.
   var rangeControl = (typeof require !== 'undefined') ? require('./range-control.js') : PConf.rangeControl;
-  var rangeStep = rangeControl.rangeStep;
   var snapToStep = rangeControl.snapToStep;
   var formatRange = rangeControl.formatRange;
   var parseRange = rangeControl.parseRange;
   var moveThumb = rangeControl.moveThumb;
   var thresholdValues = rangeControl.thresholdValues;
-  var renderThresholdRange = rangeControl.renderThresholdRange;
   var paintThresholdRange = rangeControl.paintThresholdRange;
   var renderRange = rangeControl.renderRange;
   var formatDateValue = datePicker.formatDateValue;

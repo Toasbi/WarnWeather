@@ -31,8 +31,6 @@ var providerFactory = require('./provider-factory.js');
 var previewPalette = require('./settings/preview-palette.js');
 var newsCache = require('./news-cache.js');
 var createChannelScheduler = require('./channel-scheduler.js');
-var statusCatalog = require('./status-line-catalog.js');
-var statusThresholds = require('./status-thresholds.js');
 // The render-affecting-settings signature (the force-fetch rule) lives in its own
 // module so the invariant is testable; see the header there.
 var renderSignature = require('./render-signature.js').renderSignature;

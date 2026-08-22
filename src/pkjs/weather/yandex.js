@@ -1,5 +1,4 @@
 var WeatherProvider = require('./provider.js');
-var request = WeatherProvider.request;
 var failure = WeatherProvider.failure;
 
 var hourlyWindow = require('./hourly-window.js');

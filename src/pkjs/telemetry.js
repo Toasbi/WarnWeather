@@ -1,3 +1,5 @@
+var statusCatalog = require('./status-line-catalog.js');
+
 /**
  * Parse a value as a base-10 integer for telemetry, omitting invalid input.
  *
@@ -11,7 +13,7 @@ function toIntOrUndefined(value) {
 
 /**
  * Read a boolean setting that ships ON, reporting the shipped state when the key is
- * absent. The four unit toggles below default to true (settings/schema.js), and
+ * absent. The catalog's true-default unit toggles ship ON (settings/schema.js), and
  * `Boolean(undefined)` would read as a deliberate "off" — a whole fleet of installs
  * looking like they turned kph off. seedDefaults backfills these keys at boot, so the
  * absent case should never reach here; this keeps the column honest if it ever does.
@@ -31,7 +33,7 @@ function boolDefaultOn(value) {
  */
 function buildSettingsSnapshot(settings) {
     var safe = settings || {};
-    return {
+    var snapshot = {
         temperatureUnits: safe.temperatureUnits,
         tempSlotDisplay: safe.tempSlotDisplay,
         aqiScale: safe.aqiScale,
@@ -40,15 +42,6 @@ function buildSettingsSnapshot(settings) {
         distanceUnits: safe.distanceUnits,
         windSlotDirection: Boolean(safe.windSlotDirection),
         gustSlotDirection: Boolean(safe.gustSlotDirection),
-        // The per-kind "Show unit" toggles. Four ship on, two ship off — the fallbacks
-        // mirror settings/schema.js's defaults (pinned by test/telemetry.test.js) so an
-        // unseeded install cannot report the opposite of what it renders.
-        windSlotUnit: boolDefaultOn(safe.windSlotUnit),
-        gustSlotUnit: boolDefaultOn(safe.gustSlotUnit),
-        pressureSlotUnit: boolDefaultOn(safe.pressureSlotUnit),
-        countdownSlotUnit: boolDefaultOn(safe.countdownSlotUnit),
-        tempSlotUnit: Boolean(safe.tempSlotUnit),
-        dewSlotUnit: Boolean(safe.dewSlotUnit),
         // The one per-kind Bold mode in the snapshot. The phone-battery slot is
         // Android-only (its reading comes from a host API that exists nowhere else),
         // so how the handful of phones that can have it configure it is worth seeing;
@@ -106,6 +99,19 @@ function buildSettingsSnapshot(settings) {
         colorSaturday: safe.colorSaturday,
         colorUSFederal: safe.colorUSFederal
     };
+    // The per-kind "Show unit" toggles, derived from the catalog's table (the
+    // same one formatValue bakes by and settings/schema.js defaults from) so a
+    // flipped default can never desynchronize what telemetry reports from what
+    // the watch renders. Defaults pinned by test/telemetry.test.js. A new key
+    // here must also join the Deno .strip() schema or it is silently dropped
+    // (supabase/functions/telemetry-ingest/index.ts).
+    var toggles = statusCatalog.UNIT_TOGGLES;
+    for (var i = 0; i < toggles.length; i++) {
+        snapshot[toggles[i].key] = toggles[i].dflt
+            ? boolDefaultOn(safe[toggles[i].key])
+            : Boolean(safe[toggles[i].key]);
+    }
+    return snapshot;
 }
 
 /**

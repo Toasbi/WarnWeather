@@ -125,7 +125,6 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
 
-
   /**
    * Resolve a threshold slider's two stored values (display-unit strings; comma
    * decimals tolerated) into track order. Roles map to thumbs by the kind's

@@ -93,6 +93,15 @@ function install() {
             return false;
         });
     }
+
+    // ES2015 static, so possibly absent on aplite's pre-ES6 JSC. The regex
+    // guard in test/config-es5.test.js can't see built-in METHOD calls, which
+    // is how rain-tier.js's Math.trunc slipped through — guard it here.
+    if (!Math.trunc) {
+        Math.trunc = function (v) {
+            return v < 0 ? Math.ceil(v) : Math.floor(v);
+        };
+    }
 }
 
 // Install on require so the entry file only needs `require('./polyfills.js')`.
