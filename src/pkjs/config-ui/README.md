@@ -481,7 +481,10 @@ rename, so a concurrent reader never sees a half-written file), and returns `out
    - `lib/schema-walk.js` — single-source schema traversal (`PConf.schemaWalk`)
    - `lib/color.js` — int↔hex color conversion (`PConf.color`)
    - `lib/show-when.js` — predicate evaluator (`PConf.showWhen`)
-   - `lib/engine.js` — render engine, block registry, hook registry
+   - `lib/html.js` — the escape helper + shared sheet header (`PConf.html`)
+   - `lib/date-picker.js` — the date control: value helpers, wheel renderers, scroll-settle wiring (`PConf.datePicker`)
+   - `lib/range-control.js` — the dual-thumb/threshold slider: numeric rules, renderers, drag wiring (`PConf.rangeControl`)
+   - `lib/engine.js` — render engine, registries, hooks, modal shell, event wiring
    - each file in `appFiles` — the app's blocks and hooks
    - `PConf.engine.boot();` — boot runs last, after all registrations
 3. Preserves the `/*__PCONF_INJECT__*/` marker for runtime injection inside `generateUrl`.
