@@ -131,6 +131,45 @@ var BOLD_ALL_WHEN = {key: 'statusBoldAll', eq: 'all'};
 // constant instead of six inline copies across its slots and countdown rows.
 var RADAR_BAR_WHEN = {all: [{env: 'radar'}, {key: 'radarMode', in: ['status', 'graph']}]};
 var HEALTH_BAR_WHEN = {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]};
+// "The theme actually renders color choices" — inlined ~10 times before it had
+// a name. (The compound "effectively B&W" check lives in bwLegendItems below.)
+var COLOR_THEME_WHEN = {key: 'theme', nin: ['bw', 'bw-light']};
+
+/**
+ * Gate every item that has no showWhen of its own — the shared one-pass idiom
+ * of the two sheet builders: an item added later cannot forget its gate line,
+ * and a caller-supplied row that brings its own showWhen keeps it.
+ * @param {Object[]} items Schema items (mutated).
+ * @param {?Object} gate showWhen predicate, or null for no gate.
+ * @returns {Object[]} The same array.
+ */
+function gateAll(items, gate) {
+    if (gate) {
+        items.forEach(function (item) {
+            item.showWhen = item.showWhen || gate;
+        });
+    }
+    return items;
+}
+
+/**
+ * The shared sheet envelope both builders return: a sheetOnly section reachable
+ * only through a slot's pencil, keyed thresh<Stem>, gated on the thresholds
+ * capability (aplite compiles the machinery out).
+ * @param {string} keyStem Kind key stem, e.g. 'City'.
+ * @param {string} title Catalog label of the slot kind.
+ * @param {Object[]} items The sheet's rows.
+ * @returns {Object} Schema section.
+ */
+function sheetOf(keyStem, title, items) {
+    return {
+        sheetOnly: true,
+        sheetId: 'thresh' + keyStem,
+        showWhen: THRESHOLD_WHEN,
+        title: title + ' slot',
+        items: items
+    };
+}
 // Shared intro lines at the top of every threshold edit sheet (the sheets are the only
 // place thresholds are explained now that the Watch-tab card is gone). Two voices: the
 // weather kinds cross THRESHOLDS upward; the health kinds fall short of GOALS
@@ -232,9 +271,7 @@ function thresholdSection(title, keyStem, hint, gate, extraItems) {
     // from the pair on every page open — see onbuild.js) and drives the pair
     // through the thresholdToggle hook.
     var offWhen = {not: {key: onKey}};
-    var colorWhen = gate
-        ? {all: [gate, {key: 'theme', nin: ['bw', 'bw-light']}]}
-        : {key: 'theme', nin: ['bw', 'bw-light']};
+    var colorWhen = gate ? {all: [gate, COLOR_THEME_WHEN]} : COLOR_THEME_WHEN;
     var toggle = {
         type: 'toggle',
         messageKey: onKey,
@@ -287,27 +324,16 @@ function thresholdSection(title, keyStem, hint, gate, extraItems) {
     };
     var extras = extraItems || [];
     // Every plain item in the sheet carries the same sub-section gate; applying it
-    // in one pass means an item added above cannot forget its gate line. (The
-    // outline toggle and color pickers below set showWhen inline instead — they
-    // layer the B&W/outline rules on top of the gate.) The extras join the pass with
-    // boldSection's non-clobbering idiom: a caller-supplied row may bring its own
-    // showWhen, and the gate must not overwrite it.
-    if (gate) {
-        [toggle, range, bold, header].concat(extras).forEach(function (item) {
-            item.showWhen = item.showWhen || gate;
-        });
-    }
-    return {
-        sheetOnly: true,
-        sheetId: 'thresh' + keyStem,
-        // Section-level gate: on a watch that can't render highlighting the sheet body
-        // is empty (belt-and-braces behind the resolver's env gate), so the per-item
-        // `gate`/color rules below only ever decide visibility among watches that CAN.
-        showWhen: THRESHOLD_WHEN,
-        title: title + ' slot',
-        // Bold leads every slot sheet; the kind's own display rows follow it, and the
-        // Thresholds group (header + toggle + slider + colors) closes the sheet.
-        items: [bold].concat(extras, [header, toggle, range, {
+    // in one pass (gateAll) means an item added above cannot forget its gate
+    // line. (The outline toggle and color pickers below set showWhen inline
+    // instead — they layer the B&W/outline rules on top of the gate.)
+    gateAll([toggle, range, bold, header].concat(extras), gate);
+    // Bold leads every slot sheet; the kind's own display rows follow it, and the
+    // Thresholds group (header + toggle + slider + colors) closes the sheet.
+    // sheetOf carries the section-level THRESHOLD_WHEN gate: on a watch that
+    // can't render highlighting the sheet must not exist (belt-and-braces
+    // behind the resolver's env gate).
+    return sheetOf(keyStem, title, [bold].concat(extras, [header, toggle, range, {
             // Companion storage for the slider's second thumb and its editable scale
             // max: hydrated + serialized but never drawn (the range row renders both).
             type: 'hidden',
@@ -359,11 +385,9 @@ function thresholdSection(title, keyStem, hint, gate, extraItems) {
             defaultValue: goal ? STATUS_THRESHOLDS.DEFAULT_GOAL_HEX : '',
             joinPrevious: true,
             capabilities: ['COLOR'],
-            showWhen: gate
-                ? {all: [gate, {key: 'theme', nin: ['bw', 'bw-light']},
-                         {key: 'thresh' + keyStem + 'WarnOutlineOn'}]}
-                : {all: [{key: 'theme', nin: ['bw', 'bw-light']},
-                         {key: 'thresh' + keyStem + 'WarnOutlineOn'}]},
+            // colorWhen (gate + color-capable theme) composed with the outline
+            // toggle — not a hand-rebuilt copy of the same predicate.
+            showWhen: {all: [colorWhen, {key: 'thresh' + keyStem + 'WarnOutlineOn'}]},
             disabledWhen: offWhen
         }, {
             type: 'color',
@@ -374,8 +398,7 @@ function thresholdSection(title, keyStem, hint, gate, extraItems) {
             capabilities: ['COLOR'],
             showWhen: colorWhen,
             disabledWhen: offWhen
-        }])
-    };
+        }]));
 }
 // Bold-only edit sheet for a slot kind WITHOUT thresholds (temp, date, city, …):
 // the same pencil machinery — the contract's KINDS maps the slot code to this
@@ -411,22 +434,7 @@ function boldSection(title, keyStem, gate, extraItems) {
     // sheet that opened with its display-mode row put the one row all these sheets
     // share in a different place on the one sheet that has company.
     var items = [bold].concat(extraItems || []);
-    // Same one-pass gate application as thresholdSection: an extra item cannot
-    // forget its gate line (items with their own showWhen keep it).
-    if (gate) {
-        items.forEach(function (item) {
-            item.showWhen = item.showWhen || gate;
-        });
-    }
-    return {
-        sheetOnly: true,
-        sheetId: 'thresh' + keyStem,
-        // Same section-level platform gate as thresholdSection: aplite compiles the
-        // highlight machinery out, so the sheet must not exist there.
-        showWhen: THRESHOLD_WHEN,
-        title: title + ' slot',
-        items: items
-    };
+    return sheetOf(keyStem, title, gateAll(items, gate));
 }
 // Pressure curve copy, pre-rendered per scale value. Derived from
 // forecast-series.PRESSURE_SCALE_CURVE_HPA (the sole source of truth for the numbers)
@@ -852,7 +860,7 @@ module.exports = {
                 joinPrevious: true,
                 text: SCALE_NOTE,
                 capabilities: ['COLOR'],
-                showWhen: {all: [{key: 'barSource', eq: 'rain'}, {key: 'theme', nin: ['bw', 'bw-light']}]}
+                showWhen: {all: [{key: 'barSource', eq: 'rain'}, COLOR_THEME_WHEN]}
             }, {
                 type: 'staticText',
                 joinPrevious: true,
@@ -860,7 +868,7 @@ module.exports = {
                 // Effective color: shows whenever the display isn't rendering as color —
                 // real B&W hardware OR the Black & White theme (bw/bw-light) on a color watch.
                 showWhen: {all: [
-                    {not: {all: [{env: 'color'}, {key: 'theme', nin: ['bw', 'bw-light']}]}},
+                    {not: {all: [{env: 'color'}, COLOR_THEME_WHEN]}},
                     {key: 'barSource', eq: 'rain'}
                 ]}
             }, {
@@ -874,7 +882,7 @@ module.exports = {
                 // VALUE stays 'white' for wire compatibility (the watch resolves it to the
                 // right polarity color itself — see rain-tier.js); only the label changes.
                 options: [['Multicolor', 'multicolor'], ['Solid', 'white']],
-                showWhen: {all: [{key: 'barSource', eq: 'rain'}, {key: 'theme', nin: ['bw', 'bw-light']}]}
+                showWhen: {all: [{key: 'barSource', eq: 'rain'}, COLOR_THEME_WHEN]}
             }, {
                 type: 'toggle',
                 messageKey: 'dayNightShading',
@@ -958,14 +966,14 @@ module.exports = {
                 text: SCALE_NOTE,
                 hinted: true,
                 capabilities: ['COLOR'],
-                showWhen: {all: [{key: 'radarMode', eq: 'graph'}, {key: 'theme', nin: ['bw', 'bw-light']}]}
+                showWhen: {all: [{key: 'radarMode', eq: 'graph'}, COLOR_THEME_WHEN]}
             }, {
                 type: 'staticText',
                 blockBefore: 'radarPreview',
                 text: BW_LEGEND,
                 hinted: true,
                 showWhen: {all: [
-                    {not: {all: [{env: 'color'}, {key: 'theme', nin: ['bw', 'bw-light']}]}},
+                    {not: {all: [{env: 'color'}, COLOR_THEME_WHEN]}},
                     {key: 'radarMode', eq: 'graph'}
                 ]}
             }, {
@@ -978,7 +986,7 @@ module.exports = {
                 // VALUE stays 'white' for wire compatibility (the watch resolves it to the
                 // right polarity color itself — see rain-tier.js); only the label changes.
                 options: [['Multicolor', 'multicolor'], ['Solid', 'white']],
-                showWhen: {all: [{key: 'radarMode', eq: 'graph'}, {key: 'theme', nin: ['bw', 'bw-light']}]}
+                showWhen: {all: [{key: 'radarMode', eq: 'graph'}, COLOR_THEME_WHEN]}
             }, {
                 // Custom quiet-state text: drawn in the radar GRAPH when the nowcast
                 // finds no rain in the whole window. Ships visibly with the watch's
@@ -1294,7 +1302,7 @@ module.exports = {
                 label: 'Main time color',
                 defaultValue: 0xFFFFFF,
                 capabilities: ['COLOR'],
-                showWhen: {key: 'theme', nin: ['bw', 'bw-light']}
+                showWhen: COLOR_THEME_WHEN
             }]
         }, {
             title: 'Calendar', items: [{
@@ -1316,21 +1324,21 @@ module.exports = {
                 defaultValue: 0,
                 capabilities: ['COLOR'],
                 hint: 'Black (default) means match date color; any other value overrides it.',
-                showWhen: {key: 'theme', nin: ['bw', 'bw-light']}
+                showWhen: COLOR_THEME_WHEN
             }, {
                 type: 'color',
                 messageKey: 'colorSunday',
                 label: 'Sunday color',
                 defaultValue: 0xFF0055,
                 capabilities: ['COLOR'],
-                showWhen: {key: 'theme', nin: ['bw', 'bw-light']}
+                showWhen: COLOR_THEME_WHEN
             }, {
                 type: 'color',
                 messageKey: 'colorSaturday',
                 label: 'Saturday color',
                 defaultValue: 0xFF0055,
                 capabilities: ['COLOR'],
-                showWhen: {key: 'theme', nin: ['bw', 'bw-light']}
+                showWhen: COLOR_THEME_WHEN
             }, {type: 'toggle', messageKey: 'holidaysEnabled', label: 'Holiday highlight', defaultValue: true}, {
                 type: 'color',
                 messageKey: 'colorUSFederal',

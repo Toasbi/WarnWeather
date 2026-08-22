@@ -1494,10 +1494,14 @@ test('thresholdSection gates its extra rows without clobbering their own showWhe
     path.join(__dirname, '..', 'src', 'pkjs', 'settings', 'schema.js'), 'utf8');
   const body = src.slice(src.indexOf('function thresholdSection('),
     src.indexOf('function boldSection('));
-  assert.ok(body.indexOf('item.showWhen = item.showWhen || gate') !== -1,
-    'thresholdSection must use boldSection\'s non-clobbering gate idiom');
-  assert.equal(/item\.showWhen\s*=\s*gate\s*;/.test(body), false,
-    'thresholdSection must not overwrite an item\'s own showWhen with the gate');
+  assert.ok(body.indexOf('gateAll(') !== -1,
+    'thresholdSection must gate through the shared gateAll pass');
+  const gateAllBody = src.slice(src.indexOf('function gateAll('),
+    src.indexOf('function sheetOf('));
+  assert.ok(gateAllBody.indexOf('item.showWhen = item.showWhen || gate') !== -1,
+    'gateAll must keep the non-clobbering idiom (a row\'s own showWhen wins)');
+  assert.equal(/item\.showWhen\s*=\s*gate\s*;/.test(gateAllBody), false,
+    'gateAll must not overwrite an item\'s own showWhen with the gate');
   // The shipped gated sheet still ends up gated: every VISIBLE row carries the health
   // gate (the two hidden companion rows are never drawn, so they never had one).
   const health = schema.tabs.find((t) => t.id === 'watch').sections
