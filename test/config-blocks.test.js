@@ -193,7 +193,7 @@ test('forecastPreview never draws the second metric as the same metric as the ma
   assert.equal(svg.indexOf('fill="#FFFF00"'), -1, 'duplicate metric → no second-metric squares');
 });
 test('registers all preview/util blocks into PConf.blocks', () => {
-  ['forecastPreview','radarPreview','layoutPreview','layoutPreviewFlick','layoutPreviewCombined','devStats','lastFetch'].forEach((id) => assert.equal(typeof PConf.blocks.get(id), 'function'));
+  ['forecastPreview','radarPreview','layoutPreviewCombined','devStats','lastFetch'].forEach((id) => assert.equal(typeof PConf.blocks.get(id), 'function'));
 });
 
 test('registers the statusSlot options resolver into PConf.optionsResolvers', () => {
@@ -575,29 +575,13 @@ test('resolveBandHeights: the flex band never collapses below a visible minimum'
     assert.ok(heights[1] >= 12, 'flex band clamped to a visible minimum instead of going negative');
 });
 
-test('layoutPreview renders the resolved preset\'s default (slot 0) content', () => {
-    assert.ok(B.layoutPreview({ layoutPreset: 'fullCal' }, {}, {}).indexOf('Calendar (3 rows)') >= 0,
-        'fullCal default is the 3-row calendar view');
-    assert.ok(B.layoutPreview({ layoutPreset: 'noCal' }, {}, {}).indexOf('Calendar') === -1,
-        'noCal preset default has no calendar');
-});
-
-test('layoutPreviewFlick renders the first flick slot, or nothing when the cycle has none', () => {
-    assert.ok(B.layoutPreviewFlick({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'off' }, {}, {}).indexOf('Radar') >= 0,
-        'compactCal + radar flick 1 is radar');
-    assert.ok(B.layoutPreviewFlick({ layoutPreset: 'compactCal', radarMode: 'graph', healthMode: 'status' }, {}, {}).indexOf('Health Status') >= 0,
-        'compactCal + health status flick 1 shows health status');
-    assert.strictEqual(B.layoutPreviewFlick({ layoutPreset: 'compactCal', radarMode: 'off', healthMode: 'off' }, {}, {}), '',
-        'a single-slot cycle (no radar, no health) has no flick');
-});
-
-// radarMode: 'status' packs the radar flick stop as BODY_RADAR_STATUS — the forecast
-// body (chart suppressed) with the status line turned to radar, mirroring the watch.
-test('layoutPreviewFlick: radarMode "status" renders a Forecast body with a Radar Status band', () => {
-    const svg = B.layoutPreviewFlick({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'status' }, {}, {});
+// radarMode 'status' packs the flick stop as BODY_RADAR_STATUS — the forecast body
+// (chart suppressed) with the status line turned to radar, mirroring the watch.
+// (The band labeling itself is pinned by the contentBands tests above.)
+test('layoutPreviewCombined: radarMode "status" renders the flick column as Forecast + Radar Status', () => {
+    const svg = B.layoutPreviewCombined({ layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'status' }, {}, {});
     assert.ok(svg.indexOf('>Forecast<') >= 0, 'radar-status flick body renders as Forecast');
     assert.ok(svg.indexOf('>Radar Status<') >= 0, 'status band reads Radar Status');
-    assert.equal(svg.indexOf('>Radar<'), -1, 'never labeled as a bare Radar body');
 });
 
 test('layoutPreviewCombined: one column per cycle slot, headers Default/Flick 1/Flick 2', () => {
@@ -742,41 +726,30 @@ test('forecastPreview: rainBarColor=Solid in the light theme uses DarkGray, not 
   assert.equal(svg.indexOf('fill="#000000"'), -1, 'never a plain black fill in the light theme');
 });
 
-test('layoutPreview / layoutPreviewCombined: light theme flips the canvas background to white', () => {
+test('layoutPreviewCombined: light theme flips the canvas background to white', () => {
   const state = { layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off', theme: 'light' };
-  assert.ok(B.layoutPreview(state, {}).indexOf('fill="#FFFFFF"') >= 0);
   assert.ok(B.layoutPreviewCombined(state, {}).indexOf('fill="#FFFFFF"') >= 0);
 });
 
-test('layoutPreview / layoutPreviewCombined: bw-light theme also flips the canvas background to white', () => {
+test('layoutPreviewCombined: bw-light theme also flips the canvas background to white', () => {
   const state = { layoutPreset: 'compactCal', healthMode: 'off', radarMode: 'off', theme: 'bw-light' };
-  assert.ok(B.layoutPreview(state, {}).indexOf('fill="#FFFFFF"') >= 0);
   assert.ok(B.layoutPreviewCombined(state, {}).indexOf('fill="#FFFFFF"') >= 0);
 });
 
-// The band-stack chrome (renderBandStack's band fill, renderBandColumn's band fill +
-// empty-column placeholder) used to be a fixed dark hex regardless of theme, so a light
-// canvas still showed dark "cards" floating on it. Both now wash previewInk's rgba
-// helper — the same theme-relative mechanism the other previews use for dividers/
-// gridlines — instead of a hardcoded color.
-test('layoutPreview / layoutPreviewFlick / layoutPreviewCombined: light theme themes the band chrome too, not just the canvas', () => {
+// The band-stack chrome (renderBandColumn's band fill + empty-column placeholder)
+// used to be a fixed dark hex regardless of theme, so a light canvas still showed
+// dark "cards" floating on it. It now washes previewInk's rgba helper — the same
+// theme-relative mechanism the other previews use for dividers/gridlines.
+test('layoutPreviewCombined: light theme themes the band chrome too, not just the canvas', () => {
   const state = { layoutPreset: 'compactCal', healthMode: 'status', radarMode: 'graph', theme: 'light' };
-  const preview = B.layoutPreview(state, {});
-  const flick = B.layoutPreviewFlick(state, {});
   const combined = B.layoutPreviewCombined(state, {});
-  assert.equal(preview.indexOf('#1B1F27'), -1, 'layoutPreview band fill is no longer hardcoded dark');
-  assert.ok(preview.indexOf('rgba(0,0,0,0.12)') >= 0, 'layoutPreview band fill washes black-on-white in light theme');
-  assert.equal(flick.indexOf('#1B1F27'), -1, 'layoutPreviewFlick band fill is no longer hardcoded dark');
-  assert.ok(flick.indexOf('rgba(0,0,0,0.12)') >= 0, 'layoutPreviewFlick band fill washes black-on-white in light theme');
-  assert.equal(combined.indexOf('#1B1F27'), -1, 'layoutPreviewCombined band fill is no longer hardcoded dark');
-  assert.equal(combined.indexOf('#12151C'), -1, 'layoutPreviewCombined placeholder fill is no longer hardcoded dark');
-  assert.ok(combined.indexOf('rgba(0,0,0,0.12)') >= 0, 'layoutPreviewCombined band fill washes black-on-white in light theme');
+  assert.equal(combined.indexOf('#1B1F27'), -1, 'band fill is no longer hardcoded dark');
+  assert.equal(combined.indexOf('#12151C'), -1, 'placeholder fill is no longer hardcoded dark');
+  assert.ok(combined.indexOf('rgba(0,0,0,0.12)') >= 0, 'band fill washes black-on-white in light theme');
 });
 
-test('layoutPreview / layoutPreviewFlick / layoutPreviewCombined: dark theme keeps the light-on-black band wash', () => {
+test('layoutPreviewCombined: dark theme keeps the light-on-black band wash', () => {
   const state = { layoutPreset: 'compactCal', healthMode: 'status', radarMode: 'graph', theme: 'dark' };
-  assert.ok(B.layoutPreview(state, {}).indexOf('rgba(255,255,255,0.12)') >= 0);
-  assert.ok(B.layoutPreviewFlick(state, {}).indexOf('rgba(255,255,255,0.12)') >= 0);
   assert.ok(B.layoutPreviewCombined(state, {}).indexOf('rgba(255,255,255,0.12)') >= 0);
 });
 

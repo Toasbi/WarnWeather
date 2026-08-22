@@ -926,46 +926,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return bands;
     }
 
-    // Render a band array (each {label, h}) as the schematic band-stack SVG shared by
-    // both layout previews. Returns '' for an empty/null band list (nothing to show).
-    // Band fill is a theme-relative wash (previewInk's rgba helper — same mechanism the
-    // other previews use for dividers/gridlines) rather than a fixed dark hex, so it
-    // reads as an "elevated card" against the canvas in either polarity: a light ring on
-    // black in dark/bw, a soft gray panel on white in light/bw-light.
-    function renderBandStack(bands, theme) {
-        if (!bands || !bands.length) { return ''; }
-        var W = 200, PAD = 8, w = W - PAD * 2, y = PAD, i;
-        var heights = resolveBandHeights(bands, 118 - PAD * 2, BAND_GAP);
-        var ink = previewInk(theme);
-        var e = rect(0, 0, W, 118, ink.bg);
-        for (i = 0; i < bands.length; i++) {
-            e += rect(PAD, y, w, heights[i], ink.rgba('0.12'));
-            e += txt(W / 2, y + heights[i] / 2 + 3, 8, '#AEB4BD', 'middle', 600, bands[i].label);
-            y += heights[i] + BAND_GAP;
-        }
-        return svgFrame(e, 118);
-    }
-
-    function layoutPreview(state, env, userData) {
-        return renderBandStack(contentBands(presetContents(state)[0]), state.theme);
-    }
-    // First flick slot (index 1), or null when the cycle has none.
-    function firstFlickContent(state) {
-        var contents = presetContents(state);
-        return contents.length > 1 ? contents[1] : null;
-    }
-    function layoutPreviewFlick(state, env, userData) {
-        var content = firstFlickContent(state);
-        return content ? renderBandStack(contentBands(content), state.theme) : '';
-    }
-
     // One column of a side-by-side layout preview: a header label over a band stack that
     // fills the column width (no side padding). `dim`/`note` are unused by the adaptive
     // cycle preview (every slot in the cycle is available by construction) but kept as
     // params — `note` still renders as a placeholder sub-note when a column has no bands.
-    // Card/placeholder fills are theme-relative washes (previewInk's rgba helper), like
-    // renderBandStack above, so this — the block actually wired into the Layout tab via
-    // layoutPreviewCombined — follows the theme too, not just its outer canvas.
+    // Card/placeholder fills are theme-relative washes (previewInk's rgba helper), so
+    // this — the block wired into the Layout tab via layoutPreviewCombined — follows
+    // the theme too, not just its outer canvas.
     function renderBandColumn(bands, x, w, header, note, dim, theme) {
         var ink = previewInk(theme);
         var headerColor = dim ? '#5A6270' : '#8A92A0';
@@ -1009,8 +976,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     PConf.blocks.register('forecastPreview', forecastPreview);
     PConf.blocks.register('radarPreview', radarPreview);
-    PConf.blocks.register('layoutPreview', layoutPreview);
-    PConf.blocks.register('layoutPreviewFlick', layoutPreviewFlick);
     PConf.blocks.register('layoutPreviewCombined', layoutPreviewCombined);
     PConf.blocks.register('devStats', devStats);
     PConf.blocks.register('lastFetch', lastFetch);
@@ -1579,8 +1544,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         module.exports = {
             forecastPreview: forecastPreview, radarPreview: radarPreview,
             devStats: devStats, lastFetch: lastFetch,
-            layoutPreview: layoutPreview, layoutPreviewFlick: layoutPreviewFlick,
-            layoutPreviewCombined: layoutPreviewCombined,
+                        layoutPreviewCombined: layoutPreviewCombined,
             presetContents: presetContents, contentBands: contentBands,
             resolveBandHeights: resolveBandHeights,
             barPermille: barPermille, previewPaletteFallback: FALLBACK_PALETTE,
