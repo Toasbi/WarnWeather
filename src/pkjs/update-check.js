@@ -2,8 +2,9 @@
 //
 // Pure "update available" logic: parse a store API response into its latest
 // version, reduce the set of stores to the highest version present in ALL of
-// them, and decide whether to notify the user. No I/O — index.js performs the
-// XHR GETs, the Pebble notification, and the storage writes based on the result.
+// them, and decide whether to notify the user. No I/O — update-check-runner.js
+// performs the XHR GETs, the Pebble notification, and the storage writes based
+// on the result.
 
 var compareSemver = require('./release-notifications.js').compareSemver;
 

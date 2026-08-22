@@ -13,7 +13,7 @@ const HEALTH_KINDS = thresholds.KINDS.filter(k => k.goal);  // steps, sleep, dis
 test('renderSignature is empty for falsy settings and stable for equal settings', () => {
   assert.equal(renderSignature(null), '');
   assert.equal(renderSignature({ windUnits: 'mph' }), renderSignature({ windUnits: 'mph' }));
-  // Sanity that the lifted function is really the change detector: a known member changes it.
+  // Sanity that the module export is really the change detector: a known member changes it.
   assert.notEqual(renderSignature({ windUnits: 'mph' }), renderSignature({ windUnits: 'kph' }));
 });
 

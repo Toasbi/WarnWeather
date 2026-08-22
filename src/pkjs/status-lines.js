@@ -250,12 +250,12 @@ function formatCountdown(targetValue, now, showUnit, cap) {
 /**
  * The phone's cached battery reading, or null when there is none.
  *
- * Required LAZILY, not at the top of this module, because phone-battery.js
- * requires THIS module back: a battery event re-runs buildStatusLines over the
- * stashed bake inputs so the new value reaches the watch without a fetch. A pair
- * of top-level requires would hand whichever module loaded second the other's
- * still-empty exports. Same shape, and the same reason, as
- * weather/air-quality.js requiring provider.js inside its functions.
+ * Required LAZILY, not at the top of this module, because the require chain
+ * loops back here: phone-battery.js requires status-rebake.js, which requires
+ * THIS module (a battery event re-runs buildStatusLines over the stashed bake
+ * inputs so the new value reaches the watch without a fetch). status-rebake
+ * assigns its module.exports at file end, so a top-level require here would
+ * hand phone-battery a still-empty exports object in the boot load order.
  *
  * The typeof guard is deliberate rather than paranoid: this runs inside the bake
  * for ALL FOUR status lines, so a phone-battery module that cannot answer has to
@@ -585,7 +585,7 @@ function buildStatusLines(payload, settings, watchInfo) {
  * STATUS_LINE_n_UINT8 and STATUS_LEVELS_UINT8 are deliberately absent: the bake
  * WRITES those.
  *
- * Exported because phone-battery.js persists exactly this slice of the payload
+ * Exported because status-rebake.js persists exactly this slice of the payload
  * so a charging event can re-bake after a PKJS restart. It lives HERE, next to
  * the code that reads the keys, so a new slot cannot add a read without the
  * list moving with it — test/status-lines.test.js pins the two together by

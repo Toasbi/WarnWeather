@@ -54,7 +54,7 @@ var THIRD_LINE_HINTS = {
 // WIND_SCALE_KMH) through the same conversion the wind slots display with
 // (wire-units kmhToDisplay) — so the hints can no longer drift from the axis
 // the way a hand-copied ceiling could. Derived strings pinned by test.
-// (blocks.js's preview keeps its own windMax mirror: it runs in the flat
+// (preview-blocks.js's preview keeps its own windMax mirror: it runs in the flat
 // webview with no require(), documented at its declaration.)
 var WIND_SCALE_KMH = require('../forecast-series.js').WIND_SCALE_KMH;
 var kmhToDisplay = require('../wire-units.js').kmhToDisplay;
@@ -212,7 +212,7 @@ var WIND_DIRECTION_HINT = 'Draws an arrow after the speed, pointing the way the 
  *
  * The defaults are per kind and deliberately NOT uniform: a kind that prints its unit
  * today ships ON and one that never did ships OFF, so an upgrade changes nothing on
- * screen until someone flips a switch. All six keys ride renderSignature() (index.js),
+ * screen until someone flips a switch. All six keys ride renderSignature() (render-signature.js),
  * so a flip re-bakes instead of waiting for the next fetch.
  *
  * @param {string} key messageKey, e.g. 'windSlotUnit'.
@@ -442,7 +442,7 @@ function boldSection(title, keyStem, gate, extraItems) {
 // Pressure curve copy, pre-rendered per scale value. Derived from
 // forecast-series.PRESSURE_SCALE_CURVE_HPA (the sole source of truth for the numbers)
 // at module load, so the settings-screen copy can never drift from it the way a third
-// hand-copied set of numbers could (blocks.js's PRESSURE_CURVES is the second copy,
+// hand-copied set of numbers could (preview-blocks.js's PRESSURE_CURVES is the second copy,
 // guarded by its own drift test — see test/config-blocks.test.js). The scale is fixed
 // and absolute but piecewise (rain-bar style): the copy quotes the full-detail core;
 // readings outside it compress toward 940/1060 instead of clipping.

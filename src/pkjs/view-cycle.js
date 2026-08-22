@@ -1,7 +1,7 @@
 // src/pkjs/view-cycle.js
 // Single source of truth for the layout-preset matrix and the packed per-slot
 // ViewSpec wire byte. ES5 only (required from clay-payload.js at watch runtime).
-// Also required by settings/blocks.js (config-UI preview) and the node tests.
+// Also read by settings/preview-blocks.js (config-UI preview) and the node tests.
 
 var TIER_OFF = 0, TIER_NONE = 1, TIER_COMPACT = 2, TIER_FULL = 3;
 var TOP_EMPTY = 0, TOP_CAL = 1, TOP_RADAR = 2;
@@ -194,7 +194,7 @@ function resolvePresetKey(state) {
 // Single public API object, defined once. As a CommonJS module (watch runtime, tests)
 // this is module.exports. When this file is instead concatenated as a plain <script> into
 // the config-UI webview (see scripts/build-config-page.js, which has no `module`),
-// settings/blocks.js reads this same VIEW_CYCLE object from the shared top-level scope
+// settings/preview-blocks.js reads this same VIEW_CYCLE object from the shared top-level scope
 // rather than require()-ing it — one export list, no hand-copied duplicate to drift.
 var VIEW_CYCLE = {
   TIER_OFF: TIER_OFF, TIER_NONE: TIER_NONE, TIER_COMPACT: TIER_COMPACT, TIER_FULL: TIER_FULL,

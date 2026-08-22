@@ -90,7 +90,7 @@ Register your custom blocks and hooks in browser-side files (concatenated into t
 time — see [Build step](#build-step--buildpage)):
 
 ```js
-// src/pkjs/settings/blocks.js  (runs in the phone WebView)
+// src/pkjs/settings/preview-blocks.js  (runs in the phone WebView)
 PConf.blocks.register('forecastPreview', function (state, env, userData) {
   return '<svg …>' + /* render from state */ + '</svg>';
 });

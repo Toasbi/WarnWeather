@@ -1,8 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// radar.js captures WeatherProvider.request at load time, so stub it BEFORE
-// requiring the module under test (same pattern as rainbow-radar.test.js).
+// dwd-radar.js reaches the network through radar-fetch.js, which resolves
+// WeatherProvider.request at call time — stubbing it on the provider module
+// works at any point before a fetch runs (same pattern as rainbow-radar.test.js).
 const WeatherProvider = require('../src/pkjs/weather/provider.js');
 let responder;
 WeatherProvider.request = function(url, type, onSuccess, onError) { responder(url, type, onSuccess, onError); };

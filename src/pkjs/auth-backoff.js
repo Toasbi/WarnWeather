@@ -4,7 +4,7 @@
 // fetch loop would otherwise re-request every cycle forever — draining battery
 // and hammering the provider (see the OWM One Call 3.0 401 case). This module
 // detects auth failures and holds an INDEFINITE "stop until the user acts" flag,
-// mirroring the geocode backoff in provider.js but with no time-based expiry.
+// mirroring the geocode backoff in weather/location.js but with no time-based expiry.
 //
 // The flag is cleared only by a forced fetch (the Force-fetch toggle, or a
 // provider/key/location change — onbuild.js sets fetch:true for those) or by a
@@ -16,7 +16,7 @@ var AUTH_BACKOFF_KEY = storageKeys.AUTH_BACKOFF_KEY;
 /**
  * Whether a normalized fetch failure is a permanent auth rejection (HTTP
  * 401/403). Failure codes are encoded as `<provider>_status_<httpCode>` (see
- * provider.js `failure()` and openweathermap.js), so we match a 401/403 suffix.
+ * weather/http.js `failure()` and openweathermap.js), so we match a 401/403 suffix.
  *
  * @param {{stage: string, code: string}|*} failure Normalized failure payload.
  * @returns {boolean} True when the failure is an auth rejection.

@@ -15,10 +15,10 @@ var platformLib = require(path.join(ROOT, 'src/pkjs/config-ui/lib/platform.js'))
 var schema = require(path.join(ROOT, 'src/pkjs/settings/schema.js'));
 var previewPalette = require(path.join(ROOT, 'src/pkjs/settings/preview-palette.js'));
 var APP_FILES = [
-  // view-cycle.js and status-line-catalog.js must precede blocks.js: blocks.js's VC /
-  // statusLineCatalog fallbacks (used when this page is a flat concatenated <script>,
-  // not a Node module) read their declarations directly from this shared top-level
-  // scope. Keep in lockstep with build-config-page.js's APP_FILES — both build the
+  // view-cycle.js and status-line-catalog.js must precede preview-blocks.js and
+  // blocks.js: their VC / statusLineCatalog fallbacks (used when this page is a flat
+  // concatenated <script>, not a Node module) read their declarations directly from
+  // this shared top-level scope. Keep in lockstep with build-config-page.js's APP_FILES — both build the
   // same page, from two separate entrypoints.
   // country-defaults.js (COUNTRY_DEFAULTS global) must precede blocks.js + wizard.js.
   path.join(ROOT, 'src/pkjs/settings/country-defaults.js'),

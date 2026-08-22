@@ -1017,7 +1017,7 @@ test('buildStatusLines derives env.phoneBattery from the persisted detector verd
 
 // ── SOURCE_KEYS is the snapshot contract ──────────────────────────────────────
 //
-// phone-battery.js persists exactly the payload slice named by SOURCE_KEYS so a
+// status-rebake.js persists exactly the payload slice named by SOURCE_KEYS so a
 // charging event can re-bake after a PKJS restart. If a new slot starts reading a
 // payload key that is not on the list, the key is absent from the restored blob
 // and that slot silently re-bakes as '--' -- no throw, no failing assertion, just
