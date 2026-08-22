@@ -17,7 +17,8 @@
 // not reappear on the next open. (When nothing is unread, no extra request.)
 
 var storageKeys = require('./storage-keys.js');
-var news = require('./settings/news.js');
+// The protocol half only — the phone bundle must not parse the webview widget.
+var news = require('./settings/news-protocol.js');
 
 var MAX_AGE_MS = 60 * 60 * 1000;
 var GC_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;

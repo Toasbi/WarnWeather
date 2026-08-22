@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const news = require('../src/pkjs/settings/news');
+const newsProtocol = require('../src/pkjs/settings/news-protocol.js');
 
 // --- renderMarkdown ---
 
@@ -44,43 +45,43 @@ test('renderMarkdown: plain newlines become <br>, no trailing <br>', () => {
 
 test('countUnread counts ids above the watermark', () => {
   const items = [{ id: 3 }, { id: 2 }, { id: 1 }];
-  assert.equal(news.countUnread(items, 1), 2);
-  assert.equal(news.countUnread(items, 3), 0);
-  assert.equal(news.countUnread(items, 0), 3);
-  assert.equal(news.countUnread([], 0), 0);
+  assert.equal(newsProtocol.countUnread(items, 1), 2);
+  assert.equal(newsProtocol.countUnread(items, 3), 0);
+  assert.equal(newsProtocol.countUnread(items, 0), 3);
+  assert.equal(newsProtocol.countUnread([], 0), 0);
 });
 
 test('countUnread: null/undefined watermark (no account token) means no badge', () => {
-  assert.equal(news.countUnread([{ id: 5 }], null), 0);
-  assert.equal(news.countUnread([{ id: 5 }], undefined), 0);
+  assert.equal(newsProtocol.countUnread([{ id: 5 }], null), 0);
+  assert.equal(newsProtocol.countUnread([{ id: 5 }], undefined), 0);
 });
 
 test('maxId returns the highest id, 0 for empty', () => {
-  assert.equal(news.maxId([{ id: 3 }, { id: 7 }, { id: 1 }]), 7);
-  assert.equal(news.maxId([]), 0);
+  assert.equal(newsProtocol.maxId([{ id: 3 }, { id: 7 }, { id: 1 }]), 7);
+  assert.equal(newsProtocol.maxId([]), 0);
 });
 
 // --- parseNewsCache ---
 
 test('parseNewsCache passes items and watermark through', () => {
   assert.deepEqual(
-    news.parseNewsCache('{"items":[{"id":2}],"lastSeenId":1}'),
+    newsProtocol.parseNewsCache('{"items":[{"id":2}],"lastSeenId":1}'),
     { items: [{ id: 2 }], lastSeenId: 1 });
   // a null watermark (no account token at fetch time) survives as null
   assert.deepEqual(
-    news.parseNewsCache('{"items":[],"lastSeenId":null}'),
+    newsProtocol.parseNewsCache('{"items":[],"lastSeenId":null}'),
     { items: [], lastSeenId: null });
 });
 
 test('parseNewsCache degrades absent/malformed input to the empty state', () => {
   const empty = { items: [], lastSeenId: null };
-  assert.deepEqual(news.parseNewsCache(''), empty);
-  assert.deepEqual(news.parseNewsCache(null), empty);
-  assert.deepEqual(news.parseNewsCache(undefined), empty);
-  assert.deepEqual(news.parseNewsCache('not json'), empty);
-  assert.deepEqual(news.parseNewsCache('{"items":"nope"}'), empty);
+  assert.deepEqual(newsProtocol.parseNewsCache(''), empty);
+  assert.deepEqual(newsProtocol.parseNewsCache(null), empty);
+  assert.deepEqual(newsProtocol.parseNewsCache(undefined), empty);
+  assert.deepEqual(newsProtocol.parseNewsCache('not json'), empty);
+  assert.deepEqual(newsProtocol.parseNewsCache('{"items":"nope"}'), empty);
   // a missing lastSeenId normalizes to null
-  assert.deepEqual(news.parseNewsCache('{"items":[]}'), empty);
+  assert.deepEqual(newsProtocol.parseNewsCache('{"items":[]}'), empty);
 });
 
 // --- interpretReplyStatus ---
@@ -99,22 +100,22 @@ test('interpretReplyStatus maps 2xx/429/0/other', () => {
 
 test('payload builders mirror the edge-function contract', () => {
   const ud = { newsEndpoint: 'https://x/functions/v1/news', appVersion: '1.8.0', accountToken: 'tok' };
-  assert.deepEqual(news.buildListPayload(ud),
+  assert.deepEqual(newsProtocol.buildListPayload(ud),
     { op: 'list', accountToken: 'tok', version: '1.8.0' });
-  assert.deepEqual(news.buildSeenPayload(ud, 7),
+  assert.deepEqual(newsProtocol.buildSeenPayload(ud, 7),
     { op: 'seen', accountToken: 'tok', maxSeenId: 7 });
-  assert.deepEqual(news.buildReplyPayload(ud, 3, 'hello'),
+  assert.deepEqual(newsProtocol.buildReplyPayload(ud, 3, 'hello'),
     { op: 'reply', accountToken: 'tok', version: '1.8.0', newsId: 3, message: 'hello' });
 });
 
 test('payload builders tolerate missing userData fields', () => {
-  assert.deepEqual(news.buildListPayload({}),
+  assert.deepEqual(newsProtocol.buildListPayload({}),
     { op: 'list', accountToken: '', version: '' });
 });
 
 test('buildVotePayload mirrors the vote contract', () => {
   const ud = { newsEndpoint: 'https://x/functions/v1/news', appVersion: '1.8.0', accountToken: 'tok' };
-  assert.deepEqual(news.buildVotePayload(ud, 3, 1),
+  assert.deepEqual(newsProtocol.buildVotePayload(ud, 3, 1),
     { op: 'vote', accountToken: 'tok', newsId: 3, choiceIndex: 1 });
 });
 

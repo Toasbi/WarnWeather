@@ -33,6 +33,7 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/key-test.js'),
   path.join(ROOT, 'src/pkjs/settings/owm-key-test.js'),
   path.join(ROOT, 'src/pkjs/settings/tomorrowio-key-test.js'),
+  path.join(ROOT, 'src/pkjs/settings/news-protocol.js'),
   path.join(ROOT, 'src/pkjs/settings/news.js'),
   path.join(ROOT, 'src/pkjs/settings/theme-convert.js'),
   path.join(ROOT, 'src/pkjs/settings/reset-status-defaults.js'),

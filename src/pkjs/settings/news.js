@@ -10,6 +10,19 @@
 // exported for unit tests; the webview wiring lives at the bottom, guarded
 // like owm-key-test.js.
 (function () {
+    // The wire-protocol half (payload shapes, cache parse, unread count) lives
+    // in news-protocol.js — dual-context: required under Node, concatenated
+    // before this file in the webview (window.NewsProtocol).
+    var protocol = (typeof require !== 'undefined')
+        ? require('./news-protocol.js') : window.NewsProtocol;
+    var countUnread = protocol.countUnread;
+    var maxId = protocol.maxId;
+    var parseNewsCache = protocol.parseNewsCache;
+    var buildListPayload = protocol.buildListPayload;
+    var buildSeenPayload = protocol.buildSeenPayload;
+    var buildReplyPayload = protocol.buildReplyPayload;
+    var buildVotePayload = protocol.buildVotePayload;
+
     /**
      * Escape the HTML metacharacters. Runs BEFORE any markdown transform so
      * authored (or mis-authored) markup can never reach the DOM live.
@@ -78,60 +91,9 @@
         return html;
     }
 
-    /**
-     * Count items newer than the seen watermark. A null/undefined watermark
-     * (no account token → server returned lastSeenId: null) means unread is
-     * unknowable — show no badge.
-     *
-     * @param {Array<{id: number}>} items News items.
-     * @param {?number} lastSeenId Watermark or null.
-     * @returns {number} Unread count.
-     */
-    function countUnread(items, lastSeenId) {
-        if (lastSeenId === null || lastSeenId === undefined) { return 0; }
-        var n = 0, i;
-        for (i = 0; i < items.length; i += 1) {
-            if (items[i].id > lastSeenId) { n += 1; }
-        }
-        return n;
-    }
-
-    /**
-     * Highest item id, 0 for an empty list — the value `seen` reports.
-     *
-     * @param {Array<{id: number}>} items News items.
-     * @returns {number} Max id.
-     */
-    function maxId(items) {
-        var m = 0, i;
-        for (i = 0; i < items.length; i += 1) {
-            if (items[i].id > m) { m = items[i].id; }
-        }
-        return m;
-    }
-
-    /**
-     * Parse the injected news cache (the raw `list` response text the phone
-     * cached for an hour). Anything absent or malformed degrades to the empty
-     * state so the pill still renders.
-     *
-     * @param {?string} text Raw cached response text ('' or null when absent).
-     * @returns {{items: Array<Object>, lastSeenId: ?number}} Items + watermark.
-     */
-    function parseNewsCache(text) {
-        var data = null;
-        if (text) {
-            try { data = JSON.parse(text); } catch (e) { data = null; }
-        }
-        if (!data || !Array.isArray(data.items)) {
-            return { items: [], lastSeenId: null };
-        }
-        return {
-            items: data.items,
-            lastSeenId: (data.lastSeenId === undefined) ? null : data.lastSeenId
-        };
-    }
-
+    
+    
+    
     /**
      * Interpret the reply XHR status into a user-facing verdict.
      *
@@ -151,62 +113,10 @@
         return { ok: false, message: 'Unexpected response (' + status + ').' };
     }
 
-    /**
-     * @param {{appVersion: string, accountToken: string}} userData Injected userData.
-     * @returns {Object} list request body.
-     */
-    function buildListPayload(userData) {
-        return {
-            op: 'list',
-            accountToken: (userData && userData.accountToken) || '',
-            version: (userData && userData.appVersion) || ''
-        };
-    }
-
-    /**
-     * @param {{accountToken: string}} userData Injected userData.
-     * @param {number} seenId Highest fetched news id.
-     * @returns {Object} seen request body.
-     */
-    function buildSeenPayload(userData, seenId) {
-        return {
-            op: 'seen',
-            accountToken: (userData && userData.accountToken) || '',
-            maxSeenId: seenId
-        };
-    }
-
-    /**
-     * @param {{appVersion: string, accountToken: string}} userData Injected userData.
-     * @param {number} newsId Target news item id.
-     * @param {string} message Reply text.
-     * @returns {Object} reply request body.
-     */
-    function buildReplyPayload(userData, newsId, message) {
-        return {
-            op: 'reply',
-            accountToken: (userData && userData.accountToken) || '',
-            version: (userData && userData.appVersion) || '',
-            newsId: newsId,
-            message: message
-        };
-    }
-
-    /**
-     * @param {{accountToken: string}} userData Injected userData.
-     * @param {number} newsId Target news item id.
-     * @param {number} choiceIndex Index into the item's choices array.
-     * @returns {Object} vote request body.
-     */
-    function buildVotePayload(userData, newsId, choiceIndex) {
-        return {
-            op: 'vote',
-            accountToken: (userData && userData.accountToken) || '',
-            newsId: newsId,
-            choiceIndex: choiceIndex
-        };
-    }
-
+    
+    
+    
+    
     /**
      * Render a poll's option buttons plus its status line for one news item.
      * Labels are escaped; the account's current vote carries the "on" class.
@@ -522,14 +432,7 @@
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
             renderMarkdown: renderMarkdown,
-            countUnread: countUnread,
-            maxId: maxId,
-            parseNewsCache: parseNewsCache,
             interpretReplyStatus: interpretReplyStatus,
-            buildListPayload: buildListPayload,
-            buildSeenPayload: buildSeenPayload,
-            buildReplyPayload: buildReplyPayload,
-            buildVotePayload: buildVotePayload,
             renderChoicesHtml: renderChoicesHtml,
             renderNewsBellHtml: renderNewsBellHtml,
             renderNewsListHtml: renderNewsListHtml
