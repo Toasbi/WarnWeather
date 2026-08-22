@@ -12,38 +12,11 @@ var wireUnits = require('./wire-units.js');
 // Slot positions by index, the catalog's slot-context vocabulary.
 var POSITIONS = ['left', 'mid', 'right'];
 
-/**
- * @param {string} str
- * @returns {number[]} UTF-8 bytes
- */
-function utf8Encode(str) {
-  var out = [];
-  for (var i = 0; i < str.length; i++) {
-    var c = str.charCodeAt(i);
-    if (c >= 0xD800 && c <= 0xDBFF) {
-      var lo = i + 1 < str.length ? str.charCodeAt(i + 1) : 0;
-      if (lo >= 0xDC00 && lo <= 0xDFFF) {
-        c = 0x10000 + ((c - 0xD800) << 10) + (lo - 0xDC00);
-        i++;
-      } else {
-        c = 0xFFFD;
-      }
-    } else if (c >= 0xDC00 && c <= 0xDFFF) {
-      c = 0xFFFD;
-    }
-    if (c < 0x80) {
-      out.push(c);
-    } else if (c < 0x800) {
-      out.push(0xC0 | (c >> 6), 0x80 | (c & 0x3F));
-    } else if (c < 0x10000) {
-      out.push(0xE0 | (c >> 12), 0x80 | ((c >> 6) & 0x3F), 0x80 | (c & 0x3F));
-    } else {
-      out.push(0xF0 | (c >> 18), 0x80 | ((c >> 12) & 0x3F),
-               0x80 | ((c >> 6) & 0x3F), 0x80 | (c & 0x3F));
-    }
-  }
-  return out;
-}
+// utf8.js owns the byte engine (clay-payload's string cap shares it). The
+// local names survive as aliases: encode for the wire byte arrays the watch
+// renders, and a bytes-in/bytes-out truncate for packLine's pre-encoded path.
+var utf8 = require('./utf8.js');
+var utf8Encode = utf8.encode;
 
 /**
  * Truncate a UTF-8 byte array at a code-point boundary.
@@ -171,7 +144,7 @@ function withUnit(value, unit, cap) {
   if (!unit) { return value; }
   var limit = typeof cap === 'number' ? cap : catalog.CAPS.EDGE_TEXT_MAX;
   var combined = value + unit;
-  return utf8Encode(combined).length <= limit ? combined : value;
+  return utf8.byteLength(combined) <= limit ? combined : value;
 }
 
 /**

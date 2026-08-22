@@ -2,6 +2,7 @@
 // window). Extracted from index.js so the mapping is unit-testable (index.js
 // wires Pebble events and can't be required under node:test). ES5-only (PKJS).
 
+var utf8 = require('./utf8.js');
 var pebbleColors = require('./pebble-colors.js');
 var holidayMask = require('./holidays/holiday-mask.js');
 var paletteWire = require('./weather/palette-wire.js');
@@ -17,39 +18,16 @@ var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
 var DEFAULT_COLOR_BLUE_MOON = pebbleColors.GColorBlueMoon;
 
 /**
- * Truncate a string to at most maxBytes bytes of UTF-8 without splitting a
- * multi-byte sequence. Byte counts follow the UTF-8 encoding of each code
- * point (1–4 bytes); a surrogate pair is treated as one 4-byte code point and
- * is kept or dropped whole, never halved. A lone (unpaired) surrogate counts
- * as 3 bytes, matching how it would be encoded.
+ * Longest prefix of `str` that encodes to at most `maxBytes` UTF-8 bytes —
+ * utf8.js owns the walker (status-lines' wire byte arrays share it); this
+ * wrapper keeps the string-in/string-out shape and the original characters
+ * (a lone surrogate is charged 3 bytes and kept, exactly as before).
  * @param {string} str Input string.
  * @param {number} maxBytes Maximum UTF-8 byte budget.
  * @returns {string} The longest prefix of str that encodes to <= maxBytes bytes.
  */
 function truncateUtf8Bytes(str, maxBytes) {
-    var bytes = 0;
-    var i = 0;
-    var code;
-    var units;   // UTF-16 code units consumed by this code point
-    var n;       // UTF-8 bytes this code point encodes to
-    while (i < str.length) {
-        code = str.charCodeAt(i);
-        units = 1;
-        if (code < 0x80) { n = 1; }
-        else if (code < 0x800) { n = 2; }
-        else if (code >= 0xD800 && code <= 0xDBFF
-                 && i + 1 < str.length
-                 && str.charCodeAt(i + 1) >= 0xDC00
-                 && str.charCodeAt(i + 1) <= 0xDFFF) {
-            n = 4;       // surrogate pair — one astral code point
-            units = 2;
-        }
-        else { n = 3; }
-        if (bytes + n > maxBytes) { break; }
-        bytes += n;
-        i += units;
-    }
-    return str.slice(0, i);
+    return utf8.truncateToByteCap(str, maxBytes).str;
 }
 
 // Fixed vertical inset for the temperature axis (px) — the watch's
