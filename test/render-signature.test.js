@@ -1,27 +1,9 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const catalog = require('../src/pkjs/status-line-catalog.js');
 const thresholds = require('../src/pkjs/status-thresholds.js');
 
-// renderSignature() is a private function in index.js (no module.exports there, and the
-// module registers Pebble listeners at load time). Lift the REAL source of that one
-// function out of index.js and evaluate it with its two module dependencies injected, so
-// this suite exercises the shipped code rather than a copy of it.
-const INDEX_SRC = fs.readFileSync(
-  path.join(__dirname, '..', 'src', 'pkjs', 'index.js'), 'utf8');
-
-/** @returns {function(Object): string} index.js's renderSignature, deps injected */
-function loadRenderSignature() {
-  const m = INDEX_SRC.match(/\nfunction renderSignature\(settings\) \{[\s\S]*?\n\}\n/);
-  assert.ok(m, 'renderSignature() not found in src/pkjs/index.js');
-  return new Function('statusCatalog', 'statusThresholds', 'return ' + m[0].trim())(
-    catalog, thresholds);
-}
-
-const renderSignature = loadRenderSignature();
+const renderSignature = require('../src/pkjs/render-signature.js').renderSignature;
 const WEATHER_KINDS = thresholds.KINDS.slice(0, 4);   // aqi, pollen, wind, gust
 const HEALTH_KINDS = thresholds.KINDS.slice(4);       // steps, sleep, distance
 
