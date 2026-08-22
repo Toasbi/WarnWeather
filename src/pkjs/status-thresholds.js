@@ -13,6 +13,9 @@
   // buildSettingsBlob (the only rainTier consumer) is never called there.
   var rainTier = (typeof require !== 'undefined')
     ? require('./weather/rain-tier.js') : null;
+  // Same guard: displayValue (the only consumer) runs phone-side only.
+  var wireUnits = (typeof require !== 'undefined')
+    ? require('./wire-units.js') : null;
 
   // 27 -> 29 when UV became kind 7; 29 -> 33 when the bold-only kinds (8..15)
   // widened the bold area to 16 kinds; 33 -> 34 when battery % (kind 16) opened
@@ -246,18 +249,15 @@
     return 0;
   }
 
-  /**
-   * @param {number[]|null|undefined} arr trend byte array
-   * @returns {number|null} first trend value, or null when unavailable
-   */
-  function trendHead(arr) {
-    return (arr && arr.length) ? arr[0] : null;
-  }
+  // First trend value or null — wire-units owns it, shared with status-lines.
+  var trendHead = wireUnits && wireUnits.trendHead;
 
   /**
    * The number the user SEES for a weather kind — thresholds compare against
-   * the displayed value, so the conversions/rounding must mirror
-   * status-lines.js formatValue()/formatWind() exactly.
+   * the displayed value. The wind conversion and trend read are SHARED with
+   * status-lines.js through wire-units, so the two cannot round apart; the
+   * AQI/UV rounding here still mirrors formatValue() by contract (pinned by
+   * test).
    * @param {string} code 'aqi' | 'pollen' | 'wind' | 'gust'
    * @param {Object} payload weather payload (pre-transform, trends present)
    * @param {Object} settings Clay settings blob (windUnits)
@@ -280,10 +280,9 @@
       v = trendHead(code === 'wind' ? payload.WIND_TREND_UINT8
                                     : payload.GUST_TREND_UINT8);
       if (v === null) { return null; }
-      var unit = settings && settings.windUnits;
-      if (unit === 'mph') { return Math.round(v / 1.60934); }
-      if (unit === 'knots') { return Math.round(v / 1.852); }
-      return v;
+      // wire-units owns the conversion — the same helper status-lines'
+      // windParts displays with, so the two can never round apart.
+      return wireUnits.kmhToDisplay(v, settings && settings.windUnits);
     }
     if (code === 'uv') {
       // UV_TREND_UINT8 carries tenths; the slot displays the rounded index

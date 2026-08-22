@@ -7,6 +7,7 @@ var catalog = require('./status-line-catalog.js');
 var platformLib = require('./config-ui/lib/platform.js');
 var thresholds = require('./status-thresholds.js');
 var pressurePlausibility = require('./weather/pressure-plausibility.js');
+var wireUnits = require('./wire-units.js');
 
 // Slot positions by index, the catalog's slot-context vocabulary.
 var POSITIONS = ['left', 'mid', 'right'];
@@ -108,13 +109,9 @@ function formatSunTime(epoch, settings) {
   return hourText + ':' + pad2(m) + marker;
 }
 
-/**
- * @param {number[]|null|undefined} arr trend byte array
- * @returns {number|null} first trend value, or null when unavailable
- */
-function trendHead(arr) {
-  return (arr && arr.length) ? arr[0] : null;
-}
+// First trend value or null — shared with status-thresholds' displayValue
+// through wire-units, so the two read a trend identically.
+var trendHead = wireUnits.trendHead;
 
 /**
  * ISO-8601 week number (1..53) for a local date. Mirrors the watch-side iso_week()
@@ -187,9 +184,13 @@ function withUnit(value, unit, cap) {
  */
 function windParts(v, settings) {
   var unit = settings && settings.windUnits;
-  if (unit === 'mph') { return { value: String(Math.round(v / 1.60934)), unit: 'mph' }; }
-  if (unit === 'knots') { return { value: String(Math.round(v / 1.852)), unit: 'kn' }; }
-  return { value: String(v), unit: 'kph' };
+  // wire-units owns the conversion: thresholds compare against the DISPLAYED
+  // number (status-thresholds displayValue), so both paths must round through
+  // the same helper.
+  var shown = String(wireUnits.kmhToDisplay(v, unit));
+  if (unit === 'mph') { return { value: shown, unit: 'mph' }; }
+  if (unit === 'knots') { return { value: shown, unit: 'kn' }; }
+  return { value: shown, unit: 'kph' };
 }
 
 /**
