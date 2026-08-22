@@ -255,6 +255,44 @@ test('after a wipe the items are still offered in EVERY slot, not just top-right
   });
 });
 
+test('"Reset watchface" wipes the cached reading; the next read re-seeds it from the live manager', () => {
+  // The same localStorage.clear() also takes the cached level/charging pair the
+  // baker renders -- while THIS module's subscription and its BatteryManager live
+  // on (a reset does not restart PKJS). Saving a phone-battery slot right after a
+  // reset forces a fetch, and without the heal that bake finds no reading and
+  // shows '--' until the next battery EVENT or PKJS boot. The manager in hand
+  // still knows the charge synchronously, so read() must re-seed from it.
+  const h = boot({ navigator: modernNavigator(fakeManager(0.62, false)) });
+  storage = {};                              // <- localStorage.clear()
+  assert.deepEqual(phoneBattery.read(), { available: true, level: 62, charging: false },
+    'the post-reset bake shows the real charge, not --');
+  assert.equal(storage[KEYS.PHONE_BATTERY_LEVEL], '62', 'the cache is rewritten');
+  assert.equal(storage[KEYS.PHONE_BATTERY_CHARGING], 'false');
+  assert.equal(h.sends.length, 0, 'healing is a seed, never a send');
+});
+
+test('a real battery event after the heal still sends normally', () => {
+  const mgr = fakeManager(0.62, false);
+  const h = boot({ navigator: modernNavigator(mgr) });
+  // The last pre-reset fetch left an in-memory bake snapshot; the wipe takes the
+  // flash copy but not this one, exactly as on a real reset.
+  phoneBattery.rememberBakeInputs({ CITY: 'Bonn' }, {}, { platform: 'basalt' });
+  storage = {};
+  phoneBattery.read();                       // heals (and re-baselines) silently
+  mgr.setLevel(0.55);                        // 60 bucket -> 55 bucket
+  assert.equal(h.sends.length, 1, 'the first event after the heal is news, not a seed');
+  assert.deepEqual(phoneBattery.read(), { available: true, level: 55, charging: false });
+});
+
+test('a wipe with no manager in hand still reads as unavailable, nothing thrown', () => {
+  // getBattery() may not have resolved yet (boot race), or the phone has no
+  // battery API at all -- there is nothing to heal from, and the pre-heal
+  // behavior (bake '--', value arrives with the seed/next event) must survive.
+  boot({ navigator: { userAgent: 'PKJS', geolocation: {}, language: 'de' } });
+  storage = {};
+  assert.deepEqual(phoneBattery.read(), { available: false, level: null, charging: false });
+});
+
 // --- Bucketing: the SEND TRIGGER only --------------------------------------
 // The 5-point bucket decides WHEN a resend fires; it never decides what the
 // watch displays. That is the exact percentage (levelPercent), cached on every

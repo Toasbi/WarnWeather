@@ -343,11 +343,29 @@ function setSupported(supported) {
  * kind — a battery trigger or the next weather fetch's bake — carries the
  * phone's real charge.
  *
+ * SELF-HEALING when the cache is gone but a BatteryManager is in hand: "Reset
+ * watchface" (clay-settings.js resetAll) wipes these keys with the rest of
+ * localStorage while this module's subscription lives on — a reset does not
+ * restart PKJS, so no init()-time seed refills them, and the next battery EVENT
+ * may be an hour away. Yet the very next bake reads here: saving a phone-battery
+ * slot right after a reset forces a fetch, and without the heal that bake shows
+ * '--' until something else rewrites the cache. The manager still knows the
+ * charge synchronously, so re-seed from it — cache rewritten, trigger baselines
+ * refreshed, and no send (seed() suppresses it; the bake asking is what carries
+ * the value). Same lazy-heal pattern, and same wipe, as isSupported()'s verdict
+ * re-probe. lastWritten is dropped with it so the next persistSnapshot rewrites
+ * the wiped flash backstop even when the payload serialization has not changed.
+ *
  * @returns {{available: boolean, level: (number|null), charging: boolean}} Cached reading.
  */
 function read() {
     var raw = load(KEYS.PHONE_BATTERY_LEVEL);
     var level;
+    if (raw === null && manager) {
+        lastWritten = null;
+        seed(manager);
+        raw = load(KEYS.PHONE_BATTERY_LEVEL);
+    }
     if (raw === null) {
         return { available: false, level: null, charging: false };
     }
