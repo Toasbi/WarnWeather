@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const radar = require('../src/pkjs/weather/radar.js');
+const radar = require('../src/pkjs/weather/dwd-radar.js');
 const metnoRadar = require('../src/pkjs/weather/metno-radar.js');
 const rainbowRadar = require('../src/pkjs/weather/rainbow-radar.js');
 const tomorrowioRadar = require('../src/pkjs/weather/tomorrowio-radar.js');

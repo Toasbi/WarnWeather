@@ -152,11 +152,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     };
     // status/all default to the no-heart-rate copy; openWizard upgrades them to the
     // heart-rate variant on emery (the only platform with a heart-rate sensor).
-    var HEALTH_DESC = {
-        off: 'no health information on the watchface.',
-        status: healthStatusItems(false) + ' on the Health Status Bar.',
-        all: 'Health Status Bar plus an hourly graph: ' + healthGraphItems(false) + '.'
-    };
+    /**
+     * healthMode captions, built at READ time so the heart-rate variant follows
+     * the live env (a module-level constant used to be patched in place by
+     * openWizard — a mutated "constant" footgun).
+     * @param {boolean} hasHr Whether the platform has a heart-rate sensor.
+     * @returns {{off: string, status: string, all: string}} Per-mode captions.
+     */
+    function healthDesc(hasHr) {
+        return {
+            off: 'no health information on the watchface.',
+            status: healthStatusItems(hasHr) + ' on the Health Status Bar.',
+            all: 'Health Status Bar plus an hourly graph: ' + healthGraphItems(hasHr) + '.'
+        };
+    }
     // Watchface theme (messageKey 'theme'). Mirrors schema.js's two theme selects: color watches get
     // 4 options, B&W hardware only dark/light. Chosen by env.color at render time.
     var THEME_OPTS_COLOR = [['Dark', 'dark'], ['Light (Alpha)', 'light'], ['B&W', 'bw'], ['B&W Inverted', 'bw-light']];
@@ -328,7 +337,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
     function descFor(group) {
         if (group === 'layoutPreset') { return LAYOUT_DESC; }
-        if (group === 'healthMode') { return HEALTH_DESC; }
+        if (group === 'healthMode') { return healthDesc(hasHeartRate()); }
         return THEME_DESC;   // 'theme'
     }
     // Scroll the selected card to the horizontal center (offsetParent is the position:relative .wiz-car).
@@ -493,7 +502,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // 'off' rather than leave the carousel unhighlighted — without mutating the stored value, which
         // only changes if the user actually picks a card.
         var sel = labelFor(HEALTH_OPTS, W.ctx.S.healthMode) ? W.ctx.S.healthMode : 'off';
-        return carousel('healthMode', HEALTH_OPTS, sel, HEALTH_DESC);
+        return carousel('healthMode', HEALTH_OPTS, sel, healthDesc(hasHeartRate()));
     }
     function stepFlick() {
         // Render always opens on stop 0 (the default view), so re-entering the step resets
@@ -794,9 +803,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     function openWizard(ctx, fresh) {
         W.ctx = ctx; W.steps = buildSteps(ctx.ENV); W.idx = 0;
-        // Heart rate exists on emery + diorite; upgrade the health copy to the HR variant there.
-        HEALTH_DESC.status = healthStatusItems(hasHeartRate()) + ' on the Health Status Bar.';
-        HEALTH_DESC.all = 'Health Status Bar plus an hourly graph: ' + healthGraphItems(hasHeartRate()) + '.';
         if (fresh) {
             var cc = inferCountry();
             var cOpts = optionsFor(ctx.schema, 'holidayCountry');

@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const WeatherProvider = require('../src/pkjs/weather/provider.js');
 let responder;
 WeatherProvider.request = function(url, type, onSuccess, onError) { responder(url, type, onSuccess, onError); };
-const radar = require('../src/pkjs/weather/radar.js');
+const radar = require('../src/pkjs/weather/dwd-radar.js');
 
 const SLOT0 = 1700000100;   // 5-min aligned (1700000100 % 300 === 0)
 const N = 24;

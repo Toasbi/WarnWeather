@@ -1,5 +1,10 @@
-var WeatherProvider = require('./provider.js');
-var request = WeatherProvider.request;
+// src/pkjs/weather/dwd-radar.js — the DWD/Brightsky composite radar source
+// (renamed from radar.js: the generic-sounding name implied a base layer that
+// never existed — every source is <id>-radar.js behind radar-factory's table).
+// Unlike the point sources it samples a real composite, so the area
+// ("nearby") array carries data and the wire triple is built here, not via
+// radar-wire.pointRadarTuples.
+var radarFetch = require('./radar-fetch.js');
 var wireUnits = require('../wire-units.js');
 var clampByte = wireUnits.clampByte;
 var zeroFilledArray = wireUnits.zeroFilledArray;
@@ -186,122 +191,56 @@ function sampleFrame(frame, xy, hasXy) {
 }
 
 /**
- * Fetch 2 hours of 5-minute rainfall from Bright Sky's /radar endpoint at
- * the given lat/lon. Computes two parallel signals from one response:
- *
- *   - exact:      bilinear sample at the user's sub-pixel position.
- *   - nearby_1km: max value among radar cells whose centre lies within
- *                 NEARBY_RADIUS_KM (1 km) of the user.
- *
- * Both arrays use the watch's existing wire convention (uint8, mm/h * 10).
- * The function guarantees `nearby_1km[i] >= exact[i]` by folding the
- * exact value into the nearby max — the user's own point is, by
- * definition, inside the disk centred on themselves.
- *
- * Out-of-coverage (HTTP 200 with `radar: []`) returns two arrays of
- * zeros via onSuccess. Network or parse errors invoke onFailure with
- * `{stage: 'radar', code: ...}`.
- *
- * Slot-0 is anchored at the caller-supplied `slotZeroEpoch` (the watch's
- * "5-min pinned" wall-clock boundary). The URL builder asks Brightsky
- * for exactly the forward-looking window [slotZeroEpoch, slotZeroEpoch
- * + NUM_BARS * SLOT_SECONDS), and Brightsky returns the matching
- * NUM_BARS frames in order — body.radar maps directly to slots 0..23.
- *
- * @param {number} lat Latitude in decimal degrees.
- * @param {number} lon Longitude in decimal degrees.
- * @param {number} slotZeroEpoch Slot-0 wall-clock epoch seconds (must be a
- *   multiple of SLOT_SECONDS). RAIN_RADAR_START on the wire equals this.
- * @param {Function} onSuccess Receives `{ exact, nearby_1km, startEpoch }`,
- *   where the two arrays are 24-entry uint8 (mm/h * 10) and startEpoch
- *   equals slotZeroEpoch (echoed back for callers that want a single
- *   source of truth).
- * @param {Function} onFailure Receives a `{stage, code}` failure object.
- * @returns {void}
- */
-function withRadar2hRain(lat, lon, slotZeroEpoch, onSuccess, onFailure) {
-    var url = buildRadarUrl(lat, lon, slotZeroEpoch);
-    request(
-        url,
-        'GET',
-        function(response) {
-            var body;
-            try {
-                body = JSON.parse(response);
-            }
-            catch (ex) {
-                onFailure({ stage: 'radar', code: 'radar_parse_error' });
-                return;
-            }
-            if (!body || !Array.isArray(body.radar)) {
-                onFailure({ stage: 'radar', code: 'radar_missing_fields' });
-                return;
-            }
-            if (body.radar.length === 0) {
-                // Out of DWD coverage. Return two 24-zero arrays so
-                // consumers see a flat signal rather than a
-                // coverage-specific error code.
-                onSuccess({
-                    exact: zeroFilledArray(NUM_BARS),
-                    nearby_1km: zeroFilledArray(NUM_BARS),
-                    startEpoch: slotZeroEpoch
-                });
-                return;
-            }
-            var frames = body.radar;
-            var xy = body.latlon_position;
-            var hasXy = Boolean(xy && isFinite(xy.x) && isFinite(xy.y));
-            var exactOut = zeroFilledArray(NUM_BARS);
-            var nearbyOut = zeroFilledArray(NUM_BARS);
-            var i;
-            var sampled;
-            for (i = 0; i < NUM_BARS && i < frames.length; i += 1) {
-                sampled = sampleFrame(frames[i], xy, hasXy);
-                // A malformed frame contributes a (0, 0) pair (the
-                // zero-filled default) rather than aborting the whole fetch.
-                if (sampled === null) {
-                    continue;
-                }
-                exactOut[i] = sampled.exact;
-                nearbyOut[i] = sampled.nearby;
-            }
-            onSuccess({ exact: exactOut, nearby_1km: nearbyOut, startEpoch: slotZeroEpoch });
-        },
-        function(error) {
-            console.log('[!] Radar request failed: ' + JSON.stringify(error));
-            onFailure({ stage: 'radar', code: 'radar_' + error.code });
-        }
-    );
-}
-
-/**
- * Fetch 2-hour DWD rain-radar tuples for pre-resolved coordinates.
- *
- * Coordinates come from the single per-cycle acquisition in the orchestrator;
- * this function no longer resolves them itself.
+ * Fetch 2-hour DWD rain-radar tuples for pre-resolved coordinates — the one
+ * seam every radar source exports (radar-factory). Coordinates come from the
+ * single per-cycle acquisition in the orchestrator. A parse/transport failure
+ * or missing fields calls back null (preserves the watch's existing radar);
+ * an out-of-coverage answer ships the flat 24-zero signal.
  *
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
  * @param {number} slotZeroEpoch The 5-min pinned slot-0 epoch.
- * @param {Function} callback Receives the radar tuples object, or null on
- *   failure (null preserves the watch's existing radar).
+ * @param {Function} callback Receives the radar tuples object, or null.
  * @returns {void}
  */
 function fetchRadarTuplesAt(lat, lon, slotZeroEpoch, callback) {
-    withRadar2hRain(lat, lon, slotZeroEpoch, function(result) {
-        callback({
-            RAIN_RADAR_TREND_UINT8: result.exact,
-            RAIN_RADAR_TREND_AREA_UINT8: result.nearby_1km,
+    radarFetch.fetchRadarJson({
+        url: buildRadarUrl(lat, lon, slotZeroEpoch),
+        label: 'DWD'
+    }, function (body) {
+        if (!body || !Array.isArray(body.radar)) {
+            console.log('[!] DWD radar: missing fields');
+            return null;
+        }
+        if (body.radar.length === 0) {
+            // Out of DWD coverage — a flat signal rather than a failure.
+            return radarWire.flatRadarTuples(slotZeroEpoch);
+        }
+        var frames = body.radar;
+        var xy = body.latlon_position;
+        var hasXy = Boolean(xy && isFinite(xy.x) && isFinite(xy.y));
+        var exactOut = zeroFilledArray(NUM_BARS);
+        var nearbyOut = zeroFilledArray(NUM_BARS);
+        var i;
+        var sampled;
+        for (i = 0; i < NUM_BARS && i < frames.length; i += 1) {
+            sampled = sampleFrame(frames[i], xy, hasXy);
+            // A malformed frame contributes a (0, 0) pair (the zero-filled
+            // default) rather than aborting the whole fetch.
+            if (sampled === null) {
+                continue;
+            }
+            exactOut[i] = sampled.exact;
+            nearbyOut[i] = sampled.nearby;
+        }
+        return {
+            RAIN_RADAR_TREND_UINT8: exactOut,
+            RAIN_RADAR_TREND_AREA_UINT8: nearbyOut,
             RAIN_RADAR_START: slotZeroEpoch
-        });
-    }, function(err) {
-        console.log('Rain-radar fetch failed: ' + JSON.stringify(err));
-        // null preserves existing radar on the watch
-        callback(null);
-    });
+        };
+    }, callback);
 }
 
 module.exports = {
-    withRadar2hRain: withRadar2hRain,
     fetchRadarTuplesAt: fetchRadarTuplesAt
 };

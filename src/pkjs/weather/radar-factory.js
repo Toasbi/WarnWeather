@@ -13,7 +13,7 @@
 // unknown/unset id falls back to it (today's default-off behavior). Adding a
 // radar source is a new table entry; index.js never learns source names.
 
-var radar = require('./radar.js');
+var radar = require('./dwd-radar.js');
 var metnoRadar = require('./metno-radar.js');
 var rainbowRadar = require('./rainbow-radar.js');
 var tomorrowioRadar = require('./tomorrowio-radar.js');
