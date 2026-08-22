@@ -5,7 +5,10 @@
 // no resend never runs off the end of the data. ES5 only (reaches the watch).
 
 var daysFromCivil = require('./serial-day.js');
-var registry = require('./registry.js');
+// One holiday source in the codebase's lifetime — call it directly (the old
+// registry.js was an identity curry over it; reintroduce a registry when a
+// SECOND source actually lands).
+var nagerSource = require('./nager-source.js');
 
 var WINDOW_DAYS = 28; // 4 weeks; 21 visible cells + 1 week headroom.
 
@@ -24,6 +27,21 @@ function todayCellIndex(now, startMon, prevWeek) {
 }
 
 /**
+ * The displayed grid's cell-0 (top-left) date — THE window anchor. One
+ * definition, shared by build() and windowYears(): if these ever diverged,
+ * the prefetched years would silently desynchronize from the days the mask
+ * scans at a year boundary.
+ *
+ * @param {{startMon: boolean, prevWeek: boolean}} opts Calendar layout.
+ * @param {Date} now Current local date/time.
+ * @returns {Date} The cell-0 date.
+ */
+function windowStart(opts, now) {
+    var iToday = todayCellIndex(now, opts.startMon, opts.prevWeek);
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate() - iToday);
+}
+
+/**
  * Build the anchored holiday bitmask for the visible calendar window.
  *
  * @param {{startMon: boolean, prevWeek: boolean, country: string, region: string, enabled: boolean}} opts
@@ -32,20 +50,18 @@ function todayCellIndex(now, startMon, prevWeek) {
  * @returns {{anchor: number, mask: number}} Serial-day anchor and 28-bit mask (0 when disabled or no provider).
  */
 function build(opts, now) {
-    var iToday = todayCellIndex(now, opts.startMon, opts.prevWeek);
-    var cell0 = new Date(now.getFullYear(), now.getMonth(), now.getDate() - iToday);
+    var cell0 = windowStart(opts, now);
     var anchor = daysFromCivil(cell0.getFullYear(), cell0.getMonth() + 1, cell0.getDate());
 
     var mask = 0;
-    var provider = registry.getProvider(opts.country);
-    // No provider resolves for 'none' or any not-yet-wired country, so those
-    // (and the disabled case) leave the mask empty with a still-valid anchor.
-    if (opts.enabled && provider) {
+    // 'none' and an empty country leave the mask empty with a still-valid
+    // anchor (the same null the old registry resolved for them).
+    if (opts.enabled && opts.country && opts.country !== 'none') {
         var i;
         var day;
         for (i = 0; i < WINDOW_DAYS; i++) {
             day = new Date(cell0.getFullYear(), cell0.getMonth(), cell0.getDate() + i);
-            if (provider.isHoliday(day, opts.region)) {
+            if (nagerSource.isHoliday(opts.country, opts.region, day)) {
                 mask |= (1 << i);
             }
         }
@@ -62,8 +78,7 @@ function build(opts, now) {
  * @returns {number[]} [year] normally, [y0, y1] when the window crosses a year boundary.
  */
 function windowYears(opts, now) {
-    var iToday = todayCellIndex(now, opts.startMon, opts.prevWeek);
-    var cell0 = new Date(now.getFullYear(), now.getMonth(), now.getDate() - iToday);
+    var cell0 = windowStart(opts, now);
     var last = new Date(cell0.getFullYear(), cell0.getMonth(), cell0.getDate() + (WINDOW_DAYS - 1));
     var y0 = cell0.getFullYear();
     var y1 = last.getFullYear();

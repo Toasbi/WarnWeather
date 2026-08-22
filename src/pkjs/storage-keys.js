@@ -1,4 +1,6 @@
 module.exports = {
+    // The newest release-notification version already shown (release-notifications.js).
+    MAX_NOTIFIED_VERSION_KEY: 'max_notified_version',
     // Marker keys for the clay-settings migrations (runMigrations). Part of a
     // migration's identity — listed here to honor the one-registry rule; the
     // bodies live in clay-settings.js.

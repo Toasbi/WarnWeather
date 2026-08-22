@@ -3,6 +3,9 @@
 // cannot diverge from what the watch is sent. Injected into the page via userData.palette.
 var COLORS = require('../pebble-colors');
 var series = require('../forecast-series');
+// line-style.js OWNS the line/fill colours (they ride the Clay message); the
+// old forecast-series re-exports are gone.
+var lineStyle = require('../line-style.js');
 var rainTier = require('../weather/rain-tier');
 
 /**
@@ -23,7 +26,7 @@ var HUED = ['precip_prob', 'wind', 'uv', 'pressure', 'feels'];
 
 /**
  * Line stroke colours for one metric, for both display classes plus the light-theme
- * variant, via forecast-series.lineColorFor. Mirrors fillEntry's shape: a metric with no
+ * variant, via forecast-lineStyle.lineColorFor. Mirrors fillEntry's shape: a metric with no
  * light-theme override in LINE_COLORS resolves `light` to the same value as `color`
  * (lineColorFor falls back to the dark-theme colour), so this is safe to call uniformly.
  * @param {string} metric precip_prob|wind|uv|pressure|feels
@@ -31,23 +34,23 @@ var HUED = ['precip_prob', 'wind', 'uv', 'pressure', 'feels'];
  */
 function lineEntry(metric) {
     return {
-        color: hex(series.lineColorFor(metric, {}, true)),
-        light: hex(series.lineColorFor(metric, {}, true, 'light')),
-        bw: hex(series.lineColorFor(metric, {}, false))
+        color: hex(lineStyle.lineColorFor(metric, {}, true)),
+        light: hex(lineStyle.lineColorFor(metric, {}, true, 'light')),
+        bw: hex(lineStyle.lineColorFor(metric, {}, false))
     };
 }
 
 /**
  * Area-fill colours for one metric, for both display classes plus the light-theme
- * variant, via forecast-series.fillColorFor.
+ * variant, via forecast-lineStyle.fillColorFor.
  * @param {string} metric precip_prob|wind|uv|gust|pressure|feels
  * @returns {{color:string, light:string, bw:string}} Colour-display (dark theme), light-theme, and B&W fills.
  */
 function fillEntry(metric) {
     return {
-        color: hex(series.fillColorFor(metric, true)),
-        light: hex(series.fillColorFor(metric, true, 'light')),
-        bw: hex(series.fillColorFor(metric, false))
+        color: hex(lineStyle.fillColorFor(metric, true)),
+        light: hex(lineStyle.fillColorFor(metric, true, 'light')),
+        bw: hex(lineStyle.fillColorFor(metric, false))
     };
 }
 
@@ -75,12 +78,12 @@ function buildPreviewPalette() {
         fill[m] = fillEntry(m);
     }
     line.gust = {
-        colorMulti: hex(series.lineColorFor('gust', { rainBarColor: 'multicolor' }, true)),
-        colorWhiteBars: hex(series.lineColorFor('gust', { rainBarColor: 'white' }, true, 'dark')),
+        colorMulti: hex(lineStyle.lineColorFor('gust', { rainBarColor: 'multicolor' }, true)),
+        colorWhiteBars: hex(lineStyle.lineColorFor('gust', { rainBarColor: 'white' }, true, 'dark')),
         // Over white bars the light theme drops LightGray -> DarkGray (LightGray is
         // near-invisible on a white background), so the preview needs both.
-        lightWhiteBars: hex(series.lineColorFor('gust', { rainBarColor: 'white' }, true, 'light')),
-        bw: hex(series.lineColorFor('gust', {}, false))
+        lightWhiteBars: hex(lineStyle.lineColorFor('gust', { rainBarColor: 'white' }, true, 'light')),
+        bw: hex(lineStyle.lineColorFor('gust', {}, false))
     };
     fill.gust = fillEntry('gust');
     return {

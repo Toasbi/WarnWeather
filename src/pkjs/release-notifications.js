@@ -192,25 +192,35 @@ function decideReleaseNotification(opts) {
         title = unseenNotification.title;
         body = unseenNotification.body;
     }
+    // The persist policy is part of THIS decision, not the caller's: an
+    // upgrade notification advances the marker to the shown version; a first
+    // install with a newer manifest baselines it at the running version so the
+    // next upgrade toast has a floor; anything else keeps the stored value
+    // (persistMaxNotified null). Upgrade-persist deliberately wins over the
+    // first-install baseline.
+    var persistMaxNotified = null;
+    if (shouldNotifyUpgrade) {
+        persistMaxNotified = unseenNotification.version;
+    }
+    else if (!opts.hadExistingInstall && isNewer) {
+        persistMaxNotified = appVersion;
+    }
     var logLine = '[release-notification] appVersion=' + appVersion +
         ' hadExistingInstall=' + opts.hadExistingInstall +
         ' maxNotified=' + maxNotified +
         ' isNewer=' + isNewer +
         ' forceVersionKey=' + (forceKey !== '' ? forceKey : '(none)') +
         ' shouldNotify=' + shouldNotify +
-        ' shouldNotifyUpgrade=' + shouldNotifyUpgrade +
         ' shouldNotifyForce=' + shouldNotifyForce +
-        ' unseenVersion=' + (unseenNotification ? unseenNotification.version : '(none)');
+        ' persistMaxNotified=' + (persistMaxNotified === null ? '(keep)' : persistMaxNotified);
 
     return {
         shouldNotify: shouldNotify,
-        shouldNotifyUpgrade: shouldNotifyUpgrade,
         shouldNotifyForce: shouldNotifyForce,
         title: title,
         body: body,
-        unseenVersion: unseenNotification ? unseenNotification.version : null,
-        isNewer: isNewer,
         forceKey: forceKey,
+        persistMaxNotified: persistMaxNotified,
         logLine: logLine
     };
 }

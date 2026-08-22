@@ -23,7 +23,7 @@ function runFetchCycle(deps) {
             );
         });
     }, function(coordinateFailure) {
-        deps.onFailure(coordinateFailure || { category: 'coordinates', code: 'unknown_error' });
+        deps.onFailure(coordinateFailure || { stage: 'coordinates', code: 'unknown_error' });
     });
 }
 

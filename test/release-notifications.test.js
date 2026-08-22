@@ -34,9 +34,8 @@ test('decideReleaseNotification: upgrade shows newest unseen', () => {
     pkg, manifest: null, hadExistingInstall: true, forceVersionSpec: '', maxNotified: '1.2.0'
   });
   assert.equal(d.shouldNotify, true);
-  assert.equal(d.shouldNotifyUpgrade, true);
   assert.equal(d.title, 't');
-  assert.equal(d.unseenVersion, '1.3.0');
+  assert.equal(d.persistMaxNotified, '1.3.0', 'the upgrade advances the marker to the shown version');
 });
 
 test('decideReleaseNotification: force from manifest overrides, no upgrade flag', () => {
@@ -46,8 +45,8 @@ test('decideReleaseNotification: force from manifest overrides, no upgrade flag'
     pkg, manifest, hadExistingInstall: true, forceVersionSpec: '1.0.0', maxNotified: '9.9.9'
   });
   assert.equal(d.shouldNotifyForce, true);
-  assert.equal(d.shouldNotifyUpgrade, false);
   assert.equal(d.title, 'forced');
+  assert.equal(d.persistMaxNotified, null, 'a force-show never moves the marker');
 });
 
 test('decideReleaseNotification: nothing to show on fresh install', () => {
@@ -56,5 +55,7 @@ test('decideReleaseNotification: nothing to show on fresh install', () => {
     pkg, manifest: null, hadExistingInstall: false, forceVersionSpec: '', maxNotified: '0.0.0'
   });
   assert.equal(d.shouldNotify, false);
-  assert.equal(d.isNewer, true); // first-install marker path handled by index.js
+  // The first-install baseline is part of the DECISION now: nothing is shown,
+  // but the marker floors at the running version so the next upgrade toasts.
+  assert.equal(d.persistMaxNotified, '1.3.0');
 });

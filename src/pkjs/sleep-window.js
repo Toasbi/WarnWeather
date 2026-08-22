@@ -20,20 +20,7 @@ function isWithinSleepWindow(now, settings) {
     return h >= start || h < end;
 }
 
-/**
- * Slot-boundary check: true when `nowMs` sits in a later interval slot than
- * `lastTimeMs`. Slots are UTC-aligned chunks of `intervalMs` since the epoch.
- *
- * @param {number} lastTimeMs Last successful fetch epoch ms.
- * @param {number} nowMs Current epoch ms.
- * @param {number} intervalMs Refresh interval in ms.
- * @returns {boolean} True when a new slot has begun.
- */
-function isPastRefreshSlot(lastTimeMs, nowMs, intervalMs) {
-    return Math.floor(nowMs / intervalMs) > Math.floor(lastTimeMs / intervalMs);
-}
 
 module.exports = {
-    isWithinSleepWindow: isWithinSleepWindow,
-    isPastRefreshSlot: isPastRefreshSlot
+    isWithinSleepWindow: isWithinSleepWindow
 };

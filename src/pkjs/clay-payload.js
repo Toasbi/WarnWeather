@@ -30,6 +30,24 @@ function truncateUtf8Bytes(str, maxBytes) {
     return utf8.truncateToByteCap(str, maxBytes).str;
 }
 
+/**
+ * The country the holiday features (and the date-order derivation) act for.
+ * An ABSENT key means a pre-holidayCountry install that never re-saved — those
+ * were US-market builds, so the legacy fallback is 'US', deliberately NOT the
+ * schema's fresh-install 'DE': seedDefaults writes the key into every seeded
+ * blob (making this arm unreachable there), but fixture applications and
+ * direct payload builds still exercise it, and flipping them to day-first
+ * dates would be a silent behavior change. THE one home for that knowledge —
+ * it used to be inlined at three sites that could drift apart.
+ *
+ * @param {Object} settings Clay settings blob.
+ * @returns {string} Country code ('US' when the key is absent).
+ */
+function effectiveHolidayCountry(settings) {
+    return Object.prototype.hasOwnProperty.call(settings, 'holidayCountry')
+        ? settings.holidayCountry : 'US';
+}
+
 // Fixed vertical inset for the temperature axis (px) — the watch's
 // BOTTOM_VIEW_PRIMARY_LINE_INSET_Y. Deliberately NOT a user setting; the wire
 // stays a per-series triple so feels-like inherits it only where selected.
@@ -67,8 +85,7 @@ function buildClayPayload(settings, watchInfo, now) {
         // No-cal date slot order: US writes the month first (mm.dd.yy); everyone
         // else is day-first (dd.mm.yy). Derived from the configured holiday
         // country (defaults to US, matching the holiday-mask default below).
-        "CLAY_DATE_MONTH_FIRST": (settings.hasOwnProperty('holidayCountry')
-            ? settings.holidayCountry : 'US') === 'US',
+        "CLAY_DATE_MONTH_FIRST": effectiveHolidayCountry(settings) === 'US',
         "CLAY_PREV_WEEK": settings.firstWeek === 'prev',
         "CLAY_TOP_VIEW_MODE": topViewIdx,
         "CLAY_THEME": ['dark', 'light', 'bw', 'bw-light'].indexOf(theme),
@@ -83,7 +100,7 @@ function buildClayPayload(settings, watchInfo, now) {
         "CLAY_COLOR_SATURDAY": settings.hasOwnProperty('colorSaturday') ? settings.colorSaturday : DEFAULT_COLOR_FOLLY,
         "CLAY_COLOR_US_FEDERAL": settings.hasOwnProperty('colorUSFederal') ? settings.colorUSFederal : DEFAULT_COLOR_BLUE_MOON,
         "HOLIDAYS": (function() {
-            var country = settings.hasOwnProperty('holidayCountry') ? settings.holidayCountry : 'US';
+            var country = effectiveHolidayCountry(settings);
             var region = settings.holidayRegion || 'all';
             var built = holidayMask.build({
                 startMon: settings.weekStartDay === 'mon',
@@ -185,6 +202,7 @@ function buildClayPayload(settings, watchInfo, now) {
 }
 
 module.exports = {
+    effectiveHolidayCountry: effectiveHolidayCountry,
     buildClayPayload: buildClayPayload,
     // Exported for tests (multi-byte boundary cases); production callers go
     // through buildClayPayload.

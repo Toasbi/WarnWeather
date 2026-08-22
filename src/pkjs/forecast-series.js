@@ -50,11 +50,6 @@ function tempTrendToBytes(temps, band) {
     return { bytes: bytes, min: min, max: max };
 }
 
-// LINE_COLORS / FILL_COLORS, lineColorFor() and fillColorFor() now live in
-// line-style.js -- the graph's line styling is derived from settings alone, so it
-// belongs on the Clay settings message rather than on every weather send. They stay
-// re-exported below so existing consumers (settings/preview-palette.js) keep working.
-
 // windScale → km/h ceiling at the top of the graph. Wind and gust share it so a
 // gust line always reads as >= the wind line.
 var WIND_SCALE_KMH = { low: 30, mid: 50, high: 70 };
@@ -505,11 +500,7 @@ module.exports = {
     tempTrendToBytes: tempTrendToBytes,
     // Re-exported from line-style.js, which owns them now: settings/preview-palette.js
     // and the colour tests read them through this module.
-    LINE_COLORS: lineStyle.LINE_COLORS,
-    FILL_COLORS: lineStyle.FILL_COLORS,
     PRESSURE_SCALE_CURVE_HPA: PRESSURE_SCALE_CURVE_HPA,
-    lineColorFor: lineStyle.lineColorFor,
-    fillColorFor: lineStyle.fillColorFor,
     isBandScaledMetric: isBandScaledMetric,
     BAND_SCALED_METRICS: BAND_SCALED_METRICS
 };

@@ -1,10 +1,10 @@
 // test/forecast-series-colors.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('../src/pkjs/forecast-series.js');
+const fs = require('../src/pkjs/line-style.js');
 const C = require('../src/pkjs/pebble-colors.js');
 
-test('forecast-series exposes the platform-aware line/fill color maps', () => {
+test('line-style exposes the platform-aware line/fill color maps', () => {
   // Nested {color, bw} per metric (color display vs B&W).
   assert.equal(fs.LINE_COLORS.precip_prob.color, C.GColorPictonBlue);
   assert.equal(fs.LINE_COLORS.precip_prob.bw, C.GColorWhite);

@@ -24,8 +24,9 @@ var sleepWindow = require('./sleep-window.js');
 var claySettings = require('./clay-settings.js');
 var fixtureWeather = require('./fixture-weather.js');
 var holidayMask = require('./holidays/holiday-mask.js');
-var registry = require('./holidays/registry.js');
+var nagerSource = require('./holidays/nager-source.js');
 var buildClayPayload = require('./clay-payload.js').buildClayPayload;
+var effectiveHolidayCountry = require('./clay-payload.js').effectiveHolidayCountry;
 var providerFactory = require('./provider-factory.js');
 var previewPalette = require('./settings/preview-palette.js');
 var newsCache = require('./news-cache.js');
@@ -66,7 +67,7 @@ var releaseNotificationsManifest = loadReleaseNotificationsManifest();
  * }}
  */
 var app = {};  // Namespace for global app variables
-var KEY_MAX_NOTIFIED_VERSION = 'max_notified_version';
+var KEY_MAX_NOTIFIED_VERSION = storageKeys.MAX_NOTIFIED_VERSION_KEY;
 var KEY_UPDATE_NOTIFIED_VERSION = storageKeys.UPDATE_NOTIFIED_VERSION_KEY;
 var KEY_LAST_UPDATE_CHECK = storageKeys.LAST_UPDATE_CHECK_KEY;
 // Public appstore APIs; latest version lives at data[0].latest_release.version.
@@ -445,24 +446,18 @@ function maybeShowReleaseNotification(hadExistingInstall, forceVersionSpec) {
     }
     console.log(decision.logLine);
 
-    if (!decision.shouldNotify) {
-        console.log('[release-notification] skip');
-    }
     if (decision.shouldNotify) {
         console.log('[release-notification] showing notification');
         Pebble.showSimpleNotificationOnPebble(decision.title, decision.body);
     }
-
-    if (decision.shouldNotifyUpgrade) {
-        localStorage.setItem(KEY_MAX_NOTIFIED_VERSION, decision.unseenVersion);
-        console.log('[release-notification] set max_notified_version=' + decision.unseenVersion);
-    }
-    else if (!hadExistingInstall && decision.isNewer) {
-        localStorage.setItem(KEY_MAX_NOTIFIED_VERSION, pkg.version);
-        console.log('[release-notification] first install, set max_notified_version=' + pkg.version);
-    }
     else {
-        console.log('[release-notification] keep max_notified_version=' + maxNotified);
+        console.log('[release-notification] skip');
+    }
+    // The decision owns the whole persist policy (release-notifications.js);
+    // this caller only performs the write it names.
+    if (decision.persistMaxNotified !== null) {
+        localStorage.setItem(KEY_MAX_NOTIFIED_VERSION, decision.persistMaxNotified);
+        console.log('[release-notification] set max_notified_version=' + decision.persistMaxNotified);
     }
 }
 
@@ -579,17 +574,17 @@ function resetFetchAttemptCounter() {
  */
 function refreshHolidays() {
     if (!app.settings) { return; }
-    var country = app.settings.hasOwnProperty('holidayCountry') ? app.settings.holidayCountry : 'US';
-    if (country === 'none') { return; }
+    var country = effectiveHolidayCountry(app.settings);
+    // Gate BOTH sentinels here: nagerSource.ensure() has no empty-country
+    // guard of its own (the deleted registry's null used to shield it).
+    if (!country || country === 'none') { return; }
     if (app.settings.holidaysEnabled === false) { return; }
-    var provider = registry.getProvider(country);
-    if (!provider) { return; }
     var compact = (app.settings.topViewMode || 'compact') !== 'full';
     var years = holidayMask.windowYears({
         startMon: app.settings.weekStartDay === 'mon',
         prevWeek: compact ? false : (app.settings.firstWeek === 'prev')
     }, new Date());
-    provider.ensure(years, function () {
+    nagerSource.ensure(country, years, function () {
         sendClaySettings(function () {}, function () {});
     });
 }

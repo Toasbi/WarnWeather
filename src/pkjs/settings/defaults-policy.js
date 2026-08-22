@@ -273,12 +273,12 @@
      *     touches stored settings).
      */
     function resolveDefaults(ctx, rules) {
-        var matching = rulesFor(ctx, rules);
+        // The values-only PROJECTION of pendingDefaults — one implementation of
+        // the later-rows-win precedence, not a second copy that could fork.
+        var pending = pendingDefaults(ctx, rules);
         var out = {};
-        for (var i = 0; i < matching.length; i++) {
-            var set = matching[i].set || {};
-            var keys = Object.keys(set);
-            for (var k = 0; k < keys.length; k++) { out[keys[k]] = set[keys[k]]; }
+        for (var i = 0; i < pending.keys.length; i++) {
+            out[pending.keys[i]] = pending.by[pending.keys[i]].value;
         }
         return out;
     }

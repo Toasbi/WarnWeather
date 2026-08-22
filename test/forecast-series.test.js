@@ -151,7 +151,7 @@ test('a BLACK light-variant is honoured (0x000000 is falsy — presence, not tru
   // Regression: lineColorFor tested `entry.light && isLightPolarity(theme)`, so a
   // light variant of GColorBlack (0x000000) failed the guard and the metric silently
   // fell back to its DARK colour. feels-like is the first metric with a black one.
-  const { LINE_COLORS } = require('../src/pkjs/forecast-series');
+  const { LINE_COLORS } = require('../src/pkjs/line-style.js');
   assert.equal(LINE_COLORS.feels.light, 0x000000, 'the fixture for this bug');
   assert.equal(buildForecastSeries(RAW,
     { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off', theme: 'light' },
@@ -697,7 +697,8 @@ test('applyForecastSeries deletes the transient PRESSURE_TREND', () => {
 // TEMPERATURE axis: applyForecastSeries widens TEMP_MIN/TEMP_MAX to the joint
 // temp∪feels band and rescales the temp bytes against it, so both curves share
 // one scale and the vertical gap between them is real.
-const { needsFeels, LINE_COLORS, FILL_COLORS } = require('../src/pkjs/forecast-series');
+const { needsFeels } = require('../src/pkjs/forecast-series');
+const { LINE_COLORS, FILL_COLORS } = require('../src/pkjs/line-style.js');
 
 // °F temps 10/20/30, raw off getPayload; applyForecastSeries encodes them
 // against [10, 30] (temp-only) or the padded joint band (feels selected).
