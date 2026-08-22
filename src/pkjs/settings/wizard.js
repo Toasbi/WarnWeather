@@ -103,7 +103,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * The flick-demo stop list for the current settings: the REAL view cycle
-     * (view-cycle.js — the same call blocks.js's presetContents makes) mapped to
+     * (view-cycle.js — the same call preview-blocks.js's presetContents makes) mapped to
      * stop descriptors. 1–3 entries; radar, when present, is always last.
      * @param {Object} state Wizard/Clay settings state.
      * @param {boolean} hasHeartRate Whether the platform has a heart-rate sensor (emery).
@@ -351,8 +351,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var car = W.overlay.querySelector('.wiz-car'); if (!car) { return; }
         var on = car.querySelector('.wiz-card.on'); if (!on) { return; }
         var target = on.offsetLeft + on.offsetWidth / 2 - car.clientWidth / 2;
-        W.suppressCarSnap = (target !== car.scrollLeft);
+        var before = car.scrollLeft;
+        // Armed BEFORE the assignment: engines may dispatch the scroll event
+        // synchronously from the setter, and the handler must already see it.
+        W.suppressCarSnap = (target !== before);
         car.scrollLeft = target;
+        // A clamped or rounded-back assignment moves nothing and fires no
+        // scroll event — disarm, or the stale flag would eat the first event
+        // of the user's next real swipe.
+        if (car.scrollLeft === before) { W.suppressCarSnap = false; }
     }
     // Commit a carousel selection: update state, the .on highlight, and the description text in place
     // (no full re-render, so a swipe isn't interrupted). recenter=true also scrolls it to center.
