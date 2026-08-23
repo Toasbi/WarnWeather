@@ -133,6 +133,6 @@
   },
   "1.14.0": {
     "title": "Larger graph fonts",
-    "body": "Draw the graph axis labels in bigger type on Pebble Time 2 — turn it on in the Layout tab."
+    "body": "Draw the graph axis labels in bigger type on Pebble Time 2 — turn it on in the Layout tab. Plus a round of bug fixes."
   }
 }
