@@ -505,8 +505,19 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     }
 #endif
     // The loading/notice overlay is not part of main_window_refresh(), so it consumes
-    // its own flags here, before the config block below clears them.
-    if (forecast_dirty || notice_dirty) {
+    // its own flags here, before the config block below clears them. config_dirty is one
+    // of them for the same reason: every other surface gets repainted by the config
+    // block's whole-window refresh, but this one is outside that set, so a config-only
+    // save that flipped the theme would leave the overlay on the previous polarity's
+    // text color (loading_layer_refresh re-applies theme_fg()) until a forecast or notice
+    // happened along. Folded into this single call rather than a second refresh in the
+    // config block, which would refresh twice whenever both flags are set.
+    // The new theme is already live here even though this runs BEFORE the config block:
+    // handle_clay_config() -> persist_set_config() -> config_refresh() reloads the cached
+    // Config during handler dispatch above, and theme_fg() reads config_get()->theme
+    // directly (theme.h). main_window_apply_theme() below is the separate concern of the
+    // window BACKGROUND, not the source of the new theme value.
+    if (forecast_dirty || notice_dirty || config_dirty) {
         loading_layer_refresh();
     }
     if (config_dirty) {
