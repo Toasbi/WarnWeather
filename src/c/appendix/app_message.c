@@ -509,15 +509,28 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     // of them for the same reason: every other surface gets repainted by the config
     // block's whole-window refresh, but this one is outside that set, so a config-only
     // save that flipped the theme would leave the overlay on the previous polarity's
-    // text color (loading_layer_refresh re-applies theme_fg()) until a forecast or notice
-    // happened along. Folded into this single call rather than a second refresh in the
-    // config block, which would refresh twice whenever both flags are set.
+    // text color (loading_layer_refresh re-applies theme_fg()) until the NEXT MINUTE
+    // TICK, which calls loading_layer_refresh() unconditionally (main_window.c's
+    // minute_handler). So the window is bounded at 60 s, not indefinite — but it is
+    // 60 s that starts the instant the user taps Save, which is exactly when they are
+    // looking at the screen. Folded into this single call rather than a second refresh
+    // in the config block, which would refresh twice whenever both flags are set.
     // The new theme is already live here even though this runs BEFORE the config block:
     // handle_clay_config() -> persist_set_config() -> config_refresh() reloads the cached
     // Config during handler dispatch above, and theme_fg() reads config_get()->theme
     // directly (theme.h). main_window_apply_theme() below is the separate concern of the
     // window BACKGROUND, not the source of the new theme value.
-    if (forecast_dirty || notice_dirty || config_dirty) {
+    if (forecast_dirty || notice_dirty
+#if defined(WW_THEME_POLARITY)
+        // The config arm buys nothing without theme polarity: on aplite theme_is_light()
+        // pins to false so theme_fg() constant-folds, the notice branch is compiled out
+        // (WW_FETCH_NOTICE), and the overlay's remaining state — the 12 h freshness
+        // verdict — reads FORECAST_START, which no config write touches. Guarded so
+        // aplite does not spend image bytes and a flash read per save on a provable
+        // no-op, the way this repo gates every other theme-only cost.
+        || config_dirty
+#endif
+        ) {
         loading_layer_refresh();
     }
     if (config_dirty) {

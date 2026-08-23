@@ -19,6 +19,7 @@
 #include "c/appendix/memory_log.h"
 #include "c/appendix/status_line.h"
 #include "c/appendix/theme.h"
+#include "c/appendix/bottom_view.h"
 
 static Window *s_main_window;
 
@@ -442,6 +443,21 @@ void main_window_apply_top_view() {
     // the boot prime / last tick until then).
     if (config_get()->health_mode != HEALTH_OFF && s_health_mode_prev == HEALTH_OFF) {
         health_cache_reset();
+    }
+    // The mirror flip (true->false) retires the health graph's claim on the SHARED
+    // left-axis strip. Nothing else can: health_graph_compute() is the only reporter and
+    // every path to it is gated on health_renderable() or on the health view being on
+    // screen, so once health is off the last width it reported stays latched in the max
+    // for good — and the now-VISIBLE forecast keeps a gutter sized for a view that can no
+    // longer be shown (a 12.5k-step day leaves the forecast indented for a "12.5" label
+    // beside its own two digits). Report 0 to drop the claim; the strip is a max, so this
+    // only narrows it when health was the wider source. The return says whether the
+    // effective width actually moved, which is exactly when the forecast must repaint —
+    // and it is spent BEFORE render_active_view() below, so the pending draw picks it up.
+    if (config_get()->health_mode == HEALTH_OFF && s_health_mode_prev != HEALTH_OFF) {
+        if (bottom_view_report_label_w(BOTTOM_VIEW_SRC_HEALTH, 0)) {
+            layer_mark_dirty(forecast_layer_get_root());
+        }
     }
     s_health_mode_prev = config_get()->health_mode;
 #endif
