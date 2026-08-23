@@ -27,10 +27,10 @@ static void loading_update_proc(Layer *layer, GContext *ctx) {
     int w = bounds.size.w;
     int h = bounds.size.h;
 
-    // Re-track the child text layer against our current bounds: main_window_relayout()
-    // reframes this layer's root via layer_set_frame() alone (children aren't resized
-    // automatically), so recompute here on every redraw to stay correct after a live
-    // compact-top-view toggle.
+    // Re-track the child text layer against our current bounds: the window reframes this
+    // layer's root via layer_set_frame() alone on every view render (a settings apply, a
+    // flick, a quick-view peek) and children aren't resized automatically, so recompute
+    // here on every redraw to stay correct after a live layout change.
     layer_set_frame(text_layer_get_layer(s_loading_text_layer), GRect(0, h / 3, w, h));
 
     // Black out (theme_bg()'s out) the weather components

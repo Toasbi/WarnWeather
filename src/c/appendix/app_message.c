@@ -422,6 +422,13 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     bool radar_dirty = false;     // radar chart + top-view availability
     bool config_dirty = false;    // whole window (config feeds every layer)
     bool calendar_dirty = false;  // calendar holiday highlights only
+#if defined(WW_RAIN_RADAR)
+    // main_window's radar_has_data() is exactly this persisted start epoch, and it is
+    // the only radar fact the ViewSpec resolves against — the snooze latch/release does
+    // NOT feed it. Snapshot availability around the handlers so the top view is
+    // re-applied only when availability actually flipped (see the radar block below).
+    const bool radar_avail_before = (persist_get_rain_radar_start() > 0);
+#endif
     bool forecast_present = handle_forecast(iterator, &forecast_dirty);
     handled |= forecast_present;
 #if defined(WW_FETCH_NOTICE)
@@ -464,6 +471,12 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     handled |= handle_line_style(iterator, &forecast_dirty);
     handled |= handle_clay_config(iterator, &config_dirty);
     handled |= handle_holidays(iterator, &calendar_dirty);
+#if defined(WW_RAIN_RADAR)
+    // handle_rain_radar is the only writer of the start epoch, so availability is
+    // settled here (the snooze latch below can't move it).
+    const bool radar_avail_changed =
+        radar_avail_before != (persist_get_rain_radar_start() > 0);
+#endif
 
     // Release the radar-snooze latch whenever we're awake. Runs after every
     // handler so it can't race the IS_SLEEPING tuple in the same payload.
@@ -480,21 +493,44 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
         radar_dirty |= persist_set_radar_snooze(false);
     }
 
+    // The rain-countdown rescan comes FIRST, before anything paints: the countdown is
+    // pure data that top_status_layer_refresh() -> recompute_rain_alert() reads, and the
+    // status rows are signature-gated (an unchanged signature repaints nothing), so a
+    // strip refreshed ahead of the rescan would keep showing the old "Rain in X'" until
+    // the next minute tick. The radar payload (or the snooze latch/release) is the
+    // countdown's only data-change source, hence the radar_dirty gate.
+    // aplite drops the rain-countdown alert (24 KB budget), so it skips the rescan and
+    // rain_countdown.c is --gc-sections'd out of that image.
+#ifndef PBL_PLATFORM_APLITE
+    if (radar_dirty) {
+        rain_countdown_refresh(watch_services_now());
+    }
+#endif
+    // The loading/notice overlay is not part of main_window_refresh(), so it consumes
+    // its own flags here, before the config block below clears them.
+    if (forecast_dirty || notice_dirty) {
+        loading_layer_refresh();
+    }
     if (config_dirty) {
-        main_window_apply_theme();
-        main_window_relayout();
-        main_window_refresh();
-        // health_mode may have been changed (e.g. to off) while the alternate view is
-        // shown; re-apply the view so the watch falls back to forecast immediately.
+        main_window_apply_theme();   // background first: every render below paints on it
+        // Config feeds every layer, and main_window_apply_top_view() covers all of them:
+        // it re-applies the view (health_mode may have been changed, e.g. to off, while
+        // the alternate view is shown, so the watch falls back to forecast immediately)
+        // and ends in the same render + main_window_refresh() the per-category blocks
+        // below would do. So it SUBSUMES them — clear the flags it just covered rather
+        // than paying for a second layout compute and a second whole-window refresh.
         main_window_apply_top_view();
 #if defined(PBL_HEALTH)
         // A changed HR scale (or other graph-affecting setting) must re-derive from the
         // cache, not repaint the already-blanked/rescaled statics from before the save.
+        // After the refresh above on purpose: that refresh reports the FORECAST left-axis
+        // label width, and the health compute sizes its visible slots from the shared
+        // strip that width feeds (bottom_view.h, "wider of both").
         main_window_refresh_health_graph();
 #endif
-    }
-    if (forecast_dirty || notice_dirty) {
-        loading_layer_refresh();
+        forecast_dirty = false;
+        status_dirty = false;
+        calendar_dirty = false;
     }
     if (forecast_dirty) {
         forecast_layer_refresh();
@@ -516,19 +552,23 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
 #if defined(WW_RAIN_RADAR)
         rain_radar_layer_refresh();
 #endif
-        // The radar payload (or the snooze latch/release) is the rain-countdown's
-        // only data-change source: rescan the cache, then repaint the strip.
-        // aplite drops the rain-countdown alert (24 KB budget), so it skips the
-        // rescan and rain_countdown.c is --gc-sections'd out of that image.
-#ifndef PBL_PLATFORM_APLITE
-        rain_countdown_refresh(watch_services_now());
+        // The strip carries the rain-countdown alert, so it repaints for the rescan
+        // above — unless the config block already ran a whole-window refresh, which
+        // also sits after the rescan and therefore already carries the fresh countdown.
+        if (!config_dirty) {
+            top_status_layer_refresh();
+        }
+#if defined(WW_RAIN_RADAR)
+        // Radar availability may have switched — re-evaluate the top view so a cleared
+        // radar falls back to the calendar. Only on the actual flip: sleep/snooze do not
+        // feed the ViewSpec, so the latch/release alone would cost a full layout compute
+        // plus a whole-window refresh for a view that cannot have changed.
+        if (radar_avail_changed) {
+            main_window_apply_top_view();
+        }
 #endif
-        top_status_layer_refresh();
-        // Radar availability may have switched — re-evaluate the top view so
-        // a cleared radar falls back to the calendar.
-        main_window_apply_top_view();
     }
-    if (calendar_dirty && !config_dirty) {
+    if (calendar_dirty) {
         calendar_layer_refresh();
     }
     if (!handled) {

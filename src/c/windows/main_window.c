@@ -505,13 +505,6 @@ void main_window_apply_theme(void) {
     window_set_background_color(s_main_window, theme_bg());
 }
 
-void main_window_relayout(void) {
-    // Recompute geometry, visibility and status tiers for the active view; the top-status
-    // band is identical across MVP presets so render_active_view leaves it framed as created.
-    // main_window_refresh() (called by the caller) re-measures the text at the new tier.
-    render_active_view();
-}
-
 void main_window_refresh() {
     time_layer_refresh();
     weather_status_layer_refresh();
@@ -535,9 +528,11 @@ void main_window_refresh() {
 }
 
 #if defined(PBL_HEALTH)
-// See main_window.h. Called once from app_message.c's config_dirty block (not folded
-// into main_window_refresh(), which that same block already invokes twice per save via
-// main_window_apply_top_view()). No visibility gate on purpose: beyond the repaint,
+// See main_window.h. Called once from app_message.c's config_dirty block, and kept OUT
+// of main_window_refresh() on purpose: that refresh is also the flick, quick-view-peek
+// and auto-return path, where health is already refreshed conditionally (only when the
+// incoming view actually shows it) — folding this in would put an unconditional 24-bucket
+// health compute on every wrist flick. No visibility gate on purpose: beyond the repaint,
 // health_graph_layer_refresh() re-reports the left-axis label width that feeds the
 // SHARED strip (bottom_view.h, "wider of both"), and a settings apply that changed the
 // label font must refresh that even while the health view is hidden — or the VISIBLE
