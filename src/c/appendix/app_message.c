@@ -421,11 +421,11 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     bool config_dirty = false;    // whole window (config feeds every layer)
     bool calendar_dirty = false;  // calendar holiday highlights only
 #if defined(WW_RAIN_RADAR)
-    // main_window's radar_has_data() is exactly this persisted start epoch, and it is
-    // the only radar fact the ViewSpec resolves against — the snooze latch/release does
-    // NOT feed it. Snapshot availability around the handlers so the top view is
-    // re-applied only when availability actually flipped (see the radar block below).
-    const bool radar_avail_before = (persist_get_rain_radar_start() > 0);
+    // main_window_radar_has_data() is the ONE radar-availability fact the ViewSpec
+    // resolves against — the snooze latch/release does NOT feed it. Snapshot it
+    // around the handlers so the top view is re-applied only when availability
+    // actually flipped (see the radar block below).
+    const bool radar_avail_before = main_window_radar_has_data();
 #endif
     bool forecast_present = handle_forecast(iterator, &forecast_dirty);
     handled |= forecast_present;
@@ -470,10 +470,10 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     handled |= handle_clay_config(iterator, &config_dirty);
     handled |= handle_holidays(iterator, &calendar_dirty);
 #if defined(WW_RAIN_RADAR)
-    // handle_rain_radar is the only writer of the start epoch, so availability is
-    // settled here (the snooze latch below can't move it).
+    // Availability is settled once the handlers above have run; the snooze latch
+    // below can't move it (it does not feed the predicate).
     const bool radar_avail_changed =
-        radar_avail_before != (persist_get_rain_radar_start() > 0);
+        radar_avail_before != main_window_radar_has_data();
 #endif
 
     // Release the radar-snooze latch whenever we're awake. Runs after every
@@ -504,33 +504,13 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
         rain_countdown_refresh(watch_services_now());
     }
 #endif
-    // The loading/notice overlay is not part of main_window_refresh(), so it consumes
-    // its own flags here, before the config block below clears them. config_dirty is one
-    // of them for the same reason: every other surface gets repainted by the config
-    // block's whole-window refresh, but this one is outside that set, so a config-only
-    // save that flipped the theme would leave the overlay on the previous polarity's
-    // text color (loading_layer_refresh re-applies theme_fg()) until the NEXT MINUTE
-    // TICK, which calls loading_layer_refresh() unconditionally (main_window.c's
-    // minute_handler). So the window is bounded at 60 s, not indefinite — but it is
-    // 60 s that starts the instant the user taps Save, which is exactly when they are
-    // looking at the screen. Folded into this single call rather than a second refresh
-    // in the config block, which would refresh twice whenever both flags are set.
-    // The new theme is already live here even though this runs BEFORE the config block:
-    // handle_clay_config() -> persist_set_config() -> config_refresh() reloads the cached
-    // Config during handler dispatch above, and theme_fg() reads config_get()->theme
-    // directly (theme.h). main_window_apply_theme() below is the separate concern of the
-    // window BACKGROUND, not the source of the new theme value.
-    if (forecast_dirty || notice_dirty
-#if defined(WW_THEME_POLARITY)
-        // The config arm buys nothing without theme polarity: on aplite theme_is_light()
-        // pins to false so theme_fg() constant-folds, the notice branch is compiled out
-        // (WW_FETCH_NOTICE), and the overlay's remaining state — the 12 h freshness
-        // verdict — reads FORECAST_START, which no config write touches. Guarded so
-        // aplite does not spend image bytes and a flash read per save on a provable
-        // no-op, the way this repo gates every other theme-only cost.
-        || config_dirty
-#endif
-        ) {
+    // The loading/notice overlay rides main_window_refresh() (which the config
+    // block below reaches via main_window_apply_top_view), so a weather- or
+    // notice-only message is the one case that has to refresh it here — those
+    // repaint per-category rather than through a whole-window refresh. The
+    // !config_dirty arm only avoids a same-message double refresh (the fixture
+    // path bundles claySettings onto the weather message).
+    if (!config_dirty && (forecast_dirty || notice_dirty)) {
         loading_layer_refresh();
     }
     if (config_dirty) {

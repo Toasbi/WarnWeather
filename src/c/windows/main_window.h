@@ -16,11 +16,18 @@ void main_window_apply_top_view();
 // next full redraw.
 void main_window_apply_theme(void);
 
+// Radar data present? — the ONE availability predicate the ViewSpec resolves
+// against (view_spec_resolve / view_slot_available), exported so app_message.c's
+// availability-flip bracket can never drift from the definition the view
+// actually uses. Constant-false on aplite (radar is compiled out).
+bool main_window_radar_has_data(void);
+
 #if defined(PBL_HEALTH)
 // Re-derive the health graph from the cache + repaint. Call after a settings save
 // that can change the graph's compute (e.g. the HR scale or the label font) so it
 // re-derives instead of rendering stale statics until the next minute tick. Runs
-// whenever health is renderable — hidden view included, on purpose: the compute also
+// whenever the graph is REACHABLE (health renderable AND a graph view in the
+// configured cycle) — hidden view included, on purpose: the compute also
 // re-reports the left-axis label width feeding the SHARED strip (bottom_view.h
 // "wider of both"), and the repaint half is free while hidden (a mark_dirty on a
 // hidden layer is a no-op).

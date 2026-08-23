@@ -465,16 +465,13 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
 bool view_slot_available(uint16_t value, bool has_radar, bool has_health) {
     if (value == 0) { return false; }                // tier=off → disabled slot
     ViewSpec spec = view_spec_unpack(value);
-    // The status halves go through layout_status_visible for the same reason
-    // layout_visibility does: a fourth StatusSource or a third band must not be able
-    // to update the layout's view of "this source is on screen" while this one's
-    // hand-written copy silently disagrees.
-    bool needs_radar = (spec.top == TOP_BAND_RADAR) || (spec.body == BODY_RADAR)
-                    || layout_status_visible(&spec, STATUS_SRC_RADAR);
-    bool needs_health = (spec.body == BODY_HEALTH_GRAPH)
-                     || layout_status_visible(&spec, STATUS_SRC_HEALTH);
-    if (needs_radar && !has_radar) { return false; }
-    if (needs_health && !has_health) { return false; }
+    // Through layout_visibility, not hand-written top/body/status predicates: a new
+    // band, body or StatusSource value updates layout_visibility once and this
+    // function inherits it, instead of a half-migrated copy silently disagreeing
+    // and offering a cycle slot its layer set cannot render.
+    LayerVisibility v = layout_visibility(&spec);
+    if ((v.radar || v.radar_status) && !has_radar) { return false; }
+    if ((v.health_graph || v.health_status) && !has_health) { return false; }
     return true;
 }
 

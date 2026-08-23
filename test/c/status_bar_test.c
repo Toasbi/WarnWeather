@@ -110,7 +110,17 @@ void layer_destroy(Layer *layer) {
     free(layer);
 }
 
-void layer_set_frame(Layer *layer, GRect frame) { layer->frame = frame; }
+void layer_set_frame(Layer *layer, GRect frame) {
+    // The real SDK marks a layer dirty when its frame actually changes; the health
+    // nudge (folded into layout_status_band) relies on exactly that for its
+    // repaint, so the stub reproduces it.
+    if (frame.origin.x != layer->frame.origin.x || frame.origin.y != layer->frame.origin.y
+            || frame.size.w != layer->frame.size.w || frame.size.h != layer->frame.size.h) {
+        int id = line_of_layer(layer);
+        if (id >= 0) { s_dirty_count[id]++; }
+    }
+    layer->frame = frame;
+}
 
 GRect layer_get_frame(const Layer *layer) { return layer->frame; }
 
@@ -208,9 +218,8 @@ static void create_wires_every_bar_in_order(void) {
     expect_int("create.add_before_row", s_add_seq[fc] < s_row_create_seq[fc], 1);
     expect_int("create.row_before_apply", s_row_create_seq[fc] < s_apply_seq[fc], 1);
     expect_int("create.apply_before_refresh", s_apply_seq[fc] < s_refresh_seq[fc], 1);
-    // apply_row() at create, then again inside the initial refresh — as each of the
-    // three predecessors did.
-    expect_int("create.apply_count", s_apply_count[fc], 2);
+    // One seat only: create_all leans on refresh_row, whose first act is apply_row.
+    expect_int("create.apply_count", s_apply_count[fc], 1);
     expect_int("create.refresh_count", s_refresh_count[fc], 1);
     expect_int("create.dirty", s_dirty_count[fc], 1);
     expect_int("create.tier", s_last_tier[fc], LAYOUT_TIER_COMPACT);
@@ -311,17 +320,26 @@ static void live_health_gate(void) {
     MainLayout L = layout_of(GRect(0, 4, 144, 20), GRect(0, 90, 144, 16));
     status_bar_create_all(&parent, &spec, &L);
 
-    expect_int("health.none_initially", status_bar_any_uses_live_health(), 0);
+    expect_int("health.none_initially", status_bar_any_visible_uses_live_health(&spec), 0);
 
     // A live health slot on the FORECAST bar must be seen. Before the collapse the
     // radar bar had no accessor at all, so the same slot there went unnoticed —
     // this gate now covers every bar by construction.
     s_live_health[STATUS_LINE_FORECAST] = true;
-    expect_int("health.forecast_seen", status_bar_any_uses_live_health(), 1);
+    expect_int("health.forecast_seen", status_bar_any_visible_uses_live_health(&spec), 1);
 
     reset_records();
     status_bar_refresh_live_health(&spec);
     expect_int("health.forecast_refreshed", s_refresh_count[STATUS_LINE_FORECAST] >= 1, 1);
+
+    // The same live slot on a bar the SPEC does not show must gate nothing: the
+    // minute handler asks about the view on screen, not about configured lines,
+    // and a hidden bar is re-resolved by the refresh_all that unhides it.
+    ViewSpec hidden = spec_of(2, STATUS_SRC_NONE, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
+    expect_int("health.hidden_not_seen", status_bar_any_visible_uses_live_health(&hidden), 0);
+    reset_records();
+    status_bar_refresh_live_health(&hidden);
+    expect_int("health.hidden_not_refreshed", s_refresh_count[STATUS_LINE_FORECAST], 0);
 
     s_live_health[STATUS_LINE_FORECAST] = false;
     reset_records();
@@ -330,7 +348,7 @@ static void live_health_gate(void) {
 
     status_bar_destroy_all();
     memset(s_live_health, 0, sizeof(s_live_health));
-    expect_int("destroy.live_health_false", status_bar_any_uses_live_health(), 0);
+    expect_int("destroy.live_health_false", status_bar_any_visible_uses_live_health(&spec), 0);
 }
 
 #if defined(WW_RAIN_RADAR)
@@ -359,7 +377,7 @@ static void radar_bar_is_a_first_class_bar(void) {
     // uses-live-health accessor, so it never refreshed on a health update and a
     // Steps slot there froze for an unbounded time.
     s_live_health[rd] = true;
-    expect_int("radar.live_health_seen", status_bar_any_uses_live_health(), 1);
+    expect_int("radar.live_health_seen", status_bar_any_visible_uses_live_health(&spec), 1);
     reset_records();
     status_bar_refresh_live_health(&spec);
     expect_int("radar.live_health_refreshed", s_refresh_count[rd] >= 1, 1);
@@ -370,11 +388,11 @@ static void radar_bar_is_a_first_class_bar(void) {
 #endif
 
 #if defined(PBL_HEALTH)
-// The health bar's band nudge, and the geometry tracking that makes it repaint
-// even when the content signature has not moved. Only the health bar adjusts its
-// bounds AFTER reading them, so it is the only bar whose derived geometry can
-// change without the SDK noticing.
-static void health_nudge_and_geometry_tracking(void) {
+// The health bar's dual-row nudge lives in layout_status_band() now, so the band
+// FRAME itself drops — the SDK's own frame-change dirty (emulated by the stub's
+// layer_set_frame) is what repaints a nudge-only change, and the derived row
+// bounds are exactly layer_get_bounds() again.
+static void health_nudge_moves_the_band_frame(void) {
     Layer parent = {0};
     s_refresh_changed = true;
 
@@ -384,45 +402,70 @@ static void health_nudge_and_geometry_tracking(void) {
     status_bar_create_all(&parent, &full, &L);
 
     const int hl = STATUS_LINE_HEALTH;
-    expect_int("health.fullmode.no_nudge.y", s_last_bounds[hl].origin.y, 0);
+    expect_int("health.fullmode.no_nudge.y", s_layer_of[hl]->frame.origin.y, 4);
     expect_int("health.fullmode.no_nudge.h", s_last_bounds[hl].size.h, 20);
 
-    // Dual-row compact: calendar_rows 2 but status_tier FULL => nudge applies.
+    // Dual-row compact: calendar_rows 2 but status_tier FULL => the frame nudges,
+    // and that frame move is what dirties the layer (content unchanged).
     s_refresh_changed = false;
     reset_records();
     ViewSpec dense = spec_of(2, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST, LAYOUT_TIER_FULL);
     status_bar_apply_view(&dense, &L);
-    expect_int("health.nudge.y", s_last_bounds[hl].origin.y, 2);
-    expect_int("health.nudge.h", s_last_bounds[hl].size.h, 18);
-    // Content did not change, but the DERIVED bounds did — it must still repaint.
-    expect_int("health.nudge.dirties_geometry", s_dirty_count[hl] >= 1, 1);
+    expect_int("health.nudge.frame_y", s_layer_of[hl]->frame.origin.y, 6);
+    expect_int("health.nudge.bounds_h", s_last_bounds[hl].size.h, 18);
+    expect_int("health.nudge.dirties", s_dirty_count[hl] >= 1, 1);
 
-    // Re-applying the same view must not repaint again.
+    // Re-applying the same view must not repaint — or even re-seat — again.
     reset_records();
     status_bar_apply_view(&dense, &L);
     expect_int("health.same_view.no_dirty", s_dirty_count[hl], 0);
+    expect_int("health.same_view.no_apply", s_apply_count[hl], 0);
 
     // A band at exactly HEALTH_TALL_BAND_MIN (16) is too short to nudge.
-    reset_records();
     MainLayout shortL = layout_of(GRect(0, 4, 144, 16), GRect(0, 90, 144, 16));
     status_bar_apply_view(&dense, &shortL);
-    expect_int("health.short_band.no_nudge.y", s_last_bounds[hl].origin.y, 0);
+    expect_int("health.short_band.no_nudge.y", s_layer_of[hl]->frame.origin.y, 4);
     expect_int("health.short_band.no_nudge.h", s_last_bounds[hl].size.h, 16);
 
     // One px taller and the nudge is back.
     MainLayout tallL = layout_of(GRect(0, 4, 144, 17), GRect(0, 90, 144, 16));
     status_bar_apply_view(&dense, &tallL);
-    expect_int("health.17px.nudge.y", s_last_bounds[hl].origin.y, 2);
+    expect_int("health.17px.nudge.y", s_layer_of[hl]->frame.origin.y, 6);
     expect_int("health.17px.nudge.h", s_last_bounds[hl].size.h, 15);
 
     // At COMPACT tier the nudge never applies, so a full-mode flip cannot move
-    // the geometry and must not force a repaint on its own.
+    // the band and must not force a repaint on its own.
     ViewSpec compact = spec_of(2, STATUS_SRC_HEALTH, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
     status_bar_apply_view(&compact, &L);
     reset_records();
     ViewSpec compact_full = spec_of(3, STATUS_SRC_HEALTH, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
     status_bar_apply_view(&compact_full, &L);
-    expect_int("health.compact_fullmode.no_geometry_dirty", s_dirty_count[hl], 0);
+    expect_int("health.compact_fullmode.no_dirty", s_dirty_count[hl], 0);
+
+    status_bar_destroy_all();
+}
+
+// The health-source bar refreshes on VISIBILITY alone (its line is health by
+// construction but may be configured to anything); hidden it must not spend the
+// persist reads — the refresh_all that unhides it re-resolves it then.
+static void health_bar_refreshes_on_visibility(void) {
+    Layer parent = {0};
+    s_refresh_changed = true;
+    memset(s_live_health, 0, sizeof(s_live_health));
+
+    ViewSpec spec = spec_of(2, STATUS_SRC_HEALTH, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
+    MainLayout L = layout_of(GRect(0, 4, 144, 20), GRect(0, 90, 144, 16));
+    status_bar_create_all(&parent, &spec, &L);
+
+    const int hl = STATUS_LINE_HEALTH;
+    reset_records();
+    status_bar_refresh_live_health(&spec);
+    expect_int("health_bar.visible_refreshed", s_refresh_count[hl] >= 1, 1);
+
+    ViewSpec off = spec_of(2, STATUS_SRC_FORECAST, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
+    reset_records();
+    status_bar_refresh_live_health(&off);
+    expect_int("health_bar.hidden_not_refreshed", s_refresh_count[hl], 0);
 
     status_bar_destroy_all();
 }
@@ -448,7 +491,8 @@ int main(void) {
     radar_bar_is_a_first_class_bar();
 #endif
 #if defined(PBL_HEALTH)
-    health_nudge_and_geometry_tracking();
+    health_nudge_moves_the_band_frame();
+    health_bar_refreshes_on_visibility();
 #endif
     if (s_failures) {
         printf("%d status_bar failure(s)\n", s_failures);

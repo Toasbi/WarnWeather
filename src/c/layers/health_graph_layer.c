@@ -270,11 +270,11 @@ static void compute_step_marks(int peak) {
 
 // Read health for the visible window and derive the step scale + labeled marks into
 // the module statics the update proc renders from, then feed the widest mark label
-// into bottom_view so the shared left strip widens to fit. Create does NOT call this
-// (no compute until the cache is warm), so the strip stays forecast-sized until the
-// first refresh. Returns bottom_view's verdict: true when the SHARED strip width
-// actually moved, which the forecast needs to hear about (see health_graph_layer.h).
-static bool health_graph_compute(void) {
+// into bottom_view so the shared left strip widens to fit — bottom_view repaints
+// both strip consumers itself when the effective width moves. Create does NOT call
+// this (no compute until the cache is warm), so the strip stays forecast-sized
+// until the first refresh.
+static void health_graph_compute(void) {
     const GRect    bounds     = layer_get_bounds(s_health_graph_layer);
     const ChartDef def        = health_grid_def();
     const int      pitch      = chart_def_pitch(&def);
@@ -299,11 +299,11 @@ static bool health_graph_compute(void) {
     //
     // This belongs here, not in the update proc: a settings save runs
     // main_window_refresh_health_graph() -> health_graph_layer_refresh() -> this
-    // function whenever health is renderable -- hidden view included (see
-    // app_message.c's config_dirty block and main_window_refresh_health_graph()),
-    // so a new scale re-reads raw values from the cache and re-derives the
-    // flags. Clamping at render time would instead see already-blanked values on the
-    // second redraw and could never recover the original readings.
+    // function whenever the graph is reachable (health_graph_renderable() in
+    // main_window.c) -- hidden view included -- so a new scale re-reads raw values
+    // from the cache and re-derives the flags. Clamping at render time would
+    // instead see already-blanked values on the second redraw and could never
+    // recover the original readings.
     hr_scale_resolve(config_get()->hr_scale, HEALTH_HR_LO, HEALTH_HR_HI,
                      &s_hr_lo, &s_hr_hi);
     hr_scale_apply(s_hr, s_hr_clamp, visible_slots, s_hr_lo, s_hr_hi, CHART_ABSENT);
@@ -337,7 +337,7 @@ static bool health_graph_compute(void) {
             label, font, box, GTextOverflowModeFill, GTextAlignmentRight);
         if (sz.w > max_w) { max_w = sz.w; }
     }
-    return bottom_view_report_label_w(BOTTOM_VIEW_SRC_HEALTH, max_w);
+    bottom_view_report_label_w(BOTTOM_VIEW_SRC_HEALTH, max_w);
 }
 
 // Left-axis strip: labels each dotted step mark (see compute_step_marks) as a single-row
@@ -523,6 +523,9 @@ static void health_graph_update_proc(Layer *layer, GContext *ctx) {
 void health_graph_layer_create(Layer *parent_layer, GRect frame) {
     s_health_graph_layer = layer_create(frame);
     layer_set_update_proc(s_health_graph_layer, health_graph_update_proc);
+    // Strip-width consumer: a forecast-side width change repaints this graph too
+    // (shared strip, bottom_view.h) — it reads the gutter at draw time.
+    bottom_view_register_consumer(s_health_graph_layer);
     // No compute here: the cache populates on reset (boot/enable); the update
     // proc paints the loading state until health_cache_ready().
     layer_add_child(parent_layer, s_health_graph_layer);
@@ -532,7 +535,7 @@ Layer *health_graph_layer_get_root(void) {
     return s_health_graph_layer;
 }
 
-bool health_graph_layer_refresh(void) {
+void health_graph_layer_refresh(void) {
     if (!health_cache_ready()) {
         layer_mark_dirty(s_health_graph_layer);   // paints the loading state
         // Report NOTHING while the (re)build runs: the loading frame has no
@@ -540,14 +543,14 @@ bool health_graph_layer_refresh(void) {
         // also shrink the SHARED strip for the duration of a sliced build and
         // grow it back when the build lands, wobbling the visible forecast's
         // gutter twice over. Holding the last known width leaves it still.
-        return false;
+        return;
     }
-    const bool strip_moved = health_graph_compute();   // copy from the cache + report the width
+    health_graph_compute();   // copy from the cache + report the width
     layer_mark_dirty(s_health_graph_layer);
-    return strip_moved;
 }
 
 void health_graph_layer_destroy(void) {
+    bottom_view_unregister_consumer(s_health_graph_layer);
     layer_destroy(s_health_graph_layer);
     s_health_graph_layer = NULL;
 }

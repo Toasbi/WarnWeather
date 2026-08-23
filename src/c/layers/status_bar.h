@@ -71,14 +71,23 @@ void status_bar_apply_view(const ViewSpec *spec, const MainLayout *L);
 // Re-resolve and repaint every bar — the settings / weather / flick checkpoint.
 void status_bar_refresh_all(void);
 
-// True when ANY bar's active packed line holds a live health slot. Gates the
-// minute handler's health work. Constant-false on aplite.
-bool status_bar_any_uses_live_health(void);
+// True when any VISIBLE bar's active packed line holds a live health slot. Gates
+// the minute handler's health work — visibility matters: the health bar's default
+// line is all live-health slots, so an any-bar scan would be ~always true for
+// every health-enabled user and put HealthService reads on every minute tick even
+// with no health content on screen. A hidden bar can't show a stale value, and
+// every path that unhides one (status_bar_apply_view is the only visibility
+// writer, and each of its callers pairs it with main_window_refresh() ->
+// status_bar_refresh_all()) re-resolves the row then. Constant-false on aplite.
+bool status_bar_any_visible_uses_live_health(const ViewSpec *spec);
 
-// Repaint only the bars whose content depends on live health. The gate is
-//     status_row_uses_live_health(bar) || (bar's source is HEALTH && it is visible)
-// which reproduces the pre-merge behaviour exactly: the health row was refreshed
-// on VISIBILITY (its slots are health by construction, but may be configured to
-// anything), the others on whether they actually carry a live health slot. A
-// uniform gate on either half alone would change behaviour in both directions.
+// Repaint the VISIBLE bars whose content depends on live health: those whose
+// packed line holds a live health slot, plus the health-source bar itself (its
+// slots are health by construction, but may be configured to anything). Hidden
+// bars are skipped on purpose — refreshing one spends persist + threshold flash
+// reads on a row nobody can see, and the refresh_all that accompanies every
+// visibility change re-resolves it before it comes back on screen; the flick and
+// auto-return transitions also refresh the SUMMARY for an incoming live-health
+// view first (main_window's health_warm_for_incoming_view), so that unhide
+// paints fresh values, not the gate-skipped statics.
 void status_bar_refresh_live_health(const ViewSpec *spec);

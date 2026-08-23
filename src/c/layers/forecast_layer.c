@@ -589,6 +589,9 @@ void forecast_layer_create(Layer *parent_layer, GRect frame)
 {
     s_forecast_layer = layer_create(frame);
     layer_set_update_proc(s_forecast_layer, forecast_update_proc);
+    // Registered before the first report below, so a width change repaints this
+    // layer from then on (shared strip, bottom_view.h).
+    bottom_view_register_consumer(s_forecast_layer);
     text_labels_refresh();
     layer_add_child(parent_layer, s_forecast_layer);
     MEMORY_LOG_HEAP("after_forecast_layer_create");
@@ -609,6 +612,7 @@ void forecast_layer_refresh()
 void forecast_layer_destroy()
 {
     MEMORY_LOG_HEAP("forecast_layer_destroy:before");
+    bottom_view_unregister_consumer(s_forecast_layer);
     layer_destroy(s_forecast_layer);
     MEMORY_LOG_HEAP("forecast_layer_destroy:after");
 }

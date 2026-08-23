@@ -62,28 +62,44 @@ typedef enum {
     BOTTOM_VIEW_SRC_HEALTH   = 1,
 } BottomViewSrc;
 
+// Consumers of the strip width — the bottom-region graph layers, each registering
+// its root at create and unregistering at destroy. Both graphs read the strip at
+// DRAW time, so when a report below MOVES the effective width, a repaint is all a
+// consumer needs — and bottom_view, the width's owner, marks every registered
+// consumer dirty itself. This replaced a bool return that each reporter had to
+// thread out to "the other view's" layer by hand: three call sites carried
+// (void)-casts justified by call-ordering prose, a fourth dropped the return with
+// no owner at all, and the hand-written retirement condition in main_window
+// still got one settings flip wrong. It also closes the old "known limit" mirror
+// case (forecast width moving while the health graph is visible): the health
+// layer is a registered consumer like any other. Re-registering is idempotent;
+// marking the reporter's own (about-to-repaint) layer dirty is a harmless no-op.
+//
+// On the single-consumer platform (aplite: the health graph is compiled out) the
+// forecast is the ONLY reporter and the only consumer, and it repaints itself on
+// its own refresh path — there is no "other view" a width change could leave
+// stale — so the registry compiles to nothing there (the aplite image sits
+// against its launch ceiling).
+#if defined(PBL_HEALTH)
+void bottom_view_register_consumer(Layer *layer);
+void bottom_view_unregister_consumer(Layer *layer);
+#else
+static inline void bottom_view_register_consumer(Layer *layer) { (void) layer; }
+static inline void bottom_view_unregister_consumer(Layer *layer) { (void) layer; }
+#endif
+
 // Each view reports the strip width its own labels need (the measured content
 // width, before the MIN_W floor). bottom_view tracks the latest per source, and
-// returns whether the EFFECTIVE strip width below moved — NOT whether this
-// source's own stored value changed. Those differ: the strip is the max across
-// both sources over the floor, so a source shrinking under the other's width (or
-// growing but staying under it, or moving inside the floor) changes its stored
-// value while the gutter both views draw against stays exactly where it was.
-// The return is the signal to repaint the OTHER view: both read the strip at
-// DRAW time, so the one that did not report keeps the old gutter until something
-// marks it dirty.
-bool bottom_view_report_label_w(BottomViewSrc src, int content_w);
+// marks the registered consumers dirty when the EFFECTIVE strip width below
+// moved — NOT when merely this source's own stored value changed. Those differ:
+// the strip is the max across both sources over the floor, so a source shrinking
+// under the other's width (or growing but staying under it, or moving inside the
+// floor) changes its stored value while the gutter both views draw against stays
+// exactly where it was.
+void bottom_view_report_label_w(BottomViewSrc src, int content_w);
 
 // Effective strip width = max(forecast_reported, health_reported, MIN_W).
 int  bottom_view_label_strip_w(void);
 
 // Graph inset (left edge of the plot) = label_strip_w + GAP.
 int  bottom_view_graph_inset(void);
-
-// KNOWN LIMIT, deliberately unfixed — the mirror of the repaint above: when the
-// FORECAST's width moves (a temp label gaining a digit, say) while the HEALTH
-// graph is the visible body, health's gutter is the stale one. That case is
-// BOUNDED — main_window's minute handler refreshes a visible health graph on
-// every tick — so it self-heals within 60 s. The forecast's is not: nothing
-// re-measures a visible forecast on a cadence, so it holds a stale gutter until
-// an unrelated event (weather fetch, settings save, flick) happens to dirty it.

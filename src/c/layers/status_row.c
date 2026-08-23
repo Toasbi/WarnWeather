@@ -504,22 +504,16 @@ static void resolve_slot(const StatusRow *row, int i, GFont base,
 }
 
 // Resolve a whole row: load the pass, then resolve all three slots against it.
-// Returns STATUS_SLOT_COUNT, or 0 when the line has nothing renderable (`out` and
-// `views` are then indeterminate and must not be read).
-//
-// `views` hands back the PACKED slots, which ensure_glyphs() needs and out[].slot
-// cannot answer: glyph_icons[] tracks the packed icon precisely so the low-battery
-// override does not churn the PDC cache as it toggles. It is OPTIONAL — pass NULL
-// from a pass that does not draw, so the refresh path does not reserve a buffer it
-// has nothing to spend on.
-static int resolve_row(const StatusRow *row, ResolvedSlot out[STATUS_SLOT_COUNT],
-                       StatusSlotView views[STATUS_SLOT_COUNT]) {
-    StatusSlotView local[STATUS_SLOT_COUNT];
-    StatusSlotView *packed = views ? views : local;
-    if (load_pass(row->line_id, packed) == 0) { return 0; }
+// Returns STATUS_SLOT_COUNT, or 0 when the line has nothing renderable (`out` is
+// then indeterminate and must not be read). The refresh path's resolver — the
+// draw path loads and resolves per slot itself, so it can skip suppressed slots
+// and keep the packed views for ensure_glyphs().
+static int resolve_row(const StatusRow *row, ResolvedSlot out[STATUS_SLOT_COUNT]) {
+    StatusSlotView views[STATUS_SLOT_COUNT];
+    if (load_pass(row->line_id, views) == 0) { return 0; }
     GFont base = row_font(row->tier, row->line_id);
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        resolve_slot(row, i, base, &packed[i], &out[i]);
+        resolve_slot(row, i, base, &views[i], &out[i]);
     }
     return STATUS_SLOT_COUNT;
 }
@@ -600,7 +594,7 @@ bool status_row_refresh(StatusRow *row) {
     // health slot would drop out of uses_live_health below, cutting the row out of
     // the live-health refresh set entirely. Fold all three, always; suppression is
     // a paint mask, not a content rule.
-    if (resolve_row(row, resolved, NULL) > 0) {   // no glyphs here: no packed slots needed
+    if (resolve_row(row, resolved) > 0) {
         for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
             const ResolvedSlot *r = &resolved[i];
             const StatusSlotView *slot = &r->slot;
@@ -836,9 +830,8 @@ static void glyph_set_stroke(GDrawCommandImage *image, GColor color) {
 
 void status_row_draw(StatusRow *row, GContext *ctx) {
     if (!row || !ctx) { return; }
-    ResolvedSlot slots[STATUS_SLOT_COUNT];
     StatusSlotView views[STATUS_SLOT_COUNT];
-    if (resolve_row(row, slots, views) == 0) { return; }
+    if (load_pass(row->line_id, views) == 0) { return; }
 
     GFont font = row_font(row->tier, row->line_id);
     int content_h = graphics_text_layout_get_content_size(
@@ -848,22 +841,26 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
 
     int16_t content_w = (int16_t)(row->bounds.size.w - 2 * STATUS_ROW_MARGIN);
     if (content_w < 0) { content_w = 0; }
+    ResolvedSlot slots[STATUS_SLOT_COUNT];
     StatusSlotMeasure measures[STATUS_SLOT_COUNT];
 
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         // Rain-alert takeover: hide left + mid so only the right slot (battery)
         // renders; the owner draws the alert glyph+text over the vacated region.
-        // A mask on the MEASURE, not on the resolve: a zero measure is invisible
-        // to status_row_layout, so places[i].visible comes back false and both
-        // paint passes below skip the slot — while the slot itself stays fully
-        // resolved, the way status_row_refresh already folds it.
+        // Suppressed slots are skipped BEFORE their resolution: suppression must
+        // stay blind only in status_row_refresh (the signature + uses_live_health
+        // fold), while the draw has nothing to spend a resolved-but-masked slot on
+        // — its zero measure is invisible to status_row_layout, so places[i].visible
+        // comes back false and both paint passes below skip the slot.
         if (row->suppress_edges && i != STATUS_SLOT_COUNT - 1) {
-            // Whole-struct clear: present=false already short-circuits the
+            // Whole-struct clears: present=false already short-circuits the
             // layout, but zeroing every field keeps this from becoming the
-            // pattern that reintroduces an unset lane when one is added.
+            // pattern that reintroduces an unset-field read when one is added.
             measures[i] = (StatusSlotMeasure){0};
+            slots[i] = (ResolvedSlot){0};
             continue;
         }
+        resolve_slot(row, i, font, &views[i], &slots[i]);
         // The resolver's font, not `font`: a bold slot's glyphs are wider, so it
         // must MEASURE with the font it is about to be drawn with.
         measures[i] = measure_slot(row, i, slots[i].font, content_w,

@@ -16,11 +16,11 @@ void health_graph_layer_set_full_mode(bool full);
 
 Layer *health_graph_layer_get_root(void);
 
-// Re-read the cache + mark dirty. Returns true when this refresh moved the SHARED
-// left-axis strip width (bottom_view.h, "wider of both") — the caller owes the
-// forecast a repaint then, because the forecast reads that strip at DRAW time and
-// nothing else will dirty it. False on the loading path (no width is reported while
-// a build is pending) and whenever the effective width came out unchanged.
-bool health_graph_layer_refresh(void);
+// Re-read the cache + mark dirty. The compute also re-reports the left-axis label
+// width into the SHARED strip (bottom_view.h, "wider of both"); bottom_view marks
+// both strip consumers dirty itself when the effective width moves, so callers owe
+// nobody a repaint. No width is reported on the loading path — holding the last
+// known width keeps the visible forecast's gutter still through a sliced rebuild.
+void health_graph_layer_refresh(void);
 
 void health_graph_layer_destroy(void);

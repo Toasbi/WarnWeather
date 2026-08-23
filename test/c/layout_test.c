@@ -626,10 +626,23 @@ static void tier_helper_tests(void) {
     ViewSpec dual = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST));
     MainLayout Ld = layout_compute_spec(BOUNDS, &dual, FC_BAND_H);
     expect("tier_helpers.dual_bands_differ", Ld.status.origin.y != Ld.status_lower.origin.y, true);
-    expect("tier_helpers.dual_upper_band",
-           layout_status_band(&dual, &Ld, STATUS_SRC_HEALTH).origin.y == Ld.status.origin.y, true);
     expect("tier_helpers.dual_lower_band",
            layout_status_band(&dual, &Ld, STATUS_SRC_FORECAST).origin.y == Ld.status_lower.origin.y, true);
+    // The health source's dual-row nudge is folded into layout_status_band: at FULL
+    // status tier under a retained calendar (the dual view above), a tall-enough
+    // health band drops HEALTH_SECTION_DROP px off its top; a band at or under
+    // HEALTH_TALL_BAND_MIN is left alone. Either way it tracks L.status — tens of
+    // pixels from L.status_lower — which pins the upper-band choice too.
+    GRect hb = layout_status_band(&dual, &Ld, STATUS_SRC_HEALTH);
+    if (Ld.status.size.h > HEALTH_TALL_BAND_MIN) {
+        expect("tier_helpers.dual_health_nudged_y",
+               hb.origin.y == Ld.status.origin.y + HEALTH_SECTION_DROP, true);
+        expect("tier_helpers.dual_health_nudged_h",
+               hb.size.h == Ld.status.size.h - HEALTH_SECTION_DROP, true);
+    } else {
+        expect("tier_helpers.dual_health_unnudged",
+               hb.origin.y == Ld.status.origin.y && hb.size.h == Ld.status.size.h, true);
+    }
     printf("tier_helpers OK\n");
 }
 
