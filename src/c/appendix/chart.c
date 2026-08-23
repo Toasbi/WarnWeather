@@ -65,12 +65,21 @@ static inline int chart_clamp_count(const ChartRender *r, int count) {
     #define CHART_LABEL_BOTTOM_DY   6
     #define CHART_LABEL_BOTTOM_H   14
     #define CHART_LABEL_NUDGE_X     0   // wide pitch: centered digit already sits on its column
-    // emery + "Larger graph fonts": GOTHIC_18 digits in the SAME 20 px strip
-    // (BOTTOM_VIEW_AXIS_H 10 + BOTTOM_VIEW_BOTTOM_PAD 10) -- the box moves up and grows
-    // rather than the strip growing. Two constraints pin these: DY must clear the 6 px
-    // TICK_BIG that emery draws under every LABELED slot (forecast_grid.c) using the
-    // font's own top whitespace, and DY + H must stay <= 21 so the digits are not
-    // clipped at the layer bottom.
+    // emery + "Larger graph fonts": GOTHIC_18 digits in the SAME strip below the axis --
+    // the box moves up and grows rather than the strip growing.
+    //
+    // Ink model (layers/status_metrics.h, MEASURED): a digit's cap box sits on the
+    // BOTTOM of the measured content box, so ink runs box_top + (content_h - cap) ..
+    // box_top + content_h - 1. GOTHIC_14 -> box_top+5..+13, GOTHIC_18 -> box_top+7..+17.
+    //
+    // The strip below the axis line is 19 rows: axis_y = h - BOTTOM_VIEW_AXIS_H while the
+    // layer runs to h + BOTTOM_VIEW_BOTTOM_PAD - 1, so the last drawable row is
+    // axis_y + 19 and the bound is DY + H <= 20. Two constraints pin the pair:
+    //   - DY + 7 > 6, so the ink clears the 6 px TICK_BIG emery draws under every
+    //     LABELED slot (forecast_grid.c) -- at DY 2 the ink starts at axis_y+9, two rows
+    //     clear, where GOTHIC_14's DY 6 starts at axis_y+11.
+    //   - DY + H = 20 seats the last ink row on axis_y+19, exactly where GOTHIC_14's
+    //     6 + 14 already puts it. Same bottom edge, two rows taller.
     #define CHART_LABEL_BOTTOM_DY_LARGE   2
     #define CHART_LABEL_BOTTOM_H_LARGE   18
 #else
@@ -87,7 +96,15 @@ static inline int chart_clamp_count(const ChartRender *r, int count) {
 // emery + "Larger graph fonts": the radar's 12 px RADAR_AXIS_H band, with GOTHIC_18.
 // Hour digits REPLACE the tick on their slot there (RADAR_AXIS_HOUR_LABEL, radar_axis.c),
 // so only the band edges constrain this pair.
-#define CHART_LABEL_TOP_RAISE_LARGE 17
+//
+// The band is rows 0..11 of the radar layer and the plot starts at row 12
+// (rain_radar_layer.c builds outer at bounds.origin.y + RADAR_AXIS_H), while the box top
+// is outer.origin.y - RAISE. With the measured ink model above (GOTHIC_18 inks
+// box_top+7..box_top+17) RAISE 19 puts the ink on rows 0..10, leaving row 11 to the tick
+// row exactly as GOTHIC_14's RAISE 15 does (ink rows 2..10). RAISE 17 would ink row 12 --
+// the plot's first row, which the bars then repaint over. This is why the band does not
+// need the RADAR_AXIS_H bump the design doc held in reserve.
+#define CHART_LABEL_TOP_RAISE_LARGE 19
 #define CHART_LABEL_TOP_H_LARGE     18
 #endif
 

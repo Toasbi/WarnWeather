@@ -267,11 +267,6 @@ static void compute_step_marks(int peak) {
     }
 }
 
-// Read health for the visible window and derive the step scale + labeled marks into
-// the module statics the update proc renders from. When report_width is true (refresh
-// path) it also feeds the widest mark label into bottom_view so the shared left strip
-// widens to fit; create passes false so a paint while hidden never perturbs forecast's
-// strip before the health view is ever shown.
 // Left-axis (step-mark) font -- the health twin of forecast_layer.c's
 // temp_label_font(). emery's "Larger graph fonts" steps it up one tier; every other
 // platform is frozen at GOTHIC_18. BOTH the draw and the width measurement go through
@@ -286,6 +281,11 @@ static GFont step_label_font(void) {
     return fonts_get_system_font(FONT_KEY_GOTHIC_18);
 }
 
+// Read health for the visible window and derive the step scale + labeled marks into
+// the module statics the update proc renders from. When report_width is true (refresh
+// path) it also feeds the widest mark label into bottom_view so the shared left strip
+// widens to fit; create passes false so a paint while hidden never perturbs forecast's
+// strip before the health view is ever shown.
 static void health_graph_compute(bool report_width) {
     const GRect    bounds     = layer_get_bounds(s_health_graph_layer);
     const ChartDef def        = health_grid_def();
@@ -370,14 +370,20 @@ static void draw_left_axis(GContext *ctx, int h, int hi) {
 
     graphics_context_set_text_color(ctx, theme_fg());
     const GFont font = step_label_font();
-    // Single-row label centered on the gridline y. graphics_draw_text seats text at the
-    // TOP of its box, so the lift is what centres the ink: half the font's line height
-    // plus the 2 px that lands the digit ink on the line (GOTHIC_18: 9 + 2 = 11). The
-    // box must be at least the line height or the row is dropped entirely.
+    // Single-row label centered on the gridline y. Pebble seats a digit's cap box on the
+    // BOTTOM of its measured content box (layers/status_metrics.h, measured: content_h
+    // 14/18/24 -> cap 9/11/14), so for a box top `ty` the ink runs
+    // ty + (content_h - cap) .. ty + content_h - 1 and its centre sits
+    // status_glyph_below(content_h) above the content bottom. Solving
+    // "ink centre == y + 1" gives ty = y + 1 - content_h + below, which reproduces the
+    // shipped GOTHIC_18 lift exactly (1 - 18 + 6 = -11). The box must be at least
+    // content_h or graphics_draw_text drops the row entirely.
 #ifdef PBL_PLATFORM_EMERY
-    // emery: GOTHIC_24 keeps the same relationship -- 12 + 2 = 14, box 24 + 2 = 26.
+    // emery: the same solve at GOTHIC_24 -- 1 - 24 + 7 = -16, box 24 + 2 = 26. (The
+    // earlier "half the line height plus 2" guess gave 14, which hung the taller cap
+    // 3 px below its gridline: the model centres the INK, not the content box.)
     const bool large   = config_get()->large_graph_font;
-    const int  ty_lift = large ? 14 : 11;
+    const int  ty_lift = large ? 16 : 11;
     const int  box_h   = large ? 26 : 20;
 #else
     const int  ty_lift = 11;

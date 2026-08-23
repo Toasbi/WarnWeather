@@ -342,17 +342,19 @@ static void draw_left_axis(GContext *ctx, int h) {
     GSize lo_size = temp_label_string_size(s_buffer_lo);
     const int16_t axis_y = h - BOTTOM_VIEW_AXIS_H;
 #ifdef PBL_PLATFORM_EMERY
-    // emery: top label sits flush at the strip top. GOTHIC_24 carries ~2 px more top
-    // whitespace than GOTHIC_18, so the large variant pulls up to match -- which also
-    // clears the 2 px hi/lo BOX overlap in the tightest band. That band is 68 px and is
+    // emery: top label sits flush at the strip top. GOTHIC_24 carries 3 px more top
+    // whitespace than GOTHIC_18 (measured ink model in layers/status_metrics.h: the cap
+    // box sits on the content-box BOTTOM, so ink starts at box_top + content_h - cap =
+    // +7 at GOTHIC_18 and +10 at GOTHIC_24), so -3 lands the large label's first ink row
+    // on row 7 -- pixel-identical to where the small one starts today. It also clears the
+    // hi/lo BOX overlap in the tightest band. That band is 68 px and is
     // NOT an edge case: it is the fullCal DEFAULT view and every compactDense view
-    // (test/c/layout_test.c emery goldens). At 68: h = 58, axis_y = 48, hi box -2..21,
-    // lo_y = 48 - 24 - 2 = 22 -> lo box 22..45, so the boxes no longer touch (and the
-    // INK never came close -- GOTHIC_24 digit ink ends ~row 19 in the hi box, lo ink
-    // starts ~row 28). Deliberately NO band-height font fallback: 68 px is the default
-    // view, so dropping back to GOTHIC_18 there would erase the feature exactly where
-    // it is most seen.
-    const int hi_y = config_get()->large_graph_font ? -2 : 0;
+    // (test/c/layout_test.c emery goldens). At 68: h = 58, axis_y = 48, hi box -3..20,
+    // lo_y = 48 - 24 - 2 = 22 -> lo box 22..45, so the boxes no longer touch -- and the
+    // INK is never close: hi ink ends row 20, lo ink starts row 32, 11 rows apart.
+    // Deliberately NO band-height font fallback: 68 px is the default view, so dropping
+    // back to GOTHIC_18 there would erase the feature exactly where it is most seen.
+    const int hi_y = config_get()->large_graph_font ? -3 : 0;
 #else
     const int hi_y = -3;  // GOTHIC_18 top-whitespace pull-up
 #endif
