@@ -61,7 +61,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Light/Dark settings page with grouped, easy-to-browse pickers
 * First-run setup wizard that picks sensible defaults for your country and watch — it bolds the rows you read first, gives air quality a warn outline, and puts steps on the top row when your watch has health
 * New watches start the compact layout with the status row below the clock — flip it with "Swap clock and status row" in the Layout tab
-* Larger graph fonts on Pebble Time 2 — draw the forecast, health and radar axis labels in bigger type from the Layout tab
+* Larger graph fonts on Pebble Time 2 — the forecast, health and radar axis labels are drawn in bigger type by default; turn them down in the Layout tab
 
 *Weather and radar data from [MET Norway](https://www.met.no/) is used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).*
 

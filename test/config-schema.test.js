@@ -753,7 +753,9 @@ test('Layout tab leads with the arrangement section: combined preview above the 
 test('largeGraphFont is offered on emery only, and hidden when watchInfo is unavailable', () => {
   const it = byKey('largeGraphFont');
   assert.equal(it.type, 'toggle');
-  assert.equal(it.defaultValue, false);
+  // ON out of the box: the taller tier is the more readable one on emery's 200 px
+  // screen, so it is the shipped default rather than something to go and find.
+  assert.equal(it.defaultValue, true);
   assert.equal(it.label, 'Larger graph fonts');
   assert.deepEqual(it.showWhen, { env: 'platform', eq: 'emery' });
   const emery = { env: platform.computeEnv({ platform: 'emery' }) };

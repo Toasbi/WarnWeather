@@ -105,10 +105,13 @@ typedef struct {
     uint16_t hr_scale;
 #endif
     // --- larger graph fonts (emery only): step every graph axis label up one Gothic
-    // tier (left axes 18 -> 24, hour labels 14 -> 18). Appended at the END to honour
-    // the append-only persist offsets -- an upgrader's shorter stored blob does not
-    // reach this byte, so config_read_or_default()'s seeded default (false) survives
-    // and existing installs render unchanged until they opt in.
+    // tier (left axes 18 -> 24, hour labels 14 -> 18). ON by default since the tier
+    // stopped being an opt-in. Appended at the END to honour the append-only persist
+    // offsets -- an upgrader from before the field existed has a shorter stored blob
+    // that does not reach this byte, so config_read_or_default()'s seeded default
+    // applies, which is the same value the phone sends them once seedDefaults
+    // backfills the missing key. An install that stored the field keeps what it
+    // stored, so a deliberate opt-out survives.
     //
     // PBL_PLATFORM_EMERY-guarded, for the same reason hr_scale above is PBL_HEALTH-
     // guarded: no other platform can ever read it (every render-side branch is inside

@@ -1263,7 +1263,13 @@ module.exports = {
                 type: 'toggle',
                 messageKey: 'largeGraphFont',
                 label: 'Larger graph fonts',
-                defaultValue: false,
+                // ON out of the box: on emery's 200 px screen the taller tier is simply the
+                // more readable one at a glance, and it costs no band height (chart.c solves
+                // both tiers against the same ink floor). Only a FRESH install -- or an
+                // upgrade from before the setting existed, whose missing key seedDefaults
+                // backfills -- lands here; a v1.14.0 install already stores its own value,
+                // so this is deliberately not migrated.
+                defaultValue: true,
                 hint: 'Draw the graph axis labels in bigger type.',
                 // Emery only: the 200 px screen is the only one with room for a font
                 // tier up, and on a 144 px watch the graph left axis is ALREADY drawn

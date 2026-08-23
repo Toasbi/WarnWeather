@@ -330,7 +330,9 @@ test('CLAY_HR_SCALE falls back to 40-150 when unset or malformed', function() {
     'out of byte range');
 });
 
-test('CLAY_LARGE_GRAPH_FONT reflects the largeGraphFont setting (default false)', () => {
+// The schema ships the setting ON (schema.js), so the absent case here is not the
+// shipped default -- it is what a settings blob that never carried the key sends.
+test('CLAY_LARGE_GRAPH_FONT reflects the largeGraphFont setting (absent reads as off)', () => {
   assert.equal(buildClayPayload(baseSettings(), { platform: 'emery' }, NOW).CLAY_LARGE_GRAPH_FONT, false);
   const on = baseSettings();
   on.largeGraphFont = true;

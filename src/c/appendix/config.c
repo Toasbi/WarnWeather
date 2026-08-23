@@ -52,9 +52,12 @@ static Config config_defaults(void) {
         .battery_low_only = true,
         .date_month_first = false,  // day-first (dd.mm.yy); phone overrides per holiday country
 #if defined(PBL_PLATFORM_EMERY)
-        // emery: off out of the box -- an upgrade must look byte-identical until the
-        // user opts in. Guarded because the field itself is (see config.h).
-        .large_graph_font = false,
+        // emery: on out of the box, matching the phone's schema default -- this covers
+        // only the window before the first Clay message (a fresh install, or a phone
+        // that predates the key), and starting it false would flip the axis labels
+        // small -> large a moment after boot. Guarded because the field itself is
+        // (see config.h).
+        .large_graph_font = true,
 #endif
     };
 }
