@@ -23,9 +23,9 @@
 // FLOOR — the deepest row a descender's tails can reach, since the clamp-free band holds cap +
 // tails exactly — still clears the clock's first inked row: floor 60 vs clock ink 63 on basalt,
 // 84 vs 89 on emery (clock rows MEASURED on the default Roboto, the tallest of the three time
-// fonts; the actual slot text in those captures inked no deeper than 58 / 81). See
-// .superpowers/sdd/dense-clearance-report.md. Deliberately NOT per preset: it used to be
-// applied to the lone row only, which is exactly the defect that report fixes.
+// fonts; the actual slot text in those captures inked no deeper than 58 / 81).
+// Deliberately NOT per preset: it used to be applied to the lone row only, which is
+// exactly the defect the dense-clearance audit fixed.
 #define COMPACT_SINGLE_STATUS_NUDGE 3
 
 // Content height of the LARGE status font — the one the top date strip and a LONE compact

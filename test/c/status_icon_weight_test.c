@@ -148,13 +148,13 @@ static void sweep_is_monotonic(void) {
 //       round(off * ink / 100), halves away from zero, and written out in the
 //       comment beside it.
 //
-// The ink height per (icon, tier) is DEVICE-MEASURED — see the table in
-// status_icon_weight.h and .superpowers/sdd/icon-weight-remaining-report.md §1 —
-// and `bounds_h` is that ink height minus 1 (icon_load() paints one row more than
-// the bounds box). The four ink figures still carried over from
-// icon-centring-analysis.md rather than re-measured are AQI@t13, HR@t10 and
-// STEPS/AQI@t10; all four belong to icons at weight 50 on that platform, where the
-// lift is 0 for any ink whatsoever, so nothing here rides on them.
+// The ink height per (icon, tier) is DEVICE-MEASURED — the grid is
+// docs/adr/0002-status-glyph-sizing-and-seating.md §2, which is the only in-repo
+// copy these 66 numbers can be checked against — and `bounds_h` is that ink height
+// minus 1 (icon_load() paints one row more than the bounds box). Four ink figures
+// were carried over from an earlier centring audit rather than re-measured:
+// AQI@t13, HR@t10 and STEPS/AQI@t10. All four belong to icons at weight 50 on that
+// platform, where the lift is 0 for any ink whatsoever, so nothing here rides on them.
 static void shipped_weights_are_the_judged_ones(void) {
     // 5a — this build's table.
     struct { uint8_t id; int want; const char *name; } table[] = {
@@ -187,6 +187,17 @@ static void shipped_weights_are_the_judged_ones(void) {
     for (unsigned i = 0; i < sizeof(table) / sizeof(table[0]); i++) {
         expect(table[i].name, status_icon_weight_pct(table[i].id), table[i].want);
     }
+
+    // 5a' — the phone-battery PAIR must carry the SAME weight, whatever that weight
+    // is. The two ids swap in place inside ONE slot the instant the phone is plugged
+    // in, so seating one without the other makes the icon visibly hop. The table
+    // above deliberately omits both ids (their value is a default on basalt and a
+    // judgement on emery, and either may be re-tuned); the EQUALITY is the contract,
+    // and it is asserted here rather than left as prose — see
+    // docs/adr/0002-status-glyph-sizing-and-seating.md §4.
+    expect("phone-battery pair carries one weight",
+           status_icon_weight_pct(STATUS_ICON_PHONE_BATTERY),
+           status_icon_weight_pct(STATUS_ICON_PHONE_BATTERY_CHG));
 
     // 5b — every icon at every tier its platform ships, both platforms. Positive
     // want_lift = the glyph moves UP. `ink` is the measured painted height, so the

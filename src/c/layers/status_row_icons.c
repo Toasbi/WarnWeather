@@ -189,169 +189,33 @@ static int icon_scale_pct(uint8_t icon_id) {
 
 // ── The phone-battery pair's size: a rung, not a percent ────────────────────
 //
-// STATUS_ICON_PHONE_BATTERY and _CHG swap in place inside ONE slot the moment the
-// user plugs the phone in, so they are sized as a PAIR — at every tier but ONE.
-// Emery's FULL rows are the exception the watch asked for, and the only place these
-// two paint different heights; it is spelled out, and costed, under "WHAT SHIPS".
+// STATUS_ICON_PHONE_BATTERY (a phone with the bolt drawn inside it) and _CHG (a
+// mains plug) swap in place inside ONE slot the moment the phone is plugged in, so
+// they are sized as a PAIR — at every tier but one. Their authored ink HEIGHTS are
+// exactly equal (160 units each), so one h renders both to the same height by
+// construction; only emery's FULL rows deliberately split them.
 //
-// The two are DIFFERENT OBJECTS, deliberately: normal is a phone with the bolt
-// drawn INSIDE it (device-mobile-charging.svg), charging is a mains plug
-// (plug.svg). An earlier pair drew a phone in both states and had to keep the
-// shared PHONE BODY steady across the swap, which was unsatisfiable — the bodies
-// quantised on opposite parities, so the best attainable case was a one-row
-// mismatch, which the watch reported as "a little too long". Two distinct
-// silhouettes retire that constraint outright: there is no shared body left to
-// match. It also frees the normal glyph to be the one with the bolt inside, which
-// reads better than a badge hanging off the corner — and the inner bolt's habit of
-// collapsing to a plain bar at small tiers no longer costs anything, because the
-// plug never looked like it.
+// THE SIZE GRAIN IS TWO PIXELS. icon_load() snaps every vertex to a pixel centre,
+// so painted height == bounds_h + 1 and is ALWAYS ODD: h and h+1 paint the same
+// height. A literal "one pixel shorter" IS NOT EXPRESSIBLE for these glyphs — that
+// is why the branches below subtract 2 and never 1, and why an odd h is trimmed
+// down rather than left to buy a rung nobody asked for.
 //
-// EVERYTHING BELOW WAS RE-MEASURED FROM THE CURRENT .pdc FILES (both were
-// regenerated from new artwork after the previous sizing pass, which invalidated
-// every number the old comment carried). The measuring rig reimplements
-// icon_load()'s scale/snap/tight-bounds exactly and reproduces the device-measured
-// painted-ink tier table in status_icon_weight.h for all 49 of its 49 cells (UV,
-// WIND, GUST, STEPS, SLEEP, HR, DISTANCE, AQI, POLLEN, COUNTDOWN), so its answers
-// for this pair are trustworthy to the pixel.
-//
-// AUTHORED INK BOXES, in the PDC's 1/8-px point units inside the 24-px viewbox:
-//
-//   STATUS_PHONE_BATTERY      x 43..149, y 16..176  ->  106 x 160 units
-//                                                   ==  13.250 x 20.000 px
-//   STATUS_PHONE_BATTERY_CHG  x 16..176, y 16..176  ->  160 x 160 units
-//                                                   ==  20.000 x 20.000 px
-//
-// The two HEIGHTS are EXACTLY equal — 160 units each, not merely close — so one h
-// renders both to the same height by construction, at every h, with no residual to
-// trade away. That property is intact; what changed is that phone_icon_h() no longer
-// hands both ids the same h at every tier (emery's FULL rows). (Rasterised 1:1 those
-// spans paint 14 x 21 and 21 x 21.) The plug is 160/106 ≈ 1.51x wider in the source;
-// after snapping it renders 1.4–1.7x wider — 1.9x at emery's FULL rows now that the
-// phone dropped a rung — which is accepted: the slot text shifts right on plug-in,
-// chosen over a plug shrunk to phone width.
-//
-// THE RUNG LADDER. `h` is a REQUEST, not the result. icon_load() phases the minimum
-// vertex onto 4 units (a pixel centre) and snaps every other vertex to a whole
-// pixel about the glyph centre, so the tight bounds it reports land on rungs. And
-// because every snapped coordinate is 4 + 8k units — a pixel centre — a 1-px stroke
-// paints exactly pixel rows 0..bounds_h inclusive: PAINTED HEIGHT == bounds_h + 1,
-// by construction, not by luck. Measured, for BOTH ids — the height columns are
-// identical AT EVERY h, so any difference in what the two paint can only come from
-// asking them for different h (which emery's FULL rows now do):
-//
-//     h (request)    8   9  10  11  12  13  14  15  16  17  18  19  20
-//     bounds_h       8  10  10  12  12  14  14  16  16  18  18  20  20
-//     PAINTED H      9  11  11  13  13  15  15  17  17  19  19  21  21
-//
-//     phone   W      7   7   7   9   9   9  11  11  11  13  13  13  15
-//     plug    W      9  11  11  13  13  15  15  17  17  19  19  21  21
-//
-// PAINTED HEIGHT IS ALWAYS ODD — h+1 for even h, h+2 for odd h — so the achievable
-// heights step by TWO. VERIFIED for the new artwork (it was true of the old too).
-// A literal "one pixel taller/shorter" IS NOT EXPRESSIBLE for these glyphs. Every
-// size decision here moves in 2-px jumps; say so out loud rather than pretending a
-// number is a 1-px nudge.
-//
-// WIDTH is NOT locked to height. The plug is square, so its width tracks the same
-// 2-px ladder; the phone is 1.51x narrower and its width steps on a 3-h period
-// (rungs at h = 11, 14, 17, 20). Width is the only lever left when two tiers land on
-// the SAME height rung — a trap the 2-px grain makes easy to fall into, and one no
-// shipping tier is in any more (see the top-strip note below).
-//
-// The ladder is also why the numbers below are quoted as PAINTED sizes (w x h): both
-// axes carry the same +1, so a bounds of 8 x 12 paints 9 x 13.
-//
-// WHAT SHIPS, per tier (target_h -> requested h -> painted phone / plug). The two
-// requested-h columns are equal everywhere except emery's FULL rows, the one place
-// phone_icon_h() answers per ID instead of per pair:
-//
-//   platform / row              target   h phone / h plug     phone     plug
-//   basalt/diorite/flint FULL      9        9    /   9         7x11    11x11
-//   basalt/diorite/flint STRIP    10       10    /  10         7x11    11x11
-//   basalt/diorite/flint COMPACT  12       12    /  12         9x13    13x13
-//   emery FULL rows               12       10    /  12         7x11    13x13  <- SPLIT
-//   emery TOP STRIP               13       12    /  12         9x13    13x13
-//   emery COMPACT/NONE rows       16       14    /  14        11x15    15x15
-//
-// EMERY'S FULL ROWS ARE THE ONE TIER WHERE THE PAIR IS NOT HEIGHT-MATCHED, and that
-// is a deliberate exception rather than drift. The watch reported the normal glyph as
-// too tall "on the smallest font"; emery's three sizes as the user sees them are 12
-// (FULL rows), 13 (top strip) and 16 (COMPACT/NONE rows), so the smallest font IS the
-// FULL rows. The request named the NORMAL glyph only. The ladder has no 1-px step, so
-// the only move down is one rung — h 12 -> 10, painting 11 rows instead of 13 — and
-// the plug was left on its own rung because that is what was asked for.
-//
-// SAY THE COST OUT LOUD. The two swap in place inside ONE slot, so at this tier
-// plugging the phone in now jumps the glyph 11 -> 13 painted ROWS and 7 -> 13 painted
-// COLUMNS at once. A 2-row height jump is the most visible thing this pair can do,
-// and this is the only tier that does it — the height-matched contract holds at every
-// other tier on every platform. If it reads wrong on the watch the fix is ONE LINE:
-// delete the `icon_id == STATUS_ICON_PHONE_BATTERY` test in phone_icon_h() below and
-// the plug follows the phone down to h 10 (7x11 / 11x11), pair re-matched. Nothing on
-// the weight side has to change if you do — 54 is already a no-op at 11 painted rows,
-// so status_icon_weight.h's per-tier override for the pair could be dropped with it.
-//
-// EMERY'S COMPACT/NONE ROWS also leave their natural rung, by TWO, because two is the
-// smallest step there is. The watch asked for a shorter compact glyph; the tier's own
-// target 16 paints 17 rows, and the next rung down is 15, reached by spending two
-// requested pixels (16 -> 14). Compact asks for h 14 rather than h 13 on purpose: 13
-// is odd, would parity-trim to 12, and would land compact on the top strip's rung
-// instead of one above it. BOTH ids take that branch — compact is not split.
-//
-// THE TOP STRIP IS ON ITS NATURAL RUNG, painting 13 for both ids. An earlier revision
-// let emery's odd target 13 SKIP the parity trim so the strip painted 15 rows; the
-// watch judged that an overshoot ("needs to be a little smaller again"), so the trim
-// is back and the special case is gone. The revert also RETIRED A COLLISION that
-// shape had introduced: with the strip at 15 and compact also at 15, the mains plug
-// was PIXEL-IDENTICAL (15x15) in both tiers, and the two tiers were told apart only
-// by the normal phone's width. Strip 13 against compact 15 is one clean rung of
-// difference again, in height, where the eye reads it.
-//
-// FOR CONTEXT, what the other glyphs paint at the three emery tiers (the
-// device-measured table in status_icon_weight.h, re-verified against the current .pdc
-// files by the rig described above): at t12 — STEPS/AQI/DEWPOINT 11, everything else
-// 13; at t13 — STEPS 11, TEMP/DEWPOINT/UV/WIND/GUST/DISTANCE/AQI 13,
-// SLEEP/HR/POLLEN/COUNTDOWN 15; at t16 — STEPS 13, TEMP/DEWPOINT/AQI 15, everything
-// else 17. So in the FULL rows the normal glyph now reads with the SHORT family
-// (STEPS/AQI/DEWPOINT) and the plug with the 13-row majority; in the strip both read
-// with the majority; in compact both read with the short family. Never the tallest
-// thing on its row, at any tier.
-//
-// WHERE THE PAIR SITS is the other half of the same watch report, and it is not here:
-// vertical seating is the per-icon weight in status_icon_weight.h. Both ids carry the
-// base 54 on emery (a 1 px lift) and the no-op 50 on basalt/diorite/flint, and emery's
-// FULL rows take 53 from that file's per-tier override — the second half of the same
-// "move it down a little on the smallest font" request. Shrinking the normal glyph
-// here already drops it (54 stops biting at 11 painted rows); the override is what
-// drops the plug with it.
-//
-// GONE ON PURPOSE: an older revision dropped the CHARGING glyph one height rung at
-// h % 3 == 1. That constant encoded the OLD charging PDC's aspect ratio and existed
-// solely to shorten its phone body. The plug has no phone body, so the rung-drop
-// stays removed. The per-id split that exists today is not that: it is the
-// user-driven emery FULL case above, measured on the CURRENT PDCs. Do not add another
-// one without re-measuring both — sizes land on snapped rungs, not on percents.
+// The measured 13-column rung ladder, the per-tier painted sizes, the emery FULL
+// split and what it costs, and the history behind each number are in
+// docs/adr/0002-status-glyph-sizing-and-seating.md §3. Do not re-tune these
+// without re-measuring both glyphs: sizes land on snapped rungs, not on percents.
 
-// Smallest h the pair survives. Below 9 the plug's prongs merge into its outline
-// (at h 8 it paints 9x9, one row and two columns under h 9's 11x11) and the normal
-// glyph's inner bolt rasterises as a plain bar in a 7x9 body. Neither is fatal now
-// that the two states are different objects, but it is still the floor worth
-// holding. The smallest h any shipping tier asks for is 10 — the normal glyph in
-// emery's FULL rows, after the rung-down above (basalt/diorite/flint run 9/10/12 for
-// both ids, emery 10-or-12 / 12 / 14) — so this floor only ever HOLDS h. It never
-// raises it past the tier's target, and so can never push a glyph out of its row band.
+// Smallest h the pair survives: below 9 the plug's prongs merge into its outline
+// and the phone's inner bolt rasterises as a plain bar. The smallest h any shipping
+// tier asks for is 10, so this floor only ever HOLDS h — it never raises it past a
+// tier's target, and so can never push a glyph out of its row band.
 #define PHONE_ICON_MIN_H 9
 
 // The pair's height, in whole pixels. `icon_id` is STATUS_ICON_PHONE_BATTERY or
 // _CHG, `h` is the tier's target after icon_scale_pct() (100 for both ids, so
 // h == target_h unless the row band clamped it), and `top_strip` is the caller's own
 // tier flag, forwarded from status_row_icons_load().
-//
-// THE ID IS BACK because the pair is no longer height-matched at every tier: emery's
-// FULL rows size the two separately (see above). It had been dropped when the pair
-// became height-matched everywhere. At every other tier, on every platform, both ids
-// still take the same branch and get the same answer; on basalt/diorite/flint the id
-// is not consulted at all.
 //
 // Every branch here can only ever LOWER or PASS THROUGH h, never raise it above
 // what the caller asked for (the floor aside, which cannot bite at any shipping

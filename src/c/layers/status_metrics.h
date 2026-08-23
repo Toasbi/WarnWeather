@@ -54,9 +54,8 @@ static inline int status_ink_top(int content_h) {
 // at Gothic 14 (4.5) and Gothic 18 (5.5); rounding half-UP puts the modelled centre 0.5 px
 // ABOVE the true cap centre at those two sizes, and that 0.5 px is exactly cancelled by the
 // +0.5 px structural padding in the icon pipeline (icon_load re-phases the ink bbox), making
-// icon alignment exact in all 36 measured cases at 14/18 — see
-// .superpowers/sdd/icon-centring-analysis.md §3. Gothic 24's 7.0 is exact, so nothing there
-// depends on the rounding. Do not switch to truncation or round-half-down.
+// icon alignment exact in all 36 measured cases at 14/18. Gothic 24's 7.0 is exact, so
+// nothing there depends on the rounding. Do not switch to truncation or round-half-down.
 static inline int status_glyph_below(int content_h) {
     int num = content_h + 2 * STATUS_DIGIT_CAP_ADD;
     int den = 2 * STATUS_DIGIT_CAP_SLOPE_DEN;
