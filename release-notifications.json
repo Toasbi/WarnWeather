@@ -130,5 +130,9 @@
   "1.13.1": {
     "title": "Phone battery slot",
     "body": "Your phone's battery can go in any status slot, with or without a phone glyph. Android phones only."
+  },
+  "1.14.0": {
+    "title": "Larger graph fonts",
+    "body": "Pebble Time 2 can draw the forecast, health and radar axis labels in bigger type — turn on \"Larger graph fonts\" in the Layout tab. Also fixes UV threshold changes not showing up until the next weather update."
   }
 }
