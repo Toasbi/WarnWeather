@@ -329,7 +329,8 @@ ViewSpec view_spec_unpack(uint16_t v) {
     uint8_t su   = (v >> 2) & 3;   // StatusSource (upper)
     uint8_t sl   = v & 3;          // StatusSource (lower)
     ViewSpec spec;
-    spec.calendar_rows = (tier == 3) ? 3 : (tier == 2) ? 2 : 0;
+    uint8_t rows = layout_rows_for_wire_tier(tier);
+    spec.calendar_rows = rows;
     // Wire `top` uses EMPTY=0, CALENDAR=1, RADAR=2 (see src/pkjs/view-cycle.js);
     // translate to the C TopBand enum (which numbers them differently). body/status
     // fields share the wire's numbering, so they pass through directly.
@@ -337,15 +338,13 @@ ViewSpec view_spec_unpack(uint16_t v) {
     spec.body = body;
     spec.status_upper = su;
     spec.status_lower = sl;
-    uint8_t layout_tier = (tier == 3) ? LAYOUT_TIER_FULL
-                        : (tier == 2) ? LAYOUT_TIER_COMPACT : LAYOUT_TIER_NONE;
-    // Only a DUAL (two rows stacked) squeezes to the smaller full-tier status font so both fit.
-    // A LONE status row keeps the larger compact font whether it rides the upper (freed
-    // 3rd-calendar-row) slot or the lower (swap) slot — swapping changes position, not size. So
-    // promote to FULL only for two rows. Same rule as view_spec_resolve.
+    // Via `rows`, not the wire tier, so the field and the tier can never disagree — and so
+    // the whole tier rule lives in one place (layout.h) that view_spec_resolve, the geometry
+    // entry point and the aplite twin all share. The promotion rule (only a DUAL squeezes to
+    // the smaller full-tier font) is layout_status_tier's; see its comment.
+    uint8_t layout_tier = layout_tier_for_rows(rows);
     bool two_rows = (su != STATUS_SRC_NONE) && (sl != STATUS_SRC_NONE);
-    spec.status_tier = (two_rows && layout_tier == LAYOUT_TIER_COMPACT)
-                       ? LAYOUT_TIER_FULL : layout_tier;
+    spec.status_tier = layout_status_tier(layout_tier, two_rows);
     spec.weights[0] = WEIGHT_CALENDAR;
     spec.weights[1] = WEIGHT_TIME;
     spec.weights[2] = WEIGHT_BOTTOM;
@@ -380,14 +379,12 @@ ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health) {
         spec.status_upper = spec.status_lower;
         spec.status_lower = STATUS_SRC_NONE;
     }
-    // Recompute the tier from what actually survives, mirroring view_spec_unpack: only two
-    // stacked rows squeeze to the smaller full-tier font; a lone surviving row (upper OR lower)
-    // keeps the larger compact font. Promote to FULL only for two rows.
-    uint8_t layout_tier = (spec.calendar_rows == 3) ? LAYOUT_TIER_FULL
-                        : (spec.calendar_rows == 2) ? LAYOUT_TIER_COMPACT : LAYOUT_TIER_NONE;
+    // Recompute the tier from what actually survives, through the same two helpers
+    // view_spec_unpack uses — so a lone surviving row (upper OR lower) keeps the larger
+    // compact font and only a DUAL squeezes to the full-tier one.
+    uint8_t layout_tier = layout_tier_for_rows(spec.calendar_rows);
     bool two_rows = (spec.status_upper != STATUS_SRC_NONE) && (spec.status_lower != STATUS_SRC_NONE);
-    spec.status_tier = (two_rows && layout_tier == LAYOUT_TIER_COMPACT)
-                       ? LAYOUT_TIER_FULL : layout_tier;
+    spec.status_tier = layout_status_tier(layout_tier, two_rows);
     return spec;
 }
 
@@ -397,9 +394,12 @@ LayerVisibility layout_visibility(const ViewSpec *spec) {
     v.radar = (spec->top == TOP_BAND_RADAR) || (spec->body == BODY_RADAR);
     v.forecast = (spec->body == BODY_FORECAST);
     v.health_graph = (spec->body == BODY_HEALTH_GRAPH);
-    v.weather_status = (spec->status_upper == STATUS_SRC_FORECAST) || (spec->status_lower == STATUS_SRC_FORECAST);
-    v.radar_status   = (spec->status_upper == STATUS_SRC_RADAR)    || (spec->status_lower == STATUS_SRC_RADAR);
-    v.health_status  = (spec->status_upper == STATUS_SRC_HEALTH)   || (spec->status_lower == STATUS_SRC_HEALTH);
+    // A status source is on screen if EITHER band carries it — the bands are positional,
+    // so which one it landed in is the renderer's question (layout_status_band), not
+    // visibility's.
+    v.weather_status = layout_status_visible(spec, STATUS_SRC_FORECAST);
+    v.radar_status   = layout_status_visible(spec, STATUS_SRC_RADAR);
+    v.health_status  = layout_status_visible(spec, STATUS_SRC_HEALTH);
     return v;
 }
 
@@ -445,9 +445,7 @@ MainLayout layout_compute_peek(GRect bounds, const ViewSpec *spec, int fc_band_h
 #endif
 
 MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h) {
-    uint8_t tier = (spec->calendar_rows == 0) ? LAYOUT_TIER_NONE
-                 : (spec->calendar_rows == 2) ? LAYOUT_TIER_COMPACT
-                 : LAYOUT_TIER_FULL;
+    uint8_t tier = layout_tier_for_rows(spec->calendar_rows);
     bool upper = (spec->status_upper != STATUS_SRC_NONE);
     bool lower = (spec->status_lower != STATUS_SRC_NONE);
     MainLayout L = compute_with_weights(bounds, tier, upper, lower, fc_band_h, spec->weights);

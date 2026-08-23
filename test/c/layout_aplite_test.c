@@ -145,6 +145,37 @@ static void geometry_swap(void) {
     expect("swap.weather_status_on", layout_visibility(&s).weather_status, true);
 }
 
+// The shared tier/status helpers in layout.h. aplite compiles the same header, so the
+// wire-tier -> rows -> LayoutTier composition and the status predicates must answer
+// identically here; the twin only skips layout_status_tier's DUAL promotion (it has no DUAL).
+static void tier_helper_tests(void) {
+    struct { uint8_t wire; uint8_t rows; LayoutTier tier; } t[] = {
+        { 0, 0, LAYOUT_TIER_NONE }, { 1, 0, LAYOUT_TIER_NONE },
+        { 2, 2, LAYOUT_TIER_COMPACT }, { 3, 3, LAYOUT_TIER_FULL },
+    };
+    for (unsigned i = 0; i < sizeof(t) / sizeof(t[0]); i++) {
+        expect("tier_helpers.rows_for_wire", layout_rows_for_wire_tier(t[i].wire) == t[i].rows, true);
+        expect("tier_helpers.tier_for_rows",
+               layout_tier_for_rows(layout_rows_for_wire_tier(t[i].wire)) == t[i].tier, true);
+        ViewSpec s = view_spec_unpack(pack(t[i].wire, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE));
+        expect("tier_helpers.unpack_agrees_rows", s.calendar_rows == t[i].rows, true);
+        expect("tier_helpers.unpack_agrees_tier", s.status_tier == t[i].tier, true);
+    }
+    // No producer emits calendar_rows == 1; the fallback is NONE, not FULL (see layout.h).
+    expect("tier_helpers.stray_rows_1_is_none", layout_tier_for_rows(1) == LAYOUT_TIER_NONE, true);
+    // Positional predicates over aplite's two shapes: forecast-upper and the swap (lower).
+    ViewSpec up = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE));
+    ViewSpec lo = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_NONE, STATUS_SRC_FORECAST));
+    expect("tier_helpers.visible_upper_only", layout_status_visible(&up, STATUS_SRC_FORECAST), true);
+    expect("tier_helpers.visible_lower_only", layout_status_visible(&lo, STATUS_SRC_FORECAST), true);
+    MainLayout Lu = layout_compute_spec(BOUNDS, &up, FC_BAND_H);
+    MainLayout Ll = layout_compute_spec(BOUNDS, &lo, FC_BAND_H);
+    expect("tier_helpers.band_upper",
+           layout_status_band(&up, &Lu, STATUS_SRC_FORECAST).origin.y == Lu.status.origin.y, true);
+    expect("tier_helpers.band_lower",
+           layout_status_band(&lo, &Ll, STATUS_SRC_FORECAST).origin.y == Ll.status_lower.origin.y, true);
+}
+
 // The seating invariant, aplite's own bands: status_seat_y() must not CLAMP on any band the
 // twin produces, or the row is lifted off the band centre and reads high (see the same test in
 // layout_test.c). aplite's status rows are Gothic 18 at the top/compact/none tiers and Gothic 14
@@ -223,6 +254,7 @@ int main(void) {
     downgrade_tests();
     geometry_upper_only();
     geometry_swap();
+    tier_helper_tests();
     seating_no_lift();
     if (s_failures) { printf("%d FAILURES\n", s_failures); return 1; }
     printf("layout_aplite_test: OK\n");

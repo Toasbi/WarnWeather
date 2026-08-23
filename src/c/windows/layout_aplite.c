@@ -47,9 +47,10 @@ ViewSpec view_spec_unpack(uint16_t v) {
     uint8_t su   = (v >> 2) & 3;   // StatusSource (upper)
     uint8_t sl   = v & 3;          // StatusSource (lower)
     ViewSpec spec;
-    spec.calendar_rows = (tier == 3) ? 3 : (tier == 2) ? 2 : 0;
+    uint8_t rows = layout_rows_for_wire_tier(tier);   // shared with layout.c (layout.h)
+    spec.calendar_rows = rows;
     // aplite: forecast body only; top is calendar when rows>0, else empty.
-    spec.top  = (spec.calendar_rows > 0) ? TOP_BAND_CALENDAR : TOP_BAND_EMPTY;
+    spec.top  = (rows > 0) ? TOP_BAND_CALENDAR : TOP_BAND_EMPTY;
     spec.body = BODY_FORECAST;
     // aplite lean twin: a SINGLE forecast status row (no radar, no health, never two rows). The
     // forecast keeps whichever slot the wire names — upper (normal) or lower (the swap-clock/
@@ -65,9 +66,10 @@ ViewSpec view_spec_unpack(uint16_t v) {
     spec.status_upper = (has_fc && !swap) ? STATUS_SRC_FORECAST : STATUS_SRC_NONE;
     spec.status_lower = swap ? STATUS_SRC_FORECAST : STATUS_SRC_NONE;
     // Lone row (upper or lower): the tier just tracks the calendar tier (the larger compact font
-    // under a compact calendar); only a DUAL would promote to the smaller full tier.
-    spec.status_tier = (tier == 3) ? LAYOUT_TIER_FULL
-                     : (tier == 2) ? LAYOUT_TIER_COMPACT : LAYOUT_TIER_NONE;
+    // under a compact calendar); only a DUAL would promote to the smaller full tier, and aplite
+    // never has one — so this is layout_tier_for_rows() alone, without layout.c's
+    // layout_status_tier() promotion step.
+    spec.status_tier = layout_tier_for_rows(rows);
     spec.weights[0] = WEIGHT_CALENDAR;
     spec.weights[1] = WEIGHT_TIME;
     spec.weights[2] = WEIGHT_BOTTOM;
@@ -86,17 +88,15 @@ LayerVisibility layout_visibility(const ViewSpec *spec) {
     v.radar          = false;
     v.forecast       = true;
     v.health_graph   = false;
-    v.weather_status = (spec->status_upper == STATUS_SRC_FORECAST)
-                    || (spec->status_lower == STATUS_SRC_FORECAST);   // upper OR swapped-lower
+    // upper OR swapped-lower — the shared predicate, aplite's only source being the forecast.
+    v.weather_status = layout_status_visible(spec, STATUS_SRC_FORECAST);
     v.radar_status   = false;
     v.health_status  = false;
     return v;
 }
 
 MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h) {
-    uint8_t tier = (spec->calendar_rows == 0) ? LAYOUT_TIER_NONE
-                 : (spec->calendar_rows == 2) ? LAYOUT_TIER_COMPACT
-                 : LAYOUT_TIER_FULL;
+    uint8_t tier = layout_tier_for_rows(spec->calendar_rows);
     bool compact = (tier != LAYOUT_TIER_FULL);
     bool upper = (spec->status_upper != STATUS_SRC_NONE);
     bool lower = (spec->status_lower != STATUS_SRC_NONE);   // the swap layout (forecast below clock)

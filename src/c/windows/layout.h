@@ -63,6 +63,62 @@ typedef struct {
     bool health_status;
 } LayerVisibility;
 
+// ── Shared tier / status predicates (pure, header-inline) ───────────────────
+// These live in the header as `static inline`, not as functions in layout.c, because
+// main_window.c is NOT forked — one file compiles for every platform — while layout.c
+// is (aplite compiles layout_aplite.c instead). An extern here would force a second
+// definition in the twin and cost aplite image bytes; inlining in the header is the
+// zero-cost way to share the rule with both twins and with main_window.
+
+// Calendar rows for a packed WIRE tier field (0=off, 1=none, 2=compact, 3=full — see
+// src/pkjs/view-cycle.js). "off" and "none" are different things to the producer (a
+// disabled cycle slot vs. a deliberate no-calendar view) but the same thing to the
+// layout, so both map to 0 rows.
+static inline uint8_t layout_rows_for_wire_tier(uint8_t wire_tier) {
+    return (wire_tier == 3) ? 3 : (wire_tier == 2) ? 2 : 0;
+}
+
+// LayoutTier for a ViewSpec.calendar_rows value, i.e. the field contract above:
+// 3 = full, 2 = compact, 0 = none. Anything else is a value no producer emits;
+// it falls back to NONE — the tier that simply drops the calendar band — rather
+// than to FULL, which would hand a corrupt value a 3-row calendar.
+//
+// Composed with layout_rows_for_wire_tier() this is the wire tier's own tier:
+// layout_tier_for_rows(layout_rows_for_wire_tier(t)) for t = 0..3 gives
+// NONE, NONE, COMPACT, FULL. The two steps stay separate helpers because the two
+// fields are separate vocabularies — only the composition is the identity.
+static inline LayoutTier layout_tier_for_rows(uint8_t calendar_rows) {
+    return (calendar_rows == 3) ? LAYOUT_TIER_FULL
+         : (calendar_rows == 2) ? LAYOUT_TIER_COMPACT
+                                : LAYOUT_TIER_NONE;
+}
+
+// The tier the STATUS rows render at, given the layout (calendar) tier. Only a DUAL —
+// two rows stacked — squeezes to the smaller full-tier font so both fit. A LONE row
+// keeps the larger compact font whether it rides the upper (freed 3rd-calendar-row)
+// slot or the lower (swap) slot: swapping changes position, not size. So COMPACT is
+// promoted to FULL for two rows and left alone otherwise.
+static inline LayoutTier layout_status_tier(uint8_t layout_tier, bool two_rows) {
+    return (two_rows && layout_tier == LAYOUT_TIER_COMPACT) ? LAYOUT_TIER_FULL
+                                                            : (LayoutTier) layout_tier;
+}
+
+// Is `src` on screen, in either status band? `src` must be a REAL source
+// (STATUS_SRC_FORECAST / _RADAR / _HEALTH): with STATUS_SRC_NONE this answers true for
+// a statusless spec, which is never the question being asked. The band-OCCUPANCY test
+// is the separate `spec->status_upper != STATUS_SRC_NONE` idiom — don't fold it in here.
+static inline bool layout_status_visible(const ViewSpec *spec, uint8_t src) {
+    return (spec->status_upper == src) || (spec->status_lower == src);
+}
+
+// Which band a source's row renders in: the lower (forecast-abutting) band when the
+// lower slot carries it, otherwise the upper band. Same REAL-source rule as
+// layout_status_visible above — for a source that is on neither slot the answer is the
+// upper band, whose layer the caller hides anyway.
+static inline GRect layout_status_band(const ViewSpec *spec, const MainLayout *L, uint8_t src) {
+    return (spec->status_lower == src) ? L->status_lower : L->status;
+}
+
 // Decode a packed 10-bit wire value (tier<<8 | top<<6 | body<<4 | statusUpper<<2 |
 // statusLower) to a ViewSpec. Pure — the producer (main_window) supplies the value;
 // availability is resolved separately by view_spec_resolve. Value 0 decodes to a zeroed spec.

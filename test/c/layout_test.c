@@ -567,6 +567,59 @@ static void test_geometry_two_rows(void) {
     printf("geometry_two_rows OK\n");
 }
 
+// The shared tier/status helpers in layout.h — the rules layout.c, the aplite twin and
+// main_window all read from one place instead of restating a ternary each.
+static void tier_helper_tests(void) {
+    // The composition identity: wire tier -> calendar_rows -> LayoutTier. Wire 0 (a disabled
+    // cycle slot) and wire 1 (a deliberate no-calendar view) both land on NONE.
+    struct { uint8_t wire; uint8_t rows; LayoutTier tier; } t[] = {
+        { 0, 0, LAYOUT_TIER_NONE }, { 1, 0, LAYOUT_TIER_NONE },
+        { 2, 2, LAYOUT_TIER_COMPACT }, { 3, 3, LAYOUT_TIER_FULL },
+    };
+    for (unsigned i = 0; i < sizeof(t) / sizeof(t[0]); i++) {
+        expect("tier_helpers.rows_for_wire", layout_rows_for_wire_tier(t[i].wire) == t[i].rows, true);
+        expect("tier_helpers.tier_for_rows",
+               layout_tier_for_rows(layout_rows_for_wire_tier(t[i].wire)) == t[i].tier, true);
+        // …and that is exactly what unpack puts in the spec (lone row: no promotion).
+        ViewSpec s = view_spec_unpack(pack(t[i].wire, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE));
+        expect("tier_helpers.unpack_agrees_rows", s.calendar_rows == t[i].rows, true);
+        expect("tier_helpers.unpack_agrees_tier", s.status_tier == t[i].tier, true);
+    }
+    // calendar_rows == 1 is a value no producer emits (the field contract is 0/2/3). Pinning
+    // the fallback so the choice is explicit: a corrupt value drops the calendar band rather
+    // than being handed a 3-row one. layout_compute_spec used to answer FULL here while
+    // view_spec_resolve answered NONE — they now agree on NONE.
+    expect("tier_helpers.stray_rows_1_is_none",
+           layout_tier_for_rows(1) == LAYOUT_TIER_NONE, true);
+
+    // The promotion rule: only a DUAL squeezes a COMPACT status to the full-tier font.
+    expect("tier_helpers.promote_compact_dual",
+           layout_status_tier(LAYOUT_TIER_COMPACT, true) == LAYOUT_TIER_FULL, true);
+    expect("tier_helpers.lone_compact_stays",
+           layout_status_tier(LAYOUT_TIER_COMPACT, false) == LAYOUT_TIER_COMPACT, true);
+    expect("tier_helpers.full_unchanged",
+           layout_status_tier(LAYOUT_TIER_FULL, true) == LAYOUT_TIER_FULL, true);
+    expect("tier_helpers.none_never_promotes",
+           layout_status_tier(LAYOUT_TIER_NONE, true) == LAYOUT_TIER_NONE, true);
+
+    // layout_status_visible / layout_status_band are positional: a source is visible from
+    // either slot, and the band it renders in is the lower one only when the LOWER slot
+    // carries it. Upper-only (the plain compact view) and lower-only (the swap layout).
+    ViewSpec up = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE));
+    ViewSpec lo = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_NONE, STATUS_SRC_FORECAST));
+    expect("tier_helpers.visible_upper_only", layout_status_visible(&up, STATUS_SRC_FORECAST), true);
+    expect("tier_helpers.visible_lower_only", layout_status_visible(&lo, STATUS_SRC_FORECAST), true);
+    expect("tier_helpers.invisible_other_source",
+           layout_status_visible(&up, STATUS_SRC_HEALTH), false);
+    MainLayout Lu = layout_compute_spec(BOUNDS, &up, FC_BAND_H);
+    MainLayout Ll = layout_compute_spec(BOUNDS, &lo, FC_BAND_H);
+    expect("tier_helpers.band_upper",
+           layout_status_band(&up, &Lu, STATUS_SRC_FORECAST).origin.y == Lu.status.origin.y, true);
+    expect("tier_helpers.band_lower",
+           layout_status_band(&lo, &Ll, STATUS_SRC_FORECAST).origin.y == Ll.status_lower.origin.y, true);
+    printf("tier_helpers OK\n");
+}
+
 // Cursor cycle slots, full 10-bit pack() encodings — the same value the phone packs and
 // persist/wire now carries end-to-end (config.view_spec2 is uint16_t; the cursor API takes
 // uint16_t slots). Encoding: statusLower(0-1) | statusUpper(2-3) | body(4-5) | top(6-7) |
@@ -1083,6 +1136,7 @@ int main(int argc, char **argv) {
     if (!s_dump) test_resolve_strip_promotes_upper();
     if (!s_dump) test_geometry_none_lone_row();
     if (!s_dump) test_geometry_two_rows();
+    if (!s_dump) tier_helper_tests();
     if (!s_dump) seating_no_lift();
     if (!s_dump) calendar_status_clearance();
     if (s_dump) return 0;
