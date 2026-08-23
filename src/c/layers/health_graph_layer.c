@@ -272,8 +272,9 @@ static void compute_step_marks(int peak) {
 // the module statics the update proc renders from, then feed the widest mark label
 // into bottom_view so the shared left strip widens to fit. Create does NOT call this
 // (no compute until the cache is warm), so the strip stays forecast-sized until the
-// first refresh.
-static void health_graph_compute(void) {
+// first refresh. Returns bottom_view's verdict: true when the SHARED strip width
+// actually moved, which the forecast needs to hear about (see health_graph_layer.h).
+static bool health_graph_compute(void) {
     const GRect    bounds     = layer_get_bounds(s_health_graph_layer);
     const ChartDef def        = health_grid_def();
     const int      pitch      = chart_def_pitch(&def);
@@ -336,7 +337,7 @@ static void health_graph_compute(void) {
             label, font, box, GTextOverflowModeFill, GTextAlignmentRight);
         if (sz.w > max_w) { max_w = sz.w; }
     }
-    bottom_view_report_label_w(BOTTOM_VIEW_SRC_HEALTH, max_w);
+    return bottom_view_report_label_w(BOTTOM_VIEW_SRC_HEALTH, max_w);
 }
 
 // Left-axis strip: labels each dotted step mark (see compute_step_marks) as a single-row
@@ -531,13 +532,19 @@ Layer *health_graph_layer_get_root(void) {
     return s_health_graph_layer;
 }
 
-void health_graph_layer_refresh(void) {
+bool health_graph_layer_refresh(void) {
     if (!health_cache_ready()) {
         layer_mark_dirty(s_health_graph_layer);   // paints the loading state
-        return;
+        // Report NOTHING while the (re)build runs: the loading frame has no
+        // left-axis labels, so 0 would be the honest measurement — but it would
+        // also shrink the SHARED strip for the duration of a sliced build and
+        // grow it back when the build lands, wobbling the visible forecast's
+        // gutter twice over. Holding the last known width leaves it still.
+        return false;
     }
-    health_graph_compute();   // copy from the cache + report the strip width
+    const bool strip_moved = health_graph_compute();   // copy from the cache + report the width
     layer_mark_dirty(s_health_graph_layer);
+    return strip_moved;
 }
 
 void health_graph_layer_destroy(void) {

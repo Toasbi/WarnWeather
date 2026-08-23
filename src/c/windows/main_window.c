@@ -169,7 +169,16 @@ static void quick_view_on_change(void) {
 // minute tick. Same read set as the minute handler's inline refresh, so it is
 // safe on the timer callback path.
 static void health_cache_repaint(void) {
-    health_graph_layer_refresh();
+    // THE unbounded case: a health OFF->ON flip resets the cache, so the settings
+    // save's own health_graph_layer_refresh() reported no width (loading path).
+    // The width only arrives here, when the sliced build finishes — off any user
+    // action, with the FORECAST typically the visible body. Its gutter is read at
+    // DRAW time from the shared strip, so it needs dirtying by hand; without this
+    // it keeps the pre-build gutter until an unrelated weather fetch, settings save
+    // or flick repaints it. mark_dirty, NOT forecast_layer_refresh(): re-measuring
+    // buys nothing (the inset is a draw-time read) and would re-report the forecast
+    // width from inside a width-change handler.
+    if (health_graph_layer_refresh()) { layer_mark_dirty(forecast_layer_get_root()); }
     if (!health_cache_ready()) { return; }   // loading frame: no new data for the rows
     if (health_summary_refresh()) {
         ViewSpec spec = current_view_spec();
@@ -203,7 +212,9 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
         LayerVisibility nv = layout_visibility(&ns);
         if (nv.health_status || nv.health_graph) {
             health_cache_refresh_current_hour();
-            if (nv.health_graph) { health_graph_layer_refresh(); }
+            // Return ignored on purpose: the render_active_view() +
+            // main_window_refresh() below re-render everything, forecast included.
+            if (nv.health_graph) { (void) health_graph_layer_refresh(); }
         }
     }
 #endif
@@ -367,7 +378,12 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     // status_bar_refresh_live_health() — so an unrelated main_window_refresh() (e.g. a
     // settings save) repaints from held values with zero HealthService reads.
     if (health_renderable() && (health_on_screen || status_needs_health)) {
-        if (av.health_graph) { health_graph_layer_refresh(); }
+        // Return ignored on purpose: this arm is gated on av.health_graph, and the
+        // two bottom graphs are mutually exclusive (layout_visibility reads one
+        // `body`), so the forecast is hidden here. It cannot come back on screen
+        // without a flick or an auto-return, both of which run main_window_refresh()
+        // -> forecast_layer_refresh() and pick the new gutter up on that repaint.
+        if (av.health_graph) { (void) health_graph_layer_refresh(); }
         if (health_summary_refresh()) {
             status_bar_refresh_live_health(&aspec);
             if (top_needs_health) { top_status_layer_refresh(); }
@@ -476,7 +492,13 @@ void main_window_refresh() {
 // from reporting a phantom width, and current_view_spec() resolves health views away
 // whenever it is false, so this can never skip a visible graph's repaint.
 void main_window_refresh_health_graph(void) {
-    if (health_renderable()) { health_graph_layer_refresh(); }
+    // Return ignored on purpose: the sole caller runs main_window_apply_top_view()
+    // immediately before this, whose main_window_refresh() -> forecast_layer_refresh()
+    // marks the forecast dirty unconditionally — so a width reported here is already
+    // going to be picked up by that pending draw (the paragraph above). A future
+    // caller that does NOT precede this with a forecast refresh owes the forecast the
+    // layer_mark_dirty() itself, the way health_cache_repaint() does.
+    if (health_renderable()) { (void) health_graph_layer_refresh(); }
 }
 #endif
 

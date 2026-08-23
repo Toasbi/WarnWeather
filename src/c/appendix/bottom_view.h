@@ -63,11 +63,27 @@ typedef enum {
 } BottomViewSrc;
 
 // Each view reports the strip width its own labels need (the measured content
-// width, before the MIN_W floor). bottom_view tracks the latest per source.
-void bottom_view_report_label_w(BottomViewSrc src, int content_w);
+// width, before the MIN_W floor). bottom_view tracks the latest per source, and
+// returns whether the EFFECTIVE strip width below moved — NOT whether this
+// source's own stored value changed. Those differ: the strip is the max across
+// both sources over the floor, so a source shrinking under the other's width (or
+// growing but staying under it, or moving inside the floor) changes its stored
+// value while the gutter both views draw against stays exactly where it was.
+// The return is the signal to repaint the OTHER view: both read the strip at
+// DRAW time, so the one that did not report keeps the old gutter until something
+// marks it dirty.
+bool bottom_view_report_label_w(BottomViewSrc src, int content_w);
 
 // Effective strip width = max(forecast_reported, health_reported, MIN_W).
 int  bottom_view_label_strip_w(void);
 
 // Graph inset (left edge of the plot) = label_strip_w + GAP.
 int  bottom_view_graph_inset(void);
+
+// KNOWN LIMIT, deliberately unfixed — the mirror of the repaint above: when the
+// FORECAST's width moves (a temp label gaining a digit, say) while the HEALTH
+// graph is the visible body, health's gutter is the stale one. That case is
+// BOUNDED — main_window's minute handler refreshes a visible health graph on
+// every tick — so it self-heals within 60 s. The forecast's is not: nothing
+// re-measures a visible forecast on a cadence, so it holds a stale gutter until
+// an unrelated event (weather fetch, settings save, flick) happens to dirty it.

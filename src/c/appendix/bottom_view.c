@@ -27,9 +27,13 @@ GFont bottom_view_label_font(void) {
 // Latest reported content width per source; 0 = "this source has not reported".
 static int s_reported_w[2] = { 0, 0 };
 
-void bottom_view_report_label_w(BottomViewSrc src, int content_w) {
+// Returns whether the EFFECTIVE width moved, so bracket the store with the max
+// (see bottom_view.h for why this source's own delta is the wrong signal).
+bool bottom_view_report_label_w(BottomViewSrc src, int content_w) {
     if (content_w < 0) { content_w = 0; }
+    const int before = bottom_view_label_strip_w();
     s_reported_w[src] = content_w;
+    return bottom_view_label_strip_w() != before;
 }
 
 int bottom_view_label_strip_w(void) {
