@@ -16,8 +16,7 @@ test('status rows have no global sleeping display state', function() {
     'src/c/layers/status_row.h',
     'src/c/layers/status_row.c',
     'src/c/layers/status_row_aplite.c',
-    'src/c/layers/weather_status_layer.c',
-    'src/c/layers/health_status_layer.c'
+    'src/c/layers/status_bar.c'
   ].forEach(function(file) {
     var source = read(file);
     assert.doesNotMatch(source, /status_row_set_sleeping/);

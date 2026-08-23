@@ -5,13 +5,11 @@
 #include "persist.h"
 #include "palette.h"
 #include "c/layers/forecast_layer.h"
-#include "c/layers/weather_status_layer.h"
+#include "c/layers/status_bar.h"
 #include "c/layers/loading_layer.h"
 #include "c/layers/rain_radar_layer.h"
-#include "c/layers/radar_status_layer.h"
 #include "c/layers/calendar_layer.h"
 #include "c/layers/top_status_layer.h"
-#include "c/layers/health_status_layer.h"
 #include "c/windows/main_window.h"
 #include "c/services/watch_services.h"
 #include "rain_countdown.h"
@@ -536,17 +534,11 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
         forecast_layer_refresh();
     }
     if (status_dirty) {
-        weather_status_layer_refresh();
+        // Every band row renders the same status slots (texts, levels, thresholds,
+        // bold), so they all repaint on this checkpoint rather than waiting for the
+        // next minute tick; the strip carries slots of its own.
+        status_bar_refresh_all();
         top_status_layer_refresh();
-#if defined(PBL_HEALTH)
-        health_status_layer_refresh();
-#endif
-#if defined(WW_RAIN_RADAR)
-        // The dense-radar view's status row renders the same status slots
-        // (texts, levels, thresholds, bold), so it repaints on the same
-        // checkpoint instead of waiting for the next minute tick.
-        radar_status_layer_refresh();
-#endif
     }
     if (radar_dirty) {
 #if defined(WW_RAIN_RADAR)

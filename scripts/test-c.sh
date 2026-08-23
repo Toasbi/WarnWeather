@@ -61,7 +61,15 @@ cc $CFLAGS test/c/hatch_stride_test.c -o build/host/hatch_stride_test
 build/host/hatch_stride_test
 cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/hatch_stride_test.c -o build/host/hatch_stride_test_emery
 build/host/hatch_stride_test_emery
-cc $CFLAGS test/c/weather_status_layer_test.c src/c/layers/weather_status_layer.c -o build/host/weather_status_layer_test
-build/host/weather_status_layer_test
-cc $CFLAGS test/c/health_status_layer_test.c src/c/layers/health_status_layer.c -o build/host/health_status_layer_test
-build/host/health_status_layer_test
+# The band status rows (forecast / radar / health) share ONE owner, so one test
+# covers all three — including the radar row, which had no test of its own before
+# and was the one carrying the missing-live-health bug. Built TWICE: the evolving
+# build (all three bars) and an aplite-flavoured one with neither WW_RAIN_RADAR nor
+# PBL_HEALTH, which is the only place STATUS_BAR_COUNT == 1 and a stray unguarded
+# STATUS_BAR_RADAR / STATUS_BAR_HEALTH becomes a compile error — the shared CFLAGS
+# force -DPBL_HEALTH everywhere else.
+cc $CFLAGS -DWW_RAIN_RADAR test/c/status_bar_test.c src/c/layers/status_bar.c -o build/host/status_bar_test
+build/host/status_bar_test
+cc -std=c11 -Wall -Wextra -Werror -Itest/c/stub -Isrc -DPBL_PLATFORM_APLITE \
+   test/c/status_bar_test.c src/c/layers/status_bar.c -o build/host/status_bar_test_aplite
+build/host/status_bar_test_aplite
