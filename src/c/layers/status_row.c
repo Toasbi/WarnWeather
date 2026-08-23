@@ -359,9 +359,18 @@ static uint16_t sig_fold(uint16_t sig, const uint8_t *data, size_t len) {
     return sig;
 }
 
-static int load_blob(uint8_t line_id) {
+// Read the line's packed blob into the shared scratch and walk it ONCE, filling
+// `out` with all three slot views. Returns the blob length, or 0 when there is
+// nothing renderable (absent key, or a malformed blob) — `out` is then
+// indeterminate and must not be read. Every caller loads exactly once per pass
+// and consumes the views before returning, which is what keeps the views (which
+// alias s_blob_scratch) valid: see the contract in status_line.h.
+static int load_blob(uint8_t line_id, StatusSlotView out[STATUS_SLOT_COUNT]) {
     int len = persist_get_status_line(line_id, s_blob_scratch, sizeof(s_blob_scratch));
-    if (len <= 0 || !status_line_validate(s_blob_scratch, (size_t)len)) { return 0; }
+    if (len <= 0) { return 0; }
+    if (status_line_slots(s_blob_scratch, (size_t)len, out) != STATUS_SLOT_COUNT) {
+        return 0;
+    }
     return len;
 }
 
@@ -490,12 +499,12 @@ bool status_row_refresh(StatusRow *row) {
     uint16_t sig = 5381;
     bool has_drawn_sun = false;
     row->uses_live_health = false;
-    int len = load_blob(row->line_id);
+    StatusSlotView views[STATUS_SLOT_COUNT];
+    int len = load_blob(row->line_id, views);
     load_thresholds();
     if (len > 0) {
         for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-            StatusSlotView slot;
-            if (!status_line_slot(s_blob_scratch, (size_t)len, i, &slot)) { break; }
+            StatusSlotView slot = views[i];
             apply_battery_override(row, i, &slot);
             int8_t dir = resolve_slot_text(row, &slot, s_text_scratch,
                                            sizeof(s_text_scratch));
@@ -568,7 +577,10 @@ bool status_row_refresh(StatusRow *row) {
     return true;
 }
 
-static void ensure_glyphs(StatusRow *row, int len, int content_h) {
+// `views` are the caller's already-walked slots (load_blob filled them); the
+// battery override is deliberately NOT applied here — glyph_icons[] tracks the
+// PACKED icon, and the override's glyph is drawn by battery_draw(), not a PDC.
+static void ensure_glyphs(StatusRow *row, const StatusSlotView *views, int content_h) {
     bool top = (row->line_id == STATUS_LINE_TOP);
     int rn = top ? TOP_ICON_RATIO_NUM : ICON_RATIO_NUM;
     int rd = top ? TOP_ICON_RATIO_DEN : ICON_RATIO_DEN;
@@ -579,21 +591,19 @@ static void ensure_glyphs(StatusRow *row, int len, int content_h) {
     GColor fg = theme_fg();
     bool env_changed = target_h != row->glyph_h || !gcolor_equal(fg, row->glyph_fg);
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        StatusSlotView slot;
+        const StatusSlotView *slot = &views[i];
         uint8_t wanted = STATUS_ICON_NONE;
-        if (len > 0 && status_line_slot(s_blob_scratch, (size_t)len, i, &slot)) {
-            if (slot.kind != SLOT_EMPTY
-                    && slot.icon != STATUS_ICON_NONE
-                    && slot.icon != STATUS_ICON_DRAWN_SUN
-                    // PRESSURE is text-only by contract (status_line.h): no PDC
-                    // exists, so never attempt a load and reserve no icon width.
-                    && slot.icon != STATUS_ICON_PRESSURE
-                    // Same contract for the no-icon phone-battery variant: the id
-                    // exists only to keep it off THRESH_CITY's bold row, and no
-                    // glyph may load for it.
-                    && slot.icon != STATUS_ICON_PHONE_BATTERY_PLAIN) {
-                wanted = slot.icon;
-            }
+        if (slot->kind != SLOT_EMPTY
+                && slot->icon != STATUS_ICON_NONE
+                && slot->icon != STATUS_ICON_DRAWN_SUN
+                // PRESSURE is text-only by contract (status_line.h): no PDC
+                // exists, so never attempt a load and reserve no icon width.
+                && slot->icon != STATUS_ICON_PRESSURE
+                // Same contract for the no-icon phone-battery variant: the id
+                // exists only to keep it off THRESH_CITY's bold row, and no
+                // glyph may load for it.
+                && slot->icon != STATUS_ICON_PHONE_BATTERY_PLAIN) {
+            wanted = slot->icon;
         }
         if (!env_changed && wanted == row->glyph_icons[i]) { continue; }
         status_row_icons_destroy(row->glyphs[i]);
@@ -644,18 +654,17 @@ static StatusSlotMeasure measure_slot(StatusRow *row, int i, GFont font,
 
 int16_t status_row_right_slot_width(StatusRow *row) {
     if (!row) { return 0; }
-    int len = load_blob(row->line_id);
-    if (len == 0) { return 0; }
+    StatusSlotView views[STATUS_SLOT_COUNT];
+    if (load_blob(row->line_id, views) == 0) { return 0; }
     GFont font = row_font(row->tier, row->line_id);
     int content_h = graphics_text_layout_get_content_size(
         "0", font, GRect(0, 0, 100, 100),
         GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).h;
-    ensure_glyphs(row, len, content_h);   // idempotent; the following draw hits the cache
+    ensure_glyphs(row, views, content_h);   // idempotent; the following draw hits the cache
     int16_t content_w = (int16_t)(row->bounds.size.w - 2 * STATUS_ROW_MARGIN);
     if (content_w < 0) { content_w = 0; }
     int i = STATUS_SLOT_COUNT - 1;   // right slot
-    StatusSlotView slot;
-    if (!status_line_slot(s_blob_scratch, (size_t)len, i, &slot)) { return 0; }
+    StatusSlotView slot = views[i];
     apply_battery_override(row, i, &slot);
     char text[STATUS_TEXT_MID_MAX + 1];
     int8_t dir = resolve_slot_text(row, &slot, text, sizeof(text));
@@ -720,15 +729,15 @@ static void glyph_set_stroke(GDrawCommandImage *image, GColor color) {
 
 void status_row_draw(StatusRow *row, GContext *ctx) {
     if (!row || !ctx) { return; }
-    int len = load_blob(row->line_id);
-    if (len == 0) { return; }
+    StatusSlotView views[STATUS_SLOT_COUNT];
+    if (load_blob(row->line_id, views) == 0) { return; }
     load_thresholds();
 
     GFont font = row_font(row->tier, row->line_id);
     int content_h = graphics_text_layout_get_content_size(
         "0", font, GRect(0, 0, 100, 100),
         GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).h;
-    ensure_glyphs(row, len, content_h);
+    ensure_glyphs(row, views, content_h);
 
     int16_t content_w = (int16_t)(row->bounds.size.w - 2 * STATUS_ROW_MARGIN);
     if (content_w < 0) { content_w = 0; }
@@ -756,7 +765,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     GColor accents[STATUS_SLOT_COUNT];
 
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        if (!status_line_slot(s_blob_scratch, (size_t)len, i, &slots[i])) { return; }
+        slots[i] = views[i];
         levels[i] = THRESH_LEVEL_NORMAL;
         kinds[i] = -1;
         dirs[i] = -1;

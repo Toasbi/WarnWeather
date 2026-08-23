@@ -84,9 +84,28 @@ typedef struct {
     const char *value;  // into the blob, NOT NUL-terminated; NULL unless SLOT_TEXT
 } StatusSlotView;
 
+// Parse a packed line in ONE walk: validates the whole blob and fills all three
+// slot views. Returns STATUS_SLOT_COUNT on success, 0 on any malformation.
+//
+// TWO CONTRACTS the callers depend on:
+//  - On a 0 return `out` is PARTIALLY FILLED and its contents are indeterminate.
+//    Check the return; never read `out` without it.
+//  - Every filled view's `value` points INTO `blob` and is NOT NUL-terminated
+//    (see StatusSlotView above). No StatusSlotView may outlive the function that
+//    walked it, and no function may re-load the buffer `blob` points at while
+//    views into it are still live. That matters on the watch: every status row
+//    shares one file-scope blob scratch (status_row.c), so a second load while
+//    views are live would silently reinterpret one row's views against another
+//    row's bytes.
+//
+// This replaced a per-index accessor that re-validated the whole blob on every
+// call — the draw path walked a three-slot line seven times per row per frame.
+int status_line_slots(const uint8_t *blob, size_t len,
+                      StatusSlotView out[STATUS_SLOT_COUNT]);
+
+// Wire-check only: true when the blob is a well-formed line. For a caller that
+// judges bytes it is not going to read (app_message.c, before persisting).
 bool status_line_validate(const uint8_t *blob, size_t len);
-bool status_line_slot(const uint8_t *blob, size_t len, int slot_index,
-                      StatusSlotView *out);
 
 // ISO 8601 week number (1-53) for a local calendar date. Integer-only (no FP),
 // host-compilable. year: full year (e.g. 2026); yday: 0-based day of year

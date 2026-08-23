@@ -74,28 +74,25 @@ static bool walk_slot(const uint8_t *blob, size_t len, int slot_index,
     return true;
 }
 
-bool status_line_validate(const uint8_t *blob, size_t len) {
-    if (!blob || len < 3u * STATUS_SLOT_COUNT || len > STATUS_LINE_MAX_BYTES) {
-        return false;
+int status_line_slots(const uint8_t *blob, size_t len,
+                      StatusSlotView out[STATUS_SLOT_COUNT]) {
+    if (!blob || !out || len < 3u * STATUS_SLOT_COUNT || len > STATUS_LINE_MAX_BYTES) {
+        return 0;
     }
     size_t off = 0;
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        if (!walk_slot(blob, len, i, &off, NULL)) { return false; }
+        // On failure `out` is left PARTIALLY FILLED — see the header: the
+        // contents are indeterminate unless STATUS_SLOT_COUNT is returned.
+        if (!walk_slot(blob, len, i, &off, &out[i])) { return 0; }
     }
-    return off == len;
+    // Trailing bytes are a malformed line: the check stays AFTER the walk so a
+    // blob whose slots parse but whose length does not add up is still rejected.
+    return (off == len) ? STATUS_SLOT_COUNT : 0;
 }
 
-bool status_line_slot(const uint8_t *blob, size_t len, int slot_index,
-                      StatusSlotView *out) {
-    if (!out || slot_index < 0 || slot_index >= STATUS_SLOT_COUNT ||
-        !status_line_validate(blob, len)) {
-        return false;
-    }
-    size_t off = 0;
-    for (int i = 0; i <= slot_index; i++) {
-        if (!walk_slot(blob, len, i, &off, (i == slot_index) ? out : NULL)) {
-            return false;
-        }
-    }
-    return true;
+bool status_line_validate(const uint8_t *blob, size_t len) {
+    // The wire check: app_message.c judges a tuple it is not going to read, so it
+    // pays a throwaway array rather than the walk being duplicated here.
+    StatusSlotView scratch[STATUS_SLOT_COUNT];
+    return status_line_slots(blob, len, scratch) == STATUS_SLOT_COUNT;
 }

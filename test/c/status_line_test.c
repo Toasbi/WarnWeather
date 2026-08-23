@@ -149,51 +149,53 @@ static void validate_tests(void) {
 static void slot_tests(void) {
     uint8_t b[64];
     size_t n;
-    StatusSlotView v;
+    StatusSlotView v[STATUS_SLOT_COUNT];
 
     n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_TEMP, "5\xC2\xB0");
     n = put_slot(b, n, SLOT_TEXT, STATUS_ICON_NONE, "Berlin");
     n = put_slot(b, n, SLOT_LIVE_STEPS, STATUS_ICON_STEPS, NULL);
 
-    expect("slot0.ok", status_line_slot(b, n, 0, &v), 1);
-    expect("slot0.kind", v.kind, SLOT_TEXT);
-    expect("slot0.icon", v.icon, STATUS_ICON_TEMP);
-    expect("slot0.len", v.value_len, 3);
-    expect("slot0.bytes", memcmp(v.value, "5\xC2\xB0", 3), 0);
+    // One walk fills every slot; the count IS the success signal.
+    expect("slots.ok", status_line_slots(b, n, v), STATUS_SLOT_COUNT);
+    expect("slot0.kind", v[0].kind, SLOT_TEXT);
+    expect("slot0.icon", v[0].icon, STATUS_ICON_TEMP);
+    expect("slot0.len", v[0].value_len, 3);
+    expect("slot0.bytes", memcmp(v[0].value, "5\xC2\xB0", 3), 0);
 
-    expect("slot1.ok", status_line_slot(b, n, 1, &v), 1);
-    expect("slot1.len", v.value_len, 6);
-    expect("slot1.bytes", memcmp(v.value, "Berlin", 6), 0);
+    expect("slot1.len", v[1].value_len, 6);
+    expect("slot1.bytes", memcmp(v[1].value, "Berlin", 6), 0);
 
-    expect("slot2.ok", status_line_slot(b, n, 2, &v), 1);
-    expect("slot2.kind", v.kind, SLOT_LIVE_STEPS);
-    expect("slot2.len", v.value_len, 0);
-    expect("slot2.null", v.value == NULL, 1);
+    expect("slot2.kind", v[2].kind, SLOT_LIVE_STEPS);
+    expect("slot2.len", v[2].value_len, 0);
+    expect("slot2.null", v[2].value == NULL, 1);
 
-    expect("slot3.reject", status_line_slot(b, n, 3, &v), 0);
-    expect("slot-neg.reject", status_line_slot(b, n, -1, &v), 0);
-    expect("slot-null-out.reject", status_line_slot(b, n, 0, NULL), 0);
+    // The out array is exactly STATUS_SLOT_COUNT long, so an out-of-range index is
+    // no longer expressible — what replaced the old slot3/slot-neg bounds checks is
+    // that EVERY slot is filled on success, asserted above. A NULL out is still a
+    // caller error and still rejected.
+    expect("slots-null-out.reject", status_line_slots(b, n, NULL), 0);
 
-    // Extraction is atomic: an invalid remainder rejects an earlier slot.
+    // Extraction is atomic: an invalid remainder rejects the WHOLE line, so a
+    // caller can never act on a half-parsed blob.
     n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_TEMP, "5\xC2\xB0");
     n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
     n = put_slot(b, n, (uint8_t)(STATUS_SLOT_KIND_MAX + 1), STATUS_ICON_NONE, NULL);
-    expect("slot-later-invalid.reject", status_line_slot(b, n, 0, &v), 0);
+    expect("slot-later-invalid.reject", status_line_slots(b, n, v), 0);
 
     n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_TEMP, "5\xC2\xB0");
     n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
-    expect("slot-two-slots.reject", status_line_slot(b, n, 0, &v), 0);
+    expect("slot-two-slots.reject", status_line_slots(b, n, v), 0);
 
     n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_TEMP, "5\xC2\xB0");
     n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
     n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
     b[n] = 0;
-    expect("slot-trailing.reject", status_line_slot(b, n + 1, 0, &v), 0);
+    expect("slot-trailing.reject", status_line_slots(b, n + 1, v), 0);
 
     memset(b, 0, sizeof(b));
     n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_TEMP, "5\xC2\xB0");
     expect("slot-max-bytes.reject",
-           status_line_slot(b, STATUS_LINE_MAX_BYTES + 1, 0, &v), 0);
+           status_line_slots(b, STATUS_LINE_MAX_BYTES + 1, v), 0);
 }
 
 // --- wind-direction sentinel -------------------------------------------------
@@ -232,9 +234,10 @@ static void direction_tests(void) {
     n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
     n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
     expect("dir.blob.valid", status_line_validate(b, n), 1);
-    expect("dir.blob.slot", status_line_slot(b, n, 0, &v), 1);
-    expect("dir.blob.sector", status_slot_direction(&v), 0);
-    expect("dir.blob.len-with-sentinel", v.value_len, 6);
+    StatusSlotView vv[STATUS_SLOT_COUNT];
+    expect("dir.blob.slot", status_line_slots(b, n, vv), STATUS_SLOT_COUNT);
+    expect("dir.blob.sector", status_slot_direction(&vv[0]), 0);
+    expect("dir.blob.len-with-sentinel", vv[0].value_len, 6);
 
     // Both ends of the range, and one step past each.
     put_dir(t, "12kph", 0x01, &v);
