@@ -545,9 +545,13 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
         rain_radar_layer_refresh();
 #endif
         // The strip carries the rain-countdown alert, so it repaints for the rescan
-        // above — unless the config block already ran a whole-window refresh, which
-        // also sits after the rescan and therefore already carries the fresh countdown.
-        if (!config_dirty) {
+        // above — unless an earlier block already refreshed it AFTER that rescan and
+        // therefore already carries the fresh countdown. Both do: the config block's
+        // whole-window refresh, and the status block's own strip refresh. Nothing the
+        // strip reads is produced in between (rain_radar_layer_refresh() above is only
+        // a layer_mark_dirty), so a second pass would re-run the battery override, the
+        // alert recompute and a full three-slot persist read for an identical picture.
+        if (!config_dirty && !status_dirty) {
             top_status_layer_refresh();
         }
 #if defined(WW_RAIN_RADAR)
@@ -555,7 +559,12 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
         // radar falls back to the calendar. Only on the actual flip: sleep/snooze do not
         // feed the ViewSpec, so the latch/release alone would cost a full layout compute
         // plus a whole-window refresh for a view that cannot have changed.
-        if (radar_avail_changed) {
+        // Not when the config block already ran it: that block sits AFTER every
+        // handler, so it already resolved the view against the new radar start epoch.
+        // Reachable on the fixture path, where fixture-weather.js bundles claySettings
+        // onto the weather message (see above), so a fixture with a radar start epoch
+        // replayed over a zero-radar state would otherwise pay two layout computes.
+        if (radar_avail_changed && !config_dirty) {
             main_window_apply_top_view();
         }
 #endif

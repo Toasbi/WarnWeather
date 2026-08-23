@@ -66,7 +66,8 @@ struct StatusRow {
 // Main-app drawing and refresh callbacks are serialized, so all row instances can
 // reuse this buffer without retaining expanded copies of their packed blobs. The
 // resolved slot TEXT has no such shared buffer: it rides the caller's transient
-// ResolvedSlot, which every pass needs all three of at once anyway.
+// ResolvedSlot, so a pass takes exactly the slots it needs — all three to fold or
+// paint a row, just the one the right-slot width query asks about.
 static uint8_t s_blob_scratch[STATUS_LINE_MAX_BYTES];
 // Threshold-highlight settings blob (CLAY_THRESHOLDS_UINT8), reloaded per
 // refresh/draw like the packed line blobs; len 0 = nothing configured yet.
@@ -458,7 +459,6 @@ typedef struct {
     GFont          font;                    // regular, or the bold companion
     char    text[STATUS_TEXT_MID_MAX + 1];  // direction sentinel already stripped
     int8_t  dir;                            // wind sector 0..15, -1 = none
-    int8_t  thresh_kind;                    // ThreshKind; -1 = no threshold content
     uint8_t level;                          // ThreshLevel
     uint8_t bold;                           // resolved bold bit (its own setting)
     GColor  accent;                         // theme-picked outline/fill colour
@@ -474,16 +474,19 @@ static void resolve_slot(const StatusRow *row, int i, GFont base,
     apply_battery_override(row, i, &out->slot);
     out->dir = resolve_slot_text(row, &out->slot, out->text, sizeof(out->text));
     // AFTER the battery override, which rewrites the slot's kind/icon.
-    out->thresh_kind = (int8_t)status_threshold_kind_for_slot(out->slot.kind,
+    // The ThreshKind is scaffolding, not a result: every consumer of it lives in
+    // this function, so it stays a local. (The array it replaced carried it across
+    // two loops, which is why the first cut made it a field.)
+    const int thresh_kind = status_threshold_kind_for_slot(out->slot.kind,
                                                               out->slot.icon);
-    out->level = slot_level(out->thresh_kind);
+    out->level = slot_level(thresh_kind);
     // Bold is its own per-kind setting, NOT a function of the level alone:
     // danger always prints bold, "warn" adds the warn level (the shipped
     // default), "always" bolds the normal zone too — even for a kind whose
     // thresholds are switched off entirely, so slot_level()'s NORMAL says
     // nothing here. Predicate + wire layout live in status_threshold.c.
     out->bold = (uint8_t)status_threshold_is_bold(s_thresh_scratch,
-        (size_t)s_thresh_len, out->thresh_kind, out->level);
+        (size_t)s_thresh_len, thresh_kind, out->level);
     // A crossed slot renders BOLD — the calendar's today-highlight pattern applied
     // to slots. The bold Gothic shares its regular sibling's metrics, so only
     // glyph WIDTHS change, which is why the font has to travel with the slot:
@@ -496,7 +499,7 @@ static void resolve_slot(const StatusRow *row, int i, GFont base,
     // questions: the 0x00 no-outline sentinel lives in the byte, and only the byte
     // can still be seen once theme_pick has turned it into something drawable.
     out->accent8 = status_threshold_color8(s_thresh_scratch, (size_t)s_thresh_len,
-                                           out->thresh_kind, out->level);
+                                           thresh_kind, out->level);
     out->accent = highlight_color(out->accent8);
 }
 
@@ -506,13 +509,17 @@ static void resolve_slot(const StatusRow *row, int i, GFont base,
 //
 // `views` hands back the PACKED slots, which ensure_glyphs() needs and out[].slot
 // cannot answer: glyph_icons[] tracks the packed icon precisely so the low-battery
-// override does not churn the PDC cache as it toggles.
+// override does not churn the PDC cache as it toggles. It is OPTIONAL — pass NULL
+// from a pass that does not draw, so the refresh path does not reserve a buffer it
+// has nothing to spend on.
 static int resolve_row(const StatusRow *row, ResolvedSlot out[STATUS_SLOT_COUNT],
                        StatusSlotView views[STATUS_SLOT_COUNT]) {
-    if (load_pass(row->line_id, views) == 0) { return 0; }
+    StatusSlotView local[STATUS_SLOT_COUNT];
+    StatusSlotView *packed = views ? views : local;
+    if (load_pass(row->line_id, packed) == 0) { return 0; }
     GFont base = row_font(row->tier, row->line_id);
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        resolve_slot(row, i, base, &views[i], &out[i]);
+        resolve_slot(row, i, base, &packed[i], &out[i]);
     }
     return STATUS_SLOT_COUNT;
 }
@@ -585,7 +592,6 @@ bool status_row_refresh(StatusRow *row) {
     bool has_drawn_sun = false;
     row->uses_live_health = false;
     ResolvedSlot resolved[STATUS_SLOT_COUNT];
-    StatusSlotView views[STATUS_SLOT_COUNT];
     // SUPPRESSION-BLIND on purpose: draw() masks the edge slots under
     // row->suppress_edges, this pass does not. Skipping the hidden slots would
     // fold a signature describing only part of the row, so nothing but
@@ -594,7 +600,7 @@ bool status_row_refresh(StatusRow *row) {
     // health slot would drop out of uses_live_health below, cutting the row out of
     // the live-health refresh set entirely. Fold all three, always; suppression is
     // a paint mask, not a content rule.
-    if (resolve_row(row, resolved, views) > 0) {
+    if (resolve_row(row, resolved, NULL) > 0) {   // no glyphs here: no packed slots needed
         for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
             const ResolvedSlot *r = &resolved[i];
             const StatusSlotView *slot = &r->slot;

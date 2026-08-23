@@ -617,6 +617,19 @@ static void tier_helper_tests(void) {
            layout_status_band(&up, &Lu, STATUS_SRC_FORECAST).origin.y == Lu.status.origin.y, true);
     expect("tier_helpers.band_lower",
            layout_status_band(&lo, &Ll, STATUS_SRC_FORECAST).origin.y == Ll.status_lower.origin.y, true);
+
+    // The DUAL view is the only shape where the choice is observable in both
+    // directions: a lone-upper layout sets L.status_lower = L.status (compute_with_
+    // weights, `lower` false), so the upper assertion above compares a rect with
+    // itself and would survive a helper that returned L->status_lower unconditionally.
+    // Two stacked rows put the bands tens of pixels apart, which pins it.
+    ViewSpec dual = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST));
+    MainLayout Ld = layout_compute_spec(BOUNDS, &dual, FC_BAND_H);
+    expect("tier_helpers.dual_bands_differ", Ld.status.origin.y != Ld.status_lower.origin.y, true);
+    expect("tier_helpers.dual_upper_band",
+           layout_status_band(&dual, &Ld, STATUS_SRC_HEALTH).origin.y == Ld.status.origin.y, true);
+    expect("tier_helpers.dual_lower_band",
+           layout_status_band(&dual, &Ld, STATUS_SRC_FORECAST).origin.y == Ld.status_lower.origin.y, true);
     printf("tier_helpers OK\n");
 }
 
