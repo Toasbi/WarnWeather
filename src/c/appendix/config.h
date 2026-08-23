@@ -130,6 +130,19 @@ typedef struct {
 // Only config.c writes the struct; everyone else reads through this pointer.
 const Config *config_get(void);
 
+// The one platform-aware accessor for the emery-only field above: constant false
+// everywhere else, so call-site branches fold away and non-emery platforms still pay
+// exactly 0 B (the aplite ceiling argument above). Call sites need no #ifdef of their
+// own -- this is the single place that knows the field only exists on emery.
+static inline bool config_large_graph_font(void) {
+#if defined(PBL_PLATFORM_EMERY)
+    // emery: the only platform with the field (and the settings-UI row).
+    return config_get()->large_graph_font;
+#else
+    return false;
+#endif
+}
+
 void config_load();
 
 void config_refresh();

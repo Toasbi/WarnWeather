@@ -46,6 +46,16 @@ TickSide bottom_view_tick_style(void);
 // Vertical margin so the primary line clears the plot's top/bottom edges.
 #define BOTTOM_VIEW_PRIMARY_LINE_INSET_Y 7
 
+// --- Left-axis label font ---
+// One resolver for BOTH views' draw AND measure paths, on purpose: the strip width
+// below is "wider of both" from the measured labels, so a draw/measure font mismatch
+// in either view would size the shared gutter wrong in both. emery's "Larger graph
+// fonts" setting steps it up one tier (18 -> 24); every other platform is frozen at
+// GOTHIC_18 — on a 144 px screen the left axis is already calendar-sized. The setting
+// flips at runtime from a settings apply with no relaunch, so call this fresh on every
+// draw/measure, never cache it (same reason bottom_view_tick_style() is a function).
+GFont bottom_view_label_font(void);
+
 // --- Shared dynamic strip width: "wider of both" ---
 typedef enum {
     BOTTOM_VIEW_SRC_FORECAST = 0,

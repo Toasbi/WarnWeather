@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "forecast_layer.h"
+#include "status_metrics.h"
 #include "c/appendix/persist.h"
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
@@ -307,24 +308,6 @@ static NightAreaPalette night_area_palette_for_fill(GColor fill) {
     return (NightAreaPalette){ GColorDukeBlue, GColorBlue, GColorVividCerulean };                                                    // precip (dark) / default
 }
 
-// Left-axis (hi/lo temp) font. emery's "Larger graph fonts" steps it up to the
-// calendar's tier (CALENDAR_FONT_KEY, calendar_layer.c); every other platform is
-// frozen at GOTHIC_18 -- on a 144 px screen the left axis is ALREADY calendar-sized.
-// Regular weight: the calendar's bold variant is per-cell state, not part of the size.
-//
-// Read fresh at each draw AND at each measure. The strip width is derived from the
-// measured labels, so the two must never disagree (bottom_view.h, "wider of both") --
-// a draw/measure mismatch would size the gutter wrong in BOTH bottom views.
-static GFont temp_label_font(void) {
-#ifdef PBL_PLATFORM_EMERY
-    // emery: the only platform offering the toggle (schema.js gates it on platform).
-    if (config_get()->large_graph_font) {
-        return fonts_get_system_font(FONT_KEY_GOTHIC_24);
-    }
-#endif
-    return fonts_get_system_font(FONT_KEY_GOTHIC_18);
-}
-
 static GSize temp_label_string_size(const char *text);
 
 static void draw_left_axis(GContext *ctx, int h) {
@@ -337,24 +320,22 @@ static void draw_left_axis(GContext *ctx, int h) {
     graphics_fill_rect(ctx, GRect(0, 0, inset_w, h - BOTTOM_VIEW_AXIS_H), 0, GCornerNone);
 
     graphics_context_set_text_color(ctx, theme_fg());
-    const GFont font = temp_label_font();
+    const GFont font = bottom_view_label_font();
     GSize hi_size = temp_label_string_size(s_buffer_hi);
     GSize lo_size = temp_label_string_size(s_buffer_lo);
     const int16_t axis_y = h - BOTTOM_VIEW_AXIS_H;
 #ifdef PBL_PLATFORM_EMERY
-    // emery: top label sits flush at the strip top. GOTHIC_24 carries 3 px more top
-    // whitespace than GOTHIC_18 (measured ink model in layers/status_metrics.h: the cap
-    // box sits on the content-box BOTTOM, so ink starts at box_top + content_h - cap =
-    // +7 at GOTHIC_18 and +10 at GOTHIC_24), so -3 lands the large label's first ink row
-    // on row 7 -- pixel-identical to where the small one starts today. It also clears the
-    // hi/lo BOX overlap in the tightest band. That band is 68 px and is
-    // NOT an edge case: it is the fullCal DEFAULT view and every compactDense view
-    // (test/c/layout_test.c emery goldens). At 68: h = 58, axis_y = 48, hi box -3..20,
-    // lo_y = 48 - 24 - 2 = 22 -> lo box 22..45, so the boxes no longer touch -- and the
-    // INK is never close: hi ink ends row 20, lo ink starts row 32, 11 rows apart.
-    // Deliberately NO band-height font fallback: 68 px is the default view, so dropping
-    // back to GOTHIC_18 there would erase the feature exactly where it is most seen.
-    const int hi_y = config_get()->large_graph_font ? -3 : 0;
+    // emery: pin the hi label's FIRST INK ROW where GOTHIC_18 has always put it (its
+    // box flush at 0, ink on row 7), whatever tier bottom_view_label_font() resolves: a
+    // taller tier only carries more top whitespace (status_ink_top -- and hi_size.h IS
+    // its content height, measured with the same font), so the box shifts up by the
+    // difference and the on-screen ink row is pixel-identical. At GOTHIC_24 in the
+    // tightest band -- 68 px, the fullCal DEFAULT view and every compactDense view
+    // (test/c/layout_test.c emery goldens) -- the shifted hi box also clears the lo box,
+    // and the INK stays 11 rows apart. Deliberately NO band-height font fallback: 68 px
+    // is the default view, so dropping back to GOTHIC_18 there would erase the feature
+    // exactly where it is most seen.
+    const int hi_y = status_ink_top(18) - status_ink_top(hi_size.h);
 #else
     const int hi_y = -3;  // GOTHIC_18 top-whitespace pull-up
 #endif
@@ -577,7 +558,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 
 static GSize temp_label_string_size(const char *text)
 {
-    const GFont font = temp_label_font();
+    const GFont font = bottom_view_label_font();
     const GRect box = GRect(0, 0, TEMP_LABEL_MEASURE_BOX_W, TEMP_LABEL_MEASURE_BOX_H);
     return graphics_text_layout_get_content_size(text, font, box, GTextOverflowModeFill,
                                                  GTextAlignmentRight);

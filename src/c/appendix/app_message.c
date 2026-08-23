@@ -490,8 +490,6 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
 #if defined(PBL_HEALTH)
         // A changed HR scale (or other graph-affecting setting) must re-derive from the
         // cache, not repaint the already-blanked/rescaled statics from before the save.
-        // Runs after main_window_apply_top_view() so the visibility check inside sees
-        // this save's final view (a config change can also move the cycle cursor).
         main_window_refresh_health_graph();
 #endif
     }

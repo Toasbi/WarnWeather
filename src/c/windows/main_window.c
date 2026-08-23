@@ -535,26 +535,20 @@ void main_window_refresh() {
 }
 
 #if defined(PBL_HEALTH)
-// See main_window.h. Reuses the same ViewSpec -> LayerVisibility derivation as the
-// minute handler's health_graph refresh (above) rather than a fresh check. Called once
-// from app_message.c's config_dirty block (not folded into main_window_refresh(), which
-// that same block already invokes twice per save via main_window_apply_top_view() — that
-// would double the (non-free) recompute on every settings save).
+// See main_window.h. Called once from app_message.c's config_dirty block (not folded
+// into main_window_refresh(), which that same block already invokes twice per save via
+// main_window_apply_top_view()). No visibility gate on purpose: beyond the repaint,
+// health_graph_layer_refresh() re-reports the left-axis label width that feeds the
+// SHARED strip (bottom_view.h, "wider of both"), and a settings apply that changed the
+// label font must refresh that even while the health view is hidden — or the VISIBLE
+// forecast keeps the old gutter until the next flick into health. The mark_dirty
+// inside is a no-op on a hidden layer, and the width lands synchronously here while
+// the repaints around it are deferred, so BOTH widths are right before the next frame.
+// health_renderable() alone gates it: false keeps a HEALTH_OFF / no-sensor install
+// from reporting a phantom width, and current_view_spec() resolves health views away
+// whenever it is false, so this can never skip a visible graph's repaint.
 void main_window_refresh_health_graph(void) {
-    ViewSpec spec = current_view_spec();
-    LayerVisibility v = layout_visibility(&spec);
-    if (v.health_graph) {
-        health_graph_layer_refresh();
-    } else if (health_renderable()) {
-        // Hidden health view: no repaint, but its left-axis labels still feed the SHARED
-        // strip width (bottom_view.h, "wider of both"). A settings apply that changed the
-        // label font has to re-measure here, or the VISIBLE forecast keeps the old gutter
-        // until the next flick into health. Gated on health_renderable() so a HEALTH_OFF
-        // or no-sensor install never reports a phantom width. This runs synchronously
-        // inside app_message.c's config_dirty block while the repaints around it are
-        // deferred layer_mark_dirty()s, so BOTH widths land before the next frame.
-        health_graph_layer_remeasure();
-    }
+    if (health_renderable()) { health_graph_layer_refresh(); }
 }
 #endif
 

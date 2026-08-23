@@ -1,4 +1,5 @@
 #include "chart.h"
+#include "bottom_view.h"
 #include "config.h"
 #include "hatch.h"
 #include "theme.h"
@@ -60,28 +61,11 @@ static inline int chart_clamp_count(const ChartRender *r, int count) {
 
 // Label placement constants — per-side/per-platform font-whitespace and
 // optical-centering geometry, in one place (the engine label convention).
+// emery derives its label boxes from the font tier inside chart_axis_label() below;
+// these constants are the 144 px arm only.
 #ifdef PBL_PLATFORM_EMERY
-    // emery: digits sit in the reserved strip below the axis row
-    #define CHART_LABEL_BOTTOM_DY   6
-    #define CHART_LABEL_BOTTOM_H   14
-    #define CHART_LABEL_NUDGE_X     0   // wide pitch: centered digit already sits on its column
-    // emery + "Larger graph fonts": GOTHIC_18 digits in the SAME strip below the axis --
-    // the box moves up and grows rather than the strip growing.
-    //
-    // Ink model (layers/status_metrics.h, MEASURED): a digit's cap box sits on the
-    // BOTTOM of the measured content box, so ink runs box_top + (content_h - cap) ..
-    // box_top + content_h - 1. GOTHIC_14 -> box_top+5..+13, GOTHIC_18 -> box_top+7..+17.
-    //
-    // The strip below the axis line is 19 rows: axis_y = h - BOTTOM_VIEW_AXIS_H while the
-    // layer runs to h + BOTTOM_VIEW_BOTTOM_PAD - 1, so the last drawable row is
-    // axis_y + 19 and the bound is DY + H <= 20. Two constraints pin the pair:
-    //   - DY + 7 > 6, so the ink clears the 6 px TICK_BIG emery draws under every
-    //     LABELED slot (forecast_grid.c) -- at DY 2 the ink starts at axis_y+9, two rows
-    //     clear, where GOTHIC_14's DY 6 starts at axis_y+11.
-    //   - DY + H = 20 seats the last ink row on axis_y+19, exactly where GOTHIC_14's
-    //     6 + 14 already puts it. Same bottom edge, two rows taller.
-    #define CHART_LABEL_BOTTOM_DY_LARGE   2
-    #define CHART_LABEL_BOTTOM_H_LARGE   18
+    // emery: wide pitch — the centered digit already sits on its column, no pull-back.
+    #define CHART_LABEL_NUDGE_X     0
 #else
     #define CHART_LABEL_BOTTOM_DY  (-4)  // GOTHIC_14 top-whitespace pull-up
     #define CHART_LABEL_BOTTOM_H   10
@@ -89,31 +73,15 @@ static inline int chart_clamp_count(const ChartRender *r, int count) {
                                          // right of its tick column — pull the box back so the
                                          // digit sits on the column. Permanent (the stage-2
                                          // "center on column" experiment misaligned on-device).
-#endif
-#define CHART_LABEL_TOP_RAISE 15
-#define CHART_LABEL_TOP_H     14
-#ifdef PBL_PLATFORM_EMERY
-// emery + "Larger graph fonts": the radar's 12 px RADAR_AXIS_H band, with GOTHIC_18.
-// Hour digits REPLACE the tick on their slot there (RADAR_AXIS_HOUR_LABEL, radar_axis.c),
-// so only the band edges constrain this pair.
-//
-// The band is rows 0..11 of the radar layer and the plot starts at row 12
-// (rain_radar_layer.c builds outer at bounds.origin.y + RADAR_AXIS_H), while the box top
-// is outer.origin.y - RAISE. With the measured ink model above (GOTHIC_18 inks
-// box_top+7..box_top+17) RAISE 19 puts the ink on rows 0..10, leaving row 11 to the tick
-// row exactly as GOTHIC_14's RAISE 15 does (ink rows 2..10). RAISE 17 would ink row 12 --
-// the plot's first row, which the bars then repaint over. This is why the band does not
-// need the RADAR_AXIS_H bump the design doc held in reserve.
-#define CHART_LABEL_TOP_RAISE_LARGE 19
-#define CHART_LABEL_TOP_H_LARGE     18
+    #define CHART_LABEL_TOP_RAISE  15
+    #define CHART_LABEL_TOP_H      14
 #endif
 
 // Axis-label typography, resolved fresh on every axis render. On emery the "Larger
-// graph fonts" setting steps the hour digits up one tier and retunes the label box so
-// the taller glyphs stay inside the same reserved band. It flips at runtime from a
-// settings apply with no relaunch, and config_get() is only valid after config_load()
-// -- so this must never be hoisted into a file-scope static or computed once at init.
-// On every other platform it constant-folds to today's values.
+// graph fonts" setting steps the hour digits up one tier (GOTHIC_14 -> 18) at runtime
+// from a settings apply with no relaunch, and config_get() is only valid after
+// config_load() -- so this must never be hoisted into a file-scope static or computed
+// once at init. On every other platform it constant-folds to today's values.
 typedef struct {
     GFont font;
     int   bottom_dy;
@@ -124,18 +92,34 @@ typedef struct {
 
 static ChartAxisLabel chart_axis_label(void) {
 #ifdef PBL_PLATFORM_EMERY
-    // emery: the only platform that offers the toggle (schema.js gates the row on
-    // platform == 'emery') and the only one with a strip tall enough for GOTHIC_18.
-    if (config_get()->large_graph_font) {
-        return (ChartAxisLabel){
-            .font      = fonts_get_system_font(FONT_KEY_GOTHIC_18),
-            .bottom_dy = CHART_LABEL_BOTTOM_DY_LARGE,
-            .bottom_h  = CHART_LABEL_BOTTOM_H_LARGE,
-            .top_raise = CHART_LABEL_TOP_RAISE_LARGE,
-            .top_h     = CHART_LABEL_TOP_H_LARGE,
-        };
-    }
-#endif
+    // emery: the only platform offering the toggle (schema.js gates the row on
+    // platform == 'emery') and the only one whose strips fit GOTHIC_18. The whole box
+    // derives from the tier's content height (== the Gothic nominal size,
+    // layers/layer_util.h) via the measured ink model (layers/status_metrics.h): ink
+    // occupies the box's BOTTOM cap-height rows, status_ink_top(content_h) ..
+    // content_h - 1. Two band-edge constraints then pin every field at ANY tier, with
+    // no per-tier tuning:
+    //   - bottom: the box bottom seats on the hour strip's last drawable row, axis_y +
+    //     AXIS_H + PAD - 1 (forecast/health pad their layer by BOTTOM_VIEW_BOTTOM_PAD),
+    //     so both tiers share one ink floor and a taller tier grows upward. The ink
+    //     onset that falls out, bottom_dy + status_ink_top = 18 - content_h/2, clears
+    //     the 6 px TICK_BIG emery draws under labeled slots (forecast_grid.c) at both
+    //     tiers (rows 11 / 9 below the axis).
+    //   - top: raise = content_h + 1 lands the last ink row 2 rows above the plot,
+    //     leaving exactly one blank row -- the tick row -- to the band bottom whatever
+    //     the band height (radar_axis.c's RADAR_AXIS_H cancels out of the solve).
+    //     This is why the radar band never needs a height bump for the taller tier.
+    const bool large     = config_large_graph_font();
+    const int  content_h = large ? 18 : 14;
+    return (ChartAxisLabel){
+        .font      = fonts_get_system_font(large ? FONT_KEY_GOTHIC_18
+                                                 : FONT_KEY_GOTHIC_14),
+        .bottom_dy = (BOTTOM_VIEW_AXIS_H + BOTTOM_VIEW_BOTTOM_PAD) - content_h,
+        .bottom_h  = content_h,
+        .top_raise = content_h + 1,
+        .top_h     = content_h,
+    };
+#else
     return (ChartAxisLabel){
         .font      = fonts_get_system_font(FONT_KEY_GOTHIC_14),
         .bottom_dy = CHART_LABEL_BOTTOM_DY,
@@ -143,6 +127,7 @@ static ChartAxisLabel chart_axis_label(void) {
         .top_raise = CHART_LABEL_TOP_RAISE,
         .top_h     = CHART_LABEL_TOP_H,
     };
+#endif
 }
 
 static void chart_draw_tick(const ChartRender *r, GraphSide side,

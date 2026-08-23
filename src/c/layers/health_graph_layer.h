@@ -18,12 +18,4 @@ Layer *health_graph_layer_get_root(void);
 
 void health_graph_layer_refresh(void);   // re-query health + mark dirty
 
-// Re-measure the left-axis label strip WITHOUT painting -- for a settings apply that
-// changed the label font while a FORECAST view is on screen. The strip is "wider of
-// both" (bottom_view.h), so a stale reported width from the hidden health view would
-// size the VISIBLE forecast's gutter wrong until the next flick into health. No-op
-// until the health cache is warm; health_graph_layer_refresh() owns the loading-state
-// repaint.
-void health_graph_layer_remeasure(void);
-
 void health_graph_layer_destroy(void);

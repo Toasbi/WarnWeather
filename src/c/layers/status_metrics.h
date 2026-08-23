@@ -32,6 +32,19 @@
 #define STATUS_DIGIT_CAP_SLOPE_DEN 2   /* cap == content_h / SLOPE_DEN + CAP_ADD */
 #define STATUS_DIGIT_CAP_ADD 2
 
+// The cap height itself — content_h/2 + 2, exact (no rounding) at all three sizes.
+static inline int status_cap_h(int content_h) {
+    return content_h / STATUS_DIGIT_CAP_SLOPE_DEN + STATUS_DIGIT_CAP_ADD;
+}
+
+// Blank rows between a line's box top and its first ink row. The cap seats on the
+// content-box BOTTOM (the model above), so everything above it — content_h - cap =
+// content_h/2 - 2 — is whitespace: 5 px at Gothic 14, 7 at 18, 10 at 24. The knob for
+// pinning a label's ink (rather than its box) to a target row.
+static inline int status_ink_top(int content_h) {
+    return content_h - status_cap_h(content_h);
+}
+
 // cap/2 — the distance from the content-box bottom up to the glyph's visual centre.
 // == (content_h + 2*CAP_ADD) / (2*SLOPE_DEN), folded into ONE rounded division rather than
 // halving an already-truncated cap, which collapses at small fonts (Gothic 14 would give

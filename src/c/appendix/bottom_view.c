@@ -1,4 +1,5 @@
 #include "c/appendix/bottom_view.h"
+#include "c/appendix/config.h"
 
 #ifdef PBL_PLATFORM_EMERY
 #define BV_TICK_SMALL_COLOR GColorDarkGray
@@ -14,6 +15,13 @@ TickSide bottom_view_tick_style(void) {
         .length     = 4, .color     = theme_pick(theme_furniture(BV_TICK_SMALL_COLOR), theme_fg()),
         .big_length = 6, .big_color = theme_pick(theme_furniture(GColorLightGray),      theme_fg()),
     };
+}
+
+// See bottom_view.h. config_large_graph_font() is constant false off-emery (the only
+// platform whose settings UI offers the toggle), so this folds to GOTHIC_18 there.
+GFont bottom_view_label_font(void) {
+    return fonts_get_system_font(config_large_graph_font() ? FONT_KEY_GOTHIC_24
+                                                           : FONT_KEY_GOTHIC_18);
 }
 
 // Latest reported content width per source; 0 = "this source has not reported".

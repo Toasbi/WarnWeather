@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "health_graph_layer.h"
+#include "layer_util.h"
 #include "c/appendix/chart.h"
 #include "c/appendix/forecast_grid.h"
 #include "c/appendix/series.h"          // MAX_BOTTOM_VIEW_ENTRIES
@@ -267,26 +268,12 @@ static void compute_step_marks(int peak) {
     }
 }
 
-// Left-axis (step-mark) font -- the health twin of forecast_layer.c's
-// temp_label_font(). emery's "Larger graph fonts" steps it up one tier; every other
-// platform is frozen at GOTHIC_18. BOTH the draw and the width measurement go through
-// here: the two bottom views feed ONE shared strip (bottom_view.h, "wider of both"),
-// so a draw/measure mismatch would size the gutter for the wrong font in both.
-static GFont step_label_font(void) {
-#ifdef PBL_PLATFORM_EMERY
-    if (config_get()->large_graph_font) {
-        return fonts_get_system_font(FONT_KEY_GOTHIC_24);
-    }
-#endif
-    return fonts_get_system_font(FONT_KEY_GOTHIC_18);
-}
-
 // Read health for the visible window and derive the step scale + labeled marks into
-// the module statics the update proc renders from. When report_width is true (refresh
-// path) it also feeds the widest mark label into bottom_view so the shared left strip
-// widens to fit; create passes false so a paint while hidden never perturbs forecast's
-// strip before the health view is ever shown.
-static void health_graph_compute(bool report_width) {
+// the module statics the update proc renders from, then feed the widest mark label
+// into bottom_view so the shared left strip widens to fit. Create does NOT call this
+// (no compute until the cache is warm), so the strip stays forecast-sized until the
+// first refresh.
+static void health_graph_compute(void) {
     const GRect    bounds     = layer_get_bounds(s_health_graph_layer);
     const ChartDef def        = health_grid_def();
     const int      pitch      = chart_def_pitch(&def);
@@ -311,8 +298,9 @@ static void health_graph_compute(bool report_width) {
     //
     // This belongs here, not in the update proc: a settings save runs
     // main_window_refresh_health_graph() -> health_graph_layer_refresh() -> this
-    // function whenever the graph is on screen (see app_message.c's config_dirty
-    // block), so a new scale re-reads raw values from the cache and re-derives the
+    // function whenever health is renderable -- hidden view included (see
+    // app_message.c's config_dirty block and main_window_refresh_health_graph()),
+    // so a new scale re-reads raw values from the cache and re-derives the
     // flags. Clamping at render time would instead see already-blanked values on the
     // second redraw and could never recover the original readings.
     hr_scale_resolve(config_get()->hr_scale, HEALTH_HR_LO, HEALTH_HR_HI,
@@ -338,19 +326,17 @@ static void health_graph_compute(bool report_width) {
     s_visible_slots = visible_slots;
     s_end_hour      = end_hour;
 
-    if (report_width) {
-        const GFont font = step_label_font();
-        const GRect box  = GRect(0, 0, 200, 40);
-        int max_w = 0;
-        for (int i = 0; i < s_step_mark_n; ++i) {
-            char label[6];
-            step_mark_label(s_step_marks[i], label, sizeof label);
-            const GSize sz = graphics_text_layout_get_content_size(
-                label, font, box, GTextOverflowModeFill, GTextAlignmentRight);
-            if (sz.w > max_w) { max_w = sz.w; }
-        }
-        bottom_view_report_label_w(BOTTOM_VIEW_SRC_HEALTH, max_w);
+    const GFont font = bottom_view_label_font();
+    const GRect box  = GRect(0, 0, 200, 40);
+    int max_w = 0;
+    for (int i = 0; i < s_step_mark_n; ++i) {
+        char label[6];
+        step_mark_label(s_step_marks[i], label, sizeof label);
+        const GSize sz = graphics_text_layout_get_content_size(
+            label, font, box, GTextOverflowModeFill, GTextAlignmentRight);
+        if (sz.w > max_w) { max_w = sz.w; }
     }
+    bottom_view_report_label_w(BOTTOM_VIEW_SRC_HEALTH, max_w);
 }
 
 // Left-axis strip: labels each dotted step mark (see compute_step_marks) as a single-row
@@ -369,26 +355,20 @@ static void draw_left_axis(GContext *ctx, int h, int hi) {
     if (axis_y <= 0 || hi <= 0) { return; }
 
     graphics_context_set_text_color(ctx, theme_fg());
-    const GFont font = step_label_font();
-    // Single-row label centered on the gridline y. Pebble seats a digit's cap box on the
-    // BOTTOM of its measured content box (layers/status_metrics.h, measured: content_h
-    // 14/18/24 -> cap 9/11/14), so for a box top `ty` the ink runs
-    // ty + (content_h - cap) .. ty + content_h - 1 and its centre sits
-    // status_glyph_below(content_h) above the content bottom. Solving
-    // "ink centre == y + 1" gives ty = y + 1 - content_h + below, which reproduces the
-    // shipped GOTHIC_18 lift exactly (1 - 18 + 6 = -11). The box must be at least
-    // content_h or graphics_draw_text drops the row entirely.
-#ifdef PBL_PLATFORM_EMERY
-    // emery: the same solve at GOTHIC_24 -- 1 - 24 + 7 = -16, box 24 + 2 = 26. (The
-    // earlier "half the line height plus 2" guess gave 14, which hung the taller cap
-    // 3 px below its gridline: the model centres the INK, not the content box.)
-    const bool large   = config_get()->large_graph_font;
-    const int  ty_lift = large ? 16 : 11;
-    const int  box_h   = large ? 26 : 20;
-#else
-    const int  ty_lift = 11;
-    const int  box_h   = 20;
-#endif
+    const GFont font = bottom_view_label_font();
+    // Single-row label centred on the gridline y: seat the INK centre on y + 1. Pebble
+    // seats a digit's cap box on the BOTTOM of its measured content box
+    // (layers/status_metrics.h), its ink centre status_glyph_below(content_h) above the
+    // content bottom, so the box top solves to y + 1 - content_h + below. Fully
+    // font-derived -- whatever tier bottom_view_label_font() resolves, with no per-tier
+    // tuning: the same expression seats GOTHIC_18 at today's shipped lift (11) and
+    // emery's large-font GOTHIC_24 at 16. (The retired "half the line height plus 2"
+    // guess hung the taller cap 3 px below its gridline: the model centres the INK, not
+    // the content box.) The box needs content_h plus slack or graphics_draw_text drops
+    // the row entirely.
+    const int content_h = status_content_h(font);
+    const int ty_lift   = content_h - 1 - status_glyph_below(content_h);
+    const int box_h     = content_h + 2;
     for (int i = 0; i < s_step_mark_n; ++i) {
         const int v = s_step_marks[i];
         if (v <= 0 || v > hi) { continue; }
@@ -556,14 +536,8 @@ void health_graph_layer_refresh(void) {
         layer_mark_dirty(s_health_graph_layer);   // paints the loading state
         return;
     }
-    health_graph_compute(true);   // copy from the cache + report the strip width
+    health_graph_compute();   // copy from the cache + report the strip width
     layer_mark_dirty(s_health_graph_layer);
-}
-
-// See health_graph_layer.h.
-void health_graph_layer_remeasure(void) {
-    if (!health_cache_ready()) { return; }
-    health_graph_compute(true);   // report the strip width only -- no layer_mark_dirty
 }
 
 void health_graph_layer_destroy(void) {

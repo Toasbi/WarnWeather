@@ -22,11 +22,13 @@ void main_window_relayout(void);
 void main_window_apply_theme(void);
 
 #if defined(PBL_HEALTH)
-// Recompute + repaint the health graph if it is the view currently on screen;
-// a no-op otherwise. Call after a settings save that can change the graph's
-// compute (e.g. the HR scale) so it re-derives from the cache instead of
-// rendering stale statics until the next minute tick. Gated on visibility
-// because health_graph_layer_refresh() isn't free — it rescans the cache.
+// Re-derive the health graph from the cache + repaint. Call after a settings save
+// that can change the graph's compute (e.g. the HR scale or the label font) so it
+// re-derives instead of rendering stale statics until the next minute tick. Runs
+// whenever health is renderable — hidden view included, on purpose: the compute also
+// re-reports the left-axis label width feeding the SHARED strip (bottom_view.h
+// "wider of both"), and the repaint half is free while hidden (a mark_dirty on a
+// hidden layer is a no-op).
 void main_window_refresh_health_graph(void);
 #endif
 
