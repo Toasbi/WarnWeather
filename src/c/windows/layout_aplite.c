@@ -5,6 +5,27 @@
 // undefined on aplite), so this twin omits the cursor helpers entirely. Bugfixes to the
 // shared band geometry (compute below) must be hand-ported from layout.c; the
 // check-aplite-twins CI prompts the review. See docs/adr/0001-aplite-frozen-lean-fork.md.
+//
+// ── One deliberate divergence: clock ink centring (WW_CLOCK_INK, see wscript) ────────────
+// layout.c seats the clock by SOLVING for optical symmetry — it models the ink of whichever band
+// is the clock's neighbour (calendar row, status row, or graph top) and centres between them,
+// per time font. This twin does not, and keeps the fixed anchors below.
+//
+// It was measured, not assumed. Hand-porting the solver here cost +380 B (the calendar cell
+// arithmetic and the seating clamp are runtime divisions, which Cortex-M3 does in software).
+// Reduced all the way down to plumbing the metric in and applying it as a single subtraction it
+// still cost +76 B — most of it the metric's mere existence in the signature and its table.
+// The headroom under the 21804 B launch guard is 44 B, and over that guard the watchface does
+// not start at all.
+//
+// What aplite gives up: its two non-default time fonts keep the lean every 144px watch had
+// before this change (measured on the host: fullCal Leco 7 above / 9 below, Bitham 5 / 9).
+// Roboto — the default, and the font these anchors were tuned on — is pixel-identical to what
+// the solver would produce, so the common case loses nothing. That trade is the whole point of
+// the frozen-lean-fork convention; see docs/adr/0001-aplite-frozen-lean-fork.md.
+//
+// If aplite ever regains the bytes, the port is small: take layout.c's `clock_above`/`below`
+// blocks and its clock_seat_y() call, and delete NONE_TIME_DROP.
 #include "layout.h"
 #include "c/layers/status_metrics.h"   // status_min_band_h — integer font math, no SDK
 
@@ -22,6 +43,8 @@
 // surplus grows downward into the air below it, so the clock and the graph never move.
 #define CALENDAR_STATUS_HEIGHT 13
 #define NONE_STATUS_HEIGHT 22
+// Kept (layout.c derives its equivalent now): the drop is the Roboto-tuned part of the noCal
+// seating, and `- ink.centre_off` at the rect carries it to the other two fonts.
 #define NONE_TIME_DROP 2
 // Clamp-free band for the top strip and a lone compact status row (both Gothic 18 on aplite:
 // STATUS_TOP_TIER_FONT_KEY / COMPACT_ROW_FONT_KEY) = 17. Below it status_seat_y()'s descender
@@ -95,7 +118,8 @@ LayerVisibility layout_visibility(const ViewSpec *spec) {
     return v;
 }
 
-MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h) {
+MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, LayoutMetrics m) {
+    int fc_band_h = m.fc_band_h;
     uint8_t tier = layout_tier_for_rows(spec->calendar_rows);
     bool compact = (tier != LAYOUT_TIER_FULL);
     bool upper = (spec->status_upper != STATUS_SRC_NONE);

@@ -51,11 +51,9 @@ static inline int status_strip_text_y(int band_h, GFont font) {
 // takes 1px less clearance — the whole line drops ~1px toward the forecast (and away from the
 // clock). This is the single per-platform taste knob, tuned on-device; not a return to per-mode
 // band hacks.
-#ifdef PBL_PLATFORM_EMERY
-#define STATUS_FORECAST_CLEARANCE 1
-#else
-#define STATUS_FORECAST_CLEARANCE 3
-#endif
+// STATUS_FORECAST_CLEARANCE itself now lives in status_metrics.h (included above): the clock
+// solver in windows/layout.c inverts fc_band_h back to the row's content height with it, and
+// that module may not include this header (it is SDK-facing; host tests stub pebble.h).
 static inline int status_forecast_band_h(GFont font) {
     int content_h = graphics_text_layout_get_content_size(
         "0", font, GRect(0, 0, 100, 100),

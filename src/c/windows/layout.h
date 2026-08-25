@@ -24,6 +24,61 @@ typedef struct {
     GRect radar;         // rain_radar frame: == top in full/compact, == bottom in none
 } MainLayout;
 
+// The ONE thing about the clock this module cannot derive: where the active time font's ink
+// sits inside the band it is given. The SDK has no ink-bbox call, and the six screen x font
+// combinations are genuinely different faces, so the numbers are measured once and tabulated
+// in layers/clock_ink.h (which main_window.c resolves and passes in — layout.c must stay free
+// of config_get()/font calls; see the header note above).
+//
+// centre_off is band-height independent by construction: time_layer.c seats its text at
+// `bounds.size.h/2 - text_h/2 - MT_TIME`, so the band's own half cancels against the band
+// centre and only per-font terms remain. That is why one number per font covers every preset —
+// and layout_compute_peek(), whose clock band is a different height entirely.
+// Byte fields, not ints: the measured range is -2..+2 and 29..46, and this struct is BOTH a
+// table (six of them in clock_ink.h) and a by-value parameter on a platform where the aplite
+// image has ~40 B of headroom under a hard launch ceiling. Both fields promote to int the
+// moment they are used, so the arithmetic below is unaffected.
+typedef struct {
+    int8_t  centre_off;   // (ink centre) - (band centre), + = ink sits low. MEASURED.
+    uint8_t ink_h;        // rows of ink the digits occupy
+} ClockInk;
+
+// The font-derived numbers the WINDOW measures and this pure module consumes — one bundle so the
+// set can differ per platform without every call site knowing.
+//
+// aplite carries no clock field: see the WW_CLOCK_INK note in wscript. Its lean twin seats the
+// clock on fixed Roboto-tuned anchors instead of solving, so the metric would be dead weight on
+// the one platform that cannot afford any. Callers never branch on this — they build the struct
+// through LAYOUT_METRICS_NOW() in layers/clock_ink.h, which has the platform arms.
+typedef struct {
+    int16_t fc_band_h;   // status_forecast_band_h(status_full_tier_font())
+#if defined(WW_CLOCK_INK)
+    ClockInk clock;      // the active time font's measured ink
+#endif
+} LayoutMetrics;
+
+// Seat a clock band of `band_h` so its INK is optically centred between the last inked row
+// above it and the first inked row below it.
+//
+// Solve for the ink TOP, not for an ink centre. The condition the eye reads is
+//     ink_top - above == below - ink_bottom,   i.e.   ink_top + ink_bottom == above + below,
+// and substituting ink_bottom = ink_top + ink_h - 1 leaves the single division below. Routing
+// it through a midpoint instead rounds TWICE — into a centre and back out of it — and the two
+// truncations compound into a 2px lean whenever (above+below) is odd and ink_h even (modelled:
+// emery compactDense would have read 7 above / 9 below). One division; and because its
+// numerator is positive, C's truncation IS a floor, which is what parks the odd spare row
+// BELOW the clock — air over the status row rather than under the calendar, matching the
+// balance that already reads correctly on emery (7/7, 9/9, 14/14 measured).
+//
+// centre_off is inverted back to an ink-top offset with the SAME truncation used to measure it
+// (centre_off := (ink_top + ink_h/2) - band_centre), so the round trip is exact, not approximate.
+static inline int clock_seat_y(int band_h, ClockInk ink,
+                               int above_ink_bottom, int below_ink_top) {
+    int ink_top_rel = ink.centre_off - ink.ink_h / 2;
+    int ink_top = (above_ink_bottom + below_ink_top - ink.ink_h + 1) / 2;
+    return ink_top - band_h / 2 - ink_top_rel;
+}
+
 // ── ViewSpec: what is on screen, as data ────────────────────────────────────
 // Geometry and layer visibility both derive from one spec. Producers build specs
 // (today: the preset compiler + flick state in main_window; later: the à-la-carte
@@ -160,8 +215,10 @@ LayerVisibility layout_visibility(const ViewSpec *spec);
 
 // Pure vertical band geometry for the main window. fc_band_h is the font-derived height
 // of the forecast-abutting status band (status_forecast_band_h(status_full_tier_font())
-// on the watch; a fixed representative value in host tests).
-MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h);
+// on the watch; a fixed representative value in host tests). m.clock describes the active time
+// font and moves ONLY the clock — see clock_seat_y above and the seating at the end of
+// compute_with_weights: every other rect is byte-identical whatever `ink` says.
+MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, LayoutMetrics m);
 
 #if defined(WW_QUICK_VIEW)
 // "Peek" geometry for the Timeline Quick View overlay: the active view minus its calendar,
@@ -170,7 +227,7 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, int fc_band_h
 // and body keep ~full-tier proportions (the freed calendar space covers the ~51px overlay).
 // `spec` supplies the status shape (NONE / single / DUAL); its top/calendar fields are
 // ignored. Pure; excluded on aplite.
-MainLayout layout_compute_peek(GRect bounds, const ViewSpec *spec, int fc_band_h);
+MainLayout layout_compute_peek(GRect bounds, const ViewSpec *spec, LayoutMetrics m);
 #endif
 
 #if defined(WW_VIEW_CYCLE)

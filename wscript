@@ -151,6 +151,20 @@ def build(ctx):
         # drop out and --gc-sections reaps the rest. Mirrors WW_RAIN_RADAR / WW_QUICK_VIEW.
         if platform != 'aplite':
             ctx.env.CFLAGS += ['-DWW_VIEW_CYCLE=1']
+        # Clock ink centring is compiled out of aplite. windows/layout.c seats the clock by
+        # SOLVING for optical symmetry against its neighbours' ink, which needs the active time
+        # font's measured ink handed in (layers/clock_ink.h). Hand-porting the solver into the
+        # lean twin measured +380 B, and even reduced to plumbing the metric through and
+        # applying it as a one-line font correction it measured +76 B — against 44 B of headroom
+        # under the 21804 B launch guard. So aplite keeps the fixed, Roboto-tuned anchors its
+        # twin was always built on: LayoutMetrics carries no clock field there, clock_ink.c does
+        # not link, and layout_aplite.c never sees the metric. The visible cost is that aplite's
+        # two non-default time fonts (Leco, Bitham) keep the 2-4 px lean every 144px watch had
+        # before this change; Roboto, the default, is pixel-identical either way. Every other
+        # platform defines WW_CLOCK_INK. Mirrors WW_THRESHOLD_HIGHLIGHT below, excluded for the
+        # same trigger.
+        if platform != 'aplite':
+            ctx.env.CFLAGS += ['-DWW_CLOCK_INK=1']
         # Theme polarity (the light / B&W-Inverted axis) is compiled out of aplite:
         # the 2026-07 theme sweep grew the aplite image past the ~22.06 KB launch
         # ceiling (the whole image loads into the fixed 24 KB app RAM and the loader

@@ -23,6 +23,12 @@ static void expect(const char *name, bool got, bool want) {
 #define BOUNDS GRect(0, 0, 144, 168)
 #define FC_BAND_H 20
 
+// The shipping ROBOTO metrics from src/c/layers/clock_ink.h (aplite is a 144px screen, so it
+// takes the same column as basalt/diorite/flint).
+// aplite's LayoutMetrics carries only the band height (no clock field) — the second
+// argument is accepted and ignored so the call sites read the same as the base test's.
+#define MET(fc, ink) ((LayoutMetrics){ (int16_t)(fc) })
+
 // Pack a 10-bit wire value, mirroring view-cycle.js packSpec():
 // tier<<8 | top<<6 | body<<4 | statusUpper<<2 | statusLower.
 static uint16_t pack(int tier, int top, int body, int su, int sl) {
@@ -33,7 +39,7 @@ static uint16_t pack(int tier, int top, int body, int su, int sl) {
 // Build a ViewSpec from a wire value via the twin's unpack, as the watch does.
 static MainLayout compute(uint8_t wire_tier, int su, int sl) {
     ViewSpec spec = view_spec_unpack(pack(wire_tier, 1, 0, su, sl));
-    return layout_compute_spec(BOUNDS, &spec, FC_BAND_H);
+    return layout_compute_spec(BOUNDS, &spec, MET(FC_BAND_H, INK));
 }
 
 static void golden_rects(void) {
@@ -104,7 +110,7 @@ static void downgrade_tests(void) {
 // collapses its forecast to this same upper band — not an unrequested swap.
 static void geometry_upper_only(void) {
     ViewSpec s = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE));
-    MainLayout L = layout_compute_spec(BOUNDS, &s, FC_BAND_H);
+    MainLayout L = layout_compute_spec(BOUNDS, &s, MET(FC_BAND_H, INK));
     check("upper_only.status",       L.status,       0, 44, 144, 17);   // == compact upper band
     check("upper_only.status_lower", L.status_lower, 0, 44, 144, 17);   // mirrors status (no carve)
     check("upper_only.bottom",       L.bottom,       0, 103, 144, 65);  // == compact bottom (no lower carve)
@@ -122,9 +128,9 @@ static void geometry_upper_only(void) {
 // reclaims the freed 3rd-calendar-row. aplite's only lower-band case (no radar/health/dual).
 static void geometry_swap(void) {
     ViewSpec up = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE));  // upper ref
-    MainLayout Lu = layout_compute_spec(BOUNDS, &up, FC_BAND_H);
+    MainLayout Lu = layout_compute_spec(BOUNDS, &up, MET(FC_BAND_H, INK));
     ViewSpec s = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_NONE, STATUS_SRC_FORECAST));   // swap
-    MainLayout L = layout_compute_spec(BOUNDS, &s, FC_BAND_H);
+    MainLayout L = layout_compute_spec(BOUNDS, &s, MET(FC_BAND_H, INK));
     expect("swap.lower_forecast", s.status_lower == STATUS_SRC_FORECAST, true);
     expect("swap.upper_none", s.status_upper == STATUS_SRC_NONE, true);
     expect("swap.upper_collapsed", L.status.size.h == 0, true);
@@ -168,8 +174,8 @@ static void tier_helper_tests(void) {
     ViewSpec lo = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_NONE, STATUS_SRC_FORECAST));
     expect("tier_helpers.visible_upper_only", layout_status_visible(&up, STATUS_SRC_FORECAST), true);
     expect("tier_helpers.visible_lower_only", layout_status_visible(&lo, STATUS_SRC_FORECAST), true);
-    MainLayout Lu = layout_compute_spec(BOUNDS, &up, FC_BAND_H);
-    MainLayout Ll = layout_compute_spec(BOUNDS, &lo, FC_BAND_H);
+    MainLayout Lu = layout_compute_spec(BOUNDS, &up, MET(FC_BAND_H, INK));
+    MainLayout Ll = layout_compute_spec(BOUNDS, &lo, MET(FC_BAND_H, INK));
     expect("tier_helpers.band_upper",
            layout_status_band(&up, &Lu, STATUS_SRC_FORECAST).origin.y == Lu.status.origin.y, true);
     expect("tier_helpers.band_lower",
@@ -238,7 +244,7 @@ static void seating_no_lift(void) {
     };
     for (unsigned i = 0; i < sizeof(views) / sizeof(views[0]); i++) {
         ViewSpec spec = view_spec_unpack(pack(views[i].tier, 1, 0, views[i].su, views[i].sl));
-        MainLayout L = layout_compute_spec(BOUNDS, &spec, FC_BAND_H_SHIPPING);
+        MainLayout L = layout_compute_spec(BOUNDS, &spec, MET(FC_BAND_H_SHIPPING, INK));
         expect_strip_lift(views[i].name, L.top_status.size.h, TOP_ROW_H);
         expect_no_lift(views[i].name, "status", L.status.size.h, views[i].row_h);
         if (spec.status_lower != STATUS_SRC_NONE) {
@@ -248,6 +254,12 @@ static void seating_no_lift(void) {
                L.top_status.size.h == status_min_band_h(TOP_ROW_H), true);
     }
 }
+
+// NOTE: there is deliberately no clock-ink test here. aplite is excluded from clock ink centring
+// (WW_CLOCK_INK, see wscript and the provenance note in layout_aplite.c) — its LayoutMetrics has
+// no clock field at all, so there is nothing for the twin to honour. The base file's
+// clock_ink_symmetry / clock_ink_residual / clock_ink_nothing_below_moves cover the platforms
+// that do have it.
 
 int main(void) {
     golden_rects();

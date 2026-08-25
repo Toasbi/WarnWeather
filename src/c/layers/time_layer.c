@@ -8,15 +8,16 @@
 // MT = Margin Top
 #define MT_TIME 14
 #define MT_AM_PM 7
-#define MT_TIME_LECO 2
 #define MT_AM_PM_LECO 2
-// emery: per-font vertical nudge (px, positive = up) for the enlarged custom
-// Roboto/Montserrat fonts. The centering math centers each font's *content box*, but
-// text_layer_get_content_size() under-reports these TTF fonts' line box and the digit ink
-// sits high within it, so the unaided result lands bottom-heavy. These constants are
-// measured on the emulator to give equal top/bottom padding around the digit ink.
-#define MT_TIME_ROBOTO 2
-#define MT_TIME_BITHAM 2
+// The per-font vertical nudges that used to live here (MT_TIME_ROBOTO / _LECO / _BITHAM, all 2,
+// applied on emery only) are gone. They were hand-measured versions of the same quantity
+// windows/layout.c now takes as a parameter — layers/clock_ink.h's centre_off, measured for all
+// six screen x font combinations rather than three on one platform. Leaving them here would
+// apply the correction twice on emery; and applying it on emery alone was the omission that left
+// the 144px watches' Leco and Bitham clocks off-centre in the first place.
+//
+// Nothing else about the seating below changed: this layer still centres its text inside
+// whatever band it is handed, and the solver moves the band.
 
 
 static Layer *s_container_layer;
@@ -70,18 +71,6 @@ void time_layer_tick() {
     int text_h = time_size.h - MT_TIME; // Remove top margin, approximately
     int text_top = -MT_TIME + (bounds.size.h/2 - text_h/2);
     int text_left = bounds.size.w / 2 - content_w / 2;
-
-    // emery: nudge custom/LECO time text vertically to keep optical centering, since each
-    // font's metrics differ from the stock-49 MT_TIME calibration.
-#ifdef PBL_PLATFORM_EMERY
-    if (config_get()->time_font == TIME_FONT_LECO) {
-        text_top -= MT_TIME_LECO;
-    } else if (config_get()->time_font == TIME_FONT_ROBOTO) {
-        text_top -= MT_TIME_ROBOTO;
-    } else if (config_get()->time_font == TIME_FONT_BITHAM) {
-        text_top -= MT_TIME_BITHAM;
-    }
-#endif
 
     // Update layer positions and visibility. Height spans from text_top down to the
     // container bottom rather than time_size.h: text_layer_get_content_size() under-reports

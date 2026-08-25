@@ -16,6 +16,7 @@
 #include "c/appendix/app_message.h"
 #include "c/appendix/persist.h"
 #include "c/appendix/config.h"
+#include "c/layers/clock_ink.h"
 #include "c/appendix/memory_log.h"
 #include "c/appendix/status_line.h"
 #include "c/appendix/theme.h"
@@ -124,7 +125,11 @@ static void render_active_view(void) {
     Layer *root_layer = window_get_root_layer(s_main_window);
     GRect bounds = layer_get_bounds(root_layer);
     ViewSpec spec = current_view_spec();
-    int fc_band = status_forecast_band_h(status_full_tier_font());
+    // The two font-derived numbers the pure layout cannot measure for itself. The clock ink is
+    // resolved on every render, so a font change in settings re-seats the clock with no extra
+    // invalidation path (render_active_view runs before main_window_refresh re-measures text).
+    LayoutMetrics metrics = LAYOUT_METRICS_NOW();
+    int fc_band = metrics.fc_band_h;
     MainLayout L;
 #if defined(WW_QUICK_VIEW)
     // Peek is derived LIVE from the unobstructed bounds every render (never a cached flag),
@@ -140,11 +145,11 @@ static void render_active_view(void) {
         spec.top = TOP_BAND_EMPTY;
         spec.calendar_rows = 0;
         spec.status_tier = LAYOUT_TIER_FULL;   // status band is full-tier-sized (fc_band)
-        L = layout_compute_peek(unobstructed, &spec, fc_band);
+        L = layout_compute_peek(unobstructed, &spec, metrics);
     } else
 #endif
     {
-        L = layout_compute_spec(bounds, &spec, fc_band);
+        L = layout_compute_spec(bounds, &spec, metrics);
     }
     // Tier push: per-view layout facts flow one way, view spec -> window -> owner ->
     // layer/row state. Layers never read tier facts from config (see CONTEXT.md
@@ -292,8 +297,7 @@ static void main_window_load(Window *window) {
 #endif
 
     ViewSpec spec = current_view_spec();
-    MainLayout L = layout_compute_spec(bounds, &spec,
-                                       status_forecast_band_h(status_full_tier_font()));
+    MainLayout L = layout_compute_spec(bounds, &spec, LAYOUT_METRICS_NOW());
 
     forecast_layer_create(window_layer, L.bottom);
 #if defined(PBL_HEALTH)

@@ -6,10 +6,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p build/host
 CFLAGS="-std=c11 -Wall -Wextra -Werror -DPBL_HEALTH -Itest/c/stub -Isrc"
-# WW_QUICK_VIEW is defined for every non-aplite platform (wscript); the host layout test
-# represents that evolving-platform build, so it exercises the peek view/layout.
-cc $CFLAGS -DWW_QUICK_VIEW -DWW_VIEW_CYCLE test/c/layout_test.c src/c/windows/layout.c -o build/host/layout_test
-cc $CFLAGS -DWW_QUICK_VIEW -DWW_VIEW_CYCLE -DPBL_PLATFORM_EMERY test/c/layout_test.c src/c/windows/layout.c -o build/host/layout_test_emery
+# WW_QUICK_VIEW / WW_CLOCK_INK are defined for every non-aplite platform (wscript); the host
+# layout test represents that evolving-platform build, so it exercises the peek view/layout and
+# the clock ink centring. The aplite twin build below deliberately defines neither.
+cc $CFLAGS -DWW_QUICK_VIEW -DWW_VIEW_CYCLE -DWW_CLOCK_INK test/c/layout_test.c src/c/windows/layout.c -o build/host/layout_test
+cc $CFLAGS -DWW_QUICK_VIEW -DWW_VIEW_CYCLE -DWW_CLOCK_INK -DPBL_PLATFORM_EMERY test/c/layout_test.c src/c/windows/layout.c -o build/host/layout_test_emery
 build/host/layout_test "${1:-}"
 build/host/layout_test_emery "${1:-}"
 # Aplite lean twin: compiled exactly as the aplite platform build (no PBL_HEALTH,

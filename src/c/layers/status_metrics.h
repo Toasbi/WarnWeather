@@ -95,6 +95,32 @@ static inline int status_seat_y(int band_h, int content_h) {
     return (y < y_fit) ? y : y_fit;
 }
 
+// Blank rows a forecast-abutting status row keeps between its glyph and the graph below it.
+// Lives here rather than beside status_forecast_band_h() in layer_util.h because BOTH ends need
+// it and only this header is pure: layer_util.h builds the band as content_h + 2*clearance, and
+// windows/layout.c runs that backwards -- content_h == fc_band_h - 2*clearance -- to find where
+// the row's ink starts when it is the clock's lower neighbour. One definition, so the band and
+// the ink model cannot drift apart.
+//
+// emery renders the row in Gothic 18, big enough that a symmetric centre reads a hair high, so it
+// takes less clearance -- the whole line drops ~1px toward the forecast (and away from the clock).
+// This is the single per-platform taste knob, tuned on-device.
+#ifdef PBL_PLATFORM_EMERY
+#define STATUS_FORECAST_CLEARANCE 1
+#else
+#define STATUS_FORECAST_CLEARANCE 3
+#endif
+
+// First inked row of a line seated by status_seat_y() in a band whose top edge is `band_y`.
+// The two halves already live above; composing them gives windows/layout.c one call for the
+// question it actually asks -- "where does this row's ink START" -- when it centres the clock
+// against the row below it. Cap top only: a slot icon can ink one row higher and a crossed
+// threshold's highlight box four, but both are content-dependent, and the cap is the one edge
+// that is the same whatever the row happens to be showing.
+static inline int status_band_ink_top(int band_y, int band_h, int content_h) {
+    return band_y + status_seat_y(band_h, content_h) + status_ink_top(content_h);
+}
+
 // The shortest band that seats a `content_h` line with NO clamp lift — i.e. where
 // status_seat_y() returns the cap-centred y rather than the descender-fit one. Setting the
 // two branches equal:

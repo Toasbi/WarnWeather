@@ -1,4 +1,5 @@
 #include "calendar_layer.h"
+#include "c/layers/calendar_metrics.h"
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
 #include "c/appendix/persist.h"
@@ -7,8 +8,10 @@
 #include <time.h>
 
 #define DAYS_PER_WEEK 7
-#define FONT_OFFSET 5
-#define EMERY_CALENDAR_TEXT_SHIFT_Y 5
+// The vertical seating constants (CALENDAR_FONT_OFFSET / CALENDAR_TEXT_SHIFT_Y) live in
+// calendar_metrics.h: windows/layout.c centres the clock against this text's ink and needs the
+// same model, and it cannot include an SDK-facing header. The horizontal nudge below is ours
+// alone — nothing outside this file cares where a '1' sits across its cell.
 #define EMERY_CALENDAR_TEXT_SHIFT_X 1
 
 // emery: render calendar dates with larger fonts
@@ -53,7 +56,7 @@ static GRect calendar_text_rect(GRect cell_rect, const char *text, GFont font) {
     const GRect measure_box = GRect(0, 0, cell_rect.size.w, cell_rect.size.h);
     const GSize text_size = graphics_text_layout_get_content_size(
         text, font, measure_box, GTextOverflowModeFill, GTextAlignmentCenter);
-    const int text_top = cell_rect.origin.y + (cell_rect.size.h - text_size.h) / 2 - EMERY_CALENDAR_TEXT_SHIFT_Y;
+    const int text_top = calendar_text_top(cell_rect.origin.y, cell_rect.size.h, text_size.h);
     return GRect(cell_rect.origin.x - emery_calendar_text_shift_x(text), text_top, cell_rect.size.w, text_size.h);
 }
 #else
@@ -61,9 +64,9 @@ static GRect calendar_text_rect(GRect cell_rect, const char *text, GFont font) {
     (void)text;
     (void)font;
     return GRect(cell_rect.origin.x,
-                 cell_rect.origin.y - FONT_OFFSET,
+                 calendar_text_top(cell_rect.origin.y, cell_rect.size.h, 0),
                  cell_rect.size.w,
-                 cell_rect.size.h + FONT_OFFSET);
+                 cell_rect.size.h + CALENDAR_FONT_OFFSET);
 }
 #endif
 
