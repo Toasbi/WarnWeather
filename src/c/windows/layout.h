@@ -79,6 +79,69 @@ static inline int clock_seat_y(int band_h, ClockInk ink,
     return ink_top - band_h / 2 - ink_top_rel;
 }
 
+// Where the digits' FIRST INKED ROW sits inside a clock band of `band_h`, as a distance from
+// the band's top edge. This is clock_seat_y's `ink_top_rel` read the other way round, and it
+// is exactly what centre_off is defined against — so the band's own half is the only term that
+// varies, and one measured pair per font answers every band the presets produce.
+static inline int clock_ink_top_in_band(int band_h, ClockInk ink) {
+    return band_h / 2 + ink.centre_off - ink.ink_h / 2;
+}
+
+// Seat the AM/PM suffix so ITS first inked row lands on the digits' first inked row — the two
+// caps and the digits share a top edge, which is the alignment the eye reads on a label pinned
+// to the side of a much larger numeral.
+//
+// The label is positioned by its LINE BOX, not by its ink, so the box has to start
+// `label_ink_top` rows earlier than the row we are aiming at (that is the blank leading the
+// font carries above its capitals). A short band can push the result negative; only the blank
+// leading is lost to the clip, because the ink itself cannot start above a row the digits'
+// own ink already occupies.
+static inline int clock_label_seat_y(int band_h, ClockInk ink, int label_ink_top) {
+    return clock_ink_top_in_band(band_h, ink) - label_ink_top;
+}
+
+// Seat the clock text horizontally: the DIGITS are centred on the band, and the AM/PM label
+// that trails them overhangs into whatever margin is left over. Returns the left edge of the
+// digits; the label follows at clock_label_x(). `label_w` is the label's own width, 0 when it
+// is off — deliberately NOT including the air clock_label_x() would like before it. The label
+// must fit; the air is spent only out of margin that was going spare, so wanting a prettier
+// gap can never cost the clock its centre.
+//
+// Centring the digits ALONE is the point: centring digits+label as one block pushes the clock
+// off the screen's centre line by half the label's width, which reads as a lean because the
+// digits are the only thing large enough for the eye to centre on. The clock gives ground only
+// when the label would otherwise leave the band, and then by exactly the overflow — so every
+// time of day that fits keeps the digits dead-centre, and the widest one slides the minimum.
+static inline int clock_seat_x(int band_w, int digits_w, int label_w) {
+    int left = band_w / 2 - digits_w / 2;
+    int overflow = left + digits_w + label_w - band_w;
+    if (overflow > 0) { left -= overflow; }
+    if (left < 0) { left = 0; }   // digits alone wider than the band: clip right, not both ends
+    return left;
+}
+
+// Where the label actually starts: `after_digits + gap`, pinned inside the band.
+//
+// This is where the gap gives way, and it is the ONLY thing that gives way for it: the digits
+// are already seated, so the air is taken from the margin left over on the right and from
+// nowhere else. On the widest 12-hour string that margin is nil on the bigger faces (MEASURED:
+// "12:34 PM" fills the band to the pixel in Roboto on both screen families), and the label
+// simply sits where it always did rather than shoving the clock off centre to buy a prettier
+// gap. Pinning the label does that in one comparison — no separate trim step.
+//
+// The floor is not redundant with it. `label_w` is an ADVANCE width, 2 px wider than the ink
+// of "AM"/"PM" (MEASURED: 19 vs 17 at Gothic 18), so the right pin reserves a sliver that never
+// gets painted; without the floor, the saturated case spends real ink-gap pixels buying that
+// invisible sliver and the label ends up TIGHTER than with no gap at all. Letting the box hang
+// its own bearing off the band edge instead costs nothing on screen.
+static inline int clock_label_x(int band_w, int after_digits, int gap, int label_w) {
+    int x = after_digits + gap;
+    int max_x = band_w - label_w;
+    if (x > max_x) { x = max_x; }
+    if (x < after_digits) { x = after_digits; }   // never behind the digits' own advance box
+    return x;
+}
+
 // ── ViewSpec: what is on screen, as data ────────────────────────────────────
 // Geometry and layer visibility both derive from one spec. Producers build specs
 // (today: the preset compiler + flick state in main_window; later: the à-la-carte

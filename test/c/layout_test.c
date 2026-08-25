@@ -1366,6 +1366,198 @@ static void clock_ink_nothing_below_moves(void) {
     printf("clock_ink_nothing_below_moves OK\n");
 }
 
+// ── AM/PM label seating ──────────────────────────────────────────────────────────────────
+// The label is a second, much smaller line parked beside the digits, and the alignment the eye
+// reads is their shared TOP edge. layers/time_layer.c seats it with clock_label_seat_y(); what
+// follows checks that the row it lands on is the same row clock_seat_y() put the digits' ink on
+// — the two are computed from opposite ends (one from the band it was handed, one from the band
+// the solver produced) and only agree if the whole chain does.
+//
+// The label's blank leading is transcribed, not imported: Gothic 18 MEASURED at 11 cap rows in an
+// 18-row content box (the table in status_metrics.h), so 7 rows above the caps are empty. Writing
+// the 7 out means a change to that measured model has to be made deliberately in both places.
+#define AM_PM_LEADING 7
+
+static void clock_am_pm_ink_meets_digits(void) {
+    if (AM_PM_LEADING != status_ink_top(18)) {
+        printf("FAIL clock_am_pm_ink_meets_digits.leading: status_ink_top(18) == %d, not %d\n",
+               status_ink_top(18), AM_PM_LEADING);
+        s_failures++;
+    }
+    for (unsigned c = 0; c < sizeof(CLOCK_CASES) / sizeof(CLOCK_CASES[0]); c++) {
+        const struct clock_case *cc = &CLOCK_CASES[c];
+        ViewSpec spec = view_spec_unpack(pack(cc->tier, 1, 0, cc->su, cc->sl));
+        for (unsigned k = 0; k < sizeof(CLOCK_INKS) / sizeof(CLOCK_INKS[0]); k++) {
+            ClockInk ink = CLOCK_INKS[k];
+            MainLayout L = layout_compute_spec(BOUNDS, &spec, MET(FC_BAND_H_SHIPPING, ink));
+            // What the label does: its BOX is seated band-relative, and its ink starts
+            // AM_PM_LEADING rows into that box.
+            int label_ink = L.time.origin.y
+                            + clock_label_seat_y(L.time.size.h, ink, AM_PM_LEADING)
+                            + AM_PM_LEADING;
+            // What the digits do, derived the other way round — the inverse of clock_seat_y.
+            int digit_ink = clock_ink_top_of(L.time, ink);
+            if (label_ink != digit_ink) {
+                printf("FAIL clock_am_pm_ink_meets_digits %s ink{%d,%d}: label inks at %d,"
+                       " digits at %d (band y=%d h=%d)\n",
+                       cc->name, ink.centre_off, ink.ink_h, label_ink, digit_ink,
+                       L.time.origin.y, L.time.size.h);
+                s_failures++;
+            }
+        }
+    }
+    printf("clock_am_pm_ink_meets_digits OK\n");
+}
+
+// ── Digits centring, and what the label costs it ─────────────────────────────────────────
+// clock_seat_x's contract, stated as three properties rather than as goldens: the digits are
+// dead-centre whenever the label fits beside them, the label never leaves the band, and when
+// something has to give it is the smallest possible shift. The sweep covers clock strings from
+// far narrower than the band to wider than it, and label widths from absent to oversized.
+static void clock_digits_centring(void) {
+    static const int BAND_W[] = { 144, 196 };            // the two shipping screen families
+    static const int DIGITS_W[] = { 40, 72, 96, 110, 121, 130, 143, 150 };
+    static const int LABEL_W[] = { 0, 18, 21, 24, 30 };  // 0 == label off; ~21 is "PM" at Gothic 18
+
+    for (unsigned b = 0; b < sizeof(BAND_W) / sizeof(BAND_W[0]); b++) {
+        int band_w = BAND_W[b];
+        for (unsigned d = 0; d < sizeof(DIGITS_W) / sizeof(DIGITS_W[0]); d++) {
+            int digits_w = DIGITS_W[d];
+            int centred = band_w / 2 - digits_w / 2;
+            for (unsigned l = 0; l < sizeof(LABEL_W) / sizeof(LABEL_W[0]); l++) {
+                int label_w = LABEL_W[l];
+                int left = clock_seat_x(band_w, digits_w, label_w);
+                bool fits = (centred + digits_w + label_w <= band_w);
+
+                // 1. Nothing is ever pushed off the LEFT edge to make room on the right.
+                if (left < 0) {
+                    printf("FAIL clock_digits_centring.left_edge band %d digits %d label %d:"
+                           " left %d\n", band_w, digits_w, label_w, left);
+                    s_failures++;
+                }
+                // 2. The digits are dead-centre whenever the label has room beside them — and
+                //    "dead-centre" is exact, not within a pixel: both halves truncate the same
+                //    way, so left + digits_w/2 lands on band_w/2 itself.
+                if (fits && (left != centred || left + digits_w / 2 != band_w / 2)) {
+                    printf("FAIL clock_digits_centring.centred band %d digits %d label %d:"
+                           " left %d want %d\n", band_w, digits_w, label_w, left, centred);
+                    s_failures++;
+                }
+                // 3. When it does not fit, the whole run still ends inside the band, and the
+                //    clock gave up the MINIMUM: one pixel further right would overflow.
+                if (!fits && digits_w + label_w <= band_w) {
+                    if (left + digits_w + label_w != band_w) {
+                        printf("FAIL clock_digits_centring.minimal band %d digits %d label %d:"
+                               " right edge %d want %d\n", band_w, digits_w, label_w,
+                               left + digits_w + label_w, band_w);
+                        s_failures++;
+                    }
+                    if (left >= centred) {
+                        printf("FAIL clock_digits_centring.moved_left band %d digits %d label"
+                               " %d: left %d not left of centre %d\n",
+                               band_w, digits_w, label_w, left, centred);
+                        s_failures++;
+                    }
+                }
+                // 4. Turning the label OFF must never move the digits off centre.
+                if (label_w == 0 && centred >= 0 && left != centred) {
+                    printf("FAIL clock_digits_centring.no_label band %d digits %d: left %d"
+                           " want %d\n", band_w, digits_w, left, centred);
+                    s_failures++;
+                }
+            }
+            // 5. A wider label never pushes the digits RIGHT — the shift is monotone.
+            int prev = clock_seat_x(band_w, digits_w, LABEL_W[0]);
+            for (unsigned l = 1; l < sizeof(LABEL_W) / sizeof(LABEL_W[0]); l++) {
+                int next = clock_seat_x(band_w, digits_w, LABEL_W[l]);
+                if (next > prev) {
+                    printf("FAIL clock_digits_centring.monotone band %d digits %d: label %d"
+                           " gave %d after %d\n", band_w, digits_w, LABEL_W[l], next, prev);
+                    s_failures++;
+                }
+                prev = next;
+            }
+        }
+    }
+    printf("clock_digits_centring OK\n");
+}
+
+// The air between the digits and the label is a preference; the label being wholly on screen —
+// and the digits staying where clock_seat_x put them — are invariants. Swept over widths from
+// far narrower than the band to wider than it, this pins which of the three gives way.
+static void clock_label_gap_yields(void) {
+    static const int BAND_W[] = { 144, 196 };
+    static const int DIGITS_W[] = { 40, 96, 121, 123, 126, 140, 159, 180 };
+    static const int LABEL_W[] = { 18, 21, 25 };
+    static const int WANT[] = { 0, 2, 4, 8 };
+
+    for (unsigned b = 0; b < sizeof(BAND_W) / sizeof(BAND_W[0]); b++) {
+        int band_w = BAND_W[b];
+        for (unsigned d = 0; d < sizeof(DIGITS_W) / sizeof(DIGITS_W[0]); d++) {
+            int digits_w = DIGITS_W[d];
+            for (unsigned l = 0; l < sizeof(LABEL_W) / sizeof(LABEL_W[0]); l++) {
+                int label_w = LABEL_W[l];
+                // The digits are seated WITHOUT reference to the gap — asking for air must not
+                // be able to move them. Everything below shares this one left edge.
+                int left = clock_seat_x(band_w, digits_w, label_w);
+                for (unsigned g = 0; g < sizeof(WANT) / sizeof(WANT[0]); g++) {
+                    int want = WANT[g];
+                    int label_x = clock_label_x(band_w, left + digits_w, want, label_w);
+                    int gap = label_x - (left + digits_w);
+
+                    // 1. The label never leaves the band. This is the invariant everything else
+                    //    yields to. (Only claimable when the digits and label alone fit; a clock
+                    //    font too wide for its own band is a different defect entirely.)
+                    if (digits_w + label_w <= band_w && label_x + label_w > band_w) {
+                        printf("FAIL clock_label_gap_yields.on_screen band %d digits %d label %d"
+                               " want %d: right edge %d\n",
+                               band_w, digits_w, label_w, want, label_x + label_w);
+                        s_failures++;
+                    }
+                    // 2. Never more air than asked for, and never negative — a negative gap
+                    //    would print the label over the last digit.
+                    if (digits_w + label_w <= band_w && (gap < 0 || gap > want)) {
+                        printf("FAIL clock_label_gap_yields.range band %d digits %d label %d"
+                               " want %d: gap %d\n", band_w, digits_w, label_w, want, gap);
+                        s_failures++;
+                    }
+                    // 3. The full ask is honoured whenever the margin left beside the seated
+                    //    digits can hold it — the tight case is the exception, not the rule.
+                    if (left + digits_w + want + label_w <= band_w && gap != want) {
+                        printf("FAIL clock_label_gap_yields.honoured band %d digits %d label %d"
+                               " want %d: gap %d\n", band_w, digits_w, label_w, want, gap);
+                        s_failures++;
+                    }
+                    // 4. Monotone in the ask: asking for MORE air never grants less of it. A
+                    //    rule that trimmed unevenly would make the label jitter against the
+                    //    digits as the clock string changed width through the day.
+                    if (want > 0) {
+                        int less = WANT[g - 1];
+                        int less_gap = clock_label_x(band_w, left + digits_w, less, label_w)
+                                       - (left + digits_w);
+                        if (digits_w + label_w <= band_w && gap < less_gap) {
+                            printf("FAIL clock_label_gap_yields.monotone band %d digits %d label"
+                                   " %d: want %d gave %d after want %d gave %d\n",
+                                   band_w, digits_w, label_w, want, gap, less, less_gap);
+                            s_failures++;
+                        }
+                    }
+                    // 5. THE point of taking the air from the margin: the digits do not move.
+                    //    Restated against a fresh seat so a future change that folds the gap
+                    //    back into clock_seat_x fails here rather than quietly off-centring the
+                    //    clock on the widest string.
+                    if (clock_seat_x(band_w, digits_w, label_w) != left) {
+                        printf("FAIL clock_label_gap_yields.digits_pinned band %d digits %d"
+                               " label %d want %d\n", band_w, digits_w, label_w, want);
+                        s_failures++;
+                    }
+                }
+            }
+        }
+    }
+    printf("clock_label_gap_yields OK\n");
+}
+
 int main(int argc, char **argv) {
     s_dump = (argc > 1 && strcmp(argv[1], "dump") == 0);
     golden_rects();
@@ -1387,6 +1579,9 @@ int main(int argc, char **argv) {
     if (!s_dump) clock_ink_symmetry();
     if (!s_dump) clock_ink_residual();
     if (!s_dump) clock_ink_nothing_below_moves();
+    if (!s_dump) clock_am_pm_ink_meets_digits();
+    if (!s_dump) clock_digits_centring();
+    if (!s_dump) clock_label_gap_yields();
     if (s_dump) return 0;
     if (s_failures) { printf("%d golden-rect failure(s)\n", s_failures); return 1; }
     printf("layout golden rects OK%s\n",

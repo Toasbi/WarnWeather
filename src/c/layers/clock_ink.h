@@ -13,9 +13,12 @@
 //   144px    FONT_KEY_ROBOTO_BOLD_SUBSET_49  FONT_KEY_LECO_42_NUMBERS    FONT_KEY_BITHAM_42_MEDIUM_NUMBERS
 //   emery    custom Roboto-Bold-62           FONT_KEY_LECO_60_NUMBERS_AM_PM  custom Montserrat-Medium-62
 //
-// So: six measured pairs. This header is included by main_window.c ONLY. It depends on config.h,
-// which is exactly why windows/layout.c must not reach it — that module's purity is enforced by
-// the host stub (test/c/stub/pebble.h), so the metric arrives as a parameter, not a lookup.
+// So: six measured pairs. This header is included by main_window.c (which passes the pair to the
+// layout solver) and by layers/time_layer.c (which seats the AM/PM label on the digits' ink row)
+// — and by nothing else. It depends on config.h, which is exactly why windows/layout.c must not
+// reach it: that module's purity is enforced by the host stub (test/c/stub/pebble.h), so the
+// metric arrives there as a parameter, not a lookup. For the same reason nothing in this header
+// can appear in a host test — it pulls layer_util.h, whose inline bodies call the text API.
 //
 // ── How these were measured (2026-08-25), so a font change is a re-run and not an eyeball ──
 // 1. Fixtures fixtures/clock-cal-{roboto,leco,bitham}.json: the noCal preset, 24h, health and
@@ -35,7 +38,17 @@
 //    it drops the ink 2 rows.
 //
 // Digits carry no descenders and every digit spans the full cap height, so the extents do not
-// move with the displayed time.
+// move with the displayed time — with ONE measured exception, found on 2026-08-26 while seating
+// the AM/PM label against this table. On 144px BITHAM they do move by a row: the pairs above are
+// measured on "10:38", and "12:34" inks rows 24..53 where "10:38" inks 23..53 on the same band —
+// one row lower, one row shorter. Both strings contain the "3", so the overshoot above the cap
+// line belongs to the "0" and/or the "8"; the flat-topped set has none. The other five
+// combinations reproduce their pair exactly on both strings (re-verified on both screens).
+// Consequence, and it is not confined to the label: anything seated off this table reads 1px
+// high on that one face for a time containing no 0 and no 8 — the clock band itself included,
+// since clock_seat_y() centres on the same ink_h. Fixing it properly means a per-digit-set
+// metric, which is a bigger idea than one row on one font; recorded here so the next person
+// measuring a 1px lean on Bitham knows it is this and not their change.
 //
 // Cross-checks that all passed: the 144px roboto and leco numbers reproduce the independently
 // measured fullCal ink in the design spec (63..97 and 65..93) from a DIFFERENT band position,
