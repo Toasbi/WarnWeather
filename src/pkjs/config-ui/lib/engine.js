@@ -82,10 +82,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // switches, a stored scale-max override and live color edits all take effect immediately.
   PConf.rangeResolvers = makeRegistry();
 
-  // --- badge-resolver registry --- a row with an edit-sheet pencil opts into a state badge
+  // --- badge-resolver registry --- a row with an edit-sheet trigger opts into a state badge
   // (item.editBadgeFrom: {resolver, args}); fn(S, env, args) returns null (no badge) or
-  // {warnColor, dangerColor} hex strings for the ring+dot pair inside the trigger. Read at
-  // render time like the sheet resolver, and only consulted when a sheet actually resolved.
+  // {label?, ariaNote?, dots: [{color, ring?}]} — an app-neutral colour preview: `dots` is the
+  // swatch that LEADS the control (each dot outlined when `ring`, filled otherwise), `label`
+  // is the trigger button's text and `ariaNote` a parenthesised state word appended to its
+  // aria-label. The library prints what it is given and knows nothing of what the colours
+  // mean. Read at render time like the sheet resolver, and only consulted when a sheet
+  // actually resolved.
   PConf.badgeResolvers = makeRegistry();
 
   // --- onChange registry --- a schema item opts into a post-change side effect by
@@ -406,10 +410,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * The state badge for a row's edit-sheet trigger, via the item's named badge
    * resolver — null when the item opts out or the resolver reports nothing to show.
    *
+   * `args` gets the item's own messageKey merged UNDER editBadgeFrom.args, so a keyless
+   * row (a `sheet` item) must carry its identity in editBadgeFrom.args instead.
+   *
    * @param {Object} item Schema item (editBadgeFrom: {resolver, args}).
    * @param {Object} S Live settings state.
    * @param {Object} env Platform env.
-   * @returns {?{warnColor: string, dangerColor: string}} Badge colors, or null.
+   * @returns {?{label: (string|undefined), ariaNote: (string|undefined),
+   *   dots: Array<{color: string, ring: (boolean|undefined)}>}} Badge, or null.
    */
   function resolveEditBadge(item, S, env) {
     if (!item.editBadgeFrom) { return null; }
@@ -480,13 +488,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   /**
    * The edit-sheet trigger for a row whose value resolved a sheet, or ''. A proper
-   * outlined text button (was a pencil icon): the badge resolver supplies its label
-   * — "Edit" for every kind now, since the sheet configures the whole slot (bold +
-   * thresholds) rather than one section — and, when the kind is enabled, the warn
-   * ring + danger dot pair prefix the label so the row shows at a glance that
-   * highlighting is on, and in which colors. The same label LEADS the aria-label
-   * ("Edit settings for the … value"), so the announced text tracks the visible
-   * button without repeating it.
+   * outlined text button (was a pencil icon): the badge resolver supplies its label,
+   * defaulting to "Edit" when the row has no badge at all. The same label LEADS the
+   * aria-label ("Edit settings for the … value"), so the announced text tracks the
+   * visible button without repeating it, and the badge's optional `ariaNote` is
+   * appended in parentheses so a state the swatch shows visually is also announced.
    *
    * @param {Object} item Schema item (for the aria label).
    * @param {{editSheet: ?string, editBadge: ?Object}} view Render view state.
@@ -496,32 +502,35 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (!view.editSheet) { return ''; }
     var badge = view.editBadge;
     var label = (badge && badge.label) || 'Edit';
-    var on = Boolean(badge && badge.enabled);
     return '<button type="button" class="thr-btn" data-edit-sheet="' + esc(view.editSheet)
       + '" aria-label="' + esc(label) + ' settings for the '
       + esc(String(item.label || 'selected'))
-      + ' value' + (on ? ' (highlighting on)' : '') + '">'
+      + ' value' + esc((badge && badge.ariaNote) ? ' (' + String(badge.ariaNote) + ')' : '') + '">'
       + '<span>' + esc(label) + '</span></button>';
   }
 
   /**
-   * The warn-ring + danger-dot pair for a row whose kind has highlighting configured,
-   * or ''. It sits BEFORE the control as a passive preview, not inside the edit button:
-   * carried inside, the two swatches widened the button by ~29px exactly on the rows
-   * that had them, so the Edit buttons could never line up down the right edge. Out
-   * here the button is one fixed width and the swatch reads as what it is — a preview
-   * of the colors, with nothing to press.
+   * The badge's colour preview — one dot per entry in badge.dots, outlined when the
+   * entry sets `ring` and filled otherwise — or '' when the row has no badge or an
+   * empty dot list. It sits BEFORE the control as a passive preview, not inside the
+   * edit button: carried inside, the swatches widened the button by ~29px exactly on
+   * the rows that had them, so the Edit buttons could never line up down the right
+   * edge. Out here the button is one fixed width and the swatch reads as what it is —
+   * a preview of the colors, with nothing to press.
    *
    * @param {{editSheet: ?string, editBadge: ?Object}} view Render view state.
    * @returns {string} Swatch HTML, or ''.
    */
   function editSwatchHtml(view) {
     var badge = view.editBadge;
-    if (!view.editSheet || !badge || !badge.enabled) { return ''; }
-    return '<span class="thr-swatch" aria-hidden="true">'
-      + '<span class="pen-dot warn" style="--th-c:' + esc(badge.warnColor) + '"></span>'
-      + '<span class="pen-dot danger" style="--th-c:' + esc(badge.dangerColor) + '"></span>'
-      + '</span>';
+    var dots = (badge && badge.dots) || [];
+    if (!view.editSheet || !dots.length) { return ''; }
+    var h = '<span class="thr-swatch" aria-hidden="true">', i;
+    for (i = 0; i < dots.length; i++) {
+      h += '<span class="pen-dot ' + (dots[i].ring ? 'ring' : 'fill')
+        + '" style="--th-c:' + esc(String(dots[i].color)) + '"></span>';
+    }
+    return h + '</span>';
   }
 
   /**
@@ -638,11 +647,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       + '<div class="hint txt-act-result" data-action-result="' + esc(item.messageKey) + '"></div>';
   }
   function renderColor(item, v, openColor) {
+    // Every picker offers the shared 64 Pebble swatches; excludeColors subtracts specific
+    // ones (e.g. white as the holiday color, where white means "no highlight" rather than
+    // a real color). A value the palette cannot represent — '' — is just an empty chip.
     var disp = String(v).toUpperCase();
-    var h = '<div class="sw-wrap" data-color="' + item.messageKey + '"><b style="background:' + esc(v) + '"></b><span>' + esc(disp) + '</span></div>';
+    var chip = '<b style="background:' + esc(v) + '"></b>';
+    var h = '<div class="sw-wrap" data-color="' + item.messageKey + '">' + chip + '<span>' + esc(disp) + '</span></div>';
     if (openColor === item.messageKey) {
-      // excludeColors lets a picker drop specific swatches (e.g. white as the holiday color,
-      // where white means "no highlight" rather than a real color) without touching the shared PALETTE.
       var excluded = {};
       if (item.excludeColors) { for (var e = 0; e < item.excludeColors.length; e++) { excluded[item.excludeColors[e].toUpperCase()] = true; } }
       h += '<div class="palette">';
@@ -805,6 +816,28 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return Object.assign({}, item, { options: derived });
   }
 
+  /**
+   * A whole-row tap target that leads somewhere: a `button` item's action or a `sheet`
+   * item's sheetOnly section. Both rows are the same chrome — label, optional hint, a
+   * chevron on the right — and differ only in the data attribute the click delegate
+   * matches on, so they share one builder. The chevron takes its color from the .chev
+   * rule in shell.html (var(--link)), which the card-header chevron uses too: hard-coded
+   * here it stayed at the DARK link color when the page flipped to the light theme.
+   *
+   * @param {Object} item Schema item; uses `label` and the optional `hint`.
+   * @param {string} attr Data attribute the click delegate matches ('data-action' or
+   *   'data-edit-sheet').
+   * @param {string} value That attribute's value — the action id or the sheet id.
+   * @param {(string|boolean)} noDivider Join mode from nextVisibleJoins(), for nbClass().
+   * @returns {string} Row HTML.
+   */
+  function chevronRow(item, attr, value, noDivider) {
+    var hint = item.hint ? '<div class="hint">' + item.hint + '</div>' : '';
+    return '<div class="row' + nbClass(noDivider) + '" ' + attr + '="' + esc(value) + '" style="cursor:pointer">'
+      + '<div class="lft"><div class="lbl">' + esc(item.label) + '</div>' + hint + '</div>'
+      + '<div class="rgt"><span class="chev">&#9656;</span></div></div>';
+  }
+
   // Render one schema item honoring showWhen. Returns { html, kind } with kind in
   // 'control' | 'static' | 'hidden' so the section can decide if the card is empty.
   function renderItem(item, view, cx, noDivider) {
@@ -813,11 +846,25 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (item.type === 'hidden') { return { html: '', kind: 'hidden' }; }
     // A tappable action row: dispatches to PConf.actions[item.action] via the scroll click handler.
     if (item.type === 'button') {
-      var bHint = item.hint ? '<div class="hint">' + item.hint + '</div>' : '';
-      return { kind: 'control', html:
-        '<div class="row' + nbClass(noDivider) + '" data-action="' + esc(item.action) + '" style="cursor:pointer">'
-        + '<div class="lft"><div class="lbl">' + esc(item.label) + '</div>' + bHint + '</div>'
-        + '<div class="rgt"><span style="color:#FF6A52;font-size:16px;font-weight:700;line-height:1">&#9656;</span></div></div>' };
+      return { kind: 'control', html: chevronRow(item, 'data-action', item.action, noDivider) };
+    }
+    // A row whose only job is to open a sheetOnly section — the button row's shape,
+    // dispatching to the edit-sheet handler instead of PConf.actions. Use it for a sheet
+    // that belongs to no single control, where the per-value pencil chip would read wrong.
+    if (item.type === 'sheet') {
+      var sId = item.sheetId || resolveEditSheet(item, cx.S, cx.ENV);
+      if (!sId) { return { html: '', kind: 'hidden' }; }
+      // A sheet row that declares a badge renders as an ordinary row with the preview +
+      // Edit pair instead (renderControl yields '' for type 'sheet', so the control cell
+      // holds only those two); without one it stays a chevron row. resolveEditBadge
+      // merges the item's messageKey UNDER editBadgeFrom.args and a sheet row has none,
+      // so such a row identifies itself through those args.
+      if (item.editBadgeFrom) {
+        view.editSheet = sId;
+        view.editBadge = resolveEditBadge(item, cx.S, cx.ENV);
+        return { kind: 'control', html: renderRow(item, view, noDivider) };
+      }
+      return { kind: 'control', html: chevronRow(item, 'data-edit-sheet', sId, noDivider) };
     }
     if (item.type === 'staticText') {
       // a joinPrevious static acts as the control's description, so the join modifier tightens its
@@ -944,10 +991,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       + '<span class="ttl">' + esc(sec.title || '') + '</span>' + chev + '</button>';
   }
 
-  // Build a section's inner body HTML (intro + items + block) and whether it's empty
-  // (no intro, no visible control/static items, no block). Shared by renderSection (a
-  // standalone card) and renderSectionGroup (a section merged into a shared card), so the
-  // "hide when everything is gated off" rule stays in one place.
+  // Build a section's inner body HTML (intro + blockBefore + items + block) and whether
+  // it's empty (no intro, no visible control/static items, neither block). Shared by
+  // renderSection (a standalone card) and renderSectionGroup (a section merged into a
+  // shared card), so the "hide when everything is gated off" rule stays in one place.
   function buildSectionBody(sec, cx) {
     // A section may carry its own showWhen, for a whole feature card that a platform
     // cannot render (e.g. threshold highlighting on aplite). Reporting it as empty is
@@ -957,6 +1004,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       return { body: '', isEmpty: true };
     }
     var body = sec.intro ? '<div class="intro">' + sec.intro + '</div>' : '';
+    // sec.blockBefore is the mirror of sec.block: a block ABOVE the section's rows where
+    // sec.block sits below them (both under the intro, the same place an item-level
+    // blockBefore on the first item lands). sec.blockBeforeSticky pins it below the topbar
+    // while the rows scroll under it, exactly like the item-level flag. It belongs to the
+    // section so a preview that heads a whole card isn't copy-pasted onto whichever row
+    // happens to be first — several rows are first, one per gated variant.
+    var beforeHtml = renderBlock(sec.blockBefore, cx.S, cx.ENV, cx.USERDATA, sec.blockBeforeSticky);
+    body += beforeHtml;
     var controlCount = 0, staticCount = 0, i;
     var hosted = hostedToggleKeys(sec, cx);
     for (i = 0; i < sec.items.length; i++) {
@@ -991,11 +1046,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     var blockHtml = renderBlock(sec.block, cx.S, cx.ENV, cx.USERDATA);
     body += blockHtml;
-    var isEmpty = !sec.intro && controlCount === 0 && staticCount === 0 && blockHtml === '';
+    var isEmpty = !sec.intro && controlCount === 0 && staticCount === 0
+      && blockHtml === '' && beforeHtml === '';
     return { body: body, isEmpty: isEmpty };
   }
 
-  // Render one section card. '' when empty (no intro, no visible control/static items, no block).
+  // Render one section card. '' when empty (no intro, no visible control/static items,
+  // neither block).
   function renderSection(sec, cx) {
     var secId = sec.id || sec.title;
     var built = buildSectionBody(sec, cx);
@@ -1175,6 +1232,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         var ttl = dlg.querySelector('.ssel-modal-ttl');
         if (ttl && ttl.id) { dlg.setAttribute('aria-labelledby', ttl.id); }
         if (openEdit) { dlg.classList.add('edit'); } else { dlg.classList.remove('edit'); }
+        // An expanded palette needs more room than the 80dvh cap allows (.picking raises it
+        // to 94dvh). syncDialog runs on EVERY render, not just the open edge, so this tracks
+        // the palette opening and closing inside an already-open sheet. add/remove, never the
+        // two-argument classList.toggle — unsafe in old Android WebViews.
+        // openColor is shared with the tab body, and only the EDIT sheet ever renders a
+        // palette; without the openEdit half, a palette left expanded in the body would
+        // also grow (and un-peek) an unrelated select sheet opened from the same card.
+        if (openEdit && openColor) { dlg.classList.add('picking'); } else { dlg.classList.remove('picking'); }
         if (openDate) {
           dlg.classList.remove('search');
           dlg.classList.add('date');
@@ -1195,6 +1260,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         dlg.classList.remove('search');
         dlg.classList.remove('date');
         dlg.classList.remove('edit');
+        dlg.classList.remove('picking');
         dlg.style.bottom = '';
         dlg.style.maxHeight = '';
         dlg.style.transform = '';
@@ -1238,8 +1304,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // real heights and pick the deepest row whose cut point still fits under the cap — the tallest
     // sheet that still shows a peek. Idempotent: resets its own clamp and re-measures the clean
     // 80dvh-capped height each call, so it's safe to run repeatedly (see scheduleSelectPeek).
+    // .picking is excluded too: the point of the raised cap is to show the whole palette, so
+    // clamping the list to leave a peek row would undo it. (No current call site reaches here
+    // with a palette open — scheduleSelectPeek only runs on the sheet's open edge — this keeps
+    // a future one from silently re-shrinking the sheet.)
     function fitSelectPeek(dlg) {
-      if (!dlg.open || dlg.classList.contains('search')) { return; }
+      if (!dlg.open || dlg.classList.contains('search') || dlg.classList.contains('picking')) { return; }
       var list = dlg.querySelector('.ssel-list');
       if (!list) { return; }
       list.style.maxHeight = '';                  // reset → measure the clean, capped height
@@ -1282,6 +1352,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       openSelect = null;
       openDate = null;
       openEdit = null;
+      // openColor is one variable serving palettes in BOTH surfaces — the tab body and an
+      // edit sheet — so clear it only when a sheet is what's closing. A palette expanded
+      // inside the sheet is going away with it (and would come back expanded on reopen);
+      // one expanded in the tab body is untouched by closing a select/date modal that
+      // happens to sit in the same card.
+      if (editKey) { openColor = null; }
       render();
       var selector = selectKey ? '[data-select="' + selectKey + '"]'
         : dateKey ? '[data-date="' + dateKey + '"]'
@@ -1331,9 +1407,27 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       };
       document.getElementById('tabs').innerHTML = renderTabBar(SCHEMA, activeTab, cx);
       document.getElementById('scroll').innerHTML = renderBody(SCHEMA, activeTab, cx);
-      document.getElementById('modal').innerHTML = openDate
+      var modalEl = document.getElementById('modal');
+      var prevList = modalEl.querySelector ? modalEl.querySelector('.ssel-list') : null;
+      var keepTop = prevList ? prevList.scrollTop : 0;
+      modalEl.innerHTML = openDate
         ? renderDateModal(SCHEMA, cx)
         : openEdit ? renderEditModal(SCHEMA, cx) : renderSelectModal(SCHEMA, cx);
+      // The edit sheet's scroll container is a NEW node after every render, so a swatch
+      // click would otherwise snap the sheet back to the top. Restore the offset, then
+      // nudge a freshly opened palette into view. Rect math, not offsetTop (.ssel-list is
+      // not positioned, so it is not the offsetParent) and not scrollIntoView({block:…})
+      // (the options-object form is unsafe in old Android WebViews).
+      var list = (openEdit && modalEl.querySelector) ? modalEl.querySelector('.ssel-list') : null;
+      if (list) {
+        list.scrollTop = keepTop;
+        var sw = openColor ? list.querySelector('[data-color="' + openColor + '"]') : null;
+        var row = (sw && sw.closest) ? sw.closest('.row') : null;
+        if (row && row.getBoundingClientRect && list.getBoundingClientRect) {
+          var over = row.getBoundingClientRect().bottom - list.getBoundingClientRect().bottom;
+          if (over > 0) { list.scrollTop += over + 8; }
+        }
+      }
       syncDialog();
       document.getElementById('scroll').className =
         'scroll' + (openSelect || openDate || openEdit ? ' locked' : '');
@@ -1412,8 +1506,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         render(); return true;
       }
       if ((t = e.target.closest('[data-color-pick]'))) {
-        // Color swatches carry no onChange today — a plain write, no dispatch.
-        S[t.getAttribute('data-k')] = t.getAttribute('data-color-pick');
+        setValue(t.getAttribute('data-k'), t.getAttribute('data-color-pick'));
         openColor = null; render(); return true;
       }
       if ((t = e.target.closest('[data-color]'))) {
@@ -1584,8 +1677,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       modal.addEventListener('touchstart', function (e) {
         // A touch that lands on a slider is a value adjustment, never a sheet
         // dismissal — arming here would drag the whole sheet along with every
-        // slightly-diagonal thumb gesture (and close it past the threshold).
-        if (e.target.closest && e.target.closest('.rng')) {
+        // slightly-diagonal thumb gesture (and close it past the threshold). Same
+        // for an open palette: it is a grid of tap targets, and with the raised
+        // .picking cap the list often still sits at scrollTop 0, which is exactly
+        // what canDragSelect below arms on.
+        if (e.target.closest && e.target.closest('.rng, .palette')) {
           dragY = null; dragging = false; modal.style.transition = '';
           return;
         }

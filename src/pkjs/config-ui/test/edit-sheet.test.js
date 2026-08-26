@@ -35,6 +35,16 @@ function cxFor(S, extra) {
   }, extra || {});
 }
 
+// The app-neutral badge shape: a label, an optional parenthesised aria note, and a
+// dot list the engine paints as outlined (ring) or filled swatches. The library
+// knows nothing about what the colours mean.
+const BADGED_SCHEMA = JSON.parse(JSON.stringify(SCHEMA));
+BADGED_SCHEMA.tabs[0].sections[0].items[0].editBadgeFrom = { resolver: 'penBadge' };
+global.PConf.badgeResolvers.register('penBadge', function () {
+  return { label: 'Edit', ariaNote: 'highlighting on',
+    dots: [{ color: '#00AAFF', ring: true }, { color: '#5500FF' }] };
+});
+
 test('sheetOnly: hidden from the tab body, still hydrated and serialized', () => {
   const S = E.hydrate(SCHEMA, {});
   assert.equal(S.windWarn, '', 'sheet field hydrates its default');
@@ -72,16 +82,37 @@ test('pencil trigger aria-label: the button label leads the sentence, no stutter
   assert.ok(html.indexOf('aria-label="Edit settings for the Left slot value"') !== -1,
     'announced as "Edit settings for the <slot> value"');
   assert.equal(html.indexOf('Edit edit'), -1, 'no stuttered wording');
-  // An enabled badge keeps the same lead label and appends the highlighting state.
-  const BADGED = JSON.parse(JSON.stringify(SCHEMA));
-  BADGED.tabs[0].sections[0].items[0].editBadgeFrom = { resolver: 'penBadge' };
-  global.PConf.badgeResolvers.register('penBadge', function () {
-    return { label: 'Edit', enabled: true, warnColor: '#00AAFF', dangerColor: '#5500FF' };
-  });
-  const badged = E.renderBody(BADGED, 't', cxFor(E.hydrate(BADGED, {})));
+  // A badge keeps the same lead label and appends its ariaNote in parentheses.
+  const badged = E.renderBody(BADGED_SCHEMA, 't', cxFor(E.hydrate(BADGED_SCHEMA, {})));
   assert.ok(
     badged.indexOf('aria-label="Edit settings for the Left slot value (highlighting on)"') !== -1,
-    'enabled badge announces the highlighting state after the same sentence');
+    'the badge\'s ariaNote is announced after the same sentence');
+});
+
+test('badge dots: ring -> outlined, no ring -> filled, in list order', () => {
+  const html = E.renderBody(BADGED_SCHEMA, 't', cxFor(E.hydrate(BADGED_SCHEMA, {})));
+  assert.ok(html.indexOf('<span class="pen-dot ring" style="--th-c:#00AAFF"></span>') !== -1,
+    'a ring dot renders with the ring class');
+  assert.ok(html.indexOf('<span class="pen-dot fill" style="--th-c:#5500FF"></span>') !== -1,
+    'a ringless dot renders with the fill class');
+  assert.ok(/pen-dot ring[\s\S]*?pen-dot fill/.test(html), 'dots keep the resolver\'s order');
+  // The swatch is a preview outside the button; the button still trails the control.
+  assert.ok(/thr-swatch[\s\S]*?data-select="slot"[\s\S]*?thr-btn/.test(html),
+    'swatch leads the control, Edit trails it');
+});
+
+test('badge with an empty dot list: the Edit button still renders, no swatch', () => {
+  const EMPTY = JSON.parse(JSON.stringify(SCHEMA));
+  EMPTY.tabs[0].sections[0].items[0].editBadgeFrom = { resolver: 'penBadgeOff' };
+  global.PConf.badgeResolvers.register('penBadgeOff', function () {
+    return { label: 'Edit', ariaNote: '', dots: [] };
+  });
+  const html = E.renderBody(EMPTY, 't', cxFor(E.hydrate(EMPTY, {})));
+  assert.ok(html.indexOf('data-edit-sheet="sheetWind"') !== -1, 'the trigger survives');
+  assert.equal(html.indexOf('pen-dot'), -1, 'no dots for an empty list');
+  assert.equal(html.indexOf('thr-swatch'), -1, 'no empty swatch wrapper either');
+  assert.ok(html.indexOf('aria-label="Edit settings for the Left slot value"') !== -1,
+    'an empty ariaNote adds no parentheses');
 });
 
 test('renderEditModal: header + intro + fields for the open sheet; \'\' otherwise', () => {
@@ -214,4 +245,82 @@ test('the row before a hosted toggle takes its divider from the row actually ren
     'Before keeps its plain row class');
   assert.equal(html.indexOf('class="row nb"'), -1,
     'the suppressed toggle\'s joinPrevious must not strip the divider above it');
+});
+
+// --- type:'sheet': a first-class trigger row, for a sheet that belongs to no single
+// control (the graph-colors sheet) rather than to one slot's value ---
+
+function sheetTriggerSchema(item) {
+  const SCH = JSON.parse(JSON.stringify(SCHEMA));
+  SCH.tabs[0].sections[0].items = [
+    { type: 'toggle', messageKey: 'flag', label: 'Flag', defaultValue: false },
+    item
+  ];
+  return SCH;
+}
+
+test('type:sheet renders a trigger row for its sheet, with no key of its own', () => {
+  const SCH = sheetTriggerSchema({ type: 'sheet', sheetId: 'sheetColors',
+    label: 'Graph colors', hint: 'Pick the graph colors.' });
+  const html = E.renderBody(SCH, 't', cxFor(E.hydrate(SCH, {})));
+  assert.ok(html.indexOf('data-edit-sheet="sheetColors"') !== -1, 'opens its sheet');
+  assert.ok(html.indexOf('Graph colors') !== -1, 'shows its label');
+  assert.ok(html.indexOf('Pick the graph colors.') !== -1, 'shows its hint');
+  assert.equal(html.split('data-k=').length - 1, 1, 'only the sibling toggle has a key');
+  assert.equal(html.indexOf('aria-label="Edit settings'), -1, 'it is a row, not the per-value pencil chip');
+  // Same chevron as a button row, coloured by the shared .chev rule (var(--link)) so it
+  // follows the light theme instead of being frozen at the dark link colour.
+  assert.ok(html.indexOf('<span class="chev">&#9656;</span>') !== -1, 'class-based chevron');
+  assert.equal(html.indexOf('#FF6A52'), -1, 'no hard-coded link colour');
+});
+
+test('type:sheet falls back to editSheetFrom, and renders nothing when nothing resolves', () => {
+  const VIA_RESOLVER = sheetTriggerSchema({ type: 'sheet', label: 'Wind',
+    editSheetFrom: { resolver: 'slotSheet', args: { slotKey: 'slot' } } });
+  const S = E.hydrate(VIA_RESOLVER, { slot: 'wind' });
+  assert.ok(E.renderBody(VIA_RESOLVER, 't', cxFor(S)).indexOf('data-edit-sheet="sheetWind"') !== -1,
+    'the resolver supplies the sheet id when the item names none');
+  const S2 = E.hydrate(VIA_RESOLVER, { slot: 'time' });
+  assert.equal(E.renderBody(VIA_RESOLVER, 't', cxFor(S2)).indexOf('data-edit-sheet'), -1,
+    'resolver returns null -> no row');
+  const BARE = sheetTriggerSchema({ type: 'sheet', label: 'Nowhere' });
+  const bare = E.renderBody(BARE, 't', cxFor(E.hydrate(BARE, {})));
+  assert.equal(bare.indexOf('Nowhere'), -1, 'no sheet id and no resolver -> no row');
+  assert.ok(bare.indexOf('data-k="flag"') !== -1, 'the rest of the section still renders');
+});
+
+test('type:sheet WITH a badge renders as a preview + Edit row, not a chevron row', () => {
+  // The per-metric graph-colour rows: no control to pick, just the colours they hold
+  // and the way in. The row has no messageKey, so its identity rides editBadgeFrom.args.
+  global.PConf.badgeResolvers.register('scopeBadge', function (S, env, args) {
+    return { label: 'Edit', dots: [{ color: '#55AAFF' }, { color: '#0055AA', ring: true }] };
+  });
+  const BADGED = sheetTriggerSchema({ type: 'sheet', sheetId: 'sheetColors',
+    label: 'Wind speed', editBadgeFrom: { resolver: 'scopeBadge', args: { scope: 'wind' } } });
+  const html = E.renderBody(BADGED, 't', cxFor(E.hydrate(BADGED, {})));
+  assert.ok(html.indexOf('<div class="rgt has-pen">') !== -1, 'the swatch+Edit control cell');
+  assert.ok(html.indexOf('data-edit-sheet="sheetColors"') !== -1, 'the Edit button opens the sheet');
+  assert.ok(html.indexOf('thr-btn') !== -1, 'rendered as the shared Edit button');
+  assert.equal(html.split('pen-dot').length - 1, 2, 'both badge dots rendered');
+  assert.equal(html.indexOf('chev'), -1, 'a badged sheet row is NOT a chevron row');
+  assert.ok(html.indexOf('Wind speed') !== -1, 'the label still shows');
+  // renderControl has no case for 'sheet', so the cell between swatch and button is empty.
+  assert.ok(/thr-swatch[\s\S]*?<\/span><button type="button" class="thr-btn"/.test(html),
+    'nothing is drawn between the swatch and the Edit button');
+
+  // Same item without the badge stays the chevron row it has always been.
+  const PLAIN = sheetTriggerSchema({ type: 'sheet', sheetId: 'sheetColors', label: 'Wind speed' });
+  const plain = E.renderBody(PLAIN, 't', cxFor(E.hydrate(PLAIN, {})));
+  assert.ok(plain.indexOf('<span class="chev">&#9656;</span>') !== -1, 'still a chevron row');
+  assert.equal(plain.indexOf('thr-btn'), -1, 'and no Edit button');
+});
+
+test('type:sheet honors showWhen like any other row', () => {
+  const SCH = sheetTriggerSchema({ type: 'sheet', sheetId: 'sheetColors', label: 'Graph colors',
+    showWhen: { env: 'color' } });
+  const cx = cxFor(E.hydrate(SCH, {}));
+  cx.evalCtx.env = { color: false };
+  assert.equal(E.renderBody(SCH, 't', cx).indexOf('Graph colors'), -1, 'gated out on a b&w watch');
+  cx.evalCtx.env = { color: true };
+  assert.ok(E.renderBody(SCH, 't', cx).indexOf('Graph colors') !== -1, 'shown on a color watch');
 });
