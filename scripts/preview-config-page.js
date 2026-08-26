@@ -15,9 +15,9 @@ var platformLib = require(path.join(ROOT, 'src/pkjs/config-ui/lib/platform.js'))
 var schema = require(path.join(ROOT, 'src/pkjs/settings/schema.js'));
 var previewPalette = require(path.join(ROOT, 'src/pkjs/settings/preview-palette.js'));
 var APP_FILES = [
-  // view-cycle.js and status-line-catalog.js must precede preview-blocks.js and
-  // blocks.js: their VC / statusLineCatalog fallbacks (used when this page is a flat
-  // concatenated <script>, not a Node module) read their declarations directly from
+  // view-cycle.js must precede preview-layout.js and status-line-catalog.js must
+  // precede blocks.js: their VC / statusLineCatalog fallbacks (used when this page is a
+  // flat concatenated <script>, not a Node module) read their declarations directly from
   // this shared top-level scope. Keep in lockstep with build-config-page.js's APP_FILES — both build the
   // same page, from two separate entrypoints.
   // country-defaults.js (COUNTRY_DEFAULTS global) must precede blocks.js + wizard.js.
@@ -25,7 +25,21 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/view-cycle.js'),
   path.join(ROOT, 'src/pkjs/status-line-catalog.js'),
   path.join(ROOT, 'src/pkjs/settings/tomorrowio-budget.js'),
-  path.join(ROOT, 'src/pkjs/settings/preview-blocks.js'),
+  // The graph-colour resolver the forecast preview draws from, plus its two deps.
+  // ORDER IS LOAD-BEARING: each reads the previous one's window global while its own
+  // top-level body runs. See build-config-page.js's copy for the full note.
+  path.join(ROOT, 'src/pkjs/pebble-colors.js'),
+  path.join(ROOT, 'src/pkjs/resolve-ink.js'),
+  path.join(ROOT, 'src/pkjs/line-style.js'),
+  // The five preview blocks, split by concern; preview-svg.js / preview-rain.js are the
+  // two libraries they read (window.PreviewSvg / window.PreviewRain) while their own
+  // top-level bodies run, so those come first. See build-config-page.js's copy.
+  path.join(ROOT, 'src/pkjs/settings/preview-svg.js'),
+  path.join(ROOT, 'src/pkjs/settings/preview-rain.js'),
+  path.join(ROOT, 'src/pkjs/settings/preview-forecast.js'),
+  path.join(ROOT, 'src/pkjs/settings/preview-radar.js'),
+  path.join(ROOT, 'src/pkjs/settings/preview-diagnostics.js'),
+  path.join(ROOT, 'src/pkjs/settings/preview-layout.js'),
   path.join(ROOT, 'src/pkjs/settings/blocks.js'),
   // wizard-screenshots.generated.js assigns PConf.screenshots; must precede wizard.js, which reads it.
   path.join(ROOT, 'src/pkjs/settings/wizard-screenshots.generated.js'),

@@ -103,7 +103,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * The flick-demo stop list for the current settings: the REAL view cycle
-     * (view-cycle.js — the same call preview-blocks.js's presetContents makes) mapped to
+     * (view-cycle.js — the same call preview-layout.js's presetContents makes) mapped to
      * stop descriptors. 1–3 entries; radar, when present, is always last.
      * @param {Object} state Wizard/Clay settings state.
      * @param {boolean} hasHeartRate Whether the platform has a heart-rate sensor (emery).
