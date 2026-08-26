@@ -134,5 +134,9 @@
   "1.14.0": {
     "title": "Larger graph fonts",
     "body": "Draw the graph axis labels in bigger type on Pebble Time 2 — turn it on in the Layout tab. Plus a round of bug fixes."
+  },
+  "1.15.0": {
+    "title": "Pick your graph colours",
+    "body": "Forecast → Graph colors now has a row per metric: set its line, area fill and night tint from the full Pebble palette, plus the night hatch and the dusk/dawn line. Each colour is kept separately for the Dark and the Light theme."
   }
 }

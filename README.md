@@ -26,6 +26,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * 24-hour forecast with a temperature line and configurable, battery-friendly updates
 * Configurable metrics such as precipitation, UV index, gusts, wind, air pressure, and feels-like temperature (drawn as a muted second line on the temperature scale)
 * Optional day/night shading
+* Recolor the forecast graph per metric — line, area fill and night tint for each — plus the night hatch and the dusk/dawn line, from the full Pebble palette and remembered separately for the Dark and Light themes (color watches)
 * Multiple weather providers, including regional and worldwide sources
 
 **Rain radar**
