@@ -44,11 +44,18 @@
 // one row lower, one row shorter. Both strings contain the "3", so the overshoot above the cap
 // line belongs to the "0" and/or the "8"; the flat-topped set has none. The other five
 // combinations reproduce their pair exactly on both strings (re-verified on both screens).
-// Consequence, and it is not confined to the label: anything seated off this table reads 1px
-// high on that one face for a time containing no 0 and no 8 — the clock band itself included,
-// since clock_seat_y() centres on the same ink_h. Fixing it properly means a per-digit-set
-// metric, which is a bigger idea than one row on one font; recorded here so the next person
-// measuring a 1px lean on Bitham knows it is this and not their change.
+// Consequence, and it is not confined to the label — but the two consumers inherit it in
+// OPPOSITE directions, so do not "fix" one by nudging the other. For a time with no 0 and no 8
+// the table names a row one ABOVE where the ink really starts, while the real ink keeps the same
+// bottom row (24..53 against a predicted 23..53). The AM/PM label is seated ON the named row, so
+// it reads 1px HIGH of the digits. The clock BAND is seated so that a 31-row ink starting on the
+// named row would be symmetric; the real ink loses that top row and keeps its bottom, so it
+// gains a blank row above and none below — the digits read 1px LOW. And only on half the
+// presets: where clock_seat_y()'s spare row was already parked below (the odd (above+below)
+// case, skew == 1 in clock_ink_symmetry), the extra row above lands exactly level and the
+// digits come out balanced. Fixing it properly means a per-digit-set metric, which is a bigger
+// idea than one row on one font; recorded here so the next person measuring a 1px lean on
+// Bitham knows it is this and not their change.
 //
 // Cross-checks that all passed: the 144px roboto and leco numbers reproduce the independently
 // measured fullCal ink in the design spec (63..97 and 65..93) from a DIFFERENT band position,

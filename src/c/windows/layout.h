@@ -57,6 +57,19 @@ typedef struct {
 #endif
 } LayoutMetrics;
 
+// ── Clock seating ────────────────────────────────────────────────────────────
+// One definition of where the digits ink, and three seats derived from it. Everything the clock
+// needs geometrically is here, and only the first function knows the font model — the other
+// three are stated in terms of it, so centre_off's truncation cannot drift between them.
+
+// Where the digits' FIRST INKED ROW sits inside a clock band of `band_h`, as a distance from the
+// band's top edge. This is exactly what centre_off is defined against, so the band's own half is
+// the only term that varies and one measured pair per font answers every band the presets
+// produce. Every other clock seat below is this row, plus or minus something.
+static inline int clock_ink_top_in_band(int band_h, ClockInk ink) {
+    return band_h / 2 + ink.centre_off - ink.ink_h / 2;
+}
+
 // Seat a clock band of `band_h` so its INK is optically centred between the last inked row
 // above it and the first inked row below it.
 //
@@ -70,21 +83,14 @@ typedef struct {
 // BELOW the clock — air over the status row rather than under the calendar, matching the
 // balance that already reads correctly on emery (7/7, 9/9, 14/14 measured).
 //
-// centre_off is inverted back to an ink-top offset with the SAME truncation used to measure it
-// (centre_off := (ink_top + ink_h/2) - band_centre), so the round trip is exact, not approximate.
+// Then simply subtract where the ink lands inside the band. Writing it that way rather than
+// re-deriving centre_off's offset makes this function the INVERSE of clock_ink_top_in_band() by
+// construction rather than by comment: the round trip through centre_off is exact because both
+// directions are the same expression, not because two spellings of it happen to agree.
 static inline int clock_seat_y(int band_h, ClockInk ink,
                                int above_ink_bottom, int below_ink_top) {
-    int ink_top_rel = ink.centre_off - ink.ink_h / 2;
     int ink_top = (above_ink_bottom + below_ink_top - ink.ink_h + 1) / 2;
-    return ink_top - band_h / 2 - ink_top_rel;
-}
-
-// Where the digits' FIRST INKED ROW sits inside a clock band of `band_h`, as a distance from
-// the band's top edge. This is clock_seat_y's `ink_top_rel` read the other way round, and it
-// is exactly what centre_off is defined against — so the band's own half is the only term that
-// varies, and one measured pair per font answers every band the presets produce.
-static inline int clock_ink_top_in_band(int band_h, ClockInk ink) {
-    return band_h / 2 + ink.centre_off - ink.ink_h / 2;
+    return ink_top - clock_ink_top_in_band(band_h, ink);
 }
 
 // Seat the AM/PM suffix so ITS first inked row lands on the digits' first inked row — the two

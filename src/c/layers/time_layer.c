@@ -36,15 +36,22 @@
 // 2026-08-26, 8 of 8 combinations, all exact bar 144px Bitham on a digit set with no 0 and no 8
 // — which is the ink-table caveat recorded in clock_ink.h, not this seating.
 
-// The AM/PM label's font and the two numbers that follow from it.
+// The AM/PM label's font, the size that has to be kept in step with it, and the one number that
+// genuinely follows.
 //
-// Gothic's measured content height is exactly its nominal size (verified on device at 14/18/24 —
-// see status_content_h in layer_util.h), and status_ink_top() gives the blank rows such a line
-// leaves above its capitals: 7 at Gothic 18. Both are written as expressions over the font size
-// rather than as literals, and both constant-fold because the argument is a literal — the same
-// shape as layout_aplite.c's STATUS_LARGE_BAND_H, and for the same reason: aplite compiles this
-// file and has single-digit bytes of headroom under its launch ceiling
-// (scripts/check-aplite-size.sh). Change AM_PM_FONT_KEY and the other two follow.
+// Nothing in C links a font key to its size — FONT_KEY_GOTHIC_18 is a resource name, not a
+// number — so AM_PM_CONTENT_H is that 18 TRANSCRIBED BY HAND, and changing the face means
+// changing both lines. Get it wrong and nothing complains: the build stays green, the label is
+// seated by a leading measured for the wrong size, and the frame below is the wrong height, so
+// the caps are mis-seated AND clipped. Only the emulator row-scan described above catches it.
+//
+// AM_PM_INK_TOP is the one that does follow. Gothic's measured content height is exactly its
+// nominal size (verified on device at 14/18/24 — see status_content_h in layer_util.h), and
+// status_ink_top() gives the blank rows such a line leaves above its capitals: 7 at Gothic 18.
+// It is written as an expression rather than a literal and constant-folds because its argument
+// is one — the same shape as layout_aplite.c's STATUS_LARGE_BAND_H, and for the same reason:
+// aplite compiles this file, and its image is measured against a hard launch ceiling on every
+// build (scripts/check-aplite-size.sh).
 //
 // It is not a coincidence that AM_PM_INK_TOP comes out at 7, the value the retired hand-tuned
 // MT_AM_PM carried: that constant was measuring this same blank leading. What it got wrong was
@@ -53,9 +60,13 @@
 #define AM_PM_CONTENT_H 18
 #define AM_PM_INK_TOP status_ink_top(AM_PM_CONTENT_H)
 
-// The label's box width. 30 px holds "AM"/"PM" in Gothic 18 on every platform with room to
-// spare; the text is left-aligned, so the surplus is empty and clips harmlessly at the band
-// edge. Only the MEASURED width (am_pm_size.w) is ever used for layout.
+// The label's box width, and it is LOAD-BEARING that this is a fixed number wider than the text
+// rather than the measured width. The box is what text_layer_get_content_size() measures the
+// string against, and the string changes under it at noon and midnight — "AM" is a pixel or two
+// wider than "PM" — so a box sized to the previous string could make the next measurement wrap
+// or ellipsize. 30 px clears either string in Gothic 18 on every platform; the surplus is empty
+// because the text is left-aligned, and it clips harmlessly at the band edge. Only the MEASURED
+// width (am_pm_size.w) is ever used to place anything.
 #define AM_PM_BOX_W 30
 
 // Air asked for between the digits and the label, ON TOP of the right side bearing the digits'
@@ -109,10 +120,13 @@ void time_layer_create(Layer* parent_layer, GRect frame) {
     text_layer_set_text_alignment(s_am_pm_layer, GTextAlignmentLeft);
 
     // Both text layers are children of the CONTAINER, i.e. siblings. The label used to hang off
-    // the digits' layer, which forced that layer's frame to be grown to contain it and pinned
-    // the label's position to the digits' line box. It is seated against the band now (the ink
-    // row it aims at is a band-relative quantity), and it deliberately overhangs the digits'
-    // frame, so parenting it to the digits would only clip it.
+    // the digits' layer, which forced that frame to be grown to contain it and made the
+    // digits-plus-label width the thing that got centred — the lean this change removes. Both of
+    // the label's seats are BAND-relative now (clock_label_seat_y / clock_label_x), so as
+    // siblings each layer is placed in exactly the coordinate system its seat is computed in;
+    // as a child, every tick would have to subtract the digits' own origin back out again.
+    // Not a clipping question either way: the digits' frame runs to the band's right edge and
+    // bottom (see time_layer_tick), so it would contain the label's ink whichever way round.
     layer_add_child(s_container_layer, text_layer_get_layer(s_time_layer));
     layer_add_child(s_container_layer, text_layer_get_layer(s_am_pm_layer));
     layer_add_child(parent_layer, s_container_layer);

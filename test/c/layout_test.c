@@ -1500,23 +1500,50 @@ static void clock_label_gap_yields(void) {
                 // The digits are seated WITHOUT reference to the gap — asking for air must not
                 // be able to move them. Everything below shares this one left edge.
                 int left = clock_seat_x(band_w, digits_w, label_w);
+                // Does the clock font simply not fit beside its own label? Roboto on a 144px
+                // watch is REAL: 126 px of digits plus a 19 px label is 145 in a 144 px band.
+                // The sweep deliberately covers that regime rather than skipping it, because it
+                // is where clock_seat_x's left clamp and clock_label_x's floor both fire — and
+                // those two are exactly what keeps the visible ink from getting worse than it
+                // was before any of this. It gets its own contract rather than an exemption.
+                bool saturated = (digits_w + label_w > band_w);
+                // THE point of taking the air from the margin: the digits do not move for it.
+                // Checked against a centre computed HERE, never against another call to the
+                // function under test, so a future change that folded the ask into the seat
+                // fails here instead of quietly off-centring the clock on the widest string.
+                int centred = band_w / 2 - digits_w / 2;
+                int want_left = saturated ? 0 : (centred + digits_w + label_w > band_w
+                                                 ? band_w - digits_w - label_w : centred);
+                if (left != want_left) {
+                    printf("FAIL clock_label_gap_yields.digits_pinned band %d digits %d label %d:"
+                           " left %d want %d\n", band_w, digits_w, label_w, left, want_left);
+                    s_failures++;
+                }
                 for (unsigned g = 0; g < sizeof(WANT) / sizeof(WANT[0]); g++) {
                     int want = WANT[g];
                     int label_x = clock_label_x(band_w, left + digits_w, want, label_w);
                     int gap = label_x - (left + digits_w);
 
-                    // 1. The label never leaves the band. This is the invariant everything else
-                    //    yields to. (Only claimable when the digits and label alone fit; a clock
-                    //    font too wide for its own band is a different defect entirely.)
-                    if (digits_w + label_w <= band_w && label_x + label_w > band_w) {
+                    // 1. The label never leaves the band — the invariant everything else yields
+                    //    to. Saturated, that is impossible, and the contract flips: the label
+                    //    keeps its own advance box rather than being dragged back over the last
+                    //    digit, so its unpainted right bearing is what hangs off the edge.
+                    if (!saturated && label_x + label_w > band_w) {
                         printf("FAIL clock_label_gap_yields.on_screen band %d digits %d label %d"
                                " want %d: right edge %d\n",
                                band_w, digits_w, label_w, want, label_x + label_w);
                         s_failures++;
                     }
+                    if (saturated && label_x != left + digits_w) {
+                        printf("FAIL clock_label_gap_yields.floor band %d digits %d label %d"
+                               " want %d: label at %d, digits end %d\n",
+                               band_w, digits_w, label_w, want, label_x, left + digits_w);
+                        s_failures++;
+                    }
                     // 2. Never more air than asked for, and never negative — a negative gap
-                    //    would print the label over the last digit.
-                    if (digits_w + label_w <= band_w && (gap < 0 || gap > want)) {
+                    //    would print the label over the last digit. Holds saturated too: there
+                    //    the floor pins the gap at exactly 0.
+                    if (gap < 0 || gap > want) {
                         printf("FAIL clock_label_gap_yields.range band %d digits %d label %d"
                                " want %d: gap %d\n", band_w, digits_w, label_w, want, gap);
                         s_failures++;
@@ -1535,21 +1562,12 @@ static void clock_label_gap_yields(void) {
                         int less = WANT[g - 1];
                         int less_gap = clock_label_x(band_w, left + digits_w, less, label_w)
                                        - (left + digits_w);
-                        if (digits_w + label_w <= band_w && gap < less_gap) {
+                        if (gap < less_gap) {
                             printf("FAIL clock_label_gap_yields.monotone band %d digits %d label"
                                    " %d: want %d gave %d after want %d gave %d\n",
                                    band_w, digits_w, label_w, want, gap, less, less_gap);
                             s_failures++;
                         }
-                    }
-                    // 5. THE point of taking the air from the margin: the digits do not move.
-                    //    Restated against a fresh seat so a future change that folds the gap
-                    //    back into clock_seat_x fails here rather than quietly off-centring the
-                    //    clock on the widest string.
-                    if (clock_seat_x(band_w, digits_w, label_w) != left) {
-                        printf("FAIL clock_label_gap_yields.digits_pinned band %d digits %d"
-                               " label %d want %d\n", band_w, digits_w, label_w, want);
-                        s_failures++;
                     }
                 }
             }
