@@ -102,6 +102,23 @@ const settingsSchema = z
     colorSunday: z.number().optional(),
     colorSaturday: z.number().optional(),
     colorUSFederal: z.number().optional(),
+    // The six graph colours, one per painted ELEMENT of the graph, already resolved
+    // phone-side to the polarity the watch renders. The colours are stored per METRIC on
+    // the phone; which metric each of these belongs to is the secondaryLine / thirdLine in
+    // the same snapshot. z.string(), NOT z.number() like the colorTime family above: the
+    // watch sends '#RRGGBB' for a colour the user moved and the literal 'default' while it
+    // is still the built-in, so a number-typed field would fail safeParse on essentially
+    // every event and 400 the WHOLE payload — the fetch outcome with it, and nothing
+    // retries a 400. And not a z.enum of the 64 Pebble swatches either: a stricter type
+    // would reject an entire event over one cosmetic setting. Lockstep with
+    // buildSettingsSnapshot in src/pkjs/telemetry.js — a field missing here is stripped and
+    // silently lost.
+    graphMainColor: z.string().optional(),
+    graphFillColor: z.string().optional(),
+    graphSecondColor: z.string().optional(),
+    nightHatchColor: z.string().optional(),
+    nightBoundaryColor: z.string().optional(),
+    nightFillColor: z.string().optional(),
   })
   .strip();
 
