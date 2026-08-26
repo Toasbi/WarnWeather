@@ -1,18 +1,25 @@
 // src/pkjs/settings/blocks.js — ES5, WebView. WarnWeather's threshold-sheet
 // machinery (ranges, auto colors, the toggle/outline hooks, the two reset
 // actions, the sheet/badge resolvers) and the small option/default/recommend
-// resolvers. The BLOCK RENDERERS (SVG previews + devStats/lastFetch tables)
-// live in preview-blocks.js; under Node this file requires it so a bare
-// require('blocks.js') still registers everything (the webview concatenates
-// both files instead — see scripts/build-config-page.js APP_FILES).
+// resolvers. The BLOCK RENDERERS live one file per concern —
+// preview-forecast.js, preview-radar.js, preview-diagnostics.js and
+// preview-layout.js, over the shared preview-svg.js / preview-rain.js; under Node
+// this file requires the four registering ones, so requiring blocks.js registers
+// every block and not just its own (the webview concatenates every file instead —
+// see scripts/build-config-page.js APP_FILES).
 /* global PConf, COUNTRY_DEFAULTS */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf
     : (typeof PConf !== 'undefined' && PConf) ? PConf
     : { blocks: { register: function () {}, get: function () {} } };
-if (typeof require !== 'undefined') { require('./preview-blocks.js'); }
+if (typeof require !== 'undefined') {
+    require('./preview-forecast.js');
+    require('./preview-radar.js');
+    require('./preview-diagnostics.js');
+    require('./preview-layout.js');
+}
 (function () {
-    // Dual-context pattern (see preview-blocks.js): CommonJS under Node, a
+    // Dual-context pattern (see line-style.js): CommonJS under Node, a
     // concatenated <script> global in the webview.
     var statusLineCatalog = (typeof require !== 'undefined')
         ? require('../status-line-catalog.js') : window.StatusLineCatalog;
@@ -20,6 +27,13 @@ if (typeof require !== 'undefined') { require('./preview-blocks.js'); }
         ? require('./tomorrowio-budget.js') : PConf.tomorrowioBudget;
     // Country → recommended-provider mapping (shared with the wizard).
     var CD = (typeof require !== 'undefined') ? require('./country-defaults.js') : COUNTRY_DEFAULTS;
+    // The graph-colour vocabulary (key names, per-scope roles, the built-in table) —
+    // the same module the watch's wire is packed from, so the row badges below preview
+    // exactly what the graph draws. Same dual-context rule as the preview blocks:
+    // scripts/build-config-page.js concatenates line-style.js AHEAD of this file, so
+    // window.LineStyle exists by the time the page boots.
+    var lineStyle = (typeof require !== 'undefined')
+        ? require('../line-style.js') : window.LineStyle;
 
         // Slot-dropdown options resolver: derives a status-line slot's option list from the
     // catalog (Tasks 2 + 17) — Empty first, availability-gated, sibling+excludeCodes filtered.
@@ -407,6 +421,74 @@ if (typeof require !== 'undefined') { require('./preview-blocks.js'); }
         return true;
     };
 
+    // Reset-to-default for ONE graph-colour sheet (the button on its "Colors"
+    // sub-header — one sheet per metric, plus the night band). The KEY LIST comes from
+    // the schema through data-action-arg, so this file needs no copy of it and cannot
+    // drift; every key lands on its schema default THROUGH the engine's resolver, never
+    // a mirrored literal (the drift rule the resetThresholds comment above states) —
+    // which is what makes it correct now that a default is a concrete colour rather
+    // than a sentinel. Each sheet lists BOTH polarities: leaving the hidden one tuned
+    // would resurrect old picks on the next theme switch.
+    /**
+     * @param {string} arg Comma-separated key list (the button's data-action-arg).
+     * @param {Object} S Live settings state (mutated in place).
+     * @param {Object} env Platform env (unused — the keys are platform-independent).
+     * @param {function(string): *} defaultOf The engine's stored-shape schema default
+     *     resolver (defaultAsStored).
+     * @returns {boolean} true so the engine re-renders with the restored state.
+     */
+    PConf.actions.resetGraphColors = function (arg, S, env, defaultOf) {
+        if (!arg || !S || !defaultOf) { return false; }
+        var keys = String(arg).split(',');
+        for (var i = 0; i < keys.length; i++) {
+            if (keys[i]) { S[keys[i]] = defaultOf(keys[i]); }
+        }
+        return true;
+    };
+
+    // Row badge for the Graph-colors card (schema.js' GRAPH_COLOR_ROWS): the preview
+    // between a row's label and its Edit button.
+    //
+    // ONE DOT PER PICKER in that row's sheet — three for a metric (line, fill, night
+    // tint), one for feels (which never fills, so line-style hands it no fill or tint
+    // key) and two for the night band — so the badge is the row's whole colour state
+    // rather than a sample of it, and the dot count also says how many pickers are
+    // behind Edit. The threshold badge shows two dots for the same reason: a threshold
+    // kind owns exactly two colours.
+    //
+    // The last dot of a multi-dot row is drawn as a ring purely so several chips read
+    // as several colours instead of one bar; unlike the threshold badge's ring — which
+    // is the watch's own outline/filled language — it carries no meaning of its own.
+    //
+    // Polarity: the sheet's pickers gate on the RAW `theme` value, so the badge must
+    // fold nothing either — hence themePolarity true even when a B&W-polarity watch is
+    // being previewed (the same choice, for the same reason, as the forecast preview's
+    // caps). The env.color guard is belt-and-braces behind the row's COLOR capability.
+    /**
+     * @param {Object} S Live settings state (colors as '#RRGGBB').
+     * @param {Object} env Platform env; env.color gates the whole card.
+     * @param {Object} args editBadgeFrom.args — {scope}, the row's identity (a `sheet`
+     *     row has no messageKey for the engine to merge in).
+     * @returns {?{label: string, dots: Object[]}} The badge, or null to render none.
+     */
+    PConf.badgeResolvers.register('graphColorSwatch', function (S, env, args) {
+        if (!lineStyle || !env || !env.color || !args || !args.scope) { return null; }
+        var scope = args.scope;
+        var sfx = lineStyle.renderContextFor(S, {color: true, themePolarity: true}).suffix;
+        var roles = lineStyle.graphColorRoles(scope);
+        var dots = [], i;
+        for (i = 0; i < roles.length; i++) {
+            dots.push({
+                // The STORED colour, so the dot matches the swatch the sheet will show
+                // as highlighted; the built-in stands in until the key is written.
+                color: colorHexOf(S[lineStyle.graphColorKey(scope, roles[i], sfx)],
+                    lineStyle.graphColorDefault(scope, roles[i], sfx, S)),
+                ring: roles.length > 1 && i === roles.length - 1
+            });
+        }
+        return {label: 'Edit', dots: dots};
+    });
+
     // Reset-to-defaults for the whole status-bar card (the text button in the Watch
     // tab's intro — schema.js watchStatus): every slot of every bar back to its
     // platform-aware default (the same statusSlotDefault seed a fresh install gets,
@@ -473,14 +555,17 @@ if (typeof require !== 'undefined') { require('./preview-blocks.js'); }
                 // The slot's sheet-trigger BUTTON label. The sheet configures the
                 // whole slot now (bold + thresholds), not just the warn/goal pair,
                 // so the button says what it does rather than naming one section.
-                // `enabled` drives the state dots; a disabled kind still gets the
-                // labeled button.
+                // A disabled kind still gets the labeled button — it just badges no
+                // dots and adds no aria note, since there is no state to preview.
                 label: 'Edit',
-                enabled: enabled,
+                ariaNote: enabled ? 'highlighting on' : '',
+                // The watch's own language: warn is an OUTLINE, danger is FILLED.
                 // No warn outline configured -> neutral gray ring (the enabled badge
                 // still reads; the ring hue just carries no color meaning then).
-                warnColor: penWarn === null ? '#8A8E97' : penWarn,
-                dangerColor: thresholdDisplayColor(S, contract.KINDS[i].key, 'Danger')
+                dots: enabled ? [
+                    { color: penWarn === null ? '#8A8E97' : penWarn, ring: true },
+                    { color: thresholdDisplayColor(S, contract.KINDS[i].key, 'Danger') }
+                ] : []
             };
         }
         return null;

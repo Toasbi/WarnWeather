@@ -685,3 +685,107 @@ test('boot-only dev-config keys never persist into the settings blob', () => {
     assert.ok(!(k in blob), k + ' must stay boot-only, never persisted');
   });
 });
+
+// --- The in-place-upgrade Clay resend -------------------------------------
+// 1.15.0 grew CLAY_LINE_STYLE_UINT8 from 4 to 9 bytes; the watch reads the
+// night-area triple from persist NIGHT_COLORS, written only by that tuple.
+// An UPGRADED watch still has its CONFIG persist, so it reports hasConfig true
+// and the scheduler queues nothing; every other heal (holiday day-change,
+// showConfiguration, the legacy holiday migrations) is also inert on an
+// existing install. Without a migration that forces one Clay send, the watch
+// paints the hardcoded precip-blue night default under a wind/uv/gust/pressure
+// line until the user opens and SAVES the settings page.
+const SHIPPED_MARKERS = [
+  'WEEKEND_HOLIDAY_COLOR_MIGRATION_KEY',
+  'HOLIDAY_WHITE_TO_TOGGLE_MIGRATION_KEY',
+  'HOLIDAY_REGION_KEY_MIGRATION_KEY',
+  'STATUS_LINE_HEALTH_DEFAULTS_MIGRATION_KEY',
+  'STATUS_TOP_RIGHT_BATTERY_MIGRATION_KEY',
+  'RADAR_VIEW_MODE_MIGRATION_KEY'
+];
+
+// Build the store of an install that has been running a previous release: a
+// seeded+migrated settings blob, every shipped migration marker set, and
+// today's holiday mask already stamped (phone localStorage survives upgrades).
+function seedUpgradedInstall(store, claySettings, KEYS, now) {
+  claySettings.seedDefaults(COLORS);
+  SHIPPED_MARKERS.forEach((name) => { store[KEYS[name]] = '1'; });
+  store[KEYS.LAST_HOLIDAY_DAY_KEY] =
+    now.getFullYear() + '-' + now.getMonth() + '-' + now.getDate();
+}
+
+// One whole boot of an upgraded install: run the migrations, take the watch
+// handshake (hasConfig true — the watch kept its config across the upgrade),
+// then ready. Returns the Clay sends this boot produced.
+function bootUpgradedInstall(claySettings, createChannelScheduler, now) {
+  const sends = [];
+  const scheduler = createChannelScheduler({
+    sendClay: function (onSuccess, onFailure) {
+      sends.push({ onSuccess: onSuccess, onFailure: onFailure });
+    },
+    startFetch: function () {},
+    shouldFetchNow: function () { return false; },
+    refreshHolidays: function () {},
+    checkForUpdate: function () {},
+    clearClayCache: function () {},
+    clearWeatherCaches: function () {},
+    clearNoticeOnWatch: function () {},
+    setTimeout: function () { return 0; },
+    now: function () { return now; }
+  });
+  const migrations = claySettings.runMigrations({
+    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  scheduler.onWatchStatus({ hasConfig: true, hasForecast: true });
+  scheduler.onReady({
+    migrationClayRequired: migrations.clayRequired,
+    onClayAck: migrations.commitDeferredMarkers
+  });
+  return sends;
+}
+
+function loadUpgradeModules() {
+  ['../src/pkjs/clay-settings', '../src/pkjs/channel-scheduler'].forEach((m) => {
+    delete require.cache[require.resolve(m)];
+  });
+  return {
+    claySettings: require('../src/pkjs/clay-settings'),
+    createChannelScheduler: require('../src/pkjs/channel-scheduler'),
+    KEYS: require('../src/pkjs/storage-keys')
+  };
+}
+
+test('an upgraded install pushes Clay once on the first boot, and not on the second', () => {
+  const store = installFakeStorage();
+  const mods = loadUpgradeModules();
+  const now = new Date(2026, 7, 26, 9, 0, 0);
+  seedUpgradedInstall(store, mods.claySettings, mods.KEYS, now);
+
+  const first = bootUpgradedInstall(mods.claySettings, mods.createChannelScheduler, now);
+  assert.equal(first.length, 1,
+    'the first boot after the upgrade must push the grown line-style tuple');
+  assert.equal(store[mods.KEYS.GRAPH_NIGHT_COLORS_MIGRATION_KEY], undefined,
+    'the marker is deferred until the Clay ACK');
+
+  first[0].onSuccess();
+  assert.equal(store[mods.KEYS.GRAPH_NIGHT_COLORS_MIGRATION_KEY], '1',
+    'the ACK commits the marker');
+
+  const second = bootUpgradedInstall(mods.claySettings, mods.createChannelScheduler, now);
+  assert.equal(second.length, 0, 'the resend is one-time, not every boot');
+});
+
+test('a NACKed upgrade resend retries on the next boot', () => {
+  const store = installFakeStorage();
+  const mods = loadUpgradeModules();
+  const now = new Date(2026, 7, 26, 9, 0, 0);
+  seedUpgradedInstall(store, mods.claySettings, mods.KEYS, now);
+
+  const first = bootUpgradedInstall(mods.claySettings, mods.createChannelScheduler, now);
+  assert.equal(first.length, 1, 'first boot sends');
+  first[0].onFailure();
+  assert.equal(store[mods.KEYS.GRAPH_NIGHT_COLORS_MIGRATION_KEY], undefined,
+    'a NACK must leave the marker unset');
+
+  const second = bootUpgradedInstall(mods.claySettings, mods.createChannelScheduler, now);
+  assert.equal(second.length, 1, 'the next boot retries the resend');
+});

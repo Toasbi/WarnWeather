@@ -295,7 +295,7 @@ test('the Clay message carries the graph line styling', function() {
   });
   const p = buildClayPayload(s, { platform: 'emery' }, NOW);
   assert.ok(Array.isArray(p.CLAY_LINE_STYLE_UINT8));
-  assert.equal(p.CLAY_LINE_STYLE_UINT8.length, 4);
+  assert.equal(p.CLAY_LINE_STYLE_UINT8.length, 10);
   // Packed by the one resolver both the wire and the render read (line-style.js),
   // so the Clay tuple can't drift from what the graph builder assumes.
   assert.deepEqual(p.CLAY_LINE_STYLE_UINT8,
@@ -309,9 +309,9 @@ test('aplite gets the line styling too (it has the forecast graph)', function() 
   const s = Object.assign(baseSettings(), {
     secondaryLine: 'wind', thirdLine: 'off', theme: 'dark'
   });
-  assert.equal(buildClayPayload(s, { platform: 'aplite' }, NOW).CLAY_LINE_STYLE_UINT8.length, 4);
+  assert.equal(buildClayPayload(s, { platform: 'aplite' }, NOW).CLAY_LINE_STYLE_UINT8.length, 10);
   // ... and an unknown watchInfo never drops it either.
-  assert.equal(buildClayPayload(s, null, NOW).CLAY_LINE_STYLE_UINT8.length, 4);
+  assert.equal(buildClayPayload(s, null, NOW).CLAY_LINE_STYLE_UINT8.length, 10);
 });
 
 test('CLAY_HR_SCALE falls back to 40-150 when unset or malformed', function() {

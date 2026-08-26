@@ -278,13 +278,14 @@ function loadForMigration(isMigrationDone, label) {
  * body, marker key (storage-keys.js) and gating live together; index.js's ready
  * handler used to thread twelve getItem/setItem closures through six calls.
  *
- * The two Clay-COLOR migrations defer their marker to the Clay ACK: a migrated
- * blob is only safe once the watch has it, and a NACK must leave the marker
- * unset so the migration retries next boot. Their migrate* functions return
- * true for "the Clay resend must carry this" (marking themselves only on their
- * no-op branches — e.g. already-migrated values return true WITHOUT marking);
- * the caller passes commitDeferredMarkers as the scheduler's onClayAck.
- * Everything else marks synchronously inside its migrate* function.
+ * The two Clay-COLOR migrations and the 1.15.0 graph-night-colour resend defer
+ * their marker to the Clay ACK: a migrated blob is only safe once the watch has
+ * it, and a NACK must leave the marker unset so the migration retries next
+ * boot. Their migrate* functions return true for "the Clay resend must carry
+ * this" (marking themselves only on their no-op branches — e.g. already-migrated
+ * values return true WITHOUT marking); the caller passes commitDeferredMarkers
+ * as the scheduler's onClayAck. Everything else marks synchronously inside its
+ * migrate* function.
  *
  * @param {{platform: string, colors: Object, defaultRadarProvider: string}} opts
  *   platform: watch platform for the status-line health defaults; colors: the
@@ -317,13 +318,52 @@ function runMigrations(opts) {
     migrateRadarProviderToMode(opts.defaultRadarProvider,
         isDone(KEYS.RADAR_VIEW_MODE_MIGRATION_KEY),
         mark(KEYS.RADAR_VIEW_MODE_MIGRATION_KEY));
+    var wantsClayNightColors = migrateGraphNightColorsResend(
+        isDone(KEYS.GRAPH_NIGHT_COLORS_MIGRATION_KEY));
     return {
-        clayRequired: Boolean(wantsClayColors || wantsClayToggle),
+        clayRequired: Boolean(wantsClayColors || wantsClayToggle || wantsClayNightColors),
         commitDeferredMarkers: function () {
             if (wantsClayColors) { mark(KEYS.WEEKEND_HOLIDAY_COLOR_MIGRATION_KEY)(); }
             if (wantsClayToggle) { mark(KEYS.HOLIDAY_WHITE_TO_TOGGLE_MIGRATION_KEY)(); }
+            if (wantsClayNightColors) { mark(KEYS.GRAPH_NIGHT_COLORS_MIGRATION_KEY)(); }
         }
     };
+}
+
+/**
+ * One-time forced Clay resend for the 1.15.0 graph colours. It migrates NO
+ * stored value — its only job is to make one Clay send happen on the first boot
+ * after the upgrade.
+ *
+ * 1.15.0 grew CLAY_LINE_STYLE_UINT8 from 4 to 9 bytes and the watch now reads
+ * its night-area colours from the persist key that tuple writes (NIGHT_COLORS,
+ * absent = the built-in precip triple). An IN-PLACE upgrade keeps the watch's
+ * CONFIG persist, so the startup handshake reports hasConfig true and the
+ * scheduler queues no Clay send; nothing else heals it either (the legacy
+ * holiday migrations are long since marked, the holiday day stamp is already
+ * today's, and showConfiguration does not send Clay). Without this, a colour
+ * watch on dark polarity with day/night shading + fill on and a
+ * wind/uv/gust/pressure main metric paints a precip-blue night area until the
+ * settings page is opened and SAVED, or the local day rolls over.
+ *
+ * The change-detector still transmits when this fires: the phone's last-sent
+ * cache holds the OLD 4-byte tuple and the new payload is 9 bytes.
+ *
+ * Marker-gated, and the marker is DEFERRED to the Clay ACK (see runMigrations),
+ * so a NACK retries on the next boot instead of silently marking it done.
+ *
+ * @param {Function} isMigrationDone Returns true when the migration marker is set.
+ * @returns {boolean} True when the settings must be sent to the watch.
+ */
+function migrateGraphNightColorsResend(isMigrationDone) {
+    // loadForMigration is used purely as the gate here (marker unset AND a
+    // stored blob to send); nothing is read out of the blob and nothing is
+    // written back, so there is no save() and no synchronous markDone().
+    if (loadForMigration(isMigrationDone, 'graph night-colour resend') === null) {
+        return false;
+    }
+    console.log('Forcing one Clay resend so the watch gets the graph night colours');
+    return true;
 }
 
 /**
@@ -637,5 +677,6 @@ module.exports = {
     migrateHolidayRegionKeys: migrateHolidayRegionKeys,
     migrateStatusLineHealthDefaults: migrateStatusLineHealthDefaults,
     migrateStatusTopRightBattery: migrateStatusTopRightBattery,
-    migrateRadarProviderToMode: migrateRadarProviderToMode
+    migrateRadarProviderToMode: migrateRadarProviderToMode,
+    migrateGraphNightColorsResend: migrateGraphNightColorsResend
 };

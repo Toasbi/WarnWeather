@@ -9,6 +9,12 @@ var STATUS_THRESHOLDS = require('../status-thresholds.js');
 // table (shared with the baker, the reset, and renderSignature).
 var STATUS_LINE_CATALOG = require('../status-line-catalog.js');
 var PRESSURE_SCALE_CURVE_HPA = require('../forecast-series.js').PRESSURE_SCALE_CURVE_HPA;
+// The graph-colour vocabulary: the storage key behind every picker, the roles each
+// metric actually owns, and the built-in colour each one defaults to. All of it comes
+// from line-style.js — the module that RESOLVES these keys when it packs the watch's
+// wire — so the settings page cannot offer a colour the renderer doesn't know, miss one
+// it does, or carry a transcribed default hex that drifts away from what the graph paints.
+var lineStyle = require('../line-style.js');
 var versionLabel = 'v' + meta.version + (meta.buildProfile === 'dev' ? ' (dev)' : '');
 var HOURS = (function () {
     var o = [], h;
@@ -54,7 +60,7 @@ var THIRD_LINE_HINTS = {
 // WIND_SCALE_KMH) through the same conversion the wind slots display with
 // (wire-units kmhToDisplay) — so the hints can no longer drift from the axis
 // the way a hand-copied ceiling could. Derived strings pinned by test.
-// (preview-blocks.js's preview keeps its own windMax mirror: it runs in the flat
+// (preview-forecast.js's preview keeps its own windMax mirror: it runs in the flat
 // webview with no require(), documented at its declaration.)
 var WIND_SCALE_KMH = require('../forecast-series.js').WIND_SCALE_KMH;
 var kmhToDisplay = require('../wire-units.js').kmhToDisplay;
@@ -172,6 +178,126 @@ function sheetOf(keyStem, title, items) {
         title: title + ' slot',
         items: items
     };
+}
+
+// The seven rows of the Graph-colors card, each opening its own sheet. The six metrics
+// come first, labelled and ordered exactly like the Main/Second metric pickers offer
+// them (blocks.js' FORECAST_METRICS — a user reads the two lists together), then the
+// full-height night band. `scope` is line-style.js' vocabulary: a metric id, or 'night'.
+// A row is NOT gated on the metric being selected — its colours are configurable before
+// it is picked, and the feels row simply has fewer pickers in its sheet.
+var GRAPH_COLOR_ROWS = [
+    {scope: 'precip_prob', sheetId: 'gcPrecip', label: 'Precipitation %'},
+    {scope: 'wind', sheetId: 'gcWind', label: 'Wind speed'},
+    {scope: 'gust', sheetId: 'gcGust', label: 'Wind gusts'},
+    {scope: 'uv', sheetId: 'gcUv', label: 'UV Index'},
+    {scope: 'pressure', sheetId: 'gcPressure', label: 'Air pressure (hPa)'},
+    {scope: 'feels', sheetId: 'gcFeels', label: 'Feels-like temperature'},
+    {scope: 'night', sheetId: 'gcNight', label: 'Night shading'}
+];
+// What each role is called and explained as inside a sheet. Keyed by line-style.js'
+// role names, so a role it stops handing out simply stops being rendered.
+var GRAPH_ROLE_LABELS = {
+    Line: 'Line',
+    Fill: 'Fill under the line',
+    Night: 'Night fill tint',
+    Hatch: 'Night hatch',
+    Boundary: 'Dusk / dawn line'
+};
+var GRAPH_ROLE_HINTS = {
+    Fill: 'Only drawn while “Fill area below the line” is on.',
+    Night: 'Re-shades the filled area under the night hours.',
+    Hatch: 'The hatch drawn over the night hours.',
+    Boundary: 'The vertical lines at sunset and sunrise.'
+};
+
+/**
+ * One graph colour = TWO picker rows on the same label, gated on the theme's polarity
+ * so exactly one is ever visible and a Dark <-> Light switch never loses a tuned set
+ * (the colorUSFederal idiom below). The default is the CONCRETE built-in from
+ * line-style.js, so the picker opens with the colour the graph draws today already
+ * highlighted — there is no "Auto" sentinel to name any more.
+ * @param {string} scope A metric id, or 'night' (line-style.js' graphColorKey vocabulary).
+ * @param {string} role 'Line'|'Fill'|'Night' for a metric; 'Hatch'|'Boundary' for 'night'.
+ * @returns {Object[]} The two schema items, Dark first.
+ */
+function graphColorPair(scope, role) {
+    var pol = [['dark', 'Dark'], ['light', 'Light']], rows = [], i;
+    for (i = 0; i < pol.length; i++) {
+        rows.push({
+            type: 'color',
+            messageKey: lineStyle.graphColorKey(scope, role, pol[i][1]),
+            label: GRAPH_ROLE_LABELS[role],
+            hint: GRAPH_ROLE_HINTS[role] || null,
+            // The INT form, like colorUSFederal below: deriveDefaults seeds the int,
+            // the page hydrates it to '#RRGGBB' and parseResponse converts it back.
+            // No settings blob is passed — gust's dark line reads rainBarColor at
+            // RESOLVE time, and a schema default is a constant (see graphColorDefault's
+            // wart note); both of its built-ins count as "still the default" there.
+            defaultValue: lineStyle.graphColorDefault(scope, role, pol[i][1], null),
+            capabilities: ['COLOR'],
+            showWhen: {all: [{key: 'theme', eq: pol[i][0]}]}
+        });
+    }
+    return rows;
+}
+
+/**
+ * One row's colour sheet: every picker that row owns, headed by a sub-header carrying
+ * the reset for exactly those keys. BOTH gates are set — buildSectionBody and
+ * renderEditModal test sec.showWhen first, so capabilities alone would not gate a
+ * section. No blockBefore: a blockBeforeSticky preview stays pinned below the sheet's
+ * header while the rows scroll under it, so on a narrow phone it would cover part of
+ * the open 64-swatch palette wherever the sheet is scrolled to.
+ * @param {Object} row An entry of GRAPH_COLOR_ROWS.
+ * @returns {Object} A sheetOnly schema section.
+ */
+function graphColorSheet(row) {
+    var roles = lineStyle.graphColorRoles(row.scope);
+    var items = [], keys = [], i, pair;
+    for (i = 0; i < roles.length; i++) {
+        pair = graphColorPair(row.scope, roles[i]);
+        items = items.concat(pair);
+        // Both polarities ride the reset: the button resets the ROW, and leaving the
+        // hidden polarity tuned would resurrect old picks on the next theme switch.
+        keys.push(pair[0].messageKey);
+        keys.push(pair[1].messageKey);
+    }
+    return {
+        sheetOnly: true,
+        sheetId: row.sheetId,
+        title: row.label + ' colors',
+        capabilities: ['COLOR'],
+        showWhen: COLOR_THEME_WHEN,
+        items: [{
+            // The reset covers the whole sheet, so it rides the sheet's own header
+            // rather than one row's label. blocks.js takes the key list from HERE
+            // through data-action-arg and keeps no copy that could drift.
+            type: 'subheader',
+            text: 'Colors',
+            labelAction: {action: 'resetGraphColors', arg: keys.join(','), label: 'Reset to default'}
+        }].concat(items)
+    };
+}
+
+/**
+ * One row of the Graph-colors card: label, a preview of the colours behind it, Edit.
+ * @param {Object} row An entry of GRAPH_COLOR_ROWS.
+ * @param {boolean} joins Whether the row joins the one above (no divider).
+ * @returns {Object} Schema item.
+ */
+function graphColorRow(row, joins) {
+    var item = {
+        type: 'sheet',
+        sheetId: row.sheetId,
+        label: row.label,
+        // A `sheet` row has no messageKey, and the engine merges the item's (absent) one
+        // UNDER these args — so `scope` is the resolver's ONLY way to know which row it
+        // is badging.
+        editBadgeFrom: {resolver: 'graphColorSwatch', args: {scope: row.scope}}
+    };
+    if (joins) { item.joinPrevious = true; }
+    return item;
 }
 // Shared intro lines at the top of every threshold edit sheet (the sheets are the only
 // place thresholds are explained now that the Watch-tab card is gone). Two voices: the
@@ -442,7 +568,7 @@ function boldSection(title, keyStem, gate, extraItems) {
 // Pressure curve copy, pre-rendered per scale value. Derived from
 // forecast-series.PRESSURE_SCALE_CURVE_HPA (the sole source of truth for the numbers)
 // at module load, so the settings-screen copy can never drift from it the way a third
-// hand-copied set of numbers could (preview-blocks.js's PRESSURE_CURVES is the second copy,
+// hand-copied set of numbers could (preview-forecast.js's PRESSURE_CURVES is the second copy,
 // guarded by its own drift test — see test/config-blocks.test.js). The scale is fixed
 // and absolute but piecewise (rain-bar style): the copy quotes the full-detail core;
 // readings outside it compress toward 940/1060 instead of clipping.
@@ -893,7 +1019,21 @@ module.exports = {
                 defaultValue: true,
                 hint: 'Show hatch shading between sunset and sunrise to distinguish day and night on the forecast graph.'
             }]
-        }]
+        }, {
+            // One card holding one row per graph metric, plus the night band. Deliberately
+            // NOT groupCard: a grouped section renders through renderSectionGroup, which
+            // emits no card header, and this card needs its title. buildSectionBody runs
+            // before the visibility test, so on a B&W watch the whole card — header
+            // included — disappears.
+            id: 'graphColors',
+            title: 'Graph colors',
+            capabilities: ['COLOR'],
+            showWhen: COLOR_THEME_WHEN,
+            intro: 'One row per metric, plus the night shading. Each row’s colours are remembered separately for the Dark and the Light theme.',
+            items: GRAPH_COLOR_ROWS.map(function (row, i) {
+                return graphColorRow(row, i > 0);
+            })
+        }].concat(GRAPH_COLOR_ROWS.map(graphColorSheet))
     }, {
         // aplite compiles the rain-radar view out (WW_RAIN_RADAR undefined — the 24 KB
         // budget can't afford it), so the whole tab is env-hidden there (tab-level

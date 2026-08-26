@@ -171,7 +171,9 @@ function sendFixtureWeather(fixture, deps) {
     // entirely, so bundle it here or the fixture renders its lines in whatever
     // colours the last real settings send happened to leave on the watch. The
     // inbox handlers each dict_find their own key, so a Clay tuple is read just
-    // as happily off the weather message.
+    // as happily off the weather message. Ten bytes — the fixture's claySettings
+    // block drives the night colours and their flag (bytes 4..9) too; the layout
+    // lives on buildLineStyleBytes in line-style.js.
     payload.CLAY_LINE_STYLE_UINT8 = lineStyle.buildLineStyleBytes(
         deps.settings, deps.watchInfo);
 
