@@ -34,17 +34,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         ? require('../resolve-ink.js') : window.ResolveInk;
     var isLightPolarity = resolveInkLib.isLightPolarity;
 
-    /**
-     * 0xRRGGBB int -> uppercase '#RRGGBB'. line-style.js speaks ints; SVG wants strings.
-     * ES5, so no String.prototype.padStart.
-     * @param {number} n Colour int.
-     * @returns {string} '#RRGGBB'
-     */
-    function hexColor(n) {
-        var s = (n & 0xFFFFFF).toString(16).toUpperCase();
-        while (s.length < 6) { s = '0' + s; }
-        return '#' + s;
-    }
+    // 0xRRGGBB int -> uppercase '#RRGGBB'. line-style.js speaks ints; SVG wants strings.
+    // The canonical converter, not a local copy: config-ui/lib/color.js is the page
+    // bundle's single-source int<->hex and is concatenated ahead of every app file
+    // (build-page.js emits LIB_PAGE_FILES first), so PConf.color is always there.
+    var hexColor = (typeof require !== 'undefined')
+        ? require('../config-ui/lib/color.js').intToHex : PConf.color.intToHex;
 
     /**
      * Catmull-Rom-ish smoothing: a cubic Bezier path through every point.

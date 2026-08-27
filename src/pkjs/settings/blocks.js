@@ -34,6 +34,10 @@ if (typeof require !== 'undefined') {
     // window.LineStyle exists by the time the page boots.
     var lineStyle = (typeof require !== 'undefined')
         ? require('../line-style.js') : window.LineStyle;
+    // The page bundle's single-source int<->hex (config-ui/lib/color.js, concatenated
+    // ahead of every app file), rather than a fourth local copy of the same six digits.
+    var intToHex = (typeof require !== 'undefined')
+        ? require('../config-ui/lib/color.js').intToHex : PConf.color.intToHex;
 
         // Slot-dropdown options resolver: derives a status-line slot's option list from the
     // catalog (Tasks 2 + 17) — Empty first, availability-gated, sibling+excludeCodes filtered.
@@ -104,9 +108,7 @@ if (typeof require !== 'undefined') {
      * @returns {string} '#RRGGBB' (uppercase).
      */
     function colorHexOf(v, fallbackInt) {
-        if (typeof v === 'number' && isFinite(v)) {
-            return '#' + ('00000' + (v & 0xFFFFFF).toString(16)).slice(-6).toUpperCase();
-        }
+        if (typeof v === 'number' && isFinite(v)) { return intToHex(v); }
         if (typeof v === 'string' && /^#?[0-9A-Fa-f]{6}$/.test(v)) {
             return '#' + v.replace('#', '').toUpperCase();
         }

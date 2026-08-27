@@ -10,16 +10,9 @@
 var COLORS = require('../pebble-colors');
 var rainTier = require('../weather/rain-tier');
 
-/**
- * 0xRRGGBB int -> uppercase #RRGGBB string. ES5 (no String.prototype.padStart).
- * @param {number} n Color int.
- * @returns {string} #RRGGBB
- */
-function hex(n) {
-    var s = (n & 0xFFFFFF).toString(16).toUpperCase();
-    while (s.length < 6) { s = '0' + s; }
-    return '#' + s;
-}
+// 0xRRGGBB int -> uppercase #RRGGBB. The canonical converter from config-ui/lib/color.js
+// (its own header calls itself the single source for int<->hex), not a fourth local copy.
+var hex = require('../config-ui/lib/color.js').intToHex;
 
 /**
  * Build the preview palette. The rain tiers come from rain-tier — the same module that
