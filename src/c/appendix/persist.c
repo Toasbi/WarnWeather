@@ -64,7 +64,13 @@ enum key {
     // (WW_CURVE_INSET is undefined there and the accessors below compile out),
     // but the ID stays listed on every platform: the enum is append-only
     // because the numbers are the on-flash slots.
-    CURVE_INSETS                  // 46 — 3 render-ready inset bytes, absent = {7, 0, 0}
+    CURVE_INSETS,                 // 46 — 3 render-ready inset bytes, absent = {7, 0, 0}
+    // Appended: the user-selectable night colours (layout in persist.h). B&W
+    // builds never read or write it (the accessors are PBL_COLOR-guarded and
+    // theme_pick discards the colour arm there), but the ID stays listed on
+    // every platform: the enum is append-only because the numbers are the
+    // on-flash slots.
+    NIGHT_COLORS                  // 47 — 5 GColor8 argb bytes + flags, absent = the built-in defaults
 };
 
 // Setters report whether the stored value actually changed so callers can
@@ -578,3 +584,30 @@ void persist_get_curve_insets(uint8_t out[3]) {
     memcpy(out, stored, sizeof(stored));
 }
 #endif  // WW_CURVE_INSET
+
+#if defined(PBL_COLOR)
+bool persist_set_night_colors(const uint8_t colors[NIGHT_COLOR_BYTES]) {
+    return write_data_if_changed(NIGHT_COLORS, colors, NIGHT_COLOR_BYTES);
+}
+
+void persist_get_night_colors(uint8_t out[NIGHT_COLOR_BYTES]) {
+    // Default = the pre-feature look for the default metric: DarkGray full-height
+    // hatch and dusk/dawn line, the precip night triple, no explicit tint pick.
+    // (.argb on the SDK's GColor constants, not the GColor*ARGB8 macros — the
+    // field access does not depend on the macro spelling.)
+    out[0] = GColorDarkGray.argb;
+    out[1] = GColorDarkGray.argb;
+    out[2] = GColorDukeBlue.argb;
+    out[3] = GColorBlue.argb;
+    out[4] = GColorVividCerulean.argb;
+    out[5] = 0;
+    if (!persist_exists(NIGHT_COLORS)) { return; }
+    // Read into a scratch first: a short read must not scribble on the
+    // already-defaulted out[] bytes.
+    uint8_t stored[NIGHT_COLOR_BYTES];
+    if (persist_read_data(NIGHT_COLORS, stored, sizeof(stored)) < (int) sizeof(stored)) {
+        return;  // short/corrupt — keep the defaults
+    }
+    memcpy(out, stored, sizeof(stored));
+}
+#endif  // PBL_COLOR

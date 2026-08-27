@@ -343,8 +343,27 @@ static bool handle_curve_insets(DictionaryIterator *iterator, bool *forecast_dir
 // became one 4-byte array. It writes exactly the persist slots handle_forecast
 // used to write — no new persist keys. NOT compiled out on aplite: every
 // platform renders the forecast graph, so every platform needs the colours.
+//
+// Head (always present): [0] main-metric line, [1] area fill,
+// [2] second-metric line, [3] line flags (bit 0 = fill on).
+// Tail (optional): bytes [4..9] ARE the NIGHT_COLORS persist blob, byte for
+// byte — layout in persist.h. Nothing is repacked or translated on the way
+// through, which is the whole reason the night-fill-explicit bit sits in its own
+// byte [9] instead of riding byte [3]: one name, one position, both ends.
+//
+// CONTRACT for growing this tuple: LINE_STYLE_BYTES is a MINIMUM length, not an
+// exact one, and everything past it is an optional tail guarded by its own
+// `length >= <offset> + <size>` check. A shorter tuple (an older phone bundle, a
+// stale fixture) is still applied in full and each absent tail block keeps its
+// last good persisted value. Append a new block plus its own length check;
+// widening LINE_STYLE_BYTES instead would start REJECTING the tuples those
+// shorter senders still emit.
 #define LINE_STYLE_BYTES 4
 #define LINE_STYLE_FLAG_SECONDARY_FILL 0x01
+// Where the NIGHT_COLORS blob starts. Unguarded: the wire layout is the same on
+// every platform — only the CONSUMPTION of the tail is colour-only, since B&W
+// builds have no persist accessors for it (persist.h) and never paint it.
+#define LINE_STYLE_NIGHT_OFFSET 4
 
 static bool handle_line_style(DictionaryIterator *iterator, bool *forecast_dirty) {
     Tuple *tuple = dict_find(iterator, MESSAGE_KEY_CLAY_LINE_STYLE_UINT8);
@@ -365,6 +384,13 @@ static bool handle_line_style(DictionaryIterator *iterator, bool *forecast_dirty
     changed |= persist_set_fill_color((GColor){ .argb = b[1] });
     changed |= persist_series_set_color(SERIES_THIRD, (GColor){ .argb = b[2] });
     changed |= persist_set_line_fill((b[3] & LINE_STYLE_FLAG_SECONDARY_FILL) != 0);
+#if defined(PBL_COLOR)
+    // Optional tail: store it straight through, so forecast_layer.c reads the
+    // wire's own bytes back in a single persist hit.
+    if (tuple->length >= LINE_STYLE_NIGHT_OFFSET + NIGHT_COLOR_BYTES) {
+        changed |= persist_set_night_colors(&b[LINE_STYLE_NIGHT_OFFSET]);
+    }
+#endif
     *forecast_dirty |= changed;
     return true;
 }

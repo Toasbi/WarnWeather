@@ -1,4 +1,9 @@
 var statusCatalog = require('./status-line-catalog.js');
+var configUi = require('./config-ui');          // intToHex
+// renderContext / graphColorKey / graphColorIsDefault — the module that resolves the graph
+// colours for the WIRE, so this snapshot reports what the watch actually paints instead
+// of a second opinion about it.
+var lineStyle = require('./line-style.js');
 
 /**
  * Parse a value as a base-10 integer for telemetry, omitting invalid input.
@@ -26,13 +31,52 @@ function boolDefaultOn(value) {
 }
 
 /**
+ * Format one graph colour for telemetry: the user's pick as '#RRGGBB', or the literal
+ * 'default' while the colour is still the built-in.
+ *
+ * Every key now holds a CONCRETE colour (seedDefaults backfills the built-in), so there is
+ * no '' sentinel left to mean "untouched" — and mining these for better defaults needs
+ * exactly that distinction. The judgement is line-style.graphColorIsPicked's, not a hex
+ * comparison here: it is the same predicate the wire's night-fill flag uses, so telemetry
+ * cannot call a value chosen that the wire is still resolving for the user. Two colours
+ * read as untouched despite holding a concrete value: gust's dark line, where EITHER
+ * built-in (White, LightGray) counts because the painted one follows rainBarColor, and a
+ * metric's night tint while it is still the fill colour the settings page carried into it.
+ *
+ * A STRING either way: the ingest schema types these z.string(), and a number or a null
+ * against a z.number() would fail safeParse and 400 the WHOLE event, taking the fetch
+ * outcome with it, with no retry. '#RRGGBB' rather than an int because the dashboards read
+ * these through ->>; the existing int-encoded colorTime/colorSunday appear in no dashboard
+ * query, which is exactly why they are unminable.
+ *
+ * @param {Object} settings Clay settings blob (the gc* keys, plus rainBarColor for gust).
+ * @param {string} scope A metric id (line-style's GRAPH_METRICS), or 'night' for the band.
+ * @param {string} role 'Line'|'Fill'|'Night' for a metric; 'Hatch'|'Boundary' for 'night'.
+ * @param {string} suffix Polarity to read, 'Dark' or 'Light' (renderContext's `suffix`).
+ * @returns {string} '#RRGGBB' for a colour moved off the built-in, else 'default'.
+ */
+function graphColorReport(settings, scope, role, suffix) {
+    // graphColorIsPicked answers FALSE for an absent or unparseable value as well as for
+    // one still equal to the built-in, so the other arm always has a real int to format.
+    if (!lineStyle.graphColorIsPicked(settings, scope, role, suffix)) {
+        return 'default';
+    }
+    return configUi.intToHex(
+        lineStyle.colorPick(settings[lineStyle.graphColorKey(scope, role, suffix)]));
+}
+
+/**
  * Build a compact, allowlisted settings snapshot for telemetry.
  *
  * @param {Object} settings Clay settings object.
+ * @param {Object} [watchInfo] Pebble.getActiveWatchInfo() result — only its platform is
+ *   read, to resolve the graph colours the way the renderer does (line-style.renderContext:
+ *   the theme fold and the colour-display check). Absent = colour basalt.
  * @returns {Object} Telemetry-safe settings snapshot.
  */
-function buildSettingsSnapshot(settings) {
+function buildSettingsSnapshot(settings, watchInfo) {
     var safe = settings || {};
+    var cx = lineStyle.renderContext(safe, watchInfo);
     var snapshot = {
         temperatureUnits: safe.temperatureUnits,
         tempSlotDisplay: safe.tempSlotDisplay,
@@ -112,6 +156,49 @@ function buildSettingsSnapshot(settings) {
             ? boolDefaultOn(safe[toggles[i].key])
             : Boolean(safe[toggles[i].key]);
     }
+    // The graph colours, one field per painted ELEMENT, carrying the value for the polarity
+    // this watch ACTUALLY RENDERS. Every platform/theme judgement comes from line-style's
+    // renderContext (cx above) — the same call resolveLineStyle opens with — rather than
+    // being re-derived here, which is how the two drifted before: this file had copied the
+    // theme fold but not the colour-display check, and reported picks on a B&W watch that
+    // the wire was already resolving away to the theme foreground.
+    // cx.isColor is that missing half: a watch painting no colour reports nothing,
+    // whether the reason is a Black & White theme or B&W hardware (aplite/diorite/flint).
+    // cx.suffix is the polarity to read. It is folded (aplite has the light polarity
+    // compiled out) but that fold changes nothing HERE, since aplite is also the one
+    // no-polarity platform and cx.isColor has already excluded it — it is load-bearing on
+    // the wire, not in this snapshot; taking it from the same place is what keeps the two
+    // from disagreeing if that ever stops being true.
+    // Precedent for reporting only the value in effect: sleepStartHour above.
+    //
+    // The colours are stored PER METRIC now (gcWindLineDark, …), but these six field names
+    // and their z.string() type are unchanged — the watch/zod lockstep is satisfied by NOT
+    // touching supabase/functions/telemetry-ingest/index.ts, and the dashboards keep their
+    // history. Each names an ELEMENT of the graph, and the metric it belongs to is the
+    // secondaryLine / thirdLine already in this same snapshot, so a query slices by metric
+    // (`where secondaryLine = 'wind'`) rather than needing twenty more columns.
+    //
+    // Assign undefined, never delete: the key must still EXIST for the lockstep
+    // set-equality test (test/telemetry.test.js). JSON.stringify drops it, and its
+    // ABSENCE is then the "this watch paints no colour at all" flag (the
+    // `settings_json ? 'sleepStartHour'` idiom in reports/telemetry-dashboards.sql).
+    var secMetric = safe.secondaryLine;
+    snapshot.graphMainColor = cx.isColor
+        ? graphColorReport(safe, secMetric, 'Line', cx.suffix) : undefined;
+    snapshot.graphFillColor = cx.isColor
+        ? graphColorReport(safe, secMetric, 'Fill', cx.suffix) : undefined;
+    // The third line has an 'off' state, and no third line means no colour in effect —
+    // sleepStartHour's rule again, and it keeps 'off' installs out of the ranking's sample.
+    snapshot.graphSecondColor = (cx.isColor && safe.thirdLine !== 'off')
+        ? graphColorReport(safe, safe.thirdLine, 'Line', cx.suffix) : undefined;
+    // The night tint belongs to the secondary metric (it is the base of that metric's night
+    // area); the hatch and the dusk/dawn line are the band's own, under the 'night' scope.
+    snapshot.nightFillColor = cx.isColor
+        ? graphColorReport(safe, secMetric, 'Night', cx.suffix) : undefined;
+    snapshot.nightHatchColor = cx.isColor
+        ? graphColorReport(safe, 'night', 'Hatch', cx.suffix) : undefined;
+    snapshot.nightBoundaryColor = cx.isColor
+        ? graphColorReport(safe, 'night', 'Boundary', cx.suffix) : undefined;
     return snapshot;
 }
 
@@ -400,7 +487,7 @@ function createTelemetryClient(options) {
             locationMode: normalizeLocationMode(event.locationMode),
             error: error,
             countryCode: normalizeCountryCode(event.countryCode),
-            settings: buildSettingsSnapshot(event.settings),
+            settings: buildSettingsSnapshot(event.settings, event.watchInfo),
             appVersion: appVersion,
             buildProfile: buildProfile,
             watchInfo: watchInfo,

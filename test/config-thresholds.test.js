@@ -575,8 +575,13 @@ test('an enabled kind shows the ring+dot swatch beside its slot control', () => 
   // button would have to reach backwards past the dropdown to find the dots.
   const at = html.indexOf('data-edit-sheet="threshAqi"');
   const cell = html.slice(html.lastIndexOf('<div class="rgt has-pen">', at), at + 300);
-  assert.ok(cell.indexOf('pen-dot warn') !== -1, 'warn ring rendered');
-  assert.ok(cell.indexOf('pen-dot danger') !== -1, 'danger dot rendered');
+  // The library names the two dots by SHAPE (the badge's generic vocabulary); the
+  // threshold meaning — warn is the outline, danger is the fill — rides the order
+  // thresholdPenState builds them in, and that visual difference must survive.
+  assert.ok(cell.indexOf('pen-dot ring') !== -1, 'warn ring rendered');
+  assert.ok(cell.indexOf('pen-dot fill') !== -1, 'danger dot rendered');
+  assert.ok(cell.indexOf('pen-dot ring') < cell.indexOf('pen-dot fill'),
+    'the warn OUTLINE leads the danger FILL');
   // Never-customized colors are auto: they track the theme fg (dark default → white).
   assert.ok(cell.indexOf('--th-c:#FFFFFF') !== -1, 'auto colors resolve to the theme fg');
   assert.ok(cell.indexOf('highlighting on') !== -1, 'aria-label says the state');
@@ -645,21 +650,26 @@ test('thresholdPenState honors its env gate and the color pickers', () => {
   const args = { messageKey: 'statusForecastRight' };
   assert.equal(resolver(S, { thresholds: false }, args), null, 'gated off without env.thresholds');
   // The sheet configures the whole slot now, so the button says "Edit" for every
-  // kind instead of naming one of its sections.
+  // kind instead of naming one of its sections. The badge speaks the LIBRARY's
+  // app-neutral vocabulary — a label, an aria note, and an ordered dot list —
+  // with the threshold meaning carried by shape: warn rings, danger fills.
   assert.deepEqual(resolver(S, ENV, args),
-    { label: 'Edit', enabled: true, warnColor: '#8A8E97', dangerColor: '#FFFFFF' },
+    { label: 'Edit', ariaNote: 'highlighting on',
+      dots: [{ color: '#8A8E97', ring: true }, { color: '#FFFFFF' }] },
     'no-outline warn shows the neutral ring');
   const picked = Object.assign({}, S, { threshAqiWarnColor: '#00AAFF', threshAqiDangerColor: '#5500FF' });
   assert.deepEqual(resolver(picked, ENV, args),
-    { label: 'Edit', enabled: true, warnColor: '#00AAFF', dangerColor: '#5500FF' });
+    { label: 'Edit', ariaNote: 'highlighting on',
+      dots: [{ color: '#00AAFF', ring: true }, { color: '#5500FF' }] });
   // A half pair (disabled kind) still gets its labeled button — just without the
-  // enabled state dots (the button must exist to configure the kind at all).
-  assert.deepEqual(resolver(Object.assign({}, S, { threshAqiDanger: '' }), ENV, args).enabled, false);
+  // state dots or the aria note (the button must exist to configure the kind at all).
+  const half = resolver(Object.assign({}, S, { threshAqiDanger: '' }), ENV, args);
+  assert.deepEqual(half, { label: 'Edit', ariaNote: '', dots: [] });
   const goalArgs = { messageKey: 'statusHealthLeft' };
   const goalS = { statusHealthLeft: 'steps', threshStepsWarn: '4000', threshStepsDanger: '8000' };
   const goalBadge = resolver(goalS, ENV, goalArgs);
   assert.equal(goalBadge.label, 'Edit', 'goal kinds get the same button label');
-  assert.equal(goalBadge.enabled, true);
+  assert.equal(goalBadge.dots.length, 2);
 });
 
 // --- interaction stubs: drive the shared range machinery on the booted page ---
@@ -1093,17 +1103,18 @@ test('the slot button is labelled Edit for every kind', () => {
   const badge = PC.badgeResolvers.get('thresholdPenState')(
     S, ENV, { messageKey: 'statusLine1Left' });
   assert.equal(badge.label, 'Edit');
+  assert.equal(badge.dots.length, 2, 'an enabled kind badges its warn+danger pair');
   const goalS = { theme: 'dark', statusLine1Left: 'steps', threshStepsOn: true,
     threshStepsWarn: '8000', threshStepsDanger: '10000' };
   assert.equal(PC.badgeResolvers.get('thresholdPenState')(
     goalS, ENV, { messageKey: 'statusLine1Left' }).label, 'Edit');
-  // Bold-only kinds get the same button; with no pair there is no enabled
-  // highlight state to badge.
+  // Bold-only kinds get the same button; with no pair there is no highlight
+  // state, so the badge carries no dots at all.
   const boldBadge = PC.badgeResolvers.get('thresholdPenState')(
     { theme: 'dark', statusLine1Left: 'city' }, ENV, { messageKey: 'statusLine1Left' });
   assert.ok(boldBadge, 'a city slot offers the Edit button');
   assert.equal(boldBadge.label, 'Edit');
-  assert.ok(!boldBadge.enabled, 'a bold-only kind never badges as enabled');
+  assert.equal(boldBadge.dots.length, 0, 'a bold-only kind never badges any dots');
 });
 
 // --- bold-only slot sheets: every level-less kind, one Bold row each ---------

@@ -33,17 +33,47 @@
 #define NIGHT_HATCH_SPACING(plot_h) \
     hatch_stride_scaled(theme_is_bw() ? 7 : 6, HATCH_BASE_PLOT_H, (plot_h))
 #endif
-#define NIGHT_HATCH_COLOR GColorDarkGray
-// bw-dark unchanged (GColorLightGray); bw-light swaps to GColorDarkGray — a
-// LightGray boundary line reads too faint against a white bw-light background.
-#define NIGHT_BOUNDARY_COLOR theme_pick(GColorDarkGray, theme_is_light() ? GColorDarkGray : GColorLightGray)
-// The night base/hatch/boundary for the FILLED area are derived per metric from
-// the day fill colour PKJS sent (night_area_palette_for_fill), so each metric
-// keeps its own hue at night. B&W has no range, so the night-area path draws White
-// over the LightGray fill (has_underlay gated to colour). The full-height night
-// hatch (no fill) uses NIGHT_HATCH_COLOR / NIGHT_BOUNDARY_COLOR above.
+// Every night colour — the full-height hatch and dusk/dawn line as well as the
+// filled area's base/hatch/boundary triple — is resolved PHONE-side now
+// (line-style.js resolveNightColors) and reaches the watch as the NIGHT_COLORS
+// blob (layout in persist.h), read into s_night_ink below. Left on Auto the
+// phone sends exactly what this file used to hardcode, so the render is
+// unchanged. The B&W arms still live here, in the theme_pick() calls at the two
+// call sites: B&W has no range, so the night-area path draws the theme fg over
+// the LightGray fill (has_underlay gated to colour), and the full-height
+// dusk/dawn line keeps its polarity swap (bw-dark LightGray; bw-light DarkGray —
+// a LightGray boundary reads too faint against a white bw-light background).
 #define FORECAST_TREND_FULL_SCALE 250  // uint8 wire range (PKJS sends 0..250)
 #define DAY_SECONDS (24 * 60 * 60)
+
+// Named indices into the NIGHT_COLORS blob the phone resolved (canonical layout
+// in persist.h). Declared OUTSIDE the PBL_COLOR guard deliberately: on a B&W
+// build NIGHT_C(i) expands to a constant that leaves its argument unexpanded, so
+// an enum hidden inside the guard would still appear to compile there and would
+// break the day a name reached an evaluated position. Enumerators occupy no
+// image bytes, so naming these costs aplite nothing.
+enum night_ink {
+    NIGHT_INK_HATCH = 0,      // full-height night hatch
+    NIGHT_INK_BOUNDARY,       // full-height dusk/dawn line
+    NIGHT_INK_AREA_BASE,      // filled area's night underlay
+    NIGHT_INK_AREA_HATCH,     // filled area's night hatch
+    NIGHT_INK_AREA_BOUNDARY,  // filled area's dusk/dawn line
+    NIGHT_INK_FLAGS           // bit 0 = NIGHT_FLAG_FILL_EXPLICIT
+};
+
+// B&W builds never read the blob — theme_pick() is the macro `(bw_arm)` there
+// (theme.h) and has_underlay is false — so both the load and the store compile
+// out entirely and NIGHT_C() expands to a constant that is never evaluated. That
+// is what keeps this feature free on aplite.
+#if defined(PBL_COLOR)
+static uint8_t s_night_ink[NIGHT_COLOR_BYTES];
+#define NIGHT_C(i) ((GColor){ .argb = s_night_ink[(i)] })
+#define NIGHT_FILL_EXPLICIT() \
+    ((s_night_ink[NIGHT_INK_FLAGS] & NIGHT_FLAG_FILL_EXPLICIT) != 0)
+#else
+#define NIGHT_C(i) GColorWhite
+#define NIGHT_FILL_EXPLICIT() false
+#endif
 
 // Chart config: frame + ticks + slots in one block. Two variants because
 // the axis colour tracks the night-overlay state — orange (or theme_fg() on
@@ -99,6 +129,13 @@ static void load_dataset(ForecastDataset *ds) {
     // is not offered there. Plain const (not static) so the constant-indexed
     // reads fold to immediates and the array itself is elided.
     const uint8_t curve_insets[3] = { BOTTOM_VIEW_PRIMARY_LINE_INSET_Y, 0, 0 };
+#endif
+
+    // Same read-persist-inline cadence as the insets above: load_dataset runs at
+    // the top of every paint, so the night colours are always the last ones the
+    // phone sent. B&W builds never reference s_night_ink, so this compiles out.
+#if defined(PBL_COLOR)
+    persist_get_night_colors(s_night_ink);
 #endif
 
     ds->series[SERIES_FIRST] = (Series){
@@ -282,32 +319,6 @@ static int build_night_bands(ChartBand *out, int max,
     return n;
 }
 
-typedef struct { GColor base, hatch, boundary; } NightAreaPalette;
-
-// Night base/hatch/boundary for the filled area, keyed on the day fill colour PKJS sent.
-// Used only on colour platforms (B&W draws White via the has_underlay/hatch gates). The
-// dark- and light-theme day fills (6 metrics x 2 polarities) are distinct GColor8
-// values, so equality keys them; precip (dark) is the default — which is why every
-// non-precip metric MUST have a case here, or its night area turns precip blue
-// (pressure shipped that way; MEASURED on emery).
-static NightAreaPalette night_area_palette_for_fill(GColor fill) {
-    if (gcolor_equal(fill, GColorArmyGreen)) { return (NightAreaPalette){ GColorArmyGreen, GColorLimerick, GColorLimerick }; }      // wind (dark)
-    if (gcolor_equal(fill, GColorPurple))    { return (NightAreaPalette){ GColorImperialPurple, GColorPurple, GColorVividViolet }; } // uv (dark)
-    if (gcolor_equal(fill, GColorDarkGray))  { return (NightAreaPalette){ GColorDarkGray, GColorLightGray, GColorLightGray }; }      // gust (dark)
-    if (gcolor_equal(fill, GColorWindsorTan)) { return (NightAreaPalette){ GColorWindsorTan, GColorOrange, GColorOrange }; }         // pressure (dark) — wind's recipe: base = day fill, brighter family hatch
-#if defined(PBL_COLOR)
-    // PBL_COLOR only: on B&W this table's result is discarded (see the header
-    // comment), and aplite has no image bytes to spare for a dead case.
-    if (gcolor_equal(fill, GColorLightGray)) { return (NightAreaPalette){ GColorLightGray, GColorWhite, GColorWhite }; }             // feels (dark) — gust's recipe one gray step up
-#endif
-    // Light-theme fills (Celeste/Inchworm/ShockingPink/LightGray) never reach this
-    // table: light (color) polarity skips the night_under layer entirely — the fill
-    // keeps its day color under the night overlay (see the call site). That is what
-    // keeps the LightGray case above unambiguous: it can only be feels' DARK fill,
-    // never gust's light one.
-    return (NightAreaPalette){ GColorDukeBlue, GColorBlue, GColorVividCerulean };                                                    // precip (dark) / default
-}
-
 static GSize temp_label_string_size(const char *text);
 
 static void draw_left_axis(GContext *ctx, int h) {
@@ -476,14 +487,17 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // carry the night marking. bw themes keep it (its fg hatch dots below the
     // contour are B&W's night texture; the underlay is color-only anyway), and
     // on B&W builds theme_is_bw() is constant-true so the skip compiles out.
-    if (night_on && fill_on && !(theme_is_light() && !theme_is_bw())) {
-        const NightAreaPalette np = night_area_palette_for_fill(second->line.fill_color);
+    // An EXPLICIT night-fill pick opts back in: the light-theme skip exists
+    // because the built-in re-shade was tuned for dark grounds, so a colour the
+    // user chose for the light theme must actually paint.
+    if (night_on && fill_on
+            && (!(theme_is_light() && !theme_is_bw()) || NIGHT_FILL_EXPLICIT())) {
         layers[n++] = (ChartLayer){ CHART_LAYER_HATCH, .hatch = {
             .bands = night_bands, .num_bands = num_night_bands,
-            .hatch_color    = theme_pick(np.hatch, theme_fg()),
-            .boundary_color = theme_pick(np.boundary, theme_fg()),
+            .hatch_color    = theme_pick(NIGHT_C(NIGHT_INK_AREA_HATCH), theme_fg()),
+            .boundary_color = theme_pick(NIGHT_C(NIGHT_INK_AREA_BOUNDARY), theme_fg()),
             .spacing        = night_hatch_spacing,
-            .underlay_color = np.base,
+            .underlay_color = NIGHT_C(NIGHT_INK_AREA_BASE),
             .has_underlay   = !theme_is_bw(),
             .contour        = area_pts, .contour_count = ds.num_entries } };
     }
@@ -491,8 +505,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     if (night_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_HATCH, .hatch = {
             .bands = night_bands, .num_bands = num_night_bands,
-            .hatch_color    = theme_pick(NIGHT_HATCH_COLOR, theme_fg()),
-            .boundary_color = NIGHT_BOUNDARY_COLOR,
+            .hatch_color    = theme_pick(NIGHT_C(NIGHT_INK_HATCH), theme_fg()),
+            .boundary_color = theme_pick(NIGHT_C(NIGHT_INK_BOUNDARY),
+                                         theme_is_light() ? GColorDarkGray : GColorLightGray),
             .spacing        = night_hatch_spacing,
             .contour        = NULL } };
     }

@@ -174,6 +174,23 @@ flags as (
     ('rain_countdown',     (l.settings_json ->> 'rainCountdownHorizon') <> '0'),
     ('health',             (l.settings_json ->> 'healthMode') <> 'off'),
     ('night_sleep',        l.settings_json ? 'sleepStartHour'),
+    -- Did the watch move ANY of the six graph colours off its built-in? Every colour key
+    -- now holds a concrete value, so "untouched" is the literal 'default' the watch sends
+    -- rather than an absent key. The FIELDS are still absent whenever the watch paints no
+    -- colour at all — a Black & White theme, or B&W hardware (aplite/diorite/flint), both
+    -- of which resolve every colour away to the theme foreground — and for clients older
+    -- than the feature. A NULL there drops those from the denominator instead of counting
+    -- them as "declined" — the same convention as secondary_fill above. The outer coalesce
+    -- keeps a watch that reports only SOME of the six at false rather than letting one NULL
+    -- swallow the whole disjunction; graphSecondColor is the routine such case, absent on
+    -- every install whose third line is off.
+    ('graph_colors_custom', case when l.settings_json ? 'graphMainColor'
+                                then coalesce((l.settings_json ->> 'graphMainColor')     <> 'default'
+                                           or (l.settings_json ->> 'graphFillColor')     <> 'default'
+                                           or (l.settings_json ->> 'graphSecondColor')   <> 'default'
+                                           or (l.settings_json ->> 'nightHatchColor')    <> 'default'
+                                           or (l.settings_json ->> 'nightBoundaryColor') <> 'default'
+                                           or (l.settings_json ->> 'nightFillColor')     <> 'default', false) end),
     ('view_auto_reset',    (l.settings_json ->> 'viewResetMin') <> '0'),
     ('quiet_time_icon',    (l.settings_json ->> 'showQt') = 'true'),
     ('battery_low_only',   (l.settings_json ->> 'batteryLowOnly') = 'true'),
@@ -376,7 +393,34 @@ cross join lateral (values
   ('theme',                l.settings_json ->> 'theme'),
   ('configTheme',          l.settings_json ->> 'configTheme'),
   ('aqiScale',             l.settings_json ->> 'aqiScale'),
-  ('aqiSource',            l.settings_json ->> 'aqiSource')
+  ('aqiSource',            l.settings_json ->> 'aqiSource'),
+  -- The six graph colours: '#RRGGBB' where the user moved one, the literal 'default' while
+  -- it is still the built-in, absent wherever the watch paints no colour at all (a Black &
+  -- White theme, or B&W hardware — aplite/diorite/flint), on clients older than the feature,
+  -- and (graphSecondColor only) wherever the third line is off — the `where s.option is not
+  -- null` below drops all of those.
+  --
+  -- These exist to inform the NEXT round of built-in defaults, so the setting NAME carries
+  -- everything that makes two values incomparable, and only the ranking is left over:
+  --   * the THEME, because the watch already resolved each colour to the polarity it
+  --     renders — a dark-theme choice and a light-theme choice are different choices;
+  --   * the METRIC, because the colours are stored per metric now. graphMainColor is the
+  --     line colour of whichever metric is the secondary line, so blending wind's yellow
+  --     with uv's magenta into one ranking would answer no question anyone has. The two
+  --     night-band colours (hatch, dusk/dawn line) belong to no metric and stay unkeyed.
+  -- Ordered by watches desc, so the top row per element is the popular choice. 'default'
+  -- will usually be that top row — that is the useful baseline (how many never touched it);
+  -- add `and s.option <> 'default'` below to rank the TUNED choices alone.
+  ('graphMainColor@'     || coalesce(l.settings_json ->> 'secondaryLine', 'unknown')
+                         || '@' || coalesce(l.settings_json ->> 'theme', 'unknown'), l.settings_json ->> 'graphMainColor'),
+  ('graphFillColor@'     || coalesce(l.settings_json ->> 'secondaryLine', 'unknown')
+                         || '@' || coalesce(l.settings_json ->> 'theme', 'unknown'), l.settings_json ->> 'graphFillColor'),
+  ('graphSecondColor@'   || coalesce(l.settings_json ->> 'thirdLine', 'unknown')
+                         || '@' || coalesce(l.settings_json ->> 'theme', 'unknown'), l.settings_json ->> 'graphSecondColor'),
+  ('nightFillColor@'     || coalesce(l.settings_json ->> 'secondaryLine', 'unknown')
+                         || '@' || coalesce(l.settings_json ->> 'theme', 'unknown'), l.settings_json ->> 'nightFillColor'),
+  ('nightHatchColor@'    || coalesce(l.settings_json ->> 'theme', 'unknown'), l.settings_json ->> 'nightHatchColor'),
+  ('nightBoundaryColor@' || coalesce(l.settings_json ->> 'theme', 'unknown'), l.settings_json ->> 'nightBoundaryColor')
 ) as s(setting, option)
 where s.option is not null
 group by s.setting, s.option

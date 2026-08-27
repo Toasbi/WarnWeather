@@ -112,6 +112,31 @@ bool persist_set_curve_insets(const uint8_t insets[3]);
 void persist_get_curve_insets(uint8_t out[3]);
 #endif
 
+// The user-selectable night colours are colour-only: on a B&W build theme_pick()
+// is the macro `(bw_arm)` (theme.h), so forecast_layer.c never reads the colour
+// arm and the accessors are declared away here — any unguarded caller fails to
+// compile rather than silently re-linking the feature onto aplite's image. The
+// NIGHT_COLORS key ID stays in persist.c's append-only enum on every platform.
+#if defined(PBL_COLOR)
+// CANONICAL layout of the NIGHT_COLORS blob — the night colours the phone
+// resolved, copied verbatim off the tail of CLAY_LINE_STYLE_UINT8 (bytes 4..9;
+// app_message.c). Five packed GColor8 argb bytes then a flags byte:
+//   [0] full-height night hatch     [3] night-area hatch
+//   [1] full-height dusk/dawn line  [4] night-area dusk/dawn line
+//   [2] night-area underlay base    [5] flags
+// forecast_layer.c names these six indices in its `enum night_ink`. Get always
+// fills out[], defaulting to the pre-feature look (DarkGray hatch + dusk/dawn
+// line, the precip night triple, no explicit pick) when unset/short.
+#define NIGHT_COLOR_BYTES 6
+// The ONLY name for this bit, and the only position it ever has: byte [5] of
+// the blob, which is also byte [9] of the wire tuple. The night-area tint was
+// picked by the user rather than inherited from the metric, so the light-theme
+// skip of the night re-shade (forecast_layer.c) is opted out of.
+#define NIGHT_FLAG_FILL_EXPLICIT 0x01
+bool persist_set_night_colors(const uint8_t colors[NIGHT_COLOR_BYTES]);
+void persist_get_night_colors(uint8_t out[NIGHT_COLOR_BYTES]);
+#endif
+
 bool persist_set_notice_text(const char *text);
 int  persist_get_notice_text(char *buffer, size_t buffer_size);
 

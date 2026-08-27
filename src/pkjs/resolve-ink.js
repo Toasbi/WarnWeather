@@ -3,69 +3,85 @@
 // white-on-black, so white passes through unchanged there). Grays and hued colors
 // are untouched — this only ever matters for a color that resolved to the default
 // foreground.
-var COLORS = require('./pebble-colors.js');
+//
+// Dual context: a CommonJS module on the phone and in the tests, and a plain
+// concatenated <script> in the settings-page webview (scripts/build-config-page.js's
+// APP_FILES), which has no require(). pebble-colors.js is concatenated before this
+// file and exposes the same table on window there.
+(function () {
+    var COLORS = (typeof require !== 'undefined')
+        ? require('./pebble-colors.js') : window.PebbleColors;
 
-/**
- * Theme values: 'dark'|'light'|'bw'|'bw-light'. Two independent axes: polarity
- * (isLightPolarity) and effective color class (isBwTheme) — see theme.h for the
- * C-side mirror of this split.
- */
+    /**
+     * Theme values: 'dark'|'light'|'bw'|'bw-light'. Two independent axes: polarity
+     * (isLightPolarity) and effective color class (isBwTheme) — see theme.h for the
+     * C-side mirror of this split.
+     */
 
-/**
- * Light-polarity check: black-on-white themes. dark/bw share dark polarity
- * (white-on-black); light/bw-light share light polarity (black-on-white).
- * @param {string} theme 'dark'|'light'|'bw'|'bw-light'.
- * @returns {boolean} True for 'light' or 'bw-light'.
- */
-function isLightPolarity(theme) {
-    return theme === 'light' || theme === 'bw-light';
-}
-
-/**
- * Effective B&W check: themes that render the Black & White drawing path on a
- * color display. bw is dark-polarity B&W; bw-light is light-polarity B&W.
- * @param {string} theme 'dark'|'light'|'bw'|'bw-light'.
- * @returns {boolean} True for 'bw' or 'bw-light'.
- */
-function isBwTheme(theme) {
-    return theme === 'bw' || theme === 'bw-light';
-}
-
-/**
- * @param {number} color 0xRRGGBB resolved color.
- * @param {string} theme 'dark'|'light'|'bw'|'bw-light'.
- * @returns {number} color, or GColorBlack when color is exactly white and theme is light-polarity.
- */
-function resolveInk(color, theme) {
-    if (isLightPolarity(theme) && color === COLORS.GColorWhite) {
-        return COLORS.GColorBlack;
+    /**
+     * Light-polarity check: black-on-white themes. dark/bw share dark polarity
+     * (white-on-black); light/bw-light share light polarity (black-on-white).
+     * @param {string} theme 'dark'|'light'|'bw'|'bw-light'.
+     * @returns {boolean} True for 'light' or 'bw-light'.
+     */
+    function isLightPolarity(theme) {
+        return theme === 'light' || theme === 'bw-light';
     }
-    return color;
-}
 
-/**
- * The theme a target watch will actually render, given whether its platform ships
- * the light polarity. Platforms without WW_THEME_POLARITY (aplite) have the light
- * polarity compiled out — theme.h pins theme_is_light() to false, so a stored
- * light / bw-light byte renders as the classic white-on-black. Mirror that freeze
- * on the phone before deriving wire colors, or a light-polarity flip (white→black)
- * would ship line/dot colors the watch draws black-on-black. Folds the polarity to
- * dark: light→dark, bw-light→bw; dark/bw pass through. supportsPolarity true (every
- * platform except aplite) returns the theme unchanged.
- * @param {string} theme 'dark'|'light'|'bw'|'bw-light'.
- * @param {boolean} supportsPolarity Whether the target platform ships the light polarity.
- * @returns {string} The theme the target platform actually renders.
- */
-function effectiveTheme(theme, supportsPolarity) {
-    if (supportsPolarity) { return theme; }
-    if (theme === 'light') { return 'dark'; }
-    if (theme === 'bw-light') { return 'bw'; }
-    return theme;
-}
+    /**
+     * Effective B&W check: themes that render the Black & White drawing path on a
+     * color display. bw is dark-polarity B&W; bw-light is light-polarity B&W.
+     * @param {string} theme 'dark'|'light'|'bw'|'bw-light'.
+     * @returns {boolean} True for 'bw' or 'bw-light'.
+     */
+    function isBwTheme(theme) {
+        return theme === 'bw' || theme === 'bw-light';
+    }
 
-module.exports = {
-    resolveInk: resolveInk,
-    isLightPolarity: isLightPolarity,
-    isBwTheme: isBwTheme,
-    effectiveTheme: effectiveTheme
-};
+    /**
+     * @param {number} color 0xRRGGBB resolved color.
+     * @param {string} theme 'dark'|'light'|'bw'|'bw-light'.
+     * @returns {number} color, or GColorBlack when color is exactly white and theme is light-polarity.
+     */
+    function resolveInk(color, theme) {
+        if (isLightPolarity(theme) && color === COLORS.GColorWhite) {
+            return COLORS.GColorBlack;
+        }
+        return color;
+    }
+
+    /**
+     * The theme a target watch will actually render, given whether its platform ships
+     * the light polarity. Platforms without WW_THEME_POLARITY (aplite) have the light
+     * polarity compiled out — theme.h pins theme_is_light() to false, so a stored
+     * light / bw-light byte renders as the classic white-on-black. Mirror that freeze
+     * on the phone before deriving wire colors, or a light-polarity flip (white→black)
+     * would ship line/dot colors the watch draws black-on-black. Folds the polarity to
+     * dark: light→dark, bw-light→bw; dark/bw pass through. supportsPolarity true (every
+     * platform except aplite) returns the theme unchanged.
+     * @param {string} theme 'dark'|'light'|'bw'|'bw-light'.
+     * @param {boolean} supportsPolarity Whether the target platform ships the light polarity.
+     * @returns {string} The theme the target platform actually renders.
+     */
+    function effectiveTheme(theme, supportsPolarity) {
+        if (supportsPolarity) { return theme; }
+        if (theme === 'light') { return 'dark'; }
+        if (theme === 'bw-light') { return 'bw'; }
+        return theme;
+    }
+
+    var api = {
+        resolveInk: resolveInk,
+        isLightPolarity: isLightPolarity,
+        isBwTheme: isBwTheme,
+        effectiveTheme: effectiveTheme
+    };
+
+    // Dual-context export — mirrors the tail of src/pkjs/status-thresholds.js.
+    if (typeof module !== 'undefined' && module.exports) {
+        module.exports = api;
+    }
+    if (typeof window !== 'undefined') {
+        window.ResolveInk = api;
+    }
+})();

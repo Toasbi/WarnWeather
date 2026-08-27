@@ -10,6 +10,7 @@ module.exports = {
     STATUS_LINE_HEALTH_DEFAULTS_MIGRATION_KEY: 'v1.8.0_status_line_health_defaults_migration',
     STATUS_TOP_RIGHT_BATTERY_MIGRATION_KEY: 'v1.8.0_status_top_right_battery_migration',
     RADAR_VIEW_MODE_MIGRATION_KEY: 'v1.10.0_radar_view_mode_migration',
+    GRAPH_NIGHT_COLORS_MIGRATION_KEY: 'v1.15.0_graph_night_colors_migration',
     FETCH_ATTEMPT_KEY: 'weather_fetch_attempt',
     LAST_FETCH_SUCCESS_KEY: 'lastFetchSuccess',
     LAST_FETCH_ATTEMPT_KEY: 'lastFetchAttempt',

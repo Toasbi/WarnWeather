@@ -47,10 +47,10 @@ test('the fixture send bundles the line styling, threaded with watchInfo', () =>
   }
   assert.equal(sent.length, 1);
   const style = sent[0].CLAY_LINE_STYLE_UINT8;
-  assert.equal(style.length, 4);
+  assert.equal(style.length, 10);
   assert.equal(style[0], 0xFF);   // GColorWhite line on B&W — proves watchInfo reached the resolver
   assert.equal(style[1], 0xEA);   // GColorLightGray fill on B&W
-  assert.equal(style[3] & 0x01, 1, 'secondaryLineFill rides the flag byte');
+  assert.equal(style[3] & 0x01, 1, 'secondaryLineFill rides the line flag byte');
 });
 
 test('fixture without windKmh still produces a valid (flat) wind line', () => {

@@ -90,7 +90,7 @@ Register your custom blocks and hooks in browser-side files (concatenated into t
 time — see [Build step](#build-step--buildpage)):
 
 ```js
-// src/pkjs/settings/preview-blocks.js  (runs in the phone WebView)
+// src/pkjs/settings/preview-forecast.js  (runs in the phone WebView)
 PConf.blocks.register('forecastPreview', function (state, env, userData) {
   return '<svg …>' + /* render from state */ + '</svg>';
 });
@@ -223,7 +223,8 @@ Schema
        └─ sections[]
             ├─ title        string
             ├─ intro        string  (HTML — displayed above items)
-            ├─ block        string  (custom-block id — see Registries)
+            ├─ blockBefore  string  (custom-block id — rendered above the items)
+            ├─ block        string  (custom-block id — rendered below the items)
             ├─ collapsible  boolean (renders section as a collapsible card)
             └─ items[]
                  └─ (see Item fields below)
@@ -237,7 +238,7 @@ Schema
 | `select` | Dropdown | string | `select` |
 | `segmented` | Pill-row (new) | string | `select` (visual variant) |
 | `radio` | Stacked radio buttons | string | `radiogroup` |
-| `color` | 64-swatch color palette | hex string on wire; **int** in the persisted blob | `color` |
+| `color` | Color palette — the 64 Pebble swatches | hex string on wire; **int** in the persisted blob | `color` |
 | `text` | Text input | string | `input` |
 | `staticText` | Static HTML block; no key | — (not serialized) | `text` |
 | `searchSelect` | Dropdown sheet with a search box | string | — |
@@ -246,8 +247,18 @@ Schema
 | `hidden` | none — never rendered | any (serialized like any keyed item) | — |
 | `button` | Tappable action row; no key | — (not serialized) | — |
 | `subheader` | In-section group header; no key | — (not serialized) | — |
+| `sheet` | Tappable row that opens a `sheetOnly` section; no key | — (not serialized) | — |
 
-The thirteen types above are the complete built-in set. Anything bespoke belongs in a custom block
+A `sheet` item is a whole-row chevron target by default. Give it an
+`editBadgeFrom: { resolver, args }` — a named resolver `fn(S, env, args)` returning `null` or
+`{label?, ariaNote?, dots: [{color, ring?}]}`, registered on `PConf.badgeResolvers` — and it
+renders as an ordinary row instead: label on the left, then the badge's colour dots (outlined
+when `ring`, filled otherwise) and an **Edit** button on the right, with nothing between them
+(there is no control to draw for a `sheet`). Use that shape for a row that only leads to a
+sheet but should still show what is configured in there. Because the row has no `messageKey`,
+whatever the resolver needs to identify the row must be passed in `editBadgeFrom.args`.
+
+The fourteen types above are the complete built-in set. Anything bespoke belongs in a custom block
 registered via `PConf.blocks.register` — the control-type dispatch itself is not pluggable from
 app code.
 
@@ -262,6 +273,9 @@ switch on the header instead of as a row of its own — while keeping its normal
 `staticText` items carry their HTML in a `text` field and are emitted verbatim without control
 chrome. They are not serialized (no `messageKey`).
 
+`color` items offer all 64 Pebble swatches; `excludeColors` subtracts specific ones (e.g.
+white from the holiday picker, where white means "no highlight" rather than a real color).
+
 ### Section and item fields
 
 **Section fields:**
@@ -270,7 +284,9 @@ chrome. They are not serialized (no `messageKey`).
 |-------|------|-------------|
 | `title` | string | Section heading |
 | `intro` | string | HTML rendered above items |
-| `block` | string | Custom-block id (see [Registries](#registries-and-hooks)) |
+| `blockBefore` | string | Custom-block id rendered ABOVE the items (below the intro) — the mirror of `block`. Use it for a preview that heads the whole card, instead of hanging one off whichever item happens to be first. |
+| `blockBeforeSticky` | boolean | Pins the `blockBefore` block below the topbar while the rows scroll under it (same as the item-level flag) |
+| `block` | string | Custom-block id rendered BELOW the items (see [Registries](#registries-and-hooks)) |
 | `collapsible` | boolean | Collapses the section into an expandable card |
 | `items` | Item[] | The items to render |
 
@@ -278,7 +294,7 @@ chrome. They are not serialized (no `messageKey`).
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `type` | string | One of the thirteen types above |
+| `type` | string | One of the fourteen types above |
 | `messageKey` | string | Serialization key — must match the AppMessage/C key |
 | `defaultValue` | any | Default value. Color defaults are ints (e.g. `0xFFFFFF`). |
 | `options` | `[label, value][]` | Choices for `select`, `segmented`, `radio` |

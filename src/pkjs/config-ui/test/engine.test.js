@@ -116,6 +116,11 @@ test('renderControl color: excludeColors drops swatches from the open palette on
   assert.ok(filtered.indexOf('data-color-pick="#FF0055"') >= 0, 'other swatches remain');
 });
 
+test('renderControl color: every picker offers all 64', () => {
+  const full = E.renderControl({ type: 'color', messageKey: 'tint' }, { value: '#FF0055', openColor: 'tint' });
+  assert.equal(full.split('data-color-pick=').length - 1, 64, 'the shared PALETTE is untouched');
+});
+
 test('renderRow: stacked for text/radio/open-color, wrap when multi-line hinted, inline otherwise; hintByValue wins', () => {
   // Rows with a multi-line (long) hint use the wrap layout (control floated right,
   // hint flows around it).
@@ -507,6 +512,48 @@ test('renderBody: empty section card is suppressed', () => {
   const cx = { S: {}, ENV: { color: true }, USERDATA: {}, openColor: null, collapsed: {}, evalCtx: { env: { color: true } } };
   const html = E.renderBody(EMPTY, 't', cx);
   assert.equal(html.indexOf('Gone'), -1, 'card with only hidden items is omitted');
+});
+
+test('renderBody: button and sheet rows share ONE chevron, coloured by class not a literal', () => {
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
+    { title: 'S', items: [
+      { type: 'button', action: 'doIt', label: 'Do it', hint: 'Runs it.' },
+      { type: 'sheet', sheetId: 'more', label: 'More' }
+    ] },
+    { sheetOnly: true, sheetId: 'more', title: 'More', items: [
+      { type: 'toggle', messageKey: 'f', defaultValue: false } ] }
+  ] }] };
+  const cx = { S: E.hydrate(SCH, {}), ENV: { color: true }, USERDATA: {}, openColor: null,
+    collapsed: {}, evalCtx: Object.assign({}, E.hydrate(SCH, {}), { env: { color: true } }) };
+  const html = E.renderBody(SCH, 't', cx);
+  assert.ok(html.indexOf('data-action="doIt"') >= 0, 'the button row dispatches its action');
+  assert.ok(html.indexOf('data-edit-sheet="more"') >= 0, 'the sheet row opens its sheet');
+  assert.equal(html.split('<span class="chev">&#9656;</span>').length - 1, 2,
+    'both rows emit the same class-based chevron');
+  // A literal here is the light-theme bug: --link is #FF6A52 dark / #D93A24 light, and
+  // only the .chev rule in shell.html follows the flip.
+  assert.equal(html.indexOf('#FF6A52'), -1, 'no hard-coded link colour survives');
+  assert.ok(html.indexOf('Runs it.') >= 0, 'the button row keeps its hint');
+});
+
+test('renderBody: a section-level blockBefore leads the rows and can stand alone', () => {
+  E.blocks.register('secLead', () => '<p>lead</p>');
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
+    { title: 'S', intro: 'Intro text.', blockBefore: 'secLead', blockBeforeSticky: true, items: [
+      { type: 'toggle', messageKey: 'f', label: 'Flag', defaultValue: false } ] }
+  ] }] };
+  const mk = (s) => ({ S: E.hydrate(s, {}), ENV: { color: true }, USERDATA: {}, openColor: null,
+    collapsed: {}, evalCtx: Object.assign({}, E.hydrate(s, {}), { env: { color: true } }) });
+  const html = E.renderBody(SCH, 't', mk(SCH));
+  assert.ok(/Intro text\.[\s\S]*blockrow sticky[\s\S]*data-toggle/.test(html),
+    'intro, then the sticky leading block, then the rows');
+  // A section whose only content is the leading block still renders (isEmpty counts it).
+  const ONLY = JSON.parse(JSON.stringify(SCH));
+  delete ONLY.tabs[0].sections[0].intro;
+  ONLY.tabs[0].sections[0].items = [
+    { type: 'toggle', messageKey: 'f', defaultValue: false, showWhen: { key: 'never', eq: 'yes' } }];
+  assert.ok(E.renderBody(ONLY, 't', mk(ONLY)).indexOf('<p>lead</p>') >= 0,
+    'a leading block alone keeps the card alive');
 });
 
 test('renderSelectOptions: empty query lists all; current value flagged on', () => {
@@ -1113,6 +1160,78 @@ test('boot(): external openSheet close skips underlying trigger focus and calls 
   result.modalListeners.cancel({ preventDefault: () => {} });
   assert.equal(result.focusCounts.select.theme || 0, 0);
   assert.equal(closed, 1);
+});
+
+// One openColor variable serves palettes on BOTH surfaces — the tab body and an edit
+// sheet — so this card deliberately mixes a color row with a select row (the shipped
+// Layout tab does exactly that) and adds a sheet holding a color row of its own.
+const COLOR_SURFACE_SCHEMA = {
+  appName: 'X', versionLabel: 'v0',
+  tabs: [{ id: 't', label: 'T', sections: [
+    { title: 'S', items: [
+      { type: 'color', messageKey: 'tint', label: 'Tint', defaultValue: 0xFF0000,
+        onChange: 'tintPicked' },
+      { type: 'select', messageKey: 'mode', label: 'Mode', defaultValue: 'a',
+        options: [['A', 'a'], ['B', 'b']] },
+      { type: 'sheet', sheetId: 'more', label: 'More colors' }
+    ] },
+    { sheetOnly: true, sheetId: 'more', title: 'More colors', items: [
+      { type: 'color', messageKey: 'accent', label: 'Accent', defaultValue: 0x00FF00 }
+    ] }
+  ] }]
+};
+
+/**
+ * Dispatch one synthetic delegated click whose target matches exactly ONE selector —
+ * the shape the engine's `e.target.closest(sel)` delegation reads.
+ * @param {Function} listener Captured click listener (#scroll or #modal).
+ * @param {string} selector The single selector the target answers to.
+ * @param {Object} attrs getAttribute lookup table for the matched node.
+ * @returns {void}
+ */
+function clickMatching(listener, selector, attrs) {
+  const node = {
+    getAttribute: (n) => (Object.prototype.hasOwnProperty.call(attrs, n) ? attrs[n] : null),
+    closest: (sel) => (sel === selector ? node : null)
+  };
+  listener({ target: { closest: (sel) => (sel === selector ? node : null) } });
+}
+
+test('boot(): closing an unrelated modal leaves a tab-body palette expanded', () => {
+  const r = bootWithCapturedListeners(COLOR_SURFACE_SCHEMA, {});
+  clickMatching(r.listeners.click, '[data-color]', { 'data-color': 'tint' });
+  assert.ok(r.scroll.innerHTML.indexOf('class="palette"') >= 0, 'the palette expands in the tab body');
+  // Open the select sitting in the same card, then dismiss it. The palette behind it
+  // belongs to the tab body, not to the modal, so it must survive the close.
+  clickMatching(r.listeners.click, '[data-select]', { 'data-select': 'mode' });
+  clickMatching(r.modalListeners.click, '[data-select-close]', {});
+  assert.ok(r.scroll.innerHTML.indexOf('class="palette"') >= 0,
+    'closing a select must not collapse a palette in the tab body');
+});
+
+test('boot(): closing an edit sheet collapses a palette expanded inside it', () => {
+  const r = bootWithCapturedListeners(COLOR_SURFACE_SCHEMA, {});
+  clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'more' });
+  assert.ok(r.modal.innerHTML.indexOf('data-color="accent"') >= 0, 'the sheet renders its color row');
+  clickMatching(r.modalListeners.click, '[data-color]', { 'data-color': 'accent' });
+  assert.ok(r.modal.innerHTML.indexOf('class="palette"') >= 0, 'the palette expands inside the sheet');
+  clickMatching(r.modalListeners.click, '[data-select-close]', {});
+  clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'more' });
+  assert.equal(r.modal.innerHTML.indexOf('class="palette"'), -1, 'the sheet reopens collapsed');
+});
+
+test('boot(): a color swatch goes through setValue, so it fires the item\'s onChange', () => {
+  const r = bootWithCapturedListeners(COLOR_SURFACE_SCHEMA, {});
+  const calls = [];
+  r.onChange.register('tintPicked', (S, oldV, newV, env, key) => {
+    calls.push({ oldV, newV, key, sValue: S[key] });
+  });
+  clickMatching(r.listeners.click, '[data-color-pick]',
+    { 'data-k': 'tint', 'data-color-pick': '#00AAFF' });
+  assert.deepEqual(calls,
+    [{ oldV: '#FF0000', newV: '#00AAFF', key: 'tint', sValue: '#00AAFF' }],
+    'the hook sees the old and new values, and S is already written');
+  assert.equal(r.getValue('tint'), '#00AAFF', 'the pick is stored');
 });
 
 test('boot(): onLoad hook context exposes the injected platform environment', () => {

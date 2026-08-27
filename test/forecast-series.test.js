@@ -834,8 +834,9 @@ test('flat joint band (all temps and feels equal): feels sits mid-plot like the 
 });
 
 test('feels colors: LightGray line (BLACK in light theme, white on B&W), LightGray dark fill', () => {
-  // The dark fill must stay LightGray: forecast_layer.c's night_area_palette_for_fill
-  // keys the feels night palette on GColorLightGray.
+  // The dark fill stays LightGray so it reads as a dimmer twin of the LightGray
+  // line. (It used to key the C's night palette too; the night triple is keyed by
+  // METRIC in line-style.js now, so this assertion is about the DAY fill alone.)
   assert.equal(LINE_COLORS.feels.color, 0xAAAAAA);  // GColorLightGray
   assert.equal(LINE_COLORS.feels.light, 0x000000);  // GColorBlack — a gray is invisible at 1px on white
   assert.equal(LINE_COLORS.feels.bw, 0xFFFFFF);     // GColorWhite

@@ -10,8 +10,11 @@ test('dev preview page injects the preview palette into userData', () => {
   // NOT a bare substring that also matches the CSS class or the blocks.js fallback source.
   assert.ok(html.indexOf('INJECTED_USERDATA={"palette":{') >= 0,
     'palette object is injected into INJECTED_USERDATA');
-  assert.ok(html.indexOf('"precip_prob":{"color":"#55AAFF"') >= 0,
-    'injected palette carries the watch precip color in JSON form (not the source fallback literal)');
+  // The graph's line/fill colours are NOT in here any more — preview-forecast.js resolves
+  // those live from `state` through line-style.js. The rain-tier ramp still is, and it
+  // comes from rain-tier.buildPalette, so pin one of its bands.
+  assert.ok(html.indexOf('"rainTiers":[{"from":0,') >= 0,
+    'injected palette carries the watch rain-tier ramp in JSON form (not the source fallback literal)');
 });
 
 test('parseArgs treats a lone platform name as the platform, not the output path', () => {

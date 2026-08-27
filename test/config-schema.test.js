@@ -46,6 +46,13 @@ const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnOutlineOn', 'Warn', 'Dang
 // slot text the phone bakes; the watch-formatted kinds (distance, heart rate, sleep,
 // battery %) would need the flag on the wire and are deliberately absent.
 const UNIT_KEYS = ['tempSlotUnit', 'pressureSlotUnit', 'countdownSlotUnit', 'dewSlotUnit'];
+// The Graph-colors rows: every metric colour, with one picker per theme polarity so a
+// Dark and a Light pick never overwrite one another (the colorUSFederal idiom). The list
+// comes from line-style.js because the schema builds its rows from the same call — this
+// file asserts the card matches the RENDERER's key list, not that both match a third
+// copy kept here.
+const lineStyle = require('../src/pkjs/line-style.js');
+const GRAPH_COLOR_KEYS = lineStyle.graphColorKeys();
 
 const EXPECTED_KEYS = [
   'theme',
@@ -61,7 +68,7 @@ const EXPECTED_KEYS = [
   'statusRadarLeft','statusRadarLeftCountdown','statusRadarMid','statusRadarMidCountdown','statusRadarRight','statusRadarRightCountdown',
   'statusTopLeft','statusTopLeftCountdown','statusTopMid','statusTopMidCountdown','statusTopRight','statusTopRightCountdown',
   'batteryLowOnly','statusHealthLeft','statusHealthLeftCountdown','statusHealthMid','statusHealthMidCountdown','statusHealthRight','statusHealthRightCountdown'
-].concat(THRESH_KEYS).concat(UNIT_KEYS);
+].concat(THRESH_KEYS).concat(UNIT_KEYS).concat(GRAPH_COLOR_KEYS);
 
 test('every Clay messageKey present; theme/windScale/colorUSFederal are the only duplicates (contextual slots)', () => {
   EXPECTED_KEYS.forEach((k) => assert.ok(byKey(k), 'missing messageKey: ' + k));
@@ -146,7 +153,7 @@ test('color defaults are ints', () => {
   const colorTypeKeys = Array.from(new Set(items.filter((i) => i.type === 'color').map((i) => i.messageKey))).sort();
   assert.deepEqual(colorTypeKeys,
     ['colorSaturday','colorSunday','colorTime','colorToday','colorUSFederal']
-      .concat(THRESH_COLOR_KEYS).sort());
+      .concat(THRESH_COLOR_KEYS).concat(GRAPH_COLOR_KEYS).sort());
 });
 
 test('B/W bar-scale hints are staticText, gated to effective non-color + the picker condition', () => {
@@ -1646,4 +1653,181 @@ test('windScale hints derive from the graph ceilings, strings pinned', () => {
   assert.equal(hintFor('knots').low, 'Tops out at 16 kn — emphasizes light, gentle winds.');
   assert.equal(hintFor('knots').mid, 'Tops out at 27 kn — general use; gusts visible, typical winds sit mid-graph.');
   assert.equal(hintFor('knots').high, 'Tops out at 38 kn — keeps strong gusts from flattening against the top.');
+});
+
+// --- the Graph-colors card (Forecast tab) ------------------------------------
+// One card with one row per graph metric plus the night band; each row
+// opens its own sheet. Every colour is a CONCRETE per-polarity value defaulting to the
+// built-in line-style.js resolves today, so a picker opens with the colour the graph
+// already draws highlighted — no Auto sentinel, no curated palette.
+const forecastSections = () => schema.tabs.find((t) => t.id === 'forecast').sections;
+const graphCard = () => forecastSections().find((s) => s.id === 'graphColors');
+const graphSheets = () => forecastSections().filter((s) => s.sheetOnly);
+const gcSheetById = (id) => graphSheets().find((s) => s.sheetId === id);
+// The seven rows in card order: the six metrics as the metric pickers list them, then
+// the full-height night band.
+const GRAPH_ROW_SHEETS = ['gcPrecip', 'gcWind', 'gcGust', 'gcUv', 'gcPressure', 'gcFeels', 'gcNight'];
+const GRAPH_ROW_SCOPES = ['precip_prob', 'wind', 'gust', 'uv', 'pressure', 'feels', 'night'];
+// Everything a live gate could read, so only the polarity gate is left to vary — the
+// point being that no graph-colour row reads any of them.
+const graphState = (over) => Object.assign({
+  theme: 'dark', env: { color: true },
+  secondaryLine: 'wind', secondaryLineFill: true, thirdLine: 'uv', dayNightShading: true
+}, over || {});
+
+test('the Forecast tab carries ONE Graph colors card, always open, under an explicit id', () => {
+  const card = graphCard();
+  assert.ok(card, 'the card is on the Forecast tab');
+  // Plain section: the rows are visible without a tap. Nothing on this tab collapses.
+  assert.equal(card.collapsible, undefined, 'the Graph colors card is not expandable');
+  assert.equal(forecastSections().filter((s) => s.collapsible).length, 0,
+    'no collapsible section on the Forecast tab');
+  assert.equal(card.id, 'graphColors');
+  assert.equal(card.title, 'Graph colors');
+  // A groupCard section renders through renderSectionGroup, which emits no card header
+  // — this card's title would vanish silently.
+  assert.equal(card.groupCard, undefined);
+  assert.equal(card.sheetOnly, undefined, 'the card itself is a normal tab section');
+  assert.ok(card.intro, 'the card says what its rows are');
+  assert.deepEqual(card.capabilities, ['COLOR']);
+  assert.deepEqual(card.showWhen, { key: 'theme', nin: ['bw', 'bw-light'] });
+  // Both gates, evaluated: a B&W theme or a B&W watch hides the whole card, header
+  // included (buildSectionBody runs before renderSection's open test).
+  assert.equal(showWhen.isVisible(card, { theme: 'dark', env: { color: true } }), true);
+  assert.equal(showWhen.isVisible(card, { theme: 'bw', env: { color: true } }), false);
+  assert.equal(showWhen.isVisible(card, { theme: 'bw-light', env: { color: true } }), false);
+  assert.equal(showWhen.isVisible(card, { theme: 'dark', env: { color: false } }), false);
+});
+
+test('the card is seven sheet rows in metric-picker order, each identified by its badge args', () => {
+  const rows = graphCard().items;
+  assert.equal(rows.length, 7, 'six metrics plus the night band — nothing else in the card');
+  rows.forEach((row) => assert.equal(row.type, 'sheet'));
+  assert.deepEqual(rows.map((r) => r.sheetId), GRAPH_ROW_SHEETS);
+  // The six metric rows carry the metric picker's own labels, in its own order, so the
+  // two lists read as one vocabulary instead of drifting apart.
+  assert.deepEqual(rows.slice(0, 6).map((r) => [r.label, r.editBadgeFrom.args.scope]),
+    metricOptions({}, { platform: 'basalt' }, {}));
+  assert.equal(rows[6].label, 'Night shading');
+  rows.forEach((row, i) => {
+    assert.equal(row.messageKey, undefined, row.sheetId + ' stores nothing of its own');
+    // resolveEditBadge merges the item's messageKey UNDER editBadgeFrom.args, and a
+    // `sheet` row has none — so the row's identity can only ride those args.
+    assert.equal(row.editBadgeFrom.resolver, 'graphColorSwatch');
+    assert.deepEqual(row.editBadgeFrom.args, { scope: GRAPH_ROW_SCOPES[i] });
+    // No live gate: a metric's colours are configurable before it is selected.
+    assert.equal(row.showWhen, undefined, row.sheetId + ' inherits the card gate only');
+  });
+});
+
+test('each row has a sheetOnly section carrying BOTH gates and no sticky preview', () => {
+  assert.equal(graphSheets().length, 7, 'seven sheets on the tab, one per row');
+  GRAPH_ROW_SHEETS.forEach((id) => {
+    const sec = gcSheetById(id);
+    assert.ok(sec, 'missing sheet: ' + id);
+    assert.equal(sec.sheetOnly, true);
+    assert.equal(sec.collapsible, undefined, 'a sheet is a dialog body, not a card');
+    // capabilities alone does not gate a SECTION — buildSectionBody and renderEditModal
+    // test sec.showWhen first.
+    assert.deepEqual(sec.showWhen, { key: 'theme', nin: ['bw', 'bw-light'] });
+    assert.deepEqual(sec.capabilities, ['COLOR']);
+    // No forecast preview heads these sheets: being position:sticky it would occlude
+    // the open 64-swatch palette at every scroll offset on a narrow phone.
+    assert.equal(sec.blockBefore, undefined);
+    assert.equal(sec.blockBeforeSticky, undefined);
+    assert.equal(sec.block, undefined);
+  });
+});
+
+test('every graph colour is a Dark/Light pair on one label, one visible at a time', () => {
+  GRAPH_ROW_SHEETS.forEach((id, r) => {
+    const scope = GRAPH_ROW_SCOPES[r];
+    // The roles come from the renderer, so a sheet cannot offer a colour nothing paints
+    // (feels is Line-only) or miss one it does.
+    const roles = lineStyle.graphColorRoles(scope);
+    const rows = gcSheetById(id).items.filter((i) => i.type === 'color');
+    assert.equal(rows.length, roles.length * 2, id + ': one pair per role');
+    roles.forEach((role, i) => {
+      const dark = rows[i * 2];
+      const light = rows[i * 2 + 1];
+      assert.equal(dark.messageKey, lineStyle.graphColorKey(scope, role, 'Dark'));
+      assert.equal(light.messageKey, lineStyle.graphColorKey(scope, role, 'Light'));
+      assert.equal(dark.label, light.label, dark.messageKey + ' pair shares one label');
+      [dark, light].forEach((row) => {
+        assert.deepEqual(row.capabilities, ['COLOR']);
+      });
+      // The default is the built-in taken FROM the renderer, as an int (the
+      // colorUSFederal shape) — never a hex transcribed into the schema.
+      assert.equal(typeof dark.defaultValue, 'number');
+      assert.equal(dark.defaultValue, lineStyle.graphColorDefault(scope, role, 'Dark', null));
+      assert.equal(light.defaultValue, lineStyle.graphColorDefault(scope, role, 'Light', null));
+      // Mutually exclusive on polarity, and nothing else gates them: the row shows
+      // whether or not its metric is the one currently drawn.
+      const inert = { secondaryLine: 'precip_prob', thirdLine: 'off', secondaryLineFill: false, dayNightShading: false };
+      assert.equal(showWhen.isVisible(dark, graphState(inert)), true, dark.messageKey + ' shows on dark');
+      assert.equal(showWhen.isVisible(light, graphState(inert)), false, light.messageKey + ' hides on dark');
+      assert.equal(showWhen.isVisible(light, graphState(Object.assign({ theme: 'light' }, inert))), true);
+      assert.equal(showWhen.isVisible(dark, graphState(Object.assign({ theme: 'light' }, inert))), false);
+      ['bw', 'bw-light'].forEach((theme) => {
+        assert.equal(showWhen.isVisible(dark, graphState({ theme })), false, dark.messageKey + ' hides on ' + theme);
+        assert.equal(showWhen.isVisible(light, graphState({ theme })), false, light.messageKey + ' hides on ' + theme);
+      });
+      // A B&W watch never renders a colour: the COLOR capability hides both rows
+      // whatever the stored theme says.
+      assert.equal(showWhen.isVisible(dark, graphState({ env: { color: false } })), false);
+      assert.equal(showWhen.isVisible(light, graphState({ theme: 'light', env: { color: false } })), false);
+    });
+  });
+});
+
+// The night tint follows the fill until it is picked in its own right (blocks.js'
+// graphFillTint), because the watch paints the night band opaquely over the filled
+// area — an unclaimed tint would keep re-shading a moved fill in the old built-in.
+// Only a Fill picker carries the hook: the Line and the night band's own colours have
+// nothing to drag along.
+test('each metric fill picker carries the night-tint hook, and only those', () => {
+  const withHook = items.filter((i) => i.onChange === 'graphFillTint').map((i) => i.messageKey);
+  const expected = [];
+  GRAPH_ROW_SCOPES.forEach((scope) => {
+    if (lineStyle.graphColorRoles(scope).indexOf('Night') === -1) { return; }
+    ['Dark', 'Light'].forEach((suffix) => {
+      expected.push(lineStyle.graphColorKey(scope, 'Fill', suffix));
+    });
+  });
+  assert.equal(expected.length, 10, 'five filling metrics x two polarities');
+  assert.deepEqual(withHook.slice().sort(), expected.slice().sort());
+});
+
+test('feels gets a Line pair only; the night band gets Hatch + Dusk/dawn', () => {
+  // feels never fills (resolveGraphColors pins fillOn false for it), so a Fill or a
+  // night-tint picker would offer a colour nothing can paint.
+  assert.deepEqual(gcSheetById('gcFeels').items.filter((i) => i.type === 'color').map((i) => i.messageKey),
+    ['gcFeelsLineDark', 'gcFeelsLineLight']);
+  assert.deepEqual(gcSheetById('gcNight').items.filter((i) => i.type === 'color').map((i) => i.messageKey),
+    ['gcNightHatchDark', 'gcNightHatchLight', 'gcNightBoundaryDark', 'gcNightBoundaryLight']);
+});
+
+test('each sheet resets exactly its own keys, and the seven lists partition the key set', () => {
+  let all = [];
+  GRAPH_ROW_SHEETS.forEach((id) => {
+    const sec = gcSheetById(id);
+    const header = sec.items[0];
+    assert.equal(header.type, 'subheader', id + ' leads with its reset header');
+    assert.equal(header.text, 'Colors');
+    assert.equal(header.messageKey, undefined, 'a subheader stores nothing');
+    const keys = sec.items.filter((i) => i.type === 'color').map((i) => i.messageKey);
+    // blocks.js takes the key list from HERE through data-action-arg, so it keeps no
+    // copy that could drift. BOTH polarities ride it: leaving the hidden one tuned
+    // would resurrect old picks on the next theme switch.
+    assert.deepEqual(header.labelAction,
+      { action: 'resetGraphColors', arg: keys.join(','), label: 'Reset to default' });
+    // The header is the sheet's only chrome; everything else is a picker.
+    assert.equal(sec.items.length, keys.length + 1, id + ' holds its pickers and nothing else');
+    assert.deepEqual(sec.items.filter((i) => i.labelAction), [header]);
+    all = all.concat(keys);
+  });
+  // A partition of the renderer's key list: every key is resettable from exactly one
+  // sheet, and no key is stranded without a reset.
+  assert.equal(new Set(all).size, all.length, 'no key resets from two sheets');
+  assert.deepEqual(all.slice().sort(), GRAPH_COLOR_KEYS.slice().sort());
 });

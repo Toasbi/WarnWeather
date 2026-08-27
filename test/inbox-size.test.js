@@ -179,7 +179,9 @@ function buildHeaviestClayMessage() {
     btIcons: 'both', vibe: true, timeShowAmPm: true, dayNightShading: true,
     fetchIntervalMin: '30', holidayCountry: 'US', holidaysEnabled: true,
     rainBarColor: 'multicolor', radarColor: 'multicolor', rainCountdownHorizon: '120',
-    healthMode: 'all', theme: 'bw', largeGraphFont: true,
+    // The theme must stay COLOUR-capable: a bw theme collapses the bar and radar
+    // palettes to a single stop and understates the worst case.
+    healthMode: 'all', theme: 'dark', largeGraphFont: true,
     // Worst-case custom no-rain text: the full 24-byte UTF-8 cap (CLAY_NORAIN_TEXT
     // packs it + NUL; clay-payload truncates anything longer at pack time).
     radarNoRainText: 'Kein Regen in Sichtweite',
@@ -214,6 +216,15 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // 7 B tuple header + 4 B data). It replaces 44 B on the weather message.
   // 449 -> 460 when the emery "Larger graph fonts" toggle joined
   // (CLAY_LARGE_GRAPH_FONT: 7 B tuple header + 4 B boolean-packed-as-int).
-  assert.equal(size, 460, 'update the recorded Clay message size when its wire contract changes');
+  // 460 -> 484 when the fixture theme moved bw -> dark: bw collapsed the bar and
+  // radar palettes and understated the worst case (MEASURED, not arithmetic).
+  // 484 -> 489 when CLAY_LINE_STYLE_UINT8 grew 4 -> 9 bytes for the user-selectable
+  // graph colours (the 7 B tuple header was already paid).
+  // 489 -> 490 when that tuple grew 9 -> 10: the night-fill-explicit bit moved out of the
+  // line flag byte [3] into a night flag byte [9] of its own, so wire bytes [4..9] are
+  // byte-for-byte the watch's NIGHT_COLORS persist blob (NIGHT_COLOR_BYTES = 6) and
+  // app_message.c stores the tail straight through instead of translating one bit between
+  // two positions under two names. One byte for that.
+  assert.equal(size, 490, 'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });
