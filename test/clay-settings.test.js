@@ -687,7 +687,7 @@ test('boot-only dev-config keys never persist into the settings blob', () => {
 });
 
 // --- The in-place-upgrade Clay resend -------------------------------------
-// 1.15.0 grew CLAY_LINE_STYLE_UINT8 from 4 to 9 bytes; the watch reads the
+// 1.15.0 grew CLAY_LINE_STYLE_UINT8 from 4 to 10 bytes; the watch reads the
 // night-area triple from persist NIGHT_COLORS, written only by that tuple.
 // An UPGRADED watch still has its CONFIG persist, so it reports hasConfig true
 // and the scheduler queues nothing; every other heal (holiday day-change,

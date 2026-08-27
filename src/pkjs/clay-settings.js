@@ -341,7 +341,7 @@ function runMigrations(opts) {
  * stored value — its only job is to make one Clay send happen on the first boot
  * after the upgrade.
  *
- * 1.15.0 grew CLAY_LINE_STYLE_UINT8 from 4 to 9 bytes and the watch now reads
+ * 1.15.0 grew CLAY_LINE_STYLE_UINT8 from 4 to 10 bytes and the watch now reads
  * its night-area colours from the persist key that tuple writes (NIGHT_COLORS,
  * absent = the built-in precip triple). An IN-PLACE upgrade keeps the watch's
  * CONFIG persist, so the startup handshake reports hasConfig true and the
@@ -353,7 +353,7 @@ function runMigrations(opts) {
  * settings page is opened and SAVED, or the local day rolls over.
  *
  * The change-detector still transmits when this fires: the phone's last-sent
- * cache holds the OLD 4-byte tuple and the new payload is 9 bytes.
+ * cache holds the OLD 4-byte tuple and the new payload is 10 bytes.
  *
  * Marker-gated, and the marker is DEFERRED to the Clay ACK (see runMigrations),
  * so a NACK retries on the next boot instead of silently marking it done.
