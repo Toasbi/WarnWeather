@@ -99,10 +99,12 @@ test('the graph-colour modules and the preview kit are bundled in dependency ord
   });
 });
 
-// blocks.js builds its fill-key -> night-key map from window.LineStyle while its own
-// IIFE body runs, so a wrong order leaves the map empty and the hook a no-op: fill picks
-// would keep their old night tint on a real phone with every Node test still green.
-test('the night-tint hook is registered in the generated page, after line-style', () => {
+// blocks.js reads window.LineStyle while its own IIFE body runs, so a wrong order leaves
+// it undefined and every resolver built on it throws on a real phone with every Node test
+// still green. The night tint is the one that would fail silently in the other direction:
+// its badge dot and its picker swatch both paint the CASCADED colour through
+// line-style's graphNightTint, so a rename that only Node sees would show a stale swatch.
+test('the night-tint display rule reaches the generated page, after line-style', () => {
   const appFiles = require('../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
     const at = appFiles.findIndex((f) => f.endsWith(suffix));
@@ -112,11 +114,11 @@ test('the night-tint hook is registered in the generated page, after line-style'
   assert.ok(idx('pkjs/line-style.js') < idx('settings/blocks.js'),
     'line-style.js must precede blocks.js, which reads window.LineStyle at IIFE time');
   const src = page();
-  assert.ok(src.indexOf("PConf.onChange.register('graphFillTint'") !== -1,
-    'nothing registers the graphFillTint hook — a fill pick would leave its night tint ' +
-    'behind on the built-in, and the watch would keep re-shading the night hours in it');
-  assert.ok(src.indexOf('graphNightTintFollowsFill') !== -1,
-    'line-style.js reaches the page without the predicate the hook calls');
+  assert.ok(src.indexOf("PConf.displayResolvers.register('graphNightTint'") !== -1,
+    'nothing registers the night-tint display resolver — the tint picker would show the ' +
+    'untouched key while the graph paints the fill colour');
+  assert.ok(src.indexOf('graphNightTint:') !== -1,
+    'line-style.js reaches the page without the cascade both surfaces call');
 });
 
 test('every preview block reaches the generated settings page', () => {

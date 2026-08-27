@@ -223,10 +223,6 @@ var GRAPH_ROLE_HINTS = {
  */
 function graphColorPair(scope, role) {
     var pol = [['dark', 'Dark'], ['light', 'Light']], rows = [], i;
-    // The night tint trails the fill until it is picked for itself (blocks.js'
-    // graphFillTint): the watch paints the tint opaquely over the filled area for the
-    // night hours, so a fill pick whose tint stayed behind would not take there.
-    var carriesTint = role === 'Fill' && lineStyle.graphColorRoles(scope).indexOf('Night') >= 0;
     for (i = 0; i < pol.length; i++) {
         rows.push({
             type: 'color',
@@ -236,13 +232,26 @@ function graphColorPair(scope, role) {
             // The INT form, like colorUSFederal below: deriveDefaults seeds the int,
             // the page hydrates it to '#RRGGBB' and parseResponse converts it back.
             // No settings blob is passed — gust's dark line reads rainBarColor at
-            // RESOLVE time, and a schema default is a constant (see graphColorDefault's
-            // wart note); both of its built-ins count as "still the default" there.
+            // RESOLVE time, and a schema default is a constant, so this row gets the
+            // multicolour-bars value; graphColorIsDefault counts BOTH of its built-in
+            // greys as "still the default", so a white-bar install is not misread.
             defaultValue: lineStyle.graphColorDefault(scope, role, pol[i][1], null),
             capabilities: ['COLOR'],
             showWhen: {all: [{key: 'theme', eq: pol[i][0]}]}
         });
-        if (carriesTint) { rows[rows.length - 1].onChange = 'graphFillTint'; }
+        // The night tint is the one graph colour whose picker paints something other
+        // than its stored value: it cascades from the metric's fill until it is picked
+        // in its own right (line-style.js' graphNightTint), so the swatch shown as
+        // highlighted has to be the cascaded colour, not the untouched key. The
+        // polarity comes from this row's own gate rather than the live theme — the two
+        // rows of the pair are edited independently. ('Night' is a metric role only:
+        // graphColorRoles('night') is Hatch/Boundary, so the band never lands here.)
+        if (role === 'Night') {
+            rows[rows.length - 1].displayFrom = {
+                resolver: 'graphNightTint',
+                args: {scope: scope, suffix: pol[i][1]}
+            };
+        }
     }
     return rows;
 }

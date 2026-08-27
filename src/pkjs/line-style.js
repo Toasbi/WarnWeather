@@ -156,10 +156,11 @@
     // --- The per-metric graph-colour key vocabulary -----------------------------
     //
     // Every graph colour is stored as a CONCRETE per-polarity value under a key named
-    // 'gc' + metric slug + role + polarity ('gcPrecipLineDark'), seeded from the built-in
-    // table below. There is no "auto" sentinel: the settings page shows the stored colour
-    // as the highlighted swatch, and "is this still the built-in?" is answered by comparing
-    // the stored value against that table (graphColorIsDefault), not by a magic value.
+    // 'gc' + metric slug + role + polarity ('gcPrecipLineDark'), seeded from
+    // graphColorDefault below. There is no "auto" sentinel: the settings page shows the
+    // stored colour as the highlighted swatch, and "is this still the built-in?" is
+    // answered by asking graphColorDefault for the built-in and comparing
+    // (graphColorIsDefault), not by a magic value.
 
     // The graph metrics that can be the main or the second line, in the order the settings
     // page lists them (blocks.js' FORECAST_METRICS).
@@ -176,57 +177,28 @@
     // The two colours the full-height night band owns, under the pseudo-scope 'night'.
     var NIGHT_ROLES = ['Hatch', 'Boundary'];
 
-    // The built-in colour behind every key: scope -> role -> polarity. These are the
-    // schema's defaultValues and the "the user hasn't moved it" comparison value, so they
-    // MUST equal what lineColorFor / fillColorFor / nightAreaColorsFor(m, null).base
-    // resolve to on a colour display — that equality is what keeps a fresh install
-    // pixel-identical to 1.14.1, and test/line-style.test.js pins every cell of it against
-    // those three functions rather than trusting this transcription.
-    //
-    // gust/Line/Dark is the one cell this table cannot state on its own: see
-    // graphColorDefault, which overrides it from rainBarColor.
-    //
-    // feels carries Fill and Night rows even though it never fills and therefore gets no
-    // Fill/Night KEY (graphColorRoles drops them): resolveGraphColors still resolves a fill
-    // byte and a night tint for whatever metric is selected, so the table has to be total
-    // over METRIC_ROLES.
-    var GRAPH_COLOR_DEFAULTS = {
-        precip_prob: {
-            Line:  { Dark: COLORS.GColorPictonBlue,     Light: COLORS.GColorVividCerulean },
-            Fill:  { Dark: COLORS.GColorCobaltBlue,     Light: COLORS.GColorElectricBlue },
-            Night: { Dark: COLORS.GColorDukeBlue,       Light: COLORS.GColorDukeBlue }
-        },
-        wind: {
-            Line:  { Dark: COLORS.GColorYellow,         Light: COLORS.GColorYellow },
-            Fill:  { Dark: COLORS.GColorArmyGreen,      Light: COLORS.GColorInchworm },
-            Night: { Dark: COLORS.GColorArmyGreen,      Light: COLORS.GColorArmyGreen }
-        },
-        uv: {
-            Line:  { Dark: COLORS.GColorMagenta,        Light: COLORS.GColorMagenta },
-            Fill:  { Dark: COLORS.GColorPurple,         Light: COLORS.GColorShockingPink },
-            Night: { Dark: COLORS.GColorImperialPurple, Light: COLORS.GColorImperialPurple }
-        },
-        gust: {
-            // Dark is White only while the rain bars are NOT white — see graphColorDefault.
-            Line:  { Dark: COLORS.GColorWhite,          Light: COLORS.GColorBlack },
-            Fill:  { Dark: COLORS.GColorDarkGray,       Light: COLORS.GColorLightGray },
-            Night: { Dark: COLORS.GColorDarkGray,       Light: COLORS.GColorDarkGray }
-        },
-        pressure: {
-            Line:  { Dark: COLORS.GColorOrange,         Light: COLORS.GColorOrange },
-            Fill:  { Dark: COLORS.GColorWindsorTan,     Light: COLORS.GColorChromeYellow },
-            Night: { Dark: COLORS.GColorWindsorTan,     Light: COLORS.GColorWindsorTan }
-        },
-        feels: {
-            Line:  { Dark: COLORS.GColorLightGray,      Light: COLORS.GColorBlack },
-            Fill:  { Dark: COLORS.GColorLightGray,      Light: COLORS.GColorLightGray },
-            Night: { Dark: COLORS.GColorLightGray,      Light: COLORS.GColorLightGray }
-        },
-        night: {
-            Hatch:    { Dark: NIGHT_HATCH_DEFAULT,    Light: NIGHT_HATCH_DEFAULT },
-            Boundary: { Dark: NIGHT_BOUNDARY_DEFAULT, Light: NIGHT_BOUNDARY_DEFAULT }
-        }
-    };
+    // Metric-id membership set for graphColorDefault. Built from GRAPH_METRICS so a new
+    // metric is a one-line change there and nowhere else.
+    var IS_GRAPH_METRIC = {};
+    (function () {
+        var i;
+        for (i = 0; i < GRAPH_METRICS.length; i++) { IS_GRAPH_METRIC[GRAPH_METRICS[i]] = true; }
+    }());
+
+    /**
+     * Is this scope one of the graph metrics? OWN keys only — a bare object literal answers
+     * truthy for every Object.prototype name ('toString', 'constructor'), which would route
+     * those down the Fill/Night arms. Note this does NOT make graphColorDefault total for
+     * such a name: the fall-through lands in lineColorFor, whose LINE_COLORS[metric] lookup
+     * has the same pre-existing hole (as do fillColorFor and nightAreaColorsFor), so it
+     * still answers undefined there. Closing that is separate hardening; no reachable input
+     * gets near it, since every scope comes from GRAPH_METRICS, 'night', or a metric picker.
+     * @param {string} scope Candidate metric id.
+     * @returns {boolean} True only for a member of GRAPH_METRICS.
+     */
+    function isGraphMetric(scope) {
+        return Object.prototype.hasOwnProperty.call(IS_GRAPH_METRIC, scope);
+    }
 
     /**
      * The storage key one graph colour lives under.
@@ -275,21 +247,23 @@
      * The built-in colour for one (scope, role, polarity) on a COLOUR render — the schema
      * default, and the value graphColorIsDefault compares a stored colour against.
      *
+     * DERIVED, never transcribed: every answer comes back out of the same three resolvers
+     * the renderer uses (lineColorFor / fillColorFor / nightAreaColorsFor), so a fresh
+     * install is pixel-identical to 1.14.1 by construction and a tweak to LINE_COLORS,
+     * FILL_COLORS or NIGHT_AREA_COLORS moves the default with it. That is also why gust's
+     * dark line needs no special case here: lineColorFor already dodges the rain bars
+     * (it reads settings.rainBarColor), and graphColorIsDefault accepts EITHER of the two
+     * greys it can answer as "still the built-in".
+     *
      * `suffix` alone names the theme here because this is the colour arm: renderContextFor
      * reports isColor true only for the 'dark' and 'light' themes (a bw/bw-light theme folds
      * to !isColor), so Dark <-> 'dark' and Light <-> 'light' exactly.
      *
-     * ACCEPTED WART — gust's dark line is the ONE built-in that depends on another live
-     * setting: it takes the achromatic slot so it never reads as one of the rain bars, which
-     * means it has to dodge whichever grey the bars use (lineColorFor). A static table cannot
-     * say that, so it is overridden here, and graphColorIsDefault treats EITHER value as
-     * "still the built-in". The cost is that this one row cannot be deliberately pinned to
-     * White or LightGray; the benefit is that a solid-white-bar install never paints a white
-     * gust line over white bars.
-     *
-     * TOTAL: a scope with no table entry (today only thirdLine's 'off') resolves to the theme
-     * foreground, the same answer lineColorFor gives, so no caller needs a `||` fallback —
-     * which matters because GColorBlack is 0x000000 and therefore falsy.
+     * TOTAL: an unknown scope (today thirdLine's 'off', and a settings blob with no
+     * secondaryLine at all) falls through to lineColorFor, which is itself total and answers
+     * the theme foreground, so no caller needs a `||` fallback — which matters because
+     * GColorBlack is 0x000000 and therefore falsy. Total over ROLES too: feels gets no
+     * Fill/Night key but resolveGraphColors still resolves both for it.
      *
      * @param {string} scope A metric id from GRAPH_METRICS, or 'night'.
      * @param {string} role See graphColorKey.
@@ -298,14 +272,13 @@
      * @returns {number} 0xRRGGBB colour on the Pebble-64 grid.
      */
     function graphColorDefault(scope, role, suffix, settings) {
-        if (scope === 'gust' && role === 'Line' && suffix === 'Dark'
-                && settings && settings.rainBarColor === 'white') {
-            return COLORS.GColorLightGray;
+        var theme = suffix === 'Light' ? 'light' : 'dark';
+        if (scope === 'night' && (role === 'Hatch' || role === 'Boundary')) {
+            return role === 'Hatch' ? NIGHT_HATCH_DEFAULT : NIGHT_BOUNDARY_DEFAULT;
         }
-        var byRole = GRAPH_COLOR_DEFAULTS[scope];
-        var byPolarity = byRole && byRole[role];
-        if (byPolarity && byPolarity.hasOwnProperty(suffix)) { return byPolarity[suffix]; }
-        return lineColorFor(scope, settings || {}, true, suffix === 'Light' ? 'light' : 'dark');
+        if (isGraphMetric(scope) && role === 'Night') { return nightAreaColorsFor(scope, null).base; }
+        if (isGraphMetric(scope) && role === 'Fill') { return fillColorFor(scope, true, theme); }
+        return lineColorFor(scope, settings || {}, true, theme);
     }
 
     /**
@@ -354,33 +327,40 @@
     }
 
     /**
-     * Is the metric's night tint still FOLLOWING its fill — i.e. may a new fill pick carry
-     * it along?
+     * The night tint for a metric's filled area: the user's own pick, else the fill colour
+     * they chose, else null for the metric's hand-tuned built-in triple.
      *
-     * The watch paints the night band opaquely over the filled area (chart.c's
-     * has_underlay loop strokes the underlay from the curve down to the axis), so the tint
-     * REPLACES the day fill for the night hours instead of shading it. A tint left on the
-     * metric's built-in while the fill moved therefore paints over a colour the user chose
-     * with one they never did — which is why the settings page writes the fill's colour
-     * into the tint key too (blocks.js' graphFillTint) for as long as the tint has not been
-     * claimed. Two states count as unclaimed: the built-in (never touched) and the fill
-     * value the tint last followed, so a second and third fill pick keep carrying it.
+     * The CASCADE lives here, at resolve time, and nowhere else. The watch paints the night
+     * band opaquely over the filled area (chart.c's has_underlay loop strokes the underlay
+     * from the curve down to the axis), so the tint REPLACES the day fill for the night
+     * hours instead of shading it: a tint left on the metric's built-in while the fill moved
+     * would paint over a colour the user chose with one they never did. Deriving the carry
+     * from the two stored keys — rather than having the settings page write the fill into
+     * the tint key — is what keeps "the user picked this" answerable at all. A page-side
+     * write makes a claimed tint and a carried one the same bytes, and then nothing
+     * downstream can tell a deliberate pick from a hand-me-down (the bug this replaced:
+     * a tint deliberately picked equal to its fill read as untouched, so the light-polarity
+     * re-shade was skipped and telemetry reported 'default'). The blobs the 1.15.0 page
+     * already wrote are healed once, on upgrade, by clay-settings.js'
+     * migrateCarriedGraphNightTints — without it a carried tint would read as claimed here
+     * and freeze, so the next fill pick would never reach the night hours.
      *
-     * This is the page's rule, not the render's: the resolver still answers from the stored
-     * blob alone, so a blob written by anything other than the page renders exactly what it
-     * says.
+     * Returning null rather than the built-in base is deliberate: nightAreaColorsFor answers
+     * null with the hand-tuned triple verbatim, while a concrete base runs the derive recipe.
      *
-     * @param {Object} settings Clay settings blob.
+     * @param {Object} settings Clay settings blob (gc&lt;Metric&gt;Night and gc&lt;Metric&gt;Fill).
      * @param {string} metric A metric id from GRAPH_METRICS.
      * @param {string} suffix 'Dark' or 'Light'.
-     * @param {*} previousFill The fill value being replaced, in any colorPick form.
-     * @returns {boolean} True when the tint may follow the fill.
+     * @returns {number|null} 0xRRGGBB tint, or null for the metric's built-in triple.
      */
-    function graphNightTintFollowsFill(settings, metric, suffix, previousFill) {
-        if (graphColorIsDefault(settings, metric, 'Night', suffix)) { return true; }
-        var previous = colorPick(previousFill);
-        return previous !== null
-            && colorPick((settings || {})[graphColorKey(metric, 'Night', suffix)]) === previous;
+    function graphNightTint(settings, metric, suffix) {
+        if (!graphColorIsDefault(settings, metric, 'Night', suffix)) {
+            return graphColorResolve(settings, metric, 'Night', suffix);   // claimed
+        }
+        if (!graphColorIsDefault(settings, metric, 'Fill', suffix)) {
+            return graphColorResolve(settings, metric, 'Fill', suffix);    // carried
+        }
+        return null;                                                       // built-in
     }
 
     /**
@@ -388,13 +368,14 @@
      *
      * The single authority behind the two consumers that have to agree about intent: the
      * wire's night-fill flag (byte [9] bit 0, the light-polarity opt-in) and telemetry's
-     * 'default' vs '#RRGGBB' report, which exists to mine the colours people actually
-     * chose. Two ways a stored colour is not a choice — being the built-in, and, for a
-     * metric's night tint, being the fill colour the cascade carried into it
-     * (graphNightTintFollowsFill). The tint case matters most on the light polarity, where
-     * forecast_layer.c skips the night re-shade unless the flag is set: a followed tint
-     * re-shades the fill in the fill's own colour, so setting the flag would hand every
-     * light-theme fill pick a night band the theme deliberately does not draw.
+     * 'default' vs '#RRGGBB' report, which exists to mine the colours people actually chose.
+     * There is exactly ONE way a stored colour is not a choice: being the built-in — which
+     * for gust's dark line means either of the two greys rainBarColor can answer (see
+     * graphColorIsDefault). A metric's night tint is no longer a second way: the fill cascade
+     * is derived at resolve time (graphNightTint) instead of being written into the tint key,
+     * so a value sitting in that key got there because someone picked it — once
+     * clay-settings.js' migrateCarriedGraphNightTints has cleared the ones the 1.15.0 page
+     * wrote there on the user's behalf.
      *
      * @param {Object} settings Clay settings blob.
      * @param {string} scope A metric id from GRAPH_METRICS, or 'night'.
@@ -403,12 +384,7 @@
      * @returns {boolean} True when the stored colour is the user's own pick.
      */
     function graphColorIsPicked(settings, scope, role, suffix) {
-        if (graphColorIsDefault(settings, scope, role, suffix)) { return false; }
-        if (scope !== 'night' && role === 'Night') {
-            return graphColorResolve(settings, scope, 'Night', suffix)
-                !== graphColorResolve(settings, scope, 'Fill', suffix);
-        }
-        return true;
+        return !graphColorIsDefault(settings, scope, role, suffix);
     }
 
     // The six graph-colour elements as telemetry still NAMES them (stem + 'Dark' /
@@ -637,18 +613,28 @@
      * picked for that polarity instead of pinned white/LightGray constants. The wire is not
      * lying — it is simply describing colours this render mode ignores.
      *
-     * Only `fillExplicit` is on the wire (byte [9]), where it is the light-polarity opt-in:
-     * forecast_layer.c:493-494 skips the night re-shade on colour + light polarity unless
-     * this bit is set, so it must stay FALSE for a blob whose tint is still the built-in OR
-     * merely following the fill (graphColorIsPicked) — otherwise a light-theme
-     * colour install gains a re-shade it does not have today.
+     * The area triple comes from graphNightTint, so it reads the metric's FILL key too: an
+     * unclaimed tint cascades from the fill the user picked. Only `fillExplicit` is on the
+     * wire (byte [9]), where it is the light-polarity opt-in: forecast_layer.c:493-494 skips
+     * the night re-shade on colour + light polarity unless this bit is set, so it must stay
+     * FALSE for a blob whose tint is still the built-in (graphColorIsPicked) — otherwise a
+     * light-theme colour install gains a re-shade it does not have today. A tint the CASCADE
+     * supplies leaves the bit clear for exactly that reason: it is the fill's colour, not a
+     * night choice, and the tint key was never written.
+     *
+     * That last clause is load-bearing, and is why clay-settings.js'
+     * migrateCarriedGraphNightTints exists: the 1.15.0 page wrote the fill INTO the tint key
+     * on every pick, so on an un-migrated 1.15.0 blob those bytes read here as a deliberate
+     * pick and the bit would flip. The migration clears them back to the built-in before
+     * anything packs them.
+     *
      * `hatchExplicit`/`boundaryExplicit` are for a consumer that draws the built-in as
      * something other than the built-in COLOUR — the settings-page preview, whose default
      * night hatch and dusk/dawn line are translucent ink over the canvas rather than the
      * DarkGray the watch paints.
      *
-     * @param {Object} settings Clay settings blob (the gcNightHatch / gcNightBoundary and
-     *   gc&lt;Metric&gt;Night keys, both polarities).
+     * @param {Object} settings Clay settings blob (the gcNightHatch / gcNightBoundary keys
+     *   and the gc&lt;Metric&gt;Night / gc&lt;Metric&gt;Fill pair, both polarities).
      * @param {{suffix: string}} cx renderContext() result — the polarity suffix is read from
      *   the FOLDED theme, so an aplite light install looks up the Dark colours it can paint.
      * @param {string} metric The secondary line's metric, which keys the night area.
@@ -658,7 +644,7 @@
      *   the boundary and the area tint saying it has been moved off its built-in.
      */
     function resolveNightColors(settings, cx, metric) {
-        var area = nightAreaColorsFor(metric, graphColorResolve(settings, metric, 'Night', cx.suffix));
+        var area = nightAreaColorsFor(metric, graphNightTint(settings, metric, cx.suffix));
         return {
             hatch: graphColorResolve(settings, 'night', 'Hatch', cx.suffix),
             boundary: graphColorResolve(settings, 'night', 'Boundary', cx.suffix),
@@ -813,7 +799,7 @@
         graphColorKeys: graphColorKeys,
         graphColorDefault: graphColorDefault,
         graphColorIsDefault: graphColorIsDefault,
-        graphNightTintFollowsFill: graphNightTintFollowsFill,
+        graphNightTint: graphNightTint,
         graphColorIsPicked: graphColorIsPicked,
         FLAG_NIGHT_FILL_EXPLICIT: FLAG_NIGHT_FILL_EXPLICIT,
         LINE_COLORS: LINE_COLORS,

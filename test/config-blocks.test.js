@@ -592,51 +592,66 @@ test('forecastPreview: the night tint re-shades the filled area on dark polarity
     'and a B&W preview paints no night bytes at all');
 });
 
-// The watch paints the night band OPAQUELY over the filled area (chart.c's has_underlay
-// loop), so a fill pick whose night tint stayed on the built-in is invisible for the
-// night hours — the colour the user chose replaced by one they never did. The tint
-// therefore travels with the fill for as long as it has not been chosen in its own
-// right: still the built-in, or still the fill value it last followed.
-test('graphFillTint hook carries an unclaimed night tint along with a new fill pick', () => {
-  const fn = PConf.onChange.get('graphFillTint');
-  assert.equal(typeof fn, 'function', 'hook registered');
-  const builtIn = (scope, role, suffix) => '#'
-    + (lineStyle.graphColorDefault(scope, role, suffix, {}) & 0xFFFFFF).toString(16).toUpperCase().padStart(6, '0');
+// The night tint cascades from the fill at RESOLVE time (line-style.js' graphNightTint),
+// so nothing is written into the tint key when a fill is picked. Both display surfaces
+// therefore have to derive what they paint rather than read the key: the row badge's
+// Night dot, and the tint picker's own swatch inside the sheet (through the engine's
+// displayFrom hook). Show the stored value and the user sees a stale swatch while the
+// graph draws the fill colour.
+const gcBuiltIn = (scope, role, suffix) => '#'
+  + (lineStyle.graphColorDefault(scope, role, suffix, {}) & 0xFFFFFF).toString(16).toUpperCase().padStart(6, '0');
+
+test('the Night badge dot shows the tint the graph actually paints, not the stored key', () => {
+  const badge = PConf.badgeResolvers.get('graphColorSwatch');
+  assert.equal(typeof badge, 'function', 'badge resolver registered');
+  const nightDot = (S) => {
+    const out = badge(S, { color: true }, { scope: 'wind' });
+    assert.deepEqual(lineStyle.graphColorRoles('wind'), ['Line', 'Fill', 'Night'],
+      'the Night dot is the last of the three');
+    return out.dots[2].color;
+  };
   const fillKey = lineStyle.graphColorKey('wind', 'Fill', 'Dark');
   const nightKey = lineStyle.graphColorKey('wind', 'Night', 'Dark');
 
-  // The tint sitting on its built-in follows the fill.
-  const seeded = { [fillKey]: '#00AA55', [nightKey]: builtIn('wind', 'Night', 'Dark') };
-  fn(seeded, builtIn('wind', 'Fill', 'Dark'), '#00AA55', {}, fillKey);
-  assert.equal(seeded[nightKey], '#00AA55', 'the night band re-shades in the new fill colour');
+  assert.equal(nightDot({}), gcBuiltIn('wind', 'Night', 'Dark'),
+    'an untouched blob shows the hand-tuned built-in');
+  assert.equal(nightDot(gcSeededDefaults({})), gcBuiltIn('wind', 'Night', 'Dark'),
+    'so does a seeded install holding that built-in concretely');
+  assert.equal(nightDot({ [fillKey]: '#AA00AA' }), '#AA00AA',
+    'a fill pick cascades into the dot, with the tint key never written');
+  assert.equal(nightDot({ [fillKey]: '#AA00AA', [nightKey]: gcBuiltIn('wind', 'Night', 'Dark') }),
+    '#AA00AA', 'a tint left on its built-in cascades just the same');
+  assert.equal(nightDot({ [fillKey]: '#AA00AA', [nightKey]: '#550055' }), '#550055',
+    'a tint picked in its own right wins over the fill');
 
-  // So does a tint that is still the PREVIOUS fill — the second pick keeps following.
-  const again = { [fillKey]: '#FF0055', [nightKey]: '#00AA55' };
-  fn(again, '#00AA55', '#FF0055', {}, fillKey);
-  assert.equal(again[nightKey], '#FF0055', 'a tint that was following keeps following');
+  // The Line and Fill dots keep reading their own stored key — only the tint cascades.
+  const dots = badge({ [fillKey]: '#AA00AA' }, { color: true }, { scope: 'wind' }).dots;
+  assert.equal(dots[0].color, gcBuiltIn('wind', 'Line', 'Dark'), 'the line dot is untouched');
+  assert.equal(dots[1].color, '#AA00AA', 'the fill dot is the pick itself');
+});
 
-  // A tint the user chose for itself is left alone.
-  const claimed = { [fillKey]: '#FF0055', [nightKey]: '#550055' };
-  fn(claimed, '#00AA55', '#FF0055', {}, fillKey);
-  assert.equal(claimed[nightKey], '#550055', 'a deliberately picked tint survives a fill change');
+test('the sheet swatch derives the same cascaded tint through the display hook', () => {
+  const fn = PConf.displayResolvers.get('graphNightTint');
+  assert.equal(typeof fn, 'function', 'display resolver registered');
+  const fillKey = lineStyle.graphColorKey('uv', 'Fill', 'Light');
+  const nightKey = lineStyle.graphColorKey('uv', 'Night', 'Light');
+  const args = { scope: 'uv', suffix: 'Light', messageKey: nightKey };
 
-  // Polarity: the Light fill moves the Light tint and nothing else.
-  const lightFill = lineStyle.graphColorKey('uv', 'Fill', 'Light');
-  const both = {
-    [lightFill]: '#00FF00',
-    [lineStyle.graphColorKey('uv', 'Night', 'Light')]: builtIn('uv', 'Night', 'Light'),
-    [lineStyle.graphColorKey('uv', 'Night', 'Dark')]: builtIn('uv', 'Night', 'Dark')
-  };
-  fn(both, builtIn('uv', 'Fill', 'Light'), '#00FF00', {}, lightFill);
-  assert.equal(both[lineStyle.graphColorKey('uv', 'Night', 'Light')], '#00FF00', 'the Light tint follows');
-  assert.equal(both[lineStyle.graphColorKey('uv', 'Night', 'Dark')], builtIn('uv', 'Night', 'Dark'),
-    'the Dark tint is a separate colour and stays put');
-
-  // A key with no fill/tint pair behind it (feels never fills; the night band's own
-  // Hatch/Boundary are not a metric fill) is not this hook's business.
-  const untouched = { gcNightHatchDark: '#00FF00' };
-  fn(untouched, '#555555', '#00FF00', {}, 'gcNightHatchDark');
-  assert.deepEqual(untouched, { gcNightHatchDark: '#00FF00' }, 'nothing else is written');
+  assert.equal(fn({}, {}, args), gcBuiltIn('uv', 'Night', 'Light'), 'built-in with nothing stored');
+  assert.equal(fn({ [fillKey]: '#00FF00' }, {}, args), '#00FF00', 'the fill pick cascades');
+  // #0000AA, not uv's own built-in tint: a value equal to the built-in is by definition
+  // not a claim (the page seeds every key with its built-in), so it would cascade.
+  assert.equal(fn({ [fillKey]: '#00FF00', [nightKey]: '#0000AA' }, {}, args), '#0000AA',
+    'a claimed tint paints itself');
+  // The row's own polarity is passed in, not the live theme: the Dark and Light rows of
+  // a pair are edited independently and only one of them is ever visible.
+  assert.equal(fn({ [lineStyle.graphColorKey('uv', 'Fill', 'Dark')]: '#00FF00' }, {}, args),
+    gcBuiltIn('uv', 'Night', 'Light'), 'the Dark fill does not reach the Light row');
+  // It must hand back a '#RRGGBB' STRING — renderColor compares it against the palette's
+  // uppercase hexes to mark the current swatch, so an int would highlight nothing.
+  assert.match(fn({ [fillKey]: 0x00FF00 }, {}, args), /^#[0-9A-F]{6}$/,
+    'a stored int is normalised to hex');
+  assert.equal(fn(null, {}, args), null, 'and no settings blob resolves to nothing to paint');
 });
 
 test('radarPreview (rainbow): no nearby outline bars and no "Nearby (2 km)" legend', () => {

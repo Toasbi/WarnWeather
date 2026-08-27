@@ -266,41 +266,12 @@ if (typeof require !== 'undefined') {
         if (newValue === 'feels') { S.secondaryLineFill = false; }
     });
 
-    // Fill key -> the metric + polarity + night-tint key behind it, for the hook below.
-    // Built from line-style's own vocabulary so a metric that stops filling (feels has no
-    // Fill key at all) drops out of the map instead of naming a key nothing writes.
-    var GRAPH_FILL_TINT = (function () {
-        var map = {}, polarities = ['Dark', 'Light'], i, j, metric, suffix;
-        if (!lineStyle) { return map; }
-        for (i = 0; i < lineStyle.GRAPH_METRICS.length; i++) {
-            metric = lineStyle.GRAPH_METRICS[i];
-            if (lineStyle.graphColorRoles(metric).indexOf('Night') === -1) { continue; }
-            for (j = 0; j < polarities.length; j++) {
-                suffix = polarities[j];
-                map[lineStyle.graphColorKey(metric, 'Fill', suffix)] = {
-                    metric: metric,
-                    suffix: suffix,
-                    nightKey: lineStyle.graphColorKey(metric, 'Night', suffix)
-                };
-            }
-        }
-        return map;
-    })();
-
-    // Picking a metric's fill colour carries its night tint along, unless the tint has
-    // been picked in its own right. The watch re-shades the filled area under the night
-    // hours by painting the tint OPAQUELY over it (forecast_layer.c's night_under layer,
-    // drawn by chart.c's has_underlay loop), so a tint left behind on the built-in would
-    // replace the new fill with the old colour for those hours — the fill looking like it
-    // never took. line-style.js owns "has the tint been claimed?" (both ends of the same
-    // question: it also decides the wire's night-fill flag from it) and both polarities
-    // are tracked separately, so this writes the one that moved.
-    PConf.onChange.register('graphFillTint', function (S, oldValue, newValue, env, key) {
-        var pair = GRAPH_FILL_TINT[key];
-        if (!pair || !S) { return; }
-        if (!lineStyle.graphNightTintFollowsFill(S, pair.metric, pair.suffix, oldValue)) { return; }
-        S[pair.nightKey] = newValue;
-    });
+    // The night tint follows the fill at RESOLVE time (line-style.js' graphNightTint),
+    // so nothing is written into the tint key when a fill is picked — the page stays a
+    // pure editor and "did the user pick this tint?" keeps a straight answer. The two
+    // display surfaces that have to show the CASCADED colour rather than the stored one
+    // are the row badge (graphColorSwatch below) and the in-sheet swatch, which reads
+    // the display resolver registered next to it.
 
     // The temp slot's "Both" mode and its degree sign are mutually exclusive:
     // "-12/-10" is already 7 of an edge slot's 8 bytes and the sign is two more.
@@ -482,6 +453,40 @@ if (typeof require !== 'undefined') {
         return true;
     };
 
+    // The night tint a metric's filled area is actually painted in, as a hex string for
+    // the two display surfaces below. line-style.js owns the rule (the user's own pick,
+    // else the fill colour they chose, else the metric's hand-tuned built-in) and hands
+    // back null for that last arm, so the built-in is filled in here. Written as a
+    // fallback ARGUMENT rather than `graphNightTint(...) || default`: GColorBlack is
+    // 0x000000 and would fail a truthiness test.
+    /**
+     * @param {Object} S Live settings state.
+     * @param {string} metric A metric id (line-style.js' graphColorKey vocabulary).
+     * @param {string} suffix 'Dark'|'Light' — the polarity being edited.
+     * @returns {string} '#RRGGBB' (uppercase).
+     */
+    function graphNightTintHex(S, metric, suffix) {
+        return colorHexOf(lineStyle.graphNightTint(S, metric, suffix),
+            lineStyle.graphColorDefault(metric, 'Night', suffix, S));
+    }
+
+    // The night-tint picker inside a metric's colour sheet paints the CASCADED colour
+    // (engine.js' displayFrom hook), not the value stored under its own key: with the
+    // page-side carry gone, a tint the user has not claimed sits on its built-in while
+    // the graph draws the fill colour, and a picker showing the built-in would be a
+    // stale swatch. Clicking the shown swatch still writes it — that pins the tint as a
+    // real pick, which is exactly what a deliberate click means.
+    /**
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env (unused — the cascade is platform-independent).
+     * @param {Object} args displayFrom.args — {scope, suffix} plus the merged messageKey.
+     * @returns {?string} '#RRGGBB' to paint, or null to fall back to the stored value.
+     */
+    PConf.displayResolvers.register('graphNightTint', function (S, env, args) {
+        if (!lineStyle || !S || !args || !args.scope || !args.suffix) { return null; }
+        return graphNightTintHex(S, args.scope, args.suffix);
+    });
+
     // Row badge for the Graph-colors card (schema.js' GRAPH_COLOR_ROWS): the preview
     // between a row's label and its Edit button.
     //
@@ -515,10 +520,15 @@ if (typeof require !== 'undefined') {
         var dots = [], i;
         for (i = 0; i < roles.length; i++) {
             dots.push({
-                // The STORED colour, so the dot matches the swatch the sheet will show
-                // as highlighted; the built-in stands in until the key is written.
-                color: colorHexOf(S[lineStyle.graphColorKey(scope, roles[i], sfx)],
-                    lineStyle.graphColorDefault(scope, roles[i], sfx, S)),
+                // The colour that row's picker will show as highlighted; the built-in
+                // stands in until the key is written. That is the STORED colour for
+                // every role but the night tint, which cascades from the fill at resolve
+                // time — so it goes through graphNightTintHex above, the same helper the
+                // sheet's own swatch reaches via the 'graphNightTint' displayResolver.
+                color: roles[i] === 'Night'
+                    ? graphNightTintHex(S, scope, sfx)
+                    : colorHexOf(S[lineStyle.graphColorKey(scope, roles[i], sfx)],
+                        lineStyle.graphColorDefault(scope, roles[i], sfx, S)),
                 ring: roles.length > 1 && i === roles.length - 1
             });
         }

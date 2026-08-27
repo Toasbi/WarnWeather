@@ -337,26 +337,116 @@ test('the night-fill flag is set only when the tint differs from the built-in, i
     flag, 'light pick');
 });
 
+// --- The fill -> night-tint cascade ------------------------------------------
+//
 // The night band is painted OPAQUELY (chart.c's has_underlay loop strokes the underlay
 // from the curve down to the axis), so the night tint REPLACES the day fill inside the
-// night hours rather than tinting it. A tint left on the metric's built-in while the
-// fill has been moved therefore paints over a colour the user chose with one they never
-// did — the bug this pair pins the fix for. The settings page carries an unclaimed tint
-// along with the fill (blocks.js' graphFillTint), and a tint that merely FOLLOWS the
-// fill is not a night CHOICE: it must leave the flag clear, or every light-polarity fill
-// pick would opt into the re-shade that light deliberately skips.
-test('a night tint following the fill re-shades in the fill colour and claims no explicit pick', () => {
+// night hours rather than tinting it. A tint left on the metric's built-in while the fill
+// has been moved would therefore paint over a colour the user chose with one they never
+// did. So an unclaimed tint CASCADES from the fill — and the cascade is derived HERE, at
+// resolve time (graphNightTint), never written into the tint key by the settings page.
+//
+// That is the whole point. A page-side write makes a claimed tint and a hand-me-down one
+// the same bytes, and then nothing downstream can tell them apart: v1.15.0 guessed by
+// comparing the two, so a tint deliberately picked EQUAL to its fill read as untouched —
+// the light-polarity re-shade was silently skipped and telemetry reported 'default'.
+
+test('graphNightTint answers claimed, then carried, then the built-in', () => {
+  const blob = (extra) => Object.assign({ secondaryLine: 'wind' }, extra);
+  assert.equal(lineStyle.graphNightTint(blob({ gcWindNightDark: '#550055', gcWindFillDark: '#00AA55' }),
+    'wind', 'Dark'), 0x550055, 'claimed: the tint the user picked for itself');
+  assert.equal(lineStyle.graphNightTint(blob({ gcWindFillDark: '#00AA55' }), 'wind', 'Dark'),
+    0x00AA55, 'carried: no tint of its own, so the fill they did pick');
+  assert.equal(lineStyle.graphNightTint(blob({}), 'wind', 'Dark'), null,
+    'built-in: null, so nightAreaColorsFor keeps the hand-tuned triple verbatim');
+  // A tint STORED on its built-in is the same answer as an absent one — that is what every
+  // seeded and every freshly reset install looks like (engine.js seedDefaults writes the
+  // concrete built-in into each colour key at page open).
+  assert.equal(lineStyle.graphNightTint(
+    blob({ gcWindNightDark: lineStyle.graphColorDefault('wind', 'Night', 'Dark', {}),
+      gcWindFillDark: '#00AA55' }), 'wind', 'Dark'), 0x00AA55, 'a stored built-in still carries');
+  // Symmetrically: a FILL sitting on its own built-in has nothing to carry, so the night
+  // band keeps its hand-tuned triple. Picking the built-in colour off the palette is
+  // indistinguishable from never having touched the row, by design — that value-comparison
+  // model is what makes "did the user choose this?" answerable at all.
+  assert.equal(lineStyle.graphNightTint(
+    blob({ gcWindFillDark: lineStyle.graphColorDefault('wind', 'Fill', 'Dark', {}) }), 'wind', 'Dark'),
+  null, 'a fill on its built-in carries nothing');
+});
+
+test('an untouched night tint cascades from the fill and claims no explicit pick', () => {
   const flag = lineStyle.FLAG_NIGHT_FILL_EXPLICIT;
   const pick = 0x00AA55;
   const bytes = lineStyle.buildLineStyleBytes({
     secondaryLine: 'wind', thirdLine: 'off', secondaryLineFill: true, theme: 'dark',
-    gcWindFillDark: '#00AA55', gcWindNightDark: '#00AA55'
+    gcWindFillDark: '#00AA55'
   }, emery);
+  const derived = lineStyle.nightAreaColorsFor('wind', pick);
   assert.equal(bytes[1], rainTier.rgbToGColor8(pick), 'the day fill is the pick');
-  assert.equal(bytes[6], rainTier.rgbToGColor8(pick),
+  assert.equal(bytes[6], rainTier.rgbToGColor8(derived.base),
     'and the night band re-shades in that same colour instead of the built-in triple');
+  assert.equal(bytes[7], rainTier.rgbToGColor8(derived.hatch));
+  assert.equal(bytes[8], rainTier.rgbToGColor8(derived.boundary));
   assert.equal(bytes[9] & flag, 0,
-    'a followed tint is not a night choice — the light polarity keeps skipping the re-shade');
+    'a carried tint is not a night choice — the light polarity keeps skipping the re-shade');
+});
+
+// Nothing latches: the tint key is never written, so every later fill pick is carried by
+// the same derivation. (Under the page-side write this was the fragile part — the carry
+// only happened on the onChange, so any path that set a fill without firing it stranded
+// the tint on the previous colour.)
+test('the cascade tracks a second and a third fill pick, on both polarities', () => {
+  const flag = lineStyle.FLAG_NIGHT_FILL_EXPLICIT;
+  const base = { secondaryLine: 'wind', thirdLine: 'off', secondaryLineFill: true };
+  ['#00AA55', '#FF0000', '#0000AA'].forEach((pick) => {
+    [['dark', 'gcWindFillDark'], ['light', 'gcWindFillLight']].forEach(([theme, key]) => {
+      const blob = Object.assign({ theme }, base);
+      blob[key] = pick;
+      const bytes = lineStyle.buildLineStyleBytes(blob, emery);
+      const derived = lineStyle.nightAreaColorsFor('wind', parseInt(pick.slice(1), 16));
+      assert.equal(bytes[6], rainTier.rgbToGColor8(derived.base), `${theme} ${pick} base`);
+      assert.equal(bytes[9] & flag, 0, `${theme} ${pick} claims no pick`);
+    });
+  });
+});
+
+test('a night tint deliberately picked EQUAL to its fill is a real pick, not a hand-me-down', () => {
+  const flag = lineStyle.FLAG_NIGHT_FILL_EXPLICIT;
+  const pick = 0x00AA55;
+  ['dark', 'light'].forEach((theme) => {
+    const sfx = theme === 'light' ? 'Light' : 'Dark';
+    const blob = { secondaryLine: 'wind', thirdLine: 'off', secondaryLineFill: true, theme };
+    blob[`gcWindFill${sfx}`] = '#00AA55';
+    blob[`gcWindNight${sfx}`] = '#00AA55';
+    const bytes = lineStyle.buildLineStyleBytes(blob, emery);
+    // The five night bytes are identical to the carried case above — only the intent differs.
+    assert.equal(bytes[6], rainTier.rgbToGColor8(lineStyle.nightAreaColorsFor('wind', pick).base),
+      `${theme}: the same colour paints either way`);
+    assert.equal(bytes[9] & flag, flag,
+      `${theme}: but a chosen tint opts the light-polarity re-shade in`);
+    assert.equal(lineStyle.graphColorIsPicked(blob, 'wind', 'Night', sfx), true,
+      `${theme}: and telemetry reports it as a pick, not 'default'`);
+  });
+});
+
+// resolveGraphColors is TOTAL over secondaryLine: 'off', absent, and an unknown id all
+// have to answer something. They land on the metric-less arm of nightAreaColorsFor — the
+// hand-tuned precip triple, verbatim — rather than running the lighten recipe over the
+// theme foreground. Nothing renders it (forecast_layer.c gates the underlay on a present,
+// filled second line), but the bytes have to be stable, so they are pinned here.
+test('an off, absent or unknown secondary metric packs the metric-less night triple', () => {
+  const triple = lineStyle.nightAreaColorsFor('nope', null);
+  ['off', undefined, 'foo'].forEach((secondaryLine) => {
+    ['dark', 'light', 'bw', 'bw-light'].forEach((theme) => {
+      const bytes = lineStyle.buildLineStyleBytes(
+        { secondaryLine, thirdLine: 'off', secondaryLineFill: true, theme }, emery);
+      const where = `${secondaryLine} / ${theme}`;
+      assert.equal(bytes[6], rainTier.rgbToGColor8(triple.base), `${where} base`);
+      assert.equal(bytes[7], rainTier.rgbToGColor8(triple.hatch), `${where} hatch`);
+      assert.equal(bytes[8], rainTier.rgbToGColor8(triple.boundary), `${where} boundary`);
+      assert.equal(bytes[9] & lineStyle.FLAG_NIGHT_FILL_EXPLICIT, 0, `${where} flag`);
+    });
+  });
 });
 
 test('a night tint off BOTH its built-in and the fill still opts the light polarity in', () => {
@@ -427,42 +517,79 @@ test('the light-polarity built-in is black; on B&W the flip still does that work
 // --- The concrete defaults ---------------------------------------------------
 //
 // THE appearance contract of this feature. Every key defaults to the colour 1.14.1
-// rendered for that metric and polarity, so seeding all 36 of them changes no pixel. The
-// table in line-style.js is a transcription; this pins it against the three functions it
-// transcribes, so editing either side breaks the build instead of quietly repainting
-// somebody's graph.
+// rendered for that metric and polarity, so seeding all 36 of them changes no pixel.
+// graphColorDefault DERIVES each cell from LINE_COLORS / FILL_COLORS / NIGHT_AREA_COLORS
+// rather than transcribing them, so asserting it against those same three resolvers would
+// be a tautology. These are therefore LITERAL 0xRRGGBB values: a tweak to any of the three
+// tables repaints somebody's graph and has to break the build here first. A literal table
+// belongs in a test — not in a second copy in production.
+const EXPECTED_DEFAULTS = {
+  precip_prob: {
+    Line:     { Dark: 0x55AAFF, Light: 0x00AAFF },  // PictonBlue / VividCerulean
+    Fill:     { Dark: 0x0055AA, Light: 0x55FFFF },  // CobaltBlue / ElectricBlue
+    Night:    { Dark: 0x0000AA, Light: 0x0000AA }   // DukeBlue
+  },
+  wind: {
+    Line:     { Dark: 0xFFFF00, Light: 0xFFFF00 },  // Yellow
+    Fill:     { Dark: 0x555500, Light: 0xAAFF55 },  // ArmyGreen / Inchworm
+    Night:    { Dark: 0x555500, Light: 0x555500 }   // ArmyGreen
+  },
+  uv: {
+    Line:     { Dark: 0xFF00FF, Light: 0xFF00FF },  // Magenta
+    Fill:     { Dark: 0xAA00AA, Light: 0xFF55FF },  // Purple / ShockingPink
+    Night:    { Dark: 0x550055, Light: 0x550055 }   // ImperialPurple
+  },
+  gust: {
+    Line:     { Dark: 0xFFFFFF, Light: 0x000000 },  // White (multi bars) / Black
+    Fill:     { Dark: 0x555555, Light: 0xAAAAAA },  // DarkGray / LightGray
+    Night:    { Dark: 0x555555, Light: 0x555555 }   // DarkGray
+  },
+  pressure: {
+    Line:     { Dark: 0xFF5500, Light: 0xFF5500 },  // Orange
+    Fill:     { Dark: 0xAA5500, Light: 0xFFAA00 },  // WindsorTan / ChromeYellow
+    Night:    { Dark: 0xAA5500, Light: 0xAA5500 }   // WindsorTan
+  },
+  feels: {
+    Line:     { Dark: 0xAAAAAA, Light: 0x000000 },  // LightGray / Black
+    Fill:     { Dark: 0xAAAAAA, Light: 0xAAAAAA },  // LightGray — keyless, still resolved
+    Night:    { Dark: 0xAAAAAA, Light: 0xAAAAAA }   // LightGray — keyless, still resolved
+  },
+  night: {
+    Hatch:    { Dark: 0x555555, Light: 0x555555 },  // DarkGray — forecast_layer.c NIGHT_HATCH_COLOR
+    Boundary: { Dark: 0x555555, Light: 0x555555 }   // DarkGray — forecast_layer.c NIGHT_BOUNDARY_COLOR
+  }
+};
 
-test('every default equals what the built-in resolvers render for that metric and polarity', () => {
-  lineStyle.GRAPH_METRICS.forEach((metric) => {
-    ['Dark', 'Light'].forEach((suffix) => {
-      const theme = suffix === 'Light' ? 'light' : 'dark';
-      assert.equal(lineStyle.graphColorDefault(metric, 'Line', suffix, {}),
-        lineStyle.lineColorFor(metric, {}, true, theme), `${metric} Line ${suffix}`);
-      assert.equal(lineStyle.graphColorDefault(metric, 'Fill', suffix, {}),
-        lineStyle.fillColorFor(metric, true, theme), `${metric} Fill ${suffix}`);
-      assert.equal(lineStyle.graphColorDefault(metric, 'Night', suffix, {}),
-        lineStyle.nightAreaColorsFor(metric, null).base, `${metric} Night ${suffix}`);
+test('every built-in default is the exact colour 1.14.1 painted for that metric and polarity', () => {
+  Object.keys(EXPECTED_DEFAULTS).forEach((scope) => {
+    Object.keys(EXPECTED_DEFAULTS[scope]).forEach((role) => {
+      ['Dark', 'Light'].forEach((suffix) => {
+        assert.equal(lineStyle.graphColorDefault(scope, role, suffix, {}),
+          EXPECTED_DEFAULTS[scope][role][suffix], `${scope} ${role} ${suffix}`);
+      });
     });
   });
-  ['Dark', 'Light'].forEach((suffix) => {
-    ['Hatch', 'Boundary'].forEach((role) => {
-      assert.equal(lineStyle.graphColorDefault('night', role, suffix, {}), COLORS.GColorDarkGray,
-        `night ${role} ${suffix} — forecast_layer.c's NIGHT_HATCH/BOUNDARY_COLOR colour arm`);
-    });
+  // Every key the schema builds a row for has an expectation above, so a new metric or
+  // role cannot slip in unpinned. feels' Fill/Night carry no key but are still resolved
+  // (resolveGraphColors asks for them), which is why the table is wider than the key list.
+  lineStyle.graphColorKeys().forEach((key) => {
+    const m = /^gc([A-Z][a-z]+)([A-Z][a-z]+)(Dark|Light)$/.exec(key);
+    const scope = { Precip: 'precip_prob', Wind: 'wind', Uv: 'uv', Gust: 'gust',
+      Pressure: 'pressure', Feels: 'feels', Night: 'night' }[m[1]];
+    assert.ok(EXPECTED_DEFAULTS[scope] && EXPECTED_DEFAULTS[scope][m[2]],
+      `${key} has no pinned expectation`);
   });
 });
 
 // gust's dark line is the ONE built-in that reads another live setting: it takes the
-// achromatic slot, so it has to dodge whichever grey the rain bars use. A static
-// defaultValue cannot say that, so graphColorDefault resolves it and graphColorIsDefault
-// accepts EITHER value as untouched.
+// achromatic slot, so it has to dodge whichever grey the rain bars use. graphColorDefault
+// reaches that through lineColorFor, which owns the rainBarColor rule, and
+// graphColorIsDefault accepts EITHER value as untouched. These two assertions are the only
+// place the coupling is pinned to concrete colours — the EXPECTED_DEFAULTS row above
+// covers the multicolour half only.
 test("gust's dark line default follows rainBarColor, in both bar modes", () => {
   assert.equal(lineStyle.graphColorDefault('gust', 'Line', 'Dark', { rainBarColor: 'multi' }),
-    lineStyle.lineColorFor('gust', { rainBarColor: 'multi' }, true, 'dark'));
-  assert.equal(lineStyle.graphColorDefault('gust', 'Line', 'Dark', { rainBarColor: 'multi' }),
     COLORS.GColorWhite);
-  assert.equal(lineStyle.graphColorDefault('gust', 'Line', 'Dark', { rainBarColor: 'white' }),
-    lineStyle.lineColorFor('gust', { rainBarColor: 'white' }, true, 'dark'));
   assert.equal(lineStyle.graphColorDefault('gust', 'Line', 'Dark', { rainBarColor: 'white' }),
     COLORS.GColorLightGray);
 });
@@ -502,15 +629,15 @@ test('graphColorKeys lists 36 unique, well-formed keys and covers every role eac
 });
 
 // feels gets no Fill/Night KEY but resolveGraphColors still resolves a fill byte and a
-// night tint for it, so the defaults table has to answer for those roles anyway.
-test('the defaults table is total over the roles feels has no key for', () => {
+// night tint for it, so graphColorDefault has to answer for those roles anyway.
+test('graphColorDefault is total over the roles feels has no key for', () => {
   ['Dark', 'Light'].forEach((suffix) => {
     assert.equal(typeof lineStyle.graphColorDefault('feels', 'Fill', suffix, {}), 'number');
     assert.equal(typeof lineStyle.graphColorDefault('feels', 'Night', suffix, {}), 'number');
   });
-  // …and for a scope with no table row at all — thirdLine's 'off' is resolved like any
-  // other metric, and GColorBlack being falsy means an `undefined` here would not be
-  // caught by a `||`.
+  // …and for a scope it knows nothing about — thirdLine's 'off' falls through to
+  // lineColorFor like any other unknown metric, and GColorBlack being falsy means an
+  // `undefined` here would not be caught by a `||`.
   assert.equal(lineStyle.graphColorDefault('off', 'Line', 'Dark', {}), COLORS.GColorWhite);
   assert.equal(lineStyle.graphColorDefault('off', 'Fill', 'Light', {}), COLORS.GColorBlack);
 });

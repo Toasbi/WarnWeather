@@ -1780,22 +1780,38 @@ test('every graph colour is a Dark/Light pair on one label, one visible at a tim
   });
 });
 
-// The night tint follows the fill until it is picked in its own right (blocks.js'
-// graphFillTint), because the watch paints the night band opaquely over the filled
-// area — an unclaimed tint would keep re-shading a moved fill in the old built-in.
-// Only a Fill picker carries the hook: the Line and the night band's own colours have
-// nothing to drag along.
-test('each metric fill picker carries the night-tint hook, and only those', () => {
-  const withHook = items.filter((i) => i.onChange === 'graphFillTint').map((i) => i.messageKey);
+// The graph-colour card is a PURE EDITOR: every picker writes its own key and nothing
+// else. It used to carry a hook copying a new fill colour into the metric's night-tint
+// key, which made "did the user pick this tint?" unanswerable afterwards; the tint now
+// follows the fill at RESOLVE time (line-style.js' graphNightTint) instead. The only
+// residue is a display one — the Night rows PAINT the cascaded colour so their swatch
+// is not stale, through the engine's displayFrom hook, while still storing under
+// themselves.
+test('no graph colour row writes a sibling key; exactly the Night rows paint a derived one', () => {
+  const gcKeys = lineStyle.graphColorKeys();
+  const gcItems = items.filter((i) => gcKeys.indexOf(i.messageKey) >= 0);
+  assert.equal(gcItems.length, gcKeys.length, 'one row per graph colour key');
+  assert.deepEqual(gcItems.filter((i) => i.onChange).map((i) => i.messageKey), [],
+    'a colour pick has no side effect on any other key');
+
   const expected = [];
   GRAPH_ROW_SCOPES.forEach((scope) => {
     if (lineStyle.graphColorRoles(scope).indexOf('Night') === -1) { return; }
     ['Dark', 'Light'].forEach((suffix) => {
-      expected.push(lineStyle.graphColorKey(scope, 'Fill', suffix));
+      expected.push(lineStyle.graphColorKey(scope, 'Night', suffix));
     });
   });
   assert.equal(expected.length, 10, 'five filling metrics x two polarities');
-  assert.deepEqual(withHook.slice().sort(), expected.slice().sort());
+  const withDisplay = gcItems.filter((i) => i.displayFrom);
+  assert.deepEqual(withDisplay.map((i) => i.messageKey).slice().sort(), expected.slice().sort());
+  // Each row names its OWN scope and polarity, not the live theme: the pair's two rows
+  // are tuned independently and only one of them is ever visible.
+  withDisplay.forEach((row) => {
+    assert.equal(row.displayFrom.resolver, 'graphNightTint');
+    assert.equal(row.messageKey,
+      lineStyle.graphColorKey(row.displayFrom.args.scope, 'Night', row.displayFrom.args.suffix),
+      row.messageKey + ' resolves against itself');
+  });
 });
 
 test('feels gets a Line pair only; the night band gets Hatch + Dusk/dawn', () => {

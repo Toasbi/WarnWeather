@@ -285,21 +285,24 @@ test('a colour equal to the built-in reports as default, including gust either w
   assert.strictEqual(gust({ rainBarColor: 'white', gcGustLineDark: 0xFF0000 }), '#FF0000');
 });
 
-// The other colour that holds a concrete value without having been chosen: a metric's
-// night tint travels with its fill (the settings page writes both, so the watch does not
-// re-shade the night hours in the fill colour the user just replaced). Counting that as a
-// night pick would fill the ranking with copies of the fill colour and overstate how many
-// people tuned the night band — and it is the same predicate the wire's night-fill flag
-// reads, so the two cannot disagree about it either.
-test('a night tint that merely follows the fill reports as default, not as a pick', () => {
+// gust's dark line is the ONLY colour that holds a concrete value without having been
+// chosen. A metric's night tint used to be a second one: the settings page wrote each new
+// fill pick into the tint key, so the report had to guess by comparing the two — and got a
+// deliberately fill-coloured tint wrong. The carry is derived at resolve time now
+// (line-style.js' graphNightTint), so the tint key holds a value only when someone put it
+// there, and this report is a straight "is it off its built-in?" again.
+test('a night tint is reported on its own key, whatever the fill did', () => {
   const tint = (extra) => buildSettingsSnapshot(
     Object.assign({ theme: 'dark', secondaryLine: 'wind', thirdLine: 'off' }, extra)).nightFillColor;
 
-  assert.strictEqual(tint({ gcWindFillDark: 0x00AA55, gcWindNightDark: 0x00AA55 }), 'default',
-    'the tint is the fill colour the page carried into it');
+  assert.strictEqual(tint({ gcWindFillDark: 0x00AA55 }), 'default',
+    'a tint still on its built-in is untouched even though the fill moved — the cascade ' +
+    'that paints the night band in the fill colour is a render rule, not a pick');
+  assert.strictEqual(tint({ gcWindFillDark: 0x00AA55, gcWindNightDark: 0x00AA55 }), '#00AA55',
+    'a tint deliberately set to the fill colour IS a pick, and is mined as one');
   assert.strictEqual(tint({ gcWindFillDark: 0x00AA55, gcWindNightDark: 0x550055 }), '#550055',
-    'a tint chosen for itself is still a pick');
-  // The fill is reported on its own terms either way — only the tint reads through the fill.
+    'a tint chosen for itself is a pick too');
+  // The fill is reported on its own terms in every one of those cases.
   assert.strictEqual(buildSettingsSnapshot({ theme: 'dark', secondaryLine: 'wind',
     gcWindFillDark: 0x00AA55, gcWindNightDark: 0x00AA55 }).graphFillColor, '#00AA55');
 });
