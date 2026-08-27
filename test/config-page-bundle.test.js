@@ -99,6 +99,26 @@ test('the graph-colour modules and the preview kit are bundled in dependency ord
   });
 });
 
+// blocks.js builds its fill-key -> night-key map from window.LineStyle while its own
+// IIFE body runs, so a wrong order leaves the map empty and the hook a no-op: fill picks
+// would keep their old night tint on a real phone with every Node test still green.
+test('the night-tint hook is registered in the generated page, after line-style', () => {
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  assert.ok(idx('pkjs/line-style.js') < idx('settings/blocks.js'),
+    'line-style.js must precede blocks.js, which reads window.LineStyle at IIFE time');
+  const src = page();
+  assert.ok(src.indexOf("PConf.onChange.register('graphFillTint'") !== -1,
+    'nothing registers the graphFillTint hook — a fill pick would leave its night tint ' +
+    'behind on the built-in, and the watch would keep re-shading the night hours in it');
+  assert.ok(src.indexOf('graphNightTintFollowsFill') !== -1,
+    'line-style.js reaches the page without the predicate the hook calls');
+});
+
 test('every preview block reaches the generated settings page', () => {
   const src = page();
   ['forecastPreview', 'radarPreview', 'devStats', 'lastFetch', 'layoutPreviewCombined']

@@ -36,11 +36,12 @@ function boolDefaultOn(value) {
  *
  * Every key now holds a CONCRETE colour (seedDefaults backfills the built-in), so there is
  * no '' sentinel left to mean "untouched" — and mining these for better defaults needs
- * exactly that distinction. The judgement is line-style.graphColorIsDefault's, not a hex
- * comparison here: it is the same predicate the wire uses, so telemetry cannot call a value
- * tuned that the wire is still resolving through the built-in — which is precisely what
- * gust's dark line does, where EITHER of its two built-ins (White, LightGray) counts as
- * untouched because the painted one follows rainBarColor.
+ * exactly that distinction. The judgement is line-style.graphColorIsPicked's, not a hex
+ * comparison here: it is the same predicate the wire's night-fill flag uses, so telemetry
+ * cannot call a value chosen that the wire is still resolving for the user. Two colours
+ * read as untouched despite holding a concrete value: gust's dark line, where EITHER
+ * built-in (White, LightGray) counts because the painted one follows rainBarColor, and a
+ * metric's night tint while it is still the fill colour the settings page carried into it.
  *
  * A STRING either way: the ingest schema types these z.string(), and a number or a null
  * against a z.number() would fail safeParse and 400 the WHOLE event, taking the fetch
@@ -55,9 +56,9 @@ function boolDefaultOn(value) {
  * @returns {string} '#RRGGBB' for a colour moved off the built-in, else 'default'.
  */
 function graphColorReport(settings, scope, role, suffix) {
-    // graphColorIsDefault answers TRUE for an absent or unparseable value as well as for
+    // graphColorIsPicked answers FALSE for an absent or unparseable value as well as for
     // one still equal to the built-in, so the other arm always has a real int to format.
-    if (lineStyle.graphColorIsDefault(settings, scope, role, suffix)) {
+    if (!lineStyle.graphColorIsPicked(settings, scope, role, suffix)) {
         return 'default';
     }
     return configUi.intToHex(

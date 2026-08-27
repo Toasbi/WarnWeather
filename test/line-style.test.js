@@ -337,6 +337,38 @@ test('the night-fill flag is set only when the tint differs from the built-in, i
     flag, 'light pick');
 });
 
+// The night band is painted OPAQUELY (chart.c's has_underlay loop strokes the underlay
+// from the curve down to the axis), so the night tint REPLACES the day fill inside the
+// night hours rather than tinting it. A tint left on the metric's built-in while the
+// fill has been moved therefore paints over a colour the user chose with one they never
+// did — the bug this pair pins the fix for. The settings page carries an unclaimed tint
+// along with the fill (blocks.js' graphFillTint), and a tint that merely FOLLOWS the
+// fill is not a night CHOICE: it must leave the flag clear, or every light-polarity fill
+// pick would opt into the re-shade that light deliberately skips.
+test('a night tint following the fill re-shades in the fill colour and claims no explicit pick', () => {
+  const flag = lineStyle.FLAG_NIGHT_FILL_EXPLICIT;
+  const pick = 0x00AA55;
+  const bytes = lineStyle.buildLineStyleBytes({
+    secondaryLine: 'wind', thirdLine: 'off', secondaryLineFill: true, theme: 'dark',
+    gcWindFillDark: '#00AA55', gcWindNightDark: '#00AA55'
+  }, emery);
+  assert.equal(bytes[1], rainTier.rgbToGColor8(pick), 'the day fill is the pick');
+  assert.equal(bytes[6], rainTier.rgbToGColor8(pick),
+    'and the night band re-shades in that same colour instead of the built-in triple');
+  assert.equal(bytes[9] & flag, 0,
+    'a followed tint is not a night choice — the light polarity keeps skipping the re-shade');
+});
+
+test('a night tint off BOTH its built-in and the fill still opts the light polarity in', () => {
+  const flag = lineStyle.FLAG_NIGHT_FILL_EXPLICIT;
+  const bytes = lineStyle.buildLineStyleBytes({
+    secondaryLine: 'wind', thirdLine: 'off', secondaryLineFill: true, theme: 'light',
+    gcWindFillLight: '#00AA55', gcWindNightLight: '#550055'
+  }, emery);
+  assert.equal(bytes[6], rainTier.rgbToGColor8(0x550055), 'the deliberate tint paints');
+  assert.equal(bytes[9] & flag, flag, 'and opts the light re-shade in');
+});
+
 test('a Light night-fill pick paints on the light polarity too', () => {
   const bytes = lineStyle.buildLineStyleBytes({
     secondaryLine: 'wind', thirdLine: 'off', secondaryLineFill: true, theme: 'light',

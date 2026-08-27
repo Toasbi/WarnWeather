@@ -285,6 +285,25 @@ test('a colour equal to the built-in reports as default, including gust either w
   assert.strictEqual(gust({ rainBarColor: 'white', gcGustLineDark: 0xFF0000 }), '#FF0000');
 });
 
+// The other colour that holds a concrete value without having been chosen: a metric's
+// night tint travels with its fill (the settings page writes both, so the watch does not
+// re-shade the night hours in the fill colour the user just replaced). Counting that as a
+// night pick would fill the ranking with copies of the fill colour and overstate how many
+// people tuned the night band — and it is the same predicate the wire's night-fill flag
+// reads, so the two cannot disagree about it either.
+test('a night tint that merely follows the fill reports as default, not as a pick', () => {
+  const tint = (extra) => buildSettingsSnapshot(
+    Object.assign({ theme: 'dark', secondaryLine: 'wind', thirdLine: 'off' }, extra)).nightFillColor;
+
+  assert.strictEqual(tint({ gcWindFillDark: 0x00AA55, gcWindNightDark: 0x00AA55 }), 'default',
+    'the tint is the fill colour the page carried into it');
+  assert.strictEqual(tint({ gcWindFillDark: 0x00AA55, gcWindNightDark: 0x550055 }), '#550055',
+    'a tint chosen for itself is still a pick');
+  // The fill is reported on its own terms either way — only the tint reads through the fill.
+  assert.strictEqual(buildSettingsSnapshot({ theme: 'dark', secondaryLine: 'wind',
+    gcWindFillDark: 0x00AA55, gcWindNightDark: 0x00AA55 }).graphFillColor, '#00AA55');
+});
+
 // The field names are per element, but the colours are stored per METRIC: which one
 // graphMainColor reports is whichever metric is currently the secondary line. The metric
 // itself rides the same snapshot (secondaryLine / thirdLine), so a query can slice by it.

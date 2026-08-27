@@ -206,7 +206,7 @@ var GRAPH_ROLE_LABELS = {
 };
 var GRAPH_ROLE_HINTS = {
     Fill: 'Only drawn while “Fill area below the line” is on.',
-    Night: 'Re-shades the filled area under the night hours.',
+    Night: 'Re-shades the filled area under the night hours. Follows the fill colour until you pick one here.',
     Hatch: 'The hatch drawn over the night hours.',
     Boundary: 'The vertical lines at sunset and sunrise.'
 };
@@ -223,6 +223,10 @@ var GRAPH_ROLE_HINTS = {
  */
 function graphColorPair(scope, role) {
     var pol = [['dark', 'Dark'], ['light', 'Light']], rows = [], i;
+    // The night tint trails the fill until it is picked for itself (blocks.js'
+    // graphFillTint): the watch paints the tint opaquely over the filled area for the
+    // night hours, so a fill pick whose tint stayed behind would not take there.
+    var carriesTint = role === 'Fill' && lineStyle.graphColorRoles(scope).indexOf('Night') >= 0;
     for (i = 0; i < pol.length; i++) {
         rows.push({
             type: 'color',
@@ -238,6 +242,7 @@ function graphColorPair(scope, role) {
             capabilities: ['COLOR'],
             showWhen: {all: [{key: 'theme', eq: pol[i][0]}]}
         });
+        if (carriesTint) { rows[rows.length - 1].onChange = 'graphFillTint'; }
     }
     return rows;
 }

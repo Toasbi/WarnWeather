@@ -266,6 +266,42 @@ if (typeof require !== 'undefined') {
         if (newValue === 'feels') { S.secondaryLineFill = false; }
     });
 
+    // Fill key -> the metric + polarity + night-tint key behind it, for the hook below.
+    // Built from line-style's own vocabulary so a metric that stops filling (feels has no
+    // Fill key at all) drops out of the map instead of naming a key nothing writes.
+    var GRAPH_FILL_TINT = (function () {
+        var map = {}, polarities = ['Dark', 'Light'], i, j, metric, suffix;
+        if (!lineStyle) { return map; }
+        for (i = 0; i < lineStyle.GRAPH_METRICS.length; i++) {
+            metric = lineStyle.GRAPH_METRICS[i];
+            if (lineStyle.graphColorRoles(metric).indexOf('Night') === -1) { continue; }
+            for (j = 0; j < polarities.length; j++) {
+                suffix = polarities[j];
+                map[lineStyle.graphColorKey(metric, 'Fill', suffix)] = {
+                    metric: metric,
+                    suffix: suffix,
+                    nightKey: lineStyle.graphColorKey(metric, 'Night', suffix)
+                };
+            }
+        }
+        return map;
+    })();
+
+    // Picking a metric's fill colour carries its night tint along, unless the tint has
+    // been picked in its own right. The watch re-shades the filled area under the night
+    // hours by painting the tint OPAQUELY over it (forecast_layer.c's night_under layer,
+    // drawn by chart.c's has_underlay loop), so a tint left behind on the built-in would
+    // replace the new fill with the old colour for those hours — the fill looking like it
+    // never took. line-style.js owns "has the tint been claimed?" (both ends of the same
+    // question: it also decides the wire's night-fill flag from it) and both polarities
+    // are tracked separately, so this writes the one that moved.
+    PConf.onChange.register('graphFillTint', function (S, oldValue, newValue, env, key) {
+        var pair = GRAPH_FILL_TINT[key];
+        if (!pair || !S) { return; }
+        if (!lineStyle.graphNightTintFollowsFill(S, pair.metric, pair.suffix, oldValue)) { return; }
+        S[pair.nightKey] = newValue;
+    });
+
     // The temp slot's "Both" mode and its degree sign are mutually exclusive:
     // "-12/-10" is already 7 of an edge slot's 8 bytes and the sign is two more.
     // Whichever the user just picked wins, so neither choice is ever refused --

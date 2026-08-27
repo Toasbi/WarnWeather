@@ -592,6 +592,53 @@ test('forecastPreview: the night tint re-shades the filled area on dark polarity
     'and a B&W preview paints no night bytes at all');
 });
 
+// The watch paints the night band OPAQUELY over the filled area (chart.c's has_underlay
+// loop), so a fill pick whose night tint stayed on the built-in is invisible for the
+// night hours — the colour the user chose replaced by one they never did. The tint
+// therefore travels with the fill for as long as it has not been chosen in its own
+// right: still the built-in, or still the fill value it last followed.
+test('graphFillTint hook carries an unclaimed night tint along with a new fill pick', () => {
+  const fn = PConf.onChange.get('graphFillTint');
+  assert.equal(typeof fn, 'function', 'hook registered');
+  const builtIn = (scope, role, suffix) => '#'
+    + (lineStyle.graphColorDefault(scope, role, suffix, {}) & 0xFFFFFF).toString(16).toUpperCase().padStart(6, '0');
+  const fillKey = lineStyle.graphColorKey('wind', 'Fill', 'Dark');
+  const nightKey = lineStyle.graphColorKey('wind', 'Night', 'Dark');
+
+  // The tint sitting on its built-in follows the fill.
+  const seeded = { [fillKey]: '#00AA55', [nightKey]: builtIn('wind', 'Night', 'Dark') };
+  fn(seeded, builtIn('wind', 'Fill', 'Dark'), '#00AA55', {}, fillKey);
+  assert.equal(seeded[nightKey], '#00AA55', 'the night band re-shades in the new fill colour');
+
+  // So does a tint that is still the PREVIOUS fill — the second pick keeps following.
+  const again = { [fillKey]: '#FF0055', [nightKey]: '#00AA55' };
+  fn(again, '#00AA55', '#FF0055', {}, fillKey);
+  assert.equal(again[nightKey], '#FF0055', 'a tint that was following keeps following');
+
+  // A tint the user chose for itself is left alone.
+  const claimed = { [fillKey]: '#FF0055', [nightKey]: '#550055' };
+  fn(claimed, '#00AA55', '#FF0055', {}, fillKey);
+  assert.equal(claimed[nightKey], '#550055', 'a deliberately picked tint survives a fill change');
+
+  // Polarity: the Light fill moves the Light tint and nothing else.
+  const lightFill = lineStyle.graphColorKey('uv', 'Fill', 'Light');
+  const both = {
+    [lightFill]: '#00FF00',
+    [lineStyle.graphColorKey('uv', 'Night', 'Light')]: builtIn('uv', 'Night', 'Light'),
+    [lineStyle.graphColorKey('uv', 'Night', 'Dark')]: builtIn('uv', 'Night', 'Dark')
+  };
+  fn(both, builtIn('uv', 'Fill', 'Light'), '#00FF00', {}, lightFill);
+  assert.equal(both[lineStyle.graphColorKey('uv', 'Night', 'Light')], '#00FF00', 'the Light tint follows');
+  assert.equal(both[lineStyle.graphColorKey('uv', 'Night', 'Dark')], builtIn('uv', 'Night', 'Dark'),
+    'the Dark tint is a separate colour and stays put');
+
+  // A key with no fill/tint pair behind it (feels never fills; the night band's own
+  // Hatch/Boundary are not a metric fill) is not this hook's business.
+  const untouched = { gcNightHatchDark: '#00FF00' };
+  fn(untouched, '#555555', '#00FF00', {}, 'gcNightHatchDark');
+  assert.deepEqual(untouched, { gcNightHatchDark: '#00FF00' }, 'nothing else is written');
+});
+
 test('radarPreview (rainbow): no nearby outline bars and no "Nearby (2 km)" legend', () => {
   const dwd = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
   const rainbow = RD.radarPreview({ radarProvider: 'rainbow', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });

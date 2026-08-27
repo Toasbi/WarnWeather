@@ -1780,6 +1780,24 @@ test('every graph colour is a Dark/Light pair on one label, one visible at a tim
   });
 });
 
+// The night tint follows the fill until it is picked in its own right (blocks.js'
+// graphFillTint), because the watch paints the night band opaquely over the filled
+// area — an unclaimed tint would keep re-shading a moved fill in the old built-in.
+// Only a Fill picker carries the hook: the Line and the night band's own colours have
+// nothing to drag along.
+test('each metric fill picker carries the night-tint hook, and only those', () => {
+  const withHook = items.filter((i) => i.onChange === 'graphFillTint').map((i) => i.messageKey);
+  const expected = [];
+  GRAPH_ROW_SCOPES.forEach((scope) => {
+    if (lineStyle.graphColorRoles(scope).indexOf('Night') === -1) { return; }
+    ['Dark', 'Light'].forEach((suffix) => {
+      expected.push(lineStyle.graphColorKey(scope, 'Fill', suffix));
+    });
+  });
+  assert.equal(expected.length, 10, 'five filling metrics x two polarities');
+  assert.deepEqual(withHook.slice().sort(), expected.slice().sort());
+});
+
 test('feels gets a Line pair only; the night band gets Hatch + Dusk/dawn', () => {
   // feels never fills (resolveGraphColors pins fillOn false for it), so a Fill or a
   // night-tint picker would offer a colour nothing can paint.

@@ -353,6 +353,64 @@
             : stored;
     }
 
+    /**
+     * Is the metric's night tint still FOLLOWING its fill — i.e. may a new fill pick carry
+     * it along?
+     *
+     * The watch paints the night band opaquely over the filled area (chart.c's
+     * has_underlay loop strokes the underlay from the curve down to the axis), so the tint
+     * REPLACES the day fill for the night hours instead of shading it. A tint left on the
+     * metric's built-in while the fill moved therefore paints over a colour the user chose
+     * with one they never did — which is why the settings page writes the fill's colour
+     * into the tint key too (blocks.js' graphFillTint) for as long as the tint has not been
+     * claimed. Two states count as unclaimed: the built-in (never touched) and the fill
+     * value the tint last followed, so a second and third fill pick keep carrying it.
+     *
+     * This is the page's rule, not the render's: the resolver still answers from the stored
+     * blob alone, so a blob written by anything other than the page renders exactly what it
+     * says.
+     *
+     * @param {Object} settings Clay settings blob.
+     * @param {string} metric A metric id from GRAPH_METRICS.
+     * @param {string} suffix 'Dark' or 'Light'.
+     * @param {*} previousFill The fill value being replaced, in any colorPick form.
+     * @returns {boolean} True when the tint may follow the fill.
+     */
+    function graphNightTintFollowsFill(settings, metric, suffix, previousFill) {
+        if (graphColorIsDefault(settings, metric, 'Night', suffix)) { return true; }
+        var previous = colorPick(previousFill);
+        return previous !== null
+            && colorPick((settings || {})[graphColorKey(metric, 'Night', suffix)]) === previous;
+    }
+
+    /**
+     * Did the user CHOOSE this colour, as opposed to being handed it?
+     *
+     * The single authority behind the two consumers that have to agree about intent: the
+     * wire's night-fill flag (byte [9] bit 0, the light-polarity opt-in) and telemetry's
+     * 'default' vs '#RRGGBB' report, which exists to mine the colours people actually
+     * chose. Two ways a stored colour is not a choice — being the built-in, and, for a
+     * metric's night tint, being the fill colour the cascade carried into it
+     * (graphNightTintFollowsFill). The tint case matters most on the light polarity, where
+     * forecast_layer.c skips the night re-shade unless the flag is set: a followed tint
+     * re-shades the fill in the fill's own colour, so setting the flag would hand every
+     * light-theme fill pick a night band the theme deliberately does not draw.
+     *
+     * @param {Object} settings Clay settings blob.
+     * @param {string} scope A metric id from GRAPH_METRICS, or 'night'.
+     * @param {string} role See graphColorKey.
+     * @param {string} suffix 'Dark' or 'Light'.
+     * @returns {boolean} True when the stored colour is the user's own pick.
+     */
+    function graphColorIsPicked(settings, scope, role, suffix) {
+        if (graphColorIsDefault(settings, scope, role, suffix)) { return false; }
+        if (scope !== 'night' && role === 'Night') {
+            return graphColorResolve(settings, scope, 'Night', suffix)
+                !== graphColorResolve(settings, scope, 'Fill', suffix);
+        }
+        return true;
+    }
+
     // The six graph-colour elements as telemetry still NAMES them (stem + 'Dark' /
     // stem + 'Light'). Nothing in this module reads these keys any more — resolution moved
     // to the per-metric gc* vocabulary above — so this list survives only as the reporting
@@ -581,8 +639,9 @@
      *
      * Only `fillExplicit` is on the wire (byte [9]), where it is the light-polarity opt-in:
      * forecast_layer.c:493-494 skips the night re-shade on colour + light polarity unless
-     * this bit is set, so it must stay FALSE for a blob still sitting on the built-in tint —
-     * otherwise every light-theme colour install gains a re-shade it does not have today.
+     * this bit is set, so it must stay FALSE for a blob whose tint is still the built-in OR
+     * merely following the fill (graphColorIsPicked) — otherwise a light-theme
+     * colour install gains a re-shade it does not have today.
      * `hatchExplicit`/`boundaryExplicit` are for a consumer that draws the built-in as
      * something other than the built-in COLOUR — the settings-page preview, whose default
      * night hatch and dusk/dawn line are translucent ink over the canvas rather than the
@@ -606,7 +665,7 @@
             areaBase: area.base,
             areaHatch: area.hatch,
             areaBoundary: area.boundary,
-            fillExplicit: !graphColorIsDefault(settings, metric, 'Night', cx.suffix),
+            fillExplicit: graphColorIsPicked(settings, metric, 'Night', cx.suffix),
             hatchExplicit: !graphColorIsDefault(settings, 'night', 'Hatch', cx.suffix),
             boundaryExplicit: !graphColorIsDefault(settings, 'night', 'Boundary', cx.suffix)
         };
@@ -754,6 +813,8 @@
         graphColorKeys: graphColorKeys,
         graphColorDefault: graphColorDefault,
         graphColorIsDefault: graphColorIsDefault,
+        graphNightTintFollowsFill: graphNightTintFollowsFill,
+        graphColorIsPicked: graphColorIsPicked,
         FLAG_NIGHT_FILL_EXPLICIT: FLAG_NIGHT_FILL_EXPLICIT,
         LINE_COLORS: LINE_COLORS,
         FILL_COLORS: FILL_COLORS,
