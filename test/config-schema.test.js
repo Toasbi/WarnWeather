@@ -740,7 +740,7 @@ test('swapClockStatus toggle exists, defaults ON, and is shown for compactCal on
   assert.equal(showWhen.isVisible(it, basaltOtherPreset), false, 'hidden for other presets');
 });
 
-test('Layout tab leads with the arrangement section: combined preview above the preset radio, then the font toggle, reset segmented and swap toggle below', () => {
+test('Layout tab leads with the arrangement section: combined preview above the preset radio, then the font toggle, swap toggle and reset segmented below', () => {
   const layout = schema.tabs.find((t) => t.id === 'layout');
   // Time and Calendar (moved from the Watch tab) follow the arrangement section.
   assert.equal(layout.sections.length, 3, 'arrangement + Time + Calendar');
@@ -753,8 +753,9 @@ test('Layout tab leads with the arrangement section: combined preview above the 
   assert.equal(items[presetIdx].blockBefore, 'layoutPreviewCombined', 'combined preview hosted on the preset radio');
   assert.equal(items[presetIdx].blockBeforeSticky, true, 'preview sticky');
   assert.equal(fontIdx, presetIdx + 1, 'largeGraphFont sits directly below the preset radio');
-  assert.equal(resetIdx, fontIdx + 1, 'viewResetMin sits directly below largeGraphFont');
-  assert.equal(swapIdx, resetIdx + 1, 'swapClockStatus sits directly below viewResetMin');
+  assert.equal(swapIdx, fontIdx + 1, 'swapClockStatus sits directly below largeGraphFont');
+  assert.equal(resetIdx, swapIdx + 1, 'viewResetMin sits directly below swapClockStatus');
+  assert.equal(resetIdx, items.length - 1, 'and closes the section');
 });
 
 test('largeGraphFont is offered on emery only, and hidden when watchInfo is unavailable', () => {

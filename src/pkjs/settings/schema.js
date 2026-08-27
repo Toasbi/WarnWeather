@@ -1431,14 +1431,6 @@ module.exports = {
                 // fail-closed is right for an emery-only cosmetic toggle.
                 showWhen: {env: 'platform', eq: 'emery'}
             }, {
-                type: 'segmented',
-                messageKey: 'viewResetMin',
-                label: 'View reset time',
-                defaultValue: '2',
-                hint: 'Automatically return to the default view after the selected time has passed.',
-                options: [['Never', '0'], ['1m', '1'], ['2m', '2'], ['5m', '5'], ['10m', '10']],
-                showWhen: {env: 'platform', ne: 'aplite'}
-            }, {
                 type: 'toggle',
                 messageKey: 'swapClockStatus',
                 label: 'Swap clock and status row',
@@ -1450,6 +1442,19 @@ module.exports = {
                 defaultValue: true,
                 hint: 'Move the status row below the clock, next to the forecast.',
                 showWhen: {key: 'layoutPreset', eq: 'compactCal'}
+            }, {
+                // Last in the section deliberately: the rows above shape what the layout
+                // LOOKS like, this one is about when it snaps back. It is also the one row
+                // here with no compactCal gate, so ending on it keeps the gated rows
+                // together above rather than leaving a hole mid-section when the preset
+                // hides them.
+                type: 'segmented',
+                messageKey: 'viewResetMin',
+                label: 'View reset time',
+                defaultValue: '2',
+                hint: 'Automatically return to the default view after the selected time has passed.',
+                options: [['Never', '0'], ['1m', '1'], ['2m', '2'], ['5m', '5'], ['10m', '10']],
+                showWhen: {env: 'platform', ne: 'aplite'}
             }]
         }, {
             // Time and Calendar moved here from the Watch tab (now 'Status slots'):
