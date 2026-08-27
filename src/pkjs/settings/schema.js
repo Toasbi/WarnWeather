@@ -764,7 +764,7 @@ module.exports = {
                     bw: 'Renders exactly like a Black & White watch — same colors, same drawing.',
                     'bw-light': 'Renders exactly like a Black & White watch in its Light theme — black on white.'
                 },
-                options: [['Dark', 'dark'], ['Light (Alpha)', 'light'], ['B&W', 'bw'], ['B&W Inverted', 'bw-light']],
+                options: [['Dark', 'dark'], ['Light', 'light'], ['B&W', 'bw'], ['B&W Inverted', 'bw-light']],
                 showWhen: {env: 'color'},
                 onChange: 'themeConvert'
             }, {
@@ -776,7 +776,7 @@ module.exports = {
                     dark: 'Black background, white text/lines (default).',
                     light: 'White background, black text/lines. Graph colors are unchanged for now.'
                 },
-                options: [['Dark', 'dark'], ['Light (Alpha)', 'light']],
+                options: [['Dark', 'dark'], ['Light', 'light']],
                 // aplite compiles the light polarity out (no WW_THEME_POLARITY — the
                 // theme sweep pushed the image past the 24 KB launch ceiling), so the
                 // picker is hidden there entirely; a choice would be a silent no-op.
