@@ -1,31 +1,26 @@
-// src/pkjs/line-style.js — ES5. Graph line styling: the two metric line colours, the
-// area-fill colour and the fill flag, plus the five night colours and the night flag.
-// Every one of them is derived from the SETTINGS blob (plus the target platform's
-// colour/polarity capabilities) and not from the weather data, so per AGENTS.md's
-// message-boundary rule they belong on the Clay settings message rather than on every
-// weather send. This module is the single source of truth shared by the Clay packer and
-// the forecast series builder, so the wire and the render can't drift — and, through
-// renderContext(), by the telemetry snapshot too, which is the half that drifted once.
+// src/pkjs/line-style.js — ES5. The graph's colours: two metric lines, the area fill
+// and its flag, the five night colours and the night flag. All settings-derived, never
+// weather-derived, so they ride the Clay settings message.
 //
-// It is also what the SETTINGS PAGE's forecast preview draws from, via
-// resolveGraphColors() — the same body resolveLineStyle() runs, with the render
-// capabilities passed in instead of derived from a watchInfo the page does not have.
-// That is why this file is dual-context: a CommonJS module on the phone and in the
-// tests, and a plain concatenated <script> in the settings-page webview
-// (scripts/build-config-page.js's APP_FILES), which has no require().
+// DESIGN LOG: docs/adr/0003-graph-colour-model.md — the key vocabulary, why the
+// built-ins are derived rather than listed, why the night tint cascades at resolve
+// time, the wire layout, and the accepted trade-offs. Comments here are invariants
+// only; put the reasoning in the ADR.
+//
+// Dual-context: a CommonJS module on the phone and in the tests, a plain concatenated
+// <script> in the settings-page webview (build-config-page.js's APP_FILES), which has
+// no require().
 (function () {
-    // pebble-colors.js and resolve-ink.js are needed the moment this module loads (the
-    // tables below are built from them), and both are concatenated BEFORE this file in the
-    // page bundle, so they resolve either way.
+    // Needed at load time (the tables below are built from them); both are concatenated
+    // BEFORE this file in the page bundle, so they resolve either way.
     var COLORS = (typeof require !== 'undefined')
         ? require('./pebble-colors') : window.PebbleColors;
     var resolveInkLib = (typeof require !== 'undefined')
         ? require('./resolve-ink.js') : window.ResolveInk;
-    // Phone-only deps, guarded the way status-thresholds.js guards its own: neither module
-    // is in the page bundle, and neither of their consumers here is reachable from the page.
-    // configUi backs capsForWatch() (so renderContext/resolveLineStyle are phone-only); the
-    // page enters through renderContextFor/resolveGraphColors with explicit capabilities
-    // instead. rainTier backs buildLineStyleBytes(), which only the wire packers call.
+    // Phone-only deps — neither is in the page bundle, and neither of their consumers
+    // here is reachable from it: configUi backs capsForWatch (so renderContext and
+    // resolveLineStyle are phone-only; the page enters through renderContextFor /
+    // resolveGraphColors), rainTier backs buildLineStyleBytes, which only wire packers call.
     var configUi = (typeof require !== 'undefined')
         ? require('./config-ui') : null;   // isColorPlatform — same helper rain-tier/palette-wire use
     var rainTier = (typeof require !== 'undefined')
@@ -35,55 +30,30 @@
     var isLightPolarity = resolveInkLib.isLightPolarity;
     var effectiveTheme = resolveInkLib.effectiveTheme;
 
-    // Metric → line stroke colour per platform class. Gust is settings-dependent on colour
-    // displays, so it is resolved in lineColorFor(), not from this table. `light` is an
-    // optional light-theme override, consulted by lineColorFor() when the theme is
-    // light-polarity and the display is effectively colour; a metric without one keeps its
-    // `color` value in every color-capable theme (see fillColorFor's identical `light`
-    // convention below). precip has one from the readability feedback round (PictonBlue
-    // read too bright against the light-theme's white background — VividCerulean is one
-    // Pebble-palette step darker, same R-channel notch as the fill below); feels has one
-    // because LightGray is illegible on white.
+    // Metric → line stroke colour per platform class. `light` is an OPTIONAL light-polarity
+    // override, tested with hasOwnProperty (GColorBlack is falsy); without one a metric
+    // keeps its `color` in every colour-capable theme. gust is absent on purpose — its
+    // colour depends on rainBarColor, so lineColorFor resolves it. Rationale for each
+    // hue, and why feels goes Black on light: ADR-0003 §6.
     var LINE_COLORS = {
         precip_prob: { color: COLORS.GColorPictonBlue, light: COLORS.GColorVividCerulean, bw: COLORS.GColorWhite },
         wind:        { color: COLORS.GColorYellow,     bw: COLORS.GColorWhite },
         uv:          { color: COLORS.GColorMagenta,    bw: COLORS.GColorWhite },
-        // Orange is the last unclaimed warm hue: precip owns blue, uv magenta, gust the
-        // grays. It reads close to wind's yellow at 1px — eyeball on hardware before
-        // treating it as final.
         pressure:    { color: COLORS.GColorOrange,     bw: COLORS.GColorWhite },
-        // Feels-like shadows the 3px temp curve, so it stays achromatic and dimmer than
-        // any hue: LightGray next to temp's white line on dark. On light it goes BLACK,
-        // not a gray — at 1px on a white background DarkGray reads as barely-there, and
-        // it would also collide with the light theme's white-bar rain colour. Black still
-        // separates from the temp curve, which stays red on colour displays. On B&W the
-        // width/pattern (1px solid or dots vs the 3px temp curve) tells it apart.
         feels:       { color: COLORS.GColorLightGray,  light: COLORS.GColorBlack,         bw: COLORS.GColorWhite }
     };
-    // Metric → area-fill colour per platform class. Every metric can fill; colour-platform
-    // fills are a darker shade of the line so the line always reads brighter (precip
-    // PictonBlue→CobaltBlue, wind→ArmyGreen, uv→Purple, gust→DarkGray). B&W has no range,
-    // so all fills are LightGray. `light` is the light-theme fill: the dark-theme shades read
-    // too heavy against a white background, so light theme gets a brighter tint of the same
-    // hue instead (precip→ElectricBlue, wind→Inchworm, uv→ShockingPink, gust→LightGray).
-    // precip's light tint was Celeste (0xAAFFFF) until the readability feedback round: it
-    // read too washed-out, so it moved one Pebble-palette step darker to ElectricBlue
-    // (0x55FFFF — the R channel steps 0xAA -> 0x55, matching the line's PictonBlue ->
-    // VividCerulean step above). NOTE: 0x55FFFF has no "Cyan"-named constant in
-    // pebble-colors.js — the real GColorCyan is 0x00FFFF — GColorElectricBlue is the
-    // correct name for this hex. First pass — the user will tune these further.
+    // Metric → area-fill colour per platform class. Colour fills are a darker shade of the
+    // line so the line always reads brighter; the `light` arm is a BRIGHTER tint instead,
+    // since the dark shades read too heavy on white. B&W has no range: always LightGray.
+    // (0x55FFFF is GColorElectricBlue — GColorCyan is 0x00FFFF.) ADR-0003 §6.
     var FILL_COLORS = {
         precip_prob: { color: COLORS.GColorCobaltBlue, light: COLORS.GColorElectricBlue, bw: COLORS.GColorLightGray },
         wind:        { color: COLORS.GColorArmyGreen,  light: COLORS.GColorInchworm,     bw: COLORS.GColorLightGray },
         uv:          { color: COLORS.GColorPurple,     light: COLORS.GColorShockingPink, bw: COLORS.GColorLightGray },
         gust:        { color: COLORS.GColorDarkGray,   light: COLORS.GColorLightGray,    bw: COLORS.GColorLightGray },
         pressure:    { color: COLORS.GColorWindsorTan, light: COLORS.GColorChromeYellow, bw: COLORS.GColorLightGray },
-        // Kept for the wire's shape only: resolveLineStyle forces the secondary fill
-        // false for feels (it has no meaningful zero to fill down to), so no AREA layer is
-        // ever built and the night-area triple below is never painted for it. Still
-        // LightGray so that if the fill is ever re-enabled the day fill still reads as a
-        // dimmer twin of the LightGray line. The night side no longer depends on this
-        // value at all — NIGHT_AREA_COLORS.feels is keyed by the METRIC.
+        // feels never fills (resolveGraphColors pins fillOn false), so no AREA layer is
+        // ever built from this row — it exists so the wire's shape stays total.
         feels:       { color: COLORS.GColorLightGray,  light: COLORS.GColorLightGray,    bw: COLORS.GColorLightGray }
     };
 
@@ -100,10 +70,8 @@
 
     /**
      * Snap a colour onto the Pebble-64 grid. Applied once, at the parse boundary
-     * (colorPick), so everything downstream can assume a resolved colour is a real Pebble
-     * value — which is what lighten()'s level arithmetic needs to be exact. It does NOT
-     * change the pixel: rgbToGColor8 extracts the same `>> 6` level either way, so this is
-     * about the numbers the rest of this module reasons over, not about the wire.
+     * (colorPick), so every colour this module reasons over is a real Pebble value —
+     * which is what lighten()'s level arithmetic needs. Changes no pixel (ADR-0003 §5).
      * @param {number} rgb 0xRRGGBB colour.
      * @returns {number} 0xRRGGBB colour with every channel on the Pebble-64 grid.
      */
@@ -134,11 +102,9 @@
         return Math.min((v >> 6) + 1, 3) * 0x55;
     }
 
-    // Night base/hatch/boundary for the FILLED area — the six hand-tuned triples
-    // forecast_layer.c owned until this feature. Keyed by METRIC, not by the day fill
-    // colour: the C keyed on the fill with gcolor_equal, which is exactly what made an
-    // unlisted metric render precip-blue (pressure shipped that way, MEASURED on emery),
-    // and a user-selectable fill would send every custom pick down that same fall-through.
+    // Night base/hatch/boundary for the FILLED area: six hand-tuned triples, keyed by
+    // METRIC. Keying on the day fill colour instead is what made an unlisted metric render
+    // precip-blue in the C. Hand-tuned per hue, NOT products of lighten() — ADR-0003 §5.
     var NIGHT_AREA_COLORS = {
         precip_prob: { base: COLORS.GColorDukeBlue,       hatch: COLORS.GColorBlue,      boundary: COLORS.GColorVividCerulean },
         wind:        { base: COLORS.GColorArmyGreen,      hatch: COLORS.GColorLimerick,  boundary: COLORS.GColorLimerick },
@@ -147,38 +113,30 @@
         pressure:    { base: COLORS.GColorWindsorTan,     hatch: COLORS.GColorOrange,    boundary: COLORS.GColorOrange },
         feels:       { base: COLORS.GColorLightGray,      hatch: COLORS.GColorWhite,     boundary: COLORS.GColorWhite }
     };
-    // The full-height night hatch / dusk-dawn line the user starts from —
-    // forecast_layer.c's NIGHT_HATCH_COLOR and NIGHT_BOUNDARY_COLOR colour arms. The
-    // boundary's polarity swap lives in its B&W arm only, so both polarities send DarkGray.
+    // Full-height night hatch / dusk-dawn line. The boundary's polarity swap lives in its
+    // B&W arm (forecast_layer.c), so both polarities send DarkGray from here.
     var NIGHT_HATCH_DEFAULT = COLORS.GColorDarkGray;
     var NIGHT_BOUNDARY_DEFAULT = COLORS.GColorDarkGray;
 
-    // --- The per-metric graph-colour key vocabulary -----------------------------
-    //
-    // Every graph colour is stored as a CONCRETE per-polarity value under a key named
-    // 'gc' + metric slug + role + polarity ('gcPrecipLineDark'), seeded from
-    // graphColorDefault below. There is no "auto" sentinel: the settings page shows the
-    // stored colour as the highlighted swatch, and "is this still the built-in?" is
-    // answered by asking graphColorDefault for the built-in and comparing
-    // (graphColorIsDefault), not by a magic value.
+    // --- The graph-colour key vocabulary: 'gc' + slug + role + polarity ---------
+    // Concrete per-polarity values, no "auto" sentinel. ADR-0003 §1-§2.
 
-    // The graph metrics that can be the main or the second line, in the order the settings
-    // page lists them (blocks.js' FORECAST_METRICS).
+    // Main/second-line metrics, in the order the settings page lists them
+    // (blocks.js' FORECAST_METRICS).
     var GRAPH_METRICS = ['precip_prob', 'wind', 'uv', 'gust', 'pressure', 'feels'];
-    // Metric id -> the CamelCase fragment its keys carry. The ids are snake_case wire
-    // values and would make unreadable key names ('gcPrecip_probLineDark').
+    // Metric id -> the CamelCase key fragment. The ids are snake_case wire values and
+    // would make unreadable key names ('gcPrecip_probLineDark').
     var METRIC_SLUG = {
         precip_prob: 'Precip', wind: 'Wind', uv: 'Uv',
         gust: 'Gust', pressure: 'Pressure', feels: 'Feels'
     };
-    // The three colours a metric owns. 'Night' is the night FILL TINT — the base of the
-    // night-area triple, which nightAreaColorsFor derives the hatch and boundary from.
+    // 'Night' is the night FILL TINT — the base nightAreaColorsFor derives the triple from.
     var METRIC_ROLES = ['Line', 'Fill', 'Night'];
-    // The two colours the full-height night band owns, under the pseudo-scope 'night'.
+    // What the full-height band owns, under the pseudo-scope 'night'.
     var NIGHT_ROLES = ['Hatch', 'Boundary'];
 
-    // Metric-id membership set for graphColorDefault. Built from GRAPH_METRICS so a new
-    // metric is a one-line change there and nowhere else.
+    // Metric-id membership set. Built from GRAPH_METRICS so a new metric is a one-line
+    // change there and nowhere else.
     var IS_GRAPH_METRIC = {};
     (function () {
         var i;
@@ -187,12 +145,8 @@
 
     /**
      * Is this scope one of the graph metrics? OWN keys only — a bare object literal answers
-     * truthy for every Object.prototype name ('toString', 'constructor'), which would route
-     * those down the Fill/Night arms. Note this does NOT make graphColorDefault total for
-     * such a name: the fall-through lands in lineColorFor, whose LINE_COLORS[metric] lookup
-     * has the same pre-existing hole (as do fillColorFor and nightAreaColorsFor), so it
-     * still answers undefined there. Closing that is separate hardening; no reachable input
-     * gets near it, since every scope comes from GRAPH_METRICS, 'night', or a metric picker.
+     * truthy for every Object.prototype name. This does NOT make graphColorDefault total
+     * for such a name; the three colour tables have the same hole (ADR-0003 §3, unreached).
      * @param {string} scope Candidate metric id.
      * @returns {boolean} True only for a member of GRAPH_METRICS.
      */
@@ -249,25 +203,18 @@
 
     /**
      * The built-in colour for one (scope, role, polarity) on a COLOUR render — the schema
-     * default, and the value graphColorIsDefault compares a stored colour against.
+     * default, and what graphColorIsDefault compares a stored colour against.
      *
-     * DERIVED, never transcribed: every answer comes back out of the same three resolvers
-     * the renderer uses (lineColorFor / fillColorFor / nightAreaColorsFor), so a fresh
-     * install is pixel-identical to 1.14.1 by construction and a tweak to LINE_COLORS,
-     * FILL_COLORS or NIGHT_AREA_COLORS moves the default with it. That is also why gust's
-     * dark line needs no special case here: lineColorFor already dodges the rain bars
-     * (it reads settings.rainBarColor), and graphColorIsDefault accepts EITHER of the two
-     * greys it can answer as "still the built-in".
+     * DERIVED, never transcribed: every answer comes back out of the three resolvers the
+     * renderer itself uses, so editing LINE_COLORS / FILL_COLORS / NIGHT_AREA_COLORS moves
+     * the default with it and gust needs no special case (ADR-0003 §3). The appearance
+     * contract is pinned in test/line-style.test.js, not by a second table here.
      *
-     * `suffix` alone names the theme here because this is the colour arm: renderContextFor
-     * reports isColor true only for the 'dark' and 'light' themes (a bw/bw-light theme folds
-     * to !isColor), so Dark <-> 'dark' and Light <-> 'light' exactly.
+     * `suffix` alone names the theme because this is the colour arm: renderContextFor
+     * reports isColor true only for 'dark' and 'light', so Dark <-> 'dark' exactly.
      *
-     * TOTAL: an unknown scope (today thirdLine's 'off', and a settings blob with no
-     * secondaryLine at all) falls through to lineColorFor, which is itself total and answers
-     * the theme foreground, so no caller needs a `||` fallback — which matters because
-     * GColorBlack is 0x000000 and therefore falsy. Total over ROLES too: feels gets no
-     * Fill/Night key but resolveGraphColors still resolves both for it.
+     * TOTAL over scopes and roles — an unknown scope falls through to lineColorFor, which
+     * is itself total. Callers must NOT add a `||` fallback: GColorBlack is 0x000000.
      *
      * @param {string} scope A metric id from GRAPH_METRICS, or 'night'.
      * @param {string} role See graphColorKey.
@@ -286,16 +233,12 @@
     }
 
     /**
-     * Is the stored colour for one key still the built-in?
-     *
-     * True when nothing parseable is stored (a blob the page has never written) and when the
-     * stored value equals graphColorDefault. This predicate is what replaced the old ''
-     * Auto sentinel: it keeps gust's rainBarColor coupling alive, and it drives the wire's
-     * night-fill flag (byte [9] bit 0).
+     * Is the stored colour for one key still the built-in? True when nothing parseable is
+     * stored, and when the stored value equals graphColorDefault.
      *
      * gust/Line/Dark answers true for EITHER of its two built-ins (White with multicolour
-     * bars, LightGray with solid white bars), so a solid-bar install whose blob was seeded
-     * with White keeps resolving through rainBarColor instead of painting white on white.
+     * bars, LightGray with solid white ones) so a solid-bar install seeded with White keeps
+     * resolving through rainBarColor instead of painting white on white — ADR-0003 §6.
      *
      * @param {Object} settings Clay settings blob.
      * @param {string} scope A metric id from GRAPH_METRICS, or 'night'.
@@ -334,23 +277,14 @@
      * The night tint for a metric's filled area: the user's own pick, else the fill colour
      * they chose, else null for the metric's hand-tuned built-in triple.
      *
-     * The CASCADE lives here, at resolve time, and nowhere else. The watch paints the night
-     * band opaquely over the filled area (chart.c's has_underlay loop strokes the underlay
-     * from the curve down to the axis), so the tint REPLACES the day fill for the night
-     * hours instead of shading it: a tint left on the metric's built-in while the fill moved
-     * would paint over a colour the user chose with one they never did. Deriving the carry
-     * from the two stored keys — rather than having the settings page write the fill into
-     * the tint key — is what keeps "the user picked this" answerable at all. A page-side
-     * write makes a claimed tint and a carried one the same bytes, and then nothing
-     * downstream can tell a deliberate pick from a hand-me-down (the bug this replaced:
-     * a tint deliberately picked equal to its fill read as untouched, so the light-polarity
-     * re-shade was skipped and telemetry reported 'default'). The blobs the 1.15.0 page
-     * already wrote are healed once, on upgrade, by clay-settings.js'
-     * migrateCarriedGraphNightTints — without it a carried tint would read as claimed here
-     * and freeze, so the next fill pick would never reach the night hours.
+     * THE CASCADE LIVES HERE, at resolve time, and nowhere else — the settings page must
+     * never write one graph-colour key on behalf of another, or a carried tint and a chosen
+     * one become the same bytes and intent stops being answerable (ADR-0003 §4). Blobs the
+     * 1.15.0 page already wrote that way are healed on upgrade by clay-settings.js'
+     * migrateCarriedGraphNightTints.
      *
-     * Returning null rather than the built-in base is deliberate: nightAreaColorsFor answers
-     * null with the hand-tuned triple verbatim, while a concrete base runs the derive recipe.
+     * Returning null rather than the base is deliberate: nightAreaColorsFor answers null
+     * with the hand-tuned triple verbatim, while a concrete base runs the derive recipe.
      *
      * @param {Object} settings Clay settings blob (gc&lt;Metric&gt;Night and gc&lt;Metric&gt;Fill).
      * @param {string} metric A metric id from GRAPH_METRICS.
@@ -368,18 +302,13 @@
     }
 
     /**
-     * Did the user CHOOSE this colour, as opposed to being handed it?
+     * Did the user CHOOSE this colour, as opposed to being handed it? The single authority
+     * behind the two consumers that must agree about intent: the wire's night-fill flag
+     * (byte [9] bit 0) and telemetry's 'default' vs '#RRGGBB' report.
      *
-     * The single authority behind the two consumers that have to agree about intent: the
-     * wire's night-fill flag (byte [9] bit 0, the light-polarity opt-in) and telemetry's
-     * 'default' vs '#RRGGBB' report, which exists to mine the colours people actually chose.
-     * There is exactly ONE way a stored colour is not a choice: being the built-in — which
-     * for gust's dark line means either of the two greys rainBarColor can answer (see
-     * graphColorIsDefault). A metric's night tint is no longer a second way: the fill cascade
-     * is derived at resolve time (graphNightTint) instead of being written into the tint key,
-     * so a value sitting in that key got there because someone picked it — once
-     * clay-settings.js' migrateCarriedGraphNightTints has cleared the ones the 1.15.0 page
-     * wrote there on the user's behalf.
+     * There is exactly one way a stored colour is not a choice — being the built-in. Now
+     * that the cascade resolves rather than writes, a value in a tint key got there because
+     * someone picked it (ADR-0003 §4).
      *
      * @param {Object} settings Clay settings blob.
      * @param {string} scope A metric id from GRAPH_METRICS, or 'night'.
@@ -393,35 +322,22 @@
 
     // Line-style flag byte (wire byte [3]), bit 0: the secondary line's area fill is on.
     var FLAG_SECONDARY_FILL = 0x01;
-    // NIGHT flag byte (wire byte [9]), bit 0: the night-area tint is an explicit user pick,
-    // not the built-in triple. The watch skips the night re-shade on colour + light polarity
-    // (user-tuned); this bit is the opt-in that makes a Light night-fill pick paint there.
-    // It lives in its OWN byte rather than beside FLAG_SECONDARY_FILL so that wire bytes
-    // [4..9] are byte-for-byte the watch's NIGHT_COLORS persist blob (persist.h's
-    // NIGHT_FLAG_FILL_EXPLICIT, same bit, same offset) — app_message.c stores the tail
-    // straight through with no repacking and no second name for this bit.
+    // NIGHT flag byte (wire byte [9]), bit 0: the night-area tint is an explicit user pick.
+    // The light-polarity opt-in for the night re-shade. Its own byte, NOT beside
+    // FLAG_SECONDARY_FILL, so bytes [4..9] stay byte-for-byte the watch's NIGHT_COLORS
+    // persist blob — same bit, same offset, one name on both ends. ADR-0003 §7.
     var FLAG_NIGHT_FILL_EXPLICIT = 0x01;
 
     /**
-     * What this watch is ACTUALLY rendering — the one authority every graph-colour consumer
-     * asks, instead of re-deriving it. The wire packer here and the telemetry snapshot
-     * derived it separately once and diverged: telemetry copied the theme fold but dropped
-     * the colour-platform half, so a diorite install reported picks the wire had already
-     * resolved away to white. (The settings page asks renderContextFor() instead — same
-     * body, capabilities passed in rather than looked up from a watchInfo.)
+     * What this watch is ACTUALLY rendering — the ONE authority every graph-colour consumer
+     * asks instead of re-deriving it. Never re-derive these three: the wire and telemetry
+     * did once and diverged (ADR-0003 §8).
      *
-     * `theme` is the FOLDED theme. aplite has the light polarity compiled out (theme.h pins
-     * theme_is_light() false), so a light / bw-light byte renders as the classic
-     * white-on-black there; resolving off settings.theme instead would send black line
-     * colours to a black background (the reported bug). Every other platform ships the
-     * polarity, so effectiveTheme returns the theme unchanged for them.
-     *
-     * `isColor` is the EFFECTIVE colour flag: colour hardware renders as colour only when
-     * the theme isn't Black & White — a bw/bw-light theme reuses the exact colour model B&W
-     * watches get today (bw-light in its light-polarity form).
-     *
-     * `suffix` is the polarity half of every graph-colour key name, derived from the folded
-     * theme so the pick that is read is the pick that is painted.
+     * `theme` is the FOLDED theme (aplite has the light polarity compiled out, so resolving
+     * off settings.theme would send black lines to a black background). `isColor` is the
+     * EFFECTIVE colour flag — colour hardware only counts when the theme isn't B&W.
+     * `suffix` is the polarity half of every key name, off the folded theme, so the pick
+     * that is read is the pick that is painted.
      *
      * @param {Object} settings Clay settings blob; only `theme` is read.
      * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result, or null/undefined
@@ -471,16 +387,10 @@
     }
 
     /**
-     * Line/dot colour for a metric, resolved for the platform + theme. isColor and theme
-     * should both come from renderContext() — the EFFECTIVE colour flag and the FOLDED
-     * theme. On B&W (or bw/bw-light theme) every line is the theme
-     * foreground; gust on colour is settings-dependent so it never matches the rain bars.
-     * On a colour display, a light-polarity theme (light or bw-light) swaps in the metric's
-     * `light` variant (see LINE_COLORS) when one is defined — mirrors fillColorFor's `light`
-     * convention below; a metric without one keeps its dark-theme `color`. isColor is
-     * already the EFFECTIVE color flag, so bw/bw-light never reach the light-variant branch
-     * — they resolve via the `!isColor` guard above instead. resolveInk flips an exact white
-     * to black in light-polarity themes; hues and grays pass through.
+     * Line/dot colour for a metric, resolved for the platform + theme. Both isColor and
+     * theme must come from renderContext() — the EFFECTIVE flag and the FOLDED theme, so
+     * bw/bw-light take the `!isColor` arm and never reach the light-variant branch.
+     * TOTAL: an unknown metric answers the theme foreground. ADR-0003 §6.
      * @param {string} metric precip_prob|wind|gust|uv.
      * @param {Object} settings Clay settings (reads rainBarColor for gust).
      * @param {boolean} isColor Effective colour display?
@@ -493,24 +403,15 @@
         if (!isColor) {
             result = COLORS.GColorWhite;
         } else if (metric === 'gust') {
-            // Gust takes the achromatic slot so it never reads as one of the rain bars.
-            // Dark polarity: LightGray over white bars (which are white there), white
-            // otherwise. Light polarity: black either way — LightGray is invisible on a
-            // white background, and DarkGray is the exact colour the white-bar mode
-            // paints its BARS in a light theme (rain-tier.buildPalette), so a DarkGray
-            // line would vanish into them. White falls through to resolveInk, which
-            // flips it to black on light polarity.
+            // Gust dodges whichever grey the rain bars use — the one built-in that reads
+            // another live setting. Light polarity is black either way (ADR-0003 §6);
+            // White falls through to resolveInk, which flips it there.
             result = (!isLightPolarity(theme) && settings.rainBarColor === 'white')
                 ? COLORS.GColorLightGray
                 : COLORS.GColorWhite;
         } else {
             var entry = LINE_COLORS[metric];
             if (!entry) {
-                // TOTAL: an unknown metric (today only thirdLine's 'off') resolves
-                // to the theme foreground instead of GColorBlack. Black is 0x00 and
-                // therefore falsy, which used to make resolveLineStyle's `||`
-                // fallbacks accident-dependent — this file already had to warn
-                // itself about that trap once (the light-variant note below).
                 result = COLORS.GColorWhite;
             } else if (isLightPolarity(theme) && entry.hasOwnProperty('light')) {
                 // Presence, not truthiness: GColorBlack is 0x000000, so `entry.light &&`
@@ -524,12 +425,9 @@
     }
 
     /**
-     * Area-fill colour for a metric, resolved for the platform + theme. On a colour display,
-     * a light-polarity theme (light or bw-light) swaps in the metric's brighter `light` tint
-     * (see FILL_COLORS) instead of the dark-theme shade so the fill reads against a white
-     * background; B&W ignores theme (always LightGray). isColor is already the EFFECTIVE
-     * color flag, so bw/bw-light never reach the light-tint branch — they resolve via the
-     * `!isColor` guard above instead.
+     * Area-fill colour for a metric, resolved for the platform + theme. B&W ignores theme
+     * (always LightGray); the light-polarity arm is the brighter tint. NOT total — answers
+     * undefined for an unknown metric, so callers must handle that explicitly.
      * @param {string} metric precip_prob|wind|gust|uv.
      * @param {boolean} isColor Colour display?
      * @param {string} [theme] 'dark'|'light'|'bw'|'bw-light'; defaults to 'dark' (no light variant) when omitted.
@@ -545,16 +443,12 @@
 
     /**
      * Read one graph-colour setting. The page writes a '#RRGGBB' STRING, but a numeric
-     * defaultValue (or a hand-written fixture) can seed an int, so tolerate both the way
-     * status-thresholds.js' colorInt does. There is no sentinel value any more: null means
-     * "nothing usable is stored here", and every caller answers that with the built-in.
+     * defaultValue or a hand-written fixture can seed an int, so tolerate both. null means
+     * "nothing usable stored"; every caller answers that with the built-in.
      *
-     * The value is snapped onto the Pebble-64 grid HERE, once, so that is an invariant of
-     * every colour this module hands out. The snap is DEFENSIVE now — every swatch the page
-     * offers is already a Pebble-64 value (engine.js' PALETTE) — but a hand-written fixture
-     * or an older blob need not be, and lighten()'s level arithmetic is only exact on grid
-     * values. It is invisible on the wire either way: rgbToGColor8 reduces both forms to the
-     * same `>> 6` level, so it changes no pixel.
+     * THE snap boundary: every colour this module hands out is on the Pebble-64 grid
+     * because it passed through here. Defensive (page swatches already are), but fixtures
+     * and older blobs need not be, and lighten() is only exact on grid values.
      *
      * @param {*} v Stored setting value.
      * @returns {number|null} 0xRRGGBB on the Pebble-64 grid, or null when nothing parses.
@@ -570,10 +464,9 @@
     /**
      * The night base/hatch/boundary for the filled area under the night hours.
      *
-     * A tint EQUAL to the metric's built-in base returns the hand-tuned triple verbatim
-     * rather than re-deriving it — which matters now that the stored tint defaults to that
-     * base instead of to an absent sentinel: running it through the recipe below would give
-     * five of the six metrics a new hatch and boundary on a blob nobody has touched.
+     * A tint equal to the metric's built-in base returns the hand-tuned triple VERBATIM
+     * rather than re-deriving it: five of the six do not survive a round-trip through the
+     * recipe below, so re-deriving would repaint blobs nobody has touched.
      *
      * @param {string} metric The secondary line's metric (precip_prob|wind|gust|uv|pressure|feels).
      * @param {number|null} tint The 0xRRGGBB night-fill tint, or null for the built-in.
@@ -584,15 +477,9 @@
         // precip triple, which is the arm forecast_layer.c fell through to.
         var builtin = NIGHT_AREA_COLORS[metric] || NIGHT_AREA_COLORS.precip_prob;
         if (tint === null || tint === undefined || tint === builtin.base) { return builtin; }
-        // NOT the recipe the six triples above were built with — feed each of their bases
-        // back through this and only `feels` comes out matching; the other five were hand-
-        // tuned per hue (precip and uv keep a saturated channel at 0x00 instead of lifting
-        // it, wind/gust/pressure collapse boundary onto hatch a level earlier). Those six
-        // stay verbatim, and this exists for the case they cannot cover: an ARBITRARY pick,
-        // which needs a plausible member of the same family rather than a matching one. One
-        // Pebble level per layer is the cheapest rule that keeps the stack legible — the
-        // hatch reads above its own underlay, the boundary above the hatch — and near the top
-        // of the ramp the two saturate together, the way four of the six triples read.
+        // For an ARBITRARY pick only: one Pebble level per layer, so the hatch reads above
+        // its underlay and the boundary above the hatch. This is NOT the recipe the six
+        // built-ins came from — ADR-0003 §5.
         var hatch = lighten(tint);
         return { base: tint, hatch: hatch, boundary: lighten(hatch) };
     }
@@ -600,29 +487,13 @@
     /**
      * Resolve the five night colours (plus the explicit-tint flag) for the wire.
      *
-     * There is no B&W arm and no isColor gate: every one of these bytes reaches the render
-     * through `theme_pick(colour_arm, bw_arm)` and the underlay through
-     * `has_underlay = !theme_is_bw()` (forecast_layer.c), so a B&W watch or a bw/bw-light
-     * theme discards all five and paints theme_fg() over a LightGray underlay from its own
-     * constants. Sending a "B&W-honest" set was five bytes of ceremony no watch ever read.
-     * The consequence, deliberately: on a bw theme these bytes now carry whatever the user
-     * picked for that polarity instead of pinned white/LightGray constants. The wire is not
-     * lying — it is simply describing colours this render mode ignores.
+     * No B&W arm and no isColor gate, deliberately: a B&W watch or bw/bw-light theme
+     * discards all five and paints from its own constants, so a "B&W-honest" set was five
+     * bytes no watch ever read. These bytes describe colours that render mode ignores.
      *
-     * The area triple comes from graphNightTint, so it reads the metric's FILL key too: an
-     * unclaimed tint cascades from the fill the user picked. Only `fillExplicit` is on the
-     * wire (byte [9]), where it is the light-polarity opt-in: forecast_layer.c:493-494 skips
-     * the night re-shade on colour + light polarity unless this bit is set, so it must stay
-     * FALSE for a blob whose tint is still the built-in (graphColorIsPicked) — otherwise a
-     * light-theme colour install gains a re-shade it does not have today. A tint the CASCADE
-     * supplies leaves the bit clear for exactly that reason: it is the fill's colour, not a
-     * night choice, and the tint key was never written.
-     *
-     * That last clause is load-bearing, and is why clay-settings.js'
-     * migrateCarriedGraphNightTints exists: the 1.15.0 page wrote the fill INTO the tint key
-     * on every pick, so on an un-migrated 1.15.0 blob those bytes read here as a deliberate
-     * pick and the bit would flip. The migration clears them back to the built-in before
-     * anything packs them.
+     * `fillExplicit` is the only one on the wire (byte [9]) — the light-polarity opt-in. It
+     * MUST stay false for a built-in or cascade-supplied tint, or every light-theme fill
+     * pick gains a night band the theme deliberately does not draw. ADR-0003 §4, §7.
      *
      * @param {Object} settings Clay settings blob (the gcNightHatch / gcNightBoundary keys
      *   and the gc&lt;Metric&gt;Night / gc&lt;Metric&gt;Fill pair, both polarities).
@@ -646,18 +517,12 @@
     }
 
     /**
-     * Resolve the graph's line styling from settings alone (no weather data).
+     * Resolve the graph's line styling from settings alone (no weather data). A thin
+     * watchInfo adapter over resolveGraphColors — the only thing a watchInfo adds is the
+     * two capability bits capsForWatch looks up.
      *
-     * Every platform/theme decision comes from renderContext() — the folded theme, the
-     * effective colour flag and the polarity suffix — so this function and the telemetry
-     * snapshot cannot answer "what is this watch rendering?" differently.
-     *
-     * A thin adapter over resolveGraphColors(): the only thing a watchInfo adds is the two
-     * capability bits capsForWatch() looks up from it.
-     *
-     * Contract on the colours handed back: each is a 0xRRGGBB value on the Pebble-64 grid.
-     * The built-in tables are Pebble constants and colorPick snaps every stored value, so
-     * nothing downstream has to quantize again.
+     * CONTRACT: every colour handed back is 0xRRGGBB on the Pebble-64 grid, so nothing
+     * downstream has to quantize again.
      *
      * @param {Object} settings Clay settings blob (theme, secondaryLine, thirdLine,
      *   secondaryLineFill, rainBarColor, and the 36 gc* graph-colour keys).
@@ -688,15 +553,10 @@
         var thirdMetric = settings.thirdLine;
         /**
          * One line/fill colour, for the metric that owns it and the polarity this watch
-         * actually renders (cx.suffix is read off the FOLDED theme, so an aplite light
-         * install can't look up a Light colour it can never paint).
-         *
-         * A B&W render reads no stored colour at all — these three bytes ARE painted there
-         * (unlike the night tail), just from the built-in B&W arms, which is also where
-         * resolveInk's exactly-white -> black flip still lives. On a colour render the flip
-         * is not needed: the light-polarity built-ins are concrete per-polarity values
-         * (gust and feels are Black there, not White), and a colour the user picked for the
-         * light polarity is what they want on the light polarity.
+         * actually renders. A B&W render reads NO stored colour — these three bytes are
+         * still painted there (unlike the night tail), from the built-in B&W arms, which is
+         * where resolveInk's white -> black flip lives. A colour render needs no flip: the
+         * light-polarity built-ins are already concrete per-polarity values.
          *
          * @param {string} scope The metric this colour belongs to.
          * @param {string} role 'Line' or 'Fill'.
@@ -704,9 +564,8 @@
          */
         function resolved(scope, role) {
             if (!cx.isColor) {
-                // fillColorFor returns undefined for a metric it doesn't know; lineColorFor
-                // is TOTAL, so it answers for both roles there. No `||` fallback anywhere —
-                // GColorBlack is 0x000000 and therefore falsy.
+                // fillColorFor is not total; lineColorFor is, so it answers for both roles.
+                // Explicit undefined check, not `||` — GColorBlack is 0x000000.
                 var bw = role === 'Fill' ? fillColorFor(scope, false, cx.theme) : undefined;
                 return bw === undefined ? lineColorFor(scope, settings, false, cx.theme) : bw;
             }
@@ -717,13 +576,9 @@
             fill: resolved(secMetric, 'Fill'),
             third: resolved(thirdMetric, 'Line'),
             night: resolveNightColors(settings, cx, secMetric),
-            // Feels-like never fills. Every other metric maps 0..max, so the area under the
-            // line is the area above a real zero; feels rides the temp∪feels band, whose floor
-            // is just the coldest value on the plot — a fill there would flood the plot to an
-            // arbitrary line and swallow the temp curve it is meant to be compared against.
-            // The config UI hides the toggle (schema.js) and clears it (blocks.js'
-            // 'forecastMetricFill'); this is the authoritative gate, so a settings blob stored
-            // before those landed — or any future caller — still cannot turn the fill on.
+            // THE authoritative gate on feels never filling (ADR-0003 §6) — the config UI
+            // also hides and clears the toggle, but a blob stored before that landed, or
+            // any future caller, still cannot turn it on.
             fillOn: Boolean(settings.secondaryLineFill) && secMetric !== 'feels'
         };
     }
@@ -742,14 +597,11 @@
      *   [8] night-area boundary        (GColor8 argb)  │ app_message.c stores the tail
      *   [9] night flags — bit 0 = the tint is an explicit pick  ┘ straight through.
      *
-     * The night-fill bit sits in byte [9] rather than beside the fill bit in byte [3] so
-     * that block stays a verbatim copy: one bit, one name, one offset on both ends, with no
-     * translation step in the C.
-     *
-     * rgbToGColor8 matches Pebble's GColorFromHEX exactly, so the rendered pixel is
-     * identical to sending the full 0xRRGGBB value. The watch's handler treats bytes 4..9 as
-     * an optional tail (its length check is a minimum), so an older 4-byte tuple still
-     * applies in full and keeps the last good night colours.
+     * rgbToGColor8 matches Pebble's GColorFromHEX exactly, so the pixel is identical to
+     * sending the full 0xRRGGBB. The watch treats bytes [4..9] as an OPTIONAL tail (its
+     * length check is a minimum), so a shorter tuple from an older sender still applies in
+     * full — which is the rule for growing this: append a block plus its own length check,
+     * never widen the minimum. ADR-0003 §7.
      *
      * @param {Object} settings Clay settings blob.
      * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result, or null.
