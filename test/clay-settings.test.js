@@ -789,3 +789,146 @@ test('a NACKed upgrade resend retries on the next boot', () => {
   const second = bootUpgradedInstall(mods.claySettings, mods.createChannelScheduler, now);
   assert.equal(second.length, 1, 'the next boot retries the resend');
 });
+
+// --- the 1.15.0 carried night tint -----------------------------------------
+// 1.15.0 shipped the fill -> night-tint cascade as a PAGE-SIDE write: its
+// `graphFillTint` onChange hook copied every fill pick into the sibling tint key
+// so the watch would re-shade the night hours in the new colour. The cascade now
+// happens at RESOLVE time (line-style.js' graphNightTint), which makes a stored
+// tint mean "the user picked this" and nothing else. Those two readings disagree
+// about every blob the 1.15.0 page wrote, and the disagreement is visible twice:
+// the wire's night-fill flag (byte [9] bit 0 — on a colour watch with a light
+// theme, forecast_layer.c's opt-in for a night re-shade 1.15.0 deliberately
+// skipped) and the cascade itself, which would never fire again. The migration
+// clears the carried bytes so both readings agree with what 1.15.0 painted.
+
+// Replay of the 1.15.0 page picking a metric's fill colour, hook and all
+// (git 4459d17, src/pkjs/settings/blocks.js' graphFillTint registration).
+function shippedPageFillPick(blob, lineStyle, metric, suffix, value) {
+  const nightKey = lineStyle.graphColorKey(metric, 'Night', suffix);
+  // The hook's own gate: it wrote the sibling only while the tint was unclaimed,
+  // which after seedDefaults it always is.
+  if (lineStyle.graphColorIsDefault(blob, metric, 'Night', suffix)) {
+    blob[nightKey] = value;
+  }
+  blob[lineStyle.graphColorKey(metric, 'Fill', suffix)] = value;
+  return blob;
+}
+
+test('a night tint the 1.15.0 page carried from the fill is released on upgrade', () => {
+  const store = installFakeStorage();
+  const mods = loadUpgradeModules();
+  const lineStyle = require('../src/pkjs/line-style');
+  const now = new Date(2026, 7, 26, 9, 0, 0);
+  seedUpgradedInstall(store, mods.claySettings, mods.KEYS, now);
+
+  const blob = mods.claySettings.read();
+  Object.assign(blob, { theme: 'light', secondaryLine: 'wind', thirdLine: 'uv',
+    secondaryLineFill: true, rainBarColor: 'multi' });
+  shippedPageFillPick(blob, lineStyle, 'wind', 'Light', 0xFF0000);
+  mods.claySettings.save(blob);
+
+  // What 1.15.0 sent for exactly this blob, and what it must keep sending.
+  const SHIPPED_BYTES = [252, 240, 243, 1, 213, 213, 240, 245, 250, 0];
+  assert.deepEqual(
+    Array.from(lineStyle.buildLineStyleBytes(blob, { platform: 'basalt' })),
+    [252, 240, 243, 1, 213, 213, 240, 245, 250, 1],
+    'un-migrated, the carried tint reads as a pick and byte [9] bit 0 flips — the ' +
+    'light-theme night re-shade would appear');
+
+  mods.claySettings.runMigrations({
+    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  const healed = mods.claySettings.read();
+
+  assert.equal(healed.gcWindNightLight,
+    lineStyle.graphColorDefault('wind', 'Night', 'Light', null),
+    'the carried tint goes back to the built-in');
+  assert.equal(healed.gcWindFillLight, 0xFF0000, 'the fill the user DID pick stays');
+  assert.equal(lineStyle.graphColorIsPicked(healed, 'wind', 'Night', 'Light'), false,
+    'and telemetry reports it as a default again, not a pick');
+  assert.deepEqual(
+    Array.from(lineStyle.buildLineStyleBytes(healed, { platform: 'basalt' })),
+    SHIPPED_BYTES,
+    'the healed blob packs byte-for-byte what 1.15.0 sent: the cascade re-derives ' +
+    'the same night triple from the fill, with the flag clear');
+  assert.equal(store[mods.KEYS.CARRIED_GRAPH_NIGHT_TINT_MIGRATION_KEY], '1',
+    'marked synchronously — the healed blob needs no Clay resend of its own');
+});
+
+test('the released tint tracks the next fill pick again', () => {
+  // The second symptom of the un-migrated key: graphNightTint would answer from
+  // it forever, so the night hours would stay painted in the fill colour the user
+  // had just replaced.
+  const store = installFakeStorage();
+  const mods = loadUpgradeModules();
+  const lineStyle = require('../src/pkjs/line-style');
+  const now = new Date(2026, 7, 26, 9, 0, 0);
+  seedUpgradedInstall(store, mods.claySettings, mods.KEYS, now);
+
+  const blob = mods.claySettings.read();
+  Object.assign(blob, { theme: 'dark', secondaryLine: 'precip_prob',
+    secondaryLineFill: true, rainBarColor: 'multi' });
+  shippedPageFillPick(blob, lineStyle, 'precip_prob', 'Dark', 0xFF0000);
+  mods.claySettings.save(blob);
+  assert.equal(lineStyle.graphNightTint(blob, 'precip_prob', 'Dark'), 0xFF0000,
+    'stuck on the carried colour before the migration');
+
+  mods.claySettings.runMigrations({
+    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  const healed = mods.claySettings.read();
+  // The current page writes the fill key ALONE.
+  healed.gcPrecipFillDark = 0x00FF00;
+  assert.equal(lineStyle.graphNightTint(healed, 'precip_prob', 'Dark'), 0x00FF00,
+    'the cascade is live again and follows the new fill');
+});
+
+test('the migration leaves a tint the user really picked alone', () => {
+  const store = installFakeStorage();
+  const mods = loadUpgradeModules();
+  const lineStyle = require('../src/pkjs/line-style');
+  const now = new Date(2026, 7, 26, 9, 0, 0);
+  seedUpgradedInstall(store, mods.claySettings, mods.KEYS, now);
+
+  const blob = mods.claySettings.read();
+  blob.gcUvFillDark = 0xFF0000;
+  blob.gcUvNightDark = 0x00AA55;          // distinct from the fill: a real choice
+  blob.gcPressureNightLight = 0xFFFFFF;   // a tint moved with the fill untouched
+  mods.claySettings.save(blob);
+
+  mods.claySettings.runMigrations({
+    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  const healed = mods.claySettings.read();
+
+  assert.equal(healed.gcUvNightDark, 0x00AA55, 'a distinct tint survives');
+  assert.equal(healed.gcPressureNightLight, 0xFFFFFF, 'so does one picked on its own');
+  assert.equal(healed.gcUvFillDark, 0xFF0000, 'fills are never touched');
+  // feels is Line-only (graphColorRoles), so it owns neither key — the loop must
+  // skip it rather than key off a gcFeelsNight* that does not exist.
+  assert.equal('gcFeelsNightDark' in healed, false, 'feels grows no night key');
+});
+
+test('the carried-tint migration is one-shot and marks a clean blob too', () => {
+  const store = installFakeStorage();
+  const mods = loadUpgradeModules();
+  const lineStyle = require('../src/pkjs/line-style');
+  const now = new Date(2026, 7, 26, 9, 0, 0);
+  seedUpgradedInstall(store, mods.claySettings, mods.KEYS, now);
+
+  // A blob with nothing carried still marks itself, so the sweep never re-runs.
+  mods.claySettings.runMigrations({
+    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  assert.equal(store[mods.KEYS.CARRIED_GRAPH_NIGHT_TINT_MIGRATION_KEY], '1');
+
+  // A tint deliberately set equal to its fill AFTER the migration is a real pick
+  // and must stay one — the whole point of moving the cascade to resolve time.
+  const blob = mods.claySettings.read();
+  blob.gcWindFillDark = 0x00AA55;
+  blob.gcWindNightDark = 0x00AA55;
+  mods.claySettings.save(blob);
+  mods.claySettings.runMigrations({
+    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  assert.equal(mods.claySettings.read().gcWindNightDark, 0x00AA55,
+    'a marked migration never re-fires');
+  assert.equal(lineStyle.graphColorIsPicked(mods.claySettings.read(), 'wind', 'Night', 'Dark'),
+    true, 'and the deliberate pick still reads as one');
+});
