@@ -935,3 +935,126 @@ test('the carried-tint migration is one-shot and marks a clean blob too', () => 
   assert.equal(lineStyle.graphColorIsPicked(mods.claySettings.read(), 'wind', 'Night', 'Dark'),
     true, 'and the deliberate pick still reads as one');
 });
+
+// --- The light-theme graph-colour re-tune ------------------------------------
+//
+// The graph colours are stored CONCRETE (seedDefaults writes a real colour into every
+// gc* key), so moving a built-in does not reach an existing install: its stored colour
+// is the OLD default, which no longer equals the new one, so graphColorIsDefault reads
+// it as a deliberate pick and the old colour keeps winning. Confirmed on a real watch —
+// every light row had to be reset by hand. migrateLightGraphColorRetune closes that.
+
+// A store seeded by a PRE-re-tune release: the current seeding, with every light cell
+// the re-tune moved put back to the value that release wrote.
+const PRE_RETUNE_LIGHT = {
+  gcPrecipLineLight: 0x00AAFF, gcPrecipNightLight: 0x0000AA,
+  gcWindLineLight: 0xFFFF00, gcWindFillLight: 0xAAFF55, gcWindNightLight: 0x555500,
+  gcUvLineLight: 0xFF00FF, gcUvNightLight: 0x550055,
+  gcGustNightLight: 0x555555,
+  gcPressureFillLight: 0xFFAA00, gcPressureNightLight: 0xAA5500
+};
+
+function seedPreRetuneInstall(store, claySettings, KEYS, now) {
+  seedUpgradedInstall(store, claySettings, KEYS, now);
+  const blob = claySettings.read();
+  Object.assign(blob, PRE_RETUNE_LIGHT);
+  claySettings.save(blob);
+}
+
+test('the seeded light graph colours move onto the re-tuned built-ins', () => {
+  const store = installFakeStorage();
+  const mods = loadUpgradeModules();
+  const lineStyle = require('../src/pkjs/line-style');
+  const now = new Date(2026, 7, 26, 9, 0, 0);
+  seedPreRetuneInstall(store, mods.claySettings, mods.KEYS, now);
+
+  const res = mods.claySettings.runMigrations({
+    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  const healed = mods.claySettings.read();
+
+  Object.keys(PRE_RETUNE_LIGHT).forEach((key) => {
+    assert.notEqual(healed[key], PRE_RETUNE_LIGHT[key], `${key} left the old default`);
+  });
+  // And landed on the built-in, so the row reads as untouched again.
+  [['precip_prob', 'Line'], ['precip_prob', 'Night'], ['wind', 'Line'], ['wind', 'Fill'],
+   ['wind', 'Night'], ['uv', 'Line'], ['uv', 'Night'], ['gust', 'Night'],
+   ['pressure', 'Fill'], ['pressure', 'Night']].forEach(([metric, role]) => {
+    assert.equal(healed[lineStyle.graphColorKey(metric, role, 'Light')],
+      lineStyle.graphColorDefault(metric, role, 'Light', healed), `${metric} ${role}`);
+    assert.equal(lineStyle.graphColorIsDefault(healed, metric, role, 'Light'), true,
+      `${metric} ${role} reads as the built-in again`);
+  });
+  assert.equal(res.clayRequired, true,
+    'and the watch is sent the new bytes — an in-place upgrade queues no Clay send');
+});
+
+test('the re-tune marker is deferred to the Clay ACK, so a NACK retries', () => {
+  const store = installFakeStorage();
+  const mods = loadUpgradeModules();
+  const now = new Date(2026, 7, 26, 9, 0, 0);
+  seedPreRetuneInstall(store, mods.claySettings, mods.KEYS, now);
+
+  const res = mods.claySettings.runMigrations({
+    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  assert.equal(store[mods.KEYS.LIGHT_GRAPH_COLOR_RETUNE_MIGRATION_KEY], undefined,
+    'not marked while the watch has not acknowledged it');
+  res.commitDeferredMarkers();
+  assert.equal(store[mods.KEYS.LIGHT_GRAPH_COLOR_RETUNE_MIGRATION_KEY], '1');
+});
+
+test('a light colour the user actually chose survives the re-tune', () => {
+  const store = installFakeStorage();
+  const mods = loadUpgradeModules();
+  const lineStyle = require('../src/pkjs/line-style');
+  const now = new Date(2026, 7, 26, 9, 0, 0);
+  seedPreRetuneInstall(store, mods.claySettings, mods.KEYS, now);
+
+  // Neither the old default nor the new one: a colour somebody navigated to a sheet for.
+  const blob = mods.claySettings.read();
+  blob.gcWindLineLight = 0xFF0000;
+  blob.gcUvNightLight = 0x00FF00;
+  mods.claySettings.save(blob);
+
+  mods.claySettings.runMigrations({
+    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  const healed = mods.claySettings.read();
+
+  assert.equal(healed.gcWindLineLight, 0xFF0000, 'a chosen line colour is not discarded');
+  assert.equal(healed.gcUvNightLight, 0x00FF00, 'nor a chosen night tint');
+  assert.equal(lineStyle.graphColorIsPicked(healed, 'wind', 'Line', 'Light'), true,
+    'and it still reads as a pick');
+  // Its neighbours still migrate — the migration is per-cell, not all-or-nothing.
+  assert.equal(healed.gcWindFillLight,
+    lineStyle.graphColorDefault('wind', 'Fill', 'Light', healed));
+});
+
+test('the re-tune leaves every DARK graph colour alone', () => {
+  const store = installFakeStorage();
+  const mods = loadUpgradeModules();
+  const now = new Date(2026, 7, 26, 9, 0, 0);
+  seedPreRetuneInstall(store, mods.claySettings, mods.KEYS, now);
+
+  const before = mods.claySettings.read();
+  const darkKeys = Object.keys(before).filter((k) => /^gc.*Dark$/.test(k));
+  assert.ok(darkKeys.length >= 12, 'the dark keys are actually in the blob');
+
+  mods.claySettings.runMigrations({
+    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  const healed = mods.claySettings.read();
+
+  darkKeys.forEach((k) => assert.equal(healed[k], before[k], `${k} untouched`));
+});
+
+test('a marked re-tune never re-fires', () => {
+  const store = installFakeStorage();
+  const mods = loadUpgradeModules();
+  const now = new Date(2026, 7, 26, 9, 0, 0);
+  seedPreRetuneInstall(store, mods.claySettings, mods.KEYS, now);
+  store[mods.KEYS.LIGHT_GRAPH_COLOR_RETUNE_MIGRATION_KEY] = '1';
+
+  mods.claySettings.runMigrations({
+    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+
+  assert.equal(mods.claySettings.read().gcWindLineLight, 0xFFFF00,
+    'the old seeded value stands once the migration is marked done');
+});

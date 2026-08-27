@@ -324,13 +324,22 @@ function runMigrations(opts) {
     migrateCarriedGraphNightTints(
         isDone(KEYS.CARRIED_GRAPH_NIGHT_TINT_MIGRATION_KEY),
         mark(KEYS.CARRIED_GRAPH_NIGHT_TINT_MIGRATION_KEY));
+    // After the carried-tint release above: that one reads gc*Night keys and compares
+    // them against the built-in, so it must see the pre-re-tune blob. Running it second
+    // would have it judge a re-tuned tint against the new built-in and leave a genuinely
+    // carried value in place.
+    var wantsClayLightRetune = migrateLightGraphColorRetune(
+        isDone(KEYS.LIGHT_GRAPH_COLOR_RETUNE_MIGRATION_KEY),
+        mark(KEYS.LIGHT_GRAPH_COLOR_RETUNE_MIGRATION_KEY));
     var wantsClayNightColors = migrateGraphNightColorsResend(
         isDone(KEYS.GRAPH_NIGHT_COLORS_MIGRATION_KEY));
     return {
-        clayRequired: Boolean(wantsClayColors || wantsClayToggle || wantsClayNightColors),
+        clayRequired: Boolean(wantsClayColors || wantsClayToggle
+                              || wantsClayLightRetune || wantsClayNightColors),
         commitDeferredMarkers: function () {
             if (wantsClayColors) { mark(KEYS.WEEKEND_HOLIDAY_COLOR_MIGRATION_KEY)(); }
             if (wantsClayToggle) { mark(KEYS.HOLIDAY_WHITE_TO_TOGGLE_MIGRATION_KEY)(); }
+            if (wantsClayLightRetune) { mark(KEYS.LIGHT_GRAPH_COLOR_RETUNE_MIGRATION_KEY)(); }
             if (wantsClayNightColors) { mark(KEYS.GRAPH_NIGHT_COLORS_MIGRATION_KEY)(); }
         }
     };
@@ -455,6 +464,101 @@ function migrateCarriedGraphNightTints(isMigrationDone, markDone) {
     }
     markDone();
     return changed;
+}
+
+// The LIGHT-polarity graph colours seedDefaults wrote before the hardware re-tune —
+// only the cells whose built-in actually moved. An install still holding one of these
+// is holding a SEEDED value, not a choice: nobody navigated to a colour sheet to pick
+// the colour the page had already put there.
+//
+// This table is a FROZEN historical record, not a view of the current defaults. It
+// must never be re-derived from line-style.js — the whole point is that the built-ins
+// have moved away from these. ADR-0003 §6.
+var SUPERSEDED_LIGHT_GRAPH_COLORS = [
+    { metric: 'precip_prob', role: 'Line',  was: 0x00AAFF },  // VividCerulean -> DukeBlue
+    { metric: 'precip_prob', role: 'Night', was: 0x0000AA },  // DukeBlue      -> Cyan
+    { metric: 'wind',        role: 'Line',  was: 0xFFFF00 },  // Yellow        -> ChromeYellow
+    { metric: 'wind',        role: 'Fill',  was: 0xAAFF55 },  // Inchworm      -> Yellow
+    { metric: 'wind',        role: 'Night', was: 0x555500 },  // ArmyGreen     -> Rajah
+    { metric: 'uv',          role: 'Line',  was: 0xFF00FF },  // Magenta       -> ImperialPurple
+    { metric: 'uv',          role: 'Night', was: 0x550055 },  // ImperialPurple-> ShockingPink
+    { metric: 'gust',        role: 'Night', was: 0x555555 },  // DarkGray      -> LightGray
+    { metric: 'pressure',    role: 'Fill',  was: 0xFFAA00 },  // ChromeYellow  -> Rajah
+    { metric: 'pressure',    role: 'Night', was: 0xAA5500 }   // WindsorTan    -> Rajah
+];
+
+/**
+ * Move existing installs onto the re-tuned LIGHT-theme graph colours.
+ *
+ * The graph colours are stored CONCRETE — seedDefaults writes a real colour into
+ * every gc* key rather than leaving it absent — so re-tuning a built-in does not
+ * reach anyone who is already installed. Their stored colour is the OLD default,
+ * which no longer equals the new built-in, so graphColorIsDefault reads it as a
+ * deliberate pick and the old colour keeps winning. Observed on a real watch after
+ * the re-tune: every light row had to be reset by hand, one at a time.
+ *
+ * So a stored LIGHT colour that still equals the value the page seeded (the frozen
+ * table above) is overwritten with the new built-in. Anything else is left alone —
+ * a colour that is neither the old default nor the new one is a colour somebody
+ * chose, and a re-tune of the defaults is not a licence to discard it.
+ *
+ * The one shape this cannot preserve: a user who DELIBERATELY picked a colour that
+ * happened to equal the old default gets re-tuned along with everyone else. That is
+ * indistinguishable by construction — the stored bytes are identical — and it is the
+ * same trade-off migrateCarriedGraphNightTints accepts. They can pick it again.
+ *
+ * DARK is untouched: its built-ins did not move.
+ *
+ * A Clay resend IS required, for the reason spelled out on
+ * migrateGraphNightColorsResend: an in-place upgrade queues no Clay send of its own,
+ * so without this the healed blob would sit on the phone while the watch keeps
+ * painting the old colours. The marker is therefore DEFERRED to the Clay ACK (see
+ * runMigrations), so a NACK retries next boot.
+ *
+ * @param {Function} isMigrationDone Returns true when the migration marker is set.
+ * @param {Function} markDone Records the migration as complete.
+ * @returns {boolean} True when the migrated settings must be sent to the watch.
+ */
+function migrateLightGraphColorRetune(isMigrationDone, markDone) {
+    var persistClay = loadForMigration(isMigrationDone, 'light graph-colour re-tune');
+
+    if (persistClay === null) {
+        return false;
+    }
+
+    var changed = false;
+    var seeded = 0;      // cells already sitting on the NEW built-in
+    var i, cell, key, stored, current;
+
+    for (i = 0; i < SUPERSEDED_LIGHT_GRAPH_COLORS.length; i++) {
+        cell = SUPERSEDED_LIGHT_GRAPH_COLORS[i];
+        key = lineStyle.graphColorKey(cell.metric, cell.role, 'Light');
+        stored = lineStyle.colorPick(persistClay[key]);
+        // Absent: nothing was seeded, so it already resolves to the new built-in.
+        if (stored === null) { seeded++; continue; }
+        current = lineStyle.graphColorDefault(cell.metric, cell.role, 'Light', persistClay);
+        if (stored === cell.was) {
+            // The INT form, like the schema defaults: parseResponse stores ints.
+            persistClay[key] = current;
+            changed = true;
+        }
+        else if (stored === current) { seeded++; }
+    }
+
+    if (changed) {
+        save(persistClay);
+        console.log('Re-tuned the seeded light-theme graph colours');
+        return true;
+    }
+    // Nothing to rewrite, but every cell reads as the new built-in — which is also
+    // what a run that saved and then NACKed looks like. Ask for the send again rather
+    // than marking done; the cost of being wrong is one redundant Clay message.
+    if (seeded === SUPERSEDED_LIGHT_GRAPH_COLORS.length) {
+        return true;
+    }
+
+    markDone();
+    return false;
 }
 
 /**
