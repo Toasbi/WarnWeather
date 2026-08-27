@@ -224,9 +224,13 @@
     }
 
     /**
-     * Every graph-colour key, in row order — the flat list the schema builds rows from and
-     * the reset actions enumerate. 36 keys: five metrics x three roles x two polarities,
-     * feels' Line pair, and the night band's two pairs.
+     * Every graph-colour key, in row order. 36 keys: five metrics x three roles x two
+     * polarities, feels' Line pair, and the night band's two pairs.
+     *
+     * Nothing in the app enumerates these — the schema builds its rows from graphColorRoles
+     * per scope, and the reset action takes its key list from the sheet. This exists as the
+     * completeness oracle the tests check that coverage against, so a new metric or role
+     * cannot be added without something failing.
      * @returns {string[]} The keys.
      */
     function graphColorKeys() {
@@ -386,14 +390,6 @@
     function graphColorIsPicked(settings, scope, role, suffix) {
         return !graphColorIsDefault(settings, scope, role, suffix);
     }
-
-    // The six graph-colour elements as telemetry still NAMES them (stem + 'Dark' /
-    // stem + 'Light'). Nothing in this module reads these keys any more — resolution moved
-    // to the per-metric gc* vocabulary above — so this list survives only as the reporting
-    // field names telemetry.js and its Deno schema are locked to. It goes when telemetry
-    // resolves through graphColorKey instead.
-    var GRAPH_COLOR_STEMS = ['graphMainColor', 'graphFillColor', 'graphSecondColor',
-                             'nightHatchColor', 'nightBoundaryColor', 'nightFillColor'];
 
     // Line-style flag byte (wire byte [3]), bit 0: the secondary line's area fill is on.
     var FLAG_SECONDARY_FILL = 0x01;
@@ -628,20 +624,14 @@
      * pick and the bit would flip. The migration clears them back to the built-in before
      * anything packs them.
      *
-     * `hatchExplicit`/`boundaryExplicit` are for a consumer that draws the built-in as
-     * something other than the built-in COLOUR — the settings-page preview, whose default
-     * night hatch and dusk/dawn line are translucent ink over the canvas rather than the
-     * DarkGray the watch paints.
-     *
      * @param {Object} settings Clay settings blob (the gcNightHatch / gcNightBoundary keys
      *   and the gc&lt;Metric&gt;Night / gc&lt;Metric&gt;Fill pair, both polarities).
      * @param {{suffix: string}} cx renderContext() result — the polarity suffix is read from
      *   the FOLDED theme, so an aplite light install looks up the Dark colours it can paint.
      * @param {string} metric The secondary line's metric, which keys the night area.
      * @returns {{hatch: number, boundary: number, areaBase: number, areaHatch: number,
-     *   areaBoundary: number, fillExplicit: boolean, hatchExplicit: boolean,
-     *   boundaryExplicit: boolean}} Five 0xRRGGBB colours plus one flag each for the hatch,
-     *   the boundary and the area tint saying it has been moved off its built-in.
+     *   areaBoundary: number, fillExplicit: boolean}} Five 0xRRGGBB colours plus the flag
+     *   saying the area tint has been moved off its built-in.
      */
     function resolveNightColors(settings, cx, metric) {
         var area = nightAreaColorsFor(metric, graphNightTint(settings, metric, cx.suffix));
@@ -651,9 +641,7 @@
             areaBase: area.base,
             areaHatch: area.hatch,
             areaBoundary: area.boundary,
-            fillExplicit: graphColorIsPicked(settings, metric, 'Night', cx.suffix),
-            hatchExplicit: !graphColorIsDefault(settings, 'night', 'Hatch', cx.suffix),
-            boundaryExplicit: !graphColorIsDefault(settings, 'night', 'Boundary', cx.suffix)
+            fillExplicit: graphColorIsPicked(settings, metric, 'Night', cx.suffix)
         };
     }
 
@@ -789,7 +777,6 @@
         resolveLineStyle: resolveLineStyle,
         resolveGraphColors: resolveGraphColors,
         buildLineStyleBytes: buildLineStyleBytes,
-        GRAPH_COLOR_STEMS: GRAPH_COLOR_STEMS,
         GRAPH_METRICS: GRAPH_METRICS,
         METRIC_SLUG: METRIC_SLUG,
         METRIC_ROLES: METRIC_ROLES,
