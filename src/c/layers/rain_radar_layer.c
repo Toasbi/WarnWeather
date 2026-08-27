@@ -15,8 +15,21 @@
 // share a single vertical strip with the tick row: at hour-aligned slot
 // positions the tick is suppressed and the hour digit is drawn centred
 // on that column instead.
-#define RADAR_AXIS_H            12
+//
+// The strip grows with the label tier. chart.c seats the hour label's box against the
+// PLOT top (`outer.origin.y - top_raise`), not against the strip, so the taller emery
+// tier lifts the box by exactly its content-height step (14 -> 18 px) — out of the strip
+// and into whatever sits above the radar, which in the compact views is a status row.
+// Adding the same step back keeps the label's clearance identical at both tiers, at the
+// cost of 4 px of plot height on emery's large tier. config_large_graph_font() is
+// constant false off emery, so every other platform folds this to the plain 12.
+#define RADAR_AXIS_H_BASE       12
+#define RADAR_AXIS_H_LARGE_STEP 4
 #define RADAR_NUM_SLOTS         24
+
+static inline int radar_axis_h(void) {
+    return RADAR_AXIS_H_BASE + (config_large_graph_font() ? RADAR_AXIS_H_LARGE_STEP : 0);
+}
 // RADAR_SLOT_SECONDS comes from radar_axis.h (shared with the axis maths).
 // Grace after a grid fetch boundary before the watch synthesizes an advance,
 // giving PKJS time to deliver the real frame. 55s (not 60) so the gate clears
@@ -37,11 +50,11 @@
 
 // Hatch line spacing for the 1km background bars: same base + height scaling as the
 // forecast night hatch (see hatch.h), but NOT the same stride at a given band height —
-// the radar's axis is 12px at the TOP versus the forecast's 10px at the bottom (plus
-// emery's 10px bottom pad), so the radar plot is shorter than the forecast plot in the
-// same band and scales marginally more gently off the shared baseline. That is accepted:
-// they are different plots, and the gap is under one stride step (band 65 → forecast 8,
-// radar 7).
+// the radar's axis is 12px at the TOP (16 on emery's large label tier — radar_axis_h())
+// versus the forecast's 10px at the bottom (plus emery's 10px bottom pad), so the radar
+// plot is shorter than the forecast plot in the same band and scales marginally more
+// gently off the shared baseline. That is accepted: they are different plots, and the gap
+// is under one stride step (band 65 → forecast 8, radar 7).
 #define RADAR_HATCH_SPACING(plot_h) \
     hatch_stride_scaled(theme_is_bw() ? 7 : 6, HATCH_BASE_PLOT_H, (plot_h))
 
@@ -260,10 +273,11 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
     persist_get_rain_radar_trend(exact_tenths, RADAR_NUM_SLOTS);
     persist_get_rain_radar_trend_area(area_tenths, RADAR_NUM_SLOTS);
 
+    const int axis_h = radar_axis_h();
     const GRect outer = GRect(bounds.origin.x,
-                              bounds.origin.y + RADAR_AXIS_H,
+                              bounds.origin.y + axis_h,
                               bounds.size.w,
-                              bounds.size.h - RADAR_AXIS_H);
+                              bounds.size.h - axis_h);
 
     // Module-static scratch (not stack): aplite's small app stack overflows
     // otherwise (PC=0/LR=0). Safe — single layer instance, single-threaded,
