@@ -92,6 +92,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // actually resolved.
   PConf.badgeResolvers = makeRegistry();
 
+  // --- display-resolver registry --- a keyed item opts into a DERIVED display value by
+  // name (item.displayFrom: {resolver, args}); fn(S, env, args) returns the value to
+  // PAINT while the stored value stays untouched, so a key that inherits its effective
+  // value from a sibling can still show what it actually renders as. Read at render time,
+  // like the badge resolver. Only `color` reads it today (the graph night tint, which
+  // cascades from the fill colour at resolve time). Writes are unaffected: a control still
+  // stores under its own messageKey, so picking the shown value pins it.
+  PConf.displayResolvers = makeRegistry();
+
   // --- onChange registry --- a schema item opts into a post-change side effect by
   // name (item.onChange: id) without the engine knowing what that side effect is.
   // fn(S, oldValue, newValue, env) runs synchronously, right after the click handler
@@ -427,6 +436,29 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return fn(S, env, args) || null;
   }
 
+  /**
+   * The value a row should PAINT, via the item's named display resolver — undefined when
+   * the item opts out or the resolver is missing, in which case the control falls back to
+   * the stored value. The stored value is never rewritten: this is a display override for
+   * a key whose effective value is derived elsewhere (a colour that cascades from a
+   * sibling key), and picking the shown value through the normal control still writes it.
+   *
+   * `args` gets the item's own messageKey merged UNDER displayFrom.args, matching the
+   * sheet/badge resolvers, so a resolver shared by many rows needs no per-row args.
+   *
+   * @param {Object} item Schema item (displayFrom: {resolver, args}).
+   * @param {Object} S Live settings state.
+   * @param {Object} env Platform env.
+   * @returns {*} The value to display, or undefined for "use the stored value".
+   */
+  function resolveDisplayValue(item, S, env) {
+    if (!item.displayFrom) { return undefined; }
+    var fn = PConf.displayResolvers.get(item.displayFrom.resolver);
+    if (!fn) { return undefined; }
+    var args = Object.assign({ messageKey: item.messageKey }, item.displayFrom.args || {});
+    return fn(S, env, args);
+  }
+
   // Rotate-ccw glyph for a label's reset-to-defaults button (item.labelAction).
   var RESET_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"'
     + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
@@ -673,7 +705,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     select: function (item, view) { return renderSelectTrigger(item, view); },
     date: function (item, view) { return renderDateTrigger(item, view); },
     text: function (item, view) { return renderText(item, view.value); },
-    color: function (item, view) { return renderColor(item, view.value, view.openColor); },
+    // view.displayValue (item.displayFrom) paints a derived colour — the chip AND the
+    // palette's current-swatch marker follow it; the write path stays on the messageKey.
+    color: function (item, view) { return renderColor(item, view.displayValue == null ? view.value : view.displayValue, view.openColor); },
     searchSelect: function (item, view) { return renderSelectTrigger(item, view); },
     range: function (item, view) { return renderRange(item, view); }
   };
@@ -681,8 +715,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * Dispatch to the control renderer for item.type; '' for an unknown type.
    *
    * @param {Object} item Schema item.
-   * @param {{value: *, openColor: ?string, openSelect: ?string, openDate: ?string,
-   *   selectQuery: ?string}} view Render view state.
+   * @param {{value: *, displayValue: *, openColor: ?string, openSelect: ?string,
+   *   openDate: ?string, selectQuery: ?string}} view Render view state
+   *   (displayValue overrides what a `color` control paints; see resolveDisplayValue).
    * @returns {string} Control HTML.
    */
   function renderControl(item, view) {
@@ -897,6 +932,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // e.g. "bold on warn" is unreachable until the slot's thresholds are on.
     if (item.optionDisabledWhen) {
       view.disabledOptions = disabledOptionValues(item, cx.evalCtx);
+    }
+    // displayFrom: the row paints a DERIVED value while storing under its own key —
+    // for a setting whose effective value cascades from a sibling until it is pinned.
+    if (item.displayFrom) {
+      view.displayValue = resolveDisplayValue(item, cx.S, cx.ENV);
     }
     var html = renderBlock(item.blockBefore, cx.S, cx.ENV, cx.USERDATA, item.blockBeforeSticky)
       + renderRow(rowItem, view, noDivider)
@@ -1829,6 +1869,7 @@ if (typeof module !== 'undefined' && module.exports) {
     resolveRangeItem: PConf.engine.resolveRangeItem,
     paintThresholdRange: PConf.engine.paintThresholdRange,
     rangeResolvers: PConf.rangeResolvers, badgeResolvers: PConf.badgeResolvers,
+    displayResolvers: PConf.displayResolvers,
     renderTabBar: PConf.engine.renderTabBar, renderBody: PConf.engine.renderBody,
     resolveOptionsFrom: PConf.engine.resolveOptionsFrom,
     resolveDefaultFrom: PConf.engine.resolveDefaultFrom,

@@ -27,6 +27,7 @@ each consuming app supplies its schema, custom blocks, and hooks.
 5. [Registries and hooks](#registries-and-hooks)
    - [Block registry — PConf.blocks](#block-registry--pconfblocks)
    - [Options-resolver registry — PConf.optionsResolvers](#options-resolver-registry--pconfoptionsresolvers)
+   - [Display-resolver registry — PConf.displayResolvers](#display-resolver-registry--pconfdisplayresolvers)
    - [Action registry — PConf.actions](#action-registry--pconfactions)
    - [Hook registry — PConf.hooks](#hook-registry--pconfhooks)
 6. [Build step — buildPage](#build-step--buildpage)
@@ -274,7 +275,11 @@ switch on the header instead of as a row of its own — while keeping its normal
 chrome. They are not serialized (no `messageKey`).
 
 `color` items offer all 64 Pebble swatches; `excludeColors` subtracts specific ones (e.g.
-white from the holiday picker, where white means "no highlight" rather than a real color).
+white from the holiday picker, where white means "no highlight" rather than a real color). A
+`color` item may also take its DISPLAYED value from a named
+[display resolver](#display-resolver-registry--pconfdisplayresolvers) (`displayFrom`) — the chip
+and the palette's current-swatch marker both follow it, the stored value is untouched, and
+picking the shown swatch is what writes it.
 
 ### Section and item fields
 
@@ -299,6 +304,7 @@ white from the holiday picker, where white means "no highlight" rather than a re
 | `defaultValue` | any | Default value. Color defaults are ints (e.g. `0xFFFFFF`). |
 | `options` | `[label, value][]` | Choices for `select`, `segmented`, `radio` |
 | `optionDisabledWhen` | `{ value: showWhen }` | Renders individual `segmented`/`radio` options inert while their condition holds. Prefer this over gating the list itself with `optionsFrom`: an option that disappears is snapped away, silently rewriting a stored value the user never touched. |
+| `displayFrom` | `{ resolver, args }` | Paints a DERIVED value from a named [display resolver](#display-resolver-registry--pconfdisplayresolvers) while the stored value stays untouched. Read by `color` only; ignored on an `inline` item. |
 | `description` | string | HTML description rendered below the label |
 | `hint` | string | HTML hint rendered below the control |
 | `hintByValue` | `{ value: string }` | Per-value hints; overrides `hint` for the current value |
@@ -412,6 +418,24 @@ PConf.optionsResolvers.register('statusSlot', function (state, env, args) {
   return [['None', ''], ['Temperature', 'temp'], /* … */];
 });
 ```
+
+### Display-resolver registry — PConf.displayResolvers
+
+An item with a `displayFrom: { resolver: id, args }` field PAINTS a derived value while its
+stored value stays untouched — for a key whose effective value is computed elsewhere (a colour
+that cascades from a sibling key until the user pins it). `color` is the only type that reads
+it today.
+
+```js
+// Returns the value to display; return null/undefined for "use the stored value".
+PConf.displayResolvers.register('graphNightTint', function (state, env, args) {
+  // args carries the item's own messageKey, merged UNDER displayFrom.args
+  return cascadedHexFor(state, args.scope);   // '#RRGGBB'
+});
+```
+
+The write path is unaffected: the control still stores under its own `messageKey`, so picking
+the shown value is what pins it. An unregistered resolver id falls back to the stored value.
 
 ### Action registry — PConf.actions
 
