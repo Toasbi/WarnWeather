@@ -419,18 +419,18 @@ test('area fill uses the brighter light-theme variant when theme is light', () =
   const base = { barSource: 'off', windScale: 'mid', dayNightShading: false, theme: 'light' };
   const wind = FC.forecastPreview(Object.assign({}, base, { secondaryLine: 'wind', secondaryLineFill: true }), { color: true });
   const uv = FC.forecastPreview(Object.assign({}, base, { secondaryLine: 'uv', secondaryLineFill: true }), { color: true });
-  assert.ok(wind.indexOf('fill="#AAFF55"') >= 0, 'wind light fill = Inchworm');
+  assert.ok(wind.indexOf('fill="#FFFF00"') >= 0, 'wind light fill = Yellow');
   assert.equal(wind.indexOf('fill="#555500"'), -1, 'not the dark-theme ArmyGreen fill');
   assert.ok(uv.indexOf('fill="#FF55FF"') >= 0, 'uv light fill = ShockingPink');
 });
 
-test('precip line + fill go one step darker in the light theme (readability round)', () => {
+test('precip line + fill take their light-theme variants', () => {
   const base = { barSource: 'off', windScale: 'mid', dayNightShading: false, secondaryLine: 'precip_prob', theme: 'light' };
   const line = FC.forecastPreview(base, { color: true });
-  assert.ok(line.indexOf('stroke="#00AAFF"') >= 0, 'precip light line = VividCerulean');
+  assert.ok(line.indexOf('stroke="#0000AA"') >= 0, 'precip light line = DukeBlue');
   assert.equal(line.indexOf('stroke="#55AAFF"'), -1, 'not the dark-theme PictonBlue line');
   const filled = FC.forecastPreview(Object.assign({}, base, { secondaryLineFill: true }), { color: true });
-  assert.ok(filled.indexOf('fill="#55FFFF"') >= 0, 'precip light fill = ElectricBlue (one step darker than Celeste)');
+  assert.ok(filled.indexOf('fill="#55FFFF"') >= 0, 'precip light fill = ElectricBlue');
   assert.equal(filled.indexOf('fill="#AAFFFF"'), -1, 'not the pre-fix Celeste fill');
 });
 
@@ -561,10 +561,10 @@ test('forecastPreview: the night hatch and dusk/dawn colours reach the night sha
   assert.equal(bw.indexOf('#00AAFF'), -1, 'and never in the stored colour');
 });
 
-test('forecastPreview: the night tint re-shades the filled area on dark polarity, on light only once moved', () => {
+test('forecastPreview: the night tint re-shades the filled area in both polarities', () => {
   // The gate mirrors forecast_layer.c's night_under layer: a night band and a filled area
-  // to re-shade, and on colour + LIGHT polarity only when the tint has been moved off its
-  // built-in (the wire's night-fill flag, byte [9] bit 0).
+  // to re-shade, colour only. Light used to be skipped unless the tint was an explicit
+  // pick; it now re-shades off NIGHT_AREA_LIGHT_BASE like dark does.
   const dark = FC.forecastPreview(GC_BASE, { color: true });
   assert.ok(dark.indexOf('<clipPath id="nightclip">') >= 0, 'the night band becomes a clip');
   assert.ok(/<path d="[^"]+" fill="#555500" fill-opacity="0\.25" clip-path="url\(#nightclip\)"><\/path>/.test(dark),
@@ -574,11 +574,12 @@ test('forecastPreview: the night tint re-shades the filled area on dark polarity
   assert.ok(/fill="#0000AA" fill-opacity="0\.25" clip-path="url\(#nightclip\)"/.test(darkTuned),
     'a tuned tint paints verbatim');
   const light = FC.forecastPreview(Object.assign({}, GC_BASE, { theme: 'light' }), { color: true });
-  assert.equal(light.indexOf('nightclip'), -1, 'the light theme keeps its day fill under the night band');
+  assert.ok(/fill="#FFAA55" fill-opacity="0\.25" clip-path="url\(#nightclip\)"/.test(light),
+    "the light theme re-shades in wind's light night base (Rajah), no pick needed");
   const lightTuned = FC.forecastPreview(Object.assign({}, GC_BASE,
     { theme: 'light', gcWindNightLight: '#0000AA' }), { color: true });
   assert.ok(/fill="#0000AA" fill-opacity="0\.25" clip-path="url\(#nightclip\)"/.test(lightTuned),
-    'moving the Light tint opts the light theme back in');
+    'and a Light pick still overrides that built-in');
   assert.equal(FC.forecastPreview(Object.assign({}, GC_BASE,
     { secondaryLineFill: false }), { color: true }).indexOf('nightclip'), -1,
     'nothing to re-shade with the fill off');

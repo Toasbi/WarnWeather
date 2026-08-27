@@ -58,7 +58,7 @@ enum night_ink {
     NIGHT_INK_AREA_BASE,      // filled area's night underlay
     NIGHT_INK_AREA_HATCH,     // filled area's night hatch
     NIGHT_INK_AREA_BOUNDARY,  // filled area's dusk/dawn line
-    NIGHT_INK_FLAGS           // bit 0 = NIGHT_FLAG_FILL_EXPLICIT
+    NIGHT_INK_FLAGS           // bit 0 = NIGHT_FLAG_FILL_EXPLICIT — no longer read
 };
 
 // B&W builds never read the blob — theme_pick() is the macro `(bw_arm)` there
@@ -68,11 +68,8 @@ enum night_ink {
 #if defined(PBL_COLOR)
 static uint8_t s_night_ink[NIGHT_COLOR_BYTES];
 #define NIGHT_C(i) ((GColor){ .argb = s_night_ink[(i)] })
-#define NIGHT_FILL_EXPLICIT() \
-    ((s_night_ink[NIGHT_INK_FLAGS] & NIGHT_FLAG_FILL_EXPLICIT) != 0)
 #else
 #define NIGHT_C(i) GColorWhite
-#define NIGHT_FILL_EXPLICIT() false
 #endif
 
 // Chart config: frame + ticks + slots in one block. Two variants because
@@ -481,17 +478,14 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .fill_color = second->line.fill_color } };
     }
     // night_under re-shades the filled area, so it needs the AREA layer's
-    // exported contour and only runs when the fill is present. Light (color)
-    // polarity skips it entirely: the fill keeps its day color under the night
-    // overlay (no darker re-shade — user-tuned), and night_over's dots alone
-    // carry the night marking. bw themes keep it (its fg hatch dots below the
-    // contour are B&W's night texture; the underlay is color-only anyway), and
-    // on B&W builds theme_is_bw() is constant-true so the skip compiles out.
-    // An EXPLICIT night-fill pick opts back in: the light-theme skip exists
-    // because the built-in re-shade was tuned for dark grounds, so a colour the
-    // user chose for the light theme must actually paint.
-    if (night_on && fill_on
-            && (!(theme_is_light() && !theme_is_bw()) || NIGHT_FILL_EXPLICIT())) {
+    // exported contour and only runs when the fill is present. Both polarities
+    // re-shade: light used to skip this entirely, because the built-in triples
+    // were tuned for dark grounds and re-shading a light fill with them muddied
+    // it. line-style.js now carries a light arm of NIGHT_AREA_COLORS tuned on
+    // hardware, so the reason for the skip is gone and light paints like dark.
+    // bw themes were never skipped (their fg hatch dots below the contour are
+    // B&W's night texture; the underlay is color-only anyway).
+    if (night_on && fill_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_HATCH, .hatch = {
             .bands = night_bands, .num_bands = num_night_bands,
             .hatch_color    = theme_pick(NIGHT_C(NIGHT_INK_AREA_HATCH), theme_fg()),

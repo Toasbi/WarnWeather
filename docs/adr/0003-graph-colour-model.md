@@ -153,19 +153,32 @@ Two accepted imprecisions:
 
 ## 5. The night area triple
 
-Six hand-tuned `{base, hatch, boundary}` triples, keyed by **metric**. They moved here
-from `forecast_layer.c`, which keyed on the *day fill colour* with `gcolor_equal` —
-which is exactly what made an unlisted metric render precip-blue (pressure shipped that
-way; measured on emery). A user-selectable fill would have sent every custom pick down
-that same fall-through.
+For **dark** polarity: six hand-tuned `{base, hatch, boundary}` triples, keyed by
+**metric** (`NIGHT_AREA_COLORS`). They moved here from `forecast_layer.c`, which keyed
+on the *day fill colour* with `gcolor_equal` — which is exactly what made an unlisted
+metric render precip-blue (pressure shipped that way; measured on emery). A
+user-selectable fill would have sent every custom pick down that same fall-through.
 
-For an **arbitrary** pick the triples cannot cover, `nightAreaColorsFor` derives one:
-one Pebble level brighter per layer (`lighten`). This is **not** the recipe the six
-were built with — feed their bases back through it and only `feels` matches. The other
-five were tuned per hue (precip and uv keep a saturated channel at `0x00` instead of
-lifting it; wind, gust and pressure collapse boundary onto hatch a level earlier). The
-six stay verbatim; the recipe exists only for picks, where a plausible member of the
-same family beats a matching one.
+For an **arbitrary** pick the triples cannot cover, `nightAreaColorsFor` derives one via
+`deriveNightTriple`: one Pebble level brighter per layer (`lighten`). This is **not** the
+recipe the six were built with — feed their bases back through it and only `feels`
+matches. The other five were tuned per hue (precip and uv keep a saturated channel at
+`0x00` instead of lifting it; wind, gust and pressure collapse boundary onto hatch a
+level earlier). The six stay verbatim; the recipe exists only for picks, where a
+plausible member of the same family beats a matching one.
+
+For **light** polarity: a **base per metric**, not a triple (`NIGHT_AREA_LIGHT_BASE`),
+whose hatch and boundary come from `deriveNightTriple`. The asymmetry is deliberate and
+is about provenance, not about taste. The five light bases were tuned on hardware in the
+light theme by picking them *in the settings sheet* — i.e. as stored tints, which is the
+path that derives. Deriving is therefore what reproduces what was signed off; a
+hand-written triple here would repaint it. A metric absent from the light table (only
+`feels`, which never fills) keeps its dark triple in both polarities.
+
+Both tables are read through the same `nightAreaColorsFor(metric, tint, theme)`, and the
+"tint equals the built-in base" short-circuit compares against the base of *the polarity
+in hand*. `NIGHT_AREA_COLORS` entries are handed back by reference, so they are kept as
+pure triples — an extra key on one would ride out into a caller's result.
 
 `colorPick` snaps every stored value onto the Pebble-64 grid at the parse boundary, so
 `lighten`'s level arithmetic is exact. The snap changes no pixel — `rgbToGColor8`
@@ -195,14 +208,17 @@ magenta, wind yellow, pressure orange, gust the greys.
   the temp curve it exists to be compared against. `resolveGraphColors` is the
   authoritative gate, so a blob written before the UI hid the toggle still cannot turn
   it on.
-- **pressure**'s orange reads close to wind's yellow at 1px. Eyeball on hardware before
-  treating it as final.
-- **Light-theme variants** exist where the dark colour fails on white. Fills get a
-  *brighter* tint of the same hue (the dark shades read too heavy on white); lines get
-  a *darker* step. precip's line moved PictonBlue → VividCerulean and its fill
-  Celeste → ElectricBlue in a readability round, the same `0xAA → 0x55` notch on the R
-  channel. Note `0x55FFFF` is `GColorElectricBlue`; the constant named `GColorCyan` is
-  `0x00FFFF`.
+- **pressure**'s orange reads close to wind's yellow at 1px on dark. It is also the one
+  metric with no light line variant — Orange holds on white as-is.
+- **Light-theme variants.** Fills and night bases take a *brighter* tint of the hue (the
+  dark shades read too heavy on white); lines take a *darker* step. Those are the shapes
+  the values happen to have, **not a formula** — every light cell was tuned metric by
+  metric on hardware in the light (alpha) theme, and they do not sit at a uniform
+  distance from their dark counterparts. Do not "restore symmetry" with a dark
+  neighbour or re-derive one from a recipe; the literal table in
+  `test/line-style.test.js` (`EXPECTED_DEFAULTS`) is the contract, and it is meant to
+  break when someone tries. Note `0x55FFFF` is `GColorElectricBlue`; the constant named
+  `GColorCyan` is `0x00FFFF` and is precip's light night base.
 
 ## 7. The wire
 
@@ -227,11 +243,18 @@ ends, no translation step in the C. It cost one byte and is worth it.
 with its own `length >= offset + size` check; widening the minimum would start
 rejecting the shorter tuples older senders still emit.
 
-`byte[9]` bit 0 is the **light-polarity opt-in**: `forecast_layer.c` skips the night
-re-shade on colour + light polarity (the built-in re-shade was tuned for dark grounds),
-and this bit is what makes a deliberate Light tint paint there. It must stay clear for
-a built-in or carried tint, or every light-theme fill pick would gain a band the theme
-deliberately does not draw.
+`byte[9]` bit 0 says the night-area tint is an **explicit user pick**. It *was* the
+light-polarity opt-in: `forecast_layer.c` skipped the night re-shade on colour + light
+polarity, because the built-in triples were tuned for dark grounds, and this bit was
+what made a deliberate Light tint paint there. Once `NIGHT_AREA_LIGHT_BASE` gave light
+its own hardware-tuned arm (§5) that reason was gone, the skip was deleted, and **no
+watch reads the bit any more**.
+
+It is still sent, and still computed honestly rather than pinned true, for two reasons:
+the blob would otherwise change length for the sake of one dead byte (bytes `[4..9]` are
+`NIGHT_COLORS` verbatim), and it is the same "did the user pick this?" answer telemetry
+reports — the wire and telemetry disagreeing about intent is the bug §8 exists to
+prevent.
 
 ### No B&W arm in the night tail
 

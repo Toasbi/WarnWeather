@@ -313,21 +313,25 @@ test('the night picks reach bytes 4..8', () => {
   assert.equal(bytes[8], rainTier.rgbToGColor8(derived.boundary));
 });
 
-// The flag is the light-polarity opt-in the watch reads (forecast_layer.c:493-494), so
-// it must stay clear while the tint sits on its built-in — including when that built-in
-// is STORED, which is what every seeded install looks like.
+// No watch reads the flag any more (both polarities re-shade unconditionally), but it is
+// still the wire's answer to "did the user pick this?", and telemetry reports the same
+// answer — so it must stay clear while the tint sits on its built-in, including when that
+// built-in is STORED, which is what every seeded install looks like. Each polarity has its
+// OWN built-in base now, so the seeded value differs between the two arms.
 test('the night-fill flag is set only when the tint differs from the built-in, in either polarity', () => {
   const flag = lineStyle.FLAG_NIGHT_FILL_EXPLICIT;
   const dark = { secondaryLine: 'wind', thirdLine: 'off', secondaryLineFill: true, theme: 'dark' };
   const light = Object.assign({}, dark, { theme: 'light' });
-  const windBase = lineStyle.nightAreaColorsFor('wind', null).base;
+  const darkBase = lineStyle.nightAreaColorsFor('wind', null, 'dark').base;
+  const lightBase = lineStyle.nightAreaColorsFor('wind', null, 'light').base;
+  assert.notEqual(darkBase, lightBase, 'the two polarities are tuned apart — else this proves nothing');
   assert.equal(lineStyle.buildLineStyleBytes(dark, emery)[9] & flag, 0, 'dark, key absent');
   assert.equal(lineStyle.buildLineStyleBytes(light, emery)[9] & flag, 0, 'light, key absent');
   assert.equal(
-    lineStyle.buildLineStyleBytes(Object.assign({ gcWindNightDark: windBase }, dark), emery)[9] & flag,
+    lineStyle.buildLineStyleBytes(Object.assign({ gcWindNightDark: darkBase }, dark), emery)[9] & flag,
     0, 'dark, the built-in stored explicitly');
   assert.equal(
-    lineStyle.buildLineStyleBytes(Object.assign({ gcWindNightLight: windBase }, light), emery)[9] & flag,
+    lineStyle.buildLineStyleBytes(Object.assign({ gcWindNightLight: lightBase }, light), emery)[9] & flag,
     0, 'light, the built-in stored explicitly');
   assert.equal(
     lineStyle.buildLineStyleBytes(Object.assign({ gcWindNightDark: '#550055' }, dark), emery)[9] & flag,
@@ -431,13 +435,15 @@ test('a night tint deliberately picked EQUAL to its fill is a real pick, not a h
 
 // resolveGraphColors is TOTAL over secondaryLine: 'off', absent, and an unknown id all
 // have to answer something. They land on the metric-less arm of nightAreaColorsFor — the
-// hand-tuned precip triple, verbatim — rather than running the lighten recipe over the
-// theme foreground. Nothing renders it (forecast_layer.c gates the underlay on a present,
-// filled second line), but the bytes have to be stable, so they are pinned here.
+// precip triple for the polarity in hand, verbatim — rather than running the lighten
+// recipe over the theme foreground. Nothing renders it (forecast_layer.c gates the
+// underlay on a present, filled second line), but the bytes have to be stable, so they are
+// pinned here. bw/bw-light follow their polarity like any other theme: the watch discards
+// all five night bytes in B&W, so the only requirement is that they stay deterministic.
 test('an off, absent or unknown secondary metric packs the metric-less night triple', () => {
-  const triple = lineStyle.nightAreaColorsFor('nope', null);
   ['off', undefined, 'foo'].forEach((secondaryLine) => {
     ['dark', 'light', 'bw', 'bw-light'].forEach((theme) => {
+      const triple = lineStyle.nightAreaColorsFor('nope', null, theme);
       const bytes = lineStyle.buildLineStyleBytes(
         { secondaryLine, thirdLine: 'off', secondaryLineFill: true, theme }, emery);
       const where = `${secondaryLine} / ${theme}`;
@@ -516,38 +522,42 @@ test('the light-polarity built-in is black; on B&W the flip still does that work
 
 // --- The concrete defaults ---------------------------------------------------
 //
-// THE appearance contract of this feature. Every key defaults to the colour 1.14.1
-// rendered for that metric and polarity, so seeding all 36 of them changes no pixel.
+// THE appearance contract of this feature. The DARK column is the colour 1.14.1 rendered
+// for that metric, so seeding those keys changes no pixel. The LIGHT column is no longer
+// 1.14.1's: it was tuned metric-by-metric on hardware in the light (alpha) theme, so it
+// intentionally repaints. Each Light cell is a colour that was eyeballed on a watch — do
+// NOT "fix" one to restore symmetry with its Dark neighbour or to follow a recipe.
+//
 // graphColorDefault DERIVES each cell from LINE_COLORS / FILL_COLORS / NIGHT_AREA_COLORS
-// rather than transcribing them, so asserting it against those same three resolvers would
-// be a tautology. These are therefore LITERAL 0xRRGGBB values: a tweak to any of the three
-// tables repaints somebody's graph and has to break the build here first. A literal table
-// belongs in a test — not in a second copy in production.
+// (+ NIGHT_AREA_LIGHT_BASE) rather than transcribing them, so asserting it against those
+// same resolvers would be a tautology. These are therefore LITERAL 0xRRGGBB values: a
+// tweak to any of the tables repaints somebody's graph and has to break the build here
+// first. A literal table belongs in a test — not in a second copy in production.
 const EXPECTED_DEFAULTS = {
   precip_prob: {
-    Line:     { Dark: 0x55AAFF, Light: 0x00AAFF },  // PictonBlue / VividCerulean
+    Line:     { Dark: 0x55AAFF, Light: 0x0000AA },  // PictonBlue / DukeBlue
     Fill:     { Dark: 0x0055AA, Light: 0x55FFFF },  // CobaltBlue / ElectricBlue
-    Night:    { Dark: 0x0000AA, Light: 0x0000AA }   // DukeBlue
+    Night:    { Dark: 0x0000AA, Light: 0x00FFFF }   // DukeBlue / Cyan
   },
   wind: {
-    Line:     { Dark: 0xFFFF00, Light: 0xFFFF00 },  // Yellow
-    Fill:     { Dark: 0x555500, Light: 0xAAFF55 },  // ArmyGreen / Inchworm
-    Night:    { Dark: 0x555500, Light: 0x555500 }   // ArmyGreen
+    Line:     { Dark: 0xFFFF00, Light: 0xFFAA00 },  // Yellow / ChromeYellow
+    Fill:     { Dark: 0x555500, Light: 0xFFFF00 },  // ArmyGreen / Yellow
+    Night:    { Dark: 0x555500, Light: 0xFFAA55 }   // ArmyGreen / Rajah
   },
   uv: {
-    Line:     { Dark: 0xFF00FF, Light: 0xFF00FF },  // Magenta
+    Line:     { Dark: 0xFF00FF, Light: 0x550055 },  // Magenta / ImperialPurple
     Fill:     { Dark: 0xAA00AA, Light: 0xFF55FF },  // Purple / ShockingPink
-    Night:    { Dark: 0x550055, Light: 0x550055 }   // ImperialPurple
+    Night:    { Dark: 0x550055, Light: 0xFF55FF }   // ImperialPurple / ShockingPink
   },
   gust: {
     Line:     { Dark: 0xFFFFFF, Light: 0x000000 },  // White (multi bars) / Black
     Fill:     { Dark: 0x555555, Light: 0xAAAAAA },  // DarkGray / LightGray
-    Night:    { Dark: 0x555555, Light: 0x555555 }   // DarkGray
+    Night:    { Dark: 0x555555, Light: 0xAAAAAA }   // DarkGray / LightGray
   },
   pressure: {
     Line:     { Dark: 0xFF5500, Light: 0xFF5500 },  // Orange
-    Fill:     { Dark: 0xAA5500, Light: 0xFFAA00 },  // WindsorTan / ChromeYellow
-    Night:    { Dark: 0xAA5500, Light: 0xAA5500 }   // WindsorTan
+    Fill:     { Dark: 0xAA5500, Light: 0xFFAA55 },  // WindsorTan / Rajah
+    Night:    { Dark: 0xAA5500, Light: 0xFFAA55 }   // WindsorTan / Rajah
   },
   feels: {
     Line:     { Dark: 0xAAAAAA, Light: 0x000000 },  // LightGray / Black

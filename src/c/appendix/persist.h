@@ -129,9 +129,12 @@ void persist_get_curve_insets(uint8_t out[3]);
 // line, the precip night triple, no explicit pick) when unset/short.
 #define NIGHT_COLOR_BYTES 6
 // The ONLY name for this bit, and the only position it ever has: byte [5] of
-// the blob, which is also byte [9] of the wire tuple. The night-area tint was
-// picked by the user rather than inherited from the metric, so the light-theme
-// skip of the night re-shade (forecast_layer.c) is opted out of.
+// the blob, which is also byte [9] of the wire tuple. Set when the night-area
+// tint was picked by the user rather than inherited from the metric. NOTHING
+// READS IT any more: it opted the light theme back into a night re-shade the
+// watch used to skip, and light now re-shades unconditionally (forecast_layer.c).
+// The byte stays so the blob keeps its length — shrinking NIGHT_COLOR_BYTES to
+// reclaim it would be a persist-layout change for one dead byte.
 #define NIGHT_FLAG_FILL_EXPLICIT 0x01
 bool persist_set_night_colors(const uint8_t colors[NIGHT_COLOR_BYTES]);
 void persist_get_night_colors(uint8_t out[NIGHT_COLOR_BYTES]);

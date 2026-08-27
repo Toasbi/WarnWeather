@@ -311,16 +311,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
          * filled area during the night hours.
          *
          * The gate is that underlay's, from forecast_layer.c: a night band and a filled
-         * area to re-shade (`night_on && fill_on`), colour only (`has_underlay =
-         * !theme_is_bw()`, folded into nightPicksApply), and on light polarity only when
-         * the tint has been moved off its built-in — the wire's night-fill flag, which
-         * opts the light theme back into a re-shade whose built-in was tuned for dark
-         * grounds. Dark polarity always re-shades, as the watch does.
+         * area to re-shade (`night_on && fill_on`) and colour only (`has_underlay =
+         * !theme_is_bw()`, folded into nightPicksApply). Both polarities re-shade — light
+         * used to be skipped unless the tint was an explicit pick, until NIGHT_AREA_COLORS
+         * grew a light arm tuned on hardware.
          * @returns {string} SVG markup, or '' when nothing is tinted.
          */
         function nightFillTint() {
             if (!nightPicksApply || !fillsArea) { return ''; }
-            if (isLightPolarity(cx.theme) && !gc.night.fillExplicit) { return ''; }
             var area = areaPathFor(state.secondaryLine);
             if (!area) { return ''; }
             // areaBase is the metric's hand-tuned night base, or the user's tint verbatim
