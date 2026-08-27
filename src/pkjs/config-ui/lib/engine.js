@@ -1031,8 +1031,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       + '<span class="ttl">' + esc(sec.title || '') + '</span>' + chev + '</button>';
   }
 
-  // Build a section's inner body HTML (intro + blockBefore + items + block) and whether
-  // it's empty (no intro, no visible control/static items, neither block). Shared by
+  // Build a section's inner body HTML (intro + items + block) and whether it's empty
+  // (no intro, no visible control/static items, no block). Shared by
   // renderSection (a standalone card) and renderSectionGroup (a section merged into a
   // shared card), so the "hide when everything is gated off" rule stays in one place.
   function buildSectionBody(sec, cx) {
@@ -1044,14 +1044,6 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       return { body: '', isEmpty: true };
     }
     var body = sec.intro ? '<div class="intro">' + sec.intro + '</div>' : '';
-    // sec.blockBefore is the mirror of sec.block: a block ABOVE the section's rows where
-    // sec.block sits below them (both under the intro, the same place an item-level
-    // blockBefore on the first item lands). sec.blockBeforeSticky pins it below the topbar
-    // while the rows scroll under it, exactly like the item-level flag. It belongs to the
-    // section so a preview that heads a whole card isn't copy-pasted onto whichever row
-    // happens to be first — several rows are first, one per gated variant.
-    var beforeHtml = renderBlock(sec.blockBefore, cx.S, cx.ENV, cx.USERDATA, sec.blockBeforeSticky);
-    body += beforeHtml;
     var controlCount = 0, staticCount = 0, i;
     var hosted = hostedToggleKeys(sec, cx);
     for (i = 0; i < sec.items.length; i++) {
@@ -1086,13 +1078,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     var blockHtml = renderBlock(sec.block, cx.S, cx.ENV, cx.USERDATA);
     body += blockHtml;
-    var isEmpty = !sec.intro && controlCount === 0 && staticCount === 0
-      && blockHtml === '' && beforeHtml === '';
+    var isEmpty = !sec.intro && controlCount === 0 && staticCount === 0 && blockHtml === '';
     return { body: body, isEmpty: isEmpty };
   }
 
-  // Render one section card. '' when empty (no intro, no visible control/static items,
-  // neither block).
+  // Render one section card. '' when empty (no intro, no visible control/static items, no block).
   function renderSection(sec, cx) {
     var secId = sec.id || sec.title;
     var built = buildSectionBody(sec, cx);

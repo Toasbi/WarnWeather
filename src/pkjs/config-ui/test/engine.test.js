@@ -536,26 +536,6 @@ test('renderBody: button and sheet rows share ONE chevron, coloured by class not
   assert.ok(html.indexOf('Runs it.') >= 0, 'the button row keeps its hint');
 });
 
-test('renderBody: a section-level blockBefore leads the rows and can stand alone', () => {
-  E.blocks.register('secLead', () => '<p>lead</p>');
-  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
-    { title: 'S', intro: 'Intro text.', blockBefore: 'secLead', blockBeforeSticky: true, items: [
-      { type: 'toggle', messageKey: 'f', label: 'Flag', defaultValue: false } ] }
-  ] }] };
-  const mk = (s) => ({ S: E.hydrate(s, {}), ENV: { color: true }, USERDATA: {}, openColor: null,
-    collapsed: {}, evalCtx: Object.assign({}, E.hydrate(s, {}), { env: { color: true } }) });
-  const html = E.renderBody(SCH, 't', mk(SCH));
-  assert.ok(/Intro text\.[\s\S]*blockrow sticky[\s\S]*data-toggle/.test(html),
-    'intro, then the sticky leading block, then the rows');
-  // A section whose only content is the leading block still renders (isEmpty counts it).
-  const ONLY = JSON.parse(JSON.stringify(SCH));
-  delete ONLY.tabs[0].sections[0].intro;
-  ONLY.tabs[0].sections[0].items = [
-    { type: 'toggle', messageKey: 'f', defaultValue: false, showWhen: { key: 'never', eq: 'yes' } }];
-  assert.ok(E.renderBody(ONLY, 't', mk(ONLY)).indexOf('<p>lead</p>') >= 0,
-    'a leading block alone keeps the card alive');
-});
-
 test('renderSelectOptions: empty query lists all; current value flagged on', () => {
   const item = { messageKey: 'c', options: [['United States','US'],['Germany','DE'],['Spain','ES']] };
   const all = E.renderSelectOptions(item, 'DE', '');

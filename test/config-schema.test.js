@@ -1733,8 +1733,6 @@ test('each row has a sheetOnly section carrying BOTH gates and no sticky preview
     assert.deepEqual(sec.capabilities, ['COLOR']);
     // No forecast preview heads these sheets: being position:sticky it would occlude
     // the open 64-swatch palette at every scroll offset on a narrow phone.
-    assert.equal(sec.blockBefore, undefined);
-    assert.equal(sec.blockBeforeSticky, undefined);
     assert.equal(sec.block, undefined);
   });
 });
