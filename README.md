@@ -26,7 +26,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * 24-hour forecast with a temperature line and configurable, battery-friendly updates
 * Configurable metrics such as precipitation, UV index, gusts, wind, air pressure, and feels-like temperature (drawn as a muted second line on the temperature scale)
 * Optional day/night shading
-* Recolor the forecast graph per metric — line, area fill and night tint for each — plus the night hatch and the dusk/dawn line, from the full Pebble palette and remembered separately for the Dark and Light themes (color watches)
+* Recolor the forecast graph per metric
 * Multiple weather providers, including regional and worldwide sources
 
 **Rain radar**
@@ -44,10 +44,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 **Status lines**
 * Configurable status slots on every view: fill each slot from a catalog of metrics — weather, dew point, air quality, pollen, wind, health, watch battery (glyph or percentage), phone battery, a countdown to any date, and more
-* Your phone's battery in any status slot, with a phone glyph or as a bare percentage, and a charging icon while it's plugged in — Android phones only, because iOS gives the watchface no way to read the phone's battery. It refreshes with your weather updates and whenever it moves 5% or you plug in, and shows `--` while the watch and phone aren't connected
-* Wind direction as an arrow after the speed, pointing the way the wind is blowing — on for the wind slot, and available for gusts in its slot settings
-* Show or hide the unit on a status slot — drop the `kph`/`hPa` when the bar is crowded, or add a degree sign to temperature and dew point
-* Threshold highlighting: bold, outline, or fill a status slot when air quality, pollen, wind, gusts, UV index, steps, sleep, or distance crosses a warn or danger level you set
+* Threshold highlighting: bold, outline, or fill a status slot when a metric crosses a warn or danger level you set
 
 **Watchface themes**
 * Dark and Light, plus Black & White options on color watches
@@ -61,8 +58,6 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Multiple layout presets, with flick-to-cycle between views and optional auto-return
 * Light/Dark settings page with grouped, easy-to-browse pickers
 * First-run setup wizard that picks sensible defaults for your country and watch — it bolds the rows you read first, gives air quality a warn outline, and puts steps on the top row when your watch has health
-* New watches start the compact layout with the status row below the clock — flip it with "Swap clock and status row" in the Layout tab
-* Larger graph fonts on Pebble Time 2 — the forecast, health and radar axis labels are drawn in bigger type by default; turn them down in the Layout tab
 
 *Weather and radar data from [MET Norway](https://www.met.no/) is used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).*
 
