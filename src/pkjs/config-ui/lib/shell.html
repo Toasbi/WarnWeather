@@ -296,9 +296,13 @@
   }
   @keyframes sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
   @keyframes sheet-fade { from { opacity: 0; } to { opacity: 1; } }
-  .ssel-modal-hdr { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px; }
+  /* Packs from the LEFT so an edit sheet's reset button can sit beside the title; the
+     close button takes the right corner with margin-left:auto, which is identical to the
+     old space-between for the two-child (title + close) headers. */
+  .ssel-modal-hdr { flex: none; display: flex; align-items: center; justify-content: flex-start; padding: 14px 16px 10px; }
   .ssel-modal-ttl { font: 800 15px 'Inter', sans-serif; color: var(--fg); }
-  .ssel-modal-close { flex: none; border: none; background: none; color: var(--muted); font-size: 22px; line-height: 1; cursor: pointer; padding: 0 2px 2px; }
+  .ssel-modal-hdr .lbl-act { flex: none; margin-left: 6px; }
+  .ssel-modal-close { flex: none; margin-left: auto; border: none; background: none; color: var(--muted); font-size: 22px; line-height: 1; cursor: pointer; padding: 0 2px 2px; }
   dialog#modal .ssel-search { flex: none; margin: 0 16px 10px; width: auto; }
   dialog#modal .ssel-list { flex: 1 1 auto; margin: 0; border: none; border-top: 1px solid var(--row-line); border-radius: 0; max-height: none; overflow-y: auto; overscroll-behavior: contain; }
   /* searchSelect: a little breathing room (just under one row) after the last option so it

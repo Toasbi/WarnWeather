@@ -127,6 +127,33 @@ test('renderEditModal: header + intro + fields for the open sheet; \'\' otherwis
   assert.equal(E.renderEditModal(SCHEMA, cxFor(S, { openEdit: 'nope' })), '', 'unknown sheet -> empty');
 });
 
+// A sheet whose reset covers everything in it hangs the button off the TITLE rather than
+// off a group sub-header, so the sheet needs no chrome row of its own. The graph-colour
+// sheets are the case: a 'Colors' sub-header sat directly under a title already reading
+// "Wind colors".
+test('a section-level labelAction rides the sheet title, between the text and the close', () => {
+  const WITH_RESET = JSON.parse(JSON.stringify(SCHEMA));
+  WITH_RESET.tabs[0].sections[1].labelAction =
+    { action: 'resetThings', arg: 'a,b', label: 'Reset to default' };
+  const S = E.hydrate(WITH_RESET, {});
+  const html = E.renderEditModal(WITH_RESET, cxFor(S, { openEdit: 'sheetWind' }));
+
+  assert.ok(html.indexOf('data-action="resetThings"') !== -1, 'the button is rendered');
+  assert.ok(html.indexOf('data-action-arg="a,b"') !== -1, 'carrying its key list');
+  const title = html.indexOf('Wind thresholds');
+  const button = html.indexOf('data-action="resetThings"');
+  const close = html.indexOf('data-select-close');
+  assert.ok(title < button && button < close,
+    'seated after the title text and before the close button');
+  // Inside the header, not floated into the body — otherwise it scrolls away with the rows.
+  assert.ok(button < html.indexOf('ssel-list esheet'), 'still within the header row');
+
+  // And a sheet without one is unchanged: no stray button, close still present.
+  const plain = E.renderEditModal(SCHEMA, cxFor(E.hydrate(SCHEMA, {}), { openEdit: 'sheetWind' }));
+  assert.equal(plain.indexOf('lbl-act'), -1, 'no reset button when the section declares none');
+  assert.ok(plain.indexOf('data-select-close') !== -1);
+});
+
 test('a gated sheetOnly section renders an empty modal (and no pencil can reach it)', () => {
   const GATED = JSON.parse(JSON.stringify(SCHEMA));
   GATED.tabs[0].sections[1].showWhen = { env: 'thresholds' };

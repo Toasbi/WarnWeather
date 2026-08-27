@@ -27,11 +27,15 @@ function esc(s) {
  * same closeModal anyway).
  * @param {string} titleId DOM id for the title span (aria-labelledby target).
  * @param {string} titleHtml Escaped/HTML title content.
+ * @param {string} [afterTitleHtml] Optional markup seated directly after the title text
+ *   (the edit sheet's reset button). It sits BESIDE the title rather than out at the
+ *   right edge — the close button is the only thing that owns that corner, so the header
+ *   packs from the left and the close pushes itself over with margin-left:auto.
  * @returns {string} Header markup.
  */
-function sheetHeader(titleId, titleHtml) {
+function sheetHeader(titleId, titleHtml, afterTitleHtml) {
   return '<div class="ssel-modal-hdr"><span class="ssel-modal-ttl" id="' + titleId + '">'
-    + titleHtml + '</span>'
+    + titleHtml + '</span>' + (afterTitleHtml || '')
     + '<button type="button" class="ssel-modal-close" data-select-close aria-label="Close">×</button></div>';
 }
 

@@ -1825,19 +1825,20 @@ test('each sheet resets exactly its own keys, and the seven lists partition the 
   let all = [];
   GRAPH_ROW_SHEETS.forEach((id) => {
     const sec = gcSheetById(id);
-    const header = sec.items[0];
-    assert.equal(header.type, 'subheader', id + ' leads with its reset header');
-    assert.equal(header.text, 'Colors');
-    assert.equal(header.messageKey, undefined, 'a subheader stores nothing');
     const keys = sec.items.filter((i) => i.type === 'color').map((i) => i.messageKey);
-    // blocks.js takes the key list from HERE through data-action-arg, so it keeps no
-    // copy that could drift. BOTH polarities ride it: leaving the hidden one tuned
-    // would resurrect old picks on the next theme switch.
-    assert.deepEqual(header.labelAction,
+    // The reset rides the SHEET, not a row inside it — renderEditModal seats a
+    // section-level labelAction beside the title text. blocks.js takes the key list from
+    // HERE through data-action-arg, so it keeps no copy that could drift. BOTH polarities
+    // ride it: leaving the hidden one tuned would resurrect old picks on the next theme
+    // switch.
+    assert.deepEqual(sec.labelAction,
       { action: 'resetGraphColors', arg: keys.join(','), label: 'Reset to default' });
-    // The header is the sheet's only chrome; everything else is a picker.
-    assert.equal(sec.items.length, keys.length + 1, id + ' holds its pickers and nothing else');
-    assert.deepEqual(sec.items.filter((i) => i.labelAction), [header]);
+    // Pickers and nothing else — the sheet carries no chrome row of its own now that the
+    // reset lives in the header (a 'Colors' sub-header under a "<Metric> colors" title
+    // said the same word twice).
+    assert.equal(sec.items.length, keys.length, id + ' holds its pickers and nothing else');
+    assert.equal(sec.items.filter((i) => i.labelAction).length, 0,
+      'no row carries a reset of its own');
     all = all.concat(keys);
   });
   // A partition of the renderer's key list: every key is resettable from exactly one

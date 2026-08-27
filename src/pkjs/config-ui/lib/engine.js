@@ -657,7 +657,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var built = buildSectionBody(sec, cx);
     if (built.isEmpty) { return ''; }
     var titleId = 'esheet-ttl-' + esc(String(cx.openEdit));
-    return sheetHeader(titleId, esc(String(sec.title || 'Edit')))
+    // A sheet-level labelAction rides the TITLE, beside the text. Same shape as an item's
+    // (labelActionHtml reads `.labelAction` off whatever it is handed), so a sheet whose
+    // reset covers everything in it needs no group sub-header to hang the button on.
+    return sheetHeader(titleId, esc(String(sec.title || 'Edit')), labelActionHtml(sec))
       + '<div class="ssel-list esheet">' + built.body + '</div>';
   }
 

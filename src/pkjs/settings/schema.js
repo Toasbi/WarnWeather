@@ -283,14 +283,13 @@ function graphColorSheet(row) {
         title: row.label + ' colors',
         capabilities: ['COLOR'],
         showWhen: COLOR_THEME_WHEN,
-        items: [{
-            // The reset covers the whole sheet, so it rides the sheet's own header
-            // rather than one row's label. blocks.js takes the key list from HERE
-            // through data-action-arg and keeps no copy that could drift.
-            type: 'subheader',
-            text: 'Colors',
-            labelAction: {action: 'resetGraphColors', arg: keys.join(','), label: 'Reset to default'}
-        }].concat(items)
+        // The reset covers the whole sheet, so it rides the sheet's TITLE (renderEditModal
+        // seats a section-level labelAction beside the title text). It used to hang off a
+        // 'Colors' sub-header, which then sat directly under a title already reading
+        // "<Metric> colors" and said the same word twice. blocks.js takes the key list
+        // from HERE through data-action-arg and keeps no copy that could drift.
+        labelAction: {action: 'resetGraphColors', arg: keys.join(','), label: 'Reset to default'},
+        items: items
     };
 }
 
