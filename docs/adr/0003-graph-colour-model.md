@@ -216,6 +216,13 @@ reasons over.
 Line colours claim distinct hues so two lines never read as one: precip owns blue, uv
 magenta, wind yellow, pressure orange, gust the greys.
 
+- **uv on light polarity is Purple, not ImperialPurple.** ImperialPurple is one Pebble
+  level per channel off black, and the light theme's solid rain bars paint
+  `GColorDarkGray` (rain-tier.js) — a near-black line crossing dark grey bars is two
+  dark values touching. Purple keeps the same hue at a level the bars cannot swallow.
+  It also widens the gap from precip, which owns the neighbouring blue and is the other
+  half of the default line pair.
+
 - **gust** takes the achromatic slot so it never reads as a rain bar, which makes it
   the one built-in that depends on another live setting: it must dodge whichever grey
   the bars use, so `lineColorFor` reads `rainBarColor`. `graphColorIsDefault` therefore

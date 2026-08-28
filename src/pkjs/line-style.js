@@ -38,7 +38,7 @@
     var LINE_COLORS = {
         precip_prob: { color: COLORS.GColorPictonBlue, light: COLORS.GColorDukeBlue,       bw: COLORS.GColorWhite },
         wind:        { color: COLORS.GColorYellow,     light: COLORS.GColorChromeYellow,   bw: COLORS.GColorWhite },
-        uv:          { color: COLORS.GColorMagenta,    light: COLORS.GColorImperialPurple, bw: COLORS.GColorWhite },
+        uv:          { color: COLORS.GColorMagenta,    light: COLORS.GColorPurple,         bw: COLORS.GColorWhite },
         pressure:    { color: COLORS.GColorOrange,     bw: COLORS.GColorWhite },
         feels:       { color: COLORS.GColorLightGray,  light: COLORS.GColorBlack,          bw: COLORS.GColorWhite }
     };

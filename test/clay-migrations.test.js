@@ -372,12 +372,12 @@ test('a night tint the 1.15.0 page carried from the fill is released on upgrade'
 
   // What this blob packs once healed. Bytes [0] and [2] are the wind and uv LIGHT line
   // colours, which the light-theme re-tune moved off 1.15.0's (Yellow -> ChromeYellow,
-  // Magenta -> ImperialPurple) — deliberate, and not what this test is about. The night
+  // Magenta -> Purple) — deliberate, and not what this test is about. The night
   // tail [4..9] is: it must stay byte-for-byte what 1.15.0 sent, flag clear.
-  const SHIPPED_BYTES = [248, 240, 209, 1, 213, 213, 240, 245, 250, 0];
+  const SHIPPED_BYTES = [248, 240, 226, 1, 213, 213, 240, 245, 250, 0];
   assert.deepEqual(
     Array.from(lineStyle.buildLineStyleBytes(blob, { platform: 'basalt' })),
-    [248, 240, 209, 1, 213, 213, 240, 245, 250, 1],
+    [248, 240, 226, 1, 213, 213, 240, 245, 250, 1],
     'un-migrated, the carried tint reads as a pick and byte [9] bit 0 flips — which is ' +
     'the wrong answer for telemetry, and was a spurious light-theme re-shade in 1.15.0');
 

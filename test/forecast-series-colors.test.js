@@ -23,7 +23,7 @@ test('line-style exposes the platform-aware line/fill color maps', () => {
 test('LINE_COLORS carries a hardware-tuned light variant for every metric but pressure', () => {
   assert.equal(fs.LINE_COLORS.precip_prob.light, C.GColorDukeBlue);
   assert.equal(fs.LINE_COLORS.wind.light, C.GColorChromeYellow);
-  assert.equal(fs.LINE_COLORS.uv.light, C.GColorImperialPurple);
+  assert.equal(fs.LINE_COLORS.uv.light, C.GColorPurple);
   assert.equal(fs.LINE_COLORS.feels.light, C.GColorBlack);
   assert.ok(!Object.prototype.hasOwnProperty.call(fs.LINE_COLORS.pressure, 'light'),
     'pressure keeps Orange in both polarities');
@@ -111,7 +111,7 @@ test('lineColorFor: a hued colour with no light arm passes through untouched in 
 test('lineColorFor: each metric with a light arm uses it when effectively color', () => {
   assert.equal(fs.lineColorFor('precip_prob', {}, true, 'light'), C.GColorDukeBlue);
   assert.equal(fs.lineColorFor('wind', {}, true, 'light'), C.GColorChromeYellow);
-  assert.equal(fs.lineColorFor('uv', {}, true, 'light'), C.GColorImperialPurple);
+  assert.equal(fs.lineColorFor('uv', {}, true, 'light'), C.GColorPurple);
 });
 
 test('lineColorFor: precip line keeps the dark-theme PictonBlue in the dark theme', () => {

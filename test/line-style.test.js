@@ -545,7 +545,7 @@ const EXPECTED_DEFAULTS = {
     Night:    { Dark: 0x555500, Light: 0xFFAA55 }   // ArmyGreen / Rajah
   },
   uv: {
-    Line:     { Dark: 0xFF00FF, Light: 0x550055 },  // Magenta / ImperialPurple
+    Line:     { Dark: 0xFF00FF, Light: 0xAA00AA },  // Magenta / Purple
     Fill:     { Dark: 0xAA00AA, Light: 0xFF55FF },  // Purple / ShockingPink
     Night:    { Dark: 0x550055, Light: 0xFF55FF }   // ImperialPurple / ShockingPink
   },

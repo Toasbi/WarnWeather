@@ -280,7 +280,7 @@ var SUPERSEDED_LIGHT_GRAPH_COLORS = [
     { metric: 'wind',        role: 'Line',  was: 0xFFFF00 },  // Yellow        -> ChromeYellow
     { metric: 'wind',        role: 'Fill',  was: 0xAAFF55 },  // Inchworm      -> Yellow
     { metric: 'wind',        role: 'Night', was: 0x555500 },  // ArmyGreen     -> Rajah
-    { metric: 'uv',          role: 'Line',  was: 0xFF00FF },  // Magenta       -> ImperialPurple
+    { metric: 'uv',          role: 'Line',  was: 0xFF00FF },  // Magenta       -> Purple
     { metric: 'uv',          role: 'Night', was: 0x550055 },  // ImperialPurple-> ShockingPink
     { metric: 'gust',        role: 'Night', was: 0x555555 },  // DarkGray      -> LightGray
     { metric: 'pressure',    role: 'Fill',  was: 0xFFAA00 },  // ChromeYellow  -> Rajah
