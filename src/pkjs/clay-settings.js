@@ -7,6 +7,7 @@
 var settings = require('./settings');
 var platformLib = require('./config-ui/lib/platform.js');   // isHrPlatform (emery + diorite)
 var lineStyle = require('./line-style');                    // graph-colour keys + built-ins
+var themeConvert = require('./settings/theme-convert.js');  // the polarity-default pairs
 var KEYS = require('./storage-keys');
 
 var STORAGE_KEY = 'clay-settings';
@@ -334,15 +335,19 @@ function runMigrations(opts) {
     // (FFAA55), re-tune-first strands it on AAFF55 reading as a deliberate choice.
     var wantsClayLightRetune = migrateLightGraphColorRetune(
         isDone(KEYS.LIGHT_GRAPH_COLOR_RETUNE_MIGRATION_KEY));
+    var wantsClaySolidBars = migrateLightThemeSolidBars(
+        isDone(KEYS.LIGHT_SOLID_BARS_MIGRATION_KEY),
+        mark(KEYS.LIGHT_SOLID_BARS_MIGRATION_KEY));
     var wantsClayNightColors = migrateGraphNightColorsResend(
         isDone(KEYS.GRAPH_NIGHT_COLORS_MIGRATION_KEY));
     return {
-        clayRequired: Boolean(wantsClayColors || wantsClayToggle
-                              || wantsClayLightRetune || wantsClayNightColors),
+        clayRequired: Boolean(wantsClayColors || wantsClayToggle || wantsClayLightRetune
+                              || wantsClaySolidBars || wantsClayNightColors),
         commitDeferredMarkers: function () {
             if (wantsClayColors) { mark(KEYS.WEEKEND_HOLIDAY_COLOR_MIGRATION_KEY)(); }
             if (wantsClayToggle) { mark(KEYS.HOLIDAY_WHITE_TO_TOGGLE_MIGRATION_KEY)(); }
             if (wantsClayLightRetune) { mark(KEYS.LIGHT_GRAPH_COLOR_RETUNE_MIGRATION_KEY)(); }
+            if (wantsClaySolidBars) { mark(KEYS.LIGHT_SOLID_BARS_MIGRATION_KEY)(); }
             if (wantsClayNightColors) { mark(KEYS.GRAPH_NIGHT_COLORS_MIGRATION_KEY)(); }
         }
     };
@@ -564,6 +569,72 @@ function migrateLightGraphColorRetune(isMigrationDone) {
     // never held the old defaults. It does not loop: nothing changed means the payload
     // matches the last-sent cache, sendClay calls onSuccess immediately, and the marker
     // commits. migrateGraphNightColorsResend is unconditional for the same reason.
+    return true;
+}
+
+/**
+ * Move an install that is ALREADY on a light-polarity theme onto the light default
+ * for the two bar colour modes (rainBarColor, radarColor): Solid, not multicolor.
+ *
+ * The five multicolor rain tiers are tuned against a black background; on white the
+ * two lightest wash out. That is why the light polarity now starts on Solid — but the
+ * settings page only converts the pair when the Theme control FLIPS polarity
+ * (theme-convert.js), which reaches nobody who picked Light before this shipped. Their
+ * stored 'multicolor' is the value seedDefaults wrote, and nothing else heals it: an
+ * in-place upgrade keeps the watch's CONFIG persist, so the handshake reports hasConfig
+ * true and the scheduler queues no Clay send.
+ *
+ * A light install that deliberately chose Multicolor is converted too. Nothing in the
+ * blob separates that from the seeded value — the same imprecision theme-convert.js
+ * carries for the colour pickers, and the price of storing defaults concretely.
+ *
+ * Polarity, not colour-ness: bw-light is migrated as well, even though its bar palette
+ * is B&W and the picker is hidden there. Switching bw-light -> light is not a polarity
+ * flip, so the hook would never convert it, and that install would be the one install
+ * that still arrived on multicolor.
+ *
+ * The marker is DEFERRED to the Clay ACK for a light install (see runMigrations), so a
+ * NACK retries next boot; the migration therefore always asks for the send and never
+ * marks itself there. Dark polarity is different and DOES mark synchronously: it is
+ * not "nothing left to rewrite" (which is indistinguishable from a save that then
+ * NACKed — see the re-tune above) but "this install is out of scope", decided by a
+ * value this migration never writes. A later flip to light is the hook's job.
+ *
+ * @param {Function} isMigrationDone Returns true when the migration marker is set.
+ * @param {Function} markDone Records the migration as complete — dark polarity only.
+ * @returns {boolean} True when the migrated settings must be sent to the watch.
+ */
+function migrateLightThemeSolidBars(isMigrationDone, markDone) {
+    var persistClay = loadForMigration(isMigrationDone, 'light-theme solid bars');
+
+    if (persistClay === null) {
+        return false;
+    }
+
+    var wanted = themeConvert.barColorDefault(persistClay.theme);
+    if (wanted === themeConvert.barColorDefault('dark')) {
+        markDone();
+        return false;
+    }
+
+    var keys = themeConvert.BAR_COLOR_KEYS;
+    var changed = false;
+    var i;
+
+    for (i = 0; i < keys.length; i++) {
+        // Everything that is not already Solid moves: the pair is a two-value
+        // vocabulary, so that is 'multicolor' or an absent key. Absent is written out
+        // rather than left implicit — the next hydrate would fill it from the schema's
+        // dark default, which has no theme to ask.
+        if (persistClay[keys[i]] === wanted) { continue; }
+        persistClay[keys[i]] = wanted;
+        changed = true;
+    }
+
+    if (changed) {
+        save(persistClay);
+        console.log('Moved the light theme onto the solid rain-bar and radar colours');
+    }
     return true;
 }
 

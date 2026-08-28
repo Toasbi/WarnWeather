@@ -1116,3 +1116,98 @@ test('the re-tune runs after the carried-tint release, or a carry is stranded', 
     lineStyle.graphColorDefault('wind', 'Fill', 'Light', healed),
     'and the fill still took its re-tuned default');
 });
+
+// --- The light theme's solid bar colours -----------------------------------
+// The light polarity now starts the rain bars and the radar graph on Solid.
+// The settings page converts the pair when the Theme control FLIPS polarity
+// (theme-convert.js), which reaches nobody who picked Light before this shipped —
+// their stored 'multicolor' is what seedDefaults wrote. Hence a migration.
+
+// An upgraded install parked on one theme, with both bar modes as seeded.
+function seedThemedInstall(store, claySettings, KEYS, now, theme) {
+  seedUpgradedInstall(store, claySettings, KEYS, now);
+  const blob = claySettings.read();
+  assert.equal(blob.rainBarColor, 'multicolor', 'seedDefaults writes the dark default');
+  assert.equal(blob.radarColor, 'multicolor');
+  blob.theme = theme;
+  claySettings.save(blob);
+}
+
+test('a light install moves onto the solid bar colours, marked only by the ACK', () => {
+  const store = installFakeStorage();
+  const mods = loadUpgradeModules();
+  const now = new Date(2026, 7, 26, 9, 0, 0);
+  seedThemedInstall(store, mods.claySettings, mods.KEYS, now, 'light');
+
+  const sends = bootUpgradedInstall(mods.claySettings, mods.createChannelScheduler, now);
+  const healed = mods.claySettings.read();
+  assert.equal(healed.rainBarColor, 'white');
+  assert.equal(healed.radarColor, 'white');
+  assert.equal(store[mods.KEYS.LIGHT_SOLID_BARS_MIGRATION_KEY], undefined,
+    'the marker waits for the watch to actually have the palette');
+
+  assert.equal(sends.length, 1, 'the rewritten palette has to reach the watch');
+  sends[0].onSuccess();
+  assert.equal(store[mods.KEYS.LIGHT_SOLID_BARS_MIGRATION_KEY], '1');
+});
+
+test('a dark install keeps multicolor and marks the migration synchronously', () => {
+  // Out of scope, and knowably so from a value this migration never writes — unlike
+  // "nothing left to rewrite", which is also what a save-then-NACK looks like. A later
+  // flip to light is the settings page's job, not this migration's.
+  const store = installFakeStorage();
+  const mods = loadUpgradeModules();
+  const now = new Date(2026, 7, 26, 9, 0, 0);
+  seedThemedInstall(store, mods.claySettings, mods.KEYS, now, 'dark');
+
+  mods.claySettings.runMigrations({
+    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  const after = mods.claySettings.read();
+  assert.equal(after.rainBarColor, 'multicolor');
+  assert.equal(after.radarColor, 'multicolor');
+  assert.equal(store[mods.KEYS.LIGHT_SOLID_BARS_MIGRATION_KEY], '1',
+    'no ACK needed: nothing was migrated, so there is nothing to lose to a NACK');
+});
+
+test('bw-light migrates too, though its bars are painted B&W', () => {
+  // Polarity, not colour-ness. bw-light -> light is NOT a polarity flip, so the page
+  // hook would never convert it; without this, that would be the one install still
+  // arriving on multicolor.
+  const store = installFakeStorage();
+  const mods = loadUpgradeModules();
+  const now = new Date(2026, 7, 26, 9, 0, 0);
+  seedThemedInstall(store, mods.claySettings, mods.KEYS, now, 'bw-light');
+
+  mods.claySettings.runMigrations({
+    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  const healed = mods.claySettings.read();
+  assert.equal(healed.rainBarColor, 'white');
+  assert.equal(healed.radarColor, 'white');
+});
+
+test('a NACKed solid-bar migration retries, and a picked Solid still defers', () => {
+  const store = installFakeStorage();
+  const mods = loadUpgradeModules();
+  const now = new Date(2026, 7, 26, 9, 0, 0);
+  seedThemedInstall(store, mods.claySettings, mods.KEYS, now, 'light');
+  // Already Solid by hand on one key: there is less to rewrite, and after the first
+  // boot there is nothing left at all — which must NOT be read as "done".
+  const blob = mods.claySettings.read();
+  blob.rainBarColor = 'white';
+  mods.claySettings.save(blob);
+
+  const first = bootUpgradedInstall(mods.claySettings, mods.createChannelScheduler, now);
+  assert.equal(first.length, 1);
+  first[0].onFailure();
+  assert.equal(store[mods.KEYS.LIGHT_SOLID_BARS_MIGRATION_KEY], undefined,
+    'a NACK leaves the marker unset');
+
+  const second = bootUpgradedInstall(mods.claySettings, mods.createChannelScheduler, now);
+  assert.equal(second.length, 1,
+    'the second boot has nothing to rewrite but still owes the watch the palette');
+  second[0].onSuccess();
+  assert.equal(store[mods.KEYS.LIGHT_SOLID_BARS_MIGRATION_KEY], '1');
+
+  const third = bootUpgradedInstall(mods.claySettings, mods.createChannelScheduler, now);
+  assert.equal(third.length, 0, 'and once marked, it is over');
+});

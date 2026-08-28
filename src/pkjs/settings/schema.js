@@ -1017,6 +1017,10 @@ module.exports = {
                 type: 'segmented',
                 messageKey: 'rainBarColor',
                 label: 'Bar color',
+                // The DARK-polarity default. The light polarity starts on Solid instead
+                // — theme-convert.js's BAR_DEFAULT owns that pair and converts a value
+                // still holding this one when the Theme control flips polarity, so a
+                // second defaultValue here would only be a stale copy of half of it.
                 defaultValue: 'multicolor',
                 joinPrevious: true,
                 hintByValue: {multicolor: MULTICOLOR_HINT, white: WHITE_HINT},
@@ -1136,6 +1140,7 @@ module.exports = {
                 type: 'segmented',
                 messageKey: 'radarColor',
                 label: 'Radar color',
+                // Dark-polarity default; light starts on Solid. See rainBarColor above.
                 defaultValue: 'multicolor',
                 hintByValue: {multicolor: MULTICOLOR_HINT, white: WHITE_HINT},
                 capabilities: ['COLOR'],
