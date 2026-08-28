@@ -22,6 +22,7 @@ var releaseNotifications = require('./release-notifications.js');
 var updateCheckRunner = require('./update-check-runner.js');
 var sleepWindow = require('./sleep-window.js');
 var claySettings = require('./clay-settings.js');
+var clayMigrations = require('./clay-migrations.js');
 var fixtureWeather = require('./fixture-weather.js');
 var holidayMask = require('./holidays/holiday-mask.js');
 var nagerSource = require('./holidays/nager-source.js');
@@ -329,10 +330,10 @@ Pebble.addEventListener('ready',
             if (wi && wi.platform) { statusMigrationPlatform = wi.platform; }
         }
         catch (ex) { /* keep the safe default */ }
-        // Every marker-gated migration runs inside clay-settings.runMigrations
-        // (bodies, marker keys and gating live together there); the two
-        // Clay-color ones commit their markers only on the Clay ACK below.
-        var migrations = claySettings.runMigrations({
+        // Every marker-gated migration runs inside clay-migrations.runMigrations
+        // (bodies, marker keys and gating live together there); the Clay-colour
+        // ones commit their markers only on the Clay ACK below.
+        var migrations = clayMigrations.runMigrations({
             platform: statusMigrationPlatform,
             colors: DEFAULT_HOLIDAY_COLORS,
             defaultRadarProvider: 'rainbow'
