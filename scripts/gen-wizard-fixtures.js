@@ -16,8 +16,10 @@ function segment(start, len, mm) {
 }
 const RAIN_EXACT = segment(3, 4, 1.5);
 const RAIN_AREA = segment(2, 6, 1.8);
-// Common forecast look for the layout shots.
-const FORECAST = { secondaryLine: 'precip_prob', secondaryLineFill: true, thirdLine: 'uv', barSource: 'rain', rainBarColor: 'multicolor' };
+// Common forecast look for the layout shots. rainBarColor is deliberately NOT here: its
+// default depends on the theme's polarity, so the loop below derives it per shot.
+const FORECAST = { secondaryLine: 'precip_prob', secondaryLineFill: true, thirdLine: 'uv', barSource: 'rain' };
+const { barColorDefault } = require('../src/pkjs/resolve-ink.js');
 // Which platforms each shot is captured on (space-separated; consumed by capture-wizard-screenshots.sh
 // per fixture and by gen-wizard-screenshots.js to key the module). Facts from config-ui/lib/platform.js:
 //   basalt, emery — color, health, radar        flint — B&W, health, radar
@@ -73,6 +75,16 @@ function generate(opts = {}) {
     const frame = JSON.parse(JSON.stringify(base));
     frame.watch.now = { ...frame.watch.now, ...NOW_OVERRIDE };
     frame.claySettings = { ...base.claySettings, ...s.clay };
+    // The two bar-colour modes default per POLARITY (resolve-ink.js barColorDefault):
+    // multicolor on dark, Solid on light, because the multicolor tiers are tuned against
+    // black and the lightest of them wash out on white. The settings page applies that
+    // through its themeConvert hook — which this fixture path bypasses entirely, the same
+    // gap colorTime is hand-patched for in the theme-light shot above. Derive it here or
+    // the light card advertises a rendering no light install actually gets. A shot naming
+    // a mode itself still wins (the radar shot pins multicolor).
+    const barDefault = barColorDefault(frame.claySettings.theme);
+    if (!('rainBarColor' in s.clay)) { frame.claySettings.rainBarColor = barDefault; }
+    if (!('radarColor' in s.clay)) { frame.claySettings.radarColor = barDefault; }
     if (s.radar) { frame.weather.rainRadarExactMm = s.radar.exact.slice(); frame.weather.rainRadarAreaMm = s.radar.area.slice(); }
     if (s.countdown) { frame.countdown = { ...s.countdown }; }
     const outPath = path.join(outDir, 'wizard-' + s.slug + '.json');
