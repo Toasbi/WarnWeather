@@ -25,6 +25,7 @@ eachItem(schema, (it) => { if (it.messageKey) { SCHEMA_ITEM[it.messageKey] = it;
 const ENV_BASALT = { platform: 'basalt', color: true, round: false, health: true, radar: true, hr: false, thresholds: true, themePolarity: true };
 const ENV_DIORITE = { platform: 'diorite', color: false, round: false, health: true, radar: true, hr: true, thresholds: true, themePolarity: true };
 const ENV_APLITE = { platform: 'aplite', color: false, round: false, health: false, radar: false, hr: false, thresholds: false, themePolarity: false };
+const ENV_EMERY = { platform: 'emery', color: true, round: false, health: true, radar: true, hr: true, thresholds: true, themePolarity: true };
 
 /**
  * @param {Object} [over] Fields to override on the baseline context.
@@ -35,21 +36,29 @@ function ctx(over) {
 }
 
 // The matrix, spelled out once. The tests below assert the resolver reproduces
-// exactly this and nothing more.
-const BOLD_ALWAYS = {
+// exactly this and nothing more. Two halves of it are emery-only: emery is the one
+// display whose top strip ships three readings, so it is the only one whose top row
+// is bolded and the only one where steps is promoted into the row's RIGHT corner
+// (elsewhere that corner is the battery).
+const BOLD_FORECAST = {
   threshTempBoldMode: 'always',
   threshCityBoldMode: 'always',
-  threshAqiBoldMode: 'always',
+  threshAqiBoldMode: 'always'
+};
+const BOLD_TOP = {
   threshWeekBoldMode: 'always',
   threshDateBoldMode: 'always',
   threshSunBoldMode: 'always'
 };
 const AQI_HIGHLIGHT = { threshAqiOn: true, threshAqiWarnOutlineOn: true };
-// Steps rides into the top row, so it is bolded with the rest of that row — the
-// bold rule above names the row's DEFAULT kinds, and this rule is what changes one.
+// Steps rides into the top row, so on emery it is bolded with the rest of that row —
+// the top-row bold names the row's DEFAULT kinds, and this rule is what changes one.
 const HEALTH_SLOTS = {
   statusTopRight: 'steps', statusHealthLeft: 'distance', threshStepsBoldMode: 'always'
 };
+// The narrow platforms: the left slot instead of the corner, and no bold to match —
+// nothing in that strip is bold there.
+const HEALTH_SLOTS_COMPACT = { statusTopLeft: 'steps', statusHealthLeft: 'distance' };
 
 // --- ruleApplies: the `when` predicate -------------------------------------
 
@@ -136,16 +145,29 @@ test('nothing is overridden outside the wizard', () => {
   assert.deepEqual(policy.resolveDefaults(ctx({ wizard: false })), {});
 });
 
-test('the wizard on a health watch applies the whole matrix', () => {
+test('the wizard on an emery health watch applies the whole matrix', () => {
+  assert.deepEqual(policy.resolveDefaults(ctx({ wizard: true, env: ENV_EMERY })),
+    Object.assign({}, BOLD_FORECAST, BOLD_TOP, AQI_HIGHLIGHT, HEALTH_SLOTS));
+});
+
+test('a narrow health watch bolds the Forecast row only and promotes into the left slot', () => {
   assert.deepEqual(policy.resolveDefaults(ctx({ wizard: true })),
-    Object.assign({}, BOLD_ALWAYS, AQI_HIGHLIGHT, HEALTH_SLOTS));
+    Object.assign({}, BOLD_FORECAST, AQI_HIGHLIGHT, HEALTH_SLOTS_COMPACT));
+  assert.deepEqual(policy.resolveDefaults(ctx({ wizard: true, env: ENV_DIORITE })),
+    Object.assign({}, BOLD_FORECAST, AQI_HIGHLIGHT, HEALTH_SLOTS_COMPACT),
+    'the split is by display width, not by colour or heart rate');
 });
 
 test('the wizard with health off applies the bold/AQI rules only', () => {
-  const expected = Object.assign({}, BOLD_ALWAYS, AQI_HIGHLIGHT);
-  assert.deepEqual(policy.resolveDefaults(ctx({ wizard: true, choices: { healthMode: 'off' } })), expected);
-  assert.deepEqual(policy.resolveDefaults(ctx({ wizard: true, env: ENV_APLITE })), expected);
-  assert.deepEqual(policy.resolveDefaults({ wizard: true }), expected, 'a bare context must not throw');
+  const narrow = Object.assign({}, BOLD_FORECAST, AQI_HIGHLIGHT);
+  assert.deepEqual(policy.resolveDefaults(ctx({ wizard: true, choices: { healthMode: 'off' } })), narrow);
+  assert.deepEqual(policy.resolveDefaults(ctx({ wizard: true, env: ENV_APLITE })), narrow);
+  assert.deepEqual(policy.resolveDefaults({ wizard: true }), narrow,
+    'a bare context must not throw — and an unknown platform is not emery');
+  assert.deepEqual(
+    policy.resolveDefaults(ctx({ wizard: true, env: ENV_EMERY, choices: { healthMode: 'off' } })),
+    Object.assign({}, BOLD_FORECAST, BOLD_TOP, AQI_HIGHLIGHT),
+    'emery still bolds its three-up top row with health off — the row is unchanged');
 });
 
 test('later rules win when two rules set the same key', () => {
@@ -162,10 +184,10 @@ test('later rules win when two rules set the same key', () => {
 test('resolveDefaults returns a fresh object and never mutates the table', () => {
   const first = policy.resolveDefaults(ctx({ wizard: true }));
   first.threshTempBoldMode = 'off';
-  delete first.statusTopRight;
+  delete first.statusTopLeft;
   const second = policy.resolveDefaults(ctx({ wizard: true }));
   assert.equal(second.threshTempBoldMode, 'always');
-  assert.equal(second.statusTopRight, 'steps');
+  assert.equal(second.statusTopLeft, 'steps');
 });
 
 test('rulesFor exposes the matching rules themselves (ids, why, seedVia)', () => {
@@ -234,31 +256,51 @@ test('seedVia names the very onChange hook the schema item declares', () => {
 
 // --- the matrix's design intent --------------------------------------------
 
-test('the bolded kinds are exactly the default kinds of the Watch + Forecast rows', () => {
+// Health OFF is the case where the rows still hold their shipped defaults, so it is
+// the one that pins "the bold rules track the row defaults". With health ON the health
+// rule swaps steps into the top row, which the sibling test 'every kind the wizard puts
+// in the top or forecast row ends up bold' covers.
+const boldKeysFor = (env) => Object.keys(
+  policy.resolveDefaults({ wizard: true, env, choices: { healthMode: 'off' } }))
+  .filter((k) => /BoldMode$/.test(k)).sort();
+/**
+ * The bold-mode keys of a line's default kinds on one watch, skipping kinds with no
+ * bold cell of their own (Empty, the battery glyph).
+ * @param {string} id Catalog line id.
+ * @param {Object} env Platform env — slotDefault reads the per-platform flavor off it.
+ * @returns {string[]} Sorted thresh<Stem>BoldMode keys.
+ */
+function lineBoldKeys(id, env) {
   const stemOf = {};
   contract.KINDS.forEach((k) => { stemOf[k.code] = k.key; });
-  const lineDefaults = (id) => {
-    const line = catalog.LINES.filter((l) => l.id === id)[0];
-    return line.slots.map((s) => line.defaults[s]);
-  };
-  // Health OFF is the case where the rows still hold their shipped defaults, so it
-  // is the one that pins "the bold rule tracks the row defaults". With health ON the
-  // health rule swaps steps into the top row and bolds it too, which the sibling test
-  // 'every kind the wizard puts in the top or forecast row ends up bold' covers.
-  const expected = lineDefaults('forecast').concat(lineDefaults('top'))
-    .map((code) => 'thresh' + stemOf[code] + 'BoldMode').sort();
-  const bolded = Object.keys(
-    policy.resolveDefaults(ctx({ wizard: true, choices: { healthMode: 'off' } })))
-    .filter((k) => /BoldMode$/.test(k)).sort();
-  assert.deepEqual(bolded, expected,
-    'the bold rule must track the Watch/Forecast row defaults — if a row default changes, this rule follows');
+  const line = catalog.LINES.filter((l) => l.id === id)[0];
+  return line.slots.map((s) => stemOf[catalog.slotDefault(s, env)])
+    .filter(Boolean).map((stem) => 'thresh' + stem + 'BoldMode');
+}
+
+test('emery bolds exactly the default kinds of its Watch + Forecast rows', () => {
+  assert.deepEqual(boldKeysFor(ENV_EMERY),
+    lineBoldKeys('forecast', ENV_EMERY).concat(lineBoldKeys('top', ENV_EMERY)).sort(),
+    'the bold rules must track the row defaults — if a row default changes, they follow');
+});
+
+test('a narrow watch bolds the Forecast row only, and never the lone date', () => {
+  const bolded = boldKeysFor(ENV_BASALT);
+  assert.deepEqual(bolded, lineBoldKeys('forecast', ENV_BASALT).sort());
+  assert.equal(bolded.indexOf('threshDateBoldMode'), -1,
+    'the date is the only reading in that strip here, so bolding it would contrast with nothing');
+  assert.deepEqual(lineBoldKeys('top', ENV_BASALT), ['threshDateBoldMode'],
+    'guard: the date IS in the narrow top row — the assertion above is not vacuous');
 });
 
 test('bolding those kinds cannot leak into the Radar or Health rows (defaults are disjoint)', () => {
+  // Every flavor of every row, so a code that is only a default on one platform
+  // (emery's week/sun, the narrow battery corner) is still covered.
   const codesOf = (id) => {
     const line = catalog.LINES.filter((l) => l.id === id)[0];
     return line.slots.map((s) => line.defaults[s])
-      .concat(line.hrDefaults ? line.slots.map((s) => line.hrDefaults[s]) : []);
+      .concat(line.hrDefaults ? line.slots.map((s) => line.hrDefaults[s]) : [])
+      .concat(line.emeryDefaults ? line.slots.map((s) => line.emeryDefaults[s]) : []);
   };
   const bolded = codesOf('forecast').concat(codesOf('top'));
   codesOf('radar').concat(codesOf('health')).forEach((code) => {
@@ -293,42 +335,68 @@ test('the schema still ships the step and sleep goals off', () => {
   assert.equal(SCHEMA_ITEM.threshSleepOn.defaultValue, false);
 });
 
-test('every kind the wizard puts in the top or forecast row ends up bold', () => {
-  // The bold rule names the kinds those rows show BY DEFAULT, and the health rule
-  // then swaps one of them out. Asserting the two rules agree — rather than listing
-  // six key names again — is what stops the next slot swap re-opening this hole:
-  // the promoted slot kept steps' own 'warn' default and sat unbolded between two
-  // bold neighbours.
-  const KIND_BOLD_KEY = {
-    temp: 'threshTempBoldMode', city: 'threshCityBoldMode', aqi: 'threshAqiBoldMode',
-    week: 'threshWeekBoldMode', date: 'threshDateBoldMode', sun: 'threshSunBoldMode',
-    steps: 'threshStepsBoldMode', distance: 'threshDistanceBoldMode',
-    sleep: 'threshSleepBoldMode', hr: 'threshHrBoldMode'
-  };
-  const TOP_AND_FORECAST = ['statusTopLeft', 'statusTopMid', 'statusTopRight',
-    'statusForecastLeft', 'statusForecastMid', 'statusForecastRight'];
-  const catalog = require('../src/pkjs/status-line-catalog.js');
-  const lineDefault = (slotKey) => {
-    const line = catalog.LINES.find((l) => l.slots.indexOf(slotKey) !== -1);
-    return line.defaults[slotKey];
-  };
+const KIND_BOLD_KEY = {
+  temp: 'threshTempBoldMode', city: 'threshCityBoldMode', aqi: 'threshAqiBoldMode',
+  week: 'threshWeekBoldMode', date: 'threshDateBoldMode', sun: 'threshSunBoldMode',
+  steps: 'threshStepsBoldMode', distance: 'threshDistanceBoldMode',
+  sleep: 'threshSleepBoldMode', hr: 'threshHrBoldMode'
+};
+const TOP_AND_FORECAST = ['statusTopLeft', 'statusTopMid', 'statusTopRight',
+  'statusForecastLeft', 'statusForecastMid', 'statusForecastRight'];
 
+/**
+ * The bold mode each of the two headline rows ends up with after a finished wizard,
+ * keyed by slot: what the rules wrote, or nothing when a slot's kind is left alone.
+ * @param {Object} env Platform env.
+ * @param {Object} choices Stored/wizard choices, e.g. {healthMode: 'all'}.
+ * @returns {Object} slotKey -> {kind, boldKey, bold}; slots whose kind has no bold
+ *     cell of its own (Empty, the battery glyph) are omitted.
+ */
+function headlineRowBolds(env, choices) {
+  const applied = policy.resolveDefaults({ wizard: true, env, choices });
+  const out = {};
+  TOP_AND_FORECAST.forEach((slotKey) => {
+    const kind = applied[slotKey] || catalog.slotDefault(slotKey, env);
+    const boldKey = KIND_BOLD_KEY[kind];
+    if (!boldKey) { return; }
+    out[slotKey] = { kind, boldKey, bold: applied[boldKey] };
+  });
+  return out;
+}
+
+test('on emery, every kind the wizard puts in the top or forecast row ends up bold', () => {
+  // The bold rules name the kinds those rows show BY DEFAULT, and the health rule
+  // then swaps one of them out. Asserting the rules agree — rather than listing six
+  // key names again — is what stops the next slot swap re-opening this hole: the
+  // promoted slot kept steps' own 'warn' default and sat unbolded between two bold
+  // neighbours.
   [{ healthMode: 'all' }, { healthMode: 'off' }].forEach((choices) => {
-    const applied = policy.resolveDefaults({
-      wizard: true,
-      env: { platform: 'emery', health: true, hr: true, radar: true, thresholds: true },
-      choices
-    });
-    TOP_AND_FORECAST.forEach((slotKey) => {
-      const kind = applied[slotKey] || lineDefault(slotKey);
-      const boldKey = KIND_BOLD_KEY[kind];
-      if (!boldKey) { return; }   // a kind with no bold cell of its own
-      const bold = applied[boldKey];
-      assert.equal(bold, 'always',
-        `${slotKey} shows "${kind}" after the wizard (healthMode ${choices.healthMode}), ` +
-        `so ${boldKey} must be 'always' — got ${bold === undefined ? 'nothing' : bold}`);
+    const rows = headlineRowBolds(ENV_EMERY, choices);
+    Object.keys(rows).forEach((slotKey) => {
+      const r = rows[slotKey];
+      assert.equal(r.bold, 'always',
+        `${slotKey} shows "${r.kind}" after the wizard (healthMode ${choices.healthMode}), ` +
+        `so ${r.boldKey} must be 'always' — got ${r.bold === undefined ? 'nothing' : r.bold}`);
     });
   });
+});
+
+test('on a narrow watch the same agreement holds inverted: the top strip stays light', () => {
+  // The mirror of the emery pin. Here the rules must NOT bold anything in the strip
+  // beside the clock — including the steps the health rule promotes into it, which is
+  // the half a future edit is most likely to get wrong by copying the emery rule.
+  [{ healthMode: 'all' }, { healthMode: 'off' }].forEach((choices) => {
+    const rows = headlineRowBolds(ENV_BASALT, choices);
+    Object.keys(rows).forEach((slotKey) => {
+      const r = rows[slotKey];
+      const expected = slotKey.indexOf('statusForecast') === 0 ? 'always' : undefined;
+      assert.equal(r.bold, expected,
+        `${slotKey} shows "${r.kind}" after the wizard (healthMode ${choices.healthMode}), ` +
+        `so ${r.boldKey} must be ${expected === undefined ? 'left alone' : "'always'"}`);
+    });
+  });
+  assert.equal(headlineRowBolds(ENV_BASALT, { healthMode: 'all' }).statusTopLeft.kind, 'steps',
+    'guard: steps really is promoted into that strip, so the loop above saw it');
 });
 
 test('the wind arrow is a plain schema default, not a rule in this table', () => {
@@ -370,6 +438,28 @@ test('the health-slot swap declares its coupling: eviction and bold depend on th
     statusHealthLeft: 'statusTopRight',
     threshStepsBoldMode: 'statusTopRight'
   }, 'both companion writes hang off the steps promotion');
+
+  const compact = policy.RULES.find((r) => r.id === 'wizard-health-slots-compact');
+  assert.ok(compact, 'the narrow-platform sibling exists');
+  assert.deepEqual(compact.dependsOn, { statusHealthLeft: 'statusTopLeft' },
+    'the eviction hangs off the promotion there too — and there is no bold to couple');
+  assert.deepEqual(compact.overrules, ['statusTopLeft']);
+  assert.equal(compact.set.threshStepsBoldMode, undefined,
+    'nothing in that strip is bold on a narrow watch, so the promoted slot is not either');
+});
+
+test('the two health-slot rules are mutually exclusive — never both on one watch', () => {
+  // They set overlapping keys (statusHealthLeft) with the same value, so a context
+  // matching both would be harmless today; it would stop being harmless the moment
+  // either rule's eviction changes. Pin the split instead of trusting it.
+  const emeryRule = policy.RULES.find((r) => r.id === 'wizard-health-slots');
+  const compact = policy.RULES.find((r) => r.id === 'wizard-health-slots-compact');
+  [ENV_EMERY, ENV_BASALT, ENV_DIORITE, ENV_APLITE, { platform: 'chalk', health: true }]
+    .forEach((env) => {
+      const c = { wizard: true, env, choices: { healthMode: 'all' } };
+      assert.notEqual(policy.ruleApplies(emeryRule, c) && policy.ruleApplies(compact, c), true,
+        env.platform + ' matches both health-slot rules');
+    });
 });
 
 test('overrules always names keys of the same rule\'s set — a typo must not silently protect nothing', () => {

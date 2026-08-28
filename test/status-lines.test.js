@@ -250,10 +250,12 @@ test('buildStatusLines packs four lines with defaults', () => {
   assert.equal(radar[1].icon, I.WIND);
   assert.equal(radar[2].icon, I.GUST);
 
+  // basalt is not emery, so the top strip is the narrow one: date alone in the
+  // middle, battery in the corner, left free.
   const top = decodeLine(p.STATUS_LINE_3_UINT8);
-  assert.equal(top[0].kind, K.LIVE_WEEK); // default left = calendar week (available on basalt)
+  assert.equal(top[0].kind, K.EMPTY);
   assert.equal(top[1].kind, K.LIVE_DATE); // mid slot is selectable; defaults to date
-  assert.equal(top[2].icon, I.DRAWN_SUN); // default right = sunrise/sunset (TEXT + sun glyph)
+  assert.equal(top[2].kind, K.LIVE_BATTERY);
 
   const health = decodeLine(p.STATUS_LINE_4_UINT8);
   // non-HR default (basalt): steps / empty / sleep
@@ -311,9 +313,16 @@ test('top line: mid defaults to live date; stored mid packs; date is rejected at
   const topLine = catalog.LINES.filter(l => l.id === 'top')[0];
   const env = basaltEnv();
   const p = basePayload();
-  // default: week / date / sun
+  // default (narrow): empty / date / battery
   let slots = decodeLine(statusLines.packLine(topLine, p, baseSettings(), env));
+  assert.deepEqual(slots.map(s => s.kind), [K.EMPTY, K.LIVE_DATE, K.LIVE_BATTERY]);
+  // and the emery flavor, which packLine has to take from the env rather than from
+  // the flat table — an install that never opened the settings page has nothing
+  // stored here, so this fallback IS what such a watch renders.
+  const emeryEnv = Object.assign({}, env, { platform: 'emery', hr: true });
+  slots = decodeLine(statusLines.packLine(topLine, p, baseSettings(), emeryEnv));
   assert.deepEqual(slots.map(s => s.kind), [K.LIVE_WEEK, K.LIVE_DATE, K.TEXT]);
+  assert.equal(slots[2].icon, I.DRAWN_SUN);
   // stored mid selection packs as TEXT
   slots = decodeLine(statusLines.packLine(topLine, p,
     baseSettings({ statusTopMid: 'city' }), env));

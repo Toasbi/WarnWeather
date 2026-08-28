@@ -770,13 +770,17 @@ test('radarPreview (metno): point provider renders like rainbow — no nearby ba
   assert.equal(metno.indexOf('>Nearby (2 km)<'), -1, 'metno drops the nearby legend');
 });
 
-test('statusSlotDefault resolver: HR-aware slot default sourced from the catalog', () => {
+test('statusSlotDefault resolver: env-aware slot default sourced from the catalog', () => {
   const fn = global.PConf.defaultsResolvers.get('statusSlotDefault');
   assert.equal(typeof fn, 'function', 'resolver registered');
   assert.equal(fn({ hr: true }, { slotKey: 'statusHealthRight' }), 'hr');
   assert.equal(fn({ hr: false }, { slotKey: 'statusHealthRight' }), 'sleep');
   assert.equal(fn({}, { slotKey: 'statusForecastRight' }), 'aqi');
-  assert.equal(fn({}, { slotKey: 'statusTopLeft' }), 'week');
+  // The top strip carries the other flavor: three readings on emery, date + battery
+  // corner on the narrower displays.
+  assert.equal(fn({ platform: 'emery' }, { slotKey: 'statusTopLeft' }), 'week');
+  assert.equal(fn({ platform: 'basalt' }, { slotKey: 'statusTopLeft' }), 'empty');
+  assert.equal(fn({ platform: 'basalt' }, { slotKey: 'statusTopRight' }), 'battery');
 });
 
 test('todayDate default resolver returns today in local YYYY-MM-DD form', () => {

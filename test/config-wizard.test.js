@@ -177,8 +177,12 @@ test("flickStops: 'slot' health mode adds no health flick stop (matches off)", (
 // which navigations count as finishing, what lands on the live state, and the two clauses
 // that keep the policy off a value the user placed themselves.
 
-const BOLD_KEYS = ['threshTempBoldMode', 'threshCityBoldMode', 'threshAqiBoldMode',
-  'threshWeekBoldMode', 'threshDateBoldMode', 'threshSunBoldMode'];
+// The Forecast row is bolded everywhere; the strip beside the clock only on emery,
+// the one display whose strip ships three readings (status-line-catalog.js). The
+// table itself pins that split — here it decides which keys each context expects.
+const BOLD_FORECAST_KEYS = ['threshTempBoldMode', 'threshCityBoldMode', 'threshAqiBoldMode'];
+const BOLD_TOP_KEYS = ['threshWeekBoldMode', 'threshDateBoldMode', 'threshSunBoldMode'];
+const BOLD_KEYS = BOLD_FORECAST_KEYS.concat(BOLD_TOP_KEYS);
 
 /**
  * A stand-in for the engine's onReady ctx: the real schema, hydrated the way boot() does.
@@ -191,8 +195,8 @@ function wizCtx(over) {
   return { S: eng.hydrate(schema, o.saved || {}, ENV), ENV, schema };
 }
 
-test('finishing the wizard bolds the Watch + Forecast rows and hands AQI back a warn signal', () => {
-  const ctx = wizCtx();
+test('finishing the wizard on emery bolds the Watch + Forecast rows and hands AQI a warn signal', () => {
+  const ctx = wizCtx({ platform: 'emery' });
   BOLD_KEYS.forEach((k) => assert.notEqual(ctx.S[k], 'always', k + ' starts at its schema default'));
 
   const written = W.applyWizardDefaults(ctx, 'save');
@@ -206,6 +210,28 @@ test('finishing the wizard bolds the Watch + Forecast rows and hands AQI back a 
   assert.deepEqual(Object.keys(written).sort(),
     BOLD_KEYS.concat(['threshAqiOn', 'threshAqiWarnOutlineOn', 'statusTopRight',
       'statusHealthLeft', 'threshStepsBoldMode']).sort(),
+    'the report names exactly the keys it wrote');
+});
+
+test('finishing the wizard on a narrow watch bolds the Forecast row and fills the free left slot', () => {
+  // The strip beside the clock ships date + battery here, so nothing in it is bolded
+  // and steps is promoted into its EMPTY left slot rather than into the battery corner.
+  const ctx = wizCtx();
+  assert.equal(ctx.S.statusTopLeft, 'empty', 'guard: the narrow strip ships that slot free');
+  assert.equal(ctx.S.statusTopRight, 'battery', 'guard: and the battery in the corner');
+
+  const written = W.applyWizardDefaults(ctx, 'save');
+
+  BOLD_FORECAST_KEYS.forEach((k) => assert.equal(ctx.S[k], 'always', k));
+  BOLD_TOP_KEYS.forEach((k) => assert.notEqual(ctx.S[k], 'always', k + ' stays light'));
+  assert.equal(ctx.S.statusTopLeft, 'steps');
+  assert.equal(ctx.S.statusTopRight, 'battery', 'the battery keeps its corner');
+  assert.equal(ctx.S.statusHealthLeft, 'distance', 'the eviction rides along');
+  assert.notEqual(ctx.S.threshStepsBoldMode, 'always',
+    'and no bold rides along — it would be the only heavy value in that strip');
+  assert.deepEqual(Object.keys(written).sort(),
+    BOLD_FORECAST_KEYS.concat(['threshAqiOn', 'threshAqiWarnOutlineOn', 'statusTopLeft',
+      'statusHealthLeft']).sort(),
     'the report names exactly the keys it wrote');
 });
 
@@ -231,20 +257,25 @@ test('the health slots move only where health can actually report', () => {
   ['all', 'status', 'slot'].forEach((mode) => {
     const ctx = wizCtx({ saved: { healthMode: mode } });
     W.applyWizardDefaults(ctx, 'save');
-    assert.equal(ctx.S.statusTopRight, 'steps', mode);
+    assert.equal(ctx.S.statusTopLeft, 'steps', mode);
     assert.equal(ctx.S.statusHealthLeft, 'distance', mode);
+
+    const emery = wizCtx({ platform: 'emery', saved: { healthMode: mode } });
+    W.applyWizardDefaults(emery, 'save');
+    assert.equal(emery.S.statusTopRight, 'steps', 'emery: ' + mode);
+    assert.equal(emery.S.statusHealthLeft, 'distance', 'emery: ' + mode);
   });
 
   const off = wizCtx({ saved: { healthMode: 'off' } });
   W.applyWizardDefaults(off, 'save');
-  assert.equal(off.S.statusTopRight, 'sun', 'health off leaves the top row alone');
+  assert.equal(off.S.statusTopLeft, 'empty', 'health off leaves the top row alone');
   assert.equal(off.S.statusHealthLeft, 'steps', 'health off leaves the health row alone');
   assert.equal(off.S.threshTempBoldMode, 'always', 'the bold rules still apply with health off');
 
   // aplite has no health at all; the bold/AQI keys are still written (inert there by design).
   const aplite = wizCtx({ platform: 'aplite' });
   W.applyWizardDefaults(aplite, 'save');
-  assert.equal(aplite.S.statusTopRight, 'sun');
+  assert.equal(aplite.S.statusTopLeft, 'empty');
   assert.equal(aplite.S.statusHealthLeft, 'steps');
   assert.equal(aplite.S.threshAqiBoldMode, 'always');
 });
@@ -276,13 +307,13 @@ test('a key the user changed by hand survives the policy', () => {
   assert.equal(ctx.S.threshAqiOn, true, 'a sibling key of the same rule is unaffected');
 });
 
-test('the steps promotion overrules even a hand-picked top-right slot', () => {
-  // statusTopRight ships 'sun', so 'battery' is a real choice — a user parked
-  // another slot top-right, then completed setup with health on. Completing
-  // setup IS the consent to the promised health layout (the rule declares the
-  // promotion in `overrules`), so steps takes the slot anyway, and the eviction
-  // and bold ride along — the swap stays all-or-nothing.
-  const ctx = wizCtx({ saved: { statusTopRight: 'battery' } });
+test('the steps promotion overrules even a hand-picked slot', () => {
+  // emery: statusTopRight ships 'sun', so 'battery' is a real choice — a user parked
+  // another slot top-right, then completed setup with health on. Completing setup IS
+  // the consent to the promised health layout (the rule declares the promotion in
+  // `overrules`), so steps takes the slot anyway, and the eviction and bold ride
+  // along — the swap stays all-or-nothing.
+  const ctx = wizCtx({ platform: 'emery', saved: { statusTopRight: 'battery' } });
 
   const written = W.applyWizardDefaults(ctx, 'save');
 
@@ -290,13 +321,21 @@ test('the steps promotion overrules even a hand-picked top-right slot', () => {
   assert.equal(written.statusTopRight, 'steps');
   assert.equal(ctx.S.statusHealthLeft, 'distance', 'the eviction rides along');
   assert.equal(ctx.S.threshStepsBoldMode, 'always', 'so does the promoted slot\'s bold');
+
+  // The narrow sibling rule overrules its own slot the same way. It bites far less
+  // often: that slot ships EMPTY, so only a value parked there before re-running
+  // setup is replaced.
+  const narrow = wizCtx({ saved: { statusTopLeft: 'week' } });
+  W.applyWizardDefaults(narrow, 'save');
+  assert.equal(narrow.S.statusTopLeft, 'steps');
+  assert.equal(narrow.S.statusHealthLeft, 'distance');
 });
 
 test('the overrule stops at the promotion: a customized health row still survives', () => {
   // Only the promotion is declared an overrule. A hand-emptied health-left slot
   // stays as the user left it; steps simply lives in the top row now, and no
   // reading is lost — it was not in the health row to begin with.
-  const ctx = wizCtx({ saved: { statusTopRight: 'battery', statusHealthLeft: 'empty' } });
+  const ctx = wizCtx({ platform: 'emery', saved: { statusTopRight: 'battery', statusHealthLeft: 'empty' } });
 
   const written = W.applyWizardDefaults(ctx, 'save');
 
@@ -305,25 +344,34 @@ test('the overrule stops at the promotion: a customized health row still survive
   assert.ok(!Object.prototype.hasOwnProperty.call(written, 'statusHealthLeft'));
   assert.equal(ctx.S.threshStepsBoldMode, 'always',
     'the bold hangs off the promotion, not the eviction');
+
+  const narrow = wizCtx({ saved: { statusTopLeft: 'week', statusHealthLeft: 'empty' } });
+  W.applyWizardDefaults(narrow, 'save');
+  assert.equal(narrow.S.statusTopLeft, 'steps');
+  assert.equal(narrow.S.statusHealthLeft, 'empty', 'same on the narrow rule');
 });
 
 test('the whole health-slot swap is skipped when steps does not reach the top row', () => {
   // statusTopMid='steps' is the user doing the promotion themselves — the rule's
-  // anchor slot stays 'sun' (dedupe guard), steps is NOT in statusTopRight, and the
-  // dependent writes stand down with it.
+  // anchor slot keeps its default (dedupe guard), steps is NOT in the promoted slot,
+  // and the dependent writes stand down with it.
   const ctx = wizCtx({ saved: { statusTopMid: 'steps' } });
   const written = W.applyWizardDefaults(ctx, 'save');
-  assert.equal(ctx.S.statusTopRight, 'sun');
+  assert.equal(ctx.S.statusTopLeft, 'empty');
   assert.equal(ctx.S.statusHealthLeft, 'steps', 'no eviction without the promotion');
   assert.ok(!Object.prototype.hasOwnProperty.call(written, 'statusHealthLeft'));
+
+  const emery = wizCtx({ platform: 'emery', saved: { statusTopMid: 'steps' } });
+  W.applyWizardDefaults(emery, 'save');
+  assert.equal(emery.S.statusTopRight, 'sun');
+  assert.equal(emery.S.statusHealthLeft, 'steps');
 
   // And when the promotion DOES land (default install), the swap completes —
   // pinned here as the counterpart so the dependency cannot overshoot.
   const clean = wizCtx();
   W.applyWizardDefaults(clean, 'save');
-  assert.equal(clean.S.statusTopRight, 'steps');
+  assert.equal(clean.S.statusTopLeft, 'steps');
   assert.equal(clean.S.statusHealthLeft, 'distance');
-  assert.equal(clean.S.threshStepsBoldMode, 'always');
 });
 
 test('the policy never duplicates a code the user already placed in that row', () => {
@@ -332,7 +380,7 @@ test('the policy never duplicates a code the user already placed in that row', (
   W.applyWizardDefaults(ctx, 'save');
 
   assert.equal(ctx.S.statusTopMid, 'steps', 'the slot the user filled stays filled');
-  assert.equal(ctx.S.statusTopRight, 'sun', 'steps is already in that row, so the slot is left alone');
+  assert.equal(ctx.S.statusTopLeft, 'empty', 'steps is already in that row, so the slot is left alone');
 });
 
 // --- the wizard DOM controller: opening must never rewrite stored settings ------------

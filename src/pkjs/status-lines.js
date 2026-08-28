@@ -499,8 +499,14 @@ function packLine(line, payload, settings, env) {
   for (var s = 0; s < 3; s++) {
     var key = line.slots[s];
     var stored = settings ? settings[key] : null;
-    var code = catalog.resolveSelection(stored || line.defaults[key], settings, env,
-                                        { slotKey: key, position: POSITIONS[s] });
+    // slotDefault, not line.defaults: an install that never opened the settings page
+    // has NOTHING stored for these (config-ui/lib/defaults.js deliberately does not
+    // seed defaultFrom items), so this fallback IS the layout such a watch renders —
+    // and it has to be the same one the page would have shown it. Reading the flat
+    // table skipped every per-platform flavor, so an emery watch baked the narrow
+    // top row and an HR watch baked the non-HR health row.
+    var code = catalog.resolveSelection(stored || catalog.slotDefault(key, env), settings,
+                                        env, { slotKey: key, position: POSITIONS[s] });
     var item = catalog.byCode(code) || catalog.byCode('empty');
     // Distance carries its unit in the wire kind (phone-only distanceUnits): the
     // watch renders km for LIVE_DISTANCE and mi for LIVE_DISTANCE_MI. Every other

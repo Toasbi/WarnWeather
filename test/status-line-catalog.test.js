@@ -41,12 +41,14 @@ test('LINES describes 4 lines in wire order with three real slots each', () => {
   assert.equal(catalog.LINES[2].slots[1], 'statusTopMid');
 });
 
-test('defaults + hrDefaults are the shipped status-bar set', () => {
+test('defaults + the two flavors are the shipped status-bar set', () => {
   assert.deepEqual(catalog.LINES[0].defaults,
     { statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'aqi' });
   assert.deepEqual(catalog.LINES[1].defaults,
     { statusRadarLeft: 'uv', statusRadarMid: 'wind', statusRadarRight: 'gust' });
   assert.deepEqual(catalog.LINES[2].defaults,
+    { statusTopLeft: 'empty', statusTopMid: 'date', statusTopRight: 'battery' });
+  assert.deepEqual(catalog.LINES[2].emeryDefaults,
     { statusTopLeft: 'week', statusTopMid: 'date', statusTopRight: 'sun' });
   assert.deepEqual(catalog.LINES[3].defaults,
     { statusHealthLeft: 'steps', statusHealthMid: 'empty', statusHealthRight: 'sleep' });
@@ -54,14 +56,40 @@ test('defaults + hrDefaults are the shipped status-bar set', () => {
     { statusHealthLeft: 'steps', statusHealthMid: 'sleep', statusHealthRight: 'hr' });
 });
 
-test('slotDefault is HR-aware for the health-right slot, platform-independent elsewhere', () => {
+test('slotDefault takes the emery and HR flavors; the other rows are flat', () => {
   assert.equal(catalog.slotDefault('statusHealthRight', ENV_EMERY), 'hr');
   assert.equal(catalog.slotDefault('statusHealthRight', ENV_DIORITE), 'hr');
   assert.equal(catalog.slotDefault('statusHealthRight', ENV_BASALT), 'sleep');
   assert.equal(catalog.slotDefault('statusHealthRight', undefined), 'sleep');
   assert.equal(catalog.slotDefault('statusForecastRight', ENV_EMERY), 'aqi');
-  assert.equal(catalog.slotDefault('statusTopLeft', ENV_BASALT), 'week');
+  // The top strip: three readings on emery, date + battery corner everywhere else.
+  assert.equal(catalog.slotDefault('statusTopLeft', ENV_EMERY), 'week');
+  assert.equal(catalog.slotDefault('statusTopRight', ENV_EMERY), 'sun');
+  assert.equal(catalog.slotDefault('statusTopLeft', ENV_BASALT), 'empty');
+  assert.equal(catalog.slotDefault('statusTopRight', ENV_BASALT), 'battery');
+  assert.equal(catalog.slotDefault('statusTopRight', ENV_DIORITE), 'battery',
+    'the split is display width, not colour or heart rate');
+  assert.equal(catalog.slotDefault('statusTopMid', ENV_EMERY), 'date');
+  assert.equal(catalog.slotDefault('statusTopMid', ENV_BASALT), 'date');
+  assert.equal(catalog.slotDefault('statusTopRight', undefined), 'battery',
+    'no env is not emery');
   assert.equal(catalog.slotDefault('nope', ENV_BASALT), undefined);
+});
+
+test('the top strip default is placeable in the slot it names', () => {
+  // 'battery' is topRightOnly and 'date' is middleOnly, so a default that drifted
+  // into the wrong slot would resolve away to Empty on every fresh install.
+  const s = { healthMode: 'all', radarProvider: 'rainbow', radarMode: 'graph' };
+  const POSITION = { statusTopLeft: 'left', statusTopMid: 'mid', statusTopRight: 'right' };
+  [ENV_EMERY, ENV_BASALT, ENV_DIORITE, ENV_APLITE].forEach((env) => {
+    Object.keys(POSITION).forEach((slotKey) => {
+      const code = catalog.slotDefault(slotKey, env);
+      if (code === 'empty') { return; }
+      assert.ok(catalog.itemAvailable(catalog.byCode(code), s, env,
+        { slotKey, position: POSITION[slotKey] }),
+      `${env.platform}: "${code}" is not placeable in ${slotKey}`);
+    });
+  });
 });
 
 test('availability gating', () => {
@@ -118,7 +146,10 @@ test('selectedCodes falls back to line defaults for missing keys', () => {
   assert.equal(codes.length, 12);
   assert.ok(codes.includes('wind'));  // stored value wins
   assert.ok(codes.includes('temp'));  // forecast-left default
-  assert.ok(codes.includes('sun'));
+  assert.ok(codes.includes('battery'));
+  assert.ok(!codes.includes('sun'), 'no env means the flavor-less top row');
+  assert.ok(catalog.selectedCodes({ statusRadarMid: 'wind' }, ENV_EMERY).includes('sun'),
+    'with an env it takes the same flavor slotDefault would');
 });
 
 test('resolveSelection maps invalid/unavailable to empty without touching storage', () => {

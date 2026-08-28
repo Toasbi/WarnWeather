@@ -59,24 +59,39 @@
 
     var RULES = [
         {
-            id: 'wizard-bold-headline-rows',
+            id: 'wizard-bold-forecast-row',
             when: {wizard: true},
-            // The six kinds below are exactly the default contents of those two
-            // rows (status-line-catalog.js LINES: temp/city/aqi and week/date/sun),
-            // and the four rows' defaults are disjoint — so on a default config
-            // this bolds those two rows and reaches no further. No capability
-            // gate: on a watch that cannot render highlighting the values are
-            // inert, and gating them would make the stored config depend on which
-            // watch happened to run setup.
-            why: 'The Watch and Forecast rows are the two a wearer reads first — the '
-                + 'row beside the clock and the one under the graph — so setup prints '
-                + 'their values in the heavier weight from the start. The Radar and '
-                + 'Health rows keep the lighter weight, which is what leaves the '
-                + 'contrast meaning something.',
+            // The three kinds below are exactly the default contents of that row
+            // (status-line-catalog.js LINES: temp/city/aqi), and the four rows'
+            // defaults are disjoint — so on a default config this bolds that row and
+            // reaches no further. No capability gate: on a watch that cannot render
+            // highlighting the values are inert, and gating them would make the
+            // stored config depend on which watch happened to run setup.
+            why: 'The Forecast row — the one under the graph — is where a wearer looks '
+                + 'after the clock, so setup prints its values in the heavier weight '
+                + 'from the start. The Radar and Health rows keep the lighter weight, '
+                + 'which is what leaves the contrast meaning something.',
             set: {
                 threshTempBoldMode: 'always',
                 threshCityBoldMode: 'always',
-                threshAqiBoldMode: 'always',
+                threshAqiBoldMode: 'always'
+            }
+        },
+        {
+            id: 'wizard-bold-top-row',
+            when: {wizard: true, platform: 'emery'},
+            // emery is the only platform whose strip beside the clock ships three
+            // readings (status-line-catalog.js's emeryDefaults — week/date/sun), and
+            // these three kinds are exactly those. Everywhere else that strip is the
+            // date alone with the battery in the corner: one heavy value in a row of
+            // one contrasts with nothing, so the narrow platforms leave the whole
+            // strip at the lighter weight and the Forecast row above stands alone as
+            // the bold one.
+            why: 'On the widest watch the strip beside the clock carries three '
+                + 'readings, which makes it the second row a wearer reads — so setup '
+                + 'bolds it too. The narrower watches show only the date up there, '
+                + 'and bolding a lone value would say nothing.',
+            set: {
                 threshWeekBoldMode: 'always',
                 threshDateBoldMode: 'always',
                 threshSunBoldMode: 'always'
@@ -103,7 +118,13 @@
         },
         {
             id: 'wizard-health-slots',
-            when: {wizard: true, health: true},
+            when: {wizard: true, health: true, platform: 'emery'},
+            // emery only: this promotion takes the top row's RIGHT-HAND corner, which
+            // exists to be taken only where that corner ships a reading to give up
+            // (emeryDefaults' sunrise/sunset). On the narrow platforms the corner is
+            // the battery and steps goes to the free left slot instead — the sibling
+            // rule below, which is otherwise this one.
+            //
             // Steps vacates the health row's left slot, distance fills it, and no
             // row ends up holding the same item twice — on a heart-rate watch too,
             // where that row reads distance / sleep / heart rate.
@@ -111,8 +132,8 @@
                 + 'on screen in every view, so setup promotes steps into its right-hand '
                 + 'corner and sunrise/sunset gives up the spot. Walked distance takes '
                 + 'the place steps left in the health row, so no reading is lost. Steps '
-                + 'is bolded with the rest of that row: the row above bolds the kinds '
-                + 'the top row shows BY DEFAULT, and this rule is what changes one of '
+                + 'is bolded with the rest of that row: the top-row bold above names the '
+                + 'kinds that row shows BY DEFAULT, and this rule is what changes one of '
                 + 'them — without it the promoted slot keeps its own default of "warn" '
                 + 'and sits unbolded between two bold neighbours.',
             set: {
@@ -143,6 +164,32 @@
             // eviction and bold keep the normal protection: a customized health
             // row or bold choice survives.
             overrules: ['statusTopRight']
+        },
+        {
+            id: 'wizard-health-slots-compact',
+            when: {wizard: true, health: true, platformNot: 'emery'},
+            // The same move as the rule above, aimed at the slot this platform's top
+            // row actually has free. Its right-hand corner is the battery here, and
+            // the battery is the reason that corner exists — so steps takes the LEFT
+            // slot, which the narrow default ships empty for exactly this.
+            why: 'Steps is the health number people glance at most, and the strip beside '
+                + 'the clock is on screen in every view — but on these watches its '
+                + 'right-hand corner is the battery, so steps takes the free left slot '
+                + 'and the battery keeps its corner. Walked distance takes the place '
+                + 'steps left in the health row, so no reading is lost. No bold rides '
+                + 'along: nothing in this strip is bolded on a narrow watch, and a lone '
+                + 'heavy value would contrast with nothing.',
+            set: {
+                statusTopLeft: 'steps',
+                statusHealthLeft: 'distance'
+            },
+            // Both halves of one move, exactly as above: the eviction is only safe
+            // while the strip actually shows steps.
+            dependsOn: {statusHealthLeft: 'statusTopLeft'},
+            // Same consent argument as the rule above, on this platform's promoted
+            // slot. It bites less often — the slot ships EMPTY here, so only someone
+            // who parked something there before re-running setup is overruled.
+            overrules: ['statusTopLeft']
         }
 
         // Deliberately NOT here: the step, sleep and distance GOALS. They stay off

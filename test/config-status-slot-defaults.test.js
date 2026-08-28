@@ -31,6 +31,12 @@ test('real schema hydrates the HR-aware status-slot default set', () => {
   const basalt = E.hydrate(SCHEMA, {}, ENV_BASALT);
   assert.equal(basalt.statusHealthMid, 'empty', 'non-HR platform -> empty middle');
   assert.equal(basalt.statusHealthRight, 'sleep', 'non-HR platform -> sleep');
+  // The top strip's own flavor, and the one place it is resolved through the REAL
+  // schema: emery carries three readings, the narrower displays the date with the
+  // battery in its corner and the left slot free.
+  assert.equal(basalt.statusTopLeft, 'empty');
+  assert.equal(basalt.statusTopMid, 'date');
+  assert.equal(basalt.statusTopRight, 'battery');
 });
 
 test('real schema battery/bluetooth/week base defaults', () => {

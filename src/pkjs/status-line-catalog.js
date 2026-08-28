@@ -99,7 +99,15 @@
       defaults: { statusRadarLeft: 'uv', statusRadarMid: 'wind', statusRadarRight: 'gust' } },
     { id: 'top', wireKey: 'STATUS_LINE_3_UINT8',
       slots: ['statusTopLeft', 'statusTopMid', 'statusTopRight'],
-      defaults: { statusTopLeft: 'week', statusTopMid: 'date', statusTopRight: 'sun' } },
+      // The strip beside the clock, and the one row on screen in EVERY view. emery's
+      // 200 px display is the only one with the width to carry three readings there,
+      // so it keeps the three-up row; on the 144/180 px platforms the strip ships the
+      // date alone with the battery in its corner (the corner that already reads as
+      // the battery — see the topRightOnly items). That leaves the left slot free,
+      // which is where the wizard's steps promotion lands on those platforms
+      // (defaults-policy.js wizard-health-slots-compact).
+      defaults: { statusTopLeft: 'empty', statusTopMid: 'date', statusTopRight: 'battery' },
+      emeryDefaults: { statusTopLeft: 'week', statusTopMid: 'date', statusTopRight: 'sun' } },
     { id: 'health', wireKey: 'STATUS_LINE_4_UINT8',
       slots: ['statusHealthLeft', 'statusHealthMid', 'statusHealthRight'],
       // Non-HR platforms (basalt/chalk/aplite): leave the middle empty and show
@@ -238,16 +246,19 @@
 
   /**
    * @param {Object} settings Clay settings blob
+   * @param {Object} [env] platform env; without one the flavor-less defaults answer,
+   *   which is all its callers need — they ask whether uv/aqi/pollen is on screen
+   *   anywhere, and no per-platform flavor moves those three.
    * @returns {string[]} the 12 effective slot codes (stored or line default)
    */
-  function selectedCodes(settings) {
+  function selectedCodes(settings, env) {
     var out = [];
     for (var l = 0; l < LINES.length; l++) {
       var line = LINES[l];
       for (var s = 0; s < line.slots.length; s++) {
         var key = line.slots[s];
         var v = settings && settings[key];
-        out.push(v || line.defaults[key]);
+        out.push(v || slotDefault(key, env));
       }
     }
     return out;
@@ -279,16 +290,27 @@
   }
 
   /**
-   * The platform-aware default code for one slot: the HR flavor (hrDefaults) on a
-   * watch with a heart-rate sensor, else the line's base default.
+   * The platform-aware default code for one slot: the emery flavor (emeryDefaults) on
+   * the one display wide enough for it, the HR flavor (hrDefaults) on a watch with a
+   * heart-rate sensor, else the line's base default. EVERY caller resolving a fresh
+   * install's slot goes through here — the settings page (statusSlotDefault), the
+   * per-row reset, and the phone's bake (status-lines.js packLine) — so a flavor added
+   * to a line reaches all three at once.
+   *
+   * The two flavors sit on different lines (top and health), so no line carries both
+   * and the order below is a tie-break nothing reaches today. Should one ever want
+   * both, emery wins: it is the narrower condition.
    * @param {string} slotKey slot settings key (e.g. 'statusHealthRight')
-   * @param {Object} [env] platform env; env.hr selects the flavor
+   * @param {Object} [env] platform env; env.platform and env.hr select the flavor
    * @returns {string|undefined} default item code, or undefined for an unknown slotKey
    */
   function slotDefault(slotKey, env) {
     for (var l = 0; l < LINES.length; l++) {
       var line = LINES[l];
       if (line.slots.indexOf(slotKey) === -1) { continue; }
+      if (env && env.platform === 'emery' && line.emeryDefaults) {
+        return line.emeryDefaults[slotKey];
+      }
       if (env && env.hr && line.hrDefaults) { return line.hrDefaults[slotKey]; }
       return line.defaults[slotKey];
     }
