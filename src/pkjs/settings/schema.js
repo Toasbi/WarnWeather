@@ -760,7 +760,7 @@ module.exports = {
                 defaultValue: 'dark',
                 hintByValue: {
                     dark: 'Black background, white text/lines (default).',
-                    light: 'White background, black text/lines. Graph colors are unchanged for now.',
+                    light: 'White background, black text/lines. The graph and rain-bar colors are tuned for it.',
                     bw: 'Renders exactly like a Black & White watch — same colors, same drawing.',
                     'bw-light': 'Renders exactly like a Black & White watch in its Light theme — black on white.'
                 },
@@ -774,7 +774,7 @@ module.exports = {
                 defaultValue: 'dark',
                 hintByValue: {
                     dark: 'Black background, white text/lines (default).',
-                    light: 'White background, black text/lines. Graph colors are unchanged for now.'
+                    light: 'White background, black text/lines.'
                 },
                 options: [['Dark', 'dark'], ['Light', 'light']],
                 // aplite compiles the light polarity out (no WW_THEME_POLARITY — the
