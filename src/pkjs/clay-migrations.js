@@ -26,9 +26,15 @@ var KEYS = require('./storage-keys');
 var STORAGE_KEY = claySettings.STORAGE_KEY;
 
 /**
- * Persist a migrated blob. A late-bound wrapper rather than an alias of
- * claySettings.save, so a test that reloads clay-settings cannot leave this module
- * holding the previous instance's function.
+ * Persist a migrated blob — clay-settings owns the storage, this module only decides
+ * what goes in it.
+ *
+ * It does NOT insulate against a test reloading clay-settings on its own: the lookup
+ * is late-bound on `claySettings`, but that variable still holds the module object
+ * captured at require time, so a fresh clay-settings would be a different object this
+ * never sees. Reloading the two together is the contract, and
+ * test/helpers/clay-harness.js's loadUpgradeModules is where it is kept.
+ *
  * @param {Object} obj Settings blob to store.
  * @returns {void}
  */
@@ -348,7 +354,7 @@ function migrateLightGraphColorRetune(isMigrationDone) {
     // until it opens and saves the settings page, since an in-place upgrade queues no
     // Clay send of its own. Gating on "every cell reads as the built-in" instead does not
     // save it either — one deliberately chosen colour makes that false forever, which is
-    // the shape test/clay-settings.test.js pins.
+    // the shape test/clay-migrations.test.js pins.
     //
     // The cost of being unconditional is one redundant Clay message on an install that
     // never held the old defaults. It does not loop: nothing changed means the payload

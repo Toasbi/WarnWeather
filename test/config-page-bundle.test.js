@@ -88,6 +88,12 @@ test('the graph-colour modules and the preview kit are bundled in dependency ord
     'resolve-ink.js must precede line-style.js');
   assert.ok(idx('pkjs/resolve-ink.js') < idx('settings/preview-svg.js'),
     'resolve-ink.js must precede preview-svg.js, which reads window.ResolveInk at IIFE time');
+  // theme-convert.js reads window.ResolveInk at IIFE time too, for barColorDefault /
+  // BAR_COLOR_KEYS. This ordering fails WORSE than the others: the page still boots
+  // (resolveInk just binds undefined) and only dies when someone flips the Theme
+  // control, which no Node test exercises because those take the require() branch.
+  assert.ok(idx('pkjs/resolve-ink.js') < idx('settings/theme-convert.js'),
+    'resolve-ink.js must precede theme-convert.js, which reads window.ResolveInk at IIFE time');
   assert.ok(idx('settings/preview-svg.js') < idx('settings/preview-rain.js'),
     'preview-svg.js must precede preview-rain.js, which reads window.PreviewSvg at IIFE time');
   PREVIEW_BLOCK_FILES.forEach((file) => {

@@ -626,8 +626,27 @@ test('the re-tune runs after the carried-tint release, or a carry is stranded', 
 
   const blob = mods.claySettings.read();
   Object.assign(blob, { theme: 'light', secondaryLine: 'wind', secondaryLineFill: true });
-  shippedPageFillPick(blob, lineStyle, 'wind', 'Light', 0xAAFF55);
+  // Both cells written by hand, NOT through shippedPageFillPick: that helper reproduces
+  // the 1.15.0 hook including its "only while the tint is unclaimed" gate, and the gate
+  // asks graphColorIsDefault, which compares against TODAY's built-ins. On a pre-retune
+  // blob the stored tint is the OLD default, so the gate reads it as a pick and declines
+  // to write — leaving night !== fill and no carry at all. That anachronism is exactly
+  // what made this test vacuous: it passed under either migration order, because the
+  // re-tune alone rewrote the Night cell off its superseded value.
+  //
+  // What 1.15.0 actually left on flash for someone who picked Inchworm as wind's fill:
+  // both cells holding that colour. Inchworm is also wind's OLD light Fill default, which
+  // is what makes the two migrations interact — the re-tune has a reason to rewrite Fill.
+  const CARRIED = 0xAAFF55;
+  blob.gcWindFillLight = CARRIED;
+  blob.gcWindNightLight = CARRIED;
   mods.claySettings.save(blob);
+
+  // Guard: the carry must actually exist before the migrations run, or this test is
+  // pinning nothing. night === fill is precisely what the release detects.
+  assert.equal(blob.gcWindNightLight, blob.gcWindFillLight, 'the carry is set up');
+  assert.equal(lineStyle.graphColorIsDefault(blob, 'wind', 'Night', 'Light'), false,
+    'and un-migrated it reads as a deliberate pick — the thing the release exists to undo');
 
   mods.clayMigrations.runMigrations({
     platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });

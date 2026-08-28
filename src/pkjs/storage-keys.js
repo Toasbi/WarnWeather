@@ -1,9 +1,11 @@
 module.exports = {
     // The newest release-notification version already shown (release-notifications.js).
     MAX_NOTIFIED_VERSION_KEY: 'max_notified_version',
-    // Marker keys for the clay-settings migrations (runMigrations). Part of a
-    // migration's identity — listed here to honor the one-registry rule; the
-    // bodies live in clay-settings.js.
+    // Marker keys for the Clay-settings migrations (clay-migrations.js's
+    // runMigrations). APPEND-ONLY: a shipped marker string is the on-flash record
+    // that a migration ran, so it is never reused, renamed or renumbered. Part of a
+    // migration's identity — listed here to honor the one-registry rule; the bodies
+    // live in clay-migrations.js.
     WEEKEND_HOLIDAY_COLOR_MIGRATION_KEY: 'v1.34.0_weekend_holiday_color_migration',
     HOLIDAY_WHITE_TO_TOGGLE_MIGRATION_KEY: 'v1.4.0_holiday_white_to_toggle_migration',
     HOLIDAY_REGION_KEY_MIGRATION_KEY: 'v1.4.0_holiday_region_key_migration',
