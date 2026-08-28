@@ -107,8 +107,13 @@ static ChartAxisLabel chart_axis_label(void) {
     //     tiers (rows 11 / 9 below the axis).
     //   - top: raise = content_h + 1 lands the last ink row 2 rows above the plot,
     //     leaving exactly one blank row -- the tick row -- to the band bottom whatever
-    //     the band height (radar_axis.c's RADAR_AXIS_H cancels out of the solve).
-    //     This is why the radar band never needs a height bump for the taller tier.
+    //     the band height (the radar's axis strip cancels out of the solve).
+    //     That cancellation is exactly why the radar DOES need a strip bump for the
+    //     taller tier: the box is seated against the PLOT top, so a taller tier grows
+    //     upward out of a fixed-height strip and into whatever sits above the radar.
+    //     rain_radar_layer.c's radar_axis_h() adds the tier's content-height step back.
+    //     Do not "simplify" that away as redundant -- it is what keeps the hour labels
+    //     off the status row in the compact views.
     const bool large     = config_large_graph_font();
     const int  content_h = large ? 18 : 14;
     return (ChartAxisLabel){

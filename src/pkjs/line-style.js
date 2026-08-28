@@ -121,6 +121,15 @@
     // is what reproduces what was signed off. A hand-written triple here would repaint it.
     // A metric absent from this table keeps its dark triple in both polarities; feels is
     // absent because it never fills, so no light base of its own is reachable. ADR-0003 §5.
+    //
+    // ACCEPTED, do not "fix": deriveNightTriple saturates at white, so several of these
+    // lose layer separation at the top — gust collapses hatch AND boundary onto white
+    // over its LightGray underlay, and wind/uv/pressure land a white boundary. Every one
+    // of these five bases was chosen on hardware WITH that consequence on screen, so the
+    // collapse is what was signed off, not an oversight in the recipe. Four of the six
+    // hand-tuned DARK triples collapse boundary onto hatch too (see the table above), so
+    // it is a shape this design already has. Changing a base to separate the layers means
+    // changing a colour the user approved — ask first.
     var NIGHT_AREA_LIGHT_BASE = {
         precip_prob: COLORS.GColorCyan,
         wind:        COLORS.GColorRajah,
