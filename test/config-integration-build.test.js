@@ -62,7 +62,7 @@ test('generated page renders the Layout tab preview without require() (webview h
     var src = scriptMatch[1].replace(/PConf\.engine\.boot\(\);\s*$/, '');
     var sandbox = { console: console };
     sandbox.window = sandbox;
-    sandbox.document = { getElementById: function () { return { addEventListener: function () {} }; }, addEventListener: function () {} };
+    sandbox.document = { getElementById: function () { return { addEventListener: function () {} }; }, querySelector: function () { return null; }, addEventListener: function () {} };
     sandbox.navigator = {};
     vm.createContext(sandbox);
     vm.runInContext(src, sandbox, { filename: 'generated-page.js' });
@@ -82,7 +82,7 @@ test('generated page registers PConf.actions.startWizard (wizard.js concatenated
     var src = scriptMatch[1].replace(/PConf\.engine\.boot\(\);\s*$/, '');
     var sandbox = { console: console };
     sandbox.window = sandbox;
-    sandbox.document = { getElementById: function () { return { addEventListener: function () {} }; }, addEventListener: function () {} };
+    sandbox.document = { getElementById: function () { return { addEventListener: function () {} }; }, querySelector: function () { return null; }, addEventListener: function () {} };
     sandbox.navigator = {};
     vm.createContext(sandbox);
     vm.runInContext(src, sandbox, { filename: 'generated-page.js' });

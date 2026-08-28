@@ -253,7 +253,8 @@
                 + '#newsHint.muted { opacity: 0.65; }'
                 + '#newsHint .news-bell { display: block; width: 20px; height: 20px; fill: none;'
                 +   ' stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }'
-                + '#newsHint .news-badge { position: absolute; top: -2px; right: -9px; width: 7px; height: 7px;'
+                // -7px, not -9px: at -9px the dot crowds the support mug beside it.
+                + '#newsHint .news-badge { position: absolute; top: -2px; right: -7px; width: 7px; height: 7px;'
                 +   ' border-radius: 50%; background: #FA4A35; }'
                 + '@keyframes news-bell-shake {'
                 +   ' 0%, 12%, 100% { transform: rotate(0); }'

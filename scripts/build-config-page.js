@@ -60,6 +60,9 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/tomorrowio-key-test.js'),
   path.join(ROOT, 'src/pkjs/settings/news-protocol.js'),
   path.join(ROOT, 'src/pkjs/settings/news.js'),
+  // support.js must FOLLOW news.js: it appends its header button into the
+  // .news-hdr-left group news.js builds.
+  path.join(ROOT, 'src/pkjs/settings/support.js'),
   path.join(ROOT, 'src/pkjs/settings/theme-convert.js'),
   path.join(ROOT, 'src/pkjs/settings/reset-status-defaults.js'),
   // status-thresholds.js: the flat page has no require(), so blocks.js/onbuild.js
