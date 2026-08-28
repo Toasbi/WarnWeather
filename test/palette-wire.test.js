@@ -33,3 +33,24 @@ test('buildPaletteTuples: theme omitted defaults to dark (unchanged behavior)', 
   const t = paletteWire.buildPaletteTuples({ platform: 'emery' }, { rainBarColor: 'multicolor' });
   assert.equal(t.BAR_PALETTE_UINT8.length, 15, 'five multicolor stops = 15 bytes, unchanged');
 });
+
+test('an absent bar colour resolves to the polarity default, not always multicolor', function() {
+  // Defensive: seedDefaults writes both keys on first boot (they carry static schema
+  // defaults) and the light theme is only reachable through a save that writes them
+  // concretely, so this path is unreachable today. It is pinned so the fallback stays
+  // correct if the seeding ever changes — under the old hardcoded `|| 'multicolor'`
+  // the light case below packed five washed-out tiers onto a white background.
+  const dark = paletteWire.buildPaletteTuples({ platform: 'emery' }, { theme: 'dark' });
+  assert.equal(dark.BAR_PALETTE_UINT8.length, 15, 'dark keeps the five multicolor stops');
+  assert.equal(dark.RADAR_PALETTE_UINT8.length, 15);
+
+  const light = paletteWire.buildPaletteTuples({ platform: 'emery' }, { theme: 'light' });
+  assert.equal(light.BAR_PALETTE_UINT8.length, 3, 'light collapses to the single Solid stop');
+  assert.equal(light.RADAR_PALETTE_UINT8.length, 3);
+
+  // And an explicit pick still wins over the fallback in both directions.
+  const picked = paletteWire.buildPaletteTuples(
+    { platform: 'emery' }, { theme: 'light', rainBarColor: 'multicolor' });
+  assert.equal(picked.BAR_PALETTE_UINT8.length, 15,
+    'a light install that chose Multicolor keeps it');
+});

@@ -1151,22 +1151,29 @@ test('a light install moves onto the solid bar colours, marked only by the ACK',
   assert.equal(store[mods.KEYS.LIGHT_SOLID_BARS_MIGRATION_KEY], '1');
 });
 
-test('a dark install keeps multicolor and marks the migration synchronously', () => {
-  // Out of scope, and knowably so from a value this migration never writes — unlike
-  // "nothing left to rewrite", which is also what a save-then-NACK looks like. A later
-  // flip to light is the settings page's job, not this migration's.
+test('a dark install marks only on the ACK, like every other colour migration', () => {
+  // The family has ONE rule — load, rewrite what needs rewriting, always ask for the
+  // send, never self-mark — and this migration follows it even where it rewrites
+  // nothing. The cost is one redundant Clay message on a dark install's first boot;
+  // the benefit is that no reader has to hold a second marker rule in their head.
   const store = installFakeStorage();
   const mods = loadUpgradeModules();
   const now = new Date(2026, 7, 26, 9, 0, 0);
   seedThemedInstall(store, mods.claySettings, mods.KEYS, now, 'dark');
 
-  mods.claySettings.runMigrations({
-    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  const sends = bootUpgradedInstall(mods.claySettings, mods.createChannelScheduler, now);
   const after = mods.claySettings.read();
-  assert.equal(after.rainBarColor, 'multicolor');
+  assert.equal(after.rainBarColor, 'multicolor', 'a dark install is left where it is');
   assert.equal(after.radarColor, 'multicolor');
-  assert.equal(store[mods.KEYS.LIGHT_SOLID_BARS_MIGRATION_KEY], '1',
-    'no ACK needed: nothing was migrated, so there is nothing to lose to a NACK');
+  assert.equal(store[mods.KEYS.LIGHT_SOLID_BARS_MIGRATION_KEY], undefined,
+    'the marker waits for the ACK even though nothing was rewritten');
+
+  assert.equal(sends.length, 1);
+  sends[0].onSuccess();
+  assert.equal(store[mods.KEYS.LIGHT_SOLID_BARS_MIGRATION_KEY], '1');
+
+  assert.equal(bootUpgradedInstall(mods.claySettings, mods.createChannelScheduler, now).length, 0,
+    'and it does not loop: the second boot sends nothing');
 });
 
 test('bw-light migrates too, though its bars are painted B&W', () => {
@@ -1183,6 +1190,26 @@ test('bw-light migrates too, though its bars are painted B&W', () => {
   const healed = mods.claySettings.read();
   assert.equal(healed.rainBarColor, 'white');
   assert.equal(healed.radarColor, 'white');
+});
+
+test('scope is decided by polarity, not by a value that happens to match', () => {
+  // A light install already holding Solid must stay IN scope — it still owes the watch
+  // the palette. The old gate compared two resolved defaults and got this right only by
+  // coincidence; isLightPolarity says what it means.
+  const store = installFakeStorage();
+  const mods = loadUpgradeModules();
+  const now = new Date(2026, 7, 26, 9, 0, 0);
+  seedThemedInstall(store, mods.claySettings, mods.KEYS, now, 'bw-light');
+  const blob = mods.claySettings.read();
+  blob.rainBarColor = 'white';
+  blob.radarColor = 'white';
+  mods.claySettings.save(blob);
+
+  const sends = bootUpgradedInstall(mods.claySettings, mods.createChannelScheduler, now);
+  assert.equal(sends.length, 1, 'nothing to rewrite, but the send is still owed');
+  assert.equal(store[mods.KEYS.LIGHT_SOLID_BARS_MIGRATION_KEY], undefined);
+  sends[0].onSuccess();
+  assert.equal(store[mods.KEYS.LIGHT_SOLID_BARS_MIGRATION_KEY], '1');
 });
 
 test('a NACKed solid-bar migration retries, and a picked Solid still defers', () => {

@@ -245,20 +245,23 @@
   }
 
   /**
+   * The 12 effective slot codes, answering the FLAVOR-LESS line defaults for anything
+   * unset — deliberately env-free. Its callers are fetch gates (forecast-series.js's
+   * needsUv / needsAqi / needsPollen) asking whether uv/aqi/pollen is on screen
+   * anywhere, and no per-platform flavor moves those three, so an env would be a
+   * parameter nothing could pass. Still routed through slotDefault rather than reading
+   * LINES[l].defaults, so there is one reader of the table.
    * @param {Object} settings Clay settings blob
-   * @param {Object} [env] platform env; without one the flavor-less defaults answer,
-   *   which is all its callers need — they ask whether uv/aqi/pollen is on screen
-   *   anywhere, and no per-platform flavor moves those three.
    * @returns {string[]} the 12 effective slot codes (stored or line default)
    */
-  function selectedCodes(settings, env) {
+  function selectedCodes(settings) {
     var out = [];
     for (var l = 0; l < LINES.length; l++) {
       var line = LINES[l];
       for (var s = 0; s < line.slots.length; s++) {
         var key = line.slots[s];
         var v = settings && settings[key];
-        out.push(v || slotDefault(key, env));
+        out.push(v || slotDefault(key));
       }
     }
     return out;

@@ -7,7 +7,7 @@
 var settings = require('./settings');
 var platformLib = require('./config-ui/lib/platform.js');   // isHrPlatform (emery + diorite)
 var lineStyle = require('./line-style');                    // graph-colour keys + built-ins
-var themeConvert = require('./settings/theme-convert.js');  // the polarity-default pairs
+var resolveInk = require('./resolve-ink.js');               // polarity + its colour defaults
 var KEYS = require('./storage-keys');
 
 var STORAGE_KEY = 'clay-settings';
@@ -336,8 +336,7 @@ function runMigrations(opts) {
     var wantsClayLightRetune = migrateLightGraphColorRetune(
         isDone(KEYS.LIGHT_GRAPH_COLOR_RETUNE_MIGRATION_KEY));
     var wantsClaySolidBars = migrateLightThemeSolidBars(
-        isDone(KEYS.LIGHT_SOLID_BARS_MIGRATION_KEY),
-        mark(KEYS.LIGHT_SOLID_BARS_MIGRATION_KEY));
+        isDone(KEYS.LIGHT_SOLID_BARS_MIGRATION_KEY));
     var wantsClayNightColors = migrateGraphNightColorsResend(
         isDone(KEYS.GRAPH_NIGHT_COLORS_MIGRATION_KEY));
     return {
@@ -593,42 +592,40 @@ function migrateLightGraphColorRetune(isMigrationDone) {
  * flip, so the hook would never convert it, and that install would be the one install
  * that still arrived on multicolor.
  *
- * The marker is DEFERRED to the Clay ACK for a light install (see runMigrations), so a
- * NACK retries next boot; the migration therefore always asks for the send and never
- * marks itself there. Dark polarity is different and DOES mark synchronously: it is
- * not "nothing left to rewrite" (which is indistinguishable from a save that then
- * NACKed — see the re-tune above) but "this install is out of scope", decided by a
- * value this migration never writes. A later flip to light is the hook's job.
+ * Shape: the same one the two migrations above have — load, rewrite what needs
+ * rewriting, ALWAYS return true, never mark itself. The marker rides the Clay ACK
+ * (runMigrations), so a NACK retries on the next boot. A dark install rewrites nothing
+ * and still asks for the send; that spends one redundant Clay message on its first boot
+ * after the upgrade, which is the price of the family having one rule instead of three.
+ * It cannot loop: an unchanged payload matches the last-sent cache, sendClay calls
+ * onSuccess immediately, and the marker commits.
  *
  * @param {Function} isMigrationDone Returns true when the migration marker is set.
- * @param {Function} markDone Records the migration as complete — dark polarity only.
- * @returns {boolean} True when the migrated settings must be sent to the watch.
+ * @returns {boolean} True when the migrated settings must be sent to the watch. There is
+ *   no markDone: this one NEVER marks itself, the ACK does.
  */
-function migrateLightThemeSolidBars(isMigrationDone, markDone) {
+function migrateLightThemeSolidBars(isMigrationDone) {
     var persistClay = loadForMigration(isMigrationDone, 'light-theme solid bars');
 
     if (persistClay === null) {
         return false;
     }
 
-    var wanted = themeConvert.barColorDefault(persistClay.theme);
-    if (wanted === themeConvert.barColorDefault('dark')) {
-        markDone();
-        return false;
-    }
-
-    var keys = themeConvert.BAR_COLOR_KEYS;
+    var keys = resolveInk.BAR_COLOR_KEYS;
     var changed = false;
-    var i;
+    var wanted, i;
 
-    for (i = 0; i < keys.length; i++) {
-        // Everything that is not already Solid moves: the pair is a two-value
-        // vocabulary, so that is 'multicolor' or an absent key. Absent is written out
-        // rather than left implicit — the next hydrate would fill it from the schema's
-        // dark default, which has no theme to ask.
-        if (persistClay[keys[i]] === wanted) { continue; }
-        persistClay[keys[i]] = wanted;
-        changed = true;
+    if (resolveInk.isLightPolarity(persistClay.theme)) {
+        wanted = resolveInk.barColorDefault(persistClay.theme);
+        for (i = 0; i < keys.length; i++) {
+            // Everything that is not already Solid moves: the pair is a two-value
+            // vocabulary, so that is 'multicolor' or an absent key. Absent is written out
+            // rather than left implicit — the next hydrate would fill it from the
+            // schema's dark default, which has no theme to ask.
+            if (persistClay[keys[i]] === wanted) { continue; }
+            persistClay[keys[i]] = wanted;
+            changed = true;
+        }
     }
 
     if (changed) {

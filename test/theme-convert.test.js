@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { applyThemeConvert, barColorDefault } = require('../src/pkjs/settings/theme-convert.js');
+const { applyThemeConvert } = require('../src/pkjs/settings/theme-convert.js');
 
 test('dark -> light: white picks convert to black', () => {
   const S = { colorTime: '#FFFFFF', colorSunday: '#FFFFFF', colorSaturday: '#FF0055', colorUSFederal: '#FFFFFF' };
@@ -77,13 +77,8 @@ test('a non-default custom color is never touched by a polarity flip', () => {
   assert.equal(S.colorTime, '#00AAFF');
 });
 
-test('barColorDefault answers per polarity, not per theme', () => {
-  assert.equal(barColorDefault('dark'), 'multicolor');
-  assert.equal(barColorDefault('bw'), 'multicolor');
-  assert.equal(barColorDefault('light'), 'white');
-  assert.equal(barColorDefault('bw-light'), 'white');
-  assert.equal(barColorDefault(undefined), 'multicolor', 'an unset theme reads as dark');
-});
+// barColorDefault itself is pinned in test/resolve-ink.test.js, which owns it. What
+// belongs here is the hook: which values it converts, and when.
 
 test('dark -> light: the bar color modes convert to Solid', () => {
   const S = { rainBarColor: 'multicolor', radarColor: 'multicolor' };

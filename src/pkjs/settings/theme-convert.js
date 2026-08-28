@@ -16,48 +16,27 @@
 //   1. The four "match the default foreground" color pickers (white <-> black).
 //      colorToday is exempt: its black value is the "auto, match date color"
 //      sentinel, not a color choice (see calendar_layer.c today_color()).
-//   2. The rain-bar and radar-graph color modes (multicolor <-> Solid) — BAR_DEFAULT
-//      below, which is also where the phone-side migration for installs that were
-//      already on light reads the pair from (clay-settings.js).
+//   2. The rain-bar and radar-graph color modes (multicolor <-> Solid). The pair itself
+//      lives in resolve-ink.js (barColorDefault / BAR_COLOR_KEYS), not here: the phone's
+//      migration needs the same answer, and this file cannot be its home because
+//      requiring it REGISTERS a hook. A side-effect-free leaf can be shared; a
+//      registration cannot.
 /* global PConf */
-// The `.onChange` test is not redundant (same hazard preview-radar.js documents for
-// `.blocks`): config-ui's lib/color.js and lib/schema-walk.js each do
-// `global.PConf = global.PConf || {}` to attach their own shard, so under Node any
-// requirer that pulls line-style.js in first — clay-settings.js does, for the pair
-// below — finds global.PConf EXISTING while carrying no onChange registry, and the
-// register at the tail would throw. The page loads engine.js first and is unaffected.
-var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.onChange)
-    ? global.PConf
+var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf
     : (typeof PConf !== 'undefined' && PConf) ? PConf
     : { onChange: { register: function () {}, get: function () {} } };
 
 (function () {
+    // Dual-context (see line-style.js): a CommonJS require under Node, the window global
+    // published by the file concatenated ahead of this one in the page bundle
+    // (build-config-page.js's APP_FILES puts resolve-ink.js well before this file).
+    var resolveInk = (typeof require !== 'undefined')
+        ? require('../resolve-ink.js') : window.ResolveInk;
     // dark and bw are both white-on-black; light and bw-light are both black-on-white.
     var POLARITY = { dark: 'dark', bw: 'dark', light: 'light', 'bw-light': 'light' };
     var OLD_FG = { dark: '#FFFFFF', light: '#000000' };
     var CONVERTIBLE_KEYS = ['colorTime', 'colorSunday', 'colorSaturday', 'colorUSFederal'];
-    // The bar color mode a polarity starts on. The five multicolor rain tiers are tuned
-    // against a black background: on white the lightest of them wash out, so the light
-    // polarity starts on Solid instead — which rain-tier.js resolves to GColorDarkGray
-    // there rather than white, so the bars still read. The wire VALUE stays 'white'; only
-    // the label says "Solid" (schema.js). Both keys hold that same two-value vocabulary,
-    // and buildPalette ignores it on a B&W render, so the pair converts on POLARITY, not
-    // on colour-ness: bw-light -> light is not a polarity flip, and that install would
-    // otherwise be the one still arriving on multicolor.
-    var BAR_DEFAULT = { dark: 'multicolor', light: 'white' };
-    var BAR_COLOR_KEYS = ['rainBarColor', 'radarColor'];
-
-    /**
-     * The rain-bar / radar-graph color mode a theme's polarity starts on. The phone's
-     * migration for installs that were already on light asks this rather than repeating
-     * the pair (clay-settings.js migrateLightThemeSolidBars).
-     * @param {string} theme 'dark'|'light'|'bw'|'bw-light'; anything else reads as dark.
-     * @returns {string} 'multicolor' or 'white' (the wire value labelled "Solid").
-     */
-    function barColorDefault(theme) {
-        return BAR_DEFAULT[POLARITY[theme] || 'dark'];
-    }
 
     /**
      * Convert the polarity-dependent settings when the theme's polarity flips — the
@@ -85,11 +64,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.onCha
                 S[k] = newFg;
             }
         }
-        for (i = 0; i < BAR_COLOR_KEYS.length; i += 1) {
-            k = BAR_COLOR_KEYS[i];
-            if (S[k] === BAR_DEFAULT[oldPolarity]) {
-                S[k] = BAR_DEFAULT[newPolarity];
-            }
+        // barColorDefault reads polarity off the theme itself, so the raw themes go
+        // straight in: bw answers dark, bw-light answers light. That is also why the
+        // pair converts on polarity rather than colour-ness — bw-light -> light is not
+        // a flip, and that install would otherwise be the one left on multicolor.
+        var oldBar = resolveInk.barColorDefault(oldTheme);
+        var newBar = resolveInk.barColorDefault(newTheme);
+        for (i = 0; i < resolveInk.BAR_COLOR_KEYS.length; i += 1) {
+            k = resolveInk.BAR_COLOR_KEYS[i];
+            if (S[k] === oldBar) { S[k] = newBar; }
         }
     }
 
@@ -98,10 +81,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.onCha
     });
 
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = {
-            applyThemeConvert: applyThemeConvert,
-            barColorDefault: barColorDefault,
-            BAR_COLOR_KEYS: BAR_COLOR_KEYS
-        };
+        module.exports = { applyThemeConvert: applyThemeConvert };
     }
 })();

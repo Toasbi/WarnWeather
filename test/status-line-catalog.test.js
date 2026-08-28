@@ -147,9 +147,13 @@ test('selectedCodes falls back to line defaults for missing keys', () => {
   assert.ok(codes.includes('wind'));  // stored value wins
   assert.ok(codes.includes('temp'));  // forecast-left default
   assert.ok(codes.includes('battery'));
-  assert.ok(!codes.includes('sun'), 'no env means the flavor-less top row');
-  assert.ok(catalog.selectedCodes({ statusRadarMid: 'wind' }, ENV_EMERY).includes('sun'),
-    'with an env it takes the same flavor slotDefault would');
+  assert.ok(!codes.includes('sun'), 'it answers the flavor-less top row');
+  // Deliberately env-free: its callers are fetch gates for uv/aqi/pollen, none of which
+  // a per-platform flavor moves, so no caller has an env to pass. The emery flavor is
+  // pinned at its real source instead.
+  assert.equal(catalog.selectedCodes.length, 1,
+    'selectedCodes takes only settings — an env parameter nothing can pass is dead');
+  assert.equal(catalog.slotDefault('statusTopRight', ENV_EMERY), 'sun');
 });
 
 test('resolveSelection maps invalid/unavailable to empty without touching storage', () => {
