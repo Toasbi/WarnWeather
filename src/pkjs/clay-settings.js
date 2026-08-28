@@ -324,13 +324,16 @@ function runMigrations(opts) {
     migrateCarriedGraphNightTints(
         isDone(KEYS.CARRIED_GRAPH_NIGHT_TINT_MIGRATION_KEY),
         mark(KEYS.CARRIED_GRAPH_NIGHT_TINT_MIGRATION_KEY));
-    // After the carried-tint release above: that one reads gc*Night keys and compares
-    // them against the built-in, so it must see the pre-re-tune blob. Running it second
-    // would have it judge a re-tuned tint against the new built-in and leave a genuinely
-    // carried value in place.
+    // MUST run after the carried-tint release above, and the reason is not the obvious
+    // one. A carried tint holds the FILL's colour, so the release detects it by
+    // `night === fill`. The re-tune rewrites the Fill cell (it holds a superseded value)
+    // but NOT the Night cell (which holds the fill's colour, not the Night's superseded
+    // one) — breaking that equality. Run second, the release can no longer see the carry
+    // and the stale colour survives as a fake pick. Verified for wind with a fill picked
+    // to Inchworm, the old light default: carried-first lands Night on the built-in
+    // (FFAA55), re-tune-first strands it on AAFF55 reading as a deliberate choice.
     var wantsClayLightRetune = migrateLightGraphColorRetune(
-        isDone(KEYS.LIGHT_GRAPH_COLOR_RETUNE_MIGRATION_KEY),
-        mark(KEYS.LIGHT_GRAPH_COLOR_RETUNE_MIGRATION_KEY));
+        isDone(KEYS.LIGHT_GRAPH_COLOR_RETUNE_MIGRATION_KEY));
     var wantsClayNightColors = migrateGraphNightColorsResend(
         isDone(KEYS.GRAPH_NIGHT_COLORS_MIGRATION_KEY));
     return {
@@ -473,7 +476,8 @@ function migrateCarriedGraphNightTints(isMigrationDone, markDone) {
 //
 // This table is a FROZEN historical record, not a view of the current defaults. It
 // must never be re-derived from line-style.js — the whole point is that the built-ins
-// have moved away from these. ADR-0003 §6.
+// have moved away from these. ADR-0003 §4, "Re-tuning a built-in needs a migration of
+// its own", which is also where a FUTURE re-tune's own table and marker are specified.
 var SUPERSEDED_LIGHT_GRAPH_COLORS = [
     { metric: 'precip_prob', role: 'Line',  was: 0x00AAFF },  // VividCerulean -> DukeBlue
     { metric: 'precip_prob', role: 'Night', was: 0x0000AA },  // DukeBlue      -> Cyan
@@ -516,10 +520,10 @@ var SUPERSEDED_LIGHT_GRAPH_COLORS = [
  * runMigrations), so a NACK retries next boot.
  *
  * @param {Function} isMigrationDone Returns true when the migration marker is set.
- * @param {Function} markDone Records the migration as complete.
- * @returns {boolean} True when the migrated settings must be sent to the watch.
+ * @returns {boolean} True when the migrated settings must be sent to the watch. There is
+ *   no markDone: this one NEVER marks itself, the ACK does (see the tail of the body).
  */
-function migrateLightGraphColorRetune(isMigrationDone, markDone) {
+function migrateLightGraphColorRetune(isMigrationDone) {
     var persistClay = loadForMigration(isMigrationDone, 'light graph-colour re-tune');
 
     if (persistClay === null) {
@@ -527,38 +531,40 @@ function migrateLightGraphColorRetune(isMigrationDone, markDone) {
     }
 
     var changed = false;
-    var seeded = 0;      // cells already sitting on the NEW built-in
-    var i, cell, key, stored, current;
+    var i, cell, key, stored;
 
     for (i = 0; i < SUPERSEDED_LIGHT_GRAPH_COLORS.length; i++) {
         cell = SUPERSEDED_LIGHT_GRAPH_COLORS[i];
         key = lineStyle.graphColorKey(cell.metric, cell.role, 'Light');
         stored = lineStyle.colorPick(persistClay[key]);
         // Absent: nothing was seeded, so it already resolves to the new built-in.
-        if (stored === null) { seeded++; continue; }
-        current = lineStyle.graphColorDefault(cell.metric, cell.role, 'Light', persistClay);
-        if (stored === cell.was) {
-            // The INT form, like the schema defaults: parseResponse stores ints.
-            persistClay[key] = current;
-            changed = true;
-        }
-        else if (stored === current) { seeded++; }
+        if (stored === null || stored !== cell.was) { continue; }
+        // The INT form, like the schema defaults: parseResponse stores ints.
+        persistClay[key] = lineStyle.graphColorDefault(cell.metric, cell.role, 'Light',
+                                                       persistClay);
+        changed = true;
     }
 
     if (changed) {
         save(persistClay);
         console.log('Re-tuned the seeded light-theme graph colours');
-        return true;
     }
-    // Nothing to rewrite, but every cell reads as the new built-in — which is also
-    // what a run that saved and then NACKed looks like. Ask for the send again rather
-    // than marking done; the cost of being wrong is one redundant Clay message.
-    if (seeded === SUPERSEDED_LIGHT_GRAPH_COLORS.length) {
-        return true;
-    }
-
-    markDone();
-    return false;
+    // ALWAYS ask for the send, rewrite or not, and never mark done here — the marker
+    // rides the Clay ACK (runMigrations), so a NACK retries on the next boot.
+    //
+    // The tempting "nothing to rewrite, so mark done" shortcut is a BUG, and a subtle
+    // one: a blob with nothing left to rewrite is also exactly what a run that saved and
+    // then NACKed looks like. Marking done there strands that install on the old colours
+    // until it opens and saves the settings page, since an in-place upgrade queues no
+    // Clay send of its own. Gating on "every cell reads as the built-in" instead does not
+    // save it either — one deliberately chosen colour makes that false forever, which is
+    // the shape test/clay-settings.test.js pins.
+    //
+    // The cost of being unconditional is one redundant Clay message on an install that
+    // never held the old defaults. It does not loop: nothing changed means the payload
+    // matches the last-sent cache, sendClay calls onSuccess immediately, and the marker
+    // commits. migrateGraphNightColorsResend is unconditional for the same reason.
+    return true;
 }
 
 /**

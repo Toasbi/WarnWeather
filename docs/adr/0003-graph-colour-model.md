@@ -151,6 +151,32 @@ Two accepted imprecisions:
   triple stands. The flag stays 0 and the result is what a fresh install with those
   settings paints.
 
+### Re-tuning a built-in needs a migration of its own
+
+Concrete storage (§2) has a price that is easy to miss: **moving a built-in reaches
+nobody who is already installed.** `seedDefaults` wrote a real colour into every key, so
+after a re-tune the stored value is the OLD default, which no longer equals the new one
+— `graphColorIsDefault` calls it a pick and the old colour keeps winning. Observed on a
+watch after the light re-tune (§6): every light row had to be reset by hand.
+
+`migrateLightGraphColorRetune` (marker `v1.16.0_light_graph_color_retune_migration`)
+rewrites each cell still holding the value the page seeded, cell by cell, so a colour
+that is neither the old default nor the new one — someone's actual choice — survives.
+Its `SUPERSEDED_LIGHT_GRAPH_COLORS` is a **frozen historical record** and must never be
+re-derived from `line-style.js`: the whole point is that the built-ins have moved away
+from it. Any future re-tune needs its own frozen table and its own marker.
+
+Two rules the code carries comments about, both of which were bugs first:
+
+- It runs **after** `migrateCarriedGraphNightTints`. A carried tint holds the *fill's*
+  colour, so the release detects it by `night === fill`; the re-tune rewrites the Fill
+  cell but not the Night cell, breaking that equality. Run second, the release cannot
+  see the carry and the stale colour survives as a fake pick.
+- It **always** asks for the Clay resend and never marks itself done — the marker rides
+  the ACK. "Nothing left to rewrite, so mark done" is indistinguishable from "saved, then
+  NACKed", and taking that shortcut strands the install on the old colours until someone
+  opens and saves the settings page.
+
 ## 5. The night area triple
 
 For **dark** polarity: six hand-tuned `{base, hatch, boundary}` triples, keyed by

@@ -1058,3 +1058,61 @@ test('a marked re-tune never re-fires', () => {
   assert.equal(mods.claySettings.read().gcWindLineLight, 0xFFFF00,
     'the old seeded value stands once the migration is marked done');
 });
+
+test('a NACKed re-tune retries even when one cell is a deliberate pick', () => {
+  // The retry gate must key on "no cell still holds a superseded value", NOT on "every
+  // cell reads as the built-in". A light install with ONE chosen colour never satisfies
+  // the latter, so a NACK on the first boot would mark the migration done with the watch
+  // still painting the old colours — the exact failure this migration exists to prevent.
+  const store = installFakeStorage();
+  const mods = loadUpgradeModules();
+  const now = new Date(2026, 7, 26, 9, 0, 0);
+  seedPreRetuneInstall(store, mods.claySettings, mods.KEYS, now);
+  const blob = mods.claySettings.read();
+  blob.gcWindLineLight = 0xFF0000;          // a real pick: neither old nor new default
+  mods.claySettings.save(blob);
+
+  // Boot 1: rewrites the other nine, asks for the send — and the send NACKs, so the
+  // deferred marker is never committed.
+  assert.equal(mods.claySettings.runMigrations({
+    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' }).clayRequired, true);
+  assert.equal(store[mods.KEYS.LIGHT_GRAPH_COLOR_RETUNE_MIGRATION_KEY], undefined);
+
+  // Boot 2: nothing left to rewrite, but the watch still has not been told.
+  assert.equal(mods.claySettings.runMigrations({
+    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' }).clayRequired, true,
+    'the resend is still requested, so the watch eventually gets the new colours');
+  assert.equal(store[mods.KEYS.LIGHT_GRAPH_COLOR_RETUNE_MIGRATION_KEY], undefined,
+    'and the marker stays deferred until an ACK');
+});
+
+test('the re-tune runs after the carried-tint release, or a carry is stranded', () => {
+  // Not an arbitrary ordering. A carried tint holds the FILL's colour, and the release
+  // detects it by night === fill. The re-tune rewrites the Fill cell but not the Night
+  // cell (which holds the fill's colour, not the Night's superseded one), so running it
+  // first breaks that equality and the stale carry survives as a fake pick. Pinned with
+  // a fill picked to Inchworm — wind's OLD light default, the value that makes the two
+  // migrations interact.
+  const store = installFakeStorage();
+  const mods = loadUpgradeModules();
+  const lineStyle = require('../src/pkjs/line-style');
+  const now = new Date(2026, 7, 26, 9, 0, 0);
+  seedPreRetuneInstall(store, mods.claySettings, mods.KEYS, now);
+
+  const blob = mods.claySettings.read();
+  Object.assign(blob, { theme: 'light', secondaryLine: 'wind', secondaryLineFill: true });
+  shippedPageFillPick(blob, lineStyle, 'wind', 'Light', 0xAAFF55);
+  mods.claySettings.save(blob);
+
+  mods.claySettings.runMigrations({
+    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  const healed = mods.claySettings.read();
+
+  assert.equal(lineStyle.graphColorIsDefault(healed, 'wind', 'Night', 'Light'), true,
+    'the carried tint was released before the re-tune moved the fill out from under it');
+  assert.equal(healed.gcWindNightLight,
+    lineStyle.graphColorDefault('wind', 'Night', 'Light', healed));
+  assert.equal(healed.gcWindFillLight,
+    lineStyle.graphColorDefault('wind', 'Fill', 'Light', healed),
+    'and the fill still took its re-tuned default');
+});
