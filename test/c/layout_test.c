@@ -441,6 +441,28 @@ static void golden_rects_stripless(void) {
 #endif
 }
 
+// The clocked FULL dual (3-row calendar or radar top + both status rows) historically
+// overlapped its two bands by fc_band_h - WEATHER_STATUS_HEIGHT (6px / emery 10px) —
+// which is why no preset ever emitted it. Custom layouts make it reachable, so the
+// carve now reserves the full band height there: bands adjacent, body abuts the lower.
+static void full_dual_fix_tests(void) {
+    const uint16_t shapes[] = {
+        pack(3, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST),   // cal3 dual, clocked
+        pack(3, 2, 0, STATUS_SRC_RADAR,  STATUS_SRC_FORECAST),   // radar-top dual, clocked
+    };
+    for (unsigned i = 0; i < sizeof(shapes) / sizeof(shapes[0]); i++) {
+        ViewSpec s = view_spec_unpack(shapes[i]);
+        MainLayout L = layout_compute_spec(BOUNDS, &s, MET(FC_BAND_H, INK));
+        expect("full_dual.bands_adjacent",
+               L.status_lower.origin.y == L.status.origin.y + L.status.size.h, true);
+        expect("full_dual.body_abuts_lower",
+               L.bottom.origin.y == L.status_lower.origin.y + L.status_lower.size.h, true);
+        expect("full_dual.no_overlap",
+               L.status.origin.y + L.status.size.h <= L.status_lower.origin.y, true);
+    }
+    printf("full_dual_fix OK\n");
+}
+
 // Property invariants for every clockless shape, both platforms — no golden numbers:
 // the time band collapses, the ink solver is inert, the body strictly grows vs the
 // clocked twin, and the status/lower/body chain never overlaps (reserve == band_h).
@@ -1927,6 +1949,7 @@ int main(int argc, char **argv) {
     golden_rects_clockless();
     golden_rects_stripless();
     if (!s_dump) clockless_property_tests();
+    if (!s_dump) full_dual_fix_tests();
     if (!s_dump) test_unpack_positional();
     if (!s_dump) test_unpack_custom_bits();
     if (!s_dump) test_resolve_no_health_no_radar();

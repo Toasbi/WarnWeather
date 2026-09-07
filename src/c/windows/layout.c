@@ -380,8 +380,19 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool upper,
             // into, and a partial reserve would overlap the band above. reserve == band_h
             // makes every clockless dual and lone-lower stack overlap-free by construction,
             // including the shapes the editor forbids (sane garbage-tolerance).
-            int reserve = clock ? (lone_lower_compact ? (calendar_h / 3) : WEATHER_STATUS_HEIGHT)
-                                : band_h;
+            //
+            // The clocked FULL DUAL takes the same full reserve: its upper band already
+            // occupies [forecast_y - fc_band_h, forecast_y), so a WEATHER_STATUS_HEIGHT
+            // reserve would seat the lower band fc_band_h - 14 rows INTO it (6px here,
+            // 10px emery — the historical overlap that kept presets from ever emitting a
+            // FULL dual; custom layouts make the shape reachable, so it must render).
+            // The clocked COMPACT dual keeps the shallow reserve — its upper band is far
+            // above (in the freed calendar row) and the carve's upward growth spends the
+            // clock band's blank margin by design; those are shipping preset pixels.
+            bool full_dual = !compact && two_rows;
+            int reserve = (!clock || full_dual) ? band_h
+                        : lone_lower_compact    ? (calendar_h / 3)
+                                                : WEATHER_STATUS_HEIGHT;
             int forecast_top = L.bottom.origin.y + reserve;
             L.status_lower = GRect(L.bottom.origin.x, forecast_top - band_h,
                                    L.bottom.size.w, band_h);
