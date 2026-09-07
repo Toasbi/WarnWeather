@@ -157,6 +157,12 @@ static MainLayout compute_with_weights(GRect bounds, const ViewSpec *spec, Layou
     bool lower = (spec->status_lower != STATUS_SRC_NONE);
     bool clock = (spec->clock_off == 0);
     bool strip = (spec->strip_off == 0);
+    // Band sizes SERVE the font, and the font is the spec's status_tier (pushed to
+    // the rows by main_window): squeezed = the smaller full-tier type, which — per
+    // status_tier_for — only a CLOCKED dual (or a clocked FULL-tier seat) renders.
+    // Clockless views carry the large font, so their bands take the large clamp-free
+    // height below whatever their occupancy is.
+    bool squeezed = (spec->status_tier == LAYOUT_TIER_FULL);
     const uint8_t *weights = spec->weights;
     // Unpacked once into locals so the body below reads exactly as it did; both are register
     // copies, and the bundling exists purely to keep the call itself off the stack (layout.h).
@@ -283,11 +289,12 @@ static MainLayout compute_with_weights(GRect bounds, const ViewSpec *spec, Layou
         // preset-independent calendar is the same whatever band and font the preset picked; the
         // difference in height is absorbed at the BOTTOM, in the clock band's blank top margin.
         // Anchoring the bottom instead made the gap vary per preset — the defect this fixes.
-        int status_h = compact ? (two_rows ? (calendar_h / 3) : STATUS_LARGE_BAND_H) : fc_band_h;
+        int status_h = compact ? (squeezed ? (calendar_h / 3) : STATUS_LARGE_BAND_H)
+                               : (squeezed ? fc_band_h : STATUS_LARGE_BAND_H);
         // The compact band top adds the per-preset ink-centring lift to the shared anchor:
         // the anchor equalizes where the band STARTS, the lift centres where its INK lands
         // (a dense row's smaller font floats lower in the same slot than the lone row's).
-        int row_lift = two_rows ? COMPACT_DENSE_ROW_INK_LIFT : COMPACT_LONE_ROW_INK_LIFT;
+        int row_lift = squeezed ? COMPACT_DENSE_ROW_INK_LIFT : COMPACT_LONE_ROW_INK_LIFT;
         int compact_status_y = time_y - COMPACT_STATUS_TOP_ABOVE_CLOCK - row_lift;
         int forecast_y;
         if (clock) {
@@ -297,19 +304,18 @@ static MainLayout compute_with_weights(GRect bounds, const ViewSpec *spec, Layou
             forecast_y = compact ? (time_y + time_h)
                                  : (time_y + time_h + (has_status ? WEATHER_STATUS_HEIGHT : 0));
         } else if (upper) {
-            // No clock, upper row shown. COMPACT: the audited seat does not move — the band
-            // keeps its COMPACT_STATUS_TOP_ABOVE_CLOCK anchor — and the body rises to the
-            // band's floor, merging the freed 3rd-calendar-row and absent-clock reclaims into
-            // one. The lone band is status_min_band_h (cap + tails, zero spare), so a lone row
-            // adds STATUS_FORECAST_CLEARANCE of ink-to-graph air — the same clearance the FULL
-            // seat builds into fc_band_h; a dual's lower band brings its own (fc-band) top
-            // clearance, so the dual adds nothing here. FULL: the band consumes its full
-            // fc_band_h in flow from time_y — with a clock it reserved only
-            // WEATHER_STATUS_HEIGHT and let the surplus rise into the clock band's blank
-            // margin, which no longer exists.
-            forecast_y = compact
-                ? (compact_status_y + status_h + (two_rows ? 0 : STATUS_FORECAST_CLEARANCE))
-                : (time_y + fc_band_h);
+            // No clock, upper row shown — and per status_tier_for every clockless row
+            // renders the LARGE font, so the band is the large clamp-free height
+            // (ink to the band edge) and always adds STATUS_FORECAST_CLEARANCE of
+            // ink-to-neighbour air below it. COMPACT: the audited seat does not move —
+            // the band keeps its COMPACT_STATUS_TOP_ABOVE_CLOCK anchor — and the body
+            // (or the dual's B band, carved below) rises to the band's floor, merging
+            // the freed 3rd-calendar-row and absent-clock reclaims into one. FULL: the
+            // band sits in flow at time_y — with a clock it reserved only
+            // WEATHER_STATUS_HEIGHT and let the surplus rise into the clock band's
+            // blank margin, which no longer exists.
+            forecast_y = (compact ? compact_status_y : time_y)
+                         + status_h + STATUS_FORECAST_CLEARANCE;
         } else {
             // No clock, no upper row: anchor to the top band's REAL frame bottom (calendar_y
             // + cal_h), not to the strip reserve — the calendar/radar band slides below
@@ -326,13 +332,18 @@ static MainLayout compute_with_weights(GRect bounds, const ViewSpec *spec, Layou
         // moves) rather than to the calendar's bottom (which slides down with the font-sized
         // strip), so the row stays put when the strip grows — clockless included: the seat is
         // audited, only the body below it moves.
-        int status_y = compact ? compact_status_y : (forecast_y - fc_band_h);
+        // full-CLOCKED: bottom pinned to the forecast top (band rises into the clock's
+        // slack). full-CLOCKLESS: in flow at time_y (the ladder above spaced the body
+        // off the band's own height + clearance).
+        int status_y = compact ? compact_status_y
+                     : clock   ? (forecast_y - fc_band_h)
+                               : time_y;
         // What the clock's ink sits under. In COMPACT the upper row takes the freed 3rd
         // calendar row, i.e. it is ABOVE the clock and the calendar is not the neighbour; in
         // FULL that same row rides down by the forecast instead, so the calendar is. Dates are
         // digits — no ascenders, no descenders — which is what makes the calendar's cap box a
         // usable edge (calendar_metrics.h).
-        upper_ch = compact ? (two_rows ? full_tier_h : STATUS_LARGE_FONT_H) : full_tier_h;
+        upper_ch = squeezed ? full_tier_h : STATUS_LARGE_FONT_H;
         if (compact && upper) {
             clock_above = status_band_ink_top(status_y, status_h, upper_ch)
                           + status_cap_h(upper_ch) - 1;
@@ -370,40 +381,49 @@ static MainLayout compute_with_weights(GRect bounds, const ViewSpec *spec, Layou
             L.bottom.origin.y += NONE_STATUS_HEIGHT;
             L.bottom.size.h -= NONE_STATUS_HEIGHT;
             L.radar = L.bottom;
-        } else {
-            // compact/full: the lower row rides the forecast-abutting band. A DUAL lower row uses
-            // the squeezed full-tier band (fc_band_h) so two stacked rows fit. A LONE lower row
-            // (the compact swap layout — a single status moved below the clock) instead keeps the
-            // compact single-status band size and font, so swapping only changes position, not
-            // size (a true top/bottom swap). The forecast gives up `reserve` from its top; the
-            // band's bottom sits on that forecast top. reserve stays the old calendar_h/3 SLOT
-            // even though the lone band is now the taller clamp-free height: the surplus grows
-            // upward into the clock band's slack, so the graph keeps every pixel it had.
-            bool lone_lower_compact = compact && !two_rows;
-            lower_ch = lone_lower_compact ? STATUS_LARGE_FONT_H : full_tier_h;
-            int band_h  = lone_lower_compact ? STATUS_LARGE_BAND_H : fc_band_h;
-            // Clockless: the band must consume its FULL height in flow — the "taller band
-            // grows upward into the clock band's slack" trick below has no slack to grow
-            // into, and a partial reserve would overlap the band above. reserve == band_h
-            // makes every clockless dual and lone-lower stack overlap-free by construction,
-            // including the shapes the editor forbids (sane garbage-tolerance).
+        } else if (clock) {
+            // compact/full, CLOCKED: the lower row rides the forecast-abutting band. A DUAL
+            // lower row uses the squeezed full-tier band (fc_band_h) so two stacked rows fit
+            // beside the clock. A LONE lower row (the compact swap layout — a single status
+            // moved below the clock) instead keeps the compact single-status band size and
+            // font, so swapping only changes position, not size (a true top/bottom swap).
+            // The forecast gives up `reserve` from its top; the band's bottom sits on that
+            // forecast top. The swap's reserve stays the old calendar_h/3 SLOT even though
+            // the lone band is the taller clamp-free height: the surplus grows upward into
+            // the clock band's slack, so the graph keeps every pixel it had.
             //
-            // The clocked FULL DUAL takes the same full reserve: its upper band already
-            // occupies [forecast_y - fc_band_h, forecast_y), so a WEATHER_STATUS_HEIGHT
-            // reserve would seat the lower band fc_band_h - 14 rows INTO it (6px here,
-            // 10px emery — the historical overlap that kept presets from ever emitting a
-            // FULL dual; custom layouts make the shape reachable, so it must render).
-            // The clocked COMPACT dual keeps the shallow reserve — its upper band is far
-            // above (in the freed calendar row) and the carve's upward growth spends the
-            // clock band's blank margin by design; those are shipping preset pixels.
+            // The FULL DUAL takes a full-band reserve: its upper band already occupies
+            // [forecast_y - fc_band_h, forecast_y), so a WEATHER_STATUS_HEIGHT reserve
+            // would seat the lower band fc_band_h - 14 rows INTO it (6px here, 10px emery —
+            // the historical overlap that kept presets from ever emitting a FULL dual;
+            // custom layouts make the shape reachable, so it must render). The COMPACT dual
+            // keeps the shallow reserve — its upper band is far above (in the freed
+            // calendar row) and the carve's upward growth spends the clock band's blank
+            // margin by design; those are shipping preset pixels.
+            lower_ch = squeezed ? full_tier_h : STATUS_LARGE_FONT_H;
+            int band_h  = squeezed ? fc_band_h : STATUS_LARGE_BAND_H;
             bool full_dual = !compact && two_rows;
-            int reserve = (!clock || full_dual) ? band_h
-                        : lone_lower_compact    ? (calendar_h / 3)
-                                                : WEATHER_STATUS_HEIGHT;
+            int reserve = full_dual ? band_h
+                        : squeezed  ? WEATHER_STATUS_HEIGHT
+                                    : (calendar_h / 3);
             int forecast_top = L.bottom.origin.y + reserve;
             L.status_lower = GRect(L.bottom.origin.x, forecast_top - band_h,
                                    L.bottom.size.w, band_h);
             L.bottom.origin.y = forecast_top;
+            L.bottom.size.h -= reserve;
+        } else {
+            // compact/full, CLOCKLESS: every row renders the large font
+            // (status_tier_for), so the band takes the large clamp-free height, sits at
+            // the body top in flow — there is no clock slack to grow into — and reserves
+            // its own height plus the ink clearance below. Overlap-free by construction
+            // for duals and lone-lowers alike (the ladder above already spaced
+            // forecast_y off the upper band's floor).
+            lower_ch = STATUS_LARGE_FONT_H;
+            int band_h = STATUS_LARGE_BAND_H;
+            int reserve = band_h + STATUS_FORECAST_CLEARANCE;
+            L.status_lower = GRect(L.bottom.origin.x, L.bottom.origin.y,
+                                   L.bottom.size.w, band_h);
+            L.bottom.origin.y += reserve;
             L.bottom.size.h -= reserve;
         }
         L.loading = L.bottom;
@@ -445,6 +465,19 @@ static MainLayout compute_with_weights(GRect bounds, const ViewSpec *spec, Layou
 
 // ── ViewSpec producers/consumers ────────────────────────────────────────────
 
+// The status tier a view's rows render at. layout_status_tier owns the base rule
+// (only a DUAL squeezes to the smaller full-tier font); on top of it, a CLOCKLESS
+// custom view keeps the LARGE font whatever its shape — the squeeze exists to fit
+// rows beside the clock, and with no clock the freed band is exactly the room the
+// bigger type wants. Shared by unpack and resolve so the two can never disagree;
+// the aplite twin keeps calling layout_status_tier directly (it has no clockless
+// views to exempt).
+static uint8_t status_tier_for(uint8_t rows, bool two_rows, uint8_t clock_off) {
+    LayoutTier t = layout_status_tier(layout_tier_for_rows(rows), two_rows);
+    if (clock_off && t == LAYOUT_TIER_FULL) { t = LAYOUT_TIER_COMPACT; }
+    return (uint8_t) t;
+}
+
 ViewSpec view_spec_unpack(uint16_t v) {
     uint8_t tier = (v >> 8) & 3;   // 0=off,1=none,2=compact,3=full
     uint8_t top  = (v >> 6) & 3;   // wire TopBand
@@ -461,22 +494,21 @@ ViewSpec view_spec_unpack(uint16_t v) {
     spec.body = body;
     spec.status_upper = su;
     spec.status_lower = sl;
-    // Via `rows`, not the wire tier, so the field and the tier can never disagree — and so
-    // the whole tier rule lives in one place (layout.h) that view_spec_resolve, the geometry
-    // entry point and the aplite twin all share. The promotion rule (only a DUAL squeezes to
-    // the smaller full-tier font) is layout_status_tier's; see its comment.
-    uint8_t layout_tier = layout_tier_for_rows(rows);
-    bool two_rows = (su != STATUS_SRC_NONE) && (sl != STATUS_SRC_NONE);
-    spec.status_tier = layout_status_tier(layout_tier, two_rows);
-    spec.weights[0] = WEIGHT_CALENDAR;
-    spec.weights[1] = WEIGHT_TIME;
-    spec.weights[2] = WEIGHT_BOTTOM;
     // Custom-layout bits. Unconditional: layout.c is compiled with WW_VIEW_CYCLE
     // everywhere it is compiled at all (wscript's twin filter drops it on aplite;
-    // the host base build defines the macro too — scripts/test-c.sh).
+    // the host base build defines the macro too — scripts/test-c.sh). Decoded
+    // BEFORE the tier below, which reads clock_off.
     spec.clock_off = (uint8_t)((v >> 10) & 1);
     spec.strip_off = (uint8_t)((v >> 11) & 1);
     spec.order     = (uint8_t)((v >> 12) & 15);
+    // Via `rows`, not the wire tier, so the field and the tier can never disagree —
+    // and through status_tier_for, the one rule unpack and resolve share (base
+    // squeeze rule in layout.h's layout_status_tier; clockless exemption above).
+    bool two_rows = (su != STATUS_SRC_NONE) && (sl != STATUS_SRC_NONE);
+    spec.status_tier = status_tier_for(rows, two_rows, spec.clock_off);
+    spec.weights[0] = WEIGHT_CALENDAR;
+    spec.weights[1] = WEIGHT_TIME;
+    spec.weights[2] = WEIGHT_BOTTOM;
     return spec;
 }
 
@@ -512,12 +544,12 @@ ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health) {
         spec.status_upper = spec.status_lower;
         spec.status_lower = STATUS_SRC_NONE;
     }
-    // Recompute the tier from what actually survives, through the same two helpers
-    // view_spec_unpack uses — so a lone surviving row (upper OR lower) keeps the larger
-    // compact font and only a DUAL squeezes to the full-tier one.
-    uint8_t layout_tier = layout_tier_for_rows(spec.calendar_rows);
+    // Recompute the tier from what actually survives, through the same rule
+    // view_spec_unpack uses (status_tier_for) — so a lone surviving row keeps the
+    // larger compact font, only a CLOCKED dual squeezes to the full-tier one, and
+    // a clockless view stays on the large font whatever survives.
     bool two_rows = (spec.status_upper != STATUS_SRC_NONE) && (spec.status_lower != STATUS_SRC_NONE);
-    spec.status_tier = layout_status_tier(layout_tier, two_rows);
+    spec.status_tier = status_tier_for(spec.calendar_rows, two_rows, spec.clock_off);
     return spec;
 }
 

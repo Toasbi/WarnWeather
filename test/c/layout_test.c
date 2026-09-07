@@ -272,23 +272,24 @@ static void golden_rects_clockless(void) {
     check("cklc2S.bottom",       L.bottom,       0, 48, 144, 120);
     L = compute_custom(c2D);
     if (s_dump) printf("  CLOCKLESS cal2 dual\n");
-    // Dual in flow: A keeps the dense seat, B consumes its full fc_band_h (reserve ==
-    // band_h — no clock margin to grow into), body abuts B. Adjacent, overlap-free.
-    check("cklc2D.status",       L.status,       0, 45, 144, 15);
-    check("cklc2D.status_lower", L.status_lower, 0, 60, 144, 20);
+    // Clockless rows render the LARGE font (status_tier_for), so the dual takes two
+    // large clamp-free bands in flow with ink clearance between and below — A keeps
+    // the audited compact seat, B sits at the body top.
+    check("cklc2D.status",       L.status,       0, 44, 144, 17);
+    check("cklc2D.status_lower", L.status_lower, 0, 64, 144, 17);
     check("cklc2D.time",         L.time,         0, 58, 144, 0);
-    check("cklc2D.bottom",       L.bottom,       0, 80, 144, 88);
+    check("cklc2D.bottom",       L.bottom,       0, 84, 144, 84);
     L = compute_custom(c2B);
     if (s_dump) printf("  CLOCKLESS cal2 lower-only\n");
     // The swap shape without a clock: the lone lower band sits in flow under the
-    // calendar (full STATUS_LARGE_BAND_H reserve), body abuts it.
+    // calendar, reserving its height plus the ink clearance below.
     check("cklc2B.status_lower", L.status_lower, 0, 48, 144, 17);
     check("cklc2B.time",         L.time,         0, 58, 144, 0);
-    check("cklc2B.bottom",       L.bottom,       0, 65, 144, 103);
+    check("cklc2B.bottom",       L.bottom,       0, 68, 144, 100);
     L = compute_custom(c3A);
     if (s_dump) printf("  CLOCKLESS cal3 lone-upper\n");
-    // FULL seat in flow: the abutting band consumes its full fc_band_h from time_y.
-    check("cklc3A.status",       L.status,       0, 58, 144, 20);
+    // FULL seat in flow at time_y — large font, large band, clearance to the body.
+    check("cklc3A.status",       L.status,       0, 58, 144, 17);
     check("cklc3A.time",         L.time,         0, 58, 144, 0);
     check("cklc3A.bottom",       L.bottom,       0, 78, 144, 90);
     L = compute_custom(c3S);
@@ -297,10 +298,10 @@ static void golden_rects_clockless(void) {
     check("cklc3S.bottom",       L.bottom,       0, 63, 144, 105);
     L = compute_custom(c3D);
     if (s_dump) printf("  CLOCKLESS cal3 dual\n");
-    // The FULL dual — broken (6px band overlap) with a clock, overlap-free clockless
-    // by the reserve == band_h rule: A [58,78), B [78,98), body 98.
-    check("cklc3D.status",       L.status,       0, 58, 144, 20);
-    check("cklc3D.status_lower", L.status_lower, 0, 78, 144, 20);
+    // The FULL dual, clockless: two LARGE bands in flow with clearances — the body
+    // top lands on the same row the old squeezed pair produced (58+17+3+17+3 = 98).
+    check("cklc3D.status",       L.status,       0, 58, 144, 17);
+    check("cklc3D.status_lower", L.status_lower, 0, 78, 144, 17);
     check("cklc3D.bottom",       L.bottom,       0, 98, 144, 70);
     L = compute_custom(rdr);
     if (s_dump) printf("  CLOCKLESS radar-top statusless\n");
@@ -334,29 +335,29 @@ static void golden_rects_clockless(void) {
     check("cklc2S.bottom",       L.bottom,       2, 64, 198, 160);
     L = compute_custom(c2D);
     if (s_dump) printf("  CLOCKLESS cal2 dual (emery)\n");
-    check("cklc2D.status",       L.status,       2, 63, 196, 20);
-    check("cklc2D.status_lower", L.status_lower, 2, 83, 198, 24);
+    check("cklc2D.status",       L.status,       2, 64, 196, 21);
+    check("cklc2D.status_lower", L.status_lower, 2, 86, 198, 21);
     check("cklc2D.time",         L.time,         2, 82, 196, 0);
-    check("cklc2D.bottom",       L.bottom,       2, 107, 198, 117);
+    check("cklc2D.bottom",       L.bottom,       2, 108, 198, 116);
     L = compute_custom(c2B);
     if (s_dump) printf("  CLOCKLESS cal2 lower-only (emery)\n");
     check("cklc2B.status_lower", L.status_lower, 2, 64, 198, 21);
     check("cklc2B.time",         L.time,         2, 82, 196, 0);
-    check("cklc2B.bottom",       L.bottom,       2, 85, 198, 139);
+    check("cklc2B.bottom",       L.bottom,       2, 86, 198, 138);
     L = compute_custom(c3A);
     if (s_dump) printf("  CLOCKLESS cal3 lone-upper (emery)\n");
-    check("cklc3A.status",       L.status,       2, 82, 196, 24);
+    check("cklc3A.status",       L.status,       2, 82, 196, 21);
     check("cklc3A.time",         L.time,         2, 82, 196, 0);
-    check("cklc3A.bottom",       L.bottom,       2, 106, 198, 118);
+    check("cklc3A.bottom",       L.bottom,       2, 104, 198, 120);
     L = compute_custom(c3S);
     if (s_dump) printf("  CLOCKLESS cal3 statusless (emery)\n");
     check("cklc3S.time",         L.time,         2, 82, 196, 0);
     check("cklc3S.bottom",       L.bottom,       2, 84, 198, 140);
     L = compute_custom(c3D);
     if (s_dump) printf("  CLOCKLESS cal3 dual (emery)\n");
-    check("cklc3D.status",       L.status,       2, 82, 196, 24);
-    check("cklc3D.status_lower", L.status_lower, 2, 106, 198, 24);
-    check("cklc3D.bottom",       L.bottom,       2, 130, 198, 94);
+    check("cklc3D.status",       L.status,       2, 82, 196, 21);
+    check("cklc3D.status_lower", L.status_lower, 2, 104, 198, 21);
+    check("cklc3D.bottom",       L.bottom,       2, 126, 198, 98);
     L = compute_custom(rdr);
     if (s_dump) printf("  CLOCKLESS radar-top statusless (emery)\n");
     check("cklrdr.top",          L.top,          2, 23, 196, 60);
@@ -763,6 +764,22 @@ static void test_unpack_custom_bits(void) {
     ViewSpec rl = view_spec_resolve(lo, false, true);
     expect("custom_bits.legacy_still_promotes",
            rl.status_upper == STATUS_SRC_FORECAST && rl.status_lower == STATUS_SRC_NONE, true);
+
+    // Clockless views render the LARGE status font (status_tier_for): a clockless
+    // dual keeps the COMPACT tier — the clock the squeeze makes room for is absent —
+    // and a clockless FULL-tier seat un-squeezes too; the CLOCKED shapes keep the
+    // historical tiers. Resolve applies the same rule to what survives.
+    ViewSpec cd = view_spec_unpack(pack_custom(
+        pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST), 1, 0, 0));
+    expect("custom_bits.clockless_dual_large", cd.status_tier == LAYOUT_TIER_COMPACT, true);
+    expect("custom_bits.clocked_dual_still_squeezed",
+           view_spec_unpack(pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST)).status_tier
+           == LAYOUT_TIER_FULL, true);
+    ViewSpec cf = view_spec_unpack(pack_custom(
+        pack(3, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE), 1, 0, 0));
+    expect("custom_bits.clockless_full_large", cf.status_tier == LAYOUT_TIER_COMPACT, true);
+    expect("custom_bits.resolve_matches_unpack_tier",
+           view_spec_resolve(cd, true, true).status_tier == LAYOUT_TIER_COMPACT, true);
     printf("unpack_custom_bits OK\n");
 }
 

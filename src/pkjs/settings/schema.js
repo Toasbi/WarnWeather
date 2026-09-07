@@ -194,7 +194,10 @@ var VIEW_RADAR_CHART_WHEN = {key: 'radarMode', eq: 'graph'};
 var VIEW_RADAR_ROW_WHEN = {key: 'radarMode', in: ['status', 'graph']};
 var VIEW_HEALTH_ROW_WHEN = {key: 'healthMode', in: ['status', 'all']};
 var VIEW_HEALTH_BODY_WHEN = {key: 'healthMode', eq: 'all'};
-var VIEW_SRC_OPTIONS = [['Off', 'off'], ['Weather', 'weather'],
+// No 'Off' entry: removal is the editor row's ✕ button — a duplicate Off pick in
+// the sheet would be a second way to do the same thing. 'off' stays a legal STORED
+// value (what ✕ writes); the sheet is only openable while the row is present.
+var VIEW_SRC_OPTIONS = [['Weather', 'weather'],
                         ['Radar', 'radar'], ['Health', 'health']];
 var VIEW_SRC_GATES = {
     radar: {not: VIEW_RADAR_ROW_WHEN},
@@ -210,8 +213,10 @@ function customViewItems(i) {
     var items = [{
         type: 'radio', messageKey: 'viewTop' + i, label: 'Calendar / top area',
         defaultValue: 'cal2',
+        // No 'Nothing' entry: removal is the editor row's ✕ button; 'none' stays a
+        // legal STORED value (what ✕ writes).
         options: [['Calendar — 3 rows', 'cal3'], ['Calendar — 2 rows', 'cal2'],
-                  ['Rain radar', 'radar'], ['Nothing', 'none']],
+                  ['Rain radar', 'radar']],
         optionDisabledWhen: {radar: {not: VIEW_RADAR_CHART_WHEN}}
     }, {
         type: 'radio', messageKey: 'viewBody' + i, label: 'Graph',
