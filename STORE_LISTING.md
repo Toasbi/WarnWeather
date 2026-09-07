@@ -44,7 +44,7 @@ STATUS LINES
       - sunrise/sunset
    - Date and location:
       - Calender week  
-      - date
+      - date (selectable format — European, US, ISO, or spelled-out month)
       - weather fetch location
       - countdown to any date
    - Health:

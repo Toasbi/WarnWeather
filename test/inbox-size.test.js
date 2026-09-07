@@ -225,6 +225,9 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // byte-for-byte the watch's NIGHT_COLORS persist blob (NIGHT_COLOR_BYTES = 6) and
   // app_message.c stores the tail straight through instead of translating one bit between
   // two positions under two names. One byte for that.
-  assert.equal(size, 490, 'update the recorded Clay message size when its wire contract changes');
+  // 490 -> 499 when the date-slot formats joined (CLAY_DATE_FORMAT_UINT8:
+  // 7 B tuple header + 2 B [monthYear, fullDate]). Threshold-gated like the
+  // threshold blob, so an aplite bundle stays without it.
+  assert.equal(size, 499, 'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });

@@ -7,6 +7,7 @@
 #include "layer_util.h"
 #include "../appendix/persist.h"
 #include "../appendix/config.h"
+#include "../appendix/date_format.h"
 #include "../appendix/theme.h"
 #include "../appendix/status_threshold.h"
 #include "../windows/layout.h"   // LayoutTier (row_font)
@@ -175,26 +176,19 @@ static GFont row_font_bold(uint8_t tier, uint8_t line_id) {
 
 static void format_status_date(bool full_date, char *buf, size_t cap) {
     struct tm tm_now = watch_services_localtime();
+    const Config *cfg = config_get();
     if (!full_date) {
         // Calendar views already show the day; the slot only needs month + year.
-        strftime(buf, cap, "%b %Y", &tm_now);
+        date_format_month_year(buf, cap, &tm_now,
+                               cfg ? cfg->date_month_format : DATE_MONTH_AUTO);
         return;
     }
-    // No-calendar view: numeric dd.mm.yy, or mm.dd.yy where the configured
-    // holiday country writes the month first (US). Order comes from the phone
-    // (config.date_month_first), not the watch system locale.
-    int mday = tm_now.tm_mday;
-    if (mday < 1) { mday = 1; } else if (mday > 31) { mday = 31; }
-    int mon = tm_now.tm_mon + 1;
-    if (mon < 1) { mon = 1; } else if (mon > 12) { mon = 12; }
-    int yy = (tm_now.tm_year + 1900) % 100;
-    if (yy < 0) { yy = 0; }
-    const Config *cfg = config_get();
-    if (cfg && cfg->date_month_first) {
-        snprintf(buf, cap, "%02d.%02d.%02d", mon, mday, yy);
-    } else {
-        snprintf(buf, cap, "%02d.%02d.%02d", mday, mon, yy);
-    }
+    // No-calendar view: the slot carries the full date, in the user's chosen
+    // format (Date slot edit sheet). Day/month order comes from the phone
+    // (config.date_month_first, US -> month first), not the watch system locale.
+    date_format_full(buf, cap, &tm_now,
+                     cfg ? cfg->date_full_format : DATE_FULL_AUTO,
+                     cfg && cfg->date_month_first);
 }
 
 #if defined(PBL_HEALTH)

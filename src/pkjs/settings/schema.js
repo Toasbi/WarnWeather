@@ -1373,7 +1373,39 @@ module.exports = {
         boldSection('Air pressure (hPa)', 'Pressure', null,
             [unitRow('pressureSlotUnit', '1013hPa', '1013')]),
         boldSection('Sunrise/sunset', 'Sun'),
-        boldSection('Date', 'Date'),
+        // The date slot renders TWO different strings, and which one is on screen
+        // is the calendar's call, not the slot's (status_row.c format_status_date:
+        // calendar views show the day in the grid, so the slot compresses to
+        // month + year; no-calendar views carry the full date). One picker per
+        // string, each labelled with when it applies. Watch-rendered
+        // (SLOT_LIVE_DATE), so the choices ride the Clay message
+        // (CLAY_DATE_FORMAT_UINT8) instead of a phone re-bake — no
+        // renderSignature entry. Option labels are fixed samples (7 Sep 2026),
+        // not today's date: they are format examples, and static strings keep the
+        // lists deterministic under test.
+        boldSection('Date', 'Date', null, [{
+            type: 'radio',
+            messageKey: 'dateSlotMonthFormat',
+            label: 'Date format with calendar',
+            hint: 'Used when a calendar is on screen.',
+            defaultValue: 'auto',
+            options: [
+                ['Sep 2026', 'auto'],
+                ['September 2026', 'name'],
+                ['09.2026', 'dots'],
+                ['09/2026', 'slash'],
+                ['2026-09', 'iso']
+            ]
+        }, {
+            type: 'radio',
+            messageKey: 'dateSlotFullFormat',
+            label: 'Date format without calendar',
+            hint: 'Used when no calendar is on screen.',
+            defaultValue: 'auto',
+            // Sample labels are rendered in the user's effective order, so the
+            // list shows exactly what the watch will print (blocks.js).
+            optionsFrom: {resolver: 'dateFullFormatOptions'}
+        }]),
         boldSection('Calendar week', 'Week'),
         boldSection('City', 'City'),
         // 'd' is a unit like any other here — the countdown reads '5d' today, and

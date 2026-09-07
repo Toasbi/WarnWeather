@@ -210,6 +210,47 @@ test('registers the statusSlot options resolver into PConf.optionsResolvers', ()
   assert.equal(typeof PConf.optionsResolvers.get('statusSlot'), 'function');
 });
 
+test('dateFullFormatOptions: values are the wire codes, samples follow the country order', () => {
+  const resolver = PConf.optionsResolvers.get('dateFullFormatOptions');
+  assert.equal(typeof resolver, 'function', 'resolver registered');
+  // The value list IS the wire vocabulary — lockstep with date-format.js (and
+  // through it the C enum), whatever the country branch.
+  const CODES = require('../src/pkjs/date-format.js').FULL_FORMAT_CODES;
+  assert.deepEqual(resolver({ holidayCountry: 'DE' }).map((o) => o[1]), CODES);
+  assert.deepEqual(resolver({ holidayCountry: 'US' }).map((o) => o[1]), CODES);
+  // Sample labels render in the effective day/month order (the wire's Auto rule:
+  // configured holiday country, US when the key is absent — clay-payload's
+  // effectiveHolidayCountry).
+  const label = (S, code) => resolver(S).find((o) => o[1] === code)[0];
+  assert.equal(label({ holidayCountry: 'DE' }, 'auto'), '07.09.26');
+  assert.equal(label({ holidayCountry: 'US' }, 'auto'), '09.07.26');
+  assert.equal(label({ holidayCountry: 'DE' }, 'textyear'), '7. Sep 2026');
+  assert.equal(label({ holidayCountry: 'US' }, 'textyear'), 'Sep 7, 2026');
+  assert.equal(label({}, 'auto'), '09.07.26', 'absent key = the legacy US fallback');
+  // ISO is order-blind — one spelling in both branches.
+  assert.equal(label({ holidayCountry: 'DE' }, 'iso'), '2026-09-07');
+  assert.equal(label({ holidayCountry: 'US' }, 'iso'), '2026-09-07');
+});
+
+test('thresholdPenState reports EFFECTIVE always-bold via badge.bold', () => {
+  const badge = PConf.badgeResolvers.get('thresholdPenState');
+  assert.equal(typeof badge, 'function', 'badge resolver registered');
+  const env = { thresholds: true };
+  const args = { messageKey: 'statusTopMid' };
+  const state = (S) => badge(Object.assign({ statusTopMid: 'date' }, S), env, args);
+  assert.equal(state({}).bold, false, 'default ladder (off) shows no B');
+  assert.equal(state({ threshDateBoldMode: 'always' }).bold, true,
+    'the slot kind\'s own Always lights the B');
+  assert.equal(state({ threshDateBoldMode: 'warn' }).bold, false,
+    'warn is conditional bold, not always — no B');
+  assert.equal(state({ statusBoldAll: 'all' }).bold, true,
+    'the Watch-tab master forces every kind at pack time, so the badge shows it');
+  assert.ok(state({ statusBoldAll: 'all' }).ariaNote.indexOf('always bold') !== -1,
+    'the state is announced, not only drawn');
+  assert.equal(badge({ statusTopMid: 'date' }, { thresholds: false }, args), null,
+    'aplite (no thresholds env) badges nothing, B included');
+});
+
 test('layoutPresetOptions resolver: compactDense offered once health OR radar shows a status row', () => {
   const resolver = global.PConf.optionsResolvers.get('layoutPresetOptions');
   assert.equal(typeof resolver, 'function', 'resolver registered');

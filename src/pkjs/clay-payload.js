@@ -11,6 +11,7 @@ var resolveInk = require('./resolve-ink.js').resolveInk;
 var statusThresholds = require('./status-thresholds.js');
 var platformLib = require('./config-ui/lib/platform.js');
 var lineStyle = require('./line-style.js');
+var dateFormat = require('./date-format.js');
 
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
 var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
@@ -164,6 +165,12 @@ function buildClayPayload(settings, watchInfo, now) {
     var env = platformLib.computeEnv(watchInfo);
     if (env.thresholds) {
         payload.CLAY_THRESHOLDS_UINT8 = statusThresholds.buildSettingsBlob(settings);
+        // Date-slot formats [monthYear, fullDate] — settings-derived, so they ride
+        // the Clay message. Gated with the threshold blob: the pickers live on the
+        // Date slot's edit sheet, which shares this env gate, and an aplite watch
+        // keeps its frozen twin's hardcoded formats and compiles the config fields
+        // out (config_wire.c), so the 9 B stay out of its Clay bundle.
+        payload.CLAY_DATE_FORMAT_UINT8 = dateFormat.buildDateFormatBytes(settings);
     }
 
     // Custom radar empty-state text — settings-derived, so it rides the Clay

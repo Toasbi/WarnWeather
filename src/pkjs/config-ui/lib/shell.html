@@ -334,6 +334,9 @@
      nothing to press, and deliberately NOT inside the Edit button, where its ~29px
      widened exactly the rows that had it and broke the right-edge alignment. */
   .thr-swatch { flex: none; display: inline-flex; align-items: center; gap: 4px; }
+  /* Always-bold marker: a heavy "B" in the same preview lane as the dots — the
+     watch's own language again (the value prints bold), no colour of its own. */
+  .pen-b { flex: none; font: 800 12px 'Inter', sans-serif; line-height: 1; color: var(--lbl); }
   .pen-dot { flex: none; width: 9px; height: 9px; border-radius: 5px; }
   .pen-dot.ring { border: 2px solid var(--th-c); box-shadow: 0 0 0 1px var(--swatch-line); }
   .pen-dot.fill { background: var(--th-c); box-shadow: inset 0 0 0 1px var(--swatch-line); }

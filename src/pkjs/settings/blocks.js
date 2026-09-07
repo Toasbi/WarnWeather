@@ -45,6 +45,36 @@ if (typeof require !== 'undefined') {
         return statusLineCatalog.slotOptions(S, env, args);
     });
 
+    // Full-date sample labels for the Date sheet's no-calendar picker, in the
+    // user's effective day/month order — the same derivation the wire's Auto
+    // format uses (clay-payload effectiveHolidayCountry: the configured holiday
+    // country, 'US' when the key is absent). Values are date-format.js'
+    // FULL_FORMAT_CODES; samples are a fixed 7 Sep 2026, not today's date — the
+    // labels are format examples, and static strings keep the list deterministic
+    // under test. ISO is the one order-blind format, so it reads the same in
+    // both branches.
+    PConf.optionsResolvers.register('dateFullFormatOptions', function (S) {
+        var country = (S && Object.prototype.hasOwnProperty.call(S, 'holidayCountry'))
+            ? S.holidayCountry : 'US';
+        return country === 'US' ? [
+            ['09.07.26', 'auto'],
+            ['09.07.2026', 'long'],
+            ['9.7.', 'noyear'],
+            ['9/7/26', 'slash'],
+            ['2026-09-07', 'iso'],
+            ['Sep 7', 'text'],
+            ['Sep 7, 2026', 'textyear']
+        ] : [
+            ['07.09.26', 'auto'],
+            ['07.09.2026', 'long'],
+            ['7.9.', 'noyear'],
+            ['7/9/26', 'slash'],
+            ['2026-09-07', 'iso'],
+            ['7 Sep', 'text'],
+            ['7. Sep 2026', 'textyear']
+        ];
+    });
+
     // The six graph metrics in picker order — one list feeds both forecast pickers.
     var FORECAST_METRICS = [
         ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'],
@@ -568,7 +598,16 @@ if (typeof require !== 'undefined') {
             S[slotKeys[i]] = statusLineCatalog.slotDefault(slotKeys[i], env);
         }
         var schemaKeys = ['statusBoldAll', 'tempSlotDisplay',
+            'dateSlotMonthFormat',
             'windSlotDirection', 'gustSlotDirection'];
+        // dateSlotFullFormat is the one key here whose fresh-install value is
+        // COUNTRY-derived, not the schema default: the wizard writes
+        // mapCountry().dateSlotFullFormat ('slash' for US installs). Resetting
+        // it through defaultOf would hand a US install the dotted '09.07.26'
+        // no fresh install ever shows — so it resets through the same
+        // derivation the wizard applies (country-defaults.js, the one home
+        // for that rule).
+        S.dateSlotFullFormat = CD.mapCountry(S.holidayCountry).dateSlotFullFormat;
         // The six "Show unit" keys come from the catalog's table — the same
         // list the baker and renderSignature derive from.
         for (var u = 0; u < statusLineCatalog.UNIT_TOGGLES.length; u++) {
@@ -598,6 +637,18 @@ if (typeof require !== 'undefined') {
         for (var i = 0; i < contract.KINDS.length; i++) {
             if (contract.KINDS[i].code !== code) { continue; }
             var enabled = contract.kindConfig(S, i).enabled;
+            // EFFECTIVE always-bold, not the stored ladder alone: the Watch-tab
+            // master row packs every kind's bold cell as always at wire time
+            // (status-thresholds.js' settings-blob packer — not named here: this
+            // comment ships into the flat page, and a page-side occurrence of
+            // that name trips the never-called-from-page guard) without touching
+            // the stored per-kind values, and the badge previews what the watch
+            // will actually render — so the master lights every slot's B.
+            var boldAlways = S.statusBoldAll === 'all'
+                || S['thresh' + contract.KINDS[i].key + 'BoldMode'] === 'always';
+            var notes = [];
+            if (enabled) { notes.push('highlighting on'); }
+            if (boldAlways) { notes.push('always bold'); }
             var penWarn = thresholdDisplayColor(S, contract.KINDS[i].key, 'Warn');
             return {
                 // The slot's sheet-trigger BUTTON label. The sheet configures the
@@ -606,7 +657,8 @@ if (typeof require !== 'undefined') {
                 // A disabled kind still gets the labeled button — it just badges no
                 // dots and adds no aria note, since there is no state to preview.
                 label: 'Edit',
-                ariaNote: enabled ? 'highlighting on' : '',
+                ariaNote: notes.join(', '),
+                bold: boldAlways,
                 // The watch's own language: warn is an OUTLINE, danger is FILLED.
                 // No warn outline configured -> neutral gray ring (the enabled badge
                 // still reads; the ring hue just carries no color meaning then).

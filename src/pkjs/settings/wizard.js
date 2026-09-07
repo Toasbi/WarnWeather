@@ -281,6 +281,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         S.windUnits = m.windUnits;
         S.distanceUnits = m.distanceUnits;
         S.weekStartDay = m.weekStartDay;
+        S.dateSlotFullFormat = m.dateSlotFullFormat;
     }
 
     // --- screen 1: reuse the real settings searchSelect for country/region ---

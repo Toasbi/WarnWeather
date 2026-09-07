@@ -42,6 +42,12 @@ bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
     // but only emery pays the dict_find to look it up.
     Tuple *clay_large_graph_font_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_LARGE_GRAPH_FONT);
 #endif
+#if !defined(PBL_PLATFORM_APLITE)
+    // Optional (older phone builds omit it); both date formats then stay 0 = Auto.
+    // Not on aplite, like the fields (config.h): the phone omits the tuple for an
+    // aplite watch too (clay-payload gates it with the threshold blob).
+    Tuple *clay_date_format_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_DATE_FORMAT_UINT8);
+#endif
 #if defined(PBL_HEALTH)
     // Optional (older phone builds omit it); hr_scale then stays 0 = unset, and
     // health_graph_layer falls back to its own HEALTH_HR_LO/HEALTH_HR_HI.
@@ -95,6 +101,16 @@ bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
         // Booleans arrive as int16 (like every other CLAY_ toggle above) -- NOT int32,
         // which is the colour / hr_scale idiom.
         out->large_graph_font = (bool) (clay_large_graph_font_tuple->value->int16);
+    }
+#endif
+#if !defined(PBL_PLATFORM_APLITE)
+    if (clay_date_format_tuple && clay_date_format_tuple->type == TUPLE_BYTE_ARRAY
+        && clay_date_format_tuple->length >= 2) {
+        // [0] month-year format, [1] full-date format (date_format.h wire
+        // vocabulary). Length is a MINIMUM, the line-style tuple's growth
+        // contract: a future byte appends with its own check.
+        out->date_month_format = clay_date_format_tuple->value->data[0];
+        out->date_full_format = clay_date_format_tuple->value->data[1];
     }
 #endif
 #if defined(PBL_HEALTH)

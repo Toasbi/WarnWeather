@@ -44,6 +44,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 **Status lines**
 * Configurable status slots on every view: fill each slot from a catalog of metrics — weather, dew point, air quality, pollen, wind, health, watch battery (glyph or percentage), phone battery, a countdown to any date, and more
+* Selectable date format for the date slot — German/European, US, ISO, and spelled-out-month styles, chosen separately for calendar views (month + year) and no-calendar views (full date)
 * Threshold highlighting: bold, outline, or fill a status slot when a metric crosses a warn or danger level you set
 
 **Watchface themes**

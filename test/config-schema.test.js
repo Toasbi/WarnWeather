@@ -61,6 +61,7 @@ const EXPECTED_KEYS = [
   'holidayCountry','holidayRegion',
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','fetchNoticeAck','locationMode','location',
   'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','windScale','pressureScale','thirdLine','tempSlotDisplay',
+  'dateSlotMonthFormat','dateSlotFullFormat',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','radarNoRainText','rainCountdownHorizon',
   'layoutPreset','largeGraphFont','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear','reset',
   'statusBoldAll',
@@ -1393,6 +1394,31 @@ const UNIT_ROWS = [
 const sheetById = (id) => schema.tabs.find((t) => t.id === 'watch').sections
   .filter((s) => s.sheetOnly).find((s) => s.sheetId === id);
 
+test('the Date sheet carries the two format pickers, wire-lockstep and Bold-led', () => {
+  const CODES = require('../src/pkjs/date-format.js');
+  const sheet = sheetById('threshDate');
+  assert.ok(sheet, 'no threshDate sheet');
+  assert.match(String(sheet.items[0].messageKey), /BoldMode$/, 'Bold still leads the sheet');
+  const month = sheet.items.find((i) => i.messageKey === 'dateSlotMonthFormat');
+  const full = sheet.items.find((i) => i.messageKey === 'dateSlotFullFormat');
+  assert.ok(month && full, 'both pickers present');
+  // Each picker says WHEN its string is on screen — the sheet's whole job is
+  // explaining that the calendar decides which format applies.
+  assert.equal(month.label, 'Date format with calendar');
+  assert.equal(month.hint, 'Used when a calendar is on screen.');
+  assert.equal(full.label, 'Date format without calendar');
+  assert.equal(full.hint, 'Used when no calendar is on screen.');
+  // The month list's values ARE the wire vocabulary (index = byte), lockstep with
+  // date-format.js and through it the C enum; the full list resolves through
+  // dateFullFormatOptions, pinned to the same rule in config-blocks.test.js.
+  assert.equal(month.type, 'radio');
+  assert.deepEqual(month.options.map((o) => o[1]), CODES.MONTH_FORMAT_CODES);
+  assert.equal(month.defaultValue, 'auto');
+  assert.equal(full.type, 'radio');
+  assert.equal(full.optionsFrom.resolver, 'dateFullFormatOptions');
+  assert.equal(full.defaultValue, 'auto');
+});
+
 test('the six phone-baked slot kinds each carry a Show unit toggle', () => {
   UNIT_ROWS.forEach((row) => {
     const sheet = sheetById(row.sheetId);
@@ -1472,6 +1498,24 @@ test('resetStatusSlots restores each Show unit toggle to its schema default', ()
     assert.strictEqual(S[row.key], byKey(row.key).defaultValue,
       row.key + ' must come back as the schema ships it');
   });
+});
+
+// dateSlotFullFormat is the one reset key whose fresh-install value is COUNTRY-
+// derived (the wizard writes mapCountry's pick), so the reset must land a US
+// install back on 'slash' — the schema default 'auto' would hand it the dotted
+// '09.07.26' no fresh US install ever shows. The month format has no country
+// dependence and resets to the schema's 'auto' like every other key.
+test('resetStatusSlots restores the date formats country-aware, like the wizard', () => {
+  const PConf = global.PConf;
+  const env = { thresholds: true, color: true, health: true };
+  const defaultOf = (key) => PConf.engine.resolveDefaultFrom(byKey(key), env);
+  const us = { holidayCountry: 'US', dateSlotFullFormat: 'iso', dateSlotMonthFormat: 'name' };
+  PConf.actions.resetStatusSlots(null, us, env, defaultOf);
+  assert.equal(us.dateSlotFullFormat, 'slash', 'US resets to the wizard-derived 9/7/26');
+  assert.equal(us.dateSlotMonthFormat, 'auto', 'the month format resets to the schema default');
+  const de = { holidayCountry: 'DE', dateSlotFullFormat: 'iso' };
+  PConf.actions.resetStatusSlots(null, de, env, defaultOf);
+  assert.equal(de.dateSlotFullFormat, 'auto', 'everyone else resets to Auto');
 });
 
 // Same drift guard for the two direction arrows: their defaults are NOT uniform

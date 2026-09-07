@@ -542,13 +542,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
-   * The badge's colour preview — one dot per entry in badge.dots, outlined when the
-   * entry sets `ring` and filled otherwise — or '' when the row has no badge or an
-   * empty dot list. It sits BEFORE the control as a passive preview, not inside the
-   * edit button: carried inside, the swatches widened the button by ~29px exactly on
-   * the rows that had them, so the Edit buttons could never line up down the right
-   * edge. Out here the button is one fixed width and the swatch reads as what it is —
-   * a preview of the colors, with nothing to press.
+   * The badge's state preview — a bold "B" when badge.bold is set (the slot's value
+   * renders always-bold on the watch), then one dot per entry in badge.dots, outlined
+   * when the entry sets `ring` and filled otherwise — or '' when the row has neither.
+   * It sits BEFORE the control as a passive preview, not inside the edit button:
+   * carried inside, the swatches widened the button by ~29px exactly on the rows that
+   * had them, so the Edit buttons could never line up down the right edge. Out here
+   * the button is one fixed width and the swatch reads as what it is — a preview,
+   * with nothing to press. aria-hidden like the dots: the badge's ariaNote already
+   * announces the state on the Edit button itself.
    *
    * @param {{editSheet: ?string, editBadge: ?Object}} view Render view state.
    * @returns {string} Swatch HTML, or ''.
@@ -556,8 +558,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   function editSwatchHtml(view) {
     var badge = view.editBadge;
     var dots = (badge && badge.dots) || [];
-    if (!view.editSheet || !dots.length) { return ''; }
+    var bold = Boolean(badge && badge.bold);
+    if (!view.editSheet || (!dots.length && !bold)) { return ''; }
     var h = '<span class="thr-swatch" aria-hidden="true">', i;
+    if (bold) { h += '<span class="pen-b">B</span>'; }
     for (i = 0; i < dots.length; i++) {
       h += '<span class="pen-dot ' + (dots[i].ring ? 'ring' : 'fill')
         + '" style="--th-c:' + esc(String(dots[i].color)) + '"></span>';
@@ -1195,6 +1199,66 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    *
    * @returns {void}
    */
+  // Fraction of the peek row left visible below the fold. A bit over half: enough of the last
+  // item shows to read it, while the clipped remainder still advertises "there's more — scroll".
+  var PEEK_ROW_FRACTION = 0.66;
+  // The capped bottom edge already reads as a peek when at least this much of the fold row
+  // shows (readable) ...
+  var MIN_PEEK_PX = 20;
+  // ... AND at least this much of it is clipped (visibly cut off, so it advertises the scroll).
+  var MIN_CLIP_PX = 12;
+  // Plain select is content-sized up to the 80dvh cap. When the option list overflows, the
+  // last visible row can land flush (or as a too-thin sliver) against the sheet's bottom edge,
+  // so nothing meaningful peeks out and the sheet reads as un-scrollable. Find the row the
+  // capped edge lands in (the fold row): when the natural edge already shows a readable,
+  // clearly-clipped slice of it, the full capped height IS the peek — leave it alone. This
+  // matters for the edit sheets, whose "rows" can be whole stacked radio groups hundreds of
+  // px tall (the Date-format sheet): the old always-align-to-PEEK_ROW_FRACTION rule cut back
+  // to a fraction of such a row and collapsed the sheet far below its cap. Only when the edge
+  // lands flush on a boundary (or leaves a sliver) pull back: clip a nearly-complete fold row
+  // by MIN_CLIP_PX, or cut the classic row fraction when only a sliver shows. Idempotent:
+  // resets its own clamp and re-measures the clean 80dvh-capped height each call, so it's
+  // safe to run repeatedly (see scheduleSelectPeek in boot). .picking is excluded too: the
+  // point of the raised cap is to show the whole palette, so clamping the list to leave a
+  // peek row would undo it. Top-level (not inside boot) so the test harness can drive it
+  // against a stub dialog (select-peek.test.js).
+  function fitSelectPeek(dlg) {
+    if (!dlg.open || dlg.classList.contains('search') || dlg.classList.contains('picking')) { return; }
+    var list = dlg.querySelector('.ssel-list');
+    if (!list) { return; }
+    list.style.maxHeight = '';                  // reset → measure the clean, capped height
+    var H = list.clientHeight;
+    // Bail until the dialog is actually laid out under its cap. On a mobile webview clientHeight
+    // reads a pre-layout value right after showModal() (the whole content height, not yet capped),
+    // so scrollHeight <= H and we'd wrongly no-op — scheduleSelectPeek re-runs us once layout
+    // settles (rAF + the sheet-up animationend), when H is the real capped height and overflows.
+    if (!H || list.scrollHeight <= H + 1) { return; }
+    // Walk to the fold row — the row the capped bottom edge lands inside.
+    var rows = list.children, top = 0, i, h = 0, prevH = 0;
+    for (i = 0; i < rows.length; i++) {
+      h = rows[i].offsetHeight;
+      if (top + h > H) { break; }
+      prevH = h;
+      top += h;
+    }
+    if (i >= rows.length) { return; }           // content ends at the cap — nothing to peek
+    var shown = H - top;                        // slice of the fold row visible un-clamped
+    if (shown >= MIN_PEEK_PX && h - shown >= MIN_CLIP_PX) { return; }   // natural peek already
+    var target;
+    if (shown >= MIN_PEEK_PX) {
+      // The fold row is nearly complete — clip it by MIN_CLIP_PX instead of collapsing
+      // to its row fraction (that is the giant-row trap the fold-walk exists to avoid).
+      target = top + h - MIN_CLIP_PX;
+    } else {
+      // Flush boundary or an unreadable sliver — the classic cut: PEEK_ROW_FRACTION of
+      // the fold row, or of the row above when the fold row's fraction doesn't fit.
+      target = top + h * PEEK_ROW_FRACTION;
+      if (target > H && prevH) { target = (top - prevH) + prevH * PEEK_ROW_FRACTION; }
+    }
+    if (target > H || target < 24) { return; }
+    list.style.maxHeight = Math.round(target) + 'px';
+  }
+
   function boot() {
     var SCHEMA = INJECTED_SCHEMA, ENV = INJECTED_ENV || { color: true, round: false, platform: '', health: true };
     var USERDATA = INJECTED_USERDATA || {}, RETURN_TO = INJECTED_RETURN || 'pebblejs://close#';
@@ -1282,11 +1346,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           // searchSelect filters as you type; pin a fixed height so a shrinking list can't
           // resize the sheet and make it jump. Plain select stays content-sized — as does
           // the edit sheet, which shares the same peek clamp when its rows overflow.
+          // The peek runs on EVERY render pass, not just the open edge: interacting inside
+          // an edit sheet re-renders it (innerHTML rebuild), which discards the previous
+          // inline clamp — gated on `opening`, the first tap on any control visibly grew
+          // the sheet to the raw cap. Idempotent, so the repeat runs are free.
           if (dlg.querySelector('[data-select-search]')) {
             dlg.classList.add('search');
           } else {
             dlg.classList.remove('search');
-            if (opening) { scheduleSelectPeek(dlg); }
+            scheduleSelectPeek(dlg, opening);
           }
         }
       } else if (dlg.open) {
@@ -1326,50 +1394,18 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         dlg.style.maxHeight = '';
       }
     }
-    // Fraction of the peek row left visible below the fold. A bit over half: enough of the last
-    // item shows to read it, while the clipped remainder still advertises "there's more — scroll".
-    var PEEK_ROW_FRACTION = 0.66;
-    // Plain select is content-sized up to the 80dvh cap. When the option list overflows, the
-    // last visible row can land flush (or as a too-thin sliver) against the sheet's bottom edge,
-    // so nothing meaningful peeks out and the sheet reads as un-scrollable. Clamp the list so its
-    // bottom edge cuts a row partway down (PEEK_ROW_FRACTION), always leaving a partial-row peek
-    // that advertises the scroll. Rows vary in height (group headers vs options), so accumulate
-    // real heights and pick the deepest row whose cut point still fits under the cap — the tallest
-    // sheet that still shows a peek. Idempotent: resets its own clamp and re-measures the clean
-    // 80dvh-capped height each call, so it's safe to run repeatedly (see scheduleSelectPeek).
-    // .picking is excluded too: the point of the raised cap is to show the whole palette, so
-    // clamping the list to leave a peek row would undo it. (No current call site reaches here
-    // with a palette open — scheduleSelectPeek only runs on the sheet's open edge — this keeps
-    // a future one from silently re-shrinking the sheet.)
-    function fitSelectPeek(dlg) {
-      if (!dlg.open || dlg.classList.contains('search') || dlg.classList.contains('picking')) { return; }
-      var list = dlg.querySelector('.ssel-list');
-      if (!list) { return; }
-      list.style.maxHeight = '';                  // reset → measure the clean, capped height
-      var H = list.clientHeight;
-      // Bail until the dialog is actually laid out under its cap. On a mobile webview clientHeight
-      // reads a pre-layout value right after showModal() (the whole content height, not yet capped),
-      // so scrollHeight <= H and we'd wrongly no-op — scheduleSelectPeek re-runs us once layout
-      // settles (rAF + the sheet-up animationend), when H is the real capped height and overflows.
-      if (!H || list.scrollHeight <= H + 1) { return; }
-      var rows = list.children, top = 0, target = 0, i, h, cut;
-      for (i = 0; i < rows.length; i++) {
-        h = rows[i].offsetHeight;
-        cut = top + h * PEEK_ROW_FRACTION;        // bottom edge lands here → row shown at that fraction
-        if (cut > H) { break; }                   // past the fold — the previous row is the peek
-        target = cut;                             // deepest row whose cut point still fits so far
-        top += h;
-      }
-      if (target >= 24) { list.style.maxHeight = Math.round(target) + 'px'; }
-    }
     // Run fitSelectPeek now and again after the sheet's open layout settles. The synchronous call
     // covers desktop/no-animation; the double-rAF and sheet-up animationend cover mobile webviews
     // that lay the capped dialog out a frame (or the animation) late. All runs are idempotent.
-    function scheduleSelectPeek(dlg) {
+    // `opening` gates the animationend hook: re-render calls (every render while a sheet stays
+    // open — the innerHTML rebuild drops the previous inline clamp) run on an already-settled
+    // layout, and re-adding the listener each render would stack one per interaction.
+    function scheduleSelectPeek(dlg, opening) {
       fitSelectPeek(dlg);
       if (typeof requestAnimationFrame === 'function') {
         requestAnimationFrame(function () { requestAnimationFrame(function () { fitSelectPeek(dlg); }); });
       }
+      if (!opening) { return; }
       dlg.addEventListener('animationend', function once() {
         dlg.removeEventListener('animationend', once);
         fitSelectPeek(dlg);
@@ -1839,7 +1875,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     paintThresholdRange: paintThresholdRange,
     renderTabBar: renderTabBar, renderBody: renderBody, resolveOptionsFrom: resolveOptionsFrom,
     resolveDefaultFrom: resolveDefaultFrom,
-    resolveTheme: resolveTheme
+    resolveTheme: resolveTheme,
+    fitSelectPeek: fitSelectPeek
   };
 })();
 if (typeof module !== 'undefined' && module.exports) {
@@ -1866,6 +1903,7 @@ if (typeof module !== 'undefined' && module.exports) {
     renderTabBar: PConf.engine.renderTabBar, renderBody: PConf.engine.renderBody,
     resolveOptionsFrom: PConf.engine.resolveOptionsFrom,
     resolveDefaultFrom: PConf.engine.resolveDefaultFrom,
-    resolveTheme: PConf.engine.resolveTheme
+    resolveTheme: PConf.engine.resolveTheme,
+    fitSelectPeek: PConf.engine.fitSelectPeek
   };
 }

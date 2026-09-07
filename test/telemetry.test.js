@@ -102,6 +102,17 @@ test('snapshot includes tempSlotDisplay as a string', () => {
   assert.strictEqual(buildSettingsSnapshot({}).tempSlotDisplay, undefined);
 });
 
+// The date slot's two format picks, raw like tempSlotDisplay above — same lockstep
+// rule (watch-side snapshot AND the Deno .strip() schema, or ingest drops them).
+test('snapshot includes the two date-slot format picks as strings', () => {
+  assert.strictEqual(
+    buildSettingsSnapshot({ dateSlotMonthFormat: 'name' }).dateSlotMonthFormat, 'name');
+  assert.strictEqual(
+    buildSettingsSnapshot({ dateSlotFullFormat: 'textyear' }).dateSlotFullFormat, 'textyear');
+  assert.strictEqual(buildSettingsSnapshot({}).dateSlotMonthFormat, undefined);
+  assert.strictEqual(buildSettingsSnapshot({}).dateSlotFullFormat, undefined);
+});
+
 // The two per-kind wind-direction toggles. Same lockstep rule as pressureScale above:
 // watch-side snapshot AND the Deno .strip() schema, or ingest silently drops them.
 test('snapshot includes the wind and gust direction toggles as real booleans', () => {
@@ -472,6 +483,7 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
   // theme so all six picks report (bw would report none of them).
   const settings = {
     temperatureUnits: 'fahrenheit', tempSlotDisplay: 'both', aqiScale: 'european',
+    dateSlotMonthFormat: 'name', dateSlotFullFormat: 'textyear',
     aqiSource: 'openmeteo', windUnits: 'beaufort', distanceUnits: 'imperial',
     windSlotDirection: true, gustSlotDirection: true,
     threshPhoneBatteryBoldMode: 'always', configTheme: 'light', dayNightShading: true,

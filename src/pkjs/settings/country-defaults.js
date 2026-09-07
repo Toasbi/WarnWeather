@@ -30,6 +30,10 @@ var FAHRENHEIT_COUNTRIES = { US: true };
 // Countries that start the week on Sunday. Parallel to FAHRENHEIT_COUNTRIES —
 // US only for now, trivially extensible (CA, JP, IL, …). Everyone else: Monday.
 var SUNDAY_START_COUNTRIES = { US: true };
+// Countries that write full dates US-style, month-first with slashes (9/7/26) —
+// the wizard's pick for the no-calendar date slot. Everyone else keeps 'auto'
+// (dotted, day-first — dd.mm.yy). Parallel to the two sets above.
+var SLASH_DATE_COUNTRIES = { US: true };
 
 /**
  * Map an IANA timezone id to an ISO country code.
@@ -83,7 +87,8 @@ function mapCountry(cc) {
         temperatureUnits: imperial ? 'f' : 'c',
         windUnits: imperial ? 'mph' : 'kph',
         distanceUnits: imperial ? 'imperial' : 'metric',
-        weekStartDay: (cc && SUNDAY_START_COUNTRIES[cc]) ? 'sun' : 'mon'
+        weekStartDay: (cc && SUNDAY_START_COUNTRIES[cc]) ? 'sun' : 'mon',
+        dateSlotFullFormat: (cc && SLASH_DATE_COUNTRIES[cc]) ? 'slash' : 'auto'
     };
     if (cc === 'DE') { return Object.assign({ provider: 'dwd', radarProvider: 'dwd' }, units); }
     if (cc && METNO_COUNTRIES[cc]) { return Object.assign({ provider: 'metno', radarProvider: 'metno' }, units); }

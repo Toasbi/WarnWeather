@@ -1,4 +1,5 @@
 #include "config.h"
+#include "date_format.h"
 #include "persist.h"
 #include "math.h"
 #include "memory_log.h"
@@ -58,6 +59,12 @@ static Config config_defaults(void) {
         // small -> large a moment after boot. Guarded because the field itself is
         // (see config.h).
         .large_graph_font = true,
+#endif
+#if !defined(PBL_PLATFORM_APLITE)
+        // Auto — today's formats ("%b %Y" / dd.mm.yy per date_month_first) until
+        // the user picks otherwise on the Date slot's edit sheet.
+        .date_month_format = DATE_MONTH_AUTO,
+        .date_full_format = DATE_FULL_AUTO,
 #endif
     };
 }

@@ -53,6 +53,11 @@ cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/status_icon_weight_test.c -o build/host/s
 build/host/status_icon_weight_test_emery
 cc $CFLAGS test/c/status_row_alloc_test.c src/c/appendix/status_row_alloc.c -o build/host/status_row_alloc_test
 build/host/status_row_alloc_test
+# Header-only pure date-slot formatters (static inline in date_format.h, no .c file —
+# the status_icon_weight pattern). Built once: no platform #ifdefs inside; aplite
+# never compiles the caller (its status_row twin keeps the hardcoded formats).
+cc $CFLAGS test/c/date_format_test.c -o build/host/date_format_test
+build/host/date_format_test
 cc $CFLAGS test/c/top_status_indicators_test.c -o build/host/top_status_indicators_test
 build/host/top_status_indicators_test
 # Header-only pure curve (static inline in hatch.h, no .c file — same pattern as

@@ -80,6 +80,13 @@ function buildSettingsSnapshot(settings, watchInfo) {
     var snapshot = {
         temperatureUnits: safe.temperatureUnits,
         tempSlotDisplay: safe.tempSlotDisplay,
+        // The date slot's two format picks (edit sheet), raw like tempSlotDisplay.
+        // dateSlotFullFormat is wizard-seeded per country ('slash' for US installs,
+        // 'auto' elsewhere), so a present value does NOT mean the user opened the
+        // sheet — and a stored 'auto' is indistinguishable from untouched. Only
+        // dateSlotMonthFormat stays absent until the sheet is first saved.
+        dateSlotMonthFormat: safe.dateSlotMonthFormat,
+        dateSlotFullFormat: safe.dateSlotFullFormat,
         aqiScale: safe.aqiScale,
         aqiSource: safe.aqiSource,
         windUnits: safe.windUnits,

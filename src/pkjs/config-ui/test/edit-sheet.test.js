@@ -115,6 +115,31 @@ test('badge with an empty dot list: the Edit button still renders, no swatch', (
     'an empty ariaNote adds no parentheses');
 });
 
+test('badge bold flag: a pen-b "B" leads the swatch, with or without dots', () => {
+  // bold + dots: the B renders inside the swatch, BEFORE the colour dots.
+  const BOLD = JSON.parse(JSON.stringify(SCHEMA));
+  BOLD.tabs[0].sections[0].items[0].editBadgeFrom = { resolver: 'penBadgeBold' };
+  global.PConf.badgeResolvers.register('penBadgeBold', function () {
+    return { label: 'Edit', ariaNote: 'always bold', bold: true,
+      dots: [{ color: '#00AAFF', ring: true }] };
+  });
+  const html = E.renderBody(BOLD, 't', cxFor(E.hydrate(BOLD, {})));
+  assert.ok(/thr-swatch[^>]*><span class="pen-b">B<\/span><span class="pen-dot ring"/.test(html),
+    'the B leads the dot inside the swatch');
+  // bold alone (a bold-only kind with no thresholds): the swatch renders for the
+  // B even though the dot list is empty — the case the dots-only guard used to
+  // collapse.
+  const BOLD_ONLY = JSON.parse(JSON.stringify(SCHEMA));
+  BOLD_ONLY.tabs[0].sections[0].items[0].editBadgeFrom = { resolver: 'penBadgeBoldOnly' };
+  global.PConf.badgeResolvers.register('penBadgeBoldOnly', function () {
+    return { label: 'Edit', ariaNote: 'always bold', bold: true, dots: [] };
+  });
+  const only = E.renderBody(BOLD_ONLY, 't', cxFor(E.hydrate(BOLD_ONLY, {})));
+  assert.ok(only.indexOf('<span class="pen-b">B</span>') !== -1, 'the B renders without dots');
+  assert.equal(only.indexOf('pen-dot'), -1, 'no dots invented for the empty list');
+  assert.ok(only.indexOf('(always bold)') !== -1, 'the state is announced via ariaNote');
+});
+
 test('renderEditModal: header + intro + fields for the open sheet; \'\' otherwise', () => {
   const S = E.hydrate(SCHEMA, {});
   const html = E.renderEditModal(SCHEMA, cxFor(S, { openEdit: 'sheetWind' }));

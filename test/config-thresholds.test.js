@@ -654,17 +654,17 @@ test('thresholdPenState honors its env gate and the color pickers', () => {
   // app-neutral vocabulary — a label, an aria note, and an ordered dot list —
   // with the threshold meaning carried by shape: warn rings, danger fills.
   assert.deepEqual(resolver(S, ENV, args),
-    { label: 'Edit', ariaNote: 'highlighting on',
+    { label: 'Edit', ariaNote: 'highlighting on', bold: false,
       dots: [{ color: '#8A8E97', ring: true }, { color: '#FFFFFF' }] },
     'no-outline warn shows the neutral ring');
   const picked = Object.assign({}, S, { threshAqiWarnColor: '#00AAFF', threshAqiDangerColor: '#5500FF' });
   assert.deepEqual(resolver(picked, ENV, args),
-    { label: 'Edit', ariaNote: 'highlighting on',
+    { label: 'Edit', ariaNote: 'highlighting on', bold: false,
       dots: [{ color: '#00AAFF', ring: true }, { color: '#5500FF' }] });
   // A half pair (disabled kind) still gets its labeled button — just without the
   // state dots or the aria note (the button must exist to configure the kind at all).
   const half = resolver(Object.assign({}, S, { threshAqiDanger: '' }), ENV, args);
-  assert.deepEqual(half, { label: 'Edit', ariaNote: '', dots: [] });
+  assert.deepEqual(half, { label: 'Edit', ariaNote: '', bold: false, dots: [] });
   const goalArgs = { messageKey: 'statusHealthLeft' };
   const goalS = { statusHealthLeft: 'steps', threshStepsWarn: '4000', threshStepsDanger: '8000' };
   const goalBadge = resolver(goalS, ENV, goalArgs);
@@ -1135,7 +1135,8 @@ const BOLD_CODES = {
 const BOLD_SHEET_EXTRA_ROWS = {
   Temp: ['tempSlotDisplay', 'tempSlotUnit'],
   Pressure: ['pressureSlotUnit'],
-  Countdown: ['countdownSlotUnit']
+  Countdown: ['countdownSlotUnit'],
+  Date: ['dateSlotMonthFormat', 'dateSlotFullFormat']
 };
 
 // Bold value opens EVERY slot sheet — the bold-only ones, where it is the sole

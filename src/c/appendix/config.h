@@ -125,6 +125,22 @@ typedef struct {
 #if defined(PBL_PLATFORM_EMERY)
     bool large_graph_font;
 #endif
+    // --- date slot formats (v1.16): how SLOT_LIVE_DATE prints, one enum per string
+    // (date_format.h DateMonthFormat / DateFullFormat; 0 = Auto = the pre-setting
+    // behavior). Appended at the END to honour the append-only persist offsets;
+    // optional wire tuple CLAY_DATE_FORMAT_UINT8 [month_year, full_date] (older
+    // phone builds omit it, leaving the memset-zeroed Auto).
+    //
+    // !PBL_PLATFORM_APLITE-guarded, the large_graph_font argument above: aplite's
+    // frozen status-row twin keeps the hardcoded formats and its settings screen
+    // never shows the pickers (the Date edit sheet is thresholds-gated), so there
+    // the fields and their wire parse would be dead weight against the launch-size
+    // ceiling. A config blob never crosses installs, so a per-platform
+    // sizeof(Config) is safe.
+#if !defined(PBL_PLATFORM_APLITE)
+    uint8_t date_month_format;
+    uint8_t date_full_format;
+#endif
 } Config;
 
 // Read-only view of the loaded config. Non-NULL from config_load() until
