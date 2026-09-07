@@ -261,6 +261,34 @@ static void seating_no_lift(void) {
 // clock_ink_symmetry / clock_ink_residual / clock_ink_nothing_below_moves cover the platforms
 // that do have it.
 
+// Custom-layout bits 10-15 (clockOff | stripOff | order, colour-platform wire) must be
+// INVISIBLE to the twin by construction: it extracts only the tier/status fields and
+// derives top/body itself, so a custom wire synced from the phone folds to the same
+// preset shape as its 10-bit base value. Field- and rect-equality across every golden
+// wire value is the masking proof — and the aplite zero-byte guarantee's test half.
+static void custom_bits_invisible(void) {
+    const uint16_t bases[] = {
+        pack(3, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE),      // fullCal
+        pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE),      // compactCal
+        pack(2, 1, 0, STATUS_SRC_NONE,     STATUS_SRC_FORECAST),  // compact swap
+        pack(2, 1, 0, STATUS_SRC_HEALTH,   STATUS_SRC_FORECAST),  // dense (folds)
+        pack(1, 0, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE),      // noCal
+        pack(1, 0, 2, STATUS_SRC_RADAR,    STATUS_SRC_NONE),      // radar body (folds)
+    };
+    for (unsigned i = 0; i < sizeof(bases) / sizeof(bases[0]); i++) {
+        uint16_t noisy = (uint16_t)(bases[i] | 0xFC00);
+        ViewSpec a = view_spec_unpack(bases[i]);
+        ViewSpec b = view_spec_unpack(noisy);
+        expect("custom_bits.spec_equal",
+               a.top == b.top && a.calendar_rows == b.calendar_rows && a.body == b.body
+               && a.status_upper == b.status_upper && a.status_lower == b.status_lower
+               && a.status_tier == b.status_tier, true);
+        MainLayout La = layout_compute_spec(BOUNDS, &a, MET(FC_BAND_H, INK));
+        MainLayout Lb = layout_compute_spec(BOUNDS, &b, MET(FC_BAND_H, INK));
+        expect("custom_bits.rects_equal", memcmp(&La, &Lb, sizeof(La)) == 0, true);
+    }
+}
+
 int main(void) {
     golden_rects();
     downgrade_tests();
@@ -268,6 +296,7 @@ int main(void) {
     geometry_swap();
     tier_helper_tests();
     seating_no_lift();
+    custom_bits_invisible();
     if (s_failures) { printf("%d FAILURES\n", s_failures); return 1; }
     printf("layout_aplite_test: OK\n");
     return 0;

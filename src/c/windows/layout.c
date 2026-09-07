@@ -396,6 +396,12 @@ ViewSpec view_spec_unpack(uint16_t v) {
     spec.weights[0] = WEIGHT_CALENDAR;
     spec.weights[1] = WEIGHT_TIME;
     spec.weights[2] = WEIGHT_BOTTOM;
+    // Custom-layout bits. Unconditional: layout.c is compiled with WW_VIEW_CYCLE
+    // everywhere it is compiled at all (wscript's twin filter drops it on aplite;
+    // the host base build defines the macro too — scripts/test-c.sh).
+    spec.clock_off = (uint8_t)((v >> 10) & 1);
+    spec.strip_off = (uint8_t)((v >> 11) & 1);
+    spec.order     = (uint8_t)((v >> 12) & 15);
     return spec;
 }
 
@@ -527,7 +533,13 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, LayoutMetrics
 // ── View-cycle cursor (pure) ─────────────────────────────────────────────────
 
 bool view_slot_available(uint16_t value, bool has_radar, bool has_health) {
-    if (value == 0) { return false; }                // tier=off → disabled slot
+    // tier=off → disabled slot. The WIRE TIER decides, not the whole value: a custom
+    // slot could theoretically carry stray bits 10-15 over a zeroed tier (e.g. 0x400,
+    // "clock off, everything else off"), and under the old `value == 0` test such a
+    // ghost would look flickable while decoding to an empty view. No compiler emits
+    // one — removed views pack to exactly 0 — but the watch hardens anyway. This also
+    // retires the pre-existing garbage class 0x001-0x0FF (content bits, no tier).
+    if (((value >> 8) & 3) == 0) { return false; }
     ViewSpec spec = view_spec_unpack(value);
     // Through layout_visibility, not hand-written top/body/status predicates: a new
     // band, body or StatusSource value updates layout_visibility once and this

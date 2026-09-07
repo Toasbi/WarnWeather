@@ -48,6 +48,12 @@ static uint16_t pack(int tier, int top, int body, int su, int sl) {
                     | ((su & 3) << 2) | (sl & 3));
 }
 
+// The custom-layout bits on top of pack(): clockOff(10) | stripOff(11) | order(12-15).
+static uint16_t pack_custom(uint16_t base, int clock_off, int strip_off, int order) {
+    return (uint16_t)(base | ((clock_off ? 1 : 0) << 10) | ((strip_off ? 1 : 0) << 11)
+                    | ((order & 15) << 12));
+}
+
 // Golden-test shim for the retired layout_compute() production wrapper: geometry for a
 // plain calendar+forecast view at the given tier. `two_rows` picks a single upper forecast
 // row (default views) or the dual health-upper + forecast-lower stack, matching the named
@@ -233,6 +239,47 @@ static void test_unpack_positional(void) {
     LayerVisibility v = layout_visibility(&s);
     expect("unpack_positional.vis", v.radar_status && v.weather_status && !v.health_status, true);
     printf("unpack_positional OK\n");
+}
+
+// Custom-layout wire bits: clockOff(10) | stripOff(11) | order(12-15). Legacy values
+// keep all three fields zero; resolve passes them through untouched (its demotions
+// read content sources, never geometry flags).
+static void test_unpack_custom_bits(void) {
+    uint16_t base = pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE);   // CAL2 forecast
+
+    ViewSpec legacy = view_spec_unpack(base);
+    expect("custom_bits.legacy_clock_on", legacy.clock_off == 0, true);
+    expect("custom_bits.legacy_strip_on", legacy.strip_off == 0, true);
+    expect("custom_bits.legacy_order_zero", legacy.order == 0, true);
+
+    ViewSpec s = view_spec_unpack(pack_custom(base, 1, 0, 0));
+    expect("custom_bits.clock_off", s.clock_off == 1, true);
+    expect("custom_bits.clock_off_only", s.strip_off == 0 && s.order == 0, true);
+    s = view_spec_unpack(pack_custom(base, 0, 1, 0));
+    expect("custom_bits.strip_off", s.strip_off == 1, true);
+    s = view_spec_unpack(pack_custom(base, 0, 0, 11));
+    expect("custom_bits.order", s.order == 11, true);
+    // Bit 15 set (order >= 8): the value rides the AppMessage int16 as negative and is
+    // recovered by config_wire's (uint16_t) cast — pin that a full-width value decodes.
+    s = view_spec_unpack(pack_custom(base, 1, 1, 15));
+    expect("custom_bits.full_width", s.clock_off == 1 && s.strip_off == 1 && s.order == 15, true);
+    // The 10-bit content fields are untouched by the new bits.
+    expect("custom_bits.content_intact",
+           s.calendar_rows == 2 && s.top == TOP_BAND_CALENDAR && s.body == BODY_FORECAST
+           && s.status_upper == STATUS_SRC_FORECAST && s.status_lower == STATUS_SRC_NONE, true);
+
+    // resolve: capability strips demote content but never touch the custom fields —
+    // a clockless view stays clockless as configured while its sources degrade.
+    ViewSpec d = view_spec_unpack(pack_custom(
+        pack(2, 1, 2, STATUS_SRC_RADAR, STATUS_SRC_HEALTH), 1, 1, 7));
+    ViewSpec r = view_spec_resolve(d, /*has_radar*/false, /*has_health*/false);
+    expect("custom_bits.resolve_body_demoted", r.body == BODY_FORECAST, true);
+    expect("custom_bits.resolve_sources_dropped",
+           r.status_upper == STATUS_SRC_NONE && r.status_lower == STATUS_SRC_NONE, true);
+    expect("custom_bits.resolve_keeps_clock_off", r.clock_off == 1, true);
+    expect("custom_bits.resolve_keeps_strip_off", r.strip_off == 1, true);
+    expect("custom_bits.resolve_keeps_order", r.order == 7, true);
+    printf("unpack_custom_bits OK\n");
 }
 
 // Brief Task 3: per-band availability downgrades. A stripped UPPER promotes the surviving
@@ -766,6 +813,24 @@ static void view_cursor_tests(void) {
     uint16_t radarStatusSlot = pack(2, 1, 0, STATUS_SRC_RADAR, STATUS_SRC_FORECAST);
     expect("slot.radar_status_needs_radar", view_slot_available(radarStatusSlot, false, true), false);
     expect("slot.radar_status_ok_with_data", view_slot_available(radarStatusSlot, true, true), true);
+
+    // ── Disabled-slot sentinel: the WIRE TIER decides, not the whole value ────
+    // DELIBERATE BEHAVIOR CHANGE from `value == 0`: a value with stray custom bits over
+    // a zeroed tier (0x400 = "clock off, everything else off") must not make a dead slot
+    // flickable as a ghost view, and the pre-existing garbage class 0x001-0x0FF (content
+    // bits, no tier) dies with it. No shipped compiler ever emitted either shape —
+    // removed slots pack to exactly 0 — so nothing real changes availability.
+    expect("slot.flags_only_ghost_disabled", view_slot_available(0x400, true, true), false);
+    expect("slot.tierless_garbage_disabled", view_slot_available(0x001, true, true), false);
+    // A live custom slot (tier >= 1) with custom bits stays available.
+    expect("slot.custom_clockless_available",
+           view_slot_available(pack_custom(pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE),
+                                           1, 1, 5), true, true), true);
+    // Any custom-bit edit redefines the cycle: full-uint16 compare snaps the cursor home.
+    uint16_t clocked[3]   = { B_CAL2_FC_W, B_CAL2_RDR_W, 0x000 };
+    uint16_t clockless[3] = { B_CAL2_FC_W, pack_custom(B_CAL2_RDR_W, 1, 0, 0), 0x000 };
+    expect("cursor.clock_bit_edit_resets",
+           view_cursor_after_config(1, clocked, clockless) == 0, true);
 }
 
 static void view_timer_tests(void) {
@@ -1580,6 +1645,7 @@ int main(int argc, char **argv) {
     s_dump = (argc > 1 && strcmp(argv[1], "dump") == 0);
     golden_rects();
     if (!s_dump) test_unpack_positional();
+    if (!s_dump) test_unpack_custom_bits();
     if (!s_dump) test_resolve_no_health_no_radar();
     if (!s_dump) viewspec_tests();
     if (!s_dump) peek_tests();

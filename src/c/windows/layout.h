@@ -175,6 +175,16 @@ typedef struct {
     uint8_t status_lower;   // StatusSource feeding the lower (forecast-abutting) band
     uint8_t status_tier;    // LayoutTier the status rows render at
     uint8_t weights[3];     // calendar/time/bottom band weights
+#if defined(WW_VIEW_CYCLE)
+    // Custom-layout fields, decoded from wire bits 10/11/12-15 (view-cycle.js packSpec).
+    // Guarded on the flick-cycle feature macro because custom layouts are a colour-platform
+    // feature: aplite (frozen-lean fork) folds every wire value to its preset shapes and its
+    // twin never reads these bits, so the guard keeps aplite's struct — and every byte of its
+    // copy/codegen — identical to pre-custom builds.
+    uint8_t clock_off;      // 1 = this view omits the clock band (flick views only)
+    uint8_t strip_off;      // 1 = this view omits the top status strip (flick views only)
+    uint8_t order;          // canonical band-order code; 0 = the legacy fixed order
+#endif
 } ViewSpec;
 
 typedef struct {
@@ -268,9 +278,12 @@ static inline GRect layout_status_band(const ViewSpec *spec, const MainLayout *L
     return band;
 }
 
-// Decode a packed 10-bit wire value (tier<<8 | top<<6 | body<<4 | statusUpper<<2 |
-// statusLower) to a ViewSpec. Pure — the producer (main_window) supplies the value;
-// availability is resolved separately by view_spec_resolve. Value 0 decodes to a zeroed spec.
+// Decode a packed wire value (statusLower | statusUpper<<2 | body<<4 | top<<6 |
+// tier<<8 | clockOff<<10 | stripOff<<11 | order<<12) to a ViewSpec. Pure — the
+// producer (main_window) supplies the value; availability is resolved separately by
+// view_spec_resolve. Value 0 decodes to a zeroed spec. Bits 10-15 exist only on the
+// custom-layout wire; every preset value keeps them clear, and the aplite twin never
+// reads them.
 ViewSpec view_spec_unpack(uint16_t v);
 
 // Data-availability downgrades, pure. Each status source is downgraded to NONE when its
