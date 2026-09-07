@@ -229,6 +229,209 @@ static void expect(const char *name, bool got, bool want) {
     if (got != want) { printf("FAIL %s: got %d want %d\n", name, got, want); s_failures++; }
 }
 
+// ── Clockless geometry (custom layouts, Phase A3) ───────────────────────────
+// The order-0 engine with the time band collapsed (ViewSpec.clock_off): bands that
+// borrowed the clock's blank margins consume their full heights in flow, the body
+// absorbs the freed 45px (emery 60px), and the ink solver is never consulted.
+// Golden values are dump-generated and cross-checked against the design's derived
+// band tables (docs/superpowers/specs/2026-09-07-custom-view-layouts-design.md §4).
+
+static MainLayout compute_custom(uint16_t wire) {
+    ViewSpec spec = view_spec_unpack(wire);
+    return layout_compute_spec(BOUNDS, &spec, MET(FC_BAND_H, INK));
+}
+
+static void golden_rects_clockless(void) {
+    MainLayout L;
+    const uint16_t c2A = pack_custom(pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE), 1, 0, 0);
+    const uint16_t c2S = pack_custom(pack(2, 1, 0, STATUS_SRC_NONE, STATUS_SRC_NONE), 1, 0, 0);
+    const uint16_t c2D = pack_custom(pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST), 1, 0, 0);
+    const uint16_t c2B = pack_custom(pack(2, 1, 0, STATUS_SRC_NONE, STATUS_SRC_FORECAST), 1, 0, 0);
+    const uint16_t c3A = pack_custom(pack(3, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE), 1, 0, 0);
+    const uint16_t c3S = pack_custom(pack(3, 1, 0, STATUS_SRC_NONE, STATUS_SRC_NONE), 1, 0, 0);
+    const uint16_t c3D = pack_custom(pack(3, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST), 1, 0, 0);
+    const uint16_t rdr = pack_custom(pack(3, 2, 0, STATUS_SRC_NONE, STATUS_SRC_NONE), 1, 0, 0);
+    const uint16_t nA  = pack_custom(pack(1, 0, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE), 1, 0, 0);
+    const uint16_t nR  = pack_custom(pack(1, 0, 2, STATUS_SRC_NONE, STATUS_SRC_NONE), 1, 0, 0);
+#ifndef PBL_PLATFORM_EMERY
+    L = compute_custom(c2A);
+    if (s_dump) printf("  CLOCKLESS cal2 lone-upper\n");
+    // The audited compact seat does not move (band top 44 = the shared anchor); the body
+    // rises to the band's floor + STATUS_FORECAST_CLEARANCE — the freed 3rd-calendar-row
+    // and absent-clock reclaims merge into one (body 64 vs 103 clocked, +39px).
+    check("cklc2A.status",       L.status,       0, 44, 144, 17);
+    check("cklc2A.time",         L.time,         0, 58, 144, 0);
+    check("cklc2A.bottom",       L.bottom,       0, 64, 144, 104);
+    check("cklc2A.loading",      L.loading,      0, 64, 144, 104);
+    L = compute_custom(c2S);
+    if (s_dump) printf("  CLOCKLESS cal2 statusless\n");
+    // No upper row and no clock: the body anchors to the calendar band's REAL frame
+    // bottom (15 + 30) + clearance — the deepest reclaim a 2-row calendar allows.
+    check("cklc2S.status",       L.status,       0, 44, 144, 0);
+    check("cklc2S.time",         L.time,         0, 58, 144, 0);
+    check("cklc2S.bottom",       L.bottom,       0, 48, 144, 120);
+    L = compute_custom(c2D);
+    if (s_dump) printf("  CLOCKLESS cal2 dual\n");
+    // Dual in flow: A keeps the dense seat, B consumes its full fc_band_h (reserve ==
+    // band_h — no clock margin to grow into), body abuts B. Adjacent, overlap-free.
+    check("cklc2D.status",       L.status,       0, 45, 144, 15);
+    check("cklc2D.status_lower", L.status_lower, 0, 60, 144, 20);
+    check("cklc2D.time",         L.time,         0, 58, 144, 0);
+    check("cklc2D.bottom",       L.bottom,       0, 80, 144, 88);
+    L = compute_custom(c2B);
+    if (s_dump) printf("  CLOCKLESS cal2 lower-only\n");
+    // The swap shape without a clock: the lone lower band sits in flow under the
+    // calendar (full STATUS_LARGE_BAND_H reserve), body abuts it.
+    check("cklc2B.status_lower", L.status_lower, 0, 48, 144, 17);
+    check("cklc2B.time",         L.time,         0, 58, 144, 0);
+    check("cklc2B.bottom",       L.bottom,       0, 65, 144, 103);
+    L = compute_custom(c3A);
+    if (s_dump) printf("  CLOCKLESS cal3 lone-upper\n");
+    // FULL seat in flow: the abutting band consumes its full fc_band_h from time_y.
+    check("cklc3A.status",       L.status,       0, 58, 144, 20);
+    check("cklc3A.time",         L.time,         0, 58, 144, 0);
+    check("cklc3A.bottom",       L.bottom,       0, 78, 144, 90);
+    L = compute_custom(c3S);
+    if (s_dump) printf("  CLOCKLESS cal3 statusless\n");
+    check("cklc3S.time",         L.time,         0, 58, 144, 0);
+    check("cklc3S.bottom",       L.bottom,       0, 63, 144, 105);
+    L = compute_custom(c3D);
+    if (s_dump) printf("  CLOCKLESS cal3 dual\n");
+    // The FULL dual — broken (6px band overlap) with a clock, overlap-free clockless
+    // by the reserve == band_h rule: A [58,78), B [78,98), body 98.
+    check("cklc3D.status",       L.status,       0, 58, 144, 20);
+    check("cklc3D.status_lower", L.status_lower, 0, 78, 144, 20);
+    check("cklc3D.bottom",       L.bottom,       0, 98, 144, 70);
+    L = compute_custom(rdr);
+    if (s_dump) printf("  CLOCKLESS radar-top statusless\n");
+    // Radar replaces the calendar in the 3-row band; geometry equals cal3 statusless.
+    check("cklrdr.top",          L.top,          0, 15, 144, 45);
+    check("cklrdr.radar",        L.radar,        0, 15, 144, 45);
+    check("cklrdr.time",         L.time,         0, 58, 144, 0);
+    check("cklrdr.bottom",       L.bottom,       0, 63, 144, 105);
+    L = compute_custom(nA);
+    if (s_dump) printf("  CLOCKLESS none lone-upper\n");
+    check("cklnA.status",        L.status,       0, 14, 144, 22);
+    check("cklnA.time",          L.time,         0, 14, 144, 0);
+    check("cklnA.bottom",        L.bottom,       0, 36, 144, 132);
+    L = compute_custom(nR);
+    if (s_dump) printf("  CLOCKLESS none statusless radar-body\n");
+    // The full-screen radar: everything under the strip belongs to the body band.
+    check("cklnR.time",          L.time,         0, 14, 144, 0);
+    check("cklnR.bottom",        L.bottom,       0, 14, 144, 154);
+    check("cklnR.radar",         L.radar,        0, 14, 144, 154);
+#else
+    L = compute_custom(c2A);
+    if (s_dump) printf("  CLOCKLESS cal2 lone-upper (emery)\n");
+    check("cklc2A.status",       L.status,       2, 64, 196, 21);
+    check("cklc2A.time",         L.time,         2, 82, 196, 0);
+    check("cklc2A.bottom",       L.bottom,       2, 86, 198, 138);
+    check("cklc2A.loading",      L.loading,      2, 86, 196, 138);
+    L = compute_custom(c2S);
+    if (s_dump) printf("  CLOCKLESS cal2 statusless (emery)\n");
+    check("cklc2S.status",       L.status,       2, 64, 196, 0);
+    check("cklc2S.time",         L.time,         2, 82, 196, 0);
+    check("cklc2S.bottom",       L.bottom,       2, 64, 198, 160);
+    L = compute_custom(c2D);
+    if (s_dump) printf("  CLOCKLESS cal2 dual (emery)\n");
+    check("cklc2D.status",       L.status,       2, 63, 196, 20);
+    check("cklc2D.status_lower", L.status_lower, 2, 83, 198, 24);
+    check("cklc2D.time",         L.time,         2, 82, 196, 0);
+    check("cklc2D.bottom",       L.bottom,       2, 107, 198, 117);
+    L = compute_custom(c2B);
+    if (s_dump) printf("  CLOCKLESS cal2 lower-only (emery)\n");
+    check("cklc2B.status_lower", L.status_lower, 2, 64, 198, 21);
+    check("cklc2B.time",         L.time,         2, 82, 196, 0);
+    check("cklc2B.bottom",       L.bottom,       2, 85, 198, 139);
+    L = compute_custom(c3A);
+    if (s_dump) printf("  CLOCKLESS cal3 lone-upper (emery)\n");
+    check("cklc3A.status",       L.status,       2, 82, 196, 24);
+    check("cklc3A.time",         L.time,         2, 82, 196, 0);
+    check("cklc3A.bottom",       L.bottom,       2, 106, 198, 118);
+    L = compute_custom(c3S);
+    if (s_dump) printf("  CLOCKLESS cal3 statusless (emery)\n");
+    check("cklc3S.time",         L.time,         2, 82, 196, 0);
+    check("cklc3S.bottom",       L.bottom,       2, 84, 198, 140);
+    L = compute_custom(c3D);
+    if (s_dump) printf("  CLOCKLESS cal3 dual (emery)\n");
+    check("cklc3D.status",       L.status,       2, 82, 196, 24);
+    check("cklc3D.status_lower", L.status_lower, 2, 106, 198, 24);
+    check("cklc3D.bottom",       L.bottom,       2, 130, 198, 94);
+    L = compute_custom(rdr);
+    if (s_dump) printf("  CLOCKLESS radar-top statusless (emery)\n");
+    check("cklrdr.top",          L.top,          2, 23, 196, 60);
+    check("cklrdr.radar",        L.radar,        2, 23, 196, 60);
+    check("cklrdr.time",         L.time,         2, 82, 196, 0);
+    check("cklrdr.bottom",       L.bottom,       2, 84, 198, 140);
+    L = compute_custom(nA);
+    if (s_dump) printf("  CLOCKLESS none lone-upper (emery)\n");
+    check("cklnA.status",        L.status,       2, 23, 196, 30);
+    check("cklnA.time",          L.time,         2, 23, 196, 0);
+    check("cklnA.bottom",        L.bottom,       2, 53, 198, 171);
+    L = compute_custom(nR);
+    if (s_dump) printf("  CLOCKLESS none statusless radar-body (emery)\n");
+    check("cklnR.time",          L.time,         2, 23, 196, 0);
+    check("cklnR.bottom",        L.bottom,       2, 23, 198, 201);
+    check("cklnR.radar",         L.radar,        2, 23, 198, 201);
+#endif
+}
+
+// Property invariants for every clockless shape, both platforms — no golden numbers:
+// the time band collapses, the ink solver is inert, the body strictly grows vs the
+// clocked twin, and the status/lower/body chain never overlaps (reserve == band_h).
+static void clockless_property_tests(void) {
+    const uint16_t bases[] = {
+        pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE),
+        pack(2, 1, 0, STATUS_SRC_NONE, STATUS_SRC_NONE),
+        pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST),
+        pack(2, 1, 0, STATUS_SRC_NONE, STATUS_SRC_FORECAST),
+        pack(3, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE),
+        pack(3, 1, 0, STATUS_SRC_NONE, STATUS_SRC_NONE),
+        pack(3, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST),
+        pack(3, 2, 0, STATUS_SRC_NONE, STATUS_SRC_NONE),
+        pack(1, 0, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE),
+        pack(1, 0, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST),
+        pack(1, 0, 2, STATUS_SRC_NONE, STATUS_SRC_NONE),
+    };
+    const ClockInk inks[] = { { 0, 35 }, { 2, 46 }, { -2, 29 }, { 1, 40 } };
+    for (unsigned i = 0; i < sizeof(bases) / sizeof(bases[0]); i++) {
+        uint16_t wire = pack_custom(bases[i], 1, 0, 0);
+        ViewSpec s = view_spec_unpack(wire);
+        MainLayout L = layout_compute_spec(BOUNDS, &s, MET(FC_BAND_H, INK));
+
+        expect("ckl.time_collapsed", L.time.size.h == 0, true);
+
+        // Ink inert: with no clock there is nothing to centre — every rect (L.time
+        // included) must be byte-identical whatever the time font's ink says.
+        for (unsigned k = 0; k < sizeof(inks) / sizeof(inks[0]); k++) {
+            MainLayout Lk = layout_compute_spec(BOUNDS, &s, MET(FC_BAND_H, inks[k]));
+            expect("ckl.ink_inert", memcmp(&L, &Lk, sizeof(L)) == 0, true);
+        }
+
+        // The freed clock band converts into body pixels, always.
+        ViewSpec sc = view_spec_unpack(bases[i]);
+        MainLayout Lc = layout_compute_spec(BOUNDS, &sc, MET(FC_BAND_H, INK));
+        expect("ckl.body_grows", L.bottom.size.h > Lc.bottom.size.h, true);
+
+        // Band chain never overlaps: upper floor <= lower top, lower floor <= body top
+        // (the FULL dual is the shape this proves). L.status_lower is only a real band
+        // when the lower slot is filled — otherwise it aliases the upper band
+        // (layout.h's "else == status" contract) and must not be tested against the body.
+        if (s.status_lower != STATUS_SRC_NONE) {
+            if (s.status_upper != STATUS_SRC_NONE) {
+                expect("ckl.upper_clears_lower",
+                       L.status.origin.y + L.status.size.h <= L.status_lower.origin.y, true);
+            }
+            expect("ckl.lower_clears_body",
+                   L.status_lower.origin.y + L.status_lower.size.h <= L.bottom.origin.y, true);
+        } else if (s.status_upper != STATUS_SRC_NONE) {
+            expect("ckl.upper_clears_body",
+                   L.status.origin.y + L.status.size.h <= L.bottom.origin.y, true);
+        }
+    }
+    printf("clockless_properties OK\n");
+}
+
 // Brief Task 3: positional unpack + visibility.
 static void test_unpack_positional(void) {
     ViewSpec s = view_spec_unpack(pack(2 /*compact*/, 1 /*cal*/, 0 /*fc*/,
@@ -1644,6 +1847,8 @@ static void clock_label_gap_yields(void) {
 int main(int argc, char **argv) {
     s_dump = (argc > 1 && strcmp(argv[1], "dump") == 0);
     golden_rects();
+    golden_rects_clockless();
+    if (!s_dump) clockless_property_tests();
     if (!s_dump) test_unpack_positional();
     if (!s_dump) test_unpack_custom_bits();
     if (!s_dump) test_resolve_no_health_no_radar();
