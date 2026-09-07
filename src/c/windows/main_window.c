@@ -105,7 +105,23 @@ static ViewSpec unpack_slot_spec(uint16_t value) {
 
 // The ViewSpec for the view currently on screen.
 static ViewSpec current_view_spec(void) {
+#if defined(WW_VIEW_CYCLE)
+    // Belt for the phone-side guard: the DEFAULT view always keeps its clock and its
+    // top strip, whatever the wire says. The compiler never emits either bit on slot 0
+    // and the editor offers no toggle there, but a watch that shows no time is a
+    // product-breaking failure worth two compares. unpack/resolve stay slot-blind
+    // (no signature carries an index), so the one call site that knows s_view_index
+    // is where the rule lives.
+    ViewSpec spec = unpack_slot_spec(config_get()->view_spec2[s_view_index]);
+    if (s_view_index == 0) {
+        spec.clock_off = 0;
+        spec.strip_off = 0;
+    }
+    return spec;
+#else
+    // aplite keeps the bare tail call — the local-copy shape above costs it image bytes.
     return unpack_slot_spec(config_get()->view_spec2[s_view_index]);
+#endif
 }
 
 #if defined(WW_VIEW_CYCLE)
@@ -145,6 +161,13 @@ static void render_active_view(void) {
         spec.top = TOP_BAND_EMPTY;
         spec.calendar_rows = 0;
         spec.status_tier = LAYOUT_TIER_FULL;   // status band is full-tier-sized (fc_band)
+#if defined(WW_VIEW_CYCLE)
+        // Peek over a custom clockless/stripless flick view shows both anyway: the time
+        // is peek's most useful content and the strip is its anchor. layout_compute_peek
+        // never reads the flags, but the visibility toggles below do.
+        spec.clock_off = 0;
+        spec.strip_off = 0;
+#endif
         L = layout_compute_peek(unobstructed, &spec, metrics);
     } else
 #endif
@@ -182,6 +205,15 @@ static void render_active_view(void) {
     layer_set_hidden(forecast_layer_get_root(), !v.forecast);
 #if defined(PBL_HEALTH)
     layer_set_hidden(health_graph_layer_get_root(), !v.health_graph);
+#endif
+#if defined(WW_VIEW_CYCLE)
+    // Custom per-view omissions (flick views only; slot 0 is belted above, peek forces
+    // both back on). Hidden, never destroyed — ticks/refreshes on a hidden layer only
+    // set text and frames. Deliberately not routed through LayerVisibility: a field
+    // there would oblige the aplite twin's layout_visibility to populate a flag aplite
+    // can never raise.
+    layer_set_hidden(time_layer_get_root(), spec.clock_off != 0);
+    layer_set_hidden(top_status_layer_get_root(), spec.strip_off != 0);
 #endif
 }
 

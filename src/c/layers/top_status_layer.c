@@ -477,6 +477,12 @@ void top_status_layer_set_full_date(bool full_date) {
     }
 }
 
+#if defined(WW_VIEW_CYCLE)
+Layer *top_status_layer_get_root(void) {
+    return s_top_status_layer;
+}
+#endif
+
 static void bluetooth_callback(bool connected) {
     layer_mark_dirty(s_top_status_layer);
     if (!connected && config_get()->vibe)
