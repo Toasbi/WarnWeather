@@ -376,6 +376,71 @@ static void golden_rects_clockless(void) {
 #endif
 }
 
+// Stripless goldens (ViewSpec.strip_off): the strip band collapses, its reserve leaves
+// the anchor chain (bands shift UP, unchanged heights), and the body absorbs the freed
+// rows at the bottom. Clocked stripless time origins are solver-seated (ink-derived).
+static void golden_rects_stripless(void) {
+    MainLayout L;
+    const uint16_t c2A_s  = pack_custom(pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE), 0, 1, 0);
+    const uint16_t c3S_cs = pack_custom(pack(3, 1, 0, STATUS_SRC_NONE, STATUS_SRC_NONE), 1, 1, 0);
+    const uint16_t nA_s   = pack_custom(pack(1, 0, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE), 0, 1, 0);
+    const uint16_t nR_cs  = pack_custom(pack(1, 0, 2, STATUS_SRC_NONE, STATUS_SRC_NONE), 1, 1, 0);
+#ifndef PBL_PLATFORM_EMERY
+    L = compute_custom(c2A_s);
+    if (s_dump) printf("  STRIPLESS cal2 lone-upper (clocked)\n");
+    check("sflc2A.top_status",   L.top_status,   0, 0, 144, 0);
+    check("sflc2A.top",          L.top,          0, 0, 144, 30);
+    check("sflc2A.status",       L.status,       0, 31, 144, 17);
+    check("sflc2A.time",         L.time,         0, 45, 144, 45);
+    check("sflc2A.bottom",       L.bottom,       0, 90, 144, 78);
+    L = compute_custom(c3S_cs);
+    if (s_dump) printf("  STRIPLESS cal3 statusless (clockless)\n");
+    check("sflc3S.top",          L.top,          0, 0, 144, 45);
+    check("sflc3S.time",         L.time,         0, 45, 144, 0);
+    check("sflc3S.bottom",       L.bottom,       0, 48, 144, 120);
+    L = compute_custom(nA_s);
+    if (s_dump) printf("  STRIPLESS none lone-upper (clocked)\n");
+    check("sflnA.status",        L.status,       0, 45, 144, 22);
+    // Solver-seated: with no strip the clock's ink centres between the screen's top
+    // edge and the status row's ink below — 3 rows of air above (Roboto, ink_h 35).
+    check("sflnA.time",          L.time,         0, 3, 144, 45);
+    check("sflnA.bottom",        L.bottom,       0, 67, 144, 101);
+    L = compute_custom(nR_cs);
+    if (s_dump) printf("  STRIPLESS none radar-body (clockless) — the 100%% radar\n");
+    check("sflnR.top_status",    L.top_status,   0, 0, 144, 0);
+    check("sflnR.time",          L.time,         0, 0, 144, 0);
+    check("sflnR.bottom",        L.bottom,       0, 0, 144, 168);
+    check("sflnR.radar",         L.radar,        0, 0, 144, 168);
+#else
+    L = compute_custom(c2A_s);
+    if (s_dump) printf("  STRIPLESS cal2 lone-upper (clocked, emery)\n");
+    check("sflc2A.top_status",   L.top_status,   2, 2, 196, 0);
+    check("sflc2A.top",          L.top,          2, 2, 196, 40);
+    check("sflc2A.status",       L.status,       2, 44, 196, 21);
+    // Solver-seated (emery Roboto ink 46): the ink centres between the status row's cap
+    // above and the graph top below, 3 rows higher than the band's nominal seat.
+    check("sflc2A.time",         L.time,         2, 59, 196, 60);
+    check("sflc2A.bottom",       L.bottom,       2, 122, 198, 102);
+    L = compute_custom(c3S_cs);
+    if (s_dump) printf("  STRIPLESS cal3 statusless (clockless, emery)\n");
+    check("sflc3S.top",          L.top,          2, 2, 196, 60);
+    check("sflc3S.time",         L.time,         2, 62, 196, 0);
+    check("sflc3S.bottom",       L.bottom,       2, 63, 198, 161);
+    L = compute_custom(nA_s);
+    if (s_dump) printf("  STRIPLESS none lone-upper (clocked, emery)\n");
+    check("sflnA.status",        L.status,       2, 62, 196, 30);
+    // Solver-seated: ink centred between the content top edge and the status row below.
+    check("sflnA.time",          L.time,         2, 4, 196, 60);
+    check("sflnA.bottom",        L.bottom,       2, 92, 198, 132);
+    L = compute_custom(nR_cs);
+    if (s_dump) printf("  STRIPLESS none radar-body (clockless, emery) — the 100%% radar\n");
+    check("sflnR.top_status",    L.top_status,   2, 2, 196, 0);
+    check("sflnR.time",          L.time,         2, 2, 196, 0);
+    check("sflnR.bottom",        L.bottom,       2, 2, 198, 222);
+    check("sflnR.radar",         L.radar,        2, 2, 198, 222);
+#endif
+}
+
 // Property invariants for every clockless shape, both platforms — no golden numbers:
 // the time band collapses, the ink solver is inert, the body strictly grows vs the
 // clocked twin, and the status/lower/body chain never overlaps (reserve == band_h).
@@ -428,6 +493,18 @@ static void clockless_property_tests(void) {
             expect("ckl.upper_clears_body",
                    L.status.origin.y + L.status.size.h <= L.bottom.origin.y, true);
         }
+
+        // Stripless variants of the same shape: the strip band collapses, the body
+        // grows, and stacking clockless on top grows it further — each omission
+        // converts into body pixels independently.
+        ViewSpec ss = view_spec_unpack(pack_custom(bases[i], 0, 1, 0));
+        MainLayout Ls = layout_compute_spec(BOUNDS, &ss, MET(FC_BAND_H, INK));
+        expect("sfl.strip_collapsed", Ls.top_status.size.h == 0, true);
+        expect("sfl.body_grows", Ls.bottom.size.h > Lc.bottom.size.h, true);
+        ViewSpec sb = view_spec_unpack(pack_custom(bases[i], 1, 1, 0));
+        MainLayout Lb = layout_compute_spec(BOUNDS, &sb, MET(FC_BAND_H, INK));
+        expect("both.body_grows_past_clockless", Lb.bottom.size.h > L.bottom.size.h, true);
+        expect("both.body_grows_past_stripless", Lb.bottom.size.h > Ls.bottom.size.h, true);
     }
     printf("clockless_properties OK\n");
 }
@@ -1848,6 +1925,7 @@ int main(int argc, char **argv) {
     s_dump = (argc > 1 && strcmp(argv[1], "dump") == 0);
     golden_rects();
     golden_rects_clockless();
+    golden_rects_stripless();
     if (!s_dump) clockless_property_tests();
     if (!s_dump) test_unpack_positional();
     if (!s_dump) test_unpack_custom_bits();

@@ -140,10 +140,16 @@ static void split_content(int content_h, const uint8_t weights[3],
 // the bottom band (the forecast-abutting slot), independently of the upper band.
 // `clock` is false only for a custom clockless view (ViewSpec.clock_off): the time band
 // collapses to zero height, the bands that borrowed its blank margins consume their full
-// heights in flow instead, and the body absorbs everything the clock vacated. Presets
-// always pass true, so every clocked path below is byte-identical to pre-custom builds.
+// heights in flow instead, and the body absorbs everything the clock vacated.
+// `strip` is false only for a custom stripless view (ViewSpec.strip_off): the top status
+// strip's band collapses and its reserve leaves the anchor chain, so every band above the
+// body shifts up and the body absorbs the freed rows at the bottom. Band HEIGHTS are
+// deliberately untouched (the content split keeps the strip reserve in its arithmetic) —
+// removing the strip moves the remaining elements, it does not resize them.
+// Presets always pass true/true, so every preset path below is byte-identical to
+// pre-custom builds.
 static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool upper,
-                                       bool lower, bool clock, LayoutMetrics m,
+                                       bool lower, bool clock, bool strip, LayoutMetrics m,
                                        const uint8_t weights[3]) {
     // Unpacked once into locals so the body below reads exactly as it did; both are register
     // copies, and the bundling exists purely to keep the call itself off the stack (layout.h).
@@ -178,7 +184,7 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool upper,
     // footprint. Holding this fixed is what keeps the clock, the status rows and the forecast
     // graph on exactly the pixels they had when the strip's band grew (CALENDAR_STATUS_HEIGHT
     // above). The strip's surplus height is paid for out of the air below it instead.
-    int strip_anchor_y = content_y + CALENDAR_STATUS_HEIGHT;
+    int strip_anchor_y = content_y + (strip ? CALENDAR_STATUS_HEIGHT : 0);
     // The calendar starts on the first row the strip DOES NOT PAINT (status_strip_ink_h), not
     // on the first row below the strip's band. Its rows keep their height and simply slide
     // down under the taller strip — the extra px come out of the calendar→clock gap — so its
@@ -204,17 +210,21 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool upper,
     // and the calendar's first painted row, spent on the strip's threshold-highlight box —
     // its tail room and its clearance to the calendar highlight (see status_metrics.h).
     // The emery ink lifts below each shave 1 to re-centre against the lowered calendar ink.
-    int calendar_y = content_y + status_strip_ink_h(strip_h, STATUS_LARGE_FONT_H)
-                     + STATUS_STRIP_CAL_GAP;
+    // Stripless: no ink above — the calendar starts at the content top itself.
+    int calendar_y = strip ? (content_y + status_strip_ink_h(strip_h, STATUS_LARGE_FONT_H)
+                              + STATUS_STRIP_CAL_GAP)
+                           : content_y;
     int time_y = strip_anchor_y + calendar_h;
 
-    L.top_status = GRect(content_x, content_y, content_w, strip_h);
+    L.top_status = GRect(content_x, content_y, content_w, strip ? strip_h : 0);
     if (tier == LAYOUT_TIER_NONE) {
         // none: no calendar, so the clock rides directly under the strip — but it keeps the
         // slot it had under the PRE-RESIZE strip, which was one px taller than the reserve
         // (hence the +1). The taller band grows down into the strip→clock gap instead of
         // pushing the clock, the status row and the graph down.
-        int none_time_y = strip_anchor_y + 1;
+        // (+1 only under a strip: the slot the clock had under the PRE-RESIZE strip.
+        // Stripless there is nothing above at all — the clock band starts at the content top.)
+        int none_time_y = strip_anchor_y + (strip ? 1 : 0);
         int status_y = none_time_y + (clock ? time_h : 0);
         // Reserve the band under the clock only when the UPPER row actually fills it. Without a
         // calendar there is no 3rd-row slot to swap out of, so a lone LOWER row (the compact swap
@@ -234,8 +244,11 @@ static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool upper,
         // (144px ink 21..55, gaps 9/9; emery 31..76, 14/14), where the tail floor would drop
         // it a row. status_ink_top + status_cap_h == content_h, so the cap's last row is the
         // seated frame top plus the content height, less one.
-        clock_above = content_y + status_strip_seat_y(strip_h, STATUS_LARGE_FONT_H)
-                      + STATUS_LARGE_FONT_H - 1;
+        // Stripless: no ink above the clock at all — centre against the content top edge
+        // (the row just above the first content row plays the "last inked row" part).
+        clock_above = strip ? (content_y + status_strip_seat_y(strip_h, STATUS_LARGE_FONT_H)
+                               + STATUS_LARGE_FONT_H - 1)
+                            : (content_y - 1);
         upper_ch = STATUS_LARGE_FONT_H;   // NONE_ROW_FONT_KEY is the large tier font
         L.bottom = GRect(content_x, forecast_y, bottom_w, h - LAYOUT_PAD_BOTTOM - forecast_y);
         L.loading = L.bottom;
@@ -563,7 +576,9 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, LayoutMetrics
     bool upper = (spec->status_upper != STATUS_SRC_NONE);
     bool lower = (spec->status_lower != STATUS_SRC_NONE);
     bool clock = (spec->clock_off == 0);
-    MainLayout L = compute_with_weights(bounds, tier, upper, lower, clock, m, spec->weights);
+    bool strip = (spec->strip_off == 0);
+    MainLayout L = compute_with_weights(bounds, tier, upper, lower, clock, strip, m,
+                                        spec->weights);
     // Radar rides wherever it's placed: the top band when it replaces the calendar,
     // otherwise the body band (under a retained calendar, or full-screen in none tier).
     if (spec->top == TOP_BAND_RADAR) {
