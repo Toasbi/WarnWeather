@@ -31,10 +31,10 @@ static Window *s_main_window;
 // in main_window_load(). Beyond that window it boots to the DEFAULT view (index 0).
 static uint8_t s_view_index;
 #if defined(WW_VIEW_CYCLE)
-// The cycle definition (10-bit view_spec2 values) the cursor was last validated against, so
+// The cycle definition (16-bit view_spec2 values) the cursor was last validated against, so
 // main_window_apply_top_view can tell a real settings change (cycle redefined → return
 // to default) from a same-cycle re-apply (radar/health availability → keep the cursor).
-// uint16_t (not uint8_t) so a change confined to the tier/top bits (8-9) is still detected.
+// uint16_t (not uint8_t) so a change confined to the tier/top/custom bits (8-15) is still detected.
 static uint16_t s_applied_view_spec[3];
 // Epoch of the last flick (or relaunch-restore to a non-default view), seeding the
 // auto-return-to-default timer. 0 = on the default view / no timer running.
@@ -95,7 +95,7 @@ static bool health_graph_renderable(void) {
 }
 #endif
 
-// Decode a configured 10-bit slot value to a ViewSpec, then apply runtime availability
+// Decode a configured 16-bit slot value to a ViewSpec, then apply runtime availability
 // downgrades (radar data present? health renderable?). The SDK queries happen HERE;
 // layout.c stays pure.
 static ViewSpec unpack_slot_spec(uint16_t value) {
@@ -212,6 +212,13 @@ static void render_active_view(void) {
     // set text and frames. Deliberately not routed through LayerVisibility: a field
     // there would oblige the aplite twin's layout_visibility to populate a flag aplite
     // can never raise.
+    //
+    // The strip must be REFRAMED here too, not just toggled: it is created once at
+    // window load from the BOOT view's L.top_status, which is 0-height for a stripless
+    // view — a relaunch-restore onto a custom strip_off flick slot would otherwise
+    // bake that 0-height frame for the whole session (un-hiding a 0-height layer
+    // paints nothing; found by review). An identical-rect write on every preset path.
+    layer_set_frame(top_status_layer_get_root(), L.top_status);
     layer_set_hidden(time_layer_get_root(), spec.clock_off != 0);
     layer_set_hidden(top_status_layer_get_root(), spec.strip_off != 0);
 #endif
