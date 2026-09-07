@@ -4,6 +4,7 @@ var configUi = require('./config-ui');          // intToHex
 // colours for the WIRE, so this snapshot reports what the watch actually paints instead
 // of a second opinion about it.
 var lineStyle = require('./line-style.js');
+var viewCycle = require('./view-cycle.js');
 
 /**
  * Parse a value as a base-10 integer for telemetry, omitting invalid input.
@@ -77,6 +78,11 @@ function graphColorReport(settings, scope, role, suffix) {
 function buildSettingsSnapshot(settings, watchInfo) {
     var safe = settings || {};
     var cx = lineStyle.renderContext(safe, watchInfo);
+    // Custom-layout usage: the three packed CLAY_VIEW values fully describe what a
+    // custom user built (elements, seats, order, clock/strip omissions) in 3 ints.
+    // null (-> absent fields) unless custom is active, so preset rows stay unchanged.
+    var customPacked = safe.layoutPreset === 'custom'
+        ? viewCycle.buildCustomCycle(safe).map(viewCycle.packSpec) : null;
     var snapshot = {
         temperatureUnits: safe.temperatureUnits,
         tempSlotDisplay: safe.tempSlotDisplay,
@@ -117,6 +123,11 @@ function buildSettingsSnapshot(settings, watchInfo) {
         batteryLowOnly: Boolean(safe.batteryLowOnly),
         topViewMode: safe.topViewMode,
         layoutPreset: safe.layoutPreset,
+        // Lockstep with the Deno telemetry-ingest .strip() schema — deploy the
+        // function BEFORE the app ships, or these fields are silently dropped.
+        customView0: customPacked ? customPacked[0] : undefined,
+        customView1: customPacked ? (customPacked[1] || 0) : undefined,
+        customView2: customPacked ? (customPacked[2] || 0) : undefined,
         viewResetMin: toIntOrUndefined(safe.viewResetMin),
         largeGraphFont: Boolean(safe.largeGraphFont),
         vibe: !!safe.vibe,

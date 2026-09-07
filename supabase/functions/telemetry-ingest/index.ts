@@ -79,7 +79,14 @@ const settingsSchema = z
     showQt: z.boolean().optional(),
     batteryLowOnly: z.boolean().optional(),
     topViewMode: z.enum(['full', 'compact', 'none']).optional(),
-    layoutPreset: z.enum(['classic', 'radarLast', 'forecast', 'fullCal', 'healthFirst', 'compactCal', 'compactDense', 'noCal']).optional(),
+    layoutPreset: z.enum(['classic', 'radarLast', 'forecast', 'fullCal', 'healthFirst', 'compactCal', 'compactDense', 'noCal', 'custom']).optional(),
+    // Custom-layout usage: the three packed per-view wire values (uint16; elements,
+    // seats, order, clock/top-bar omissions). Present only while layoutPreset is
+    // 'custom'. DEPLOY-ORDERING: this function must ship BEFORE the app release
+    // that sends them, or the schema's strip step silently drops the fields.
+    customView0: z.number().int().min(0).max(0xFFFF).optional(),
+    customView1: z.number().int().min(0).max(0xFFFF).optional(),
+    customView2: z.number().int().min(0).max(0xFFFF).optional(),
     viewResetMin: z.number().int().min(0).optional(),
     largeGraphFont: z.boolean().optional(),
     vibe: z.boolean().optional(),
