@@ -206,6 +206,28 @@ function buildViewCycle(presetKey, healthMode, radarMode, swapClockStatus) {
   return cycle;
 }
 
+// The 12 canonical band orderings of {T=top band, C=clock, A=status upper, B=status
+// lower} with A rendered above B (the compiler assigns the visually-upper source to
+// the wire's upper slot). Index == the wire order code (spec bits 12-15). Code 0 is
+// the legacy order the presets ride (dispatched to the legacy watch engine); 1-11 go
+// to the stacked engine. MIRRORS STACK_ORDER in src/c/windows/layout.c — keep in
+// lockstep (both sides pin this exact list in their tests).
+var STACK_ORDERS = [
+  'TACB', 'TCAB', 'TABC', 'CTAB', 'CATB', 'CABT',
+  'ATCB', 'ATBC', 'ACTB', 'ACBT', 'ABTC', 'ABCT'
+];
+
+/**
+ * Wire order code for a band sequence (e.g. 'CTAB'). Unknown sequences (including
+ * a B-before-A non-canonical spelling) return 0 — the legacy order.
+ * @param {string} seq 4-char permutation of T/C/A/B
+ * @returns {number} 0-11
+ */
+function orderCode(seq) {
+  var i = STACK_ORDERS.indexOf(seq);
+  return i < 0 ? 0 : i;
+}
+
 var NEW_KEYS = { fullCal: 1, compactCal: 1, compactDense: 1, noCal: 1 };
 // legacy layoutPreset -> new. fullCal is unchanged (key kept, new semantics).
 var LEGACY_PRESET = {
@@ -241,6 +263,7 @@ var VIEW_CYCLE = {
   STATUS_SRC_RADAR: STATUS_SRC_RADAR, STATUS_SRC_HEALTH: STATUS_SRC_HEALTH,
   spec: spec, cloneSpec: cloneSpec, packSpec: packSpec, unpackSpec: unpackSpec,
   swapUpperToLower: swapUpperToLower, demoteRadarBody: demoteRadarBody,
+  STACK_ORDERS: STACK_ORDERS, orderCode: orderCode,
   buildViewCycle: buildViewCycle, resolvePresetKey: resolvePresetKey
 };
 if (typeof module !== 'undefined' && module.exports) {

@@ -45,3 +45,13 @@ static inline int calendar_last_row_ink_bottom(int cal_y, int cal_h, int rows, i
     return calendar_text_top(cell_y, cell_h, content_h)
            + status_ink_top(content_h) + status_cap_h(content_h) - 1;
 }
+
+// First inked row of the calendar's FIRST row of digits — the mirror edge of
+// calendar_last_row_ink_bottom, for the custom stacked orders that seat the clock
+// ABOVE the calendar (its ink is then centred against this row). Same digit-cap
+// model: no ascenders, so the cap's first row is the text frame top plus the
+// font's blank leading.
+static inline int calendar_first_row_ink_top(int cal_y, int cal_h, int rows, int content_h) {
+    int cell_h = cal_h / rows;
+    return calendar_text_top(cal_y, cell_h, content_h) + status_ink_top(content_h);
+}

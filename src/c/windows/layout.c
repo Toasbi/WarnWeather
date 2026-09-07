@@ -582,14 +582,179 @@ MainLayout layout_compute_peek(GRect bounds, const ViewSpec *spec, LayoutMetrics
 }
 #endif
 
+// ── Stacked geometry (custom band orders 1-11) ──────────────────────────────
+// A custom view with a non-legacy order is a plain vertical stack: the strip (when
+// present) pinned first, then the movable bands — top band (calendar/radar), clock,
+// status A, status B — in the coded order, then the body absorbing the remainder to
+// the bottom pad. Absent bands keep their place in the stored order and are skipped.
+// Band ids for STACK_ORDER below; A renders above B by canonicalization (the phone
+// compiler assigns the visually-upper source to the wire's upper slot).
+enum { STK_TOP = 0, STK_CLOCK = 1, STK_A = 2, STK_B = 3 };
+
+// The 12 canonical orderings of {top, clock, A, B} with A before B. Code 0 is the
+// legacy order (top, A, clock, B) and is DISPATCHED TO compute_with_weights — it
+// appears here only so the table indexes read as wire order codes. Codes 1-11 are
+// the remaining orderings in lexicographic id order. MIRRORED in
+// src/pkjs/view-cycle.js STACK_ORDERS — both sides pin the same documented list in
+// their tests; edit in lockstep or the phone previews one order and the watch
+// renders another.
+static const uint8_t STACK_ORDER[12][4] = {
+    { STK_TOP,   STK_A,     STK_CLOCK, STK_B     },   //  0: TACB (legacy — never here)
+    { STK_TOP,   STK_CLOCK, STK_A,     STK_B     },   //  1: TCAB
+    { STK_TOP,   STK_A,     STK_B,     STK_CLOCK },   //  2: TABC
+    { STK_CLOCK, STK_TOP,   STK_A,     STK_B     },   //  3: CTAB
+    { STK_CLOCK, STK_A,     STK_TOP,   STK_B     },   //  4: CATB
+    { STK_CLOCK, STK_A,     STK_B,     STK_TOP   },   //  5: CABT
+    { STK_A,     STK_TOP,   STK_CLOCK, STK_B     },   //  6: ATCB
+    { STK_A,     STK_TOP,   STK_B,     STK_CLOCK },   //  7: ATBC
+    { STK_A,     STK_CLOCK, STK_TOP,   STK_B     },   //  8: ACTB
+    { STK_A,     STK_CLOCK, STK_B,     STK_TOP   },   //  9: ACBT
+    { STK_A,     STK_B,     STK_TOP,   STK_CLOCK },   // 10: ABTC
+    { STK_A,     STK_B,     STK_CLOCK, STK_TOP   },   // 11: ABCT
+};
+
+static MainLayout compute_stacked(GRect bounds, const ViewSpec *spec, LayoutMetrics m) {
+    int fc_band_h = m.fc_band_h;
+    ClockInk ink = m.clock;
+    bool upper = (spec->status_upper != STATUS_SRC_NONE);
+    bool lower = (spec->status_lower != STATUS_SRC_NONE);
+    bool clock = (spec->clock_off == 0);
+    bool strip = (spec->strip_off == 0);
+    int w = bounds.size.w;
+    int h = bounds.size.h;
+    MainLayout L;
+
+    int content_x = LAYOUT_PAD_X;
+    int content_y = LAYOUT_PAD_TOP;
+    int content_w = w - 2 * LAYOUT_PAD_X;
+    int bottom_w = w - content_x;
+    int strip_h = STATUS_LARGE_BAND_H;
+    // Same split arithmetic as the legacy engine — band HEIGHTS are shared vocabulary;
+    // only their order is custom. The strip reserve stays in the subtraction whatever
+    // `strip` says, so removing the strip moves bands without resizing them (the freed
+    // rows land in the body via the fill-to-pad below).
+    int content_h = h - LAYOUT_PAD_TOP - LAYOUT_PAD_BOTTOM
+                    - CALENDAR_STATUS_HEIGHT - WEATHER_STATUS_HEIGHT;
+    int calendar_h, time_h, bottom_h;
+    split_content(content_h, spec->weights, &calendar_h, &time_h, &bottom_h);
+    (void)bottom_h;
+    int full_tier_h = fc_band_h - 2 * STATUS_FORECAST_CLEARANCE;
+
+    // Band heights, keyed the same way the layers key their fonts (status_tier):
+    // FULL-tier rows (a cal2/cal3 dual) take the squeezed fc_band_h band; everything
+    // else takes the clamp-free large-font band. The top band is the 3-row calendar
+    // height for radar (radar-in-top is a full-tier band), the tiered calendar height
+    // for a calendar, zero when empty.
+    bool full_rows = (spec->status_tier == LAYOUT_TIER_FULL);
+    int status_band_h = full_rows ? fc_band_h : STATUS_LARGE_BAND_H;
+    int status_ch = full_rows ? full_tier_h : STATUS_LARGE_FONT_H;
+    uint8_t rows = spec->calendar_rows;
+    int cal_h = (rows == 3) ? calendar_h : (rows == 2) ? (calendar_h - calendar_h / 3) : 0;
+    int top_h = (spec->top == TOP_BAND_RADAR) ? calendar_h
+              : (spec->top == TOP_BAND_CALENDAR && rows > 0) ? cal_h : 0;
+    int heights[4];
+    heights[STK_TOP] = top_h;
+    heights[STK_CLOCK] = clock ? time_h : 0;
+    heights[STK_A] = upper ? status_band_h : 0;
+    heights[STK_B] = lower ? status_band_h : 0;
+
+    L.top_status = GRect(content_x, content_y, content_w, strip ? strip_h : 0);
+    int y = strip ? (content_y + CALENDAR_STATUS_HEIGHT) : content_y;
+
+    // Place the movable bands. Gap-after rule reuses the audited clearances: a
+    // calendar/radar band and a large-font status band ink to their band edge, so the
+    // next band clears them by STATUS_FORECAST_CLEARANCE; an fc_band_h status band
+    // and the clock carry their own blank margins, so nothing is added.
+    GRect rect[4];
+    uint8_t order = (spec->order <= 11) ? spec->order : 0;
+    const uint8_t *ord = STACK_ORDER[order];
+    uint8_t prev = 4;                       // 4 = nothing placed yet (strip or top edge)
+    uint8_t prev_of[4] = { 4, 4, 4, 4 };    // rendered predecessor of each PLACED band
+    uint8_t next_of[4] = { 4, 4, 4, 4 };    // rendered successor (4 = the body)
+    for (int i = 0; i < 4; i++) {
+        uint8_t b = ord[i];
+        int bh = heights[b];
+        if (bh == 0) {                       // absent: zero-height rect at the cursor
+            rect[b] = GRect(content_x, y, content_w, 0);
+            continue;
+        }
+        int by = y;
+        if (b == STK_TOP && spec->top == TOP_BAND_CALENDAR && strip && prev == 4) {
+            // The calendar directly under the strip keeps the legacy ink-slide: its
+            // first painted row sits on the strip's first unpainted one, and the
+            // reserve chain (the cursor) is unaffected — same trick as calendar_y in
+            // compute_with_weights.
+            by = content_y + status_strip_ink_h(strip_h, STATUS_LARGE_FONT_H)
+                 + STATUS_STRIP_CAL_GAP;
+        }
+        rect[b] = GRect(content_x, by, content_w, bh);
+        if (prev != 4) { next_of[prev] = b; }
+        prev_of[b] = prev;
+        prev = b;
+        y += bh;
+        bool inks_to_edge = (b == STK_TOP)
+                            || ((b == STK_A || b == STK_B) && !full_rows);
+        if (inks_to_edge) { y += STATUS_FORECAST_CLEARANCE; }
+    }
+
+    L.top = rect[STK_TOP];
+    L.time = rect[STK_CLOCK];
+    L.status = rect[STK_A];
+    L.status_lower = lower ? rect[STK_B] : L.status;   // alias contract (layout.h)
+    L.bottom = GRect(content_x, y, bottom_w, h - LAYOUT_PAD_BOTTOM - y);
+    L.loading = L.bottom;
+    L.radar = L.bottom;                                 // layout_compute_spec re-aliases
+
+    // Clock ink centring against its ACTUAL stack neighbours — same solver, same ink
+    // primitives as the legacy engine, just resolved from the rendered order.
+    if (clock && heights[STK_CLOCK] > 0) {
+        uint8_t above = prev_of[STK_CLOCK];
+        uint8_t below = next_of[STK_CLOCK];
+        int above_ink;
+        if (above == 4) {
+            above_ink = strip ? (content_y + status_strip_seat_y(strip_h, STATUS_LARGE_FONT_H)
+                                 + STATUS_LARGE_FONT_H - 1)
+                              : (content_y - 1);
+        } else if (above == STK_TOP) {
+            above_ink = (spec->top == TOP_BAND_RADAR)
+                ? (rect[STK_TOP].origin.y + rect[STK_TOP].size.h - 1)   // radar paints edge-to-edge
+                : calendar_last_row_ink_bottom(rect[STK_TOP].origin.y, top_h, rows,
+                                               STATUS_LARGE_FONT_H);
+        } else {
+            above_ink = status_band_ink_top(rect[above].origin.y, rect[above].size.h, status_ch)
+                        + status_cap_h(status_ch) - 1;
+        }
+        int below_ink;
+        if (below == 4) {
+            below_ink = L.bottom.origin.y;
+        } else if (below == STK_TOP) {
+            below_ink = (spec->top == TOP_BAND_RADAR)
+                ? rect[STK_TOP].origin.y
+                : calendar_first_row_ink_top(rect[STK_TOP].origin.y, top_h, rows,
+                                             STATUS_LARGE_FONT_H);
+        } else {
+            below_ink = status_band_ink_top(rect[below].origin.y, rect[below].size.h, status_ch);
+        }
+        L.time.origin.y = clock_seat_y(L.time.size.h, ink, above_ink, below_ink);
+    }
+    return L;
+}
+
 MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, LayoutMetrics m) {
     uint8_t tier = layout_tier_for_rows(spec->calendar_rows);
     bool upper = (spec->status_upper != STATUS_SRC_NONE);
     bool lower = (spec->status_lower != STATUS_SRC_NONE);
     bool clock = (spec->clock_off == 0);
     bool strip = (spec->strip_off == 0);
-    MainLayout L = compute_with_weights(bounds, tier, upper, lower, clock, strip, m,
-                                        spec->weights);
+    MainLayout L;
+    if (spec->order >= 1 && spec->order <= 11) {
+        // Custom band order → the generic stacker. Order 0 (and clamped garbage)
+        // stays on the legacy engine, which presets ride bit-identically.
+        L = compute_stacked(bounds, spec, m);
+    } else {
+        L = compute_with_weights(bounds, tier, upper, lower, clock, strip, m,
+                                 spec->weights);
+    }
     // Radar rides wherever it's placed: the top band when it replaces the calendar,
     // otherwise the body band (under a retained calendar, or full-screen in none tier).
     if (spec->top == TOP_BAND_RADAR) {

@@ -441,6 +441,175 @@ static void golden_rects_stripless(void) {
 #endif
 }
 
+// ── Stacked engine (custom band orders 1-11) ────────────────────────────────
+
+// Wire value for a stacked custom view: cal2-tier calendar top by default.
+static uint16_t stk(int tier, int top, int su, int sl, int clock_off, int order) {
+    return pack_custom(pack(tier, top, 0, su, sl), clock_off, 0, order);
+}
+
+// The canonical order list — MUST equal STACK_ORDERS in src/pkjs/view-cycle.js and
+// STACK_ORDER in layout.c (pinned there through rendered band order, here as data).
+static const char *STK_WANT[12] = {
+    "TACB", "TCAB", "TABC", "CTAB", "CATB", "CABT",
+    "ATCB", "ATBC", "ACTB", "ACBT", "ABTC", "ABCT",
+};
+
+// Render a full house (cal2 top, clock, A=forecast, B=health) at each order code and
+// read the band sequence back off the rects — behavior pins the C table to the list.
+static void stacked_order_parity(void) {
+    for (int code = 1; code <= 11; code++) {
+        ViewSpec s = view_spec_unpack(stk(2, 1, STATUS_SRC_FORECAST, STATUS_SRC_HEALTH,
+                                          0, code));
+        MainLayout L = layout_compute_spec(BOUNDS, &s, MET(FC_BAND_H, INK));
+        struct { char id; int y; } band[4] = {
+            { 'T', L.top.origin.y },
+            { 'C', L.time.origin.y },
+            { 'A', L.status.origin.y },
+            { 'B', L.status_lower.origin.y },
+        };
+        // insertion sort by y (stable; all four present in a full house)
+        for (int i = 1; i < 4; i++) {
+            for (int j = i; j > 0 && band[j].y < band[j - 1].y; j--) {
+                char tc = band[j].id; int ty = band[j].y;
+                band[j].id = band[j - 1].id; band[j].y = band[j - 1].y;
+                band[j - 1].id = tc; band[j - 1].y = ty;
+            }
+        }
+        char got[5] = { band[0].id, band[1].id, band[2].id, band[3].id, 0 };
+        if (strcmp(got, STK_WANT[code]) != 0) {
+            printf("FAIL stacked_order_parity code %d: got %s want %s\n",
+                   code, got, STK_WANT[code]);
+            s_failures++;
+        }
+        // Body is always last and fills to the bottom pad (168 here / 224 emery,
+        // matching every existing bottom golden).
+#ifdef PBL_PLATFORM_EMERY
+        const int body_floor = 224;
+#else
+        const int body_floor = 168;
+#endif
+        expect("stacked.body_last",
+               L.bottom.origin.y >= band[3].y
+               && L.bottom.origin.y + L.bottom.size.h == body_floor,
+               true);
+    }
+    printf("stacked_order_parity OK\n");
+}
+
+// Every order x occupancy: present movable bands never overlap, the body starts at or
+// below every band's floor, and dropping a band grows the body.
+static void stacked_property_tests(void) {
+    const struct { int su, sl, clock_off; } occ[] = {
+        { STATUS_SRC_FORECAST, STATUS_SRC_HEALTH, 0 },   // full house
+        { STATUS_SRC_FORECAST, STATUS_SRC_NONE,   0 },   // lone A
+        { STATUS_SRC_NONE,     STATUS_SRC_NONE,   0 },   // statusless
+        { STATUS_SRC_FORECAST, STATUS_SRC_HEALTH, 1 },   // clockless dual
+        { STATUS_SRC_NONE,     STATUS_SRC_NONE,   1 },   // clockless statusless
+    };
+    for (int code = 1; code <= 11; code++) {
+        for (unsigned o = 0; o < sizeof(occ) / sizeof(occ[0]); o++) {
+            ViewSpec s = view_spec_unpack(stk(2, 1, occ[o].su, occ[o].sl,
+                                              occ[o].clock_off, code));
+            MainLayout L = layout_compute_spec(BOUNDS, &s, MET(FC_BAND_H, INK));
+            GRect bands[4] = { L.top, L.time, L.status, L.status_lower };
+            bool present[4] = {
+                true,
+                occ[o].clock_off == 0,
+                occ[o].su != STATUS_SRC_NONE,
+                occ[o].sl != STATUS_SRC_NONE,
+            };
+            for (int i = 0; i < 4; i++) {
+                if (!present[i] || bands[i].size.h == 0) { continue; }
+                expect("stacked.body_below_band",
+                       L.bottom.origin.y >= bands[i].origin.y + bands[i].size.h
+                       // the clock's solver may float its rect into a neighbour's
+                       // blank margin; its BAND (cursor) placement is what stacks
+                       || i == 1,
+                       true);
+                for (int j = 0; j < 4; j++) {
+                    if (j == i || !present[j] || bands[j].size.h == 0) { continue; }
+                    if (i == 1 || j == 1) { continue; }   // clock rect is solver-lifted
+                    bool disjoint = bands[i].origin.y + bands[i].size.h <= bands[j].origin.y
+                                 || bands[j].origin.y + bands[j].size.h <= bands[i].origin.y;
+                    expect("stacked.bands_disjoint", disjoint, true);
+                }
+            }
+            // Dropping the clock must grow the body (compare against same occ clocked).
+            if (occ[o].clock_off) {
+                ViewSpec sc = view_spec_unpack(stk(2, 1, occ[o].su, occ[o].sl, 0, code));
+                MainLayout Lc = layout_compute_spec(BOUNDS, &sc, MET(FC_BAND_H, INK));
+                expect("stacked.clockless_body_grows",
+                       L.bottom.size.h > Lc.bottom.size.h, true);
+            }
+        }
+    }
+    printf("stacked_properties OK\n");
+}
+
+static void golden_rects_stacked(void) {
+    MainLayout L;
+    // code 3 = CTAB: clock at the very top (under the strip), then calendar, then the
+    // lone status row above the graph. code 11 = ABCT: both status rows first, clock,
+    // calendar at the BOTTOM directly above the graph. code 5 = CABT with a radar top
+    // band: clock, radar status row, then the radar strip above the graph.
+    const uint16_t ctab = stk(2, 1, STATUS_SRC_FORECAST, STATUS_SRC_NONE, 0, 3);
+    const uint16_t abct = stk(2, 1, STATUS_SRC_FORECAST, STATUS_SRC_HEALTH, 0, 11);
+    const uint16_t cabt = pack_custom(pack(3, 2, 0, STATUS_SRC_RADAR, STATUS_SRC_NONE),
+                                      0, 0, 5);
+#ifndef PBL_PLATFORM_EMERY
+    L = compute_custom(ctab);
+    if (s_dump) printf("  STACKED CTAB cal2 lone-upper\n");
+    // Clock at the very top: its band takes the strip reserve's row (13) directly.
+    check("stkctab.top_status",   L.top_status,   0, 0, 144, 17);
+    check("stkctab.time",         L.time,         0, 13, 144, 45);
+    check("stkctab.top",          L.top,          0, 58, 144, 30);
+    check("stkctab.status",       L.status,       0, 91, 144, 17);
+    check("stkctab.bottom",       L.bottom,       0, 111, 144, 57);
+    L = compute_custom(abct);
+    if (s_dump) printf("  STACKED ABCT cal2 dual\n");
+    // Calendar at the BOTTOM, directly above the graph; the dual squeezes to the
+    // fc_band_h pair at the top. The clock rect floats 2px into B's blank bottom
+    // margin (solver ink-centring) — the established sibling-overlap style.
+    check("stkabct.status",       L.status,       0, 13, 144, 20);
+    check("stkabct.status_lower", L.status_lower, 0, 33, 144, 20);
+    check("stkabct.time",         L.time,         0, 51, 144, 45);
+    check("stkabct.top",          L.top,          0, 98, 144, 30);
+    check("stkabct.bottom",       L.bottom,       0, 131, 144, 37);
+    L = compute_custom(cabt);
+    if (s_dump) printf("  STACKED CABT radar-top + radar row\n");
+    // The radar strip band sits between the status row and the graph; L.radar
+    // aliases it (radar-in-top), and the body keeps the forecast.
+    check("stkcabt.time",         L.time,         0, 15, 144, 45);
+    check("stkcabt.status",       L.status,       0, 58, 144, 20);
+    check("stkcabt.top",          L.top,          0, 78, 144, 45);
+    check("stkcabt.radar",        L.radar,        0, 78, 144, 45);
+    check("stkcabt.bottom",       L.bottom,       0, 126, 144, 42);
+#else
+    L = compute_custom(ctab);
+    if (s_dump) printf("  STACKED CTAB cal2 lone-upper (emery)\n");
+    check("stkctab.top_status",   L.top_status,   2, 2, 196, 21);
+    check("stkctab.time",         L.time,         2, 19, 196, 60);
+    check("stkctab.top",          L.top,          2, 82, 196, 40);
+    check("stkctab.status",       L.status,       2, 123, 196, 21);
+    check("stkctab.bottom",       L.bottom,       2, 145, 198, 79);
+    L = compute_custom(abct);
+    if (s_dump) printf("  STACKED ABCT cal2 dual (emery)\n");
+    check("stkabct.status",       L.status,       2, 22, 196, 24);
+    check("stkabct.status_lower", L.status_lower, 2, 46, 196, 24);
+    check("stkabct.time",         L.time,         2, 67, 196, 60);
+    check("stkabct.top",          L.top,          2, 130, 196, 40);
+    check("stkabct.bottom",       L.bottom,       2, 171, 198, 53);
+    L = compute_custom(cabt);
+    if (s_dump) printf("  STACKED CABT radar-top + radar row (emery)\n");
+    check("stkcabt.time",         L.time,         2, 20, 196, 60);
+    check("stkcabt.status",       L.status,       2, 82, 196, 24);
+    check("stkcabt.top",          L.top,          2, 106, 196, 60);
+    check("stkcabt.radar",        L.radar,        2, 106, 196, 60);
+    check("stkcabt.bottom",       L.bottom,       2, 167, 198, 57);
+#endif
+}
+
 // The clocked FULL dual (3-row calendar or radar top + both status rows) historically
 // overlapped its two bands by fc_band_h - WEATHER_STATUS_HEIGHT (6px / emery 10px) —
 // which is why no preset ever emitted it. Custom layouts make it reachable, so the
@@ -1948,8 +2117,11 @@ int main(int argc, char **argv) {
     golden_rects();
     golden_rects_clockless();
     golden_rects_stripless();
+    golden_rects_stacked();
     if (!s_dump) clockless_property_tests();
     if (!s_dump) full_dual_fix_tests();
+    if (!s_dump) stacked_order_parity();
+    if (!s_dump) stacked_property_tests();
     if (!s_dump) test_unpack_positional();
     if (!s_dump) test_unpack_custom_bits();
     if (!s_dump) test_resolve_no_health_no_radar();

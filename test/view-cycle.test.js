@@ -245,6 +245,26 @@ test('presets never carry the custom bits (full matrix sweep)', () => {
         }))));
 });
 
+// The canonical order table must stay in lockstep with src/c/windows/layout.c's
+// STACK_ORDER (the C side pins the same list through rendered band order in
+// test/c/layout_test.c stacked_order_parity). Code 0 = legacy; codes 1-11 = stacker.
+test('STACK_ORDERS matches the documented canonical list, code 0 is legacy', () => {
+  assert.deepStrictEqual(vc.STACK_ORDERS, [
+    'TACB', 'TCAB', 'TABC', 'CTAB', 'CATB', 'CABT',
+    'ATCB', 'ATBC', 'ACTB', 'ACBT', 'ABTC', 'ABCT',
+  ]);
+  // Every entry: a permutation of TCAB with A before B (canonical form).
+  vc.STACK_ORDERS.forEach((s) => {
+    assert.deepStrictEqual(s.split('').sort(), ['A', 'B', 'C', 'T'], s);
+    assert.ok(s.indexOf('A') < s.indexOf('B'), s + ': A must render above B');
+  });
+  assert.equal(vc.orderCode('TACB'), 0);
+  assert.equal(vc.orderCode('CTAB'), 3);
+  assert.equal(vc.orderCode('ABCT'), 11);
+  assert.equal(vc.orderCode('BACT'), 0, 'non-canonical input falls back to legacy');
+  assert.equal(vc.orderCode('nope'), 0);
+});
+
 // Cycle transforms clone specs; a clone via the 5-arg spec() would silently drop
 // the custom fields. Pin that every transform's clone path preserves them.
 test('transforms preserve clockOff/stripOff/order through their clones', () => {
