@@ -28,13 +28,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
 
     /**
      * Resolve the Layout state to the adaptive view cycle (array of ViewSpec objects).
-     * Shares view-cycle.js with clay-payload.js — no manual sync.
+     * Shares view-cycle.js with clay-payload.js — no manual sync. layoutPreset
+     * 'custom' compiles the per-view keys (with the same capability folds the wire
+     * gets), EXCEPT for an aplite watch: there the payload folds custom to the
+     * explicit compactCal preset, and the preview must show what the watch renders.
      * @param {Object} state Live settings (layoutPreset/healthMode/radarMode/swapClockStatus).
+     * @param {Object} [env] Config-UI environment facts (platform gate).
      * @returns {Array.<Object>} The view cycle — one ViewSpec per flick slot.
      */
-    function presetContents(state) {
+    function presetContents(state, env) {
         state = state || {};
         var radarMode = state.radarMode || 'graph';
+        if (state.layoutPreset === 'custom' && !(env && env.platform === 'aplite')) {
+            return VC.buildCustomCycle(state);
+        }
         return VC.buildViewCycle(VC.resolvePresetKey(state), state.healthMode || 'off', radarMode,
             Boolean(state.swapClockStatus));
     }
@@ -91,7 +98,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
      */
     function contentBands(spec) {
         if (!spec) { return null; }
-        var bands = [{ label: 'Watch Status', h: 12 }];
+        // Custom omissions: a stripless view drops the Watch Status band, a clockless
+        // one drops the Clock band — the flex body absorbs both, like the watch.
+        var bands = spec.stripOff ? [] : [{ label: 'Watch Status', h: 12 }];
         var isNone = spec.tier === VC.TIER_NONE;
         var isFull = spec.tier === VC.TIER_FULL;
         var topBand = null;
@@ -106,14 +115,25 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var lowerLabel = STATUS_LABEL[spec.statusLower];
         var upperRow = upperLabel ? { label: upperLabel, h: STATUS_H } : null;
         var lowerRow = lowerLabel ? { label: lowerLabel, h: STATUS_H } : null;
-        var clock = { label: 'Clock', h: isNone ? 30 : 22 };
-        if (topBand) { bands.push(topBand); }
-        if (!isNone && !isFull) {                 // compact: upper rides the freed cal row
+        var clock = spec.clockOff ? null : { label: 'Clock', h: isNone ? 30 : 22 };
+        var code = spec.order || 0;
+        if (code >= 1 && code <= 11) {
+            // Custom band order: the movable bands follow STACK_ORDERS (the same table
+            // the watch's stacked engine renders), body last.
+            var seq = VC.STACK_ORDERS[code], j, byLetter = {
+                T: topBand, C: clock, A: upperRow, B: lowerRow
+            };
+            for (j = 0; j < 4; j++) {
+                if (byLetter[seq.charAt(j)]) { bands.push(byLetter[seq.charAt(j)]); }
+            }
+        } else if (!isNone && !isFull) {          // compact: upper rides the freed cal row
+            if (topBand) { bands.push(topBand); }
             if (upperRow) { bands.push(upperRow); }   // freed row, above the clock
-            bands.push(clock);
+            if (clock) { bands.push(clock); }
             if (lowerRow) { bands.push(lowerRow); }   // carved band, below the clock (near the body)
         } else {                                  // full / none: clock, then status row(s)
-            bands.push(clock);
+            if (topBand) { bands.push(topBand); }
+            if (clock) { bands.push(clock); }
             if (upperRow) { bands.push(upperRow); }
             if (lowerRow) { bands.push(lowerRow); }
         }
@@ -164,7 +184,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
      */
     function layoutPreviewCombined(state, env, userData) {
         state = state || {};
-        var contents = presetContents(state);
+        var contents = presetContents(state, env);
         var HEADERS = ['Default', 'Flick 1', 'Flick 2'];
         var W = 200, GAP = 6, n = contents.length || 1, colW = (W - GAP * (n - 1)) / n;
         var e = rect(0, 0, W, 128, previewInk(state.theme).bg), i;

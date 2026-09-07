@@ -224,3 +224,44 @@ test('layoutPreviewCombined: dark theme keeps the light-on-black band wash', () 
   const state = { layoutPreset: 'compactCal', healthMode: 'status', radarMode: 'graph', theme: 'dark' };
   assert.ok(LY.layoutPreviewCombined(state, {}).indexOf('rgba(255,255,255,0.12)') >= 0);
 });
+
+// ── Custom layout previews ──────────────────────────────────────────────────
+const vc = require('../src/pkjs/view-cycle.js');
+
+const CUSTOM_STATE = {
+  layoutPreset: 'custom', healthMode: 'off', radarMode: 'off',
+  viewCount: '2',
+  viewTop0: 'cal2', viewBody0: 'forecast', viewUpper0: 'weather', viewLower0: 'off', viewOrder0: 'TACB',
+  viewTop1: 'none', viewBody1: 'forecast', viewUpper1: 'off', viewLower1: 'off', viewOrder1: 'CTAB',
+  viewClockOff1: true, viewStripOff1: true,
+};
+
+test('presetContents: custom compiles the per-view keys; the preview IS the wire', () => {
+  const contents = LY.presetContents(CUSTOM_STATE, { platform: 'basalt' });
+  assert.deepStrictEqual(contents.map(vc.packSpec),
+    vc.buildCustomCycle(CUSTOM_STATE).map(vc.packSpec));
+});
+
+test('presetContents: an aplite env shows the folded compactCal cycle, matching its wire', () => {
+  const contents = LY.presetContents(CUSTOM_STATE, { platform: 'aplite' });
+  assert.deepStrictEqual(contents.map(vc.packSpec),
+    vc.buildViewCycle('compactCal', 'off', 'off', false).map(vc.packSpec));
+});
+
+test('contentBands: clockOff drops the Clock band, stripOff drops the Watch Status band', () => {
+  const spec = vc.unpackSpec(vc.packSpec(Object.assign(
+    vc.spec(vc.TIER_NONE, vc.TOP_EMPTY, vc.BODY_RADAR, vc.STATUS_SRC_NONE, vc.STATUS_SRC_NONE),
+    { clockOff: true, stripOff: true })));
+  const labels = LY.contentBands(spec).map((b) => b.label);
+  assert.deepEqual(labels, ['Radar'], 'the full-screen radar: nothing but the body');
+});
+
+test('contentBands: a stacked order renders the movable bands in STACK_ORDERS sequence', () => {
+  // CTAB with a full house: Clock, Calendar, Status A, Status B, then the body.
+  const s = vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC,
+    vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_HEALTH);
+  s.order = vc.orderCode('CTAB');
+  const labels = LY.contentBands(s).map((b) => b.label);
+  assert.deepEqual(labels, ['Watch Status', 'Clock', 'Calendar (2 rows)',
+    'Forecast Status', 'Health Status', 'Forecast']);
+});
