@@ -228,6 +228,109 @@ function orderCode(seq) {
   return i < 0 ? 0 : i;
 }
 
+// ── Custom layout compiler ──────────────────────────────────────────────────
+// The second producer beside the preset MATRIX: compiles the per-view settings keys
+// (viewCount, viewTop{i}, viewBody{i}, viewUpper{i}, viewLower{i}, viewOrder{i},
+// viewClockOff{i}, viewStripOff{i}) into the same spec objects packSpec ships.
+// The key vocabulary is the editor's contract — schema.js and view-editor.js speak
+// these exact strings.
+
+var CUSTOM_TOP = {
+  cal3:  { tier: TIER_FULL,    top: TOP_CAL },
+  cal2:  { tier: TIER_COMPACT, top: TOP_CAL },
+  radar: { tier: TIER_FULL,    top: TOP_RADAR },
+  none:  { tier: TIER_NONE,    top: TOP_EMPTY }
+};
+var CUSTOM_BODY = { forecast: BODY_FC, health: BODY_GRAPH, radar: BODY_RADAR };
+var CUSTOM_SRC = {
+  off: STATUS_SRC_NONE, weather: STATUS_SRC_FORECAST,
+  radar: STATUS_SRC_RADAR, health: STATUS_SRC_HEALTH
+};
+
+/**
+ * Compile the custom per-view keys into a 1-3 slot cycle. Mirrors the watch's
+ * view_spec_resolve capability semantics so the previews and the wire agree:
+ * radar CHART seats (top strip / body) need radarMode 'graph'; the radar status
+ * SOURCE needs 'status' or 'graph'; a health graph body needs healthMode 'all';
+ * a health status source needs 'status' or 'all' ('slot' shows health only in the
+ * regular slot system, same as the preset MATRIX's bucket rule). Under the legacy
+ * order a folded-away upper promotes the surviving lower (dense degradation, the
+ * watch's rule); explicit stacked orders keep user-placed seats.
+ * @param {Object} S settings state
+ * @returns {Array<Object>} specs for packSpec (length == viewCount, 1-3)
+ */
+function buildCustomCycle(S) {
+  var count = parseInt(S.viewCount, 10);
+  if (!(count >= 1 && count <= 3)) { count = 1; }
+  var radarChartOk = S.radarMode === 'graph';
+  var radarRowOk = S.radarMode === 'status' || S.radarMode === 'graph';
+  var healthRowOk = S.healthMode === 'status' || S.healthMode === 'all';
+  var healthBodyOk = S.healthMode === 'all';
+  var cycle = [];
+  for (var i = 0; i < count; i++) {
+    var t = CUSTOM_TOP[S['viewTop' + i]] || CUSTOM_TOP.cal2;
+    var body = CUSTOM_BODY[S['viewBody' + i]];
+    if (body === undefined) { body = BODY_FC; }
+    var suRaw = CUSTOM_SRC[S['viewUpper' + i]];
+    if (suRaw === undefined) { suRaw = STATUS_SRC_NONE; }
+    var slRaw = CUSTOM_SRC[S['viewLower' + i]];
+    if (slRaw === undefined) { slRaw = STATUS_SRC_NONE; }
+
+    if (t.top === TOP_RADAR && !radarChartOk) { t = CUSTOM_TOP.cal3; }
+    if (body === BODY_RADAR && !radarChartOk) { body = BODY_FC; }
+    if (body === BODY_GRAPH && !healthBodyOk) { body = BODY_FC; }
+    var su = suRaw, sl = slRaw;
+    if (su === STATUS_SRC_RADAR && !radarRowOk) { su = STATUS_SRC_NONE; }
+    if (su === STATUS_SRC_HEALTH && !healthRowOk) { su = STATUS_SRC_NONE; }
+    if (sl === STATUS_SRC_RADAR && !radarRowOk) { sl = STATUS_SRC_NONE; }
+    if (sl === STATUS_SRC_HEALTH && !healthRowOk) { sl = STATUS_SRC_NONE; }
+
+    var code = orderCode(S['viewOrder' + i] || 'TACB');
+    if (code === 0 && suRaw !== STATUS_SRC_NONE && su === STATUS_SRC_NONE
+        && sl !== STATUS_SRC_NONE) {
+      su = sl;
+      sl = STATUS_SRC_NONE;
+    }
+
+    var s = spec(t.tier, t.top, body, su, sl);
+    if (i > 0) {   // the Default view always keeps its clock and top bar
+      if (S['viewClockOff' + i]) { s.clockOff = true; }
+      if (S['viewStripOff' + i]) { s.stripOff = true; }
+    }
+    if (code) { s.order = code; }
+    cycle.push(s);
+  }
+  return cycle;
+}
+
+/**
+ * Invert a compiled cycle into the custom per-view keys — the one-time seed when the
+ * user enters Custom mode, built so an untouched Custom session compiles back to
+ * BYTE-IDENTICAL packed values (the zero-transmit upgrade proof, pinned by tests).
+ * @param {Array<Object>} cycle specs from buildViewCycle (post-transform)
+ * @returns {Object} key/value map to merge into the settings state
+ */
+function specToKeys(cycle) {
+  var keys = { viewCount: String(cycle.length) };
+  var srcName = ['off', 'weather', 'radar', 'health'];
+  for (var i = 0; i < cycle.length; i++) {
+    var s = cycle[i];
+    keys['viewTop' + i] = (s.top === TOP_RADAR) ? 'radar'
+      : (s.top === TOP_CAL) ? ((s.tier === TIER_FULL) ? 'cal3' : 'cal2')
+      : 'none';
+    keys['viewBody' + i] = (s.body === BODY_GRAPH) ? 'health'
+      : (s.body === BODY_RADAR) ? 'radar' : 'forecast';
+    keys['viewUpper' + i] = srcName[s.statusUpper] || 'off';
+    keys['viewLower' + i] = srcName[s.statusLower] || 'off';
+    keys['viewOrder' + i] = STACK_ORDERS[s.order || 0];
+    if (i > 0) {
+      keys['viewClockOff' + i] = Boolean(s.clockOff);
+      keys['viewStripOff' + i] = Boolean(s.stripOff);
+    }
+  }
+  return keys;
+}
+
 var NEW_KEYS = { fullCal: 1, compactCal: 1, compactDense: 1, noCal: 1 };
 // legacy layoutPreset -> new. fullCal is unchanged (key kept, new semantics).
 var LEGACY_PRESET = {
@@ -264,6 +367,7 @@ var VIEW_CYCLE = {
   spec: spec, cloneSpec: cloneSpec, packSpec: packSpec, unpackSpec: unpackSpec,
   swapUpperToLower: swapUpperToLower, demoteRadarBody: demoteRadarBody,
   STACK_ORDERS: STACK_ORDERS, orderCode: orderCode,
+  buildCustomCycle: buildCustomCycle, specToKeys: specToKeys,
   buildViewCycle: buildViewCycle, resolvePresetKey: resolvePresetKey
 };
 if (typeof module !== 'undefined' && module.exports) {

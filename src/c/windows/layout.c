@@ -496,7 +496,11 @@ ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health) {
     // capability comes back. A CONFIGURED lone lower (the swap toggle's layout) has
     // upper_before == NONE and is left where the user put it. Mirrors the aplite twin's
     // unpack collapse ("a clean single view, not an unrequested swap", layout_aplite.c).
-    if (upper_before != STATUS_SRC_NONE && spec.status_upper == STATUS_SRC_NONE
+    // ORDER-GATED: under an explicit stacked order the A/B bands are user-placed
+    // positions, so a capability strip keeps the survivor exactly where it was put —
+    // promoting would move it to the other band's slot in the stack.
+    if (spec.order == 0
+        && upper_before != STATUS_SRC_NONE && spec.status_upper == STATUS_SRC_NONE
         && spec.status_lower != STATUS_SRC_NONE) {
         spec.status_upper = spec.status_lower;
         spec.status_lower = STATUS_SRC_NONE;

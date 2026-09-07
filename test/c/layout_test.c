@@ -750,6 +750,19 @@ static void test_unpack_custom_bits(void) {
     expect("custom_bits.resolve_keeps_clock_off", r.clock_off == 1, true);
     expect("custom_bits.resolve_keeps_strip_off", r.strip_off == 1, true);
     expect("custom_bits.resolve_keeps_order", r.order == 7, true);
+
+    // The strip-promote rule is ORDER-GATED: under a stacked order the A/B bands are
+    // user-placed positions, so a stripped upper leaves the survivor in its band;
+    // the legacy order (0) keeps the historical dense-degradation promote.
+    ViewSpec so = view_spec_unpack(pack_custom(
+        pack(2, 1, 0, STATUS_SRC_RADAR, STATUS_SRC_FORECAST), 0, 0, 7));
+    ViewSpec ro = view_spec_resolve(so, /*has_radar*/false, true);
+    expect("custom_bits.stacked_no_promote",
+           ro.status_upper == STATUS_SRC_NONE && ro.status_lower == STATUS_SRC_FORECAST, true);
+    ViewSpec lo = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_RADAR, STATUS_SRC_FORECAST));
+    ViewSpec rl = view_spec_resolve(lo, false, true);
+    expect("custom_bits.legacy_still_promotes",
+           rl.status_upper == STATUS_SRC_FORECAST && rl.status_lower == STATUS_SRC_NONE, true);
     printf("unpack_custom_bits OK\n");
 }
 

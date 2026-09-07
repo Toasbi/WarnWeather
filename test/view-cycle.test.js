@@ -245,6 +245,89 @@ test('presets never carry the custom bits (full matrix sweep)', () => {
         }))));
 });
 
+// ── Custom compiler (buildCustomCycle / specToKeys) ──────────────────────────
+
+// THE upgrade-safety proof: entering Custom seeds the per-view keys from the compiled
+// preset cycle, and an untouched Custom session must compile back to BYTE-IDENTICAL
+// packed values — so the change-detector transmits nothing on mode entry.
+test('specToKeys ∘ buildViewCycle round-trips byte-identical for every preset cell', () => {
+  ['fullCal', 'compactCal', 'compactDense', 'noCal'].forEach((p) =>
+    ['off', 'slot', 'status', 'all'].forEach((h) =>
+      ['off', 'countdown', 'status', 'graph'].forEach((r) =>
+        [false, true].forEach((sw) => {
+          const cycle = vc.buildViewCycle(p, h, r, sw);
+          const S = Object.assign({ healthMode: h, radarMode: r }, vc.specToKeys(cycle));
+          const rebuilt = vc.buildCustomCycle(S);
+          assert.deepStrictEqual(rebuilt.map(vc.packSpec), cycle.map(vc.packSpec),
+            p + '/' + h + '/' + r + '/' + sw);
+        }))));
+});
+
+test('buildCustomCycle: slot 0 never carries clockOff/stripOff; flicks do', () => {
+  const S = {
+    viewCount: '2', healthMode: 'off', radarMode: 'off',
+    viewTop0: 'cal2', viewBody0: 'forecast', viewUpper0: 'weather', viewLower0: 'off', viewOrder0: 'TACB',
+    viewTop1: 'none', viewBody1: 'forecast', viewUpper1: 'off', viewLower1: 'off', viewOrder1: 'TACB',
+    viewClockOff0: true, viewStripOff0: true,   // hostile: must be ignored
+    viewClockOff1: true, viewStripOff1: true,
+  };
+  const packed = vc.buildCustomCycle(S).map(vc.packSpec);
+  assert.equal(packed[0] & 0xC00, 0, 'default view keeps clock + top bar');
+  assert.equal(packed[1] & 0xC00, 0xC00, 'flick view carries both flags');
+});
+
+test('buildCustomCycle: capability folds mirror the watch resolve', () => {
+  const base = {
+    viewCount: '1',
+    viewTop0: 'radar', viewBody0: 'radar', viewUpper0: 'radar', viewLower0: 'health',
+    viewOrder0: 'TACB',
+  };
+  // radarMode 'status': chart seats fold (top->cal3, body->forecast), the radar ROW stays.
+  let c = vc.buildCustomCycle(Object.assign({ radarMode: 'status', healthMode: 'all' }, base));
+  assert.equal(c[0].top, vc.TOP_CAL);
+  assert.equal(c[0].tier, vc.TIER_FULL);
+  assert.equal(c[0].body, vc.BODY_FC);
+  assert.equal(c[0].statusUpper, vc.STATUS_SRC_RADAR);
+  assert.equal(c[0].statusLower, vc.STATUS_SRC_HEALTH);
+  // radarMode 'countdown': the radar row folds too; healthMode 'slot' folds health rows.
+  c = vc.buildCustomCycle(Object.assign({ radarMode: 'countdown', healthMode: 'slot' }, base));
+  assert.equal(c[0].statusUpper, vc.STATUS_SRC_NONE);
+  assert.equal(c[0].statusLower, vc.STATUS_SRC_NONE);
+  // healthMode 'status': health graph body folds to forecast, health row survives.
+  c = vc.buildCustomCycle({
+    viewCount: '1', radarMode: 'off', healthMode: 'status',
+    viewTop0: 'cal2', viewBody0: 'health', viewUpper0: 'health', viewLower0: 'off', viewOrder0: 'TACB',
+  });
+  assert.equal(c[0].body, vc.BODY_FC);
+  assert.equal(c[0].statusUpper, vc.STATUS_SRC_HEALTH);
+});
+
+test('buildCustomCycle: fold-promote only under the legacy order', () => {
+  const mk = (order) => ({
+    viewCount: '1', radarMode: 'off', healthMode: 'off',
+    viewTop0: 'cal2', viewBody0: 'forecast',
+    viewUpper0: 'radar', viewLower0: 'weather', viewOrder0: order,
+  });
+  // Legacy order: folded upper promotes the surviving lower (dense degradation).
+  const legacy = vc.buildCustomCycle(mk('TACB'))[0];
+  assert.equal(legacy.statusUpper, vc.STATUS_SRC_FORECAST);
+  assert.equal(legacy.statusLower, vc.STATUS_SRC_NONE);
+  assert.ok(!('order' in legacy));
+  // Stacked order: seats are user-placed positions — the survivor stays put.
+  const stacked = vc.buildCustomCycle(mk('ATBC'))[0];
+  assert.equal(stacked.statusUpper, vc.STATUS_SRC_NONE);
+  assert.equal(stacked.statusLower, vc.STATUS_SRC_FORECAST);
+  assert.equal(stacked.order, vc.orderCode('ATBC'));
+});
+
+test('buildCustomCycle: viewCount clamps and absent keys fall back sanely', () => {
+  assert.equal(vc.buildCustomCycle({ viewCount: '9', radarMode: 'off', healthMode: 'off' }).length, 1);
+  const c = vc.buildCustomCycle({ viewCount: '1', radarMode: 'off', healthMode: 'off' });
+  assert.equal(c[0].tier, vc.TIER_COMPACT, 'default top is the 2-row calendar');
+  assert.equal(c[0].body, vc.BODY_FC);
+  assert.equal(c[0].statusUpper, vc.STATUS_SRC_NONE);
+});
+
 // The canonical order table must stay in lockstep with src/c/windows/layout.c's
 // STACK_ORDER (the C side pins the same list through rendered band order in
 // test/c/layout_test.c stacked_order_parity). Code 0 = legacy; codes 1-11 = stacker.
