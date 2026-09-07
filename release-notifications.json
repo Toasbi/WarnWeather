@@ -138,5 +138,9 @@
   "1.15.0": {
     "title": "Pick your graph colors",
     "body": "The Forecast tab has a new Graph colors card: set the line, the fill under it and the night tint for each metric from the full Pebble palette, plus the night hatch and the dusk/dawn line. Colors are kept separately for the Dark and Light themes."
+  },
+  "1.15.2": {
+    "title": "Custom date formats",
+    "body": "The date can now be shown in a custom format. Change it in the date status slot settings."
   }
 }
