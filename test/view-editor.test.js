@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const ve = require('../src/pkjs/settings/view-editor.js');
 const vc = require('../src/pkjs/view-cycle.js');
 
-function baseView(i, over) {
+function baseView(over) {
   const S = {
     viewCount: '2',
     viewTop0: 'cal2', viewBody0: 'forecast', viewUpper0: 'weather', viewLower0: 'off', viewOrder0: 'TACB',
@@ -31,7 +31,7 @@ test('presence derives from the per-view keys; slot 0 always has a clock', () =>
 test('moveBand swaps with the nearest PRESENT neighbour, stepping over absent bands', () => {
   // Clock absent: moving B up from TACB must land it above A (via canonicalize),
   // not swap with the invisible clock.
-  const S = baseView(1, { viewClockOff1: true, viewLower1: 'radar', radarMode: 'graph' });
+  const S = baseView({ viewClockOff1: true, viewLower1: 'radar', radarMode: 'graph' });
   // order TACB, C absent; move B up: swaps past C onto A's spot, then canonicalizes
   // back to A-before-B by swapping the SOURCES instead.
   assert.equal(ve.moveBand(S, 1, 'B', -1), true);
@@ -52,7 +52,7 @@ test('moveBand: edge no-ops and clock-at-top ordering', () => {
 });
 
 test('remove/add element round-trips; re-added elements land above the graph', () => {
-  const S = baseView(1);
+  const S = baseView();
   assert.equal(ve.removeElement(S, 1, 'C'), true);
   assert.equal(S.viewClockOff1, true);
   assert.equal(ve.removeElement(S, 1, 'topbar'), true);
@@ -81,7 +81,7 @@ test('remove/add element round-trips; re-added elements land above the graph', (
 });
 
 test('normalizeAfterPick: sibling source dedupe and the single radar layer', () => {
-  const S = baseView(0, { viewUpper0: 'weather', viewLower0: 'weather' });
+  const S = baseView({ viewUpper0: 'weather', viewLower0: 'weather' });
   ve.normalizeAfterPick(S, 0, 'viewUpper0');
   assert.equal(S.viewLower0, 'off', 'fresh pick wins; sibling clears');
   S.viewTop0 = 'radar'; S.viewBody0 = 'radar';
@@ -101,7 +101,7 @@ test('snapshot/restore covers every custom key (the ✕ draft-discard path)', ()
 });
 
 test('addView copies the Default; removeView compacts so the last slot frees', () => {
-  const S = baseView(0, { viewTop0: 'cal3', viewOrder0: 'TCAB' });
+  const S = baseView({ viewTop0: 'cal3', viewOrder0: 'TCAB' });
   assert.equal(ve.addView(S), 2, 'new view is slot 2');
   assert.equal(S.viewCount, '3');
   assert.equal(S.viewTop2, 'cal3', 'copied from the Default');

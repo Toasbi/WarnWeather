@@ -138,6 +138,9 @@ static void split_content(int content_h, const uint8_t weights[3],
 // None: no calendar, time rises under the strip, a taller upper band beneath it, the bottom
 // band (which also hosts the radar) fills the rest. The lower band is carved from the top of
 // the bottom band (the forecast-abutting slot), independently of the upper band.
+// The legacy (order-0) geometry engine. Takes the ViewSpec whole — the same signature
+// as compute_stacked below, so layout_compute_spec is a pure dispatcher and no caller
+// threads the spec's facts through by hand.
 // `clock` is false only for a custom clockless view (ViewSpec.clock_off): the time band
 // collapses to zero height, the bands that borrowed its blank margins consume their full
 // heights in flow instead, and the body absorbs everything the clock vacated.
@@ -146,11 +149,15 @@ static void split_content(int content_h, const uint8_t weights[3],
 // body shifts up and the body absorbs the freed rows at the bottom. Band HEIGHTS are
 // deliberately untouched (the content split keeps the strip reserve in its arithmetic) —
 // removing the strip moves the remaining elements, it does not resize them.
-// Presets always pass true/true, so every preset path below is byte-identical to
-// pre-custom builds.
-static MainLayout compute_with_weights(GRect bounds, uint8_t tier, bool upper,
-                                       bool lower, bool clock, bool strip, LayoutMetrics m,
-                                       const uint8_t weights[3]) {
+// Preset specs always carry clock and strip, so every preset path below is
+// byte-identical to pre-custom builds.
+static MainLayout compute_with_weights(GRect bounds, const ViewSpec *spec, LayoutMetrics m) {
+    uint8_t tier = layout_tier_for_rows(spec->calendar_rows);
+    bool upper = (spec->status_upper != STATUS_SRC_NONE);
+    bool lower = (spec->status_lower != STATUS_SRC_NONE);
+    bool clock = (spec->clock_off == 0);
+    bool strip = (spec->strip_off == 0);
+    const uint8_t *weights = spec->weights;
     // Unpacked once into locals so the body below reads exactly as it did; both are register
     // copies, and the bundling exists purely to keep the call itself off the stack (layout.h).
     int fc_band_h = m.fc_band_h;
@@ -745,20 +752,12 @@ static MainLayout compute_stacked(GRect bounds, const ViewSpec *spec, LayoutMetr
 }
 
 MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, LayoutMetrics m) {
-    uint8_t tier = layout_tier_for_rows(spec->calendar_rows);
-    bool upper = (spec->status_upper != STATUS_SRC_NONE);
-    bool lower = (spec->status_lower != STATUS_SRC_NONE);
-    bool clock = (spec->clock_off == 0);
-    bool strip = (spec->strip_off == 0);
-    MainLayout L;
-    if (spec->order >= 1 && spec->order <= 11) {
-        // Custom band order → the generic stacker. Order 0 (and clamped garbage)
-        // stays on the legacy engine, which presets ride bit-identically.
-        L = compute_stacked(bounds, spec, m);
-    } else {
-        L = compute_with_weights(bounds, tier, upper, lower, clock, strip, m,
-                                 spec->weights);
-    }
+    // Custom band order → the generic stacker; order 0 (and clamped garbage) stays
+    // on the legacy engine, which presets ride bit-identically. Both engines share
+    // one signature, so this is a pure dispatch.
+    MainLayout L = (spec->order >= 1 && spec->order <= 11)
+        ? compute_stacked(bounds, spec, m)
+        : compute_with_weights(bounds, spec, m);
     // Radar rides wherever it's placed: the top band when it replaces the calendar,
     // otherwise the body band (under a retained calendar, or full-screen in none tier).
     if (spec->top == TOP_BAND_RADAR) {
