@@ -1521,7 +1521,13 @@ module.exports = {
                 label: 'Edit custom layout',
                 action: 'openViewEditor',
                 hint: 'Choose what each view shows, and where.',
-                showWhen: {key: 'layoutPreset', eq: 'custom'}
+                // Platform-gated like the option itself: a DORMANT stored 'custom'
+                // (set on a colour watch, then the phone pairs an aplite) displays
+                // the compactCal fallback — the editor button must not leak in
+                // beside it. ne keeps the unknown-platform case capable, matching
+                // layoutPresetOptions and the clay-payload gate.
+                showWhen: {all: [{key: 'layoutPreset', eq: 'custom'},
+                                 {env: 'platform', ne: 'aplite'}]}
             }, {
                 type: 'toggle',
                 messageKey: 'largeGraphFont',

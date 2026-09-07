@@ -59,15 +59,22 @@ test('remove/add element round-trips; re-added elements land above the graph', (
   assert.equal(S.viewStripOff1, true);
   assert.equal(ve.removeElement(S, 1, 'T'), true);
   assert.equal(S.viewTop1, 'none');
+  // Source-aware ＋: the sibling row already shows weather and neither radar nor
+  // health is capable here, so a second status bar is NOT offered (it would only
+  // duplicate and fold away).
   assert.deepEqual(ve.addableElements(S, 1).map((a) => a[1]).sort(),
-    ['clock', 'status', 'top', 'topbar'].sort());
+    ['clock', 'top', 'topbar'].sort());
   // Re-add the clock: it lands at the END of the order (directly above the graph).
   assert.equal(ve.addElement(S, 1, 'clock'), true);
   assert.equal(S.viewClockOff1, false);
   assert.equal(S.viewOrder1[3], 'C', 'clock re-added above the graph');
-  // Second status bar: fills the free lower slot with weather, dedupe-safe add.
+  // With radar capable, the second status bar becomes addable and fills the free
+  // slot with the first NON-DUPLICATE capable source (radar — weather is taken).
+  S.radarMode = 'graph';
+  assert.ok(ve.addableElements(S, 1).map((a) => a[1]).indexOf('status') >= 0);
+  assert.equal(ve.freeStatusSource(S, 1), 'radar');
   assert.equal(ve.addElement(S, 1, 'status'), true);
-  assert.equal(S.viewLower1, 'weather');
+  assert.equal(S.viewLower1, 'radar');
   // Slot 0 can never remove clock or top bar.
   assert.equal(ve.removeElement(S, 0, 'C'), false);
   assert.equal(ve.removeElement(S, 0, 'topbar'), false);

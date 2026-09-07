@@ -142,6 +142,30 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
+     * The source a fresh status row should carry in view `i`: the first of
+     * weather/radar/health that (a) is not already on the sibling row (the C
+     * invariant — no source repeats across bands) and (b) passes the same
+     * capability gates buildCustomCycle folds by, so the fresh row never
+     * compiles straight to NONE. null when no distinct capable source exists.
+     * @param {Object} S @param {number} i @returns {?string}
+     */
+    function freeStatusSource(S, i) {
+        var sibling = (S[k('Upper', i)] || 'off') !== 'off' ? S[k('Upper', i)]
+                    : (S[k('Lower', i)] || 'off') !== 'off' ? S[k('Lower', i)] : null;
+        var radarOk = S.radarMode === 'status' || S.radarMode === 'graph';
+        var healthOk = S.healthMode === 'status' || S.healthMode === 'all';
+        var candidates = ['weather', 'radar', 'health'], j, c;
+        for (j = 0; j < candidates.length; j++) {
+            c = candidates[j];
+            if (c === sibling) { continue; }
+            if (c === 'radar' && !radarOk) { continue; }
+            if (c === 'health' && !healthOk) { continue; }
+            return c;
+        }
+        return null;
+    }
+
+    /**
      * What ＋ can still add to view `i`, as [label, kind] pairs.
      * @param {Object} S @param {number} i @returns {Array}
      */
@@ -151,7 +175,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (i > 0 && S[k('StripOff', i)]) { out.push(['Top bar (battery & date)', 'topbar']); }
         if (!pres.T) { out.push(['Calendar', 'top']); }
         if (i > 0 && S[k('ClockOff', i)]) { out.push(['Clock', 'clock']); }
-        if (!pres.A || !pres.B) { out.push(['Status bar', 'status']); }
+        // Source-aware, not just slot-aware: with no distinct capable source left
+        // (e.g. weather already shown, radar and health off) a second row would
+        // duplicate the sibling and fold away — don't offer it.
+        if ((!pres.A || !pres.B) && freeStatusSource(S, i) !== null) {
+            out.push(['Status bar', 'status']);
+        }
         return out;
     }
 
@@ -179,12 +208,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
         if (kind === 'status') {
             var pres = presence(S, i);
+            var src = freeStatusSource(S, i);
+            if (src === null) { return false; }
             if (!pres.A) {
-                S[k('Upper', i)] = 'weather';
+                S[k('Upper', i)] = src;
                 bandToEnd(S, i, 'A'); return true;
             }
             if (!pres.B) {
-                S[k('Lower', i)] = 'weather';
+                S[k('Lower', i)] = src;
                 bandToEnd(S, i, 'B'); return true;
             }
             return false;
@@ -540,7 +571,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         module.exports = {
             presence: presence, canonicalize: canonicalize, moveBand: moveBand,
             bandToEnd: bandToEnd, removeElement: removeElement, addElement: addElement,
-            addableElements: addableElements, normalizeAfterPick: normalizeAfterPick,
+            addableElements: addableElements, freeStatusSource: freeStatusSource,
+            normalizeAfterPick: normalizeAfterPick,
             takeSnapshot: takeSnapshot, restoreSnapshot: restoreSnapshot,
             addView: addView, removeView: removeView, viewCount: viewCount,
             _test: { openEditor: openEditor, closeEditor: closeEditor, renderEditor: renderEditor, VE: VE }

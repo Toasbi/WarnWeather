@@ -51,6 +51,27 @@ test('defaults-policy is bundled BEFORE the wizard that consumes it', () => {
     'defaults-policy.js must be concatenated before wizard.js so the global exists when read');
 });
 
+// The custom-layout editor is the same silent-no-op shape as the defaults policy:
+// BOTH consumers guard its absence (the Edit button's [data-action] dispatch and the
+// layoutPresetChanged hook's `if (PConf.actions.openViewEditor)`), so dropping
+// view-editor.js from APP_FILES keeps every Node test green while the shipped page's
+// Edit button does nothing. Pin the ASSIGNMENT, not the bare name — blocks.js's guard
+// keeps the string 'openViewEditor' in the page even with the editor gutted.
+test('the custom-layout editor reaches the generated page, after view-cycle', () => {
+  const src = page();
+  assert.ok(src.indexOf('PConf.actions.openViewEditor =') !== -1,
+    'nothing assigns PConf.actions.openViewEditor — picking Custom would seed keys and render a dead Edit button');
+  assert.ok(src.indexOf('data-ve-save') !== -1,
+    'the editor overlay markup is missing from the page');
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => appFiles.findIndex((f) => f.endsWith(suffix));
+  const vcAt = idx('pkjs/view-cycle.js');
+  const veAt = idx('settings/view-editor.js');
+  assert.notEqual(veAt, -1, 'view-editor.js is not in APP_FILES at all');
+  assert.ok(vcAt !== -1 && vcAt < veAt,
+    'view-cycle.js must precede view-editor.js — the editor binds window.VIEW_CYCLE while its IIFE runs');
+});
+
 // The forecast preview resolves every graph colour through line-style.js (and its two
 // deps) instead of re-implementing the colour model. Same silent-no-op hazard as the
 // defaults policy above, one step worse: these three must also be in the RIGHT ORDER,

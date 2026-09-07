@@ -324,8 +324,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @param {string} query Search query.
    * @returns {string} Option rows HTML.
    */
-  function renderSelectOptions(item, value, query, recommended) {
-    var q = String(query || '').toLowerCase(), h = '', i, o, lo, vo, meta, classes, labelCell, rec, shown = 0;
+  // `off` — values gated inert by the item's optionDisabledWhen, computed by the
+  // CALLER (disabledOptionValues needs an evalCtx this pure renderer doesn't hold).
+  // Without it the sheet path ignored the declared gates entirely: the tab-body
+  // radio/segmented renderers got them via view.disabledOptions, but a select
+  // opened AS A SHEET (openSheet — the custom-layout editor's only surface)
+  // rendered every gated option fully pickable.
+  function renderSelectOptions(item, value, query, recommended, off) {
+    var q = String(query || '').toLowerCase(), h = '', i, o, lo, vo, meta, gated, classes, labelCell, rec, shown = 0;
+    var offVals = off || [];
     for (i = 0; i < item.options.length; i++) {
       o = item.options[i];
       lo = o[0].toLowerCase(); vo = o[1].toLowerCase();
@@ -350,14 +357,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         ? '<span class="ssel-opt-txt"><span class="ssel-opt-name">' + esc(o[0]) + rec + '</span>'
           + '<span class="ssel-opt-desc">' + esc(meta.desc) + '</span></span>'
         : '<span>' + esc(o[0]) + rec + '</span>';
-      // A non-header meta.disabled option (a provider-gated slot item, e.g.
-      // "Pollen (DWD)" under another provider) stays visible but inert: no
-      // data-select-pick, so the delegated pick handler can never match, plus
+      // A non-header disabled option — per-option meta.disabled (a provider-gated
+      // slot item, e.g. "Pollen (DWD)" under another provider) or an
+      // optionDisabledWhen gate resolved by the caller — stays visible but inert:
+      // no data-select-pick, so the delegated pick handler can never match, plus
       // the disabled attribute against taps/keyboard. Muted inline — .ssel-opt
       // has no [disabled] rule of its own — mirroring .seg button[disabled].
+      gated = meta.disabled || offVals.indexOf(o[1]) !== -1;
       h += '<button type="button" class="' + classes + '" role="option" aria-selected="'
         + (value === o[1] ? 'true' : 'false') + '"'
-        + (meta.disabled
+        + (gated
           ? ' disabled aria-disabled="true" style="opacity:.38;cursor:not-allowed"'
           : ' data-select-pick="' + esc(o[1]) + '" data-k="' + esc(item.messageKey) + '"')
         + '>' + labelCell
@@ -631,7 +640,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       + search
       + '<div id="' + listId + '" class="ssel-list" role="listbox" aria-label="' + title
       + ' options" data-ssel-list="' + key + '">'
-      + renderSelectOptions(item, value, cx.selectQuery, resolveRecommended(item, cx.S, cx.ENV)) + '</div>';
+      + renderSelectOptions(item, value, cx.selectQuery, resolveRecommended(item, cx.S, cx.ENV),
+          disabledOptionValues(item, cx.evalCtx)) + '</div>';
   }
 
   /**
@@ -1734,7 +1744,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         var list = document.querySelector('[data-ssel-list="' + sk + '"]');
         if (list) {
           var item = resolveRowItem(findItem(sk), { value: S[sk] }, { S: S, ENV: ENV });
-          list.innerHTML = renderSelectOptions(item, S[sk], selectQuery, resolveRecommended(item, S, ENV));
+          list.innerHTML = renderSelectOptions(item, S[sk], selectQuery, resolveRecommended(item, S, ENV),
+            disabledOptionValues(item, Object.assign({}, S, { env: ENV })));
         }
       });
       // The wheel settle/commit lives with the date picker (createDateWiring).

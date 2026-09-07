@@ -89,3 +89,46 @@ test('openViewEditor is a safe no-op under Node (no DOM, no ctx)', () => {
   assert.equal(typeof global.PConf.actions.openViewEditor, 'function');
   assert.doesNotThrow(() => global.PConf.actions.openViewEditor());
 });
+
+test('a dormant stored custom on aplite renders neither the Edit button nor the option', () => {
+  const r = layoutBody({
+    layoutPreset: 'custom', customLayoutSeeded: true, viewCount: '1',
+    viewTop0: 'cal2', viewBody0: 'forecast', viewUpper0: 'weather',
+    viewLower0: 'off', viewOrder0: 'TACB',
+  }, 'aplite');
+  assert.equal(r.body.indexOf('Edit custom layout'), -1, 'no editor button on aplite');
+  assert.equal(r.body.indexOf('>Custom<'), -1, 'no Custom option on aplite');
+});
+
+// The editor's ONLY select surface is the sheet path (openSheet -> renderSelectModal);
+// the tab-body renderers' disabledOptions never applied there, so the declared
+// optionDisabledWhen gates were dead — a radar pick under radarMode 'off' was accepted
+// and silently folded, the editor row lying about the layout. Pin the sheet path.
+test('select SHEETS render optionDisabledWhen gates inert (the editor path)', () => {
+  const S = Object.assign(eng.hydrate(schema, {}), {
+    radarMode: 'off', healthMode: 'off',
+    layoutPreset: 'custom', customLayoutSeeded: true, viewCount: '1',
+    viewTop0: 'cal2', viewBody0: 'forecast', viewUpper0: 'weather',
+    viewLower0: 'off', viewOrder0: 'TACB',
+  });
+  const ENV = plat.computeEnv({ platform: 'basalt' });
+  const cx = {
+    S: S, ENV: ENV, USERDATA: {}, openColor: null, openSelect: 'viewTop0',
+    openDate: null, selectQuery: '', collapsed: {},
+    evalCtx: Object.assign({}, S, { env: ENV }),
+  };
+  const sheet = eng.renderSelectModal(schema, cx);
+  assert.ok(sheet.indexOf('Rain radar') >= 0, 'the gated option stays VISIBLE');
+  // The gated option must be inert: disabled attr, no pick handle for its value.
+  const radarBtn = sheet.slice(sheet.lastIndexOf('<button', sheet.indexOf('Rain radar')),
+    sheet.indexOf('Rain radar'));
+  assert.ok(radarBtn.indexOf('disabled') >= 0, 'radar option is disabled under radarMode off');
+  assert.equal(radarBtn.indexOf('data-select-pick'), -1, 'no pick handle on the gated option');
+  // A capable mode renders it pickable again.
+  const S2 = Object.assign({}, S, { radarMode: 'graph' });
+  const cx2 = Object.assign({}, cx, { S: S2, evalCtx: Object.assign({}, S2, { env: ENV }) });
+  const sheet2 = eng.renderSelectModal(schema, cx2);
+  const radarBtn2 = sheet2.slice(sheet2.lastIndexOf('<button', sheet2.indexOf('Rain radar')),
+    sheet2.indexOf('Rain radar'));
+  assert.ok(radarBtn2.indexOf('data-select-pick="radar"') >= 0, 'pickable when capable');
+});

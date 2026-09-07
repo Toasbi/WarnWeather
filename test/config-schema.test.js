@@ -761,8 +761,9 @@ test('Layout tab leads with the arrangement section: combined preview above the 
   assert.equal(items[presetIdx].blockBefore, 'layoutPreviewCombined', 'combined preview hosted on the preset radio');
   assert.equal(items[presetIdx].blockBeforeSticky, true, 'preview sticky');
   assert.equal(editIdx, presetIdx + 1, 'Edit custom layout button sits directly below the preset radio');
-  assert.deepEqual(items[editIdx].showWhen, { key: 'layoutPreset', eq: 'custom' },
-    'editor button only shows in custom mode');
+  assert.deepEqual(items[editIdx].showWhen,
+    { all: [{ key: 'layoutPreset', eq: 'custom' }, { env: 'platform', ne: 'aplite' }] },
+    'editor button only shows in custom mode, never on aplite (dormant stored custom)');
   assert.equal(fontIdx, editIdx + 1, 'largeGraphFont follows the editor button');
   assert.equal(swapIdx, fontIdx + 1, 'swapClockStatus sits directly below largeGraphFont');
   assert.equal(resetIdx, swapIdx + 1, 'viewResetMin sits directly below swapClockStatus');
