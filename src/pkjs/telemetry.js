@@ -386,6 +386,121 @@ function serializeError(value, maxLength) {
     return truncateString(out, maxLength);
 }
 
+// --- batching ----------------------------------------------------------------
+// One event used to mean one POST — ~59 edge-function invocations per watch per
+// day (30-min fetches) against Supabase's 500k/month cap, and telemetry was 61%
+// of the burn. Events now queue in localStorage as SLIM records and drain as ONE
+// batch request when the queue is full enough or its head old enough (~2 flushes
+// per watch per day). The heavy shared header (settings snapshot, watchInfo,
+// version) is captured once at flush time — the rollup only ever reads the
+// NEWEST settings per watch (telemetry_rollup_and_prune), so per-event snapshots
+// bought nothing. The ingest keeps accepting the old single-event shape from
+// app versions in the field; this client only sends batches.
+var storageKeys = require('./storage-keys.js');
+
+var TELEMETRY_FLUSH_AT_EVENTS = 24;                    // ~12 h at the 30-min default
+var TELEMETRY_FLUSH_AT_AGE_MS = 12 * 60 * 60 * 1000;   // slow-interval watches still flush
+var TELEMETRY_MAX_QUEUE_EVENTS = 200;                  // localStorage bound; oldest dropped
+var TELEMETRY_MAX_BATCH_EVENTS = 50;                   // ingest's z.array max — keep lockstep
+var TELEMETRY_MAX_EVENT_AGE_MS = 72 * 60 * 60 * 1000;  // ingest clamps received_at to now-72h
+// After a retryable failure (5xx / 429 / network), no flush attempt for this
+// long. Without it, a queue past the count trigger retried on EVERY track — one
+// POST per fetch, the exact per-fetch invocation rate batching exists to kill,
+// aimed at an endpoint that is already down.
+var TELEMETRY_RETRY_BACKOFF_MS = 60 * 60 * 1000;
+
+// MODULE scope, not per-client: the webviewclosed handler recreates the client
+// (index.js), and a per-client latch would let the new client re-POST the head
+// the old client's still-in-flight XHR already carries — duplicate rows AND a
+// double head-removal. PKJS module state lives exactly as long as any XHR can,
+// so one latch here covers every client the session creates.
+var telemetryFlushInFlight = false;
+var telemetryNextFlushEarliest = 0;
+// Per-session tail for record ids: t alone can collide when two fetches land in
+// the same millisecond, and the ACK removes records BY id.
+var telemetryIdSeq = 0;
+
+/**
+ * Read the pending-event queue; a missing or corrupt blob is an empty queue.
+ * @returns {Object[]} Slim event records, oldest first.
+ */
+function readTelemetryQueue() {
+    try {
+        var parsed = JSON.parse(localStorage.getItem(storageKeys.TELEMETRY_QUEUE_KEY));
+        return Object.prototype.toString.call(parsed) === '[object Array]' ? parsed : [];
+    }
+    catch (ex) {
+        return [];
+    }
+}
+
+/**
+ * Persist the pending-event queue.
+ * @param {Object[]} queue Slim event records, oldest first.
+ * @returns {void}
+ */
+function writeTelemetryQueue(queue) {
+    try {
+        localStorage.setItem(storageKeys.TELEMETRY_QUEUE_KEY, JSON.stringify(queue));
+    }
+    catch (ex) {
+        console.log('[telemetry] queue write failed: ' + ex.message);
+    }
+}
+
+/**
+ * Remove the given record ids from the stored queue. Removal is BY IDENTITY,
+ * never by count: while a batch is in flight the queue can be rewritten under
+ * it (a track appending, the 200-cap dropping head records), so "splice the
+ * first N" can destroy records that were never sent.
+ * @param {Object[]} sent The records that rode the batch.
+ * @returns {void}
+ */
+function removeTelemetryRecords(sent) {
+    var ids = {};
+    var i;
+    for (i = 0; i < sent.length; i += 1) { ids[sent[i].id] = true; }
+    writeTelemetryQueue(readTelemetryQueue().filter(function(rec) {
+        return !(rec && ids[rec.id] === true);
+    }));
+}
+
+/**
+ * Read the crashed-mid-send marker ({ids: [...]}), or null.
+ * @returns {?Object} Marker, or null when absent/corrupt.
+ */
+function readTelemetrySendingMark() {
+    try {
+        var parsed = JSON.parse(localStorage.getItem(storageKeys.TELEMETRY_SENDING_KEY));
+        return (parsed && Object.prototype.toString.call(parsed.ids) === '[object Array]')
+            ? parsed : null;
+    }
+    catch (ex) {
+        return null;
+    }
+}
+
+/**
+ * Write or clear the mid-send marker.
+ * @param {?Object[]} sent Records about to ride a batch, or null to clear.
+ * @returns {void}
+ */
+function writeTelemetrySendingMark(sent) {
+    try {
+        if (!sent) {
+            localStorage.removeItem(storageKeys.TELEMETRY_SENDING_KEY);
+            return;
+        }
+        var ids = [];
+        var i;
+        for (i = 0; i < sent.length; i += 1) { ids.push(sent[i].id); }
+        localStorage.setItem(storageKeys.TELEMETRY_SENDING_KEY, JSON.stringify({ ids: ids }));
+    }
+    catch (ex) {
+        console.log('[telemetry] sending-mark write failed: ' + ex.message);
+    }
+}
+
 /**
  * Create a telemetry client for weather fetch events.
  *
@@ -400,54 +515,100 @@ function createTelemetryClient(options) {
     var endpoint = options && typeof options.endpoint === 'string' ? options.endpoint.trim() : '';
     var appVersion = options && typeof options.appVersion === 'string' ? options.appVersion : '0.0.0';
     var buildProfile = options && typeof options.buildProfile === 'string' ? options.buildProfile : 'unknown';
+    // The freshest header context, refreshed on every track call: PKJS is torn
+    // down between watchface sessions, but a flush only ever runs FROM a track
+    // call, so this is always populated when the batch is built.
+    var lastSettingsSnapshot = null;
+    var lastWatchInfoSnapshot = null;
 
-    if (!enabled) {
-        console.log('[telemetry] disabled by user setting');
-    }
-    else if (endpoint === '') {
-        console.log('[telemetry] disabled (no endpoint configured)');
+    if (!enabled || endpoint === '') {
+        console.log(!enabled
+            ? '[telemetry] disabled by user setting'
+            : '[telemetry] disabled (no endpoint configured)');
+        // A queue from an earlier enabled session must not sit in localStorage
+        // indefinitely — the user turned reporting off (or the build carries no
+        // endpoint), so pending events are purged, not parked.
+        try {
+            localStorage.removeItem(storageKeys.TELEMETRY_QUEUE_KEY);
+            localStorage.removeItem(storageKeys.TELEMETRY_SENDING_KEY);
+        }
+        catch (exPurge) {
+            console.log('[telemetry] queue purge failed: ' + exPurge.message);
+        }
     }
     else {
         console.log('[telemetry] enabled endpoint=' + endpoint);
     }
 
-    function send(payload) {
+    /**
+     * POST one batch; the callback reports 'sent' | 'drop' | 'retry'.
+     * @param {Object} payload Batch envelope.
+     * @param {function(string): void} onOutcome Outcome callback.
+     * @returns {void}
+     */
+    function sendBatch(payload, onOutcome) {
         var xhr = new XMLHttpRequest();
         xhr.open('POST', endpoint);
         xhr.setRequestHeader('Content-Type', 'application/json');
-        console.log('[telemetry] sending event=' + payload.eventType + ' endpoint=' + endpoint);
+        console.log('[telemetry] sending batch events=' + payload.events.length);
         xhr.onload = function() {
             if (xhr.status >= 200 && xhr.status < 300) {
-                console.log('[telemetry] sent event=' + payload.eventType + ' status=' + xhr.status);
+                console.log('[telemetry] batch sent status=' + xhr.status);
+                onOutcome('sent');
                 return;
             }
             console.log('[telemetry] non-2xx status=' + xhr.status + ' body=' + xhr.responseText);
+            // A 4xx is terminal — the same payload would fail identically, and
+            // retrying poison events forever wedges the queue (the old client's
+            // "nothing retries a 400" rule). 429 is the one retryable 4xx.
+            onOutcome((xhr.status >= 400 && xhr.status < 500 && xhr.status !== 429)
+                ? 'drop' : 'retry');
         };
         xhr.onerror = function() {
             console.log('[telemetry] request error');
+            onOutcome('retry');
         };
         xhr.send(JSON.stringify(payload));
     }
 
     /**
-     * Track one weather fetch attempt.
-     *
-     * @param {Object} event Telemetry event properties.
+     * Drain the queue head as one batch when it is full enough or old enough.
      * @returns {void}
      */
-    function trackWeatherFetch(event) {
-        var accountToken;
-        var watchToken;
-        var watchInfo;
-        var success;
-        var error;
-        var attempt;
-
-        if (!enabled || endpoint === '') {
-            console.log('[telemetry] telemetry disabled');
+    function maybeFlush() {
+        if (telemetryFlushInFlight) { return; }
+        var now = Date.now();
+        if (now < telemetryNextFlushEarliest) { return; }   // backing off a failed send
+        // A sending-mark with no in-flight batch in THIS session means a
+        // previous session died between send and ACK — outcome unknown. Drop
+        // the marked records rather than resend (see TELEMETRY_SENDING_KEY).
+        var mark = readTelemetrySendingMark();
+        if (mark) {
+            var markedIds = {};
+            var m;
+            for (m = 0; m < mark.ids.length; m += 1) { markedIds[mark.ids[m]] = true; }
+            writeTelemetryQueue(readTelemetryQueue().filter(function(rec) {
+                return !(rec && markedIds[rec.id] === true);
+            }));
+            writeTelemetrySendingMark(null);
+        }
+        // Stale events (a watchface unused for days) are dropped, not sent: the
+        // ingest clamps received_at to now-72h, and clamped rows would land in
+        // the wrong day's DAU. Written back only when something was actually
+        // dropped — this runs on every track.
+        var stored = readTelemetryQueue();
+        var queue = stored.filter(function(ev) {
+            return ev && typeof ev.t === 'number' && now - ev.t <= TELEMETRY_MAX_EVENT_AGE_MS;
+        });
+        if (queue.length !== stored.length) { writeTelemetryQueue(queue); }
+        if (queue.length === 0) { return; }
+        var headAge = now - queue[0].t;
+        if (queue.length < TELEMETRY_FLUSH_AT_EVENTS && headAge < TELEMETRY_FLUSH_AT_AGE_MS) {
             return;
         }
 
+        var accountToken;
+        var watchToken;
         try {
             accountToken = Pebble.getAccountToken();
         }
@@ -455,52 +616,109 @@ function createTelemetryClient(options) {
             console.log('[telemetry] getAccountToken failed: ' + ex.message);
             return;
         }
-
         if (typeof accountToken !== 'string' || accountToken.trim() === '') {
             console.log('[telemetry] getAccountToken returned empty value');
             return;
         }
-
         try {
             watchToken = Pebble.getWatchToken();
         }
-        catch (ex) {
+        catch (ex2) {
             watchToken = null;
-            console.log('[telemetry] getWatchToken failed: ' + ex.message);
+            console.log('[telemetry] getWatchToken failed: ' + ex2.message);
         }
-
         if (typeof watchToken !== 'string' || watchToken.trim() === '') {
             watchToken = null;
         }
 
-        watchInfo = buildWatchInfoSnapshot(event.watchInfo);
-        success = Boolean(event.success);
-        error = success ? null : serializeError(event.error, 512);
-        attempt = (
+        var events = queue.slice(0, TELEMETRY_MAX_BATCH_EVENTS);
+        telemetryFlushInFlight = true;
+        writeTelemetrySendingMark(events);
+        try {
+            sendBatch({
+                eventType: 'weather_fetch_batch',
+                accountToken: accountToken,
+                watchToken: watchToken,
+                appVersion: appVersion,
+                buildProfile: buildProfile,
+                watchInfo: lastWatchInfoSnapshot || {},
+                settings: lastSettingsSnapshot || {},
+                events: events
+            }, function(outcome) {
+                telemetryFlushInFlight = false;
+                writeTelemetrySendingMark(null);
+                if (outcome === 'retry') {
+                    // Endpoint down or throttling: hold off instead of retrying
+                    // on every subsequent track (which would restore the old
+                    // one-POST-per-fetch rate against a struggling backend).
+                    telemetryNextFlushEarliest = Date.now() + TELEMETRY_RETRY_BACKOFF_MS;
+                    return;
+                }
+                // 'sent' and 'drop' both remove exactly the records that were
+                // posted — by id, never by position (see removeTelemetryRecords).
+                removeTelemetryRecords(events);
+            });
+        }
+        catch (exSend) {
+            // A synchronous XHR failure must not leave the latch stuck for the
+            // whole session, nor propagate into the fetch callback chain.
+            telemetryFlushInFlight = false;
+            writeTelemetrySendingMark(null);
+            telemetryNextFlushEarliest = Date.now() + TELEMETRY_RETRY_BACKOFF_MS;
+            console.log('[telemetry] send threw: ' + exSend.message);
+        }
+    }
+
+    /**
+     * Track one weather fetch attempt: enqueue a slim record and flush when due.
+     *
+     * @param {Object} event Telemetry event properties.
+     * @returns {void}
+     */
+    function trackWeatherFetch(event) {
+        if (!enabled || endpoint === '') {
+            console.log('[telemetry] telemetry disabled');
+            return;
+        }
+
+        var success = Boolean(event.success);
+        var attempt = (
             typeof event.attempt === 'number' &&
             isFinite(event.attempt) &&
             event.attempt >= 1
         ) ? Math.floor(event.attempt) : null;
 
-        send({
-            eventType: 'weather_fetch',
-            timestampUtc: new Date().toISOString(),
-            accountToken: accountToken,
-            watchToken: watchToken,
+        // Normalized at QUEUE time so the flush is a dumb envelope-builder and a
+        // record is immutable once stored. The id is what the ACK removes by
+        // (t alone collides when two fetches land in one millisecond); the
+        // ingest's zod schema strips it from the wire.
+        var trackNow = Date.now();
+        telemetryIdSeq += 1;
+        var record = {
+            id: trackNow.toString(36) + '.' + telemetryIdSeq,
+            t: trackNow,
             provider: event.provider,
             success: success,
-            usedGpsCache: event.usedGpsCache,
+            error: success ? null : serializeError(event.error, 512),
+            countryCode: normalizeCountryCode(event.countryCode),
+            usedGpsCache: Boolean(event.usedGpsCache),
             gpsErrorCode: typeof event.gpsErrorCode === 'number' ? event.gpsErrorCode : null,
             locationMode: normalizeLocationMode(event.locationMode),
-            error: error,
-            countryCode: normalizeCountryCode(event.countryCode),
-            settings: buildSettingsSnapshot(event.settings, event.watchInfo),
-            appVersion: appVersion,
-            buildProfile: buildProfile,
-            watchInfo: watchInfo,
             durationMs: typeof event.durationMs === 'number' ? event.durationMs : null,
             attempt: attempt
-        });
+        };
+        var queue = readTelemetryQueue();
+        queue.push(record);
+        if (queue.length > TELEMETRY_MAX_QUEUE_EVENTS) {
+            queue.splice(0, queue.length - TELEMETRY_MAX_QUEUE_EVENTS);
+        }
+        writeTelemetryQueue(queue);
+
+        // Header context for the next flush — freshest wins.
+        lastSettingsSnapshot = buildSettingsSnapshot(event.settings, event.watchInfo);
+        lastWatchInfoSnapshot = buildWatchInfoSnapshot(event.watchInfo);
+
+        maybeFlush();
     }
 
     return {
@@ -512,3 +730,18 @@ function createTelemetryClient(options) {
 module.exports = createTelemetryClient;
 // Exposed for unit tests; the runtime entry point is the factory above.
 module.exports.buildSettingsSnapshot = buildSettingsSnapshot;
+module.exports.TELEMETRY_BATCH = {
+    FLUSH_AT_EVENTS: TELEMETRY_FLUSH_AT_EVENTS,
+    FLUSH_AT_AGE_MS: TELEMETRY_FLUSH_AT_AGE_MS,
+    MAX_QUEUE_EVENTS: TELEMETRY_MAX_QUEUE_EVENTS,
+    MAX_BATCH_EVENTS: TELEMETRY_MAX_BATCH_EVENTS,
+    MAX_EVENT_AGE_MS: TELEMETRY_MAX_EVENT_AGE_MS,
+    RETRY_BACKOFF_MS: TELEMETRY_RETRY_BACKOFF_MS
+};
+// The flush latch and retry backoff are MODULE state (shared across the clients
+// one session creates — see maybeFlush); node runs every test in one process,
+// so tests reset it between harnesses.
+module.exports._resetBatchStateForTests = function() {
+    telemetryFlushInFlight = false;
+    telemetryNextFlushEarliest = 0;
+};

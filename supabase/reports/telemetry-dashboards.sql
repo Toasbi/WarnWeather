@@ -1,7 +1,15 @@
 -- Telemetry dashboards.
 --
 -- Freshness is the priority: the "currently active" panels read the live raw
--- table so they reflect today, not last night's rollup. Sources by query:
+-- table so they reflect today, not last night's rollup.
+--
+-- ⚠ Since app 1.16 events arrive BATCHED (telemetry.js queues ~24 events /
+-- ~12 h per watch and posts them as one request; rows carry the client-side
+-- event time in received_at). "Live from raw" therefore means "complete up to
+-- ~12 h ago, plus whatever has flushed since" — today's counts firm up over
+-- the day and finalize with a lag, and a just-released build appears in the
+-- version panels hours after its first fetches. Raw retention is 7 days now
+-- (not 14): the 14-day-window notes below predate that. Sources by query:
 --   • Active-base snapshots (#7, #8, #11, #12, #13, #14) and recent-ops
 --     (#2, #3, #4, #5, #6): live from raw public.telemetry_weather_fetch. Raw is
 --     retained only 14 days, so these are bounded to that window.

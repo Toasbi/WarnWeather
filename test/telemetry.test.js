@@ -539,3 +539,285 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     + ' B (headroom ' + (cap - bytes) + ')');
   assert.ok(bytes < cap, 'heaviest envelope ' + bytes + ' B must stay under ' + cap + ' B');
 });
+
+// --- batching ----------------------------------------------------------------
+// One event used to mean one POST (~59 edge invocations per watch per day);
+// events now queue in localStorage and drain as ONE batch when the queue is
+// full enough (FLUSH_AT_EVENTS) or its head old enough (FLUSH_AT_AGE_MS).
+// These tests drive the real client against fake localStorage/Pebble/XHR.
+const createTelemetryClient = require('../src/pkjs/telemetry.js');
+const { TELEMETRY_BATCH } = createTelemetryClient;
+const { TELEMETRY_QUEUE_KEY, TELEMETRY_SENDING_KEY } = require('../src/pkjs/storage-keys.js');
+
+function batchHarness() {
+  createTelemetryClient._resetBatchStateForTests();
+  const store = {};
+  global.localStorage = {
+    getItem: (k) => (k in store ? store[k] : null),
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; },
+  };
+  global.Pebble = {
+    getAccountToken: () => 'a'.repeat(32),
+    getWatchToken: () => 'w'.repeat(32),
+  };
+  const requests = [];
+  global.XMLHttpRequest = function FakeXhr() {
+    const xhr = this;
+    requests.push(xhr);
+    xhr.open = (method, url) => { xhr.method = method; xhr.url = url; };
+    xhr.setRequestHeader = () => {};
+    xhr.send = (body) => { xhr.body = JSON.parse(body); };
+    xhr.respond = (status) => { xhr.status = status; xhr.onload(); };
+    xhr.fail = () => xhr.onerror();
+  };
+  const client = createTelemetryClient({
+    endpoint: 'https://example.test/ingest', appVersion: '9.9.9', buildProfile: 'test',
+  });
+  const queue = () => JSON.parse(store[TELEMETRY_QUEUE_KEY] || '[]');
+  const track = (over) => client.trackWeatherFetch(Object.assign({
+    provider: 'dwd', success: true, settings: {}, watchInfo: { platform: 'basalt' },
+  }, over || {}));
+  return { store, requests, client, queue, track };
+}
+
+test('events queue as slim records and nothing sends below both flush triggers', () => {
+  const h = batchHarness();
+  for (let i = 0; i < TELEMETRY_BATCH.FLUSH_AT_EVENTS - 1; i++) { h.track(); }
+  assert.equal(h.requests.length, 0, 'no request before either trigger');
+  const q = h.queue();
+  assert.equal(q.length, TELEMETRY_BATCH.FLUSH_AT_EVENTS - 1);
+  const rec = q[0];
+  assert.equal(typeof rec.t, 'number', 'client timestamp on every record');
+  assert.equal(rec.provider, 'dwd');
+  assert.equal(rec.error, null, 'success carries a null error');
+  assert.ok(!('settings' in rec) && !('watchInfo' in rec) && !('accountToken' in rec),
+    'records are SLIM — the heavy header rides the envelope once');
+});
+
+test('the count trigger drains the queue as one batch envelope', () => {
+  const h = batchHarness();
+  for (let i = 0; i < TELEMETRY_BATCH.FLUSH_AT_EVENTS; i++) { h.track(); }
+  assert.equal(h.requests.length, 1, 'exactly one batch request at the threshold');
+  const body = h.requests[0].body;
+  assert.equal(body.eventType, 'weather_fetch_batch');
+  assert.equal(body.events.length, TELEMETRY_BATCH.FLUSH_AT_EVENTS);
+  assert.equal(body.accountToken, 'a'.repeat(32));
+  assert.ok(body.settings && typeof body.settings === 'object', 'settings header once');
+  assert.equal(body.watchInfo.platform, 'basalt');
+  h.requests[0].respond(202);
+  assert.equal(h.queue().length, 0, 'the ACK clears the sent head');
+});
+
+test('an ACK removes exactly the sent head — events queued mid-flight survive', () => {
+  const h = batchHarness();
+  for (let i = 0; i < TELEMETRY_BATCH.FLUSH_AT_EVENTS; i++) { h.track(); }
+  // A fetch completes while the batch is in flight (no second request opens —
+  // one batch in flight at a time, or the same head would post twice).
+  h.track({ provider: 'openmeteo' });
+  assert.equal(h.requests.length, 1, 'no concurrent second batch');
+  h.requests[0].respond(202);
+  const q = h.queue();
+  assert.equal(q.length, 1, 'the mid-flight event survives the splice');
+  assert.equal(q[0].provider, 'openmeteo');
+});
+
+test('a failed send keeps the queue but backs off — no per-fetch retry storm', () => {
+  const h = batchHarness();
+  for (let i = 0; i < TELEMETRY_BATCH.FLUSH_AT_EVENTS; i++) { h.track(); }
+  h.requests[0].respond(500);
+  assert.equal(h.queue().length, TELEMETRY_BATCH.FLUSH_AT_EVENTS, '5xx keeps the head');
+  h.track();
+  h.track();
+  assert.equal(h.requests.length, 1,
+    'tracks inside the backoff window must NOT retry — that would restore the '
+    + 'one-POST-per-fetch rate against a struggling endpoint');
+  createTelemetryClient._resetBatchStateForTests();   // the backoff window elapses
+  h.track();
+  assert.equal(h.requests.length, 2, 'after the backoff the next track retries');
+  h.requests[1].fail();
+  assert.equal(h.queue().length, TELEMETRY_BATCH.FLUSH_AT_EVENTS + 3, 'network error keeps it too');
+  createTelemetryClient._resetBatchStateForTests();
+  h.track();
+  h.requests[2].respond(400);
+  assert.equal(h.queue().length, 0, 'a 400 would fail identically forever — dropped');
+});
+
+test('the age trigger flushes a short queue once its head is old enough', () => {
+  const h = batchHarness();
+  const old = { t: Date.now() - TELEMETRY_BATCH.FLUSH_AT_AGE_MS - 1000, provider: 'dwd',
+    success: true, error: null, countryCode: null, usedGpsCache: false,
+    gpsErrorCode: null, locationMode: null, durationMs: null, attempt: null };
+  h.store[TELEMETRY_QUEUE_KEY] = JSON.stringify([old]);
+  h.track();
+  assert.equal(h.requests.length, 1, 'an old head flushes without the count trigger');
+  assert.equal(h.requests[0].body.events.length, 2);
+});
+
+test('stale events beyond the 72h clamp window are dropped, never sent', () => {
+  const h = batchHarness();
+  const stale = { t: Date.now() - TELEMETRY_BATCH.MAX_EVENT_AGE_MS - 1000, provider: 'dwd',
+    success: true, error: null, countryCode: null, usedGpsCache: false,
+    gpsErrorCode: null, locationMode: null, durationMs: null, attempt: null };
+  h.store[TELEMETRY_QUEUE_KEY] = JSON.stringify([stale]);
+  h.track();
+  assert.equal(h.requests.length, 0, 'one fresh event alone meets no trigger');
+  assert.equal(h.queue().length, 1, 'the stale record is gone, the fresh one queued');
+});
+
+test('the queue is bounded — oldest events drop past MAX_QUEUE_EVENTS', () => {
+  const h = batchHarness();
+  for (let i = 0; i < TELEMETRY_BATCH.MAX_QUEUE_EVENTS + 30; i++) {
+    h.track();
+    // Answer every flush with a retryable failure so the queue keeps growing.
+    if (h.requests.length && !h.requests[h.requests.length - 1].status) {
+      h.requests[h.requests.length - 1].respond(500);
+    }
+  }
+  assert.ok(h.queue().length <= TELEMETRY_BATCH.MAX_QUEUE_EVENTS,
+    'queue stays bounded at ' + TELEMETRY_BATCH.MAX_QUEUE_EVENTS);
+});
+
+test('a flush never posts more than the ingest batch cap', () => {
+  const h = batchHarness();
+  const now = Date.now();
+  const many = [];
+  for (let i = 0; i < TELEMETRY_BATCH.MAX_BATCH_EVENTS + 40; i++) {
+    many.push({ t: now - i, provider: 'dwd', success: true, error: null,
+      countryCode: null, usedGpsCache: false, gpsErrorCode: null,
+      locationMode: null, durationMs: null, attempt: null });
+  }
+  h.store[TELEMETRY_QUEUE_KEY] = JSON.stringify(many);
+  h.track();
+  assert.equal(h.requests[0].body.events.length, TELEMETRY_BATCH.MAX_BATCH_EVENTS,
+    'the batch is capped; the remainder drains on later flushes');
+});
+
+test('client batch cap and ingest z.array max are in lockstep', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const ts = fs.readFileSync(
+    path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'index.ts'), 'utf8');
+  assert.match(ts, /eventType: z\.literal\("weather_fetch_batch"\)/,
+    'ingest accepts the batch shape');
+  const cap = Number(/const MAX_BATCH_EVENTS = (\d+)/.exec(ts)[1]);
+  assert.equal(cap, TELEMETRY_BATCH.MAX_BATCH_EVENTS,
+    'a batch the client sends must never exceed what the ingest accepts');
+  const age = Number(/const MAX_BATCH_EVENT_AGE_MS = (\d+) \* 60 \* 60 \* 1000/.exec(ts)[1]);
+  assert.equal(age * 60 * 60 * 1000, TELEMETRY_BATCH.MAX_EVENT_AGE_MS,
+    'the client drop window matches the ingest clamp window');
+});
+
+test('the heaviest batch envelope stays under the ingest batch body cap', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const ts = fs.readFileSync(
+    path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'index.ts'), 'utf8');
+  const cap = Number(/const MAX_BATCH_BODY_BYTES = (\d+)/.exec(ts)[1]);
+  const events = [];
+  for (let i = 0; i < TELEMETRY_BATCH.MAX_BATCH_EVENTS; i++) {
+    events.push({ t: Date.now(), provider: 'openweathermap', success: false,
+      error: 'e'.repeat(512), countryCode: 'DEU', usedGpsCache: true,
+      gpsErrorCode: 2, locationMode: 'manual_coordinates', durationMs: 999999,
+      attempt: 99 });
+  }
+  const envelope = {
+    eventType: 'weather_fetch_batch',
+    accountToken: 'a'.repeat(64), watchToken: 'b'.repeat(64),
+    appVersion: '10.10.10', buildProfile: 'release',
+    watchInfo: { platform: 'basalt', model: 'qemu_platform_basalt', language: 'en_US',
+      firmware: { major: 4, minor: 4, patch: 4, suffix: 'beta10' } },
+    // The same worst-case settings snapshot the single-envelope test builds
+    // would add ~2.5 KB; an empty object underestimates — use a generous pad.
+    settings: { pad: 'x'.repeat(4096) },
+    events,
+  };
+  const bytes = Buffer.byteLength(JSON.stringify(envelope));
+  console.log('heaviest batch envelope: ' + bytes + ' B of ' + cap
+    + ' B (headroom ' + (cap - bytes) + ')');
+  assert.ok(bytes < cap, 'heaviest batch ' + bytes + ' B must stay under ' + cap + ' B');
+});
+
+test('records carry a unique id — what the ACK removes by', () => {
+  const h = batchHarness();
+  h.track(); h.track();
+  const q = h.queue();
+  assert.equal(typeof q[0].id, 'string');
+  assert.notEqual(q[0].id, q[1].id, 'same-millisecond fetches must not collide');
+});
+
+test('ACK at the 200-cap removes ONLY the sent records (identity, not position)', () => {
+  // The review-confirmed race: a full queue, a batch in flight, and a track
+  // whose cap-splice drops a HEAD record that IS in the flight. A count-based
+  // splice then destroyed one unsent record per mid-flight track.
+  const h = batchHarness();
+  const now = Date.now();
+  const full = [];
+  for (let i = 0; i < TELEMETRY_BATCH.MAX_QUEUE_EVENTS; i++) {
+    full.push({ id: 'p' + i, t: now - (TELEMETRY_BATCH.MAX_QUEUE_EVENTS - i), provider: 'dwd',
+      success: true, error: null, countryCode: null, usedGpsCache: false,
+      gpsErrorCode: null, locationMode: null, durationMs: null, attempt: null });
+  }
+  h.store[TELEMETRY_QUEUE_KEY] = JSON.stringify(full);
+  h.track();                       // opens the flight; cap drops p0 first
+  assert.equal(h.requests.length, 1);
+  const sentIds = h.requests[0].body.events.map((e) => e.id);
+  h.track();                       // mid-flight: cap drops another head record
+  h.requests[0].respond(202);
+  const left = h.queue().map((r) => r.id);
+  sentIds.forEach((id) => assert.ok(left.indexOf(id) === -1, id + ' was sent and must be gone'));
+  left.forEach((id) => assert.ok(sentIds.indexOf(id) === -1,
+    id + ' was never sent and must survive the ACK'));
+});
+
+test('a mark left by a session that died mid-send drops those records instead of resending', () => {
+  const h = batchHarness();
+  const now = Date.now();
+  const rec = (id) => ({ id, t: now - 1000, provider: 'dwd', success: true, error: null,
+    countryCode: null, usedGpsCache: false, gpsErrorCode: null, locationMode: null,
+    durationMs: null, attempt: null });
+  h.store[TELEMETRY_QUEUE_KEY] = JSON.stringify([rec('dead1'), rec('dead2'), rec('kept')]);
+  h.store[TELEMETRY_SENDING_KEY] = JSON.stringify({ ids: ['dead1', 'dead2'] });
+  h.track();
+  assert.equal(h.requests.length, 0, 'two survivors meet no flush trigger');
+  const ids = h.queue().map((r) => r.id);
+  assert.ok(ids.indexOf('dead1') === -1 && ids.indexOf('dead2') === -1,
+    'unknown-outcome records are dropped — a resend would duplicate rows server-side');
+  assert.ok(ids.indexOf('kept') !== -1, 'unmarked records survive');
+  assert.equal(h.store[TELEMETRY_SENDING_KEY], undefined, 'the mark is cleared');
+});
+
+test('a flush writes the mark before the POST and clears it on the outcome', () => {
+  const h = batchHarness();
+  for (let i = 0; i < TELEMETRY_BATCH.FLUSH_AT_EVENTS; i++) { h.track(); }
+  const mark = JSON.parse(h.store[TELEMETRY_SENDING_KEY]);
+  assert.equal(mark.ids.length, TELEMETRY_BATCH.FLUSH_AT_EVENTS, 'mark covers the flight');
+  h.requests[0].respond(202);
+  assert.equal(h.store[TELEMETRY_SENDING_KEY], undefined, 'cleared on ACK');
+});
+
+test('creating a disabled client purges any parked queue', () => {
+  const h = batchHarness();
+  h.track(); h.track();
+  assert.equal(h.queue().length, 2);
+  createTelemetryClient({ enabled: false, endpoint: 'https://example.test/ingest' });
+  assert.equal(h.store[TELEMETRY_QUEUE_KEY], undefined,
+    'the user turned telemetry off — pending events are purged, not parked');
+});
+
+test('a synchronous XHR throw releases the latch and backs off instead of wedging the session', () => {
+  const h = batchHarness();
+  const RealXhr = global.XMLHttpRequest;
+  global.XMLHttpRequest = function ThrowingXhr() {
+    this.open = () => {}; this.setRequestHeader = () => {};
+    this.send = () => { throw new Error('boom'); };
+  };
+  for (let i = 0; i < TELEMETRY_BATCH.FLUSH_AT_EVENTS; i++) { h.track(); }
+  assert.equal(h.queue().length, TELEMETRY_BATCH.FLUSH_AT_EVENTS, 'nothing lost on the throw');
+  assert.equal(h.store[TELEMETRY_SENDING_KEY], undefined, 'mark cleared on the throw');
+  global.XMLHttpRequest = RealXhr;
+  createTelemetryClient._resetBatchStateForTests();   // backoff elapses
+  h.track();
+  assert.equal(h.requests.length, 1, 'the latch is free — the next window flushes normally');
+  h.requests[0].respond(202);
+});

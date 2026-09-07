@@ -2,6 +2,15 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
 const MAX_BODY_BYTES = 4096;
+// Batched shape (app >= 1.16): the phone queues slim per-fetch records and posts
+// them as ONE request every ~12 h instead of one invocation per fetch — the cap
+// covers 50 worst-case events (512 B errors) plus the shared settings header.
+const MAX_BATCH_BODY_BYTES = 65536;
+const MAX_BATCH_EVENTS = 50;
+// How far back a batched event's client timestamp may claim to be: the phone
+// drops events older than this before sending, so anything older here is clock
+// skew or forgery — clamped, not rejected, like every other soft field.
+const MAX_BATCH_EVENT_AGE_MS = 72 * 60 * 60 * 1000;
 const MAX_EVENTS_PER_HOUR = 60;
 
 const providerSchema = z.enum([
@@ -165,6 +174,59 @@ const telemetryPayloadSchema = z.object({
 
 type TelemetryPayload = z.infer<typeof telemetryPayloadSchema>;
 
+// One slim record of a batch — the per-event half of the legacy payload, with a
+// client timestamp `t` (epoch ms) standing in for the server-side received_at.
+// The success/error contract is per event, exactly as on the legacy shape.
+const batchEventSchema = z.object({
+  t: z.number().int().positive(),
+  provider: providerSchema,
+  success: z.boolean(),
+  error: z.string().trim().min(1).max(512).nullable(),
+  countryCode: z.string().nullable(),
+  usedGpsCache: z.boolean().default(false),
+  gpsErrorCode: z.number().int().nonnegative().nullable().optional(),
+  locationMode: locationModeSchema.nullable().optional(),
+  durationMs: z.number().int().nonnegative().nullable().optional(),
+  attempt: z.number().int().positive().nullable().optional(),
+}).superRefine((ev, ctx) => {
+  if (ev.success && ev.error !== null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "error_must_be_null_on_success",
+      path: ["error"],
+    });
+  }
+  if (!ev.success && ev.error === null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "error_required_on_failure",
+      path: ["error"],
+    });
+  }
+});
+
+// The batch envelope: tokens/version/watchInfo/settings once (the rollup only
+// ever reads the NEWEST settings per watch, so per-event snapshots bought
+// nothing), then up to MAX_BATCH_EVENTS slim records. settingsSchema is the
+// SAME object the legacy shape uses — the telemetry.js lockstep test keys off
+// it, so the two shapes cannot drift apart.
+const batchPayloadSchema = z.object({
+  eventType: z.literal("weather_fetch_batch"),
+  accountToken: z.string().trim().min(1, {
+    message: "invalid_account_token",
+  }),
+  watchToken: z.string().nullable().optional(),
+  appVersion: z.string().trim().min(1, { message: "invalid_app_version" }),
+  buildProfile: z.string().trim().min(1, {
+    message: "invalid_build_profile",
+  }),
+  watchInfo: watchInfoSchema.default({}),
+  settings: settingsSchema.default({}),
+  events: z.array(batchEventSchema).min(1).max(MAX_BATCH_EVENTS),
+});
+
+type BatchPayload = z.infer<typeof batchPayloadSchema>;
+
 function encodeUtf8(value: string) {
   return new TextEncoder().encode(value);
 }
@@ -192,13 +254,17 @@ Deno.serve(async (req) => {
     return Response.json({ error: "method_not_allowed" }, { status: 405 });
   }
 
+  // Outer cap is the batch bound; the tighter legacy bound is re-checked after
+  // the shape is known (a cap that tight would reject every batch, and the
+  // shape is only knowable after parsing).
   const contentLength = parseInt(req.headers.get("content-length") || "0", 10);
-  if (contentLength > MAX_BODY_BYTES) {
+  if (contentLength > MAX_BATCH_BODY_BYTES) {
     return Response.json({ error: "payload_too_large" }, { status: 413 });
   }
 
   const rawBody = await req.text();
-  if (encodeUtf8(rawBody).length > MAX_BODY_BYTES) {
+  const rawBytes = encodeUtf8(rawBody).length;
+  if (rawBytes > MAX_BATCH_BODY_BYTES) {
     return Response.json({ error: "payload_too_large" }, { status: 413 });
   }
 
@@ -209,15 +275,90 @@ Deno.serve(async (req) => {
     return Response.json({ error: "invalid_json" }, { status: 400 });
   }
 
-  const payloadResult = telemetryPayloadSchema.safeParse(parsed);
-  if (!payloadResult.success) {
-    return Response.json({
-      error: "invalid_payload",
-      detail: payloadResult.error.issues[0]?.message || "invalid_payload",
-    }, { status: 400 });
-  }
+  const isBatch = typeof parsed === "object" && parsed !== null &&
+    (parsed as { eventType?: unknown }).eventType === "weather_fetch_batch";
 
-  const payload: TelemetryPayload = payloadResult.data;
+  // Both shapes normalize to the same insert rows; received_at is explicit on
+  // every row (the legacy path's value matches the column default it used to
+  // rely on).
+  let accountToken: string;
+  let watchToken: string | null | undefined;
+  let rows: Record<string, unknown>[];
+
+  if (isBatch) {
+    const batchResult = batchPayloadSchema.safeParse(parsed);
+    if (!batchResult.success) {
+      return Response.json({
+        error: "invalid_payload",
+        detail: batchResult.error.issues[0]?.message || "invalid_payload",
+      }, { status: 400 });
+    }
+    const batch: BatchPayload = batchResult.data;
+    // The header is duplicated into EVERY row of the batch, so its size is a
+    // 50x write amplifier: the legacy shape bounded settings via its 4096 B
+    // whole-payload cap, and a batch keeps the same per-field bound — a legit
+    // snapshot measures ~2.5 KB.
+    if (JSON.stringify(batch.settings).length > MAX_BODY_BYTES ||
+      JSON.stringify(batch.watchInfo).length > 1024) {
+      return Response.json({ error: "payload_too_large" }, { status: 413 });
+    }
+    accountToken = batch.accountToken;
+    watchToken = batch.watchToken;
+    const now = Date.now();
+    const floor = now - MAX_BATCH_EVENT_AGE_MS;
+    rows = batch.events.map((ev) => ({
+      // The client timestamp, clamped into [now - 72 h, now]: the phone drops
+      // older events before sending, so an out-of-range t is skew or forgery —
+      // and an unclamped future/ancient received_at would corrupt the
+      // day-aligned DAU rollup and dodge the 7-day prune.
+      received_at: new Date(Math.min(Math.max(ev.t, floor), now)).toISOString(),
+      provider: ev.provider,
+      success: ev.success,
+      error: ev.error,
+      country_code: ev.countryCode,
+      settings_json: batch.settings,
+      app_version: batch.appVersion,
+      build_profile: batch.buildProfile,
+      watch_info: batch.watchInfo,
+      used_gps_cache: ev.usedGpsCache,
+      gps_error_code: ev.gpsErrorCode ?? null,
+      location_mode: ev.locationMode ?? null,
+      duration_ms: ev.durationMs ?? null,
+      attempt: ev.attempt ?? null,
+    }));
+  } else {
+    // Legacy single-event shape (app <= 1.15.x keeps sending it from the
+    // field) — including its original tighter body cap.
+    if (rawBytes > MAX_BODY_BYTES) {
+      return Response.json({ error: "payload_too_large" }, { status: 413 });
+    }
+    const payloadResult = telemetryPayloadSchema.safeParse(parsed);
+    if (!payloadResult.success) {
+      return Response.json({
+        error: "invalid_payload",
+        detail: payloadResult.error.issues[0]?.message || "invalid_payload",
+      }, { status: 400 });
+    }
+    const payload: TelemetryPayload = payloadResult.data;
+    accountToken = payload.accountToken;
+    watchToken = payload.watchToken;
+    rows = [{
+      received_at: new Date().toISOString(),
+      provider: payload.provider,
+      success: payload.success,
+      error: payload.error,
+      country_code: payload.countryCode,
+      settings_json: payload.settings,
+      app_version: payload.appVersion,
+      build_profile: payload.buildProfile,
+      watch_info: payload.watchInfo,
+      used_gps_cache: payload.usedGpsCache,
+      gps_error_code: payload.gpsErrorCode ?? null,
+      location_mode: payload.locationMode ?? null,
+      duration_ms: payload.durationMs ?? null,
+      attempt: payload.attempt ?? null,
+    }];
+  }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -241,18 +382,23 @@ Deno.serve(async (req) => {
   );
   const accountTokenHash = await hmacSha256Hex(
     telemetryHashSecret,
-    payload.accountToken,
+    accountToken,
   );
-  const watchTokenHash = payload.watchToken && payload.watchToken.trim() !== ""
-    ? await hmacSha256Hex(telemetryHashSecret, payload.watchToken)
+  const watchTokenHash = watchToken && watchToken.trim() !== ""
+    ? await hmacSha256Hex(telemetryHashSecret, watchToken)
     : null;
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
+  // Per-account hourly ARRIVAL count (inserted_at, not received_at): batched
+  // rows carry historical received_at and would slide past an event-time
+  // window, making the limit void for a back-dated flood. inserted_at is
+  // always now() at insert, so this bounds physical writes per account per
+  // hour for both shapes — a legit watch flushes ~2 batches per DAY.
   const rate = await supabase
     .from("telemetry_weather_fetch")
     .select("id", { count: "exact", head: true })
     .eq("account_token_hash", accountTokenHash)
-    .gte("received_at", oneHourAgo);
+    .gte("inserted_at", oneHourAgo);
 
   if (rate.error) {
     return Response.json({ error: "rate_check_failed" }, { status: 500 });
@@ -262,27 +408,17 @@ Deno.serve(async (req) => {
     return Response.json({ error: "rate_limit_exceeded" }, { status: 429 });
   }
 
-  const insertResult = await supabase.from("telemetry_weather_fetch").insert({
-    account_token_hash: accountTokenHash,
-    watch_token_hash: watchTokenHash,
-    provider: payload.provider,
-    success: payload.success,
-    error: payload.error,
-    country_code: payload.countryCode,
-    settings_json: payload.settings,
-    app_version: payload.appVersion,
-    build_profile: payload.buildProfile,
-    watch_info: payload.watchInfo,
-    used_gps_cache: payload.usedGpsCache,
-    gps_error_code: payload.gpsErrorCode ?? null,
-    location_mode: payload.locationMode ?? null,
-    duration_ms: payload.durationMs ?? null,
-    attempt: payload.attempt ?? null,
-  });
+  const insertResult = await supabase.from("telemetry_weather_fetch").insert(
+    rows.map((row) => ({
+      account_token_hash: accountTokenHash,
+      watch_token_hash: watchTokenHash,
+      ...row,
+    })),
+  );
 
   if (insertResult.error) {
     return Response.json({ error: "insert_failed" }, { status: 500 });
   }
 
-  return Response.json({ status: "accepted" }, { status: 202 });
+  return Response.json({ status: "accepted", events: rows.length }, { status: 202 });
 });

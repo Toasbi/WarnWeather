@@ -62,5 +62,18 @@ module.exports = {
     // and reached the watch not at all until the next completed fetch. Settings
     // are deliberately NOT in here -- the re-bake pairs this with the live blob
     // (phone-battery.js explains why).
-    PHONE_BATTERY_SNAPSHOT: 'phoneBatterySnapshot'
+    PHONE_BATTERY_SNAPSHOT: 'phoneBatterySnapshot',
+    // Pending telemetry events awaiting a batched send (telemetry.js). Each
+    // weather fetch used to POST its own event — ~59 edge-function invocations
+    // per watch per day against Supabase's 500k/month cap; the queue drains as
+    // ONE batch request every ~12 h / 24 events instead. Slim per-event records
+    // only (the settings/watchInfo header is snapshotted at flush time).
+    TELEMETRY_QUEUE_KEY: 'telemetryQueue',
+    // The in-flight batch's record ids ({ids: [...]}), written just before the
+    // POST and cleared on its outcome. A mark still present when a NEW PKJS
+    // session first flushes means the previous session died between send and
+    // ACK — outcome unknown — and those records are dropped instead of resent:
+    // at-most-once, because a duplicate batch inflates fetch_count server-side
+    // (no idempotency key) while a lost one costs a few telemetry rows.
+    TELEMETRY_SENDING_KEY: 'telemetrySending'
 };
