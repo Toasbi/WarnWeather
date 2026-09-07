@@ -673,14 +673,30 @@ if (typeof require !== 'undefined') {
 
     // layoutPreset options resolver: compactDense is offered once EITHER health shows a
     // status row (status/all) OR radar shows ANY radar view (radarMode status OR graph —
-    // both build dense radar cycles since the CAL2_RF_D/CAL2_HR_D fold).
-    PConf.optionsResolvers.register('layoutPresetOptions', function (S) {
+    // both build dense radar cycles since the CAL2_RF_D/CAL2_HR_D fold). Custom is
+    // offered on every non-aplite platform (aplite is frozen-lean and folds custom to
+    // compactCal on the wire; a stored 'custom' lies dormant there — dormantValues).
+    // Unknown platform ('' when watchInfo is missing) is treated as capable, matching
+    // the payload's own gate.
+    PConf.optionsResolvers.register('layoutPresetOptions', function (S, env) {
         var base = [['Full calendar', 'fullCal'], ['Compact calendar', 'compactCal']];
         var dense = (S.radarMode === 'status' || S.radarMode === 'graph'
             || S.healthMode === 'status' || S.healthMode === 'all');
         if (dense) { base.push(['Compact calendar (dense)', 'compactDense']); }
         base.push(['No calendar', 'noCal']);
+        if (!env || env.platform !== 'aplite') { base.push(['Custom', 'custom']); }
         return base;
+    });
+
+    // Entering Custom seeds the per-view keys ONCE from the preset being left, so the
+    // editor opens showing exactly what the watch shows and an untouched session
+    // compiles back byte-identical (nothing transmits). Re-picking a preset later
+    // leaves the keys stored (dormant) — re-entering Custom restores the user's work.
+    var viewCycleLib = (typeof require !== 'undefined')
+        ? require('../view-cycle.js') : window.VIEW_CYCLE;
+    PConf.onChange.register('layoutPresetChanged', function (S, oldValue, newValue) {
+        if (newValue !== 'custom') { return; }
+        viewCycleLib.seedCustomKeys(S, oldValue);
     });
 
     // Platform-aware slot default (Approach A single-source): a status slot's fresh-install

@@ -167,6 +167,27 @@ test('resolvePresetKey migrates pre-preset installs (topViewMode only)', () => {
   assert.strictEqual(vc.resolvePresetKey({}), 'compactCal');
 });
 
+test("resolvePresetKey folds 'custom' to the EXPLICIT compactCal — legacy topViewMode must not redirect it", () => {
+  assert.strictEqual(vc.resolvePresetKey({ layoutPreset: 'custom' }), 'compactCal');
+  assert.strictEqual(vc.resolvePresetKey({ layoutPreset: 'custom', topViewMode: 'full' }), 'compactCal');
+  assert.strictEqual(vc.resolvePresetKey({ layoutPreset: 'custom', topViewMode: 'none' }), 'compactCal');
+});
+
+test('seedCustomKeys copies the leaving preset once and latches; preset re-picks leave keys dormant', () => {
+  const S = { healthMode: 'status', radarMode: 'graph', swapClockStatus: false, layoutPreset: 'custom' };
+  vc.seedCustomKeys(S, 'fullCal');
+  assert.equal(S.customLayoutSeeded, true);
+  assert.equal(S.viewCount, '3', 'fullCal+status+graph compiles a 3-view cycle');
+  assert.equal(S.viewTop0, 'cal3');
+  // Seeded keys compile back byte-identical to the preset cycle (zero-transmit).
+  const preset = vc.buildViewCycle('fullCal', 'status', 'graph', false).map(vc.packSpec);
+  assert.deepStrictEqual(vc.buildCustomCycle(S).map(vc.packSpec), preset);
+  // Latched: a second entry (after the user customized) must NOT re-seed.
+  S.viewTop0 = 'none';
+  vc.seedCustomKeys(S, 'compactCal');
+  assert.equal(S.viewTop0, 'none', 'custom work survives re-entering Custom');
+});
+
 test("radar 'countdown' mode uses the same cycle as 'off' (no radar flick view)", () => {
   ['fullCal', 'compactCal', 'compactDense', 'noCal'].forEach((p) => {
     ['off', 'status', 'all'].forEach((h) => {

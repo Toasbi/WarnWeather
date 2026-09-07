@@ -64,6 +64,11 @@ const EXPECTED_KEYS = [
   'dateSlotMonthFormat','dateSlotFullFormat',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','radarNoRainText','rainCountdownHorizon',
   'layoutPreset','largeGraphFont','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear','reset',
+  // Custom-layout storage (sheetOnly section; see customViewItems in schema.js).
+  'viewCount','customLayoutSeeded',
+  'viewTop0','viewBody0','viewUpper0','viewLower0','viewOrder0',
+  'viewTop1','viewBody1','viewUpper1','viewLower1','viewOrder1','viewClockOff1','viewStripOff1',
+  'viewTop2','viewBody2','viewUpper2','viewLower2','viewOrder2','viewClockOff2','viewStripOff2',
   'statusBoldAll',
   'statusForecastLeft','statusForecastLeftCountdown','statusForecastMid','statusForecastMidCountdown','statusForecastRight','statusForecastRightCountdown',
   'statusRadarLeft','statusRadarLeftCountdown','statusRadarMid','statusRadarMidCountdown','statusRadarRight','statusRadarRightCountdown',
@@ -655,9 +660,9 @@ test('layoutPreset offers the four adaptive presets', () => {
   const resolver = global.PConf.optionsResolvers.get(t.optionsFrom.resolver);
   assert.equal(typeof resolver, 'function', 'layoutPresetOptions resolver registered');
   const codes = (S) => resolver(S).map((o) => o[1]);
-  assert.deepEqual(codes({ healthMode: 'off', radarMode: 'off' }), ['fullCal', 'compactCal', 'noCal']);
-  assert.deepEqual(codes({ healthMode: 'status', radarMode: 'off' }), ['fullCal', 'compactCal', 'compactDense', 'noCal']);
-  assert.deepEqual(codes({ healthMode: 'all', radarMode: 'off' }), ['fullCal', 'compactCal', 'compactDense', 'noCal']);
+  assert.deepEqual(codes({ healthMode: 'off', radarMode: 'off' }), ['fullCal', 'compactCal', 'noCal', 'custom']);
+  assert.deepEqual(codes({ healthMode: 'status', radarMode: 'off' }), ['fullCal', 'compactCal', 'compactDense', 'noCal', 'custom']);
+  assert.deepEqual(codes({ healthMode: 'all', radarMode: 'off' }), ['fullCal', 'compactCal', 'compactDense', 'noCal', 'custom']);
   // compactDense must be reachable from radar alone — even with health off — since the
   // radar-status row also warrants the dense fold (bug #1/#2 fix; Task 9's whole point).
   assert.ok(codes({ healthMode: 'off', radarMode: 'status' }).indexOf('compactDense') >= 0,
@@ -741,22 +746,31 @@ test('swapClockStatus toggle exists, defaults ON, and is shown for compactCal on
   assert.equal(showWhen.isVisible(it, basaltOtherPreset), false, 'hidden for other presets');
 });
 
-test('Layout tab leads with the arrangement section: combined preview above the preset radio, then the font toggle, swap toggle and reset segmented below', () => {
+test('Layout tab leads with the arrangement section: combined preview above the preset radio, then the editor button, font toggle, swap toggle and reset segmented below', () => {
   const layout = schema.tabs.find((t) => t.id === 'layout');
-  // Time and Calendar (moved from the Watch tab) follow the arrangement section.
-  assert.equal(layout.sections.length, 3, 'arrangement + Time + Calendar');
+  // Time and Calendar (moved from the Watch tab) follow the arrangement section,
+  // plus the sheetOnly custom-layout storage section between them.
+  assert.equal(layout.sections.length, 4, 'arrangement + custom storage + Time + Calendar');
   const items = layout.sections[0].items;
   const presetIdx = items.findIndex((i) => i.messageKey === 'layoutPreset');
+  const editIdx = items.findIndex((i) => i.action === 'openViewEditor');
   const fontIdx = items.findIndex((i) => i.messageKey === 'largeGraphFont');
   const resetIdx = items.findIndex((i) => i.messageKey === 'viewResetMin');
   const swapIdx = items.findIndex((i) => i.messageKey === 'swapClockStatus');
   assert.ok(presetIdx >= 0, 'layoutPreset present');
   assert.equal(items[presetIdx].blockBefore, 'layoutPreviewCombined', 'combined preview hosted on the preset radio');
   assert.equal(items[presetIdx].blockBeforeSticky, true, 'preview sticky');
-  assert.equal(fontIdx, presetIdx + 1, 'largeGraphFont sits directly below the preset radio');
+  assert.equal(editIdx, presetIdx + 1, 'Edit custom layout button sits directly below the preset radio');
+  assert.deepEqual(items[editIdx].showWhen, { key: 'layoutPreset', eq: 'custom' },
+    'editor button only shows in custom mode');
+  assert.equal(fontIdx, editIdx + 1, 'largeGraphFont follows the editor button');
   assert.equal(swapIdx, fontIdx + 1, 'swapClockStatus sits directly below largeGraphFont');
   assert.equal(resetIdx, swapIdx + 1, 'viewResetMin sits directly below swapClockStatus');
   assert.equal(resetIdx, items.length - 1, 'and closes the section');
+  // The custom storage section is sheetOnly (never rendered as a tab section).
+  const storage = layout.sections.find((s) => s.sheetId === 'viewEditKeys');
+  assert.ok(storage, 'custom-layout storage section exists');
+  assert.equal(storage.sheetOnly, true);
 });
 
 test('largeGraphFont is offered on emery only, and hidden when watchInfo is unavailable', () => {

@@ -65,13 +65,25 @@ function buildClayPayload(settings, watchInfo, now) {
     now = now || new Date();
     var theme = settings.theme || 'dark';
 
+    // Platform env up front: the custom-layout branch below folds for aplite, and the
+    // capability-gated tuples further down reuse it. Unknown platform ('' when
+    // watchInfo is missing) is treated as capable throughout, custom included — the
+    // aplite watch is protected by its own wire masking either way.
+    var env = platformLib.computeEnv(watchInfo);
+
     // Resolve preset + health + radar to the packed view cycle up front — the holiday
     // mask below needs to know whether the DEFAULT (slot 0) view is the 3-row full
     // calendar, to anchor prevWeek the same way the watch draws it.
+    // layoutPreset 'custom' compiles the per-view keys instead (buildCustomCycle);
+    // an APLITE watch folds custom to the explicit compactCal preset — aplite is
+    // frozen-lean, its settings screen never offers Custom, and resolvePresetKey
+    // pins the fold so a legacy topViewMode value can't redirect it.
     var presetKey = viewCycle.resolvePresetKey(settings);
     var healthMode = settings.healthMode || 'off';
     var radarMode = settings.radarMode || 'graph';
-    var cycle = viewCycle.buildViewCycle(presetKey, healthMode, radarMode, Boolean(settings.swapClockStatus));
+    var cycle = (settings.layoutPreset === 'custom' && env.platform !== 'aplite')
+        ? viewCycle.buildCustomCycle(settings)
+        : viewCycle.buildViewCycle(presetKey, healthMode, radarMode, Boolean(settings.swapClockStatus));
     var defaultIsFull = cycle[0].tier === viewCycle.TIER_FULL;   // slot 0 is the 3-row calendar
     var compact = !defaultIsFull;
     // CLAY_TOP_VIEW_MODE (TopViewMode enum: 0=full,1=compact,2=none) is a boot-time hint the
@@ -162,7 +174,7 @@ function buildClayPayload(settings, watchInfo, now) {
     // whole threshold card and its inbox handler for this tuple is gone, so the
     // 34 B (27 blob + tuple header) stay out of its Clay bundle. An unknown platform
     // is treated as capable (computeEnv), so a missing watchInfo never drops it.
-    var env = platformLib.computeEnv(watchInfo);
+    // (env computed at the top of this function, beside the cycle branch.)
     if (env.thresholds) {
         payload.CLAY_THRESHOLDS_UINT8 = statusThresholds.buildSettingsBlob(settings);
         // Date-slot formats [monthYear, fullDate] — settings-derived, so they ride

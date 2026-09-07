@@ -255,8 +255,14 @@ test('layoutPresetOptions resolver: compactDense offered once health OR radar sh
   const resolver = global.PConf.optionsResolvers.get('layoutPresetOptions');
   assert.equal(typeof resolver, 'function', 'resolver registered');
   const codes = (S) => resolver(S).map((o) => o[1]);
-  assert.deepEqual(codes({ healthMode: 'off', radarMode: 'off' }), ['fullCal', 'compactCal', 'noCal'],
-    'compactDense hidden when neither health nor radar shows a status row');
+  assert.deepEqual(codes({ healthMode: 'off', radarMode: 'off' }), ['fullCal', 'compactCal', 'noCal', 'custom'],
+    'compactDense hidden when neither health nor radar shows a status row; custom always last');
+  // Custom is a colour-platform feature: aplite (frozen-lean) never offers it, and an
+  // UNKNOWN platform is treated as capable, matching the payload's own gate.
+  assert.equal(codes({ healthMode: 'off', radarMode: 'off' }).indexOf('custom') >= 0, true);
+  const apliteCodes = resolver({ healthMode: 'off', radarMode: 'off' }, { platform: 'aplite' })
+    .map((o) => o[1]);
+  assert.equal(apliteCodes.indexOf('custom'), -1, 'aplite never offers Custom');
   assert.ok(codes({ healthMode: 'status', radarMode: 'off' }).indexOf('compactDense') >= 0, 'health=status offers compactDense');
   assert.ok(codes({ healthMode: 'all', radarMode: 'off' }).indexOf('compactDense') >= 0, 'health=all offers compactDense');
   assert.ok(codes({ healthMode: 'off', radarMode: 'status' }).indexOf('compactDense') >= 0, 'radar=status offers compactDense');

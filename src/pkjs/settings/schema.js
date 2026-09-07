@@ -180,6 +180,66 @@ function sheetOf(keyStem, title, items) {
     };
 }
 
+// ── Custom layout: per-view keys (the editor's storage contract) ────────────
+// One item per element choice per view slot (0 = Default, 1-2 = flicks). They live
+// in a sheetOnly section so the tab renderer skips them while hydrate/serialize
+// keep them in the settings blob; the Custom-layout editor (view-editor.js)
+// renders its own reorderable rows from these keys and opens the engine's select
+// sheets on them. Key names + string values are the compiler contract — see
+// buildCustomCycle in src/pkjs/view-cycle.js. Capability gating is
+// visible-but-inert (optionDisabledWhen), mirroring the compiler's folds: chart
+// seats need radarMode 'graph'; the radar status source needs status|graph; a
+// health graph body needs healthMode 'all'; health rows need status|all.
+var VIEW_RADAR_CHART_WHEN = {key: 'radarMode', eq: 'graph'};
+var VIEW_RADAR_ROW_WHEN = {key: 'radarMode', in: ['status', 'graph']};
+var VIEW_HEALTH_ROW_WHEN = {key: 'healthMode', in: ['status', 'all']};
+var VIEW_HEALTH_BODY_WHEN = {key: 'healthMode', eq: 'all'};
+var VIEW_SRC_OPTIONS = [['Off', 'off'], ['Weather', 'weather'],
+                        ['Radar', 'radar'], ['Health', 'health']];
+var VIEW_SRC_GATES = {
+    radar: {not: VIEW_RADAR_ROW_WHEN},
+    health: {not: VIEW_HEALTH_ROW_WHEN}
+};
+
+/**
+ * The per-view custom-layout items for view slot `i`.
+ * @param {number} i View slot (0 = Default, 1-2 = flicks).
+ * @returns {Object[]} Schema items.
+ */
+function customViewItems(i) {
+    var items = [{
+        type: 'radio', messageKey: 'viewTop' + i, label: 'Calendar / top area',
+        defaultValue: 'cal2',
+        options: [['Calendar — 3 rows', 'cal3'], ['Calendar — 2 rows', 'cal2'],
+                  ['Rain radar', 'radar'], ['Nothing', 'none']],
+        optionDisabledWhen: {radar: {not: VIEW_RADAR_CHART_WHEN}}
+    }, {
+        type: 'radio', messageKey: 'viewBody' + i, label: 'Graph',
+        defaultValue: 'forecast',
+        options: [['Forecast graph', 'forecast'], ['Health graph', 'health'],
+                  ['Rain radar', 'radar']],
+        optionDisabledWhen: {health: {not: VIEW_HEALTH_BODY_WHEN},
+                             radar: {not: VIEW_RADAR_CHART_WHEN}}
+    }, {
+        type: 'radio', messageKey: 'viewUpper' + i, label: 'Status bar',
+        defaultValue: i === 0 ? 'weather' : 'off',
+        options: VIEW_SRC_OPTIONS, optionDisabledWhen: VIEW_SRC_GATES
+    }, {
+        type: 'radio', messageKey: 'viewLower' + i, label: 'Second status bar',
+        defaultValue: 'off',
+        options: VIEW_SRC_OPTIONS, optionDisabledWhen: VIEW_SRC_GATES
+    }, {
+        // Machine value the editor's ▲▼ buttons write (a STACK_ORDERS sequence
+        // string, e.g. 'CTAB'); never opened as a sheet.
+        type: 'hidden', messageKey: 'viewOrder' + i, defaultValue: 'TACB'
+    }];
+    if (i > 0) {   // the Default view always keeps its clock and top bar
+        items.push({type: 'hidden', messageKey: 'viewClockOff' + i, defaultValue: false});
+        items.push({type: 'hidden', messageKey: 'viewStripOff' + i, defaultValue: false});
+    }
+    return items;
+}
+
 // The seven rows of the Graph-colors card, each opening its own sheet. The six metrics
 // come first, labelled and ordered exactly like the Main/Second metric pickers offer
 // them (blocks.js' FORECAST_METRICS — a user reads the two lists together), then the
@@ -1436,7 +1496,8 @@ module.exports = {
                     fullCal: '3-row calendar. Health and radar appear on wrist-flicks.',
                     compactCal: '2-row calendar. Flick to radar and health as you enable them.',
                     compactDense: 'Compact calendar with two status bars at once — health or radar above the clock, forecast below.',
-                    noCal: 'No calendar — a big forecast. Flick to radar and health.'
+                    noCal: 'No calendar — a big forecast. Flick to radar and health.',
+                    custom: 'Build each view yourself — pick, remove and reorder its elements.'
                 },
                 // Compact-dense only differs from Compact when a health status row OR the
                 // radar status row is shown; with both off the two produce identical cycles,
@@ -1447,10 +1508,20 @@ module.exports = {
                 // watch always matches the display. Order stays constant (compactDense
                 // between compactCal and noCal) so toggling health/radar doesn't reshuffle
                 // the list. See layoutPresetOptions in blocks.js + engine.resolveRowItem.
+                // 'custom' is dormant the same way on aplite (Custom is never offered
+                // there; the payload folds it to compactCal, matching the display).
+                // Picking custom seeds the per-view keys once (layoutPresetChanged).
                 optionsFrom: { resolver: 'layoutPresetOptions' },
-                dormantValues: ['compactDense'],
+                dormantValues: ['compactDense', 'custom'],
+                onChange: 'layoutPresetChanged',
                 blockBefore: 'layoutPreviewCombined',
                 blockBeforeSticky: true
+            }, {
+                type: 'button',
+                label: 'Edit custom layout',
+                action: 'openViewEditor',
+                hint: 'Choose what each view shows, and where.',
+                showWhen: {key: 'layoutPreset', eq: 'custom'}
             }, {
                 type: 'toggle',
                 messageKey: 'largeGraphFont',
@@ -1495,6 +1566,18 @@ module.exports = {
                 options: [['Never', '0'], ['1m', '1'], ['2m', '2'], ['5m', '5'], ['10m', '10']],
                 showWhen: {env: 'platform', ne: 'aplite'}
             }]
+        }, {
+            // Custom-layout storage (see customViewItems above): sheetOnly keeps the
+            // items out of the tab while their sheets stay openable and their values
+            // hydrate/serialize with the blob. viewCount = how many views exist;
+            // customLayoutSeeded latches the one-time preset copy.
+            sheetOnly: true,
+            sheetId: 'viewEditKeys',
+            title: 'Custom layout',
+            items: [
+                {type: 'hidden', messageKey: 'viewCount', defaultValue: '1'},
+                {type: 'hidden', messageKey: 'customLayoutSeeded', defaultValue: false}
+            ].concat(customViewItems(0), customViewItems(1), customViewItems(2))
         }, {
             // Time and Calendar moved here from the Watch tab (now 'Status slots'):
             // they shape fixed watchface areas, so they read as layout concerns.

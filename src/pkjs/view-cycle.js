@@ -304,6 +304,27 @@ function buildCustomCycle(S) {
 }
 
 /**
+ * Seed the custom per-view keys from the preset the user is leaving — the ONE-TIME
+ * copy when Custom mode is first entered (S.customLayoutSeeded latches it; preset
+ * re-picks leave the keys dormant so custom work survives). Mutates S in place and
+ * compiles back byte-identical, so entering Custom transmits nothing.
+ * @param {Object} S settings state (S.layoutPreset is already 'custom' at hook time)
+ * @param {string} oldPreset the layoutPreset value being left (may be legacy/undefined)
+ * @returns {void}
+ */
+function seedCustomKeys(S, oldPreset) {
+  if (S.customLayoutSeeded) { return; }
+  var presetKey = resolvePresetKey({ layoutPreset: oldPreset, topViewMode: S.topViewMode });
+  var cycle = buildViewCycle(presetKey, S.healthMode || 'off', S.radarMode || 'graph',
+                             Boolean(S.swapClockStatus));
+  var keys = specToKeys(cycle);
+  for (var k in keys) {
+    if (Object.prototype.hasOwnProperty.call(keys, k)) { S[k] = keys[k]; }
+  }
+  S.customLayoutSeeded = true;
+}
+
+/**
  * Invert a compiled cycle into the custom per-view keys — the one-time seed when the
  * user enters Custom mode, built so an untouched Custom session compiles back to
  * BYTE-IDENTICAL packed values (the zero-transmit upgrade proof, pinned by tests).
@@ -346,6 +367,11 @@ var LEGACY_PRESET = {
 function resolvePresetKey(state) {
   state = state || {};
   var p = state.layoutPreset;
+  // 'custom' folds to an EXPLICIT preset for the preset-path consumers (an aplite
+  // watch's payload, the wizard's nearest-highlight, preview fallbacks). Never let
+  // it reach the topViewMode fall-through below — a legacy value there could
+  // redirect a custom user to fullCal/noCal and break display == wire.
+  if (p === 'custom') { return 'compactCal'; }
   if (p && NEW_KEYS[p]) { return p; }
   if (p && LEGACY_PRESET[p]) { return LEGACY_PRESET[p]; }
   if (state.topViewMode === 'full') { return 'fullCal'; }
@@ -368,6 +394,7 @@ var VIEW_CYCLE = {
   swapUpperToLower: swapUpperToLower, demoteRadarBody: demoteRadarBody,
   STACK_ORDERS: STACK_ORDERS, orderCode: orderCode,
   buildCustomCycle: buildCustomCycle, specToKeys: specToKeys,
+  seedCustomKeys: seedCustomKeys,
   buildViewCycle: buildViewCycle, resolvePresetKey: resolvePresetKey
 };
 if (typeof module !== 'undefined' && module.exports) {
