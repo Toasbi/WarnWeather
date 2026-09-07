@@ -193,3 +193,85 @@ test('packSpec fits in 10 bits and 0 decodes to null (disabled slot)', () => {
   assert.equal(vc.unpackSpec(0), null);
   assert.equal(vc.packSpec(null), 0);
 });
+
+// --- custom-layout wire fields: clockOff (bit 10), stripOff (bit 11), order (bits 12-15) ---
+
+function flagged(clockOff, stripOff, order) {
+  const s = vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC,
+    vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE);
+  if (clockOff) { s.clockOff = true; }
+  if (stripOff) { s.stripOff = true; }
+  if (order) { s.order = order; }
+  return s;
+}
+
+test('packSpec places clockOff/stripOff/order in bits 10/11/12-15', () => {
+  const base = vc.packSpec(flagged(false, false, 0));
+  assert.equal(vc.packSpec(flagged(true, false, 0)), base | 0x400);
+  assert.equal(vc.packSpec(flagged(false, true, 0)), base | 0x800);
+  assert.equal(vc.packSpec(flagged(false, false, 11)), base | (11 << 12));
+  assert.equal(vc.packSpec(flagged(true, true, 15)), base | 0x400 | 0x800 | (15 << 12));
+});
+
+test('packSpec/unpackSpec round-trips the custom fields in canonical form', () => {
+  [flagged(true, false, 0), flagged(false, true, 0), flagged(true, true, 7),
+   flagged(false, false, 11), flagged(true, true, 15)].forEach((s) => {
+    assert.deepEqual(vc.unpackSpec(vc.packSpec(s)), s);
+  });
+  // Unset fields stay ABSENT after a round-trip (canonical form), so legacy
+  // 10-bit values decode to exactly the pre-custom spec shape.
+  const legacy = vc.unpackSpec(0x244);
+  assert.ok(!('clockOff' in legacy) && !('stripOff' in legacy) && !('order' in legacy));
+});
+
+test('bit-15 orders pack above 0x7FFF (negative int16 on the wire) without corruption', () => {
+  const v = vc.packSpec(flagged(false, false, 8));
+  assert.ok(v > 0x7FFF, 'order 8 sets bit 15');
+  assert.deepEqual(vc.unpackSpec(v), flagged(false, false, 8));
+});
+
+// The upgrade no-op guarantee: NO preset compile, under ANY mode combination or
+// transform, may ever set bits 10-15 — presets must pack byte-identically to
+// pre-custom builds so upgrades transmit nothing.
+test('presets never carry the custom bits (full matrix sweep)', () => {
+  ['fullCal', 'compactCal', 'compactDense', 'noCal'].forEach((p) =>
+    ['off', 'slot', 'status', 'all'].forEach((h) =>
+      ['off', 'countdown', 'status', 'graph'].forEach((r) =>
+        [false, true].forEach((sw) => {
+          bytes(p, h, r, sw).forEach((v) => {
+            assert.equal(v & 0xFC00, 0,
+              p + '/' + h + '/' + r + '/' + sw + ' leaked custom bits: 0x' + v.toString(16));
+          });
+        }))));
+});
+
+// Cycle transforms clone specs; a clone via the 5-arg spec() would silently drop
+// the custom fields. Pin that every transform's clone path preserves them.
+test('transforms preserve clockOff/stripOff/order through their clones', () => {
+  // swapUpperToLower's clone path: lone upper row moves down, flags survive.
+  const swapIn = flagged(true, true, 5); // lone-upper compact spec + all fields
+  const swapped = vc.swapUpperToLower(swapIn);
+  assert.notStrictEqual(swapped, swapIn, 'sanity: the transform cloned');
+  assert.equal(swapped.statusUpper, vc.STATUS_SRC_NONE);
+  assert.equal(swapped.statusLower, vc.STATUS_SRC_FORECAST);
+  assert.equal(swapped.clockOff, true);
+  assert.equal(swapped.stripOff, true);
+  assert.equal(swapped.order, 5);
+
+  // demoteRadarBody's clone path: chart body demotes, flags survive.
+  const radar = vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_RADAR,
+    vc.STATUS_SRC_RADAR, vc.STATUS_SRC_FORECAST);
+  radar.clockOff = true;
+  radar.order = 3;
+  const demoted = vc.demoteRadarBody(radar);
+  assert.notStrictEqual(demoted, radar, 'sanity: the transform cloned');
+  assert.equal(demoted.body, vc.BODY_FC);
+  assert.equal(demoted.clockOff, true);
+  assert.equal(demoted.order, 3);
+  assert.ok(!('stripOff' in demoted), 'unset fields stay absent (canonical form)');
+
+  // cloneSpec itself: independent copy, all fields, canonical absence.
+  const cloned = vc.cloneSpec(radar);
+  assert.notStrictEqual(cloned, radar);
+  assert.deepEqual(cloned, radar);
+});

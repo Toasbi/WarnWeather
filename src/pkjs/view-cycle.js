@@ -28,26 +28,57 @@ function spec(tier, top, body, statusUpper, statusLower) {
 }
 
 /**
- * Pack a view spec into one 10-bit wire value. Null (disabled slot) → 0.
+ * Clone a spec, preserving the custom-layout fields (clockOff/stripOff/order) that
+ * the 5-arg spec() builder does not carry. Every cycle transform MUST clone through
+ * this helper — cloning via spec() silently drops the flags (pinned by a test).
+ * Canonical form: the fields are attached only when set (absent === off/0), so
+ * preset constants stay flag-free and pack byte-identically to pre-custom builds.
+ * @param {{tier:number,top:number,body:number,statusUpper:number,statusLower:number,
+ *          clockOff:(boolean|undefined),stripOff:(boolean|undefined),order:(number|undefined)}} s
+ * @returns {!Object} an independent copy with the same canonical fields
+ */
+function cloneSpec(s) {
+  var out = spec(s.tier, s.top, s.body, s.statusUpper, s.statusLower);
+  if (s.clockOff) { out.clockOff = true; }
+  if (s.stripOff) { out.stripOff = true; }
+  if (s.order) { out.order = s.order; }
+  return out;
+}
+
+/**
+ * Pack a view spec into one 16-bit wire value. Null (disabled slot) → 0.
  * Bit layout (LSB→MSB): statusLower(0-1) | statusUpper(2-3) | body(4-5) |
- * top(6-7) | tier(8-9).
- * @param {?{tier:number,top:number,body:number,statusUpper:number,statusLower:number}} s
- * @returns {number} uint16 (fits in 10 bits)
+ * top(6-7) | tier(8-9) | clockOff(10) | stripOff(11) | order(12-15).
+ * Bits 10-15 are custom-layout-only: preset specs never carry the fields, so every
+ * preset packs to the same 10-bit value as pre-custom builds (pinned by a test).
+ * Values with bit 15 set exceed 0x7FFF and ride the AppMessage int16 as negative;
+ * the watch recovers all 16 bits via its (uint16_t) cast (config_wire.c).
+ * @param {?{tier:number,top:number,body:number,statusUpper:number,statusLower:number,
+ *           clockOff:(boolean|undefined),stripOff:(boolean|undefined),order:(number|undefined)}} s
+ * @returns {number} uint16
  */
 function packSpec(s) {
   if (!s) { return 0; }
   return ((s.tier & 3) << 8) | ((s.top & 3) << 6) | ((s.body & 3) << 4)
-       | ((s.statusUpper & 3) << 2) | (s.statusLower & 3);
+       | ((s.statusUpper & 3) << 2) | (s.statusLower & 3)
+       | ((s.clockOff ? 1 : 0) << 10) | ((s.stripOff ? 1 : 0) << 11)
+       | ((s.order & 15) << 12);
 }
 
 /**
  * Decode a packed wire value to a spec. 0 → null (disabled slot).
- * @param {number} v uint16 (10-bit)
- * @returns {?{tier:number,top:number,body:number,statusUpper:number,statusLower:number}}
+ * Custom-layout fields come back in canonical form: attached only when set.
+ * @param {number} v uint16
+ * @returns {?{tier:number,top:number,body:number,statusUpper:number,statusLower:number,
+ *             clockOff:(boolean|undefined),stripOff:(boolean|undefined),order:(number|undefined)}}
  */
 function unpackSpec(v) {
   if (!v) { return null; }
-  return spec((v >> 8) & 3, (v >> 6) & 3, (v >> 4) & 3, (v >> 2) & 3, v & 3);
+  var s = spec((v >> 8) & 3, (v >> 6) & 3, (v >> 4) & 3, (v >> 2) & 3, v & 3);
+  if ((v >> 10) & 1) { s.clockOff = true; }
+  if ((v >> 11) & 1) { s.stripOff = true; }
+  if ((v >> 12) & 15) { s.order = (v >> 12) & 15; }
+  return s;
 }
 
 // Named views (see the design doc's view vocabulary). Positional status:
@@ -116,7 +147,10 @@ var MATRIX = {
  */
 function swapUpperToLower(s) {
   if (s.statusUpper !== STATUS_SRC_NONE && s.statusLower === STATUS_SRC_NONE) {
-    return spec(s.tier, s.top, s.body, STATUS_SRC_NONE, s.statusUpper);
+    var out = cloneSpec(s);
+    out.statusUpper = STATUS_SRC_NONE;
+    out.statusLower = s.statusUpper;
+    return out;
   }
   return s;
 }
@@ -131,7 +165,10 @@ function swapUpperToLower(s) {
  * @returns {{tier:number,top:number,body:number,statusUpper:number,statusLower:number}}
  */
 function demoteRadarBody(s) {
-  return s.body === BODY_RADAR ? spec(s.tier, s.top, BODY_FC, s.statusUpper, s.statusLower) : s;
+  if (s.body !== BODY_RADAR) { return s; }
+  var out = cloneSpec(s);
+  out.body = BODY_FC;
+  return out;
 }
 
 /**
@@ -202,7 +239,8 @@ var VIEW_CYCLE = {
   BODY_FC: BODY_FC, BODY_GRAPH: BODY_GRAPH, BODY_RADAR: BODY_RADAR,
   STATUS_SRC_NONE: STATUS_SRC_NONE, STATUS_SRC_FORECAST: STATUS_SRC_FORECAST,
   STATUS_SRC_RADAR: STATUS_SRC_RADAR, STATUS_SRC_HEALTH: STATUS_SRC_HEALTH,
-  spec: spec, packSpec: packSpec, unpackSpec: unpackSpec,
+  spec: spec, cloneSpec: cloneSpec, packSpec: packSpec, unpackSpec: unpackSpec,
+  swapUpperToLower: swapUpperToLower, demoteRadarBody: demoteRadarBody,
   buildViewCycle: buildViewCycle, resolvePresetKey: resolvePresetKey
 };
 if (typeof module !== 'undefined' && module.exports) {
