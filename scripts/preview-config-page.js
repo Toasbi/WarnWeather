@@ -47,6 +47,8 @@ var APP_FILES = [
   // resolves the rule table on the wizard's finish button.
   path.join(ROOT, 'src/pkjs/settings/defaults-policy.js'),
   path.join(ROOT, 'src/pkjs/settings/wizard.js'),
+  // The Custom-layout editor overlay (lockstep with build-config-page.js).
+  path.join(ROOT, 'src/pkjs/settings/view-editor.js'),
   path.join(ROOT, 'src/pkjs/settings/onbuild.js'),
   path.join(ROOT, 'src/pkjs/settings/key-test.js'),
   path.join(ROOT, 'src/pkjs/settings/owm-key-test.js'),

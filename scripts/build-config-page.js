@@ -53,6 +53,9 @@ var APP_FILES = [
   // that reason.
   path.join(ROOT, 'src/pkjs/settings/defaults-policy.js'),
   path.join(ROOT, 'src/pkjs/settings/wizard.js'),
+  // The Custom-layout editor overlay. After view-cycle.js (reads window.VIEW_CYCLE
+  // at load) and beside the wizard, whose overlay pattern it shares.
+  path.join(ROOT, 'src/pkjs/settings/view-editor.js'),
   path.join(ROOT, 'src/pkjs/settings/onbuild.js'),
   // key-test.js must precede its two consumers (window.KeyTest factory).
   path.join(ROOT, 'src/pkjs/settings/key-test.js'),

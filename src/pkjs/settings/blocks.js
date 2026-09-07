@@ -697,6 +697,9 @@ if (typeof require !== 'undefined') {
     PConf.onChange.register('layoutPresetChanged', function (S, oldValue, newValue) {
         if (newValue !== 'custom') { return; }
         viewCycleLib.seedCustomKeys(S, oldValue);
+        // Picking Custom opens the editor right away (view-editor.js registers the
+        // action; absent under Node, where there is no DOM to open into).
+        if (PConf.actions && PConf.actions.openViewEditor) { PConf.actions.openViewEditor(); }
     });
 
     // Platform-aware slot default (Approach A single-source): a status slot's fresh-install
