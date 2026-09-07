@@ -142,5 +142,9 @@
   "1.15.2": {
     "title": "Custom date formats",
     "body": "The date can now be shown in a custom format. Change it in the date status slot settings."
+  },
+  "1.16.0": {
+    "title": "Build your own layout",
+    "body": "Pick Custom in the Layout tab to build each view yourself: choose, remove and reorder the calendar, clock and status bars per view. Flick views can drop the clock and top bar too — try a full-screen radar."
   }
 }

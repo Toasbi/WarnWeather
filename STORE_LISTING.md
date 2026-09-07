@@ -72,6 +72,7 @@ WATCH
 
 LAYOUT CUSTOMIZATION
 - Multiple layout presets, with flick-to-cycle between views and optional auto-return
+- Fully custom layouts (colour watches): build each view yourself - pick, remove and reorder the calendar, clock and status bars per view; flick views can even drop the clock and top bar for a true full-screen radar or graph
 - Light/Dark settings page with grouped, easy-to-browse pickers
 - First-run setup wizard that picks sensible defaults for your country and watch
 - Larger graph fonts on Pebble Time 2 - the forecast, health and radar axis labels are drawn in bigger type by default; turn them down in the Layout tab
