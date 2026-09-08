@@ -103,26 +103,30 @@ test('availability gating', () => {
   assert.ok(!catalog.itemAvailable(catalog.byCode('hr'), s, ENV_BASALT));
 });
 
-test('date is middle-only: offered in mid slots of any line, nowhere else', () => {
+test('date is offered in EVERY slot position (custom layouts freed the calendar)', () => {
   const s = { healthMode: 'all', radarProvider: 'rainbow', radarMode: 'graph' };
   const date = catalog.byCode('date');
-  assert.ok(!catalog.itemAvailable(date, s, ENV_BASALT), 'no slot context -> unavailable');
-  assert.ok(!catalog.itemAvailable(date, s, ENV_BASALT, { slotKey: 'statusTopLeft', position: 'left' }));
-  assert.ok(!catalog.itemAvailable(date, s, ENV_BASALT, { slotKey: 'statusTopRight', position: 'right' }));
+  // The middle-only gate was a leftover from the hard-wired strip centre; with
+  // custom layouts the calendar can sit anywhere or be absent, so the date is a
+  // first-class slot like City — any position, any line, and available without a
+  // slot context (nothing position-gates it any more).
+  assert.ok(catalog.itemAvailable(date, s, ENV_BASALT));
+  assert.ok(catalog.itemAvailable(date, s, ENV_BASALT, { slotKey: 'statusTopLeft', position: 'left' }));
+  assert.ok(catalog.itemAvailable(date, s, ENV_BASALT, { slotKey: 'statusTopRight', position: 'right' }));
   assert.ok(catalog.itemAvailable(date, s, ENV_BASALT, { slotKey: 'statusTopMid', position: 'mid' }));
   assert.ok(catalog.itemAvailable(date, s, ENV_BASALT, { slotKey: 'statusForecastMid', position: 'mid' }));
   const mid = catalog.slotOptions(s, ENV_BASALT, { slotKey: 'statusTopMid', position: 'mid' });
   assert.ok(mid.some(o => o[1] === 'date'), 'date offered in a mid dropdown');
   const left = catalog.slotOptions(s, ENV_BASALT, { slotKey: 'statusTopLeft', position: 'left' });
-  assert.ok(!left.some(o => o[1] === 'date'), 'date absent from an edge dropdown');
+  assert.ok(left.some(o => o[1] === 'date'), 'date offered in an edge dropdown too');
 });
 
-test('resolveSelection honors the slot context', () => {
+test('resolveSelection keeps date in any slot position', () => {
   const s = {};
   assert.equal(catalog.resolveSelection('date', s, ENV_BASALT,
     { slotKey: 'statusTopMid', position: 'mid' }), 'date');
   assert.equal(catalog.resolveSelection('date', s, ENV_BASALT,
-    { slotKey: 'statusTopLeft', position: 'left' }), 'empty');
+    { slotKey: 'statusTopLeft', position: 'left' }), 'date');
 });
 
 test('slotOptions: empty first, excludeCodes removed, sibling selections now shown', () => {
@@ -138,7 +142,7 @@ test('slotOptions: empty first, excludeCodes removed, sibling selections now sho
   assert.ok(codes.includes('sun'));        // sibling's selection NO LONGER hidden
   assert.ok(!codes.includes('city'));      // excludeCodes still honored
   assert.ok(!codes.includes('hr'));        // env gate (basalt)
-  assert.ok(!codes.includes('date'));      // date is middle-only: absent without a mid slot context
+  assert.ok(codes.includes('date'));       // date is position-free since custom layouts
 });
 
 test('selectedCodes falls back to line defaults for missing keys', () => {

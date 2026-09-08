@@ -309,7 +309,7 @@ test('distance slot packs km vs mi kind from distanceUnits', () => {
   assert.equal(decodeLine(metric)[0].icon, catalog.ICONS.DISTANCE);
 });
 
-test('top line: mid defaults to live date; stored mid packs; date is rejected at edges', () => {
+test('top line: mid defaults to live date; stored mid packs; date packs at edges too', () => {
   const topLine = catalog.LINES.filter(l => l.id === 'top')[0];
   const env = basaltEnv();
   const p = basePayload();
@@ -328,10 +328,11 @@ test('top line: mid defaults to live date; stored mid packs; date is rejected at
     baseSettings({ statusTopMid: 'city' }), env));
   assert.equal(slots[1].kind, K.TEXT);
   assert.equal(slots[1].text, 'Saarbrücken');
-  // a stray 'date' in an edge slot resolves to empty (position gate)
+  // 'date' in an edge slot packs like any slot — the middle-only gate fell with
+  // custom layouts (the calendar can sit anywhere or be absent now).
   slots = decodeLine(statusLines.packLine(topLine, p,
     baseSettings({ statusTopLeft: 'date' }), env));
-  assert.equal(slots[0].kind, K.EMPTY);
+  assert.equal(slots[0].kind, K.LIVE_DATE);
 });
 
 test('city cap: 19 bytes in mid, 8 in edge, code-point safe', () => {
