@@ -383,6 +383,8 @@ static void golden_rects_clockless(void) {
 static void golden_rects_stripless(void) {
     MainLayout L;
     const uint16_t c2A_s  = pack_custom(pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE), 0, 1, 0);
+    const uint16_t c3A_s  = pack_custom(pack(3, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE), 0, 1, 0);
+    const uint16_t c3D_s  = pack_custom(pack(3, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST), 0, 1, 0);
     const uint16_t c3S_cs = pack_custom(pack(3, 1, 0, STATUS_SRC_NONE, STATUS_SRC_NONE), 1, 1, 0);
     const uint16_t nA_s   = pack_custom(pack(1, 0, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE), 0, 1, 0);
     const uint16_t nR_cs  = pack_custom(pack(1, 0, 2, STATUS_SRC_NONE, STATUS_SRC_NONE), 1, 1, 0);
@@ -394,6 +396,22 @@ static void golden_rects_stripless(void) {
     check("sflc2A.status",       L.status,       0, 31, 144, 17);
     check("sflc2A.time",         L.time,         0, 45, 144, 45);
     check("sflc2A.bottom",       L.bottom,       0, 90, 144, 78);
+    L = compute_custom(c3A_s);
+    if (s_dump) printf("  STRIPLESS cal3 lone-upper (clocked) — the un-squeeze case\n");
+    // No top strip, so the lone FULL seat renders the LARGE font: the clamp-free
+    // 17-band + its 3px ink clearance replace fc_band_h exactly, so only the type
+    // grows — every band edge stays put.
+    check("sflc3A.top",          L.top,          0, 0, 144, 45);
+    check("sflc3A.status",       L.status,       0, 84, 144, 17);
+    // Solver-seated: the clock's ink centres between the calendar's last digit row
+    // and the LARGE status type's cap — 3 rows higher than the nominal band.
+    check("sflc3A.time",         L.time,         0, 42, 144, 45);
+    check("sflc3A.bottom",       L.bottom,       0, 104, 144, 64);
+    L = compute_custom(c3D_s);
+    if (s_dump) printf("  STRIPLESS cal3 dual (clocked)\n");
+    check("sflc3D.status",       L.status,       0, 84, 144, 17);
+    check("sflc3D.status_lower", L.status_lower, 0, 104, 144, 17);
+    check("sflc3D.bottom",       L.bottom,       0, 124, 144, 44);
     L = compute_custom(c3S_cs);
     if (s_dump) printf("  STRIPLESS cal3 statusless (clockless)\n");
     check("sflc3S.top",          L.top,          0, 0, 144, 45);
@@ -422,6 +440,17 @@ static void golden_rects_stripless(void) {
     // above and the graph top below, 3 rows higher than the band's nominal seat.
     check("sflc2A.time",         L.time,         2, 59, 196, 60);
     check("sflc2A.bottom",       L.bottom,       2, 122, 198, 102);
+    L = compute_custom(c3A_s);
+    if (s_dump) printf("  STRIPLESS cal3 lone-upper (clocked, emery) — the un-squeeze case\n");
+    check("sflc3A.top",          L.top,          2, 2, 196, 60);
+    check("sflc3A.status",       L.status,       2, 114, 196, 21);
+    check("sflc3A.time",         L.time,         2, 56, 196, 60);
+    check("sflc3A.bottom",       L.bottom,       2, 136, 198, 88);
+    L = compute_custom(c3D_s);
+    if (s_dump) printf("  STRIPLESS cal3 dual (clocked, emery)\n");
+    check("sflc3D.status",       L.status,       2, 114, 196, 21);
+    check("sflc3D.status_lower", L.status_lower, 2, 136, 198, 21);
+    check("sflc3D.bottom",       L.bottom,       2, 158, 198, 66);
     L = compute_custom(c3S_cs);
     if (s_dump) printf("  STRIPLESS cal3 statusless (clockless, emery)\n");
     check("sflc3S.top",          L.top,          2, 2, 196, 60);
@@ -778,6 +807,14 @@ static void test_unpack_custom_bits(void) {
     ViewSpec cf = view_spec_unpack(pack_custom(
         pack(3, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE), 1, 0, 0));
     expect("custom_bits.clockless_full_large", cf.status_tier == LAYOUT_TIER_COMPACT, true);
+    // Removing the TOP STRIP un-squeezes too — either chrome removal frees the rows
+    // the large type wants; with both present the historical tier stands (presets).
+    ViewSpec sf = view_spec_unpack(pack_custom(
+        pack(3, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE), 0, 1, 0));
+    expect("custom_bits.stripless_full_large", sf.status_tier == LAYOUT_TIER_COMPACT, true);
+    expect("custom_bits.full_chrome_stays_squeezed",
+           view_spec_unpack(pack(3, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE)).status_tier
+           == LAYOUT_TIER_FULL, true);
     expect("custom_bits.resolve_matches_unpack_tier",
            view_spec_resolve(cd, true, true).status_tier == LAYOUT_TIER_COMPACT, true);
     printf("unpack_custom_bits OK\n");

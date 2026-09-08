@@ -332,11 +332,16 @@ static MainLayout compute_with_weights(GRect bounds, const ViewSpec *spec, Layou
         // moves) rather than to the calendar's bottom (which slides down with the font-sized
         // strip), so the row stays put when the strip grows — clockless included: the seat is
         // audited, only the body below it moves.
-        // full-CLOCKED: bottom pinned to the forecast top (band rises into the clock's
-        // slack). full-CLOCKLESS: in flow at time_y (the ladder above spaced the body
-        // off the band's own height + clearance).
+        // full-CLOCKED: bottom pinned to the forecast top, rising into the clock's
+        // slack — a squeezed band carries its own clearances inside fc_band_h, an
+        // UNSQUEEZED one (stripless view, large font) is the clamp-free band plus an
+        // explicit ink clearance (on the 144px watches 17+3 == fc_band_h, so the
+        // band's top row doesn't even move; only the type grows). full-CLOCKLESS:
+        // in flow at time_y (the ladder above spaced the body off the band).
+        int full_status_reserve = squeezed ? fc_band_h
+                                           : (status_h + STATUS_FORECAST_CLEARANCE);
         int status_y = compact ? compact_status_y
-                     : clock   ? (forecast_y - fc_band_h)
+                     : clock   ? (forecast_y - full_status_reserve)
                                : time_y;
         // What the clock's ink sits under. In COMPACT the upper row takes the freed 3rd
         // calendar row, i.e. it is ABOVE the clock and the calendar is not the neighbour; in
@@ -359,7 +364,7 @@ static MainLayout compute_with_weights(GRect bounds, const ViewSpec *spec, Layou
         // Unified loading rule: from the status band's top to the bottom pad. In compact
         // the status band sits inside the calendar band, so loading covers just the graph;
         // a statusless full view has no band above the forecast, so loading starts at it.
-        int full_loading_top = has_status ? (forecast_y - fc_band_h) : forecast_y;
+        int full_loading_top = has_status ? (forecast_y - full_status_reserve) : forecast_y;
         L.loading = compact
             ? GRect(content_x, forecast_y, content_w, h - LAYOUT_PAD_BOTTOM - forecast_y)
             : GRect(content_x, full_loading_top, content_w,
@@ -381,7 +386,7 @@ static MainLayout compute_with_weights(GRect bounds, const ViewSpec *spec, Layou
             L.bottom.origin.y += NONE_STATUS_HEIGHT;
             L.bottom.size.h -= NONE_STATUS_HEIGHT;
             L.radar = L.bottom;
-        } else if (clock) {
+        } else if (clock && (squeezed || compact)) {
             // compact/full, CLOCKED: the lower row rides the forecast-abutting band. A DUAL
             // lower row uses the squeezed full-tier band (fc_band_h) so two stacked rows fit
             // beside the clock. A LONE lower row (the compact swap layout — a single status
@@ -412,12 +417,12 @@ static MainLayout compute_with_weights(GRect bounds, const ViewSpec *spec, Layou
             L.bottom.origin.y = forecast_top;
             L.bottom.size.h -= reserve;
         } else {
-            // compact/full, CLOCKLESS: every row renders the large font
-            // (status_tier_for), so the band takes the large clamp-free height, sits at
-            // the body top in flow — there is no clock slack to grow into — and reserves
-            // its own height plus the ink clearance below. Overlap-free by construction
-            // for duals and lone-lowers alike (the ladder above already spaced
-            // forecast_y off the upper band's floor).
+            // Everything else — clockless views, and clocked FULL-tier views whose
+            // chrome removal un-squeezed them (status_tier_for): the row renders the
+            // large font, so the band takes the large clamp-free height, sits at the
+            // body top in flow, and reserves its own height plus the ink clearance
+            // below. Overlap-free by construction for duals and lone-lowers alike
+            // (the ladder/reserve above already spaced forecast_y off the upper band).
             lower_ch = STATUS_LARGE_FONT_H;
             int band_h = STATUS_LARGE_BAND_H;
             int reserve = band_h + STATUS_FORECAST_CLEARANCE;
@@ -466,15 +471,17 @@ static MainLayout compute_with_weights(GRect bounds, const ViewSpec *spec, Layou
 // ── ViewSpec producers/consumers ────────────────────────────────────────────
 
 // The status tier a view's rows render at. layout_status_tier owns the base rule
-// (only a DUAL squeezes to the smaller full-tier font); on top of it, a CLOCKLESS
-// custom view keeps the LARGE font whatever its shape — the squeeze exists to fit
-// rows beside the clock, and with no clock the freed band is exactly the room the
-// bigger type wants. Shared by unpack and resolve so the two can never disagree;
-// the aplite twin keeps calling layout_status_tier directly (it has no clockless
-// views to exempt).
-static uint8_t status_tier_for(uint8_t rows, bool two_rows, uint8_t clock_off) {
+// (only a DUAL squeezes to the smaller full-tier font); on top of it, a custom view
+// that removed a chrome band — the clock OR the top strip — keeps the LARGE font
+// whatever its shape: the squeeze exists to fit rows into a screen that carries all
+// its chrome, and either removal frees at least the rows the bigger type wants.
+// Presets always carry both, so their tiers (and pixels) are untouched. Shared by
+// unpack and resolve so the two can never disagree; the aplite twin keeps calling
+// layout_status_tier directly (it has no custom views to exempt).
+static uint8_t status_tier_for(uint8_t rows, bool two_rows,
+                               uint8_t clock_off, uint8_t strip_off) {
     LayoutTier t = layout_status_tier(layout_tier_for_rows(rows), two_rows);
-    if (clock_off && t == LAYOUT_TIER_FULL) { t = LAYOUT_TIER_COMPACT; }
+    if ((clock_off || strip_off) && t == LAYOUT_TIER_FULL) { t = LAYOUT_TIER_COMPACT; }
     return (uint8_t) t;
 }
 
@@ -505,7 +512,7 @@ ViewSpec view_spec_unpack(uint16_t v) {
     // and through status_tier_for, the one rule unpack and resolve share (base
     // squeeze rule in layout.h's layout_status_tier; clockless exemption above).
     bool two_rows = (su != STATUS_SRC_NONE) && (sl != STATUS_SRC_NONE);
-    spec.status_tier = status_tier_for(rows, two_rows, spec.clock_off);
+    spec.status_tier = status_tier_for(rows, two_rows, spec.clock_off, spec.strip_off);
     spec.weights[0] = WEIGHT_CALENDAR;
     spec.weights[1] = WEIGHT_TIME;
     spec.weights[2] = WEIGHT_BOTTOM;
@@ -549,7 +556,8 @@ ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health) {
     // larger compact font, only a CLOCKED dual squeezes to the full-tier one, and
     // a clockless view stays on the large font whatever survives.
     bool two_rows = (spec.status_upper != STATUS_SRC_NONE) && (spec.status_lower != STATUS_SRC_NONE);
-    spec.status_tier = status_tier_for(spec.calendar_rows, two_rows, spec.clock_off);
+    spec.status_tier = status_tier_for(spec.calendar_rows, two_rows,
+                                       spec.clock_off, spec.strip_off);
     return spec;
 }
 
