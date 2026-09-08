@@ -753,18 +753,19 @@ test('Layout tab leads with the arrangement section: combined preview above the 
   assert.equal(layout.sections.length, 4, 'arrangement + custom storage + Time + Calendar');
   const items = layout.sections[0].items;
   const presetIdx = items.findIndex((i) => i.messageKey === 'layoutPreset');
-  const editIdx = items.findIndex((i) => i.action === 'openViewEditor');
+  const editIdx = items.findIndex((i) => i.type === 'staticText'
+    && String(i.text || '').indexOf('openViewEditor') !== -1);
   const fontIdx = items.findIndex((i) => i.messageKey === 'largeGraphFont');
   const resetIdx = items.findIndex((i) => i.messageKey === 'viewResetMin');
   const swapIdx = items.findIndex((i) => i.messageKey === 'swapClockStatus');
   assert.ok(presetIdx >= 0, 'layoutPreset present');
   assert.equal(items[presetIdx].blockBefore, 'layoutPreviewCombined', 'combined preview hosted on the preset radio');
   assert.equal(items[presetIdx].blockBeforeSticky, true, 'preview sticky');
-  assert.equal(editIdx, presetIdx + 1, 'Edit custom layout button sits directly below the preset radio');
+  assert.equal(editIdx, presetIdx + 1, 'the Custom layout Edit row sits directly below the preset radio');
   assert.deepEqual(items[editIdx].showWhen,
     { all: [{ key: 'layoutPreset', eq: 'custom' }, { env: 'platform', ne: 'aplite' }] },
-    'editor button only shows in custom mode, never on aplite (dormant stored custom)');
-  assert.equal(fontIdx, editIdx + 1, 'largeGraphFont follows the editor button');
+    'editor row only shows in custom mode, never on aplite (dormant stored custom)');
+  assert.equal(fontIdx, editIdx + 1, 'largeGraphFont follows the editor row');
   assert.equal(swapIdx, fontIdx + 1, 'swapClockStatus sits directly below largeGraphFont');
   assert.equal(resetIdx, swapIdx + 1, 'viewResetMin sits directly below swapClockStatus');
   assert.equal(resetIdx, items.length - 1, 'and closes the section');

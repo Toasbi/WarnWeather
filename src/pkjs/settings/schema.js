@@ -1522,13 +1522,21 @@ module.exports = {
                 blockBefore: 'layoutPreviewCombined',
                 blockBeforeSticky: true
             }, {
-                type: 'button',
-                label: 'Edit custom layout',
-                action: 'openViewEditor',
-                hint: 'Choose what each view shows, and where.',
+                // A standard settings row with the outlined Edit button on the right
+                // (the per-slot edit-sheet look), not a full-width button. staticText
+                // + [data-action] is the shipped idiom for an action inside a row
+                // (the "Reset status bars" row); the engine dispatches it globally.
+                type: 'staticText',
+                // hint copy rides inside the row: staticText items don't render `hint`.
+                text: '<div style="display:flex;justify-content:space-between;align-items:center;gap:18px;">'
+                    + '<span style="font-size:14.5px;font-weight:600;color:var(--lbl);">Custom layout'
+                    + '<span style="display:block;font-size:12px;font-weight:400;color:var(--hint);margin-top:2px;">'
+                    + 'Choose what each view shows, and where.</span></span>'
+                    + '<button type="button" class="thr-btn" data-action="openViewEditor"'
+                    + ' aria-label="Edit the custom layout">Edit</button></div>',
                 // Platform-gated like the option itself: a DORMANT stored 'custom'
                 // (set on a colour watch, then the phone pairs an aplite) displays
-                // the compactCal fallback — the editor button must not leak in
+                // the compactCal fallback — the editor row must not leak in
                 // beside it. ne keeps the unknown-platform case capable, matching
                 // layoutPresetOptions and the clay-payload gate.
                 showWhen: {all: [{key: 'layoutPreset', eq: 'custom'},

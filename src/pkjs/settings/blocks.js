@@ -684,7 +684,7 @@ if (typeof require !== 'undefined') {
             || S.healthMode === 'status' || S.healthMode === 'all');
         if (dense) { base.push(['Compact calendar (dense)', 'compactDense']); }
         base.push(['No calendar', 'noCal']);
-        if (!env || env.platform !== 'aplite') { base.push(['Custom', 'custom']); }
+        if (!env || env.platform !== 'aplite') { base.push(['Custom (Beta)', 'custom']); }
         return base;
     });
 

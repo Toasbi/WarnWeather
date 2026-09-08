@@ -35,23 +35,24 @@ function layoutBody(overrides, platformName) {
   return { body: eng.renderBody(schema, 'layout', cx), S: S };
 }
 
-test('the Layout tab offers Custom on basalt and hides it on aplite', () => {
+test('the Layout tab offers Custom (Beta) on basalt and hides it on aplite', () => {
   const basalt = layoutBody({ layoutPreset: 'compactCal' }).body;
-  assert.ok(basalt.indexOf('>Custom<') >= 0, 'Custom option rendered');
+  assert.ok(basalt.indexOf('Custom (Beta)') >= 0, 'Custom (Beta) option rendered');
   const aplite = layoutBody({ layoutPreset: 'compactCal' }, 'aplite').body;
-  assert.equal(aplite.indexOf('>Custom<'), -1, 'no Custom option on aplite');
+  assert.equal(aplite.indexOf('Custom (Beta)'), -1, 'no Custom option on aplite');
 });
 
-test('the Edit custom layout button renders only in custom mode', () => {
+test('the Custom layout row with its Edit button renders only in custom mode', () => {
   const preset = layoutBody({ layoutPreset: 'compactCal' }).body;
-  assert.equal(preset.indexOf('Edit custom layout'), -1);
+  assert.equal(preset.indexOf('data-action="openViewEditor"'), -1);
   const custom = layoutBody({
     layoutPreset: 'custom', customLayoutSeeded: true, viewCount: '1',
     viewTop0: 'cal2', viewBody0: 'forecast', viewUpper0: 'weather',
     viewLower0: 'off', viewOrder0: 'TACB',
   }).body;
-  assert.ok(custom.indexOf('Edit custom layout') >= 0);
-  assert.ok(custom.indexOf('data-action="openViewEditor"') >= 0, 'button dispatches the action');
+  assert.ok(custom.indexOf('data-action="openViewEditor"') >= 0, 'Edit dispatches the action');
+  assert.ok(custom.indexOf('class="thr-btn"') >= 0, 'the outlined Edit-button look');
+  assert.ok(custom.indexOf('Custom layout') >= 0, 'row label present');
 });
 
 test('the combined preview renders the CUSTOM cycle (a stacked clockless flick shows through)', () => {
@@ -96,8 +97,8 @@ test('a dormant stored custom on aplite renders neither the Edit button nor the 
     viewTop0: 'cal2', viewBody0: 'forecast', viewUpper0: 'weather',
     viewLower0: 'off', viewOrder0: 'TACB',
   }, 'aplite');
-  assert.equal(r.body.indexOf('Edit custom layout'), -1, 'no editor button on aplite');
-  assert.equal(r.body.indexOf('>Custom<'), -1, 'no Custom option on aplite');
+  assert.equal(r.body.indexOf('data-action="openViewEditor"'), -1, 'no editor row on aplite');
+  assert.equal(r.body.indexOf('Custom (Beta)'), -1, 'no Custom option on aplite');
 });
 
 // The editor's ONLY select surface is the sheet path (openSheet -> renderSelectModal);
