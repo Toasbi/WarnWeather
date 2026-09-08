@@ -145,6 +145,6 @@
   },
   "1.16.0": {
     "title": "Build your own layout",
-    "body": "Pick Custom in the Layout tab to build each view yourself: choose, remove and reorder the calendar, clock and status bars per view. Flick views can drop the clock and top bar too — try a full-screen radar."
+    "body": "Pick Custom in the Layout tab to build each view yourself: choose, remove and reorder the calendar, clock and status bars per view."
   }
 }
