@@ -294,3 +294,132 @@ test('scenario 7b: a tick fetches (non-forced) only when shouldFetchNow is true'
     assert.equal(h.calls.startFetch.length, 1, 'shouldFetchNow true -> one fetch');
     assert.equal(h.calls.startFetch[0], false, 'tick fetch is non-forced');
 });
+
+// --- auto theme switch: the tick's flip resend ------------------------------
+// Same harness plus the optional effectiveThemeId dep. themeId.value is the
+// controllable verdict; null models "switch off".
+function makeThemeHarness() {
+    var timers = [];
+    var themeId = { value: null };
+    var clock = { value: new Date(2026, 6, 7, 12, 0, 0) };
+    var calls = { sendClay: [], startFetch: [], refreshHolidays: 0, checkForUpdate: 0 };
+    var deps = {
+        sendClay: function (onSuccess, onFailure) {
+            calls.sendClay.push({ onSuccess: onSuccess, onFailure: onFailure });
+        },
+        startFetch: function (force) { calls.startFetch.push(force); },
+        shouldFetchNow: function () { return false; },
+        refreshHolidays: function () { calls.refreshHolidays++; },
+        checkForUpdate: function () { calls.checkForUpdate++; },
+        clearClayCache: function () {},
+        clearWeatherCaches: function () {},
+        effectiveThemeId: function () { return themeId.value; },
+        setTimeout: function (fn, ms) { timers.push({ fn: fn, ms: ms }); return timers.length; },
+        now: function () { return clock.value; }
+    };
+    return {
+        scheduler: createChannelScheduler(deps),
+        calls: calls,
+        themeId: themeId,
+        setNow: function (d) { clock.value = d; },
+        stampToday: function () {
+            var d = clock.value;
+            store[KEYS.LAST_HOLIDAY_DAY_KEY] = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
+        },
+        tick: function () {
+            var pending = timers.splice(0, timers.length);
+            pending.forEach(function (t) { t.fn(); });
+        },
+        ackClay: function () { calls.sendClay[calls.sendClay.length - 1].onSuccess(); },
+        nackClay: function () { calls.sendClay[calls.sendClay.length - 1].onFailure(); }
+    };
+}
+
+test('theme flip: switch off (null id) never sends Clay from the tick', function () {
+    resetStore();
+    var h = makeThemeHarness();
+    h.stampToday();
+    h.scheduler.start();
+    h.tick();
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 0, 'no flip sends while the switch is off');
+});
+
+test('theme flip: first known id attempts one deduped send, then stays quiet until a flip', function () {
+    resetStore();
+    var h = makeThemeHarness();
+    h.stampToday();
+    h.themeId.value = 'light';
+    h.scheduler.start();
+    assert.equal(h.calls.sendClay.length, 1, 'first tick reconciles once (outbox dedupes a no-op)');
+    h.ackClay();
+    h.tick();
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 1, 'same id: no further sends');
+    h.themeId.value = 'dark';
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 2, 'the sunset flip sends exactly once');
+    h.ackClay();
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 2, 'and stays quiet after the flip');
+});
+
+test('theme flip: a NACKed flip send retries on the next tick', function () {
+    resetStore();
+    var h = makeThemeHarness();
+    h.stampToday();
+    h.themeId.value = 'light';
+    h.scheduler.start();
+    h.ackClay();
+    h.themeId.value = 'dark';
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 2);
+    h.nackClay();
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 3, 'NACK forgets the stamp, the flip retries');
+    h.ackClay();
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 3, 'ACKed retry ends the loop');
+});
+
+test('theme flip: a day-change Clay resend covers the flip — one send per tick', function () {
+    resetStore();
+    var h = makeThemeHarness();
+    h.stampToday();
+    h.themeId.value = 'light';
+    h.scheduler.start();
+    h.ackClay();
+    assert.equal(h.calls.sendClay.length, 1);
+    // Midnight rollover AND a manual-window flip in the same tick: the holiday
+    // resend already carries the effective theme (sendClaySettings builds from
+    // effective settings), so no second Clay send may ride the same tick.
+    h.setNow(new Date(2026, 6, 8, 0, 0, 0));
+    h.themeId.value = 'dark';
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 2, 'exactly one send for day change + flip');
+    h.ackClay();
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 2, 'the flip stamp was recorded by the day-change send');
+});
+
+test('theme flip: a NACKed day-change send does not swallow a coincident flip', function () {
+    resetStore();
+    var h = makeThemeHarness();
+    h.stampToday();
+    h.themeId.value = 'light';
+    h.scheduler.start();
+    h.ackClay();
+    // Midnight: day change AND a manual-window flip land on one tick, but the
+    // send NACKs (BT down). The stamp must NOT be recorded, so the flip path
+    // retries next tick instead of staying silent until the next boundary.
+    h.setNow(new Date(2026, 6, 8, 0, 0, 0));
+    h.themeId.value = 'dark';
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 2, 'one send for day change + flip');
+    h.nackClay();
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 3, 'the flip retries after the NACKed midnight send');
+    h.ackClay();
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 3, 'ACK ends the retry loop');
+});

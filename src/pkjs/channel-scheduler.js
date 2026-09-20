@@ -24,6 +24,7 @@ var storageKeys = require('./storage-keys.js');
  * @param {function():void} deps.clearClayCache Forget the last-sent Clay so the next send goes through.
  * @param {function():void} deps.clearWeatherCaches Forget the last-sent weather categories.
  * @param {function():void} [deps.clearNoticeOnWatch] Push an empty NOTICE_TEXT to clear the watch overlay (used on a pure "Understood" dismiss).
+ * @param {function():?string} [deps.effectiveThemeId] The auto-switch theme in effect right now, or null while the switch is off (theme-schedule.js via index.js).
  * @param {function(Function, number):*} deps.setTimeout Timer function (injected so tests drive a fake queue).
  * @param {function():Date} deps.now Current-time supplier (injected for a fake clock).
  * @returns {{onWatchStatus: Function, onReady: Function, onConfigClosed: Function, start: Function}} The scheduler.
@@ -182,33 +183,77 @@ function createChannelScheduler(deps) {
         deps.sendClay(afterClay, afterClay);
     }
 
+    // The auto theme id in effect at the last flip check; null means unknown
+    // (fresh PKJS session, or the last flip send NACKed), so the next tick
+    // attempts one send — the content-deduping outbox turns it into a no-op
+    // unless the watch really is behind (e.g. PKJS restarted across a sunset).
+    var lastEffectiveTheme = null;
+
     /**
      * Resend Clay (which carries the HOLIDAYS mask) once per local-day change so
      * a week rollover refreshes the mask without opening settings. The Clay
      * outbox dedupes by content, so only week boundaries actually transmit.
+     * The send also carries the auto theme in effect (sendClaySettings builds
+     * from the effective settings), so its callbacks own the flip stamp: only
+     * an ACK records it, and a NACK forgets it so the flip path retries next
+     * tick — otherwise a midnight NACK (BT down) would swallow a coincident
+     * theme flip until the next day/night boundary.
      *
-     * @returns {void}
+     * @returns {boolean} True when this tick sent a Clay message.
      */
     function maybeResendHolidaysOnDayChange() {
         var today = localDayStamp();
         if (localStorage.getItem(storageKeys.LAST_HOLIDAY_DAY_KEY) === today) {
-            return;
+            return false;
         }
         localStorage.setItem(storageKeys.LAST_HOLIDAY_DAY_KEY, today);
-        deps.sendClay(function () {}, function () {});
+        deps.sendClay(function () {
+            if (typeof deps.effectiveThemeId === 'function') {
+                lastEffectiveTheme = deps.effectiveThemeId();
+            }
+        }, function () { lastEffectiveTheme = null; });
         deps.refreshHolidays();
+        return true;
     }
 
     /**
-     * Per-minute scheduler body: resend holidays on a day change, attempt a
-     * non-forced weather fetch when due, run the daily update check, then re-arm
-     * one minute out.
+     * Resend Clay when the automatic theme switch crosses a day/night boundary.
+     * sendClaySettings builds its payload from the effective settings, so the
+     * resend carries the flipped CLAY_THEME plus every colour re-resolved for
+     * it. Boundary detection compares deps.effectiveThemeId() across ticks;
+     * a NACK forgets the stamp so the flip retries next tick.
+     *
+     * @returns {void}
+     */
+    function maybeResendThemeOnFlip() {
+        if (typeof deps.effectiveThemeId !== 'function') {
+            return;
+        }
+        var themeId = deps.effectiveThemeId();
+        if (themeId === null || themeId === lastEffectiveTheme) {
+            return;
+        }
+        lastEffectiveTheme = themeId;
+        deps.sendClay(function () {}, function () { lastEffectiveTheme = null; });
+    }
+
+    /**
+     * Per-minute scheduler body: resend holidays on a day change, resend Clay
+     * on an auto-theme day/night flip (skipped when the day-change resend
+     * already carried the flipped theme this tick — one Clay send per tick
+     * keeps the half-duplex channel clean), attempt a non-forced weather fetch
+     * when due, run the daily update check, then re-arm one minute out.
      *
      * @returns {void}
      */
     function tick() {
         console.log('Tick from PKJS!');
-        maybeResendHolidaysOnDayChange();
+        // One Clay send per tick keeps the half-duplex channel clean: when the
+        // day-change resend fires it also carries the effective theme, and its
+        // ACK/NACK callbacks own the flip stamp.
+        if (!maybeResendHolidaysOnDayChange()) {
+            maybeResendThemeOnFlip();
+        }
         if (deps.shouldFetchNow()) {
             deps.startFetch(false);
         }

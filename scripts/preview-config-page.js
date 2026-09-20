@@ -30,6 +30,9 @@ var APP_FILES = [
   // top-level body runs. See build-config-page.js's copy for the full note.
   path.join(ROOT, 'src/pkjs/pebble-colors.js'),
   path.join(ROOT, 'src/pkjs/resolve-ink.js'),
+  // theme-flip.js publishes window.ThemeFlip (the polarity-flip rules);
+  // theme-convert.js reads it at IIFE time to register the onChange hooks.
+  path.join(ROOT, 'src/pkjs/theme-flip.js'),
   path.join(ROOT, 'src/pkjs/line-style.js'),
   // The five preview blocks, split by concern; preview-svg.js / preview-rain.js are the
   // two libraries they read (window.PreviewSvg / window.PreviewRain) while their own

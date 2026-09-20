@@ -113,6 +113,16 @@ function buildSettingsSnapshot(settings, watchInfo) {
         rainCountdownHorizon: toIntOrUndefined(safe.rainCountdownHorizon),
         sleepStartHour: safe.sleepNightEnabled ? toIntOrUndefined(safe.sleepStartHour) : undefined,
         sleepEndHour: safe.sleepNightEnabled ? toIntOrUndefined(safe.sleepEndHour) : undefined,
+        // The automatic day/night theme switch. Sub-settings only while the
+        // switch is on, and the manual hours only in manual mode — the
+        // sleepStartHour "value in effect" rule, twice over.
+        themeAuto: Boolean(safe.themeAuto),
+        themeNight: safe.themeAuto ? safe.themeNight : undefined,
+        themeAutoMode: safe.themeAuto ? (safe.themeAutoMode || 'sun') : undefined,
+        themeAutoStartHour: (safe.themeAuto && safe.themeAutoMode === 'manual')
+            ? toIntOrUndefined(safe.themeAutoStartHour) : undefined,
+        themeAutoEndHour: (safe.themeAuto && safe.themeAutoMode === 'manual')
+            ? toIntOrUndefined(safe.themeAutoEndHour) : undefined,
         axisTimeFormat: safe.axisTimeFormat,
         timeFont: safe.timeFont,
         timeLeadingZero: !!safe.timeLeadingZero,

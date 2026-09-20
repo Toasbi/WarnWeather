@@ -28,6 +28,9 @@ var APP_FILES = [
   // test/config-page-bundle.test.js pins all three into the generated page.
   path.join(ROOT, 'src/pkjs/pebble-colors.js'),
   path.join(ROOT, 'src/pkjs/resolve-ink.js'),
+  // theme-flip.js publishes window.ThemeFlip (the polarity-flip rules);
+  // theme-convert.js reads it at IIFE time to register the onChange hooks.
+  path.join(ROOT, 'src/pkjs/theme-flip.js'),
   path.join(ROOT, 'src/pkjs/line-style.js'),
   // The five preview blocks, split by concern. Same load-bearing order rule as the
   // three above: preview-svg.js publishes window.PreviewSvg and preview-rain.js

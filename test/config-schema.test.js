@@ -55,7 +55,7 @@ const lineStyle = require('../src/pkjs/line-style.js');
 const GRAPH_COLOR_KEYS = lineStyle.graphColorKeys();
 
 const EXPECTED_KEYS = [
-  'theme',
+  'theme','themeAuto','themeNight','themeAutoMode','themeAutoStartHour','themeAutoEndHour',
   'timeLeadingZero','timeShowAmPm','axisTimeFormat','timeFont','colorTime',
   'weekStartDay','firstWeek','colorToday','colorSunday','colorSaturday','holidaysEnabled','colorUSFederal',
   'holidayCountry','holidayRegion',
@@ -83,16 +83,18 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   seen.forEach((k) => { counts[k] = (counts[k] || 0) + 1; });
   const dups = Object.keys(counts).filter((k) => counts[k] > 1);
   // windScale: solid-line slot vs. dotted-line slot. pressureScale: same split (secondary
-  // vs. third line context). theme: color-env (4 options) vs. B&W-env (2 options).
-  // colorUSFederal: dark-exclude-white vs. light-exclude-black. tomorrowioApiKey/
-  // tomorrowioFitBudget: General tab (weather provider) vs. Radar tab (radar-only) —
-  // mutually-exclusive showWhen, so only one instance ever renders.
+  // vs. third line context). theme: color-env (4 options) vs. B&W-env (2 options), each
+  // doubled again into a 'Theme' (auto off) and a 'Day theme' (auto on) slot; themeNight
+  // is the same color/B&W split. colorUSFederal: dark-exclude-white vs. light-exclude-black.
+  // tomorrowioApiKey/tomorrowioFitBudget: General tab (weather provider) vs. Radar tab
+  // (radar-only) — mutually-exclusive showWhen, so only one instance ever renders.
   assert.deepEqual(dups.sort(),
-    ['colorUSFederal', 'pressureScale', 'theme', 'tomorrowioApiKey', 'tomorrowioFitBudget', 'windScale'],
+    ['colorUSFederal', 'pressureScale', 'theme', 'themeNight', 'tomorrowioApiKey', 'tomorrowioFitBudget', 'windScale'],
     'unexpected duplicates: ' + dups.join(','));
   assert.equal(counts.windScale, 6, 'windScale appears in six slots (2 contexts × 3 units)');
   assert.equal(counts.pressureScale, 2, 'pressureScale appears in two slots (secondary + third)');
-  assert.equal(counts.theme, 2, 'theme appears in exactly two slots');
+  assert.equal(counts.theme, 4, 'theme appears in four slots (Theme / Day theme × color / B&W env)');
+  assert.equal(counts.themeNight, 2, 'themeNight appears in two slots (color / B&W env)');
   assert.equal(counts.colorUSFederal, 2, 'colorUSFederal appears in exactly two slots');
   assert.equal(counts.tomorrowioApiKey, 2, 'tomorrow.io key in the General + Radar tabs');
   assert.equal(counts.tomorrowioFitBudget, 2, 'tomorrow.io budget guard in the General + Radar tabs');
@@ -960,19 +962,79 @@ test('radar intro drops mechanics; provider positioning lives in the per-provide
 });
 
 test('theme is a two-slot select dropdown (color env: 4 options; B&W env: 2), like windScale', () => {
+  // Four slots since the auto switch: the two 'Theme' selects (auto off) and
+  // the two 'Day theme' selects that replace them while auto is on. Same
+  // messageKey, mutually-exclusive showWhen — the tomorrow.io key idiom.
   const themeItems = items.filter((i) => i.messageKey === 'theme');
-  assert.equal(themeItems.length, 2);
-  const colorItem = themeItems.find((i) => JSON.stringify(i.showWhen).indexOf('"color"') >= 0 || JSON.stringify(i.showWhen) === '{"env":"color"}');
-  const bwItem = themeItems.find((i) => i !== colorItem);
-  assert.deepEqual(colorItem.options.map((o) => o[1]), ['dark', 'light', 'bw', 'bw-light']);
-  assert.deepEqual(colorItem.options.map((o) => o[0]), ['Dark', 'Light', 'B&W', 'B&W Inverted']);
-  assert.deepEqual(bwItem.options.map((o) => o[1]), ['dark', 'light']);
-  assert.deepEqual(bwItem.options.map((o) => o[0]), ['Dark', 'Light']);
-  assert.ok(colorItem.hintByValue['bw-light'], 'color-env theme item has a bw-light hint');
+  assert.equal(themeItems.length, 4);
+  const plainItems = themeItems.filter((i) => i.label === 'Theme');
+  const dayItems = themeItems.filter((i) => i.label === 'Day theme');
+  assert.equal(plainItems.length, 2);
+  assert.equal(dayItems.length, 2);
+  [plainItems, dayItems].forEach((pair) => {
+    const colorItem = pair.find((i) => JSON.stringify(i.showWhen).indexOf('"color"}') >= 0 && JSON.stringify(i.showWhen).indexOf('"not"') < 0);
+    const bwItem = pair.find((i) => i !== colorItem);
+    assert.deepEqual(colorItem.options.map((o) => o[1]), ['dark', 'light', 'bw', 'bw-light']);
+    assert.deepEqual(colorItem.options.map((o) => o[0]), ['Dark', 'Light', 'B&W', 'B&W Inverted']);
+    assert.deepEqual(bwItem.options.map((o) => o[1]), ['dark', 'light']);
+    assert.deepEqual(bwItem.options.map((o) => o[0]), ['Dark', 'Light']);
+  });
+  const hintedColorItem = plainItems.find((i) => i.hintByValue);
+  assert.ok(hintedColorItem.hintByValue['bw-light'], 'color-env theme item has a bw-light hint');
   themeItems.forEach((i) => {
     assert.equal(i.type, 'select', 'theme is a dropdown, not segmented');
     assert.equal(i.defaultValue, 'dark');
     assert.equal(i.onChange, 'themeConvert');
+  });
+});
+
+test('auto theme switch: toggle + Day/Night pair + mode + manual hours, gated correctly', () => {
+  const auto = byKey('themeAuto');
+  assert.equal(auto.type, 'toggle');
+  assert.equal(auto.defaultValue, false, 'off by default');
+  assert.equal(auto.onChange, 'themeAutoPreset', 'first enable seeds Light day / Dark night');
+  assert.deepEqual(auto.showWhen, { env: 'themePolarity' }, 'hidden on aplite like the theme picker');
+  assert.equal(auto.joinPrevious, true, 'joins the Theme select into one visual group');
+  assert.equal(byKey('themeAutoStartHour').label, 'From',
+    'hour labels match the Night battery saver rows');
+  assert.equal(byKey('themeAutoEndHour').label, 'To');
+
+  const nightItems = items.filter((i) => i.messageKey === 'themeNight');
+  assert.equal(nightItems.length, 2, 'a color and a B&W-polarity Night select');
+  nightItems.forEach((i) => {
+    assert.equal(i.defaultValue, 'dark');
+    assert.equal(i.label, 'Night theme');
+    assert.equal(i.onChange, undefined,
+      'no themeConvert: stored colour defaults track the DAY polarity; the night flip converts a send-time scratch copy');
+  });
+
+  const mode = byKey('themeAutoMode');
+  assert.equal(mode.type, 'segmented');
+  assert.equal(mode.defaultValue, 'sun', 'enabling defaults to sunrise/sunset');
+  assert.deepEqual(mode.options.map((o) => o[1]), ['sun', 'manual']);
+
+  assert.equal(byKey('themeAutoStartHour').defaultValue, '20');
+  assert.equal(byKey('themeAutoEndHour').defaultValue, '7');
+  assert.equal(byKey('themeAutoStartHour').options.length, 24, 'the shared HOURS ladder');
+
+  // Visibility contract on a color watch: auto OFF shows the single Theme
+  // select; auto ON swaps in the Day/Night pair. The manual hour rows follow
+  // the mode. Aplite sees none of it.
+  const colorEnv = platform.computeEnv({ platform: 'basalt' });
+  const apliteEnv = platform.computeEnv({ platform: 'aplite' });
+  const vis = (item, S) => showWhen.isVisible(item, Object.assign({ env: colorEnv }, S));
+  const themeItems = items.filter((i) => i.messageKey === 'theme');
+  const plainColor = themeItems.find((i) => i.label === 'Theme' && i.hintByValue);
+  const dayColor = themeItems.find((i) => i.label === 'Day theme' && i.options.length === 4);
+  assert.equal(vis(plainColor, { themeAuto: false }), true);
+  assert.equal(vis(dayColor, { themeAuto: false }), false);
+  assert.equal(vis(plainColor, { themeAuto: true }), false);
+  assert.equal(vis(dayColor, { themeAuto: true }), true);
+  assert.equal(vis(byKey('themeAutoStartHour'), { themeAuto: true, themeAutoMode: 'sun' }), false);
+  assert.equal(vis(byKey('themeAutoStartHour'), { themeAuto: true, themeAutoMode: 'manual' }), true);
+  [auto].concat(nightItems).forEach((i) => {
+    assert.equal(showWhen.isVisible(i, { env: apliteEnv, themeAuto: true }), false,
+      JSON.stringify(i.showWhen) + ' must be hidden on aplite');
   });
 });
 

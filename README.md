@@ -49,6 +49,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 **Watchface themes**
 * Dark and Light, plus Black & White options on color watches
+* Automatic theme switching: a day and a night theme, flipped at sunrise/sunset or on a fixed schedule
 
 **Watch**
 * Custom color, 12h/24h, optional AM/PM

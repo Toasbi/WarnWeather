@@ -109,12 +109,16 @@ test('the graph-colour modules and the preview kit are bundled in dependency ord
     'resolve-ink.js must precede line-style.js');
   assert.ok(idx('pkjs/resolve-ink.js') < idx('settings/preview-svg.js'),
     'resolve-ink.js must precede preview-svg.js, which reads window.ResolveInk at IIFE time');
-  // theme-convert.js reads window.ResolveInk at IIFE time too, for barColorDefault /
-  // BAR_COLOR_KEYS. This ordering fails WORSE than the others: the page still boots
-  // (resolveInk just binds undefined) and only dies when someone flips the Theme
-  // control, which no Node test exercises because those take the require() branch.
-  assert.ok(idx('pkjs/resolve-ink.js') < idx('settings/theme-convert.js'),
-    'resolve-ink.js must precede theme-convert.js, which reads window.ResolveInk at IIFE time');
+  // theme-flip.js reads window.ResolveInk at IIFE time (barColorDefault /
+  // BAR_COLOR_KEYS), and theme-convert.js reads window.ThemeFlip at IIFE time to
+  // register the onChange hooks. These orderings fail WORSE than the others: the
+  // page still boots (the read just binds undefined) and only dies when someone
+  // flips the Theme control, which no Node test exercises because those take the
+  // require() branch.
+  assert.ok(idx('pkjs/resolve-ink.js') < idx('pkjs/theme-flip.js'),
+    'resolve-ink.js must precede theme-flip.js, which reads window.ResolveInk at IIFE time');
+  assert.ok(idx('pkjs/theme-flip.js') < idx('settings/theme-convert.js'),
+    'theme-flip.js must precede theme-convert.js, which reads window.ThemeFlip at IIFE time');
   assert.ok(idx('settings/preview-svg.js') < idx('settings/preview-rain.js'),
     'preview-svg.js must precede preview-rain.js, which reads window.PreviewSvg at IIFE time');
   PREVIEW_BLOCK_FILES.forEach((file) => {
