@@ -684,6 +684,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                     var vw = vpEl && vpEl.clientWidth;
                     var vh = vpEl && vpEl.clientHeight;
                     var crossPx = (x - panDay * charts.DAY_W) / charts.DAY_W * (vw || 0);
+                    // A tap's release slop can round to an hour just past
+                    // the visible day (scrubTo clamps i to the timeline,
+                    // not the day), putting the raw crosshair px outside
+                    // the viewport — clamp it first: the aside branch
+                    // below positions from it directly, without the
+                    // [half, vw-half] clamp the centered path applies.
+                    if (crossPx < 0) { crossPx = 0; }
+                    if (vw && crossPx > vw) { crossPx = vw; }
                     var left = crossPx;
                     var half = tip.offsetWidth / 2 + 4;
                     if (vw) {

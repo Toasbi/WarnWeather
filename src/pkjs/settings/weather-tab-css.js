@@ -54,8 +54,10 @@
         // The floating value tip over the crosshair (filled/placed by
         // paintScrub: anchored above the hour's topmost point, centered on
         // the crosshair, both clamped into the viewport; without room
-        // above, it steps BESIDE the crosshair at the top edge — it never
-        // sits between the hour's marks, covering the ones below).
+        // above, it steps BESIDE the crosshair at the top edge, then
+        // BELOW all the hour's marks — it avoids sitting between them,
+        // though paintScrub's truly-last resort (a wide tip mid-viewport
+        // with a bar blocking below) may still cover the top mark).
         // z-index 20: the tip must also win over the pinned hour axis
         // (z-index 15) when a panel's top edge scrolls beneath it.
         + '.wx-tip{display:none;position:absolute;top:4px;z-index:20;pointer-events:none;'

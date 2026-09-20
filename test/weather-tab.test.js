@@ -282,6 +282,85 @@ test('the value tip never sits between the hour\'s marks: above them, else besid
   }
 });
 
+test('the tip\'s remaining placements: below all marks, the last resort, left-aside, the edge clamp', () => {
+  tab._resetState();
+  const realFetch = data.fetchWeather;
+  let respond = null;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { respond = cb; };
+  const fx = fixture();
+  for (let h = 0; h <= 48; h += 1) {
+    const d = h % 24;
+    fx.hourly.temp[h] = d <= 12 ? d : 24 - d;   // ridge: hour 12 = the max
+  }
+  const tip = {
+    style: {}, innerHTML: '',
+    offsetWidth: 340, offsetHeight: 44,        // wide: fits on NEITHER side
+    parentNode: { clientWidth: 390, clientHeight: 150 }
+  };
+  global.document = {
+    getElementById: (id) => (id === 'wx-tip-temp' ? tip : null)
+  };
+  try {
+    const state = { graphsLocation: 'current', temperatureUnits: 'c' };
+    tab._setCtx({ S: state, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond(fx, null);
+    tab.weatherGraphsBlock(state, {}, SEED);
+    const view = tab._fetchState().view;
+    const svg = { getBoundingClientRect: () => ({ left: 0, width: 390 }) };
+    const px = (h) => h * charts.HOUR_W / (view.days * charts.DAY_W) * 390;
+    const anchorAt = (i) => {
+      const marks = charts.tempPanelSvg(view, state, charts.palette(false)).marks;
+      const ln = marks.lines[0];
+      return (marks.bottom - (ln.vals[i] - ln.min) / (ln.max - ln.min) * (marks.bottom - marks.top))
+        / marks.H * tip.parentNode.clientHeight;
+    };
+
+    // Branch 3 — a wide tip at the ridge top, no rain bar: BELOW all of
+    // the hour's marks, never between them.
+    tab._scrubTo(svg, px(12));
+    const topBelow = parseInt(tip.style.top, 10);
+    assert.ok(topBelow !== 2, 'neither side fits → not the top edge');
+    assert.ok(topBelow >= anchorAt(12) + 9,
+      'the tip drops below ALL the hour\'s marks (bottom of the only dot)');
+
+    // Branch 4 — same hour but a rain bar reaches the axis, blocking the
+    // below placement: the truly-last resort keeps the top-centered clamp.
+    view.rain[12] = 2;
+    tab.weatherGraphsBlock(state, {}, SEED);   // re-render: marks pick up the bar
+    tab._scrubTo(svg, px(12));
+    assert.equal(tip.style.top, '2px',
+      'a bar under the hour blocks the below placement → last resort');
+
+    // Branch 2, left side — a narrow tip at a late-hour ridge top near the
+    // right edge: the right aside has no room, the left one does.
+    for (let h = 0; h <= 48; h += 1) { view.temp[h] = h % 24; }   // ramp: 23 = max
+    view.rain[12] = 0;
+    tab.weatherGraphsBlock(state, {}, SEED);
+    tip.offsetWidth = 60;
+    tab._scrubTo(svg, px(23));
+    assert.equal(tip.style.top, '2px');
+    const cross23 = 23 * charts.HOUR_W / charts.DAY_W * 390;
+    const left23 = parseInt(tip.style.left, 10);
+    assert.ok(left23 < cross23 && cross23 - left23 - tip.offsetWidth / 2 >= 8,
+      'the tip steps aside to the LEFT when the right side has no room');
+
+    // Edge clamp — an hour beyond the visible day (a tap's release slop
+    // can round past the seam): the raw crosshair px leaves the viewport,
+    // but the aside placement must stay fully inside it.
+    tab._scrubTo(svg, px(47));
+    assert.equal(tip.style.top, '2px');
+    const left47 = parseInt(tip.style.left, 10);
+    assert.ok(left47 + tip.offsetWidth / 2 <= 388 && left47 - tip.offsetWidth / 2 >= 2,
+      'an off-day crosshair px is clamped before the aside math — the tip '
+      + 'never leaves the viewport');
+  } finally {
+    delete global.document;
+    data.fetchWeather = realFetch;
+    tab._resetState();
+  }
+});
+
 test('refreshWeather refetches the same key manually, keeping the charts and the viewed day', () => {
   tab._resetState();
   let calls = 0;
