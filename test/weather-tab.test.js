@@ -150,11 +150,15 @@ test('the graphs block orchestrates: loading → panels on data, error → Retry
     // The pinned strip's two companion fixes: the sticky box itself
     // carries the -16px bleed (inner wrapper zeroed) so its opaque
     // backdrop covers the full strip width, and the tip stacks above it.
+    const stickyGap = Number((css.WX_CSS.match(/\.wx-sticky \.wx-bleed\{margin:(\d+)px 0 0/) || [])[1]);
     assert.ok(/\.wx-sticky\{[^}]*margin:8px -16px 0/.test(css.WX_CSS)
-      && /\.wx-sticky \.wx-bleed\{margin:4px 0 0/.test(css.WX_CSS)
+      && stickyGap > 0
       && css.WX_CSS.indexOf('.wx-sticky .wx-days{margin:0') !== -1,
       'the sticky box owns the bleed margin; the tile row and the strip '
       + 'inside it drop their own side bleeds');
+    assert.ok(stickyGap >= 10,
+      'the pinned tile row and hour strip keep visible air between them, '
+      + 'so they read as two bands rather than one slab (gap ' + stickyGap + 'px)');
     const z = (sel) => Number((css.WX_CSS.match(
       new RegExp(sel.replace('.', '\\.') + '\\{[^}]*z-index:(\\d+)')) || [])[1]);
     assert.ok(z('.wx-tip') < z('.wx-sticky'),
@@ -331,6 +335,71 @@ test('the value tip always sits just above the hour\'s topmost mark — overflow
     assert.equal(parseInt(tip.style.top, 10),
       Math.round(barPx - tip.offsetHeight - 8),
       'with a bar above the dot, the tip clears the BAR top');
+  } finally {
+    delete global.document;
+    data.fetchWeather = realFetch;
+    tab._resetState();
+  }
+});
+
+test('a pan carries the tips with their values and drops them at the viewport edge', () => {
+  tab._resetState();
+  const realFetch = data.fetchWeather;
+  let respond = null;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { respond = cb; };
+  const tip = {
+    style: {}, innerHTML: '',
+    offsetWidth: 60, offsetHeight: 44,
+    parentNode: { clientWidth: 390, clientHeight: 150 }
+  };
+  global.document = {
+    getElementById: (id) => (id === 'wx-tip-temp' ? tip : null)
+  };
+  try {
+    const state = { graphsLocation: 'current', temperatureUnits: 'c' };
+    tab._setCtx({ S: state, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond(fixture(), null);
+    tab.weatherGraphsBlock(state, {}, SEED);
+    const view = tab._fetchState().view;
+    const svg = { getBoundingClientRect: () => ({ left: 0, width: 390 }) };
+    const px = (h) => h * charts.HOUR_W / (view.days * charts.DAY_W) * 390;
+
+    // Scrub hour 12 (mid-day 0), then drag toward the next day.
+    tab._scrubTo(svg, px(12));
+    assert.equal(tip.style.display, 'block');
+    const atRest = parseInt(tip.style.left, 10);
+
+    // Quarter of a day dragged: the value has travelled a quarter of the
+    // viewport left, and its tip must have travelled with it.
+    tab._panTips(0.25);
+    assert.equal(tip.style.display, 'block', 'still on screen at a quarter day');
+    assert.ok(Math.abs((atRest - parseInt(tip.style.left, 10)) - 390 * 0.25) <= 0.5,
+      'the tip tracks its value exactly — one viewport travelled per day '
+      + 'of drag (moved ' + (atRest - parseInt(tip.style.left, 10)) + 'px)');
+
+    // Half a day: hour 12 lands ON the left edge — the last frame where
+    // its value is still visible, so the tip is too.
+    tab._panTips(0.5);
+    assert.equal(tip.style.display, 'block', 'visible while the value is at the very edge');
+
+    // Past it: the value is off-screen, so the overlay goes with it
+    // rather than hanging over a value the viewport no longer shows.
+    tab._panTips(0.55);
+    assert.equal(tip.style.display, 'none', 'the value left the viewport → the tip hides');
+    tab._panTips(2);
+    assert.equal(tip.style.display, 'none', 'and stays hidden a whole day away');
+
+    // Dragging back brings it home.
+    tab._panTips(0);
+    assert.equal(tip.style.display, 'block', 'panning back restores it');
+    assert.equal(parseInt(tip.style.left, 10), atRest, 'at its resting place');
+
+    // A tip with no live content is never resurrected by a drag.
+    tip.innerHTML = '';
+    tip.style.display = 'none';
+    tab._panTips(0);
+    assert.equal(tip.style.display, 'none', 'an empty tip stays hidden');
   } finally {
     delete global.document;
     data.fetchWeather = realFetch;

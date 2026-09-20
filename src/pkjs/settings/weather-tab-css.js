@@ -84,7 +84,10 @@
         // leak-through fix .blockrow.sticky documents in shell.html.
         + '.wx-sticky{position:-webkit-sticky;position:sticky;top:0;z-index:15;background:var(--card);'
         + 'margin:8px -16px 0;-webkit-transform:translateZ(0);transform:translateZ(0);}'
-        + '.wx-sticky .wx-bleed{margin:4px 0 0;}'
+        // The gap between the tile row and the hour strip: both are pinned
+        // chrome, so they need visible air to read as two bands rather
+        // than one slab (the tiles' own border is the only other edge).
+        + '.wx-sticky .wx-bleed{margin:12px 0 0;}'
         // The 5-day tile row rides in the pinned box too, above the hour
         // strip; its own side bleed is zeroed the same way (the sticky box
         // already carries the -16px margins).

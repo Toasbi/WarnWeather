@@ -121,7 +121,7 @@
      */
     function prepareView(data, nowMs) {
         if (!data || !data.hourly || !data.hourly.time || !data.hourly.time.length) { return null; }
-        // The LOCATION's clock: day boundaries, hour labels, readout times
+        // The LOCATION's clock: day boundaries, hour labels, tip times
         // and the daytime-icon window all follow it, not the phone's.
         var off = (data.utcOffsetSec === null || data.utcOffsetSec === undefined)
             ? model.phoneUtcOffsetSec(nowMs) : data.utcOffsetSec;

@@ -122,6 +122,10 @@
         if (f < 0) { f = f * 0.35; }
         if (f > gesture.days - 1) { f = (gesture.days - 1) + (f - (gesture.days - 1)) * 0.35; }
         setPan(-(f * 100 / gesture.days), false);
+        // The value tips live OUTSIDE the panned element, so they need
+        // the drag position handed to them or they hang in place while
+        // the values slide out from under them.
+        api.panTips(f);
     }
 
     /**
@@ -156,7 +160,10 @@
         if (!gesture) { return; }
         var g = gesture;
         gesture = null;
-        if (g.mode === 'pan') { setPan(panPct(api.day(), g.days), true); }
+        if (g.mode === 'pan') {
+            setPan(panPct(api.day(), g.days), true);
+            api.panTips(api.day());
+        }
     }
 
     // --- pull-to-refresh: a downward pull from the page top on the Weather

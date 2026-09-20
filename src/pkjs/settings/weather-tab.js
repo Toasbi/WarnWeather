@@ -397,6 +397,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (d !== before) {
             syncAnchors();
             scrollDayStrip();
+        } else {
+            // Spring-back to the same day: the crosshair survives, so the
+            // tips that rode the drag have to land back on their values.
+            panTips(d);
         }
     }
 
@@ -609,6 +613,61 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
+     * Place a filled value tip horizontally for its hour at a (possibly
+     * fractional) day offset, and HIDE it once that hour has left the
+     * visible day window. A swipe must not leave the overlay floating
+     * over a value the viewport no longer shows — so the tip rides its
+     * value out of frame and goes with it. Only the horizontal half
+     * moves with a pan; paintScrub owns the vertical anchor.
+     * @param {Element} tip The tip element (already filled).
+     * @param {number} i Hour index the tip describes.
+     * @param {number} dayOff Day offset — fractional while a drag is live.
+     * @returns {void}
+     */
+    function placeTipX(tip, i, dayOff) {
+        var view = fetchState.view;
+        if (!view) { return; }
+        var boxEl = tip.parentNode;
+        var vw = boxEl && boxEl.clientWidth;
+        var crossPx = (charts.xAt(view, i) - dayOff * charts.DAY_W) / charts.DAY_W * (vw || 0);
+        // Half a pixel of slack at both edges: a tap's release slop can
+        // round to the hour sitting exactly ON the day seam (scrubTo
+        // clamps i to the timeline, not the day), which lands crossPx on
+        // the boundary — visible, not gone.
+        if (vw && (crossPx < -0.5 || crossPx > vw + 0.5)) {
+            tip.style.display = 'none';
+            return;
+        }
+        tip.style.display = 'block';
+        if (crossPx < 0) { crossPx = 0; }
+        if (vw && crossPx > vw) { crossPx = vw; }
+        var left = crossPx;
+        var half = tip.offsetWidth / 2 + 4;
+        if (vw) {
+            if (left < half) { left = half; }
+            if (left > vw - half) { left = vw - half; }
+        }
+        tip.style.left = vw ? Math.round(left) + 'px' : '50%';
+    }
+
+    /**
+     * Carry every live value tip along with a pan in progress: each rides
+     * its own hour and vanishes the moment that hour scrolls out of the
+     * viewport. Called per drag frame with the gesture's fractional day,
+     * and on release with the day it settles on.
+     * @param {number} dayOff Day offset — fractional mid-drag.
+     * @returns {void}
+     */
+    function panTips(dayOff) {
+        if (scrubIndex === null || !fetchState.view) { return; }
+        if (typeof document === 'undefined' || !document.getElementById) { return; }
+        for (var k = 0; k < PANEL_IDS.length; k += 1) {
+            var tip = document.getElementById('wx-tip-' + PANEL_IDS[k]);
+            if (tip && tip.innerHTML) { placeTipX(tip, scrubIndex, dayOff); }
+        }
+    }
+
+    /**
      * Paint the shared crosshair state at one hour by direct DOM writes (no
      * re-render): every panel's guideline, a highlight dot on every line
      * series (at the same y its path used — the scale comes from the
@@ -680,21 +739,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                     // box as the viewport, but unclipped — so a negative
                     // top simply hangs above the plot.
                     var boxEl = tip.parentNode;
-                    var vw = boxEl && boxEl.clientWidth;
                     var vh = boxEl && boxEl.clientHeight;
-                    var crossPx = (x - panDay * charts.DAY_W) / charts.DAY_W * (vw || 0);
-                    // A tap's release slop can round to an hour just past
-                    // the visible day (scrubTo clamps i to the timeline,
-                    // not the day) — pull the crosshair px back into the
-                    // viewport before centering on it.
-                    if (crossPx < 0) { crossPx = 0; }
-                    if (vw && crossPx > vw) { crossPx = vw; }
-                    var left = crossPx;
-                    var half = tip.offsetWidth / 2 + 4;
-                    if (vw) {
-                        if (left < half) { left = half; }
-                        if (left > vw - half) { left = vw - half; }
-                    }
                     // ALWAYS just above the hour's topmost mark — the
                     // highest dot or bar top (viewBox units → px via the
                     // panel height the marks carry). Near the plot top
@@ -720,10 +765,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                     if (vh && topSvg !== null && marks.H) {
                         topPx = Math.round(topSvg / marks.H * vh - tip.offsetHeight - 8);
                     }
-                    tip.style.left = vw ? Math.round(left) + 'px' : '50%';
                     tip.style.top = topPx + 'px';
+                    // The horizontal half rides the pan, so it lives in
+                    // its own function — this resting call and every drag
+                    // frame place the tip the same way.
+                    placeTipX(tip, i, panDay);
                 } else {
                     tip.style.display = 'none';
+                    // Clear the markup too: a filled tip is exactly a LIVE
+                    // tip, which is what panTips reads to tell which ones
+                    // to carry along with a drag.
+                    tip.innerHTML = '';
                 }
             }
         }
@@ -942,6 +994,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         day: function () { return panDay; },
         commitDay: commitDay,
         scrub: scrubTo,
+        panTips: panTips,
         canPull: function () { return Boolean(ctx); },
         refresh: function () {
             if (refreshWeather() && ctx) { ctx.render(); }
@@ -962,6 +1015,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             refreshWeather: refreshWeather,
             // Test seams.
             _scrubTo: scrubTo,
+            _panTips: panTips,
             _setCtx: function (c) { ctx = c; },
             _fetchState: function () { return fetchState; },
             _panDay: function () { return panDay; },

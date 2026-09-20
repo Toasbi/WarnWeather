@@ -43,7 +43,7 @@
 
     /**
      * A bearing as spoken direction words ('north west') — the tip's
-     * Direction column; the readout row keeps the short compass letters.
+     * Direction column; tipText keeps the short compass letters.
      * @param {number} deg Meteorological bearing (comes from).
      * @returns {string} Lower-case direction words.
      */
@@ -54,9 +54,8 @@
     }
 
     /**
-     * A panel's values-with-units at one index — the value part of the
-     * readout row (the floating tip renders the same values as columns
-     * through tipHtml).
+     * A panel's values-with-units at one index, as one plain line (the
+     * floating tip renders the same values as columns through tipHtml).
      * @param {string} panel 'temp'|'wind'|'hum'|'press'.
      * @param {Object} view Prepared view.
      * @param {number} i Index into the view.
