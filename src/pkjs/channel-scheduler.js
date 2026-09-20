@@ -183,10 +183,21 @@ function createChannelScheduler(deps) {
         deps.sendClay(afterClay, afterClay);
     }
 
+    // The auto theme id in effect at the last flip check; null means unknown
+    // (fresh PKJS session, or the last flip send NACKed), so the next tick
+    // attempts one send — the content-deduping outbox turns it into a no-op
+    // unless the watch really is behind (e.g. PKJS restarted across a sunset).
+    var lastEffectiveTheme = null;
+
     /**
      * Resend Clay (which carries the HOLIDAYS mask) once per local-day change so
      * a week rollover refreshes the mask without opening settings. The Clay
      * outbox dedupes by content, so only week boundaries actually transmit.
+     * The send also carries the auto theme in effect (sendClaySettings builds
+     * from the effective settings), so its callbacks own the flip stamp: only
+     * an ACK records it, and a NACK forgets it so the flip path retries next
+     * tick — otherwise a midnight NACK (BT down) would swallow a coincident
+     * theme flip until the next day/night boundary.
      *
      * @returns {boolean} True when this tick sent a Clay message.
      */
@@ -196,16 +207,14 @@ function createChannelScheduler(deps) {
             return false;
         }
         localStorage.setItem(storageKeys.LAST_HOLIDAY_DAY_KEY, today);
-        deps.sendClay(function () {}, function () {});
+        deps.sendClay(function () {
+            if (typeof deps.effectiveThemeId === 'function') {
+                lastEffectiveTheme = deps.effectiveThemeId();
+            }
+        }, function () { lastEffectiveTheme = null; });
         deps.refreshHolidays();
         return true;
     }
-
-    // The auto theme id in effect at the last flip check; null means unknown
-    // (fresh PKJS session, or the last flip send NACKed), so the next tick
-    // attempts one send — the content-deduping outbox turns it into a no-op
-    // unless the watch really is behind (e.g. PKJS restarted across a sunset).
-    var lastEffectiveTheme = null;
 
     /**
      * Resend Clay when the automatic theme switch crosses a day/night boundary.
@@ -239,13 +248,10 @@ function createChannelScheduler(deps) {
      */
     function tick() {
         console.log('Tick from PKJS!');
-        if (maybeResendHolidaysOnDayChange()) {
-            // The day-change Clay was built from the effective settings, so it
-            // already carries the current theme; just record the stamp.
-            if (typeof deps.effectiveThemeId === 'function') {
-                lastEffectiveTheme = deps.effectiveThemeId();
-            }
-        } else {
+        // One Clay send per tick keeps the half-duplex channel clean: when the
+        // day-change resend fires it also carries the effective theme, and its
+        // ACK/NACK callbacks own the flip stamp.
+        if (!maybeResendHolidaysOnDayChange()) {
             maybeResendThemeOnFlip();
         }
         if (deps.shouldFetchNow()) {

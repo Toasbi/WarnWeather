@@ -401,3 +401,25 @@ test('theme flip: a day-change Clay resend covers the flip — one send per tick
     h.tick();
     assert.equal(h.calls.sendClay.length, 2, 'the flip stamp was recorded by the day-change send');
 });
+
+test('theme flip: a NACKed day-change send does not swallow a coincident flip', function () {
+    resetStore();
+    var h = makeThemeHarness();
+    h.stampToday();
+    h.themeId.value = 'light';
+    h.scheduler.start();
+    h.ackClay();
+    // Midnight: day change AND a manual-window flip land on one tick, but the
+    // send NACKs (BT down). The stamp must NOT be recorded, so the flip path
+    // retries next tick instead of staying silent until the next boundary.
+    h.setNow(new Date(2026, 6, 8, 0, 0, 0));
+    h.themeId.value = 'dark';
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 2, 'one send for day change + flip');
+    h.nackClay();
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 3, 'the flip retries after the NACKed midnight send');
+    h.ackClay();
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 3, 'ACK ends the retry loop');
+});

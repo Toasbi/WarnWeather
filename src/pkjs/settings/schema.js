@@ -912,7 +912,9 @@ module.exports = {
                     manual: 'Night theme between the hours below.'
                 },
                 options: [['Sunrise/sunset', 'sun'], ['Fixed hours', 'manual']],
-                showWhen: {key: 'themeAuto', eq: true},
+                // themePolarity too: hidden items keep serializing, but a
+                // paired aplite watch must not show orphaned auto-theme rows.
+                showWhen: {all: [{env: 'themePolarity'}, {key: 'themeAuto', eq: true}]},
                 joinPrevious: true
             }, {
                 type: 'select',
@@ -922,7 +924,7 @@ module.exports = {
                 options: HOURS,
                 inline: 'themeAutoHours',
                 joinPrevious: true,
-                showWhen: {all: [{key: 'themeAuto', eq: true}, {key: 'themeAutoMode', eq: 'manual'}]}
+                showWhen: {all: [{env: 'themePolarity'}, {key: 'themeAuto', eq: true}, {key: 'themeAutoMode', eq: 'manual'}]}
             }, {
                 type: 'select',
                 messageKey: 'themeAutoEndHour',
@@ -930,7 +932,7 @@ module.exports = {
                 defaultValue: '7',
                 options: HOURS,
                 inline: 'themeAutoHours',
-                showWhen: {all: [{key: 'themeAuto', eq: true}, {key: 'themeAutoMode', eq: 'manual'}]}
+                showWhen: {all: [{env: 'themePolarity'}, {key: 'themeAuto', eq: true}, {key: 'themeAutoMode', eq: 'manual'}]}
             }, {
                 type: 'toggle',
                 messageKey: 'sleepNightEnabled',
