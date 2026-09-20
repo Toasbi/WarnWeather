@@ -96,7 +96,13 @@ test('panel specs carry the crosshair-highlight plumbing (marks, dots, bar ids, 
   // so weather-tab.js places dots / lights bars without re-deriving scales.
   assert.deepEqual(temp.marks.lines.map((l) => l.key), ['temp']);
   assert.equal(temp.marks.bar.prefix, 'wx-bar-temp');
-  assert.ok(temp.marks.bar.dim > 0 && temp.marks.bar.dim < 1, 'resting bar opacity is the dim value');
+  // The dim value must BE the rendered resting opacity — paintScrub
+  // restores a bar to marks.bar.dim, so a drifting literal pair would
+  // leave un-highlighted bars at the wrong opacity.
+  assert.match(temp.main, new RegExp('id="wx-bar-temp-19"[^>]*opacity="' + temp.marks.bar.dim + '"'),
+    'rain bars rest at exactly marks.bar.dim');
+  assert.match(hum.main, new RegExp('id="wx-bar-hum-0"[^>]*opacity="' + hum.marks.bar.dim + '"'),
+    'humidity bars rest at exactly marks.bar.dim');
   assert.deepEqual(wind.marks.lines.map((l) => l.key), ['gust', 'wind']);
   assert.equal(wind.marks.bar, null);
   assert.deepEqual(hum.marks.lines.map((l) => l.key), ['temp', 'dew'],
@@ -126,6 +132,7 @@ test('tipText is the readout without the timestamp (the floating tip contract)',
   const i = view.nowIndex;
   assert.match(charts.tipText('temp', view, i, s), /^.*° · .* mm/);
   assert.doesNotMatch(charts.tipText('temp', view, i, s), /Sun|Mon/, 'no weekday in the tip');
+  assert.doesNotMatch(charts.tipText('temp', view, i, s), /\d\d:\d\d/, 'no hour timestamp in the tip');
   assert.equal(charts.readout('temp', view, i, s), 'Sun 12:00 · ' + charts.tipText('temp', view, i, s));
   assert.equal(charts.tipText('temp', view, 9999, s), '');
 });
@@ -164,8 +171,10 @@ test('the hour strip highlights the selected hour with the app\'s chip (own icon
   // id), so the chip can swap to ANY hour's icon by href while scrubbing.
   const spec = charts.timeStripSvg(view, LOC, pal, SunCalc);
   assert.ok(spec.main.indexOf('<defs>') !== -1);
-  assert.ok(spec.main.indexOf('<g id="wxi-partly">') !== -1, 'the icon glyph is defined once');
-  assert.ok(spec.main.indexOf('<g id="wxi-hpartly">') !== -1, 'with its chip-ink twin');
+  assert.equal((spec.main.match(/<g id="wxi-partly">/g) || []).length, 1,
+    'the icon glyph is defined exactly once (duplicate SVG ids break <use> resolution)');
+  assert.equal((spec.main.match(/<g id="wxi-hpartly">/g) || []).length, 1,
+    'and its chip-ink twin exactly once');
   assert.match(spec.main, /<use xlink:href="#wxi-partly" href="#wxi-partly"/,
     'the 3-hourly row references the defs (both href flavors for old WebViews)');
   // No idx → the chip rests on the current hour.
@@ -183,6 +192,16 @@ test('the hour strip highlights the selected hour with the app\'s chip (own icon
   const chipless = charts.timeStripSvg(view, LOC, pal, SunCalc, 9999);
   assert.ok(chipless.main.indexOf('translate(' + (view.nowIndex * charts.HOUR_W) + ' 0)') !== -1,
     'an out-of-range idx falls back to the now hour');
+  // Day-seam hours nudge the box inward instead of clipping half of it
+  // (the pan viewport is overflow:hidden). One clamp, shared with the
+  // scrub path via charts.stripChipX.
+  assert.equal(charts.stripChipX(view, 0), 19, 'hour 0 clamps off the left seam');
+  assert.equal(charts.stripChipX(view, 23), charts.DAY_W - 19, 'hour 23 clamps off its day\'s right seam');
+  assert.equal(charts.stripChipX(view, 24), charts.DAY_W + 19, 'day 2 clamps against ITS OWN seam');
+  assert.equal(charts.stripChipX(view, 15), 15 * charts.HOUR_W, 'mid-day hours sit at their own x');
+  const at0 = charts.timeStripSvg(view, LOC, pal, SunCalc, 0);
+  assert.ok(at0.main.indexOf('id="wx-strip-hi" transform="translate(19 0)"') !== -1,
+    'the renderer places the chip through the same clamp');
 });
 
 test('the sun & moon panel spans the timeline with per-day rise/set labels', () => {

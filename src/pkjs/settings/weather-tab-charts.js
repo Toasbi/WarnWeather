@@ -626,7 +626,9 @@
      * @param {?{lat: number, lon: number}} loc Active location (night shading).
      * @param {Object} pal Palette.
      * @param {?Object} SunCalcLib The vendored SunCalc, or null (no shading).
-     * @returns {{main: string, overlay: ?string, H: number}} Panel spec.
+     * @param {number} [idx] Highlighted hour for the chip (the crosshair,
+     *   else the viewed day's anchor); out of range → the now hour.
+     * @returns {{main: string, overlay: ?string, H: number, bandH: number}} Panel spec.
      */
     function timeStripSvg(view, loc, pal, SunCalcLib, idx) {
         // The app's stripe layout, top to bottom: a shaded BAND holding the
@@ -736,7 +738,7 @@
         // and label by id while scrubbing.
         var hi = (typeof idx === 'number' && idx >= 0 && idx < view.times.length) ? idx : view.nowIndex;
         var hiIcon = view.icon[hi] ? 'h' + view.icon[hi] : null;
-        s += '<g id="wx-strip-hi" transform="translate(' + xAt(view, hi) + ' 0)">'
+        s += '<g id="wx-strip-hi" transform="translate(' + stripChipX(view, hi) + ' 0)">'
             + '<rect x="-17" y="1" width="34" height="' + (BAND_H - 2) + '" rx="5" fill="' + pal.hiBox + '"/>'
             + (hiIcon ? iconUse(hiIcon, ' id="wx-strip-hi-icon"', 0, 4, 18)
                 // No icon at this hour: keep the placed element (same
@@ -748,6 +750,26 @@
             + two(model.localHour(view.times[hi], view.offsetSec)) + ':00</text>'
             + '</g>';
         return { main: s, overlay: null, H: H, bandH: BAND_H };
+    }
+
+    /**
+     * The strip chip's x at an hour: the hour's own x, nudged inward so
+     * the 34-unit box never clips at its day's viewport seams (hour 0 of
+     * a day would otherwise lose its left half to overflow:hidden). Used
+     * by the renderer above AND by weather-tab.js when it moves the chip
+     * while scrubbing — one clamp, both paths.
+     * @param {Object} view Prepared view.
+     * @param {number} i Hour index into the view.
+     * @returns {number} Chip center x in strip viewBox units.
+     */
+    function stripChipX(view, i) {
+        var x = xAt(view, i);
+        var day = Math.floor(i / 24);
+        var lo = day * DAY_W + 19;
+        var hi = (day + 1) * DAY_W - 19;
+        if (x < lo) { x = lo; }
+        if (x > hi) { x = hi; }
+        return x;
     }
 
     /**
@@ -965,6 +987,7 @@
         humidityPanelSvg: humidityPanelSvg,
         pressurePanelSvg: pressurePanelSvg,
         timeStripSvg: timeStripSvg,
+        stripChipX: stripChipX,
         sunMoonPanelSvg: sunMoonPanelSvg,
         iconSvg: icons.iconSvg,
         dailyStripHtml: dailyStripHtml,

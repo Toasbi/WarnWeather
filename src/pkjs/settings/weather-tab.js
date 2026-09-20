@@ -827,16 +827,22 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             }
         }
         var chip = document.getElementById('wx-strip-hi');
-        if (chip) { chip.setAttribute('transform', 'translate(' + x + ' 0)'); }
+        if (chip) {
+            // The chip takes the renderer's clamped x (nudged off the day
+            // seams), not the crosshair's raw x.
+            chip.setAttribute('transform', 'translate(' + charts.stripChipX(view, i) + ' 0)');
+        }
         var chipText = document.getElementById('wx-strip-hi-text');
         if (chipText) {
             var hh = model.localHour(view.times[i], view.offsetSec);
             chipText.textContent = (hh < 10 ? '0' + hh : String(hh)) + ':00';
         }
         var chipIcon = document.getElementById('wx-strip-hi-icon');
-        if (chipIcon && view.icon[i]) {
-            // Both href flavors, like the renderer (old WebViews read xlink).
-            var ref = '#wxi-h' + view.icon[i];
+        if (chipIcon) {
+            // Both href flavors, like the renderer (old WebViews read
+            // xlink). A data-less hour gets the renderer's blank
+            // placeholder — never the previous hour's stale glyph.
+            var ref = view.icon[i] ? '#wxi-h' + view.icon[i] : '#wxi-hnone';
             chipIcon.setAttribute('href', ref);
             try {
                 chipIcon.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', ref);
