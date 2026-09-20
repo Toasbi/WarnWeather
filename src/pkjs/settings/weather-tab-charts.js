@@ -642,10 +642,10 @@
         // else the viewed day's anchor): it gets the app's dark chip with
         // THAT hour's own icon and label, drawn over the 3-hourly row and
         // moved by id from weather-tab.js while scrubbing.
-        var BAND_H = 40;
-        var H = 62;
+        var BAND_H = 44;
+        var H = 66;
         var hourY = BAND_H - 6;
-        var captionY = 56;
+        var captionY = H - 6;
         var s = '';
         // Every icon that appears anywhere in the timeline is defined ONCE;
         // the 3-hourly row and the chip reference them, so a scrub can swap
@@ -701,7 +701,7 @@
             if (i % 24 === 0) { continue; }
             var id = view.icon[i];
             if (!id) { continue; }
-            s += iconUse(id, '', xAt(view, i), 5, 17);
+            s += iconUse(id, '', xAt(view, i), 4, 22);
         }
         // Weekday marker at each midnight.
         for (d = 0; d < view.days; d += 1) {
@@ -713,7 +713,7 @@
         for (i = 0; i < view.times.length; i += 1) {
             x = xAt(view, i);
             if (i % 3 === 0) {
-                s += '<text x="' + x + '" y="' + hourY + '" text-anchor="middle" font-size="9" '
+                s += '<text x="' + x + '" y="' + hourY + '" text-anchor="middle" font-size="11" '
                     + 'font-weight="600" fill="' + pal.ink + '">'
                     + two(model.localHour(view.times[i], view.offsetSec)) + ':00</text>';
             }
@@ -747,13 +747,13 @@
         s += '<line id="wx-strip-hi-tick" x1="' + xAt(view, hi) + '" y1="' + BAND_H + '" x2="' + xAt(view, hi)
             + '" y2="' + (BAND_H + 7) + '" stroke="' + pal.ink + '" stroke-width="2"/>';
         s += '<g id="wx-strip-hi" transform="translate(' + stripChipX(view, hi) + ' 0)">'
-            + '<rect x="-17" y="1" width="34" height="' + (BAND_H - 2) + '" rx="5" fill="' + pal.hiBox + '"/>'
-            + (hiIcon ? iconUse(hiIcon, ' id="wx-strip-hi-icon"', 0, 4, 18)
+            + '<rect x="-20" y="1" width="40" height="' + (BAND_H - 2) + '" rx="5" fill="' + pal.hiBox + '"/>'
+            + (hiIcon ? iconUse(hiIcon, ' id="wx-strip-hi-icon"', 0, 4, 22)
                 // No icon at this hour: keep the placed element (same
                 // transform) so a scrub can still swap a real href in.
                 : '<use id="wx-strip-hi-icon" xlink:href="#wxi-hnone" href="#wxi-hnone"'
-                  + ' transform="translate(-9 4) scale(0.720)"/>')
-            + '<text id="wx-strip-hi-text" x="0" y="' + hourY + '" text-anchor="middle" font-size="9" '
+                  + ' transform="translate(-11 4) scale(0.880)"/>')
+            + '<text id="wx-strip-hi-text" x="0" y="' + hourY + '" text-anchor="middle" font-size="11" '
             + 'font-weight="700" fill="' + pal.hiText + '">'
             + two(model.localHour(view.times[hi], view.offsetSec)) + ':00</text>'
             + '</g>';
@@ -762,7 +762,7 @@
 
     /**
      * The strip chip's x at an hour: the hour's own x, nudged inward so
-     * the 34-unit box never clips at its day's viewport seams (hour 0 of
+     * the 40-unit box never clips at its day's viewport seams (hour 0 of
      * a day would otherwise lose its left half to overflow:hidden). Used
      * by the renderer above AND by weather-tab.js when it moves the chip
      * while scrubbing — one clamp, both paths.
@@ -773,8 +773,8 @@
     function stripChipX(view, i) {
         var x = xAt(view, i);
         var day = Math.floor(i / 24);
-        var lo = day * DAY_W + 19;
-        var hi = (day + 1) * DAY_W - 19;
+        var lo = day * DAY_W + 22;
+        var hi = (day + 1) * DAY_W - 22;
         if (x < lo) { x = lo; }
         if (x > hi) { x = hi; }
         return x;

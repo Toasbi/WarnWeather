@@ -199,8 +199,10 @@ test('the hour strip carries the shared time axis, weekday markers and the Measu
   assert.ok(spec.bandH > 0 && spec.H > spec.bandH, 'the caption zone lives below the band');
   assert.match(spec.main, new RegExp('y="' + (spec.bandH - 6) + '"[^>]*>03:00'),
     'hour labels sit INSIDE the band, along its lower edge');
-  assert.match(spec.main, /y="56"[^>]*>Measured</, 'Measured caption below the band');
-  assert.match(spec.main, /y="56"[^>]*>Forecast</, 'Forecast caption below the band');
+  assert.match(spec.main, new RegExp('y="' + (spec.H - 6) + '"[^>]*>Measured<'),
+    'Measured caption below the band');
+  assert.match(spec.main, new RegExp('y="' + (spec.H - 6) + '"[^>]*>Forecast<'),
+    'Forecast caption below the band');
   assert.ok(spec.main.indexOf('>Sun<') !== -1 && spec.main.indexOf('>Mon<') !== -1,
     'each midnight is marked with its weekday');
   const noShade = charts.timeStripSvg(view, LOC, charts.palette(false), null);
@@ -242,12 +244,12 @@ test('the hour strip highlights the selected hour with the app\'s chip (own icon
   // Day-seam hours nudge the box inward instead of clipping half of it
   // (the pan viewport is overflow:hidden). One clamp, shared with the
   // scrub path via charts.stripChipX.
-  assert.equal(charts.stripChipX(view, 0), 19, 'hour 0 clamps off the left seam');
-  assert.equal(charts.stripChipX(view, 23), charts.DAY_W - 19, 'hour 23 clamps off its day\'s right seam');
-  assert.equal(charts.stripChipX(view, 24), charts.DAY_W + 19, 'day 2 clamps against ITS OWN seam');
+  assert.equal(charts.stripChipX(view, 0), 22, 'hour 0 clamps off the left seam');
+  assert.equal(charts.stripChipX(view, 23), charts.DAY_W - 22, 'hour 23 clamps off its day\'s right seam');
+  assert.equal(charts.stripChipX(view, 24), charts.DAY_W + 22, 'day 2 clamps against ITS OWN seam');
   assert.equal(charts.stripChipX(view, 15), 15 * charts.HOUR_W, 'mid-day hours sit at their own x');
   const at0 = charts.timeStripSvg(view, LOC, pal, SunCalc, 0);
-  assert.ok(at0.main.indexOf('id="wx-strip-hi" transform="translate(19 0)"') !== -1,
+  assert.ok(at0.main.indexOf('id="wx-strip-hi" transform="translate(22 0)"') !== -1,
     'the renderer places the chip through the same clamp');
 });
 
