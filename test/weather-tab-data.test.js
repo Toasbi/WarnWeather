@@ -12,6 +12,7 @@ const DAY0 = new Date(2026, 8, 20, 0, 0, 0).getTime();
 test('Open-Meteo parser: hourly series + provider daily, unixtime seconds → ms', () => {
   const hours = [NOON / 1000, NOON / 1000 + 3600];
   const fixture = {
+    utc_offset_seconds: 7200,
     hourly: {
       time: hours,
       temperature_2m: [18.2, 17.9],
@@ -45,6 +46,7 @@ test('Open-Meteo parser: hourly series + provider daily, unixtime seconds → ms
   assert.equal(out.daily[0].tmax, 21);
   assert.equal(out.daily[0].sunshineH, 2);
   assert.equal(out.daily[1].icon, 'clear');
+  assert.equal(out.utcOffsetSec, 7200, 'the location clock rides the normalized result');
   assert.equal(data.parsers.openmeteo({ hourly: { time: [] } }, NOON), null);
 });
 
@@ -70,6 +72,7 @@ test('Brightsky parser: DWD units pass through, daily aggregates client-side', (
   assert.equal(out.hourly.wind[0], 12, 'Brightsky wind is already km/h');
   assert.equal(out.hourly.rh[0], 60);
   assert.equal(out.hourly.icon[15], 'rain');
+  assert.equal(out.utcOffsetSec, 0, 'Z-suffixed Brightsky timestamps parse as UTC');
   assert.ok(out.daily.length >= 1);
   assert.equal(out.daily[0].icon, 'rain');
   assert.equal(out.daily[0].sunshineH, 6);

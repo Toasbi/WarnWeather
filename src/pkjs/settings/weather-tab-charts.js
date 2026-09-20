@@ -100,7 +100,7 @@
      */
     function prepareView(data, nowMs) {
         var h = data.hourly;
-        var win = model.hourlyWindow(h.time, nowMs, 6, 48);
+        var win = model.hourlyWindow(h.time, nowMs, model.PAST_HOURS, model.FUTURE_HOURS);
         var n = win.end - win.start;
         if (n < 2) { return null; }
         var slice = function (arr) {
@@ -120,6 +120,10 @@
             rh: slice(h.rh), dew: slice(h.dew), pressure: slice(h.pressure),
             nowIndex: nowIndex,
             nowMs: nowMs,
+            // The LOCATION's clock: day boundaries, hour labels, readout times
+            // and the daytime-icon window all follow it, not the phone's.
+            offsetSec: (data.utcOffsetSec === null || data.utcOffsetSec === undefined)
+                ? model.phoneUtcOffsetSec(nowMs) : data.utcOffsetSec,
             daily: data.daily || []
         };
     }
@@ -188,7 +192,7 @@
             if (pts.length === 0) { return; }
             d += 'M' + pts[0].x.toFixed(1) + ' ' + pts[0].y.toFixed(1);
             for (var i = 1; i < pts.length; i += 1) {
-                var p0 = pts[i - 1 < 0 ? 0 : i - 1];
+                var p0 = pts[i - 2 < 0 ? 0 : i - 2];
                 var p1 = pts[i - 1];
                 var p2 = pts[i];
                 var p3 = pts[i + 1 < pts.length ? i + 1 : i];
@@ -245,7 +249,7 @@
             + '" stroke="' + pal.axis + '" stroke-width="1"/>';
         if (withHours) {
             for (var i = 0; i < view.times.length; i += 1) {
-                var hour = new Date(view.times[i]).getHours();
+                var hour = model.localHour(view.times[i], view.offsetSec);
                 if (hour % 6 !== 0) { continue; }
                 s += '<text x="' + xAt(view, i).toFixed(1) + '" y="' + (bottom + 10) + '" text-anchor="middle" font-size="8" fill="'
                     + pal.faint + '">' + (hour < 10 ? '0' + hour : hour) + '</text>';
@@ -325,7 +329,7 @@
         // Precip probability row: future hours on the 6 h axis ticks only —
         // denser and the labels collide at this width — clear of the caption.
         for (i = 0; i < view.prob.length; i += 1) {
-            var hour = new Date(view.times[i]).getHours();
+            var hour = model.localHour(view.times[i], view.offsetSec);
             if (i < view.nowIndex || hour % 6 !== 0) { continue; }
             var p = view.prob[i];
             if (p === null || p === undefined) { continue; }
@@ -372,7 +376,7 @@
         // Direction arrows every 3rd hour: pointing WITH the wind (bearing is
         // meteorological "comes from", so the arrow points bearing+180°).
         for (var i = 0; i < view.dir.length; i += 1) {
-            var hour = new Date(view.times[i]).getHours();
+            var hour = model.localHour(view.times[i], view.offsetSec);
             if (hour % 3 !== 0) { continue; }
             var b = view.dir[i];
             if (b === null || b === undefined) { continue; }
@@ -467,23 +471,25 @@
     }
 
     /**
-     * Panel 5: sun & moon — altitude arcs over today's 24 h (SunCalc, computed
-     * per location), horizon hairline, rise/set times.
+     * Panel 5: sun & moon — altitude arcs over the location's today (SunCalc,
+     * computed per location), horizon hairline, rise/set times on the
+     * location's clock.
      * @param {{lat: number, lon: number}} loc Active location.
      * @param {number} nowMs Reference time.
      * @param {Object} pal Palette.
      * @param {Object} SunCalcLib The vendored SunCalc.
+     * @param {number} [offsetSec] Location UTC offset; the phone's when absent.
      * @returns {string} SVG markup.
      */
-    function sunMoonPanelSvg(loc, nowMs, pal, SunCalcLib) {
+    function sunMoonPanelSvg(loc, nowMs, pal, SunCalcLib, offsetSec) {
         var H = 130;
         var top = 10, bottom = 92;
         var horizon = (top + bottom) / 2 + 8;
-        var dayStart = new Date(nowMs);
-        dayStart.setHours(0, 0, 0, 0);
+        var off = (offsetSec === null || offsetSec === undefined) ? model.phoneUtcOffsetSec(nowMs) : offsetSec;
+        var dayStartMs = model.localDayStart(nowMs, off);
         var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="display:block">';
         var xFor = function (ms) {
-            return PAD_L + (W - PAD_L - PAD_R) * (ms - dayStart.getTime()) / 86400000;
+            return PAD_L + (W - PAD_L - PAD_R) * (ms - dayStartMs) / 86400000;
         };
         var altToY = function (alt) {
             // ±90° altitude mapped into the band around the horizon line.
@@ -492,7 +498,7 @@
         var arc = function (getAlt) {
             var d = '';
             for (var m = 0; m <= 24 * 60; m += 30) {
-                var t = dayStart.getTime() + m * 60000;
+                var t = dayStartMs + m * 60000;
                 var yv = altToY(getAlt(new Date(t)));
                 d += (d === '' ? 'M' : 'L') + xFor(t).toFixed(1) + ' ' + yv.toFixed(1);
             }
@@ -514,17 +520,20 @@
             + '" stroke="' + pal.surface + '" stroke-width="2"/>';
         // Hour ruler.
         for (var hr = 0; hr <= 24; hr += 6) {
-            var t = dayStart.getTime() + hr * 3600000;
+            var t = dayStartMs + hr * 3600000;
             s += '<text x="' + xFor(t).toFixed(1) + '" y="' + (bottom + 12) + '" text-anchor="middle" font-size="8" fill="'
                 + pal.faint + '">' + (hr < 10 ? '0' + hr : hr) + '</text>';
         }
         // Rise/set times under the plot.
         var two = function (v) { return v < 10 ? '0' + v : String(v); };
+        // Rise/set times on the LOCATION's clock, not the phone's.
         var hm = function (d) {
-            return (d && !isNaN(d.getTime())) ? two(d.getHours()) + ':' + two(d.getMinutes()) : '—';
+            if (!d || isNaN(d.getTime())) { return '\u2014'; }
+            var shifted = new Date(d.getTime() + off * 1000);
+            return two(shifted.getUTCHours()) + ':' + two(shifted.getUTCMinutes());
         };
-        var st = SunCalcLib.getTimes(new Date(nowMs), loc.lat, loc.lon);
-        var mt = SunCalcLib.getMoonTimes(new Date(nowMs), loc.lat, loc.lon);
+        var st = SunCalcLib.getTimes(new Date(dayStartMs + 43200000), loc.lat, loc.lon);
+        var mt = SunCalcLib.getMoonTimes(new Date(dayStartMs + 43200000), loc.lat, loc.lon);
         var phase = SunCalcLib.getMoonIllumination(new Date(nowMs)).fraction;
         s += '<text x="' + PAD_L + '" y="' + (H - 2) + '" font-size="9" fill="' + pal.muted + '">'
             + '☀ ' + esc(hm(st.sunrise)) + ' – ' + esc(hm(st.sunset)) + '</text>';
@@ -595,21 +604,30 @@
     }
 
     /**
-     * The 5-day strip: HTML tiles (weekday, icon, max|min, rain, sun hours).
+     * The 5-day strip: HTML tiles (weekday, icon, max|min, rain, sun hours),
+     * labeled on the LOCATION's calendar.
      * @param {Array} daily Normalized daily tiles.
      * @param {Object} settings Live settings (units).
      * @param {Object} pal Palette.
+     * @param {number} [offsetSec] Location UTC offset; the phone's when absent.
+     * @param {number} [nowMs] Reference time for the Today label.
      * @returns {string} HTML markup.
      */
-    function dailyStripHtml(daily, settings, pal) {
+    function dailyStripHtml(daily, settings, pal, offsetSec, nowMs) {
         if (!daily || !daily.length) { return ''; }
+        var now = (nowMs === null || nowMs === undefined) ? Date.now() : nowMs;
+        var off = (offsetSec === null || offsetSec === undefined) ? model.phoneUtcOffsetSec(now) : offsetSec;
+        var todayStartMs = model.localDayStart(now, off);
         var DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         var h = '<div class="wx-days">';
         for (var i = 0; i < daily.length && i < 5; i += 1) {
             var d = daily[i];
-            var date = new Date(d.date);
-            var name = i === 0 ? 'Today' : DAYS[date.getDay()];
-            h += '<div class="wx-day' + (i === 0 ? ' today' : '') + '">'
+            // A tile is Today when its instant falls inside the location's
+            // current local day (tile dates are local-day starts, except OWM's
+            // midday stamps — the range check absorbs both).
+            var isToday = d.date >= todayStartMs && d.date < todayStartMs + 86400000;
+            var name = isToday ? 'Today' : DAYS[model.localWeekday(d.date, off)];
+            h += '<div class="wx-day' + (isToday ? ' today' : '') + '">'
                 + '<div class="wx-day-name">' + esc(name) + '</div>'
                 + '<div class="wx-day-icon">' + (d.icon ? iconSvg(d.icon, 26, pal) : '') + '</div>'
                 + '<div class="wx-day-temp">'
@@ -648,9 +666,8 @@
      */
     function readout(panel, view, i, settings) {
         if (!view || i < 0 || i >= view.times.length) { return ''; }
-        var d = new Date(view.times[i]);
         var two = function (v) { return v < 10 ? '0' + v : String(v); };
-        var t = two(d.getHours()) + ':00';
+        var t = two(model.localHour(view.times[i], view.offsetSec)) + ':00';
         var deg = function (v) { return v === null ? '–' : fmt1(model.displayTemp(v, settings)) + '°'; };
         var spd = function (v) { return v === null ? '–' : Math.round(model.displayWind(v, settings)); };
         if (panel === 'temp') {

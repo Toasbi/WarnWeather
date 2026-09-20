@@ -69,6 +69,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // Refetch keeps the frame: hold the previous view (dimmed by the
         // renderer) instead of flashing a skeleton.
         fetchState = { key: key, status: 'loading', data: fetchState.data, error: null, view: fetchState.view };
+        // A cache hit answers on the SAME tick, while this very call sits
+        // inside an engine render — repainting then would re-enter render().
+        // The synchronous flag skips it; the block reads the updated state
+        // as it continues.
+        var sync = true;
         data.fetchWeather(provider, loc.lat, loc.lon, state, function (result, err) {
             if (inFlight !== key) { return; }  // superseded by a newer pick
             inFlight = null;
@@ -79,8 +84,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 fetchState = { key: key, status: view ? 'ok' : 'error', data: result, error: view ? null : 'empty', view: view };
                 scrubIndex = null;
             }
-            if (ctx) { ctx.render(); }
+            if (ctx && !sync) { ctx.render(); }
         });
+        sync = false;
     }
 
     /**
@@ -229,10 +235,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             h += panelHtml('sun', 'Sun & moon',
                 [['Sun', pal.sun, 'line'], ['Moon', pal.faint, 'line']],
                 '',
-                charts.sunMoonPanelSvg(loc, Date.now(), pal, sunCalcLib));
+                charts.sunMoonPanelSvg(loc, Date.now(), pal, sunCalcLib, view.offsetSec));
         }
         h += '<div class="wx-panel"><div class="wx-panel-head"><span class="wx-panel-title">5-day forecast</span></div>'
-            + charts.dailyStripHtml(view.daily, settings, pal) + '</div>';
+            + charts.dailyStripHtml(view.daily, settings, pal, view.offsetSec, Date.now()) + '</div>';
         var providerLabel = fetchState.data && fetchState.data.meta ? fetchState.data.meta.provider : '';
         for (var i = 0; i < model.GRAPH_PROVIDERS.length; i += 1) {
             if (model.GRAPH_PROVIDERS[i].id === providerLabel) { providerLabel = model.GRAPH_PROVIDERS[i].label; }
@@ -253,21 +259,29 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {boolean} True for the light page theme.
      */
     function pageIsLight(state) {
+        var prefersLight = false;
+        if (typeof window !== 'undefined' && window.matchMedia) {
+            try {
+                prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+            } catch (ex) { /* keep false */ }
+        }
+        // The engine owns theme resolution (applyTheme uses the same call);
+        // reuse it so the chart palette tracks the page chrome exactly. The
+        // fallback covers the first render (before onReady hands us ctx) and
+        // the Node tests.
+        if (ctx && ctx.schema && PConf.engine && PConf.engine.resolveTheme) {
+            return PConf.engine.resolveTheme(ctx.schema, state, prefersLight) === 'light';
+        }
         var pick = state && state.configTheme;
         if (pick === 'light') { return true; }
         if (pick === 'dark') { return false; }
-        if (typeof window !== 'undefined' && window.matchMedia) {
-            try {
-                return window.matchMedia('(prefers-color-scheme: light)').matches;
-            } catch (ex) { /* fall through */ }
-        }
-        return false;
+        return prefersLight;
     }
 
     // --- overlay: city search ------------------------------------------------------
 
     var OVERLAY_CSS = ''
-        + '#wxloc{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;}'
+        + '#wxloc{position:fixed;top:0;left:0;right:0;bottom:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;}'
         + '#wxloc .hd{display:flex;align-items:center;gap:10px;padding:14px 16px;}'
         + '#wxloc .hd b{font-size:17px;flex:1;}'
         + '#wxloc .hd button{background:var(--ctl);color:var(--fg);border:none;border-radius:10px;padding:8px 14px;font:inherit;}'

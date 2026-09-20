@@ -24,6 +24,55 @@
 
     var SLOT_KEYS = ['savedLocation1', 'savedLocation2', 'savedLocation3'];
 
+    // The hourly window every panel shows, and what the adapters fetch toward.
+    var PAST_HOURS = 6;
+    var FUTURE_HOURS = 48;
+
+    // --- location-local time -------------------------------------------------
+    // A saved place can sit in another timezone, so "today", "daytime" and the
+    // hour labels must follow the LOCATION's clock, not the phone's. Providers
+    // hand us a UTC offset (weather-tab-data.js); these helpers apply it. The
+    // offset is the one in effect now — a DST flip inside the 5-day window
+    // shifts a far day's boundary by an hour, which the tiles tolerate.
+
+    /**
+     * The phone's own UTC offset — the fallback when a provider has none.
+     * @param {number} nowMs Reference time.
+     * @returns {number} Offset in seconds east of UTC.
+     */
+    function phoneUtcOffsetSec(nowMs) {
+        return -new Date(nowMs).getTimezoneOffset() * 60;
+    }
+
+    /**
+     * The UTC instant of the location-local midnight containing `ms`.
+     * @param {number} ms Epoch ms.
+     * @param {number} offsetSec Location UTC offset (seconds).
+     * @returns {number} Epoch ms of that local day's start.
+     */
+    function localDayStart(ms, offsetSec) {
+        var off = offsetSec * 1000;
+        return Math.floor((ms + off) / 86400000) * 86400000 - off;
+    }
+
+    /**
+     * @param {number} ms Epoch ms.
+     * @param {number} offsetSec Location UTC offset (seconds).
+     * @returns {number} Hour 0..23 on the location's clock.
+     */
+    function localHour(ms, offsetSec) {
+        return new Date(ms + offsetSec * 1000).getUTCHours();
+    }
+
+    /**
+     * @param {number} ms Epoch ms.
+     * @param {number} offsetSec Location UTC offset (seconds).
+     * @returns {number} Weekday 0..6 (Sunday = 0) on the location's clock.
+     */
+    function localWeekday(ms, offsetSec) {
+        return new Date(ms + offsetSec * 1000).getUTCDay();
+    }
+
     /**
      * The provider rows currently offerable, keyed providers only with a
      * non-empty key in the settings blob.
@@ -279,28 +328,27 @@
     // --- daily aggregation ----------------------------------------------------
 
     /**
-     * Aggregate a normalized hourly series into per-local-day tiles, for
-     * providers that serve no daily endpoint (Brightsky, tomorrow.io).
+     * Aggregate a normalized hourly series into tiles per LOCATION-local day,
+     * for providers that serve no daily endpoint (Brightsky, tomorrow.io).
      * @param {{time: number[], temp: Array<?number>, rain: Array<?number>, prob: Array<?number>, icon: Array<?string>, sunshineMin: Array<?number>}} hourly Normalized hourly arrays (time = epoch ms).
      * @param {number} nowMs Reference time (epoch ms).
-     * @param {number} dayCount Days wanted, starting at today.
-     * @returns {Array<{date: number, tmin: ?number, tmax: ?number, icon: ?string, rainMm: ?number, probMax: ?number, sunshineH: ?number}>} Daily tiles.
+     * @param {number} dayCount Days wanted, starting at the location's today.
+     * @param {number} [offsetSec] Location UTC offset; the phone's when absent.
+     * @returns {Array<{date: number, tmin: ?number, tmax: ?number, icon: ?string, rainMm: ?number, probMax: ?number, sunshineH: ?number}>} Daily tiles (`date` = the local day-start instant).
      */
-    function aggregateDaily(hourly, nowMs, dayCount) {
+    function aggregateDaily(hourly, nowMs, dayCount, offsetSec) {
+        var off = (offsetSec === null || offsetSec === undefined) ? phoneUtcOffsetSec(nowMs) : offsetSec;
         var days = [];
-        var todayStart = new Date(nowMs);
-        todayStart.setHours(0, 0, 0, 0);
+        var todayStartMs = localDayStart(nowMs, off);
         for (var d = 0; d < dayCount; d += 1) {
-            var start = new Date(todayStart.getTime());
-            start.setDate(start.getDate() + d);
-            var end = new Date(start.getTime());
-            end.setDate(end.getDate() + 1);
+            var startMs = todayStartMs + d * 86400000;
+            var endMs = startMs + 86400000;
             var tmin = null, tmax = null, rain = null, prob = null, sun = null;
             var icons = [];
             for (var i = 0; i < hourly.time.length; i += 1) {
                 var t = hourly.time[i];
-                if (t < start.getTime() || t >= end.getTime()) { continue; }
-                var hour = new Date(t).getHours();
+                if (t < startMs || t >= endMs) { continue; }
+                var hour = localHour(t, off);
                 icons[hour] = hourly.icon ? hourly.icon[i] : null;
                 var temp = hourly.temp[i];
                 if (temp !== null && temp !== undefined) {
@@ -320,7 +368,7 @@
             // horizon — stop rather than render empty tiles.
             if (tmin === null && d > 0) { break; }
             days.push({
-                date: start.getTime(),
+                date: startMs,
                 tmin: tmin, tmax: tmax,
                 icon: pickDailyIcon(icons),
                 rainMm: rain, probMax: prob,
@@ -353,7 +401,13 @@
     var api = {
         GRAPH_PROVIDERS: GRAPH_PROVIDERS,
         SLOT_KEYS: SLOT_KEYS,
+        PAST_HOURS: PAST_HOURS,
+        FUTURE_HOURS: FUTURE_HOURS,
         ICONS: ICONS,
+        phoneUtcOffsetSec: phoneUtcOffsetSec,
+        localDayStart: localDayStart,
+        localHour: localHour,
+        localWeekday: localWeekday,
         availableProviders: availableProviders,
         resolveGraphsProvider: resolveGraphsProvider,
         parseSlot: parseSlot,

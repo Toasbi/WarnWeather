@@ -9,8 +9,14 @@
 //   hourly: parallel arrays over `time` (epoch ms) — temp °C, rain mm/h,
 //           prob %, wind/gust km/h, dir deg, rh %, dew °C, pressure hPa,
 //           icon id (weather-tab-model.js vocabulary); null = unsourced.
-//   daily:  up to 5 tiles from today — tmin/tmax °C, icon, rainMm, probMax,
-//           sunshineH; null fields where the provider has no answer.
+//   daily:  up to 5 tiles from the location's today — tmin/tmax °C, icon,
+//           rainMm, probMax, sunshineH; null fields where the provider has
+//           no answer.
+//   utcOffsetSec: the LOCATION's UTC offset when the provider reports one
+//           (Open-Meteo utc_offset_seconds, OWM timezone_offset, Brightsky's
+//           timestamp suffix — its default tz is the location's), else null
+//           and consumers fall back to the phone's offset. Day boundaries,
+//           daytime icon windows and hour labels all follow this clock.
 //
 // Results are cached per provider+coords for the lifetime of the page open
 // (module var — page storage doesn't persist, news-cache.js:3-5) with a 15 min
@@ -22,8 +28,7 @@
     var model = (typeof require !== 'undefined')
         ? require('./weather-tab-model.js') : window.WeatherTabModel;
 
-    var PAST_HOURS = 6;
-    var FUTURE_HOURS = 48;
+    var PAST_HOURS = model.PAST_HOURS;
     var DAILY_COUNT = 5;
     var CACHE_TTL_MS = 15 * 60 * 1000;
     var XHR_TIMEOUT_MS = 12000;
@@ -100,8 +105,8 @@
     }
 
     /**
-     * @param {number} n Hours from now (negative = past).
      * @param {number} nowMs Reference epoch ms.
+     * @param {number} n Hours from now (negative = past).
      * @returns {string} ISO timestamp floored to the hour.
      */
     function isoHour(nowMs, n) {
@@ -126,7 +131,193 @@
         return { time: [], temp: [], rain: [], prob: [], wind: [], gust: [], dir: [], rh: [], dew: [], pressure: [], icon: [], sunshineMin: [] };
     }
 
-    // --- adapters -------------------------------------------------------------
+    // --- parsers (pure — tests feed fixture JSON straight in) -----------------
+
+    /**
+     * Open-Meteo response → normalized. unixtime stamps are UTC epoch seconds;
+     * daily stamps are the location-local day starts (timezone=auto).
+     * @param {Object} data Raw response body.
+     * @param {number} nowMs Reference time.
+     * @returns {?Object} Normalized result, or null when unusable.
+     */
+    function parseOpenMeteo(data, nowMs) {
+        var h = data && data.hourly;
+        if (!h || !h.time || !h.time.length) { return null; }
+        var offsetSec = num(data.utc_offset_seconds);
+        var hourly = emptyHourly();
+        for (var i = 0; i < h.time.length; i += 1) {
+            hourly.time.push(h.time[i] * 1000);
+            hourly.temp.push(num(h.temperature_2m && h.temperature_2m[i]));
+            hourly.rain.push(num(h.precipitation && h.precipitation[i]));
+            hourly.prob.push(num(h.precipitation_probability && h.precipitation_probability[i]));
+            hourly.wind.push(num(h.wind_speed_10m && h.wind_speed_10m[i]));
+            hourly.gust.push(num(h.wind_gusts_10m && h.wind_gusts_10m[i]));
+            hourly.dir.push(num(h.wind_direction_10m && h.wind_direction_10m[i]));
+            hourly.rh.push(num(h.relative_humidity_2m && h.relative_humidity_2m[i]));
+            hourly.dew.push(num(h.dew_point_2m && h.dew_point_2m[i]));
+            hourly.pressure.push(num(h.pressure_msl && h.pressure_msl[i]));
+            var code = h.weather_code ? h.weather_code[i] : null;
+            hourly.icon.push(code === null || code === undefined ? null : model.wmoIcon(code));
+        }
+        var daily = [];
+        var d = data.daily;
+        var off = offsetSec === null ? model.phoneUtcOffsetSec(nowMs) : offsetSec;
+        var todayStartMs = model.localDayStart(nowMs, off);
+        if (d && d.time) {
+            for (var j = 0; j < d.time.length && daily.length < DAILY_COUNT; j += 1) {
+                var dayMs = d.time[j] * 1000;
+                // Keep from the LOCATION's today onward (its stamps are that
+                // location's midnights); the hour of slack absorbs DST edges.
+                if (dayMs < todayStartMs - 3600000) { continue; }
+                var sun = num(d.sunshine_duration && d.sunshine_duration[j]);
+                daily.push({
+                    date: dayMs,
+                    tmin: num(d.temperature_2m_min && d.temperature_2m_min[j]),
+                    tmax: num(d.temperature_2m_max && d.temperature_2m_max[j]),
+                    icon: d.weather_code ? model.wmoIcon(d.weather_code[j]) : null,
+                    rainMm: num(d.precipitation_sum && d.precipitation_sum[j]),
+                    probMax: num(d.precipitation_probability_max && d.precipitation_probability_max[j]),
+                    sunshineH: sun === null ? null : sun / 3600
+                });
+            }
+        }
+        return { hourly: hourly, daily: daily, utcOffsetSec: offsetSec };
+    }
+
+    /**
+     * The UTC offset carried by an ISO timestamp's suffix ('+02:00', 'Z').
+     * @param {string} iso ISO 8601 timestamp.
+     * @returns {?number} Offset seconds, or null when unrecognizable.
+     */
+    function isoOffsetSec(iso) {
+        if (typeof iso !== 'string') { return null; }
+        if (/[zZ]$/.test(iso)) { return 0; }
+        var m = /([+-])(\d\d):?(\d\d)$/.exec(iso);
+        if (!m) { return null; }
+        var sec = (Number(m[2]) * 60 + Number(m[3])) * 60;
+        return m[1] === '-' ? -sec : sec;
+    }
+
+    /**
+     * Brightsky response → normalized. Default units are DWD's (°C, km/h,
+     * hPa, sunshine minutes) and timestamps default to the LOCATION's
+     * timezone, so their suffix carries the offset.
+     * @param {Object} data Raw response body.
+     * @param {number} nowMs Reference time.
+     * @returns {?Object} Normalized result, or null when unusable.
+     */
+    function parseBrightsky(data, nowMs) {
+        var rows = data && data.weather;
+        if (!rows || !rows.length) { return null; }
+        var offsetSec = isoOffsetSec(rows[0].timestamp);
+        var hourly = emptyHourly();
+        for (var i = 0; i < rows.length; i += 1) {
+            var r = rows[i];
+            var t = Date.parse(r.timestamp);
+            if (!isFinite(t)) { continue; }
+            hourly.time.push(t);
+            hourly.temp.push(num(r.temperature));
+            hourly.rain.push(num(r.precipitation));
+            hourly.prob.push(num(r.precipitation_probability));
+            hourly.wind.push(num(r.wind_speed));
+            hourly.gust.push(num(r.wind_gust_speed));
+            hourly.dir.push(num(r.wind_direction));
+            hourly.rh.push(num(r.relative_humidity));
+            hourly.dew.push(num(r.dew_point));
+            hourly.pressure.push(num(r.pressure_msl));
+            hourly.icon.push(r.icon ? model.brightskyIcon(r.icon) : null);
+            hourly.sunshineMin.push(num(r.sunshine));
+        }
+        return {
+            hourly: hourly,
+            daily: model.aggregateDaily(hourly, nowMs, DAILY_COUNT, offsetSec),
+            utcOffsetSec: offsetSec
+        };
+    }
+
+    /**
+     * OWM One Call 3.0 (metric) response → normalized: m/s → km/h,
+     * pop 0..1 → %, its own daily array, timezone_offset for the local clock.
+     * @param {Object} data Raw response body.
+     * @param {number} nowMs Reference time.
+     * @returns {?Object} Normalized result, or null when unusable.
+     */
+    function parseOwm(data, nowMs) {
+        var rows = data && data.hourly;
+        if (!rows || !rows.length) { return null; }
+        var MPS_TO_KMH = 3.6;
+        var offsetSec = num(data.timezone_offset);
+        var hourly = emptyHourly();
+        for (var i = 0; i < rows.length; i += 1) {
+            var r = rows[i];
+            hourly.time.push(r.dt * 1000);
+            hourly.temp.push(num(r.temp));
+            hourly.rain.push(num(r.rain && r.rain['1h']) || 0);
+            hourly.prob.push(num(r.pop) === null ? null : r.pop * 100);
+            hourly.wind.push(num(r.wind_speed) === null ? null : r.wind_speed * MPS_TO_KMH);
+            hourly.gust.push(num(r.wind_gust) === null ? null : r.wind_gust * MPS_TO_KMH);
+            hourly.dir.push(num(r.wind_deg));
+            hourly.rh.push(num(r.humidity));
+            hourly.dew.push(num(r.dew_point));
+            hourly.pressure.push(num(r.pressure));
+            hourly.icon.push(r.weather && r.weather[0] ? model.owmIcon(r.weather[0].id) : null);
+        }
+        var daily = [];
+        var days = data.daily || [];
+        for (var j = 0; j < days.length && daily.length < DAILY_COUNT; j += 1) {
+            var d = days[j];
+            daily.push({
+                date: d.dt * 1000,
+                tmin: num(d.temp && d.temp.min),
+                tmax: num(d.temp && d.temp.max),
+                icon: d.weather && d.weather[0] ? model.owmIcon(d.weather[0].id) : null,
+                rainMm: num(d.rain) || 0,
+                probMax: num(d.pop) === null ? null : d.pop * 100,
+                sunshineH: null
+            });
+        }
+        return { hourly: hourly, daily: daily, utcOffsetSec: offsetSec };
+    }
+
+    /**
+     * tomorrow.io Timelines response → normalized: metric wind is m/s, no
+     * timezone in the response (consumers fall back to the phone's offset),
+     * daily aggregates client-side.
+     * @param {Object} data Raw response body.
+     * @param {number} nowMs Reference time.
+     * @returns {?Object} Normalized result, or null when unusable.
+     */
+    function parseTomorrowIo(data, nowMs) {
+        var timelines = data && data.data && data.data.timelines;
+        var intervals = timelines && timelines[0] && timelines[0].intervals;
+        if (!intervals || !intervals.length) { return null; }
+        var MPS_TO_KMH = 3.6;
+        var hourly = emptyHourly();
+        for (var i = 0; i < intervals.length; i += 1) {
+            var v = intervals[i].values || {};
+            var t = Date.parse(intervals[i].startTime);
+            if (!isFinite(t)) { continue; }
+            hourly.time.push(t);
+            hourly.temp.push(num(v.temperature));
+            hourly.rain.push(num(v.precipitationIntensity));
+            hourly.prob.push(num(v.precipitationProbability));
+            hourly.wind.push(num(v.windSpeed) === null ? null : v.windSpeed * MPS_TO_KMH);
+            hourly.gust.push(num(v.windGust) === null ? null : v.windGust * MPS_TO_KMH);
+            hourly.dir.push(num(v.windDirection));
+            hourly.rh.push(num(v.humidity));
+            hourly.dew.push(num(v.dewPoint));
+            hourly.pressure.push(num(v.pressureSeaLevel));
+            hourly.icon.push(v.weatherCode === undefined || v.weatherCode === null
+                ? null : model.tomorrowIcon(v.weatherCode));
+        }
+        return {
+            hourly: hourly,
+            daily: model.aggregateDaily(hourly, nowMs, DAILY_COUNT, null),
+            utcOffsetSec: null
+        };
+    }
+
+    // --- fetchers ---------------------------------------------------------------
 
     /**
      * Open-Meteo: one keyless call carries the hourly window AND the daily strip.
@@ -152,57 +343,8 @@
     }
 
     /**
-     * Pure parser half of the Open-Meteo adapter (tests feed fixture JSON here).
-     * @param {Object} data Raw response body.
-     * @param {number} nowMs Reference time.
-     * @returns {?{hourly: Object, daily: Array}} Normalized result, or null when unusable.
-     */
-    function parseOpenMeteo(data, nowMs) {
-        {
-            var h = data && data.hourly;
-            if (!h || !h.time || !h.time.length) { return null; }
-            var hourly = emptyHourly();
-            for (var i = 0; i < h.time.length; i += 1) {
-                hourly.time.push(h.time[i] * 1000);
-                hourly.temp.push(num(h.temperature_2m && h.temperature_2m[i]));
-                hourly.rain.push(num(h.precipitation && h.precipitation[i]));
-                hourly.prob.push(num(h.precipitation_probability && h.precipitation_probability[i]));
-                hourly.wind.push(num(h.wind_speed_10m && h.wind_speed_10m[i]));
-                hourly.gust.push(num(h.wind_gusts_10m && h.wind_gusts_10m[i]));
-                hourly.dir.push(num(h.wind_direction_10m && h.wind_direction_10m[i]));
-                hourly.rh.push(num(h.relative_humidity_2m && h.relative_humidity_2m[i]));
-                hourly.dew.push(num(h.dew_point_2m && h.dew_point_2m[i]));
-                hourly.pressure.push(num(h.pressure_msl && h.pressure_msl[i]));
-                var code = h.weather_code ? h.weather_code[i] : null;
-                hourly.icon.push(code === null || code === undefined ? null : model.wmoIcon(code));
-            }
-            var daily = [];
-            var d = data.daily;
-            var todayStart = new Date(nowMs);
-            todayStart.setHours(0, 0, 0, 0);
-            if (d && d.time) {
-                for (var j = 0; j < d.time.length && daily.length < DAILY_COUNT; j += 1) {
-                    var dayMs = d.time[j] * 1000;
-                    if (dayMs < todayStart.getTime() - 3600000) { continue; }
-                    var sun = num(d.sunshine_duration && d.sunshine_duration[j]);
-                    daily.push({
-                        date: dayMs,
-                        tmin: num(d.temperature_2m_min && d.temperature_2m_min[j]),
-                        tmax: num(d.temperature_2m_max && d.temperature_2m_max[j]),
-                        icon: d.weather_code ? model.wmoIcon(d.weather_code[j]) : null,
-                        rainMm: num(d.precipitation_sum && d.precipitation_sum[j]),
-                        probMax: num(d.precipitation_probability_max && d.precipitation_probability_max[j]),
-                        sunshineH: sun === null ? null : sun / 3600
-                    });
-                }
-            }
-            return { hourly: hourly, daily: daily };
-        }
-    }
-
-    /**
-     * DWD via Brightsky: hourly records only (default 'dwd' units: °C, km/h,
-     * hPa, sunshine minutes); the daily strip aggregates client-side.
+     * DWD via Brightsky: hourly records only; the daily strip aggregates
+     * client-side.
      * @param {number} lat Latitude.
      * @param {number} lon Longitude.
      * @param {Object} settings Live settings (unused — keyless).
@@ -220,39 +362,6 @@
             var parsed = parseBrightsky(data, nowMs);
             cb(parsed, parsed ? null : 'empty');
         });
-    }
-
-    /**
-     * Pure parser half of the Brightsky adapter.
-     * @param {Object} data Raw response body.
-     * @param {number} nowMs Reference time.
-     * @returns {?{hourly: Object, daily: Array}} Normalized result, or null when unusable.
-     */
-    function parseBrightsky(data, nowMs) {
-        {
-            var rows = data && data.weather;
-            if (!rows || !rows.length) { return null; }
-            var hourly = emptyHourly();
-            for (var i = 0; i < rows.length; i += 1) {
-                var r = rows[i];
-                var t = Date.parse(r.timestamp);
-                if (!isFinite(t)) { continue; }
-                hourly.time.push(t);
-                hourly.temp.push(num(r.temperature));
-                hourly.rain.push(num(r.precipitation));
-                var p = num(r.precipitation_probability);
-                hourly.prob.push(p);
-                hourly.wind.push(num(r.wind_speed));
-                hourly.gust.push(num(r.wind_gust_speed));
-                hourly.dir.push(num(r.wind_direction));
-                hourly.rh.push(num(r.relative_humidity));
-                hourly.dew.push(num(r.dew_point));
-                hourly.pressure.push(num(r.pressure_msl));
-                hourly.icon.push(r.icon ? model.brightskyIcon(r.icon) : null);
-                hourly.sunshineMin.push(num(r.sunshine));
-            }
-            return { hourly: hourly, daily: model.aggregateDaily(hourly, nowMs, DAILY_COUNT) };
-        }
     }
 
     /**
@@ -278,53 +387,8 @@
     }
 
     /**
-     * Pure parser half of the OWM adapter.
-     * @param {Object} data Raw response body.
-     * @param {number} nowMs Reference time.
-     * @returns {?{hourly: Object, daily: Array}} Normalized result, or null when unusable.
-     */
-    function parseOwm(data, nowMs) {
-        {
-            var rows = data && data.hourly;
-            if (!rows || !rows.length) { return null; }
-            var MPS_TO_KMH = 3.6;
-            var hourly = emptyHourly();
-            for (var i = 0; i < rows.length; i += 1) {
-                var r = rows[i];
-                hourly.time.push(r.dt * 1000);
-                hourly.temp.push(num(r.temp));
-                hourly.rain.push(num(r.rain && r.rain['1h']) || 0);
-                hourly.prob.push(num(r.pop) === null ? null : r.pop * 100);
-                hourly.wind.push(num(r.wind_speed) === null ? null : r.wind_speed * MPS_TO_KMH);
-                hourly.gust.push(num(r.wind_gust) === null ? null : r.wind_gust * MPS_TO_KMH);
-                hourly.dir.push(num(r.wind_deg));
-                hourly.rh.push(num(r.humidity));
-                hourly.dew.push(num(r.dew_point));
-                hourly.pressure.push(num(r.pressure));
-                hourly.icon.push(r.weather && r.weather[0] ? model.owmIcon(r.weather[0].id) : null);
-            }
-            var daily = [];
-            var days = data.daily || [];
-            for (var j = 0; j < days.length && daily.length < DAILY_COUNT; j += 1) {
-                var d = days[j];
-                daily.push({
-                    date: d.dt * 1000,
-                    tmin: num(d.temp && d.temp.min),
-                    tmax: num(d.temp && d.temp.max),
-                    icon: d.weather && d.weather[0] ? model.owmIcon(d.weather[0].id) : null,
-                    rainMm: num(d.rain) || 0,
-                    probMax: num(d.pop) === null ? null : d.pop * 100,
-                    sunshineH: null
-                });
-            }
-            return { hourly: hourly, daily: daily };
-        }
-    }
-
-    /**
      * tomorrow.io Timelines, ONE call (billing is per call — the same reason
-     * tomorrowio.js keeps to one): a 1h timestep spanning today-6h → +5 days;
-     * the daily strip aggregates client-side. Metric wind is m/s.
+     * tomorrowio.js keeps to one): a 1h timestep spanning today-6h → +5 days.
      * @param {number} lat Latitude.
      * @param {number} lon Longitude.
      * @param {Object} settings Live settings (tomorrowioApiKey).
@@ -349,40 +413,6 @@
         });
     }
 
-    /**
-     * Pure parser half of the tomorrow.io adapter.
-     * @param {Object} data Raw response body.
-     * @param {number} nowMs Reference time.
-     * @returns {?{hourly: Object, daily: Array}} Normalized result, or null when unusable.
-     */
-    function parseTomorrowIo(data, nowMs) {
-        {
-            var timelines = data && data.data && data.data.timelines;
-            var intervals = timelines && timelines[0] && timelines[0].intervals;
-            if (!intervals || !intervals.length) { return null; }
-            var MPS_TO_KMH = 3.6;
-            var hourly = emptyHourly();
-            for (var i = 0; i < intervals.length; i += 1) {
-                var v = intervals[i].values || {};
-                var t = Date.parse(intervals[i].startTime);
-                if (!isFinite(t)) { continue; }
-                hourly.time.push(t);
-                hourly.temp.push(num(v.temperature));
-                hourly.rain.push(num(v.precipitationIntensity));
-                hourly.prob.push(num(v.precipitationProbability));
-                hourly.wind.push(num(v.windSpeed) === null ? null : v.windSpeed * MPS_TO_KMH);
-                hourly.gust.push(num(v.windGust) === null ? null : v.windGust * MPS_TO_KMH);
-                hourly.dir.push(num(v.windDirection));
-                hourly.rh.push(num(v.humidity));
-                hourly.dew.push(num(v.dewPoint));
-                hourly.pressure.push(num(v.pressureSeaLevel));
-                hourly.icon.push(v.weatherCode === undefined || v.weatherCode === null
-                    ? null : model.tomorrowIcon(v.weatherCode));
-            }
-            return { hourly: hourly, daily: model.aggregateDaily(hourly, nowMs, DAILY_COUNT) };
-        }
-    }
-
     var ADAPTERS = {
         openmeteo: fetchOpenMeteo,
         dwd: fetchBrightsky,
@@ -392,7 +422,9 @@
 
     /**
      * Fetch (or serve from the page-open cache) the normalized weather for one
-     * provider + location.
+     * provider + location. A cache hit answers on the SAME tick — callers that
+     * repaint from the callback must handle the synchronous case (weather-tab.js
+     * skips its render() then, because it is already inside one).
      * @param {string} providerId A GRAPH_PROVIDERS id.
      * @param {number} lat Latitude.
      * @param {number} lon Longitude.
@@ -427,13 +459,12 @@
     }
 
     var api = {
-        PAST_HOURS: PAST_HOURS,
-        FUTURE_HOURS: FUTURE_HOURS,
         DAILY_COUNT: DAILY_COUNT,
         fetchJson: fetchJson,
         geocodeSearch: geocodeSearch,
         fetchWeather: fetchWeather,
         clearCache: clearCache,
+        isoOffsetSec: isoOffsetSec,
         // Exported for direct testing with fixture JSON.
         adapters: ADAPTERS,
         parsers: {

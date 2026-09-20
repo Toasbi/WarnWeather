@@ -102,12 +102,12 @@ test('every icon id in the vocabulary draws a glyph, in both palettes', () => {
 
 test('the 5-day strip renders tiles with units honored and text escaped', () => {
   const view = charts.prepareView(fixtureData(), NOON);
-  const html = charts.dailyStripHtml(view.daily, { temperatureUnits: 'f' }, charts.palette(false));
+  const html = charts.dailyStripHtml(view.daily, { temperatureUnits: 'f' }, charts.palette(false), null, NOON);
   assert.ok(html.indexOf('Today') !== -1);
   assert.ok(html.indexOf('68°') !== -1, 'tmax 20°C renders as 68°F');
   assert.equal((html.match(/wx-day /g) || []).length + (html.match(/wx-day"/g) || []).length +
     (html.match(/wx-day today/g) || []).length >= 5, true, 'five tiles');
-  assert.equal(charts.dailyStripHtml([], {}, charts.palette(false)), '');
+  assert.equal(charts.dailyStripHtml([], {}, charts.palette(false), null, NOON), '');
 });
 
 test('the two palettes stay in lockstep (same roles in light and dark)', () => {
