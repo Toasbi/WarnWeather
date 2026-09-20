@@ -38,7 +38,6 @@
         + '.wx-key{font-size:11px;color:var(--muted);display:inline-flex;align-items:center;gap:4px;}'
         + '.wx-key-line{display:inline-block;width:12px;height:2px;border-radius:1px;}'
         + '.wx-key-rect{display:inline-block;width:8px;height:8px;border-radius:2px;}'
-        + '.wx-readout{font-size:12px;color:var(--muted);margin:2px 0 4px;font-variant-numeric:tabular-nums;}'
         + '.wx-status{color:var(--hint);font-size:14px;padding:10px 0;}'
         + '.wx-retry{background:var(--ctl);color:var(--fg);border:none;border-radius:8px;padding:6px 12px;font:inherit;font-size:13px;}'
         // The pannable chart viewport: edge-to-edge in the card via a
@@ -47,17 +46,19 @@
         // negative margins — percentage padding resolves against the
         // containing block, so the combined box would be ~10% wider than
         // 360:H and stretch every label (see viewportHtml).
-        + '.wx-bleed{margin:8px -16px 0;}'
+        // position:relative: the bleed is the value tip's positioned
+        // ancestor — same box as the viewport but UNCLIPPED, so the tip
+        // can hang above the plot (the vp's overflow:hidden would cut it).
+        + '.wx-bleed{margin:8px -16px 0;position:relative;}'
         + '.wx-vp{position:relative;overflow:hidden;height:0;touch-action:pan-y;}'
         + '.wx-pan{position:absolute;top:0;left:0;height:100%;}'
         + '.wx-ax{position:absolute;top:0;left:0;pointer-events:none;}'
         // The floating value tip over the crosshair (filled/placed by
-        // paintScrub: anchored above the hour's topmost point, centered on
-        // the crosshair, both clamped into the viewport; without room
-        // above, it steps BESIDE the crosshair at the top edge, then
-        // BELOW all the hour's marks — it avoids sitting between them,
-        // though paintScrub's truly-last resort (a wide tip mid-viewport
-        // with a bar blocking below) may still cover the top mark).
+        // paintScrub): ALWAYS just above the hour's topmost mark,
+        // centered on the crosshair with viewport edge clamps. It lives
+        // in the unclipped .wx-bleed, so near the plot top it overflows
+        // the graph upward — over the title row — instead of dodging
+        // sideways or below.
         // z-index 5, deliberately UNDER the pinned hour axis (z-index 15):
         // scrolling panels carry their tips beneath the sticky strip's
         // opaque backdrop instead of drawing over it.

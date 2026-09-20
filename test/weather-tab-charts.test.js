@@ -141,9 +141,12 @@ test('panel specs carry the crosshair-highlight plumbing (marks, dots, bar ids, 
   assert.ok(Math.abs(hum.marks.bar.tops[i]
     - (hum.marks.bottom - view.rh[i] / 100 * (hum.marks.bottom - hum.marks.top))) < 0.6,
     'humidity bar top mirrors the 0-100% scale');
-  // The viewport ships the floating tip mount for panels that declare it.
+  // The viewport ships the floating tip mount for panels that declare it —
+  // in the BLEED box, after the clipped viewport closes, so the tip can
+  // hang above the plot (inside the vp, overflow:hidden would cut it).
   const html = charts.viewportHtml('temp', temp, view, 0);
-  assert.ok(html.indexOf('id="wx-tip-temp"') !== -1, 'tip div rides the viewport');
+  assert.ok(html.indexOf('</div><div class="wx-tip" id="wx-tip-temp"></div></div>') !== -1,
+    'tip div rides the bleed, outside the clipping viewport');
   const strip = charts.timeStripSvg(view, LOC, pal, SunCalc);
   assert.equal(charts.viewportHtml('strip', strip, view, 0).indexOf('wx-tip'), -1,
     'the strip declares no tip');
@@ -208,14 +211,13 @@ test('the value tip renders title-over-value columns (tipHtml)', () => {
     'a null chance drops the Chance column');
 });
 
-test('tipText is the readout without the timestamp (the floating tip contract)', () => {
+test('tipText carries bare values: no weekday, no timestamp (the floating tip contract)', () => {
   const view = charts.prepareView(fixtureData(), NOON);
   const s = { temperatureUnits: 'c', windUnits: 'kph' };
   const i = view.nowIndex;
   assert.match(charts.tipText('temp', view, i, s), /^.*° · .* mm/);
   assert.doesNotMatch(charts.tipText('temp', view, i, s), /Sun|Mon/, 'no weekday in the tip');
   assert.doesNotMatch(charts.tipText('temp', view, i, s), /\d\d:\d\d/, 'no hour timestamp in the tip');
-  assert.equal(charts.readout('temp', view, i, s), 'Sun 12:00 · ' + charts.tipText('temp', view, i, s));
   assert.equal(charts.tipText('temp', view, 9999, s), '');
 });
 
@@ -345,15 +347,13 @@ test('the sun & moon panel spans the timeline with per-day rise/set labels', () 
     'the horizon hairline and the now line are the only lines');
 });
 
-test('readout lines carry weekday + every series at the index (the crosshair contract)', () => {
+test('tipText carries every series at the index, per panel (the crosshair contract)', () => {
   const view = charts.prepareView(fixtureData(), NOON);
   const s = { temperatureUnits: 'c', windUnits: 'kph' };
-  assert.match(charts.readout('temp', view, view.nowIndex, s), /^Sun 12:00 · .*° · .* mm/);
-  assert.match(charts.readout('wind', view, view.nowIndex, s), /km\/h/);
-  assert.match(charts.readout('hum', view, view.nowIndex, s), /% · .*° · dew/);
-  assert.match(charts.readout('press', view, view.nowIndex, s), /hPa/);
-  assert.match(charts.readout('temp', view, 36, s), /^Mon 12:00/, 'day 2 reads as its own weekday');
-  assert.equal(charts.readout('temp', view, 9999, s), '');
+  assert.match(charts.tipText('temp', view, view.nowIndex, s), /° · .* mm/);
+  assert.match(charts.tipText('wind', view, view.nowIndex, s), /km\/h/);
+  assert.match(charts.tipText('hum', view, view.nowIndex, s), /% · .*° · dew/);
+  assert.match(charts.tipText('press', view, view.nowIndex, s), /hPa/);
 });
 
 test('compass and tick helpers', () => {
@@ -400,20 +400,22 @@ test('the 5-day strip renders tappable day tiles with units honored and selectio
     'row ORDER pinned: the amount/icon row renders before the probability/hours row');
   assert.equal((html.match(/wx-day-sun/g) || []).length, 10,
     'a sun cell per row on every tile');
-  // Null-data tiles: the grid holds — both rows and their (empty) cells
-  // render, and a lone amount still renders bare.
+  // Null-data tiles: a column with NO data for the day is omitted, so the
+  // surviving column's cells span and center across the whole row; the
+  // rows themselves still render (min-height holds the tile's grid).
   const sparse = charts.dailyStripHtml([
     { date: view.daily[0].date, tmin: 10, tmax: 20, icon: 'clear', rainMm: 2, probMax: null, sunshineH: null },
     { date: view.daily[0].date + 86400000, tmin: null, tmax: null, icon: null, rainMm: null, probMax: null, sunshineH: null }
   ], {}, pal, 0, NOON, 0, 5);
   assert.equal((sparse.match(/wx-day-meta/g) || []).length, 4,
     'both meta rows render on sparse tiles');
-  assert.equal((sparse.match(/wx-day-sun/g) || []).length, 4,
-    'the sun cells too — empty, but holding the grid');
-  assert.match(sparse, /<span class="wx-day-sun"><\/span>/,
-    'a null sun renders an EMPTY cell, not a missing one');
-  assert.ok(sparse.indexOf('2 mm<') !== -1 && sparse.indexOf('mm ·') === -1,
-    'the amount renders bare, probability or not');
+  assert.equal((sparse.match(/wx-day-sun/g) || []).length, 0,
+    'no sun data → NO sun cells: the rain column owns the whole row');
+  assert.ok(sparse.indexOf('<span class="wx-day-meta"><span class="wx-day-wet">2 mm</span></span>') !== -1,
+    'a lone amount is the row\'s single cell — centered across the tile');
+  assert.match(sparse, /<span class="wx-day-meta"><\/span>/,
+    'an all-null tile keeps its empty rows — the grid holds');
+  assert.equal(sparse.indexOf('mm ·'), -1, 'the amount renders bare, probability or not');
   assert.ok(html.indexOf('21 Sep') !== -1, 'tiles carry their date beside the weekday');
   assert.equal(html.indexOf('20 Sep'), -1, 'Today stands alone, like the app');
   assert.equal((html.match(/data-action="wxShowDay"/g) || []).length, 5, 'five tappable tiles');

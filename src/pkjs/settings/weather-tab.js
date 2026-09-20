@@ -208,15 +208,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // --- graphs block -------------------------------------------------------------
 
     /**
-     * One panel wrapper: title, legend keys, readout row, chart body.
-     * @param {string} id Panel id.
+     * One panel wrapper: title, legend keys, chart body. No readout line
+     * under the title — the floating tip is the value surface, and the
+     * in-plot axes carry the scale.
      * @param {string} title Panel title.
      * @param {Array<Array<string>>} legend [label, color, kind('line'|'rect')] triples.
-     * @param {string} readoutText Default readout (the "now" values).
      * @param {string} body Chart viewport markup.
      * @returns {string} HTML.
      */
-    function panelHtml(id, title, legend, readoutText, body) {
+    function panelHtml(title, legend, body) {
         var h = '<div class="wx-panel">';
         h += '<div class="wx-panel-head"><span class="wx-panel-title">' + charts.esc(title) + '</span>';
         for (var i = 0; i < legend.length; i += 1) {
@@ -226,9 +226,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             h += '<span class="wx-key">' + mark + charts.esc(legend[i][0]) + '</span>';
         }
         h += '</div>';
-        if (readoutText) {
-            h += '<div class="wx-readout" id="wx-read-' + id + '">' + charts.esc(readoutText) + '</div>';
-        }
         return h + body + '</div>';
     }
 
@@ -291,25 +288,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         h += '<div class="wx-sticky">'
             + charts.dailyStripHtml(view.daily, settings, pal, view.offsetSec, Date.now(), panDay, view.days)
             + vp('strip', charts.timeStripSvg(view, loc, pal, sunCalcLib, idx)) + '</div>';
-        h += panelHtml('temp', 'Temperature & precipitation',
+        h += panelHtml('Temperature & precipitation',
             [['Temp', pal.temp, 'line'], ['Rain', pal.water, 'rect']],
-            charts.readout('temp', view, idx, settings),
             vp('temp', specs.temp));
-        h += panelHtml('wind', 'Wind & gusts · ' + model.windUnitLabel(settings),
+        h += panelHtml('Wind & gusts · ' + model.windUnitLabel(settings),
             [['Wind', pal.water, 'line'], ['Gusts', pal.gust, 'line']],
-            charts.readout('wind', view, idx, settings),
             vp('wind', specs.wind));
-        h += panelHtml('hum', 'Humidity & dew point',
+        h += panelHtml('Humidity & dew point',
             [['Humidity', pal.water, 'rect'], ['Temp', pal.temp, 'line'], ['Dew point', pal.dew, 'line']],
-            charts.readout('hum', view, idx, settings),
             vp('hum', specs.hum));
-        h += panelHtml('press', 'Pressure · hPa', [],
-            charts.readout('press', view, idx, settings),
+        h += panelHtml('Pressure · hPa', [],
             vp('press', specs.press));
         if (sunCalcLib) {
-            h += panelHtml('sun', 'Sun & moon',
+            h += panelHtml('Sun & moon',
                 [['Sun', pal.sun, 'line'], ['Moon', pal.faint, 'line']],
-                '',
                 vp('sun', charts.sunMoonPanelSvg(view, loc, pal, sunCalcLib)));
         }
         var providerLabel = fetchState.data && fetchState.data.meta ? fetchState.data.meta.provider : '';
@@ -389,7 +381,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Land the viewport on a day: apply the pan, re-mark the tiles, and —
-     * only when the day actually changed — re-anchor the readouts and
+     * only when the day actually changed — re-anchor the crosshair chip and
      * center the day strip (a same-day spring-back must not touch either).
      * Shared by the pan gesture's snap and the day-tile tap.
      * @param {number} d Target day (already clamped by the caller).
@@ -403,7 +395,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         interact.setPan(interact.panPct(d, days), true);
         syncDayCards();
         if (d !== before) {
-            syncReadouts();
+            syncAnchors();
             scrollDayStrip();
         }
     }
@@ -603,7 +595,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
 
     /**
-     * The readout index a freshly shown day rests on: "now" while today is
+     * The anchor index a freshly shown day rests on: "now" while today is
      * in the viewport, that day's noon otherwise.
      * @param {Object} view Prepared view.
      * @param {number} day Day index in the viewport.
@@ -618,13 +610,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Paint the shared crosshair state at one hour by direct DOM writes (no
-     * re-render): every panel's guideline and readout, a highlight dot on
-     * every line series (at the same y its path used — the scale comes from
-     * the panel's marks), the touched hour's bar lit, the floating value
-     * tip, and the hour strip's chip (moved to the hour, relabeled, its
-     * icon swapped to that hour's own glyph). `active` false is the parked
-     * state: guides, dots, lit bars and tips withdraw; readouts and the
-     * chip rest on the anchor hour.
+     * re-render): every panel's guideline, a highlight dot on every line
+     * series (at the same y its path used — the scale comes from the
+     * panel's marks), the touched hour's bar lit, the floating value tip,
+     * and the hour strip's chip (moved to the hour, relabeled, its icon
+     * swapped to that hour's own glyph). `active` false is the parked
+     * state: guides, dots, lit bars and tips withdraw; the chip rests on
+     * the anchor hour.
      * @param {number} i Hour index into the view.
      * @param {boolean} active True while a crosshair scrub is showing.
      * @returns {void}
@@ -642,8 +634,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 line.setAttribute('x1', active ? x : -10);
                 line.setAttribute('x2', active ? x : -10);
             }
-            var read = document.getElementById('wx-read-' + id);
-            if (read) { read.textContent = charts.readout(id, view, i, ctx.S); }
             var marks = panelMarks && panelMarks[id];
             if (!marks) { continue; }
             for (var m = 0; m < marks.lines.length; m += 1) {
@@ -682,21 +672,21 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (tip) {
                 var html = active ? charts.tipHtml(id, view, i, ctx.S) : '';
                 if (html) {
-                    // Fill and show first, THEN measure: the clamps need the
-                    // tip's real size, or it clips against the viewport's
-                    // overflow:hidden near the edges.
+                    // Fill and show first, THEN measure: the placement
+                    // below needs the tip's real rendered size.
                     tip.innerHTML = html;
                     tip.style.display = 'block';
-                    var vpEl = tip.parentNode;
-                    var vw = vpEl && vpEl.clientWidth;
-                    var vh = vpEl && vpEl.clientHeight;
+                    // The tip lives in the panel's .wx-bleed — the same
+                    // box as the viewport, but unclipped — so a negative
+                    // top simply hangs above the plot.
+                    var boxEl = tip.parentNode;
+                    var vw = boxEl && boxEl.clientWidth;
+                    var vh = boxEl && boxEl.clientHeight;
                     var crossPx = (x - panDay * charts.DAY_W) / charts.DAY_W * (vw || 0);
                     // A tap's release slop can round to an hour just past
                     // the visible day (scrubTo clamps i to the timeline,
-                    // not the day), putting the raw crosshair px outside
-                    // the viewport — clamp it first: the aside branch
-                    // below positions from it directly, without the
-                    // [half, vw-half] clamp the centered path applies.
+                    // not the day) — pull the crosshair px back into the
+                    // viewport before centering on it.
                     if (crossPx < 0) { crossPx = 0; }
                     if (vw && crossPx > vw) { crossPx = vw; }
                     var left = crossPx;
@@ -705,18 +695,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                         if (left < half) { left = half; }
                         if (left > vw - half) { left = vw - half; }
                     }
-                    // Anchor the tip just above the hour's TOPMOST point —
-                    // the highest dot or bar top (viewBox units → px via
-                    // the panel height the marks carry).
+                    // ALWAYS just above the hour's topmost mark — the
+                    // highest dot or bar top (viewBox units → px via the
+                    // panel height the marks carry). Near the plot top
+                    // the tip overflows the graph upward, over the title
+                    // row — allowed by design: it beats dodging sideways
+                    // or below, where it read as detached from the value.
                     var topSvg = null;
-                    var botSvg = null;
                     for (var t = 0; t < marks.lines.length; t += 1) {
                         var lt = marks.lines[t];
                         var lv = lt.vals[i];
                         if (lv !== null && lv !== undefined && lt.max > lt.min) {
                             var cy = marks.bottom - (lv - lt.min) / (lt.max - lt.min) * (marks.bottom - marks.top);
                             if (topSvg === null || cy < topSvg) { topSvg = cy; }
-                            if (botSvg === null || cy > botSvg) { botSvg = cy; }
                         }
                     }
                     var barTop = (marks.bar && marks.bar.tops
@@ -727,35 +718,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                     }
                     var topPx = 4;
                     if (vh && topSvg !== null && marks.H) {
-                        var anchorPx = topSvg / marks.H * vh;
-                        topPx = Math.round(anchorPx - tip.offsetHeight - 8);
-                        if (topPx < 2) {
-                            // No room above the topmost mark. The tip must
-                            // never sit BETWEEN the hour's marks (below the
-                            // top line it covers the lower line or bar):
-                            // step ASIDE instead — top edge, near edge kept
-                            // clear of the crosshair column (half a bar in
-                            // px at this viewport, plus air), right side
-                            // preferred. A wide tip near mid-viewport can
-                            // fit on neither side; then go BELOW all the
-                            // hour's marks — unless a bar (which reaches
-                            // the axis) or a near-bottom mark blocks that
-                            // too, which leaves the top-centered clamp as
-                            // the truly-last resort.
-                            topPx = 2;
-                            if (vw) {
-                                var clear = Math.round(charts.HOUR_W / 2 / charts.DAY_W * vw) + 4;
-                                var w = tip.offsetWidth;
-                                if (crossPx + clear + w <= vw - 2) {
-                                    left = crossPx + clear + w / 2;
-                                } else if (crossPx - clear - w >= 2) {
-                                    left = crossPx - clear - w / 2;
-                                } else if (barTop === null && botSvg !== null) {
-                                    var below = Math.round(botSvg / marks.H * vh + 10);
-                                    if (below + tip.offsetHeight <= vh - 2) { topPx = below; }
-                                }
-                            }
-                        }
+                        topPx = Math.round(topSvg / marks.H * vh - tip.offsetHeight - 8);
                     }
                     tip.style.left = vw ? Math.round(left) + 'px' : '50%';
                     tip.style.top = topPx + 'px';
@@ -812,11 +775,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * After the viewed day changes, drop the crosshair (its hour belongs to
-     * the previous day) and re-anchor every readout to the new day — direct
-     * DOM, like the pan itself.
+     * the previous day) and park the chip on the new day's anchor hour —
+     * direct DOM, like the pan itself.
      * @returns {void}
      */
-    function syncReadouts() {
+    function syncAnchors() {
         scrubIndex = null;
         var view = fetchState.view;
         if (!view) { return; }
@@ -880,10 +843,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Move the shared crosshair to the tapped hour and repaint every
-     * panel's scrub state (guideline, readout, dots, lit bar, value tip,
-     * strip chip) by direct DOM writes — no re-render. Values remain
-     * reachable without it — the readout defaults to "now" and the in-plot
-     * axes carry the scale.
+     * panel's scrub state (guideline, dots, lit bar, value tip, strip
+     * chip) by direct DOM writes — no re-render. The in-plot axes carry
+     * the scale, so the charts stay readable without a scrub.
      * @param {Element} svg The panel SVG under the pointer (the WIDE one).
      * @param {number} clientX Pointer x.
      * @returns {void}

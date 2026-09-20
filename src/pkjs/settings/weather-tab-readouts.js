@@ -1,8 +1,8 @@
 // src/pkjs/settings/weather-tab-readouts.js — the Weather tab's TEXT: the
 // tiny formatting helpers the charts share (fmt1/two/weekday/month names)
-// and the per-hour value strings — the readout row under each legend, the
-// floating tip's title-over-value columns, and the compass words. Pure
-// string builders over the prepared view; no DOM, no SVG. ES5, WebView.
+// and the per-hour value strings — the floating tip's title-over-value
+// columns and the compass words. Pure string builders over the prepared
+// view; no DOM, no SVG. ES5, WebView.
 /* global WeatherTabModel */
 (function () {
     'use strict';
@@ -124,23 +124,6 @@
         return '';
     }
 
-    /**
-     * The readout line for one panel at one index — weekday + hour, then
-     * the same values the floating tip shows (values stay reachable
-     * without tapping; the relief rule for the sub-3:1 series colors).
-     * @param {string} panel 'temp'|'wind'|'hum'|'press'.
-     * @param {Object} view Prepared view.
-     * @param {number} i Index into the view.
-     * @param {Object} settings Live settings (units).
-     * @returns {string} Plain text.
-     */
-    function readout(panel, view, i, settings) {
-        if (!view || i < 0 || i >= view.times.length) { return ''; }
-        return DAYS[model.localWeekday(view.times[i], view.offsetSec)] + ' '
-            + two(model.localHour(view.times[i], view.offsetSec)) + ':00 · '
-            + tipText(panel, view, i, settings);
-    }
-
     var api = {
         fmt1: fmt1,
         two: two,
@@ -149,8 +132,7 @@
         compass: compass,
         compassWord: compassWord,
         tipText: tipText,
-        tipHtml: tipHtml,
-        readout: readout
+        tipHtml: tipHtml
     };
 
     if (typeof module !== 'undefined' && module.exports) {

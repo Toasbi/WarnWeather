@@ -12,8 +12,8 @@
 // watch-imitating previewInk() canvas — with a series palette validated for
 // both page themes (dataviz six-checks validator, surfaces #3A3B3F dark /
 // #F4F5F7 light; the sub-3:1 dark orange/magenta carry the relief rule —
-// in-plot ticks, the readout row and the tap crosshair keep every value
-// reachable without color).
+// in-plot ticks and the tap crosshair keep every value reachable without
+// color).
 //
 // Geometry contract (weather-tab.js moves things by these rules):
 //   - one day = DAY_W (360) viewBox units; hour i sits at x = i · HOUR_W.
@@ -441,13 +441,17 @@
             h += '<svg class="wx-ax" viewBox="0 0 ' + DAY_W + ' ' + spec.H + '" width="100%" height="100%" '
                 + 'preserveAspectRatio="none">' + spec.overlay + '</svg>';
         }
+        h += '</div>';
         if (spec.tip) {
-            // The floating value tip: weather-tab.js fills, places and shows
-            // it while a crosshair scrub is active (.wx-vp is the positioned
-            // ancestor, so left is a % of the visible day).
+            // The floating value tip: weather-tab.js fills, places and
+            // shows it while a crosshair scrub is active. It sits in the
+            // BLEED box, not the viewport — same geometry (the vp is the
+            // bleed's only in-flow child), but the bleed doesn't clip, so
+            // the tip may hang above the plot; inside the vp its
+            // overflow:hidden would cut it at the top edge.
             h += '<div class="wx-tip" id="wx-tip-' + id + '"></div>';
         }
-        return h + '</div></div>';
+        return h + '</div>';
     }
 
     /**
@@ -961,15 +965,19 @@
                 + (offTimeline ? ' off' : '');
             // TWO fixed meta rows per tile (the app's layout): rain amount
             // left / sun icon right, then probability left / sun hours
-            // right. Every value gets its own cell, so the icon and hours
-            // never jump when a value is long or missing — empty cells
-            // hold the grid (min-height on the rows). Bare values, no
-            // separator dot after the amount: the cells are centered
-            // halves, where a trailing "·" drags the value off-center —
-            // and it made the widest realistic string ("1.5 mm ·")
-            // overflow its half on narrow phones.
+            // right, each value in its own equal-half cell so the columns
+            // never jump with the text length. A column whose data is
+            // MISSING for the whole day is omitted entirely — the
+            // surviving column's cells then span and center across the
+            // full row (a lone "2 mm" sits mid-tile, not mid-left-half);
+            // the rows' min-height still holds the grid on sparse tiles.
+            // Bare values, no separator dot after the amount: centered
+            // cells make a trailing "·" read off-center, and it made the
+            // widest realistic string overflow its half on narrow phones.
             var wetMm = d.rainMm === null ? '' : fmt1(d.rainMm) + ' mm';
             var wetProb = d.probMax === null ? '' : Math.round(d.probMax) + '%';
+            var wetCol = d.rainMm !== null || d.probMax !== null;
+            var sunCol = d.sunshineH !== null;
             h += '<button type="button" class="' + cls + '" data-action="wxShowDay" data-action-arg="' + i + '"'
                 + (offTimeline ? ' disabled' : '') + '>'
                 + '<span class="wx-day-head"><span class="wx-day-name">' + esc(name) + '</span>'
@@ -980,10 +988,14 @@
                 + '<span>' + (d.tmin === null ? '–' : Math.round(model.displayTemp(d.tmin, settings)) + '°') + '</span> '
                 + (d.tmax === null ? '–' : Math.round(model.displayTemp(d.tmax, settings)) + '°')
                 + '</span>'
-                + '<span class="wx-day-meta"><span class="wx-day-wet">' + wetMm + '</span>'
-                + '<span class="wx-day-sun">' + (d.sunshineH === null ? '' : '☀') + '</span></span>'
-                + '<span class="wx-day-meta"><span class="wx-day-wet">' + wetProb + '</span>'
-                + '<span class="wx-day-sun">' + (d.sunshineH === null ? '' : fmt1(d.sunshineH) + 'h') + '</span></span>'
+                + '<span class="wx-day-meta">'
+                + (wetCol ? '<span class="wx-day-wet">' + wetMm + '</span>' : '')
+                + (sunCol ? '<span class="wx-day-sun">☀</span>' : '')
+                + '</span>'
+                + '<span class="wx-day-meta">'
+                + (wetCol ? '<span class="wx-day-wet">' + wetProb + '</span>' : '')
+                + (sunCol ? '<span class="wx-day-sun">' + fmt1(d.sunshineH) + 'h</span>' : '')
+                + '</span>'
                 + '</button>';
         }
         return h + '</div>';
@@ -1016,8 +1028,7 @@
         compass: readouts.compass,
         compassWord: readouts.compassWord,
         tipText: readouts.tipText,
-        tipHtml: readouts.tipHtml,
-        readout: readouts.readout
+        tipHtml: readouts.tipHtml
     };
 
     if (typeof module !== 'undefined' && module.exports) {
