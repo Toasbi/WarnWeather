@@ -1992,6 +1992,10 @@ test('the Weather tab is display-only: its own keys, blocks, and no watch coupli
   const provider = byKey('graphsProvider');
   assert.equal(provider.defaultValue, 'auto');
   assert.equal(provider.optionsFrom.resolver, 'graphsProviderOptions');
+  // A keyed pick with its API key momentarily empty is dormant, not invalid:
+  // without this, one render while the key field is blank would snap the
+  // stored pick to 'auto' and a Save would persist the erasure.
+  assert.deepEqual(provider.dormantValues, ['openweathermap', 'tomorrowio']);
 
   assert.equal(byKey('graphsLocation').type, 'hidden');
   assert.equal(byKey('graphsLocation').defaultValue, 'current');

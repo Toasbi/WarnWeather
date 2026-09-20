@@ -96,9 +96,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // name (item.displayFrom: {resolver, args}); fn(S, env, args) returns the value to
   // PAINT while the stored value stays untouched, so a key that inherits its effective
   // value from a sibling can still show what it actually renders as. Read at render time,
-  // like the badge resolver. Only `color` reads it today (the graph night tint, which
-  // cascades from the fill colour at resolve time). Writes are unaffected: a control still
-  // stores under its own messageKey, so picking the shown value pins it.
+  // like the badge resolver. Two readers today: `color` items via displayFrom (the graph
+  // night tint, which cascades from the fill colour at resolve time; args get the item's
+  // messageKey merged under them) and collapsible sections via titleFrom (the collapsed
+  // card header's value; args pass through verbatim — sections have no messageKey).
+  // Writes are unaffected: a control still stores under its own messageKey, so picking
+  // the shown value pins it.
   PConf.displayResolvers = makeRegistry();
 
   // --- onChange registry --- a schema item opts into a post-change side effect by

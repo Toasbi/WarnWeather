@@ -1119,6 +1119,11 @@ module.exports = {
                 label: 'Data source',
                 defaultValue: 'auto',
                 optionsFrom: {resolver: 'graphsProviderOptions'},
+                // A keyed pick whose API key is momentarily empty (rotating a
+                // key) is DORMANT, not invalid: render the Auto fallback but
+                // keep the stored pick, so re-entering the key restores it
+                // instead of a render+Save silently erasing it to 'auto'.
+                dormantValues: ['openweathermap', 'tomorrowio'],
                 hint: 'Only for this tab’s graphs — the watchface keeps its own provider and location. Keyed providers appear once their API key is set.'
             }]
         }, {
