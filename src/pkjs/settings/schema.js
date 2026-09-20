@@ -830,7 +830,10 @@ module.exports = {
                     'bw-light': 'Renders exactly like a Black & White watch in its Light theme — black on white.'
                 },
                 options: [['Dark', 'dark'], ['Light', 'light'], ['B&W', 'bw'], ['B&W Inverted', 'bw-light']],
-                showWhen: {env: 'color'},
+                // Hidden while the automatic switch is on — the Day/Night pair
+                // below takes over (same messageKey, mutually-exclusive showWhen,
+                // the tomorrow.io key idiom).
+                showWhen: {all: [{env: 'color'}, {key: 'themeAuto', ne: true}]},
                 onChange: 'themeConvert'
             }, {
                 type: 'select',
@@ -846,8 +849,88 @@ module.exports = {
                 // theme sweep pushed the image past the 24 KB launch ceiling), so the
                 // picker is hidden there entirely; a choice would be a silent no-op.
                 // diorite/flint (also B&W) keep this 2-option slot.
-                showWhen: {all: [{not: {env: 'color'}}, {env: 'themePolarity'}]},
+                showWhen: {all: [{not: {env: 'color'}}, {env: 'themePolarity'}, {key: 'themeAuto', ne: true}]},
                 onChange: 'themeConvert'
+            }, {
+                type: 'toggle',
+                messageKey: 'themeAuto',
+                label: 'Automatic theme',
+                defaultValue: false,
+                // Same gate as the theme pickers: aplite has nothing to switch
+                // between (light polarity compiled out), so the feature hides there.
+                showWhen: {env: 'themePolarity'},
+                // First enable seeds Light day / Dark night (theme-convert.js).
+                onChange: 'themeAutoPreset',
+                hint: 'Switch between two themes automatically — with the sun or on a fixed schedule. The phone applies the switch, so it can land a little late while the watch is disconnected.'
+            }, {
+                // The Day/Night pair replaces the single Theme select while the
+                // automatic switch is on. `theme` doubles as the day theme, so
+                // turning the switch off simply keeps the day look.
+                type: 'select',
+                messageKey: 'theme',
+                label: 'Day theme',
+                defaultValue: 'dark',
+                options: [['Dark', 'dark'], ['Light', 'light'], ['B&W', 'bw'], ['B&W Inverted', 'bw-light']],
+                showWhen: {all: [{env: 'color'}, {key: 'themeAuto', eq: true}]},
+                onChange: 'themeConvert',
+                joinPrevious: true
+            }, {
+                type: 'select',
+                messageKey: 'theme',
+                label: 'Day theme',
+                defaultValue: 'dark',
+                options: [['Dark', 'dark'], ['Light', 'light']],
+                showWhen: {all: [{not: {env: 'color'}}, {env: 'themePolarity'}, {key: 'themeAuto', eq: true}]},
+                onChange: 'themeConvert',
+                joinPrevious: true
+            }, {
+                // No themeConvert here: the stored colour defaults track the DAY
+                // theme's polarity; the night flip converts a scratch copy at send
+                // time instead (theme-schedule.js).
+                type: 'select',
+                messageKey: 'themeNight',
+                label: 'Night theme',
+                defaultValue: 'dark',
+                options: [['Dark', 'dark'], ['Light', 'light'], ['B&W', 'bw'], ['B&W Inverted', 'bw-light']],
+                showWhen: {all: [{env: 'color'}, {key: 'themeAuto', eq: true}]},
+                joinPrevious: true
+            }, {
+                type: 'select',
+                messageKey: 'themeNight',
+                label: 'Night theme',
+                defaultValue: 'dark',
+                options: [['Dark', 'dark'], ['Light', 'light']],
+                showWhen: {all: [{not: {env: 'color'}}, {env: 'themePolarity'}, {key: 'themeAuto', eq: true}]},
+                joinPrevious: true
+            }, {
+                type: 'segmented',
+                messageKey: 'themeAutoMode',
+                label: 'Switch',
+                defaultValue: 'sun',
+                hintByValue: {
+                    sun: 'Day theme from sunrise to sunset, night theme after dark — at your weather location.',
+                    manual: 'Night theme between the hours below.'
+                },
+                options: [['Sunrise/sunset', 'sun'], ['Fixed hours', 'manual']],
+                showWhen: {key: 'themeAuto', eq: true},
+                joinPrevious: true
+            }, {
+                type: 'select',
+                messageKey: 'themeAutoStartHour',
+                label: 'Night from',
+                defaultValue: '20',
+                options: HOURS,
+                inline: 'themeAutoHours',
+                joinPrevious: true,
+                showWhen: {all: [{key: 'themeAuto', eq: true}, {key: 'themeAutoMode', eq: 'manual'}]}
+            }, {
+                type: 'select',
+                messageKey: 'themeAutoEndHour',
+                label: 'To',
+                defaultValue: '7',
+                options: HOURS,
+                inline: 'themeAutoHours',
+                showWhen: {all: [{key: 'themeAuto', eq: true}, {key: 'themeAutoMode', eq: 'manual'}]}
             }, {
                 type: 'toggle',
                 messageKey: 'sleepNightEnabled',

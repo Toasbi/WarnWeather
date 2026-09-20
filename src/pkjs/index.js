@@ -21,6 +21,9 @@ var pebbleColors = require('./pebble-colors.js');
 var releaseNotifications = require('./release-notifications.js');
 var updateCheckRunner = require('./update-check-runner.js');
 var sleepWindow = require('./sleep-window.js');
+var themeSchedule = require('./theme-schedule.js');
+var locationLib = require('./weather/location.js');
+var SunCalc = require('suncalc');
 var claySettings = require('./clay-settings.js');
 var clayMigrations = require('./clay-migrations.js');
 var fixtureWeather = require('./fixture-weather.js');
@@ -115,6 +118,12 @@ var scheduler = createChannelScheduler({
     clearClayCache: outbox.clearClayCache,
     clearWeatherCaches: outbox.clearWeatherCaches,
     clearNoticeOnWatch: function () { outbox.sendWeather({ NOTICE_TEXT: '' }); },
+    // Auto theme switch: null while off (the scheduler then never flip-sends);
+    // the tick compares this across minutes and resends Clay on a change.
+    effectiveThemeId: function () {
+        if (!app.settings || !app.settings.themeAuto) { return null; }
+        return themeSchedule.effectiveThemeId(app.settings, isNightForTheme());
+    },
     // Wrap the native timer: deps.setTimeout(...) would otherwise invoke it
     // with the deps object as receiver — WebView runtimes (WebIDL receiver
     // check) throw "Illegal invocation" for that; a plain call stays safe.
@@ -589,17 +598,76 @@ function refreshHolidays() {
 }
 
 /**
+ * Last known coordinates for the auto-theme sun clock, mirroring the fetch
+ * path's location precedence without touching the network: a manual "lat,lon"
+ * parses directly, a manual address reads the geocode cache (cleared on every
+ * location change, so a hit always matches), GPS reads the cached fix.
+ *
+ * @returns {?{lat: number, lon: number}} Coordinates, or null when none are known yet.
+ */
+function themeCoords() {
+    var parsed = locationLib.parseLocationOverride(app.settings ? app.settings.location : null);
+    var lat = null;
+    var lon = null;
+    if (parsed.type === 'manual_coordinates') {
+        lat = Number(parsed.latitude);
+        lon = Number(parsed.longitude);
+    } else if (parsed.type === 'manual_address') {
+        var geo = locationLib.readGeocodeCache(parsed.query);
+        if (geo) {
+            lat = Number(geo.lat);
+            lon = Number(geo.lon);
+        }
+    } else {
+        var fix = locationLib.readGpsCache();
+        if (fix) {
+            lat = fix.lat;
+            lon = fix.lon;
+        }
+    }
+    if (lat === null || lon === null || !isFinite(lat) || !isFinite(lon)) {
+        return null;
+    }
+    return { lat: lat, lon: lon };
+}
+
+/**
+ * Whether the automatic theme switch's night window is active right now.
+ * Sun times are computed locally (SunCalc — the same library the sun-events
+ * payload uses), so the verdict never goes stale between weather fetches;
+ * with no coordinates known yet, theme-schedule answers day.
+ *
+ * @returns {boolean} True when the night theme should be in effect.
+ */
+function isNightForTheme() {
+    var s = app.settings;
+    if (!s || !s.themeAuto) { return false; }
+    var sunTimes = null;
+    if ((s.themeAutoMode || 'sun') === 'sun') {
+        var coords = themeCoords();
+        if (coords) {
+            var times = SunCalc.getTimes(new Date(), coords.lat, coords.lon);
+            sunTimes = { sunrise: times.sunrise, sunset: times.sunset };
+        }
+    }
+    return themeSchedule.isNightNow(new Date(), s, sunTimes);
+}
+
+/**
  * Send the current Clay settings to the watch via the deduping outbox; the
  * send is skipped (and onSuccess still called) when the settings match the
  * last ACKed payload. Sleep state is not included here — it rides on the
- * weather messages instead.
+ * weather messages instead. The payload is built from the EFFECTIVE settings:
+ * while the auto theme switch's night window is active, a scratch copy carries
+ * the night theme so every colour resolves for it (theme-schedule.js).
  *
  * @param {Function} [onSuccess] Called after ACK, or immediately when unchanged.
  * @param {Function} [onFailure] Called on NACK.
  * @returns {void}
  */
 function sendClaySettings(onSuccess, onFailure) {
-    var payload = buildClayPayload(app.settings, app.watchInfo);
+    var effective = themeSchedule.effectiveSettings(app.settings, isNightForTheme());
+    var payload = buildClayPayload(effective, app.watchInfo);
     outbox.sendClay(payload, onSuccess, onFailure);
 }
 

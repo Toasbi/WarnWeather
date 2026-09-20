@@ -128,3 +128,38 @@ test('an absent bar mode is not invented by a polarity flip', () => {
   assert.equal('rainBarColor' in S, false);
   assert.equal('radarColor' in S, false);
 });
+
+// --- applyThemeAutoPreset: the themeAuto toggle's first-enable seeding -------
+const { applyThemeAutoPreset } = require('../src/pkjs/settings/theme-convert.js');
+
+test('first enable with identical picks seeds Light day / Dark night and converts defaults', () => {
+  const S = { theme: 'dark', themeNight: 'dark', colorTime: '#FFFFFF', rainBarColor: 'multicolor' };
+  applyThemeAutoPreset(S, false, true);
+  assert.equal(S.theme, 'light');
+  assert.equal(S.themeNight, 'dark');
+  assert.equal(S.colorTime, '#000000', 'the dark->light preset runs the manual-flip conversion');
+  assert.equal(S.rainBarColor, 'white');
+});
+
+test('enable with an already-differentiated pair changes nothing', () => {
+  const S = { theme: 'bw', themeNight: 'dark', colorTime: '#FFFFFF' };
+  applyThemeAutoPreset(S, false, true);
+  assert.equal(S.theme, 'bw');
+  assert.equal(S.themeNight, 'dark');
+  assert.equal(S.colorTime, '#FFFFFF');
+});
+
+test('enable while already on Light seeds only the night pick, no conversion', () => {
+  const S = { theme: 'light', themeNight: 'light', colorTime: '#000000' };
+  applyThemeAutoPreset(S, false, true);
+  assert.equal(S.theme, 'light');
+  assert.equal(S.themeNight, 'dark');
+  assert.equal(S.colorTime, '#000000');
+});
+
+test('disabling the switch never touches the pair', () => {
+  const S = { theme: 'light', themeNight: 'dark' };
+  applyThemeAutoPreset(S, true, false);
+  assert.equal(S.theme, 'light');
+  assert.equal(S.themeNight, 'dark');
+});

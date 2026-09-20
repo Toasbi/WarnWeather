@@ -70,6 +70,16 @@ const settingsSchema = z
     rainCountdownHorizon: z.number().int().min(0).optional(),
     sleepStartHour: z.number().int().min(0).max(23).optional(),
     sleepEndHour: z.number().int().min(0).max(23).optional(),
+    // The automatic day/night theme switch. z.string() for the theme id and
+    // mode (threshPhoneBatteryBoldMode's rule: an old blob may hold a value a
+    // newer picker no longer offers, and one cosmetic field must not reject
+    // the whole event). DEPLOY-ORDERING: ship this function before the app
+    // release that sends these, or the strip step drops them silently.
+    themeAuto: z.boolean().optional(),
+    themeNight: z.string().optional(),
+    themeAutoMode: z.string().optional(),
+    themeAutoStartHour: z.number().int().min(0).max(23).optional(),
+    themeAutoEndHour: z.number().int().min(0).max(23).optional(),
     axisTimeFormat: z.string().optional(),
     timeFont: z.string().optional(),
     timeLeadingZero: z.boolean().optional(),
