@@ -256,8 +256,9 @@ test('GPS jitter keeps the city name; a failed fix degrades to a plain refresh',
     tab.refreshWeather();
     gpsCb({ lat: 52.5206, lon: 13.4041 }, null);   // metres of drift
     tab.weatherGraphsBlock(state, {}, SEED);
-    assert.deepEqual(fetchCalls[1], [52.5206, 13.4041]);
-    assert.equal(tab._gpsSeed().name, 'Berlin', 'jitter keeps the seeded city name');
+    assert.deepEqual(fetchCalls[1], [52.52, 13.405],
+      'jitter never adopts coordinates — the fetch key stays stable, so the viewed day survives');
+    assert.equal(tab._gpsSeed(), null, 'no seed override for a same-place fix');
     assert.equal(revCalled, false, 'no reverse geocode for a same-place fix');
     respond(fixture(), null);
 
@@ -267,7 +268,98 @@ test('GPS jitter keeps the city name; a failed fix degrades to a plain refresh',
     gpsCb(null, 'denied');
     tab.weatherGraphsBlock(state, {}, SEED);
     assert.equal(fetchCalls.length, 3, 'a failed fix still refreshes');
-    assert.deepEqual(fetchCalls[2], [52.5206, 13.4041], 'at the previous coordinates');
+    assert.deepEqual(fetchCalls[2], [52.52, 13.405], 'at the previous coordinates');
+  } finally {
+    data.fetchWeather = realFetch;
+    data.getGpsFix = realGps;
+    data.reverseGeocode = realRev;
+    tab._resetState();
+  }
+});
+
+test('a pending city lookup survives a jitter refresh, and a failed one is retried', () => {
+  tab._resetState();
+  let respond = null;
+  let gpsCb = null;
+  const revCbs = [];
+  const realFetch = data.fetchWeather;
+  const realGps = data.getGpsFix;
+  const realRev = data.reverseGeocode;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { respond = cb; };
+  data.getGpsFix = (cb) => { gpsCb = cb; };
+  data.reverseGeocode = (lat, lon, cb) => { revCbs.push(cb); };
+  try {
+    const state = { graphsLocation: 'current' };
+    tab._setCtx({ S: state, USERDATA: SEED, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond(fixture(), null);
+
+    // Far move: one lookup starts; the weather refetch completes first.
+    tab.refreshWeather();
+    gpsCb({ lat: 53.55, lon: 9.99 }, null);
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond(fixture(), null);
+    assert.equal(revCbs.length, 1);
+
+    // A same-place refresh while the lookup is still in flight must neither
+    // duplicate it nor orphan it: the answer still labels the chip.
+    tab.refreshWeather();
+    gpsCb({ lat: 53.5504, lon: 9.9903 }, null);
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond(fixture(), null);
+    assert.equal(revCbs.length, 1, 'no duplicate lookup while one is pending');
+    revCbs[0]('Hamburg', null);
+    assert.equal(tab._gpsSeed().name, 'Hamburg', 'the pending answer still lands');
+
+    // Failure path: another far move whose lookup dies — the next
+    // same-place refresh retries instead of stranding the placeholder.
+    tab.refreshWeather();
+    gpsCb({ lat: 48.14, lon: 11.58 }, null);
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond(fixture(), null);
+    assert.equal(revCbs.length, 2);
+    revCbs[1](null, 'network');
+    assert.equal(tab._gpsSeed().name, 'Current location');
+    tab.refreshWeather();
+    gpsCb({ lat: 48.1402, lon: 11.5803 }, null);
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond(fixture(), null);
+    assert.equal(revCbs.length, 3, 'the placeholder name is retried on the next refresh');
+    revCbs[2]('Munich', null);
+    assert.equal(tab._gpsSeed().name, 'Munich');
+  } finally {
+    data.fetchWeather = realFetch;
+    data.getGpsFix = realGps;
+    data.reverseGeocode = realRev;
+    tab._resetState();
+  }
+});
+
+test('moveKm wraps the antimeridian: Fiji-side jitter is not a far move', () => {
+  tab._resetState();
+  const fetchCalls = [];
+  let respond = null;
+  let gpsCb = null;
+  let revCalled = false;
+  const realFetch = data.fetchWeather;
+  const realGps = data.getGpsFix;
+  const realRev = data.reverseGeocode;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { fetchCalls.push([lat, lon]); respond = cb; };
+  data.getGpsFix = (cb) => { gpsCb = cb; };
+  data.reverseGeocode = () => { revCalled = true; };
+  try {
+    const FIJI = { graphsSeed: { lat: -16.8, lon: 179.995, name: 'Taveuni' } };
+    const state = { graphsLocation: 'current' };
+    tab._setCtx({ S: state, USERDATA: FIJI, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, FIJI);
+    respond(fixture(), null);
+
+    tab.refreshWeather();
+    gpsCb({ lat: -16.8, lon: -179.995 }, null);   // ~2 km around the date line
+    tab.weatherGraphsBlock(state, {}, FIJI);
+    assert.equal(tab._gpsSeed(), null, 'a date-line crossing of metres stays jitter');
+    assert.equal(revCalled, false);
+    assert.deepEqual(fetchCalls[1], [-16.8, 179.995]);
   } finally {
     data.fetchWeather = realFetch;
     data.getGpsFix = realGps;

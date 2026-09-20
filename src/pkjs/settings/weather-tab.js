@@ -293,6 +293,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             // touch path; this link is the visible (and mouse) affordance.
             + (refetching ? '' : ' · <button type="button" class="wx-refresh" data-action="wxRefreshWeather">Refresh</button>')
             + '</div>';
+        // A render rebuilds the scrollable day strip at scrollLeft 0 — put
+        // the selected day back in view once this markup is in the DOM.
+        if (typeof document !== 'undefined' && typeof setTimeout !== 'undefined') {
+            setTimeout(scrollDayStrip, 0);
+        }
         // Refetch keeps the frame: the previous charts stay up, dimmed, while
         // the new location/provider loads — never a skeleton flash.
         return refetching ? '<div style="opacity:0.55">' + h + '</div>' : h;
@@ -369,23 +374,33 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.wx-pan{position:absolute;top:0;left:0;height:100%;}'
         + '.wx-ax{position:absolute;top:0;left:0;pointer-events:none;}'
         // Day tiles are the day selector: tap jumps the panels to that day.
-        + '.wx-days{display:flex;gap:6px;margin-top:6px;}'
+        // App-style wide tiles in a horizontally scrollable row (~2.5 tiles
+        // per viewport); position:relative makes the row the tiles'
+        // offsetParent so scrollDayStrip can center the selection.
+        + '.wx-days{display:flex;gap:6px;margin-top:6px;position:relative;'
+        + 'overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}'
+        + '.wx-days::-webkit-scrollbar{display:none;}'
         // Every tile carries a transparent border so selecting one (border
         // turns accent-colored) never shifts the row's layout. A full accent
         // fill read too heavy next to the charts — the border is the marker.
-        + '.wx-day{flex:1;display:block;min-width:0;background:var(--ctl);'
+        + '.wx-day{flex:0 0 auto;width:38%;min-width:126px;box-sizing:border-box;'
+        + 'display:block;background:var(--ctl);'
         + 'border:1.5px solid transparent;border-radius:12px;'
-        + 'padding:8px 2px;text-align:center;font:inherit;color:var(--fg);cursor:pointer;}'
+        + 'padding:8px 6px;text-align:center;font:inherit;color:var(--fg);cursor:pointer;}'
         + '.wx-day.today{outline:1px solid var(--card-line);}'
         + '.wx-day.sel{border-color:var(--link);}'
         + '.wx-day.sel .wx-day-name{color:var(--link);}'
         + '.wx-day.off{opacity:0.4;cursor:default;}'
-        + '.wx-day-name{display:block;font-size:11px;font-weight:600;color:var(--lbl);}'
+        + '.wx-day-head{display:block;font-size:11px;}'
+        + '.wx-day-name{font-weight:600;color:var(--lbl);}'
+        + '.wx-day-date{color:var(--muted);}'
         + '.wx-day-icon{display:block;margin:4px 0 2px;min-height:26px;}'
         + '.wx-day-temp{display:block;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;}'
         + '.wx-day-temp span{color:var(--muted);font-weight:400;}'
-        + '.wx-day-meta{display:block;font-size:10px;color:var(--muted);margin-top:2px;min-height:12px;font-variant-numeric:tabular-nums;}'
-        + '.wx-day-meta span{color:var(--hint);}'
+        // One meta row: precipitation (mm · %) left, sun hours right.
+        + '.wx-day-meta{display:flex;justify-content:space-between;gap:6px;padding:0 4px;'
+        + 'font-size:10px;color:var(--muted);margin-top:2px;min-height:12px;font-variant-numeric:tabular-nums;}'
+        + '.wx-day-sun{color:var(--hint);}'
         + '.wx-foot{color:var(--hint);font-size:11px;margin-top:2px;}'
         + '.wx-refresh{background:none;border:none;padding:0;font:inherit;font-size:11px;'
         + 'color:var(--link);cursor:pointer;}'
@@ -485,8 +500,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Straight-line distance between two coordinates, equirectangular —
-     * plenty at the "did the phone leave town?" scale this gates.
+     * Straight-line distance between two coordinates, equirectangular with
+     * the longitude difference wrapped across the antimeridian — plenty at
+     * the "did the phone leave town?" scale this gates.
      * @param {number} aLat First latitude.
      * @param {number} aLon First longitude.
      * @param {number} bLat Second latitude.
@@ -494,35 +510,63 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {number} Kilometres.
      */
     function moveKm(aLat, aLon, bLat, bLon) {
+        var dLonDeg = bLon - aLon;
+        if (dLonDeg > 180) { dLonDeg -= 360; }
+        if (dLonDeg < -180) { dLonDeg += 360; }
         var dLat = (bLat - aLat) * 111.32;
-        var dLon = (bLon - aLon) * 111.32 * Math.cos((aLat + bLat) * Math.PI / 360);
+        var dLon = dLonDeg * 111.32 * Math.cos((aLat + bLat) * Math.PI / 360);
         return Math.sqrt(dLat * dLat + dLon * dLon);
     }
 
     // Beyond this, the seed's city name is presumed stale along with its coords.
     var NAME_STALE_KM = 2;
+    var GENERIC_NAME = 'Current location';
+    var revFor = null;   // the gpsSeed a city lookup is in flight for
 
     /**
-     * Adopt a fresh device fix as the Current seed. Within NAME_STALE_KM of
-     * the previous seed the city name is kept (GPS jitter); farther, it is
-     * reset to the generic label and a reverse geocode (the phone side's own
-     * ArcGIS endpoint) repaints it with the real city when it answers.
+     * One in-flight city lookup for an adopted fix (the phone side's own
+     * ArcGIS endpoint): relabels the Current chip in place when it answers.
+     * The seed's OBJECT IDENTITY is the token — a later far move replaces
+     * the object, so a stale answer can never label the wrong place, while
+     * same-place refreshes keep the object and the pending answer still
+     * lands.
+     * @param {{lat: number, lon: number, name: string}} seed The gpsSeed to label.
+     * @returns {void}
+     */
+    function requestCityName(seed) {
+        revFor = seed;
+        data.reverseGeocode(seed.lat, seed.lon, function (city) {
+            if (revFor === seed) { revFor = null; }
+            if (city && gpsSeed === seed) {
+                seed.name = city;
+                if (ctx) { ctx.render(); }
+            }
+        });
+    }
+
+    /**
+     * Adopt a fresh device fix as the Current seed — but only a REAL move
+     * (beyond NAME_STALE_KM). Metres of GPS jitter neither move the seed nor
+     * rename it: keeping the previous coordinates keeps the fetch key stable
+     * (the refetch stays same-key, so the viewed day survives a stationary
+     * refresh) and pins the staleness baseline to the last adopted position
+     * instead of letting it creep fix by fix. A far move resets the name to
+     * the generic label and asks the reverse geocoder for the city; if that
+     * one lookup failed, the next same-place refresh retries it — the
+     * placeholder never sticks for the whole page session.
      * @param {{lat: number, lon: number}} fix Device coordinates.
      * @returns {void}
      */
     function applyGpsFix(fix) {
         var prev = seedOf(ctx && ctx.USERDATA);
-        var moved = !prev || moveKm(prev.lat, prev.lon, fix.lat, fix.lon) > NAME_STALE_KM;
-        gpsSeed = { lat: fix.lat, lon: fix.lon, name: moved ? 'Current location' : prev.name };
-        if (!moved) { return; }
-        var token = gpsSeed;
-        data.reverseGeocode(fix.lat, fix.lon, function (city) {
-            // Only label the fix it was asked about — a later fix wins.
-            if (city && gpsSeed === token) {
-                gpsSeed = { lat: fix.lat, lon: fix.lon, name: city };
-                if (ctx) { ctx.render(); }
+        if (prev && moveKm(prev.lat, prev.lon, fix.lat, fix.lon) <= NAME_STALE_KM) {
+            if (gpsSeed && gpsSeed.name === GENERIC_NAME && revFor !== gpsSeed) {
+                requestCityName(gpsSeed);
             }
-        });
+            return;
+        }
+        gpsSeed = { lat: fix.lat, lon: fix.lon, name: GENERIC_NAME };
+        requestCityName(gpsSeed);
     }
 
     /**
@@ -668,6 +712,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
+     * Center the selected day tile in the strip's scroll window. The 5-day
+     * row scrolls horizontally (app-style wide tiles), so a re-render (which
+     * resets scrollLeft) or a day change re-centers the selection.
+     * @returns {void}
+     */
+    function scrollDayStrip() {
+        if (typeof document === 'undefined' || !document.querySelector) { return; }
+        var row = document.querySelector('.wx-days');
+        if (!row) { return; }
+        var sel = row.querySelector('.wx-day.sel') || row.querySelector('.wx-day.today');
+        if (!sel || !row.clientWidth) { return; }
+        var target = sel.offsetLeft - (row.clientWidth - sel.offsetWidth) / 2;
+        if (target < 0) { target = 0; }
+        row.scrollLeft = target;
+    }
+
+    /**
      * Re-mark the day tiles after a pan (direct DOM — no re-render).
      * @returns {void}
      */
@@ -682,6 +743,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (on && !has) { el.className = el.className + ' sel'; }
             if (!on && has) { el.className = name.replace(' sel ', ' ').replace(/^\s+|\s+$/g, ''); }
         }
+        scrollDayStrip();
     }
 
     var gesture = null;
@@ -1044,6 +1106,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 scrubIndex = null;
                 panDay = 0;
                 gpsSeed = null;
+                revFor = null;
             }
         };
     }

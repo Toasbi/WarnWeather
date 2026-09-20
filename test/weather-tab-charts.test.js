@@ -66,6 +66,9 @@ test('every hourly panel spec renders without NaN and carries its scrub anchor',
     assert.ok(spec.H > 0, id + ' declares its height');
     assert.equal(spec.main.indexOf('NaN'), -1, id + ' has no NaN coordinates');
     assert.ok(spec.main.indexOf('wx-scrub-' + id) !== -1, id + ' carries its crosshair guideline');
+    assert.equal(spec.main.indexOf(pal.grid), -1, id + ' panning layer draws no gridlines');
+    assert.equal((spec.main.match(/<line /g) || []).length, 2,
+      id + ' verticals: only the now line and the tap crosshair');
     const html = charts.viewportHtml(id, spec, view, 0);
     assert.ok(html.indexOf('data-wxvp="' + id + '"') !== -1, id + ' viewport is pan-targetable');
     assert.ok(html.indexOf('data-wxchart="' + id + '"') !== -1, id + ' canvas is scrub-targetable');
@@ -97,7 +100,11 @@ test('the hour strip carries the shared time axis, weekday markers and the Measu
   const spec = charts.timeStripSvg(view, LOC, charts.palette(false), SunCalc);
   assert.equal(spec.main.indexOf('NaN'), -1);
   assert.ok(spec.main.indexOf('03:00') !== -1, 'hour labels every 3 h');
-  assert.ok(spec.main.indexOf('Measured') !== -1 && spec.main.indexOf('Forecast') !== -1);
+  assert.ok(spec.bandH > 0 && spec.H > spec.bandH, 'the caption zone lives below the band');
+  assert.match(spec.main, new RegExp('y="' + (spec.bandH - 6) + '"[^>]*>03:00'),
+    'hour labels sit INSIDE the band, along its lower edge');
+  assert.match(spec.main, /y="56"[^>]*>Measured</, 'Measured caption below the band');
+  assert.match(spec.main, /y="56"[^>]*>Forecast</, 'Forecast caption below the band');
   assert.ok(spec.main.indexOf('>Sun<') !== -1 && spec.main.indexOf('>Mon<') !== -1,
     'each midnight is marked with its weekday');
   const noShade = charts.timeStripSvg(view, LOC, charts.palette(false), null);
@@ -106,11 +113,15 @@ test('the hour strip carries the shared time axis, weekday markers and the Measu
 
 test('the sun & moon panel spans the timeline with per-day rise/set labels', () => {
   const view = charts.prepareView(fixtureData(), NOON);
-  const spec = charts.sunMoonPanelSvg(view, LOC, charts.palette(false), SunCalc);
+  const pal = charts.palette(false);
+  const spec = charts.sunMoonPanelSvg(view, LOC, pal, SunCalc);
   assert.equal(spec.main.indexOf('NaN'), -1);
   assert.ok(/\d\d:\d\d/.test(spec.main), 'rise/set times render');
   assert.ok((spec.main.match(/☀ \d\d:\d\d/g) || []).length >= view.days,
     'every day gets its sunrise label');
+  assert.equal(spec.main.indexOf(pal.grid), -1, 'no dropped guide lines — labels only');
+  assert.equal((spec.main.match(/<line /g) || []).length, 2,
+    'the horizon hairline and the now line are the only lines');
 });
 
 test('readout lines carry weekday + every series at the index (the crosshair contract)', () => {
@@ -151,8 +162,12 @@ test('the 5-day strip renders tappable day tiles with units honored and selectio
   assert.ok(html.indexOf('Today') !== -1);
   assert.ok(html.indexOf('68°') !== -1, 'tmax 20°C renders as 68°F');
   assert.ok(html.indexOf('50°') < html.indexOf('68°'), 'low renders before high');
-  assert.equal((html.match(/wx-day-meta/g) || []).length, 15,
-    'mm, probability and sun hours each hold their own line in every tile (aligned rows)');
+  assert.equal((html.match(/wx-day-meta/g) || []).length, 5,
+    'ONE meta row per tile: mm and probability share it, sun hours on its right');
+  assert.ok(html.indexOf('1 mm · 20%') !== -1, 'precip amount and probability share one line');
+  assert.ok(html.indexOf('☀ 1.5h') !== -1, 'sun hours ride the same row');
+  assert.ok(html.indexOf('21 Sep') !== -1, 'tiles carry their date beside the weekday');
+  assert.equal(html.indexOf('20 Sep'), -1, 'Today stands alone, like the app');
   assert.equal((html.match(/data-action="wxShowDay"/g) || []).length, 5, 'five tappable tiles');
   assert.ok(/wx-day[^"]*sel/.test(html), 'the viewed day is marked');
   assert.equal((html.match(/disabled/g) || []).length, 2, 'days past the 3-day timeline are dimmed off');

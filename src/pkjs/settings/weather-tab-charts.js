@@ -89,6 +89,7 @@
     }
 
     var DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
     /**
      * Clean y-axis ticks across [min, max].
@@ -259,9 +260,10 @@
     }
 
     /**
-     * Shared canvas frame (PANNING layer): the past-hours wash, faint 6 h
-     * verticals, stronger day separators at each midnight, and the now
-     * hairline — everything that must travel with the series.
+     * Shared canvas frame (PANNING layer): the past-hours wash and the now
+     * hairline — everything that must travel with the series. Deliberately
+     * NO hour/day gridlines: the only verticals a panel may show are the
+     * now line and the tap crosshair (scrubLine), like the app.
      * @param {Object} view Prepared view.
      * @param {Object} pal Palette.
      * @param {number} top Plot top y.
@@ -274,12 +276,6 @@
         if (nx > 2) {
             s += '<rect x="0" y="' + top + '" width="' + nx.toFixed(1) + '" height="' + (bottom - top)
                 + '" fill="' + pal.past + '"/>';
-        }
-        for (var i = 6; i < view.times.length; i += 6) {
-            var x = xAt(view, i);
-            var day = i % 24 === 0;
-            s += '<line x1="' + x + '" y1="' + top + '" x2="' + x + '" y2="' + bottom
-                + '" stroke="' + (day ? pal.axis : pal.grid) + '" stroke-width="1"/>';
         }
         s += '<line x1="' + nx.toFixed(1) + '" y1="' + top + '" x2="' + nx.toFixed(1) + '" y2="' + bottom
             + '" stroke="' + pal.ink + '" stroke-width="1.2" opacity="0.55"/>';
@@ -568,8 +564,14 @@
      * @returns {{main: string, overlay: ?string, H: number}} Panel spec.
      */
     function timeStripSvg(view, loc, pal, SunCalcLib) {
-        var H = 64;
-        var rulerY = 44;
+        // The app's stripe layout, top to bottom: a shaded BAND holding the
+        // condition icons and the hour labels, then the tick ruler on its
+        // lower edge, then the Measured|Forecast caption BELOW the band on
+        // the page background.
+        var BAND_H = 40;
+        var H = 62;
+        var hourY = BAND_H - 6;
+        var captionY = 56;
         var s = '';
         var xFor = function (ms) { return (ms - view.dayStartMs) / 3600000 * HOUR_W; };
         var d, x;
@@ -583,17 +585,17 @@
                 var set = st.sunset && !isNaN(st.sunset.getTime()) ? st.sunset.getTime() : null;
                 if (rise !== null && rise > dayStart) {
                     s += '<rect x="' + xFor(dayStart).toFixed(1) + '" y="0" width="'
-                        + (xFor(rise) - xFor(dayStart)).toFixed(1) + '" height="' + rulerY + '" fill="' + pal.night + '"/>';
+                        + (xFor(rise) - xFor(dayStart)).toFixed(1) + '" height="' + BAND_H + '" fill="' + pal.night + '"/>';
                 }
                 if (set !== null && set < dayStart + 86400000) {
                     s += '<rect x="' + xFor(set).toFixed(1) + '" y="0" width="'
-                        + (xFor(dayStart + 86400000) - xFor(set)).toFixed(1) + '" height="' + rulerY + '" fill="' + pal.night + '"/>';
+                        + (xFor(dayStart + 86400000) - xFor(set)).toFixed(1) + '" height="' + BAND_H + '" fill="' + pal.night + '"/>';
                 }
             }
         }
         var nx = nowX(view);
         if (nx > 2) {
-            s += '<rect x="0" y="0" width="' + nx.toFixed(1) + '" height="' + rulerY + '" fill="' + pal.past + '"/>';
+            s += '<rect x="0" y="0" width="' + nx.toFixed(1) + '" height="' + BAND_H + '" fill="' + pal.past + '"/>';
         }
         // Condition icons every 3 h (midnights skipped — the weekday marker
         // sits there).
@@ -601,36 +603,42 @@
             if (i % 24 === 0) { continue; }
             var id = view.icon[i];
             if (!id) { continue; }
-            s += iconGlyph(id, xAt(view, i), 10, 17, pal);
+            s += iconGlyph(id, xAt(view, i), 5, 17, pal);
         }
         // Weekday marker at each midnight.
         for (d = 0; d < view.days; d += 1) {
             var wd = DAYS[model.localWeekday(view.dayStartMs + d * 86400000 + 43200000, view.offsetSec)];
-            s += '<text x="' + (d * DAY_W + 4) + '" y="16" font-size="8" font-weight="700" fill="'
+            s += '<text x="' + (d * DAY_W + 4) + '" y="14" font-size="8" font-weight="700" fill="'
                 + pal.muted + '">' + esc(wd) + '</text>';
         }
-        // Measured | Forecast split (the app's Messwerte|Prognose).
-        if (nx > 58) {
-            s += '<text x="' + (nx - 5).toFixed(1) + '" y="38" text-anchor="end" font-size="7.5" fill="'
-                + pal.muted + '">Measured</text>';
+        // Hour labels INSIDE the band, along its lower edge (the app's look).
+        for (i = 0; i < view.times.length; i += 1) {
+            x = xAt(view, i);
+            if (i % 3 === 0) {
+                s += '<text x="' + x + '" y="' + hourY + '" text-anchor="middle" font-size="7.5" '
+                    + 'font-weight="600" fill="' + pal.ink + '">'
+                    + two(model.localHour(view.times[i], view.offsetSec)) + ':00</text>';
+            }
         }
-        s += '<text x="' + (nx + 5).toFixed(1) + '" y="38" font-size="7.5" fill="' + pal.muted + '">Forecast</text>';
-        s += '<line x1="' + nx.toFixed(1) + '" y1="0" x2="' + nx.toFixed(1) + '" y2="' + (rulerY + 5)
-            + '" stroke="' + pal.ink + '" stroke-width="1.2" opacity="0.55"/>';
-        // Ruler + hour labels.
-        s += '<line x1="0" y1="' + rulerY + '" x2="' + (view.days * DAY_W) + '" y2="' + rulerY
+        // Tick ruler on the band's lower edge.
+        s += '<line x1="0" y1="' + BAND_H + '" x2="' + (view.days * DAY_W) + '" y2="' + BAND_H
             + '" stroke="' + pal.axis + '" stroke-width="1"/>';
         for (i = 0; i < view.times.length; i += 1) {
             x = xAt(view, i);
-            var major = i % 3 === 0;
-            s += '<line x1="' + x + '" y1="' + rulerY + '" x2="' + x + '" y2="' + (rulerY + (major ? 5 : 3))
+            s += '<line x1="' + x + '" y1="' + BAND_H + '" x2="' + x + '" y2="' + (BAND_H + (i % 3 === 0 ? 5 : 3))
                 + '" stroke="' + pal.axis + '" stroke-width="1"/>';
-            if (major) {
-                s += '<text x="' + x + '" y="' + (H - 4) + '" text-anchor="middle" font-size="7.5" fill="'
-                    + pal.faint + '">' + two(model.localHour(view.times[i], view.offsetSec)) + ':00</text>';
-            }
         }
-        return { main: s, overlay: null, H: H };
+        // Measured | Forecast split (the app's Messwerte|Prognose) BELOW the
+        // band, flanking the now line.
+        if (nx > 58) {
+            s += '<text x="' + (nx - 5).toFixed(1) + '" y="' + captionY + '" text-anchor="end" font-size="7.5" fill="'
+                + pal.muted + '">Measured</text>';
+        }
+        s += '<text x="' + (nx + 5).toFixed(1) + '" y="' + captionY + '" font-size="7.5" fill="'
+            + pal.muted + '">Forecast</text>';
+        s += '<line x1="' + nx.toFixed(1) + '" y1="0" x2="' + nx.toFixed(1) + '" y2="' + (captionY + 2)
+            + '" stroke="' + pal.ink + '" stroke-width="1.2" opacity="0.55"/>';
+        return { main: s, overlay: null, H: H, bandH: BAND_H };
     }
 
     /**
@@ -676,14 +684,13 @@
             var shifted = new Date(dte.getTime() + off * 1000);
             return two(shifted.getUTCHours()) + ':' + two(shifted.getUTCMinutes());
         };
+        // Label only — no dropped guide line: the panels keep verticals to
+        // the now line and the crosshair, and the label's x IS the event.
         var mark = function (ms, label, yText, anchorEnd) {
             var x = xFor(ms);
-            var r = '<line x1="' + x.toFixed(1) + '" y1="' + (yText + 3) + '" x2="' + x.toFixed(1) + '" y2="' + horizon
-                + '" stroke="' + pal.grid + '" stroke-width="1" stroke-dasharray="2 3"/>';
-            r += '<text x="' + (anchorEnd ? x - 3 : x + 3).toFixed(1) + '" y="' + yText
+            return '<text x="' + (anchorEnd ? x - 3 : x + 3).toFixed(1) + '" y="' + yText
                 + '"' + (anchorEnd ? ' text-anchor="end"' : '') + ' font-size="7.5" fill="' + pal.muted + '">'
                 + esc(label) + '</text>';
-            return r;
         };
         for (var d = 0; d < view.days; d += 1) {
             var noon = view.dayStartMs + d * 86400000 + 43200000;
@@ -829,23 +836,29 @@
             // midday stamps — the range check absorbs both).
             var isToday = d.date >= todayStartMs && d.date < todayStartMs + 86400000;
             var name = isToday ? 'Today' : DAYS[model.localWeekday(d.date, off)];
+            // The date beside the weekday (the app's "Sa 19. Sept."), on the
+            // LOCATION's calendar; Today stands alone, like the app's Heute.
+            var shifted = new Date(d.date + off * 1000);
+            var dateLabel = isToday ? '' : shifted.getUTCDate() + ' ' + MONTHS[shifted.getUTCMonth()];
             var offTimeline = i >= max;
             var cls = 'wx-day' + (isToday ? ' today' : '') + (i === sel && !offTimeline ? ' sel' : '')
                 + (offTimeline ? ' off' : '');
+            // Precipitation amount + probability share one line (left), sun
+            // hours sit on its right — one meta row per tile, app-style.
+            var wet = (d.rainMm === null ? '' : fmt1(d.rainMm) + ' mm')
+                + (d.probMax === null ? '' : (d.rainMm === null ? '' : ' · ') + Math.round(d.probMax) + '%');
             h += '<button type="button" class="' + cls + '" data-action="wxShowDay" data-action-arg="' + i + '"'
                 + (offTimeline ? ' disabled' : '') + '>'
-                + '<span class="wx-day-name">' + esc(name) + '</span>'
+                + '<span class="wx-day-head"><span class="wx-day-name">' + esc(name) + '</span>'
+                + (dateLabel ? ' <span class="wx-day-date">' + esc(dateLabel) + '</span>' : '') + '</span>'
                 + '<span class="wx-day-icon">' + (d.icon ? iconSvg(d.icon, 26, pal) : '') + '</span>'
-                // Low before high (the user's reading order), and every meta
-                // value on a line of its own — mm, then probability, then sun
-                // hours — so the rows align across all five tiles.
+                // Low before high (the user's reading order).
                 + '<span class="wx-day-temp">'
                 + '<span>' + (d.tmin === null ? '–' : Math.round(model.displayTemp(d.tmin, settings)) + '°') + '</span> '
                 + (d.tmax === null ? '–' : Math.round(model.displayTemp(d.tmax, settings)) + '°')
                 + '</span>'
-                + '<span class="wx-day-meta">' + (d.rainMm === null ? '' : fmt1(d.rainMm) + ' mm') + '</span>'
-                + '<span class="wx-day-meta">' + (d.probMax === null ? '' : '<span>' + Math.round(d.probMax) + '%</span>') + '</span>'
-                + '<span class="wx-day-meta">' + (d.sunshineH === null ? '' : '☀ ' + fmt1(d.sunshineH) + 'h') + '</span>'
+                + '<span class="wx-day-meta"><span class="wx-day-wet">' + wet + '</span>'
+                + '<span class="wx-day-sun">' + (d.sunshineH === null ? '' : '☀ ' + fmt1(d.sunshineH) + 'h') + '</span></span>'
                 + '</button>';
         }
         return h + '</div>';
