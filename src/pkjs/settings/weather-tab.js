@@ -353,12 +353,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.wx-ax{position:absolute;top:0;left:0;pointer-events:none;}'
         // Day tiles are the day selector: tap jumps the panels to that day.
         + '.wx-days{display:flex;gap:6px;margin-top:6px;}'
-        + '.wx-day{flex:1;display:block;min-width:0;background:var(--ctl);border:none;border-radius:12px;'
+        // Every tile carries a transparent border so selecting one (border
+        // turns accent-colored) never shifts the row's layout. A full accent
+        // fill read too heavy next to the charts — the border is the marker.
+        + '.wx-day{flex:1;display:block;min-width:0;background:var(--ctl);'
+        + 'border:1.5px solid transparent;border-radius:12px;'
         + 'padding:8px 2px;text-align:center;font:inherit;color:var(--fg);cursor:pointer;}'
         + '.wx-day.today{outline:1px solid var(--card-line);}'
-        + '.wx-day.sel{background:linear-gradient(135deg,#FA4A35,#D93A24);color:#fff;}'
-        + '.wx-day.sel .wx-day-name{color:#fff;}'
-        + '.wx-day.sel .wx-day-temp span,.wx-day.sel .wx-day-meta,.wx-day.sel .wx-day-meta span{color:rgba(255,255,255,0.82);}'
+        + '.wx-day.sel{border-color:var(--link);}'
+        + '.wx-day.sel .wx-day-name{color:var(--link);}'
         + '.wx-day.off{opacity:0.4;cursor:default;}'
         + '.wx-day-name{display:block;font-size:11px;font-weight:600;color:var(--lbl);}'
         + '.wx-day-icon{display:block;margin:4px 0 2px;min-height:26px;}'
