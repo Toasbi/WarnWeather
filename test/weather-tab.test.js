@@ -132,8 +132,8 @@ test('the graphs block orchestrates: loading → panels on data, error → Retry
       'the sticky box owns the bleed margin; its inner .wx-bleed is zeroed');
     const z = (sel) => Number((css.WX_CSS.match(
       new RegExp(sel.replace('.', '\\.') + '\\{[^}]*z-index:(\\d+)')) || [])[1]);
-    assert.ok(z('.wx-tip') > z('.wx-sticky'),
-      'the value tip stacks over the pinned hour axis ('
+    assert.ok(z('.wx-tip') < z('.wx-sticky'),
+      'the value tip scrolls UNDER the pinned hour axis, never over it ('
       + z('.wx-tip') + ' vs ' + z('.wx-sticky') + ')');
     assert.ok(html.indexOf('data-wxchart="press"') !== -1);
     assert.ok(html.indexOf('data-action="wxShowDay"') !== -1, 'day tiles navigate the panels');

@@ -753,7 +753,10 @@
         s += '<line id="wx-strip-hi-tick" x1="' + stripTickX(view, hi) + '" y1="' + BAND_H + '" x2="'
             + stripTickX(view, hi) + '" y2="' + (BAND_H + 7) + '" stroke="' + pal.ink + '" stroke-width="2"/>';
         s += '<g id="wx-strip-hi" transform="translate(' + stripChipX(view, hi) + ' 0)">'
-            + '<rect x="-20" y="1" width="40" height="' + (BAND_H - 2) + '" rx="5" fill="' + pal.hiBox + '"/>'
+            // The white border marks WHICH hour is selected — the dark box
+            // alone reads as just another background patch at a glance.
+            + '<rect x="-20" y="1" width="40" height="' + (BAND_H - 2) + '" rx="5" fill="' + pal.hiBox
+            + '" stroke="' + pal.hiText + '" stroke-width="1.2"/>'
             + (hiIcon ? iconUse(hiIcon, ' id="wx-strip-hi-icon"', 0, 4, 22)
                 // No icon at this hour: keep the placed element (same
                 // transform) so a scrub can still swap a real href in.
@@ -924,10 +927,14 @@
             var offTimeline = i >= max;
             var cls = 'wx-day' + (isToday ? ' today' : '') + (i === sel && !offTimeline ? ' sel' : '')
                 + (offTimeline ? ' off' : '');
-            // Precipitation amount + probability share one line (left), sun
-            // hours sit on its right — one meta row per tile, app-style.
-            var wet = (d.rainMm === null ? '' : fmt1(d.rainMm) + ' mm')
-                + (d.probMax === null ? '' : (d.rainMm === null ? '' : ' · ') + Math.round(d.probMax) + '%');
+            // TWO fixed meta rows per tile (the app's layout): rain amount
+            // left / sun icon right, then probability left / sun hours
+            // right. Every value gets its own cell, so the icon and hours
+            // never jump when a value is long or missing — empty cells
+            // hold the grid (min-height on the rows).
+            var wetMm = d.rainMm === null ? ''
+                : fmt1(d.rainMm) + ' mm' + (d.probMax === null ? '' : ' ·');
+            var wetProb = d.probMax === null ? '' : Math.round(d.probMax) + '%';
             h += '<button type="button" class="' + cls + '" data-action="wxShowDay" data-action-arg="' + i + '"'
                 + (offTimeline ? ' disabled' : '') + '>'
                 + '<span class="wx-day-head"><span class="wx-day-name">' + esc(name) + '</span>'
@@ -938,8 +945,10 @@
                 + '<span>' + (d.tmin === null ? '–' : Math.round(model.displayTemp(d.tmin, settings)) + '°') + '</span> '
                 + (d.tmax === null ? '–' : Math.round(model.displayTemp(d.tmax, settings)) + '°')
                 + '</span>'
-                + '<span class="wx-day-meta"><span class="wx-day-wet">' + wet + '</span>'
-                + '<span class="wx-day-sun">' + (d.sunshineH === null ? '' : '☀ ' + fmt1(d.sunshineH) + 'h') + '</span></span>'
+                + '<span class="wx-day-meta"><span class="wx-day-wet">' + wetMm + '</span>'
+                + '<span class="wx-day-sun">' + (d.sunshineH === null ? '' : '☀') + '</span></span>'
+                + '<span class="wx-day-meta"><span class="wx-day-wet">' + wetProb + '</span>'
+                + '<span class="wx-day-sun">' + (d.sunshineH === null ? '' : fmt1(d.sunshineH) + 'h') + '</span></span>'
                 + '</button>';
         }
         return h + '</div>';

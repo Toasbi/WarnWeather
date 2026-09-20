@@ -58,9 +58,10 @@
         // BELOW all the hour's marks — it avoids sitting between them,
         // though paintScrub's truly-last resort (a wide tip mid-viewport
         // with a bar blocking below) may still cover the top mark).
-        // z-index 20: the tip must also win over the pinned hour axis
-        // (z-index 15) when a panel's top edge scrolls beneath it.
-        + '.wx-tip{display:none;position:absolute;top:4px;z-index:20;pointer-events:none;'
+        // z-index 5, deliberately UNDER the pinned hour axis (z-index 15):
+        // scrolling panels carry their tips beneath the sticky strip's
+        // opaque backdrop instead of drawing over it.
+        + '.wx-tip{display:none;position:absolute;top:4px;z-index:5;pointer-events:none;'
         + '-webkit-transform:translateX(-50%);transform:translateX(-50%);'
         + 'background:var(--card);border:1px solid var(--card-line);border-radius:8px;'
         + 'padding:4px 8px;color:var(--fg);white-space:nowrap;'
@@ -99,26 +100,33 @@
         // Every tile carries a transparent border so selecting one (border
         // turns accent-colored) never shifts the row's layout. A full accent
         // fill read too heavy next to the charts — the border is the marker.
+        // Slim side padding: the meta rows need the width, and the border
+        // itself already separates tiles.
         + '.wx-day{flex:0 0 auto;width:31%;min-width:110px;box-sizing:border-box;'
         + 'display:block;background:var(--ctl);'
         + 'border:1.5px solid transparent;border-radius:12px;'
-        + 'padding:8px 6px;text-align:center;font:inherit;color:var(--fg);cursor:pointer;}'
+        + 'padding:8px 4px;text-align:center;font:inherit;color:var(--fg);cursor:pointer;}'
         // Inset ring, not outline: the row is a scroll container now, and it
         // clips ink drawn OUTSIDE the tile's box (an outline) at its edges.
         + '.wx-day.today{box-shadow:inset 0 0 0 1px var(--card-line);}'
         + '.wx-day.sel{border-color:var(--link);}'
         + '.wx-day.sel .wx-day-name{color:var(--link);}'
         + '.wx-day.off{opacity:0.4;cursor:default;}'
+        // Tile text runs at full contrast throughout (--fg: white on the
+        // dark theme) — the muted steps read too dim on the tinted tile
+        // fill; hierarchy comes from the weights, not from graying out.
         + '.wx-day-head{display:block;font-size:11px;}'
-        + '.wx-day-name{font-weight:600;color:var(--lbl);}'
-        + '.wx-day-date{color:var(--muted);}'
+        + '.wx-day-name{font-weight:600;color:var(--fg);}'
+        + '.wx-day-date{color:var(--fg);}'
         + '.wx-day-icon{display:block;margin:4px 0 2px;min-height:26px;}'
         + '.wx-day-temp{display:block;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;}'
-        + '.wx-day-temp span{color:var(--muted);font-weight:400;}'
-        // One meta row: precipitation (mm · %) left, sun hours right.
-        + '.wx-day-meta{display:flex;justify-content:space-between;gap:6px;padding:0 4px;'
-        + 'font-size:10px;color:var(--muted);margin-top:2px;min-height:12px;font-variant-numeric:tabular-nums;}'
-        + '.wx-day-sun{color:var(--hint);}'
+        + '.wx-day-temp span{color:var(--fg);font-weight:400;}'
+        // TWO fixed meta rows (rain mm | sun icon, then chance | sun
+        // hours): every value in its own cell, min-height holding empty
+        // cells, so the sun column never jumps with the text length.
+        + '.wx-day-meta{display:flex;justify-content:space-between;gap:6px;padding:0 2px;'
+        + 'font-size:10px;color:var(--fg);margin-top:2px;min-height:12px;font-variant-numeric:tabular-nums;}'
+        + '.wx-day-sun{color:var(--fg);}'
         + '.wx-foot{color:var(--hint);font-size:11px;margin-top:2px;}'
         + '.wx-refresh{background:none;border:none;padding:0;font:inherit;font-size:11px;'
         + 'color:var(--link);cursor:pointer;}'

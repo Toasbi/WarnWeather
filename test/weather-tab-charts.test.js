@@ -263,6 +263,8 @@ test('the hour strip highlights the selected hour with the app\'s chip (own icon
   assert.match(spec.main, /id="wx-strip-hi-icon"[^>]*#wxi-hpartly/,
     'the chip wears the hour\'s OWN icon in chip ink');
   assert.ok(spec.main.indexOf(pal.hiBox) !== -1, 'the chip box wears the highlight fill');
+  assert.match(spec.main, new RegExp('<rect x="-20"[^>]*stroke="' + pal.hiText + '"'),
+    'and a white border, so the selected hour stands out from the band');
   // An explicit idx (a scrub) moves the chip to that hour.
   const at15 = charts.timeStripSvg(view, LOC, pal, SunCalc, 15);
   assert.ok(at15.main.indexOf('translate(' + (15 * charts.HOUR_W) + ' 0)') !== -1);
@@ -338,10 +340,16 @@ test('the 5-day strip renders tappable day tiles with units honored and selectio
   assert.ok(html.indexOf('Today') !== -1);
   assert.ok(html.indexOf('68°') !== -1, 'tmax 20°C renders as 68°F');
   assert.ok(html.indexOf('50°') < html.indexOf('68°'), 'low renders before high');
-  assert.equal((html.match(/wx-day-meta/g) || []).length, 5,
-    'ONE meta row per tile: mm and probability share it, sun hours on its right');
-  assert.ok(html.indexOf('1 mm · 20%') !== -1, 'precip amount and probability share one line');
-  assert.ok(html.indexOf('☀ 1.5h') !== -1, 'sun hours ride the same row');
+  assert.equal((html.match(/wx-day-meta/g) || []).length, 10,
+    'TWO fixed meta rows per tile: every value in its own cell, so the sun '
+    + 'column never jumps with the text length');
+  assert.match(html, /1 mm ·<\/span><span class="wx-day-sun">☀<\/span>/,
+    'row one: rain amount left, the sun ICON alone on the right');
+  assert.match(html, /20%<\/span><span class="wx-day-sun">1\.5h<\/span>/,
+    'row two: probability left, sun hours right');
+  assert.equal(html.indexOf('☀ 1.5h'), -1, 'icon and hours no longer share a cell');
+  assert.equal((html.match(/wx-day-sun/g) || []).length, 10,
+    'the sun cells exist on every tile, holding the grid even when empty');
   assert.ok(html.indexOf('21 Sep') !== -1, 'tiles carry their date beside the weekday');
   assert.equal(html.indexOf('20 Sep'), -1, 'Today stands alone, like the app');
   assert.equal((html.match(/data-action="wxShowDay"/g) || []).length, 5, 'five tappable tiles');
