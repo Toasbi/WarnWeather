@@ -157,6 +157,36 @@ test('a new location resets the viewed day to today', () => {
   }
 });
 
+test('refreshWeather refetches the same key manually, keeping the charts and the viewed day', () => {
+  tab._resetState();
+  let calls = 0;
+  let respond = null;
+  const realFetch = data.fetchWeather;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { calls += 1; respond = cb; };
+  try {
+    const state = { graphsLocation: 'current' };
+    tab._setCtx({ S: state, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond(fixture(), null);
+    assert.equal(calls, 1);
+    assert.equal(tab.refreshWeather(), true, 'idle → a refetch is due');
+    let html = tab.weatherGraphsBlock(state, {}, SEED);
+    assert.equal(calls, 2, 'the manual refresh refetches the same key');
+    assert.ok(html.indexOf('Temperature &amp; precipitation') !== -1,
+      'the previous charts stay up (dimmed) while updating');
+    assert.ok(html.indexOf('updating') !== -1);
+    assert.equal(tab.refreshWeather(), false, 'no stacked refetch while one is loading');
+    assert.equal(tab._panDay(), 0, 'the viewed day survives a refresh');
+    respond(fixture(), null);
+    html = tab.weatherGraphsBlock(state, {}, SEED);
+    assert.equal(calls, 2);
+    assert.ok(html.indexOf('wxRefreshWeather') !== -1, 'the footer offers the manual Refresh');
+  } finally {
+    data.fetchWeather = realFetch;
+    tab._resetState();
+  }
+});
+
 test('snapTargetDay: rounds to the nearest day, flicks advance one, clamps at the ends', () => {
   const vw = 400;
   assert.equal(tab.snapTargetDay(1, -100, vw, 5, 800), 1, 'a slow quarter-drag springs back');

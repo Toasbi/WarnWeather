@@ -353,6 +353,12 @@
      * Wrap a panel's wide canvas + fixed overlay into the panning viewport.
      * The padding-bottom trick fixes the box's aspect ratio to the viewBox's,
      * so both svgs scale uniformly (no text distortion) and their units align.
+     * The full-bleed margin lives on a SEPARATE outer wrapper (.wx-bleed):
+     * percentage padding resolves against the containing block's width, so
+     * carrying margin:-16px on the aspect box itself would make the box
+     * (Wc+32) × Wc·H/360 — a ~10% horizontal stretch of every label and
+     * icon. With the wrapper, the percentage sees the widened width and the
+     * box aspect stays exactly 360:H at any page width.
      * @param {string} id Panel id (data-wxchart / data-wxvp).
      * @param {{main: string, overlay: ?string, H: number}} spec Panel spec.
      * @param {Object} view Prepared view.
@@ -362,7 +368,8 @@
     function viewportHtml(id, spec, view, panDay) {
         var days = view.days;
         var pct = -(panDay * 100 / days);
-        var h = '<div class="wx-vp" data-wxvp="' + id + '" style="padding-bottom:' + (spec.H / DAY_W * 100).toFixed(2) + '%">'
+        var h = '<div class="wx-bleed">'
+            + '<div class="wx-vp" data-wxvp="' + id + '" style="padding-bottom:' + (spec.H / DAY_W * 100).toFixed(2) + '%">'
             + '<div class="wx-pan" style="width:' + (days * 100) + '%;'
             + '-webkit-transform:translateX(' + pct + '%);transform:translateX(' + pct + '%)">'
             + '<svg viewBox="0 0 ' + (days * DAY_W) + ' ' + spec.H + '" width="100%" height="100%" '
@@ -371,7 +378,7 @@
             h += '<svg class="wx-ax" viewBox="0 0 ' + DAY_W + ' ' + spec.H + '" width="100%" height="100%" '
                 + 'preserveAspectRatio="none">' + spec.overlay + '</svg>';
         }
-        return h + '</div>';
+        return h + '</div></div>';
     }
 
     /**
@@ -829,15 +836,16 @@
                 + (offTimeline ? ' disabled' : '') + '>'
                 + '<span class="wx-day-name">' + esc(name) + '</span>'
                 + '<span class="wx-day-icon">' + (d.icon ? iconSvg(d.icon, 26, pal) : '') + '</span>'
+                // Low before high (the user's reading order), and every meta
+                // value on a line of its own — mm, then probability, then sun
+                // hours — so the rows align across all five tiles.
                 + '<span class="wx-day-temp">'
+                + '<span>' + (d.tmin === null ? '–' : Math.round(model.displayTemp(d.tmin, settings)) + '°') + '</span> '
                 + (d.tmax === null ? '–' : Math.round(model.displayTemp(d.tmax, settings)) + '°')
-                + ' <span>' + (d.tmin === null ? '–' : Math.round(model.displayTemp(d.tmin, settings)) + '°') + '</span></span>'
-                + '<span class="wx-day-meta">'
-                + (d.rainMm === null ? '' : fmt1(d.rainMm) + ' mm')
-                + (d.probMax === null ? '' : ' <span>' + Math.round(d.probMax) + '%</span>')
                 + '</span>'
-                + (d.sunshineH === null ? '<span class="wx-day-meta"></span>'
-                    : '<span class="wx-day-meta">☀ ' + fmt1(d.sunshineH) + 'h</span>')
+                + '<span class="wx-day-meta">' + (d.rainMm === null ? '' : fmt1(d.rainMm) + ' mm') + '</span>'
+                + '<span class="wx-day-meta">' + (d.probMax === null ? '' : '<span>' + Math.round(d.probMax) + '%</span>') + '</span>'
+                + '<span class="wx-day-meta">' + (d.sunshineH === null ? '' : '☀ ' + fmt1(d.sunshineH) + 'h') + '</span>'
                 + '</button>';
         }
         return h + '</div>';

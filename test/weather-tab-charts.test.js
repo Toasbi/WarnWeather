@@ -88,6 +88,8 @@ test('viewportHtml pans by whole viewports (translateX percent of the wide eleme
   // 3 days → one viewport = 100/3 % of the wide element.
   assert.ok(day1.indexOf('transform:translateX(' + -(100 / 3) + '%)') !== -1);
   assert.ok(day1.indexOf('width:300%') !== -1, 'the wide element spans all days');
+  assert.ok(day1.indexOf('<div class="wx-bleed">') === 0,
+    'the full-bleed margin rides an OUTER wrapper — sharing it with the aspect box stretches the charts');
 });
 
 test('the hour strip carries the shared time axis, weekday markers and the Measured|Forecast split', () => {
@@ -148,6 +150,9 @@ test('the 5-day strip renders tappable day tiles with units honored and selectio
   const html = charts.dailyStripHtml(view.daily, { temperatureUnits: 'f' }, pal, 0, NOON, 1, view.days);
   assert.ok(html.indexOf('Today') !== -1);
   assert.ok(html.indexOf('68°') !== -1, 'tmax 20°C renders as 68°F');
+  assert.ok(html.indexOf('50°') < html.indexOf('68°'), 'low renders before high');
+  assert.equal((html.match(/wx-day-meta/g) || []).length, 15,
+    'mm, probability and sun hours each hold their own line in every tile (aligned rows)');
   assert.equal((html.match(/data-action="wxShowDay"/g) || []).length, 5, 'five tappable tiles');
   assert.ok(/wx-day[^"]*sel/.test(html), 'the viewed day is marked');
   assert.equal((html.match(/disabled/g) || []).length, 2, 'days past the 3-day timeline are dimmed off');

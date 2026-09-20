@@ -476,11 +476,14 @@
      * tomorrow.io Timelines, ONE call (billing is per call — the same reason
      * tomorrowio.js keeps to one): a 1h timestep bounded by the free plan,
      * which 403s any request outside −6 h..+120 h (the v1.5 page asked for
-     * +144 h and every tab open failed that way). startTime uses −5 h because
-     * isoHour floors the minutes — −6 h would land up to 6 h 59 min back and
-     * trip the history floor; the timeline's earliest hours of today can stay
-     * empty. endTime at +120 h floors to ≤ the ceiling and still reaches the
-     * timeline's end (day-start + 5 d ≤ floor(now) + 120 h).
+     * +144 h and every tab open failed that way). Both bounds keep ≥ 1 h of
+     * slack INSIDE the window: isoHour floors the minutes, so −5 h/+120 h
+     * would leave only seconds of margin at hh:59/hh:00 — margin that request
+     * latency or phone clock skew erases, since the server checks the window
+     * at receipt. −4 h floored stays ≥ 1 h above the history floor (the
+     * timeline's earliest hours of today can stay empty), and +119 h floored
+     * still covers the last grid hour (day-start + 119 h ≤ floor(now) + 119 h,
+     * because floor(now) ≥ day-start).
      * @param {number} lat Latitude.
      * @param {number} lon Longitude.
      * @param {Object} settings Live settings (tomorrowioApiKey).
@@ -495,8 +498,8 @@
             + '&fields=temperature,precipitationIntensity,precipitationProbability,windSpeed,windGust,'
             + 'windDirection,humidity,dewPoint,pressureSeaLevel,weatherCode'
             + '&timesteps=1h&units=metric'
-            + '&startTime=' + encodeURIComponent(isoHour(nowMs, -5))
-            + '&endTime=' + encodeURIComponent(isoHour(nowMs, DAILY_COUNT * 24))
+            + '&startTime=' + encodeURIComponent(isoHour(nowMs, -4))
+            + '&endTime=' + encodeURIComponent(isoHour(nowMs, DAILY_COUNT * 24 - 1))
             + '&apikey=' + encodeURIComponent(key);
         fetchJson(url, function (data, err) {
             if (err) { cb(null, err); return; }

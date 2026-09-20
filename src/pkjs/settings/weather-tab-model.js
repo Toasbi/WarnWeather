@@ -186,6 +186,19 @@
     var RAIN_TIER_LABELS = ['trace', 'light', 'moderate', 'heavy', 'extreme'];
 
     /**
+     * ES5 stand-in for Math.trunc (ES2015): this file rides the PAGE bundle,
+     * which carries no polyfills — rain-tier.js can call Math.trunc because
+     * PKJS loads polyfills.js first, but here it would throw on a pre-ES6
+     * WebView the first time it rains (the v1.1.0 Object.assign lesson).
+     * Bit-identical to Math.trunc for this port's integer-range inputs.
+     * @param {number} v Value.
+     * @returns {number} v truncated toward zero.
+     */
+    function trunc(v) {
+        return v < 0 ? Math.ceil(v) : Math.floor(v);
+    }
+
+    /**
      * Tier index 1..5 for a tenths-of-mm rain value, or 0 for <= 0.
      * @param {number} tenths Rain in tenths of mm.
      * @returns {number} Tier index.
@@ -216,7 +229,7 @@
         }
         if (tenths >= high) { return 256; }
         if (tenths <= low)  { return 0; }
-        return Math.trunc(((tenths - low) * 256) / (high - low));
+        return trunc(((tenths - low) * 256) / (high - low));
     }
 
     /**
@@ -229,10 +242,10 @@
         if (tenths <= 0) { return 0; }
         var tier = rainTierOf(tenths);
         var q8 = rainTierFillQ8(tenths, tier);
-        var belowH = Math.trunc((1000 * RAIN_TIER_TOP_PCT[tier - 1]) / 100);
-        var slabTopFull = Math.trunc((1000 * RAIN_TIER_TOP_PCT[tier]) / 100);
+        var belowH = trunc((1000 * RAIN_TIER_TOP_PCT[tier - 1]) / 100);
+        var slabTopFull = trunc((1000 * RAIN_TIER_TOP_PCT[tier]) / 100);
         var slabHFull = slabTopFull - belowH;
-        var slabHTop = Math.trunc((slabHFull * q8) / 256);
+        var slabHTop = trunc((slabHFull * q8) / 256);
         if (slabHTop === 0 && q8 > 0) { slabHTop = 1; }
         var total = belowH + slabHTop;
         return total > 0 ? total : 1;

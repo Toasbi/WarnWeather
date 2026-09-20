@@ -279,7 +279,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var meta = fetchState.data && fetchState.data.meta;
         var age = meta ? Math.max(0, Math.round((Date.now() - meta.fetchedAt) / 60000)) : 0;
         h += '<div class="wx-foot">' + charts.esc(loc.name) + ' · ' + charts.esc(providerLabel)
-            + ' · ' + (refetching ? 'updating…' : (age === 0 ? 'just now' : age + ' min ago')) + '</div>';
+            + ' · ' + (refetching ? 'updating…' : (age === 0 ? 'just now' : age + ' min ago'))
+            // Manual refresh only: no timer refetches. Pull-to-refresh is the
+            // touch path; this link is the visible (and mouse) affordance.
+            + (refetching ? '' : ' · <button type="button" class="wx-refresh" data-action="wxRefreshWeather">Refresh</button>')
+            + '</div>';
         // Refetch keeps the frame: the previous charts stay up, dimmed, while
         // the new location/provider loads — never a skeleton flash.
         return refetching ? '<div style="opacity:0.55">' + h + '</div>' : h;
@@ -345,10 +349,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.wx-readout{font-size:12px;color:var(--muted);margin:2px 0 4px;font-variant-numeric:tabular-nums;}'
         + '.wx-status{color:var(--hint);font-size:14px;padding:10px 0;}'
         + '.wx-retry{background:var(--ctl);color:var(--fg);border:none;border-radius:8px;padding:6px 12px;font:inherit;font-size:13px;}'
-        // The pannable chart viewport: edge-to-edge in the card (the -16px
-        // matches .blockrow's side padding), aspect fixed by padding-bottom
-        // so the wide svg and the one-day overlay scale identically.
-        + '.wx-vp{position:relative;overflow:hidden;height:0;margin:8px -16px 0;touch-action:pan-y;}'
+        // The pannable chart viewport: edge-to-edge in the card via a
+        // SEPARATE bleed wrapper (-16px matches .blockrow's side padding).
+        // The aspect padding-bottom must NOT share an element with the
+        // negative margins — percentage padding resolves against the
+        // containing block, so the combined box would be ~10% wider than
+        // 360:H and stretch every label (see viewportHtml).
+        + '.wx-bleed{margin:8px -16px 0;}'
+        + '.wx-vp{position:relative;overflow:hidden;height:0;touch-action:pan-y;}'
         + '.wx-pan{position:absolute;top:0;left:0;height:100%;}'
         + '.wx-ax{position:absolute;top:0;left:0;pointer-events:none;}'
         // Day tiles are the day selector: tap jumps the panels to that day.
@@ -369,7 +377,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.wx-day-temp span{color:var(--muted);font-weight:400;}'
         + '.wx-day-meta{display:block;font-size:10px;color:var(--muted);margin-top:2px;min-height:12px;font-variant-numeric:tabular-nums;}'
         + '.wx-day-meta span{color:var(--hint);}'
-        + '.wx-foot{color:var(--hint);font-size:11px;margin-top:2px;}';
+        + '.wx-foot{color:var(--hint);font-size:11px;margin-top:2px;}'
+        + '.wx-refresh{background:none;border:none;padding:0;font:inherit;font-size:11px;'
+        + 'color:var(--link);cursor:pointer;}'
+        // Pull-to-refresh pill: fixed under the tab bar, shown only while a
+        // downward pull from the page top is in progress on the Weather tab.
+        + '#wx-ptr{display:none;position:fixed;top:64px;left:50%;'
+        + '-webkit-transform:translateX(-50%);transform:translateX(-50%);z-index:80;'
+        + 'padding:7px 14px;border-radius:16px;background:var(--card);'
+        + 'border:1px solid var(--card-line);color:var(--muted);font-size:12px;font-weight:600;}'
+        + '#wx-ptr.on{color:var(--link);border-color:var(--link);}';
 
     /**
      * Open the city-search overlay targeting a slot (1..3).
@@ -456,6 +473,22 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (!model.parseSlot(S[model.SLOT_KEYS[i]])) { return i + 1; }
         }
         return null;
+    }
+
+    /**
+     * Force a refetch of the CURRENT provider+location. Manual only — this
+     * tab never refetches on a timer; data updates when the tab first opens
+     * (per page open), when the pick changes, and through this (the footer
+     * Refresh link and pull-to-refresh). Keeps fetchState.key and .view, so
+     * ensureFetch refires for the same key and the charts stay up (dimmed)
+     * on the day the user was viewing.
+     * @returns {boolean} True when a refetch was kicked off (re-render due).
+     */
+    function refreshWeather() {
+        if (fetchState.status === 'loading') { return false; }
+        data.clearCache();
+        fetchState.status = 'idle';
+        return true;
     }
 
     // --- gestures: drag pans the day window, tap scrubs the crosshair --------
@@ -637,9 +670,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var g = gesture;
         gesture = null;
         if (g.mode === 'pan') {
+            // A refetch can land mid-gesture and shrink/grow the timeline;
+            // snap against the CURRENT day count, not the one at touch-down.
+            var days = fetchState.view ? fetchState.view.days : g.days;
             var before = panDay;
-            panDay = snapTargetDay(g.base, x - g.x0, g.vw, g.days, Date.now() - g.t0);
-            setPan(panPct(panDay, g.days), true);
+            panDay = snapTargetDay(g.base, x - g.x0, g.vw, days, Date.now() - g.t0);
+            setPan(panPct(panDay, days), true);
             syncDayCards();
             if (panDay !== before) { syncReadouts(); }
             return;
@@ -695,30 +731,152 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
     }
 
+    // --- pull-to-refresh: a downward pull from the page top on the Weather
+    // tab refetches manually (the only refresh path besides the footer link
+    // and reopening the tab — no timers, to spare keyed APIs).
+
+    var PULL_TRIGGER_PX = 70;
+    var pull = null;   // {x0, y0, engaged, armed}
+
+    /**
+     * The page's current scroll offset (whichever element scrolls).
+     * @returns {number} Pixels scrolled from the top.
+     */
+    function pageScrollTop() {
+        var sc = document.getElementById('scroll');
+        var a = sc ? sc.scrollTop : 0;
+        var de = document.documentElement;
+        var b = (typeof window !== 'undefined' && window.pageYOffset)
+            || (de && de.scrollTop) || (document.body && document.body.scrollTop) || 0;
+        return a > b ? a : b;
+    }
+
+    /**
+     * Show/update the pull indicator pill (created lazily).
+     * @param {boolean} armed Past the release threshold.
+     * @returns {void}
+     */
+    function showPullPill(armed) {
+        var el = document.getElementById('wx-ptr');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'wx-ptr';
+            document.body.appendChild(el);
+        }
+        el.style.display = 'block';
+        el.className = armed ? 'on' : '';
+        el.textContent = armed ? 'Release to refresh' : 'Pull to refresh';
+    }
+
+    /** @returns {void} Hide the pull indicator pill. */
+    function hidePullPill() {
+        var el = document.getElementById('wx-ptr');
+        if (el) { el.style.display = 'none'; }
+    }
+
+    /**
+     * Start tracking a possible pull: Weather tab rendered, no overlay or
+     * sheet open, and the page at its top.
+     * @param {number} x Client x.
+     * @param {number} y Client y.
+     * @returns {void}
+     */
+    function beginPull(x, y) {
+        pull = null;
+        if (!ctx || !document.querySelector) { return; }
+        if (!document.querySelector('.wx-days')) { return; }
+        if (document.getElementById('wxloc')) { return; }
+        var modal = document.getElementById('modal');
+        if (modal && modal.open) { return; }
+        if (pageScrollTop() > 0) { return; }
+        pull = { x0: x, y0: y, engaged: false, armed: false };
+    }
+
+    /**
+     * Track a pull in progress; engages on a clearly-vertical downward drag
+     * and hands off to the chart pan when that gesture claims the pointer.
+     * @param {number} x Client x.
+     * @param {number} y Client y.
+     * @param {?Event} e The move event (preventDefault while engaged).
+     * @returns {void}
+     */
+    function movePull(x, y, e) {
+        if (!pull) { return; }
+        if (gesture && gesture.mode === 'pan') { pull = null; hidePullPill(); return; }
+        var dy = y - pull.y0;
+        var dx = x - pull.x0;
+        if (!pull.engaged) {
+            if (dy < -8) { pull = null; return; }
+            if (dy < 14 || Math.abs(dx) > dy) { return; }
+            pull.engaged = true;
+        }
+        if (dy < 0) { pull.engaged = false; pull.armed = false; hidePullPill(); return; }
+        if (e && e.preventDefault) { e.preventDefault(); }
+        pull.armed = dy >= PULL_TRIGGER_PX;
+        showPullPill(pull.armed);
+    }
+
+    /**
+     * Release: past the threshold → refetch; either way, clean up.
+     * @returns {void}
+     */
+    function endPull() {
+        var p = pull;
+        pull = null;
+        hidePullPill();
+        if (p && p.armed && refreshWeather() && ctx) { ctx.render(); }
+    }
+
     if (typeof document !== 'undefined' && document.addEventListener) {
         document.addEventListener('touchstart', function (e) {
             var t = e.touches && e.touches[0];
-            if (t && e.touches.length === 1) { beginGesture(t.clientX, t.clientY, e.target); }
+            if (t && e.touches.length === 1) {
+                beginGesture(t.clientX, t.clientY, e.target);
+                beginPull(t.clientX, t.clientY);
+            }
         }, true);
         // {passive:false}: modern webviews default document-level touchmove
         // to passive, which would ignore the pan's preventDefault; ancient
         // ones read the object as a truthy capture flag, which is also fine.
         document.addEventListener('touchmove', function (e) {
             var t = e.touches && e.touches[0];
-            if (t) { moveGesture(t.clientX, t.clientY, e); }
+            if (t) {
+                moveGesture(t.clientX, t.clientY, e);
+                movePull(t.clientX, t.clientY, e);
+            }
         }, { passive: false, capture: true });
         document.addEventListener('touchend', function (e) {
+            // A second finger lifting must not end the primary gesture at
+            // its x — only the LAST finger ends the interaction.
+            if (e.touches && e.touches.length) { return; }
             var t = e.changedTouches && e.changedTouches[0];
             if (t) { endGesture(t.clientX); } else { cancelGesture(); }
+            endPull();
         }, true);
-        document.addEventListener('touchcancel', function () { cancelGesture(); }, true);
+        document.addEventListener('touchcancel', function () {
+            cancelGesture();
+            pull = null;
+            hidePullPill();
+        }, true);
         document.addEventListener('mousedown', function (e) {
             beginGesture(e.clientX, e.clientY, e.target);
+            beginPull(e.clientX, e.clientY);
         }, true);
         document.addEventListener('mousemove', function (e) {
-            if (e.buttons || e.which) { moveGesture(e.clientX, e.clientY, e); }
+            // e.buttons is authoritative where it exists (0 = no button —
+            // e.which stays 1 on plain moves in WebKit, so `buttons||which`
+            // would treat every hover as a drag); which is the old-engine
+            // fallback only when buttons is genuinely undefined.
+            var down = e.buttons !== undefined ? e.buttons : e.which;
+            if (down) {
+                moveGesture(e.clientX, e.clientY, e);
+                movePull(e.clientX, e.clientY, e);
+            }
         }, true);
-        document.addEventListener('mouseup', function (e) { endGesture(e.clientX); }, true);
+        document.addEventListener('mouseup', function (e) {
+            endGesture(e.clientX);
+            endPull();
+        }, true);
     }
 
     // --- registrations ------------------------------------------------------------
@@ -778,6 +936,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             fetchState = { key: null, status: 'idle', data: null, error: null, view: null };
             return true;
         };
+        PConf.actions.wxRefreshWeather = function () {
+            return refreshWeather();
+        };
     }
 
     if (PConf.hooks && PConf.hooks.onReady) {
@@ -801,6 +962,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             firstFreeSlot: firstFreeSlot,
             snapTargetDay: snapTargetDay,
             panPct: panPct,
+            refreshWeather: refreshWeather,
             // Test seams.
             _setCtx: function (c) { ctx = c; },
             _fetchState: function () { return fetchState; },
