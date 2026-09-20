@@ -47,6 +47,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var stripKeep = null;           // .wx-days scrollLeft carried across a render (null = center the selection)
     var stripPending = false;       // an applyStripScroll is scheduled for the render being built
     var stripFresh = false;         // a NEW location's tiles just arrived — center instead of restoring
+    var panelMarks = null;          // per-panel scale metadata from the last render (dots/bars/tips)
+    var litBars = {};               // panel id → bar index currently lit by the crosshair
+    var PANEL_IDS = ['temp', 'wind', 'hum', 'press'];
 
     /**
      * The effective current-location seed: a fix this page acquired itself
@@ -258,29 +261,41 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var idx = scrubIndex === null ? dayAnchorIndex(view, panDay) : scrubIndex;
         var sunCalcLib = (typeof require !== 'undefined') ? require('./vendor-suncalc.js') : window.SunCalc;
         var vp = function (id, spec) { return charts.viewportHtml(id, spec, view, panDay); };
+        var specs = {
+            temp: charts.tempPanelSvg(view, settings, pal),
+            wind: charts.windPanelSvg(view, settings, pal),
+            hum: charts.humidityPanelSvg(view, settings, pal),
+            press: charts.pressurePanelSvg(view, settings, pal)
+        };
+        // The specs' scale metadata is what paintScrub places dots, bars
+        // and tips with; the render replaces the DOM, so drop the lit-bar
+        // memory with it.
+        panelMarks = { temp: specs.temp.marks, wind: specs.wind.marks, hum: specs.hum.marks, press: specs.press.marks };
+        litBars = {};
         var h = '';
         // The 5-day strip leads (the app's layout) and doubles as the day
         // selector for everything below it.
         h += '<div class="wx-panel"><div class="wx-panel-head"><span class="wx-panel-title">5-day forecast</span></div>'
             + charts.dailyStripHtml(view.daily, settings, pal, view.offsetSec, Date.now(), panDay, view.days)
             + '</div>';
-        // The shared time axis: hour ruler + condition icons + night shading.
-        h += vp('strip', charts.timeStripSvg(view, loc, pal, sunCalcLib));
+        // The shared time axis: hour ruler + condition icons + night shading
+        // + the highlighted hour's chip.
+        h += vp('strip', charts.timeStripSvg(view, loc, pal, sunCalcLib, idx));
         h += panelHtml('temp', 'Temperature & precipitation',
             [['Temp', pal.temp, 'line'], ['Rain', pal.water, 'rect']],
             charts.readout('temp', view, idx, settings),
-            vp('temp', charts.tempPanelSvg(view, settings, pal)));
+            vp('temp', specs.temp));
         h += panelHtml('wind', 'Wind & gusts · ' + model.windUnitLabel(settings),
             [['Wind', pal.water, 'line'], ['Gusts', pal.gust, 'line']],
             charts.readout('wind', view, idx, settings),
-            vp('wind', charts.windPanelSvg(view, settings, pal)));
+            vp('wind', specs.wind));
         h += panelHtml('hum', 'Humidity & dew point',
             [['Humidity', pal.water, 'rect'], ['Temp', pal.temp, 'line'], ['Dew point', pal.dew, 'line']],
             charts.readout('hum', view, idx, settings),
-            vp('hum', charts.humidityPanelSvg(view, settings, pal)));
+            vp('hum', specs.hum));
         h += panelHtml('press', 'Pressure · hPa', [],
             charts.readout('press', view, idx, settings),
-            vp('press', charts.pressurePanelSvg(view, settings, pal)));
+            vp('press', specs.press));
         if (sunCalcLib) {
             h += panelHtml('sun', 'Sun & moon',
                 [['Sun', pal.sun, 'line'], ['Moon', pal.faint, 'line']],
@@ -313,6 +328,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             }
             stripFresh = false;
             setTimeout(applyStripScroll, 0);
+            // The rendered string parks the crosshair extras (dots, bars,
+            // tip); if a scrub was active, put them back once the new DOM
+            // stands.
+            setTimeout(repaintScrub, 0);
         }
         // Refetch keeps the frame: the previous charts stay up, dimmed, while
         // the new location/provider loads — never a skeleton flash.
@@ -371,7 +390,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.wx-chip-tools button{background:none;border:none;padding:0;color:var(--link);font:inherit;font-size:13px;}'
         + '.wx-hint{color:var(--hint);font-size:13px;margin-top:8px;}'
         + '.wx-panel{margin:2px 0 10px;}'
-        + '.wx-panel-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:10px 0 2px;}'
+        // align-items:center — the legend keys carry inline swatch blocks,
+        // so baseline alignment set them visibly lower than the title.
+        + '.wx-panel-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 2px;}'
         + '.wx-panel-title{font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--ttl);flex:1;}'
         + '.wx-key{font-size:11px;color:var(--muted);display:inline-flex;align-items:center;gap:4px;}'
         + '.wx-key-line{display:inline-block;width:12px;height:2px;border-radius:1px;}'
@@ -389,17 +410,27 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.wx-vp{position:relative;overflow:hidden;height:0;touch-action:pan-y;}'
         + '.wx-pan{position:absolute;top:0;left:0;height:100%;}'
         + '.wx-ax{position:absolute;top:0;left:0;pointer-events:none;}'
+        // The floating value tip over the crosshair (filled/placed by
+        // paintScrub; left is a % of the viewport, the transform centers).
+        + '.wx-tip{display:none;position:absolute;top:4px;z-index:5;pointer-events:none;'
+        + '-webkit-transform:translateX(-50%);transform:translateX(-50%);'
+        + 'background:var(--card);border:1px solid var(--card-line);border-radius:8px;'
+        + 'padding:3px 8px;font-size:11px;font-weight:600;color:var(--fg);white-space:nowrap;'
+        + 'font-variant-numeric:tabular-nums;box-shadow:0 2px 6px rgba(0,0,0,0.18);}'
         // Day tiles are the day selector: tap jumps the panels to that day.
         // App-style wide tiles in a horizontally scrollable row (~2.5 tiles
         // per viewport); position:relative makes the row the tiles'
         // offsetParent so scrollDayStrip can center the selection.
-        + '.wx-days{display:flex;gap:6px;margin-top:6px;position:relative;'
+        // Full bleed like the charts (-16px matches .blockrow's side
+        // padding): the row runs edge to edge and tiles cut off at the
+        // section border, no lead-in padding.
+        + '.wx-days{display:flex;gap:6px;margin:6px -16px 0;position:relative;'
         + 'overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}'
         + '.wx-days::-webkit-scrollbar{display:none;}'
         // Every tile carries a transparent border so selecting one (border
         // turns accent-colored) never shifts the row's layout. A full accent
         // fill read too heavy next to the charts — the border is the marker.
-        + '.wx-day{flex:0 0 auto;width:38%;min-width:126px;box-sizing:border-box;'
+        + '.wx-day{flex:0 0 auto;width:31%;min-width:110px;box-sizing:border-box;'
         + 'display:block;background:var(--ctl);'
         + 'border:1.5px solid transparent;border-radius:12px;'
         + 'padding:8px 6px;text-align:center;font:inherit;color:var(--fg);cursor:pointer;}'
@@ -424,10 +455,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + 'color:var(--link);cursor:pointer;}'
         // Pull-to-refresh pill: fixed under the tab bar, shown only while a
         // downward pull from the page top is in progress on the Weather tab.
-        + '#wx-ptr{display:none;position:fixed;top:64px;left:50%;'
+        // Transform and opacity track the finger directly (no transition —
+        // it would lag the drag); only the armed color flip animates.
+        + '#wx-ptr{display:none;position:fixed;top:56px;left:50%;'
         + '-webkit-transform:translateX(-50%);transform:translateX(-50%);z-index:80;'
         + 'padding:7px 14px;border-radius:16px;background:var(--card);'
-        + 'border:1px solid var(--card-line);color:var(--muted);font-size:12px;font-weight:600;}'
+        + 'border:1px solid var(--card-line);color:var(--muted);font-size:12px;font-weight:600;'
+        + 'opacity:0;transition:color 0.15s ease,border-color 0.15s ease;'
+        + 'will-change:transform,opacity;}'
         + '#wx-ptr.on{color:var(--link);border-color:var(--link);}';
 
     /**
@@ -705,6 +740,122 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
+     * Paint the shared crosshair state at one hour by direct DOM writes (no
+     * re-render): every panel's guideline and readout, a highlight dot on
+     * every line series (at the same y its path used — the scale comes from
+     * the panel's marks), the touched hour's bar lit, the floating value
+     * tip, and the hour strip's chip (moved to the hour, relabeled, its
+     * icon swapped to that hour's own glyph). `active` false is the parked
+     * state: guides, dots, lit bars and tips withdraw; readouts and the
+     * chip rest on the anchor hour.
+     * @param {number} i Hour index into the view.
+     * @param {boolean} active True while a crosshair scrub is showing.
+     * @returns {void}
+     */
+    function paintScrub(i, active) {
+        var view = fetchState.view;
+        if (!view || !ctx || typeof document === 'undefined' || !document.getElementById) { return; }
+        if (i < 0) { i = 0; }
+        if (i > view.times.length - 1) { i = view.times.length - 1; }
+        var x = charts.xAt(view, i);
+        for (var k = 0; k < PANEL_IDS.length; k += 1) {
+            var id = PANEL_IDS[k];
+            var line = document.getElementById('wx-scrub-' + id);
+            if (line) {
+                line.setAttribute('x1', active ? x : -10);
+                line.setAttribute('x2', active ? x : -10);
+            }
+            var read = document.getElementById('wx-read-' + id);
+            if (read) { read.textContent = charts.readout(id, view, i, ctx.S); }
+            var marks = panelMarks && panelMarks[id];
+            if (!marks) { continue; }
+            for (var m = 0; m < marks.lines.length; m += 1) {
+                var ln = marks.lines[m];
+                var dot = document.getElementById('wx-dot-' + id + '-' + ln.key);
+                if (!dot) { continue; }
+                var v = ln.vals[i];
+                if (active && v !== null && v !== undefined && ln.max > ln.min) {
+                    dot.setAttribute('cx', x);
+                    dot.setAttribute('cy',
+                        (marks.bottom - (v - ln.min) / (ln.max - ln.min) * (marks.bottom - marks.top)).toFixed(1));
+                } else {
+                    dot.setAttribute('cx', -10);
+                    dot.setAttribute('cy', -10);
+                }
+            }
+            if (marks.bar) {
+                if (litBars[id] !== undefined && litBars[id] !== null && litBars[id] !== i) {
+                    var prev = document.getElementById(marks.bar.prefix + '-' + litBars[id]);
+                    if (prev) { prev.setAttribute('opacity', marks.bar.dim); }
+                    litBars[id] = null;
+                }
+                if (active) {
+                    var bar = document.getElementById(marks.bar.prefix + '-' + i);
+                    if (bar) {
+                        bar.setAttribute('opacity', 1);
+                        litBars[id] = i;
+                    }
+                } else if (litBars[id] === i) {
+                    var lit = document.getElementById(marks.bar.prefix + '-' + i);
+                    if (lit) { lit.setAttribute('opacity', marks.bar.dim); }
+                    litBars[id] = null;
+                }
+            }
+            var tip = document.getElementById('wx-tip-' + id);
+            if (tip) {
+                var text = active ? charts.tipText(id, view, i, ctx.S) : '';
+                if (text) {
+                    // Fill and show first, THEN measure: the clamp needs the
+                    // tip's real width, or the centered tip clips against
+                    // the viewport's overflow:hidden near the edges.
+                    tip.textContent = text;
+                    tip.style.display = 'block';
+                    var vpEl = tip.parentNode;
+                    var vw = vpEl && vpEl.clientWidth;
+                    var left = (x - panDay * charts.DAY_W) / charts.DAY_W * (vw || 0);
+                    if (vw) {
+                        var half = tip.offsetWidth / 2 + 4;
+                        if (left < half) { left = half; }
+                        if (left > vw - half) { left = vw - half; }
+                        tip.style.left = Math.round(left) + 'px';
+                    } else {
+                        tip.style.left = '50%';
+                    }
+                } else {
+                    tip.style.display = 'none';
+                }
+            }
+        }
+        var chip = document.getElementById('wx-strip-hi');
+        if (chip) { chip.setAttribute('transform', 'translate(' + x + ' 0)'); }
+        var chipText = document.getElementById('wx-strip-hi-text');
+        if (chipText) {
+            var hh = model.localHour(view.times[i], view.offsetSec);
+            chipText.textContent = (hh < 10 ? '0' + hh : String(hh)) + ':00';
+        }
+        var chipIcon = document.getElementById('wx-strip-hi-icon');
+        if (chipIcon && view.icon[i]) {
+            // Both href flavors, like the renderer (old WebViews read xlink).
+            var ref = '#wxi-h' + view.icon[i];
+            chipIcon.setAttribute('href', ref);
+            try {
+                chipIcon.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', ref);
+            } catch (ex) { /* pre-namespace DOM: href alone has to do */ }
+        }
+    }
+
+    /**
+     * Re-establish the crosshair paint after a render replaced the DOM
+     * (the rendered string parks all the crosshair extras).
+     * @returns {void}
+     */
+    function repaintScrub() {
+        var view = fetchState.view;
+        if (!view) { return; }
+        paintScrub(scrubIndex === null ? dayAnchorIndex(view, panDay) : scrubIndex, scrubIndex !== null);
+    }
+
+    /**
      * After the viewed day changes, drop the crosshair (its hour belongs to
      * the previous day) and re-anchor every readout to the new day — direct
      * DOM, like the pan itself.
@@ -713,20 +864,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function syncReadouts() {
         scrubIndex = null;
         var view = fetchState.view;
-        if (!view || !ctx || typeof document === 'undefined' || !document.getElementById) { return; }
-        var i = dayAnchorIndex(view, panDay);
-        var ids = ['temp', 'wind', 'hum', 'press'];
-        for (var k = 0; k < ids.length; k += 1) {
-            var line = document.getElementById('wx-scrub-' + ids[k]);
-            if (line) {
-                line.setAttribute('x1', -10);
-                line.setAttribute('x2', -10);
-            }
-            var read = document.getElementById('wx-read-' + ids[k]);
-            if (read) {
-                read.textContent = charts.readout(ids[k], view, i, ctx.S);
-            }
-        }
+        if (!view) { return; }
+        paintScrub(dayAnchorIndex(view, panDay), false);
     }
 
     /**
@@ -869,8 +1008,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Move the shared crosshair to the tapped hour and refresh every panel's
-     * guideline + readout by direct DOM writes (no re-render). Values remain
+     * Move the shared crosshair to the tapped hour and repaint every
+     * panel's scrub state (guideline, readout, dots, lit bar, value tip,
+     * strip chip) by direct DOM writes — no re-render. Values remain
      * reachable without it — the readout defaults to "now" and the in-plot
      * axes carry the scale.
      * @param {Element} svg The panel SVG under the pointer (the WIDE one).
@@ -887,19 +1027,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (i < 0) { i = 0; }
         if (i > view.times.length - 1) { i = view.times.length - 1; }
         scrubIndex = i;
-        var x = charts.xAt(view, i);
-        var ids = ['temp', 'wind', 'hum', 'press'];
-        for (var k = 0; k < ids.length; k += 1) {
-            var line = document.getElementById('wx-scrub-' + ids[k]);
-            if (line) {
-                line.setAttribute('x1', x);
-                line.setAttribute('x2', x);
-            }
-            var read = document.getElementById('wx-read-' + ids[k]);
-            if (read) {
-                read.textContent = charts.readout(ids[k], view, i, ctx.S);
-            }
-        }
+        paintScrub(i, true);
     }
 
     // --- pull-to-refresh: a downward pull from the page top on the Weather
@@ -923,11 +1051,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Show/update the pull indicator pill (created lazily).
+     * Show/update the pull indicator pill (created lazily). The pill rides
+     * the drag: damped translateY and a fade tied to the pull distance,
+     * both written every move — but the TEXT and class only when the armed
+     * state actually flips. Rewriting them per touchmove re-laid the pill
+     * out every frame, which is what made it stutter.
      * @param {boolean} armed Past the release threshold.
+     * @param {number} dy Current downward pull distance (px).
      * @returns {void}
      */
-    function showPullPill(armed) {
+    function showPullPill(armed, dy) {
         var el = document.getElementById('wx-ptr');
         if (!el) {
             el = document.createElement('div');
@@ -935,8 +1068,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             document.body.appendChild(el);
         }
         el.style.display = 'block';
-        el.className = armed ? 'on' : '';
-        el.textContent = armed ? 'Release to refresh' : 'Pull to refresh';
+        if (el.getAttribute('data-armed') !== String(armed)) {
+            el.setAttribute('data-armed', String(armed));
+            el.className = armed ? 'on' : '';
+            el.textContent = armed ? 'Release to refresh' : 'Pull to refresh';
+        }
+        var travel = dy * 0.35;
+        if (travel > 46) { travel = 46; }
+        var fade = dy / 56;
+        if (fade > 1) { fade = 1; }
+        el.style.opacity = String(fade);
+        var t = 'translateX(-50%) translateY(' + travel.toFixed(1) + 'px)';
+        el.style.webkitTransform = t;
+        el.style.transform = t;
     }
 
     /** @returns {void} Hide the pull indicator pill. */
@@ -984,7 +1128,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (dy < 0) { pull.engaged = false; pull.armed = false; hidePullPill(); return; }
         if (e && e.preventDefault) { e.preventDefault(); }
         pull.armed = dy >= PULL_TRIGGER_PX;
-        showPullPill(pull.armed);
+        showPullPill(pull.armed, dy);
     }
 
     /**
@@ -1153,6 +1297,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 stripKeep = null;
                 stripPending = false;
                 stripFresh = false;
+                panelMarks = null;
+                litBars = {};
             }
         };
     }

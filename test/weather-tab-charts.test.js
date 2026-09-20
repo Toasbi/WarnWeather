@@ -84,6 +84,52 @@ test('every hourly panel spec renders without NaN and carries its scrub anchor',
   assert.ok(specs.hum.overlay.indexOf('%') !== -1, 'humidity carries its right %-axis');
 });
 
+test('panel specs carry the crosshair-highlight plumbing (marks, dots, bar ids, tip)', () => {
+  const view = charts.prepareView(fixtureData(), NOON);
+  const pal = charts.palette(false);
+  const settings = { temperatureUnits: 'c', windUnits: 'kph' };
+  const temp = charts.tempPanelSvg(view, settings, pal);
+  const wind = charts.windPanelSvg(view, settings, pal);
+  const hum = charts.humidityPanelSvg(view, settings, pal);
+  const press = charts.pressurePanelSvg(view, settings, pal);
+  // marks: per-line display-unit values + y-domain, and the bar-id prefix,
+  // so weather-tab.js places dots / lights bars without re-deriving scales.
+  assert.deepEqual(temp.marks.lines.map((l) => l.key), ['temp']);
+  assert.equal(temp.marks.bar.prefix, 'wx-bar-temp');
+  assert.ok(temp.marks.bar.dim > 0 && temp.marks.bar.dim < 1, 'resting bar opacity is the dim value');
+  assert.deepEqual(wind.marks.lines.map((l) => l.key), ['gust', 'wind']);
+  assert.equal(wind.marks.bar, null);
+  assert.deepEqual(hum.marks.lines.map((l) => l.key), ['temp', 'dew'],
+    'humidity itself is bars — the lines are temp + dew');
+  assert.equal(hum.marks.bar.prefix, 'wx-bar-hum');
+  assert.deepEqual(press.marks.lines.map((l) => l.key), ['press']);
+  assert.ok(temp.marks.bottom > temp.marks.top, 'marks carry the plot band');
+  const i = view.nowIndex;
+  assert.equal(temp.marks.lines[0].vals[i],
+    model.displayTemp(view.temp[i], settings), 'line vals are DISPLAY units');
+  // Every line series ships a parked highlight dot; every bar is addressable.
+  assert.ok(temp.main.indexOf('id="wx-dot-temp-temp"') !== -1, 'temp dot');
+  assert.ok(wind.main.indexOf('id="wx-dot-wind-gust"') !== -1 && wind.main.indexOf('id="wx-dot-wind-wind"') !== -1);
+  assert.ok(hum.main.indexOf('id="wx-bar-hum-' + i + '"') !== -1, 'humidity bars carry per-hour ids');
+  assert.ok(temp.main.indexOf('id="wx-bar-temp-19"') !== -1, 'rain bars carry per-hour ids (a wet hour)');
+  // The viewport ships the floating tip mount for panels that declare it.
+  const html = charts.viewportHtml('temp', temp, view, 0);
+  assert.ok(html.indexOf('id="wx-tip-temp"') !== -1, 'tip div rides the viewport');
+  const strip = charts.timeStripSvg(view, LOC, pal, SunCalc);
+  assert.equal(charts.viewportHtml('strip', strip, view, 0).indexOf('wx-tip'), -1,
+    'the strip declares no tip');
+});
+
+test('tipText is the readout without the timestamp (the floating tip contract)', () => {
+  const view = charts.prepareView(fixtureData(), NOON);
+  const s = { temperatureUnits: 'c', windUnits: 'kph' };
+  const i = view.nowIndex;
+  assert.match(charts.tipText('temp', view, i, s), /^.*° · .* mm/);
+  assert.doesNotMatch(charts.tipText('temp', view, i, s), /Sun|Mon/, 'no weekday in the tip');
+  assert.equal(charts.readout('temp', view, i, s), 'Sun 12:00 · ' + charts.tipText('temp', view, i, s));
+  assert.equal(charts.tipText('temp', view, 9999, s), '');
+});
+
 test('viewportHtml pans by whole viewports (translateX percent of the wide element)', () => {
   const view = charts.prepareView(fixtureData(), NOON);
   const spec = charts.tempPanelSvg(view, { }, charts.palette(false));
@@ -109,6 +155,34 @@ test('the hour strip carries the shared time axis, weekday markers and the Measu
     'each midnight is marked with its weekday');
   const noShade = charts.timeStripSvg(view, LOC, charts.palette(false), null);
   assert.ok(noShade.main.indexOf('03:00') !== -1, 'no SunCalc → still a time axis, just unshaded');
+});
+
+test('the hour strip highlights the selected hour with the app\'s chip (own icon + label)', () => {
+  const view = charts.prepareView(fixtureData(), NOON);
+  const pal = charts.palette(false);
+  // Icons live in <defs> as reusable glyphs (a normal + a chip-ink twin per
+  // id), so the chip can swap to ANY hour's icon by href while scrubbing.
+  const spec = charts.timeStripSvg(view, LOC, pal, SunCalc);
+  assert.ok(spec.main.indexOf('<defs>') !== -1);
+  assert.ok(spec.main.indexOf('<g id="wxi-partly">') !== -1, 'the icon glyph is defined once');
+  assert.ok(spec.main.indexOf('<g id="wxi-hpartly">') !== -1, 'with its chip-ink twin');
+  assert.match(spec.main, /<use xlink:href="#wxi-partly" href="#wxi-partly"/,
+    'the 3-hourly row references the defs (both href flavors for old WebViews)');
+  // No idx → the chip rests on the current hour.
+  assert.ok(spec.main.indexOf('id="wx-strip-hi"') !== -1, 'the chip renders');
+  assert.ok(spec.main.indexOf('translate(' + (view.nowIndex * charts.HOUR_W) + ' 0)') !== -1,
+    'the chip sits at the now hour');
+  assert.match(spec.main, /id="wx-strip-hi-text"[^>]*>12:00</, 'the chip labels its hour');
+  assert.match(spec.main, /id="wx-strip-hi-icon"[^>]*#wxi-hpartly/,
+    'the chip wears the hour\'s OWN icon in chip ink');
+  assert.ok(spec.main.indexOf(pal.hiBox) !== -1, 'the chip box wears the highlight fill');
+  // An explicit idx (a scrub) moves the chip to that hour.
+  const at15 = charts.timeStripSvg(view, LOC, pal, SunCalc, 15);
+  assert.ok(at15.main.indexOf('translate(' + (15 * charts.HOUR_W) + ' 0)') !== -1);
+  assert.match(at15.main, /id="wx-strip-hi-text"[^>]*>15:00</);
+  const chipless = charts.timeStripSvg(view, LOC, pal, SunCalc, 9999);
+  assert.ok(chipless.main.indexOf('translate(' + (view.nowIndex * charts.HOUR_W) + ' 0)') !== -1,
+    'an out-of-range idx falls back to the now hour');
 });
 
 test('the sun & moon panel spans the timeline with per-day rise/set labels', () => {

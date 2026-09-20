@@ -28,6 +28,8 @@
 
     var model = (typeof require !== 'undefined')
         ? require('./weather-tab-model.js') : window.WeatherTabModel;
+    var icons = (typeof require !== 'undefined')
+        ? require('./weather-tab-icons.js') : window.WeatherTabIcons;
 
     // Series palette — the validated steps for each page theme. Entities keep
     // their hue everywhere they appear (temp is orange in every panel).
@@ -38,7 +40,8 @@
             ink: '#1C1E22', muted: '#5A5F6A', faint: '#8A8F99',
             grid: 'rgba(0,0,0,0.09)', axis: 'rgba(0,0,0,0.22)',
             past: 'rgba(0,0,0,0.045)', night: 'rgba(30,40,80,0.09)',
-            surface: '#F4F5F7'
+            surface: '#F4F5F7',
+            hiBox: '#1B2536', hiText: '#FFFFFF'
         },
         dark: {
             temp: '#d95926', water: '#3987e5', dew: '#199e70', gust: '#e66767',
@@ -46,7 +49,10 @@
             ink: '#F0F2F6', muted: '#B6BAC2', faint: '#8A92A0',
             grid: 'rgba(255,255,255,0.09)', axis: 'rgba(255,255,255,0.25)',
             past: 'rgba(255,255,255,0.05)', night: 'rgba(0,0,0,0.24)',
-            surface: '#3A3B3F'
+            surface: '#3A3B3F',
+            // The selected-hour box (the app's dark chip): deliberately the
+            // same dark-on-dark-blue pair on BOTH surfaces, like the app.
+            hiBox: '#1B2536', hiText: '#FFFFFF'
         }
     };
 
@@ -297,6 +303,64 @@
     }
 
     /**
+     * Assemble one hourly panel from its parts, in the shared stacking
+     * order: frame (past wash + now line), underlay (bars), the line series
+     * — each with a parked crosshair highlight dot — decorations, crosshair
+     * line on top. This is the one place panels get their shared plumbing;
+     * the panel builders only provide data and their own extras. The
+     * returned `marks` (plot band + each line's display-unit values and
+     * domain, + the bar-id prefix when the panel has bars) is what
+     * weather-tab.js needs to place dots, light bars and position the value
+     * tip at a scrubbed hour without re-deriving any scale.
+     * @param {string} id Panel id.
+     * @param {Object} view Prepared view.
+     * @param {Object} pal Palette.
+     * @param {{H: number, top: number, bottom: number, under: string,
+     *          lines: Array<{key: string, vals: Array<?number>, min: number,
+     *                        max: number, color: string}>,
+     *          over: string, overlay: string,
+     *          bar: ?{prefix: string, dim: number}}} parts Panel parts.
+     *   Each line's `vals` are DISPLAY units and `min`/`max` its y-domain;
+     *   the y scale is derived here, so line and dot can never disagree.
+     * @returns {{main: string, overlay: string, H: number, tip: boolean,
+     *            marks: Object}} Panel spec.
+     */
+    function assemblePanel(id, view, pal, parts) {
+        var s = frameWide(view, pal, parts.top, parts.bottom);
+        s += parts.under || '';
+        var marks = { top: parts.top, bottom: parts.bottom, lines: [], bar: parts.bar || null };
+        for (var i = 0; i < parts.lines.length; i += 1) {
+            var ln = parts.lines[i];
+            var y = yScale(ln.min, ln.max, parts.top, parts.bottom);
+            var d = smoothPath(view, ln.vals, y);
+            if (d) {
+                s += '<path d="' + d + '" fill="none" stroke="' + ln.color
+                    + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+            }
+            s += '<circle id="wx-dot-' + id + '-' + ln.key + '" cx="-10" cy="-10" r="3.5" fill="'
+                + pal.surface + '" stroke="' + ln.color + '" stroke-width="2"/>';
+            marks.lines.push({ key: ln.key, vals: ln.vals, min: ln.min, max: ln.max });
+        }
+        s += parts.over || '';
+        s += scrubLine(id, parts.top, parts.bottom, pal);
+        return { main: s, overlay: parts.overlay || '', H: parts.H, tip: true, marks: marks };
+    }
+
+    /**
+     * Display-map a raw series through a unit converter, keeping nulls.
+     * @param {Array<?number>} arr Raw series.
+     * @param {function(number):number} disp Unit converter.
+     * @returns {Array<?number>} Display-unit series.
+     */
+    function dispSeries(arr, disp) {
+        var out = [];
+        for (var i = 0; i < arr.length; i += 1) {
+            out.push(arr[i] === null ? null : disp(arr[i]));
+        }
+        return out;
+    }
+
+    /**
      * Fixed-overlay left axis: full-width hairline gridlines with their
      * labels INSIDE the plot's left edge (they hold still while the canvas
      * pans, like the app).
@@ -374,6 +438,12 @@
             h += '<svg class="wx-ax" viewBox="0 0 ' + DAY_W + ' ' + spec.H + '" width="100%" height="100%" '
                 + 'preserveAspectRatio="none">' + spec.overlay + '</svg>';
         }
+        if (spec.tip) {
+            // The floating value tip: weather-tab.js fills, places and shows
+            // it while a crosshair scrub is active (.wx-vp is the positioned
+            // ancestor, so left is a % of the visible day).
+            h += '<div class="wx-tip" id="wx-tip-' + id + '"></div>';
+        }
         return h + '</div></div>';
     }
 
@@ -387,48 +457,48 @@
      * @returns {{main: string, overlay: string, H: number}} Panel spec.
      */
     function tempPanelSvg(view, settings, pal) {
-        var H = 150;
         var top = 10, bottom = 116;
         var probY = 141;
         var disp = function (c) { return model.displayTemp(c, settings); };
         var dom = domainOf([view.temp], 0.15) || { min: 0, max: 1 };
         var y = yScale(disp(dom.min), disp(dom.max), top, bottom);
-        var tempDisp = [];
-        for (var i = 0; i < view.temp.length; i += 1) {
-            tempDisp.push(view.temp[i] === null ? null : disp(view.temp[i]));
-        }
-        var s = frameWide(view, pal, top, bottom);
         // Rain band: contiguous per-hour columns on the watch's tier scale —
-        // the same non-linear heights the rain bar draws on the watch.
-        for (i = 0; i < view.rain.length; i += 1) {
+        // the same non-linear heights the rain bar draws on the watch. Each
+        // column carries its hour id so the crosshair can light it.
+        var under = '';
+        for (var i = 0; i < view.rain.length; i += 1) {
             var r = view.rain[i];
             if (r === null || r <= 0) { continue; }
             var bh = (bottom - top) * model.rainPermilleFromMm(r) / 1000;
             if (bh < 1) { bh = 1; }
-            s += '<rect x="' + (xAt(view, i) - HOUR_W / 2).toFixed(1) + '" y="' + (bottom - bh).toFixed(1)
+            under += '<rect id="wx-bar-temp-' + i + '" x="' + (xAt(view, i) - HOUR_W / 2).toFixed(1)
+                + '" y="' + (bottom - bh).toFixed(1)
                 + '" width="' + HOUR_W + '" height="' + bh.toFixed(1) + '" fill="' + pal.water + '" opacity="0.45"/>';
         }
-        s += '<path d="' + smoothPath(view, tempDisp, y) + '" fill="none" stroke="' + pal.temp
-            + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
         // Precip probability row every 3 h; past hours show the app's dash.
+        var over = '';
         for (i = 0; i < view.prob.length; i += 3) {
             var px = xAt(view, i);
             if (i < view.nowIndex) {
-                s += '<text x="' + px + '" y="' + probY + '" text-anchor="middle" font-size="7.5" fill="'
+                over += '<text x="' + px + '" y="' + probY + '" text-anchor="middle" font-size="7.5" fill="'
                     + pal.faint + '">–</text>';
                 continue;
             }
             var p = view.prob[i];
             if (p === null || p === undefined) { continue; }
-            s += '<text x="' + px + '" y="' + probY + '" text-anchor="middle" font-size="7.5" fill="'
+            over += '<text x="' + px + '" y="' + probY + '" text-anchor="middle" font-size="7.5" fill="'
                 + (p >= 50 ? pal.muted : pal.faint) + '"' + (p >= 50 ? ' font-weight="600"' : '') + '>'
                 + Math.round(p) + '%</text>';
         }
-        s += scrubLine('temp', top, bottom, pal);
-        var o = overlayLeftTicks(pal, top, bottom, niceTicks(disp(dom.min), disp(dom.max), 4), y,
-            function (v) { return fmt1(v) + '°'; })
-            + overlayRainTiers(pal, top, bottom);
-        return { main: s, overlay: o, H: H };
+        return assemblePanel('temp', view, pal, {
+            H: 150, top: top, bottom: bottom,
+            under: under, over: over,
+            lines: [{ key: 'temp', vals: dispSeries(view.temp, disp), min: disp(dom.min), max: disp(dom.max), color: pal.temp }],
+            bar: { prefix: 'wx-bar-temp', dim: 0.45 },
+            overlay: overlayLeftTicks(pal, top, bottom, niceTicks(disp(dom.min), disp(dom.max), 4), y,
+                function (v) { return fmt1(v) + '°'; })
+                + overlayRainTiers(pal, top, bottom)
+        });
     }
 
     /**
@@ -444,29 +514,28 @@
         var disp = function (k) { return model.displayWind(k, settings); };
         var dom = domainOf([view.wind, view.gust], 0.12) || { min: 0, max: 10 };
         var lo = Math.min(0, disp(dom.min));
-        var y = yScale(lo, disp(dom.max), top, bottom);
-        var mk = function (arr) {
-            var out = [];
-            for (var i = 0; i < arr.length; i += 1) { out.push(arr[i] === null ? null : disp(arr[i])); }
-            return out;
-        };
-        var s = frameWide(view, pal, top, bottom);
-        s += '<path d="' + smoothPath(view, mk(view.gust), y) + '" fill="none" stroke="' + pal.gust
-            + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
-        s += '<path d="' + smoothPath(view, mk(view.wind), y) + '" fill="none" stroke="' + pal.water
-            + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+        var hi = disp(dom.max);
+        var y = yScale(lo, hi, top, bottom);
         // Direction arrows every 3 h: pointing WITH the wind (bearing is
         // meteorological "comes from", so the arrow points bearing+180°).
+        var over = '';
         for (var i = 0; i < view.dir.length; i += 3) {
             var b = view.dir[i];
             if (b === null || b === undefined) { continue; }
-            s += '<g transform="translate(' + xAt(view, i) + ' ' + (H - 14) + ') rotate(' + ((b + 180) % 360) + ')">'
+            over += '<g transform="translate(' + xAt(view, i) + ' ' + (H - 14) + ') rotate(' + ((b + 180) % 360) + ')">'
                 + '<path d="M0 -4.5 L3 3.5 L0 1.6 L-3 3.5 Z" fill="' + pal.muted + '"/></g>';
         }
-        s += scrubLine('wind', top, bottom, pal);
-        var o = overlayLeftTicks(pal, top, bottom, niceTicks(lo, disp(dom.max), 4), y,
-            function (v) { return fmt1(v); });
-        return { main: s, overlay: o, H: H };
+        return assemblePanel('wind', view, pal, {
+            H: H, top: top, bottom: bottom,
+            under: '', over: over,
+            lines: [
+                { key: 'gust', vals: dispSeries(view.gust, disp), min: lo, max: hi, color: pal.gust },
+                { key: 'wind', vals: dispSeries(view.wind, disp), min: lo, max: hi, color: pal.water }
+            ],
+            bar: null,
+            overlay: overlayLeftTicks(pal, top, bottom, niceTicks(lo, hi, 4), y,
+                function (v) { return fmt1(v); })
+        });
     }
 
     /**
@@ -479,32 +548,26 @@
      * @returns {{main: string, overlay: string, H: number}} Panel spec.
      */
     function humidityPanelSvg(view, settings, pal) {
-        var H = 150;
         var top = 10, bottom = 132;
         var disp = function (c) { return model.displayTemp(c, settings); };
         var yr = yScale(0, 100, top, bottom);
-        var s = frameWide(view, pal, top, bottom);
+        var under = '';
         for (var i = 0; i < view.rh.length; i += 1) {
             var v = view.rh[i];
             if (v === null || v === undefined) { continue; }
             var bh = bottom - yr(v);
             if (bh < 1) { bh = 1; }
-            s += '<rect x="' + (xAt(view, i) - (HOUR_W - 2) / 2).toFixed(1) + '" y="' + yr(v).toFixed(1)
+            under += '<rect id="wx-bar-hum-' + i + '" x="' + (xAt(view, i) - (HOUR_W - 2) / 2).toFixed(1)
+                + '" y="' + yr(v).toFixed(1)
                 + '" width="' + (HOUR_W - 2) + '" height="' + bh.toFixed(1) + '" rx="1.5" fill="' + pal.water + '" opacity="0.3"/>';
         }
         var o = '';
+        var lines = [];
         var dom = domainOf([view.temp, view.dew], 0.15);
         if (dom) {
             var y = yScale(disp(dom.min), disp(dom.max), top, bottom);
-            var mk = function (arr) {
-                var out = [];
-                for (var j = 0; j < arr.length; j += 1) { out.push(arr[j] === null ? null : disp(arr[j])); }
-                return out;
-            };
-            s += '<path d="' + smoothPath(view, mk(view.temp), y) + '" fill="none" stroke="' + pal.temp
-                + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
-            s += '<path d="' + smoothPath(view, mk(view.dew), y) + '" fill="none" stroke="' + pal.dew
-                + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+            lines.push({ key: 'temp', vals: dispSeries(view.temp, disp), min: disp(dom.min), max: disp(dom.max), color: pal.temp });
+            lines.push({ key: 'dew', vals: dispSeries(view.dew, disp), min: disp(dom.min), max: disp(dom.max), color: pal.dew });
             o += overlayLeftTicks(pal, top, bottom, niceTicks(disp(dom.min), disp(dom.max), 3), y,
                 function (t) { return fmt1(t) + '°'; });
         }
@@ -517,8 +580,13 @@
             o += '<text x="' + (DAY_W - 4) + '" y="' + (ty + 8).toFixed(1) + '" text-anchor="end" font-size="7.5" fill="'
                 + pal.faint + '">' + pTick + '%</text>';
         }
-        s += scrubLine('hum', top, bottom, pal);
-        return { main: s, overlay: o, H: H };
+        return assemblePanel('hum', view, pal, {
+            H: 150, top: top, bottom: bottom,
+            under: under, over: '',
+            lines: lines,
+            bar: { prefix: 'wx-bar-hum', dim: 0.3 },
+            overlay: o
+        });
     }
 
     /**
@@ -529,7 +597,6 @@
      * @returns {{main: string, overlay: string, H: number}} Panel spec.
      */
     function pressurePanelSvg(view, settings, pal) {
-        var H = 112;
         var top = 10, bottom = 92;
         var dom = domainOf([view.pressure], 0.2) || { min: 1008, max: 1018 };
         // Pressure moves in small absolute bands; keep at least a 6 hPa span
@@ -540,16 +607,14 @@
             dom.max = mid + 3;
         }
         var y = yScale(dom.min, dom.max, top, bottom);
-        var s = frameWide(view, pal, top, bottom);
-        var line = smoothPath(view, view.pressure, y);
-        if (line) {
-            s += '<path d="' + line + '" fill="none" stroke="' + pal.pressure
-                + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
-        }
-        s += scrubLine('press', top, bottom, pal);
-        var o = overlayLeftTicks(pal, top, bottom, niceTicks(dom.min, dom.max, 3), y,
-            function (v) { return String(Math.round(v)); });
-        return { main: s, overlay: o, H: H };
+        return assemblePanel('press', view, pal, {
+            H: 112, top: top, bottom: bottom,
+            under: '', over: '',
+            lines: [{ key: 'press', vals: view.pressure, min: dom.min, max: dom.max, color: pal.pressure }],
+            bar: null,
+            overlay: overlayLeftTicks(pal, top, bottom, niceTicks(dom.min, dom.max, 3), y,
+                function (v) { return String(Math.round(v)); })
+        });
     }
 
     /**
@@ -563,16 +628,43 @@
      * @param {?Object} SunCalcLib The vendored SunCalc, or null (no shading).
      * @returns {{main: string, overlay: ?string, H: number}} Panel spec.
      */
-    function timeStripSvg(view, loc, pal, SunCalcLib) {
+    function timeStripSvg(view, loc, pal, SunCalcLib, idx) {
         // The app's stripe layout, top to bottom: a shaded BAND holding the
         // condition icons and the hour labels, then the tick ruler on its
         // lower edge, then the Measured|Forecast caption BELOW the band on
-        // the page background.
+        // the page background. `idx` is the highlighted hour (the crosshair,
+        // else the viewed day's anchor): it gets the app's dark chip with
+        // THAT hour's own icon and label, drawn over the 3-hourly row and
+        // moved by id from weather-tab.js while scrubbing.
         var BAND_H = 40;
         var H = 62;
         var hourY = BAND_H - 6;
         var captionY = 56;
         var s = '';
+        // Every icon that appears anywhere in the timeline is defined ONCE;
+        // the 3-hourly row and the chip reference them, so a scrub can swap
+        // the chip to any hour's icon by href without rebuilding SVG.
+        var defs = '';
+        var defined = {};
+        // The chip draws its icon in fixed light-on-dark ink (its box color
+        // is fixed too, like the app's), so every id gets a wxi-h<id> twin —
+        // <use> can't recolor a referenced glyph's hard-coded strokes.
+        var hiPal = { muted: pal.hiText, sun: '#FFC94D', water: '#69B4FF' };
+        for (var di = 0; di < view.icon.length; di += 1) {
+            var did = view.icon[di];
+            if (did && !defined[did]) {
+                defined[did] = true;
+                defs += '<g id="wxi-' + did + '">' + icons.iconBody(did, pal) + '</g>'
+                    + '<g id="wxi-h' + did + '">' + icons.iconBody(did, hiPal) + '</g>';
+            }
+        }
+        if (defs) { s += '<defs>' + defs + '</defs>'; }
+        // xlink:href + href: SVG2 engines read href, old WebViews need xlink.
+        var iconUse = function (id, extra, cx, y, size) {
+            return '<use' + extra + ' xlink:href="#wxi-' + id + '" href="#wxi-' + id
+                + '" transform="translate(' + (cx - size / 2).toFixed(1) + ' ' + y + ') scale('
+                + (size / 25).toFixed(3) + ')"/>';
+        };
         var xFor = function (ms) { return (ms - view.dayStartMs) / 3600000 * HOUR_W; };
         var d, x;
         // Night shading per location day (sunset → next sunrise, drawn as the
@@ -603,7 +695,7 @@
             if (i % 24 === 0) { continue; }
             var id = view.icon[i];
             if (!id) { continue; }
-            s += iconGlyph(id, xAt(view, i), 5, 17, pal);
+            s += iconUse(id, '', xAt(view, i), 5, 17);
         }
         // Weekday marker at each midnight.
         for (d = 0; d < view.days; d += 1) {
@@ -638,6 +730,23 @@
             + pal.muted + '">Forecast</text>';
         s += '<line x1="' + nx.toFixed(1) + '" y1="0" x2="' + nx.toFixed(1) + '" y2="' + (captionY + 2)
             + '" stroke="' + pal.ink + '" stroke-width="1.2" opacity="0.55"/>';
+        // The selected-hour chip, on top of everything in the band: that
+        // hour's OWN icon (not the 3-hourly neighbor) and label on the
+        // app's dark box. weather-tab.js moves the group / swaps the hrefs
+        // and label by id while scrubbing.
+        var hi = (typeof idx === 'number' && idx >= 0 && idx < view.times.length) ? idx : view.nowIndex;
+        var hiIcon = view.icon[hi] ? 'h' + view.icon[hi] : null;
+        s += '<g id="wx-strip-hi" transform="translate(' + xAt(view, hi) + ' 0)">'
+            + '<rect x="-17" y="1" width="34" height="' + (BAND_H - 2) + '" rx="5" fill="' + pal.hiBox + '"/>'
+            + (hiIcon ? iconUse(hiIcon, ' id="wx-strip-hi-icon"', 0, 4, 18)
+                // No icon at this hour: keep the placed element (same
+                // transform) so a scrub can still swap a real href in.
+                : '<use id="wx-strip-hi-icon" xlink:href="#wxi-hnone" href="#wxi-hnone"'
+                  + ' transform="translate(-9 4) scale(0.720)"/>')
+            + '<text id="wx-strip-hi-text" x="0" y="' + hourY + '" text-anchor="middle" font-size="7.5" '
+            + 'font-weight="700" fill="' + pal.hiText + '">'
+            + two(model.localHour(view.times[hi], view.offsetSec)) + ':00</text>'
+            + '</g>';
         return { main: s, overlay: null, H: H, bandH: BAND_H };
     }
 
@@ -725,89 +834,6 @@
         return { main: s, overlay: null, H: H };
     }
 
-    // --- icons ------------------------------------------------------------------
-
-    /**
-     * The glyph body for a normalized icon id, drawn in a 25×25 frame.
-     * `ink` carries the cloud strokes, `sun` the sun, `water` precipitation.
-     * @param {string} id Icon id (weather-tab-model.js vocabulary).
-     * @param {Object} pal Palette.
-     * @returns {string} SVG fragment.
-     */
-    function iconBody(id, pal) {
-        var ink = pal.muted;
-        var sun = pal.sun;
-        var water = pal.water;
-        var cloud = '<path d="M7 17h9a4 4 0 0 0 .8-7.9A5.5 5.5 0 0 0 6.2 10 3.5 3.5 0 0 0 7 17z" fill="none" stroke="'
-            + ink + '" stroke-width="1.8" stroke-linejoin="round"/>';
-        var sunCore = '<circle cx="12" cy="12" r="4" fill="none" stroke="' + sun + '" stroke-width="1.8"/>'
-            + '<g stroke="' + sun + '" stroke-width="1.8" stroke-linecap="round">'
-            + '<line x1="12" y1="3" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="21"/>'
-            + '<line x1="3" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="21" y2="12"/>'
-            + '<line x1="5.6" y1="5.6" x2="7" y2="7"/><line x1="17" y1="17" x2="18.4" y2="18.4"/>'
-            + '<line x1="18.4" y1="5.6" x2="17" y2="7"/><line x1="7" y1="17" x2="5.6" y2="18.4"/></g>';
-        var smallSun = '<circle cx="16.5" cy="7.5" r="3" fill="none" stroke="' + sun + '" stroke-width="1.6"/>'
-            + '<g stroke="' + sun + '" stroke-width="1.6" stroke-linecap="round">'
-            + '<line x1="16.5" y1="2.2" x2="16.5" y2="3.6"/><line x1="21.8" y1="7.5" x2="20.4" y2="7.5"/>'
-            + '<line x1="20.2" y1="3.8" x2="19.2" y2="4.8"/></g>';
-        var drops = function (n, heavy) {
-            var d = '<g stroke="' + water + '" stroke-width="' + (heavy ? 2 : 1.6) + '" stroke-linecap="round">';
-            for (var i = 0; i < n; i += 1) {
-                var x = 8 + i * 4;
-                d += '<line x1="' + x + '" y1="19" x2="' + (x - 1.2) + '" y2="22"/>';
-            }
-            return d + '</g>';
-        };
-        if (id === 'clear') { return sunCore; }
-        if (id === 'partly') { return smallSun + cloud; }
-        if (id === 'cloudy') { return cloud; }
-        if (id === 'fog') {
-            return cloud + '<g stroke="' + ink + '" stroke-width="1.6" stroke-linecap="round">'
-                + '<line x1="7" y1="19.5" x2="17" y2="19.5"/><line x1="9" y1="22" x2="15" y2="22"/></g>';
-        }
-        if (id === 'drizzle') { return cloud + drops(2, false); }
-        if (id === 'rain') { return cloud + drops(3, true); }
-        if (id === 'showers') { return smallSun + cloud + drops(2, true); }
-        if (id === 'sleet') {
-            return cloud + drops(1, false)
-                + '<circle cx="13.5" cy="20.5" r="1.1" fill="none" stroke="' + water + '" stroke-width="1.2"/>';
-        }
-        if (id === 'snow') {
-            return cloud + '<g fill="' + water + '"><circle cx="9" cy="20" r="1.2"/><circle cx="13" cy="21.5" r="1.2"/>'
-                + '<circle cx="16.5" cy="19.5" r="1.2"/></g>';
-        }
-        if (id === 'thunder') {
-            return cloud + '<path d="M12 18l-2.5 4h2l-1 3 3.8-4.6h-2.1l1.4-2.4z" fill="' + sun + '"/>';
-        }
-        return cloud;
-    }
-
-    /**
-     * A standalone icon svg (the daily tiles).
-     * @param {string} id Icon id.
-     * @param {number} size Rendered size (px).
-     * @param {Object} pal Palette.
-     * @returns {string} Inline SVG.
-     */
-    function iconSvg(id, size, pal) {
-        return '<svg viewBox="0 0 25 25" width="' + size + '" height="' + size + '" aria-hidden="true">'
-            + iconBody(id, pal) + '</svg>';
-    }
-
-    /**
-     * An icon placed INSIDE another svg (the hour strip).
-     * @param {string} id Icon id.
-     * @param {number} cx Center x in host units.
-     * @param {number} y Top y in host units.
-     * @param {number} size Glyph size in host units.
-     * @param {Object} pal Palette.
-     * @returns {string} SVG fragment.
-     */
-    function iconGlyph(id, cx, y, size, pal) {
-        return '<g transform="translate(' + (cx - size / 2).toFixed(1) + ' ' + y + ') scale(' + (size / 25).toFixed(3) + ')">'
-            + iconBody(id, pal) + '</g>';
-    }
-
     /**
      * The 5-day strip: tappable day tiles (weekday, icon, max|min, rain, sun
      * hours) that double as the day selector for the pannable panels below.
@@ -851,7 +877,7 @@
                 + (offTimeline ? ' disabled' : '') + '>'
                 + '<span class="wx-day-head"><span class="wx-day-name">' + esc(name) + '</span>'
                 + (dateLabel ? ' <span class="wx-day-date">' + esc(dateLabel) + '</span>' : '') + '</span>'
-                + '<span class="wx-day-icon">' + (d.icon ? iconSvg(d.icon, 26, pal) : '') + '</span>'
+                + '<span class="wx-day-icon">' + (d.icon ? icons.iconSvg(d.icon, 26, pal) : '') + '</span>'
                 // Low before high (the user's reading order).
                 + '<span class="wx-day-temp">'
                 + '<span>' + (d.tmin === null ? '–' : Math.round(model.displayTemp(d.tmin, settings)) + '°') + '</span> '
@@ -875,8 +901,40 @@
     }
 
     /**
-     * The readout line for one panel at one index — the crosshair's textual
-     * tooltip, and the panel's default "now" line (values stay reachable
+     * A panel's values-with-units at one index — the floating crosshair
+     * tip's text, and the value part of the readout row.
+     * @param {string} panel 'temp'|'wind'|'hum'|'press'.
+     * @param {Object} view Prepared view.
+     * @param {number} i Index into the view.
+     * @param {Object} settings Live settings (units).
+     * @returns {string} Plain text ('' off-range).
+     */
+    function tipText(panel, view, i, settings) {
+        if (!view || i < 0 || i >= view.times.length) { return ''; }
+        var deg = function (v) { return v === null ? '–' : fmt1(model.displayTemp(v, settings)) + '°'; };
+        var spd = function (v) { return v === null ? '–' : Math.round(model.displayWind(v, settings)); };
+        if (panel === 'temp') {
+            return deg(view.temp[i])
+                + ' · ' + (view.rain[i] === null ? '–' : fmt1(view.rain[i])) + ' mm'
+                + (view.prob[i] === null ? '' : ' · ' + Math.round(view.prob[i]) + ' %');
+        }
+        if (panel === 'wind') {
+            return spd(view.wind[i]) + ' / ' + spd(view.gust[i]) + ' ' + model.windUnitLabel(settings)
+                + (view.dir[i] === null ? '' : ' · ' + compass(view.dir[i]));
+        }
+        if (panel === 'hum') {
+            return (view.rh[i] === null ? '–' : Math.round(view.rh[i]) + ' %')
+                + ' · ' + deg(view.temp[i]) + ' · dew ' + deg(view.dew[i]);
+        }
+        if (panel === 'press') {
+            return (view.pressure[i] === null ? '–' : Math.round(view.pressure[i])) + ' hPa';
+        }
+        return '';
+    }
+
+    /**
+     * The readout line for one panel at one index — weekday + hour, then
+     * the same values the floating tip shows (values stay reachable
      * without tapping; the relief rule for the sub-3:1 series colors).
      * @param {string} panel 'temp'|'wind'|'hum'|'press'.
      * @param {Object} view Prepared view.
@@ -886,27 +944,9 @@
      */
     function readout(panel, view, i, settings) {
         if (!view || i < 0 || i >= view.times.length) { return ''; }
-        var t = DAYS[model.localWeekday(view.times[i], view.offsetSec)] + ' '
-            + two(model.localHour(view.times[i], view.offsetSec)) + ':00';
-        var deg = function (v) { return v === null ? '–' : fmt1(model.displayTemp(v, settings)) + '°'; };
-        var spd = function (v) { return v === null ? '–' : Math.round(model.displayWind(v, settings)); };
-        if (panel === 'temp') {
-            return t + ' · ' + deg(view.temp[i])
-                + ' · ' + (view.rain[i] === null ? '–' : fmt1(view.rain[i])) + ' mm'
-                + (view.prob[i] === null ? '' : ' · ' + Math.round(view.prob[i]) + ' %');
-        }
-        if (panel === 'wind') {
-            return t + ' · ' + spd(view.wind[i]) + ' / ' + spd(view.gust[i]) + ' ' + model.windUnitLabel(settings)
-                + (view.dir[i] === null ? '' : ' · ' + compass(view.dir[i]));
-        }
-        if (panel === 'hum') {
-            return t + ' · ' + (view.rh[i] === null ? '–' : Math.round(view.rh[i]) + ' %')
-                + ' · ' + deg(view.temp[i]) + ' · dew ' + deg(view.dew[i]);
-        }
-        if (panel === 'press') {
-            return t + ' · ' + (view.pressure[i] === null ? '–' : Math.round(view.pressure[i])) + ' hPa';
-        }
-        return '';
+        return DAYS[model.localWeekday(view.times[i], view.offsetSec)] + ' '
+            + two(model.localHour(view.times[i], view.offsetSec)) + ':00 · '
+            + tipText(panel, view, i, settings);
     }
 
     var api = {
@@ -926,9 +966,10 @@
         pressurePanelSvg: pressurePanelSvg,
         timeStripSvg: timeStripSvg,
         sunMoonPanelSvg: sunMoonPanelSvg,
-        iconSvg: iconSvg,
+        iconSvg: icons.iconSvg,
         dailyStripHtml: dailyStripHtml,
         compass: compass,
+        tipText: tipText,
         readout: readout
     };
 
