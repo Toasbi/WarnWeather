@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const tab = require('../src/pkjs/settings/weather-tab.js');
 const data = require('../src/pkjs/settings/weather-tab-data.js');
 const model = require('../src/pkjs/settings/weather-tab-model.js');
+const css = require('../src/pkjs/settings/weather-tab-css.js');
 
 // The glue calls Date.now() itself (ensureFetch prepares the view against
 // the real clock), so the fixture anchors to the REAL current UTC day —
@@ -114,6 +115,11 @@ test('the graphs block orchestrates: loading → panels on data, error → Retry
     assert.ok(html.indexOf('5-day forecast') < html.indexOf('data-wxvp="strip"'),
       'the 5-day selector leads, then the shared hour strip (the app layout)');
     assert.ok(html.indexOf('data-wxvp="strip"') < html.indexOf('Temperature &amp; precipitation'));
+    assert.ok(html.indexOf('<div class="wx-sticky">') !== -1
+      && html.indexOf('<div class="wx-sticky">') < html.indexOf('data-wxvp="strip"'),
+      'the hour strip rides in the sticky wrapper (pins while the panels scroll)');
+    assert.ok(css.WX_CSS.indexOf('.wx-sticky{position:-webkit-sticky;position:sticky') !== -1,
+      'and .wx-sticky actually pins (both position spellings for old WebViews)');
     assert.ok(html.indexOf('data-wxchart="press"') !== -1);
     assert.ok(html.indexOf('data-action="wxShowDay"') !== -1, 'day tiles navigate the panels');
     assert.equal(calls, 1, 'a fresh render serves from module state');

@@ -145,10 +145,18 @@ test('the precip-probability row carries its title and steps its ink with the ch
   assert.ok(temp.overlay.indexOf('Precipitation probability') !== -1,
     'the row is titled, on the fixed overlay');
   // Fixture: 60% inside 17-23h (a future 3h step lands on 18/21), 10% elsewhere.
-  assert.match(temp.main, new RegExp('font-size="9" fill="' + pal.water + '" font-weight="700">60%<'),
-    'a wet hour (>=60%) wears the water color, bold');
+  assert.match(temp.main, new RegExp('font-size="9" fill="' + pal.probHi + '" font-weight="700">60%<'),
+    'a wet hour (>=60%) wears the AA text step of the water hue, bold');
   assert.match(temp.main, new RegExp('font-size="9" fill="' + pal.faint + '">10%<'),
     'a dry hour stays faint');
+  // The middle tier (30-59%): muted ink, semibold. The fixture never lands
+  // there, so plant one on a future 3h step.
+  const mid = charts.prepareView(fixtureData(), NOON);
+  const step = mid.nowIndex + ((3 - (mid.nowIndex % 3)) % 3);
+  mid.prob[step] = 45;
+  const midPanel = charts.tempPanelSvg(mid, { temperatureUnits: 'c' }, pal);
+  assert.match(midPanel.main, new RegExp('font-size="9" fill="' + pal.muted + '" font-weight="600">45%<'),
+    'a maybe hour (30-59%) wears muted ink, semibold');
 });
 
 test('the value tip renders title-over-value columns (tipHtml)', () => {
@@ -165,8 +173,22 @@ test('the value tip renders title-over-value columns (tipHtml)', () => {
   const temp = charts.tipHtml('temp', view, i, s);
   assert.ok(temp.indexOf('<b>Temp</b>') !== -1 && temp.indexOf('<b>Rain</b>') !== -1
     && temp.indexOf('<b>Chance</b>') !== -1);
+  const hum = charts.tipHtml('hum', view, i, s);
+  assert.equal((hum.match(/wx-tip-c/g) || []).length, 3, 'hum: three columns');
+  assert.ok(hum.indexOf('<b>Humidity</b>') !== -1 && hum.indexOf('<b>Temp</b>') !== -1
+    && hum.indexOf('<b>Dew point</b>') !== -1);
   assert.match(charts.tipHtml('press', view, i, s), /<b>Pressure<\/b><i>\d+ hPa<\/i>/);
   assert.equal(charts.tipHtml('temp', view, 9999, s), '');
+  // A null series value drops its whole column (title included) rather
+  // than rendering a dash under a title.
+  const noDir = charts.prepareView(fixtureData(), NOON);
+  noDir.dir[i] = null;
+  assert.equal((charts.tipHtml('wind', noDir, i, s).match(/wx-tip-c/g) || []).length, 2,
+    'a null direction drops the Direction column');
+  const noProb = charts.prepareView(fixtureData(), NOON);
+  noProb.prob[i] = null;
+  assert.equal((charts.tipHtml('temp', noProb, i, s).match(/wx-tip-c/g) || []).length, 2,
+    'a null chance drops the Chance column');
 });
 
 test('tipText is the readout without the timestamp (the floating tip contract)', () => {
@@ -226,8 +248,9 @@ test('the hour strip highlights the selected hour with the app\'s chip (own icon
   assert.ok(spec.main.indexOf('id="wx-strip-hi"') !== -1, 'the chip renders');
   assert.match(spec.main, new RegExp('id="wx-strip-hi-tick" x1="' + (view.nowIndex * charts.HOUR_W) + '"'),
     'the highlighted hour gets its own ruler tick, at the TRUE hour x');
-  assert.match(charts.timeStripSvg(view, LOC, pal, SunCalc, 0).main, /id="wx-strip-hi-tick" x1="0"/,
-    'the tick stays unclamped where the chip box nudges inward');
+  assert.match(charts.timeStripSvg(view, LOC, pal, SunCalc, 0).main, /id="wx-strip-hi-tick" x1="1"/,
+    'the tick keeps (near) the true hour x where the chip box nudges 22 in — '
+    + 'just 1 unit off the seam so its 2-wide stroke survives the clip');
   assert.ok(spec.main.indexOf('translate(' + (view.nowIndex * charts.HOUR_W) + ' 0)') !== -1,
     'the chip sits at the now hour');
   assert.match(spec.main, /id="wx-strip-hi-text"[^>]*>12:00</, 'the chip labels its hour');
@@ -248,6 +271,11 @@ test('the hour strip highlights the selected hour with the app\'s chip (own icon
   assert.equal(charts.stripChipX(view, 23), charts.DAY_W - 22, 'hour 23 clamps off its day\'s right seam');
   assert.equal(charts.stripChipX(view, 24), charts.DAY_W + 22, 'day 2 clamps against ITS OWN seam');
   assert.equal(charts.stripChipX(view, 15), 15 * charts.HOUR_W, 'mid-day hours sit at their own x');
+  // The tick's clamp is its own, tighter one: 1 unit, so the 2-wide stroke
+  // isn't halved at a seam but the tick still reads as the true hour x.
+  assert.equal(charts.stripTickX(view, 0), 1, 'the tick nudges 1 unit off the left seam');
+  assert.equal(charts.stripTickX(view, 24), charts.DAY_W + 1, 'day 2\'s first hour nudges off ITS seam');
+  assert.equal(charts.stripTickX(view, 15), 15 * charts.HOUR_W, 'mid-day ticks sit at their true x');
   const at0 = charts.timeStripSvg(view, LOC, pal, SunCalc, 0);
   assert.ok(at0.main.indexOf('id="wx-strip-hi" transform="translate(22 0)"') !== -1,
     'the renderer places the chip through the same clamp');

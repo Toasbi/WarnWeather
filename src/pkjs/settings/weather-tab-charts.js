@@ -43,6 +43,10 @@
             grid: 'rgba(0,0,0,0.09)', axis: 'rgba(0,0,0,0.22)',
             past: 'rgba(0,0,0,0.045)', night: 'rgba(30,40,80,0.09)',
             surface: '#F4F5F7',
+            // High-chance precip ink: `water` is tuned for lines/fills, not
+            // text — as text on the surface it lands under 4.5:1. This is
+            // the same hue darkened (light) / lightened (dark) past AA.
+            probHi: '#1D5FB8',
             hiBox: '#1B2536', hiText: '#FFFFFF'
         },
         dark: {
@@ -52,6 +56,7 @@
             grid: 'rgba(255,255,255,0.09)', axis: 'rgba(255,255,255,0.25)',
             past: 'rgba(255,255,255,0.05)', night: 'rgba(0,0,0,0.24)',
             surface: '#3A3B3F',
+            probHi: '#85B4F0',
             // The selected-hour box (the app's dark chip): deliberately the
             // same dark-on-dark-blue pair on BOTH surfaces, like the app.
             hiBox: '#1B2536', hiText: '#FFFFFF'
@@ -484,7 +489,7 @@
             }
             var p = view.prob[i];
             if (p === null || p === undefined) { continue; }
-            var ink = p >= 60 ? pal.water : (p >= 30 ? pal.muted : pal.faint);
+            var ink = p >= 60 ? pal.probHi : (p >= 30 ? pal.muted : pal.faint);
             over += '<text x="' + px + '" y="' + probY + '" text-anchor="middle" font-size="9" fill="'
                 + ink + '"' + (p >= 60 ? ' font-weight="700"' : (p >= 30 ? ' font-weight="600"' : '')) + '>'
                 + Math.round(p) + '%</text>';
@@ -742,10 +747,11 @@
         // and label by id while scrubbing.
         var hi = (typeof idx === 'number' && idx >= 0 && idx < view.times.length) ? idx : view.nowIndex;
         var hiIcon = view.icon[hi] ? 'h' + view.icon[hi] : null;
-        // The highlighted hour's OWN tick, over the ruler: unclamped (the
-        // true hour x, unlike the chip box) and moved by id while scrubbing.
-        s += '<line id="wx-strip-hi-tick" x1="' + xAt(view, hi) + '" y1="' + BAND_H + '" x2="' + xAt(view, hi)
-            + '" y2="' + (BAND_H + 7) + '" stroke="' + pal.ink + '" stroke-width="2"/>';
+        // The highlighted hour's OWN tick, over the ruler: at the true hour
+        // x bar a 1-unit seam nudge (unlike the chip's ±22 clamp) and moved
+        // by id while scrubbing.
+        s += '<line id="wx-strip-hi-tick" x1="' + stripTickX(view, hi) + '" y1="' + BAND_H + '" x2="'
+            + stripTickX(view, hi) + '" y2="' + (BAND_H + 7) + '" stroke="' + pal.ink + '" stroke-width="2"/>';
         s += '<g id="wx-strip-hi" transform="translate(' + stripChipX(view, hi) + ' 0)">'
             + '<rect x="-20" y="1" width="40" height="' + (BAND_H - 2) + '" rx="5" fill="' + pal.hiBox + '"/>'
             + (hiIcon ? iconUse(hiIcon, ' id="wx-strip-hi-icon"', 0, 4, 22)
@@ -775,6 +781,26 @@
         var day = Math.floor(i / 24);
         var lo = day * DAY_W + 22;
         var hi = (day + 1) * DAY_W - 22;
+        if (x < lo) { x = lo; }
+        if (x > hi) { x = hi; }
+        return x;
+    }
+
+    /**
+     * The highlight tick's x at an hour: the true hour x, nudged 1 unit
+     * inward at a day's first hour so the 2-wide stroke isn't halved by
+     * the viewport's overflow:hidden at the seam. Same shared-clamp deal
+     * as stripChipX — the renderer above AND weather-tab.js's scrub move
+     * both go through it.
+     * @param {Object} view Prepared view.
+     * @param {number} i Hour index into the view.
+     * @returns {number} Tick x in strip viewBox units.
+     */
+    function stripTickX(view, i) {
+        var x = xAt(view, i);
+        var day = Math.floor(i / 24);
+        var lo = day * DAY_W + 1;
+        var hi = (day + 1) * DAY_W - 1;
         if (x < lo) { x = lo; }
         if (x > hi) { x = hi; }
         return x;
@@ -937,6 +963,7 @@
         pressurePanelSvg: pressurePanelSvg,
         timeStripSvg: timeStripSvg,
         stripChipX: stripChipX,
+        stripTickX: stripTickX,
         sunMoonPanelSvg: sunMoonPanelSvg,
         iconSvg: icons.iconSvg,
         dailyStripHtml: dailyStripHtml,

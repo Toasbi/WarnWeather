@@ -54,7 +54,9 @@
         // The floating value tip over the crosshair (filled/placed by
         // paintScrub: anchored above the hour's topmost point, centered on
         // the crosshair, both clamped into the viewport).
-        + '.wx-tip{display:none;position:absolute;top:4px;z-index:5;pointer-events:none;'
+        // z-index 20: the tip must also win over the pinned hour axis
+        // (z-index 15) when a panel's top edge scrolls beneath it.
+        + '.wx-tip{display:none;position:absolute;top:4px;z-index:20;pointer-events:none;'
         + '-webkit-transform:translateX(-50%);transform:translateX(-50%);'
         + 'background:var(--card);border:1px solid var(--card-line);border-radius:8px;'
         + 'padding:4px 8px;color:var(--fg);white-space:nowrap;'
@@ -66,9 +68,17 @@
         + '.wx-tip-c i{display:block;font-style:normal;font-size:12px;font-weight:600;}'
         // The sticky time axis: pins below the tab bar while the panels
         // scroll. The card wrapper clips with overflow:clip, which (unlike
-        // hidden) does not trap descendant sticky; engines without clip
-        // simply scroll it normally.
-        + '.wx-sticky{position:-webkit-sticky;position:sticky;top:0;z-index:15;background:var(--card);}'
+        // hidden) does not trap descendant sticky; engines that only know
+        // overflow:hidden (Android WebView <90, iOS <16) simply scroll it
+        // normally — the accepted floor for the pin. The sticky box carries
+        // the full-bleed margin ITSELF (its inner .wx-bleed is zeroed) so
+        // the opaque backdrop covers the whole bled strip — on the wrapper
+        // alone it is 32px narrower and panel ink shows through the side
+        // slivers. translateZ(0) forces a compositing layer, the same
+        // leak-through fix .blockrow.sticky documents in shell.html.
+        + '.wx-sticky{position:-webkit-sticky;position:sticky;top:0;z-index:15;background:var(--card);'
+        + 'margin:8px -16px 0;-webkit-transform:translateZ(0);transform:translateZ(0);}'
+        + '.wx-sticky .wx-bleed{margin:0;}'
         // Day tiles are the day selector: tap jumps the panels to that day.
         // App-style wide tiles in a horizontally scrollable row (~2.5 tiles
         // per viewport); position:relative makes the row the tiles'

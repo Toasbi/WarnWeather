@@ -734,9 +734,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
         var tick = document.getElementById('wx-strip-hi-tick');
         if (tick) {
-            // The ruler tick under the chip stays on the TRUE hour x.
-            tick.setAttribute('x1', x);
-            tick.setAttribute('x2', x);
+            // The ruler tick under the chip stays on the (near-)true hour
+            // x — the renderer's seam nudge, not the chip's wide clamp.
+            var tx = charts.stripTickX(view, i);
+            tick.setAttribute('x1', tx);
+            tick.setAttribute('x2', tx);
         }
         var chipText = document.getElementById('wx-strip-hi-text');
         if (chipText) {
