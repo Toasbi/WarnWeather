@@ -788,9 +788,12 @@
 
     /**
      * The highlight tick's x at an hour: the true hour x, nudged 1 unit
-     * inward at a day's first hour so the 2-wide stroke isn't halved by
-     * the viewport's overflow:hidden at the seam. Same shared-clamp deal
-     * as stripChipX — the renderer above AND weather-tab.js's scrub move
+     * inward at a day's FIRST hour so the 2-wide stroke isn't halved by
+     * the viewport's overflow:hidden at the seam. The left seam is the
+     * only one an integer hour index can touch — a day's last hour sits
+     * a full HOUR_W clear of its right seam — so unlike stripChipX's
+     * ±22 there is no right-hand twin to this clamp. Same shared-clamp
+     * deal though: the renderer above AND weather-tab.js's scrub move
      * both go through it.
      * @param {Object} view Prepared view.
      * @param {number} i Hour index into the view.
@@ -798,12 +801,8 @@
      */
     function stripTickX(view, i) {
         var x = xAt(view, i);
-        var day = Math.floor(i / 24);
-        var lo = day * DAY_W + 1;
-        var hi = (day + 1) * DAY_W - 1;
-        if (x < lo) { x = lo; }
-        if (x > hi) { x = hi; }
-        return x;
+        var lo = Math.floor(i / 24) * DAY_W + 1;
+        return x < lo ? lo : x;
     }
 
     /**

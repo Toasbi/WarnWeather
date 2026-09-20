@@ -115,11 +115,25 @@ test('the graphs block orchestrates: loading → panels on data, error → Retry
     assert.ok(html.indexOf('5-day forecast') < html.indexOf('data-wxvp="strip"'),
       'the 5-day selector leads, then the shared hour strip (the app layout)');
     assert.ok(html.indexOf('data-wxvp="strip"') < html.indexOf('Temperature &amp; precipitation'));
-    assert.ok(html.indexOf('<div class="wx-sticky">') !== -1
-      && html.indexOf('<div class="wx-sticky">') < html.indexOf('data-wxvp="strip"'),
-      'the hour strip rides in the sticky wrapper (pins while the panels scroll)');
+    const stickyAt = html.indexOf('<div class="wx-sticky"><div class="wx-bleed">');
+    assert.ok(stickyAt !== -1
+      && html.slice(stickyAt, stickyAt + 300).indexOf('data-wxvp="strip"') !== -1,
+      'the hour strip ITSELF rides in the sticky wrapper (containment, not just ordering)');
+    assert.equal(html.indexOf('<div class="wx-sticky">', stickyAt + 1), -1,
+      'and nothing else does — one pinned element');
     assert.ok(css.WX_CSS.indexOf('.wx-sticky{position:-webkit-sticky;position:sticky') !== -1,
-      'and .wx-sticky actually pins (both position spellings for old WebViews)');
+      '.wx-sticky actually pins (both position spellings for old WebViews)');
+    // The pinned strip's two companion fixes: the sticky box itself
+    // carries the -16px bleed (inner wrapper zeroed) so its opaque
+    // backdrop covers the full strip width, and the tip stacks above it.
+    assert.ok(/\.wx-sticky\{[^}]*margin:8px -16px 0/.test(css.WX_CSS)
+      && css.WX_CSS.indexOf('.wx-sticky .wx-bleed{margin:0') !== -1,
+      'the sticky box owns the bleed margin; its inner .wx-bleed is zeroed');
+    const z = (sel) => Number((css.WX_CSS.match(
+      new RegExp(sel.replace('.', '\\.') + '\\{[^}]*z-index:(\\d+)')) || [])[1]);
+    assert.ok(z('.wx-tip') > z('.wx-sticky'),
+      'the value tip stacks over the pinned hour axis ('
+      + z('.wx-tip') + ' vs ' + z('.wx-sticky') + ')');
     assert.ok(html.indexOf('data-wxchart="press"') !== -1);
     assert.ok(html.indexOf('data-action="wxShowDay"') !== -1, 'day tiles navigate the panels');
     assert.equal(calls, 1, 'a fresh render serves from module state');
@@ -158,6 +172,50 @@ test('a new location resets the viewed day to today', () => {
     respond(fixture(), null);
     assert.equal(tab._panDay(), 0, 'a location switch lands on its today');
   } finally {
+    data.fetchWeather = realFetch;
+    tab._resetState();
+  }
+});
+
+test('a scrub moves the strip tick and chip through the shared clamps (the DOM path)', () => {
+  tab._resetState();
+  const realFetch = data.fetchWeather;
+  let respond = null;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { respond = cb; };
+  // paintScrub writes the crosshair by direct DOM calls; a stub document
+  // that yields only the two strip elements keeps every other branch
+  // parked (missing ids are skipped), pinning exactly the scrub-path
+  // clamps — the renderer's string output is pinned in the charts suite.
+  const tick = {};
+  const chip = {};
+  const el = (store) => ({
+    setAttribute: (k, v) => { store[k] = v; },
+    setAttributeNS: () => {}
+  });
+  global.document = {
+    getElementById: (id) => {
+      if (id === 'wx-strip-hi-tick') return el(tick);
+      if (id === 'wx-strip-hi') return el(chip);
+      return null;
+    }
+  };
+  try {
+    const state = { graphsLocation: 'current' };
+    tab._setCtx({ S: state, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond(fixture(), null);
+    tab.weatherGraphsBlock(state, {}, SEED);
+    // A tap at the wide svg's left edge = hour 0, ON the day seam: the
+    // tick must take stripTickX's 1-unit nudge (not the raw hour x 0)
+    // and the chip stripChipX's 22 — the renderer's clamps, exercised
+    // through the scrub path ("one clamp, both paths").
+    const svg = { getBoundingClientRect: () => ({ left: 0, width: 360 }) };
+    tab._scrubTo(svg, 0);
+    assert.equal(tick.x1, 1, 'the scrub path nudges the tick off the seam');
+    assert.equal(tick.x2, 1);
+    assert.equal(chip.transform, 'translate(22 0)', 'the chip move shares stripChipX');
+  } finally {
+    delete global.document;
     data.fetchWeather = realFetch;
     tab._resetState();
   }

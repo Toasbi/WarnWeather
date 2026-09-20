@@ -157,6 +157,12 @@ test('the precip-probability row carries its title and steps its ink with the ch
   const midPanel = charts.tempPanelSvg(mid, { temperatureUnits: 'c' }, pal);
   assert.match(midPanel.main, new RegExp('font-size="9" fill="' + pal.muted + '" font-weight="600">45%<'),
     'a maybe hour (30-59%) wears muted ink, semibold');
+  // The light surface must wear ITS OWN AA step, not the dark one —
+  // both palettes' probHi values are load-bearing for contrast.
+  const palL = charts.palette(true);
+  const tempL = charts.tempPanelSvg(view, { temperatureUnits: 'c' }, palL);
+  assert.match(tempL.main, new RegExp('font-size="9" fill="' + palL.probHi + '" font-weight="700">60%<'),
+    'the light palette applies its own probHi');
 });
 
 test('the value tip renders title-over-value columns (tipHtml)', () => {
@@ -348,7 +354,7 @@ test('the two palettes stay in lockstep (same roles in light and dark)', () => {
   const light = charts.palette(true);
   const dark = charts.palette(false);
   assert.deepEqual(Object.keys(light).sort(), Object.keys(dark).sort());
-  ['temp', 'water', 'dew', 'gust', 'pressure', 'sun'].forEach((role) => {
+  ['temp', 'water', 'dew', 'gust', 'pressure', 'sun', 'probHi'].forEach((role) => {
     assert.notEqual(light[role], dark[role], role + ' is stepped per surface, not shared');
   });
 });

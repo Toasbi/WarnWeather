@@ -77,9 +77,11 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/status-thresholds.js'),
   path.join(ROOT, 'src/pkjs/settings/notices-panel.js'),
   // The Weather tab kit (live graphs / 5-day / saved locations), nine
-  // files. Order is load-bearing within the group: each module publishes
-  // a window global its dependents read at IIFE time — vendor-suncalc.js
-  // → window.SunCalc; weather-tab-model.js → WeatherTabModel (read by
+  // files. Order is load-bearing within the group for all but
+  // vendor-suncalc.js (window.SunCalc is read lazily at render time, so
+  // like status-thresholds.js above it only has to be somewhere in the
+  // bundle): each of the others publishes a window global its dependents
+  // read at IIFE time — weather-tab-model.js → WeatherTabModel (read by
   // data/readouts/charts); weather-tab-icons.js and weather-tab-readouts.js
   // → read by charts; and weather-tab.js reads five of them (Model, Data,
   // Charts, Css, Interact) while its own top-level body runs.
