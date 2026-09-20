@@ -44,6 +44,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var panDay = 0;                 // day currently in the viewport (0-based)
     var editingSlot = null;         // overlay target: 1..3
     var gpsSeed = null;             // {lat, lon, name}: a page-acquired fix fresher than the injected seed
+    var stripKeep = null;           // .wx-days scrollLeft carried across a render (null = center the selection)
+    var stripPending = false;       // an applyStripScroll is scheduled for the render being built
+    var stripFresh = false;         // a NEW location's tiles just arrived — center instead of restoring
 
     /**
      * The effective current-location seed: a fix this page acquired itself
@@ -100,7 +103,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 var view = charts.prepareView(result, Date.now());
                 fetchState = { key: key, status: view ? 'ok' : 'error', data: result, error: view ? null : 'empty', view: view };
                 scrubIndex = null;
-                if (isNewKey) { panDay = 0; }
+                if (isNewKey) {
+                    panDay = 0;
+                    stripFresh = true;
+                }
             }
             if (ctx && !sync) { ctx.render(); }
         });
@@ -293,10 +299,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             // touch path; this link is the visible (and mouse) affordance.
             + (refetching ? '' : ' · <button type="button" class="wx-refresh" data-action="wxRefreshWeather">Refresh</button>')
             + '</div>';
-        // A render rebuilds the scrollable day strip at scrollLeft 0 — put
-        // the selected day back in view once this markup is in the DOM.
+        // A render rebuilds the scrollable day strip at scrollLeft 0. The OLD
+        // strip is still in the DOM while this string is being built, so
+        // capture the user's scroll here and put the rebuilt row back there
+        // (or center the selection when there's nothing to keep). Only the
+        // FIRST render before the timeout fires may capture — a back-to-back
+        // second render would otherwise read the fresh row's zero.
         if (typeof document !== 'undefined' && typeof setTimeout !== 'undefined') {
-            setTimeout(scrollDayStrip, 0);
+            if (!stripPending) {
+                var prevRow = document.querySelector ? document.querySelector('.wx-days') : null;
+                stripKeep = (prevRow && !stripFresh) ? prevRow.scrollLeft : null;
+                stripPending = true;
+            }
+            stripFresh = false;
+            setTimeout(applyStripScroll, 0);
         }
         // Refetch keeps the frame: the previous charts stay up, dimmed, while
         // the new location/provider loads — never a skeleton flash.
@@ -387,7 +403,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + 'display:block;background:var(--ctl);'
         + 'border:1.5px solid transparent;border-radius:12px;'
         + 'padding:8px 6px;text-align:center;font:inherit;color:var(--fg);cursor:pointer;}'
-        + '.wx-day.today{outline:1px solid var(--card-line);}'
+        // Inset ring, not outline: the row is a scroll container now, and it
+        // clips ink drawn OUTSIDE the tile's box (an outline) at its edges.
+        + '.wx-day.today{box-shadow:inset 0 0 0 1px var(--card-line);}'
         + '.wx-day.sel{border-color:var(--link);}'
         + '.wx-day.sel .wx-day-name{color:var(--link);}'
         + '.wx-day.off{opacity:0.4;cursor:default;}'
@@ -712,9 +730,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Center the selected day tile in the strip's scroll window. The 5-day
-     * row scrolls horizontally (app-style wide tiles), so a re-render (which
-     * resets scrollLeft) or a day change re-centers the selection.
+     * Center the selected day tile in the strip's scroll window — called on
+     * an actual DAY CHANGE (tile tap, pan snap onto a new day), never on a
+     * spring-back to the same day, which must not discard a scroll the user
+     * made themselves.
      * @returns {void}
      */
     function scrollDayStrip() {
@@ -726,6 +745,25 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var target = sel.offsetLeft - (row.clientWidth - sel.offsetWidth) / 2;
         if (target < 0) { target = 0; }
         row.scrollLeft = target;
+    }
+
+    /**
+     * Put the rebuilt strip back where the user had it after a render (the
+     * engine replaces #scroll.innerHTML wholesale, which resets the row to
+     * scrollLeft 0): restore the captured offset, or center the selection
+     * when there is nothing to restore (first paint, or a new location's
+     * tiles just arrived).
+     * @returns {void}
+     */
+    function applyStripScroll() {
+        if (!stripPending) { return; }   // a queued duplicate already ran
+        stripPending = false;
+        if (stripKeep === null) { scrollDayStrip(); return; }
+        var keep = stripKeep;
+        stripKeep = null;
+        if (typeof document === 'undefined' || !document.querySelector) { return; }
+        var row = document.querySelector('.wx-days');
+        if (row) { row.scrollLeft = keep; }
     }
 
     /**
@@ -743,7 +781,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (on && !has) { el.className = el.className + ' sel'; }
             if (!on && has) { el.className = name.replace(' sel ', ' ').replace(/^\s+|\s+$/g, ''); }
         }
-        scrollDayStrip();
     }
 
     var gesture = null;
@@ -808,7 +845,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             panDay = snapTargetDay(g.base, x - g.x0, g.vw, days, Date.now() - g.t0);
             setPan(panPct(panDay, days), true);
             syncDayCards();
-            if (panDay !== before) { syncReadouts(); }
+            if (panDay !== before) {
+                syncReadouts();
+                scrollDayStrip();
+            }
             return;
         }
         if (g.mode === null) {
@@ -1059,7 +1099,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             panDay = d;
             setPan(panPct(d, view.days), true);
             syncDayCards();
-            if (d !== before) { syncReadouts(); }
+            if (d !== before) {
+                syncReadouts();
+                scrollDayStrip();
+            }
             return false;
         };
         PConf.actions.wxRetryWeather = function () {
@@ -1107,6 +1150,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 panDay = 0;
                 gpsSeed = null;
                 revFor = null;
+                stripKeep = null;
+                stripPending = false;
+                stripFresh = false;
             }
         };
     }
