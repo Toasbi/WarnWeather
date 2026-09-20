@@ -683,43 +683,66 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                     var vpEl = tip.parentNode;
                     var vw = vpEl && vpEl.clientWidth;
                     var vh = vpEl && vpEl.clientHeight;
-                    var left = (x - panDay * charts.DAY_W) / charts.DAY_W * (vw || 0);
+                    var crossPx = (x - panDay * charts.DAY_W) / charts.DAY_W * (vw || 0);
+                    var left = crossPx;
+                    var half = tip.offsetWidth / 2 + 4;
                     if (vw) {
-                        var half = tip.offsetWidth / 2 + 4;
                         if (left < half) { left = half; }
                         if (left > vw - half) { left = vw - half; }
-                        tip.style.left = Math.round(left) + 'px';
-                    } else {
-                        tip.style.left = '50%';
                     }
                     // Anchor the tip just above the hour's TOPMOST point —
                     // the highest dot or bar top (viewBox units → px via
                     // the panel height the marks carry).
                     var topSvg = null;
+                    var botSvg = null;
                     for (var t = 0; t < marks.lines.length; t += 1) {
                         var lt = marks.lines[t];
                         var lv = lt.vals[i];
                         if (lv !== null && lv !== undefined && lt.max > lt.min) {
                             var cy = marks.bottom - (lv - lt.min) / (lt.max - lt.min) * (marks.bottom - marks.top);
                             if (topSvg === null || cy < topSvg) { topSvg = cy; }
+                            if (botSvg === null || cy > botSvg) { botSvg = cy; }
                         }
                     }
-                    if (marks.bar && marks.bar.tops && marks.bar.tops[i] !== null
-                            && marks.bar.tops[i] !== undefined
-                            && (topSvg === null || marks.bar.tops[i] < topSvg)) {
-                        topSvg = marks.bar.tops[i];
+                    var barTop = (marks.bar && marks.bar.tops
+                        && marks.bar.tops[i] !== null && marks.bar.tops[i] !== undefined)
+                        ? marks.bar.tops[i] : null;
+                    if (barTop !== null && (topSvg === null || barTop < topSvg)) {
+                        topSvg = barTop;
                     }
                     var topPx = 4;
                     if (vh && topSvg !== null && marks.H) {
                         var anchorPx = topSvg / marks.H * vh;
                         topPx = Math.round(anchorPx - tip.offsetHeight - 8);
                         if (topPx < 2) {
-                            // No room above a near-top point → sit below it
-                            // instead of covering it.
-                            topPx = Math.round(anchorPx + 12);
-                            if (topPx + tip.offsetHeight > vh - 2) { topPx = 2; }
+                            // No room above the topmost mark. The tip must
+                            // never sit BETWEEN the hour's marks (below the
+                            // top line it covers the lower line or bar):
+                            // step ASIDE instead — top edge, near edge kept
+                            // clear of the crosshair column (half a bar in
+                            // px at this viewport, plus air), right side
+                            // preferred. A wide tip near mid-viewport can
+                            // fit on neither side; then go BELOW all the
+                            // hour's marks — unless a bar (which reaches
+                            // the axis) or a near-bottom mark blocks that
+                            // too, which leaves the top-centered clamp as
+                            // the truly-last resort.
+                            topPx = 2;
+                            if (vw) {
+                                var clear = Math.round(charts.HOUR_W / 2 / charts.DAY_W * vw) + 4;
+                                var w = tip.offsetWidth;
+                                if (crossPx + clear + w <= vw - 2) {
+                                    left = crossPx + clear + w / 2;
+                                } else if (crossPx - clear - w >= 2) {
+                                    left = crossPx - clear - w / 2;
+                                } else if (barTop === null && botSvg !== null) {
+                                    var below = Math.round(botSvg / marks.H * vh + 10);
+                                    if (below + tip.offsetHeight <= vh - 2) { topPx = below; }
+                                }
+                            }
                         }
                     }
+                    tip.style.left = vw ? Math.round(left) + 'px' : '50%';
                     tip.style.top = topPx + 'px';
                 } else {
                     tip.style.display = 'none';

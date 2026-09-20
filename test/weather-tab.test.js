@@ -7,6 +7,7 @@ const tab = require('../src/pkjs/settings/weather-tab.js');
 const data = require('../src/pkjs/settings/weather-tab-data.js');
 const model = require('../src/pkjs/settings/weather-tab-model.js');
 const css = require('../src/pkjs/settings/weather-tab-css.js');
+const charts = require('../src/pkjs/settings/weather-tab-charts.js');
 
 // The glue calls Date.now() itself (ensureFetch prepares the view against
 // the real clock), so the fixture anchors to the REAL current UTC day —
@@ -214,6 +215,66 @@ test('a scrub moves the strip tick and chip through the shared clamps (the DOM p
     assert.equal(tick.x1, 1, 'the scrub path nudges the tick off the seam');
     assert.equal(tick.x2, 1);
     assert.equal(chip.transform, 'translate(22 0)', 'the chip move shares stripChipX');
+  } finally {
+    delete global.document;
+    data.fetchWeather = realFetch;
+    tab._resetState();
+  }
+});
+
+test('the value tip never sits between the hour\'s marks: above them, else beside at the top', () => {
+  tab._resetState();
+  const realFetch = data.fetchWeather;
+  let respond = null;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { respond = cb; };
+  // A temp ridge: hour 12 is the series max (its dot rides near the panel
+  // top → no room above the mark), hour 2 sits near the min (room above).
+  const fx = fixture();
+  for (let h = 0; h <= 48; h += 1) {
+    const d = h % 24;
+    fx.hourly.temp[h] = d <= 12 ? d : 24 - d;
+  }
+  const tip = {
+    style: {}, innerHTML: '',
+    offsetWidth: 60, offsetHeight: 44,
+    parentNode: { clientWidth: 390, clientHeight: 150 }
+  };
+  global.document = {
+    getElementById: (id) => (id === 'wx-tip-temp' ? tip : null)
+  };
+  try {
+    const state = { graphsLocation: 'current', temperatureUnits: 'c' };
+    tab._setCtx({ S: state, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond(fx, null);
+    tab.weatherGraphsBlock(state, {}, SEED);
+    // The anchor paintScrub derives, recomputed from the same view + spec.
+    const view = tab._fetchState().view;
+    const marks = charts.tempPanelSvg(view, state, charts.palette(false)).marks;
+    const ln = marks.lines[0];
+    const anchorAt = (i) =>
+      (marks.bottom - (ln.vals[i] - ln.min) / (ln.max - ln.min) * (marks.bottom - marks.top))
+      / marks.H * tip.parentNode.clientHeight;
+    const svg = { getBoundingClientRect: () => ({ left: 0, width: 390 }) };
+    const px = (h) => h * charts.HOUR_W / (view.days * charts.DAY_W) * 390;
+
+    tab._scrubTo(svg, px(2));
+    const top2 = parseInt(tip.style.top, 10);
+    assert.ok(top2 > 2, 'a low mark keeps the above-the-point placement');
+    assert.ok(top2 + tip.offsetHeight <= anchorAt(2) - 7,
+      'the tip sits fully above the mark (bottom clears the dot)');
+
+    assert.ok(anchorAt(12) - tip.offsetHeight - 8 < 2,
+      'precondition: the ridge top leaves no room above the mark');
+    tab._scrubTo(svg, px(12));
+    assert.equal(tip.style.top, '2px',
+      'no room above → the tip hugs the top edge, never dropping BELOW the '
+      + 'top mark (where it would cover the hour\'s lower line or bar)');
+    const cross12 = 12 * charts.HOUR_W / charts.DAY_W * 390;
+    const left12 = parseInt(tip.style.left, 10);
+    assert.ok(Math.abs(left12 - cross12) - tip.offsetWidth / 2 >= 8,
+      'and steps aside: its near edge clears the crosshair column '
+      + '(half a bar of clearance at this viewport)');
   } finally {
     delete global.document;
     data.fetchWeather = realFetch;
