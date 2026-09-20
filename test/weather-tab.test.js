@@ -95,6 +95,8 @@ test('the graphs block orchestrates: loading → panels on data, error → Retry
     html = tab.weatherGraphsBlock(state, {}, SEED);
     assert.ok(html.indexOf('Temperature &amp; precipitation') !== -1);
     assert.ok(html.indexOf('5-day forecast') !== -1);
+    assert.ok(html.indexOf('5-day forecast') < html.indexOf('Temperature &amp; precipitation'),
+      'the 5-day strip leads, above the hourly graphs (the app layout)');
     assert.ok(html.indexOf('data-wxchart="press"') !== -1);
     assert.equal(calls, 1, 'a fresh render serves from module state');
 

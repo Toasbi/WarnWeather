@@ -215,6 +215,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var settings = state;
         var idx = scrubIndex === null ? view.nowIndex : scrubIndex;
         var h = '';
+        // The 5-day strip leads, above the hourly graphs — the WarnWeather
+        // app's layout (day tiles first, detail below).
+        h += '<div class="wx-panel"><div class="wx-panel-head"><span class="wx-panel-title">5-day forecast</span></div>'
+            + charts.dailyStripHtml(view.daily, settings, pal, view.offsetSec, Date.now()) + '</div>';
         h += panelHtml('temp', 'Temperature & precipitation',
             [['Temp', pal.temp, 'line'], ['Rain', pal.water, 'rect']],
             charts.readout('temp', view, idx, settings),
@@ -237,8 +241,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 '',
                 charts.sunMoonPanelSvg(loc, Date.now(), pal, sunCalcLib, view.offsetSec));
         }
-        h += '<div class="wx-panel"><div class="wx-panel-head"><span class="wx-panel-title">5-day forecast</span></div>'
-            + charts.dailyStripHtml(view.daily, settings, pal, view.offsetSec, Date.now()) + '</div>';
         var providerLabel = fetchState.data && fetchState.data.meta ? fetchState.data.meta.provider : '';
         for (var i = 0; i < model.GRAPH_PROVIDERS.length; i += 1) {
             if (model.GRAPH_PROVIDERS[i].id === providerLabel) { providerLabel = model.GRAPH_PROVIDERS[i].label; }
