@@ -289,10 +289,9 @@ picking the shown swatch is what writes it.
 |-------|------|-------------|
 | `title` | string | Section heading |
 | `intro` | string | HTML rendered above items |
-| `blockBefore` | string | Custom-block id rendered ABOVE the items (below the intro) — the mirror of `block`. Use it for a preview that heads the whole card, instead of hanging one off whichever item happens to be first. |
-| `blockBeforeSticky` | boolean | Pins the `blockBefore` block below the topbar while the rows scroll under it (same as the item-level flag) |
-| `block` | string | Custom-block id rendered BELOW the items (see [Registries](#registries-and-hooks)) |
-| `collapsible` | boolean | Collapses the section into an expandable card |
+| `block` | string | Custom-block id rendered BELOW the items (see [Registries](#registries-and-hooks)). A block ABOVE the items is the item-level `blockBefore` on the section's first item — the engine has no section-level `blockBefore`; for a card that stacks several blocks, share a `groupCard` id across consecutive sections instead. |
+| `collapsible` | boolean | Collapses the section into an expandable card (collapsed by default; state is per page open) |
+| `titleFrom` | `{resolver, args?}` | Collapsible sections only: a `PConf.displayResolvers` id whose `fn(S, env, args)` result is painted next to the title while the card is COLLAPSED (e.g. the current pick of a select inside), so a closed card still says what's selected. Open cards show the plain `title`. |
 | `items` | Item[] | The items to render |
 
 **Item fields:**

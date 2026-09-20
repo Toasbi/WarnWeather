@@ -1040,12 +1040,25 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // (drops the divider but keeps normal padding). See the .nb / .nbl rules in shell.html.
   function nbClass(mode) { return mode === 'loose' ? ' nbl' : (mode ? ' nb' : ''); }
 
-  function renderCardHeader(sec, secId, isCollapsible, isOpen) {
+  function renderCardHeader(sec, secId, isCollapsible, isOpen, cx) {
     if (!(sec.title || isCollapsible)) { return ''; }
     var chev = isCollapsible ? '<span class="chev">' + (isOpen ? '&#9662;' : '&#9656;') + '</span>' : '';
     var collAttr = isCollapsible ? ' data-coll="' + esc(secId) + '"' : '';
+    // titleFrom (sections only): a display resolver paints the section's CURRENT
+    // pick next to the title while the card is collapsed, so a closed card still
+    // says what is selected inside it. Open cards show the plain title — the
+    // rows themselves carry the values there. Resolver grammar matches
+    // displayFrom: fn(S, env, args) from PConf.displayResolvers.
+    var val = '';
+    if (sec.titleFrom && isCollapsible && !isOpen && cx) {
+      var fn = PConf.displayResolvers.get(sec.titleFrom.resolver);
+      var v = fn ? fn(cx.S, cx.ENV, sec.titleFrom.args || {}) : null;
+      if (v !== null && v !== undefined && v !== '') {
+        val = '<span class="ttlval">' + esc(String(v)) + '</span>';
+      }
+    }
     return '<button class="cardHdr' + (isCollapsible ? ' coll' : '') + '"' + collAttr + '>'
-      + '<span class="ttl">' + esc(sec.title || '') + '</span>' + chev + '</button>';
+      + '<span class="ttl">' + esc(sec.title || '') + '</span>' + val + chev + '</button>';
   }
 
   // Build a section's inner body HTML (intro + items + block) and whether it's empty
@@ -1106,7 +1119,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (built.isEmpty) { return ''; }
     var isCollapsible = Boolean(sec.collapsible);
     var isOpen = isCollapsible ? !cx.collapsed[secId] : true;
-    var hdr = renderCardHeader(sec, secId, isCollapsible, isOpen);
+    var hdr = renderCardHeader(sec, secId, isCollapsible, isOpen, cx);
     return '<div class="card' + (hdr ? '' : ' nohdr') + '">' + hdr + (isOpen ? '<div>' + built.body + '</div>' : '') + '</div>';
   }
 

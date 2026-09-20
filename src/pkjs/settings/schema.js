@@ -1106,19 +1106,27 @@ module.exports = {
         // (weather-tab*.js). DISPLAY-ONLY: its keys are blob-only and never
         // touch the watch's provider/location or any AppMessage.
         id: 'weather', label: 'Weather', sections: [{
+            // Collapsed by default (collapsible sections start closed); the
+            // header paints the current pick via titleFrom so the closed card
+            // reads "PROVIDER · DWD" without opening it.
+            id: 'graphsProviderCard',
+            title: 'Provider',
+            collapsible: true,
+            titleFrom: {resolver: 'graphsProviderHeader'},
             items: [{
                 type: 'select',
                 messageKey: 'graphsProvider',
                 label: 'Data source',
                 defaultValue: 'auto',
-                // The location chip row rides the item (blockBefore is an
-                // item-level property; sections only take `block`).
-                blockBefore: 'weatherLocations',
                 optionsFrom: {resolver: 'graphsProviderOptions'},
                 hint: 'Only for this tab’s graphs — the watchface keeps its own provider and location. Keyed providers appear once their API key is set.'
             }]
         }, {
-            block: 'weatherGraphs',
+            // Chips + graphs render as ONE card: two untitled sections sharing
+            // a groupCard, each contributing its block (hidden items draw
+            // nothing but still hydrate/serialize the tab's blob-only keys).
+            groupCard: 'weatherMain',
+            block: 'weatherLocations',
             items: [{
                 type: 'hidden', messageKey: 'graphsLocation', defaultValue: 'current'
             }, {
@@ -1128,6 +1136,10 @@ module.exports = {
             }, {
                 type: 'hidden', messageKey: 'savedLocation3', defaultValue: ''
             }]
+        }, {
+            groupCard: 'weatherMain',
+            block: 'weatherGraphs',
+            items: []
         }]
     }, {
         id: 'forecast', label: 'Forecast', sections: [{

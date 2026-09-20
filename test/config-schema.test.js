@@ -1976,9 +1976,18 @@ test('the Weather tab is display-only: its own keys, blocks, and no watch coupli
   assert.ok(tab, 'the weather tab exists');
   assert.equal(tab.label, 'Weather');
   assert.equal(schema.tabs.findIndex((t) => t.id === 'weather'), 1, 'sits right after General');
-  assert.equal(tab.sections[0].items[0].blockBefore, 'weatherLocations',
-    'the chip row rides the first item — blockBefore is item-level, sections only take block');
-  assert.equal(tab.sections[1].block, 'weatherGraphs');
+  // Layout: a collapsed Provider card leads (its header paints the current
+  // pick), then chips + graphs merge into ONE card via a shared groupCard.
+  const providerSec = tab.sections[0];
+  assert.equal(providerSec.title, 'Provider');
+  assert.equal(providerSec.collapsible, true, 'the provider card starts collapsed');
+  assert.equal(providerSec.titleFrom.resolver, 'graphsProviderHeader',
+    'the collapsed header shows the selected provider');
+  assert.equal(providerSec.items[0].messageKey, 'graphsProvider');
+  assert.equal(tab.sections[1].block, 'weatherLocations');
+  assert.equal(tab.sections[2].block, 'weatherGraphs');
+  assert.ok(tab.sections[1].groupCard && tab.sections[1].groupCard === tab.sections[2].groupCard,
+    'chips and graphs share one card');
 
   const provider = byKey('graphsProvider');
   assert.equal(provider.defaultValue, 'auto');

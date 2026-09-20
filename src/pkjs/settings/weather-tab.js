@@ -126,6 +126,22 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return out;
     }
 
+    /**
+     * The collapsed Provider card's header value: the label of the current
+     * graphsProvider pick ("Auto (DWD)", "Open-Meteo", …). Falls back to the
+     * Auto label when the stored pick is no longer offered (key removed).
+     * @param {Object} state Live settings state.
+     * @returns {string} Display label for the section header.
+     */
+    function graphsProviderHeader(state) {
+        var opts = graphsProviderOptions(state);
+        var v = (state && state.graphsProvider) || 'auto';
+        for (var i = 0; i < opts.length; i += 1) {
+            if (opts[i][1] === v) { return opts[i][0]; }
+        }
+        return opts[0][0];
+    }
+
     // --- location chips ---------------------------------------------------------
 
     /**
@@ -715,6 +731,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         });
     }
 
+    if (PConf.displayResolvers && PConf.displayResolvers.register) {
+        PConf.displayResolvers.register('graphsProviderHeader', function (S) {
+            return graphsProviderHeader(S);
+        });
+    }
+
     if (PConf.actions) {
         PConf.actions.wxSelectLocation = function (arg, S) {
             S.graphsLocation = String(arg);
@@ -772,6 +794,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             weatherLocationsBlock: weatherLocationsBlock,
             weatherGraphsBlock: weatherGraphsBlock,
             graphsProviderOptions: graphsProviderOptions,
+            graphsProviderHeader: graphsProviderHeader,
             firstFreeSlot: firstFreeSlot,
             snapTargetDay: snapTargetDay,
             panPct: panPct,

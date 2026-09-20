@@ -47,6 +47,14 @@ test('graphsProviderOptions labels Auto with its resolution and gates keyed rows
   assert.ok(withKeys.some((o) => o[1] === 'openweathermap'));
 });
 
+test('graphsProviderHeader labels the collapsed Provider card with the current pick', () => {
+  assert.match(tab.graphsProviderHeader({ provider: 'dwd' }), /^Auto \(DWD/, 'no pick reads as Auto');
+  assert.equal(tab.graphsProviderHeader({ graphsProvider: 'openmeteo' }), 'Open-Meteo');
+  assert.equal(tab.graphsProviderHeader({ graphsProvider: 'tomorrowio', tomorrowioApiKey: 't' }), 'tomorrow.io');
+  assert.match(tab.graphsProviderHeader({ graphsProvider: 'tomorrowio' }), /^Auto/,
+    'a keyed pick whose key is gone falls back to the Auto label');
+});
+
 test('firstFreeSlot walks the three slots', () => {
   const slot = model.serializeSlot({ name: 'X', lat: 1, lon: 2 });
   assert.equal(tab.firstFreeSlot({}), 1);

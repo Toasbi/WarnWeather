@@ -63,6 +63,8 @@
   .cardHdr { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 15px 16px; background: transparent; border: none; cursor: default; font: inherit; text-align: left; }
   .cardHdr.coll { cursor: pointer; }
   .cardHdr .ttl { font-size: 11.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--ttl); }
+  /* the collapsed-card value (section titleFrom) — right-aligned beside the chevron */
+  .cardHdr .ttlval { margin-left: auto; margin-right: 10px; font-size: 13px; font-weight: 600; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%; }
   /* the disclosure chevron — on a collapsible card header AND on a chevronRow (button /
      sheet rows). One rule, so both follow --link when the page flips to the light theme. */
   .chev { color: var(--link); font-size: 16px; font-weight: 700; line-height: 1; }

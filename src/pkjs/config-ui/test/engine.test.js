@@ -1450,3 +1450,43 @@ test('a labelled row is unchanged', () => {
     { value: false });
   assert.match(html, /<div class="lbl">Vibrate<\/div>/);
 });
+
+test('titleFrom: a collapsed section header paints the resolved value; open/plain ones do not', () => {
+  PConf.displayResolvers.register('pickLabel', function (S, env, args) {
+    return S.mode === 'b' ? 'Bravo' : 'Alpha';
+  });
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{
+    id: 'pick', title: 'Provider', collapsible: true, titleFrom: { resolver: 'pickLabel' },
+    items: [{ type: 'select', messageKey: 'mode', defaultValue: 'a', options: [['Alpha', 'a'], ['Bravo', 'b']] }]
+  }] }] };
+  const mkCx = (S, collapsed) => ({ S, ENV: {}, USERDATA: {}, openColor: null, collapsed,
+    evalCtx: Object.assign({}, S, { env: {} }) });
+
+  // Collapsed: header shows the resolved current pick.
+  let html = E.renderBody(SCH, 't', mkCx({ mode: 'b' }, { pick: true }));
+  assert.match(html, /class="ttlval">Bravo</);
+  assert.equal(html.indexOf('data-k="mode"'), -1, 'collapsed card hides its rows');
+
+  // Open: plain title, no ttlval — the row itself shows the value.
+  html = E.renderBody(SCH, 't', mkCx({ mode: 'b' }, { pick: false }));
+  assert.equal(html.indexOf('ttlval'), -1);
+  assert.ok(html.indexOf('data-select="mode"') !== -1 || html.indexOf('data-k="mode"') !== -1,
+    'open card renders the select');
+
+  // Unknown resolver: header degrades to the plain title.
+  const BAD = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{
+    id: 'pick', title: 'Provider', collapsible: true, titleFrom: { resolver: 'nope' },
+    items: [{ type: 'toggle', messageKey: 'x', defaultValue: false }]
+  }] }] };
+  html = E.renderBody(BAD, 't', mkCx({ x: false }, { pick: true }));
+  assert.equal(html.indexOf('ttlval'), -1);
+  assert.match(html, /class="ttl">Provider</);
+
+  // A non-collapsible section ignores titleFrom entirely.
+  const PLAIN = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{
+    title: 'Provider', titleFrom: { resolver: 'pickLabel' },
+    items: [{ type: 'toggle', messageKey: 'x', defaultValue: false }]
+  }] }] };
+  html = E.renderBody(PLAIN, 't', mkCx({ x: false, mode: 'b' }, {}));
+  assert.equal(html.indexOf('ttlval'), -1);
+});
