@@ -50,6 +50,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var panelMarks = null;          // per-panel scale metadata from the last render (dots/bars/tips)
     var stripIcons = null;          // night-resolved per-hour icon ids from the last render (the chip swap)
     var litBars = {};               // panel id → bar index currently lit by the crosshair
+    var settleTimer = null;         // pending re-show of tips that rode a pan off-viewport
     var PANEL_IDS = ['temp', 'wind', 'hum', 'press'];
 
     /**
@@ -399,8 +400,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             scrollDayStrip();
         } else {
             // Spring-back to the same day: the crosshair survives, so the
-            // tips that rode the drag have to land back on their values.
-            panTips(d);
+            // tips that rode the drag have to land back on their values —
+            // on the same eased curve setPan just gave the panels.
+            panTips(d, true);
         }
     }
 
@@ -651,19 +653,62 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Carry every live value tip along with a pan in progress: each rides
-     * its own hour and vanishes the moment that hour scrolls out of the
-     * viewport. Called per drag frame with the gesture's fractional day,
-     * and on release with the day it settles on.
-     * @param {number} dayOff Day offset — fractional mid-drag.
+     * Put a tip on (or off) the pan's settle curve, so an animated snap
+     * carries it at exactly the speed of the values it floats over.
+     * @param {Element} tip The tip element.
+     * @param {boolean} on Whether its next move should ease.
      * @returns {void}
      */
-    function panTips(dayOff) {
+    function easeTip(tip, on) {
+        var css = on ? 'left ' + interact.SETTLE_CSS : '';
+        tip.style.webkitTransition = css;
+        tip.style.transition = css;
+    }
+
+    /**
+     * Carry every live value tip along with a pan: each rides its own hour
+     * and vanishes the moment that hour scrolls out of the viewport.
+     * Called per drag frame with the gesture's fractional day, and on
+     * release with the day it settles on.
+     *
+     * A release is ANIMATED — the panels ease home over SETTLE_MS — so the
+     * tips have to be too, or they arrive at their resting x while the
+     * values are still sliding and briefly float over nothing. A tip that
+     * is still on screen simply eases along the same curve. One that has
+     * already gone with its value off-viewport waits out the settle
+     * instead: showing it now would park it over a value that has not
+     * arrived yet, and it is already invisible, so nothing flickers.
+     * @param {number} dayOff Day offset — fractional mid-drag.
+     * @param {boolean} animated True when the pan is easing home.
+     * @returns {void}
+     */
+    function panTips(dayOff, animated) {
+        if (settleTimer) { clearTimeout(settleTimer); settleTimer = null; }
         if (scrubIndex === null || !fetchState.view) { return; }
         if (typeof document === 'undefined' || !document.getElementById) { return; }
+        var waiting = [];
         for (var k = 0; k < PANEL_IDS.length; k += 1) {
             var tip = document.getElementById('wx-tip-' + PANEL_IDS[k]);
-            if (tip && tip.innerHTML) { placeTipX(tip, scrubIndex, dayOff); }
+            if (!tip || !tip.innerHTML) { continue; }
+            if (animated && tip.style.display === 'none') {
+                waiting.push(tip);
+                continue;
+            }
+            easeTip(tip, Boolean(animated));
+            placeTipX(tip, scrubIndex, dayOff);
+        }
+        if (waiting.length) {
+            var at = scrubIndex;
+            settleTimer = setTimeout(function () {
+                settleTimer = null;
+                // A fresh scrub while the pan eased owns the tips now —
+                // paintScrub has already placed them.
+                if (scrubIndex !== at) { return; }
+                for (var w = 0; w < waiting.length; w += 1) {
+                    easeTip(waiting[w], false);
+                    placeTipX(waiting[w], at, dayOff);
+                }
+            }, interact.SETTLE_MS);
         }
     }
 
@@ -768,7 +813,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                     tip.style.top = topPx + 'px';
                     // The horizontal half rides the pan, so it lives in
                     // its own function — this resting call and every drag
-                    // frame place the tip the same way.
+                    // frame place the tip the same way. A scrub lands at
+                    // once: any settle curve left on the tip by an earlier
+                    // pan would drag its jump out over SETTLE_MS.
+                    easeTip(tip, false);
                     placeTipX(tip, i, panDay);
                 } else {
                     tip.style.display = 'none';
@@ -1034,6 +1082,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 panelMarks = null;
                 stripIcons = null;
                 litBars = {};
+                if (settleTimer) { clearTimeout(settleTimer); settleTimer = null; }
             }
         };
     }

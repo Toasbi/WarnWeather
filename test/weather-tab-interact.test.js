@@ -30,7 +30,7 @@ test('a pan drag hands its live position to the value tips, every frame', () => 
       day: () => 0,
       commitDay: () => {},
       scrub: () => {},
-      panTips: (f) => { seen.push(f); },
+      panTips: (f, animated) => { seen.push({ f, animated }); },
       canPull: () => false,
       refresh: () => {}
     });
@@ -54,12 +54,21 @@ test('a pan drag hands its live position to the value tips, every frame', () => 
     // place while the values slide out from under them.
     touch('touchmove', 200);
     assert.equal(seen.length, 1, 'the drag hands its position to the tips');
-    assert.ok(Math.abs(seen[0] - 100 / 390) < 1e-9,
+    assert.ok(Math.abs(seen[0].f - 100 / 390) < 1e-9,
       'and it is the SAME fractional day the panels are translated by');
 
     touch('touchmove', 100);
     assert.equal(seen.length, 2, 'every frame, not just the first');
-    assert.ok(Math.abs(seen[1] - 200 / 390) < 1e-9, 'tracking the finger');
+    assert.ok(Math.abs(seen[1].f - 200 / 390) < 1e-9, 'tracking the finger');
+    assert.equal(seen[1].animated, false,
+      'a drag frame is unanimated — it tracks the finger, it does not chase it');
+
+    // An abort eases the panels back to the resting day, so the tips have
+    // to be told to travel on that curve rather than snap ahead of them.
+    listeners.touchcancel({});
+    const last = seen[seen.length - 1];
+    assert.equal(last.f, 0, 'the abort hands back the resting day');
+    assert.equal(last.animated, true, 'and flags it as an eased settle');
   } finally {
     delete global.document;
   }

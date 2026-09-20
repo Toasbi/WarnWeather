@@ -8,6 +8,7 @@ const data = require('../src/pkjs/settings/weather-tab-data.js');
 const model = require('../src/pkjs/settings/weather-tab-model.js');
 const css = require('../src/pkjs/settings/weather-tab-css.js');
 const charts = require('../src/pkjs/settings/weather-tab-charts.js');
+const interact = require('../src/pkjs/settings/weather-tab-interact.js');
 
 // The glue calls Date.now() itself (ensureFetch prepares the view against
 // the real clock), so the fixture anchors to the REAL current UTC day —
@@ -402,6 +403,85 @@ test('a pan carries the tips with their values and drops them at the viewport ed
     assert.equal(tip.style.display, 'none', 'an empty tip stays hidden');
   } finally {
     delete global.document;
+    data.fetchWeather = realFetch;
+    tab._resetState();
+  }
+});
+
+test('a settling pan eases the tips home, and holds back the ones that left the viewport', () => {
+  tab._resetState();
+  const realFetch = data.fetchWeather;
+  const realSetTimeout = global.setTimeout;
+  const realClearTimeout = global.clearTimeout;
+  let respond = null;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { respond = cb; };
+  const timers = [];
+  global.setTimeout = (fn, ms) => { timers.push({ fn, ms }); return timers.length; };
+  global.clearTimeout = () => {};
+  const tip = {
+    style: {}, innerHTML: '',
+    offsetWidth: 60, offsetHeight: 44,
+    parentNode: { clientWidth: 390, clientHeight: 150 }
+  };
+  global.document = {
+    getElementById: (id) => (id === 'wx-tip-temp' ? tip : null)
+  };
+  try {
+    const state = { graphsLocation: 'current', temperatureUnits: 'c' };
+    tab._setCtx({ S: state, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond(fixture(), null);
+    tab.weatherGraphsBlock(state, {}, SEED);
+    const view = tab._fetchState().view;
+    const svg = { getBoundingClientRect: () => ({ left: 0, width: 390 }) };
+    const px = (h) => h * charts.HOUR_W / (view.days * charts.DAY_W) * 390;
+
+    tab._scrubTo(svg, px(12));
+    const atRest = parseInt(tip.style.left, 10);
+    assert.equal(tip.style.transition, '', 'a scrub lands at once, never on a curve');
+    timers.length = 0;   // ignore whatever the render path itself scheduled
+
+    // Case one: the tip is still on screen when the finger lifts. The
+    // panels ease home over SETTLE_MS, so the tip must ease with them —
+    // arriving instantly would float it over a still-moving value.
+    tab._panTips(0.2, false);
+    assert.equal(tip.style.transition, '', 'drag frames track the finger exactly, unananimated');
+    tab._panTips(0, true);
+    assert.equal(tip.style.transition, 'left ' + interact.SETTLE_CSS,
+      'the settle puts the tip on the pan\'s own curve');
+    assert.equal(tip.style.webkitTransition, 'left ' + interact.SETTLE_CSS, 'old WebViews too');
+    assert.equal(parseInt(tip.style.left, 10), atRest, 'and aims it at its resting place');
+    assert.equal(timers.length, 0, 'a visible tip needs no deferral');
+
+    // Case two: the drag carried the value off-viewport, so the tip is
+    // already hidden. Re-showing it now would park it over a value that
+    // is still easing in — it waits out the settle instead.
+    tab._panTips(0.6, false);
+    assert.equal(tip.style.display, 'none', 'gone with its value');
+    tab._panTips(0, true);
+    assert.equal(tip.style.display, 'none',
+      'a released spring-back does NOT resurrect it over a value mid-flight');
+    assert.equal(timers.length, 1, 'its return is deferred instead');
+    assert.equal(timers[0].ms, interact.SETTLE_MS, 'by exactly the pan\'s settle time');
+
+    timers[0].fn();
+    assert.equal(tip.style.display, 'block', 'once the pan has landed it comes back');
+    assert.equal(parseInt(tip.style.left, 10), atRest, 'on its value');
+    assert.equal(tip.style.transition, '', 'and lands at once — the pan is already home');
+
+    // A fresh scrub during the settle owns the tips; the stale timer must
+    // not paint over what paintScrub just placed.
+    tab._panTips(0.6, false);
+    tab._panTips(0, true);
+    const pending = timers[timers.length - 1];
+    tab._scrubTo(svg, px(6));
+    const afterScrub = tip.style.left;
+    pending.fn();
+    assert.equal(tip.style.left, afterScrub, 'the stale settle timer stands down');
+  } finally {
+    delete global.document;
+    global.setTimeout = realSetTimeout;
+    global.clearTimeout = realClearTimeout;
     data.fetchWeather = realFetch;
     tab._resetState();
   }

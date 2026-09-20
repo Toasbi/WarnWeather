@@ -8,8 +8,17 @@
 (function () {
     'use strict';
 
-    var api = null;    // wired by weather-tab.js: view/day/commitDay/scrub/canPull/refresh
+    // wired by weather-tab.js: view/day/commitDay/scrub/panTips/canPull/refresh
+    var api = null;
     var wired = false;
+
+    // The day-settle animation: a snap or spring-back eases the panels
+    // home over this curve. Both halves are exported because the value
+    // tips ride OUTSIDE the panned element — they have to travel on the
+    // same curve, for the same duration, or they arrive ahead of the
+    // values they float over.
+    var SETTLE_CSS = '0.22s ease-out';
+    var SETTLE_MS = 220;
 
     /**
      * The nearest ancestor (self included) carrying an attribute.
@@ -48,8 +57,8 @@
         var val = 'translateX(' + pct + '%)';
         for (var i = 0; i < els.length; i += 1) {
             var st = els[i].style;
-            st.webkitTransition = animated ? '-webkit-transform 0.22s ease-out' : 'none';
-            st.transition = animated ? 'transform 0.22s ease-out' : 'none';
+            st.webkitTransition = animated ? '-webkit-transform ' + SETTLE_CSS : 'none';
+            st.transition = animated ? 'transform ' + SETTLE_CSS : 'none';
             st.webkitTransform = val;
             st.transform = val;
         }
@@ -124,8 +133,9 @@
         setPan(-(f * 100 / gesture.days), false);
         // The value tips live OUTSIDE the panned element, so they need
         // the drag position handed to them or they hang in place while
-        // the values slide out from under them.
-        api.panTips(f);
+        // the values slide out from under them. Unanimated: a drag frame
+        // tracks the finger exactly.
+        api.panTips(f, false);
     }
 
     /**
@@ -162,7 +172,7 @@
         gesture = null;
         if (g.mode === 'pan') {
             setPan(panPct(api.day(), g.days), true);
-            api.panTips(api.day());
+            api.panTips(api.day(), true);
         }
     }
 
@@ -283,6 +293,7 @@
      * @param {{view: function(): ?Object, day: function(): number,
      *          commitDay: function(number): void,
      *          scrub: function(Element, number): void,
+     *          panTips: function(number, boolean): void,
      *          canPull: function(): boolean,
      *          refresh: function(): void}} hooks Tab-state access.
      * @returns {void}
@@ -346,6 +357,8 @@
         panPct: panPct,
         setPan: setPan,
         snapTargetDay: snapTargetDay,
+        SETTLE_CSS: SETTLE_CSS,
+        SETTLE_MS: SETTLE_MS,
         wire: wire
     };
 
