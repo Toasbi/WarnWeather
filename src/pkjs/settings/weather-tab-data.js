@@ -553,12 +553,77 @@
         cache = {};
     }
 
+    var GPS_TIMEOUT_MS = 8000;
+
+    /**
+     * One fresh device position via the webview's geolocation API, for the
+     * manual-refresh paths (the Current chip should follow the phone). Exactly
+     * one callback, always: a missing API answers synchronously, an error or
+     * no-permission answers through the error handler, and a webview that
+     * never answers either way (the page is a data: URI with a null origin —
+     * some webviews neither grant nor deny those) resolves through our own
+     * watchdog. A cached OS fix up to 60 s old is accepted: this refreshes
+     * weather, not turn-by-turn navigation.
+     * @param {function(?{lat: number, lon: number}, ?string):void} cb
+     *   (fix, error) — exactly one is set.
+     * @returns {void}
+     */
+    function getGpsFix(cb) {
+        var done = false;
+        var watchdog = null;
+        var finish = function (fix, err) {
+            if (done) { return; }
+            done = true;
+            if (watchdog !== null) { clearTimeout(watchdog); }
+            cb(fix, err);
+        };
+        var geo = (typeof navigator !== 'undefined') ? navigator.geolocation : null;
+        if (!geo || !geo.getCurrentPosition) { finish(null, 'unavailable'); return; }
+        watchdog = setTimeout(function () { finish(null, 'timeout'); }, GPS_TIMEOUT_MS + 2000);
+        try {
+            geo.getCurrentPosition(function (pos) {
+                var c = pos && pos.coords;
+                if (c && isFinite(Number(c.latitude)) && isFinite(Number(c.longitude))) {
+                    finish({ lat: Number(c.latitude), lon: Number(c.longitude) }, null);
+                } else {
+                    finish(null, 'empty');
+                }
+            }, function (err) {
+                finish(null, err && err.code === 1 ? 'denied' : 'gps_error');
+            }, { timeout: GPS_TIMEOUT_MS, maximumAge: 60000, enableHighAccuracy: false });
+        } catch (ex) {
+            finish(null, 'unavailable');
+        }
+    }
+
+    /**
+     * Coordinates → display city name, via the same keyless ArcGIS endpoint
+     * the phone side uses (weather/provider.js withCityName) — one naming
+     * vocabulary for the Current chip on both sides of the app.
+     * @param {number} lat Latitude.
+     * @param {number} lon Longitude.
+     * @param {function(?string, ?string):void} cb (name, error) — exactly one is set.
+     * @returns {void}
+     */
+    function reverseGeocode(lat, lon, cb) {
+        var url = 'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode'
+            + '?f=json&langCode=EN&location=' + lon + ',' + lat;
+        fetchJson(url, function (body, err) {
+            if (err) { cb(null, err); return; }
+            var a = (body && body.address) || {};
+            var name = a.District || a.City || a.Region || '';
+            if (name) { cb(String(name), null); } else { cb(null, 'no_name'); }
+        });
+    }
+
     var api = {
         DAILY_COUNT: DAILY_COUNT,
         fetchJson: fetchJson,
         geocodeSearch: geocodeSearch,
         fetchWeather: fetchWeather,
         clearCache: clearCache,
+        getGpsFix: getGpsFix,
+        reverseGeocode: reverseGeocode,
         isoOffsetSec: isoOffsetSec,
         // Exported for direct testing with fixture JSON.
         adapters: ADAPTERS,

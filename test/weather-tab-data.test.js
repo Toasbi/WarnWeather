@@ -165,3 +165,69 @@ test('tomorrow.io parser: m/s → km/h, weatherCode mapping, aggregated daily', 
   assert.equal(out.daily[0].icon, 'partly');
   assert.equal(data.parsers.tomorrowio({ data: { timelines: [] } }, NOON), null);
 });
+
+test('getGpsFix: no geolocation API answers synchronously; a stubbed one maps coords and errors', () => {
+  // Node's navigator has no geolocation → the unavailable path, same tick.
+  let got = null;
+  data.getGpsFix((fix, err) => { got = [fix, err]; });
+  assert.deepEqual(got, [null, 'unavailable']);
+
+  // A stubbed webview API: success maps to {lat, lon}, permission code 1 → 'denied'.
+  const desc = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: {
+      geolocation: {
+        getCurrentPosition(ok, fail, opts) {
+          assert.ok(opts.timeout > 0 && opts.maximumAge >= 0, 'bounded request');
+          globalThis.__gpsOk = ok;
+          globalThis.__gpsFail = fail;
+        }
+      }
+    }
+  });
+  try {
+    got = null;
+    data.getGpsFix((fix, err) => { got = [fix, err]; });
+    globalThis.__gpsOk({ coords: { latitude: 53.55, longitude: 9.99 } });
+    assert.deepEqual(got, [{ lat: 53.55, lon: 9.99 }, null]);
+    globalThis.__gpsFail({ code: 1 });   // late duplicate must not re-fire
+
+    got = null;
+    data.getGpsFix((fix, err) => { got = [fix, err]; });
+    globalThis.__gpsFail({ code: 1 });
+    assert.deepEqual(got, [null, 'denied']);
+
+    got = null;
+    data.getGpsFix((fix, err) => { got = [fix, err]; });
+    globalThis.__gpsOk({ coords: { latitude: 'x', longitude: 9 } });
+    assert.deepEqual(got, [null, 'empty'], 'non-numeric coords never reach callers');
+  } finally {
+    delete globalThis.__gpsOk;
+    delete globalThis.__gpsFail;
+    if (desc) { Object.defineProperty(globalThis, 'navigator', desc); }
+  }
+});
+
+test('reverseGeocode: ArcGIS lon,lat order and the District > City > Region name pick', () => {
+  const seen = [];
+  class FakeXhr {
+    open(method, url) { seen.push(url); this.url = url; }
+    send() {
+      this.status = 200;
+      this.responseText = JSON.stringify({ address: { City: 'Hamburg', Region: 'HH' } });
+      this.onload();
+    }
+  }
+  const realXhr = globalThis.XMLHttpRequest;
+  globalThis.XMLHttpRequest = FakeXhr;
+  try {
+    let got = null;
+    data.reverseGeocode(53.55, 9.99, (name, err) => { got = [name, err]; });
+    assert.deepEqual(got, ['Hamburg', null]);
+    assert.ok(seen[0].indexOf('location=9.99,53.55') !== -1, 'ArcGIS wants lon,lat');
+    assert.ok(seen[0].indexOf('geocode.arcgis.com') !== -1);
+  } finally {
+    if (realXhr === undefined) { delete globalThis.XMLHttpRequest; } else { globalThis.XMLHttpRequest = realXhr; }
+  }
+});

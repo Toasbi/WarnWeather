@@ -60,7 +60,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Multiple layout presets, with flick-to-cycle between views and optional auto-return
 * Fully custom layouts (colour watches): build each view yourself — pick, remove and reorder the calendar, clock and status bars per view; flick views can even drop the clock and top bar for a true full-screen radar or graph
 * Light/Dark settings page with grouped, easy-to-browse pickers
-* Weather tab in the settings page: live graphs — temperature & precipitation, wind & gusts, humidity & dew point, pressure, sun & moon — plus a 5-day forecast, for your current location or up to three saved places, with its own switchable data source (never touches the watchface's provider or location)
+* Weather tab in the settings page: live graphs — temperature & precipitation, wind & gusts, humidity & dew point, pressure, sun & moon — plus a 5-day forecast, for your current location or up to three saved places, with its own switchable data source (never touches the watchface's provider or location); refreshes only on demand — pull down or tap Refresh, which also re-reads your phone's location
 * First-run setup wizard that picks sensible defaults for your country and watch — it bolds the rows you read first, gives air quality a warn outline, and puts steps on the top row when your watch has health
 
 *Weather and radar data from [MET Norway](https://www.met.no/) is used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).*

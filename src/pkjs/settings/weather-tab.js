@@ -43,16 +43,25 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var scrubIndex = null;          // crosshair index shared by all panels
     var panDay = 0;                 // day currently in the viewport (0-based)
     var editingSlot = null;         // overlay target: 1..3
+    var gpsSeed = null;             // {lat, lon, name}: a page-acquired fix fresher than the injected seed
 
     /**
-     * The phone-injected current-location seed, if any.
+     * The effective current-location seed: a fix this page acquired itself
+     * (manual refresh re-reads the phone GPS, so the Current chip follows
+     * the user around after the page has been open a while), else the seed
+     * the phone injected at page open, else null.
      * @param {Object} userData Injected userData.
      * @returns {?{lat: number, lon: number, name: string}} Seed or null.
      */
     function seedOf(userData) {
         var s = userData && userData.graphsSeed;
-        if (!s || !isFinite(Number(s.lat)) || !isFinite(Number(s.lon))) { return null; }
-        return { lat: Number(s.lat), lon: Number(s.lon), name: s.name || 'Current location' };
+        var base = (!s || !isFinite(Number(s.lat)) || !isFinite(Number(s.lon)))
+            ? null
+            : { lat: Number(s.lat), lon: Number(s.lon), name: s.name || 'Current location' };
+        if (gpsSeed) {
+            return { lat: gpsSeed.lat, lon: gpsSeed.lon, name: gpsSeed.name || (base && base.name) || 'Current location' };
+        }
+        return base;
     }
 
     /**
@@ -476,18 +485,78 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
+     * Straight-line distance between two coordinates, equirectangular —
+     * plenty at the "did the phone leave town?" scale this gates.
+     * @param {number} aLat First latitude.
+     * @param {number} aLon First longitude.
+     * @param {number} bLat Second latitude.
+     * @param {number} bLon Second longitude.
+     * @returns {number} Kilometres.
+     */
+    function moveKm(aLat, aLon, bLat, bLon) {
+        var dLat = (bLat - aLat) * 111.32;
+        var dLon = (bLon - aLon) * 111.32 * Math.cos((aLat + bLat) * Math.PI / 360);
+        return Math.sqrt(dLat * dLat + dLon * dLon);
+    }
+
+    // Beyond this, the seed's city name is presumed stale along with its coords.
+    var NAME_STALE_KM = 2;
+
+    /**
+     * Adopt a fresh device fix as the Current seed. Within NAME_STALE_KM of
+     * the previous seed the city name is kept (GPS jitter); farther, it is
+     * reset to the generic label and a reverse geocode (the phone side's own
+     * ArcGIS endpoint) repaints it with the real city when it answers.
+     * @param {{lat: number, lon: number}} fix Device coordinates.
+     * @returns {void}
+     */
+    function applyGpsFix(fix) {
+        var prev = seedOf(ctx && ctx.USERDATA);
+        var moved = !prev || moveKm(prev.lat, prev.lon, fix.lat, fix.lon) > NAME_STALE_KM;
+        gpsSeed = { lat: fix.lat, lon: fix.lon, name: moved ? 'Current location' : prev.name };
+        if (!moved) { return; }
+        var token = gpsSeed;
+        data.reverseGeocode(fix.lat, fix.lon, function (city) {
+            // Only label the fix it was asked about — a later fix wins.
+            if (city && gpsSeed === token) {
+                gpsSeed = { lat: fix.lat, lon: fix.lon, name: city };
+                if (ctx) { ctx.render(); }
+            }
+        });
+    }
+
+    /**
      * Force a refetch of the CURRENT provider+location. Manual only — this
      * tab never refetches on a timer; data updates when the tab first opens
      * (per page open), when the pick changes, and through this (the footer
      * Refresh link and pull-to-refresh). Keeps fetchState.key and .view, so
      * ensureFetch refires for the same key and the charts stay up (dimmed)
      * on the day the user was viewing.
+     *
+     * When the Current chip is the active location, the refresh first re-reads
+     * the phone's GPS so the charts follow the user, not the fix from page
+     * open: fetchState holds 'loading' (dimmed charts, ensureFetch off) until
+     * the fix answers — one fetch, at the right place — then goes idle so the
+     * next render fetches. Every failure shape (no API, denied, timeout)
+     * degrades to a plain refresh of the previous coordinates.
      * @returns {boolean} True when a refetch was kicked off (re-render due).
      */
     function refreshWeather() {
         if (fetchState.status === 'loading') { return false; }
         data.clearCache();
-        fetchState.status = 'idle';
+        var active = ctx && ctx.S ? model.activeLocation(ctx.S, seedOf(ctx.USERDATA)) : null;
+        if (active && active.key === 'current') {
+            fetchState.status = 'loading';
+            data.getGpsFix(function (fix) {
+                if (fix) { applyGpsFix(fix); }
+                // Release only the hold WE placed: a pick switched mid-wait
+                // already has its own fetch in flight — leave it alone.
+                if (!inFlight && fetchState.status === 'loading') { fetchState.status = 'idle'; }
+                if (ctx) { ctx.render(); }
+            });
+        } else {
+            fetchState.status = 'idle';
+        }
         return true;
     }
 
@@ -967,12 +1036,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             _setCtx: function (c) { ctx = c; },
             _fetchState: function () { return fetchState; },
             _panDay: function () { return panDay; },
+            _gpsSeed: function () { return gpsSeed; },
             _resetState: function () {
                 ctx = null;
                 fetchState = { key: null, status: 'idle', data: null, error: null, view: null };
                 inFlight = null;
                 scrubIndex = null;
                 panDay = 0;
+                gpsSeed = null;
             }
         };
     }

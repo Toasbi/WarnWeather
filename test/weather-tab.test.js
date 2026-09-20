@@ -187,6 +187,120 @@ test('refreshWeather refetches the same key manually, keeping the charts and the
   }
 });
 
+test('a manual refresh with Current active re-reads the phone GPS and follows it', () => {
+  tab._resetState();
+  const fetchCalls = [];
+  let respond = null;
+  let gpsCb = null;
+  let revArgs = null;
+  let revCb = null;
+  const realFetch = data.fetchWeather;
+  const realGps = data.getGpsFix;
+  const realRev = data.reverseGeocode;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { fetchCalls.push([lat, lon]); respond = cb; };
+  data.getGpsFix = (cb) => { gpsCb = cb; };
+  data.reverseGeocode = (lat, lon, cb) => { revArgs = [lat, lon]; revCb = cb; };
+  try {
+    const state = { graphsLocation: 'current' };
+    tab._setCtx({ S: state, USERDATA: SEED, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond(fixture(), null);
+    assert.equal(fetchCalls.length, 1);
+
+    assert.equal(tab.refreshWeather(), true);
+    assert.ok(gpsCb, 'the Current pick asks the device for a fresh fix');
+    assert.equal(fetchCalls.length, 1, 'the refetch waits for the fix');
+    let html = tab.weatherGraphsBlock(state, {}, SEED);
+    assert.ok(html.indexOf('updating') !== -1, 'the wait paints as a dimmed update');
+    assert.equal(fetchCalls.length, 1, 'a render during the GPS wait must not fetch');
+
+    gpsCb({ lat: 53.55, lon: 9.99 }, null);   // ~255 km away
+    tab.weatherGraphsBlock(state, {}, SEED);
+    assert.equal(fetchCalls.length, 2);
+    assert.deepEqual(fetchCalls[1], [53.55, 9.99], 'the refetch runs at the fresh fix');
+    html = tab.weatherLocationsBlock(state, {}, SEED);
+    assert.ok(html.indexOf('Current location') !== -1, 'a far move drops the stale city name');
+    assert.equal(html.indexOf('Berlin'), -1);
+    assert.deepEqual(revArgs, [53.55, 9.99], 'and asks the reverse geocoder for the new one');
+    revCb('Hamburg', null);
+    html = tab.weatherLocationsBlock(state, {}, SEED);
+    assert.ok(html.indexOf('Hamburg') !== -1, 'the reverse geocode relabels the Current chip');
+    respond(fixture(), null);
+    assert.equal(tab._panDay(), 0, 'a moved location lands on its today');
+  } finally {
+    data.fetchWeather = realFetch;
+    data.getGpsFix = realGps;
+    data.reverseGeocode = realRev;
+    tab._resetState();
+  }
+});
+
+test('GPS jitter keeps the city name; a failed fix degrades to a plain refresh', () => {
+  tab._resetState();
+  const fetchCalls = [];
+  let respond = null;
+  let gpsCb = null;
+  let revCalled = false;
+  const realFetch = data.fetchWeather;
+  const realGps = data.getGpsFix;
+  const realRev = data.reverseGeocode;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { fetchCalls.push([lat, lon]); respond = cb; };
+  data.getGpsFix = (cb) => { gpsCb = cb; };
+  data.reverseGeocode = () => { revCalled = true; };
+  try {
+    const state = { graphsLocation: 'current' };
+    tab._setCtx({ S: state, USERDATA: SEED, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond(fixture(), null);
+
+    tab.refreshWeather();
+    gpsCb({ lat: 52.5206, lon: 13.4041 }, null);   // metres of drift
+    tab.weatherGraphsBlock(state, {}, SEED);
+    assert.deepEqual(fetchCalls[1], [52.5206, 13.4041]);
+    assert.equal(tab._gpsSeed().name, 'Berlin', 'jitter keeps the seeded city name');
+    assert.equal(revCalled, false, 'no reverse geocode for a same-place fix');
+    respond(fixture(), null);
+
+    gpsCb = null;
+    tab.refreshWeather();
+    assert.ok(gpsCb, 'each refresh asks for a fix again');
+    gpsCb(null, 'denied');
+    tab.weatherGraphsBlock(state, {}, SEED);
+    assert.equal(fetchCalls.length, 3, 'a failed fix still refreshes');
+    assert.deepEqual(fetchCalls[2], [52.5206, 13.4041], 'at the previous coordinates');
+  } finally {
+    data.fetchWeather = realFetch;
+    data.getGpsFix = realGps;
+    data.reverseGeocode = realRev;
+    tab._resetState();
+  }
+});
+
+test('a refresh with a saved slot active never touches the GPS', () => {
+  tab._resetState();
+  let fetchCalls = 0;
+  let respond = null;
+  let gpsAsked = false;
+  const realFetch = data.fetchWeather;
+  const realGps = data.getGpsFix;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { fetchCalls += 1; respond = cb; };
+  data.getGpsFix = () => { gpsAsked = true; };
+  try {
+    const state = { graphsLocation: '1', savedLocation1: model.serializeSlot({ name: 'Oslo', lat: 59.9, lon: 10.7 }) };
+    tab._setCtx({ S: state, USERDATA: SEED, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond(fixture(), null);
+    assert.equal(tab.refreshWeather(), true);
+    tab.weatherGraphsBlock(state, {}, SEED);
+    assert.equal(fetchCalls, 2, 'the slot refreshes normally');
+    assert.equal(gpsAsked, false, 'a fixed city needs no device fix');
+  } finally {
+    data.fetchWeather = realFetch;
+    data.getGpsFix = realGps;
+    tab._resetState();
+  }
+});
+
 test('snapTargetDay: rounds to the nearest day, flicks advance one, clamps at the ends', () => {
   const vw = 400;
   assert.equal(tab.snapTargetDay(1, -100, vw, 5, 800), 1, 'a slow quarter-drag springs back');
