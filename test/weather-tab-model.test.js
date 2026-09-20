@@ -122,11 +122,48 @@ test('aggregateDaily folds hourly data into local-day tiles and stops at the hor
   assert.equal(days[1].icon, 'partly');
 });
 
-test('hourlyWindow slices around now', () => {
-  const now = 1000 * 3600 * 1000;
-  const times = [];
-  for (let h = -24; h <= 96; h += 1) { times.push(now + h * 3600000); }
-  const win = model.hourlyWindow(times, now, 6, 48);
-  assert.equal(times[win.start], now - 6 * 3600000);
-  assert.equal(times[win.end - 1], now + 48 * 3600000);
+test('the rain tier port matches rain-tier.js value-for-value (the watch scale)', () => {
+  // The tab's right-hand precipitation axis IS the watchface's rain scale;
+  // this lockstep sweep keeps the two implementations from drifting apart.
+  const rainTier = require('../src/pkjs/weather/rain-tier.js');
+  for (let tenths = 0; tenths <= 300; tenths += 1) {
+    assert.equal(model.rainTierPermille(tenths), rainTier.rainPermille(tenths), 'tenths=' + tenths);
+  }
+  assert.equal(model.rainPermilleFromMm(0.25), rainTier.rainPermille(3), 'mm rounds to wire tenths');
+  assert.equal(model.RAIN_TIER_TOP_PCT.length, 6);
+  assert.equal(model.RAIN_TIER_LABELS.length, 5);
+});
+
+test('buildHourlyGrid: pass-through, interpolation across a 3 h tail, and gap nulls', () => {
+  const start = Date.UTC(2026, 8, 20);
+  const hourly = {
+    time: [], temp: [], rain: [], prob: [], wind: [], gust: [],
+    dir: [], rh: [], dew: [], pressure: [], icon: []
+  };
+  // 6 hourly samples, then a jump to two 3-hourly samples (the OWM shape).
+  const stamps = [0, 1, 2, 3, 4, 5, 9, 12].map((h) => start + h * 3600000);
+  stamps.forEach((t, i) => {
+    hourly.time.push(t);
+    hourly.temp.push(10 + i);
+    hourly.rain.push(i === 6 ? 3 : 0);
+    hourly.prob.push(50);
+    hourly.wind.push(20);
+    hourly.gust.push(null);
+    hourly.dir.push(180);
+    hourly.rh.push(60);
+    hourly.dew.push(5);
+    hourly.pressure.push(1010);
+    hourly.icon.push('rain');
+  });
+  const grid = model.buildHourlyGrid(hourly, start, 24);
+  assert.equal(grid.time.length, 24);
+  assert.equal(grid.temp[3], 13, 'exact hours pass through');
+  // Hour 7 sits between the samples at +5 h (15°) and +9 h (16°): 15.5°.
+  assert.equal(grid.temp[7], 15.5, 'continuous series interpolate across the coarse tail');
+  assert.equal(grid.rain[8], 3, 'stepped series take the nearest sample within 90 min');
+  assert.equal(grid.rain[7], null, 'mid-gap hour: both samples sit 2 h away → null, never a guess');
+  assert.equal(grid.icon[10], 'rain', 'the +9 h sample is 60 min away — held');
+  assert.equal(grid.icon[16], null, 'nothing within 90 min → null');
+  assert.equal(grid.temp[20], null, 'hours past the data stay null');
+  assert.equal(grid.gust[2], null, 'a null sample stays null, not 0');
 });

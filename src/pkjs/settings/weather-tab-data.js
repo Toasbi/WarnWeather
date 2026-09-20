@@ -28,8 +28,7 @@
     var model = (typeof require !== 'undefined')
         ? require('./weather-tab-model.js') : window.WeatherTabModel;
 
-    var PAST_HOURS = model.PAST_HOURS;
-    var DAILY_COUNT = 5;
+    var DAILY_COUNT = model.DAY_COUNT;
     var CACHE_TTL_MS = 15 * 60 * 1000;
     var XHR_TIMEOUT_MS = 12000;
 
@@ -280,6 +279,70 @@
     }
 
     /**
+     * OWM 5-day/3-hour forecast (2.5/forecast, metric) → normalized hourly
+     * arrays at 3 h steps: the COARSER series that extends the timeline past
+     * One Call's 48 h of hourlies (the grid resampler interpolates it back
+     * onto hour marks). No dew point in this endpoint; rain['3h'] totals
+     * become mm/h rates.
+     * @param {Object} data Raw response body.
+     * @returns {?{hourly: Object, utcOffsetSec: ?number}} Parsed tail, or null.
+     */
+    function parseOwmForecast3h(data) {
+        var rows = data && data.list;
+        if (!rows || !rows.length) { return null; }
+        var MPS_TO_KMH = 3.6;
+        var hourly = emptyHourly();
+        for (var i = 0; i < rows.length; i += 1) {
+            var r = rows[i];
+            if (!r || typeof r.dt !== 'number') { continue; }
+            var main = r.main || {};
+            var wind = r.wind || {};
+            var rain3 = num(r.rain && r.rain['3h']);
+            hourly.time.push(r.dt * 1000);
+            hourly.temp.push(num(main.temp));
+            hourly.rain.push(rain3 === null ? 0 : rain3 / 3);
+            hourly.prob.push(num(r.pop) === null ? null : r.pop * 100);
+            hourly.wind.push(num(wind.speed) === null ? null : wind.speed * MPS_TO_KMH);
+            hourly.gust.push(num(wind.gust) === null ? null : wind.gust * MPS_TO_KMH);
+            hourly.dir.push(num(wind.deg));
+            hourly.rh.push(num(main.humidity));
+            hourly.dew.push(null);
+            hourly.pressure.push(num(main.pressure));
+            hourly.icon.push(r.weather && r.weather[0] ? model.owmIcon(r.weather[0].id) : null);
+        }
+        if (!hourly.time.length) { return null; }
+        return { hourly: hourly, utcOffsetSec: num(data.city && data.city.timezone) };
+    }
+
+    /**
+     * Append the coarse tail's rows AFTER the base's last hourly stamp, in
+     * place — the base (One Call hourlies) stays authoritative where both
+     * overlap.
+     * @param {Object} base Normalized result (mutated).
+     * @param {{hourly: Object, utcOffsetSec: ?number}} tail Parsed 3 h tail.
+     * @returns {void}
+     */
+    function mergeOwmTail(base, tail) {
+        if (!base || !tail || !tail.hourly) { return; }
+        var bh = base.hourly;
+        var th = tail.hourly;
+        var last = bh.time.length ? bh.time[bh.time.length - 1] : -1;
+        // No sunshineMin: neither OWM endpoint serves it (both leave the
+        // parallel array empty, like parseOwm always has).
+        var KEYS = ['time', 'temp', 'rain', 'prob', 'wind', 'gust', 'dir', 'rh', 'dew', 'pressure', 'icon'];
+        for (var i = 0; i < th.time.length; i += 1) {
+            if (th.time[i] <= last) { continue; }
+            for (var k = 0; k < KEYS.length; k += 1) {
+                var arr = th[KEYS[k]];
+                bh[KEYS[k]].push(arr && arr[i] !== undefined ? arr[i] : null);
+            }
+        }
+        if (base.utcOffsetSec === null || base.utcOffsetSec === undefined) {
+            base.utcOffsetSec = tail.utcOffsetSec;
+        }
+    }
+
+    /**
      * tomorrow.io Timelines response → normalized: metric wind is m/s, no
      * timezone in the response (consumers fall back to the phone's offset),
      * daily aggregates client-side.
@@ -353,9 +416,11 @@
      * @returns {void}
      */
     function fetchBrightsky(lat, lon, settings, nowMs, cb) {
+        // 36 h of slack on both sides: the timeline starts at the LOCATION's
+        // midnight, which can sit up to ~26 h from the phone's clock.
         var url = 'https://api.brightsky.dev/weather?lat=' + lat + '&lon=' + lon
-            + '&date=' + isoHour(nowMs, -PAST_HOURS)
-            + '&last_date=' + isoHour(nowMs, DAILY_COUNT * 24 + 24)
+            + '&date=' + isoHour(nowMs, -36)
+            + '&last_date=' + isoHour(nowMs, DAILY_COUNT * 24 + 36)
             + '&max_dist=500000';
         fetchJson(url, function (data, err) {
             if (err) { cb(null, err); return; }
@@ -365,8 +430,12 @@
     }
 
     /**
-     * OpenWeatherMap One Call 3.0 (metric): 48 h hourly + its own daily array
-     * (no past hours, no sunshine duration).
+     * OpenWeatherMap (metric): One Call 3.0's 48 h of hourlies + its daily
+     * array, PLUS the 2.5 5-day/3-hour forecast as the coarser tail so the
+     * timeline still reaches five days (the "use the coarser forecast when
+     * hourly runs out" rule). One Call is authoritative where they overlap;
+     * a failed tail call degrades to the 48 h timeline instead of an error.
+     * Neither endpoint serves past hours, so today starts at "now".
      * @param {number} lat Latitude.
      * @param {number} lon Longitude.
      * @param {Object} settings Live settings (owmApiKey).
@@ -377,18 +446,41 @@
     function fetchOwm(lat, lon, settings, nowMs, cb) {
         var key = (settings && settings.owmApiKey) || '';
         if (!key) { cb(null, 'no_key'); return; }
-        var url = 'https://api.openweathermap.org/data/3.0/onecall?lat=' + lat + '&lon=' + lon
+        var oneUrl = 'https://api.openweathermap.org/data/3.0/onecall?lat=' + lat + '&lon=' + lon
             + '&units=metric&exclude=minutely,alerts&appid=' + encodeURIComponent(key);
-        fetchJson(url, function (data, err) {
-            if (err) { cb(null, err); return; }
-            var parsed = parseOwm(data, nowMs);
-            cb(parsed, parsed ? null : 'empty');
+        var tailUrl = 'https://api.openweathermap.org/data/2.5/forecast?lat=' + lat + '&lon=' + lon
+            + '&units=metric&appid=' + encodeURIComponent(key);
+        var pending = 2;
+        var parsed = null, oneErr = null, tail = null;
+        var finish = function () {
+            pending -= 1;
+            if (pending > 0) { return; }
+            if (oneErr) { cb(null, oneErr); return; }
+            if (tail) { mergeOwmTail(parsed, tail); }
+            cb(parsed, null);
+        };
+        fetchJson(oneUrl, function (data, err) {
+            if (err) { oneErr = err; } else {
+                parsed = parseOwm(data, nowMs);
+                if (!parsed) { oneErr = 'empty'; }
+            }
+            finish();
+        });
+        fetchJson(tailUrl, function (data, err) {
+            if (!err) { tail = parseOwmForecast3h(data); }
+            finish();
         });
     }
 
     /**
      * tomorrow.io Timelines, ONE call (billing is per call — the same reason
-     * tomorrowio.js keeps to one): a 1h timestep spanning today-6h → +5 days.
+     * tomorrowio.js keeps to one): a 1h timestep bounded by the free plan,
+     * which 403s any request outside −6 h..+120 h (the v1.5 page asked for
+     * +144 h and every tab open failed that way). startTime uses −5 h because
+     * isoHour floors the minutes — −6 h would land up to 6 h 59 min back and
+     * trip the history floor; the timeline's earliest hours of today can stay
+     * empty. endTime at +120 h floors to ≤ the ceiling and still reaches the
+     * timeline's end (day-start + 5 d ≤ floor(now) + 120 h).
      * @param {number} lat Latitude.
      * @param {number} lon Longitude.
      * @param {Object} settings Live settings (tomorrowioApiKey).
@@ -403,8 +495,8 @@
             + '&fields=temperature,precipitationIntensity,precipitationProbability,windSpeed,windGust,'
             + 'windDirection,humidity,dewPoint,pressureSeaLevel,weatherCode'
             + '&timesteps=1h&units=metric'
-            + '&startTime=' + encodeURIComponent(isoHour(nowMs, -PAST_HOURS))
-            + '&endTime=' + encodeURIComponent(isoHour(nowMs, DAILY_COUNT * 24 + 24))
+            + '&startTime=' + encodeURIComponent(isoHour(nowMs, -5))
+            + '&endTime=' + encodeURIComponent(isoHour(nowMs, DAILY_COUNT * 24))
             + '&apikey=' + encodeURIComponent(key);
         fetchJson(url, function (data, err) {
             if (err) { cb(null, err); return; }
@@ -471,8 +563,10 @@
             openmeteo: parseOpenMeteo,
             dwd: parseBrightsky,
             openweathermap: parseOwm,
+            owmForecast3h: parseOwmForecast3h,
             tomorrowio: parseTomorrowIo
-        }
+        },
+        mergeOwmTail: mergeOwmTail
     };
 
     if (typeof module !== 'undefined' && module.exports) {

@@ -1,20 +1,24 @@
 // test/weather-tab.test.js — the Weather tab's glue: chip row rendering,
-// provider options, and the graphs block's fetch orchestration (stubbed
-// through the shared data module instance — no network).
+// provider options, the graphs block's fetch orchestration (stubbed through
+// the shared data module instance — no network), and the pan-snap math.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const tab = require('../src/pkjs/settings/weather-tab.js');
 const data = require('../src/pkjs/settings/weather-tab-data.js');
 const model = require('../src/pkjs/settings/weather-tab-model.js');
 
-const NOON = new Date(2026, 8, 20, 12, 0, 0).getTime();
+// The glue calls Date.now() itself (ensureFetch prepares the view against
+// the real clock), so the fixture anchors to the REAL current UTC day —
+// with utcOffsetSec 0 the view's day start lands exactly on it, whatever
+// date or timezone the suite runs in.
+const DAY0 = Math.floor(Date.now() / 86400000) * 86400000;
 const SEED = { graphsSeed: { lat: 52.52, lon: 13.405, name: 'Berlin' } };
 
 /** @returns {Object} a minimal normalized dataset the charts accept */
 function fixture() {
   const hourly = { time: [], temp: [], rain: [], prob: [], wind: [], gust: [], dir: [], rh: [], dew: [], pressure: [], icon: [], sunshineMin: [] };
-  for (let h = -6; h <= 48; h += 1) {
-    hourly.time.push(NOON + h * 3600000);
+  for (let h = 0; h <= 48; h += 1) {
+    hourly.time.push(DAY0 + h * 3600000);
     hourly.temp.push(15);
     hourly.rain.push(0);
     hourly.prob.push(10);
@@ -26,7 +30,11 @@ function fixture() {
     hourly.pressure.push(1013);
     hourly.icon.push('clear');
   }
-  return { hourly, daily: [{ date: NOON, tmin: 10, tmax: 20, icon: 'clear', rainMm: 0, probMax: 5, sunshineH: 8 }] };
+  return {
+    hourly,
+    daily: [{ date: DAY0, tmin: 10, tmax: 20, icon: 'clear', rainMm: 0, probMax: 5, sunshineH: 8 }],
+    utcOffsetSec: 0
+  };
 }
 
 test('graphsProviderOptions labels Auto with its resolution and gates keyed rows', () => {
@@ -95,9 +103,11 @@ test('the graphs block orchestrates: loading → panels on data, error → Retry
     html = tab.weatherGraphsBlock(state, {}, SEED);
     assert.ok(html.indexOf('Temperature &amp; precipitation') !== -1);
     assert.ok(html.indexOf('5-day forecast') !== -1);
-    assert.ok(html.indexOf('5-day forecast') < html.indexOf('Temperature &amp; precipitation'),
-      'the 5-day strip leads, above the hourly graphs (the app layout)');
+    assert.ok(html.indexOf('5-day forecast') < html.indexOf('data-wxvp="strip"'),
+      'the 5-day selector leads, then the shared hour strip (the app layout)');
+    assert.ok(html.indexOf('data-wxvp="strip"') < html.indexOf('Temperature &amp; precipitation'));
     assert.ok(html.indexOf('data-wxchart="press"') !== -1);
+    assert.ok(html.indexOf('data-action="wxShowDay"') !== -1, 'day tiles navigate the panels');
     assert.equal(calls, 1, 'a fresh render serves from module state');
 
     // Error path: new location key, failing fetch → Retry button, and no
@@ -116,4 +126,37 @@ test('the graphs block orchestrates: loading → panels on data, error → Retry
     data.fetchWeather = realFetch;
     tab._resetState();
   }
+});
+
+test('a new location resets the viewed day to today', () => {
+  tab._resetState();
+  const realFetch = data.fetchWeather;
+  let respond = null;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { respond = cb; };
+  try {
+    const state = { graphsLocation: 'current' };
+    tab._setCtx({ S: state, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond(fixture(), null);
+    assert.equal(tab._panDay(), 0);
+    const state2 = { graphsLocation: '1', savedLocation1: model.serializeSlot({ name: 'Oslo', lat: 59.9, lon: 10.7 }) };
+    tab.weatherGraphsBlock(state2, {}, SEED);
+    respond(fixture(), null);
+    assert.equal(tab._panDay(), 0, 'a location switch lands on its today');
+  } finally {
+    data.fetchWeather = realFetch;
+    tab._resetState();
+  }
+});
+
+test('snapTargetDay: rounds to the nearest day, flicks advance one, clamps at the ends', () => {
+  const vw = 400;
+  assert.equal(tab.snapTargetDay(1, -100, vw, 5, 800), 1, 'a slow quarter-drag springs back');
+  assert.equal(tab.snapTargetDay(1, -240, vw, 5, 800), 2, 'past halfway rounds forward');
+  assert.equal(tab.snapTargetDay(1, 240, vw, 5, 800), 0, 'and backward');
+  assert.equal(tab.snapTargetDay(1, -60, vw, 5, 150), 2, 'a quick flick advances one day');
+  assert.equal(tab.snapTargetDay(1, 60, vw, 5, 150), 0, 'a quick flick goes back one day');
+  assert.equal(tab.snapTargetDay(0, 300, vw, 5, 100), 0, 'clamped at the first day');
+  assert.equal(tab.snapTargetDay(4, -300, vw, 5, 100), 4, 'clamped at the last day');
+  assert.equal(tab.panPct(2, 5), -40, 'day 2 of 5 pans to -40% of the wide element');
 });

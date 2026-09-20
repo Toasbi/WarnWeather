@@ -103,6 +103,46 @@ test('OWM parser: m/s → km/h, pop 0..1 → %, its own daily array', () => {
   assert.equal(out.daily[0].sunshineH, null, 'OWM has no sunshine duration');
 });
 
+test('OWM 3-hourly forecast parser + tail merge extend the timeline coarsely', () => {
+  const tail = {
+    city: { timezone: 3600 },
+    list: [
+      { // overlaps the hourly range — must NOT be merged
+        dt: NOON / 1000,
+        main: { temp: 17, humidity: 58, pressure: 1014 },
+        wind: { speed: 4, gust: 8, deg: 190 },
+        pop: 0.2, rain: { '3h': 0.9 }, weather: [{ id: 500 }]
+      },
+      { // past the hourly range — merged
+        dt: NOON / 1000 + 3 * 3600,
+        main: { temp: 16, humidity: 62, pressure: 1013 },
+        wind: { speed: 6, gust: 12, deg: 210 },
+        pop: 0.5, weather: [{ id: 802 }]
+      }
+    ]
+  };
+  const parsed = data.parsers.owmForecast3h(tail);
+  assert.equal(parsed.hourly.rain[0], 0.3, "rain['3h'] totals become mm/h rates");
+  assert.equal(parsed.hourly.dew[0], null, '2.5/forecast has no dew point');
+  assert.equal(parsed.utcOffsetSec, 3600);
+  assert.equal(data.parsers.owmForecast3h({ list: [] }), null);
+
+  const base = data.parsers.openweathermap({
+    hourly: [{
+      dt: NOON / 1000,
+      temp: 18, humidity: 60, dew_point: 10, pressure: 1015,
+      wind_speed: 5, wind_gust: 10, wind_deg: 180,
+      pop: 0.4, rain: { '1h': 0.6 }, weather: [{ id: 500 }]
+    }],
+    daily: []
+  }, NOON);
+  data.mergeOwmTail(base, parsed);
+  assert.equal(base.hourly.time.length, 2, 'only rows past the last hourly stamp merge');
+  assert.equal(base.hourly.temp[1], 16);
+  assert.equal(base.hourly.temp[0], 18, 'One Call stays authoritative where they overlap');
+  assert.equal(base.utcOffsetSec, 3600, 'the tail offset fills in when One Call has none');
+});
+
 test('tomorrow.io parser: m/s → km/h, weatherCode mapping, aggregated daily', () => {
   const intervals = [];
   for (let h = 0; h < 26; h += 1) {

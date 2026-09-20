@@ -1,7 +1,7 @@
 // src/pkjs/settings/weather-tab.js — the Weather tab's glue: the location
 // chip row + saved-location editor overlay, the tab-local provider select,
-// the graphs/daily-strip block, in-page fetch orchestration, and the
-// crosshair scrub. ES5, WebView.
+// the graphs/daily-strip block, in-page fetch orchestration, and the pan +
+// crosshair gestures. ES5, WebView.
 //
 // DISPLAY-ONLY contract: nothing in this tab reads or writes the watch's
 // `provider`/`location`/`locationMode` keys. The tab's own keys
@@ -13,6 +13,12 @@
 // every settings change, so the weather data lives in module state; a fetch
 // completion patches state and asks the engine for a repaint via the ctx
 // captured at onReady (the news.js/view-editor.js pattern).
+//
+// Gesture shape (the app's): a horizontal drag on any chart pans EVERY
+// panel together, one day per viewport, snapping to day boundaries on
+// release (flicks advance one day); a tap sets the shared crosshair; a
+// day tile jumps straight to that day. Pans and taps are direct DOM writes
+// (transform / attribute updates) — never a re-render mid-gesture.
 /* global PConf, WeatherTabModel, WeatherTabData, WeatherTabCharts, SunCalc */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf
@@ -35,6 +41,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var fetchState = { key: null, status: 'idle', data: null, error: null, view: null };
     var inFlight = null;            // key currently being fetched
     var scrubIndex = null;          // crosshair index shared by all panels
+    var panDay = 0;                 // day currently in the viewport (0-based)
     var editingSlot = null;         // overlay target: 1..3
 
     /**
@@ -65,6 +72,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // this would XHR-loop (each failure repaints, each repaint refetches).
         if (fetchState.key === key && fetchState.status !== 'idle') { return; }
         if (inFlight === key) { return; }
+        var isNewKey = fetchState.key !== key;
         inFlight = key;
         // Refetch keeps the frame: hold the previous view (dimmed by the
         // renderer) instead of flashing a skeleton.
@@ -83,6 +91,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 var view = charts.prepareView(result, Date.now());
                 fetchState = { key: key, status: view ? 'ok' : 'error', data: result, error: view ? null : 'empty', view: view };
                 scrubIndex = null;
+                if (isNewKey) { panDay = 0; }
             }
             if (ctx && !sync) { ctx.render(); }
         });
@@ -169,7 +178,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @param {string} title Panel title.
      * @param {Array<Array<string>>} legend [label, color, kind('line'|'rect')] triples.
      * @param {string} readoutText Default readout (the "now" values).
-     * @param {string} body SVG markup.
+     * @param {string} body Chart viewport markup.
      * @returns {string} HTML.
      */
     function panelHtml(id, title, legend, readoutText, body) {
@@ -189,7 +198,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The graphs block: fetch status, five panels, and the 5-day strip.
+     * The graphs block: fetch status, the 5-day selector strip, the shared
+     * hour strip, and the five pannable panels.
      * @param {Object} state Live settings state.
      * @param {Object} env Env facts.
      * @param {Object} userData Injected userData.
@@ -213,33 +223,38 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var refetching = fetchState.status === 'loading';
         var view = fetchState.view;
         var settings = state;
-        var idx = scrubIndex === null ? view.nowIndex : scrubIndex;
+        if (panDay > view.days - 1) { panDay = view.days - 1; }
+        var idx = scrubIndex === null ? dayAnchorIndex(view, panDay) : scrubIndex;
+        var sunCalcLib = (typeof require !== 'undefined') ? require('./vendor-suncalc.js') : window.SunCalc;
+        var vp = function (id, spec) { return charts.viewportHtml(id, spec, view, panDay); };
         var h = '';
-        // The 5-day strip leads, above the hourly graphs — the WarnWeather
-        // app's layout (day tiles first, detail below).
+        // The 5-day strip leads (the app's layout) and doubles as the day
+        // selector for everything below it.
         h += '<div class="wx-panel"><div class="wx-panel-head"><span class="wx-panel-title">5-day forecast</span></div>'
-            + charts.dailyStripHtml(view.daily, settings, pal, view.offsetSec, Date.now()) + '</div>';
+            + charts.dailyStripHtml(view.daily, settings, pal, view.offsetSec, Date.now(), panDay, view.days)
+            + '</div>';
+        // The shared time axis: hour ruler + condition icons + night shading.
+        h += vp('strip', charts.timeStripSvg(view, loc, pal, sunCalcLib));
         h += panelHtml('temp', 'Temperature & precipitation',
             [['Temp', pal.temp, 'line'], ['Rain', pal.water, 'rect']],
             charts.readout('temp', view, idx, settings),
-            charts.tempPanelSvg(view, settings, pal));
+            vp('temp', charts.tempPanelSvg(view, settings, pal)));
         h += panelHtml('wind', 'Wind & gusts · ' + model.windUnitLabel(settings),
             [['Wind', pal.water, 'line'], ['Gusts', pal.gust, 'line']],
             charts.readout('wind', view, idx, settings),
-            charts.windPanelSvg(view, settings, pal));
+            vp('wind', charts.windPanelSvg(view, settings, pal)));
         h += panelHtml('hum', 'Humidity & dew point',
             [['Humidity', pal.water, 'rect'], ['Temp', pal.temp, 'line'], ['Dew point', pal.dew, 'line']],
             charts.readout('hum', view, idx, settings),
-            charts.humidityPanelSvg(view, settings, pal));
+            vp('hum', charts.humidityPanelSvg(view, settings, pal)));
         h += panelHtml('press', 'Pressure · hPa', [],
             charts.readout('press', view, idx, settings),
-            charts.pressurePanelSvg(view, settings, pal));
-        var sunCalcLib = (typeof require !== 'undefined') ? require('./vendor-suncalc.js') : window.SunCalc;
+            vp('press', charts.pressurePanelSvg(view, settings, pal)));
         if (sunCalcLib) {
             h += panelHtml('sun', 'Sun & moon',
                 [['Sun', pal.sun, 'line'], ['Moon', pal.faint, 'line']],
                 '',
-                charts.sunMoonPanelSvg(loc, Date.now(), pal, sunCalcLib, view.offsetSec));
+                vp('sun', charts.sunMoonPanelSvg(view, loc, pal, sunCalcLib)));
         }
         var providerLabel = fetchState.data && fetchState.data.meta ? fetchState.data.meta.provider : '';
         for (var i = 0; i < model.GRAPH_PROVIDERS.length; i += 1) {
@@ -314,14 +329,26 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '.wx-readout{font-size:12px;color:var(--muted);margin:2px 0 4px;font-variant-numeric:tabular-nums;}'
         + '.wx-status{color:var(--hint);font-size:14px;padding:10px 0;}'
         + '.wx-retry{background:var(--ctl);color:var(--fg);border:none;border-radius:8px;padding:6px 12px;font:inherit;font-size:13px;}'
+        // The pannable chart viewport: edge-to-edge in the card (the -16px
+        // matches .blockrow's side padding), aspect fixed by padding-bottom
+        // so the wide svg and the one-day overlay scale identically.
+        + '.wx-vp{position:relative;overflow:hidden;height:0;margin:8px -16px 0;touch-action:pan-y;}'
+        + '.wx-pan{position:absolute;top:0;left:0;height:100%;}'
+        + '.wx-ax{position:absolute;top:0;left:0;pointer-events:none;}'
+        // Day tiles are the day selector: tap jumps the panels to that day.
         + '.wx-days{display:flex;gap:6px;margin-top:6px;}'
-        + '.wx-day{flex:1;background:var(--ctl);border-radius:12px;padding:8px 4px;text-align:center;}'
+        + '.wx-day{flex:1;display:block;min-width:0;background:var(--ctl);border:none;border-radius:12px;'
+        + 'padding:8px 2px;text-align:center;font:inherit;color:var(--fg);cursor:pointer;}'
         + '.wx-day.today{outline:1px solid var(--card-line);}'
-        + '.wx-day-name{font-size:11px;font-weight:600;color:var(--lbl);}'
-        + '.wx-day-icon{margin:4px 0 2px;min-height:26px;}'
-        + '.wx-day-temp{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;}'
+        + '.wx-day.sel{background:linear-gradient(135deg,#FA4A35,#D93A24);color:#fff;}'
+        + '.wx-day.sel .wx-day-name{color:#fff;}'
+        + '.wx-day.sel .wx-day-temp span,.wx-day.sel .wx-day-meta,.wx-day.sel .wx-day-meta span{color:rgba(255,255,255,0.82);}'
+        + '.wx-day.off{opacity:0.4;cursor:default;}'
+        + '.wx-day-name{display:block;font-size:11px;font-weight:600;color:var(--lbl);}'
+        + '.wx-day-icon{display:block;margin:4px 0 2px;min-height:26px;}'
+        + '.wx-day-temp{display:block;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;}'
         + '.wx-day-temp span{color:var(--muted);font-weight:400;}'
-        + '.wx-day-meta{font-size:10px;color:var(--muted);margin-top:2px;min-height:12px;font-variant-numeric:tabular-nums;}'
+        + '.wx-day-meta{display:block;font-size:10px;color:var(--muted);margin-top:2px;min-height:12px;font-variant-numeric:tabular-nums;}'
         + '.wx-day-meta span{color:var(--hint);}'
         + '.wx-foot{color:var(--hint);font-size:11px;margin-top:2px;}';
 
@@ -412,14 +439,215 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return null;
     }
 
-    // --- scrub (crosshair) ----------------------------------------------------------
+    // --- gestures: drag pans the day window, tap scrubs the crosshair --------
 
     /**
-     * Move the shared crosshair to the pointer's hour and refresh every
-     * panel's guideline + readout by direct DOM writes (no re-render, so the
-     * gesture stays smooth in old webviews). Values remain reachable without
-     * it — the readout defaults to "now" and the axes carry the scale.
-     * @param {Element} svg The panel SVG under the pointer.
+     * The nearest ancestor (self included) carrying an attribute.
+     * @param {?Node} node Event target.
+     * @param {string} attr Attribute name.
+     * @returns {?Element} The carrier, or null.
+     */
+    function findAttr(node, attr) {
+        while (node && node.getAttribute) {
+            if (node.getAttribute(attr)) { return node; }
+            node = node.parentNode;
+        }
+        return null;
+    }
+
+    /**
+     * The pan transform (percent of the wide inner element) for a day.
+     * @param {number} day Day index.
+     * @param {number} days Timeline day count.
+     * @returns {number} translateX percentage (negative).
+     */
+    function panPct(day, days) {
+        return -(day * 100 / days);
+    }
+
+    /**
+     * Apply the shared pan transform to EVERY panel's inner element — the
+     * whole tab below the day selector moves as one.
+     * @param {number} pct translateX percentage.
+     * @param {boolean} animated Whether to ease (the day snap).
+     * @returns {void}
+     */
+    function setPan(pct, animated) {
+        if (typeof document === 'undefined' || !document.querySelectorAll) { return; }
+        var els = document.querySelectorAll('.wx-pan');
+        var val = 'translateX(' + pct + '%)';
+        for (var i = 0; i < els.length; i += 1) {
+            var st = els[i].style;
+            st.webkitTransition = animated ? '-webkit-transform 0.22s ease-out' : 'none';
+            st.transition = animated ? 'transform 0.22s ease-out' : 'none';
+            st.webkitTransform = val;
+            st.transform = val;
+        }
+    }
+
+    /**
+     * Which day a released drag snaps to: a quick flick advances one day,
+     * anything else rounds to the nearest day boundary.
+     * @param {number} baseDay Day when the drag started.
+     * @param {number} dxPx Horizontal drag distance (px, right = positive).
+     * @param {number} vw Viewport width (px).
+     * @param {number} days Timeline day count.
+     * @param {number} dtMs Drag duration.
+     * @returns {number} Target day, clamped to the timeline.
+     */
+    function snapTargetDay(baseDay, dxPx, vw, days, dtMs) {
+        var target;
+        if (dtMs < 300 && Math.abs(dxPx) > vw * 0.12) {
+            target = baseDay + (dxPx < 0 ? 1 : -1);
+        } else {
+            target = Math.round(baseDay - dxPx / vw);
+        }
+        if (target < 0) { target = 0; }
+        if (target > days - 1) { target = days - 1; }
+        return target;
+    }
+
+    /**
+     * The readout index a freshly shown day rests on: "now" while today is
+     * in the viewport, that day's noon otherwise.
+     * @param {Object} view Prepared view.
+     * @param {number} day Day index in the viewport.
+     * @returns {number} Hour index into the view arrays.
+     */
+    function dayAnchorIndex(view, day) {
+        var i = (view.nowIndex >= day * 24 && view.nowIndex < (day + 1) * 24)
+            ? view.nowIndex : day * 24 + 12;
+        if (i > view.times.length - 1) { i = view.times.length - 1; }
+        return i;
+    }
+
+    /**
+     * After the viewed day changes, drop the crosshair (its hour belongs to
+     * the previous day) and re-anchor every readout to the new day — direct
+     * DOM, like the pan itself.
+     * @returns {void}
+     */
+    function syncReadouts() {
+        scrubIndex = null;
+        var view = fetchState.view;
+        if (!view || !ctx || typeof document === 'undefined' || !document.getElementById) { return; }
+        var i = dayAnchorIndex(view, panDay);
+        var ids = ['temp', 'wind', 'hum', 'press'];
+        for (var k = 0; k < ids.length; k += 1) {
+            var line = document.getElementById('wx-scrub-' + ids[k]);
+            if (line) {
+                line.setAttribute('x1', -10);
+                line.setAttribute('x2', -10);
+            }
+            var read = document.getElementById('wx-read-' + ids[k]);
+            if (read) {
+                read.textContent = charts.readout(ids[k], view, i, ctx.S);
+            }
+        }
+    }
+
+    /**
+     * Re-mark the day tiles after a pan (direct DOM — no re-render).
+     * @returns {void}
+     */
+    function syncDayCards() {
+        if (typeof document === 'undefined' || !document.querySelectorAll) { return; }
+        var tiles = document.querySelectorAll('.wx-day');
+        for (var i = 0; i < tiles.length; i += 1) {
+            var el = tiles[i];
+            var on = Number(el.getAttribute('data-action-arg')) === panDay && !el.disabled;
+            var name = ' ' + el.className + ' ';
+            var has = name.indexOf(' sel ') !== -1;
+            if (on && !has) { el.className = el.className + ' sel'; }
+            if (!on && has) { el.className = name.replace(' sel ', ' ').replace(/^\s+|\s+$/g, ''); }
+        }
+    }
+
+    var gesture = null;
+
+    /**
+     * Start tracking a pointer that landed on a chart viewport.
+     * @param {number} x Client x.
+     * @param {number} y Client y.
+     * @param {?Node} target Event target.
+     * @returns {void}
+     */
+    function beginGesture(x, y, target) {
+        var vpEl = findAttr(target, 'data-wxvp');
+        if (!vpEl || !fetchState.view || !vpEl.getBoundingClientRect) { return; }
+        var w = vpEl.getBoundingClientRect().width;
+        if (!w) { return; }
+        gesture = {
+            x0: x, y0: y, t0: Date.now(), vw: w, mode: null,
+            base: panDay, days: fetchState.view.days, target: target
+        };
+    }
+
+    /**
+     * Track movement: decide pan vs vertical scroll once, then drag the
+     * canvas live (with rubber-banding past the ends).
+     * @param {number} x Client x.
+     * @param {number} y Client y.
+     * @param {?Event} e The move event (preventDefault while panning).
+     * @returns {void}
+     */
+    function moveGesture(x, y, e) {
+        if (!gesture) { return; }
+        var dx = x - gesture.x0;
+        var dy = y - gesture.y0;
+        if (gesture.mode === null) {
+            if (Math.abs(dx) < 7 && Math.abs(dy) < 7) { return; }
+            gesture.mode = Math.abs(dx) > Math.abs(dy) ? 'pan' : 'scroll';
+        }
+        if (gesture.mode !== 'pan') { return; }
+        if (e && e.preventDefault) { e.preventDefault(); }
+        var f = gesture.base - dx / gesture.vw;
+        if (f < 0) { f = f * 0.35; }
+        if (f > gesture.days - 1) { f = (gesture.days - 1) + (f - (gesture.days - 1)) * 0.35; }
+        setPan(-(f * 100 / gesture.days), false);
+    }
+
+    /**
+     * Finish: snap a pan to its day, or treat an unmoved press as a
+     * crosshair tap.
+     * @param {number} x Client x at release.
+     * @returns {void}
+     */
+    function endGesture(x) {
+        if (!gesture) { return; }
+        var g = gesture;
+        gesture = null;
+        if (g.mode === 'pan') {
+            var before = panDay;
+            panDay = snapTargetDay(g.base, x - g.x0, g.vw, g.days, Date.now() - g.t0);
+            setPan(panPct(panDay, g.days), true);
+            syncDayCards();
+            if (panDay !== before) { syncReadouts(); }
+            return;
+        }
+        if (g.mode === null) {
+            var chart = findAttr(g.target, 'data-wxchart');
+            if (chart) { scrubTo(chart, x); }
+        }
+    }
+
+    /**
+     * Abort (touchcancel): ease back to the resting day.
+     * @returns {void}
+     */
+    function cancelGesture() {
+        if (!gesture) { return; }
+        var g = gesture;
+        gesture = null;
+        if (g.mode === 'pan') { setPan(panPct(panDay, g.days), true); }
+    }
+
+    /**
+     * Move the shared crosshair to the tapped hour and refresh every panel's
+     * guideline + readout by direct DOM writes (no re-render). Values remain
+     * reachable without it — the readout defaults to "now" and the in-plot
+     * axes carry the scale.
+     * @param {Element} svg The panel SVG under the pointer (the WIDE one).
      * @param {number} clientX Pointer x.
      * @returns {void}
      */
@@ -428,12 +656,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!view || !ctx) { return; }
         var rect = svg.getBoundingClientRect();
         if (!rect.width) { return; }
-        var vx = (clientX - rect.left) / rect.width * charts.W;
-        var n = view.times.length;
-        var frac = (vx - charts.PAD_L) / (charts.W - charts.PAD_L - charts.PAD_R);
-        var i = Math.round(frac * (n - 1));
+        var vx = (clientX - rect.left) / rect.width * (view.days * charts.DAY_W);
+        var i = Math.round(vx / charts.HOUR_W);
         if (i < 0) { i = 0; }
-        if (i > n - 1) { i = n - 1; }
+        if (i > view.times.length - 1) { i = view.times.length - 1; }
         scrubIndex = i;
         var x = charts.xAt(view, i);
         var ids = ['temp', 'wind', 'hum', 'press'];
@@ -451,19 +677,29 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     if (typeof document !== 'undefined' && document.addEventListener) {
-        var onScrub = function (e) {
-            var t = e.target;
-            while (t && t.getAttribute && !t.getAttribute('data-wxchart')) { t = t.parentNode; }
-            if (!t || !t.getAttribute) { return; }
-            var touch = e.touches && e.touches[0];
-            scrubTo(t, touch ? touch.clientX : e.clientX);
-        };
-        document.addEventListener('mousedown', onScrub, true);
-        document.addEventListener('mousemove', function (e) {
-            if (e.buttons || e.which) { onScrub(e); }
+        document.addEventListener('touchstart', function (e) {
+            var t = e.touches && e.touches[0];
+            if (t && e.touches.length === 1) { beginGesture(t.clientX, t.clientY, e.target); }
         }, true);
-        document.addEventListener('touchstart', onScrub, true);
-        document.addEventListener('touchmove', onScrub, true);
+        // {passive:false}: modern webviews default document-level touchmove
+        // to passive, which would ignore the pan's preventDefault; ancient
+        // ones read the object as a truthy capture flag, which is also fine.
+        document.addEventListener('touchmove', function (e) {
+            var t = e.touches && e.touches[0];
+            if (t) { moveGesture(t.clientX, t.clientY, e); }
+        }, { passive: false, capture: true });
+        document.addEventListener('touchend', function (e) {
+            var t = e.changedTouches && e.changedTouches[0];
+            if (t) { endGesture(t.clientX); } else { cancelGesture(); }
+        }, true);
+        document.addEventListener('touchcancel', function () { cancelGesture(); }, true);
+        document.addEventListener('mousedown', function (e) {
+            beginGesture(e.clientX, e.clientY, e.target);
+        }, true);
+        document.addEventListener('mousemove', function (e) {
+            if (e.buttons || e.which) { moveGesture(e.clientX, e.clientY, e); }
+        }, true);
+        document.addEventListener('mouseup', function (e) { endGesture(e.clientX); }, true);
     }
 
     // --- registrations ------------------------------------------------------------
@@ -499,6 +735,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             fetchState.key = null;
             return true;
         };
+        PConf.actions.wxShowDay = function (arg) {
+            var view = fetchState.view;
+            if (!view) { return false; }
+            var d = parseInt(arg, 10);
+            if (!(d >= 0)) { return false; }
+            if (d > view.days - 1) { d = view.days - 1; }
+            var before = panDay;
+            panDay = d;
+            setPan(panPct(d, view.days), true);
+            syncDayCards();
+            if (d !== before) { syncReadouts(); }
+            return false;
+        };
         PConf.actions.wxRetryWeather = function () {
             data.clearCache();
             fetchState = { key: null, status: 'idle', data: null, error: null, view: null };
@@ -524,14 +773,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             weatherGraphsBlock: weatherGraphsBlock,
             graphsProviderOptions: graphsProviderOptions,
             firstFreeSlot: firstFreeSlot,
+            snapTargetDay: snapTargetDay,
+            panPct: panPct,
             // Test seams.
             _setCtx: function (c) { ctx = c; },
             _fetchState: function () { return fetchState; },
+            _panDay: function () { return panDay; },
             _resetState: function () {
                 ctx = null;
                 fetchState = { key: null, status: 'idle', data: null, error: null, view: null };
                 inFlight = null;
                 scrubIndex = null;
+                panDay = 0;
             }
         };
     }

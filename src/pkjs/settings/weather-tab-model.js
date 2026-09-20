@@ -24,9 +24,10 @@
 
     var SLOT_KEYS = ['savedLocation1', 'savedLocation2', 'savedLocation3'];
 
-    // The hourly window every panel shows, and what the adapters fetch toward.
-    var PAST_HOURS = 6;
-    var FUTURE_HOURS = 48;
+    // The timeline every panel shows: the location's today at 00:00 through
+    // five local days — the 5-day strip's span, one day per viewport, panned
+    // and day-snapped by the glue. Adapters fetch toward covering it.
+    var DAY_COUNT = 5;
 
     // --- location-local time -------------------------------------------------
     // A saved place can sit in another timezone, so "today", "daytime" and the
@@ -171,6 +172,156 @@
             if (s) { return { key: String(i + 1), name: s.name, lat: s.lat, lon: s.lon }; }
         }
         return null;
+    }
+
+    // --- rain intensity: the watchface's own tier scale ------------------------
+    // Exact port of src/pkjs/weather/rain-tier.js (itself mirroring C
+    // rain_tier.c): five tiers with upper bounds 0.1/0.5/2/10 mm, drawn on a
+    // non-linear slab scale so drizzle stays visible next to a downpour. The
+    // temp panel's right-hand precipitation axis uses this scale, so the tab
+    // reads like the watch's own rain bar. test/weather-tab-model.test.js
+    // locks this port to rain-tier.js value-for-value — change them together.
+    var RAIN_TIER_MAX_TENTHS = [1, 5, 20, 100];       // tier upper bounds (tenths of mm)
+    var RAIN_TIER_TOP_PCT = [0, 14, 34, 56, 78, 100]; // cumulative slab tops (% of plot)
+    var RAIN_TIER_LABELS = ['trace', 'light', 'moderate', 'heavy', 'extreme'];
+
+    /**
+     * Tier index 1..5 for a tenths-of-mm rain value, or 0 for <= 0.
+     * @param {number} tenths Rain in tenths of mm.
+     * @returns {number} Tier index.
+     */
+    function rainTierOf(tenths) {
+        if (tenths <= 0) { return 0; }
+        for (var i = 0; i < RAIN_TIER_MAX_TENTHS.length; i += 1) {
+            if (tenths <= RAIN_TIER_MAX_TENTHS[i]) { return i + 1; }
+        }
+        return 5;
+    }
+
+    /**
+     * Fraction (0..256) of the topmost tier slab that is filled.
+     * @param {number} tenths Rain in tenths of mm.
+     * @param {number} tier Tier index 1..5.
+     * @returns {number} q8 fill in [0,256].
+     */
+    function rainTierFillQ8(tenths, tier) {
+        var low, high;
+        switch (tier) {
+            case 1: return 256;
+            case 2: low = 2;   high = 5;   break;
+            case 3: low = 6;   high = 20;  break;
+            case 4: low = 21;  high = 100; break;
+            case 5: low = 101; high = 255; break;
+            default: return 256;
+        }
+        if (tenths >= high) { return 256; }
+        if (tenths <= low)  { return 0; }
+        return Math.trunc(((tenths - low) * 256) / (high - low));
+    }
+
+    /**
+     * Per-mille (0..1000) bar height for a tenths-of-mm rain value — the same
+     * number rain-tier.js/rain_tier.c compute for the watch's rain bar.
+     * @param {number} tenths Rain in tenths of mm.
+     * @returns {number} Height in per-mille of plot height.
+     */
+    function rainTierPermille(tenths) {
+        if (tenths <= 0) { return 0; }
+        var tier = rainTierOf(tenths);
+        var q8 = rainTierFillQ8(tenths, tier);
+        var belowH = Math.trunc((1000 * RAIN_TIER_TOP_PCT[tier - 1]) / 100);
+        var slabTopFull = Math.trunc((1000 * RAIN_TIER_TOP_PCT[tier]) / 100);
+        var slabHFull = slabTopFull - belowH;
+        var slabHTop = Math.trunc((slabHFull * q8) / 256);
+        if (slabHTop === 0 && q8 > 0) { slabHTop = 1; }
+        var total = belowH + slabHTop;
+        return total > 0 ? total : 1;
+    }
+
+    /**
+     * Tier height for an mm/h rate (the tab's normalized rain unit).
+     * @param {number} mm Rain in mm (per hour).
+     * @returns {number} Height in per-mille of plot height.
+     */
+    function rainPermilleFromMm(mm) {
+        return rainTierPermille(Math.round(mm * 10));
+    }
+
+    // --- hourly grid -----------------------------------------------------------
+
+    /**
+     * Resample normalized hourly arrays onto a complete hourly grid over
+     * [startMs, startMs + hourCount·1h): the continuous multi-day canvas the
+     * panels draw. Continuous series interpolate linearly across gaps up to
+     * 6 h (OWM's 3-hourly tail lands between grid hours); stepped series
+     * (rain rate, probability, direction, icon) take the nearest sample
+     * within 90 min. Hours no sample reaches stay null.
+     * @param {Object} hourly Normalized parallel arrays over `time` (epoch ms, ascending).
+     * @param {number} startMs Grid start (a location-local midnight).
+     * @param {number} hourCount Grid length in hours.
+     * @returns {Object} Parallel arrays of length hourCount, `time` included.
+     */
+    function buildHourlyGrid(hourly, startMs, hourCount) {
+        var CONT = ['temp', 'wind', 'gust', 'rh', 'dew', 'pressure'];
+        var STEP = ['rain', 'prob', 'dir', 'icon'];
+        var MAX_INTERP_MS = 6 * 3600000;
+        var NEAR_MS = 90 * 60000;
+        var out = { time: [] };
+        var k;
+        for (k = 0; k < CONT.length; k += 1) { out[CONT[k]] = []; }
+        for (k = 0; k < STEP.length; k += 1) { out[STEP[k]] = []; }
+        var times = (hourly && hourly.time) || [];
+        var n = times.length;
+        var j = 0; // walks the source: first sample with times[j] >= t
+        for (var g = 0; g < hourCount; g += 1) {
+            var t = startMs + g * 3600000;
+            out.time.push(t);
+            while (j < n && times[j] < t) { j += 1; }
+            var ia = j < n ? j : -1;          // at-or-after t
+            var ib = j > 0 ? j - 1 : -1;      // strictly before t
+            if (ia >= 0 && times[ia] === t) { ib = ia; }
+            for (k = 0; k < CONT.length; k += 1) {
+                var src = hourly[CONT[k]];
+                var v = null;
+                if (src) {
+                    if (ib === ia && ib >= 0) {
+                        v = src[ib] === undefined ? null : src[ib];
+                    } else {
+                        var va = ia >= 0 ? src[ia] : null;
+                        var vb = ib >= 0 ? src[ib] : null;
+                        if (va === undefined) { va = null; }
+                        if (vb === undefined) { vb = null; }
+                        if (vb !== null && va !== null && (times[ia] - times[ib]) <= MAX_INTERP_MS) {
+                            v = vb + (va - vb) * (t - times[ib]) / (times[ia] - times[ib]);
+                        } else if (vb !== null && (t - times[ib]) <= NEAR_MS) {
+                            v = vb;
+                        } else if (va !== null && (times[ia] - t) <= NEAR_MS) {
+                            v = va;
+                        }
+                    }
+                }
+                out[CONT[k]].push(v);
+            }
+            for (k = 0; k < STEP.length; k += 1) {
+                var srcS = hourly[STEP[k]];
+                var vs = null;
+                if (srcS) {
+                    var db = ib >= 0 ? t - times[ib] : Infinity;
+                    var da = ia >= 0 ? times[ia] - t : Infinity;
+                    var first = db <= da ? ib : ia;
+                    var second = db <= da ? ia : ib;
+                    var dFirst = db <= da ? db : da;
+                    var dSecond = db <= da ? da : db;
+                    if (first >= 0 && dFirst <= NEAR_MS && srcS[first] !== null && srcS[first] !== undefined) {
+                        vs = srcS[first];
+                    } else if (second >= 0 && dSecond <= NEAR_MS && srcS[second] !== null && srcS[second] !== undefined) {
+                        vs = srcS[second];
+                    }
+                }
+                out[STEP[k]].push(vs);
+            }
+        }
+        return out;
     }
 
     // --- units ---------------------------------------------------------------
@@ -378,31 +529,15 @@
         return days;
     }
 
-    /**
-     * The [start, end) index window of an hourly series around `now`.
-     * @param {number[]} times Epoch-ms timestamps, ascending.
-     * @param {number} nowMs Reference time.
-     * @param {number} pastHours Hours of history to keep.
-     * @param {number} futureHours Hours of forecast to keep.
-     * @returns {{start: number, end: number}} Slice bounds.
-     */
-    function hourlyWindow(times, nowMs, pastHours, futureHours) {
-        var start = 0;
-        var end = times.length;
-        var lo = nowMs - pastHours * 3600000;
-        var hi = nowMs + futureHours * 3600000;
-        for (var i = 0; i < times.length; i += 1) {
-            if (times[i] < lo) { start = i + 1; }
-            if (times[i] > hi && end === times.length) { end = i; }
-        }
-        return { start: start, end: end };
-    }
-
     var api = {
         GRAPH_PROVIDERS: GRAPH_PROVIDERS,
         SLOT_KEYS: SLOT_KEYS,
-        PAST_HOURS: PAST_HOURS,
-        FUTURE_HOURS: FUTURE_HOURS,
+        DAY_COUNT: DAY_COUNT,
+        RAIN_TIER_TOP_PCT: RAIN_TIER_TOP_PCT,
+        RAIN_TIER_LABELS: RAIN_TIER_LABELS,
+        rainTierPermille: rainTierPermille,
+        rainPermilleFromMm: rainPermilleFromMm,
+        buildHourlyGrid: buildHourlyGrid,
         ICONS: ICONS,
         phoneUtcOffsetSec: phoneUtcOffsetSec,
         localDayStart: localDayStart,
@@ -422,8 +557,7 @@
         owmIcon: owmIcon,
         tomorrowIcon: tomorrowIcon,
         pickDailyIcon: pickDailyIcon,
-        aggregateDaily: aggregateDaily,
-        hourlyWindow: hourlyWindow
+        aggregateDaily: aggregateDaily
     };
 
     if (typeof module !== 'undefined' && module.exports) {
