@@ -66,7 +66,17 @@ var APP_FILES = [
   // read window.StatusThresholds from it — lazily (at render/boot time), so its
   // position here only has to be somewhere in the bundle.
   path.join(ROOT, 'src/pkjs/status-thresholds.js'),
-  path.join(ROOT, 'src/pkjs/settings/notices-panel.js')
+  path.join(ROOT, 'src/pkjs/settings/notices-panel.js'),
+  // The Weather tab (live graphs / 5-day / saved locations). Order is
+  // load-bearing within the group: vendor-suncalc.js publishes
+  // window.SunCalc, weather-tab-model.js publishes window.WeatherTabModel
+  // (read at IIFE time by the data/charts files), and weather-tab.js
+  // reads all three of the others while its own top-level body runs.
+  path.join(ROOT, 'src/pkjs/settings/vendor-suncalc.js'),
+  path.join(ROOT, 'src/pkjs/settings/weather-tab-model.js'),
+  path.join(ROOT, 'src/pkjs/settings/weather-tab-data.js'),
+  path.join(ROOT, 'src/pkjs/settings/weather-tab-charts.js'),
+  path.join(ROOT, 'src/pkjs/settings/weather-tab.js')
 ];
 var DEFAULT_OUT = path.join(ROOT, 'build/config-ui-preview.html');
 var PLATFORMS = ['basalt', 'chalk', 'aplite', 'diorite', 'emery'];
@@ -114,6 +124,10 @@ function run(opts) {
     cfg: {},
     userData: {
       palette: previewPalette.buildPreviewPalette(),
+      // Weather-tab "Current" chip seed (Berlin). The graphs themselves fetch
+      // live from the desktop browser — file:// pages get real CORS answers
+      // from Open-Meteo/Brightsky, so the tab is fully reviewable here.
+      graphsSeed: { lat: 52.52, lon: 13.405, name: 'Berlin' },
       newsEndpoint: process.env.NEWS_ENDPOINT || '',
       appVersion: process.env.NEWS_PREVIEW_VERSION || '9.9.9',
       // WARNING: pointing NEWS_ENDPOINT at the PRODUCTION news function makes the

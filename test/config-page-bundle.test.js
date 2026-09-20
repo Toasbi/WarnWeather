@@ -188,3 +188,32 @@ test('the support mug reaches the generated page, after news.js', () => {
 // APP_FILES is DUPLICATED — build-config-page.js ships the page, preview-config-page.js
 // renders `mise preview-config` — so an addition to one and not the other is silent.
 // That lockstep is already guarded, by test/preview-config-page.test.js's last test.
+
+// The Weather tab is five files, each reading a window global a file earlier in
+// APP_FILES publishes (SunCalc / WeatherTabModel / WeatherTabData /
+// WeatherTabCharts) while its own IIFE body runs. Same silent-no-op hazard as
+// the preview kit: an unregistered block renders nothing and only warns.
+test('the Weather tab kit reaches the generated page in dependency order', () => {
+  const src = page();
+  ['window.SunCalc', 'window.WeatherTabModel', 'window.WeatherTabData', 'window.WeatherTabCharts'].forEach((g) => {
+    assert.ok(src.indexOf(g) !== -1,
+      'nothing assigns ' + g + ' — probably missing from APP_FILES in scripts/build-config-page.js');
+  });
+  assert.ok(src.indexOf("register('weatherGraphs'") !== -1,
+    'weather-tab.js does not register the weatherGraphs block in the page');
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  assert.ok(idx('settings/weather-tab-model.js') < idx('settings/weather-tab-data.js'),
+    'weather-tab-model.js must precede weather-tab-data.js (reads window.WeatherTabModel at IIFE time)');
+  assert.ok(idx('settings/weather-tab-model.js') < idx('settings/weather-tab-charts.js'),
+    'weather-tab-model.js must precede weather-tab-charts.js');
+  ['settings/vendor-suncalc.js', 'settings/weather-tab-model.js',
+    'settings/weather-tab-data.js', 'settings/weather-tab-charts.js'].forEach((dep) => {
+    assert.ok(idx(dep) < idx('settings/weather-tab.js'),
+      dep + ' must precede weather-tab.js, which reads its window global at IIFE time');
+  });
+});

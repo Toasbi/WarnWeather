@@ -1101,6 +1101,35 @@ module.exports = {
             }]
         }]
     }, {
+        // The Weather tab is content, not configuration: live graphs + a
+        // 5-day outlook for the active location, fetched by the page itself
+        // (weather-tab*.js). DISPLAY-ONLY: its keys are blob-only and never
+        // touch the watch's provider/location or any AppMessage.
+        id: 'weather', label: 'Weather', sections: [{
+            items: [{
+                type: 'select',
+                messageKey: 'graphsProvider',
+                label: 'Data source',
+                defaultValue: 'auto',
+                // The location chip row rides the item (blockBefore is an
+                // item-level property; sections only take `block`).
+                blockBefore: 'weatherLocations',
+                optionsFrom: {resolver: 'graphsProviderOptions'},
+                hint: 'Only for this tab’s graphs — the watchface keeps its own provider and location. Keyed providers appear once their API key is set.'
+            }]
+        }, {
+            block: 'weatherGraphs',
+            items: [{
+                type: 'hidden', messageKey: 'graphsLocation', defaultValue: 'current'
+            }, {
+                type: 'hidden', messageKey: 'savedLocation1', defaultValue: ''
+            }, {
+                type: 'hidden', messageKey: 'savedLocation2', defaultValue: ''
+            }, {
+                type: 'hidden', messageKey: 'savedLocation3', defaultValue: ''
+            }]
+        }]
+    }, {
         id: 'forecast', label: 'Forecast', sections: [{
             intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always shown; on top of it the main metric (a solid line) shows one of precipitation %, wind speed, wind gusts, UV index, air pressure or feels-like temperature, and an optional second metric (drawn as bar-aligned square dots) adds another — plus optional bars for the hourly rain amount.',
             items: [{

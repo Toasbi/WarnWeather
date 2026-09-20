@@ -75,7 +75,17 @@ var APP_FILES = [
   // read window.StatusThresholds from it — lazily (at render/boot time), so its
   // position here only has to be somewhere in the bundle.
   path.join(ROOT, 'src/pkjs/status-thresholds.js'),
-  path.join(ROOT, 'src/pkjs/settings/notices-panel.js')
+  path.join(ROOT, 'src/pkjs/settings/notices-panel.js'),
+  // The Weather tab (live graphs / 5-day / saved locations). Order is
+  // load-bearing within the group: vendor-suncalc.js publishes
+  // window.SunCalc, weather-tab-model.js publishes window.WeatherTabModel
+  // (read at IIFE time by the data/charts files), and weather-tab.js
+  // reads all three of the others while its own top-level body runs.
+  path.join(ROOT, 'src/pkjs/settings/vendor-suncalc.js'),
+  path.join(ROOT, 'src/pkjs/settings/weather-tab-model.js'),
+  path.join(ROOT, 'src/pkjs/settings/weather-tab-data.js'),
+  path.join(ROOT, 'src/pkjs/settings/weather-tab-charts.js'),
+  path.join(ROOT, 'src/pkjs/settings/weather-tab.js')
 ];
 
 // Hard-fail if the wizard screenshots are missing/incomplete — the wizard has NO fallback. The

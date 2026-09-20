@@ -56,6 +56,7 @@ const GRAPH_COLOR_KEYS = lineStyle.graphColorKeys();
 
 const EXPECTED_KEYS = [
   'theme','themeAuto','themeNight','themeAutoMode','themeAutoStartHour','themeAutoEndHour',
+  'graphsProvider','graphsLocation','savedLocation1','savedLocation2','savedLocation3',
   'timeLeadingZero','timeShowAmPm','axisTimeFormat','timeFont','colorTime',
   'weekStartDay','firstWeek','colorToday','colorSunday','colorSaturday','holidaysEnabled','colorUSFederal',
   'holidayCountry','holidayRegion',
@@ -1968,4 +1969,32 @@ test('each sheet resets exactly its own keys, and the seven lists partition the 
   // sheet, and no key is stranded without a reset.
   assert.equal(new Set(all).size, all.length, 'no key resets from two sheets');
   assert.deepEqual(all.slice().sort(), GRAPH_COLOR_KEYS.slice().sort());
+});
+
+test('the Weather tab is display-only: its own keys, blocks, and no watch coupling', () => {
+  const tab = schema.tabs.find((t) => t.id === 'weather');
+  assert.ok(tab, 'the weather tab exists');
+  assert.equal(tab.label, 'Weather');
+  assert.equal(schema.tabs.findIndex((t) => t.id === 'weather'), 1, 'sits right after General');
+  assert.equal(tab.sections[0].items[0].blockBefore, 'weatherLocations',
+    'the chip row rides the first item — blockBefore is item-level, sections only take block');
+  assert.equal(tab.sections[1].block, 'weatherGraphs');
+
+  const provider = byKey('graphsProvider');
+  assert.equal(provider.defaultValue, 'auto');
+  assert.equal(provider.optionsFrom.resolver, 'graphsProviderOptions');
+
+  assert.equal(byKey('graphsLocation').type, 'hidden');
+  assert.equal(byKey('graphsLocation').defaultValue, 'current');
+  ['savedLocation1', 'savedLocation2', 'savedLocation3'].forEach((k) => {
+    assert.equal(byKey(k).type, 'hidden');
+    assert.equal(byKey(k).defaultValue, '');
+  });
+
+  // The display-only contract: nothing in this tab carries the watch's own
+  // provider/location keys — those stay in the General tab untouched.
+  tab.sections.forEach((sec) => sec.items.forEach((i) => {
+    assert.ok(['provider', 'location', 'locationMode', 'gpsCacheMin'].indexOf(i.messageKey) === -1,
+      'the weather tab must not host watch key ' + i.messageKey);
+  }));
 });
