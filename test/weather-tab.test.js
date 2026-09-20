@@ -126,6 +126,22 @@ test('the graphs block orchestrates: loading → panels on data, error → Retry
       + 'the same pinned element — tiles and time axis travel together');
     assert.equal(html.indexOf('<div class="wx-sticky">', stickyAt + 1), -1,
       'and nothing else pins — one sticky element');
+    // The seam substring alone cannot tell "strip inside the sticky box"
+    // from "sticky closes after the tiles, strip follows as a sibling":
+    // both contain '</div><div class="wx-bleed">'. A DOUBLE close before
+    // the strip viewport is the sibling shape — the tile row's close
+    // followed by the sticky's own — so its absence pins containment.
+    const dblClose = html.indexOf('</div></div>', stickyAt);
+    assert.ok(dblClose === -1 || dblClose > stripVpAt,
+      'the hour strip rides INSIDE the pinned box, not as a sibling '
+      + 'after it closes');
+    // The tile icon's two sizes move in lockstep: the renderer's px and
+    // the CSS min-height that keeps icon-LESS tiles from collapsing
+    // shorter than icon-bearing ones. Read one, assert the other.
+    const iconPx = Number((css.WX_CSS.match(/\.wx-day-icon\{[^}]*min-height:(\d+)px/) || [])[1]);
+    assert.ok(iconPx > 0, '.wx-day-icon reserves the icon slot height');
+    assert.ok(html.indexOf('class="wx-day-icon"><svg viewBox="0 0 25 25" width="' + iconPx + '"') !== -1,
+      'the tile renderer draws its icon at the SAME size the CSS reserves');
     assert.ok(css.WX_CSS.indexOf('.wx-sticky{position:-webkit-sticky;position:sticky') !== -1,
       '.wx-sticky actually pins (both position spellings for old WebViews)');
     // The pinned strip's two companion fixes: the sticky box itself

@@ -6,6 +6,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const charts = require('../src/pkjs/settings/weather-tab-charts.js');
 const model = require('../src/pkjs/settings/weather-tab-model.js');
+const icons = require('../src/pkjs/settings/weather-tab-icons.js');
 
 // UTC fixtures + an explicit utcOffsetSec pin the location clock, so the
 // suite is deterministic in any container timezone.
@@ -65,7 +66,11 @@ test('every hourly panel spec renders without NaN and carries its scrub anchor',
     assert.ok(spec.main.length > 100, id + ' has a canvas');
     assert.ok(spec.H > 0, id + ' declares its height');
     assert.equal(spec.main.indexOf('NaN'), -1, id + ' has no NaN coordinates');
-    assert.ok(spec.main.indexOf('wx-scrub-' + id) !== -1, id + ' carries its crosshair guideline');
+    const scrub = (spec.main.match(new RegExp('<line id="wx-scrub-' + id + '"[^>]*>')) || [])[0];
+    assert.ok(scrub, id + ' carries its crosshair guideline');
+    assert.ok(scrub.indexOf('stroke="' + pal.ink + '"') !== -1 && scrub.indexOf('opacity') === -1,
+      id + ' crosshair runs full-strength ink with NO opacity — dimmed it '
+      + 'read as just another gridline instead of THE selected hour');
     assert.equal(spec.main.indexOf(pal.grid), -1, id + ' panning layer draws no gridlines');
     assert.equal((spec.main.match(/<line /g) || []).length, 3,
       id + ' lines: the now line, the tap crosshair, and the visible bottom axis — nothing else');
@@ -81,9 +86,15 @@ test('every hourly panel spec renders without NaN and carries its scrub anchor',
   assert.ok(specs.wind.main.indexOf(pal.gust) !== -1, 'gusts wear their series color');
   assert.ok(specs.temp.main.indexOf('%<') !== -1, 'the precip-probability row renders');
   assert.ok(specs.temp.overlay.indexOf('°') !== -1, 'left temp axis lives on the fixed overlay');
+  assert.match(specs.temp.overlay,
+    new RegExp('<text x="4" y="[0-9.]+" font-size="10" fill="' + pal.ink + '">'),
+    'left axis numbers carry full-contrast ink — the faint step washed '
+    + 'out against the panel surface');
   assert.ok(specs.temp.overlay.indexOf('moderate') !== -1 && specs.temp.overlay.indexOf('extreme') !== -1,
     'the right axis is the watch rain-tier scale');
   assert.ok(specs.hum.overlay.indexOf('%') !== -1, 'humidity carries its right %-axis');
+  assert.ok(specs.hum.overlay.indexOf('font-size="9.5" fill="' + pal.ink + '">50%') !== -1,
+    'and its %-labels run full-contrast ink too');
 });
 
 test('panel specs carry the crosshair-highlight plumbing (marks, dots, bar ids, tip)', () => {
@@ -295,6 +306,14 @@ test('the strip wears moons at night: sun-bearing glyphs swap below the horizon'
   const ids = charts.stripIconIds(view, LOC, SunCalc);
   assert.equal(ids[3], 'npartly', '03:00 UTC in Berlin is night — the moon twin');
   assert.equal(ids[12], 'partly', 'noon keeps the day glyph');
+  // The WHOLE sun-bearing vocabulary is mapped, each id to its own twin —
+  // a dropped or mispointed entry brings the sun-at-2am bug back for just
+  // that condition, invisible to the partly/clear checks around it.
+  assert.deepEqual(icons.NIGHT, { clear: 'nclear', partly: 'npartly', showers: 'nshowers' });
+  view.icon[3] = 'showers';
+  assert.equal(charts.stripIconIds(view, LOC, SunCalc)[3], 'nshowers',
+    'a showery night hour resolves through the map too');
+  view.icon[3] = 'partly';
   const spec = charts.timeStripSvg(view, LOC, pal, SunCalc);
   assert.match(spec.main, /<use xlink:href="#wxi-npartly" href="#wxi-npartly"/,
     'night hours render the moon variant in the 3-hourly row');
