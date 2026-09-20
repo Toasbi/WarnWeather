@@ -146,9 +146,12 @@ test('the graphs block orchestrates: loading → panels on data, error → Retry
     // halves' widths never depend on the text, keeping the sun column
     // vertically aligned across both rows.
     assert.ok(/\.wx-day-wet\{[^}]*flex:1;min-width:0;text-align:center/.test(css.WX_CSS)
-      && /\.wx-day-sun\{[^}]*flex:1;min-width:0;text-align:center/.test(css.WX_CSS),
-      'tile meta cells are equal centered halves (min-width:0 keeps them '
-      + 'equal even when a value outgrows its half)');
+      && /\.wx-day-sun\{[^}]*flex:1;min-width:0;text-align:center/.test(css.WX_CSS)
+      && /\.wx-day-meta\{[^}]*white-space:nowrap/.test(css.WX_CSS),
+      'tile meta cells are equal centered halves — min-width:0 keeps them '
+      + 'equal even when a value outgrows its half, and the row\'s nowrap '
+      + 'makes that value SPILL instead of wrapping and growing the tile '
+      + '(a ~41px half on a 320px phone loses to "12.5 mm" without both)');
     assert.equal(/\.wx-day-meta\{[^}]*space-between/.test(css.WX_CSS), false,
       'meta values no longer glue to the tile borders');
     assert.ok(html.indexOf('data-wxchart="press"') !== -1);

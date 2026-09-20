@@ -372,9 +372,11 @@ test('the 5-day strip renders tappable day tiles with units honored and selectio
   assert.match(html, /20%<\/span><span class="wx-day-sun">1\.5h<\/span>/,
     'row two: probability left, sun hours right');
   assert.equal(html.indexOf('☀ 1.5h'), -1, 'icon and hours no longer share a cell');
-  assert.equal(html.indexOf(' ·'), -1,
-    'bare values only — the centered cells carry no separator dot (it '
-    + 'dragged the amount off-center and could overflow the half)');
+  assert.equal(html.indexOf('mm ·'), -1,
+    'the amount carries no trailing separator dot — it dragged the value '
+    + 'off-center and could overflow the half. (Scoped to "mm ·": the '
+    + 'strip may legitimately grow a " · " joiner elsewhere, and the '
+    + 'adjacency pins above already catch a no-space "·" regression.)');
   assert.ok(html.indexOf('1 mm<') < html.indexOf('20%</span>'),
     'row ORDER pinned: the amount/icon row renders before the probability/hours row');
   assert.equal((html.match(/wx-day-sun/g) || []).length, 10,
@@ -391,7 +393,7 @@ test('the 5-day strip renders tappable day tiles with units honored and selectio
     'the sun cells too — empty, but holding the grid');
   assert.match(sparse, /<span class="wx-day-sun"><\/span>/,
     'a null sun renders an EMPTY cell, not a missing one');
-  assert.ok(sparse.indexOf('2 mm<') !== -1 && sparse.indexOf(' ·') === -1,
+  assert.ok(sparse.indexOf('2 mm<') !== -1 && sparse.indexOf('mm ·') === -1,
     'the amount renders bare, probability or not');
   assert.ok(html.indexOf('21 Sep') !== -1, 'tiles carry their date beside the weekday');
   assert.equal(html.indexOf('20 Sep'), -1, 'Today stands alone, like the app');
