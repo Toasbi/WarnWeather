@@ -48,6 +48,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var stripPending = false;       // an applyStripScroll is scheduled for the render being built
     var stripFresh = false;         // a NEW location's tiles just arrived — center instead of restoring
     var panelMarks = null;          // per-panel scale metadata from the last render (dots/bars/tips)
+    var stripIcons = null;          // night-resolved per-hour icon ids from the last render (the chip swap)
     var litBars = {};               // panel id → bar index currently lit by the crosshair
     var PANEL_IDS = ['temp', 'wind', 'hum', 'press'];
 
@@ -272,18 +273,24 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // memory with it.
         panelMarks = { temp: specs.temp.marks, wind: specs.wind.marks, hum: specs.hum.marks, press: specs.press.marks };
         litBars = {};
+        // The chip swaps hour icons by href while scrubbing; it has to
+        // agree with the strip's night resolution, so stash the same
+        // resolved ids the renderer uses.
+        stripIcons = charts.stripIconIds(view, loc, sunCalcLib);
         var h = '';
         // The 5-day strip leads (the app's layout) and doubles as the day
-        // selector for everything below it.
-        h += '<div class="wx-panel"><div class="wx-panel-head"><span class="wx-panel-title">5-day forecast</span></div>'
+        // selector for everything below it; only its TITLE stays behind
+        // when the pinned block below takes off.
+        h += '<div class="wx-panel"><div class="wx-panel-head"><span class="wx-panel-title">5-day forecast</span></div></div>';
+        // The pinned block: the day tiles AND the shared time axis (hour
+        // ruler + condition icons + night shading + the highlighted hour's
+        // chip) pin together below the tab bar while the panels scroll
+        // (the card wrapper uses overflow:clip precisely so descendant
+        // sticky survives; engines that only know overflow:hidden degrade
+        // to normal scrolling).
+        h += '<div class="wx-sticky">'
             + charts.dailyStripHtml(view.daily, settings, pal, view.offsetSec, Date.now(), panDay, view.days)
-            + '</div>';
-        // The shared time axis: hour ruler + condition icons + night shading
-        // + the highlighted hour's chip. Sticky: it pins below the tab bar
-        // while the panels scroll (the card wrapper uses overflow:clip
-        // precisely so descendant sticky survives; engines that only know
-        // overflow:hidden degrade to normal scrolling).
-        h += '<div class="wx-sticky">' + vp('strip', charts.timeStripSvg(view, loc, pal, sunCalcLib, idx)) + '</div>';
+            + vp('strip', charts.timeStripSvg(view, loc, pal, sunCalcLib, idx)) + '</div>';
         h += panelHtml('temp', 'Temperature & precipitation',
             [['Temp', pal.temp, 'line'], ['Rain', pal.water, 'rect']],
             charts.readout('temp', view, idx, settings),
@@ -779,9 +786,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var chipIcon = document.getElementById('wx-strip-hi-icon');
         if (chipIcon) {
             // Both href flavors, like the renderer (old WebViews read
-            // xlink). A data-less hour gets the renderer's blank
-            // placeholder — never the previous hour's stale glyph.
-            var ref = view.icon[i] ? '#wxi-h' + view.icon[i] : '#wxi-hnone';
+            // xlink). The night-resolved id from the render, so a 2am
+            // scrub wears the moon like the strip does; a data-less hour
+            // gets the renderer's blank placeholder — never the previous
+            // hour's stale glyph.
+            var icId = stripIcons ? stripIcons[i] : view.icon[i];
+            var ref = icId ? '#wxi-h' + icId : '#wxi-hnone';
             chipIcon.setAttribute('href', ref);
             try {
                 chipIcon.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', ref);
@@ -1006,6 +1016,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 stripPending = false;
                 stripFresh = false;
                 panelMarks = null;
+                stripIcons = null;
                 litBars = {};
             }
         };

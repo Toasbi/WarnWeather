@@ -116,20 +116,26 @@ test('the graphs block orchestrates: loading → panels on data, error → Retry
     assert.ok(html.indexOf('5-day forecast') < html.indexOf('data-wxvp="strip"'),
       'the 5-day selector leads, then the shared hour strip (the app layout)');
     assert.ok(html.indexOf('data-wxvp="strip"') < html.indexOf('Temperature &amp; precipitation'));
-    const stickyAt = html.indexOf('<div class="wx-sticky"><div class="wx-bleed">');
-    assert.ok(stickyAt !== -1
-      && html.slice(stickyAt, stickyAt + 300).indexOf('data-wxvp="strip"') !== -1,
-      'the hour strip ITSELF rides in the sticky wrapper (containment, not just ordering)');
+    const stickyAt = html.indexOf('<div class="wx-sticky"><div class="wx-days">');
+    assert.ok(stickyAt !== -1,
+      'the pinned box opens straight onto the 5-day tile row (tiles pin too)');
+    const stripVpAt = html.indexOf('data-wxvp="strip"');
+    const seam = html.indexOf('</div><div class="wx-bleed">', stickyAt);
+    assert.ok(seam !== -1 && seam < stripVpAt && stripVpAt - seam < 200,
+      'the hour strip\'s bleed box follows the tile row immediately, inside '
+      + 'the same pinned element — tiles and time axis travel together');
     assert.equal(html.indexOf('<div class="wx-sticky">', stickyAt + 1), -1,
-      'and nothing else does — one pinned element');
+      'and nothing else pins — one sticky element');
     assert.ok(css.WX_CSS.indexOf('.wx-sticky{position:-webkit-sticky;position:sticky') !== -1,
       '.wx-sticky actually pins (both position spellings for old WebViews)');
     // The pinned strip's two companion fixes: the sticky box itself
     // carries the -16px bleed (inner wrapper zeroed) so its opaque
     // backdrop covers the full strip width, and the tip stacks above it.
     assert.ok(/\.wx-sticky\{[^}]*margin:8px -16px 0/.test(css.WX_CSS)
-      && css.WX_CSS.indexOf('.wx-sticky .wx-bleed{margin:0') !== -1,
-      'the sticky box owns the bleed margin; its inner .wx-bleed is zeroed');
+      && /\.wx-sticky \.wx-bleed\{margin:4px 0 0/.test(css.WX_CSS)
+      && css.WX_CSS.indexOf('.wx-sticky .wx-days{margin:0') !== -1,
+      'the sticky box owns the bleed margin; the tile row and the strip '
+      + 'inside it drop their own side bleeds');
     const z = (sel) => Number((css.WX_CSS.match(
       new RegExp(sel.replace('.', '\\.') + '\\{[^}]*z-index:(\\d+)')) || [])[1]);
     assert.ok(z('.wx-tip') < z('.wx-sticky'),
@@ -189,6 +195,7 @@ test('a scrub moves the strip tick and chip through the shared clamps (the DOM p
   // clamps — the renderer's string output is pinned in the charts suite.
   const tick = {};
   const chip = {};
+  const chipIcon = {};
   const el = (store) => ({
     setAttribute: (k, v) => { store[k] = v; },
     setAttributeNS: () => {}
@@ -197,6 +204,7 @@ test('a scrub moves the strip tick and chip through the shared clamps (the DOM p
     getElementById: (id) => {
       if (id === 'wx-strip-hi-tick') return el(tick);
       if (id === 'wx-strip-hi') return el(chip);
+      if (id === 'wx-strip-hi-icon') return el(chipIcon);
       return null;
     }
   };
@@ -215,6 +223,10 @@ test('a scrub moves the strip tick and chip through the shared clamps (the DOM p
     assert.equal(tick.x1, 1, 'the scrub path nudges the tick off the seam');
     assert.equal(tick.x2, 1);
     assert.equal(chip.transform, 'translate(22 0)', 'the chip move shares stripChipX');
+    // Midnight UTC is night in Berlin: the chip swap uses the render's
+    // night-resolved ids, not the raw day glyph — no sun at 2am.
+    assert.equal(chipIcon.href, '#wxi-hnclear',
+      'a night-hour scrub swaps the chip to the moon twin');
   } finally {
     delete global.document;
     data.fetchWeather = realFetch;

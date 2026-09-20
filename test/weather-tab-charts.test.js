@@ -289,6 +289,30 @@ test('the hour strip highlights the selected hour with the app\'s chip (own icon
     'the renderer places the chip through the same clamp');
 });
 
+test('the strip wears moons at night: sun-bearing glyphs swap below the horizon', () => {
+  const view = charts.prepareView(fixtureData(), NOON);
+  const pal = charts.palette(false);
+  const ids = charts.stripIconIds(view, LOC, SunCalc);
+  assert.equal(ids[3], 'npartly', '03:00 UTC in Berlin is night — the moon twin');
+  assert.equal(ids[12], 'partly', 'noon keeps the day glyph');
+  const spec = charts.timeStripSvg(view, LOC, pal, SunCalc);
+  assert.match(spec.main, /<use xlink:href="#wxi-npartly" href="#wxi-npartly"/,
+    'night hours render the moon variant in the 3-hourly row');
+  assert.equal((spec.main.match(/<g id="wxi-npartly">/g) || []).length, 1,
+    'the night glyph is defined exactly once');
+  assert.equal((spec.main.match(/<g id="wxi-hnpartly">/g) || []).length, 1,
+    'with its chip-ink twin');
+  const night = charts.timeStripSvg(view, LOC, pal, SunCalc, 3);
+  assert.match(night.main, /id="wx-strip-hi-icon"[^>]*#wxi-hnpartly/,
+    'a chip on a night hour wears the moon in chip ink');
+  const raw = charts.stripIconIds(view, LOC, null);
+  assert.equal(raw[3], 'partly', 'no SunCalc → raw day ids, like the unshaded strip');
+  ['nclear', 'npartly', 'nshowers'].forEach((id) => {
+    assert.ok(charts.iconSvg(id, 24, pal).length > 60, id + ' draws (dark)');
+    assert.ok(charts.iconSvg(id, 24, charts.palette(true)).length > 60, id + ' draws (light)');
+  });
+});
+
 test('the sun & moon panel spans the timeline with per-day rise/set labels', () => {
   const view = charts.prepareView(fixtureData(), NOON);
   const pal = charts.palette(false);

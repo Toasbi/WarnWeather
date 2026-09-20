@@ -291,8 +291,10 @@
      * @returns {string} SVG fragment.
      */
     function scrubLine(id, top, bottom, pal) {
+        // Full-strength ink (white on the dark theme) — dimmed it read as
+        // just another gridline instead of THE selected hour.
         return '<line id="wx-scrub-' + id + '" x1="-10" y1="' + top + '" x2="-10" y2="' + bottom
-            + '" stroke="' + pal.ink + '" stroke-width="1" opacity="0.55"/>';
+            + '" stroke="' + pal.ink + '" stroke-width="1"/>';
     }
 
     /**
@@ -378,8 +380,10 @@
             if (ty < top - 0.5 || ty > bottom + 0.5) { continue; }
             s += '<line x1="0" y1="' + ty.toFixed(1) + '" x2="' + DAY_W + '" y2="' + ty.toFixed(1)
                 + '" stroke="' + pal.grid + '" stroke-width="1"/>';
+            // Full-contrast ink on the numbers: the faint step washed out
+            // against the panel surface.
             s += '<text x="4" y="' + (ty - 2.5).toFixed(1) + '" font-size="10" fill="'
-                + pal.faint + '">' + esc(fmt(ticks[t])) + '</text>';
+                + pal.ink + '">' + esc(fmt(ticks[t])) + '</text>';
         }
         return s;
     }
@@ -587,7 +591,7 @@
             o += '<line x1="' + (DAY_W - 10) + '" y1="' + ty.toFixed(1) + '" x2="' + DAY_W + '" y2="' + ty.toFixed(1)
                 + '" stroke="' + pal.grid + '" stroke-width="1"/>';
             o += '<text x="' + (DAY_W - 4) + '" y="' + (ty + 8).toFixed(1) + '" text-anchor="end" font-size="9.5" fill="'
-                + pal.faint + '">' + pTick + '%</text>';
+                + pal.ink + '">' + pTick + '%</text>';
         }
         return assemblePanel('hum', view, pal, {
             H: 150, top: top, bottom: bottom,
@@ -639,6 +643,31 @@
      *   else the viewed day's anchor); out of range → the now hour.
      * @returns {{main: string, overlay: ?string, H: number, bandH: number}} Panel spec.
      */
+    /**
+     * The strip's per-hour icon ids with the night twins applied: an hour
+     * whose sun sits below the horizon (SunCalc altitude at the hour, at
+     * the location) swaps a sun-bearing glyph for its moon variant — no
+     * sun at 2am. Raw ids come back unchanged without SunCalc or a
+     * location. Shared by the strip renderer AND weather-tab.js's chip
+     * swap while scrubbing — one resolution, both paths.
+     * @param {Object} view Prepared view.
+     * @param {?{lat: number, lon: number}} loc Active location.
+     * @param {?Object} SunCalcLib The vendored SunCalc.
+     * @returns {Array<?string>} Icon id (or null) per hour.
+     */
+    function stripIconIds(view, loc, SunCalcLib) {
+        var out = [];
+        for (var i = 0; i < view.icon.length; i += 1) {
+            var id = view.icon[i];
+            if (id && icons.NIGHT[id] && SunCalcLib && loc
+                    && SunCalcLib.getPosition(new Date(view.times[i]), loc.lat, loc.lon).altitude < 0) {
+                id = icons.NIGHT[id];
+            }
+            out.push(id);
+        }
+        return out;
+    }
+
     function timeStripSvg(view, loc, pal, SunCalcLib, idx) {
         // The app's stripe layout, top to bottom: a shaded BAND holding the
         // condition icons and the hour labels, then the tick ruler on its
@@ -661,8 +690,11 @@
         // is fixed too, like the app's), so every id gets a wxi-h<id> twin —
         // <use> can't recolor a referenced glyph's hard-coded strokes.
         var hiPal = { muted: pal.hiText, sun: '#FFC94D', water: '#69B4FF' };
-        for (var di = 0; di < view.icon.length; di += 1) {
-            var did = view.icon[di];
+        // Night-resolved ids: what actually renders (and what the chip can
+        // scrub onto), so the defs carry exactly these glyphs.
+        var hourIds = stripIconIds(view, loc, SunCalcLib);
+        for (var di = 0; di < hourIds.length; di += 1) {
+            var did = hourIds[di];
             if (did && !defined[did]) {
                 defined[did] = true;
                 defs += '<g id="wxi-' + did + '">' + icons.iconBody(did, pal) + '</g>'
@@ -704,7 +736,7 @@
         // sits there).
         for (var i = 3; i < view.times.length; i += 3) {
             if (i % 24 === 0) { continue; }
-            var id = view.icon[i];
+            var id = hourIds[i];
             if (!id) { continue; }
             s += iconUse(id, '', xAt(view, i), 4, 22);
         }
@@ -746,7 +778,7 @@
         // app's dark box. weather-tab.js moves the group / swaps the hrefs
         // and label by id while scrubbing.
         var hi = (typeof idx === 'number' && idx >= 0 && idx < view.times.length) ? idx : view.nowIndex;
-        var hiIcon = view.icon[hi] ? 'h' + view.icon[hi] : null;
+        var hiIcon = hourIds[hi] ? 'h' + hourIds[hi] : null;
         // The highlighted hour's OWN tick, over the ruler: at the true hour
         // x bar a 1-unit seam nudge (unlike the chip's ±22 clamp) and moved
         // by id while scrubbing.
@@ -939,7 +971,7 @@
                 + (offTimeline ? ' disabled' : '') + '>'
                 + '<span class="wx-day-head"><span class="wx-day-name">' + esc(name) + '</span>'
                 + (dateLabel ? ' <span class="wx-day-date">' + esc(dateLabel) + '</span>' : '') + '</span>'
-                + '<span class="wx-day-icon">' + (d.icon ? icons.iconSvg(d.icon, 26, pal) : '') + '</span>'
+                + '<span class="wx-day-icon">' + (d.icon ? icons.iconSvg(d.icon, 24, pal) : '') + '</span>'
                 // Low before high (the user's reading order).
                 + '<span class="wx-day-temp">'
                 + '<span>' + (d.tmin === null ? '–' : Math.round(model.displayTemp(d.tmin, settings)) + '°') + '</span> '
@@ -970,6 +1002,7 @@
         humidityPanelSvg: humidityPanelSvg,
         pressurePanelSvg: pressurePanelSvg,
         timeStripSvg: timeStripSvg,
+        stripIconIds: stripIconIds,
         stripChipX: stripChipX,
         stripTickX: stripTickX,
         sunMoonPanelSvg: sunMoonPanelSvg,

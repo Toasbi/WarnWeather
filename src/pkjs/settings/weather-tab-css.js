@@ -83,7 +83,11 @@
         // leak-through fix .blockrow.sticky documents in shell.html.
         + '.wx-sticky{position:-webkit-sticky;position:sticky;top:0;z-index:15;background:var(--card);'
         + 'margin:8px -16px 0;-webkit-transform:translateZ(0);transform:translateZ(0);}'
-        + '.wx-sticky .wx-bleed{margin:0;}'
+        + '.wx-sticky .wx-bleed{margin:4px 0 0;}'
+        // The 5-day tile row rides in the pinned box too, above the hour
+        // strip; its own side bleed is zeroed the same way (the sticky box
+        // already carries the -16px margins).
+        + '.wx-sticky .wx-days{margin:0;}'
         // Day tiles are the day selector: tap jumps the panels to that day.
         // App-style wide tiles in a horizontally scrollable row (~2.5 tiles
         // per viewport); position:relative makes the row the tiles'
@@ -102,10 +106,10 @@
         // fill read too heavy next to the charts — the border is the marker.
         // Slim side padding: the meta rows need the width, and the border
         // itself already separates tiles.
-        + '.wx-day{flex:0 0 auto;width:31%;min-width:110px;box-sizing:border-box;'
+        + '.wx-day{flex:0 0 auto;width:28%;min-width:100px;box-sizing:border-box;'
         + 'display:block;background:var(--ctl);'
         + 'border:1.5px solid transparent;border-radius:12px;'
-        + 'padding:8px 4px;text-align:center;font:inherit;color:var(--fg);cursor:pointer;}'
+        + 'padding:5px 4px;text-align:center;font:inherit;color:var(--fg);cursor:pointer;}'
         // Inset ring, not outline: the row is a scroll container now, and it
         // clips ink drawn OUTSIDE the tile's box (an outline) at its edges.
         + '.wx-day.today{box-shadow:inset 0 0 0 1px var(--card-line);}'
@@ -118,7 +122,7 @@
         + '.wx-day-head{display:block;font-size:11px;}'
         + '.wx-day-name{font-weight:600;color:var(--fg);}'
         + '.wx-day-date{color:var(--fg);}'
-        + '.wx-day-icon{display:block;margin:4px 0 2px;min-height:26px;}'
+        + '.wx-day-icon{display:block;margin:2px 0 1px;min-height:24px;}'
         + '.wx-day-temp{display:block;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;}'
         + '.wx-day-temp span{color:var(--fg);font-weight:400;}'
         // TWO fixed meta rows (rain mm | sun icon, then chance | sun

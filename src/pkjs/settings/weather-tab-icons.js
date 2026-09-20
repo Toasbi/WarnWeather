@@ -28,6 +28,12 @@
             + '<g stroke="' + sun + '" stroke-width="1.6" stroke-linecap="round">'
             + '<line x1="16.5" y1="2.2" x2="16.5" y2="3.6"/><line x1="21.8" y1="7.5" x2="20.4" y2="7.5"/>'
             + '<line x1="20.2" y1="3.8" x2="19.2" y2="4.8"/></g>';
+        // The moons share the suns' warm ink, so the chip twins recolor
+        // them through the same `sun` slot.
+        var moonCore = '<path d="M14.8 5.4a7 7 0 1 0 4.7 8.9 5.6 5.6 0 0 1-4.7-8.9z" fill="none" stroke="'
+            + sun + '" stroke-width="1.8" stroke-linejoin="round"/>';
+        var smallMoon = '<path d="M17.6 3.6a3.4 3.4 0 1 0 2.9 4.9 2.8 2.8 0 0 1-2.9-4.9z" fill="none" stroke="'
+            + sun + '" stroke-width="1.6" stroke-linejoin="round"/>';
         var drops = function (n, heavy) {
             var d = '<g stroke="' + water + '" stroke-width="' + (heavy ? 2 : 1.6) + '" stroke-linecap="round">';
             for (var i = 0; i < n; i += 1) {
@@ -38,6 +44,10 @@
         };
         if (id === 'clear') { return sunCore; }
         if (id === 'partly') { return smallSun + cloud; }
+        // Night twins of the sun-bearing glyphs (see NIGHT below).
+        if (id === 'nclear') { return moonCore; }
+        if (id === 'npartly') { return smallMoon + cloud; }
+        if (id === 'nshowers') { return smallMoon + cloud + drops(2, true); }
         if (id === 'cloudy') { return cloud; }
         if (id === 'fog') {
             return cloud + '<g stroke="' + ink + '" stroke-width="1.6" stroke-linecap="round">'
@@ -72,7 +82,12 @@
             + iconBody(id, pal) + '</svg>';
     }
 
-    var api = { iconBody: iconBody, iconSvg: iconSvg };
+    // The sun-bearing ids and their moon twins: render-time variants only
+    // (never provider-mapped, so deliberately NOT in the model's ICONS
+    // vocabulary). Cloud/rain-only glyphs read fine at night as they are.
+    var NIGHT = { clear: 'nclear', partly: 'npartly', showers: 'nshowers' };
+
+    var api = { iconBody: iconBody, iconSvg: iconSvg, NIGHT: NIGHT };
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = api;
