@@ -67,8 +67,10 @@ test('every hourly panel spec renders without NaN and carries its scrub anchor',
     assert.equal(spec.main.indexOf('NaN'), -1, id + ' has no NaN coordinates');
     assert.ok(spec.main.indexOf('wx-scrub-' + id) !== -1, id + ' carries its crosshair guideline');
     assert.equal(spec.main.indexOf(pal.grid), -1, id + ' panning layer draws no gridlines');
-    assert.equal((spec.main.match(/<line /g) || []).length, 2,
-      id + ' verticals: only the now line and the tap crosshair');
+    assert.equal((spec.main.match(/<line /g) || []).length, 3,
+      id + ' lines: the now line, the tap crosshair, and the visible bottom axis — nothing else');
+    assert.ok(spec.main.indexOf('y1="' + spec.marks.bottom + '"') !== -1,
+      id + ' draws its bottom axis at the plot baseline');
     const html = charts.viewportHtml(id, spec, view, 0);
     assert.ok(html.indexOf('data-wxvp="' + id + '"') !== -1, id + ' viewport is pan-targetable');
     assert.ok(html.indexOf('data-wxchart="' + id + '"') !== -1, id + ' canvas is scrub-targetable');
@@ -118,12 +120,53 @@ test('panel specs carry the crosshair-highlight plumbing (marks, dots, bar ids, 
   assert.ok(wind.main.indexOf('id="wx-dot-wind-gust"') !== -1 && wind.main.indexOf('id="wx-dot-wind-wind"') !== -1);
   assert.ok(hum.main.indexOf('id="wx-bar-hum-' + i + '"') !== -1, 'humidity bars carry per-hour ids');
   assert.ok(temp.main.indexOf('id="wx-bar-temp-19"') !== -1, 'rain bars carry per-hour ids (a wet hour)');
+  // The tip anchors above the topmost point: marks carry the panel height
+  // and each bar's top y per hour (null on dry hours).
+  assert.equal(temp.marks.H, temp.H, 'marks carry the panel height for px conversion');
+  assert.equal(temp.marks.bar.tops.length, view.times.length, 'one bar-top slot per hour');
+  assert.equal(temp.marks.bar.tops[0], null, 'dry hour → no bar top');
+  assert.ok(temp.marks.bar.tops[19] > temp.marks.top && temp.marks.bar.tops[19] < temp.marks.bottom,
+    'wet hour → its column top, inside the plot band');
+  assert.ok(Math.abs(hum.marks.bar.tops[i]
+    - (hum.marks.bottom - view.rh[i] / 100 * (hum.marks.bottom - hum.marks.top))) < 0.6,
+    'humidity bar top mirrors the 0-100% scale');
   // The viewport ships the floating tip mount for panels that declare it.
   const html = charts.viewportHtml('temp', temp, view, 0);
   assert.ok(html.indexOf('id="wx-tip-temp"') !== -1, 'tip div rides the viewport');
   const strip = charts.timeStripSvg(view, LOC, pal, SunCalc);
   assert.equal(charts.viewportHtml('strip', strip, view, 0).indexOf('wx-tip'), -1,
     'the strip declares no tip');
+});
+
+test('the precip-probability row carries its title and steps its ink with the chance', () => {
+  const view = charts.prepareView(fixtureData(), NOON);
+  const pal = charts.palette(false);
+  const temp = charts.tempPanelSvg(view, { temperatureUnits: 'c' }, pal);
+  assert.ok(temp.overlay.indexOf('Precipitation probability') !== -1,
+    'the row is titled, on the fixed overlay');
+  // Fixture: 60% inside 17-23h (a future 3h step lands on 18/21), 10% elsewhere.
+  assert.match(temp.main, new RegExp('font-size="9" fill="' + pal.water + '" font-weight="700">60%<'),
+    'a wet hour (>=60%) wears the water color, bold');
+  assert.match(temp.main, new RegExp('font-size="9" fill="' + pal.faint + '">10%<'),
+    'a dry hour stays faint');
+});
+
+test('the value tip renders title-over-value columns (tipHtml)', () => {
+  const view = charts.prepareView(fixtureData(), NOON);
+  const s = { temperatureUnits: 'c', windUnits: 'kph' };
+  const i = view.nowIndex;
+  const wind = charts.tipHtml('wind', view, i, s);
+  assert.equal((wind.match(/wx-tip-c/g) || []).length, 3, 'wind: three columns');
+  assert.ok(wind.indexOf('<b>Wind</b>') !== -1 && wind.indexOf('<b>Gusts</b>') !== -1
+    && wind.indexOf('<b>Direction</b>') !== -1, 'titles above values');
+  assert.match(wind, /<b>Wind<\/b><i>\d+ km\/h<\/i>/, 'value carries its unit');
+  assert.match(wind, /<b>Direction<\/b><i>[a-z ]+<\/i>/, 'direction as spoken words');
+  assert.equal(charts.compassWord(315), 'north west');
+  const temp = charts.tipHtml('temp', view, i, s);
+  assert.ok(temp.indexOf('<b>Temp</b>') !== -1 && temp.indexOf('<b>Rain</b>') !== -1
+    && temp.indexOf('<b>Chance</b>') !== -1);
+  assert.match(charts.tipHtml('press', view, i, s), /<b>Pressure<\/b><i>\d+ hPa<\/i>/);
+  assert.equal(charts.tipHtml('temp', view, 9999, s), '');
 });
 
 test('tipText is the readout without the timestamp (the floating tip contract)', () => {
@@ -177,8 +220,12 @@ test('the hour strip highlights the selected hour with the app\'s chip (own icon
     'and its chip-ink twin exactly once');
   assert.match(spec.main, /<use xlink:href="#wxi-partly" href="#wxi-partly"/,
     'the 3-hourly row references the defs (both href flavors for old WebViews)');
-  // No idx → the chip rests on the current hour.
+  // No idx → the chip rests on the current hour, with its ruler tick.
   assert.ok(spec.main.indexOf('id="wx-strip-hi"') !== -1, 'the chip renders');
+  assert.match(spec.main, new RegExp('id="wx-strip-hi-tick" x1="' + (view.nowIndex * charts.HOUR_W) + '"'),
+    'the highlighted hour gets its own ruler tick, at the TRUE hour x');
+  assert.match(charts.timeStripSvg(view, LOC, pal, SunCalc, 0).main, /id="wx-strip-hi-tick" x1="0"/,
+    'the tick stays unclamped where the chip box nudges inward');
   assert.ok(spec.main.indexOf('translate(' + (view.nowIndex * charts.HOUR_W) + ' 0)') !== -1,
     'the chip sits at the now hour');
   assert.match(spec.main, /id="wx-strip-hi-text"[^>]*>12:00</, 'the chip labels its hour');

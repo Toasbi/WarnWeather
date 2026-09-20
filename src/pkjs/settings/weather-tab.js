@@ -279,8 +279,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             + charts.dailyStripHtml(view.daily, settings, pal, view.offsetSec, Date.now(), panDay, view.days)
             + '</div>';
         // The shared time axis: hour ruler + condition icons + night shading
-        // + the highlighted hour's chip.
-        h += vp('strip', charts.timeStripSvg(view, loc, pal, sunCalcLib, idx));
+        // + the highlighted hour's chip. Sticky: it pins below the tab bar
+        // while the panels scroll (the card wrapper uses overflow:clip
+        // precisely so descendant sticky survives; engines that only know
+        // overflow:hidden degrade to normal scrolling).
+        h += '<div class="wx-sticky">' + vp('strip', charts.timeStripSvg(view, loc, pal, sunCalcLib, idx)) + '</div>';
         h += panelHtml('temp', 'Temperature & precipitation',
             [['Temp', pal.temp, 'line'], ['Rain', pal.water, 'rect']],
             charts.readout('temp', view, idx, settings),
@@ -366,104 +369,37 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // --- overlay: city search ------------------------------------------------------
 
-    var OVERLAY_CSS = ''
-        + '#wxloc{position:fixed;top:0;left:0;right:0;bottom:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;}'
-        + '#wxloc .hd{display:flex;align-items:center;gap:10px;padding:14px 16px;}'
-        + '#wxloc .hd b{font-size:17px;flex:1;}'
-        + '#wxloc .hd button{background:var(--ctl);color:var(--fg);border:none;border-radius:10px;padding:8px 14px;font:inherit;}'
-        + '#wxloc .bd{padding:0 16px 16px;overflow-y:auto;}'
-        + '#wxloc input{width:100%;box-sizing:border-box;background:var(--ctl);color:var(--fg);border:none;border-radius:10px;'
-        + 'padding:12px;font:inherit;font-size:15px;outline:none;}'
-        + '#wxloc .res{margin-top:10px;}'
-        + '#wxloc .res button{display:block;width:100%;text-align:left;background:var(--card);color:var(--fg);'
-        + 'border:1px solid var(--card-line);border-radius:12px;padding:12px;margin-bottom:8px;font:inherit;}'
-        + '#wxloc .res button small{color:var(--muted);display:block;}'
-        + '#wxloc .note{color:var(--hint);font-size:13px;padding:10px 2px;}';
+    // The tab's stylesheet strings live in weather-tab-css.js; injected
+    // below in the onReady hook.
+    var css = (typeof require !== 'undefined')
+        ? require('./weather-tab-css.js') : window.WeatherTabCss;
 
-    var WX_CSS = ''
-        + '.wx-chips{display:flex;flex-wrap:wrap;gap:8px;}'
-        + '.wx-chip{background:var(--ctl);color:var(--fg);border:none;border-radius:999px;padding:7px 13px;font:inherit;font-size:13px;}'
-        + '.wx-chip.on{background:linear-gradient(135deg,#FA4A35,#D93A24);color:#fff;font-weight:600;}'
-        + '.wx-chip.add{color:var(--muted);}'
-        + '.wx-chip:disabled{opacity:0.45;}'
-        + '.wx-chip-tools{margin-top:8px;display:flex;gap:14px;}'
-        + '.wx-chip-tools button{background:none;border:none;padding:0;color:var(--link);font:inherit;font-size:13px;}'
-        + '.wx-hint{color:var(--hint);font-size:13px;margin-top:8px;}'
-        + '.wx-panel{margin:2px 0 10px;}'
-        // align-items:center — the legend keys carry inline swatch blocks,
-        // so baseline alignment set them visibly lower than the title.
-        + '.wx-panel-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 2px;}'
-        + '.wx-panel-title{font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--ttl);flex:1;}'
-        + '.wx-key{font-size:11px;color:var(--muted);display:inline-flex;align-items:center;gap:4px;}'
-        + '.wx-key-line{display:inline-block;width:12px;height:2px;border-radius:1px;}'
-        + '.wx-key-rect{display:inline-block;width:8px;height:8px;border-radius:2px;}'
-        + '.wx-readout{font-size:12px;color:var(--muted);margin:2px 0 4px;font-variant-numeric:tabular-nums;}'
-        + '.wx-status{color:var(--hint);font-size:14px;padding:10px 0;}'
-        + '.wx-retry{background:var(--ctl);color:var(--fg);border:none;border-radius:8px;padding:6px 12px;font:inherit;font-size:13px;}'
-        // The pannable chart viewport: edge-to-edge in the card via a
-        // SEPARATE bleed wrapper (-16px matches .blockrow's side padding).
-        // The aspect padding-bottom must NOT share an element with the
-        // negative margins — percentage padding resolves against the
-        // containing block, so the combined box would be ~10% wider than
-        // 360:H and stretch every label (see viewportHtml).
-        + '.wx-bleed{margin:8px -16px 0;}'
-        + '.wx-vp{position:relative;overflow:hidden;height:0;touch-action:pan-y;}'
-        + '.wx-pan{position:absolute;top:0;left:0;height:100%;}'
-        + '.wx-ax{position:absolute;top:0;left:0;pointer-events:none;}'
-        // The floating value tip over the crosshair (filled/placed by
-        // paintScrub; left is a % of the viewport, the transform centers).
-        + '.wx-tip{display:none;position:absolute;top:4px;z-index:5;pointer-events:none;'
-        + '-webkit-transform:translateX(-50%);transform:translateX(-50%);'
-        + 'background:var(--card);border:1px solid var(--card-line);border-radius:8px;'
-        + 'padding:3px 8px;font-size:11px;font-weight:600;color:var(--fg);white-space:nowrap;'
-        + 'font-variant-numeric:tabular-nums;box-shadow:0 2px 6px rgba(0,0,0,0.18);}'
-        // Day tiles are the day selector: tap jumps the panels to that day.
-        // App-style wide tiles in a horizontally scrollable row (~2.5 tiles
-        // per viewport); position:relative makes the row the tiles'
-        // offsetParent so scrollDayStrip can center the selection.
-        // Full bleed like the charts (-16px matches .blockrow's side
-        // padding): the row runs edge to edge and tiles cut off at the
-        // section border, no lead-in padding.
-        + '.wx-days{display:flex;gap:6px;margin:6px -16px 0;position:relative;'
-        + 'overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}'
-        + '.wx-days::-webkit-scrollbar{display:none;}'
-        // Every tile carries a transparent border so selecting one (border
-        // turns accent-colored) never shifts the row's layout. A full accent
-        // fill read too heavy next to the charts — the border is the marker.
-        + '.wx-day{flex:0 0 auto;width:31%;min-width:110px;box-sizing:border-box;'
-        + 'display:block;background:var(--ctl);'
-        + 'border:1.5px solid transparent;border-radius:12px;'
-        + 'padding:8px 6px;text-align:center;font:inherit;color:var(--fg);cursor:pointer;}'
-        // Inset ring, not outline: the row is a scroll container now, and it
-        // clips ink drawn OUTSIDE the tile's box (an outline) at its edges.
-        + '.wx-day.today{box-shadow:inset 0 0 0 1px var(--card-line);}'
-        + '.wx-day.sel{border-color:var(--link);}'
-        + '.wx-day.sel .wx-day-name{color:var(--link);}'
-        + '.wx-day.off{opacity:0.4;cursor:default;}'
-        + '.wx-day-head{display:block;font-size:11px;}'
-        + '.wx-day-name{font-weight:600;color:var(--lbl);}'
-        + '.wx-day-date{color:var(--muted);}'
-        + '.wx-day-icon{display:block;margin:4px 0 2px;min-height:26px;}'
-        + '.wx-day-temp{display:block;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;}'
-        + '.wx-day-temp span{color:var(--muted);font-weight:400;}'
-        // One meta row: precipitation (mm · %) left, sun hours right.
-        + '.wx-day-meta{display:flex;justify-content:space-between;gap:6px;padding:0 4px;'
-        + 'font-size:10px;color:var(--muted);margin-top:2px;min-height:12px;font-variant-numeric:tabular-nums;}'
-        + '.wx-day-sun{color:var(--hint);}'
-        + '.wx-foot{color:var(--hint);font-size:11px;margin-top:2px;}'
-        + '.wx-refresh{background:none;border:none;padding:0;font:inherit;font-size:11px;'
-        + 'color:var(--link);cursor:pointer;}'
-        // Pull-to-refresh pill: fixed under the tab bar, shown only while a
-        // downward pull from the page top is in progress on the Weather tab.
-        // Transform and opacity track the finger directly (no transition —
-        // it would lag the drag); only the armed color flip animates.
-        + '#wx-ptr{display:none;position:fixed;top:56px;left:50%;'
-        + '-webkit-transform:translateX(-50%);transform:translateX(-50%);z-index:80;'
-        + 'padding:7px 14px;border-radius:16px;background:var(--card);'
-        + 'border:1px solid var(--card-line);color:var(--muted);font-size:12px;font-weight:600;'
-        + 'opacity:0;transition:color 0.15s ease,border-color 0.15s ease;'
-        + 'will-change:transform,opacity;}'
-        + '#wx-ptr.on{color:var(--link);border-color:var(--link);}';
+    // The pointer mechanics (pan gesture, tap-to-scrub handoff,
+    // pull-to-refresh) live in weather-tab-interact.js; the wire() call at
+    // the bottom hands it this tab's state hooks.
+    var interact = (typeof require !== 'undefined')
+        ? require('./weather-tab-interact.js') : window.WeatherTabInteract;
+
+    /**
+     * Land the viewport on a day: apply the pan, re-mark the tiles, and —
+     * only when the day actually changed — re-anchor the readouts and
+     * center the day strip (a same-day spring-back must not touch either).
+     * Shared by the pan gesture's snap and the day-tile tap.
+     * @param {number} d Target day (already clamped by the caller).
+     * @returns {void}
+     */
+    function commitDay(d) {
+        var view = fetchState.view;
+        var days = view ? view.days : 1;
+        var before = panDay;
+        panDay = d;
+        interact.setPan(interact.panPct(d, days), true);
+        syncDayCards();
+        if (d !== before) {
+            syncReadouts();
+            scrollDayStrip();
+        }
+    }
 
     /**
      * Open the city-search overlay targeting a slot (1..3).
@@ -657,73 +593,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return true;
     }
 
-    // --- gestures: drag pans the day window, tap scrubs the crosshair --------
 
-    /**
-     * The nearest ancestor (self included) carrying an attribute.
-     * @param {?Node} node Event target.
-     * @param {string} attr Attribute name.
-     * @returns {?Element} The carrier, or null.
-     */
-    function findAttr(node, attr) {
-        while (node && node.getAttribute) {
-            if (node.getAttribute(attr)) { return node; }
-            node = node.parentNode;
-        }
-        return null;
-    }
-
-    /**
-     * The pan transform (percent of the wide inner element) for a day.
-     * @param {number} day Day index.
-     * @param {number} days Timeline day count.
-     * @returns {number} translateX percentage (negative).
-     */
-    function panPct(day, days) {
-        return -(day * 100 / days);
-    }
-
-    /**
-     * Apply the shared pan transform to EVERY panel's inner element — the
-     * whole tab below the day selector moves as one.
-     * @param {number} pct translateX percentage.
-     * @param {boolean} animated Whether to ease (the day snap).
-     * @returns {void}
-     */
-    function setPan(pct, animated) {
-        if (typeof document === 'undefined' || !document.querySelectorAll) { return; }
-        var els = document.querySelectorAll('.wx-pan');
-        var val = 'translateX(' + pct + '%)';
-        for (var i = 0; i < els.length; i += 1) {
-            var st = els[i].style;
-            st.webkitTransition = animated ? '-webkit-transform 0.22s ease-out' : 'none';
-            st.transition = animated ? 'transform 0.22s ease-out' : 'none';
-            st.webkitTransform = val;
-            st.transform = val;
-        }
-    }
-
-    /**
-     * Which day a released drag snaps to: a quick flick advances one day,
-     * anything else rounds to the nearest day boundary.
-     * @param {number} baseDay Day when the drag started.
-     * @param {number} dxPx Horizontal drag distance (px, right = positive).
-     * @param {number} vw Viewport width (px).
-     * @param {number} days Timeline day count.
-     * @param {number} dtMs Drag duration.
-     * @returns {number} Target day, clamped to the timeline.
-     */
-    function snapTargetDay(baseDay, dxPx, vw, days, dtMs) {
-        var target;
-        if (dtMs < 300 && Math.abs(dxPx) > vw * 0.12) {
-            target = baseDay + (dxPx < 0 ? 1 : -1);
-        } else {
-            target = Math.round(baseDay - dxPx / vw);
-        }
-        if (target < 0) { target = 0; }
-        if (target > days - 1) { target = days - 1; }
-        return target;
-    }
 
     /**
      * The readout index a freshly shown day rests on: "now" while today is
@@ -803,15 +673,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             }
             var tip = document.getElementById('wx-tip-' + id);
             if (tip) {
-                var text = active ? charts.tipText(id, view, i, ctx.S) : '';
-                if (text) {
-                    // Fill and show first, THEN measure: the clamp needs the
-                    // tip's real width, or the centered tip clips against
-                    // the viewport's overflow:hidden near the edges.
-                    tip.textContent = text;
+                var html = active ? charts.tipHtml(id, view, i, ctx.S) : '';
+                if (html) {
+                    // Fill and show first, THEN measure: the clamps need the
+                    // tip's real size, or it clips against the viewport's
+                    // overflow:hidden near the edges.
+                    tip.innerHTML = html;
                     tip.style.display = 'block';
                     var vpEl = tip.parentNode;
                     var vw = vpEl && vpEl.clientWidth;
+                    var vh = vpEl && vpEl.clientHeight;
                     var left = (x - panDay * charts.DAY_W) / charts.DAY_W * (vw || 0);
                     if (vw) {
                         var half = tip.offsetWidth / 2 + 4;
@@ -821,6 +692,35 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                     } else {
                         tip.style.left = '50%';
                     }
+                    // Anchor the tip just above the hour's TOPMOST point —
+                    // the highest dot or bar top (viewBox units → px via
+                    // the panel height the marks carry).
+                    var topSvg = null;
+                    for (var t = 0; t < marks.lines.length; t += 1) {
+                        var lt = marks.lines[t];
+                        var lv = lt.vals[i];
+                        if (lv !== null && lv !== undefined && lt.max > lt.min) {
+                            var cy = marks.bottom - (lv - lt.min) / (lt.max - lt.min) * (marks.bottom - marks.top);
+                            if (topSvg === null || cy < topSvg) { topSvg = cy; }
+                        }
+                    }
+                    if (marks.bar && marks.bar.tops && marks.bar.tops[i] !== null
+                            && marks.bar.tops[i] !== undefined
+                            && (topSvg === null || marks.bar.tops[i] < topSvg)) {
+                        topSvg = marks.bar.tops[i];
+                    }
+                    var topPx = 4;
+                    if (vh && topSvg !== null && marks.H) {
+                        var anchorPx = topSvg / marks.H * vh;
+                        topPx = Math.round(anchorPx - tip.offsetHeight - 8);
+                        if (topPx < 2) {
+                            // No room above a near-top point → sit below it
+                            // instead of covering it.
+                            topPx = Math.round(anchorPx + 12);
+                            if (topPx + tip.offsetHeight > vh - 2) { topPx = 2; }
+                        }
+                    }
+                    tip.style.top = topPx + 'px';
                 } else {
                     tip.style.display = 'none';
                 }
@@ -831,6 +731,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             // The chip takes the renderer's clamped x (nudged off the day
             // seams), not the crosshair's raw x.
             chip.setAttribute('transform', 'translate(' + charts.stripChipX(view, i) + ' 0)');
+        }
+        var tick = document.getElementById('wx-strip-hi-tick');
+        if (tick) {
+            // The ruler tick under the chip stays on the TRUE hour x.
+            tick.setAttribute('x1', x);
+            tick.setAttribute('x2', x);
         }
         var chipText = document.getElementById('wx-strip-hi-text');
         if (chipText) {
@@ -928,90 +834,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
     }
 
-    var gesture = null;
-
-    /**
-     * Start tracking a pointer that landed on a chart viewport.
-     * @param {number} x Client x.
-     * @param {number} y Client y.
-     * @param {?Node} target Event target.
-     * @returns {void}
-     */
-    function beginGesture(x, y, target) {
-        var vpEl = findAttr(target, 'data-wxvp');
-        if (!vpEl || !fetchState.view || !vpEl.getBoundingClientRect) { return; }
-        var w = vpEl.getBoundingClientRect().width;
-        if (!w) { return; }
-        gesture = {
-            x0: x, y0: y, t0: Date.now(), vw: w, mode: null,
-            base: panDay, days: fetchState.view.days, target: target
-        };
-    }
-
-    /**
-     * Track movement: decide pan vs vertical scroll once, then drag the
-     * canvas live (with rubber-banding past the ends).
-     * @param {number} x Client x.
-     * @param {number} y Client y.
-     * @param {?Event} e The move event (preventDefault while panning).
-     * @returns {void}
-     */
-    function moveGesture(x, y, e) {
-        if (!gesture) { return; }
-        var dx = x - gesture.x0;
-        var dy = y - gesture.y0;
-        if (gesture.mode === null) {
-            if (Math.abs(dx) < 7 && Math.abs(dy) < 7) { return; }
-            gesture.mode = Math.abs(dx) > Math.abs(dy) ? 'pan' : 'scroll';
-        }
-        if (gesture.mode !== 'pan') { return; }
-        if (e && e.preventDefault) { e.preventDefault(); }
-        var f = gesture.base - dx / gesture.vw;
-        if (f < 0) { f = f * 0.35; }
-        if (f > gesture.days - 1) { f = (gesture.days - 1) + (f - (gesture.days - 1)) * 0.35; }
-        setPan(-(f * 100 / gesture.days), false);
-    }
-
-    /**
-     * Finish: snap a pan to its day, or treat an unmoved press as a
-     * crosshair tap.
-     * @param {number} x Client x at release.
-     * @returns {void}
-     */
-    function endGesture(x) {
-        if (!gesture) { return; }
-        var g = gesture;
-        gesture = null;
-        if (g.mode === 'pan') {
-            // A refetch can land mid-gesture and shrink/grow the timeline;
-            // snap against the CURRENT day count, not the one at touch-down.
-            var days = fetchState.view ? fetchState.view.days : g.days;
-            var before = panDay;
-            panDay = snapTargetDay(g.base, x - g.x0, g.vw, days, Date.now() - g.t0);
-            setPan(panPct(panDay, days), true);
-            syncDayCards();
-            if (panDay !== before) {
-                syncReadouts();
-                scrollDayStrip();
-            }
-            return;
-        }
-        if (g.mode === null) {
-            var chart = findAttr(g.target, 'data-wxchart');
-            if (chart) { scrubTo(chart, x); }
-        }
-    }
-
-    /**
-     * Abort (touchcancel): ease back to the resting day.
-     * @returns {void}
-     */
-    function cancelGesture() {
-        if (!gesture) { return; }
-        var g = gesture;
-        gesture = null;
-        if (g.mode === 'pan') { setPan(panPct(panDay, g.days), true); }
-    }
 
     /**
      * Move the shared crosshair to the tapped hour and repaint every
@@ -1036,169 +858,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         paintScrub(i, true);
     }
 
-    // --- pull-to-refresh: a downward pull from the page top on the Weather
-    // tab refetches manually (the only refresh path besides the footer link
-    // and reopening the tab — no timers, to spare keyed APIs).
 
-    var PULL_TRIGGER_PX = 70;
-    var pull = null;   // {x0, y0, engaged, armed}
-
-    /**
-     * The page's current scroll offset (whichever element scrolls).
-     * @returns {number} Pixels scrolled from the top.
-     */
-    function pageScrollTop() {
-        var sc = document.getElementById('scroll');
-        var a = sc ? sc.scrollTop : 0;
-        var de = document.documentElement;
-        var b = (typeof window !== 'undefined' && window.pageYOffset)
-            || (de && de.scrollTop) || (document.body && document.body.scrollTop) || 0;
-        return a > b ? a : b;
-    }
-
-    /**
-     * Show/update the pull indicator pill (created lazily). The pill rides
-     * the drag: damped translateY and a fade tied to the pull distance,
-     * both written every move — but the TEXT and class only when the armed
-     * state actually flips. Rewriting them per touchmove re-laid the pill
-     * out every frame, which is what made it stutter.
-     * @param {boolean} armed Past the release threshold.
-     * @param {number} dy Current downward pull distance (px).
-     * @returns {void}
-     */
-    function showPullPill(armed, dy) {
-        var el = document.getElementById('wx-ptr');
-        if (!el) {
-            el = document.createElement('div');
-            el.id = 'wx-ptr';
-            document.body.appendChild(el);
-        }
-        el.style.display = 'block';
-        if (el.getAttribute('data-armed') !== String(armed)) {
-            el.setAttribute('data-armed', String(armed));
-            el.className = armed ? 'on' : '';
-            el.textContent = armed ? 'Release to refresh' : 'Pull to refresh';
-        }
-        var travel = dy * 0.35;
-        if (travel > 46) { travel = 46; }
-        var fade = dy / 56;
-        if (fade > 1) { fade = 1; }
-        el.style.opacity = String(fade);
-        var t = 'translateX(-50%) translateY(' + travel.toFixed(1) + 'px)';
-        el.style.webkitTransform = t;
-        el.style.transform = t;
-    }
-
-    /** @returns {void} Hide the pull indicator pill. */
-    function hidePullPill() {
-        var el = document.getElementById('wx-ptr');
-        if (el) { el.style.display = 'none'; }
-    }
-
-    /**
-     * Start tracking a possible pull: Weather tab rendered, no overlay or
-     * sheet open, and the page at its top.
-     * @param {number} x Client x.
-     * @param {number} y Client y.
-     * @returns {void}
-     */
-    function beginPull(x, y) {
-        pull = null;
-        if (!ctx || !document.querySelector) { return; }
-        if (!document.querySelector('.wx-days')) { return; }
-        if (document.getElementById('wxloc')) { return; }
-        var modal = document.getElementById('modal');
-        if (modal && modal.open) { return; }
-        if (pageScrollTop() > 0) { return; }
-        pull = { x0: x, y0: y, engaged: false, armed: false };
-    }
-
-    /**
-     * Track a pull in progress; engages on a clearly-vertical downward drag
-     * and hands off to the chart pan when that gesture claims the pointer.
-     * @param {number} x Client x.
-     * @param {number} y Client y.
-     * @param {?Event} e The move event (preventDefault while engaged).
-     * @returns {void}
-     */
-    function movePull(x, y, e) {
-        if (!pull) { return; }
-        if (gesture && gesture.mode === 'pan') { pull = null; hidePullPill(); return; }
-        var dy = y - pull.y0;
-        var dx = x - pull.x0;
-        if (!pull.engaged) {
-            if (dy < -8) { pull = null; return; }
-            if (dy < 14 || Math.abs(dx) > dy) { return; }
-            pull.engaged = true;
-        }
-        if (dy < 0) { pull.engaged = false; pull.armed = false; hidePullPill(); return; }
-        if (e && e.preventDefault) { e.preventDefault(); }
-        pull.armed = dy >= PULL_TRIGGER_PX;
-        showPullPill(pull.armed, dy);
-    }
-
-    /**
-     * Release: past the threshold → refetch; either way, clean up.
-     * @returns {void}
-     */
-    function endPull() {
-        var p = pull;
-        pull = null;
-        hidePullPill();
-        if (p && p.armed && refreshWeather() && ctx) { ctx.render(); }
-    }
-
-    if (typeof document !== 'undefined' && document.addEventListener) {
-        document.addEventListener('touchstart', function (e) {
-            var t = e.touches && e.touches[0];
-            if (t && e.touches.length === 1) {
-                beginGesture(t.clientX, t.clientY, e.target);
-                beginPull(t.clientX, t.clientY);
-            }
-        }, true);
-        // {passive:false}: modern webviews default document-level touchmove
-        // to passive, which would ignore the pan's preventDefault; ancient
-        // ones read the object as a truthy capture flag, which is also fine.
-        document.addEventListener('touchmove', function (e) {
-            var t = e.touches && e.touches[0];
-            if (t) {
-                moveGesture(t.clientX, t.clientY, e);
-                movePull(t.clientX, t.clientY, e);
-            }
-        }, { passive: false, capture: true });
-        document.addEventListener('touchend', function (e) {
-            // A second finger lifting must not end the primary gesture at
-            // its x — only the LAST finger ends the interaction.
-            if (e.touches && e.touches.length) { return; }
-            var t = e.changedTouches && e.changedTouches[0];
-            if (t) { endGesture(t.clientX); } else { cancelGesture(); }
-            endPull();
-        }, true);
-        document.addEventListener('touchcancel', function () {
-            cancelGesture();
-            pull = null;
-            hidePullPill();
-        }, true);
-        document.addEventListener('mousedown', function (e) {
-            beginGesture(e.clientX, e.clientY, e.target);
-            beginPull(e.clientX, e.clientY);
-        }, true);
-        document.addEventListener('mousemove', function (e) {
-            // e.buttons is authoritative where it exists (0 = no button —
-            // e.which stays 1 on plain moves in WebKit, so `buttons||which`
-            // would treat every hover as a drag); which is the old-engine
-            // fallback only when buttons is genuinely undefined.
-            var down = e.buttons !== undefined ? e.buttons : e.which;
-            if (down) {
-                moveGesture(e.clientX, e.clientY, e);
-                movePull(e.clientX, e.clientY, e);
-            }
-        }, true);
-        document.addEventListener('mouseup', function (e) {
-            endGesture(e.clientX);
-            endPull();
-        }, true);
-    }
 
     // --- registrations ------------------------------------------------------------
 
@@ -1245,14 +905,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var d = parseInt(arg, 10);
             if (!(d >= 0)) { return false; }
             if (d > view.days - 1) { d = view.days - 1; }
-            var before = panDay;
-            panDay = d;
-            setPan(panPct(d, view.days), true);
-            syncDayCards();
-            if (d !== before) {
-                syncReadouts();
-                scrollDayStrip();
-            }
+            commitDay(d);
             return false;
         };
         PConf.actions.wxRetryWeather = function () {
@@ -1271,11 +924,24 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (typeof document !== 'undefined' && !document.getElementById('wx-style')) {
                 var style = document.createElement('style');
                 style.id = 'wx-style';
-                style.textContent = WX_CSS + OVERLAY_CSS;
+                style.textContent = css.WX_CSS + css.OVERLAY_CSS;
                 document.head.appendChild(style);
             }
         });
     }
+
+    // Hand the interaction module this tab's state hooks; it attaches the
+    // document listeners once.
+    interact.wire({
+        view: function () { return fetchState.view; },
+        day: function () { return panDay; },
+        commitDay: commitDay,
+        scrub: scrubTo,
+        canPull: function () { return Boolean(ctx); },
+        refresh: function () {
+            if (refreshWeather() && ctx) { ctx.render(); }
+        }
+    });
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
@@ -1284,8 +950,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             graphsProviderOptions: graphsProviderOptions,
             graphsProviderHeader: graphsProviderHeader,
             firstFreeSlot: firstFreeSlot,
-            snapTargetDay: snapTargetDay,
-            panPct: panPct,
+            // The pan mechanics live in weather-tab-interact.js; re-exported
+            // for the existing tests.
+            snapTargetDay: interact.snapTargetDay,
+            panPct: interact.panPct,
             refreshWeather: refreshWeather,
             // Test seams.
             _setCtx: function (c) { ctx = c; },

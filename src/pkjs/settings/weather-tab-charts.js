@@ -30,6 +30,8 @@
         ? require('./weather-tab-model.js') : window.WeatherTabModel;
     var icons = (typeof require !== 'undefined')
         ? require('./weather-tab-icons.js') : window.WeatherTabIcons;
+    var readouts = (typeof require !== 'undefined')
+        ? require('./weather-tab-readouts.js') : window.WeatherTabReadouts;
 
     // Series palette — the validated steps for each page theme. Entities keep
     // their hue everywhere they appear (temp is orange in every panel).
@@ -76,26 +78,12 @@
         return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    /**
-     * Format a number with one optional decimal (12, 12.5).
-     * @param {number} v Value.
-     * @returns {string} Compact number.
-     */
-    function fmt1(v) {
-        var r = Math.round(v * 10) / 10;
-        return (r % 1 === 0) ? String(Math.round(r)) : r.toFixed(1);
-    }
-
-    /**
-     * @param {number} v Value 0..99.
-     * @returns {string} Two-digit string.
-     */
-    function two(v) {
-        return v < 10 ? '0' + v : String(v);
-    }
-
-    var DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    // The tiny text helpers live with the other per-hour strings in
+    // weather-tab-readouts.js; the renderers alias them.
+    var fmt1 = readouts.fmt1;
+    var two = readouts.two;
+    var DAYS = readouts.DAYS;
+    var MONTHS = readouts.MONTHS;
 
     /**
      * Clean y-axis ticks across [min, max].
@@ -308,10 +296,11 @@
      * — each with a parked crosshair highlight dot — decorations, crosshair
      * line on top. This is the one place panels get their shared plumbing;
      * the panel builders only provide data and their own extras. The
-     * returned `marks` (plot band + each line's display-unit values and
-     * domain, + the bar-id prefix when the panel has bars) is what
-     * weather-tab.js needs to place dots, light bars and position the value
-     * tip at a scrubbed hour without re-deriving any scale.
+     * returned `marks` (plot band + panel height + each line's display-unit
+     * values and domain, + the bar-id prefix/resting-opacity/top-y-per-hour
+     * when the panel has bars) is what weather-tab.js needs to place dots,
+     * light bars and position the value tip at a scrubbed hour — anchored
+     * above the topmost point — without re-deriving any scale.
      * @param {string} id Panel id.
      * @param {Object} view Prepared view.
      * @param {Object} pal Palette.
@@ -319,7 +308,8 @@
      *          lines: Array<{key: string, vals: Array<?number>, min: number,
      *                        max: number, color: string}>,
      *          over: string, overlay: string,
-     *          bar: ?{prefix: string, dim: number}}} parts Panel parts.
+     *          bar: ?{prefix: string, dim: number,
+     *                 tops: Array<?number>}}} parts Panel parts.
      *   Each line's `vals` are DISPLAY units and `min`/`max` its y-domain;
      *   the y scale is derived here, so line and dot can never disagree.
      * @returns {{main: string, overlay: string, H: number, tip: boolean,
@@ -328,7 +318,11 @@
     function assemblePanel(id, view, pal, parts) {
         var s = frameWide(view, pal, parts.top, parts.bottom);
         s += parts.under || '';
-        var marks = { top: parts.top, bottom: parts.bottom, lines: [], bar: parts.bar || null };
+        // The plot's baseline: a visible bottom axis, over the bars so wet
+        // hours don't break it.
+        s += '<line x1="0" y1="' + parts.bottom + '" x2="' + (view.days * DAY_W) + '" y2="' + parts.bottom
+            + '" stroke="' + pal.axis + '" stroke-width="1"/>';
+        var marks = { top: parts.top, bottom: parts.bottom, H: parts.H, lines: [], bar: parts.bar || null };
         for (var i = 0; i < parts.lines.length; i += 1) {
             var ln = parts.lines[i];
             var y = yScale(ln.min, ln.max, parts.top, parts.bottom);
@@ -379,7 +373,7 @@
             if (ty < top - 0.5 || ty > bottom + 0.5) { continue; }
             s += '<line x1="0" y1="' + ty.toFixed(1) + '" x2="' + DAY_W + '" y2="' + ty.toFixed(1)
                 + '" stroke="' + pal.grid + '" stroke-width="1"/>';
-            s += '<text x="4" y="' + (ty - 2.5).toFixed(1) + '" font-size="8" fill="'
+            s += '<text x="4" y="' + (ty - 2.5).toFixed(1) + '" font-size="10" fill="'
                 + pal.faint + '">' + esc(fmt(ticks[t])) + '</text>';
         }
         return s;
@@ -403,7 +397,7 @@
             s += '<line x1="' + (DAY_W - 12) + '" y1="' + yTop.toFixed(1) + '" x2="' + DAY_W + '" y2="' + yTop.toFixed(1)
                 + '" stroke="' + pal.grid + '" stroke-width="1"/>';
             s += '<text x="' + (DAY_W - 4) + '" y="' + ((yTop + yBot) / 2 + 2.5).toFixed(1)
-                + '" text-anchor="end" font-size="7" fill="' + pal.faint + '">'
+                + '" text-anchor="end" font-size="8.5" fill="' + pal.faint + '">'
                 + esc(model.RAIN_TIER_LABELS[k - 1]) + '</text>';
         }
         return s;
@@ -466,38 +460,46 @@
         // the same non-linear heights the rain bar draws on the watch. Each
         // column carries its hour id so the crosshair can light it.
         var under = '';
+        var tops = [];
         for (var i = 0; i < view.rain.length; i += 1) {
             var r = view.rain[i];
-            if (r === null || r <= 0) { continue; }
+            if (r === null || r <= 0) { tops.push(null); continue; }
             var bh = (bottom - top) * model.rainPermilleFromMm(r) / 1000;
             if (bh < 1) { bh = 1; }
+            tops.push(bottom - bh);
             under += '<rect id="wx-bar-temp-' + i + '" x="' + (xAt(view, i) - HOUR_W / 2).toFixed(1)
                 + '" y="' + (bottom - bh).toFixed(1)
                 + '" width="' + HOUR_W + '" height="' + bh.toFixed(1) + '" fill="' + pal.water + '" opacity="0.45"/>';
         }
         // Precip probability row every 3 h; past hours show the app's dash.
+        // Ink steps up with the chance — the wetter the hour, the more it
+        // wears the water color.
         var over = '';
         for (i = 0; i < view.prob.length; i += 3) {
             var px = xAt(view, i);
             if (i < view.nowIndex) {
-                over += '<text x="' + px + '" y="' + probY + '" text-anchor="middle" font-size="7.5" fill="'
+                over += '<text x="' + px + '" y="' + probY + '" text-anchor="middle" font-size="9" fill="'
                     + pal.faint + '">–</text>';
                 continue;
             }
             var p = view.prob[i];
             if (p === null || p === undefined) { continue; }
-            over += '<text x="' + px + '" y="' + probY + '" text-anchor="middle" font-size="7.5" fill="'
-                + (p >= 50 ? pal.muted : pal.faint) + '"' + (p >= 50 ? ' font-weight="600"' : '') + '>'
+            var ink = p >= 60 ? pal.water : (p >= 30 ? pal.muted : pal.faint);
+            over += '<text x="' + px + '" y="' + probY + '" text-anchor="middle" font-size="9" fill="'
+                + ink + '"' + (p >= 60 ? ' font-weight="700"' : (p >= 30 ? ' font-weight="600"' : '')) + '>'
                 + Math.round(p) + '%</text>';
         }
         return assemblePanel('temp', view, pal, {
             H: 150, top: top, bottom: bottom,
             under: under, over: over,
             lines: [{ key: 'temp', vals: dispSeries(view.temp, disp), min: disp(dom.min), max: disp(dom.max), color: pal.temp }],
-            bar: { prefix: 'wx-bar-temp', dim: 0.45 },
+            bar: { prefix: 'wx-bar-temp', dim: 0.45, tops: tops },
             overlay: overlayLeftTicks(pal, top, bottom, niceTicks(disp(dom.min), disp(dom.max), 4), y,
                 function (v) { return fmt1(v) + '°'; })
                 + overlayRainTiers(pal, top, bottom)
+                // The row's title, on the fixed overlay so it holds still.
+                + '<text x="4" y="' + (probY - 11) + '" font-size="8" font-weight="600" fill="' + pal.muted
+                + '">Precipitation probability</text>'
         });
     }
 
@@ -552,11 +554,13 @@
         var disp = function (c) { return model.displayTemp(c, settings); };
         var yr = yScale(0, 100, top, bottom);
         var under = '';
+        var tops = [];
         for (var i = 0; i < view.rh.length; i += 1) {
             var v = view.rh[i];
-            if (v === null || v === undefined) { continue; }
+            if (v === null || v === undefined) { tops.push(null); continue; }
             var bh = bottom - yr(v);
             if (bh < 1) { bh = 1; }
+            tops.push(yr(v));
             under += '<rect id="wx-bar-hum-' + i + '" x="' + (xAt(view, i) - (HOUR_W - 2) / 2).toFixed(1)
                 + '" y="' + yr(v).toFixed(1)
                 + '" width="' + (HOUR_W - 2) + '" height="' + bh.toFixed(1) + '" rx="1.5" fill="' + pal.water + '" opacity="0.3"/>';
@@ -577,14 +581,14 @@
             var ty = yr(pTick);
             o += '<line x1="' + (DAY_W - 10) + '" y1="' + ty.toFixed(1) + '" x2="' + DAY_W + '" y2="' + ty.toFixed(1)
                 + '" stroke="' + pal.grid + '" stroke-width="1"/>';
-            o += '<text x="' + (DAY_W - 4) + '" y="' + (ty + 8).toFixed(1) + '" text-anchor="end" font-size="7.5" fill="'
+            o += '<text x="' + (DAY_W - 4) + '" y="' + (ty + 8).toFixed(1) + '" text-anchor="end" font-size="9.5" fill="'
                 + pal.faint + '">' + pTick + '%</text>';
         }
         return assemblePanel('hum', view, pal, {
             H: 150, top: top, bottom: bottom,
             under: under, over: '',
             lines: lines,
-            bar: { prefix: 'wx-bar-hum', dim: 0.3 },
+            bar: { prefix: 'wx-bar-hum', dim: 0.3, tops: tops },
             overlay: o
         });
     }
@@ -709,7 +713,7 @@
         for (i = 0; i < view.times.length; i += 1) {
             x = xAt(view, i);
             if (i % 3 === 0) {
-                s += '<text x="' + x + '" y="' + hourY + '" text-anchor="middle" font-size="7.5" '
+                s += '<text x="' + x + '" y="' + hourY + '" text-anchor="middle" font-size="9" '
                     + 'font-weight="600" fill="' + pal.ink + '">'
                     + two(model.localHour(view.times[i], view.offsetSec)) + ':00</text>';
             }
@@ -738,6 +742,10 @@
         // and label by id while scrubbing.
         var hi = (typeof idx === 'number' && idx >= 0 && idx < view.times.length) ? idx : view.nowIndex;
         var hiIcon = view.icon[hi] ? 'h' + view.icon[hi] : null;
+        // The highlighted hour's OWN tick, over the ruler: unclamped (the
+        // true hour x, unlike the chip box) and moved by id while scrubbing.
+        s += '<line id="wx-strip-hi-tick" x1="' + xAt(view, hi) + '" y1="' + BAND_H + '" x2="' + xAt(view, hi)
+            + '" y2="' + (BAND_H + 7) + '" stroke="' + pal.ink + '" stroke-width="2"/>';
         s += '<g id="wx-strip-hi" transform="translate(' + stripChipX(view, hi) + ' 0)">'
             + '<rect x="-17" y="1" width="34" height="' + (BAND_H - 2) + '" rx="5" fill="' + pal.hiBox + '"/>'
             + (hiIcon ? iconUse(hiIcon, ' id="wx-strip-hi-icon"', 0, 4, 18)
@@ -745,7 +753,7 @@
                 // transform) so a scrub can still swap a real href in.
                 : '<use id="wx-strip-hi-icon" xlink:href="#wxi-hnone" href="#wxi-hnone"'
                   + ' transform="translate(-9 4) scale(0.720)"/>')
-            + '<text id="wx-strip-hi-text" x="0" y="' + hourY + '" text-anchor="middle" font-size="7.5" '
+            + '<text id="wx-strip-hi-text" x="0" y="' + hourY + '" text-anchor="middle" font-size="9" '
             + 'font-weight="700" fill="' + pal.hiText + '">'
             + two(model.localHour(view.times[hi], view.offsetSec)) + ':00</text>'
             + '</g>';
@@ -912,65 +920,6 @@
         return h + '</div>';
     }
 
-    /**
-     * Compass label for a bearing.
-     * @param {number} deg Meteorological bearing (comes from).
-     * @returns {string} One of N/NE/E/SE/S/SW/W/NW.
-     */
-    function compass(deg) {
-        var names = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-        return names[Math.round(((deg % 360) + 360) % 360 / 45) % 8];
-    }
-
-    /**
-     * A panel's values-with-units at one index — the floating crosshair
-     * tip's text, and the value part of the readout row.
-     * @param {string} panel 'temp'|'wind'|'hum'|'press'.
-     * @param {Object} view Prepared view.
-     * @param {number} i Index into the view.
-     * @param {Object} settings Live settings (units).
-     * @returns {string} Plain text ('' off-range).
-     */
-    function tipText(panel, view, i, settings) {
-        if (!view || i < 0 || i >= view.times.length) { return ''; }
-        var deg = function (v) { return v === null ? '–' : fmt1(model.displayTemp(v, settings)) + '°'; };
-        var spd = function (v) { return v === null ? '–' : Math.round(model.displayWind(v, settings)); };
-        if (panel === 'temp') {
-            return deg(view.temp[i])
-                + ' · ' + (view.rain[i] === null ? '–' : fmt1(view.rain[i])) + ' mm'
-                + (view.prob[i] === null ? '' : ' · ' + Math.round(view.prob[i]) + ' %');
-        }
-        if (panel === 'wind') {
-            return spd(view.wind[i]) + ' / ' + spd(view.gust[i]) + ' ' + model.windUnitLabel(settings)
-                + (view.dir[i] === null ? '' : ' · ' + compass(view.dir[i]));
-        }
-        if (panel === 'hum') {
-            return (view.rh[i] === null ? '–' : Math.round(view.rh[i]) + ' %')
-                + ' · ' + deg(view.temp[i]) + ' · dew ' + deg(view.dew[i]);
-        }
-        if (panel === 'press') {
-            return (view.pressure[i] === null ? '–' : Math.round(view.pressure[i])) + ' hPa';
-        }
-        return '';
-    }
-
-    /**
-     * The readout line for one panel at one index — weekday + hour, then
-     * the same values the floating tip shows (values stay reachable
-     * without tapping; the relief rule for the sub-3:1 series colors).
-     * @param {string} panel 'temp'|'wind'|'hum'|'press'.
-     * @param {Object} view Prepared view.
-     * @param {number} i Index into the view.
-     * @param {Object} settings Live settings (units).
-     * @returns {string} Plain text.
-     */
-    function readout(panel, view, i, settings) {
-        if (!view || i < 0 || i >= view.times.length) { return ''; }
-        return DAYS[model.localWeekday(view.times[i], view.offsetSec)] + ' '
-            + two(model.localHour(view.times[i], view.offsetSec)) + ':00 · '
-            + tipText(panel, view, i, settings);
-    }
-
     var api = {
         DAY_W: DAY_W,
         HOUR_W: HOUR_W,
@@ -991,9 +940,13 @@
         sunMoonPanelSvg: sunMoonPanelSvg,
         iconSvg: icons.iconSvg,
         dailyStripHtml: dailyStripHtml,
-        compass: compass,
-        tipText: tipText,
-        readout: readout
+        // The per-hour text builders live in weather-tab-readouts.js;
+        // re-exported here so consumers keep one charts-facing API.
+        compass: readouts.compass,
+        compassWord: readouts.compassWord,
+        tipText: readouts.tipText,
+        tipHtml: readouts.tipHtml,
+        readout: readouts.readout
     };
 
     if (typeof module !== 'undefined' && module.exports) {

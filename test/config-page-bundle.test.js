@@ -189,17 +189,20 @@ test('the support mug reaches the generated page, after news.js', () => {
 // renders `mise preview-config` — so an addition to one and not the other is silent.
 // That lockstep is already guarded, by test/preview-config-page.test.js's last test.
 
-// The Weather tab is six files, each reading a window global a file earlier in
-// APP_FILES publishes (SunCalc / WeatherTabModel / WeatherTabData /
-// WeatherTabIcons / WeatherTabCharts) while its own IIFE body runs. Same
-// silent-no-op hazard as the preview kit: an unregistered block renders
-// nothing and only warns. Pin the ASSIGNMENT, not the bare name — every
-// consumer's `: window.X;` fallback read keeps the bare string in the page
-// even with the publisher dropped from APP_FILES.
+// The Weather tab is nine files, each reading a window global a file earlier
+// in APP_FILES publishes (SunCalc / WeatherTabModel / WeatherTabData /
+// WeatherTabIcons / WeatherTabReadouts / WeatherTabCharts / WeatherTabCss /
+// WeatherTabInteract) while its own IIFE body runs. Same silent-no-op hazard
+// as the preview kit: an unregistered block renders nothing and only warns.
+// Pin the ASSIGNMENT, not the bare name — every consumer's `: window.X;`
+// fallback read keeps the bare string in the page even with the publisher
+// dropped from APP_FILES.
 test('the Weather tab kit reaches the generated page in dependency order', () => {
   const src = page();
   ['window.SunCalc', 'window.WeatherTabModel =', 'window.WeatherTabData =',
-    'window.WeatherTabIcons =', 'window.WeatherTabCharts ='].forEach((g) => {
+    'window.WeatherTabIcons =', 'window.WeatherTabReadouts =',
+    'window.WeatherTabCharts =', 'window.WeatherTabCss =',
+    'window.WeatherTabInteract ='].forEach((g) => {
     assert.ok(src.indexOf(g) !== -1,
       'nothing assigns ' + g + ' — probably missing from APP_FILES in scripts/build-config-page.js');
   });
@@ -217,9 +220,14 @@ test('the Weather tab kit reaches the generated page in dependency order', () =>
     'weather-tab-model.js must precede weather-tab-charts.js');
   assert.ok(idx('settings/weather-tab-icons.js') < idx('settings/weather-tab-charts.js'),
     'weather-tab-icons.js must precede weather-tab-charts.js (reads window.WeatherTabIcons at IIFE time)');
+  assert.ok(idx('settings/weather-tab-readouts.js') < idx('settings/weather-tab-charts.js'),
+    'weather-tab-readouts.js must precede weather-tab-charts.js (aliases its helpers at IIFE time)');
+  assert.ok(idx('settings/weather-tab-model.js') < idx('settings/weather-tab-readouts.js'),
+    'weather-tab-model.js must precede weather-tab-readouts.js');
   ['settings/vendor-suncalc.js', 'settings/weather-tab-model.js',
     'settings/weather-tab-data.js', 'settings/weather-tab-icons.js',
-    'settings/weather-tab-charts.js'].forEach((dep) => {
+    'settings/weather-tab-readouts.js', 'settings/weather-tab-charts.js',
+    'settings/weather-tab-css.js', 'settings/weather-tab-interact.js'].forEach((dep) => {
     assert.ok(idx(dep) < idx('settings/weather-tab.js'),
       dep + ' must precede weather-tab.js, which reads its window global at IIFE time');
   });

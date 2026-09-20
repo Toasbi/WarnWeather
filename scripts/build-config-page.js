@@ -85,7 +85,10 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/weather-tab-model.js'),
   path.join(ROOT, 'src/pkjs/settings/weather-tab-data.js'),
   path.join(ROOT, 'src/pkjs/settings/weather-tab-icons.js'),
+  path.join(ROOT, 'src/pkjs/settings/weather-tab-readouts.js'),
   path.join(ROOT, 'src/pkjs/settings/weather-tab-charts.js'),
+  path.join(ROOT, 'src/pkjs/settings/weather-tab-css.js'),
+  path.join(ROOT, 'src/pkjs/settings/weather-tab-interact.js'),
   path.join(ROOT, 'src/pkjs/settings/weather-tab.js')
 ];
 
