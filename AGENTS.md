@@ -107,8 +107,9 @@ enforced by an automated regex guardrail in the test suite — see its own READM
   message. `test/inbox-size.test.js` guards both the weather and Clay
   bundles; when you grow the worst-case bundle, update its `buildHeaviestBundle()`, and
   treat bumping `inbox_size` as a last resort. Before spending weather-message bytes, ask
-  whether the value is settings-derived — if it is, it belongs on the Clay message, which
-  has far more room (490 B of 536 B used).
+  whether the value is settings-derived — if it is, it belongs on the Clay message —
+  but note the Clay message is now the TIGHTER of the two (499 B of 536 B used, and the
+  test enforces a 10 B headroom floor), so check `test/inbox-size.test.js` either way.
 - **Message boundary: settings ride the settings (Clay) message; weather data rides the
   weather message.** Config-derived values — colour palettes, formatting/display toggles,
   the holiday mask — belong in `sendClaySettings` (`outbox.sendClay`). The weather payload
