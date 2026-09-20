@@ -391,10 +391,26 @@ test('a pan carries the tips with their values and drops them at the viewport ed
     tab._panTips(2);
     assert.equal(tip.style.display, 'none', 'and stays hidden a whole day away');
 
+    // The other drag direction is just as real: swiping BACK toward an
+    // earlier day slides the hour off the RIGHT edge instead.
+    tab._panTips(-0.55);
+    assert.equal(tip.style.display, 'none', 'off the right edge hides it too');
+    tab._panTips(-2);
+    assert.equal(tip.style.display, 'none', 'a whole day back, still gone');
+
     // Dragging back brings it home.
     tab._panTips(0);
     assert.equal(tip.style.display, 'block', 'panning back restores it');
     assert.equal(parseInt(tip.style.left, 10), atRest, 'at its resting place');
+
+    // The release path itself: a short drag that springs back to the SAME
+    // day keeps the crosshair alive, so committing that day has to land
+    // the tips back on their values — nothing else will.
+    tab._panTips(0.2);
+    assert.notEqual(parseInt(tip.style.left, 10), atRest, 'mid-drag, carried off its value');
+    tab._commitDay(0);
+    assert.equal(parseInt(tip.style.left, 10), atRest,
+      'the same-day spring-back brings the tips home');
 
     // A tip with no live content is never resurrected by a drag.
     tip.innerHTML = '';
@@ -531,12 +547,25 @@ test('tip horizontal clamps: wide tips stay centered; edge hours pin inside the 
     assert.equal(parseInt(tip.style.left, 10), 390 - 34,
       'right edge: clamped to half a tip + air inside the viewport');
 
-    // Release slop — a tap can round to an hour past the visible day
-    // (scrubTo clamps to the timeline, not the day): the raw crosshair px
-    // leaves the viewport and must be pulled back before centering.
-    tab._scrubTo(svg, px(47));
+    // Release slop — a tap at the very edge can round to the hour sitting
+    // ON the day seam (scrubTo clamps to the timeline, not the day). That
+    // hour is still at the viewport boundary, so it stays VISIBLE, pulled
+    // back inside rather than hidden: the half-pixel slack in placeTipX's
+    // hide window exists for exactly this.
+    tab._scrubTo(svg, px(24));
+    assert.equal(tip.style.display, 'block', 'the seam hour is still on screen');
     assert.equal(parseInt(tip.style.left, 10), 390 - 34,
       'an off-day crosshair px is clamped back into the viewport');
+
+    // A genuinely off-window hour is a different matter: it is hidden,
+    // and placeTipX returns before touching left — so assert on display,
+    // never on a left the function no longer writes.
+    tip.style.left = '(untouched)';
+    tab._scrubTo(svg, px(47));
+    assert.equal(tip.style.display, 'none', 'an hour a day out of frame has no tip');
+    assert.equal(tip.style.left, '(untouched)',
+      'and a hidden tip is not repositioned at all');
+    tip.style.left = '';
 
     tab._scrubTo(svg, px(0));
     assert.equal(parseInt(tip.style.left, 10), 34, 'left edge: clamped in');

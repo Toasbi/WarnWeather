@@ -1064,6 +1064,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             // Test seams.
             _scrubTo: scrubTo,
             _panTips: panTips,
+            _commitDay: commitDay,
             _setCtx: function (c) { ctx = c; },
             _fetchState: function () { return fetchState; },
             _panDay: function () { return panDay; },

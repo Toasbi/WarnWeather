@@ -12,18 +12,25 @@ const interact = require('../src/pkjs/settings/weather-tab-interact.js');
  */
 function listenerHarness() {
   const listeners = {};
+  // A stand-in for the panned element, so a test can read the transform
+  // setPan actually wrote and compare it against what the tips were told.
+  const pan = { style: {} };
   global.document = {
     addEventListener: (type, fn) => { listeners[type] = fn; },
-    querySelectorAll: () => [],
+    querySelectorAll: (sel) => (sel === '.wx-pan' ? [pan] : []),
     querySelector: () => null,
     getElementById: () => null
   };
-  return listeners;
+  return { listeners, pan };
 }
 
 test('a pan drag hands its live position to the value tips, every frame', () => {
   const seen = [];
-  const listeners = listenerHarness();
+  const { listeners, pan } = listenerHarness();
+  const DAYS = 3;
+  /** @returns {number} the fractional day the PANELS were last moved to */
+  const panelsAt = () =>
+    -Number(/translateX\((-?[\d.]+)%\)/.exec(pan.style.transform)[1]) * DAYS / 100;
   try {
     interact.wire({
       view: () => ({ days: 3 }),
@@ -54,14 +61,26 @@ test('a pan drag hands its live position to the value tips, every frame', () => 
     // place while the values slide out from under them.
     touch('touchmove', 200);
     assert.equal(seen.length, 1, 'the drag hands its position to the tips');
-    assert.ok(Math.abs(seen[0].f - 100 / 390) < 1e-9,
-      'and it is the SAME fractional day the panels are translated by');
+    assert.ok(Math.abs(seen[0].f - 100 / 390) < 1e-9, 'a viewport of drag is a day');
+    assert.ok(Math.abs(seen[0].f - panelsAt()) < 1e-9,
+      'and it is the SAME fractional day the PANELS were translated by');
 
     touch('touchmove', 100);
     assert.equal(seen.length, 2, 'every frame, not just the first');
     assert.ok(Math.abs(seen[1].f - 200 / 390) < 1e-9, 'tracking the finger');
+    assert.ok(Math.abs(seen[1].f - panelsAt()) < 1e-9, 'still in step with the panels');
     assert.equal(seen[1].animated, false,
       'a drag frame is unanimated — it tracks the finger, it does not chase it');
+
+    // Rubber-banding past day 0: the panels move at 0.35x out there, so
+    // the tips have to be handed the DAMPED position too — the undamped
+    // one would slide them off their values at the timeline ends.
+    touch('touchmove', 500);
+    const damped = seen[seen.length - 1];
+    assert.ok(damped.f < 0, 'dragging right at day 0 goes past the start');
+    assert.ok(Math.abs(damped.f - (-200 / 390) * 0.35) < 1e-9, 'damped, not raw');
+    assert.ok(Math.abs(damped.f - panelsAt()) < 1e-9,
+      'and the tips get exactly what the panels got, damping included');
 
     // An abort eases the panels back to the resting day, so the tips have
     // to be told to travel on that curve rather than snap ahead of them.
