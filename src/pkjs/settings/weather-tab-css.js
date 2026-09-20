@@ -127,10 +127,19 @@
         + '.wx-day-temp span{color:var(--fg);font-weight:400;}'
         // TWO fixed meta rows (rain mm | sun icon, then chance | sun
         // hours): every value in its own cell, min-height holding empty
-        // cells, so the sun column never jumps with the text length.
-        + '.wx-day-meta{display:flex;justify-content:space-between;gap:6px;padding:0 2px;'
+        // cells. The cells are EQUAL flex halves with centered text — not
+        // space-between, which glued the values to the tile borders. Equal
+        // halves give every value the same air on both sides AND keep the
+        // rows' columns vertically aligned (a half's width never depends
+        // on its text, so the sun column still can't jump). nowrap: a cell
+        // that outgrows its half must spill, not wrap and grow the tile.
+        + '.wx-day-meta{display:flex;gap:6px;padding:0 2px;white-space:nowrap;'
         + 'font-size:10px;color:var(--fg);margin-top:2px;min-height:12px;font-variant-numeric:tabular-nums;}'
-        + '.wx-day-sun{color:var(--fg);}'
+        // min-width:0 beats the flex min-content floor: without it a long
+        // value refuses to shrink, steals width from the other half and
+        // knocks the two rows' columns out of line.
+        + '.wx-day-wet{flex:1;min-width:0;text-align:center;}'
+        + '.wx-day-sun{flex:1;min-width:0;text-align:center;color:var(--fg);}'
         + '.wx-foot{color:var(--hint);font-size:11px;margin-top:2px;}'
         + '.wx-refresh{background:none;border:none;padding:0;font:inherit;font-size:11px;'
         + 'color:var(--link);cursor:pointer;}'

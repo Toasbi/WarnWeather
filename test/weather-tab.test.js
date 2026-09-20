@@ -141,6 +141,16 @@ test('the graphs block orchestrates: loading → panels on data, error → Retry
     assert.ok(z('.wx-tip') < z('.wx-sticky'),
       'the value tip scrolls UNDER the pinned hour axis, never over it ('
       + z('.wx-tip') + ' vs ' + z('.wx-sticky') + ')');
+    // Tile meta rows: the two cells are EQUAL flex halves with centered
+    // text, so each value floats with the same air on both sides — and the
+    // halves' widths never depend on the text, keeping the sun column
+    // vertically aligned across both rows.
+    assert.ok(/\.wx-day-wet\{[^}]*flex:1;min-width:0;text-align:center/.test(css.WX_CSS)
+      && /\.wx-day-sun\{[^}]*flex:1;min-width:0;text-align:center/.test(css.WX_CSS),
+      'tile meta cells are equal centered halves (min-width:0 keeps them '
+      + 'equal even when a value outgrows its half)');
+    assert.equal(/\.wx-day-meta\{[^}]*space-between/.test(css.WX_CSS), false,
+      'meta values no longer glue to the tile borders');
     assert.ok(html.indexOf('data-wxchart="press"') !== -1);
     assert.ok(html.indexOf('data-action="wxShowDay"') !== -1, 'day tiles navigate the panels');
     assert.equal(calls, 1, 'a fresh render serves from module state');

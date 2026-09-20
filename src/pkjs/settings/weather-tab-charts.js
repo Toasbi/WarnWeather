@@ -963,9 +963,12 @@
             // left / sun icon right, then probability left / sun hours
             // right. Every value gets its own cell, so the icon and hours
             // never jump when a value is long or missing — empty cells
-            // hold the grid (min-height on the rows).
-            var wetMm = d.rainMm === null ? ''
-                : fmt1(d.rainMm) + ' mm' + (d.probMax === null ? '' : ' ·');
+            // hold the grid (min-height on the rows). Bare values, no
+            // separator dot after the amount: the cells are centered
+            // halves, where a trailing "·" drags the value off-center —
+            // and it made the widest realistic string ("1.5 mm ·")
+            // overflow its half on narrow phones.
+            var wetMm = d.rainMm === null ? '' : fmt1(d.rainMm) + ' mm';
             var wetProb = d.probMax === null ? '' : Math.round(d.probMax) + '%';
             h += '<button type="button" class="' + cls + '" data-action="wxShowDay" data-action-arg="' + i + '"'
                 + (offTimeline ? ' disabled' : '') + '>'

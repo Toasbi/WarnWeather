@@ -367,17 +367,20 @@ test('the 5-day strip renders tappable day tiles with units honored and selectio
   assert.equal((html.match(/wx-day-meta/g) || []).length, 10,
     'TWO fixed meta rows per tile: every value in its own cell, so the sun '
     + 'column never jumps with the text length');
-  assert.match(html, /1 mm ·<\/span><span class="wx-day-sun">☀<\/span>/,
+  assert.match(html, /1 mm<\/span><span class="wx-day-sun">☀<\/span>/,
     'row one: rain amount left, the sun ICON alone on the right');
   assert.match(html, /20%<\/span><span class="wx-day-sun">1\.5h<\/span>/,
     'row two: probability left, sun hours right');
   assert.equal(html.indexOf('☀ 1.5h'), -1, 'icon and hours no longer share a cell');
-  assert.ok(html.indexOf('1 mm ·') < html.indexOf('20%</span>'),
+  assert.equal(html.indexOf(' ·'), -1,
+    'bare values only — the centered cells carry no separator dot (it '
+    + 'dragged the amount off-center and could overflow the half)');
+  assert.ok(html.indexOf('1 mm<') < html.indexOf('20%</span>'),
     'row ORDER pinned: the amount/icon row renders before the probability/hours row');
   assert.equal((html.match(/wx-day-sun/g) || []).length, 10,
     'a sun cell per row on every tile');
   // Null-data tiles: the grid holds — both rows and their (empty) cells
-  // render, and a missing probability drops the trailing separator dot.
+  // render, and a lone amount still renders bare.
   const sparse = charts.dailyStripHtml([
     { date: view.daily[0].date, tmin: 10, tmax: 20, icon: 'clear', rainMm: 2, probMax: null, sunshineH: null },
     { date: view.daily[0].date + 86400000, tmin: null, tmax: null, icon: null, rainMm: null, probMax: null, sunshineH: null }
@@ -388,8 +391,8 @@ test('the 5-day strip renders tappable day tiles with units honored and selectio
     'the sun cells too — empty, but holding the grid');
   assert.match(sparse, /<span class="wx-day-sun"><\/span>/,
     'a null sun renders an EMPTY cell, not a missing one');
-  assert.ok(sparse.indexOf('2 mm<') !== -1 && sparse.indexOf('2 mm ·') === -1,
-    'no probability → no dangling separator dot after the amount');
+  assert.ok(sparse.indexOf('2 mm<') !== -1 && sparse.indexOf(' ·') === -1,
+    'the amount renders bare, probability or not');
   assert.ok(html.indexOf('21 Sep') !== -1, 'tiles carry their date beside the weekday');
   assert.equal(html.indexOf('20 Sep'), -1, 'Today stands alone, like the app');
   assert.equal((html.match(/data-action="wxShowDay"/g) || []).length, 5, 'five tappable tiles');
