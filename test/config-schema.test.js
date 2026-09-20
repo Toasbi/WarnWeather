@@ -994,6 +994,10 @@ test('auto theme switch: toggle + Day/Night pair + mode + manual hours, gated co
   assert.equal(auto.defaultValue, false, 'off by default');
   assert.equal(auto.onChange, 'themeAutoPreset', 'first enable seeds Light day / Dark night');
   assert.deepEqual(auto.showWhen, { env: 'themePolarity' }, 'hidden on aplite like the theme picker');
+  assert.equal(auto.joinPrevious, true, 'joins the Theme select into one visual group');
+  assert.equal(byKey('themeAutoStartHour').label, 'From',
+    'hour labels match the Night battery saver rows');
+  assert.equal(byKey('themeAutoEndHour').label, 'To');
 
   const nightItems = items.filter((i) => i.messageKey === 'themeNight');
   assert.equal(nightItems.length, 2, 'a color and a B&W-polarity Night select');

@@ -859,6 +859,9 @@ module.exports = {
                 // Same gate as the theme pickers: aplite has nothing to switch
                 // between (light polarity compiled out), so the feature hides there.
                 showWhen: {env: 'themePolarity'},
+                // Joins the Theme select above into one visual group — the whole
+                // auto chain below already joins, so the theming rows read as one.
+                joinPrevious: true,
                 // First enable seeds Light day / Dark night (theme-convert.js).
                 onChange: 'themeAutoPreset',
                 hint: 'Switch between two themes automatically — with the sun or on a fixed schedule. The phone applies the switch, so it can land a little late while the watch is disconnected.'
@@ -919,7 +922,8 @@ module.exports = {
             }, {
                 type: 'select',
                 messageKey: 'themeAutoStartHour',
-                label: 'Night from',
+                // 'From'/'To', matching the Night battery saver's hour rows.
+                label: 'From',
                 defaultValue: '20',
                 options: HOURS,
                 inline: 'themeAutoHours',
