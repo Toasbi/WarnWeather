@@ -16,6 +16,11 @@ var DEFAULT_END = 7;
 /**
  * Parse an hour select value ('0'..'23'), clamping garbage to a fallback.
  *
+ * THE home of the rule: every hour window in the app parses its stored hours this
+ * way, and each caller passes the fallback ITS OWN keys default to in schema.js,
+ * since that is what an unparseable stored value stands in for. Exported for the
+ * other windows built on it (night-light.js's dim window).
+ *
  * @param {*} value Stored hour value (string from the settings page).
  * @param {number} fallback Hour to use when the value doesn't parse.
  * @returns {number} Hour 0..23.
@@ -69,5 +74,6 @@ function isWithinSleepWindow(now, settings) {
 
 module.exports = {
     isWithinSleepWindow: isWithinSleepWindow,
-    resolveSleepWindow: resolveSleepWindow
+    resolveSleepWindow: resolveSleepWindow,
+    parseHour: parseHour
 };

@@ -79,3 +79,49 @@ build/host/status_bar_test
 cc -std=c11 -Wall -Wextra -Werror -Itest/c/stub -Isrc -DPBL_PLATFORM_APLITE \
    test/c/status_bar_test.c src/c/layers/status_bar.c -o build/host/status_bar_test_aplite
 build/host/status_bar_test_aplite
+
+# Header-only pure predicate (static inline in persist.h, no .c file — the
+# date_format_test pattern): the acceptance rule for the inbound
+# CLAY_NIGHT_LIGHT_UINT8 "Dim backlight" tuple, which is the one decision in
+# app_message.c's unpack path that is not an SDK call (app_message.c itself needs
+# the whole AppMessage + layer surface, so it cannot be host-compiled). Built THREE
+# times: the wire itself is platform-independent, but persist.h's night-light
+# accessors sit behind NIGHT_LIGHT_SUPPORTED, and both of that gate's terms
+# (PBL_RGB_BACKLIGHT, the SDK capability, and PBL_PLATFORM_EMERY, the board that has
+# it today) have to declare them — the test's own #error pins that, and each gated
+# build proves the declarations parse.
+cc $CFLAGS test/c/night_light_wire_test.c -o build/host/night_light_wire_test
+build/host/night_light_wire_test
+cc $CFLAGS -DPBL_RGB_BACKLIGHT test/c/night_light_wire_test.c -o build/host/night_light_wire_test_rgb
+build/host/night_light_wire_test_rgb
+cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/night_light_wire_test.c -o build/host/night_light_wire_test_emery
+build/host/night_light_wire_test_emery
+
+# The other end of the same feature: the window predicate that decides, from the
+# clock, whether the "Dim backlight" tint should be burning right now, plus its
+# colour packer. Both are static inlines in appendix/night_light.h — the module's .c
+# drives the LED through applib and reads flash through persist.h, so it cannot be
+# host-compiled, and this is the only executable check the apply path gets. Built
+# TWICE: without the gate (every platform but emery, where the header must still
+# compile down to just these two helpers) and with -DWW_COLOR_BACKLIGHT, the flag
+# wscript sets for emery, which additionally declares night_light_init/refresh/deinit.
+# The runtime assertions are identical — the window arithmetic is not platform-bound.
+cc $CFLAGS test/c/night_light_window_test.c -o build/host/night_light_window_test
+build/host/night_light_window_test
+cc $CFLAGS -DWW_COLOR_BACKLIGHT test/c/night_light_window_test.c -o build/host/night_light_window_test_color
+build/host/night_light_window_test_color
+
+# The third side of the same feature: the NIGHT_LIGHT persist accessors, run for
+# real. appendix/persist.c needs nothing from the SDK but the persistent-storage
+# syscalls, so the test fakes those over a RAM map and EXECUTES
+# persist_set/get_night_light — which is what pins the change gating (a re-save of
+# identical bytes must not reach flash) and the getter's short-read guard, neither
+# of which any header-only test can reach. Built TWICE, once per term of persist.h's
+# NIGHT_LIGHT_SUPPORTED gate, so both spellings are proven to DEFINE the accessors
+# rather than merely declare them.
+cc $CFLAGS -DPBL_RGB_BACKLIGHT test/c/night_light_persist_test.c src/c/appendix/persist.c \
+   -o build/host/night_light_persist_test
+build/host/night_light_persist_test
+cc $CFLAGS -DPBL_PLATFORM_EMERY -DPBL_COLOR test/c/night_light_persist_test.c src/c/appendix/persist.c \
+   -o build/host/night_light_persist_test_emery
+build/host/night_light_persist_test_emery

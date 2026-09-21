@@ -148,6 +148,36 @@ typedef void (*AppTimerCallback)(void *data);
 AppTimer *app_timer_register(uint32_t timeout_ms, AppTimerCallback callback, void *callback_data);
 void app_timer_cancel(AppTimer *timer_handle);
 
+// --- night_light_persist_test.c additions -----------------------------------
+// The persistent-storage syscalls, so appendix/persist.c itself can be
+// host-compiled against a RAM-backed fake (the test file supplies the bodies).
+// Signatures copied from the firmware's applib/persist.h; status_t is
+// system/status_codes.h's int32_t. E_DOES_NOT_EXIST is what the reads return
+// for an unset key — persist.c's own short-read guards compare against it.
+typedef int32_t status_t;
+#define E_DOES_NOT_EXIST (-7)
+
+bool persist_exists(const uint32_t key);
+int persist_get_size(const uint32_t key);
+bool persist_read_bool(const uint32_t key);
+int32_t persist_read_int(const uint32_t key);
+int persist_read_data(const uint32_t key, void *buffer, const size_t buffer_size);
+int persist_read_string(const uint32_t key, char *buffer, const size_t buffer_size);
+status_t persist_write_bool(const uint32_t key, const bool value);
+status_t persist_write_int(const uint32_t key, const int32_t value);
+int persist_write_data(const uint32_t key, const void *data, const size_t size);
+int persist_write_string(const uint32_t key, const char *cstring);
+status_t persist_delete(const uint32_t key);
+
+// The palette constants persist.c names as its built-in colour defaults. ARGB
+// values from the firmware's graphics/gcolor_definitions.h.
+#define GColorDukeBlue ((GColor){ .argb = 0xC2 })
+#define GColorBlue ((GColor){ .argb = 0xC3 })
+#define GColorCobaltBlue ((GColor){ .argb = 0xC6 })
+#define GColorVividCerulean ((GColor){ .argb = 0xCB })
+#define GColorDarkGray ((GColor){ .argb = 0xD5 })
+#define GColorPictonBlue ((GColor){ .argb = 0xDB })
+
 #ifdef WW_HOST_FAKE_TIME
 // Redirect the code-under-test's time(NULL) to the test's controllable clock.
 // time.h is included above, so its real prototype is untouched; only call

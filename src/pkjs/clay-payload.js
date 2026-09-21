@@ -12,6 +12,7 @@ var statusThresholds = require('./status-thresholds.js');
 var platformLib = require('./config-ui/lib/platform.js');
 var lineStyle = require('./line-style.js');
 var dateFormat = require('./date-format.js');
+var nightLight = require('./night-light.js');
 
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
 var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
@@ -167,6 +168,23 @@ function buildClayPayload(settings, watchInfo, now) {
     // Deliberately NOT platform-gated, unlike the threshold blob / no-rain text / curve
     // insets above: aplite renders the same two metric lines, so it needs the colours too.
     payload.CLAY_LINE_STYLE_UINT8 = lineStyle.buildLineStyleBytes(settings, watchInfo);
+
+    // Dim backlight, five bytes: [0..2] the LED's r/g/b channels, [3] the window's
+    // start hour (inclusive), [4] its end hour (exclusive, wrapping past midnight).
+    // start === end is the app's "never" window, and the switch being OFF sends
+    // [0,0,0,0,0] — so the watch reads the feature's state out of the window itself
+    // and needs no enabled flag. Settings-derived (the Nighttime card's toggle, mode,
+    // hours and colour), so it rides the Clay message; the full layout and the
+    // resolution rules live on buildNightLightBytes (night-light.js).
+    //
+    // Deliberately NOT platform-gated, for the reason CLAY_LARGE_GRAPH_FONT above is
+    // not: the LED is emery-only, but computeEnv reports colorBacklight FALSE for an
+    // unknown platform (a missing watchInfo), so gating on it would starve a real
+    // emery watch of the setting over a watchInfo hiccup. Sending it everywhere is
+    // harmless — the watch skips the key, and light_set_color_rgb888() is a documented
+    // no-op on every board without the LED — and costs 12 B of a Clay bundle that has
+    // the headroom for it (test/inbox-size.test.js).
+    payload.CLAY_NIGHT_LIGHT_UINT8 = nightLight.buildNightLightBytes(settings);
 
     // Threshold-highlight settings (enabled bits + colors + health-kind
     // thresholds) — settings-derived, so they ride the Clay message. Omitted for a

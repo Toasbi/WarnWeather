@@ -150,5 +150,9 @@
   "1.17.0": {
     "title": "Automatic day/night theme",
     "body": "The watchface can switch between a Day and a Night theme on its own — at sunrise and sunset, or between fixed hours. Turn it on under Automatic theme in the General tab."
+  },
+  "1.18.0": {
+    "title": "Dim backlight at night",
+    "body": "On Pebble Time 2 the backlight now glows a dim color instead of white during your night hours, so it is easier on your eyes. Pick the color, or switch it off, under Dim backlight in the General tab."
   }
 }
