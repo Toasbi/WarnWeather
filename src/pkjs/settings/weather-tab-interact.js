@@ -443,6 +443,42 @@
         return g.vw;
     }
 
+    /**
+     * Where the timeline actually IS, as a fractional day, read off the live
+     * transform rather than taken from the committed day.
+     *
+     * The two agree at rest and only at rest. A settle moves the panels over
+     * as much as CARRY_MAX_MS, and a finger that comes down inside that
+     * window is looking at a page between two days. Starting the new drag
+     * from the COMMITTED day made the first move frame — which writes
+     * transition:'none', cancelling the curve — snap the whole tab from
+     * wherever it had got to straight to the destination: on a 390px
+     * viewport, a ~190px jolt in the frame the user expected to keep
+     * gliding. Flicking day to day is how you cross five days, so it was
+     * every other swipe.
+     * @param {number} days Timeline day count.
+     * @returns {?number} Fractional day, or null when it cannot be read.
+     */
+    function liveDay(days) {
+        if (typeof document === 'undefined' || !document.querySelector) { return null; }
+        var pan = document.querySelector('.wx-pan');
+        var vp = pan && pan.parentNode;
+        if (!pan || !vp || !pan.getBoundingClientRect || !vp.getBoundingClientRect) { return null; }
+        var pr = pan.getBoundingClientRect();
+        var vr = vp.getBoundingClientRect();
+        if (!vr.width) { return null; }
+        // .wx-pan is as many viewports wide as there are days, and it is
+        // translated by whole viewports, so the gap between the two left
+        // edges IS the day, to scale — mid-curve included, because a
+        // transform in flight is what getBoundingClientRect reports.
+        var f = (vr.left - pr.left) / vr.width;
+        // A read that lands mid-reflow, or a transform nobody has written
+        // yet, is worse than the committed day: take it only when it is
+        // somewhere the timeline could actually be.
+        if (!(f > -1) || !(f < days)) { return null; }
+        return f;
+    }
+
     // --- gestures: drag pans the day window, tap scrubs the crosshair --------
 
     var gesture = null;
@@ -461,9 +497,12 @@
         var w = vpEl.getBoundingClientRect().width;
         if (!w) { return; }
         var t = Date.now();
+        // Where the page IS, not where the last release sent it: a finger
+        // down mid-settle continues the glide instead of teleporting it.
+        var live = liveDay(view.days);
         gesture = {
             x0: x, y0: y, t0: t, vw: w, mode: null,
-            base: api.day(), days: view.days, target: target,
+            base: live === null ? api.day() : live, days: view.days, target: target,
             tiles: vpEl.getAttribute('data-wxvp') === 'days',
             pts: [{ x: x, t: t }]
         };

@@ -1633,18 +1633,41 @@ test('a rule in the hour strip breaks around the glyph and the number it crosses
   // than one hour — 15 units — from a 3-hourly label whose own half-width
   // is 17.5 (measured in the browser: "00:00" at 11px/600 sets 35 units
   // wide). So the adjacent hours land INSIDE the label rather than beside
-  // it, and there is no hour left at which the strip's now line is whole.
-  // Pinned as the sweep it is, because it is the reason the clear case
-  // below had to move off the now line.
+  // it, and there is no hour left at which the strip's now line crosses the
+  // band whole. Pinned as the sweep it is, because it is the reason the
+  // clear case below had to move off the now line.
   for (let h = 0; h < 24; h += 1) {
     const at = charts.prepareView(fixtureData(), DAY0 + h * 3600000 + 11 * 60000);
     const segs = segsOf(charts.timeStripSvg(at, LOC, pal, SunCalc).main);
     assert.ok(segs.length >= 1, 'the strip carries a now line at ' + h + ':11');
-    assert.ok(segs[0].y1 >= 28 || segs.length === 2,
-      'at ' + h + ':11 the line either yields the whole band or breaks around '
-      + 'the label (got ' + segs.map((v) => v.y1 + '…' + v.y2).join(', ') + ')');
+    assert.ok(segs.length >= 2 || segs[0].y1 > 0,
+      'at ' + h + ':11 the band is never crossed by an unbroken rule (got '
+      + segs.map((v) => v.y1 + '…' + v.y2).join(', ') + ')');
     assert.equal(segs[segs.length - 1].y2, 52, 'and always reaches the floor');
   }
+
+  // 01:00 is the one hour where a THIRD thing is in the way: the weekday
+  // marker in the day's top-left corner. It is the only element in the band
+  // that does not stand on a tick, so "what does the nearest tick hold?"
+  // could never see it — and the now line, which stands wherever the hour
+  // is, spends that hour inside it. The rule used to run through the middle
+  // of "Sun". It now comes out in three pieces: the corner above the word,
+  // the strip between word and number, and the tail below the ruler.
+  const corner = charts.prepareView(fixtureData(), DAY0 + 3600000 + 11 * 60000);
+  assert.equal(charts.nowX(corner), charts.HOUR_W, 'precondition: 01:11 snaps to 01:00');
+  const cornerSegs = segsOf(charts.timeStripSvg(corner, LOC, pal, SunCalc).main);
+  assert.equal(cornerSegs.length, 3,
+    'the 01:00 rule clears the weekday marker as well as the hour label (got '
+    + cornerSegs.map((v) => v.y1 + '…' + v.y2).join(', ') + ')');
+  assert.ok(cornerSegs[0].y2 <= 7 && cornerSegs[1].y1 >= 16,
+    'and the hole it leaves covers the word\u2019s own band, 7…16');
+  // The day rule beside it does NOT gap there: the marker is drawn 4 units
+  // clear of its midnight, so the rule passes to its left. That clearance
+  // was the whole of the old argument, and it was only ever true of the
+  // rule that stands ON the midnight.
+  const dayRule = segsAt(charts.DAY_W, 1);
+  assert.equal(dayRule.length, 2, 'the midnight rule still breaks only once');
+  assert.ok(dayRule[0].y2 >= 16, 'above the marker\u2019s band, not inside it');
 
   // Where there is genuinely nothing to clear the line IS whole — the break
   // is a response to content, not a decoration. The canvas's trailing edge
@@ -1654,6 +1677,47 @@ test('a rule in the hour strip breaks around the glyph and the number it crosses
   assert.equal(end.length, 1, 'the canvas end rule is one piece');
   assert.equal(end[0].y1, 0, 'ceiling');
   assert.equal(end[0].y2, spec.H, 'to floor');
+});
+
+test('the strip gaps for the glyph that is drawn, not the one the arithmetic expects', () => {
+  // The icon row skips an hour whose condition never arrived: a provider
+  // can send no hourly codes at all, and the grid keeps `icon` null when no
+  // sample falls near enough, so the renderer does `if (!id) continue`.
+  // Deciding the gap from the hour NUMBER alone then breaks the line for a
+  // glyph that is not on screen — and it breaks it fatally, because the
+  // icon band and the label band between them leave two slivers under
+  // MIN_SEG: both get absorbed and the rule has nothing at all inside the
+  // 44-unit band, just a stub hanging off the ruler.
+  const pal = charts.palette(false);
+  const bare = fixtureData();
+  for (let k = 0; k < bare.hourly.icon.length; k += 1) { bare.hourly.icon[k] = null; }
+  const view = charts.prepareView(bare, DAY0 + 3 * 3600000);
+  assert.equal(charts.nowX(view), 3 * charts.HOUR_W,
+    'precondition: the now line stands on 03:00, a 3-hourly column');
+  const spec = charts.timeStripSvg(view, LOC, pal, SunCalc);
+  // The hour row's glyphs carry no id; the selected-hour chip's does, and
+  // it has a placeholder to fall back on, so it is not the one in question.
+  assert.equal((spec.main.match(/<use xlink:href/g) || []).length, 0,
+    'precondition: with no conditions, the hour row draws no glyph at all');
+  const segs = (spec.main.match(/<line [^>]*stroke-width="1\.2"[^>]*>/g) || [])
+    .map((t) => ({ y1: Number(/y1="([\d.]+)"/.exec(t)[1]), y2: Number(/y2="([\d.]+)"/.exec(t)[1]) }))
+    .sort((a2, b2) => a2.y1 - b2.y1);
+  assert.equal(segs.length, 2,
+    'the rule breaks around the hour label and nothing else (got '
+    + segs.map((v) => v.y1 + '…' + v.y2).join(', ') + ')');
+  assert.equal(segs[0].y1, 0, 'so it still opens at the box ceiling');
+  assert.ok(segs[0].y2 >= spec.bandH - 20,
+    'and runs down through the empty icon row to the label (' + segs[0].y2 + ')');
+  assert.equal(segs[1].y2, spec.H, 'before closing on the floor');
+
+  // The same hour WITH its condition is the control: there the gap is
+  // earned, the band has nothing left to draw in, and the line yields it.
+  const lit = charts.prepareView(fixtureData(), DAY0 + 3 * 3600000);
+  const litSegs = (charts.timeStripSvg(lit, LOC, pal, SunCalc).main
+    .match(/<line [^>]*stroke-width="1\.2"[^>]*>/g) || [])
+    .map((t) => Number(/y1="([\d.]+)"/.exec(t)[1]));
+  assert.equal(litSegs.length, 1, 'a real glyph leaves one piece');
+  assert.ok(litSegs[0] >= spec.bandH - 4, 'and it is the one below the band');
 });
 
 test('the accent the day tiles fade to IS the page accent, per theme', () => {

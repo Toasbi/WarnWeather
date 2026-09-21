@@ -439,27 +439,55 @@
     var ICON_HALF = 12;     // the 22-unit glyph
     var LABEL_HALF = 17;    // "00:00" at 11px semibold
     var ICON_Y0 = 2, ICON_Y1 = 27;
+    // The weekday marker is the third thing in the band, and the only one
+    // that does NOT stand on a tick: it is a left-anchored label in each
+    // day's top-left corner, so it is bounded by its own box rather than a
+    // half-width. Measured with getBBox at 8px bold: every weekday starts
+    // at x + 4 and the widest ("Wed") runs 19.96 units, over y 7..16.
+    var MARK_X0 = 4, MARK_X1 = 24;
+    var MARK_Y0 = 7, MARK_Y1 = 16;
 
     /**
      * The y bands a vertical line at `x` would draw through, in the hour
-     * strip. Icons and hour labels both sit on the 3-hourly ticks, so it is
-     * enough to ask what the nearest one holds — nothing else in the band is
-     * wide enough for a line to cut (the weekday marker starts 4 units clear
-     * of its midnight).
+     * strip. Icons and hour labels sit on the 3-hourly ticks, so for those
+     * two it is enough to ask what the nearest tick holds; the weekday
+     * marker does not, so it is asked separately.
+     *
+     * The marker used to be waved off on the grounds that it "starts 4
+     * units clear of its midnight" — true, and enough for the DAY rule,
+     * which stands exactly ON the midnight. It says nothing about the now
+     * line, which stands wherever the hour is and, because the canvas
+     * always opens on today, spends the first hour of the day inside day
+     * 0's corner: at 00:40 the rule ran straight through the middle of
+     * "Sun".
      * @param {Object} view Prepared view.
      * @param {number} hourY Baseline of the hour labels.
      * @param {number} x Line position in viewBox units.
+     * @param {Array<?string>} [hourIds] Resolved icon ids, by hour. Passing
+     *   them keeps the icon gap honest: the renderer skips an hour whose
+     *   condition never arrived, and a gap punched for a glyph that is not
+     *   on screen breaks the line for nothing.
      * @returns {Array<Array<number>>} [y0, y1] bands to leave out, in order.
      */
-    function stripBandGaps(view, hourY, x) {
+    function stripBandGaps(view, hourY, x, hourIds) {
         var i3 = Math.round(x / (HOUR_W * 3)) * 3;
         if (i3 < 0 || i3 >= view.times.length) { return []; }
         var cx = xAt(view, i3);
         var gaps = [];
         // The 3-hourly icon row skips midnights — the weekday marker has
         // that slot — so a day rule never gaps here, only the now line can.
-        if (i3 >= 3 && i3 % 24 !== 0 && Math.abs(x - cx) < ICON_HALF) {
+        var onIcon = i3 >= 3 && i3 % 24 !== 0 && Math.abs(x - cx) < ICON_HALF
+            && (!hourIds || Boolean(hourIds[i3]));
+        // Into the day the line stands in: the marker is drawn once per day
+        // at that day's own left edge.
+        var intoDay = x - Math.floor(x / DAY_W) * DAY_W;
+        if (onIcon) {
             gaps.push([ICON_Y0, ICON_Y1]);
+        } else if (intoDay >= MARK_X0 && intoDay <= MARK_X1 && x < view.days * DAY_W) {
+            // Never both: the marker's band lies inside the icon's, and the
+            // two ranges cannot overlap anyway (the nearest tick to the
+            // marker's box is midnight, which carries no icon).
+            gaps.push([MARK_Y0, MARK_Y1]);
         }
         if (Math.abs(x - cx) < LABEL_HALF) { gaps.push([hourY - 10, hourY + 4]); }
         return gaps;
@@ -1288,7 +1316,7 @@
         var dayAttrs = 'stroke="' + pal.ink + '" stroke-width="1" opacity="' + DAY_EDGE_OP + '"';
         for (d = 0; d <= view.days; d += 1) {
             x = d * DAY_W;
-            s += vSegments(x, 0, H, stripBandGaps(view, hourY, x), dayAttrs);
+            s += vSegments(x, 0, H, stripBandGaps(view, hourY, x, hourIds), dayAttrs);
         }
         // Condition icons every 3 h (midnights skipped — the weekday marker
         // sits there).
@@ -1321,7 +1349,7 @@
             s += '<line x1="' + x + '" y1="' + BAND_H + '" x2="' + x + '" y2="' + (BAND_H + (i % 3 === 0 ? 5 : 3))
                 + '" stroke="' + pal.axis + '" stroke-width="1"/>';
         }
-        s += vSegments(nx, 0, H, stripBandGaps(view, hourY, nx),
+        s += vSegments(nx, 0, H, stripBandGaps(view, hourY, nx, hourIds),
             'stroke="' + pal.ink + '" stroke-width="1.2" opacity="' + NOW_OP + '"');
         // The selected-hour chip, on top of everything in the band: that
         // hour's OWN icon (not the 3-hourly neighbor) and label on the

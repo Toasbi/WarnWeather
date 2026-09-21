@@ -16,14 +16,27 @@ const interact = require('../src/pkjs/settings/weather-tab-interact.js');
  */
 function listenerHarness() {
   const listeners = {};
+  const VW = 390;
   // A stand-in for the panned element, so a test can read the transform
   // setPan actually wrote and compare it against what the tips were told.
-  const pan = { style: {} };
-  const h = { listeners, pan, row: null };
+  // Its BOX is where the transform has actually left it — h.live, in days —
+  // which is what beginGesture reads to find out where the page is. Layout
+  // is only served once a test sets h.live: the others have none to read,
+  // and a null there is the module's own "fall back to the committed day".
+  const pan = {
+    style: {},
+    getBoundingClientRect: () => ({ left: -h.live * VW, width: VW * h.liveDays }),
+    parentNode: { clientWidth: VW, getBoundingClientRect: () => ({ left: 0, width: VW }) }
+  };
+  const h = { listeners, pan, row: null, live: null, liveDays: 3 };
   global.document = {
     addEventListener: (type, fn) => { listeners[type] = fn; },
     querySelectorAll: (sel) => (sel === '.wx-pan' ? [pan] : []),
-    querySelector: (sel) => (sel === '.wx-days' ? h.row : null),
+    querySelector: (sel) => {
+      if (sel === '.wx-days') { return h.row; }
+      if (sel === '.wx-pan' && h.live !== null) { return pan; }
+      return null;
+    },
     getElementById: () => null
   };
   return h;
@@ -128,6 +141,75 @@ test('a pan drag hands its live position to the value tips, every frame', () => 
       'and the tiles travel home on that same curve');
   } finally {
     HARNESS.row = null;
+  }
+});
+
+test('a swipe started mid-settle picks the page up where it IS, not where it is going', () => {
+  // A release commits the destination day and starts the settle. A finger
+  // down 50ms later is looking at a page BETWEEN two days — and the first
+  // move frame writes transition:'none', which cancels the curve and puts
+  // the tab wherever the gesture says it started. Taking that from the
+  // committed day meant the whole tab teleported the rest of the way in one
+  // frame: on a 390px viewport, a ~190px jolt in the frame the user
+  // expected to keep gliding. Flicking day to day is how you cross five
+  // days, so this was every other swipe.
+  const { listeners, pan } = HARNESS;
+  const DAYS = 3;
+  const seen = [];
+  const panelsAt = () =>
+    -Number(/translateX\((-?[\d.]+)%\)/.exec(pan.style.transform)[1]) * DAYS / 100;
+  // Halfway home to day 1, which the last release already committed.
+  HARNESS.live = 0.49;
+  HARNESS.liveDays = DAYS;
+  try {
+    interact.wire({
+      view: () => ({ days: DAYS }),
+      day: () => 1,
+      commitDay: () => {},
+      scrub: () => {},
+      panTips: (f) => { seen.push(f); },
+      panStrip: () => {},
+      canPull: () => false,
+      refresh: () => {}
+    });
+    const vpEl = {
+      getAttribute: (a) => (a === 'data-wxvp' ? 'temp' : null),
+      getBoundingClientRect: () => ({ width: 390 })
+    };
+    const touch = (type, x) => listeners[type]({
+      touches: type === 'touchend' ? [] : [{ clientX: x, clientY: 100 }],
+      changedTouches: [{ clientX: x, clientY: 100 }],
+      target: vpEl,
+      preventDefault: () => {}
+    });
+
+    touch('touchstart', 300);
+    touch('touchmove', 200);           // 100px further left, a quarter day
+    const want = 0.49 + 100 / 390;
+    assert.ok(Math.abs(panelsAt() - want) < 1e-9,
+      'the drag continues from the visible position (' + panelsAt() + ' vs ' + want + ')');
+    assert.ok(Math.abs(seen[seen.length - 1] - want) < 1e-9,
+      'and the tips are handed the same number, as on any other frame');
+    // Stated as the thing that must NOT happen, because the failure is a
+    // jump and a jump is only visible as a difference.
+    assert.ok(Math.abs(panelsAt() - (1 + 100 / 390)) > 0.4,
+      'not the committed day, which would be half a viewport of teleport');
+    listeners.touchcancel({});
+
+    // The reading only wins while it is credible. A layout read can land
+    // mid-reflow, and a transform nobody has written yet reads as zero —
+    // either way the committed day is the better answer, so a position the
+    // timeline could not be in is discarded rather than obeyed.
+    HARNESS.live = 9;                  // day 9 of a 3-day timeline
+    seen.length = 0;
+    touch('touchstart', 300);
+    touch('touchmove', 200);
+    assert.ok(Math.abs(panelsAt() - (1 + 100 / 390)) < 1e-9,
+      'an impossible reading stands down for the committed day (got '
+      + panelsAt() + ')');
+    listeners.touchcancel({});
+  } finally {
+    HARNESS.live = null;
   }
 });
 

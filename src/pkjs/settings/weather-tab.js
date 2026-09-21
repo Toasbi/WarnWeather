@@ -1107,10 +1107,36 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
 
     /**
+     * The clipping viewport an in-panel element rides in — the one thing in
+     * the chain that holds still when the day changes.
+     * @param {?Element} el Element inside a panel.
+     * @returns {?Element} Its [data-wxvp] ancestor, or null.
+     */
+    function viewportOf(el) {
+        var n = el;
+        for (var k = 0; n && k < 4; k += 1) {
+            if (n.getAttribute && n.getAttribute('data-wxvp')) { return n; }
+            n = n.parentNode;
+        }
+        return null;
+    }
+
+    /**
      * Move the shared crosshair to the tapped hour and repaint every
      * panel's scrub state (guideline, dots, lit bar, value tip, strip
      * chip) by direct DOM writes — no re-render. The in-plot axes carry
      * the scale, so the charts stay readable without a scrub.
+     *
+     * Measured against the VIEWPORT, never the wide svg inside it. The wide
+     * one is the element that pans, so while a day change is settling its
+     * box is wherever the curve has got to — but panDay was committed at
+     * release, and everything the paint then does (placeTipX, the strip
+     * chip) is in panDay's frame. Reading the moving box answers a question
+     * nobody asked — which hour was under the finger of a page halfway to
+     * somewhere else — and the answer is a whole day out: the crosshair
+     * landed off-screen and the tip hid itself, so the tap looked like it
+     * had done nothing. The viewport holds still, and one day fits it
+     * exactly.
      * @param {Element} svg The panel SVG under the pointer (the WIDE one).
      * @param {number} clientX Pointer x.
      * @returns {void}
@@ -1118,9 +1144,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function scrubTo(svg, clientX) {
         var view = fetchState.view;
         if (!view || !ctx) { return; }
-        var rect = svg.getBoundingClientRect();
+        var vp = viewportOf(svg);
+        if (!vp) { return; }
+        var rect = vp.getBoundingClientRect();
         if (!rect.width) { return; }
-        var vx = (clientX - rect.left) / rect.width * (view.days * charts.DAY_W);
+        var vx = panDay * charts.DAY_W
+            + (clientX - rect.left) / rect.width * charts.DAY_W;
         // The hour whose BAR the finger is on, not the tick it is nearest.
         // A bar fills the span that ENDS at its own tick (see charts.barX),
         // so the span between tick 15 and tick 16 belongs to hour 16 — one

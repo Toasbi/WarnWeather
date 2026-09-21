@@ -68,6 +68,25 @@ function fixture() {
   };
 }
 
+/**
+ * The DOM shape scrubTo walks: the wide svg, inside .wx-pan, inside the
+ * clipping viewport that carries data-wxvp. The viewport is the element it
+ * measures against — the wide one moves while a day change settles — so a
+ * bare rect stub would let the two frames drift apart unnoticed. One
+ * viewport is one day wide.
+ * @param {number} width Viewport width in px.
+ * @param {number} [left] Viewport left in client px.
+ * @returns {Object} A stand-in for the wide svg under the pointer.
+ */
+function panelStub(width, left) {
+  const vp = {
+    getAttribute: (k) => (k === 'data-wxvp' ? 'temp' : null),
+    getBoundingClientRect: () => ({ left: left || 0, width })
+  };
+  const pan = { getAttribute: () => null, parentNode: vp };
+  return { getAttribute: () => null, parentNode: pan };
+}
+
 test('graphsProviderOptions labels Auto with its resolution and gates keyed rows', () => {
   const opts = tab.graphsProviderOptions({ provider: 'dwd' });
   assert.equal(opts[0][1], 'auto');
@@ -330,7 +349,7 @@ test('a scrub moves the strip tick and chip through the shared clamps (the DOM p
     // the renderer's clamps, exercised through the scrub path ("one
     // clamp, both paths"). Hour 0 is only ever reached this way: its own
     // bar covers the hour BEFORE midnight, which is off this canvas.
-    const svg = { getBoundingClientRect: () => ({ left: 0, width: 360 }) };
+    const svg = panelStub(360);
     tab._scrubTo(svg, -1);
     assert.equal(tick.x1, 1, 'the scrub path nudges the tick off the seam');
     assert.equal(tick.x2, 1);
@@ -381,10 +400,10 @@ test('the value tip always sits just above the hour\'s topmost mark — overflow
       return (marks.bottom - (ln.vals[i] - ln.min) / (ln.max - ln.min) * (marks.bottom - marks.top))
         / marks.H * tip.parentNode.clientHeight;
     };
-    const svg = { getBoundingClientRect: () => ({ left: 0, width: 390 }) };
+    const svg = panelStub(390);
     // A client x in the MIDDLE of hour h's bar — the span that ends on h's
     // own tick — so the scrub selects h and not a neighbour.
-    const px = (h) => (h - 0.5) * charts.HOUR_W / (view.days * charts.DAY_W) * 390;
+    const px = (h) => (h - 0.5) * charts.HOUR_W / charts.DAY_W * 390;
 
     tab._scrubTo(svg, px(2));
     assert.equal(parseInt(tip.style.top, 10),
@@ -440,8 +459,8 @@ test('a pan carries the tips with their values and drops them at the viewport ed
     respond(fixture(), null);
     tab.weatherGraphsBlock(state, {}, SEED);
     const view = tab._fetchState().view;
-    const svg = { getBoundingClientRect: () => ({ left: 0, width: 390 }) };
-    const px = (h) => h * charts.HOUR_W / (view.days * charts.DAY_W) * 390;
+    const svg = panelStub(390);
+    const px = (h) => h * charts.HOUR_W / charts.DAY_W * 390;
 
     // Scrub hour 12 (mid-day 0), then drag toward the next day.
     tab._scrubTo(svg, px(12));
@@ -526,10 +545,10 @@ test('the crosshair lands in the hour the finger is INSIDE, and outlines its bar
     respond(fixture(), null);
     tab.weatherGraphsBlock(state, {}, SEED);
     const view = tab._fetchState().view;
-    const svg = { getBoundingClientRect: () => ({ left: 0, width: 390 }) };
+    const svg = panelStub(390);
     // A pointer at a FRACTION of an hour, in client px — 19.05 means
     // 19:03 on the clock.
-    const at = (h) => h * charts.HOUR_W / (view.days * charts.DAY_W) * 390;
+    const at = (h) => h * charts.HOUR_W / charts.DAY_W * 390;
     const litTemp = () => Object.keys(bars).filter((k) =>
       k.indexOf('wx-bar-temp-') === 0 && bars[k].attrs.stroke && bars[k].attrs.stroke !== 'none');
 
@@ -567,13 +586,75 @@ test('the crosshair lands in the hour the finger is INSIDE, and outlines its bar
     // edge is inside it and its right edge is not, so this is also what
     // the painter already believes.) Measured in canvas units so the
     // boundary is exact and not a float a hair to one side of it.
-    const span = view.days * charts.DAY_W;
-    const exact = { getBoundingClientRect: () => ({ left: 0, width: span }) };
-    const onTick = span / 4;
+    const exact = panelStub(charts.DAY_W);
+    const onTick = charts.DAY_W / 4;
     assert.equal(onTick % charts.HOUR_W, 0, 'precondition: a quarter day is an hour tick');
     tab._scrubTo(exact, onTick);
     assert.deepEqual(litTemp(), ['wx-bar-temp-' + (onTick / charts.HOUR_W + 1)],
       'a tap exactly on a tick takes the span that starts there');
+  } finally {
+    delete global.document;
+    data.fetchWeather = realFetch;
+    tab._resetState();
+  }
+});
+
+test('a tap during the settle reads the day the page is going to, not the one it is leaving', () => {
+  // A release commits the destination day and starts the settle; the wide
+  // svg then spends up to CARRY_MAX_MS somewhere between the two days, and
+  // its own box says so. Everything the paint does afterwards — the tip's
+  // placement, the strip chip — is in the COMMITTED day's frame, so reading
+  // that moving box answers a question nobody asked and lands a whole day
+  // out: the crosshair goes off-screen and the tip hides itself, which
+  // looks exactly like a tap that did nothing.
+  tab._resetState();
+  const realFetch = data.fetchWeather;
+  let respond = null;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { respond = cb; };
+  const bars = {};
+  const barFor = (id) => {
+    if (!bars[id]) { bars[id] = { attrs: {}, setAttribute(k, v) { this.attrs[k] = String(v); } }; }
+    return bars[id];
+  };
+  const tip = { style: {}, innerHTML: '', offsetWidth: 60, offsetHeight: 44,
+    parentNode: { clientWidth: 390, clientHeight: 150 } };
+  global.document = {
+    getElementById: (id) => (id.indexOf('wx-bar-') === 0 ? barFor(id)
+      : (id === 'wx-tip-temp' ? tip : null))
+  };
+  try {
+    const state = { graphsLocation: 'current', temperatureUnits: 'c' };
+    tab._setCtx({ S: state, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond(fixture(), null);
+    tab.weatherGraphsBlock(state, {}, SEED);
+    const view = tab._fetchState().view;
+    assert.ok(view.days >= 2, 'precondition: there is a second day to move to');
+
+    // The viewport holds still; the wide element inside it is caught
+    // halfway through the curve, half a viewport to the left.
+    const vp = {
+      getAttribute: (k) => (k === 'data-wxvp' ? 'temp' : null),
+      getBoundingClientRect: () => ({ left: 0, width: 390 })
+    };
+    const midFlight = {
+      getAttribute: () => null,
+      getBoundingClientRect: () => ({ left: -195, width: 390 * view.days }),
+      parentNode: { getAttribute: () => null, parentNode: vp }
+    };
+    tab._commitDay(1);
+    assert.equal(tab._panDay(), 1, 'the destination is committed at release');
+
+    // A tap 10% into the viewport: 2.4 h into day 1, so the span
+    // 02:00 → 03:00, which is the hour labelled 03:00 of day 1.
+    tab._scrubTo(midFlight, 39);
+    const lit = Object.keys(bars).filter((k) =>
+      k.indexOf('wx-bar-temp-') === 0 && bars[k].attrs.stroke && bars[k].attrs.stroke !== 'none');
+    assert.deepEqual(lit, ['wx-bar-temp-27'],
+      'the hour is day 1\u2019s, measured against the viewport the finger is on');
+    assert.equal(tip.style.display, 'block', 'so the tip has somewhere to be');
+    assert.equal(parseInt(tip.style.left, 10), 49,
+      'and stands where the tap did, a tenth of the way in');
   } finally {
     delete global.document;
     data.fetchWeather = realFetch;
@@ -606,8 +687,8 @@ test('a settling pan eases the tips home, and holds back the ones that left the 
     respond(fixture(), null);
     tab.weatherGraphsBlock(state, {}, SEED);
     const view = tab._fetchState().view;
-    const svg = { getBoundingClientRect: () => ({ left: 0, width: 390 }) };
-    const px = (h) => h * charts.HOUR_W / (view.days * charts.DAY_W) * 390;
+    const svg = panelStub(390);
+    const px = (h) => h * charts.HOUR_W / charts.DAY_W * 390;
 
     tab._scrubTo(svg, px(12));
     const atRest = parseInt(tip.style.left, 10);
@@ -724,9 +805,9 @@ test('tip horizontal clamps: wide tips stay centered; edge hours pin inside the 
     respond(fx, null);
     tab.weatherGraphsBlock(state, {}, SEED);
     const view = tab._fetchState().view;
-    const svg = { getBoundingClientRect: () => ({ left: 0, width: 390 }) };
+    const svg = panelStub(390);
     // A client x in the MIDDLE of hour h's bar, so the scrub selects h.
-    const px = (h) => (h - 0.5) * charts.HOUR_W / (view.days * charts.DAY_W) * 390;
+    const px = (h) => (h - 0.5) * charts.HOUR_W / charts.DAY_W * 390;
 
     // A WIDE tip at the ridge top — the shape that used to trigger the
     // below/last-resort dodges — now simply overflows upward, centered.
@@ -1422,9 +1503,9 @@ test('on the current hour the crosshair stands down and lets the now line speak'
     respond(fixture(), null);
     tab.weatherGraphsBlock(state, {}, SEED);
     const view = tab._fetchState().view;
-    const svg = { getBoundingClientRect: () => ({ left: 0, width: 390 }) };
+    const svg = panelStub(390);
     // A client x in the MIDDLE of hour h's bar, so the scrub selects h.
-    const at = (h) => (h - 0.5) * charts.HOUR_W / (view.days * charts.DAY_W) * 390;
+    const at = (h) => (h - 0.5) * charts.HOUR_W / charts.DAY_W * 390;
     const x = () => lines['wx-scrub-temp'].attrs.x1;
     const now = view.nowIndex;
 
