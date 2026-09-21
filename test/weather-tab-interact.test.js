@@ -716,3 +716,94 @@ test('a tile drag is paced by the row’s PITCH, not by the little travel it has
     HARNESS.row = null;
   }
 });
+
+test('the settle opens at the speed the finger arrived with, and never steps at the threshold', () => {
+  // Timing the settle off the release only matches the hand while the
+  // duration is free. Past CARRY_MAX_MS the clamp binds and the opening
+  // speed is pinned at slope x distance / 700 whatever the hand was doing
+  // — and the distance here is a whole day, so that is most of the band.
+  // The curve carries the velocity instead, and this pins that it does.
+  const at = (x1, x2) => {
+    const bx = (t) => 3 * (1 - t) ** 2 * t * x1 + 3 * (1 - t) * t * t * x2 + t ** 3;
+    const by = (t) => 3 * (1 - t) ** 2 * t + 3 * (1 - t) * t * t + t ** 3;
+    return (u) => {
+      let lo = 0; let hi = 1; let t = u;
+      for (let k = 0; k < 60; k += 1) { t = (lo + hi) / 2; if (bx(t) < u) lo = t; else hi = t; }
+      return by(t);
+    };
+  };
+  const curve = (css) => {
+    const m = /cubic-bezier\(([\d.]+), 1, ([\d.]+), 1\)/.exec(css);
+    assert.ok(m, 'the armed curve is one of the family: ' + css);
+    return at(Number(m[1]), Number(m[2]));
+  };
+  // Opening speed of the settle, px/ms, against the finger's own.
+  const opens = (D, v) => {
+    const sv = interact.armSettle(D, v);
+    const f = curve(sv.css);
+    const h = 1e-5;
+    return (f(h) - f(0)) / h * Math.abs(D) / sv.ms / Math.abs(v);
+  };
+
+  // Where the clamp binds — every distance a real day change covers — the
+  // settle now leaves at the finger's speed rather than bolting.
+  [[193, 0.5], [193, 1], [326, 1], [326, 2], [386, 1.2], [114, 0.3], [48, 0.3]]
+    .forEach(([D, v]) => {
+      assert.ok(Math.abs(opens(D, v) - 1) < 0.02,
+        'D=' + D + ' v=' + v + ' opens at ' + opens(D, v).toFixed(2) + 'x the finger');
+    });
+
+  // And it does not STEP at CARRY_MIN_V. This was the real defect: the
+  // marginally faster hand crossed into the carry branch and got a settle
+  // 3.8x quicker off the mark than the marginally slower one — measured
+  // 3.84x -> 14.48x at D=326, worse than the lurch that started all this.
+  [193, 260, 326, 386].forEach((D) => {
+    const below = opens(D, interact.CARRY_MIN_V - 0.001);
+    const above = opens(D, interact.CARRY_MIN_V + 0.001);
+    assert.ok(Math.abs(above - below) / below < 0.1,
+      'at D=' + D + ' the two sides of CARRY_MIN_V agree (' + below.toFixed(2)
+      + 'x vs ' + above.toFixed(2) + 'x)');
+  });
+
+  // Whatever it arms, the curve only ever slows down and lands exactly on
+  // the day — an accelerating middle is the ramp-up being complained
+  // about, and a curve passing 1 would overshoot the day and come back.
+  const seen = new Set();
+  [[193, 0.201], [193, 0.5], [193, 1], [193, 2.5], [326, 0.3], [326, 1], [326, 4],
+    [114, 0.3], [48, 0.25], [-40, 0.5], [386, 0.21], [386, 6]].forEach(([D, v]) => {
+    const css = interact.armSettle(D, v).css;
+    if (seen.has(css)) { return; }
+    seen.add(css);
+    const f = curve(css);
+    let prev = 0; let peak = 0; let peakAt = 0; let maxY = 0; let first = 0;
+    const N = 1500;
+    for (let i = 1; i <= N; i += 1) {
+      const y = f(i / N);
+      const sl = (y - prev) * N;
+      if (i === 1) { first = sl; }
+      if (sl > peak) { peak = sl; peakAt = i / N; }
+      if (y > maxY) { maxY = y; }
+      prev = y;
+    }
+    assert.ok(peakAt <= 0.002, css + ' peaks at t=' + peakAt.toFixed(3) + ', not at the start');
+    assert.ok(peak <= first * 1.001, css + ' speeds up after it starts');
+    assert.ok(maxY <= 1.000005, css + ' overshoots the day (maxY ' + maxY.toFixed(6) + ')');
+  });
+  assert.ok(seen.size >= 5, 'the sweep really did arm several different curves (' + seen.size + ')');
+
+  // Both clamps. A hard flick with almost nothing left to run wants a
+  // slope of 10 or 12; it gets CARRY_SLOPE, because that curve already
+  // spends two thirds of its clock on the last tenth of the ground and
+  // asking for stiffer only lengthens that crawl. Nothing ever arms a
+  // curve outside the two the module names.
+  const x1of = (css) => Number(/cubic-bezier\(([\d.]+),/.exec(css)[1]);
+  [[48, 3], [30, 2], [114, 6], [20, 1.5]].forEach(([D, v]) => {
+    assert.ok(Math.abs(x1of(interact.armSettle(D, v).css) - 1 / interact.CARRY_SLOPE) < 0.001,
+      'D=' + D + ' v=' + v + ' is capped at the stiffest tuned curve, not solved past it');
+  });
+  [[193, 0.5], [193, 1], [326, 1], [48, 3], [386, 0.21], [114, 0.3], [326, 4]].forEach(([D, v]) => {
+    const x1 = x1of(interact.armSettle(D, v).css);
+    assert.ok(x1 >= 1 / interact.CARRY_SLOPE - 0.001 && x1 <= 1 / interact.REST_SLOPE + 0.001,
+      'D=' + D + ' v=' + v + ' arms x1=' + x1 + ', inside the family\u2019s two ends');
+  });
+});

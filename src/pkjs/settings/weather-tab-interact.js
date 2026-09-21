@@ -40,11 +40,34 @@
     // CARRY_MIN_V is the line between them. Under it a release is a hand
     // coming to a stop, and a settle that bolts away from a stopped finger
     // is the thing being complained about.
+    // The carry curve is not one curve but a FAMILY, because a duration
+    // alone cannot carry the velocity. Timing the settle off the release
+    // only matches the finger while the duration is free; past
+    // CARRY_MAX_MS the clamp binds and the opening speed is pinned at
+    // slope x distance / 700 whatever the hand was doing. That is most of
+    // the band, because the distance is a whole day: measured on a 386-px
+    // viewport, a release at 0.2 px/ms with 326 px to run opened 14.5x the
+    // finger's speed — three times the lurch this machinery was built to
+    // remove, and worst just over CARRY_MIN_V, so the marginally FASTER
+    // hand got the bigger bolt.
+    //
+    // So the duration stays as it was and the CURVE takes the strain:
+    // cubic-bezier(x1, 1, x2, 1) opens at 1/x1 and, checked across the
+    // range, peaks at t = 0 and reaches exactly 1 — it only ever slows
+    // down and it always lands on the day, whatever x1. Solving 1/x1 for
+    // the slope the release actually
+    // needs makes the settle open at the finger's own speed wherever the
+    // clamp binds, and where it does not bind the answer is CARRY_SLOPE
+    // again, i.e. the curve below, unchanged.
     var EASE_CARRY = 'cubic-bezier(0.16, 1, 0.3, 1)';
     var CARRY_SLOPE = 6.14;            // its speed at t=0, x the average
     var CARRY_MIN_MS = 160;
     var CARRY_MAX_MS = 700;
     var CARRY_MIN_V = 0.2;             // px/ms — 200 px a second
+    // The family's second control point, interpolated between the two
+    // curves named here so the endpoints ARE those curves.
+    var EASE_X2_LO = 0.3;              // x2 when the slope is CARRY_SLOPE
+    var EASE_X2_HI = 0.88;             // x2 when it is REST_SLOPE
 
     // The from-rest curve is a different shape for a different job. It is
     // the gentlest ease-out that still only ever SLOWS DOWN: every curve
@@ -84,6 +107,40 @@
      * @param {number} hi Ceiling.
      * @returns {number} Whole ms inside [lo, hi].
      */
+    /**
+     * The carry curve that opens at a given slope: cubic-bezier(x1, 1, x2,
+     * 1) with x1 = 1/slope, x2 interpolated so the two ends are exactly the
+     * curves named above. Slopes outside [REST_SLOPE, CARRY_SLOPE] are
+     * clamped. Not for monotonicity — this family holds that at any slope
+     * — but because CARRY_SLOPE is already the stiffest curve that reads
+     * as settling rather than snapping: it puts 64 % of the distance away
+     * in the first 15 % of the clock, and spends the last two thirds of
+     * the clock on the last tenth of the ground. Asking for stiffer buys
+     * 13 more points of that first figure and only lengthens the crawl,
+     * and it is asked for only by a hard flick with under ~60 px left to
+     * run, where the whole settle is 160 ms and invisible either way.
+     * Below REST_SLOPE there is nothing gentler that still only
+     * decelerates. The
+     * low clamp is where a settle cannot match a slow hand: it lands on the
+     * rest curve's own slope, which is what the other branch would have
+     * given anyway, so the two meet at CARRY_MIN_V instead of stepping.
+     * @param {number} slope Wanted speed at t=0, as a multiple of the mean.
+     * @returns {string} A CSS cubic-bezier(), monotone and decelerating.
+     */
+    function carryEase(slope) {
+        var k = slope;
+        // Written the NaN-safe way out of habit rather than need: the
+        // caller's own branch takes a zero-distance or zero-speed release
+        // to the rest curve, so nothing unrepresentable reaches here.
+        if (!(k > REST_SLOPE)) { k = REST_SLOPE; }
+        if (k > CARRY_SLOPE) { k = CARRY_SLOPE; }
+        var lo = 1 / CARRY_SLOPE;
+        var hi = 1 / REST_SLOPE;
+        var x1 = 1 / k;
+        var x2 = EASE_X2_LO + (EASE_X2_HI - EASE_X2_LO) * (x1 - lo) / (hi - lo);
+        return 'cubic-bezier(' + x1.toFixed(3) + ', 1, ' + x2.toFixed(3) + ', 1)';
+    }
+
     function boundMs(ms, lo, hi) {
         if (!(ms > lo)) { return lo; }
         if (ms > hi) { return hi; }
@@ -123,7 +180,10 @@
         var ms;
         if (Math.abs(v) >= CARRY_MIN_V && travel * v > 0) {
             ms = boundMs(msFor(travel, v, CARRY_SLOPE), CARRY_MIN_MS, CARRY_MAX_MS);
-            settle = { ms: ms, css: (ms / 1000) + 's ' + EASE_CARRY };
+            // The slope this settle needs to leave at the speed the finger
+            // arrived with, over the duration it actually got.
+            settle = { ms: ms, css: (ms / 1000) + 's '
+                + carryEase(Math.abs(v) * ms / Math.abs(travel)) };
         } else {
             ms = boundMs(msFor(travel, REST_V, REST_SLOPE), REST_MIN_MS, REST_MAX_MS);
             settle = { ms: ms, css: (ms / 1000) + 's ' + EASE_REST };
@@ -856,6 +916,8 @@
         armSettle: armSettle,
         armJump: armJump,
         CARRY_MIN_V: CARRY_MIN_V,
+        CARRY_SLOPE: CARRY_SLOPE,
+        REST_SLOPE: REST_SLOPE,
         CARRY_MAX_MS: CARRY_MAX_MS,
         REST_MIN_MS: REST_MIN_MS,
         REST_MAX_MS: REST_MAX_MS,
