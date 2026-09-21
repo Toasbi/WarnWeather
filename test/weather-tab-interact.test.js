@@ -6,27 +6,57 @@ const assert = require('node:assert/strict');
 const interact = require('../src/pkjs/settings/weather-tab-interact.js');
 
 /**
- * A document stub that records the listeners wire() attaches, so a test
- * can drive real touch sequences through the module's own handlers.
- * @returns {Object} The captured listeners, keyed by event type.
+ * A document stub that records the listeners wire() attaches, so a test can
+ * drive real touch sequences through the module's own handlers.
+ *
+ * Built ONCE for the file: the module attaches its listeners on the first
+ * wire() call only, so a second stub would capture nothing. Later wire()
+ * calls still swap the hooks, which is what each test needs.
+ * @returns {Object} The captured listeners plus the stand-in elements.
  */
 function listenerHarness() {
   const listeners = {};
   // A stand-in for the panned element, so a test can read the transform
   // setPan actually wrote and compare it against what the tips were told.
   const pan = { style: {} };
+  const h = { listeners, pan, row: null };
   global.document = {
     addEventListener: (type, fn) => { listeners[type] = fn; },
     querySelectorAll: (sel) => (sel === '.wx-pan' ? [pan] : []),
-    querySelector: () => null,
+    querySelector: (sel) => (sel === '.wx-days' ? h.row : null),
     getElementById: () => null
   };
-  return { listeners, pan };
+  return h;
+}
+
+const HARNESS = listenerHarness();
+
+/**
+ * A day-tile row measured like the real one: 390px viewport, tiles 28% of
+ * it wide, 6px gaps and the 8px edge margins the stylesheet gives the first
+ * and last tile.
+ * @param {number} n Tile count.
+ * @returns {Object} A row stub for document.querySelector('.wx-days').
+ */
+function tileRow(n) {
+  const W = 390, TILE = W * 0.28, PITCH = TILE + 6;
+  const children = [];
+  for (let i = 0; i < n; i += 1) {
+    children.push({ offsetLeft: interact.EDGE_PAD + i * PITCH, offsetWidth: TILE });
+  }
+  return { style: {}, children, parentNode: { clientWidth: W } };
+}
+
+/** @returns {number} the px the tile row was last translated by (positive = scrolled right) */
+function rowAt() {
+  const v = Number(/translateX\((-?[\d.]+)px\)/.exec(HARNESS.row.style.transform)[1]);
+  return v === 0 ? 0 : -v;   // -0 is a different value to assert.equal
 }
 
 test('a pan drag hands its live position to the value tips, every frame', () => {
   const seen = [];
-  const { listeners, pan } = listenerHarness();
+  const strip = [];
+  const { listeners, pan } = HARNESS;
   const DAYS = 3;
   /** @returns {number} the fractional day the PANELS were last moved to */
   const panelsAt = () =>
@@ -38,6 +68,7 @@ test('a pan drag hands its live position to the value tips, every frame', () => 
       commitDay: () => {},
       scrub: () => {},
       panTips: (f, animated) => { seen.push({ f, animated }); },
+      panStrip: (f, animated) => { strip.push({ f, animated }); },
       canPull: () => false,
       refresh: () => {}
     });
@@ -54,6 +85,7 @@ test('a pan drag hands its live position to the value tips, every frame', () => 
 
     touch('touchstart', 300);
     assert.deepEqual(seen, [], 'a press that has not moved pans nothing');
+    assert.deepEqual(strip, [], 'and moves no tiles either');
 
     // 100px of a 390px viewport dragged left: the panels translate by that
     // fraction of a day, and the tips — which live OUTSIDE the panned
@@ -64,6 +96,10 @@ test('a pan drag hands its live position to the value tips, every frame', () => 
     assert.ok(Math.abs(seen[0].f - 100 / 390) < 1e-9, 'a viewport of drag is a day');
     assert.ok(Math.abs(seen[0].f - panelsAt()) < 1e-9,
       'and it is the SAME fractional day the PANELS were translated by');
+
+    assert.deepEqual(strip[0], seen[0],
+      'the day tiles ride the SAME drag frame — they are part of the movement, '
+      + 'not a strip that catches up once the finger lifts');
 
     touch('touchmove', 100);
     assert.equal(seen.length, 2, 'every frame, not just the first');
@@ -88,8 +124,115 @@ test('a pan drag hands its live position to the value tips, every frame', () => 
     const last = seen[seen.length - 1];
     assert.equal(last.f, 0, 'the abort hands back the resting day');
     assert.equal(last.animated, true, 'and flags it as an eased settle');
+    assert.deepEqual(strip[strip.length - 1], last,
+      'and the tiles travel home on that same curve');
   } finally {
-    delete global.document;
+    HARNESS.row = null;
+  }
+});
+
+test('the tile row moves on EVERY day, by an equal step, and stops flush', () => {
+  // 5 tiles of 109.2px on a 390px viewport: 586px of content, so the row
+  // has 196px of travel — 49px per day change.
+  HARNESS.row = tileRow(5);
+  try {
+    const at = [0, 1, 2, 3, 4].map((d) => { interact.setDayStrip(d, 5, false); return rowAt(); });
+    assert.deepEqual(at, [0, 49, 98, 147, 196],
+      'one equal step per day: the tiles are part of the pan, so the '
+      + 'commonest swipe of all — today to tomorrow — has to move them');
+    assert.equal(at[0], 0, 'and the first day still starts flush');
+    assert.equal(at[4], 196, 'the last one ends flush, with its margin showing');
+    assert.equal(HARNESS.row.style.transition, 'none',
+      'a drag frame tracks the finger — no easing');
+
+    // Mid-drag the row is BETWEEN two rests, in proportion: that is what
+    // makes it read as one movement with the panels rather than a jump
+    // after the fact.
+    interact.setDayStrip(2.5, 5, false);
+    assert.equal(rowAt(), 122.5, 'halfway across is halfway between the rests');
+    interact.setDayStrip(2.25, 5, false);
+    assert.equal(rowAt(), 110.3);
+
+    // The panels rubber-band past the ends; the tiles have nowhere to go.
+    interact.setDayStrip(-0.4, 5, false);
+    assert.equal(rowAt(), 0, 'dragging past the start moves no tiles');
+    interact.setDayStrip(4.6, 5, false);
+    assert.equal(rowAt(), 196, 'nor past the end');
+
+    // A provider can report more daily rows than there are hours for; those
+    // tiles are rendered but not selectable, so the row's travel ends at the
+    // LAST SELECTABLE tile — otherwise the last day would scroll itself off
+    // to the left to make room for days nobody can open.
+    HARNESS.row = tileRow(7);
+    interact.setDayStrip(4, 5, false);
+    assert.equal(rowAt(), 196, 'the two extra tiles add no travel');
+    interact.setDayStrip(5, 5, false);
+    assert.equal(rowAt(), 196, 'and day 4 is as far as a 5-day timeline goes');
+
+    // A row that fits has nothing to move.
+    HARNESS.row = tileRow(2);
+    interact.setDayStrip(1, 2, false);
+    assert.equal(rowAt(), 0, 'two tiles fit the viewport: no travel at all');
+
+    HARNESS.row = tileRow(5);
+    interact.setDayStrip(1, 5, true);
+    assert.match(HARNESS.row.style.transition, /transform 0\.22s ease-out/,
+      'a landed day eases home on the pan settle curve');
+  } finally {
+    HARNESS.row = null;
+  }
+});
+
+test('the click that ends a pan is swallowed, so a swipe never taps a tile', () => {
+  const { listeners } = HARNESS;
+  let landed = null;
+  // A controlled clock: the suppression window is a duration, and an
+  // earlier test's pan would otherwise still be inside it.
+  const realNow = Date.now;
+  let clock = realNow() + 10000;
+  Date.now = () => clock;
+  try {
+  interact.wire({
+    view: () => ({ days: 3 }),
+    day: () => 0,
+    commitDay: (d) => { landed = d; },
+    scrub: () => {},
+    panTips: () => {},
+    panStrip: () => {},
+    canPull: () => false,
+    refresh: () => {}
+  });
+  const vpEl = {
+    getAttribute: (a) => (a === 'data-wxvp' ? 'days' : null),
+    getBoundingClientRect: () => ({ width: 390 })
+  };
+  const touch = (type, x) => listeners[type]({
+    touches: type === 'touchend' ? [] : [{ clientX: x, clientY: 100 }],
+    changedTouches: [{ clientX: x, clientY: 100 }],
+    target: vpEl,
+    preventDefault: () => {}
+  });
+
+    // A tap on a tile is NOT a pan: it must still reach the day it hit.
+    touch('touchstart', 300);
+    touch('touchend', 300);
+    assert.equal(interact.tapSuppressed(), false,
+      'a press that never moved leaves taps alone');
+
+    // A drag that starts on the tiles ends over one of them, and the click
+    // that follows the release would otherwise jump to whatever day the
+    // finger happened to lift over.
+    touch('touchstart', 300);
+    touch('touchmove', 200);
+    touch('touchend', 200);
+    assert.equal(landed, 1, 'the drag itself lands the day');
+    assert.equal(interact.tapSuppressed(), true, 'and the trailing click is swallowed');
+
+    clock += 1000;
+    assert.equal(interact.tapSuppressed(), false,
+      'a second later the user is tapping again, not finishing a swipe');
+  } finally {
+    Date.now = realNow;
   }
 });
 

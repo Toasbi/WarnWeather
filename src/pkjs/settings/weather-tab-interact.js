@@ -20,6 +20,20 @@
     var SETTLE_CSS = '0.22s ease-out';
     var SETTLE_MS = 220;
 
+    // The day tiles' own edge margin (weather-tab-css.js gives the first and
+    // last tile 8px), needed here because the row's resting end is measured,
+    // not scrolled: without it the last day parks 8px too far left.
+    // test/weather-tab.test.js pins the two together.
+    var EDGE_PAD = 8;
+
+    // How long after a released pan a click is still that pan's tail. A
+    // drag that STARTED on a day tile ends over one, and the engine would
+    // dispatch its tap and jump to whatever day the finger happened to lift
+    // over, fighting the snap.
+    var TAP_SUPPRESS_MS = 400;
+
+    var panEndedAt = 0;
+
     /**
      * The nearest ancestor (self included) carrying an attribute.
      * @param {?Node} node Event target.
@@ -45,6 +59,21 @@
     }
 
     /**
+     * Write one element's pan transform, eased or tracking the finger.
+     * @param {Element} el Element to move.
+     * @param {string} val transform value.
+     * @param {boolean} animated Whether to ease (the day snap).
+     * @returns {void}
+     */
+    function moveEl(el, val, animated) {
+        var st = el.style;
+        st.webkitTransition = animated ? '-webkit-transform ' + SETTLE_CSS : 'none';
+        st.transition = animated ? 'transform ' + SETTLE_CSS : 'none';
+        st.webkitTransform = val;
+        st.transform = val;
+    }
+
+    /**
      * Apply the shared pan transform to EVERY panel's inner element — the
      * whole tab below the day selector moves as one.
      * @param {number} pct translateX percentage.
@@ -55,13 +84,73 @@
         if (typeof document === 'undefined' || !document.querySelectorAll) { return; }
         var els = document.querySelectorAll('.wx-pan');
         var val = 'translateX(' + pct + '%)';
-        for (var i = 0; i < els.length; i += 1) {
-            var st = els[i].style;
-            st.webkitTransition = animated ? '-webkit-transform ' + SETTLE_CSS : 'none';
-            st.transition = animated ? 'transform ' + SETTLE_CSS : 'none';
-            st.webkitTransform = val;
-            st.transform = val;
-        }
+        for (var i = 0; i < els.length; i += 1) { moveEl(els[i], val, animated); }
+    }
+
+    /**
+     * The tile row's travel: how far it may move before its LAST SELECTABLE
+     * tile sits flush against the viewport's right edge, and which day that
+     * is. Tiles past the timeline's end (a provider can report more daily
+     * rows than there are hours for) are drawn but never landed on, so they
+     * stay outside the travel.
+     *
+     * Measured every time rather than cached: tile width is a percentage of
+     * the page, so it changes with the window, and a render replaces the
+     * row wholesale.
+     * @param {number} days Selectable day count.
+     * @returns {?{row: Element, max: number, top: number}} Row and travel.
+     */
+    function stripRest(days) {
+        if (typeof document === 'undefined' || !document.querySelector) { return null; }
+        var row = document.querySelector('.wx-days');
+        var vp = row && row.parentNode;
+        if (!vp) { return null; }
+        var tiles = row.children || [];
+        var w = vp.clientWidth || 0;
+        if (!tiles.length || !w) { return null; }
+        var top = tiles.length - 1;
+        if (days - 1 < top) { top = days - 1; }
+        if (top < 0) { return null; }
+        var last = tiles[top];
+        // The row is not a scroll container, so there is no scrollWidth to
+        // trust: its extent is that tile's right edge plus its own trailing
+        // margin.
+        var max = last.offsetLeft + last.offsetWidth + EDGE_PAD - w;
+        if (max < 0) { max = 0; }
+        return { row: row, max: max, top: top };
+    }
+
+    /**
+     * Move the day tiles to a (possibly fractional) day: a LINEAR ramp from
+     * the row's start to its end, one equal step per day.
+     *
+     * Every day change therefore moves the tiles, which is the whole point —
+     * they are part of the pan, not a strip that catches up afterwards.
+     * Centering the selected tile instead would clamp to a standstill at
+     * both ends (with five days the first two and last two centre out of
+     * range), so the commonest swipe of all, today to tomorrow, would move
+     * nothing. The ramp keeps every selectable tile fully in view anyway,
+     * and both ends of the row stop flush instead of pulling in blank space.
+     * @param {number} f Day, fractional mid-drag.
+     * @param {number} days Selectable day count (past the ends the panels
+     *   rubber-band; the tiles simply stop).
+     * @param {boolean} animated Whether to ease (the day snap).
+     * @returns {void}
+     */
+    function setDayStrip(f, days, animated) {
+        var g = stripRest(days);
+        if (!g) { return; }
+        var at = f < 0 ? 0 : (f > g.top ? g.top : f);
+        var off = g.top > 0 ? g.max * at / g.top : 0;
+        moveEl(g.row, 'translateX(' + (-off).toFixed(1) + 'px)', animated);
+    }
+
+    /**
+     * Whether a click arriving now is the tail of a pan just released.
+     * @returns {boolean} True while such a click must be ignored.
+     */
+    function tapSuppressed() {
+        return Date.now() - panEndedAt < TAP_SUPPRESS_MS;
     }
 
     /**
@@ -136,6 +225,9 @@
         // the values slide out from under them. Unanimated: a drag frame
         // tracks the finger exactly.
         api.panTips(f, false);
+        // So does the day strip, which travels at its own scale and hands
+        // its highlight over as the drag crosses the day.
+        api.panStrip(f, false);
     }
 
     /**
@@ -153,6 +245,7 @@
             // snap against the CURRENT day count, not the one at touch-down.
             var view = api.view();
             var days = view ? view.days : g.days;
+            panEndedAt = Date.now();
             api.commitDay(snapTargetDay(g.base, x - g.x0, g.vw, days, Date.now() - g.t0));
             return;
         }
@@ -171,8 +264,10 @@
         var g = gesture;
         gesture = null;
         if (g.mode === 'pan') {
+            panEndedAt = Date.now();
             setPan(panPct(api.day(), g.days), true);
             api.panTips(api.day(), true);
+            api.panStrip(api.day(), true);
         }
     }
 
@@ -294,6 +389,7 @@
      *          commitDay: function(number): void,
      *          scrub: function(Element, number): void,
      *          panTips: function(number, boolean): void,
+     *          panStrip: function(number, boolean): void,
      *          canPull: function(): boolean,
      *          refresh: function(): void}} hooks Tab-state access.
      * @returns {void}
@@ -356,7 +452,10 @@
     var apiOut = {
         panPct: panPct,
         setPan: setPan,
+        setDayStrip: setDayStrip,
+        tapSuppressed: tapSuppressed,
         snapTargetDay: snapTargetDay,
+        EDGE_PAD: EDGE_PAD,
         SETTLE_CSS: SETTLE_CSS,
         SETTLE_MS: SETTLE_MS,
         wire: wire

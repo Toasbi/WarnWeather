@@ -77,8 +77,9 @@ test('every hourly panel spec renders without NaN and carries its scrub anchor',
       id + ' crosshair runs full-strength ink with NO opacity — dimmed it '
       + 'read as just another gridline instead of THE selected hour');
     assert.equal(spec.main.indexOf(pal.grid), -1, id + ' panning layer draws no gridlines');
-    assert.equal((spec.main.match(/<line /g) || []).length, 3,
-      id + ' lines: the now line, the tap crosshair, and the visible bottom axis — nothing else');
+    assert.equal((spec.main.match(/<line /g) || []).length, 3 + view.days + 1,
+      id + ' lines: the now line, the tap crosshair, the visible bottom axis '
+      + 'and one rule per day boundary — nothing else (still no hour gridlines)');
     assert.ok(spec.main.indexOf('y1="' + spec.marks.bottom + '"') !== -1,
       id + ' draws its bottom axis at the plot baseline');
     const html = charts.viewportHtml(id, spec, view, 0);
@@ -287,7 +288,9 @@ test('the Measured|Forecast caption is its own scrolling row, still on the now l
     'both halves of the split moved here');
   // Measured sits left of the now line, Forecast right of it, and the line
   // carries on through the row.
-  const nowX = Number(/<line x1="([\d.]+)"/.exec(foot.main)[1]);
+  // The now line by its own weight, not by being the first line in the
+  // string — the day-boundary rules share this box and one of them opens it.
+  const nowX = Number(/<line x1="([\d.]+)"[^>]*stroke-width="1\.2"/.exec(foot.main)[1]);
   const mx = Number(/<text x="([\d.]+)"[^>]*>Measured</.exec(foot.main)[1]);
   const fx = Number(/<text x="([\d.]+)"[^>]*>Forecast</.exec(foot.main)[1]);
   assert.ok(mx < nowX && nowX < fx, 'the split straddles the now line (' + mx + ' < ' + nowX + ' < ' + fx + ')');
@@ -866,4 +869,118 @@ test('the two palettes stay in lockstep (same roles in light and dark)', () => {
     assert.notEqual(light[pair[0]], light[pair[1]], pair.join('/') + ' differ on the light surface');
     assert.notEqual(dark[pair[0]], dark[pair[1]], pair.join('/') + ' differ on the dark surface');
   });
+});
+
+/**
+ * Every vertical line in an SVG string, as parsed geometry.
+ * @param {string} svg Rendered fragment.
+ * @returns {Array<{x: number, y1: number, y2: number, tag: string}>} Verticals.
+ */
+function verticals(svg) {
+  const out = [];
+  (svg.match(/<line [^>]*\/>/g) || []).forEach((tag) => {
+    const a = /x1="(-?[\d.]+)" y1="(-?[\d.]+)" x2="(-?[\d.]+)" y2="(-?[\d.]+)"/.exec(tag);
+    if (a && a[1] === a[3]) { out.push({ x: Number(a[1]), y1: Number(a[2]), y2: Number(a[4]), tag }); }
+  });
+  return out;
+}
+
+test('every canvas rules its day boundaries, so a swipe shows where the day ends', () => {
+  const view = charts.prepareView(fixtureData(), NOON);
+  const pal = charts.palette(false);
+  const settings = { temperatureUnits: 'c', windUnits: 'kph' };
+  const surfaces = {
+    temp: charts.tempPanelSvg(view, settings, pal),
+    wind: charts.windPanelSvg(view, settings, pal),
+    hum: charts.humidityPanelSvg(view, settings, pal),
+    press: charts.pressurePanelSvg(view, settings, pal),
+    sun: charts.sunMoonPanelSvg(view, LOC, pal, SunCalc),
+    strip: charts.timeStripSvg(view, LOC, pal, SunCalc, 0),
+    foot: charts.timeFootSvg(view, pal)
+  };
+  // The now line, for the hierarchy check below: a day boundary is the
+  // structure the swipe navigates by, so it may not read fainter than the
+  // marker that sits inside it.
+  const nowOpacity = Number(/<line [^>]*stroke-width="1\.2"[^>]*opacity="([\d.]+)"/.exec(surfaces.press.main)[1]);
+
+  Object.keys(surfaces).forEach((id) => {
+    const svg = surfaces[id].main;
+    // By the page ink: the strip's hour ticks stand at every midnight too,
+    // but they are axis-coloured stubs hanging off the ruler.
+    const edges = verticals(svg).filter((v) =>
+      v.x >= 0 && v.x % charts.DAY_W === 0 && v.tag.indexOf('stroke="' + pal.ink + '"') !== -1);
+    assert.equal(edges.length, view.days + 1,
+      id + ': one rule per local midnight, both ends of the timeline included '
+      + '(got ' + edges.map((e) => e.x).join(',') + ')');
+    for (let d = 0; d <= view.days; d += 1) {
+      assert.ok(edges.some((e) => e.x === d * charts.DAY_W),
+        id + ': day ' + d + ' starts at x=' + (d * charts.DAY_W));
+    }
+    edges.forEach((e) => {
+      assert.ok(e.tag.indexOf('stroke="' + pal.ink + '"') !== -1,
+        id + ': the boundary runs the page ink (white on the dark theme)');
+      const op = Number(/opacity="([\d.]+)"/.exec(e.tag)[1]);
+      assert.ok(op > nowOpacity,
+        id + ': the day boundary reads at least as strongly as the now line '
+        + '(' + op + ' vs ' + nowOpacity + ')');
+      assert.ok(e.y2 > e.y1, id + ': the rule has height');
+    });
+  });
+
+  // On the panels the rule spans exactly the plot band — bottom axis to
+  // top — so it cannot stop short of the series it is separating.
+  ['temp', 'wind', 'hum', 'press'].forEach((id) => {
+    const spec = surfaces[id];
+    const edge = verticals(spec.main).filter((v) => v.x === charts.DAY_W)[0];
+    assert.equal(edge.y1, spec.marks.top, id + ': the rule starts at the plot top');
+    assert.equal(edge.y2, spec.marks.bottom, id + ': and ends on the baseline');
+  });
+
+  // The sun panel rules its arc band edge to edge, like the others.
+  const sunEdge = verticals(surfaces.sun.main)
+    .filter((v) => v.x === charts.DAY_W && v.tag.indexOf('stroke="' + pal.ink + '"') !== -1)[0];
+  assert.ok(sunEdge.y1 < 30 && sunEdge.y2 > 110,
+    'the sun panel\'s rule spans its altitude band (' + sunEdge.y1 + '…' + sunEdge.y2 + ')');
+
+  // The strip and the caption below it are one boundary, not two marks:
+  // each rules its own full height, and the stylesheet leaves no gap
+  // between the boxes (pinned in test/weather-tab.test.js).
+  [['strip', surfaces.strip], ['foot', surfaces.foot]].forEach((pair) => {
+    const edge = verticals(pair[1].main).filter((v) => v.x === charts.DAY_W)[0];
+    assert.equal(edge.y1, 0, pair[0] + ': the rule starts at the box top');
+    assert.equal(edge.y2, pair[1].H, pair[0] + ': and runs to its bottom');
+  });
+});
+
+test('the accent the day tiles fade to IS the page accent, per theme', () => {
+  // The tile highlight is interpolated in JS, so the accent has to exist as
+  // a value here as well as a CSS var in the shell. Two copies of a colour
+  // drift; this reads the shell's own declarations and compares.
+  const shell = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'src/pkjs/config-ui/lib/shell.html'), 'utf8');
+  const links = (shell.match(/--link:\s*(#[0-9A-Fa-f]{6})/g) || [])
+    .map((m) => /(#[0-9A-Fa-f]{6})/.exec(m)[1]);
+  assert.equal(links.length, 2, 'the shell declares an accent for each theme');
+  // Dark is declared first (body), light second (body.light).
+  assert.equal(charts.palette(false).link, links[0], 'the dark palette carries the dark --link');
+  assert.equal(charts.palette(true).link, links[1], 'the light palette carries the light --link');
+});
+
+test('fadeInk and mixInk: the fraction a swipe hands over, as colour', () => {
+  const OPAQUE = '#FF6A52';
+  assert.equal(charts.fadeInk(OPAQUE, 0), 'rgba(255,106,82,0)', 'nothing at all at zero');
+  assert.equal(charts.fadeInk(OPAQUE, 1), 'rgba(255,106,82,1)');
+  assert.equal(charts.fadeInk(OPAQUE, 0.5), 'rgba(255,106,82,0.5)');
+  // Damped drags past the timeline's ends hand out weights outside 0..1;
+  // an alpha of -0.3 is not a colour any engine will accept.
+  assert.equal(charts.fadeInk(OPAQUE, -0.3), 'rgba(255,106,82,0)', 'clamped below');
+  assert.equal(charts.fadeInk(OPAQUE, 1.4), 'rgba(255,106,82,1)', 'clamped above');
+
+  assert.equal(charts.mixInk('#000000', '#FFFFFF', 0), 'rgb(0,0,0)');
+  assert.equal(charts.mixInk('#000000', '#FFFFFF', 1), 'rgb(255,255,255)');
+  assert.equal(charts.mixInk('#000000', '#FFFFFF', 0.5), 'rgb(128,128,128)');
+  assert.equal(charts.mixInk('#000000', '#FFFFFF', 2), 'rgb(255,255,255)', 'clamped');
+  // A mix at t is t of the way there on every channel, not just in sum.
+  const mid = charts.mixInk('#204060', '#80A0C0', 0.25);
+  assert.equal(mid, 'rgb(56,88,120)');
 });

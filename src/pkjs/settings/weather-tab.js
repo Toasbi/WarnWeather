@@ -44,9 +44,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var panDay = 0;                 // day currently in the viewport (0-based)
     var editingSlot = null;         // overlay target: 1..3
     var gpsSeed = null;             // {lat, lon, name}: a page-acquired fix fresher than the injected seed
-    var stripKeep = null;           // .wx-days scrollLeft carried across a render (null = center the selection)
-    var stripPending = false;       // an applyStripScroll is scheduled for the render being built
-    var stripFresh = false;         // a NEW location's tiles just arrived — center instead of restoring
+    var stripPending = false;       // an applyStripPan is scheduled for the render being built
+    var tileTimer = null;           // clears the tiles' inline highlight once a settle has finished
+    var lastPal = null;             // the palette the last render drew with (the tile fade mixes its inks)
     var panelMarks = null;          // per-panel scale metadata from the last render (dots/bars/tips)
     var stripIcons = null;          // night-resolved per-hour icon ids from the last render (the chip swap)
     var litBars = {};               // panel id → bar index currently lit by the crosshair
@@ -108,10 +108,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 var view = charts.prepareView(result, Date.now());
                 fetchState = { key: key, status: view ? 'ok' : 'error', data: result, error: view ? null : 'empty', view: view };
                 scrubIndex = null;
-                if (isNewKey) {
-                    panDay = 0;
-                    stripFresh = true;
-                }
+                // A new location starts on its own today; the strip follows
+                // panDay by itself, so there is nothing else to reset.
+                if (isNewKey) { panDay = 0; }
             }
             if (ctx && !sync) { ctx.render(); }
         });
@@ -245,6 +244,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ensureFetch(state, userData);
         var isLight = pageIsLight(state);
         var pal = charts.palette(isLight);
+        // The tile highlight is interpolated in JS frame by frame while a
+        // swipe is in flight, so the fade needs the very inks this render
+        // used — not a palette re-resolved against a theme that may have
+        // changed since.
+        lastPal = pal;
         if (fetchState.status === 'loading' && !fetchState.view) {
             return '<div class="wx-status">Loading ' + charts.esc(loc.name) + '…</div>';
         }
@@ -321,20 +325,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             // touch path; this link is the visible (and mouse) affordance.
             + (refetching ? '' : ' · <button type="button" class="wx-refresh" data-action="wxRefreshWeather">Refresh</button>')
             + '</div>';
-        // A render rebuilds the scrollable day strip at scrollLeft 0. The OLD
-        // strip is still in the DOM while this string is being built, so
-        // capture the user's scroll here and put the rebuilt row back there
-        // (or center the selection when there's nothing to keep). Only the
-        // FIRST render before the timeout fires may capture — a back-to-back
-        // second render would otherwise read the fresh row's zero.
+        // A render rebuilds the day strip at offset 0, so the row has to be
+        // put back on the viewed day once the new DOM stands — its resting
+        // offset is measured from the tiles, which do not exist yet while
+        // this string is being built. Nothing user-owned is lost that way:
+        // the row is no longer a scroll container, so where it sits is a
+        // pure function of the viewed day.
         if (typeof document !== 'undefined' && typeof setTimeout !== 'undefined') {
-            if (!stripPending) {
-                var prevRow = document.querySelector ? document.querySelector('.wx-days') : null;
-                stripKeep = (prevRow && !stripFresh) ? prevRow.scrollLeft : null;
-                stripPending = true;
-            }
-            stripFresh = false;
-            setTimeout(applyStripScroll, 0);
+            stripPending = true;
+            setTimeout(applyStripPan, 0);
             // The rendered string parks the crosshair extras (dots, bars,
             // tip); if a scrub was active, put them back once the new DOM
             // stands.
@@ -399,9 +398,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         panDay = d;
         interact.setPan(interact.panPct(d, days), true);
         syncDayCards();
+        // The strip finishes the hand-over the drag started — on the same
+        // eased curve the panels just took, whether this is a new day or a
+        // spring-back to the one already shown.
+        panStrip(d, true);
         if (d !== before) {
             syncAnchors();
-            scrollDayStrip();
         } else {
             // Spring-back to the same day: the crosshair survives, so the
             // tips that rode the drag have to land back on their values —
@@ -891,40 +893,93 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Center the selected day tile in the strip's scroll window — called on
-     * an actual DAY CHANGE (tile tap, pan snap onto a new day), never on a
-     * spring-back to the same day, which must not discard a scroll the user
-     * made themselves.
+     * Move the day strip with the pan and hand its highlight over: the row
+     * travels its own equal step per day while the panels travel a whole
+     * viewport, and each tile's border and weekday name carry the weight of
+     * how much of the viewport its day owns. Mid-drag that is a live fade —
+     * the day being swiped TO colours up exactly as fast as the one being
+     * left lets go; on release both finish on the settle curve.
+     * @param {number} f Day — fractional mid-drag, whole once landed.
+     * @param {boolean} animated True when the pan is easing home.
      * @returns {void}
      */
-    function scrollDayStrip() {
-        if (typeof document === 'undefined' || !document.querySelector) { return; }
-        var row = document.querySelector('.wx-days');
-        if (!row) { return; }
-        var sel = row.querySelector('.wx-day.sel') || row.querySelector('.wx-day.today');
-        if (!sel || !row.clientWidth) { return; }
-        var target = sel.offsetLeft - (row.clientWidth - sel.offsetWidth) / 2;
-        if (target < 0) { target = 0; }
-        row.scrollLeft = target;
+    function panStrip(f, animated) {
+        var view = fetchState.view;
+        interact.setDayStrip(f, view ? view.days : 1, animated);
+        fadeDayCards(f, animated);
     }
 
     /**
-     * Put the rebuilt strip back where the user had it after a render (the
-     * engine replaces #scroll.innerHTML wholesale, which resets the row to
-     * scrollLeft 0): restore the captured offset, or center the selection
-     * when there is nothing to restore (first paint, or a new location's
-     * tiles just arrived).
+     * Paint the tiles' highlight at a fractional day.
+     *
+     * The inline inks are the DRAG's: at rest the .sel class owns the
+     * colours, so an eased call clears them once the settle is over and
+     * lands on exactly the same values the stylesheet would have drawn.
+     * @param {number} f Day — fractional mid-drag, whole once landed.
+     * @param {boolean} animated True when the pan is easing home.
      * @returns {void}
      */
-    function applyStripScroll() {
+    function fadeDayCards(f, animated) {
+        if (typeof document === 'undefined' || !document.querySelectorAll) { return; }
+        var pal = lastPal || charts.palette(false);
+        var tiles = document.querySelectorAll('.wx-day');
+        if (tileTimer) { clearTimeout(tileTimer); tileTimer = null; }
+        for (var i = 0; i < tiles.length; i += 1) {
+            var el = tiles[i];
+            // A triangular weight: 1 when this tile's day fills the
+            // viewport, 0 once a whole day away — so the pair the drag sits
+            // between always sums to 1 and the hand-over never dips or
+            // doubles. Tiles past the timeline's end can't be landed on.
+            // The day comes off the tile's own action arg, the same place
+            // syncDayCards reads it, so the fade and the .sel class can
+            // never disagree about which tile is which day.
+            var w = 1 - Math.abs(Number(el.getAttribute('data-action-arg')) - f);
+            if (w < 0 || el.disabled) { w = 0; }
+            // An empty transition string drops back to the stylesheet's own
+            // settle curve; 'none' is what makes a drag frame track the
+            // finger instead of chasing it.
+            el.style.webkitTransition = animated ? '' : 'none';
+            el.style.transition = animated ? '' : 'none';
+            el.style.borderColor = charts.fadeInk(pal.link, w);
+            var nm = el.querySelector ? el.querySelector('.wx-day-name') : null;
+            if (nm) {
+                nm.style.webkitTransition = animated ? '' : 'none';
+                nm.style.transition = animated ? '' : 'none';
+                nm.style.color = charts.mixInk(pal.ink, pal.link, w);
+            }
+        }
+        if (animated) { tileTimer = setTimeout(clearTileInk, interact.SETTLE_MS); }
+    }
+
+    /**
+     * Drop the inline highlight once a settle has run, handing the tiles
+     * back to the .sel rule they now agree with.
+     * @returns {void}
+     */
+    function clearTileInk() {
+        tileTimer = null;
+        if (typeof document === 'undefined' || !document.querySelectorAll) { return; }
+        var tiles = document.querySelectorAll('.wx-day');
+        for (var i = 0; i < tiles.length; i += 1) {
+            tiles[i].style.borderColor = '';
+            tiles[i].style.webkitTransition = '';
+            tiles[i].style.transition = '';
+            var nm = tiles[i].querySelector ? tiles[i].querySelector('.wx-day-name') : null;
+            if (nm) { nm.style.color = ''; nm.style.webkitTransition = ''; nm.style.transition = ''; }
+        }
+    }
+
+    /**
+     * Put the rebuilt strip back under the viewed day after a render (the
+     * engine replaces #scroll.innerHTML wholesale, which leaves the row at
+     * offset 0 with the .sel class already correct).
+     * @returns {void}
+     */
+    function applyStripPan() {
         if (!stripPending) { return; }   // a queued duplicate already ran
         stripPending = false;
-        if (stripKeep === null) { scrollDayStrip(); return; }
-        var keep = stripKeep;
-        stripKeep = null;
-        if (typeof document === 'undefined' || !document.querySelector) { return; }
-        var row = document.querySelector('.wx-days');
-        if (row) { row.scrollLeft = keep; }
+        var view = fetchState.view;
+        interact.setDayStrip(panDay, view ? view.days : 1, false);
     }
 
     /**
@@ -1011,6 +1066,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         PConf.actions.wxShowDay = function (arg) {
             var view = fetchState.view;
             if (!view) { return false; }
+            // A drag across the tiles ends over one of them, and the click
+            // that follows the release is that pan's tail — honouring it
+            // would jump to whatever day the finger happened to lift over.
+            if (interact.tapSuppressed()) { return false; }
             var d = parseInt(arg, 10);
             if (!(d >= 0)) { return false; }
             if (d > view.days - 1) { d = view.days - 1; }
@@ -1047,6 +1106,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         commitDay: commitDay,
         scrub: scrubTo,
         panTips: panTips,
+        panStrip: panStrip,
         canPull: function () { return Boolean(ctx); },
         refresh: function () {
             if (refreshWeather() && ctx) { ctx.render(); }
@@ -1068,6 +1128,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             // Test seams.
             _scrubTo: scrubTo,
             _panTips: panTips,
+            _panStrip: panStrip,
+            _fadeDayCards: fadeDayCards,
+            _applyStripPan: applyStripPan,
             _commitDay: commitDay,
             _setCtx: function (c) { ctx = c; },
             _fetchState: function () { return fetchState; },
@@ -1081,13 +1144,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 panDay = 0;
                 gpsSeed = null;
                 revFor = null;
-                stripKeep = null;
                 stripPending = false;
-                stripFresh = false;
+                lastPal = null;
                 panelMarks = null;
                 stripIcons = null;
                 litBars = {};
                 if (settleTimer) { clearTimeout(settleTimer); settleTimer = null; }
+                if (tileTimer) { clearTimeout(tileTimer); tileTimer = null; }
             }
         };
     }

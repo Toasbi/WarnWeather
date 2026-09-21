@@ -3,6 +3,16 @@
 // the shared data module instance — no network), and the pan-snap math.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+// The tab registers its blocks and its [data-action] handlers on PConf as it
+// loads; a stub here lets a test dispatch an action exactly as the engine
+// would. It has to stand BEFORE the require.
+global.PConf = {
+  blocks: { register: () => {} },
+  optionsResolvers: { register: () => {} },
+  displayResolvers: { register: () => {} },
+  actions: {},
+  hooks: { onReady: () => {} }
+};
 const tab = require('../src/pkjs/settings/weather-tab.js');
 const data = require('../src/pkjs/settings/weather-tab-data.js');
 const model = require('../src/pkjs/settings/weather-tab-model.js');
@@ -138,9 +148,12 @@ test('the graphs block orchestrates: loading → panels on data, error → Retry
     assert.ok(html.indexOf('5-day forecast') < html.indexOf('data-wxvp="strip"'),
       'the 5-day selector leads, then the shared hour strip (the app layout)');
     assert.ok(html.indexOf('data-wxvp="strip"') < html.indexOf('Temperature &amp; precipitation'));
-    const stickyAt = html.indexOf('<div class="wx-sticky"><div class="wx-days">');
+    const stickyAt = html.indexOf(
+      '<div class="wx-sticky"><div class="wx-daysvp" data-wxvp="days"><div class="wx-days">');
     assert.ok(stickyAt !== -1,
-      'the pinned box opens straight onto the 5-day tile row (tiles pin too)');
+      'the pinned box opens straight onto the 5-day tile row (tiles pin too), '
+      + 'and the row rides a viewport a drag can grab — swiping the tiles '
+      + 'pans the days like swiping any chart');
     const stripVpAt = html.indexOf('data-wxvp="strip"');
     const seam = html.indexOf('</div><div class="wx-bleed">', stickyAt);
     assert.ok(seam !== -1 && seam < stripVpAt && stripVpAt - seam < 200,
@@ -207,7 +220,7 @@ test('the graphs block orchestrates: loading → panels on data, error → Retry
     const stickyGap = Number((css.WX_CSS.match(/\.wx-sticky \.wx-bleed\{margin:(\d+)px 0 0/) || [])[1]);
     assert.ok(/\.wx-sticky\{[^}]*margin:8px -16px 0/.test(css.WX_CSS)
       && stickyGap > 0
-      && css.WX_CSS.indexOf('.wx-sticky .wx-days{margin:0') !== -1,
+      && css.WX_CSS.indexOf('.wx-sticky .wx-daysvp{margin:0') !== -1,
       'the sticky box owns the bleed margin; the tile row and the strip '
       + 'inside it drop their own side bleeds');
     assert.ok(stickyGap >= 10,
@@ -875,4 +888,164 @@ test('snapTargetDay: rounds to the nearest day, flicks advance one, clamps at th
   assert.equal(tab.snapTargetDay(0, 300, vw, 5, 100), 0, 'clamped at the first day');
   assert.equal(tab.snapTargetDay(4, -300, vw, 5, 100), 4, 'clamped at the last day');
   assert.equal(tab.panPct(2, 5), -40, 'day 2 of 5 pans to -40% of the wide element');
+});
+
+test('the tile row is a panned track, not a scroll container', () => {
+  // A row the user can scroll AND a row the day owns cannot both be right:
+  // a scroll offset survives the day change and leaves the strip showing a
+  // day the panels are not on. So the row stops scrolling and is moved by
+  // transform, on the pan's own curve.
+  assert.match(css.WX_CSS, /\.wx-daysvp\{[^}]*overflow:hidden/,
+    'the viewport clips the tiles that hang past the page');
+  assert.match(css.WX_CSS, /\.wx-daysvp\{[^}]*touch-action:pan-y/,
+    'a vertical drag still scrolls the page');
+  const row = /\.wx-days\{([^}]*)\}/.exec(css.WX_CSS)[1];
+  assert.equal(/overflow/.test(row), false, 'the row itself no longer scrolls: ' + row);
+  assert.match(row, /position:relative/,
+    'it stays the tiles’ offsetParent, which is what the pan measures');
+  // The resting offset is measured, not scrolled, so the module that does
+  // the measuring has to know the edge margin the stylesheet hands out —
+  // one number, read from the CSS here so the two cannot drift.
+  const edge = Number(/\.wx-days \.wx-day:last-child\{margin-right:(\d+)px/.exec(css.WX_CSS)[1]);
+  assert.equal(interact.EDGE_PAD, edge,
+    'the pan’s EDGE_PAD is the tiles’ own edge margin (' + edge + 'px)');
+  assert.equal(
+    Number(/\.wx-days \.wx-day:first-child\{margin-left:(\d+)px/.exec(css.WX_CSS)[1]), edge,
+    'and both ends carry the same margin');
+});
+
+/**
+ * A day-tile stub: the renderer gives every tile the day it selects as its
+ * action arg, and the highlight reads that same attribute.
+ * @param {number} day Day index the tile stands for.
+ * @returns {Object} Tile stub with a weekday name element inside it.
+ */
+function tileStub(day) {
+  const name = { style: {} };
+  return {
+    style: {}, disabled: false, name: name,
+    getAttribute: (a) => (a === 'data-action-arg' ? String(day) : null),
+    querySelector: (sel) => (sel === '.wx-day-name' ? name : null)
+  };
+}
+
+test('the tile highlight is handed over BY the drag, not after it', () => {
+  const pal = charts.palette(false);
+  const tiles = [tileStub(0), tileStub(1), tileStub(2), tileStub(3)];
+  tiles[3].disabled = true;      // past the timeline's end
+  global.document = { querySelectorAll: (sel) => (sel === '.wx-day' ? tiles : []) };
+  const realTimeout = global.setTimeout;
+  const queued = [];
+  global.setTimeout = (fn, ms) => { queued.push({ fn, ms }); return 0; };
+  try {
+    // Three tenths of the way from day 1 to day 2: the tile being left
+    // still holds seven tenths of the accent, the one being dragged in has
+    // taken three — they always sum to exactly one highlight.
+    tab._fadeDayCards(1.3, false);
+    assert.equal(tiles[1].style.borderColor, charts.fadeInk(pal.link, 0.7));
+    assert.equal(tiles[2].style.borderColor, charts.fadeInk(pal.link, 0.3));
+    assert.equal(tiles[0].style.borderColor, charts.fadeInk(pal.link, 0),
+      'a day away is no highlight at all');
+    assert.equal(tiles[1].name.style.color, charts.mixInk(pal.ink, pal.link, 0.7),
+      'the weekday name travels on the same fraction as the border');
+    assert.equal(tiles[2].name.style.color, charts.mixInk(pal.ink, pal.link, 0.3));
+    assert.equal(tiles[0].style.transition, 'none',
+      'a drag frame tracks the finger rather than chasing it');
+    assert.equal(queued.length, 0, 'and schedules nothing');
+
+    // Right on a day, the whole highlight is on that tile.
+    tab._fadeDayCards(2, false);
+    assert.equal(tiles[2].style.borderColor, charts.fadeInk(pal.link, 1));
+    assert.equal(tiles[1].style.borderColor, charts.fadeInk(pal.link, 0));
+
+    // A tile past the timeline's end cannot be landed on, so it never
+    // takes any of the highlight — not even while the drag passes it.
+    tab._fadeDayCards(3, false);
+    assert.equal(tiles[3].style.borderColor, charts.fadeInk(pal.link, 0),
+      'an off-timeline tile stays unlit');
+
+    // On release the remaining fraction is finished on the stylesheet's
+    // own settle curve, and the inline inks are dropped once it has run —
+    // the .sel rule they agree with owns the resting state.
+    tab._fadeDayCards(1, true);
+    assert.equal(tiles[1].style.transition, '',
+      'an eased hand-over falls back to the CSS transition');
+    assert.equal(queued.length, 1, 'and schedules the hand-back');
+    assert.equal(queued[0].ms, interact.SETTLE_MS, 'after exactly one settle');
+    queued[0].fn();
+    assert.equal(tiles[1].style.borderColor, '', 'the inline ink is gone');
+    assert.equal(tiles[1].name.style.color, '', 'on the name too');
+    assert.equal(tiles[1].style.transition, '');
+  } finally {
+    global.setTimeout = realTimeout;
+    delete global.document;
+    tab._resetState();
+  }
+});
+
+test('a swipe across the tiles pans the days and never taps the one it lands on', () => {
+  tab._resetState();
+  const realFetch = data.fetchWeather;
+  let respond = null;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { respond = cb; };
+  const listeners = {};
+  global.document = {
+    addEventListener: (type, fn) => { listeners[type] = fn; },
+    querySelectorAll: () => [],
+    querySelector: () => null,
+    getElementById: () => null
+  };
+  const realNow = Date.now;
+  let clock = realNow();
+  try {
+    const state = { graphsLocation: 'current' };
+    tab._setCtx({ S: state, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond(fixture(), null);
+
+    // Wire the pointer module to the tab's own seams: this is the real
+    // path a finger takes, listeners and all.
+    interact.wire({
+      view: () => tab._fetchState().view,
+      day: () => tab._panDay(),
+      commitDay: tab._commitDay,
+      scrub: tab._scrubTo,
+      panTips: tab._panTips,
+      panStrip: tab._panStrip,
+      canPull: () => false,
+      refresh: () => {}
+    });
+    const tileVp = {
+      getAttribute: (a) => (a === 'data-wxvp' ? 'days' : null),
+      getBoundingClientRect: () => ({ width: 390 })
+    };
+    const touch = (type, x) => listeners[type]({
+      touches: type === 'touchend' ? [] : [{ clientX: x, clientY: 100 }],
+      changedTouches: [{ clientX: x, clientY: 100 }],
+      target: tileVp,
+      preventDefault: () => {}
+    });
+
+    Date.now = () => clock;
+    touch('touchstart', 300);
+    touch('touchmove', 180);
+    touch('touchend', 180);
+    assert.equal(tab._panDay(), 1,
+      'a drag that STARTS on the tile row pans the days, like a drag on a chart');
+
+    // The release fires a click on whatever tile the finger lifted over —
+    // day 2's, say. Honouring it would jump a day past the snap.
+    assert.equal(global.PConf.actions.wxShowDay('2'), false);
+    assert.equal(tab._panDay(), 1, 'the pan’s trailing tap is swallowed');
+
+    // A real tap, later, still selects its day.
+    clock += 1000;
+    global.PConf.actions.wxShowDay('2');
+    assert.equal(tab._panDay(), 2, 'tapping a tile still jumps to it');
+  } finally {
+    Date.now = realNow;
+    data.fetchWeather = realFetch;
+    delete global.document;
+    tab._resetState();
+  }
 });

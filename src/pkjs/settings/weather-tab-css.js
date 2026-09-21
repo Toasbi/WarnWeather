@@ -97,7 +97,7 @@
         // The 5-day tile row rides in the pinned box too, above the hour
         // strip; its own side bleed is zeroed the same way (the sticky box
         // already carries the -16px margins).
-        + '.wx-sticky .wx-days{margin:0;}'
+        + '.wx-sticky .wx-daysvp{margin:0;}'
         // The caption row picks up right under the pinned ruler, so it keeps
         // the strip's spacing rather than a panel's — and with NO gap, so
         // the now line runs unbroken from the ruler down through the
@@ -112,9 +112,23 @@
         // padding): the row runs edge to edge and tiles cut off at the
         // section border. The first/last tiles carry a small edge margin
         // so the row's resting ends don't touch the border.
-        + '.wx-days{display:flex;gap:6px;margin:6px -16px 0;position:relative;'
-        + 'overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}'
-        + '.wx-days::-webkit-scrollbar{display:none;}'
+        // The row's clipping viewport: it is what the tiles are cut off
+        // against, and what a drag on the tiles measures a day against
+        // (data-wxvp, one viewport = one day, exactly as on a chart).
+        // touch-action:pan-y so a vertical drag still scrolls the page
+        // while a horizontal one is ours to preventDefault.
+        + '.wx-daysvp{position:relative;overflow:hidden;margin:6px -16px 0;touch-action:pan-y;}'
+        // The row keeps the VIEWPORT's width (its tiles are percentages of
+        // it) and lets its tiles overflow to the right; the pan moves the
+        // row itself by transform, on the same settle curve as the panels.
+        // It is deliberately NOT a scroll container: a scroll offset the
+        // user owned and a transform the day owns cannot both be right.
+        // position:relative keeps it the tiles' offsetParent, so the pan
+        // can read their offsetLeft to center the landed day.
+        + '.wx-days{display:flex;gap:6px;position:relative;}'
+        // EDGE_PAD in weather-tab-interact.js mirrors these 8px — the row's
+        // resting end stops with the last tile's margin showing, not hard
+        // against the card border. test/weather-tab.test.js pins the pair.
         + '.wx-days .wx-day:first-child{margin-left:8px;}'
         + '.wx-days .wx-day:last-child{margin-right:8px;}'
         // Every tile carries a transparent border so selecting one (border

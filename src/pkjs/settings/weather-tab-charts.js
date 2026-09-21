@@ -62,6 +62,12 @@
             // text — as text on the surface it lands under 4.5:1. This is
             // the same hue darkened (light) / lightened (dark) past AA.
             probHi: '#1D5FB8',
+            // The page's own accent (shell.html's --link for this theme).
+            // The day tiles' highlight interpolates TO it frame by frame
+            // while a swipe is in flight, so it is needed as a value, not
+            // only as a CSS var — test/weather-tab-charts.test.js pins both
+            // steps against shell.html so they cannot drift apart.
+            link: '#D93A24',
             hiBox: '#1B2536', hiText: '#FFFFFF'
         },
         dark: {
@@ -76,6 +82,7 @@
             sunText: '#E9A62E',
             moonDisc: '#2C313A', moonLit: '#F2F4F8',
             probHi: '#85B4F0',
+            link: '#FF6A52',
             // The selected-hour box (the app's dark chip): deliberately the
             // same dark-on-dark-blue pair on BOTH surfaces, like the app.
             hiBox: '#1B2536', hiText: '#FFFFFF'
@@ -84,6 +91,10 @@
 
     var DAY_W = 360;            // viewBox units per day (= one viewport width)
     var HOUR_W = DAY_W / 24;    // 15 units per hour
+    // The midnight rules' ink strength. Deliberately ABOVE the now line's
+    // 0.55: the day boundary is the structure a swipe navigates by, while
+    // "now" is a marker inside it.
+    var DAY_EDGE_OP = 0.8;
 
     /**
      * @param {boolean} isLight Whether the page renders its light theme.
@@ -108,6 +119,45 @@
     var two = readouts.two;
     var DAYS = readouts.DAYS;
     var MONTHS = readouts.MONTHS;
+
+    /**
+     * The channels of a #rrggbb ink.
+     * @param {string} hex Colour.
+     * @returns {number[]} [r, g, b], 0..255.
+     */
+    function rgbOf(hex) {
+        return [parseInt(hex.substr(1, 2), 16), parseInt(hex.substr(3, 2), 16),
+            parseInt(hex.substr(5, 2), 16)];
+    }
+
+    /**
+     * A hex ink at a fractional alpha — the day tile's border colouring up
+     * out of nothing as its day is dragged in.
+     * @param {string} hex Colour.
+     * @param {number} a Alpha, clamped to 0..1.
+     * @returns {string} CSS rgba().
+     */
+    function fadeInk(hex, a) {
+        var c = rgbOf(hex);
+        var f = a < 0 ? 0 : (a > 1 ? 1 : a);
+        return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + Math.round(f * 1000) / 1000 + ')';
+    }
+
+    /**
+     * Two hex inks mixed — the tile's weekday name travelling between the
+     * body ink and the accent on the same fraction as its border.
+     * @param {string} from Colour at t = 0.
+     * @param {string} to Colour at t = 1.
+     * @param {number} t Mix fraction, clamped to 0..1.
+     * @returns {string} CSS rgb().
+     */
+    function mixInk(from, to, t) {
+        var a = rgbOf(from), b = rgbOf(to);
+        var f = t < 0 ? 0 : (t > 1 ? 1 : t);
+        return 'rgb(' + Math.round(a[0] + (b[0] - a[0]) * f) + ','
+            + Math.round(a[1] + (b[1] - a[1]) * f) + ','
+            + Math.round(a[2] + (b[2] - a[2]) * f) + ')';
+    }
 
     /**
      * Clean y-axis ticks across [min, max].
@@ -278,10 +328,36 @@
     }
 
     /**
-     * Shared canvas frame (PANNING layer): the past-hours wash and the now
-     * hairline — everything that must travel with the series. Deliberately
-     * NO hour/day gridlines: the only verticals a panel may show are the
-     * now line and the tap crosshair (scrubLine), like the app.
+     * The day-boundary rules: one vertical at every local midnight. The
+     * canvas starts on one, so they run d = 0 … days.
+     *
+     * A day fills the viewport exactly, so at rest these sit ON the plot's
+     * two edges (the outermost pair half-clipped by the canvas, which is
+     * what an edge hairline should look like). They earn their ink mid-pan,
+     * where they travel through the plot and say where the day being
+     * dragged in begins and the one leaving ends.
+     * @param {Object} view Prepared view.
+     * @param {Object} pal Palette.
+     * @param {number} y1 Top y.
+     * @param {number} y2 Bottom y.
+     * @returns {string} SVG fragment.
+     */
+    function dayEdges(view, pal, y1, y2) {
+        var s = '';
+        for (var d = 0; d <= view.days; d += 1) {
+            var x = d * DAY_W;
+            s += '<line x1="' + x + '" y1="' + y1 + '" x2="' + x + '" y2="' + y2
+                + '" stroke="' + pal.ink + '" stroke-width="1" opacity="' + DAY_EDGE_OP + '"/>';
+        }
+        return s;
+    }
+
+    /**
+     * Shared canvas frame (PANNING layer): the past-hours wash, the day
+     * boundaries and the now hairline — everything that must travel with
+     * the series. Still no hour gridlines: the only verticals a panel may
+     * show are the midnight rules, the now line and the tap crosshair
+     * (scrubLine), like the app.
      * @param {Object} view Prepared view.
      * @param {Object} pal Palette.
      * @param {number} top Plot top y.
@@ -295,6 +371,9 @@
             s += '<rect x="0" y="' + top + '" width="' + nx.toFixed(1) + '" height="' + (bottom - top)
                 + '" fill="' + pal.past + '"/>';
         }
+        s += dayEdges(view, pal, top, bottom);
+        // The now line last: on a midnight it lands on a day rule, and the
+        // stronger, wider hairline is the one that should win.
         s += '<line x1="' + nx.toFixed(1) + '" y1="' + top + '" x2="' + nx.toFixed(1) + '" y2="' + bottom
             + '" stroke="' + pal.ink + '" stroke-width="1.2" opacity="0.55"/>';
         return s;
@@ -485,7 +564,10 @@
     function timeFootSvg(view, pal) {
         var H = 13;
         var nx = nowX(view);
-        var s = '';
+        // The day rules first, UNDER the caption's words: same reason as the
+        // now line below — the caption sits in the boundary's path, and a
+        // rule that stopped at the ruler would read as two separate marks.
+        var s = dayEdges(view, pal, 0, H);
         // Too close to the left edge and "Measured" has no room to sit in.
         if (nx > 58) {
             s += '<text x="' + (nx - 5).toFixed(1) + '" y="9.5" text-anchor="end" font-size="7.5" fill="'
@@ -790,6 +872,10 @@
         if (nx > 2) {
             s += '<rect x="0" y="0" width="' + nx.toFixed(1) + '" height="' + BAND_H + '" fill="' + pal.past + '"/>';
         }
+        // The day boundaries, under the glyphs and labels so they never cut
+        // through a number: the same rules the panels carry, run the strip's
+        // full height so the boundary reads as one line from the ruler down.
+        s += dayEdges(view, pal, 0, H);
         // Condition icons every 3 h (midnights skipped — the weekday marker
         // sits there).
         for (var i = 3; i < view.times.length; i += 3) {
@@ -1263,7 +1349,13 @@
         var sel = (selDay === null || selDay === undefined) ? 0 : selDay;
         var max = (maxDays === null || maxDays === undefined) ? model.DAY_COUNT : maxDays;
         var todayStartMs = model.localDayStart(now, off);
-        var h = '<div class="wx-days">';
+        // The row rides in a clipping viewport of its own (data-wxvp, so a
+        // drag STARTING on the tiles pans the days like a drag on any
+        // chart). The row itself keeps the viewport's width — its tiles are
+        // sized in percent of it — and overflows to the right; what moves
+        // is the row, by transform, which is why it can settle on exactly
+        // the curve the panels use. It is no longer a scroll container.
+        var h = '<div class="wx-daysvp" data-wxvp="days"><div class="wx-days">';
         for (var i = 0; i < daily.length && i < model.DAY_COUNT; i += 1) {
             var d = daily[i];
             // A tile is Today when its instant falls inside the location's
@@ -1313,7 +1405,7 @@
                 + '</span>'
                 + '</button>';
         }
-        return h + '</div>';
+        return h + '</div></div>';
     }
 
     var api = {
@@ -1321,6 +1413,8 @@
         HOUR_W: HOUR_W,
         palette: palette,
         esc: esc,
+        fadeInk: fadeInk,
+        mixInk: mixInk,
         fmt1: fmt1,
         niceTicks: niceTicks,
         prepareView: prepareView,
