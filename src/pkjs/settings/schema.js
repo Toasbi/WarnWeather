@@ -931,7 +931,7 @@ module.exports = {
                 text: 'Dim backlight',
                 toggleKey: 'backlightDim',
                 showWhen: BACKLIGHT_WHEN,
-                intro: 'Tint the backlight red while it is lit during the night hours, so checking the time in a dark room is easier on your eyes. Only a watch with a color backlight can do this.'
+                intro: 'Dim the backlight while it is lit during the night hours, so checking the time in a dark room is easier on your eyes.'
             }, {
                 // The hosted toggle keeps its place in `items` (hydrate, serialize
                 // and the derived defaults all still see it); only its row is
