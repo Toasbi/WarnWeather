@@ -602,16 +602,109 @@
     }
 
     /**
-     * The Measured | Forecast caption that used to close the time strip. It
-     * is its own row now: the strip above it pins, this scrolls away with
-     * the panels it describes — but it still rides the day pan, so the
-     * split stays put on the canvas.
+     * Where measurement BEGINS on this canvas, mirroring measuredEndX. It
+     * is not always the left edge: a station can come on line partway
+     * through the day, and the word must not reach back over hours it
+     * cannot vouch for.
+     * @param {Object} view Prepared view.
+     * @returns {number} x in viewBox units, or -1 when nothing is measured.
+     */
+    function measuredStartX(view) {
+        for (var i = 0; i < view.nowIndex && i < view.measured.length; i += 1) {
+            if (view.measured[i]) {
+                var x = xAt(view, i) - HOUR_W / 2;
+                return x < 0 ? 0 : x;
+            }
+        }
+        return -1;
+    }
+
+    // The series a past hour still draws once prepareView has settled it.
+    // Rain and chance are deliberately absent: those are nulled for every
+    // hour nobody measured, so they cannot say whether the hour was SERVED.
+    var SERVED_KEYS = ['temp', 'wind', 'gust', 'rh', 'dew', 'pressure'];
+
+    /**
+     * Where the provider's past actually starts on this canvas — the left
+     * edge of the earliest hour before now that came back with any value.
+     * A provider that asks for no past hours (OWM) leaves the stretch from
+     * local midnight to nearly now blank, and a caption drawn across it
+     * would be naming empty canvas rather than data.
+     * @param {Object} view Prepared view.
+     * @returns {number} x in viewBox units; the now line when nothing was served.
+     */
+    function servedStartX(view) {
+        for (var i = 0; i < view.nowIndex; i += 1) {
+            for (var k = 0; k < SERVED_KEYS.length; k += 1) {
+                var series = view[SERVED_KEYS[k]];
+                var v = series ? series[i] : null;
+                if (v !== null && v !== undefined) {
+                    var x = xAt(view, i) - HOUR_W / 2;
+                    return x < 0 ? 0 : x;
+                }
+            }
+        }
+        return nowX(view);
+    }
+
+    // 7.5px type in the page's stack runs a shade under 4.2 units per
+    // character; a word is only printed where its own region can hold it
+    // with the padding either side.
+    var CAPTION_CH = 4.2;
+    var CAPTION_PAD = 5;
+
+    /**
+     * The caption's regions, left to right: the stretches of canvas that
+     * got their numbers in different ways, each with the word that is true
+     * of it. There are at most three, and any of the first two can be
+     * missing:
      *
-     * The split sits where measurement actually ENDS, not on the now line:
-     * the word has to be true of the hours it points at. DWD is the only
-     * provider that measures anything — everyone else's past is model
-     * output, or absent — so on the others there is no "Measured" side and
-     * the caption says Forecast for the whole run.
+     *   Measured  — a station read these hours. Only DWD/Brightsky ever
+     *               fills `measured`, so only DWD ever says this word.
+     *   Estimated — the hour is over, but only a model can say what
+     *               happened in it. Open-Meteo stitches each run's
+     *               observation-initialised hours and tomorrow.io hands
+     *               back a short hindcast; both are reconstructions, and
+     *               neither is a reading.
+     *   Forecast  — it has not happened yet.
+     *
+     * @param {Object} view Prepared view.
+     * @returns {Array<{word: string, x0: number, x1: number}>} Regions in order.
+     */
+    function captionRegions(view) {
+        var nx = nowX(view);
+        var served = servedStartX(view);
+        var ms = measuredStartX(view);
+        var me = measuredEndX(view);
+        var out = [];
+        var pastFrom = served;
+        if (ms >= 0) {
+            out.push({ word: 'Measured', x0: ms, x1: me });
+            pastFrom = me;
+        }
+        // No emptiness guards: measurement cannot end after now (it is read
+        // from the hours before it) and nothing is served after it either,
+        // so these ranges are never inverted — and a range with no hours in
+        // it comes out too narrow for its word and is dropped on width.
+        out.push({ word: 'Estimated', x0: pastFrom, x1: nx });
+        out.push({ word: 'Forecast', x0: nx, x1: view.days * DAY_W });
+        return out;
+    }
+
+    /**
+     * The caption that used to close the time strip. It is its own row now:
+     * the strip above it pins, this scrolls away with the panels it
+     * describes — but it still rides the day pan, so its splits stay put on
+     * the canvas.
+     *
+     * It names the past by what actually produced it, which differs by
+     * provider (see captionRegions): only DWD ever says "Measured", a
+     * reconstructed past says "Estimated", and a provider that serves no
+     * past hours at all gets neither — just "Forecast" from the now line.
+     * A word is drawn only where its own region has room for it, so a
+     * sliver of a region goes unlabelled rather than mislabelled, and the
+     * boundaries it does not print are the ones the panels above already
+     * show: a bar that is there or is not.
      * @param {Object} view Prepared view.
      * @param {Object} pal Palette.
      * @returns {{main: string, overlay: ?string, H: number}} Panel spec.
@@ -619,18 +712,23 @@
     function timeFootSvg(view, pal) {
         var H = 13;
         var nx = nowX(view);
-        var mx = measuredEndX(view);
         // The day rules first, UNDER the caption's words: same reason as the
         // now line below — the caption sits in the boundary's path, and a
         // rule that stopped at the ruler would read as two separate marks.
         var s = dayEdges(view, pal, 0, H);
-        // Too close to the left edge and "Measured" has no room to sit in.
-        if (mx > 58) {
-            s += '<text x="' + (mx - 5).toFixed(1) + '" y="9.5" text-anchor="end" font-size="7.5" fill="'
-                + pal.muted + '">Measured</text>';
+        var regions = captionRegions(view);
+        for (var r = 0; r < regions.length; r += 1) {
+            var reg = regions[r];
+            var w = reg.word.length * CAPTION_CH;
+            if (reg.x1 - reg.x0 < w + 2 * CAPTION_PAD) { continue; }
+            // The last region runs off the end of the canvas, so its word
+            // reads forward from its opening boundary; every earlier one
+            // ends at a boundary shared with the next, and hugs it.
+            var last = r === regions.length - 1;
+            s += '<text x="' + (last ? reg.x0 + CAPTION_PAD : reg.x1 - CAPTION_PAD).toFixed(1)
+                + '" y="9.5"' + (last ? '' : ' text-anchor="end"')
+                + ' font-size="7.5" fill="' + pal.muted + '">' + reg.word + '</text>';
         }
-        s += '<text x="' + (mx > 0 ? mx + 5 : 4).toFixed(1) + '" y="9.5" font-size="7.5" fill="'
-            + pal.muted + '">Forecast</text>';
         // The now line carries on through the caption, as it did when the two
         // shared one svg: it spans this box top to bottom and the stylesheet
         // leaves no gap above, so the seam between the two svgs is invisible.
