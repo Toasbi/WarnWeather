@@ -1285,11 +1285,31 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     list.style.maxHeight = Math.round(target) + 'px';
   }
 
+  /**
+   * The tab the page opens on. Tab ORDER is the bar's business; which tab
+   * greets the user is a setting, so a tab may claim the opening slot with
+   * an `openWhen` predicate over the stored values, and one tab may declare
+   * itself the standing default. Neither given, the first tab opens.
+   * @param {Object} schema Config schema (schema.tabs).
+   * @param {Object} values Hydrated setting values, keyed by messageKey.
+   * @returns {string} The id of the tab to open.
+   */
+  function initialTab(schema, values) {
+    var tabs = (schema && schema.tabs) || [], i;
+    for (i = 0; i < tabs.length; i += 1) {
+      if (tabs[i].openWhen && PConf.showWhen.evaluate(tabs[i].openWhen, values)) { return tabs[i].id; }
+    }
+    for (i = 0; i < tabs.length; i += 1) {
+      if (tabs[i].openDefault) { return tabs[i].id; }
+    }
+    return tabs.length ? tabs[0].id : '';
+  }
+
   function boot() {
     var SCHEMA = INJECTED_SCHEMA, ENV = INJECTED_ENV || { color: true, round: false, platform: '', health: true };
     var USERDATA = INJECTED_USERDATA || {}, RETURN_TO = INJECTED_RETURN || 'pebblejs://close#';
     var S = hydrate(SCHEMA, INJECTED_CFG, ENV), INITIAL = Object.assign({}, S);
-    var activeTab = SCHEMA.tabs[0].id;
+    var activeTab = initialTab(SCHEMA, S);
     var openColor = null, openSelect = null, openDate = null, openEdit = null;
     var selectQuery = '', collapsed = initialCollapsed(SCHEMA);
     // Recover a schema item by messageKey so the input handler can re-filter its options in place.
@@ -1891,6 +1911,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   PConf.engine = {
     serialize: serialize, hydrate: hydrate, boot: boot, initialCollapsed: initialCollapsed,
+    initialTab: initialTab,
     esc: esc, renderControl: renderControl, renderRow: renderRow, renderSelectOptions: renderSelectOptions,
     renderSelectModal: renderSelectModal, renderDateModal: renderDateModal,
     renderEditModal: renderEditModal,
@@ -1909,7 +1930,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     serialize: PConf.engine.serialize, hydrate: PConf.engine.hydrate, boot: PConf.engine.boot,
-    initialCollapsed: PConf.engine.initialCollapsed,
+    initialCollapsed: PConf.engine.initialCollapsed, initialTab: PConf.engine.initialTab,
     blocks: PConf.blocks, hooks: PConf.hooks, onChange: PConf.onChange,
     esc: PConf.engine.esc, renderControl: PConf.engine.renderControl, renderRow: PConf.engine.renderRow,
     renderSelectOptions: PConf.engine.renderSelectOptions,

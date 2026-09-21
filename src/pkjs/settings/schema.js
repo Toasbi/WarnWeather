@@ -810,7 +810,55 @@ module.exports = {
     themeKey: 'configTheme',
     versionLabel: versionLabel + ' <a href="https://github.com/Toasbi/WarnWeather">GitHub source</a>',
     tabs: [{
-        id: 'general', label: 'General', sections: [{
+        // The Weather tab is content, not configuration: live graphs + a
+        // 5-day outlook for the active location, fetched by the page itself
+        // (weather-tab*.js). DISPLAY-ONLY: its keys are blob-only and never
+        // touch the watch's provider/location or any AppMessage.
+        // FIRST in the bar, but not what the page opens on: that stays
+        // General unless the user asks for this tab in More > Misc.
+        id: 'weather', label: 'Weather', openWhen: {key: 'startOnWeatherTab', eq: true}, sections: [{
+            // Collapsed by default (collapsible sections start closed); the
+            // header paints the current pick via titleFrom so the closed card
+            // reads "PROVIDER · DWD" without opening it.
+            id: 'graphsProviderCard',
+            title: 'Provider',
+            collapsible: true,
+            titleFrom: {resolver: 'graphsProviderHeader'},
+            items: [{
+                type: 'select',
+                messageKey: 'graphsProvider',
+                label: 'Data source',
+                defaultValue: 'auto',
+                optionsFrom: {resolver: 'graphsProviderOptions'},
+                // A keyed pick whose API key is momentarily empty (rotating a
+                // key) is DORMANT, not invalid: render the Auto fallback but
+                // keep the stored pick, so re-entering the key restores it
+                // instead of a render+Save silently erasing it to 'auto'.
+                dormantValues: ['openweathermap', 'tomorrowio'],
+                hint: 'Only for this tab’s graphs — the watchface keeps its own provider and location. Keyed providers appear once their API key is set.'
+            }]
+        }, {
+            // Chips + graphs render as ONE card: two untitled sections sharing
+            // a groupCard, each contributing its block (hidden items draw
+            // nothing but still hydrate/serialize the tab's blob-only keys).
+            groupCard: 'weatherMain',
+            block: 'weatherLocations',
+            items: [{
+                type: 'hidden', messageKey: 'graphsLocation', defaultValue: 'current'
+            }, {
+                type: 'hidden', messageKey: 'savedLocation1', defaultValue: ''
+            }, {
+                type: 'hidden', messageKey: 'savedLocation2', defaultValue: ''
+            }, {
+                type: 'hidden', messageKey: 'savedLocation3', defaultValue: ''
+            }]
+        }, {
+            groupCard: 'weatherMain',
+            block: 'weatherGraphs',
+            items: []
+        }]
+    }, {
+        id: 'general', label: 'General', openDefault: true, sections: [{
             block: 'noticesPanel',
             items: [{
                 type: 'hidden',
@@ -1099,52 +1147,6 @@ module.exports = {
                 options: [['Kilometres', 'metric'], ['Miles', 'imperial']],
                 hint: 'Unit for the "Walked distance" status item.'
             }]
-        }]
-    }, {
-        // The Weather tab is content, not configuration: live graphs + a
-        // 5-day outlook for the active location, fetched by the page itself
-        // (weather-tab*.js). DISPLAY-ONLY: its keys are blob-only and never
-        // touch the watch's provider/location or any AppMessage.
-        id: 'weather', label: 'Weather', sections: [{
-            // Collapsed by default (collapsible sections start closed); the
-            // header paints the current pick via titleFrom so the closed card
-            // reads "PROVIDER · DWD" without opening it.
-            id: 'graphsProviderCard',
-            title: 'Provider',
-            collapsible: true,
-            titleFrom: {resolver: 'graphsProviderHeader'},
-            items: [{
-                type: 'select',
-                messageKey: 'graphsProvider',
-                label: 'Data source',
-                defaultValue: 'auto',
-                optionsFrom: {resolver: 'graphsProviderOptions'},
-                // A keyed pick whose API key is momentarily empty (rotating a
-                // key) is DORMANT, not invalid: render the Auto fallback but
-                // keep the stored pick, so re-entering the key restores it
-                // instead of a render+Save silently erasing it to 'auto'.
-                dormantValues: ['openweathermap', 'tomorrowio'],
-                hint: 'Only for this tab’s graphs — the watchface keeps its own provider and location. Keyed providers appear once their API key is set.'
-            }]
-        }, {
-            // Chips + graphs render as ONE card: two untitled sections sharing
-            // a groupCard, each contributing its block (hidden items draw
-            // nothing but still hydrate/serialize the tab's blob-only keys).
-            groupCard: 'weatherMain',
-            block: 'weatherLocations',
-            items: [{
-                type: 'hidden', messageKey: 'graphsLocation', defaultValue: 'current'
-            }, {
-                type: 'hidden', messageKey: 'savedLocation1', defaultValue: ''
-            }, {
-                type: 'hidden', messageKey: 'savedLocation2', defaultValue: ''
-            }, {
-                type: 'hidden', messageKey: 'savedLocation3', defaultValue: ''
-            }]
-        }, {
-            groupCard: 'weatherMain',
-            block: 'weatherGraphs',
-            items: []
         }]
     }, {
         id: 'forecast', label: 'Forecast', sections: [{
@@ -1842,6 +1844,14 @@ module.exports = {
         id: 'more', label: 'More', sections: [{
             title: 'Misc',
             items: [{
+                // Page-only, like onboardingDone below: it picks the tab the
+                // settings page opens on and never goes near the watch.
+                type: 'toggle',
+                messageKey: 'startOnWeatherTab',
+                label: 'Start on the Weather tab',
+                defaultValue: false,
+                hint: 'Open this settings page on the Weather tab instead of General.'
+            }, {
                 type: 'toggle',
                 messageKey: 'telemetryEnabled',
                 label: 'Share anonymous telemetry',

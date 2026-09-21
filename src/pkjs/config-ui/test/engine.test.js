@@ -1490,3 +1490,28 @@ test('titleFrom: a collapsed section header paints the resolved value; open/plai
   html = E.renderBody(PLAIN, 't', mkCx({ x: false, mode: 'b' }, {}));
   assert.equal(html.indexOf('ttlval'), -1);
 });
+
+test('initialTab: a tab may claim the opening slot, order alone does not', () => {
+  const bar = (tabs) => ({ appName: 'X', versionLabel: 'v0', tabs: tabs });
+  const T = (id, extra) => Object.assign({ id: id, label: id, sections: [] }, extra || {});
+
+  // Plain schema: the first tab opens, as before.
+  assert.equal(E.initialTab(bar([T('a'), T('b')]), {}), 'a');
+
+  // A standing default wins over position — this is the round-10 shape:
+  // Weather leads the bar, General still greets the user.
+  const schema = bar([
+    T('weather', { openWhen: { key: 'startOnWeatherTab', eq: true } }),
+    T('general', { openDefault: true })
+  ]);
+  assert.equal(E.initialTab(schema, {}), 'general', 'leading the bar does not open the page');
+  assert.equal(E.initialTab(schema, { startOnWeatherTab: false }), 'general', 'toggle off: unchanged');
+  assert.equal(E.initialTab(schema, { startOnWeatherTab: true }), 'weather', 'toggle on: it claims the slot');
+  // A truthy-but-not-true value does not satisfy an eq predicate.
+  assert.equal(E.initialTab(schema, { startOnWeatherTab: 'yes' }), 'general', 'eq stays strict');
+
+  // Claims are checked in bar order, and an empty schema is survivable.
+  const two = bar([T('x', { openWhen: { key: 'k', eq: 1 } }), T('y', { openWhen: { key: 'k', eq: 1 } })]);
+  assert.equal(E.initialTab(two, { k: 1 }), 'x', 'the first claimant wins');
+  assert.equal(E.initialTab(bar([]), {}), '');
+});
