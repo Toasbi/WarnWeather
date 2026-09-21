@@ -1142,6 +1142,23 @@
                 + '" text-anchor="' + p.anchor + '" font-size="' + LABEL
                 + '" font-weight="600" fill="' + pal.ink + '">' + text + '</text>';
         };
+        // Clamp each placement as it is made — part() measures a label's room
+        // against its seam, so it has to see where the label really ended up,
+        // not where it would have liked to go. The crossing lists feed arc()
+        // the very instants these dots stand on, so a mark dropped for
+        // falling off the timeline contributes no vertex either.
+        /**
+         * @param {Object[]} row The baseline this event belongs to.
+         * @param {Object} p Its placement, or null if it was dropped.
+         * @param {number[]} cross That body's crossing instants.
+         * @param {number} ms The event instant.
+         * @returns {void}
+         */
+        var add = function (row, p, cross, ms) {
+            if (!p) { return; }
+            row.push(clampLabel(p));
+            cross.push(ms);
+        };
         // Daylight band + rise/set marks, per day, all on the LOCATION's
         // clock. The band goes down first so the past wash still dims it.
         var band = '', marks = '', sunCross = [], moonCross = [], sunRow = [], moonRow = [];
@@ -1168,17 +1185,6 @@
                 band += '<rect x="' + x1.toFixed(1) + '" y="' + top + '" width="' + (x2 - x1).toFixed(1)
                     + '" height="' + (horizon - top) + '" fill="' + pal.daylight + '"/>';
             }
-            // Clamp each placement as it is made — part() measures a label's
-            // room against its seam, so it has to see where the label really
-            // ended up, not where it would have liked to go. The crossing
-            // lists feed arc() the very instants these dots stand on, so a
-            // mark dropped for falling off the timeline contributes no
-            // vertex either.
-            var add = function (row, p, cross, ms) {
-                if (!p) { return; }
-                row.push(clampLabel(p));
-                cross.push(ms);
-            };
             add(sunRow, t1 ? place(st.sunrise.getTime(), '\u2600\u2191', t1, true) : null,
                 sunCross, t1 && st.sunrise.getTime());
             add(sunRow, t2 ? place(st.sunset.getTime(), '\u2600\u2193', t2, false) : null,
