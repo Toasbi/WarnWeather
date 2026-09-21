@@ -1121,11 +1121,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var rect = svg.getBoundingClientRect();
         if (!rect.width) { return; }
         var vx = (clientX - rect.left) / rect.width * (view.days * charts.DAY_W);
-        // The hour the finger is INSIDE, not the tick it is nearest. A bar
-        // fills the span between its own tick and the next one, so rounding
-        // to the nearest tick lit the bar beside the one under the finger
-        // for every tap past the halfway mark of an hour.
-        var i = Math.floor(vx / charts.HOUR_W);
+        // The hour whose BAR the finger is on, not the tick it is nearest.
+        // A bar fills the span that ENDS at its own tick (see charts.barX),
+        // so the span between tick 15 and tick 16 belongs to hour 16 — one
+        // past the tick the finger has just cleared. Rounding to the nearest
+        // tick, or flooring to the one behind, both light a bar the finger
+        // is not on.
+        var i = Math.floor(vx / charts.HOUR_W) + 1;
         if (i < 0) { i = 0; }
         if (i > view.times.length - 1) { i = view.times.length - 1; }
         scrubIndex = i;
