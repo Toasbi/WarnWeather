@@ -1,8 +1,19 @@
 #include "night_light.h"
 
-#if defined(WW_COLOR_BACKLIGHT)
-
+// UNGUARDED ON PURPOSE, and it must stay that way. waf decides build order by
+// scanning includes, and it does not evaluate a -D macro while scanning: an
+// `#include <pebble.h>` sitting inside `#if defined(WW_COLOR_BACKLIGHT)` is
+// invisible to it, so this file never picks up its dependency on the generated
+// src/resource_ids.auto.h that pebble.h pulls in — and on emery, the one platform
+// that lights the guard, it can be compiled before that header is generated:
+//   pebble.h:5:10: fatal error: src/resource_ids.auto.h: No such file or directory
+// The platforms that gate the feature out never noticed, because the guard also
+// hid the include from the compiler. Every other translation unit here includes
+// <pebble.h> unconditionally at top level; so does this one. Including a header
+// emits no code, so the gated-out platforms still compile to an empty object.
 #include <pebble.h>
+
+#if defined(WW_COLOR_BACKLIGHT)
 
 #include "persist.h"
 #include "c/services/watch_services.h"
