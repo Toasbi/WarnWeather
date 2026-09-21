@@ -1363,9 +1363,11 @@
         // boundary IS a viewport seam, so a label centred on one is half on
         // the far side of the fold: the reader saw ":00" at the left edge of
         // every day and "00:" at its right. Nudging it clear is not open to
-        // us the way it is for the selection chip — the label is 35 units
-        // wide on a 45-unit pitch, so the 17.5 it would have to travel is
-        // more than the 10 units there are before it sits on 03:00's. The
+        // us the way it is for the selection chip. A mark on a row of pitch
+        // P is clampable only if it is at most 2P/3 wide: it must travel w/2
+        // to clear the seam and has P - w before it touches its neighbour.
+        // Here P is 45, so the bound is 30 units — and the label sets 35
+        // (measured), as does the widest boundary figure, "100%". The
         // hour it names is still named: by the full-ink rule standing on the
         // seam, the weekday marker beside it, the long ruler tick under it,
         // and the chip when that hour is the selected one.
@@ -1415,9 +1417,32 @@
     }
 
     /**
+     * Which day's VIEWPORT an hour's marks are seen in — which is not the
+     * day the hour arithmetically belongs to, and the two disagree at
+     * exactly one index per day.
+     *
+     * A bar covers the hour ENDING at its tick, so scrubTo's hit test maps
+     * day d's screen to hours 24d+1 … 24d+24: the midnight that ENDS a day
+     * is reachable only from the day BEFORE it, and is never selectable
+     * from the day it starts. Asking `Math.floor(i / 24)` put that hour's
+     * chip and tick 22 and 1 units past the right edge of the only screen
+     * they are ever drawn on, so both vanished outright on the tap most
+     * likely to want them — a tap on the last sliver of a day.
+     * That mapping is total, so the day follows from the hour alone and no
+     * caller has to say which screen it is drawing — an hour index in range
+     * (every caller clamps to the canvas) lands on a day in range.
+     * @param {number} i Hour index into the view.
+     * @returns {number} Day index the hour's marks are drawn on.
+     */
+    function seenOnDay(i) {
+        return i <= 0 ? 0 : Math.ceil(i / 24) - 1;
+    }
+
+    /**
      * The strip chip's x at an hour: the hour's own x, nudged inward so
-     * the 40-unit box never clips at its day's viewport seams (hour 0 of
-     * a day would otherwise lose its left half to overflow:hidden). Used
+     * the 40-unit box never clips at the seams of the day it is SEEN in
+     * (hour 0 of a day would otherwise lose its left half to
+     * overflow:hidden, and the midnight ending a day its right half). Used
      * by the renderer above AND by weather-tab.js when it moves the chip
      * while scrubbing — one clamp, both paths.
      * @param {Object} view Prepared view.
@@ -1426,9 +1451,9 @@
      */
     function stripChipX(view, i) {
         var x = xAt(view, i);
-        var day = Math.floor(i / 24);
-        var lo = day * DAY_W + 22;
-        var hi = (day + 1) * DAY_W - 22;
+        var d = seenOnDay(i);
+        var lo = d * DAY_W + 22;
+        var hi = (d + 1) * DAY_W - 22;
         if (x < lo) { x = lo; }
         if (x > hi) { x = hi; }
         return x;
@@ -1436,21 +1461,25 @@
 
     /**
      * The highlight tick's x at an hour: the true hour x, nudged 1 unit
-     * inward at a day's FIRST hour so the 2-wide stroke isn't halved by
-     * the viewport's overflow:hidden at the seam. The left seam is the
-     * only one an integer hour index can touch — a day's last hour sits
-     * a full HOUR_W clear of its right seam — so unlike stripChipX's
-     * ±22 there is no right-hand twin to this clamp. Same shared-clamp
-     * deal though: the renderer above AND weather-tab.js's scrub move
-     * both go through it.
+     * inward at either seam of the day it is SEEN in, so the 2-wide stroke
+     * is not halved by the viewport's overflow:hidden. Both seams are
+     * reachable — a day's first hour stands on its left one, and the
+     * midnight that ends the day stands on its right one — so this clamp
+     * has the same two sides as stripChipX's ±22, just a narrower nudge.
+     * Same shared-clamp deal: the renderer above AND weather-tab.js's
+     * scrub move both go through it.
      * @param {Object} view Prepared view.
      * @param {number} i Hour index into the view.
      * @returns {number} Tick x in strip viewBox units.
      */
     function stripTickX(view, i) {
         var x = xAt(view, i);
-        var lo = Math.floor(i / 24) * DAY_W + 1;
-        return x < lo ? lo : x;
+        var d = seenOnDay(i);
+        var lo = d * DAY_W + 1;
+        var hi = (d + 1) * DAY_W - 1;
+        if (x < lo) { x = lo; }
+        if (x > hi) { x = hi; }
+        return x;
     }
 
     /**

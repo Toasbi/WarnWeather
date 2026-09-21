@@ -725,13 +725,38 @@ test('the hour strip highlights the selected hour with the app\'s chip (own icon
   // scrub path via charts.stripChipX.
   assert.equal(charts.stripChipX(view, 0), 22, 'hour 0 clamps off the left seam');
   assert.equal(charts.stripChipX(view, 23), charts.DAY_W - 22, 'hour 23 clamps off its day\'s right seam');
-  assert.equal(charts.stripChipX(view, 24), charts.DAY_W + 22, 'day 2 clamps against ITS OWN seam');
+  // The midnight that ENDS a day is the case the arithmetic used to get
+  // wrong. A bar covers the hour ending at its tick, so a tap on the last
+  // sliver of day 0 selects hour 24 — and hour 24 is reachable from day 0
+  // and from nowhere else. Clamping it into the day it arithmetically
+  // belongs to put the chip at 382: 22 units past the right edge of the
+  // only screen it is ever drawn on, so the badge vanished outright on the
+  // tap most likely to want it, rather than hugging the edge.
+  assert.equal(charts.stripChipX(view, 24), charts.DAY_W - 22,
+    'the midnight ending day 0 clamps against the seam it is SEEN at');
   assert.equal(charts.stripChipX(view, 15), 15 * charts.HOUR_W, 'mid-day hours sit at their own x');
   // The tick's clamp is its own, tighter one: 1 unit, so the 2-wide stroke
   // isn't halved at a seam but the tick still reads as the true hour x.
+  // Both seams are reachable, so it has both sides.
   assert.equal(charts.stripTickX(view, 0), 1, 'the tick nudges 1 unit off the left seam');
-  assert.equal(charts.stripTickX(view, 24), charts.DAY_W + 1, 'day 2\'s first hour nudges off ITS seam');
+  assert.equal(charts.stripTickX(view, 24), charts.DAY_W - 1,
+    'and 1 unit off the right one, for that same midnight');
   assert.equal(charts.stripTickX(view, 15), 15 * charts.HOUR_W, 'mid-day ticks sit at their true x');
+  // Stated as the invariant rather than three cases: whatever the hour,
+  // both marks land wholly inside the viewport they are drawn on. A clamp
+  // that pushes a mark off screen is worse than the clipping it prevents.
+  for (let i = 0; i < view.times.length; i += 1) {
+    const d = i <= 0 ? 0 : Math.ceil(i / 24) - 1;
+    const lo = d * charts.DAY_W;
+    const hi = (d + 1) * charts.DAY_W;
+    const cx = charts.stripChipX(view, i);
+    const tx = charts.stripTickX(view, i);
+    assert.ok(cx - 20 >= lo && cx + 20 <= hi,
+      'hour ' + i + ': the 40-unit chip at ' + cx + ' is inside day ' + d
+      + ' [' + lo + '…' + hi + ']');
+    assert.ok(tx - 1 >= lo && tx + 1 <= hi,
+      'hour ' + i + ': the 2-wide tick at ' + tx + ' is inside day ' + d);
+  }
   const at0 = charts.timeStripSvg(view, LOC, pal, SunCalc, 0);
   assert.ok(at0.main.indexOf('id="wx-strip-hi" transform="translate(22 0)"') !== -1,
     'the renderer places the chip through the same clamp');

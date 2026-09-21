@@ -358,6 +358,20 @@ test('a scrub moves the strip tick and chip through the shared clamps (the DOM p
     // night-resolved ids, not the raw day glyph — no sun at 2am.
     assert.equal(chipIcon.href, '#wxi-hnclear',
       'a night-hour scrub swaps the chip to the moon twin');
+    // And the mirror case, which the clamp used to get exactly backwards.
+    // A bar covers the hour ENDING at its tick, so the last sliver of a
+    // day's canvas selects the MIDNIGHT that closes it — hour 24, which
+    // this screen is the only screen that can reach. Clamping it into the
+    // day it arithmetically starts put the chip 22 units past this
+    // viewport's right edge and the tick 1 past it: the badge and its
+    // pointer disappeared on that tap, while the tip and the lit bar
+    // stayed. Both must land INSIDE the day on screen.
+    tab._scrubTo(svg, 359.9);
+    assert.equal(chip.transform, 'translate(' + (charts.DAY_W - 22) + ' 0)',
+      'the closing midnight hugs this day\u2019s right seam, not the next day\u2019s left');
+    assert.equal(tick.x1, charts.DAY_W - 1, 'and the tick nudges in off the same seam');
+    assert.ok(tick.x1 < charts.DAY_W && Number(/translate\((-?[\d.]+)/.exec(chip.transform)[1]) + 20 <= charts.DAY_W,
+      'both are wholly inside the viewport that selected them');
   } finally {
     delete global.document;
     data.fetchWeather = realFetch;

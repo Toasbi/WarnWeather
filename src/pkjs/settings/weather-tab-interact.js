@@ -351,6 +351,13 @@
     // Tile-widths of finger per day. The one dial for how quick the tile row
     // feels: 1 is drag-by-a-card, below 1 is quicker, above 1 slower. It
     // multiplies a MEASURED pitch, so it stays honest at any page width.
+    //
+    // If the complaint that comes back is only that a HARD THROW overshoots
+    // — everything else landing right — this is the wrong dial for it. Clamp
+    // the momentum term to a day instead (cap `-v * FLING_MS / scale` at ±1
+    // in snapTargetDay): it touches nothing but the most extreme flick, and
+    // it cannot spring back, since it only ever shortens the throw. Turning
+    // both at once makes the next report impossible to attribute.
     var DRAG_PITCHES = 1;
 
     /**
@@ -377,13 +384,20 @@
         var target;
         if (tiles) {
             target = Math.round(at - (v || 0) * FLING_MS / scale);
-            // A flick always moves at least one day. Momentum alone would
-            // leave a short, fast swipe rounding back onto the day it
-            // started from — and it always would when the row happens to
-            // FIT its viewport (a two-day timeline, say): there is no row
-            // travel to scale by then, the page scale takes over, and a
-            // third of a screen is a third of a day. A swipe that fast and
-            // that far was an instruction, whatever the arithmetic says.
+            // A flick always moves at least one day. Rounding alone would
+            // leave a short, fast swipe landing back on the day it started
+            // from: a day now costs a whole tile-width of finger, so a
+            // flick of a third of that rounds to nothing however hard it
+            // was thrown. A swipe that fast and that far was an
+            // instruction, whatever the arithmetic says.
+            //
+            // It is deliberately a FLICK floor, not a drag one: the dt
+            // bound below is what keeps an unhurried short drag springing
+            // back, which is the honest answer to "you did not drag far
+            // enough". That dead zone is half a day of finger — it widened
+            // with the scale, from 24 px to 57 px, and it is the first
+            // place to look if the row starts feeling like it only ever
+            // moves one day.
             if (target === baseDay && dtMs < 300 && Math.abs(dxPx) > scale * 0.12) {
                 target = baseDay + (dxPx < 0 ? 1 : -1);
             }
