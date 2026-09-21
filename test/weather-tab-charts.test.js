@@ -208,7 +208,7 @@ test('the precip-probability row carries its title and steps its ink with the ch
   // The row is meant to be read at a glance, so it prints at least as large
   // as the hour ruler above it and never falls back to the axis-ink size.
   const strip = charts.timeStripSvg(charts.prepareView(fixtureData(), NOON), LOC, pal, SunCalc);
-  const hourSize = Number(/font-size="([\d.]+)"[^>]*>03:00</.exec(strip.main)[1]);
+  const hourSize = Number(/font-size="([\d.]+)"[^>]*>06:00</.exec(strip.main)[1]);
   assert.ok(probSize >= hourSize,
     'the probability numbers are at least as large as the hour labels (' + probSize + ' vs ' + hourSize + ')');
   assert.match(temp.main, new RegExp('font-size="' + probSize + '" font-weight="700" fill="' + pal.probHi + '">60%<'),
@@ -342,8 +342,10 @@ test('the hour strip ENDS at the tick ruler — that is what gets pinned', () =>
   const pal = charts.palette(false);
   const spec = charts.timeStripSvg(view, LOC, pal, SunCalc);
   assert.equal(spec.main.indexOf('NaN'), -1);
-  assert.ok(spec.main.indexOf('03:00') !== -1, 'hour labels every 3 h');
-  assert.match(spec.main, new RegExp('y="' + (spec.bandH - 6) + '"[^>]*>03:00'),
+  // Every 3 h except 03:00, whose text yields to the midnight nudged in
+  // beside it — see the label-row test below for that trade in full.
+  assert.ok(spec.main.indexOf('06:00') !== -1, 'hour labels every 3 h');
+  assert.match(spec.main, new RegExp('y="' + (spec.bandH - 6) + '"[^>]*>06:00'),
     'hour labels sit INSIDE the band, along its lower edge');
   // The strip is the pinned block, so it may not carry anything below the
   // ruler: the longest tick reaches bandH + 5 and the box closes right there.
@@ -365,7 +367,7 @@ test('the hour strip ENDS at the tick ruler — that is what gets pinned', () =>
   assert.ok(spec.main.indexOf('>Sun<') !== -1 && spec.main.indexOf('>Mon<') !== -1,
     'each midnight is marked with its weekday');
   const noShade = charts.timeStripSvg(view, LOC, charts.palette(false), null);
-  assert.ok(noShade.main.indexOf('03:00') !== -1, 'no SunCalc → still a time axis, just unshaded');
+  assert.ok(noShade.main.indexOf('06:00') !== -1, 'no SunCalc → still a time axis, just unshaded');
 });
 
 test('the caption names the past by what produced it, and only DWD says Measured', () => {
@@ -813,7 +815,7 @@ test('the sun & moon panel marks every rise and set ON the horizon, labelled at 
   // The labels are the panel's headline type, not the axis ink they used to
   // match: at least as large as the hour ruler, and semibold.
   const strip = charts.timeStripSvg(view, LOC, pal, SunCalc);
-  const hourSize = Number(/font-size="([\d.]+)"[^>]*>03:00/.exec(strip.main)[1]);
+  const hourSize = Number(/font-size="([\d.]+)"[^>]*>06:00/.exec(strip.main)[1]);
   const labelSize = Number(/font-size="([\d.]+)" font-weight="600"[^>]*>\d\d:\d\d /.exec(spec.main)[1]);
   assert.ok(labelSize >= hourSize, 'rise/set labels read at ruler size or bigger (' + labelSize + ')');
 
@@ -1655,24 +1657,44 @@ test('a rule in the hour strip breaks around the glyph and the number it crosses
     assert.equal(rule[0].y2, spec.H, 'and closes on its floor');
   }
   // Nor is there an hour label to gap for: not one of them stands on a
-  // boundary any more.
+  // boundary any more — midnight's is NUDGED off it, into the day it opens.
   // font-weight 600 picks the ruler's own labels: the selected-hour chip
   // carries a 700 twin at x=0 inside its translated group, and that one is a
   // badge the clamp already keeps clear of the seams.
   const labels = (spec.main.match(/<text [^>]*font-size="11" font-weight="600"[^>]*>[^<]*<\/text>/g) || [])
     .map((t) => ({ x: Number(/x="(-?[\d.]+)"/.exec(t)[1]), txt: />([^<]*)</.exec(t)[1] }))
     .filter((v) => /^\d\d:00$/.test(v.txt));
-  // Exactly seven a day — 03:00 to 21:00. A count, not a floor: a ruler
-  // that labelled every hour would pass any lower bound while setting 35
-  // units of type on a 15-unit pitch, which is not a ruler but a smudge.
-  assert.equal(labels.length, 7 * view.days, 'seven labels a day, 03:00…21:00 ('
+  // Exactly seven a day — the midnight that opens it, then 06:00 to 21:00.
+  // A count, not a floor: a ruler that labelled every hour would pass any
+  // lower bound while setting 35 units of type on a 15-unit pitch, which is
+  // not a ruler but a smudge. Seven is also what it was before midnight came
+  // back, because 03:00's text is exactly what paid for it.
+  assert.equal(labels.length, 7 * view.days, 'seven labels a day ('
     + labels.length + ' over ' + view.days + ' days)');
   labels.forEach((v) => {
     assert.ok(v.x % charts.DAY_W !== 0,
       'no hour label stands on a day boundary (' + v.txt + ' at x=' + v.x + ')');
-    assert.equal(v.txt.slice(0, 2) === '00', false,
-      'and none of them is a midnight (' + v.txt + ' at x=' + v.x + ')');
   });
+  // One midnight a day, each nudged into the day it opens and clear of both
+  // that day's folds by its own half-width — the measured 17.6 of "00:00"
+  // at 11px semibold, plus the unit of air LABEL_HALF carries.
+  const mids = labels.filter((v) => v.txt === '00:00').sort((a2, b2) => a2.x - b2.x);
+  assert.equal(mids.length, view.days,
+    'every day opens with a labelled midnight (' + mids.length + ' over ' + view.days + ')');
+  mids.forEach((v, d) => {
+    assert.equal(v.x, d * charts.DAY_W + 22,
+      'day ' + d + '\u2019s midnight is nudged in, not centred on its fold');
+    assert.ok(v.x - 17.6 > d * charts.DAY_W,
+      'so no part of it is on the far side (left edge ' + (v.x - 17.6) + ')');
+    assert.ok(v.x + 17.6 < (d + 1) * charts.DAY_W, 'nor past the day it opens');
+  });
+  // And nothing is labelled 03:00 any more — that is the slot midnight took.
+  // The COLUMN is untouched: its icon, its figure and its long ruler tick
+  // all stay, so the row below keeps its three-hourly rhythm.
+  assert.equal(labels.filter((v) => v.txt === '03:00').length, 0,
+    '03:00 yields its text to the midnight beside it');
+  assert.ok(spec.main.indexOf('y2="' + (spec.bandH + 5) + '"') !== -1,
+    'while the ruler keeps a long tick on every 3-hourly column');
 
   // A 3-hourly slot that is not a midnight carries BOTH a glyph and a
   // label, one under the other, and between them the band has nothing left
@@ -1680,7 +1702,7 @@ test('a rule in the hour strip breaks around the glyph and the number it crosses
   // 2-unit stub above the icon and a 1-unit stub between icon and label,
   // two specks that read as dirt on the screen. The line yields the band
   // and picks up below the ruler.
-  const three = charts.prepareView(fixtureData(), DAY0 + 3 * 3600000);
+  const three = charts.prepareView(fixtureData(), DAY0 + 6 * 3600000);
   const threeSpec = charts.timeStripSvg(three, LOC, pal, SunCalc);
   const segsOf = (svg) => (svg.match(/<line [^>]*stroke-width="1\.2"[^>]*>/g) || [])
     .map((t) => ({ y1: Number(/y1="([\d.]+)"/.exec(t)[1]), y2: Number(/y2="([\d.]+)"/.exec(t)[1]) }))
@@ -1709,11 +1731,19 @@ test('a rule in the hour strip breaks around the glyph and the number it crosses
   // one hour — 15 units — from a 3-hourly label whose own half-width is 17.5
   // (measured in the browser: "00:00" at 11px/600 sets 35 units wide). So
   // the adjacent hours land INSIDE the label rather than beside it, and the
-  // band is crossed whole at only two hours: 00:00 and 23:00, the two whose
-  // nearest 3-hourly column IS a midnight and therefore holds nothing. Both
-  // are named here rather than tolerated by a loose bound, because "no gap"
-  // is the right answer there and a gap would be the bug.
-  const EMPTY_BAND_AT = [0, 23];
+  // band is crossed whole at only three hours, each named here rather than
+  // tolerated by a loose bound, because "no gap" is the right answer there
+  // and a gap would be the bug:
+  //   00:00 — the fold itself. The icon row has always skipped it, and
+  //           midnight's own label is nudged 22 units clear, so the rule
+  //           standing here has nothing to break around.
+  //   04:00 — the slot 03:00's label vacated. The 03:00 GLYPH is still
+  //           there, but its half-width is 12 against the 15 units between
+  //           them, so an hour later the line is past it and still 30 short
+  //           of 06:00's label: genuinely empty band.
+  //   23:00 — an hour short of the next fold, by the same arithmetic as
+  //           00:00 from the other side.
+  const EMPTY_BAND_AT = [0, 4, 23];
   for (let h = 0; h < 24; h += 1) {
     const at = charts.prepareView(fixtureData(), DAY0 + h * 3600000 + 11 * 60000);
     const segs = segsOf(charts.timeStripSvg(at, LOC, pal, SunCalc).main);
@@ -1725,22 +1755,24 @@ test('a rule in the hour strip breaks around the glyph and the number it crosses
     assert.equal(segs[segs.length - 1].y2, 52, 'and always reaches the floor');
   }
 
-  // 01:00 is the hour where the weekday marker is in the way: it is the only
-  // element in the band that does not stand on a tick, so "what does the
-  // nearest tick hold?" could never see it — and the now line, which stands
-  // wherever the hour is, spends that hour inside it. The rule used to run
-  // through the middle of "Sun". It comes out in two pieces: the corner
-  // above the word and the tail below it. (It was three while a midnight
-  // still carried a label 15 units to its left, inside the label's own
-  // 17.5-unit reach; that label is gone, and so is the second hole.)
+  // 01:00 is the busiest hour in the band, and neither thing it runs into
+  // stands on its own tick. The weekday marker never has — it is a
+  // left-anchored word in the day's corner, so "what does the nearest tick
+  // hold?" could never see it, and the rule used to run through the middle
+  // of "Sun". Midnight's label does not either, now that it is nudged 22
+  // units into the day: 01:00 stands 7 units from its centre, well inside
+  // its 17-unit reach. So the rule comes out in THREE pieces — the corner
+  // above the word, the gap between word and number, and the tail below.
   const corner = charts.prepareView(fixtureData(), DAY0 + 3600000 + 11 * 60000);
   assert.equal(charts.nowX(corner), charts.HOUR_W, 'precondition: 01:11 snaps to 01:00');
   const cornerSegs = segsOf(charts.timeStripSvg(corner, LOC, pal, SunCalc).main);
-  assert.equal(cornerSegs.length, 2,
-    'the 01:00 rule clears the weekday marker (got '
+  assert.equal(cornerSegs.length, 3,
+    'the 01:00 rule clears the weekday marker AND the midnight beside it (got '
     + cornerSegs.map((v) => v.y1 + '…' + v.y2).join(', ') + ')');
   assert.ok(cornerSegs[0].y2 <= 7 && cornerSegs[1].y1 >= 16,
-    'and the hole it leaves covers the word\u2019s own band, 7…16');
+    'the first hole covers the word\u2019s own band, 7…16');
+  assert.ok(cornerSegs[1].y2 <= 28 && cornerSegs[2].y1 >= 42,
+    'and the second covers the label\u2019s, 28…42');
   // The day rule beside it does NOT gap there either: the marker is drawn 4
   // units clear of its midnight, so the rule passes to its left.
   const dayRule = segsAt(charts.DAY_W, 1);
@@ -1759,9 +1791,10 @@ test('the strip gaps for the glyph that is drawn, not the one the arithmetic exp
   const pal = charts.palette(false);
   const bare = fixtureData();
   for (let k = 0; k < bare.hourly.icon.length; k += 1) { bare.hourly.icon[k] = null; }
-  const view = charts.prepareView(bare, DAY0 + 3 * 3600000);
-  assert.equal(charts.nowX(view), 3 * charts.HOUR_W,
-    'precondition: the now line stands on 03:00, a 3-hourly column');
+  const view = charts.prepareView(bare, DAY0 + 6 * 3600000);
+  assert.equal(charts.nowX(view), 6 * charts.HOUR_W,
+    'precondition: the now line stands on 06:00, a 3-hourly column that '
+    + 'carries a label (03:00\u2019s yields to the midnight beside it)');
   const spec = charts.timeStripSvg(view, LOC, pal, SunCalc);
   // The hour row's glyphs carry no id; the selected-hour chip's does, and
   // it has a placeholder to fall back on, so it is not the one in question.
@@ -1780,7 +1813,7 @@ test('the strip gaps for the glyph that is drawn, not the one the arithmetic exp
 
   // The same hour WITH its condition is the control: there the gap is
   // earned, the band has nothing left to draw in, and the line yields it.
-  const lit = charts.prepareView(fixtureData(), DAY0 + 3 * 3600000);
+  const lit = charts.prepareView(fixtureData(), DAY0 + 6 * 3600000);
   const litSegs = (charts.timeStripSvg(lit, LOC, pal, SunCalc).main
     .match(/<line [^>]*stroke-width="1\.2"[^>]*>/g) || [])
     .map((t) => Number(/y1="([\d.]+)"/.exec(t)[1]));
@@ -1936,5 +1969,104 @@ test('no 3-hourly mark stands on a day boundary — that is where a viewport fol
     const into = x - Math.floor(x / charts.DAY_W) * charts.DAY_W;
     assert.ok(into >= charts.HOUR_W * 3 && into <= charts.DAY_W - charts.HOUR_W * 3,
       'x=' + x + ' is ' + into + ' into its day — inside the pitch at one end');
+  });
+});
+
+test('midnight is named in the ruler, nudged off the fold it stands on', () => {
+  // It used to be dropped. A day boundary is a viewport fold, so a label
+  // centred on one is half on the far side of it — the reader saw ":00" at
+  // the left edge of every day and "00:" at its right — and the first
+  // answer was to draw nothing there. But midnight is the hour the whole
+  // ruler is built around, so it is named after all, moved into the day it
+  // OPENS rather than left astride the seam between two.
+  const pal = charts.palette(false);
+  const view = charts.prepareView(fixtureData(), NOON);
+  const spec = charts.timeStripSvg(view, LOC, pal, SunCalc);
+  const labels = (spec.main.match(/<text [^>]*font-size="11" font-weight="600"[^>]*>[^<]*<\/text>/g) || [])
+    .map((t) => ({ x: Number(/x="(-?[\d.]+)"/.exec(t)[1]), txt: />([^<]*)</.exec(t)[1] }))
+    .filter((v) => /^\d\d:00$/.test(v.txt));
+
+  // Which hours are named, within one day. The set is the point: every
+  // third hour, with midnight in and 03:00 out.
+  const day0 = labels.filter((v) => v.x >= 0 && v.x < charts.DAY_W)
+    .sort((a2, b2) => a2.x - b2.x).map((v) => v.txt);
+  assert.deepEqual(day0, ['00:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00'],
+    'the day is named from the midnight that opens it');
+
+  // The nudge is the whole mechanism, so its size is pinned: enough that
+  // the label clears the fold by its own half-width (17.6 measured), and
+  // level with the weekday marker's left edge, which is the only other
+  // thing in that corner.
+  const mid = labels.filter((v) => v.txt === '00:00');
+  assert.equal(mid.length, view.days, 'one a day, no more');
+  mid.forEach((v) => {
+    assert.equal(v.x % charts.DAY_W, 22, 'nudged 22 units into its day');
+  });
+  // The LAST fold opens no day of its own — it is the right edge of the
+  // final viewport, with nothing inside it to be nudged into — so it is not
+  // labelled, and no label sits past the timeline's end.
+  assert.equal(labels.filter((v) => v.x >= view.days * charts.DAY_W).length, 0,
+    'the closing fold carries no label it has nowhere to put');
+
+  // 03:00 paid for it, and only in TEXT: a mark of pitch P can be nudged
+  // clear of a fold only if it is at most 2P/3 wide, and at P = 45 that
+  // bound is 30 units against this label's measured 35.2. The column keeps
+  // everything else it had.
+  assert.equal(labels.filter((v) => v.txt === '03:00').length, 0, '03:00 is not named');
+  assert.ok(spec.main.indexOf('transform="translate(' + (3 * charts.HOUR_W - 11)) !== -1
+    || spec.main.indexOf('x="' + (3 * charts.HOUR_W)) !== -1,
+    'but its icon still stands on its column');
+
+  // And a line crossing the nudged label still breaks around it — the gap
+  // machinery asks the nearest TICK what it holds, and midnight's label is
+  // the one thing that no longer stands on one.
+  const across = charts.prepareView(fixtureData(), DAY0 + 2 * 3600000 + 11 * 60000);
+  assert.equal(charts.nowX(across), 2 * charts.HOUR_W, 'precondition: 02:11 snaps to 02:00');
+  const segs = (charts.timeStripSvg(across, LOC, pal, SunCalc).main
+    .match(/<line [^>]*stroke-width="1\.2"[^>]*>/g) || [])
+    .map((t) => ({ y1: Number(/y1="([\d.]+)"/.exec(t)[1]), y2: Number(/y2="([\d.]+)"/.exec(t)[1]) }))
+    .sort((a2, b2) => a2.y1 - b2.y1);
+  assert.equal(segs.length, 2,
+    'the 02:00 line breaks around the midnight label 8 units to its left (got '
+    + segs.map((v) => v.y1 + '…' + v.y2).join(', ') + ')');
+  assert.ok(segs[0].y2 <= 28 && segs[1].y1 >= 42, 'over the label’s own band');
+});
+
+test('a prepared view is a whole number of days — the folds have nothing past them', () => {
+  // The hour strip's midnight label leans on this: it nudges each midnight
+  // into the day that midnight OPENS, which only works because the closing
+  // fold is never in the series. A trailing part-day would put one label a
+  // viewport past the end of the timeline, where nothing can reach it.
+  // Several other places take the same shape for granted — the day rules,
+  // the tile row's day count, and the pan's clamp to days - 1 — so it is
+  // pinned once, here, at the one function that decides it.
+  const DAY0 = Math.floor(Date.now() / 86400000) * 86400000;
+  const shapes = [
+    [-12, 72, 0, 'the standard fixture span'],
+    [-12, 73, 0, 'one hour into a fourth day'],
+    [0, 25, 0, 'one hour into a second day'],
+    [0, 1, 0, 'a single hour'],
+    [0, 5, 0, 'a handful of hours'],
+    [-48, 120, 0, 'two days of history and five ahead'],
+    [-12, 100, 0, 'a ragged tail'],
+    [-12, 72, 19800, 'India, +05:30 — local midnight is not on an hour index'],
+    [-12, 72, 45900, 'Chatham, +12:45'],
+    [-12, 72, -28800, 'the other side of the date line']
+  ];
+  shapes.forEach((sh) => {
+    const raw = fixtureData();
+    const hourly = { time: [] };
+    Object.keys(raw.hourly).forEach((k) => { hourly[k] = []; });
+    for (let h = sh[0]; h < sh[1]; h += 1) {
+      Object.keys(raw.hourly).forEach((k) => {
+        hourly[k].push(k === 'time' ? DAY0 + h * 3600000 : raw.hourly[k][0]);
+      });
+    }
+    const view = charts.prepareView(
+      { hourly: hourly, daily: raw.daily, utcOffsetSec: sh[2], fetchedAt: DAY0 },
+      DAY0 + 12 * 3600000);
+    assert.equal(view.times.length, 24 * view.days,
+      sh[3] + ': ' + view.times.length + ' hours is not ' + view.days + ' whole days');
+    assert.ok(view.days >= 1, sh[3] + ': and there is at least one day to show');
   });
 });
