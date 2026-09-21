@@ -260,12 +260,21 @@ test('agoText climbs the ladder: just now → minutes → hours → a stamp', ()
     assert.match(charts.agoText(NOW - 86400000 - m * 60000, NOW),
       /^\d{1,2} [A-Z][a-z]{2} \d\d:\d\d$/, `minute ${m} stamps zero-padded`);
   }
-  const d = new Date(NOW - 86400000);
-  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const pad = (v) => (v < 10 ? '0' + v : String(v));
-  assert.equal(ago(86400),
-    `${d.getDate()} ${MON[d.getMonth()]} ${pad(d.getHours())}:${pad(d.getMinutes())}`,
-    'the stamp reads on the PHONE\'s clock, day-month-time, zero-padded');
+  // Pinned against a FIXED instant and a fixed expected string, under a
+  // timezone that is not the container's: deriving the expectation from
+  // the same Date getters the code calls would mirror the implementation,
+  // and a UTC-accessor swap would then pass unnoticed in a UTC container
+  // (which is what CI is). 14 Mar 2026 03:05 UTC is 13 Mar 23:05 in New
+  // York, so day, month, hour and padding are all genuinely at stake.
+  const realTz = process.env.TZ;
+  process.env.TZ = 'America/New_York';
+  try {
+    const at = Date.UTC(2026, 2, 14, 3, 5);
+    assert.equal(charts.agoText(at, at + 86400000), '13 Mar 23:05',
+      'the stamp reads on the PHONE\'s clock, day-month-time, zero-padded');
+  } finally {
+    process.env.TZ = realTz;
+  }
   // A phone that resyncs its clock backwards mid-session must not print a
   // negative age: the reading is current, so it says so.
   assert.equal(charts.agoText(NOW + 5 * 60000, NOW), 'just now');
