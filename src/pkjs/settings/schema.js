@@ -818,7 +818,7 @@ var BACKLIGHT_ON_WHEN = {all: [BACKLIGHT_WHEN, {key: 'backlightDim', eq: true}]}
 // bruised value previews the same colour the sliders open on; the rgb item in the
 // sheet is what actually stores it.
 var BACKLIGHT_COLOR_SHEET = 'backlightColor';
-var BACKLIGHT_COLOR_DEFAULT = '40,0,0';
+var BACKLIGHT_COLOR_DEFAULT = '40,10,0';
 module.exports = {
     appName: 'WarnWeather',
     themeKey: 'configTheme',

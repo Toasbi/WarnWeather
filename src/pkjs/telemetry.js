@@ -139,7 +139,7 @@ function buildSettingsSnapshot(settings, watchInfo) {
         // graph colours use: those are screen colours resolved through line-style for
         // the polarity the watch paints, with 'default' as a sentinel, and this is
         // three LED channel levels with neither. It is reported at all because the
-        // shipped default (40,0,0) is a guess at "dim red", and what people dial in
+        // shipped default (40,10,0) is a guess at "dim red", and what people dial in
         // is the only way to find out whether the guess was right.
         backlightDimColor: dimOn ? safe.backlightDimColor : undefined,
         // The automatic day/night theme switch. Sub-settings only while the

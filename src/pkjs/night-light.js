@@ -21,11 +21,11 @@ var parseHour = require('./sleep-window.js').parseHour;   // THE hour-select par
 var CHANNELS = ['r', 'g', 'b'];
 var CHANNEL_MIN = 0, CHANNEL_MAX = 255;
 
-// The schema's BACKLIGHT_COLOR_DEFAULT ('40,0,0' — settings/schema.js), as channels.
+// The schema's BACKLIGHT_COLOR_DEFAULT ('40,10,0' — settings/schema.js), as channels.
 // Unparseable storage falls back HERE rather than to black: black is a colour the
 // sliders can legitimately produce (backlight off), so falling back to it would turn a
 // bruised value into a plausible-looking setting nobody chose.
-var DEFAULT_R = 40, DEFAULT_G = 0, DEFAULT_B = 0;
+var DEFAULT_R = 40, DEFAULT_G = 10, DEFAULT_B = 0;
 
 // Fallbacks for an hour that doesn't parse: the schema defaults of the keys being
 // read (backlightDimStartHour/backlightDimEndHour, both '0'/'7'). Deliberately NOT
@@ -81,7 +81,7 @@ function clampChannel(n) {
 }
 
 /**
- * Parse the stored "r,g,b" colour, falling back to the schema default (40,0,0).
+ * Parse the stored "r,g,b" colour, falling back to the schema default (40,10,0).
  *
  * The parse is the settings page's own, hand-kept: config-ui/lib/range-control.js's
  * parseRgbStrict is what the sliders and the card's swatch read the same string with,

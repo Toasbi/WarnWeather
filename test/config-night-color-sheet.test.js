@@ -124,7 +124,7 @@ test('the row prints the SAME preview the sheet does, from the same builder', ()
 });
 
 test('the readout is the colour that is stored — change the value, chip and hex follow', () => {
-  assert.equal(swatchHex(), '#280000', 'the default dim red');
+  assert.equal(swatchHex(), '#280A00', 'the default dim red');
   assert.equal(swatchHex({ [KEY]: '200,40,10' }), '#C8280A', 'a picked colour');
   assert.equal(swatchHex({ [KEY]: '0,0,0' }), '#000000', 'black is a colour, not a missing value');
   // The longest string the readout ever has to seat beside the Edit button. Nothing
@@ -136,10 +136,10 @@ test('the readout is the colour that is stored — change the value, chip and he
   // fixed by the hardware), while a value that is not three integers falls back to
   // the schema default rather than to black.
   assert.equal(swatchHex({ [KEY]: '300,-5,20' }), '#FF0014', 'a bruised channel clamps');
-  assert.equal(swatchHex({ [KEY]: '' }), '#280000', 'a blank value shows the default');
-  assert.equal(swatchHex({ [KEY]: undefined }), '#280000', 'and so does a missing one');
-  assert.equal(swatchHex({ [KEY]: '#FF0000' }), '#280000', 'so does a hex string, which is not r,g,b');
-  assert.equal(swatchHex({ [KEY]: '12,34' }), '#280000', 'and so do two channels');
+  assert.equal(swatchHex({ [KEY]: '' }), '#280A00', 'a blank value shows the default');
+  assert.equal(swatchHex({ [KEY]: undefined }), '#280A00', 'and so does a missing one');
+  assert.equal(swatchHex({ [KEY]: '#FF0000' }), '#280A00', 'so does a hex string, which is not r,g,b');
+  assert.equal(swatchHex({ [KEY]: '12,34' }), '#280A00', 'and so do two channels');
   // Whatever it shows, the row still offers the way in and still SAYS the colour: the
   // readout is inside the aria-hidden preview wrapper, so the button carries the name.
   ['200,40,10', '', 'nonsense'].forEach((v) => {
@@ -255,7 +255,7 @@ test('the sliders drag and nudge inside the sheet, and the card\'s swatch follow
   page.openEditSheet(SHEET_ID);
   assert.ok(page.modal.innerHTML.indexOf('data-range="' + KEY + '"') !== -1,
     'the rgb control is in the open sheet');
-  assert.equal(page.S[KEY], '40,0,0', 'starting on the default dim red');
+  assert.equal(page.S[KEY], '40,10,0', 'starting on the default dim red');
 
   // Drag the GREEN thumb to x=140 on its own track (left 100, width 100) → 40% of 255.
   const root = makeRgbRoot({ r: 96, g: 0, b: 0 });

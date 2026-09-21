@@ -808,7 +808,7 @@ test('Dim backlight is emery-only, on by default, and carries a dim-red RGB colo
   // by the item (test/config-night-color-sheet.test.js owns the surface itself).
   const colour = byKey('backlightDimColor');
   assert.equal(colour.type, 'rgb', 'three channel sliders storing one "r,g,b" string');
-  assert.equal(colour.defaultValue, '40,0,0', 'a dim red: the driver scales each channel by the watch brightness');
+  assert.equal(colour.defaultValue, '40,10,0', 'a dim red: the driver scales each channel by the watch brightness');
 
   const BACKLIGHT_KEYS = ['backlightDim', 'backlightDimStartHour', 'backlightDimEndHour'];
   const on_ = { backlightDim: true };

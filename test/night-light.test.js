@@ -71,8 +71,8 @@ test('the tuple is exactly five bytes, each an integer in range', () => {
 
 test('an absent settings blob still packs a usable tuple (the schema defaults)', () => {
   // The toggle ships ON, so a blob that predates it must not read as off.
-  assert.deepEqual(buildNightLightBytes({}), [40, 0, 0, 0, 7]);
-  assert.deepEqual(buildNightLightBytes(undefined), [40, 0, 0, 0, 7]);
+  assert.deepEqual(buildNightLightBytes({}), [40, 10, 0, 0, 7]);
+  assert.deepEqual(buildNightLightBytes(undefined), [40, 10, 0, 0, 7]);
   assert.equal(isDimEnabled({}), true);
   assert.equal(isDimEnabled({ backlightDim: undefined }), true);
   assert.equal(isDimEnabled({ backlightDim: null }), true);
