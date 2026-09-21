@@ -335,15 +335,34 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // pure function of the viewed day.
         if (typeof document !== 'undefined' && typeof setTimeout !== 'undefined') {
             stripPending = true;
-            setTimeout(applyStripPan, 0);
+            afterRender(applyStripPan);
             // The rendered string parks the crosshair extras (dots, bars,
             // tip); if a scrub was active, put them back once the new DOM
             // stands.
-            setTimeout(repaintScrub, 0);
+            afterRender(repaintScrub);
         }
         // Refetch keeps the frame: the previous charts stay up, dimmed, while
         // the new location/provider loads — never a skeleton flash.
         return refetching ? '<div style="opacity:0.55">' + h + '</div>' : h;
+    }
+
+    /**
+     * Run a post-render fix-up in the frame the browser is ABOUT to paint,
+     * not the one after it. A plain setTimeout(0) can land AFTER a paint,
+     * and that paint showed the tile row parked at Today for one frame
+     * before it jumped back to the viewed day (145 px on a 420 px phone).
+     * requestAnimationFrame runs before the paint, so the row is already
+     * where it belongs when the frame goes up; the timeout stays as the
+     * fallback for WebViews without rAF and for a hidden page, where rAF
+     * never fires at all. Both may run: applyStripPan clears stripPending
+     * so the later call is a no-op, and repaintScrub only repaints from
+     * state.
+     * @param {function():void} fn The fix-up to run once the DOM stands.
+     * @returns {void}
+     */
+    function afterRender(fn) {
+        if (typeof requestAnimationFrame === 'function') { requestAnimationFrame(fn); }
+        setTimeout(fn, 0);
     }
 
     /**

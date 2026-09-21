@@ -1107,3 +1107,39 @@ test('freshness rides the 5-day title line, and the old footer is gone', () => {
     tab._resetState();
   }
 });
+
+test('a render puts the tile row back BEFORE the frame goes up, not after it', () => {
+  tab._resetState();
+  let respond = null;
+  const realFetch = data.fetchWeather;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { respond = cb; };
+  const raf = [];
+  const timeouts = [];
+  const realTimeout = global.setTimeout;
+  global.requestAnimationFrame = (fn) => { raf.push(fn); return raf.length; };
+  global.setTimeout = (fn, ms) => { if (ms === 0) { timeouts.push(fn); return 0; } return realTimeout(fn, ms); };
+  global.document = { getElementById: () => null, querySelector: () => null, querySelectorAll: () => [] };
+  try {
+    const state = { graphsLocation: 'current', temperatureUnits: 'c', windUnits: 'kph' };
+    tab._setCtx({ S: state, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond(fixture(), null);
+    raf.length = 0;
+    timeouts.length = 0;
+
+    tab.weatherGraphsBlock(state, {}, SEED);
+    // A setTimeout(0) can land AFTER a paint, and that paint showed the row
+    // parked at Today. Both fix-ups go through the pre-paint callback.
+    assert.equal(raf.length, 2, 'the strip pan and the scrub repaint both ride rAF');
+    assert.equal(timeouts.length, 2, 'and both keep a timeout fallback, for a hidden page');
+    // The fallback must be harmless when the frame already ran it.
+    raf.forEach((fn) => fn());
+    timeouts.forEach((fn) => fn());
+  } finally {
+    global.setTimeout = realTimeout;
+    delete global.requestAnimationFrame;
+    delete global.document;
+    data.fetchWeather = realFetch;
+    tab._resetState();
+  }
+});
