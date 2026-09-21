@@ -219,7 +219,9 @@ const CONDITION_PROSE = {
   thresholds: (v) => (v ? 'the watch can draw threshold highlighting' : 'no threshold highlighting'),
   color: (v) => (v ? 'colour display' : 'black-and-white display'),
   round: (v) => (v ? 'round screen' : 'rectangular screen'),
-  themePolarity: (v) => (v ? 'the watch ships the light theme' : 'no light theme on this watch')
+  themePolarity: (v) => (v ? 'the watch ships the light theme' : 'no light theme on this watch'),
+  colorBacklight: (v) => (v ? 'the watch has a color backlight LED'
+    : 'no color backlight LED — a white backlight, or none')
 };
 
 /**

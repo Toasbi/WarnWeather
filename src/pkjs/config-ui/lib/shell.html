@@ -209,6 +209,20 @@
   .rng-max-edit svg { width: 12px; height: 12px; }
   .rng-max-input { width: 78px; background: var(--ctl); border: 1px solid var(--ctl-line); border-radius: 7px; padding: 3px 8px; color: var(--lbl); font: 600 12px 'Inter', sans-serif; outline: none; }
   .rng-max-input:focus { border-color: #FA4A35; }
+  /* three-channel colour (type: 'rgb'): a live swatch + hex readout above one
+     single-thumb track per channel, composed from the range slider's own
+     track/thumb markup so it inherits the same drag/keyboard/disabled rules.
+     The readout reuses the color picker's swatch chrome (.sw-wrap) but is a
+     READOUT, not a trigger — it opens nothing, so it drops the pointer cursor.
+     Channel tints ride inline as --th-c/--th-glow, like the threshold knobs. */
+  .rgb-head { display: flex; justify-content: center; margin-bottom: 10px; }
+  .rgb-head .sw-wrap { cursor: default; }
+  .rgb-ch { display: flex; align-items: center; }
+  .rgb-ch-lbl { width: 14px; text-align: center; font: 700 11.5px 'Inter', sans-serif; color: var(--faint); }
+  .rgb-ch .rng-track { flex: 1; }
+  .rgb-ch .rng-fill { background: var(--th-c); }
+  .rgb-ch .rng-th::before { background: var(--th-c); box-shadow: 0 2px 6px var(--th-glow); }
+  .rgb-ch-val { width: 30px; text-align: right; font: 600 12px ui-monospace, monospace; color: var(--muted); }
   /* a disabled row (item.disabledWhen): visible — it shows what turning the feature
      on would offer — but muted and inert */
   .row.dis { opacity: .45; pointer-events: none; }

@@ -23,6 +23,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   var thresholdValues = rangeControl.thresholdValues;
   var paintThresholdRange = rangeControl.paintThresholdRange;
   var renderRange = rangeControl.renderRange;
+  // The three-channel colour control (type: 'rgb') is the same module's
+  // single-thumb mode, composed three times — see range-control.js.
+  var parseRgb = rangeControl.parseRgb;
+  var formatRgb = rangeControl.formatRgb;
+  var rgbHex = rangeControl.rgbHex;
+  var setRgbChannel = rangeControl.setRgbChannel;
+  var renderRgb = rangeControl.renderRgb;
+  var paintRgb = rangeControl.paintRgb;
   var formatDateValue = datePicker.formatDateValue;
   var parseDateParts = datePicker.parseDateParts;
   var dateValueFromParts = datePicker.dateValueFromParts;
@@ -726,7 +734,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // palette's current-swatch marker follow it; the write path stays on the messageKey.
     color: function (item, view) { return renderColor(item, view.displayValue == null ? view.value : view.displayValue, view.openColor); },
     searchSelect: function (item, view) { return renderSelectTrigger(item, view); },
-    range: function (item, view) { return renderRange(item, view); }
+    range: function (item, view) { return renderRange(item, view); },
+    // Three single-thumb channel sliders + a live swatch, storing "r,g,b" in one
+    // messageKey. This table is CLOSED — renderControl returns '' for a type that
+    // is missing from it, so a new control type renders as an empty row until it
+    // is listed here.
+    rgb: function (item, view) { return renderRgb(item, view); }
   };
   /**
    * Dispatch to the control renderer for item.type; '' for an unknown type.
@@ -766,6 +779,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // drops to a full-width line below.
     var wideSegmented = item.type === 'segmented' && item.options && item.options.length > 3;
     var stacked = item.type === 'text' || item.type === 'radio' || item.type === 'range'
+      || item.type === 'rgb'
       || (item.type === 'color' && view.openColor === item.messageKey);
     var hintHtml = hint ? '<div class="hint">' + hint + '</div>' : '';
     // An optional small icon button beside the label (item.labelAction: {action, arg,
@@ -1884,6 +1898,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     snapToStep: snapToStep, moveThumb: moveThumb, renderRange: renderRange,
     thresholdValues: thresholdValues, resolveRangeItem: resolveRangeItem,
     paintThresholdRange: paintThresholdRange,
+    parseRgb: parseRgb, formatRgb: formatRgb, rgbHex: rgbHex,
+    setRgbChannel: setRgbChannel, renderRgb: renderRgb, paintRgb: paintRgb,
     renderTabBar: renderTabBar, renderBody: renderBody, resolveOptionsFrom: resolveOptionsFrom,
     resolveDefaultFrom: resolveDefaultFrom,
     resolveTheme: resolveTheme,
@@ -1909,6 +1925,9 @@ if (typeof module !== 'undefined' && module.exports) {
     thresholdValues: PConf.engine.thresholdValues,
     resolveRangeItem: PConf.engine.resolveRangeItem,
     paintThresholdRange: PConf.engine.paintThresholdRange,
+    parseRgb: PConf.engine.parseRgb, formatRgb: PConf.engine.formatRgb,
+    rgbHex: PConf.engine.rgbHex, setRgbChannel: PConf.engine.setRgbChannel,
+    renderRgb: PConf.engine.renderRgb, paintRgb: PConf.engine.paintRgb,
     rangeResolvers: PConf.rangeResolvers, badgeResolvers: PConf.badgeResolvers,
     displayResolvers: PConf.displayResolvers,
     renderTabBar: PConf.engine.renderTabBar, renderBody: PConf.engine.renderBody,

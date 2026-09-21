@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const W = require('../lib/show-when.js');
+const platform = require('../lib/platform.js');
 const ctx = { secondaryLine: 'wind', provider: 'dwd', devStatsEnabled: true, env: { color: false, round: false, platform: 'flint' } };
 
 test('leaf operators: eq/ne/in/nin/truthy + env', () => {
@@ -29,4 +30,16 @@ test('itemPredicate AND-merges COLOR capability; isVisible hides COLOR on b&w', 
   assert.equal(W.itemPredicate({ messageKey: 'x' }), null);
   assert.equal(W.isVisible({ capabilities: ['COLOR'] }, ctx), false);
   assert.equal(W.isVisible({ messageKey: 'x' }, ctx), true);
+});
+
+test('{ env: colorBacklight } gates an item to the one watch with an RGB backlight LED', () => {
+  const item = { messageKey: 'dimBacklight', showWhen: { env: 'colorBacklight' } };
+  const on = (plat) => W.isVisible(item, { env: platform.computeEnv({ platform: plat }) });
+  assert.equal(on('emery'), true, 'emery is the only board with the LED driver');
+  // basalt is the one that matters: a COLOUR watch whose backlight is white-only,
+  // so the gate must not ride on env.color.
+  ['basalt', 'chalk', 'aplite', 'diorite', 'flint'].forEach((p) =>
+    assert.equal(on(p), false, p + ' has no colour backlight'));
+  assert.equal(W.isVisible(item, { env: platform.computeEnv(null) }), false, 'unknown watch');
+  assert.equal(W.isVisible(item, {}), false, 'no env at all: fail closed');
 });

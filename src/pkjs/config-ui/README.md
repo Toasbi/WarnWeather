@@ -244,6 +244,7 @@ Schema
 | `staticText` | Static HTML block; no key | — (not serialized) | `text` |
 | `searchSelect` | Dropdown sheet with a search box | string | — |
 | `range` | Dual-thumb slider | `"lo-hi"` string | — |
+| `rgb` | Three channel sliders (R/G/B) + live swatch | `"r,g,b"` string, each channel 0-255 | — |
 | `date` | Date-wheel sheet (day/month/year) | `"YYYY-MM-DD"` string | — |
 | `hidden` | none — never rendered | any (serialized like any keyed item) | — |
 | `button` | Tappable action row; no key | — (not serialized) | — |
@@ -259,7 +260,7 @@ when `ring`, filled otherwise) and an **Edit** button on the right, with nothing
 sheet but should still show what is configured in there. Because the row has no `messageKey`,
 whatever the resolver needs to identify the row must be passed in `editBadgeFrom.args`.
 
-The fourteen types above are the complete built-in set. Anything bespoke belongs in a custom block
+The fifteen types above are the complete built-in set. Anything bespoke belongs in a custom block
 registered via `PConf.blocks.register` — the control-type dispatch itself is not pluggable from
 app code.
 
@@ -299,7 +300,7 @@ picking the shown swatch is what writes it.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `type` | string | One of the fourteen types above |
+| `type` | string | One of the fifteen types above |
 | `messageKey` | string | Serialization key — must match the AppMessage/C key |
 | `defaultValue` | any | Default value. Color defaults are ints (e.g. `0xFFFFFF`). |
 | `options` | `[label, value][]` | Choices for `select`, `segmented`, `radio` |
@@ -351,11 +352,12 @@ env = {
   radar:         true,       // false for aplite (no WW_RAIN_RADAR)
   themePolarity: true,       // false for aplite (no WW_THEME_POLARITY — light/B&W-Inv theme)
   hr:            false,      // true only for emery, diorite (heart-rate sensor)
-  thresholds:    true        // false for aplite (no WW_THRESHOLD_HIGHLIGHT)
+  thresholds:    true,       // false for aplite (no WW_THRESHOLD_HIGHLIGHT)
+  colorBacklight: false      // true only for emery (RGB backlight LED)
 }
 // Fallback when watchInfo is unavailable:
 // { color: true, round: false, platform: '', health: true, radar: true,
-//   themePolarity: true, hr: false, thresholds: true }
+//   themePolarity: true, hr: false, thresholds: true, colorBacklight: false }
 ```
 
 The host app may contribute additional facts by passing them as `generateUrl`'s `env`: the
@@ -365,11 +367,15 @@ know. That is the seam for *phone*-runtime capabilities — WarnWeather passes `
 does) — because the library derives env from `watchInfo` alone and never reads app storage.
 
 The set of known 1-bit platforms (`aplite`, `diorite`, `flint`), the no-health/no-radar/
-no-theme-polarity/no-threshold platform (`aplite`), and the heart-rate-capable platforms
-(`emery`, `diorite`) are Pebble facts owned by the library in `lib/platform.js`. Every fallback
-except `hr` is conservative (show the controls if the platform is unknown); `hr` defaults to
-`false` so an unrecognized watch isn't offered a permanently-empty slot. `env.round` is exposed
-for forward-compatibility; the rest are load-bearing values gating real shipped features.
+no-theme-polarity/no-threshold platform (`aplite`), the heart-rate-capable platforms
+(`emery`, `diorite`) and the colour-backlight platform (`emery`) are Pebble facts owned by the
+library in `lib/platform.js`. Every fallback except `hr` and `colorBacklight` is conservative
+(show the controls if the platform is unknown); those two default to `false` so an unrecognized
+watch isn't offered a permanently-empty slot, or hardware (the RGB backlight LED) it probably
+doesn't have. `colorBacklight` is a fact about the BACKLIGHT, not the screen: basalt and chalk
+are `color: true` but `colorBacklight: false`, because only emery's board carries the LED driver
+`light_set_color_rgb888()` needs. `env.round` is exposed for forward-compatibility; the rest are
+load-bearing values gating real shipped features.
 
 ### Hidden-item serialization rule
 
@@ -523,7 +529,8 @@ rename, so a concurrent reader never sees a half-written file), and returns `out
    - `lib/show-when.js` — predicate evaluator (`PConf.showWhen`)
    - `lib/html.js` — the escape helper + shared sheet header (`PConf.html`)
    - `lib/date-picker.js` — the date control: value helpers, wheel renderers, scroll-settle wiring (`PConf.datePicker`)
-   - `lib/range-control.js` — the dual-thumb/threshold slider: numeric rules, renderers, drag wiring (`PConf.rangeControl`)
+   - `lib/range-control.js` — the dual-thumb/threshold slider AND the `rgb` control (three single-thumb
+     channel tracks sharing the same drag wiring): numeric rules, renderers, drag wiring (`PConf.rangeControl`)
    - `lib/engine.js` — render engine, registries, hooks, modal shell, event wiring
    - each file in `appFiles` — the app's blocks and hooks
    - `PConf.engine.boot();` — boot runs last, after all registrations

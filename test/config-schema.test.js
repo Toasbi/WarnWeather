@@ -59,7 +59,12 @@ const EXPECTED_KEYS = [
   'timeLeadingZero','timeShowAmPm','axisTimeFormat','timeFont','colorTime',
   'weekStartDay','firstWeek','colorToday','colorSunday','colorSaturday','holidaysEnabled','colorUSFederal',
   'holidayCountry','holidayRegion',
+  // sleepStartHour/sleepEndHour are the Nighttime card's shared "Night hours" window
+  // (the original battery-saver keys, relabelled); sleepNightStartHour/sleepNightEndHour
+  // are the saver's OWN hours, used only when sleepNightMode leaves that window.
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','fetchNoticeAck','locationMode','location',
+  'sleepNightMode','sleepNightStartHour','sleepNightEndHour',
+  'backlightDim','backlightDimMode','backlightDimStartHour','backlightDimEndHour','backlightDimColor',
   'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','windScale','pressureScale','thirdLine','tempSlotDisplay',
   'dateSlotMonthFormat','dateSlotFullFormat',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','radarNoRainText','rainCountdownHorizon',
@@ -83,9 +88,10 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   seen.forEach((k) => { counts[k] = (counts[k] || 0) + 1; });
   const dups = Object.keys(counts).filter((k) => counts[k] > 1);
   // windScale: solid-line slot vs. dotted-line slot. pressureScale: same split (secondary
-  // vs. third line context). theme: color-env (4 options) vs. B&W-env (2 options), each
-  // doubled again into a 'Theme' (auto off) and a 'Day theme' (auto on) slot; themeNight
-  // is the same color/B&W split. colorUSFederal: dark-exclude-white vs. light-exclude-black.
+  // vs. third line context). theme: color-env (4 options) vs. B&W-env (2 options) — two
+  // slots, not four: the 'Day theme' pair is gone and the Theme row is never renamed.
+  // themeNight is the same color/B&W split. colorUSFederal: dark-exclude-white vs.
+  // light-exclude-black.
   // tomorrowioApiKey/tomorrowioFitBudget: General tab (weather provider) vs. Radar tab
   // (radar-only) — mutually-exclusive showWhen, so only one instance ever renders.
   assert.deepEqual(dups.sort(),
@@ -93,7 +99,7 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
     'unexpected duplicates: ' + dups.join(','));
   assert.equal(counts.windScale, 6, 'windScale appears in six slots (2 contexts × 3 units)');
   assert.equal(counts.pressureScale, 2, 'pressureScale appears in two slots (secondary + third)');
-  assert.equal(counts.theme, 4, 'theme appears in four slots (Theme / Day theme × color / B&W env)');
+  assert.equal(counts.theme, 2, 'theme appears in two slots (color / B&W env)');
   assert.equal(counts.themeNight, 2, 'themeNight appears in two slots (color / B&W env)');
   assert.equal(counts.colorUSFederal, 2, 'colorUSFederal appears in exactly two slots');
   assert.equal(counts.tomorrowioApiKey, 2, 'tomorrow.io key in the General + Radar tabs');
@@ -484,40 +490,154 @@ test('Provider-settings section leads with Update interval, then weather provide
     'the weather-provider block (including its API key field) precedes the AQI provider selection');
   assert.ok(keys.indexOf('yandexApiKey') < keys.indexOf('aqiSource'),
     'the weather-provider block (including the Yandex API key field) precedes the AQI provider selection');
-  // The night battery saver moved OUT of this section, up into the first (top) section.
-  assert.ok(keys.indexOf('sleepNightEnabled') === -1, 'night battery saver is not in Provider settings');
+  // The battery saver moved OUT of this section, up into the Nighttime card.
+  assert.ok(keys.indexOf('sleepNightEnabled') === -1, 'the battery saver is not in Provider settings');
   const unitsSection = general.sections.find((s) => s.title === 'Units');
   assert.ok(!unitsSection.items.some((i) => i.messageKey === 'aqiSource'), 'aqiSource is not in Units');
 });
 
-test('night battery saver + From/To live in the top General card, above Provider settings', () => {
+// The Nighttime card: one home for everything that changes after dark. Night hours is
+// the card's own window and every switch in it follows that window by default, so an
+// upgrading install behaves exactly as it did before the card existed.
+const nightSection = () => schema.tabs.find((t) => t.id === 'general').sections
+  .find((s) => s.title === 'Nighttime');
+const basaltEnv = platform.computeEnv({ platform: 'basalt' });
+const emeryEnv = platform.computeEnv({ platform: 'emery' });
+const visIn = (env) => (item, S) => showWhen.isVisible(item, Object.assign({ env: env }, S));
+
+test('the Nighttime card sits between the top General card and Provider settings', () => {
   const general = schema.tabs.find((t) => t.id === 'general');
-  // sections[0] is the block-only notices panel; the top card (theme + night saver + location) is [1].
+  // sections[0] is the block-only notices panel; the top card (theme + location) is [1].
   const topCard = general.sections[1];
   const topKeys = topCard.items.map((i) => i.messageKey).filter(Boolean);
-  ['sleepNightEnabled', 'sleepStartHour', 'sleepEndHour'].forEach((k) =>
-    assert.ok(topKeys.indexOf(k) !== -1, k + ' lives in the top General card'));
-  assert.ok(!topKeys.some((k) => k === 'fetchIntervalMin'), 'update interval is not in the top card');
+  assert.deepEqual(topKeys, ['theme', 'theme', 'locationMode', 'location', 'gpsCacheMin'],
+    'the top card keeps the theme pickers and the location rows, and nothing nightly');
+  const nightIndex = general.sections.indexOf(nightSection());
   const psIndex = general.sections.findIndex((s) => s.title === 'Provider settings');
-  const topIndex = general.sections.indexOf(topCard);
-  assert.ok(psIndex === topIndex + 1, 'Provider settings is the section immediately below the top card');
+  assert.equal(nightIndex, general.sections.indexOf(topCard) + 1,
+    'Nighttime is the section immediately below the top card');
+  assert.equal(psIndex, nightIndex + 1, 'Provider settings follows Nighttime');
 });
 
-test('night battery saver toggle is renamed and still gates the From/To sleep-hour selects', () => {
-  assert.equal(byKey('sleepNightEnabled').label, 'Night battery saver');
-  assert.deepEqual(byKey('sleepStartHour').showWhen, { key: 'sleepNightEnabled', eq: true });
-  assert.deepEqual(byKey('sleepEndHour').showWhen, { key: 'sleepNightEnabled', eq: true });
+test('the Nighttime card groups night hours, dim backlight, theme switching and the battery saver, in that order', () => {
+  assert.deepEqual(nightSection().items.map((i) => i.messageKey || ('#' + i.text)), [
+    '#Night hours', 'sleepStartHour', 'sleepEndHour',
+    '#Dim backlight', 'backlightDim', 'backlightDimMode',
+    'backlightDimStartHour', 'backlightDimEndHour', 'backlightDimColor',
+    '#Theme switching', 'themeAuto', 'themeNight', 'themeNight', 'themeAutoMode',
+    'themeAutoStartHour', 'themeAutoEndHour',
+    '#Battery saver', 'sleepNightEnabled', 'sleepNightMode',
+    'sleepNightStartHour', 'sleepNightEndHour'
+  ]);
+});
+
+// Each group's master switch rides its own sub-header, and the engine suppresses a
+// hosted toggle's own ROW — so the header and the toggle must carry the SAME gate (a
+// hidden header stops hosting and the row comes back), and the group's copy has to
+// live on the header, where a suppressed row's hint would never render.
+test('every Nighttime group hosts its toggle on its sub-header, gated alike and explained there', () => {
+  const night = nightSection();
+  const headers = night.items.filter((i) => i.type === 'subheader' && i.toggleKey);
+  assert.deepEqual(headers.map((h) => h.text), ['Dim backlight', 'Theme switching', 'Battery saver']);
+  headers.forEach((header) => {
+    const toggle = night.items.find((i) => i.messageKey === header.toggleKey);
+    assert.ok(toggle && toggle.type === 'toggle', header.text + ' hosts a real toggle in the same section');
+    assert.equal(toggle.label, header.text, header.text + ': the switch is named after its group');
+    assert.deepEqual(header.showWhen, toggle.showWhen, header.text + ': header and toggle share one gate');
+    assert.ok(header.intro, header.text + ' explains itself on the header');
+    assert.equal(toggle.hint, undefined, header.text + ': a hosted row renders no hint');
+  });
+});
+
+test('Night hours is the card-level window: the original sleep keys, relabelled and ungated', () => {
+  const from = byKey('sleepStartHour'), to = byKey('sleepEndHour');
+  assert.equal(from.label, 'From');
+  assert.equal(to.label, 'To');
+  assert.equal(from.defaultValue, '0', 'unchanged — no install moves its window on upgrade');
+  assert.equal(to.defaultValue, '7');
+  assert.equal(from.options.length, 24, 'the shared HOURS ladder');
+  assert.equal(from.inline, to.inline, 'rendered as one From/To row');
+  // The sleepNightEnabled gate is GONE: the window is now section-level and outlives
+  // the battery saver being switched off.
+  assert.equal(from.showWhen, undefined, 'Night hours no longer hides with the battery saver');
+  assert.equal(to.showWhen, undefined);
+  assert.equal(nightSection().items[0].text, 'Night hours', 'it heads the card');
 });
 
 // The saver no longer only stops weather FETCHES: with the phone-battery slot it also
 // suppresses the status micro-send (level changes and charging transitions alike), so
-// the hint has to describe sending rather than fetching or it under-promises what the
-// toggle now turns off. Pinned verbatim — this is user-facing copy, and the wording was
-// dictated by the design (docs/superpowers/specs/2026-08-20-phone-battery-slot-design.md
-// §3), not derived.
-test('the night battery saver hint is about SENDING updates, not fetching weather', () => {
-  assert.equal(byKey('sleepNightEnabled').hint,
-    'Stop sending updates to your watch between the hours below to save battery.');
+// the copy has to describe sending rather than fetching or it under-promises what the
+// toggle now turns off. The wording was dictated by the design
+// (docs/superpowers/specs/2026-08-20-phone-battery-slot-design.md §3), not derived; it
+// moved from the toggle's hint to its sub-header's intro when the toggle became hosted,
+// and dropped "between the hours below" because the hours are now the card's.
+test('the battery saver is relabelled, follows Night hours by default, and still talks about SENDING', () => {
+  const night = nightSection();
+  const on = byKey('sleepNightEnabled');
+  assert.equal(on.label, 'Battery saver', 'the word "Night" moved up to the card title');
+  assert.equal(on.defaultValue, true);
+  assert.equal(night.items.find((i) => i.type === 'subheader' && i.toggleKey === 'sleepNightEnabled').intro,
+    'Stop sending updates to your watch at night to save battery.');
+
+  const mode = byKey('sleepNightMode');
+  assert.equal(mode.type, 'segmented');
+  assert.equal(mode.defaultValue, 'night', 'so every existing install keeps the window it had');
+  assert.deepEqual(mode.options.map((o) => o[1]), ['night', 'custom']);
+  assert.deepEqual(mode.options.map((o) => o[0]), ['Night hours', 'Custom']);
+  // The saver's OWN hours are seeded to the Night hours defaults, so switching to
+  // Custom changes nothing until they are actually edited.
+  assert.equal(byKey('sleepNightStartHour').defaultValue, '0');
+  assert.equal(byKey('sleepNightEndHour').defaultValue, '7');
+  assert.equal(byKey('sleepNightStartHour').options.length, 24);
+
+  const vis = visIn(basaltEnv);
+  assert.equal(vis(mode, { sleepNightEnabled: false }), false, 'the mode row follows the switch');
+  assert.equal(vis(mode, { sleepNightEnabled: true }), true);
+  assert.equal(vis(byKey('sleepNightStartHour'), { sleepNightEnabled: true, sleepNightMode: 'night' }), false);
+  assert.equal(vis(byKey('sleepNightStartHour'), { sleepNightEnabled: true, sleepNightMode: 'custom' }), true);
+  assert.equal(vis(byKey('sleepNightEndHour'), { sleepNightEnabled: false, sleepNightMode: 'custom' }), false);
+});
+
+test('Dim backlight is emery-only, on by default, and carries a dim-red RGB colour', () => {
+  const on = byKey('backlightDim');
+  assert.equal(on.type, 'toggle');
+  assert.equal(on.defaultValue, true);
+  // The LED fact, NOT capabilities:['COLOR'] — that one means "colour screen" and is
+  // true on basalt/chalk, which have a plain white backlight.
+  assert.deepEqual(on.showWhen, { env: 'colorBacklight' });
+  assert.equal(on.capabilities, undefined);
+
+  const mode = byKey('backlightDimMode');
+  assert.equal(mode.defaultValue, 'night');
+  assert.deepEqual(mode.options.map((o) => o[1]), ['night', 'custom']);
+  assert.equal(byKey('backlightDimStartHour').defaultValue, '0');
+  assert.equal(byKey('backlightDimEndHour').defaultValue, '7');
+
+  const colour = byKey('backlightDimColor');
+  assert.equal(colour.type, 'rgb', 'three channel sliders storing one "r,g,b" string');
+  assert.equal(colour.label, 'Color');
+  assert.equal(colour.defaultValue, '96,0,0', 'a dim red: the driver scales each channel by the watch brightness');
+
+  const BACKLIGHT_KEYS = ['backlightDim', 'backlightDimMode', 'backlightDimStartHour',
+    'backlightDimEndHour', 'backlightDimColor'];
+  const custom = { backlightDim: true, backlightDimMode: 'custom' };
+  BACKLIGHT_KEYS.forEach((k) => {
+    assert.equal(visIn(emeryEnv)(byKey(k), custom), true, k + ' shows on emery');
+    assert.equal(visIn(basaltEnv)(byKey(k), custom), false,
+      k + ' hides on a colour screen with a white backlight');
+  });
+  const vis = visIn(emeryEnv);
+  assert.equal(vis(mode, { backlightDim: false }), false, 'switched off, only the header switch is left');
+  assert.equal(vis(colour, { backlightDim: false }), false);
+  assert.equal(vis(byKey('backlightDimStartHour'), { backlightDim: true, backlightDimMode: 'night' }), false,
+    'following Night hours hides the custom pair');
+});
+
+// Decision: `theme` doubles as the day theme and the page never names it that way — a
+// row the user sees renamed behind their back is worse than no name at all.
+test('no user-facing string anywhere in the schema says "Day theme"', () => {
+  assert.equal(JSON.stringify(schema).toLowerCase().indexOf('day theme'), -1,
+    'the phrase "Day theme" is back in the settings copy');
 });
 
 test('windUnits is a segmented kph/mph/Knots picker defaulting to kph', () => {
@@ -962,41 +1082,36 @@ test('radar intro drops mechanics; provider positioning lives in the per-provide
 });
 
 test('theme is a two-slot select dropdown (color env: 4 options; B&W env: 2), like windScale', () => {
-  // Four slots since the auto switch: the two 'Theme' selects (auto off) and
-  // the two 'Day theme' selects that replace them while auto is on. Same
-  // messageKey, mutually-exclusive showWhen — the tomorrow.io key idiom.
+  // Two slots, both always visible: the auto switch no longer swaps in a second,
+  // renamed pair. `theme` simply doubles as the day theme while Theme switching is on.
   const themeItems = items.filter((i) => i.messageKey === 'theme');
-  assert.equal(themeItems.length, 4);
-  const plainItems = themeItems.filter((i) => i.label === 'Theme');
-  const dayItems = themeItems.filter((i) => i.label === 'Day theme');
-  assert.equal(plainItems.length, 2);
-  assert.equal(dayItems.length, 2);
-  [plainItems, dayItems].forEach((pair) => {
-    const colorItem = pair.find((i) => JSON.stringify(i.showWhen).indexOf('"color"}') >= 0 && JSON.stringify(i.showWhen).indexOf('"not"') < 0);
-    const bwItem = pair.find((i) => i !== colorItem);
-    assert.deepEqual(colorItem.options.map((o) => o[1]), ['dark', 'light', 'bw', 'bw-light']);
-    assert.deepEqual(colorItem.options.map((o) => o[0]), ['Dark', 'Light', 'B&W', 'B&W Inverted']);
-    assert.deepEqual(bwItem.options.map((o) => o[1]), ['dark', 'light']);
-    assert.deepEqual(bwItem.options.map((o) => o[0]), ['Dark', 'Light']);
-  });
-  const hintedColorItem = plainItems.find((i) => i.hintByValue);
-  assert.ok(hintedColorItem.hintByValue['bw-light'], 'color-env theme item has a bw-light hint');
+  assert.equal(themeItems.length, 2);
+  const colorItem = themeItems.find((i) => JSON.stringify(i.showWhen).indexOf('"not"') < 0);
+  const bwItem = themeItems.find((i) => i !== colorItem);
+  assert.deepEqual(colorItem.options.map((o) => o[1]), ['dark', 'light', 'bw', 'bw-light']);
+  assert.deepEqual(colorItem.options.map((o) => o[0]), ['Dark', 'Light', 'B&W', 'B&W Inverted']);
+  assert.deepEqual(bwItem.options.map((o) => o[1]), ['dark', 'light']);
+  assert.deepEqual(bwItem.options.map((o) => o[0]), ['Dark', 'Light']);
+  assert.ok(colorItem.hintByValue['bw-light'], 'color-env theme item has a bw-light hint');
   themeItems.forEach((i) => {
+    assert.equal(i.label, 'Theme', 'never renamed, whatever the auto switch is doing');
     assert.equal(i.type, 'select', 'theme is a dropdown, not segmented');
     assert.equal(i.defaultValue, 'dark');
     assert.equal(i.onChange, 'themeConvert');
+    assert.equal(JSON.stringify(i.showWhen).indexOf('themeAuto'), -1,
+      'the Theme row is never gated on the auto switch');
   });
 });
 
-test('auto theme switch: toggle + Day/Night pair + mode + manual hours, gated correctly', () => {
+test('theme switching: toggle + Night theme + mode + custom hours, gated correctly', () => {
   const auto = byKey('themeAuto');
   assert.equal(auto.type, 'toggle');
+  assert.equal(auto.label, 'Theme switching');
   assert.equal(auto.defaultValue, false, 'off by default');
-  assert.equal(auto.onChange, 'themeAutoPreset', 'first enable seeds Light day / Dark night');
+  assert.equal(auto.onChange, 'themeAutoPreset', 'first enable seeds a night theme');
   assert.deepEqual(auto.showWhen, { env: 'themePolarity' }, 'hidden on aplite like the theme picker');
-  assert.equal(auto.joinPrevious, true, 'joins the Theme select into one visual group');
   assert.equal(byKey('themeAutoStartHour').label, 'From',
-    'hour labels match the Night battery saver rows');
+    'hour labels match the other Nighttime rows');
   assert.equal(byKey('themeAutoEndHour').label, 'To');
 
   const nightItems = items.filter((i) => i.messageKey === 'themeNight');
@@ -1011,26 +1126,32 @@ test('auto theme switch: toggle + Day/Night pair + mode + manual hours, gated co
   const mode = byKey('themeAutoMode');
   assert.equal(mode.type, 'segmented');
   assert.equal(mode.defaultValue, 'sun', 'enabling defaults to sunrise/sunset');
-  assert.deepEqual(mode.options.map((o) => o[1]), ['sun', 'manual']);
+  // 'manual' is the STORED value for custom hours — relabelled to "Custom", never
+  // renamed, so an install that already picked fixed hours keeps them. 'night' is the
+  // new "follow the card's Night hours".
+  assert.deepEqual(mode.options.map((o) => o[1]), ['sun', 'night', 'manual']);
+  assert.deepEqual(mode.options.map((o) => o[0]), ['Sunrise/sunset', 'Night hours', 'Custom']);
+  Object.keys(mode.hintByValue).forEach((v) => assert.ok(mode.hintByValue[v],
+    'every mode value explains itself: ' + v));
+  assert.deepEqual(Object.keys(mode.hintByValue).sort(), ['manual', 'night', 'sun']);
 
   assert.equal(byKey('themeAutoStartHour').defaultValue, '20');
   assert.equal(byKey('themeAutoEndHour').defaultValue, '7');
   assert.equal(byKey('themeAutoStartHour').options.length, 24, 'the shared HOURS ladder');
 
-  // Visibility contract on a color watch: auto OFF shows the single Theme
-  // select; auto ON swaps in the Day/Night pair. The manual hour rows follow
-  // the mode. Aplite sees none of it.
+  // Visibility contract on a color watch: the Theme select stays put whatever the
+  // switch is doing (it IS the day theme), and only the custom hour rows follow the
+  // mode. Aplite sees none of the switching rows.
   const colorEnv = platform.computeEnv({ platform: 'basalt' });
   const apliteEnv = platform.computeEnv({ platform: 'aplite' });
   const vis = (item, S) => showWhen.isVisible(item, Object.assign({ env: colorEnv }, S));
   const themeItems = items.filter((i) => i.messageKey === 'theme');
-  const plainColor = themeItems.find((i) => i.label === 'Theme' && i.hintByValue);
-  const dayColor = themeItems.find((i) => i.label === 'Day theme' && i.options.length === 4);
+  const plainColor = themeItems.find((i) => i.hintByValue);
   assert.equal(vis(plainColor, { themeAuto: false }), true);
-  assert.equal(vis(dayColor, { themeAuto: false }), false);
-  assert.equal(vis(plainColor, { themeAuto: true }), false);
-  assert.equal(vis(dayColor, { themeAuto: true }), true);
+  assert.equal(vis(plainColor, { themeAuto: true }), true, 'the Theme row does not disappear');
   assert.equal(vis(byKey('themeAutoStartHour'), { themeAuto: true, themeAutoMode: 'sun' }), false);
+  assert.equal(vis(byKey('themeAutoStartHour'), { themeAuto: true, themeAutoMode: 'night' }), false,
+    'following Night hours hides the custom pair');
   assert.equal(vis(byKey('themeAutoStartHour'), { themeAuto: true, themeAutoMode: 'manual' }), true);
   [auto].concat(nightItems).forEach((i) => {
     assert.equal(showWhen.isVisible(i, { env: apliteEnv, themeAuto: true }), false,

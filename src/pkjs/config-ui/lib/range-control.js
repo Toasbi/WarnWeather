@@ -124,6 +124,210 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return { lo: range.lo, hi: v };
   }
 
+  // ---- rgb (three-channel colour) value helpers ----------------------------
+  // An rgb item stores ALL THREE channels in ONE messageKey as "r,g,b" — the same
+  // one-key-composite-string shape `range` uses for "lo-hi" and `date` for
+  // "YYYY-MM-DD" — so hydration / serialization / showWhen stay untouched. Unlike
+  // `range` the schema item carries no min/max: the bounds come from the hardware
+  // the value feeds (one byte per channel, e.g. the watch's backlight LED via
+  // light_set_color_rgb888) and can never change, so they live here.
+  var RGB_MIN = 0, RGB_MAX = 255;
+  var RGB_CHANNELS = ['r', 'g', 'b'];
+  // Per-channel chrome: the one-letter track label, the aria wording, and the
+  // thumb/fill tint — carried inline as --th-c/--th-glow, the same custom
+  // properties the threshold slider's coloured knobs ride on.
+  var RGB_CHROME = {
+    r: { short: 'R', name: 'red', tint: '#FA4A35', glow: 'rgba(250,74,53,0.4)' },
+    g: { short: 'G', name: 'green', tint: '#34C05A', glow: 'rgba(52,192,90,0.4)' },
+    b: { short: 'B', name: 'blue', tint: '#4A8BFA', glow: 'rgba(74,139,250,0.4)' }
+  };
+
+  /**
+   * Is this schema item the three-channel colour control? The one place the type
+   * name is spelled, so every dispatch below (render, paint, commit, drag math)
+   * agrees on what an rgb item is.
+   * @param {Object} item Schema item.
+   * @returns {boolean} True for type 'rgb'.
+   */
+  function isRgbItem(item) { return Boolean(item && item.type === 'rgb'); }
+
+  /**
+   * Is this a channel name? An explicit three-way test, not an RGB_CHROME lookup:
+   * a plain-object lookup answers truthy for inherited names like 'constructor'.
+   * @param {*} which Candidate channel name.
+   * @returns {boolean} True for 'r', 'g' or 'b'.
+   */
+  function isRgbChannel(which) {
+    return which === 'r' || which === 'g' || which === 'b';
+  }
+
+  /**
+   * Clamp one channel into [0, 255] and round it to an integer.
+   * @param {*} v Raw channel value.
+   * @returns {number} Integer in [0, 255]; 0 for anything unparseable.
+   */
+  function clampChannel(v) {
+    var n = Math.round(Number(v));
+    if (!isFinite(n)) { return RGB_MIN; }
+    if (n < RGB_MIN) { return RGB_MIN; }
+    if (n > RGB_MAX) { return RGB_MAX; }
+    return n;
+  }
+
+  /**
+   * One channel's track offset as a percentage, one decimal (the thumb's `left`
+   * and the fill's `right`), so the control needs no measured width at render time.
+   * @param {number} v Channel value.
+   * @returns {number} Percentage in [0, 100].
+   */
+  function rgbPct(v) { return Math.round((clampChannel(v) * 1000) / RGB_MAX) / 10; }
+
+  /**
+   * Parse a stored "r,g,b" string STRICTLY: exactly three integer channels, with
+   * surrounding whitespace tolerated. An out-of-range channel is CLAMPED rather
+   * than rejected — 0-255 is fixed by the hardware, so 300 is a bruised value and
+   * not a stale one — but anything that is not three integers (a hex string, two
+   * channels, an empty string) is rejected so the caller can fall back.
+   * @param {*} value Stored value.
+   * @returns {?{r:number, g:number, b:number}} The colour, or null if unparseable.
+   */
+  function parseRgbStrict(value) {
+    var parts = String(value == null ? '' : value).split(',');
+    if (parts.length !== 3) { return null; }
+    var out = {}, i, s;
+    for (i = 0; i < 3; i++) {
+      s = parts[i].replace(/\s/g, '');
+      if (!/^-?\d+$/.test(s)) { return null; }
+      out[RGB_CHANNELS[i]] = clampChannel(parseInt(s, 10));
+    }
+    return out;
+  }
+
+  /**
+   * Parse a stored "r,g,b" string, falling back to the item's defaultValue and
+   * then to black. One level of fallback only (parseRange's rule): recursing on
+   * defaultValue would loop if the default itself is broken.
+   * @param {*} value Stored value.
+   * @param {Object} [item] Rgb schema item (defaultValue).
+   * @returns {{r:number, g:number, b:number}} A valid colour.
+   */
+  function parseRgb(value, item) {
+    var got = parseRgbStrict(value);
+    if (got) { return got; }
+    if (item && item.defaultValue != null && String(item.defaultValue) !== String(value)) {
+      var d = parseRgbStrict(item.defaultValue);
+      if (d) { return d; }
+    }
+    return { r: RGB_MIN, g: RGB_MIN, b: RGB_MIN };
+  }
+
+  /**
+   * Serialize a colour to its stored form.
+   * @param {{r:number, g:number, b:number}} c Colour.
+   * @returns {string} "r,g,b".
+   */
+  function formatRgb(c) { return c.r + ',' + c.g + ',' + c.b; }
+
+  /**
+   * The resolved colour as CSS hex — what the live swatch paints and the hex
+   * readout prints. Uppercase, matching the colour picker's own readout.
+   * @param {{r:number, g:number, b:number}} c Colour.
+   * @returns {string} "#RRGGBB".
+   */
+  function rgbHex(c) {
+    var out = '#', i, s;
+    for (i = 0; i < 3; i++) {
+      s = clampChannel(c ? c[RGB_CHANNELS[i]] : 0).toString(16).toUpperCase();
+      out += (s.length < 2 ? '0' : '') + s;
+    }
+    return out;
+  }
+
+  /**
+   * Move one channel's thumb: snap to the item's step grid, clamp to [0, 255].
+   * The rgb counterpart of moveThumb — no crossing or minimum-span rules, the
+   * three channels are independent — and like it, it does not mutate its input.
+   * An unknown channel name is a no-op.
+   * @param {{r:number, g:number, b:number}} c Current colour (not mutated).
+   * @param {string} which 'r', 'g' or 'b'.
+   * @param {number} value Requested new value for that channel.
+   * @param {Object} [item] Rgb schema item (step).
+   * @returns {{r:number, g:number, b:number}} The new colour.
+   */
+  function setRgbChannel(c, which, value, item) {
+    var next = { r: c.r, g: c.g, b: c.b };
+    if (isRgbChannel(which)) {
+      next[which] = snapToStep(value, RGB_MIN, RGB_MAX, rangeStep(item));
+    }
+    return next;
+  }
+
+  /**
+   * Three-channel colour control (type: 'rgb'): a live swatch + hex readout above
+   * one single-thumb track per channel. Composed from the range slider's OWN
+   * track/thumb markup, so the drag, keyboard-nudge, focus and disabled-row rules
+   * in createRangeWiring serve it unchanged; only the value shape differs, and it
+   * rides on the root as data-r/data-g/data-b the way a range rides data-lo/data-hi.
+   * @param {Object} item Rgb schema item (messageKey/label/step/defaultValue).
+   * @param {{value:*}} view Render state.
+   * @returns {string} Control HTML.
+   */
+  function renderRgb(item, view) {
+    var c = parseRgb(view.value, item);
+    var hex = rgbHex(c);
+    var label = String(item.label || 'Colour');
+    var h = '<div class="rng rgb" data-range="' + esc(item.messageKey) + '" data-r="' + c.r
+      + '" data-g="' + c.g + '" data-b="' + c.b + '">'
+      + '<div class="rgb-head"><div class="sw-wrap">'
+      + '<b data-rgb-swatch style="background:' + esc(hex) + '"></b>'
+      + '<span data-rgb-hex>' + esc(hex) + '</span></div></div>';
+    for (var i = 0; i < RGB_CHANNELS.length; i++) {
+      var ch = RGB_CHANNELS[i], v = c[ch], chrome = RGB_CHROME[ch], pct = rgbPct(v);
+      h += '<div class="rgb-ch" style="--th-c:' + chrome.tint + ';--th-glow:' + chrome.glow + '">'
+        + '<span class="rgb-ch-lbl" aria-hidden="true">' + chrome.short + '</span>'
+        + '<div class="rng-track">'
+        + '<div class="rng-fill" data-rgb-fill="' + ch + '" style="left:0;right:'
+        + (Math.round((100 - pct) * 10) / 10) + '%"></div>'
+        + '<button type="button" class="rng-th" data-range-thumb="' + ch
+        + '" style="left:' + pct + '%" role="slider" aria-label="'
+        + esc(label + ' ' + chrome.name) + '" aria-valuemin="' + RGB_MIN
+        + '" aria-valuemax="' + RGB_MAX + '" aria-valuenow="' + v + '"></button>'
+        + '</div>'
+        + '<span class="rgb-ch-val" data-rgb-val="' + ch + '">' + v + '</span>'
+        + '</div>';
+    }
+    return h + '</div>';
+  }
+
+  /**
+   * Repaint one rgb control in place during a drag or keyboard nudge (no
+   * re-render, same contract as paintThresholdRange): swatch, hex readout, each
+   * channel's fill/thumb/value, and the data-r/data-g/data-b state the pointer
+   * handler reads back on the next frame.
+   * @param {Element} root .rng.rgb element.
+   * @param {Object} item Rgb schema item (unused — kept so paintRange can dispatch
+   *   on type with one signature).
+   * @param {{r:number, g:number, b:number}} c New colour.
+   * @returns {void}
+   */
+  function paintRgb(root, item, c) {
+    var hex = rgbHex(c);
+    var sw = root.querySelector('[data-rgb-swatch]');
+    var tx = root.querySelector('[data-rgb-hex]');
+    if (sw) { sw.style.background = hex; }
+    if (tx) { tx.textContent = hex; }
+    for (var i = 0; i < RGB_CHANNELS.length; i++) {
+      var ch = RGB_CHANNELS[i], v = c[ch], pct = rgbPct(v);
+      root.setAttribute('data-' + ch, v);
+      var fill = root.querySelector('[data-rgb-fill=' + ch + ']');
+      var th = root.querySelector('[data-range-thumb=' + ch + ']');
+      var val = root.querySelector('[data-rgb-val=' + ch + ']');
+      if (fill) { fill.style.right = (Math.round((100 - pct) * 10) / 10) + '%'; }
+      if (th) { th.style.left = pct + '%'; th.setAttribute('aria-valuenow', v); }
+      if (val) { val.textContent = v; }
+    }
+  }
+
 
   /**
    * Resolve a threshold slider's two stored values (display-unit strings; comma
@@ -386,27 +590,32 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // render() ONCE on release, which lets any dependent showWhen/blocks catch up.
     var drag = null;   // { root, thumb, which, item, pointerId } while a thumb is held
     /**
-     * Map a client x within the track to a value in the item's range.
+     * Map a client x within the track to a value on the control's scale — the
+     * item's [min, max] for a range/threshold slider, the fixed [0, 255] of one
+     * channel byte for the rgb control.
      * @param {Element} track .rng-track element.
-     * @param {Object} item Range schema item.
+     * @param {Object} item Range or rgb schema item.
      * @param {number} clientX Pointer x.
      * @returns {number} Unsnapped value at that position.
      */
     function rangeValueAt(track, item, clientX) {
+      var min = isRgbItem(item) ? RGB_MIN : Number(item.min);
+      var max = isRgbItem(item) ? RGB_MAX : Number(item.max);
       var box = track.getBoundingClientRect();
       var frac = box.width > 0 ? (clientX - box.left) / box.width : 0;
       if (frac < 0) { frac = 0; }
       if (frac > 1) { frac = 1; }
-      return Number(item.min) + frac * (Number(item.max) - Number(item.min));
+      return min + frac * (max - min);
     }
     /**
-     * Repaint one range control in place (no re-render) from a new range.
+     * Repaint one control in place (no re-render) from a new value state.
      * @param {Element} root .rng element.
-     * @param {Object} item Resolved range schema item.
-     * @param {{lo:number, hi:number}} r New range.
+     * @param {Object} item Resolved range or rgb schema item.
+     * @param {Object} r New state — {r,g,b} for rgb, {lo,hi} for a slider.
      * @returns {void}
      */
     function paintRange(root, item, r) {
+      if (isRgbItem(item)) { paintRgb(root, item, r); return; }
       if (item.rangeFrom) { paintThresholdRange(root, item, r); return; }
       var min = Number(item.min), max = Number(item.max);
       var span = (max - min) || 1;
@@ -426,14 +635,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       hi.setAttribute('aria-valuenow', r.hi);
     }
     /**
-     * Write a moved range into S. A threshold slider stores its two thumbs in the
+     * Write a moved value into S. A threshold slider stores its two thumbs in the
      * warn/danger keys (track order mapped back through the kind's direction); the
-     * plain range keeps its single "lo-hi" string.
-     * @param {Object} item Resolved range item.
-     * @param {{lo:number, hi:number}} r New range.
+     * plain range keeps its single "lo-hi" string and the rgb control its single
+     * "r,g,b" one.
+     * @param {Object} item Resolved range or rgb item.
+     * @param {Object} r New state — {r,g,b} for rgb, {lo,hi} for a slider.
      * @returns {void}
      */
     function commitRange(item, r) {
+      if (isRgbItem(item)) { ctx.S[item.messageKey] = formatRgb(r); return; }
       if (item.rangeFrom) {
         var below = item.dir === 'below';
         ctx.S[item.messageKey] = String(below ? r.hi : r.lo);
@@ -462,16 +673,50 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       ctx.render();
     }
     /**
-     * Current data-lo/data-hi state off a .rng root. Parsed as floats: threshold
-     * kinds may step in halves (sleep hours, pollen bands, km).
+     * Current value state off a .rng root: data-r/data-g/data-b for the rgb
+     * control, data-lo/data-hi for a slider. Parsed as floats: threshold kinds may
+     * step in halves (sleep hours, pollen bands, km).
      * @param {Element} root .rng element.
-     * @returns {{lo:number, hi:number}} Current range.
+     * @param {Object} [item] Resolved range or rgb schema item.
+     * @returns {Object} {r,g,b} for rgb, {lo,hi} otherwise.
      */
-    function rangeState(root) {
+    function rangeState(root, item) {
+      if (isRgbItem(item)) {
+        return {
+          r: parseFloat(root.getAttribute('data-r')),
+          g: parseFloat(root.getAttribute('data-g')),
+          b: parseFloat(root.getAttribute('data-b'))
+        };
+      }
       return {
         lo: parseFloat(root.getAttribute('data-lo')),
         hi: parseFloat(root.getAttribute('data-hi'))
       };
+    }
+    /**
+     * Apply a thumb move to a control's value state: one independent channel for
+     * the rgb control, one non-crossing thumb for a slider.
+     * @param {Object} state Current state ({r,g,b} or {lo,hi}).
+     * @param {string} which Channel ('r'|'g'|'b') or thumb ('lo'|'hi') name.
+     * @param {number} value Requested value for it.
+     * @param {Object} item Resolved range or rgb schema item.
+     * @returns {Object} The new state.
+     */
+    function moveControl(state, which, value, item) {
+      return isRgbItem(item)
+        ? setRgbChannel(state, which, value, item) : moveThumb(state, which, value, item);
+    }
+    /**
+     * Do two value states carry the same numbers? Guards the drag repaint so a
+     * frame that moved nothing does no DOM work.
+     * @param {Object} a One state.
+     * @param {Object} b The other state.
+     * @param {Object} item Resolved range or rgb schema item.
+     * @returns {boolean} True when nothing moved.
+     */
+    function sameState(a, b, item) {
+      return isRgbItem(item)
+        ? (a.r === b.r && a.g === b.g && a.b === b.b) : (a.lo === b.lo && a.hi === b.hi);
     }
     /**
      * Attach the range pointer/keyboard handlers to a host container.
@@ -512,11 +757,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         // scale-max field committing on the grab's focus shift): its rect is 0-wide,
         // so the math would slam the value to the track start — end the drag instead.
         if (drag.root.isConnected === false) { drag = null; ctx.render(); return; }
-        var track = drag.root.querySelector('.rng-track');
-        var current = rangeState(drag.root);
-        var next = moveThumb(current, drag.which,
+        // The thumb's OWN track, not the root's first one: an rgb control stacks
+        // three tracks under one root, and measuring the R track while dragging B
+        // would map the pointer onto the wrong rect.
+        var track = (drag.thumb.closest && drag.thumb.closest('.rng-track'))
+          || drag.root.querySelector('.rng-track');
+        var current = rangeState(drag.root, drag.item);
+        var next = moveControl(current, drag.which,
           rangeValueAt(track, drag.item, e.clientX), drag.item);
-        if (next.lo === current.lo && next.hi === current.hi) { return; }
+        if (sameState(next, current, drag.item)) { return; }
         paintRange(drag.root, drag.item, next);
         commitRange(drag.item, next);
       });
@@ -543,8 +792,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         var item = liveRangeItem(root);
         if (!item) { return; }
         var which = th.getAttribute('data-range-thumb');
-        var current = rangeState(root);
-        var next = moveThumb(current, which, current[which] + delta * rangeStep(item), item);
+        var current = rangeState(root, item);
+        var next = moveControl(current, which, current[which] + delta * rangeStep(item), item);
         paintRange(root, item, next);
         commitRange(item, next);
         e.preventDefault();
@@ -610,6 +859,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     renderThresholdRange: renderThresholdRange,
     paintThresholdRange: paintThresholdRange,
     renderRange: renderRange,
+    parseRgb: parseRgb,
+    formatRgb: formatRgb,
+    rgbHex: rgbHex,
+    setRgbChannel: setRgbChannel,
+    renderRgb: renderRgb,
+    paintRgb: paintRgb,
     createRangeWiring: createRangeWiring
   };
   if (typeof module !== 'undefined' && module.exports) { module.exports = PConf.rangeControl; }

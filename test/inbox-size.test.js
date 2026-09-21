@@ -173,7 +173,7 @@ test('weather bundle keeps explicit headroom below the watch inbox', () => {
 
 /** The Clay settings message now carries the palette tuples too. */
 function buildHeaviestClayMessage() {
-  return buildClayPayload({
+  const payload = buildClayPayload({
     temperatureUnits: 'c', timeLeadingZero: true, axisTimeFormat: '12h',
     weekStartDay: 'mon', firstWeek: 'prev', timeFont: 'bitham', showQt: true,
     btIcons: 'both', vibe: true, timeShowAmPm: true, dayNightShading: true,
@@ -186,6 +186,24 @@ function buildHeaviestClayMessage() {
     // packs it + NUL; clay-payload truncates anything longer at pack time).
     radarNoRainText: 'Kein Regen in Sichtweite',
   }, { platform: 'emery' }, new Date('2026-06-26T00:00:00Z'));
+
+  // RESERVED, not yet sent. Phase 2 of the Nighttime work tints the backlight LED
+  // red at night (light_set_color_rgb888, emery only) and needs the colour and the
+  // window on the watch: CLAY_NIGHT_LIGHT_UINT8 = [r, g, b, startHour, endHour].
+  // The messageKey is declared in package.template.json already, but nothing packs
+  // it — clay-payload.js will, once the C side reads it — so this line is the
+  // RESERVATION that proves the budget is there. The number this test records
+  // therefore already includes it, and phase 2 replaces the line with the real key
+  // without the recorded size moving.
+  //
+  //   tuple  = 7 B header (4 B key + 1 B type + 2 B length) + 5 B data = 12 B
+  //   message 499 B -> 511 B of the 536 B inbox, headroom 37 -> 25 B
+  //   spendable above the 10 B floor: 27 B before, 15 B after
+  //
+  // A 5-byte array, not five scalars: an array tuple costs 7 + N while each scalar
+  // costs 7 + 4, so the five would be 55 B instead of 12 B.
+  payload.CLAY_NIGHT_LIGHT_UINT8 = [96, 0, 0, 0, 7];
+  return payload;
 }
 
 test('Clay settings message (with palette) fits the watch inbox', function() {
@@ -228,6 +246,10 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // 490 -> 499 when the date-slot formats joined (CLAY_DATE_FORMAT_UINT8:
   // 7 B tuple header + 2 B [monthYear, fullDate]). Threshold-gated like the
   // threshold blob, so an aplite bundle stays without it.
-  assert.equal(size, 499, 'update the recorded Clay message size when its wire contract changes');
+  // 499 -> 511 when the Nighttime card RESERVED the Dim backlight tuple
+  // (CLAY_NIGHT_LIGHT_UINT8: 7 B tuple header + 5 B [r, g, b, startHour, endHour]).
+  // It is the only entry in this ledger that no shipped payload carries yet — see
+  // buildHeaviestClayMessage above for why it is counted anyway.
+  assert.equal(size, 511, 'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });

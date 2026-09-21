@@ -71,11 +71,26 @@
 
     /**
      * First-enable preset for the automatic theme switch (the themeAuto
-     * toggle's onChange): when the Day and Night picks are still identical —
-     * nothing differentiated yet, true on a fresh install (dark/dark) — seed
-     * the feature's advertised default, Light by day and Dark by night,
-     * running the same polarity conversion a manual flip to Light would. A
-     * re-enable after the user set the pair apart changes nothing.
+     * toggle's onChange): when the Night pick is still identical to the theme
+     * the user is on — nothing differentiated yet, true on a fresh install
+     * (dark/dark) — seed a Dark night theme. A re-enable after the user set
+     * the pair apart changes nothing.
+     *
+     * IT WRITES ONLY themeNight. The Theme row is now permanently visible and
+     * doubles as the day theme, so the earlier version of this preset — which
+     * flipped S.theme to 'light' and ran applyThemeConvert over the stored
+     * colours — would read as the settings page changing the user's theme, and
+     * their colours with it, behind their back. Switching the feature on picks
+     * what happens AT NIGHT; the day stays whatever they chose.
+     *
+     * The consequence, deliberately accepted: on a fresh install (theme and
+     * themeNight both 'dark') the seed lands on the value already there, so
+     * the switch does nothing visible until the user sets Theme or Night theme
+     * apart. There is no third state to infer that from — a dark day theme
+     * with an unset night theme is indistinguishable from a dark day theme
+     * with a deliberate dark night theme — and guessing wrong means the face
+     * changes colour at dusk for someone who never asked.
+     *
      * @param {Object} S Live settings state (config-ui engine's S).
      * @param {*} oldValue Previous toggle value.
      * @param {*} newValue New toggle value.
@@ -84,12 +99,7 @@
     function applyThemeAutoPreset(S, oldValue, newValue) {
         if (newValue !== true) { return; }
         if (S.theme !== S.themeNight) { return; }
-        var oldTheme = S.theme || 'dark';
         S.themeNight = 'dark';
-        if (oldTheme !== 'light') {
-            S.theme = 'light';
-            applyThemeConvert(S, oldTheme, 'light');
-        }
     }
 
     var api = {

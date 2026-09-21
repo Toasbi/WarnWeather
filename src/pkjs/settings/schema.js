@@ -805,6 +805,19 @@ function barSlots(prefix, barWhen, leftJoins) {
 // the URL and open it in desktop-site mode. See copyBtn() + the engine's [data-copy] handler.
 var TOMORROWIO_KEY_HINT = '<a target=\'_blank\' href=\'https://app.tomorrow.io/signup\'>Create a free tomorrow.io account</a> (no credit card needed), then open <b>https://app.tomorrow.io/development/keys</b>' + copyBtn('https://app.tomorrow.io/development/keys', 'Copy the API-keys page link') + ', copy your key and paste it here, then Test it. The free plan is plenty — see the call budget below.<br><b>IMPORTANT: On a phone, tomorrow.io\'s mobile site shows an error (404) on the API-keys page — tap the copy button, then open the link in your browser\'s desktop-site mode.</b>';
 var TOMORROWIO_BUDGET_HINT = 'Only offer update intervals that fit the free plan. Turn off to pick any interval — over-budget calls are rejected by tomorrow.io until the limit resets, and the watch keeps its last data.';
+// The Nighttime card's gates. "Dim backlight" is emery-only: env.colorBacklight
+// (config-ui/lib/platform.js) is a fact about the BACKLIGHT, not the screen — only
+// emery's board carries the RGB LED driver light_set_color_rgb888() needs, so
+// basalt/chalk (colour screen, plain white backlight) are deliberately out. NOT
+// capabilities: ['COLOR'], which says "colour screen" and would light the rows up
+// there.
+var BACKLIGHT_WHEN = {env: 'colorBacklight'};
+var BACKLIGHT_ON_WHEN = {all: [BACKLIGHT_WHEN, {key: 'backlightDim', eq: true}]};
+var BACKLIGHT_CUSTOM_WHEN = {all: [BACKLIGHT_WHEN, {key: 'backlightDim', eq: true},
+    {key: 'backlightDimMode', eq: 'custom'}]};
+// The battery saver's own hours, shown only once it stops following Night hours.
+var SAVER_CUSTOM_WHEN = {all: [{key: 'sleepNightEnabled', eq: true},
+    {key: 'sleepNightMode', eq: 'custom'}]};
 module.exports = {
     appName: 'WarnWeather',
     themeKey: 'configTheme',
@@ -830,10 +843,12 @@ module.exports = {
                     'bw-light': 'Renders exactly like a Black & White watch in its Light theme — black on white.'
                 },
                 options: [['Dark', 'dark'], ['Light', 'light'], ['B&W', 'bw'], ['B&W Inverted', 'bw-light']],
-                // Hidden while the automatic switch is on — the Day/Night pair
-                // below takes over (same messageKey, mutually-exclusive showWhen,
-                // the tomorrow.io key idiom).
-                showWhen: {all: [{env: 'color'}, {key: 'themeAuto', ne: true}]},
+                // Always visible and never renamed. `theme` has always doubled as the
+                // day theme: with Theme switching (the Nighttime card) on, that card
+                // adds the night one and this row keeps its meaning. It used to be
+                // hidden and replaced by a "Day theme" copy of itself, which read as
+                // the page renaming a row behind the user's back.
+                showWhen: {env: 'color'},
                 onChange: 'themeConvert'
             }, {
                 type: 'select',
@@ -849,117 +864,8 @@ module.exports = {
                 // theme sweep pushed the image past the 24 KB launch ceiling), so the
                 // picker is hidden there entirely; a choice would be a silent no-op.
                 // diorite/flint (also B&W) keep this 2-option slot.
-                showWhen: {all: [{not: {env: 'color'}}, {env: 'themePolarity'}, {key: 'themeAuto', ne: true}]},
+                showWhen: {all: [{not: {env: 'color'}}, {env: 'themePolarity'}]},
                 onChange: 'themeConvert'
-            }, {
-                type: 'toggle',
-                messageKey: 'themeAuto',
-                label: 'Automatic theme',
-                defaultValue: false,
-                // Same gate as the theme pickers: aplite has nothing to switch
-                // between (light polarity compiled out), so the feature hides there.
-                showWhen: {env: 'themePolarity'},
-                // Joins the Theme select above into one visual group — the whole
-                // auto chain below already joins, so the theming rows read as one.
-                joinPrevious: true,
-                // First enable seeds Light day / Dark night (theme-convert.js).
-                onChange: 'themeAutoPreset',
-                hint: 'Switch between two themes automatically — with the sun or on a fixed schedule. The phone applies the switch, so it can land a little late while the watch is disconnected.'
-            }, {
-                // The Day/Night pair replaces the single Theme select while the
-                // automatic switch is on. `theme` doubles as the day theme, so
-                // turning the switch off simply keeps the day look.
-                type: 'select',
-                messageKey: 'theme',
-                label: 'Day theme',
-                defaultValue: 'dark',
-                options: [['Dark', 'dark'], ['Light', 'light'], ['B&W', 'bw'], ['B&W Inverted', 'bw-light']],
-                showWhen: {all: [{env: 'color'}, {key: 'themeAuto', eq: true}]},
-                onChange: 'themeConvert',
-                joinPrevious: true
-            }, {
-                type: 'select',
-                messageKey: 'theme',
-                label: 'Day theme',
-                defaultValue: 'dark',
-                options: [['Dark', 'dark'], ['Light', 'light']],
-                showWhen: {all: [{not: {env: 'color'}}, {env: 'themePolarity'}, {key: 'themeAuto', eq: true}]},
-                onChange: 'themeConvert',
-                joinPrevious: true
-            }, {
-                // No themeConvert here: the stored colour defaults track the DAY
-                // theme's polarity; the night flip converts a scratch copy at send
-                // time instead (theme-schedule.js).
-                type: 'select',
-                messageKey: 'themeNight',
-                label: 'Night theme',
-                defaultValue: 'dark',
-                options: [['Dark', 'dark'], ['Light', 'light'], ['B&W', 'bw'], ['B&W Inverted', 'bw-light']],
-                showWhen: {all: [{env: 'color'}, {key: 'themeAuto', eq: true}]},
-                joinPrevious: true
-            }, {
-                type: 'select',
-                messageKey: 'themeNight',
-                label: 'Night theme',
-                defaultValue: 'dark',
-                options: [['Dark', 'dark'], ['Light', 'light']],
-                showWhen: {all: [{not: {env: 'color'}}, {env: 'themePolarity'}, {key: 'themeAuto', eq: true}]},
-                joinPrevious: true
-            }, {
-                type: 'segmented',
-                messageKey: 'themeAutoMode',
-                label: 'Switch',
-                defaultValue: 'sun',
-                hintByValue: {
-                    sun: 'Day theme from sunrise to sunset, night theme after dark — at your weather location.',
-                    manual: 'Night theme between the hours below.'
-                },
-                options: [['Sunrise/sunset', 'sun'], ['Fixed hours', 'manual']],
-                // themePolarity too: hidden items keep serializing, but a
-                // paired aplite watch must not show orphaned auto-theme rows.
-                showWhen: {all: [{env: 'themePolarity'}, {key: 'themeAuto', eq: true}]},
-                joinPrevious: true
-            }, {
-                type: 'select',
-                messageKey: 'themeAutoStartHour',
-                // 'From'/'To', matching the Night battery saver's hour rows.
-                label: 'From',
-                defaultValue: '20',
-                options: HOURS,
-                inline: 'themeAutoHours',
-                joinPrevious: true,
-                showWhen: {all: [{env: 'themePolarity'}, {key: 'themeAuto', eq: true}, {key: 'themeAutoMode', eq: 'manual'}]}
-            }, {
-                type: 'select',
-                messageKey: 'themeAutoEndHour',
-                label: 'To',
-                defaultValue: '7',
-                options: HOURS,
-                inline: 'themeAutoHours',
-                showWhen: {all: [{env: 'themePolarity'}, {key: 'themeAuto', eq: true}, {key: 'themeAutoMode', eq: 'manual'}]}
-            }, {
-                type: 'toggle',
-                messageKey: 'sleepNightEnabled',
-                label: 'Night battery saver',
-                defaultValue: true,
-                hint: 'Stop sending updates to your watch between the hours below to save battery.'
-            }, {
-                type: 'select',
-                messageKey: 'sleepStartHour',
-                label: 'From',
-                defaultValue: '0',
-                options: HOURS,
-                inline: 'sleepHours',
-                joinPrevious: true,
-                showWhen: {key: 'sleepNightEnabled', eq: true}
-            }, {
-                type: 'select',
-                messageKey: 'sleepEndHour',
-                label: 'To',
-                defaultValue: '7',
-                options: HOURS,
-                inline: 'sleepHours',
-                showWhen: {key: 'sleepNightEnabled', eq: true}
             }, {
                 type: 'segmented', messageKey: 'locationMode', label: 'Location', defaultValue: 'gps', hintByValue: {
                     gps: 'Detect your location automatically via phone GPS.', manual: 'Enter a city or address below.'
@@ -981,6 +887,202 @@ module.exports = {
                 optionsFrom: {interval: 'fetchIntervalMin', ladder: [30, 60, 120, 360, 720, 1440]},
                 showWhen: {key: 'locationMode', eq: 'gps'},
                 hint: 'How long a GPS fix is reused before re-acquiring. Longer saves battery; shorter keeps your location fresher on the move. The lowest value matches your update interval.'
+            }]
+        }, {
+            // Everything that changes after dark, in one card. Night hours is the
+            // card's own window: each switch below follows it unless it is given
+            // hours of its own, so moving your night moves all three at once.
+            title: 'Nighttime', items: [{
+                type: 'subheader',
+                text: 'Night hours',
+                intro: 'When your night is. Everything below follows this window unless you give it hours of its own.'
+            }, {
+                // sleepStartHour/sleepEndHour are the ORIGINAL battery-saver keys,
+                // relabelled and promoted to the whole card — same keys, same
+                // options, same defaults, so no install changes behaviour. They are
+                // deliberately NOT gated on sleepNightEnabled any more: the window
+                // outlives the saver being switched off. (The saver's own custom
+                // hours are sleepNightStartHour/sleepNightEndHour further down —
+                // similar names, different job.)
+                type: 'select',
+                messageKey: 'sleepStartHour',
+                label: 'From',
+                defaultValue: '0',
+                options: HOURS,
+                inline: 'sleepHours'
+            }, {
+                type: 'select',
+                messageKey: 'sleepEndHour',
+                label: 'To',
+                defaultValue: '7',
+                options: HOURS,
+                inline: 'sleepHours'
+            }, {
+                // Header and toggle carry the SAME gate on purpose: a hidden
+                // subheader stops hosting the switch, which would then render as a
+                // row of its own on every watch without the LED.
+                type: 'subheader',
+                text: 'Dim backlight',
+                toggleKey: 'backlightDim',
+                showWhen: BACKLIGHT_WHEN,
+                intro: 'Tint the backlight red while it is lit during the night hours, so checking the time in a dark room is easier on your eyes. Only a watch with a color backlight can do this.'
+            }, {
+                // The hosted toggle keeps its place in `items` (hydrate, serialize
+                // and the derived defaults all still see it); only its row is
+                // suppressed — which is also why the copy above rides the header's
+                // intro instead of this item's hint.
+                type: 'toggle',
+                messageKey: 'backlightDim',
+                label: 'Dim backlight',
+                defaultValue: true,
+                showWhen: BACKLIGHT_WHEN
+            }, {
+                type: 'segmented',
+                messageKey: 'backlightDimMode',
+                label: 'Hours',
+                defaultValue: 'night',
+                options: [['Night hours', 'night'], ['Custom', 'custom']],
+                showWhen: BACKLIGHT_ON_WHEN
+            }, {
+                // Seeded to the Night hours defaults, so switching to Custom changes
+                // nothing until the hours are actually edited.
+                type: 'select',
+                messageKey: 'backlightDimStartHour',
+                label: 'From',
+                defaultValue: '0',
+                options: HOURS,
+                inline: 'backlightDimHours',
+                joinPrevious: true,
+                showWhen: BACKLIGHT_CUSTOM_WHEN
+            }, {
+                type: 'select',
+                messageKey: 'backlightDimEndHour',
+                label: 'To',
+                defaultValue: '7',
+                options: HOURS,
+                inline: 'backlightDimHours',
+                showWhen: BACKLIGHT_CUSTOM_WHEN
+            }, {
+                // One "r,g,b" string, each channel 0-255 — the LED takes 8 bits per
+                // channel. A dim red by default: the driver scales every channel by
+                // the watch's own brightness setting, so the value carries the hue
+                // AND how deep the dim goes.
+                type: 'rgb',
+                messageKey: 'backlightDimColor',
+                label: 'Color',
+                defaultValue: '96,0,0',
+                showWhen: BACKLIGHT_ON_WHEN,
+                hint: 'Lower values dim the backlight further; your watch\'s own brightness setting still applies on top.'
+            }, {
+                type: 'subheader',
+                text: 'Theme switching',
+                toggleKey: 'themeAuto',
+                // themePolarity: aplite has nothing to switch between (the light
+                // polarity is compiled out there), so the whole group hides.
+                showWhen: {env: 'themePolarity'},
+                intro: 'Switch between two themes automatically — with the sun, on the night hours above, or on a fixed schedule. The phone applies the switch, so it can land a little late while the watch is disconnected.'
+            }, {
+                // The Theme row in the card above doubles as the day theme and is
+                // left exactly as the user set it; enabling this only seeds a night
+                // theme (theme-flip.js).
+                type: 'toggle',
+                messageKey: 'themeAuto',
+                label: 'Theme switching',
+                defaultValue: false,
+                showWhen: {env: 'themePolarity'},
+                onChange: 'themeAutoPreset'
+            }, {
+                // No themeConvert here: the stored colour defaults track the DAY
+                // theme's polarity; the night flip converts a scratch copy at send
+                // time instead (theme-schedule.js).
+                type: 'select',
+                messageKey: 'themeNight',
+                label: 'Night theme',
+                defaultValue: 'dark',
+                options: [['Dark', 'dark'], ['Light', 'light'], ['B&W', 'bw'], ['B&W Inverted', 'bw-light']],
+                showWhen: {all: [{env: 'color'}, {key: 'themeAuto', eq: true}]}
+            }, {
+                type: 'select',
+                messageKey: 'themeNight',
+                label: 'Night theme',
+                defaultValue: 'dark',
+                options: [['Dark', 'dark'], ['Light', 'light']],
+                showWhen: {all: [{not: {env: 'color'}}, {env: 'themePolarity'}, {key: 'themeAuto', eq: true}]}
+            }, {
+                type: 'segmented',
+                messageKey: 'themeAutoMode',
+                label: 'Hours',
+                defaultValue: 'sun',
+                hintByValue: {
+                    sun: 'Night theme from sunset to sunrise, at your weather location.',
+                    night: 'Night theme during the night hours above.',
+                    manual: 'Night theme between the hours below.'
+                },
+                // 'manual' is the STORED value for custom hours and predates the
+                // Night-hours option — relabelled, never renamed, so an install that
+                // already picked fixed hours keeps them.
+                options: [['Sunrise/sunset', 'sun'], ['Night hours', 'night'], ['Custom', 'manual']],
+                // themePolarity too: hidden items keep serializing, but a
+                // paired aplite watch must not show orphaned auto-theme rows.
+                showWhen: {all: [{env: 'themePolarity'}, {key: 'themeAuto', eq: true}]},
+                joinPrevious: true
+            }, {
+                type: 'select',
+                messageKey: 'themeAutoStartHour',
+                label: 'From',
+                defaultValue: '20',
+                options: HOURS,
+                inline: 'themeAutoHours',
+                joinPrevious: true,
+                showWhen: {all: [{env: 'themePolarity'}, {key: 'themeAuto', eq: true}, {key: 'themeAutoMode', eq: 'manual'}]}
+            }, {
+                type: 'select',
+                messageKey: 'themeAutoEndHour',
+                label: 'To',
+                defaultValue: '7',
+                options: HOURS,
+                inline: 'themeAutoHours',
+                showWhen: {all: [{env: 'themePolarity'}, {key: 'themeAuto', eq: true}, {key: 'themeAutoMode', eq: 'manual'}]}
+            }, {
+                // "Sending", not "fetching": with the phone-battery slot the saver
+                // also suppresses the status micro-send, so the copy has to describe
+                // what it stops, not where the data comes from.
+                type: 'subheader',
+                text: 'Battery saver',
+                toggleKey: 'sleepNightEnabled',
+                intro: 'Stop sending updates to your watch at night to save battery.'
+            }, {
+                type: 'toggle',
+                messageKey: 'sleepNightEnabled',
+                label: 'Battery saver',
+                defaultValue: true
+            }, {
+                // Defaults to following Night hours — which IS sleepStartHour/
+                // sleepEndHour, the pair this toggle used to own — so an upgrading
+                // install keeps exactly the window it had.
+                type: 'segmented',
+                messageKey: 'sleepNightMode',
+                label: 'Hours',
+                defaultValue: 'night',
+                options: [['Night hours', 'night'], ['Custom', 'custom']],
+                showWhen: {key: 'sleepNightEnabled', eq: true}
+            }, {
+                type: 'select',
+                messageKey: 'sleepNightStartHour',
+                label: 'From',
+                defaultValue: '0',
+                options: HOURS,
+                inline: 'sleepNightHours',
+                joinPrevious: true,
+                showWhen: SAVER_CUSTOM_WHEN
+            }, {
+                type: 'select',
+                messageKey: 'sleepNightEndHour',
+                label: 'To',
+                defaultValue: '7',
+                options: HOURS,
+                inline: 'sleepNightHours',
+                showWhen: SAVER_CUSTOM_WHEN
             }]
         }, {
             title: 'Provider settings', items: [{
