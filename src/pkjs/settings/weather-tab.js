@@ -51,6 +51,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var stripIcons = null;          // night-resolved per-hour icon ids from the last render (the chip swap)
     var litBars = {};               // panel id → bar index currently lit by the crosshair
     var settleTimer = null;         // pending re-show of tips that rode a pan off-viewport
+    var ageTimer = null;            // rewrites the "x ago" beside the 5-day title in place
+    // Fine enough that "just now" gives way to "1 min ago" within a few
+    // seconds of the minute turning; coarse enough to be free.
+    var AGE_TICK_MS = 15000;
     var PANEL_IDS = ['temp', 'wind', 'hum', 'press'];
 
     /**
@@ -291,7 +295,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         h += '<div class="wx-panel"><div class="wx-panel-head">'
             + '<span class="wx-panel-title">5-day forecast</span>'
             + '<span class="wx-fresh">'
-            + '<span class="wx-age">'
+            + '<span class="wx-age" id="wx-age">'
             + (refetching ? 'updating…' : (meta ? charts.agoText(meta.fetchedAt, Date.now()) : ''))
             + '</span>'
             // Manual refresh only: no timer refetches. Pull-to-refresh is the
@@ -330,6 +334,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 [['Sun', pal.sun, 'line'], ['Moon', pal.moon, 'line']],
                 vp('sun', charts.sunMoonPanelSvg(view, loc, pal, sunCalcLib)));
         }
+        // The age line above is written once, here; from now on its own
+        // ticker keeps it true. A refetch parks it — that render puts
+        // "updating…" in the line, and an age for the data being replaced
+        // has no business painting over the word.
+        if (!refetching && meta) { startAgeTicker(meta.fetchedAt); } else { stopAgeTicker(); }
         // A render rebuilds the day strip at offset 0, so the row has to be
         // put back on the viewed day once the new DOM stands — its resting
         // offset is measured from the tiles, which do not exist yet while
@@ -347,6 +356,39 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // Refetch keeps the frame: the previous charts stay up, dimmed, while
         // the new location/provider loads — never a skeleton flash.
         return refetching ? '<div style="opacity:0.55">' + h + '</div>' : h;
+    }
+
+    /**
+     * Keep the age beside the 5-day title telling the truth. Nothing on
+     * this tab re-renders while it is used — swiping days and scrubbing
+     * hours both write the DOM directly — so a label computed once at
+     * render would still read "just now" forty minutes later, which is the
+     * one claim it exists to make. A light ticker rewrites that single
+     * node's text in place: no re-render, and emphatically no refetch, so
+     * the tab's manual-only fetch discipline (and any keyed provider's
+     * quota) is untouched.
+     * @param {number} at When the shown data was fetched (epoch ms).
+     * @returns {void}
+     */
+    function startAgeTicker(at) {
+        stopAgeTicker();
+        if (typeof document === 'undefined' || typeof setInterval !== 'function') { return; }
+        ageTimer = setInterval(function () {
+            var el = document.getElementById('wx-age');
+            // The block is gone (another tab, an error, a refetch): the
+            // ticker has nothing left to keep true.
+            if (!el) { stopAgeTicker(); return; }
+            var next = charts.agoText(at, Date.now());
+            if (el.textContent !== next) { el.textContent = next; }
+        }, AGE_TICK_MS);
+    }
+
+    /**
+     * Stop the age ticker, if one is running.
+     * @returns {void}
+     */
+    function stopAgeTicker() {
+        if (ageTimer) { clearInterval(ageTimer); ageTimer = null; }
     }
 
     /**

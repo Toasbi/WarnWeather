@@ -1112,7 +1112,7 @@ test('freshness rides the 5-day title line, and the old footer is gone', () => {
       'how old it is, then the way to make it newer');
     assert.ok(fresh < html.indexOf('data-wxvp="days"'),
       'and the whole line stands above the tile row');
-    assert.match(html.slice(fresh, fresh + 200), /<span class="wx-age">just now<\/span>/,
+    assert.match(html.slice(fresh, fresh + 200), /<span class="wx-age" id="wx-age">just now<\/span>/,
       'a fetch that just landed reads "just now"');
     assert.ok(html.indexOf('data-action="wxRefreshWeather"') > fresh,
       'Refresh stays, inside the group');
@@ -1124,17 +1124,94 @@ test('freshness rides the 5-day title line, and the old footer is gone', () => {
     // The age is live: it counts up without a refetch.
     Date.now = () => at + 7 * 60000 + 30000;
     html = tab.weatherGraphsBlock(state, {}, SEED);
-    assert.match(html, /<span class="wx-age">7 min ago<\/span>/);
+    assert.match(html, /<span class="wx-age" id="wx-age">7 min ago<\/span>/);
     Date.now = realNow;
 
     // A refetch replaces the age with its own word and parks the button —
     // nothing to press while it is already pressing.
     global.PConf.actions.wxRefreshWeather();
     html = tab.weatherGraphsBlock(state, {}, SEED);
-    assert.match(html, /<span class="wx-age">updating…<\/span>/);
+    assert.match(html, /<span class="wx-age" id="wx-age">updating…<\/span>/);
     assert.equal(html.indexOf('data-action="wxRefreshWeather"'), -1);
   } finally {
     Date.now = realNow;
+    data.fetchWeather = realFetch;
+    tab._resetState();
+  }
+});
+
+test('the age keeps counting without a re-render, and stops when its line is gone', () => {
+  tab._resetState();
+  const realFetch = data.fetchWeather;
+  const realNow = Date.now;
+  const realInterval = global.setInterval;
+  const realClear = global.clearInterval;
+  let respond = null;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { respond = cb; };
+  const intervals = [];
+  const cleared = [];
+  global.setInterval = (fn, ms) => { intervals.push({ fn, ms }); return intervals.length; };
+  global.clearInterval = (id) => { cleared.push(id); };
+  const age = { textContent: 'just now' };
+  let ageEl = age;
+  global.document = { getElementById: (id) => (id === 'wx-age' ? ageEl : null) };
+  try {
+    const state = { graphsLocation: 'current', temperatureUnits: 'c', windUnits: 'kph' };
+    tab._setCtx({ S: state, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, SEED);
+    const at = Date.now();
+    const fx = fixture();
+    fx.meta = { provider: 'openmeteo', fetchedAt: at, lat: 52.52, lon: 13.405 };
+    respond(fx, null);
+    tab.weatherGraphsBlock(state, {}, SEED);
+
+    // Nothing on this tab re-renders while it is used: swiping days and
+    // scrubbing hours both write the DOM directly. Without a ticker the
+    // line the user asked for would say "just now" for the whole session.
+    assert.equal(intervals.length, 1, 'the render arms exactly one ticker');
+    const tick = intervals[0].fn;
+    assert.ok(intervals[0].ms > 0 && intervals[0].ms <= 30000,
+      'fine enough that the minute turning shows up promptly');
+
+    Date.now = () => at + 3 * 60000;
+    tick();
+    assert.equal(age.textContent, '3 min ago', 'the label counts up in place');
+    Date.now = () => at + 2 * 3600000;
+    tick();
+    assert.equal(age.textContent, '2 h ago', 'and keeps climbing the ladder');
+
+    // It rewrites one node and nothing else — no render, and emphatically
+    // no refetch, so a keyed provider's quota is untouched.
+    assert.equal(tab._fetchState().status, 'ok');
+
+    // A second render replaces the ticker rather than stacking one.
+    Date.now = realNow;
+    tab.weatherGraphsBlock(state, {}, SEED);
+    assert.equal(intervals.length, 2, 'the new render arms its own');
+    assert.equal(cleared.length, 1, 'and retires the old one');
+
+    // The line can vanish under it — another tab, an error — and then the
+    // ticker has nothing left to keep true.
+    ageEl = null;
+    intervals[1].fn();
+    assert.equal(cleared.length, 2, 'it stands itself down');
+
+    // A refetch parks it outright: that render writes "updating…" into the
+    // line, and a ticker would paint an age for the data being replaced
+    // straight over the word.
+    ageEl = age;
+    tab.weatherGraphsBlock(state, {}, SEED);
+    assert.equal(intervals.length, 3, 'a normal render arms one again');
+    global.PConf.actions.wxRefreshWeather();
+    const html = tab.weatherGraphsBlock(state, {}, SEED);
+    assert.match(html, /<span class="wx-age" id="wx-age">updating…<\/span>/);
+    assert.equal(intervals.length, 3, 'no ticker runs over "updating…"');
+    assert.equal(cleared.length, 3, 'and the one that was running is retired');
+  } finally {
+    Date.now = realNow;
+    global.setInterval = realInterval;
+    global.clearInterval = realClear;
+    delete global.document;
     data.fetchWeather = realFetch;
     tab._resetState();
   }
