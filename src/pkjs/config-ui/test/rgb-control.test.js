@@ -205,3 +205,19 @@ test('the drag repaint agrees with the initial render, swatch and thumb alike', 
   assert.match(html,
     new RegExp('left:' + root.nodes['[data-range-thumb=r]'].style.left.replace('.', '\\.')));
 });
+
+// --- accessible name fallback ----------------------------------------------
+// The schema's only rgb item lives in a sheetOnly section titled "Dim backlight
+// color", so it carries no `label` of its own (a visible row label there would
+// stutter against the sheet title). That makes renderRgb's fallback the live
+// source of the three thumbs' accessible names — it is what a screen reader
+// actually announces, so it must match the American spelling the rest of the UI
+// uses, not the British one the comments use.
+test('a labelless rgb item names its thumbs "Color <channel>", not "Colour"', () => {
+  const bare = { type: 'rgb', messageKey: 'backlightDimColor', defaultValue: '96,0,0' };
+  const html = E.renderControl(bare, { value: '96,0,0' });
+  assert.ok(html.indexOf('aria-label="Color red"') !== -1, 'red thumb');
+  assert.ok(html.indexOf('aria-label="Color green"') !== -1, 'green thumb');
+  assert.ok(html.indexOf('aria-label="Color blue"') !== -1, 'blue thumb');
+  assert.equal(html.indexOf('Colour'), -1, 'no British spelling reaches the markup');
+});

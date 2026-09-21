@@ -393,90 +393,10 @@ test('the generated page never references buildSettingsBlob outside its own modu
 });
 
 // --- end-to-end: the real generated page against a fake DOM ------------------
-const vm = require('vm');
-const platformLib = require('../src/pkjs/config-ui/lib/platform.js');
-
-/** A DOM-element stub for the handful of nodes boot() touches.
- * @param {string} id element id
- * @returns {Object} stub exposing addEventListener/dispatch + an innerHTML counter
- */
-function makeEl(id) {
-  let raw = '';
-  const handlers = {};
-  const el = {
-    id, className: '', textContent: '', writes: 0,
-    addEventListener(type, fn) { (handlers[type] = handlers[type] || []).push(fn); },
-    dispatch(type, ev) { (handlers[type] || []).forEach(fn => fn(ev)); },
-    types() { return Object.keys(handlers); },
-    querySelector() { return null; },
-    querySelectorAll() { return []; },
-    classList: { add() {}, remove() {} },
-    focus() {}, getAttribute() { return null; }, setAttribute() {}
-  };
-  Object.defineProperty(el, 'innerHTML', {
-    get() { return raw; },
-    set(v) { raw = v; el.writes += 1; }
-  });
-  return el;
-}
-
-/** Boot the real generated page in a vm sandbox with a fake DOM.
- * @param {Object} [cfg] stored settings to hydrate from
- * @param {string} [platformName] Pebble platform for the injected env (default basalt)
- * @returns {{S: Object, scroll: Object, modal: Object, clickTab: function}}
- */
-function bootGeneratedPage(cfg, platformName) {
-  const html = require('../src/pkjs/config-ui/scripts/build-page.js').previewPage({
-    appFiles: require('../scripts/build-config-page.js').APP_FILES,
-    schema, env: platformLib.computeEnv({ platform: platformName || 'basalt' }),
-    cfg: cfg || { provider: 'dwd' }, userData: {}, returnTo: '#'
-  });
-  const src = html.match(/<script>([\s\S]*)<\/script>/)[1]
-    .replace(/PConf\.engine\.boot\(\);\s*$/, '');   // boot explicitly, after wiring onReady
-  const els = {};
-  const sandbox = { console, setTimeout };
-  sandbox.window = sandbox;
-  sandbox.document = {
-    getElementById(id) { return (els[id] = els[id] || makeEl(id)); },
-    querySelector() { return null; }, querySelectorAll() { return []; },
-    addEventListener() {}
-  };
-  sandbox.navigator = {};
-  vm.createContext(sandbox);
-  vm.runInContext(src, sandbox, { filename: 'generated-page.js' });
-  let ready = null;
-  sandbox.PConf.hooks.onReady(ctx => { ready = ctx; });   // the only handle on the live S
-  sandbox.PConf.engine.boot();
-  assert.ok(ready, 'onReady ran (boot completed against the fake DOM)');
-  return {
-    S: ready.S,
-    scroll: els.scroll,
-    modal: els.modal,
-    clickTab(tabId) {
-      const t = { getAttribute: n => (n === 'data-tab' ? tabId : null), closest: sel => (sel === '[data-tab]' ? t : null) };
-      els.tabs.dispatch('click', { target: t });
-    },
-    // Tap a slot row's pencil: opens that sheetId's edit sheet in #modal.
-    openEditSheet(sheetId) {
-      const t = {
-        getAttribute: n => (n === 'data-edit-sheet' ? sheetId : null),
-        closest: sel => (sel === '[data-edit-sheet]' ? t : null)
-      };
-      els.scroll.dispatch('click', { target: t });
-      assert.ok(els.modal.innerHTML.length > 0, 'the edit sheet rendered into #modal');
-    },
-    // Flip a toggle rendered in the open edit sheet.
-    clickModalToggle(key) {
-      assert.ok(els.modal.innerHTML.indexOf('data-k="' + key + '"') !== -1,
-        key + ' toggle is rendered in the open sheet');
-      const t = {
-        getAttribute: n => (n === 'data-k' ? key : null),
-        closest: sel => (sel === '[data-toggle]' ? t : null)
-      };
-      els.modal.dispatch('click', { target: t });
-    }
-  };
-}
+// The boot harness itself lives in test/helpers/page-harness.js — the dim-backlight
+// colour sheet drives the same boot path from its own file, and a second copy of it
+// here would be one more thing to drift.
+const { bootGeneratedPage } = require('./helpers/page-harness.js');
 
 test('the sheet: toggle off shows a disabled seeded slider; on enables and seeds it', () => {
   const page = bootGeneratedPage();

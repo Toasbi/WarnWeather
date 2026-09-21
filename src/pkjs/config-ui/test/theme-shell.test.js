@@ -67,3 +67,21 @@ test('shell.html gives the Edit button a height floor so a control-less row matc
   assert.ok(/\.row \.rgt\.has-pen\s*\{[^}]*align-items:\s*stretch/.test(shell),
     'a floor, not a replacement: rows WITH a control still stretch to it');
 });
+
+test('shell.html lets a .grp sub-header own the line above it', () => {
+  // A group sub-header can no longer borrow the preceding group's last-row divider:
+  // when a group's master switch is off it renders NO rows, and the next group then ran
+  // straight into it with nothing between them. So .subhdr.grp draws its own border-top
+  // (the engine joins the row above loosely, so only one 1px line is ever drawn), and a
+  // sub-header that OPENS its card body drops it — nothing above it to separate from.
+  assert.ok(/\.subhdr\.grp\s*\{[^}]*border-top:\s*1px solid var\(--row-line\)/.test(shell),
+    '.subhdr.grp must carry its own top rule');
+  assert.ok(/\.subhdr\.grp:first-child\s*\{[^}]*border-top:\s*none/.test(shell),
+    'a leading sub-header must not draw a line under the card header');
+  assert.ok(shell.indexOf('.subhdr.grp:first-child') > shell.indexOf('.subhdr.grp { border-top'),
+    'the :first-child reset must follow the rule it overrides');
+  // The PLAIN .subhdr (a groupCard section title) keeps the borrowed-divider deal: those
+  // sections always end in rows, and a border there would double up with one.
+  assert.equal(/\.subhdr\s*\{[^}]*border-top/.test(shell), false,
+    'only the .grp flavour owns a line');
+});

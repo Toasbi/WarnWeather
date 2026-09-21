@@ -83,6 +83,15 @@
      var(--lbl), sentence case), not the muted uppercase section-title gray. */
   .subhdr.grp { display: flex; align-items: center; gap: 8px; padding-top: 18px;
     font-size: 14.5px; font-weight: 600; letter-spacing: normal; text-transform: none; color: var(--lbl); }
+  /* ...and, unlike a plain .subhdr, it OWNS the line above it instead of borrowing the
+     preceding group's last-row divider: a .grp group can render no rows at all (its master
+     switch is off), and then there is nothing to borrow and the next group ran straight into
+     it with no separation. The engine joins the row above LOOSELY (nextVisibleJoins), so that
+     row drops its own divider and exactly one 1px line is drawn, in the same place as before.
+     A sub-header that OPENS its card body has nothing to separate from, so it drops the line
+     (renderSection wraps the body in its own div, so the leading header is :first-child). */
+  .subhdr.grp { border-top: 1px solid var(--row-line); }
+  .subhdr.grp:first-child { border-top: none; }
   .subhdr.grp > span:first-child { min-width: 0; }
   .subhdr.grp .sw { flex: none; margin-left: auto; }
   .subhdr.grp .lbl-act { flex: none; }

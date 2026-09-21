@@ -1036,12 +1036,20 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // joining item wants no divider between it and the row above, so the preceding visible row drops
   // its divider; 'tight' also tightens the padding, 'loose' keeps the normal row spacing. Skips
   // hidden items — so the divider returns automatically when the joining group is hidden — and
-  // hosted-suppressed toggles (isHostedRow), whose rows never render at all.
+  // hosted-suppressed toggles (isHostedRow), whose rows never render at all. A `subheader` item
+  // always reads as 'loose' (see below): it draws its own line above.
   function nextVisibleJoins(items, from, cx, hosted) {
     var j, jp;
     for (j = from; j < items.length; j++) {
       if (isHostedRow(items[j], hosted)) { continue; }
       if (PConf.showWhen.isVisible(items[j], cx.evalCtx)) {
+        // A `subheader` ITEM opens a new group and paints the separating line ITSELF
+        // (.subhdr.grp's border-top in shell.html) rather than borrowing the preceding
+        // row's divider — its group may render no rows at all (master switch off), and
+        // then there is no divider to borrow. It always joins LOOSELY: the row above only
+        // drops its own line (so the two 1px borders don't stack into one thick rule) and
+        // keeps its normal padding, since the header brings its own standoff.
+        if (items[j].type === 'subheader') { return 'loose'; }
         jp = items[j].joinPrevious;
         return jp === 'loose' ? 'loose' : (jp ? 'tight' : '');
       }

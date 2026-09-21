@@ -275,7 +275,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   function renderRgb(item, view) {
     var c = parseRgb(view.value, item);
     var hex = rgbHex(c);
-    var label = String(item.label || 'Colour');
+    var label = String(item.label || 'Color');
     var h = '<div class="rng rgb" data-range="' + esc(item.messageKey) + '" data-r="' + c.r
       + '" data-g="' + c.g + '" data-b="' + c.b + '">'
       + '<div class="rgb-head"><div class="sw-wrap">'

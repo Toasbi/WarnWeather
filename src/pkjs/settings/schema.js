@@ -815,6 +815,12 @@ var BACKLIGHT_WHEN = {env: 'colorBacklight'};
 var BACKLIGHT_ON_WHEN = {all: [BACKLIGHT_WHEN, {key: 'backlightDim', eq: true}]};
 var BACKLIGHT_CUSTOM_WHEN = {all: [BACKLIGHT_WHEN, {key: 'backlightDim', eq: true},
     {key: 'backlightDimMode', eq: 'custom'}]};
+// The dim colour's sheet, and the ONE copy of its default. The card row (a `sheet`
+// row, which stores nothing) hands the default to its badge resolver so an unset or
+// bruised value previews the same colour the sliders open on; the rgb item in the
+// sheet is what actually stores it.
+var BACKLIGHT_COLOR_SHEET = 'backlightColor';
+var BACKLIGHT_COLOR_DEFAULT = '96,0,0';
 // The battery saver's own hours, shown only once it stops following Night hours.
 var SAVER_CUSTOM_WHEN = {all: [{key: 'sleepNightEnabled', eq: true},
     {key: 'sleepNightMode', eq: 'custom'}]};
@@ -963,16 +969,28 @@ module.exports = {
                 inline: 'backlightDimHours',
                 showWhen: BACKLIGHT_CUSTOM_WHEN
             }, {
-                // One "r,g,b" string, each channel 0-255 — the LED takes 8 bits per
-                // channel. A dim red by default: the driver scales every channel by
-                // the watch's own brightness setting, so the value carries the hue
-                // AND how deep the dim goes.
-                type: 'rgb',
-                messageKey: 'backlightDimColor',
+                // The colour opens in a bottom sheet (the section below) instead of
+                // standing in the card: three channel sliders made the Nighttime
+                // card's smallest setting its tallest row. What stays here is the
+                // colour itself — the badge resolver paints the stored value as one
+                // swatch, so the card shows what the backlight will glow and nothing
+                // more. Same surface as the Graph-colors rows (graphColorRow above).
+                //
+                // A `sheet` row has no messageKey, and the engine merges the item's
+                // absent one UNDER these args — so `key` is the resolver's only way
+                // to know which value it is previewing.
+                type: 'sheet',
+                sheetId: BACKLIGHT_COLOR_SHEET,
                 label: 'Color',
-                defaultValue: '96,0,0',
-                showWhen: BACKLIGHT_ON_WHEN,
-                hint: 'Lower values dim the backlight further; your watch\'s own brightness setting still applies on top.'
+                editBadgeFrom: {
+                    resolver: 'rgbSwatch',
+                    args: {key: 'backlightDimColor', defaultValue: BACKLIGHT_COLOR_DEFAULT}
+                },
+                // Joins the rows above into ONE block: everything a group reveals when its
+                // switch goes on belongs to that switch, so the only line inside the card is
+                // the one each group's sub-header draws above itself.
+                joinPrevious: 'loose',
+                showWhen: BACKLIGHT_ON_WHEN
             }, {
                 type: 'subheader',
                 text: 'Theme switching',
@@ -1083,6 +1101,34 @@ module.exports = {
                 options: HOURS,
                 inline: 'sleepNightHours',
                 showWhen: SAVER_CUSTOM_WHEN
+            }]
+        }, {
+            // The Dim backlight colour, alone in its bottom sheet — opened by the
+            // "Color" row of the card above and rendered nowhere else (sheetOnly
+            // sections are skipped by the tab renderer while hydrate/serialize still
+            // walk them, so the key, its "r,g,b" wire format and its default are
+            // untouched by the move out of the card).
+            //
+            // Gated like the row that opens it: a sheet forced open on a watch whose
+            // backlight cannot be tinted — or with Dim backlight switched off — must
+            // render empty rather than offer a colour that does nothing.
+            sheetOnly: true,
+            sheetId: BACKLIGHT_COLOR_SHEET,
+            title: 'Dim backlight color',
+            showWhen: BACKLIGHT_ON_WHEN,
+            intro: 'Pick the color the backlight glows during the night hours. Lower values dim it further; your watch’s own brightness setting still applies on top.',
+            items: [{
+                // One "r,g,b" string, each channel 0-255 — the LED takes 8 bits per
+                // channel. A dim red by default: the driver scales every channel by
+                // the watch's own brightness setting, so the value carries the hue
+                // AND how deep the dim goes.
+                //
+                // No label: the sheet's title already names this control, and the
+                // threshold sliders drop theirs for the same reason — a labelled row
+                // directly under a title saying the same thing reads as a stutter.
+                type: 'rgb',
+                messageKey: 'backlightDimColor',
+                defaultValue: BACKLIGHT_COLOR_DEFAULT
             }]
         }, {
             title: 'Provider settings', items: [{
