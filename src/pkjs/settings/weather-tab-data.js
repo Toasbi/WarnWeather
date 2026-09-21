@@ -262,7 +262,19 @@
     function parseBrightsky(data, nowMs) {
         var rows = data && data.weather;
         if (!rows || !rows.length) { return null; }
-        var offsetSec = isoOffsetSec(rows[0].timestamp);
+        // Brightsky echoes the timezone we ASKED in, not the location's: it
+        // adopts the `date` parameter's offset, and only when that offset is
+        // not UTC (brightsky/web/params.py's set_default_timezone_from_date).
+        // We send a Z-suffixed date, so a UTC suffix coming back is our own
+        // request read aloud — and taking it for the location's clock put the
+        // whole DWD timeline on UTC: "00:00" on the hour strip was 02:00 in
+        // Berlin, the day rules stood two hours off true local midnight, and
+        // Today covered the wrong 24 h. A UTC echo therefore means we learned
+        // nothing, and the view falls back to the phone's offset the way it
+        // does for every provider that reports none. A NON-UTC suffix could
+        // only come from a zone we named ourselves, so that one is real.
+        var echoed = isoOffsetSec(rows[0].timestamp);
+        var offsetSec = echoed ? echoed : null;
         var measuredIds = observedSourceIds(data.sources);
         var hourly = emptyHourly();
         for (var i = 0; i < rows.length; i += 1) {

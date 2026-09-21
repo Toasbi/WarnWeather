@@ -72,11 +72,24 @@ test('Brightsky parser: DWD units pass through, daily aggregates client-side', (
   assert.equal(out.hourly.wind[0], 12, 'Brightsky wind is already km/h');
   assert.equal(out.hourly.rh[0], 60);
   assert.equal(out.hourly.icon[15], 'rain');
-  assert.equal(out.utcOffsetSec, 0, 'Z-suffixed Brightsky timestamps parse as UTC');
   assert.ok(out.daily.length >= 1);
   assert.equal(out.daily[0].icon, 'rain');
   assert.equal(out.daily[0].sunshineH, 6);
   assert.equal(data.parsers.dwd({ weather: [] }, NOON), null);
+
+  // Brightsky answers in the timezone we ASKED in — it adopts the `date`
+  // parameter's offset, and only when that offset is not UTC. We send a
+  // Z-suffixed date, so a UTC suffix coming back is our own request read
+  // aloud: it says nothing about where the location is, and reading a
+  // location clock off it put the whole DWD timeline on UTC.
+  assert.equal(out.utcOffsetSec, null,
+    'a UTC echo is not a location clock — fall back to the phone\'s offset');
+  // A non-UTC suffix could only come from a zone we named ourselves, so it
+  // is real and is taken.
+  const berlin = data.parsers.dwd({
+    weather: rows.map((r) => ({ ...r, timestamp: r.timestamp.replace('Z', '+02:00') }))
+  }, NOON);
+  assert.equal(berlin.utcOffsetSec, 7200, 'an offset we asked for is the location clock');
 });
 
 test('OWM parser: m/s → km/h, pop 0..1 → %, its own daily array', () => {
