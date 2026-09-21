@@ -17,6 +17,24 @@ const interact = require('../src/pkjs/settings/weather-tab-interact.js');
 const DAY0 = Math.floor(Date.now() / 86400000) * 86400000;
 const SEED = { graphsSeed: { lat: 52.52, lon: 13.405, name: 'Berlin' } };
 
+/**
+ * The index just past the close of the div that OPENS at `at`, found by
+ * counting tags rather than by looking for the next pair of closes.
+ * @param {string} html Markup to walk.
+ * @param {number} at Index of that div's opening tag.
+ * @returns {number} Index just past its matching close, or -1.
+ */
+function closeOf(html, at) {
+  const TAG = /<(\/?)div\b[^>]*>/g;
+  TAG.lastIndex = at;
+  let depth = 0, m;
+  while ((m = TAG.exec(html)) !== null) {
+    depth += m[1] ? -1 : 1;
+    if (depth === 0) { return TAG.lastIndex; }
+  }
+  return -1;
+}
+
 /** @returns {Object} a minimal normalized dataset the charts accept */
 function fixture() {
   const hourly = { time: [], temp: [], rain: [], prob: [], wind: [], gust: [], dir: [], rh: [], dew: [], pressure: [], icon: [], sunshineMin: [] };
@@ -130,30 +148,33 @@ test('the graphs block orchestrates: loading → panels on data, error → Retry
       + 'the same pinned element — tiles and time axis travel together');
     assert.equal(html.indexOf('<div class="wx-sticky">', stickyAt + 1), -1,
       'and nothing else pins — one sticky element');
-    // The seam substring alone cannot tell "strip inside the sticky box"
-    // from "sticky closes after the tiles, strip follows as a sibling":
-    // both contain '</div><div class="wx-bleed">'. A DOUBLE close before
-    // the strip viewport is the sibling shape — the tile row's close
-    // followed by the sticky's own — so its absence pins containment.
-    const dblClose = html.indexOf('</div></div>', stickyAt);
-    assert.ok(dblClose === -1 || dblClose > stripVpAt,
-      'the hour strip rides INSIDE the pinned box, not as a sibling '
-      + 'after it closes');
-    // ...and the pin ENDS there: the Measured|Forecast caption is a row of
-    // its own, after the sticky element closes, so it scrolls away while
-    // the ruler above it stays put.
+    // Where the pinned element actually ENDS. Counting div tags is the
+    // only honest way to ask: searching for the next '</div></div>' finds
+    // whatever nesting happens to sit there — the strip viewport's own pan
+    // and vp closes, in this markup — so such an assertion holds wherever
+    // the caption row is put, which is to say it asserts nothing.
+    const stickyEnd = closeOf(html, stickyAt);
+    assert.ok(stickyEnd > stickyAt, 'the pinned element closes somewhere');
+    assert.ok(stripVpAt < stickyEnd,
+      'the hour strip rides INSIDE the pinned box, not as a sibling after it closes');
+    // ...and the pin ends THERE: the Measured|Forecast caption is a row of
+    // its own, outside the sticky element, so it scrolls away while the
+    // ruler above it stays put.
     const footAt = html.indexOf('<div class="wx-stripfoot">');
     assert.ok(footAt > stripVpAt, 'the caption row follows the pinned strip');
-    const stickyClose = html.indexOf('</div></div>', stripVpAt);
-    assert.ok(stickyClose !== -1 && stickyClose < footAt,
-      'the pinned box has closed BEFORE the caption row opens');
+    assert.ok(footAt >= stickyEnd,
+      'the caption row opens no earlier than the pinned box\u2019s close — the pin ends at the ticks');
     assert.ok(html.indexOf('data-wxvp="foot"', footAt) !== -1
       && html.indexOf('data-wxvp="foot"', footAt) - footAt < 200,
       'the caption rides its own viewport, so it pans with the days');
     assert.ok(html.indexOf('>Measured<', stickyAt) > footAt,
       'the caption text itself is no longer anywhere in the pinned block');
-    assert.ok(css.WX_CSS.indexOf('.wx-stripfoot .wx-bleed{margin:') !== -1,
-      'the caption row keeps the strip\'s spacing, not a panel\'s');
+    // No vertical gap between the ruler's box and the caption's: the two are
+    // separate svgs now, and the now line has to cross the seam unbroken.
+    const footMargin = /\.wx-stripfoot \.wx-bleed\{margin:([^;]+);/.exec(css.WX_CSS);
+    assert.ok(footMargin, 'the caption row keeps the strip\'s spacing, not a panel\'s');
+    assert.equal(footMargin[1].trim().split(/\s+/)[0], '0',
+      'and no top margin, or the now line breaks at the seam (' + footMargin[1] + ')');
     // The tile icon's two sizes move in lockstep: the renderer's px and
     // the CSS min-height that keeps icon-LESS tiles from collapsing
     // shorter than icon-bearing ones. Read one, assert the other.

@@ -10,11 +10,16 @@ const icons = require('../src/pkjs/settings/weather-tab-icons.js');
 
 // UTC fixtures + an explicit utcOffsetSec pin the location clock, so the
 // suite is deterministic in any container timezone.
-const DAY0 = Date.UTC(2026, 8, 20);          // a Sunday
+const DAY0_DEFAULT = Date.UTC(2026, 8, 20);  // a Sunday
+const DAY0 = DAY0_DEFAULT;
 const NOON = DAY0 + 12 * 3600000;
 
-/** @returns {{hourly: Object, daily: Array, utcOffsetSec: number}} 3 days of data (+ pre-day spill) */
-function fixtureData() {
+/**
+ * @param {number} [day0] Location-midnight the fixture starts at (default DAY0).
+ * @returns {{hourly: Object, daily: Array, utcOffsetSec: number}} 3 days of data (+ pre-day spill)
+ */
+function fixtureData(day0) {
+  const DAY0 = (day0 === undefined) ? DAY0_DEFAULT : day0;
   const hourly = { time: [], temp: [], rain: [], prob: [], wind: [], gust: [], dir: [], rh: [], dew: [], pressure: [], icon: [], sunshineMin: [] };
   for (let h = -12; h < 72; h += 1) {
     hourly.time.push(DAY0 + h * 3600000);
@@ -294,6 +299,21 @@ test('the Measured|Forecast caption is its own scrolling row, still on the now l
   const earlyFoot = charts.timeFootSvg(early, pal);
   assert.equal(earlyFoot.main.indexOf('Measured'), -1, 'no room at the left edge → no Measured');
   assert.ok(earlyFoot.main.indexOf('>Forecast<') !== -1, 'Forecast still labels the whole row');
+
+  // Splitting one svg into two left the now line able to break at the seam.
+  // The strip's line must reach ITS box's floor and the caption's must span
+  // its own, top to bottom, so that with no margin between the two boxes
+  // (pinned by test/weather-tab.test.js) the line reads as one.
+  const strip = charts.timeStripSvg(view, LOC, pal, SunCalc);
+  const stripLine = /<line x1="[\d.]+" y1="0" x2="[\d.]+" y2="([\d.]+)" stroke="[^"]*" stroke-width="1.2"/
+    .exec(strip.main);
+  assert.ok(stripLine, 'the strip carries a now line');
+  assert.equal(Number(stripLine[1]), strip.H, 'it runs to the strip box\u2019s very floor');
+  const footLine = /<line x1="[\d.]+" y1="([\d.]+)" x2="[\d.]+" y2="([\d.]+)" stroke="[^"]*" stroke-width="1.2"/
+    .exec(foot.main);
+  assert.ok(footLine, 'and the caption picks it up');
+  assert.equal(Number(footLine[1]), 0, 'from its own ceiling');
+  assert.equal(Number(footLine[2]), foot.H, 'to its own floor — no stub');
 });
 
 test('the hour strip highlights the selected hour with the app\'s chip (own icon + label)', () => {
@@ -504,6 +524,161 @@ test('a rise/set label is clamped into the day its own dot stands in', () => {
   });
   assert.ok(Math.max.apply(null, days) > Math.min.apply(null, days),
     'the crossings spread over more than one day, so the day a label picks matters');
+});
+
+// Every rise/set mark the panel draws, as {dot, baseline, label box, text}.
+// The three tags an event emits are adjacent and in a fixed order, so one
+// regex reads a dot and its own label together.
+const EVENT_RE = /<circle cx="([\d.]+)" cy="\d+" r="(?:4|3\.4)"[^>]*\/><text x="([\d.]+)" y="(\d+)" text-anchor="(start|end)" font-size="(\d+)"[^>]*>([^<]*)<tspan[^>]*>([^<]*)<\/tspan>([^<]*)</g;
+function marksOf(svg) {
+  const out = [];
+  let m;
+  EVENT_RE.lastIndex = 0;
+  while ((m = EVENT_RE.exec(svg)) !== null) {
+    const x = Number(m[2]);
+    const text = m[6] + m[7] + m[8];
+    const w = text.length * Number(m[5]) * 0.7;
+    out.push({
+      dot: Number(m[1]),
+      baseline: Number(m[3]),
+      left: m[4] === 'end' ? x - w : x,
+      right: m[4] === 'end' ? x : x + w,
+      text: text.trim(),
+    });
+  }
+  return out;
+}
+
+test('the rise/set glyph is AA-legible: it is text, not a line', () => {
+  // The glyph is the only part of a label that says WHICH body it is and
+  // which way it went, so it needs text contrast. `sun` is tuned for the arc
+  // — 1.98:1 on the light surface — which is the same carve-out probHi
+  // already exists for. `moon` clears AA on both surfaces as it is.
+  const chan = (h, i) => {
+    const v = parseInt(h.slice(i, i + 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  };
+  const lum = (h) => 0.2126 * chan(h, 1) + 0.7152 * chan(h, 3) + 0.0722 * chan(h, 5);
+  const ratio = (a, b) => {
+    const x = lum(a), y = lum(b);
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+  };
+  [true, false].forEach((isLight) => {
+    const pal = charts.palette(isLight);
+    const where = isLight ? 'light' : 'dark';
+    assert.ok(ratio(pal.sunText, pal.surface) >= 4.5,
+      'sunText on the ' + where + ' surface: ' + ratio(pal.sunText, pal.surface).toFixed(2) + ':1');
+    assert.ok(ratio(pal.moon, pal.surface) >= 4.5,
+      'moon on the ' + where + ' surface: ' + ratio(pal.moon, pal.surface).toFixed(2) + ':1');
+    // Guard the guard: sunText is a stepped twin of sun, not sun itself, and
+    // the arc keeps the untouched ink.
+    assert.notEqual(pal.sunText, pal.sun, 'sunText is stepped away from the arc ink on ' + where);
+    const view = charts.prepareView(fixtureData(), NOON);
+    const spec = charts.sunMoonPanelSvg(view, LOC, pal, SunCalc);
+    assert.ok(spec.main.indexOf('<tspan fill="' + pal.sunText + '">') !== -1,
+      'the sun glyph wears the stepped ink on ' + where);
+    assert.equal(spec.main.indexOf('<tspan fill="' + pal.sun + '">'), -1,
+      'and never the raw arc ink on ' + where);
+    assert.ok(spec.main.indexOf('stroke="' + pal.sun + '"') !== -1,
+      'while the arc itself keeps it on ' + where);
+  });
+});
+
+test('two events of the same body never print their labels on top of each other', () => {
+  // A moonset just after midnight and a moonrise the same morning both reach
+  // for the span between them, on one shared baseline. Before they were
+  // parted, 65 of Berlin's 340 two-event days collided, up to 40 units deep
+  // on a 62-unit label. Sweep a season rather than one date: which days
+  // collide depends on the moon's declination, not on the renderer.
+  let renders = 0, collisions = 0, worst = 0, pairs = 0;
+  for (let d = 0; d < 120; d += 7) {
+    const day0 = Date.UTC(2026, 0, 1) + d * 86400000;
+    const view = charts.prepareView(fixtureData(day0), day0 + 12 * 3600000);
+    const spec = charts.sunMoonPanelSvg(view, { lat: 52.52, lon: 13.405 }, charts.palette(false), SunCalc);
+    const rows = {};
+    marksOf(spec.main).forEach((mk) => {
+      // One row per baseline per day: labels in different days sit in
+      // different viewports and cannot collide.
+      const key = mk.baseline + '#' + Math.floor(mk.dot / charts.DAY_W);
+      (rows[key] = rows[key] || []).push(mk);
+    });
+    Object.keys(rows).forEach((k) => {
+      const row = rows[k].slice().sort((a, b) => a.left - b.left);
+      for (let i = 1; i < row.length; i += 1) {
+        pairs += 1;
+        const over = row[i - 1].right - row[i].left;
+        if (over > 0.01) { collisions += 1; worst = Math.max(worst, over); }
+      }
+    });
+    renders += 1;
+  }
+  assert.ok(pairs >= 20, 'the sweep really does put two labels on one row: ' + pairs + ' pairs');
+  assert.equal(collisions, 0,
+    renders + ' renders, ' + pairs + ' same-row pairs, worst overlap ' + worst.toFixed(1) + ' units');
+});
+
+test('the moon marks are read off the LOCATION’s day, not the phone’s', () => {
+  // getMoonTimes snaps its 24-hour search to midnight, and to the HOST's
+  // midnight unless it is asked for UTC. Everything else in the panel runs on
+  // the location's clock, so a phone in another zone used to lose one end of
+  // the moon marks and push the other off the canvas. The panel must render
+  // the same bytes wherever the phone happens to be.
+  const day0 = Date.UTC(2026, 0, 1) - 7200000;              // Berlin midnight
+  const data = fixtureData(day0);
+  data.utcOffsetSec = 7200;
+  const view = charts.prepareView(data, day0 + 12 * 3600000);
+  const draw = () => charts.sunMoonPanelSvg(view, { lat: 52.52, lon: 13.405 },
+    charts.palette(false), SunCalc).main;
+  const was = process.env.TZ;
+  try {
+    process.env.TZ = 'Europe/Berlin';
+    const home = draw();
+    process.env.TZ = 'Australia/Sydney';
+    const away = draw();
+    process.env.TZ = 'America/Los_Angeles';
+    const far = draw();
+    assert.equal(away, home, 'a phone in Sydney draws Berlin’s moon exactly as a phone in Berlin does');
+    assert.equal(far, home, 'and so does one in Los Angeles');
+    // Guard the guard: the marks are really there to be got wrong, and all of
+    // them land on the canvas rather than beyond a seam.
+    const moon = marksOf(home).filter((mk) => mk.text.indexOf('☽') !== -1);
+    assert.ok(moon.length >= view.days, 'moon marks drawn: ' + moon.length);
+    moon.forEach((mk) => {
+      assert.ok(mk.dot >= 0 && mk.dot <= view.days * charts.DAY_W,
+        'moon mark ' + JSON.stringify(mk.text) + ' at x=' + mk.dot.toFixed(1) + ' is on the canvas');
+    });
+  } finally {
+    if (was === undefined) { delete process.env.TZ; } else { process.env.TZ = was; }
+  }
+});
+
+test('each rise/set dot sits ON a vertex of its own arc', () => {
+  // The dot marks the instant getTimes/getMoonTimes reports, which is defined
+  // at a refracted horizon (-0.833 degrees for the sun, +0.133 for the moon)
+  // while the sampled altitude is geometric — so interpolating the arc's own
+  // zero put the dot up to 5 units beside the curve at Reykjavik in June,
+  // more than the dot's own radius. The arc is seeded with the event instants
+  // instead, at every latitude.
+  [[52.52, 13.405, 'Berlin'], [64.13, -21.9, 'Reykjavik'], [-33.9, 151.2, 'Sydney']].forEach((where) => {
+    const day0 = Date.UTC(2026, 5, 18);
+    const view = charts.prepareView(fixtureData(day0), day0 + 12 * 3600000);
+    const spec = charts.sunMoonPanelSvg(view, { lat: where[0], lon: where[1] },
+      charts.palette(false), SunCalc);
+    const horizon = Number(/<line x1="0" y1="(\d+)" x2="\d+" y2="\1"/.exec(spec.main)[1]);
+    const vertices = new Set();
+    (spec.main.match(/<path d="(M[^"]+)" fill="none"/g) || []).forEach((tag) => {
+      const d = /d="(M[^"]+)"/.exec(tag)[1];
+      (d.match(new RegExp('L([\\d.]+) ' + horizon + '(?![\\d.])', 'g')) || [])
+        .forEach((v) => vertices.add(/L([\d.]+) /.exec(v)[1]));
+    });
+    const dots = marksOf(spec.main);
+    assert.ok(dots.length >= 2, where[2] + ' has crossings to check: ' + dots.length);
+    dots.forEach((mk) => {
+      assert.ok(vertices.has(mk.dot.toFixed(1)),
+        where[2] + ': the dot for ' + JSON.stringify(mk.text) + ' at x=' + mk.dot.toFixed(1)
+        + ' is a vertex of the arc it marks');
+    });
+  });
 });
 
 test('the altitude band is symmetric about the horizon, so no arc leaves the frame', () => {

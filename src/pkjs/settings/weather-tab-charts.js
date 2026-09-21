@@ -48,6 +48,11 @@
             // BELOW the horizon (the arc keeps running; it just goes quiet).
             daylight: 'rgba(70,140,255,0.13)', sunNight: '#d9b877',
             moon: '#4E5766', moonNight: '#A7AEBC',
+            // The rise/set glyph is the only part of a label that says WHICH
+            // body it is and which way it went, so it needs text contrast,
+            // not line contrast: `sun` lands at 1.98:1 on this surface. Same
+            // carve-out as probHi below. `moon` already clears AA on both.
+            sunText: '#966200',
             // The phase disc is a picture of the sky, not page furniture, so
             // its two inks do NOT step with the surface (the hiBox precedent
             // below): the lit limb is the bright one on either page. Letting
@@ -68,6 +73,7 @@
             surface: '#3A3B3F',
             daylight: 'rgba(120,170,255,0.17)', sunNight: '#8a5f14',
             moon: '#E4E8F0', moonNight: '#767E8C',
+            sunText: '#E9A62E',
             moonDisc: '#2C313A', moonLit: '#F2F4F8',
             probHi: '#85B4F0',
             // The selected-hour box (the app's dark chip): deliberately the
@@ -487,9 +493,10 @@
         }
         s += '<text x="' + (nx + 5).toFixed(1) + '" y="9.5" font-size="7.5" fill="'
             + pal.muted + '">Forecast</text>';
-        // The now line carries on through the caption, as it did when the
-        // two shared one svg.
-        s += '<line x1="' + nx.toFixed(1) + '" y1="0" x2="' + nx.toFixed(1) + '" y2="11"'
+        // The now line carries on through the caption, as it did when the two
+        // shared one svg: it spans this box top to bottom and the stylesheet
+        // leaves no gap above, so the seam between the two svgs is invisible.
+        s += '<line x1="' + nx.toFixed(1) + '" y1="0" x2="' + nx.toFixed(1) + '" y2="' + H + '"'
             + ' stroke="' + pal.ink + '" stroke-width="1.2" opacity="0.55"/>';
         return { main: s, overlay: null, H: H };
     }
@@ -961,16 +968,37 @@
             return horizon - (alt / (Math.PI / 2)) * (horizon - top);
         };
         var endMs = view.dayStartMs + view.days * 86400000;
-        var arc = function (getAlt) {
+        /**
+         * A body's altitude arc across the whole timeline, sampled half-hourly.
+         * @param {function(Date): number} getAlt Altitude (radians) at an instant.
+         * @param {number[]} crossings Epoch ms of that body's rise/set events.
+         * @returns {string} An SVG path `d`.
+         */
+        var arc = function (getAlt, crossings) {
             var d = '';
             var prevAlt = null, prevT = null;
             for (var t = view.dayStartMs; t <= endMs; t += 1800000) {
                 var alt = getAlt(new Date(t));
-                // Where the body crosses the horizon between two samples,
-                // interpolate the crossing and plant it as its own vertex:
-                // the rise/set dot is drawn AT that instant, and a straight
-                // 30-minute chord would otherwise pass beside it.
-                if (prevAlt !== null && (prevAlt < 0) !== (alt < 0)) {
+                // The rise/set dot is drawn AT the event instant, and a
+                // straight 30-minute chord would pass beside it, so each
+                // crossing is planted as a vertex of the arc itself. The
+                // instant comes from the same getTimes/getMoonTimes call the
+                // dot does: interpolating the altitude's own zero instead
+                // would land up to 5 units off (Reykjavik in June), because
+                // those define a rise at -0.833 / +0.133 degrees — with
+                // refraction — while the sampled altitude is geometric.
+                var planted = false;
+                if (prevT !== null) {
+                    for (var c = 0; c < crossings.length; c += 1) {
+                        if (crossings[c] > prevT && crossings[c] <= t) {
+                            d += 'L' + xFor(crossings[c]).toFixed(1) + ' ' + horizon;
+                            planted = true;
+                        }
+                    }
+                }
+                // Fallback for a crossing no event reported — a polar
+                // transition, or a day outside the marked range.
+                if (!planted && prevAlt !== null && (prevAlt < 0) !== (alt < 0)) {
                     var f = prevAlt / (prevAlt - alt);
                     d += 'L' + xFor(prevT + f * 1800000).toFixed(1) + ' ' + horizon;
                 }
@@ -985,20 +1013,31 @@
             var shifted = new Date(dte.getTime() + off * 1000);
             return two(shifted.getUTCHours()) + ':' + two(shifted.getUTCMinutes());
         };
-        // One rise/set event: the dot where the arc crosses the horizon, a
-        // dotted leader out to the label, and the label itself. The label
-        // sits on the night side of its dot — before a rise, after a set —
-        // so the pair brackets the daylight band instead of writing over it,
-        // with the glyph nearest the dot (the app's arrangement). It flips
-        // sides when that would carry it out of the day the DOT stands in:
-        // a day is one viewport, so an overhanging label is a clipped one,
-        // and a label clamped into some other day would point at nothing.
-        var event = function (ms, glyph, time, above, ink, rise) {
+        // One rise/set event, placed but not yet drawn. The label sits on
+        // the night side of its dot — before a rise, after a set — so the
+        // pair brackets the daylight band instead of writing over it, with
+        // the glyph nearest the dot (the app's arrangement). It flips sides
+        // when that would carry it out of the day the DOT stands in: a day
+        // is one viewport, so an overhanging label is a clipped one, and a
+        // label clamped into some other day would point at nothing.
+        /**
+         * @param {number} ms Event instant (epoch ms).
+         * @param {string} glyph Two-character body + direction mark.
+         * @param {string} time Local 'HH:MM'.
+         * @param {boolean} rise Whether this is a rise (else a set).
+         * @returns {Object} A placement: x, label box, anchor and day.
+         */
+        var place = function (ms, glyph, time, rise) {
             var x = xFor(ms);
-            var dayLeft = Math.floor(x / DAY_W) * DAY_W;
-            var text = rise
-                ? esc(time) + ' <tspan fill="' + ink + '">' + glyph + '</tspan>'
-                : '<tspan fill="' + ink + '">' + glyph + '</tspan> ' + esc(time);
+            // An event can fall outside the timeline — a Reykjavik sunset at
+            // 00:04 belongs to the day after the last one drawn — and no pan
+            // reaches it, so it is not drawn at all. Without this its dot
+            // pokes half-way into the final seam while its label sits in a
+            // day that does not exist.
+            if (x < 0 || x > W) { return null; }
+            var dayIdx = Math.floor(x / DAY_W);
+            if (dayIdx > view.days - 1) { dayIdx = view.days - 1; }
+            var dayLeft = dayIdx * DAY_W;
             // Measured: the bold label runs ~0.66 em per character (the
             // glyph pair included), so 0.7 em leaves the flip a margin.
             var w = (time.length + glyph.length + 1) * LABEL * 0.7;
@@ -1006,28 +1045,95 @@
             var tx = rise ? x - 5 : x + 5;
             if (rise && tx - w < dayLeft + 2) { anchor = 'start'; tx = x + 5; }
             if (!rise && tx + w > dayLeft + DAY_W - 2) { anchor = 'end'; tx = x - 5; }
-            // A flip can only trade one seam for the other, so finish with a
-            // clamp: a label that leaves its day is a label the viewport cuts.
-            var lead = anchor === 'start' ? 0 : w;
-            if (tx - lead < dayLeft + 2) { tx = dayLeft + 2 + lead; }
-            if (tx + (w - lead) > dayLeft + DAY_W - 2) { tx = dayLeft + DAY_W - 2 - (w - lead); }
-            var y = above ? SUN_Y : MOON_Y;
-            return '<line x1="' + x.toFixed(1) + '" y1="' + (above ? SUN_Y + 4 : horizon + 5)
-                + '" x2="' + x.toFixed(1) + '" y2="' + (above ? horizon - 5 : MOON_Y - 10)
+            return { x: x, tx: tx, w: w, anchor: anchor, dayLeft: dayLeft,
+                glyph: glyph, time: time, rise: rise };
+        };
+        // A flip can only trade one seam for the other, so every placement
+        // finishes with a clamp: a label that leaves its day is a label the
+        // viewport cuts.
+        /**
+         * @param {Object} p A placement from place().
+         * @returns {Object} The same placement, clamped inside its day.
+         */
+        var clampLabel = function (p) {
+            var lead = p.anchor === 'start' ? 0 : p.w;
+            if (p.tx - lead < p.dayLeft + 2) { p.tx = p.dayLeft + 2 + lead; }
+            if (p.tx + (p.w - lead) > p.dayLeft + DAY_W - 2) {
+                p.tx = p.dayLeft + DAY_W - 2 - (p.w - lead);
+            }
+            return p;
+        };
+        /**
+         * @param {Object} p A placement from place().
+         * @returns {number} The left edge of its label box.
+         */
+        var leftOf = function (p) { return p.anchor === 'end' ? p.tx - p.w : p.tx; };
+        // A body's two events share one baseline, and both labels reach for
+        // the span BETWEEN them — so a moonset just after midnight and a
+        // moonrise the same morning print on top of each other (65 of the
+        // 340 such days at Berlin, up to 40 of 62 units deep). Part them
+        // along the row before drawing: the leader is a vertical line at the
+        // dot, so a label that has slid still reads as that dot's.
+        /**
+         * @param {Object} a One placement sharing the row.
+         * @param {Object} b The other.
+         * @returns {void}
+         */
+        var part = function (a, b) {
+            if (!a || !b || a.dayLeft !== b.dayLeft) { return; }
+            var lo = leftOf(a) <= leftOf(b) ? a : b;
+            var hi = lo === a ? b : a;
+            var over = (leftOf(lo) + lo.w + 4) - leftOf(hi);
+            if (over <= 0) { return; }
+            // Split the gap evenly, but only as far as each label's own
+            // seam allows — half each, then hand whatever one of them
+            // cannot take to the other. A day is wide enough for both
+            // (2 x 62 + 4 of 356), so the pair always comes apart.
+            var loRoom = leftOf(lo) - (lo.dayLeft + 2);
+            var hiRoom = (hi.dayLeft + DAY_W - 2) - (leftOf(hi) + hi.w);
+            var hiShift = Math.min(over - Math.min(over / 2, loRoom), hiRoom);
+            var loShift = Math.min(over - hiShift, loRoom);
+            lo.tx -= loShift;
+            hi.tx += hiShift;
+            clampLabel(lo);
+            clampLabel(hi);
+        };
+        /**
+         * @param {Object} p A placed, clamped event.
+         * @param {boolean} above Whether it belongs to the upper (sun) row.
+         * @param {string} ink The body's ink, for the dot and leader.
+         * @param {string} glyphInk The body's ink stepped for text.
+         * @returns {string} SVG for the leader, dot and label.
+         */
+        var emit = function (p, above, ink, glyphInk) {
+            var text = p.rise
+                ? esc(p.time) + ' <tspan fill="' + glyphInk + '">' + p.glyph + '</tspan>'
+                : '<tspan fill="' + glyphInk + '">' + p.glyph + '</tspan> ' + esc(p.time);
+            return '<line x1="' + p.x.toFixed(1) + '" y1="' + (above ? SUN_Y + 4 : horizon + 5)
+                + '" x2="' + p.x.toFixed(1) + '" y2="' + (above ? horizon - 5 : MOON_Y - 10)
                 + '" stroke="' + ink + '" stroke-width="1" stroke-dasharray="1.5 3" opacity="0.75"/>'
-                + '<circle cx="' + x.toFixed(1) + '" cy="' + horizon + '" r="' + (above ? 4 : 3.4)
+                + '<circle cx="' + p.x.toFixed(1) + '" cy="' + horizon + '" r="' + (above ? 4 : 3.4)
                 + '" fill="' + ink + '" stroke="' + pal.surface + '" stroke-width="1.2"/>'
-                + '<text x="' + tx.toFixed(1) + '" y="' + y + '" text-anchor="' + anchor
-                + '" font-size="' + LABEL + '" font-weight="600" fill="' + pal.ink + '">' + text + '</text>';
+                + '<text x="' + p.tx.toFixed(1) + '" y="' + (above ? SUN_Y : MOON_Y)
+                + '" text-anchor="' + p.anchor + '" font-size="' + LABEL
+                + '" font-weight="600" fill="' + pal.ink + '">' + text + '</text>';
         };
         // Daylight band + rise/set marks, per day, all on the LOCATION's
         // clock. The band goes down first so the past wash still dims it.
-        var band = '', marks = '';
+        var band = '', marks = '', sunCross = [], moonCross = [];
         for (var d = 0; d < view.days; d += 1) {
             var dayLeft = d * DAY_W;
             var dayMs = view.dayStartMs + d * 86400000;
             var st = SunCalcLib.getTimes(new Date(dayMs + 43200000), loc.lat, loc.lon);
-            var mt = SunCalcLib.getMoonTimes(new Date(dayMs + 43200000), loc.lat, loc.lon);
+            // getMoonTimes snaps its 24-hour search to midnight — the HOST
+            // phone's midnight unless inUTC is set, while everything else
+            // here runs on the location's clock. Handing it the shifted
+            // instant with inUTC makes the window the LOCATION's day; the
+            // instants it returns are real, so they need no shifting back.
+            // Without this a Berlin slot read from Sydney loses one end of
+            // its moon marks and draws the other off the canvas.
+            var mt = SunCalcLib.getMoonTimes(new Date(dayMs + off * 1000 + 43200000),
+                loc.lat, loc.lon, true);
             var t1 = hm(st.sunrise);
             var t2 = hm(st.sunset);
             // Polar day has no crossing to mark, so the band spans the day.
@@ -1038,12 +1144,20 @@
                 band += '<rect x="' + x1.toFixed(1) + '" y="' + top + '" width="' + (x2 - x1).toFixed(1)
                     + '" height="' + (horizon - top) + '" fill="' + pal.daylight + '"/>';
             }
-            if (t1) { marks += event(st.sunrise.getTime(), '\u2600\u2191', t1, true, pal.sun, true); }
-            if (t2) { marks += event(st.sunset.getTime(), '\u2600\u2193', t2, true, pal.sun, false); }
+            var sr = t1 ? place(st.sunrise.getTime(), '\u2600\u2191', t1, true) : null;
+            var ss = t2 ? place(st.sunset.getTime(), '\u2600\u2193', t2, false) : null;
             var m1 = mt && hm(mt.rise);
             var m2 = mt && hm(mt.set);
-            if (m1) { marks += event(mt.rise.getTime(), '\u263D\u2191', m1, false, pal.moon, true); }
-            if (m2) { marks += event(mt.set.getTime(), '\u263D\u2193', m2, false, pal.moon, false); }
+            var mr = m1 ? place(mt.rise.getTime(), '\u263D\u2191', m1, true) : null;
+            var ms2 = m2 ? place(mt.set.getTime(), '\u263D\u2193', m2, false) : null;
+            part(sr, ss);
+            part(mr, ms2);
+            // The crossing list feeds arc() the very instants these dots
+            // stand on, so a dropped mark contributes no vertex either.
+            if (sr) { marks += emit(clampLabel(sr), true, pal.sun, pal.sunText); sunCross.push(st.sunrise.getTime()); }
+            if (ss) { marks += emit(clampLabel(ss), true, pal.sun, pal.sunText); sunCross.push(st.sunset.getTime()); }
+            if (mr) { marks += emit(clampLabel(mr), false, pal.moon, pal.moon); moonCross.push(mt.rise.getTime()); }
+            if (ms2) { marks += emit(clampLabel(ms2), false, pal.moon, pal.moon); moonCross.push(mt.set.getTime()); }
         }
         var s = band;
         s += frameWide(view, pal, top, bottom);
@@ -1054,8 +1168,8 @@
         s += '<defs><clipPath id="wx-sun-up"><rect x="0" y="0" width="' + W + '" height="' + horizon + '"/></clipPath>'
             + '<clipPath id="wx-sun-dn"><rect x="0" y="' + horizon + '" width="' + W + '" height="'
             + (H - horizon) + '"/></clipPath></defs>';
-        var moonD = arc(function (dt) { return SunCalcLib.getMoonPosition(dt, loc.lat, loc.lon).altitude; });
-        var sunD = arc(function (dt) { return SunCalcLib.getPosition(dt, loc.lat, loc.lon).altitude; });
+        var moonD = arc(function (dt) { return SunCalcLib.getMoonPosition(dt, loc.lat, loc.lon).altitude; }, moonCross);
+        var sunD = arc(function (dt) { return SunCalcLib.getPosition(dt, loc.lat, loc.lon).altitude; }, sunCross);
         var stroke = function (d, ink) {
             return '<path d="' + d + '" fill="none" stroke="' + ink + '" stroke-width="2" stroke-linecap="round"/>';
         };

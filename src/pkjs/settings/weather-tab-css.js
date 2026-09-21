@@ -98,9 +98,12 @@
         // strip; its own side bleed is zeroed the same way (the sticky box
         // already carries the -16px margins).
         + '.wx-sticky .wx-days{margin:0;}'
-        // The caption row picks up right under the pinned ruler, so it
-        // keeps the strip's spacing rather than a panel's.
-        + '.wx-stripfoot .wx-bleed{margin:3px -16px 0;}'
+        // The caption row picks up right under the pinned ruler, so it keeps
+        // the strip's spacing rather than a panel's — and with NO gap, so
+        // the now line runs unbroken from the ruler down through the
+        // Measured|Forecast seam, as it did when the two shared one svg.
+        // The caption's own top padding is inside its viewBox.
+        + '.wx-stripfoot .wx-bleed{margin:0 -16px 0;}'
         // Day tiles are the day selector: tap jumps the panels to that day.
         // App-style wide tiles in a horizontally scrollable row (~2.5 tiles
         // per viewport); position:relative makes the row the tiles'

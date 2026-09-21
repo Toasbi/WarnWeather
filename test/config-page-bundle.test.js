@@ -185,9 +185,10 @@ test('the support mug reaches the generated page, after news.js', () => {
     'animation');
 });
 
-// APP_FILES is DUPLICATED — build-config-page.js ships the page, preview-config-page.js
-// renders `mise preview-config` — so an addition to one and not the other is silent.
-// That lockstep is already guarded, by test/preview-config-page.test.js's last test.
+// APP_FILES is SHARED — build-config-page.js ships the page and
+// preview-config-page.js requires that same array to render `mise
+// preview-config`, so the two can no longer drift. test/preview-config-page.js's
+// last test pins that it stays one array rather than becoming a copy again.
 
 // The Weather tab is nine files, each reading a window global a file earlier
 // in APP_FILES publishes (SunCalc / WeatherTabModel / WeatherTabData /
@@ -224,6 +225,14 @@ test('the Weather tab kit reaches the generated page in dependency order', () =>
     'weather-tab-readouts.js must precede weather-tab-charts.js (aliases its helpers at IIFE time)');
   assert.ok(idx('settings/weather-tab-model.js') < idx('settings/weather-tab-readouts.js'),
     'weather-tab-model.js must precede weather-tab-readouts.js');
+  // The one that cannot be caught by running the suite: in Node,
+  // weather-tab-css.js takes its require() branch, so every test passes with
+  // the fatal order. In the flat page it reads window.WeatherTabInteract at
+  // IIFE time to bake the pan's settle curve into its stylesheet, and the
+  // whole bundle is ONE <script> ending in boot() — so a throw here leaves
+  // the entire settings page blank, not merely an unstyled Weather tab.
+  assert.ok(idx('settings/weather-tab-interact.js') < idx('settings/weather-tab-css.js'),
+    'weather-tab-interact.js must precede weather-tab-css.js (SETTLE_CSS at IIFE time)');
   ['settings/vendor-suncalc.js', 'settings/weather-tab-model.js',
     'settings/weather-tab-data.js', 'settings/weather-tab-icons.js',
     'settings/weather-tab-readouts.js', 'settings/weather-tab-charts.js',
