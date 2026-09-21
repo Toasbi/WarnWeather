@@ -1089,14 +1089,25 @@ test('panel titles name the quantity, not the unit', () => {
     tab.weatherGraphsBlock(state, {}, SEED);
     respond(fixture(), null);
     const html = tab.weatherGraphsBlock(state, {}, SEED);
-    assert.ok(html.indexOf('>Wind &amp; gusts<') !== -1,
-      'the wind title is the quantity alone — the unit read as a label stuck on it');
-    assert.equal(html.indexOf('Wind &amp; gusts ·'), -1);
+    // Not one panel, ALL of them: the rule is about the heading, so it is
+    // read off every title the block emits rather than off the two that
+    // once carried a unit. A title is a quantity — "Wind & gusts",
+    // "Pressure" — and a unit appended to one read as a label stuck on.
+    const titles = (html.match(/<span class="wx-panel-title">[^<]*<\/span>/g) || [])
+      .map((t) => /">([^<]*)</.exec(t)[1]);
+    assert.deepEqual(titles, ['5-day forecast', 'Temperature &amp; precipitation',
+      'Wind &amp; gusts', 'Humidity &amp; dew point', 'Pressure', 'Sun &amp; moon'],
+      'every panel is named by its quantity alone');
+    titles.forEach((t) => {
+      assert.equal(t.indexOf('·'), -1, '"' + t + '" carries a unit on the heading');
+    });
     // The unit is not lost: the hour the tip shows carries it, in whatever
-    // unit the watch is set to.
+    // unit the watch is set to — and for the two panels whose axis prints
+    // bare numbers, the tip is now the ONLY place it appears.
     const view = charts.prepareView(fixture(), Date.now());
     assert.match(charts.tipHtml('wind', view, view.nowIndex, state), /<i>\d+ mph<\/i>/);
     assert.match(charts.tipHtml('wind', view, view.nowIndex, { windUnits: 'kph' }), /<i>\d+ km\/h<\/i>/);
+    assert.match(charts.tipHtml('press', view, view.nowIndex, state), /<i>\d+ hPa<\/i>/);
   } finally {
     data.fetchWeather = realFetch;
     tab._resetState();

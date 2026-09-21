@@ -318,16 +318,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         h += panelHtml('Temperature & precipitation',
             [['Temp', pal.temp, 'line'], ['Rain', pal.water, 'rect']],
             vp('temp', specs.temp));
-        // No unit on the title: it read as a label stuck onto the heading,
-        // and the values that need it already carry it — the floating tip
-        // prints "12 km/h" per hour, in whatever unit the watch is set to.
+        // A panel title names the QUANTITY, never the unit: appended to the
+        // heading it read as a label stuck onto it, and the values that need
+        // a unit already carry one — the floating tip prints "12 km/h" and
+        // "1012 hPa" per hour, in whatever unit the watch is set to. The
+        // in-plot axes stay bare numbers, as they were beside a unit-bearing
+        // title anyway.
         h += panelHtml('Wind & gusts',
             [['Wind', pal.water, 'line'], ['Gusts', pal.gust, 'line']],
             vp('wind', specs.wind));
         h += panelHtml('Humidity & dew point',
             [['Humidity', pal.water, 'rect'], ['Temp', pal.temp, 'line'], ['Dew point', pal.dew, 'line']],
             vp('hum', specs.hum));
-        h += panelHtml('Pressure · hPa', [],
+        h += panelHtml('Pressure', [],
             vp('press', specs.press));
         if (sunCalcLib) {
             h += panelHtml('Sun & moon',
