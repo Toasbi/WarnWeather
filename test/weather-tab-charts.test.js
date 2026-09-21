@@ -369,6 +369,10 @@ test('the caption names the past by what produced it, and only DWD says Measured
     const m = /<line x1="([\d.]+)" y1="([\d.]+)"[^>]*stroke-width="0\.8"/.exec(spec.main);
     return m ? { x: Number(m[1]), y1: Number(m[2]) } : null;
   };
+  // The now line, read by its own weight rather than by being the first line
+  // in the string — the day-boundary rules share this box and one opens it.
+  const nowLineX = (spec) =>
+    Number(/<line x1="([\d.]+)"[^>]*stroke-width="1\.2"/.exec(spec.main)[1]);
   const NOW_X = 12 * charts.HOUR_W;
 
   // The fixture is Open-Meteo-shaped: it serves the whole past day, but
@@ -401,7 +405,13 @@ test('the caption names the past by what produced it, and only DWD says Measured
   view.measuredAll = view.times.map((t, i) => i <= 8);
   const foot = charts.timeFootSvg(view, pal);
   const split = 8 * charts.HOUR_W + charts.HOUR_W / 2;
-  assert.ok(split < NOW_X, 'measurement ends before now (' + split + ' < ' + NOW_X + ')');
+  // Guard the guard, off the RENDER: this case only says anything if what
+  // was drawn puts measurement's end left of the now line. Comparing the two
+  // numbers the test itself computed would be arithmetic about itself —
+  // 8.5 × HOUR_W is below 12 × HOUR_W whatever the renderer did with them.
+  assert.ok(tick(foot).x < nowLineX(foot),
+    'the drawn tick stands left of the drawn now line ('
+    + tick(foot).x + ' < ' + nowLineX(foot) + ')');
   assert.deepEqual(today(foot), [
     // Measured reads back to where measurement began and stops where it ended.
     { word: 'Measured', x: split - 5, end: true },
@@ -410,10 +420,7 @@ test('the caption names the past by what produced it, and only DWD says Measured
     { word: 'Forecast', x: NOW_X + 5, end: false }
   ]);
 
-  // The now line by its own weight, not by being the first line in the
-  // string — the day-boundary rules share this box and one of them opens it.
-  const nowX = Number(/<line x1="([\d.]+)"[^>]*stroke-width="1\.2"/.exec(foot.main)[1]);
-  assert.equal(nowX, NOW_X);
+  assert.equal(nowLineX(foot), NOW_X);
 
 
   // Measurement running up to the last hour leaves no room to say Estimated
