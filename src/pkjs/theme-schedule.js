@@ -34,26 +34,54 @@ function parseHour(value, fallback) {
 }
 
 /**
- * True when `now` falls inside the configured night window. Manual mode is an
- * hour window with wrap-around (start === end means never, matching the sleep
- * window); sun mode is "before today's sunrise or from sunset onward". Unknown
- * sun times (no location fix yet, polar day/night → Invalid Date) answer day,
- * so a fresh install stays on the day theme rather than guessing.
+ * True when `now`'s hour falls inside an hour window, with wrap-around and the
+ * sleep window's conventions (sleep-window.js): a window whose start equals its
+ * end is "never", not "always", and the end hour is exclusive. Shared by both
+ * hour-window theme modes so the custom window and the shared Night hours can
+ * never drift apart; each caller passes the fallbacks its OWN keys default to
+ * in schema.js, since that is what an unparseable stored value stands in for.
  *
  * @param {Date} now Time to evaluate.
- * @param {Object} settings Clay settings (themeAuto/themeAutoMode/themeAutoStartHour/themeAutoEndHour).
+ * @param {*} startValue Stored start hour ('0'..'23').
+ * @param {*} endValue Stored end hour ('0'..'23').
+ * @param {number} startFallback Hour to use when startValue doesn't parse.
+ * @param {number} endFallback Hour to use when endValue doesn't parse.
+ * @returns {boolean} True when `now` is inside the window.
+ */
+function isWithinHourWindow(now, startValue, endValue, startFallback, endFallback) {
+    var h = now.getHours();
+    var start = parseHour(startValue, startFallback);
+    var end = parseHour(endValue, endFallback);
+    if (start === end) { return false; }
+    if (start < end) { return h >= start && h < end; }
+    return h >= start || h < end;
+}
+
+/**
+ * True when `now` falls inside the configured night window. Manual mode is the
+ * switch's own hour window and night mode is the Nighttime card's shared Night
+ * hours (sleepStartHour/sleepEndHour — the same pair the battery saver and the
+ * backlight dim follow), both evaluated by isWithinHourWindow; sun mode is
+ * "before today's sunrise or from sunset onward". Unknown sun times (no
+ * location fix yet, polar day/night → Invalid Date) answer day, so a fresh
+ * install stays on the day theme rather than guessing.
+ *
+ * @param {Date} now Time to evaluate.
+ * @param {Object} settings Clay settings (themeAuto/themeAutoMode/themeAutoStartHour/themeAutoEndHour/sleepStartHour/sleepEndHour).
  * @param {?{sunrise: Date, sunset: Date}} sunTimes Today's sun times at the current location, or null.
  * @returns {boolean} True when the night theme should be in effect.
  */
 function isNightNow(now, settings, sunTimes) {
     if (!settings || !settings.themeAuto) { return false; }
-    if ((settings.themeAutoMode || 'sun') === 'manual') {
-        var h = now.getHours();
-        var start = parseHour(settings.themeAutoStartHour, 20);
-        var end = parseHour(settings.themeAutoEndHour, 7);
-        if (start === end) { return false; }
-        if (start < end) { return h >= start && h < end; }
-        return h >= start || h < end;
+    // 'manual' is the stored value for the switch's OWN hours and predates the
+    // Night-hours option; 'night' follows the card's shared window. Neither
+    // needs sun times, which is why index.js only computes them for 'sun'.
+    var mode = settings.themeAutoMode || 'sun';
+    if (mode === 'manual') {
+        return isWithinHourWindow(now, settings.themeAutoStartHour, settings.themeAutoEndHour, 20, 7);
+    }
+    if (mode === 'night') {
+        return isWithinHourWindow(now, settings.sleepStartHour, settings.sleepEndHour, 0, 7);
     }
     if (!sunTimes) { return false; }
     var sunrise = sunTimes.sunrise instanceof Date ? sunTimes.sunrise.getTime() : NaN;

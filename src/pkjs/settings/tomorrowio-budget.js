@@ -17,20 +17,52 @@
     ];
 
     /**
+     * Parse an hour select value ('0'..'23'), clamping garbage to a fallback.
+     *
+     * @param {*} value Stored hour value (string from the settings page).
+     * @param {number} fallback Hour to use when the value doesn't parse.
+     * @returns {number} Hour 0..23.
+     */
+    function parseHour(value, fallback) {
+        var h = parseInt(value, 10);
+        if (isNaN(h) || h < 0 || h > 23) { return fallback; }
+        return h;
+    }
+
+    /**
+     * The effective (start, end) hour pair the battery saver runs on — a
+     * DELIBERATE MIRROR of sleep-window.js's resolveSleepWindow(). This file is
+     * concatenated into the flat config page, which has no require(), and
+     * sleep-window.js is a watch-runtime module that is not in build-config-page.js's
+     * APP_FILES — so the logic is copied rather than imported. test/tomorrowio-budget.test.js
+     * pins the two against each other over a matrix; keep them in lockstep.
+     *
+     * @param {Object} S Settings state (sleepNightMode + both hour pairs).
+     * @returns {{start: number, end: number}} Effective hours, each 0..23.
+     */
+    function resolveSleepWindow(S) {
+        var s = S || {};
+        var custom = (s.sleepNightMode || 'night') === 'custom';
+        return {
+            start: parseHour(custom ? s.sleepNightStartHour : s.sleepStartHour, 22),
+            end: parseHour(custom ? s.sleepNightEndHour : s.sleepEndHour, 7)
+        };
+    }
+
+    /**
      * Nightly pause length in whole hours from the sleep settings. Mirrors
      * sleep-window.js semantics: toggle off or start==end means no pause;
-     * invalid hours clamp to the 22..7 defaults; windows may cross midnight.
+     * invalid hours clamp to the 22..7 defaults; windows may cross midnight;
+     * and the hours are the saver's own pair when sleepNightMode is 'custom',
+     * so the budget block agrees with the Nighttime card above it.
      *
-     * @param {Object} S Settings state (sleepNightEnabled/sleepStartHour/sleepEndHour).
+     * @param {Object} S Settings state (sleepNightEnabled + resolveSleepWindow's keys).
      * @returns {number} Pause length in hours, 0..23.
      */
     function sleepHours(S) {
         if (!S || !S.sleepNightEnabled) { return 0; }
-        var start = parseInt(S.sleepStartHour, 10);
-        var end = parseInt(S.sleepEndHour, 10);
-        if (isNaN(start) || start < 0 || start > 23) { start = 22; }
-        if (isNaN(end) || end < 0 || end > 23) { end = 7; }
-        return ((end - start) + 24) % 24;
+        var win = resolveSleepWindow(S);
+        return ((win.end - win.start) + 24) % 24;
     }
 
     /**
@@ -127,6 +159,8 @@
         WEATHER_CALLS_PER_CYCLE: WEATHER_CALLS_PER_CYCLE,
         RADAR_CALLS_PER_CYCLE: RADAR_CALLS_PER_CYCLE,
         INTERVAL_LADDER: INTERVAL_LADDER,
+        // Exported for the sleep-window.js parity test, not for the page itself.
+        resolveSleepWindow: resolveSleepWindow,
         sleepHours: sleepHours,
         callsPerCycle: callsPerCycle,
         dailyCalls: dailyCalls,

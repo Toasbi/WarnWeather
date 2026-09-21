@@ -64,6 +64,35 @@ test('the Show unit toggles are independent of each other', () => {
       UNIT_KEYS[i] + ' and ' + UNIT_KEYS[i + 1 + j] + ' share a signature slot')));
 });
 
+// The night pause decides whether fetching happens at all (and which IS_SLEEPING glyph
+// the forced fetch pushes), so every key that moves the window has to force the refetch.
+// The saver's own hours are only READ when sleepNightMode is 'custom', but the signature
+// must not try to be that clever: flipping the mode back and forth has to register too,
+// and the alternative — signing a resolved window — would make a mode flip that happens
+// to land on the same hours invisible.
+const SLEEP_KEYS = ['sleepNightEnabled', 'sleepStartHour', 'sleepEndHour',
+  'sleepNightMode', 'sleepNightStartHour', 'sleepNightEndHour'];
+
+test('every sleep-window key changes the render signature (forces a refetch)', () => {
+  const base = { sleepNightEnabled: true, sleepStartHour: '0', sleepEndHour: '7',
+    sleepNightMode: 'custom', sleepNightStartHour: '22', sleepNightEndHour: '6' };
+  const changed = { sleepNightEnabled: false, sleepStartHour: '1', sleepEndHour: '8',
+    sleepNightMode: 'night', sleepNightStartHour: '23', sleepNightEndHour: '5' };
+  SLEEP_KEYS.forEach((key) => {
+    assert.notEqual(renderSignature({ ...base, [key]: changed[key] }), renderSignature(base),
+      key + ' must be part of the render signature');
+  });
+});
+
+test('the sleep-window keys each occupy their own signature slot', () => {
+  // Without distinct positions, editing the saver's custom start could read as
+  // editing the shared Night hours' start and vice versa.
+  const seen = SLEEP_KEYS.map((key) => renderSignature({ [key]: 'X' }));
+  seen.forEach((sig, i) => seen.slice(i + 1).forEach((other, j) =>
+    assert.notEqual(sig, other,
+      SLEEP_KEYS[i] + ' and ' + SLEEP_KEYS[i + 1 + j] + ' share a signature slot')));
+});
+
 // The weather kinds are evaluated phone-side at weather-bake time, so enabling one
 // only reaches the watch through a refetch. Without these keys in the signature,
 // shouldForceFetch stays false for a threshold-only edit and the user sees nothing until

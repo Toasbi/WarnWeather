@@ -31,8 +31,12 @@ function renderSignature(settings) {
         // trailing sentinel byte, so a flip only shows after a re-bake)...
         settings.windSlotDirection, settings.gustSlotDirection,
         // ...and the night weather-pause window (a change flips whether fetching pauses
-        // and the IS_SLEEPING glyph the forced fetch pushes)...
-        settings.sleepNightEnabled, settings.sleepStartHour, settings.sleepEndHour];
+        // and the IS_SLEEPING glyph the forced fetch pushes). BOTH hour pairs plus the
+        // mode that picks between them (sleep-window.js's resolveSleepWindow), or an
+        // edit to the saver's own hours sits invisible until the next scheduled fetch —
+        // which, inside a pause, is the very thing being edited...
+        settings.sleepNightEnabled, settings.sleepStartHour, settings.sleepEndHour,
+        settings.sleepNightMode, settings.sleepNightStartHour, settings.sleepNightEndHour];
     // ...the per-kind "Show unit" toggles (whether the phone bakes the unit
     // into the slot text at all — kph/hPa/d/°; same rule: without them here a
     // flip sits invisible until the next scheduled fetch), derived from the

@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const budget = require('../src/pkjs/settings/tomorrowio-budget.js');
+const sleepWindow = require('../src/pkjs/sleep-window.js');
 
 // Base state: tomorrow.io weather + radar, night pause off.
 function S(over) {
@@ -18,6 +19,52 @@ test('sleepHours: off -> 0; simple window; midnight-crossing window; start==end 
   assert.equal(budget.sleepHours(S({ sleepNightEnabled: true, sleepStartHour: '5', sleepEndHour: '5' })), 0);
   // NaN/out-of-range fall back to 22 / 7 (sleep-window.js parity) -> 9 h
   assert.equal(budget.sleepHours(S({ sleepNightEnabled: true, sleepStartHour: 'x', sleepEndHour: '99' })), 9);
+});
+
+// The budget block sits two cards below the Nighttime card, so it has to read the
+// SAME window the saver actually runs on: with mode 'custom' it used to keep
+// quoting the shared Night hours ("night pause 7 h") and derive its interval-unlock
+// advice from a window the saver no longer used.
+test('sleepHours honours sleepNightMode: custom hours, the night default, and the no-mode upgrade path', () => {
+  const custom = { sleepNightEnabled: true, sleepStartHour: '0', sleepEndHour: '7',
+    sleepNightStartHour: '22', sleepNightEndHour: '6' };
+  assert.equal(budget.sleepHours(S(Object.assign({ sleepNightMode: 'custom' }, custom))), 8);
+  assert.equal(budget.sleepHours(S(Object.assign({ sleepNightMode: 'night' }, custom))), 7);
+  // No sleepNightMode stored at all (existing install) -> the shared pair, unchanged.
+  assert.equal(budget.sleepHours(S(custom)), 7);
+  // The saver's own pair gets the same rules as the shared one.
+  assert.equal(budget.sleepHours(S({ sleepNightEnabled: true, sleepNightMode: 'custom',
+    sleepNightStartHour: '5', sleepNightEndHour: '5' })), 0);
+  assert.equal(budget.sleepHours(S({ sleepNightEnabled: true, sleepNightMode: 'custom',
+    sleepNightStartHour: 'x', sleepNightEndHour: '99' })), 9);
+  // And the toggle still wins over any mode.
+  assert.equal(budget.sleepHours(S(Object.assign({}, custom,
+    { sleepNightMode: 'custom', sleepNightEnabled: false }))), 0);
+});
+
+// This file is concatenated into the flat config page, which has no require(), so its
+// resolver is a hand-kept COPY of sleep-window.js's. Pin the two together over the
+// whole input matrix — a change to one that isn't made to the other fails here rather
+// than shipping a budget block that disagrees with the watch.
+test('the budget resolver matches sleep-window.js exactly (mirror parity)', () => {
+  const MODES = [undefined, 'night', 'custom', 'wat'];
+  const HOURS = ['0', '5', '7', '22', '23', 'x', '99', undefined];
+  MODES.forEach((mode) => HOURS.forEach((a) => HOURS.forEach((b) => {
+    const s = { sleepNightEnabled: true, sleepNightMode: mode,
+      sleepStartHour: a, sleepEndHour: b, sleepNightStartHour: b, sleepNightEndHour: a };
+    assert.deepEqual(budget.resolveSleepWindow(s), sleepWindow.resolveSleepWindow(s),
+      'mirror drifted for mode=' + mode + ' a=' + a + ' b=' + b);
+    // ...and the derived pause length agrees with the watch's own verdict: count
+    // the hours isWithinSleepWindow() actually pauses and compare.
+    let paused = 0;
+    for (let h = 0; h < 24; h += 1) {
+      const d = new Date();
+      d.setHours(h, 0, 0, 0);
+      if (sleepWindow.isWithinSleepWindow(d, s)) { paused += 1; }
+    }
+    assert.equal(budget.sleepHours(s), paused,
+      'sleepHours disagrees with the watch for mode=' + mode + ' a=' + a + ' b=' + b);
+  })));
 });
 
 test('callsPerCycle counts weather and radar selections independently', () => {
