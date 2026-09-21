@@ -438,11 +438,6 @@
     // through "15:00" leaves a digit looking struck out.
     var ICON_HALF = 12;     // the 22-unit glyph
     var LABEL_HALF = 17;    // "00:00" at 11px semibold
-    // Where midnight's own label stands: nudged off the seam into the day
-    // it opens, far enough in that the day rule clears its first digit and
-    // level with the weekday marker's left edge, which is the other thing
-    // in that corner.
-    var MIDNIGHT_LABEL_X = 22;
     var ICON_Y0 = 2, ICON_Y1 = 27;
     // The weekday marker is the third thing in the band, and the only one
     // that does NOT stand on a tick: it is a left-anchored label in each
@@ -481,7 +476,8 @@
         var gaps = [];
         // The 3-hourly icon row skips midnights — the weekday marker has
         // that slot — so a day rule never gaps for a glyph here, only the
-        // now line can.
+        // now line can. It does gap for the LABEL there: every 3-hourly
+        // column carries one, midnights included.
         var atMidnight = i3 % 24 === 0;
         var onIcon = i3 >= 3 && !atMidnight && Math.abs(x - cx) < ICON_HALF
             && (!hourIds || Boolean(hourIds[i3]));
@@ -496,36 +492,16 @@
             // marker's box is midnight, which carries no icon).
             gaps.push([MARK_Y0, MARK_Y1]);
         }
-        if (onLabel(view, x, i3, atMidnight)) {
+        // Every 3-hourly column carries a label and every one of them
+        // stands on its own tick, so the nearest tick settles this outright.
+        // The reach is 17 units against an hourly pitch of 15, which is why
+        // this fires at EVERY hour and not only the labelled ones: the two
+        // hours either side of a column land inside its label rather than
+        // beside it.
+        if (Math.abs(x - cx) < LABEL_HALF) {
             gaps.push([hourY - 10, hourY + 4]);
         }
         return gaps;
-    }
-
-    /**
-     * Whether a vertical line at `x` runs through an hour label.
-     *
-     * Every label but one stands on its own 3-hourly tick, so for those the
-     * nearest tick answers it. Midnight's does not — it is nudged into the
-     * day it opens — so it is asked separately, against the day the line
-     * stands in rather than against any tick. Asking the tick instead got
-     * it wrong both ways: it missed the nudged label, and it punched a gap
-     * for the 03:00 label, which yielded its slot to that nudge.
-     * @param {Object} view Prepared view.
-     * @param {number} x Line position in viewBox units.
-     * @param {number} i3 The nearest 3-hourly hour index.
-     * @param {boolean} atMidnight Whether that index is a day boundary.
-     * @returns {boolean} True when a gap is owed.
-     */
-    function onLabel(view, x, i3, atMidnight) {
-        var d = Math.floor(x / DAY_W);
-        if (d >= 0 && d < view.days
-            && Math.abs(x - (d * DAY_W + MIDNIGHT_LABEL_X)) < LABEL_HALF) {
-            return true;
-        }
-        // The two ticks that carry no text of their own.
-        if (atMidnight || i3 % 24 === 3) { return false; }
-        return Math.abs(x - xAt(view, i3)) < LABEL_HALF;
     }
 
     /**
@@ -1364,10 +1340,11 @@
         // glyph and the hour label they pass through. Drawing them under the
         // text was not enough: the type has no background of its own, so a
         // full-ink rule still showed between the strokes of a digit and read
-        // as a strike-through. A midnight column carries nothing — no icon
-        // and no hour label — so a day rule gaps nowhere and draws as the
-        // one unbroken line it is meant to read as; the now line can land
-        // anywhere and gaps for whichever mark it crosses.
+        // as a strike-through. A midnight column carries no icon — the
+        // weekday marker has that slot — but it does carry an hour label,
+        // so a day rule breaks once, in the label row, and reads as one line
+        // either side of it; the now line can land anywhere and gaps for
+        // whichever mark it crosses.
         var dayAttrs = 'stroke="' + pal.ink + '" stroke-width="1" opacity="' + DAY_EDGE_OP + '"';
         for (d = 0; d <= view.days; d += 1) {
             x = d * DAY_W;
@@ -1388,37 +1365,24 @@
                 + pal.muted + '">' + esc(wd) + '</text>';
         }
         // Hour labels INSIDE the band, along its lower edge (the app's
-        // look), every three hours — midnight included, but NUDGED into the
-        // day it opens instead of centred on the seam it stands on. A day
-        // boundary is a viewport fold, so a label centred there is half on
-        // the far side of it: the reader saw ":00" at the left edge of every
-        // day and "00:" at its right.
+        // look), every three hours — midnight included and centred on the
+        // fold it stands on, not nudged clear of it. A day boundary is a
+        // viewport seam, so each of those labels is cut in half by the
+        // viewport's overflow: ":00" at the left edge of every day and "00:"
+        // at its right.
         //
-        // The nudge costs 03:00 its text, and no arrangement avoids that. A
-        // mark on a row of pitch P can be nudged clear only if it is at most
-        // 2P/3 wide — it must travel w/2 to leave the fold and has P - w
-        // before it reaches its neighbour — and here P is 45 while the label
-        // sets 35.2 (measured with getBBox). The row is 78 % full: midnight
-        // and 03:00 cannot both stand in it. So 03:00 yields its TEXT only.
-        // Its icon, figure and arrow keep their column, the ruler keeps its
-        // long tick there, and the count comes out the same either way —
-        // seven labels a day, one of which is now the midnight that opens it.
+        // Which is the reader's own call, and the third answer tried here.
+        // Dropping the label left the hour the whole ruler is built around
+        // unnamed; nudging it into the day it opens cost 03:00 its text,
+        // because the label sets 35.2 units (measured with getBBox) on a
+        // 45-unit pitch, so it cannot travel the 17.6 it needs to leave the
+        // seam and still leave a neighbour room. A halved midnight is what
+        // both of those were worse than: the rhythm stays three-hourly the
+        // whole way across, every column keeps its own text, and the half
+        // that is cut off is the half the neighbouring viewport shows.
         for (i = 0; i < view.times.length; i += 3) {
-            var labelX;
-            if (i % 24 === 0) {
-                // Into the day this midnight OPENS. There is always one to
-                // open: prepareView pads the series to whole days, so the
-                // last index is 24 x days - 1 and the closing fold — which
-                // opens no day and has nowhere inside to be nudged to — is
-                // one past the end of this loop. test/weather-tab-charts
-                // pins that contract on prepareView itself.
-                labelX = (i / 24) * DAY_W + MIDNIGHT_LABEL_X;
-            } else if (i % 24 === 3) {
-                continue;
-            } else {
-                labelX = xAt(view, i);
-            }
-            s += '<text x="' + labelX + '" y="' + hourY + '" text-anchor="middle" font-size="11" '
+            x = xAt(view, i);
+            s += '<text x="' + x + '" y="' + hourY + '" text-anchor="middle" font-size="11" '
                 + 'font-weight="600" fill="' + pal.ink + '">'
                 + two(model.localHour(view.times[i], view.offsetSec)) + ':00</text>';
         }
