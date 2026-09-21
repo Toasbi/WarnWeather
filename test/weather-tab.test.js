@@ -1050,6 +1050,31 @@ test('a swipe across the tiles pans the days and never taps the one it lands on'
   }
 });
 
+test('panel titles name the quantity, not the unit', () => {
+  tab._resetState();
+  let respond = null;
+  const realFetch = data.fetchWeather;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { respond = cb; };
+  try {
+    const state = { graphsLocation: 'current', temperatureUnits: 'c', windUnits: 'mph' };
+    tab._setCtx({ S: state, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond(fixture(), null);
+    const html = tab.weatherGraphsBlock(state, {}, SEED);
+    assert.ok(html.indexOf('>Wind &amp; gusts<') !== -1,
+      'the wind title is the quantity alone — the unit read as a label stuck on it');
+    assert.equal(html.indexOf('Wind &amp; gusts ·'), -1);
+    // The unit is not lost: the hour the tip shows carries it, in whatever
+    // unit the watch is set to.
+    const view = charts.prepareView(fixture(), Date.now());
+    assert.match(charts.tipHtml('wind', view, view.nowIndex, state), /<i>\d+ mph<\/i>/);
+    assert.match(charts.tipHtml('wind', view, view.nowIndex, { windUnits: 'kph' }), /<i>\d+ km\/h<\/i>/);
+  } finally {
+    data.fetchWeather = realFetch;
+    tab._resetState();
+  }
+});
+
 test('freshness rides the 5-day title line, and the old footer is gone', () => {
   tab._resetState();
   let respond = null;

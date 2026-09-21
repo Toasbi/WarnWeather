@@ -314,7 +314,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         h += panelHtml('Temperature & precipitation',
             [['Temp', pal.temp, 'line'], ['Rain', pal.water, 'rect']],
             vp('temp', specs.temp));
-        h += panelHtml('Wind & gusts · ' + model.windUnitLabel(settings),
+        // No unit on the title: it read as a label stuck onto the heading,
+        // and the values that need it already carry it — the floating tip
+        // prints "12 km/h" per hour, in whatever unit the watch is set to.
+        h += panelHtml('Wind & gusts',
             [['Wind', pal.water, 'line'], ['Gusts', pal.gust, 'line']],
             vp('wind', specs.wind));
         h += panelHtml('Humidity & dew point',
