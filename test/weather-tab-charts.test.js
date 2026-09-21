@@ -433,8 +433,9 @@ test('the sun & moon panel marks every rise and set ON the horizon, labelled at 
   // Now: a rayed sun on its curve, a phase-bearing disc on the moon's.
   assert.match(spec.main, new RegExp('<g stroke="' + pal.sun + '" stroke-width="1.6" stroke-linecap="round">'
     + '(<line [^>]*>){8}</g>'), 'the sun glyph wears eight rays');
-  assert.match(spec.main, /<circle cx="[\d.]+" cy="[\d.]+" r="5.5"/, 'the moon disc stands at now');
-  assert.match(spec.main, new RegExp('<path d="M[^"]+Z" fill="' + pal.moon + '"'), 'with its lit limb filled');
+  assert.match(spec.main, new RegExp('<circle cx="[\\d.]+" cy="[\\d.]+" r="5.5" fill="' + pal.moonDisc + '"'),
+    'the moon disc stands at now, on its own night ground');
+  assert.match(spec.main, new RegExp('<path d="M[^"]+Z" fill="' + pal.moonLit + '"'), 'with its lit limb filled');
   const pct = /font-size="(\d+)"[^>]*>(\d+)%</.exec(spec.main);
   assert.ok(Number(pct[1]) >= 9, 'the phase percentage is legible, not a footnote (' + pct[1] + ')');
 });
@@ -470,6 +471,87 @@ test('the arcs plant their horizon crossings, and no label leaves its day', () =
         + ' stays inside day ' + day + ' (' + left.toFixed(1) + '–' + (left + width).toFixed(1) + ')');
     });
   });
+});
+
+test('a rise/set label is clamped into the day its own dot stands in', () => {
+  // A provider that under-reports the UTC offset pushes a crossing out of the
+  // day the panel's loop is drawing — Sydney's sunrise lands near 20:00 when
+  // the clock is left on UTC. The label must follow its dot into that day
+  // rather than be clamped into the day being iterated, where it would sit at
+  // the seam pointing at nothing.
+  const view = charts.prepareView(fixtureData(), NOON);
+  const pal = charts.palette(false);
+  const spec = charts.sunMoonPanelSvg(view, { lat: -33.9, lon: 151.2 }, pal, SunCalc);
+  const EV = /<line x1="[\d.]+"[^>]*stroke-dasharray="1.5 3"[^>]*\/><circle cx="([\d.]+)"[^>]*\/><text x="([\d.]+)" y="\d+" text-anchor="(start|end)" font-size="(\d+)"[^>]*>([^<]*)<tspan[^>]*>([^<]*)<\/tspan>([^<]*)</g;
+  let m, seen = 0;
+  while ((m = EV.exec(spec.main)) !== null) {
+    const dotX = Number(m[1]);
+    const x = Number(m[2]);
+    const size = Number(m[4]);
+    const width = (m[5] + m[6] + m[7]).length * size * 0.7;
+    const left = m[3] === 'end' ? x - width : x;
+    const dotDay = Math.floor(dotX / charts.DAY_W);
+    assert.ok(left >= dotDay * charts.DAY_W - 0.01
+      && left + width <= (dotDay + 1) * charts.DAY_W + 0.01,
+      'label ' + JSON.stringify(m[5] + m[6] + m[7]) + ' shares day ' + dotDay + ' with its dot at '
+      + dotX.toFixed(1) + ' (label ' + left.toFixed(1) + '–' + (left + width).toFixed(1) + ')');
+    seen += 1;
+  }
+  assert.ok(seen >= 4, 'the skewed clock still yields rise/set events: ' + seen);
+  const days = [];
+  (spec.main.match(/<circle cx="([\d.]+)" cy="\d+" r="(?:4|3.4)"/g) || []).forEach((c) => {
+    days.push(Math.floor(Number(/cx="([\d.]+)"/.exec(c)[1]) / charts.DAY_W));
+  });
+  assert.ok(Math.max.apply(null, days) > Math.min.apply(null, days),
+    'the crossings spread over more than one day, so the day a label picks matters');
+});
+
+test('the altitude band is symmetric about the horizon, so no arc leaves the frame', () => {
+  const view = charts.prepareView(fixtureData(), NOON);
+  const pal = charts.palette(false);
+  // The frame's own now-line reports the plot box, so this reads the geometry
+  // the panel actually drew rather than a copy of its constants.
+  const boxOf = (svg) => {
+    const m = /<line x1="[\d.]+" y1="(\d+)" x2="[\d.]+" y2="(\d+)" stroke="[^"]*" stroke-width="1.2" opacity="0.55"/.exec(svg);
+    return { top: Number(m[1]), bottom: Number(m[2]) };
+  };
+  const horizonOf = (svg) => Number(/<line x1="0" y1="(\d+)" x2="\d+" y2="\1"/.exec(svg)[1]);
+  const arcYs = (svg) => {
+    const ys = [];
+    (svg.match(/<path d="(M[^"]+)" fill="none" stroke="[^"]+" stroke-width="2"/g) || []).forEach((tag) => {
+      const d = /d="(M[^"]+)"/.exec(tag)[1];
+      (d.match(/[ML]([\d.]+) ([\d.]+)/g) || []).forEach((v) => { ys.push(Number(/ ([\d.]+)$/.exec(v)[1])); });
+    });
+    return ys;
+  };
+
+  // Low latitudes are the demanding case, not the poles: the sun passes close
+  // to the nadir there (about -88 degrees at the equator), so a band that is
+  // not symmetric about the horizon pushes the night arc through the box.
+  [[0, 0, 'the equator'], [-33.9, 151.2, 'Sydney'], [52.5, 13.4, 'Berlin'], [69.6, 18.9, 'Tromso']]
+    .forEach((where) => {
+      const spec = charts.sunMoonPanelSvg(view, { lat: where[0], lon: where[1] }, pal, SunCalc);
+      const box = boxOf(spec.main);
+      const horizon = horizonOf(spec.main);
+      assert.equal(horizon - box.top, box.bottom - horizon,
+        'the horizon halves the plot box at ' + where[2] + ' — that symmetry IS the containment');
+      const ys = arcYs(spec.main);
+      assert.ok(ys.length > 4 * 24, where[2] + ' draws sampled arcs: ' + ys.length);
+      const deepest = Math.max.apply(null, ys);
+      const highest = Math.min.apply(null, ys);
+      assert.ok(deepest <= box.bottom + 0.05,
+        'at ' + where[2] + ' the night arc stays in the box (' + deepest + ' vs bottom ' + box.bottom + ')');
+      assert.ok(highest >= box.top - 0.05,
+        'at ' + where[2] + ' the day arc stays in the box (' + highest + ' vs top ' + box.top + ')');
+      assert.ok(spec.H > box.bottom, where[2] + ' leaves the moon labels room below the box');
+    });
+
+  // Guard the guard: at the equator the arc really does reach for the floor,
+  // so the containment assertions above are load-bearing rather than slack.
+  const eq = charts.sunMoonPanelSvg(view, { lat: 0, lon: 0 }, pal, SunCalc);
+  const eqBox = boxOf(eq.main);
+  assert.ok(Math.max.apply(null, arcYs(eq.main)) > eqBox.bottom - 3,
+    'the equatorial night arc comes within 3px of the box floor');
 });
 
 test('moonPhasePath: the terminator tracks the fraction and the lit limb the direction', () => {
@@ -582,6 +664,15 @@ test('the two palettes stay in lockstep (same roles in light and dark)', () => {
     'daylight', 'sunNight', 'moon', 'moonNight'].forEach((role) => {
     assert.notEqual(light[role], dark[role], role + ' is stepped per surface, not shared');
   });
+  // The phase disc is the exception, and deliberately so: it paints the sky,
+  // not the page, so a lit limb stays the bright ink on either surface.
+  const lum = (hex) => [1, 3, 5].reduce((a, i) => a + parseInt(hex.slice(i, i + 2), 16), 0);
+  ['moonDisc', 'moonLit'].forEach((role) => {
+    assert.equal(light[role], dark[role], role + ' does NOT step per surface — the sky is the sky');
+  });
+  assert.ok(lum(light.moonLit) > lum(light.moonDisc),
+    'the lit limb is the brighter of the two, or the phase reads inverted');
+
   // A body's night ink must actually differ from its day ink, or the split
   // above/below the horizon says nothing.
   [['sun', 'sunNight'], ['moon', 'moonNight']].forEach((pair) => {

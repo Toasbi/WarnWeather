@@ -48,6 +48,11 @@
             // BELOW the horizon (the arc keeps running; it just goes quiet).
             daylight: 'rgba(70,140,255,0.13)', sunNight: '#d9b877',
             moon: '#4E5766', moonNight: '#A7AEBC',
+            // The phase disc is a picture of the sky, not page furniture, so
+            // its two inks do NOT step with the surface (the hiBox precedent
+            // below): the lit limb is the bright one on either page. Letting
+            // them flip made a waxing gibbous read as a waning crescent.
+            moonDisc: '#2C313A', moonLit: '#F2F4F8',
             // High-chance precip ink: `water` is tuned for lines/fills, not
             // text — as text on the surface it lands under 4.5:1. This is
             // the same hue darkened (light) / lightened (dark) past AA.
@@ -63,6 +68,7 @@
             surface: '#3A3B3F',
             daylight: 'rgba(120,170,255,0.17)', sunNight: '#8a5f14',
             moon: '#E4E8F0', moonNight: '#767E8C',
+            moonDisc: '#2C313A', moonLit: '#F2F4F8',
             probHi: '#85B4F0',
             // The selected-hour box (the app's dark chip): deliberately the
             // same dark-on-dark-blue pair on BOTH surfaces, like the app.
@@ -936,8 +942,13 @@
      */
     function sunMoonPanelSvg(view, loc, pal, SunCalcLib) {
         var H = 150;
-        var top = 24, bottom = 112;
-        var horizon = (top + bottom) / 2 + 6;
+        // The band is symmetric about the horizon, so +/-90 degrees of
+        // altitude lands exactly on the frame's edges and a deep-night arc
+        // stays inside the box instead of crossing its bottom rule. That is
+        // not a polar edge case: the sun reaches about -88 degrees near the
+        // equator and -84 in Sydney, both of which used to overshoot.
+        var top = 24, horizon = 74;
+        var bottom = horizon + (horizon - top);
         var W = view.days * DAY_W;
         var off = view.offsetSec;
         // Rise/set labels carry the panel: they print at the size of the
@@ -976,12 +987,15 @@
         };
         // One rise/set event: the dot where the arc crosses the horizon, a
         // dotted leader out to the label, and the label itself. The label
-        // lies on the midday side of its dot with the glyph nearest the dot
-        // (the app's arrangement), and flips sides when that would carry it
-        // out of its own day — each day is one viewport, so an overhanging
-        // label is a clipped label.
-        var event = function (ms, dayLeft, glyph, time, above, ink, rise) {
+        // sits on the night side of its dot — before a rise, after a set —
+        // so the pair brackets the daylight band instead of writing over it,
+        // with the glyph nearest the dot (the app's arrangement). It flips
+        // sides when that would carry it out of the day the DOT stands in:
+        // a day is one viewport, so an overhanging label is a clipped one,
+        // and a label clamped into some other day would point at nothing.
+        var event = function (ms, glyph, time, above, ink, rise) {
             var x = xFor(ms);
+            var dayLeft = Math.floor(x / DAY_W) * DAY_W;
             var text = rise
                 ? esc(time) + ' <tspan fill="' + ink + '">' + glyph + '</tspan>'
                 : '<tspan fill="' + ink + '">' + glyph + '</tspan> ' + esc(time);
@@ -1024,12 +1038,12 @@
                 band += '<rect x="' + x1.toFixed(1) + '" y="' + top + '" width="' + (x2 - x1).toFixed(1)
                     + '" height="' + (horizon - top) + '" fill="' + pal.daylight + '"/>';
             }
-            if (t1) { marks += event(st.sunrise.getTime(), dayLeft, '\u2600\u2191', t1, true, pal.sun, true); }
-            if (t2) { marks += event(st.sunset.getTime(), dayLeft, '\u2600\u2193', t2, true, pal.sun, false); }
+            if (t1) { marks += event(st.sunrise.getTime(), '\u2600\u2191', t1, true, pal.sun, true); }
+            if (t2) { marks += event(st.sunset.getTime(), '\u2600\u2193', t2, true, pal.sun, false); }
             var m1 = mt && hm(mt.rise);
             var m2 = mt && hm(mt.set);
-            if (m1) { marks += event(mt.rise.getTime(), dayLeft, '\u263D\u2191', m1, false, pal.moon, true); }
-            if (m2) { marks += event(mt.set.getTime(), dayLeft, '\u263D\u2193', m2, false, pal.moon, false); }
+            if (m1) { marks += event(mt.rise.getTime(), '\u263D\u2191', m1, false, pal.moon, true); }
+            if (m2) { marks += event(mt.set.getTime(), '\u263D\u2193', m2, false, pal.moon, false); }
         }
         var s = band;
         s += frameWide(view, pal, top, bottom);
@@ -1055,10 +1069,10 @@
         var moonAlt = SunCalcLib.getMoonPosition(new Date(view.nowMs), loc.lat, loc.lon).altitude;
         var illum = SunCalcLib.getMoonIllumination(new Date(view.nowMs));
         var my = altToY(moonAlt);
-        s += '<circle cx="' + nx.toFixed(1) + '" cy="' + my.toFixed(1) + '" r="5.5" fill="' + pal.surface
+        s += '<circle cx="' + nx.toFixed(1) + '" cy="' + my.toFixed(1) + '" r="5.5" fill="' + pal.moonDisc
             + '" stroke="' + pal.moonNight + '" stroke-width="1"/>';
         var lit = moonPhasePath(nx, my, 5.5, illum.fraction, illum.phase < 0.5);
-        if (lit) { s += '<path d="' + lit + '" fill="' + pal.moon + '"/>'; }
+        if (lit) { s += '<path d="' + lit + '" fill="' + pal.moonLit + '"/>'; }
         s += sunGlyph(nx, altToY(sunAlt), 4.5, pal);
         // The percentage sits beside the disc, and swaps sides rather than
         // run off the end of the day it is standing in.
