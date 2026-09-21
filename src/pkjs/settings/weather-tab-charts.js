@@ -214,9 +214,18 @@
         var nowIndex = Math.floor((nowMs - dayStartMs) / 3600000);
         if (nowIndex < 0) { nowIndex = 0; }
         if (nowIndex > keep - 1) { nowIndex = keep - 1; }
+        // A chance of rain is a claim about an hour still to come. Once the
+        // hour is over it either rained or it did not, and the rain bar is
+        // the one that says which — so the view SETTLES every hour before
+        // the current one here, once, instead of leaving each readout to
+        // remember. The % row still prints the app's dash for them; the
+        // floating tip and the day tiles simply go quiet. (The current hour
+        // is still running, so it keeps its chance.)
+        var prob = trim(grid.prob);
+        for (i = 0; i < nowIndex && i < prob.length; i += 1) { prob[i] = null; }
         return {
             times: trim(grid.time),
-            temp: trim(grid.temp), rain: trim(grid.rain), prob: trim(grid.prob),
+            temp: trim(grid.temp), rain: trim(grid.rain), prob: prob,
             wind: trim(grid.wind), gust: trim(grid.gust), dir: trim(grid.dir),
             rh: trim(grid.rh), dew: trim(grid.dew), pressure: trim(grid.pressure),
             icon: trim(grid.icon),
@@ -225,8 +234,41 @@
             nowIndex: nowIndex,
             nowMs: nowMs,
             offsetSec: off,
-            daily: data.daily || []
+            daily: settleToday(data.daily || [], prob, dayStartMs)
         };
+    }
+
+    /**
+     * Today's tile carries the same forward-looking promise as the hours:
+     * its "chance" must describe the hours LEFT in the day, not the ones
+     * already settled. Providers hand over a whole-day maximum (or we
+     * aggregate one), so the view recomputes today's from the hours it
+     * still owns — every other day's tile passes through untouched.
+     * @param {Array<Object>} daily Provider day tiles, today first.
+     * @param {Array<?number>} prob The view's SETTLED hourly chances — the
+     *     past is already null there, which is why this reads all 24.
+     * @param {number} dayStartMs The location's midnight (the canvas origin).
+     * @returns {Array<Object>} The tiles, with today's probMax re-read.
+     */
+    function settleToday(daily, prob, dayStartMs) {
+        var first = daily[0];
+        // The same window dailyStripHtml labels "Today" with, so the tile
+        // that says Today is exactly the tile settled here. Stamps are
+        // local day-starts, except OWM's midday ones; the day-wide window
+        // accepts both and passes on a strip not starting on today.
+        if (!first || first.date < dayStartMs || first.date >= dayStartMs + 86400000) { return daily; }
+        var left = null;
+        for (var i = 0; i < 24 && i < prob.length; i += 1) {
+            var p = prob[i];
+            if (p !== null && p !== undefined && (left === null || p > left)) { left = p; }
+        }
+        // No Object.assign: the page bundle carries no polyfills.
+        var out = daily.slice();
+        out[0] = {
+            date: first.date, tmin: first.tmin, tmax: first.tmax, icon: first.icon,
+            rainMm: first.rainMm, probMax: left, sunshineH: first.sunshineH
+        };
+        return out;
     }
 
     /**

@@ -796,6 +796,63 @@ test('every icon id in the vocabulary draws a glyph, in both palettes', () => {
   });
 });
 
+test('prepareView settles past hours: a chance is only ever about hours to come', () => {
+  const view = charts.prepareView(fixtureData(), NOON);
+  const s = { temperatureUnits: 'c', windUnits: 'kph' };
+  assert.equal(view.nowIndex, 12, 'the fixture puts now at midday');
+  // The provider DOES hand over a chance for every past hour (the fixture
+  // mirrors Open-Meteo's past_days) — the view is what drops them.
+  assert.equal(fixtureData().hourly.prob[12], 10, 'the source carries past chances');
+  for (let i = 0; i < view.nowIndex; i += 1) {
+    assert.equal(view.prob[i], null, `hour ${i} is over: no chance survives it`);
+  }
+  assert.equal(view.prob[view.nowIndex], 10, 'the hour in progress keeps its chance');
+  assert.equal(view.prob[20], 60, 'later hours are untouched');
+  // Every readout inherits it, because they all read view.prob.
+  assert.equal((charts.tipHtml('temp', view, 5, s).match(/wx-tip-c/g) || []).length, 2,
+    'the tip of a settled hour shows what happened, not what was promised');
+  assert.equal(charts.tipHtml('temp', view, 5, s).indexOf('Chance'), -1);
+  assert.ok(charts.tipHtml('temp', view, view.nowIndex, s).indexOf('<b>Chance</b>') !== -1,
+    'the running hour still carries its Chance column');
+  assert.equal(charts.tipText('temp', view, 5, s).indexOf('%'), -1,
+    'the plain-text tip drops it too');
+  // The % row keeps printing the app's dash for them — the row is a ruler,
+  // so its 3-hourly cadence must not go blank.
+  const svg = charts.tempPanelSvg(view, s, charts.palette(false)).main;
+  const marks = svg.match(/>(–|\d+%)<\/text>/g) || [];
+  assert.ok(marks.length >= 4 && marks.slice(0, 4).every((m) => m.indexOf('–') !== -1),
+    'the first four 3-hourly marks of a midday view are dashes');
+});
+
+test("today's tile promises only the hours it still owns", () => {
+  const raw = fixtureData();
+  assert.equal(raw.daily[0].probMax, 0, 'the provider called today 0%');
+  // The fixture rains 60% from 17:00, so a midday view must surface that
+  // and a late-evening view must not (20:00 onward is 60%, 23:00 is the
+  // last hour of the day).
+  assert.equal(charts.prepareView(fixtureData(), NOON).daily[0].probMax, 60);
+  assert.equal(charts.prepareView(fixtureData(), DAY0 + 6 * 3600000).daily[0].probMax, 60);
+  // Tomorrow's tile passes through untouched, whatever the hours say.
+  assert.equal(charts.prepareView(fixtureData(), NOON).daily[1].probMax, 20);
+  // The provider's own object is never mutated — the view copies today.
+  const data = fixtureData();
+  charts.prepareView(data, NOON);
+  assert.equal(data.daily[0].probMax, 0, 'the fetched data is left alone');
+  // A strip that does not start on today is passed straight through: the
+  // tile labelled Today is exactly the tile settled here.
+  const shifted = fixtureData();
+  shifted.daily = shifted.daily.slice(1);
+  assert.equal(charts.prepareView(shifted, NOON).daily[0].probMax, 20);
+  // And it reads TODAY's hours only: a wetter tomorrow stays tomorrow's.
+  const wetTomorrow = fixtureData();
+  for (let i = 0; i < wetTomorrow.hourly.time.length; i += 1) {
+    if (wetTomorrow.hourly.time[i] >= DAY0 + 86400000) { wetTomorrow.hourly.prob[i] = 95; }
+  }
+  const wv = charts.prepareView(wetTomorrow, NOON);
+  assert.equal(wv.daily[0].probMax, 60, "tomorrow's 95% never lands on today's tile");
+  assert.equal(wv.prob[30], 95, 'while tomorrow itself still carries it');
+});
+
 test('the 5-day strip renders tappable day tiles with units honored and selection marked', () => {
   const view = charts.prepareView(fixtureData(), NOON);
   const pal = charts.palette(false);
