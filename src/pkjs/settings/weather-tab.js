@@ -659,10 +659,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Put a tip on (or off) the pan's settle curve, so an animated snap
-     * carries it at exactly the speed of the values it floats over.
+     * Put a tip on (or off) the pan's settle curve, so a release carries it
+     * at exactly the speed of the values it floats over — which, now that a
+     * day change lands instead of travelling, is no speed at all.
      * @param {Element} tip The tip element.
-     * @param {boolean} on Whether its next move should ease.
+     * @param {boolean} on Whether its next move rides the settle.
      * @returns {void}
      */
     function easeTip(tip, on) {
@@ -677,13 +678,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * Called per drag frame with the gesture's fractional day, and on
      * release with the day it settles on.
      *
-     * A release is ANIMATED — the panels ease home over SETTLE_MS — so the
-     * tips have to be too, or they arrive at their resting x while the
-     * values are still sliding and briefly float over nothing. A tip that
-     * is still on screen simply eases along the same curve. One that has
-     * already gone with its value off-viewport waits out the settle
+     * A release moves the panels through the SETTLE curve, so the tips are
+     * moved through it too — they would otherwise arrive at their resting x
+     * at a different moment than the values they float over. (That curve is
+     * instantaneous today, which makes the two simultaneous; it stays
+     * shared so they cannot come apart if it ever is not.) A tip that has
+     * already gone off-viewport with its value waits the settle out
      * instead: showing it now would park it over a value that has not
-     * arrived yet, and it is already invisible, so nothing flickers.
+     * arrived, and it is already invisible, so nothing flickers.
      * @param {number} dayOff Day offset — fractional mid-drag.
      * @param {boolean} animated True when the pan is easing home.
      * @returns {void}
@@ -820,8 +822,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                     // The horizontal half rides the pan, so it lives in
                     // its own function — this resting call and every drag
                     // frame place the tip the same way. A scrub lands at
-                    // once: any settle curve left on the tip by an earlier
-                    // pan would drag its jump out over SETTLE_MS.
+                    // once: a settle curve left on the tip by an earlier pan
+                    // would drag its jump out over that curve's duration.
                     easeTip(tip, false);
                     placeTipX(tip, i, panDay);
                 } else {

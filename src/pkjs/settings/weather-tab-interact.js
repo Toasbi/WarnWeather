@@ -12,13 +12,19 @@
     var api = null;
     var wired = false;
 
-    // The day-settle animation: a snap or spring-back eases the panels
-    // home over this curve. Both halves are exported because the value
-    // tips ride OUTSIDE the panned element — they have to travel on the
-    // same curve, for the same duration, or they arrive ahead of the
-    // values they float over.
-    var SETTLE_CSS = '0.22s ease-out';
-    var SETTLE_MS = 220;
+    // The day change LANDS — it does not travel. A released pan snaps onto
+    // its day and a spring-back returns at once, because a day change is
+    // navigation: the swipe itself already showed the movement, and an
+    // ease after the finger has gone only delays the answer.
+    //
+    // Both halves are exported because everything that moves with the day
+    // reads them — the panels, the tile row, the value tips riding OUTSIDE
+    // the panned element, and the tiles' highlight in the stylesheet — so
+    // there is exactly one place this timing lives. '0s' is a real
+    // transition of zero duration: the transition bookkeeping stays valid,
+    // the motion does not.
+    var SETTLE_CSS = '0s';
+    var SETTLE_MS = 0;
 
     // The day tiles' own edge margin (weather-tab-css.js gives the first and
     // last tile 8px), needed here because the row's resting end is measured,

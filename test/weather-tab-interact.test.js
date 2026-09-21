@@ -176,8 +176,8 @@ test('the tile row moves on EVERY day, by an equal step, and stops flush', () =>
 
     HARNESS.row = tileRow(5);
     interact.setDayStrip(1, 5, true);
-    assert.match(HARNESS.row.style.transition, /transform 0\.22s ease-out/,
-      'a landed day eases home on the pan settle curve');
+    assert.equal(HARNESS.row.style.transition, 'transform ' + interact.SETTLE_CSS,
+      'a landed day is written through the shared settle curve');
   } finally {
     HARNESS.row = null;
   }
@@ -234,6 +234,15 @@ test('the click that ends a pan is swallowed, so a swipe never taps a tile', () 
   } finally {
     Date.now = realNow;
   }
+});
+
+test('a day change LANDS: the settle is instantaneous', () => {
+  // The swipe itself shows the movement; easing the last of it after the
+  // finger has gone only delays the answer. Everything that moves with the
+  // day reads these two — panels, tile row, value tips, and the tiles'
+  // highlight through the stylesheet — so pinning them here pins the lot.
+  assert.equal(interact.SETTLE_CSS, '0s', 'no motion after the release');
+  assert.equal(interact.SETTLE_MS, 0, 'and nothing waits on one');
 });
 
 test('snapTargetDay: flicks advance one day, slow drags round, both clamp', () => {
