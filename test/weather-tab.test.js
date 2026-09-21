@@ -139,6 +139,21 @@ test('the graphs block orchestrates: loading → panels on data, error → Retry
     assert.ok(dblClose === -1 || dblClose > stripVpAt,
       'the hour strip rides INSIDE the pinned box, not as a sibling '
       + 'after it closes');
+    // ...and the pin ENDS there: the Measured|Forecast caption is a row of
+    // its own, after the sticky element closes, so it scrolls away while
+    // the ruler above it stays put.
+    const footAt = html.indexOf('<div class="wx-stripfoot">');
+    assert.ok(footAt > stripVpAt, 'the caption row follows the pinned strip');
+    const stickyClose = html.indexOf('</div></div>', stripVpAt);
+    assert.ok(stickyClose !== -1 && stickyClose < footAt,
+      'the pinned box has closed BEFORE the caption row opens');
+    assert.ok(html.indexOf('data-wxvp="foot"', footAt) !== -1
+      && html.indexOf('data-wxvp="foot"', footAt) - footAt < 200,
+      'the caption rides its own viewport, so it pans with the days');
+    assert.ok(html.indexOf('>Measured<', stickyAt) > footAt,
+      'the caption text itself is no longer anywhere in the pinned block');
+    assert.ok(css.WX_CSS.indexOf('.wx-stripfoot .wx-bleed{margin:') !== -1,
+      'the caption row keeps the strip\'s spacing, not a panel\'s');
     // The tile icon's two sizes move in lockstep: the renderer's px and
     // the CSS min-height that keeps icon-LESS tiles from collapsing
     // shorter than icon-bearing ones. Read one, assert the other.
@@ -148,6 +163,23 @@ test('the graphs block orchestrates: loading → panels on data, error → Retry
       'the tile renderer draws its icon at the SAME size the CSS reserves');
     assert.ok(css.WX_CSS.indexOf('.wx-sticky{position:-webkit-sticky;position:sticky') !== -1,
       '.wx-sticky actually pins (both position spellings for old WebViews)');
+    // Swiping to another day hands the tile highlight over as a FADE, and
+    // on the pan's OWN curve — the duration is read from the module that
+    // animates the panels, never a second copy of the number.
+    assert.ok(css.WX_CSS.indexOf('transition:border-color ' + interact.SETTLE_CSS + ';}') !== -1,
+      'the tile border cross-fades on the pan settle curve');
+    assert.ok(css.WX_CSS.indexOf('.wx-day-name{font-weight:600;color:var(--fg);transition:color '
+      + interact.SETTLE_CSS + ';}') !== -1,
+      'and the accent day name fades with it');
+    // The rendered string cannot tell a borrowed duration from a copied
+    // one — they are the same characters. The SOURCE can: the rule has to
+    // interpolate interact.SETTLE_CSS, so the two can never drift apart.
+    const cssSrc = require('node:fs').readFileSync(
+      require('node:path').join(__dirname, '..', 'src/pkjs/settings/weather-tab-css.js'), 'utf8');
+    assert.match(cssSrc, /transition:border-color ' \+ interact\.SETTLE_CSS/,
+      'the tile rule interpolates the pan curve rather than repeating it');
+    assert.equal(cssSrc.indexOf("transition:border-color 0.22s"), -1,
+      'and nobody hand-copied the number back in');
     // The pinned strip's two companion fixes: the sticky box itself
     // carries the -16px bleed (inner wrapper zeroed) so its opaque
     // backdrop covers the full strip width, and the tip stacks above it.

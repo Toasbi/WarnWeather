@@ -43,6 +43,11 @@
             grid: 'rgba(0,0,0,0.09)', axis: 'rgba(0,0,0,0.22)',
             past: 'rgba(0,0,0,0.045)', night: 'rgba(30,40,80,0.09)',
             surface: '#F4F5F7',
+            // Sun & moon panel: the daylight band behind the arcs, and the
+            // dimmed twin of each body's ink for the stretch it spends
+            // BELOW the horizon (the arc keeps running; it just goes quiet).
+            daylight: 'rgba(70,140,255,0.13)', sunNight: '#d9b877',
+            moon: '#4E5766', moonNight: '#A7AEBC',
             // High-chance precip ink: `water` is tuned for lines/fills, not
             // text — as text on the surface it lands under 4.5:1. This is
             // the same hue darkened (light) / lightened (dark) past AA.
@@ -56,6 +61,8 @@
             grid: 'rgba(255,255,255,0.09)', axis: 'rgba(255,255,255,0.25)',
             past: 'rgba(255,255,255,0.05)', night: 'rgba(0,0,0,0.24)',
             surface: '#3A3B3F',
+            daylight: 'rgba(120,170,255,0.17)', sunNight: '#8a5f14',
+            moon: '#E4E8F0', moonNight: '#767E8C',
             probHi: '#85B4F0',
             // The selected-hour box (the app's dark chip): deliberately the
             // same dark-on-dark-blue pair on BOTH surfaces, like the app.
@@ -455,6 +462,33 @@
     }
 
     /**
+     * The Measured | Forecast caption that used to close the time strip. It
+     * is its own row now: the strip above it pins, this scrolls away with
+     * the panels it describes — but it still rides the day pan, so the
+     * split stays on the now line.
+     * @param {Object} view Prepared view.
+     * @param {Object} pal Palette.
+     * @returns {{main: string, overlay: ?string, H: number}} Panel spec.
+     */
+    function timeFootSvg(view, pal) {
+        var H = 13;
+        var nx = nowX(view);
+        var s = '';
+        // Too close to the left edge and "Measured" has no room to sit in.
+        if (nx > 58) {
+            s += '<text x="' + (nx - 5).toFixed(1) + '" y="9.5" text-anchor="end" font-size="7.5" fill="'
+                + pal.muted + '">Measured</text>';
+        }
+        s += '<text x="' + (nx + 5).toFixed(1) + '" y="9.5" font-size="7.5" fill="'
+            + pal.muted + '">Forecast</text>';
+        // The now line carries on through the caption, as it did when the
+        // two shared one svg.
+        s += '<line x1="' + nx.toFixed(1) + '" y1="0" x2="' + nx.toFixed(1) + '" y2="11"'
+            + ' stroke="' + pal.ink + '" stroke-width="1.2" opacity="0.55"/>';
+        return { main: s, overlay: null, H: H };
+    }
+
+    /**
      * Panel 1: temperature line (left axis) over the rain intensity band
      * (right axis — the watch's tier scale), precip-probability row along
      * the bottom (the app's layout).
@@ -465,7 +499,11 @@
      */
     function tempPanelSvg(view, settings, pal) {
         var top = 10, bottom = 116;
-        var probY = 141;
+        // The probability row reads at a glance, so it prints larger than
+        // the axis inks; its baseline sits low enough that the bigger cap
+        // height still clears the caption above it.
+        var probY = 142;
+        var probSize = 11.5;
         var disp = function (c) { return model.displayTemp(c, settings); };
         var dom = domainOf([view.temp], 0.15) || { min: 0, max: 1 };
         var y = yScale(disp(dom.min), disp(dom.max), top, bottom);
@@ -491,15 +529,15 @@
         for (i = 0; i < view.prob.length; i += 3) {
             var px = xAt(view, i);
             if (i < view.nowIndex) {
-                over += '<text x="' + px + '" y="' + probY + '" text-anchor="middle" font-size="9" fill="'
-                    + pal.faint + '">–</text>';
+                over += '<text x="' + px + '" y="' + probY + '" text-anchor="middle" font-size="' + probSize
+                    + '" font-weight="600" fill="' + pal.faint + '">–</text>';
                 continue;
             }
             var p = view.prob[i];
             if (p === null || p === undefined) { continue; }
             var ink = p >= 60 ? pal.probHi : (p >= 30 ? pal.muted : pal.faint);
-            over += '<text x="' + px + '" y="' + probY + '" text-anchor="middle" font-size="9" fill="'
-                + ink + '"' + (p >= 60 ? ' font-weight="700"' : (p >= 30 ? ' font-weight="600"' : '')) + '>'
+            over += '<text x="' + px + '" y="' + probY + '" text-anchor="middle" font-size="' + probSize
+                + '" font-weight="' + (p >= 60 ? 700 : 600) + '" fill="' + ink + '">'
                 + Math.round(p) + '%</text>';
         }
         return assemblePanel('temp', view, pal, {
@@ -511,7 +549,7 @@
                 function (v) { return fmt1(v) + '°'; })
                 + overlayRainTiers(pal, top, bottom)
                 // The row's title, on the fixed overlay so it holds still.
-                + '<text x="4" y="' + (probY - 11) + '" font-size="8" font-weight="600" fill="' + pal.muted
+                + '<text x="4" y="' + (probY - 14) + '" font-size="8" font-weight="600" fill="' + pal.muted
                 + '">Precipitation probability</text>'
         });
     }
@@ -675,15 +713,18 @@
     function timeStripSvg(view, loc, pal, SunCalcLib, idx) {
         // The app's stripe layout, top to bottom: a shaded BAND holding the
         // condition icons and the hour labels, then the tick ruler on its
-        // lower edge, then the Measured|Forecast caption BELOW the band on
-        // the page background. `idx` is the highlighted hour (the crosshair,
+        // lower edge — and that is where the strip STOPS, because this is
+        // the pinned block: the Measured|Forecast caption below it belongs
+        // to the scrolling page and rides in timeFootSvg's own row.
+        // `idx` is the highlighted hour (the crosshair,
         // else the viewed day's anchor): it gets the app's dark chip with
         // THAT hour's own icon and label, drawn over the 3-hourly row and
         // moved by id from weather-tab.js while scrubbing.
         var BAND_H = 44;
-        var H = 66;
+        // Ticks reach BAND_H + 5; the strip ends just past them, so pinning
+        // it pins the time axis and nothing else.
+        var H = 52;
         var hourY = BAND_H - 6;
-        var captionY = H - 6;
         var s = '';
         // Every icon that appears anywhere in the timeline is defined ONCE;
         // the 3-hourly row and the chip reference them, so a scrub can swap
@@ -767,15 +808,7 @@
             s += '<line x1="' + x + '" y1="' + BAND_H + '" x2="' + x + '" y2="' + (BAND_H + (i % 3 === 0 ? 5 : 3))
                 + '" stroke="' + pal.axis + '" stroke-width="1"/>';
         }
-        // Measured | Forecast split (the app's Messwerte|Prognose) BELOW the
-        // band, flanking the now line.
-        if (nx > 58) {
-            s += '<text x="' + (nx - 5).toFixed(1) + '" y="' + captionY + '" text-anchor="end" font-size="7.5" fill="'
-                + pal.muted + '">Measured</text>';
-        }
-        s += '<text x="' + (nx + 5).toFixed(1) + '" y="' + captionY + '" font-size="7.5" fill="'
-            + pal.muted + '">Forecast</text>';
-        s += '<line x1="' + nx.toFixed(1) + '" y1="0" x2="' + nx.toFixed(1) + '" y2="' + (captionY + 2)
+        s += '<line x1="' + nx.toFixed(1) + '" y1="0" x2="' + nx.toFixed(1) + '" y2="' + H
             + '" stroke="' + pal.ink + '" stroke-width="1.2" opacity="0.55"/>';
         // The selected-hour chip, on top of everything in the band: that
         // hour's OWN icon (not the 3-hourly neighbor) and label on the
@@ -845,20 +878,72 @@
     }
 
     /**
-     * Panel 5: sun & moon — continuous altitude arcs across the whole
-     * timeline (SunCalc per location), horizon hairline, per-day rise/set
-     * labels on the location's clock, dots + phase at now.
+     * The lit slice of a moon disc: the outer half on the lit limb, closed
+     * by the terminator's semi-ellipse — which flattens to nothing at the
+     * quarters and bulges AWAY from the lit limb once past half.
+     * @param {number} cx Disc center x.
+     * @param {number} cy Disc center y.
+     * @param {number} r Disc radius.
+     * @param {number} fraction Illuminated fraction, 0..1.
+     * @param {boolean} waxing Whether the RIGHT limb is the lit one.
+     * @returns {string} Path data for the lit area ('' at new moon).
+     */
+    function moonPhasePath(cx, cy, r, fraction, waxing) {
+        if (!(fraction > 0.02)) { return ''; }
+        var rx = (r * Math.abs(1 - 2 * fraction)).toFixed(2);
+        // Past half the terminator crosses to the far side of the disc, so
+        // its arc sweeps the other way; the lit limb picks the outer half.
+        var bulge = fraction > 0.5 ? 1 : 0;
+        var limb = waxing ? 1 : 0;
+        var term = waxing ? bulge : 1 - bulge;
+        return 'M' + cx.toFixed(1) + ' ' + (cy - r).toFixed(1)
+            + 'A' + r + ' ' + r + ' 0 0 ' + limb + ' ' + cx.toFixed(1) + ' ' + (cy + r).toFixed(1)
+            + 'A' + rx + ' ' + r + ' 0 0 ' + term + ' ' + cx.toFixed(1) + ' ' + (cy - r).toFixed(1) + 'Z';
+    }
+
+    /**
+     * The sun disc riding its arc at "now": a filled core with eight rays,
+     * ringed in the card color so it reads over the curve beneath it.
+     * @param {number} cx Center x.
+     * @param {number} cy Center y.
+     * @param {number} r Core radius.
+     * @param {Object} pal Palette.
+     * @returns {string} SVG markup.
+     */
+    function sunGlyph(cx, cy, r, pal) {
+        var rays = '';
+        for (var i = 0; i < 8; i += 1) {
+            var a = i * Math.PI / 4;
+            var dx = Math.cos(a), dy = Math.sin(a);
+            rays += '<line x1="' + (cx + dx * (r + 1.8)).toFixed(1) + '" y1="' + (cy + dy * (r + 1.8)).toFixed(1)
+                + '" x2="' + (cx + dx * (r + 4.2)).toFixed(1) + '" y2="' + (cy + dy * (r + 4.2)).toFixed(1) + '"/>';
+        }
+        return '<g stroke="' + pal.sun + '" stroke-width="1.6" stroke-linecap="round">' + rays + '</g>'
+            + '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="' + r
+            + '" fill="' + pal.sun + '" stroke="' + pal.surface + '" stroke-width="1"/>';
+    }
+
+    /**
+     * Panel 5: the sun and moon arcs over a daylight band, with each body's
+     * rise and set marked where its arc meets the horizon and labelled at
+     * arm's length, and both bodies drawn at "now" — the sun as a disc, the
+     * moon carrying its phase.
      * @param {Object} view Prepared view.
-     * @param {{lat: number, lon: number}} loc Active location.
+     * @param {Object} loc Active location ({lat, lon}).
      * @param {Object} pal Palette.
      * @param {Object} SunCalcLib The vendored SunCalc.
-     * @returns {{main: string, overlay: ?string, H: number}} Panel spec.
+     * @returns {{main: string, overlay: string, H: number}} Panel spec.
      */
     function sunMoonPanelSvg(view, loc, pal, SunCalcLib) {
         var H = 150;
         var top = 24, bottom = 112;
         var horizon = (top + bottom) / 2 + 6;
+        var W = view.days * DAY_W;
         var off = view.offsetSec;
+        // Rise/set labels carry the panel: they print at the size of the
+        // panel titles, not of the axis inks they used to match.
+        var LABEL = 11;
+        var SUN_Y = 14, MOON_Y = H - 12;
         var xFor = function (ms) { return (ms - view.dayStartMs) / 3600000 * HOUR_W; };
         var altToY = function (alt) {
             // ±90° altitude mapped into the band around the horizon line.
@@ -867,64 +952,121 @@
         var endMs = view.dayStartMs + view.days * 86400000;
         var arc = function (getAlt) {
             var d = '';
+            var prevAlt = null, prevT = null;
             for (var t = view.dayStartMs; t <= endMs; t += 1800000) {
-                d += (d === '' ? 'M' : 'L') + xFor(t).toFixed(1) + ' ' + altToY(getAlt(new Date(t))).toFixed(1);
+                var alt = getAlt(new Date(t));
+                // Where the body crosses the horizon between two samples,
+                // interpolate the crossing and plant it as its own vertex:
+                // the rise/set dot is drawn AT that instant, and a straight
+                // 30-minute chord would otherwise pass beside it.
+                if (prevAlt !== null && (prevAlt < 0) !== (alt < 0)) {
+                    var f = prevAlt / (prevAlt - alt);
+                    d += 'L' + xFor(prevT + f * 1800000).toFixed(1) + ' ' + horizon;
+                }
+                d += (d === '' ? 'M' : 'L') + xFor(t).toFixed(1) + ' ' + altToY(alt).toFixed(1);
+                prevAlt = alt;
+                prevT = t;
             }
             return d;
         };
-        var s = frameWide(view, pal, top, bottom);
-        s += '<line x1="0" y1="' + horizon + '" x2="' + (view.days * DAY_W) + '" y2="' + horizon
-            + '" stroke="' + pal.axis + '" stroke-width="1"/>';
-        s += '<path d="' + arc(function (d) { return SunCalcLib.getMoonPosition(d, loc.lat, loc.lon).altitude; })
-            + '" fill="none" stroke="' + pal.faint + '" stroke-width="2" stroke-linecap="round"/>';
-        s += '<path d="' + arc(function (d) { return SunCalcLib.getPosition(d, loc.lat, loc.lon).altitude; })
-            + '" fill="none" stroke="' + pal.sun + '" stroke-width="2" stroke-linecap="round"/>';
-        // Rise/set per day: sun labels along the top, moon labels along the
-        // bottom, dotted guide lines to the horizon — all on the LOCATION's
-        // clock.
         var hm = function (dte) {
             if (!dte || isNaN(dte.getTime())) { return null; }
             var shifted = new Date(dte.getTime() + off * 1000);
             return two(shifted.getUTCHours()) + ':' + two(shifted.getUTCMinutes());
         };
-        // Label only — no dropped guide line: the panels keep verticals to
-        // the now line and the crosshair, and the label's x IS the event.
-        var mark = function (ms, label, yText, anchorEnd) {
+        // One rise/set event: the dot where the arc crosses the horizon, a
+        // dotted leader out to the label, and the label itself. The label
+        // lies on the midday side of its dot with the glyph nearest the dot
+        // (the app's arrangement), and flips sides when that would carry it
+        // out of its own day — each day is one viewport, so an overhanging
+        // label is a clipped label.
+        var event = function (ms, dayLeft, glyph, time, above, ink, rise) {
             var x = xFor(ms);
-            return '<text x="' + (anchorEnd ? x - 3 : x + 3).toFixed(1) + '" y="' + yText
-                + '"' + (anchorEnd ? ' text-anchor="end"' : '') + ' font-size="7.5" fill="' + pal.muted + '">'
-                + esc(label) + '</text>';
+            var text = rise
+                ? esc(time) + ' <tspan fill="' + ink + '">' + glyph + '</tspan>'
+                : '<tspan fill="' + ink + '">' + glyph + '</tspan> ' + esc(time);
+            // Measured: the bold label runs ~0.66 em per character (the
+            // glyph pair included), so 0.7 em leaves the flip a margin.
+            var w = (time.length + glyph.length + 1) * LABEL * 0.7;
+            var anchor = rise ? 'end' : 'start';
+            var tx = rise ? x - 5 : x + 5;
+            if (rise && tx - w < dayLeft + 2) { anchor = 'start'; tx = x + 5; }
+            if (!rise && tx + w > dayLeft + DAY_W - 2) { anchor = 'end'; tx = x - 5; }
+            // A flip can only trade one seam for the other, so finish with a
+            // clamp: a label that leaves its day is a label the viewport cuts.
+            var lead = anchor === 'start' ? 0 : w;
+            if (tx - lead < dayLeft + 2) { tx = dayLeft + 2 + lead; }
+            if (tx + (w - lead) > dayLeft + DAY_W - 2) { tx = dayLeft + DAY_W - 2 - (w - lead); }
+            var y = above ? SUN_Y : MOON_Y;
+            return '<line x1="' + x.toFixed(1) + '" y1="' + (above ? SUN_Y + 4 : horizon + 5)
+                + '" x2="' + x.toFixed(1) + '" y2="' + (above ? horizon - 5 : MOON_Y - 10)
+                + '" stroke="' + ink + '" stroke-width="1" stroke-dasharray="1.5 3" opacity="0.75"/>'
+                + '<circle cx="' + x.toFixed(1) + '" cy="' + horizon + '" r="' + (above ? 4 : 3.4)
+                + '" fill="' + ink + '" stroke="' + pal.surface + '" stroke-width="1.2"/>'
+                + '<text x="' + tx.toFixed(1) + '" y="' + y + '" text-anchor="' + anchor
+                + '" font-size="' + LABEL + '" font-weight="600" fill="' + pal.ink + '">' + text + '</text>';
         };
+        // Daylight band + rise/set marks, per day, all on the LOCATION's
+        // clock. The band goes down first so the past wash still dims it.
+        var band = '', marks = '';
         for (var d = 0; d < view.days; d += 1) {
-            var noon = view.dayStartMs + d * 86400000 + 43200000;
-            var st = SunCalcLib.getTimes(new Date(noon), loc.lat, loc.lon);
-            var mt = SunCalcLib.getMoonTimes(new Date(noon), loc.lat, loc.lon);
+            var dayLeft = d * DAY_W;
+            var dayMs = view.dayStartMs + d * 86400000;
+            var st = SunCalcLib.getTimes(new Date(dayMs + 43200000), loc.lat, loc.lon);
+            var mt = SunCalcLib.getMoonTimes(new Date(dayMs + 43200000), loc.lat, loc.lon);
             var t1 = hm(st.sunrise);
             var t2 = hm(st.sunset);
-            if (t1) { s += mark(st.sunrise.getTime(), '☀ ' + t1, 12, false); }
-            if (t2) { s += mark(st.sunset.getTime(), t2 + ' ☀', 12, true); }
+            // Polar day has no crossing to mark, so the band spans the day.
+            var up = SunCalcLib.getPosition(new Date(dayMs + 43200000), loc.lat, loc.lon).altitude > 0;
+            var x1 = t1 ? xFor(st.sunrise.getTime()) : (up ? dayLeft : null);
+            var x2 = t2 ? xFor(st.sunset.getTime()) : (up ? dayLeft + DAY_W : null);
+            if (x1 !== null && x2 !== null && x2 > x1) {
+                band += '<rect x="' + x1.toFixed(1) + '" y="' + top + '" width="' + (x2 - x1).toFixed(1)
+                    + '" height="' + (horizon - top) + '" fill="' + pal.daylight + '"/>';
+            }
+            if (t1) { marks += event(st.sunrise.getTime(), dayLeft, '\u2600\u2191', t1, true, pal.sun, true); }
+            if (t2) { marks += event(st.sunset.getTime(), dayLeft, '\u2600\u2193', t2, true, pal.sun, false); }
             var m1 = mt && hm(mt.rise);
             var m2 = mt && hm(mt.set);
-            if (m1) {
-                s += '<text x="' + xFor(mt.rise.getTime()).toFixed(1) + '" y="' + (H - 26)
-                    + '" text-anchor="middle" font-size="7.5" fill="' + pal.faint + '">☽ ' + esc(m1) + '</text>';
-            }
-            if (m2) {
-                s += '<text x="' + xFor(mt.set.getTime()).toFixed(1) + '" y="' + (H - 26)
-                    + '" text-anchor="middle" font-size="7.5" fill="' + pal.faint + '">☽ ' + esc(m2) + '</text>';
-            }
+            if (m1) { marks += event(mt.rise.getTime(), dayLeft, '\u263D\u2191', m1, false, pal.moon, true); }
+            if (m2) { marks += event(mt.set.getTime(), dayLeft, '\u263D\u2193', m2, false, pal.moon, false); }
         }
-        // Dots + phase at now.
+        var s = band;
+        s += frameWide(view, pal, top, bottom);
+        s += '<line x1="0" y1="' + horizon + '" x2="' + W + '" y2="' + horizon
+            + '" stroke="' + pal.axis + '" stroke-width="1"/>';
+        // Each arc is drawn twice through complementary clips: bright while
+        // the body is up, dimmed while it is below the horizon.
+        s += '<defs><clipPath id="wx-sun-up"><rect x="0" y="0" width="' + W + '" height="' + horizon + '"/></clipPath>'
+            + '<clipPath id="wx-sun-dn"><rect x="0" y="' + horizon + '" width="' + W + '" height="'
+            + (H - horizon) + '"/></clipPath></defs>';
+        var moonD = arc(function (dt) { return SunCalcLib.getMoonPosition(dt, loc.lat, loc.lon).altitude; });
+        var sunD = arc(function (dt) { return SunCalcLib.getPosition(dt, loc.lat, loc.lon).altitude; });
+        var stroke = function (d, ink) {
+            return '<path d="' + d + '" fill="none" stroke="' + ink + '" stroke-width="2" stroke-linecap="round"/>';
+        };
+        s += '<g clip-path="url(#wx-sun-dn)">' + stroke(moonD, pal.moonNight) + stroke(sunD, pal.sunNight) + '</g>';
+        s += '<g clip-path="url(#wx-sun-up)">' + stroke(moonD, pal.moon) + stroke(sunD, pal.sun) + '</g>';
+        s += marks;
+        // Both bodies at "now": the sun as its disc, the moon wearing the
+        // phase — the shape says it, the percentage beside it confirms it.
         var nx = nowX(view);
         var sunAlt = SunCalcLib.getPosition(new Date(view.nowMs), loc.lat, loc.lon).altitude;
         var moonAlt = SunCalcLib.getMoonPosition(new Date(view.nowMs), loc.lat, loc.lon).altitude;
-        var phase = SunCalcLib.getMoonIllumination(new Date(view.nowMs)).fraction;
-        s += '<circle cx="' + nx.toFixed(1) + '" cy="' + altToY(moonAlt).toFixed(1) + '" r="3.5" fill="' + pal.faint
-            + '" stroke="' + pal.surface + '" stroke-width="1.5"/>';
-        s += '<circle cx="' + nx.toFixed(1) + '" cy="' + altToY(sunAlt).toFixed(1) + '" r="4.5" fill="' + pal.sun
-            + '" stroke="' + pal.surface + '" stroke-width="2"/>';
-        s += '<text x="' + (nx + 8).toFixed(1) + '" y="' + (H - 6) + '" font-size="8" fill="' + pal.muted
-            + '">☽ ' + Math.round(phase * 100) + '%</text>';
+        var illum = SunCalcLib.getMoonIllumination(new Date(view.nowMs));
+        var my = altToY(moonAlt);
+        s += '<circle cx="' + nx.toFixed(1) + '" cy="' + my.toFixed(1) + '" r="5.5" fill="' + pal.surface
+            + '" stroke="' + pal.moonNight + '" stroke-width="1"/>';
+        var lit = moonPhasePath(nx, my, 5.5, illum.fraction, illum.phase < 0.5);
+        if (lit) { s += '<path d="' + lit + '" fill="' + pal.moon + '"/>'; }
+        s += sunGlyph(nx, altToY(sunAlt), 4.5, pal);
+        // The percentage sits beside the disc, and swaps sides rather than
+        // run off the end of the day it is standing in.
+        var inDay = nx - Math.floor(nx / DAY_W) * DAY_W;
+        var capEnd = inDay > DAY_W - 46;
+        s += '<text x="' + (capEnd ? nx - 10 : nx + 10).toFixed(1) + '" y="' + (my + 3.5).toFixed(1)
+            + '"' + (capEnd ? ' text-anchor="end"' : '') + ' font-size="10" font-weight="600" fill="'
+            + pal.muted + '">' + Math.round(illum.fraction * 100) + '%</text>';
         return { main: s, overlay: null, H: H };
     }
 
@@ -1017,10 +1159,13 @@
         humidityPanelSvg: humidityPanelSvg,
         pressurePanelSvg: pressurePanelSvg,
         timeStripSvg: timeStripSvg,
+        timeFootSvg: timeFootSvg,
         stripIconIds: stripIconIds,
         stripChipX: stripChipX,
         stripTickX: stripTickX,
         sunMoonPanelSvg: sunMoonPanelSvg,
+        moonPhasePath: moonPhasePath,
+        sunGlyph: sunGlyph,
         iconSvg: icons.iconSvg,
         dailyStripHtml: dailyStripHtml,
         // The per-hour text builders live in weather-tab-readouts.js;

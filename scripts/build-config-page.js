@@ -83,16 +83,18 @@ var APP_FILES = [
   // bundle): each of the others publishes a window global its dependents
   // read at IIFE time — weather-tab-model.js → WeatherTabModel (read by
   // data/readouts/charts); weather-tab-icons.js and weather-tab-readouts.js
-  // → read by charts; and weather-tab.js reads five of them (Model, Data,
-  // Charts, Css, Interact) while its own top-level body runs.
+  // → read by charts; weather-tab-interact.js → WeatherTabInteract, whose
+  // settle curve weather-tab-css.js bakes into its stylesheet string; and
+  // weather-tab.js reads five of them (Model, Data, Charts, Css, Interact)
+  // while its own top-level body runs.
   path.join(ROOT, 'src/pkjs/settings/vendor-suncalc.js'),
   path.join(ROOT, 'src/pkjs/settings/weather-tab-model.js'),
   path.join(ROOT, 'src/pkjs/settings/weather-tab-data.js'),
   path.join(ROOT, 'src/pkjs/settings/weather-tab-icons.js'),
   path.join(ROOT, 'src/pkjs/settings/weather-tab-readouts.js'),
   path.join(ROOT, 'src/pkjs/settings/weather-tab-charts.js'),
-  path.join(ROOT, 'src/pkjs/settings/weather-tab-css.js'),
   path.join(ROOT, 'src/pkjs/settings/weather-tab-interact.js'),
+  path.join(ROOT, 'src/pkjs/settings/weather-tab-css.js'),
   path.join(ROOT, 'src/pkjs/settings/weather-tab.js')
 ];
 

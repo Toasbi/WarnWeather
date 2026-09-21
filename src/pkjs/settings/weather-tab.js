@@ -289,6 +289,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         h += '<div class="wx-sticky">'
             + charts.dailyStripHtml(view.daily, settings, pal, view.offsetSec, Date.now(), panDay, view.days)
             + vp('strip', charts.timeStripSvg(view, loc, pal, sunCalcLib, idx)) + '</div>';
+        // The Measured|Forecast caption sits OUTSIDE the pinned block: the
+        // pin ends at the hourly ticks, so the caption scrolls away with
+        // the panels while still panning with the days.
+        h += '<div class="wx-stripfoot">' + vp('foot', charts.timeFootSvg(view, pal)) + '</div>';
         h += panelHtml('Temperature & precipitation',
             [['Temp', pal.temp, 'line'], ['Rain', pal.water, 'rect']],
             vp('temp', specs.temp));
@@ -302,7 +306,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             vp('press', specs.press));
         if (sunCalcLib) {
             h += panelHtml('Sun & moon',
-                [['Sun', pal.sun, 'line'], ['Moon', pal.faint, 'line']],
+                [['Sun', pal.sun, 'line'], ['Moon', pal.moon, 'line']],
                 vp('sun', charts.sunMoonPanelSvg(view, loc, pal, sunCalcLib)));
         }
         var providerLabel = fetchState.data && fetchState.data.meta ? fetchState.data.meta.provider : '';

@@ -7,6 +7,12 @@
 (function () {
     'use strict';
 
+    // The selected tile's highlight fades on the SAME curve the day pan
+    // settles on — one timing for the whole day change, from the module
+    // that owns it.
+    var interact = (typeof require !== 'undefined')
+        ? require('./weather-tab-interact.js') : window.WeatherTabInteract;
+
     var OVERLAY_CSS = ''
         + '#wxloc{position:fixed;top:0;left:0;right:0;bottom:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;}'
         + '#wxloc .hd{display:flex;align-items:center;gap:10px;padding:14px 16px;}'
@@ -92,6 +98,9 @@
         // strip; its own side bleed is zeroed the same way (the sticky box
         // already carries the -16px margins).
         + '.wx-sticky .wx-days{margin:0;}'
+        // The caption row picks up right under the pinned ruler, so it
+        // keeps the strip's spacing rather than a panel's.
+        + '.wx-stripfoot .wx-bleed{margin:3px -16px 0;}'
         // Day tiles are the day selector: tap jumps the panels to that day.
         // App-style wide tiles in a horizontally scrollable row (~2.5 tiles
         // per viewport); position:relative makes the row the tiles'
@@ -113,7 +122,11 @@
         + '.wx-day{flex:0 0 auto;width:28%;min-width:100px;box-sizing:border-box;'
         + 'display:block;background:var(--ctl);'
         + 'border:1.5px solid transparent;border-radius:12px;'
-        + 'padding:5px 4px;text-align:center;font:inherit;color:var(--fg);cursor:pointer;}'
+        + 'padding:5px 4px;text-align:center;font:inherit;color:var(--fg);cursor:pointer;'
+        // Swiping to the next day hands the highlight over: the old tile's
+        // border fades out while the new one's fades in, on the pan's own
+        // easing, instead of both switching on the frame the day commits.
+        + 'transition:border-color ' + interact.SETTLE_CSS + ';}'
         // Inset ring, not outline: the row is a scroll container now, and it
         // clips ink drawn OUTSIDE the tile's box (an outline) at its edges.
         + '.wx-day.today{box-shadow:inset 0 0 0 1px var(--card-line);}'
@@ -124,7 +137,7 @@
         // dark theme) — the muted steps read too dim on the tinted tile
         // fill; hierarchy comes from the weights, not from graying out.
         + '.wx-day-head{display:block;font-size:11px;}'
-        + '.wx-day-name{font-weight:600;color:var(--fg);}'
+        + '.wx-day-name{font-weight:600;color:var(--fg);transition:color ' + interact.SETTLE_CSS + ';}'
         + '.wx-day-date{color:var(--fg);}'
         + '.wx-day-icon{display:block;margin:2px 0 1px;min-height:24px;}'
         + '.wx-day-temp{display:block;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;}'

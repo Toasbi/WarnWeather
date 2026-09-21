@@ -159,23 +159,32 @@ test('the precip-probability row carries its title and steps its ink with the ch
   assert.ok(temp.overlay.indexOf('Precipitation probability') !== -1,
     'the row is titled, on the fixed overlay');
   // Fixture: 60% inside 17-23h (a future 3h step lands on 18/21), 10% elsewhere.
-  assert.match(temp.main, new RegExp('font-size="9" fill="' + pal.probHi + '" font-weight="700">60%<'),
+  const probSize = Number(/font-size="([\d.]+)"[^>]*>60%</.exec(temp.main)[1]);
+  // The row is meant to be read at a glance, so it prints at least as large
+  // as the hour ruler above it and never falls back to the axis-ink size.
+  const strip = charts.timeStripSvg(charts.prepareView(fixtureData(), NOON), LOC, pal, SunCalc);
+  const hourSize = Number(/font-size="([\d.]+)"[^>]*>03:00</.exec(strip.main)[1]);
+  assert.ok(probSize >= hourSize,
+    'the probability numbers are at least as large as the hour labels (' + probSize + ' vs ' + hourSize + ')');
+  assert.match(temp.main, new RegExp('font-size="' + probSize + '" font-weight="700" fill="' + pal.probHi + '">60%<'),
     'a wet hour (>=60%) wears the AA text step of the water hue, bold');
-  assert.match(temp.main, new RegExp('font-size="9" fill="' + pal.faint + '">10%<'),
-    'a dry hour stays faint');
+  assert.match(temp.main, new RegExp('font-size="' + probSize + '" font-weight="600" fill="' + pal.faint + '">10%<'),
+    'a dry hour stays faint — but still semibold, not hairline');
+  assert.match(temp.main, new RegExp('font-size="' + probSize + '" font-weight="600" fill="' + pal.faint + '">–<'),
+    'the past-hour dash keeps the row on one size');
   // The middle tier (30-59%): muted ink, semibold. The fixture never lands
   // there, so plant one on a future 3h step.
   const mid = charts.prepareView(fixtureData(), NOON);
   const step = mid.nowIndex + ((3 - (mid.nowIndex % 3)) % 3);
   mid.prob[step] = 45;
   const midPanel = charts.tempPanelSvg(mid, { temperatureUnits: 'c' }, pal);
-  assert.match(midPanel.main, new RegExp('font-size="9" fill="' + pal.muted + '" font-weight="600">45%<'),
+  assert.match(midPanel.main, new RegExp('font-size="' + probSize + '" font-weight="600" fill="' + pal.muted + '">45%<'),
     'a maybe hour (30-59%) wears muted ink, semibold');
   // The light surface must wear ITS OWN AA step, not the dark one —
   // both palettes' probHi values are load-bearing for contrast.
   const palL = charts.palette(true);
   const tempL = charts.tempPanelSvg(view, { temperatureUnits: 'c' }, palL);
-  assert.match(tempL.main, new RegExp('font-size="9" fill="' + palL.probHi + '" font-weight="700">60%<'),
+  assert.match(tempL.main, new RegExp('font-size="' + probSize + '" font-weight="700" fill="' + palL.probHi + '">60%<'),
     'the light palette applies its own probHi');
 });
 
@@ -232,22 +241,59 @@ test('viewportHtml pans by whole viewports (translateX percent of the wide eleme
     'the full-bleed margin rides an OUTER wrapper — sharing it with the aspect box stretches the charts');
 });
 
-test('the hour strip carries the shared time axis, weekday markers and the Measured|Forecast split', () => {
+test('the hour strip ENDS at the tick ruler — that is what gets pinned', () => {
   const view = charts.prepareView(fixtureData(), NOON);
-  const spec = charts.timeStripSvg(view, LOC, charts.palette(false), SunCalc);
+  const pal = charts.palette(false);
+  const spec = charts.timeStripSvg(view, LOC, pal, SunCalc);
   assert.equal(spec.main.indexOf('NaN'), -1);
   assert.ok(spec.main.indexOf('03:00') !== -1, 'hour labels every 3 h');
-  assert.ok(spec.bandH > 0 && spec.H > spec.bandH, 'the caption zone lives below the band');
   assert.match(spec.main, new RegExp('y="' + (spec.bandH - 6) + '"[^>]*>03:00'),
     'hour labels sit INSIDE the band, along its lower edge');
-  assert.match(spec.main, new RegExp('y="' + (spec.H - 6) + '"[^>]*>Measured<'),
-    'Measured caption below the band');
-  assert.match(spec.main, new RegExp('y="' + (spec.H - 6) + '"[^>]*>Forecast<'),
-    'Forecast caption below the band');
+  // The strip is the pinned block, so it may not carry anything below the
+  // ruler: the longest tick reaches bandH + 5 and the box closes right there.
+  const tickEnds = (spec.main.match(new RegExp('y2="(\\d+)" stroke="'
+    + pal.axis.replace(/[()]/g, '\\$&') + '"', 'g')) || [])
+    .map((m) => Number(/y2="(\d+)"/.exec(m)[1]));
+  assert.ok(tickEnds.length > 20, 'the ruler is there to measure (' + tickEnds.length + ' ticks)');
+  const deepestTick = Math.max.apply(null, tickEnds);
+  assert.ok(spec.H >= deepestTick, 'the strip still contains its ticks (' + spec.H + ' >= ' + deepestTick + ')');
+  assert.ok(spec.H - deepestTick <= 6,
+    'and stops within a hair of them — anything roomier pins dead space (' + (spec.H - deepestTick) + ')');
+  // The selected hour's tick reaches deeper than the 3-hourly ones; the box
+  // has to hold that too, or a scrub clips it against .wx-vp's overflow.
+  const hiTick = Number(/id="wx-strip-hi-tick"[^>]*y2="(\d+)"/.exec(spec.main)[1]);
+  assert.ok(hiTick > deepestTick, 'the highlight tick is the deepest mark (' + hiTick + ')');
+  assert.ok(spec.H >= hiTick, 'and the strip still contains it (' + spec.H + ')');
+  assert.equal(spec.main.indexOf('Measured'), -1, 'the caption has left the pinned strip');
+  assert.equal(spec.main.indexOf('Forecast'), -1, 'both halves of it');
   assert.ok(spec.main.indexOf('>Sun<') !== -1 && spec.main.indexOf('>Mon<') !== -1,
     'each midnight is marked with its weekday');
   const noShade = charts.timeStripSvg(view, LOC, charts.palette(false), null);
   assert.ok(noShade.main.indexOf('03:00') !== -1, 'no SunCalc → still a time axis, just unshaded');
+});
+
+test('the Measured|Forecast caption is its own scrolling row, still on the now line', () => {
+  const view = charts.prepareView(fixtureData(), NOON);
+  const pal = charts.palette(false);
+  const foot = charts.timeFootSvg(view, pal);
+  assert.equal(foot.main.indexOf('NaN'), -1);
+  assert.ok(foot.H > 0 && foot.H < 20, 'a caption-sized row, not a panel');
+  assert.ok(foot.main.indexOf('>Measured<') !== -1 && foot.main.indexOf('>Forecast<') !== -1,
+    'both halves of the split moved here');
+  // Measured sits left of the now line, Forecast right of it, and the line
+  // carries on through the row.
+  const nowX = Number(/<line x1="([\d.]+)"/.exec(foot.main)[1]);
+  const mx = Number(/<text x="([\d.]+)"[^>]*>Measured</.exec(foot.main)[1]);
+  const fx = Number(/<text x="([\d.]+)"[^>]*>Forecast</.exec(foot.main)[1]);
+  assert.ok(mx < nowX && nowX < fx, 'the split straddles the now line (' + mx + ' < ' + nowX + ' < ' + fx + ')');
+  assert.match(/<text x="[\d.]+"[^>]*>Measured</.exec(foot.main)[0], /text-anchor="end"/,
+    'Measured runs back from the line');
+  // At the very start of the timeline there is no room for the left half.
+  const early = charts.prepareView(fixtureData(), NOON);
+  early.nowMs = early.dayStartMs;
+  const earlyFoot = charts.timeFootSvg(early, pal);
+  assert.equal(earlyFoot.main.indexOf('Measured'), -1, 'no room at the left edge → no Measured');
+  assert.ok(earlyFoot.main.indexOf('>Forecast<') !== -1, 'Forecast still labels the whole row');
 });
 
 test('the hour strip highlights the selected hour with the app\'s chip (own icon + label)', () => {
@@ -334,17 +380,119 @@ test('the strip wears moons at night: sun-bearing glyphs swap below the horizon'
   });
 });
 
-test('the sun & moon panel spans the timeline with per-day rise/set labels', () => {
+test('the sun & moon panel marks every rise and set ON the horizon, labelled at arm\'s length', () => {
   const view = charts.prepareView(fixtureData(), NOON);
   const pal = charts.palette(false);
   const spec = charts.sunMoonPanelSvg(view, LOC, pal, SunCalc);
   assert.equal(spec.main.indexOf('NaN'), -1);
-  assert.ok(/\d\d:\d\d/.test(spec.main), 'rise/set times render');
-  assert.ok((spec.main.match(/☀ \d\d:\d\d/g) || []).length >= view.days,
-    'every day gets its sunrise label');
-  assert.equal(spec.main.indexOf(pal.grid), -1, 'no dropped guide lines — labels only');
-  assert.equal((spec.main.match(/<line /g) || []).length, 2,
-    'the horizon hairline and the now line are the only lines');
+
+  // Everything hangs off the horizon hairline, which spans the timeline.
+  const horizon = Number(/<line x1="0" y1="(\d+)" x2="\d+" y2="\1"/.exec(spec.main)[1]);
+  assert.ok(horizon > 0 && horizon < spec.H, 'the horizon sits inside the panel');
+
+  // A rise and a set per day per body, each carrying its direction arrow.
+  ['\u2600\u2191', '\u2600\u2193', '\u263D\u2191'].forEach((glyph) => {
+    const n = (spec.main.match(new RegExp(glyph, 'g')) || []).length;
+    assert.ok(n >= view.days - 1, glyph + ' marked on (nearly) every day: ' + n);
+  });
+
+  // The labels are the panel's headline type, not the axis ink they used to
+  // match: at least as large as the hour ruler, and semibold.
+  const strip = charts.timeStripSvg(view, LOC, pal, SunCalc);
+  const hourSize = Number(/font-size="([\d.]+)"[^>]*>03:00/.exec(strip.main)[1]);
+  const labelSize = Number(/font-size="([\d.]+)" font-weight="600"[^>]*>\d\d:\d\d /.exec(spec.main)[1]);
+  assert.ok(labelSize >= hourSize, 'rise/set labels read at ruler size or bigger (' + labelSize + ')');
+
+  // Each event puts a filled dot exactly ON the horizon and a dotted leader
+  // out to its label — the crossing is the point, per the reference.
+  const onHorizon = (spec.main.match(new RegExp('<circle cx="[\\d.]+" cy="' + horizon + '"', 'g')) || []).length;
+  assert.ok(onHorizon >= 2 * view.days, 'a dot per crossing: ' + onHorizon);
+  const leaders = (spec.main.match(/stroke-dasharray="1.5 3"/g) || []).length;
+  assert.equal(leaders, onHorizon, 'every dot gets exactly one dotted leader');
+  assert.ok(spec.main.indexOf('<circle cx="') !== -1 && spec.main.indexOf('fill="' + pal.sun + '"') !== -1,
+    'the sun crossings wear the sun ink');
+
+  // Daylight band behind the arcs, one per day, above the horizon only.
+  const bands = spec.main.match(new RegExp('<rect x="[\\d.]+" y="\\d+" width="[\\d.]+" height="\\d+" fill="'
+    + pal.daylight.replace(/[()]/g, '\\$&') + '"', 'g')) || [];
+  assert.ok(bands.length >= view.days - 1, 'a daylight band per day: ' + bands.length);
+  const bandHeight = Number(/height="(\d+)"/.exec(bands[0])[1]);
+  const bandTop = Number(/y="(\d+)"/.exec(bands[0])[1]);
+  assert.equal(bandTop + bandHeight, horizon, 'the band stops at the horizon, it does not cross it');
+
+  // Each arc runs twice through complementary clips: lit while the body is
+  // up, dimmed once it sets.
+  assert.ok(spec.main.indexOf('<clipPath id="wx-sun-up">') !== -1
+    && spec.main.indexOf('<clipPath id="wx-sun-dn">') !== -1, 'both half-planes are clipped');
+  const up = spec.main.split('clip-path="url(#wx-sun-up)"')[1].split('</g>')[0];
+  const dn = spec.main.split('clip-path="url(#wx-sun-dn)"')[1].split('</g>')[0];
+  assert.ok(up.indexOf(pal.sun) !== -1 && up.indexOf(pal.moon) !== -1, 'above the horizon: full inks');
+  assert.ok(dn.indexOf(pal.sunNight) !== -1 && dn.indexOf(pal.moonNight) !== -1, 'below it: the dimmed twins');
+  assert.equal(dn.indexOf(pal.moon + '"'), -1, 'the night half never uses the bright moon ink');
+
+  // Now: a rayed sun on its curve, a phase-bearing disc on the moon's.
+  assert.match(spec.main, new RegExp('<g stroke="' + pal.sun + '" stroke-width="1.6" stroke-linecap="round">'
+    + '(<line [^>]*>){8}</g>'), 'the sun glyph wears eight rays');
+  assert.match(spec.main, /<circle cx="[\d.]+" cy="[\d.]+" r="5.5"/, 'the moon disc stands at now');
+  assert.match(spec.main, new RegExp('<path d="M[^"]+Z" fill="' + pal.moon + '"'), 'with its lit limb filled');
+  const pct = /font-size="(\d+)"[^>]*>(\d+)%</.exec(spec.main);
+  assert.ok(Number(pct[1]) >= 9, 'the phase percentage is legible, not a footnote (' + pct[1] + ')');
+});
+
+test('the arcs plant their horizon crossings, and no label leaves its day', () => {
+  const view = charts.prepareView(fixtureData(), NOON);
+  const pal = charts.palette(false);
+  const spec = charts.sunMoonPanelSvg(view, LOC, pal, SunCalc);
+  const horizon = Number(/<line x1="0" y1="(\d+)" x2="\d+" y2="\1"/.exec(spec.main)[1]);
+  // A 30-minute polyline would pass BESIDE the rise/set dot; the crossing
+  // instant is interpolated in as its own vertex so the dot sits on the line.
+  const sunPath = /<path d="(M[^"]+)" fill="none" stroke="([^"]+)" stroke-width="2"/.exec(spec.main)[1];
+  const onHorizonVertices = (sunPath.match(new RegExp('L[\\d.]+ ' + horizon + '(?![\\d.])', 'g')) || []).length;
+  assert.ok(onHorizonVertices >= 2 * (view.days - 1),
+    'every crossing is a vertex of the arc itself (' + onHorizonVertices + ')');
+
+  // Rise/set labels are clipped by the viewport at a day seam, so each one
+  // must fit inside the day it belongs to — at high latitude too, where the
+  // events crowd the edges and the placement has to flip and clamp.
+  [[52.5, 13.4], [69.6, 18.9], [-33.9, 151.2]].forEach((where) => {
+    const s2 = charts.sunMoonPanelSvg(view, { lat: where[0], lon: where[1] }, pal, SunCalc);
+    const labels = s2.main.match(/<text x="([\d.]+)" y="\d+" text-anchor="(start|end)" font-size="(\d+)"[^>]*>([^<]*)<tspan[^>]*>([^<]*)<\/tspan>([^<]*)</g) || [];
+    assert.ok(labels.length > 0, 'lat ' + where[0] + ' renders labels');
+    labels.forEach((tag) => {
+      const m = /x="([\d.]+)" y="\d+" text-anchor="(start|end)" font-size="(\d+)"[^>]*>([^<]*)<tspan[^>]*>([^<]*)<\/tspan>([^<]*)</.exec(tag);
+      const x = Number(m[1]);
+      const size = Number(m[3]);
+      const width = (m[4] + m[5] + m[6]).length * size * 0.7;
+      const left = m[2] === 'end' ? x - width : x;
+      const day = Math.floor((left + width / 2) / charts.DAY_W);
+      assert.ok(left >= day * charts.DAY_W - 0.01 && left + width <= (day + 1) * charts.DAY_W + 0.01,
+        'label ' + JSON.stringify(m[4] + m[5] + m[6]) + ' at lat ' + where[0]
+        + ' stays inside day ' + day + ' (' + left.toFixed(1) + '–' + (left + width).toFixed(1) + ')');
+    });
+  });
+});
+
+test('moonPhasePath: the terminator tracks the fraction and the lit limb the direction', () => {
+  // d = M(top) A(outer limb) A(terminator) Z — the two arc flags say it all.
+  const arcs = (d) => (d.match(/A([\d.]+) [\d.]+ 0 0 (\d)/g) || []).map((a) => {
+    const m = /A([\d.]+) [\d.]+ 0 0 (\d)/.exec(a);
+    return { r: Number(m[1]), sweep: Number(m[2]) };
+  });
+  assert.equal(charts.moonPhasePath(50, 50, 10, 0, true), '', 'a new moon draws nothing');
+  const full = arcs(charts.moonPhasePath(50, 50, 10, 1, true));
+  assert.equal(full[1].r, 10, 'at full the terminator is the far limb itself');
+  const half = arcs(charts.moonPhasePath(50, 50, 10, 0.5, true));
+  assert.equal(half[1].r, 0, 'at the quarter it flattens to a straight edge');
+  const crescent = arcs(charts.moonPhasePath(50, 50, 10, 0.25, true));
+  assert.equal(crescent[1].r, 5, 'a quarter-lit disc: rx = r|1-2f|');
+
+  const waxing = arcs(charts.moonPhasePath(50, 50, 10, 0.3, true));
+  const waning = arcs(charts.moonPhasePath(50, 50, 10, 0.3, false));
+  assert.equal(waxing[0].sweep, 1, 'waxing lights the right limb');
+  assert.equal(waning[0].sweep, 0, 'waning lights the left one');
+  assert.notEqual(waxing[0].sweep, waxing[1].sweep, 'below half the terminator bulges INTO the lit side');
+  const gibbous = arcs(charts.moonPhasePath(50, 50, 10, 0.8, true));
+  assert.equal(gibbous[0].sweep, gibbous[1].sweep, 'past half it bulges away, over the dark side');
 });
 
 test('tipText carries every series at the index, per panel (the crosshair contract)', () => {
@@ -428,7 +576,16 @@ test('the two palettes stay in lockstep (same roles in light and dark)', () => {
   const light = charts.palette(true);
   const dark = charts.palette(false);
   assert.deepEqual(Object.keys(light).sort(), Object.keys(dark).sort());
-  ['temp', 'water', 'dew', 'gust', 'pressure', 'sun', 'probHi'].forEach((role) => {
+  ['temp', 'water', 'dew', 'gust', 'pressure', 'sun', 'probHi',
+    // The sun & moon panel's own roles: the daylight band and each body's
+    // below-horizon twin have to be stepped for their surface too.
+    'daylight', 'sunNight', 'moon', 'moonNight'].forEach((role) => {
     assert.notEqual(light[role], dark[role], role + ' is stepped per surface, not shared');
+  });
+  // A body's night ink must actually differ from its day ink, or the split
+  // above/below the horizon says nothing.
+  [['sun', 'sunNight'], ['moon', 'moonNight']].forEach((pair) => {
+    assert.notEqual(light[pair[0]], light[pair[1]], pair.join('/') + ' differ on the light surface');
+    assert.notEqual(dark[pair[0]], dark[pair[1]], pair.join('/') + ' differ on the dark surface');
   });
 });
