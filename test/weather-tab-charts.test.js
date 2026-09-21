@@ -105,9 +105,12 @@ test('every hourly panel spec renders without NaN and carries its scrub anchor',
     assert.equal(spec.main.indexOf('NaN'), -1, id + ' has no NaN coordinates');
     const scrub = (spec.main.match(new RegExp('<line id="wx-scrub-' + id + '"[^>]*>')) || [])[0];
     assert.ok(scrub, id + ' carries its crosshair guideline');
-    assert.ok(scrub.indexOf('stroke="' + pal.ink + '"') !== -1 && scrub.indexOf('opacity') === -1,
-      id + ' crosshair runs full-strength ink with NO opacity — dimmed it '
-      + 'read as just another gridline instead of THE selected hour');
+    assert.ok(scrub.indexOf('stroke="' + pal.muted + '"') !== -1,
+      id + ' crosshair runs the MUTED grey: it marks a passing choice, not a '
+      + 'fixture, and at full ink it shouted over the structure it points into');
+    assert.equal(scrub.indexOf('stroke="' + pal.ink + '"'), -1,
+      id + ' crosshair is not the page ink — that is what the day rules and '
+      + 'the now line wear');
     assert.equal(spec.main.indexOf(pal.grid), -1, id + ' panning layer draws no gridlines');
     assert.equal((spec.main.match(/<line /g) || []).length, 3 + view.days + 1,
       id + ' lines: the now line, the tap crosshair, the visible bottom axis '
@@ -556,11 +559,24 @@ test('the caption names the past by what produced it, and only DWD says Measured
   // The strip's line must reach ITS box's floor and the caption's must span
   // its own, top to bottom, so that with no margin between the two boxes
   // (pinned by test/weather-tab.test.js) the line reads as one.
+  const nowSegs = (spec) => (spec.main.match(
+    /<line x1="[\d.]+" y1="[\d.]+" x2="[\d.]+" y2="[\d.]+" stroke="[^"]*" stroke-width="1\.2"[^>]*>/g) || []);
+  const segY = (t) => [Number(/y1="([\d.]+)"/.exec(t)[1]), Number(/y2="([\d.]+)"/.exec(t)[1])];
+  // Noon is a labelled column, so up there the line is broken around the
+  // glyph and the number it passes through. What the seam needs of it is
+  // the LAST segment: wherever the line has to start, it lands on the floor.
   const strip = charts.timeStripSvg(view, LOC, pal, SunCalc);
-  const stripLine = /<line x1="[\d.]+" y1="0" x2="[\d.]+" y2="([\d.]+)" stroke="[^"]*" stroke-width="1.2"/
-    .exec(strip.main);
-  assert.ok(stripLine, 'the strip carries a now line');
-  assert.equal(Number(stripLine[1]), strip.H, 'it runs to the strip box\u2019s very floor');
+  const stripSegs = nowSegs(strip);
+  assert.ok(stripSegs.length, 'the strip carries a now line');
+  assert.equal(segY(stripSegs[stripSegs.length - 1])[1], strip.H,
+    'it runs to the strip box\u2019s very floor');
+  // Clear of the labels nothing interrupts it, and the same line spans the
+  // box whole — the breaks above are the gaps, not a line that gave up.
+  const clear = charts.timeStripSvg(
+    charts.prepareView(fixtureData(), NOON + 90 * 60000), LOC, pal, SunCalc);
+  const clearSegs = nowSegs(clear);
+  assert.equal(clearSegs.length, 1, 'one unbroken line where nothing is in its way');
+  assert.deepEqual(segY(clearSegs[0]), [0, clear.H], 'ceiling to floor');
   const footLine = /<line x1="[\d.]+" y1="([\d.]+)" x2="[\d.]+" y2="([\d.]+)" stroke="[^"]*" stroke-width="1.2"/
     .exec(foot.main);
   assert.ok(footLine, 'and the caption picks it up');
@@ -1040,7 +1056,7 @@ test('the altitude band is symmetric about the horizon, so no arc leaves the fra
   // The frame's own now-line reports the plot box, so this reads the geometry
   // the panel actually drew rather than a copy of its constants.
   const boxOf = (svg) => {
-    const m = /<line x1="[\d.]+" y1="(\d+)" x2="[\d.]+" y2="(\d+)" stroke="[^"]*" stroke-width="1.2" opacity="0.55"/.exec(svg);
+    const m = /<line x1="[\d.]+" y1="(\d+)" x2="[\d.]+" y2="(\d+)" stroke="[^"]*" stroke-width="1\.2"/.exec(svg);
     return { top: Number(m[1]), bottom: Number(m[2]) };
   };
   const horizonOf = (svg) => Number(/<line x1="0" y1="(\d+)" x2="\d+" y2="\1"/.exec(svg)[1]);
@@ -1325,16 +1341,21 @@ test('every canvas rules its day boundaries, so a swipe shows where the day ends
   // structure the swipe navigates by, so it may not read fainter than the
   // marker that sits inside it.
   const nowOpacity = Number(/<line [^>]*stroke-width="1\.2"[^>]*opacity="([\d.]+)"/.exec(surfaces.press.main)[1]);
+  const nowWidth = Number(/<line [^>]*stroke-width="(1\.2)"[^>]*opacity="[\d.]+"/.exec(surfaces.press.main)[1]);
 
   Object.keys(surfaces).forEach((id) => {
     const svg = surfaces[id].main;
     // By the page ink: the strip's hour ticks stand at every midnight too,
     // but they are axis-coloured stubs hanging off the ruler.
+    // In the strip a rule is drawn as the segments left over after the hour
+    // label is taken out of it, so a midnight can contribute more than one
+    // element. The claim is about POSITIONS ruled, not lines emitted.
     const edges = verticals(svg).filter((v) =>
       v.x >= 0 && v.x % charts.DAY_W === 0 && v.tag.indexOf('stroke="' + pal.ink + '"') !== -1);
-    assert.equal(edges.length, view.days + 1,
+    const edgeXs = edges.map((e) => e.x).filter((x, i, a2) => a2.indexOf(x) === i);
+    assert.equal(edgeXs.length, view.days + 1,
       id + ': one rule per local midnight, both ends of the timeline included '
-      + '(got ' + edges.map((e) => e.x).join(',') + ')');
+      + '(got ' + edgeXs.join(',') + ')');
     for (let d = 0; d <= view.days; d += 1) {
       assert.ok(edges.some((e) => e.x === d * charts.DAY_W),
         id + ': day ' + d + ' starts at x=' + (d * charts.DAY_W));
@@ -1343,9 +1364,16 @@ test('every canvas rules its day boundaries, so a swipe shows where the day ends
       assert.ok(e.tag.indexOf('stroke="' + pal.ink + '"') !== -1,
         id + ': the boundary runs the page ink (white on the dark theme)');
       const op = Number(/opacity="([\d.]+)"/.exec(e.tag)[1]);
-      assert.ok(op > nowOpacity,
-        id + ': the day boundary reads at least as strongly as the now line '
-        + '(' + op + ' vs ' + nowOpacity + ')');
+      assert.equal(op, 1,
+        id + ': the day boundary runs at FULL ink — it is the structure a '
+        + 'swipe navigates by, not a hint (' + op + ')');
+      assert.equal(op, nowOpacity,
+        id + ': and so does the now line; the two are page furniture and '
+        + 'neither whispers (' + op + ' vs ' + nowOpacity + ')');
+      const dayW = Number(/stroke-width="([\d.]+)"/.exec(e.tag)[1]);
+      assert.ok(dayW < nowWidth,
+        id + ': they tell each other apart by WEIGHT instead — the now line '
+        + 'is the heavier (' + dayW + ' vs ' + nowWidth + ')');
       assert.ok(e.y2 > e.y1, id + ': the rule has height');
     });
   });
@@ -1369,10 +1397,161 @@ test('every canvas rules its day boundaries, so a swipe shows where the day ends
   // each rules its own full height, and the stylesheet leaves no gap
   // between the boxes (pinned in test/weather-tab.test.js).
   [['strip', surfaces.strip], ['foot', surfaces.foot]].forEach((pair) => {
-    const edge = verticals(pair[1].main).filter((v) => v.x === charts.DAY_W)[0];
-    assert.equal(edge.y1, 0, pair[0] + ': the rule starts at the box top');
-    assert.equal(edge.y2, pair[1].H, pair[0] + ': and runs to its bottom');
+    // Segments, in the strip: the boundary is one line with a hole punched
+    // where the hour label sits, so the claim is that the TOPMOST segment
+    // opens the box and the bottom one closes it.
+    // By the page ink: the strip's hour tick stands at this midnight too,
+    // but it is an axis-coloured stub hanging off the ruler.
+    const segs = verticals(pair[1].main).filter((v) =>
+      v.x === charts.DAY_W && v.tag.indexOf('stroke="' + pal.ink + '"') !== -1);
+    assert.ok(segs.length, pair[0] + ': the box carries a midnight rule');
+    assert.equal(segs[0].y1, 0, pair[0] + ': the rule starts at the box top');
+    assert.equal(segs[segs.length - 1].y2, pair[1].H,
+      pair[0] + ': and runs to its bottom');
+    // And the hole is a hole, not a second rule somewhere else: the pieces
+    // run top to bottom in order, never overlapping.
+    for (let k = 1; k < segs.length; k += 1) {
+      assert.ok(segs[k].y1 >= segs[k - 1].y2,
+        pair[0] + ': segment ' + k + ' starts below the one before it ('
+        + segs[k - 1].y2 + ' → ' + segs[k].y1 + ')');
+    }
   });
+});
+
+test('a bar fills the hour it is about, from its own tick to the next', () => {
+  // A line or a dot marks the instant an hour begins, so it sits ON the
+  // tick. A bar is a claim about the whole hour, so it fills the span
+  // between two ticks — 16:00's bar runs 16:00 → 17:00. Straddling the tick
+  // put the rain that fell at 16:40 half under the 16:00 label and half
+  // under nothing.
+  const pal = charts.palette(false);
+  const view = charts.prepareView(fixtureData(), NOON);
+  const rectOf = (svg, id) => {
+    const t = new RegExp('<rect id="' + id + '"[^>]*>').exec(svg);
+    if (!t) { return null; }
+    return { x: Number(/x="([\d.-]+)"/.exec(t[0])[1]),
+      w: Number(/width="([\d.]+)"/.exec(t[0])[1]), tag: t[0] };
+  };
+  const temp = charts.tempPanelSvg(view, {}, pal);
+  const hum = charts.humidityPanelSvg(view, {}, pal);
+
+  const wet = rectOf(temp.main, 'wx-bar-temp-19');
+  assert.ok(wet, 'the wet hour draws a bar');
+  assert.equal(wet.x, 19 * charts.HOUR_W, 'it STARTS on its own hour tick');
+  assert.equal(wet.w, charts.HOUR_W, 'and runs exactly one hour wide');
+  assert.equal(wet.x + wet.w, 20 * charts.HOUR_W, 'so it ends on the next tick');
+
+  // The humidity bars are inset a unit either side so neighbours read as
+  // separate bars — inset from the same span, not from a different one.
+  const h6 = rectOf(hum.main, 'wx-bar-hum-6');
+  assert.ok(h6, 'the humidity hour draws a bar');
+  assert.equal(h6.x, 6 * charts.HOUR_W + 1, 'inset one unit into its own hour');
+  assert.equal(h6.x + h6.w, 7 * charts.HOUR_W - 1, 'and one unit short of the next');
+
+  // Nothing overhangs the canvas: the last hour's bar ends exactly on the
+  // right edge, and the first starts exactly on the left one.
+  const last = view.times.length - 1;
+  const firstHum = rectOf(hum.main, 'wx-bar-hum-0');
+  assert.ok(firstHum.x >= 0, 'the first bar does not start off-canvas');
+  const lastHum = rectOf(hum.main, 'wx-bar-hum-' + last);
+  if (lastHum) {
+    assert.ok(lastHum.x + lastHum.w <= view.days * charts.DAY_W,
+      'and the last does not run past the end (' + (lastHum.x + lastHum.w) + ')');
+  }
+
+  // Resting bars carry no border; the panel hands the painter the ink that
+  // one wears when the crosshair stands in it, so weather-tab.js never has
+  // to re-derive a palette value.
+  assert.match(wet.tag, /stroke="none"/, 'a resting bar is not outlined');
+  assert.equal(temp.marks.bar.lit, pal.ink, 'the lit border is the page ink');
+  assert.equal(hum.marks.bar.lit, pal.ink, 'in every panel that has bars');
+  assert.equal(charts.tempPanelSvg(view, {}, charts.palette(true)).marks.bar.lit,
+    charts.palette(true).ink, 'and follows the theme');
+});
+
+test('a rule in the hour strip breaks around the glyph and the number it crosses', () => {
+  // The rules run at full ink now, and type has no background of its own:
+  // drawing the line under the text was never enough, because a full-ink
+  // stroke still shows between the strokes of a digit and reads as a
+  // strike-through. So the line is drawn as the pieces left over.
+  const pal = charts.palette(false);
+  const view = charts.prepareView(fixtureData(), NOON);
+  const spec = charts.timeStripSvg(view, LOC, pal, SunCalc);
+  // By the page ink: an hour tick stands at every midnight too, but it is an
+  // axis-coloured stub hanging off the ruler, not a boundary.
+  const segsAt = (x, width) => (spec.main.match(/<line [^>]*>/g) || [])
+    .map((t) => ({
+      x: Number(/x1="([\d.]+)"/.exec(t)[1]),
+      x2: Number(/x2="([\d.]+)"/.exec(t)[1]),
+      y1: Number(/y1="([\d.]+)"/.exec(t)[1]),
+      y2: Number(/y2="([\d.]+)"/.exec(t)[1]),
+      tag: t
+    }))
+    .filter((v) => v.x === v.x2 && Math.abs(v.x - x) < 0.05
+      && v.tag.indexOf('stroke-width="' + width + '"') !== -1
+      && v.tag.indexOf('stroke="' + pal.ink + '"') !== -1)
+    .sort((a2, b2) => a2.y1 - b2.y1);
+
+  // A midnight carries an hour label ("00:00") and no icon — the weekday
+  // marker has that slot — so its rule is in exactly two pieces, and the
+  // hole between them sits over the label's own band.
+  const mid = segsAt(charts.DAY_W, 1);
+  assert.equal(mid.length, 2,
+    'the midnight rule is broken once, around its hour label (got '
+    + mid.map((v) => v.y1 + '…' + v.y2).join(', ') + ')');
+  assert.equal(mid[0].y1, 0, 'it still opens at the box ceiling');
+  assert.equal(mid[1].y2, spec.H, 'and still closes on its floor');
+  const hole = { top: mid[0].y2, bottom: mid[1].y1 };
+  assert.ok(hole.bottom > hole.top, 'the hole has height');
+  // The label's baseline is bandH - 6 at font-size 11: the hole has to clear
+  // the cap height above it and the descender below, or the break misses the
+  // glyphs it was cut for.
+  const base = spec.bandH - 6;
+  assert.ok(hole.top <= base - 8 && hole.bottom >= base + 2,
+    'the hole covers the label band around baseline ' + base
+    + ' (hole ' + hole.top + '…' + hole.bottom + ')');
+  assert.ok(hole.bottom < spec.bandH,
+    'and stops inside the band — the ruler below it is not a place to hide');
+
+  // A 3-hourly slot that is not a midnight carries BOTH a glyph and a
+  // label, one under the other, and between them the band has nothing left
+  // to draw a line in. What must NOT happen is the arithmetic answer: a
+  // 2-unit stub above the icon and a 1-unit stub between icon and label,
+  // two specks that read as dirt on the screen. The line yields the band
+  // and picks up below the ruler.
+  const three = charts.prepareView(fixtureData(), DAY0 + 3 * 3600000);
+  const threeSpec = charts.timeStripSvg(three, LOC, pal, SunCalc);
+  const segsOf = (svg) => (svg.match(/<line [^>]*stroke-width="1\.2"[^>]*>/g) || [])
+    .map((t) => ({ y1: Number(/y1="([\d.]+)"/.exec(t)[1]), y2: Number(/y2="([\d.]+)"/.exec(t)[1]) }))
+    .sort((a2, b2) => a2.y1 - b2.y1);
+  const nowSegs = segsOf(threeSpec.main);
+  assert.equal(nowSegs.length, 1,
+    'a column with an icon over a label leaves the line one piece, not three '
+    + '(got ' + nowSegs.map((v) => v.y1 + '…' + v.y2).join(', ') + ')');
+  assert.ok(nowSegs[0].y1 >= threeSpec.bandH - 4,
+    'and that piece is the one below the band (' + nowSegs[0].y1 + ')');
+  assert.equal(nowSegs[0].y2, threeSpec.H, 'still closing on the floor');
+  // The rule against specks, stated on its own: whatever the hour, every
+  // piece of line that IS drawn is long enough to read as a line.
+  for (let h = 0; h < 24; h += 1) {
+    for (let half = 0; half < 2; half += 1) {
+      const at = charts.prepareView(fixtureData(), DAY0 + (h + half * 0.5) * 3600000);
+      segsOf(charts.timeStripSvg(at, LOC, pal, SunCalc).main).forEach((v) => {
+        assert.ok(v.y2 - v.y1 >= 3,
+          'a ' + (v.y2 - v.y1) + '-unit stub at ' + h + ':' + (half ? '30' : '00')
+          + ' is a speck, not a line');
+      });
+    }
+  }
+
+  // Away from the 3-hourly slots there is nothing to clear, so the line is
+  // whole — the break is a response to content, not a decoration.
+  const clear = charts.prepareView(fixtureData(), DAY0 + 4 * 3600000 + 30 * 60000);
+  const clearSpec = charts.timeStripSvg(clear, LOC, pal, SunCalc);
+  const whole = (clearSpec.main.match(/<line [^>]*stroke-width="1\.2"[^>]*>/g) || []);
+  assert.equal(whole.length, 1, 'an unobstructed now line is one piece');
+  assert.equal(Number(/y1="([\d.]+)"/.exec(whole[0])[1]), 0);
+  assert.equal(Number(/y2="([\d.]+)"/.exec(whole[0])[1]), clearSpec.H);
 });
 
 test('the accent the day tiles fade to IS the page accent, per theme', () => {

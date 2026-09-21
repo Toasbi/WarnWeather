@@ -804,6 +804,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
+     * Put a bar back to its resting look: the panel's own dim, and no
+     * border. Both halves have to come off together — a bar left outlined
+     * at dim opacity reads as a second selection.
+     * @param {?Element} el The bar rect, or null when it is not drawn.
+     * @param {Object} bar The panel's marks.bar.
+     * @returns {void}
+     */
+    function dimBar(el, bar) {
+        if (!el) { return; }
+        el.setAttribute('opacity', bar.dim);
+        el.setAttribute('stroke', 'none');
+    }
+
+    /**
      * Paint the shared crosshair state at one hour by direct DOM writes (no
      * re-render): every panel's guideline, a highlight dot on every line
      * series (at the same y its path used — the scale comes from the
@@ -847,19 +861,22 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             }
             if (marks.bar) {
                 if (litBars[id] !== undefined && litBars[id] !== null && litBars[id] !== i) {
-                    var prev = document.getElementById(marks.bar.prefix + '-' + litBars[id]);
-                    if (prev) { prev.setAttribute('opacity', marks.bar.dim); }
+                    dimBar(document.getElementById(marks.bar.prefix + '-' + litBars[id]), marks.bar);
                     litBars[id] = null;
                 }
                 if (active) {
                     var bar = document.getElementById(marks.bar.prefix + '-' + i);
                     if (bar) {
+                        // Outlined, not merely brightened: a wet hour can be
+                        // one unit tall, and at that height a change of
+                        // opacity is nothing to see. The border draws round
+                        // the whole span the hour occupies.
                         bar.setAttribute('opacity', 1);
+                        bar.setAttribute('stroke', marks.bar.lit);
                         litBars[id] = i;
                     }
                 } else if (litBars[id] === i) {
-                    var lit = document.getElementById(marks.bar.prefix + '-' + i);
-                    if (lit) { lit.setAttribute('opacity', marks.bar.dim); }
+                    dimBar(document.getElementById(marks.bar.prefix + '-' + i), marks.bar);
                     litBars[id] = null;
                 }
             }
@@ -1100,7 +1117,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var rect = svg.getBoundingClientRect();
         if (!rect.width) { return; }
         var vx = (clientX - rect.left) / rect.width * (view.days * charts.DAY_W);
-        var i = Math.round(vx / charts.HOUR_W);
+        // The hour the finger is INSIDE, not the tick it is nearest. A bar
+        // fills the span between its own tick and the next one, so rounding
+        // to the nearest tick lit the bar beside the one under the finger
+        // for every tap past the halfway mark of an hour.
+        var i = Math.floor(vx / charts.HOUR_W);
         if (i < 0) { i = 0; }
         if (i > view.times.length - 1) { i = view.times.length - 1; }
         scrubIndex = i;

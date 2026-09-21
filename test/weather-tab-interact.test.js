@@ -236,13 +236,29 @@ test('the click that ends a pan is swallowed, so a swipe never taps a tile', () 
   }
 });
 
-test('a day change LANDS: the settle is instantaneous', () => {
-  // The swipe itself shows the movement; easing the last of it after the
-  // finger has gone only delays the answer. Everything that moves with the
-  // day reads these two — panels, tile row, value tips, and the tiles'
-  // highlight through the stylesheet — so pinning them here pins the lot.
-  assert.equal(interact.SETTLE_CSS, '0s', 'no motion after the release');
-  assert.equal(interact.SETTLE_MS, 0, 'and nothing waits on one');
+test('a day change TRAVELS, and the clock that waits for it is the clock that runs it', () => {
+  // A released pan glides onto its day instead of cutting to it. Everything
+  // that moves with the day reads these two — panels, tile row, value tips,
+  // and the tiles' highlight through the stylesheet — so pinning them here
+  // pins the lot.
+  const ms = /^([\d.]+)s\b/.exec(interact.SETTLE_CSS);
+  assert.ok(ms, 'the settle is a real CSS duration: ' + interact.SETTLE_CSS);
+  assert.ok(Number(ms[1]) > 0, 'the release is animated, not a cut');
+  // The JS timers that wait for the motion to end and the CSS that performs
+  // it are two statements of one fact. Drift either way is a bug you only
+  // see as a flicker: too short and the tip snaps back before the row lands,
+  // too long and the crosshair sits dead for the difference.
+  assert.equal(interact.SETTLE_MS, Number(ms[1]) * 1000,
+    'the millisecond count IS the CSS duration (' + interact.SETTLE_CSS
+    + ' vs ' + interact.SETTLE_MS + 'ms)');
+  // Slow enough to read as motion, short enough that the answer is not
+  // withheld: a day change is navigation, and navigation you wait for is
+  // navigation you stop using.
+  assert.ok(interact.SETTLE_MS >= 250 && interact.SETTLE_MS <= 600,
+    'a glide, not a crawl (' + interact.SETTLE_MS + 'ms)');
+  // Decelerating: the distance is covered early and the last of it settles.
+  assert.match(interact.SETTLE_CSS, /cubic-bezier|ease-out/,
+    'the curve comes to rest rather than stopping dead');
 });
 
 test('snapTargetDay: flicks advance one day, slow drags round, both clamp', () => {

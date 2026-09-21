@@ -91,10 +91,22 @@
 
     var DAY_W = 360;            // viewBox units per day (= one viewport width)
     var HOUR_W = DAY_W / 24;    // 15 units per hour
-    // The midnight rules' ink strength. Deliberately ABOVE the now line's
-    // 0.55: the day boundary is the structure a swipe navigates by, while
-    // "now" is a marker inside it.
-    var DAY_EDGE_OP = 0.8;
+    // The three verticals a panel may carry, in the order they matter.
+    //
+    // The day boundary is the structure a swipe navigates by and "now" is
+    // the one instant the whole tab is anchored on: both are page furniture
+    // the reader orients with, so both draw at FULL ink — white on the dark
+    // page, near-black on the light one. They tell each other apart by
+    // weight, not by strength: the now line is the heavier of the two, and
+    // on a midnight it is drawn last so it wins the shared pixel.
+    //
+    // The crosshair is the odd one out. It marks a passing choice, not a
+    // fixture, and it is the only line the reader put there — at full ink it
+    // shouted over the structure it was meant to point into, so it draws in
+    // the muted grey instead. (These two were the other way round until the
+    // page had all three on screen at once.)
+    var DAY_EDGE_OP = 1;
+    var NOW_OP = 1;
 
     /**
      * @param {boolean} isLight Whether the page renders its light theme.
@@ -272,6 +284,21 @@
     }
 
     /**
+     * Where an hour's BAR starts. A line or a dot marks the instant the hour
+     * begins and sits on the tick; a bar is a claim about the whole hour, so
+     * it fills the span BETWEEN two ticks — 16:00's bar runs from the 16:00
+     * mark to the 17:00 one, the way a meteogram reads. (It used to straddle
+     * its tick, half in the hour before it, which put the rain that fell at
+     * 16:40 partly under the 16:00 label and partly under nothing.)
+     * @param {Object} view Prepared view.
+     * @param {number} i Hour index.
+     * @returns {number} Left edge in viewBox units.
+     */
+    function barX(view, i) {
+        return xAt(view, i);
+    }
+
+    /**
      * The exact x of "now" on the canvas (between hour marks).
      * @param {Object} view Prepared view.
      * @returns {number} x in viewBox units, clamped to the timeline.
@@ -374,6 +401,77 @@
      * @param {number} y2 Bottom y.
      * @returns {string} SVG fragment.
      */
+    // Half-widths of what the strip's band actually holds, plus a unit of
+    // air, and the rows they sit in. A vertical line crossing either row
+    // breaks around it: the rules are at full ink now, and a full-ink line
+    // through "15:00" leaves a digit looking struck out.
+    var ICON_HALF = 12;     // the 22-unit glyph
+    var LABEL_HALF = 17;    // "00:00" at 11px semibold
+    var ICON_Y0 = 2, ICON_Y1 = 27;
+
+    /**
+     * The y bands a vertical line at `x` would draw through, in the hour
+     * strip. Icons and hour labels both sit on the 3-hourly ticks, so it is
+     * enough to ask what the nearest one holds — nothing else in the band is
+     * wide enough for a line to cut (the weekday marker starts 4 units clear
+     * of its midnight).
+     * @param {Object} view Prepared view.
+     * @param {number} hourY Baseline of the hour labels.
+     * @param {number} x Line position in viewBox units.
+     * @returns {Array<Array<number>>} [y0, y1] bands to leave out, in order.
+     */
+    function stripBandGaps(view, hourY, x) {
+        var i3 = Math.round(x / (HOUR_W * 3)) * 3;
+        if (i3 < 0 || i3 >= view.times.length) { return []; }
+        var cx = xAt(view, i3);
+        var gaps = [];
+        // The 3-hourly icon row skips midnights — the weekday marker has
+        // that slot — so a day rule never gaps here, only the now line can.
+        if (i3 >= 3 && i3 % 24 !== 0 && Math.abs(x - cx) < ICON_HALF) {
+            gaps.push([ICON_Y0, ICON_Y1]);
+        }
+        if (Math.abs(x - cx) < LABEL_HALF) { gaps.push([hourY - 10, hourY + 4]); }
+        return gaps;
+    }
+
+    /**
+     * A vertical line drawn as the segments left over after the gaps are
+     * taken out of it. A gap that swallows the line entirely emits nothing.
+     * @param {number} x Position in viewBox units.
+     * @param {number} y0 Top.
+     * @param {number} y1 Bottom.
+     * @param {Array<Array<number>>} gaps Bands to leave out, top to bottom.
+     * @param {string} attrs Stroke attributes shared by every segment.
+     * @returns {string} SVG fragment.
+     */
+    // Shorter than this, a leftover piece of line is a speck rather than a
+    // line — the 1-unit sliver between the icon row and the label row below
+    // it, or the 2 units above the icons. A gap swallows anything that
+    // small next to it instead of leaving it on screen.
+    var MIN_SEG = 3;
+
+    function vSegments(x, y0, y1, gaps, attrs) {
+        var xs = x.toFixed(1);
+        var s = '';
+        var at = y0;
+        for (var g = 0; g < gaps.length; g += 1) {
+            var top = gaps[g][0], bot = gaps[g][1];
+            if (bot <= at || top >= y1) { continue; }
+            // Look ahead: a piece too short to read gets absorbed by the gap
+            // that follows it, and by the end of the line if it is the last.
+            if (top - at >= MIN_SEG) {
+                s += '<line x1="' + xs + '" y1="' + at.toFixed(1) + '" x2="' + xs + '" y2="'
+                    + top.toFixed(1) + '" ' + attrs + '/>';
+            }
+            if (bot > at) { at = bot; }
+        }
+        if (y1 - at >= MIN_SEG) {
+            s += '<line x1="' + xs + '" y1="' + at.toFixed(1) + '" x2="' + xs + '" y2="'
+                + y1 + '" ' + attrs + '/>';
+        }
+        return s;
+    }
+
     function dayEdges(view, pal, y1, y2) {
         var s = '';
         for (var d = 0; d <= view.days; d += 1) {
@@ -407,7 +505,7 @@
         // The now line last: on a midnight it lands on a day rule, and the
         // stronger, wider hairline is the one that should win.
         s += '<line x1="' + nx.toFixed(1) + '" y1="' + top + '" x2="' + nx.toFixed(1) + '" y2="' + bottom
-            + '" stroke="' + pal.ink + '" stroke-width="1.2" opacity="0.55"/>';
+            + '" stroke="' + pal.ink + '" stroke-width="1.2" opacity="' + NOW_OP + '"/>';
         return s;
     }
 
@@ -421,10 +519,11 @@
      * @returns {string} SVG fragment.
      */
     function scrubLine(id, top, bottom, pal) {
-        // Full-strength ink (white on the dark theme) — dimmed it read as
-        // just another gridline instead of THE selected hour.
+        // The muted grey, not the ink: see DAY_EDGE_OP. This line marks a
+        // choice the reader made, and it has to point INTO the structure
+        // around it rather than outshout it.
         return '<line id="wx-scrub-' + id + '" x1="-10" y1="' + top + '" x2="-10" y2="' + bottom
-            + '" stroke="' + pal.ink + '" stroke-width="1"/>';
+            + '" stroke="' + pal.muted + '" stroke-width="1"/>';
     }
 
     /**
@@ -447,6 +546,8 @@
      *          over: string, overlay: string,
      *          bar: ?{prefix: string, dim: number,
      *                 tops: Array<?number>}}} parts Panel parts.
+     *   `bar.lit` is added here: the stroke a selected bar wears, so the
+     *   painter in weather-tab.js never re-derives a palette value.
      *   Each line's `vals` are DISPLAY units and `min`/`max` its y-domain;
      *   the y scale is derived here, so line and dot can never disagree.
      * @returns {{main: string, overlay: string, H: number, tip: boolean,
@@ -460,6 +561,11 @@
         s += '<line x1="0" y1="' + parts.bottom + '" x2="' + (view.days * DAY_W) + '" y2="' + parts.bottom
             + '" stroke="' + pal.axis + '" stroke-width="1"/>';
         var marks = { top: parts.top, bottom: parts.bottom, H: parts.H, lines: [], bar: parts.bar || null };
+        // A selected bar is outlined, not merely brightened: opacity alone
+        // was invisible on a one-unit-tall hour, and the border is what says
+        // WHICH hour the crosshair is standing in now that a bar fills the
+        // span between two ticks rather than straddling one.
+        if (marks.bar) { marks.bar.lit = pal.ink; }
         for (var i = 0; i < parts.lines.length; i += 1) {
             var ln = parts.lines[i];
             var y = yScale(ln.min, ln.max, parts.top, parts.bottom);
@@ -839,7 +945,7 @@
         // shared one svg: it spans this box top to bottom and the stylesheet
         // leaves no gap above, so the seam between the two svgs is invisible.
         s += '<line x1="' + nx.toFixed(1) + '" y1="0" x2="' + nx.toFixed(1) + '" y2="' + H + '"'
-            + ' stroke="' + pal.ink + '" stroke-width="1.2" opacity="0.55"/>';
+            + ' stroke="' + pal.ink + '" stroke-width="1.2" opacity="' + NOW_OP + '"/>';
         return { main: s, overlay: null, H: H };
     }
 
@@ -873,9 +979,10 @@
             var bh = (bottom - top) * model.rainPermilleFromMm(r) / 1000;
             if (bh < 1) { bh = 1; }
             tops.push(bottom - bh);
-            under += '<rect id="wx-bar-temp-' + i + '" x="' + (xAt(view, i) - HOUR_W / 2).toFixed(1)
+            under += '<rect id="wx-bar-temp-' + i + '" x="' + barX(view, i).toFixed(1)
                 + '" y="' + (bottom - bh).toFixed(1)
-                + '" width="' + HOUR_W + '" height="' + bh.toFixed(1) + '" fill="' + pal.water + '" opacity="0.45"/>';
+                + '" width="' + HOUR_W + '" height="' + bh.toFixed(1) + '" fill="' + pal.water
+                + '" stroke="none" stroke-width="1" opacity="0.45"/>';
         }
         // Precip probability row every 3 h; past hours show the app's dash.
         // Ink steps up with the chance — the wetter the hour, the more it
@@ -967,9 +1074,12 @@
             var bh = bottom - yr(v);
             if (bh < 1) { bh = 1; }
             tops.push(yr(v));
-            under += '<rect id="wx-bar-hum-' + i + '" x="' + (xAt(view, i) - (HOUR_W - 2) / 2).toFixed(1)
+            // Inset by a unit either side so neighbours stay separate bars;
+            // the span it is inset FROM is the hour's own (see barX).
+            under += '<rect id="wx-bar-hum-' + i + '" x="' + (barX(view, i) + 1).toFixed(1)
                 + '" y="' + yr(v).toFixed(1)
-                + '" width="' + (HOUR_W - 2) + '" height="' + bh.toFixed(1) + '" rx="1.5" fill="' + pal.water + '" opacity="0.3"/>';
+                + '" width="' + (HOUR_W - 2) + '" height="' + bh.toFixed(1) + '" rx="1.5" fill="'
+                + pal.water + '" stroke="none" stroke-width="1" opacity="0.3"/>';
         }
         var o = '';
         var lines = [];
@@ -1132,10 +1242,19 @@
         if (nx > 2) {
             s += '<rect x="0" y="0" width="' + nx.toFixed(1) + '" height="' + BAND_H + '" fill="' + pal.past + '"/>';
         }
-        // The day boundaries, under the glyphs and labels so they never cut
-        // through a number: the same rules the panels carry, run the strip's
-        // full height so the boundary reads as one line from the ruler down.
-        s += dayEdges(view, pal, 0, H);
+        // The day boundaries, run the strip's full height so the boundary
+        // reads as one line from the ruler down — but BROKEN around the
+        // glyph and the hour label they pass through. Drawing them under the
+        // text was not enough: the type has no background of its own, so a
+        // full-ink rule still showed between the strokes of a digit and read
+        // as a strike-through. Each midnight carries an hour label ("00:00")
+        // and no icon, so a day rule gaps once; the now line can land
+        // anywhere and gaps for whichever it crosses.
+        var dayAttrs = 'stroke="' + pal.ink + '" stroke-width="1" opacity="' + DAY_EDGE_OP + '"';
+        for (d = 0; d <= view.days; d += 1) {
+            x = d * DAY_W;
+            s += vSegments(x, 0, H, stripBandGaps(view, hourY, x), dayAttrs);
+        }
         // Condition icons every 3 h (midnights skipped — the weekday marker
         // sits there).
         for (var i = 3; i < view.times.length; i += 3) {
@@ -1167,8 +1286,8 @@
             s += '<line x1="' + x + '" y1="' + BAND_H + '" x2="' + x + '" y2="' + (BAND_H + (i % 3 === 0 ? 5 : 3))
                 + '" stroke="' + pal.axis + '" stroke-width="1"/>';
         }
-        s += '<line x1="' + nx.toFixed(1) + '" y1="0" x2="' + nx.toFixed(1) + '" y2="' + H
-            + '" stroke="' + pal.ink + '" stroke-width="1.2" opacity="0.55"/>';
+        s += vSegments(nx, 0, H, stripBandGaps(view, hourY, nx),
+            'stroke="' + pal.ink + '" stroke-width="1.2" opacity="' + NOW_OP + '"');
         // The selected-hour chip, on top of everything in the band: that
         // hour's OWN icon (not the 3-hourly neighbor) and label on the
         // app's dark box. weather-tab.js moves the group / swaps the hrefs

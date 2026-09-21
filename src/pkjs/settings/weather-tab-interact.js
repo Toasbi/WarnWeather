@@ -12,19 +12,21 @@
     var api = null;
     var wired = false;
 
-    // The day change LANDS — it does not travel. A released pan snaps onto
-    // its day and a spring-back returns at once, because a day change is
-    // navigation: the swipe itself already showed the movement, and an
-    // ease after the finger has gone only delays the answer.
+    // The day change TRAVELS. A released pan glides onto its day rather than
+    // cutting to it, so the eye can follow the timeline across instead of
+    // having to re-find its place on the other side; a spring-back to the
+    // same day eases home the same way. The curve decelerates hard —
+    // most of the distance is covered early and the last few pixels settle —
+    // which reads as the row coming to rest rather than stopping dead.
     //
     // Both halves are exported because everything that moves with the day
     // reads them — the panels, the tile row, the value tips riding OUTSIDE
     // the panned element, and the tiles' highlight in the stylesheet — so
-    // there is exactly one place this timing lives. '0s' is a real
-    // transition of zero duration: the transition bookkeeping stays valid,
-    // the motion does not.
-    var SETTLE_CSS = '0s';
-    var SETTLE_MS = 0;
+    // there is exactly one place this timing lives, and the JS timers that
+    // wait for the motion to finish cannot drift from the CSS that performs
+    // it. Keep the two in step: the number in SETTLE_CSS is SETTLE_MS.
+    var SETTLE_CSS = '0.42s cubic-bezier(0.16, 0.84, 0.32, 1)';
+    var SETTLE_MS = 420;
 
     // The day tiles' own edge margin (weather-tab-css.js gives the first and
     // last tile 8px), needed here because the row's resting end is measured,

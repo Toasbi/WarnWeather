@@ -497,6 +497,68 @@ test('a pan carries the tips with their values and drops them at the viewport ed
   }
 });
 
+test('the crosshair lands in the hour the finger is INSIDE, and outlines its bar', () => {
+  tab._resetState();
+  const realFetch = data.fetchWeather;
+  let respond = null;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { respond = cb; };
+  // A stand-in for every bar the panel draws, so the painter's writes can be
+  // read back per hour.
+  const bars = {};
+  const barFor = (id) => {
+    if (!bars[id]) { bars[id] = { attrs: {}, setAttribute(k, v) { this.attrs[k] = String(v); } }; }
+    return bars[id];
+  };
+  const tip = { style: {}, innerHTML: '', offsetWidth: 60, offsetHeight: 44,
+    parentNode: { clientWidth: 390, clientHeight: 150 } };
+  global.document = {
+    getElementById: (id) => (id.indexOf('wx-bar-') === 0 ? barFor(id)
+      : (id === 'wx-tip-temp' ? tip : null))
+  };
+  try {
+    const state = { graphsLocation: 'current', temperatureUnits: 'c' };
+    tab._setCtx({ S: state, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond(fixture(), null);
+    tab.weatherGraphsBlock(state, {}, SEED);
+    const view = tab._fetchState().view;
+    const svg = { getBoundingClientRect: () => ({ left: 0, width: 390 }) };
+    // A pointer at a FRACTION of an hour, in client px.
+    const at = (h) => h * charts.HOUR_W / (view.days * charts.DAY_W) * 390;
+    const litTemp = () => Object.keys(bars).filter((k) =>
+      k.indexOf('wx-bar-temp-') === 0 && bars[k].attrs.stroke && bars[k].attrs.stroke !== 'none');
+
+    // A bar now fills the span from its own tick to the next, so the hour a
+    // tap belongs to is the one it is INSIDE. Rounding to the nearest tick
+    // lit the bar beside the one under the finger for every tap past the
+    // halfway mark — the single most visible way to get this wrong.
+    [[19.05, 19], [19.5, 19], [19.95, 19], [20.05, 20]].forEach((c) => {
+      tab._scrubTo(svg, at(c[0]));
+      assert.deepEqual(litTemp(), ['wx-bar-temp-' + c[1]],
+        'a tap at hour ' + c[0] + ' lights the bar it stands in');
+    });
+
+    // The border IS the selection: the bar it leaves carries none, and the
+    // one it lands on is at full strength as well as outlined.
+    tab._scrubTo(svg, at(19.5));
+    const marks = charts.tempPanelSvg(view, state, charts.palette(false)).marks;
+    assert.equal(bars['wx-bar-temp-19'].attrs.stroke, marks.bar.lit,
+      'the selected bar wears the page ink');
+    assert.equal(bars['wx-bar-temp-19'].attrs.opacity, '1', 'at full strength');
+    tab._scrubTo(svg, at(20.5));
+    assert.equal(bars['wx-bar-temp-19'].attrs.stroke, 'none',
+      'and the hour left behind gives its border back');
+    assert.equal(bars['wx-bar-temp-19'].attrs.opacity, String(marks.bar.dim),
+      'along with its brightness — a dim bar left outlined reads as a '
+      + 'second selection');
+    assert.deepEqual(litTemp(), ['wx-bar-temp-20'], 'exactly one bar is ever lit');
+  } finally {
+    delete global.document;
+    data.fetchWeather = realFetch;
+    tab._resetState();
+  }
+});
+
 test('a settling pan eases the tips home, and holds back the ones that left the viewport', () => {
   tab._resetState();
   const realFetch = data.fetchWeather;
@@ -543,48 +605,54 @@ test('a settling pan eases the tips home, and holds back the ones that left the 
     assert.equal(timers.length, 0, 'a visible tip needs no deferral');
 
     // Case two: the drag carried the value off-viewport, so the tip is
-    // already hidden. Today's day change LANDS, so the tip has to land in
-    // the same task as the panels — a timer, even at 0 ms, is a separate
-    // macrotask the browser may paint across, and that frame would show
-    // the hour with its guideline and lit bar but no value above it.
-    assert.equal(interact.SETTLE_MS, 0, 'the day change lands, it does not travel');
+    // already hidden. The day change TRAVELS, so the tip must wait the
+    // glide out — re-showing it mid-flight would park it over a value that
+    // has not arrived yet.
+    assert.ok(interact.SETTLE_MS > 0, 'the day change travels, it does not land');
     tab._panTips(0.6, false);
     assert.equal(tip.style.display, 'none', 'gone with its value');
     tab._panTips(0, true);
-    assert.equal(timers.length, 0, 'nothing is deferred across a paint');
-    assert.equal(tip.style.display, 'block', 'the tip is back with its value');
+    assert.equal(tip.style.display, 'none',
+      'a released spring-back does NOT resurrect it over a value mid-flight');
+    assert.equal(timers.length, 1, 'its return is deferred instead');
+    assert.equal(timers[0].ms, interact.SETTLE_MS, 'by exactly the pan\'s settle time');
+
+    timers[0].fn();
+    assert.equal(tip.style.display, 'block', 'once the pan has landed it comes back');
     assert.equal(parseInt(tip.style.left, 10), atRest, 'on its value');
     assert.equal(tip.style.transition, '', 'and lands at once — the pan is already home');
 
-    // Case three: give the settle a real curve back and the hidden tip
-    // waits it out again — re-showing it mid-flight would park it over a
-    // value that has not arrived.
+    // A fresh scrub during the settle owns the tips; the stale timer must
+    // not paint over what paintScrub just placed.
+    timers.length = 0;
+    tab._panTips(0.6, false);
+    tab._panTips(0, true);
+    const pending = timers[timers.length - 1];
+    tab._scrubTo(svg, px(6));
+    const afterScrub = tip.style.left;
+    pending.fn();
+    assert.equal(tip.style.left, afterScrub, 'the stale settle timer stands down');
+
+    // Case three: the same path with the settle turned off. The zero branch
+    // is still in the code and still has to be the RIGHT one — a timer, even
+    // at 0 ms, is a separate macrotask the browser may paint across, and
+    // that frame would show the hour with its guideline and lit bar but no
+    // value above it. So with no glide the tip lands in the same task.
     const realSettle = interact.SETTLE_MS;
-    interact.SETTLE_MS = 220;
+    interact.SETTLE_MS = 0;
     try {
+      // Back onto the hour the rest of this test is about: the stale-timer
+      // case above deliberately scrubbed away from it.
+      tab._scrubTo(svg, px(12));
+      assert.equal(parseInt(tip.style.left, 10), atRest, 'back on the hour under test');
+      timers.length = 0;
       tab._panTips(0.6, false);
       assert.equal(tip.style.display, 'none', 'gone with its value');
       tab._panTips(0, true);
-      assert.equal(tip.style.display, 'none',
-        'a released spring-back does NOT resurrect it over a value mid-flight');
-      assert.equal(timers.length, 1, 'its return is deferred instead');
-      assert.equal(timers[0].ms, 220, 'by exactly the pan\'s settle time');
-
-      timers[0].fn();
-      assert.equal(tip.style.display, 'block', 'once the pan has landed it comes back');
+      assert.equal(timers.length, 0, 'nothing is deferred across a paint');
+      assert.equal(tip.style.display, 'block', 'the tip is back with its value');
       assert.equal(parseInt(tip.style.left, 10), atRest, 'on its value');
       assert.equal(tip.style.transition, '', 'and lands at once — the pan is already home');
-
-      // A fresh scrub during the settle owns the tips; the stale timer must
-      // not paint over what paintScrub just placed.
-      timers.length = 0;
-      tab._panTips(0.6, false);
-      tab._panTips(0, true);
-      const pending = timers[timers.length - 1];
-      tab._scrubTo(svg, px(6));
-      const afterScrub = tip.style.left;
-      pending.fn();
-      assert.equal(tip.style.left, afterScrub, 'the stale settle timer stands down');
     } finally {
       interact.SETTLE_MS = realSettle;
     }
