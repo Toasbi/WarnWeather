@@ -236,7 +236,8 @@
      * the page, so it changes with the window, and a render replaces the
      * row wholesale.
      * @param {number} days Selectable day count.
-     * @returns {?{row: Element, max: number, top: number}} Row and travel.
+     * @returns {?{row: Element, max: number, top: number, pitch: number}} Row,
+     *   travel, and the tile-to-tile pitch (0 when there is only one tile).
      */
     function stripRest(days) {
         if (typeof document === 'undefined' || !document.querySelector) { return null; }
@@ -255,7 +256,10 @@
         // margin.
         var max = last.offsetLeft + last.offsetWidth + EDGE_PAD - w;
         if (max < 0) { max = 0; }
-        return { row: row, max: max, top: top };
+        // Tile to tile, gap included — the row's own unit of one day.
+        var pitch = tiles.length > 1 ? tiles[1].offsetLeft - tiles[0].offsetLeft : 0;
+        if (!(pitch > 0)) { pitch = 0; }
+        return { row: row, max: max, top: top, pitch: pitch };
     }
 
     /**
@@ -344,6 +348,11 @@
     // just a drag that happened to be fast.
     var FLING_MS = 120;
 
+    // Tile-widths of finger per day. The one dial for how quick the tile row
+    // feels: 1 is drag-by-a-card, below 1 is quicker, above 1 slower. It
+    // multiplies a MEASURED pitch, so it stays honest at any page width.
+    var DRAG_PITCHES = 1;
+
     /**
      * Which day a released drag lands on.
      *
@@ -428,17 +437,39 @@
      * The tile row is not: five tiles live in one screen, and its whole
      * travel is the few tiles that do not fit. Driving it at the chart's
      * scale meant a full-width sweep advanced one day and crept the row 48
-     * px — the row read as stuck to the screen. At its own scale the finger
-     * carries the tile under it, which is the only scale a row can have.
+     * px — the row read as stuck to the screen.
+     *
+     * So the row gets a scale of its own, and the one to take is its PITCH:
+     * a day costs one tile-width of finger — drag by a card, advance a card,
+     * which is what a peeking carousel does everywhere else.
+     *
+     * The row's TRAVEL is the wrong unit even though it looks like the right
+     * one. Scaling by it makes the row track the finger exactly, which is
+     * how a row ought to behave; but the travel is however little of the row
+     * fails to fit, so it is not a property of a day at all. It was 48 px a
+     * day here, and an unhurried half-screen drag therefore swallowed the
+     * whole five-day timeline while every flick pinned the last day. Worse,
+     * it is not even a constant: the provider decides how many tiles there
+     * are, and (pitch × N − viewport) / (N − 1) runs 27 px a day at four
+     * tiles, 49 at five, and at three the row fits, the travel is zero and
+     * the fall-back below hands the gesture the page's 386. The same swipe
+     * would mean three different things depending on how far ahead the
+     * forecast happened to reach. The pitch is the same number at every N.
+     *
+     * The tiles are also the small part of what this swipe moves: it
+     * re-pages five charts under them. At a pitch the row still follows at
+     * 42 % of the finger — plainly moving with it, just not pinned to it —
+     * and the fling divides by this same scale, so one number paces the drag
+     * and the throw together.
      * @param {Object} g The live gesture.
      * @returns {number} Pixels per day, never zero.
      */
     function gestureScale(g) {
         if (g.tiles) {
             var r = stripRest(g.days);
-            // A row that fits its viewport has no travel to scale by; fall
-            // back to the page scale rather than divide by nothing.
-            if (r && r.top > 0 && r.max > 0) { return r.max / r.top; }
+            // Only a single-tile row has no pitch to measure — and it has no
+            // day to change either. Everything else is paced by the row.
+            if (r && r.top > 0 && r.pitch > 0) { return r.pitch * DRAG_PITCHES; }
         }
         return g.vw;
     }

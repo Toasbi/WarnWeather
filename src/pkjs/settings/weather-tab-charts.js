@@ -476,7 +476,11 @@
         var gaps = [];
         // The 3-hourly icon row skips midnights — the weekday marker has
         // that slot — so a day rule never gaps here, only the now line can.
-        var onIcon = i3 >= 3 && i3 % 24 !== 0 && Math.abs(x - cx) < ICON_HALF
+        // Nothing at all is drawn on a midnight column: no icon, and — since
+        // every one of them stood astride a viewport seam — no hour label
+        // either. A rule through one has nothing to gap for.
+        var atMidnight = i3 % 24 === 0;
+        var onIcon = i3 >= 3 && !atMidnight && Math.abs(x - cx) < ICON_HALF
             && (!hourIds || Boolean(hourIds[i3]));
         // Into the day the line stands in: the marker is drawn once per day
         // at that day's own left edge.
@@ -489,7 +493,9 @@
             // marker's box is midnight, which carries no icon).
             gaps.push([MARK_Y0, MARK_Y1]);
         }
-        if (Math.abs(x - cx) < LABEL_HALF) { gaps.push([hourY - 10, hourY + 4]); }
+        if (!atMidnight && Math.abs(x - cx) < LABEL_HALF) {
+            gaps.push([hourY - 10, hourY + 4]);
+        }
         return gaps;
     }
 
@@ -625,6 +631,13 @@
         // which span the crosshair has picked out — the hour to its LEFT,
         // the one the figures at that tick are a total of (see barX).
         if (marks.bar) { marks.bar.lit = pal.ink; }
+        // The value dots are held back and emitted LAST, after the
+        // crosshair. Each one is an opaque disc in the panel's own surface
+        // colour with the series' ring round it, and punching the lines out
+        // where the value is is the whole point of that fill — drawn under
+        // the crosshair, the guideline ran straight through the middle of
+        // the ring and the mark read as a cross rather than a point.
+        var dots = '';
         for (var i = 0; i < parts.lines.length; i += 1) {
             var ln = parts.lines[i];
             var y = yScale(ln.min, ln.max, parts.top, parts.bottom);
@@ -633,12 +646,13 @@
                 s += '<path d="' + d + '" fill="none" stroke="' + ln.color
                     + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
             }
-            s += '<circle id="wx-dot-' + id + '-' + ln.key + '" cx="-10" cy="-10" r="3.5" fill="'
+            dots += '<circle id="wx-dot-' + id + '-' + ln.key + '" cx="-10" cy="-10" r="3.5" fill="'
                 + pal.surface + '" stroke="' + ln.color + '" stroke-width="2"/>';
             marks.lines.push({ key: ln.key, vals: ln.vals, min: ln.min, max: ln.max });
         }
         s += parts.over || '';
         s += scrubLine(id, parts.top, parts.bottom, pal);
+        s += dots;
         return { main: s, overlay: parts.overlay || '', H: parts.H, tip: true, marks: marks };
     }
 
@@ -1051,6 +1065,12 @@
         // wears the water color.
         var over = '';
         for (i = 0; i < view.prob.length; i += 3) {
+            // A midnight figure is centred on a viewport seam, so half of it
+            // reads on each side of the fold — "10" on one day and "0%" on
+            // the next. It goes for the reason the icon row and the hour
+            // labels drop theirs; and the one at i === 0 goes for the reason
+            // the bar loop above gives, that its hour ran before the canvas.
+            if (i % 24 === 0) { continue; }
             var px = xAt(view, i);
             if (i <= view.nowIndex) {
                 over += '<text x="' + px + '" y="' + probY + '" text-anchor="middle" font-size="' + probSize
@@ -1097,6 +1117,11 @@
         // meteorological "comes from", so the arrow points bearing+180°).
         var over = '';
         for (var i = 0; i < view.dir.length; i += 3) {
+            // Midnights skipped: the arrow is centred on a viewport seam
+            // there, and a bearing may not be nudged off its own tick — x is
+            // read as time on this canvas. The 21:00 and 03:00 arrows either
+            // side bracket it, and a tap still gives the exact bearing.
+            if (i % 24 === 0) { continue; }
             var b = view.dir[i];
             if (b === null || b === undefined) { continue; }
             over += '<g transform="translate(' + xAt(view, i) + ' ' + (H - 14) + ') rotate(' + ((b + 180) % 360) + ')">'
@@ -1310,9 +1335,10 @@
         // glyph and the hour label they pass through. Drawing them under the
         // text was not enough: the type has no background of its own, so a
         // full-ink rule still showed between the strokes of a digit and read
-        // as a strike-through. Each midnight carries an hour label ("00:00")
-        // and no icon, so a day rule gaps once; the now line can land
-        // anywhere and gaps for whichever it crosses.
+        // as a strike-through. A midnight column carries nothing — no icon
+        // and no hour label — so a day rule gaps nowhere and draws as the
+        // one unbroken line it is meant to read as; the now line can land
+        // anywhere and gaps for whichever mark it crosses.
         var dayAttrs = 'stroke="' + pal.ink + '" stroke-width="1" opacity="' + DAY_EDGE_OP + '"';
         for (d = 0; d <= view.days; d += 1) {
             x = d * DAY_W;
@@ -1332,14 +1358,23 @@
             s += '<text x="' + (d * DAY_W + 4) + '" y="14" font-size="8" font-weight="700" fill="'
                 + pal.muted + '">' + esc(wd) + '</text>';
         }
-        // Hour labels INSIDE the band, along its lower edge (the app's look).
-        for (i = 0; i < view.times.length; i += 1) {
+        // Hour labels INSIDE the band, along its lower edge (the app's look)
+        // — midnights skipped, on the icon row's rule two loops up. A day
+        // boundary IS a viewport seam, so a label centred on one is half on
+        // the far side of the fold: the reader saw ":00" at the left edge of
+        // every day and "00:" at its right. Nudging it clear is not open to
+        // us the way it is for the selection chip — the label is 35 units
+        // wide on a 45-unit pitch, so the 17.5 it would have to travel is
+        // more than the 10 units there are before it sits on 03:00's. The
+        // hour it names is still named: by the full-ink rule standing on the
+        // seam, the weekday marker beside it, the long ruler tick under it,
+        // and the chip when that hour is the selected one.
+        for (i = 0; i < view.times.length; i += 3) {
+            if (i % 24 === 0) { continue; }
             x = xAt(view, i);
-            if (i % 3 === 0) {
-                s += '<text x="' + x + '" y="' + hourY + '" text-anchor="middle" font-size="11" '
-                    + 'font-weight="600" fill="' + pal.ink + '">'
-                    + two(model.localHour(view.times[i], view.offsetSec)) + ':00</text>';
-            }
+            s += '<text x="' + x + '" y="' + hourY + '" text-anchor="middle" font-size="11" '
+                + 'font-weight="600" fill="' + pal.ink + '">'
+                + two(model.localHour(view.times[i], view.offsetSec)) + ':00</text>';
         }
         // Tick ruler on the band's lower edge.
         s += '<line x1="0" y1="' + BAND_H + '" x2="' + (view.days * DAY_W) + '" y2="' + BAND_H

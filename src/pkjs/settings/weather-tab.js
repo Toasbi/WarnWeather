@@ -472,7 +472,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // spring-back to the one already shown.
         panStrip(d, true);
         if (d !== before) {
-            syncAnchors();
+            restScrub();
         } else {
             // Spring-back to the same day: the crosshair survives, so the
             // tips that rode the drag have to land back on their values —
@@ -936,11 +936,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 }
             }
         }
+        // The chip IS the selection — a dark box with a white border round
+        // one hour. At rest nothing is selected, so the only hour that still
+        // earns it is NOW, and only one day has a now. Parked on every other
+        // day it sat on an arbitrary noon and read as a selection nobody had
+        // made: swipe away from an hour you picked and the highlight seemed
+        // to follow you onto the next day. It is still POSITIONED while
+        // hidden, so it is already in place if a scrub brings it back.
+        var showChip = active || i === view.nowIndex;
         var chip = document.getElementById('wx-strip-hi');
         if (chip) {
             // The chip takes the renderer's clamped x (nudged off the day
             // seams), not the crosshair's raw x.
             chip.setAttribute('transform', 'translate(' + charts.stripChipX(view, i) + ' 0)');
+            chip.setAttribute('display', showChip ? 'inline' : 'none');
         }
         var tick = document.getElementById('wx-strip-hi-tick');
         if (tick) {
@@ -949,6 +958,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var tx = charts.stripTickX(view, i);
             tick.setAttribute('x1', tx);
             tick.setAttribute('x2', tx);
+            tick.setAttribute('display', showChip ? 'inline' : 'none');
         }
         var chipText = document.getElementById('wx-strip-hi-text');
         if (chipText) {
@@ -983,12 +993,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * After the viewed day changes, drop the crosshair (its hour belongs to
-     * the previous day) and park the chip on the new day's anchor hour —
-     * direct DOM, like the pan itself.
+     * Drop the crosshair and put the strip back to its unselected rest —
+     * direct DOM, like the pan itself. Two things ask for it: a day change,
+     * because the selected hour belonged to the day being left, and a second
+     * tap on the hour already selected.
      * @returns {void}
      */
-    function syncAnchors() {
+    function restScrub() {
         scrubIndex = null;
         var view = fetchState.view;
         if (!view) { return; }
@@ -1159,6 +1170,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var i = Math.floor(vx / charts.HOUR_W) + 1;
         if (i < 0) { i = 0; }
         if (i > view.times.length - 1) { i = view.times.length - 1; }
+        // Tapping the hour that is already selected puts it down again.
+        // Without it there is no way back to the unselected page short of
+        // swiping to another day and back: every tap was a select and the
+        // crosshair, once raised, stayed up.
+        if (scrubIndex === i) {
+            restScrub();
+            return;
+        }
         scrubIndex = i;
         paintScrub(i, true);
     }
@@ -1278,6 +1297,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             _fadeDayCards: fadeDayCards,
             _applyStripPan: applyStripPan,
             _commitDay: commitDay,
+            _repaintScrub: repaintScrub,
             _setCtx: function (c) { ctx = c; },
             _fetchState: function () { return fetchState; },
             _panDay: function () { return panDay; },

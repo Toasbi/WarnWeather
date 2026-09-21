@@ -558,6 +558,11 @@ test('the crosshair lands in the hour the finger is INSIDE, and outlines its bar
     // just cleared. Rounding to the nearest tick, or flooring to the one
     // behind, both light a bar beside the one under the finger.
     [[19.05, 20], [19.5, 20], [19.95, 20], [20.05, 21]].forEach((c) => {
+      // Park somewhere else first. Three of these four land on the SAME
+      // hour by design, and a second tap on the hour already selected puts
+      // it down (pinned in its own test below) — which would make this one
+      // read as a placement failure.
+      tab._scrubTo(svg, at(2));
       tab._scrubTo(svg, at(c[0]));
       assert.deepEqual(litTemp(), ['wx-bar-temp-' + c[1]],
         'a tap at clock hour ' + c[0] + ' lights the bar it stands in');
@@ -662,6 +667,93 @@ test('a tap during the settle reads the day the page is going to, not the one it
   }
 });
 
+test('the chip IS the selection: a second tap puts it down, and a day change takes it away', () => {
+  // The strip chip is a dark box with a white border round one hour — the
+  // page's loudest "this one". Two things followed from letting it rest on
+  // an anchor hour instead:
+  //   * swipe to another day and it reappeared on that day's noon, an hour
+  //     nobody had chosen, so the selection looked like it had followed you;
+  //   * and there was no way to put a selection DOWN short of swiping away
+  //     and back, because every tap was a select.
+  // So: visible when something is selected, or when it is standing on NOW —
+  // and only one day has a now.
+  tab._resetState();
+  const realFetch = data.fetchWeather;
+  let respond = null;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { respond = cb; };
+  const el = {};
+  const nodeFor = (id) => {
+    if (!el[id]) { el[id] = { attrs: {}, style: {}, innerHTML: '', offsetWidth: 60, offsetHeight: 44,
+      parentNode: { clientWidth: 390, clientHeight: 150 },
+      setAttribute(k, v) { this.attrs[k] = String(v); },
+      setAttributeNS() {}, querySelector: () => null }; }
+    return el[id];
+  };
+  global.document = { getElementById: (id) => nodeFor(id) };
+  try {
+    const state = { graphsLocation: 'current', temperatureUnits: 'c' };
+    tab._setCtx({ S: state, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond(fixture(), null);
+    tab.weatherGraphsBlock(state, {}, SEED);
+    const view = tab._fetchState().view;
+    const svg = panelStub(390);
+    const at = (h) => (h - 0.5) * charts.HOUR_W / charts.DAY_W * 390;
+    const chip = () => el['wx-strip-hi'].attrs.display;
+    const tick = () => el['wx-strip-hi-tick'].attrs.display;
+    const litTemp = () => Object.keys(el).filter((k) =>
+      k.indexOf('wx-bar-temp-') === 0 && el[k].attrs.stroke && el[k].attrs.stroke !== 'none');
+
+    // At rest on the day that HAS a now, the chip stands on it.
+    tab._repaintScrub();
+    assert.equal(chip(), 'inline', 'the resting chip marks now');
+    assert.equal(tick(), 'inline', 'and so does its ruler tick');
+    assert.equal(Number(el['wx-strip-hi-tick'].attrs.x1),
+      charts.stripTickX(view, view.nowIndex), 'on now\u2019s own hour');
+
+    // Select an hour: the chip moves to it.
+    const pick = view.nowIndex + 3;
+    tab._scrubTo(svg, at(pick));
+    assert.equal(chip(), 'inline', 'a selection is a chip');
+    assert.deepEqual(litTemp(), ['wx-bar-temp-' + pick], 'and a lit bar');
+
+    // Tap the SAME hour again: everything lets go.
+    tab._scrubTo(svg, at(pick));
+    assert.deepEqual(litTemp(), [], 'the second tap puts the bar down');
+    assert.equal(el['wx-scrub-temp'].attrs.x1, '-10', 'and parks the crosshair');
+    assert.equal(el['wx-tip-temp'].style.display, 'none', 'and the value tip');
+    assert.equal(chip(), 'inline',
+      'the chip stays, because this day HAS a now for it to fall back to');
+    assert.equal(Number(el['wx-strip-hi-tick'].attrs.x1),
+      charts.stripTickX(view, view.nowIndex), 'which is where it goes');
+
+    // A day with no now has nothing for the chip to rest on, so it goes.
+    tab._scrubTo(svg, at(pick));
+    assert.equal(chip(), 'inline', 'precondition: something is selected again');
+    tab._commitDay(1);
+    assert.equal(tab._panDay(), 1);
+    assert.deepEqual(litTemp(), [], 'the day change drops the selection');
+    assert.equal(chip(), 'none', 'and takes the chip with it — day 1 has no now');
+    assert.equal(tick(), 'none', 'nor its tick');
+    // Dropped, not merely unpainted. A re-render re-establishes the scrub
+    // from the stored index — a refresh, or the freshness label ticking over
+    // — so an index left behind would bring the previous day's selection
+    // back a moment later, on an hour that is no longer on screen.
+    tab._repaintScrub();
+    assert.deepEqual(litTemp(), [], 'a repaint does not resurrect it');
+    assert.equal(chip(), 'none', 'nor the chip');
+    assert.equal(el['wx-scrub-temp'].attrs.x1, '-10', 'nor the crosshair');
+
+    // Back onto today and it returns, on now.
+    tab._commitDay(0);
+    assert.equal(chip(), 'inline', 'today gets its now-chip back');
+  } finally {
+    delete global.document;
+    data.fetchWeather = realFetch;
+    tab._resetState();
+  }
+});
+
 test('a settling pan eases the tips home, and holds back the ones that left the viewport', () => {
   tab._resetState();
   const realFetch = data.fetchWeather;
@@ -758,7 +850,10 @@ test('a settling pan eases the tips home, and holds back the ones that left the 
       'a reversal has no speed to continue, so it takes the other curve');
     assert.ok(rest.ms >= interact.REST_MIN_MS && rest.ms <= interact.REST_MAX_MS,
       'timed by how far it has to come back, not by how fast the hand was');
-    tab._scrubTo(svg, px(12));
+    // A DIFFERENT hour each time this re-establishes a live tip: tapping the
+    // one already selected puts it down, and these lines only want a tip on
+    // screen, not a statement about the toggle.
+    tab._scrubTo(svg, px(11));
     timers.length = 0;
     tab._panTips(0.6, false);
     tab._panTips(0, true);
@@ -766,7 +861,7 @@ test('a settling pan eases the tips home, and holds back the ones that left the 
     // A tip still ON screen has nothing to wait for — it rides the curve
     // itself, and it must be the armed one, or it arrives at its resting x
     // at a different moment than the value under it.
-    tab._scrubTo(svg, px(12));
+    tab._scrubTo(svg, px(10));
     tab._panTips(0, true);
     assert.equal(tip.style.transition, 'left ' + interact.settleCss(),
       'on the very curve the panels are running');

@@ -578,13 +578,19 @@ test('the tile row is a row, not a page: a flick carries on past the next day', 
   // way it went. The tile row is a strip of five: swiping it should get
   // through it, which means momentum — and, because the row's own travel is
   // a fraction of the screen's, its own scale as well.
-  const TILE = 48.5;   // px of finger per day on a measured 420px page
+  // One tile-width of finger per day — the row's pitch, measured (109.2px
+  // of tile + a 6px gap on a 390px viewport; 114 on the real 420px page).
+  const TILE = 115.2;
   const PAGE = 386;
 
-  // A slow drag lands where it was let go, at the row's scale: 100px is two
-  // days of row, where on a chart it would be a quarter of one.
-  assert.equal(interact.snapTargetDay(0, -100, TILE, 5, 900, 0, true), 2);
+  // A slow drag lands where it was let go, at the row's scale: 100px is
+  // most of a day of row, where on a chart it is a quarter of one.
+  assert.equal(interact.snapTargetDay(0, -100, TILE, 5, 900, 0, true), 1);
   assert.equal(interact.snapTargetDay(0, -100, PAGE, 5, 900, 0, false), 0);
+  // And it takes a real drag to cross the row, not a flick of the wrist:
+  // this is the measured half-screen sweep that used to eat all five days.
+  assert.equal(interact.snapTargetDay(0, -180, TILE, 5, 720, -0.25, true), 2,
+    'an unhurried half-screen drag moves two days, not the whole timeline');
 
   // A flick carries past it. Same finger distance, this time with speed
   // behind it — and the faster it went, the further it goes.
@@ -610,4 +616,103 @@ test('the tile row is a row, not a page: a flick carries on past the next day', 
   // Both ends still clamp, fling or no fling.
   assert.equal(interact.snapTargetDay(0, 400, TILE, 5, 100, 5, true), 0);
   assert.equal(interact.snapTargetDay(4, -400, TILE, 5, 100, -5, true), 4);
+});
+
+test('a tile drag is paced by the row’s PITCH, not by the little travel it has', () => {
+  // The scale a tile gesture uses is a choice with three plausible answers,
+  // and the reader can feel which one is in force. Pinned end to end, through
+  // the module's own handlers, so it is the CHOICE under test and not the
+  // arithmetic that consumes it.
+  //
+  // On this row — 5 tiles, 115.2px pitch, 196px of travel over 4 day-steps —
+  // one unhurried 240px drag reaches a different day under each:
+  //   pitch  115.2 px/day -> 2.08 -> day 2   (what we want)
+  //   travel  49.0 px/day -> 4.90 -> day 4   (the row tracks the finger, and
+  //                                           a half-screen drag eats the
+  //                                           whole timeline: too fast)
+  //   page   390.0 px/day -> 0.62 -> day 1   (the row reads as stuck)
+  const { listeners } = HARNESS;
+  let landed = null;
+  const realNow = Date.now;
+  let clock = realNow() + 20000;
+  Date.now = () => clock;
+  HARNESS.row = tileRow(5);
+  try {
+    interact.wire({
+      view: () => ({ days: 5 }),
+      day: () => 0,
+      commitDay: (d) => { landed = d; },
+      scrub: () => {},
+      panTips: () => {},
+      panStrip: () => {},
+      canPull: () => false,
+      refresh: () => {}
+    });
+    const on = (vp) => ({
+      getAttribute: (a) => (a === 'data-wxvp' ? vp : null),
+      getBoundingClientRect: () => ({ width: 390 })
+    });
+    const drag = (vp, dx) => {
+      const el = on(vp);
+      const fire = (type, x) => listeners[type]({
+        touches: type === 'touchend' ? [] : [{ clientX: x, clientY: 100 }],
+        changedTouches: [{ clientX: x, clientY: 100 }],
+        target: el,
+        preventDefault: () => {}
+      });
+      landed = null;
+      fire('touchstart', 330);
+      // Unhurried, and in steps, so the release velocity is a real reading
+      // off the last 90ms rather than one long jump.
+      for (let k = 1; k <= 8; k += 1) { clock += 90; fire('touchmove', 330 + dx * k / 8); }
+      // Then held still before lifting, so the fling term is zero and what
+      // is under test is the DRAG scale alone. (A finger that stalls before
+      // it lifts is the module's own definition of a drag, not a throw —
+      // it is why the velocity window is only the trailing 90ms.)
+      clock += 90;
+      fire('touchmove', 330 + dx);
+      clock += 90;
+      fire('touchend', 330 + dx);
+      clock += 2000;   // clear the tap-suppression window for the next drag
+      return landed;
+    };
+
+    assert.equal(drag('days', -240), 2,
+      'a 240px drag on the tiles is two days: one tile-width buys one day');
+    // And the pitch is the DISTANCE between two tiles, not the offset of
+    // one: at a tile and a half the day rounds up, which it would not if
+    // the row's 8px leading margin had been folded into the stride.
+    assert.equal(drag('days', -180), 2,
+      'a tile and a half rounds up to two days');
+    // The same finger distance on a chart is a quarter of a page, and a
+    // chart is read a page at a time — so it rounds back to where it began.
+    assert.equal(drag('temp', -240), 1,
+      'the charts keep their own scale: one screen, one day');
+
+    // And the same drag means the same thing however many tiles the
+    // provider gave us. This is why the pitch and not the travel: the
+    // travel is (pitch × N − viewport) / (N − 1), which is not a property
+    // of a day at all. At four tiles it is 27px a day — FASTER than at
+    // five, so the shorter forecast would swipe quicker — and at three the
+    // row fits, the travel is zero, and the gesture used to fall all the
+    // way back to the page's 390. One finger distance, three meanings.
+    [4, 3].forEach((n) => {
+      HARNESS.row = tileRow(n);
+      interact.wire({
+        view: () => ({ days: n }),
+        day: () => 0,
+        commitDay: (d) => { landed = d; },
+        scrub: () => {},
+        panTips: () => {},
+        panStrip: () => {},
+        canPull: () => false,
+        refresh: () => {}
+      });
+      assert.equal(drag('days', -240), 2,
+        'a ' + n + '-tile row is paced by the same pitch as a 5-tile one');
+    });
+  } finally {
+    Date.now = realNow;
+    HARNESS.row = null;
+  }
 });

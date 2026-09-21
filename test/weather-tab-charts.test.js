@@ -1554,6 +1554,45 @@ test('a bar totals an hour that is OVER: the now line dashes it, and the one bef
     'while the hour before it, which WAS measured, keeps its own');
 });
 
+test('the value dot is a disc, not a hole: it is drawn over the crosshair it stands on', () => {
+  // Each dot is an opaque disc in the panel's own surface colour with the
+  // series' ring round it, and punching the lines out where the value is is
+  // the whole point of that fill. Emitted before the crosshair, the
+  // guideline ran straight through the middle of every ring and the mark
+  // read as a cross rather than a point. SVG paints in document order, so
+  // the only thing that fixes it is coming last.
+  const pal = charts.palette(false);
+  const view = charts.prepareView(fixtureData(), NOON);
+  [['temp', charts.tempPanelSvg(view, { temperatureUnits: 'c' }, pal)],
+    ['wind', charts.windPanelSvg(view, {}, pal)],
+    ['hum', charts.humidityPanelSvg(view, {}, pal)],
+    ['press', charts.pressurePanelSvg(view, {}, pal)]].forEach((pair) => {
+    const name = pair[0];
+    const svg = pair[1].main;
+    const scrub = svg.indexOf('id="wx-scrub-' + name + '"');
+    assert.ok(scrub !== -1, name + ': the panel carries a crosshair');
+    const dots = [];
+    const re = new RegExp('<circle id="wx-dot-' + name + '-[a-z]+"[^>]*>', 'g');
+    let m;
+    while ((m = re.exec(svg)) !== null) { dots.push({ at: m.index, tag: m[0] }); }
+    assert.ok(dots.length, name + ': and at least one value dot');
+    dots.forEach((d) => {
+      assert.ok(d.at > scrub,
+        name + ': the dot is emitted AFTER the crosshair, so it paints over it');
+      // Opaque, or being on top would change nothing.
+      assert.match(d.tag, new RegExp('fill="' + pal.surface + '"'),
+        name + ': filled with the panel surface, not hollow');
+      assert.ok(d.tag.indexOf('fill="none"') === -1, name + ': never fill="none"');
+    });
+    // The series path still goes UNDER its own dot — the dot marks a point
+    // ON the line, and a line drawn over it would halve the ring.
+    const firstPath = svg.indexOf('<path d="M');
+    if (firstPath !== -1) {
+      assert.ok(dots[0].at > firstPath, name + ': and over the series line too');
+    }
+  });
+});
+
 test('a rule in the hour strip breaks around the glyph and the number it crosses', () => {
   // The rules run at full ink now, and type has no background of its own:
   // drawing the line under the text was never enough, because a full-ink
@@ -1577,26 +1616,38 @@ test('a rule in the hour strip breaks around the glyph and the number it crosses
       && v.tag.indexOf('stroke="' + pal.ink + '"') !== -1)
     .sort((a2, b2) => a2.y1 - b2.y1);
 
-  // A midnight carries an hour label ("00:00") and no icon — the weekday
-  // marker has that slot — so its rule is in exactly two pieces, and the
-  // hole between them sits over the label's own band.
-  const mid = segsAt(charts.DAY_W, 1);
-  assert.equal(mid.length, 2,
-    'the midnight rule is broken once, around its hour label (got '
-    + mid.map((v) => v.y1 + '…' + v.y2).join(', ') + ')');
-  assert.equal(mid[0].y1, 0, 'it still opens at the box ceiling');
-  assert.equal(mid[1].y2, spec.H, 'and still closes on its floor');
-  const hole = { top: mid[0].y2, bottom: mid[1].y1 };
-  assert.ok(hole.bottom > hole.top, 'the hole has height');
-  // The label's baseline is bandH - 6 at font-size 11: the hole has to clear
-  // the cap height above it and the descender below, or the break misses the
-  // glyphs it was cut for.
-  const base = spec.bandH - 6;
-  assert.ok(hole.top <= base - 8 && hole.bottom >= base + 2,
-    'the hole covers the label band around baseline ' + base
-    + ' (hole ' + hole.top + '…' + hole.bottom + ')');
-  assert.ok(hole.bottom < spec.bandH,
-    'and stops inside the band — the ruler below it is not a place to hide');
+  // A midnight column carries NOTHING: the icon row has always skipped it
+  // (the weekday marker has that slot) and the hour-label row now skips it
+  // too, because a label centred on a viewport seam is a label cut in half.
+  // So a day rule has nothing to gap for and draws as the single unbroken
+  // line it is meant to read as — the structure a swipe navigates by.
+  for (let d = 0; d <= view.days; d += 1) {
+    const rule = segsAt(d * charts.DAY_W, 1);
+    assert.equal(rule.length, 1,
+      'the day rule at day ' + d + ' is one piece (got '
+      + rule.map((v) => v.y1 + '…' + v.y2).join(', ') + ')');
+    assert.equal(rule[0].y1, 0, 'it opens at the box ceiling');
+    assert.equal(rule[0].y2, spec.H, 'and closes on its floor');
+  }
+  // Nor is there an hour label to gap for: not one of them stands on a
+  // boundary any more.
+  // font-weight 600 picks the ruler's own labels: the selected-hour chip
+  // carries a 700 twin at x=0 inside its translated group, and that one is a
+  // badge the clamp already keeps clear of the seams.
+  const labels = (spec.main.match(/<text [^>]*font-size="11" font-weight="600"[^>]*>[^<]*<\/text>/g) || [])
+    .map((t) => ({ x: Number(/x="(-?[\d.]+)"/.exec(t)[1]), txt: />([^<]*)</.exec(t)[1] }))
+    .filter((v) => /^\d\d:00$/.test(v.txt));
+  // Exactly seven a day — 03:00 to 21:00. A count, not a floor: a ruler
+  // that labelled every hour would pass any lower bound while setting 35
+  // units of type on a 15-unit pitch, which is not a ruler but a smudge.
+  assert.equal(labels.length, 7 * view.days, 'seven labels a day, 03:00…21:00 ('
+    + labels.length + ' over ' + view.days + ' days)');
+  labels.forEach((v) => {
+    assert.ok(v.x % charts.DAY_W !== 0,
+      'no hour label stands on a day boundary (' + v.txt + ' at x=' + v.x + ')');
+    assert.equal(v.txt.slice(0, 2) === '00', false,
+      'and none of them is a midnight (' + v.txt + ' at x=' + v.x + ')');
+  });
 
   // A 3-hourly slot that is not a midnight carries BOTH a glyph and a
   // label, one under the other, and between them the band has nothing left
@@ -1629,54 +1680,46 @@ test('a rule in the hour strip breaks around the glyph and the number it crosses
     }
   }
 
-  // The now line stands on an hour tick now, and an hour tick is never more
-  // than one hour — 15 units — from a 3-hourly label whose own half-width
-  // is 17.5 (measured in the browser: "00:00" at 11px/600 sets 35 units
-  // wide). So the adjacent hours land INSIDE the label rather than beside
-  // it, and there is no hour left at which the strip's now line crosses the
-  // band whole. Pinned as the sweep it is, because it is the reason the
-  // clear case below had to move off the now line.
+  // The now line stands on an hour tick, and an hour tick is never more than
+  // one hour — 15 units — from a 3-hourly label whose own half-width is 17.5
+  // (measured in the browser: "00:00" at 11px/600 sets 35 units wide). So
+  // the adjacent hours land INSIDE the label rather than beside it, and the
+  // band is crossed whole at only two hours: 00:00 and 23:00, the two whose
+  // nearest 3-hourly column IS a midnight and therefore holds nothing. Both
+  // are named here rather than tolerated by a loose bound, because "no gap"
+  // is the right answer there and a gap would be the bug.
+  const EMPTY_BAND_AT = [0, 23];
   for (let h = 0; h < 24; h += 1) {
     const at = charts.prepareView(fixtureData(), DAY0 + h * 3600000 + 11 * 60000);
     const segs = segsOf(charts.timeStripSvg(at, LOC, pal, SunCalc).main);
     assert.ok(segs.length >= 1, 'the strip carries a now line at ' + h + ':11');
-    assert.ok(segs.length >= 2 || segs[0].y1 > 0,
-      'at ' + h + ':11 the band is never crossed by an unbroken rule (got '
-      + segs.map((v) => v.y1 + '…' + v.y2).join(', ') + ')');
+    const whole = segs.length === 1 && segs[0].y1 === 0;
+    assert.equal(whole, EMPTY_BAND_AT.indexOf(h) !== -1,
+      'at ' + h + ':11 the rule crosses the band whole only where the band is '
+      + 'empty (got ' + segs.map((v) => v.y1 + '…' + v.y2).join(', ') + ')');
     assert.equal(segs[segs.length - 1].y2, 52, 'and always reaches the floor');
   }
 
-  // 01:00 is the one hour where a THIRD thing is in the way: the weekday
-  // marker in the day's top-left corner. It is the only element in the band
-  // that does not stand on a tick, so "what does the nearest tick hold?"
-  // could never see it — and the now line, which stands wherever the hour
-  // is, spends that hour inside it. The rule used to run through the middle
-  // of "Sun". It now comes out in three pieces: the corner above the word,
-  // the strip between word and number, and the tail below the ruler.
+  // 01:00 is the hour where the weekday marker is in the way: it is the only
+  // element in the band that does not stand on a tick, so "what does the
+  // nearest tick hold?" could never see it — and the now line, which stands
+  // wherever the hour is, spends that hour inside it. The rule used to run
+  // through the middle of "Sun". It comes out in two pieces: the corner
+  // above the word and the tail below it. (It was three while a midnight
+  // still carried a label 15 units to its left, inside the label's own
+  // 17.5-unit reach; that label is gone, and so is the second hole.)
   const corner = charts.prepareView(fixtureData(), DAY0 + 3600000 + 11 * 60000);
   assert.equal(charts.nowX(corner), charts.HOUR_W, 'precondition: 01:11 snaps to 01:00');
   const cornerSegs = segsOf(charts.timeStripSvg(corner, LOC, pal, SunCalc).main);
-  assert.equal(cornerSegs.length, 3,
-    'the 01:00 rule clears the weekday marker as well as the hour label (got '
+  assert.equal(cornerSegs.length, 2,
+    'the 01:00 rule clears the weekday marker (got '
     + cornerSegs.map((v) => v.y1 + '…' + v.y2).join(', ') + ')');
   assert.ok(cornerSegs[0].y2 <= 7 && cornerSegs[1].y1 >= 16,
     'and the hole it leaves covers the word\u2019s own band, 7…16');
-  // The day rule beside it does NOT gap there: the marker is drawn 4 units
-  // clear of its midnight, so the rule passes to its left. That clearance
-  // was the whole of the old argument, and it was only ever true of the
-  // rule that stands ON the midnight.
+  // The day rule beside it does NOT gap there either: the marker is drawn 4
+  // units clear of its midnight, so the rule passes to its left.
   const dayRule = segsAt(charts.DAY_W, 1);
-  assert.equal(dayRule.length, 2, 'the midnight rule still breaks only once');
-  assert.ok(dayRule[0].y2 >= 16, 'above the marker\u2019s band, not inside it');
-
-  // Where there is genuinely nothing to clear the line IS whole — the break
-  // is a response to content, not a decoration. The canvas's trailing edge
-  // is that place: it is a day rule with no hour label under it, because the
-  // last label belongs to the hour before it.
-  const end = segsAt(view.days * charts.DAY_W, 1);
-  assert.equal(end.length, 1, 'the canvas end rule is one piece');
-  assert.equal(end[0].y1, 0, 'ceiling');
-  assert.equal(end[0].y2, spec.H, 'to floor');
+  assert.equal(dayRule.length, 1, 'the midnight rule is still whole');
 });
 
 test('the strip gaps for the glyph that is drawn, not the one the arithmetic expects', () => {
@@ -1818,4 +1861,55 @@ test('every mark that says "now" stands on the hour the rest of the tab calls no
   assert.deepEqual(a, b,
     'the disc holds still through the hour — x and altitude are read '
     + 'from one instant, so it cannot drift off its own arc');
+});
+
+test('no 3-hourly mark stands on a day boundary — that is where a viewport folds', () => {
+  // Each panel is one day wide inside an overflow:hidden viewport, so a day
+  // boundary is not a line on a canvas: it is the fold between two screens.
+  // A mark centred on one is therefore sliced down the middle and shows as
+  // two halves, one at the right edge of the day before and one at the left
+  // edge of the day after — which is what the reader reported: ":00" and
+  // "00:", "10" and "0%". The condition-icon row has always skipped those
+  // columns; the hour labels, the precipitation figures and the direction
+  // arrows now do too. The remaining seven columns a day sit at 45…315, a
+  // margin of one pitch at each end.
+  const pal = charts.palette(false);
+  const view = charts.prepareView(fixtureData(), NOON);
+  const settings = { temperatureUnits: 'c', windUnits: 'kmh' };
+  const onSeam = (xs) => xs.filter((x) => x % charts.DAY_W === 0);
+  const perDay = 24 / 3 - 1;
+
+  // The probability row: `<text>` at a multiple of HOUR_W*3, over the bars.
+  const probXs = (charts.tempPanelSvg(view, settings, pal).main
+    .match(/<text x="[\d.]+" y="[\d.]+" text-anchor="middle" font-size="[\d.]+"/g) || [])
+    .map((t) => Number(/x="([\d.]+)"/.exec(t)[1]));
+  assert.equal(probXs.length, perDay * view.days,
+    'seven probability figures a day (got ' + probXs.length + ' over ' + view.days + ')');
+  assert.deepEqual(onSeam(probXs), [], 'none of them on a seam');
+  // Including x = 0, whose hour ran before the canvas begins — the same
+  // hour whose bar the panel above already refuses to draw, for the same
+  // reason. One panel, one hour, one answer.
+  assert.equal(probXs.indexOf(0), -1, 'and none at the canvas start');
+
+  // The direction row: a rotated `<g>` per arrow.
+  const dirXs = (charts.windPanelSvg(view, settings, pal).main
+    .match(/<g transform="translate\([\d.]+ [\d.]+\) rotate\([\d.]+\)">/g) || [])
+    .map((t) => Number(/translate\(([\d.]+) /.exec(t)[1]));
+  assert.equal(dirXs.length, perDay * view.days,
+    'seven arrows a day (got ' + dirXs.length + ')');
+  assert.deepEqual(onSeam(dirXs), [], 'none of them on a seam');
+
+  // And the icon row, which had the rule first.
+  const iconXs = (charts.timeStripSvg(view, LOC, pal, SunCalc).main
+    .match(/<use [^>]*transform="translate\([\d.]+ [\d.]+\) scale/g) || [])
+    .map((t) => Number(/translate\(([\d.]+) /.exec(t)[1]) + 11);
+  assert.deepEqual(onSeam(iconXs), [], 'no icon on a seam either');
+
+  // Stated as the invariant rather than three counts: every 3-hourly mark
+  // sits a whole pitch clear of both folds of the day it belongs to.
+  probXs.concat(dirXs).forEach((x) => {
+    const into = x - Math.floor(x / charts.DAY_W) * charts.DAY_W;
+    assert.ok(into >= charts.HOUR_W * 3 && into <= charts.DAY_W - charts.HOUR_W * 3,
+      'x=' + x + ' is ' + into + ' into its day — inside the pitch at one end');
+  });
 });
