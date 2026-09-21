@@ -25,7 +25,7 @@ var CHANNEL_MIN = 0, CHANNEL_MAX = 255;
 // Unparseable storage falls back HERE rather than to black: black is a colour the
 // sliders can legitimately produce (backlight off), so falling back to it would turn a
 // bruised value into a plausible-looking setting nobody chose.
-var DEFAULT_R = 96, DEFAULT_G = 0, DEFAULT_B = 0;
+var DEFAULT_R = 40, DEFAULT_G = 0, DEFAULT_B = 0;
 
 // Fallbacks for an hour that doesn't parse: the schema defaults of the keys being
 // read (backlightDimStartHour/backlightDimEndHour, both '0'/'7'). Deliberately NOT

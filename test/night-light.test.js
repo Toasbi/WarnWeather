@@ -10,6 +10,32 @@ const sleepWindow = require('../src/pkjs/sleep-window.js');
 // The settings page's own "r,g,b" reader — the parser night-light.js hand-keeps a
 // copy of, pinned to it by the parity test at the bottom of this file.
 const rangeControl = require('../src/pkjs/config-ui/lib/range-control.js');
+// The schema's own default, READ rather than mirrored. A literal here would defeat the
+// parity test below: it would feed both parsers the same stale string and report
+// agreement while the page ran on a different default. That is not hypothetical — it
+// let a 96,0,0 runtime fallback ship green against a 40,0,0 page.
+global.localStorage = global.localStorage || {
+  getItem: function () { return null; }, setItem: function () {},
+  removeItem: function () {}, clear: function () {}
+};
+const SCHEMA_DIM_COLOR_DEFAULT = (function () {
+  var schema = require('../src/pkjs/settings/schema.js');
+  var found = null;
+  schema.tabs.forEach(function (tab) {
+    (tab.sections || []).forEach(function (sec) {
+      (sec.items || []).forEach(function (item) {
+        if (item.messageKey === 'backlightDimColor') { found = item.defaultValue; }
+      });
+    });
+  });
+  assert.ok(found, 'the schema still declares a backlightDimColor default');
+  return found;
+})();
+// The same default as channels, for the fallback assertions below.
+const DEFAULT_RGB = (function () {
+  var p = String(SCHEMA_DIM_COLOR_DEFAULT).split(',');
+  return { r: Number(p[0]), g: Number(p[1]), b: Number(p[2]) };
+})();
 
 const { buildNightLightBytes, parseDimColor, resolveDimWindow, isDimEnabled } = nightLight;
 
@@ -45,8 +71,8 @@ test('the tuple is exactly five bytes, each an integer in range', () => {
 
 test('an absent settings blob still packs a usable tuple (the schema defaults)', () => {
   // The toggle ships ON, so a blob that predates it must not read as off.
-  assert.deepEqual(buildNightLightBytes({}), [96, 0, 0, 0, 7]);
-  assert.deepEqual(buildNightLightBytes(undefined), [96, 0, 0, 0, 7]);
+  assert.deepEqual(buildNightLightBytes({}), [40, 0, 0, 0, 7]);
+  assert.deepEqual(buildNightLightBytes(undefined), [40, 0, 0, 0, 7]);
   assert.equal(isDimEnabled({}), true);
   assert.equal(isDimEnabled({ backlightDim: undefined }), true);
   assert.equal(isDimEnabled({ backlightDim: null }), true);
@@ -70,17 +96,17 @@ test('an out-of-range channel is clamped to 0-255, not rejected', () => {
   assert.deepEqual(parseDimColor({ backlightDimColor: '999,999,999' }), { r: 255, g: 255, b: 255 });
 });
 
-test('garbage falls back to the schema default 96,0,0 rather than sending nonsense', () => {
+test('garbage falls back to the schema default rather than sending nonsense', () => {
   [undefined, null, '', 'nope', '#FF0000', '96 0 0', '12,34', '1,2,3,4', '1,2,x',
     '1.5,2,3', {}, [], 42, true].forEach((value) => {
-    assert.deepEqual(parseDimColor({ backlightDimColor: value }), { r: 96, g: 0, b: 0 },
+    assert.deepEqual(parseDimColor({ backlightDimColor: value }), DEFAULT_RGB,
       'unparseable value must fall back: ' + JSON.stringify(value));
   });
-  assert.deepEqual(parseDimColor({}), { r: 96, g: 0, b: 0 }, 'key absent entirely');
+  assert.deepEqual(parseDimColor({}), DEFAULT_RGB, 'key absent entirely');
 });
 
 test('black is a legitimate pick, not a fallback', () => {
-  // The fallback is 96,0,0 precisely so a bruised value cannot masquerade as this.
+  // The fallback is the schema default precisely so a bruised value cannot masquerade as this.
   assert.deepEqual(parseDimColor({ backlightDimColor: '0,0,0' }), { r: 0, g: 0, b: 0 });
 });
 
@@ -209,7 +235,7 @@ test('no OTHER Nighttime key moves the tuple (a settings-message no-op stays one
 // made to the other fails here rather than shipping a backlight that glows a different
 // colour from the swatch the user picked.
 test('the colour parser matches the settings page exactly (mirror parity)', () => {
-  const ITEM = { type: 'rgb', messageKey: 'backlightDimColor', defaultValue: '96,0,0' };
+  const ITEM = { type: 'rgb', messageKey: 'backlightDimColor', defaultValue: SCHEMA_DIM_COLOR_DEFAULT };
   const VALUES = [undefined, null, '', '0,0,0', '96,0,0', '255,255,255', '1,2,3',
     ' 12 , 34 ,56 ', '300,-5,20', '-1,0,0', '256,256,256', '999,999,999',
     'nope', '#FF0000', '12,34', '1,2,3,4', '1,2,x', '1.5,2,3', '96 0 0', ',,',

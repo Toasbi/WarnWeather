@@ -372,7 +372,9 @@ test('the Dim backlight window on the wire is the feature own hours, always', ()
   // changes the bytes rather than passing by luck.
   const s = Object.assign(baseSettings(), {
     sleepStartHour: '1', sleepEndHour: '5',
-    backlightDimStartHour: '22', backlightDimEndHour: '6'
+    backlightDimStartHour: '22', backlightDimEndHour: '6',
+    // Explicit, so this window test does not ride on whatever the colour default is.
+    backlightDimColor: '96,0,0'
   });
   assert.deepEqual(buildClayPayload(s, { platform: 'emery' }, NOW).CLAY_NIGHT_LIGHT_UINT8,
     [96, 0, 0, 22, 6]);
