@@ -901,7 +901,7 @@ module.exports = {
             title: 'Nighttime', items: [{
                 type: 'subheader',
                 text: 'Night hours',
-                intro: 'When your night is. Everything below follows this window unless you give it hours of its own.'
+                intro: 'Sets the night window for the features below. Each one can override it with hours of its own.'
             }, {
                 // sleepStartHour/sleepEndHour are the ORIGINAL battery-saver keys,
                 // relabelled and promoted to the whole card — same keys, same
@@ -931,7 +931,7 @@ module.exports = {
                 text: 'Dim backlight',
                 toggleKey: 'backlightDim',
                 showWhen: BACKLIGHT_WHEN,
-                intro: 'Dim the backlight while it is lit during the night hours, so checking the time in a dark room is easier on your eyes.'
+                intro: 'Dim the backlight when it comes on during the night hours, so it is easier on your eyes.'
             }, {
                 // The hosted toggle keeps its place in `items` (hydrate, serialize
                 // and the derived defaults all still see it); only its row is
