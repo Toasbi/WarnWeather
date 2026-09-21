@@ -751,7 +751,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * shared so they cannot come apart if it ever is not.) A tip that has
      * already gone off-viewport with its value waits the settle out
      * instead: showing it now would park it over a value that has not
-     * arrived, and it is already invisible, so nothing flickers.
+     * arrived, and it is already invisible, so nothing flickers. With a
+     * zero curve there is nothing to wait out, so it lands in the same
+     * task as the panels rather than a timer later.
      * @param {number} dayOff Day offset — fractional mid-drag.
      * @param {boolean} animated True when the pan is easing home.
      * @returns {void}
@@ -773,8 +775,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
         if (waiting.length) {
             var at = scrubIndex;
-            settleTimer = setTimeout(function () {
-                settleTimer = null;
+            var restore = function () {
                 // A fresh scrub while the pan eased owns the tips now —
                 // paintScrub has already placed them.
                 if (scrubIndex !== at) { return; }
@@ -782,7 +783,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                     easeTip(waiting[w], false);
                     placeTipX(waiting[w], at, dayOff);
                 }
-            }, interact.SETTLE_MS);
+            };
+            // A zero settle lands the panels in THIS task, so the tip has
+            // to land in it too: a timer — even at 0 ms — is a separate
+            // macrotask, and the browser may paint in between, showing the
+            // hour with its guideline and lit bar but no value above it.
+            // Only a real curve is worth waiting out.
+            if (interact.SETTLE_MS > 0) {
+                settleTimer = setTimeout(function () {
+                    settleTimer = null;
+                    restore();
+                }, interact.SETTLE_MS);
+            } else {
+                restore();
+            }
         }
     }
 

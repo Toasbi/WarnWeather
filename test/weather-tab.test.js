@@ -543,30 +543,51 @@ test('a settling pan eases the tips home, and holds back the ones that left the 
     assert.equal(timers.length, 0, 'a visible tip needs no deferral');
 
     // Case two: the drag carried the value off-viewport, so the tip is
-    // already hidden. Re-showing it now would park it over a value that
-    // is still easing in — it waits out the settle instead.
+    // already hidden. Today's day change LANDS, so the tip has to land in
+    // the same task as the panels — a timer, even at 0 ms, is a separate
+    // macrotask the browser may paint across, and that frame would show
+    // the hour with its guideline and lit bar but no value above it.
+    assert.equal(interact.SETTLE_MS, 0, 'the day change lands, it does not travel');
     tab._panTips(0.6, false);
     assert.equal(tip.style.display, 'none', 'gone with its value');
     tab._panTips(0, true);
-    assert.equal(tip.style.display, 'none',
-      'a released spring-back does NOT resurrect it over a value mid-flight');
-    assert.equal(timers.length, 1, 'its return is deferred instead');
-    assert.equal(timers[0].ms, interact.SETTLE_MS, 'by exactly the pan\'s settle time');
-
-    timers[0].fn();
-    assert.equal(tip.style.display, 'block', 'once the pan has landed it comes back');
+    assert.equal(timers.length, 0, 'nothing is deferred across a paint');
+    assert.equal(tip.style.display, 'block', 'the tip is back with its value');
     assert.equal(parseInt(tip.style.left, 10), atRest, 'on its value');
     assert.equal(tip.style.transition, '', 'and lands at once — the pan is already home');
 
-    // A fresh scrub during the settle owns the tips; the stale timer must
-    // not paint over what paintScrub just placed.
-    tab._panTips(0.6, false);
-    tab._panTips(0, true);
-    const pending = timers[timers.length - 1];
-    tab._scrubTo(svg, px(6));
-    const afterScrub = tip.style.left;
-    pending.fn();
-    assert.equal(tip.style.left, afterScrub, 'the stale settle timer stands down');
+    // Case three: give the settle a real curve back and the hidden tip
+    // waits it out again — re-showing it mid-flight would park it over a
+    // value that has not arrived.
+    const realSettle = interact.SETTLE_MS;
+    interact.SETTLE_MS = 220;
+    try {
+      tab._panTips(0.6, false);
+      assert.equal(tip.style.display, 'none', 'gone with its value');
+      tab._panTips(0, true);
+      assert.equal(tip.style.display, 'none',
+        'a released spring-back does NOT resurrect it over a value mid-flight');
+      assert.equal(timers.length, 1, 'its return is deferred instead');
+      assert.equal(timers[0].ms, 220, 'by exactly the pan\'s settle time');
+
+      timers[0].fn();
+      assert.equal(tip.style.display, 'block', 'once the pan has landed it comes back');
+      assert.equal(parseInt(tip.style.left, 10), atRest, 'on its value');
+      assert.equal(tip.style.transition, '', 'and lands at once — the pan is already home');
+
+      // A fresh scrub during the settle owns the tips; the stale timer must
+      // not paint over what paintScrub just placed.
+      timers.length = 0;
+      tab._panTips(0.6, false);
+      tab._panTips(0, true);
+      const pending = timers[timers.length - 1];
+      tab._scrubTo(svg, px(6));
+      const afterScrub = tip.style.left;
+      pending.fn();
+      assert.equal(tip.style.left, afterScrub, 'the stale settle timer stands down');
+    } finally {
+      interact.SETTLE_MS = realSettle;
+    }
   } finally {
     delete global.document;
     global.setTimeout = realSetTimeout;
