@@ -807,3 +807,166 @@ test('the settle opens at the speed the finger arrived with, and never steps at 
       'D=' + D + ' v=' + v + ' arms x1=' + x1 + ', inside the family\u2019s two ends');
   });
 });
+
+test('one finger tap is ONE scrub — the browser\'s mouse twins do not undo it', () => {
+  // A touch device follows every touchend the page did not preventDefault
+  // with mousedown/mouseup/click at the same coordinates, so that pages
+  // written for a mouse work under a finger. A pan preventDefaults its
+  // touchmove and is spared; a tap never moves, so it is always followed.
+  //
+  // Both listener sets are document-level and both run the same
+  // beginGesture/endGesture pair, so one tap ran the gesture TWICE. That
+  // was harmless while a scrub was idempotent and became total when a tap
+  // became a toggle: the touch pair raised the crosshair and the mouse
+  // pair, finding that hour already selected, put it back down. Measured
+  // in Chromium's touch emulation before this: every tap on the Weather
+  // tab was a no-op and the chip never left the hour marked NOW.
+  const { listeners } = HARNESS;
+  const scrubs = [];
+  const realNow = Date.now;
+  let clock = realNow() + 60000;
+  Date.now = () => clock;
+  HARNESS.row = null;
+  try {
+    interact.wire({
+      view: () => ({ days: 5 }),
+      day: () => 0,
+      commitDay: () => {},
+      scrub: (el, x) => { scrubs.push(x); },
+      panTips: () => {},
+      panStrip: () => {},
+      canPull: () => false,
+      refresh: () => {}
+    });
+    const chart = {
+      getAttribute: (a) => (a === 'data-wxvp' ? 'temp' : (a === 'data-wxchart' ? 'temp' : null)),
+      getBoundingClientRect: () => ({ width: 390 })
+    };
+    const touch = (type, x) => listeners[type]({
+      touches: type === 'touchend' ? [] : [{ clientX: x, clientY: 100 }],
+      changedTouches: [{ clientX: x, clientY: 100 }],
+      target: chart,
+      preventDefault: () => {}
+    });
+    const mouse = (type, x) => listeners[type]({
+      clientX: x, clientY: 100, target: chart, buttons: type === 'mouseup' ? 0 : 1,
+      preventDefault: () => {}
+    });
+
+    // The exact sequence a phone delivers, timings included: the twins
+    // arrive a few ms behind the finger, at the same coordinates.
+    touch('touchstart', 240);
+    clock += 60;
+    touch('touchend', 240);
+    clock += 8;
+    mouse('mousedown', 240);
+    clock += 2;
+    mouse('mouseup', 240);
+
+    assert.deepEqual(scrubs, [240],
+      'the tap scrubs once; the mouse twins that followed it are not a second tap');
+
+    // The window is a WINDOW, not a latch: a machine with both a
+    // touchscreen and a mouse gets its mouse back as soon as the pointer
+    // that produced these events cannot be the finger that just lifted.
+    // This is also the desktop config-page preview, which has no
+    // touchscreen at all and must keep working unchanged.
+    //
+    // A whole second, spelled out rather than read off the module, so the
+    // window's SIZE is pinned and not just its existence: a guard that
+    // latched, or that ran for longer than a person takes to move from the
+    // screen to the mouse, would pass a test written in its own units.
+    clock += 1000;
+    mouse('mousedown', 300);
+    clock += 10;
+    mouse('mouseup', 300);
+    assert.deepEqual(scrubs, [240, 300],
+      'a mouse press a second after the last touch still scrubs');
+
+    // And the window is half-open: the twins land within a few ms, so the
+    // far edge belongs to the mouse.
+    clock += 1000;
+    touch('touchstart', 260);
+    clock += 60;
+    touch('touchend', 260);
+    clock += interact.MOUSE_AFTER_TOUCH_MS;
+    mouse('mousedown', 210);
+    clock += 10;
+    mouse('mouseup', 210);
+    assert.deepEqual(scrubs, [240, 300, 260, 210],
+      'a press exactly one window after the touch is the mouse, not a twin');
+
+    // And a touch arriving after that re-arms it — the guard is not spent
+    // by the one tap that armed it first.
+    clock += 1000;
+    touch('touchstart', 180);
+    clock += 60;
+    touch('touchend', 180);
+    clock += 8;
+    mouse('mousedown', 180);
+    clock += 2;
+    mouse('mouseup', 180);
+    assert.deepEqual(scrubs, [240, 300, 260, 210, 180],
+      'the second tap is one scrub too, not one plus its echo');
+
+    // The twins can land in the SAME millisecond the finger lifted in;
+    // nothing makes a browser wait a tick before synthesizing them.
+    clock += 1000;
+    touch('touchstart', 150);
+    clock += 60;
+    touch('touchend', 150);
+    mouse('mousedown', 150);
+    mouse('mouseup', 150);
+    assert.deepEqual(scrubs, [240, 300, 260, 210, 180, 150],
+      'a twin that arrives in the same millisecond is still a twin');
+
+    // A SLOW tap: a finger that rests a second before lifting is still a
+    // tap, and its twins still follow the LIFT. Age the guard from the
+    // touch that ended the gesture, not the one that began it.
+    clock += 1000;
+    touch('touchstart', 120);
+    clock += 900;
+    touch('touchend', 120);
+    clock += 8;
+    mouse('mousedown', 120);
+    clock += 2;
+    mouse('mouseup', 120);
+    assert.deepEqual(scrubs, [240, 300, 260, 210, 180, 150, 120],
+      'a long press is one scrub too — the window runs from the finger lifting');
+
+    // And the twins must leave nothing standing. A mousedown that got
+    // through would build a gesture no mouseup ever ends, and a live
+    // gesture is not inert: it pans on the next move and it shuts the
+    // keyboard out of the day tiles.
+    // An ABORTED touch ends one too — a system gesture stealing the
+    // finger, a call arriving — and the twins can follow it just the same.
+    clock += 1000;
+    touch('touchstart', 90);
+    clock += 40;
+    listeners.touchcancel({ touches: [], changedTouches: [], target: chart });
+    clock += 8;
+    mouse('mousedown', 90);
+    clock += 2;
+    mouse('mouseup', 90);
+    assert.deepEqual(scrubs, [240, 300, 260, 210, 180, 150, 120],
+      'a cancelled touch scrubs nothing, and its twins do not scrub for it');
+
+    let panned = 0;
+    interact.wire({
+      view: () => ({ days: 5 }),
+      day: () => 0,
+      commitDay: () => {},
+      scrub: (el, x) => { scrubs.push(x); },
+      panTips: () => { panned += 1; },
+      panStrip: () => {},
+      canPull: () => false,
+      refresh: () => {}
+    });
+    clock += 10;
+    touch('touchmove', 40);
+    assert.equal(panned, 0,
+      'no gesture is left standing by the twins — a stray move pans nothing');
+  } finally {
+    Date.now = realNow;
+  }
+});

@@ -347,6 +347,46 @@
         moveEl(g.row, 'translateX(' + (-off).toFixed(1) + 'px)', animated);
     }
 
+    // A touch device follows every touchend the page did not preventDefault
+    // with the COMPAT MOUSE SEQUENCE — mousedown, mouseup, click at the same
+    // coordinates, a few milliseconds later — so that pages written for a
+    // mouse still work under a finger. A pan preventDefaults its touchmove
+    // and is therefore spared; a TAP has no move to call it on, so it is
+    // always followed by the twins.
+    //
+    // Both the touch and the mouse handlers below are document-level and
+    // both run the same beginGesture/endGesture pair, so one finger tap ran
+    // the whole gesture TWICE. That was invisible while a scrub was
+    // idempotent — the second one re-selected the hour the first had just
+    // selected — and became total the moment a tap became a TOGGLE: the
+    // touch pair put the crosshair up and the mouse pair, finding that hour
+    // already selected, put it straight back down. Every tap on a phone was
+    // a no-op, and the only chip left standing was the one parked on NOW.
+    //
+    // So a mouse press is honoured only once the last touch ENDED long
+    // enough ago that it cannot be that tap's tail. Twins follow the end of
+    // a touch, which is why only the two handlers that end one stamp the
+    // clock. A device that has never been touched leaves it at 0, which
+    // ages every mouse event by the whole epoch and lets it straight
+    // through — the desktop preview and every Node test are untouched.
+    var lastTouchAt = 0;
+    var MOUSE_AFTER_TOUCH_MS = 700;
+
+    /**
+     * Whether a mouse event arriving now is a touch's synthesized twin.
+     * @returns {boolean} True while mouse events must be ignored.
+     */
+    function synthMouse() {
+        // Fail open on a backwards clock, like tapSuppressed below: a twin
+        // arrives within milliseconds of its touch, so a NEGATIVE age is
+        // never one. Suppressing on it would cost a machine with both a
+        // mouse and a touchscreen its mouse until the clock caught up, to
+        // save a single tap in the millisecond window where a phone could
+        // re-sync its time between a finger lifting and the twin landing.
+        var age = Date.now() - lastTouchAt;
+        return age >= 0 && age < MOUSE_AFTER_TOUCH_MS;
+    }
+
     /**
      * Whether a click arriving now is the tail of a pan just released.
      * @returns {boolean} True while such a click must be ignored.
@@ -859,16 +899,30 @@
             // A second finger lifting must not end the primary gesture at
             // its x — only the LAST finger ends the interaction.
             if (e.touches && e.touches.length) { return; }
+            // Which is also the only lift the twins follow, so it is the
+            // one that stamps.
+            lastTouchAt = Date.now();
             var t = e.changedTouches && e.changedTouches[0];
             if (t) { endGesture(t.clientX); } else { cancelGesture(); }
             endPull();
         }, true);
         document.addEventListener('touchcancel', function () {
+            lastTouchAt = Date.now();
             cancelGesture();
             pull = null;
             hidePullPill();
         }, true);
         document.addEventListener('mousedown', function (e) {
+            // Only the DOWN needs this guard, and only it may have it. It
+            // is the twin that does the damage — it builds a whole phantom
+            // gesture — and stopping it leaves the other two nothing to
+            // act on: the mouseup below finds no gesture to end and no
+            // pull to finish, and mousemove finds no gesture to drag.
+            // Guarding those as well would be the real hazard on a machine
+            // with both a mouse and a touchscreen, where a finger brushing
+            // the screen mid-drag would strand a genuine mouse gesture
+            // with no up to end it.
+            if (synthMouse()) { return; }
             beginGesture(e.clientX, e.clientY, e.target);
             beginPull(e.clientX, e.clientY);
         }, true);
@@ -910,6 +964,7 @@
         snapTargetDay: snapTargetDay,
         EDGE_PAD: EDGE_PAD,
         SETTLE_CSS: SETTLE_CSS,
+        MOUSE_AFTER_TOUCH_MS: MOUSE_AFTER_TOUCH_MS,
         SETTLE_MS: SETTLE_MS,
         settleCss: settleCss,
         settleMs: settleMs,
