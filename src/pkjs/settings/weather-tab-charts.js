@@ -226,10 +226,14 @@
         // And an hour that is over shows the rain that FELL, or no rain at
         // all. Only DWD can say what fell — it tags each hour with the
         // source that produced it, and a station reading is a measurement.
-        // Open-Meteo's past_days serves the past FORECAST (its own docs say
-        // so), and OWM and tomorrow.io serve no past hours whatever; a bar
-        // built from any of those asserts that it rained at a time when it
-        // may well not have, which is exactly the claim to drop.
+        // Every other provider serves the past as MODEL output. That is not
+        // nothing — Open-Meteo stitches observation-initialised analysis
+        // hours — but rain is the field its own docs except: "for precise
+        // values such as precipitation, local measurements are preferable
+        // when available". tomorrow.io hands back four hours of hindcast,
+        // and OWM is asked for no past hours at all. A bar built from any
+        // of those asserts that it rained at a time when it may well not
+        // have, which is the claim to drop.
         var measured = trim(grid.measured);
         var rain = trim(grid.rain);
         for (i = 0; i < nowIndex && i < rain.length; i += 1) {
@@ -604,10 +608,10 @@
      * split stays put on the canvas.
      *
      * The split sits where measurement actually ENDS, not on the now line:
-     * the word has to be true of the hours it points at. On a provider that
-     * measures nothing — Open-Meteo, whose past_days is the past forecast,
-     * or OWM and tomorrow.io, which serve no past hours at all — there is
-     * no "Measured" side, and the caption says Forecast for the whole run.
+     * the word has to be true of the hours it points at. DWD is the only
+     * provider that measures anything — everyone else's past is model
+     * output, or absent — so on the others there is no "Measured" side and
+     * the caption says Forecast for the whole run.
      * @param {Object} view Prepared view.
      * @param {Object} pal Palette.
      * @returns {{main: string, overlay: ?string, H: number}} Panel spec.

@@ -638,8 +638,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * Force a refetch of the CURRENT provider+location. Manual only — this
      * tab never refetches on a timer; data updates when the tab first opens
-     * (per page open), when the pick changes, and through this (the footer
-     * Refresh link and pull-to-refresh). Keeps fetchState.key and .view, so
+     * (per page open), when the pick changes, and through this (the Refresh
+     * button beside the 5-day title, and pull-to-refresh). Keeps fetchState.key and .view, so
      * ensureFetch refires for the same key and the charts stay up (dimmed)
      * on the day the user was viewing.
      *

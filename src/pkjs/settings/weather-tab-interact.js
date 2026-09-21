@@ -324,8 +324,9 @@
     }
 
     // --- pull-to-refresh: a downward pull from the page top on the Weather
-    // tab refetches manually (the only refresh path besides the footer link
-    // and reopening the tab — no timers, to spare keyed APIs).
+    // tab refetches manually (the only refresh path besides the Refresh
+    // button beside the 5-day title and reopening the tab — no timers, to
+    // spare keyed APIs).
 
     var PULL_TRIGGER_PX = 70;
     var pull = null;   // {x0, y0, engaged, armed}

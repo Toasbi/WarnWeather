@@ -105,9 +105,10 @@
         // The caption's own top padding is inside its viewBox.
         + '.wx-stripfoot .wx-bleed{margin:0 -16px 0;}'
         // Day tiles are the day selector: tap jumps the panels to that day.
-        // App-style wide tiles in a horizontally scrollable row (~2.5 tiles
-        // per viewport); position:relative makes the row the tiles'
-        // offsetParent so scrollDayStrip can center the selection.
+        // App-style wide tiles, ~2.5 to a viewport, in a row the day pan
+        // moves by transform (see .wx-days below — it is NOT a scroll
+        // container); position:relative makes the row the tiles'
+        // offsetParent so the pan can center the landed day.
         // Full bleed like the charts (-16px matches .blockrow's side
         // padding): the row runs edge to edge and tiles cut off at the
         // section border. The first/last tiles carry a small edge margin
@@ -140,12 +141,15 @@
         + 'display:block;background:var(--ctl);'
         + 'border:1.5px solid transparent;border-radius:12px;'
         + 'padding:5px 4px;text-align:center;font:inherit;color:var(--fg);cursor:pointer;'
-        // Swiping to the next day hands the highlight over: the old tile's
-        // border fades out while the new one's fades in, on the pan's own
-        // easing, instead of both switching on the frame the day commits.
+        // The highlight is handed over BY the drag: fadeDayCards mixes the
+        // two tiles' border inks live, per frame, against the gesture's
+        // fraction. This rule only covers the landing, and it is on the
+        // pan's own curve — instantaneous today, so the landed colours
+        // arrive with the panels rather than a beat after them. It stays
+        // shared so the two cannot come apart if that curve ever returns.
         + 'transition:border-color ' + interact.SETTLE_CSS + ';}'
-        // Inset ring, not outline: the row is a scroll container now, and it
-        // clips ink drawn OUTSIDE the tile's box (an outline) at its edges.
+        // Inset ring, not outline: the row's viewport clips at its edges,
+        // and an outline is drawn OUTSIDE the tile's box.
         + '.wx-day.today{box-shadow:inset 0 0 0 1px var(--card-line);}'
         + '.wx-day.sel{border-color:var(--link);}'
         + '.wx-day.sel .wx-day-name{color:var(--link);}'

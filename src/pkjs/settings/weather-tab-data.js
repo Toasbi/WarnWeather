@@ -13,10 +13,14 @@
 //           station rather than modelled. Only DWD/Brightsky can say yes —
 //           it tags every row with the source that produced it, and names
 //           per field where a value was filled in from another source.
-//           Open-Meteo's past_days serves past FORECASTS (short-lead model
-//           output stitched run to run, never an analysis), and OWM and
-//           tomorrow.io serve no past hours at all, so their adapters leave
-//           the array empty and every hour reads as unmeasured.
+//           Nobody else can. Open-Meteo's past_days stitches each model
+//           run's first hours, which ARE observation-initialised and close
+//           to the truth for most fields — but its own docs single out the
+//           exception: "for precise values such as precipitation, local
+//           measurements are preferable when available". tomorrow.io's
+//           -4 h window is model output too, and OWM is asked for no past
+//           hours at all. All three leave the array empty, so every one of
+//           their hours reads as unmeasured.
 //   daily:  up to 5 tiles from the location's today — tmin/tmax °C, icon,
 //           rainMm, probMax, sunshineH; null fields where the provider has
 //           no answer.
