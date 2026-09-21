@@ -253,3 +253,116 @@ test('panPct translates by whole viewports, one per day', () => {
   assert.equal(interact.panPct(1, 3), -(100 / 3));
   assert.equal(interact.panPct(2, 4), -50);
 });
+
+test('the clipped tile viewport is never left holding a scroll offset', () => {
+  // overflow:hidden stops the USER scrolling the box, not the engine:
+  // bringing a focused tile into view scrolls it anyway (Chrome moves it
+  // 186px to reveal the last tile). The row's position is a transform the
+  // viewed day owns, so an offset underneath it is a silent desync.
+  const vp = { className: 'wx-daysvp', scrollLeft: 186 };
+  HARNESS.listeners.scroll({ target: vp });
+  assert.equal(vp.scrollLeft, 0, 'the offset is taken straight back out');
+
+  const other = { className: 'res', scrollLeft: 50 };
+  HARNESS.listeners.scroll({ target: other });
+  assert.equal(other.scrollLeft, 50, 'every other scroller is left alone');
+  // The page's own scroll fires this listener on elements that have no
+  // className at all (document, and the scrolling element in some engines).
+  HARNESS.listeners.scroll({ target: {} });
+  HARNESS.listeners.scroll({});
+});
+
+test('tabbing to a tile selects its day; pressing one leaves that to the click', () => {
+  const landed = [];
+  interact.wire({
+    view: () => ({ days: 5 }),
+    day: () => 0,
+    commitDay: (d) => { landed.push(d); },
+    scrub: () => {},
+    panTips: () => {},
+    panStrip: () => {},
+    canPull: () => false,
+    refresh: () => {}
+  });
+  const inVp = (vpName) => ({
+    getAttribute: (a) => (a === 'data-wxvp' ? vpName : null),
+    parentNode: null
+  });
+  const tile = (day, vpName) => ({
+    getAttribute: (a) => (a === 'data-action-arg' ? String(day) : null),
+    parentNode: inVp(vpName === undefined ? 'days' : vpName)
+  });
+
+  // Keyboard focus: the browser would scroll the clipped box to reveal the
+  // tile; selecting its day moves the row the way everything else does.
+  HARNESS.listeners.focusin({ target: tile(3) });
+  assert.deepEqual(landed, [3], 'focus lands the day');
+
+  HARNESS.listeners.focusin({ target: tile(0) });
+  assert.deepEqual(landed, [3], 'the day already shown needs no commit');
+
+  HARNESS.listeners.focusin({ target: tile(9) });
+  assert.deepEqual(landed, [3], 'a day past the timeline is not selectable');
+
+  HARNESS.listeners.focusin({ target: tile(2, 'temp') });
+  assert.deepEqual(landed, [3], 'focus elsewhere on the page is none of our business');
+
+  HARNESS.listeners.focusin({ target: { getAttribute: () => null, parentNode: inVp('days') } });
+  assert.deepEqual(landed, [3], 'something else inside the row carries no day');
+
+  // A press focuses the tile BEFORE the click, and before a drag that
+  // starts there has moved a pixel — honouring that focus would jump the
+  // day out from under the gesture.
+  const vpEl = {
+    getAttribute: (a) => (a === 'data-wxvp' ? 'days' : null),
+    getBoundingClientRect: () => ({ width: 390 })
+  };
+  HARNESS.listeners.touchstart({
+    touches: [{ clientX: 300, clientY: 100 }], target: vpEl, preventDefault: () => {}
+  });
+  HARNESS.listeners.focusin({ target: tile(4) });
+  assert.deepEqual(landed, [3], 'a press-focus is left to the click handler');
+  HARNESS.listeners.touchend({ touches: [], changedTouches: [{ clientX: 300, clientY: 100 }] });
+});
+
+test('a rotation re-measures the row, whose transform is in PIXELS', () => {
+  // The panels pan in percent and survive a resize untouched; this row is
+  // measured, so its old-day pixels would leave the viewed day hanging off
+  // the edge (measured: 52px past a 320px viewport).
+  const winL = {};
+  const docL = {};
+  const realWindow = global.window;
+  global.window = { addEventListener: (t, fn) => { winL[t] = fn; } };
+  const saveDoc = global.document;
+  global.document = {
+    addEventListener: (t, fn) => { docL[t] = fn; },
+    querySelectorAll: () => [],
+    querySelector: () => null,
+    getElementById: () => null
+  };
+  const key = require.resolve('../src/pkjs/settings/weather-tab-interact.js');
+  const cached = require.cache[key];
+  delete require.cache[key];
+  try {
+    const fresh = require('../src/pkjs/settings/weather-tab-interact.js');
+    const moved = [];
+    fresh.wire({
+      view: () => ({ days: 5 }),
+      day: () => 2,
+      commitDay: () => {},
+      scrub: () => {},
+      panTips: () => {},
+      panStrip: (f, animated) => { moved.push({ f, animated }); },
+      canPull: () => false,
+      refresh: () => {}
+    });
+    assert.ok(winL.resize, 'the module listens for a resize');
+    winL.resize();
+    assert.deepEqual(moved, [{ f: 2, animated: false }],
+      'the row is put back under the day it is showing, without an animation');
+  } finally {
+    require.cache[key] = cached;
+    global.window = realWindow;
+    global.document = saveDoc;
+  }
+});

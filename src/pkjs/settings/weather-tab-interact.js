@@ -150,7 +150,53 @@
      * @returns {boolean} True while such a click must be ignored.
      */
     function tapSuppressed() {
-        return Date.now() - panEndedAt < TAP_SUPPRESS_MS;
+        // A negative age means the clock moved BACKWARDS since the pan (a
+        // phone re-syncing its time, say). Fail open — a swallowed tap that
+        // never unswallows would leave the tiles dead.
+        var age = Date.now() - panEndedAt;
+        return age >= 0 && age < TAP_SUPPRESS_MS;
+    }
+
+    /**
+     * Keep the tile viewport's own scroll at zero.
+     *
+     * It clips with overflow:hidden, which stops the USER scrolling it but
+     * not the ENGINE: bringing a focused element into view scrolls a hidden
+     * box just the same (Chrome moves it 186px to reveal the last tile).
+     * The row's position is a transform the viewed day owns, so a scroll
+     * offset underneath it is a silent desync — every later transform would
+     * be measured against a viewport that has moved.
+     * @param {?Event} e Scroll event (capture phase — scroll does not bubble).
+     * @returns {void}
+     */
+    function unscroll(e) {
+        var el = e && e.target;
+        if (!el || !el.className || typeof el.className !== 'string') { return; }
+        if (el.className.indexOf('wx-daysvp') === -1) { return; }
+        if (el.scrollLeft) { el.scrollLeft = 0; }
+    }
+
+    /**
+     * A tile taking focus selects its day — which moves the row properly,
+     * instead of the browser scrolling the box to reveal it.
+     *
+     * Pointer focus is ignored: pressing a tile focuses it before the click
+     * (and before a drag that starts there has moved a pixel), so honouring
+     * it would jump the day out from under the gesture. The click handler
+     * owns that case, and the keyboard owns this one.
+     * @param {?Event} e Focus event.
+     * @returns {void}
+     */
+    function focusDay(e) {
+        if (gesture || tapSuppressed()) { return; }
+        var vp = findAttr(e && e.target, 'data-wxvp');
+        if (!vp || vp.getAttribute('data-wxvp') !== 'days') { return; }
+        var arg = e.target.getAttribute && e.target.getAttribute('data-action-arg');
+        if (arg === null || arg === undefined || arg === '') { return; }
+        var d = parseInt(arg, 10);
+        var view = api.view();
+        if (!view || !(d >= 0) || d > view.days - 1) { return; }
+        if (d !== api.day()) { api.commitDay(d); }
     }
 
     /**
@@ -447,6 +493,19 @@
             endGesture(e.clientX);
             endPull();
         }, true);
+        // Capture: scroll does not bubble, and the viewport element is
+        // replaced on every render, so the listener cannot live on it.
+        document.addEventListener('scroll', unscroll, true);
+        document.addEventListener('focusin', focusDay, true);
+        // A rotation reflows the tiles while the row's transform still holds
+        // the old day's PIXELS, which leaves the viewed day hanging off the
+        // edge (measured: the last tile 52px past a 320px viewport). The
+        // panels pan in percent and need no such fix; this row is measured.
+        if (typeof window !== 'undefined' && window.addEventListener) {
+            window.addEventListener('resize', function () {
+                if (!gesture) { api.panStrip(api.day(), false); }
+            }, false);
+        }
     }
 
     var apiOut = {
