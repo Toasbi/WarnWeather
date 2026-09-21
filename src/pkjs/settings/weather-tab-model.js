@@ -545,7 +545,6 @@
     }
 
     var api = {
-        GRAPH_PROVIDERS: GRAPH_PROVIDERS,
         SLOT_KEYS: SLOT_KEYS,
         DAY_COUNT: DAY_COUNT,
         RAIN_TIER_TOP_PCT: RAIN_TIER_TOP_PCT,
