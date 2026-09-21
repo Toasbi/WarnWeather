@@ -1068,27 +1068,24 @@
          * @returns {number} The left edge of its label box.
          */
         var leftOf = function (p) { return p.anchor === 'end' ? p.tx - p.w : p.tx; };
-        // A body's two events share one baseline, and both labels reach for
-        // the span BETWEEN them — so a moonset just after midnight and a
-        // moonrise the same morning print on top of each other (65 of the
-        // 340 such days at Berlin, up to 40 of 62 units deep). Part them
-        // along the row before drawing: the leader is a vertical line at the
-        // dot, so a label that has slid still reads as that dot's.
+        // Labels sharing a row and a viewport reach for the same span — a
+        // moonset just after midnight and a moonrise the same morning (65 of
+        // Berlin's 340 two-event days, up to 40 of 62 units deep), or an
+        // Arctic sunset at 21:48 and the sunrise at 23:22 that SunCalc
+        // attributes to the next day. Part them before drawing: the leader
+        // is a vertical line at the dot, so a label that has slid still
+        // reads as that dot's.
         /**
-         * @param {Object} a One placement sharing the row.
-         * @param {Object} b The other.
+         * @param {Object} lo The left label of an overlapping pair.
+         * @param {Object} hi The right one.
          * @returns {void}
          */
-        var part = function (a, b) {
-            if (!a || !b || a.dayLeft !== b.dayLeft) { return; }
-            var lo = leftOf(a) <= leftOf(b) ? a : b;
-            var hi = lo === a ? b : a;
+        var part = function (lo, hi) {
             var over = (leftOf(lo) + lo.w + 4) - leftOf(hi);
             if (over <= 0) { return; }
-            // Split the gap evenly, but only as far as each label's own
-            // seam allows — half each, then hand whatever one of them
-            // cannot take to the other. A day is wide enough for both
-            // (2 x 62 + 4 of 356), so the pair always comes apart.
+            // Split the gap evenly, but only as far as each label's own seam
+            // allows — half each, then hand whatever one of them cannot take
+            // to the other. A day fits both (2 x 62 + 4 of 356).
             var loRoom = leftOf(lo) - (lo.dayLeft + 2);
             var hiRoom = (hi.dayLeft + DAY_W - 2) - (leftOf(hi) + hi.w);
             var hiShift = Math.min(over - Math.min(over / 2, loRoom), hiRoom);
@@ -1097,6 +1094,33 @@
             hi.tx += hiShift;
             clampLabel(lo);
             clampLabel(hi);
+        };
+        // Which labels share a row is NOT which day the loop was drawing:
+        // the day the label lands in is the day its dot lands in. So the
+        // whole row is collected first, then parted per viewport.
+        /**
+         * @param {Object[]} row Every placement on one baseline.
+         * @returns {void}
+         */
+        var partRow = function (row) {
+            var byDay = {}, k, pass, i;
+            for (i = 0; i < row.length; i += 1) {
+                k = String(row[i].dayLeft);
+                byDay[k] = byDay[k] || [];
+                byDay[k].push(row[i]);
+            }
+            for (k in byDay) {
+                if (!byDay.hasOwnProperty(k)) { continue; }
+                var group = byDay[k];
+                if (group.length < 2) { continue; }
+                group.sort(function (a, b) { return leftOf(a) - leftOf(b); });
+                // Parting a pair can push one of them into its neighbour, so
+                // sweep the group until it settles. Three labels in one
+                // viewport is the most the sky produces.
+                for (pass = 0; pass < group.length; pass += 1) {
+                    for (i = 1; i < group.length; i += 1) { part(group[i - 1], group[i]); }
+                }
+            }
         };
         /**
          * @param {Object} p A placed, clamped event.
@@ -1120,7 +1144,7 @@
         };
         // Daylight band + rise/set marks, per day, all on the LOCATION's
         // clock. The band goes down first so the past wash still dims it.
-        var band = '', marks = '', sunCross = [], moonCross = [];
+        var band = '', marks = '', sunCross = [], moonCross = [], sunRow = [], moonRow = [];
         for (var d = 0; d < view.days; d += 1) {
             var dayLeft = d * DAY_W;
             var dayMs = view.dayStartMs + d * 86400000;
@@ -1144,20 +1168,35 @@
                 band += '<rect x="' + x1.toFixed(1) + '" y="' + top + '" width="' + (x2 - x1).toFixed(1)
                     + '" height="' + (horizon - top) + '" fill="' + pal.daylight + '"/>';
             }
-            var sr = t1 ? place(st.sunrise.getTime(), '\u2600\u2191', t1, true) : null;
-            var ss = t2 ? place(st.sunset.getTime(), '\u2600\u2193', t2, false) : null;
+            // Clamp each placement as it is made — part() measures a label's
+            // room against its seam, so it has to see where the label really
+            // ended up, not where it would have liked to go. The crossing
+            // lists feed arc() the very instants these dots stand on, so a
+            // mark dropped for falling off the timeline contributes no
+            // vertex either.
+            var add = function (row, p, cross, ms) {
+                if (!p) { return; }
+                row.push(clampLabel(p));
+                cross.push(ms);
+            };
+            add(sunRow, t1 ? place(st.sunrise.getTime(), '\u2600\u2191', t1, true) : null,
+                sunCross, t1 && st.sunrise.getTime());
+            add(sunRow, t2 ? place(st.sunset.getTime(), '\u2600\u2193', t2, false) : null,
+                sunCross, t2 && st.sunset.getTime());
             var m1 = mt && hm(mt.rise);
             var m2 = mt && hm(mt.set);
-            var mr = m1 ? place(mt.rise.getTime(), '\u263D\u2191', m1, true) : null;
-            var ms2 = m2 ? place(mt.set.getTime(), '\u263D\u2193', m2, false) : null;
-            part(sr, ss);
-            part(mr, ms2);
-            // The crossing list feeds arc() the very instants these dots
-            // stand on, so a dropped mark contributes no vertex either.
-            if (sr) { marks += emit(clampLabel(sr), true, pal.sun, pal.sunText); sunCross.push(st.sunrise.getTime()); }
-            if (ss) { marks += emit(clampLabel(ss), true, pal.sun, pal.sunText); sunCross.push(st.sunset.getTime()); }
-            if (mr) { marks += emit(clampLabel(mr), false, pal.moon, pal.moon); moonCross.push(mt.rise.getTime()); }
-            if (ms2) { marks += emit(clampLabel(ms2), false, pal.moon, pal.moon); moonCross.push(mt.set.getTime()); }
+            add(moonRow, m1 ? place(mt.rise.getTime(), '\u263D\u2191', m1, true) : null,
+                moonCross, m1 && mt.rise.getTime());
+            add(moonRow, m2 ? place(mt.set.getTime(), '\u263D\u2193', m2, false) : null,
+                moonCross, m2 && mt.set.getTime());
+        }
+        partRow(sunRow);
+        partRow(moonRow);
+        for (var e = 0; e < sunRow.length; e += 1) {
+            marks += emit(sunRow[e], true, pal.sun, pal.sunText);
+        }
+        for (e = 0; e < moonRow.length; e += 1) {
+            marks += emit(moonRow[e], false, pal.moon, pal.moon);
         }
         var s = band;
         s += frameWide(view, pal, top, bottom);

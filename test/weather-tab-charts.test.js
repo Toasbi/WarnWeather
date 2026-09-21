@@ -585,36 +585,48 @@ test('the rise/set glyph is AA-legible: it is text, not a line', () => {
 });
 
 test('two events of the same body never print their labels on top of each other', () => {
-  // A moonset just after midnight and a moonrise the same morning both reach
-  // for the span between them, on one shared baseline. Before they were
-  // parted, 65 of Berlin's 340 two-event days collided, up to 40 units deep
-  // on a 62-unit label. Sweep a season rather than one date: which days
-  // collide depends on the moon's declination, not on the renderer.
-  let renders = 0, collisions = 0, worst = 0, pairs = 0;
-  for (let d = 0; d < 120; d += 7) {
-    const day0 = Date.UTC(2026, 0, 1) + d * 86400000;
-    const view = charts.prepareView(fixtureData(day0), day0 + 12 * 3600000);
-    const spec = charts.sunMoonPanelSvg(view, { lat: 52.52, lon: 13.405 }, charts.palette(false), SunCalc);
-    const rows = {};
-    marksOf(spec.main).forEach((mk) => {
-      // One row per baseline per day: labels in different days sit in
-      // different viewports and cannot collide.
-      const key = mk.baseline + '#' + Math.floor(mk.dot / charts.DAY_W);
-      (rows[key] = rows[key] || []).push(mk);
-    });
-    Object.keys(rows).forEach((k) => {
-      const row = rows[k].slice().sort((a, b) => a.left - b.left);
-      for (let i = 1; i < row.length; i += 1) {
-        pairs += 1;
-        const over = row[i - 1].right - row[i].left;
-        if (over > 0.01) { collisions += 1; worst = Math.max(worst, over); }
-      }
-    });
-    renders += 1;
-  }
-  assert.ok(pairs >= 20, 'the sweep really does put two labels on one row: ' + pairs + ' pairs');
-  assert.equal(collisions, 0,
-    renders + ' renders, ' + pairs + ' same-row pairs, worst overlap ' + worst.toFixed(1) + ' units');
+  // Two labels can share a row in two ways, and only a sweep finds both:
+  // a moonset just after midnight and a moonrise the same morning (65 of
+  // Berlin's 340 two-event days collided, up to 40 units deep on a 62-unit
+  // label), and — the one that survived a first fix — an Arctic sunset at
+  // 21:48 with the 23:22 sunrise SunCalc attributes to the NEXT day, which
+  // still lands in this day's viewport. Which labels share a row is which
+  // day their DOTS fall in, not which day the render loop was on.
+  const WHERE = [[52.52, 13.405, 'Berlin'], [69.6, 18.9, 'Tromsø'],
+    [64.13, -21.9, 'Reykjavík'], [-33.9, 151.2, 'Sydney'], [0, 0, 'the equator']];
+  let renders = 0, collisions = 0, worst = 0, pairs = 0, worstAt = '';
+  WHERE.forEach((where) => {
+    for (let d = 0; d < 365; d += 11) {
+      const day0 = Date.UTC(2026, 0, 1) + d * 86400000;
+      const view = charts.prepareView(fixtureData(day0), day0 + 12 * 3600000);
+      const spec = charts.sunMoonPanelSvg(view, { lat: where[0], lon: where[1] },
+        charts.palette(false), SunCalc);
+      const rows = {};
+      marksOf(spec.main).forEach((mk) => {
+        // One row per baseline per viewport: labels in different days are
+        // never on screen together, so they cannot collide.
+        const key = mk.baseline + '#' + Math.floor(mk.dot / charts.DAY_W);
+        (rows[key] = rows[key] || []).push(mk);
+      });
+      Object.keys(rows).forEach((k) => {
+        const row = rows[k].slice().sort((a, b) => a.left - b.left);
+        for (let i = 1; i < row.length; i += 1) {
+          pairs += 1;
+          const over = row[i - 1].right - row[i].left;
+          if (over > 0.01 && over > worst) {
+            worst = over;
+            worstAt = where[2] + ' ' + new Date(day0).toISOString().slice(0, 10)
+              + ' ' + JSON.stringify(row[i - 1].text) + ' / ' + JSON.stringify(row[i].text);
+          }
+          if (over > 0.01) { collisions += 1; }
+        }
+      });
+      renders += 1;
+    }
+  });
+  assert.ok(pairs >= 200, 'the sweep really does put labels together on a row: ' + pairs + ' pairs');
+  assert.equal(collisions, 0, renders + ' renders, ' + pairs + ' same-row pairs — worst '
+    + worst.toFixed(1) + ' units at ' + worstAt);
 });
 
 test('the moon marks are read off the LOCATION’s day, not the phone’s', () => {
