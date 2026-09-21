@@ -185,6 +185,59 @@ test('the support mug reaches the generated page, after news.js', () => {
     'animation');
 });
 
-// APP_FILES is DUPLICATED — build-config-page.js ships the page, preview-config-page.js
-// renders `mise preview-config` — so an addition to one and not the other is silent.
-// That lockstep is already guarded, by test/preview-config-page.test.js's last test.
+// APP_FILES is SHARED — build-config-page.js ships the page and
+// preview-config-page.js requires that same array to render `mise
+// preview-config`, so the two can no longer drift. test/preview-config-page.js's
+// last test pins that it stays one array rather than becoming a copy again.
+
+// The Weather tab is nine files, each reading a window global a file earlier
+// in APP_FILES publishes (SunCalc / WeatherTabModel / WeatherTabData /
+// WeatherTabIcons / WeatherTabReadouts / WeatherTabCharts / WeatherTabCss /
+// WeatherTabInteract) while its own IIFE body runs. Same silent-no-op hazard
+// as the preview kit: an unregistered block renders nothing and only warns.
+// Pin the ASSIGNMENT, not the bare name — every consumer's `: window.X;`
+// fallback read keeps the bare string in the page even with the publisher
+// dropped from APP_FILES.
+test('the Weather tab kit reaches the generated page in dependency order', () => {
+  const src = page();
+  ['window.SunCalc', 'window.WeatherTabModel =', 'window.WeatherTabData =',
+    'window.WeatherTabIcons =', 'window.WeatherTabReadouts =',
+    'window.WeatherTabCharts =', 'window.WeatherTabCss =',
+    'window.WeatherTabInteract ='].forEach((g) => {
+    assert.ok(src.indexOf(g) !== -1,
+      'nothing assigns ' + g + ' — probably missing from APP_FILES in scripts/build-config-page.js');
+  });
+  assert.ok(src.indexOf("register('weatherGraphs'") !== -1,
+    'weather-tab.js does not register the weatherGraphs block in the page');
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  assert.ok(idx('settings/weather-tab-model.js') < idx('settings/weather-tab-data.js'),
+    'weather-tab-model.js must precede weather-tab-data.js (reads window.WeatherTabModel at IIFE time)');
+  assert.ok(idx('settings/weather-tab-model.js') < idx('settings/weather-tab-charts.js'),
+    'weather-tab-model.js must precede weather-tab-charts.js');
+  assert.ok(idx('settings/weather-tab-icons.js') < idx('settings/weather-tab-charts.js'),
+    'weather-tab-icons.js must precede weather-tab-charts.js (reads window.WeatherTabIcons at IIFE time)');
+  assert.ok(idx('settings/weather-tab-readouts.js') < idx('settings/weather-tab-charts.js'),
+    'weather-tab-readouts.js must precede weather-tab-charts.js (aliases its helpers at IIFE time)');
+  assert.ok(idx('settings/weather-tab-model.js') < idx('settings/weather-tab-readouts.js'),
+    'weather-tab-model.js must precede weather-tab-readouts.js');
+  // The one that cannot be caught by running the suite: in Node,
+  // weather-tab-css.js takes its require() branch, so every test passes with
+  // the fatal order. In the flat page it reads window.WeatherTabInteract at
+  // IIFE time to bake the pan's settle curve into its stylesheet, and the
+  // whole bundle is ONE <script> ending in boot() — so a throw here leaves
+  // the entire settings page blank, not merely an unstyled Weather tab.
+  assert.ok(idx('settings/weather-tab-interact.js') < idx('settings/weather-tab-css.js'),
+    'weather-tab-interact.js must precede weather-tab-css.js (SETTLE_CSS at IIFE time)');
+  ['settings/vendor-suncalc.js', 'settings/weather-tab-model.js',
+    'settings/weather-tab-data.js', 'settings/weather-tab-icons.js',
+    'settings/weather-tab-readouts.js', 'settings/weather-tab-charts.js',
+    'settings/weather-tab-css.js', 'settings/weather-tab-interact.js'].forEach((dep) => {
+    assert.ok(idx(dep) < idx('settings/weather-tab.js'),
+      dep + ' must precede weather-tab.js, which reads its window global at IIFE time');
+  });
+});

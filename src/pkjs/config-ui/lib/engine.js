@@ -111,9 +111,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // name (item.displayFrom: {resolver, args}); fn(S, env, args) returns the value to
   // PAINT while the stored value stays untouched, so a key that inherits its effective
   // value from a sibling can still show what it actually renders as. Read at render time,
-  // like the badge resolver. Only `color` reads it today (the graph night tint, which
-  // cascades from the fill colour at resolve time). Writes are unaffected: a control still
-  // stores under its own messageKey, so picking the shown value pins it.
+  // like the badge resolver. Two readers today: `color` items via displayFrom (the graph
+  // night tint, which cascades from the fill colour at resolve time; args get the item's
+  // messageKey merged under them) and collapsible sections via titleFrom (the collapsed
+  // card header's value; args pass through verbatim — sections have no messageKey).
+  // Writes are unaffected: a control still stores under its own messageKey, so picking
+  // the shown value pins it.
   PConf.displayResolvers = makeRegistry();
 
   // --- onChange registry --- a schema item opts into a post-change side effect by
@@ -1075,12 +1078,25 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // (drops the divider but keeps normal padding). See the .nb / .nbl rules in shell.html.
   function nbClass(mode) { return mode === 'loose' ? ' nbl' : (mode ? ' nb' : ''); }
 
-  function renderCardHeader(sec, secId, isCollapsible, isOpen) {
+  function renderCardHeader(sec, secId, isCollapsible, isOpen, cx) {
     if (!(sec.title || isCollapsible)) { return ''; }
     var chev = isCollapsible ? '<span class="chev">' + (isOpen ? '&#9662;' : '&#9656;') + '</span>' : '';
     var collAttr = isCollapsible ? ' data-coll="' + esc(secId) + '"' : '';
+    // titleFrom (sections only): a display resolver paints the section's CURRENT
+    // pick next to the title while the card is collapsed, so a closed card still
+    // says what is selected inside it. Open cards show the plain title — the
+    // rows themselves carry the values there. Resolver grammar matches
+    // displayFrom: fn(S, env, args) from PConf.displayResolvers.
+    var val = '';
+    if (sec.titleFrom && isCollapsible && !isOpen && cx) {
+      var fn = PConf.displayResolvers.get(sec.titleFrom.resolver);
+      var v = fn ? fn(cx.S, cx.ENV, sec.titleFrom.args || {}) : null;
+      if (v !== null && v !== undefined && v !== '') {
+        val = '<span class="ttlval">' + esc(String(v)) + '</span>';
+      }
+    }
     return '<button class="cardHdr' + (isCollapsible ? ' coll' : '') + '"' + collAttr + '>'
-      + '<span class="ttl">' + esc(sec.title || '') + '</span>' + chev + '</button>';
+      + '<span class="ttl">' + esc(sec.title || '') + '</span>' + val + chev + '</button>';
   }
 
   // Build a section's inner body HTML (intro + items + block) and whether it's empty
@@ -1141,7 +1157,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (built.isEmpty) { return ''; }
     var isCollapsible = Boolean(sec.collapsible);
     var isOpen = isCollapsible ? !cx.collapsed[secId] : true;
-    var hdr = renderCardHeader(sec, secId, isCollapsible, isOpen);
+    var hdr = renderCardHeader(sec, secId, isCollapsible, isOpen, cx);
     return '<div class="card' + (hdr ? '' : ' nohdr') + '">' + hdr + (isOpen ? '<div>' + built.body + '</div>' : '') + '</div>';
   }
 
@@ -1304,11 +1320,31 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     list.style.maxHeight = Math.round(target) + 'px';
   }
 
+  /**
+   * The tab the page opens on. Tab ORDER is the bar's business; which tab
+   * greets the user is a setting, so a tab may claim the opening slot with
+   * an `openWhen` predicate over the stored values, and one tab may declare
+   * itself the standing default. Neither given, the first tab opens.
+   * @param {Object} schema Config schema (schema.tabs).
+   * @param {Object} values Hydrated setting values, keyed by messageKey.
+   * @returns {string} The id of the tab to open.
+   */
+  function initialTab(schema, values) {
+    var tabs = (schema && schema.tabs) || [], i;
+    for (i = 0; i < tabs.length; i += 1) {
+      if (tabs[i].openWhen && PConf.showWhen.evaluate(tabs[i].openWhen, values)) { return tabs[i].id; }
+    }
+    for (i = 0; i < tabs.length; i += 1) {
+      if (tabs[i].openDefault) { return tabs[i].id; }
+    }
+    return tabs.length ? tabs[0].id : '';
+  }
+
   function boot() {
     var SCHEMA = INJECTED_SCHEMA, ENV = INJECTED_ENV || { color: true, round: false, platform: '', health: true };
     var USERDATA = INJECTED_USERDATA || {}, RETURN_TO = INJECTED_RETURN || 'pebblejs://close#';
     var S = hydrate(SCHEMA, INJECTED_CFG, ENV), INITIAL = Object.assign({}, S);
-    var activeTab = SCHEMA.tabs[0].id;
+    var activeTab = initialTab(SCHEMA, S);
     var openColor = null, openSelect = null, openDate = null, openEdit = null;
     var selectQuery = '', collapsed = initialCollapsed(SCHEMA);
     // Recover a schema item by messageKey so the input handler can re-filter its options in place.
@@ -1910,6 +1946,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   PConf.engine = {
     serialize: serialize, hydrate: hydrate, boot: boot, initialCollapsed: initialCollapsed,
+    initialTab: initialTab,
     esc: esc, renderControl: renderControl, renderRow: renderRow, renderSelectOptions: renderSelectOptions,
     renderSelectModal: renderSelectModal, renderDateModal: renderDateModal,
     renderEditModal: renderEditModal,
@@ -1930,7 +1967,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     serialize: PConf.engine.serialize, hydrate: PConf.engine.hydrate, boot: PConf.engine.boot,
-    initialCollapsed: PConf.engine.initialCollapsed,
+    initialCollapsed: PConf.engine.initialCollapsed, initialTab: PConf.engine.initialTab,
     blocks: PConf.blocks, hooks: PConf.hooks, onChange: PConf.onChange,
     esc: PConf.engine.esc, renderControl: PConf.engine.renderControl, renderRow: PConf.engine.renderRow,
     renderSelectOptions: PConf.engine.renderSelectOptions,

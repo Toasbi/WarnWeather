@@ -56,6 +56,7 @@ const GRAPH_COLOR_KEYS = lineStyle.graphColorKeys();
 
 const EXPECTED_KEYS = [
   'theme','themeAuto','themeNight','themeAutoMode','themeAutoStartHour','themeAutoEndHour',
+  'graphsProvider','graphsLocation','savedLocation1','savedLocation2','savedLocation3',
   'timeLeadingZero','timeShowAmPm','axisTimeFormat','timeFont','colorTime',
   'weekStartDay','firstWeek','colorToday','colorSunday','colorSaturday','holidaysEnabled','colorUSFederal',
   'holidayCountry','holidayRegion',
@@ -68,7 +69,7 @@ const EXPECTED_KEYS = [
   'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','windScale','pressureScale','thirdLine','tempSlotDisplay',
   'dateSlotMonthFormat','dateSlotFullFormat',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','radarNoRainText','rainCountdownHorizon',
-  'layoutPreset','largeGraphFont','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','devStatsEnabled','devStatsClear','reset',
+  'layoutPreset','largeGraphFont','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab','devStatsEnabled','devStatsClear','reset',
   // Custom-layout storage (sheetOnly section; see customViewItems in schema.js).
   'viewCount','customLayoutSeeded',
   'viewTop0','viewBody0','viewUpper0','viewLower0','viewOrder0',
@@ -940,6 +941,30 @@ test('forecast tab nests fill and wind scale under the line that enables them', 
     'third-line wind-scale copies sit under the dotted line');
 });
 
+test('startOnWeatherTab is a page-only toggle that defaults to General', () => {
+  const item = byKey('startOnWeatherTab');
+  assert.equal(item.type, 'toggle');
+  assert.equal(item.defaultValue, false, 'General stays the opening tab out of the box');
+  assert.ok(item.label && item.hint, 'it is a user-facing setting, labelled and explained');
+  // Display-only, like the rest of the Weather tab: it picks a tab in the
+  // settings page and is never read by the watch-side JS, so no payload
+  // builder may so much as mention it.
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const pkjs = path.join(__dirname, '..', 'src', 'pkjs');
+  const watchSide = fs.readdirSync(pkjs).filter((f) => f.slice(-3) === '.js');
+  watchSide.forEach((f) => {
+    const src = fs.readFileSync(path.join(pkjs, f), 'utf8');
+    assert.equal(src.indexOf('startOnWeatherTab'), -1,
+      'watch-side ' + f + ' must not read a page-only key');
+  });
+  // Guard the guard: the scan really does cover the payload builder, and
+  // that builder really does carry watch settings.
+  assert.ok(watchSide.indexOf('clay-payload.js') !== -1, 'the scan includes the Clay payload builder');
+  assert.ok(fs.readFileSync(path.join(pkjs, 'clay-payload.js'), 'utf8').indexOf('settings.btIcons') !== -1,
+    'and a key the watch DOES receive shows up in it');
+});
+
 test('onboardingDone is a hidden key and a startWizard button exists', () => {
   assert.equal(byKey('onboardingDone').type, 'hidden');
   assert.ok(items.some((it) => it.type === 'button' && it.action === 'startWizard'));
@@ -1483,6 +1508,7 @@ test('watch status-bar icon controls live in the Watch Status Bar section, not M
     assert.ok(miscKeys.indexOf(k) === -1, k + ' moved out of Misc'));
   assert.ok(miscKeys.indexOf('telemetryEnabled') !== -1, 'telemetry stays in Misc');
   assert.ok(miscKeys.indexOf('onboardingDone') !== -1, 'onboardingDone stays in Misc');
+  assert.ok(miscKeys.indexOf('startOnWeatherTab') !== -1, 'the opening-tab toggle lives in Misc');
   const stripKeys = strip.items.map((i) => i.messageKey).filter(Boolean);
   ['showQt', 'vibe', 'btIcons'].forEach((k) =>
     assert.ok(stripKeys.indexOf(k) !== -1, k + ' now in Watch Status Bar'));
@@ -2282,4 +2308,52 @@ test('each sheet resets exactly its own keys, and the seven lists partition the 
   // sheet, and no key is stranded without a reset.
   assert.equal(new Set(all).size, all.length, 'no key resets from two sheets');
   assert.deepEqual(all.slice().sort(), GRAPH_COLOR_KEYS.slice().sort());
+});
+
+test('the Weather tab is display-only: its own keys, blocks, and no watch coupling', () => {
+  const tab = schema.tabs.find((t) => t.id === 'weather');
+  assert.ok(tab, 'the weather tab exists');
+  assert.equal(tab.label, 'Weather');
+  assert.equal(schema.tabs.findIndex((t) => t.id === 'weather'), 0, 'leads the tab bar');
+  // Leading the bar is not the same as opening the page: General keeps that
+  // until the user flips the Misc toggle.
+  assert.deepEqual(tab.openWhen, { key: 'startOnWeatherTab', eq: true },
+    'the Weather tab opens the page only on request');
+  assert.equal(schema.tabs.find((t) => t.id === 'general').openDefault, true,
+    'General is the standing default');
+  assert.equal(schema.tabs.filter((t) => t.openDefault).length, 1, 'exactly one standing default');
+  // Layout: a collapsed Provider card leads (its header paints the current
+  // pick), then chips + graphs merge into ONE card via a shared groupCard.
+  const providerSec = tab.sections[0];
+  assert.equal(providerSec.title, 'Provider');
+  assert.equal(providerSec.collapsible, true, 'the provider card starts collapsed');
+  assert.equal(providerSec.titleFrom.resolver, 'graphsProviderHeader',
+    'the collapsed header shows the selected provider');
+  assert.equal(providerSec.items[0].messageKey, 'graphsProvider');
+  assert.equal(tab.sections[1].block, 'weatherLocations');
+  assert.equal(tab.sections[2].block, 'weatherGraphs');
+  assert.ok(tab.sections[1].groupCard && tab.sections[1].groupCard === tab.sections[2].groupCard,
+    'chips and graphs share one card');
+
+  const provider = byKey('graphsProvider');
+  assert.equal(provider.defaultValue, 'auto');
+  assert.equal(provider.optionsFrom.resolver, 'graphsProviderOptions');
+  // A keyed pick with its API key momentarily empty is dormant, not invalid:
+  // without this, one render while the key field is blank would snap the
+  // stored pick to 'auto' and a Save would persist the erasure.
+  assert.deepEqual(provider.dormantValues, ['openweathermap', 'tomorrowio']);
+
+  assert.equal(byKey('graphsLocation').type, 'hidden');
+  assert.equal(byKey('graphsLocation').defaultValue, 'current');
+  ['savedLocation1', 'savedLocation2', 'savedLocation3'].forEach((k) => {
+    assert.equal(byKey(k).type, 'hidden');
+    assert.equal(byKey(k).defaultValue, '');
+  });
+
+  // The display-only contract: nothing in this tab carries the watch's own
+  // provider/location keys — those stay in the General tab untouched.
+  tab.sections.forEach((sec) => sec.items.forEach((i) => {
+    assert.ok(['provider', 'location', 'locationMode', 'gpsCacheMin'].indexOf(i.messageKey) === -1,
+      'the weather tab must not host watch key ' + i.messageKey);
+  }));
 });

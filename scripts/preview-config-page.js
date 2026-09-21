@@ -14,60 +14,10 @@ var ROOT = path.join(__dirname, '..');
 var platformLib = require(path.join(ROOT, 'src/pkjs/config-ui/lib/platform.js'));
 var schema = require(path.join(ROOT, 'src/pkjs/settings/schema.js'));
 var previewPalette = require(path.join(ROOT, 'src/pkjs/settings/preview-palette.js'));
-var APP_FILES = [
-  // view-cycle.js must precede preview-layout.js and status-line-catalog.js must
-  // precede blocks.js: their VC / statusLineCatalog fallbacks (used when this page is a
-  // flat concatenated <script>, not a Node module) read their declarations directly from
-  // this shared top-level scope. Keep in lockstep with build-config-page.js's APP_FILES — both build the
-  // same page, from two separate entrypoints.
-  // country-defaults.js (COUNTRY_DEFAULTS global) must precede blocks.js + wizard.js.
-  path.join(ROOT, 'src/pkjs/settings/country-defaults.js'),
-  path.join(ROOT, 'src/pkjs/view-cycle.js'),
-  path.join(ROOT, 'src/pkjs/status-line-catalog.js'),
-  path.join(ROOT, 'src/pkjs/settings/tomorrowio-budget.js'),
-  // The graph-colour resolver the forecast preview draws from, plus its two deps.
-  // ORDER IS LOAD-BEARING: each reads the previous one's window global while its own
-  // top-level body runs. See build-config-page.js's copy for the full note.
-  path.join(ROOT, 'src/pkjs/pebble-colors.js'),
-  path.join(ROOT, 'src/pkjs/resolve-ink.js'),
-  // theme-flip.js publishes window.ThemeFlip (the polarity-flip rules);
-  // theme-convert.js reads it at IIFE time to register the onChange hooks.
-  path.join(ROOT, 'src/pkjs/theme-flip.js'),
-  path.join(ROOT, 'src/pkjs/line-style.js'),
-  // The five preview blocks, split by concern; preview-svg.js / preview-rain.js are the
-  // two libraries they read (window.PreviewSvg / window.PreviewRain) while their own
-  // top-level bodies run, so those come first. See build-config-page.js's copy.
-  path.join(ROOT, 'src/pkjs/settings/preview-svg.js'),
-  path.join(ROOT, 'src/pkjs/settings/preview-rain.js'),
-  path.join(ROOT, 'src/pkjs/settings/preview-forecast.js'),
-  path.join(ROOT, 'src/pkjs/settings/preview-radar.js'),
-  path.join(ROOT, 'src/pkjs/settings/preview-diagnostics.js'),
-  path.join(ROOT, 'src/pkjs/settings/preview-layout.js'),
-  path.join(ROOT, 'src/pkjs/settings/blocks.js'),
-  // wizard-screenshots.generated.js assigns PConf.screenshots; must precede wizard.js, which reads it.
-  path.join(ROOT, 'src/pkjs/settings/wizard-screenshots.generated.js'),
-  // defaults-policy.js assigns window.DefaultsPolicy and must precede wizard.js, which
-  // resolves the rule table on the wizard's finish button.
-  path.join(ROOT, 'src/pkjs/settings/defaults-policy.js'),
-  path.join(ROOT, 'src/pkjs/settings/wizard.js'),
-  // The Custom-layout editor overlay (lockstep with build-config-page.js).
-  path.join(ROOT, 'src/pkjs/settings/view-editor.js'),
-  path.join(ROOT, 'src/pkjs/settings/onbuild.js'),
-  path.join(ROOT, 'src/pkjs/settings/key-test.js'),
-  path.join(ROOT, 'src/pkjs/settings/owm-key-test.js'),
-  path.join(ROOT, 'src/pkjs/settings/tomorrowio-key-test.js'),
-  path.join(ROOT, 'src/pkjs/settings/news-protocol.js'),
-  path.join(ROOT, 'src/pkjs/settings/news.js'),
-  // support.js must FOLLOW news.js — see the note in build-config-page.js.
-  path.join(ROOT, 'src/pkjs/settings/support.js'),
-  path.join(ROOT, 'src/pkjs/settings/theme-convert.js'),
-  path.join(ROOT, 'src/pkjs/settings/reset-status-defaults.js'),
-  // status-thresholds.js: the flat page has no require(), so blocks.js/onbuild.js
-  // read window.StatusThresholds from it — lazily (at render/boot time), so its
-  // position here only has to be somewhere in the bundle.
-  path.join(ROOT, 'src/pkjs/status-thresholds.js'),
-  path.join(ROOT, 'src/pkjs/settings/notices-panel.js')
-];
+// The bundle IS the build's bundle: same files, same order. It used to be a
+// second copy of the list, which is exactly how the preview came to load the
+// Weather tab's stylesheet before the module whose settle curve it bakes in.
+var APP_FILES = require('./build-config-page.js').APP_FILES;
 var DEFAULT_OUT = path.join(ROOT, 'build/config-ui-preview.html');
 var PLATFORMS = ['basalt', 'chalk', 'aplite', 'diorite', 'emery'];
 
@@ -114,6 +64,10 @@ function run(opts) {
     cfg: {},
     userData: {
       palette: previewPalette.buildPreviewPalette(),
+      // Weather-tab "Current" chip seed (Berlin). The graphs themselves fetch
+      // live from the desktop browser — file:// pages get real CORS answers
+      // from Open-Meteo/Brightsky, so the tab is fully reviewable here.
+      graphsSeed: { lat: 52.52, lon: 13.405, name: 'Berlin' },
       newsEndpoint: process.env.NEWS_ENDPOINT || '',
       appVersion: process.env.NEWS_PREVIEW_VERSION || '9.9.9',
       // WARNING: pointing NEWS_ENDPOINT at the PRODUCTION news function makes the

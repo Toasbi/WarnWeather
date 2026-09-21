@@ -167,6 +167,10 @@ Pebble.addEventListener('showConfiguration', function(e) {
     var userData = {
         lastFetchSuccess: localStorage.getItem(KEY_LAST_FETCH_SUCCESS),
         lastFetchAttempt: localStorage.getItem(KEY_LAST_FETCH_ATTEMPT),
+        // The Weather tab's "Current" chip: last-known coordinates (same
+        // precedence as the fetch path — themeCoords) plus the last resolved
+        // city name off the status-bake snapshot. null when no fix exists yet.
+        graphsSeed: buildGraphsSeed(),
         notices: localStorage.getItem(KEY_NOTICES),
         devStats: JSON.stringify(devStats.read()),
         palette: previewPalette.buildPreviewPalette(),
@@ -629,6 +633,30 @@ function themeCoords() {
         return null;
     }
     return { lat: lat, lon: lon };
+}
+
+/**
+ * The Weather tab's current-location seed: last-known coordinates plus a
+ * display name — the last reverse-geocoded CITY from the status-bake snapshot
+ * when one exists, else the manual location text. Injected as userData at
+ * settings-open; the page cannot geolocate itself (data: URI webview).
+ *
+ * @returns {?{lat: number, lon: number, name: string}} Seed, or null before any fix.
+ */
+function buildGraphsSeed() {
+    var coords = themeCoords();
+    if (!coords) { return null; }
+    var name = '';
+    try {
+        var snap = JSON.parse(localStorage.getItem(storageKeys.PHONE_BATTERY_SNAPSHOT));
+        if (snap && snap.payload && typeof snap.payload.CITY === 'string') {
+            name = snap.payload.CITY;
+        }
+    } catch (ex) { /* no snapshot yet */ }
+    if (!name && app.settings && app.settings.location) {
+        name = app.settings.location;
+    }
+    return { lat: coords.lat, lon: coords.lon, name: name || 'Current location' };
 }
 
 /**

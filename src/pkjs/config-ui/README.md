@@ -224,11 +224,12 @@ Schema
        └─ sections[]
             ├─ title        string
             ├─ intro        string  (HTML — displayed above items)
-            ├─ blockBefore  string  (custom-block id — rendered above the items)
             ├─ block        string  (custom-block id — rendered below the items)
             ├─ collapsible  boolean (renders section as a collapsible card)
+            ├─ titleFrom    {resolver, args?} (collapsed-header value; see Section fields)
+            ├─ groupCard    string  (consecutive sections sharing an id merge into one card)
             └─ items[]
-                 └─ (see Item fields below)
+                 └─ (see Item fields below; blockBefore is ITEM-level)
 ```
 
 ### Item types
@@ -298,10 +299,10 @@ picking the shown swatch is what writes it.
 |-------|------|-------------|
 | `title` | string | Section heading |
 | `intro` | string | HTML rendered above items |
-| `blockBefore` | string | Custom-block id rendered ABOVE the items (below the intro) — the mirror of `block`. Use it for a preview that heads the whole card, instead of hanging one off whichever item happens to be first. |
-| `blockBeforeSticky` | boolean | Pins the `blockBefore` block below the topbar while the rows scroll under it (same as the item-level flag) |
-| `block` | string | Custom-block id rendered BELOW the items (see [Registries](#registries-and-hooks)) |
-| `collapsible` | boolean | Collapses the section into an expandable card |
+| `block` | string | Custom-block id rendered BELOW the items (see [Registries](#registries-and-hooks)). A block ABOVE the items is the item-level `blockBefore` on the section's first item — the engine has no section-level `blockBefore`; for a card that stacks several blocks, share a `groupCard` id across consecutive sections instead. |
+| `collapsible` | boolean | Collapses the section into an expandable card (collapsed by default; state is per page open) |
+| `titleFrom` | `{resolver, args?}` | Collapsible sections only: a `PConf.displayResolvers` id whose `fn(S, env, args)` result is painted next to the title while the card is COLLAPSED (e.g. the current pick of a select inside), so a closed card still says what's selected. Open cards show the plain `title`. `args` pass through verbatim (no messageKey merge — sections have none). |
+| `groupCard` | string | Consecutive sections sharing a `groupCard` id render into ONE card: titles become in-card sub-headers, and each section's intro/items/`block` stack inside it. Empty sub-sections drop out cleanly. |
 | `items` | Item[] | The items to render |
 
 **Item fields:**
@@ -437,8 +438,10 @@ PConf.optionsResolvers.register('statusSlot', function (state, env, args) {
 
 An item with a `displayFrom: { resolver: id, args }` field PAINTS a derived value while its
 stored value stays untouched — for a key whose effective value is computed elsewhere (a colour
-that cascades from a sibling key until the user pins it). `color` is the only type that reads
-it today.
+that cascades from a sibling key until the user pins it). Two consumers read the registry
+today: `color` items via `displayFrom` (args get the item's messageKey merged under them),
+and collapsible sections via `titleFrom` (the collapsed card header's value — args pass
+through verbatim, with NO messageKey merged in, since sections have none).
 
 ```js
 // Returns the value to display; return null/undefined for "use the stored value".

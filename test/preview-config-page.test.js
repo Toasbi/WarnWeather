@@ -50,11 +50,19 @@ test('parseArgs with no args uses defaults', () => {
   assert.equal(r.platform, 'basalt');
 });
 
-// Regression: this file's APP_FILES and build-config-page.js's APP_FILES are two
-// independent lists that build the SAME page (dev preview vs. the real shipped page).
-// A file (e.g. view-cycle.js) added to one but forgotten in the other renders fine in
-// whichever entrypoint got the fix and silently throws in the webview via the other —
-// exactly how the Layout tab broke. Keep them identical.
-test('preview-config-page.js and build-config-page.js bundle the same app files', () => {
-  assert.deepEqual(preview.APP_FILES, build.APP_FILES);
+// Regression: these two entrypoints build the SAME page (dev preview vs. the
+// real shipped page), and they used to do it from two hand-kept lists. A file
+// added to one and forgotten in the other rendered fine through whichever
+// entrypoint got the fix and silently threw in the webview through the other —
+// exactly how the Layout tab broke, and later how the preview came to load the
+// Weather tab's stylesheet before the module whose settle curve it bakes in.
+// The preview now READS the build's list, so the fix is structural and the
+// assertion is identity: comparing contents would pass against a re-introduced
+// copy that merely happens to match today.
+test('preview-config-page.js bundles the build\'s own app-file list, not a copy of it', () => {
+  assert.ok(Array.isArray(build.APP_FILES) && build.APP_FILES.length > 30,
+    'the build has a list to share');
+  assert.equal(preview.APP_FILES, build.APP_FILES,
+    'the preview re-exports the build\'s array itself — a second list cannot drift '
+    + 'because there is no second list');
 });

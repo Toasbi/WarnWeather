@@ -76,6 +76,7 @@ LAYOUT CUSTOMIZATION
 - Multiple layout presets, with flick-to-cycle between views and optional auto-return
 - Fully custom layouts (colour watches): build each view yourself - pick, remove and reorder the calendar, clock and status bars per view; flick views can even drop the clock and top bar for a true full-screen radar or graph
 - Light/Dark settings page with grouped, easy-to-browse pickers
+- Weather tab in the settings page: live graphs (temperature & precipitation, wind & gusts, humidity & dew point, pressure, sun & moon) plus a 5-day forecast - for your current location or up to three saved places, with its own switchable data source; refreshes only on demand - pull down or tap Refresh, which also re-reads your phone's location; it leads the tab bar, and a Misc toggle makes it the tab the page opens on
 - First-run setup wizard that picks sensible defaults for your country and watch
 - Larger graph fonts on Pebble Time 2 - the forecast, health and radar axis labels are drawn in bigger type by default; turn them down in the Layout tab
 

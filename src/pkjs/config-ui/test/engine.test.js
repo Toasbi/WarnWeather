@@ -1490,3 +1490,68 @@ test('a labelled row is unchanged', () => {
     { value: false });
   assert.match(html, /<div class="lbl">Vibrate<\/div>/);
 });
+
+test('titleFrom: a collapsed section header paints the resolved value; open/plain ones do not', () => {
+  PConf.displayResolvers.register('pickLabel', function (S, env, args) {
+    return S.mode === 'b' ? 'Bravo' : 'Alpha';
+  });
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{
+    id: 'pick', title: 'Provider', collapsible: true, titleFrom: { resolver: 'pickLabel' },
+    items: [{ type: 'select', messageKey: 'mode', defaultValue: 'a', options: [['Alpha', 'a'], ['Bravo', 'b']] }]
+  }] }] };
+  const mkCx = (S, collapsed) => ({ S, ENV: {}, USERDATA: {}, openColor: null, collapsed,
+    evalCtx: Object.assign({}, S, { env: {} }) });
+
+  // Collapsed: header shows the resolved current pick.
+  let html = E.renderBody(SCH, 't', mkCx({ mode: 'b' }, { pick: true }));
+  assert.match(html, /class="ttlval">Bravo</);
+  assert.equal(html.indexOf('data-k="mode"'), -1, 'collapsed card hides its rows');
+
+  // Open: plain title, no ttlval — the row itself shows the value.
+  html = E.renderBody(SCH, 't', mkCx({ mode: 'b' }, { pick: false }));
+  assert.equal(html.indexOf('ttlval'), -1);
+  assert.ok(html.indexOf('data-select="mode"') !== -1 || html.indexOf('data-k="mode"') !== -1,
+    'open card renders the select');
+
+  // Unknown resolver: header degrades to the plain title.
+  const BAD = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{
+    id: 'pick', title: 'Provider', collapsible: true, titleFrom: { resolver: 'nope' },
+    items: [{ type: 'toggle', messageKey: 'x', defaultValue: false }]
+  }] }] };
+  html = E.renderBody(BAD, 't', mkCx({ x: false }, { pick: true }));
+  assert.equal(html.indexOf('ttlval'), -1);
+  assert.match(html, /class="ttl">Provider</);
+
+  // A non-collapsible section ignores titleFrom entirely.
+  const PLAIN = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{
+    title: 'Provider', titleFrom: { resolver: 'pickLabel' },
+    items: [{ type: 'toggle', messageKey: 'x', defaultValue: false }]
+  }] }] };
+  html = E.renderBody(PLAIN, 't', mkCx({ x: false, mode: 'b' }, {}));
+  assert.equal(html.indexOf('ttlval'), -1);
+});
+
+test('initialTab: a tab may claim the opening slot, order alone does not', () => {
+  const bar = (tabs) => ({ appName: 'X', versionLabel: 'v0', tabs: tabs });
+  const T = (id, extra) => Object.assign({ id: id, label: id, sections: [] }, extra || {});
+
+  // Plain schema: the first tab opens, as before.
+  assert.equal(E.initialTab(bar([T('a'), T('b')]), {}), 'a');
+
+  // A standing default wins over position — this is the round-10 shape:
+  // Weather leads the bar, General still greets the user.
+  const schema = bar([
+    T('weather', { openWhen: { key: 'startOnWeatherTab', eq: true } }),
+    T('general', { openDefault: true })
+  ]);
+  assert.equal(E.initialTab(schema, {}), 'general', 'leading the bar does not open the page');
+  assert.equal(E.initialTab(schema, { startOnWeatherTab: false }), 'general', 'toggle off: unchanged');
+  assert.equal(E.initialTab(schema, { startOnWeatherTab: true }), 'weather', 'toggle on: it claims the slot');
+  // A truthy-but-not-true value does not satisfy an eq predicate.
+  assert.equal(E.initialTab(schema, { startOnWeatherTab: 'yes' }), 'general', 'eq stays strict');
+
+  // Claims are checked in bar order, and an empty schema is survivable.
+  const two = bar([T('x', { openWhen: { key: 'k', eq: 1 } }), T('y', { openWhen: { key: 'k', eq: 1 } })]);
+  assert.equal(E.initialTab(two, { k: 1 }), 'x', 'the first claimant wins');
+  assert.equal(E.initialTab(bar([]), {}), '');
+});
