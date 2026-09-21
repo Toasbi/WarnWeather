@@ -288,6 +288,46 @@ test('renderBody: joinPrevious look-ahead skips hidden items (mutually-exclusive
   assert.ok(/\bnb\b/.test(modeRow), 'Mode drops its divider because the next VISIBLE item (wOpt) joins, skipping hidden pOpt');
 });
 
+// A `subheader` ITEM opens a new group and draws the separating line itself
+// (.subhdr.grp's border-top), because its group can render NO rows at all when its
+// master switch is off — there is then no last-row divider to borrow, and the next
+// group used to run straight into it. So the look-ahead reports a LOOSE join for a
+// sub-header: the row above drops its own divider (no two stacked 1px lines) and
+// keeps its normal padding.
+test('renderBody: a subheader item makes the row above it divider-less, loosely', () => {
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [ { title: 'S', items: [
+    { type: 'toggle', messageKey: 'lead', label: 'Lead', defaultValue: false },
+    { type: 'subheader', text: 'Grp', toggleKey: 'grpOn' },
+    { type: 'toggle', messageKey: 'grpOn', label: 'Grp', defaultValue: false },
+    { type: 'toggle', messageKey: 'dep', label: 'Dep', defaultValue: false, showWhen: { key: 'grpOn', eq: true } },
+    { type: 'subheader', text: 'Next' },
+    { type: 'toggle', messageKey: 'tail', label: 'Tail', defaultValue: false }
+  ] } ] } ] };
+  const render = (over) => {
+    const S = Object.assign(E.hydrate(SCH, {}), over || {});
+    return E.renderBody(SCH, 't', { S: S, ENV: { color: true }, USERDATA: {}, openColor: null,
+      collapsed: {}, evalCtx: Object.assign({}, S, { env: { color: true } }) });
+  };
+  const rowClass = (html, key) => {
+    const at = html.indexOf('data-k="' + key + '"');
+    return /class="(row[^"]*)"/.exec(html.slice(html.lastIndexOf('<div class="row', at), at))[1];
+  };
+
+  // Switch off: the group contributes no rows at all, so the two sub-headers are
+  // adjacent — the second one's own line is the ONLY thing separating them.
+  const off = render({ grpOn: false });
+  assert.equal(off.indexOf('data-k="dep"'), -1, 'the dependent row is hidden');
+  assert.match(off, /class="subhdr grp"[\s\S]*?Grp[\s\S]*?class="subhdr grp"[\s\S]*?Next/);
+  assert.equal(rowClass(off, 'lead'), 'row nbl',
+    'the row above a sub-header drops its divider loosely, even with the group collapsed');
+
+  // Switched on: the group's own row now ends it, and it too goes divider-less so the
+  // next sub-header's line is the only one.
+  const on = render({ grpOn: true, dep: true });
+  assert.equal(rowClass(on, 'dep'), 'row nbl', 'the last row of an expanded group joins loosely too');
+  assert.equal((on.match(/\bnb\b/g) || []).length, 0, 'a sub-header never pulls a row up tight');
+});
+
 test('renderBody: groupCard merges consecutive sections into one card with in-card sub-headers', () => {
   const SCH = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [
     { groupCard: 'g', intro: 'Lead-in text.', items: [] },

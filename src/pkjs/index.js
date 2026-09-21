@@ -643,7 +643,11 @@ function isNightForTheme() {
     var s = app.settings;
     if (!s || !s.themeAuto) { return false; }
     var sunTimes = null;
-    if ((s.themeAutoMode || 'sun') === 'sun') {
+    // The SAME mode reader isNightNow uses (theme-schedule.js's resolveThemeMode).
+    // Deciding it here with a second rule is how a blob holding a retired mode ends
+    // up on the sun branch there with no sun times computed for it here — which
+    // answers "never night" and silently turns the switch off.
+    if (themeSchedule.resolveThemeMode(s) === 'sun') {
         var coords = themeCoords();
         if (coords) {
             var times = SunCalc.getTimes(new Date(), coords.lat, coords.lon);

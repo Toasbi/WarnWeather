@@ -199,6 +199,23 @@ def build(ctx):
         # are append-only on-flash IDs. Mirrors WW_THRESHOLD_HIGHLIGHT above.
         if platform != 'aplite':
             ctx.env.CFLAGS += ['-DWW_CURVE_INSET=1']
+        # The "Dim backlight" night tint (appendix/night_light.c) drives the RGB
+        # backlight LED to the user's colour inside their night window. Unlike the
+        # exclusions above, this one is not an aplite budget call at all — it is
+        # hardware: only emery has a colour backlight (the firmware gates the LED on
+        # CONFIG_BACKLIGHT_AW2016, which appears in exactly one board file,
+        # boards/obelix, which is CONFIG_PLATFORM_EMERY), and light_set_color_rgb888()
+        # is a documented no-op everywhere else. So this is the one flag defined by
+        # INCLUSION rather than by excluding aplite: emery gets WW_COLOR_BACKLIGHT,
+        # every other platform lacks it, the guarded call sites in
+        # windows/main_window.c drop out and appendix/night_light.c compiles to an
+        # empty translation unit (--gc-sections reaps anything left). The wire side is
+        # NOT gated here: the phone sends CLAY_NIGHT_LIGHT_UINT8 to every watch, so
+        # persist.h's layout knowledge stays compiled everywhere and the NIGHT_LIGHT
+        # persist key ID stays in persist.c's append-only enum — only the LED-driving
+        # consumption is platform-bound. Mirrors WW_RAIN_RADAR above in shape.
+        if platform == 'emery':
+            ctx.env.CFLAGS += ['-DWW_COLOR_BACKLIGHT=1']
         if enable_memory_logging:
             ctx.env.CFLAGS += ['-DWW_ENABLE_MEMORY_LOGGING=1']
         if fixture_now:

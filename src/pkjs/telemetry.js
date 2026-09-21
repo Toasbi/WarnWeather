@@ -83,6 +83,17 @@ function buildSettingsSnapshot(settings, watchInfo) {
     // null (-> absent fields) unless custom is active, so preset rows stay unchanged.
     var customPacked = safe.layoutPreset === 'custom'
         ? viewCycle.buildCustomCycle(safe).map(viewCycle.packSpec) : null;
+    // --- the Nighttime card's gates, resolved once for the fields below ---------
+    // Dim backlight is HARDWARE-gated, not only setting-gated: the red tint is
+    // light_set_color_rgb888() and emery is the only watch with the LED
+    // (config-ui/lib/platform.js, the platform->capability SoT). The toggle ships ON,
+    // so an ungated Boolean() would report a fleet of basalt watches "using" a
+    // feature their hardware cannot perform. Same convention as the graph colours on
+    // a B&W watch: no capability, no fields. watchInfo absent reads as basalt, as it
+    // does for the colours above — which answers false, the safe direction.
+    var hasColorBacklight = configUi.isColorBacklightPlatform(
+        (watchInfo && watchInfo.platform) ? watchInfo.platform : 'basalt');
+    var dimOn = Boolean(hasColorBacklight && boolDefaultOn(safe.backlightDim));
     var snapshot = {
         temperatureUnits: safe.temperatureUnits,
         tempSlotDisplay: safe.tempSlotDisplay,
@@ -111,8 +122,26 @@ function buildSettingsSnapshot(settings, watchInfo) {
         provider: safe.provider,
         fetchIntervalMin: toIntOrUndefined(safe.fetchIntervalMin),
         rainCountdownHorizon: toIntOrUndefined(safe.rainCountdownHorizon),
+        // The battery saver's window — the saver's OWN pair, as it has always been;
+        // the Nighttime card groups it with two other features but shares no hours
+        // with them. Present only while the saver is on ("value in effect"), which is
+        // also how supabase/reports/telemetry-dashboards.sql reads "battery saver on".
         sleepStartHour: safe.sleepNightEnabled ? toIntOrUndefined(safe.sleepStartHour) : undefined,
         sleepEndHour: safe.sleepNightEnabled ? toIntOrUndefined(safe.sleepEndHour) : undefined,
+        // Dim backlight (emery only — see hasColorBacklight above). Sub-settings only
+        // while it is on: the same "value in effect" rule, and the themeAuto block
+        // below one card apart. Its hours are unconditional under the switch — there
+        // is no mode to be in, so an "on" row always has a window to report.
+        backlightDim: hasColorBacklight ? boolDefaultOn(safe.backlightDim) : undefined,
+        backlightDimStartHour: dimOn ? toIntOrUndefined(safe.backlightDimStartHour) : undefined,
+        backlightDimEndHour: dimOn ? toIntOrUndefined(safe.backlightDimEndHour) : undefined,
+        // The LED colour, in its stored 'r,g,b' form rather than the '#RRGGBB' the
+        // graph colours use: those are screen colours resolved through line-style for
+        // the polarity the watch paints, with 'default' as a sentinel, and this is
+        // three LED channel levels with neither. It is reported at all because the
+        // shipped default (40,10,0) is a guess at "dim red", and what people dial in
+        // is the only way to find out whether the guess was right.
+        backlightDimColor: dimOn ? safe.backlightDimColor : undefined,
         // The automatic day/night theme switch. Sub-settings only while the
         // switch is on, and the manual hours only in manual mode — the
         // sleepStartHour "value in effect" rule, twice over.

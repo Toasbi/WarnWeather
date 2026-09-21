@@ -13,6 +13,7 @@ const { buildClayPayload, truncateUtf8Bytes } = require('../src/pkjs/clay-payloa
 const holidayMask = require('../src/pkjs/holidays/holiday-mask');
 const viewCycle = require('../src/pkjs/view-cycle');
 const lineStyle = require('../src/pkjs/line-style');
+const nightLight = require('../src/pkjs/night-light');
 
 const NOW = new Date('2026-06-26T00:00:00Z');
 
@@ -347,6 +348,94 @@ test('CLAY_LARGE_GRAPH_FONT rides every platform (only the WATCH gates it)', () 
   // on it under PBL_PLATFORM_EMERY (config.h's field carries the same guard).
   const p = buildClayPayload(baseSettings(), { platform: 'aplite' }, NOW);
   assert.equal(Object.prototype.hasOwnProperty.call(p, 'CLAY_LARGE_GRAPH_FONT'), true);
+});
+
+// ── Dim backlight (CLAY_NIGHT_LIGHT_UINT8) ──────────────────────────
+
+test('CLAY_NIGHT_LIGHT_UINT8 is the five bytes night-light.js packs', () => {
+  const s = Object.assign(baseSettings(), {
+    backlightDim: true, backlightDimMode: 'custom',
+    backlightDimStartHour: '22', backlightDimEndHour: '6',
+    backlightDimColor: '96,0,0'
+  });
+  const p = buildClayPayload(s, { platform: 'emery' }, NOW);
+  assert.deepEqual(p.CLAY_NIGHT_LIGHT_UINT8, [96, 0, 0, 22, 6]);
+  // Packed by the module, not re-derived here, so the tuple can't drift from the
+  // resolution rules the settings page and telemetry read the same keys with.
+  assert.deepEqual(p.CLAY_NIGHT_LIGHT_UINT8, nightLight.buildNightLightBytes(s));
+  assert.equal(p.CLAY_NIGHT_LIGHT_UINT8.length, 5);
+});
+
+test('the Dim backlight window on the wire is the feature own hours, always', () => {
+  // The battery saver's pair is a NEGATIVE control here: it disagrees at both ends,
+  // so a reader that picked it up (this branch shipped exactly that for a while)
+  // changes the bytes rather than passing by luck.
+  const s = Object.assign(baseSettings(), {
+    sleepStartHour: '1', sleepEndHour: '5',
+    backlightDimStartHour: '22', backlightDimEndHour: '6',
+    // Explicit, so this window test does not ride on whatever the colour default is.
+    backlightDimColor: '96,0,0'
+  });
+  assert.deepEqual(buildClayPayload(s, { platform: 'emery' }, NOW).CLAY_NIGHT_LIGHT_UINT8,
+    [96, 0, 0, 22, 6]);
+  // A leftover backlightDimMode from a dev build of this branch decides nothing.
+  ['custom', 'night', 'wat'].forEach((mode) => {
+    const stale = Object.assign({}, s, { backlightDimMode: mode });
+    assert.deepEqual(buildClayPayload(stale, { platform: 'emery' }, NOW).CLAY_NIGHT_LIGHT_UINT8,
+      [96, 0, 0, 22, 6], 'stale backlightDimMode ' + mode + ' must not move the window');
+  });
+});
+
+test('the Dim backlight switch OFF rides the wire as the zeroed tuple', () => {
+  // start === end is the app's "never" window, so the watch needs no enabled flag.
+  const s = Object.assign(baseSettings(), { backlightDim: false, backlightDimColor: '1,2,3' });
+  assert.deepEqual(buildClayPayload(s, { platform: 'emery' }, NOW).CLAY_NIGHT_LIGHT_UINT8,
+    [0, 0, 0, 0, 0]);
+});
+
+test('CLAY_NIGHT_LIGHT_UINT8 rides every platform (only the WATCH gates it)', () => {
+  // The LED is emery-only, but computeEnv reports colorBacklight FALSE for an unknown
+  // platform, so gating the key would starve a real emery watch of the setting over a
+  // watchInfo hiccup -- CLAY_LARGE_GRAPH_FONT's reasoning above. Sending it everywhere
+  // is harmless: light_set_color_rgb888() is a documented no-op without the LED.
+  [{ platform: 'aplite' }, { platform: 'basalt' }, { platform: 'chalk' }, null]
+    .forEach((watchInfo) => {
+      const p = buildClayPayload(baseSettings(), watchInfo, NOW);
+      assert.equal(p.CLAY_NIGHT_LIGHT_UINT8.length, 5,
+        'dropped for ' + JSON.stringify(watchInfo));
+    });
+});
+
+test('every Dim backlight key moves the Clay payload (so the outbox re-sends it)', () => {
+  // outbox.sendClay keys its one change-detector category on the whole payload, so a
+  // setting that leaves every byte alone is a setting the watch never hears about.
+  function base() {
+    return Object.assign(baseSettings(), {
+      backlightDim: true,
+      backlightDimStartHour: '22', backlightDimEndHour: '6',
+      backlightDimColor: '10,20,30'
+    });
+  }
+  const packed = JSON.stringify(buildClayPayload(base(), { platform: 'emery' }, NOW));
+  const edits = {
+    backlightDim: false, backlightDimStartHour: '21',
+    backlightDimEndHour: '5', backlightDimColor: '11,20,30'
+  };
+  Object.keys(edits).forEach((key) => {
+    const s = base();
+    s[key] = edits[key];
+    assert.notEqual(JSON.stringify(buildClayPayload(s, { platform: 'emery' }, NOW)), packed,
+      key + ' must dirty the Clay payload');
+  });
+  // ...and the mirror image: a key the Nighttime card no longer has must leave the
+  // payload byte-identical, or a stale value in storage buys a needless send.
+  ['backlightDimMode', 'sleepNightMode', 'sleepNightStartHour', 'sleepNightEndHour']
+    .forEach((key) => {
+      const s = base();
+      s[key] = 'custom';
+      assert.equal(JSON.stringify(buildClayPayload(s, { platform: 'emery' }, NOW)), packed,
+        key + ' is retired and must not dirty the Clay payload');
+    });
 });
 
 // ── Custom layout wire branch ──────────────────────────────────────────────

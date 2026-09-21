@@ -57,6 +57,26 @@ test('shell.html names the badge dots by shape, not by threshold vocabulary', ()
   assert.equal(/\.pen-dot\.danger\b/.test(shell), false, '.pen-dot.danger is threshold vocabulary');
 });
 
+test('shell.html sizes the colour readout to fit a row beside the Edit button', () => {
+  // One fragment renders in two places (html.js swatchReadout): centered above the rgb
+  // sliders in a sheet, and inside .thr-swatch on a row. Node has no layout engine, so
+  // what is checkable here is the arithmetic the rules encode — a 24px chip with the
+  // sheet's 5px/6px padding and 1px borders is 36px, taller than the 33px floor every
+  // other Edit row stands at, which would make this one row the odd one out. The row
+  // copy trims ONLY the padding (3px → 32px) and keeps the chip at the sheet's size.
+  assert.ok(/\.sw-wrap\.sw-ro\s*\{[^}]*cursor:\s*default/.test(shell),
+    '.sw-ro is a readout, not a trigger: it must drop the pointer cursor');
+  const rowRule = /\.thr-swatch \.sw-wrap\.sw-ro\s*\{([^}]*)\}/.exec(shell);
+  assert.ok(rowRule, 'missing the row-scoped .sw-ro rule');
+  assert.match(rowRule[1], /padding:\s*3px 9px 3px 4px/, 'the row copy trims the padding');
+  assert.equal(/\.thr-swatch \.sw-wrap\.sw-ro[^}]*(width|height|font)\s*:/.test(shell), false,
+    'the chip and the hex keep the SHEET\'s size — only the padding differs');
+  // The base chrome the trim leans on, so a change there cannot silently break the fit.
+  assert.ok(/\.sw-wrap b\s*\{[^}]*width:\s*24px/.test(shell), '.sw-wrap b is the 24px chip');
+  assert.ok(/\.thr-btn\s*\{[^}]*min-height:\s*33px/.test(shell),
+    'and 33px is the height the trimmed readout has to fit inside');
+});
+
 test('shell.html gives the Edit button a height floor so a control-less row matches the slots', () => {
   // `.row .rgt.has-pen` stretches the button to whatever control sits beside it, but a
   // type:'sheet' row has an EMPTY control cell — without this floor its Edit button
@@ -66,4 +86,22 @@ test('shell.html gives the Edit button a height floor so a control-less row matc
     '.thr-btn must carry the min-height floor');
   assert.ok(/\.row \.rgt\.has-pen\s*\{[^}]*align-items:\s*stretch/.test(shell),
     'a floor, not a replacement: rows WITH a control still stretch to it');
+});
+
+test('shell.html lets a .grp sub-header own the line above it', () => {
+  // A group sub-header can no longer borrow the preceding group's last-row divider:
+  // when a group's master switch is off it renders NO rows, and the next group then ran
+  // straight into it with nothing between them. So .subhdr.grp draws its own border-top
+  // (the engine joins the row above loosely, so only one 1px line is ever drawn), and a
+  // sub-header that OPENS its card body drops it — nothing above it to separate from.
+  assert.ok(/\.subhdr\.grp\s*\{[^}]*border-top:\s*1px solid var\(--row-line\)/.test(shell),
+    '.subhdr.grp must carry its own top rule');
+  assert.ok(/\.subhdr\.grp:first-child\s*\{[^}]*border-top:\s*none/.test(shell),
+    'a leading sub-header must not draw a line under the card header');
+  assert.ok(shell.indexOf('.subhdr.grp:first-child') > shell.indexOf('.subhdr.grp { border-top'),
+    'the :first-child reset must follow the rule it overrides');
+  // The PLAIN .subhdr (a groupCard section title) keeps the borrowed-divider deal: those
+  // sections always end in rows, and a border there would double up with one.
+  assert.equal(/\.subhdr\s*\{[^}]*border-top/.test(shell), false,
+    'only the .grp flavour owns a line');
 });

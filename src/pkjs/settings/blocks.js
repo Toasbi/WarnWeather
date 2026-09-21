@@ -38,6 +38,12 @@ if (typeof require !== 'undefined') {
     // ahead of every app file), rather than a fourth local copy of the same six digits.
     var intToHex = (typeof require !== 'undefined')
         ? require('../config-ui/lib/color.js').intToHex : PConf.color.intToHex;
+    // The rgb control's own value helpers (config-ui/lib/range-control.js, likewise
+    // concatenated ahead of the app files): a badge previewing an rgb key parses the
+    // stored "r,g,b" string with the same parser — fallbacks included — as the sliders
+    // behind it, so the dot cannot show a colour the sheet would not open on.
+    var rangeControl = (typeof require !== 'undefined')
+        ? require('../config-ui/lib/range-control.js') : PConf.rangeControl;
 
         // Slot-dropdown options resolver: derives a status-line slot's option list from the
     // catalog (Tasks 2 + 17) — Empty first, availability-gated, sibling+excludeCodes filtered.
@@ -565,6 +571,39 @@ if (typeof require !== 'undefined') {
             });
         }
         return {label: 'Edit', dots: dots};
+    });
+
+    // Row badge for a `sheet` row whose sheet holds ONE rgb control — schema.js'
+    // Nighttime card, whose "Color" row opens the dim-backlight sliders. It reports a
+    // `chip`, not `dots`: the engine prints that as the full swatch-and-hex readout the
+    // sheet itself shows above the sliders (html.js swatchReadout, one builder for both),
+    // so the row names the colour it is set to instead of hinting at it with a 9px pip.
+    // The graph rows keep dots because each of them previews two or three colours at
+    // once and three readouts would not fit a row — chip is the ONE-colour shape.
+    //
+    // The hex is derived, not stored: the value is the control's "r,g,b" wire string,
+    // parsed by range-control.js' own parser so an unset or bruised value (blank, two
+    // channels, 300) badges exactly the colour the sliders would open on rather than a
+    // second reading of the format.
+    /**
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env — unused: the row that carries this badge owns
+     *     the hardware gate (and the sheet repeats it), so a badge is only ever asked
+     *     for where the colour applies.
+     * @param {Object} args editBadgeFrom.args — {key, defaultValue}: the rgb key this
+     *     row previews (a `sheet` row has no messageKey of its own to merge in) and
+     *     that key's schema default, for a value the parser rejects.
+     * @returns {?{label: string, ariaNote: string, chip: string}} The badge, or null
+     *     when the row named no key to preview.
+     */
+    PConf.badgeResolvers.register('rgbSwatch', function (S, env, args) {
+        if (!rangeControl || !args || !args.key) { return null; }
+        var hex = rangeControl.rgbHex(rangeControl.parseRgb(S ? S[args.key] : null,
+            {defaultValue: args.defaultValue}));
+        // The readout is aria-hidden (it is a preview, and its hex would be read out a
+        // character at a time), so ariaNote stays the announcement of the colour — the
+        // same string now printed on the row and above the sheet's sliders.
+        return {label: 'Edit', ariaNote: hex, chip: hex};
     });
 
     // Reset-to-defaults for the whole status-bar card (the text button in the Watch

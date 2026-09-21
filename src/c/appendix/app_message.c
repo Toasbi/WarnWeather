@@ -18,6 +18,12 @@
 #if defined(WW_THRESHOLD_HIGHLIGHT)
 #include "status_threshold.h"
 #endif
+#if defined(WW_COLOR_BACKLIGHT)
+// Only for night_light_refresh() at the dirty checkpoint below — the wire side
+// (NIGHT_LIGHT_BYTES, night_light_wire_ok) comes from persist.h and is compiled
+// on every platform. Guarded like status_threshold.h above.
+#include "night_light.h"
+#endif
 
 // Payloads arrive split into categories that map onto screen areas (forecast
 // chart, status row, radar). Each category is processed independently and the
@@ -395,6 +401,67 @@ static bool handle_line_style(DictionaryIterator *iterator, bool *forecast_dirty
     return true;
 }
 
+#if defined(NIGHT_LIGHT_SUPPORTED)
+// "Dim backlight" (the Nighttime card) — the tint the RGB backlight LED burns at
+// night and the window it burns it in. Settings-derived, so the tuple rides the Clay
+// message alongside the line styling above.
+//
+// STORAGE ONLY: this writes the persisted tuple and reports whether it moved.
+// Nothing here touches the LED. The apply cannot live in a message handler at all —
+// light_set_color_rgb888()'s override lasts only while the app is foregrounded and
+// the system resets it on preempt (app_light.h), so it needs the tick and focus
+// paths night_light.c owns. What the change report buys is a re-apply at the
+// checkpoint at the end of inbox_received_callback, which is the one path a
+// night-light-only settings save reaches.
+//
+// Wire layout, canonical copy in persist.h: [0..2] LED r, g, b as RAW 8-bit channels,
+// [3] window start hour INCLUSIVE, [4] window end hour EXCLUSIVE. The bytes are
+// stored verbatim — nothing repacked or translated on the way through, the same
+// deal the NIGHT_COLORS tail above gets. The window wraps past midnight and
+// start == end means NEVER, which is exactly what the phone sends (all five bytes
+// zeroed) when the toggle is off: there is no enabled flag to look for.
+//
+// GUARDED WHOLE, like handle_curve_insets / handle_thresholds above, by
+// NIGHT_LIGHT_SUPPORTED (persist.h — "this WATCH has the LED": the SDK's
+// PBL_RGB_BACKLIGHT capability, emery alone today). That is the gate for STORAGE,
+// and it is the right one here because it is exactly what declares the persist
+// accessors this handler calls. The sibling gate WW_COLOR_BACKLIGHT (wscript, also
+// emery alone) means "this BUILD carries the LED-driving module", which is why the
+// re-apply at the end of inbox_received_callback carries it and this handler does
+// not — the same way PBL_HEALTH and WW_VIEW_CYCLE coexist. Everywhere else the
+// handler, its dict_find and the whole persist surface drop out of the image and
+// --gc-sections reaps the rest. The phone sends the key to EVERY watch on purpose
+// (clay-payload.js: gating it on watchInfo would starve a real emery watch over a
+// platform-detection hiccup), so the skipping is the watch's job. What is NOT
+// guarded is the LAYOUT knowledge itself — persist.h's NIGHT_LIGHT_BYTES and
+// night_light_wire_ok() are compiled on every platform, for the reason the
+// LINE_STYLE_NIGHT_OFFSET comment above gives: the wire is identical everywhere,
+// only the consumption is hardware-bound.
+//
+// GROWTH CONTRACT, the same one CLAY_LINE_STYLE_UINT8 spells out: NIGHT_LIGHT_BYTES
+// is a MINIMUM length, not an exact one. A longer tuple from a newer phone applies
+// its first five bytes and ignores the tail; a shorter or absent one changes nothing
+// at all. Append a sixth byte behind its own `length >= <offset> + <size>` check
+// rather than widening the minimum, which would start REJECTING the five-byte tuples
+// today's phone bundle still emits.
+static bool handle_night_light(DictionaryIterator *iterator, bool *night_light_dirty) {
+    Tuple *tuple = dict_find(iterator, MESSAGE_KEY_CLAY_NIGHT_LIGHT_UINT8);
+    if (!tuple) { return false; }
+    if (tuple->type != TUPLE_BYTE_ARRAY
+            || !night_light_wire_ok(tuple->value->data, tuple->length)) {
+        // Reject atomically; the last good persisted tuple stays intact. An hour
+        // byte outside 0..23 lands here too: clamping it would invent a window the
+        // user never picked, and for this feature the window IS the on/off state.
+        APP_LOG(APP_LOG_LEVEL_WARNING,
+                "Night-light tuple malformed (%u bytes) — skipping",
+                (unsigned) tuple->length);
+        return true;
+    }
+    *night_light_dirty |= persist_set_night_light(tuple->value->data);
+    return true;
+}
+#endif  // NIGHT_LIGHT_SUPPORTED
+
 // Parse (bytes→Config, config_wire.c) is separate from apply (Config→persist +
 // cache reload + dirty bit, here). config_parse_wire returning false means the
 // message carries no config — normal for weather messages.
@@ -446,6 +513,9 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     bool radar_dirty = false;     // radar chart + top-view availability
     bool config_dirty = false;    // whole window (config feeds every layer)
     bool calendar_dirty = false;  // calendar holiday highlights only
+#if defined(NIGHT_LIGHT_SUPPORTED)
+    bool night_light_dirty = false;  // backlight tint/window (RGB-backlight watches only)
+#endif
 #if defined(WW_RAIN_RADAR)
     // main_window_radar_has_data() is the ONE radar-availability fact the ViewSpec
     // resolves against — the snooze latch/release does NOT feed it. Snapshot it
@@ -493,6 +563,12 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     // onto the weather message (fixture-weather.js), so this must not sit
     // behind a "settings message only" branch or fixtures render stale colors.
     handled |= handle_line_style(iterator, &forecast_dirty);
+#if defined(NIGHT_LIGHT_SUPPORTED)
+    // Called for every inbound message like handle_line_style above, not behind a
+    // "settings message only" branch: the fixture path bundles claySettings onto the
+    // weather message (fixture-weather.js).
+    handled |= handle_night_light(iterator, &night_light_dirty);
+#endif
     handled |= handle_clay_config(iterator, &config_dirty);
     handled |= handle_holidays(iterator, &calendar_dirty);
 #if defined(WW_RAIN_RADAR)
@@ -602,6 +678,31 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     if (calendar_dirty) {
         calendar_layer_refresh();
     }
+#if defined(NIGHT_LIGHT_SUPPORTED)
+    if (night_light_dirty) {
+        // The tint or the window actually moved, so the LED wants re-evaluating
+        // now rather than at the next minute tick — a save made from inside the
+        // window has to take effect while the user is still looking at the watch.
+        // This is the ONLY checkpoint that reaches a night-light-only save:
+        // config_dirty is set by handle_clay_config alone, so a Clay message that
+        // changed nothing but these five bytes never touches main_window_refresh()
+        // and would otherwise heal up to 60 s late — on exactly the interaction the
+        // feature is configured through. The persist setter's change report is what
+        // keeps a settings save that left the tuple alone from re-tinting anything,
+        // and night_light_refresh() is itself a no-op unless the answer moved, so
+        // the double path (here + config_dirty's main_window_refresh) costs nothing.
+#if defined(WW_COLOR_BACKLIGHT)
+        night_light_refresh();
+#else
+        // Storage without an apply: this build persisted the tuple (the watch
+        // claims an RGB backlight) but carries no night_light.c to drive it, which
+        // wscript's emery-only WW_COLOR_BACKLIGHT never produces today. Say so
+        // rather than silently doing nothing — see night_light.c's #error, which
+        // catches the opposite, link-breaking half of the same drift.
+        APP_LOG(APP_LOG_LEVEL_DEBUG, "Night-light settings changed (not applied on this build)");
+#endif
+    }
+#endif
     if (!handled) {
         APP_LOG(APP_LOG_LEVEL_WARNING, "Bad payload received in app_message.c");
     }

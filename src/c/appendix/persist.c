@@ -70,7 +70,13 @@ enum key {
     // theme_pick discards the colour arm there), but the ID stays listed on
     // every platform: the enum is append-only because the numbers are the
     // on-flash slots.
-    NIGHT_COLORS                  // 47 — 5 GColor8 argb bytes + flags, absent = the built-in defaults
+    NIGHT_COLORS,                 // 47 — 5 GColor8 argb bytes + flags, absent = the built-in defaults
+    // Appended: the night-light backlight tint and the window it burns in
+    // (layout in persist.h). Only a watch with an RGB backlight (emery today)
+    // can show it, so every other build declares the accessors away and never
+    // reads or writes this slot, but the ID stays listed on every platform:
+    // the enum is append-only because the numbers are the on-flash slots.
+    NIGHT_LIGHT                   // 48 — 3 raw LED bytes + start/end hour, absent = never
 };
 
 // Setters report whether the stored value actually changed so callers can
@@ -611,3 +617,28 @@ void persist_get_night_colors(uint8_t out[NIGHT_COLOR_BYTES]) {
     memcpy(out, stored, sizeof(stored));
 }
 #endif  // PBL_COLOR
+
+#if defined(NIGHT_LIGHT_SUPPORTED)
+bool persist_set_night_light(const uint8_t bytes[NIGHT_LIGHT_BYTES]) {
+    // Stored verbatim off the wire (app_message.c validated it): three raw LED
+    // channels then the window's start/end hour. write_data_if_changed reports
+    // whether the slot actually moved, which is what gates the re-apply — a
+    // settings save that leaves this tuple alone must not re-tint the LED.
+    return write_data_if_changed(NIGHT_LIGHT, bytes, NIGHT_LIGHT_BYTES);
+}
+
+void persist_get_night_light(uint8_t out[NIGHT_LIGHT_BYTES]) {
+    // Default = the pre-feature behaviour: the all-zero tuple, whose start == end
+    // is the established "never" window (persist.h), so an install that has never
+    // received the setting leaves the backlight on the user's own colour.
+    memset(out, 0, NIGHT_LIGHT_BYTES);
+    if (!persist_exists(NIGHT_LIGHT)) { return; }
+    // Read into a scratch first: a short read must not scribble on the
+    // already-defaulted out[] bytes.
+    uint8_t stored[NIGHT_LIGHT_BYTES];
+    if (persist_read_data(NIGHT_LIGHT, stored, sizeof(stored)) < (int) sizeof(stored)) {
+        return;  // short/corrupt — keep the default
+    }
+    memcpy(out, stored, sizeof(stored));
+}
+#endif  // NIGHT_LIGHT_SUPPORTED

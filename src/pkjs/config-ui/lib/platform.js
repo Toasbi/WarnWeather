@@ -34,6 +34,15 @@ var NO_THRESHOLD_PLATFORMS = { aplite: true };
 // a Pebble 2 SE renders the HR slot as "--". Unknown platforms are treated as
 // non-HR (conservative — don't offer a permanently-empty slot on an unknown watch).
 var HR_PLATFORMS = { emery: true, diorite: true };
+// Platforms whose hardware carries an RGB backlight LED the watch can tint with
+// light_set_color_rgb888(): emery (Pebble Time 2) only. PebbleOS builds the colour
+// backlight driver (CONFIG_BACKLIGHT_AW2016) for the obelix board alone, and obelix
+// is the emery platform; every other board drives a white-only backlight, where the
+// call is a documented no-op. So a tint control elsewhere would promise a colour the
+// LED can never show — including on basalt/chalk, which have a colour SCREEN but a
+// white backlight (this is NOT the `color` fact). Unknown platforms are treated as
+// white-backlight (conservative — don't offer an LED feature on an unknown watch).
+var COLOR_BACKLIGHT_PLATFORMS = { emery: true };
 /**
  * Whether a Pebble platform has a color display (false for the B/W platforms).
  * @param {string} platform Platform name (e.g. 'basalt', 'aplite', 'chalk').
@@ -80,12 +89,20 @@ function isThresholdPlatform(platform) { return !NO_THRESHOLD_PLATFORMS[platform
  */
 function isHrPlatform(platform) { return Boolean(HR_PLATFORMS[platform]); }
 /**
+ * Whether a Pebble platform can tint its backlight LED (emery only). Unknown
+ * platforms are treated as white-backlight (conservative — avoids offering a
+ * tint that light_set_color_rgb888() would silently ignore on an unrecognized watch).
+ * @param {string} platform Platform name (e.g. 'emery', 'basalt').
+ * @returns {boolean} True if the platform has an RGB backlight LED.
+ */
+function isColorBacklightPlatform(platform) { return Boolean(COLOR_BACKLIGHT_PLATFORMS[platform]); }
+/**
  * Derive the config-UI environment facts from a Pebble watchInfo object.
  * @param {Object} watchInfo Pebble watchInfo; its .platform names the model.
- * @returns {{color: boolean, round: boolean, platform: string, health: boolean, radar: boolean, themePolarity: boolean, hr: boolean, thresholds: boolean}} Env: color display, round (chalk), platform name, health support, radar support, theme light-polarity support, heart-rate sensor support, and threshold-highlight support.
+ * @returns {{color: boolean, round: boolean, platform: string, health: boolean, radar: boolean, themePolarity: boolean, hr: boolean, thresholds: boolean, colorBacklight: boolean}} Env: color display, round (chalk), platform name, health support, radar support, theme light-polarity support, heart-rate sensor support, threshold-highlight support, and RGB-backlight-LED support.
  */
 function computeEnv(watchInfo) {
   var p = watchInfo && watchInfo.platform ? watchInfo.platform : '';
-  return { color: isColorPlatform(p), round: p === 'chalk', platform: p, health: isHealthPlatform(p), radar: isRadarPlatform(p), themePolarity: isThemePolarityPlatform(p), hr: isHrPlatform(p), thresholds: isThresholdPlatform(p) };
+  return { color: isColorPlatform(p), round: p === 'chalk', platform: p, health: isHealthPlatform(p), radar: isRadarPlatform(p), themePolarity: isThemePolarityPlatform(p), hr: isHrPlatform(p), thresholds: isThresholdPlatform(p), colorBacklight: isColorBacklightPlatform(p) };
 }
-module.exports = { isColorPlatform: isColorPlatform, isHealthPlatform: isHealthPlatform, isRadarPlatform: isRadarPlatform, isThemePolarityPlatform: isThemePolarityPlatform, isHrPlatform: isHrPlatform, isThresholdPlatform: isThresholdPlatform, computeEnv: computeEnv };
+module.exports = { isColorPlatform: isColorPlatform, isHealthPlatform: isHealthPlatform, isRadarPlatform: isRadarPlatform, isThemePolarityPlatform: isThemePolarityPlatform, isHrPlatform: isHrPlatform, isThresholdPlatform: isThresholdPlatform, isColorBacklightPlatform: isColorBacklightPlatform, computeEnv: computeEnv };

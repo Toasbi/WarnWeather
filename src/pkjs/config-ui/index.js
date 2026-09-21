@@ -96,6 +96,8 @@ module.exports = {                                        // factory + reusable 
   createConfig: createConfig,
   isColorPlatform: platform.isColorPlatform, computeEnv: platform.computeEnv,
   isThemePolarityPlatform: platform.isThemePolarityPlatform,
+  // telemetry.js gates the Dim backlight fields on this: the LED is emery's alone.
+  isColorBacklightPlatform: platform.isColorBacklightPlatform,
   intToHex: color.intToHex, hexToInt: color.hexToInt,
   deriveDefaults: defaults.deriveDefaults, deriveColorKeys: defaults.deriveColorKeys
 };

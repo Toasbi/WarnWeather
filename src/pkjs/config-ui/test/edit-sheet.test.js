@@ -115,6 +115,48 @@ test('badge with an empty dot list: the Edit button still renders, no swatch', (
     'an empty ariaNote adds no parentheses');
 });
 
+test('badge chip: ONE colour renders the full swatch+hex readout, not a pip', () => {
+  // The one-colour badge shape. A row whose sheet holds a single colour shows what the
+  // sheet itself shows above its control — the same swatchReadout fragment — so the row
+  // says WHICH colour is set instead of hinting at it with a 9px dot. Multi-colour rows
+  // keep `dots`, which is why both shapes exist.
+  const htmlLib = require('../lib/html.js');
+  const CHIP = JSON.parse(JSON.stringify(SCHEMA));
+  CHIP.tabs[0].sections[0].items[0].editBadgeFrom = { resolver: 'penBadgeChip' };
+  global.PConf.badgeResolvers.register('penBadgeChip', function () {
+    return { label: 'Edit', ariaNote: '#00AAFF', chip: '#00AAFF' };
+  });
+  const html = E.renderBody(CHIP, 't', cxFor(E.hydrate(CHIP, {})));
+  assert.ok(html.indexOf(htmlLib.swatchReadout('#00AAFF')) !== -1,
+    'the badge prints the shared readout, hookless');
+  assert.ok(html.indexOf('>#00AAFF<') !== -1, 'the hex is VISIBLE on the row, not just announced');
+  assert.equal(html.indexOf('pen-dot'), -1, 'a chip badge invents no dots');
+  // A chip alone must open the swatch wrapper — the dots/bold guard used to collapse it.
+  assert.ok(/thr-swatch[^>]*><span class="sw-wrap sw-ro">/.test(html),
+    'the readout sits inside the aria-hidden preview wrapper');
+  // ...and the Edit affordance is still there, still trailing the control on the right
+  // edge, still announcing the colour (the readout itself is aria-hidden).
+  assert.ok(/thr-swatch[\s\S]*?data-select="slot"[\s\S]*?thr-btn/.test(html),
+    'readout leads the control, Edit trails it');
+  assert.ok(html.indexOf('aria-label="Edit settings for the Left slot value (#00AAFF)"') !== -1,
+    'the colour is announced on the button');
+});
+
+test('badge chip tracks the value, and a chipless badge grows no readout', () => {
+  const CHIP = JSON.parse(JSON.stringify(SCHEMA));
+  CHIP.tabs[0].sections[0].items[0].editBadgeFrom = { resolver: 'penBadgeChipFromState' };
+  global.PConf.badgeResolvers.register('penBadgeChipFromState', function (S) {
+    return { label: 'Edit', chip: S.windColor };
+  });
+  const S = E.hydrate(CHIP, {});
+  assert.ok(E.renderBody(CHIP, 't', cxFor(S)).indexOf('>#FFAA00<') !== -1, 'the hydrated colour');
+  S.windColor = '#123456';
+  assert.ok(E.renderBody(CHIP, 't', cxFor(S)).indexOf('>#123456<') !== -1, 'and the changed one');
+  // The other badge shapes are untouched by the new field: penBadge reports dots only.
+  const dotted = E.renderBody(BADGED_SCHEMA, 't', cxFor(E.hydrate(BADGED_SCHEMA, {})));
+  assert.equal(dotted.indexOf('sw-ro'), -1, 'a dots badge renders no readout');
+});
+
 test('badge bold flag: a pen-b "B" leads the swatch, with or without dots', () => {
   // bold + dots: the B renders inside the swatch, BEFORE the colour dots.
   const BOLD = JSON.parse(JSON.stringify(SCHEMA));

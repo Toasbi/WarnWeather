@@ -64,6 +64,52 @@ test('the Show unit toggles are independent of each other', () => {
       UNIT_KEYS[i] + ' and ' + UNIT_KEYS[i + 1 + j] + ' share a signature slot')));
 });
 
+// The night pause decides whether fetching happens at all (and which IS_SLEEPING glyph
+// the forced fetch pushes), so every key that moves the window has to force the refetch.
+// That is exactly the three keys sleep-window.js reads, no more: the Nighttime card's
+// other two features pause nothing, and signing a resolved window instead of the raw
+// keys would make an edit that happens to land on the same hours invisible.
+const SLEEP_KEYS = ['sleepNightEnabled', 'sleepStartHour', 'sleepEndHour'];
+
+test('every sleep-window key changes the render signature (forces a refetch)', () => {
+  const base = { sleepNightEnabled: true, sleepStartHour: '0', sleepEndHour: '7' };
+  const changed = { sleepNightEnabled: false, sleepStartHour: '1', sleepEndHour: '8' };
+  SLEEP_KEYS.forEach((key) => {
+    assert.notEqual(renderSignature({ ...base, [key]: changed[key] }), renderSignature(base),
+      key + ' must be part of the render signature');
+  });
+});
+
+test('the sleep-window keys each occupy their own signature slot', () => {
+  // Without distinct positions, editing the start hour could read as editing the end.
+  const seen = SLEEP_KEYS.map((key) => renderSignature({ [key]: 'X' }));
+  seen.forEach((sig, i) => seen.slice(i + 1).forEach((other, j) =>
+    assert.notEqual(sig, other,
+      SLEEP_KEYS[i] + ' and ' + SLEEP_KEYS[i + 1 + j] + ' share a signature slot')));
+});
+
+// The signature's job is to force a REFETCH, so a setting that reaches the watch by
+// another route must stay out of it or every edit buys a needless provider call.
+// The retired shared-window keys are in this list too: a reader that quietly started
+// signing one again would resurrect a key the schema no longer has.
+test('settings that need no refetch stay OUT of the render signature', () => {
+  const base = renderSignature({ sleepNightEnabled: true, sleepStartHour: '0',
+    sleepEndHour: '7' });
+  [// retired with the shared Night hours window
+    { sleepNightMode: 'custom' }, { sleepNightStartHour: '22' },
+    { sleepNightEndHour: '6' }, { backlightDimMode: 'custom' },
+    // live, but Clay-delivered (the LED tuple) or phone-local (the theme flip)
+    { backlightDim: false }, { backlightDimStartHour: '22' },
+    { backlightDimEndHour: '6' }, { backlightDimColor: '1,2,3' },
+    { themeAuto: true }, { themeAutoMode: 'manual' }, { themeNight: 'light' },
+    { themeAutoStartHour: '20' }, { themeAutoEndHour: '7' }
+  ].forEach((over) => {
+    assert.equal(renderSignature({ sleepNightEnabled: true, sleepStartHour: '0',
+      sleepEndHour: '7', ...over }), base,
+    JSON.stringify(over) + ' must not force a refetch');
+  });
+});
+
 // The weather kinds are evaluated phone-side at weather-bake time, so enabling one
 // only reaches the watch through a refetch. Without these keys in the signature,
 // shouldForceFetch stays false for a threshold-only edit and the user sees nothing until

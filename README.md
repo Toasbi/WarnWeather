@@ -49,12 +49,13 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 **Watchface themes**
 * Dark and Light, plus Black & White options on color watches
-* Automatic theme switching: a day and a night theme, flipped at sunrise/sunset or on a fixed schedule
+* Theme switching: add a night theme, flipped at sunrise/sunset or between hours you set
 
 **Watch**
 * Custom color, 12h/24h, optional AM/PM
 * Battery, Bluetooth, quiet time, and vibrate-on-disconnect indicators
-* Night battery saver (pause updates to the watch overnight to save battery)
+* Battery saver (pause updates to the watch between hours you set, to save battery)
+* Dim backlight on Pebble Time 2: when the backlight comes on between hours you set it glows a color you pick instead of white — it never switches the backlight on by itself
 
 **Layout customization**
 * Multiple layout presets, with flick-to-cycle between views and optional auto-return

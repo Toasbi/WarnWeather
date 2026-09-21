@@ -132,12 +132,19 @@ test('an absent bar mode is not invented by a polarity flip', () => {
 // --- applyThemeAutoPreset: the themeAuto toggle's first-enable seeding -------
 const { applyThemeAutoPreset } = require('../src/pkjs/settings/theme-convert.js');
 
-test('first enable with identical picks seeds Light day / Dark night and converts defaults', () => {
-  const S = { theme: 'dark', themeNight: 'dark', colorTime: '#FFFFFF', rainBarColor: 'multicolor' };
+// The preset writes themeNight and NOTHING ELSE. It used to also flip S.theme to
+// 'light' and run applyThemeConvert over the stored colours, on the reasoning that
+// the Theme row was hidden behind a "Day theme" row while the switch was on. Now
+// that the Theme row is permanently visible and doubles as the day theme, a preset
+// that moved it would be the settings page changing the user's theme — and their
+// colours with it — behind their back. These tests pin the day side as untouched in
+// every branch, because that is the property the redesign turns on.
+test('first enable seeds the night pick and leaves the day theme and colours alone', () => {
+  const S = { theme: 'light', themeNight: 'light', colorTime: '#000000', rainBarColor: 'white' };
   applyThemeAutoPreset(S, false, true);
-  assert.equal(S.theme, 'light');
   assert.equal(S.themeNight, 'dark');
-  assert.equal(S.colorTime, '#000000', 'the dark->light preset runs the manual-flip conversion');
+  assert.equal(S.theme, 'light', 'the Theme row is the user\'s, not the preset\'s');
+  assert.equal(S.colorTime, '#000000', 'no polarity conversion: the day polarity did not move');
   assert.equal(S.rainBarColor, 'white');
 });
 
@@ -149,12 +156,17 @@ test('enable with an already-differentiated pair changes nothing', () => {
   assert.equal(S.colorTime, '#FFFFFF');
 });
 
-test('enable while already on Light seeds only the night pick, no conversion', () => {
-  const S = { theme: 'light', themeNight: 'light', colorTime: '#000000' };
+// The accepted cost of never touching the day theme: a fresh install is already
+// dark/dark, so the seed lands on the value that is there and the switch does
+// nothing visible until the user sets one of the two apart. Pinned so the silence
+// is a decision on the record rather than something that looks like a bug later.
+test('first enable on a fresh dark install leaves both picks dark', () => {
+  const S = { theme: 'dark', themeNight: 'dark', colorTime: '#FFFFFF', rainBarColor: 'multicolor' };
   applyThemeAutoPreset(S, false, true);
-  assert.equal(S.theme, 'light');
+  assert.equal(S.theme, 'dark');
   assert.equal(S.themeNight, 'dark');
-  assert.equal(S.colorTime, '#000000');
+  assert.equal(S.colorTime, '#FFFFFF', 'no conversion runs: nothing flipped polarity');
+  assert.equal(S.rainBarColor, 'multicolor');
 });
 
 test('disabling the switch never touches the pair', () => {

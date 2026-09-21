@@ -200,6 +200,116 @@ test('snapshot includes threshPhoneBatteryBoldMode, raw', () => {
     'the key must be emitted even when unset');
 });
 
+// --- the Nighttime card ------------------------------------------------------
+// Three features, each owning its own hours: the battery saver
+// (sleepStartHour/sleepEndHour), theme switching (themeAutoStartHour/EndHour, and
+// only in manual mode) and the dim backlight (backlightDimStartHour/EndHour). There
+// is no shared window and no mode key on two of the three, so each group reports its
+// hours under its own switch — the "value in effect" rule, three times over.
+const EMERY = { platform: 'emery' };
+
+test("the battery saver reports its own window, gated on its own switch", () => {
+  const snap = buildSettingsSnapshot({
+    sleepNightEnabled: true, sleepStartHour: '23', sleepEndHour: '7'
+  });
+  assert.equal(snap.sleepStartHour, 23);
+  assert.equal(snap.sleepEndHour, 7);
+  // Saver off: the hours drive nothing, so they are not a value in effect. Their
+  // PRESENCE is how supabase/reports/telemetry-dashboards.sql reads "saver on".
+  const off = buildSettingsSnapshot({
+    sleepNightEnabled: false, sleepStartHour: '23', sleepEndHour: '7'
+  });
+  assert.equal(off.sleepStartHour, undefined);
+  assert.equal(off.sleepEndHour, undefined);
+  // ...and nothing else in the card can make them report: no other feature reads them.
+  [{ themeAuto: true, themeAutoMode: 'manual' }, { backlightDim: true }
+  ].forEach(function (over) {
+    assert.equal(buildSettingsSnapshot(Object.assign({
+      sleepNightEnabled: false, sleepStartHour: '23', sleepEndHour: '7' }, over), EMERY)
+      .sleepStartHour, undefined,
+    JSON.stringify(over) + ' does not consume the saver hours');
+  });
+});
+
+// Dim backlight is emery's alone — light_set_color_rgb888() drives an LED no other
+// watch has — and the toggle ships ON, so an ungated Boolean() would report every
+// basalt install as using it. The whole group is therefore absent without the
+// hardware, the same convention the six graph colours use on a B&W watch.
+test('Dim backlight is reported only on a watch that has the LED', () => {
+  const settings = { backlightDim: true, backlightDimColor: '96,0,0',
+    backlightDimStartHour: '1', backlightDimEndHour: '6' };
+  const emery = buildSettingsSnapshot(settings, EMERY);
+  assert.equal(emery.backlightDim, true);
+  assert.equal(emery.backlightDimStartHour, 1);
+  assert.equal(emery.backlightDimEndHour, 6);
+  assert.equal(emery.backlightDimColor, '96,0,0', 'the stored r,g,b triple, not a hex colour');
+
+  const basalt = buildSettingsSnapshot(settings, { platform: 'basalt' });
+  assert.equal(basalt.backlightDim, undefined);
+  assert.equal(basalt.backlightDimStartHour, undefined);
+  assert.equal(basalt.backlightDimEndHour, undefined);
+  assert.equal(basalt.backlightDimColor, undefined);
+  // The key must still EXIST for the set-equality lockstep below — assigned
+  // undefined, never deleted (the graph colours' rule).
+  assert.ok(Object.prototype.hasOwnProperty.call(basalt, 'backlightDim'));
+});
+
+test('Dim backlight sub-settings follow the switch, with no mode to gate them', () => {
+  // Off: the flag reports false and nothing under it does.
+  const off = buildSettingsSnapshot({ backlightDim: false, backlightDimColor: '96,0,0',
+    backlightDimStartHour: '1', backlightDimEndHour: '6' }, EMERY);
+  assert.equal(off.backlightDim, false);
+  assert.equal(off.backlightDimStartHour, undefined);
+  assert.equal(off.backlightDimEndHour, undefined);
+  assert.equal(off.backlightDimColor, undefined);
+  // Unset reads as the shipped ON, not as a deliberate off (boolDefaultOn).
+  assert.equal(buildSettingsSnapshot({}, EMERY).backlightDim, true);
+  // On: the hours are unconditional — the From/To under the switch IS the window, so
+  // an "on" row always carries one. A leftover backlightDimMode changes nothing.
+  [{}, { backlightDimMode: 'night' }, { backlightDimMode: 'custom' }
+  ].forEach(function (over) {
+    const on = buildSettingsSnapshot(Object.assign({ backlightDim: true,
+      backlightDimStartHour: '1', backlightDimEndHour: '6' }, over), EMERY);
+    assert.equal(on.backlightDimStartHour, 1, JSON.stringify(over));
+    assert.equal(on.backlightDimEndHour, 6, JSON.stringify(over));
+  });
+});
+
+// Targeted half of the lockstep for the Nighttime fields, per the
+// threshPhoneBatteryBoldMode precedent above: the set-equality test would also catch
+// a one-sided edit, but it fails as a whole-schema diff instead of naming the key.
+test('the Nighttime fields are declared in the Deno .strip() schema too', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const ts = fs.readFileSync(
+    path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'index.ts'), 'utf8');
+  const start = ts.indexOf('const settingsSchema');
+  assert.ok(start !== -1, 'settingsSchema not found in telemetry-ingest/index.ts');
+  const slice = ts.slice(start, ts.indexOf('.strip()', start));
+  const fields = [
+    ['sleepStartHour', 'z\\.number'], ['sleepEndHour', 'z\\.number'],
+    ['backlightDim', 'z\\.boolean'],
+    ['backlightDimStartHour', 'z\\.number'], ['backlightDimEndHour', 'z\\.number'],
+    ['backlightDimColor', 'z\\.string']
+  ];
+  fields.forEach(function (row) {
+    assert.match(slice, new RegExp('^\\s*' + row[0] + ':\\s*' + row[1] + '\\(\\)', 'm'),
+      row[0] + ' must be declared in the ingest schema, or .strip() drops it silently');
+  });
+  // ...and the other half of the two-place rule: a field nobody sends must not linger
+  // here, or the ingest keeps stripping something that will never arrive. The first
+  // four are settings the schema no longer has; sleepNightEnabled is a live setting
+  // that is reported through the PRESENCE of sleepStartHour, as it always was.
+  ['sleepNightMode', 'sleepNightStartHour', 'sleepNightEndHour', 'backlightDimMode',
+    'sleepNightEnabled'
+  ].forEach(function (key) {
+    assert.doesNotMatch(slice, new RegExp('^\\s*' + key + ':', 'm'),
+      key + ' is not sent by buildSettingsSnapshot and must not stay in the ingest');
+    assert.ok(!Object.prototype.hasOwnProperty.call(buildSettingsSnapshot({}, EMERY), key),
+      key + ' must not be in the watch-side snapshot either');
+  });
+});
+
 // Targeted half of the lockstep for the newest field. The set-equality test below would
 // also catch a one-sided edit, but it fails as a 90-key diff; this one names the key and
 // the file, which is what a reader needs when the two-place rule gets broken.
@@ -468,9 +578,11 @@ test('the six graph colour fields are optional STRINGS in the Deno .strip() sche
 // send() logs the non-2xx and nothing retries it. So the heaviest realistic envelope has
 // to stay under the cap with room left to grow.
 // Ledger (MEASURED — read the byte count off this test's own console line, never
-// arithmetic): 2956 B of 4096, headroom 1140. The six colours are 169 B of that, and that
+// arithmetic): 3318 B of 4096, headroom 778. The six colours are 169 B of that, and that
 // is their WORST case however they are set: '#RRGGBB' and 'default' are both seven
-// characters. This envelope was 2787 B before them.
+// characters. This envelope was 2787 B before them, and 2956 B before the Nighttime card
+// (the eight new settings fields, the four themeAuto ones this fixture had never switched
+// on, and the emery watch the LED group needs).
 test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () => {
   const fs = require('fs');
   const path = require('path');
@@ -489,7 +601,16 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     threshPhoneBatteryBoldMode: 'always', configTheme: 'light', dayNightShading: true,
     healthMode: 'status', provider: 'openweathermap', fetchIntervalMin: '120',
     rainCountdownHorizon: '60', sleepNightEnabled: true, sleepStartHour: '23',
-    sleepEndHour: '7', axisTimeFormat: 'h12', timeFont: 'bitham', timeLeadingZero: true,
+    sleepEndHour: '7',
+    // The Nighttime card at its heaviest: every one of the three features on, each
+    // reporting its own window. Theme switching is on 'manual' because that is its
+    // only mode that reports hours at all; the other two have no mode and report
+    // theirs whenever the switch is on.
+    backlightDim: true, backlightDimStartHour: '1',
+    backlightDimEndHour: '6', backlightDimColor: '255,255,255',
+    themeAuto: true, themeNight: 'bw-light', themeAutoMode: 'manual',
+    themeAutoStartHour: '23', themeAutoEndHour: '7',
+    axisTimeFormat: 'h12', timeFont: 'bitham', timeLeadingZero: true,
     timeShowAmPm: true, weekStartDay: 'monday', firstWeek: 'iso', showQt: true,
     batteryLowOnly: true, topViewMode: 'compact', layoutPreset: 'compactDense',
     viewResetMin: '15', largeGraphFont: true, vibe: true, btIcons: 'both',
@@ -524,11 +645,11 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     locationMode: 'manual_coordinates',
     error: 'e'.repeat(512),  // serializeError's own cap
     countryCode: 'DEU',
-    settings: buildSettingsSnapshot(settings, { platform: 'basalt' }),
+    settings: buildSettingsSnapshot(settings, { platform: 'emery' }),
     appVersion: '10.10.10',
     buildProfile: 'release',
     watchInfo: {
-      platform: 'basalt', model: 'qemu_platform_basalt', language: 'en_US',
+      platform: 'emery', model: 'qemu_platform_emery', language: 'en_US',
       firmware: { major: 4, minor: 4, patch: 4, suffix: 'beta10' }
     },
     durationMs: 999999,

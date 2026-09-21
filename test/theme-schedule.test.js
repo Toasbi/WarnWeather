@@ -1,7 +1,8 @@
 // test/theme-schedule.test.js — the automatic day/night theme switch's
-// decision logic: night-window evaluation (manual hours + sun times), the
-// effective theme id the scheduler compares across ticks, and the scratch-copy
-// settings substitution sendClaySettings builds wire payloads from.
+// decision logic: night-window evaluation (both themeAutoMode values — sun times
+// and the switch's own custom hours — plus the retired 'night' a dev build may
+// still hold), the effective theme id the scheduler compares across ticks, and the
+// scratch-copy settings substitution sendClaySettings builds wire payloads from.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const themeSchedule = require('../src/pkjs/theme-schedule.js');
@@ -38,6 +39,82 @@ test('manual mode: non-wrapping window, equal hours never match, garbage clamps 
   const junk = { themeAuto: true, themeAutoMode: 'manual', themeAutoStartHour: 'x', themeAutoEndHour: '99' };
   assert.equal(themeSchedule.isNightNow(at(22), junk, null), true, 'clamped to the 20..7 defaults');
   assert.equal(themeSchedule.isNightNow(at(12), junk, null), false);
+});
+
+// --- the mode reader -------------------------------------------------------
+//
+// themeAutoMode is the Nighttime card's only surviving mode control, and it has
+// exactly two options: 'sun' and 'manual' (the stored value behind the "Custom"
+// label). resolveThemeMode is THE reader for it — isNightNow below and
+// index.js's isNightForTheme, which decides whether to compute sun times at all,
+// both go through it so the two can never disagree about which branch is live.
+
+test('resolveThemeMode answers manual for manual and sun for everything else', () => {
+  assert.equal(themeSchedule.resolveThemeMode({ themeAutoMode: 'manual' }), 'manual');
+  assert.equal(themeSchedule.resolveThemeMode({ themeAutoMode: 'sun' }), 'sun');
+  // Absent, retired, or plain garbage: all sun, which is the schema default.
+  [{}, { themeAutoMode: undefined }, { themeAutoMode: null }, { themeAutoMode: 'night' },
+    { themeAutoMode: 'whatever' }, { themeAutoMode: 0 }, undefined, null
+  ].forEach((settings) => {
+    assert.equal(themeSchedule.resolveThemeMode(settings), 'sun',
+      JSON.stringify(settings) + ' must read as sun');
+  });
+});
+
+// The retired 'night' mode pointed at the Nighttime card's shared window, which no
+// longer exists. Only an unreleased dev build of this branch can have stored it, and
+// the config engine's hydrate() does not coerce a stored value against its item's
+// options — so the value survives hydrate, render and serialize and reaches the
+// runtime intact. It must behave like the schema default, NOT like "never night":
+// falling through to the sun branch with no sun times computed for it is the exact
+// silent-disable this restructure exists to prevent.
+test("a dev build's stored themeAutoMode 'night' behaves as sun, not as never-night", () => {
+  const stale = { themeAuto: true, themeAutoMode: 'night',
+    // The shared window it used to read, and the switch's own hours: neither may
+    // decide anything now.
+    sleepStartHour: '22', sleepEndHour: '6',
+    themeAutoStartHour: '10', themeAutoEndHour: '12' };
+  // index.js computes sun times exactly when resolveThemeMode says 'sun', so a
+  // stale blob still gets them...
+  assert.equal(themeSchedule.resolveThemeMode(stale), 'sun');
+  const times = sunTimes(6, 19);
+  assert.equal(themeSchedule.isNightNow(at(23, 0), stale, times), true);
+  assert.equal(themeSchedule.isNightNow(at(12, 0), stale, times), false);
+  assert.equal(themeSchedule.isNightNow(at(5, 0), stale, times), true);
+  // ...and it is indistinguishable from the same blob on the default mode.
+  const fresh = Object.assign({}, stale);
+  delete fresh.themeAutoMode;
+  [0, 5, 6, 12, 19, 23].forEach((h) => {
+    assert.equal(themeSchedule.isNightNow(at(h, 0), stale, times),
+      themeSchedule.isNightNow(at(h, 0), fresh, times),
+      "stale 'night' must be indistinguishable from the default at " + h + ':00');
+  });
+});
+
+test("the battery saver's hours are never read, in any mode", () => {
+  // sleepStartHour/sleepEndHour belong to the battery saver alone. A window that
+  // disagrees with every other answer proves which pair is being read.
+  const saver = { sleepStartHour: '22', sleepEndHour: '6' };
+
+  const sun = Object.assign({ themeAuto: true, themeAutoMode: 'sun' }, saver);
+  assert.equal(themeSchedule.isNightNow(at(23), sun, null), false, 'sun mode without a fix is still day');
+  assert.equal(themeSchedule.isNightNow(at(23), sun, sunTimes(6, 19)), true, 'sunset rules, not 22:00');
+  assert.equal(themeSchedule.isNightNow(at(19, 30), sun, sunTimes(6, 19)), true,
+    "night from sunset, though the saver's hours say day");
+  assert.equal(themeSchedule.isNightNow(at(5, 0), sun, sunTimes(6, 19)), true);
+  assert.equal(themeSchedule.isNightNow(at(6, 30), sun, sunTimes(6, 19)), false);
+
+  const dflt = Object.assign({ themeAuto: true }, saver);
+  assert.equal(themeSchedule.isNightNow(at(23), dflt, null), false, 'absent mode is sun');
+
+  const manual = Object.assign(
+    { themeAuto: true, themeAutoMode: 'manual', themeAutoStartHour: '20', themeAutoEndHour: '7' }, saver);
+  assert.equal(themeSchedule.isNightNow(at(20, 30), manual, null), true, "its own window, which the saver's excludes");
+  assert.equal(themeSchedule.isNightNow(at(6, 30), manual, null), true, "still its own window past the saver's end");
+  assert.equal(themeSchedule.isNightNow(at(7, 0), manual, null), false);
+
+  const unknown = Object.assign({ themeAuto: true, themeAutoMode: 'whatever' }, saver);
+  assert.equal(themeSchedule.isNightNow(at(23), unknown, null), false, 'an unknown mode falls through to sun');
 });
 
 test('sun mode: night before sunrise and from sunset onward, day in between', () => {

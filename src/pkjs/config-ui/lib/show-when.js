@@ -22,6 +22,13 @@ PConf.showWhen = (function () {
     if (pred.all) { for (var i = 0; i < pred.all.length; i += 1) { if (!evaluate(pred.all[i], ctx)) { return false; } } return true; }
     if (pred.any) { for (var j = 0; j < pred.any.length; j += 1) { if (evaluate(pred.any[j], ctx)) { return true; } } return false; }
     if (has(pred, 'not')) { return !evaluate(pred.not, ctx); }
+    // `env` reads a capability fact rather than a setting value. The fact names are
+    // owned by lib/platform.js computeEnv() (the platform SoT) — `color`, `round`,
+    // `platform`, `health`, `radar`, `themePolarity`, `hr`, `thresholds` and
+    // `colorBacklight` (emery's RGB backlight LED) — plus whatever the host app
+    // overlays at generateUrl() time for facts about the PHONE (e.g. phoneBattery).
+    // A fact the host never supplied reads as undefined, so a bare { env: 'x' } gate
+    // fails closed: an unrecognized watch is never offered hardware it may not have.
     var subject = has(pred, 'env') ? (ctx.env ? ctx.env[pred.env] : undefined) : ctx[pred.key];
     if (has(pred, 'eq')) { return subject === pred.eq; }
     if (has(pred, 'ne')) { return subject !== pred.ne; }

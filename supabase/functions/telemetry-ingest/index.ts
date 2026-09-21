@@ -68,8 +68,20 @@ const settingsSchema = z
     provider: providerSchema.optional(),
     fetchIntervalMin: z.number().int().positive().optional(),
     rainCountdownHorizon: z.number().int().min(0).optional(),
+    // The battery saver's night window — its own pair, present only while the saver
+    // is on, which is how the night_sleep flag in
+    // supabase/reports/telemetry-dashboards.sql reads "battery saver on".
     sleepStartHour: z.number().int().min(0).max(23).optional(),
     sleepEndHour: z.number().int().min(0).max(23).optional(),
+    // Dim backlight (emery only — the watch-side snapshot omits the whole group on a
+    // watch without the LED). backlightDimColor is the stored 'r,g,b' channel triple,
+    // not a '#RRGGBB' screen colour, so z.string() per threshPhoneBatteryBoldMode's
+    // rule above. DEPLOY-ORDERING: ship this function before the app release that
+    // sends these, or the strip step drops them silently.
+    backlightDim: z.boolean().optional(),
+    backlightDimStartHour: z.number().int().min(0).max(23).optional(),
+    backlightDimEndHour: z.number().int().min(0).max(23).optional(),
+    backlightDimColor: z.string().optional(),
     // The automatic day/night theme switch. z.string() for the theme id and
     // mode (threshPhoneBatteryBoldMode's rule: an old blob may hold a value a
     // newer picker no longer offers, and one cosmetic field must not reject

@@ -140,6 +140,96 @@ bool persist_set_night_colors(const uint8_t colors[NIGHT_COLOR_BYTES]);
 void persist_get_night_colors(uint8_t out[NIGHT_COLOR_BYTES]);
 #endif
 
+// The night-light tint is hardware, not style: only a watch with an RGB backlight
+// can show it, and light_set_color_rgb888() is a documented no-op everywhere else
+// (applib/app_light.h) — so the accessors below are declared away on every other
+// build and any unguarded caller fails to compile rather than silently re-linking a
+// feature that can never light an LED. What is NOT platform-specific is the LAYOUT:
+// the phone sends CLAY_NIGHT_LIGHT_UINT8 to every watch (clay-payload.js), so the
+// wire knowledge — byte count, hour range, night_light_wire_ok() — stays compiled
+// everywhere, exactly like the NIGHT_COLORS tail offset in app_message.c. The
+// NIGHT_LIGHT key ID stays in persist.c's append-only enum on every platform.
+//
+// ONE spelling of "this WATCH has a colour backlight", so the unpacker and the
+// persist accessors cannot drift apart — use NIGHT_LIGHT_SUPPORTED, not a platform
+// check, wherever the feature's STORAGE is gated. (Not WW_-prefixed on purpose:
+// those flags are wscript's to define.) It is deliberately NOT the same fact as
+// wscript's WW_COLOR_BACKLIGHT, which means "this BUILD carries the LED-driving
+// module appendix/night_light.c" and gates the apply — the relationship PBL_HEALTH
+// has with WW_VIEW_CYCLE. Both are emery-only today, and night_light.c #errors if
+// WW_COLOR_BACKLIGHT is ever set without this one (the combination that would
+// otherwise be a bare link error against the accessors below); the opposite
+// combination degrades safely, storing the tuple with nothing to apply it.
+// PBL_RGB_BACKLIGHT is the SDK's own
+// capability macro and is listed for emery alone (tools/pebble_sdk_platform.py,
+// whose DEFINES become the app build's -D flags — the same list PBL_COLOR and
+// PBL_HEALTH come from); the firmware backs it with CONFIG_BACKLIGHT_AW2016, which
+// appears only in boards/obelix/defconfig (CONFIG_PLATFORM_EMERY). The platform
+// macro is a belt-and-braces second term: on an SDK too old to declare the
+// capability the feature must still compile IN on the board the hardware provably
+// is, rather than silently dropping out of the one image that wants it.
+#if defined(PBL_RGB_BACKLIGHT) || defined(PBL_PLATFORM_EMERY)
+#define NIGHT_LIGHT_SUPPORTED 1
+#endif
+
+// CANONICAL layout of the NIGHT_LIGHT blob — the "Dim backlight" tint and the
+// window it burns in, copied verbatim off CLAY_NIGHT_LIGHT_UINT8 (night-light.js
+// packs it, app_message.c stores it byte for byte; nothing is repacked):
+//   [0] LED red  [1] LED green  [2] LED blue — RAW 0..255 channels, NOT the GColor8
+//       argb bytes the palette / line-style blobs carry. They feed
+//       light_set_color_rgb888((r << 16) | (g << 8) | b), the only variant that
+//       keeps 8 bits per channel (light_set_color(GColor) has 2 — app_light.h), and
+//       the driver scales each channel by the user's own brightness, so these three
+//       bytes carry the hue AND how deep the dim goes.
+//   [3] window start hour, INCLUSIVE   [4] window end hour, EXCLUSIVE
+// Window conventions are the phone's own (sleep-window.js), unchanged: the window
+// WRAPS past midnight ([4] < [3] is normal — 22..6 burns 22:00-05:59), and
+// [3] == [4] means NEVER. "Never" is also this feature's off switch: the phone
+// zeroes all five bytes when the "Dim backlight" toggle is off, so there is NO
+// enabled flag — read the state out of the window.
+#define NIGHT_LIGHT_BYTES 5
+#define NIGHT_LIGHT_HOUR_MAX 23
+
+/**
+ * Is an inbound CLAY_NIGHT_LIGHT_UINT8 payload usable exactly as received?
+ *
+ * Header-only and pure integer arithmetic (the date_format.h / status_icon_weight.h
+ * pattern) so scripts/test-c.sh can pin it on the host: app_message.c itself cannot
+ * be host-compiled — it needs the whole AppMessage + layer surface — and this is the
+ * only decision in the unpack path that is not an SDK call. Unreferenced on a build
+ * whose handler is compiled out, so it costs that image nothing.
+ *
+ * `length` is treated as a MINIMUM, per CLAY_LINE_STYLE_UINT8's growth contract
+ * (app_message.c): a longer tuple from a newer phone still applies, because its
+ * first five bytes are the ones this layout defines. A short or absent payload
+ * fails, and the caller must then keep the last good persisted tuple untouched
+ * rather than half-updating it.
+ *
+ * The all-zero OFF tuple is VALID — it is how the switch itself reaches the watch —
+ * and so is any wrapping or zero-length window. Only a short payload or an hour byte
+ * above NIGHT_LIGHT_HOUR_MAX fails. An out-of-range hour is REJECTED rather than
+ * clamped (unlike the curve insets, which clamp): clamping would invent a window the
+ * user never picked, and for this feature the window is the on/off state.
+ *
+ * @param bytes  The tuple's data pointer; NULL is rejected.
+ * @param length The tuple's length in bytes.
+ * @returns True when the first NIGHT_LIGHT_BYTES bytes can be persisted as-is.
+ */
+static inline bool night_light_wire_ok(const uint8_t *bytes, size_t length) {
+    if (!bytes || length < NIGHT_LIGHT_BYTES) { return false; }
+    return bytes[3] <= NIGHT_LIGHT_HOUR_MAX && bytes[4] <= NIGHT_LIGHT_HOUR_MAX;
+}
+
+#if defined(NIGHT_LIGHT_SUPPORTED)
+// Set stores the five bytes verbatim and reports whether the slot actually moved,
+// so a re-save that changes nothing costs neither a flash write nor a re-apply.
+// Get always fills out[], defaulting to the all-zero tuple — start == end, i.e.
+// NEVER — when the slot is unset or short, so a watch that has not yet heard from a
+// phone build carrying the feature leaves the backlight on the user's own colour.
+bool persist_set_night_light(const uint8_t bytes[NIGHT_LIGHT_BYTES]);
+void persist_get_night_light(uint8_t out[NIGHT_LIGHT_BYTES]);
+#endif  // NIGHT_LIGHT_SUPPORTED
+
 bool persist_set_notice_text(const char *text);
 int  persist_get_notice_text(char *buffer, size_t buffer_size);
 

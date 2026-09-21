@@ -173,7 +173,7 @@ test('weather bundle keeps explicit headroom below the watch inbox', () => {
 
 /** The Clay settings message now carries the palette tuples too. */
 function buildHeaviestClayMessage() {
-  return buildClayPayload({
+  const payload = buildClayPayload({
     temperatureUnits: 'c', timeLeadingZero: true, axisTimeFormat: '12h',
     weekStartDay: 'mon', firstWeek: 'prev', timeFont: 'bitham', showQt: true,
     btIcons: 'both', vibe: true, timeShowAmPm: true, dayNightShading: true,
@@ -186,6 +186,22 @@ function buildHeaviestClayMessage() {
     // packs it + NUL; clay-payload truncates anything longer at pack time).
     radarNoRainText: 'Kein Regen in Sichtweite',
   }, { platform: 'emery' }, new Date('2026-06-26T00:00:00Z'));
+
+  // The Dim backlight tuple (CLAY_NIGHT_LIGHT_UINT8 = [r, g, b, startHour, endHour])
+  // is REAL now: buildClayPayload packs it for every platform (night-light.js), so it
+  // is already in the payload above rather than reserved by hand here. The budget it
+  // was reserved with is unchanged, because the byte count never depended on the
+  // values:
+  //
+  //   tuple  = 7 B header (4 B key + 1 B type + 2 B length) + 5 B data = 12 B
+  //   message 499 B -> 511 B of the 536 B inbox, headroom 37 -> 25 B
+  //   spendable above the 10 B floor: 27 B before, 15 B after
+  //
+  // A 5-byte array, not five scalars: an array tuple costs 7 + N while each scalar
+  // costs 7 + 4, so the five would be 55 B instead of 12 B.
+  assert.equal(payload.CLAY_NIGHT_LIGHT_UINT8.length, 5,
+    'the Dim backlight tuple must stay 5 bytes — the budget below is recorded with it');
+  return payload;
 }
 
 test('Clay settings message (with palette) fits the watch inbox', function() {
@@ -228,6 +244,10 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // 490 -> 499 when the date-slot formats joined (CLAY_DATE_FORMAT_UINT8:
   // 7 B tuple header + 2 B [monthYear, fullDate]). Threshold-gated like the
   // threshold blob, so an aplite bundle stays without it.
-  assert.equal(size, 499, 'update the recorded Clay message size when its wire contract changes');
+  // 499 -> 511 when the Nighttime card's Dim backlight tuple joined
+  // (CLAY_NIGHT_LIGHT_UINT8: 7 B tuple header + 5 B [r, g, b, startHour, endHour]).
+  // The number was recorded while the tuple was still a hand-written reservation in
+  // buildHeaviestClayMessage; clay-payload.js packs it for real now, at the same size.
+  assert.equal(size, 511, 'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });

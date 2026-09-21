@@ -21,6 +21,7 @@
 #include "c/appendix/status_line.h"
 #include "c/appendix/theme.h"
 #include "c/appendix/bottom_view.h"
+#include "c/appendix/night_light.h"
 
 static Window *s_main_window;
 
@@ -397,6 +398,14 @@ static void main_window_load(Window *window) {
     // retracts. See quick_view_on_change / render_active_view.
     quick_view_subscribe(quick_view_on_change);
 #endif
+#if defined(WW_COLOR_BACKLIGHT)
+    // Take over the backlight LED: subscribe to app focus and tint immediately if the
+    // clock is already inside the user's night window. A wrist-raise at 03:00 is what
+    // launches the face, and the light is on for exactly that raise — waiting for the
+    // first minute boundary would show white for the one look that mattered. Only emery
+    // has a colour backlight, so this is compiled out everywhere else (night_light.h).
+    night_light_init();
+#endif
     MEMORY_LOG_HEAP("after_window_load");
 }
 
@@ -406,6 +415,12 @@ static void main_window_unload(Window *window) {
 #endif
 #if defined(WW_QUICK_VIEW)
     quick_view_unsubscribe();
+#endif
+#if defined(WW_COLOR_BACKLIGHT)
+    // Unsubscribe from focus and hand the LED back before anything else is torn down.
+    // Safe this late in the lifecycle: it reads no config (already unloaded by now —
+    // see the note below) and touches no layer, only the subscription and the LED.
+    night_light_deinit();
 #endif
     // Snapshot session state for a possible relaunch (see main_window_load's
     // restore logic above). config is already unloaded by this point
@@ -436,6 +451,15 @@ static void main_window_unload(Window *window) {
 
 static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     time_layer_tick();
+#if defined(WW_COLOR_BACKLIGHT)
+    // Cross the night window's edges on the minute the clock crosses them. Silent on
+    // the ~1438 ticks a day the answer does not move (night_light_refresh tracks what
+    // it last applied and issues no SDK call otherwise), so the steady-state cost is a
+    // 5-byte persist read and two integer compares. Deliberately NOT gated on
+    // units_changed: the boundaries are whole hours, but a settings save that MOVED
+    // them can land between ticks, and this cadence is what heals that.
+    night_light_refresh();
+#endif
     /* tm_hour==0 missed day changes from emulator time jumps (same clock, new date). */
     if (units_changed & DAY_UNIT) {
         calendar_layer_refresh();
@@ -579,6 +603,19 @@ void main_window_apply_theme(void) {
 }
 
 void main_window_refresh() {
+#if defined(WW_COLOR_BACKLIGHT)
+    // Not a window surface, but this is the face's one "the user may have just changed
+    // something" checkpoint — app_message.c's config block reaches it through
+    // main_window_apply_top_view() — and a tint picked while sitting inside one's own
+    // night window has to appear on save, not up to a minute later. Affordable on the
+    // flick/peek paths for the same reason loading_layer_refresh() below is: unless the
+    // state actually moved it short-circuits to a 5-byte persist read and two compares,
+    // with no SDK call at all.
+    // A Clay save that changes ONLY the night-light tuple leaves config_dirty false and
+    // never reaches here; app_message.c's night_light_dirty block calls
+    // night_light_refresh() directly for that case, so neither path waits for a tick.
+    night_light_refresh();
+#endif
     time_layer_refresh();
     // Every band row, on the same weather-data / settings / flick checkpoint. A
     // compact-top-view toggle changes the band's font and slot geometry, so each row

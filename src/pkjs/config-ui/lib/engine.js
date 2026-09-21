@@ -9,6 +9,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   var htmlLib = (typeof require !== 'undefined') ? require('./html.js') : PConf.html;
   var esc = htmlLib.esc;
   var sheetHeader = htmlLib.sheetHeader;
+  // The chip+hex colour readout a badge's `chip` prints — the SAME builder the rgb
+  // control renders above its sliders (range-control.js renderRgb), so a row and the
+  // sheet it opens show one colour in one vocabulary.
+  var swatchReadout = htmlLib.swatchReadout;
   // The date control (value helpers + renderers + wheel wiring) lives in
   // lib/date-picker.js; the aliases keep this file's call sites and export
   // surface unchanged.
@@ -23,6 +27,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   var thresholdValues = rangeControl.thresholdValues;
   var paintThresholdRange = rangeControl.paintThresholdRange;
   var renderRange = rangeControl.renderRange;
+  // The three-channel colour control (type: 'rgb') is the same module's
+  // single-thumb mode, composed three times — see range-control.js.
+  var parseRgb = rangeControl.parseRgb;
+  var formatRgb = rangeControl.formatRgb;
+  var rgbHex = rangeControl.rgbHex;
+  var setRgbChannel = rangeControl.setRgbChannel;
+  var renderRgb = rangeControl.renderRgb;
+  var paintRgb = rangeControl.paintRgb;
   var formatDateValue = datePicker.formatDateValue;
   var parseDateParts = datePicker.parseDateParts;
   var dateValueFromParts = datePicker.dateValueFromParts;
@@ -84,11 +96,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   // --- badge-resolver registry --- a row with an edit-sheet trigger opts into a state badge
   // (item.editBadgeFrom: {resolver, args}); fn(S, env, args) returns null (no badge) or
-  // {label?, ariaNote?, dots: [{color, ring?}]} — an app-neutral colour preview: `dots` is the
-  // swatch that LEADS the control (each dot outlined when `ring`, filled otherwise), `label`
-  // is the trigger button's text and `ariaNote` a parenthesised state word appended to its
-  // aria-label. The library prints what it is given and knows nothing of what the colours
-  // mean. Read at render time like the sheet resolver, and only consulted when a sheet
+  // {label?, ariaNote?, chip?, dots: [{color, ring?}]} — an app-neutral colour preview that
+  // LEADS the control: `chip` is ONE colour printed the way a colour sheet prints it (a
+  // swatch and its '#RRGGBB', html.js swatchReadout), `dots` are small outlined (`ring`) or
+  // filled pips for a row that previews SEVERAL colours at once; `label` is the trigger
+  // button's text and `ariaNote` a parenthesised state word appended to its aria-label.
+  // The library prints what it is given and knows nothing of what the colours mean — a
+  // resolver picks chip or dots by how many colours the row owns, not by what they are.
+  // Read at render time like the sheet resolver, and only consulted when a sheet
   // actually resolved.
   PConf.badgeResolvers = makeRegistry();
 
@@ -435,6 +450,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @param {Object} S Live settings state.
    * @param {Object} env Platform env.
    * @returns {?{label: (string|undefined), ariaNote: (string|undefined),
+   *   chip: (string|undefined),
    *   dots: Array<{color: string, ring: (boolean|undefined)}>}} Badge, or null.
    */
   function resolveEditBadge(item, S, env) {
@@ -551,9 +567,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
-   * The badge's state preview — a bold "B" when badge.bold is set (the slot's value
-   * renders always-bold on the watch), then one dot per entry in badge.dots, outlined
-   * when the entry sets `ring` and filled otherwise — or '' when the row has neither.
+   * The badge's state preview — badge.chip first when the row previews ONE colour (the
+   * full swatch+hex readout a colour sheet prints, built by html.js swatchReadout so the
+   * row and the sheet cannot drift), then a bold "B" when badge.bold is set (the slot's
+   * value renders always-bold on the watch), then one dot per entry in badge.dots,
+   * outlined when the entry sets `ring` and filled otherwise — or '' when the row has
+   * none of the three.
    * It sits BEFORE the control as a passive preview, not inside the edit button:
    * carried inside, the swatches widened the button by ~29px exactly on the rows that
    * had them, so the Edit buttons could never line up down the right edge. Out here
@@ -568,8 +587,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var badge = view.editBadge;
     var dots = (badge && badge.dots) || [];
     var bold = Boolean(badge && badge.bold);
-    if (!view.editSheet || (!dots.length && !bold)) { return ''; }
+    var chip = (badge && badge.chip) ? String(badge.chip) : '';
+    if (!view.editSheet || (!dots.length && !bold && !chip)) { return ''; }
     var h = '<span class="thr-swatch" aria-hidden="true">', i;
+    if (chip) { h += swatchReadout(chip); }
     if (bold) { h += '<span class="pen-b">B</span>'; }
     for (i = 0; i < dots.length; i++) {
       h += '<span class="pen-dot ' + (dots[i].ring ? 'ring' : 'fill')
@@ -726,7 +747,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // palette's current-swatch marker follow it; the write path stays on the messageKey.
     color: function (item, view) { return renderColor(item, view.displayValue == null ? view.value : view.displayValue, view.openColor); },
     searchSelect: function (item, view) { return renderSelectTrigger(item, view); },
-    range: function (item, view) { return renderRange(item, view); }
+    range: function (item, view) { return renderRange(item, view); },
+    // Three single-thumb channel sliders + a live swatch, storing "r,g,b" in one
+    // messageKey. This table is CLOSED — renderControl returns '' for a type that
+    // is missing from it, so a new control type renders as an empty row until it
+    // is listed here.
+    rgb: function (item, view) { return renderRgb(item, view); }
   };
   /**
    * Dispatch to the control renderer for item.type; '' for an unknown type.
@@ -766,6 +792,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // drops to a full-width line below.
     var wideSegmented = item.type === 'segmented' && item.options && item.options.length > 3;
     var stacked = item.type === 'text' || item.type === 'radio' || item.type === 'range'
+      || item.type === 'rgb'
       || (item.type === 'color' && view.openColor === item.messageKey);
     var hintHtml = hint ? '<div class="hint">' + hint + '</div>' : '';
     // An optional small icon button beside the label (item.labelAction: {action, arg,
@@ -1022,12 +1049,20 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // joining item wants no divider between it and the row above, so the preceding visible row drops
   // its divider; 'tight' also tightens the padding, 'loose' keeps the normal row spacing. Skips
   // hidden items — so the divider returns automatically when the joining group is hidden — and
-  // hosted-suppressed toggles (isHostedRow), whose rows never render at all.
+  // hosted-suppressed toggles (isHostedRow), whose rows never render at all. A `subheader` item
+  // always reads as 'loose' (see below): it draws its own line above.
   function nextVisibleJoins(items, from, cx, hosted) {
     var j, jp;
     for (j = from; j < items.length; j++) {
       if (isHostedRow(items[j], hosted)) { continue; }
       if (PConf.showWhen.isVisible(items[j], cx.evalCtx)) {
+        // A `subheader` ITEM opens a new group and paints the separating line ITSELF
+        // (.subhdr.grp's border-top in shell.html) rather than borrowing the preceding
+        // row's divider — its group may render no rows at all (master switch off), and
+        // then there is no divider to borrow. It always joins LOOSELY: the row above only
+        // drops its own line (so the two 1px borders don't stack into one thick rule) and
+        // keeps its normal padding, since the header brings its own standoff.
+        if (items[j].type === 'subheader') { return 'loose'; }
         jp = items[j].joinPrevious;
         return jp === 'loose' ? 'loose' : (jp ? 'tight' : '');
       }
@@ -1884,6 +1919,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     snapToStep: snapToStep, moveThumb: moveThumb, renderRange: renderRange,
     thresholdValues: thresholdValues, resolveRangeItem: resolveRangeItem,
     paintThresholdRange: paintThresholdRange,
+    parseRgb: parseRgb, formatRgb: formatRgb, rgbHex: rgbHex,
+    setRgbChannel: setRgbChannel, renderRgb: renderRgb, paintRgb: paintRgb,
     renderTabBar: renderTabBar, renderBody: renderBody, resolveOptionsFrom: resolveOptionsFrom,
     resolveDefaultFrom: resolveDefaultFrom,
     resolveTheme: resolveTheme,
@@ -1909,6 +1946,9 @@ if (typeof module !== 'undefined' && module.exports) {
     thresholdValues: PConf.engine.thresholdValues,
     resolveRangeItem: PConf.engine.resolveRangeItem,
     paintThresholdRange: PConf.engine.paintThresholdRange,
+    parseRgb: PConf.engine.parseRgb, formatRgb: PConf.engine.formatRgb,
+    rgbHex: PConf.engine.rgbHex, setRgbChannel: PConf.engine.setRgbChannel,
+    renderRgb: PConf.engine.renderRgb, paintRgb: PConf.engine.paintRgb,
     rangeResolvers: PConf.rangeResolvers, badgeResolvers: PConf.badgeResolvers,
     displayResolvers: PConf.displayResolvers,
     renderTabBar: PConf.engine.renderTabBar, renderBody: PConf.engine.renderBody,
