@@ -1232,9 +1232,10 @@ test('theme switching: toggle + Night theme + mode + custom hours, gated correct
   // new "follow the card's Night hours".
   assert.deepEqual(mode.options.map((o) => o[1]), ['sun', 'night', 'manual']);
   assert.deepEqual(mode.options.map((o) => o[0]), ['Sunrise/sunset', 'Night hours', 'Custom']);
-  Object.keys(mode.hintByValue).forEach((v) => assert.ok(mode.hintByValue[v],
-    'every mode value explains itself: ' + v));
-  assert.deepEqual(Object.keys(mode.hintByValue).sort(), ['manual', 'night', 'sun']);
+  // No hintByValue here, deliberately: the group's intro already says what the
+  // switch does, and a per-value line under a three-option segmented control
+  // wrapped badly on a phone. The option labels carry the meaning instead.
+  assert.equal(mode.hintByValue, undefined, 'the mode explains itself via its options');
 
   assert.equal(byKey('themeAutoStartHour').defaultValue, '20');
   assert.equal(byKey('themeAutoEndHour').defaultValue, '7');

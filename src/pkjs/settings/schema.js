@@ -945,7 +945,7 @@ module.exports = {
             }, {
                 type: 'segmented',
                 messageKey: 'backlightDimMode',
-                label: 'Hours',
+                label: 'Enabled hours',
                 defaultValue: 'night',
                 options: [['Night hours', 'night'], ['Custom', 'custom']],
                 showWhen: BACKLIGHT_ON_WHEN
@@ -1029,13 +1029,8 @@ module.exports = {
             }, {
                 type: 'segmented',
                 messageKey: 'themeAutoMode',
-                label: 'Hours',
+                label: 'Enabled hours',
                 defaultValue: 'sun',
-                hintByValue: {
-                    sun: 'Night theme from sunset to sunrise, at your weather location.',
-                    night: 'Night theme during the night hours above.',
-                    manual: 'Night theme between the hours below.'
-                },
                 // 'manual' is the STORED value for custom hours and predates the
                 // Night-hours option — relabelled, never renamed, so an install that
                 // already picked fixed hours keeps them.
@@ -1080,7 +1075,7 @@ module.exports = {
                 // install keeps exactly the window it had.
                 type: 'segmented',
                 messageKey: 'sleepNightMode',
-                label: 'Hours',
+                label: 'Enabled hours',
                 defaultValue: 'night',
                 options: [['Night hours', 'night'], ['Custom', 'custom']],
                 showWhen: {key: 'sleepNightEnabled', eq: true}
