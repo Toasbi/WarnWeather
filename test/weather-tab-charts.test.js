@@ -330,6 +330,15 @@ test('the caption names the past by what produced it, and only DWD says Measured
     x: Number(/x="([\d.]+)"/.exec(t)[1]),
     end: /text-anchor="end"/.test(t)
   }));
+  // The canvas runs five days; every one of them carries its own caption,
+  // because the reader only ever sees ONE of them at a time. The boundary
+  // cases below are all about today, so they read today's words alone.
+  const today = (spec) => words(spec).filter((w) => w.x < charts.DAY_W);
+  // The faint half-height hairline that marks where readings stopped.
+  const tick = (spec) => {
+    const m = /<line x1="([\d.]+)" y1="([\d.]+)"[^>]*stroke-width="0\.8"/.exec(spec.main);
+    return m ? { x: Number(m[1]), y1: Number(m[2]) } : null;
+  };
   const NOW_X = 12 * charts.HOUR_W;
 
   // The fixture is Open-Meteo-shaped: it serves the whole past day, but
@@ -338,14 +347,22 @@ test('the caption names the past by what produced it, and only DWD says Measured
   const plain = charts.timeFootSvg(charts.prepareView(fixtureData(), NOON), pal);
   assert.equal(plain.main.indexOf('NaN'), -1);
   assert.ok(plain.H > 0 && plain.H < 20, 'a caption-sized row, not a panel');
-  assert.deepEqual(words(plain).map((w) => w.word), ['Estimated', 'Forecast'],
+  assert.deepEqual(today(plain).map((w) => w.word), ['Estimated', 'Forecast'],
     'a reconstructed past is Estimated, never Measured');
   // The two hug the now line from either side: that IS the boundary they
   // describe, one reading back into the past, one forward into the future.
-  assert.deepEqual(words(plain), [
+  assert.deepEqual(today(plain), [
     { word: 'Estimated', x: NOW_X - 5, end: true },
     { word: 'Forecast', x: NOW_X + 5, end: false }
   ]);
+  // The days after today are wholly ahead, so each one opens with the word
+  // at its own left edge — pan a day forward and the caption comes along.
+  const view0 = charts.prepareView(fixtureData(), NOON);
+  assert.ok(view0.days > 1, 'the canvas runs past today (' + view0.days + ' days)');
+  assert.deepEqual(words(plain).slice(2), Array.from(
+    { length: view0.days - 1 },
+    (_, d) => ({ word: 'Forecast', x: (d + 1) * charts.DAY_W + 5, end: false })
+  ), 'every day ahead names itself; none of them is left blank');
 
   // A DWD-shaped view: hours 0..8 carry station readings, the rest do not
   // (the observation network lags, so the last hours before now are still
@@ -355,7 +372,7 @@ test('the caption names the past by what produced it, and only DWD says Measured
   const foot = charts.timeFootSvg(view, pal);
   const split = 8 * charts.HOUR_W + charts.HOUR_W / 2;
   assert.ok(split < NOW_X, 'measurement ends before now (' + split + ' < ' + NOW_X + ')');
-  assert.deepEqual(words(foot), [
+  assert.deepEqual(today(foot), [
     // Measured reads back to where measurement began and stops where it ended.
     { word: 'Measured', x: split - 5, end: true },
     // The hours between are over and nobody read them — the model's account.
@@ -374,7 +391,7 @@ test('the caption names the past by what produced it, and only DWD says Measured
   // UNLABELLED rather than mislabelled, and the bars above already say it.
   const late = charts.prepareView(fixtureData(), NOON);
   late.measuredAll = late.times.map((t, i) => i <= 10);
-  assert.deepEqual(words(charts.timeFootSvg(late, pal)).map((w) => w.word),
+  assert.deepEqual(today(charts.timeFootSvg(late, pal)).map((w) => w.word),
     ['Measured', 'Forecast']);
 
   // One measured hour at the very start: too narrow to name, so the word
@@ -382,7 +399,7 @@ test('the caption names the past by what produced it, and only DWD says Measured
   // direction, never the other way round.
   const early = charts.prepareView(fixtureData(), NOON);
   early.measuredAll = early.times.map((t, i) => i === 0);
-  assert.deepEqual(words(charts.timeFootSvg(early, pal)).map((w) => w.word),
+  assert.deepEqual(today(charts.timeFootSvg(early, pal)).map((w) => w.word),
     ['Estimated', 'Forecast']);
 
   // Measurement that starts PARTWAY through the day (a station coming on
@@ -392,14 +409,36 @@ test('the caption names the past by what produced it, and only DWD says Measured
   // earned: those earlier hours were never read.
   const lone = charts.prepareView(fixtureData(), NOON);
   lone.measuredAll = lone.times.map((t, i) => i === 8);
-  assert.deepEqual(words(charts.timeFootSvg(lone, pal)).map((w) => w.word),
+  assert.deepEqual(today(charts.timeFootSvg(lone, pal)).map((w) => w.word),
     ['Estimated', 'Forecast'],
     'one measured hour at 08:00 does not license a word spanning 00:00-08:00');
   // A span wide enough to earn it does get it, anchored on its own end.
   const span = charts.prepareView(fixtureData(), NOON);
   span.measuredAll = span.times.map((t, i) => i >= 3 && i <= 8);
-  assert.deepEqual(words(charts.timeFootSvg(span, pal)).map((w) => w.word),
+  assert.deepEqual(today(charts.timeFootSvg(span, pal)).map((w) => w.word),
     ['Measured', 'Estimated', 'Forecast']);
+
+  // A sliver of readings ending AT the now line is the observation
+  // network's normal shape late in its cycle, and it used to delete the
+  // caption twice over: "Measured" too narrow to print, and "Estimated"
+  // shortened to the same sliver and dropped with it — so a morning the
+  // model reconstructed went unnamed on a day that would have said
+  // "Estimated" outright had the station reported nothing at all. A word
+  // that cannot be printed may not carve up the past.
+  const sliver = charts.prepareView(fixtureData(), NOON);
+  sliver.measuredAll = sliver.times.map((t, i) => i === 11);
+  assert.deepEqual(today(charts.timeFootSvg(sliver, pal)).map((w) => w.word),
+    ['Estimated', 'Forecast'],
+    'one measured hour before now does not silence the eleven before it');
+  const nothing = charts.prepareView(fixtureData(), NOON);
+  nothing.measuredAll = nothing.times.map(() => false);
+  assert.deepEqual(today(charts.timeFootSvg(sliver, pal)),
+    today(charts.timeFootSvg(nothing, pal)),
+    'and reads exactly as the day nobody measured at all');
+  // The reading is not lost with the word: the tick still stands where it
+  // stopped, which is the whole reason that mark exists.
+  assert.deepEqual(tick(charts.timeFootSvg(sliver, pal)),
+    { x: 11 * charts.HOUR_W + charts.HOUR_W / 2, y1: 13 / 2 });
 
   // A region needs room for the word AND the padding either side of it,
   // not merely for the glyphs: at 11:30 the gap between measurement ending
@@ -408,7 +447,7 @@ test('the caption names the past by what produced it, and only DWD says Measured
   // than crowd the boundary it hangs off.
   const tight = charts.prepareView(fixtureData(), DAY0 + 11 * 3600000 + 30 * 60000);
   tight.measuredAll = tight.times.map((t, i) => i <= 8);
-  assert.deepEqual(words(charts.timeFootSvg(tight, pal)).map((w) => w.word),
+  assert.deepEqual(today(charts.timeFootSvg(tight, pal)).map((w) => w.word),
     ['Measured', 'Forecast']);
 
   // An OWM-shaped view: no past hours served at all. Naming that stretch
@@ -417,7 +456,7 @@ test('the caption names the past by what produced it, and only DWD says Measured
   for (let i = 0; i < bare.nowIndex; i += 1) {
     ['temp', 'wind', 'gust', 'rh', 'dew', 'pressure'].forEach((k) => { bare[k][i] = null; });
   }
-  assert.deepEqual(words(charts.timeFootSvg(bare, pal)), [
+  assert.deepEqual(today(charts.timeFootSvg(bare, pal)), [
     { word: 'Forecast', x: NOW_X + 5, end: false }
   ], 'a provider with no past says nothing about one');
 
@@ -434,7 +473,7 @@ test('the caption names the past by what produced it, and only DWD says Measured
   };
   for (let min = 0; min < 60; min += 7) {
     const owm = charts.prepareView(fixtureData(), NOON + min * 60000);
-    assert.deepEqual(words(charts.timeFootSvg(blankPast(owm, owm.nowIndex - 1), pal))
+    assert.deepEqual(today(charts.timeFootSvg(blankPast(owm, owm.nowIndex - 1), pal))
       .map((w) => w.word), ['Forecast'],
       'one back-filled hour is never a past, at :' + min);
   }
@@ -448,11 +487,11 @@ test('the caption names the past by what produced it, and only DWD says Measured
   const staleFoot = charts.timeFootSvg(stale, pal);
   assert.ok(NOW_X - (3 * charts.HOUR_W - charts.HOUR_W / 2) > 'Estimated'.length * 4.2 + 10,
     'the region is wide enough that only the served-hour rule can drop it');
-  assert.deepEqual(words(staleFoot).map((w) => w.word), ['Forecast']);
+  assert.deepEqual(today(staleFoot).map((w) => w.word), ['Forecast']);
   // Two served hours next to each other ARE a past; here it is the width
   // rule that keeps the word off, and the two mechanisms stay distinct.
   const two = charts.prepareView(fixtureData(), NOON);
-  assert.deepEqual(words(charts.timeFootSvg(blankPast(two, two.nowIndex - 2), pal))
+  assert.deepEqual(today(charts.timeFootSvg(blankPast(two, two.nowIndex - 2), pal))
     .map((w) => w.word), ['Forecast'],
     'two hours is only 37.5 units — a real past, but too narrow to name');
 
@@ -462,10 +501,6 @@ test('the caption names the past by what produced it, and only DWD says Measured
   // between them would read as if the station reported right up to now. The
   // bars cannot say it either: a measured DRY hour and an unmeasured hour
   // both draw nothing.
-  const tick = (spec) => {
-    const m = /<line x1="([\d.]+)" y1="([\d.]+)"[^>]*stroke-width="0\.8"/.exec(spec.main);
-    return m ? { x: Number(m[1]), y1: Number(m[2]) } : null;
-  };
   assert.deepEqual(tick(foot), { x: split, y1: foot.H / 2 },
     'a half-height hairline stands where the readings stop');
   // It is the lightest mark in the row — under the now line and the day rules.

@@ -606,21 +606,25 @@
     }
 
     /**
-     * Where measurement BEGINS on this canvas, mirroring measuredEndX. It
-     * is not always the left edge: a station can come on line partway
-     * through the day, and the word must not reach back over hours it
-     * cannot vouch for.
+     * Where the measured RUN that ends at measuredEndX begins. Not simply
+     * the first measured hour of the day: the word covers everything
+     * between the two, so a single unmeasured hour in the middle would be
+     * vouched for by a span that merely straddles it. Walking back from the
+     * end stops at the hole instead, and the hours before it go unlabelled
+     * — the cautious direction, as everywhere else in this caption.
      * @param {Object} view Prepared view.
      * @returns {number} x in viewBox units, or -1 when nothing is measured.
      */
     function measuredStartX(view) {
+        var last = -1;
         for (var i = 0; i < view.nowIndex && i < view.measuredAll.length; i += 1) {
-            if (view.measuredAll[i]) {
-                var x = xAt(view, i) - HOUR_W / 2;
-                return x < 0 ? 0 : x;
-            }
+            if (view.measuredAll[i]) { last = i; }
         }
-        return -1;
+        if (last < 0) { return -1; }
+        var start = last;
+        while (start > 0 && view.measuredAll[start - 1]) { start -= 1; }
+        var x = xAt(view, start) - HOUR_W / 2;
+        return x < 0 ? 0 : x;
     }
 
     // The series a past hour still draws once prepareView has settled it.
@@ -688,6 +692,22 @@
     var CAPTION_PAD = 5;
 
     /**
+     * Whether a region can hold its word AND a margin either side of it.
+     * Glyph width alone is not enough: a word that only just fits crowds
+     * the boundary it hangs off and reads as belonging to the region next
+     * door. The rule lives here rather than in the renderer because a
+     * region that cannot carry its word does not get to carve up the past
+     * either — see captionRegions.
+     * @param {string} word The caption word.
+     * @param {number} x0 Region start, viewBox units.
+     * @param {number} x1 Region end, viewBox units.
+     * @returns {boolean} True when the word may be printed.
+     */
+    function captionFits(word, x0, x1) {
+        return x1 - x0 >= word.length * CAPTION_CH + 2 * CAPTION_PAD;
+    }
+
+    /**
      * The caption's regions, left to right: the stretches of canvas that
      * got their numbers in different ways, each with the word that is true
      * of it. There are at most three, and any of the first two can be
@@ -703,7 +723,10 @@
      *               observation-initialised hours and tomorrow.io hands
      *               back a short hindcast; both are reconstructions, and
      *               neither is a reading.
-     *   Forecast  — it has not happened yet.
+     *   Forecast  — it has not happened yet. Emitted once per DAY it
+     *               covers, because only one day is ever on screen: the
+     *               four days past today are wholly forecast and would
+     *               otherwise carry no caption at all.
      *
      * @param {Object} view Prepared view.
      * @returns {Array<{word: string, x0: number, x1: number}>} Regions in order.
@@ -715,7 +738,15 @@
         var me = measuredEndX(view);
         var out = [];
         var pastFrom = served;
-        if (ms >= 0) {
+        // A region too narrow for its word does not get to shorten the one
+        // beside it either. Dropping "Measured" for a sliver of readings
+        // that ends at the now line used to take "Estimated" down with it,
+        // and a morning of model-reconstructed past went unnamed on a day
+        // that would have said "Estimated" had the station reported nothing
+        // at all. So an unnamed measured sliver falls back under the word
+        // for the hours around it — understating what is known, never the
+        // reverse — and the tick below still marks where readings stopped.
+        if (ms >= 0 && captionFits('Measured', ms, me)) {
             out.push({ word: 'Measured', x0: ms, x1: me });
             pastFrom = me;
         }
@@ -723,18 +754,28 @@
         // before it) and nothing is served after it either, so this range
         // is never inverted. It is skipped only when there is no real past
         // to name — see servedPastCount.
-        if (servedPastCount(view) > 1) { out.push({ word: 'Estimated', x0: pastFrom, x1: nx }); }
-        // The future runs to the end of the canvas, but the word may not:
-        // only ONE day is ever on screen (the caption rides the pan through
-        // a one-day viewport), so a word measured against five days' width
-        // would print late in the evening and be sliced in half by the
-        // viewport's edge — half a word today, the other half floating at
-        // tomorrow's left edge. Measured against its own day it simply
-        // stands down, like any other region without the room, and the day
-        // ends unlabelled rather than mislabelled.
-        var dayEnd = (Math.floor(nx / DAY_W) + 1) * DAY_W;
-        var canvasEnd = view.days * DAY_W;
-        out.push({ word: 'Forecast', x0: nx, x1: dayEnd < canvasEnd ? dayEnd : canvasEnd });
+        if (servedPastCount(view) > 1 && captionFits('Estimated', pastFrom, nx)) {
+            out.push({ word: 'Estimated', x0: pastFrom, x1: nx });
+        }
+        // The future runs to the end of the canvas, but a word may not:
+        // only ONE day is ever on screen, so a word measured against five
+        // days' width would print late in the evening and be sliced in half
+        // by the viewport's edge — half a word today, the other half
+        // floating at tomorrow's left edge. So the future is cut at the day
+        // boundaries and labelled per viewport, which also gives the four
+        // wholly-forecast days ahead a caption they never had. A day with
+        // no room left simply goes unlabelled, like any other region.
+        // (Every day is walked, today included: the canvas opens at the
+        // location's own midnight, so the now line always stands in day 0
+        // and the clamp below is what shortens today's region.)
+        for (var d = 0; d < view.days; d += 1) {
+            var from = d * DAY_W;
+            var x0 = from > nx ? from : nx;
+            var x1 = (d + 1) * DAY_W;
+            if (captionFits('Forecast', x0, x1)) {
+                out.push({ word: 'Forecast', x0: x0, x1: x1, ahead: true });
+            }
+        }
         return out;
     }
 
@@ -777,14 +818,11 @@
         var regions = captionRegions(view);
         for (var r = 0; r < regions.length; r += 1) {
             var reg = regions[r];
-            var w = reg.word.length * CAPTION_CH;
-            if (reg.x1 - reg.x0 < w + 2 * CAPTION_PAD) { continue; }
-            // The last region runs off the end of the canvas, so its word
-            // reads forward from its opening boundary; every earlier one
-            // ends at a boundary shared with the next, and hugs it.
-            var last = r === regions.length - 1;
-            s += '<text x="' + (last ? reg.x0 + CAPTION_PAD : reg.x1 - CAPTION_PAD).toFixed(1)
-                + '" y="9.5"' + (last ? '' : ' text-anchor="end"')
+            // A region that names what is still ahead reads FORWARD from
+            // its opening boundary; one that names what is over ends at a
+            // boundary shared with the next, and hugs it.
+            s += '<text x="' + (reg.ahead ? reg.x0 + CAPTION_PAD : reg.x1 - CAPTION_PAD).toFixed(1)
+                + '" y="9.5"' + (reg.ahead ? '' : ' text-anchor="end"')
                 + ' font-size="7.5" fill="' + pal.muted + '">' + reg.word + '</text>';
         }
         // The measured/estimated split, whether or not a word landed either
