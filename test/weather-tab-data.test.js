@@ -271,6 +271,10 @@ test('Brightsky provenance: each hour says whether a station measured it', () =>
     'rows from a station source are measurements');
   assert.deepEqual(out.hourly.measured.slice(4), [false, false, false, false, false, false, false, false, false],
     'rows from the MOSMIX source are not — including the ones already in the past');
+  // These rows carry no fallback map at all, which is the ordinary case:
+  // a station row that needed nothing filled in is measured outright.
+  assert.deepEqual(out.hourly.measuredAll.slice(0, 4), [true, true, true, true]);
+  assert.deepEqual(out.hourly.measuredAll.slice(4), [false, false, false, false, false, false, false, false, false]);
 
   // 'current' is a station reading too; anything else is not.
   const kinds = ['historical', 'current', 'synop', 'forecast', 'nonsense'];
@@ -300,6 +304,44 @@ test('Brightsky provenance: each hour says whether a station measured it', () =>
   assert.deepEqual(leaked.hourly.measured, [false, true, true],
     'a rain value borrowed from the forecast source is not a measurement, '
     + 'while a borrowed humidity says nothing about the rain');
+  // The caption stands over EVERY panel, so it takes the whole drawn row
+  // or nothing: a borrowed humidity is a modelled humidity line, and the
+  // word cannot span it even though the rain beneath was read.
+  assert.deepEqual(leaked.hourly.measuredAll, [false, false, true],
+    'the row-level flag fails on any drawn field that fell back to MOSMIX');
+
+  // The two flags answer two questions and must not be conflated. An
+  // observation row whose TEMPERATURE came from MOSMIX still read the rain,
+  // so the rain bar stands — but the temperature line above it is modelled,
+  // so the caption must not call that hour Measured.
+  const mixed = data.parsers.dwd({
+    weather: [{ timestamp: iso(H - 3600000), source_id: 11, temperature: 9, precipitation: 0.4,
+      fallback_source_ids: { temperature: 99 } }],
+    sources
+  }, H);
+  assert.equal(mixed.hourly.measured[0], true, 'the rain itself was read');
+  assert.equal(mixed.hourly.measuredAll[0], false, 'but not everything drawn above it');
+
+  // Fields Brightsky never cross-fills cannot drag the flag down: MOSMIX
+  // carries no relative_humidity and a station carries no probability, so
+  // neither appears in a fallback map pointing the wrong way. A fallback
+  // key the page draws nothing from is likewise none of the caption's
+  // business.
+  const unrelated = data.parsers.dwd({
+    weather: [{ timestamp: iso(H - 3600000), source_id: 11, temperature: 9, precipitation: 0.4,
+      fallback_source_ids: { wind_gust_direction: 99, cloud_cover: 99 } }],
+    sources
+  }, H);
+  assert.equal(unrelated.hourly.measuredAll[0], true,
+    'a borrowed field the panels never plot leaves the word intact');
+
+  // And a MOSMIX row is never measured whatever its fallbacks say.
+  const mosmix = data.parsers.dwd({
+    weather: [{ timestamp: iso(H - 3600000), source_id: 99, temperature: 9, precipitation: 0.4,
+      fallback_source_ids: { temperature: 11 } }],
+    sources
+  }, H);
+  assert.equal(mosmix.hourly.measuredAll[0], false, 'the row itself is model output');
 
   // A response with no sources block at all claims nothing.
   const bare = data.parsers.dwd({ weather: rows }, H);

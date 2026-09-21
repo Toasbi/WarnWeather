@@ -278,7 +278,7 @@
      */
     function buildHourlyGrid(hourly, startMs, hourCount) {
         var CONT = ['temp', 'wind', 'gust', 'rh', 'dew', 'pressure'];
-        var STEP = ['rain', 'prob', 'dir', 'icon', 'measured'];
+        var STEP = ['rain', 'prob', 'dir', 'icon', 'measured', 'measuredAll'];
         var MAX_INTERP_MS = 6 * 3600000;
         var NEAR_MS = 90 * 60000;
         var out = { time: [] };

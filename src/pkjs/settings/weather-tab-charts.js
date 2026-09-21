@@ -242,6 +242,7 @@
         return {
             times: trim(grid.time),
             temp: trim(grid.temp), rain: rain, prob: prob, measured: measured,
+            measuredAll: trim(grid.measuredAll),
             wind: trim(grid.wind), gust: trim(grid.gust), dir: trim(grid.dir),
             rh: trim(grid.rh), dew: trim(grid.dew), pressure: trim(grid.pressure),
             icon: trim(grid.icon),
@@ -585,18 +586,21 @@
 
     /**
      * The x where MEASUREMENT ends on the canvas: just past the last hour
-     * the provider backed with a station reading, or 0 when it backed none.
-     * This is NOT the now line. The observation network lags, so DWD's last
-     * measured hour usually sits an hour or two behind now — and on a
-     * provider that cannot measure at all it sits at the very start, which
-     * is what makes the caption honest instead of decorative.
+     * the provider backed with a station reading for EVERY field the panels
+     * plot (`measuredAll`, not the rain-only `measured` the bars use — a
+     * word standing over four panels cannot rest on one field), or 0 when
+     * it backed none. This is NOT the now line. The observation network
+     * lags, so DWD's last measured hour usually sits an hour or two behind
+     * now — and on a provider that cannot measure at all it sits at the
+     * very start, which is what makes the caption honest instead of
+     * decorative.
      * @param {Object} view Prepared view.
      * @returns {number} x in viewBox units (0 when nothing is measured).
      */
     function measuredEndX(view) {
         var last = -1;
-        for (var i = 0; i < view.nowIndex && i < view.measured.length; i += 1) {
-            if (view.measured[i]) { last = i; }
+        for (var i = 0; i < view.nowIndex && i < view.measuredAll.length; i += 1) {
+            if (view.measuredAll[i]) { last = i; }
         }
         return last < 0 ? 0 : xAt(view, last) + HOUR_W / 2;
     }
@@ -610,8 +614,8 @@
      * @returns {number} x in viewBox units, or -1 when nothing is measured.
      */
     function measuredStartX(view) {
-        for (var i = 0; i < view.nowIndex && i < view.measured.length; i += 1) {
-            if (view.measured[i]) {
+        for (var i = 0; i < view.nowIndex && i < view.measuredAll.length; i += 1) {
+            if (view.measuredAll[i]) {
                 var x = xAt(view, i) - HOUR_W / 2;
                 return x < 0 ? 0 : x;
             }
@@ -635,16 +639,46 @@
      */
     function servedStartX(view) {
         for (var i = 0; i < view.nowIndex; i += 1) {
-            for (var k = 0; k < SERVED_KEYS.length; k += 1) {
-                var series = view[SERVED_KEYS[k]];
-                var v = series ? series[i] : null;
-                if (v !== null && v !== undefined) {
-                    var x = xAt(view, i) - HOUR_W / 2;
-                    return x < 0 ? 0 : x;
-                }
+            if (servedAt(view, i)) {
+                var x = xAt(view, i) - HOUR_W / 2;
+                return x < 0 ? 0 : x;
             }
         }
         return nowX(view);
+    }
+
+    /**
+     * Whether one hour came back with any value the panels plot.
+     * @param {Object} view Prepared view.
+     * @param {number} i Hour index.
+     * @returns {boolean} True when the provider served that hour.
+     */
+    function servedAt(view, i) {
+        for (var k = 0; k < SERVED_KEYS.length; k += 1) {
+            var series = view[SERVED_KEYS[k]];
+            var v = series ? series[i] : null;
+            if (v !== null && v !== undefined) { return true; }
+        }
+        return false;
+    }
+
+    /**
+     * How many hours before now the provider served. One is not a past: the
+     * resampler holds a sample up to 90 minutes backwards, so the single
+     * index before now is back-filled from the CURRENT hour even on a
+     * provider asked for no past at all. Naming that stretch would caption
+     * a copy of the current forecast as a bygone hour — and leaving it to
+     * the width rule only works while the word stays long, which is a
+     * property of the vocabulary rather than of the data.
+     * @param {Object} view Prepared view.
+     * @returns {number} Count of served hours before now.
+     */
+    function servedPastCount(view) {
+        var n = 0;
+        for (var i = 0; i < view.nowIndex; i += 1) {
+            if (servedAt(view, i)) { n += 1; }
+        }
+        return n;
     }
 
     // 7.5px type in the page's stack runs a shade under 4.2 units per
@@ -659,8 +693,11 @@
      * of it. There are at most three, and any of the first two can be
      * missing:
      *
-     *   Measured  — a station read these hours. Only DWD/Brightsky ever
-     *               fills `measured`, so only DWD ever says this word.
+     *   Measured  — a station read these hours, and read every field the
+     *               panels below draw from them: only DWD/Brightsky fills
+     *               `measuredAll`, so only DWD ever says this word, and it
+     *               stands down for an hour whose temperature or wind was
+     *               filled in from MOSMIX even when the rain was read.
      *   Estimated — the hour is over, but only a model can say what
      *               happened in it. Open-Meteo stitches each run's
      *               observation-initialised hours and tomorrow.io hands
@@ -682,11 +719,11 @@
             out.push({ word: 'Measured', x0: ms, x1: me });
             pastFrom = me;
         }
-        // No emptiness guards: measurement cannot end after now (it is read
-        // from the hours before it) and nothing is served after it either,
-        // so these ranges are never inverted — and a range with no hours in
-        // it comes out too narrow for its word and is dropped on width.
-        out.push({ word: 'Estimated', x0: pastFrom, x1: nx });
+        // Measurement cannot end after now (it is read from the hours
+        // before it) and nothing is served after it either, so this range
+        // is never inverted. It is skipped only when there is no real past
+        // to name — see servedPastCount.
+        if (servedPastCount(view) > 1) { out.push({ word: 'Estimated', x0: pastFrom, x1: nx }); }
         out.push({ word: 'Forecast', x0: nx, x1: view.days * DAY_W });
         return out;
     }
@@ -698,13 +735,24 @@
      * the canvas.
      *
      * It names the past by what actually produced it, which differs by
-     * provider (see captionRegions): only DWD ever says "Measured", a
-     * reconstructed past says "Estimated", and a provider that serves no
-     * past hours at all gets neither — just "Forecast" from the now line.
-     * A word is drawn only where its own region has room for it, so a
-     * sliver of a region goes unlabelled rather than mislabelled, and the
-     * boundaries it does not print are the ones the panels above already
-     * show: a bar that is there or is not.
+     * provider (see captionRegions): only DWD ever says "Measured", and a
+     * reconstructed past says "Estimated".
+     *
+     * There is no provider special case — a word simply is not drawn where
+     * its own region cannot hold it, and that alone settles the ends. OWM
+     * asks for no past hours, but the resampler's 90-minute hold still
+     * back-fills the one index before now, so its "served past" is a real
+     * 22.5-unit sliver rather than an absent region; it holds no word
+     * because 22.5 units fit under three characters. A stretch too narrow
+     * to name therefore goes unlabelled rather than mislabelled.
+     *
+     * Where measurement ends, a faint tick marks the split. The words
+     * cannot: the gap between them is usually the observation lag, an hour
+     * or two too narrow to print "Estimated" in, and "Measured ⟩ Forecast"
+     * with nothing between them reads as if the station had reported right
+     * up to now. The bars cannot say it either — a measured dry hour and
+     * an unmeasured hour both draw nothing, so in a dry spell the boundary
+     * would be invisible.
      * @param {Object} view Prepared view.
      * @param {Object} pal Palette.
      * @returns {{main: string, overlay: ?string, H: number}} Panel spec.
@@ -728,6 +776,16 @@
             s += '<text x="' + (last ? reg.x0 + CAPTION_PAD : reg.x1 - CAPTION_PAD).toFixed(1)
                 + '" y="9.5"' + (last ? '' : ' text-anchor="end"')
                 + ' font-size="7.5" fill="' + pal.muted + '">' + reg.word + '</text>';
+        }
+        // The measured/estimated split, whether or not a word landed either
+        // side of it. Deliberately the lightest mark in the row: half its
+        // height, hairline, well under the now line's weight and the day
+        // rules' — it says "the readings stop here", not "look here".
+        var me = measuredEndX(view);
+        if (me > 0) {
+            s += '<line x1="' + me.toFixed(1) + '" y1="' + (H / 2) + '" x2="' + me.toFixed(1)
+                + '" y2="' + H + '" stroke="' + pal.muted + '" stroke-width="0.8"'
+                + ' opacity="0.7"/>';
         }
         // The now line carries on through the caption, as it did when the two
         // shared one svg: it spans this box top to bottom and the stylesheet

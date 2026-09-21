@@ -9,10 +9,15 @@
 //   hourly: parallel arrays over `time` (epoch ms) — temp °C, rain mm/h,
 //           prob %, wind/gust km/h, dir deg, rh %, dew °C, pressure hPa,
 //           icon id (weather-tab-model.js vocabulary); null = unsourced.
-//           `measured` says, per hour, whether the RAIN was read off a
-//           station rather than modelled. Only DWD/Brightsky can say yes —
-//           it tags every row with the source that produced it, and names
-//           per field where a value was filled in from another source.
+//           Two provenance flags, per hour. `measured` says whether the
+//           RAIN was read off a station rather than modelled — it gates
+//           the rain bar, so it follows that one field exactly.
+//           `measuredAll` says whether EVERY field the panels plot was,
+//           which is what the caption spanning all of them needs: a word
+//           over four panels cannot rest on one field's provenance.
+//           Only DWD/Brightsky can say yes to either — it tags every row
+//           with the source that produced it, and names per field where a
+//           value was filled in from another source.
 //           Nobody else can. Open-Meteo's past_days stitches each model
 //           run's first hours, which ARE observation-initialised and close
 //           to the truth for most fields — but its own docs single out the
@@ -139,7 +144,7 @@
      * @returns {Object} Parallel arrays keyed by series.
      */
     function emptyHourly() {
-        return { time: [], temp: [], rain: [], prob: [], wind: [], gust: [], dir: [], rh: [], dew: [], pressure: [], icon: [], sunshineMin: [], measured: [] };
+        return { time: [], temp: [], rain: [], prob: [], wind: [], gust: [], dir: [], rh: [], dew: [], pressure: [], icon: [], sunshineMin: [], measured: [], measuredAll: [] };
     }
 
     // --- parsers (pure — tests feed fixture JSON straight in) -----------------
@@ -255,6 +260,44 @@
         return Boolean(measuredIds[id]);
     }
 
+    // The fields the panels plot a PAST value from, which is what the
+    // caption above them vouches for. Brightsky's own IGNORED_MISSING_FIELDS
+    // never fills relative_humidity from MOSMIX (MOSMIX has none) nor
+    // precipitation_probability from a station, so neither can appear in a
+    // fallback map pointing the wrong way; they are listed for completeness.
+    var DRAWN_FIELDS = {
+        temperature: true, precipitation: true, wind_speed: true,
+        wind_gust_speed: true, wind_direction: true, relative_humidity: true,
+        dew_point: true, pressure_msl: true
+    };
+
+    /**
+     * Whether EVERY field this tab plots for a past hour was read off a
+     * station. The caption sits above all four panels, so the word has to
+     * be true of all four: an observation row whose temperature was filled
+     * in from MOSMIX draws a modelled line, and "Measured" must not span
+     * it on the strength of the rain alone.
+     *
+     * Errs only one way. Brightsky orders candidate sources by
+     * observation_type, whose Postgres enum declares forecast LAST
+     * ('historical', 'recent', 'current', 'synop', 'forecast'), so a field
+     * reaches MOSMIX only when no station had it — and an hour wrongly
+     * excluded here merely reads as Estimated, never the reverse.
+     * @param {Object} row One `weather[]` record.
+     * @param {Object} measuredIds Set-shaped map from observedSourceIds.
+     * @returns {boolean} True when the whole drawn row came from stations.
+     */
+    function rowMeasured(row, measuredIds) {
+        if (!measuredIds[row.source_id]) { return false; }
+        var fb = row.fallback_source_ids;
+        if (!fb) { return true; }
+        for (var k in fb) {
+            if (Object.prototype.hasOwnProperty.call(fb, k) && DRAWN_FIELDS[k]
+                && !measuredIds[fb[k]]) { return false; }
+        }
+        return true;
+    }
+
     /**
      * Brightsky response → normalized. Default units are DWD's (°C, km/h,
      * hPa, sunshine minutes) and timestamps default to the LOCATION's
@@ -285,10 +328,12 @@
             var r = rows[i];
             var t = Date.parse(r.timestamp);
             if (!isFinite(t)) { continue; }
-            // The flag means "this hour's PRECIPITATION was measured": it
-            // gates the rain bar the past is drawn with, and the caption is
-            // content to be conservative when only that field fell back.
+            // One flag per question. The rain bar asks only about the rain,
+            // so a station that read the rain licenses it whatever else on
+            // the row fell back; the caption asks about every panel it
+            // stands over, so it takes the whole row or nothing.
             hourly.measured.push(fieldMeasured(r, 'precipitation', measuredIds));
+            hourly.measuredAll.push(rowMeasured(r, measuredIds));
             hourly.time.push(t);
             hourly.temp.push(num(r.temperature));
             hourly.rain.push(num(r.precipitation));
