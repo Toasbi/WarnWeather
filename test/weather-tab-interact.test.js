@@ -970,3 +970,128 @@ test('one finger tap is ONE scrub — the browser\'s mouse twins do not undo it'
     Date.now = realNow;
   }
 });
+
+test('a day is a WHOLE day, however fractional the page was when the finger landed', () => {
+  // A gesture that starts mid-settle picks the page up where it IS, which
+  // is a FRACTION of the way to the day the last release committed — 1.87
+  // of the way to day 2. Two of the three branches below step one day from
+  // that base rather than rounding it, so the fraction rode out into the
+  // returned day and from there into panDay, which four separate consumers
+  // compare with === : the tiles' .sel class matched no tile at all (so
+  // every border vanished the moment the settle ended and the inline ink
+  // was cleared and there was nothing left to say which day was shown), the
+  // panels and the tile row rested between days, and a tap resolved to the
+  // wrong hour. The residue is usually small — measured 1.9986 at a 500ms
+  // gap — so the page LOOKS landed while none of it agrees on where.
+  const S = interact.snapTargetDay;
+  const VP = 390, PITCH = 114;
+
+  // The branch that already rounded is the control: it was never wrong.
+  assert.equal(S(0.8727, -120, VP, 5, 400, -0.5, false), 1,
+    'an unhurried drag rounds, as it always did');
+
+  // A quick flick on a chart: one day on from the day the page is ON.
+  assert.equal(S(0.8727, -120, VP, 5, 200, -0.5, false), 2,
+    'a forward flick from 0.87 lands on 2 — the page reads as day 1');
+  assert.equal(S(1.8727, 120, VP, 5, 200, 0.5, false), 1,
+    'and a backward flick from 1.87 lands on 1');
+
+  // NEAREST, not next: a page 40% of the way to day 1 still reads as day
+  // 0 — that is what "where the page is" means — so a flick from there
+  // buys day 1, not day 2. Rounding up would make a flick caught early in
+  // a settle skip a day, which is the same class of wrongness as the
+  // fraction itself, just quantised.
+  assert.equal(S(0.4, -120, VP, 5, 200, -0.5, false), 1,
+    'a flick from four tenths of the way to day 1 lands on 1');
+  assert.equal(S(2.4, -120, VP, 5, 200, -0.5, false), 3,
+    'and the same four tenths later in the timeline lands on 3');
+  assert.equal(S(0.6, -120, VP, 5, 200, -0.5, false), 2,
+    'past the half it reads as the day it is nearly on, so the flick buys the next');
+
+  // The tile row's flick FLOOR compares the rounded target against the
+  // base to decide whether the swipe would otherwise land where it began.
+  // Against a fractional base that comparison can never be true, so the
+  // floor quietly stopped applying during exactly the rapid flicking it
+  // exists for.
+  assert.equal(S(0.8727, -20, PITCH, 5, 200, -0.02, true), 2,
+    'a short fast flick on the tiles still buys its one day from a fraction');
+  // Which is a day MORE than it used to give: the rounded target was 1,
+  // the base 0.8727, so `target === baseDay` was false and the floor sat
+  // out the whole flick. Its own arithmetic had already landed the swipe
+  // back on the day it started from, which is exactly what the floor is
+  // there to stop.
+  assert.equal(S(1, -20, PITCH, 5, 200, -0.02, true), 2,
+    'and it is the same answer the floor gives from the whole day beside it');
+
+  // The invariant itself, over the whole grid: nothing that can be handed
+  // to commitDay is ever fractional.
+  [0, 0.5, 0.8727, 1.9986, 2.0001, 3.4].forEach((base) => {
+    [-200, -120, -20, -1, 1, 20, 120, 200].forEach((dx) => {
+      [120, 200, 400].forEach((dt) => {
+        [true, false].forEach((tiles) => {
+          const r = S(base, dx, tiles ? PITCH : VP, 5, dt, -dx / 400, tiles);
+          assert.equal(r, Math.round(r),
+            'whole day for base=' + base + ' dx=' + dx + ' dt=' + dt
+            + ' tiles=' + tiles + ', got ' + r);
+          assert.ok(r >= 0 && r <= 4, 'and inside the timeline, got ' + r);
+        });
+      });
+    });
+  });
+});
+
+test('a flick released mid-settle commits a whole day, end to end', () => {
+  // The unit check above pins the arithmetic; this pins the wiring, by
+  // driving the module's own handlers with the page caught between days
+  // and reading what reached commitDay. The existing mid-settle test ends
+  // its gesture with touchcancel, which never commits anything — so the
+  // fractional base had never once reached a release in this suite.
+  const { listeners } = HARNESS;
+  const DAYS = 5;
+  let committed = null;
+  const realNow = Date.now;
+  let clock = realNow() + 120000;
+  Date.now = () => clock;
+  HARNESS.live = 0.8727;      // caught 87% of the way to the day just committed
+  HARNESS.liveDays = DAYS;
+  try {
+    interact.wire({
+      view: () => ({ days: DAYS }),
+      day: () => 1,
+      commitDay: (d) => { committed = d; },
+      scrub: () => {},
+      panTips: () => {},
+      panStrip: () => {},
+      canPull: () => false,
+      refresh: () => {}
+    });
+    const vpEl = {
+      getAttribute: (a) => (a === 'data-wxvp' ? 'temp' : null),
+      getBoundingClientRect: () => ({ width: 390 })
+    };
+    const touch = (type, x) => listeners[type]({
+      touches: type === 'touchend' ? [] : [{ clientX: x, clientY: 100 }],
+      changedTouches: [{ clientX: x, clientY: 100 }],
+      target: vpEl,
+      preventDefault: () => {}
+    });
+
+    // A flick: far enough and fast enough to take the quick branch.
+    touch('touchstart', 330);
+    clock += 30;
+    touch('touchmove', 250);
+    clock += 30;
+    touch('touchmove', 170);
+    clock += 30;
+    touch('touchend', 170);
+
+    assert.notEqual(committed, null, 'precondition: the release committed a day');
+    assert.equal(committed, Math.round(committed),
+      'the day handed over is whole, not 1.87 of the way to one (got ' + committed + ')');
+    assert.equal(committed, 2, 'and it is the day after the one the page read as');
+  } finally {
+    Date.now = realNow;
+    HARNESS.live = null;
+    HARNESS.liveDays = 3;
+  }
+});

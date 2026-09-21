@@ -1692,3 +1692,68 @@ test('a tapped day is timed by how far it has to travel', () => {
     tab._resetState();
   }
 });
+
+test('panDay is a WHOLE day, so the tiles can match it and one of them stays lit', () => {
+  // Four things read panDay by EXACT equality — the tiles' .sel class, the
+  // rendered strip's selected tile, the hour a tap resolves to, and the day
+  // the panels rest on. A fractional day reaching it fails all four at
+  // once, and the most visible failure is that no tile matches: the row
+  // loses its accent border entirely the moment the settle ends and the
+  // inline drag ink is cleared, so nothing says which day is on screen.
+  // The residue can be a thousandth of a day, which looks landed.
+  //
+  // snapTargetDay is fixed at source and tested there; this pins the same
+  // invariant at the sink, where it is relied on.
+  tab._resetState();
+  const realFetch = data.fetchWeather;
+  let respond = null;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { respond = cb; };
+  const tiles = [0, 1, 2].map((d) => ({
+    className: 'wx-day',
+    style: {},
+    disabled: false,
+    getAttribute: (k) => (k === 'data-action-arg' ? String(d) : null),
+    querySelector: () => null
+  }));
+  global.document = {
+    getElementById: () => null,
+    querySelector: () => null,
+    querySelectorAll: (sel) => (sel === '.wx-day' ? tiles : [])
+  };
+  try {
+    const state = { graphsLocation: 'current', temperatureUnits: 'c' };
+    tab._setCtx({ S: state, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond(fixture(), null);
+    tab.weatherGraphsBlock(state, {}, SEED);
+    assert.ok(tab._fetchState().view.days >= 2, 'precondition: more than one day');
+
+    /** @returns {Array<string>} the data-action-arg of every tile wearing .sel */
+    const lit = () => tiles.filter((t) => (' ' + t.className + ' ').indexOf(' sel ') !== -1)
+      .map((t) => t.getAttribute('data-action-arg'));
+
+    tab._commitDay(1);
+    assert.deepEqual(lit(), ['1'], 'precondition: a whole day lights its tile');
+
+    // What a flick released mid-settle used to hand over.
+    tab._commitDay(1.8727);
+    assert.equal(tab._panDay(), 2, 'the fraction is resolved to the day it reads as');
+    assert.deepEqual(lit(), ['2'], 'and that day’s tile is the one lit');
+
+    // The near-miss is the dangerous one: it looks landed.
+    tab._commitDay(0.9986);
+    assert.equal(tab._panDay(), 1, 'a thousandth of a day short is still that day');
+    assert.deepEqual(lit(), ['1'], 'one tile lit, not none');
+
+    // And exactly one, always — never two, never zero.
+    [0, 0.4, 0.5, 1.2, 1.5, 2, 2.49].forEach((d) => {
+      tab._commitDay(d);
+      assert.equal(lit().length, 1, 'exactly one tile is lit at d=' + d);
+      assert.equal(lit()[0], String(tab._panDay()), 'and it is panDay’s own tile');
+    });
+  } finally {
+    delete global.document;
+    data.fetchWeather = realFetch;
+    tab._resetState();
+  }
+});

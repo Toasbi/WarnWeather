@@ -481,6 +481,18 @@
      */
     function snapTargetDay(baseDay, dxPx, scale, days, dtMs, v, tiles) {
         var at = baseDay - dxPx / scale;
+        // The whole day the page is ON. baseDay is where the gesture PICKED
+        // the page up, and a gesture that starts mid-settle picks it up as a
+        // fraction — 1.87 of the way to day 2 — so the branches below that
+        // step a day from the base have to step from a whole one. Stepping
+        // from the fraction carried it out to the returned day and then
+        // into panDay, which four different consumers compare with === :
+        // the tiles' .sel class went to nothing (every border vanished the
+        // moment the settle ended and the inline ink was cleared), the
+        // strip and the panels rested between days, and a tap picked the
+        // wrong hour. The rounding branch never had the problem; these two
+        // had it from the day the pan learned to be interrupted.
+        var from = Math.round(baseDay);
         var target;
         if (tiles) {
             target = Math.round(at - (v || 0) * FLING_MS / scale);
@@ -498,11 +510,11 @@
             // with the scale, from 24 px to 57 px, and it is the first
             // place to look if the row starts feeling like it only ever
             // moves one day.
-            if (target === baseDay && dtMs < 300 && Math.abs(dxPx) > scale * 0.12) {
-                target = baseDay + (dxPx < 0 ? 1 : -1);
+            if (target === from && dtMs < 300 && Math.abs(dxPx) > scale * 0.12) {
+                target = from + (dxPx < 0 ? 1 : -1);
             }
         } else if (dtMs < 300 && Math.abs(dxPx) > scale * 0.12) {
-            target = baseDay + (dxPx < 0 ? 1 : -1);
+            target = from + (dxPx < 0 ? 1 : -1);
         } else {
             target = Math.round(at);
         }

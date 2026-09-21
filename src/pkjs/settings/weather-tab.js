@@ -457,14 +457,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * only when the day actually changed — re-anchor the crosshair chip and
      * center the day strip (a same-day spring-back must not touch either).
      * Shared by the pan gesture's snap and the day-tile tap.
-     * @param {number} d Target day (already clamped by the caller).
+     * @param {number} d Target day (already clamped by the caller); rounded
+     *   here, because panDay is a WHOLE day by contract.
      * @returns {void}
      */
     function commitDay(d) {
         var view = fetchState.view;
         var days = view ? view.days : 1;
         var before = panDay;
-        panDay = d;
+        // panDay is the source of truth for four things that test it with
+        // === : the tiles' .sel class, the rendered strip's selected tile,
+        // the hour a tap resolves to, and the day the panels rest on. A
+        // fraction reaching it silently fails all four at once — no tile
+        // matches, so the whole row loses its border — and the fraction
+        // can be tiny enough that the page still looks landed. The callers
+        // hand over a whole day; this is the invariant stated where it is
+        // relied on rather than only where it is produced.
+        panDay = Math.round(d);
         interact.setPan(interact.panPct(d, days), true);
         syncDayCards();
         // The strip finishes the hand-over the drag started — on the same
