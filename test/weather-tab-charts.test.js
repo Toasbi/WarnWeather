@@ -313,30 +313,47 @@ test('the hour strip ENDS at the tick ruler — that is what gets pinned', () =>
   assert.ok(noShade.main.indexOf('03:00') !== -1, 'no SunCalc → still a time axis, just unshaded');
 });
 
-test('the Measured|Forecast caption is its own scrolling row, still on the now line', () => {
-  const view = charts.prepareView(fixtureData(), NOON);
+test('the Measured|Forecast caption splits where measurement ENDS, not on the now line', () => {
   const pal = charts.palette(false);
+  // The fixture is Open-Meteo-shaped: no provider provenance at all, which
+  // means nothing on it is measured — and the caption must not pretend.
+  const plain = charts.timeFootSvg(charts.prepareView(fixtureData(), NOON), pal);
+  assert.equal(plain.main.indexOf('NaN'), -1);
+  assert.ok(plain.H > 0 && plain.H < 20, 'a caption-sized row, not a panel');
+  assert.equal(plain.main.indexOf('Measured'), -1,
+    'a provider that measures nothing gets no Measured side');
+  assert.equal(Number(/<text x="([\d.]+)"[^>]*>Forecast</.exec(plain.main)[1]), 4,
+    'Forecast then labels the row from its left edge');
+
+  // Now a DWD-shaped view: hours 0..8 carry station readings, the rest do
+  // not (the observation network lags, so the last hours before now are
+  // still MOSMIX even mid-Germany).
+  const view = charts.prepareView(fixtureData(), NOON);
+  view.measured = view.times.map((t, i) => i <= 8);
   const foot = charts.timeFootSvg(view, pal);
-  assert.equal(foot.main.indexOf('NaN'), -1);
-  assert.ok(foot.H > 0 && foot.H < 20, 'a caption-sized row, not a panel');
   assert.ok(foot.main.indexOf('>Measured<') !== -1 && foot.main.indexOf('>Forecast<') !== -1,
-    'both halves of the split moved here');
-  // Measured sits left of the now line, Forecast right of it, and the line
-  // carries on through the row.
+    'both halves of the split are there');
   // The now line by its own weight, not by being the first line in the
   // string — the day-boundary rules share this box and one of them opens it.
   const nowX = Number(/<line x1="([\d.]+)"[^>]*stroke-width="1\.2"/.exec(foot.main)[1]);
   const mx = Number(/<text x="([\d.]+)"[^>]*>Measured</.exec(foot.main)[1]);
   const fx = Number(/<text x="([\d.]+)"[^>]*>Forecast</.exec(foot.main)[1]);
-  assert.ok(mx < nowX && nowX < fx, 'the split straddles the now line (' + mx + ' < ' + nowX + ' < ' + fx + ')');
+  assert.ok(mx < fx, 'Measured runs back from the split, Forecast forward from it');
+  // The split is the END OF MEASUREMENT — hour 8's trailing edge — and it
+  // sits well LEFT of the now line at noon. That gap is the honest part:
+  // hours 9, 10 and 11 are over, and were never measured.
+  const split = 8 * charts.HOUR_W + charts.HOUR_W / 2;
+  assert.equal(mx, Number((split - 5).toFixed(1)));
+  assert.equal(fx, Number((split + 5).toFixed(1)));
+  assert.ok(split < nowX, 'measurement ends before now (' + split + ' < ' + nowX + ')');
   assert.match(/<text x="[\d.]+"[^>]*>Measured</.exec(foot.main)[0], /text-anchor="end"/,
-    'Measured runs back from the line');
-  // At the very start of the timeline there is no room for the left half.
+    'Measured runs back from the split');
+  // Only ONE measured hour, at the very start: no room for the left word.
   const early = charts.prepareView(fixtureData(), NOON);
-  early.nowMs = early.dayStartMs;
+  early.measured = early.times.map((t, i) => i === 0);
   const earlyFoot = charts.timeFootSvg(early, pal);
   assert.equal(earlyFoot.main.indexOf('Measured'), -1, 'no room at the left edge → no Measured');
-  assert.ok(earlyFoot.main.indexOf('>Forecast<') !== -1, 'Forecast still labels the whole row');
+  assert.ok(earlyFoot.main.indexOf('>Forecast<') !== -1, 'Forecast still labels the rest');
 
   // Splitting one svg into two left the now line able to break at the seam.
   // The strip's line must reach ITS box's floor and the caption's must span
@@ -857,6 +874,39 @@ test('prepareView settles past hours: a chance is only ever about hours to come'
   const marks = svg.match(/>(–|\d+%)<\/text>/g) || [];
   assert.ok(marks.length >= 4 && marks.slice(0, 4).every((m) => m.indexOf('–') !== -1),
     'the first four 3-hourly marks of a midday view are dashes');
+});
+
+test('an hour that is over shows the rain that FELL, or none at all', () => {
+  // The fixture rains 1.2 mm at hours 19-21 and nothing earlier, so give it
+  // a wet morning to argue about: 0.9 mm at 07:00, three hours before noon.
+  const wet = fixtureData();
+  for (let i = 0; i < wet.hourly.time.length; i += 1) {
+    if (wet.hourly.time[i] === DAY0 + 7 * 3600000) { wet.hourly.rain[i] = 0.9; }
+  }
+  // Open-Meteo-shaped: no provenance, so no hour is measured. The morning's
+  // rain is a forecast for a time that has gone — it makes no claim here.
+  const guess = charts.prepareView(wet, NOON);
+  assert.equal(guess.rain[7], null, 'an unmeasured past hour carries no amount');
+  assert.equal(guess.rain[19], 1.2, 'the future is untouched — it is a forecast, and says so');
+  const svg = charts.tempPanelSvg(guess, { temperatureUnits: 'c' }, charts.palette(false)).main;
+  assert.equal(svg.indexOf('id="wx-bar-temp-7"'), -1, 'and draws no bar');
+  assert.ok(svg.indexOf('id="wx-bar-temp-19"') !== -1, 'while the forecast bars stand');
+  assert.equal(charts.tipHtml('temp', guess, 7, {}).indexOf('0.9'), -1,
+    'the tip does not quote it either');
+
+  // DWD-shaped: the same hour backed by a station reading. That IS what
+  // fell, so it stays — bar, tip and all.
+  const withObs = JSON.parse(JSON.stringify(wet));
+  withObs.hourly.measured = withObs.hourly.time.map((t) => t < NOON);
+  const obs = charts.prepareView(withObs, NOON);
+  assert.equal(obs.rain[7], 0.9, 'a measured past hour keeps what it recorded');
+  assert.equal(obs.measured[7], true);
+  assert.equal(obs.measured[19], false, 'and the future is never "measured"');
+  const obsSvg = charts.tempPanelSvg(obs, { temperatureUnits: 'c' }, charts.palette(false)).main;
+  assert.ok(obsSvg.indexOf('id="wx-bar-temp-7"') !== -1, 'its bar is drawn');
+  assert.match(charts.tipHtml('temp', obs, 7, {}), /<b>Rain<\/b><i>0\.9 mm<\/i>/);
+  // The chance is gone either way: a probability never resolves.
+  assert.equal(obs.prob[7], null, 'even a measured past hour has no "chance" left');
 });
 
 test("today's tile promises only the hours it still owns", () => {

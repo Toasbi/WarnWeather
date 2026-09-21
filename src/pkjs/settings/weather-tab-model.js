@@ -267,8 +267,10 @@
      * [startMs, startMs + hourCount·1h): the continuous multi-day canvas the
      * panels draw. Continuous series interpolate linearly across gaps up to
      * 6 h (OWM's 3-hourly tail lands between grid hours); stepped series
-     * (rain rate, probability, direction, icon) take the nearest sample
-     * within 90 min. Hours no sample reaches stay null.
+     * (rain rate, probability, direction, icon, the measured flag) take the
+     * nearest sample within 90 min. Hours no sample reaches stay null — and
+     * for `measured` a null reads as "not measured", which is the right
+     * answer for an hour no station row covers.
      * @param {Object} hourly Normalized parallel arrays over `time` (epoch ms, ascending).
      * @param {number} startMs Grid start (a location-local midnight).
      * @param {number} hourCount Grid length in hours.
@@ -276,7 +278,7 @@
      */
     function buildHourlyGrid(hourly, startMs, hourCount) {
         var CONT = ['temp', 'wind', 'gust', 'rh', 'dew', 'pressure'];
-        var STEP = ['rain', 'prob', 'dir', 'icon'];
+        var STEP = ['rain', 'prob', 'dir', 'icon', 'measured'];
         var MAX_INTERP_MS = 6 * 3600000;
         var NEAR_MS = 90 * 60000;
         var out = { time: [] };

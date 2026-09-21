@@ -9,6 +9,14 @@
 //   hourly: parallel arrays over `time` (epoch ms) — temp °C, rain mm/h,
 //           prob %, wind/gust km/h, dir deg, rh %, dew °C, pressure hPa,
 //           icon id (weather-tab-model.js vocabulary); null = unsourced.
+//           `measured` says, per hour, whether the RAIN was read off a
+//           station rather than modelled. Only DWD/Brightsky can say yes —
+//           it tags every row with the source that produced it, and names
+//           per field where a value was filled in from another source.
+//           Open-Meteo's past_days serves past FORECASTS (short-lead model
+//           output stitched run to run, never an analysis), and OWM and
+//           tomorrow.io serve no past hours at all, so their adapters leave
+//           the array empty and every hour reads as unmeasured.
 //   daily:  up to 5 tiles from the location's today — tmin/tmax °C, icon,
 //           rainMm, probMax, sunshineH; null fields where the provider has
 //           no answer.
@@ -127,7 +135,7 @@
      * @returns {Object} Parallel arrays keyed by series.
      */
     function emptyHourly() {
-        return { time: [], temp: [], rain: [], prob: [], wind: [], gust: [], dir: [], rh: [], dew: [], pressure: [], icon: [], sunshineMin: [] };
+        return { time: [], temp: [], rain: [], prob: [], wind: [], gust: [], dir: [], rh: [], dew: [], pressure: [], icon: [], sunshineMin: [], measured: [] };
     }
 
     // --- parsers (pure — tests feed fixture JSON straight in) -----------------
@@ -197,6 +205,52 @@
         return m[1] === '-' ? -sec : sec;
     }
 
+    // Brightsky's /weather answers from three kinds of source, named by each
+    // source's observation_type: 'historical' and 'current' are readings
+    // taken at a station, 'forecast' is DWD's own MOSMIX. Every weather row
+    // names its source_id, so the provenance is per HOUR, not per response —
+    // which matters because the observation network lags: the last hour or
+    // two of "the past" is usually still MOSMIX even in the middle of
+    // Germany, and a request answered from far away can be MOSMIX
+    // throughout. ('synop' cannot appear on /weather — it is what
+    // /current_weather asks for — but it is a reading, so it is listed.)
+    var OBSERVED_TYPES = { historical: true, current: true, synop: true };
+
+    /**
+     * The source ids in a Brightsky response whose rows are station
+     * readings rather than forecast.
+     * @param {Array<Object>} sources The response's `sources` array.
+     * @returns {Object} A set-shaped map of source id → true.
+     */
+    function observedSourceIds(sources) {
+        var out = {};
+        if (!sources) { return out; }
+        for (var i = 0; i < sources.length; i += 1) {
+            var s = sources[i];
+            if (s && OBSERVED_TYPES[s.observation_type]) { out[s.id] = true; }
+        }
+        return out;
+    }
+
+    /**
+     * Whether ONE field of a Brightsky row is a station reading. The row's
+     * own source_id is not the last word: where the main source left a
+     * field empty, Brightsky fills it from another source and records which
+     * in `fallback_source_ids`, keyed by field. So a row that is an
+     * observation overall can still carry a MOSMIX precipitation — and
+     * precipitation is the field this tab draws as history, so it is the
+     * field the flag has to follow.
+     * @param {Object} row One `weather[]` record.
+     * @param {string} field The field name to resolve.
+     * @param {Object} measuredIds Set-shaped map from observedSourceIds.
+     * @returns {boolean} True when that field came from a station.
+     */
+    function fieldMeasured(row, field, measuredIds) {
+        var fb = row.fallback_source_ids;
+        var id = (fb && fb[field] !== null && fb[field] !== undefined) ? fb[field] : row.source_id;
+        return Boolean(measuredIds[id]);
+    }
+
     /**
      * Brightsky response → normalized. Default units are DWD's (°C, km/h,
      * hPa, sunshine minutes) and timestamps default to the LOCATION's
@@ -209,11 +263,16 @@
         var rows = data && data.weather;
         if (!rows || !rows.length) { return null; }
         var offsetSec = isoOffsetSec(rows[0].timestamp);
+        var measuredIds = observedSourceIds(data.sources);
         var hourly = emptyHourly();
         for (var i = 0; i < rows.length; i += 1) {
             var r = rows[i];
             var t = Date.parse(r.timestamp);
             if (!isFinite(t)) { continue; }
+            // The flag means "this hour's PRECIPITATION was measured": it
+            // gates the rain bar the past is drawn with, and the caption is
+            // content to be conservative when only that field fell back.
+            hourly.measured.push(fieldMeasured(r, 'precipitation', measuredIds));
             hourly.time.push(t);
             hourly.temp.push(num(r.temperature));
             hourly.rain.push(num(r.precipitation));

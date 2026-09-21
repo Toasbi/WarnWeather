@@ -231,3 +231,73 @@ test('reverseGeocode: ArcGIS lon,lat order and the District > City > Region name
     if (realXhr === undefined) { delete globalThis.XMLHttpRequest; } else { globalThis.XMLHttpRequest = realXhr; }
   }
 });
+
+test('Brightsky provenance: each hour says whether a station measured it', () => {
+  const H = Date.UTC(2026, 8, 21, 14, 0);
+  const iso = (ms) => new Date(ms).toISOString().replace('Z', '+00:00');
+  const rows = [];
+  for (let i = -6; i <= 6; i += 1) {
+    rows.push({
+      timestamp: iso(H + i * 3600000),
+      // The observation network lags: the last two hours before now are
+      // already MOSMIX even though they are in the past.
+      source_id: i <= -3 ? 11 : 99,
+      temperature: 12, precipitation: i === -5 ? 0.7 : 0,
+      precipitation_probability: i <= -3 ? null : 30,
+      wind_speed: 10, wind_gust_speed: 18, wind_direction: 200,
+      relative_humidity: 60, dew_point: 8, pressure_msl: 1013,
+      icon: 'partly-cloudy-day', sunshine: 20
+    });
+  }
+  const sources = [
+    { id: 11, observation_type: 'historical' },
+    { id: 99, observation_type: 'forecast' }
+  ];
+  const out = data.parsers.dwd({ weather: rows, sources }, H);
+  assert.deepEqual(out.hourly.measured.slice(0, 4), [true, true, true, true],
+    'rows from a station source are measurements');
+  assert.deepEqual(out.hourly.measured.slice(4), [false, false, false, false, false, false, false, false, false],
+    'rows from the MOSMIX source are not — including the ones already in the past');
+
+  // 'current' is a station reading too; anything else is not.
+  const kinds = ['historical', 'current', 'synop', 'forecast', 'nonsense'];
+  kinds.forEach((kind, n) => {
+    const one = data.parsers.dwd({
+      weather: [{ timestamp: iso(H), source_id: 7, temperature: 1 }],
+      sources: [{ id: 7, observation_type: kind }]
+    }, H);
+    assert.equal(one.hourly.measured[0], n < 3, kind + ' → measured=' + (n < 3));
+  });
+
+  // Brightsky fills a missing field on an observation row from ANOTHER
+  // source and records which in fallback_source_ids. A row that is an
+  // observation overall can therefore carry a MOSMIX precipitation — and
+  // precipitation is the field the page draws as history.
+  const leaked = data.parsers.dwd({
+    weather: [
+      { timestamp: iso(H - 3600000), source_id: 11, temperature: 9, precipitation: 0.4,
+        fallback_source_ids: { precipitation: 99 } },
+      { timestamp: iso(H - 7200000), source_id: 11, temperature: 9, precipitation: 0.4,
+        fallback_source_ids: { relative_humidity: 99 } },
+      { timestamp: iso(H - 10800000), source_id: 11, temperature: 9, precipitation: 0.4,
+        fallback_source_ids: {} }
+    ],
+    sources
+  }, H);
+  assert.deepEqual(leaked.hourly.measured, [false, true, true],
+    'a rain value borrowed from the forecast source is not a measurement, '
+    + 'while a borrowed humidity says nothing about the rain');
+
+  // A response with no sources block at all claims nothing.
+  const bare = data.parsers.dwd({ weather: rows }, H);
+  assert.equal(bare.hourly.measured.every((m) => m === false), true,
+    'no sources block → nothing is claimed as measured');
+
+  // And every other provider leaves the array empty, so the grid reads null
+  // and the view reads "not measured".
+  const om = data.parsers.openmeteo({
+    hourly: { time: [H / 1000], temperature_2m: [12], precipitation: [0] },
+    utc_offset_seconds: 0
+  }, H);
+  assert.deepEqual(om.hourly.measured, [], 'Open-Meteo measures nothing: past_days is the past forecast');
+});

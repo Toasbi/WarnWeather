@@ -180,8 +180,15 @@ test('the graphs block orchestrates: loading → panels on data, error → Retry
     assert.ok(html.indexOf('data-wxvp="foot"', footAt) !== -1
       && html.indexOf('data-wxvp="foot"', footAt) - footAt < 200,
       'the caption rides its own viewport, so it pans with the days');
-    assert.ok(html.indexOf('>Measured<', stickyAt) > footAt,
+    // The caption's words live in that row, never in the pinned block. On
+    // this fixture only "Forecast" is printed — nothing about it is
+    // measured — so it is the one that has to be there and be outside.
+    const forecastAt = html.indexOf('>Forecast<', stickyAt);
+    assert.ok(forecastAt > footAt,
       'the caption text itself is no longer anywhere in the pinned block');
+    const measuredAt = html.indexOf('>Measured<', stickyAt);
+    assert.ok(measuredAt === -1 || measuredAt > footAt,
+      'and neither is the other half, when a provider earns one');
     // No vertical gap between the ruler's box and the caption's: the two are
     // separate svgs now, and the now line has to cross the seam unbroken.
     const footMargin = /\.wx-stripfoot \.wx-bleed\{margin:([^;]+);/.exec(css.WX_CSS);

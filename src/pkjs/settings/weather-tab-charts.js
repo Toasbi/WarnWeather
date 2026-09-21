@@ -223,9 +223,21 @@
         // is still running, so it keeps its chance.)
         var prob = trim(grid.prob);
         for (i = 0; i < nowIndex && i < prob.length; i += 1) { prob[i] = null; }
+        // And an hour that is over shows the rain that FELL, or no rain at
+        // all. Only DWD can say what fell — it tags each hour with the
+        // source that produced it, and a station reading is a measurement.
+        // Open-Meteo's past_days serves the past FORECAST (its own docs say
+        // so), and OWM and tomorrow.io serve no past hours whatever; a bar
+        // built from any of those asserts that it rained at a time when it
+        // may well not have, which is exactly the claim to drop.
+        var measured = trim(grid.measured);
+        var rain = trim(grid.rain);
+        for (i = 0; i < nowIndex && i < rain.length; i += 1) {
+            if (!measured[i]) { rain[i] = null; }
+        }
         return {
             times: trim(grid.time),
-            temp: trim(grid.temp), rain: trim(grid.rain), prob: prob,
+            temp: trim(grid.temp), rain: rain, prob: prob, measured: measured,
             wind: trim(grid.wind), gust: trim(grid.gust), dir: trim(grid.dir),
             rh: trim(grid.rh), dew: trim(grid.dew), pressure: trim(grid.pressure),
             icon: trim(grid.icon),
@@ -595,10 +607,34 @@
     }
 
     /**
+     * The x where MEASUREMENT ends on the canvas: just past the last hour
+     * the provider backed with a station reading, or 0 when it backed none.
+     * This is NOT the now line. The observation network lags, so DWD's last
+     * measured hour usually sits an hour or two behind now — and on a
+     * provider that cannot measure at all it sits at the very start, which
+     * is what makes the caption honest instead of decorative.
+     * @param {Object} view Prepared view.
+     * @returns {number} x in viewBox units (0 when nothing is measured).
+     */
+    function measuredEndX(view) {
+        var last = -1;
+        for (var i = 0; i < view.nowIndex && i < view.measured.length; i += 1) {
+            if (view.measured[i]) { last = i; }
+        }
+        return last < 0 ? 0 : xAt(view, last) + HOUR_W / 2;
+    }
+
+    /**
      * The Measured | Forecast caption that used to close the time strip. It
      * is its own row now: the strip above it pins, this scrolls away with
      * the panels it describes — but it still rides the day pan, so the
-     * split stays on the now line.
+     * split stays put on the canvas.
+     *
+     * The split sits where measurement actually ENDS, not on the now line:
+     * the word has to be true of the hours it points at. On a provider that
+     * measures nothing — Open-Meteo, whose past_days is the past forecast,
+     * or OWM and tomorrow.io, which serve no past hours at all — there is
+     * no "Measured" side, and the caption says Forecast for the whole run.
      * @param {Object} view Prepared view.
      * @param {Object} pal Palette.
      * @returns {{main: string, overlay: ?string, H: number}} Panel spec.
@@ -606,16 +642,17 @@
     function timeFootSvg(view, pal) {
         var H = 13;
         var nx = nowX(view);
+        var mx = measuredEndX(view);
         // The day rules first, UNDER the caption's words: same reason as the
         // now line below — the caption sits in the boundary's path, and a
         // rule that stopped at the ruler would read as two separate marks.
         var s = dayEdges(view, pal, 0, H);
         // Too close to the left edge and "Measured" has no room to sit in.
-        if (nx > 58) {
-            s += '<text x="' + (nx - 5).toFixed(1) + '" y="9.5" text-anchor="end" font-size="7.5" fill="'
+        if (mx > 58) {
+            s += '<text x="' + (mx - 5).toFixed(1) + '" y="9.5" text-anchor="end" font-size="7.5" fill="'
                 + pal.muted + '">Measured</text>';
         }
-        s += '<text x="' + (nx + 5).toFixed(1) + '" y="9.5" font-size="7.5" fill="'
+        s += '<text x="' + (mx > 0 ? mx + 5 : 4).toFixed(1) + '" y="9.5" font-size="7.5" fill="'
             + pal.muted + '">Forecast</text>';
         // The now line carries on through the caption, as it did when the two
         // shared one svg: it spans this box top to bottom and the stylesheet
