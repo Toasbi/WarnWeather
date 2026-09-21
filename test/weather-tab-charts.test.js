@@ -45,6 +45,37 @@ function fixtureData(day0) {
 const LOC = { lat: 52.52, lon: 13.405 };
 const SunCalc = require('../src/pkjs/settings/vendor-suncalc.js');
 
+// Two tests below need the HOST's clock to be somewhere that is NOT UTC.
+// Assigning process.env.TZ mid-run asks the runtime to swap its zone lazily,
+// and this one has been caught keeping GMT instead: the stamp assertion then
+// failed for a reason that had nothing to do with the code, and — worse — the
+// moon comparison passed VACUOUSLY, because three renders that all stayed UTC
+// are trivially equal. A zone handed to a fresh process at START is not
+// subject to either, so both run their body in a child. Each body also reports
+// the zone it actually got, and the caller checks it: a guard that cannot tell
+// whether it ran is not a guard.
+const { execFileSync } = require('node:child_process');
+const CHILD_MODULES = {
+  charts: require.resolve('../src/pkjs/settings/weather-tab-charts.js'),
+  readouts: require.resolve('../src/pkjs/settings/weather-tab-readouts.js'),
+  SunCalc: require.resolve('../src/pkjs/settings/vendor-suncalc.js')
+};
+/**
+ * @param {string} tz IANA zone, set before the child starts.
+ * @param {string} body Source run with charts/readouts/SunCalc required and
+ *   ARG holding the parsed `arg`; whatever it writes to stdout comes back.
+ * @param {*} [arg] JSON-serialisable value handed to the child.
+ * @returns {string} The child's stdout.
+ */
+function inZone(tz, body, arg) {
+  const req = Object.keys(CHILD_MODULES)
+    .map((k) => `const ${k} = require(${JSON.stringify(CHILD_MODULES[k])});`).join('');
+  return execFileSync(process.execPath,
+    ['-e', `${req}const ARG = JSON.parse(process.argv[1]);${body}`,
+      JSON.stringify(arg === undefined ? null : arg)],
+    { env: Object.assign({}, process.env, { TZ: tz }), encoding: 'utf8' });
+}
+
 test('prepareView day-aligns the timeline and trims trailing dataless days', () => {
   const view = charts.prepareView(fixtureData(), NOON);
   assert.ok(view);
@@ -267,15 +298,14 @@ test('agoText climbs the ladder: just now → minutes → hours → a stamp', ()
   // and a UTC-accessor swap would then pass unnoticed in a UTC container
   // (which is what CI is). 14 Mar 2026 03:05 UTC is 13 Mar 23:05 in New
   // York, so day, month, hour and padding are all genuinely at stake.
-  const realTz = process.env.TZ;
-  process.env.TZ = 'America/New_York';
-  try {
-    const at = Date.UTC(2026, 2, 14, 3, 5);
-    assert.equal(charts.agoText(at, at + 86400000), '13 Mar 23:05',
-      'the stamp reads on the PHONE\'s clock, day-month-time, zero-padded');
-  } finally {
-    process.env.TZ = realTz;
-  }
+  const [nyOffset, stamp] = inZone('America/New_York',
+    'const at = Date.UTC(2026, 2, 14, 3, 5);'
+    + 'process.stdout.write(new Date(at).getTimezoneOffset() + "|"'
+    + ' + readouts.agoText(at, at + 86400000));').split('|');
+  assert.equal(nyOffset, '240',
+    'the child really is on New York time (EDT, UTC\u22124) — otherwise the stamp below proves nothing');
+  assert.equal(stamp, '13 Mar 23:05',
+    'the stamp reads on the PHONE\'s clock, day-month-time, zero-padded');
   // A phone that resyncs its clock backwards mid-session must not print a
   // negative age: the reading is current, so it says so.
   assert.equal(charts.agoText(NOW + 5 * 60000, NOW), 'just now');
@@ -940,29 +970,32 @@ test('the moon marks are read off the LOCATION’s day, not the phone’s', () =
   const data = fixtureData(day0);
   data.utcOffsetSec = 7200;
   const view = charts.prepareView(data, day0 + 12 * 3600000);
-  const draw = () => charts.sunMoonPanelSvg(view, { lat: 52.52, lon: 13.405 },
-    charts.palette(false), SunCalc).main;
-  const was = process.env.TZ;
-  try {
-    process.env.TZ = 'Europe/Berlin';
-    const home = draw();
-    process.env.TZ = 'Australia/Sydney';
-    const away = draw();
-    process.env.TZ = 'America/Los_Angeles';
-    const far = draw();
-    assert.equal(away, home, 'a phone in Sydney draws Berlin’s moon exactly as a phone in Berlin does');
-    assert.equal(far, home, 'and so does one in Los Angeles');
-    // Guard the guard: the marks are really there to be got wrong, and all of
-    // them land on the canvas rather than beyond a seam.
-    const moon = marksOf(home).filter((mk) => mk.text.indexOf('☽') !== -1);
-    assert.ok(moon.length >= view.days, 'moon marks drawn: ' + moon.length);
-    moon.forEach((mk) => {
-      assert.ok(mk.dot >= 0 && mk.dot <= view.days * charts.DAY_W,
-        'moon mark ' + JSON.stringify(mk.text) + ' at x=' + mk.dot.toFixed(1) + ' is on the canvas');
-    });
-  } finally {
-    if (was === undefined) { delete process.env.TZ; } else { process.env.TZ = was; }
-  }
+  // Each phone draws in its OWN process, with the zone set before it starts —
+  // and reports the offset it got, so three renders that all quietly stayed
+  // UTC would be caught here rather than compared to each other and declared
+  // equal. 1 Jan 2026: Berlin CET (UTC+1), Sydney AEDT (UTC+11), LA PST (UTC-8).
+  const draw = (tz) => inZone(tz,
+    'const day0 = Date.UTC(2026, 0, 1) - 7200000;'
+    + 'const view = charts.prepareView(ARG, day0 + 12 * 3600000);'
+    + 'process.stdout.write(new Date(day0).getTimezoneOffset() + "|"'
+    + ' + charts.sunMoonPanelSvg(view, { lat: 52.52, lon: 13.405 },'
+    + ' charts.palette(false), SunCalc).main);', data).split('|');
+  const [homeOff, home] = draw('Europe/Berlin');
+  const [awayOff, away] = draw('Australia/Sydney');
+  const [farOff, far] = draw('America/Los_Angeles');
+  assert.deepEqual([homeOff, awayOff, farOff], ['-60', '-660', '480'],
+    'each phone really is where it says it is — equal renders from three UTC '
+    + 'processes would satisfy the comparison below without testing anything');
+  assert.equal(away, home, 'a phone in Sydney draws Berlin’s moon exactly as a phone in Berlin does');
+  assert.equal(far, home, 'and so does one in Los Angeles');
+  // Guard the guard: the marks are really there to be got wrong, and all of
+  // them land on the canvas rather than beyond a seam.
+  const moon = marksOf(home).filter((mk) => mk.text.indexOf('☽') !== -1);
+  assert.ok(moon.length >= view.days, 'moon marks drawn: ' + moon.length);
+  moon.forEach((mk) => {
+    assert.ok(mk.dot >= 0 && mk.dot <= view.days * charts.DAY_W,
+      'moon mark ' + JSON.stringify(mk.text) + ' at x=' + mk.dot.toFixed(1) + ' is on the canvas');
+  });
 });
 
 test('each rise/set dot sits ON a vertex of its own arc', () => {
