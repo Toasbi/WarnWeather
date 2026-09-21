@@ -724,7 +724,17 @@
         // is never inverted. It is skipped only when there is no real past
         // to name — see servedPastCount.
         if (servedPastCount(view) > 1) { out.push({ word: 'Estimated', x0: pastFrom, x1: nx }); }
-        out.push({ word: 'Forecast', x0: nx, x1: view.days * DAY_W });
+        // The future runs to the end of the canvas, but the word may not:
+        // only ONE day is ever on screen (the caption rides the pan through
+        // a one-day viewport), so a word measured against five days' width
+        // would print late in the evening and be sliced in half by the
+        // viewport's edge — half a word today, the other half floating at
+        // tomorrow's left edge. Measured against its own day it simply
+        // stands down, like any other region without the room, and the day
+        // ends unlabelled rather than mislabelled.
+        var dayEnd = (Math.floor(nx / DAY_W) + 1) * DAY_W;
+        var canvasEnd = view.days * DAY_W;
+        out.push({ word: 'Forecast', x0: nx, x1: dayEnd < canvasEnd ? dayEnd : canvasEnd });
         return out;
     }
 

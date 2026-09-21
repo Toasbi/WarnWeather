@@ -402,11 +402,11 @@ test('the caption names the past by what produced it, and only DWD says Measured
     ['Measured', 'Estimated', 'Forecast']);
 
   // A region needs room for the word AND the padding either side of it,
-  // not merely for the glyphs: at 11:18 the gap between measurement ending
-  // at 08:00 and now is 42 units, wider than "Estimated" (37.8) but not
-  // wider than it plus its margins — so the word stands down rather than
-  // crowd the boundary it hangs off.
-  const tight = charts.prepareView(fixtureData(), DAY0 + 11 * 3600000 + 18 * 60000);
+  // not merely for the glyphs: at 11:30 the gap between measurement ending
+  // at 08:00 and now is 45 units — room for "Estimated" (37.8) and for one
+  // margin (42.8), but not for both (47.8). The word stands down rather
+  // than crowd the boundary it hangs off.
+  const tight = charts.prepareView(fixtureData(), DAY0 + 11 * 3600000 + 30 * 60000);
   tight.measuredAll = tight.times.map((t, i) => i <= 8);
   assert.deepEqual(words(charts.timeFootSvg(tight, pal)).map((w) => w.word),
     ['Measured', 'Forecast']);
@@ -494,6 +494,35 @@ test('the caption names the past by what produced it, and only DWD says Measured
   assert.ok(footLine, 'and the caption picks it up');
   assert.equal(Number(footLine[1]), 0, 'from its own ceiling');
   assert.equal(Number(footLine[2]), foot.H, 'to its own floor — no stub');
+});
+
+test('no caption word is ever sliced by the viewport edge', () => {
+  // Only ONE day is on screen: the caption rides the pan through a one-day
+  // clipping viewport. A word measured against the whole five-day canvas
+  // fits the canvas and not the view — late in the evening "Forecast"
+  // starts within a word's width of local midnight, so half of it showed
+  // today and the other half floated at tomorrow's left edge.
+  const pal = charts.palette(false);
+  const CH = 4.2;
+  let printed = 0;
+  for (let min = 0; min < 1440; min += 1) {
+    const view = charts.prepareView(fixtureData(), DAY0 + min * 60000);
+    const spec = charts.timeFootSvg(view, pal);
+    const words = spec.main.match(/<text x="[\d.]+"[^>]*>[^<]*<\/text>/g) || [];
+    words.forEach((t) => {
+      const x = Number(/x="([\d.]+)"/.exec(t)[1]);
+      const word = /">([^<]*)</.exec(t)[1];
+      const endAnchored = /text-anchor="end"/.test(t);
+      const left = endAnchored ? x - word.length * CH : x;
+      const right = endAnchored ? x : x + word.length * CH;
+      const day = Math.floor(left / charts.DAY_W);
+      assert.ok(left >= day * charts.DAY_W && right <= (day + 1) * charts.DAY_W,
+        '"' + word + '" at ' + Math.floor(min / 60) + ':' + (min % 60)
+        + ' spans [' + left.toFixed(1) + ',' + right.toFixed(1) + '], outside day ' + day);
+      printed += 1;
+    });
+  }
+  assert.ok(printed > 1400, 'the sweep actually rendered words (' + printed + ')');
 });
 
 test('a real DWD response reaches the caption: the word follows the modelled fields, the bars follow the rain', () => {
