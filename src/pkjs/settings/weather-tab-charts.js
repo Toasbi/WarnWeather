@@ -246,41 +246,14 @@
             nowIndex: nowIndex,
             nowMs: nowMs,
             offsetSec: off,
-            daily: settleToday(data.daily || [], prob, dayStartMs)
+            // The day tiles pass through whole: every other tile in the row
+            // is a figure for a WHOLE day, so today's must be one too, or
+            // today alone is measured on a different yardstick than the four
+            // beside it. Settling only today's chance was worse still — it
+            // paired a whole-day amount with a rest-of-day chance in one
+            // column, printing "4 mm" over "5%" for a morning that rained.
+            daily: data.daily || []
         };
-    }
-
-    /**
-     * Today's tile carries the same forward-looking promise as the hours:
-     * its "chance" must describe the hours LEFT in the day, not the ones
-     * already settled. Providers hand over a whole-day maximum (or we
-     * aggregate one), so the view recomputes today's from the hours it
-     * still owns — every other day's tile passes through untouched.
-     * @param {Array<Object>} daily Provider day tiles, today first.
-     * @param {Array<?number>} prob The view's SETTLED hourly chances — the
-     *     past is already null there, which is why this reads all 24.
-     * @param {number} dayStartMs The location's midnight (the canvas origin).
-     * @returns {Array<Object>} The tiles, with today's probMax re-read.
-     */
-    function settleToday(daily, prob, dayStartMs) {
-        var first = daily[0];
-        // The same window dailyStripHtml labels "Today" with, so the tile
-        // that says Today is exactly the tile settled here. Stamps are
-        // local day-starts, except OWM's midday ones; the day-wide window
-        // accepts both and passes on a strip not starting on today.
-        if (!first || first.date < dayStartMs || first.date >= dayStartMs + 86400000) { return daily; }
-        var left = null;
-        for (var i = 0; i < 24 && i < prob.length; i += 1) {
-            var p = prob[i];
-            if (p !== null && p !== undefined && (left === null || p > left)) { left = p; }
-        }
-        // No Object.assign: the page bundle carries no polyfills.
-        var out = daily.slice();
-        out[0] = {
-            date: first.date, tmin: first.tmin, tmax: first.tmax, icon: first.icon,
-            rainMm: first.rainMm, probMax: left, sunshineH: first.sunshineH
-        };
-        return out;
     }
 
     /**

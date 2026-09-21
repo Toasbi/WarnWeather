@@ -909,33 +909,28 @@ test('an hour that is over shows the rain that FELL, or none at all', () => {
   assert.equal(obs.prob[7], null, 'even a measured past hour has no "chance" left');
 });
 
-test("today's tile promises only the hours it still owns", () => {
+test('a day tile describes a WHOLE day, on the same yardstick as the four beside it', () => {
   const raw = fixtureData();
   assert.equal(raw.daily[0].probMax, 0, 'the provider called today 0%');
-  // The fixture rains 60% from 17:00, so a midday view must surface that
-  // and a late-evening view must not (20:00 onward is 60%, 23:00 is the
-  // last hour of the day).
-  assert.equal(charts.prepareView(fixtureData(), NOON).daily[0].probMax, 60);
-  assert.equal(charts.prepareView(fixtureData(), DAY0 + 6 * 3600000).daily[0].probMax, 60);
-  // Tomorrow's tile passes through untouched, whatever the hours say.
-  assert.equal(charts.prepareView(fixtureData(), NOON).daily[1].probMax, 20);
-  // The provider's own object is never mutated — the view copies today.
+  // The hourly rows settle — the past loses its chance, and its rain bar
+  // unless a station measured it — but the tiles do not. Every other tile
+  // in the row is a figure for a whole day; settling today alone would
+  // measure it on a different yardstick than its four neighbours.
+  const view = charts.prepareView(fixtureData(), NOON);
+  assert.deepEqual(view.daily, raw.daily, "the tiles are the provider's, untouched");
+  // Settling only the CHANCE was worse still: the tile prints amount over
+  // chance in one column, so a rained-on morning read "1 mm" over "0%" —
+  // two windows stacked as if they were one statement.
+  assert.equal(view.daily[0].rainMm, raw.daily[0].rainMm);
+  assert.equal(view.daily[0].probMax, raw.daily[0].probMax);
+  // Late in the day the hours below have gone blank and the tile has not.
+  const late = charts.prepareView(fixtureData(), DAY0 + 23 * 3600000);
+  assert.equal(late.daily[0].probMax, raw.daily[0].probMax);
+  assert.equal(late.prob[0], null, 'while the settled hours below it are blank');
+  // And the fetched data is never mutated, whichever way the view reads it.
   const data = fixtureData();
   charts.prepareView(data, NOON);
-  assert.equal(data.daily[0].probMax, 0, 'the fetched data is left alone');
-  // A strip that does not start on today is passed straight through: the
-  // tile labelled Today is exactly the tile settled here.
-  const shifted = fixtureData();
-  shifted.daily = shifted.daily.slice(1);
-  assert.equal(charts.prepareView(shifted, NOON).daily[0].probMax, 20);
-  // And it reads TODAY's hours only: a wetter tomorrow stays tomorrow's.
-  const wetTomorrow = fixtureData();
-  for (let i = 0; i < wetTomorrow.hourly.time.length; i += 1) {
-    if (wetTomorrow.hourly.time[i] >= DAY0 + 86400000) { wetTomorrow.hourly.prob[i] = 95; }
-  }
-  const wv = charts.prepareView(wetTomorrow, NOON);
-  assert.equal(wv.daily[0].probMax, 60, "tomorrow's 95% never lands on today's tile");
-  assert.equal(wv.prob[30], 95, 'while tomorrow itself still carries it');
+  assert.deepEqual(data.daily, raw.daily, 'the fetched data is left alone');
 });
 
 test('the 5-day strip renders tappable day tiles with units honored and selection marked', () => {
