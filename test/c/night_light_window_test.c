@@ -31,9 +31,10 @@ static int in_window(int hour, int start, int end) {
     return night_light_hour_in_window(hour, start, end) ? 1 : 0;
 }
 
-// A 22:00-05:59 window is the schema's own shape (the shared Night hours default to
-// 22..7 for the battery saver, and the dim window's own selects default to 0..7), so
-// the wrapping case is the common one, not the exotic one.
+// Every Nighttime feature owns a From/To pair the user picks freely, and an evening
+// start like 22:00-05:59 is the ordinary way to say "night" — so the wrapping case is
+// the common one, not the exotic one. (The dim window's own selects default to 0..7,
+// which does not wrap; both shapes have to work.)
 static void wraps_past_midnight(void) {
     // Inside, on both sides of the wrap.
     expect("wrap_22", in_window(22, 22, 6), 1);

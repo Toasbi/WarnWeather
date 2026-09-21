@@ -253,12 +253,20 @@ Schema
 
 A `sheet` item is a whole-row chevron target by default. Give it an
 `editBadgeFrom: { resolver, args }` — a named resolver `fn(S, env, args)` returning `null` or
-`{label?, ariaNote?, dots: [{color, ring?}]}`, registered on `PConf.badgeResolvers` — and it
-renders as an ordinary row instead: label on the left, then the badge's colour dots (outlined
-when `ring`, filled otherwise) and an **Edit** button on the right, with nothing between them
-(there is no control to draw for a `sheet`). Use that shape for a row that only leads to a
-sheet but should still show what is configured in there. Because the row has no `messageKey`,
-whatever the resolver needs to identify the row must be passed in `editBadgeFrom.args`.
+`{label?, ariaNote?, chip?, dots: [{color, ring?}]}`, registered on `PConf.badgeResolvers` — and
+it renders as an ordinary row instead: label on the left, then the badge's colour preview and an
+**Edit** button on the right, with nothing between them (there is no control to draw for a
+`sheet`). Use that shape for a row that only leads to a sheet but should still show what is
+configured in there. Because the row has no `messageKey`, whatever the resolver needs to
+identify the row must be passed in `editBadgeFrom.args`.
+
+The preview comes in two shapes, chosen by how many colours the row owns. `chip` is ONE
+`'#RRGGBB'`, printed as the full swatch-and-hex readout an `rgb` control shows above its
+sliders — the same fragment, from the same builder (`lib/html.js` `swatchReadout`), so a row
+and the sheet it opens name a colour identically. `dots` are small pips, outlined when the
+entry sets `ring` and filled otherwise, for a row previewing several colours at once where
+several readouts would not fit. Both preview lanes are `aria-hidden`, so `ariaNote` is what
+actually announces the state: it is appended to the Edit button's `aria-label` in parentheses.
 
 The fifteen types above are the complete built-in set. Anything bespoke belongs in a custom block
 registered via `PConf.blocks.register` — the control-type dispatch itself is not pluggable from
@@ -527,7 +535,8 @@ rename, so a concurrent reader never sees a half-written file), and returns `out
    - `lib/schema-walk.js` — single-source schema traversal (`PConf.schemaWalk`)
    - `lib/color.js` — int↔hex color conversion (`PConf.color`)
    - `lib/show-when.js` — predicate evaluator (`PConf.showWhen`)
-   - `lib/html.js` — the escape helper + shared sheet header (`PConf.html`)
+   - `lib/html.js` — the escape helper, the shared sheet header, and the swatch+hex
+     colour readout the `rgb` control and a `chip` badge both print (`PConf.html`)
    - `lib/date-picker.js` — the date control: value helpers, wheel renderers, scroll-settle wiring (`PConf.datePicker`)
    - `lib/range-control.js` — the dual-thumb/threshold slider AND the `rgb` control (three single-thumb
      channel tracks sharing the same drag wiring): numeric rules, renderers, drag wiring (`PConf.rangeControl`)

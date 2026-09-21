@@ -221,11 +221,10 @@
   /* three-channel colour (type: 'rgb'): a live swatch + hex readout above one
      single-thumb track per channel, composed from the range slider's own
      track/thumb markup so it inherits the same drag/keyboard/disabled rules.
-     The readout reuses the color picker's swatch chrome (.sw-wrap) but is a
-     READOUT, not a trigger — it opens nothing, so it drops the pointer cursor.
+     The readout is .sw-wrap.sw-ro (see its rule below) — the same fragment a
+     row's colour badge prints; .rgb-head only centers it over the tracks.
      Channel tints ride inline as --th-c/--th-glow, like the threshold knobs. */
   .rgb-head { display: flex; justify-content: center; margin-bottom: 10px; }
-  .rgb-head .sw-wrap { cursor: default; }
   .rgb-ch { display: flex; align-items: center; }
   .rgb-ch-lbl { width: 14px; text-align: center; font: 700 11.5px 'Inter', sans-serif; color: var(--faint); }
   .rgb-ch .rng-track { flex: 1; }
@@ -357,6 +356,15 @@
      nothing to press, and deliberately NOT inside the Edit button, where its ~29px
      widened exactly the rows that had it and broke the right-edge alignment. */
   .thr-swatch { flex: none; display: inline-flex; align-items: center; gap: 4px; }
+  /* ...and when a row previews ONE colour it shows the whole readout instead of a pip:
+     the sheet's own 24px chip plus the hex, so the card says which colour is set and not
+     merely that one is. Only the padding is trimmed — 5px/6px around a 24px chip is 36px
+     tall and would push this row past the 33px every other Edit row stands at, while
+     3px/4px lands at 32px and leaves the Edit button setting the row height as before.
+     Widest case, "#FFFFFF" at 12px ui-monospace: ~52px of text, so ~100px of readout
+     beside the ~48px button — the control cell stays well inside a 320px phone, and .lft
+     (min-width: 0) absorbs the difference. */
+  .thr-swatch .sw-wrap.sw-ro { padding: 3px 9px 3px 4px; }
   /* Always-bold marker: a heavy "B" in the same preview lane as the dots — the
      watch's own language again (the value prints bold), no colour of its own. */
   .pen-b { flex: none; font: 800 12px 'Inter', sans-serif; line-height: 1; color: var(--lbl); }
@@ -382,6 +390,11 @@
   .sw-wrap { display: flex; align-items: center; gap: 9px; cursor: pointer; background: var(--ctl); border: 1px solid var(--ctl-line); border-radius: 9px; padding: 5px 11px 5px 6px; }
   .sw-wrap b { width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--chip-line); }
   .sw-wrap span { font: 600 12px ui-monospace, monospace; color: var(--muted); letter-spacing: .02em; }
+  /* .sw-ro — the same chrome as a READOUT, not a trigger: it prints a colour and opens
+     nothing, so it drops the pointer cursor. One rule for both places it renders (the
+     rgb sheet's .rgb-head and a row's .thr-swatch badge), since both print the identical
+     fragment (html.js swatchReadout). */
+  .sw-wrap.sw-ro { cursor: default; }
   .palette { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; margin-top: 12px; }
   .palette button { aspect-ratio: 1.2 / 1; border-radius: 5px; cursor: pointer; border: 1px solid var(--swatch-line); padding: 0; }
   .palette button.on { border: 2px solid #fff; box-shadow: 0 0 0 2px #FA4A35; }

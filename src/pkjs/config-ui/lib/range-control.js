@@ -12,6 +12,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 (function () {
   var htmlLib = (typeof require !== 'undefined') ? require('./html.js') : PConf.html;
   var esc = htmlLib.esc;
+  // The chip+hex readout above the channel sliders. It is NOT local to this file:
+  // a row's colour badge prints the same fragment from the same builder (html.js),
+  // so the card and the sheet cannot drift apart.
+  var swatchReadout = htmlLib.swatchReadout;
 
   // Pencil glyph for the slider's inline scale-max editor (rng-max-edit).
   var PEN_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"'
@@ -278,9 +282,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var label = String(item.label || 'Color');
     var h = '<div class="rng rgb" data-range="' + esc(item.messageKey) + '" data-r="' + c.r
       + '" data-g="' + c.g + '" data-b="' + c.b + '">'
-      + '<div class="rgb-head"><div class="sw-wrap">'
-      + '<b data-rgb-swatch style="background:' + esc(hex) + '"></b>'
-      + '<span data-rgb-hex>' + esc(hex) + '</span></div></div>';
+      + '<div class="rgb-head">' + swatchReadout(hex, true) + '</div>';
     for (var i = 0; i < RGB_CHANNELS.length; i++) {
       var ch = RGB_CHANNELS[i], v = c[ch], chrome = RGB_CHROME[ch], pct = rgbPct(v);
       h += '<div class="rgb-ch" style="--th-c:' + chrome.tint + ';--th-glow:' + chrome.glow + '">'

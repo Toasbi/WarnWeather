@@ -574,14 +574,17 @@ if (typeof require !== 'undefined') {
     });
 
     // Row badge for a `sheet` row whose sheet holds ONE rgb control — schema.js'
-    // Nighttime card, whose "Color" row opens the dim-backlight sliders. ONE filled
-    // dot, the colour that control currently stores, so the card shows what the
-    // backlight will glow and the three channel tracks stay behind the row.
+    // Nighttime card, whose "Color" row opens the dim-backlight sliders. It reports a
+    // `chip`, not `dots`: the engine prints that as the full swatch-and-hex readout the
+    // sheet itself shows above the sliders (html.js swatchReadout, one builder for both),
+    // so the row names the colour it is set to instead of hinting at it with a 9px pip.
+    // The graph rows keep dots because each of them previews two or three colours at
+    // once and three readouts would not fit a row — chip is the ONE-colour shape.
     //
-    // The dot is derived, not stored: the value is the control's "r,g,b" wire string
-    // and the dot is its hex, parsed by range-control.js' own parser so an unset or
-    // bruised value (blank, two channels, 300) badges exactly the colour the sliders
-    // would open on rather than a second reading of the format.
+    // The hex is derived, not stored: the value is the control's "r,g,b" wire string,
+    // parsed by range-control.js' own parser so an unset or bruised value (blank, two
+    // channels, 300) badges exactly the colour the sliders would open on rather than a
+    // second reading of the format.
     /**
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env — unused: the row that carries this badge owns
@@ -590,16 +593,17 @@ if (typeof require !== 'undefined') {
      * @param {Object} args editBadgeFrom.args — {key, defaultValue}: the rgb key this
      *     row previews (a `sheet` row has no messageKey of its own to merge in) and
      *     that key's schema default, for a value the parser rejects.
-     * @returns {?{label: string, ariaNote: string, dots: Object[]}} The badge, or null
+     * @returns {?{label: string, ariaNote: string, chip: string}} The badge, or null
      *     when the row named no key to preview.
      */
     PConf.badgeResolvers.register('rgbSwatch', function (S, env, args) {
         if (!rangeControl || !args || !args.key) { return null; }
         var hex = rangeControl.rgbHex(rangeControl.parseRgb(S ? S[args.key] : null,
             {defaultValue: args.defaultValue}));
-        // The swatch is aria-hidden, so the hex is the ONLY announcement of the
-        // colour — and it is the same string the sheet prints above its sliders.
-        return {label: 'Edit', ariaNote: hex, dots: [{color: hex}]};
+        // The readout is aria-hidden (it is a preview, and its hex would be read out a
+        // character at a time), so ariaNote stays the announcement of the colour — the
+        // same string now printed on the row and above the sheet's sliders.
+        return {label: 'Edit', ariaNote: hex, chip: hex};
     });
 
     // Reset-to-defaults for the whole status-bar card (the text button in the Watch

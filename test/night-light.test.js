@@ -13,9 +13,11 @@ const rangeControl = require('../src/pkjs/config-ui/lib/range-control.js');
 
 const { buildNightLightBytes, parseDimColor, resolveDimWindow, isDimEnabled } = nightLight;
 
-// Shared Night hours 0..7, the dim window's own hours 22..6 — deliberately different
-// windows, and neither is a subset of the other, so reading the wrong pair shows up at
-// both ends (06 and 22/23). The same fixture shape test/sleep-window.test.js uses.
+// The dim window's own hours are 22..6; the battery saver's pair is set to a
+// deliberately DIFFERENT window (0..7) as a negative control. Neither is a subset of
+// the other, so a reader that picked up the saver's pair by mistake — the shape this
+// module had while the Nighttime card still owned a shared window — shows up at both
+// ends (06 and 22/23). Nothing here may read sleepStartHour/sleepEndHour at all.
 function S(over) {
   return Object.assign({
     backlightDim: true,
@@ -84,52 +86,56 @@ test('black is a legitimate pick, not a fallback', () => {
 
 // --- the window: which pair, and the conventions it follows -----------------
 
-test("mode 'custom' takes the feature's own hours", () => {
-  assert.deepEqual(resolveDimWindow(S({ backlightDimMode: 'custom' })), { start: 22, end: 6 });
-  assert.deepEqual(buildNightLightBytes(S({ backlightDimMode: 'custom' })), [96, 0, 0, 22, 6]);
+test("the window is the feature's OWN hours, with no mode to pick between pairs", () => {
+  assert.deepEqual(resolveDimWindow(S()), { start: 22, end: 6 });
+  assert.deepEqual(buildNightLightBytes(S()), [96, 0, 0, 22, 6]);
 });
 
-test("mode 'night', an absent mode and an unknown mode all follow the shared Night hours", () => {
-  // Following the card's shared window is the default, so a blob with no
-  // backlightDimMode stored at all must read the shared pair, not the custom one.
-  [{ backlightDimMode: 'night' }, {}, { backlightDimMode: undefined },
-    { backlightDimMode: 'wat' }].forEach((over) => {
-    assert.deepEqual(resolveDimWindow(S(over)), { start: 0, end: 7 },
-      'mode ' + JSON.stringify(over) + ' must follow Night hours');
+test("the battery saver's hours are never read, whatever else is stored", () => {
+  // The regression guard for this branch's own defect: the dim window briefly fell
+  // through to sleepStartHour/sleepEndHour, so the From/To under Dim backlight was
+  // ignored and the LED followed the battery saver's schedule instead. A leftover
+  // backlightDimMode from a dev build must not resurrect that path either.
+  [{}, { backlightDimMode: 'night' }, { backlightDimMode: 'custom' },
+    { backlightDimMode: 'wat' }, { sleepStartHour: '9', sleepEndHour: '17' },
+    { sleepStartHour: undefined, sleepEndHour: undefined }].forEach((over) => {
+    assert.deepEqual(resolveDimWindow(S(over)), { start: 22, end: 6 },
+      'the dim window must stay its own for ' + JSON.stringify(over));
   });
-  assert.deepEqual(buildNightLightBytes(S({ backlightDimMode: 'night' })), [96, 0, 0, 0, 7]);
 });
 
 test('a window that wraps past midnight rides the wire as-is (the watch unwraps it)', () => {
   // 22..6 wraps; the end hour is EXCLUSIVE, so 6 is already day.
-  assert.deepEqual(buildNightLightBytes(S({ backlightDimMode: 'custom' })), [96, 0, 0, 22, 6]);
-  assert.deepEqual(buildNightLightBytes(S({ backlightDimMode: 'custom',
+  assert.deepEqual(buildNightLightBytes(S()), [96, 0, 0, 22, 6]);
+  assert.deepEqual(buildNightLightBytes(S({
     backlightDimStartHour: '23', backlightDimEndHour: '0' })), [96, 0, 0, 23, 0]);
 });
 
 test('a non-wrapping window rides the wire as-is', () => {
-  assert.deepEqual(buildNightLightBytes(S({ backlightDimMode: 'custom',
+  assert.deepEqual(buildNightLightBytes(S({
     backlightDimStartHour: '1', backlightDimEndHour: '5' })), [96, 0, 0, 1, 5]);
-  assert.deepEqual(buildNightLightBytes(S({ sleepStartHour: '9', sleepEndHour: '17' })),
-    [96, 0, 0, 9, 17]);
+  assert.deepEqual(buildNightLightBytes(S({
+    backlightDimStartHour: '9', backlightDimEndHour: '17' })), [96, 0, 0, 9, 17]);
 });
 
 test('unparseable hours fall back to 0..7 — the schema defaults of the keys being read', () => {
   // NOT sleep-window.js's 22/7: those are the battery saver's historical fallback,
-  // kept for its upgrading installs. Both pairs read here default to '0'/'7'.
-  assert.deepEqual(resolveDimWindow(S({ sleepStartHour: 'x', sleepEndHour: '99' })),
-    { start: 0, end: 7 });
-  assert.deepEqual(resolveDimWindow(S({ backlightDimMode: 'custom',
+  // kept for ITS upgrading installs. backlightDimStartHour/EndHour default to '0'/'7'.
+  assert.deepEqual(resolveDimWindow(S({
     backlightDimStartHour: undefined, backlightDimEndHour: '-1' })), { start: 0, end: 7 });
-  assert.deepEqual(resolveDimWindow(S({ backlightDimMode: 'custom',
+  assert.deepEqual(resolveDimWindow(S({
     backlightDimStartHour: '24', backlightDimEndHour: 'nope' })), { start: 0, end: 7 });
-  // ...and the saver's own fallbacks are untouched by that choice.
-  assert.deepEqual(sleepWindow.resolveSleepWindow({ sleepStartHour: 'x', sleepEndHour: '99' }),
-    { start: 22, end: 7 });
+  assert.deepEqual(resolveDimWindow({}), { start: 0, end: 7 }, 'nothing stored at all');
+  // ...and the saver's own 22..7 fallback is untouched by that choice: garbage hours
+  // there pause 22:00-07:00, a different window from this one's 00:00-07:00.
+  const at = (h) => { const d = new Date(); d.setHours(h, 0, 0, 0); return d; };
+  const garbage = { sleepNightEnabled: true, sleepStartHour: 'x', sleepEndHour: '99' };
+  assert.equal(sleepWindow.isWithinSleepWindow(at(22), garbage), true);
+  assert.equal(sleepWindow.isWithinSleepWindow(at(7), garbage), false);
 });
 
 test('a user-configured zero-length window is left alone (it already means never)', () => {
-  assert.deepEqual(buildNightLightBytes(S({ backlightDimMode: 'custom',
+  assert.deepEqual(buildNightLightBytes(S({
     backlightDimStartHour: '5', backlightDimEndHour: '5' })), [96, 0, 0, 5, 5]);
 });
 
@@ -146,9 +152,8 @@ test('OFF zeroes the colour too, so editing it while off cannot dirty the Clay m
   // byte that moves buys a Bluetooth send. While the feature is off, none of the five
   // settings may move a byte.
   const base = buildNightLightBytes(S({ backlightDim: false }));
-  [{ backlightDimColor: '1,2,3' }, { backlightDimMode: 'custom' },
-    { backlightDimStartHour: '3' }, { backlightDimEndHour: '4' },
-    { sleepStartHour: '9' }].forEach((over) => {
+  [{ backlightDimColor: '1,2,3' }, { backlightDimStartHour: '3' },
+    { backlightDimEndHour: '4' }, { sleepStartHour: '9' }].forEach((over) => {
     assert.deepEqual(buildNightLightBytes(S(Object.assign({ backlightDim: false }, over))),
       base, 'OFF must be inert for ' + JSON.stringify(over));
   });
@@ -162,37 +167,37 @@ test('the OFF tuple is a fresh array each call (a mutating caller cannot poison 
 
 // --- every key actually moves the tuple (the change detector's input) --------
 
-test('each of the five Dim backlight keys moves the tuple', () => {
-  // Base is custom mode with hours and a colour that differ from the shared pair and
-  // the default, so a single key edit is visible in the bytes either way.
-  function custom(over) {
-    return S(Object.assign({ backlightDimMode: 'custom', backlightDimColor: '10,20,30' },
-      over || {}));
+test('each of the four Dim backlight keys moves the tuple', () => {
+  // Base carries hours and a colour that differ from the defaults, so a single key
+  // edit is visible in the bytes.
+  function base(over) {
+    return S(Object.assign({ backlightDimColor: '10,20,30' }, over || {}));
   }
   const edits = {
     backlightDim: false,               // -> the OFF tuple
-    backlightDimMode: 'night',         // -> the shared Night hours instead
     backlightDimStartHour: '21',
     backlightDimEndHour: '5',
     backlightDimColor: '11,20,30'
   };
-  const packed = JSON.stringify(buildNightLightBytes(custom()));
+  const packed = JSON.stringify(buildNightLightBytes(base()));
   Object.keys(edits).forEach((key) => {
     const over = {};
     over[key] = edits[key];
-    assert.notEqual(JSON.stringify(buildNightLightBytes(custom(over))), packed,
+    assert.notEqual(JSON.stringify(buildNightLightBytes(base(over))), packed,
       key + ' must move CLAY_NIGHT_LIGHT_UINT8');
   });
 });
 
-test('the shared Night hours move the tuple while the feature follows them', () => {
-  const following = JSON.stringify(buildNightLightBytes(S({ backlightDimMode: 'night' })));
-  assert.notEqual(JSON.stringify(buildNightLightBytes(
-    S({ backlightDimMode: 'night', sleepStartHour: '21' }))), following);
-  // ...and do NOT move it once the feature has hours of its own.
-  const own = JSON.stringify(buildNightLightBytes(S({ backlightDimMode: 'custom' })));
-  assert.equal(JSON.stringify(buildNightLightBytes(
-    S({ backlightDimMode: 'custom', sleepStartHour: '21' }))), own);
+test('no OTHER Nighttime key moves the tuple (a settings-message no-op stays one)', () => {
+  // The whole Clay payload is one change-detector category, so a key this module has
+  // stopped reading must not buy a Bluetooth send when the user edits it elsewhere
+  // in the card.
+  const packed = JSON.stringify(buildNightLightBytes(S()));
+  [{ sleepStartHour: '21' }, { sleepEndHour: '3' }, { sleepNightEnabled: false },
+    { backlightDimMode: 'custom' }, { themeAutoMode: 'manual' }].forEach((over) => {
+    assert.equal(JSON.stringify(buildNightLightBytes(S(over))), packed,
+      JSON.stringify(over) + ' must not move CLAY_NIGHT_LIGHT_UINT8');
+  });
 });
 
 // --- mirror parity ----------------------------------------------------------
@@ -237,7 +242,7 @@ test('the colour parser matches the settings page exactly (mirror parity)', () =
 test('the hour bytes are sleep-window.js\'s parse, with this feature\'s own fallbacks', () => {
   const HOURS = ['0', '5', '7', '22', '23', 'x', '99', '-1', undefined, null, 12, ' 8 '];
   HOURS.forEach((a) => HOURS.forEach((b) => {
-    const bytes = buildNightLightBytes(S({ backlightDimMode: 'custom',
+    const bytes = buildNightLightBytes(S({
       backlightDimStartHour: a, backlightDimEndHour: b }));
     assert.equal(bytes[3], sleepWindow.parseHour(a, 0), 'start drifted for ' + a);
     assert.equal(bytes[4], sleepWindow.parseHour(b, 7), 'end drifted for ' + b);
@@ -296,20 +301,14 @@ test('the watch accepts every tuple this packer can emit', () => {
   const c = watchWireContract();
   const COLOURS = ['96,0,0', '0,0,0', '255,255,255', '300,-5,20', 'nonsense',
     '#FF0000', undefined];
-  ['night', 'custom'].forEach((mode) => {
-    for (let start = 0; start < 24; start++) {
-      for (let end = 0; end < 24; end++) {
-        const over = mode === 'custom'
-          ? { backlightDimMode: 'custom',
-            backlightDimStartHour: String(start), backlightDimEndHour: String(end) }
-          : { backlightDimMode: 'night',
-            sleepStartHour: String(start), sleepEndHour: String(end) };
-        const tuple = buildNightLightBytes(S(over));
-        assert.ok(watchAccepts(tuple, c),
-          'the watch would DROP ' + JSON.stringify(tuple) + ' for ' + JSON.stringify(over));
-      }
+  for (let start = 0; start < 24; start++) {
+    for (let end = 0; end < 24; end++) {
+      const over = { backlightDimStartHour: String(start), backlightDimEndHour: String(end) };
+      const tuple = buildNightLightBytes(S(over));
+      assert.ok(watchAccepts(tuple, c),
+        'the watch would DROP ' + JSON.stringify(tuple) + ' for ' + JSON.stringify(over));
     }
-  });
+  }
   COLOURS.forEach((backlightDimColor) => {
     assert.ok(watchAccepts(buildNightLightBytes(S({ backlightDimColor })), c),
       'the watch would drop the tuple for colour ' + JSON.stringify(backlightDimColor));

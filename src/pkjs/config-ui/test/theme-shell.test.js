@@ -57,6 +57,26 @@ test('shell.html names the badge dots by shape, not by threshold vocabulary', ()
   assert.equal(/\.pen-dot\.danger\b/.test(shell), false, '.pen-dot.danger is threshold vocabulary');
 });
 
+test('shell.html sizes the colour readout to fit a row beside the Edit button', () => {
+  // One fragment renders in two places (html.js swatchReadout): centered above the rgb
+  // sliders in a sheet, and inside .thr-swatch on a row. Node has no layout engine, so
+  // what is checkable here is the arithmetic the rules encode — a 24px chip with the
+  // sheet's 5px/6px padding and 1px borders is 36px, taller than the 33px floor every
+  // other Edit row stands at, which would make this one row the odd one out. The row
+  // copy trims ONLY the padding (3px → 32px) and keeps the chip at the sheet's size.
+  assert.ok(/\.sw-wrap\.sw-ro\s*\{[^}]*cursor:\s*default/.test(shell),
+    '.sw-ro is a readout, not a trigger: it must drop the pointer cursor');
+  const rowRule = /\.thr-swatch \.sw-wrap\.sw-ro\s*\{([^}]*)\}/.exec(shell);
+  assert.ok(rowRule, 'missing the row-scoped .sw-ro rule');
+  assert.match(rowRule[1], /padding:\s*3px 9px 3px 4px/, 'the row copy trims the padding');
+  assert.equal(/\.thr-swatch \.sw-wrap\.sw-ro[^}]*(width|height|font)\s*:/.test(shell), false,
+    'the chip and the hex keep the SHEET\'s size — only the padding differs');
+  // The base chrome the trim leans on, so a change there cannot silently break the fit.
+  assert.ok(/\.sw-wrap b\s*\{[^}]*width:\s*24px/.test(shell), '.sw-wrap b is the 24px chip');
+  assert.ok(/\.thr-btn\s*\{[^}]*min-height:\s*33px/.test(shell),
+    'and 33px is the height the trimmed readout has to fit inside');
+});
+
 test('shell.html gives the Edit button a height floor so a control-less row matches the slots', () => {
   // `.row .rgt.has-pen` stretches the button to whatever control sits beside it, but a
   // type:'sheet' row has an EMPTY control cell — without this floor its Edit button

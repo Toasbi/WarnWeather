@@ -1,11 +1,9 @@
 // src/pkjs/sleep-window.js
 //
-// The battery saver's night window. Since the Nighttime card landed, the hours
-// come from one of TWO pairs: the card-level "Night hours"
-// (sleepStartHour/sleepEndHour — shared with the other night features) or the
-// saver's own sleepNightStartHour/sleepNightEndHour, selected by the
-// sleepNightMode segmented control. Everything that needs the window goes
-// through resolveSleepWindow() so the mode is honoured in exactly one place.
+// The battery saver's night window: sleepStartHour/sleepEndHour, the pair that
+// switch has always owned. The Nighttime card groups the saver with the theme
+// switch and the backlight dim, but each of the three owns its OWN hours — there
+// is no shared window to choose between, so there is nothing to resolve here.
 
 // Clamp targets for unparseable/out-of-range hours. Deliberately NOT the
 // schema defaults (0/7): this is the historical "sane night" fallback, kept so
@@ -32,48 +30,29 @@ function parseHour(value, fallback) {
 }
 
 /**
- * The EFFECTIVE (start, end) hour pair the battery saver runs on. Mode 'custom'
- * takes the saver's own pair; anything else — including the 'night' default and
- * an upgrading install with no sleepNightMode stored at all — takes the shared
- * Night hours, so behaviour is unchanged for every existing install.
- *
- * Callers apply the start === end "never" rule themselves (an empty window is
- * not a pair this can express).
- *
- * @param {Object} settings Clay settings (sleepNightMode + both hour pairs).
- * @returns {{start: number, end: number}} Effective hours, each 0..23.
- */
-function resolveSleepWindow(settings) {
-    var s = settings || {};
-    var custom = (s.sleepNightMode || 'night') === 'custom';
-    return {
-        start: parseHour(custom ? s.sleepNightStartHour : s.sleepStartHour, DEFAULT_START),
-        end: parseHour(custom ? s.sleepNightEndHour : s.sleepEndHour, DEFAULT_END)
-    };
-}
-
-/**
- * True when the sleep toggle is on and `now`'s hour is inside the effective
+ * True when the sleep toggle is on and `now`'s hour is inside the configured
  * window. Schedule values arrive from Clay as strings; parsed and clamped at
- * use-site (default 22..7) rather than mutating settings. A zero-length window
- * (start === end) means never.
+ * use-site (default 22..7) rather than mutating settings. The end hour is
+ * EXCLUSIVE, the window WRAPS past midnight, and a zero-length window
+ * (start === end) means never — the conventions night-light.js's dim window and
+ * theme-schedule.js's manual window follow too.
  *
  * @param {Date} now Time to evaluate.
- * @param {Object} settings Clay settings (sleepNightEnabled + resolveSleepWindow's keys).
+ * @param {Object} settings Clay settings (sleepNightEnabled/sleepStartHour/sleepEndHour).
  * @returns {boolean} True when `now` is within the sleep window.
  */
 function isWithinSleepWindow(now, settings) {
     if (!settings || !settings.sleepNightEnabled) { return false; }
     var h = now.getHours();
-    var win = resolveSleepWindow(settings);
-    if (win.start === win.end) { return false; }
-    if (win.start < win.end) { return h >= win.start && h < win.end; }
-    return h >= win.start || h < win.end;
+    var start = parseHour(settings.sleepStartHour, DEFAULT_START);
+    var end = parseHour(settings.sleepEndHour, DEFAULT_END);
+    if (start === end) { return false; }
+    if (start < end) { return h >= start && h < end; }
+    return h >= start || h < end;
 }
 
 
 module.exports = {
     isWithinSleepWindow: isWithinSleepWindow,
-    resolveSleepWindow: resolveSleepWindow,
     parseHour: parseHour
 };

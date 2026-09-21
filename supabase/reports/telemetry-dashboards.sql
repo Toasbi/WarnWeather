@@ -181,12 +181,7 @@ flags as (
     ('radar',              (l.settings_json ->> 'radarProvider') <> 'disabled'),
     ('rain_countdown',     (l.settings_json ->> 'rainCountdownHorizon') <> '0'),
     ('health',             (l.settings_json ->> 'healthMode') <> 'off'),
-    -- The battery saver's own switch, not the presence of the hours. sleepStartHour
-    -- is the Nighttime card's SHARED window now (the LED tint and the theme switch
-    -- can follow it with the saver off), so its presence stopped meaning "saver on"
-    -- and telemetry.js started sending sleepNightEnabled for exactly this flag.
-    -- Clients older than that field report neither, and land in the NULL arm.
-    ('night_sleep',        (l.settings_json ->> 'sleepNightEnabled') = 'true'),
+    ('night_sleep',        l.settings_json ? 'sleepStartHour'),
     -- Did the watch move ANY of the six graph colours off its built-in? Every colour key
     -- now holds a concrete value, so "untouched" is the literal 'default' the watch sends
     -- rather than an absent key. The FIELDS are still absent whenever the watch paints no

@@ -201,57 +201,34 @@ test('snapshot includes threshPhoneBatteryBoldMode, raw', () => {
 });
 
 // --- the Nighttime card ------------------------------------------------------
-// Night hours (sleepStartHour/sleepEndHour) used to be the battery saver's private
-// pair and was reported only while the saver was on. It is the card-level window
-// three features can follow now, so the gate widened to "does anything follow it",
-// and the saver's own switch became a field of its own. These tests pin both halves,
-// because the dashboards' night_sleep flag moved with them
-// (supabase/reports/telemetry-dashboards.sql).
+// Three features, each owning its own hours: the battery saver
+// (sleepStartHour/sleepEndHour), theme switching (themeAutoStartHour/EndHour, and
+// only in manual mode) and the dim backlight (backlightDimStartHour/EndHour). There
+// is no shared window and no mode key on two of the three, so each group reports its
+// hours under its own switch — the "value in effect" rule, three times over.
 const EMERY = { platform: 'emery' };
 
-test('Night hours are reported while the battery saver follows them', () => {
+test("the battery saver reports its own window, gated on its own switch", () => {
   const snap = buildSettingsSnapshot({
     sleepNightEnabled: true, sleepStartHour: '23', sleepEndHour: '7'
   });
-  assert.equal(snap.sleepNightEnabled, true);
   assert.equal(snap.sleepStartHour, 23);
   assert.equal(snap.sleepEndHour, 7);
-  // 'night' is the default, so an install that predates the card reports it and its
-  // own window stays absent — the state every upgrade lands in.
-  assert.equal(snap.sleepNightMode, 'night');
-  assert.equal(snap.sleepNightStartHour, undefined);
-  assert.equal(snap.sleepNightEndHour, undefined);
-});
-
-test('the saver on its own window reports that window, not just the shared one', () => {
-  const snap = buildSettingsSnapshot({
-    sleepNightEnabled: true, sleepStartHour: '23', sleepEndHour: '7',
-    sleepNightMode: 'custom', sleepNightStartHour: '1', sleepNightEndHour: '6'
+  // Saver off: the hours drive nothing, so they are not a value in effect. Their
+  // PRESENCE is how supabase/reports/telemetry-dashboards.sql reads "saver on".
+  const off = buildSettingsSnapshot({
+    sleepNightEnabled: false, sleepStartHour: '23', sleepEndHour: '7'
   });
-  assert.equal(snap.sleepNightMode, 'custom');
-  assert.equal(snap.sleepNightStartHour, 1);
-  assert.equal(snap.sleepNightEndHour, 6);
-  // Nothing follows the shared window in this state, so it is not in effect.
-  assert.equal(snap.sleepStartHour, undefined);
-  assert.equal(snap.sleepEndHour, undefined);
-});
-
-test('Night hours still report when only the theme switch follows them', () => {
-  const base = { sleepNightEnabled: false, sleepStartHour: '23', sleepEndHour: '7' };
-  // Saver off and nothing else pointed at the window: no value is in effect.
-  assert.equal(buildSettingsSnapshot(base).sleepStartHour, undefined);
-  assert.equal(buildSettingsSnapshot(base).sleepNightEnabled, false);
-  assert.equal(buildSettingsSnapshot(base).sleepNightMode, undefined,
-    'the saver is off, so its mode is not a value in effect either');
-  // The theme switch pointed at Night hours is a consumer, so they are.
-  const followed = buildSettingsSnapshot(
-    Object.assign({}, base, { themeAuto: true, themeAutoMode: 'night' }));
-  assert.equal(followed.sleepStartHour, 23);
-  assert.equal(followed.sleepEndHour, 7);
-  // Sunrise/sunset is not: it reads the sun, not the hours.
-  const sun = buildSettingsSnapshot(
-    Object.assign({}, base, { themeAuto: true, themeAutoMode: 'sun' }));
-  assert.equal(sun.sleepStartHour, undefined);
+  assert.equal(off.sleepStartHour, undefined);
+  assert.equal(off.sleepEndHour, undefined);
+  // ...and nothing else in the card can make them report: no other feature reads them.
+  [{ themeAuto: true, themeAutoMode: 'manual' }, { backlightDim: true }
+  ].forEach(function (over) {
+    assert.equal(buildSettingsSnapshot(Object.assign({
+      sleepNightEnabled: false, sleepStartHour: '23', sleepEndHour: '7' }, over), EMERY)
+      .sleepStartHour, undefined,
+    JSON.stringify(over) + ' does not consume the saver hours');
+  });
 });
 
 // Dim backlight is emery's alone — light_set_color_rgb888() drives an LED no other
@@ -259,50 +236,43 @@ test('Night hours still report when only the theme switch follows them', () => {
 // basalt install as using it. The whole group is therefore absent without the
 // hardware, the same convention the six graph colours use on a B&W watch.
 test('Dim backlight is reported only on a watch that has the LED', () => {
-  const settings = { backlightDim: true, backlightDimColor: '96,0,0' };
+  const settings = { backlightDim: true, backlightDimColor: '96,0,0',
+    backlightDimStartHour: '1', backlightDimEndHour: '6' };
   const emery = buildSettingsSnapshot(settings, EMERY);
   assert.equal(emery.backlightDim, true);
-  assert.equal(emery.backlightDimMode, 'night');
+  assert.equal(emery.backlightDimStartHour, 1);
+  assert.equal(emery.backlightDimEndHour, 6);
   assert.equal(emery.backlightDimColor, '96,0,0', 'the stored r,g,b triple, not a hex colour');
 
   const basalt = buildSettingsSnapshot(settings, { platform: 'basalt' });
   assert.equal(basalt.backlightDim, undefined);
-  assert.equal(basalt.backlightDimMode, undefined);
+  assert.equal(basalt.backlightDimStartHour, undefined);
+  assert.equal(basalt.backlightDimEndHour, undefined);
   assert.equal(basalt.backlightDimColor, undefined);
   // The key must still EXIST for the set-equality lockstep below — assigned
   // undefined, never deleted (the graph colours' rule).
   assert.ok(Object.prototype.hasOwnProperty.call(basalt, 'backlightDim'));
 });
 
-test('Dim backlight sub-settings follow the switch and the mode', () => {
+test('Dim backlight sub-settings follow the switch, with no mode to gate them', () => {
   // Off: the flag reports false and nothing under it does.
-  const off = buildSettingsSnapshot({ backlightDim: false, backlightDimColor: '96,0,0' }, EMERY);
+  const off = buildSettingsSnapshot({ backlightDim: false, backlightDimColor: '96,0,0',
+    backlightDimStartHour: '1', backlightDimEndHour: '6' }, EMERY);
   assert.equal(off.backlightDim, false);
-  assert.equal(off.backlightDimMode, undefined);
+  assert.equal(off.backlightDimStartHour, undefined);
+  assert.equal(off.backlightDimEndHour, undefined);
   assert.equal(off.backlightDimColor, undefined);
   // Unset reads as the shipped ON, not as a deliberate off (boolDefaultOn).
   assert.equal(buildSettingsSnapshot({}, EMERY).backlightDim, true);
-  // Custom hours only in custom mode.
-  const night = buildSettingsSnapshot(
-    { backlightDim: true, backlightDimStartHour: '1', backlightDimEndHour: '6' }, EMERY);
-  assert.equal(night.backlightDimStartHour, undefined);
-  assert.equal(night.backlightDimEndHour, undefined);
-  const custom = buildSettingsSnapshot({
-    backlightDim: true, backlightDimMode: 'custom',
-    backlightDimStartHour: '1', backlightDimEndHour: '6'
-  }, EMERY);
-  assert.equal(custom.backlightDimStartHour, 1);
-  assert.equal(custom.backlightDimEndHour, 6);
-});
-
-// The LED following Night hours is itself a consumer of the shared window, so the
-// group is also the third way sleepStartHour comes to be a value in effect — and the
-// only one that needs the hardware to count.
-test('the LED on Night hours makes the shared window a value in effect', () => {
-  const settings = { backlightDim: true, sleepStartHour: '23', sleepEndHour: '7' };
-  assert.equal(buildSettingsSnapshot(settings, EMERY).sleepStartHour, 23);
-  assert.equal(buildSettingsSnapshot(settings, { platform: 'basalt' }).sleepStartHour, undefined,
-    'no LED, no consumer — the stored hours drive nothing on this watch');
+  // On: the hours are unconditional — the From/To under the switch IS the window, so
+  // an "on" row always carries one. A leftover backlightDimMode changes nothing.
+  [{}, { backlightDimMode: 'night' }, { backlightDimMode: 'custom' }
+  ].forEach(function (over) {
+    const on = buildSettingsSnapshot(Object.assign({ backlightDim: true,
+      backlightDimStartHour: '1', backlightDimEndHour: '6' }, over), EMERY);
+    assert.equal(on.backlightDimStartHour, 1, JSON.stringify(over));
+    assert.equal(on.backlightDimEndHour, 6, JSON.stringify(over));
+  });
 });
 
 // Targeted half of the lockstep for the Nighttime fields, per the
@@ -317,15 +287,26 @@ test('the Nighttime fields are declared in the Deno .strip() schema too', () => 
   assert.ok(start !== -1, 'settingsSchema not found in telemetry-ingest/index.ts');
   const slice = ts.slice(start, ts.indexOf('.strip()', start));
   const fields = [
-    ['sleepNightEnabled', 'z\\.boolean'], ['sleepNightMode', 'z\\.string'],
-    ['sleepNightStartHour', 'z\\.number'], ['sleepNightEndHour', 'z\\.number'],
-    ['backlightDim', 'z\\.boolean'], ['backlightDimMode', 'z\\.string'],
+    ['sleepStartHour', 'z\\.number'], ['sleepEndHour', 'z\\.number'],
+    ['backlightDim', 'z\\.boolean'],
     ['backlightDimStartHour', 'z\\.number'], ['backlightDimEndHour', 'z\\.number'],
     ['backlightDimColor', 'z\\.string']
   ];
   fields.forEach(function (row) {
     assert.match(slice, new RegExp('^\\s*' + row[0] + ':\\s*' + row[1] + '\\(\\)', 'm'),
       row[0] + ' must be declared in the ingest schema, or .strip() drops it silently');
+  });
+  // ...and the other half of the two-place rule: a field nobody sends must not linger
+  // here, or the ingest keeps stripping something that will never arrive. The first
+  // four are settings the schema no longer has; sleepNightEnabled is a live setting
+  // that is reported through the PRESENCE of sleepStartHour, as it always was.
+  ['sleepNightMode', 'sleepNightStartHour', 'sleepNightEndHour', 'backlightDimMode',
+    'sleepNightEnabled'
+  ].forEach(function (key) {
+    assert.doesNotMatch(slice, new RegExp('^\\s*' + key + ':', 'm'),
+      key + ' is not sent by buildSettingsSnapshot and must not stay in the ingest');
+    assert.ok(!Object.prototype.hasOwnProperty.call(buildSettingsSnapshot({}, EMERY), key),
+      key + ' must not be in the watch-side snapshot either');
   });
 });
 
@@ -621,14 +602,11 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     healthMode: 'status', provider: 'openweathermap', fetchIntervalMin: '120',
     rainCountdownHorizon: '60', sleepNightEnabled: true, sleepStartHour: '23',
     sleepEndHour: '7',
-    // The Nighttime card at its heaviest: every one of the three features on, and each
-    // on its OWN window rather than the shared Night hours. That combination is what
-    // reports the most fields — the two custom pairs and the theme switch's manual pair
-    // are six hour fields against the two (sleepStartHour/sleepEndHour) it costs, and
-    // the names it buys are the longer ones. It also leaves the shared window followed
-    // by nothing, which is reachable and is exactly why it is not reported here.
-    sleepNightMode: 'custom', sleepNightStartHour: '1', sleepNightEndHour: '6',
-    backlightDim: true, backlightDimMode: 'custom', backlightDimStartHour: '1',
+    // The Nighttime card at its heaviest: every one of the three features on, each
+    // reporting its own window. Theme switching is on 'manual' because that is its
+    // only mode that reports hours at all; the other two have no mode and report
+    // theirs whenever the switch is on.
+    backlightDim: true, backlightDimStartHour: '1',
     backlightDimEndHour: '6', backlightDimColor: '255,255,255',
     themeAuto: true, themeNight: 'bw-light', themeAutoMode: 'manual',
     themeAutoStartHour: '23', themeAutoEndHour: '7',

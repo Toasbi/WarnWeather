@@ -2,6 +2,11 @@
 // compact row in the Nighttime card showing the colour that is set, and the three
 // channel sliders behind it in a bottom sheet.
 //
+// The row shows the SHEET's own preview — the 24px chip plus the hex, not a 9px pip —
+// built by html.js swatchReadout, which renderRgb prints too. That shared builder is
+// what the tests below pin: a second inline copy of the markup is how the card and the
+// sheet would start drifting.
+//
 // Owner review of the rendered page: three inline tracks made the card's smallest
 // setting its tallest row, so the card now shows only the selected colour. The value
 // itself did not move — same key, same "r,g,b" wire format, same default (pinned in
@@ -52,7 +57,7 @@ function cxFor(state, env, openEdit) {
  */
 function nightCard(state, env) {
   const body = eng.renderBody(schema, 'general', cxFor(state, env));
-  const at = body.indexOf('>Nighttime<');
+  const at = body.indexOf('>Nighttime settings<');
   assert.ok(at > 0, 'the Nighttime card rendered');
   const next = body.indexOf('<div class="card', at);
   return body.slice(at, next === -1 ? undefined : next);
@@ -67,27 +72,35 @@ function colorSheet(state, env) {
   return eng.renderEditModal(schema, cxFor(state, env, SHEET_ID));
 }
 
-/** The colour of the card row's swatch dot.
+/** The colour printed in the card row's readout — swatch and hex must AGREE, so this
+ * reads both and fails rather than reporting one of them.
  * @param {Object} [state] Stored values to overlay on the hydrated defaults.
- * @returns {?string} '#RRGGBB', or null when no dot rendered.
+ * @returns {?string} '#RRGGBB', or null when no readout rendered.
  */
 function swatchHex(state) {
-  const m = /<span class="pen-dot fill" style="--th-c:(#[0-9A-F]{6})">/.exec(nightCard(state));
-  return m ? m[1] : null;
+  const card = nightCard(state);
+  const m = /<span class="sw-wrap sw-ro"><b style="background:(#[0-9A-F]{6})"><\/b><span>(#[0-9A-F]{6})<\/span><\/span>/
+    .exec(card);
+  if (!m) { return null; }
+  assert.equal(m[2], m[1], 'the hex printed beside the chip is the chip\'s own colour');
+  return m[1];
 }
 
 // --- the card: the colour, not the sliders ---------------------------------
 
-test('the Nighttime card shows one Color row — a swatch and Edit, no channel tracks', () => {
+test('the Nighttime card shows one Color row — the readout and Edit, no channel tracks', () => {
   const card = nightCard();
   assert.ok(card.indexOf('data-edit-sheet="' + SHEET_ID + '"') !== -1,
     'the Color row opens the colour sheet');
-  // The row is the ordinary swatch+Edit pair the Graph-colors rows use: preview left
-  // of the button, which trails on the card's right edge.
-  assert.match(card, /<div class="lbl">Color<\/div>[\s\S]*?<div class="rgt has-pen">[\s\S]*?pen-dot fill[\s\S]*?data-edit-sheet="backlightColor"/);
+  // The row carries the SHEET's own preview — the 24px chip and the hex, not a 9px pip —
+  // seated left of the Edit button, which trails on the card's right edge.
+  assert.match(card, /<div class="lbl">Color<\/div>[\s\S]*?<div class="rgt has-pen">[\s\S]*?<span class="sw-wrap sw-ro">[\s\S]*?data-edit-sheet="backlightColor"/);
+  assert.equal(card.indexOf('pen-dot'), -1, 'the small dot it replaced is gone');
   // ...and NOTHING of the control itself is left in the card. These are the three
-  // pieces renderRgb emits — the root, each channel's fill, each channel's thumb.
-  ['data-range="' + KEY + '"', 'data-rgb-fill', 'data-range-thumb', 'rng-track'].forEach((frag) =>
+  // pieces renderRgb emits — the root, each channel's fill, each channel's thumb —
+  // plus the two paint hooks, which belong to the sheet's live copy alone.
+  ['data-range="' + KEY + '"', 'data-rgb-fill', 'data-range-thumb', 'rng-track',
+    'data-rgb-swatch', 'data-rgb-hex'].forEach((frag) =>
     assert.equal(card.indexOf(frag), -1, 'the card must not carry ' + frag + ' any more'));
   // The sheet's rows are a dialog body: the tab renderer skips the whole section.
   const body = eng.renderBody(schema, 'general', cxFor());
@@ -96,28 +109,56 @@ test('the Nighttime card shows one Color row — a swatch and Edit, no channel t
   assert.equal(body.indexOf('Dim backlight color'), -1, 'nor does the sheet title');
 });
 
-test('the swatch is the colour that is stored — change the value, the dot follows', () => {
-  assert.equal(swatchHex(), '#600000', 'the default dim red');
+test('the row prints the SAME preview the sheet does, from the same builder', () => {
+  // The point of the extraction: one fragment, two surfaces. If these ever diverge the
+  // card is showing a colour in a vocabulary the sheet behind it does not use.
+  const htmlLib = require('../src/pkjs/config-ui/lib/html.js');
+  const state = { [KEY]: '200,40,10' };
+  assert.ok(nightCard(state).indexOf(htmlLib.swatchReadout('#C8280A')) !== -1,
+    'the row prints swatchReadout, hookless');
+  assert.ok(colorSheet(state).indexOf(htmlLib.swatchReadout('#C8280A', true)) !== -1,
+    'the sheet prints the same fragment with its in-place paint hooks');
+  // Same chip, same hex, same class — the `live` hooks are the only difference.
+  assert.equal(htmlLib.swatchReadout('#C8280A').replace(/ data-rgb-(swatch|hex)/g, ''),
+    htmlLib.swatchReadout('#C8280A', true).replace(/ data-rgb-(swatch|hex)/g, ''));
+});
+
+test('the readout is the colour that is stored — change the value, chip and hex follow', () => {
+  assert.equal(swatchHex(), '#280000', 'the default dim red');
   assert.equal(swatchHex({ [KEY]: '200,40,10' }), '#C8280A', 'a picked colour');
   assert.equal(swatchHex({ [KEY]: '0,0,0' }), '#000000', 'black is a colour, not a missing value');
+  // The longest string the readout ever has to seat beside the Edit button. Nothing
+  // measurable in Node — shell.html's row-scoped padding trim is pinned in
+  // config-ui/test/theme-shell.test.js — but the markup must at least render whole.
+  assert.equal(swatchHex({ [KEY]: '255,255,255' }), '#FFFFFF', 'the widest hex, #FFFFFF');
   // The badge parses with the control's own parser, so what it previews is exactly
   // what the sliders would open on: an out-of-range channel is clamped (the byte is
   // fixed by the hardware), while a value that is not three integers falls back to
   // the schema default rather than to black.
   assert.equal(swatchHex({ [KEY]: '300,-5,20' }), '#FF0014', 'a bruised channel clamps');
-  assert.equal(swatchHex({ [KEY]: '' }), '#600000', 'a blank value shows the default');
-  assert.equal(swatchHex({ [KEY]: '#FF0000' }), '#600000', 'so does a hex string, which is not r,g,b');
-  // The announcement, since the dot itself is aria-hidden.
+  assert.equal(swatchHex({ [KEY]: '' }), '#280000', 'a blank value shows the default');
+  assert.equal(swatchHex({ [KEY]: undefined }), '#280000', 'and so does a missing one');
+  assert.equal(swatchHex({ [KEY]: '#FF0000' }), '#280000', 'so does a hex string, which is not r,g,b');
+  assert.equal(swatchHex({ [KEY]: '12,34' }), '#280000', 'and so do two channels');
+  // Whatever it shows, the row still offers the way in and still SAYS the colour: the
+  // readout is inside the aria-hidden preview wrapper, so the button carries the name.
+  ['200,40,10', '', 'nonsense'].forEach((v) => {
+    const card = nightCard({ [KEY]: v });
+    assert.ok(card.indexOf('data-edit-sheet="' + SHEET_ID + '"') !== -1,
+      'the Edit affordance survives the value ' + JSON.stringify(v));
+    assert.ok(/aria-label="Edit settings for the Color value \(#[0-9A-F]{6}\)"/.test(card),
+      'and announces a colour');
+  });
   assert.ok(nightCard({ [KEY]: '200,40,10' })
     .indexOf('aria-label="Edit settings for the Color value (#C8280A)"') !== -1,
-    'the Edit button announces the colour the swatch shows');
+    'the Edit button announces the colour the readout shows');
 });
 
 test('the badge resolver refuses a row that names no key', () => {
   // A `sheet` row has no messageKey for the engine to merge in, so `key` in the args
   // is the resolver's whole identity for the value it previews. Without one there is
-  // nothing to show, and painting a black dot (channel 0 is the parser's last resort)
-  // would be a swatch that means "unset" rather than a colour.
+  // nothing to show, and printing #000000 (channel 0 is the parser's last resort)
+  // would be a readout that means "unset" rather than a colour.
   const badge = global.PConf.badgeResolvers.get('rgbSwatch');
   assert.equal(typeof badge, 'function', 'badge resolver registered');
   assert.equal(badge({ [KEY]: '200,40,10' }, emeryEnv, {}), null);
@@ -214,7 +255,7 @@ test('the sliders drag and nudge inside the sheet, and the card\'s swatch follow
   page.openEditSheet(SHEET_ID);
   assert.ok(page.modal.innerHTML.indexOf('data-range="' + KEY + '"') !== -1,
     'the rgb control is in the open sheet');
-  assert.equal(page.S[KEY], '96,0,0', 'starting on the default dim red');
+  assert.equal(page.S[KEY], '40,0,0', 'starting on the default dim red');
 
   // Drag the GREEN thumb to x=140 on its own track (left 100, width 100) → 40% of 255.
   const root = makeRgbRoot({ r: 96, g: 0, b: 0 });
@@ -224,9 +265,13 @@ test('the sliders drag and nudge inside the sheet, and the card\'s swatch follow
   page.modal.dispatch('pointerup', { target: NO_TARGET, pointerId: 3 });
   page.modal.dispatch('pointermove', { target: NO_TARGET, pointerId: 3, clientX: 240 });
   assert.equal(page.S[KEY], '96,102,0', 'no writes after the release');
-  // Release re-renders, so the card behind the sheet now previews the new colour.
-  assert.ok(page.scroll.innerHTML.indexOf('--th-c:#606600') !== -1,
-    'the card swatch repainted to the dragged colour');
+  // Release re-renders, so the card behind the sheet now previews the new colour —
+  // chip and hex both, and still without the sheet's in-place paint hooks.
+  assert.ok(page.scroll.innerHTML.indexOf(
+    '<span class="sw-wrap sw-ro"><b style="background:#606600"></b><span>#606600</span></span>') !== -1,
+    'the card readout repainted to the dragged colour');
+  assert.equal(page.scroll.innerHTML.indexOf('data-rgb-hex'), -1,
+    'the tab body never grows a paint hook for paintRgb to find');
 
   // Keyboard: one step per arrow on the focused thumb, the other channels untouched.
   const root2 = makeRgbRoot({ r: 96, g: 102, b: 0 });

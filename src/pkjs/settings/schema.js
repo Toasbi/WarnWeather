@@ -813,17 +813,12 @@ var TOMORROWIO_BUDGET_HINT = 'Only offer update intervals that fit the free plan
 // there.
 var BACKLIGHT_WHEN = {env: 'colorBacklight'};
 var BACKLIGHT_ON_WHEN = {all: [BACKLIGHT_WHEN, {key: 'backlightDim', eq: true}]};
-var BACKLIGHT_CUSTOM_WHEN = {all: [BACKLIGHT_WHEN, {key: 'backlightDim', eq: true},
-    {key: 'backlightDimMode', eq: 'custom'}]};
 // The dim colour's sheet, and the ONE copy of its default. The card row (a `sheet`
 // row, which stores nothing) hands the default to its badge resolver so an unset or
 // bruised value previews the same colour the sliders open on; the rgb item in the
 // sheet is what actually stores it.
 var BACKLIGHT_COLOR_SHEET = 'backlightColor';
-var BACKLIGHT_COLOR_DEFAULT = '96,0,0';
-// The battery saver's own hours, shown only once it stops following Night hours.
-var SAVER_CUSTOM_WHEN = {all: [{key: 'sleepNightEnabled', eq: true},
-    {key: 'sleepNightMode', eq: 'custom'}]};
+var BACKLIGHT_COLOR_DEFAULT = '40,0,0';
 module.exports = {
     appName: 'WarnWeather',
     themeKey: 'configTheme',
@@ -895,35 +890,10 @@ module.exports = {
                 hint: 'How long a GPS fix is reused before re-acquiring. Longer saves battery; shorter keeps your location fresher on the move. The lowest value matches your update interval.'
             }]
         }, {
-            // Everything that changes after dark, in one card. Night hours is the
-            // card's own window: each switch below follows it unless it is given
-            // hours of its own, so moving your night moves all three at once.
-            title: 'Nighttime', items: [{
-                type: 'subheader',
-                text: 'Night hours',
-                intro: 'Sets the night window for the features below. Each one can override it with hours of its own.'
-            }, {
-                // sleepStartHour/sleepEndHour are the ORIGINAL battery-saver keys,
-                // relabelled and promoted to the whole card — same keys, same
-                // options, same defaults, so no install changes behaviour. They are
-                // deliberately NOT gated on sleepNightEnabled any more: the window
-                // outlives the saver being switched off. (The saver's own custom
-                // hours are sleepNightStartHour/sleepNightEndHour further down —
-                // similar names, different job.)
-                type: 'select',
-                messageKey: 'sleepStartHour',
-                label: 'From',
-                defaultValue: '0',
-                options: HOURS,
-                inline: 'sleepHours'
-            }, {
-                type: 'select',
-                messageKey: 'sleepEndHour',
-                label: 'To',
-                defaultValue: '7',
-                options: HOURS,
-                inline: 'sleepHours'
-            }, {
+            // Everything that changes after dark, in one card. Every switch here
+            // owns its hours outright — there is no card-level window, so nothing in
+            // the card reads or moves another group's times.
+            title: 'Nighttime settings', items: [{
                 // Header and toggle carry the SAME gate on purpose: a hidden
                 // subheader stops hosting the switch, which would then render as a
                 // row of its own on every watch without the LED.
@@ -931,7 +901,7 @@ module.exports = {
                 text: 'Dim backlight',
                 toggleKey: 'backlightDim',
                 showWhen: BACKLIGHT_WHEN,
-                intro: 'Dim the backlight when it comes on during the night hours, so it is easier on your eyes.'
+                intro: 'Dim the backlight when it comes on between the hours below, so it is easier on your eyes.'
             }, {
                 // The hosted toggle keeps its place in `items` (hydrate, serialize
                 // and the derived defaults all still see it); only its row is
@@ -943,23 +913,27 @@ module.exports = {
                 defaultValue: true,
                 showWhen: BACKLIGHT_WHEN
             }, {
-                type: 'segmented',
-                messageKey: 'backlightDimMode',
-                label: 'Enabled hours',
-                defaultValue: 'night',
-                options: [['Night hours', 'night'], ['Custom', 'custom']],
-                showWhen: BACKLIGHT_ON_WHEN
-            }, {
-                // Seeded to the Night hours defaults, so switching to Custom changes
-                // nothing until the hours are actually edited.
+                // The dim window, and now the feature's only one — it no longer
+                // falls back to anything. Still 0–7: that is the stretch where a
+                // full-brightness backlight actually hurts, and starting in the
+                // evening would dim the screen for someone still awake in a lit
+                // room, which reads as a fault rather than a setting. It is also
+                // what night-light.js falls back to when nothing is stored, so the
+                // page and the reader agree on an install that never opened this
+                // card.
+                //
+                // No joinPrevious: this is the group's FIRST row. A join only ever
+                // acts on the row above (the engine's look-ahead classes the
+                // PRECEDING row), and above this one is the sub-header, which paints
+                // its own line and is skipped by the look-ahead — so a join here
+                // would render nothing and only read as if it did.
                 type: 'select',
                 messageKey: 'backlightDimStartHour',
                 label: 'From',
                 defaultValue: '0',
                 options: HOURS,
                 inline: 'backlightDimHours',
-                joinPrevious: true,
-                showWhen: BACKLIGHT_CUSTOM_WHEN
+                showWhen: BACKLIGHT_ON_WHEN
             }, {
                 type: 'select',
                 messageKey: 'backlightDimEndHour',
@@ -967,14 +941,17 @@ module.exports = {
                 defaultValue: '7',
                 options: HOURS,
                 inline: 'backlightDimHours',
-                showWhen: BACKLIGHT_CUSTOM_WHEN
+                showWhen: BACKLIGHT_ON_WHEN
             }, {
                 // The colour opens in a bottom sheet (the section below) instead of
                 // standing in the card: three channel sliders made the Nighttime
                 // card's smallest setting its tallest row. What stays here is the
-                // colour itself — the badge resolver paints the stored value as one
-                // swatch, so the card shows what the backlight will glow and nothing
-                // more. Same surface as the Graph-colors rows (graphColorRow above).
+                // colour itself — the badge resolver reports the stored value as a
+                // `chip`, which the engine prints as the same swatch-and-hex readout
+                // the sheet shows above its sliders, so the card names what the
+                // backlight will glow and nothing more. Same surface as the
+                // Graph-colors rows (graphColorRow above), which preview two or three
+                // colours each and so keep the compact dots.
                 //
                 // A `sheet` row has no messageKey, and the engine merges the item's
                 // absent one UNDER these args — so `key` is the resolver's only way
@@ -989,7 +966,15 @@ module.exports = {
                 // Joins the rows above into ONE block: everything a group reveals when its
                 // switch goes on belongs to that switch, so the only line inside the card is
                 // the one each group's sub-header draws above itself.
-                joinPrevious: 'loose',
+                //
+                // TIGHT, not 'loose', and that is a card-wide rule rather than this row's
+                // taste: a tight join sets the gap to 5px+5px and a loose one leaves the
+                // standard 14px+14px, so a group mixing the two steps its rows unevenly (the
+                // owner's report: "Enabled hours, from and the color are not evenly spaced").
+                // Theme switching's rows were already tight, so every join INSIDE a Nighttime
+                // group is tight and the whole card keeps one rhythm. Pinned by the
+                // even-spacing test in test/config-schema.test.js.
+                joinPrevious: true,
                 showWhen: BACKLIGHT_ON_WHEN
             }, {
                 type: 'subheader',
@@ -998,7 +983,7 @@ module.exports = {
                 // themePolarity: aplite has nothing to switch between (the light
                 // polarity is compiled out there), so the whole group hides.
                 showWhen: {env: 'themePolarity'},
-                intro: 'Switch between two themes automatically — with the sun, on the night hours above, or on a fixed schedule. The phone applies the switch, so it can land a little late while the watch is disconnected.'
+                intro: 'Switch between two themes automatically — with the sun, or on a fixed schedule. The phone applies the switch, so it can land a little late while the watch is disconnected.'
             }, {
                 // The Theme row in the card above doubles as the day theme and is
                 // left exactly as the user set it; enabling this only seeds a night
@@ -1027,14 +1012,17 @@ module.exports = {
                 options: [['Dark', 'dark'], ['Light', 'light']],
                 showWhen: {all: [{not: {env: 'color'}}, {env: 'themePolarity'}, {key: 'themeAuto', eq: true}]}
             }, {
+                // The one mode switch left in the card: sunrise/sunset is a real
+                // alternative to a clock window, so it needs somewhere to be chosen.
+                // The other two groups just take their hours directly.
                 type: 'segmented',
                 messageKey: 'themeAutoMode',
                 label: 'Enabled hours',
                 defaultValue: 'sun',
-                // 'manual' is the STORED value for custom hours and predates the
-                // Night-hours option — relabelled, never renamed, so an install that
-                // already picked fixed hours keeps them.
-                options: [['Sunrise/sunset', 'sun'], ['Night hours', 'night'], ['Custom', 'manual']],
+                // 'manual' is the STORED value for custom hours and predates this
+                // control's current labels — relabelled, never renamed, so an install
+                // that already picked fixed hours keeps them.
+                options: [['Sunrise/sunset', 'sun'], ['Custom', 'manual']],
                 // themePolarity too: hidden items keep serializing, but a
                 // paired aplite watch must not show orphaned auto-theme rows.
                 showWhen: {all: [{env: 'themePolarity'}, {key: 'themeAuto', eq: true}]},
@@ -1063,39 +1051,36 @@ module.exports = {
                 type: 'subheader',
                 text: 'Battery saver',
                 toggleKey: 'sleepNightEnabled',
-                intro: 'Stop sending updates to your watch at night to save battery.'
+                intro: 'Stop sending updates to your watch between the hours below to save battery.'
             }, {
                 type: 'toggle',
                 messageKey: 'sleepNightEnabled',
                 label: 'Battery saver',
                 defaultValue: true
             }, {
-                // Defaults to following Night hours — which IS sleepStartHour/
-                // sleepEndHour, the pair this toggle used to own — so an upgrading
-                // install keeps exactly the window it had.
-                type: 'segmented',
-                messageKey: 'sleepNightMode',
-                label: 'Enabled hours',
-                defaultValue: 'night',
-                options: [['Night hours', 'night'], ['Custom', 'custom']],
-                showWhen: {key: 'sleepNightEnabled', eq: true}
-            }, {
+                // sleepStartHour/sleepEndHour, back under the switch that has always
+                // owned them: same keys, same options, same '0'/'7' defaults, same
+                // gate. Nothing an install has stored means anything different than
+                // it did before the Nighttime card existed.
+                //
+                // No joinPrevious, for the same reason as Dim backlight's From: the
+                // group's first row has only its sub-header above it, and a join
+                // classes the row ABOVE — there is none to class.
                 type: 'select',
-                messageKey: 'sleepNightStartHour',
+                messageKey: 'sleepStartHour',
                 label: 'From',
                 defaultValue: '0',
                 options: HOURS,
-                inline: 'sleepNightHours',
-                joinPrevious: true,
-                showWhen: SAVER_CUSTOM_WHEN
+                inline: 'sleepHours',
+                showWhen: {key: 'sleepNightEnabled', eq: true}
             }, {
                 type: 'select',
-                messageKey: 'sleepNightEndHour',
+                messageKey: 'sleepEndHour',
                 label: 'To',
                 defaultValue: '7',
                 options: HOURS,
-                inline: 'sleepNightHours',
-                showWhen: SAVER_CUSTOM_WHEN
+                inline: 'sleepHours',
+                showWhen: {key: 'sleepNightEnabled', eq: true}
             }]
         }, {
             // The Dim backlight colour, alone in its bottom sheet — opened by the
@@ -1111,7 +1096,7 @@ module.exports = {
             sheetId: BACKLIGHT_COLOR_SHEET,
             title: 'Dim backlight color',
             showWhen: BACKLIGHT_ON_WHEN,
-            intro: 'Pick the color the backlight glows during the night hours. Lower values dim it further; your watch’s own brightness setting still applies on top.',
+            intro: 'Pick the color the backlight glows during the hours you set for Dim backlight. Lower values dim it further; your watch’s own brightness setting still applies on top.',
             items: [{
                 // One "r,g,b" string, each channel 0-255 — the LED takes 8 bits per
                 // channel. A dim red by default: the driver scales every channel by

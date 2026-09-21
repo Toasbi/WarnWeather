@@ -21,18 +21,17 @@ var parseHour = require('./sleep-window.js').parseHour;   // THE hour-select par
 var CHANNELS = ['r', 'g', 'b'];
 var CHANNEL_MIN = 0, CHANNEL_MAX = 255;
 
-// The schema's BACKLIGHT_COLOR_DEFAULT ('96,0,0' — settings/schema.js), as channels.
+// The schema's BACKLIGHT_COLOR_DEFAULT ('40,0,0' — settings/schema.js), as channels.
 // Unparseable storage falls back HERE rather than to black: black is a colour the
 // sliders can legitimately produce (backlight off), so falling back to it would turn a
 // bruised value into a plausible-looking setting nobody chose.
 var DEFAULT_R = 96, DEFAULT_G = 0, DEFAULT_B = 0;
 
 // Fallbacks for an hour that doesn't parse: the schema defaults of the keys being
-// read. Both pairs — backlightDimStartHour/backlightDimEndHour and the shared
-// sleepStartHour/sleepEndHour — default to '0'/'7', so one pair of fallbacks covers
-// both modes. Deliberately NOT sleep-window.js's 22/7: those are the battery saver's
-// historical "sane night", kept for ITS upgrading installs, and an unparseable value
-// stands in for the default the key would have had (theme-schedule.js's rule).
+// read (backlightDimStartHour/backlightDimEndHour, both '0'/'7'). Deliberately NOT
+// sleep-window.js's 22/7: those are the battery saver's historical "sane night", kept
+// for ITS upgrading installs, and an unparseable value stands in for the default the
+// key it came from would have had (theme-schedule.js's rule).
 var DEFAULT_START_HOUR = 0;
 var DEFAULT_END_HOUR = 7;
 
@@ -82,7 +81,7 @@ function clampChannel(n) {
 }
 
 /**
- * Parse the stored "r,g,b" colour, falling back to the schema default (96,0,0).
+ * Parse the stored "r,g,b" colour, falling back to the schema default (40,0,0).
  *
  * The parse is the settings page's own, hand-kept: config-ui/lib/range-control.js's
  * parseRgbStrict is what the sliders and the card's swatch read the same string with,
@@ -111,24 +110,23 @@ function parseDimColor(settings) {
 }
 
 /**
- * The EFFECTIVE (start, end) hour pair the dim window runs on. Mode 'custom' takes the
- * feature's own pair; anything else — including the 'night' default and a blob with no
- * backlightDimMode stored at all — takes the Nighttime card's shared Night hours, so
- * the card's window moves all of its features at once.
+ * The (start, end) hour pair the dim window runs on: the feature's OWN
+ * backlightDimStartHour/backlightDimEndHour, always. The Nighttime card groups this
+ * with the theme switch and the battery saver but shares no window with them, so
+ * there is no mode to honour — the From/To under the switch IS the window.
  *
- * The shape is resolveSleepWindow's (sleep-window.js) on purpose, down to the parse
- * rule it shares: callers apply the start === end "never" convention themselves, and
- * the enabled toggle is likewise not read here (buildNightLightBytes applies it).
+ * Shares sleep-window.js's parse rule, and the conventions with it: callers apply the
+ * start === end "never" rule themselves, and the enabled toggle is likewise not read
+ * here (buildNightLightBytes applies it).
  *
- * @param {Object} settings Clay settings (backlightDimMode + both hour pairs).
+ * @param {Object} settings Clay settings (backlightDimStartHour/backlightDimEndHour).
  * @returns {{start: number, end: number}} Effective hours, each 0..23.
  */
 function resolveDimWindow(settings) {
     var s = settings || {};
-    var custom = (s.backlightDimMode || 'night') === 'custom';
     return {
-        start: parseHour(custom ? s.backlightDimStartHour : s.sleepStartHour, DEFAULT_START_HOUR),
-        end: parseHour(custom ? s.backlightDimEndHour : s.sleepEndHour, DEFAULT_END_HOUR)
+        start: parseHour(s.backlightDimStartHour, DEFAULT_START_HOUR),
+        end: parseHour(s.backlightDimEndHour, DEFAULT_END_HOUR)
     };
 }
 

@@ -109,6 +109,37 @@ test('renderRgb paints the resolved colour in the swatch and the hex readout', (
   assert.match(h, /<span data-rgb-hex>#600000<\/span>/);
 });
 
+test('renderRgb\'s readout IS the shared fragment, with the paint hooks on', () => {
+  // The swatch+hex above the sliders is built by html.js swatchReadout, which a row's
+  // colour badge prints too (engine.js editSwatchHtml, via badge.chip). This pins the
+  // sheet's copy to that ONE builder byte for byte: inline a second copy here and the
+  // card and the sheet start drifting the moment either is restyled.
+  const htmlLib = require('../lib/html.js');
+  const h = render('96,0,0');
+  const head = h.slice(h.indexOf('<div class="rgb-head">') + '<div class="rgb-head">'.length,
+    h.indexOf('</div>', h.indexOf('<div class="rgb-head">')));
+  assert.equal(head, htmlLib.swatchReadout('#600000', true),
+    'the sheet renders swatchReadout(hex, live)');
+  // `live` is the whole difference between the two copies: the sheet is repainted in
+  // place mid-drag and needs paintRgb's hooks, the badge is re-rendered wholesale and
+  // must NOT carry them — so nothing reaching for the document can find the row's copy.
+  assert.match(head, /data-rgb-swatch/);
+  assert.match(head, /data-rgb-hex/);
+  assert.equal(htmlLib.swatchReadout('#600000').indexOf('data-rgb'), -1,
+    'the hookless (badge) copy carries no paint hooks');
+  assert.match(htmlLib.swatchReadout('#600000'), /<b style="background:#600000"><\/b><span>#600000<\/span>/,
+    'and still prints the same chip and hex');
+});
+
+test('swatchReadout escapes what it is handed', () => {
+  // The hex is derived by rgbHex today, but the builder is a library primitive: a future
+  // caller handing it a stored string must not be able to close the style attribute.
+  const htmlLib = require('../lib/html.js');
+  const h = htmlLib.swatchReadout('"><script>x()</script>');
+  assert.equal(h.indexOf('<script>'), -1, 'no raw markup survives');
+  assert.match(h, /&quot;&gt;&lt;script&gt;/);
+});
+
 test('renderRgb shows each channel value and positions its thumb as a percentage', () => {
   // 96/255 = 37.6%, 255 = 100%, 0 = 0%.
   const h = render('96,255,0');

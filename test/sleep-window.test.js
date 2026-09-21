@@ -1,7 +1,7 @@
 // test/sleep-window.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { isWithinSleepWindow, resolveSleepWindow } = require('../src/pkjs/sleep-window');
+const { isWithinSleepWindow, parseHour } = require('../src/pkjs/sleep-window');
 // Fetch-cadence logic lives in its when-do-we-fetch home now (channel-scheduler.js).
 const isPastRefreshSlot = require('../src/pkjs/channel-scheduler.js').isPastRefreshSlot;
 
@@ -37,16 +37,18 @@ test('zero-length window is never in window', () => {
 });
 
 // ---------------------------------------------------------------------------
-// sleepNightMode: the Nighttime card lets the battery saver either FOLLOW the
-// card's shared Night hours (sleepStartHour/sleepEndHour) or keep its OWN pair
-// (sleepNightStartHour/sleepNightEndHour). The schema offered the choice before
-// anything read it, so 'custom' silently did nothing: the window stayed the
-// shared pair and the hours the user had explicitly removed still paused.
+// The Nighttime card groups the battery saver with the theme switch and the
+// backlight dim, but shares NO window with them: the saver's hours are
+// sleepStartHour/sleepEndHour, the pair its switch has always owned, and there
+// is no mode key to pick a different pair. These are the negative controls —
+// the retired sleepNightMode/sleepNightStartHour/sleepNightEndHour that a dev
+// build of the branch could still have in storage, plus the other two
+// features' keys, none of which this module may read.
 // ---------------------------------------------------------------------------
 
-// Shared Night hours 0..7, saver's own hours 22..6 — deliberately different
-// windows, and neither is a subset of the other, so reading the wrong pair
-// shows up at BOTH ends (06 and 22/23).
+// The saver's own hours are 0..7; the retired pair holds a deliberately
+// DIFFERENT window (22..6), and neither is a subset of the other, so a reader
+// that picked up the wrong pair shows up at BOTH ends (06 and 22/23).
 function both(over) {
   return Object.assign({
     sleepNightEnabled: true,
@@ -63,33 +65,24 @@ function day(settings) {
   return out;
 }
 
-const SHARED_0_7 = 'T'.repeat(7) + 'f'.repeat(17);              // hours 0..6
-const OWN_22_6 = 'T'.repeat(6) + 'f'.repeat(16) + 'T'.repeat(2); // hours 22,23,0..5
+const OWN_0_7 = 'T'.repeat(7) + 'f'.repeat(17);                  // hours 0..6
 
-test('mode custom uses the saver OWN hours, not the shared Night hours (the reported bug)', () => {
-  // The exact case from the bug report: 06 was paused although the user moved
-  // the saver's window to end at 06, and 22/23 were awake although it starts at 22.
-  assert.equal(day(both({ sleepNightMode: 'custom' })), OWN_22_6);
+test('the window is sleepStartHour/sleepEndHour, whatever else is in storage', () => {
+  // Every one of these was a mode or a pair the shared-window design read. None
+  // of them may move the verdict by an hour now.
+  [{}, { sleepNightMode: 'custom' }, { sleepNightMode: 'night' },
+    { sleepNightMode: 'wat' }, { sleepNightMode: undefined },
+    { sleepNightStartHour: '13', sleepNightEndHour: '14' },
+    { backlightDimStartHour: '22', backlightDimEndHour: '6' },
+    { themeAutoMode: 'manual', themeAutoStartHour: '20', themeAutoEndHour: '7' }
+  ].forEach((over) => {
+    assert.equal(day(both(over)), OWN_0_7,
+      'the saver must keep its own window for ' + JSON.stringify(over));
+  });
 });
 
-test('mode night follows the shared Night hours and ignores the saver own pair', () => {
-  assert.equal(day(both({ sleepNightMode: 'night' })), SHARED_0_7);
-});
-
-// The upgrade path. An install that predates the segmented control has NO
-// sleepNightMode stored at all, and its sleepNightStartHour/EndHour may hold
-// whatever the schema seeded. It must behave exactly as it did before.
-test('mode absent (upgrade path) behaves exactly like mode night', () => {
-  const upgraded = both();
-  delete upgraded.sleepNightMode;
-  assert.equal(day(upgraded), day(both({ sleepNightMode: 'night' })));
-  assert.equal(day(upgraded), SHARED_0_7);
-  // And an unknown/garbage mode is not 'custom' either — it falls back to following.
-  assert.equal(day(both({ sleepNightMode: 'wat' })), SHARED_0_7);
-});
-
-test('mode custom, non-wrapping window', () => {
-  const s = both({ sleepNightMode: 'custom', sleepNightStartHour: '1', sleepNightEndHour: '5' });
+test('a non-wrapping own window', () => {
+  const s = both({ sleepStartHour: '1', sleepEndHour: '5' });
   assert.equal(isWithinSleepWindow(at(0), s), false);
   assert.equal(isWithinSleepWindow(at(1), s), true);
   assert.equal(isWithinSleepWindow(at(4), s), true);
@@ -97,38 +90,33 @@ test('mode custom, non-wrapping window', () => {
   assert.equal(isWithinSleepWindow(at(23), s), false);
 });
 
-test('mode custom with start === end is never in window (not always)', () => {
-  const s = both({ sleepNightMode: 'custom', sleepNightStartHour: '5', sleepNightEndHour: '5' });
-  assert.equal(day(s), 'f'.repeat(24));
+test('start === end is never in window (not always)', () => {
+  assert.equal(day(both({ sleepStartHour: '5', sleepEndHour: '5' })), 'f'.repeat(24));
 });
 
-test('mode custom with garbage hours clamps to 22..7, same as the shared pair does', () => {
-  const s = both({ sleepNightMode: 'custom', sleepNightStartHour: 'x', sleepNightEndHour: '99' });
+test('garbage hours clamp to the saver own 22..7 fallback', () => {
+  const s = both({ sleepStartHour: 'x', sleepEndHour: '99' });
   assert.equal(isWithinSleepWindow(at(23), s), true);
   assert.equal(isWithinSleepWindow(at(6), s), true);
   assert.equal(isWithinSleepWindow(at(7), s), false);
   assert.equal(isWithinSleepWindow(at(8), s), false);
-  // Identical to the shared pair fed the same garbage — one clamp rule, not two.
-  assert.equal(day(s), day({ sleepNightEnabled: true, sleepStartHour: 'x', sleepEndHour: '99' }));
 });
 
-test('the toggle still short-circuits in every mode', () => {
-  ['night', 'custom', undefined].forEach((mode) => {
-    assert.equal(day(both({ sleepNightMode: mode, sleepNightEnabled: false })), 'f'.repeat(24),
-      'mode ' + mode + ' must not survive the toggle being off');
+test('the toggle short-circuits whatever the hours say', () => {
+  [{}, { sleepNightMode: 'custom' }, { sleepStartHour: '1', sleepEndHour: '5' }
+  ].forEach((over) => {
+    assert.equal(day(both(Object.assign({ sleepNightEnabled: false }, over))),
+      'f'.repeat(24), JSON.stringify(over) + ' must not survive the toggle being off');
   });
 });
 
-test('resolveSleepWindow returns the effective pair and tolerates falsy settings', () => {
-  assert.deepEqual(resolveSleepWindow(both({ sleepNightMode: 'night' })), { start: 0, end: 7 });
-  assert.deepEqual(resolveSleepWindow(both({ sleepNightMode: 'custom' })), { start: 22, end: 6 });
-  assert.deepEqual(resolveSleepWindow(both()), { start: 0, end: 7 });
-  assert.deepEqual(resolveSleepWindow(null), { start: 22, end: 7 });
-  // The resolver reports the pair; the "never" rule is the caller's, so a
-  // zero-length window still comes back as a pair rather than being swallowed.
-  assert.deepEqual(
-    resolveSleepWindow(both({ sleepNightMode: 'custom', sleepNightStartHour: '5', sleepNightEndHour: '5' })),
-    { start: 5, end: 5 });
+test('parseHour is exported as THE hour parse rule (night-light.js imports it)', () => {
+  assert.equal(typeof parseHour, 'function');
+  assert.equal(parseHour('0', 22), 0);
+  assert.equal(parseHour('23', 22), 23);
+  ['x', '24', '-1', '', undefined, null, {}].forEach((v) => {
+    assert.equal(parseHour(v, 22), 22, 'unparseable must clamp: ' + JSON.stringify(v));
+  });
 });
 
 test('isPastRefreshSlot trips only when now is in a later slot', () => {

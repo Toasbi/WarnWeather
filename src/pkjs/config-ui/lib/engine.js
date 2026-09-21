@@ -9,6 +9,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   var htmlLib = (typeof require !== 'undefined') ? require('./html.js') : PConf.html;
   var esc = htmlLib.esc;
   var sheetHeader = htmlLib.sheetHeader;
+  // The chip+hex colour readout a badge's `chip` prints — the SAME builder the rgb
+  // control renders above its sliders (range-control.js renderRgb), so a row and the
+  // sheet it opens show one colour in one vocabulary.
+  var swatchReadout = htmlLib.swatchReadout;
   // The date control (value helpers + renderers + wheel wiring) lives in
   // lib/date-picker.js; the aliases keep this file's call sites and export
   // surface unchanged.
@@ -92,11 +96,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   // --- badge-resolver registry --- a row with an edit-sheet trigger opts into a state badge
   // (item.editBadgeFrom: {resolver, args}); fn(S, env, args) returns null (no badge) or
-  // {label?, ariaNote?, dots: [{color, ring?}]} — an app-neutral colour preview: `dots` is the
-  // swatch that LEADS the control (each dot outlined when `ring`, filled otherwise), `label`
-  // is the trigger button's text and `ariaNote` a parenthesised state word appended to its
-  // aria-label. The library prints what it is given and knows nothing of what the colours
-  // mean. Read at render time like the sheet resolver, and only consulted when a sheet
+  // {label?, ariaNote?, chip?, dots: [{color, ring?}]} — an app-neutral colour preview that
+  // LEADS the control: `chip` is ONE colour printed the way a colour sheet prints it (a
+  // swatch and its '#RRGGBB', html.js swatchReadout), `dots` are small outlined (`ring`) or
+  // filled pips for a row that previews SEVERAL colours at once; `label` is the trigger
+  // button's text and `ariaNote` a parenthesised state word appended to its aria-label.
+  // The library prints what it is given and knows nothing of what the colours mean — a
+  // resolver picks chip or dots by how many colours the row owns, not by what they are.
+  // Read at render time like the sheet resolver, and only consulted when a sheet
   // actually resolved.
   PConf.badgeResolvers = makeRegistry();
 
@@ -443,6 +450,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @param {Object} S Live settings state.
    * @param {Object} env Platform env.
    * @returns {?{label: (string|undefined), ariaNote: (string|undefined),
+   *   chip: (string|undefined),
    *   dots: Array<{color: string, ring: (boolean|undefined)}>}} Badge, or null.
    */
   function resolveEditBadge(item, S, env) {
@@ -559,9 +567,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
-   * The badge's state preview — a bold "B" when badge.bold is set (the slot's value
-   * renders always-bold on the watch), then one dot per entry in badge.dots, outlined
-   * when the entry sets `ring` and filled otherwise — or '' when the row has neither.
+   * The badge's state preview — badge.chip first when the row previews ONE colour (the
+   * full swatch+hex readout a colour sheet prints, built by html.js swatchReadout so the
+   * row and the sheet cannot drift), then a bold "B" when badge.bold is set (the slot's
+   * value renders always-bold on the watch), then one dot per entry in badge.dots,
+   * outlined when the entry sets `ring` and filled otherwise — or '' when the row has
+   * none of the three.
    * It sits BEFORE the control as a passive preview, not inside the edit button:
    * carried inside, the swatches widened the button by ~29px exactly on the rows that
    * had them, so the Edit buttons could never line up down the right edge. Out here
@@ -576,8 +587,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var badge = view.editBadge;
     var dots = (badge && badge.dots) || [];
     var bold = Boolean(badge && badge.bold);
-    if (!view.editSheet || (!dots.length && !bold)) { return ''; }
+    var chip = (badge && badge.chip) ? String(badge.chip) : '';
+    if (!view.editSheet || (!dots.length && !bold && !chip)) { return ''; }
     var h = '<span class="thr-swatch" aria-hidden="true">', i;
+    if (chip) { h += swatchReadout(chip); }
     if (bold) { h += '<span class="pen-b">B</span>'; }
     for (i = 0; i < dots.length; i++) {
       h += '<span class="pen-dot ' + (dots[i].ring ? 'ring' : 'fill')

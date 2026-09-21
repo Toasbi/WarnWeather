@@ -36,10 +36,9 @@ function parseHour(value, fallback) {
 /**
  * True when `now`'s hour falls inside an hour window, with wrap-around and the
  * sleep window's conventions (sleep-window.js): a window whose start equals its
- * end is "never", not "always", and the end hour is exclusive. Shared by both
- * hour-window theme modes so the custom window and the shared Night hours can
- * never drift apart; each caller passes the fallbacks its OWN keys default to
- * in schema.js, since that is what an unparseable stored value stands in for.
+ * end is "never", not "always", and the end hour is exclusive. The caller passes
+ * the fallbacks its OWN keys default to in schema.js, since that is what an
+ * unparseable stored value stands in for.
  *
  * @param {Date} now Time to evaluate.
  * @param {*} startValue Stored start hour ('0'..'23').
@@ -58,30 +57,52 @@ function isWithinHourWindow(now, startValue, endValue, startFallback, endFallbac
 }
 
 /**
+ * THE themeAutoMode reader — 'manual' (the switch's own hour window) or 'sun',
+ * and 'sun' for anything else at all: absent, and any value the schema's
+ * segmented no longer offers.
+ *
+ * That last clause is load-bearing, not defensive padding. The config engine's
+ * hydrate() does NOT coerce a stored value against its item's options — it
+ * Object.assigns the saved blob over the defaults verbatim, and only an
+ * optionsFrom select ever snaps (engine.js's resolveRowItem) — so a blob
+ * holding a retired mode keeps it through hydrate, render and serialize alike.
+ * An unreleased dev build could store 'night' (the Nighttime card's shared
+ * window, which no longer exists); without this the mode would reach the sun
+ * branch with no sun times computed for it and answer "never night", silently
+ * turning the switch off for someone who had configured it.
+ *
+ * ONE mechanism, deliberately: this function, called by every reader of the
+ * mode — isNightNow below AND index.js's isNightForTheme, which decides whether
+ * to compute sun times at all. Normalising here and in the page's hydration
+ * would be two, and the page's would rewrite a stored value nobody touched.
+ *
+ * @param {Object} settings Clay settings (reads themeAutoMode).
+ * @returns {string} 'manual' or 'sun'.
+ */
+function resolveThemeMode(settings) {
+    // 'manual' is the stored value for the switch's OWN hours and predates the
+    // control's current "Custom" label — relabelled, never renamed.
+    return ((settings || {}).themeAutoMode === 'manual') ? 'manual' : 'sun';
+}
+
+/**
  * True when `now` falls inside the configured night window. Manual mode is the
- * switch's own hour window and night mode is the Nighttime card's shared Night
- * hours (sleepStartHour/sleepEndHour — the same pair the battery saver and the
- * backlight dim follow), both evaluated by isWithinHourWindow; sun mode is
+ * switch's own hour window, evaluated by isWithinHourWindow; sun mode is
  * "before today's sunrise or from sunset onward". Unknown sun times (no
  * location fix yet, polar day/night → Invalid Date) answer day, so a fresh
  * install stays on the day theme rather than guessing.
  *
  * @param {Date} now Time to evaluate.
- * @param {Object} settings Clay settings (themeAuto/themeAutoMode/themeAutoStartHour/themeAutoEndHour/sleepStartHour/sleepEndHour).
+ * @param {Object} settings Clay settings (themeAuto/themeAutoMode/themeAutoStartHour/themeAutoEndHour).
  * @param {?{sunrise: Date, sunset: Date}} sunTimes Today's sun times at the current location, or null.
  * @returns {boolean} True when the night theme should be in effect.
  */
 function isNightNow(now, settings, sunTimes) {
     if (!settings || !settings.themeAuto) { return false; }
-    // 'manual' is the stored value for the switch's OWN hours and predates the
-    // Night-hours option; 'night' follows the card's shared window. Neither
-    // needs sun times, which is why index.js only computes them for 'sun'.
-    var mode = settings.themeAutoMode || 'sun';
-    if (mode === 'manual') {
+    // Manual needs no sun times, which is why index.js only computes them for
+    // 'sun' — through this same resolver, so the two can never disagree.
+    if (resolveThemeMode(settings) === 'manual') {
         return isWithinHourWindow(now, settings.themeAutoStartHour, settings.themeAutoEndHour, 20, 7);
-    }
-    if (mode === 'night') {
-        return isWithinHourWindow(now, settings.sleepStartHour, settings.sleepEndHour, 0, 7);
     }
     if (!sunTimes) { return false; }
     var sunrise = sunTimes.sunrise instanceof Date ? sunTimes.sunrise.getTime() : NaN;
@@ -132,6 +153,7 @@ function effectiveSettings(settings, isNight) {
 }
 
 module.exports = {
+    resolveThemeMode: resolveThemeMode,
     isNightNow: isNightNow,
     effectiveThemeId: effectiveThemeId,
     effectiveSettings: effectiveSettings

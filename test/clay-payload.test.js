@@ -366,16 +366,22 @@ test('CLAY_NIGHT_LIGHT_UINT8 is the five bytes night-light.js packs', () => {
   assert.equal(p.CLAY_NIGHT_LIGHT_UINT8.length, 5);
 });
 
-test('the Dim backlight window follows the shared Night hours unless it has its own', () => {
+test('the Dim backlight window on the wire is the feature own hours, always', () => {
+  // The battery saver's pair is a NEGATIVE control here: it disagrees at both ends,
+  // so a reader that picked it up (this branch shipped exactly that for a while)
+  // changes the bytes rather than passing by luck.
   const s = Object.assign(baseSettings(), {
     sleepStartHour: '1', sleepEndHour: '5',
     backlightDimStartHour: '22', backlightDimEndHour: '6'
   });
   assert.deepEqual(buildClayPayload(s, { platform: 'emery' }, NOW).CLAY_NIGHT_LIGHT_UINT8,
-    [96, 0, 0, 1, 5], 'no mode stored -> the shared Night hours');
-  s.backlightDimMode = 'custom';
-  assert.deepEqual(buildClayPayload(s, { platform: 'emery' }, NOW).CLAY_NIGHT_LIGHT_UINT8,
     [96, 0, 0, 22, 6]);
+  // A leftover backlightDimMode from a dev build of this branch decides nothing.
+  ['custom', 'night', 'wat'].forEach((mode) => {
+    const stale = Object.assign({}, s, { backlightDimMode: mode });
+    assert.deepEqual(buildClayPayload(stale, { platform: 'emery' }, NOW).CLAY_NIGHT_LIGHT_UINT8,
+      [96, 0, 0, 22, 6], 'stale backlightDimMode ' + mode + ' must not move the window');
+  });
 });
 
 test('the Dim backlight switch OFF rides the wire as the zeroed tuple', () => {
@@ -403,14 +409,14 @@ test('every Dim backlight key moves the Clay payload (so the outbox re-sends it)
   // setting that leaves every byte alone is a setting the watch never hears about.
   function base() {
     return Object.assign(baseSettings(), {
-      backlightDim: true, backlightDimMode: 'custom',
+      backlightDim: true,
       backlightDimStartHour: '22', backlightDimEndHour: '6',
       backlightDimColor: '10,20,30'
     });
   }
   const packed = JSON.stringify(buildClayPayload(base(), { platform: 'emery' }, NOW));
   const edits = {
-    backlightDim: false, backlightDimMode: 'night', backlightDimStartHour: '21',
+    backlightDim: false, backlightDimStartHour: '21',
     backlightDimEndHour: '5', backlightDimColor: '11,20,30'
   };
   Object.keys(edits).forEach((key) => {
@@ -419,6 +425,15 @@ test('every Dim backlight key moves the Clay payload (so the outbox re-sends it)
     assert.notEqual(JSON.stringify(buildClayPayload(s, { platform: 'emery' }, NOW)), packed,
       key + ' must dirty the Clay payload');
   });
+  // ...and the mirror image: a key the Nighttime card no longer has must leave the
+  // payload byte-identical, or a stale value in storage buys a needless send.
+  ['backlightDimMode', 'sleepNightMode', 'sleepNightStartHour', 'sleepNightEndHour']
+    .forEach((key) => {
+      const s = base();
+      s[key] = 'custom';
+      assert.equal(JSON.stringify(buildClayPayload(s, { platform: 'emery' }, NOW)), packed,
+        key + ' is retired and must not dirty the Clay payload');
+    });
 });
 
 // ── Custom layout wire branch ──────────────────────────────────────────────
