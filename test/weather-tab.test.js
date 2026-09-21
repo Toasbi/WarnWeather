@@ -598,9 +598,9 @@ test('a settling pan eases the tips home, and holds back the ones that left the 
     tab._panTips(0.2, false);
     assert.equal(tip.style.transition, '', 'drag frames track the finger exactly, unananimated');
     tab._panTips(0, true);
-    assert.equal(tip.style.transition, 'left ' + interact.SETTLE_CSS,
+    assert.equal(tip.style.transition, 'left ' + interact.settleCss(),
       'the settle puts the tip on the pan\'s own curve');
-    assert.equal(tip.style.webkitTransition, 'left ' + interact.SETTLE_CSS, 'old WebViews too');
+    assert.equal(tip.style.webkitTransition, 'left ' + interact.settleCss(), 'old WebViews too');
     assert.equal(parseInt(tip.style.left, 10), atRest, 'and aims it at its resting place');
     assert.equal(timers.length, 0, 'a visible tip needs no deferral');
 
@@ -608,14 +608,14 @@ test('a settling pan eases the tips home, and holds back the ones that left the 
     // already hidden. The day change TRAVELS, so the tip must wait the
     // glide out — re-showing it mid-flight would park it over a value that
     // has not arrived yet.
-    assert.ok(interact.SETTLE_MS > 0, 'the day change travels, it does not land');
+    assert.ok(interact.settleMs() > 0, 'the day change travels, it does not land');
     tab._panTips(0.6, false);
     assert.equal(tip.style.display, 'none', 'gone with its value');
     tab._panTips(0, true);
     assert.equal(tip.style.display, 'none',
       'a released spring-back does NOT resurrect it over a value mid-flight');
     assert.equal(timers.length, 1, 'its return is deferred instead');
-    assert.equal(timers[0].ms, interact.SETTLE_MS, 'by exactly the pan\'s settle time');
+    assert.equal(timers[0].ms, interact.settleMs(), 'by exactly the pan\'s settle time');
 
     timers[0].fn();
     assert.equal(tip.style.display, 'block', 'once the pan has landed it comes back');
@@ -633,29 +633,41 @@ test('a settling pan eases the tips home, and holds back the ones that left the 
     pending.fn();
     assert.equal(tip.style.left, afterScrub, 'the stale settle timer stands down');
 
-    // Case three: the same path with the settle turned off. The zero branch
-    // is still in the code and still has to be the RIGHT one — a timer, even
-    // at 0 ms, is a separate macrotask the browser may paint across, and
-    // that frame would show the hour with its guideline and lit bar but no
-    // value above it. So with no glide the tip lands in the same task.
-    const realSettle = interact.SETTLE_MS;
-    interact.SETTLE_MS = 0;
-    try {
-      // Back onto the hour the rest of this test is about: the stale-timer
-      // case above deliberately scrubbed away from it.
-      tab._scrubTo(svg, px(12));
-      assert.equal(parseInt(tip.style.left, 10), atRest, 'back on the hour under test');
-      timers.length = 0;
-      tab._panTips(0.6, false);
-      assert.equal(tip.style.display, 'none', 'gone with its value');
-      tab._panTips(0, true);
-      assert.equal(timers.length, 0, 'nothing is deferred across a paint');
-      assert.equal(tip.style.display, 'block', 'the tip is back with its value');
-      assert.equal(parseInt(tip.style.left, 10), atRest, 'on its value');
-      assert.equal(tip.style.transition, '', 'and lands at once — the pan is already home');
-    } finally {
-      interact.SETTLE_MS = realSettle;
-    }
+    // Case three: the tips ride the settle the RELEASE armed, not a
+    // constant. A carry and a spring-back are different lengths now, so a
+    // tip on the wrong one either flashes back over a value still in
+    // flight or hangs after the panels have stopped.
+    tab._scrubTo(svg, px(12));
+    assert.equal(parseInt(tip.style.left, 10), atRest, 'back on the hour under test');
+    // A fast release still going the way it was going: a carry.
+    interact.armSettle(200, 1.2);
+    const carry = { ms: interact.settleMs(), css: interact.settleCss() };
+    assert.notEqual(carry.css, interact.SETTLE_CSS, 'a carry is timed by the hand, not by a constant');
+    timers.length = 0;
+    tab._panTips(0.6, false);
+    tab._panTips(0, true);
+    assert.equal(timers[0].ms, carry.ms, 'the held-back tip waits exactly the carry out');
+    timers[0].fn();
+    // And a spring-back, which travels the other way and starts from rest.
+    interact.armSettle(-200, 1.2);
+    const rest = { ms: interact.settleMs(), css: interact.settleCss() };
+    assert.notEqual(rest.css, carry.css,
+      'a reversal has no speed to continue, so it takes the other curve');
+    assert.ok(rest.ms >= interact.REST_MIN_MS && rest.ms <= interact.REST_MAX_MS,
+      'timed by how far it has to come back, not by how fast the hand was');
+    tab._scrubTo(svg, px(12));
+    timers.length = 0;
+    tab._panTips(0.6, false);
+    tab._panTips(0, true);
+    assert.equal(timers[0].ms, rest.ms, 'and the tip waits THAT out instead');
+    // A tip still ON screen has nothing to wait for — it rides the curve
+    // itself, and it must be the armed one, or it arrives at its resting x
+    // at a different moment than the value under it.
+    tab._scrubTo(svg, px(12));
+    tab._panTips(0, true);
+    assert.equal(tip.style.transition, 'left ' + interact.settleCss(),
+      'on the very curve the panels are running');
+    assert.equal(tip.style.transition, 'left ' + rest.css, 'which here is the from-rest one');
   } finally {
     delete global.document;
     global.setTimeout = realSetTimeout;
@@ -1060,14 +1072,22 @@ test('the tile highlight is handed over BY the drag, not after it', () => {
     assert.equal(tiles[3].style.borderColor, charts.fadeInk(pal.link, 0),
       'an off-timeline tile stays unlit');
 
-    // On release the remaining fraction is finished on the stylesheet's
-    // own settle curve, and the inline inks are dropped once it has run —
-    // the .sel rule they agree with owns the resting state.
+    // On release the remaining fraction is finished on the curve the
+    // RELEASE armed, and the inline inks are dropped once it has run — the
+    // .sel rule they agree with owns the resting state. Naming the curve
+    // rather than falling back to the stylesheet is what keeps the colours
+    // in step with the row they are painted on: a flick and a spring-back
+    // are different lengths, and the stylesheet only knows one of them.
+    interact.armSettle(300, 1.5);
+    const armed = { ms: interact.settleMs(), css: interact.settleCss() };
+    assert.notEqual(armed.css, interact.SETTLE_CSS, 'this release carries');
     tab._fadeDayCards(1, true);
-    assert.equal(tiles[1].style.transition, '',
-      'an eased hand-over falls back to the CSS transition');
+    assert.equal(tiles[1].style.transition, 'border-color ' + armed.css,
+      'the border rides the armed curve, not the stylesheet default');
+    assert.equal(tiles[1].name.style.transition, 'color ' + armed.css,
+      'and so does the weekday name');
     assert.equal(queued.length, 1, 'and schedules the hand-back');
-    assert.equal(queued[0].ms, interact.SETTLE_MS, 'after exactly one settle');
+    assert.equal(queued[0].ms, armed.ms, 'after exactly that settle');
     queued[0].fn();
     assert.equal(tiles[1].style.borderColor, '', 'the inline ink is gone');
     assert.equal(tiles[1].name.style.color, '', 'on the name too');
@@ -1347,6 +1367,112 @@ test('a render puts the tile row back BEFORE the frame goes up, not after it', (
   } finally {
     global.setTimeout = realTimeout;
     delete global.requestAnimationFrame;
+    delete global.document;
+    data.fetchWeather = realFetch;
+    tab._resetState();
+  }
+});
+
+test('on the current hour the crosshair stands down and lets the now line speak', () => {
+  tab._resetState();
+  const realFetch = data.fetchWeather;
+  let respond = null;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { respond = cb; };
+  const lines = {};
+  const lineFor = (id) => {
+    if (!lines[id]) { lines[id] = { attrs: {}, setAttribute(k, v) { this.attrs[k] = String(v); } }; }
+    return lines[id];
+  };
+  const bars = {};
+  const barFor = (id) => {
+    if (!bars[id]) { bars[id] = { attrs: {}, setAttribute(k, v) { this.attrs[k] = String(v); } }; }
+    return bars[id];
+  };
+  global.document = {
+    getElementById: (id) => (id.indexOf('wx-scrub-') === 0 ? lineFor(id)
+      : (id.indexOf('wx-bar-') === 0 ? barFor(id) : null))
+  };
+  try {
+    const state = { graphsLocation: 'current', temperatureUnits: 'c' };
+    tab._setCtx({ S: state, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond(fixture(), null);
+    tab.weatherGraphsBlock(state, {}, SEED);
+    const view = tab._fetchState().view;
+    const svg = { getBoundingClientRect: () => ({ left: 0, width: 390 }) };
+    const at = (h) => h * charts.HOUR_W / (view.days * charts.DAY_W) * 390;
+    const x = () => lines['wx-scrub-temp'].attrs.x1;
+    const now = view.nowIndex;
+
+    // Another hour: the crosshair is the mark, and it stands on that hour.
+    tab._scrubTo(svg, at(now + 2.5));
+    assert.equal(x(), String(charts.xAt(view, now + 2)),
+      'away from now the crosshair draws where the finger is');
+
+    // The current hour: the now line already stands on this exact tick —
+    // both marks snap to the hour — and it is the stronger of the two. The
+    // crosshair is drawn last and in the muted grey, so leaving it there
+    // would paint over the now line and make the page's firmest statement
+    // read as its softest.
+    tab._scrubTo(svg, at(now + 0.5));
+    assert.equal(x(), '-10', 'on the current hour the crosshair parks');
+    // Everything else the scrub does still happens — this is a line standing
+    // down, not a selection that failed.
+    assert.equal(bars['wx-bar-temp-' + now].attrs.opacity, '1',
+      'the hour is still selected: its bar lights');
+    assert.ok(bars['wx-bar-temp-' + now].attrs.stroke
+      && bars['wx-bar-temp-' + now].attrs.stroke !== 'none',
+      'and is still outlined');
+
+    // And it comes straight back on the next hour over.
+    tab._scrubTo(svg, at(now + 1.5));
+    assert.equal(x(), String(charts.xAt(view, now + 1)), 'one hour on, it is back');
+  } finally {
+    delete global.document;
+    data.fetchWeather = realFetch;
+    tab._resetState();
+  }
+});
+
+test('a tapped day is timed by how far it has to travel', () => {
+  // A tap has no speed to continue, so it always takes the from-rest curve
+  // — but it does have a distance, and the tile three days away is not the
+  // same journey as the one next door. Arming it with no distance at all
+  // (which is what "there was no gesture" naively means) collapsed every
+  // jump onto the floor of the range: four days crossed in 200ms.
+  tab._resetState();
+  const realFetch = data.fetchWeather;
+  let respond = null;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { respond = cb; };
+  // A page whose chart viewport measures 400px — one day per screen.
+  const vp = { clientWidth: 400 };
+  // Well clear of any earlier test's pan: a tap inside the suppression
+  // window is swallowed before it ever reaches the day change.
+  const realNow = Date.now;
+  Date.now = () => realNow() + 100000;
+  global.document = {
+    querySelector: (sel) => (sel === '.wx-pan' ? { parentNode: vp } : null),
+    querySelectorAll: () => [],
+    getElementById: () => null,
+    addEventListener: () => {}
+  };
+  try {
+    const state = { graphsLocation: 'current' };
+    tab._setCtx({ S: state, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond(fixture(), null);
+    interact.armSettle(0, 0);
+    const floor = interact.settleMs();
+    // Day 0 -> day 1: a real distance, so a real duration.
+    global.PConf.actions.wxShowDay('1');
+    const near = interact.settleMs();
+    assert.ok(near > floor,
+      'one day over is timed by the screen it crosses, not by the floor ('
+      + near + ' vs ' + floor + ')');
+    assert.ok(near <= interact.REST_MAX_MS, 'and stays inside the range');
+    assert.match(interact.settleCss(), /cubic-bezier/, 'on the from-rest curve');
+  } finally {
+    Date.now = realNow;
     delete global.document;
     data.fetchWeather = realFetch;
     tab._resetState();

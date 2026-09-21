@@ -176,7 +176,7 @@ test('the tile row moves on EVERY day, by an equal step, and stops flush', () =>
 
     HARNESS.row = tileRow(5);
     interact.setDayStrip(1, 5, true);
-    assert.equal(HARNESS.row.style.transition, 'transform ' + interact.SETTLE_CSS,
+    assert.equal(HARNESS.row.style.transition, 'transform ' + interact.settleCss(),
       'a landed day is written through the shared settle curve');
   } finally {
     HARNESS.row = null;
@@ -390,4 +390,142 @@ test('a rotation re-measures the row, whose transform is in PIXELS', () => {
     global.window = realWindow;
     global.document = saveDoc;
   }
+});
+
+/**
+ * The speed profile of a CSS cubic-bezier, sampled along its own parameter:
+ * dy/dx is how fast the animation is moving relative to its own average.
+ * @param {string} css A transition tail containing a cubic-bezier().
+ * @returns {Array<number>} Speeds, start to finish.
+ */
+function speeds(css) {
+  const m = /cubic-bezier\(([\d.]+),\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)\)/.exec(css);
+  assert.ok(m, 'a settle names a cubic-bezier: ' + css);
+  const x1 = Number(m[1]), y1 = Number(m[2]), x2 = Number(m[3]), y2 = Number(m[4]);
+  const out = [];
+  for (let i = 1; i < 100; i += 1) {
+    const s = i / 100;
+    const dx = 3 * (1 - s) * (1 - s) * x1 + 6 * (1 - s) * s * (x2 - x1) + 3 * s * s * (1 - x2);
+    const dy = 3 * (1 - s) * (1 - s) * y1 + 6 * (1 - s) * s * (y2 - y1) + 3 * s * s * (1 - y2);
+    if (dx > 1e-9) { out.push(dy / dx); }
+  }
+  return out;
+}
+
+/** @param {number} ms A duration. @returns {number} the seconds a CSS tail prints. */
+const secs = (css) => Number(/^([\d.]+)s/.exec(css)[1]);
+
+test('a settle only ever slows down — whatever armed it', () => {
+  // This is the whole ask, stated as a property rather than as a curve: a
+  // released pan must never be moving FASTER at any moment than it was the
+  // moment before. The shape it started as — a symmetric ease-in-out on the
+  // spring-back — failed exactly this: from a standstill it accelerates
+  // through the middle, which reads as the page taking off after the finger
+  // has already let go.
+  [
+    ['a carry', () => interact.armSettle(300, 1.4)],
+    ['a spring-back', () => interact.armSettle(-120, 0.9)],
+    ['a hand that had stopped', () => interact.armSettle(300, 0.01)],
+    ['a tap, with no gesture at all', () => interact.armSettle(772, 0)],
+    ['the stylesheet default', () => ({ css: interact.SETTLE_CSS })]
+  ].forEach((c) => {
+    const css = c[1]().css;
+    const v = speeds(css);
+    for (let i = 1; i < v.length; i += 1) {
+      assert.ok(v[i] <= v[i - 1] + 1e-6,
+        c[0] + ' speeds up at ' + i + '% (' + v[i - 1].toFixed(3) + ' -> '
+        + v[i].toFixed(3) + ') on ' + css);
+    }
+    assert.ok(v[0] > v[v.length - 1], c[0] + ' actually decelerates');
+  });
+});
+
+test('a carrying settle is timed by the hand; a reversal is timed by the distance', () => {
+  // The lurch this replaces was arithmetic, not taste. An ease-out's
+  // opening speed is (its slope) x (the distance left) / (the duration) —
+  // fix the duration and the opening speed is decided by the DISTANCE,
+  // which is why a slow drag used to release into a settle 4.7x faster than
+  // the finger that let it go. So for a release that keeps going, the
+  // duration is derived from the speed instead.
+  const msOf = (travel, v) => interact.armSettle(travel, v).ms;
+
+  // Twice the release speed over the same distance: half the time, and so
+  // the same opening speed.
+  const slow = msOf(60, 1.0);
+  const fast = msOf(60, 2.0);
+  assert.ok(fast < slow, 'a faster hand is handed a shorter curve');
+  assert.ok(Math.abs(slow / fast - 2) < 0.05,
+    'and exactly proportionally so, which is what holds the opening speed '
+    + 'to the hand’s: ' + slow + ' vs ' + fast);
+
+  // Under the carry threshold there is no speed worth continuing, so the
+  // distance times it — a hand that has already stopped is not carrying
+  // anything, and a settle that bolts away from it is the complaint.
+  const stopped = interact.armSettle(300, 0.05);
+  const carried = interact.armSettle(300, 1.0);
+  assert.notEqual(stopped.css, carried.css, 'and it takes the other curve');
+  assert.ok(stopped.ms >= interact.REST_MIN_MS && stopped.ms <= interact.REST_MAX_MS);
+
+  // A reversal cannot continue anything — the content has to travel the
+  // opposite way to the finger — so the speed is ignored there too.
+  const back = interact.armSettle(-300, 1.0);
+  assert.equal(back.css, stopped.css, 'a spring-back is a start from rest');
+  // Timed by how far it has to come back: a nudge returns quickly, a long
+  // overscroll takes its time, and both open at about the same speed.
+  const near = interact.armSettle(-20, 1.0).ms;
+  const far = interact.armSettle(-300, 1.0).ms;
+  assert.ok(near < far, 'a short way back is a short way back');
+
+  // Both ends are bounded: no settle is instant, and none outstays a
+  // gesture. TAP_SUPPRESS_MS is not a ceiling on these — it guards the
+  // click that follows the release, not the motion.
+  assert.ok(interact.armSettle(4000, 3).ms <= interact.CARRY_MAX_MS);
+  assert.ok(interact.armSettle(1, 3).ms > 0);
+  assert.ok(interact.armSettle(100000, 0).ms <= interact.REST_MAX_MS);
+  assert.ok(interact.armSettle(0, 0).ms >= interact.REST_MIN_MS);
+
+  // The seconds the CSS prints ARE the milliseconds the timers wait.
+  [interact.armSettle(60, 1.0), interact.armSettle(-40, 0)].forEach((sv) => {
+    assert.ok(Math.abs(secs(sv.css) * 1000 - sv.ms) < 0.5,
+      'the curve and the clock agree: ' + sv.css + ' vs ' + sv.ms + 'ms');
+  });
+});
+
+test('the tile row is a row, not a page: a flick carries on past the next day', () => {
+  // A chart is read a day at a time, so one swipe turns one day whichever
+  // way it went. The tile row is a strip of five: swiping it should get
+  // through it, which means momentum — and, because the row's own travel is
+  // a fraction of the screen's, its own scale as well.
+  const TILE = 48.5;   // px of finger per day on a measured 420px page
+  const PAGE = 386;
+
+  // A slow drag lands where it was let go, at the row's scale: 100px is two
+  // days of row, where on a chart it would be a quarter of one.
+  assert.equal(interact.snapTargetDay(0, -100, TILE, 5, 900, 0, true), 2);
+  assert.equal(interact.snapTargetDay(0, -100, PAGE, 5, 900, 0, false), 0);
+
+  // A flick carries past it. Same finger distance, this time with speed
+  // behind it — and the faster it went, the further it goes.
+  const fling = (v) => interact.snapTargetDay(0, -60, TILE, 5, 120, v, true);
+  assert.ok(fling(-1.5) > fling(-0.5), 'a harder flick goes further');
+  assert.equal(fling(-3), 4, 'a hard flick crosses the whole timeline');
+
+  // A chart flick does not, however hard: the graphs are a page at a time.
+  assert.equal(interact.snapTargetDay(0, -60, PAGE, 5, 120, -3, false), 1,
+    'one swipe, one day — a chart swipe that skipped two would leave the '
+    + 'reader hunting for their place');
+
+  // A flick always moves at least one day, even when the arithmetic rounds
+  // back onto the day it started from. That case is not hypothetical: a
+  // row that FITS its viewport has no travel to scale by, the page scale
+  // takes over, and a third of a screen is a third of a day.
+  assert.equal(interact.snapTargetDay(0, -60, PAGE, 2, 120, 0, true), 1,
+    'a short fast swipe on a two-day row still turns the day');
+  assert.equal(interact.snapTargetDay(1, 60, PAGE, 2, 120, 0, true), 0, 'and back');
+  // A slow one does not — that is a drag that changed its mind.
+  assert.equal(interact.snapTargetDay(0, -60, PAGE, 2, 900, 0, true), 0);
+
+  // Both ends still clamp, fling or no fling.
+  assert.equal(interact.snapTargetDay(0, 400, TILE, 5, 100, 5, true), 0);
+  assert.equal(interact.snapTargetDay(4, -400, TILE, 5, 100, -5, true), 4);
 });

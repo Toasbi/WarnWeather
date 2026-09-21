@@ -570,13 +570,16 @@ test('the caption names the past by what produced it, and only DWD says Measured
   assert.ok(stripSegs.length, 'the strip carries a now line');
   assert.equal(segY(stripSegs[stripSegs.length - 1])[1], strip.H,
     'it runs to the strip box\u2019s very floor');
-  // Clear of the labels nothing interrupts it, and the same line spans the
-  // box whole — the breaks above are the gaps, not a line that gave up.
-  const clear = charts.timeStripSvg(
-    charts.prepareView(fixtureData(), NOON + 90 * 60000), LOC, pal, SunCalc);
-  const clearSegs = nowSegs(clear);
-  assert.equal(clearSegs.length, 1, 'one unbroken line where nothing is in its way');
-  assert.deepEqual(segY(clearSegs[0]), [0, clear.H], 'ceiling to floor');
+  // Every piece it IS broken into is a piece, not a speck, and together
+  // they close on the floor — that a clear column draws one whole line is
+  // pinned where the gaps themselves are (test/weather-tab-charts.test.js,
+  // 'a rule in the hour strip breaks around the glyph and the number it
+  // crosses'), because the now line, standing on an hour tick, no longer
+  // has a clear column to stand in.
+  stripSegs.forEach((t) => {
+    const y = segY(t);
+    assert.ok(y[1] - y[0] >= 3, 'a ' + (y[1] - y[0]) + '-unit stub is a speck');
+  });
   const footLine = /<line x1="[\d.]+" y1="([\d.]+)" x2="[\d.]+" y2="([\d.]+)" stroke="[^"]*" stroke-width="1.2"/
     .exec(foot.main);
   assert.ok(footLine, 'and the caption picks it up');
@@ -1544,14 +1547,31 @@ test('a rule in the hour strip breaks around the glyph and the number it crosses
     }
   }
 
-  // Away from the 3-hourly slots there is nothing to clear, so the line is
-  // whole — the break is a response to content, not a decoration.
-  const clear = charts.prepareView(fixtureData(), DAY0 + 4 * 3600000 + 30 * 60000);
-  const clearSpec = charts.timeStripSvg(clear, LOC, pal, SunCalc);
-  const whole = (clearSpec.main.match(/<line [^>]*stroke-width="1\.2"[^>]*>/g) || []);
-  assert.equal(whole.length, 1, 'an unobstructed now line is one piece');
-  assert.equal(Number(/y1="([\d.]+)"/.exec(whole[0])[1]), 0);
-  assert.equal(Number(/y2="([\d.]+)"/.exec(whole[0])[1]), clearSpec.H);
+  // The now line stands on an hour tick now, and an hour tick is never more
+  // than one hour — 15 units — from a 3-hourly label whose own half-width
+  // is 17.5 (measured in the browser: "00:00" at 11px/600 sets 35 units
+  // wide). So the adjacent hours land INSIDE the label rather than beside
+  // it, and there is no hour left at which the strip's now line is whole.
+  // Pinned as the sweep it is, because it is the reason the clear case
+  // below had to move off the now line.
+  for (let h = 0; h < 24; h += 1) {
+    const at = charts.prepareView(fixtureData(), DAY0 + h * 3600000 + 11 * 60000);
+    const segs = segsOf(charts.timeStripSvg(at, LOC, pal, SunCalc).main);
+    assert.ok(segs.length >= 1, 'the strip carries a now line at ' + h + ':11');
+    assert.ok(segs[0].y1 >= 28 || segs.length === 2,
+      'at ' + h + ':11 the line either yields the whole band or breaks around '
+      + 'the label (got ' + segs.map((v) => v.y1 + '…' + v.y2).join(', ') + ')');
+    assert.equal(segs[segs.length - 1].y2, 52, 'and always reaches the floor');
+  }
+
+  // Where there is genuinely nothing to clear the line IS whole — the break
+  // is a response to content, not a decoration. The canvas's trailing edge
+  // is that place: it is a day rule with no hour label under it, because the
+  // last label belongs to the hour before it.
+  const end = segsAt(view.days * charts.DAY_W, 1);
+  assert.equal(end.length, 1, 'the canvas end rule is one piece');
+  assert.equal(end[0].y1, 0, 'ceiling');
+  assert.equal(end[0].y2, spec.H, 'to floor');
 });
 
 test('the accent the day tiles fade to IS the page accent, per theme', () => {
@@ -1585,4 +1605,71 @@ test('fadeInk and mixInk: the fraction a swipe hands over, as colour', () => {
   // A mix at t is t of the way there on every channel, not just in sum.
   const mid = charts.mixInk('#204060', '#80A0C0', 0.25);
   assert.equal(mid, 'rgb(56,88,120)');
+});
+
+test('every mark that says "now" stands on the hour the rest of the tab calls now', () => {
+  // nowIndex floors: at 18:11 the strip's chip reads 18:00, the hours the
+  // view blanks as past are the ones BEFORE 18, and a tap with no scrub
+  // lands on 18. The drawn marks used to read the exact minute instead, so
+  // the hairline stood 11 minutes right of the hour it pointed at — and
+  // since a bar came to fill the span between two ticks, the washed past cut
+  // 2.8 units into the current hour's OWN bar. One reading for all of them.
+  const pal = charts.palette(false);
+  const tickOf = (svg) => {
+    const m = /<line x1="([\d.]+)"[^>]*stroke-width="1\.2"/.exec(svg);
+    return m ? Number(m[1]) : null;
+  };
+  const washOf = (svg) => {
+    const m = /<rect x="0" y="0" width="([\d.]+)"[^>]*fill="([^"]*)"\/>/.exec(svg);
+    return m && m[2] === pal.past ? Number(m[1]) : null;
+  };
+  // Every minute of an hour renders the same marks: the hour does not creep.
+  const seen = {};
+  for (let min = 0; min < 60; min += 7) {
+    const view = charts.prepareView(fixtureData(), DAY0 + 18 * 3600000 + min * 60000);
+    assert.equal(view.nowIndex, 18, 'the hour itself does not move at :' + min);
+    const strip = charts.timeStripSvg(view, LOC, pal, SunCalc);
+    assert.equal(tickOf(strip.main), charts.xAt(view, 18),
+      'the strip now line sits on 18:00’s tick at :' + min);
+    assert.equal(washOf(strip.main), charts.xAt(view, 18),
+      'and the washed past ends exactly there — the current hour’s bar '
+      + 'is whole, not cut ' + min / 4 + ' units in');
+    seen[tickOf(strip.main)] = true;
+  }
+  assert.deepEqual(Object.keys(seen), [String(charts.xAt(charts.prepareView(
+    fixtureData(), DAY0 + 18 * 3600000), 18))], 'one x for the whole hour');
+
+  // And it is the TOP of the hour, not the nearest one: 18:59 is still 18.
+  const late = charts.prepareView(fixtureData(), DAY0 + 18 * 3600000 + 59 * 60000);
+  assert.equal(tickOf(charts.timeStripSvg(late, LOC, pal, SunCalc).main),
+    charts.xAt(late, 18), '18:59 is the 18:00 hour, not the 19:00 one');
+
+  // The panels carry the same mark, from the same place.
+  const view = charts.prepareView(fixtureData(), DAY0 + 18 * 3600000 + 11 * 60000);
+  const temp = charts.tempPanelSvg(view, { temperatureUnits: 'c' }, pal);
+  assert.equal(tickOf(temp.main), charts.xAt(view, 18),
+    'the panel now line agrees with the strip’s');
+  // The current hour's bar begins where the wash stops, so the two never
+  // overlap: the hour that is running is drawn as running, not half over.
+  const bar = /<rect id="wx-bar-temp-18" x="([\d.]+)"/.exec(temp.main);
+  if (bar) {
+    assert.equal(Number(bar[1]), charts.xAt(view, 18),
+      'the running hour’s bar starts at the now line, not under it');
+  }
+
+  // The sun panel puts its discs at the same x AND reads the sky at that
+  // same instant, so the moon sits ON the arc it is drawn over rather than
+  // beside it. Proven by moving only the minutes: the disc must not move.
+  const sunAt = (min) => {
+    const v = charts.prepareView(fixtureData(), DAY0 + 18 * 3600000 + min * 60000);
+    const svg = charts.sunMoonPanelSvg(v, LOC, pal, SunCalc).main;
+    const c = /<circle cx="([\d.]+)" cy="([\d.]+)" r="5\.5"/.exec(svg);
+    return c ? { cx: Number(c[1]), cy: Number(c[2]) } : null;
+  };
+  const a = sunAt(1);
+  const b = sunAt(58);
+  assert.ok(a && b, 'the sun panel draws a moon disc');
+  assert.deepEqual(a, b,
+    'the disc holds still through the hour — x and altitude are read '
+    + 'from one instant, so it cannot drift off its own arc');
 });

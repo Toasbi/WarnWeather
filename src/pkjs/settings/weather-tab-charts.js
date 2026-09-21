@@ -299,12 +299,30 @@
     }
 
     /**
-     * The exact x of "now" on the canvas (between hour marks).
+     * The instant the page calls "now": the top of the hour that is running.
+     *
+     * Everything else on the tab already rounds this way — nowIndex floors
+     * to the current hour, so the strip's chip says 18:00 at 18:11, the
+     * probabilities of every hour BEFORE it are the ones blanked as past,
+     * and a tap defaults to that hour. The marks that draw "now" were the
+     * only ones reading the exact minute, which put the hairline 11 minutes
+     * to the right of the hour it was pointing at and, since a bar came to
+     * fill the span between two ticks, left the washed past cutting 2.8
+     * units into the current hour's own bar. One reading for all of them.
+     * @param {Object} view Prepared view.
+     * @returns {number} ms since the epoch at the start of the current hour.
+     */
+    function nowSnapMs(view) {
+        return view.dayStartMs + view.nowIndex * 3600000;
+    }
+
+    /**
+     * The x of "now" on the canvas: the current hour's own tick.
      * @param {Object} view Prepared view.
      * @returns {number} x in viewBox units, clamped to the timeline.
      */
     function nowX(view) {
-        var x = (view.nowMs - view.dayStartMs) / 3600000 * HOUR_W;
+        var x = xAt(view, view.nowIndex);
         var max = view.days * DAY_W;
         if (x < 0) { x = 0; }
         if (x > max) { x = max; }
@@ -1688,10 +1706,16 @@
         s += marks;
         // Both bodies at "now": the sun as its disc, the moon wearing the
         // phase — the shape says it, the percentage beside it confirms it.
+        // Read at the SAME instant nx stands on, not at the live minute: the
+        // disc is a point ON the arc beside it, and an altitude taken 11
+        // minutes later than the x it is drawn at floats the disc off the
+        // curve it belongs to — at the equinox the sun climbs a whole
+        // radius of the disc in that time.
         var nx = nowX(view);
-        var sunAlt = SunCalcLib.getPosition(new Date(view.nowMs), loc.lat, loc.lon).altitude;
-        var moonAlt = SunCalcLib.getMoonPosition(new Date(view.nowMs), loc.lat, loc.lon).altitude;
-        var illum = SunCalcLib.getMoonIllumination(new Date(view.nowMs));
+        var atNow = new Date(nowSnapMs(view));
+        var sunAlt = SunCalcLib.getPosition(atNow, loc.lat, loc.lon).altitude;
+        var moonAlt = SunCalcLib.getMoonPosition(atNow, loc.lat, loc.lon).altitude;
+        var illum = SunCalcLib.getMoonIllumination(atNow);
         var my = altToY(moonAlt);
         s += '<circle cx="' + nx.toFixed(1) + '" cy="' + my.toFixed(1) + '" r="5.5" fill="' + pal.moonDisc
             + '" stroke="' + pal.moonNight + '" stroke-width="1"/>';

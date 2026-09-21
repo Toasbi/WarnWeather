@@ -12,21 +12,151 @@
     var api = null;
     var wired = false;
 
-    // The day change TRAVELS. A released pan glides onto its day rather than
+    // The day change TRAVELS: a released pan glides onto its day rather than
     // cutting to it, so the eye can follow the timeline across instead of
-    // having to re-find its place on the other side; a spring-back to the
-    // same day eases home the same way. The curve decelerates hard —
-    // most of the distance is covered early and the last few pixels settle —
-    // which reads as the row coming to rest rather than stopping dead.
+    // having to re-find its place on the other side.
     //
-    // Both halves are exported because everything that moves with the day
-    // reads them — the panels, the tile row, the value tips riding OUTSIDE
-    // the panned element, and the tiles' highlight in the stylesheet — so
-    // there is exactly one place this timing lives, and the JS timers that
-    // wait for the motion to finish cannot drift from the CSS that performs
-    // it. Keep the two in step: the number in SETTLE_CSS is SETTLE_MS.
-    var SETTLE_CSS = '0.42s cubic-bezier(0.16, 0.84, 0.32, 1)';
-    var SETTLE_MS = 420;
+    // It travels in one of two ways, and telling them apart is the whole
+    // point of this block.
+    //
+    // CARRY — the pan keeps going the way the finger was already going. The
+    // motion has a speed to match, so it must START at that speed and slow
+    // down from there. A fixed duration cannot: an ease-out's opening speed
+    // is (its initial slope) x (the distance left) / (the duration), which
+    // knows nothing about the finger. Measured on the page before this: a
+    // drag moving 4.0 px a frame released into a settle whose first frame
+    // moved 18.6 px — the content lurching to 4.7x the speed of the hand
+    // that let it go, then decelerating. So here the DURATION is derived
+    // from the release speed and the distance instead (settleMsFor), and
+    // the curve is a hard ease-out: most of the ground early, the last few
+    // pixels settling, which reads as coming to rest rather than stopping.
+    //
+    // REST — a spring-back to the day already shown, a day tapped on the
+    // tile row, or a release too slow to carry anything. There is no speed
+    // to continue: a spring-back has to travel the OPPOSITE way to the
+    // finger, so "start fast" is not continuity, it is the lurch. These
+    // start from a standstill on a gentle symmetric curve.
+    //
+    // CARRY_MIN_V is the line between them. Under it a release is a hand
+    // coming to a stop, and a settle that bolts away from a stopped finger
+    // is the thing being complained about.
+    var EASE_CARRY = 'cubic-bezier(0.16, 1, 0.3, 1)';
+    var CARRY_SLOPE = 6.14;            // its speed at t=0, x the average
+    var CARRY_MIN_MS = 160;
+    var CARRY_MAX_MS = 700;
+    var CARRY_MIN_V = 0.2;             // px/ms — 200 px a second
+
+    // The from-rest curve is a different shape for a different job. It is
+    // the gentlest ease-out that still only ever SLOWS DOWN: every curve
+    // here was checked for that, and the symmetric ease-in-out this started
+    // as failed it — from a standstill it accelerates through the middle,
+    // which is a ramp-up wherever the eye is. Its duration comes from the
+    // distance too, so that whatever it has to cover, it opens at about
+    // REST_V and decelerates from there instead of bolting.
+    var EASE_REST = 'cubic-bezier(0.61, 1, 0.88, 1)';
+    var REST_SLOPE = 1.62;
+    var REST_V = 0.32;                 // px/ms the rest curve opens at
+    var REST_MIN_MS = 200;
+    var REST_MAX_MS = 700;
+
+    // The stylesheet's baked-in default, for the tile colours when nothing
+    // has been armed (a class change outside any drag).
+    var SETTLE_MS = 380;
+    var SETTLE_CSS = (SETTLE_MS / 1000) + 's ' + EASE_REST;
+
+    // The settle currently ARMED — every element that moves with the day
+    // reads it from here (the panels, the tile row, the value tips riding
+    // OUTSIDE the panned element, the tiles' inks) so that the CSS which
+    // performs the motion and the JS timers that wait for it cannot drift
+    // apart. armSettle writes it once per release, before anything moves.
+    var settle = { ms: SETTLE_MS, css: SETTLE_CSS };
+
+    /** @returns {string} The armed settle as a CSS transition tail. */
+    function settleCss() { return settle.css; }
+
+    /** @returns {number} The armed settle's duration in ms. */
+    function settleMs() { return settle.ms; }
+
+    /**
+     * Clamp a duration into a range.
+     * @param {number} ms Raw duration.
+     * @param {number} lo Floor.
+     * @param {number} hi Ceiling.
+     * @returns {number} Whole ms inside [lo, hi].
+     */
+    function boundMs(ms, lo, hi) {
+        if (!(ms > lo)) { return lo; }
+        if (ms > hi) { return hi; }
+        return Math.round(ms);
+    }
+
+    /**
+     * How long a settle must last for its opening speed to be `v`: the
+     * curve covers `dist` at an initial (slope x dist / ms), so the
+     * duration is what sets that opening speed, and it is the only thing
+     * that can.
+     * @param {number} dist Distance still to travel, px.
+     * @param {number} v Wanted opening speed, px/ms (sign ignored).
+     * @param {number} slope The curve's speed at t=0, x its average.
+     * @returns {number} Raw duration in ms.
+     */
+    function msFor(dist, v, slope) {
+        var d = Math.abs(dist);
+        var sp = Math.abs(v);
+        if (!(d > 0) || !(sp > 0)) { return 0; }
+        return slope * d / sp;
+    }
+
+    /**
+     * Choose the settle the next animated move will run on, and arm it.
+     *
+     * `travel` and `v` are both measured along the CONTENT's direction of
+     * travel in px: the same sign means the release keeps going the way it
+     * was already going, which is the only case with a speed worth
+     * matching. Anything else — a spring-back, a tapped tile, a hand that
+     * had already stopped — starts from rest.
+     * @param {number} travel Distance the content still has to cover, px.
+     * @param {number} v The content's speed at release, px/ms.
+     * @returns {{ms: number, css: string}} The armed settle.
+     */
+    function armSettle(travel, v) {
+        var ms;
+        if (Math.abs(v) >= CARRY_MIN_V && travel * v > 0) {
+            ms = boundMs(msFor(travel, v, CARRY_SLOPE), CARRY_MIN_MS, CARRY_MAX_MS);
+            settle = { ms: ms, css: (ms / 1000) + 's ' + EASE_CARRY };
+        } else {
+            ms = boundMs(msFor(travel, REST_V, REST_SLOPE), REST_MIN_MS, REST_MAX_MS);
+            settle = { ms: ms, css: (ms / 1000) + 's ' + EASE_REST };
+        }
+        return settle;
+    }
+
+    /**
+     * A chart viewport's width: the page's own scale, one day per screen.
+     * Measured only for day changes that arrive with no gesture behind them
+     * (a tapped tile, an arrow key), which are rare enough to afford the
+     * layout read — and which otherwise have no distance to time by.
+     * @returns {number} Pixels per day, or 0 when nothing is rendered.
+     */
+    function pageScale() {
+        if (typeof document === 'undefined' || !document.querySelector) { return 0; }
+        var el = document.querySelector('.wx-pan');
+        var vp = el && el.parentNode;
+        return (vp && vp.clientWidth) || 0;
+    }
+
+    /**
+     * Arm the settle for a day change nobody dragged. It has a distance but
+     * no speed, so it is always a from-rest one — timed by how far the page
+     * has to go, because jumping four days and nudging one are not the same
+     * journey.
+     * @param {number} fromDay Day now shown.
+     * @param {number} toDay Day being moved to.
+     * @returns {{ms: number, css: string}} The armed settle.
+     */
+    function armJump(fromDay, toDay) {
+        return armSettle((toDay - fromDay) * pageScale(), 0);
+    }
 
     // The day tiles' own edge margin (weather-tab-css.js gives the first and
     // last tile 8px), needed here because the row's resting end is measured,
@@ -75,8 +205,8 @@
      */
     function moveEl(el, val, animated) {
         var st = el.style;
-        st.webkitTransition = animated ? '-webkit-transform ' + SETTLE_CSS : 'none';
-        st.transition = animated ? 'transform ' + SETTLE_CSS : 'none';
+        st.webkitTransition = animated ? '-webkit-transform ' + settle.css : 'none';
+        st.transition = animated ? 'transform ' + settle.css : 'none';
         st.webkitTransform = val;
         st.transform = val;
     }
@@ -204,29 +334,113 @@
         var d = parseInt(arg, 10);
         var view = api.view();
         if (!view || !(d >= 0) || d > view.days - 1) { return; }
-        if (d !== api.day()) { api.commitDay(d); }
+        if (d !== api.day()) { armJump(api.day(), d); api.commitDay(d); }
     }
 
+    // How far past the release a flicked TILE ROW is treated as still
+    // carrying. It is the row's momentum expressed as time: the finger's
+    // speed is projected this long and the row lands wherever that runs
+    // out. Longer and every flick pins the last day; shorter and a flick is
+    // just a drag that happened to be fast.
+    var FLING_MS = 120;
+
     /**
-     * Which day a released drag snaps to: a quick flick advances one day,
-     * anything else rounds to the nearest day boundary.
+     * Which day a released drag lands on.
+     *
+     * The two surfaces are not the same gesture and must not answer the
+     * same way. A chart is a PAGE: one swipe turns one day, whichever way
+     * it went, because the graphs are read a day at a time and a swipe that
+     * skipped two would leave the reader looking for their place. The tile
+     * row is a ROW: it scrolls, and a quick swipe across it carries on past
+     * the next day the way a flicked list does — which is what puts all
+     * five days within one gesture instead of four.
      * @param {number} baseDay Day when the drag started.
      * @param {number} dxPx Horizontal drag distance (px, right = positive).
-     * @param {number} vw Viewport width (px).
+     * @param {number} scale Pixels of finger per day on THIS surface.
      * @param {number} days Timeline day count.
      * @param {number} dtMs Drag duration.
+     * @param {number} v Release speed in px/ms (right = positive).
+     * @param {boolean} tiles True when the gesture began on the tile row.
      * @returns {number} Target day, clamped to the timeline.
      */
-    function snapTargetDay(baseDay, dxPx, vw, days, dtMs) {
+    function snapTargetDay(baseDay, dxPx, scale, days, dtMs, v, tiles) {
+        var at = baseDay - dxPx / scale;
         var target;
-        if (dtMs < 300 && Math.abs(dxPx) > vw * 0.12) {
+        if (tiles) {
+            target = Math.round(at - (v || 0) * FLING_MS / scale);
+            // A flick always moves at least one day. Momentum alone would
+            // leave a short, fast swipe rounding back onto the day it
+            // started from — and it always would when the row happens to
+            // FIT its viewport (a two-day timeline, say): there is no row
+            // travel to scale by then, the page scale takes over, and a
+            // third of a screen is a third of a day. A swipe that fast and
+            // that far was an instruction, whatever the arithmetic says.
+            if (target === baseDay && dtMs < 300 && Math.abs(dxPx) > scale * 0.12) {
+                target = baseDay + (dxPx < 0 ? 1 : -1);
+            }
+        } else if (dtMs < 300 && Math.abs(dxPx) > scale * 0.12) {
             target = baseDay + (dxPx < 0 ? 1 : -1);
         } else {
-            target = Math.round(baseDay - dxPx / vw);
+            target = Math.round(at);
         }
         if (target < 0) { target = 0; }
         if (target > days - 1) { target = days - 1; }
         return target;
+    }
+
+    // The trailing window the release speed is measured over. Short enough
+    // that a drag which STALLED before the finger came up reads as stalled
+    // — the speed that matters is the one the content had when it was let
+    // go, not the average of the whole gesture.
+    var VEL_MS = 90;
+
+    /**
+     * Remember one pointer sample, dropping the ones now out of the window.
+     * @param {Object} g The live gesture.
+     * @param {number} x Client x.
+     * @param {number} t Sample time.
+     * @returns {void}
+     */
+    function trackPoint(g, x, t) {
+        g.pts.push({ x: x, t: t });
+        while (g.pts.length > 2 && t - g.pts[0].t > VEL_MS) { g.pts.shift(); }
+    }
+
+    /**
+     * The finger's speed as it left, over the trailing window.
+     * @param {Object} g The live gesture.
+     * @param {number} x Client x at release.
+     * @param {number} t Release time.
+     * @returns {number} px/ms, right positive; 0 when it cannot be measured.
+     */
+    function releaseV(g, x, t) {
+        var first = g.pts.length ? g.pts[0] : null;
+        if (!first) { return 0; }
+        var dt = t - first.t;
+        if (!(dt > 0)) { return 0; }
+        return (x - first.x) / dt;
+    }
+
+    /**
+     * Pixels of finger travel per day on the surface a gesture began on.
+     *
+     * A chart viewport IS a day, so a chart drag moves one day per screen.
+     * The tile row is not: five tiles live in one screen, and its whole
+     * travel is the few tiles that do not fit. Driving it at the chart's
+     * scale meant a full-width sweep advanced one day and crept the row 48
+     * px — the row read as stuck to the screen. At its own scale the finger
+     * carries the tile under it, which is the only scale a row can have.
+     * @param {Object} g The live gesture.
+     * @returns {number} Pixels per day, never zero.
+     */
+    function gestureScale(g) {
+        if (g.tiles) {
+            var r = stripRest(g.days);
+            // A row that fits its viewport has no travel to scale by; fall
+            // back to the page scale rather than divide by nothing.
+            if (r && r.top > 0 && r.max > 0) { return r.max / r.top; }
+        }
+        return g.vw;
     }
 
     // --- gestures: drag pans the day window, tap scrubs the crosshair --------
@@ -246,10 +460,18 @@
         if (!vpEl || !view || !vpEl.getBoundingClientRect) { return; }
         var w = vpEl.getBoundingClientRect().width;
         if (!w) { return; }
+        var t = Date.now();
         gesture = {
-            x0: x, y0: y, t0: Date.now(), vw: w, mode: null,
-            base: api.day(), days: view.days, target: target
+            x0: x, y0: y, t0: t, vw: w, mode: null,
+            base: api.day(), days: view.days, target: target,
+            tiles: vpEl.getAttribute('data-wxvp') === 'days',
+            pts: [{ x: x, t: t }]
         };
+        // Measured once, at touch-down: the row's geometry cannot change
+        // mid-gesture (a resize is handled when no gesture is live), and a
+        // layout read per drag frame is a frame's worth of work for an
+        // answer that never moves.
+        gesture.scale = gestureScale(gesture);
     }
 
     /**
@@ -270,7 +492,8 @@
         }
         if (gesture.mode !== 'pan') { return; }
         if (e && e.preventDefault) { e.preventDefault(); }
-        var f = gesture.base - dx / gesture.vw;
+        trackPoint(gesture, x, Date.now());
+        var f = gesture.base - dx / gesture.scale;
         if (f < 0) { f = f * 0.35; }
         if (f > gesture.days - 1) { f = (gesture.days - 1) + (f - (gesture.days - 1)) * 0.35; }
         setPan(-(f * 100 / gesture.days), false);
@@ -299,8 +522,20 @@
             // snap against the CURRENT day count, not the one at touch-down.
             var view = api.view();
             var days = view ? view.days : g.days;
-            panEndedAt = Date.now();
-            api.commitDay(snapTargetDay(g.base, x - g.x0, g.vw, days, Date.now() - g.t0));
+            var t = Date.now();
+            var dx = x - g.x0;
+            var v = releaseV(g, x, t);
+            var target = snapTargetDay(g.base, dx, g.scale, days, t - g.t0, v, g.tiles);
+            // Arm the settle BEFORE anything moves: every element that eases
+            // home reads the armed curve, and they all have to read the same
+            // one. Both numbers are in the CONTENT's frame — it travels the
+            // opposite way to the finger, so the speed is negated — which is
+            // what lets armSettle ask the one question that matters: is this
+            // release still going where it was going?
+            var atRelease = g.base - dx / g.scale;
+            armSettle((target - atRelease) * g.scale, -v);
+            panEndedAt = t;
+            api.commitDay(target);
             return;
         }
         if (g.mode === null) {
@@ -319,6 +554,12 @@
         gesture = null;
         if (g.mode === 'pan') {
             panEndedAt = Date.now();
+            // An abort has no direction worth continuing: the content goes
+            // back where it came from, which is a start from rest — timed
+            // by however far the drag had got before it was taken away.
+            var lastX = g.pts.length ? g.pts[g.pts.length - 1].x : g.x0;
+            var at = g.base - (lastX - g.x0) / g.scale;
+            armSettle((api.day() - at) * g.scale, 0);
             setPan(panPct(api.day(), g.days), true);
             api.panTips(api.day(), true);
             api.panStrip(api.day(), true);
@@ -526,6 +767,14 @@
         EDGE_PAD: EDGE_PAD,
         SETTLE_CSS: SETTLE_CSS,
         SETTLE_MS: SETTLE_MS,
+        settleCss: settleCss,
+        settleMs: settleMs,
+        armSettle: armSettle,
+        armJump: armJump,
+        CARRY_MIN_V: CARRY_MIN_V,
+        CARRY_MAX_MS: CARRY_MAX_MS,
+        REST_MIN_MS: REST_MIN_MS,
+        REST_MAX_MS: REST_MAX_MS,
         wire: wire
     };
 

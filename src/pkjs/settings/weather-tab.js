@@ -729,14 +729,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Put a tip on (or off) the pan's settle curve, so a release carries it
-     * at exactly the speed of the values it floats over — which, now that a
-     * day change lands instead of travelling, is no speed at all.
+     * at exactly the speed of the values it floats over. The curve is the
+     * one the release ARMED, not a constant: a carrying settle and a
+     * spring-back last different lengths, and a tip on the wrong one
+     * arrives over a value that is still moving.
      * @param {Element} tip The tip element.
      * @param {boolean} on Whether its next move rides the settle.
      * @returns {void}
      */
     function easeTip(tip, on) {
-        var css = on ? 'left ' + interact.SETTLE_CSS : '';
+        var css = on ? 'left ' + interact.settleCss() : '';
         tip.style.webkitTransition = css;
         tip.style.transition = css;
     }
@@ -747,16 +749,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * Called per drag frame with the gesture's fractional day, and on
      * release with the day it settles on.
      *
-     * A release moves the panels through the SETTLE curve, so the tips are
-     * moved through it too — they would otherwise arrive at their resting x
-     * at a different moment than the values they float over. (That curve is
-     * instantaneous today, which makes the two simultaneous; it stays
-     * shared so they cannot come apart if it ever is not.) A tip that has
-     * already gone off-viewport with its value waits the settle out
-     * instead: showing it now would park it over a value that has not
-     * arrived, and it is already invisible, so nothing flickers. With a
-     * zero curve there is nothing to wait out, so it lands in the same
-     * task as the panels rather than a timer later.
+     * A release moves the panels through the settle the gesture armed, so
+     * the tips are moved through the same one — they would otherwise arrive
+     * at their resting x at a different moment than the values they float
+     * over. A tip that has already gone off-viewport with its value waits
+     * the settle out instead: showing it now would park it over a value
+     * that has not arrived, and it is already invisible, so nothing
+     * flickers.
      * @param {number} dayOff Day offset — fractional mid-drag.
      * @param {boolean} animated True when the pan is easing home.
      * @returns {void}
@@ -787,19 +786,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                     placeTipX(waiting[w], at, dayOff);
                 }
             };
-            // A zero settle lands the panels in THIS task, so the tip has
-            // to land in it too: a timer — even at 0 ms — is a separate
-            // macrotask, and the browser may paint in between, showing the
-            // hour with its guideline and lit bar but no value above it.
-            // Only a real curve is worth waiting out.
-            if (interact.SETTLE_MS > 0) {
-                settleTimer = setTimeout(function () {
-                    settleTimer = null;
-                    restore();
-                }, interact.SETTLE_MS);
-            } else {
+            // Waited out on the ARMED curve, not a constant: a carrying
+            // settle and a spring-back are different lengths, and a tip
+            // that comes back early parks over a value still in flight.
+            settleTimer = setTimeout(function () {
+                settleTimer = null;
                 restore();
-            }
+            }, interact.settleMs());
         }
     }
 
@@ -836,12 +829,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (i < 0) { i = 0; }
         if (i > view.times.length - 1) { i = view.times.length - 1; }
         var x = charts.xAt(view, i);
+        // On the current hour the crosshair stands down. Both marks live on
+        // that hour's tick now, and the crosshair — drawn last, and the
+        // muted one — would cover the now line and leave the strongest
+        // statement on the page looking like the weakest. Everything else
+        // the scrub does still happens: the dots, the lit bar, the tip and
+        // the chip all land on the hour; it is only the line that yields,
+        // because there is already a line there saying more.
+        var drawLine = active && i !== view.nowIndex;
         for (var k = 0; k < PANEL_IDS.length; k += 1) {
             var id = PANEL_IDS[k];
             var line = document.getElementById('wx-scrub-' + id);
             if (line) {
-                line.setAttribute('x1', active ? x : -10);
-                line.setAttribute('x2', active ? x : -10);
+                line.setAttribute('x1', drawLine ? x : -10);
+                line.setAttribute('x2', drawLine ? x : -10);
             }
             var marks = panelMarks && panelMarks[id];
             if (!marks) { continue; }
@@ -1037,20 +1038,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             // never disagree about which tile is which day.
             var w = 1 - Math.abs(Number(el.getAttribute('data-action-arg')) - f);
             if (w < 0 || el.disabled) { w = 0; }
-            // An empty transition string drops back to the stylesheet's own
-            // settle curve; 'none' is what makes a drag frame track the
-            // finger instead of chasing it.
-            el.style.webkitTransition = animated ? '' : 'none';
-            el.style.transition = animated ? '' : 'none';
+            // Named rather than left empty: an empty string falls back to
+            // the stylesheet's DEFAULT settle, and the release may have
+            // armed a longer or shorter one — the colours would then finish
+            // at a different moment than the row they are painted on.
+            // 'none' is what makes a drag frame track the finger instead of
+            // chasing it.
+            el.style.webkitTransition = animated ? 'border-color ' + interact.settleCss() : 'none';
+            el.style.transition = animated ? 'border-color ' + interact.settleCss() : 'none';
             el.style.borderColor = charts.fadeInk(pal.link, w);
             var nm = el.querySelector ? el.querySelector('.wx-day-name') : null;
             if (nm) {
-                nm.style.webkitTransition = animated ? '' : 'none';
-                nm.style.transition = animated ? '' : 'none';
+                nm.style.webkitTransition = animated ? 'color ' + interact.settleCss() : 'none';
+                nm.style.transition = animated ? 'color ' + interact.settleCss() : 'none';
                 nm.style.color = charts.mixInk(pal.ink, pal.link, w);
             }
         }
-        if (animated) { tileTimer = setTimeout(clearTileInk, interact.SETTLE_MS); }
+        if (animated) { tileTimer = setTimeout(clearTileInk, interact.settleMs()); }
     }
 
     /**
@@ -1179,6 +1183,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var d = parseInt(arg, 10);
             if (!(d >= 0)) { return false; }
             if (d > view.days - 1) { d = view.days - 1; }
+            // A tap has no speed behind it, so it starts from a standstill
+            // rather than on whatever curve the last swipe left armed — but
+            // it does have a DISTANCE, and three days away is not the same
+            // journey as the day next door.
+            interact.armJump(panDay, d);
             commitDay(d);
             return false;
         };
