@@ -32,6 +32,31 @@
     var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
     /**
+     * How long ago an instant was, in the words a person would use: the
+     * relative form while it is still worth relating to now, then the
+     * absolute one. The ladder is "just now" under a minute, whole minutes
+     * for the first hour, whole hours for the first day, and a plain
+     * date-and-time past that — because once a reading is a day old, "27 h
+     * ago" asks the reader to do the arithmetic the stamp already did.
+     * Renders on the PHONE's clock: it says when this phone fetched, not
+     * what time it was at the location.
+     * @param {number} atMs The instant, epoch ms.
+     * @param {number} nowMs Reference time, epoch ms.
+     * @returns {string} 'just now' | 'N min ago' | 'N h ago' | '20 Sep 14:32'.
+     */
+    function agoText(atMs, nowMs) {
+        var sec = Math.floor((nowMs - atMs) / 1000);
+        // A clock that has run backwards (a phone resyncing NTP mid-session)
+        // must not print "-3 min ago"; the reading is current, so say so.
+        if (sec < 60) { return 'just now'; }
+        if (sec < 3600) { return Math.floor(sec / 60) + ' min ago'; }
+        if (sec < 86400) { return Math.floor(sec / 3600) + ' h ago'; }
+        var d = new Date(atMs);
+        return d.getDate() + ' ' + MONTHS[d.getMonth()]
+            + ' ' + two(d.getHours()) + ':' + two(d.getMinutes());
+    }
+
+    /**
      * Compass label for a bearing.
      * @param {number} deg Meteorological bearing (comes from).
      * @returns {string} One of N/NE/E/SE/S/SW/W/NW.
@@ -126,6 +151,7 @@
     var api = {
         fmt1: fmt1,
         two: two,
+        agoText: agoText,
         DAYS: DAYS,
         MONTHS: MONTHS,
         compass: compass,

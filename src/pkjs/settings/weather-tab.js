@@ -282,8 +282,22 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var h = '';
         // The 5-day strip leads (the app's layout) and doubles as the day
         // selector for everything below it; only its TITLE stays behind
-        // when the pinned block below takes off.
-        h += '<div class="wx-panel"><div class="wx-panel-head"><span class="wx-panel-title">5-day forecast</span></div></div>';
+        // when the pinned block below takes off. The freshness of the data
+        // rides on that title line: it is the first thing on the block, so
+        // the reader learns how old ALL of it is before reading any of it.
+        // Neither the location nor the provider is repeated here — the chip
+        // row and the Provider card each already name theirs.
+        var meta = fetchState.data && fetchState.data.meta;
+        h += '<div class="wx-panel"><div class="wx-panel-head">'
+            + '<span class="wx-panel-title">5-day forecast</span>'
+            + '<span class="wx-fresh">'
+            + '<span class="wx-age">'
+            + (refetching ? 'updating…' : (meta ? charts.agoText(meta.fetchedAt, Date.now()) : ''))
+            + '</span>'
+            // Manual refresh only: no timer refetches. Pull-to-refresh is the
+            // touch path; this button is the visible (and mouse) affordance.
+            + (refetching ? '' : '<button type="button" class="wx-refresh" data-action="wxRefreshWeather">Refresh</button>')
+            + '</span></div></div>';
         // The pinned block: the day tiles AND the shared time axis (hour
         // ruler + condition icons + night shading + the highlighted hour's
         // chip) pin together below the tab bar while the panels scroll
@@ -313,18 +327,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 [['Sun', pal.sun, 'line'], ['Moon', pal.moon, 'line']],
                 vp('sun', charts.sunMoonPanelSvg(view, loc, pal, sunCalcLib)));
         }
-        var providerLabel = fetchState.data && fetchState.data.meta ? fetchState.data.meta.provider : '';
-        for (var i = 0; i < model.GRAPH_PROVIDERS.length; i += 1) {
-            if (model.GRAPH_PROVIDERS[i].id === providerLabel) { providerLabel = model.GRAPH_PROVIDERS[i].label; }
-        }
-        var meta = fetchState.data && fetchState.data.meta;
-        var age = meta ? Math.max(0, Math.round((Date.now() - meta.fetchedAt) / 60000)) : 0;
-        h += '<div class="wx-foot">' + charts.esc(loc.name) + ' · ' + charts.esc(providerLabel)
-            + ' · ' + (refetching ? 'updating…' : (age === 0 ? 'just now' : age + ' min ago'))
-            // Manual refresh only: no timer refetches. Pull-to-refresh is the
-            // touch path; this link is the visible (and mouse) affordance.
-            + (refetching ? '' : ' · <button type="button" class="wx-refresh" data-action="wxRefreshWeather">Refresh</button>')
-            + '</div>';
         // A render rebuilds the day strip at offset 0, so the row has to be
         // put back on the viewed day once the new DOM stands — its resting
         // offset is measured from the tiles, which do not exist yet while

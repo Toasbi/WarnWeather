@@ -236,6 +236,41 @@ test('tipText carries bare values: no weekday, no timestamp (the floating tip co
   assert.equal(charts.tipText('temp', view, 9999, s), '');
 });
 
+test('agoText climbs the ladder: just now → minutes → hours → a stamp', () => {
+  const NOW = Date.UTC(2026, 8, 21, 16, 45);
+  const ago = (sec) => charts.agoText(NOW - sec * 1000, NOW);
+  assert.equal(ago(0), 'just now');
+  assert.equal(ago(59), 'just now', 'under a minute is still now');
+  assert.equal(ago(60), '1 min ago');
+  assert.equal(ago(119), '1 min ago', 'minutes floor — never round up to a minute that has not passed');
+  assert.equal(ago(120), '2 min ago');
+  assert.equal(ago(3599), '59 min ago');
+  assert.equal(ago(3600), '1 h ago');
+  assert.equal(ago(86399), '23 h ago');
+  // Past a day the relative form stops paying: the stamp already did the
+  // arithmetic "27 h ago" would ask the reader to do.
+  // A whole clock's worth of hours and a whole hour's worth of minutes, so
+  // single-digit ones are always among them whatever timezone the suite
+  // runs in — the stamp pads both to two digits.
+  for (let h = 0; h < 24; h += 1) {
+    assert.match(charts.agoText(NOW - 86400000 - h * 3600000, NOW),
+      /^\d{1,2} [A-Z][a-z]{2} \d\d:\d\d$/, `hour ${h} stamps zero-padded`);
+  }
+  for (let m = 0; m < 60; m += 1) {
+    assert.match(charts.agoText(NOW - 86400000 - m * 60000, NOW),
+      /^\d{1,2} [A-Z][a-z]{2} \d\d:\d\d$/, `minute ${m} stamps zero-padded`);
+  }
+  const d = new Date(NOW - 86400000);
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const pad = (v) => (v < 10 ? '0' + v : String(v));
+  assert.equal(ago(86400),
+    `${d.getDate()} ${MON[d.getMonth()]} ${pad(d.getHours())}:${pad(d.getMinutes())}`,
+    'the stamp reads on the PHONE\'s clock, day-month-time, zero-padded');
+  // A phone that resyncs its clock backwards mid-session must not print a
+  // negative age: the reading is current, so it says so.
+  assert.equal(charts.agoText(NOW + 5 * 60000, NOW), 'just now');
+});
+
 test('viewportHtml pans by whole viewports (translateX percent of the wide element)', () => {
   const view = charts.prepareView(fixtureData(), NOON);
   const spec = charts.tempPanelSvg(view, { }, charts.palette(false));

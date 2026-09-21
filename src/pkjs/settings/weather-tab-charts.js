@@ -1479,6 +1479,7 @@
         dailyStripHtml: dailyStripHtml,
         // The per-hour text builders live in weather-tab-readouts.js;
         // re-exported here so consumers keep one charts-facing API.
+        agoText: readouts.agoText,
         compass: readouts.compass,
         compassWord: readouts.compassWord,
         tipText: readouts.tipText,

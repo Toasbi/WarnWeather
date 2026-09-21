@@ -1049,3 +1049,61 @@ test('a swipe across the tiles pans the days and never taps the one it lands on'
     tab._resetState();
   }
 });
+
+test('freshness rides the 5-day title line, and the old footer is gone', () => {
+  tab._resetState();
+  let respond = null;
+  const realFetch = data.fetchWeather;
+  const realNow = Date.now;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { respond = cb; };
+  try {
+    const state = { graphsLocation: 'current', temperatureUnits: 'c', windUnits: 'kph' };
+    tab._setCtx({ S: state, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, SEED);
+    // fetchWeather stamps every result with its meta (weather-tab-data.js);
+    // the age is read from THAT stamp, so a cache hit still reports when the
+    // data was fetched rather than when this render asked for it.
+    const at = Date.now();
+    const fx = fixture();
+    fx.meta = { provider: 'openmeteo', fetchedAt: at, lat: 52.52, lon: 13.405 };
+    respond(fx, null);
+
+    let html = tab.weatherGraphsBlock(state, {}, SEED);
+    assert.equal(html.indexOf('wx-foot"'), -1,
+      'nothing trails the panels any more — the old footer moved up');
+    const head = html.indexOf('<div class="wx-panel-head"><span class="wx-panel-title">5-day forecast</span>');
+    assert.ok(head !== -1, 'the 5-day head still opens with its title');
+    const fresh = html.indexOf('<span class="wx-fresh">', head);
+    assert.ok(fresh !== -1 && fresh < html.indexOf('</div>', head),
+      'the freshness group sits INSIDE that head, right of the title');
+    assert.ok(html.indexOf('wx-age') < html.indexOf('wx-refresh'),
+      'how old it is, then the way to make it newer');
+    assert.ok(fresh < html.indexOf('data-wxvp="days"'),
+      'and the whole line stands above the tile row');
+    assert.match(html.slice(fresh, fresh + 200), /<span class="wx-age">just now<\/span>/,
+      'a fetch that just landed reads "just now"');
+    assert.ok(html.indexOf('data-action="wxRefreshWeather"') > fresh,
+      'Refresh stays, inside the group');
+    // Neither the location nor the provider is repeated: the chip row and
+    // the Provider card already name theirs.
+    assert.equal(html.slice(fresh, html.indexOf('</div>', fresh)).indexOf('Berlin'), -1);
+    assert.equal(html.slice(fresh, html.indexOf('</div>', fresh)).indexOf('Open-Meteo'), -1);
+
+    // The age is live: it counts up without a refetch.
+    Date.now = () => at + 7 * 60000 + 30000;
+    html = tab.weatherGraphsBlock(state, {}, SEED);
+    assert.match(html, /<span class="wx-age">7 min ago<\/span>/);
+    Date.now = realNow;
+
+    // A refetch replaces the age with its own word and parks the button —
+    // nothing to press while it is already pressing.
+    global.PConf.actions.wxRefreshWeather();
+    html = tab.weatherGraphsBlock(state, {}, SEED);
+    assert.match(html, /<span class="wx-age">updating…<\/span>/);
+    assert.equal(html.indexOf('data-action="wxRefreshWeather"'), -1);
+  } finally {
+    Date.now = realNow;
+    data.fetchWeather = realFetch;
+    tab._resetState();
+  }
+});

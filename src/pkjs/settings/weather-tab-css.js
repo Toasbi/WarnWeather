@@ -174,7 +174,13 @@
         // knocks the two rows' columns out of line.
         + '.wx-day-wet{flex:1;min-width:0;text-align:center;}'
         + '.wx-day-sun{flex:1;min-width:0;text-align:center;color:var(--fg);}'
-        + '.wx-foot{color:var(--hint);font-size:11px;margin-top:2px;}'
+        // Freshness rides the 5-day forecast title line, right-aligned by
+        // that title's flex:1. It reads as one unit — how old, and the way
+        // to make it newer — so the age and the Refresh button share a
+        // group rather than sitting in the head's own 10px rhythm.
+        + '.wx-fresh{display:inline-flex;align-items:center;gap:8px;'
+        + 'font-size:11px;color:var(--hint);}'
+        + '.wx-age{white-space:nowrap;}'
         + '.wx-refresh{background:none;border:none;padding:0;font:inherit;font-size:11px;'
         + 'color:var(--link);cursor:pointer;}'
         // Pull-to-refresh pill: fixed under the tab bar, shown only while a
