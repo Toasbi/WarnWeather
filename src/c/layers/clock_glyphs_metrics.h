@@ -3,11 +3,12 @@
 // Per colour platform and face: each glyph's column in its strip resource
 // (resources/img/clock-<face>~<platform>.png), its ink width, its left bearing (ink
 // start relative to the pen) and its advance, in pixels, for the glyphs '0'..'9' then
-// ':'; and the digits' union ink height, which is also the strip's height. Included
-// by src/c/layers/clock_glyphs.c only.
+// ':'. The strips' height is the face's ink height, in clock_glyphs_ink.h. Included by
+// src/c/layers/clock_glyphs.c only.
 #pragma once
 
 #include <pebble.h>
+#include "clock_glyphs_ink.h"
 
 #define CLOCK_GLYPH_COUNT 11
 
@@ -19,7 +20,6 @@ typedef struct {
 } ClockGlyph;
 
 #if defined(PBL_PLATFORM_BASALT)
-#define CLOCK_GLYPHS_ROBOTO_INK_H 34  // 49 px
 static const ClockGlyph CLOCK_GLYPHS_ROBOTO[CLOCK_GLYPH_COUNT] = {
     {   0, 24,   2, 28 },  // '0'
     {  24, 16,   4, 28 },  // '1'
@@ -33,7 +33,6 @@ static const ClockGlyph CLOCK_GLYPHS_ROBOTO[CLOCK_GLYPH_COUNT] = {
     { 215, 24,   2, 28 },  // '9'
     { 239,  8,   3, 14 },  // ':'
 };
-#define CLOCK_GLYPHS_BITHAM_INK_H 31  // 44 px
 static const ClockGlyph CLOCK_GLYPHS_BITHAM[CLOCK_GLYPH_COUNT] = {
     {   0, 26,   2, 29 },  // '0'
     {  26, 12,   0, 16 },  // '1'
@@ -48,7 +47,6 @@ static const ClockGlyph CLOCK_GLYPHS_BITHAM[CLOCK_GLYPH_COUNT] = {
     { 232,  6,   2, 10 },  // ':'
 };
 #elif defined(PBL_PLATFORM_EMERY)
-#define CLOCK_GLYPHS_ROBOTO_INK_H 46  // 62 px
 static const ClockGlyph CLOCK_GLYPHS_ROBOTO[CLOCK_GLYPH_COUNT] = {
     {   0, 30,   3, 36 },  // '0'
     {  30, 20,   5, 36 },  // '1'
@@ -62,7 +60,6 @@ static const ClockGlyph CLOCK_GLYPHS_ROBOTO[CLOCK_GLYPH_COUNT] = {
     { 268, 31,   2, 36 },  // '9'
     { 299, 11,   3, 18 },  // ':'
 };
-#define CLOCK_GLYPHS_BITHAM_INK_H 45  // 62 px
 static const ClockGlyph CLOCK_GLYPHS_BITHAM[CLOCK_GLYPH_COUNT] = {
     {   0, 36,   3, 41 },  // '0'
     {  36, 17,   0, 23 },  // '1'

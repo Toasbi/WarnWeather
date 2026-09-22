@@ -1,40 +1,33 @@
 #include "clock_ink.h"
-#include "clock_glyphs.h"
 
 #if defined(WW_CLOCK_INK)
 
+#if defined(PBL_COLOR)
+#include "clock_glyphs_ink.h"   // GENERATED: the anti-aliased strips' ink heights
+#endif
+
 // Out of line on purpose: main_window.c asks for this at two points (window_load and every
-// render), and as a header inline the table plus its clamp were emitted at both. Not linked on
-// aplite at all (WW_CLOCK_INK, see wscript).
+// render), and as a header inline the table was emitted at both. Not linked on aplite at all
+// (WW_CLOCK_INK, see wscript). time_font is always in range (config.c normalises it at load).
+//
+// Two kinds of row, see clock_ink.h: MEASURED pairs for the 1-bit system fonts (LECO
+// everywhere, and all three faces on the B/W 144px watches), and GENERATED ink heights for the
+// anti-aliased strips (Roboto and Bitham on the colour screens), whose centre_off only places
+// the band.
 ClockInk clock_ink_for(int16_t time_font) {
-    // Same clamp config_time_font() applies, so a corrupt persisted value seats the font that
-    // will actually be rendered rather than reading past the table.
-    if (time_font < 0 || time_font > TIME_FONT_BITHAM) { time_font = TIME_FONT_ROBOTO; }
     static const ClockInk k[] = {
 #ifdef PBL_PLATFORM_EMERY
-        [TIME_FONT_ROBOTO] = {  2, 46 },
+        // emery: Roboto and Bitham are strips.
+        [TIME_FONT_ROBOTO] = {  2, CLOCK_GLYPHS_ROBOTO_INK_H },
         [TIME_FONT_LECO]   = {  2, 42 },
-        [TIME_FONT_BITHAM] = {  2, 45 },
+        [TIME_FONT_BITHAM] = {  2, CLOCK_GLYPHS_BITHAM_INK_H },
 #else
-        [TIME_FONT_ROBOTO] = {  0, 35 },
+        // 144px: basalt draws Roboto and Bitham from strips, diorite/flint from 1-bit fonts.
+        [TIME_FONT_ROBOTO] = {  0, PBL_IF_COLOR_ELSE(CLOCK_GLYPHS_ROBOTO_INK_H, 35) },
         [TIME_FONT_LECO]   = { -1, 29 },
-        [TIME_FONT_BITHAM] = { -2, 31 },
+        [TIME_FONT_BITHAM] = { -2, PBL_IF_COLOR_ELSE(CLOCK_GLYPHS_BITHAM_INK_H, 31) },
 #endif
     };
-#if defined(PBL_COLOR)
-    // The anti-aliased faces (clock_glyphs.h) draw from strips whose ink height is known
-    // exactly rather than measured — the digits' union ink rows, which is what ink_h means.
-    // centre_off keeps its measured value: time_layer.c seats the strip's first row with
-    // clock_ink_top_in_band() from this same pair, so the digits land where the 1-bit face's
-    // ink did and every band the solver computed for it still centres them. The two agree to
-    // the row everywhere but 144px Roboto, whose strip inks 34 rows against the system font's
-    // 35 — the solver sees the 34, so that clock is centred on its own ink too.
-    if (clock_glyphs_face(time_font)) {
-        ClockInk ink = k[time_font];
-        ink.ink_h = clock_glyphs_ink_h(time_font);
-        return ink;
-    }
-#endif
     return k[time_font];
 }
 #endif   /* WW_CLOCK_INK — aplite links none of this; see wscript */

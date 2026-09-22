@@ -72,6 +72,10 @@ static Config config_defaults(void) {
 static void config_read_or_default(Config *config) {
     *config = config_defaults();
     persist_get_config(config);
+    // Normalised here, the one place s_config is written, so every reader of time_font can
+    // index by it: corrupt flash (or a wire value from a mismatched build) renders as Roboto.
+    if (config->time_font < 0 || config->time_font > TIME_FONT_BITHAM)
+        config->time_font = TIME_FONT_ROBOTO;
 }
 
 void config_load() {
@@ -136,10 +140,6 @@ int config_n_today(uint8_t calendar_rows) {
 // then), which is also what gives emery its larger Roboto and Bitham — no stock face goes past
 // 49/42.
 GFont config_time_font() {
-    int16_t font_index = s_config->time_font;
-    if (font_index < 0 || font_index > TIME_FONT_BITHAM)
-        font_index = TIME_FONT_ROBOTO;
-
     const char *font_keys[] = {
         [TIME_FONT_ROBOTO] = FONT_KEY_ROBOTO_BOLD_SUBSET_49,
 #ifdef PBL_PLATFORM_EMERY
@@ -150,7 +150,7 @@ GFont config_time_font() {
 #endif
         [TIME_FONT_BITHAM] = FONT_KEY_BITHAM_42_MEDIUM_NUMBERS
     };
-    return fonts_get_system_font(font_keys[font_index]);
+    return fonts_get_system_font(font_keys[s_config->time_font]);
 }
 
 bool config_highlight_sundays() {

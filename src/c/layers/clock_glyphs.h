@@ -17,14 +17,9 @@
 // every call site is guarded the same way.
 #if defined(PBL_COLOR)
 
-// Whether `time_font` draws through the strips. False for LECO, and for an out-of-range
-// value, which config_time_font() renders as Roboto — callers clamp first, as clock_ink_for()
-// and config_time_font() do.
+// Whether `time_font` draws through the strips: Roboto and Bitham, not LECO. The strips' ink
+// heights, which the layout solver seats the band with, are in clock_glyphs_ink.h.
 bool clock_glyphs_face(int16_t time_font);
-
-// Rows of ink the face's digits occupy: the strip's height, and the ClockInk ink_h the layout
-// solver seats the band with (clock_ink.c).
-uint8_t clock_glyphs_ink_h(int16_t time_font);
 
 // Pen advance of `text` in pixels: the digits' width for centring and for the AM/PM label.
 int16_t clock_glyphs_width(int16_t time_font, const char *text);

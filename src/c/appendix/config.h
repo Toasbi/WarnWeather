@@ -48,7 +48,7 @@ typedef struct {
     bool show_bt_disconnect;
     bool vibe;
     bool show_am_pm;
-    int16_t time_font;
+    int16_t time_font;             // TimeFont; always in range (config.c normalises it at load)
     GColor color_today;
     GColor color_saturday;
     GColor color_sunday;

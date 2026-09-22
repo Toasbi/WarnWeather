@@ -25,17 +25,20 @@ typedef struct {
 } MainLayout;
 
 // The ONE thing about the clock this module cannot derive: where the active time font's ink
-// sits inside the band it is given. The SDK has no ink-bbox call, and the six screen x font
-// combinations are genuinely different faces, so the numbers are measured once and tabulated
-// in layers/clock_ink.h (which main_window.c resolves and passes in — layout.c must stay free
-// of config_get()/font calls; see the header note above).
+// sits inside the band it is given. The SDK has no ink-bbox call, and every screen x font
+// combination is a genuinely different face, so the numbers are tabulated per font in
+// layers/clock_ink.h — measured for the system fonts, generated for the anti-aliased strips
+// (which main_window.c resolves and passes in — layout.c must stay free of config_get()/font
+// calls; see the header note above).
 //
 // centre_off is band-height independent by construction: time_layer.c seats its text at
 // `bounds.size.h/2 - text_h/2 - MT_TIME`, so the band's own half cancels against the band
-// centre and only per-font terms remain. That is why one number per font covers every preset —
-// and layout_compute_peek(), whose clock band is a different height entirely.
+// centre and only per-font terms remain; and it draws a strip face's first inked row at
+// clock_ink_top_in_band() itself, which is band-relative by definition. That is why one number
+// per font covers every preset — and layout_compute_peek(), whose clock band is a different
+// height entirely.
 // Byte fields, not ints: the measured range is -2..+2 and 29..46, and this struct is BOTH a
-// table (six of them in clock_ink.h) and a by-value parameter on a platform where the aplite
+// table (in clock_ink.h) and a by-value parameter on a platform where the aplite
 // image has ~40 B of headroom under a hard launch ceiling. Both fields promote to int the
 // moment they are used, so the arithmetic below is unaffected.
 typedef struct {

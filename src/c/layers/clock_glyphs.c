@@ -32,11 +32,6 @@ bool clock_glyphs_face(int16_t time_font) {
     return face_for(time_font) != NULL;
 }
 
-uint8_t clock_glyphs_ink_h(int16_t time_font) {
-    const ClockGlyphFace *face = face_for(time_font);
-    return face ? face->ink_h : 0;
-}
-
 int16_t clock_glyphs_width(int16_t time_font, const char *text) {
     const ClockGlyphFace *face = face_for(time_font);
     int16_t w = 0;

@@ -90,23 +90,20 @@ static TextLayer *s_am_pm_layer;
 static char s_time_text[8];
 
 #if defined(PBL_COLOR)
-// The anti-aliased digits (clock_glyphs.h) for the faces that have them. A sibling of the text
-// layer rather than a replacement: LECO keeps drawing through s_time_layer, and exactly one of
-// the two is unhidden at a time (time_layer_tick). The frame is the whole band; the update proc
-// draws at s_glyph_origin, which the tick seats the same way it seats the text layer.
-static Layer *s_glyph_layer;
-static GPoint s_glyph_origin;   // pen x of the first digit, and the digits' first inked row
+// The anti-aliased digits (clock_glyphs.h), for the faces that have them, are painted by the
+// container's own update proc: the container already IS the band — main_window re-frames it per
+// view, it clips to it, and it draws before its children, so the strip lands under the AM/PM
+// label just as the text layer's digits do. LECO keeps drawing through s_time_layer. Which of
+// the two renders depends only on the font, so time_layer_refresh() picks it; the tick seats the
+// strip at s_glyph_origin.
+static bool s_glyphs;            // true: the container draws the strip; s_time_layer is hidden
+static GPoint s_glyph_origin;    // pen x of the first digit, and the digits' first inked row
 
-// The time font the clock is drawn in, clamped the way config_time_font() and clock_ink_for()
-// clamp it, so a corrupt persisted value takes the same (Roboto) path through all three.
-static int16_t time_font_index(void) {
-    int16_t font = config_get()->time_font;
-    return (font < 0 || font > TIME_FONT_BITHAM) ? TIME_FONT_ROBOTO : font;
-}
-
-static void glyph_layer_update(Layer *layer, GContext *ctx) {
-    clock_glyphs_draw(ctx, time_font_index(), s_time_text, s_glyph_origin,
-                      theme_pick(config_get()->color_time, theme_fg()));
+static void container_update(Layer *layer, GContext *ctx) {
+    if (s_glyphs) {
+        clock_glyphs_draw(ctx, config_get()->time_font, s_time_text, s_glyph_origin,
+                          theme_pick(config_get()->color_time, theme_fg()));
+    }
 }
 #endif
 
@@ -127,6 +124,10 @@ static ClockInk time_layer_ink(void) {
 
 void time_layer_create(Layer* parent_layer, GRect frame) {
     s_container_layer = layer_create(frame);
+#if defined(PBL_COLOR)
+    s_glyphs = false;   // the text layer draws until the first time_layer_refresh() picks
+    layer_set_update_proc(s_container_layer, container_update);
+#endif
     s_time_layer = text_layer_create(GRect(0, 0, frame.size.w, frame.size.h));
     s_am_pm_layer = text_layer_create(GRect(0, 0, AM_PM_BOX_W, frame.size.h));
 
@@ -151,12 +152,6 @@ void time_layer_create(Layer* parent_layer, GRect frame) {
     // Not a clipping question either way: the digits' frame runs to the band's right edge and
     // bottom (see time_layer_tick), so it would contain the label's ink whichever way round.
     layer_add_child(s_container_layer, text_layer_get_layer(s_time_layer));
-#if defined(PBL_COLOR)
-    s_glyph_layer = layer_create(GRect(0, 0, frame.size.w, frame.size.h));
-    layer_set_update_proc(s_glyph_layer, glyph_layer_update);
-    layer_set_hidden(s_glyph_layer, true);
-    layer_add_child(s_container_layer, s_glyph_layer);
-#endif
     layer_add_child(s_container_layer, text_layer_get_layer(s_am_pm_layer));
     layer_add_child(parent_layer, s_container_layer);
     MEMORY_LOG_HEAP("after_time_layer_create");
@@ -183,22 +178,16 @@ void time_layer_tick() {
     int text_left, digits_w;
 
 #if defined(PBL_COLOR)
-    bool glyphs = clock_glyphs_face(time_font_index());
-    layer_set_hidden(s_glyph_layer, !glyphs);
-    layer_set_hidden(text_layer_get_layer(s_time_layer), glyphs);
-    if (glyphs) {
+    if (s_glyphs) {
         // The strips carry their own metrics, so the digits are seated from the model directly:
         // the pen advance centres them exactly as the text layer's content width does below, and
         // the first inked row is the one the band solver was given (clock_ink_for reports these
         // faces' ink_h from the same strips), so the band's centring holds with no line box in
         // between to measure.
-        digits_w = clock_glyphs_width(time_font_index(), s_time_text);
+        digits_w = clock_glyphs_width(config_get()->time_font, s_time_text);
         text_left = clock_seat_x(bounds.size.w, digits_w, am_pm_w);
         s_glyph_origin = GPoint(text_left, clock_ink_top_in_band(bounds.size.h, time_layer_ink()));
-        // The band is re-framed per view (main_window's layer_set_frame on the root), so the
-        // glyph layer follows it here, as the text layer's frame does below.
-        layer_set_frame(s_glyph_layer, GRect(0, 0, bounds.size.w, bounds.size.h));
-        layer_mark_dirty(s_glyph_layer);
+        layer_mark_dirty(s_container_layer);
     } else
 #endif
     {
@@ -238,6 +227,11 @@ void time_layer_tick() {
 
 void time_layer_refresh() {
     text_layer_set_font(s_time_layer, config_time_font());
+#if defined(PBL_COLOR)
+    // Every font change arrives here (main_window_refresh) before the next redraw.
+    s_glyphs = clock_glyphs_face(config_get()->time_font);
+    layer_set_hidden(text_layer_get_layer(s_time_layer), s_glyphs);
+#endif
     text_layer_set_text_color(s_time_layer, theme_pick(config_get()->color_time, theme_fg()));
     text_layer_set_text_color(s_am_pm_layer, theme_fg());  // re-apply: create-time value goes stale on a live theme flip
     time_layer_tick();  // Update main time text and layer positions
@@ -246,9 +240,6 @@ void time_layer_refresh() {
 void time_layer_destroy() {
     MEMORY_LOG_HEAP("time_layer_destroy:before");
     text_layer_destroy(s_am_pm_layer);
-#if defined(PBL_COLOR)
-    layer_destroy(s_glyph_layer);
-#endif
     text_layer_destroy(s_time_layer);
     layer_destroy(s_container_layer);
     MEMORY_LOG_HEAP("time_layer_destroy:after");
