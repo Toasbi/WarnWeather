@@ -175,3 +175,61 @@ test('disabling the switch never touches the pair', () => {
   assert.equal(S.theme, 'light');
   assert.equal(S.themeNight, 'dark');
 });
+
+// --- both encodings: the phone's stored blob holds 0xRRGGBB INTS ---------------------
+// config-ui parseResponse runs hexToInt on every colour key at save and seedDefaults
+// writes GColorWhite as an int, and the auto theme switch converts THAT blob
+// (theme-schedule.js). The string-only rule these tests replace left a light-day
+// user's black clock black on the dark night face. strictEqual throughout: the
+// converted value must stay a NUMBER, or it would ride the wire as a cstring.
+
+test('int-encoded fg picks convert and stay ints (light -> dark)', () => {
+  const S = { colorTime: 0x000000, colorSunday: 0x000000, colorSaturday: 0xFF0055, colorUSFederal: 0x000000 };
+  applyThemeConvert(S, 'light', 'dark');
+  assert.strictEqual(S.colorTime, 0xFFFFFF);
+  assert.strictEqual(S.colorSunday, 0xFFFFFF);
+  assert.strictEqual(S.colorSaturday, 0xFF0055, 'a real pick is untouched');
+  assert.strictEqual(S.colorUSFederal, 0xFFFFFF);
+});
+
+test('int-encoded fg picks convert and stay ints (dark -> light)', () => {
+  const S = { colorTime: 0xFFFFFF, colorSunday: 0xFF0055 };
+  applyThemeConvert(S, 'dark', 'light');
+  assert.strictEqual(S.colorTime, 0x000000);
+  assert.strictEqual(S.colorSunday, 0xFF0055);
+});
+
+test('int-encoded: a same-polarity flip (dark<->bw, light<->bw-light) converts nothing', () => {
+  const S = { colorTime: 0xFFFFFF };
+  applyThemeConvert(S, 'dark', 'bw');
+  assert.strictEqual(S.colorTime, 0xFFFFFF);
+  const L = { colorTime: 0 };
+  applyThemeConvert(L, 'light', 'bw-light');
+  assert.strictEqual(L.colorTime, 0);
+});
+
+test('int-encoded colorToday 0 (the auto sentinel) is exempt in both directions', () => {
+  const S = { colorToday: 0 };
+  applyThemeConvert(S, 'light', 'dark');
+  assert.strictEqual(S.colorToday, 0);
+  applyThemeConvert(S, 'dark', 'light');
+  assert.strictEqual(S.colorToday, 0);
+});
+
+// The threshold highlight colours on "auto" hold the theme fg concretely (onbuild.js
+// re-derives them only on the NEXT page open), so they flip with the polarity too —
+// the page's own definition of auto (blocks.js: either fg value).
+test('auto (fg) threshold colours convert in either encoding; blank and picks do not', () => {
+  const S = {
+    threshWindDangerColor: '#FFFFFF', threshAqiWarnColor: 0xFFFFFF,
+    threshGustWarnColor: '', threshStepsDangerColor: '#55FF00', threshUvDangerColor: 0xFF0000,
+    threshAqiWarnOutlineOn: true
+  };
+  applyThemeConvert(S, 'dark', 'light');
+  assert.strictEqual(S.threshWindDangerColor, '#000000');
+  assert.strictEqual(S.threshAqiWarnColor, 0x000000);
+  assert.strictEqual(S.threshGustWarnColor, '', 'the no-outline sentinel survives');
+  assert.strictEqual(S.threshStepsDangerColor, '#55FF00', 'goal green is not a foreground');
+  assert.strictEqual(S.threshUvDangerColor, 0xFF0000, 'a real pick is untouched');
+  assert.strictEqual(S.threshAqiWarnOutlineOn, true, 'only *Color keys are colours');
+});

@@ -158,6 +158,8 @@ test('effectiveSettings: identity outside the flip — same object, not a copy',
   assert.equal(themeSchedule.effectiveSettings(same, true), same, 'identical picks: nothing to flip');
 });
 
+// These fixtures use the settings PAGE's '#RRGGBB' encoding; the phone's stored blob
+// holds ints — see the stored-blob test below, which is the shape the switch really sees.
 test('effectiveSettings at night: scratch copy carries the night theme and converted defaults', () => {
   const s = {
     themeAuto: true, theme: 'light', themeNight: 'dark',
@@ -184,4 +186,26 @@ test('effectiveSettings: a dark<->bw night pair flips the theme without converti
   const eff = themeSchedule.effectiveSettings(s, true);
   assert.equal(eff.theme, 'bw');
   assert.equal(eff.colorTime, '#FFFFFF', 'same polarity: nothing converts');
+});
+
+// The blob exactly as index.js's webviewclosed stores it: the page's '#RRGGBB' values
+// through parseResponse, which turns every colour key into a 0xRRGGBB int. This is
+// what the auto switch converts — and a string-only rule left the int alone, so a
+// light-day user's black clock stayed black on the dark night face.
+test('effectiveSettings at night converts the STORED (int) colours; the blob is untouched', () => {
+  global.localStorage = global.localStorage
+    || { getItem: function () { return null; }, setItem: function () {}, removeItem: function () {} };
+  const settings = require('../src/pkjs/settings');
+  const blob = settings.parseResponse(encodeURIComponent(JSON.stringify({
+    themeAuto: true, theme: 'light', themeNight: 'dark',
+    colorTime: '#000000', colorToday: '#000000', colorSunday: '#FF0055',
+    threshWindDangerColor: '#000000'
+  })));
+  assert.strictEqual(blob.colorTime, 0, 'precondition: the phone stores ints');
+  const eff = themeSchedule.effectiveSettings(blob, true);
+  assert.strictEqual(eff.colorTime, 0xFFFFFF, 'the clock turns white on the dark night face');
+  assert.strictEqual(eff.colorToday, 0, 'the auto sentinel is kept');
+  assert.strictEqual(eff.colorSunday, 0xFF0055, 'a real pick survives');
+  assert.strictEqual(eff.threshWindDangerColor, 0xFFFFFF, 'an auto highlight follows the fg');
+  assert.strictEqual(blob.colorTime, 0, 'the stored blob is never mutated');
 });

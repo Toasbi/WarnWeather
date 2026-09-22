@@ -479,3 +479,48 @@ test('an UNKNOWN platform is treated as custom-capable (missing watchInfo never 
   assert.deepStrictEqual(p.CLAY_VIEW_0,
     viewCycle.buildCustomCycle(s).map(viewCycle.packSpec)[0]);
 });
+
+// --- the auto theme switch, end to end over the blob the phone really stores -------
+// index.js builds the Clay payload from themeSchedule.effectiveSettings(app.settings,
+// isNight); app.settings holds colour keys as 0xRRGGBB ints (parseResponse /
+// seedDefaults). A colour platform: on B&W hardware theme_pick() ignores the colour and
+// would hide the bug.
+{
+  const themeSchedule = require('../src/pkjs/theme-schedule');
+  const settingsLib = require('../src/pkjs/settings');
+  const claySettings = require('../src/pkjs/clay-settings');
+  const pebbleColors = require('../src/pkjs/pebble-colors');
+  const statusThresholds = require('../src/pkjs/status-thresholds');
+  const BASALT = { platform: 'basalt', model: 'pebble_time_black' };
+  const savedBlob = (pageState) =>
+    settingsLib.parseResponse(encodeURIComponent(JSON.stringify(pageState)));
+
+  test('auto theme, light day / dark night: CLAY_COLOR_TIME is white (an int) at night', () => {
+    const blob = savedBlob({ themeAuto: true, theme: 'light', themeNight: 'dark', colorTime: '#000000' });
+    const day = buildClayPayload(themeSchedule.effectiveSettings(blob, false), BASALT, NOW);
+    const night = buildClayPayload(themeSchedule.effectiveSettings(blob, true), BASALT, NOW);
+    assert.strictEqual(day.CLAY_THEME, 1);
+    assert.strictEqual(day.CLAY_COLOR_TIME, 0x000000);
+    assert.strictEqual(night.CLAY_THEME, 0);
+    assert.strictEqual(night.CLAY_COLOR_TIME, 0xFFFFFF);
+  });
+
+  test('auto theme, seeded dark day / light night: CLAY_COLOR_TIME is black at night', () => {
+    const blob = claySettings.getDefaults({ white: pebbleColors.GColorWhite,
+      folly: pebbleColors.GColorFolly, holiday: pebbleColors.GColorBlueMoon });
+    blob.themeAuto = true; blob.themeNight = 'light';
+    const night = buildClayPayload(themeSchedule.effectiveSettings(blob, true), BASALT, NOW);
+    assert.strictEqual(night.CLAY_THEME, 1);
+    assert.strictEqual(night.CLAY_COLOR_TIME, 0x000000);
+  });
+
+  test('auto theme, light day / dark night: an auto threshold danger colour packs white', () => {
+    const blob = savedBlob({ themeAuto: true, theme: 'light', themeNight: 'dark',
+      threshWindWarn: '20', threshWindDanger: '40', threshWindDangerColor: '#000000' });
+    const night = buildClayPayload(themeSchedule.effectiveSettings(blob, true), BASALT, NOW);
+    const wind = statusThresholds.KINDS.map((k) => k.key).indexOf('Wind');
+    assert.strictEqual(
+      night.CLAY_THRESHOLDS_UINT8[statusThresholds.COLORS_OFFSET + 2 * wind + 1], 0xFF,
+      'GColorWhite (argb 0xFF), not the day face\'s black (0xC0)');
+  });
+}
