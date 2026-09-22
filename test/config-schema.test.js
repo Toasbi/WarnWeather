@@ -527,19 +527,19 @@ test('the Nighttime card sits between the top General card and Provider settings
 });
 
 test('the Nighttime card groups dim backlight, theme switching and the battery saver, in that order', () => {
-  // A sub-header maps to '#<text>'; the dim colour's row maps to '>' + its sheetId,
-  // since a `sheet` row stores nothing of its own — the rgb key it opens lives in the
-  // sheetOnly section below the card (see test/config-night-color-sheet.test.js).
-  // Each group is a sub-header, its hosted toggle, then its own hours: no card-level
-  // window heads the card and only theme switching carries a mode row, because only it
-  // has a non-clock alternative (the sun) to choose.
+  // The dim colour's row maps to '>' + its sheetId, since a `sheet` row stores nothing
+  // of its own — the rgb key it opens lives in the sheetOnly section below the card (see
+  // test/config-night-color-sheet.test.js). Anything else without a key (a sub-header)
+  // would show up as '#<text>'.
+  // Each group is its switch, then its own hours: no card-level window heads the card
+  // and only theme switching carries a mode row, because only it has a non-clock
+  // alternative (the sun) to choose.
   assert.deepEqual(nightSection().items.map(
     (i) => i.messageKey || (i.sheetId ? '>' + i.sheetId : '#' + i.text)), [
-    '#Dim backlight', 'backlightDim',
-    'backlightDimStartHour', 'backlightDimEndHour', '>backlightColor',
-    '#Theme switching', 'themeAuto', 'themeNight', 'themeNight', 'themeAutoMode',
+    'backlightDim', 'backlightDimStartHour', 'backlightDimEndHour', '>backlightColor',
+    'themeAuto', 'themeNight', 'themeNight', 'themeAutoMode',
     'themeAutoStartHour', 'themeAutoEndHour',
-    '#Battery saver', 'sleepNightEnabled', 'sleepStartHour', 'sleepEndHour'
+    'sleepNightEnabled', 'sleepStartHour', 'sleepEndHour'
   ]);
 });
 
@@ -553,40 +553,34 @@ test('themeAutoMode is the only mode key left in the Nighttime card', () => {
     .forEach((k) => assert.equal(byKey(k), undefined, k + ' is gone from the schema'));
 });
 
-// Each group's master switch rides its own sub-header, and the engine suppresses a
-// hosted toggle's own ROW — so the header and the toggle must carry the SAME gate (a
-// hidden header stops hosting and the row comes back), and the group's copy has to
-// live on the header, where a suppressed row's hint would never render.
-//
-// As the header's `hint`, not its `intro`: a hint makes the sub-header render AS the
-// toggle's row (label, hint under it, switch beside it — renderSubheader's row shape),
-// which is what keeps this card on the General tab's row rhythm. An `intro` would bring
-// back the threshold sheets' heading + intro block and its taller standoffs (the v1.18
-// spacing regression the spacing tests below pin shut).
-test('every Nighttime group hosts its toggle on its sub-header, gated alike and explained there', () => {
+// Each group opens on its own switch: a plain toggle row whose hint carries the group's
+// copy — label, hint under it, switch beside it, like every other toggle row on the
+// General tab. No sub-header heads a group: the heading + intro shape belongs to the
+// threshold sheets, and its taller standoffs step a card out of the tab's row rhythm
+// (the v1.18 regression the rhythm test below pins shut).
+const GROUP_KEYS = ['backlightDim', 'themeAuto', 'sleepNightEnabled'];
+test('each Nighttime group opens on its own switch row, which carries the copy', () => {
   const night = nightSection();
-  const headers = night.items.filter((i) => i.type === 'subheader' && i.toggleKey);
-  assert.deepEqual(headers.map((h) => h.text), ['Dim backlight', 'Theme switching', 'Battery saver']);
-  headers.forEach((header) => {
-    const toggle = night.items.find((i) => i.messageKey === header.toggleKey);
-    assert.ok(toggle && toggle.type === 'toggle', header.text + ' hosts a real toggle in the same section');
-    assert.equal(toggle.label, header.text, header.text + ': the switch is named after its group');
-    assert.deepEqual(header.showWhen, toggle.showWhen, header.text + ': header and toggle share one gate');
-    assert.ok(header.hint, header.text + ' explains itself on the header, as its row hint');
-    assert.equal(header.intro, undefined,
-      header.text + ': a hint, not an intro — the header renders as a row, not as a heading');
-    assert.equal(toggle.hint, undefined, header.text + ': a hosted row renders no hint');
+  assert.ok(!night.items.some((i) => i.type === 'subheader'), 'no sub-header in the Nighttime card');
+  GROUP_KEYS.forEach((k) => {
+    const toggle = byKey(k);
+    assert.ok(night.items.indexOf(toggle) !== -1, k + ' lives in the Nighttime card');
+    assert.equal(toggle.type, 'toggle', k + ' is the group\'s switch');
+    assert.ok(toggle.hint, k + ' explains its group in its own hint');
   });
 });
 
 // --- the card's divider rule (owner review of the rendered page) ---
 // BETWEEN groups: a line, there whether or not the group above it expanded. WITHIN a
-// group: none — the rows a switch reveals belong to that switch and read as one block.
-// Both fall out of one invariant, which these tests drive the real renderer to check:
-// the Nighttime card emits NO row dividers at all, so every line in it is a group
-// header's own border-top (.row.grp in shell.html) and therefore introduces a group.
-// Rendered, not read off the schema: the dividers are a look-ahead over what is
+// group: none — the rows a switch reveals belong to that switch (joinPrevious) and read
+// as one block. These tests drive the real renderer to check it: every line in the card
+// sits directly above a group's switch row, and every group but the first has one.
+// Rendered, not read off the schema: which row draws a divider depends on what is
 // actually VISIBLE, which no amount of schema-reading would show.
+//
+// A group OPENER is the row holding one of the GROUP_KEYS switches (found by its
+// data-k), so the outline names each group without relying on how the row is classed.
+const OPENER_RE = new RegExp('data-k="(?:' + GROUP_KEYS.join('|') + ')"');
 const nightOutline = (state, env) => {
   const eng = require('../src/pkjs/config-ui/lib/engine.js');
   const S = Object.assign(eng.hydrate(schema, {}), state || {});
@@ -600,22 +594,25 @@ const nightOutline = (state, env) => {
   const at = body.indexOf('>Nighttime settings<');
   const card = body.slice(at, (body.indexOf('<div class="card', at) + 1) || undefined);
   // Its chrome elements in order — rows, sub-headers, intros and blocks — as "<class>",
-  // or "<class>:<title>" for a group header (.grp, whichever shape it renders in: a
-  // heading's title is its <span>, a row-shaped header's its .lbl), ignoring everything
-  // nested inside them.
+  // or "<class>:<title>" for a group opener (its .lbl), ignoring everything nested inside
+  // them. ` wrap` is dropped: it only says the hint is long enough to wrap under the
+  // label, which is copy, not a join or a line.
   const out = [];
   const re = /<div class="((?:row|static|subhdr|intro|blockrow)(?:\s[^"]*)?)"/g;
   let m;
   while ((m = re.exec(card))) {
-    const title = /\bgrp\b/.test(m[1])
-      ? ':' + /(?:<span>|class="lbl">)([^<]*)</.exec(card.slice(m.index))[1] : '';
-    out.push(m[1] + title);
+    const own = card.slice(m.index + 1).split('<div class="row')[0];
+    const lbl = OPENER_RE.test(own) && /class="lbl">([^<]*)</.exec(own);
+    out.push(m[1].replace(/ wrap\b/, '') + (lbl ? ':' + lbl[1] : ''));
   }
   return out;
 };
-// An outline entry's class list, without the ":<title>" a group header carries.
+// An outline entry's class list, without the ":<title>" a group opener carries.
 const clsOf = (entry) => entry.split(':')[0];
-const isGroupHeader = (entry) => /\bgrp\b/.test(clsOf(entry));
+const titleOf = (entry) => entry.slice(entry.indexOf(':') + 1);
+const isGroupOpener = (entry) => entry.indexOf(':') !== -1;
+// A row with neither join class keeps its bottom border: it draws a line.
+const drawsLine = (entry) => /^row\b/.test(entry) && !/\bnbl?\b/.test(clsOf(entry));
 // Dim backlight and the battery saver have no mode row left, so their hours are on
 // screen whenever their switch is: the only state left to vary is theme switching's
 // mode, which is the one place a non-clock alternative still has to be chosen.
@@ -630,56 +627,61 @@ const NIGHT_STATES = {
 test('Nighttime: every line in the card introduces a group, in every expansion state', () => {
   Object.keys(NIGHT_STATES).forEach((name) => {
     const outline = nightOutline(NIGHT_STATES[name]);
-    const headers = outline.filter(isGroupHeader);
-    assert.deepEqual(headers.map((h) => h.slice(h.indexOf(':') + 1)),
+    assert.deepEqual(outline.filter(isGroupOpener).map(titleOf),
       ['Dim backlight', 'Theme switching', 'Battery saver'], name + ': three groups');
-    // Every row draws no divider (nb/nbl) — the group headers included, since they are
-    // rows too — except one that ENDS the card, whose divider .card .row:last-child
-    // removes anyway. So no line in the card is a row's bottom border.
+    // A row that keeps its divider (no nb/nbl) either ENDS the card — whose divider
+    // .card .row:last-child removes anyway — or sits directly above a group's switch
+    // row, where its line separates the two groups. So no line falls inside a group...
     outline.forEach((entry, i) => {
-      if (!/^row/.test(entry) || i === outline.length - 1) { return; }
-      assert.match(clsOf(entry), /\bnbl?\b/,
-        name + ': element ' + i + ' ("' + entry + '") must not draw a divider');
+      if (!drawsLine(entry)) { return; }
+      assert.ok(i === outline.length - 1 || isGroupOpener(outline[i + 1]),
+        name + ': element ' + i + ' ("' + entry + '") draws a line inside a group');
+    });
+    // ...and every group but the first has one above it.
+    outline.filter(isGroupOpener).slice(1).forEach((opener) => {
+      const i = outline.indexOf(opener);
+      assert.ok(drawsLine(outline[i - 1]),
+        name + ': "' + outline[i - 1] + '" draws no line above ' + titleOf(opener));
     });
   });
 });
 
 test('Nighttime: a group is separated from the one above even when it is collapsed', () => {
   // The regression this rule exists for: with its switch off a group renders NOTHING
-  // but its header, so there is no last-row divider for the NEXT group to borrow and
-  // the two ran together. Pin that shape so the header's own line stays load-bearing
-  // (see the .row.grp border-top test in config-ui/test/theme-shell): a collapsed
-  // header joins the next one LOOSELY (nbl) and leaves the line to it.
+  // but its switch row, and a join from the group below must not take that row's line
+  // away — or the two groups run together. Each collapsed switch row keeps its own
+  // divider, and that divider is the line into the next group.
   const outline = nightOutline(NIGHT_STATES['everything off']);
   assert.deepEqual(outline, [
-    'row grp nbl wrap:Dim backlight',
-    'row grp nbl wrap:Theme switching',
-    'row grp wrap:Battery saver',
-  ], 'three collapsed groups back to back, each only its switch row, the line on the next');
+    'row:Dim backlight',
+    'row:Theme switching',
+    'row:Battery saver',
+  ], 'three collapsed groups back to back, each only its switch row, each drawing its line');
 
-  // ...and with every switch on, each group's rows sit between its own header and the
-  // next one, all divider-less, so the group reads as one block under its switch. Dim
+  // ...and with every switch on, each group's rows sit between its own switch row and
+  // the next one, joined tight, so the group reads as one block under its switch. Dim
   // backlight and the battery saver open straight onto their From/To pair — no mode row
-  // stands between the switch and the hours it governs. Each header is `nb` (tight): the
-  // first row it reveals joins it, exactly as the saver's From/To joined its toggle row
-  // before the card existed.
+  // stands between the switch and the hours it governs. Each switch row is `nb` (tight):
+  // the first row it reveals joins it, as the saver's From/To always has. Only a group's
+  // LAST row keeps its divider, and that is the line into the next group.
   assert.deepEqual(nightOutline(NIGHT_STATES['everything on, theme on custom hours']), [
     // The colour is one compact row — a swatch of the current value plus Edit — since
-    // its three channel sliders moved into a bottom sheet. `nb` (tight), matching the
-    // theme group's seams below, so the card steps evenly (see the spacing test).
-    'row grp nb wrap:Dim backlight', 'row inline nb', 'row nbl',
-    'row grp nb wrap:Theme switching', 'row nb', 'row nb', 'row inline nbl',
-    'row grp nb wrap:Battery saver', 'row inline',
+    // its three channel sliders moved into a bottom sheet. It joins the From/To above it
+    // tight, matching the theme group's seams below, so the card steps evenly (see the
+    // spacing test).
+    'row nb:Dim backlight', 'row inline nb', 'row',
+    'row nb:Theme switching', 'row nb', 'row nb', 'row inline',
+    'row nb:Battery saver', 'row inline',
   ]);
 });
 
 test('Nighttime: a group the watch cannot offer takes its line with it', () => {
   // basalt has a colour screen but a white backlight, so the whole Dim backlight group
-  // is gated away — header, switch and rows. The card simply opens on THEME switching,
-  // with no stray line or empty header left where the dim group used to be.
+  // is gated away — switch and rows. The card simply opens on THEME switching, with no
+  // stray line or empty row left where the dim group used to be.
   assert.deepEqual(nightOutline({}, basaltEnv), [
-    'row grp nbl wrap:Theme switching',
-    'row grp nb wrap:Battery saver', 'row inline',
+    'row:Theme switching',
+    'row nb:Battery saver', 'row inline',
   ]);
 });
 
@@ -690,8 +692,8 @@ test('Nighttime: a group the watch cannot offer takes its line with it', () => {
 // a LOOSE one (joinPrevious: 'loose') drops only the line and leaves the standard 14px —
 // so a group mixing them renders one gap at 10px and the next at 28px. That was the
 // report: "Enabled hours, from and the color are not evenly spaced". Every join INSIDE a
-// Nighttime group is tight — the header's own seam to the first row it reveals included,
-// since the header is a row — so the whole card keeps one rhythm.
+// Nighttime group is tight — the switch row's own seam to the first row it reveals
+// included — so the whole card keeps one rhythm.
 //
 // The two numbers are read out of shell.html rather than written here: change the CSS and
 // this test re-derives the gap instead of quietly pinning a stale one.
@@ -725,15 +727,15 @@ test('Nighttime: consecutive rows inside a group are evenly spaced, in every exp
     // .row.slot would bring a third padding (8px) into the card and break the two-number
     // model above; nothing in this card uses it.
     outline.forEach((cls) => assert.ok(!/\bslot\b/.test(cls), name + ': no compact slot rows here'));
-    // Split into groups at the headers; inside a group, measure every row-to-row seam,
-    // starting with the header's own seam to the first row its switch reveals.
+    // Split into groups at the switch rows; inside a group, measure every row-to-row seam,
+    // starting with the switch row's own seam to the first row it reveals.
     let group = null;
     outline.forEach((entry, i) => {
       if (!/^row/.test(entry)) { return; }
-      if (isGroupHeader(entry)) { group = entry.slice(entry.indexOf(':') + 1); }
+      if (isGroupOpener(entry)) { group = titleOf(entry); }
       const next = outline[i + 1];
-      // last row of its group: the card ends, or the next group's header follows
-      if (!next || !/^row/.test(next) || isGroupHeader(next)) { return; }
+      // last row of its group: the card ends, or the next group's switch row follows
+      if (!next || !/^row/.test(next) || isGroupOpener(next)) { return; }
       const cls = clsOf(entry);
       const gap = rowGap(cls);
       seen.push({ state: name, group: group, gap: gap, cls: cls });
@@ -758,17 +760,11 @@ test('Nighttime: consecutive rows inside a group are evenly spaced, in every exp
 
 // --- the card's RHYTHM against the rest of the General tab (the v1.18 regression) ---
 // Even steps inside a group are not enough: the card also has to step like the cards
-// around it. v1.18 opened every group with the threshold sheets' heading chrome — a
-// .subhdr.grp bar (its own 18px top padding, the label centred on the 28px switch) over
-// a full-width .intro block (its own 2px/12px padding) — and every seam touching them
-// fell off the tab's row rhythm: card title -> first group label 38.5px against 29px in
-// every other card, label -> its copy 17.5 against a row hint's 7.8, copy -> first
-// revealed row 36 against the 20 a tight join gives, line -> next group 23.5 against 14.
-// The headers are rows now (a `subheader` with a `hint`), so the card has no chrome of
-// its own left: every seam is a row seam, sized by the same .row paddings as the rest of
-// the tab (ROW_PAD / NB_*, read from shell.html above), and its only lines are the
-// headers' 1px rules. In 1.16 terms: a group opens like the "Night battery saver" toggle
-// row did, and its first row sits under the copy like that row's tight-joined From/To.
+// around it. v1.18 opened every group with the threshold sheets' heading + intro chrome,
+// whose own standoffs knocked every seam touching them off the tab's row rhythm. The
+// invariant: the card is rows only, so every seam is a row seam sized by the same .row
+// paddings as the rest of the tab (ROW_PAD / NB_*, read from shell.html above) — tight
+// inside a group, one plain row divider between groups.
 test('Nighttime: the card steps in the General tab\'s row rhythm, on every watch and in every state', () => {
   const envs = { emery: emeryEnv, basalt: basaltEnv,
     aplite: platform.computeEnv({ platform: 'aplite' }) };
@@ -779,18 +775,17 @@ test('Nighttime: the card steps in the General tab\'s row rhythm, on every watch
       const outline = nightOutline(NIGHT_STATES[state], envs[envName]);
       // Rows only: no heading bar and no intro block anywhere in the card.
       outline.forEach((e) => assert.match(e, /^row\b/, name + ': "' + e + '" is not a row'));
-      // It opens on a group's row (.row.grp:first-child drops the line), so the card
-      // title stands off it by one ROW_PAD, like every other card's first row.
-      assert.ok(isGroupHeader(outline[0]), name + ': the card opens on its first group\'s row');
+      // It opens on a group's switch row, so the card title stands off it by one
+      // ROW_PAD, like every other card's first row.
+      assert.ok(isGroupOpener(outline[0]), name + ': the card opens on its first group\'s switch row');
       for (let i = 1; i < outline.length; i++) {
         const above = clsOf(outline[i - 1]);
         seams++;
-        if (isGroupHeader(outline[i])) {
-          // Into the next group: ROW_PAD, the header's 1px line, ROW_PAD — exactly two
-          // rows across a divider, since the row above keeps its padding (loose) and only
-          // hands the line over.
-          assert.match(above, /\bnbl\b/,
-            name + ': "' + above + '" must hand its line to the header below, loosely');
+        if (isGroupOpener(outline[i])) {
+          // Into the next group: ROW_PAD, the row above's own 1px divider, ROW_PAD —
+          // exactly two unjoined rows, like any other divider on the tab.
+          assert.doesNotMatch(above, /\bnbl?\b/,
+            name + ': "' + above + '" must draw the line into the group below');
           assert.equal(rowGap(above), LOOSE_GAP, name + ': groups sit a divider apart');
         } else {
           assert.equal(rowGap(above), TIGHT_GAP, name + ': "' + above + '" -> "' + outline[i]
@@ -807,10 +802,9 @@ test('Nighttime: the card steps in the General tab\'s row rhythm, on every watch
 test('the Nighttime card opens straight on its first group, with no shared window above it', () => {
   const night = nightSection();
   assert.equal(night.intro, undefined, 'the card carries no intro of its own');
-  assert.equal(night.items[0].type, 'subheader');
-  assert.equal(night.items[0].text, 'Dim backlight', 'the first group heads the card');
-  assert.ok(!night.items.some((i) => i.type === 'subheader' && !i.toggleKey),
-    'every sub-header in the card hosts a group switch — none introduces a shared window');
+  assert.equal(night.items[0].messageKey, 'backlightDim', 'the first group\'s switch heads the card');
+  assert.ok(!night.items.some((i) => i.type === 'subheader'),
+    'no sub-header in the card — nothing introduces a shared window');
   // No user-facing string in the card offers the removed shared window as a choice.
   assert.equal(JSON.stringify(night).indexOf('Night hours'), -1,
     'the phrase "Night hours" is gone from the Nighttime card');
@@ -820,20 +814,18 @@ test('the Nighttime card opens straight on its first group, with no shared windo
 // suppresses the status micro-send (level changes and charging transitions alike), so
 // the copy has to describe sending rather than fetching or it under-promises what the
 // toggle now turns off. The wording was dictated by the design
-// (docs/superpowers/specs/2026-08-20-phone-battery-slot-design.md §3), not derived; it
-// moved from the toggle's hint to its sub-header when the toggle became hosted (the
-// header's `hint`, which renders as that toggle row's hint again), and says "between the
-// hours below" again now that the saver's own From/To sits there.
+// (docs/superpowers/specs/2026-08-20-phone-battery-slot-design.md §3), not derived. It
+// is the toggle's hint, and says "between the hours below" because the saver's own
+// From/To sits right under it.
 //
 // sleepStartHour/sleepEndHour are the saver's original keys and never meant anything
 // else: same keys, same options, same defaults, same gate. Nothing stored on any install
 // changes meaning, so the restructure needs no migration.
 test('the battery saver owns its hours outright and still talks about SENDING', () => {
-  const night = nightSection();
   const on = byKey('sleepNightEnabled');
   assert.equal(on.label, 'Battery saver', 'the word "Night" moved up to the card title');
   assert.equal(on.defaultValue, true);
-  assert.equal(night.items.find((i) => i.type === 'subheader' && i.toggleKey === 'sleepNightEnabled').hint,
+  assert.equal(on.hint,
     'Stop sending updates to your watch between the hours below to save battery.');
 
   const from = byKey('sleepStartHour'), to = byKey('sleepEndHour');
@@ -893,7 +885,7 @@ test('Dim backlight is emery-only, on by default, and carries a dim-red RGB colo
   assert.equal(vis(from, { backlightDim: true }), true, 'switched on, the hours are right there');
   assert.equal(vis(to, { backlightDim: true }), true);
   assert.equal(vis(from, { backlightDim: false }), false,
-    'switched off, only the header switch is left');
+    'switched off, only the switch row is left');
   assert.equal(vis(to, { backlightDim: false }), false);
 });
 

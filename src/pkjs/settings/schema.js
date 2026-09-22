@@ -942,31 +942,13 @@ module.exports = {
             // owns its hours outright — there is no card-level window, so nothing in
             // the card reads or moves another group's times.
             title: 'Nighttime settings', items: [{
-                // Header and toggle carry the SAME gate on purpose: a hidden
-                // subheader stops hosting the switch, which would then render as a
-                // row of its own on every watch without the LED.
-                //
-                // `hint`, not `intro`: that makes the header a ROW — the switch's own
-                // toggle row, this copy as its hint — so each group opens exactly like
-                // the toggle rows in every other card (label, hint under it, switch
-                // beside it) instead of as the threshold sheets' heading + intro
-                // block, whose taller standoffs stepped this card out of the General
-                // tab's rhythm.
-                type: 'subheader',
-                text: 'Dim backlight',
-                toggleKey: 'backlightDim',
-                showWhen: BACKLIGHT_WHEN,
-                hint: 'Dim the backlight when it comes on between the hours below, so it is easier on your eyes.'
-            }, {
-                // The hosted toggle keeps its place in `items` (hydrate, serialize
-                // and the derived defaults all still see it); only its row is
-                // suppressed — the header renders that row in its place, which is
-                // also why the copy above rides the header's hint instead of this
-                // item's.
+                // Each group opens on its own switch row, which carries the group's
+                // copy as its hint — the same shape as every other toggle row.
                 type: 'toggle',
                 messageKey: 'backlightDim',
                 label: 'Dim backlight',
                 defaultValue: true,
+                hint: 'Dim the backlight when it comes on between the hours below, so it is easier on your eyes.',
                 showWhen: BACKLIGHT_WHEN
             }, {
                 // The dim window, and now the feature's only one — it no longer
@@ -978,11 +960,7 @@ module.exports = {
                 // page and the reader agree on an install that never opened this
                 // card.
                 //
-                // TIGHT onto the group's header: the look-ahead classes the row above,
-                // and above this one is the (row-shaped) sub-header, so the pair sits
-                // as close to the header's hint as any tight-joined row sits to the
-                // hint above it — the gap the saver's From/To had under its toggle
-                // row before the Nighttime card existed.
+                // First row under its switch — joins it tight.
                 type: 'select',
                 messageKey: 'backlightDimStartHour',
                 label: 'From',
@@ -1021,8 +999,8 @@ module.exports = {
                     args: {key: 'backlightDimColor', defaultValue: BACKLIGHT_COLOR_DEFAULT}
                 },
                 // Joins the rows above into ONE block: everything a group reveals when its
-                // switch goes on belongs to that switch, so the only line inside the card is
-                // the one each group's sub-header draws above itself.
+                // switch goes on belongs to that switch, so the only lines inside the card
+                // are the ones between groups.
                 //
                 // TIGHT, not 'loose', and that is a card-wide rule rather than this row's
                 // taste: a tight join sets the gap to 5px+5px and a loose one leaves the
@@ -1034,14 +1012,6 @@ module.exports = {
                 joinPrevious: true,
                 showWhen: BACKLIGHT_ON_WHEN
             }, {
-                type: 'subheader',
-                text: 'Theme switching',
-                toggleKey: 'themeAuto',
-                // themePolarity: aplite has nothing to switch between (the light
-                // polarity is compiled out there), so the whole group hides.
-                showWhen: {env: 'themePolarity'},
-                hint: 'Switch between two themes automatically — with the sun, or on a fixed schedule. The phone applies the switch, so it can land a little late while the watch is disconnected.'
-            }, {
                 // The Theme row in the card above doubles as the day theme and is
                 // left exactly as the user set it; enabling this only seeds a night
                 // theme (theme-flip.js).
@@ -1049,13 +1019,16 @@ module.exports = {
                 messageKey: 'themeAuto',
                 label: 'Theme switching',
                 defaultValue: false,
+                hint: 'Switch between two themes automatically — with the sun, or on a fixed schedule. The phone applies the switch, so it can land a little late while the watch is disconnected.',
+                // themePolarity: aplite has nothing to switch between (the light
+                // polarity is compiled out there), so the whole group hides.
                 showWhen: {env: 'themePolarity'},
                 onChange: 'themeAutoPreset'
             }, {
                 // No themeConvert here: the stored colour defaults track the DAY
                 // theme's polarity; the night flip converts a scratch copy at send
-                // time instead (theme-schedule.js). The group's first row, so both
-                // copies join the header tight, like Dim backlight's From.
+                // time instead (theme-schedule.js). First row under its switch, so
+                // both copies join it tight.
                 type: 'select',
                 messageKey: 'themeNight',
                 label: 'Night theme',
@@ -1108,23 +1081,18 @@ module.exports = {
                 // "Sending", not "fetching": with the phone-battery slot the saver
                 // also suppresses the status micro-send, so the copy has to describe
                 // what it stops, not where the data comes from.
-                type: 'subheader',
-                text: 'Battery saver',
-                toggleKey: 'sleepNightEnabled',
-                hint: 'Stop sending updates to your watch between the hours below to save battery.'
-            }, {
                 type: 'toggle',
                 messageKey: 'sleepNightEnabled',
                 label: 'Battery saver',
-                defaultValue: true
+                defaultValue: true,
+                hint: 'Stop sending updates to your watch between the hours below to save battery.'
             }, {
                 // sleepStartHour/sleepEndHour, back under the switch that has always
                 // owned them: same keys, same options, same '0'/'7' defaults, same
                 // gate. Nothing an install has stored means anything different than
                 // it did before the Nighttime card existed.
                 //
-                // Joined tight onto the header, like Dim backlight's From — the very
-                // join this row had under its toggle row before the card existed.
+                // First row under its switch — joins it tight.
                 type: 'select',
                 messageKey: 'sleepStartHour',
                 label: 'From',
