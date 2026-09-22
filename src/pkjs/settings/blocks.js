@@ -636,7 +636,7 @@ if (typeof require !== 'undefined') {
         for (var i = 0; i < slotKeys.length; i++) {
             S[slotKeys[i]] = statusLineCatalog.slotDefault(slotKeys[i], env);
         }
-        var schemaKeys = ['statusBoldAll', 'tempSlotDisplay',
+        var schemaKeys = ['statusBoldAll', 'tempSlotDisplay', 'uvSlotDisplay',
             'dateSlotMonthFormat',
             'windSlotDirection', 'gustSlotDirection'];
         // dateSlotFullFormat is the one key here whose fresh-install value is

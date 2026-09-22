@@ -76,7 +76,8 @@ Two things that both involve rain over time, but answer different questions:
   temperature (drawn muted on the same scale as the temperature curve) as a main
   metric (solid line) and an optional second metric (drawn as bar-aligned square dots; the same
   metric can't appear on both), plus optional bars for the hourly rain amount. The temperature
-  status slot can also show the feels-like value, or both as `12/10`.
+  status slot can also show the feels-like value, or both as `12/10`; the UV index slot can
+  show today's highest UV still to come (until midnight), or both as `3/7`.
 - **Rain radar** — unlike the forecast graph's model prediction, this is a short-term nowcast
   based on actual radar measurements moving toward you, refreshed often as new scans arrive.
   Instead of a map it's drawn as bars: the provider's radar images for the next 2 hours are

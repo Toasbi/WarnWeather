@@ -258,9 +258,9 @@
    * status-lines.js through wire-units, so the two cannot round apart; the
    * AQI/UV rounding here still mirrors formatValue() by contract (pinned by
    * test).
-   * @param {string} code 'aqi' | 'pollen' | 'wind' | 'gust'
+   * @param {string} code 'aqi' | 'pollen' | 'wind' | 'gust' | 'uv'
    * @param {Object} payload weather payload (pre-transform, trends present)
-   * @param {Object} settings Clay settings blob (windUnits)
+   * @param {Object} settings Clay settings blob (windUnits, uvSlotDisplay)
    * @returns {number|null} displayed number, or null when unavailable
    */
   function displayValue(code, payload, settings) {
@@ -286,9 +286,14 @@
     }
     if (code === 'uv') {
       // UV_TREND_UINT8 carries tenths; the slot displays the rounded index
-      // (status-lines.js) and thresholds compare the DISPLAYED number.
-      v = trendHead(payload.UV_TREND_UINT8);
-      return v === null ? null : Math.round(v / 10);
+      // (status-lines.js) and thresholds compare the DISPLAYED number — the
+      // HIGHEST one when the display mode prints today's peak too ('max' /
+      // 'both'): "2/8" is highlighted for the 8 it shows. Same reader as the
+      // slot text, so the two agree on the peak and on every fallback.
+      var uv = wireUnits.uvReadings(payload.UV_TREND_UINT8, payload.FORECAST_START,
+        settings && settings.uvSlotDisplay);
+      if (!uv) { return null; }
+      return Math.round((uv.max === null ? uv.now : uv.max) / 10);
     }
     return null;
   }

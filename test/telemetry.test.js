@@ -102,6 +102,11 @@ test('snapshot includes tempSlotDisplay as a string', () => {
   assert.strictEqual(buildSettingsSnapshot({}).tempSlotDisplay, undefined);
 });
 
+test('snapshot includes uvSlotDisplay as a string', () => {
+  assert.strictEqual(buildSettingsSnapshot({ uvSlotDisplay: 'both' }).uvSlotDisplay, 'both');
+  assert.strictEqual(buildSettingsSnapshot({}).uvSlotDisplay, undefined);
+});
+
 // The date slot's two format picks, raw like tempSlotDisplay above — same lockstep
 // rule (watch-side snapshot AND the Deno .strip() schema, or ingest drops them).
 test('snapshot includes the two date-slot format picks as strings', () => {

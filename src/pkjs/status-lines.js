@@ -335,8 +335,17 @@ function formatValue(code, payload, settings, slotKey, cap) {
     return ev ? formatSunTime(ev.epoch, settings) : '--';
   }
   if (code === 'uv') {
-    v = trendHead(payload.UV_TREND_UINT8);
-    return v === null ? '--' : String(Math.round(v / 10));
+    // Global per-kind display mode (UV slot's Edit sheet), the temp slot's pattern:
+    // absent = 'current'. 'max' is the peak for the rest of today (wire-units'
+    // uvReadings); 'both' is slash-separated, current first: 3/7. A peak it cannot
+    // place in the day falls back to the current reading alone, never '3/--'.
+    var uvMode = settings.uvSlotDisplay;
+    var uv = wireUnits.uvReadings(payload.UV_TREND_UINT8, payload.FORECAST_START, uvMode);
+    if (!uv) { return '--'; }
+    var uvNow = String(Math.round(uv.now / 10));
+    if (uv.max === null) { return uvNow; }
+    var uvMax = String(Math.round(uv.max / 10));
+    return uvMode === 'max' ? uvMax : uvNow + '/' + uvMax;
   }
   if (code === 'wind') {
     v = trendHead(payload.WIND_TREND_UINT8);
@@ -605,6 +614,8 @@ var SOURCE_KEYS = [
   'FEELS_CURRENT',
   'SUN_EVENTS',
   'UV_TREND_UINT8',
+  // The UV slot's day-max modes place each trend hour on the calendar from it.
+  'FORECAST_START',
   'WIND_TREND_UINT8',
   'GUST_TREND_UINT8',
   'WIND_DIR_TREND',

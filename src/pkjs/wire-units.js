@@ -32,6 +32,47 @@ function trendHead(arr) {
 }
 
 /**
+ * The UV slot's readings in UV tenths (the UV_TREND_UINT8 scale) — THE one reader
+ * both display paths share, like kmhToDisplay: status-lines' slot text and
+ * status-thresholds' displayValue, so the highlight can never judge a number the
+ * slot does not show.
+ *
+ * `max` is the highest hourly value from entry 0 (the hour at forecastStart) to the
+ * last entry on that same local date — "the rest of today, until 23:59", never
+ * tomorrow's morning out of the 24 h trend. Past hours of today are not in the
+ * trend, so the peak is of what is still to come, and it can never sit below `now`
+ * (entry 0 counts). Only frozen payload inputs are read — no clock — so re-baking an
+ * old snapshot reproduces the same text (status-rebake.js).
+ *
+ * @param {number[]|null|undefined} uvTrend UV_TREND_UINT8 (UV tenths, hourly).
+ * @param {*} forecastStart FORECAST_START, epoch seconds of entry 0.
+ * @param {*} mode Stored uvSlotDisplay: 'max' / 'both' ask for the peak; anything
+ *     else (absent = 'current') does not.
+ * @returns {?{now: number, max: ?number}} null when there is no UV at all; `max` is
+ *     null when the mode does not show it or forecastStart is unusable (a stale
+ *     cache), and every mode then falls back to `now` alone.
+ */
+function uvReadings(uvTrend, forecastStart, mode) {
+    var now = trendHead(uvTrend);
+    if (now === null) { return null; }
+    var out = { now: now, max: null };
+    if ((mode !== 'max' && mode !== 'both')
+        || typeof forecastStart !== 'number' || !isFinite(forecastStart)) {
+        return out;
+    }
+    var first = new Date(forecastStart * 1000);
+    var y = first.getFullYear(), m = first.getMonth(), d = first.getDate();
+    var max = now, i, t;
+    for (i = 1; i < uvTrend.length; i += 1) {
+        t = new Date((forecastStart + i * 3600) * 1000);
+        if (t.getDate() !== d || t.getMonth() !== m || t.getFullYear() !== y) { break; }
+        if (typeof uvTrend[i] === 'number' && uvTrend[i] > max) { max = uvTrend[i]; }
+    }
+    out.max = max;
+    return out;
+}
+
+/**
  * @param {number} celsius Temperature in degrees Celsius.
  * @returns {number} Temperature in degrees Fahrenheit.
  */
@@ -103,6 +144,7 @@ module.exports = {
     mphToKmh: mphToKmh,
     kmhToDisplay: kmhToDisplay,
     trendHead: trendHead,
+    uvReadings: uvReadings,
     celsiusToFahrenheit: celsiusToFahrenheit,
     normalizeBearing: normalizeBearing,
     zeroFilledArray: zeroFilledArray

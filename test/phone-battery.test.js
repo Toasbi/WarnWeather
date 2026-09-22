@@ -744,9 +744,10 @@ test('the stored blob holds only the payload keys the bake reads', () => {
   const blob = JSON.parse(storage[KEYS.PHONE_BATTERY_SNAPSHOT]);
   assert.deepEqual(Object.keys(blob).sort(), ['payload', 'v', 'watchInfo']);
   assert.deepEqual(Object.keys(blob.payload).sort(),
-    ['CITY', 'CURRENT_TEMP', 'FEELS_CURRENT', 'GUST_TREND_UINT8', 'SUN_EVENTS',
-     'UV_TREND_UINT8', 'WIND_TREND_UINT8'],
-    'present bake keys only -- no TEMP_TREND_UINT8, no radar, no FORECAST_START');
+    ['CITY', 'CURRENT_TEMP', 'FEELS_CURRENT', 'FORECAST_START', 'GUST_TREND_UINT8',
+     'SUN_EVENTS', 'UV_TREND_UINT8', 'WIND_TREND_UINT8'],
+    'present bake keys only -- no TEMP_TREND_UINT8, no radar (FORECAST_START is one: '
+      + 'the UV slot\'s day-max modes place the trend hours on the calendar with it)');
   assert.deepEqual(blob.watchInfo, { platform: 'basalt' },
     'the platform env the bake derives from survives too');
 });

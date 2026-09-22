@@ -38,10 +38,12 @@ const BOLD_ONLY_KEYS = BOLD_ONLY_STEMS.map((stem) => 'thresh' + stem + 'BoldMode
 const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnOutlineOn', 'Warn', 'Danger', 'Max'])
   .concat(THRESH_COLOR_KEYS)
   .concat(BOLD_ONLY_KEYS)
-  // Per-kind display rows that ride a threshold sheet: the wind/gust direction arrows
-  // and their "Show unit" toggles (Temp's tempSlotDisplay is listed with the plain keys
-  // below, next to the other three "Show unit" keys on bold-only sheets).
-  .concat(['windSlotDirection', 'gustSlotDirection', 'windSlotUnit', 'gustSlotUnit']);
+  // Per-kind display rows that ride a threshold sheet: the wind/gust direction arrows,
+  // their "Show unit" toggles and the UV slot's display mode (Temp's tempSlotDisplay is
+  // listed with the plain keys below, next to the other three "Show unit" keys on
+  // bold-only sheets).
+  .concat(['windSlotDirection', 'gustSlotDirection', 'windSlotUnit', 'gustSlotUnit',
+    'uvSlotDisplay']);
 // The "Show unit" toggles on the BOLD-ONLY sheets. Six kinds have one — the six whose
 // slot text the phone bakes; the watch-formatted kinds (distance, heart rate, sleep,
 // battery %) would need the flag on the wire and are deliberately absent.

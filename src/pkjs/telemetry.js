@@ -97,6 +97,9 @@ function buildSettingsSnapshot(settings, watchInfo) {
     var snapshot = {
         temperatureUnits: safe.temperatureUnits,
         tempSlotDisplay: safe.tempSlotDisplay,
+        // The UV slot's display mode ('current' | 'max' | 'both'), raw like
+        // tempSlotDisplay.
+        uvSlotDisplay: safe.uvSlotDisplay,
         // The date slot's two format picks (edit sheet), raw like tempSlotDisplay.
         // dateSlotFullFormat is wizard-seeded per country ('slash' for US installs,
         // 'auto' elsewhere), so a present value does NOT mean the user opened the

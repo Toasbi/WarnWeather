@@ -1173,6 +1173,22 @@ test('the Temp sheet puts its display-mode pills below the Bold row', () => {
   assert.equal(disp.disabledWhen, undefined);
 });
 
+test('the UV sheet puts its display-mode pills between the Bold row and the Thresholds group', () => {
+  const items = sheetFor('Uv').items;
+  assert.equal(items[0].messageKey, 'threshUvBoldMode', 'Bold leads, as in every sibling sheet');
+  const disp = items[1];
+  assert.equal(disp.messageKey, 'uvSlotDisplay');
+  assert.equal(disp.type, 'segmented');
+  assert.equal(disp.defaultValue, 'current', 'shipped behaviour: the current index');
+  assert.deepEqual(disp.options, [['Now', 'current'], ['Day max', 'max'], ['Both', 'both']]);
+  assert.match(String(disp.hint), /midnight/i, 'hint says where "today" ends');
+  assert.match(String(disp.hint), /highlight/i, 'hint says which value the highlight judges');
+  // It configures the SLOT, not the highlight, so it sits above the group header
+  // like the wind arrow — and stays live while the highlight is off.
+  assert.equal(items[2].type, 'subheader', 'the Thresholds group follows it');
+  assert.equal(disp.disabledWhen, undefined, 'not muted by the highlight toggle or the master Bold row');
+});
+
 test('the slot pencil resolves the bold-only sheet for every new kind', () => {
   const resolve = PC.sheetResolvers.get('statusSlotEditSheet');
   Object.keys(BOLD_CODES).forEach(code => {
@@ -1194,6 +1210,8 @@ test('bold-only BoldMode keys hydrate their default and ride the save blob', () 
   });
   assert.equal(blob.tempSlotDisplay, 'actual',
     'tempSlotDisplay must survive hydrate → serialize');
+  assert.equal(blob.uvSlotDisplay, 'current',
+    'uvSlotDisplay must survive hydrate → serialize');
 });
 
 // --- the Watch-tab master Bold row (statusBoldAll) ---------------------------
@@ -1285,7 +1303,7 @@ test('the generated page renders the Temp display pills and the battery-% sheet'
 
 /** @returns {Object} A settings state with nothing at its default. */
 function scrambledSlotState() {
-  const S = { statusBoldAll: 'all', tempSlotDisplay: 'both' };
+  const S = { statusBoldAll: 'all', tempSlotDisplay: 'both', uvSlotDisplay: 'both' };
   // 'uv' is not the default of any of the 12 slots.
   catalog.allSlotKeys().forEach(k => { S[k] = 'uv'; });
   thresholds.KINDS.forEach((kind, i) => {
@@ -1317,6 +1335,8 @@ test('resetStatusSlots restores every slot default (hr and non-hr) and the bold 
     assert.equal(S.statusBoldAll, 'perSlot', name + ': master Bold row back to perSlot');
     assert.equal(S.tempSlotDisplay, 'actual',
       name + ': temp display pills back to Temp (same sheet, no reset path of its own)');
+    assert.equal(S.uvSlotDisplay, 'current',
+      name + ': UV display pills back to Now (its sheet\'s reset covers the thresholds only)');
     thresholds.KINDS.forEach(kind => {
       assert.equal(S['thresh' + kind.key + 'BoldMode'], kind.boldOnly ? 'off' : 'warn',
         name + ': ' + kind.key + ' BoldMode back to its sheet default');

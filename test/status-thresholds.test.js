@@ -171,6 +171,24 @@ test('packWeatherLevels: UV rides byte 1 bits 0-1 (kind 7 -> shift 8)', () => {
     'UV 8.5 -> displayed 9 crosses danger 8');
 });
 
+test('packWeatherLevels: a UV slot showing today\'s max is judged on the highest value it shows', () => {
+  const settings = { threshUvWarn: '6', threshUvDanger: '8' };
+  // Now 2, peaks at 8 at 12:00 local; tomorrow's 10 (entry 15+) never counts.
+  const start = new Date(2026, 6, 15, 9, 0, 0).getTime() / 1000;
+  const payload = { FORECAST_START: start,
+    UV_TREND_UINT8: [20, 45, 70, 80, 60, 30, 10, 0, 0, 0, 0, 0, 0, 0, 0, 100, 100] };
+  assert.deepEqual(th.packWeatherLevels(payload, settings), [0, 0],
+    'current mode (absent): the 2 on screen is below warn');
+  assert.deepEqual(th.packWeatherLevels(payload,
+    Object.assign({ uvSlotDisplay: 'max' }, settings)), [0, 2], 'max: the 8 on screen is danger');
+  assert.deepEqual(th.packWeatherLevels(payload,
+    Object.assign({ uvSlotDisplay: 'both' }, settings)), [0, 2], 'both: "2/8" is highlighted for its 8');
+  const noStart = { UV_TREND_UINT8: payload.UV_TREND_UINT8 };
+  assert.deepEqual(th.packWeatherLevels(noStart,
+    Object.assign({ uvSlotDisplay: 'both' }, settings)), [0, 0],
+    'no start time: the slot falls back to the current value, and so does its level');
+});
+
 test('packWeatherLevels: missing data or disabled kinds emit normal', () => {
   assert.deepEqual(th.packWeatherLevels({}, { threshAqiWarn: '1', threshAqiDanger: '2' }), [0, 0]);
   assert.deepEqual(th.packWeatherLevels({ AQI_TREND: [500] }, {}), [0, 0]);

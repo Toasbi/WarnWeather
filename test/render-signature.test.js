@@ -27,6 +27,15 @@ test('tempSlotDisplay changes the render signature (forces a rebake)', () => {
     renderSignature({ tempSlotDisplay: 'feels' }));
 });
 
+// uvSlotDisplay is the UV slot's twin of the rule above: the phone bakes the
+// current / day-max / both text, so switching it must force a rebake too.
+test('uvSlotDisplay changes the render signature (forces a rebake)', () => {
+  const base = renderSignature({});
+  assert.notEqual(renderSignature({ uvSlotDisplay: 'max' }), base);
+  assert.notEqual(renderSignature({ uvSlotDisplay: 'both' }),
+    renderSignature({ uvSlotDisplay: 'max' }));
+});
+
 // The wind/gust direction arrows are baked phone-side into the slot text (a trailing
 // sentinel byte appended in status-lines.js), so per the force-fetch rule both toggles
 // must be part of the signature — otherwise the arrow appears only after the next

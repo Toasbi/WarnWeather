@@ -40,7 +40,7 @@ STATUS LINES
       - pollen
       - wind
       - gusts
-      - UV index
+      - UV index (now, today's max, or both)
       - sunrise/sunset
    - Date and location:
       - Calender week  

@@ -43,6 +43,7 @@ const settingsSchema = z
   .object({
     temperatureUnits: z.string().optional(),
     tempSlotDisplay: z.string().optional(),
+    uvSlotDisplay: z.string().optional(),
     dateSlotMonthFormat: z.string().optional(),
     dateSlotFullFormat: z.string().optional(),
     aqiScale: z.enum(['european', 'us']).optional(),
