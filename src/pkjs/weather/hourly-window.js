@@ -8,11 +8,13 @@
 
 var FORECAST_HOURS = 24;
 var HOUR_SECONDS = 60 * 60;
-// The UV series' longer reach: 48 hourly buckets from the anchor always run past the
-// end of TOMORROW (the anchor is at most 23:xx today, and 23 + 47 h >= 23:00 the next
-// day), which the UV slot's day-max modes need once today's peak has passed
-// (localDayPeaks). Only UV reads this far; every other trend keeps FORECAST_HOURS.
-var UV_HOURS = 48;
+// The UV series' longer reach: enough hourly buckets from the anchor to run to the
+// end of TOMORROW, which the UV slot's day-max modes need once today's peak has
+// passed (localDayPeaks). The worst case is the EARLIEST anchor, 00:00: the rest of
+// today is then a whole day and tomorrow another, 48 h, plus one when either is a
+// 25 h DST fall-back day — 49 buckets. Any later anchor needs fewer. Only UV reads
+// this far; every other trend keeps FORECAST_HOURS.
+var UV_HOURS = 2 * FORECAST_HOURS + 1;
 
 /**
  * Index of the first hourly bucket at or after the current wall-clock hour.
@@ -73,39 +75,44 @@ function alignHourly(json, field, startTime, hours) {
 }
 
 /**
- * Continue a series mapped over the FORECAST_HOURS window out to `hours` buckets
- * (the UV series' UV_HOURS), reading on from the provider's own buckets. It follows
- * their timestamps and stops at the first bucket that is not exactly the next hour
- * — a feed that thins to 3- or 6-hourly steps, or simply ends, leaves the series
+ * Up to `hours` values of a series (the UV series' UV_HOURS), read from the
+ * provider's own buckets starting at items[anchor]: the first FORECAST_HOURS
+ * unconditionally (mapResponse has already checked they exist, like every other
+ * series in its window), then only while each bucket is exactly the next hour —
+ * a feed that thins to 3- or 6-hourly steps, or simply ends, leaves the result
  * short rather than passing a coarse sample off as an hour (localDayPeaks then
  * reports the uncovered day as unknown).
  *
- * @param {number[]} series Values already mapped for buckets anchor..anchor+len-1;
- *   extended IN PLACE.
  * @param {Array} items The provider's buckets, ascending.
- * @param {number} anchor Index of the series' entry 0 in items.
- * @param {number} hours Target series length.
+ * @param {number} anchor Index of entry 0 in items (a valid anchorIndex result).
+ * @param {number} hours Maximum series length.
  * @param {function(*): number} epochOf Bucket -> epoch seconds.
  * @param {function(*): number} valueOf Bucket -> the series value.
- * @returns {number[]} The same series.
+ * @returns {number[]} A fresh array.
  */
-function extendHourly(series, items, anchor, hours, epochOf, valueOf) {
+function readHourly(items, anchor, hours, epochOf, valueOf) {
     var startEpoch = epochOf(items[anchor]);
+    var out = [];
     var i;
-    for (i = anchor + series.length; i < anchor + hours && i < items.length; i += 1) {
-        if (epochOf(items[i]) !== startEpoch + (i - anchor) * HOUR_SECONDS) { break; }
-        series.push(valueOf(items[i]));
+    for (i = 0; i < hours && anchor + i < items.length; i += 1) {
+        if (i >= FORECAST_HOURS && epochOf(items[anchor + i]) !== startEpoch + i * HOUR_SECONDS) {
+            break;
+        }
+        out.push(valueOf(items[anchor + i]));
     }
-    return series;
+    return out;
 }
 
 /**
  * The peaks of an hourly series per LOCAL calendar day: [the rest of the day
  * startEpoch falls on, the whole next day]. Entry i is the hour starting at
  * startEpoch + i h; unsourced (non-numeric) hours are skipped, and a day with no
- * sourced hour is null. The next day's peak is reported only when the series
- * covers that day to its end — a short feed would otherwise under-report it
- * (a peak it never reached), so it answers "unknown" instead. Day edges come from
+ * sourced hour is null. The next day's peak is reported only when the series'
+ * last SOURCED hour reaches that day's end — a feed that stops short would
+ * otherwise under-report it (a peak it never reached), so it answers "unknown"
+ * instead. Judging by the last sourced hour, not the array length, makes both
+ * encodings of a feed end mean the same: a short array (readHourly) and a
+ * full-length one padded with null (alignHourly). Day edges come from
  * the phone's own calendar (local midnight via Date), so a DST day of 23 or 25
  * hours needs no special case.
  *
@@ -123,15 +130,17 @@ function localDayPeaks(series, startEpoch) {
     var tomorrowStart = new Date(y, m, d + 1).getTime() / 1000;
     var dayAfterStart = new Date(y, m, d + 2).getTime() / 1000;
     var i, t, v, day;
+    var lastSourced = -1;
     for (i = 0; i < series.length; i += 1) {
         t = startEpoch + i * HOUR_SECONDS;
         if (t >= dayAfterStart) { break; }
         v = series[i];
         if (typeof v !== 'number' || !isFinite(v)) { continue; }
+        lastSourced = i;
         day = t < tomorrowStart ? 0 : 1;
         if (peaks[day] === null || v > peaks[day]) { peaks[day] = v; }
     }
-    if (startEpoch + series.length * HOUR_SECONDS < dayAfterStart) { peaks[1] = null; }
+    if (startEpoch + (lastSourced + 1) * HOUR_SECONDS < dayAfterStart) { peaks[1] = null; }
     return peaks;
 }
 
@@ -141,6 +150,6 @@ module.exports = {
     HOUR_SECONDS: HOUR_SECONDS,
     anchorIndex: anchorIndex,
     alignHourly: alignHourly,
-    extendHourly: extendHourly,
+    readHourly: readHourly,
     localDayPeaks: localDayPeaks
 };

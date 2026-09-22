@@ -90,7 +90,6 @@ function mapResponse(json, nowEpoch) {
     var rainTrend = [];
     var windTrend = [];
     var gustTrend = [];
-    var uvTrend = [];
     var pressureTrend = [];
     var feelsTrend = [];
     var dewTrend = [];
@@ -123,7 +122,6 @@ function mapResponse(json, nowEpoch) {
         feelsTrend.push(feels === null ? tempF : feels);
         windTrend.push(msToKmh(instant.wind_speed || 0));
         gustTrend.push(msToKmh(instant.wind_speed_of_gust || 0));
-        uvTrend.push(entryUv(entry));
         pressureTrend.push(typeof instant.air_pressure_at_sea_level === 'number'
             ? instant.air_pressure_at_sea_level : 0);
         // Dew point and bearing degrade to null, not 0, and keep their slot so the
@@ -142,11 +140,6 @@ function mapResponse(json, nowEpoch) {
         precipTrend.push((next1 && typeof next1.probability_of_precipitation === 'number')
             ? next1.probability_of_precipitation / 100 : 0);
     }
-    // UV alone reaches UV_HOURS (48) deep, so the UV slot can name tomorrow's peak;
-    // every other series keeps the 24-hour window. Met.no turns 6-hourly after its
-    // first ~2.5 days, which extendHourly's next-hour rule stops at.
-    hourlyWindow.extendHourly(uvTrend, timeseries, anchor, hourlyWindow.UV_HOURS,
-        entryEpoch, entryUv);
 
     return {
         tempTrend: tempTrend,
@@ -154,7 +147,10 @@ function mapResponse(json, nowEpoch) {
         rainTrend: rainTrend,
         windTrend: windTrend,
         gustTrend: gustTrend,
-        uvTrend: uvTrend,
+        // UV alone reads on to UV_HOURS (hourly-window.js). Met.no turns 6-hourly
+        // after its first ~2.5 days, which readHourly's next-hour rule stops at.
+        uvTrend: hourlyWindow.readHourly(timeseries, anchor, hourlyWindow.UV_HOURS,
+            entryEpoch, entryUv),
         pressureTrend: pressureTrend,
         feelsTrend: feelsTrend,
         dewTrend: dewTrend,

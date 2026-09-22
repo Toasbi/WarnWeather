@@ -13,6 +13,7 @@ WeatherProvider.request = function(url, type, onSuccess, onError, headers) {
   responder(url, type, onSuccess, onError, headers);
 };
 const metno = require('../src/pkjs/weather/metno.js');
+const { UV_HOURS } = require('../src/pkjs/weather/hourly-window.js');
 
 const HOUR = 3600;
 const NOW = 1700003600;                       // some wall-clock "now"
@@ -140,10 +141,11 @@ test('withProviderData fills uvTrend only when fetchUv is set', () => {
   assert.equal(p.uvTrend[0], 1.4);
 });
 
-test('mapResponse reads UV 48 h deep and stops where Met.no turns 6-hourly', () => {
-  const mapped = metno.mapResponse(forecastBody(60, HOUR0, { 47: { instant: { ultraviolet_index_clear_sky: 6.2 } } }), NOW);
-  assert.equal(mapped.uvTrend.length, 48);
-  assert.equal(mapped.uvTrend[47], 6.2);
+test('mapResponse reads UV UV_HOURS deep and stops where Met.no turns 6-hourly', () => {
+  const last = UV_HOURS - 1;
+  const mapped = metno.mapResponse(forecastBody(60, HOUR0, { [last]: { instant: { ultraviolet_index_clear_sky: 6.2 } } }), NOW);
+  assert.equal(mapped.uvTrend.length, UV_HOURS);
+  assert.equal(mapped.uvTrend[last], 6.2);
   assert.equal(mapped.tempTrend.length, 24, 'every other trend keeps the 24 h window');
   // 30 hourly buckets, then a 6-hourly one: the coarse sample is not an hour.
   const body = forecastBody(30, HOUR0);

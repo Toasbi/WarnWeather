@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const yandex = require('../src/pkjs/weather/yandex.js');
+const { UV_HOURS } = require('../src/pkjs/weather/hourly-window.js');
 const mapResponse = yandex.mapResponse;
 
 // BASE is hour-aligned: 1718841600 / 3600 === 477456 exactly.
@@ -44,7 +45,7 @@ test('mapResponse flattens days, anchors at the current hour, returns 24-length 
   assert.equal(out.rainTrend.length, 24);
   assert.equal(out.windTrend.length, 24);
   assert.equal(out.gustTrend.length, 24);
-  // UV alone reads on toward UV_HOURS (48) for the UV slot's tomorrow peak; the
+  // UV alone reads on toward UV_HOURS for the UV slot's tomorrow peak; the
   // fixture's 54 buckets leave 36 after the anchor at 18.
   assert.equal(out.uvTrend.length, 36);
   assert.equal(out.uvTrend[35], (18 + 35) % 12);
@@ -60,9 +61,10 @@ test('mapResponse flattens days, anchors at the current hour, returns 24-length 
   assert.equal(out.currentTemp, 71);
 });
 
-test('mapResponse carries the UV series 48 h deep when the days allow', () => {
+test('mapResponse carries the UV series UV_HOURS deep when the days allow', () => {
   const out = mapResponse(sampleResponse(), BASE + 600); // anchor at bucket 0
-  assert.equal(out.uvTrend.length, 48);
+  assert.equal(out.uvTrend.length, UV_HOURS);
+  assert.equal(out.uvTrend[UV_HOURS - 1], (UV_HOURS - 1) % 12);
   assert.equal(out.tempTrend.length, 24, 'every other trend keeps the 24 h window');
 });
 

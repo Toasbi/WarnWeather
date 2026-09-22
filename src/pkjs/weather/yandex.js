@@ -119,7 +119,6 @@ function mapResponse(json, nowEpoch) {
     var rainTrend = [];
     var windTrend = [];
     var gustTrend = [];
-    var uvTrend = [];
     var feelsTrend = [];
     var i;
     var hr;
@@ -130,14 +129,10 @@ function mapResponse(json, nowEpoch) {
         rainTrend.push(typeof hr.prec === 'number' ? hr.prec : 0);
         windTrend.push(typeof hr.windSpeed === 'number' ? hr.windSpeed : 0);
         gustTrend.push(typeof hr.windGust === 'number' ? hr.windGust : 0);
-        uvTrend.push(hourUv(hr));
         // Server-side °F like temperature; a missing hour falls back to the
         // mapped temp so the series stays numeric.
         feelsTrend.push(typeof hr.feelsLike === 'number' ? hr.feelsLike : tempTrend[i]);
     }
-    // UV alone reads on to UV_HOURS (48) — the UV slot names tomorrow's peak.
-    // days(limit: 3) always carries them (the rest of today plus two full days).
-    hourlyWindow.extendHourly(uvTrend, hours, anchor, hourlyWindow.UV_HOURS, hourEpoch, hourUv);
 
     return {
         tempTrend: tempTrend,
@@ -145,7 +140,9 @@ function mapResponse(json, nowEpoch) {
         rainTrend: rainTrend,
         windTrend: windTrend,
         gustTrend: gustTrend,
-        uvTrend: uvTrend,
+        // UV alone reads on to UV_HOURS (hourly-window.js). days(limit: 3) carries
+        // the rest of today plus two full days, past the end of tomorrow.
+        uvTrend: hourlyWindow.readHourly(hours, anchor, hourlyWindow.UV_HOURS, hourEpoch, hourUv),
         feelsTrend: feelsTrend,
         startTime: hourEpoch(hours[anchor]),
         currentTemp: now.temperature,

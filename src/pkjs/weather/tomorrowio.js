@@ -20,10 +20,11 @@ var MPS_TO_KMH = 3.6;
  * Build the Timelines request URL. startTime is the floored current wall-clock
  * hour (<=59 min in the past — within the free plan's recent-history window) so
  * the returned intervals are hour-aligned like every other provider; endTime is
- * +49 h so >=48 future buckets always remain after the anchor — the forecast
- * window takes 24 of them, the UV series all 48 (UV_HOURS: the UV slot names
- * tomorrow's peak). One timestep, one call — the calls-per-cycle constants in
- * tomorrowio-budget.js assume this; the longer window costs bytes, not calls.
+ * UV_HOURS + 1 buckets out so UV_HOURS future buckets always remain after the
+ * anchor — the forecast window takes FORECAST_HOURS of them, the UV series all
+ * UV_HOURS (hourly-window.js). One timestep, one call — the calls-per-cycle
+ * constants in tomorrowio-budget.js assume this; the longer window costs bytes,
+ * not calls.
  *
  * @param {number|string} lat Latitude.
  * @param {number|string} lon Longitude.
@@ -108,7 +109,6 @@ function mapResponse(json, nowEpoch) {
     var rainTrend = [];
     var windTrend = [];
     var gustTrend = [];
-    var uvTrend = [];
     var pressureTrend = [];
     var feelsTrend = [];
     var currentFeels = null;
@@ -129,7 +129,6 @@ function mapResponse(json, nowEpoch) {
         rainTrend.push(num(values.precipitationIntensity));
         windTrend.push(num(values.windSpeed) * MPS_TO_KMH);
         gustTrend.push(num(values.windGust) * MPS_TO_KMH);
-        uvTrend.push(intervalUv(intervals[anchor + i]));
         pressureTrend.push(num(values.pressureSeaLevel));   // sea-level, NOT pressureSurfaceLevel
         // °C→°F like temperature; a missing hour falls back to the mapped temp
         // so the series stays numeric (0 would be a real 0 °F feels).
@@ -146,17 +145,15 @@ function mapResponse(json, nowEpoch) {
         }
     }
 
-    // UV alone reads on to UV_HOURS (48) — the UV slot names tomorrow's peak.
-    hourlyWindow.extendHourly(uvTrend, intervals, anchor, hourlyWindow.UV_HOURS,
-        intervalEpoch, intervalUv);
-
     return {
         tempTrend: tempTrend,
         precipTrend: precipTrend,
         rainTrend: rainTrend,
         windTrend: windTrend,
         gustTrend: gustTrend,
-        uvTrend: uvTrend,
+        // UV alone reads on to UV_HOURS (hourly-window.js).
+        uvTrend: hourlyWindow.readHourly(intervals, anchor, hourlyWindow.UV_HOURS,
+            intervalEpoch, intervalUv),
         pressureTrend: pressureTrend,
         feelsTrend: feelsTrend,
         dewTrend: dewTrend,             // °F, unrounded (formatValue rounds per unit)

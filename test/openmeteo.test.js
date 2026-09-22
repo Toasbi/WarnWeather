@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const openmeteo = require('../src/pkjs/weather/openmeteo.js');
+const { UV_HOURS } = require('../src/pkjs/weather/hourly-window.js');
 const mapResponse = openmeteo.mapResponse;
 
 // BASE is hour-aligned: 1718841600 / 3600 === 477456 exactly.
@@ -162,19 +163,30 @@ test('buildUvUrl requests only uv_index from the keyless best_match model', () =
   const url = openmeteo.buildUvUrl(52.52, 13.41);
   assert.match(url, /[?&]hourly=uv_index(&|$)/);
   assert.doesNotMatch(url, /models=/);          // best_match (DWD/ecmwf both lack UV)
-  // Three GMT days: the UV window runs 48 h ahead (to tomorrow's end in any zone).
+  // Three GMT days: the UV window runs UV_HOURS ahead (to tomorrow's end in any zone).
   assert.match(url, /[?&]forecast_days=3(&|$)/);
 });
 
-test('mapUv aligns uv_index to the forecast start by timestamp, 48 h deep', () => {
+test('mapUv aligns uv_index to the forecast start by timestamp, UV_HOURS deep', () => {
   const time = [], uv_index = [];
   for (let i = 0; i < 50; i += 1) { time.push(BASE + i * 3600); uv_index.push(i); }
   const out = openmeteo.mapUv({ hourly: { time, uv_index } }, BASE + 3600); // start one hour in
   // UV_HOURS, not FORECAST_HOURS: the UV slot needs tomorrow's peak; the graph slices 24.
-  assert.equal(out.length, 48);
+  assert.equal(out.length, UV_HOURS);
   assert.equal(out[0], 1);   // bucket at start
   assert.equal(out[23], 24);
-  assert.equal(out[47], 48);
+  assert.equal(out[UV_HOURS - 1], UV_HOURS);
+});
+
+test('three GMT days (forecast_days=3) source every UV_HOURS bucket from the latest start', () => {
+  // The start is the floored current hour, at most 23:00 on the response's first
+  // GMT day; its three days end at day+2 23:00, exactly UV_HOURS - 1 hours later.
+  const day0 = Date.UTC(2026, 6, 15) / 1000;
+  const time = [], uv_index = [];
+  for (let i = 0; i < 72; i += 1) { time.push(day0 + i * 3600); uv_index.push(1); }
+  const out = openmeteo.mapUv({ hourly: { time, uv_index } }, day0 + 23 * 3600);
+  assert.equal(out.length, UV_HOURS);
+  assert.ok(out.every((v) => v === 1), 'no null tail: ' + JSON.stringify(out));
 });
 
 test('mapUv: missing/non-numeric buckets become null; malformed → null', () => {
