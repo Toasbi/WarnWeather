@@ -255,9 +255,9 @@
   /**
    * The number the user SEES for a weather kind — thresholds compare against
    * the displayed value. The wind conversion and trend read are SHARED with
-   * status-lines.js through wire-units, so the two cannot round apart; the
-   * AQI/UV rounding here still mirrors formatValue() by contract (pinned by
-   * test).
+   * status-lines.js through wire-units (as is the UV reader), so the two cannot
+   * round apart; the AQI rounding here still mirrors formatValue() by contract
+   * (pinned by test).
    * @param {string} code 'aqi' | 'pollen' | 'wind' | 'gust' | 'uv'
    * @param {Object} payload weather payload (pre-transform, trends present)
    * @param {Object} settings Clay settings blob (windUnits, uvSlotDisplay)
@@ -285,16 +285,16 @@
       return wireUnits.kmhToDisplay(v, settings && settings.windUnits);
     }
     if (code === 'uv') {
-      // UV_TREND_UINT8 carries tenths; the slot displays the rounded index
-      // (status-lines.js) and thresholds compare the DISPLAYED number — the
-      // highest of TODAY's when the display mode prints a peak too ('max' /
-      // 'both'): "2/8" is highlighted for the 8, "8/»6" for the 8, and a lone
-      // "»9" not at all until tomorrow makes it today's. Same reader as the
-      // slot text, so the two agree on the peak and on every fallback.
-      var uv = wireUnits.uvReadings(payload.UV_TREND_UINT8, payload.UV_DAY_PEAKS,
+      // Thresholds compare the DISPLAYED numbers — the slot text's own reader
+      // (wireUnits.uvShown, whole UV), so the two agree on the peak, the rounding
+      // and every fallback. The policy is here: judge the highest of TODAY's
+      // numbers shown. An unmarked peak is above now by construction, so "2/8" is
+      // highlighted for the 8; tomorrow's marked peak never counts until it is
+      // today's, so "8/»6" is judged on the 8 and a lone "»9" not at all (null).
+      var uv = wireUnits.uvShown(payload.UV_TREND_UINT8, payload.UV_DAY_PEAKS,
         settings && settings.uvSlotDisplay);
-      if (!uv || uv.judged === null) { return null; }
-      return Math.round(uv.judged / 10);
+      if (!uv) { return null; }
+      return (uv.peak === null || uv.nextDay) ? uv.now : uv.peak;
     }
     return null;
   }

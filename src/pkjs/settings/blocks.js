@@ -615,9 +615,11 @@ if (typeof require !== 'undefined') {
     // false outlived the schema flipping it to true, and the non-uniform "Show
     // unit" defaults only ever escaped the same fate because a test pinned them.
     // Covered alongside the slots: the master Bold row, each kind's Bold mode
-    // (their sheets carry no reset of their own), the temp slot's Temp/Feels/Both
-    // pills, and the wind/gust direction arrows (the threshold sheets' own reset
-    // deliberately covers only the thresholds). Deliberately untouched:
+    // (their sheets carry no reset of their own), the per-kind display options
+    // (the temp slot's Temp/Feels/Both and the UV slot's Now/Day max/Both pills,
+    // the wind/gust direction arrows), the date formats and the Show-unit toggles
+    // (the threshold sheets' own reset deliberately covers only the thresholds).
+    // Deliberately untouched:
     // thresholds, colors, outline toggles and scale maxes (every sheet has its own
     // reset button), and the countdown companion dates (inert once a slot leaves
     // 'countdown'). Silent beyond the re-render, like resetThresholds above — the

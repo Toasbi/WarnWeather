@@ -339,17 +339,17 @@ function formatValue(code, payload, settings, slotKey, cap) {
   }
   if (code === 'uv') {
     // Global per-kind display mode (UV slot's Edit sheet), the temp slot's pattern:
-    // absent = 'current'. 'max' is the peak still ahead (wire-units' uvReadings):
+    // absent = 'current'. 'max' is the peak still ahead (wire-units' uvShown):
     // today's, then tomorrow's once today's is reached, marked with UV_NEXT_DAY;
     // 'both' is slash-separated, current first: 3/7, 5/»6. No peak ahead known
     // falls back to the current reading alone, never '3/--'.
-    var uvMode = settings.uvSlotDisplay;
-    var uv = wireUnits.uvReadings(payload.UV_TREND_UINT8, payload.UV_DAY_PEAKS, uvMode);
+    var uv = wireUnits.uvShown(payload.UV_TREND_UINT8, payload.UV_DAY_PEAKS,
+      settings.uvSlotDisplay);
     if (!uv) { return '--'; }
-    var uvNow = String(Math.round(uv.now / 10));
-    if (uv.max === null) { return uvNow; }
-    var uvMax = (uv.tomorrow ? UV_NEXT_DAY : '') + String(Math.round(uv.max / 10));
-    return uvMode === 'max' ? uvMax : uvNow + '/' + uvMax;
+    var uvParts = [];
+    if (uv.now !== null) { uvParts.push(String(uv.now)); }
+    if (uv.peak !== null) { uvParts.push((uv.nextDay ? UV_NEXT_DAY : '') + uv.peak); }
+    return uvParts.join('/');
   }
   if (code === 'wind') {
     v = trendHead(payload.WIND_TREND_UINT8);

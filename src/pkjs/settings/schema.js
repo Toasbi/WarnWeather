@@ -1675,13 +1675,10 @@ module.exports = {
         // The UV slot's display mode — the temp slot's tempSlotDisplay pattern: global
         // per-kind, baked phone-side (status-lines.js formatValue), and on
         // renderSignature() so a change re-bakes without waiting for the next fetch.
-        // 'max' is the peak still ahead: the rest of TODAY's (until 23:59), then
-        // tomorrow's, marked », once today's is reached (wire-units uvReadings);
-        // 'both' is slash-separated, current first: 3/7, 6/»8.
+        // What each mode prints is wire-units' uvShown.
         // It sits above the Thresholds group like the wind arrow: it configures the
-        // slot, and the highlight follows it (status-thresholds.js displayValue
-        // compares the highest of TODAY's numbers the slot shows; a marked
-        // tomorrow's peak never counts).
+        // slot, and the highlight follows it (the policy is status-thresholds.js
+        // displayValue's).
         thresholdSection('UV index', 'Uv', '', null, [{
             type: 'segmented',
             messageKey: 'uvSlotDisplay',

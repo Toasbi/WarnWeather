@@ -32,50 +32,47 @@ function trendHead(arr) {
 }
 
 /**
- * The UV slot's readings in UV tenths (the UV_TREND_UINT8 scale) — THE one reader
+ * The numbers the UV slot prints, in WHOLE UV (rounded once, here) — THE one reader
  * both display paths share, like kmhToDisplay: status-lines' slot text and
  * status-thresholds' displayValue, so the highlight can never judge a number the
- * slot does not show.
+ * slot does not show. Display numbers only: the text (slash, » marker) is
+ * formatValue's, and the highlight policy is displayValue's.
  *
- * `max` is the peak still ahead: today's (the rest of the local day, until 23:59)
- * while it would show above `now`, and once it no longer would — today's peak is
- * reached or behind us — tomorrow's, flagged `tomorrow` so the slot can mark it.
- * The comparison is on the WHOLE numbers the slot prints, so an "8/8" that says
- * nothing never shows. The peaks come in pre-computed (UV_DAY_PEAKS, provider.js
- * getPayload, off the longer UV_HOURS series), so only frozen payload inputs are
- * read — no clock — and re-baking an old snapshot reproduces the same text
- * (status-rebake.js).
- *
- * `judged` is the number the highlight judges: the larger of the slot's numbers
- * that belong to TODAY. Tomorrow's marked peak never counts until it is today's —
- * "8/»6" is judged on the 8, and a lone "»6" (the 'max' mode after the rollover)
- * on nothing (null, the normal level).
+ * `peak` is the peak still ahead: today's (the rest of the local day, until 23:59)
+ * while it prints above `now`, and once it no longer would — today's peak is
+ * reached or behind us — tomorrow's, flagged `nextDay` so the slot can mark it.
+ * The comparison is on the whole numbers, so an "8/8" that says nothing never
+ * shows. The peaks come in pre-computed (UV_DAY_PEAKS, provider.js getPayload, off
+ * the longer UV_HOURS series), so only frozen payload inputs are read — no clock —
+ * and re-baking an old snapshot reproduces the same text (status-rebake.js).
  *
  * @param {number[]|null|undefined} uvTrend UV_TREND_UINT8 (UV tenths, hourly).
  * @param {*} dayPeaks UV_DAY_PEAKS: [rest of today, tomorrow] in UV tenths, each
  *     null when unknown; absent on a payload without UV.
  * @param {*} mode Stored uvSlotDisplay: 'max' / 'both' ask for the peak; anything
  *     else (absent = 'current') does not.
- * @returns {?{now: number, max: ?number, tomorrow: boolean, judged: ?number}} null
- *     when there is no UV at all; `max` is null when the mode does not show it or
- *     no peak ahead is known (today's reached, tomorrow's not covered), and every
- *     mode then falls back to `now` alone.
+ * @returns {?{now: ?number, peak: ?number, nextDay: boolean}} null when there is
+ *     no UV at all. `peak` is null when the mode does not show one or no peak ahead
+ *     is known (today's reached, tomorrow's not covered), and every mode then falls
+ *     back to `now` alone; `now` is null only in 'max' mode when a peak is shown.
  */
-function uvReadings(uvTrend, dayPeaks, mode) {
-    var now = trendHead(uvTrend);
-    if (now === null) { return null; }
-    var out = { now: now, max: null, tomorrow: false, judged: now };
-    if ((mode !== 'max' && mode !== 'both') || !dayPeaks) { return out; }
-    var today = dayPeaks[0], next = dayPeaks[1];
-    if (typeof today === 'number' && Math.round(today / 10) > Math.round(now / 10)) {
-        out.max = today;
-        out.judged = today; // above now by the test just made
-    } else if (typeof next === 'number') {
-        out.max = next;
-        out.tomorrow = true;
-        if (mode === 'max') { out.judged = null; } // only tomorrow's number is on screen
+function uvShown(uvTrend, dayPeaks, mode) {
+    var head = trendHead(uvTrend);
+    if (head === null) { return null; }
+    var shown = { now: Math.round(head / 10), peak: null, nextDay: false };
+    if ((mode !== 'max' && mode !== 'both') || !dayPeaks) { return shown; }
+    var today = typeof dayPeaks[0] === 'number' ? Math.round(dayPeaks[0] / 10) : null;
+    var next = typeof dayPeaks[1] === 'number' ? Math.round(dayPeaks[1] / 10) : null;
+    if (today !== null && today > shown.now) {
+        shown.peak = today;
+    } else if (next !== null) {
+        shown.peak = next;
+        shown.nextDay = true;
+    } else {
+        return shown;
     }
-    return out;
+    if (mode === 'max') { shown.now = null; }
+    return shown;
 }
 
 /**
@@ -150,7 +147,7 @@ module.exports = {
     mphToKmh: mphToKmh,
     kmhToDisplay: kmhToDisplay,
     trendHead: trendHead,
-    uvReadings: uvReadings,
+    uvShown: uvShown,
     celsiusToFahrenheit: celsiusToFahrenheit,
     normalizeBearing: normalizeBearing,
     zeroFilledArray: zeroFilledArray

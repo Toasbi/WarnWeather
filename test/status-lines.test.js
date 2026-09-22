@@ -207,9 +207,9 @@ test('uv peak rolls to tomorrow\'s, marked », once today\'s is reached', () => 
 });
 
 test('uv modes fall back to the current reading when no peak ahead is known', () => {
-  // A pre-peaks snapshot (no UV_DAY_PEAKS), or today's peak reached with tomorrow
-  // beyond the feed: every mode renders the current value alone — never '2/--' —
-  // the temp slot's missing-feels rule.
+  // A payload without day peaks (defensive: v1 snapshots are dropped on restore),
+  // or today's peak reached with tomorrow beyond the feed: every mode renders the
+  // current value alone — never '2/--' — the temp slot's missing-feels rule.
   const noPeaks = uvDayPayload(); delete noPeaks.UV_DAY_PEAKS;
   const noTomorrow = uvDayPayload({ UV_TREND_UINT8: [20], UV_DAY_PEAKS: [20, null] });
   ['current', 'max', 'both'].forEach((mode) => {
