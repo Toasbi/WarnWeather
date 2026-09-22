@@ -8,6 +8,11 @@
 
 var FORECAST_HOURS = 24;
 var HOUR_SECONDS = 60 * 60;
+// The UV series' longer reach: 48 hourly buckets from the anchor always run past the
+// end of TOMORROW (the anchor is at most 23:xx today, and 23 + 47 h >= 23:00 the next
+// day), which the UV slot's day-max modes need once today's peak has passed
+// (localDayPeaks). Only UV reads this far; every other trend keeps FORECAST_HOURS.
+var UV_HOURS = 48;
 
 /**
  * Index of the first hourly bucket at or after the current wall-clock hour.
@@ -42,9 +47,10 @@ function anchorIndex(items, nowEpoch, epochOf) {
  * @param {Object} json Parsed response.
  * @param {string} field Hourly field name to extract.
  * @param {number} startTime Window start in epoch seconds.
+ * @param {number} [hours] Window length; defaults to FORECAST_HOURS.
  * @returns {Array.<(number|null)>|null} Window values, or null when malformed.
  */
-function alignHourly(json, field, startTime) {
+function alignHourly(json, field, startTime, hours) {
     var hourly = json && json.hourly;
     var times = hourly && hourly.time;
     var series = hourly && hourly[field];
@@ -59,16 +65,82 @@ function alignHourly(json, field, startTime) {
     var out = [];
     var h;
     var value;
-    for (h = 0; h < FORECAST_HOURS; h += 1) {
+    for (h = 0; h < (hours || FORECAST_HOURS); h += 1) {
         value = byTime[startTime + h * HOUR_SECONDS];
         out.push(typeof value === 'number' ? value : null);
     }
     return out;
 }
 
+/**
+ * Continue a series mapped over the FORECAST_HOURS window out to `hours` buckets
+ * (the UV series' UV_HOURS), reading on from the provider's own buckets. It follows
+ * their timestamps and stops at the first bucket that is not exactly the next hour
+ * — a feed that thins to 3- or 6-hourly steps, or simply ends, leaves the series
+ * short rather than passing a coarse sample off as an hour (localDayPeaks then
+ * reports the uncovered day as unknown).
+ *
+ * @param {number[]} series Values already mapped for buckets anchor..anchor+len-1;
+ *   extended IN PLACE.
+ * @param {Array} items The provider's buckets, ascending.
+ * @param {number} anchor Index of the series' entry 0 in items.
+ * @param {number} hours Target series length.
+ * @param {function(*): number} epochOf Bucket -> epoch seconds.
+ * @param {function(*): number} valueOf Bucket -> the series value.
+ * @returns {number[]} The same series.
+ */
+function extendHourly(series, items, anchor, hours, epochOf, valueOf) {
+    var startEpoch = epochOf(items[anchor]);
+    var i;
+    for (i = anchor + series.length; i < anchor + hours && i < items.length; i += 1) {
+        if (epochOf(items[i]) !== startEpoch + (i - anchor) * HOUR_SECONDS) { break; }
+        series.push(valueOf(items[i]));
+    }
+    return series;
+}
+
+/**
+ * The peaks of an hourly series per LOCAL calendar day: [the rest of the day
+ * startEpoch falls on, the whole next day]. Entry i is the hour starting at
+ * startEpoch + i h; unsourced (non-numeric) hours are skipped, and a day with no
+ * sourced hour is null. The next day's peak is reported only when the series
+ * covers that day to its end — a short feed would otherwise under-report it
+ * (a peak it never reached), so it answers "unknown" instead. Day edges come from
+ * the phone's own calendar (local midnight via Date), so a DST day of 23 or 25
+ * hours needs no special case.
+ *
+ * @param {Array.<(number|null)>} series Hourly values from startEpoch.
+ * @param {number} startEpoch Epoch seconds of entry 0.
+ * @returns {Array.<(number|null)>} [today, tomorrow]; [null, null] when unusable.
+ */
+function localDayPeaks(series, startEpoch) {
+    var peaks = [null, null];
+    if (!series || !series.length || typeof startEpoch !== 'number' || !isFinite(startEpoch)) {
+        return peaks;
+    }
+    var first = new Date(startEpoch * 1000);
+    var y = first.getFullYear(), m = first.getMonth(), d = first.getDate();
+    var tomorrowStart = new Date(y, m, d + 1).getTime() / 1000;
+    var dayAfterStart = new Date(y, m, d + 2).getTime() / 1000;
+    var i, t, v, day;
+    for (i = 0; i < series.length; i += 1) {
+        t = startEpoch + i * HOUR_SECONDS;
+        if (t >= dayAfterStart) { break; }
+        v = series[i];
+        if (typeof v !== 'number' || !isFinite(v)) { continue; }
+        day = t < tomorrowStart ? 0 : 1;
+        if (peaks[day] === null || v > peaks[day]) { peaks[day] = v; }
+    }
+    if (startEpoch + series.length * HOUR_SECONDS < dayAfterStart) { peaks[1] = null; }
+    return peaks;
+}
+
 module.exports = {
     FORECAST_HOURS: FORECAST_HOURS,
+    UV_HOURS: UV_HOURS,
     HOUR_SECONDS: HOUR_SECONDS,
     anchorIndex: anchorIndex,
-    alignHourly: alignHourly
+    alignHourly: alignHourly,
+    extendHourly: extendHourly,
+    localDayPeaks: localDayPeaks
 };

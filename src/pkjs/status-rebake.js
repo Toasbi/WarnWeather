@@ -91,7 +91,7 @@ var STATUS_KEYS = outbox.WEATHER_CATEGORIES.find(function (category) {
  * then rejected on restore (and dropped) rather than fed to the baker as a
  * payload missing keys it now expects.
  */
-// 2: SOURCE_KEYS gained FORECAST_START (the UV slot's day-max modes).
+// 2: SOURCE_KEYS gained UV_DAY_PEAKS (the UV slot's day-max modes).
 var SNAPSHOT_VERSION = 2;
 
 var deps = {};        // injected environment (see init)

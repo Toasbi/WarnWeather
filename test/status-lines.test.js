@@ -172,67 +172,65 @@ test('missing or null FEELS_CURRENT renders the actual temp alone in every mode'
 });
 
 // --- the UV slot's display modes (uvSlotDisplay: current / max / both) ---
-// FORECAST_START is built from a LOCAL clock time so the day boundary lands on the
-// same entry in any host timezone: entry 0 is 09:00 today, entries 0..14 are
-// 09:00..23:00, entry 15 is tomorrow 00:00.
-const uvDayStart = (h) => new Date(2026, 6, 15, h, 0, 0).getTime() / 1000;
-function uvDayPayload() {
+// UV_DAY_PEAKS is [rest of today, tomorrow] in tenths, computed phone-side by
+// getPayload off the 48 h UV series (see test/hourly-window.test.js); the slot
+// only formats it.
+function uvDayPayload(overrides) {
   return Object.assign(basePayload(), {
-    FORECAST_START: uvDayStart(9),
-    //               09  10  11  12  13  14  15  16  17  18 19 20 21 22 23 | 00 01 .. 08 (tomorrow)
-    UV_TREND_UINT8: [20, 35, 52, 64, 71, 68, 55, 40, 22, 10, 3, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 95, 95, 95, 95]
-  });
+    UV_TREND_UINT8: [20, 35, 52, 64, 71, 68, 55, 40],
+    UV_DAY_PEAKS: [71, 95]
+  }, overrides);
 }
 
-test('uv slot display modes: current, today\'s max, and slash-separated both', () => {
+test('uv slot display modes: current, the peak ahead, and slash-separated both', () => {
   const p = uvDayPayload();
   assert.equal(statusLines.formatValue('uv', p, baseSettings()), '2',
     'absent uvSlotDisplay defaults to the current reading');
   assert.equal(statusLines.formatValue('uv', p, baseSettings({ uvSlotDisplay: 'current' })), '2');
   assert.equal(statusLines.formatValue('uv', p, baseSettings({ uvSlotDisplay: 'max' })), '7',
-    '71 tenths at 13:00 is the day\'s peak');
+    'today\'s peak (7.1) is still ahead: no marker');
   assert.equal(statusLines.formatValue('uv', p, baseSettings({ uvSlotDisplay: 'both' })), '2/7',
     'current first, like the temp slot\'s actual/feels');
 });
 
-test('uv day max stops at 23:59 — tomorrow\'s hours in the 24 h trend never count', () => {
-  // The 95s sit at tomorrow 05:00..08:00: a rolling 24 h max would say 10.
-  assert.equal(statusLines.formatValue('uv', uvDayPayload(),
-    baseSettings({ uvSlotDisplay: 'max' })), '7');
-  // Late evening: only 22:00 and 23:00 are left today, tomorrow starts at entry 2.
-  const late = Object.assign(basePayload(), {
-    FORECAST_START: uvDayStart(22), UV_TREND_UINT8: [0, 0, 40, 60, 80] });
-  assert.equal(statusLines.formatValue('uv', late, baseSettings({ uvSlotDisplay: 'both' })), '0/0',
-    'nothing left today: the peak is the evening\'s 0, not tomorrow\'s midday');
+test('uv peak rolls to tomorrow\'s, marked », once today\'s is reached', () => {
+  // At the peak: nothing later today prints above the 7 now.
+  const atPeak = uvDayPayload({ UV_TREND_UINT8: [71, 68, 55], UV_DAY_PEAKS: [71, 95] });
+  assert.equal(statusLines.formatValue('uv', atPeak, baseSettings({ uvSlotDisplay: 'both' })),
+    '7/\u00BB10', 'never "7/7": the max half is tomorrow\'s 9.5 -> 10, marked');
+  assert.equal(statusLines.formatValue('uv', atPeak, baseSettings({ uvSlotDisplay: 'max' })),
+    '\u00BB10');
+  // Late evening: today is spent, tomorrow's midday is the next peak.
+  const late = uvDayPayload({ UV_TREND_UINT8: [0, 0], UV_DAY_PEAKS: [0, 60] });
+  assert.equal(statusLines.formatValue('uv', late, baseSettings({ uvSlotDisplay: 'both' })),
+    '0/\u00BB6');
 });
 
-test('uv day max counts the current hour, so it never reads below the current value', () => {
-  const p = Object.assign(basePayload(), {
-    FORECAST_START: uvDayStart(13), UV_TREND_UINT8: [71, 68, 55, 40] });
-  assert.equal(statusLines.formatValue('uv', p, baseSettings({ uvSlotDisplay: 'both' })), '7/7');
-});
-
-test('uv modes fall back to the current reading when the day cannot be placed', () => {
-  // A stale snapshot or payload without FORECAST_START: every mode renders the
-  // current value alone — never '2/--' — the temp slot's missing-feels rule.
-  const noStart = uvDayPayload(); delete noStart.FORECAST_START;
+test('uv modes fall back to the current reading when no peak ahead is known', () => {
+  // A pre-peaks snapshot (no UV_DAY_PEAKS), or today's peak reached with tomorrow
+  // beyond the feed: every mode renders the current value alone — never '2/--' —
+  // the temp slot's missing-feels rule.
+  const noPeaks = uvDayPayload(); delete noPeaks.UV_DAY_PEAKS;
+  const noTomorrow = uvDayPayload({ UV_TREND_UINT8: [20], UV_DAY_PEAKS: [20, null] });
   ['current', 'max', 'both'].forEach((mode) => {
-    assert.equal(statusLines.formatValue('uv', noStart, baseSettings({ uvSlotDisplay: mode })), '2',
-      mode + ': no start time, current alone');
+    assert.equal(statusLines.formatValue('uv', noPeaks, baseSettings({ uvSlotDisplay: mode })), '2',
+      mode + ': no day peaks, current alone');
+    assert.equal(statusLines.formatValue('uv', noTomorrow, baseSettings({ uvSlotDisplay: mode })), '2',
+      mode + ': today\'s peak reached, tomorrow unknown, current alone');
   });
   // ...and no UV at all is '--' whatever the mode.
-  const none = Object.assign(uvDayPayload(), { UV_TREND_UINT8: [] });
+  const none = uvDayPayload({ UV_TREND_UINT8: [] });
   ['current', 'max', 'both'].forEach((mode) => {
     assert.equal(statusLines.formatValue('uv', none, baseSettings({ uvSlotDisplay: mode })), '--');
   });
 });
 
 test('worst realistic uv both-mode text fits the edge-slot byte cap untruncated', () => {
-  const p = Object.assign(basePayload(), {
-    FORECAST_START: uvDayStart(11), UV_TREND_UINT8: [105, 115, 120] });
+  // UV 11 now and at today's peak, 12 tomorrow: "11/»12" — » is 2 UTF-8 bytes.
+  const p = uvDayPayload({ UV_TREND_UINT8: [110], UV_DAY_PEAKS: [110, 120] });
   const text = statusLines.formatValue('uv', p, baseSettings({ uvSlotDisplay: 'both' }));
-  assert.equal(text, '11/12');
+  assert.equal(text, '11/\u00BB12');
+  assert.equal(statusLines.utf8Encode(text).length, 7);
   assert.ok(statusLines.utf8Encode(text).length <= catalog.CAPS.EDGE_TEXT_MAX);
 });
 

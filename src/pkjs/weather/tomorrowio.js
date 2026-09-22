@@ -20,8 +20,10 @@ var MPS_TO_KMH = 3.6;
  * Build the Timelines request URL. startTime is the floored current wall-clock
  * hour (<=59 min in the past — within the free plan's recent-history window) so
  * the returned intervals are hour-aligned like every other provider; endTime is
- * +25 h so >=24 future buckets always remain after the anchor. One timestep,
- * one call — the calls-per-cycle constants in tomorrowio-budget.js assume this.
+ * +49 h so >=48 future buckets always remain after the anchor — the forecast
+ * window takes 24 of them, the UV series all 48 (UV_HOURS: the UV slot names
+ * tomorrow's peak). One timestep, one call — the calls-per-cycle constants in
+ * tomorrowio-budget.js assume this; the longer window costs bytes, not calls.
  *
  * @param {number|string} lat Latitude.
  * @param {number|string} lon Longitude.
@@ -32,7 +34,7 @@ var MPS_TO_KMH = 3.6;
 function buildUrl(lat, lon, apiKey, nowEpoch) {
     var hourFloor = Math.floor(nowEpoch / HOUR_SECONDS) * HOUR_SECONDS;
     var startIso = new Date(hourFloor * 1000).toISOString();
-    var endIso = new Date((hourFloor + (FORECAST_HOURS + 1) * HOUR_SECONDS) * 1000).toISOString();
+    var endIso = new Date((hourFloor + (hourlyWindow.UV_HOURS + 1) * HOUR_SECONDS) * 1000).toISOString();
     return TIMELINES_ENDPOINT
         + '?location=' + Number(lat) + ',' + Number(lon)
         + '&fields=' + FIELDS
@@ -54,11 +56,25 @@ function num(value) {
     return typeof value === 'number' ? value : 0;
 }
 
+/**
+ * @param {Object} interval A Timelines interval.
+ * @returns {number} Its startTime in epoch seconds (NaN when unparsable).
+ */
+function intervalEpoch(interval) {
+    return Math.round(Date.parse(interval.startTime) / 1000);
+}
+
+/**
+ * @param {Object} interval A Timelines interval.
+ * @returns {number} Its UV index, 0 when unreported.
+ */
+function intervalUv(interval) {
+    return num((interval.values || {}).uvIndex);
+}
+
 // hourly-window owns the anchor rule; Timelines intervals carry ISO startTimes.
 function anchorIndex(intervals, nowEpoch) {
-    return hourlyWindow.anchorIndex(intervals, nowEpoch, function(interval) {
-        return Math.round(Date.parse(interval.startTime) / 1000);
-    });
+    return hourlyWindow.anchorIndex(intervals, nowEpoch, intervalEpoch);
 }
 
 /**
@@ -113,7 +129,7 @@ function mapResponse(json, nowEpoch) {
         rainTrend.push(num(values.precipitationIntensity));
         windTrend.push(num(values.windSpeed) * MPS_TO_KMH);
         gustTrend.push(num(values.windGust) * MPS_TO_KMH);
-        uvTrend.push(num(values.uvIndex));
+        uvTrend.push(intervalUv(intervals[anchor + i]));
         pressureTrend.push(num(values.pressureSeaLevel));   // sea-level, NOT pressureSurfaceLevel
         // °C→°F like temperature; a missing hour falls back to the mapped temp
         // so the series stays numeric (0 would be a real 0 °F feels).
@@ -130,6 +146,10 @@ function mapResponse(json, nowEpoch) {
         }
     }
 
+    // UV alone reads on to UV_HOURS (48) — the UV slot names tomorrow's peak.
+    hourlyWindow.extendHourly(uvTrend, intervals, anchor, hourlyWindow.UV_HOURS,
+        intervalEpoch, intervalUv);
+
     return {
         tempTrend: tempTrend,
         precipTrend: precipTrend,
@@ -141,7 +161,7 @@ function mapResponse(json, nowEpoch) {
         feelsTrend: feelsTrend,
         dewTrend: dewTrend,             // °F, unrounded (formatValue rounds per unit)
         windDirTrend: windDirTrend,     // degrees 0-359, "comes from"
-        startTime: Math.round(Date.parse(intervals[anchor].startTime) / 1000),
+        startTime: intervalEpoch(intervals[anchor]),
         currentTemp: tempTrend[0],
         currentFeels: currentFeels
     };

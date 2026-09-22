@@ -42,24 +42,43 @@ test('zeroFilledArray clamps non-positive lengths to an empty array', () => {
 });
 
 // uvReadings — the UV slot's shared reader (status-lines text AND status-thresholds
-// level). Start times are LOCAL clock times so the day boundary is host-timezone-proof.
-test('uvReadings: max only for the modes that show it, over the rest of today only', () => {
-  const nine = new Date(2026, 6, 15, 9, 0, 0).getTime() / 1000;
-  // 09..23 today (15 entries), then tomorrow 00:00 onward.
-  const trend = [20, 40, 70, 50, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 110];
-  assert.deepEqual(uvReadings(trend, nine), { now: 20, max: null }, 'absent mode = current');
-  assert.deepEqual(uvReadings(trend, nine, 'current'), { now: 20, max: null });
-  assert.deepEqual(uvReadings(trend, nine, 'max'), { now: 20, max: 70 },
-    'tomorrow 00:00 (110) is past 23:59 and never counts');
-  assert.deepEqual(uvReadings(trend, nine, 'both'), { now: 20, max: 70 });
-  assert.equal(uvReadings([], nine, 'both'), null, 'no UV at all');
-  assert.equal(uvReadings(undefined, nine, 'both'), null);
-  assert.deepEqual(uvReadings(trend, undefined, 'max'), { now: 20, max: null },
-    'no start time: the day cannot be placed, so no max');
-  assert.deepEqual(uvReadings(trend, NaN, 'both'), { now: 20, max: null });
+// level). dayPeaks is UV_DAY_PEAKS: [rest of today, tomorrow] in tenths, null = unknown.
+const R = (now, max, tomorrow, highest) => ({ now, max, tomorrow, highest });
+
+test('uvReadings: the peak only for the modes that show it', () => {
+  const trend = [20, 40, 70];
+  assert.deepEqual(uvReadings(trend, [70, 110]), R(20, null, false, 20), 'absent mode = current');
+  assert.deepEqual(uvReadings(trend, [70, 110], 'current'), R(20, null, false, 20));
+  assert.deepEqual(uvReadings(trend, [70, 110], 'max'), R(20, 70, false, 70));
+  assert.deepEqual(uvReadings(trend, [70, 110], 'both'), R(20, 70, false, 70));
+  assert.equal(uvReadings([], [70, 110], 'both'), null, 'no UV at all');
+  assert.equal(uvReadings(undefined, [70, 110], 'both'), null);
+  assert.deepEqual(uvReadings(trend, undefined, 'max'), R(20, null, false, 20),
+    'no day peaks (a pre-peaks snapshot): the current reading alone');
 });
 
-test('uvReadings: the last hour of the day is the only one left at 23:00', () => {
-  const eleven = new Date(2026, 6, 15, 23, 0, 0).getTime() / 1000;
-  assert.deepEqual(uvReadings([0, 90, 90], eleven, 'max'), { now: 0, max: 0 });
+test('uvReadings: once today\'s peak is reached, the max rolls to tomorrow\'s, flagged', () => {
+  // At today's peak — the rest of the day never rounds above now.
+  assert.deepEqual(uvReadings([80, 76], [80, 60], 'both'), R(80, 60, true, 80),
+    'both: "8/»6" — highlighted for the 8 it shows');
+  assert.deepEqual(uvReadings([80, 76], [80, 60], 'max'), R(80, 60, true, 60),
+    'max: only "»6" is on screen, so the 6 is what the highlight judges');
+  // Evening: today is spent (0 ahead), tomorrow's midday is next.
+  assert.deepEqual(uvReadings([0, 0], [0, 75], 'both'), R(0, 75, true, 75));
+});
+
+test('uvReadings: the rollover compares the whole numbers the slot prints', () => {
+  // 7.4 now, 7.6 later today: "7/8" still has a peak to come...
+  assert.deepEqual(uvReadings([74], [76, 50], 'both'), R(74, 76, false, 76));
+  // ...7.6 now, 7.9 later: both print 8, so "8/8" would say nothing — tomorrow instead.
+  assert.deepEqual(uvReadings([76], [79, 50], 'both'), R(76, 50, true, 76));
+});
+
+test('uvReadings: no peak ahead known falls back to the current reading alone', () => {
+  // Today's peak reached and tomorrow not covered by the feed.
+  assert.deepEqual(uvReadings([80], [80, null], 'both'), R(80, null, false, 80));
+  assert.deepEqual(uvReadings([80], [80, null], 'max'), R(80, null, false, 80));
+  // Today unknown (no sourced hour left) with tomorrow known: tomorrow it is.
+  assert.deepEqual(uvReadings([0], [null, 40], 'max'), R(0, 40, true, 40));
+  assert.deepEqual(uvReadings([0], [null, null], 'max'), R(0, null, false, 0));
 });

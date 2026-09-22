@@ -192,11 +192,13 @@ test('applyForecastSeries swaps raw keys for render-ready series in place, delet
   const payload = {
     TEMP_RAW_TREND: [10, 20, 30], TEMP_MIN: 10, TEMP_MAX: 30, NUM_ENTRIES: 3,
     PRECIP_TREND_UINT8: [0, 50, 100], RAIN_TREND_UINT8: [0, 5, 20],
-    WIND_TREND_UINT8: [0, 25, 50], GUST_TREND_UINT8: [0, 50, 100], UV_TREND_UINT8: [0, 55, 110]
+    WIND_TREND_UINT8: [0, 25, 50], GUST_TREND_UINT8: [0, 50, 100], UV_TREND_UINT8: [0, 55, 110],
+    UV_DAY_PEAKS: [110, 90]
   };
   const out = applyForecastSeries(payload, { secondaryLine: 'uv', thirdLine: 'wind', windScale: 'mid', barSource: 'off' });
   assert.equal(out, payload);
-  ['PRECIP_TREND_UINT8', 'RAIN_TREND_UINT8', 'WIND_TREND_UINT8', 'GUST_TREND_UINT8', 'UV_TREND_UINT8'].forEach(function(k) {
+  ['PRECIP_TREND_UINT8', 'RAIN_TREND_UINT8', 'WIND_TREND_UINT8', 'GUST_TREND_UINT8', 'UV_TREND_UINT8',
+   'UV_DAY_PEAKS'].forEach(function(k) {
     assert.ok(!(k in out), k + ' should be deleted before the wire');
   });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]); // uv
@@ -382,7 +384,7 @@ test('applyForecastSeries stashes the bake inputs BEFORE the bake and before the
     CURRENT_TEMP: 68, CITY: 'Bonn', SUN_EVENTS: [1, 0, 0, 0, 0],
     AQI_TREND: [150], POLLEN_TODAY: '3', DEW_TREND: [53.6], FEELS_CURRENT: 70,
     PRECIP_TREND_UINT8: [70], RAIN_TREND_UINT8: [0],
-    WIND_TREND_UINT8: [17], GUST_TREND_UINT8: [48], UV_TREND_UINT8: [64],
+    WIND_TREND_UINT8: [17], GUST_TREND_UINT8: [48], UV_TREND_UINT8: [64], UV_DAY_PEAKS: [64, 80],
     WIND_DIR_TREND: [270], PRESSURE_TREND: [1013],
     TEMP_TREND_UINT8: [100], TEMP_MIN: 0, TEMP_MAX: 30,
     FORECAST_START: 1700000000, NUM_ENTRIES: 1
@@ -413,7 +415,7 @@ test('applyForecastSeries stashes the bake inputs BEFORE the bake and before the
   // BEFORE the deletes: every transient the bake reads is still on the payload
   // the stash was taken from -- and really is gone by the time the caller sees it.
   ['CURRENT_TEMP', 'CITY', 'AQI_TREND', 'POLLEN_TODAY', 'DEW_TREND', 'FEELS_CURRENT',
-   'WIND_TREND_UINT8', 'GUST_TREND_UINT8', 'UV_TREND_UINT8', 'WIND_DIR_TREND',
+   'WIND_TREND_UINT8', 'GUST_TREND_UINT8', 'UV_TREND_UINT8', 'UV_DAY_PEAKS', 'WIND_DIR_TREND',
    'PRESSURE_TREND'].forEach(function(k) {
     assert.ok(k in seen[0].payload, k + ' must still be present at stash time');
     assert.equal(k in out, false, k + ' is deleted after the bake');

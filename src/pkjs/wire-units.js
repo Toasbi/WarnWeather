@@ -37,38 +37,42 @@ function trendHead(arr) {
  * status-thresholds' displayValue, so the highlight can never judge a number the
  * slot does not show.
  *
- * `max` is the highest hourly value from entry 0 (the hour at forecastStart) to the
- * last entry on that same local date — "the rest of today, until 23:59", never
- * tomorrow's morning out of the 24 h trend. Past hours of today are not in the
- * trend, so the peak is of what is still to come, and it can never sit below `now`
- * (entry 0 counts). Only frozen payload inputs are read — no clock — so re-baking an
- * old snapshot reproduces the same text (status-rebake.js).
+ * `max` is the peak still ahead: today's (the rest of the local day, until 23:59)
+ * while it would show above `now`, and once it no longer would — today's peak is
+ * reached or behind us — tomorrow's, flagged `tomorrow` so the slot can mark it.
+ * The comparison is on the WHOLE numbers the slot prints, so an "8/8" that says
+ * nothing never shows. The peaks come in pre-computed (UV_DAY_PEAKS, provider.js
+ * getPayload, off the longer UV_HOURS series), so only frozen payload inputs are
+ * read — no clock — and re-baking an old snapshot reproduces the same text
+ * (status-rebake.js).
+ *
+ * `highest` is the larger of the numbers the slot shows — what the highlight judges.
  *
  * @param {number[]|null|undefined} uvTrend UV_TREND_UINT8 (UV tenths, hourly).
- * @param {*} forecastStart FORECAST_START, epoch seconds of entry 0.
+ * @param {*} dayPeaks UV_DAY_PEAKS: [rest of today, tomorrow] in UV tenths, each
+ *     null when unknown; absent on a payload without UV.
  * @param {*} mode Stored uvSlotDisplay: 'max' / 'both' ask for the peak; anything
  *     else (absent = 'current') does not.
- * @returns {?{now: number, max: ?number}} null when there is no UV at all; `max` is
- *     null when the mode does not show it or forecastStart is unusable (a stale
- *     cache), and every mode then falls back to `now` alone.
+ * @returns {?{now: number, max: ?number, tomorrow: boolean, highest: number}} null
+ *     when there is no UV at all; `max` is null when the mode does not show it or
+ *     no peak ahead is known (today's reached, tomorrow's not covered), and every
+ *     mode then falls back to `now` alone.
  */
-function uvReadings(uvTrend, forecastStart, mode) {
+function uvReadings(uvTrend, dayPeaks, mode) {
     var now = trendHead(uvTrend);
     if (now === null) { return null; }
-    var out = { now: now, max: null };
-    if ((mode !== 'max' && mode !== 'both')
-        || typeof forecastStart !== 'number' || !isFinite(forecastStart)) {
+    var out = { now: now, max: null, tomorrow: false, highest: now };
+    if ((mode !== 'max' && mode !== 'both') || !dayPeaks) { return out; }
+    var today = dayPeaks[0], next = dayPeaks[1];
+    if (typeof today === 'number' && Math.round(today / 10) > Math.round(now / 10)) {
+        out.max = today;
+    } else if (typeof next === 'number') {
+        out.max = next;
+        out.tomorrow = true;
+    } else {
         return out;
     }
-    var first = new Date(forecastStart * 1000);
-    var y = first.getFullYear(), m = first.getMonth(), d = first.getDate();
-    var max = now, i, t;
-    for (i = 1; i < uvTrend.length; i += 1) {
-        t = new Date((forecastStart + i * 3600) * 1000);
-        if (t.getDate() !== d || t.getMonth() !== m || t.getFullYear() !== y) { break; }
-        if (typeof uvTrend[i] === 'number' && uvTrend[i] > max) { max = uvTrend[i]; }
-    }
-    out.max = max;
+    out.highest = (mode === 'max') ? out.max : Math.max(now, out.max);
     return out;
 }
 

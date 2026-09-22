@@ -45,6 +45,17 @@ test('mapResponse anchors at the current hour and converts units', () => {
   assert.equal(out.tempTrend[23], (13 + 23) * 9 / 5 + 32);
 });
 
+test('mapResponse carries the UV series on to 48 h; every other trend keeps 24', () => {
+  const r = sampleResponse();
+  for (let i = 30; i < 60; i += 1) r.data.timelines[0].intervals.push(interval(i));
+  const out = mapResponse(r, BASE + 3 * 3600);
+  assert.equal(out.uvTrend.length, 48);
+  assert.equal(out.uvTrend[47], (3 + 47) % 12);
+  assert.equal(out.tempTrend.length, 24);
+  // The 30-interval fixture leaves 27 from anchor 3: UV stops where the feed does.
+  assert.equal(mapResponse(sampleResponse(), BASE + 3 * 3600).uvTrend.length, 27);
+});
+
 test('mapResponse returns null when fewer than 24 buckets remain after the anchor', () => {
   const nowEpoch = BASE + 10 * 3600; // 30 - 10 = 20 < 24
   assert.equal(mapResponse(sampleResponse(), nowEpoch), null);
@@ -77,9 +88,10 @@ test('buildUrl floors the hour, requests 1h metric timelines with the reduced fi
   assert.match(url, /fields=temperature,precipitationProbability,precipitationIntensity,windSpeed,windGust,uvIndex/);
   assert.match(url, /apikey=KEY123/);
   const startIso = encodeURIComponent(new Date(BASE * 1000).toISOString());
-  const endIso = encodeURIComponent(new Date((BASE + 25 * 3600) * 1000).toISOString());
+  const endIso = encodeURIComponent(new Date((BASE + 49 * 3600) * 1000).toISOString());
   assert.ok(url.indexOf('startTime=' + startIso) >= 0, 'startTime is the floored hour');
-  assert.ok(url.indexOf('endTime=' + endIso) >= 0, 'endTime is floored hour + 25h');
+  assert.ok(url.indexOf('endTime=' + endIso) >= 0,
+    'endTime is floored hour + 49h: the UV series reads 48 buckets (UV_HOURS)');
   // no weatherCode / 1d fields — nothing consumes them (see plan spec-corrections)
   assert.doesNotMatch(url, /weatherCode/);
   assert.doesNotMatch(url, /1d/);

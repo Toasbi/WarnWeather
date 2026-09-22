@@ -136,8 +136,20 @@ test('withProviderData fills uvTrend only when fetchUv is set', () => {
   withMockedNow(NOW, () => {
     p.withProviderData(59.91, 10.75, true, () => {}, () => { throw new Error('must not fail'); });
   });
-  assert.equal(p.uvTrend.length, 24);
+  assert.equal(p.uvTrend.length, 26, 'UV reads on past the 24 h window, as far as the feed goes');
   assert.equal(p.uvTrend[0], 1.4);
+});
+
+test('mapResponse reads UV 48 h deep and stops where Met.no turns 6-hourly', () => {
+  const mapped = metno.mapResponse(forecastBody(60, HOUR0, { 47: { instant: { ultraviolet_index_clear_sky: 6.2 } } }), NOW);
+  assert.equal(mapped.uvTrend.length, 48);
+  assert.equal(mapped.uvTrend[47], 6.2);
+  assert.equal(mapped.tempTrend.length, 24, 'every other trend keeps the 24 h window');
+  // 30 hourly buckets, then a 6-hourly one: the coarse sample is not an hour.
+  const body = forecastBody(30, HOUR0);
+  const coarse = forecastBody(1, HOUR0 + 35 * HOUR).properties.timeseries[0];
+  body.properties.timeseries.push(coarse);
+  assert.equal(metno.mapResponse(body, NOW).uvTrend.length, 30);
 });
 
 test('withProviderData routes a parse error to onFailure', () => {

@@ -107,6 +107,9 @@ function isoWeek(d) {
 // these are the two units that cost TWO UTF-8 bytes instead of one, which is what
 // makes the edge-slot cap a real constraint (see withUnit).
 var DEGREE = '°';
+// Marks the UV slot's peak as tomorrow's (Latin-1, like DEGREE: the watch's
+// system fonts carry it). Worst case '11/»12' is 7 of the edge slot's 8 bytes.
+var UV_NEXT_DAY = '\u00BB';
 
 /**
  * Whether one slot's per-kind "Show unit" toggle is on.
@@ -336,15 +339,16 @@ function formatValue(code, payload, settings, slotKey, cap) {
   }
   if (code === 'uv') {
     // Global per-kind display mode (UV slot's Edit sheet), the temp slot's pattern:
-    // absent = 'current'. 'max' is the peak for the rest of today (wire-units'
-    // uvReadings); 'both' is slash-separated, current first: 3/7. A peak it cannot
-    // place in the day falls back to the current reading alone, never '3/--'.
+    // absent = 'current'. 'max' is the peak still ahead (wire-units' uvReadings):
+    // today's, then tomorrow's once today's is reached, marked with UV_NEXT_DAY;
+    // 'both' is slash-separated, current first: 3/7, 5/»6. No peak ahead known
+    // falls back to the current reading alone, never '3/--'.
     var uvMode = settings.uvSlotDisplay;
-    var uv = wireUnits.uvReadings(payload.UV_TREND_UINT8, payload.FORECAST_START, uvMode);
+    var uv = wireUnits.uvReadings(payload.UV_TREND_UINT8, payload.UV_DAY_PEAKS, uvMode);
     if (!uv) { return '--'; }
     var uvNow = String(Math.round(uv.now / 10));
     if (uv.max === null) { return uvNow; }
-    var uvMax = String(Math.round(uv.max / 10));
+    var uvMax = (uv.tomorrow ? UV_NEXT_DAY : '') + String(Math.round(uv.max / 10));
     return uvMode === 'max' ? uvMax : uvNow + '/' + uvMax;
   }
   if (code === 'wind') {
@@ -614,8 +618,7 @@ var SOURCE_KEYS = [
   'FEELS_CURRENT',
   'SUN_EVENTS',
   'UV_TREND_UINT8',
-  // The UV slot's day-max modes place each trend hour on the calendar from it.
-  'FORECAST_START',
+  'UV_DAY_PEAKS',
   'WIND_TREND_UINT8',
   'GUST_TREND_UINT8',
   'WIND_DIR_TREND',

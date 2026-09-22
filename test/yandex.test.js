@@ -44,7 +44,10 @@ test('mapResponse flattens days, anchors at the current hour, returns 24-length 
   assert.equal(out.rainTrend.length, 24);
   assert.equal(out.windTrend.length, 24);
   assert.equal(out.gustTrend.length, 24);
-  assert.equal(out.uvTrend.length, 24);
+  // UV alone reads on toward UV_HOURS (48) for the UV slot's tomorrow peak; the
+  // fixture's 54 buckets leave 36 after the anchor at 18.
+  assert.equal(out.uvTrend.length, 36);
+  assert.equal(out.uvTrend[35], (18 + 35) % 12);
 
   assert.equal(out.startTime, BASE + 18 * 3600);
   assert.equal(out.tempTrend[0], 68);        // 50 + 18
@@ -55,6 +58,12 @@ test('mapResponse flattens days, anchors at the current hour, returns 24-length 
   assert.equal(out.gustTrend[0], 23);        // (18 + 5) km/h passthrough
   assert.equal(out.uvTrend[0], 6);           // 18 % 12
   assert.equal(out.currentTemp, 71);
+});
+
+test('mapResponse carries the UV series 48 h deep when the days allow', () => {
+  const out = mapResponse(sampleResponse(), BASE + 600); // anchor at bucket 0
+  assert.equal(out.uvTrend.length, 48);
+  assert.equal(out.tempTrend.length, 24, 'every other trend keeps the 24 h window');
 });
 
 test('mapResponse returns null when fewer than 24 buckets remain after the anchor', () => {

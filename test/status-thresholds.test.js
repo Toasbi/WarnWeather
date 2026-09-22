@@ -171,22 +171,35 @@ test('packWeatherLevels: UV rides byte 1 bits 0-1 (kind 7 -> shift 8)', () => {
     'UV 8.5 -> displayed 9 crosses danger 8');
 });
 
-test('packWeatherLevels: a UV slot showing today\'s max is judged on the highest value it shows', () => {
+test('packWeatherLevels: a UV slot showing a peak is judged on the highest value it shows', () => {
   const settings = { threshUvWarn: '6', threshUvDanger: '8' };
-  // Now 2, peaks at 8 at 12:00 local; tomorrow's 10 (entry 15+) never counts.
-  const start = new Date(2026, 6, 15, 9, 0, 0).getTime() / 1000;
-  const payload = { FORECAST_START: start,
-    UV_TREND_UINT8: [20, 45, 70, 80, 60, 30, 10, 0, 0, 0, 0, 0, 0, 0, 0, 100, 100] };
+  // Now 2, today's peak 8 still ahead.
+  const payload = { UV_TREND_UINT8: [20, 45, 70, 80], UV_DAY_PEAKS: [80, 100] };
   assert.deepEqual(th.packWeatherLevels(payload, settings), [0, 0],
     'current mode (absent): the 2 on screen is below warn');
   assert.deepEqual(th.packWeatherLevels(payload,
     Object.assign({ uvSlotDisplay: 'max' }, settings)), [0, 2], 'max: the 8 on screen is danger');
   assert.deepEqual(th.packWeatherLevels(payload,
     Object.assign({ uvSlotDisplay: 'both' }, settings)), [0, 2], 'both: "2/8" is highlighted for its 8');
-  const noStart = { UV_TREND_UINT8: payload.UV_TREND_UINT8 };
-  assert.deepEqual(th.packWeatherLevels(noStart,
+  const noPeaks = { UV_TREND_UINT8: payload.UV_TREND_UINT8 };
+  assert.deepEqual(th.packWeatherLevels(noPeaks,
     Object.assign({ uvSlotDisplay: 'both' }, settings)), [0, 0],
-    'no start time: the slot falls back to the current value, and so does its level');
+    'no day peaks: the slot falls back to the current value, and so does its level');
+});
+
+test('packWeatherLevels: tomorrow\'s peak counts once it is the number on screen', () => {
+  const settings = { threshUvWarn: '6', threshUvDanger: '8' };
+  // Evening, today spent: "0/»9" is highlighted for the 9.
+  const evening = { UV_TREND_UINT8: [0], UV_DAY_PEAKS: [0, 90] };
+  assert.deepEqual(th.packWeatherLevels(evening,
+    Object.assign({ uvSlotDisplay: 'both' }, settings)), [0, 2]);
+  // At today's peak 7 with a milder tomorrow: "7/»5" is judged on the 7 (warn),
+  // while max mode shows only "»5" and is judged on that.
+  const atPeak = { UV_TREND_UINT8: [70], UV_DAY_PEAKS: [70, 50] };
+  assert.deepEqual(th.packWeatherLevels(atPeak,
+    Object.assign({ uvSlotDisplay: 'both' }, settings)), [0, 1]);
+  assert.deepEqual(th.packWeatherLevels(atPeak,
+    Object.assign({ uvSlotDisplay: 'max' }, settings)), [0, 0]);
 });
 
 test('packWeatherLevels: missing data or disabled kinds emit normal', () => {

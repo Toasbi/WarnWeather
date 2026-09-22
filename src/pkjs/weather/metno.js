@@ -34,6 +34,24 @@ function buildForecastUrl(lat, lon) {
 }
 
 /**
+ * @param {Object} entry A locationforecast timeseries bucket.
+ * @returns {number} Its time in epoch seconds (NaN when unparsable).
+ */
+function entryEpoch(entry) {
+    return Math.round(Date.parse(entry.time) / 1000);
+}
+
+/**
+ * @param {Object} entry A locationforecast timeseries bucket.
+ * @returns {number} Its clear-sky UV index, 0 when unreported.
+ */
+function entryUv(entry) {
+    var instant = entry.data && entry.data.instant && entry.data.instant.details;
+    return (instant && typeof instant.ultraviolet_index_clear_sky === 'number')
+        ? instant.ultraviolet_index_clear_sky : 0;
+}
+
+/**
  * Map a Met.no locationforecast response into provider trend fields.
  *
  * Anchors the 24-hour window at the current wall-clock hour (the series
@@ -61,9 +79,7 @@ function mapResponse(json, nowEpoch) {
     }
     // hourly-window owns the anchor rule; an unparsable time yields NaN, which
     // never anchors — the same skip the old inline isFinite check performed.
-    var anchor = hourlyWindow.anchorIndex(timeseries, nowEpoch, function(entry) {
-        return Math.round(Date.parse(entry.time) / 1000);
-    });
+    var anchor = hourlyWindow.anchorIndex(timeseries, nowEpoch, entryEpoch);
     var i;
     if (anchor < 0 || timeseries.length - anchor < FORECAST_HOURS) {
         return null;
@@ -107,8 +123,7 @@ function mapResponse(json, nowEpoch) {
         feelsTrend.push(feels === null ? tempF : feels);
         windTrend.push(msToKmh(instant.wind_speed || 0));
         gustTrend.push(msToKmh(instant.wind_speed_of_gust || 0));
-        uvTrend.push(typeof instant.ultraviolet_index_clear_sky === 'number'
-            ? instant.ultraviolet_index_clear_sky : 0);
+        uvTrend.push(entryUv(entry));
         pressureTrend.push(typeof instant.air_pressure_at_sea_level === 'number'
             ? instant.air_pressure_at_sea_level : 0);
         // Dew point and bearing degrade to null, not 0, and keep their slot so the
@@ -127,6 +142,11 @@ function mapResponse(json, nowEpoch) {
         precipTrend.push((next1 && typeof next1.probability_of_precipitation === 'number')
             ? next1.probability_of_precipitation / 100 : 0);
     }
+    // UV alone reaches UV_HOURS (48) deep, so the UV slot can name tomorrow's peak;
+    // every other series keeps the 24-hour window. Met.no turns 6-hourly after its
+    // first ~2.5 days, which extendHourly's next-hour rule stops at.
+    hourlyWindow.extendHourly(uvTrend, timeseries, anchor, hourlyWindow.UV_HOURS,
+        entryEpoch, entryUv);
 
     return {
         tempTrend: tempTrend,
@@ -139,7 +159,7 @@ function mapResponse(json, nowEpoch) {
         feelsTrend: feelsTrend,
         dewTrend: dewTrend,
         windDirTrend: windDirTrend,
-        startTime: Math.round(Date.parse(timeseries[anchor].time) / 1000),
+        startTime: entryEpoch(timeseries[anchor]),
         currentTemp: celsiusToFahrenheit(timeseries[anchor].data.instant.details.air_temperature),
         currentFeels: currentFeels
     };

@@ -6,6 +6,7 @@ var clampByte = wireUnits.clampByte;
 var zeroFilledArray = wireUnits.zeroFilledArray;
 var airQuality = require('./air-quality.js');
 var pollen = require('./pollen.js');
+var hourlyWindow = require('./hourly-window.js');
 
 // The XHR helper + failure shape live in http.js (a leaf, so the auxiliary
 // fetches can require them without the old provider-cycle lazy-require hack);
@@ -682,6 +683,15 @@ WeatherProvider.prototype.getPayload = function() {
     }
     if (this.windDirTrend && this.windDirTrend.length) {
         payload.WIND_DIR_TREND = this.windDirTrend.slice(0, numEntries); // degrees 0-359, "comes from"
+    }
+    // The UV slot's day-max modes: [rest of today's peak, tomorrow's peak] in
+    // tenths (null = unknown), read off the FULL uvTrend — it reaches UV_HOURS,
+    // past the 24h window UV_TREND_UINT8 is cut to. Emitted only alongside a
+    // sourced UV series. Transient PKJS-only: formatValue/displayValue consume
+    // it, forecast-series deletes it before send.
+    if (uvs.length) {
+        payload.UV_DAY_PEAKS = hourlyWindow.localDayPeaks(this.uvTrend, this.startTime)
+            .map(function (peak) { return peak === null ? null : clampByte(peak * 10); });
     }
     return payload;
 };

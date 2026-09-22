@@ -1181,7 +1181,8 @@ test('the UV sheet puts its display-mode pills between the Bold row and the Thre
   assert.equal(disp.type, 'segmented');
   assert.equal(disp.defaultValue, 'current', 'shipped behaviour: the current index');
   assert.deepEqual(disp.options, [['Now', 'current'], ['Day max', 'max'], ['Both', 'both']]);
-  assert.match(String(disp.hint), /midnight/i, 'hint says where "today" ends');
+  assert.match(String(disp.hint), /tomorrow/i, 'hint says the max rolls on to tomorrow');
+  assert.ok(String(disp.hint).indexOf('\u00BB') >= 0, 'hint shows the marker the slot prints');
   assert.match(String(disp.hint), /highlight/i, 'hint says which value the highlight judges');
   // It configures the SLOT, not the highlight, so it sits above the group header
   // like the wind arrow — and stays live while the highlight is off.

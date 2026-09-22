@@ -257,8 +257,11 @@ function adoptFeels(provider, json) {
 /**
  * Build a minimal keyless Open-Meteo request for hourly UV index only. Uses the
  * default best_match model (the main forecast's ecmwf_ifs025 pin omits UV, and
- * DWD has no UV at all), mirroring the gust call's unixtime/GMT/forecast_days
- * conventions so buckets align with the main window by timestamp.
+ * DWD has no UV at all), mirroring the gust call's unixtime/GMT conventions so
+ * buckets align with the main window by timestamp. Three GMT days, not two: the
+ * UV window reaches UV_HOURS (48) ahead so the UV slot can name TOMORROW's peak,
+ * and the end of the phone's local tomorrow can fall on the third GMT day (far-east
+ * zones early in their morning).
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
  * @returns {string} Fully-formed UV request URL.
@@ -270,11 +273,13 @@ function buildUvUrl(lat, lon) {
         + '&hourly=uv_index'
         + '&timeformat=unixtime'
         + '&timezone=GMT'
-        + '&forecast_days=2';
+        + '&forecast_days=3';
 }
 
 /**
- * Extract a FORECAST_HOURS UV window aligned to a forecast start time, indexing the
+ * Extract a UV_HOURS (48 h) UV window aligned to a forecast start time — twice the
+ * forecast window, so the UV slot can place tomorrow's peak (the graph still takes
+ * only the first FORECAST_HOURS; getPayload slices) — indexing the
  * response's hourly uv_index by timestamp (so a feed whose offset differs still
  * lines up). Missing/non-numeric buckets become null (getPayload coerces to 0).
  * @param {Object} json Parsed Open-Meteo response carrying hourly.uv_index.
@@ -282,7 +287,7 @@ function buildUvUrl(lat, lon) {
  * @returns {Array.<(number|null)>|null} UV values, or null when malformed.
  */
 function mapUv(json, startTime) {
-    return alignHourly(json, 'uv_index', startTime);
+    return alignHourly(json, 'uv_index', startTime, hourlyWindow.UV_HOURS);
 }
 
 /**

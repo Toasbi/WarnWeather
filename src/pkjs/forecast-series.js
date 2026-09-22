@@ -427,6 +427,7 @@ function applyForecastSeries(payload, settings, watchInfo) {
     delete payload.WIND_TREND_UINT8;  // transient PKJS-only; never over the wire
     delete payload.GUST_TREND_UINT8;  // transient PKJS-only; never over the wire
     delete payload.UV_TREND_UINT8;    // transient PKJS-only; never over the wire
+    delete payload.UV_DAY_PEAKS;      // transient PKJS-only; baked into the UV slot's text + level, never wired
     delete payload.PRESSURE_TREND;    // transient PKJS-only; hPa never fit a byte, never wired
     delete payload.AQI_TREND;         // transient PKJS-only; baked into status text, never wired
     delete payload.POLLEN_TODAY;      // transient PKJS-only; baked into status text, never wired

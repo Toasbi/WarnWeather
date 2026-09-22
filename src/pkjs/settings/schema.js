@@ -1663,8 +1663,9 @@ module.exports = {
         // The UV slot's display mode — the temp slot's tempSlotDisplay pattern: global
         // per-kind, baked phone-side (status-lines.js formatValue), and on
         // renderSignature() so a change re-bakes without waiting for the next fetch.
-        // 'max' is the peak over the rest of TODAY (until 23:59, never tomorrow's
-        // hours out of the 24 h trend); 'both' is slash-separated, current first: 3/7.
+        // 'max' is the peak still ahead: the rest of TODAY's (until 23:59), then
+        // tomorrow's, marked », once today's is reached (wire-units uvReadings);
+        // 'both' is slash-separated, current first: 3/7, 6/»8.
         // It sits above the Thresholds group like the wind arrow: it configures the
         // slot, and the highlight follows it (status-thresholds.js displayValue
         // compares the highest number the slot shows).
@@ -1672,7 +1673,7 @@ module.exports = {
             type: 'segmented',
             messageKey: 'uvSlotDisplay',
             label: 'UV selection',
-            hint: 'Show the UV index now, the highest it still gets today (until midnight), or both as now/max. Highlighting follows the highest value shown.',
+            hint: 'Show the UV index now, the highest it still gets today, or both as now/max. Once today\'s peak is reached, the max shows tomorrow\'s, marked \u00BB (e.g. 6/\u00BB8). Highlighting follows the highest value shown.',
             defaultValue: 'current',
             options: [['Now', 'current'], ['Day max', 'max'], ['Both', 'both']]
         }]),
