@@ -53,6 +53,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 **Watch**
 * Custom color, 12h/24h, optional AM/PM
+* Smooth, anti-aliased clock digits on color watches (Roboto and Bitham fonts)
 * Battery, Bluetooth, quiet time, and vibrate-on-disconnect indicators
 * Battery saver (pause updates to the watch between hours you set, to save battery)
 * Dim backlight on Pebble Time 2: when the backlight comes on between hours you set it glows a color you pick instead of white — it never switches the backlight on by itself

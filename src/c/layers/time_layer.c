@@ -2,6 +2,7 @@
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
 #include "c/appendix/theme.h"
+#include "c/layers/clock_glyphs.h"
 #include "c/layers/clock_ink.h"
 #include "c/layers/layer_util.h"
 #include "c/services/watch_services.h"
@@ -86,6 +87,28 @@
 static Layer *s_container_layer;
 static TextLayer *s_time_layer;
 static TextLayer *s_am_pm_layer;
+static char s_time_text[8];
+
+#if defined(PBL_COLOR)
+// The anti-aliased digits (clock_glyphs.h) for the faces that have them. A sibling of the text
+// layer rather than a replacement: LECO keeps drawing through s_time_layer, and exactly one of
+// the two is unhidden at a time (time_layer_tick). The frame is the whole band; the update proc
+// draws at s_glyph_origin, which the tick seats the same way it seats the text layer.
+static Layer *s_glyph_layer;
+static GPoint s_glyph_origin;   // pen x of the first digit, and the digits' first inked row
+
+// The time font the clock is drawn in, clamped the way config_time_font() and clock_ink_for()
+// clamp it, so a corrupt persisted value takes the same (Roboto) path through all three.
+static int16_t time_font_index(void) {
+    int16_t font = config_get()->time_font;
+    return (font < 0 || font > TIME_FONT_BITHAM) ? TIME_FONT_ROBOTO : font;
+}
+
+static void glyph_layer_update(Layer *layer, GContext *ctx) {
+    clock_glyphs_draw(ctx, time_font_index(), s_time_text, s_glyph_origin,
+                      theme_pick(config_get()->color_time, theme_fg()));
+}
+#endif
 
 // The active time font's measured ink — where its digits sit inside their line box, which is
 // what both the band solver and the AM/PM label are seated against.
@@ -128,6 +151,12 @@ void time_layer_create(Layer* parent_layer, GRect frame) {
     // Not a clipping question either way: the digits' frame runs to the band's right edge and
     // bottom (see time_layer_tick), so it would contain the label's ink whichever way round.
     layer_add_child(s_container_layer, text_layer_get_layer(s_time_layer));
+#if defined(PBL_COLOR)
+    s_glyph_layer = layer_create(GRect(0, 0, frame.size.w, frame.size.h));
+    layer_set_update_proc(s_glyph_layer, glyph_layer_update);
+    layer_set_hidden(s_glyph_layer, true);
+    layer_add_child(s_container_layer, s_glyph_layer);
+#endif
     layer_add_child(s_container_layer, text_layer_get_layer(s_am_pm_layer));
     layer_add_child(parent_layer, s_container_layer);
     MEMORY_LOG_HEAP("after_time_layer_create");
@@ -141,42 +170,65 @@ Layer *time_layer_get_root(void) {
 void time_layer_tick() {
     struct tm tick_time = watch_services_localtime();
 
-    static char s_buffer[8];
-    config_format_time(s_buffer, sizeof(s_buffer), &tick_time);
+    config_format_time(s_time_text, sizeof(s_time_text), &tick_time);
 
     bool show_am_pm = config_get()->show_am_pm;
-    text_layer_set_text(s_time_layer, s_buffer);
+    text_layer_set_text(s_time_layer, s_time_text);
     if (show_am_pm)
         text_layer_set_text(s_am_pm_layer, tick_time.tm_hour < 12 ? "AM" : "PM");
 
     GRect bounds = layer_get_bounds(s_container_layer);
-    text_layer_move_frame(s_time_layer, GRect(0, 0, bounds.size.w, bounds.size.h)); // Reset for size calculation
-    GSize time_size = text_layer_get_content_size(s_time_layer);
     GSize am_pm_size = text_layer_get_content_size(s_am_pm_layer);
+    int am_pm_w = show_am_pm ? am_pm_size.w : 0;
+    int text_left, digits_w;
 
-    int text_h = time_size.h - MT_TIME; // Remove top margin, approximately
-    int text_top = -MT_TIME + (bounds.size.h/2 - text_h/2);
-    // The DIGITS carry the centring; the label rides in the margin left over beside them and
-    // pushes the clock aside only when it would otherwise run off the band (clock_seat_x).
-    int text_left = clock_seat_x(bounds.size.w, time_size.w, show_am_pm ? am_pm_size.w : 0);
+#if defined(PBL_COLOR)
+    bool glyphs = clock_glyphs_face(time_font_index());
+    layer_set_hidden(s_glyph_layer, !glyphs);
+    layer_set_hidden(text_layer_get_layer(s_time_layer), glyphs);
+    if (glyphs) {
+        // The strips carry their own metrics, so the digits are seated from the model directly:
+        // the pen advance centres them exactly as the text layer's content width does below, and
+        // the first inked row is the one the band solver was given (clock_ink_for reports these
+        // faces' ink_h from the same strips), so the band's centring holds with no line box in
+        // between to measure.
+        digits_w = clock_glyphs_width(time_font_index(), s_time_text);
+        text_left = clock_seat_x(bounds.size.w, digits_w, am_pm_w);
+        s_glyph_origin = GPoint(text_left, clock_ink_top_in_band(bounds.size.h, time_layer_ink()));
+        // The band is re-framed per view (main_window's layer_set_frame on the root), so the
+        // glyph layer follows it here, as the text layer's frame does below.
+        layer_set_frame(s_glyph_layer, GRect(0, 0, bounds.size.w, bounds.size.h));
+        layer_mark_dirty(s_glyph_layer);
+    } else
+#endif
+    {
+        text_layer_move_frame(s_time_layer, GRect(0, 0, bounds.size.w, bounds.size.h)); // Reset for size calculation
+        GSize time_size = text_layer_get_content_size(s_time_layer);
+        digits_w = time_size.w;
 
-    // Update layer positions and visibility. Height spans from text_top down to the
-    // container bottom rather than time_size.h: text_layer_get_content_size() under-reports
-    // the line box of the enlarged custom TTF fonts (e.g. ~58px for the size-58 Montserrat
-    // whose real ascent+descent is ~68px), so a content-sized frame clips the bottom few px
-    // of round digits. These are descenderless numeric fonts and the container clips us, so
-    // extending the frame downward only reclaims the clipped glyph bottoms. The width runs to
-    // the band's right edge for the same reason, in the other axis — the text is left-aligned,
-    // so the surplus costs nothing, and nothing depends on this frame ending at the digits.
-    text_layer_move_frame(s_time_layer, GRect(text_left, text_top,
-                                              bounds.size.w - text_left, bounds.size.h - text_top));
+        int text_h = time_size.h - MT_TIME; // Remove top margin, approximately
+        int text_top = -MT_TIME + (bounds.size.h/2 - text_h/2);
+        // The DIGITS carry the centring; the label rides in the margin left over beside them and
+        // pushes the clock aside only when it would otherwise run off the band (clock_seat_x).
+        text_left = clock_seat_x(bounds.size.w, digits_w, am_pm_w);
+
+        // Height spans from text_top down to the container bottom rather than time_size.h: the
+        // text layer's content size is a LINE box, and a content-sized frame has clipped the
+        // bottom few px of round digits on the larger faces before. These are descenderless
+        // numeric fonts and the container clips us, so extending the frame downward only
+        // reclaims the clipped glyph bottoms. The width runs to the band's right edge for the
+        // same reason, in the other axis — the text is left-aligned, so the surplus costs
+        // nothing, and nothing depends on this frame ending at the digits.
+        text_layer_move_frame(s_time_layer, GRect(text_left, text_top,
+                                                  bounds.size.w - text_left, bounds.size.h - text_top));
+    }
     if (show_am_pm) {
         // Seat the label's ink on the digits' ink: clock_label_seat_y takes the digits' first
         // inked row from the measured ClockInk pair, and backs off the label's own blank
         // leading. Nothing per-font or per-platform of its own — both halves are read from
         // models that already had to be right for the clock band and the status rows.
         int am_pm_y = clock_label_seat_y(bounds.size.h, time_layer_ink(), AM_PM_INK_TOP);
-        int am_pm_x = clock_label_x(bounds.size.w, text_left + time_size.w, AM_PM_GAP,
+        int am_pm_x = clock_label_x(bounds.size.w, text_left + digits_w, AM_PM_GAP,
                                     am_pm_size.w);
         text_layer_move_frame(s_am_pm_layer,
                               GRect(am_pm_x, am_pm_y, AM_PM_BOX_W, AM_PM_CONTENT_H));
@@ -194,6 +246,9 @@ void time_layer_refresh() {
 void time_layer_destroy() {
     MEMORY_LOG_HEAP("time_layer_destroy:before");
     text_layer_destroy(s_am_pm_layer);
+#if defined(PBL_COLOR)
+    layer_destroy(s_glyph_layer);
+#endif
     text_layer_destroy(s_time_layer);
     layer_destroy(s_container_layer);
     MEMORY_LOG_HEAP("time_layer_destroy:after");

@@ -13,7 +13,10 @@
 //   144px    FONT_KEY_ROBOTO_BOLD_SUBSET_49  FONT_KEY_LECO_42_NUMBERS    FONT_KEY_BITHAM_42_MEDIUM_NUMBERS
 //   emery    custom Roboto-Bold-62           FONT_KEY_LECO_60_NUMBERS_AM_PM  custom Montserrat-Medium-62
 //
-// So: six measured pairs. This header is included by main_window.c (which passes the pair to the
+// So: six measured pairs. (Since the anti-aliased clock, the colour screens draw roboto and
+// bitham from pre-rendered strips of those same faces — Montserrat standing in for Bitham on
+// basalt too — and clock_ink_for() reports their ink_h from the strips; the measured centre_off
+// still places them. See clock_glyphs.h and clock_ink.c.) This header is included by main_window.c (which passes the pair to the
 // layout solver) and by layers/time_layer.c (which seats the AM/PM label on the digits' ink row)
 // — and by nothing else. It depends on config.h, which is exactly why windows/layout.c must not
 // reach it: that module's purity is enforced by the host stub (test/c/stub/pebble.h), so the
