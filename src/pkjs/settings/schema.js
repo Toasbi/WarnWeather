@@ -1668,12 +1668,13 @@ module.exports = {
         // 'both' is slash-separated, current first: 3/7, 6/»8.
         // It sits above the Thresholds group like the wind arrow: it configures the
         // slot, and the highlight follows it (status-thresholds.js displayValue
-        // compares the highest number the slot shows).
+        // compares the highest of TODAY's numbers the slot shows; a marked
+        // tomorrow's peak never counts).
         thresholdSection('UV index', 'Uv', '', null, [{
             type: 'segmented',
             messageKey: 'uvSlotDisplay',
             label: 'UV selection',
-            hint: 'Show the UV index now, the highest it still gets today, or both as now/max. Once today\'s peak is reached, the max shows tomorrow\'s, marked \u00BB (e.g. 6/\u00BB8). Highlighting follows the highest value shown.',
+            hint: 'Show the UV index now, the highest it still gets today, or both as now/max. Once today\'s peak is reached, the max shows tomorrow\'s, marked \u00BB (e.g. 6/\u00BB8). Highlighting follows the highest of today\'s values shown; tomorrow\'s never counts.',
             defaultValue: 'current',
             options: [['Now', 'current'], ['Day max', 'max'], ['Both', 'both']]
         }]),

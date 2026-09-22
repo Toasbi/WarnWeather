@@ -46,14 +46,17 @@ function trendHead(arr) {
  * read — no clock — and re-baking an old snapshot reproduces the same text
  * (status-rebake.js).
  *
- * `highest` is the larger of the numbers the slot shows — what the highlight judges.
+ * `judged` is the number the highlight judges: the larger of the slot's numbers
+ * that belong to TODAY. Tomorrow's marked peak never counts until it is today's —
+ * "8/»6" is judged on the 8, and a lone "»6" (the 'max' mode after the rollover)
+ * on nothing (null, the normal level).
  *
  * @param {number[]|null|undefined} uvTrend UV_TREND_UINT8 (UV tenths, hourly).
  * @param {*} dayPeaks UV_DAY_PEAKS: [rest of today, tomorrow] in UV tenths, each
  *     null when unknown; absent on a payload without UV.
  * @param {*} mode Stored uvSlotDisplay: 'max' / 'both' ask for the peak; anything
  *     else (absent = 'current') does not.
- * @returns {?{now: number, max: ?number, tomorrow: boolean, highest: number}} null
+ * @returns {?{now: number, max: ?number, tomorrow: boolean, judged: ?number}} null
  *     when there is no UV at all; `max` is null when the mode does not show it or
  *     no peak ahead is known (today's reached, tomorrow's not covered), and every
  *     mode then falls back to `now` alone.
@@ -61,18 +64,17 @@ function trendHead(arr) {
 function uvReadings(uvTrend, dayPeaks, mode) {
     var now = trendHead(uvTrend);
     if (now === null) { return null; }
-    var out = { now: now, max: null, tomorrow: false, highest: now };
+    var out = { now: now, max: null, tomorrow: false, judged: now };
     if ((mode !== 'max' && mode !== 'both') || !dayPeaks) { return out; }
     var today = dayPeaks[0], next = dayPeaks[1];
     if (typeof today === 'number' && Math.round(today / 10) > Math.round(now / 10)) {
         out.max = today;
+        out.judged = today; // above now by the test just made
     } else if (typeof next === 'number') {
         out.max = next;
         out.tomorrow = true;
-    } else {
-        return out;
+        if (mode === 'max') { out.judged = null; } // only tomorrow's number is on screen
     }
-    out.highest = (mode === 'max') ? out.max : Math.max(now, out.max);
     return out;
 }
 

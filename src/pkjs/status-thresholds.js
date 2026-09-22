@@ -287,13 +287,14 @@
     if (code === 'uv') {
       // UV_TREND_UINT8 carries tenths; the slot displays the rounded index
       // (status-lines.js) and thresholds compare the DISPLAYED number — the
-      // HIGHEST one when the display mode prints a peak too ('max' / 'both'):
-      // "2/8" is highlighted for the 8, "8/»6" for the 8. Same reader as the
+      // highest of TODAY's when the display mode prints a peak too ('max' /
+      // 'both'): "2/8" is highlighted for the 8, "8/»6" for the 8, and a lone
+      // "»9" not at all until tomorrow makes it today's. Same reader as the
       // slot text, so the two agree on the peak and on every fallback.
       var uv = wireUnits.uvReadings(payload.UV_TREND_UINT8, payload.UV_DAY_PEAKS,
         settings && settings.uvSlotDisplay);
-      if (!uv) { return null; }
-      return Math.round(uv.highest / 10);
+      if (!uv || uv.judged === null) { return null; }
+      return Math.round(uv.judged / 10);
     }
     return null;
   }
