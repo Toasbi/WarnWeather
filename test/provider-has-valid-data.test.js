@@ -184,28 +184,15 @@ test('getPayload rounds FEELS_CURRENT like CURRENT_TEMP (0 °F is a real value)'
 });
 
 // UV_DAY_PEAKS: the UV slot's [rest of today, tomorrow] peaks, read off the FULL
-// uvTrend (48 h) that UV_TREND_UINT8 is cut short of. Local-time start so the
-// day boundary is host-timezone-proof (see test/hourly-window.test.js).
-function uvProvider(uvTrend) {
-  const start = new Date(2026, 6, 15, 9, 0, 0).getTime() / 1000;
-  return makeProvider({
-    numEntries: 24,
-    tempTrend: new Array(24).fill(50),
-    precipTrend: new Array(24).fill(0),
-    rainTrend: new Array(24).fill(0),
-    uvTrend: uvTrend,
-    startTime: start,
-    currentTemp: 60,
-    cityName: 'Testville',
-    sunEvents: [{ type: 'sunrise', date: new Date((start + 3600) * 1000) }]
-  });
-}
+// uvTrend (UV_HOURS deep) that UV_TREND_UINT8 is cut short of. Local-time start so
+// the day boundary is host-timezone-proof (see test/hourly-window.test.js).
+const LOCAL_9AM = new Date(2026, 6, 15, 9, 0, 0).getTime() / 1000;
 
 test('getPayload emits UV_DAY_PEAKS in tenths from the full 48 h uvTrend', () => {
   const uv = new Array(48).fill(0);
   uv[4] = 7.14;   // 13:00 today
   uv[27] = 9.46;  // 12:00 tomorrow — beyond the 24 h UV_TREND_UINT8 window
-  const payload = uvProvider(uv).getPayload();
+  const payload = pressureProvider({ uvTrend: uv, startTime: LOCAL_9AM }).getPayload();
   assert.equal(payload.UV_TREND_UINT8.length, 24, 'the graph series keeps the 24 h window');
   assert.deepEqual(payload.UV_DAY_PEAKS, [71, 95]);
 });
@@ -213,7 +200,8 @@ test('getPayload emits UV_DAY_PEAKS in tenths from the full 48 h uvTrend', () =>
 test('getPayload reports an uncovered tomorrow as null, and omits UV_DAY_PEAKS without UV', () => {
   const uv = new Array(24).fill(0);
   uv[2] = 3;
-  assert.deepEqual(uvProvider(uv).getPayload().UV_DAY_PEAKS, [30, null]);
-  assert.equal('UV_DAY_PEAKS' in uvProvider([]).getPayload(), false,
+  assert.deepEqual(pressureProvider({ uvTrend: uv, startTime: LOCAL_9AM }).getPayload().UV_DAY_PEAKS,
+    [30, null]);
+  assert.equal('UV_DAY_PEAKS' in pressureProvider({ uvTrend: [], startTime: LOCAL_9AM }).getPayload(), false,
     'no UV sourced: no key to strip, like the feels keys');
 });
