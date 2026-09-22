@@ -97,6 +97,13 @@
   .subhdr.grp > span:first-child { min-width: 0; }
   .subhdr.grp .sw { flex: none; margin-left: auto; }
   .subhdr.grp .lbl-act { flex: none; }
+  /* The ROW-shaped sub-header (a `subheader` with a `hint`, rendered by renderRow as the
+     group switch's own toggle row) owns its line on the same terms. Nothing else about it
+     is special: its padding, label/hint and switch are plain .row, and its bottom edge is
+     the look-ahead's — .nb when the first row it reveals joins tight, .nbl when the next
+     header follows — so a group reads, and steps, like any toggle row with a hint. */
+  .row.grp { border-top: 1px solid var(--row-line); }
+  .row.grp:first-child { border-top: none; }
   .row { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 16px; border-bottom: 1px solid var(--row-line); }
   /* stacked rows are a column, so the .row flex `gap` would space label/hint/control far apart;
      zero it and let the hint's own margin-top own the label→hint gap (matching non-stacked rows). */

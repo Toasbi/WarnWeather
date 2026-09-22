@@ -105,3 +105,34 @@ test('shell.html lets a .grp sub-header own the line above it', () => {
   assert.equal(/\.subhdr\s*\{[^}]*border-top/.test(shell), false,
     'only the .grp flavour owns a line');
 });
+
+test('shell.html lets a row-shaped group header own its line, and nothing else', () => {
+  // A `subheader` with a `hint` renders as its switch's toggle row (.row.grp). It owns the
+  // line above it on the same terms as the heading, and drops it when it opens the body...
+  assert.ok(/\.row\.grp\s*\{[^}]*border-top:\s*1px solid var\(--row-line\)/.test(shell),
+    '.row.grp must carry its own top rule');
+  assert.ok(/\.row\.grp:first-child\s*\{[^}]*border-top:\s*none/.test(shell),
+    'a leading row-shaped header must not draw a line under the card header');
+  assert.ok(shell.indexOf('.row.grp:first-child') > shell.indexOf('.row.grp { border-top'),
+    'the :first-child reset must follow the rule it overrides');
+  // ...but every OTHER measure is plain .row: a padding, margin or line-height of its own
+  // would put the one-off standoffs back that this shape exists to remove.
+  const rules = shell.match(/\.row\.grp[^{]*\{[^}]*\}/g) || [];
+  assert.ok(rules.length >= 2, 'the .row.grp rules are where this test looks for them');
+  rules.forEach((r) => assert.equal(/padding|margin|line-height|height/.test(r.slice(r.indexOf('{'))), false,
+    'a .row.grp rule sizes nothing: ' + r));
+});
+
+test('shell.html keeps the heading-shaped sub-header\'s rules to the known set', () => {
+  // The heading shape (.subhdr.grp + .intro) is the threshold edit sheets' layout. The
+  // Nighttime card's spacing fix went through the ROW shape instead, so a new .subhdr.grp
+  // rule would re-space the sheets; any addition has to be deliberate and listed here.
+  const css = shell.replace(/\/\*[\s\S]*?\*\//g, '');
+  const sels = (css.match(/[^{}]+\{/g) || []).map((s) => s.slice(0, -1).trim())
+    .filter((s) => /\.subhdr\.grp/.test(s));
+  const KNOWN = ['.subhdr.grp', '.subhdr.grp:first-child', '.subhdr.grp > span:first-child',
+    '.subhdr.grp .sw', '.subhdr.grp .lbl-act'];
+  assert.ok(sels.length >= KNOWN.length, 'the sub-header rules are where this test looks for them');
+  sels.forEach((sel) => assert.ok(KNOWN.indexOf(sel) !== -1,
+    'unlisted sub-header rule "' + sel + '" would re-space the threshold edit sheets'));
+});

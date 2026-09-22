@@ -518,26 +518,61 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * findItem and its onChange hook all still see it); only its row is suppressed
    * (the isHostedRow predicate, consulted by every row-emitting path).
    *
-   * @param {Object} item The subheader item ({text, toggleKey?, labelAction?}).
+   * Two shapes, picked by which kind of copy the item carries:
+   *  - `intro` — a HEADING: the .subhdr.grp bar with the switch on it, then the
+   *    copy as a full-width .intro block. The threshold sheets' shape.
+   *  - `hint` — a ROW: the hosted switch's own row (renderRow), the group title
+   *    as its label and the copy as its hint, so the group opens exactly like a
+   *    toggle row with a hint and a card of ordinary rows keeps ONE rhythm (the
+   *    Nighttime card). `.grp` marks it as the row that opens a group and owns
+   *    the line above it (shell.html). Being a row, it takes the join mode of
+   *    the next rendered item like any row does: the first row its switch
+   *    reveals joins it with `joinPrevious: true` and sits as close to the copy
+   *    as a tight join puts any row to the hint above it; a collapsed group's
+   *    header joins the next header loosely and leaves the line to it.
+   *
+   * @param {Object} item The subheader item ({text, toggleKey?, labelAction?,
+   *   intro? | hint?}).
    * @param {Object} sec The section holding it (searched for the toggle item).
    * @param {Object} cx Render context.
+   * @param {string} [noDivider] Join mode of the next rendered item, from
+   *   nextVisibleJoins() — used by the row shape only (a heading draws no
+   *   bottom divider to drop).
    * @returns {string} Sub-header HTML.
    */
-  function renderSubheader(item, sec, cx) {
-    var toggle = '', i, it = null;
+  function renderSubheader(item, sec, cx, noDivider) {
+    var toggle = '', i, it = null, shown;
     if (item.toggleKey) {
       for (i = 0; i < (sec.items || []).length; i++) {
         if (sec.items[i].messageKey === item.toggleKey && sec.items[i].type === 'toggle') {
           it = sec.items[i];
         }
       }
-      // A gated-off toggle leaves the header bare rather than drawing a switch
-      // the platform can't honour. The toggle's text label stays behind in the
-      // body, so the accessible name must ride the switch itself.
-      if (it && PConf.showWhen.isVisible(it, cx.evalCtx)) {
-        toggle = renderToggle(it, cx.S[it.messageKey], String(it.label || 'Enable'));
-      }
     }
+    // A gated-off toggle leaves the header bare rather than drawing a switch
+    // the platform can't honour.
+    shown = Boolean(it) && PConf.showWhen.isVisible(it, cx.evalCtx);
+    if (item.hint) {
+      // The row shape: an ordinary toggle row with the group title as its label.
+      // The switch keeps the hosted toggle's own label as its accessible name, as
+      // the heading shape gives it: the visible title names the GROUP ("Battery
+      // saver"), which can differ from what the switch does. Without a hosted
+      // switch the type is left empty and renderControl draws nothing.
+      return renderRow({
+        type: shown ? 'toggle' : '',
+        messageKey: shown ? it.messageKey : undefined,
+        label: item.text || '',
+        hint: item.hint,
+        labelAction: item.labelAction
+      }, {
+        value: shown ? cx.S[it.messageKey] : undefined,
+        group: true,
+        ariaLabel: shown ? String(it.label || 'Enable') : undefined
+      }, noDivider);
+    }
+    // The heading shape: the toggle's text label stays behind in the body, so the
+    // accessible name must ride the switch itself.
+    if (shown) { toggle = renderToggle(it, cx.S[it.messageKey], String(it.label || 'Enable')); }
     // item.intro is the group's own explanatory copy — the section-level `intro`
     // moved down here for the threshold sheets, where it describes the group
     // rather than the whole sheet. HTML, like every other intro/hint.
@@ -740,7 +775,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return h;
   }
     var CONTROLS = {
-    toggle: function (item, view) { return renderToggle(item, view.value); },
+    toggle: function (item, view) { return renderToggle(item, view.value, view.ariaLabel); },
     segmented: function (item, view) { return renderSegmented(item, view.value, view.disabledOptions); },
     radio: function (item, view) { return renderRadio(item, view.value, view.disabledOptions); },
     select: function (item, view) { return renderSelectTrigger(item, view); },
@@ -815,7 +850,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // the Holiday searchSelects keep the same compact treatment. A stacked (open color/etc.)
     // row keeps normal padding so its expanded content isn't cramped.
     var isStatusSlot = item.optionsFrom && item.optionsFrom.resolver === 'statusSlot';
-    var rowCls = 'row' + (stacked ? ' stack' : '') + (wideSegmented ? ' segwide' : '') + nbClass(noDivider)
+    // view.group: this row is a row-shaped `subheader` (renderSubheader) — it opens a
+    // group, so .grp gives it the line above it (see .row.grp in shell.html).
+    var rowCls = 'row' + (view.group ? ' grp' : '') + (stacked ? ' stack' : '')
+      + (wideSegmented ? ' segwide' : '') + nbClass(noDivider)
       + ((item.type === 'searchSelect' || isStatusSlot) && !stacked ? ' slot' : '')
       // A disabled row (item.disabledWhen) stays visible — showing what WOULD be
       // configurable — but muted and inert (CSS pointer-events; the range handlers
@@ -1060,11 +1098,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       if (isHostedRow(items[j], hosted)) { continue; }
       if (PConf.showWhen.isVisible(items[j], cx.evalCtx)) {
         // A `subheader` ITEM opens a new group and paints the separating line ITSELF
-        // (.subhdr.grp's border-top in shell.html) rather than borrowing the preceding
-        // row's divider — its group may render no rows at all (master switch off), and
-        // then there is no divider to borrow. It always joins LOOSELY: the row above only
-        // drops its own line (so the two 1px borders don't stack into one thick rule) and
-        // keeps its normal padding, since the header brings its own standoff.
+        // (the border-top of .subhdr.grp / .row.grp in shell.html) rather than borrowing
+        // the preceding row's divider — its group may render no rows at all (master
+        // switch off), and then there is no divider to borrow. It always joins LOOSELY:
+        // the row above only drops its own line (so the two 1px borders don't stack into
+        // one thick rule) and keeps its normal padding, since the header brings its own
+        // standoff — a heading its padding, a row-shaped header a row's.
         if (items[j].type === 'subheader') { return 'loose'; }
         jp = items[j].joinPrevious;
         return jp === 'loose' ? 'loose' : (jp ? 'tight' : '');
@@ -1118,7 +1157,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var item = sec.items[i];
       if (item.type === 'subheader') {
         if (!PConf.showWhen.isVisible(item, cx.evalCtx)) { continue; }
-        body += renderSubheader(item, sec, cx);
+        // The look-ahead matters to a row-shaped header (item.hint), which is a row
+        // and drops or tightens its own divider like one; a heading ignores it.
+        body += renderSubheader(item, sec, cx, nextVisibleJoins(sec.items, i + 1, cx, hosted));
         staticCount++;
         continue;
       }

@@ -281,6 +281,15 @@ section holds rows that answer to different scopes (the threshold sheets keep a 
 switch on the header instead of as a row of its own — while keeping its normal place in
 `items`, so hydrate/serialize/`onChange` are unaffected.
 
+Give the sub-header a `hint` (HTML) instead of an `intro` and it renders as a **row** rather
+than a heading: the hosted switch's own toggle row, with `text` as its label and the hint under
+it — exactly a toggle row with a hint, plus the group's line above it. Use that shape for a
+switch-led group inside an ordinary card (the General tab's Nighttime card), so the card keeps
+the row rhythm of the cards around it; keep `intro` for heading-style groups (the threshold
+sheets). Being a row, it joins like one: the first row its switch reveals can take
+`joinPrevious: true` and sit tight under the hint, and when the next thing rendered is another
+group header it drops its own divider and leaves the line to that header.
+
 `staticText` items carry their HTML in a `text` field and are emitted verbatim without control
 chrome. They are not serialized (no `messageKey`).
 
@@ -316,7 +325,7 @@ picking the shown swatch is what writes it.
 | `optionDisabledWhen` | `{ value: showWhen }` | Renders individual `segmented`/`radio` options inert while their condition holds. Prefer this over gating the list itself with `optionsFrom`: an option that disappears is snapped away, silently rewriting a stored value the user never touched. |
 | `displayFrom` | `{ resolver, args }` | Paints a DERIVED value from a named [display resolver](#display-resolver-registry--pconfdisplayresolvers) while the stored value stays untouched. Read by `color` only; ignored on an `inline` item. |
 | `description` | string | HTML description rendered below the label |
-| `hint` | string | HTML hint rendered below the control |
+| `hint` | string | HTML hint rendered below the control. On a `subheader` it makes the header a row (its switch's toggle row) instead of a heading — see `subheader` above |
 | `hintByValue` | `{ value: string }` | Per-value hints; overrides `hint` for the current value |
 | `attributes.placeholder` | string | Placeholder text for `text` items |
 | `capabilities` | `["COLOR"]` | Clay-compatible sugar: hides the item on b&w platforms |
