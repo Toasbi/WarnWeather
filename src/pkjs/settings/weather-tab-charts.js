@@ -231,13 +231,11 @@
         // the one that says which — so the view SETTLES every hour before
         // the current one here, once, instead of leaving each readout to
         // remember. The % row still prints the app's dash for them; the
-        // floating tip and the day tiles simply go quiet. The bound is
-        // INCLUSIVE because these figures are for the hour ENDING at their
-        // stamp (see barX): the row standing on the now line is the hour
-        // that has just finished, and the one that keeps its chance is the
-        // row after it — the hour that is running.
+        // floating tip and the day tiles simply go quiet. A row is the hour
+        // STARTING at its stamp (see barX), so the row on the now line is
+        // the hour that is running, and it keeps its chance.
         var prob = trim(grid.prob);
-        for (i = 0; i <= nowIndex && i < prob.length; i += 1) { prob[i] = null; }
+        for (i = 0; i < nowIndex && i < prob.length; i += 1) { prob[i] = null; }
         // And an hour that is over shows the rain that FELL, or no rain at
         // all. Only DWD can say what fell — it tags each hour with the
         // source that produced it, and a station reading is a measurement.
@@ -251,7 +249,7 @@
         // have, which is the claim to drop.
         var measured = trim(grid.measured);
         var rain = trim(grid.rain);
-        for (i = 0; i <= nowIndex && i < rain.length; i += 1) {
+        for (i = 0; i < nowIndex && i < rain.length; i += 1) {
             if (!measured[i]) { rain[i] = null; }
         }
         return {
@@ -287,28 +285,28 @@
     }
 
     /**
-     * Where an hour's BAR starts: one hour to the LEFT of its own tick.
+     * Where an hour's BAR starts: on its own tick, running right to the next.
      *
      * A line or a dot marks an instant and sits on the tick, because that is
      * what temperature, wind and humidity are — a reading taken at 16:00. A
-     * bar is not: rain is a TOTAL, and every provider here reports the row
-     * stamped 16:00 as the rain that fell in the hour ENDING at 16:00 (DWD
-     * and Open-Meteo both document it as the preceding hour). So the bar
-     * belongs in the span it is a total of — 15:00 to 16:00 — which puts it
-     * to the left of the tick its label names, and the crosshair on its
-     * right edge.
+     * bar is not: rain is a TOTAL, so it fills the span it is a total of.
+     * Every row here is the hour STARTING at its stamp — the data layer
+     * re-stamps Open-Meteo and DWD, which report the hour ending at theirs
+     * (weather-tab-data.js) — so the bar for 16:00 is 16:00 to 17:00, the
+     * crosshair on 16:00 stands at its left edge, and a tap there reads the
+     * rain still to fall in that hour. The watch's rain bar reads the same
+     * hour for the same slot.
      *
      * It has had all three positions. Straddling the tick was worst: rain
      * that fell at 16:40 was drawn half under the 16:00 label and half under
-     * nothing. Running rightwards from the tick at least filled an hour, but
-     * the wrong one — an hour that had not happened yet, shaded in by a
-     * figure for one that already had.
+     * nothing. Left of the tick filled the hour before the label: rain that
+     * fell from 14:00 to 15:00 read as the answer to "what about 15:00?".
      * @param {Object} view Prepared view.
      * @param {number} i Hour index.
      * @returns {number} Left edge in viewBox units.
      */
     function barX(view, i) {
-        return xAt(view, i) - HOUR_W;
+        return xAt(view, i);
     }
 
     /**
@@ -633,7 +631,7 @@
         var marks = { top: parts.top, bottom: parts.bottom, H: parts.H, lines: [], bar: parts.bar || null };
         // A selected bar is outlined, not merely brightened: opacity alone
         // was invisible on a one-unit-tall hour, and the border is what says
-        // which span the crosshair has picked out — the hour to its LEFT,
+        // which span the crosshair has picked out — the hour to its RIGHT,
         // the one the figures at that tick are a total of (see barX).
         if (marks.bar) { marks.bar.lit = pal.ink; }
         // The value dots are held back and emitted LAST, after the
@@ -1057,10 +1055,7 @@
         for (var i = 0; i < view.rain.length; i += 1) {
             var r = view.rain[i];
             var pm = (r === null) ? 0 : model.rainPermilleFromMm(r);
-            // The hour ENDING at the canvas's first tick ran before the
-            // canvas begins — it is yesterday evening, which is not on
-            // screen. There is nowhere to draw it, so it is not drawn.
-            if (i === 0 || r === null || pm <= 0) { tops.push(null); continue; }
+            if (r === null || pm <= 0) { tops.push(null); continue; }
             var bh = (bottom - top) * pm / 1000;
             tops.push(bottom - bh);
             under += '<rect id="wx-bar-temp-' + i + '" x="' + barX(view, i).toFixed(1)
@@ -1070,17 +1065,17 @@
         }
         // Precip probability row every 3 h; past hours show the app's dash.
         // Ink steps up with the chance — the wetter the hour, the more it
-        // wears the water color.
+        // wears the water color. Each figure is centred over the bar of the
+        // hour it is the chance for, not on the tick at that bar's left edge,
+        // where it read as half the hour before's.
         var over = '';
         for (i = 0; i < view.prob.length; i += 3) {
-            // A midnight figure is centred on a viewport seam, so half of it
-            // reads on each side of the fold — "10" on one day and "0%" on
-            // the next. It goes for the reason the icon row and the hour
-            // labels drop theirs; and the one at i === 0 goes for the reason
-            // the bar loop above gives, that its hour ran before the canvas.
+            // A midnight figure would start on a viewport seam, clipped by
+            // the fold — the icon row and the direction arrows drop theirs
+            // for the same reason.
             if (i % 24 === 0) { continue; }
-            var px = xAt(view, i);
-            if (i <= view.nowIndex) {
+            var px = xAt(view, i) + HOUR_W / 2;
+            if (i < view.nowIndex) {
                 over += '<text x="' + px + '" y="' + probY + '" text-anchor="middle" font-size="' + probSize
                     + '" font-weight="600" fill="' + pal.faint + '">–</text>';
                 continue;
@@ -1165,8 +1160,7 @@
         var tops = [];
         for (var i = 0; i < view.rh.length; i += 1) {
             var v = view.rh[i];
-            // As in the rain panel: hour 0's span is off the canvas's left.
-            if (i === 0 || v === null || v === undefined) { tops.push(null); continue; }
+            if (v === null || v === undefined) { tops.push(null); continue; }
             var bh = bottom - yr(v);
             if (bh < 1) { bh = 1; }
             tops.push(yr(v));
@@ -1436,32 +1430,26 @@
     }
 
     /**
-     * Which day's VIEWPORT an hour's marks are seen in — which is not the
-     * day the hour arithmetically belongs to, and the two disagree at
-     * exactly one index per day.
-     *
-     * A bar covers the hour ENDING at its tick, so scrubTo's hit test maps
-     * day d's screen to hours 24d+1 … 24d+24: the midnight that ENDS a day
-     * is reachable only from the day BEFORE it, and is never selectable
-     * from the day it starts. Asking `Math.floor(i / 24)` put that hour's
-     * chip and tick 22 and 1 units past the right edge of the only screen
-     * they are ever drawn on, so both vanished outright on the tap most
-     * likely to want them — a tap on the last sliver of a day.
-     * That mapping is total, so the day follows from the hour alone and no
+     * Which day's VIEWPORT an hour's marks are seen in: the day it opens or
+     * runs in. A bar covers the hour STARTING at its tick, so scrubTo's hit
+     * test maps day d's screen to hours 24d … 24d+23 — every midnight is
+     * selected from the day it opens, from that day's first sliver, and the
+     * midnight ending a day belongs to the next screen.
+     * The mapping is total, so the day follows from the hour alone and no
      * caller has to say which screen it is drawing — an hour index in range
      * (every caller clamps to the canvas) lands on a day in range.
      * @param {number} i Hour index into the view.
      * @returns {number} Day index the hour's marks are drawn on.
      */
     function seenOnDay(i) {
-        return i <= 0 ? 0 : Math.ceil(i / 24) - 1;
+        return i <= 0 ? 0 : Math.floor(i / 24);
     }
 
     /**
      * The strip chip's x at an hour: the hour's own x, nudged inward so
      * the 40-unit box never clips at the seams of the day it is SEEN in
      * (hour 0 of a day would otherwise lose its left half to
-     * overflow:hidden, and the midnight ending a day its right half). Used
+     * overflow:hidden, and 23:00 the right end of its box). Used
      * by the renderer above AND by weather-tab.js when it moves the chip
      * while scrubbing — one clamp, both paths.
      * @param {Object} view Prepared view.
@@ -1480,11 +1468,11 @@
 
     /**
      * The highlight tick's x at an hour: the true hour x, nudged 1 unit
-     * inward at either seam of the day it is SEEN in, so the 2-wide stroke
-     * is not halved by the viewport's overflow:hidden. Both seams are
-     * reachable — a day's first hour stands on its left one, and the
-     * midnight that ends the day stands on its right one — so this clamp
-     * has the same two sides as stripChipX's ±22, just a narrower nudge.
+     * inward at the seams of the day it is SEEN in, so the 2-wide stroke
+     * is not halved by the viewport's overflow:hidden. Only the left seam
+     * is reachable — a day's first hour stands on it, and the midnight
+     * ending the day is the next day's — but the clamp keeps the same two
+     * sides as stripChipX's ±22, just a narrower nudge.
      * Same shared-clamp deal: the renderer above AND weather-tab.js's
      * scrub move both go through it.
      * @param {Object} view Prepared view.

@@ -402,8 +402,7 @@ test('a scrub moves the strip tick and chip through the shared clamps (the DOM p
     // 0, which stands ON the day seam: the tick must take stripTickX's
     // 1-unit nudge (not the raw hour x 0) and the chip stripChipX's 22 —
     // the renderer's clamps, exercised through the scrub path ("one
-    // clamp, both paths"). Hour 0 is only ever reached this way: its own
-    // bar covers the hour BEFORE midnight, which is off this canvas.
+    // clamp, both paths").
     const svg = panelStub(360);
     tab._scrubTo(svg, -1);
     assert.equal(tick.x1, 1, 'the scrub path nudges the tick off the seam');
@@ -413,20 +412,19 @@ test('a scrub moves the strip tick and chip through the shared clamps (the DOM p
     // night-resolved ids, not the raw day glyph — no sun at 2am.
     assert.equal(chipIcon.href, '#wxi-hnclear',
       'a night-hour scrub swaps the chip to the moon twin');
-    // And the mirror case, which the clamp used to get exactly backwards.
-    // A bar covers the hour ENDING at its tick, so the last sliver of a
-    // day's canvas selects the MIDNIGHT that closes it — hour 24, which
-    // this screen is the only screen that can reach. Clamping it into the
-    // day it arithmetically starts put the chip 22 units past this
-    // viewport's right edge and the tick 1 past it: the badge and its
-    // pointer disappeared on that tap, while the tip and the lit bar
-    // stayed. Both must land INSIDE the day on screen.
-    tab._scrubTo(svg, 359.9);
-    assert.equal(chip.transform, 'translate(' + (charts.DAY_W - 22) + ' 0)',
-      'the closing midnight hugs this day\u2019s right seam, not the next day\u2019s left');
-    assert.equal(tick.x1, charts.DAY_W - 1, 'and the tick nudges in off the same seam');
-    assert.ok(tick.x1 < charts.DAY_W && Number(/translate\((-?[\d.]+)/.exec(chip.transform)[1]) + 20 <= charts.DAY_W,
-      'both are wholly inside the viewport that selected them');
+    // And the other end. A bar covers the hour STARTING at its tick, so the
+    // last sliver of a day's canvas is 23:00's bar — and the chip, 22 units
+    // either side of a tick 15 from the seam, hugs this day's right seam.
+    // A tap on the very last pixel is still this screen's: floored, it
+    // would name the next day's midnight, whose chip and tick are drawn a
+    // whole viewport away.
+    [359.9, 360].forEach((x) => {
+      tab._scrubTo(svg, x);
+      assert.equal(chip.transform, 'translate(' + (charts.DAY_W - 22) + ' 0)',
+        'x=' + x + ': 23:00 hugs this day\u2019s right seam');
+      assert.equal(tick.x1, 23 * charts.HOUR_W, 'and its tick stands on its own hour');
+      tab._scrubTo(svg, x);   // put it down again for the next tap
+    });
   } finally {
     delete global.document;
     data.fetchWeather = realFetch;
@@ -470,9 +468,9 @@ test('the value tip always sits just above the hour\'s topmost mark — overflow
         / marks.H * tip.parentNode.clientHeight;
     };
     const svg = panelStub(390);
-    // A client x in the MIDDLE of hour h's bar — the span that ends on h's
+    // A client x in the MIDDLE of hour h's bar — the span that starts on h's
     // own tick — so the scrub selects h and not a neighbour.
-    const px = (h) => (h - 0.5) * charts.HOUR_W / charts.DAY_W * 390;
+    const px = (h) => (h + 0.5) * charts.HOUR_W / charts.DAY_W * 390;
 
     tab._scrubTo(svg, px(2));
     assert.equal(parseInt(tip.style.top, 10),
@@ -621,12 +619,12 @@ test('the crosshair lands in the hour the finger is INSIDE, and outlines its bar
     const litTemp = () => Object.keys(bars).filter((k) =>
       k.indexOf('wx-bar-temp-') === 0 && bars[k].attrs.stroke && bars[k].attrs.stroke !== 'none');
 
-    // A bar fills the hour that ENDS on its own tick, so the span the clock
-    // calls 19:00 → 20:00 is the bar labelled 20. The hour a tap belongs to
-    // is therefore the one the finger is INSIDE, one past the tick it has
-    // just cleared. Rounding to the nearest tick, or flooring to the one
-    // behind, both light a bar beside the one under the finger.
-    [[19.05, 20], [19.5, 20], [19.95, 20], [20.05, 21]].forEach((c) => {
+    // A bar fills the hour that STARTS on its own tick, so the span the
+    // clock calls 19:00 → 20:00 is the bar labelled 19. The hour a tap
+    // belongs to is therefore the one the finger is INSIDE: the tick it has
+    // just cleared. Rounding to the nearest tick lights the bar beside the
+    // one under the finger for every tap in an hour's second half.
+    [[19.05, 19], [19.5, 19], [19.95, 19], [20.05, 20]].forEach((c) => {
       // Park somewhere else first. Three of these four land on the SAME
       // hour by design, and a second tap on the hour already selected puts
       // it down (pinned in its own test below) — which would make this one
@@ -641,30 +639,29 @@ test('the crosshair lands in the hour the finger is INSIDE, and outlines its bar
     // one it lands on is at full strength as well as outlined.
     tab._scrubTo(svg, at(19.5));
     const marks = charts.tempPanelSvg(view, state, charts.palette(false)).marks;
-    assert.equal(bars['wx-bar-temp-20'].attrs.stroke, marks.bar.lit,
+    assert.equal(bars['wx-bar-temp-19'].attrs.stroke, marks.bar.lit,
       'the selected bar wears the page ink');
-    assert.equal(bars['wx-bar-temp-20'].attrs.opacity, '1', 'at full strength');
+    assert.equal(bars['wx-bar-temp-19'].attrs.opacity, '1', 'at full strength');
     tab._scrubTo(svg, at(20.5));
-    assert.equal(bars['wx-bar-temp-20'].attrs.stroke, 'none',
+    assert.equal(bars['wx-bar-temp-19'].attrs.stroke, 'none',
       'and the hour left behind gives its border back');
-    assert.equal(bars['wx-bar-temp-20'].attrs.opacity, String(marks.bar.dim),
+    assert.equal(bars['wx-bar-temp-19'].attrs.opacity, String(marks.bar.dim),
       'along with its brightness — a dim bar left outlined reads as a '
       + 'second selection');
-    assert.deepEqual(litTemp(), ['wx-bar-temp-21'], 'exactly one bar is ever lit');
+    assert.deepEqual(litTemp(), ['wx-bar-temp-20'], 'exactly one bar is ever lit');
 
     // Exactly ON a tick is the boundary between two spans, and it belongs
     // to the one that STARTS there — the half-open rule Math.floor gives
     // everywhere else, and the one that keeps the canvas's own left edge
-    // usable: x = 0 opens hour 1's span, and hour 1 has a bar, where hour
-    // 0's span is off the canvas and draws nothing. (A rect's own left
-    // edge is inside it and its right edge is not, so this is also what
-    // the painter already believes.) Measured in canvas units so the
-    // boundary is exact and not a float a hair to one side of it.
+    // usable: x = 0 opens hour 0's span. (A rect's own left edge is inside
+    // it and its right edge is not, so this is also what the painter
+    // already believes.) Measured in canvas units so the boundary is exact
+    // and not a float a hair to one side of it.
     const exact = panelStub(charts.DAY_W);
     const onTick = charts.DAY_W / 4;
     assert.equal(onTick % charts.HOUR_W, 0, 'precondition: a quarter day is an hour tick');
     tab._scrubTo(exact, onTick);
-    assert.deepEqual(litTemp(), ['wx-bar-temp-' + (onTick / charts.HOUR_W + 1)],
+    assert.deepEqual(litTemp(), ['wx-bar-temp-' + (onTick / charts.HOUR_W)],
       'a tap exactly on a tick takes the span that starts there');
   } finally {
     delete global.document;
@@ -719,16 +716,16 @@ test('a tap during the settle reads the day the page is going to, not the one it
     tab._commitDay(1);
     assert.equal(tab._panDay(), 1, 'the destination is committed at release');
 
-    // A tap 10% into the viewport: 2.4 h into day 1, so the span
-    // 02:00 → 03:00, which is the hour labelled 03:00 of day 1.
-    tab._scrubTo(midFlight, 39);
+    // A tap 20% into the viewport: 4.8 h into day 1, so the span
+    // 04:00 → 05:00, which is the hour labelled 04:00 of day 1.
+    tab._scrubTo(midFlight, 78);
     const lit = Object.keys(bars).filter((k) =>
       k.indexOf('wx-bar-temp-') === 0 && bars[k].attrs.stroke && bars[k].attrs.stroke !== 'none');
-    assert.deepEqual(lit, ['wx-bar-temp-27'],
+    assert.deepEqual(lit, ['wx-bar-temp-28'],
       'the hour is day 1\u2019s, measured against the viewport the finger is on');
     assert.equal(tip.style.display, 'block', 'so the tip has somewhere to be');
-    assert.equal(parseInt(tip.style.left, 10), 49,
-      'and stands where the tap did, a tenth of the way in');
+    assert.equal(parseInt(tip.style.left, 10), 65,
+      'and stands on that hour\u2019s tick, a sixth of the way in');
   } finally {
     delete global.document;
     data.fetchWeather = realFetch;
@@ -767,7 +764,7 @@ test('the chip IS the selection: a second tap puts it down, and a day change tak
     tab.weatherGraphsBlock(state, {}, SEED);
     const view = tab._fetchState().view;
     const svg = panelStub(390);
-    const at = (h) => (h - 0.5) * charts.HOUR_W / charts.DAY_W * 390;
+    const at = (h) => (h + 0.5) * charts.HOUR_W / charts.DAY_W * 390;
     const chip = () => el['wx-strip-hi'].attrs.display;
     const tick = () => el['wx-strip-hi-tick'].attrs.display;
     const litTemp = () => Object.keys(el).filter((k) =>
@@ -971,7 +968,7 @@ test('tip horizontal clamps: wide tips stay centered; edge hours pin inside the 
     const view = tab._fetchState().view;
     const svg = panelStub(390);
     // A client x in the MIDDLE of hour h's bar, so the scrub selects h.
-    const px = (h) => (h - 0.5) * charts.HOUR_W / charts.DAY_W * 390;
+    const px = (h) => (h + 0.5) * charts.HOUR_W / charts.DAY_W * 390;
 
     // A WIDE tip at the ridge top — the shape that used to trigger the
     // below/last-resort dodges — now simply overflows upward, centered.
@@ -989,15 +986,14 @@ test('tip horizontal clamps: wide tips stay centered; edge hours pin inside the 
     assert.equal(parseInt(tip.style.left, 10), 390 - 34,
       'right edge: clamped to half a tip + air inside the viewport');
 
-    // Release slop — a tap at the very edge can round to the hour sitting
-    // ON the day seam (scrubTo clamps to the timeline, not the day). That
-    // hour is still at the viewport boundary, so it stays VISIBLE, pulled
-    // back inside rather than hidden: the half-pixel slack in placeTipX's
-    // hide window exists for exactly this.
-    tab._scrubTo(svg, px(24));
+    // Every day's 00:00 stands exactly ON its left seam, so a tap in a
+    // day's first sliver lands the crosshair px on the boundary. That hour
+    // stays VISIBLE, pulled back inside rather than hidden: the half-pixel
+    // slack in placeTipX's hide window exists for exactly this.
+    tab._scrubTo(svg, px(0));
     assert.equal(tip.style.display, 'block', 'the seam hour is still on screen');
-    assert.equal(parseInt(tip.style.left, 10), 390 - 34,
-      'an off-day crosshair px is clamped back into the viewport');
+    assert.equal(parseInt(tip.style.left, 10), 34,
+      'a crosshair px on the seam is clamped into the viewport');
 
     // A genuinely off-window hour is a different matter: it is hidden,
     // and placeTipX returns before touching left — so assert on display,
@@ -1009,7 +1005,7 @@ test('tip horizontal clamps: wide tips stay centered; edge hours pin inside the 
       'and a hidden tip is not repositioned at all');
     tip.style.left = '';
 
-    tab._scrubTo(svg, px(0));
+    tab._scrubTo(svg, px(1));
     assert.equal(parseInt(tip.style.left, 10), 34, 'left edge: clamped in');
   } finally {
     delete global.document;
@@ -1849,7 +1845,7 @@ test('on the current hour the crosshair stands down and lets the now line speak'
     const view = tab._fetchState().view;
     const svg = panelStub(390);
     // A client x in the MIDDLE of hour h's bar, so the scrub selects h.
-    const at = (h) => (h - 0.5) * charts.HOUR_W / charts.DAY_W * 390;
+    const at = (h) => (h + 0.5) * charts.HOUR_W / charts.DAY_W * 390;
     const x = () => lines['wx-scrub-temp'].attrs.x1;
     const now = view.nowIndex;
 

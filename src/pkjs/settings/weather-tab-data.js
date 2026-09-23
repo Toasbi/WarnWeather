@@ -9,6 +9,10 @@
 //   hourly: parallel arrays over `time` (epoch ms) — temp °C, rain mm/h,
 //           prob %, wind/gust km/h, dir deg, rh %, dew °C, pressure hPa,
 //           icon id (weather-tab-model.js vocabulary); null = unsourced.
+//           A row is the hour STARTING at its stamp: rain, chance and gust
+//           stamped 14:00 are 14:00-15:00's. Open-Meteo and DWD stamp those
+//           at the hour's END, so their parsers re-stamp them
+//           (model.startHourFields), as the watch's adapters do.
 //           Two provenance flags, per hour. `measured` says whether the
 //           RAIN was read off a station rather than modelled — it gates
 //           the rain bar, so it follows that one field exactly.
@@ -175,10 +179,20 @@
             var code = h.weather_code ? h.weather_code[i] : null;
             hourly.icon.push(code === null || code === undefined ? null : model.wmoIcon(code));
         }
+        // Open-Meteo documents precipitation, its probability and the gust as
+        // the PRECEDING hour's ("preceding hour sum/probability/max"); every
+        // other series here is an instant. Row 14:00 takes the 15:00 stamp's.
+        model.startHourFields(hourly, { rain: null, prob: null, gust: null });
         var daily = [];
         var d = data.daily;
         var off = offsetSec === null ? model.phoneUtcOffsetSec(nowMs) : offsetSec;
         var todayStartMs = model.localDayStart(nowMs, off);
+        // The API's own daily sum and maximum run over the 24 values STAMPED
+        // in the day, which for preceding-hour values is 23:00 the evening
+        // before to 23:00 -- an hour off the day whose bars sit under the
+        // tile. A tile's rain and chance come from the re-stamped hours
+        // instead, so it totals exactly its own day's bars.
+        var sums = model.aggregateDaily(hourly, nowMs, DAILY_COUNT, offsetSec);
         if (d && d.time) {
             for (var j = 0; j < d.time.length && daily.length < DAILY_COUNT; j += 1) {
                 var dayMs = d.time[j] * 1000;
@@ -186,18 +200,35 @@
                 // location's midnights); the hour of slack absorbs DST edges.
                 if (dayMs < todayStartMs - 3600000) { continue; }
                 var sun = num(d.sunshine_duration && d.sunshine_duration[j]);
+                var own = sumsFor(sums, dayMs);
+                var rainMm = own ? own.rainMm : null;
+                var probMax = own ? own.probMax : null;
                 daily.push({
                     date: dayMs,
                     tmin: num(d.temperature_2m_min && d.temperature_2m_min[j]),
                     tmax: num(d.temperature_2m_max && d.temperature_2m_max[j]),
                     icon: d.weather_code ? model.wmoIcon(d.weather_code[j]) : null,
-                    rainMm: num(d.precipitation_sum && d.precipitation_sum[j]),
-                    probMax: num(d.precipitation_probability_max && d.precipitation_probability_max[j]),
+                    rainMm: rainMm !== null ? rainMm : num(d.precipitation_sum && d.precipitation_sum[j]),
+                    probMax: probMax !== null ? probMax : num(d.precipitation_probability_max && d.precipitation_probability_max[j]),
                     sunshineH: sun === null ? null : sun / 3600
                 });
             }
         }
         return { hourly: hourly, daily: daily, utcOffsetSec: offsetSec };
+    }
+
+    /**
+     * The aggregated tile for a provider's day stamp, within the hour of
+     * slack a DST edge can put between the two.
+     * @param {Array<{date: number}>} sums Tiles from model.aggregateDaily.
+     * @param {number} dayMs The provider's day-start instant (epoch ms).
+     * @returns {?Object} The matching tile, or null.
+     */
+    function sumsFor(sums, dayMs) {
+        for (var i = 0; i < sums.length; i += 1) {
+            if (Math.abs(sums[i].date - dayMs) <= 3600000) { return sums[i]; }
+        }
+        return null;
     }
 
     /**
@@ -324,6 +355,7 @@
         var offsetSec = echoed ? echoed : null;
         var measuredIds = observedSourceIds(data.sources);
         var hourly = emptyHourly();
+        var gustMeasured = [];
         for (var i = 0; i < rows.length; i += 1) {
             var r = rows[i];
             var t = Date.parse(r.timestamp);
@@ -334,6 +366,7 @@
             // stands over, so it takes the whole row or nothing.
             hourly.measured.push(fieldMeasured(r, 'precipitation', measuredIds));
             hourly.measuredAll.push(rowMeasured(r, measuredIds));
+            gustMeasured.push(fieldMeasured(r, 'wind_gust_speed', measuredIds));
             hourly.time.push(t);
             hourly.temp.push(num(r.temperature));
             hourly.rain.push(num(r.precipitation));
@@ -346,6 +379,22 @@
             hourly.pressure.push(num(r.pressure_msl));
             hourly.icon.push(r.icon ? model.brightskyIcon(r.icon) : null);
             hourly.sunshineMin.push(num(r.sunshine));
+        }
+        // Brightsky documents the precipitation, its probability, the gust
+        // and the sunshine as the PRECEDING hour's ("during previous 60
+        // minutes"); the rain's provenance moves with the rain. Before the
+        // tiles are summed, so each one totals its own calendar day. Wind
+        // speed and direction stay on their own row, as the watch keeps them
+        // (dwd.js).
+        var from = model.startHourFields(hourly,
+            { rain: null, prob: null, gust: null, sunshineMin: null, measured: false });
+        // The caption vouches for every panel over a past hour, and two of
+        // them now draw the NEXT record's rain and gust: the hour counts as
+        // measured only when its own row does and those two fields of that
+        // record do too.
+        for (i = 0; i < from.length; i += 1) {
+            hourly.measuredAll[i] = hourly.measuredAll[i] && from[i] >= 0
+                && hourly.measured[i] && gustMeasured[from[i]];
         }
         return {
             hourly: hourly,

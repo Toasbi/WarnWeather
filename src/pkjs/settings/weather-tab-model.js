@@ -491,6 +491,43 @@
         return null;
     }
 
+    // --- hour convention ---------------------------------------------------------
+
+    /**
+     * Re-stamp fields a provider reports for the PRECEDING hour onto the hour
+     * they START, which is what every hour of the tab means: the row stamped
+     * 14:00 is 14:00-15:00, the bar right of the 14:00 tick, the figure a tap
+     * there reads, and the slot the watch fills from the same provider
+     * (openmeteo.js's precedingHourSlice, dwd.js's slotRecords). So row T
+     * takes the value stamped T+1h. The pair is found by TIME, never by
+     * index -- a provider can skip an hour, and a parser drops rows it
+     * cannot date, so an index shift would slide every later hour -- and a
+     * row with no T+1h partner takes `fills[key]` (null: unsourced).
+     * Only Open-Meteo and DWD need this; tomorrow.io and OWM already stamp
+     * the hour at its start, and shifting them would put them an hour early.
+     * @param {{time: number[]}} hourly Normalized hourly arrays (time = epoch ms); rewritten in place.
+     * @param {Object<string, *>} fills Series key -> the value for a row with no T+1h partner.
+     * @returns {number[]} Per row, the index its values came from, or -1.
+     */
+    function startHourFields(hourly, fills) {
+        var at = {};
+        var i;
+        for (i = 0; i < hourly.time.length; i += 1) { at[hourly.time[i]] = i; }
+        var from = [];
+        for (i = 0; i < hourly.time.length; i += 1) {
+            var j = at[hourly.time[i] + 3600000];
+            from.push(j === undefined ? -1 : j);
+        }
+        for (var key in fills) {
+            if (!Object.prototype.hasOwnProperty.call(fills, key)) { continue; }
+            var src = hourly[key].slice();
+            for (i = 0; i < src.length; i += 1) {
+                hourly[key][i] = from[i] < 0 ? fills[key] : src[from[i]];
+            }
+        }
+        return from;
+    }
+
     // --- daily aggregation ----------------------------------------------------
 
     /**
@@ -571,6 +608,7 @@
         owmIcon: owmIcon,
         tomorrowIcon: tomorrowIcon,
         pickDailyIcon: pickDailyIcon,
+        startHourFields: startHourFields,
         aggregateDaily: aggregateDaily
     };
 

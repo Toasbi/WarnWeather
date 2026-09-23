@@ -51,9 +51,9 @@ function precedingHourSlice(series, anchor, bucketCount, fill) {
  * startTime + i h (bar i sits right of tick i), so those three read one bucket
  * ahead — slot i takes the bucket stamped startTime + (i + 1) h. Read at the
  * anchor, the current-hour bar showed the hour that had just ended and every
- * shower landed an hour late. (The settings page's Weather tab keeps the raw
- * stamps and draws each bar as the hour ENDING at its tick instead, so it
- * needs no shift.)
+ * shower landed an hour late. (The settings page's Weather tab re-stamps the
+ * same three fields the same way, weather-tab-model.js's startHourFields, so
+ * a tap on 14:00 there reads the hour this slot shows.)
  *
  * @param {Object} json Parsed Open-Meteo /v1/forecast response.
  * @param {number} nowEpoch Current time in epoch seconds.

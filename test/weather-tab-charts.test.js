@@ -155,12 +155,10 @@ test('panel specs carry the crosshair-highlight plumbing (marks, dots, bar ids, 
   // leave un-highlighted bars at the wrong opacity.
   assert.match(temp.main, new RegExp('id="wx-bar-temp-19"[^>]*opacity="' + temp.marks.bar.dim + '"'),
     'rain bars rest at exactly marks.bar.dim');
-  // Hour 1, not hour 0: a bar covers the hour ENDING at its tick, and the
-  // hour ending at the canvas's first tick ran before the canvas starts.
-  assert.match(hum.main, new RegExp('id="wx-bar-hum-1"[^>]*opacity="' + hum.marks.bar.dim + '"'),
+  // Hour 0 too: a bar covers the hour STARTING at its tick, so the canvas's
+  // first tick opens the first bar.
+  assert.match(hum.main, new RegExp('id="wx-bar-hum-0"[^>]*opacity="' + hum.marks.bar.dim + '"'),
     'humidity bars rest at exactly marks.bar.dim');
-  assert.equal(hum.main.indexOf('id="wx-bar-hum-0"'), -1,
-    'and hour 0 has no bar to rest at all — its span is off the canvas');
   assert.deepEqual(wind.marks.lines.map((l) => l.key), ['gust', 'wind']);
   assert.equal(wind.marks.bar, null);
   assert.deepEqual(hum.marks.lines.map((l) => l.key), ['temp', 'dew'],
@@ -717,23 +715,29 @@ test('a real DWD response reaches the caption: the word follows the modelled fie
     };
   };
 
-  // Stations read every drawn field for hours 0..8.
+  // Stations read every drawn field for the records stamped 0..8. Brightsky
+  // stamps rain and gust at the END of their hour, so the record stamped
+  // 08:00 is 07:00-08:00's and the one stamped 09:00 -- a forecast -- is
+  // 08:00-09:00's: the measured stretch is hours 0..7.
   const clean = read(build(null));
   assert.deepEqual(clean.words, ['Measured', 'Estimated', 'Forecast']);
-  assert.equal(clean.measuredEnd, 8 * charts.HOUR_W + charts.HOUR_W / 2 - 5);
-  assert.equal(clean.bars, '#########...', 'nine measured hours of rain');
+  assert.equal(clean.measuredEnd, 7 * charts.HOUR_W + charts.HOUR_W / 2 - 5);
+  assert.equal(clean.bars, '########....', 'eight measured hours of rain');
 
   // EVERY field the panels draw pulls its weight: if any one of them was
   // filled in from MOSMIX, the word stops there — while the rain bars,
   // which ask only about the rain, are untouched.
   ['temperature', 'precipitation', 'wind_speed', 'wind_gust_speed',
     'wind_direction', 'relative_humidity', 'dew_point', 'pressure_msl'].forEach((field) => {
-    const partial = read(build(4, field));
-    assert.equal(partial.measuredEnd, 3 * charts.HOUR_W + charts.HOUR_W / 2 - 5,
-      'a modelled ' + field + ' ends the measured stretch at hour 3');
+    const partial = read(build(5, field));
+    // Modelled from the record stamped 05:00: an instant there is hour 5's,
+    // but the rain and gust stamped 05:00 are hour 4's.
+    const ahead = field === 'precipitation' || field === 'wind_gust_speed';
+    assert.equal(partial.measuredEnd, (ahead ? 3 : 4) * charts.HOUR_W + charts.HOUR_W / 2 - 5,
+      'a modelled ' + field + ' ends the measured stretch at hour ' + (ahead ? 3 : 4));
     // The rain is the one field that also gates the bars, so it is the one
     // case where a bar goes too.
-    assert.equal(partial.bars, field === 'precipitation' ? '####........' : '#########...',
+    assert.equal(partial.bars, field === 'precipitation' ? '####........' : '########....',
       'a modelled ' + field + ' leaves the rain bars alone unless it IS the rain');
   });
 
@@ -781,28 +785,23 @@ test('the hour strip highlights the selected hour with the app\'s chip (own icon
   // scrub path via charts.stripChipX.
   assert.equal(charts.stripChipX(view, 0), 22, 'hour 0 clamps off the left seam');
   assert.equal(charts.stripChipX(view, 23), charts.DAY_W - 22, 'hour 23 clamps off its day\'s right seam');
-  // The midnight that ENDS a day is the case the arithmetic used to get
-  // wrong. A bar covers the hour ending at its tick, so a tap on the last
-  // sliver of day 0 selects hour 24 — and hour 24 is reachable from day 0
-  // and from nowhere else. Clamping it into the day it arithmetically
-  // belongs to put the chip at 382: 22 units past the right edge of the
-  // only screen it is ever drawn on, so the badge vanished outright on the
-  // tap most likely to want it, rather than hugging the edge.
-  assert.equal(charts.stripChipX(view, 24), charts.DAY_W - 22,
-    'the midnight ending day 0 clamps against the seam it is SEEN at');
+  // Every midnight is seen on the day it OPENS. A bar covers the hour
+  // starting at its tick, so a tap on the first sliver of day 1 selects hour
+  // 24, from day 1's screen — and the chip hugs that screen's left seam.
+  assert.equal(charts.stripChipX(view, 24), charts.DAY_W + 22,
+    'the midnight opening day 1 clamps against the seam it is SEEN at');
   assert.equal(charts.stripChipX(view, 15), 15 * charts.HOUR_W, 'mid-day hours sit at their own x');
   // The tick's clamp is its own, tighter one: 1 unit, so the 2-wide stroke
   // isn't halved at a seam but the tick still reads as the true hour x.
-  // Both seams are reachable, so it has both sides.
   assert.equal(charts.stripTickX(view, 0), 1, 'the tick nudges 1 unit off the left seam');
-  assert.equal(charts.stripTickX(view, 24), charts.DAY_W - 1,
-    'and 1 unit off the right one, for that same midnight');
+  assert.equal(charts.stripTickX(view, 24), charts.DAY_W + 1,
+    'and so does every midnight, on the day it opens');
   assert.equal(charts.stripTickX(view, 15), 15 * charts.HOUR_W, 'mid-day ticks sit at their true x');
   // Stated as the invariant rather than three cases: whatever the hour,
   // both marks land wholly inside the viewport they are drawn on. A clamp
   // that pushes a mark off screen is worse than the clipping it prevents.
   for (let i = 0; i < view.times.length; i += 1) {
-    const d = i <= 0 ? 0 : Math.ceil(i / 24) - 1;
+    const d = Math.floor(i / 24);
     const lo = d * charts.DAY_W;
     const hi = (d + 1) * charts.DAY_W;
     const cx = charts.stripChipX(view, i);
@@ -1279,22 +1278,23 @@ test('prepareView settles past hours: a chance is only ever about hours to come'
   // The provider DOES hand over a chance for every past hour (the fixture
   // mirrors Open-Meteo's past_days) — the view is what drops them.
   assert.equal(fixtureData().hourly.prob[12], 10, 'the source carries past chances');
-  // Up to AND INCLUDING the row on the now line: a row is the hour ENDING
-  // at its stamp (see charts.barX), so the row stamped 12:00 is the hour
-  // from 11:00 to noon — over, and no longer a matter of chance.
-  for (let i = 0; i <= view.nowIndex; i += 1) {
+  // Up to, NOT including, the row on the now line: a row is the hour
+  // STARTING at its stamp (see charts.barX), so the row stamped 11:00 is the
+  // hour from 11:00 to noon — over, and no longer a matter of chance — and
+  // the row stamped 12:00 is the one running.
+  for (let i = 0; i < view.nowIndex; i += 1) {
     assert.equal(view.prob[i], null, `hour ${i} is over: no chance survives it`);
   }
-  assert.equal(view.prob[view.nowIndex + 1], 10,
-    'the hour in progress — the row AFTER the now line — keeps its chance');
+  assert.equal(view.prob[view.nowIndex], 10,
+    'the hour in progress — the row ON the now line — keeps its chance');
   assert.equal(view.prob[20], 60, 'later hours are untouched');
   // Every readout inherits it, because they all read view.prob.
   assert.equal((charts.tipHtml('temp', view, 5, s).match(/wx-tip-c/g) || []).length, 2,
     'the tip of a settled hour shows what happened, not what was promised');
   assert.equal(charts.tipHtml('temp', view, 5, s).indexOf('Chance'), -1);
-  assert.ok(charts.tipHtml('temp', view, view.nowIndex + 1, s).indexOf('<b>Chance</b>') !== -1,
+  assert.ok(charts.tipHtml('temp', view, view.nowIndex, s).indexOf('<b>Chance</b>') !== -1,
     'the running hour still carries its Chance column');
-  assert.equal(charts.tipHtml('temp', view, view.nowIndex, s).indexOf('Chance'), -1,
+  assert.equal(charts.tipHtml('temp', view, view.nowIndex - 1, s).indexOf('Chance'), -1,
     'and the hour that just ended does not');
   assert.equal(charts.tipText('temp', view, 5, s).indexOf('%'), -1,
     'the plain-text tip drops it too');
@@ -1302,8 +1302,9 @@ test('prepareView settles past hours: a chance is only ever about hours to come'
   // so its 3-hourly cadence must not go blank.
   const svg = charts.tempPanelSvg(view, s, charts.palette(false)).main;
   const marks = svg.match(/>(–|\d+%)<\/text>/g) || [];
-  assert.ok(marks.length >= 4 && marks.slice(0, 4).every((m) => m.indexOf('–') !== -1),
-    'the first four 3-hourly marks of a midday view are dashes');
+  assert.ok(marks.length >= 4 && marks.slice(0, 3).every((m) => m.indexOf('–') !== -1),
+    'the first three 3-hourly marks of a midday view are dashes');
+  assert.equal(marks[3], '>10%</text>', 'and noon, the hour running, prints its chance');
 });
 
 test('an hour that is over shows the rain that FELL, or none at all', () => {
@@ -1546,12 +1547,13 @@ test('every canvas rules its day boundaries, so a swipe shows where the day ends
   });
 });
 
-test('a bar fills the hour it is about — the one ENDING on its own tick', () => {
+test('a bar fills the hour it is about — the one STARTING on its own tick', () => {
   // A line or a dot marks the instant an hour begins, so it sits ON the
   // tick. A bar is a claim about a whole hour, and the hour it claims is
-  // the one that just ended: both providers report an hour's rain as the
-  // total that fell in the sixty minutes BEFORE the timestamp, so 19:00's
-  // bar covers 18:00 → 19:00 and stands to the LEFT of the 19:00 tick.
+  // the one its tick opens — the hour the watch's rain bar draws for the
+  // same slot, and the one a tap on that tick asks about. (The data layer
+  // re-stamps the providers that report the hour BEFORE their stamp.) So
+  // 19:00's bar covers 19:00 → 20:00 and stands to the RIGHT of its tick.
   const pal = charts.palette(false);
   const view = charts.prepareView(fixtureData(), NOON);
   const rectOf = (svg, id) => {
@@ -1565,28 +1567,27 @@ test('a bar fills the hour it is about — the one ENDING on its own tick', () =
 
   const wet = rectOf(temp.main, 'wx-bar-temp-19');
   assert.ok(wet, 'the wet hour draws a bar');
-  assert.equal(wet.x, 18 * charts.HOUR_W, 'it starts on the PREVIOUS hour tick');
+  assert.equal(wet.x, 19 * charts.HOUR_W, 'it starts on its own tick');
   assert.equal(wet.w, charts.HOUR_W, 'and runs exactly one hour wide');
-  assert.equal(wet.x + wet.w, 19 * charts.HOUR_W, 'so it ends on its own tick');
+  assert.equal(wet.x + wet.w, 20 * charts.HOUR_W, 'so it ends on the NEXT hour tick');
 
   // The humidity bars are inset a unit either side so neighbours read as
   // separate bars — inset from the same span, not from a different one.
   const h6 = rectOf(hum.main, 'wx-bar-hum-6');
   assert.ok(h6, 'the humidity hour draws a bar');
-  assert.equal(h6.x, 5 * charts.HOUR_W + 1, 'inset one unit into the hour it covers');
-  assert.equal(h6.x + h6.w, 6 * charts.HOUR_W - 1, 'and one unit short of its own tick');
+  assert.equal(h6.x, 6 * charts.HOUR_W + 1, 'inset one unit into the hour it covers');
+  assert.equal(h6.x + h6.w, 7 * charts.HOUR_W - 1, 'and one unit short of the next tick');
 
-  // Nothing overhangs the canvas. The hour before midnight is off the left
-  // edge — the canvas opens AT 00:00 — so hour 0 draws nothing at all
-  // rather than a bar hanging at x = -15.
+  // Nothing overhangs the canvas: the canvas opens AT 00:00, which is where
+  // hour 0's bar starts, and the last hour's ends at the canvas's end.
   const last = view.times.length - 1;
-  assert.equal(rectOf(hum.main, 'wx-bar-hum-0'), null,
-    'the first hour has no span on this canvas, so it draws no bar');
+  const first = rectOf(hum.main, 'wx-bar-hum-0');
+  assert.ok(first, 'the first hour draws its bar');
+  assert.equal(first.x, 1, 'from the canvas start');
   const lastHum = rectOf(hum.main, 'wx-bar-hum-' + last);
-  if (lastHum) {
-    assert.ok(lastHum.x + lastHum.w <= view.days * charts.DAY_W,
-      'and the last does not run past the end (' + (lastHum.x + lastHum.w) + ')');
-  }
+  assert.ok(lastHum, 'and so does the last');
+  assert.ok(lastHum.x + lastHum.w <= view.days * charts.DAY_W,
+    'which does not run past the end (' + (lastHum.x + lastHum.w) + ')');
 
   // Resting bars carry no border; the panel hands the painter the ink that
   // one wears when the crosshair stands in it, so weather-tab.js never has
@@ -1598,21 +1599,19 @@ test('a bar fills the hour it is about — the one ENDING on its own tick', () =
     charts.palette(true).ink, 'and follows the theme');
 });
 
-test('a bar totals an hour that is OVER: the now line dashes it, and the one before the canvas is not drawn', () => {
-  // Two things follow from a bar covering the hour that ENDS at its stamp,
-  // and only one of them is geometry.
+test('a bar is the hour its tick OPENS: the now line starts the running one, the hour before it is over', () => {
+  // Two things follow from a bar covering the hour that STARTS at its
+  // stamp, and only one of them is geometry.
   //
-  // The row standing ON the now line is an hour that has finished, so it is
-  // settled like every other past hour — its chance goes, and its rain has
-  // to have been measured to survive. The hour still running is the row
-  // AFTER it. Read the bound as exclusive and that row slips through as a
-  // forecast: a chance printed for an hour nobody can still be uncertain
-  // about, and a rain figure nobody measured drawn as if they had.
+  // The row standing ON the now line is the hour that is running, so it
+  // keeps its chance and its forecast rain; the row before it has finished
+  // and is settled like every other past hour — its chance goes, and its
+  // rain has to have been measured to survive. Read the bound as inclusive
+  // and the running hour is blanked: no chance for the hour everyone is
+  // asking about, and no rain drawn for it until it is over.
   //
-  // And the FIRST row of the canvas totals the hour before midnight, which
-  // is yesterday evening — off the left edge. There is nowhere to draw it,
-  // so it is not drawn; a bar at x = -15 would bleed a sliver of yesterday
-  // in under the 00:00 label.
+  // And the FIRST row of the canvas is 00:00-01:00, which is on the canvas,
+  // so it draws like any other.
   const pal = charts.palette(false);
   // A wet day the provider also says it MEASURED — otherwise every past
   // hour's rain is blanked for want of a measurement and neither claim
@@ -1636,29 +1635,33 @@ test('a bar totals an hour that is OVER: the now line dashes it, and the one bef
   assert.equal(now % 3, 0, 'precondition: now stands on a labelled column');
   const temp = charts.tempPanelSvg(all, {}, pal);
 
-  assert.equal(rectOf(temp.main, 'wx-bar-temp-0'), null,
-    'hour 0 totals the hour before midnight — off this canvas, so undrawn');
-  assert.ok(rectOf(temp.main, 'wx-bar-temp-1'),
-    'its neighbour, whose span IS on the canvas, draws');
-  assert.equal(rectOf(charts.humidityPanelSvg(all, {}, pal).main, 'wx-bar-hum-0'), null,
+  assert.ok(rectOf(temp.main, 'wx-bar-temp-0'), 'hour 0 is 00:00-01:00, on this canvas, so it draws');
+  assert.ok(rectOf(charts.humidityPanelSvg(all, {}, pal).main, 'wx-bar-hum-0'),
     'and the same in every panel that has bars');
 
+  // Each figure is centred over the bar of its own hour.
+  const over = (i) => charts.xAt(all, i) + charts.HOUR_W / 2;
   const dashesAt = (svg) => (svg.match(/<text x="[\d.]+"[^>]*>\u2013<\/text>/g) || [])
     .map((t) => Number(/x="([\d.]+)"/.exec(t)[1]));
-  assert.ok(dashesAt(temp.main).indexOf(charts.xAt(all, now)) !== -1,
-    'the hour that has just ended shows the dash, not a chance');
-  assert.equal(all.prob[now], null, 'because prepareView took its chance away');
-  assert.ok(all.prob[now + 3] !== null && all.prob[now + 3] !== undefined,
-    'while the hours still to come keep theirs');
+  assert.ok(dashesAt(temp.main).indexOf(over(now - 3)) !== -1,
+    'an hour that has ended shows the dash, not a chance');
+  assert.equal(dashesAt(temp.main).indexOf(over(now)), -1,
+    'the hour that is running does not');
+  assert.equal(all.prob[now - 1], null, 'because prepareView took the chance of the hour before away');
+  assert.ok(all.prob[now] !== null && all.prob[now] !== undefined,
+    'while the running hour keeps its own');
 
-  // Same hour, same rain — but now nobody measured it.
-  const late = charts.prepareView(wet((i) => i < now), NOON);
-  assert.equal(late.rain[now], null,
+  // Same rain — but now nobody measured the hour before now, or anything
+  // after it.
+  const late = charts.prepareView(wet((i) => i < now - 1), NOON);
+  assert.equal(late.rain[now - 1], null,
     'an unmeasured hour that is over has no rain figure to show');
   const lateTemp = charts.tempPanelSvg(late, {}, pal);
-  assert.equal(rectOf(lateTemp.main, 'wx-bar-temp-' + now), null, 'so it draws no bar');
-  assert.ok(rectOf(lateTemp.main, 'wx-bar-temp-' + (now - 1)),
+  assert.equal(rectOf(lateTemp.main, 'wx-bar-temp-' + (now - 1)), null, 'so it draws no bar');
+  assert.ok(rectOf(lateTemp.main, 'wx-bar-temp-' + (now - 2)),
     'while the hour before it, which WAS measured, keeps its own');
+  assert.equal(late.rain[now], 2, 'and the running hour keeps its forecast');
+  assert.ok(rectOf(lateTemp.main, 'wx-bar-temp-' + now), 'drawn from the now line on');
 });
 
 test('the value dot is a disc, not a hole: it is drawn over the crosshair it stands on', () => {
@@ -2028,16 +2031,18 @@ test('no 3-hourly mark stands on a day boundary — that is where a viewport fol
   const onSeam = (xs) => xs.filter((x) => x % charts.DAY_W === 0);
   const perDay = 24 / 3 - 1;
 
-  // The probability row: `<text>` at a multiple of HOUR_W*3, over the bars.
+  // The probability row: `<text>` centred over the bar of every third hour
+  // — half an hour past a multiple of HOUR_W*3. Placed by the hour it is
+  // for, it obeys the same rule as the marks that sit on ticks.
   const probXs = (charts.tempPanelSvg(view, settings, pal).main
     .match(/<text x="[\d.]+" y="[\d.]+" text-anchor="middle" font-size="[\d.]+"/g) || [])
-    .map((t) => Number(/x="([\d.]+)"/.exec(t)[1]));
+    .map((t) => Number(/x="([\d.]+)"/.exec(t)[1]) - charts.HOUR_W / 2);
   assert.equal(probXs.length, perDay * view.days,
     'seven probability figures a day (got ' + probXs.length + ' over ' + view.days + ')');
-  assert.deepEqual(onSeam(probXs), [], 'none of them on a seam');
-  // Including x = 0, whose hour ran before the canvas begins — the same
-  // hour whose bar the panel above already refuses to draw, for the same
-  // reason. One panel, one hour, one answer.
+  assert.ok(probXs.every((x) => x % (charts.HOUR_W * 3) === 0),
+    'each centred over its own hour\'s bar');
+  assert.deepEqual(onSeam(probXs), [], 'none of them for an hour opening a day');
+  // Including hour 0, whose figure would start on the canvas's left edge.
   assert.equal(probXs.indexOf(0), -1, 'and none at the canvas start');
 
   // The direction row: a rotated `<g>` per arrow.
@@ -2054,8 +2059,9 @@ test('no 3-hourly mark stands on a day boundary — that is where a viewport fol
     .map((t) => Number(/translate\(([\d.]+) /.exec(t)[1]) + 11);
   assert.deepEqual(onSeam(iconXs), [], 'no icon on a seam either');
 
-  // Stated as the invariant rather than three counts: every 3-hourly mark
-  // sits a whole pitch clear of both folds of the day it belongs to.
+  // Stated as the invariant rather than three counts: every 3-hourly mark's
+  // hour sits a whole pitch clear of both folds of the day it belongs to (a
+  // figure, centred half an hour on, still clears the right fold by 2.5).
   probXs.concat(dirXs).forEach((x) => {
     const into = x - Math.floor(x / charts.DAY_W) * charts.DAY_W;
     assert.ok(into >= charts.HOUR_W * 3 && into <= charts.DAY_W - charts.HOUR_W * 3,

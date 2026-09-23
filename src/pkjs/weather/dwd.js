@@ -137,9 +137,9 @@ function forecastWindow() {
  * record's timestamp, but the watch draws slot i as the hour STARTING at
  * startTime + i h (bar i sits right of tick i). Read from the slot's own
  * record, every shower landed an hour late and the current-hour bar showed the
- * hour that had just ended. (The settings page's Weather tab keeps the raw
- * stamps and draws each bar as the hour ENDING at its tick instead, so it
- * needs no shift.)
+ * hour that had just ended. (The settings page's Weather tab re-stamps the
+ * same fields the same way, weather-tab-model.js's startHourFields, so a tap
+ * on 14:00 there reads the hour this slot shows.)
  *
  * Both halves pair by timestamp, not by index, so a record Brightsky skips
  * cannot slide every later hour — and cannot pair one slot's rain with the

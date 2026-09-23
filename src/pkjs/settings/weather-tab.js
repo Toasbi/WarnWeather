@@ -765,10 +765,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var boxEl = tip.parentNode;
         var vw = boxEl && boxEl.clientWidth;
         var crossPx = (charts.xAt(view, i) - dayOff * charts.DAY_W) / charts.DAY_W * (vw || 0);
-        // Half a pixel of slack at both edges: a tap's release slop can
-        // round to the hour sitting exactly ON the day seam (scrubTo
-        // clamps i to the timeline, not the day), which lands crossPx on
-        // the boundary — visible, not gone.
+        // Half a pixel of slack at both edges: every day's 00:00 stands
+        // exactly ON its left seam, so a tap on a day's first sliver lands
+        // crossPx on the boundary — visible, not gone.
         if (vw && (crossPx < -0.5 || crossPx > vw + 0.5)) {
             tip.style.display = 'none';
             return;
@@ -1217,15 +1216,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!vp) { return; }
         var rect = vp.getBoundingClientRect();
         if (!rect.width) { return; }
-        var vx = panDay * charts.DAY_W
-            + (clientX - rect.left) / rect.width * charts.DAY_W;
+        var into = (clientX - rect.left) / rect.width;
+        // A tap on the viewport's own right edge is still on this screen:
+        // floored, it would name the next day's midnight, whose bar, chip
+        // and tip are a whole viewport away. It takes the last hour here.
+        // (A finger dragged well past the edge keeps reading the hours out
+        // there, and their tip hides, as it does past the left edge.)
+        if (into >= 1 && (clientX - rect.left) - rect.width < 1) { into = 1 - 0.5 / 24; }
+        var vx = panDay * charts.DAY_W + into * charts.DAY_W;
         // The hour whose BAR the finger is on, not the tick it is nearest.
-        // A bar fills the span that ENDS at its own tick (see charts.barX),
-        // so the span between tick 15 and tick 16 belongs to hour 16 — one
-        // past the tick the finger has just cleared. Rounding to the nearest
-        // tick, or flooring to the one behind, both light a bar the finger
-        // is not on.
-        var i = Math.floor(vx / charts.HOUR_W) + 1;
+        // A bar fills the span that STARTS at its own tick (see
+        // charts.barX), so the span between tick 15 and tick 16 is hour 15 —
+        // the tick the finger has just cleared. Rounding to the nearest tick
+        // lights a bar the finger is not on half the time.
+        var i = Math.floor(vx / charts.HOUR_W);
         if (i < 0) { i = 0; }
         if (i > view.times.length - 1) { i = view.times.length - 1; }
         // Tapping the hour that is already selected puts it down again.

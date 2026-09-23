@@ -39,7 +39,15 @@ test('Open-Meteo parser: hourly series + provider daily, unixtime seconds → ms
   const out = data.parsers.openmeteo(fixture, NOON);
   assert.equal(out.hourly.time[0], NOON);
   assert.equal(out.hourly.temp[0], 18.2);
-  assert.equal(out.hourly.prob[1], 20);
+  // Rain, chance and gust are the PRECEDING hour's at Open-Meteo, so the
+  // row for noon takes the 13:00 stamp's; the last row has no 14:00 stamp to
+  // read and is unsourced. Instants stay on their own stamp.
+  assert.equal(out.hourly.prob[0], 20);
+  assert.equal(out.hourly.rain[0], 0);
+  assert.equal(out.hourly.gust[0], 28);
+  assert.equal(out.hourly.prob[1], null);
+  assert.equal(out.hourly.rain[1], null);
+  assert.equal(out.hourly.wind[0], 12);
   assert.equal(out.hourly.icon[0], 'rain');
   assert.equal(out.hourly.icon[1], 'cloudy');
   assert.equal(out.daily.length, 2, 'yesterday is dropped');
@@ -291,20 +299,33 @@ test('Brightsky provenance: each hour says whether a station measured it', () =>
     { id: 99, observation_type: 'forecast' }
   ];
   const out = data.parsers.dwd({ weather: rows, sources }, H);
-  assert.deepEqual(out.hourly.measured.slice(0, 4), [true, true, true, true],
-    'rows from a station source are measurements');
-  assert.deepEqual(out.hourly.measured.slice(4), [false, false, false, false, false, false, false, false, false],
-    'rows from the MOSMIX source are not — including the ones already in the past');
+  // Brightsky's rain is the hour BEFORE its stamp, so an hour's rain is the
+  // NEXT record's, and so is the question of who read it: the hour stamped
+  // -4 h (i.e. hour 2 of the rows) is -4..-3 h, whose rain the -3 h station
+  // record holds; hour 3 takes the -2 h MOSMIX record's.
+  assert.deepEqual(out.hourly.measured.slice(0, 3), [true, true, true],
+    'hours whose rain a station record holds are measurements');
+  assert.deepEqual(out.hourly.measured.slice(3), [false, false, false, false, false, false, false, false, false, false],
+    'hours whose rain the MOSMIX source holds are not — including the ones already in the past, '
+    + 'and the last, whose next record was never sent');
   // These rows carry no fallback map at all, which is the ordinary case:
   // a station row that needed nothing filled in is measured outright.
-  assert.deepEqual(out.hourly.measuredAll.slice(0, 4), [true, true, true, true]);
-  assert.deepEqual(out.hourly.measuredAll.slice(4), [false, false, false, false, false, false, false, false, false]);
+  assert.deepEqual(out.hourly.measuredAll.slice(0, 3), [true, true, true]);
+  assert.deepEqual(out.hourly.measuredAll.slice(3), [false, false, false, false, false, false, false, false, false, false]);
+  // The measured shower moves with its flag: 0.7 mm stamped -5 h fell in the
+  // hour from -6 h, the first row.
+  assert.equal(out.hourly.rain[0], 0.7);
+
+  // A record and the clean station record an hour after it, which holds the
+  // first one's rain and gust.
+  const withNext = (row) => [row, { timestamp: iso(Date.parse(row.timestamp) + 3600000),
+    source_id: row.source_id, temperature: row.temperature, precipitation: 0.4 }];
 
   // 'current' is a station reading too; anything else is not.
   const kinds = ['historical', 'current', 'synop', 'forecast', 'nonsense'];
   kinds.forEach((kind, n) => {
     const one = data.parsers.dwd({
-      weather: [{ timestamp: iso(H), source_id: 7, temperature: 1 }],
+      weather: withNext({ timestamp: iso(H), source_id: 7, temperature: 1 }),
       sources: [{ id: 7, observation_type: kind }]
     }, H);
     assert.equal(one.hourly.measured[0], n < 3, kind + ' → measured=' + (n < 3));
@@ -314,37 +335,48 @@ test('Brightsky provenance: each hour says whether a station measured it', () =>
   // source and records which in fallback_source_ids. A row that is an
   // observation overall can therefore carry a MOSMIX precipitation — and
   // precipitation is the field the page draws as history.
-  const leaked = data.parsers.dwd({
-    weather: [
-      { timestamp: iso(H - 3600000), source_id: 11, temperature: 9, precipitation: 0.4,
-        fallback_source_ids: { precipitation: 99 } },
-      { timestamp: iso(H - 7200000), source_id: 11, temperature: 9, precipitation: 0.4,
-        fallback_source_ids: { relative_humidity: 99 } },
-      { timestamp: iso(H - 10800000), source_id: 11, temperature: 9, precipitation: 0.4,
-        fallback_source_ids: {} }
-    ],
-    sources
-  }, H);
-  assert.deepEqual(leaked.hourly.measured, [false, true, true],
-    'a rain value borrowed from the forecast source is not a measurement, '
-    + 'while a borrowed humidity says nothing about the rain');
-  // The caption stands over EVERY panel, so it takes the whole drawn row
-  // or nothing: a borrowed humidity is a modelled humidity line, and the
-  // word cannot span it even though the rain beneath was read.
-  assert.deepEqual(leaked.hourly.measuredAll, [false, false, true],
+  const pairOf = (fb0, fb1) => {
+    const pair = withNext({ timestamp: iso(H - 3600000), source_id: 11, temperature: 9, precipitation: 0.4 });
+    if (fb0) { pair[0].fallback_source_ids = fb0; }
+    if (fb1) { pair[1].fallback_source_ids = fb1; }
+    return data.parsers.dwd({ weather: pair, sources }, H).hourly;
+  };
+  // The rain drawn for an hour is the NEXT record's, so a borrowed rain
+  // there is the hour's borrowed rain.
+  const leaked = pairOf(null, { precipitation: 99 });
+  assert.equal(leaked.measured[0], false, 'a rain value borrowed from the forecast source is not a measurement');
+  assert.equal(leaked.measuredAll[0], false, 'and the caption cannot vouch for it either');
+  // A borrowed humidity says nothing about the rain — but the caption stands
+  // over EVERY panel, so it takes the whole drawn row or nothing: a borrowed
+  // humidity is a modelled humidity line, and the word cannot span it even
+  // though the rain beneath was read.
+  const humid = pairOf({ relative_humidity: 99 }, null);
+  assert.equal(humid.measured[0], true, 'a borrowed humidity leaves the rain measured');
+  assert.equal(humid.measuredAll[0], false,
     'the row-level flag fails on any drawn field that fell back to MOSMIX');
+  const clean = pairOf({}, {});
+  assert.equal(clean.measured[0], true);
+  assert.equal(clean.measuredAll[0], true, 'an empty fallback map borrows nothing');
 
   // The two flags answer two questions and must not be conflated. An
   // observation row whose TEMPERATURE came from MOSMIX still read the rain,
   // so the rain bar stands — but the temperature line above it is modelled,
   // so the caption must not call that hour Measured.
   const mixed = data.parsers.dwd({
-    weather: [{ timestamp: iso(H - 3600000), source_id: 11, temperature: 9, precipitation: 0.4,
-      fallback_source_ids: { temperature: 99 } }],
+    weather: withNext({ timestamp: iso(H - 3600000), source_id: 11, temperature: 9, precipitation: 0.4,
+      fallback_source_ids: { temperature: 99 } }),
     sources
   }, H);
   assert.equal(mixed.hourly.measured[0], true, 'the rain itself was read');
   assert.equal(mixed.hourly.measuredAll[0], false, 'but not everything drawn above it');
+
+  // The gust is re-stamped with the rain, so ITS provenance is the next
+  // record's too: a modelled gust there takes the word away from the hour.
+  const gusty = withNext({ timestamp: iso(H - 3600000), source_id: 11, temperature: 9 });
+  gusty[1].fallback_source_ids = { wind_gust_speed: 99 };
+  const gust = data.parsers.dwd({ weather: gusty, sources }, H);
+  assert.equal(gust.hourly.measured[0], true, 'the rain was still read');
+  assert.equal(gust.hourly.measuredAll[0], false, 'but the gust drawn for the hour was modelled');
 
   // Fields Brightsky never cross-fills cannot drag the flag down: MOSMIX
   // carries no relative_humidity and a station carries no probability, so
@@ -352,8 +384,8 @@ test('Brightsky provenance: each hour says whether a station measured it', () =>
   // key the page draws nothing from is likewise none of the caption's
   // business.
   const unrelated = data.parsers.dwd({
-    weather: [{ timestamp: iso(H - 3600000), source_id: 11, temperature: 9, precipitation: 0.4,
-      fallback_source_ids: { wind_gust_direction: 99, cloud_cover: 99 } }],
+    weather: withNext({ timestamp: iso(H - 3600000), source_id: 11, temperature: 9, precipitation: 0.4,
+      fallback_source_ids: { wind_gust_direction: 99, cloud_cover: 99 } }),
     sources
   }, H);
   assert.equal(unrelated.hourly.measuredAll[0], true,
@@ -361,8 +393,8 @@ test('Brightsky provenance: each hour says whether a station measured it', () =>
 
   // And a MOSMIX row is never measured whatever its fallbacks say.
   const mosmix = data.parsers.dwd({
-    weather: [{ timestamp: iso(H - 3600000), source_id: 99, temperature: 9, precipitation: 0.4,
-      fallback_source_ids: { temperature: 11 } }],
+    weather: withNext({ timestamp: iso(H - 3600000), source_id: 99, temperature: 9, precipitation: 0.4,
+      fallback_source_ids: { temperature: 11 } }),
     sources
   }, H);
   assert.equal(mosmix.hourly.measuredAll[0], false, 'the row itself is model output');
