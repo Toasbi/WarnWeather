@@ -83,8 +83,12 @@ var LINE_STYLE_HINTS = {
     dots: 'Square dots, aligned to the rain bars.',
     x: 'Little x marks, aligned to the rain bars.',
     stripeTop: 'A thin stripe along the top of the graph, one cell per hour. The higher the value, the stronger the colour.',
-    stripeBottom: 'A thin stripe along the bottom of the graph, one cell per hour. The higher the value, the stronger the colour.'
+    stripeBottom: 'A thin stripe below the graph\'s zero line, one cell per hour, where bars and lines never cover it. The higher the value, the stronger the colour.'
 };
+var LINE_STYLE_OPTIONS = [
+    ['Thin line', 'line'], ['Thick line', 'bold'], ['Square dots', 'dots'], ['× marks', 'x'],
+    ['Stripe at top', 'stripeTop'], ['Stripe at bottom', 'stripeBottom']
+];
 /**
  * One line-style picker.
  * @param {string} messageKey secondaryLineStyle|thirdLineStyle|fourthLineStyle.
@@ -94,8 +98,9 @@ var LINE_STYLE_HINTS = {
 function lineStyleCopy(messageKey, lineKey) {
     var when = [LINE_STYLES_WHEN];
     if (lineKey) { when.push({key: lineKey, ne: 'off'}); }
+    // A dropdown, not a segmented row: six styles no longer fit one row on a phone.
     return {
-        type: 'segmented',
+        type: 'select',
         messageKey: messageKey,
         label: 'Line style',
         // The one source of the built-ins (the pre-feature look per line) —
@@ -104,8 +109,7 @@ function lineStyleCopy(messageKey, lineKey) {
         defaultValue: lineStyle.LINE_STYLE_DEFAULTS[messageKey],
         joinPrevious: true,
         hintByValue: LINE_STYLE_HINTS,
-        options: [['Thin', 'line'], ['Thick', 'bold'], ['Dots', 'dots'], ['×', 'x'],
-            ['Top', 'stripeTop'], ['Bottom', 'stripeBottom']],
+        options: LINE_STYLE_OPTIONS,
         showWhen: {all: when}
     };
 }

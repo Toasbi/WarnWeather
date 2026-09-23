@@ -179,7 +179,50 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // breaking up overnight before the morning clouds return.
         var cloud  = [35, 60, 90, 100, 95, 75, 45, 20, 10, 15, 40, 65];
 
-        var n = temps.length, PX0 = 20, PX1 = 197, PT = 4, PB = 94;
+        // The frozen-styles gate: env.lineStyles is the WW_LINE_STYLE mirror
+        // (platform.js). Previewing such a watch pins the pre-feature look —
+        // its style pickers are hidden and the watch ignores the style bytes —
+        // and it never draws the third-metric line. Only an explicit false
+        // freezes: a hand-built preview env without the fact stays capable.
+        var stylesFrozen = Boolean(env) && env.lineStyles === false;
+        /**
+         * The effective style for one line-style key: the frozen built-in on a
+         * watch without WW_LINE_STYLE, else the stored pick (or its default).
+         * @param {string} styleKey secondaryLineStyle|thirdLineStyle|fourthLineStyle.
+         * @returns {string} 'line'|'bold'|'dots'|'x'|'stripeTop'|'stripeBottom'.
+         */
+        function styleFor(styleKey) {
+            return stylesFrozen ? lineStyle.LINE_STYLE_DEFAULTS[styleKey]
+                : lineStyle.lineStyleValue(state, styleKey);
+        }
+        // The ordered metric lines, modelled ONCE for the draw pass and the
+        // legend: colours off the resolver, styles off the pickers, on-gates
+        // from line-style.js' effectiveLineMetric — the same off/duplicate/ban
+        // rules the bake applies, so the preview matches the watch by
+        // construction. Entries are named by the settings keys they read (the
+        // one frozen vocabulary); the UI ordinals ("Third metric") are labels only.
+        var LINES = [
+            { metric: state.secondaryLine, on: true,
+              style: styleFor('secondaryLineStyle'), color: hexColor(gc.secondary) },
+            { metric: state.thirdLine,
+              on: Boolean(lineStyle.effectiveLineMetric(state, 'thirdLine')),
+              style: styleFor('thirdLineStyle'), color: hexColor(gc.third) },
+            { metric: state.fourthLine,
+              on: !stylesFrozen && Boolean(lineStyle.effectiveLineMetric(state, 'fourthLine')),
+              style: styleFor('fourthLineStyle'), color: hexColor(gc.fourth) }
+        ];
+        // Bottom stripes sit BELOW the plot's zero line, in their own band above the
+        // hour axis (forecast_layer.c's stripe_band): a 1-unit gap plus a stripe per
+        // line, and one free row over the ticks. The plot's baseline PB lifts by it;
+        // AXIS_Y is where the ticks and labels always hang.
+        var STRIPE_H = 5, STRIPE_GAP = 1;
+        var bottomStripes = 0;
+        for (var bs = 0; bs < LINES.length; bs += 1) {
+            if (LINES[bs].on && LINES[bs].style === 'stripeBottom') { bottomStripes += 1; }
+        }
+        var AXIS_Y = 94;
+        var stripeBand = bottomStripes ? bottomStripes * (STRIPE_H + STRIPE_GAP) + 1 : 0;
+        var n = temps.length, PX0 = 20, PX1 = 197, PT = 4, PB = AXIS_Y - stripeBand;
         var plotW = PX1 - PX0, plotH = PB - PT;
         // One watch-faithful slot grid (chart.c): N hourly slots, one tick per slot. Slot 0 is
         // 12:00; hour = 12 + i. Line vertices sit ON the ticks (so a line spans the first tick to
@@ -243,38 +286,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var tempW = isColor ? 2.2 : 3;               // B&W: thick temp vs thin main line
         var mainW = isColor ? 1.6 : 1;
         var boldW = isColor ? 2.8 : 3;               // the 'bold' (3 px) line style
-        // The frozen-styles gate: env.lineStyles is the WW_LINE_STYLE mirror
-        // (platform.js). Previewing such a watch pins the pre-feature look —
-        // its style pickers are hidden and the watch ignores the style bytes —
-        // and it never draws the third-metric line. Only an explicit false
-        // freezes: a hand-built preview env without the fact stays capable.
-        var stylesFrozen = Boolean(env) && env.lineStyles === false;
-        /**
-         * The effective style for one line-style key: the frozen built-in on a
-         * watch without WW_LINE_STYLE, else the stored pick (or its default).
-         * @param {string} styleKey secondaryLineStyle|thirdLineStyle|fourthLineStyle.
-         * @returns {string} 'line'|'bold'|'dots'|'x'|'stripeTop'|'stripeBottom'.
-         */
-        function styleFor(styleKey) {
-            return stylesFrozen ? lineStyle.LINE_STYLE_DEFAULTS[styleKey]
-                : lineStyle.lineStyleValue(state, styleKey);
-        }
-        // The ordered metric lines, modelled ONCE for the draw pass and the
-        // legend: colours off the resolver, styles off the pickers, on-gates
-        // from line-style.js' effectiveLineMetric — the same off/duplicate/ban
-        // rules the bake applies, so the preview matches the watch by
-        // construction. Entries are named by the settings keys they read (the
-        // one frozen vocabulary); the UI ordinals ("Third metric") are labels only.
-        var LINES = [
-            { metric: state.secondaryLine, on: true,
-              style: styleFor('secondaryLineStyle'), color: hexColor(gc.secondary) },
-            { metric: state.thirdLine,
-              on: Boolean(lineStyle.effectiveLineMetric(state, 'thirdLine')),
-              style: styleFor('thirdLineStyle'), color: hexColor(gc.third) },
-            { metric: state.fourthLine,
-              on: !stylesFrozen && Boolean(lineStyle.effectiveLineMetric(state, 'fourthLine')),
-              style: styleFor('fourthLineStyle'), color: hexColor(gc.fourth) }
-        ];
 
         // The night colours apply only on an effectively-colour preview. The WIRE carries
         // them either way (resolveNightColors has no isColor gate, deliberately), but a
@@ -307,11 +318,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             var out = '';
             for (var i = 0; i < n; i += 1) {
                 var big = i % 3 === 0;
-                out += '<line x1="' + tickX(i) + '" y1="' + PB + '" x2="' + tickX(i) + '" y2="' + (PB + (big ? 4 : 2)) + '" stroke="' + ink.rgba('0.32') + '" stroke-width="0.6"></line>';
+                out += '<line x1="' + tickX(i) + '" y1="' + AXIS_Y + '" x2="' + tickX(i) + '" y2="' + (AXIS_Y + (big ? 4 : 2)) + '" stroke="' + ink.rgba('0.32') + '" stroke-width="0.6"></line>';
                 if (big) {
                     var h = (12 + i) % 24;
                     if (state.axisTimeFormat === '12h') { h = h % 12 || 12; }
-                    out += txt(tickX(i), PB + 11, 7.5, '#7C828D', 'middle', 600, String(h));
+                    out += txt(tickX(i), AXIS_Y + 11, 7.5, '#7C828D', 'middle', 600, String(h));
                 }
             }
             return out;
@@ -498,9 +509,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             return out;
         };
         // --- Stripes: chart.c's chart_render_stripe, mirrored -------------------
-        // Preview units for one stripe's height and the gap between two stacked on
-        // the same edge (the watch's STRIPE_H / STRIPE_GAP, scaled to this plot).
-        var STRIPE_H = 5, STRIPE_GAP = 1;
+        // STRIPE_H / STRIPE_GAP (above) are the watch's FORECAST_STRIPE_H / _GAP,
+        // scaled to this plot.
         /**
          * A metric value's stripe level, 0..4: the watch's chart_stripe_level on the
          * wire byte (0..250), so a cell shades exactly where the watch's does.
@@ -536,7 +546,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             return out;
         }
         /**
-         * One metric as a stripe of hourly cells along the top or bottom plot edge.
+         * One metric as a stripe of hourly cells: along the plot's top edge, or in the
+         * band below its zero line (stacked downward from a 1-unit gap).
          * Colour: the blended ramp. B&W: the theme foreground in one of four dither
          * densities (the `sd1`..`sd4` patterns below), as the watch dithers.
          * @param {string} metric The metric the colour was resolved for.
@@ -549,7 +560,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             var m = METRIC[metric];
             if (!m || m.tempAxis) { return ''; }
             var off = slot * (STRIPE_H + STRIPE_GAP);
-            var y = top ? PT + off : PB - STRIPE_H - off;
+            var y = top ? PT + off : PB + STRIPE_GAP + off;
             var out = '';
             for (var i = 0; i < n - 1; i += 1) {
                 var level = stripeLevel(m, i);
@@ -629,7 +640,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             // gap, ~4.3 units per label character, 8-unit trailing gap. An entry that
             // would cross the right edge starts the next row (never the first in a
             // row, so an over-long single entry still renders).
-            var ROW_H = 10, RIGHT_EDGE = 198, gy0 = PB + 18;
+            var ROW_H = 10, RIGHT_EDGE = 198, gy0 = AXIS_Y + 18;
             var x = PX0, row = 0, i, en;
             for (i = 0; i < entries.length; i += 1) {
                 en = entries[i];
@@ -728,8 +739,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // The night tint sits on top of the day fill and under the bars — the watch's
         // night-area underlay, which re-shades the filled area during the night hours.
         e += nightTint;
-        // Stripes: over the fill and night band, under the bars and the lines —
-        // forecast_layer.c's CHART_LAYER_STRIPE slot. Stacked per edge in line order.
+        // Stripes: over the fill and night band, under the bars and the lines (top),
+        // or in their own band below the zero line (bottom) — forecast_layer.c's
+        // CHART_LAYER_STRIPE slots. Stacked per edge in line order.
         var stripeSlots = { top: 0, bottom: 0 };
         for (var si = 0; si < LINES.length; si += 1) {
             if (LINES[si].on && isStripe(LINES[si].style)) {

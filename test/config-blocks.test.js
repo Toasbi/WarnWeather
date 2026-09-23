@@ -1269,8 +1269,12 @@ test('forecastPreview: a stripe draws hourly cells shaded like the watch, and no
   ['#005555', '#55AAAA', '#55AAFF'].forEach((c) => {
     assert.ok(cells.some((r) => r.indexOf(c) >= 0), c + ' (a chart_stripe_blend level) is used');
   });
-  // Bottom edge: every cell sits on the baseline row (PB 94 - 5).
-  cells.forEach((r) => assert.match(r, /y="89"/));
+  // Bottom stripes live BELOW the zero line: the plot's baseline lifts from the
+  // axis row (94) by the band (1 stripe: 5 + 1 gap + 1 free row = 7) to 87, and
+  // every cell sits one gap under it — nothing in the plot can paint over them.
+  cells.forEach((r) => assert.match(r, /y="88"/));
+  assert.ok(svg.indexOf('y1="87" x2="197" y2="87"') >= 0, 'the zero line moved up to 87');
+  assert.ok(/<line x1="20" y1="94" x2="20" y2="98"/.test(svg), 'the hour ticks still hang from 94');
   assert.equal(svg.indexOf('fill-opacity="0.25"'), -1, 'a stripe main line never fills');
   assert.equal(svg.indexOf('stroke="#55AAFF"'), -1, 'and draws no stroke');
 });

@@ -381,7 +381,7 @@ static int build_night_bands(ChartBand *out, int max,
 
 static GSize temp_label_string_size(const char *text);
 
-static void draw_left_axis(GContext *ctx, int h) {
+static void draw_left_axis(GContext *ctx, int h, int16_t baseline_y) {
     // Mask anything drawn into the label strip. The vertical axis line
     // itself is painted by graph_frame_draw(cfg->frame, ...) earlier in
     // the update proc.
@@ -394,7 +394,9 @@ static void draw_left_axis(GContext *ctx, int h) {
     const GFont font = bottom_view_label_font();
     GSize hi_size = temp_label_string_size(s_buffer_hi);
     GSize lo_size = temp_label_string_size(s_buffer_lo);
-    const int16_t axis_y = h - BOTTOM_VIEW_AXIS_H;
+    // The lo label sits on the PLOT's baseline, which a bottom stripe band lifts
+    // off the hour axis (forecast_update_proc) — it names the plot's floor.
+    const int16_t axis_y = baseline_y;
 #ifdef PBL_PLATFORM_EMERY
     // emery: pin the hi label's FIRST INK ROW where GOTHIC_18 has always put it (its
     // box flush at 0, ink on row 7), whatever tier bottom_view_label_font() resolves: a
@@ -460,9 +462,26 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     const int16_t axis_y     = h - BOTTOM_VIEW_AXIS_H;
     const int16_t grid_right = graph_bounds.origin.x
                              + ds.num_entries * chart_def_pitch(&FORECAST_GRID_DEF);
+#if defined(WW_LINE_STYLE)
+    // Bottom stripes live BELOW the plot's zero line, in a band of their own
+    // between it and the hour axis, so bars, fills and lines can never paint
+    // over them: each stripe takes a 1 px gap plus its height, and the old axis
+    // row stays free for the ticks. The plot's baseline lifts by the band.
+    const int stripe_h = FORECAST_STRIPE_H(axis_y);
+    int bottom_stripes = 0;
+    for (SeriesId sid = SERIES_SECOND; sid < SERIES_BARS; ++sid) {
+        const Series *s = &ds.series[sid];
+        if (s->present && SERIES_IS_STRIPE(s) && !s->line.stripe_top) ++bottom_stripes;
+    }
+    const int16_t stripe_band = bottom_stripes
+        ? (int16_t)(bottom_stripes * (stripe_h + FORECAST_STRIPE_GAP) + 1) : 0;
+#else
+    const int16_t stripe_band = 0;
+#endif
+    const int16_t plot_axis_y = axis_y - stripe_band;   // the plot's zero line
     const GRect outer = GRect(graph_bounds.origin.x, 0,
                               grid_right - graph_bounds.origin.x + 1,
-                              axis_y + 1);
+                              plot_axis_y + 1);
 
     // Per-redraw data prep + layer list. The scratch arrays are module-static
     // (not stack): aplite's small app stack overflows otherwise (PC=0/LR=0).
@@ -573,23 +592,34 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .contour        = NULL } };
     }
 #if defined(WW_LINE_STYLE)
-    // Stripes: over the night shading, under the rain bars (so a bottom stripe
-    // never hides rain) and every line. Stacked per edge in line order.
+    // Top stripes: along the plot's top edge, over the night shading and under
+    // the bars and every line; stacked downward in line order. Bottom stripes
+    // go to the band below the zero line (band_layers, drawn after the plot).
+    static ChartLayer band_layers[SERIES_COUNT];   // aplite never reaches here
+    int nb = 0;
     {
-        const int stripe_h = FORECAST_STRIPE_H(axis_y);
         int stacked_top = 0, stacked_bottom = 0;
         for (SeriesId sid = SERIES_SECOND; sid < SERIES_BARS; ++sid) {
             const Series *s = &ds.series[sid];
             if (!s->present || !SERIES_IS_STRIPE(s)) continue;
-            int *stacked = s->line.stripe_top ? &stacked_top : &stacked_bottom;
-            layers[n++] = (ChartLayer){ CHART_LAYER_STRIPE, .stripe = {
+            // Every stripe is laid out from the top of its own rect: the plot
+            // for a top stripe, the band (1 px gap first) for a bottom one.
+            const int16_t y_offset = s->line.stripe_top
+                ? (int16_t)(stacked_top++ * (stripe_h + FORECAST_STRIPE_GAP))
+                : (int16_t)(stacked_bottom++ * (stripe_h + FORECAST_STRIPE_GAP)
+                            + FORECAST_STRIPE_GAP);
+            const ChartLayer stripe = (ChartLayer){ CHART_LAYER_STRIPE, .stripe = {
                 .values = s->line.values, .count = ds.num_entries,
                 .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
                 .color = s->line.color,
-                .y_offset = (int16_t)(*stacked * (stripe_h + FORECAST_STRIPE_GAP)),
+                .y_offset = y_offset,
                 .height = (int16_t)stripe_h,
-                .top = s->line.stripe_top } };
-            ++*stacked;
+                .top = true } };
+            if (s->line.stripe_top) {
+                layers[n++] = stripe;
+            } else {
+                band_layers[nb++] = stripe;
+            }
         }
     }
 #endif
@@ -660,13 +690,27 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     layers[n++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
         .left   = { 1, axis_color },
         .bottom = { 1, axis_color } } } };
-    layers[n++] = (ChartLayer){ CHART_LAYER_AXIS, .axis = {
+    const ChartLayer axis_layer = (ChartLayer){ CHART_LAYER_AXIS, .axis = {
         .side = GRAPH_SIDE_BOTTOM, .style = bottom_view_tick_style(),
         .slots = axis_slots,
         .label_align = ALIGN_START, .tick_align = ALIGN_START } };
+    if (stripe_band == 0) {
+        layers[n++] = axis_layer;
+    }
     chart_draw(ctx, &FORECAST_GRID_DEF, outer, layers, n);
+#if defined(WW_LINE_STYLE)
+    if (stripe_band > 0) {
+        // The band's own chart: same columns (anchor + pitch), and its last row
+        // is the original axis row, so the hour ticks and labels land exactly
+        // where they always do.
+        band_layers[nb++] = axis_layer;
+        const GRect band = GRect(outer.origin.x, plot_axis_y + 1,
+                                 outer.size.w, stripe_band);
+        chart_draw(ctx, &FORECAST_GRID_DEF, band, band_layers, nb);
+    }
+#endif
 
-    draw_left_axis(ctx, h);   // hi/lo temp strip: chart-adjacent chrome, not a chart layer
+    draw_left_axis(ctx, h, plot_axis_y);   // hi/lo temp strip: chart-adjacent chrome, not a chart layer
     MEMORY_HEAP_PROBE_LOG_MIN(&redraw_probe);
     MEMORY_LOG_HEAP("forecast_update:exit");
 }

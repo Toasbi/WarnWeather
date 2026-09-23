@@ -2241,10 +2241,11 @@ test('the Third metric row and every line-style row hide behind the lineStyles c
 
 test('the line-style pickers offer thin/thick/dots/x/top/bottom with per-line defaults matching the wire', () => {
   const lineStyle = require('../src/pkjs/line-style.js');
-  const OPTIONS = [['Thin', 'line'], ['Thick', 'bold'], ['Dots', 'dots'], ['×', 'x'],
-    ['Top', 'stripeTop'], ['Bottom', 'stripeBottom']];
+  const OPTIONS = [['Thin line', 'line'], ['Thick line', 'bold'], ['Square dots', 'dots'],
+    ['× marks', 'x'], ['Stripe at top', 'stripeTop'], ['Stripe at bottom', 'stripeBottom']];
   for (const key of ['secondaryLineStyle', 'thirdLineStyle', 'fourthLineStyle']) {
     const item = byKey(key);
+    assert.equal(item.type, 'select', key + ' is a dropdown — six styles overflow a segmented row');
     assert.deepEqual(item.options, OPTIONS, key);
     assert.equal(item.defaultValue, lineStyle.LINE_STYLE_DEFAULTS[key],
       key + ' schema default must match line-style.js’ wire default');
