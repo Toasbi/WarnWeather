@@ -19,7 +19,7 @@ var storageKeys = require('./storage-keys.js');
  * @param {function(Function=, Function=):void} deps.sendClay Deduping Clay send; calls onSuccess after ACK (or immediately when unchanged), onFailure on NACK.
  * @param {function(boolean):void} deps.startFetch Run a weather fetch; the boolean is the force flag.
  * @param {function():boolean} deps.shouldFetchNow True when a non-forced refresh is due.
- * @param {function():void} deps.refreshHolidays Ensure holiday data is cached; resend Clay on new data.
+ * @param {function():void} deps.refreshHolidays Ensure holiday data is cached; new data comes back through onHolidaysUpdated.
  * @param {function():void} deps.checkForUpdate Once-per-day appstore update check.
  * @param {function():void} deps.clearClayCache Forget the last-sent Clay so the next send goes through.
  * @param {function():void} deps.clearWeatherCaches Forget the last-sent weather categories.
@@ -27,7 +27,7 @@ var storageKeys = require('./storage-keys.js');
  * @param {function():?string} [deps.effectiveThemeId] The auto-switch theme in effect right now, or null while the switch is off (theme-schedule.js via index.js).
  * @param {function(Function, number):*} deps.setTimeout Timer function (injected so tests drive a fake queue).
  * @param {function():Date} deps.now Current-time supplier (injected for a fake clock).
- * @returns {{onWatchStatus: Function, onReady: Function, onConfigClosed: Function, start: Function}} The scheduler.
+ * @returns {{onWatchStatus: Function, onReady: Function, onConfigClosed: Function, onHolidaysUpdated: Function, start: Function}} The scheduler.
  */
 function createChannelScheduler(deps) {
     // Readiness latch: replaces index.js's `app.settings && app.provider` peek.
@@ -55,6 +55,17 @@ function createChannelScheduler(deps) {
      */
     function markHolidayDaySent() {
         localStorage.setItem(storageKeys.LAST_HOLIDAY_DAY_KEY, localDayStamp());
+    }
+
+    /**
+     * Forget the day stamp after a NACKed Clay send that carried the HOLIDAYS
+     * mask, so the next tick's day-change resend retries it (and keeps retrying,
+     * once a minute, until one is ACKed).
+     *
+     * @returns {void}
+     */
+    function forgetHolidayDaySent() {
+        localStorage.removeItem(storageKeys.LAST_HOLIDAY_DAY_KEY);
     }
 
     /**
@@ -197,7 +208,10 @@ function createChannelScheduler(deps) {
      * from the effective settings), so its callbacks own the flip stamp: only
      * an ACK records it, and a NACK forgets it so the flip path retries next
      * tick — otherwise a midnight NACK (BT down) would swallow a coincident
-     * theme flip until the next day/night boundary.
+     * theme flip until the next day/night boundary. A NACK forgets the day
+     * stamp as well, so this resend retries next tick instead of leaving the
+     * mask (or a holiday-data resend that NACKed into it) stale until the next
+     * midnight.
      *
      * @returns {boolean} True when this tick sent a Clay message.
      */
@@ -211,9 +225,38 @@ function createChannelScheduler(deps) {
             if (typeof deps.effectiveThemeId === 'function') {
                 lastEffectiveTheme = deps.effectiveThemeId();
             }
-        }, function () { lastEffectiveTheme = null; });
+        }, function () {
+            lastEffectiveTheme = null;
+            forgetHolidayDaySent();
+        });
         deps.refreshHolidays();
         return true;
+    }
+
+    // One holiday-data resend queued for the next turn: a single ensure() calls
+    // back once per fetched year (two across a year boundary), and every call
+    // that lands before the queued send goes out rides that one send.
+    var holidayResendQueued = false;
+
+    /**
+     * Put freshly fetched holiday data on the watch (refreshHolidays' Nager
+     * callback): one Clay send, which carries the rebuilt HOLIDAYS mask. It lands
+     * at an arbitrary moment — often while the config-close or startup Clay is
+     * still in flight — so it can NACK; the cache is fresh by then and nothing
+     * would fetch (or send) it again before the next midnight, so a NACK forgets
+     * the day stamp and the next tick's day-change resend retries it.
+     *
+     * @returns {void}
+     */
+    function onHolidaysUpdated() {
+        if (holidayResendQueued) {
+            return;
+        }
+        holidayResendQueued = true;
+        deps.setTimeout(function () {
+            holidayResendQueued = false;
+            deps.sendClay(function () {}, forgetHolidayDaySent);
+        }, 0);
     }
 
     /**
@@ -276,6 +319,7 @@ function createChannelScheduler(deps) {
         onWatchStatus: onWatchStatus,
         onReady: onReady,
         onConfigClosed: onConfigClosed,
+        onHolidaysUpdated: onHolidaysUpdated,
         start: start
     };
 }

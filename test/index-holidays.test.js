@@ -65,6 +65,48 @@ test('a fresh install in early January fetches the previous year for the 3-row t
   assert.ok(asked.indexOf(NAGER + '2029/DE') !== -1, 'never asked for 2029: ' + JSON.stringify(asked));
 });
 
+// Switching Holiday country: the config-close Clay goes out with an empty mask (no
+// cache for the new country yet) and the Nager answer lands a moment later, often
+// while that send is still in flight — so its resend can NACK. The cache is fresh
+// from then on, so nothing fetches it again; unless the NACK is retried, the watch
+// shows no holidays until the next midnight.
+test('a NACKed holiday-data resend is retried on the next minute tick', (t) => {
+  const h = installIndexRuntime({ now: new Date(2026, 11, 1, 10, 0, 0).getTime() });
+  t.after(h.restore);
+  h.quietNetwork();
+  seedSettings(h, { layoutPreset: 'compactCal', weekStartDay: 'mon', holidayCountry: 'DE',
+    holidayRegion: 'all', holidaysEnabled: true });
+  h.store.holidays_DE_2026 = JSON.stringify({ f: h.now(), h: [['12-25', null], ['12-26', null]] });
+  h.boot().ready({});
+  const serial = h.mod('holidays/serial-day.js');
+  const bitOf = (m, d) => (m >>> (serial(2026, 12, d) - serial(2026, 11, 30))) & 1;
+
+  h.closeSettings({ holidayCountry: 'AT' });
+  const closed = h.claySends();
+  assert.equal(decodeHolidays(closed[closed.length - 1].dict.HOLIDAYS).mask, 0,
+    'the config-close Clay has no Austrian data yet');
+
+  const before = h.sent.length;
+  h.policy = () => 'nack';             // the resend collides with an in-flight send
+  h.answer(NAGER + '2026/AT', 200, [{ date: '2026-12-08', global: true },
+    { date: '2026-12-25', global: true }, { date: '2026-12-26', global: true }]);
+  h.advance(0);
+  const nacked = h.claySends(before);
+  assert.equal(nacked.length, 1, 'the landing resends Clay once');
+  assert.equal(nacked[0].outcome, 'nack');
+
+  h.policy = () => 'ack';
+  h.advance(60 * 1000);                // the next minute tick
+  const retried = h.claySends(before).filter((m) => m.outcome === 'ack');
+  assert.equal(retried.length, 1, 'the tick retried the NACKed resend');
+  const mask = decodeHolidays(retried[0].dict.HOLIDAYS).mask;
+  assert.equal(bitOf(mask, 8), 1, 'Mariä Empfängnis (8 Dec) reached the watch');
+  assert.equal(bitOf(mask, 25), 1);
+
+  h.advance(60 * 1000);
+  assert.equal(h.claySends(before).length, 2, 'and nothing more once it was ACKed');
+});
+
 test('the compact calendar keeps its current-week window (no previous-year fetch)', (t) => {
   const h = installIndexRuntime({ now: new Date(2029, 0, 2, 12, 0, 0).getTime() });
   t.after(h.restore);

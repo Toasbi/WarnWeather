@@ -597,7 +597,8 @@ function resetFetchAttemptCounter() {
 
 /**
  * Ensure the selected country's holiday data is cached for the visible window's
- * year(s); when a fetch lands new data, resend Clay so the mask updates. The
+ * year(s); when a fetch lands new data, the scheduler resends Clay so the mask
+ * updates (coalesced, and retried on a NACK — see onHolidaysUpdated). The
  * mask itself is always built synchronously from cache in sendClaySettings, so
  * this never blocks a send — the deduping outbox transmits only on a real change.
  *
@@ -614,9 +615,7 @@ function refreshHolidays() {
     // ensure() prunes every cached year outside `years`, so a narrower window here
     // deletes data the mask still reads.
     var years = holidayMask.windowYears(holidayWindowOpts(app.settings, app.watchInfo), new Date());
-    nagerSource.ensure(country, years, function () {
-        sendClaySettings(function () {}, function () {});
-    });
+    nagerSource.ensure(country, years, scheduler.onHolidaysUpdated);
 }
 
 /**

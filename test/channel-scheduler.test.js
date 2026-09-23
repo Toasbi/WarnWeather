@@ -423,3 +423,65 @@ test('theme flip: a NACKed day-change send does not swallow a coincident flip', 
     h.tick();
     assert.equal(h.calls.sendClay.length, 3, 'ACK ends the retry loop');
 });
+
+// --- holiday-data resend: refreshHolidays' Nager callback -------------------
+// The fetch lands at an arbitrary moment (often while the config-close or startup
+// Clay is still in flight), and once it has, the cache is fresh: nothing fetches
+// or resends it again before the next midnight. So the resend is coalesced into
+// one send, and a NACK hands it to the tick's day-change resend to retry.
+
+test('holiday data: per-year callbacks of one landing ride ONE deferred Clay send', function () {
+    resetStore();
+    var h = makeHarness();
+    h.scheduler.onHolidaysUpdated();
+    h.scheduler.onHolidaysUpdated();   // the second year of a year-boundary window
+    assert.equal(h.calls.sendClay.length, 0, 'deferred past the XHR callback');
+    assert.equal(h.timers.length, 1, 'one queued send for both callbacks');
+    assert.equal(h.timers[0].ms, 0);
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 1, 'exactly one Clay send');
+    h.ackClay();
+    h.scheduler.onHolidaysUpdated();
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 2, 'a later landing queues its own send');
+});
+
+test('holiday data: a NACKed resend is retried by the next tick, until one is ACKed', function () {
+    resetStore();
+    var h = makeHarness();
+    h.setNow(new Date(2026, 11, 1, 10, 0, 0));
+    localStorage.setItem(KEYS.LAST_HOLIDAY_DAY_KEY, '2026-11-1');   // today already sent
+    h.scheduler.start();
+    assert.equal(h.calls.sendClay.length, 0, 'steady state: nothing due');
+
+    h.scheduler.onHolidaysUpdated();
+    h.flushTimers();                    // the queued resend (plus the next tick, which is quiet)
+    assert.equal(h.calls.sendClay.length, 1, 'the new mask goes out');
+    h.nackClay();                       // collided with an in-flight send
+    assert.equal(localStorage.getItem(KEYS.LAST_HOLIDAY_DAY_KEY), null,
+        'a NACK forgets the day stamp so the tick retries');
+
+    h.flushTimers();                    // next minute tick
+    assert.equal(h.calls.sendClay.length, 2, 'the tick resends the mask');
+    h.nackClay();                       // still no link
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 3, 'and keeps retrying while it NACKs');
+    h.ackClay();
+    assert.equal(localStorage.getItem(KEYS.LAST_HOLIDAY_DAY_KEY), '2026-11-1');
+    h.flushTimers();
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 3, 'an ACK ends the retries');
+});
+
+test('holiday data: an ACKed resend keeps today stamped (no extra tick send)', function () {
+    resetStore();
+    var h = makeHarness();
+    h.setNow(new Date(2026, 11, 1, 10, 0, 0));
+    localStorage.setItem(KEYS.LAST_HOLIDAY_DAY_KEY, '2026-11-1');
+    h.scheduler.start();
+    h.scheduler.onHolidaysUpdated();
+    h.flushTimers();
+    h.ackClay();
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 1, 'no retry after an ACK');
+});
