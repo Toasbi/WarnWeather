@@ -99,17 +99,35 @@ test('DWD puts previous-hour rain, chance and gust in the slot of the hour they 
   assert.deepEqual(p.gustTrend.slice(0, 2), [60, 20], 'the gust head is the current hour');
   // Instants stay on their own stamp.
   assert.deepEqual(p.tempTrend.slice(0, 2), [32, 33.8], '0 °C and 1 °C → °F');
-  // The 25th record only feeds the last slot's totals: every series is 24 long.
-  ['tempTrend', 'precipTrend', 'rainTrend', 'windTrend', 'gustTrend', 'pressureTrend',
+  // The 25th record only feeds the last slot's totals: every graph series is 24 long.
+  ['tempTrend', 'precipTrend', 'rainTrend', 'pressureTrend',
     'dewTrend', 'windDirTrend', 'feelsTrend'].forEach((key) => {
     assert.equal(p[key].length, 24, key + ' length');
   });
+  // Wind and gusts read on to PEAK_HOURS for the slots' day max; past the
+  // response they are null (the feed ended), never carried forward.
+  ['windTrend', 'gustTrend'].forEach((key) => {
+    assert.equal(p[key].length, 49, key + ' length');
+    assert.equal(p[key][26], null, key + ' past the response');
+  });
 });
 
-test('DWD asks Brightsky for one record past the window (last_date is inclusive)', () => {
+test('DWD wind and gusts read on past the graph for the day max, paired by timestamp', () => {
+  const recs = stampedRecords(Array.from({ length: 50 }, (_, i) => i), -1);
+  recs.forEach((r, i) => { r.wind_speed = 100 + i; r.wind_gust_speed = 200 + i; });
+  const { p, ok } = runAt0920(recs);
+  assert.equal(ok, true);
+  assert.equal(p.windTrend.length, 49);
+  assert.equal(p.windTrend[30], 130, 'wind from the hour\'s own record');
+  assert.equal(p.gustTrend[30], 231, 'gust from the record an hour on');
+  assert.equal(p.gustTrend[48], 249);
+});
+
+test('DWD asks Brightsky for one record past the day-max window (last_date is inclusive)', () => {
   const { url } = runAt0920(stampedRecords(Array.from({ length: 25 }, (_, i) => i), -1));
   assert.match(url, /[?&]date=2026-09-23T07:00:00\.000Z&/);
-  assert.match(url, /last_date=2026-09-24T07:00:00\.000Z&/, 'the record stamped at the last slot\'s end');
+  assert.match(url, /last_date=2026-09-25T08:00:00\.000Z&/,
+    'PEAK_HOURS on: the record stamped at the last day-max slot\'s end');
 });
 
 test('DWD reads the last slot\'s totals from the record after the window, and survives its absence', () => {

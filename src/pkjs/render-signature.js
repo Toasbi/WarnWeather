@@ -39,6 +39,14 @@ function renderSignature(settings) {
         settings.uvSlotSeparator, settings.uvSlotSeparatorCustom,
         settings.uvSlotSeparatorSpaced, settings.uvSlotOrder,
         settings.uvSlotNextDayMark,
+        // ...the wind, gust and AQI slots' day-max modes and pair presentation (the
+        // same settings as UV's, per kind)...
+        settings.windSlotDisplay, settings.windSlotSeparator, settings.windSlotSeparatorCustom,
+        settings.windSlotSeparatorSpaced, settings.windSlotOrder, settings.windSlotNextDayMark,
+        settings.gustSlotDisplay, settings.gustSlotSeparator, settings.gustSlotSeparatorCustom,
+        settings.gustSlotSeparatorSpaced, settings.gustSlotOrder, settings.gustSlotNextDayMark,
+        settings.aqiSlotDisplay, settings.aqiSlotSeparator, settings.aqiSlotSeparatorCustom,
+        settings.aqiSlotSeparatorSpaced, settings.aqiSlotOrder, settings.aqiSlotNextDayMark,
         // ...the unit pickers (change baked/fetched values: wind & distance rebake,
         // AQI source/scale refetch)...
         settings.windUnits, settings.distanceUnits, settings.aqiScale, settings.aqiSource,

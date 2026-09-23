@@ -657,6 +657,13 @@ if (typeof require !== 'undefined') {
             'tempSlotOrder',
             'uvSlotSeparator', 'uvSlotSeparatorCustom', 'uvSlotSeparatorSpaced',
             'uvSlotOrder', 'uvSlotNextDayMark',
+            // ...and the same display rows on the wind, gust and AQI sheets.
+            'windSlotDisplay', 'windSlotSeparator', 'windSlotSeparatorCustom',
+            'windSlotSeparatorSpaced', 'windSlotOrder', 'windSlotNextDayMark',
+            'gustSlotDisplay', 'gustSlotSeparator', 'gustSlotSeparatorCustom',
+            'gustSlotSeparatorSpaced', 'gustSlotOrder', 'gustSlotNextDayMark',
+            'aqiSlotDisplay', 'aqiSlotSeparator', 'aqiSlotSeparatorCustom',
+            'aqiSlotSeparatorSpaced', 'aqiSlotOrder', 'aqiSlotNextDayMark',
             'dateSlotMonthFormat',
             'windSlotDirection', 'gustSlotDirection'];
         // dateSlotFullFormat is the one key here whose fresh-install value is

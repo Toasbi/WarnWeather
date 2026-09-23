@@ -83,7 +83,9 @@ Two things that both involve rain over time, but answer different questions:
   likewise not on Pebble Classic/Steel, which keeps the classic line + dots look). The
   temperature status slot can also show the feels-like value, or both as `12/10`; the UV index
   slot can show today's highest UV still to come, or both as `3/7`; today's peak stays until the
-  UV drops below it, then tomorrow's shows instead, marked `»` (`4/»8`). How the pair is written
+  UV drops below it, then tomorrow's shows instead, marked `»` (`4/»8`). The wind, gust and air
+  quality slots offer the same day max (air quality with the Open-Meteo AQI provider, whose
+  hourly forecast it needs; WAQI reports the current reading only). How the pair is written
   is up to you: pick the separator (`12/10`, `12(10)`, `12·10`, `12|10` or your own), with or
   without spaces around it (`12 / 10`), which value comes first, and how tomorrow's peak is
   marked (`»6`, `>6`, `+6`, `6*` or no mark). Feels-like itself comes in two flavours, picked

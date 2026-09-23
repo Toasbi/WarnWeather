@@ -1,4 +1,4 @@
-// test/uv-day-record.test.js — the UV forecast of today's hours already begun,
+// test/day-peak-record.test.js — the UV forecast of today's hours already begun,
 // kept across fetches so the UV slot's day max can hold today's peak while it
 // runs (a peak of 5 from 13:00 to 15:00 shows until the reading drops below it)
 // and give way to tomorrow's once it is behind us. Times are LOCAL clock times so
@@ -16,7 +16,7 @@ global.localStorage = {
 };
 
 const KEYS = require('../src/pkjs/storage-keys.js');
-const record = require('../src/pkjs/weather/uv-day-record.js');
+const record = require('../src/pkjs/weather/day-peak-record.js');
 const WeatherProvider = require('../src/pkjs/weather/provider.js');
 const outbox = require('../src/pkjs/outbox.js');
 const { uvShown } = require('../src/pkjs/wire-units.js');
@@ -249,7 +249,7 @@ test('DST days: the earlier hours are the day\'s own, 23 or 25 of them', () => {
   // peak among them must be found by time, not by a 24-hour count.
   const { execFileSync } = require('child_process');
   const body = `
-    const r = require(${JSON.stringify(require.resolve('../src/pkjs/weather/uv-day-record.js'))});
+    const r = require(${JSON.stringify(require.resolve('../src/pkjs/weather/day-peak-record.js'))});
     const src = { id: 'openmeteo', lat: 52.5, lon: 13.4 };
     const out = {};
     [['spring', 2, 29], ['autumn', 9, 25]].forEach(([name, m, d]) => {

@@ -187,7 +187,7 @@ test('getPayload passes CURRENT_TEMP and FEELS_CURRENT through unrounded (0 °F 
 });
 
 // UV_DAY_PEAKS: the UV slot's [rest of today, tomorrow] peaks, read off the FULL
-// uvTrend (UV_HOURS deep) that UV_TREND_UINT8 is cut short of, then the peak of
+// uvTrend (PEAK_HOURS deep) that UV_TREND_UINT8 is cut short of, then the peak of
 // today's hours already begun (uvEarlierPeak, set per fetch from the UV day record). Local-time start so
 // the day boundary is host-timezone-proof (see test/hourly-window.test.js).
 const LOCAL_9AM = new Date(2026, 6, 15, 9, 0, 0).getTime() / 1000;

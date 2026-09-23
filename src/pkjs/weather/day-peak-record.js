@@ -1,5 +1,8 @@
-// src/pkjs/weather/uv-day-record.js — the UV forecast for the hours of today
-// that have already begun, kept across fetches.
+// src/pkjs/weather/day-peak-record.js — the forecast for the hours of today
+// that have already begun, kept across fetches, one record per day-max metric
+// (UV, wind, gusts, AQI; RECORD_KEYS). The UV slot is the worked example below;
+// the others run the same rule on their own series, in their own units (km/h,
+// AQI points).
 //
 // The UV slot's day max holds today's peak until the reading drops below it
 // (wire-units' uvShown). The fetched series starts at the current hour, so on
@@ -28,7 +31,13 @@
 var storageKeys = require('../storage-keys.js');
 var hourlyWindow = require('./hourly-window.js');
 
-var RECORD_KEY = storageKeys.UV_DAY_RECORD_KEY;
+// The storage key per day-max metric. load/save default to UV's.
+var RECORD_KEYS = {
+    uv: storageKeys.UV_DAY_RECORD_KEY,
+    wind: storageKeys.WIND_DAY_RECORD_KEY,
+    gust: storageKeys.GUST_DAY_RECORD_KEY,
+    aqi: storageKeys.AQI_DAY_RECORD_KEY
+};
 var HOUR_SECONDS = hourlyWindow.HOUR_SECONDS;
 // Two fetches this close (degrees, on each axis — about 55 km of latitude)
 // count as the same place: a commute keeps the record, another region does not.
@@ -70,11 +79,11 @@ function sameSource(record, source, startEpoch) {
  *
  * @param {*} record Stored record, or null.
  * @param {{id: string, lat: number, lon: number}} source This fetch's source.
- * @param {Array.<(number|null)>} series This fetch's UV series (UV index).
+ * @param {Array.<(number|null)>} series This fetch's series (UV index, km/h, AQI).
  * @param {number} startEpoch Epoch seconds of series entry 0.
  * @param {number} [nowEpoch] Current time in epoch seconds.
  * @returns {{id: string, lat: number, lon: number, t: number, v: Array.<(number|null)>}}
- *   The new record: v[i] is the hour starting at t + i h, in UV tenths.
+ *   The new record: v[i] is the hour starting at t + i h, in tenths of the unit.
  */
 function merge(record, source, series, startEpoch, nowEpoch) {
     var dayStart = hourlyWindow.localDayStart(startEpoch, nowEpoch);
@@ -133,16 +142,18 @@ function earlierPeak(record, source, startEpoch, nowEpoch, hold) {
 }
 
 /**
+ * @param {string} [storageKey] The metric's key (RECORD_KEYS); UV's when absent.
  * @returns {*} The stored record, or null when none (or unreadable: cleared).
  */
-function load() {
-    var raw = localStorage.getItem(RECORD_KEY);
+function load(storageKey) {
+    var key = storageKey || RECORD_KEYS.uv;
+    var raw = localStorage.getItem(key);
     if (raw === null) { return null; }
     try {
         return JSON.parse(raw);
     }
     catch (ex) {
-        localStorage.removeItem(RECORD_KEY);
+        localStorage.removeItem(key);
         return null;
     }
 }
@@ -151,16 +162,19 @@ function load() {
  * Store a record, skipping the flash write when it is unchanged.
  *
  * @param {Object} record The record merge() built.
+ * @param {string} [storageKey] The metric's key (RECORD_KEYS); UV's when absent.
  * @returns {void}
  */
-function save(record) {
+function save(record, storageKey) {
+    var key = storageKey || RECORD_KEYS.uv;
     var raw = JSON.stringify(record);
-    if (localStorage.getItem(RECORD_KEY) !== raw) {
-        localStorage.setItem(RECORD_KEY, raw);
+    if (localStorage.getItem(key) !== raw) {
+        localStorage.setItem(key, raw);
     }
 }
 
 module.exports = {
+    RECORD_KEYS: RECORD_KEYS,
     merge: merge,
     earlierPeak: earlierPeak,
     load: load,

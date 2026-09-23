@@ -35,11 +35,11 @@ STATUS LINES
    - Weather:
       - feels-like temperature
       - dew point
-      - air quality
+      - air quality (current, and today's/tomorrow's peak)
       - air pressure
       - pollen
-      - wind
-      - gusts
+      - wind (current, and today's/tomorrow's peak)
+      - gusts (current, and today's/tomorrow's peak)
       - UV index (current, and today's/tomorrow's peak)
       - sunrise/sunset
    - Date and location:

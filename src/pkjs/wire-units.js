@@ -8,7 +8,7 @@ var KNOTS_TO_KMH = 1.852;
 
 /**
  * The displayed number for an internal km/h wind value — THE one conversion
- * both display paths share: status-lines' slot formatting (formatWind) and
+ * both display paths share: status-lines' slot formatting (windShown) and
  * status-thresholds' displayValue (thresholds compare against the DISPLAYED
  * number, so the two must round identically or a threshold can disagree with
  * the slot text it guards).
@@ -51,7 +51,7 @@ function trendHead(arr) {
  * never prints above 0 has no peak to hold. All comparisons are on the whole
  * numbers the slot prints.
  * The peaks come in pre-computed (UV_DAY_PEAKS, provider.js getPayload, off the
- * longer UV_HOURS series and the UV day record), so only frozen payload inputs
+ * longer PEAK_HOURS series and the UV day record), so only frozen payload inputs
  * are read — no clock — and re-baking an old snapshot reproduces the same text
  * (status-rebake.js; one stored before the third peak existed reads it as unknown).
  *
@@ -70,11 +70,26 @@ function trendHead(arr) {
 function uvShown(uvTrend, dayPeaks, mode) {
     var head = trendHead(uvTrend);
     if (head === null) { return null; }
-    var shown = { now: Math.round(head / 10), peak: null, nextDay: false };
+    return peakShown(Math.round(head / 10), dayPeaks, mode,
+        function (tenths) { return Math.round(tenths / 10); });
+}
+
+/**
+ * The day-max rule uvShown documents, for any slot that has one (UV, wind, gusts,
+ * AQI): the numbers the slot prints, compared as the slot prints them.
+ *
+ * @param {number} now The current reading, already the displayed number.
+ * @param {*} dayPeaks The metric's *_DAY_PEAKS triple (payload units), or absent.
+ * @param {*} mode The slot's stored display mode ('current' | 'max' | 'both').
+ * @param {function(number): number} toShown Payload peak -> the displayed number.
+ * @returns {{now: ?number, peak: ?number, nextDay: boolean}} See uvShown.
+ */
+function peakShown(now, dayPeaks, mode, toShown) {
+    var shown = { now: now, peak: null, nextDay: false };
     if ((mode !== 'max' && mode !== 'both') || !dayPeaks) { return shown; }
-    var today = typeof dayPeaks[0] === 'number' ? Math.round(dayPeaks[0] / 10) : null;
-    var next = typeof dayPeaks[1] === 'number' ? Math.round(dayPeaks[1] / 10) : null;
-    var earlier = typeof dayPeaks[2] === 'number' ? Math.round(dayPeaks[2] / 10) : null;
+    var today = typeof dayPeaks[0] === 'number' ? toShown(dayPeaks[0]) : null;
+    var next = typeof dayPeaks[1] === 'number' ? toShown(dayPeaks[1]) : null;
+    var earlier = typeof dayPeaks[2] === 'number' ? toShown(dayPeaks[2]) : null;
     var running = earlier !== null && today !== null && today > 0 && today >= earlier;
     if (today !== null && (today > shown.now || running)) {
         shown.peak = today;
@@ -86,6 +101,43 @@ function uvShown(uvTrend, dayPeaks, mode) {
     }
     if (mode === 'max') { shown.now = null; }
     return shown;
+}
+
+/**
+ * The numbers a wind or gust slot prints, in the user's wind unit — uvShown's
+ * rule on the km/h series, converted by kmhToDisplay BEFORE the comparisons, so
+ * "the reading dropped below the peak" is judged on the numbers on screen.
+ * Shared by status-lines' slot text and status-thresholds' displayValue.
+ *
+ * @param {number[]|null|undefined} trend WIND_TREND_UINT8 / GUST_TREND_UINT8 (km/h).
+ * @param {*} dayPeaks WIND_DAY_PEAKS / GUST_DAY_PEAKS (whole km/h), or absent.
+ * @param {*} mode Stored windSlotDisplay / gustSlotDisplay.
+ * @param {*} windUnits Stored windUnits setting.
+ * @returns {?{now: ?number, peak: ?number, nextDay: boolean}} null when there is
+ *     no reading at all; otherwise as uvShown.
+ */
+function windShown(trend, dayPeaks, mode, windUnits) {
+    var head = trendHead(trend);
+    if (head === null) { return null; }
+    return peakShown(kmhToDisplay(head, windUnits), dayPeaks, mode,
+        function (kmh) { return kmhToDisplay(kmh, windUnits); });
+}
+
+/**
+ * The numbers the AQI slot prints — uvShown's rule on the hourly AQI forecast.
+ * AQI_DAY_PEAKS rides only an Open-Meteo forecast; with WAQI's current reading
+ * it is absent and every mode prints the reading alone.
+ *
+ * @param {Array.<(number|null)>|null|undefined} trend AQI_TREND.
+ * @param {*} dayPeaks AQI_DAY_PEAKS (whole points), or absent.
+ * @param {*} mode Stored aqiSlotDisplay.
+ * @returns {?{now: ?number, peak: ?number, nextDay: boolean}} null when there is
+ *     no reading at all; otherwise as uvShown.
+ */
+function aqiShown(trend, dayPeaks, mode) {
+    var head = trendHead(trend);
+    if (typeof head !== 'number' || !isFinite(head)) { return null; }
+    return peakShown(Math.round(head), dayPeaks, mode, Math.round);
 }
 
 /**
@@ -161,6 +213,9 @@ module.exports = {
     kmhToDisplay: kmhToDisplay,
     trendHead: trendHead,
     uvShown: uvShown,
+    peakShown: peakShown,
+    windShown: windShown,
+    aqiShown: aqiShown,
     celsiusToFahrenheit: celsiusToFahrenheit,
     normalizeBearing: normalizeBearing,
     zeroFilledArray: zeroFilledArray

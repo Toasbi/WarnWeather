@@ -598,6 +598,43 @@ function pairRows(prefix, first, second, orderOptions) {
     }];
 }
 /**
+ * A day-max slot kind's display rows (UV, wind, gusts, AQI): the Now / Day max / Both
+ * pills, the pair rows Both reveals (pairRows), and the mark on a max that has rolled
+ * on to tomorrow's peak. Global per kind, baked phone-side (status-lines.js
+ * formatValue; the numbers are wire-units' peakShown) and on renderSignature(), so a
+ * change re-bakes without waiting for the next fetch. The highlight follows the
+ * numbers, never their presentation (status-thresholds.js displayValue).
+ * @param {string} prefix Key prefix: 'uv' | 'wind' | 'gust' | 'aqi'.
+ * @param {string} label The pills' label, e.g. 'UV selection'.
+ * @param {string} hint The pills' hint.
+ * @param {string} now Sample current reading for the separator labels, e.g. '3'.
+ * @param {string} max Sample peak, e.g. '7'.
+ * @returns {Object[]} The rows, in sheet order.
+ */
+function dayMaxRows(prefix, label, hint, now, max) {
+    return [{
+        type: 'segmented',
+        messageKey: prefix + 'SlotDisplay',
+        label: label,
+        hint: hint,
+        defaultValue: 'current',
+        options: [['Now', 'current'], ['Day max', 'max'], ['Both', 'both']]
+    }].concat(pairRows(prefix, now, max, [['Now first', 'now'], ['Max first', 'max']]), [{
+        // The mark on a max that has rolled on to tomorrow's peak — in Day max AND
+        // Both, the two modes that print a max. 'raquo' is the '»' the UV slot
+        // printed before this row existed, so it stays the default.
+        type: 'select',
+        messageKey: prefix + 'SlotNextDayMark',
+        label: 'Tomorrow\'s peak mark',
+        defaultValue: 'raquo',
+        options: nextDayMarkOptions(),
+        joinPrevious: true,
+        showWhen: {key: prefix + 'SlotDisplay', in: ['max', 'both']}
+    }]);
+}
+// The part of every day-max hint after its first sentence.
+var DAY_MAX_HINT_TAIL = ' Today\'s peak shows until the value drops below it, then the max shows tomorrow\'s, marked as chosen below. Highlighting follows the highest of today\'s values shown; tomorrow\'s never counts.';
+/**
  * The UV slot's next-day mark options, labelled on a sample peak of 6 from the
  * formatter's own table, so each label shows where its mark lands (three lead the
  * number, the star trails it). 'none' would print a bare 6, which reads as no choice
@@ -1850,7 +1887,11 @@ module.exports = {
         },
         // Threshold edit sheets (sheetOnly): reachable only through the pencil next to a
         // status slot whose selected value has thresholds — never rendered as cards here.
-        thresholdSection('Air quality (AQI)', 'Aqi', ''),
+        // The AQI day max needs an hourly forecast, which only the Open-Meteo source
+        // has: on WAQI's current reading every mode prints that reading alone.
+        thresholdSection('Air quality (AQI)', 'Aqi', '', null, dayMaxRows('aqi', 'AQI selection',
+            'Show the air quality index now, the highest it still gets today, or both. The day max needs the Open-Meteo AQI provider (General tab); WAQI reports the current reading only.'
+            + DAY_MAX_HINT_TAIL, '42', '58')),
         thresholdSection('Pollen', 'Pollen',
             'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.'),
         // Wind and gust each carry their own direction arrow: the two slots often sit
@@ -1858,7 +1899,10 @@ module.exports = {
         // not global. The phone bakes the arrow into the slot text (status-lines.js
         // appends a trailing sentinel byte), and both keys ride renderSignature(), so
         // flipping one re-bakes without waiting for the next fetch.
-        thresholdSection('Wind speed', 'Wind', '', null, [{
+        // Wind, gusts and AQI carry UV's display modes (dayMaxRows), each kind its own.
+        thresholdSection('Wind speed', 'Wind', '', null, dayMaxRows('wind', 'Wind selection',
+            'Show the wind speed now, the strongest it still gets today, or both.' + DAY_MAX_HINT_TAIL,
+            '12', '30').concat([{
             type: 'toggle',
             messageKey: 'windSlotDirection',
             label: 'Show wind direction',
@@ -1870,14 +1914,16 @@ module.exports = {
             // is not rearranged under its owner.
             defaultValue: true,
             hint: WIND_DIRECTION_HINT
-        }, unitRow('windSlotUnit', null, null)]),
-        thresholdSection('Wind gusts', 'Gust', '', null, [{
+        }, unitRow('windSlotUnit', null, null)])),
+        thresholdSection('Wind gusts', 'Gust', '', null, dayMaxRows('gust', 'Gust selection',
+            'Show the gusts now, the strongest they still get today, or both.' + DAY_MAX_HINT_TAIL,
+            '20', '45').concat([{
             type: 'toggle',
             messageKey: 'gustSlotDirection',
             label: 'Show wind direction',
             defaultValue: false,
             hint: WIND_DIRECTION_HINT
-        }, unitRow('gustSlotUnit', null, null)]),
+        }, unitRow('gustSlotUnit', null, null)])),
         // The UV slot's display mode — the temp slot's tempSlotDisplay pattern: global
         // per-kind, baked phone-side (status-lines.js formatValue), and on
         // renderSignature() so a change re-bakes without waiting for the next fetch.
@@ -1886,25 +1932,9 @@ module.exports = {
         // slot, and the highlight follows it (the policy is status-thresholds.js
         // displayValue's). So do the rows shaping how it reads, which change the
         // text only — the highlight judges the numbers, never their presentation.
-        thresholdSection('UV index', 'Uv', '', null, [{
-            type: 'segmented',
-            messageKey: 'uvSlotDisplay',
-            label: 'UV selection',
-            hint: 'Show the UV index now, the highest it still gets today, or both. Today\'s peak shows until the UV drops below it, then the max shows tomorrow\'s, marked as chosen below. Highlighting follows the highest of today\'s values shown; tomorrow\'s never counts.',
-            defaultValue: 'current',
-            options: [['Now', 'current'], ['Day max', 'max'], ['Both', 'both']]
-        }].concat(pairRows('uv', '3', '7', [['Now first', 'now'], ['Max first', 'max']]), [{
-            // The mark on a max that has rolled on to tomorrow's peak — in Day max AND
-            // Both, the two modes that print a max. 'raquo' is the '»' the slot
-            // printed before this row existed, so it stays the default.
-            type: 'select',
-            messageKey: 'uvSlotNextDayMark',
-            label: 'Tomorrow\'s peak mark',
-            defaultValue: 'raquo',
-            options: nextDayMarkOptions(),
-            joinPrevious: true,
-            showWhen: {key: 'uvSlotDisplay', in: ['max', 'both']}
-        }])),
+        thresholdSection('UV index', 'Uv', '', null, dayMaxRows('uv', 'UV selection',
+            'Show the UV index now, the highest it still gets today, or both.' + DAY_MAX_HINT_TAIL,
+            '3', '7')),
         thresholdSection('Steps', 'Steps',
             'Steps per day.', HEALTH_SLOT_WHEN),
         thresholdSection('Sleep', 'Sleep',

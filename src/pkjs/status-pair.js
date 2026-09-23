@@ -1,8 +1,9 @@
 // src/pkjs/status-pair.js — how a two-value status slot presents its pair.
 //
-// Two slot kinds can show two readings at once: Temperature in 'both' mode
-// (actual and feels-like) and UV in 'both' mode (now and the day's peak: today's
-// until the UV drops below it, then tomorrow's).
+// Two kinds of slot can show two readings at once: Temperature in 'both' mode
+// (actual and feels-like), and the day-max kinds -- UV, wind, gusts and AQI -- in
+// 'both' mode (now and the day's peak: today's until the reading drops below it,
+// then tomorrow's).
 // Which reading comes first, what stands between the two (and whether spaces flank
 // it), and how UV marks a peak that is tomorrow's are per-kind settings (each
 // kind's Edit sheet); this module turns them into the text status-lines.js bakes. Phone-side only: the watch
@@ -178,28 +179,42 @@ function formatTempPair(actual, feels, settings, cap) {
 }
 
 /**
- * The UV slot's text for the numbers wire-units' uvShown picked, in every mode.
- * The next-day mark goes on the peak wherever it shows -- alone in 'max' mode,
- * paired in 'both' -- and the pair takes the user's order (uvSlotOrder, absent =
- * now first), separator and spacing. No peak known renders the current reading
- * alone, never '3/--'.
+ * A day-max slot's text for the numbers wire-units picked (uvShown, windShown,
+ * aqiShown), in every mode. The next-day mark goes on the peak wherever it shows
+ * -- alone in 'max' mode, paired in 'both' -- and the pair takes the kind's own
+ * order (<prefix>SlotOrder, absent = now first), separator and spacing. No peak
+ * known renders the current reading alone, never '3/--'.
+ * @param {string} prefix the kind's settings prefix: 'uv' | 'wind' | 'gust' | 'aqi'
+ * @param {{now: ?number, peak: ?number, nextDay: boolean}} shown the picked numbers
+ *   (non-null: the caller renders '--' for no reading at all)
+ * @param {Object} settings Clay settings blob (<prefix>SlotSeparator,
+ *   <prefix>SlotSeparatorCustom, <prefix>SlotSeparatorSpaced, <prefix>SlotOrder,
+ *   <prefix>SlotNextDayMark)
+ * @param {number} [cap] the slot's byte cap
+ * @returns {string} e.g. '3', '7', '»6', '3/7', '5/»6'
+ */
+function formatPeak(prefix, shown, settings, cap) {
+    var s = settings || {};
+    if (shown.peak === null) { return String(shown.now); }
+    var peak = shown.nextDay ? markNextDay(String(shown.peak), s[prefix + 'SlotNextDayMark'])
+        : String(shown.peak);
+    if (shown.now === null) { return peak; }
+    var now = String(shown.now);
+    var maxFirst = s[prefix + 'SlotOrder'] === 'max';
+    return joinPair(maxFirst ? peak : now, maxFirst ? now : peak,
+        s[prefix + 'SlotSeparator'], s[prefix + 'SlotSeparatorCustom'],
+        s[prefix + 'SlotSeparatorSpaced'], cap);
+}
+
+/**
+ * The UV slot's formatPeak.
  * @param {{now: ?number, peak: ?number, nextDay: boolean}} uv uvShown's result
- *   (non-null: the caller renders '--' for no UV at all)
- * @param {Object} settings Clay settings blob (uvSlotSeparator,
- *   uvSlotSeparatorCustom, uvSlotSeparatorSpaced, uvSlotOrder, uvSlotNextDayMark)
+ * @param {Object} settings Clay settings blob
  * @param {number} [cap] the slot's byte cap
  * @returns {string} e.g. '3', '7', '»6', '3/7', '5/»6'
  */
 function formatUv(uv, settings, cap) {
-    var s = settings || {};
-    if (uv.peak === null) { return String(uv.now); }
-    var peak = uv.nextDay ? markNextDay(String(uv.peak), s.uvSlotNextDayMark)
-        : String(uv.peak);
-    if (uv.now === null) { return peak; }
-    var now = String(uv.now);
-    var maxFirst = s.uvSlotOrder === 'max';
-    return joinPair(maxFirst ? peak : now, maxFirst ? now : peak,
-        s.uvSlotSeparator, s.uvSlotSeparatorCustom, s.uvSlotSeparatorSpaced, cap);
+    return formatPeak('uv', uv, settings, cap);
 }
 
 module.exports = {
@@ -212,5 +227,6 @@ module.exports = {
     joinPair: joinPair,
     markNextDay: markNextDay,
     formatTempPair: formatTempPair,
+    formatPeak: formatPeak,
     formatUv: formatUv
 };

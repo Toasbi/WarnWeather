@@ -93,7 +93,8 @@ var STATUS_KEYS = outbox.WEATHER_CATEGORIES.find(function (category) {
  * payload missing keys it now expects.
  */
 // 2: SOURCE_KEYS gained UV_DAY_PEAKS (the UV slot's day-max modes).
-var SNAPSHOT_VERSION = 2;
+// 3: ...and WIND_DAY_PEAKS / GUST_DAY_PEAKS / AQI_DAY_PEAKS (theirs).
+var SNAPSHOT_VERSION = 3;
 
 var deps = {};        // injected environment (see init)
 var snapshot = null;  // last bake inputs ({payload, settings, watchInfo}) from THIS PKJS life

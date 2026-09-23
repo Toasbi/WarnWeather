@@ -158,35 +158,16 @@ function withUnit(value, unit, cap) {
 }
 
 /**
- * Convert an internal km/h wind value to the display unit, value and label apart
- * so the caller can drop the label. One switch, not two, keeps the conversion
- * and its label from ever disagreeing.
- * @param {number} v wind/gust value in km/h
+ * The label of the user's wind unit. The number itself is wire-units' (windShown,
+ * via kmhToDisplay), which the thresholds read too, so the two can never round apart.
  * @param {Object} settings Clay settings blob (reads windUnits)
- * @returns {{value: string, unit: string}} e.g. {value: "50", unit: "kph"}
+ * @returns {string} 'kph', 'mph' or 'kn'
  */
-function windParts(v, settings) {
+function windUnitLabel(settings) {
   var unit = settings && settings.windUnits;
-  // wire-units owns the conversion: thresholds compare against the DISPLAYED
-  // number (status-thresholds displayValue), so both paths must round through
-  // the same helper.
-  var shown = String(wireUnits.kmhToDisplay(v, unit));
-  if (unit === 'mph') { return { value: shown, unit: 'mph' }; }
-  if (unit === 'knots') { return { value: shown, unit: 'kn' }; }
-  return { value: shown, unit: 'kph' };
-}
-
-/**
- * Convert an internal km/h wind value to the display unit and label.
- * @param {number} v wind/gust value in km/h
- * @param {Object} settings Clay settings blob (reads windUnits)
- * @param {boolean} showUnit whether this slot's "Show unit" toggle is on
- * @param {number} [cap] the slot's byte cap
- * @returns {string} e.g. "50kph", "31mph", "27kn", or a bare "50"
- */
-function formatWind(v, settings, showUnit, cap) {
-  var parts = windParts(v, settings);
-  return withUnit(parts.value, showUnit ? parts.unit : '', cap);
+  if (unit === 'mph') { return 'mph'; }
+  if (unit === 'knots') { return 'kn'; }
+  return 'kph';
 }
 
 /**
@@ -357,15 +338,18 @@ function formatValue(code, payload, settings, slotKey, cap) {
       settings.uvSlotDisplay);
     return uv ? statusPair.formatUv(uv, settings, cap) : '--';
   }
-  if (code === 'wind') {
-    v = trendHead(payload.WIND_TREND_UINT8);
-    return v === null ? '--'
-      : formatWind(v, settings, unitEnabled(settings, 'windSlotUnit'), cap);
-  }
-  if (code === 'gust') {
-    v = trendHead(payload.GUST_TREND_UINT8);
-    return v === null ? '--'
-      : formatWind(v, settings, unitEnabled(settings, 'gustSlotUnit'), cap);
+  if (code === 'wind' || code === 'gust') {
+    // UV's display modes (Now / Day max / Both) on the wind and gust slots, each
+    // with its own Edit-sheet settings: windShown picks the numbers in the
+    // user's wind unit, formatPeak writes them like the UV pair, and the unit
+    // label follows the whole text when it still fits the slot ('12/30kph').
+    var isWind = code === 'wind';
+    var wind = wireUnits.windShown(isWind ? payload.WIND_TREND_UINT8 : payload.GUST_TREND_UINT8,
+      isWind ? payload.WIND_DAY_PEAKS : payload.GUST_DAY_PEAKS,
+      settings[code + 'SlotDisplay'], settings.windUnits);
+    if (!wind) { return '--'; }
+    return withUnit(statusPair.formatPeak(code, wind, settings, cap),
+      unitEnabled(settings, code + 'SlotUnit') ? windUnitLabel(settings) : '', cap);
   }
   if (code === 'pressure') {
     v = trendHead(payload.PRESSURE_TREND);
@@ -390,9 +374,13 @@ function formatValue(code, payload, settings, slotKey, cap) {
       unitEnabled(settings, 'dewSlotUnit') ? DEGREE : '', cap);
   }
   if (code === 'aqi') {
-    v = trendHead(payload.AQI_TREND);
     // Bare index; the leaf icon carries the "air quality" context (UV-style).
-    return v === null ? '--' : String(Math.round(v));
+    // UV's display modes too, but the day max needs an hourly forecast
+    // (AQI_DAY_PEAKS, Open-Meteo only): on WAQI's current reading every mode
+    // prints that reading alone.
+    var aqi = wireUnits.aqiShown(payload.AQI_TREND, payload.AQI_DAY_PEAKS,
+      settings.aqiSlotDisplay);
+    return aqi ? statusPair.formatPeak('aqi', aqi, settings, cap) : '--';
   }
   if (code === 'pollen') {
     return payload.POLLEN_TODAY === null || typeof payload.POLLEN_TODAY === 'undefined'
@@ -470,6 +458,15 @@ function directionSentinel(code, payload, settings, env, text) {
   // number, no arrow. (The caller passes the already-formatted text so this
   // check can never disagree with what the slot actually shows.)
   if (text === '--') { return 0; }
+  // Day max alone prints the peak, not the wind the arrow describes (the current
+  // hour's), so it draws none; Both keeps it, its first reading being now's.
+  if (settings[code + 'SlotDisplay'] === 'max') {
+    var shown = wireUnits.windShown(
+      code === 'wind' ? payload.WIND_TREND_UINT8 : payload.GUST_TREND_UINT8,
+      code === 'wind' ? payload.WIND_DAY_PEAKS : payload.GUST_DAY_PEAKS,
+      'max', settings.windUnits);
+    if (shown && shown.now === null) { return 0; }
+  }
   var from = trendHead(payload && payload.WIND_DIR_TREND);
   if (typeof from !== 'number' || !isFinite(from)) { return 0; }
   // Normalize into [0,360) before the flip so no input can push the byte outside
@@ -626,11 +623,14 @@ var SOURCE_KEYS = [
   'UV_TREND_UINT8',
   'UV_DAY_PEAKS',
   'WIND_TREND_UINT8',
+  'WIND_DAY_PEAKS',
   'GUST_TREND_UINT8',
+  'GUST_DAY_PEAKS',
   'WIND_DIR_TREND',
   'PRESSURE_TREND',
   'DEW_TREND',
   'AQI_TREND',
+  'AQI_DAY_PEAKS',
   'POLLEN_TODAY'
 ];
 

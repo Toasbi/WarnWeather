@@ -10,6 +10,7 @@ var BRIGHTSKY_BASE = require('./brightsky.js').BASE_URL;
 var MAX_DIST_METERS = 500000;
 var hourlyWindow = require('./hourly-window.js');
 var FORECAST_HOURS = hourlyWindow.FORECAST_HOURS;
+var PEAK_HOURS = hourlyWindow.PEAK_HOURS;
 var HOUR_SECONDS = hourlyWindow.HOUR_SECONDS;
 var HOUR_MS = HOUR_SECONDS * 1000;
 // Shared unit helpers (wire-units.js owns them; local aliases keep call sites).
@@ -107,12 +108,14 @@ function currentFeelsFrom(current) {
 
 /**
  * ISO 8601 forecast window starting at the current wall-clock hour and
- * covering FORECAST_HOURS + 1 buckets. Brightsky returns `hourly[0]` as the
+ * covering PEAK_HOURS + 1 buckets. Brightsky returns `hourly[0]` as the
  * bucket whose timestamp >= `date`, so anchoring `date` at the hour
  * boundary keeps `hourly[0]` on the bucket the user is currently inside.
- * `last_date` is inclusive, so ending it FORECAST_HOURS on returns one record
- * past the window: the one stamped at the last slot's END, which carries that
- * slot's preceding-hour rain, chance and gust (see slotRecords).
+ * `last_date` is inclusive, so ending it PEAK_HOURS on returns one record
+ * past the day-max window: the one stamped at the last slot's END, which
+ * carries that slot's preceding-hour gust (see slotRecords). The graph's
+ * FORECAST_HOURS slots are the first part of it; only wind and gusts read on
+ * (peakTail), for the status slots' day max.
  *
  * @returns {{ start: string, end: string }} ISO timestamps.
  */
@@ -120,8 +123,38 @@ function forecastWindow() {
     var startMs = Math.floor(Date.now() / HOUR_MS) * HOUR_MS;
     return {
         start: new Date(startMs).toISOString(),
-        end: new Date(startMs + FORECAST_HOURS * HOUR_MS).toISOString()
+        end: new Date(startMs + PEAK_HOURS * HOUR_MS).toISOString()
     };
+}
+
+/**
+ * Wind and gusts for the hours after the graph's FORECAST_HOURS slots, out to
+ * PEAK_HOURS — what the wind and gust slots' day max reads past the graph.
+ * Paired by timestamp like slotRecords (wind from the hour's own record, the
+ * gust from the one an hour on), but a record Brightsky does not return reads
+ * as null rather than carrying the previous hour forward: past the graph a
+ * made-up hour could only invent a peak, and localDayPeaks treats a null tail
+ * as the end of the feed.
+ *
+ * @param {Object[]} hourly Brightsky `weather` records, ascending.
+ * @param {number} startEpoch Epoch seconds of slot 0.
+ * @returns {{wind: Array.<(number|null)>, gust: Array.<(number|null)>}} km/h.
+ */
+function peakTail(hourly, startEpoch) {
+    var byEpoch = {};
+    var wind = [];
+    var gust = [];
+    var i, own, next;
+    for (i = 0; i < hourly.length; i += 1) {
+        byEpoch[Math.floor(Date.parse(hourly[i].timestamp) / 1000)] = hourly[i];
+    }
+    for (i = FORECAST_HOURS; i < PEAK_HOURS; i += 1) {
+        own = byEpoch[startEpoch + i * HOUR_SECONDS];
+        next = byEpoch[startEpoch + (i + 1) * HOUR_SECONDS];
+        wind.push(own && typeof own.wind_speed === 'number' ? own.wind_speed : null);
+        gust.push(next && typeof next.wind_gust_speed === 'number' ? next.wind_gust_speed : null);
+    }
+    return { wind: wind, gust: gust };
 }
 
 /**
@@ -238,9 +271,9 @@ DwdProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, on
         }
         this.withDwdCurrent(lat, lon, (function(currentTempF, currentFeelsF, currentBearing) {
             var startEpoch = Math.floor(Date.parse(hourly[0].timestamp) / 1000);
-            // The window asks for one record past FORECAST_HOURS (forecastWindow);
+            // The window asks for records out to PEAK_HOURS (forecastWindow);
             // the slots themselves stop at FORECAST_HOURS so every series agrees
-            // on its length. A response short of that (fewer records than slots)
+            // on its length (wind and gusts read on, peakTail below). A response short of that (fewer records than slots)
             // stays short, so hasValidData still rejects it.
             // Instants (temperature, wind speed, pressure, dew point, bearing)
             // read the slot's own record; the preceding-hour totals read the
@@ -266,6 +299,13 @@ DwdProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, on
             // the direction it points must come from the same record.
             if (this.windDirTrend[0] === null && typeof currentBearing === 'number') {
                 this.windDirTrend[0] = currentBearing;
+            }
+            // The day-max series read on past the graph (hourly-window.js
+            // PEAK_HOURS); getPayload cuts them back to the graph's window.
+            if (slots.length === FORECAST_HOURS) {
+                var tail = peakTail(hourly, startEpoch);
+                this.windTrend = this.windTrend.concat(tail.wind);
+                this.gustTrend = this.gustTrend.concat(tail.gust);
             }
             // Steadman-computed (no Brightsky feels field), and the most expensive
             // feels path of any provider — an exp() per hour — so it honours the gate.

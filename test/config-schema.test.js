@@ -46,7 +46,10 @@ const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnOutlineOn', 'Warn', 'Dang
   // sheets).
   .concat(['windSlotDirection', 'gustSlotDirection', 'windSlotUnit', 'gustSlotUnit',
     'uvSlotDisplay', 'uvSlotSeparator', 'uvSlotSeparatorCustom', 'uvSlotSeparatorSpaced',
-    'uvSlotOrder', 'uvSlotNextDayMark']);
+    'uvSlotOrder', 'uvSlotNextDayMark']
+    // ...and the same day-max rows on the wind, gust and AQI sheets.
+    .concat(['wind', 'gust', 'aqi'].reduce((all, k) => all.concat(['Display', 'Separator',
+      'SeparatorCustom', 'SeparatorSpaced', 'Order', 'NextDayMark'].map((f) => k + 'Slot' + f)), [])));
 // The "Show unit" toggles on the BOLD-ONLY sheets. Six kinds have one — the six whose
 // slot text the phone bakes; the watch-formatted kinds (distance, heart rate, sleep,
 // battery %) would need the flag on the wire and are deliberately absent.
