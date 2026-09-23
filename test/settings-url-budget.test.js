@@ -1,9 +1,9 @@
 // test/settings-url-budget.test.js
 // On a real phone the settings page opens as ONE data: URL (config-ui/index.js
 // generateUrl), and Android's WebView refuses to navigate to a URL longer than
-// Chromium's 2 MiB url::kMaxURLChars -- the page just stays blank. The bare page
-// alone is already ~1.9M characters once URI-encoded, so everything index.js adds as
-// userData comes out of a small remainder. The raw 7-day dev-stats log used to ride
+// Chromium's 2 MiB url::kMaxURLChars -- the page just stays blank. The bare page is
+// ~0.8M characters once URI-encoded (build-page.js strips comments and indentation;
+// it was ~1.8M before), and everything index.js adds as userData shares the rest. The raw 7-day dev-stats log used to ride
 // along as JSON-in-JSON (~240 URL characters per event): at a 5-10 min update
 // interval it crossed the cap within days, and the toggle that stops recording lived
 // on the page that no longer opened.
