@@ -1115,7 +1115,16 @@ function fetch(provider, force) {
     catch (e) {
         // Once-guarded: a throw after this fetch already completed is ignored.
         console.log('Weather fetch threw synchronously: ' + e.message);
-        onFetchFailure(WeatherProvider.failure('fetch', 'exception'));
+        // The failure path writes storage and telemetry too, so it can throw for
+        // the same reason (a full localStorage); fetch() runs on the scheduler
+        // tick, and a throw escaping here would stop the tick loop for good.
+        // settle() runs first inside it, so the in-progress flag is clear either way.
+        try {
+            onFetchFailure(WeatherProvider.failure('fetch', 'exception'));
+        }
+        catch (eFail) {
+            console.log('Recording the weather fetch failure threw: ' + eFail.message);
+        }
     }
 }
 
@@ -1217,8 +1226,10 @@ function isFailureBackoffActive(intervalMs) {
         var waitMs = createChannelScheduler.failureBackoffMs(failures, last.error, intervalMs);
         // Ticks land ~60 s apart, a few ms either side of the failed attempt's
         // own tick; half a tick of slack retries on the tick the backoff names
-        // rather than the one after it.
-        if (elapsed + FAILURE_BACKOFF_SLACK_MS >= waitMs) { return false; }
+        // rather than the one after it. Written as "not still waiting" so a NaN
+        // wait (a non-numeric fetchIntervalMin) means no backoff, not one that
+        // never runs out.
+        if (!(elapsed + FAILURE_BACKOFF_SLACK_MS < waitMs)) { return false; }
         console.log('Skipping weather fetch: backing off after ' + failures
             + ' failed attempt(s), next try in ~' + Math.ceil((waitMs - elapsed) / 60000) + ' min.');
         return true;

@@ -209,3 +209,20 @@ test('the healthy harness network completes a fetch (harness self-check)', (t) =
   assert.equal(h.count(/Successfully fetched weather/), 1);
   assert.equal(h.weatherSends().length, 1);
 });
+
+test('a storage throw in the attempt bookkeeping neither wedges the fetch nor stops the tick loop', (t) => {
+  const h = bootIndex(t, { store: staleSuccess() });
+  // A full localStorage: the attempt counter and record writes throw, and so
+  // does the failure path that records the resulting exception.
+  const realSet = global.localStorage.setItem;
+  global.localStorage.setItem = (k, v) => {
+    if (k === 'weather_fetch_attempt' || k === 'lastFetchAttempt') { throw new Error('QuotaExceededError'); }
+    realSet(k, v);
+  };
+  assert.doesNotThrow(() => h.ready(), 'the throw stays inside fetch(), off the scheduler tick');
+  assert.equal(h.count(/"stage":"fetch","code":"exception"/), 1, 'reported as a failure');
+  const ticks = h.count(/^Tick from PKJS/);
+  h.minutes(2);
+  assert.equal(h.count(/^Tick from PKJS/) - ticks, 2, 'the tick loop is still alive');
+  assert.equal(h.count(SKIP_IN_PROGRESS), 0, 'and the in-progress flag did not wedge');
+});

@@ -132,3 +132,16 @@ test('a forced fetch ignores the backoff, and a success clears it', (t) => {
   assert.equal(h.count(/Successfully fetched weather/), 1);
   assert.equal(h.store.weather_fetch_attempt, '0', 'the success reset the failure count');
 });
+
+test('a non-numeric refresh interval never turns the backoff into a permanent stall', (t) => {
+  // No success marker makes a refresh due whatever the interval; a NaN
+  // interval then gives a NaN wait, which must read as "no backoff".
+  const h = bootIndex(t, {
+    settings: { fetchIntervalMin: 'x' },
+    store: { weather_fetch_attempt: '1', lastFetchAttempt: JSON.stringify({
+      time: new Date(HARNESS_NOW - MIN).toISOString(), error: { code: 'timeout' } }) },
+  });
+  h.ready();
+  h.advance(5 * 1000);
+  assert.equal(h.count(FETCHING), 1, 'the boot tick fetches');
+});
