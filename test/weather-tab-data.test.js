@@ -116,6 +116,30 @@ test('OWM parser: m/s → km/h, pop 0..1 → %, its own daily array', () => {
   assert.equal(out.daily[0].sunshineH, null, 'OWM has no sunshine duration');
 });
 
+// OWM reports snowfall in its own fields (mm water equivalent). The watch's OWM adapter
+// (weather/openweathermap.js) sums rain + snow into the rain bar, and the other providers'
+// precipitation already includes snow — so the tab's OWM series is the sum too.
+test('OWM parsers count snow as precipitation (hourly, daily and the 3-hourly tail)', () => {
+  const out = data.parsers.openweathermap({
+    hourly: [
+      { dt: NOON / 1000, temp: -2, snow: { '1h': 1.8 }, weather: [{ id: 601 }] },
+      { dt: NOON / 1000 + 3600, temp: -1, rain: { '1h': 0.2 }, snow: { '1h': 0.5 }, weather: [{ id: 616 }] },
+      { dt: NOON / 1000 + 7200, temp: -1, weather: [{ id: 800 }] }
+    ],
+    daily: [{ dt: NOON / 1000, temp: { min: -4, max: -1 }, pop: 0.9, snow: 12, weather: [{ id: 601 }] }]
+  }, NOON);
+  assert.equal(out.hourly.rain[0], 1.8, 'a snow-only hour carries its snowfall');
+  assert.equal(out.hourly.rain[1], 0.7, 'rain + snow in a mixed hour');
+  assert.equal(out.hourly.rain[2], 0, 'a dry hour stays 0');
+  assert.equal(out.daily[0].rainMm, 12, 'a snow-only day is not "0 mm"');
+  const tail = data.parsers.owmForecast3h({ list: [
+    { dt: NOON / 1000, main: { temp: -3 }, snow: { '3h': 4.5 }, weather: [{ id: 601 }] },
+    { dt: NOON / 1000 + 3 * 3600, main: { temp: -3 }, rain: { '3h': 0.3 }, snow: { '3h': 0.6 }, weather: [{ id: 616 }] }
+  ] });
+  assert.equal(tail.hourly.rain[0], 1.5, "snow['3h'] becomes a mm/h rate too");
+  assert.ok(Math.abs(tail.hourly.rain[1] - 0.3) < 1e-9, "rain['3h'] + snow['3h'] over 3 h");
+});
+
 test('OWM 3-hourly forecast parser + tail merge extend the timeline coarsely', () => {
   const tail = {
     city: { timezone: 3600 },

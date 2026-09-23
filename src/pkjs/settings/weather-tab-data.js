@@ -357,6 +357,9 @@
     /**
      * OWM One Call 3.0 (metric) response → normalized: m/s → km/h,
      * pop 0..1 → %, its own daily array, timezone_offset for the local clock.
+     * OWM reports snowfall apart from rain (both mm, water equivalent), so the
+     * precipitation series is rain + snow — the total the other providers report,
+     * and what the watch's own OWM adapter feeds its rain bar.
      * @param {Object} data Raw response body.
      * @param {number} nowMs Reference time.
      * @returns {?Object} Normalized result, or null when unusable.
@@ -371,7 +374,7 @@
             var r = rows[i];
             hourly.time.push(r.dt * 1000);
             hourly.temp.push(num(r.temp));
-            hourly.rain.push(num(r.rain && r.rain['1h']) || 0);
+            hourly.rain.push((num(r.rain && r.rain['1h']) || 0) + (num(r.snow && r.snow['1h']) || 0));
             hourly.prob.push(num(r.pop) === null ? null : r.pop * 100);
             hourly.wind.push(num(r.wind_speed) === null ? null : r.wind_speed * MPS_TO_KMH);
             hourly.gust.push(num(r.wind_gust) === null ? null : r.wind_gust * MPS_TO_KMH);
@@ -390,7 +393,7 @@
                 tmin: num(d.temp && d.temp.min),
                 tmax: num(d.temp && d.temp.max),
                 icon: d.weather && d.weather[0] ? model.owmIcon(d.weather[0].id) : null,
-                rainMm: num(d.rain) || 0,
+                rainMm: (num(d.rain) || 0) + (num(d.snow) || 0),
                 probMax: num(d.pop) === null ? null : d.pop * 100,
                 sunshineH: null
             });
@@ -402,8 +405,8 @@
      * OWM 5-day/3-hour forecast (2.5/forecast, metric) → normalized hourly
      * arrays at 3 h steps: the COARSER series that extends the timeline past
      * One Call's 48 h of hourlies (the grid resampler interpolates it back
-     * onto hour marks). No dew point in this endpoint; rain['3h'] totals
-     * become mm/h rates.
+     * onto hour marks). No dew point in this endpoint; the rain['3h'] +
+     * snow['3h'] totals become mm/h rates.
      * @param {Object} data Raw response body.
      * @returns {?{hourly: Object, utcOffsetSec: ?number}} Parsed tail, or null.
      */
@@ -417,10 +420,10 @@
             if (!r || typeof r.dt !== 'number') { continue; }
             var main = r.main || {};
             var wind = r.wind || {};
-            var rain3 = num(r.rain && r.rain['3h']);
+            var precip3 = (num(r.rain && r.rain['3h']) || 0) + (num(r.snow && r.snow['3h']) || 0);
             hourly.time.push(r.dt * 1000);
             hourly.temp.push(num(main.temp));
-            hourly.rain.push(rain3 === null ? 0 : rain3 / 3);
+            hourly.rain.push(precip3 / 3);
             hourly.prob.push(num(r.pop) === null ? null : r.pop * 100);
             hourly.wind.push(num(wind.speed) === null ? null : wind.speed * MPS_TO_KMH);
             hourly.gust.push(num(wind.gust) === null ? null : wind.gust * MPS_TO_KMH);
