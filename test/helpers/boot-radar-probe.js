@@ -1,10 +1,17 @@
 // test/helpers/boot-radar-probe.js
 //
-// Child-process probe for test/index-aplite-radar.test.js: boots the REAL
-// index.js on fresh-install defaults (radarMode 'graph', radarProvider
-// 'rainbow' — what an install whose settings page was never saved still holds)
-// for the platform named in argv[2], lets the first fetch cycle run, and
-// prints one JSON line: how many Rainbow radar requests went out.
+// Child-process probe for test/index-aplite-radar.test.js and
+// test/index-radar-clear-on-failure.test.js: boots the REAL index.js on
+// fresh-install defaults (radarMode 'graph', radarProvider 'rainbow' — what an
+// install whose settings page was never saved still holds) for the platform
+// named in argv[2], lets the first fetch cycle run, and prints one JSON line:
+// how many Rainbow radar requests went out, and the radar tuples of every
+// AppMessage that carried them.
+//
+// argv[3] (optional JSON): {settings: {...}} seeds a partial settings blob the
+// boot's seedDefaults completes; {answerXhr: true} answers the reverse geocode
+// and fails every other raw XHR, so the forecast half runs to its own verdict
+// instead of hanging on an unanswered request.
 //
 // A separate process per platform because index.js registers its Pebble
 // listeners and module state at require time — it can only boot once.
@@ -12,6 +19,7 @@
 var path = require('path');
 var ROOT = path.join(__dirname, '..', '..');
 var platform = process.argv[2] || 'basalt';
+var opts = process.argv[3] ? JSON.parse(process.argv[3]) : {};
 
 var store = {};
 global.localStorage = {
@@ -21,6 +29,7 @@ global.localStorage = {
 };
 // Keep the daily update check throttled (no XHR of its own).
 store.last_update_check = String(Date.now());
+if (opts.settings) { store['clay-settings'] = JSON.stringify(opts.settings); }
 
 // A production-style build: the Rainbow proxy endpoint is set.
 var pkg = require(path.join(ROOT, 'package.json'));
@@ -36,11 +45,26 @@ WeatherProvider.request = function (url, type, onSuccess) {
         onSuccess(JSON.stringify({ forecast: [] }));
     }
 };
-// Inert XHR for the auxiliary fetches that bypass the provider transport.
+// Raw XHR for the fetches that bypass the provider transport (reverse geocode,
+// auxiliary fetches): inert by default; with answerXhr the reverse geocode
+// answers and everything else errors.
 global.XMLHttpRequest = function () {
-    this.open = function () {};
+    var xhr = this;
+    var url = '';
+    this.open = function (method, u) { url = u; };
     this.setRequestHeader = function () {};
-    this.send = function () {};
+    this.send = function () {
+        if (!opts.answerXhr) { return; }
+        setTimeout(function () {
+            if (url.indexOf('geocode.arcgis.com') !== -1) {
+                xhr.status = 200;
+                xhr.responseText = JSON.stringify({ address: { City: 'Berlin', CountryCode: 'DEU' } });
+                xhr.onload();
+            } else if (xhr.onerror) {
+                xhr.onerror();
+            }
+        }, 0);
+    };
 };
 Object.defineProperty(globalThis, 'navigator', {
     configurable: true,
@@ -50,11 +74,17 @@ Object.defineProperty(globalThis, 'navigator', {
 });
 
 var listeners = {};
+var radarSends = [];
 global.Pebble = {
     addEventListener: function (name, fn) { listeners[name] = fn; },
     getActiveWatchInfo: function () { return { platform: platform, model: 'qemu_platform_' + platform, language: 'en' }; },
     getAccountToken: function () { return 'test-token'; },
-    sendAppMessage: function (dict, ack) { if (ack) { ack(); } },
+    sendAppMessage: function (dict, ack) {
+        if ('RAIN_RADAR_START' in dict) {
+            radarSends.push({ start: dict.RAIN_RADAR_START, len: dict.RAIN_RADAR_TREND_UINT8.length });
+        }
+        if (ack) { ack(); }
+    },
     showSimpleNotificationOnPebble: function () {},
     openURL: function () {}
 };
@@ -76,6 +106,6 @@ listeners.ready({});
 listeners.appmessage({ payload: { WATCH_HAS_CONFIG: 1, WATCH_HAS_FORECAST_DATA: 0 } });
 
 setTimeout(function () {
-    process.stdout.write(JSON.stringify({ radarRequests: radarRequests }) + '\n');
+    process.stdout.write(JSON.stringify({ radarRequests: radarRequests, radarSends: radarSends }) + '\n');
     process.exit(0);
 }, 500);

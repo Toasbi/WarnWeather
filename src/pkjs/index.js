@@ -960,7 +960,13 @@ function fetch(provider, force) {
         maybeTrackWeatherFetch(successEvent);
     }
 
-    function onFetchFailure(failure) {
+    /**
+     * @param {Object} failure Normalized fetch failure.
+     * @param {?Object} [radarTuples] This cycle's radar answer when the FORECAST
+     *   half failed (runFetchCycle); undefined on a coordinate failure.
+     * @returns {void}
+     */
+    function onFetchFailure(failure, radarTuples) {
         app.fetchInProgress = false;
         console.log('[!] Provider failed to update weather: ' + JSON.stringify(failure));
         // A 401/403 won't recover on its own — set the backoff so we stop
@@ -969,17 +975,33 @@ function fetch(provider, force) {
             console.log('[!] Auth failure — pausing auto-fetch until Force fetch or config change.');
             authBackoff.set(failure);
         }
+        // No weather data is available on failure, so whatever the watch still
+        // needs rides alone, bundled into ONE send (the channel is half-duplex;
+        // change-detector skips absent categories).
+        var failureSend = {};
         // Surface notice-worthy failures (401/403 → watch overlay + settings panel;
         // 429 → settings panel only). Other failures raise nothing.
         var notice = notices.noticeForFailure(failure, provider.name, Date.now());
         if (notice) {
             notices.add(notice);
             if (notice.watch) {
-                // Error notices push a plain-text overlay; no weather data is
-                // available on failure, so this rides alone (change-detector skips
-                // absent categories).
-                outbox.sendWeather({ NOTICE_TEXT: notices.watchText() });
+                // Error notices push a plain-text overlay.
+                failureSend.NOTICE_TEXT = notices.watchText();
             }
+        }
+        // A radar CLEAR (radar off, or a source that can never answer: no key or
+        // endpoint, rejected key) must reach the watch even when the forecast half
+        // failed — e.g. tomorrow.io as both forecast and radar source with no key
+        // or a revoked one. Its extras died with the forecast, and without the
+        // clear the watch rolls its last window into a made-up "No rain ahead".
+        // The outbox dedupe sends it once. Not on a NACK: that send already
+        // carried it, and its uncommitted cache retries next cycle.
+        if (radarWire.isClearRadarTuples(radarTuples)
+            && !(failure && failure.stage === 'app_message')) {
+            Object.assign(failureSend, radarTuples);
+        }
+        if (Object.keys(failureSend).length > 0) {
+            outbox.sendWeather(failureSend);
         }
         var attemptStatus = {
             time: fetchStatus.time,

@@ -55,3 +55,44 @@ test('runFetchCycle reports failure and skips radar + forecast when coordinates 
   assert.equal(radarCalled, false);
   assert.deepEqual(failed, { category: 'coordinates', code: 'gps_1' });
 });
+
+// A forecast failure drops the extras that carried this cycle's radar answer, so the
+// orchestrator hands that answer to onFailure: a radar CLEAR (radar off, or a source
+// that can never answer) must still reach the watch — see index.js onFetchFailure.
+test('runFetchCycle hands the cycle\'s radar answer to onFailure when the forecast fails', () => {
+  [{ RAIN_RADAR_TREND_UINT8: [], RAIN_RADAR_TREND_AREA_UINT8: [], RAIN_RADAR_START: 0 }, null].forEach(function (answer) {
+    var args = null;
+    runFetchCycle({
+      provider: {
+        withCoordinates: function (ok) { ok(52.5, 13.4); },
+        fetchWithCoordinates: function (lat, lon, onSuccess, onFailure) {
+          onFailure({ stage: 'provider_data', code: 'tomorrowio_missing_api_key' });
+        }
+      },
+      fetchRadar: function (lat, lon, cb) { cb(answer); },
+      buildExtras: function () { return {}; },
+      onSuccess: function () { assert.fail('should not succeed'); },
+      onFailure: function () { args = Array.prototype.slice.call(arguments); },
+      force: false,
+      payloadTransform: null
+    });
+    assert.deepEqual(args, [{ stage: 'provider_data', code: 'tomorrowio_missing_api_key' }, answer]);
+  });
+});
+
+test('runFetchCycle passes no radar answer on a coordinate failure (no radar was fetched)', () => {
+  var args = null;
+  runFetchCycle({
+    provider: {
+      withCoordinates: function (ok, fail) { fail({ category: 'coordinates', code: 'gps_1' }); },
+      fetchWithCoordinates: function () { assert.fail('forecast must not run'); }
+    },
+    fetchRadar: function () { assert.fail('radar must not run'); },
+    buildExtras: function () { return {}; },
+    onSuccess: function () {},
+    onFailure: function () { args = Array.prototype.slice.call(arguments); },
+    force: false,
+    payloadTransform: null
+  });
+  assert.deepEqual(args, [{ category: 'coordinates', code: 'gps_1' }]);
+});
