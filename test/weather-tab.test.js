@@ -25,7 +25,8 @@ const interact = require('../src/pkjs/settings/weather-tab-interact.js');
 // with utcOffsetSec 0 the view's day start lands exactly on it, whatever
 // date or timezone the suite runs in.
 const DAY0 = Math.floor(Date.now() / 86400000) * 86400000;
-const SEED = { graphsSeed: { lat: 52.52, lon: 13.405, name: 'Berlin' } };
+// A GPS seed (the watch follows the phone), as index.js buildGraphsSeed injects it.
+const SEED = { graphsSeed: { lat: 52.52, lon: 13.405, name: 'Berlin', gps: true } };
 
 /**
  * The index just past the close of the div that OPENS at `at`, found by
@@ -1098,19 +1099,18 @@ test('async completions repaint only while the Weather tab is showing', () => {
   data.reverseGeocode = (lat, lon, cb) => { revCb = cb; };
   try {
     const state = { graphsLocation: 'current' };
-    const GPS_SEED = { graphsSeed: Object.assign({ gps: true }, SEED.graphsSeed) };
     let shown = 'weather';
     let rendered = 0;
-    tab._setCtx({ S: state, USERDATA: GPS_SEED, activeTab: () => shown, render: () => { rendered += 1; } });
+    tab._setCtx({ S: state, USERDATA: SEED, activeTab: () => shown, render: () => { rendered += 1; } });
 
     // The fetch starts on the Weather tab; the user moves to General before it lands.
-    assert.match(tab.weatherGraphsBlock(state, {}, GPS_SEED), /Loading Berlin/);
+    assert.match(tab.weatherGraphsBlock(state, {}, SEED), /Loading Berlin/);
     shown = 'general';
     respond(fixture(), null);
     assert.equal(rendered, 0, 'the fetch completion does not rebuild the General tab');
     // Back on Weather, the tab-switch render shows what landed — without a second fetch.
     shown = 'weather';
-    const html = tab.weatherGraphsBlock(state, {}, GPS_SEED);
+    const html = tab.weatherGraphsBlock(state, {}, SEED);
     assert.ok(html.indexOf('Temperature &amp; precipitation') !== -1, 'the landed data paints on return');
     assert.equal(calls, 1, 'no duplicate request');
 
@@ -1122,7 +1122,7 @@ test('async completions repaint only while the Weather tab is showing', () => {
     revCb('Hamburg', null);
     assert.equal(rendered, 0, 'nor does the city name');
     shown = 'weather';
-    tab.weatherGraphsBlock(state, {}, GPS_SEED);
+    tab.weatherGraphsBlock(state, {}, SEED);
     assert.equal(calls, 2, 'the fetch the GPS answer left due fires on return');
     respond(fixture(), null);
     assert.equal(rendered, 1, 'on the Weather tab the completion repaints as before');
@@ -1295,7 +1295,7 @@ test('moveKm wraps the antimeridian: Fiji-side jitter is not a far move', () => 
   data.getGpsFix = (cb) => { gpsCb = cb; };
   data.reverseGeocode = () => { revCalled = true; };
   try {
-    const FIJI = { graphsSeed: { lat: -16.8, lon: 179.995, name: 'Taveuni' } };
+    const FIJI = { graphsSeed: { lat: -16.8, lon: 179.995, name: 'Taveuni', gps: true } };
     const state = { graphsLocation: 'current' };
     tab._setCtx({ S: state, USERDATA: FIJI, render: () => {} });
     tab.weatherGraphsBlock(state, {}, FIJI);
@@ -1311,6 +1311,46 @@ test('moveKm wraps the antimeridian: Fiji-side jitter is not a far move', () => 
     data.fetchWeather = realFetch;
     data.getGpsFix = realGps;
     data.reverseGeocode = realRev;
+    tab._resetState();
+  }
+});
+
+// With a manual watch location the Current chip IS that place (index.js seeds it from
+// the geocoded manual location, gps: false): Refresh must not swap it for the phone's
+// position, or the chip stops showing what the watch shows.
+test('a refresh on a manual-location Current chip never swaps it for the phone GPS', () => {
+  tab._resetState();
+  const fetchCalls = [];
+  let respond = null;
+  let gpsAsked = false;
+  const realFetch = data.fetchWeather;
+  const realGps = data.getGpsFix;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { fetchCalls.push([lat, lon]); respond = cb; };
+  data.getGpsFix = (cb) => { gpsAsked = true; cb({ lat: 48.403, lon: 11.749 }, null); };  // Freising, ~33 km off
+  try {
+    const MUNICH = { graphsSeed: { lat: 48.137, lon: 11.575, name: 'Munich', gps: false } };
+    const state = { graphsLocation: 'current', location: 'Munich', locationMode: 'manual' };
+    tab._setCtx({ S: state, USERDATA: MUNICH, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, MUNICH);
+    respond(fixture(), null);
+    assert.equal(tab.refreshWeather(), true);
+    tab.weatherGraphsBlock(state, {}, MUNICH);
+    assert.equal(gpsAsked, false, 'no device fix is asked for');
+    assert.equal(fetchCalls.length, 2, 'the refresh still refetches');
+    assert.deepEqual(fetchCalls[1], [48.137, 11.575], 'at the manual location');
+    assert.equal(tab._gpsSeed(), null, 'no phone-position override');
+    assert.ok(tab.weatherLocationsBlock(state, {}, MUNICH).indexOf('Munich') !== -1, 'the chip keeps its name');
+    // A seed with no flag at all is not presumed to be a GPS fix either.
+    tab._resetState();
+    const BARE = { graphsSeed: { lat: 48.137, lon: 11.575, name: 'Munich' } };
+    tab._setCtx({ S: state, USERDATA: BARE, render: () => {} });
+    tab.weatherGraphsBlock(state, {}, BARE);
+    respond(fixture(), null);
+    tab.refreshWeather();
+    assert.equal(gpsAsked, false, 'an unflagged seed refreshes in place');
+  } finally {
+    data.fetchWeather = realFetch;
+    data.getGpsFix = realGps;
     tab._resetState();
   }
 });

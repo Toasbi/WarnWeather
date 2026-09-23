@@ -647,8 +647,12 @@ function themeCoords() {
  * display name — the last reverse-geocoded CITY from the status-bake snapshot
  * when one exists, else the manual location text. Injected as userData at
  * settings-open; the page cannot geolocate itself (data: URI webview).
+ * `gps` says whether the watch follows the phone's position (no manual
+ * location saved): only then may the tab's Refresh re-read the phone's GPS
+ * for the Current chip — a manual location is the watch's place, not the
+ * phone's.
  *
- * @returns {?{lat: number, lon: number, name: string}} Seed, or null before any fix.
+ * @returns {?{lat: number, lon: number, name: string, gps: boolean}} Seed, or null before any fix.
  */
 function buildGraphsSeed() {
     var coords = themeCoords();
@@ -663,7 +667,8 @@ function buildGraphsSeed() {
     if (!name && app.settings && app.settings.location) {
         name = app.settings.location;
     }
-    return { lat: coords.lat, lon: coords.lon, name: name || 'Current location' };
+    var gps = locationLib.parseLocationOverride(app.settings ? app.settings.location : null).type === 'gps';
+    return { lat: coords.lat, lon: coords.lon, name: name || 'Current location', gps: gps };
 }
 
 /**

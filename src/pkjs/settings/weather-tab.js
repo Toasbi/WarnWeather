@@ -81,17 +81,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * The effective current-location seed: a fix this page acquired itself
      * (manual refresh re-reads the phone GPS, so the Current chip follows
      * the user around after the page has been open a while), else the seed
-     * the phone injected at page open, else null.
+     * the phone injected at page open, else null. `gps` carries whether the
+     * watch follows the phone's position (the injected seed's flag; a
+     * page-acquired fix only exists because it did) — a manual watch
+     * location is never swapped for the phone's.
      * @param {Object} userData Injected userData.
-     * @returns {?{lat: number, lon: number, name: string}} Seed or null.
+     * @returns {?{lat: number, lon: number, name: string, gps: boolean}} Seed or null.
      */
     function seedOf(userData) {
         var s = userData && userData.graphsSeed;
         var base = (!s || !isFinite(Number(s.lat)) || !isFinite(Number(s.lon)))
             ? null
-            : { lat: Number(s.lat), lon: Number(s.lon), name: s.name || 'Current location' };
+            : { lat: Number(s.lat), lon: Number(s.lon), name: s.name || 'Current location', gps: s.gps === true };
         if (gpsSeed) {
-            return { lat: gpsSeed.lat, lon: gpsSeed.lon, name: gpsSeed.name || (base && base.name) || 'Current location' };
+            return { lat: gpsSeed.lat, lon: gpsSeed.lon, name: gpsSeed.name || (base && base.name) || 'Current location', gps: true };
         }
         return base;
     }
@@ -692,19 +695,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * charts on screen with an "Update failed" note, and the other saved
      * locations stay served from their cached data either way.
      *
-     * When the Current chip is the active location, the refresh first re-reads
-     * the phone's GPS so the charts follow the user, not the fix from page
-     * open: fetchState holds 'loading' (dimmed charts, ensureFetch off) until
-     * the fix answers — one fetch, at the right place — then goes idle so the
+     * When the Current chip is the active location AND the watch follows the
+     * phone's GPS (the seed's `gps` flag), the refresh first re-reads the
+     * phone's GPS so the charts follow the user, not the fix from page open:
+     * fetchState holds 'loading' (dimmed charts, ensureFetch off) until the
+     * fix answers — one fetch, at the right place — then goes idle so the
      * next render fetches. Every failure shape (no API, denied, timeout)
-     * degrades to a plain refresh of the previous coordinates.
+     * degrades to a plain refresh of the previous coordinates. A manual
+     * watch location is the Current chip's place whatever the phone's
+     * position, so it refreshes in place like a saved slot.
      * @returns {boolean} True when a refetch was kicked off (re-render due).
      */
     function refreshWeather() {
         if (fetchState.status === 'loading') { return false; }
         forceNext = true;
-        var active = ctx && ctx.S ? model.activeLocation(ctx.S, seedOf(ctx.USERDATA)) : null;
-        if (active && active.key === 'current') {
+        var seed = ctx ? seedOf(ctx.USERDATA) : null;
+        var active = ctx && ctx.S ? model.activeLocation(ctx.S, seed) : null;
+        if (active && active.key === 'current' && seed && seed.gps) {
             fetchState.status = 'loading';
             data.getGpsFix(function (fix) {
                 if (fix) { applyGpsFix(fix); }
