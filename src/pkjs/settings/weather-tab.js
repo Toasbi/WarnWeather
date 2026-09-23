@@ -12,7 +12,8 @@
 // Async shape: block renderers are synchronous string-returners re-run on
 // every settings change, so the weather data lives in module state; a fetch
 // completion patches state and asks the engine for a repaint via the ctx
-// captured at onReady (the news.js/view-editor.js pattern).
+// captured at onReady (the news.js/view-editor.js pattern) — only while this
+// tab is the one showing (repaintIfShown).
 //
 // Gesture shape (the app's): a horizontal drag on any chart pans EVERY
 // panel together, one day per viewport, snapping to day boundaries on
@@ -57,6 +58,24 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // seconds of the minute turning; coarse enough to be free.
     var AGE_TICK_MS = 15000;
     var PANEL_IDS = ['temp', 'wind', 'hum', 'press'];
+    var WEATHER_TAB = 'weather';    // this tab's schema id
+
+    /**
+     * Repaint for an async completion (weather data, a GPS fix, a city name)
+     * — but only while the Weather tab is the one on screen. render() rebuilds
+     * the ACTIVE tab wholesale, so a completion landing after the user moved
+     * on would tear down whatever they are doing there: a focused text field
+     * loses its node, its focus and the soft keyboard. Skipping is safe:
+     * every render reads this module's state, so the render that switches
+     * back to Weather paints what landed meanwhile (and fires any fetch a
+     * GPS answer left due). A ctx without activeTab (tests) always repaints.
+     * @returns {void}
+     */
+    function repaintIfShown() {
+        if (!ctx) { return; }
+        if (typeof ctx.activeTab === 'function' && ctx.activeTab() !== WEATHER_TAB) { return; }
+        ctx.render();
+    }
 
     /**
      * The effective current-location seed: a fix this page acquired itself
@@ -127,7 +146,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 // panDay by itself, so there is nothing else to reset.
                 if (isNewKey) { panDay = 0; }
             }
-            if (ctx && !sync) { ctx.render(); }
+            if (!sync) { repaintIfShown(); }
         }, force);
         sync = false;
     }
@@ -632,7 +651,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (revFor === seed) { revFor = null; }
             if (city && gpsSeed === seed) {
                 seed.name = city;
-                if (ctx) { ctx.render(); }
+                repaintIfShown();
             }
         });
     }
@@ -692,7 +711,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 // Release only the hold WE placed: a pick switched mid-wait
                 // already has its own fetch in flight — leave it alone.
                 if (!inFlight && fetchState.status === 'loading') { fetchState.status = 'idle'; }
-                if (ctx) { ctx.render(); }
+                repaintIfShown();
             });
         } else {
             fetchState.status = 'idle';

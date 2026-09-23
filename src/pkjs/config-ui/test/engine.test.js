@@ -861,6 +861,7 @@ function bootWithCapturedListeners(schema, env, opts) {
     + '\nPConf.hooks.onLoad(function (ctx) { module.exports.loadEnv = ctx.env; });'
     + '\nPConf.hooks.onReady(function (ctx) {'
     + ' module.exports.openSheet = ctx.openSheet;'
+    + ' module.exports.activeTab = ctx.activeTab;'
     + ' module.exports.getValue = ctx.get; });'
     + '\nPConf.engine.boot();';
   const listeners = {};
@@ -875,7 +876,9 @@ function bootWithCapturedListeners(schema, env, opts) {
   };
   const sselList = { innerHTML: '', focus: () => {} };
   const generic = () => ({ innerHTML: '', textContent: '', addEventListener: () => {} });
-  const ids = { scroll, modal, tabs: generic(), save: generic(), appTitle: generic(), toast: generic() };
+  const tabsListeners = {};
+  const tabs = { innerHTML: '', addEventListener: (type, fn) => { tabsListeners[type] = fn; } };
+  const ids = { scroll, modal, tabs, save: generic(), appTitle: generic(), toast: generic() };
   // Resolve the selectors boot() issues against `document`: live-search lists and the fresh
   // select/date/edit-sheet triggers that closeModal() may restore focus to after render.
   const document = {
@@ -898,9 +901,10 @@ function bootWithCapturedListeners(schema, env, opts) {
   const mod = { exports: {} };
   fn(document, schema, env, {}, {}, 'pebblejs://close#', mod);
   return {
-    listeners, modalListeners, scroll, modal, sselList, focusCounts,
+    listeners, modalListeners, tabsListeners, scroll, modal, sselList, focusCounts,
     onChange: mod.exports.onChange, loadEnv: mod.exports.loadEnv,
-    openSheet: mod.exports.openSheet, getValue: mod.exports.getValue
+    openSheet: mod.exports.openSheet, getValue: mod.exports.getValue,
+    activeTab: mod.exports.activeTab
   };
 }
 
@@ -1555,6 +1559,20 @@ test('hydrate: configTheme defaults to auto when absent from the saved blob', ()
   const schema = require('../../settings/schema.js');
   const S = E.hydrate(schema, {});
   assert.equal(S.configTheme, 'auto');
+});
+
+// A block that repaints from an async completion (the Weather tab's fetch) asks
+// which tab is on screen, so it never rebuilds a tab the user is typing in.
+test('hooks: the onReady ctx reports the tab on screen, and follows a tab switch', () => {
+  const schema = { tabs: [
+    { id: 'general', label: 'General', sections: [{ items: [{ type: 'toggle', messageKey: 'a', label: 'A' }] }] },
+    { id: 'weather', label: 'Weather', sections: [{ items: [{ type: 'toggle', messageKey: 'b', label: 'B' }] }] }
+  ] };
+  const h = bootWithCapturedListeners(schema, {});
+  assert.equal(typeof h.activeTab, 'function', 'the ctx carries activeTab()');
+  assert.equal(h.activeTab(), 'general', 'boot opens on the first tab');
+  h.tabsListeners.click({ target: { closest: () => ({ getAttribute: () => 'weather' }) } });
+  assert.equal(h.activeTab(), 'weather', 'a tab click moves it');
 });
 
 test('hooks: onReady runs registered fns with ctx (render/save exposed)', () => {

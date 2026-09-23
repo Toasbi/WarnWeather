@@ -1981,6 +1981,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     PConf.hooks.runReady({
       S: S, ENV: ENV, USERDATA: USERDATA, schema: SCHEMA, cfg: INJECTED_CFG || {},
       get: hookCtx.get, set: hookCtx.set, render: render, save: save,
+      // The id of the tab on screen right now. render() rebuilds only that tab, so a
+      // block repainting from an async completion can skip a repaint no one would see
+      // (and that would tear down a field the user is typing in on another tab).
+      activeTab: function () { return activeTab; },
       // Open a schema select/searchSelect in the shared bottom-sheet dialog. Used by the wizard,
       // which lives in its own overlay: the sheet is a showModal() top-layer dialog, so it renders
       // above that overlay. The engine sets S[key] on pick; onClose fires after any close.

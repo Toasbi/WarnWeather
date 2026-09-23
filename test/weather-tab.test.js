@@ -1082,6 +1082,58 @@ test('a refresh that fails offline keeps the charts, and the other locations sta
   }
 });
 
+// render() rebuilds the ACTIVE tab wholesale: a fetch, GPS fix or city name that lands
+// after the user left the Weather tab must not repaint the tab they are typing in.
+test('async completions repaint only while the Weather tab is showing', () => {
+  tab._resetState();
+  let respond = null;
+  let calls = 0;
+  let gpsCb = null;
+  let revCb = null;
+  const realFetch = data.fetchWeather;
+  const realGps = data.getGpsFix;
+  const realRev = data.reverseGeocode;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { calls += 1; respond = cb; };
+  data.getGpsFix = (cb) => { gpsCb = cb; };
+  data.reverseGeocode = (lat, lon, cb) => { revCb = cb; };
+  try {
+    const state = { graphsLocation: 'current' };
+    const GPS_SEED = { graphsSeed: Object.assign({ gps: true }, SEED.graphsSeed) };
+    let shown = 'weather';
+    let rendered = 0;
+    tab._setCtx({ S: state, USERDATA: GPS_SEED, activeTab: () => shown, render: () => { rendered += 1; } });
+
+    // The fetch starts on the Weather tab; the user moves to General before it lands.
+    assert.match(tab.weatherGraphsBlock(state, {}, GPS_SEED), /Loading Berlin/);
+    shown = 'general';
+    respond(fixture(), null);
+    assert.equal(rendered, 0, 'the fetch completion does not rebuild the General tab');
+    // Back on Weather, the tab-switch render shows what landed — without a second fetch.
+    shown = 'weather';
+    const html = tab.weatherGraphsBlock(state, {}, GPS_SEED);
+    assert.ok(html.indexOf('Temperature &amp; precipitation') !== -1, 'the landed data paints on return');
+    assert.equal(calls, 1, 'no duplicate request');
+
+    // While showing, a completion still repaints.
+    assert.equal(tab.refreshWeather(), true);
+    shown = 'general';
+    gpsCb({ lat: 53.55, lon: 9.99 }, null);            // a far move, answered off-tab
+    assert.equal(rendered, 0, 'the GPS answer does not repaint off-tab either');
+    revCb('Hamburg', null);
+    assert.equal(rendered, 0, 'nor does the city name');
+    shown = 'weather';
+    tab.weatherGraphsBlock(state, {}, GPS_SEED);
+    assert.equal(calls, 2, 'the fetch the GPS answer left due fires on return');
+    respond(fixture(), null);
+    assert.equal(rendered, 1, 'on the Weather tab the completion repaints as before');
+  } finally {
+    data.fetchWeather = realFetch;
+    data.getGpsFix = realGps;
+    data.reverseGeocode = realRev;
+    tab._resetState();
+  }
+});
+
 test('a manual refresh with Current active re-reads the phone GPS and follows it', () => {
   tab._resetState();
   const fetchCalls = [];
