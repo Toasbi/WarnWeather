@@ -197,6 +197,37 @@ test('candidates with no dates (OWM in polar periods) fall back to SunCalc', () 
     sunEvents.nextSunEvents(now, BERLIN[0], BERLIN[1]), 'a glitch elsewhere still gets real times');
 });
 
+// Around polar day/night a provider's daily list can hold a sunrise without
+// its sunset (or the reverse), or a sunset listed after the same day's
+// sunrise although it came first. The next two upcoming events are then no
+// pair the watch can use: it takes the second's type as the opposite of the
+// first's, rejects an out-of-order pair, and repeats the pair only a day
+// either side.
+test('provider candidates that make no usable pair fall back to SunCalc', () => {
+  const at = (iso) => new Date(iso);
+  const coords = [66.6, 25.7];
+  const now = at('2026-06-20T00:30:00Z');
+  const shapes = {
+    'two sunrises (a day with no sunset)': [
+      { type: 'sunrise', date: at('2026-06-20T01:00:00Z') }, { type: 'sunset', date: new Date(0) },
+      { type: 'sunrise', date: at('2026-06-21T00:55:00Z') }, { type: 'sunset', date: at('2026-06-21T23:10:00Z') }
+    ],
+    'out of order (a sunset after midnight listed second)': [
+      { type: 'sunrise', date: at('2026-06-20T01:55:00Z') }, { type: 'sunset', date: at('2026-06-20T00:50:00Z') },
+      { type: 'sunrise', date: at('2026-06-21T01:57:00Z') }, { type: 'sunset', date: at('2026-06-21T00:49:00Z') }
+    ],
+    'two days apart (a sunrise, then the sunset of the next day)': [
+      { type: 'sunrise', date: at('2026-06-20T01:00:00Z') }, { type: 'sunset', date: new Date(0) },
+      { type: 'sunrise', date: new Date(0) }, { type: 'sunset', date: at('2026-06-21T23:30:00Z') }
+    ]
+  };
+  const fromSunCalc = sunEvents.nextSunEvents(now, coords[0], coords[1]);
+  Object.keys(shapes).forEach((name) => {
+    assert.equal(pickNext24hSunEvents(shapes[name], now).length, 2, name + ': two upcoming events');
+    assert.deepEqual(sunEvents.nextSunEvents(now, coords[0], coords[1], shapes[name]), fromSunCalc, name);
+  });
+});
+
 test('isPolarSunPair tells the polar pair from any real one', () => {
   assert.equal(sunEvents.isPolarSunPair(0, 5 * DAY_S), true);
   assert.equal(sunEvents.isPolarSunPair(0, DAY_S + 3600), false, 'a real pair near the polar edge');

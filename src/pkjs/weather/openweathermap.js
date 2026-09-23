@@ -136,8 +136,9 @@ OpenWeatherMapProvider.prototype.withSunEvents = function(lat, lon, callback, on
             { type: 'sunset', date: new Date(days[1].sunset * 1000) }
         ];
         // In polar day/night One Call leaves sunrise/sunset out or sends 0, so
-        // fewer than two are upcoming: nextSunEvents falls back to SunCalc and
-        // its polar handling. It runs in an XHR callback, so a throw would
+        // the upcoming ones make no usable pair (too few, or two sunrises on
+        // the days either side): nextSunEvents falls back to SunCalc and its
+        // polar handling. It runs in an XHR callback, so a throw would
         // escape both callbacks, hence the guard the base keeps too.
         try {
             nextSunEventsPair = nextSunEvents(new Date(), lat, lon, sunEvents);

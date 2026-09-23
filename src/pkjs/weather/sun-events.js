@@ -129,25 +129,43 @@ function startsAfterNextDay(upcoming, now) {
 }
 
 /**
+ * Whether two upcoming events form a pair the watch reads correctly: one
+ * sunrise and one sunset (the watch takes the second event's type as the
+ * opposite of the first's), in order (it rejects a pair that is not), and
+ * under a day apart (it repeats the pair a day either side). SunCalc's pairs
+ * always are. A provider's daily list can break this around polar day and
+ * night, when some days have only a sunrise or only a sunset: the next two
+ * are then two sunrises, out of order, or two days apart.
+ *
+ * @param {{type: string, date: Date}[]} upcoming Upcoming events.
+ * @returns {boolean} True when the first two events make a usable pair.
+ */
+function isWatchPair(upcoming) {
+    if (upcoming.length < 2 || upcoming[0].type === upcoming[1].type) { return false; }
+    var gap = upcoming[1].date.getTime() - upcoming[0].date.getTime();
+    return gap > 0 && gap < DAY_MS;
+}
+
+/**
  * The two sun events the SUN_EVENTS payload carries: the next sunrise/sunset
- * pair, from the provider's own candidates when they hold two upcoming
- * events, else from SunCalc. Always exactly two, in order and under a day
- * apart, except for the polar pair (polarSunEvents). Near and above the
- * polar circles SunCalc has fewer than two upcoming events: one on the last
- * ordinary day before polar day or night (mirroredSunEvent adds its
- * partner), none during it, and on the day before polar night ends the
+ * pair, from the provider's own candidates when their next two make a usable
+ * pair (isWatchPair), else from SunCalc. Always exactly two, in order and
+ * under a day apart, except for the polar pair (polarSunEvents). Near and
+ * above the polar circles SunCalc has fewer than two upcoming events: one
+ * on the last ordinary day before polar day or night (mirroredSunEvent adds
+ * its partner), none during it, and on the day before polar night ends the
  * first one is more than a day out (startsAfterNextDay).
  *
  * @param {Date} now Reference time.
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
  * @param {{type: string, date: Date}[]} [candidates] A provider's own
- *   chronological sunrise/sunset list (OpenWeatherMap's daily data).
+ *   sunrise/sunset list, day by day (OpenWeatherMap's daily data).
  * @returns {{type: string, date: Date}[]} Exactly two sun events.
  */
 function nextSunEvents(now, lat, lon, candidates) {
     var upcoming = candidates ? pickNext24hSunEvents(candidates, now) : [];
-    if (upcoming.length < 2 || startsAfterNextDay(upcoming, now)) {
+    if (!isWatchPair(upcoming) || startsAfterNextDay(upcoming, now)) {
         upcoming = pickNext24hSunEvents(sunCalcSunEvents(now, lat, lon), now);
     }
     if (upcoming.length === 0 || startsAfterNextDay(upcoming, now)) {

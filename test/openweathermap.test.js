@@ -211,3 +211,21 @@ test('OWM withSunEvents keeps its own daily times when they are usable', (t) => 
     (f) => { throw new Error('unexpected failure ' + JSON.stringify(f)); });
   assert.deepEqual(got.map((e) => e.date.getTime() / 1000), [1782070380, 1782096180]);
 });
+
+// The day midnight sun begins, One Call can list a sunrise with no sunset.
+// Its next two upcoming events are then two sunrises, which the watch would
+// read as a sunrise and a sunset. The override takes SunCalc's pair instead.
+test('OWM withSunEvents falls back to SunCalc when its daily times make no usable pair', (t) => {
+  const now = Date.parse('2026-06-20T00:30:00Z');
+  t.mock.timers.enable({ apis: ['Date'], now: now });
+  const p = new OpenWeatherMapProvider('test-key');
+  p.withOwmResponse = (lat, lon, cb) => cb({ daily: [
+    { sunrise: Date.parse('2026-06-20T01:00:00Z') / 1000, sunset: 0 },
+    { sunrise: Date.parse('2026-06-21T00:55:00Z') / 1000, sunset: Date.parse('2026-06-21T23:10:00Z') / 1000 }
+  ] });
+  let got = null;
+  p.withSunEvents(66.6, 25.7, (events) => { got = events; },
+    (f) => { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  assert.deepEqual(got, require('../src/pkjs/weather/sun-events.js').nextSunEvents(new Date(now), 66.6, 25.7));
+  assert.notEqual(got[0].type, got[1].type);
+});
