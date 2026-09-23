@@ -4,20 +4,15 @@
 
 ```
 WarnWeather is a weather watchface for Pebble, based on the ForecasWatch2 watchface.
+It supports multiple views which can be reached through a wrist flick.
 Highly customizable with a modern settings UI and previews.
 
 FORECAST
 - 24-hour forecast with a temperature line and configurable, battery-friendly updates
-- Configurable metrics such as precipitation, UV index, gusts, wind, air
+- Up to three configurable metrics such as precipitation, UV index, gusts, wind, air
   pressure and feels-like temperature
-- Up to three metric lines at once, each in its own style — thin or
-  thick line, square dots, or little x marks (third metric and style
-  selection on watches with enough memory, not Pebble Classic/Steel)
 - Optional day/night shading
-- Recolor the forecast graph per metric — line, area fill and night tint
-  for each — plus the night hatch and the dusk/dawn line, from the full
-  Pebble palette and remembered separately for the Dark and Light themes
-  (color watches)
+- Fully customizable lines and colors
 - Multiple weather providers, including regional and worldwide sources
 
 RAIN RADAR
@@ -34,19 +29,19 @@ CALENDAR
 - Selectable start of week and customizable highlights for weekends and holidays (150+ countries)
 
 STATUS LINES
-- Configurable status slots on every view: 
+- Configurable status slots on every view:
    - Weather:
-      - feels like temperatur
+      - feels-like temperature
       - dew point
       - air quality
       - air pressure
       - pollen
       - wind
       - gusts
-      - UV index (now, today's peak until the UV drops below it, then tomorrow's, or both)
+      - UV index (current, and today's/tomorrow's peak)
       - sunrise/sunset
    - Date and location:
-      - Calender week  
+      - calendar week
       - date (selectable format — European, US, ISO, or spelled-out month)
       - weather fetch location
       - countdown to any date
@@ -59,33 +54,28 @@ STATUS LINES
       - watch battery icon
       - watch battery percentage
       - phone battery
-- Bold status values to make them stand out or to make it easier to read
-- Two-value slots (temperature/feels like, UV now/max) in your style: separator (12/10,
-  12(10), 12·10, 12|10 or your own), with or without spaces (12 / 10), order, and the mark
-  for tomorrow's UV peak
+- Bold status values to make them stand out or easier to read
 - Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set
-- Threshold highlighting: bold, outline, or fill a status slot when a status slot crosses a
+- Threshold highlighting: bold, outline, or fill a status slot when its value crosses a
   warn or danger level you set
 
 WATCHFACE THEMES
 - Dark and Light, plus Black & White and Black & White Inverted options on color watches
-- Theme switching: add a night theme, flipped at sunrise/sunset or between hours you set
+- Theme switching: add a night theme, flipped at sunrise/sunset or between custom hours
 
 WATCH
 - Custom color, 12h/24h, optional AM/PM
-- Smooth, anti-aliased clock digits on color watches (Roboto and Bitham fonts)
 - Battery, Bluetooth, quiet time, and vibrate-on-disconnect indicators
-- Battery saver (pause updates to the watch between hours you set, to save battery)
-- Dim backlight on Pebble Time 2 - when the backlight comes on between hours you set it glows a color you pick instead of white; it never switches the backlight on by itself
-
+- Night battery saver (pause updates to the watch between hours you set, to save battery)
+- Night backlight dimming
 
 LAYOUT CUSTOMIZATION
 - Multiple layout presets, with flick-to-cycle between views and optional auto-return
-- Fully custom layouts (colour watches): build each view yourself - pick, remove and reorder the calendar, clock and status bars per view; flick views can even drop the clock and top bar for a true full-screen radar or graph
-- Light/Dark settings page with grouped, easy-to-browse pickers
-- Weather tab in the settings page: live graphs (temperature & precipitation, wind & gusts, humidity & dew point, pressure, sun & moon) plus a 5-day forecast - for your current location or up to three saved places, with its own switchable data source; refreshes only on demand - pull down or tap Refresh, which also re-reads your phone's location; it leads the tab bar, and a Misc toggle makes it the tab the page opens on
+- Custom layout (still beta)
 - First-run setup wizard that picks sensible defaults for your country and watch
-- Larger graph fonts on Pebble Time 2 - the forecast, health and radar axis labels are drawn in bigger type by default; turn them down in the Layout tab
+
+WEATHER
+- Detailed 5-day weather forecast for multiple locations inside the settings app
 
 PLATFORMS
 - Pebble Classic, Pebble Steel, Pebble Time, Pebble Time Steel, Pebble 2,
