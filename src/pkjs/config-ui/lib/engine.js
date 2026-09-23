@@ -652,10 +652,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var key = esc(item.messageKey), value = cx.S[item.messageKey];
     var listId = 'ssel-list-' + key, titleId = 'ssel-ttl-' + key;
     var title = esc(String(item.label || 'Selection'));
+    // The search box sits in a wrapper that owns the spacing as PADDING. A margin on the
+    // input itself exposed the dialog's own box in the strips beside/under it, and a tap
+    // there targets the <dialog> — which the click handler reads as a ::backdrop tap and
+    // closes the sheet (dropping the query). No sheet child may carry an outer margin.
     var search = item.type === 'searchSelect'
-      ? '<input type="text" class="ssel-search" data-select-search="' + key
-        + '" aria-controls="' + listId + '" placeholder="Search…" value="'
-        + esc(cx.selectQuery || '') + '">'
+      ? '<div class="ssel-search-wrap"><input type="text" class="ssel-search" data-select-search="'
+        + key + '" aria-controls="' + listId + '" placeholder="Search…" value="'
+        + esc(cx.selectQuery || '') + '"></div>'
       : '';
     // Inner content only — the host <dialog id="modal"> is the sheet, and its ::backdrop
     // replaces the old dim overlay. The dialog carries role/modal semantics natively;
@@ -1839,7 +1843,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           render();
           return;
         }
-        // Backdrop light-dismiss: a ::backdrop click targets the dialog element itself.
+        // Backdrop light-dismiss: a ::backdrop click targets the dialog element itself. So
+        // does a tap on any bare patch of the sheet, which is why no sheet child may carry
+        // an outer margin (see .ssel-search-wrap in renderSelectModal).
         if ((e.target.closest && e.target.closest('[data-select-close]'))
             || e.target === modal) {
           closeModal(); return;

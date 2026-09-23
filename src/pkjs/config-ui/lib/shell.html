@@ -327,7 +327,11 @@
   .ssel-modal-ttl { font: 800 15px 'Inter', sans-serif; color: var(--fg); }
   .ssel-modal-hdr .lbl-act { flex: none; margin-left: 6px; }
   .ssel-modal-close { flex: none; margin-left: auto; border: none; background: none; color: var(--muted); font-size: 22px; line-height: 1; cursor: pointer; padding: 0 2px 2px; }
-  dialog#modal .ssel-search { flex: none; margin: 0 16px 10px; width: auto; }
+  /* The spacing is the WRAPPER's padding, never a margin on the input: a child's margin
+     leaves the dialog's own box showing, and a tap there hits the <dialog> itself — the
+     same target a ::backdrop tap has — so it light-dismissed the sheet. */
+  dialog#modal .ssel-search-wrap { flex: none; padding: 0 16px 10px; }
+  dialog#modal .ssel-search { margin: 0; width: 100%; }
   dialog#modal .ssel-list { flex: 1 1 auto; margin: 0; border: none; border-top: 1px solid var(--row-line); border-radius: 0; max-height: none; overflow-y: auto; overscroll-behavior: contain; }
   /* searchSelect: a little breathing room (just under one row) after the last option so it
      isn't flush against the bottom / keyboard edge. A spacer box, since WebKit drops a scroll

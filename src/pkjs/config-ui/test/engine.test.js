@@ -735,6 +735,44 @@ test('renderSelectModal: open searchSelect exposes header + search + controlled 
   assert.match(html, /role="option" aria-selected="false"[^>]*data-select-pick="US"/);
 });
 
+test('renderSelectModal: no sheet child leaves the dialog\'s own box showing through a margin', () => {
+  // The modal's click handler reads `e.target === modal` as a ::backdrop tap. The dialog is
+  // the sheet itself, though, so a tap on a bare patch of it — a child's MARGIN — targets the
+  // dialog too and light-dismissed the sheet (dropping the typed query). The search box had
+  // `margin: 0 16px 10px`: tapping just beside it closed the country picker. Its spacing now
+  // lives on a wrapper's padding. Node has no hit-testing, so this pins the contract instead:
+  // every top-level child of the sheet resolves to no outer margin in shell.html.
+  const shell = fs.readFileSync(path.resolve(__dirname, '..', 'lib', 'shell.html'), 'utf8');
+  const item = { type: 'searchSelect', messageKey: 'c', label: 'Country', options: [['Germany','DE']] };
+  const schema = { appName: 'X', versionLabel: '', tabs: [{ id: 't', label: 'T', sections: [{ title: 'S', items: [item] }] }] };
+  const cx = { S: { c: 'DE' }, ENV: {}, USERDATA: {}, openColor: null, openSelect: 'c', selectQuery: 'ger', collapsed: {}, evalCtx: { c: 'DE', env: {} } };
+  const html = E.renderSelectModal(schema, cx);
+  // Top-level elements only: walk the tags, tracking depth (void <input> has no close tag).
+  const top = [];
+  let depth = 0;
+  html.replace(/<(\/?)([a-z]+)([^>]*)>/g, (m, close, tag, attrs) => {
+    if (close) { depth--; return m; }
+    if (depth === 0) { top.push({ tag, cls: (/class="([^"]*)"/.exec(attrs) || [])[1] || '' }); }
+    if (tag !== 'input') { depth++; }
+    return m;
+  });
+  assert.deepEqual(top.map((t) => t.tag + '.' + t.cls.split(' ')[0]),
+    ['div.ssel-modal-hdr', 'div.ssel-search-wrap', 'div.ssel-list'],
+    'the search box is wrapped, not a direct child of the dialog');
+  assert.match(html, /<div class="ssel-search-wrap"><input type="text" class="ssel-search" data-select-search="c"[^>]*value="ger">/);
+  top.forEach(({ cls }) => {
+    const c = cls.split(' ')[0].replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
+    // The dialog-scoped rule wins where it sets a margin; otherwise the base rule decides.
+    const scoped = new RegExp('dialog#modal \\.' + c + '\\s*\\{([^}]*)\\}').exec(shell);
+    const base = new RegExp('(?:^|\\n)\\s*\\.' + c + '\\s*\\{([^}]*)\\}').exec(shell);
+    const decl = (rule) => rule && /(?:^|;)\s*margin(?:-[a-z]+)?\s*:\s*([^;]*)/.exec(rule[1]);
+    const m = decl(scoped) || decl(base);
+    if (m) { assert.match(m[1].trim(), /^0(px)?$/, '.' + cls + ' must not carry an outer margin: ' + m[0].trim()); }
+  });
+  assert.match(shell, /dialog#modal \.ssel-search-wrap\s*\{[^}]*padding:\s*0 16px 10px/,
+    'the wrapper carries the search box\'s spacing as padding');
+});
+
 test('renderSelectModal: the open list reflects the query', () => {
   const item = { type: 'searchSelect', messageKey: 'c', label: 'C', options: [['United States','US'],['Germany','DE']] };
   const schema = { appName: 'X', versionLabel: '', tabs: [{ id: 't', label: 'T', sections: [{ title: 'S', items: [item] }] }] };
