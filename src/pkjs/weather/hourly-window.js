@@ -12,8 +12,10 @@ var HOUR_SECONDS = 60 * 60;
 // end of TOMORROW, which the UV slot's day-max modes need once today's peak has
 // passed (localDayPeaks). The worst case is the EARLIEST anchor, 00:00: the rest of
 // today is then a whole day and tomorrow another, 48 h, plus one when either is a
-// 25 h DST fall-back day — 49 buckets. Any later anchor needs fewer. Only UV reads
-// this far; every other trend keeps FORECAST_HOURS.
+// 25 h DST fall-back day — 49 buckets. Any later anchor needs fewer. (A :30/:45
+// UTC-offset zone's anchor can start up to 45 min before today's midnight: still 49,
+// bar that zone's fall-back days, where a fetch in those minutes reads tomorrow as
+// unknown.) Only UV reads this far; every other trend keeps FORECAST_HOURS.
 var UV_HOURS = 2 * FORECAST_HOURS + 1;
 
 /**
@@ -104,8 +106,8 @@ function readHourly(items, anchor, hours, epochOf, valueOf) {
 }
 
 /**
- * The peaks of an hourly series per LOCAL calendar day: [the rest of the day
- * startEpoch falls on, the whole next day]. Entry i is the hour starting at
+ * The peaks of an hourly series per LOCAL calendar day: [the rest of today,
+ * the whole next day]. Entry i is the hour starting at
  * startEpoch + i h; unsourced (non-numeric) hours are skipped, and a day with no
  * sourced hour is null. The next day's peak is reported only when the series'
  * last SOURCED hour reaches that day's end — a feed that stops short would
@@ -116,17 +118,25 @@ function readHourly(items, anchor, hours, epochOf, valueOf) {
  * the phone's own calendar (local midnight via Date), so a DST day of 23 or 25
  * hours needs no special case.
  *
+ * "Today" is the day of nowEpoch, clamped into entry 0's hour — not of
+ * startEpoch alone: that hour is a UTC one, so in a :30/:45-offset zone local
+ * midnight falls INSIDE it, and for the day's first 30 or 45 minutes it starts on
+ * yesterday (which would hand today's peak to tomorrow). The clamp keeps a stale
+ * start (a fixture replay) deterministic.
+ *
  * @param {Array.<(number|null)>} series Hourly values from startEpoch.
  * @param {number} startEpoch Epoch seconds of entry 0.
+ * @param {number} [nowEpoch] Current time in epoch seconds; defaults to startEpoch.
  * @returns {Array.<(number|null)>} [today, tomorrow]; [null, null] when unusable.
  */
-function localDayPeaks(series, startEpoch) {
+function localDayPeaks(series, startEpoch, nowEpoch) {
     var peaks = [null, null];
     if (!series || !series.length || typeof startEpoch !== 'number' || !isFinite(startEpoch)) {
         return peaks;
     }
-    var first = new Date(startEpoch * 1000);
-    var y = first.getFullYear(), m = first.getMonth(), d = first.getDate();
+    var ref = Math.min(Math.max(nowEpoch || startEpoch, startEpoch), startEpoch + HOUR_SECONDS - 1);
+    var today = new Date(ref * 1000);
+    var y = today.getFullYear(), m = today.getMonth(), d = today.getDate();
     var tomorrowStart = new Date(y, m, d + 1).getTime() / 1000;
     var dayAfterStart = new Date(y, m, d + 2).getTime() / 1000;
     var i, t, v, day;

@@ -686,11 +686,13 @@ WeatherProvider.prototype.getPayload = function() {
     }
     // The UV slot's day-max modes: [rest of today's peak, tomorrow's peak] in
     // tenths (null = unknown), read off the FULL uvTrend — it reaches UV_HOURS,
-    // past the 24h window UV_TREND_UINT8 is cut to. Emitted only alongside a
-    // sourced UV series. Transient PKJS-only: formatValue/displayValue consume
-    // it, forecast-series deletes it before send.
+    // past the 24h window UV_TREND_UINT8 is cut to; the clock picks which local
+    // day is today. Emitted only alongside a sourced UV series. Transient
+    // PKJS-only: formatValue/displayValue consume it, forecast-series deletes it
+    // before send.
     if (uvs.length) {
-        payload.UV_DAY_PEAKS = hourlyWindow.localDayPeaks(this.uvTrend, this.startTime)
+        payload.UV_DAY_PEAKS = hourlyWindow.localDayPeaks(this.uvTrend, this.startTime,
+            Math.floor(Date.now() / 1000))
             .map(function (peak) { return peak === null ? null : clampByte(peak * 10); });
     }
     return payload;
