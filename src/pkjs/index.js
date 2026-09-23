@@ -93,6 +93,9 @@ var KEY_GEOCODE_BACKOFF = storageKeys.GEOCODE_BACKOFF_KEY;
 // never came back, and its in-progress flag would otherwise block every later
 // fetch until PKJS restarts.
 var FETCH_WATCHDOG_MS = 2 * 60 * 1000;
+// Tolerance when comparing a failure backoff against the tick clock (see
+// isFailureBackoffActive): half of the 60 s scheduler tick.
+var FAILURE_BACKOFF_SLACK_MS = 30 * 1000;
 var KEY_LAST_IS_SLEEPING = storageKeys.LAST_IS_SLEEPING_KEY;
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
 var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
@@ -1167,13 +1170,59 @@ function updateSleepState() {
 }
 
 /**
- * Whether a weather refresh is due: true on first run, on a missing/invalid
- * last-success marker, or once Date.now() crosses into a later refresh slot
- * (unless asleep and already known to be asleep).
+ * Whether a scheduled weather fetch should run this tick: a refresh is due
+ * (isRefreshDue) and the last attempt's failure backoff has run out.
  *
  * @returns {boolean} True when a fetch should run this tick.
  */
 function needRefresh() {
+    if (!isRefreshDue()) { return false; }
+    return !isFailureBackoffActive(app.settings.fetchIntervalMin * 60 * 1000);
+}
+
+/**
+ * Whether the last fetch attempt failed recently enough that a scheduled
+ * refresh should still wait. Only the last SUCCESS feeds isRefreshDue, so
+ * without this a failing provider (5xx, 429, no network, no GPS fix) was
+ * re-requested on every 60 s tick whatever the interval. Spacing follows
+ * createChannelScheduler.failureBackoffMs over the persisted attempt record
+ * and counter, so it survives PKJS restarts; forced fetches never ask. Runs
+ * on every tick, where a throw would kill the loop — so a missing or corrupt
+ * record means no backoff, and nothing here throws.
+ *
+ * @param {number} intervalMs Refresh interval in ms.
+ * @returns {boolean} True while the backoff holds.
+ */
+function isFailureBackoffActive(intervalMs) {
+    try {
+        var last = JSON.parse(localStorage.getItem(KEY_LAST_FETCH_ATTEMPT));
+        if (!last || !last.error || !last.time) { return false; }
+        var elapsed = Date.now() - new Date(last.time).getTime();
+        // NaN, or a clock that went backwards: never stall on it.
+        if (!(elapsed >= 0)) { return false; }
+        var failures = getFetchAttemptCounter();
+        var waitMs = createChannelScheduler.failureBackoffMs(failures, last.error, intervalMs);
+        // Ticks land ~60 s apart, a few ms either side of the failed attempt's
+        // own tick; half a tick of slack retries on the tick the backoff names
+        // rather than the one after it.
+        if (elapsed + FAILURE_BACKOFF_SLACK_MS >= waitMs) { return false; }
+        console.log('Skipping weather fetch: backing off after ' + failures
+            + ' failed attempt(s), next try in ~' + Math.ceil((waitMs - elapsed) / 60000) + ' min.');
+        return true;
+    }
+    catch (e) {
+        return false;
+    }
+}
+
+/**
+ * Whether a weather refresh is due: true on first run, on a missing/invalid
+ * last-success marker, or once Date.now() crosses into a later refresh slot
+ * (unless asleep and already known to be asleep).
+ *
+ * @returns {boolean} True when the refresh slot calls for a fetch.
+ */
+function isRefreshDue() {
     // Slot-based boundary check: a "slot" is a chunk of length intervalMs since the
     // Unix epoch. Refresh whenever Date.now() sits in a later slot than the last
     // successful fetch. Slots are UTC-aligned, which matches local clock :NN
