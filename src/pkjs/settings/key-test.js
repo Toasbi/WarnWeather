@@ -41,7 +41,16 @@
             return { ok: false, message: '\u2717 Unexpected response (' + status + ').' };
         }
 
+        // The latest runTest's ticket. Every tap takes a new one, and a response writes its
+        // verdict only while its ticket is still the latest: an earlier request still in
+        // flight (a hung one, or one for the mistyped key the user has since fixed) would
+        // otherwise land after the newer verdict and overwrite "Key works" with its own
+        // stale timeout or 401. Shared by every field wired to this action \u2014 the settings
+        // page and the wizard upsell test the same key.
+        var seq = 0;
+
         function runTest() {
+            var mine = ++seq;   // taken before any early return, so it cancels in-flight results too
             var input = document.querySelector('input[data-k="' + config.dataKey + '"]');
             var resultEl = document.querySelector('[data-action-result="' + config.dataKey + '"]');
             var key = input ? input.value : '';
@@ -54,9 +63,18 @@
             var xhr = new XMLHttpRequest();
             xhr.open('GET', config.buildTestUrl(key));
             xhr.timeout = 8000;
-            xhr.onload = function () { resultEl.textContent = interpretStatus(xhr.status).message; };
-            xhr.onerror = function () { resultEl.textContent = interpretStatus(0).message; };
-            xhr.ontimeout = function () { resultEl.textContent = '\u2717 Timed out reaching ' + config.host + '.'; };
+            xhr.onload = function () {
+                if (mine !== seq) { return; }
+                resultEl.textContent = interpretStatus(xhr.status).message;
+            };
+            xhr.onerror = function () {
+                if (mine !== seq) { return; }
+                resultEl.textContent = interpretStatus(0).message;
+            };
+            xhr.ontimeout = function () {
+                if (mine !== seq) { return; }
+                resultEl.textContent = '\u2717 Timed out reaching ' + config.host + '.';
+            };
             if (config.headers) {
                 var headers = config.headers(key);
                 for (var name in headers) {
