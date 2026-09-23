@@ -405,10 +405,11 @@ function fakeWizardDom() {
     }
     const scrollFns = [];
     let scrollLeft = 0;
+    const group = (/data-wiz-car="([^"]+)"/.exec(html) || [])[1];
     const el = {
       cards,
       clientWidth: 178,
-      getAttribute: (n) => (n === 'data-wiz-car' ? 'layoutPreset' : null),
+      getAttribute: (n) => (n === 'data-wiz-car' ? group : null),
       addEventListener: (ev, fn) => { if (ev === 'scroll') { scrollFns.push(fn); } },
       querySelector: (sel) => (sel === '.wiz-card.on'
         ? cards.find((c) => c.className.indexOf(' on') >= 0) || null : null),
@@ -488,6 +489,76 @@ test('opening the wizard never rewrites a stored compactDense preset', async () 
     ? { getAttribute: () => 'fullCal', parentNode: { getAttribute: () => 'layoutPreset' } } : null));
   assert.equal(ctx.S.layoutPreset, 'fullCal', 'an actual card tap commits normally');
   await new Promise((r) => setTimeout(r, 150));   // let the recenter scroll's debounce drain
+});
+
+// --- the health pick runs the Health tab's own reset hook -------------------------------
+const drain = () => new Promise((r) => setTimeout(r, 150));   // the carousel snap debounce (90ms)
+/**
+ * Re-run setup ("Run setup again") on `ctx`, pick `healthMode` on the health step, walk to
+ * the last step and press Save & close — through the real click handlers.
+ * @param {Object} ctx wizCtx() state, already onboarded.
+ * @param {string} healthMode Card value to tap on the health step.
+ * @returns {Promise<void>} Resolves once the wizard has saved.
+ */
+async function rerunWizardPickingHealth(ctx, healthMode) {
+  const dom = fakeWizardDom();
+  Object.assign(ctx, {
+    cfg: { onboardingDone: true },
+    set: (k, v) => { ctx.S[k] = v; },
+    save: () => {},
+    render: () => {}
+  });
+  const nav = (v) => dom.overlay.click((sel) => (sel === '[data-wiz-nav]' ? { getAttribute: () => v } : null));
+  PConf.hooks.runReady(ctx);
+  PConf.actions.startWizard();
+  nav('next'); nav('next');
+  assert.equal(dom.getCar().getAttribute('data-wiz-car'), 'healthMode', 'guard: on the health step');
+  dom.overlay.click((sel) => (sel === '[data-wiz-idx-val]'
+    ? { getAttribute: () => healthMode, parentNode: { getAttribute: () => 'healthMode' } } : null));
+  await drain();
+  while (!/data-wiz-nav="save"/.test(dom.overlay.querySelector('[data-wiz-foot]').innerHTML)) { nav('next'); }
+  nav('save');
+  await drain();
+}
+
+test('re-running setup with health turned back on restores the health row', async () => {
+  // Health was turned OFF on the Health tab earlier: its own hook emptied the health row.
+  const ctx = wizCtx({ saved: { onboardingDone: true } });
+  ctx.S.healthMode = 'off';
+  PConf.onChange.get('resetStatusHealth')(ctx.S, 'all', 'off', ctx.ENV, 'healthMode');
+  assert.deepEqual([ctx.S.statusHealthLeft, ctx.S.statusHealthMid, ctx.S.statusHealthRight],
+    ['empty', 'empty', 'empty'], 'guard: the off state left the row blank');
+
+  await rerunWizardPickingHealth(ctx, 'status');
+
+  assert.equal(ctx.S.healthMode, 'status');
+  // Row back at its defaults, then the finishing policy's steps promotion evicts steps.
+  assert.deepEqual([ctx.S.statusHealthLeft, ctx.S.statusHealthMid, ctx.S.statusHealthRight],
+    ['distance', 'empty', 'sleep'], 'not a blank Health Status Bar');
+  assert.equal(ctx.S.statusTopLeft, 'steps');
+});
+
+test('re-running setup with health turned off snaps the promoted steps slot back', async () => {
+  // emery: an earlier finished wizard promoted steps into the top-right corner.
+  const ctx = wizCtx({ platform: 'emery', saved: { onboardingDone: true } });
+  W.applyWizardDefaults(ctx, 'save');
+  assert.equal(ctx.S.statusTopRight, 'steps', 'guard: the earlier run promoted steps');
+
+  await rerunWizardPickingHealth(ctx, 'off');
+
+  assert.equal(ctx.S.healthMode, 'off');
+  assert.equal(ctx.S.statusTopRight, 'sun', 'the corner returns to its default, not a blank slot');
+});
+
+test('a health pick that keeps the enable state leaves a customized health row alone', async () => {
+  const ctx = wizCtx({ saved: { onboardingDone: true, healthMode: 'all',
+    statusHealthLeft: 'sleep', statusHealthMid: 'steps', statusHealthRight: 'empty' } });
+
+  await rerunWizardPickingHealth(ctx, 'status');
+
+  assert.equal(ctx.S.healthMode, 'status');
+  assert.deepEqual([ctx.S.statusHealthLeft, ctx.S.statusHealthMid, ctx.S.statusHealthRight],
+    ['sleep', 'steps', 'empty']);
 });
 
 // --- the fresh-install country inference ------------------------------------------------

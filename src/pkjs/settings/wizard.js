@@ -244,7 +244,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // Live wizard state, captured from the onReady ctx when the wizard opens.
     // flickIdx = current stop of the flick demo (reset to 0 whenever stepFlick renders).
-    var W = { ctx: null, steps: [], idx: 0, overlay: null, flickIdx: 0 };
+    // healthAtOpen = S.healthMode as the wizard opened (applyHealthModeChange).
+    var W = { ctx: null, steps: [], idx: 0, overlay: null, flickIdx: 0, healthAtOpen: null };
 
     function esc(s) { return (PConf.engine && PConf.engine.esc) ? PConf.engine.esc(s) : String(s); }
 
@@ -734,7 +735,35 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function finishSave() { W.ctx.set('onboardingDone', true); W.ctx.save(); }
     function finishTweak() { W.ctx.set('onboardingDone', true); closeWizard(); W.ctx.render(); }
 
+    // The navs that close the wizard and hand its state to the page (and so to a save).
+    var EXIT_NAVS = {save: true, tweak: true, skip: true};
+
+    /**
+     * Run healthMode's own onChange hook (resetStatusHealth, declared on the schema item)
+     * ONCE, from the value the wizard opened with to the one it closes on — the same call
+     * the Health tab makes on every change. The carousel writes S.healthMode directly, and
+     * an off <-> on flip that skips the hook leaves the health row as the off state left it
+     * (all Empty: a blank Health Status Bar) or keeps health items stored in other rows
+     * after picking Off (blank slots). Deliberately not per selection: carousel swipes
+     * commit every card they pass, and resetting the row on a mere peek at "Off" would
+     * throw away a customized health row. A no-op when the enable state didn't flip.
+     * @param {Object} ctx onReady ctx ({S, ENV, schema}).
+     * @param {*} openedWith S.healthMode when the wizard opened.
+     * @returns {void}
+     */
+    function applyHealthModeChange(ctx, openedWith) {
+        var item = findItem(ctx.schema, 'healthMode');
+        var hook = (item && item.onChange && PConf.onChange && PConf.onChange.get)
+            ? PConf.onChange.get(item.onChange) : null;
+        if (!hook || openedWith === ctx.S.healthMode) { return; }
+        hook(ctx.S, openedWith, ctx.S.healthMode, ctx.ENV, 'healthMode');
+    }
+
     function onNav(nav) {
+        // Closing the wizard first reconciles the health pick with the status rows, BEFORE
+        // the finishing defaults: the policy's health-slot swap reads the health row, and
+        // after an off -> on pick that row must already be back at its defaults.
+        if (EXIT_NAVS[nav]) { applyHealthModeChange(W.ctx, W.healthAtOpen); }
         // Every exit runs the situational defaults first — applyWizardDefaults itself decides
         // which navs count as finishing the wizard, so the rule lives in one place — and does
         // it BEFORE the exit, so the values ride the save (or show up on the settings page the
@@ -813,6 +842,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     function openWizard(ctx, fresh) {
         W.ctx = ctx; W.steps = buildSteps(ctx.ENV); W.idx = 0;
+        W.healthAtOpen = ctx.S.healthMode;   // see applyHealthModeChange
         if (fresh) {
             // An undetected country, or one the holiday list doesn't offer (IN, AE, …), is
             // 'none' — NOT the schema default 'DE', which would derive the Germany-only DWD
