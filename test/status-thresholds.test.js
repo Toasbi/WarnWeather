@@ -214,6 +214,20 @@ test('packWeatherLevels: missing data or disabled kinds emit normal', () => {
   assert.deepEqual(th.packWeatherLevels({ AQI_TREND: [500] }, {}), [0, 0]);
 });
 
+test('packWeatherLevels: UV thresholds with no UV series emit normal in every display mode', () => {
+  // Bright Sky, a failed UV fetch or no UV slot: wireUnits.uvShown answers null, and
+  // the level must stay Normal rather than throw on its peak. Warn '0' also catches a
+  // missing value read as 0 (0 >= 0 would be warn).
+  const payloads = [{}, { UV_TREND_UINT8: [] }, { UV_TREND_UINT8: [], UV_DAY_PEAKS: [90, 90] }];
+  [undefined, 'current', 'max', 'both'].forEach((uvSlotDisplay) => {
+    const settings = { threshUvWarn: '0', threshUvDanger: '8', uvSlotDisplay: uvSlotDisplay };
+    payloads.forEach((payload) => {
+      assert.deepEqual(th.packWeatherLevels(payload, settings), [0, 0],
+        String(uvSlotDisplay) + ' ' + JSON.stringify(payload));
+    });
+  });
+});
+
 test('buildSettingsBlob: enabled mask, GColor8 colors, LE uint16 health thresholds', () => {
   // Goal pairs order upward since the celebration rework (close <= goal).
   const blob = th.buildSettingsBlob({

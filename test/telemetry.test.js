@@ -615,14 +615,15 @@ test('the six graph colour fields are optional STRINGS in the Deno .strip() sche
 // send() logs the non-2xx and nothing retries it. So the heaviest realistic envelope has
 // to stay under the cap with room left to grow.
 // Ledger (MEASURED — read the byte count off this test's own console line, never
-// arithmetic): 3423 B of 4096, headroom 673. The six colours are 169 B of that, and that
+// arithmetic): 3449 B of 4096, headroom 647. The six colours are 169 B of that, and that
 // is their WORST case however they are set: '#RRGGBB' and 'default' are both seven
 // characters. This envelope was 2787 B before them, and 2956 B before the Nighttime card
 // (the eight new settings fields, the four themeAuto ones this fixture had never switched
 // on, and the emery watch the LED group needs). The five two-value slot picks added 45 B
 // (3318 before them; the custom separator text is never sent, so it cannot grow this),
 // and the two spacing toggles (tempSlotSeparatorSpaced / uvSlotSeparatorSpaced) 60 B
-// (3363 before them).
+// (3363 before them). uvSlotDisplay, reported all along but left out of this fixture
+// until the unset-field check below was added, is 26 B (3423 before it).
 test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () => {
   const fs = require('fs');
   const path = require('path');
@@ -634,7 +635,8 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
   // Every reported setting on its longest realistic option, on a light-polarity colour
   // theme so all six picks report (bw would report none of them).
   const settings = {
-    temperatureUnits: 'fahrenheit', tempSlotDisplay: 'both', aqiScale: 'european',
+    temperatureUnits: 'fahrenheit', tempSlotDisplay: 'both', uvSlotDisplay: 'current',
+    aqiScale: 'european',
     tempSlotSeparator: 'brackets', tempSlotOrder: 'actual', uvSlotSeparator: 'brackets',
     uvSlotOrder: 'now', uvSlotNextDayMark: 'raquo',
     tempSlotSeparatorSpaced: true, uvSlotSeparatorSpaced: true,
@@ -698,6 +700,12 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     durationMs: 999999,
     attempt: 99
   };
+  // "Every reported setting" is checked, not claimed: a field left out of the fixture
+  // serialises as undefined and drops out of the byte count. The customView trio
+  // reports only under layoutPreset 'custom', which this fixture does not pick.
+  const unset = Object.keys(payload.settings).filter((key) => payload.settings[key] === undefined);
+  assert.deepEqual(unset, ['customView0', 'customView1', 'customView2'],
+    'a snapshot field the fixture never sets understates the ledger — set it on its longest option');
   const bytes = Buffer.byteLength(JSON.stringify(payload));
   console.log('heaviest telemetry envelope: ' + bytes + ' B of ' + cap
     + ' B (headroom ' + (cap - bytes) + ')');

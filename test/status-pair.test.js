@@ -379,9 +379,11 @@ test('sanitizeCustom keeps printable ASCII and printable Latin-1 only', () => {
   assert.equal(pair.sanitizeCustom('a😀b'), 'ab');
   assert.equal(pair.sanitizeCustom('°»'), '°»', 'Latin-1 kept');
   assert.equal(pair.sanitizeCustom('·'), '·');
-  // The range edges.
-  assert.equal(pair.sanitizeCustom('\u001F ~\u007F'), ' ~');
-  assert.equal(pair.sanitizeCustom(' ¡ÿĀ'), '¡ÿ');
+  // The range edges. Each excluded edge leads, so it is judged before the
+  // two-character cap is reached (trailing, it would never be looked at).
+  assert.equal(pair.sanitizeCustom('\u007F\u001F ~'), ' ~', 'DEL and U+001F dropped');
+  assert.equal(pair.sanitizeCustom('\u0100\u00A0\u00A1\u00FF'), '\u00A1\u00FF',
+    'U+0100 and the no-break space dropped');
 });
 
 test('sanitizeCustom drops control characters, C0 and C1 alike', () => {
