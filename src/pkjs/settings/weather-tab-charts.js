@@ -1314,13 +1314,21 @@
         var xFor = function (ms) { return (ms - view.dayStartMs) / 3600000 * HOUR_W; };
         var d, x;
         // Night shading per location day (sunset → next sunrise, drawn as the
-        // two edges of each calendar day).
+        // two edges of each calendar day). A day with no crossing at all is
+        // polar: the noon altitude tells a 24-hour night (shade the whole
+        // day) from a midnight-sun day (none) — probed at noon, where the
+        // sign is unambiguous, like the Sun & moon panel's `up` probe.
         if (SunCalcLib && loc) {
             for (d = 0; d < view.days; d += 1) {
                 var dayStart = view.dayStartMs + d * 86400000;
                 var st = SunCalcLib.getTimes(new Date(dayStart + 43200000), loc.lat, loc.lon);
                 var rise = st.sunrise && !isNaN(st.sunrise.getTime()) ? st.sunrise.getTime() : null;
                 var set = st.sunset && !isNaN(st.sunset.getTime()) ? st.sunset.getTime() : null;
+                if (rise === null && set === null
+                        && SunCalcLib.getPosition(new Date(dayStart + 43200000), loc.lat, loc.lon).altitude < 0) {
+                    s += '<rect x="' + xFor(dayStart).toFixed(1) + '" y="0" width="'
+                        + (xFor(dayStart + 86400000) - xFor(dayStart)).toFixed(1) + '" height="' + BAND_H + '" fill="' + pal.night + '"/>';
+                }
                 if (rise !== null && rise > dayStart) {
                     s += '<rect x="' + xFor(dayStart).toFixed(1) + '" y="0" width="'
                         + (xFor(rise) - xFor(dayStart)).toFixed(1) + '" height="' + BAND_H + '" fill="' + pal.night + '"/>';

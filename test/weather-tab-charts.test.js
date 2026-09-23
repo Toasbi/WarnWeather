@@ -368,6 +368,38 @@ test('the hour strip ENDS at the tick ruler — that is what gets pinned', () =>
   assert.ok(noShade.main.indexOf('03:00') !== -1, 'no SunCalc → still a time axis, just unshaded');
 });
 
+// A day with no sunrise and no sunset is polar: SunCalc answers Invalid Date for both,
+// so the rise/set edge rects never draw. Polar NIGHT must still read as night — one
+// full-width rect per day — while polar DAY stays unshaded.
+test('the hour strip shades a polar-night day end to end, and leaves a midnight-sun day clear', () => {
+  const pal = charts.palette(false);
+  const nightRects = (spec) => {
+    const out = [];
+    const re = new RegExp('<rect x="([\\d.]+)" y="0" width="([\\d.]+)" height="\\d+" fill="'
+      + pal.night.replace(/[().]/g, '\\$&') + '"/>', 'g');
+    let m;
+    while ((m = re.exec(spec.main)) !== null) { out.push({ x: Number(m[1]), w: Number(m[2]) }); }
+    return out;
+  };
+  const TROMSO = { lat: 69.65, lon: 18.96 };
+  const DEC = Date.UTC(2026, 11, 20);
+  const dec = charts.prepareView(fixtureData(DEC), DEC + 12 * 3600000);
+  const polarNight = nightRects(charts.timeStripSvg(dec, TROMSO, pal, SunCalc));
+  assert.equal(polarNight.length, dec.days, 'one night rect per polar-night day (' + dec.days + ' days)');
+  polarNight.forEach((r, d) => {
+    assert.equal(r.x, d * charts.DAY_W, 'day ' + d + ' starts its night at its midnight');
+    assert.equal(r.w, charts.DAY_W, 'and shades the whole day');
+  });
+  const JUN = Date.UTC(2026, 5, 21);
+  const jun = charts.prepareView(fixtureData(JUN), JUN + 12 * 3600000);
+  assert.equal(nightRects(charts.timeStripSvg(jun, TROMSO, pal, SunCalc)).length, 0,
+    'midnight sun: no night to shade');
+  // An ordinary day keeps its two edge rects, never a whole-day one.
+  const berlin = nightRects(charts.timeStripSvg(dec, LOC, pal, SunCalc));
+  assert.equal(berlin.length, 2 * dec.days, 'Berlin in December: morning + evening per day');
+  assert.ok(berlin.every((r) => r.w < charts.DAY_W), 'none of them the whole day');
+});
+
 test('the caption names the past by what produced it, and only DWD says Measured', () => {
   const pal = charts.palette(false);
   const words = (spec) => (spec.main.match(/<text[^>]*>[^<]*<\/text>/g) || []).map((t) => ({
