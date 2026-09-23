@@ -397,6 +397,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
          * Legend strip below the chart. Lists only the shown series (Temp always; main metric;
          * second metric if on; Rain if bars on). Color watch: hued glyph + label, with a 5-band
          * gradient for Rain. B&W: white style glyphs (thick line / thin line / dots / outline box).
+         * The row starts under the plot (PX0) and never runs past the frame's right edge: a
+         * row too long for that first borrows the empty hi/lo label column (x = 3; the hi/lo
+         * labels sit higher up), then closes the gaps toward a floor, and only then shrinks
+         * the label text. The frame cannot grow a second row — its height is fixed and the
+         * block is sticky, so extra height would cost scroll space on the Forecast tab.
          * @returns {string} SVG markup
          */
         function drawLegend() {
@@ -409,18 +414,34 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             }
             if (state.barSource === 'rain') { entries.push({ kind: 'rain', label: 'Rain' }); }
 
-            var gy = 118, ty = 121, out = '', x = PX0;
+            var tierGlyph = isColor && state.rainBarColor !== 'white';
+            var glyphW = function (en) { return (en.kind === 'rain' && tierGlyph) ? P.rainTiers.length * 2.4 + 2 : 14; };
+            // Fit the row: fixed glyph widths + 3 before each label, label.length * 4.3 of text.
+            var ADV = 4.3, FONT = 7.5, RIGHT = PX1, gap = 8, fixedW = 0, textW = 0, j;
+            for (j = 0; j < entries.length; j += 1) {
+                fixedW += glyphW(entries[j]) + 3;
+                textW += entries[j].label.length * ADV;
+            }
+            var gaps = entries.length - 1, start = PX0, textK = 1;
+            if (start + fixedW + textW + gap * gaps > RIGHT) { start = 3; }
+            if (gaps > 0 && start + fixedW + textW + gap * gaps > RIGHT) {
+                gap = Math.max(3, (RIGHT - start - fixedW - textW) / gaps);
+            }
+            if (textW > 0 && start + fixedW + textW + gap * gaps > RIGHT) {
+                textK = (RIGHT - start - fixedW - gap * gaps) / textW;
+            }
+
+            var gy = 118, ty = 121, out = '', x = start;
             for (var i = 0; i < entries.length; i += 1) {
-                var en = entries[i], gw = 14;
+                var en = entries[i], gw = glyphW(en);
                 if (en.kind === 'line') {
                     out += '<line x1="' + x + '" y1="' + gy + '" x2="' + (x + 12) + '" y2="' + gy + '" stroke="' + en.color + '" stroke-width="' + en.w + '" stroke-linecap="round"></line>';
                 } else if (en.kind === 'dots') {
                     out += rect(x + 1, gy - 1.6, 3.2, 3.2, en.color) + rect(x + 8, gy - 1.6, 3.2, 3.2, en.color);
-                } else if (isColor && state.rainBarColor !== 'white') {
+                } else if (tierGlyph) {
                     for (var k = 0; k < P.rainTiers.length; k += 1) {
                         out += rect(x + k * 2.4, gy - 3.5, 2.4, 7, P.rainTiers[k].color);
                     }
-                    gw = P.rainTiers.length * 2.4 + 2;
                 } else if (isColor) {
                     // colour + Solid bars: a solid swatch, matching the solid bars (dims to
                     // DarkGray in the light theme, like the bars themselves — see barFg)
@@ -430,8 +451,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                     out += '<rect x="' + x + '" y="' + (gy - 3.5) + '" width="12" height="7" fill="none" stroke="' + ink.fg + '" stroke-width="1"></rect>';
                 }
                 var lx = x + gw + 3;
-                out += txt(lx, ty, 7.5, '#AEB4BD', 'start', 600, en.label);
-                x = lx + en.label.length * 4.3 + 8;
+                out += txt(lx, ty, textK < 1 ? Math.round(FONT * textK * 100) / 100 : FONT, '#AEB4BD', 'start', 600, en.label);
+                x = lx + en.label.length * ADV * textK + gap;
             }
             return out;
         }

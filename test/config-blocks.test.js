@@ -448,6 +448,47 @@ test('legend lists the shown series with palette colors (color watch)', () => {
   assert.ok(svg.indexOf('>Rain<') >= 0, 'Rain entry (bars on)');
 });
 
+// The legend is one row in a fixed 200-wide viewBox (the page clips past it). Walk every
+// main / second metric / bars / bar colour combination, colour and B&W, and hold each
+// label's estimated extent (the layout's own 4.3 units per char at font 7.5) inside it.
+test('legend never runs past the 200-wide frame, for any metric combination', () => {
+  const METRICS = ['precip_prob', 'wind', 'gust', 'uv', 'pressure', 'feels'];
+  const legendTexts = (svg) => {
+    const out = [];
+    svg.replace(/<text x="([^"]+)" y="121" font-size="([^"]+)"[^>]*>([^<]*)<\/text>/g, (m, x, fs, t) => {
+      out.push({ x: Number(x), fs: Number(fs), t }); return m;
+    });
+    return out;
+  };
+  let worst = 0;
+  METRICS.forEach((main) => {
+    ['off'].concat(METRICS).forEach((third) => {
+      ['rain', 'off'].forEach((bars) => {
+        ['multicolor', 'white'].forEach((barColor) => {
+          [true, false].forEach((color) => {
+            const svg = FC.forecastPreview({ secondaryLine: main, thirdLine: third, barSource: bars, rainBarColor: barColor, windScale: 'mid', dayNightShading: false }, { color });
+            const texts = legendTexts(svg);
+            assert.ok(texts.length >= 2, 'the legend rendered');
+            let prevEnd = -Infinity;
+            texts.forEach((tx) => {
+              const end = tx.x + tx.t.length * 4.3 * (tx.fs / 7.5);
+              assert.ok(tx.x > prevEnd, main + '/' + third + '/' + bars + ': "' + tx.t + '" does not overlap the entry before it');
+              assert.ok(end <= 200, main + '/' + third + '/' + bars + '/' + barColor + '/' + (color ? 'color' : 'bw') + ': "' + tx.t + '" ends at ' + end.toFixed(1) + ' (> 200)');
+              prevEnd = end;
+              worst = Math.max(worst, end);
+            });
+          });
+        });
+      });
+    });
+  });
+  assert.ok(worst > 180, 'sanity: the long combinations were exercised (worst end ' + worst.toFixed(1) + ')');
+  // A row that already fits keeps its long-standing layout: Temp's label at PX0 + 14 + 3.
+  const dflt = legendTexts(FC.forecastPreview({ secondaryLine: 'precip_prob', thirdLine: 'uv', barSource: 'rain', rainBarColor: 'multicolor', windScale: 'mid' }, { color: true }));
+  assert.deepEqual(dflt.map((t) => t.x.toFixed(1)), ['37.0', '79.2', '138.6', '172.2'], 'the default row is untouched');
+  assert.ok(dflt.every((t) => t.fs === 7.5), 'at the full label size');
+});
+
 test('legend omits the second metric when thirdLine is off, and Rain when bars are off', () => {
   const svg = FC.forecastPreview(
     { barSource: 'off', secondaryLine: 'uv', thirdLine: 'off', windScale: 'mid', dayNightShading: false },
