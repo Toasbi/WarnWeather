@@ -219,7 +219,8 @@ static ChartLayer mark_line_layer(const Series *s, int count) {
         .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
         .inset_top = s->line.inset_y, .inset_bottom = s->line.inset_y,
         .color = s->line.color, .width = s->line.width,
-        .style = series_style_pick(s->line, CHART_LINE_DOTS) } };
+        .style = series_style_pick(s->line, CHART_LINE_DOTS),
+        .zero_absent = true } };  // metric line: wire byte 0 means "nothing", every style
 }
 
 static Layer *s_forecast_layer;
@@ -587,19 +588,25 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         // Only the solid polyline can consume the AREA layer's exported
         // contour; a mark-styled main line draws from values like the others.
         // aplite folds to `fill_on` — its main line is frozen SOLID.
+        // The contour arm carries values purely as the gap sentinel: the stroke
+        // breaks over byte-0 hours (zero_absent) while the pre-computed contour
+        // points — where the fill beneath drops to the axis — stay untouched.
         const bool second_on_contour = fill_on
             && series_style_pick(second->line, CHART_LINE_SOLID) == CHART_LINE_SOLID;
         layers[n++] = second_on_contour
             ? (ChartLayer){ CHART_LAYER_LINE, .line = {
-                  .points = area_pts, .count = ds.num_entries,
-                  .color = second->line.color, .width = second->line.width } }
+                  .points = area_pts, .values = second->line.values,
+                  .count = ds.num_entries,
+                  .color = second->line.color, .width = second->line.width,
+                  .zero_absent = true } }
             : (ChartLayer){ CHART_LAYER_LINE, .line = {
                   .values = second->line.values, .count = ds.num_entries,
                   .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
                   .inset_top = second->line.inset_y, .inset_bottom = second->line.inset_y,
                   .export_points = area_pts,
                   .color = second->line.color, .width = second->line.width,
-                  .style = series_style_pick(second->line, CHART_LINE_SOLID) } };
+                  .style = series_style_pick(second->line, CHART_LINE_SOLID),
+                  .zero_absent = true } };
     }
     // Fill present: marks go over the line + its opaque fill so they stay visible.
     if (fill_on) {

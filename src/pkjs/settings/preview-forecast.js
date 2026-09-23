@@ -279,11 +279,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             return out;
         }
         /**
-         * One metric value's y in column/tick i — THE value→y mapping, shared
-         * by the line vertices (skipZero false: a zero stays at the baseline,
-         * matching the watch's chart_render_line) and the bar-aligned marks
-         * (skipZero true: a zero-based metric's zero is genuinely "no data"
-         * and returns null, mirroring the watch's bar marks). Feels rides the
+         * One metric value's y in column/tick i — THE value→y mapping. The line
+         * vertices, the bar-aligned marks (both skipZero true: a zero-based
+         * metric's zero is genuinely "no data" and returns null, mirroring the
+         * watch's zero_absent metric-line layers) and the area fill (skipZero
+         * false: the fill's contour drops to the baseline over the gaps, like
+         * chart_render_area's h = 0) all share it. Feels rides the
          * shared temperature axis (joint band via yT — a temperature has no
          * skippable zero, never a 0..max scale); pressure's piecewise absolute
          * curve draws EVERY reading — a deep low off the visible band is real
@@ -308,9 +309,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             }
             return PB - pm * (PB - PT - 3);
         }
-        // Shared vertex computation for the main-metric line/fill: one point per sample,
-        // vertices on the hour ticks. Returns null for an unknown metric or fewer than
-        // 2 points (nothing to draw).
+        // Vertex computation for the main-metric FILL contour (the stroke gaps its
+        // zeros in lineFor instead): one point per sample, vertices on the hour
+        // ticks, zeros at the baseline. Returns null for an unknown metric or
+        // fewer than 2 points (nothing to draw).
         function metricPoints(metric) {
             var m = METRIC[metric];
             if (!m) { return null; }
@@ -379,19 +381,38 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                 + '" fill-opacity="0.25" clip-path="url(#nightclip)"></path>';
         }
         /**
-         * One metric as a continuous line whose vertices sit on the hour ticks, so it spans the
-         * first tick to the last. The fill (if any) is drawn separately by areaFillFor() — see
-         * its doc comment for why.
+         * One metric as a line whose vertices sit on the hour ticks. A zero-based
+         * metric's zeros draw nothing (metricY skipZero — the metric lines'
+         * zero_absent flag in chart.c), so the stroke breaks into one path per
+         * contiguous run of non-zero samples; a lone sample between gaps becomes a
+         * small stroke-width square, mirroring chart_render_line's run == 1 arm.
+         * Band-scaled metrics (pressure, feels) never null, so they stay one path.
+         * The fill (if any) is drawn separately by areaFillFor() — see its doc
+         * comment for why.
          * @param {string} metric The metric the colour was resolved for.
          * @param {string} color Resolved stroke colour (hex).
          * @param {number} w Stroke width (mainW for 'line', boldW for 'bold').
          * @returns {string} SVG markup
          */
         var lineFor = function (metric, color, w) {
-            var pts = metricPoints(metric);
-            if (!pts) { return ''; }
-            var d = smooth(pts);
-            return '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="' + w + '"></path>';
+            var m = METRIC[metric];
+            if (!m) { return ''; }
+            var out = '', run = [];
+            function flush() {
+                if (run.length >= 2) {
+                    out += '<path d="' + smooth(run) + '" fill="none" stroke="' + color + '" stroke-width="' + w + '"></path>';
+                } else if (run.length === 1) {
+                    out += rect(run[0][0] - w / 2, run[0][1] - w / 2, w, w, color);
+                }
+                run = [];
+            }
+            for (var i = 0; i < m.vals.length; i += 1) {
+                var y = metricY(m, i, true);
+                if (y === null) { flush(); continue; }
+                run.push([tickX(i), y]);
+            }
+            flush();
+            return out;
         };
         /**
          * A metric as bar-aligned squares centred in the hour column (same columns as

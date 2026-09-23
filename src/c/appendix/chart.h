@@ -142,6 +142,13 @@ typedef struct {
     int            width;
     uint8_t        style;             // ChartLineStyle — uint8_t so the layer keeps the
                                       // 1-byte slot the old `dotted` bool sat in
+    uint8_t        zero_absent;       // nonzero: a value at or below `lo` draws nothing —
+                                      // the SOLID path breaks into runs there, matching the
+                                      // skip the mark styles have always applied. Set on the
+                                      // metric lines, whose wire invariant reserves byte 0
+                                      // for "nothing" (forecast-series.js metricBytes);
+                                      // temp/feels leave it 0 — their byte 0 is the band
+                                      // floor, real data. Sits in the struct's tail padding.
 } ChartLineLayer;
 
 typedef struct {

@@ -347,15 +347,39 @@ test('the second metric (dots) spans the full plot width (no early stop)', () =>
   assert.ok(Math.max.apply(null, xs) > 180, 'a dot reaches the right edge (>180); got ' + Math.max.apply(null, xs));
 });
 
-test('UV line is continuous through zeros (single path that reaches the baseline)', () => {
+test('UV line breaks across its zero stretch instead of hugging the baseline', () => {
+  // The demo UV series is [8,6,4,2,1, 0,0,0,0,0, 1,3]: zeros are "no UV", not a
+  // reading, so the line renders as two runs (slots 0-4 and 10-11) with nothing
+  // in between — the zero_absent metric-line rendering in chart.c, mirrored here.
   const svg = FC.forecastPreview(
     { barSource: 'off', secondaryLine: 'uv', windScale: 'mid', dayNightShading: false },
     { color: true });
   const segs = svg.match(/fill="none" stroke="#FF00FF"/g) || [];
-  assert.equal(segs.length, 1, 'UV renders as one continuous path (no break at zero); got ' + segs.length);
-  const m = svg.match(/d="(M[^"]+)" fill="none" stroke="#FF00FF"/);
-  assert.ok(m, 'UV path present');
-  assert.ok(m[1].indexOf(',94 ') >= 0, 'UV path touches the baseline (y=94) across its zero stretch');
+  assert.equal(segs.length, 2, 'UV renders as two runs around the zero stretch; got ' + segs.length);
+  const paths = [...svg.matchAll(/d="(M[^"]+)" fill="none" stroke="#FF00FF"/g)].map((m) => m[1]);
+  paths.forEach((d) => assert.equal(d.indexOf(',94'), -1,
+    'no run touches the baseline (a zero would have): ' + d));
+  // The runs start on slots 0 and 10: tickX(0) = 20, tickX(10) = 20 + 10 * (177 / 11).
+  const starts = paths.map((d) => Number(/^M([\d.]+),/.exec(d)[1]));
+  assert.equal(starts[0], 20, 'first run starts on slot 0');
+  assert.ok(Math.abs(starts[1] - (20 + 10 * (177 / 11))) < 1e-9, 'second run starts on slot 10; got ' + starts[1]);
+});
+
+test('a filled zero-based main metric keeps its fill contour at the baseline over zeros', () => {
+  // The stroke gaps, but the area fill still closes to the axis: metricPoints
+  // (skipZero false) keeps a baseline vertex per zero, matching chart_render_area's
+  // h = 0 mapping — the fill must not inherit the line's gaps.
+  const svg = FC.forecastPreview(
+    { barSource: 'off', secondaryLine: 'uv', secondaryLineFill: true, windScale: 'mid',
+      dayNightShading: false },
+    { color: true });
+  const area = svg.match(/d="(M[^"]+ Z)" fill="/);
+  assert.ok(area, 'area fill path present');
+  // The closing 'L…,94 L…,94 Z' contributes exactly two baseline hits; the zero
+  // stretch (slots 5-9) must add its own baseline vertices on top of those.
+  const baselineHits = (area[1].match(/,94[ CLZ]/g) || []).length;
+  assert.ok(baselineHits > 2,
+    'fill contour keeps baseline vertices across the zero stretch (' + baselineHits + ' hits)');
 });
 
 test('forecastPreview honors rainBarColor=white in color mode (solid white bars, no tier bands)', () => {

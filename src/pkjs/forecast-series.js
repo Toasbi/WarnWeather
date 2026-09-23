@@ -100,10 +100,13 @@ var BAND_FLOOR_PERMILLE = 2;
 
 // WIRE INVARIANT — byte 0 is a sentinel, not a value.
 //
-// chart.c's dot renderer skips any sample at or below the layer's floor
-// ("if (l->values[i] <= l->lo) continue;", chart.c:224) because a mark sitting on
-// the x-axis "reads as data where there is none". With lo = 0 that makes wire byte
-// 0 mean ABSENT, so a metric may only emit it where zero genuinely means "nothing".
+// chart.c's mark renderer skips any sample at or below the layer's floor
+// ("if (l->values[i] <= l->lo) continue;", chart_draw_bar_marks) because a mark
+// sitting on the x-axis "reads as data where there is none", and the solid stroke
+// honors the same reading on the metric lines (their layers set zero_absent, so
+// the polyline breaks into runs across byte-0 stretches instead of hugging the
+// baseline). With lo = 0 that makes wire byte 0 mean ABSENT in every style, so a
+// metric may only emit it where zero genuinely means "nothing".
 //
 // That splits the metrics in two:
 //
