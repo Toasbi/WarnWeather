@@ -605,7 +605,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // Top stripes: along the plot's top edge, over the night shading and under
     // the bars and every line; stacked downward in line order. Bottom stripes
     // go to the band below the zero line (band_layers, drawn after the plot).
-    static ChartLayer band_layers[SERIES_COUNT];   // aplite never reaches here
+    static ChartLayer band_layers[SERIES_COUNT + 1];   // stripes + frame + axis; aplite never reaches here
     int nb = 0;
     {
         int stacked_top = 0, stacked_bottom = 0;
@@ -711,7 +711,11 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     if (stripe_band > 0) {
         // The band's own chart: same columns (anchor + pitch), and its last row
         // is the original axis row, so the hour ticks and labels land exactly
-        // where they always do.
+        // where they always do. The left axis line carries on through the band
+        // (over the stripes' first column), so the graph's axis has no break
+        // between the zero line and the hour ticks.
+        band_layers[nb++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
+            .left = { 1, axis_color } } } };
         band_layers[nb++] = axis_layer;
         const GRect band = GRect(outer.origin.x, plot_axis_y + 1,
                                  outer.size.w, stripe_band);
