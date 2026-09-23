@@ -499,6 +499,13 @@ var TELEMETRY_MAX_EVENT_AGE_MS = 72 * 60 * 60 * 1000;  // ingest clamps received
 // POST per fetch, the exact per-fetch invocation rate batching exists to kill,
 // aimed at an endpoint that is already down.
 var TELEMETRY_RETRY_BACKOFF_MS = 60 * 60 * 1000;
+// A POST that never answers must not hold the flush latch for the rest of the
+// session (no further flush, the queue only grows to its cap). Far longer than
+// the weather XHRs' 5 s: this is a background POST to an edge function that can
+// cold-start, and a timeout that fires after the server already inserted the
+// batch re-POSTs it an hour later (no idempotency key) — the same ambiguity
+// onerror already has, so it takes the same 'retry' path.
+var TELEMETRY_XHR_TIMEOUT_MS = 30 * 1000;
 
 // MODULE scope, not per-client: the webviewclosed handler recreates the client
 // (index.js), and a per-client latch would let the new client re-POST the head
@@ -657,6 +664,11 @@ function createTelemetryClient(options) {
         };
         xhr.onerror = function() {
             console.log('[telemetry] request error');
+            onOutcome('retry');
+        };
+        xhr.timeout = TELEMETRY_XHR_TIMEOUT_MS;
+        xhr.ontimeout = function() {
+            console.log('[telemetry] request timeout');
             onOutcome('retry');
         };
         xhr.send(JSON.stringify(payload));
@@ -828,7 +840,8 @@ module.exports.TELEMETRY_BATCH = {
     MAX_BATCH_EVENTS: TELEMETRY_MAX_BATCH_EVENTS,
     MAX_EVENT_AGE_MS: TELEMETRY_MAX_EVENT_AGE_MS,
     MAX_DURATION_MS: TELEMETRY_MAX_DURATION_MS,
-    RETRY_BACKOFF_MS: TELEMETRY_RETRY_BACKOFF_MS
+    RETRY_BACKOFF_MS: TELEMETRY_RETRY_BACKOFF_MS,
+    XHR_TIMEOUT_MS: TELEMETRY_XHR_TIMEOUT_MS
 };
 // The flush latch and retry backoff are MODULE state (shared across the clients
 // one session creates — see maybeFlush); node runs every test in one process,

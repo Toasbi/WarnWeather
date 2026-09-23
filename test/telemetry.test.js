@@ -742,6 +742,8 @@ function batchHarness() {
     xhr.send = (body) => { xhr.body = JSON.parse(body); };
     xhr.respond = (status) => { xhr.status = status; xhr.onload(); };
     xhr.fail = () => xhr.onerror();
+    // What the runtime does once xhr.timeout elapses with no response.
+    xhr.expire = () => xhr.ontimeout();
   };
   const client = createTelemetryClient({
     endpoint: 'https://example.test/ingest', appVersion: '9.9.9', buildProfile: 'test',
@@ -975,6 +977,29 @@ test('creating a disabled client purges any parked queue', () => {
   createTelemetryClient({ enabled: false, endpoint: 'https://example.test/ingest' });
   assert.equal(h.store[TELEMETRY_QUEUE_KEY], undefined,
     'the user turned telemetry off — pending events are purged, not parked');
+});
+
+test('a POST that never answers times out, releases the latch and backs off', () => {
+  // A stalled network (no response, no error) used to hold the flush latch for
+  // the whole PKJS session: no XHR timeout, and only onload/onerror cleared it.
+  const h = batchHarness();
+  for (let i = 0; i < TELEMETRY_BATCH.FLUSH_AT_EVENTS; i++) { h.track(); }
+  assert.equal(h.requests.length, 1);
+  const xhr = h.requests[0];
+  assert.equal(xhr.timeout, TELEMETRY_BATCH.XHR_TIMEOUT_MS, 'the batch POST carries a timeout');
+  assert.ok(xhr.timeout >= 20 * 1000,
+    'generous enough for an edge-function cold start — a premature timeout re-POSTs a stored batch');
+  assert.equal(typeof xhr.ontimeout, 'function', 'and a handler for it');
+  xhr.expire();
+  assert.equal(h.store[TELEMETRY_SENDING_KEY], undefined, 'the mark clears on the timeout');
+  assert.equal(h.queue().length, TELEMETRY_BATCH.FLUSH_AT_EVENTS, 'nothing is dropped — it retries');
+  h.track();
+  assert.equal(h.requests.length, 1, 'a timeout backs off like onerror — no per-fetch retry');
+  createTelemetryClient._resetBatchStateForTests();   // the backoff window elapses
+  h.track();
+  assert.equal(h.requests.length, 2, 'the latch is free — the next window flushes again');
+  h.requests[1].respond(202);
+  assert.equal(h.queue().length, 0);
 });
 
 test('a synchronous XHR throw releases the latch and backs off instead of wedging the session', () => {
