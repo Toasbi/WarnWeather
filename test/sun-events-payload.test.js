@@ -107,6 +107,9 @@ test('a Tromso fetch during midnight sun completes and sends the forecast', (t) 
   assert.equal(outcome.success, 1, 'onSuccess fires, so index.js releases fetchInProgress');
   assert.deepEqual(outcome.failure, []);
   assert.equal(outcome.sent.length, 1, 'the forecast reaches the outbox');
+  const sun = outcome.sent[0].SUN_EVENTS;
+  assert.equal(sun && sun.length, 9, 'a full pair, so the watch replaces its stale one');
+  assert.equal(sun[0], 0, 'sunrise then sunset: no night shading');
 });
 
 test('a Tromso fetch during polar night completes and sends the forecast', (t) => {
@@ -114,4 +117,7 @@ test('a Tromso fetch during polar night completes and sends the forecast', (t) =
   assert.equal(outcome.success, 1);
   assert.deepEqual(outcome.failure, []);
   assert.equal(outcome.sent.length, 1);
+  const sun = outcome.sent[0].SUN_EVENTS;
+  assert.equal(sun && sun.length, 9);
+  assert.equal(sun[0], 1, 'sunset then sunrise: the whole chart is night');
 });

@@ -470,6 +470,28 @@ test('sun time mirrors leading-zero and AM/PM settings', () => {
     hour12 + ':' + minute + marker);
 });
 
+// Midnight sun / polar night: sun-events.js sends a pair five days apart that
+// only tells the watch how to shade the chart. Neither event is a real sunrise
+// or sunset, so the slot reads '--' rather than a made-up clock time.
+test('sun slot reads -- for the polar day/night pair', () => {
+  const sunEventsLib = require('../src/pkjs/weather/sun-events.js');
+  [new Date('2026-06-21T12:00:00Z'), new Date('2026-12-15T12:00:00Z')].forEach((now) => {
+    const pair = sunEventsLib.nextSunEvents(now, 69.65, 18.96);
+    const epochs = pair.map((e) => Math.round(e.date.getTime() / 1000));
+    const p = Object.assign(basePayload(),
+      { SUN_EVENTS: sunEvents(pair[0].type === 'sunrise' ? 0 : 1, epochs) });
+    assert.equal(statusLines.formatValue('sun', p, baseSettings()), '--', now.toISOString());
+  });
+});
+
+test('sun slot keeps a real pair\'s time, even one nearly a day apart', () => {
+  // Tromso's last sunset before polar night (2026-11-27T10:56Z) and the
+  // mirrored sunrise after it: 23 h 13 min apart, still a real next event.
+  const p = Object.assign(basePayload(),
+    { SUN_EVENTS: sunEvents(1, [1795777010, 1795860572]) });
+  assert.match(statusLines.formatValue('sun', p, baseSettings()), /^\d{1,2}:\d{2}$/);
+});
+
 test('aqi slot renders the bare index from AQI_TREND head (leaf icon carries context)', () => {
   const payload = Object.assign(basePayload(), { AQI_TREND: [42, 50] });
   const settings = baseSettings({ statusForecastLeft: 'aqi' });

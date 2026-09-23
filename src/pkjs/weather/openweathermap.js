@@ -1,5 +1,5 @@
 var WeatherProvider = require('./provider.js');
-var pickNext24hSunEvents = require('./sun-events.js').pickNext24hSunEvents;
+var nextSunEvents = require('./sun-events.js').nextSunEvents;
 var mphToKmh = require('../wire-units.js').mphToKmh;
 var request = WeatherProvider.request;
 var failure = WeatherProvider.failure;
@@ -113,7 +113,7 @@ OpenWeatherMapProvider.prototype.withWeatherData = function(lat, lon, callback, 
  *
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
- * @param {Function} callback Receives the next-24h sun-events array.
+ * @param {Function} callback Receives the two-event sun-events array.
  * @param {Function} onFailure Called with a failure object on error.
  * @returns {void}
  */
@@ -122,8 +122,7 @@ OpenWeatherMapProvider.prototype.withSunEvents = function(lat, lon, callback, on
     this.withOwmResponse(lat, lon, (function(owmResponse) {
         var days = owmResponse.daily;
         var sunEvents;
-        var now;
-        var next24HourSunEvents;
+        var nextSunEventsPair;
 
         if (!Array.isArray(days) || days.length < 2) {
             onFailure(failure('sun_events', 'owm_missing_daily'));
@@ -136,11 +135,20 @@ OpenWeatherMapProvider.prototype.withSunEvents = function(lat, lon, callback, on
             { type: 'sunrise', date: new Date(days[1].sunrise * 1000) },
             { type: 'sunset', date: new Date(days[1].sunset * 1000) }
         ];
-        now = new Date();
-        next24HourSunEvents = pickNext24hSunEvents(sunEvents, now);
-        console.log('The next ' + sunEvents[0].type + ' is at ' + sunEvents[0].date.toTimeString());
-        console.log('The next ' + sunEvents[1].type + ' is at ' + sunEvents[1].date.toTimeString());
-        callback(next24HourSunEvents);
+        // In polar day/night One Call leaves sunrise/sunset out or sends 0, so
+        // fewer than two are upcoming: nextSunEvents falls back to SunCalc and
+        // its polar handling. It runs in an XHR callback, so a throw would
+        // escape both callbacks, hence the guard the base keeps too.
+        try {
+            nextSunEventsPair = nextSunEvents(new Date(), lat, lon, sunEvents);
+        }
+        catch (ex) {
+            onFailure(failure('sun_events', 'calc_error'));
+            return;
+        }
+        console.log('The next ' + nextSunEventsPair[0].type + ' is at ' + nextSunEventsPair[0].date.toTimeString());
+        console.log('The next ' + nextSunEventsPair[1].type + ' is at ' + nextSunEventsPair[1].date.toTimeString());
+        callback(nextSunEventsPair);
     }).bind(this), onFailure);
 };
 

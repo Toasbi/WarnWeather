@@ -7,6 +7,7 @@ var catalog = require('./status-line-catalog.js');
 var platformLib = require('./config-ui/lib/platform.js');
 var thresholds = require('./status-thresholds.js');
 var pressurePlausibility = require('./weather/pressure-plausibility.js');
+var isPolarSunPair = require('./weather/sun-events.js').isPolarSunPair;
 var statusPair = require('./status-pair.js');
 var wireUnits = require('./wire-units.js');
 
@@ -44,12 +45,16 @@ function readInt32LE(bytes, off) {
 }
 
 /**
+ * Null for the polar day/night pair too: its two events only tell the watch
+ * how to shade the chart, and neither is a real sunrise or sunset time.
  * @param {number[]} sunEvents packed SUN_EVENTS wire bytes
  * @returns {{startType: number, epoch: number}|null} the next sun event
  */
 function decodeFirstSunEvent(sunEvents) {
   if (!sunEvents || sunEvents.length < 5) { return null; }
-  return { startType: sunEvents[0], epoch: readInt32LE(sunEvents, 1) };
+  var epoch = readInt32LE(sunEvents, 1);
+  if (sunEvents.length >= 9 && isPolarSunPair(epoch, readInt32LE(sunEvents, 5))) { return null; }
+  return { startType: sunEvents[0], epoch: epoch };
 }
 
 /**

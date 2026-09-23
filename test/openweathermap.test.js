@@ -183,3 +183,31 @@ test('withWeatherData is consume-once: a reused instance never serves a stale cy
   p.withWeatherData(0, 0, (data) => { served = data; }, () => { throw new Error('unexpected failure'); });
   assert.equal(served.marker, 'cycle-2-fresh', 'an empty cache re-fetches, never replays');
 });
+
+// In polar day/night One Call leaves daily sunrise/sunset out (or sends 0).
+// The override used to hand back [], which crashed the payload build.
+test('OWM withSunEvents still yields a sun-event pair when daily sunrise/sunset are missing', (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-06-21T12:00:00Z') });
+  [[{}, {}], [{ sunrise: 0, sunset: 0 }, { sunrise: 0, sunset: 0 }]].forEach((daily) => {
+    const p = new OpenWeatherMapProvider('test-key');
+    p.withOwmResponse = (lat, lon, cb) => cb({ daily: daily });
+    let got = null;
+    p.withSunEvents(69.65, 18.96, (events) => { got = events; },
+      (f) => { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+    assert.deepEqual(got.map((e) => e.type), ['sunrise', 'sunset'],
+      JSON.stringify(daily) + ': the midnight-sun pair (no night on the chart)');
+  });
+});
+
+test('OWM withSunEvents keeps its own daily times when they are usable', (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-06-21T12:00:00Z') });
+  const p = new OpenWeatherMapProvider('test-key');
+  p.withOwmResponse = (lat, lon, cb) => cb({ daily: [
+    { sunrise: 1782009780, sunset: 1782070380 },
+    { sunrise: 1782096180, sunset: 1782156780 }
+  ] });
+  let got = null;
+  p.withSunEvents(52.52, 13.40, (events) => { got = events; },
+    (f) => { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  assert.deepEqual(got.map((e) => e.date.getTime() / 1000), [1782070380, 1782096180]);
+});

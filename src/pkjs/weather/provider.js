@@ -1,6 +1,5 @@
-var SunCalc = require('suncalc');
 var sunEventsLib = require('./sun-events.js');
-var pickNext24hSunEvents = sunEventsLib.pickNext24hSunEvents;
+var nextSunEvents = sunEventsLib.nextSunEvents;
 var isValidSunEvent = sunEventsLib.isValidSunEvent;
 var outbox = require('../outbox.js');
 var wireUnits = require('../wire-units.js');
@@ -156,55 +155,32 @@ WeatherProvider.prototype.isGeocodeBackoffActive = function() {
 };
 
 /**
- * Compute the next ~24h of sun events from local SunCalc (synchronous). The
- * callback receives an array of up to two events, each `{ type: 'sunrise' |
- * 'sunset', date: Date }`. Subclasses may override with a network-based source
- * (see OpenWeatherMapProvider).
+ * Compute the next sun events from local SunCalc (synchronous). The callback
+ * receives exactly two events, each `{ type: 'sunrise' | 'sunset', date:
+ * Date }`, including during polar day and night (see nextSunEvents).
+ * Subclasses may override with a network-based source (see
+ * OpenWeatherMapProvider).
  *
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
- * @param {Function} callback Receives the next-24h sun-events array.
+ * @param {Function} callback Receives the two-event sun-events array.
  * @param {Function} onFailure Called with a failure object on error.
  * @returns {void}
  */
 WeatherProvider.prototype.withSunEvents = function(lat, lon, callback, onFailure) {
-    var dateNow = new Date();
-    var dateTomorrow = new Date().setDate(dateNow.getDate() + 1);
-
-    var resultsToday;
-    var resultsTomorrow;
+    var sunEvents;
 
     try {
-        resultsToday = SunCalc.getTimes(dateNow, lat, lon);
-        resultsTomorrow = SunCalc.getTimes(dateTomorrow, lat, lon);
+        sunEvents = nextSunEvents(new Date(), lat, lon);
     }
     catch (ex) {
         onFailure(failure('sun_events', 'calc_error'));
         return;
     }
 
-    /**
-     * @param {SunCalc.GetTimesResult} results
-     * @returns {{ type: 'sunrise'|'sunset', date: Date }[]}
-     */
-    var processResults = function(results) {
-        return [
-            {
-                type: 'sunrise',
-                date: results.sunrise
-            },
-            {
-                type: 'sunset',
-                date: results.sunset
-            }
-        ];
-    };
-
-    var sunEvents = processResults(resultsToday).concat(processResults(resultsTomorrow));
-    var next24HourSunEvents = pickNext24hSunEvents(sunEvents, dateNow);
     console.log('The next ' + sunEvents[0].type + ' is at ' + sunEvents[0].date.toTimeString());
     console.log('The next ' + sunEvents[1].type + ' is at ' + sunEvents[1].date.toTimeString());
-    callback(next24HourSunEvents);
+    callback(sunEvents);
 };
 
 
