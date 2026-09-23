@@ -814,9 +814,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function openWizard(ctx, fresh) {
         W.ctx = ctx; W.steps = buildSteps(ctx.ENV); W.idx = 0;
         if (fresh) {
+            // An undetected country, or one the holiday list doesn't offer (IN, AE, …), is
+            // 'none' — NOT the schema default 'DE', which would derive the Germany-only DWD
+            // weather + radar and German holidays and show "Germany" as if it were detected.
+            // mapCountry('none') is the "everyone else" row: Open-Meteo + Rainbow, metric.
             var cc = inferCountry();
             var cOpts = optionsFor(ctx.schema, 'holidayCountry');
-            if (cc && optionHasCode(cOpts, cc)) { ctx.S.holidayCountry = cc; ctx.S.holidayRegion = 'all'; }
+            ctx.S.holidayCountry = (cc && optionHasCode(cOpts, cc)) ? cc : 'none';
+            ctx.S.holidayRegion = 'all';
             applyDerived(ctx.S);
         }
         ensureStyle();

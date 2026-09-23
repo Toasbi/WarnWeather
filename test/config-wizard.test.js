@@ -489,3 +489,62 @@ test('opening the wizard never rewrites a stored compactDense preset', async () 
   assert.equal(ctx.S.layoutPreset, 'fullCal', 'an actual card tap commits normally');
   await new Promise((r) => setTimeout(r, 150));   // let the recenter scroll's debounce drain
 });
+
+// --- the fresh-install country inference ------------------------------------------------
+/**
+ * Run `fn` with the phone's timezone and locale stubbed — the two inputs inferCountry reads.
+ * @param {string} tz IANA timezone the webview reports.
+ * @param {string} lang navigator.language.
+ * @param {Function} fn Body to run.
+ * @returns {*} Whatever fn returns.
+ */
+function withLocale(tz, lang, fn) {
+  const realDtf = Intl.DateTimeFormat;
+  const navDesc = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  Intl.DateTimeFormat = function () { return { resolvedOptions: () => ({ timeZone: tz }) }; };
+  Object.defineProperty(globalThis, 'navigator', { value: { language: lang }, configurable: true, writable: true });
+  try { return fn(); } finally {
+    Intl.DateTimeFormat = realDtf;
+    if (navDesc) { Object.defineProperty(globalThis, 'navigator', navDesc); } else { delete globalThis.navigator; }
+  }
+}
+
+/**
+ * Auto-open the wizard on a fresh install (the seeded blob, not yet onboarded) and
+ * return the live state its country inference derived.
+ * @param {string} tz IANA timezone.
+ * @param {string} lang navigator.language.
+ * @returns {Object} The wizard's settings state after opening.
+ */
+function freshWizardState(tz, lang) {
+  fakeWizardDom();
+  const ctx = Object.assign(wizCtx({ saved: { onboardingDone: false } }), { cfg: { onboardingDone: false } });
+  withLocale(tz, lang, () => PConf.hooks.runReady(ctx));
+  return ctx.S;
+}
+
+test('an undetected or unlisted country falls back to None, never to the German defaults', () => {
+  // en-IN: inferred IN, which the holiday list does not offer. Bare 'en' outside the
+  // timezone table: nothing inferred at all. Both used to keep the schema default 'DE'
+  // and derive the Germany-only DWD weather + radar.
+  [['Asia/Kolkata', 'en-IN'], ['Asia/Dubai', 'ar-AE'], ['Asia/Tokyo', 'en']].forEach(([tz, lang]) => {
+    const S = freshWizardState(tz, lang);
+    const label = tz + ' ' + lang;
+    assert.equal(S.holidayCountry, 'none', label);
+    assert.equal(S.holidayRegion, 'all', label);
+    assert.equal(S.provider, 'openmeteo', label);
+    assert.equal(S.radarProvider, 'rainbow', label);
+  });
+});
+
+test('a detected, listed country still drives the fresh-install defaults', () => {
+  const de = freshWizardState('Europe/Berlin', 'de-DE');
+  assert.equal(de.holidayCountry, 'DE');
+  assert.equal(de.provider, 'dwd');
+  const gb = freshWizardState('UTC', 'en-GB');
+  assert.equal(gb.holidayCountry, 'GB');
+  assert.equal(gb.provider, 'openmeteo');
+  const us = freshWizardState('America/Chicago', 'en');
+  assert.equal(us.holidayCountry, 'US');
+  assert.equal(us.temperatureUnits, 'f');
+});
