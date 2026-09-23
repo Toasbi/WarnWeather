@@ -192,6 +192,13 @@ function buildSettingsSnapshot(settings, watchInfo) {
         windScale: safe.windScale,
         pressureScale: safe.pressureScale,
         thirdLine: safe.thirdLine,
+        fourthLine: safe.fourthLine,
+        // Styles report the value IN EFFECT (the stored value or the line's
+        // built-in — lineStyleValue is the same resolution the wire packs), the
+        // radarMode || 'graph' precedent.
+        secondaryLineStyle: lineStyle.lineStyleValue(safe, 'secondaryLineStyle'),
+        thirdLineStyle: lineStyle.lineStyleValue(safe, 'thirdLineStyle'),
+        fourthLineStyle: lineStyle.lineStyleValue(safe, 'fourthLineStyle'),
         barSource: safe.barSource,
         rainBarColor: safe.rainBarColor,
         radarProvider: safe.radarProvider,
@@ -264,6 +271,10 @@ function buildSettingsSnapshot(settings, watchInfo) {
     // sleepStartHour's rule again, and it keeps 'off' installs out of the ranking's sample.
     snapshot.graphSecondColor = (cx.isColor && safe.thirdLine !== 'off')
         ? graphColorReport(safe, safe.thirdLine, 'Line', cx.suffix) : undefined;
+    // Same rule for the third-metric line (settings.fourthLine), which is 'off'
+    // by default and absent on aplite installs.
+    snapshot.graphThirdColor = (cx.isColor && Boolean(safe.fourthLine) && safe.fourthLine !== 'off')
+        ? graphColorReport(safe, safe.fourthLine, 'Line', cx.suffix) : undefined;
     // The night tint belongs to the secondary metric (it is the base of that metric's night
     // area); the hatch and the dusk/dawn line are the band's own, under the 'night' scope.
     snapshot.nightFillColor = cx.isColor

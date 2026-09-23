@@ -623,7 +623,9 @@ test('the six graph colour fields are optional STRINGS in the Deno .strip() sche
 // (3318 before them; the custom separator text is never sent, so it cannot grow this),
 // and the two spacing toggles (tempSlotSeparatorSpaced / uvSlotSeparatorSpaced) 60 B
 // (3363 before them). uvSlotDisplay, reported all along but left out of this fixture
-// until the unset-field check below was added, is 26 B (3423 before it).
+// until the unset-field check below was added, is 26 B (3423 before it). The third
+// metric line's fields (fourthLine, the three per-line styles and graphThirdColor)
+// are 125 B (3449 before them).
 test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () => {
   const fs = require('fs');
   const path = require('path');
@@ -661,6 +663,10 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     viewResetMin: '15', largeGraphFont: true, vibe: true, btIcons: 'both',
     secondaryLine: 'precip_prob', secondaryLineFill: true, windScale: 'high',
     pressureScale: 'high', thirdLine: 'pressure', barSource: 'precip_prob',
+    // The third metric line on its longest realistic option (the UI resolver
+    // excludes the two metrics already picked above), with the longest of the
+    // per-line styles stored (the other two lines' built-ins are already 4 chars).
+    fourthLine: 'gust', fourthLineStyle: 'dots',
     rainBarColor: 'white', radarProvider: 'rainbow', radarMode: 'countdown',
     radarColor: 'multicolor', devStatsEnabled: true, theme: 'light',
     statusForecastLeft: 'phone_battery', statusForecastMid: 'phone_battery',
@@ -671,11 +677,12 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     statusHealthMid: 'phone_battery', statusHealthRight: 'phone_battery',
     colorTime: 0xFFFFFF, colorToday: 0xFF0000, colorSunday: 0xFF0000,
     colorSaturday: 0xFF0000, colorUSFederal: 0xFF0000,
-    // The light-polarity colours for the two metrics selected above (precip_prob as the
-    // secondary line, pressure as the third), each moved off its built-in so all six
-    // fields report the seven-character form.
+    // The light-polarity colours for the three metrics selected above (precip_prob as
+    // the secondary line, pressure as the third, gust as the fourth), each moved off
+    // its built-in so all seven fields report the seven-character form.
     gcPrecipLineLight: 0xFF00FF, gcPrecipFillLight: 0xAAFF55,
-    gcPressureLineLight: 0x00AAFF, gcPrecipNightLight: 0xAA5500,
+    gcPressureLineLight: 0x00AAFF, gcGustLineLight: 0x55FF00,
+    gcPrecipNightLight: 0xAA5500,
     gcNightHatchLight: 0xAAAAAA, gcNightBoundaryLight: 0xFF0000
   };
   const payload = {

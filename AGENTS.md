@@ -101,19 +101,21 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   new or enlarged payload key has to keep the *heaviest* bundle under budget. The buffer
   is allocated from aplite's already-tiny heap, so 536 B is effectively a hard ceiling —
   you can't just bump it. An overflow is dropped silently (`APP_MSG_BUFFER_OVERFLOW` →
-  "Message dropped!"). Worst realistic case is DWD + wind with City in every status slot
-  = 482 B, leaving 54 B of headroom (see `test/inbox-size.test.js` — the authoritative
-  computation, which records both bundle sizes exactly; keep them in sync). That headroom
-  was 10 B until the settings-derived tuples were moved off this message: the rain-bar and
-  radar palettes first, then the forecast line styling (line colours + fill flag, 4 × 11 B
-  of scalars → one `CLAY_LINE_STYLE_UINT8` array, since grown to 10 B so it also carries
-  the five night colours and their flag byte), both of which now ride the Clay/settings
-  message. `test/inbox-size.test.js` guards both the weather and Clay
+  "Message dropped!"). Worst realistic case is DWD with all three metric lines active and
+  City in every status slot = 513 B, leaving 23 B of headroom (see
+  `test/inbox-size.test.js` — the authoritative computation, which records both bundle
+  sizes exactly; keep them in sync). That headroom was 10 B until the settings-derived
+  tuples were moved off this message: the rain-bar and radar palettes first, then the
+  forecast line styling (line colours + fill flag, 4 × 11 B of scalars → one
+  `CLAY_LINE_STYLE_UINT8` array, since grown to 14 B so it also carries the five night
+  colours and their flag byte, the third-metric line colour and the three per-line
+  marker-style bytes), both of which now ride the Clay/settings message.
+  `test/inbox-size.test.js` guards both the weather and Clay
   bundles; when you grow the worst-case bundle, update its `buildHeaviestBundle()`, and
   treat bumping `inbox_size` as a last resort. Before spending weather-message bytes, ask
   whether the value is settings-derived — if it is, it belongs on the Clay message —
-  but note the Clay message is now the TIGHTER of the two (499 B of 536 B used, and the
-  test enforces a 10 B headroom floor), so check `test/inbox-size.test.js` either way.
+  but both bundles are tight now (Clay: 515 B of 536 B used, and the test enforces a
+  10 B headroom floor on each), so check `test/inbox-size.test.js` either way.
 - **Message boundary: settings ride the settings (Clay) message; weather data rides the
   weather message.** Config-derived values — colour palettes, formatting/display toggles,
   the holiday mask — belong in `sendClaySettings` (`outbox.sendClay`). The weather payload

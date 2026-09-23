@@ -7,19 +7,40 @@
 typedef enum {
     SERIES_FIRST = 0,   // temperature: always on, fixed scale, fixed color, axis chrome
     SERIES_SECOND,      // configurable metric line (+ optional area fill)
-    SERIES_THIRD,       // configurable metric, dotted bar-aligned caps
+    SERIES_THIRD,       // configurable metric, bar-aligned marks (dots by default)
+#if defined(WW_LINE_STYLE)
+    SERIES_FOURTH,      // configurable metric, bar-aligned marks (x by default).
+                        // aplite compiles the slot out (frozen-lean fork): its
+                        // dataset stays four Series and SERIES_BARS shifts down —
+                        // safe, SeriesId values are compile-time only, never persisted.
+#endif
     SERIES_BARS,        // rain bars, multi-stop palette
     SERIES_COUNT
 } SeriesId;
 
+// The half-open range [SERIES_THIRD, SERIES_BARS) is the platform-correct set
+// of bar-aligned MARK lines — {THIRD} on aplite, {THIRD, FOURTH} elsewhere —
+// straight from the enum, with no preprocessor at the loop sites.
+
+// The aplite line-style freeze, in the theme_pick / NIGHT_HATCH_SPACING
+// compile-time-fold shape: capable platforms read the phone-resolved style off
+// the SeriesLine; aplite loads the caller's frozen constant as an immediate
+// (its styles are fixed and the runtime read would be dead bytes against the
+// exactly-full image ceiling — scripts/check-aplite-size.sh).
+#if defined(WW_LINE_STYLE)
+#define series_style_pick(line, frozen) ((line).style)
+#else
+#define series_style_pick(line, frozen) (frozen)
+#endif
+
 typedef enum { SERIES_KIND_LINE, SERIES_KIND_BARS } SeriesKind;
 
-typedef struct {                       // FIRST / SECOND / THIRD
+typedef struct {                       // FIRST / SECOND / THIRD (/ FOURTH)
     int16_t values[MAX_BOTTOM_VIEW_ENTRIES];
     GColor  color;                      // stroke (resolved at load)
-    int     width;
+    int     width;                      // stroke px (SOLID) / mark box px (DOTS, X)
     int     inset_y;                    // BOTTOM_VIEW_PRIMARY_LINE_INSET_Y for FIRST, else 0
-    bool    dotted;                     // THIRD only
+    uint8_t style;                      // ChartLineStyle — metric lines only, FIRST stays SOLID
     bool    fill_on;                    // SECOND only
     GColor  fill_color;                 // SECOND only (B&W override already applied)
 } SeriesLine;

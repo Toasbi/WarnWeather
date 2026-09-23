@@ -171,17 +171,18 @@ test('the preview keeps the feels curve clear of the plot floor (band padding)',
   // max(1, ceil(13 * 40/960)) = 1 -> [10, 24]. That leaves the grey curve's lowest
   // point one band-degree above ybot instead of sitting flat on it.
   //
-  // ybot = 89.0 in preview units, so an UNPADDED band would put the feels minimum at
-  // exactly 89.0; the padded band puts it at 83.9. The assertion is tight on purpose:
-  // a loose "is it on the plot" bound would pass either way and pin nothing.
+  // ybot = 82.0 in preview units (PB 94 − the 12-unit curve inset), so an UNPADDED
+  // band would put the feels minimum at exactly 82.0; the padded band puts it at
+  // ~78.25. The assertion is tight on purpose: a loose "is it on the plot" bound
+  // would pass either way and pin nothing.
   const svg = FC.forecastPreview({ dayNightShading: false, barSource: 'off', windScale: 'mid',
     secondaryLine: 'feels', thirdLine: 'off', secondaryLineFill: false }, { color: true });
   const m = /<path d="([^"]+)" fill="none" stroke="#AAAAAA"/.exec(svg);
   assert.ok(m, 'feels curve path found');
   const ys = m[1].match(/[\d.]+(?=[,\s]|$)/g).filter((_, i) => i % 2 === 1).map(Number);
   const lowest = Math.max.apply(null, ys);   // SVG y grows downward
-  assert.ok(Math.abs(lowest - 83.9) < 0.5,
-    'feels bottom should sit at ~83.9 (padded); 89.0 would mean the padding was lost. Got ' + lowest);
+  assert.ok(Math.abs(lowest - 78.25) < 0.5,
+    'feels bottom should sit at ~78.25 (padded); 82.0 would mean the padding was lost. Got ' + lowest);
 });
 
 // The temp curve is the only #FF0000 stroke in the color preview; its path starts at
@@ -354,7 +355,7 @@ test('UV line is continuous through zeros (single path that reaches the baseline
   assert.equal(segs.length, 1, 'UV renders as one continuous path (no break at zero); got ' + segs.length);
   const m = svg.match(/d="(M[^"]+)" fill="none" stroke="#FF00FF"/);
   assert.ok(m, 'UV path present');
-  assert.ok(m[1].indexOf(',100 ') >= 0, 'UV path touches the baseline (y=100) across its zero stretch');
+  assert.ok(m[1].indexOf(',94 ') >= 0, 'UV path touches the baseline (y=94) across its zero stretch');
 });
 
 test('forecastPreview honors rainBarColor=white in color mode (solid white bars, no tier bands)', () => {
@@ -386,7 +387,7 @@ test('forecast axis hour labels follow the 12h/24h axis setting', () => {
   const axisLabels = (fmt) => {
     const svg = FC.forecastPreview({ barSource: 'off', secondaryLine: 'off', dayNightShading: false, axisTimeFormat: fmt }, { color: true });
     const out = [];
-    svg.replace(/<text x="[^"]+" y="111"[^>]*>([^<]*)<\/text>/g, (m, t) => { out.push(t); return m; });
+    svg.replace(/<text x="[^"]+" y="105"[^>]*>([^<]*)<\/text>/g, (m, t) => { out.push(t); return m; });
     return out;
   };
   assert.deepEqual(axisLabels('24h'), ['12', '15', '18', '21'], '24h: the noon→23:00 window');
@@ -441,41 +442,76 @@ test('legend lists the shown series with palette colors (color watch)', () => {
   const svg = FC.forecastPreview(
     { barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'precip_prob', thirdLine: 'wind', windScale: 'mid', dayNightShading: false },
     { color: true });
-  assert.ok(svg.indexOf('viewBox="0 0 200 124"') >= 0, 'compact frame');
+  assert.ok(svg.indexOf('viewBox="0 0 200 118"') >= 0, 'compact frame (single legend row)');
   assert.ok(svg.indexOf('>Temp<') >= 0, 'Temp entry');
   assert.ok(svg.indexOf('>Precip %<') >= 0, 'main metric entry (Precip %)');
   assert.ok(svg.indexOf('>Wind<') >= 0, 'second metric entry (Wind)');
   assert.ok(svg.indexOf('>Rain<') >= 0, 'Rain entry (bars on)');
 });
 
-// The legend is one row in a fixed 200-wide viewBox (the page clips past it). Walk every
-// main / second metric / bars / bar colour combination, colour and B&W, and hold each
-// label's estimated extent (the layout's own 4.3 units per char at font 7.5) inside it.
+test('legend wraps onto a second row when three metrics + Rain outgrow the frame', () => {
+  // Five entries with the longest labels (Pressure + Precip %) overflow the
+  // 200-unit width; the legend must wrap instead of running off the right
+  // edge, and the frame must grow by exactly one row.
+  const svg = FC.forecastPreview(
+    { barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'pressure', thirdLine: 'precip_prob',
+      fourthLine: 'gust', windScale: 'mid', pressureScale: 'mid', dayNightShading: false },
+    { color: true, platform: 'basalt' });
+  assert.ok(svg.indexOf('viewBox="0 0 200 128"') >= 0, 'frame grows one legend row (118 + 10)');
+  // Row baselines: row one text at y=115, wrapped row at y=125.
+  assert.ok(svg.indexOf('y="115"') >= 0, 'first legend row present');
+  assert.ok(svg.indexOf('y="125"') >= 0, 'wrapped legend row present');
+  // Every legend label stays inside the frame; nothing starts past the right edge.
+  const starts = [...svg.matchAll(/<text x="([\d.]+)" y="1[12]5"/g)].map((m) => Number(m[1]));
+  assert.ok(starts.length >= 5, 'all five entries render');
+  starts.forEach((s) => assert.ok(s < 198, 'legend label starts inside the frame: ' + s));
+});
+
+test('legend stays on one row for the default-sized selections', () => {
+  const svg = FC.forecastPreview(
+    { barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'precip_prob', thirdLine: 'uv',
+      windScale: 'mid', dayNightShading: false },
+    { color: true });
+  assert.ok(svg.indexOf('viewBox="0 0 200 118"') >= 0, 'no second row for Temp/Precip %/UV/Rain');
+  assert.equal(svg.indexOf('y="125"'), -1, 'no wrapped-row text');
+});
+
+// The legend lives in a 200-wide viewBox (the page clips past it). Walk every
+// main / second / third metric / bars / bar colour combination, colour and B&W, and hold
+// each label's estimated extent (the layout's own 4.3 units per char at font 7.5) inside
+// it. Rows wrap instead of shrinking, so within each row (text baselines 115, 125, …)
+// entries must stay ordered and end inside the frame at full label size.
 test('legend never runs past the 200-wide frame, for any metric combination', () => {
   const METRICS = ['precip_prob', 'wind', 'gust', 'uv', 'pressure', 'feels'];
   const legendTexts = (svg) => {
     const out = [];
-    svg.replace(/<text x="([^"]+)" y="121" font-size="([^"]+)"[^>]*>([^<]*)<\/text>/g, (m, x, fs, t) => {
-      out.push({ x: Number(x), fs: Number(fs), t }); return m;
+    svg.replace(/<text x="([^"]+)" y="(1[123]5)" font-size="([^"]+)"[^>]*>([^<]*)<\/text>/g, (m, x, y, fs, t) => {
+      out.push({ x: Number(x), y: Number(y), fs: Number(fs), t }); return m;
     });
     return out;
   };
   let worst = 0;
   METRICS.forEach((main) => {
     ['off'].concat(METRICS).forEach((third) => {
-      ['rain', 'off'].forEach((bars) => {
-        ['multicolor', 'white'].forEach((barColor) => {
-          [true, false].forEach((color) => {
-            const svg = FC.forecastPreview({ secondaryLine: main, thirdLine: third, barSource: bars, rainBarColor: barColor, windScale: 'mid', dayNightShading: false }, { color });
-            const texts = legendTexts(svg);
-            assert.ok(texts.length >= 2, 'the legend rendered');
-            let prevEnd = -Infinity;
-            texts.forEach((tx) => {
-              const end = tx.x + tx.t.length * 4.3 * (tx.fs / 7.5);
-              assert.ok(tx.x > prevEnd, main + '/' + third + '/' + bars + ': "' + tx.t + '" does not overlap the entry before it');
-              assert.ok(end <= 200, main + '/' + third + '/' + bars + '/' + barColor + '/' + (color ? 'color' : 'bw') + ': "' + tx.t + '" ends at ' + end.toFixed(1) + ' (> 200)');
-              prevEnd = end;
-              worst = Math.max(worst, end);
+      ['off', 'gust', 'pressure'].forEach((fourth) => {
+        ['rain', 'off'].forEach((bars) => {
+          ['multicolor', 'white'].forEach((barColor) => {
+            [true, false].forEach((color) => {
+              const svg = FC.forecastPreview({ secondaryLine: main, thirdLine: third, fourthLine: fourth, barSource: bars, rainBarColor: barColor, windScale: 'mid', pressureScale: 'mid', dayNightShading: false }, { color });
+              const texts = legendTexts(svg);
+              assert.ok(texts.length >= 2, 'the legend rendered');
+              const tag = main + '/' + third + '/' + fourth + '/' + bars + '/' + barColor + '/' + (color ? 'color' : 'bw');
+              const rowEnds = {};
+              texts.forEach((tx) => {
+                assert.ok(tx.fs === 7.5, tag + ': labels never shrink (font ' + tx.fs + ')');
+                const end = tx.x + tx.t.length * 4.3;
+                const prevEnd = rowEnds[tx.y] === undefined ? -Infinity : rowEnds[tx.y];
+                assert.ok(tx.x > prevEnd, tag + ': "' + tx.t + '" does not overlap the entry before it');
+                assert.ok(end <= 200, tag + ': "' + tx.t + '" ends at ' + end.toFixed(1) + ' (> 200)');
+                rowEnds[tx.y] = end;
+                worst = Math.max(worst, end);
+              });
+              assert.ok(Object.keys(rowEnds).length <= 2, tag + ': at most two legend rows');
             });
           });
         });
@@ -486,7 +522,6 @@ test('legend never runs past the 200-wide frame, for any metric combination', ()
   // A row that already fits keeps its long-standing layout: Temp's label at PX0 + 14 + 3.
   const dflt = legendTexts(FC.forecastPreview({ secondaryLine: 'precip_prob', thirdLine: 'uv', barSource: 'rain', rainBarColor: 'multicolor', windScale: 'mid' }, { color: true }));
   assert.deepEqual(dflt.map((t) => t.x.toFixed(1)), ['37.0', '79.2', '138.6', '172.2'], 'the default row is untouched');
-  assert.ok(dflt.every((t) => t.fs === 7.5), 'at the full label size');
 });
 
 test('legend omits the second metric when thirdLine is off, and Rain when bars are off', () => {
@@ -1140,12 +1175,14 @@ test('each pressure curve places the same reading at its own pinned height', () 
   // sample point is 1016 hPa: inside every curve's span, so nothing clamps — each
   // curve just places it differently. low: past its 1010..1020 core start -> 570pm.
   // mid: 11 hPa into the 1005..1025 core at 35pm/hPa -> 535pm. high: 21 hPa into the
-  // 995..1035 core at 17.5pm/hPa -> 567.5 -> 568pm. y = 100 - pm/1000 * 93; PT=4,
-  // PB=100. (The narrowest curve reads highest for a core-upper value; the wide
+  // 995..1035 core at 17.5pm/hPa -> 567.5 -> 568pm. y = 94 - pm/1000 * 87; PT=4,
+  // PB=94. (The narrowest curve reads highest for a core-upper value; the wide
   // curve's y for THIS value happens to land between them — curve geometry, not a bug.)
-  assert.equal(yFor('low'), 46.99);
-  assert.equal(yFor('mid'), 50.245);
-  assert.equal(yFor('high'), 47.176);
+  // Pinned as the same float expressions the preview computes, so the assert is
+  // exact without hand-copied rounded literals.
+  assert.equal(yFor('low'), 94 - (570 / 1000) * 87);
+  assert.equal(yFor('mid'), 94 - (535 / 1000) * 87);
+  assert.equal(yFor('high'), 94 - (568 / 1000) * 87);
 });
 
 // --- the Graph-colors sheet reset (blocks.js resetGraphColors) ---------------

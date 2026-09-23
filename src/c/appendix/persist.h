@@ -112,6 +112,54 @@ bool persist_set_curve_insets(const uint8_t insets[3]);
 void persist_get_curve_insets(uint8_t out[3]);
 #endif
 
+// The third selectable metric line ("Third metric" in the settings — the
+// fourth graph line, SERIES_FOURTH) and the per-line marker styles are one
+// feature set behind WW_LINE_STYLE (wscript): the frozen-lean aplite fork
+// keeps its two fixed-style metric lines, so the accessors are declared away
+// there and any unguarded caller fails to compile rather than silently
+// re-linking the feature. The FOURTH_LINE_TREND / FOURTH_LINE_COLOR /
+// LINE_STYLES key IDs stay in persist.c's append-only enum on every platform.
+#if defined(WW_LINE_STYLE)
+// The fourth line's trend is existence-keyed like the third's (an empty send
+// deletes the key) and read/written only through the persist_series_* SeriesId
+// dispatchers — no per-name accessors. Colour defaults to the theme foreground
+// when the slot is absent — the phone sends the resolved colour on byte [10]
+// of CLAY_LINE_STYLE_UINT8 whenever the line is configured.
+GColor persist_get_fourth_line_color(void);
+bool persist_set_fourth_line_color(GColor color);
+
+// CANONICAL layout of the LINE_STYLES blob — the per-line marker styles the
+// phone resolved, copied verbatim off bytes [11..13] of CLAY_LINE_STYLE_UINT8
+// (line-style.js packs them; app_message.c stores the block straight through):
+//   [0] main-metric line   [1] second-metric line   [2] third-metric line
+// Each byte packs kind | (stroke_width << LINE_STYLE_WIDTH_SHIFT). The kind
+// bits ARE ChartLineStyle's values (chart.h — never renumber either side);
+// the width field only applies to CHART_LINE_SOLID (the phone sends 1 or 3 —
+// odd, because the SDK rounds even stroke widths down; snooze.c), and 0 means
+// "keep the built-in width". Get always fills out[], defaulting to the
+// pre-feature look — solid 1 px, dots, x — when the slot is unset/short.
+#define LINE_STYLE_STYLE_BYTES 3
+#define LINE_STYLE_KIND_MASK   0x03
+#define LINE_STYLE_WIDTH_SHIFT 2
+#define LINE_STYLE_WIDTH_MAX   7
+bool persist_set_line_styles(const uint8_t styles[LINE_STYLE_STYLE_BYTES]);
+void persist_get_line_styles(uint8_t out[LINE_STYLE_STYLE_BYTES]);
+
+// Decode helpers — header-only pure arithmetic (the night_light_wire_ok
+// pattern) so scripts/test-c.sh can pin the wire decode on the host.
+// An out-of-range kind (the mask admits 3) folds to SOLID rather than being
+// rejected: styles are cosmetic, and a wrong-but-drawn line beats a missing one.
+static inline uint8_t line_style_kind(uint8_t b) {
+    uint8_t kind = b & LINE_STYLE_KIND_MASK;
+    return kind > CHART_LINE_X ? (uint8_t) CHART_LINE_SOLID : kind;
+}
+// Stroke width for a SOLID line; `fallback` covers the 0 = "built-in" field.
+static inline int line_style_solid_width(uint8_t b, int fallback) {
+    const int width = (b >> LINE_STYLE_WIDTH_SHIFT) & LINE_STYLE_WIDTH_MAX;
+    return width > 0 ? width : fallback;
+}
+#endif
+
 // The user-selectable night colours are colour-only: on a B&W build theme_pick()
 // is the macro `(bw_arm)` (theme.h), so forecast_layer.c never reads the colour
 // arm and the accessors are declared away here — any unguarded caller fails to

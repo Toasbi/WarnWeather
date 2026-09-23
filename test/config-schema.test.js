@@ -71,7 +71,7 @@ const EXPECTED_KEYS = [
   // sleepNightStartHour / sleepNightEndHour / backlightDimMode are gone.
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','fetchNoticeAck','locationMode','location',
   'backlightDim','backlightDimStartHour','backlightDimEndHour','backlightDimColor',
-  'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','windScale','pressureScale','thirdLine','tempSlotDisplay',
+  'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','secondaryLineStyle','windScale','pressureScale','thirdLine','thirdLineStyle','fourthLine','fourthLineStyle','tempSlotDisplay',
   'tempSlotSeparator','tempSlotSeparatorCustom','tempSlotSeparatorSpaced','tempSlotOrder',
   'dateSlotMonthFormat','dateSlotFullFormat',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','radarNoRainText','rainCountdownHorizon',
@@ -94,18 +94,18 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   const counts = {};
   seen.forEach((k) => { counts[k] = (counts[k] || 0) + 1; });
   const dups = Object.keys(counts).filter((k) => counts[k] > 1);
-  // windScale: solid-line slot vs. dotted-line slot. pressureScale: same split (secondary
-  // vs. third line context). theme: color-env (4 options) vs. B&W-env (2 options) — two
-  // slots, not four: the 'Day theme' pair is gone and the Theme row is never renamed.
-  // themeNight is the same color/B&W split. colorUSFederal: dark-exclude-white vs.
-  // light-exclude-black.
+  // windScale: one slot per line context (main / second / third-metric line).
+  // pressureScale: same three-way split. theme: color-env (4 options) vs. B&W-env
+  // (2 options) — two slots, not four: the 'Day theme' pair is gone and the Theme
+  // row is never renamed. themeNight is the same color/B&W split. colorUSFederal:
+  // dark-exclude-white vs. light-exclude-black.
   // tomorrowioApiKey/tomorrowioFitBudget: General tab (weather provider) vs. Radar tab
   // (radar-only) — mutually-exclusive showWhen, so only one instance ever renders.
   assert.deepEqual(dups.sort(),
     ['colorUSFederal', 'pressureScale', 'theme', 'themeNight', 'tomorrowioApiKey', 'tomorrowioFitBudget', 'windScale'],
     'unexpected duplicates: ' + dups.join(','));
-  assert.equal(counts.windScale, 6, 'windScale appears in six slots (2 contexts × 3 units)');
-  assert.equal(counts.pressureScale, 2, 'pressureScale appears in two slots (secondary + third)');
+  assert.equal(counts.windScale, 9, 'windScale appears in nine slots (3 contexts × 3 units)');
+  assert.equal(counts.pressureScale, 3, 'pressureScale appears in three slots (secondary + third + fourth)');
   assert.equal(counts.theme, 2, 'theme appears in two slots (color / B&W env)');
   assert.equal(counts.themeNight, 2, 'themeNight appears in two slots (color / B&W env)');
   assert.equal(counts.colorUSFederal, 2, 'colorUSFederal appears in exactly two slots');
@@ -425,10 +425,10 @@ test('thirdLine derives options from secondaryLine, excluding it, with Off + def
   assert.equal(third.type, 'select');
   assert.equal(third.defaultValue, 'uv');
   assert.equal(third.optionsFrom.resolver, 'forecastMetric');
-  assert.equal(third.optionsFrom.args.third, true);
+  assert.deepEqual(third.optionsFrom.args, { off: true, exclude: ['secondaryLine'] });
   // Every secondary metric yields Off + the OTHER five (never itself).
   ['precip_prob', 'wind', 'gust', 'uv', 'pressure', 'feels'].forEach((sec) => {
-    const vals = metricOptions({ secondaryLine: sec }, { platform: 'basalt' }, { third: true })
+    const vals = metricOptions({ secondaryLine: sec }, { platform: 'basalt' }, { off: true, exclude: ['secondaryLine'] })
       .map((o) => o[1]);
     assert.equal(vals[0], 'off', sec + ' third options must start with off');
     assert.ok(!vals.includes(sec), sec + ' must be excluded from its own third-line options');
@@ -439,7 +439,7 @@ test('thirdLine derives options from secondaryLine, excluding it, with Off + def
 test('feels-like is left out of both metric pickers on aplite', () => {
   const sec = metricOptions({}, { platform: 'aplite' }).map((o) => o[1]);
   assert.deepEqual(sec, ['precip_prob', 'wind', 'gust', 'uv', 'pressure']);
-  const third = metricOptions({ secondaryLine: 'precip_prob' }, { platform: 'aplite' }, { third: true })
+  const third = metricOptions({ secondaryLine: 'precip_prob' }, { platform: 'aplite' }, { off: true, exclude: ['secondaryLine'] })
     .map((o) => o[1]);
   assert.deepEqual(third, ['off', 'wind', 'gust', 'uv', 'pressure']);
 });
@@ -450,18 +450,22 @@ test('UV hint explains the fixed 0-11 scale (parallel to precip percentage)', ()
   assert.match(hint, /half-height/);
 });
 
-test('windScale has six contextual slots: two line-contexts × three wind units', () => {
+test('windScale has nine contextual slots: three line-contexts × three wind units', () => {
   const slots = items.filter((i) => i.messageKey === 'windScale');
-  assert.equal(slots.length, 6, 'six windScale slots');
+  assert.equal(slots.length, 9, 'nine windScale slots');
+  // Leaf conditions only: the fourth-line copies name the other two lines inside
+  // {not: …} wrappers, which carry no .key, so each filter matches one context.
   const secondary = slots.filter((s) => s.showWhen.all.some((c) => c.key === 'secondaryLine' && c.in));
-  const third = slots.filter((s) => s.showWhen.all.some((c) => c.key === 'thirdLine'));
+  const third = slots.filter((s) => s.showWhen.all.some((c) => c.key === 'thirdLine' && c.in));
+  const fourth = slots.filter((s) => s.showWhen.all.some((c) => c.key === 'fourthLine' && c.in));
   assert.equal(secondary.length, 3, 'three secondary-line copies (one per unit)');
   assert.equal(third.length, 3, 'three third-line copies (one per unit)');
+  assert.equal(fourth.length, 3, 'three fourth-line copies (one per unit)');
   const midShows = { kph: '50 kph', mph: '31 mph', knots: '27 kn' };
   ['kph', 'mph', 'knots'].forEach((unit) => {
-    [secondary, third].forEach((group) => {
+    [secondary, third, fourth].forEach((group) => {
       const copy = group.find((s) => s.showWhen.all.some((c) => c.key === 'windUnits' && c.eq === unit));
-      assert.ok(copy, unit + ' copy present in both contexts');
+      assert.ok(copy, unit + ' copy present in every context');
       assert.ok(copy.hintByValue.mid.indexOf(midShows[unit]) >= 0,
         unit + ' mid hint should show ' + midShows[unit] + '; got: ' + copy.hintByValue.mid);
     });
@@ -973,7 +977,7 @@ test('metric options are spelled out fully on both pickers', () => {
   assert.deepEqual(metricOptions({}, { platform: 'basalt' }), [
     ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels']
   ]);
-  const thirdOf = (sec) => metricOptions({ secondaryLine: sec }, { platform: 'basalt' }, { third: true });
+  const thirdOf = (sec) => metricOptions({ secondaryLine: sec }, { platform: 'basalt' }, { off: true, exclude: ['secondaryLine'] });
   const labelOf = (sec, val) => thirdOf(sec).find((o) => o[1] === val)[0];
   assert.equal(thirdOf('precip_prob')[0][0], 'Off');
   assert.equal(labelOf('wind', 'precip_prob'), 'Precipitation %');
@@ -997,19 +1001,26 @@ test('feels-like hint says it shares the temperature scale, on both pickers', ()
   assert.match(byKey('thirdLine').hintByValue.feels, /same scale as the temperature curve/i);
 });
 
-test('forecast tab nests fill and wind scale under the line that enables them', () => {
+test('forecast tab nests style, fill and wind scale under the line that enables them', () => {
   const keys = forecastItems(schema).map((i) => i.messageKey).filter(Boolean);
   const iSolid = keys.indexOf('secondaryLine');
   const iFill = keys.indexOf('secondaryLineFill');
   const iThird = keys.indexOf('thirdLine');
-  assert.ok(iSolid >= 0 && iFill > iSolid && iThird > iFill,
-    'order must be Main metric -> Fill area -> Second metric; got ' + keys.join(','));
+  const iFourth = keys.indexOf('fourthLine');
+  assert.ok(iSolid >= 0 && iFill > iSolid && iThird > iFill && iFourth > iThird,
+    'order must be Main metric -> Fill area -> Second metric -> Third metric; got ' + keys.join(','));
+  // Each line's style picker sits directly under its metric picker.
+  assert.equal(keys.indexOf('secondaryLineStyle'), iSolid + 1, 'main style under Main metric');
+  assert.equal(keys.indexOf('thirdLineStyle'), iThird + 1, 'second style under Second metric');
+  assert.equal(keys.indexOf('fourthLineStyle'), iFourth + 1, 'third style under Third metric');
   const windIdxs = keys.reduce((a, k, i) => (k === 'windScale' ? a.concat(i) : a), []);
-  assert.equal(windIdxs.length, 6, 'six wind-scale slots (2 contexts × 3 units)');
+  assert.equal(windIdxs.length, 9, 'nine wind-scale slots (3 contexts × 3 units)');
   assert.ok(windIdxs.slice(0, 3).every((i) => i > iFill && i < iThird),
     'secondary-line wind-scale copies sit under the solid line');
-  assert.ok(windIdxs.slice(3).every((i) => i > iThird),
-    'third-line wind-scale copies sit under the dotted line');
+  assert.ok(windIdxs.slice(3, 6).every((i) => i > iThird && i < iFourth),
+    'third-line wind-scale copies sit under the second metric');
+  assert.ok(windIdxs.slice(6).every((i) => i > iFourth),
+    'fourth-line wind-scale copies sit under the third metric');
 });
 
 test('startOnWeatherTab is a page-only toggle that defaults to General', () => {
@@ -2151,16 +2162,68 @@ test('secondaryLine offers pressure and feels-like as the fifth and sixth metric
 
 test('thirdLine offers the five metrics the main line is not using, for all six', () => {
   for (const metric of ['feels', 'gust', 'precip_prob', 'pressure', 'uv', 'wind']) {
-    const opts = metricOptions({ secondaryLine: metric }, { platform: 'basalt' }, { third: true });
+    const opts = metricOptions({ secondaryLine: metric }, { platform: 'basalt' }, { off: true, exclude: ['secondaryLine'] });
     assert.equal(opts.length, 6, `${metric} should offer Off + 5 metrics`);
     assert.equal(opts[0][1], 'off');
     assert.ok(!opts.some(([, v]) => v === metric), `${metric} must not offer itself`);
   }
 });
 
+test('fourthLine offers Off + the metrics neither other line uses, never feels', () => {
+  const opts = metricOptions({ secondaryLine: 'wind', thirdLine: 'uv' },
+    { platform: 'basalt' }, { off: true, exclude: ['secondaryLine', 'thirdLine'], noFeels: true });
+  assert.deepEqual(opts.map(([, v]) => v), ['off', 'precip_prob', 'gust', 'pressure'],
+    'Off + the remaining metrics minus feels (no curve-inset channel on the fourth line)');
+  // With the other two lines elsewhere, feels is STILL absent.
+  const wide = metricOptions({ secondaryLine: 'precip_prob', thirdLine: 'off' },
+    { platform: 'basalt' }, { off: true, exclude: ['secondaryLine', 'thirdLine'], noFeels: true });
+  assert.ok(!wide.some(([, v]) => v === 'feels'), 'feels never offered on the fourth line');
+});
+
+test('the Third metric row and every line-style row hide behind the lineStyles capability, fail-open for unknown platforms', () => {
+  // Row-level showWhen, not option-gating: a hidden row is never rendered, so
+  // the engine's display-snap can't rewrite the stored value on a watch that
+  // lacks the line. {env:'lineStyles'} is the WW_LINE_STYLE mirror
+  // (config-ui/lib/platform.js — false only for aplite, true for unknown).
+  const LINE_STYLES_GATE = { env: 'lineStyles' };
+  assert.deepEqual(byKey('fourthLine').showWhen, LINE_STYLES_GATE);
+  assert.equal(byKey('fourthLine').defaultValue, 'off', 'the third metric debuts off');
+  assert.equal(byKey('fourthLine').label, 'Third metric');
+  assert.deepEqual(byKey('secondaryLineStyle').showWhen, { all: [LINE_STYLES_GATE] });
+  assert.deepEqual(byKey('thirdLineStyle').showWhen,
+    { all: [LINE_STYLES_GATE, { key: 'thirdLine', ne: 'off' }] });
+  assert.deepEqual(byKey('fourthLineStyle').showWhen,
+    { all: [LINE_STYLES_GATE, { key: 'fourthLine', ne: 'off' }] });
+  // The fourth-context wind-scale copies carry the same gate (via the
+  // LINE_CONTEXTS cascade), or a re-paired incapable watch (stored fourthLine
+  // preserved by the row-level hide above) would render an orphaned scale row
+  // for a line it never draws. The pressure copy's gate is pinned in its own
+  // showWhen test.
+  const fourthWinds = items.filter((i) => i.messageKey === 'windScale'
+    && i.showWhen.all.some((c) => c.key === 'fourthLine'));
+  assert.equal(fourthWinds.length, 3, 'one fourth-context wind-scale copy per unit');
+  fourthWinds.forEach((w) => assert.deepEqual(w.showWhen.all[0], LINE_STYLES_GATE));
+  // The capability itself exists in the platform SoT and folds exactly aplite.
+  const platformLib = require('../src/pkjs/config-ui/lib/platform.js');
+  assert.equal(platformLib.computeEnv({ platform: 'aplite' }).lineStyles, false);
+  assert.equal(platformLib.computeEnv({ platform: 'basalt' }).lineStyles, true);
+  assert.equal(platformLib.computeEnv(null).lineStyles, true, 'unknown watch keeps the feature');
+});
+
+test('the line-style pickers offer thin/thick/dots/x with per-line defaults matching the wire', () => {
+  const lineStyle = require('../src/pkjs/line-style.js');
+  const OPTIONS = [['Thin', 'line'], ['Thick', 'bold'], ['Dots', 'dots'], ['×', 'x']];
+  for (const key of ['secondaryLineStyle', 'thirdLineStyle', 'fourthLineStyle']) {
+    const item = byKey(key);
+    assert.deepEqual(item.options, OPTIONS, key);
+    assert.equal(item.defaultValue, lineStyle.LINE_STYLE_DEFAULTS[key],
+      key + ' schema default must match line-style.js’ wire default');
+  }
+});
+
 test('pressureScale is a Narrow/Mid/Wide control storing low/mid/high', () => {
   const scales = items.filter((i) => i.messageKey === 'pressureScale');
-  assert.equal(scales.length, 2, 'one copy per line-context (secondary + third)');
+  assert.equal(scales.length, 3, 'one copy per line-context (secondary + third + fourth)');
   for (const s of scales) {
     assert.deepEqual(s.options, [['Narrow', 'low'], ['Mid', 'mid'], ['Wide', 'high']]);
     assert.equal(s.defaultValue, 'mid');
@@ -2169,14 +2232,26 @@ test('pressureScale is a Narrow/Mid/Wide control storing low/mid/high', () => {
   }
 });
 
-test('pressureScale shows for the main line, and for the second line only when the main line is not pressure', () => {
+test('pressureScale shows for the main line, and for a later line only when no earlier line is pressure', () => {
   const scales = items.filter((i) => i.messageKey === 'pressureScale');
   const sec = scales.find((s) => s.showWhen.key === 'secondaryLine');
   assert.deepEqual(sec.showWhen, { key: 'secondaryLine', eq: 'pressure' });
-  const third = scales.find((s) => s.showWhen.all);
+  const third = scales.find((s) => s.showWhen.all
+    && s.showWhen.all.some((c) => c.key === 'thirdLine'));
   assert.deepEqual(third.showWhen, { all: [
     { key: 'thirdLine', eq: 'pressure' },
     { not: { key: 'secondaryLine', eq: 'pressure' } }
+  ]});
+  const fourth = scales.find((s) => s.showWhen.all
+    && s.showWhen.all.some((c) => c.key === 'fourthLine'));
+  // The fourth arm also carries the lineStyles capability gate: its line is
+  // hidden on incapable watches with the stored value preserved, so the scale
+  // row must never orphan there.
+  assert.deepEqual(fourth.showWhen, { all: [
+    { env: 'lineStyles' },
+    { key: 'fourthLine', eq: 'pressure' },
+    { not: { key: 'secondaryLine', eq: 'pressure' } },
+    { not: { key: 'thirdLine', eq: 'pressure' } }
   ]});
 });
 
@@ -2214,7 +2289,7 @@ test('the wind slot arrows by default, the gust slot beside it does not', () => 
 // in either dependency cannot silently rewrite user-facing copy.
 test('windScale hints derive from the graph ceilings, strings pinned', () => {
   const winds = items.filter((i) => i.messageKey === 'windScale');
-  assert.equal(winds.length, 6, 'three units x two line-contexts');
+  assert.equal(winds.length, 9, 'three units x three line-contexts');
   const hintFor = (unit) => winds.find((i) =>
     JSON.stringify(i.showWhen).indexOf('"' + unit + '"') >= 0).hintByValue;
   assert.equal(hintFor('kph').low, 'Tops out at 30 kph — emphasizes light, gentle winds.');

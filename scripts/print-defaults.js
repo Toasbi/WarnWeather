@@ -281,7 +281,10 @@ function renderCapabilities() {
     const env = envFor(p);
     rows.push([p].concat(flags.map((f) => (env[f] ? 'yes' : '-'))));
   });
-  return table(rows, '    ');
+  // Two-space indent, not the section's four: the column set grows with every
+  // computeEnv fact (lineStyles took the four-indent table past the report's
+  // 100-column ceiling) and the width is spent on the facts, not the margin.
+  return table(rows, '  ');
 }
 
 /**

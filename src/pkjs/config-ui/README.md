@@ -372,11 +372,13 @@ env = {
   themePolarity: true,       // false for aplite (no WW_THEME_POLARITY — light/B&W-Inv theme)
   hr:            false,      // true only for emery, diorite (heart-rate sensor)
   thresholds:    true,       // false for aplite (no WW_THRESHOLD_HIGHLIGHT)
-  colorBacklight: false      // true only for emery (RGB backlight LED)
+  colorBacklight: false,     // true only for emery (RGB backlight LED)
+  lineStyles:    true        // false for aplite (no WW_LINE_STYLE — third metric line + per-line marker styles)
 }
 // Fallback when watchInfo is unavailable:
 // { color: true, round: false, platform: '', health: true, radar: true,
-//   themePolarity: true, hr: false, thresholds: true, colorBacklight: false }
+//   themePolarity: true, hr: false, thresholds: true, colorBacklight: false,
+//   lineStyles: true }
 ```
 
 The host app may contribute additional facts by passing them as `generateUrl`'s `env`: the

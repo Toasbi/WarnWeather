@@ -10,6 +10,9 @@ FORECAST
 - 24-hour forecast with a temperature line and configurable, battery-friendly updates
 - Configurable metrics such as precipitation, UV index, gusts, wind, air
   pressure and feels-like temperature
+- Up to three metric lines at once, each in its own style — thin or
+  thick line, square dots, or little x marks (third metric and style
+  selection on watches with enough memory, not Pebble Classic/Steel)
 - Optional day/night shading
 - Recolor the forecast graph per metric — line, area fill and night tint
   for each — plus the night hatch and the dusk/dawn line, from the full

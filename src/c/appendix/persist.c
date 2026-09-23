@@ -76,7 +76,17 @@ enum key {
     // can show it, so every other build declares the accessors away and never
     // reads or writes this slot, but the ID stays listed on every platform:
     // the enum is append-only because the numbers are the on-flash slots.
-    NIGHT_LIGHT                   // 48 — 3 raw LED bytes + start/end hour, absent = never
+    NIGHT_LIGHT,                  // 48 — 3 raw LED bytes + start/end hour, absent = never
+    // Appended: the third selectable metric line (SERIES_FOURTH) and the
+    // per-line marker styles — one feature set behind WW_LINE_STYLE. aplite
+    // never reads or writes these three (the flag is undefined there and the
+    // accessors compile out), but the IDs stay listed on every platform: the
+    // enum is append-only because the numbers are the on-flash slots. Presence
+    // of the fourth line is "does FOURTH_LINE_TREND exist?" — the
+    // THIRD_LINE_TREND convention, not the count-keyed LINE_/BAR_ one.
+    FOURTH_LINE_TREND,            // 49 — uint8 trend bytes, absent = line off
+    FOURTH_LINE_COLOR,            // 50 — GColor8 argb byte, absent = theme foreground
+    LINE_STYLES                   // 51 — 3 style bytes (layout in persist.h), absent = the frozen look
 };
 
 // Setters report whether the stored value actually changed so callers can
@@ -141,6 +151,15 @@ static int read_trend_widened(uint32_t key, int16_t *out, size_t n) {
     return bytes;
 }
 
+// The existence-keyed trend write: presence is "does the key exist?", so an
+// empty send deletes the slot (the THIRD/FOURTH line convention — deliberately
+// NOT the count-keyed LINE_/BAR_ one; see the key enum).
+static bool set_existence_keyed_trend(uint32_t key, uint8_t *data, size_t size) {
+    if (size > 0) { return write_data_if_changed(key, data, size); }
+    if (persist_exists(key)) { persist_delete(key); return true; }
+    return false;
+}
+
 int persist_get_temp_trend(int16_t *buffer, const size_t buffer_size) {
     return read_trend_widened(TEMP_TREND, buffer, buffer_size);
 }
@@ -173,6 +192,9 @@ bool persist_series_present(SeriesId id) {
     switch (id) {
         case SERIES_SECOND: return persist_get_line_count() > 0;
         case SERIES_THIRD:  return persist_third_line_present();
+#if defined(WW_LINE_STYLE)
+        case SERIES_FOURTH: return persist_exists(FOURTH_LINE_TREND);
+#endif
         case SERIES_BARS:   return persist_get_bar_count() > 0;
         default:            return false;  // FIRST: caller uses num_entries > 0
     }
@@ -183,6 +205,9 @@ int persist_series_trend(SeriesId id, int16_t *out, size_t n) {
         case SERIES_FIRST:  return persist_get_temp_trend(out, n);
         case SERIES_SECOND: return persist_get_line_trend(out, n);
         case SERIES_THIRD:  return persist_get_third_line_trend(out, n);
+#if defined(WW_LINE_STYLE)
+        case SERIES_FOURTH: return read_trend_widened(FOURTH_LINE_TREND, out, n);
+#endif
         case SERIES_BARS:   return persist_get_bar_trend(out, n);
         default:            return 0;
     }
@@ -192,6 +217,9 @@ bool persist_series_set_trend(SeriesId id, uint8_t *data, size_t size) {
     switch (id) {
         case SERIES_SECOND: return persist_set_line_trend(data, size);
         case SERIES_THIRD:  return persist_set_third_line_trend(data, size);
+#if defined(WW_LINE_STYLE)
+        case SERIES_FOURTH: return set_existence_keyed_trend(FOURTH_LINE_TREND, data, size);
+#endif
         case SERIES_BARS:   return persist_set_bar_trend(data, size);
         default:            return false;  // FIRST/temp is handled bespoke
     }
@@ -201,6 +229,9 @@ bool persist_series_set_color(SeriesId id, GColor c) {
     switch (id) {
         case SERIES_SECOND: return persist_set_line_color(c);
         case SERIES_THIRD:  return persist_set_third_line_color(c);
+#if defined(WW_LINE_STYLE)
+        case SERIES_FOURTH: return persist_set_fourth_line_color(c);
+#endif
         default:            return false;  // BARS has a palette, not a single color
     }
 }
@@ -259,9 +290,7 @@ bool persist_set_line_trend(uint8_t *data, const size_t size) {
 }
 
 bool persist_set_third_line_trend(uint8_t *data, const size_t size) {
-    if (size > 0) { return write_data_if_changed(THIRD_LINE_TREND, data, size); }
-    if (persist_exists(THIRD_LINE_TREND)) { persist_delete(THIRD_LINE_TREND); return true; }
-    return false;
+    return set_existence_keyed_trend(THIRD_LINE_TREND, data, size);
 }
 
 bool persist_set_bar_trend(uint8_t *data, const size_t size) {
@@ -285,6 +314,37 @@ bool persist_set_fill_color(GColor color) {
 bool persist_set_line_fill(bool fill) {
     return write_bool_if_changed(LINE_FILL, fill);
 }
+
+#if defined(WW_LINE_STYLE)
+// The fourth line's trend has no per-name accessors: the persist_series_*
+// dispatchers above read and write FOURTH_LINE_TREND directly through the
+// shared helpers. Only the colour keeps named accessors (forecast_layer.c
+// reads it by name at paint time).
+GColor persist_get_fourth_line_color(void) {
+    if (!persist_exists(FOURTH_LINE_COLOR)) { return theme_fg(); }
+    return (GColor){ .argb = (uint8_t) persist_read_int(FOURTH_LINE_COLOR) };
+}
+
+bool persist_set_fourth_line_color(GColor color) {
+    return write_int_if_changed(FOURTH_LINE_COLOR, color.argb);
+}
+
+bool persist_set_line_styles(const uint8_t styles[LINE_STYLE_STYLE_BYTES]) {
+    return write_data_if_changed(LINE_STYLES, styles, LINE_STYLE_STYLE_BYTES);
+}
+
+void persist_get_line_styles(uint8_t out[LINE_STYLE_STYLE_BYTES]) {
+    if (persist_read_data(LINE_STYLES, out, LINE_STYLE_STYLE_BYTES)
+            == LINE_STYLE_STYLE_BYTES) {
+        return;
+    }
+    // Unset/short: the pre-feature look — solid 1 px main line, dotted second
+    // line, x third-metric line.
+    out[0] = (uint8_t) (CHART_LINE_SOLID | (1 << LINE_STYLE_WIDTH_SHIFT));
+    out[1] = (uint8_t) CHART_LINE_DOTS;
+    out[2] = (uint8_t) CHART_LINE_X;
+}
+#endif  // WW_LINE_STYLE
 
 int persist_get_rain_radar_trend(uint8_t *buffer, const size_t buffer_size) {
     return persist_read_data(RAIN_RADAR_TREND, (void*) buffer, buffer_size * sizeof(uint8_t));

@@ -177,6 +177,11 @@ test('every sleep-window key changes the render signature (forces a refetch)', (
   });
 });
 
+test('fourthLine is part of the render signature (it changes what the phone bakes and fetches)', () => {
+  assert.notEqual(renderSignature({ fourthLine: 'uv' }), renderSignature({ fourthLine: 'off' }),
+    'a Third-metric change must force a refetch');
+});
+
 test('the sleep-window keys each occupy their own signature slot', () => {
   // Without distinct positions, editing the start hour could read as editing the end.
   const seen = SLEEP_KEYS.map((key) => renderSignature({ [key]: 'X' }));
@@ -203,7 +208,10 @@ test('settings that need no refetch stay OUT of the render signature', () => {
     // the theme and the area fill: every colour they move (line colours, the fill
     // flag, threshold auto-colours) rides the Clay message
     { theme: 'light' }, { theme: 'bw' }, { secondaryLineFill: true },
-    { secondaryLineFill: false }
+    { secondaryLineFill: false },
+    // live, but Clay-delivered: the per-line marker styles ride
+    // CLAY_LINE_STYLE_UINT8 bytes [11..13], never the weather bake
+    { secondaryLineStyle: 'bold' }, { thirdLineStyle: 'x' }, { fourthLineStyle: 'dots' }
   ].forEach((over) => {
     assert.equal(renderSignature({ sleepNightEnabled: true, sleepStartHour: '0',
       sleepEndHour: '7', ...over }), base,

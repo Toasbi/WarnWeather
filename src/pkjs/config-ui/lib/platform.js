@@ -28,6 +28,16 @@ var NO_THEME_POLARITY_PLATFORMS = { aplite: true };
 // `#if defined(WW_THRESHOLD_HIGHLIGHT)` guards (wscript defines the macro for every
 // platform except aplite).
 var NO_THRESHOLD_PLATFORMS = { aplite: true };
+// Platforms where the watch compiles the per-line marker styles AND the third
+// selectable metric line out (no WW_LINE_STYLE — one flag, one feature set:
+// the fourth graph line's default rendering IS the x marker the style dispatch
+// draws, so the halves cannot ship separately): aplite (Pebble Classic/Steel),
+// the frozen-lean fork with no image headroom for either half. The
+// Third-metric picker, every line-style picker and the fourth-line
+// graph-scale contexts are hidden there. Keep in lockstep with the C
+// `#if defined(WW_LINE_STYLE)` guards (wscript defines the macro for every
+// platform except aplite).
+var NO_LINE_STYLE_PLATFORMS = { aplite: true };
 // Platforms whose hardware includes a heart-rate sensor: emery (Pebble Time 2)
 // and diorite (Pebble 2 — the non-SE model). The config UI can't tell a Pebble 2
 // from a Pebble 2 SE (both report 'diorite'), so diorite is treated as HR-capable;
@@ -81,6 +91,14 @@ function isThemePolarityPlatform(platform) { return !NO_THEME_POLARITY_PLATFORMS
  */
 function isThresholdPlatform(platform) { return !NO_THRESHOLD_PLATFORMS[platform]; }
 /**
+ * Whether a Pebble platform ships the per-line marker styles and the third
+ * selectable metric line (WW_LINE_STYLE). Unknown platforms are treated as
+ * capable so a missing watchInfo never hides a real feature.
+ * @param {string} platform Platform name (e.g. 'basalt', 'aplite').
+ * @returns {boolean} True if the platform draws the third metric line and selectable styles.
+ */
+function isLineStylePlatform(platform) { return !NO_LINE_STYLE_PLATFORMS[platform]; }
+/**
  * Whether a Pebble platform includes a heart-rate sensor (emery / diorite).
  * Unknown platforms are treated as non-HR (conservative — avoids offering a
  * permanently-"--" slot on an unrecognized watch).
@@ -99,10 +117,10 @@ function isColorBacklightPlatform(platform) { return Boolean(COLOR_BACKLIGHT_PLA
 /**
  * Derive the config-UI environment facts from a Pebble watchInfo object.
  * @param {Object} watchInfo Pebble watchInfo; its .platform names the model.
- * @returns {{color: boolean, round: boolean, platform: string, health: boolean, radar: boolean, themePolarity: boolean, hr: boolean, thresholds: boolean, colorBacklight: boolean}} Env: color display, round (chalk), platform name, health support, radar support, theme light-polarity support, heart-rate sensor support, threshold-highlight support, and RGB-backlight-LED support.
+ * @returns {{color: boolean, round: boolean, platform: string, health: boolean, radar: boolean, themePolarity: boolean, hr: boolean, thresholds: boolean, colorBacklight: boolean, lineStyles: boolean}} Env: color display, round (chalk), platform name, health support, radar support, theme light-polarity support, heart-rate sensor support, threshold-highlight support, RGB-backlight-LED support, and third-metric-line + per-line-style support.
  */
 function computeEnv(watchInfo) {
   var p = watchInfo && watchInfo.platform ? watchInfo.platform : '';
-  return { color: isColorPlatform(p), round: p === 'chalk', platform: p, health: isHealthPlatform(p), radar: isRadarPlatform(p), themePolarity: isThemePolarityPlatform(p), hr: isHrPlatform(p), thresholds: isThresholdPlatform(p), colorBacklight: isColorBacklightPlatform(p) };
+  return { color: isColorPlatform(p), round: p === 'chalk', platform: p, health: isHealthPlatform(p), radar: isRadarPlatform(p), themePolarity: isThemePolarityPlatform(p), hr: isHrPlatform(p), thresholds: isThresholdPlatform(p), colorBacklight: isColorBacklightPlatform(p), lineStyles: isLineStylePlatform(p) };
 }
-module.exports = { isColorPlatform: isColorPlatform, isHealthPlatform: isHealthPlatform, isRadarPlatform: isRadarPlatform, isThemePolarityPlatform: isThemePolarityPlatform, isHrPlatform: isHrPlatform, isThresholdPlatform: isThresholdPlatform, isColorBacklightPlatform: isColorBacklightPlatform, computeEnv: computeEnv };
+module.exports = { isColorPlatform: isColorPlatform, isHealthPlatform: isHealthPlatform, isRadarPlatform: isRadarPlatform, isThemePolarityPlatform: isThemePolarityPlatform, isHrPlatform: isHrPlatform, isThresholdPlatform: isThresholdPlatform, isColorBacklightPlatform: isColorBacklightPlatform, isLineStylePlatform: isLineStylePlatform, computeEnv: computeEnv };
