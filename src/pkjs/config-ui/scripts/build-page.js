@@ -1,6 +1,7 @@
 // src/pkjs/config-ui/scripts/build-page.js — plain node, no deps.
 var fs = require('fs');
 var path = require('path');
+var inlineScriptJson = require('../index.js').inlineScriptJson;
 var LIB = path.join(__dirname, '..', 'lib');
 var LIB_PAGE_FILES = ['schema-walk.js', 'color.js', 'show-when.js', 'html.js', 'date-picker.js', 'range-control.js', 'engine.js'];
 
@@ -37,12 +38,13 @@ function previewPage(opts) {
   opts = opts || {};
   var page = buildPage({ appFiles: opts.appFiles });
   if (page.indexOf('/*__PCONF_INJECT__*/') === -1) { throw new Error('shell.html missing /*__PCONF_INJECT__*/'); }
+  var json = inlineScriptJson;  // '<' / U+2028-safe inside the inline <script> (see index.js)
   var snippet =
-    'INJECTED_SCHEMA='   + JSON.stringify(opts.schema || null)  + ';' +
-    'INJECTED_CFG='      + JSON.stringify(opts.cfg || {})       + ';' +
-    'INJECTED_ENV='      + JSON.stringify(opts.env || null)     + ';' +
-    'INJECTED_USERDATA=' + JSON.stringify(opts.userData || {})  + ';' +
-    'INJECTED_RETURN='   + JSON.stringify(opts.returnTo || '#') + ';';
+    'INJECTED_SCHEMA='   + json(opts.schema || null)  + ';' +
+    'INJECTED_CFG='      + json(opts.cfg || {})       + ';' +
+    'INJECTED_ENV='      + json(opts.env || null)     + ';' +
+    'INJECTED_USERDATA=' + json(opts.userData || {})  + ';' +
+    'INJECTED_RETURN='   + json(opts.returnTo || '#') + ';';
   return page.replace('/*__PCONF_INJECT__*/', function () { return snippet; });
 }
 
