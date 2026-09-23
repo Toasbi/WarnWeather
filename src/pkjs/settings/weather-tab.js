@@ -345,8 +345,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // (the card wrapper uses overflow:clip precisely so descendant
         // sticky survives; engines that only know overflow:hidden degrade
         // to normal scrolling).
+        // Today is the FETCH's today (view.nowMs), the clock the panels, the
+        // now line and the settled past were built on: a re-render past the
+        // location's midnight without a refetch must not move the label onto
+        // tile 1 while every chart still stands on day 0. The age line says
+        // how old that frame is; Refresh moves all of it forward together.
         h += '<div class="wx-sticky">'
-            + charts.dailyStripHtml(view.daily, settings, pal, view.offsetSec, Date.now(), panDay, view.days)
+            + charts.dailyStripHtml(view.daily, settings, pal, view.offsetSec, view.nowMs, panDay, view.days)
             + vp('strip', charts.timeStripSvg(view, loc, pal, sunCalcLib, idx)) + '</div>';
         // The Measured|Forecast caption sits OUTSIDE the pinned block: the
         // pin ends at the hourly ticks, so the caption scrolls away with

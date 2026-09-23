@@ -293,6 +293,60 @@ test('the graphs block orchestrates: loading → panels on data, error → Retry
   }
 });
 
+// The view (day 0, the now line, the settled past) is built once, at FETCH time, and
+// only a refetch rebuilds it. The Today label has to use that same clock, or a
+// re-render past the location's midnight labels tile 1 "Today" while every chart
+// still stands on day 0.
+test('the Today tile keeps the fetch\'s clock on a re-render past midnight', () => {
+  tab._resetState();
+  const realFetch = data.fetchWeather;
+  const realNow = Date.now;
+  let respond = null;
+  let calls = 0;
+  data.fetchWeather = (provider, lat, lon, settings, cb) => { calls += 1; respond = cb; };
+  const OFF = 7200;                                      // Berlin, summer time
+  const dayStart = Date.UTC(2026, 8, 20, 22, 0);         // 21 Sep 00:00 local
+  const fetchAt = dayStart + (23 * 60 + 50) * 60000;     // 23:50 local
+  const hourly = { time: [], temp: [], rain: [], prob: [], wind: [], gust: [], dir: [], rh: [], dew: [], pressure: [], icon: [], sunshineMin: [] };
+  for (let h = 0; h < 120; h += 1) {
+    hourly.time.push(dayStart + h * 3600000);
+    hourly.temp.push(15); hourly.rain.push(0); hourly.prob.push(10); hourly.wind.push(10);
+    hourly.gust.push(18); hourly.dir.push(200); hourly.rh.push(60); hourly.dew.push(8);
+    hourly.pressure.push(1013); hourly.icon.push('clear');
+  }
+  const daily = [0, 1, 2, 3, 4].map((k) => ({ date: dayStart + k * 86400000, tmin: 10, tmax: 20, icon: 'clear', rainMm: 0, probMax: 5, sunshineH: 8 }));
+  const tiles = (html) => {
+    const out = [];
+    html.replace(/<button type="button" class="(wx-day[^"]*)" data-action="wxShowDay" data-action-arg="(\d)"[^>]*><span class="wx-day-head"><span class="wx-day-name">([^<]*)</g,
+      (m, cls, i, name) => { out.push({ cls, name }); return m; });
+    return out;
+  };
+  try {
+    const state = { graphsLocation: 'current' };
+    tab._setCtx({ S: state, USERDATA: SEED, render: () => {} });
+    Date.now = () => fetchAt;
+    tab.weatherGraphsBlock(state, {}, SEED);
+    respond({ hourly, daily, utcOffsetSec: OFF }, null);
+    let t = tiles(tab.weatherGraphsBlock(state, {}, SEED));
+    assert.equal(t[0].name, 'Today', 'at fetch time tile 0 is today');
+
+    Date.now = () => fetchAt + 20 * 60000;               // 00:10 local, the next day
+    t = tiles(tab.weatherGraphsBlock(state, {}, SEED));
+    assert.equal(calls, 1, 'a re-render does not refetch');
+    assert.equal(tab._fetchState().view.nowIndex, 23, 'the charts still stand on 23:00 of day 0');
+    assert.equal(t.length, 5);
+    assert.equal(t[0].name, 'Today', 'so tile 0 keeps the Today label');
+    assert.match(t[0].cls, /\btoday\b/, 'and its outline');
+    assert.match(t[0].cls, /\bsel\b/, 'and stays the selected day');
+    assert.ok(t.slice(1).every((x) => x.name !== 'Today' && !/\btoday\b/.test(x.cls)),
+      'no other tile claims Today: ' + t.map((x) => x.name).join(','));
+  } finally {
+    Date.now = realNow;
+    data.fetchWeather = realFetch;
+    tab._resetState();
+  }
+});
+
 test('a new location resets the viewed day to today', () => {
   tab._resetState();
   const realFetch = data.fetchWeather;
