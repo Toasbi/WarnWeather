@@ -27,6 +27,55 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         ? require('../resolve-ink.js') : window.ResolveInk;
     var isLightPolarity = resolveInkLib.isLightPolarity;
     var isBwTheme = resolveInkLib.isBwTheme;
+    var previewStripe = (typeof require !== 'undefined')
+        ? require('./preview-stripe.js') : window.PreviewStripe;
+
+    // The radar sky rows' sample (radar-sky.js, rain_radar_layer.c draw_radar_sky):
+    // eight quarter hours over the two-hour window — clouds thickening into the
+    // shower with a thunderstorm at its peak, sun on either side.
+    var SKY_CLOUD_PCT = [30, 60, 90, 100, 100, 70, 40, 20];
+    var SKY_SUN_PCT = [70, 40, 0, 0, 0, 20, 60, 80];
+    var SKY_BOLT = [false, false, false, true, true, false, false, false];
+    // radar_sky.h's bolt glyph, 5 x 7, bit 4 = the leftmost column.
+    var BOLT_ROWS = [0x03, 0x06, 0x0C, 0x1F, 0x06, 0x0C, 0x18];
+
+    /**
+     * The sky rows' colours per polarity — rain_radar_layer.c's RADAR_SKY_*_COLOR.
+     * @param {string} theme Settings theme.
+     * @param {boolean} isColor Effective colour render?
+     * @param {string} fg Theme foreground (the B&W arm).
+     * @returns {{cloud: string, sun: string, bolt: string}} Hex colours.
+     */
+    function skyColors(theme, isColor, fg) {
+        if (!isColor) { return { cloud: fg, sun: fg, bolt: fg }; }
+        var light = isLightPolarity(theme);
+        return {
+            cloud: light ? '#5555AA' : '#AAAAFF',
+            sun: light ? '#FFAA00' : '#FFFF00',
+            bolt: light ? '#FF5500' : '#FFFF00'
+        };
+    }
+
+    /**
+     * The lightning bolt glyph at (bx, by), one preview unit per watch pixel: a
+     * background halo, then the glyph — draw_radar_sky's two passes.
+     * @param {number} bx Left.
+     * @param {number} by Top.
+     * @param {string} color Bolt colour.
+     * @param {string} bg Halo (background) colour.
+     * @returns {string} SVG markup.
+     */
+    function boltGlyph(bx, by, color, bg) {
+        var halo = '', ink = '', y, x;
+        for (y = 0; y < BOLT_ROWS.length; y += 1) {
+            for (x = 0; x < 5; x += 1) {
+                if (!((BOLT_ROWS[y] >> (4 - x)) & 1)) { continue; }
+                halo += rect(bx + x - 1, by + y - 1, 3, 3, bg);
+                ink += rect(bx + x, by + y, 1, 1, color);
+            }
+        }
+        return halo + ink;
+    }
 
     // Rough advance width (px) of a proportional sans-serif label at font-size `s`.
     // Used to lay out legend items left-to-right without a real text-metrics engine;
@@ -64,10 +113,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         }
         var local = [0, 0, 0, 0.2, 0.6, 1.5, 3, 7, 14, 10, 5, 2, 0.8, 0.3, 0.1, 0, 0.3, 1, 3, 8, 12, 6, 2, 0.5];
         var add = [0.4, 0.5, 0.7, 1, 1.5, 2, 3, 4, 3, 2, 1.5, 1, 0.8, 0.5, 0.4, 0.3, 0.5, 1.5, 3, 4, 3, 2, 1, 0.5];
-        var n = local.length, PX0 = 11, PX1 = 196, PT = 24, PB = 99, plotH = PB - PT;
+        var isAplite = Boolean(env && env.platform === 'aplite');
+        // The sky rows (Radar tab -> Clouds, sun & lightning) take a band under the
+        // axis ticks, and the bars keep the rest — rain_radar_layer.c's sky band.
+        var skyOn = Boolean(state.radarSky) && radarMode === 'graph' && !isAplite;
+        var SKY_H = 3, topY = 17;
+        var skyBand = skyOn ? 2 * SKY_H + 2 : 0;
+        var n = local.length, PX0 = 11, PX1 = 196, PT = topY + 7 + skyBand, PB = 99, plotH = PB - PT;
         var step = (PX1 - PX0) / n, bw = step - 1.6;
-        var e = rect(0, 0, 200, 118, ink.bg);
-        var topY = PT - 7;
+        var frameH = skyOn ? 128 : 118;
+        var e = rect(0, 0, 200, frameH, ink.bg);
         e += '<line x1="' + PX0 + '" y1="' + topY + '" x2="' + PX1 + '" y2="' + topY + '" stroke="' + ink.rgba('0.22') + '" stroke-width="0.6"></line>';
         for (var k = 0; k <= n; k++) {
             var tx = PX0 + k * step, big = k % 6 === 0;
@@ -75,6 +130,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         }
         e += txt(PX0, topY - 3, 7, '#7C828D', 'start', 600, 'now') + txt(PX0 + 12 * step, topY - 3, 7, '#7C828D', 'middle', 600, '+1h') + txt(PX1, topY - 3, 7, '#7C828D', 'end', 600, '+2h');
         e += '<line x1="' + PX0 + '" y1="' + PB + '" x2="' + PX1 + '" y2="' + PB + '" stroke="' + ink.rgba('0.18') + '" stroke-width="0.7"></line>';
+        if (skyOn) {
+            var sc = skyColors(state.theme, isColor, ink.fg);
+            var skyY = topY + 5;   // below the preview's downward ticks
+            if (!isColor) { e += '<defs>' + previewStripe.ditherDefs(ink.fg, 'rsd') + '</defs>'; }
+            for (var q = 0; q < SKY_CLOUD_PCT.length; q += 1) {
+                var qx = PX0 + q * 3 * step, qw = 3 * step;
+                e += previewStripe.cell(isColor, qx, skyY, qw, SKY_H, sc.cloud,
+                    previewStripe.levelOfByte(Math.round(SKY_CLOUD_PCT[q] * 2.5)), ink.bg, 'rsd');
+                e += previewStripe.cell(isColor, qx, skyY + SKY_H + 1, qw, SKY_H, sc.sun,
+                    previewStripe.levelOfByte(Math.round(SKY_SUN_PCT[q] * 2.5)), ink.bg, 'rsd');
+            }
+            for (var qb = 0; qb < SKY_BOLT.length; qb += 1) {
+                if (SKY_BOLT[qb]) {
+                    e += boltGlyph(PX0 + (qb * 3 + 1.5) * step - 2.5, skyY, sc.bolt, ink.bg);
+                }
+            }
+        }
         var P = (userData && userData.palette) || FALLBACK_PALETTE;
         var radarWhite = state.radarColor === 'white' || !isColor;
         // Solid ('white'/Solid) radar-bar color: DarkGray in light polarity, white in
@@ -122,6 +194,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             lx += 11;
             e += txt(lx + 3, lgy + 3, 7.5, '#AEB4BD', 'start', 600, 'Nearby (2 km)');
         }
+        if (skyOn) {
+            // Second legend row: the two rows and the bolt.
+            var sy = 120, sx = PX0, skc = skyColors(state.theme, isColor, ink.fg);
+            e += previewStripe.cell(isColor, sx, sy - 2, 10, 4, skc.cloud, 4, ink.bg, 'rsd');
+            e += txt(sx + 13, sy + 3, 7.5, '#AEB4BD', 'start', 600, 'Clouds');
+            sx += 13 + labelAdvance('Clouds', 7.5) + 8;
+            e += previewStripe.cell(isColor, sx, sy - 2, 10, 4, skc.sun, 4, ink.bg, 'rsd');
+            e += txt(sx + 13, sy + 3, 7.5, '#AEB4BD', 'start', 600, 'Sun');
+            sx += 13 + labelAdvance('Sun', 7.5) + 8;
+            e += boltGlyph(sx, sy - 4, skc.bolt, ink.bg);
+            e += txt(sx + 8, sy + 3, 7.5, '#AEB4BD', 'start', 600, 'Lightning');
+        }
         // Rain-countdown preview band: a status-strip mock ("Rain in 15'") above the
         // chart, mirroring top_status_layer.c. Hidden when the countdown is Off, and
         // never shown on aplite (which lacks the feature). Only the glyph is coloured,
@@ -131,9 +215,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // the Solid bar colour (radarBarFg). B&W / bw themes draw it theme-fg. The text
         // stays theme-fg and centred.
         // Countdown shows for every non-off tier; the horizon no longer has an Off option.
-        var isAplite = Boolean(env && env.platform === 'aplite');
         if (isAplite) {
-            return svgFrame(e, 118);
+            return svgFrame(e, frameH);
         }
         // !isColor first: B&W / bw themes take rain_glyph_color()'s theme_fg() branch
         // whatever the (hidden) radar colour says.
@@ -145,7 +228,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         band += rainGlyph(groupX, (bandH - glyphSize) / 2, glyphSize, glyphColor);
         band += txt(groupX + glyphSize + 4, bandH / 2 + 4, 11, ink.fg, 'start', 700, label);
         band += '<line x1="0" y1="' + bandH + '" x2="200" y2="' + bandH + '" stroke="' + ink.rgba('0.18') + '" stroke-width="0.7"></line>';
-        return svgFrame(band + '<g transform="translate(0,' + bandH + ')">' + e + '</g>', 118 + bandH);
+        return svgFrame(band + '<g transform="translate(0,' + bandH + ')">' + e + '</g>', frameH + bandH);
     }
 
     PConf.blocks.register('radarPreview', radarPreview);

@@ -1315,3 +1315,24 @@ test('forecastPreview: a 0 % hour leaves its stripe cell transparent', () => {
   const svg = FC.forecastPreview(state, { color: true, platform: 'basalt', lineStyles: true });
   assert.equal(stripeCells(svg).length, 6, 'only the six non-zero hours get a cell');
 });
+
+// The radar's sky rows (Radar tab -> Clouds, sun & lightning): the preview draws
+// rain_radar_layer.c's band — the cloud and sun rows as stripe cells, the bolts
+// over them — only when the toggle is on and the radar GRAPH is shown.
+test('radarPreview: the sky rows show with the toggle in graph mode, never on aplite', () => {
+  const base = { radarProvider: 'dwd', radarColor: 'multicolor', radarMode: 'graph', theme: 'dark' };
+  const env = { color: true, platform: 'basalt' };
+  const on = RD.radarPreview(Object.assign({ radarSky: true }, base), env);
+  const off = RD.radarPreview(Object.assign({ radarSky: false }, base), env);
+  // The cloud colour (BabyBlueEyes) and the sun colour (Yellow) as full-level cells.
+  assert.ok(on.indexOf('fill="#AAAAFF"') >= 0, 'cloud row');
+  assert.ok(on.indexOf('fill="#FFFF00"') >= 0, 'sun row and bolts');
+  assert.equal(off.indexOf('fill="#AAAAFF"'), -1, 'no rows with the toggle off');
+  assert.equal(RD.radarPreview(Object.assign({ radarSky: true }, base, { radarMode: 'countdown' }), env)
+    .indexOf('fill="#AAAAFF"'), -1, 'only the graph draws the rows');
+  assert.equal(RD.radarPreview(Object.assign({ radarSky: true }, base), { color: true, platform: 'aplite' })
+    .indexOf('fill="#AAAAFF"'), -1, 'aplite has no radar sky');
+  // B&W dithers both rows.
+  const bw = RD.radarPreview(Object.assign({ radarSky: true }, base), { color: false, platform: 'diorite' });
+  assert.ok(bw.indexOf('<pattern id="rsd4"') >= 0 && bw.indexOf('url(#rsd') >= 0);
+});

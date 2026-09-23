@@ -8,6 +8,7 @@
 #include "c/layers/status_bar.h"
 #include "c/layers/loading_layer.h"
 #include "c/layers/rain_radar_layer.h"
+#include "c/appendix/radar_sky.h"
 #include "c/layers/calendar_layer.h"
 #include "c/layers/top_status_layer.h"
 #include "c/windows/main_window.h"
@@ -273,6 +274,28 @@ static bool handle_rain_radar(DictionaryIterator *iterator, bool *radar_dirty) {
             (time_t) rain_radar_start_tuple->value->int32);
     }
     *radar_dirty |= changed;
+    return true;
+}
+
+// The radar's sky rows (clouds, sun, lightning): the RADAR_SKY_UINT8 blob,
+// stored verbatim after a shape check (radar_sky.h). Its own outbox category,
+// independent of the rain-radar tuples above. Empty clears the rows; a
+// malformed blob is dropped so persist never holds one the layer would reject.
+static bool handle_radar_sky(DictionaryIterator *iterator, bool *radar_dirty) {
+    Tuple *tuple = dict_find(iterator, MESSAGE_KEY_RADAR_SKY_UINT8);
+    if (!tuple) { return false; }
+    if (tuple->type != TUPLE_BYTE_ARRAY) { return true; }
+    if (tuple->length == 0) {
+        *radar_dirty |= persist_set_radar_sky(NULL, 0);
+        return true;
+    }
+    if (tuple->length > RADAR_SKY_MAX_BYTES
+            || radar_sky_count(tuple->value->data, (int) tuple->length) == 0) {
+        APP_LOG(APP_LOG_LEVEL_WARNING, "Radar sky blob malformed (%u bytes) — skipping",
+                (unsigned) tuple->length);
+        return true;
+    }
+    *radar_dirty |= persist_set_radar_sky(tuple->value->data, tuple->length);
     return true;
 }
 
@@ -584,6 +607,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     // aplite has no radar layer (--gc-sections reaps rain_radar_layer.c), so it
     // ignores inbound radar payloads; the whole radar persist surface drops too.
     handled |= handle_rain_radar(iterator, &radar_dirty);
+    handled |= handle_radar_sky(iterator, &radar_dirty);
     // The no-rain text repaints via the same radar_dirty checkpoint below
     // (rain_radar_layer_refresh), so an open radar view redraws on save.
     handled |= handle_norain_text(iterator, &radar_dirty);

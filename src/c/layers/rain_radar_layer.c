@@ -10,6 +10,8 @@
 #include "c/appendix/display_width.h"
 #include "c/appendix/chart.h"
 #include "c/appendix/theme.h"
+#include "c/appendix/chart_stripe.h"
+#include "c/appendix/radar_sky.h"
 
 // Layout constants. The axis area sits above the bar plot. Hour labels
 // share a single vertical strip with the tick row: at hour-aligned slot
@@ -263,6 +265,79 @@ static void radar_area_bars_layer(const ChartRender *r, void *user) {
                          c->area_tenths, c->exact_tenths);
 }
 
+#if defined(WW_RAIN_RADAR)
+// The sky rows' colours: fixed per polarity (they are not user-pickable).
+// Cloud matches the forecast's cloud-cover built-in, sun is yellow, and the
+// lightning bolt is yellow/orange over a background halo. B&W: the stripes
+// dither in theme_fg() (chart_stripe_fill_cell ignores the colour there) and
+// the bolt is theme_fg().
+#define RADAR_SKY_CLOUD_COLOR theme_pick(theme_is_light() ? GColorLiberty : GColorBabyBlueEyes, theme_fg())
+#define RADAR_SKY_SUN_COLOR   theme_pick(theme_is_light() ? GColorChromeYellow : GColorYellow, theme_fg())
+#define RADAR_SKY_BOLT_COLOR  theme_pick(theme_is_light() ? GColorOrange : GColorYellow, theme_fg())
+
+// Stripe height for the sky rows: 4 px on a roomy plot, 3 px otherwise (the
+// compact top band's plot is only ~18 px, and the bars must keep most of it).
+static inline int radar_sky_stripe_h(int plot_h) {
+    return plot_h >= 40 ? 4 : 3;
+}
+
+// The sky band under the axis: cloud row, 1 px gap, sun row, then a 1 px gap
+// before the bars. Zero when there is no sky to draw.
+static inline int radar_sky_band_h(int sky_n, int plot_h) {
+    return sky_n > 0 ? 2 * radar_sky_stripe_h(plot_h) + 2 : 0;
+}
+
+// Draw the sky rows into `band` (x from the radar's slot grid, placed by time
+// against the persisted radar start), then the lightning bolts over them.
+static void draw_radar_sky(GContext *ctx, GRect band, int plot_h, const uint8_t *sky,
+                           int sky_n, time_t radar_start, int anchor, int pitch) {
+    const int h = radar_sky_stripe_h(plot_h);
+    const int x_min = anchor;
+    const int x_max = anchor + RADAR_NUM_SLOTS * pitch;
+    const int32_t start = radar_sky_start(sky);
+    for (int k = 0; k < sky_n; ++k) {
+        const int32_t t0 = start + k * RADAR_SKY_SLOT_SECONDS;
+        int x0 = radar_sky_x(t0, (int32_t)radar_start, anchor, pitch, RADAR_SLOT_SECONDS);
+        int x1 = radar_sky_x(t0 + RADAR_SKY_SLOT_SECONDS, (int32_t)radar_start, anchor, pitch,
+                             RADAR_SLOT_SECONDS);
+        if (x0 < x_min) { x0 = x_min; }
+        if (x1 > x_max) { x1 = x_max; }
+        if (x1 <= x0) { continue; }
+        chart_stripe_fill_cell(ctx, GRect(x0, band.origin.y, x1 - x0, h),
+                               RADAR_SKY_CLOUD_COLOR,
+                               chart_stripe_level(radar_sky_cloud(sky, k), 0, 250));
+        chart_stripe_fill_cell(ctx, GRect(x0, band.origin.y + h + 1, x1 - x0, h),
+                               RADAR_SKY_SUN_COLOR,
+                               chart_stripe_level(radar_sky_sun(sky, k), 0, 250));
+    }
+    // Bolts over both rows, centred on their 15-min slot (and vertically on the
+    // two rows): a 1 px background halo first, so the bolt reads over a sunny
+    // or cloudy row alike, then the glyph.
+    const int rows_h = 2 * h + 1;
+    const int by = band.origin.y + (rows_h - RADAR_BOLT_H) / 2;
+    for (int k = 0; k < sky_n; ++k) {
+        if (!radar_sky_lightning(sky, k)) { continue; }
+        const int32_t t0 = start + k * RADAR_SKY_SLOT_SECONDS;
+        const int xa = radar_sky_x(t0, (int32_t)radar_start, anchor, pitch, RADAR_SLOT_SECONDS);
+        const int xb = radar_sky_x(t0 + RADAR_SKY_SLOT_SECONDS, (int32_t)radar_start, anchor,
+                                   pitch, RADAR_SLOT_SECONDS);
+        const int bx = (xa + xb) / 2 - RADAR_BOLT_W / 2;
+        if (bx < x_min || bx + RADAR_BOLT_W > x_max) { continue; }
+        for (int pass = 0; pass < 2; ++pass) {
+            graphics_context_set_fill_color(ctx, pass == 0 ? theme_bg() : RADAR_SKY_BOLT_COLOR);
+            for (int y = 0; y < RADAR_BOLT_H; ++y) {
+                for (int x = 0; x < RADAR_BOLT_W; ++x) {
+                    if (!radar_bolt_on(x, y)) { continue; }
+                    graphics_fill_rect(ctx, pass == 0
+                        ? GRect(bx + x - 1, by + y - 1, 3, 3)
+                        : GRect(bx + x, by + y, 1, 1), 0, GCornerNone);
+                }
+            }
+        }
+    }
+}
+#endif
+
 static void radar_update_proc(Layer *layer, GContext *ctx) {
     MEMORY_LOG_HEAP("radar_update:enter");
     GRect bounds = layer_get_bounds(layer);
@@ -274,10 +349,21 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
     persist_get_rain_radar_trend_area(area_tenths, RADAR_NUM_SLOTS);
 
     const int axis_h = radar_axis_h();
-    const GRect outer = GRect(bounds.origin.x,
-                              bounds.origin.y + axis_h,
-                              bounds.size.w,
-                              bounds.size.h - axis_h);
+    const GRect axis_outer = GRect(bounds.origin.x,
+                                   bounds.origin.y + axis_h,
+                                   bounds.size.w,
+                                   bounds.size.h - axis_h);
+    // The sky rows (radar_sky.h) take a band straight under the axis; the bars
+    // keep the rest of the plot. No sky persisted = no band, the plain radar.
+#if defined(WW_RAIN_RADAR)
+    static uint8_t sky[RADAR_SKY_MAX_BYTES];
+    const int sky_n = radar_sky_count(sky, persist_get_radar_sky(sky, sizeof(sky)));
+    const int sky_band = radar_sky_band_h(sky_n, axis_outer.size.h);
+#else
+    const int sky_band = 0;
+#endif
+    const GRect outer = GRect(axis_outer.origin.x, axis_outer.origin.y + sky_band,
+                              axis_outer.size.w, axis_outer.size.h - sky_band);
 
     // Module-static scratch (not stack): aplite's small app stack overflows
     // otherwise (PC=0/LR=0). Safe — single layer instance, single-threaded,
@@ -294,11 +380,24 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
     int radar_num_stops = 0;
     const ChartColorStop *radar_stops = palette_radar_stops(&radar_num_stops);
 
-    const ChartLayer layers[] = {
+    // The axis hangs off the top of the whole plot (above the sky band); the
+    // bars fill `outer`, below the band. Same slot grid either way.
+    const ChartLayer axis_layers[] = {
         { CHART_LAYER_AXIS, .axis = {
               .side = GRAPH_SIDE_TOP, .style = radar_tick_style(),
               .slots = axis_slots,
               .label_align = ALIGN_START, .tick_align = ALIGN_START } },
+    };
+    chart_draw(ctx, &RADAR_DEF, axis_outer, axis_layers, 1);
+#if defined(WW_RAIN_RADAR)
+    if (sky_band > 0 && persist_get_rain_radar_start() > 0) {
+        draw_radar_sky(ctx, GRect(axis_outer.origin.x, axis_outer.origin.y,
+                                  axis_outer.size.w, sky_band),
+                       axis_outer.size.h, sky, sky_n, persist_get_rain_radar_start(),
+                       axis_outer.origin.x, chart_def_pitch(&RADAR_DEF));
+    }
+#endif
+    const ChartLayer layers[] = {
         { CHART_LAYER_CUSTOM, .custom = { radar_area_bars_layer, &area_ctx } },
         { CHART_LAYER_BARS, .bars = {
               .values = exact_pm, .count = RADAR_NUM_SLOTS, .lo = 0, .hi = 1000,

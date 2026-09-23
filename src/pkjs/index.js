@@ -5,6 +5,7 @@ require('./polyfills.js');
 
 var radarFactory = require('./weather/radar-factory.js');
 var radarWire = require('./weather/radar-wire.js');
+var radarSky = require('./weather/radar-sky.js');
 var runFetchCycle = require('./weather/fetch-orchestrator.js').runFetchCycle;
 var notices = require('./notices.js');
 var forecastSeries = require('./forecast-series.js');
@@ -234,6 +235,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
 
     var oldRadarProvider = app.settings ? app.settings.radarProvider : undefined;
     var oldRadarMode = app.settings ? app.settings.radarMode : undefined;
+    var oldRadarSky = app.settings ? Boolean(app.settings.radarSky) : undefined;
     // Capture the render-affecting settings before they're overwritten below so we can
     // detect a change and force a resend. Colours are NOT here — rain/radar, graph lines
     // and fill, the theme itself: they ride the Clay message and the watch persists
@@ -300,8 +302,10 @@ Pebble.addEventListener('webviewclosed', function(e) {
     // this handler only captures the facts and performs the effects.
     var decision = decideConfigClose({
         providerOrLocationChanged: providerOrLocationChanged,
+        // The sky rows ride the radar fetch, so their toggle counts as a radar change.
         radarProviderChanged: oldRadarProvider !== app.settings.radarProvider
-            || oldRadarMode !== app.settings.radarMode,
+            || oldRadarMode !== app.settings.radarMode
+            || oldRadarSky !== Boolean(app.settings.radarSky),
         renderSettingsChanged: prevRender !== renderSignature(app.settings),
         fetchToggle: app.settings.fetch === true,
         acked: acked,
@@ -857,7 +861,29 @@ function withRainRadarTuplesAt(lat, lon, callback) {
             tomorrowioApiKey: (app.settings && app.settings.tomorrowioApiKey) || ''
         }
     );
-    source.fetchRadarTuplesAt(lat, lon, radarWire.slotZeroEpochFor(Date.now()), callback);
+    var slotZeroEpoch = radarWire.slotZeroEpochFor(Date.now());
+    source.fetchRadarTuplesAt(lat, lon, slotZeroEpoch, function (radarTuples) {
+        withRadarSkyTupleAt(lat, lon, slotZeroEpoch, radarTuples, callback);
+    });
+}
+
+/**
+ * Fetch the radar's sky rows (radar-sky.js) and merge them into this cycle's
+ * radar answer. Its own outbox category, so a sky answer rides the send even
+ * when the radar's own answer was transient (null) or is deduped out.
+ * @param {number} lat Latitude.
+ * @param {number} lon Longitude.
+ * @param {number} slotZeroEpoch The radar's 5-min pinned slot-0 epoch.
+ * @param {?Object} radarTuples This cycle's radar tuples, or null.
+ * @param {Function} callback Receives the merged tuples, or null when neither answered.
+ * @returns {void}
+ */
+function withRadarSkyTupleAt(lat, lon, slotZeroEpoch, radarTuples, callback) {
+    radarSky.createSkySource(radarSky.skySourceIdFor(app.settings))
+        .fetchSkyTupleAt(lat, lon, slotZeroEpoch, function (skyTuple) {
+            if (!skyTuple) { callback(radarTuples); return; }
+            callback(Object.assign({}, radarTuples || {}, skyTuple));
+        });
 }
 
 /**

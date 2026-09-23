@@ -70,6 +70,14 @@ bool persist_set_rain_radar_trend_area(uint8_t *data, const size_t size);
 
 bool persist_set_rain_radar_start(time_t val);
 
+#if defined(WW_RAIN_RADAR)
+// The radar's sky rows: the RADAR_SKY_UINT8 blob verbatim (layout in
+// radar_sky.h). Get returns the byte count (0 = no sky); set with size 0
+// deletes the slot. Radar-only, so aplite declares them away.
+int  persist_get_radar_sky(uint8_t *buffer, size_t buffer_size);
+bool persist_set_radar_sky(const uint8_t *data, size_t size);
+#endif
+
 int  persist_get_bar_palette(uint8_t *buffer, const size_t buffer_size);
 bool persist_set_bar_palette(uint8_t *data, const size_t size);
 int  persist_get_radar_palette(uint8_t *buffer, const size_t buffer_size);

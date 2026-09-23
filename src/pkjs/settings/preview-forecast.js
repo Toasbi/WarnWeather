@@ -38,6 +38,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     // The canonical converter, not a local copy: config-ui/lib/color.js is the page
     // bundle's single-source int<->hex and is concatenated ahead of every app file
     // (build-page.js emits LIB_PAGE_FILES first), so PConf.color is always there.
+    var previewStripe = (typeof require !== 'undefined')
+        ? require('./preview-stripe.js') : window.PreviewStripe;
     var hexColor = (typeof require !== 'undefined')
         ? require('../config-ui/lib/color.js').intToHex : PConf.color.intToHex;
 
@@ -526,65 +528,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             var y = metricY(m, i, true);
             if (y === null) { return 0; }
             var b = Math.round((PB - y) / (PB - PT - 3) * 250);
-            return b <= 0 ? 0 : Math.min(4, Math.floor((b * 4 + 249) / 250));
+            return previewStripe.levelOfByte(b);
         }
-        /**
-         * The stripe colour for one level: each 2-bit Pebble channel blended from
-         * the background toward the line colour in quarter steps, rounded half away
-         * from the background — chart.c's chart_stripe_blend.
-         * @param {string} bgHex Background '#RRGGBB'.
-         * @param {string} fgHex Line colour '#RRGGBB'.
-         * @param {number} level 1..4.
-         * @returns {string} '#RRGGBB'.
-         */
-        function stripeBlend(bgHex, fgHex, level) {
-            var out = '#', sh, b, c, d, v, hx;
-            for (sh = 16; sh >= 0; sh -= 8) {
-                b = (parseInt(bgHex.slice(1), 16) >> sh & 0xFF) >> 6;
-                c = (parseInt(fgHex.slice(1), 16) >> sh & 0xFF) >> 6;
-                d = (c - b) * level;
-                v = b + (d >= 0 ? Math.floor((d + 2) / 4) : -Math.floor((-d + 2) / 4));
-                hx = (v * 0x55).toString(16).toUpperCase();
-                out += hx.length < 2 ? '0' + hx : hx;
-            }
-            return out;
-        }
-        // chart_stripe.h's colour pattern, mirrored: the tint level under each pattern
-        // level, and the column test for the full-colour vertical lines on top.
-        var STRIPE_TINT = [0, 0, 1, 2, 4];
-        var STRIPE_EVERY = [0, 5, 3, 2, 1];
-        /**
-         * Whether watch pixel column px carries a full-colour line at this level —
-         * chart_stripe_line_on: every 5th, 3rd, 2nd column, then solid.
-         * @param {number} level 1..4.
-         * @param {number} px Watch pixel column.
-         * @returns {boolean} True when the column is lined.
-         */
-        function stripeLineOn(level, px) {
-            if (level >= 4) { return true; }
-            return px % STRIPE_EVERY[level] === 0;
-        }
-        /**
-         * One colour stripe cell: the pale tint, then the full-colour vertical lines —
-         * chart_render_stripe's colour arm. One watch pixel column = 2 preview units.
-         * @param {number} x Cell left.
-         * @param {number} y Cell top.
-         * @param {number} w Cell width.
-         * @param {number} h Cell height.
-         * @param {string} color Line colour (hex).
-         * @param {number} level 1..4.
-         * @returns {string} SVG markup.
-         */
-        function stripeColorCell(x, y, w, h, color, level) {
-            var out = rect(x, y, w, h, stripeBlend(ink.bg, color, STRIPE_TINT[level]));
-            if (level >= 4) { return out; }
-            for (var px = Math.ceil(x / 2); px * 2 < x + w; px += 1) {
-                if (stripeLineOn(level, px)) {
-                    out += rect(px * 2, y, Math.min(2, x + w - px * 2), h, color);
-                }
-            }
-            return out;
-        }
+        // The cell look itself (tint + lines on colour, dither on B&W) is shared with
+        // the radar preview's sky rows: preview-stripe.js, chart_stripe_fill_cell's mirror.
         /**
          * One metric as a stripe of hourly cells: along the plot's top edge, or in the
          * band below its zero line (stacked downward from a 1-unit gap).
@@ -606,8 +553,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             for (var i = 0; i < n - 1; i += 1) {
                 var level = stripeLevel(m, i);
                 if (!level) { continue; }
-                out += isColor ? stripeColorCell(tickX(i), y, pitch, STRIPE_H, color, level)
-                    : rect(tickX(i), y, pitch, STRIPE_H, 'url(#sd' + level + ')');
+                out += previewStripe.cell(isColor, tickX(i), y, pitch, STRIPE_H, color, level,
+                    ink.bg, 'sd');
             }
             return out;
         }
@@ -708,8 +655,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                 } else if (en.kind === 'stripe') {
                     // The ramp itself, weakest to strongest: what the cells mean.
                     for (var sl = 1; sl <= 4; sl += 1) {
-                        out += isColor ? stripeColorCell(ex + (sl - 1) * 3, gy - 2, 3, 4, en.color, sl)
-                            : rect(ex + (sl - 1) * 3, gy - 2, 3, 4, 'url(#sd' + sl + ')');
+                        out += previewStripe.cell(isColor, ex + (sl - 1) * 3, gy - 2, 3, 4,
+                            en.color, sl, ink.bg, 'sd');
                     }
                 } else if (isColor && state.rainBarColor !== 'white') {
                     for (var k = 0; k < P.rainTiers.length; k += 1) {
@@ -740,18 +687,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                 if (LINES[k].on && isStripe(LINES[k].style)) { used = true; }
             }
             if (isColor || !used) { return ''; }
-            var CELLS = [[[0, 0]], [[0, 0], [1, 1]], [[0, 0], [1, 0], [0, 1]],
-                [[0, 0], [1, 0], [0, 1], [1, 1]]];
-            var out = '', l, c;
-            for (l = 0; l < CELLS.length; l += 1) {
-                out += '<pattern id="sd' + (l + 1) + '" width="2" height="2" patternUnits="userSpaceOnUse">';
-                for (c = 0; c < CELLS[l].length; c += 1) {
-                    out += '<rect x="' + CELLS[l][c][0] + '" y="' + CELLS[l][c][1]
-                        + '" width="1" height="1" fill="' + ink.fg + '" shape-rendering="crispEdges"></rect>';
-                }
-                out += '</pattern>';
-            }
-            return out;
+            return previewStripe.ditherDefs(ink.fg, 'sd');
         }
 
         // The night clip is the one conditional def: it exists only when there is a tint

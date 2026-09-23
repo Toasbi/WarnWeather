@@ -145,6 +145,15 @@ function buildHeaviestBundle(platform) {
   payload.RAIN_RADAR_TREND_UINT8 = range.map(function() { return 7; });
   payload.RAIN_RADAR_TREND_AREA_UINT8 = range.map(function() { return 7; });
   payload.RAIN_RADAR_START = 1700000000;
+  // The radar's sky rows (radar-sky.js packSky: 5 B header + 9 cloud + 9 sun +
+  // 2 B lightning mask). Never sent to aplite: index.js skips the whole radar
+  // step there (no WW_RAIN_RADAR).
+  if ((platform || 'emery') !== 'aplite') {
+    payload.RADAR_SKY_UINT8 = require('../src/pkjs/weather/radar-sky.js').packSky({
+      start: 1700000000, clouds: Array(9).fill(250), suns: Array(9).fill(250),
+      bolts: Array(9).fill(true)
+    });
+  }
 
   // Sleep state rides in the same bundle.
   payload.IS_SLEEPING = false;
@@ -201,7 +210,9 @@ test('weather bundle keeps explicit headroom below the watch inbox', () => {
   // 7 B tuple header + 24 B trend), with inbox_size split per platform: 600 B
   // off aplite (headroom 56 B), aplite unchanged at 536 B (it never gets the
   // line — see the aplite test above).
-  assert.equal(size, 544, 'update the recorded realistic bundle size when its wire contract changes');
+  // 544 -> 576 when the radar's sky rows joined (RADAR_SKY_UINT8: 7 B tuple
+  // header + 25 B blob). Headroom 56 -> 24 B. Never sent to aplite.
+  assert.equal(size, 576, 'update the recorded realistic bundle size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });
 

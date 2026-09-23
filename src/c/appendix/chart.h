@@ -229,3 +229,9 @@ typedef struct {
 
 void chart_draw(GContext *ctx, const ChartDef *def, GRect outer,
                 const ChartLayer *layers, int num_layers);
+
+#if defined(WW_LINE_STYLE) || defined(WW_RAIN_RADAR)
+// One stripe cell at `level` (0..4, chart_stripe.h — 0 draws nothing): the
+// shared look of the forecast's stripe style and the radar's sky rows.
+void chart_stripe_fill_cell(GContext *ctx, GRect cell, GColor color, int level);
+#endif

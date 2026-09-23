@@ -94,7 +94,11 @@ enum key {
     // length is what existing installs have on flash.
     FIFTH_LINE_TREND,             // 52 — uint8 trend bytes, absent = line off
     FIFTH_LINE_COLOR,             // 53 — GColor8 argb byte, absent = theme foreground
-    FIFTH_LINE_STYLE              // 54 — 1 style byte (persist.h layout), absent = top stripe
+    FIFTH_LINE_STYLE,             // 54 — 1 style byte (persist.h layout), absent = top stripe
+    // Appended: the radar's sky rows (RADAR_SKY_UINT8, layout in radar_sky.h),
+    // stored verbatim. Radar-only (WW_RAIN_RADAR), so aplite never reads or
+    // writes it, but the ID stays listed on every platform (append-only enum).
+    RADAR_SKY                     // 55 — <= RADAR_SKY_MAX_BYTES, absent = no sky rows
 };
 
 // Setters report whether the stored value actually changed so callers can
@@ -486,6 +490,23 @@ int persist_get_norain_text(char *buffer, size_t buffer_size) {
     buffer[buffer_size - 1] = '\0';  // guarantee termination
     return (int) strlen(buffer);
 }
+
+#if defined(WW_RAIN_RADAR)
+int persist_get_radar_sky(uint8_t *buffer, size_t buffer_size) {
+    if (!persist_exists(RADAR_SKY)) { return 0; }
+    const int n = persist_read_data(RADAR_SKY, buffer, buffer_size);
+    return n > 0 ? n : 0;
+}
+
+bool persist_set_radar_sky(const uint8_t *data, size_t size) {
+    if (size == 0) {
+        if (!persist_exists(RADAR_SKY)) { return false; }
+        persist_delete(RADAR_SKY);
+        return true;
+    }
+    return write_sized_data_if_changed(RADAR_SKY, data, size);
+}
+#endif
 
 time_t persist_get_rain_radar_start() {
     return (time_t) persist_read_int(RAIN_RADAR_START);

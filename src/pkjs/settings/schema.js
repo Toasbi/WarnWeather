@@ -1733,6 +1733,16 @@ module.exports = {
                 options: [['Multicolor', 'multicolor'], ['Solid', 'white']],
                 showWhen: {all: [{key: 'radarMode', eq: 'graph'}, COLOR_THEME_WHEN]}
             }, {
+                // The radar's sky rows (radar-sky.js): an extra Open-Meteo request per
+                // fetch, so opt-in. Only the radar GRAPH draws them, like the no-rain
+                // text below; index.js clears them whenever the graph is not shown.
+                type: 'toggle',
+                messageKey: 'radarSky',
+                label: 'Clouds, sun & lightning',
+                defaultValue: false,
+                hint: 'Adds two thin stripes under the radar\'s time axis: cloud cover and sunshine for the next two hours, with a lightning bolt where thunderstorms are expected. Uses Open-Meteo, whatever the radar source.',
+                showWhen: {key: 'radarMode', eq: 'graph'}
+            }, {
                 // Custom quiet-state text: drawn in the radar GRAPH when the nowcast
                 // finds no rain in the whole window. Ships visibly with the watch's
                 // built-in default so users override the actual message. The UI

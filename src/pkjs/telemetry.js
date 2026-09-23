@@ -209,6 +209,7 @@ function buildSettingsSnapshot(settings, watchInfo) {
         radarProvider: safe.radarProvider,
         radarMode: safe.radarMode || 'graph',
         radarColor: safe.radarColor,
+        radarSky: Boolean(safe.radarSky),
         devStatsEnabled: Boolean(safe.devStatsEnabled),
         theme: safe.theme,
         statusForecastLeft: safe.statusForecastLeft,

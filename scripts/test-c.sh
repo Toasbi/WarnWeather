@@ -145,3 +145,7 @@ build/host/chart_absent_test
 # preview's stripe pins in test/config-blocks.test.js.
 cc $CFLAGS test/c/chart_stripe_test.c -o build/host/chart_stripe_test
 build/host/chart_stripe_test
+# The radar sky blob decode + bolt glyph (radar_sky.h, header-only), mirrored
+# against radar-sky.js's packSky pin in test/radar-sky.test.js.
+cc $CFLAGS test/c/radar_sky_test.c -o build/host/radar_sky_test
+build/host/radar_sky_test

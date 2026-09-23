@@ -74,7 +74,7 @@ const EXPECTED_KEYS = [
   'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','feelsFormula','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','secondaryLineStyle','windScale','pressureScale','thirdLine','thirdLineStyle','fourthLine','fourthLineStyle','fifthLine','fifthLineStyle','tempSlotDisplay',
   'tempSlotSeparator','tempSlotSeparatorCustom','tempSlotSeparatorSpaced','tempSlotOrder',
   'dateSlotMonthFormat','dateSlotFullFormat',
-  'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','radarNoRainText','rainCountdownHorizon',
+  'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','radarSky','radarNoRainText','rainCountdownHorizon',
   'layoutPreset','largeGraphFont','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab','devStatsEnabled','devStatsClear','reset',
   // Custom-layout storage (sheetOnly section; see customViewItems in schema.js).
   'viewCount','customLayoutSeeded',
@@ -390,8 +390,9 @@ test('radarNoRainText: visible default, 24-char UI cap, graph-only', () => {
   const radarItems = schema.tabs.find((t) => t.id === 'radar').sections[0].items;
   const idx = radarItems.indexOf(item);
   assert.ok(idx !== -1, 'lives in the Radar tab');
-  assert.equal(radarItems[idx - 1].messageKey, 'radarColor',
-    'follows the radar appearance settings, not mid-provider-config');
+  assert.equal(radarItems[idx - 1].messageKey, 'radarSky',
+    'follows the radar appearance settings (colour, sky rows), not mid-provider-config');
+  assert.equal(radarItems[idx - 2].messageKey, 'radarColor');
   // End-to-end through the real renderer: the maxlength attribute and the
   // visible default both land on the <input>.
   const eng = require('../src/pkjs/config-ui/lib/engine.js');

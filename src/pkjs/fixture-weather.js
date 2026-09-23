@@ -10,6 +10,7 @@ var forecastSeries = require('./forecast-series.js');
 var wireUnits = require('./wire-units.js');
 var paletteWire = require('./weather/palette-wire.js');
 var lineStyle = require('./line-style.js');
+var radarSky = require('./weather/radar-sky.js');
 
 /**
  * Convert a fixture weather object into the real watch weather AppMessage payload.
@@ -130,11 +131,28 @@ function getFixtureRadarTuples(fixture) {
     } else {
         radarStart = Math.floor(Date.now() / 1000);
     }
-    return {
+    var tuples = {
         RAIN_RADAR_TREND_UINT8: weather.rainRadarExactMm.map(toTenths),
         RAIN_RADAR_TREND_AREA_UINT8: weather.rainRadarAreaMm.map(toTenths),
         RAIN_RADAR_START: radarStart
     };
+    // Optional sky rows (radar-sky.js): weather.sky = { cloudPct, sunPct, lightning },
+    // one entry per 15-min slot from the quarter-hour holding the radar start.
+    var sky = weather.sky;
+    if (sky && Array.isArray(sky.cloudPct) && Array.isArray(sky.sunPct)) {
+        var pctToByte = function(p) {
+            return Math.max(0, Math.min(radarSky.FULL_SCALE, Math.round((p || 0) * radarSky.FULL_SCALE / 100)));
+        };
+        tuples.RADAR_SKY_UINT8 = radarSky.packSky({
+            start: radarSky.skyStartFor(radarStart),
+            clouds: sky.cloudPct.map(pctToByte),
+            suns: sky.sunPct.map(pctToByte),
+            bolts: sky.cloudPct.map(function(_, k) {
+                return Array.isArray(sky.lightning) && Boolean(sky.lightning[k]);
+            })
+        });
+    }
+    return tuples;
 }
 
 /**

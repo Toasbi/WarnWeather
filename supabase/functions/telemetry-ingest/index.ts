@@ -149,6 +149,7 @@ const settingsSchema = z
     radarProvider: z.string().optional(),
     radarMode: z.enum(['off', 'countdown', 'status', 'graph']).optional(),
     radarColor: z.string().optional(),
+    radarSky: z.boolean().optional(),
     devStatsEnabled: z.boolean().optional(),
     theme: z.string().optional(),
     statusForecastLeft: z.string().optional(),

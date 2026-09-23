@@ -104,7 +104,8 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   platforms have heap to spare, which is why they got a bigger inbox when the fourth
   metric line (never sent to aplite) arrived. An overflow is dropped silently
   (`APP_MSG_BUFFER_OVERFLOW` → "Message dropped!"). Worst realistic case is DWD with all
-  four metric lines active and City in every status slot = 544 B of 600 B (56 B headroom);
+  four metric lines active, the radar's sky rows on and City in every status slot = 576 B
+  of 600 B (24 B headroom);
   aplite's heaviest bundle, without the lines it cannot draw, is 473 B of 536 B (see
   `test/inbox-size.test.js` — the authoritative computation, which records the bundle
   sizes exactly per platform; keep them in sync). That headroom was 10 B until the settings-derived
