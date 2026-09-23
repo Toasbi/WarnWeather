@@ -72,8 +72,10 @@ PLATFORM_MACRO = {'basalt': 'PBL_PLATFORM_BASALT', 'emery': 'PBL_PLATFORM_EMERY'
 # design width; less is under the 2-bit alpha's half step, which the strip could not show anyway.
 # Round strokes -- a bowl's side between its outer and inner extremes, the round top of a '0' --
 # are rounded the same way and restored the same way. A straight edge no stroke claims (a bar's
-# end, a terminal's cut) is snapped to the nearest pixel, and each glyph is placed by its ink
-# centroid, so the gaps between digits stay the design's to within half a pixel.
+# end, a terminal's cut) is snapped to the nearest pixel -- inward when it is the glyph's own top
+# or bottom, so no flat edge fills a row the other digits reach only with overshoot -- and each
+# glyph is placed by its ink centroid, so the gaps between digits stay the design's to within
+# half a pixel.
 HINT_FLAGS = freetype.FT_LOAD_TARGET_MONO | freetype.FT_LOAD_FORCE_AUTOHINT | freetype.FT_LOAD_NO_BITMAP
 DESIGN_FLAGS = freetype.FT_LOAD_NO_HINTING | freetype.FT_LOAD_NO_BITMAP
 SLIVER = 10     # 26.6 units, ~1/6 px
@@ -391,13 +393,19 @@ def fit_glyph(face, ch):
     moves = restored_widths(U, H, strokes)
     # A straight edge no stroke claims -- a bar's end, a terminal's cut -- is a weak edge to the
     # hinter, left wherever its neighbours put it, often between pixels: snap it to the nearest
-    # pixel so it draws crisp. (Nearest never reaches a new row or column: the ink box holds.)
+    # pixel so it draws crisp. A horizontal one that is the glyph's own top or bottom snaps
+    # inward instead: rounding it out would fill a solid row that the other digits reach only
+    # with a round's faint overshoot (Emery Roboto's '6' terminal stood a pixel above every
+    # other digit in a B&W theme).
     paired = set(id(e) for _k, a, b in strokes for e in (a, b))
+    ylo, yhi = min(p[1] for p in H), max(p[1] for p in H)
     for e in edges:
         at = set(H[i][e['k']] for i in e['idx'])
         if id(e) not in paired and len(at) == 1:
             h = at.pop()
-            moves[id(e)] = (h + 32) // 64 * 64 - h
+            top, bottom = e['k'] == 1 and h >= yhi, e['k'] == 1 and h <= ylo
+            snapped = h // 64 * 64 if top else -(-h // 64) * 64 if bottom else (h + 32) // 64 * 64
+            moves[id(e)] = snapped - h
     for k in (0, 1):
         # every straight edge, round extreme and corner moves by its stroke's correction (most by
         # none): they anchor the interpolation of the points between them
