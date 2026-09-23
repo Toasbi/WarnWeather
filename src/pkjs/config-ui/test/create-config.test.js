@@ -32,6 +32,20 @@ test("parseResponse: a blank color value survives as the '' sentinel, not NaN/nu
   assert.equal(JSON.parse(JSON.stringify(blob)).tint, '');
 });
 
+test('parseResponse: a response the host already decoded is not decoded again', () => {
+  // Core Devices' Pebble app decodes the pebblejs://close# fragment before firing
+  // webviewclosed; a second decode threw on a lone '%' and rewrote '%41' to 'A'.
+  const inst = configUi.createConfig({ schema: SCHEMA, page: PAGE });
+  const sent = { provider: 'owm', tint: '#0055AA', radarNoRainText: 'Rain 0%', sep: '%41' };
+  const decoded = inst.parseResponse(JSON.stringify(sent));
+  assert.equal(decoded.radarNoRainText, 'Rain 0%');
+  assert.equal(decoded.sep, '%41');
+  assert.equal(decoded.tint, 0x0055AA);
+  // The raw (still encoded) shape the page sends keeps decoding exactly once.
+  const encoded = inst.parseResponse(encodeURIComponent(JSON.stringify(sent)));
+  assert.deepEqual(encoded, decoded);
+});
+
 test('generateUrl: data URL, colors int->hex, env from watchInfo, markers handled', () => {
   const inst = configUi.createConfig({ schema: SCHEMA, page: PAGE });
   const url = inst.generateUrl({ values: inst.getDefaults(), watchInfo: { platform: 'basalt' }, userData: {} });

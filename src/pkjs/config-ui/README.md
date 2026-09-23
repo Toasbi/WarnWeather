@@ -580,7 +580,9 @@ no changes:
 - `getSettings(responseStr)` — parses the `webviewclosed` response, persists to
   `options.storageKey` (default `'clay-settings'`), and returns the blob — like `clay.getSettings`.
   Note: Clay's second "auto-send" argument is intentionally absent; the library never sends
-  AppMessages; the app owns that.
+  AppMessages; the app owns that. Like Clay, `parseResponse` accepts the response either still
+  URI-encoded or already decoded by the host (a leading `{` means decoded), so a `%` in user
+  text survives hosts that decode the `pebblejs://close#` fragment themselves.
 - `setSettings(key, value)` / `setSettings(object)` — read-modify-write the stored blob.
 - `meta.userData` — a mutable object the app populates before calling `generateUrl()`.
 

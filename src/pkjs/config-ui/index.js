@@ -41,7 +41,13 @@ function createConfig(cfg) {
   function getDefaults() { return defaults.deriveDefaults(schema); }   // colors as ints
 
   function parseResponse(responseStr) {                  // raw response -> blob (colors hex->int)
-    var raw = JSON.parse(decodeURIComponent(responseStr)), out = {}, k;
+    // Clay's guard: some hosts hand webviewclosed an already-decoded response (Core
+    // Devices' app runs decodeURLPart on the pebblejs://close# fragment). Decoding that
+    // again throws on a lone '%' ("Rain 0%") -- the whole save is lost -- or silently
+    // rewrites a '%41' in user text. The page's encoded blob always starts '%7B', the
+    // decoded one '{', so the check cannot misfire.
+    var json = /^\s*\{/.test(responseStr) ? responseStr : decodeURIComponent(responseStr);
+    var raw = JSON.parse(json), out = {}, k;
     for (k in raw) { if (Object.prototype.hasOwnProperty.call(raw, k)) {
       // '' passes through: it is an app-level "no color" sentinel, and
       // hexToInt('') is NaN — which JSON persistence would turn into null.
