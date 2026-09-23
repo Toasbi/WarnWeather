@@ -1879,6 +1879,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // (translateY) and closes past a threshold; a shorter drag snaps back.
       var dragY = null, dragging = false;
       modal.addEventListener('touchstart', function (e) {
+        // A date wheel must not settle (and re-render) under a finger that is still down.
+        dateWiring.onModalTouch(e);
         // A touch that lands on a slider is a value adjustment, never a sheet
         // dismissal — arming here would drag the whole sheet along with every
         // slightly-diagonal thumb gesture (and close it past the threshold). Same
@@ -1908,12 +1910,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         modal.style.transform = 'translateY(' + dy + 'px)';
       }, { passive: false });
       modal.addEventListener('touchend', function (e) {
+        dateWiring.onModalTouch(e);   // the release re-arms a wheel's held-back settle
         if (dragY != null && dragging) {
           if (e.changedTouches[0].clientY - dragY > 90) { closeModal(); }
           else { modal.style.transition = 'transform .2s ease'; modal.style.transform = ''; }
         }
         dragY = null; dragging = false;
       }, { passive: true });
+      modal.addEventListener('touchcancel', dateWiring.onModalTouch, { passive: true });
       // Threshold sliders live in the edit sheet: the same shared range drag/keyboard
       // handlers (and the scale-max commit) #scroll carries must work here too.
       modal.addEventListener('focusout', rangeWiring.commitMaxEdit);
