@@ -231,10 +231,11 @@ test('buildGustUrl requests gusts + feels and avoids the derived-field-less ECMW
   // (moisture) and wind; the main call already carries the current temperature.
   assert.match(url, /&current=apparent_temperature,dew_point_2m,wind_speed_10m(&|$)/);
   assert.doesNotMatch(url, /models=ecmwf/);
-  // Two GMT days hold the graph's window; three while the gust slot shows its day
-  // max, whose window reads on to PEAK_HOURS.
+  // Two GMT days hold the graph's window; four while the gust slot shows its day
+  // max, whose window reads on to PEAK_HOURS (a fall-back day ahead of GMT needs
+  // the fourth, as UV's does).
   assert.match(url, /&forecast_days=2(&|$)/);
-  assert.match(openmeteo.buildGustUrl(52.52, 13.41, true), /&forecast_days=3(&|$)/);
+  assert.match(openmeteo.buildGustUrl(52.52, 13.41, true), /&forecast_days=4(&|$)/);
   assert.match(url, /&timeformat=unixtime(&|$)/);
   assert.match(url, /&windspeed_unit=kmh(&|$)/);
   // temperature_unit applies per-request — without it the feels come back °C.

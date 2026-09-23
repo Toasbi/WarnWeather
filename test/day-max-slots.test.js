@@ -233,3 +233,73 @@ test('only the day-max kinds a slot shows keep a record and widen their requests
   assert.match(aq.buildAqiUrl(1, 2, 'us', false), /forecast_days=2/);
   assert.match(aq.buildAqiUrl(1, 2, 'us', true), /forecast_days=4/);
 });
+
+test('a day-max pair that cannot fit the slot prints the current reading, never a cut-off peak', () => {
+  // '152/»178' is 9 bytes: the 8-byte edge slot would cut it to '152/»17'.
+  const aqi = { AQI_TREND: [152], AQI_DAY_PEAKS: [152, 178, null] };
+  assert.equal(statusLines.formatValue('aqi', aqi, settings({ aqiSlotDisplay: 'both' })), '152');
+  assert.equal(statusLines.formatValue('aqi', aqi, settings({ aqiSlotDisplay: 'both' }),
+    'statusForecastMid', catalog.CAPS.MID_TEXT_MAX), '152/»178', 'the roomy mid slot keeps it');
+  const gust = { GUST_TREND_UINT8: [105], GUST_DAY_PEAKS: [105, 120, null] };
+  assert.equal(statusLines.formatValue('gust', gust, settings({ gustSlotDisplay: 'both' })), '105kph');
+  // Every day-max text on an edge slot fits it whole.
+  [9, 99, 105, 499].forEach((now) => [10, 120, 500].forEach((peak) => ['max', 'both'].forEach((mode) => {
+    const text = statusLines.formatValue('aqi', { AQI_TREND: [now], AQI_DAY_PEAKS: [now, peak, null] },
+      settings({ aqiSlotDisplay: mode }));
+    assert.ok(Buffer.byteLength(text) <= catalog.CAPS.EDGE_TEXT_MAX, text);
+  })));
+});
+
+test('the wind day record judges a dip in the user\'s unit, not in km/h', () => {
+  Object.keys(store).forEach((k) => delete store[k]);
+  const H = 3600;
+  const start = new Date(2026, 6, 15, 12, 0, 0).getTime() / 1000;
+  // Calm until 08:00, 09:00 40 km/h, 10:00 31, 11:00 30 (31 and 30 both print 19 mph);
+  // now 12:00 31, the rest of the day's max.
+  const midnight = start - 12 * H;
+  dayPeakRecord.save(dayPeakRecord.merge(null, { id: 'dwd', lat: 49.2, lon: 7.0 },
+    new Array(9).fill(5).concat([40, 31, 30]), midnight, midnight), KEYS.WIND_DAY_RECORD_KEY);
+  const run = (windUnits) => {
+    const p = provider({ id: 'dwd', startTime: start, windUnits, dayPeakCodes: ['wind'],
+      windTrend: [31, 31, 20].concat(new Array(21).fill(10)) });
+    p.recallDayPeaks(49.2, 7.0);
+    return p.earlierPeaks.wind;
+  };
+  assert.equal(run('kph'), 0, 'in km/h 11:00\'s 30 < 31 is a dip: the 40 is another peak\'s');
+  assert.equal(run('mph'), 40, 'in mph 30 and 31 both print 19: no dip, the 40 counts');
+});
+
+test('an hour a fetch did not source keeps the value an earlier fetch stored', () => {
+  const src = { id: 'openmeteo', lat: 1, lon: 2 };
+  const t0 = new Date(2026, 6, 15, 9, 0, 0).getTime() / 1000;
+  const first = dayPeakRecord.merge(null, src, [5, 6, 7], t0, t0);
+  const failed = dayPeakRecord.merge(first, src, [null, null], t0 + 3600, t0 + 3600);
+  assert.deepEqual(failed.v, [50, 60, 70].slice(0, 1).concat([60, 70]));
+});
+
+test('wind and gust records keep to a few km; UV keeps its regional radius', () => {
+  Object.keys(store).forEach((k) => delete store[k]);
+  const p = provider({ id: 'dwd', windTrend: new Array(48).fill(10), uvTrend: new Array(48).fill(3),
+    dayPeakCodes: ['uv', 'wind'] });
+  p.recallDayPeaks(49.2, 7.0).forEach((r) => dayPeakRecord.save(r.record, r.storageKey));
+  const q = provider({ id: 'dwd', startTime: LOCAL_9AM + 3600,
+    windTrend: new Array(48).fill(10), uvTrend: new Array(48).fill(3), dayPeakCodes: ['uv', 'wind'] });
+  const records = q.recallDayPeaks(49.5, 7.0);   // ~33 km north
+  const byKey = {};
+  records.forEach((r) => { byKey[r.storageKey] = r.record; });
+  assert.equal(byKey[KEYS.UV_DAY_RECORD_KEY].t, LOCAL_9AM, 'UV: same region, the 09:00 hour kept');
+  assert.equal(byKey[KEYS.WIND_DAY_RECORD_KEY].t, LOCAL_9AM + 3600, 'wind: another place, fresh');
+});
+
+test('getPayload skips the peaks of kinds no slot shows in Day max or Both', () => {
+  const out = provider({ windTrend: new Array(48).fill(5), uvTrend: new Array(48).fill(3),
+    dayPeakCodes: ['uv'] }).getPayload();
+  assert.ok('UV_DAY_PEAKS' in out);
+  assert.equal('WIND_DAY_PEAKS' in out, false);
+  assert.equal('GUST_DAY_PEAKS' in out, false);
+});
+
+test('the catalog\'s day-max kinds and wire-units\' readers are the same list', () => {
+  catalog.DAY_MAX_KINDS.forEach((k) => assert.ok(wireUnits.isDayMaxKind(k), k));
+  assert.equal(wireUnits.dayMaxPayloadKeys().length, catalog.DAY_MAX_KINDS.length * 2);
+});

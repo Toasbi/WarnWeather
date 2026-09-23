@@ -4,6 +4,7 @@ var configUi = require('./config-ui');        // isLineStylePlatform — the WW_
 var statusLines = require('./status-lines.js');
 var statusRebake = require('./status-rebake.js');
 var statusCatalog = require('./status-line-catalog.js');
+var wireUnits = require('./wire-units.js');     // dayMaxPayloadKeys — the day-max kinds' transient keys
 var pressurePlausibility = require('./weather/pressure-plausibility.js');
 
 /**
@@ -456,10 +457,9 @@ function applyForecastSeries(payload, settings, watchInfo) {
     delete payload.WIND_TREND_UINT8;  // transient PKJS-only; never over the wire
     delete payload.GUST_TREND_UINT8;  // transient PKJS-only; never over the wire
     delete payload.UV_TREND_UINT8;    // transient PKJS-only; never over the wire
-    delete payload.UV_DAY_PEAKS;      // transient PKJS-only; baked into the UV slot's text + level, never wired
-    delete payload.WIND_DAY_PEAKS;    // transient PKJS-only; baked into the wind slot's text + level, never wired
-    delete payload.GUST_DAY_PEAKS;    // transient PKJS-only; baked into the gust slot's text + level, never wired
-    delete payload.AQI_DAY_PEAKS;     // transient PKJS-only; baked into the AQI slot's text + level, never wired
+    // The day-max kinds' *_DAY_PEAKS (and trends, deleted above too): transient
+    // PKJS-only, baked into their slots' text + level, never wired.
+    wireUnits.dayMaxPayloadKeys().forEach(function (key) { delete payload[key]; });
     delete payload.PRESSURE_TREND;    // transient PKJS-only; hPa never fit a byte, never wired
     delete payload.AQI_TREND;         // transient PKJS-only; baked into status text, never wired
     delete payload.POLLEN_TODAY;      // transient PKJS-only; baked into status text, never wired

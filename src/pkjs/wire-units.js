@@ -46,6 +46,22 @@ var DAY_MAX_READERS = {
 };
 
 /**
+ * @param {*} code A status item code.
+ * @returns {boolean} True for a day-max kind (a DAY_MAX_READERS entry).
+ */
+function isDayMaxKind(code) {
+    return typeof code === 'string' && Object.prototype.hasOwnProperty.call(DAY_MAX_READERS, code);
+}
+
+/**
+ * @param {string} code A day-max kind.
+ * @returns {string} The payload key its *_DAY_PEAKS triple rides.
+ */
+function dayMaxPeaksKey(code) {
+    return DAY_MAX_READERS[code].peaks;
+}
+
+/**
  * @returns {string[]} Every payload key dayMaxShown reads (the day-max kinds'
  *     trends and *_DAY_PEAKS) — status-lines' SOURCE_KEYS takes them from here.
  */
@@ -202,6 +218,8 @@ module.exports = {
     trendHead: trendHead,
     dayMaxShown: dayMaxShown,
     dayMaxPayloadKeys: dayMaxPayloadKeys,
+    isDayMaxKind: isDayMaxKind,
+    dayMaxPeaksKey: dayMaxPeaksKey,
     celsiusToFahrenheit: celsiusToFahrenheit,
     normalizeBearing: normalizeBearing,
     zeroFilledArray: zeroFilledArray

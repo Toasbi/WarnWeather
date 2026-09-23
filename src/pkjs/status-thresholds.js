@@ -292,7 +292,7 @@
    */
   function displayValue(code, payload, settings) {
     var s = settings || {};
-    if (code === 'aqi' || code === 'wind' || code === 'gust' || code === 'uv') {
+    if (wireUnits.isDayMaxKind(code)) {
       return todaysShown(wireUnits.dayMaxShown(code, payload, s));
     }
     if (code === 'pollen') {

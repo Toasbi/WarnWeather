@@ -34,6 +34,8 @@ var hourlyWindow = require('./hourly-window.js');
 var HOUR_SECONDS = hourlyWindow.HOUR_SECONDS;
 // Two fetches this close (degrees, on each axis — about 55 km of latitude)
 // count as the same place: a commute keeps the record, another region does not.
+// That suits UV, which is regional; a source can ask for a tighter radius
+// (source.degrees) — wind, gusts and air quality change over a few km.
 var SAME_PLACE_DEGREES = 0.5;
 
 /**
@@ -49,7 +51,8 @@ function tenths(value) {
  * the same hourly grid as this series.
  *
  * @param {*} record Stored record.
- * @param {{id: string, lat: number, lon: number}} source This fetch's source.
+ * @param {{id: string, lat: number, lon: number, degrees: number=}} source This
+ *   fetch's source; `degrees` is its same-place radius (SAME_PLACE_DEGREES when absent).
  * @param {number} startEpoch Epoch seconds of this series' entry 0.
  * @returns {boolean} True when the record's hours can stand for this source's.
  */
@@ -60,9 +63,10 @@ function sameSource(record, source, startEpoch) {
         return false;
     }
     // NaN (unknown current coordinates) fails both comparisons: no reuse.
+    var degrees = typeof source.degrees === 'number' ? source.degrees : SAME_PLACE_DEGREES;
     return record.id === source.id
-        && Math.abs(record.lat - source.lat) <= SAME_PLACE_DEGREES
-        && Math.abs(record.lon - source.lon) <= SAME_PLACE_DEGREES
+        && Math.abs(record.lat - source.lat) <= degrees
+        && Math.abs(record.lon - source.lon) <= degrees
         && (startEpoch - record.t) % HOUR_SECONDS === 0;
 }
 
@@ -81,8 +85,9 @@ function sameSource(record, source, startEpoch) {
 function merge(record, source, series, startEpoch, nowEpoch) {
     var dayStart = hourlyWindow.localDayStart(startEpoch, nowEpoch);
     var out = { id: source.id, lat: source.lat, lon: source.lon, t: startEpoch, v: [] };
-    var i, t;
-    if (sameSource(record, source, startEpoch)) {
+    var same = sameSource(record, source, startEpoch);
+    var i, t, v, old;
+    if (same) {
         for (t = startEpoch - HOUR_SECONDS; t >= dayStart; t -= HOUR_SECONDS) {
             i = (t - record.t) / HOUR_SECONDS;
             if (i < 0 || i >= record.v.length) { break; }
@@ -93,8 +98,16 @@ function merge(record, source, series, startEpoch, nowEpoch) {
     // The whole series, tomorrow's hours included: they become TODAY's earlier
     // hours after midnight, and during the night weather pause the evening's
     // last fetch is the only one that ever saw them ahead.
+    // An hour this fetch did not source (a failed auxiliary call, a feed gap)
+    // keeps the value an earlier fetch stored for it: a null would otherwise
+    // outlive the fetch and leave every later walk back across it "unknown".
     for (i = 0; i < series.length; i += 1) {
-        out.v.push(tenths(series[i]));
+        v = tenths(series[i]);
+        if (v === null && same) {
+            old = (startEpoch + i * HOUR_SECONDS - record.t) / HOUR_SECONDS;
+            if (old >= 0 && old < record.v.length) { v = record.v[old]; }
+        }
+        out.v.push(v);
     }
     return out;
 }
@@ -112,14 +125,18 @@ function merge(record, source, series, startEpoch, nowEpoch) {
  * @param {number} startEpoch Epoch seconds of the series' entry 0.
  * @param {number} [nowEpoch] Current time in epoch seconds.
  * @param {?number} hold The peak the slot would hold (the rest of today's), in
- *   UV index; null when today has none.
- * @returns {?number} The peak in UV index; 0 when no hour came between the
- *   last dip (or midnight) and entry 0; null when unknown — no peak to hold,
+ *   the series' unit; null when today has none.
+ * @param {function(number): number} [toShown] Series value -> the whole number
+ *   the slot prints (wind: in the user's unit); defaults to rounding. A dip is
+ *   judged on these, as dayMaxShown judges the peaks.
+ * @returns {?number} The peak in the series' unit; 0 when no hour came between
+ *   the last dip (or midnight) and entry 0; null when unknown — no peak to hold,
  *   the record is another source's, or it misses an hour before a dip is found.
  */
-function earlierPeak(record, source, startEpoch, nowEpoch, hold) {
+function earlierPeak(record, source, startEpoch, nowEpoch, hold, toShown) {
     if (typeof hold !== 'number' || !isFinite(hold)) { return null; }
-    var holdWhole = Math.round(tenths(hold) / 10);   // as dayMaxShown rounds the wired tenths
+    var shown = toShown || Math.round;
+    var holdWhole = shown(tenths(hold) / 10);   // as dayMaxShown rounds the payload peak
     var dayStart = hourlyWindow.localDayStart(startEpoch, nowEpoch);
     var count = Math.floor((startEpoch - dayStart) / HOUR_SECONDS);
     if (count <= 0) { return 0; }
@@ -131,7 +148,7 @@ function earlierPeak(record, source, startEpoch, nowEpoch, hold) {
         if (i < 0 || i >= record.v.length) { return null; }
         v = record.v[i];
         if (typeof v !== 'number') { return null; }
-        if (Math.round(v / 10) < holdWhole) { break; }
+        if (shown(v / 10) < holdWhole) { break; }
         if (v > peak) { peak = v; }
     }
     return peak / 10;

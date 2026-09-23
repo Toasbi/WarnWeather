@@ -214,9 +214,11 @@ function buildForecastUrl(lat, lon) {
  * dew mapper converts nothing). Mirrors the main request's unixtime/GMT/km-h
  * conventions so the hourly buckets line up with the main window by
  * timestamp. Two GMT days hold every bucket the graph's window reads (the gust's
- * startTime + 24 h included); three while the gust slot shows its day max, whose
+ * startTime + 24 h included); four while the gust slot shows its day max, whose
  * window reads on to PEAK_HOURS (to the end of tomorrow, plus the
- * one-bucket-ahead stamp). The other three fields keep FORECAST_HOURS.
+ * one-bucket-ahead stamp — in a zone ahead of GMT on a 25 h fall-back day that
+ * lands on a fourth GMT day, as it does for UV). The other three fields keep
+ * FORECAST_HOURS.
  *
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
@@ -236,7 +238,7 @@ function buildGustUrl(lat, lon, gustPeak) {
         + '&windspeed_unit=kmh'
         + '&timeformat=unixtime'
         + '&timezone=GMT'
-        + '&forecast_days=' + (gustPeak ? 3 : 2);
+        + '&forecast_days=' + (gustPeak ? 4 : 2);
 }
 
 // hourly-window owns the timestamp-indexed remap (air-quality.js shares it —
@@ -251,7 +253,7 @@ var feelsLike = require('./feels-like.js');
  * cuts the graph's part back out). windgusts_10m is the max "of the preceding
  * hour", so slot i (the hour starting at startTime + i h) reads the bucket
  * stamped one hour later — the same one-bucket-ahead rule mapResponse applies.
- * The aux call's 72 GMT buckets always hold the stamps this needs. Missing or
+ * With the gust day max on, the aux call's four GMT days hold every stamp this needs. Missing or
  * non-numeric buckets become null, which getPayload coerces to 0 — i.e.
  * rendered as no gust for that hour.
  *

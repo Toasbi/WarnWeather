@@ -201,9 +201,15 @@ function formatPeak(prefix, shown, settings, cap) {
     if (shown.now === null) { return peak; }
     var now = String(shown.now);
     var maxFirst = s[prefix + 'SlotOrder'] === 'max';
-    return joinPair(maxFirst ? peak : now, maxFirst ? now : peak,
+    var text = joinPair(maxFirst ? peak : now, maxFirst ? now : peak,
         s[prefix + 'SlotSeparator'], s[prefix + 'SlotSeparatorCustom'],
         s[prefix + 'SlotSeparatorSpaced'], cap);
+    // Three-digit readings (gusts, AQI) can outgrow even the plain slash with a
+    // mark: '152/»178' is 9 bytes, and truncation would print the false peak
+    // '152/»17'. The current reading alone is the honest fallback -- the same
+    // one every mode takes when no peak is known.
+    var limit = typeof cap === 'number' ? cap : catalog.CAPS.EDGE_TEXT_MAX;
+    return utf8.byteLength(text) <= limit ? text : now;
 }
 
 

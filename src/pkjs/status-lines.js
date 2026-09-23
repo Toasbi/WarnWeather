@@ -326,7 +326,7 @@ function formatValue(code, payload, settings, slotKey, cap) {
     var ev = decodeFirstSunEvent(payload.SUN_EVENTS);
     return ev ? formatSunTime(ev.epoch, settings) : '--';
   }
-  if (code === 'uv' || code === 'wind' || code === 'gust' || code === 'aqi') {
+  if (wireUnits.isDayMaxKind(code)) {
     // The day-max kinds' global per-kind display mode (each kind's Edit sheet),
     // the temp slot's pattern: absent = 'current'. 'max' is the day's peak
     // (wire-units' dayMaxShown): today's while it is ahead or running, then
