@@ -145,6 +145,55 @@ test('scenario 4b: migration Clay NACK -> onClayAck skipped, startup fetch still
     assert.equal(h.calls.startFetch[0], true);
 });
 
+// The deferred migration markers (onClayAck) must commit on the next scheduler Clay
+// send that lands when the migration send itself NACKs: every later send carries the
+// same migrated blob, and a marker left unset for the session lets the next launch
+// re-run the migration over whatever the user picked in between.
+test('scenario 4c: after a migration NACK, the next ACKed Clay (config close) runs onClayAck once', function () {
+    resetStore();
+    var h = makeHarness();
+    var ackRuns = 0;
+    h.scheduler.onReady({ migrationClayRequired: true, onClayAck: function () { ackRuns++; } });
+    h.nackClay();
+    assert.equal(ackRuns, 0);
+    h.scheduler.onConfigClosed({ forceFetch: false });
+    h.nackClay();
+    assert.equal(ackRuns, 0, 'a NACK never commits');
+    h.scheduler.onConfigClosed({ forceFetch: false });
+    h.ackClay();
+    assert.equal(ackRuns, 1, 'the ACKed config-close Clay commits the markers');
+    h.scheduler.onConfigClosed({ forceFetch: false });
+    h.ackClay();
+    assert.equal(ackRuns, 1, 'exactly once');
+});
+
+test('scenario 4d: a day-change resend ACK also commits a pending migration', function () {
+    resetStore();
+    var h = makeHarness();
+    var ackRuns = 0;
+    h.setNow(new Date(2026, 6, 7, 12, 0, 0));
+    h.scheduler.onReady({ migrationClayRequired: true, onClayAck: function () { ackRuns++; } });
+    h.nackClay();
+    h.scheduler.start();
+    h.setNow(new Date(2026, 6, 8, 0, 1, 0));
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 2, 'the midnight resend went out');
+    h.ackClay();
+    assert.equal(ackRuns, 1);
+});
+
+test('scenario 4e: a storage reset drops the pending migration commit', function () {
+    resetStore();
+    var h = makeHarness();
+    var ackRuns = 0;
+    h.scheduler.onReady({ migrationClayRequired: true, onClayAck: function () { ackRuns++; } });
+    h.nackClay();
+    h.scheduler.onStorageReset();
+    h.scheduler.onConfigClosed({ forceFetch: true });
+    h.ackClay();
+    assert.equal(ackRuns, 0, 'no markers written into the wiped store');
+});
+
 test('scenario 6: config close with forceFetch -> Clay sent, fetch deferred via setTimeout(0)', function () {
     resetStore();
     var h = makeHarness();

@@ -27,7 +27,7 @@ var storageKeys = require('./storage-keys.js');
  * @param {function():?string} [deps.effectiveThemeId] The auto-switch theme in effect right now, or null while the switch is off (theme-schedule.js via index.js).
  * @param {function(Function, number):*} deps.setTimeout Timer function (injected so tests drive a fake queue).
  * @param {function():Date} deps.now Current-time supplier (injected for a fake clock).
- * @returns {{onWatchStatus: Function, onReady: Function, onConfigClosed: Function, onHolidaysUpdated: Function, start: Function}} The scheduler.
+ * @returns {{onWatchStatus: Function, onReady: Function, onConfigClosed: Function, onHolidaysUpdated: Function, onStorageReset: Function, start: Function}} The scheduler.
  */
 function createChannelScheduler(deps) {
     // Readiness latch: replaces index.js's `app.settings && app.provider` peek.
@@ -44,6 +44,13 @@ function createChannelScheduler(deps) {
     // the outbox only knows a payload once it is ACKed, so it cannot dedupe the
     // first tick's send against one still in flight.
     var lastEffectiveTheme = null;
+    // The boot's deferred migration-marker commit (onReady's onClayAck), held
+    // until ANY scheduler Clay send is ACKed, not only the boot one: every later
+    // send carries the same migrated blob. Were only the boot send allowed to run
+    // it, a NACK there would leave the markers unset for the whole session, and
+    // the next launch would re-run the migration over whatever the user chose in
+    // between (it cannot tell a post-migration pick from the old seeded value).
+    var pendingClayAck = null;
 
     /**
      * Today's local-day stamp (year-month-date) for detecting a day rollover.
@@ -74,6 +81,28 @@ function createChannelScheduler(deps) {
      */
     function forgetHolidayDaySent() {
         localStorage.removeItem(storageKeys.LAST_HOLIDAY_DAY_KEY);
+    }
+
+    /**
+     * Every scheduler Clay send goes through here. Success — an ACK, or the
+     * outbox's deduped no-op, which means the watch already holds those bytes —
+     * first runs the pending deferred migration commit, once.
+     *
+     * @param {Function} [onSuccess] Called after ACK, or immediately when unchanged.
+     * @param {Function} [onFailure] Called on NACK.
+     * @returns {void}
+     */
+    function sendClay(onSuccess, onFailure) {
+        deps.sendClay(function () {
+            var commit = pendingClayAck;
+            pendingClayAck = null;
+            if (commit) {
+                commit();
+            }
+            if (typeof onSuccess === 'function') {
+                onSuccess();
+            }
+        }, onFailure);
     }
 
     /**
@@ -133,7 +162,7 @@ function createChannelScheduler(deps) {
             // resends from colliding with it.
             markHolidayDaySent();
             claimThemeStamp();
-            deps.sendClay(drainPendingStartupFetch, onStartupClayNack);
+            sendClay(drainPendingStartupFetch, onStartupClayNack);
             return;
         }
         drainPendingStartupFetch();
@@ -169,6 +198,9 @@ function createChannelScheduler(deps) {
     /**
      * Handle PebbleKit 'ready': set the readiness latch, then either let a
      * required migration Clay send cover the handshake send, or drain normally.
+     * opts.onClayAck (the deferred migration-marker commit) runs once, on the
+     * first scheduler Clay send of this session that succeeds — the migration
+     * send itself, or a later one if that NACKs — and never on a NACK.
      *
      * @param {{migrationClayRequired: boolean, onClayAck: Function=}} opts Ready options.
      * @returns {void}
@@ -182,12 +214,8 @@ function createChannelScheduler(deps) {
             pendingClaySend = false;
             markHolidayDaySent();
             claimThemeStamp();
-            deps.sendClay(function () {
-                if (typeof opts.onClayAck === 'function') {
-                    opts.onClayAck();
-                }
-                drainPendingStartupFetch();
-            }, onStartupClayNack);
+            pendingClayAck = (typeof opts.onClayAck === 'function') ? opts.onClayAck : null;
+            sendClay(drainPendingStartupFetch, onStartupClayNack);
             return;
         }
         drainPendingStartupSends();
@@ -228,7 +256,7 @@ function createChannelScheduler(deps) {
                 deps.setTimeout(function () { deps.clearNoticeOnWatch(); }, 0);
             };
         }
-        deps.sendClay(afterClay, afterClay);
+        sendClay(afterClay, afterClay);
     }
 
     /**
@@ -252,7 +280,7 @@ function createChannelScheduler(deps) {
             return false;
         }
         localStorage.setItem(storageKeys.LAST_HOLIDAY_DAY_KEY, today);
-        deps.sendClay(function () {
+        sendClay(function () {
             if (typeof deps.effectiveThemeId === 'function') {
                 lastEffectiveTheme = deps.effectiveThemeId();
             }
@@ -286,7 +314,7 @@ function createChannelScheduler(deps) {
         holidayResendQueued = true;
         deps.setTimeout(function () {
             holidayResendQueued = false;
-            deps.sendClay(function () {}, forgetHolidayDaySent);
+            sendClay(function () {}, forgetHolidayDaySent);
         }, 0);
     }
 
@@ -308,7 +336,7 @@ function createChannelScheduler(deps) {
             return;
         }
         lastEffectiveTheme = themeId;
-        deps.sendClay(function () {}, function () { lastEffectiveTheme = null; });
+        sendClay(function () {}, function () { lastEffectiveTheme = null; });
     }
 
     /**
@@ -336,6 +364,18 @@ function createChannelScheduler(deps) {
     }
 
     /**
+     * The phone storage was just wiped ("Reset watchface"): drop the pending
+     * migration commit, so the Clay send that follows the reset cannot write
+     * migration markers back into the emptied store — the next launch boots as a
+     * fresh install and runs every migration against fresh defaults.
+     *
+     * @returns {void}
+     */
+    function onStorageReset() {
+        pendingClayAck = null;
+    }
+
+    /**
      * Start the self-rearming 60 s tick. Runs the first tick synchronously.
      * Must be called only after onReady (index.js honors this; the fixture path
      * never calls start()).
@@ -351,6 +391,7 @@ function createChannelScheduler(deps) {
         onReady: onReady,
         onConfigClosed: onConfigClosed,
         onHolidaysUpdated: onHolidaysUpdated,
+        onStorageReset: onStorageReset,
         start: start
     };
 }

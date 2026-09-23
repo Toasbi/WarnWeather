@@ -74,9 +74,11 @@ function loadForMigration(isMigrationDone, label) {
  *
  * The two Clay-COLOR migrations and the 1.15.0 graph-night-colour resend defer
  * their marker to the Clay ACK: a migrated blob is only safe once the watch has
- * it, and a NACK must leave the marker unset so the migration retries next
- * boot. Their migrate* functions return true for "the Clay resend must carry
- * this" (marking themselves only on their no-op branches — e.g. already-migrated
+ * it, and a NACK must leave the marker unset. The scheduler runs the commit on
+ * the first Clay send of the session that is ACKed — the boot send, or a later
+ * one carrying the same blob — so only a session in which none lands retries
+ * the migration next boot. Their migrate* functions return true for "the Clay
+ * resend must carry this" (marking themselves only on their no-op branches — e.g. already-migrated
  * values return true WITHOUT marking); the caller passes commitDeferredMarkers
  * as the scheduler's onClayAck. Everything else marks synchronously inside its
  * migrate* function.

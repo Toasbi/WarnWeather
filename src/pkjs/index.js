@@ -274,6 +274,9 @@ Pebble.addEventListener('webviewclosed', function(e) {
         app.settings = Object.assign(claySettings.getDefaults(DEFAULT_HOLIDAY_COLORS), preserved);
         refreshProvider();   // the default provider, holding the preserved key
         outbox.clearWeatherCaches();
+        // A boot migration still waiting for its Clay ACK must not commit its
+        // markers into the storage we just wiped.
+        scheduler.onStorageReset();
         scheduler.onConfigClosed({ forceFetch: true, clearNotice: false });
         return;
     }
@@ -428,8 +431,10 @@ Pebble.addEventListener('ready',
         }
         scheduler.onReady({
             migrationClayRequired: migrations.clayRequired,
-            // Runs on ACK only, so a NACK leaves the deferred migration markers
-            // unset and the migration retries next boot.
+            // Runs on ACK only: the migration send's, or — when that one NACKs —
+            // the next scheduler Clay send's that lands this session (it carries
+            // the same migrated blob). Only a session with no ACKed Clay at all
+            // leaves the markers unset, and the migration retries next boot.
             onClayAck: migrations.commitDeferredMarkers
         });
         refreshHolidays();
