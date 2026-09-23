@@ -41,6 +41,7 @@ var renderSignature = require('./render-signature.js').renderSignature;
 var decideConfigClose = require('./config-close.js').decideConfigClose;
 var phoneBattery = require('./phone-battery.js');
 var statusRebake = require('./status-rebake.js');
+var platformLib = require('./config-ui/lib/platform.js');
 
 /**
  * Full release-notification manifest (dev: force-show by version). Omitted from bundle if missing.
@@ -815,6 +816,16 @@ function isWatchConnected() {
  * @returns {void}
  */
 function withRainRadarTuplesAt(lat, lon, callback) {
+    if (!platformLib.computeEnv(app.watchInfo).radar) {
+        // The watch compiles the radar out (aplite: no WW_RAIN_RADAR) and drops
+        // every RAIN_RADAR_* tuple, so skip the request and leave the keys out
+        // of the send. The Radar settings tab is hidden there, so an install
+        // whose settings were never saved still holds the 'graph' default — the
+        // gate has to live here, not in the stored radarMode. An unknown
+        // platform (no watchInfo) stays radar-capable, as in computeEnv.
+        callback(null);
+        return;
+    }
     // Radar source is configured independently of the forecast provider. The
     // 5-min pinned slot-0 epoch (RAIN_RADAR_START on the wire) is computed here
     // at the clock edge, so the adapters stay deterministic (no clock injection).
