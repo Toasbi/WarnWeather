@@ -827,7 +827,7 @@ function bootWithCapturedListeners(schema, env, opts) {
     + '\nPConf.engine.boot();';
   const listeners = {};
   const modalListeners = {};
-  const focusCounts = { select: {}, date: {} };
+  const focusCounts = { select: {}, date: {}, 'edit-sheet': {} };
   const scroll = { innerHTML: '', addEventListener: (type, fn) => { listeners[type] = fn; } };
   const modal = {
     innerHTML: '',
@@ -839,14 +839,14 @@ function bootWithCapturedListeners(schema, env, opts) {
   const generic = () => ({ innerHTML: '', textContent: '', addEventListener: () => {} });
   const ids = { scroll, modal, tabs: generic(), save: generic(), appTitle: generic(), toast: generic() };
   // Resolve the selectors boot() issues against `document`: live-search lists and the fresh
-  // select/date triggers that closeModal() may restore focus to after render.
+  // select/date/edit-sheet triggers that closeModal() may restore focus to after render.
   const document = {
     getElementById: (id) => ids[id] || generic(),
     addEventListener: () => {},
     querySelector: (sel) => {
       var m = /^\[data-ssel-list="(.+)"\]$/.exec(sel);
       if (m) { return sselList; }
-      m = /^\[data-(select|date)="(.+)"\]$/.exec(sel);
+      m = /^\[data-(select|date|edit-sheet)="(.+)"\]$/.exec(sel);
       if (m) {
         return { focus: () => {
           focusCounts[m[1]][m[2]] = (focusCounts[m[1]][m[2]] || 0) + 1;
@@ -1246,13 +1246,15 @@ test('boot(): closing an edit sheet collapses a palette expanded inside it', () 
 // A `select` row INSIDE an edit sheet: its options open in the same dialog, over the
 // sheet, and every way of closing them lands back on the sheet — only the sheet's own
 // close dismisses the dialog. The sheet also reveals a row on the picked value, so a
-// test can see the pick reached the re-rendered sheet.
+// test can see the pick reached the re-rendered sheet, and holds a color row whose
+// palette a trip through the select must collapse.
 const SHEET_SELECT_SCHEMA = {
   appName: 'X', versionLabel: 'v0',
   tabs: [{ id: 't', label: 'T', sections: [
     { title: 'S', items: [{ type: 'sheet', sheetId: 'fmt', label: 'Format' }] },
     { sheetOnly: true, sheetId: 'fmt', title: 'Format', items: [
       { type: 'toggle', messageKey: 'flag', label: 'Flag', defaultValue: false },
+      { type: 'color', messageKey: 'tone', label: 'Tone', defaultValue: 0x00FF00 },
       { type: 'select', messageKey: 'sep', label: 'Separator', defaultValue: 'slash',
         onChange: 'sepPicked', options: [['12/10', 'slash'], ['Custom', 'custom']] },
       { type: 'text', messageKey: 'sepText', label: 'Custom separator', defaultValue: '',
@@ -1343,6 +1345,35 @@ test('boot(): back from a sheet\'s select, the sheet keeps its scroll offset and
   assert.equal(list.scrollTop, 120, 'the sheet comes back where it was, not at the list\'s offset');
   assert.equal(triggerFocus, 1, 'focus returns to the select row inside the sheet');
   assert.equal(r.focusCounts.select.sep || 0, 0, 'not to a trigger in the tab body');
+});
+
+test('boot(): focus follows a sheet\'s select into its options, back to its row, then to the Edit pencil', () => {
+  let optionFocus = 0;
+  const r = bootWithFormatSheet({ modalQuery: (sel) => {
+    if (sel === '.ssel-opt.on') { return { focus: () => { optionFocus++; } }; }
+    if (sel === '[data-select="sep"]') { return { focus: () => {} }; }
+    return null;
+  } });
+  clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
+  assert.equal(optionFocus, 1, 'opening the select moves focus onto its current option');
+  clickMatching(r.modalListeners.click, '[data-select-pick]',
+    { 'data-k': 'sep', 'data-select-pick': 'custom' });
+  // The sheet's own close: its select row goes away with it, so focus lands on the
+  // Edit pencil that opened the sheet, not on a stale [data-select="sep"].
+  clickMatching(r.modalListeners.click, '[data-select-close]', {});
+  assert.equal(r.modal.innerHTML, '', 'the sheet itself is dismissed');
+  assert.equal(r.focusCounts['edit-sheet'].fmt || 0, 1, 'focus returns to the Edit pencil');
+  assert.equal(r.focusCounts.select.sep || 0, 0, 'not to the select row that closed with the sheet');
+});
+
+test('boot(): a palette expanded in a sheet comes back collapsed from the sheet\'s select', () => {
+  const r = bootWithFormatSheet();
+  clickMatching(r.modalListeners.click, '[data-color]', { 'data-color': 'tone' });
+  assert.ok(r.modal.innerHTML.indexOf('class="palette"') >= 0, 'the palette expands inside the sheet');
+  clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
+  clickMatching(r.modalListeners.click, '[data-select-close]', {});
+  assert.ok(r.modal.innerHTML.indexOf('data-k="flag"') >= 0, 'back on the sheet');
+  assert.equal(r.modal.innerHTML.indexOf('class="palette"'), -1, 'the palette is collapsed');
 });
 
 test('boot(): a color swatch goes through setValue, so it fires the item\'s onChange', () => {

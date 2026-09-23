@@ -770,8 +770,12 @@ test('Nighttime: consecutive rows inside a group are evenly spaced, in every exp
 // paddings as the rest of the tab (ROW_PAD / NB_*, read from shell.html above) — tight
 // inside a group, one plain row divider between groups.
 test('Nighttime: the card steps in the General tab\'s row rhythm, on every watch and in every state', () => {
-  const envs = { emery: emeryEnv, basalt: basaltEnv,
-    aplite: platform.computeEnv({ platform: 'aplite' }) };
+  // Every platform, not a sample: the Night theme row has a colour copy and a B/W one
+  // (diorite/flint), and only rendering both pins each copy's own join.
+  const envs = {};
+  ['aplite', 'basalt', 'chalk', 'diorite', 'emery', 'flint', 'gabbro'].forEach((p) => {
+    envs[p] = platform.computeEnv({ platform: p });
+  });
   let seams = 0;
   Object.keys(envs).forEach((envName) => {
     Object.keys(NIGHT_STATES).forEach((state) => {
